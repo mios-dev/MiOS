@@ -1,4 +1,4 @@
-<!-- [NET] MiOS Artifact | Proprietor: MiOS-DEV | https://github.com/Kabuki94/MiOS-bootstrap -->
+<!-- [NET] MiOS Artifact | Proprietor: MiOS-DEV | https://github.com/MiOS-DEV/MiOS-bootstrap -->
 # [NET] MiOS
 ```json:knowledge
 {
@@ -81,7 +81,7 @@ Each CI build generates an SPDX and CycloneDX Software Bill of Materials listing
 - **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
 - **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
 - **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [Kabuki94/MiOS-bootstrap](https://github.com/Kabuki94/MiOS-bootstrap)
+- **Project Repository:** [MiOS-DEV/MiOS-bootstrap](https://github.com/MiOS-DEV/MiOS-bootstrap)
 - **Sole Proprietor:** MiOS-DEV
 ---
 <!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-DEV -->

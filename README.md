@@ -5,7 +5,7 @@
 
 **Version:** v0.2.0
 **Image:** `ghcr.io/kabuki94/mios:latest`
-**Bootstrap (installer):** https://github.com/Kabuki94/MiOS-bootstrap
+**Bootstrap (installer):** https://github.com/MiOS-DEV/MiOS-bootstrap
 
 ---
 
@@ -39,7 +39,7 @@ to apply the system overlay.
 End users run:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kabuki94/MiOS-bootstrap/main/install.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/install.sh)"
 ```
 
 The bootstrap installer prompts for username, hostname, password, etc. (all

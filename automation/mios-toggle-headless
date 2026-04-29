@@ -1,0 +1,120 @@
+#!/bin/bash
+# MiOS v0.1.1 — mios-toggle-headless
+# Toggle between GUI desktop (graphical.target) and headless (multi-user.target)
+# Works from TTY, terminal, SSH, or Cockpit console.
+# Usage: mios-toggle-headless [on|off|status]
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+current_target() {
+    systemctl get-default 2>/dev/null
+}
+
+is_gdm_running() {
+    systemctl is-active gdm.service &>/dev/null
+}
+
+show_status() {
+    local target
+    target=$(current_target)
+    echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  MiOS — Display Mode Status                  ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Default target:  ${YELLOW}${target}${NC}"
+    if is_gdm_running; then
+        echo -e "  GDM status:      ${GREEN}running${NC}"
+        echo -e "  Mode:            ${GREEN}GUI Desktop${NC}"
+    else
+        echo -e "  GDM status:      ${RED}stopped${NC}"
+        echo -e "  Mode:            ${YELLOW}Headless (CLI only)${NC}"
+    fi
+    echo ""
+    echo -e "  Toggle:  ${CYAN}mios-toggle-headless on${NC}   → GUI Desktop"
+    echo -e "           ${CYAN}mios-toggle-headless off${NC}  → Headless"
+    echo ""
+}
+
+go_headless() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}Error: Must run as root (sudo mios-toggle-headless off)${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}Switching to headless mode...${NC}"
+
+    # Set default target for next boot
+    systemctl set-default multi-user.target
+
+    # Stop GDM and all user graphical sessions NOW
+    if is_gdm_running; then
+        echo "  Stopping GDM..."
+        systemctl stop gdm.service 2>/dev/null || true
+        # Also stop any lingering user Wayland/X sessions
+        systemctl stop display-manager.service 2>/dev/null || true
+    fi
+
+    echo -e "${GREEN}✓ Headless mode active.${NC}"
+    echo -e "  GDM is stopped. System boots to CLI on next reboot."
+    echo -e "  Access via: SSH, Cockpit (https://$(hostname -I | awk '{print $1}'):9090), or TTY."
+    echo -e "  Restore GUI: ${CYAN}sudo mios-toggle-headless on${NC}"
+}
+
+go_gui() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}Error: Must run as root (sudo mios-toggle-headless on)${NC}"
+        exit 1
+    fi
+
+    # Check if we're in WSL2 — GDM doesn't work there
+    VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
+    if [[ "$VIRT" == "wsl" ]]; then
+        echo -e "${RED}Error: GDM cannot run in WSL2. Use WSLg for graphical apps.${NC}"
+        exit 1
+    fi
+
+    echo -e "${YELLOW}Switching to GUI desktop mode...${NC}"
+
+    # Set default target for next boot
+    systemctl set-default graphical.target
+
+    # Start GDM NOW
+    if ! is_gdm_running; then
+        echo "  Starting GDM..."
+        systemctl start gdm.service 2>/dev/null || true
+    fi
+
+    echo -e "${GREEN}✓ GUI desktop mode active.${NC}"
+    echo -e "  GDM is running. System boots to desktop on next reboot."
+}
+
+case "${1:-status}" in
+    on|gui|desktop|graphical)
+        go_gui
+        ;;
+    off|headless|cli|server)
+        go_headless
+        ;;
+    status|--status|-s)
+        show_status
+        ;;
+    --help|-h|help)
+        echo "Usage: mios-toggle-headless [on|off|status]"
+        echo ""
+        echo "  on      Switch to GUI desktop (start GDM, set graphical.target)"
+        echo "  off     Switch to headless CLI (stop GDM, set multi-user.target)"
+        echo "  status  Show current mode (default)"
+        echo ""
+        echo "Requires root for on/off. Status can be checked as any user."
+        ;;
+    *)
+        echo -e "${RED}Unknown option: $1${NC}"
+        echo "Usage: mios-toggle-headless [on|off|status]"
+        exit 1
+        ;;
+esac

@@ -79,7 +79,7 @@ just --version
 ```bash
 # Clone to temporary location
 cd /tmp
-git clone https://github.com/Kabuki94/MiOS-bootstrap.git
+git clone https://github.com/MiOS-DEV/MiOS-bootstrap.git
 cd mios
 ```
 
@@ -266,7 +266,7 @@ mios rechunk
 ```bash
 # Install on Fedora Workstation
 sudo dnf install -y git podman just rsync
-git clone https://github.com/Kabuki94/MiOS-bootstrap.git
+git clone https://github.com/MiOS-DEV/MiOS-bootstrap.git
 cd mios
 sudo ./install.sh
 
@@ -283,7 +283,7 @@ mios build
 ```bash
 # Minimal Fedora Server
 sudo dnf install -y git podman just rsync
-git clone https://github.com/Kabuki94/MiOS-bootstrap.git
+git clone https://github.com/MiOS-DEV/MiOS-bootstrap.git
 cd mios
 sudo ./install.sh
 
@@ -355,7 +355,7 @@ mios build
 ```bash
 # Pull latest changes
 cd /tmp
-git clone https://github.com/Kabuki94/MiOS-bootstrap.git
+git clone https://github.com/MiOS-DEV/MiOS-bootstrap.git
 cd mios
 
 # Re-install (overwrites /usr/share/mios/ and /etc/mios/)

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>MiOS Omni-Agent To-Do</title>
+  <style>
+    /* MiOS Dark Theme (Libadwaita / GNOME inspired) */
+    :root {
+      --bg-color: #1e1e1e;
+      --card-bg: #2d2d2d;
+      --text-main: #ffffff;
+      --text-muted: #a0a0a0;
+      --accent: #3584e4;
+      --accent-hover: #1c71d8;
+      --border: #444444;
+      --danger: #e01b24;
+      --danger-hover: #c01c28;
+      --success: #26a269;
+    }
+    
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      background: var(--bg-color); 
+      color: var(--text-main);
+      margin: 0; 
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+    
+    .container { 
+      width: 100%;
+      max-width: 600px; 
+      background: var(--card-bg); 
+      border-radius: 12px; 
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5); 
+      padding: 2rem;
+      border: 1px solid var(--border);
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 { 
+      font-weight: 600;
+      margin: 0;
+      font-size: 1.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .save-btn {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .save-btn:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+    
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    
+    form { 
+      display: flex; 
+      margin-bottom: 1.5rem; 
+      gap: 0.5rem;
+    }
+    
+    input[type="text"] {
+      flex: 1; 
+      padding: 0.75rem 1rem; 
+      background: var(--bg-color);
+      border: 1px solid var(--border); 
+      color: var(--text-main);
+      border-radius: 8px; 
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+    
+    button[type="submit"] {
+      padding: 0 1.5rem; 
+      border: none; 
+      background: var(--accent); 
+      color: #fff; 
+      border-radius: 8px;
+      font-size: 1rem; 
+      font-weight: 500;
+      cursor: pointer; 
+      transition: background 0.2s;
+    }
+    
+    button[type="submit"]:hover { 
+      background: var(--accent-hover); 
+    }
+    
+    ul { 
+      list-style: none; 
+      padding: 0; 
+      margin: 0; 
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    li {
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      background: var(--bg-color); 
+      border: 1px solid var(--border);
+      border-radius: 8px; 
+      padding: 0.75rem 1rem;
+      transition: opacity 0.2s;
+    }
+    
+    li[data-status="done"] { 
+      opacity: 0.6; 
+    }
+    li[data-status="done"] .task-text {
+      text-decoration: line-through;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      cursor: pointer;
+    }
+    
+    .task-text {
+      margin-left: 0.75rem;
+      line-height: 1.4;
+    }
+    
+    .delete { 
+      color: var(--danger); 
+      background: none; 
+      border: none; 
+      cursor: pointer; 
+      font-size: 1.2rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      transition: all 0.2s;
+      margin-left: 1rem;
+    }
+    
+    .delete:hover { 
+      color: #fff; 
+      background: var(--danger); 
+    }
+    
+    input[type="checkbox"] { 
+      appearance: none;
+      -webkit-appearance: none;
+      width: 1.2rem;
+      height: 1.2rem;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-color);
+      cursor: pointer;
+      display: grid;
+      place-content: center;
+      margin: 0;
+    }
+    
+    input[type="checkbox"]::before {
+      content: "";
+      width: 0.65em;
+      height: 0.65em;
+      transform: scale(0);
+      transition: 120ms transform ease-in-out;
+      box-shadow: inset 1em 1em var(--text-main);
+      background-color: var(--text-main);
+      transform-origin: center;
+      clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    }
+    
+    input[type="checkbox"]:checked {
+      background: var(--success);
+      border-color: var(--success);
+    }
+    
+    input[type="checkbox"]:checked::before {
+      transform: scale(1);
+    }
+    
+    .agent-context {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    
+    .agent-context code {
+      background: var(--bg-color);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: monospace;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>MiOS Omni-Agent To-Do</h1>
+      <button id="save-btn" class="save-btn" title="Save changes directly to this HTML file">💾 Save File</button>
+    </div>
+    <div class="subtitle">Unified task tracking for Users and AI Agents</div>
+    
+    <form id="todo-form">
+      <input type="text" id="todo-input" placeholder="Enter a new task..." autocomplete="off" required="">
+      <button type="submit">Add</button>
+    </form>
+    
+    <!-- DOM Source of Truth: Agents append <li> items here, JS parses them. -->
+    <ul id="todo-list">
+      <!-- TASK_START -->
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">Migrate to USR-OVER-ETC</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="pending">
+        <label><input type="checkbox"> <span class="task-text">Prepare for Fedora 44 GA (April 28)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">bootc v1.14.0 feature adoption review (disk space checks &amp; export features)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">Post-rebase GNOME 50.1 / Mutter VRR check (F44)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">Cockpit weekly cadence check (&gt;= 361 enforced)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="pending">
+        <label><input type="checkbox"> <span class="task-text">ublue-os/cayo stability check (MiOS-3 base migration)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">Monitor Waydroid #1883 for upstream progress (COPR enabled)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">Ollama ComposeFS/Immutable model optimization</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">Only build in storage buckets (Cloud Build verified)</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="done">
+        <label><input type="checkbox" checked=""> <span class="task-text">security pass and checks.</span></label>
+        <button class="delete">✖</button>
+      </li>
+      <li data-status="pending">
+        <label><input type="checkbox"> <span class="task-text">Monitor Cloud-Compute AI Data-Driven Optimization job</span></label>
+        <button class="delete">✖</button>
+        </li><!-- TASK_END -->
+    </ul>
+
+    <div class="agent-context">
+      <p><strong>Agent Instructions:</strong> This file is its own backend. To add a task programmatically, use your file replacement tools to insert an <code>&lt;li&gt;</code> element immediately before the <code>&lt;!-- TASK_END --&gt;</code> marker.</p>
+      <p><strong>User Instructions:</strong> When adding or completing tasks in the browser UI, click <strong>Save File</strong> to export the updated HTML and overwrite your local copy, ensuring the Agent sees your changes.</p>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('todo-input');
+    const form = document.getElementById('todo-form');
+    const list = document.getElementById('todo-list');
+    const saveBtn = document.getElementById('save-btn');
+
+    // Attach event listeners to existing DOM elements (source of truth)
+    function bindEvents(li) {
+      const checkbox = li.querySelector('input[type="checkbox"]');
+      const delBtn = li.querySelector('.delete');
+
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          li.setAttribute('data-status', 'done');
+          checkbox.setAttribute('checked', 'checked');
+        } else {
+          li.setAttribute('data-status', 'pending');
+          checkbox.removeAttribute('checked');
+        }
+      });
+
+      delBtn.addEventListener('click', () => {
+        li.remove();
+      });
+    }
+
+    // Initialize events for items baked in by the Agent
+    list.querySelectorAll('li').forEach(bindEvents);
+
+    // Handle new task submission from the User
+    form.onsubmit = e => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (text) {
+        const li = document.createElement('li');
+        li.setAttribute('data-status', 'pending');
+        
+        li.innerHTML = `
+        <label><input type="checkbox" /> <span class="task-text">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span></label>
+        <button class="delete">✖</button>
+        `;
+        
+        bindEvents(li);
+        
+        // Insert before TASK_END marker
+        const taskEndComment = Array.from(list.childNodes).find(
+          node => node.nodeType === 8 && node.nodeValue.includes('TASK_END')
+        );
+        
+        if (taskEndComment) {
+          list.insertBefore(li, taskEndComment);
+        } else {
+          list.appendChild(li); // Fallback
+        }
+        
+        input.value = '';
+      }
+    };
+
+    // Save File logic to persist User's DOM changes back to the HTML file
+    saveBtn.addEventListener('click', async () => {
+      // Create a clean copy of the document HTML
+      const htmlContent = document.documentElement.outerHTML;
+      
+      try {
+        // Try the modern File System Access API first (supported in Chrome/Edge)
+        if (window.showSaveFilePicker) {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: 'MiOS-Omni-Todo.html',
+            types: [{
+              description: 'HTML File',
+              accept: {'text/html': ['.html']},
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write('<!DOCTYPE html>\n' + htmlContent);
+          await writable.close();
+          alert('Saved successfully! The Agent will now see your changes.');
+        } else {
+          // Fallback to simple download link for Firefox/Safari
+          const blob = new Blob(['<!DOCTYPE html>\n' + htmlContent], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'MiOS-Omni-Todo.html';
+          a.click();
+          URL.revokeObjectURL(url);
+          alert('File downloaded. Please replace the existing HTML file in your workspace with this new version.');
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error(err);
+          alert('Failed to save file: ' + err.message);
+        }
+      }
+    });
+  </script>
+
+</body></html>

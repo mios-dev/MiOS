@@ -1,9 +1,10 @@
-# /usr/lib/bootc/kargs.d/01-mios-vfio.toml
-# Vendor-neutral IOMMU + VFIO kernel args. bootc applies these on update.
-
 kargs = [
     "iommu=pt",
     "rd.driver.pre=vfio-pci",
     "kvm.ignore_msrs=1",
     "kvm.report_ignored_msrs=0",
+    "kvm-intel.nested=1",
+    "kvm-intel.enable_shadow_vmcs=1",
+    "kvm-intel.ept=1",
+    "kvm-amd.nested=1"
 ]
