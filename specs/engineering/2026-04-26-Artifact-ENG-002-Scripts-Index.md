@@ -1,6 +1,6 @@
 <!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
 # 📜 MiOS Scripts Index
-> **Generated:** 2026-04-27T15:18:21.949050
+> **Generated:** 2026-04-29T21:19:59.802286
 > **Status:** Automated Sync
 
 ```json:knowledge
@@ -12,8 +12,8 @@
     "automation",
     "index"
   ],
-  "version": "0.1.1",
-  "last_rag_sync": "2026-04-27T15:03:21.271935"
+  "version": "0.2.0",
+  "last_rag_sync": "2026-04-29T21:16:01.389879"
 }
 ```
 
@@ -178,6 +178,10 @@ This file provides a machine-readable and human-readable index of all automation
 ## `49-finalize.sh`
 - **Path:** `automation/49-finalize.sh`
 - **Description:** 49-finalize.sh - final cleanup, systemd preset application, image linting
+
+## `50-enable-log-copy-service.sh`
+- **Path:** `automation/50-enable-log-copy-service.sh`
+- **Description:** No description available.
 
 ## `52-bake-kvmfr.sh`
 - **Path:** `automation/52-bake-kvmfr.sh`

@@ -55,6 +55,15 @@
 !srv/**
 !v1/
 !v1/**
+!artifacts/
+!artifacts/**
+
+# Re-ignore noise inside whitelisted dirs
+**/__pycache__/
+**/*.pyc
+**/.DS_Store
+**/Thumbs.db
+**
 
 # Re-ignore noise inside whitelisted dirs
 **/__pycache__/
