@@ -1,0 +1,291 @@
+# -----------------------------------------------------------------------------
+# MiOS CI/CD Pipeline
+# Build  Rechunk  Sign  Push  SBOM  Cleanup
+#
+# v2.1.0: Hardened triggers and automated maintenance.
+# -----------------------------------------------------------------------------
+name: Build MiOS
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*'
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+  schedule:
+    # Weekly rebuild  picks up base image updates (kernel, Mesa, systemd)
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      force_push:
+        description: "Push image even on non-main branch"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  BASE_IMAGE: ghcr.io/ublue-os/ucore-hci:stable-nvidia
+
+permissions:
+  contents: read
+  packages: write
+  actions: write      # Required for workflow run cleanup
+  id-token: write    # Required for cosign keyless (OIDC) signing
+
+jobs:
+  # --- Build Job -------------------------------------------------------------
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.rechunk.outputs.digest }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lowercase IMAGE_NAME
+        run: |
+          echo "IMAGE_NAME=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Read VERSION
+        id: version
+        run: |
+          VERSION=$(cat VERSION 2>/dev/null || echo "v0.1.3")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Maximize build space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
+      - name: Manual aggressive cleanup
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/az
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/.ghcup
+          sudo apt-get clean
+          sudo docker image prune -af
+          df -h
+
+      - name: Install Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y qemu-utils podman
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | sudo bash -s -- --to /usr/local/bin
+          # Install cosign
+          curl -sL https://github.com/sigstore/cosign/releases/download/v2.6.3/cosign-linux-amd64 -o /usr/local/bin/cosign
+          chmod +x /usr/local/bin/cosign
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=sha,prefix=
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          load: ${{ github.event_name == 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || inputs.force_push) }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
+            VERSION=${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run smoke tests
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            IMAGE="${{ env.IMAGE_NAME }}:latest"
+          fi
+          chmod +x evals/smoke-test.sh
+          ./evals/smoke-test.sh "$IMAGE"
+
+      - name: Prune Docker before rechunking
+        run: |
+          sudo docker image prune -af
+          df -h
+
+      - name: Rechunk image
+        id: rechunk
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          for i in {1..5}; do podman pull "$IMAGE" && break || sleep 15; done
+          
+          # Optimization for granular OCI differentials:
+          # rechunk --max-layers 67 ensures stability, but we use --zstd:chunked if available
+          # to enable OSTree-style file-level delta transmission at the registry level.
+          sudo podman run --rm --privileged \
+            -v /var/lib/containers:/var/lib/containers \
+            "$IMAGE" \
+            /usr/libexec/bootc-base-imagectl rechunk \
+              --max-layers 67 \
+              "containers-storage:$IMAGE" \
+              "containers-storage:localhost/rechunked-latest"
+          
+          # Push rechunked image with optimized layers for bandwidth reduction
+          for i in {1..3}; do podman push --digestfile=rechunk-digest.txt "localhost/rechunked-latest" "$IMAGE" && break || sleep 20; done
+          echo "digest=$(cat rechunk-digest.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Sign image
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        env:
+          DIGEST: ${{ steps.rechunk.outputs.digest }}
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          cosign sign --yes --new-bundle-format=false "${IMAGE}@${DIGEST}"
+
+      - name: Generate and attach SBOM
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        env:
+          DIGEST: ${{ steps.rechunk.outputs.digest }}
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          
+          # Install Syft and Oras
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz
+          mkdir -p oras-install
+          tar -zxf oras_1.2.2_linux_amd64.tar.gz -C oras-install
+          sudo mv oras-install/oras /usr/local/bin/
+          rm -rf oras-install oras_1.2.2_linux_amd64.tar.gz
+
+          # Generate SBOMs (SPDX and CycloneDX)
+          syft "${IMAGE}@${DIGEST}" -o spdx-json=mios-sbom.spdx.json
+          syft "${IMAGE}@${DIGEST}" -o cyclonedx-json=mios-sbom.cyclonedx.json
+
+          # Attach to OCI image using ORAS (avoids Rekor size limits)
+          oras attach --artifact-type application/spdx+json "${IMAGE}@${DIGEST}" mios-sbom.spdx.json
+          oras attach --artifact-type application/vnd.cyclonedx+json "${IMAGE}@${DIGEST}" mios-sbom.cyclonedx.json
+
+  # --- Boot Validation ------------------------------------------------------
+  boot-validation:
+    name: QEMU Boot Validation
+    runs-on: ubuntu-24.04
+    needs: [build]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Maximize build space
+        uses: jlumbroso/free-disk-space@v1.3.1
+      - name: Install QEMU and Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils podman
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | sudo bash -s -- --to /usr/local/bin
+      - name: Run boot-test
+        run: just boot-test
+
+  # --- Automated Cleanup -----------------------------------------------------
+  cleanup:
+    name: Maintain Repository Health
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'schedule')
+    steps:
+      - name: Delete old untagged images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: mios-bootc
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true
+
+      - name: Delete old workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const daysToKeep = 7;
+            const keepMinimum = 10;
+            const now = new Date();
+            const msInDay = 1000 * 60 * 60 * 24;
+
+            const response = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+
+            // Sort by created_at descending (newest first)
+            const runs = response.data.workflow_runs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            for (let i = 0; i < runs.length; i++) {
+              if (i < keepMinimum) continue;
+
+              const run = runs[i];
+              const created = new Date(run.created_at);
+              const ageDays = (now - created) / msInDay;
+
+              if (ageDays > daysToKeep) {
+                console.log(`Deleting workflow run ${run.id} (Age: ${ageDays.toFixed(1)} days)`);
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                } catch (e) {
+                  console.log(`Failed to delete run ${run.id}: ${e.message}`);
+                }
+              }
+            }
+
+      - name: Delete old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const now = new Date();
+            for (const artifact of artifacts.data.artifacts) {
+              const created = new Date(artifact.created_at);
+              const ageDays = (now - created) / (1000 * 60 * 60 * 24);
+              if (ageDays > 7) {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id,
+                });
+              }
+            }

@@ -37,3 +37,4 @@ RUN rm -rf /var/log/* /var/tmp/* /var/cache/dnf/* /var/cache/libdnf5/* /tmp/* \
 RUN bootc completion bash > /etc/bash_completion.d/bootc || true
 RUN ostree container commit
 RUN bootc container lint
+# MiOS Build Trigger: Wed Apr 29 05:22:00 AM UTC 2026
