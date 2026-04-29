@@ -1,12 +1,26 @@
-# MiOS AI Ingestion Index
-> Standardized AI Ingestion for MiOS v0.1.4
-> SSOT: https://github.com/mios-fss/MiOS/blob/main/INDEX.md
+# MiOS (Modern immutable Operating System) — Pure FOSS
 
-## 🏛️ Essential Context
-- [AI-Agent-Hub](../INDEX.md): Primary architectural laws and instruction patterns.
-- [AI-Context](../usr/share/mios/ai/v1/ai-context.json): Machine-readable manifest of AI resources (OpenAI Schema).
-- [AI-Knowledge-Base](../usr/share/mios/ai/v1/AI-KNOWLEDGE-BASE.md): Condensed system knowledge for RAG.
+MiOS is an immutable, AI-native workstation. It is engineered for high-performance virtualization, local AI development, and zero-day transactional stability.
 
-## 🛠️ Engineering
-- [Package-Manifest](engineering/2026-04-26-Artifact-ENG-001-Packages.md): SSOT for system components.
-- [Build-Pipeline](../Containerfile): OCI build stages and logic.
+## Core Documentation (Day 0)
+- [INDEX.md](./INDEX.md): The Single Source of Truth (SSOT) for laws and API surface.
+- [ARCHITECTURE.md](./ARCHITECTURE.md): Unified hardware and filesystem blueprints.
+- [ENGINEERING.md](./ENGINEERING.md): Security standards and AI integration patterns.
+
+## AI & Agent Integration
+- [system-prompt.md](./system-prompt.md): The authoritative persona for MiOS agents.
+- [.cursorrules](./.cursorrules): Engineering standards for VS Code Cursor.
+- [.clinerules](./.clinerules): Autonomous instructions for Cline/Roo-Code.
+- [llms-full.txt](./llms-full.txt): Comprehensive flattened context for LLM ingestion.
+
+## Key Technical Specs
+- **OS Base**: Immutable bootc-native.
+- **Hardware**: Universal silicon support (Primary IDs: `10de:2204,10de:1aef`).
+- **AI API**: Local OpenAI-compatible surface at `http://localhost:8080/v1`.
+
+## Repository Structure
+- `usr/`: Immutable rootfs templates.
+- `etc/`: Persistence templates.
+- `tools/`: Utility toolchain.
+- `specs/`: Research and blueprints.
+- `agents/`: Autonomous agent local environments.
