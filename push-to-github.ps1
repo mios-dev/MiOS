@@ -146,7 +146,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "git push failed (exit $LASTEXITCODE)." }
 
         Write-Ok "Commit: $sha"
-        Write-Ok "GHCR tag (built by CI): ghcr.io/kabuki94/mios:$Version"
+        Write-Ok "GHCR tag (built by CI): ghcr.io/mios-project/mios:$Version"
     }
     finally {
         Pop-Location

@@ -45,7 +45,7 @@
 
 ---
 
-## 🚨 ACTION REQUIRED — flagged for Kabu
+## 🚨 ACTION REQUIRED — flagged for MiOS
 
 ### A. April 28 — Fedora 44 GA Day Checklist
 1. **Merge `f44-ga-rpmfusion-stable`** — RPMFusion `release-44` URLs go live on GA day. Do not merge before.
@@ -66,7 +66,7 @@
 
 ### C. Pre-rebase Cockpit mitigation (if current build is in production)
 - Add `LoginTo = false` to `usr/lib/cockpit/cockpit.conf` to neutralize CVE-2026-4631 until F44 rebase delivers Cockpit ≥ 360
-- Decision: Kabu to determine if current F43-based image is deployed in production
+- Decision: MiOS to determine if current F43-based image is deployed in production
 
 ---
 

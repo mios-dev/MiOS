@@ -6,7 +6,7 @@
 # This sources $HOME/.config/mios/*.toml files and exports MIOS_* variables
 _load_env := `bash -c 'source ./tools/load-user-env.sh 2>/dev/null || true'`
 
-MIOS_REGISTRY_DEFAULT := "ghcr.io/kabuki94/mios" # @track:REGISTRY_DEFAULT
+MIOS_REGISTRY_DEFAULT := "ghcr.io/mios-project/mios" # @track:REGISTRY_DEFAULT
 IMAGE_NAME := env_var_or_default("MIOS_IMAGE_NAME", MIOS_REGISTRY_DEFAULT)
 MIOS_VAR_VERSION := "0.2.0" # @track:VAR_VERSION
 VERSION := `cat VERSION 2>/dev/null || echo {{MIOS_VAR_VERSION}}`

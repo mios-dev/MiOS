@@ -271,7 +271,7 @@ jobs:
         with:
           image: mios
           tags: latest ${{ github.sha }}
-          registry: ghcr.io/kabuki94
+          registry: ghcr.io/mios-project
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sigstore/cosign-installer@v3
@@ -378,7 +378,7 @@ Build configs live in `./bib-configs/` in your repo, one per target. Shared frag
 
 ```toml
 [[customizations.user]]
-name = "kabu"
+name = "mios"
 password = "$6$..."  # yescrypt hash
 key = "ssh-ed25519 AAAA..."
 groups = ["wheel", "libvirt", "kvm", "docker", "video", "render"]

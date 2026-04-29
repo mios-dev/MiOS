@@ -158,7 +158,7 @@ case $choice in
             exit 1
         fi
 
-        echo -e "\n${BLUE}Enrolling Microsoft keys...${NC}"
+        echo -e "\n${BLUE}Enrolling Vendor keys...${NC}"
         virsh shutdown Xbox 2>/dev/null
         sleep 3
 

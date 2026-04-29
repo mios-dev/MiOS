@@ -62,7 +62,7 @@ RUN firewall-offline-cmd --add-service=cockpit
 
 Configure the listen address via a systemd socket drop-in at `/etc/systemd/system/cockpit.socket.d/listen.conf`. The empty `ListenStream=` line is required to reset the default port. No `cockpit-ostree` or `cockpit-bootc` management plugin exists—bootc management remains CLI-only.
 
-**WSL2 support is essentially non-existent upstream.** The `bootc-image-builder` lacks WSL tarball output ([osautomation/bootc-image-builder#172](https://github.com/osautomation/bootc-image-builder/issues/172), open since February 2024). The Podman Desktop bootc extension explicitly states WSL2 is unsupported due to the custom Microsoft kernel. Universal Blue has no WSL-specific repos or images. The dbus-broker failure is caused by the WSL2 kernel lacking full audit subsystem support—the workaround is switching to `dbus-daemon`:
+**WSL2 support is essentially non-existent upstream.** The `bootc-image-builder` lacks WSL tarball output ([osautomation/bootc-image-builder#172](https://github.com/osautomation/bootc-image-builder/issues/172), open since February 2024). The Podman Desktop bootc extension explicitly states WSL2 is unsupported due to the custom Vendor kernel. Universal Blue has no WSL-specific repos or images. The dbus-broker failure is caused by the WSL2 kernel lacking full audit subsystem support—the workaround is switching to `dbus-daemon`:
 
 ```bash
 systemctl mask dbus-broker.service

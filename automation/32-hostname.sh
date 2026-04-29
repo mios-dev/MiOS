@@ -12,7 +12,7 @@ set -euo pipefail
 echo "[32-hostname] Setting default hostname template..."
 
 # Use MIOS_HOSTNAME build-arg if provided by the installer/bootstrap.
-# When set (e.g. "kabu-ws-83427"), it becomes the static hostname.
+# When set (e.g. "mios-ws-83427"), it becomes the static hostname.
 # When unset (default "mios"), the first-boot mios-init derives mios-XXXXX
 # from machine-id so every deployment still gets a unique hostname.
 _hn="${MIOS_HOSTNAME:-mios}"

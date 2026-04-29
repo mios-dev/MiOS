@@ -192,12 +192,12 @@ This is a low-risk correctness fix. No rollback behavior changes; only greenboot
 
 | Priority | Action | Owner | When |
 |----------|--------|-------|------|
-| 1 | Merge `f44-ga-rpmfusion-stable` | Kabu | April 28 (GA day) |
-| 2 | Watch ucore-hci digest for F44 tag | Kabu / System | April 28–30 |
+| 1 | Merge `f44-ga-rpmfusion-stable` | MiOS | April 28 (GA day) |
+| 2 | Watch ucore-hci digest for F44 tag | MiOS / System | April 28–30 |
 | 3 | Post-rebase: verify Cockpit ≥ 360 | Build agent | After F44 image builds |
 | 4 | Post-rebase: verify `bootc --version` ≥ 1.14.0 | Build agent | After F44 image builds |
 | 5 | Fix `60-k3s.sh` exit 1 on failure | System | Next build pass |
-| 6 | Pre-rebase: consider Cockpit `LoginTo=false` mitigation | Kabu decision | Before April 28 if prod |
+| 6 | Pre-rebase: consider Cockpit `LoginTo=false` mitigation | MiOS decision | Before April 28 if prod |
 
 ---
 

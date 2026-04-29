@@ -74,7 +74,7 @@ Check "PowerShell 7+" {
     $PSVersionTable.PSVersion.Major -ge 7
 } {
     Write-Host "    Installing PowerShell 7+ via winget..." -ForegroundColor Cyan
-    winget install --id Microsoft.PowerShell --accept-source-agreements --accept-package-agreements
+    winget install --id Vendor.PowerShell --accept-source-agreements --accept-package-agreements
     Write-Host "    [WARN] Restart terminal after PS7 install, then re-run preflight" -ForegroundColor Yellow
 }
 

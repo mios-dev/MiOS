@@ -1,17 +1,17 @@
 import os
 import re
 
-HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: Kabu.ki | https://github.com/kabuki94/mios -->
+HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
 # 🌐 MiOS
-> **Proprietor:** Kabu.ki
+> **Proprietor:** MiOS Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
-> **License:** Licensed as personal property to Kabu.ki
+> **License:** Licensed as personal property to MiOS Project
 > **Source Reference:** MiOS-Core-v0.1.1
 ---"""
 
 FOOTER = """---
 ### ⚖️ Legal & Source Reference
-- **Copyright:** (c) 2026 Kabu.ki
+- **Copyright:** (c) 2026 MiOS Project
 - **Status:** Personal Property / Private Infrastructure
 - **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
 - **Documentation:** [MiOS Navigation Hub](https://github.com/MiOS-DEV/mios/blob/main/specs/Home.md)

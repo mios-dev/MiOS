@@ -104,7 +104,7 @@ When generating new research documents (`specs/knowledge/research/`), use this s
 ### 🔬 [Research Subject Title]
 - **Hypothesis:** What are we investigating?
 - **Root Cause Analysis (if bug):** Link to previous journal entries.
-- **System Constraints:** (e.g., No GCP, Bootc-immutability).
+- **System Constraints:** (e.g., No Cloud-Target, Bootc-immutability).
 - **Proposed Architectural Shift:** How does this impact existing layers?
 - **Reference Mapping:**
   - [ ] Checked `specs/knowledge/`

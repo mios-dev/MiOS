@@ -216,7 +216,7 @@ $MIOS_USER_ADMIN = "mios" # @track:USER_ADMIN
 $DefUser        = if ($env:MIOS_USER) { $env:MIOS_USER } elseif ($env:MIOS_DEFAULT_USER) { $env:MIOS_DEFAULT_USER } else { $MIOS_USER_ADMIN }
 $DefPass        = if ($env:MIOS_PASSWORD) { $env:MIOS_PASSWORD } elseif ($env:MIOS_DEFAULT_USER_PASSWORD) { $env:MIOS_DEFAULT_USER_PASSWORD } else { "mios" }
 $DefHostname    = if ($env:MIOS_HOSTNAME) { $env:MIOS_HOSTNAME } else { "mios" }
-$MIOS_REGISTRY_DEFAULT = "ghcr.io/kabuki94/mios" # @track:REGISTRY_DEFAULT
+$MIOS_REGISTRY_DEFAULT = "ghcr.io/mios-project/mios" # @track:REGISTRY_DEFAULT
 $DefRegistry    = if ($env:MIOS_IMAGE_NAME) { $env:MIOS_IMAGE_NAME -replace ':.*$','' } else { $MIOS_REGISTRY_DEFAULT }
 $BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" quay.io/centos-bootc/bootc-image-builder:latest # @track:IMG_BIB
 $BuilderMachine = "mios-builder"
@@ -325,7 +325,7 @@ if ($DoPush -or $DoPull) {
     if ($RegistryToken) { Register-Secret $RegistryToken }
 
     if (-not $RegistryUser) {
-        $RegistryUser = Read-Timed "Registry username:" "kabuki94"
+        $RegistryUser = Read-Timed "Registry username:" "mios-project"
     }
     if (-not $RegistryToken) {
         Write-Host ""

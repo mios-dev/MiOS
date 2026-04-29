@@ -397,7 +397,7 @@ Universal Blue uses key-pair signing rather than keyless because rpm-ostree's si
   "default": [{"type": "reject"}],
   "transports": {
     "docker": {
-      "ghcr.io/kabuki94": [{
+      "ghcr.io/mios-project": [{
         "type": "sigstoreSigned",
         "keyPath": "/etc/pki/containers/mios-cosign.pub"
       }]

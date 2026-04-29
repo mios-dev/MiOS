@@ -9,7 +9,7 @@
 #
 # Examples:
 #   ./system-assess.sh                              # Default output to ~/
-#   ./system-assess.sh /home/kabu/my-assessment.txt # Custom output path
+#   ./system-assess.sh /home/mios/my-assessment.txt # Custom output path
 #   sudo ./system-assess.sh                         # Run as root for full details
 #
 
@@ -30,7 +30,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo ""
     echo "Examples:"
     echo "  $0                                  # Output to home directory"
-    echo "  $0 /home/kabu/my-assessment.txt    # Custom output path"
+    echo "  $0 /home/mios/my-assessment.txt    # Custom output path"
     echo "  sudo $0                             # Run as root for full details"
     exit 0
 fi

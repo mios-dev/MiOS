@@ -1,14 +1,21 @@
 {
     "default": [
         {
-            "type": "insecureAcceptAnything"
+            "type": "reject"
         }
     ],
     "transports": {
-        "docker-daemon": {
-            "": [
+        "docker": {
+            "ghcr.io/ublue-os": [
                 {
-                    "type": "insecureAcceptAnything"
+                    "type": "sigstoreSigned",
+                    "keyPath": "/usr/share/pki/containers/ublue-os.pub"
+                }
+            ],
+            "ghcr.io/mios-project": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/usr/share/pki/containers/mios-cosign.pub"
                 }
             ]
         }

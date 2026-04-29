@@ -74,7 +74,7 @@ Log ("Host: {0} logical CPUs, {1} MiB RAM; allocating {2} MiB ({3} MiB reserved 
 $gpus = Get-CimInstance Win32_VideoController |
   Where-Object {
     $_.PNPDeviceID -match '^PCI\\VEN_(10DE|1002|8086)' -and
-    $_.Name -notmatch 'Microsoft Basic|Hyper-V|Remote Display|Parsec|DisplayLink'
+    $_.Name -notmatch 'Vendor Basic|Hyper-V|Remote Display|Parsec|DisplayLink'
   }
 
 $hasNvidia = [bool]($gpus | Where-Object { $_.PNPDeviceID -match 'VEN_10DE' } | Select-Object -First 1)

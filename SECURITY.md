@@ -202,7 +202,7 @@ MiOS images are signed with cosign via GitHub Actions OIDC (keyless signing). Ve
 cosign verify \
   --certificate-identity-regexp="https://github.com/MiOS-DEV/MiOS-bootstrap" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  ghcr.io/kabuki94/mios:latest
+  ghcr.io/mios-project/mios:latest
 ```
 
 ## Overriding Hardening

@@ -145,7 +145,7 @@ podman export <container-id> | gzip > mios.tar.gz
 - **Type dashes manually** — copy-pasting `--import` from formatted documents can silently substitute en-dashes (`–`) for double-hyphens (`--`)
 - **Quote paths with spaces** — `"C:\My Path\file.tar"` but never quote the distro name
 - **Don't use .tar.xz** — only .tar and .tar.gz are supported
-- **Update WSL** — run `wsl --update` to get the Microsoft Store version; older in-box `wsl.exe` may not support `--import` at all
+- **Update WSL** — run `wsl --update` to get the Vendor Store version; older in-box `wsl.exe` may not support `--import` at all
 - **Ensure virtualization** is enabled in BIOS and "Virtual Machine Platform" is enabled in Windows Features
 - **Fresh install directory** — if the path already has an `ext4.vhdx`, you get error 0x80070050
 

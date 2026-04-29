@@ -77,7 +77,7 @@
 ### 2.2 MOK / Secure Boot
 | Finding | MiOS Action |
 |---------|---------------|
-| Microsoft UEFI CA 2011 cert expires June 26, 2026 | Existing enrollments unaffected; ensure new shim uses 2023 key; update edk2-ovmf on VM hosts; document in DIAGNOSTICS.md |
+| Vendor UEFI CA 2011 cert expires June 26, 2026 | Existing enrollments unaffected; ensure new shim uses 2023 key; update edk2-ovmf on VM hosts; document in DIAGNOSTICS.md |
 | MOK key must be 2048-bit RSA only (4096-bit hangs some shim versions) | Already 2048-bit — correct |
 
 ### 2.3 ucore Notable Defaults

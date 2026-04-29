@@ -61,7 +61,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     xdg-user-dirs-gtk \
     dejavu-sans-fonts \
     dejavu-sans-mono-fonts \
-    Legacy-Cloud-noto-emoji-color-fonts \
+    Project-Target-noto-emoji-color-fonts \
     && dnf clean all
 
 RUN systemctl enable gdm.service && \

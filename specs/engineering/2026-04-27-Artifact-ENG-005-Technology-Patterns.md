@@ -50,7 +50,6 @@ This document serves as the **AI-Native Map** for MiOS, connecting specific tech
 | **K3s** | Lightweight Kubernetes | `automation/13-ceph-k3s.sh`, `usr/lib/greenboot/check/wanted.d/60-k3s.sh` |
 | **Ceph** | Distributed RADOS storage | `automation/13-ceph-k3s.sh`, `usr/share/containers/systemd/ceph-radosgw.container` |
 | **Quadlet** | Systemd-native Podman containers | `usr/share/containers/systemd/*.container` |
-| **GCP Integration** | GCE guest agent + UEFI features | `specs/knowledge/archive/*-GCP-*` |
 
 ## 🤖 AI & Tooling
 | Technology | Pattern | implementation / Source |

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Find or Obtain Microsoft-Enrolled OVMF Secure Boot Files
+# Find or Obtain Vendor-Enrolled OVMF Secure Boot Files
 # No XML editing - just get the right firmware files
 
 RED='\033[0;31m'
@@ -12,7 +12,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}   Microsoft Secure Boot OVMF File Locator/Installer${NC}"
+echo -e "${BOLD}${CYAN}   Vendor Secure Boot OVMF File Locator/Installer${NC}"
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════${NC}\n"
 
 # Check current files
@@ -48,15 +48,15 @@ else
 fi
 
 if [ "$HAVE_VARS_SECBOOT" = true ]; then
-    echo -e "  ${GREEN}✓${NC} OVMF_VARS.secboot (Microsoft-enrolled VARS)"
+    echo -e "  ${GREEN}✓${NC} OVMF_VARS.secboot (Vendor-enrolled VARS)"
 else
-    echo -e "  ${RED}✗${NC} OVMF_VARS.secboot (Microsoft-enrolled VARS) ${RED}← MISSING!${NC}"
+    echo -e "  ${RED}✗${NC} OVMF_VARS.secboot (Vendor-enrolled VARS) ${RED}← MISSING!${NC}"
 fi
 echo
 
 if [ "$HAVE_VARS_SECBOOT" = true ]; then
     echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}✓ You already have Microsoft-enrolled OVMF VARS files!${NC}"
+    echo -e "${GREEN}✓ You already have Vendor-enrolled OVMF VARS files!${NC}"
     echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}\n"
 
     # Find the exact path
@@ -74,10 +74,10 @@ if [ "$HAVE_VARS_SECBOOT" = true ]; then
 fi
 
 echo -e "${RED}════════════════════════════════════════════════════════════${NC}"
-echo -e "${RED}✗ Microsoft-enrolled VARS files NOT found${NC}"
+echo -e "${RED}✗ Vendor-enrolled VARS files NOT found${NC}"
 echo -e "${RED}════════════════════════════════════════════════════════════${NC}\n"
 
-echo -e "${YELLOW}You need OVMF_VARS.secboot files with pre-enrolled Microsoft keys.${NC}"
+echo -e "${YELLOW}You need OVMF_VARS.secboot files with pre-enrolled Vendor keys.${NC}"
 echo -e "${YELLOW}The standard edk2-ovmf package doesn't include these.${NC}\n"
 
 if [ "$EUID" -ne 0 ]; then

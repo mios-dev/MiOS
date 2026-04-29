@@ -3,7 +3,7 @@
   MiOS-Build Windows 11 Secure Boot VM Template
   
   Features:
-  - Microsoft Secure Boot enabled
+  - Vendor Secure Boot enabled
   - TPM 2.0 emulation
   - Hyper-V enlightenments for optimal Windows performance
   - Q35 chipset with PCIe root ports for GPU passthrough

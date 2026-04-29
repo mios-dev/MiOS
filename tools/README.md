@@ -46,7 +46,7 @@ for full documentation.
 
 | Script | Purpose |
 |--------|---------|
-| `rtx4090-vfio-configurator.sh` | Opinionated RTX 4090 VFIO setup (Kabu's primary GPU) |
+| `rtx4090-vfio-configurator.sh` | Opinionated RTX 4090 VFIO setup (MiOS's primary GPU) |
 | `universal-vfio-configurator.sh` | Generic VFIO configurator — any GPU, any USB controller |
 | `vfio-verify.sh` | Verify VFIO binding, IOMMU groups, host lockout |
 | `iommu-visualizer.sh` | Pretty-print IOMMU group membership |
@@ -94,7 +94,7 @@ and enrollment.
 | File | Purpose |
 |------|---------|
 | `apply-final-config.sh` | Apply the final known-good config to a Windows VM |
-| `check-ovmf-enrollment.sh` | Check OVMF NVRAM for correct Microsoft-signed keys |
+| `check-ovmf-enrollment.sh` | Check OVMF NVRAM for correct Vendor-signed keys |
 | `fix-ovmf-enrollment.sh` | Fix broken OVMF enrollment |
 | `find-ovmf-firmware.sh` | Locate the right OVMF firmware on the host |
 | `get-secureboot-ovmf.sh` | Download a SB-compatible OVMF build |

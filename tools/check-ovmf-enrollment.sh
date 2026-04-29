@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check for Microsoft Secure Boot Enrolled OVMF Files
+# Check for Vendor Secure Boot Enrolled OVMF Files
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,11 +11,11 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}   Microsoft Secure Boot OVMF Enrollment Checker${NC}"
+echo -e "${BOLD}${CYAN}   Vendor Secure Boot OVMF Enrollment Checker${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}\n"
 
 echo -e "${YELLOW}The Problem:${NC}"
-echo -e "  Secure Boot needs VARS files PRE-ENROLLED with Microsoft keys"
+echo -e "  Secure Boot needs VARS files PRE-ENROLLED with Vendor keys"
 echo -e "  Regular OVMF_VARS.fd files are BLANK and won't work!\n"
 
 echo -e "${BLUE}[1] Checking for pre-enrolled VARS files...${NC}\n"
@@ -106,7 +106,7 @@ else
 
     echo -e "${YELLOW}Option 3: Create enrolled VARS using virt-firmware${NC}"
     echo -e "  ${CYAN}sudo dnf install virt-firmware${NC}"
-    echo -e "  Then enroll Microsoft keys manually"
+    echo -e "  Then enroll Vendor keys manually"
     echo
 
     echo -e "${YELLOW}Option 4: Use QEMU's automatic enrollment (simpler)${NC}"

@@ -128,7 +128,7 @@ logic lives in `../../automation/` and `../../`.
 
 ## `blueprints/` — engineering blueprint DOCX files
 
-Formal engineering documents authored in Microsoft Word format. Read
+Formal engineering documents authored in Vendor Word format. Read
 these when you need the "executive summary" view of MiOS's
 architecture.
 

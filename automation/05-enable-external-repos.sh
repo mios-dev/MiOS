@@ -36,77 +36,23 @@ else
     log "Terra repo already present — skipping"
 fi
 
-# --- 2. Visual Studio Code (Microsoft) --------------------------------------
-if [[ ! -f "${REPO_DIR}/vscode.repo" ]]; then
-    log "enabling VS Code repo (Microsoft)"
-    scurl -fsSL https://packages.microsoft.com/keys/microsoft.asc -o /tmp/vscode.asc
-    rpm --import /tmp/vscode.asc && rm -f /tmp/vscode.asc
-    cat > "${REPO_DIR}/vscode.repo" <<'EOF'
-[code]
-name=Visual Studio Code
-baseurl=https://packages.microsoft.com/yumrepos/vscode
+# --- 2. VSCodium (FOSS) ------------------------------------------------------
+if [[ ! -f "${REPO_DIR}/vscodium.repo" ]]; then
+    log "enabling VSCodium repo (FOSS)"
+    scurl -fsSL https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg -o /tmp/vscodium.gpg
+    rpm --import /tmp/vscodium.gpg && rm -f /tmp/vscodium.gpg
+    cat > "${REPO_DIR}/vscodium.repo" <<'EOF'
+[vscodium]
+name=VSCodium
+baseurl=https://download.vscodium.com/rpms/
 enabled=1
 autorefresh=1
 type=rpm-md
 gpgcheck=1
-gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+gpgkey=https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg
 EOF
 else
-    log "VS Code repo already present — skipping"
-fi
-
-# --- 3. 1Password -----------------------------------------------------------
-if [[ ! -f "${REPO_DIR}/1password.repo" ]]; then
-    log "enabling 1Password repo"
-    scurl -fsSL https://downloads.1password.com/linux/keys/1password.asc -o /tmp/1password.asc
-    rpm --import /tmp/1password.asc && rm -f /tmp/1password.asc
-    cat > "${REPO_DIR}/1password.repo" <<'EOF'
-[1password]
-name=1Password Stable Channel
-baseurl=https://downloads.1password.com/linux/rpm/stable/$basearch
-enabled=1
-gpgcheck=1
-gpgkey=https://downloads.1password.com/linux/keys/1password.asc
-EOF
-else
-    log "1Password repo already present — skipping"
-fi
-
-# --- 4. Tailscale -----------------------------------------------------------
-if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
-    log "enabling Tailscale repo"
-    $DNF_BIN "${DNF_SETOPT[@]}" config-manager addrepo -y \
-        --overwrite \
-        --from-repofile=https://pkgs.tailscale.com/stable/fedora/tailscale.repo
-else
-    log "Tailscale repo already present — skipping"
-fi
-
-# --- 5. Docker CE (required when podman-docker is removed) ------------------
-if [[ ! -f "${REPO_DIR}/docker-ce.repo" ]]; then
-    log "enabling Docker CE repo"
-    $DNF_BIN "${DNF_SETOPT[@]}" config-manager addrepo -y \
-        --overwrite \
-        --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo
-else
-    log "Docker CE repo already present — skipping"
-fi
-
-# --- 6. Cloud Chrome -------------------------------------------------------
-if [[ ! -f "${REPO_DIR}/Legacy-Cloud-chrome.repo" ]]; then
-    log "enabling Cloud Chrome repo"
-    scurl -fsSL https://dl.Legacy-Cloud.com/linux/linux_signing_key.pub -o /tmp/chrome.pub
-    rpm --import /tmp/chrome.pub && rm -f /tmp/chrome.pub
-    cat > "${REPO_DIR}/Legacy-Cloud-chrome.repo" <<'EOF'
-[Legacy-Cloud-chrome]
-name=Legacy-Cloud-chrome
-baseurl=https://dl.Legacy-Cloud.com/linux/chrome/rpm/stable/$basearch
-enabled=1
-gpgcheck=1
-gpgkey=https://dl.Legacy-Cloud.com/linux/linux_signing_key.pub
-EOF
-else
-    log "Cloud Chrome repo already present — skipping"
+    log "VSCodium repo already present — skipping"
 fi
 
 # --- 7. Kubernetes stable v1.32 (kubectl) -----------------------------------

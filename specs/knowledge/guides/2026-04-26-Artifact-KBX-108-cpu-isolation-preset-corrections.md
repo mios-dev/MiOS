@@ -75,7 +75,7 @@ This document provides corrected implementations for the CPU isolation presets i
 
 ### Option 1: Gaming Optimized (X3D)
 
-**Purpose**: Maximize V-Cache availability for a single Microsoft Secure Boot-enabled gaming VM while keeping the host responsive.
+**Purpose**: Maximize V-Cache availability for a single Vendor Secure Boot-enabled gaming VM while keeping the host responsive.
 
 **Allocation**:
 - **Host**: Core 0 from CCD0 (CPUs 0, 16) + ALL of CCD1 (CPUs 8-15, 24-31)
@@ -104,7 +104,7 @@ H = Host, VM = Gaming VM
   - Distributed across CCDs for balanced performance
 - **Gaming VM Pool (CCD0)**: Cores 2-7 (CPUs 2-7, 18-23)
   - Total: 12 threads (6 V-Cache cores)
-  - For Microsoft Secure Boot gaming VM
+  - For Vendor Secure Boot gaming VM
 - **Container/Service Pool (CCD1)**: Cores 10-15 (CPUs 10-15, 26-31)
   - Total: 12 threads (6 high-frequency cores)
   - For containers, servers, non-gaming VMs

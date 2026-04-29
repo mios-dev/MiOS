@@ -295,7 +295,7 @@ MiOS uses `ROOTFS=ext4` — correct for verity mode.
 
 - v1.6 (January 2025): interactive build config creator, Linux VM support (experimental)
 - Allows GUI-driven BIB builds from Podman Desktop without writing TOML manually
-- Useful for Kabu's Windows host — can drive BIB builds through Podman Desktop UI
+- Useful for MiOS's Windows host — can drive BIB builds through Podman Desktop UI
 
 ### Rootless builds
 
@@ -352,7 +352,7 @@ ucore uses a layered image architecture with distinct variant tiers:
 
 **Notable architectural changes (2025–2026):**
 
-- The sister project `ublue-os/cayo` is now under active development as a bootc-native HCI successor to ucore-hci. cayo is fully composefs-native from the start. Kabu should monitor this for a potential MiOS-2 base migration in v3.x.
+- The sister project `ublue-os/cayo` is now under active development as a bootc-native HCI successor to ucore-hci. cayo is fully composefs-native from the start. MiOS should monitor this for a potential MiOS-2 base migration in v3.x.
 - ucore-hci moved from akmod-built NVIDIA proprietary modules to **NVIDIA open kernel modules (kmod-nvidia-open)** as default. Proprietary module path remains available via the `stable` tag with manual override.
 - ucore adopted the `ublue-os/packages` COPR as the canonical source for `uupd`, `ublue-os-just`, `ublue-polkit-rules`, and `ublue-rebase-helper`.
 - Rechunking migrated from `hhd-dev/rechunk` toward `bootc-base-imagectl rechunk --max-layers 67`.
@@ -870,7 +870,7 @@ Verified via Cockpit blog + cockpit-podman releases:
 | WSL v0.1.1 | 6.6 LTS point release | Released 2026-03-24 | **CVE-2026-26127 .NET runtime fix.** Masked **both** `NetworkManager-wait-online.service` and `systemd-networkd-wait-online.service`. Added IPv6 over virtio networking. Enabled DNS tunneling for VirtioProxy. **wsl-user-generator: statx syscall support, directory-mount support.** |
 | **WSL v0.1.1** (pre-release) | 6.6 LTS point release | **Released 2026-04-25 (today)** | **CVE-2026-32178 .NET SMTP header-injection fix** (System.Net.Mail CRLF). Improved socket/signal handling. 30+ stability changes. Pre-release channel — stable cadence next. |
 
-WSL2 runs Linux 5.15.x or 6.6.x kernel depending on Windows version. The kernel is Microsoft-maintained fork: `github.com/microsoft/WSL2-Linux-Kernel`.
+WSL2 runs Linux 5.15.x or 6.6.x kernel depending on Windows version. The kernel is Vendor-maintained fork: `github.com/microsoft/WSL2-Linux-Kernel`.
 
 **systemd version in Fedora 44/rawhide:** 259.5-1.fc44 (confirmed from MiOS WSL2 boot log, April 2026).
 
@@ -914,7 +914,7 @@ systemd detects WSL2 by reading `/proc/sys/kernel/osrelease` and checking for `W
 
 ### WSL2 systemd user session failures (WSL 0.0.0.0+)
 
-Multiple reports of "Failed to start the systemd user session" after WSL 0.0.0.0 update. Root cause appears to be: `/run/systemd/user-generators/wsl-user-generator` marked world-writable (security regression introduced in 0.0.0.0). Microsoft is tracking in WSL issue tracker. Mitigation: `chmod 755 /run/systemd/user-generators/wsl-user-generator` if user sessions fail on first login.
+Multiple reports of "Failed to start the systemd user session" after WSL 0.0.0.0 update. Root cause appears to be: `/run/systemd/user-generators/wsl-user-generator` marked world-writable (security regression introduced in 0.0.0.0). Vendor is tracking in WSL issue tracker. Mitigation: `chmod 755 /run/systemd/user-generators/wsl-user-generator` if user sessions fail on first login.
 
 ### Recommended drop-in pattern for WSL2 gating
 
@@ -998,7 +998,7 @@ MiOS ships `/etc/containers/policy.json` and per-registry override YAML in `/etc
   "default": [{"type": "insecureAcceptAnything"}],
   "transports": {
     "docker": {
-      "ghcr.io/kabuki94": [{
+      "ghcr.io/mios-project": [{
         "type": "sigstoreSigned",
         "keyless": {
           "signedIdentity": {"type": "matchRepository"},
@@ -1011,7 +1011,7 @@ MiOS ships `/etc/containers/policy.json` and per-registry override YAML in `/etc
 }
 ```
 
-This enforces signature verification when Podman pulls from `ghcr.io/kabuki94/*`. Only images signed via the Fulcio/Rekor chain are accepted. The ublue cosign public key (`/etc/pki/containers/ublue-cosign.pub`) handles verification of the ucore-hci base image.
+This enforces signature verification when Podman pulls from `ghcr.io/mios-project/*`. Only images signed via the Fulcio/Rekor chain are accepted. The ublue cosign public key (`/etc/pki/containers/ublue-cosign.pub`) handles verification of the ucore-hci base image.
 
 ### GitHub Actions signing workflow best practices
 
@@ -1035,7 +1035,7 @@ Additional v3.0.x fixes:
 
 **MiOS guidance unchanged:** stay on **v2.6.x** (current: **v0.1.1**) for signing and signature-verification, because `containers/image` / rpm-ostree / bootc **still do not accept the cosign v3 protobuf bundle format by default** (rpm-ostree issue #5509 is the tracking bug, still open as of April 2026). If the build workflow is pinned to cosign v3, it MUST pass `cosign sign --new-bundle-format=false --yes $DIGEST`. Renovate's `helpers:pinGitHubActionDigests` should be bumping `sigstore/cosign-installer` to a commit that installs v0.1.1 on the `build-sign.yml` workflow.
 
-**Action item (NEXT-RESEARCH candidate):** verify the pinned `cosign-installer` version in `.github/workflows/build-sign.yml` currently resolves to cosign v0.1.1 (or a v3.0.x with explicit `--new-bundle-format=false`). If not, flag for Kabu.
+**Action item (NEXT-RESEARCH candidate):** verify the pinned `cosign-installer` version in `.github/workflows/build-sign.yml` currently resolves to cosign v0.1.1 (or a v3.0.x with explicit `--new-bundle-format=false`). If not, flag for MiOS.
 <!-- FINDINGS END -->
 
 ---
@@ -1494,7 +1494,7 @@ TimeoutStartSec=300
 
 ### auditd in WSL2
 
-- WSL2 kernel does NOT include the Linux audit subsystem (`CONFIG_AUDIT` not compiled in Microsoft's WSL kernel)
+- WSL2 kernel does NOT include the Linux audit subsystem (`CONFIG_AUDIT` not compiled in Vendor's WSL kernel)
 - auditd fails with `NOPERMISSION` at every start in WSL2
 - Fix: `ConditionVirtualization=!wsl` in `auditd.service.d/10-mios-wsl2.conf` (already shipped)
 - Same fix for `audit-rules.service.d/10-mios-wsl2.conf`
@@ -1524,7 +1524,7 @@ TimeoutStartSec=300
 - **CVE / advisory IDs:** CVE-2026-4631 / GHSA-rq49-h582-83m7 / RHSA-2026:7384.
 - **CVSS:** 9.8 base (network, low-complexity, no privilege, no UI).
 
-**MiOS exposure analysis:** ucore-hci `stable-nvidia` currently tracks Fedora 42 stable, which historically ships an older Cockpit. After F44 rebase (April 28, 2026) Cockpit 360+ becomes available. **Action required for Kabu — see NEXT-RESEARCH.md.**
+**MiOS exposure analysis:** ucore-hci `stable-nvidia` currently tracks Fedora 42 stable, which historically ships an older Cockpit. After F44 rebase (April 28, 2026) Cockpit 360+ becomes available. **Action required for MiOS — see NEXT-RESEARCH.md.**
 
 **Mitigations until F44 rebase:**
 1. Disable remote-login: `LoginTo = false` in `/etc/cockpit/cockpit.conf` (or ship via `usr/lib/cockpit/cockpit.conf`).

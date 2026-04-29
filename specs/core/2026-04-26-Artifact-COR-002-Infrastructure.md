@@ -44,8 +44,7 @@ MiOS provides native-tier performance across all major vendors.
   "vendors": {
     "NVIDIA": "Open-source GSP modules (CDI support)",
     "AMD": "KFD/ROCm (native support)",
-    "Intel": "Arc/Xe (native support)",
-    "Microsoft": "D3D12 GPU-PV (Guest bridge)"
+    "Intel": "Arc/Xe (native support)"
   }
 }
 ```

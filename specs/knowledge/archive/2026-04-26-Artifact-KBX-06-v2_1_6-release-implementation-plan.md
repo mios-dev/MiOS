@@ -119,7 +119,7 @@ dnf "${DNF_SETOPT[@]}" -y group install @virtualization
 | `automation/12-container-tools.sh` (if present) | docker-ce family |
 | `automation/13-dev-tools.sh` (if present) | code, gh, tailscale, 1password |
 | `automation/14-virtualization.sh` (if present) | libvirt, qemu-kvm |
-| `automation/15-desktop-apps.sh` (if present) | Legacy-Cloud-chrome, fonts |
+| `automation/15-desktop-apps.sh` (if present) | Project-Target-chrome, fonts |
 | `automation/16-swaps.sh` (if present) | ffmpeg/mesa-freeworld swaps |
 | `automation/17-cleanup.sh` (or equivalent) | dnf remove of firefox/gnome-software-rpm-ostree/podman-docker |
 | `automation/lib/packages.sh` | the dnf-call wrapper around PACKAGES.md entries |
@@ -176,10 +176,10 @@ else
 fi
 
 #######################################################################
-# 2. Visual Studio Code (Microsoft)
+# 2. Visual Studio Code (Vendor)
 #######################################################################
 if [ ! -f "${REPO_DIR}/vscode.repo" ]; then
-    log "enabling VS Code repo (Microsoft)"
+    log "enabling VS Code repo (Vendor)"
     rpm --import https://packages.microsoft.com/keys/microsoft.asc
     cat > "${REPO_DIR}/vscode.repo" <<'EOF'
 [code]
@@ -243,16 +243,16 @@ fi
 #######################################################################
 # 6. Cloud Chrome
 #######################################################################
-if [ ! -f "${REPO_DIR}/Legacy-Cloud-chrome.repo" ]; then
+if [ ! -f "${REPO_DIR}/Project-Target-chrome.repo" ]; then
     log "enabling Cloud Chrome repo"
-    rpm --import https://dl.Legacy-Cloud.com/linux/linux_signing_key.pub
-    cat > "${REPO_DIR}/Legacy-Cloud-chrome.repo" <<'EOF'
-[Legacy-Cloud-chrome]
-name=Legacy-Cloud-chrome
-baseurl=https://dl.Legacy-Cloud.com/linux/chrome/rpm/stable/$basearch
+    rpm --import https://dl.Project-Target.com/linux/linux_signing_key.pub
+    cat > "${REPO_DIR}/Project-Target-chrome.repo" <<'EOF'
+[Project-Target-chrome]
+name=Project-Target-chrome
+baseurl=https://dl.Project-Target.com/linux/chrome/rpm/stable/$basearch
 enabled=1
 gpgcheck=1
-gpgkey=https://dl.Legacy-Cloud.com/linux/linux_signing_key.pub
+gpgkey=https://dl.Project-Target.com/linux/linux_signing_key.pub
 EOF
 else
     log "Cloud Chrome repo already present — skipping"
@@ -440,11 +440,11 @@ jobs:
 }
 ```
 
-### 5c. `/etc/containers/registries.d/ghcr.io-kabuki94.yaml`
+### 5c. `/etc/containers/registries.d/ghcr.io-mios-project.yaml`
 
 ```yaml
 docker:
-  ghcr.io/kabuki94:
+  ghcr.io/mios-project:
     use-sigstore-attachments: true
 ```
 
@@ -461,7 +461,7 @@ Without this entry, `containers/image` does not look for cosign `.sig` attachmen
 # Prereq: the Containerfile must COPY these files into /ctx before this
 # script runs:
 #   etc/containers/policy.json
-#   etc/containers/registries.d/ghcr.io-kabuki94.yaml
+#   etc/containers/registries.d/ghcr.io-mios-project.yaml
 #   sigstore/fulcio_v1.crt.pem   (from sigstore/root-signing)
 #   sigstore/rekor.pub           (from sigstore/root-signing)
 #   sigstore/ublue-os.pub        (from ublue-os/main cosign.pub)
@@ -486,8 +486,8 @@ install -m 0644 /ctx/etc/containers/policy.json \
     /etc/containers/policy.json
 
 install -d -m 0755 /etc/containers/registries.d
-install -m 0644 /ctx/etc/containers/registries.d/ghcr.io-kabuki94.yaml \
-    /etc/containers/registries.d/ghcr.io-kabuki94.yaml
+install -m 0644 /ctx/etc/containers/registries.d/ghcr.io-mios-project.yaml \
+    /etc/containers/registries.d/ghcr.io-mios-project.yaml
 
 if command -v restorecon >/dev/null 2>&1; then
     restorecon -RF /etc/pki/containers \
@@ -861,7 +861,7 @@ log "36-akmod-guards: done (${#SERVICES[@]} drop-ins)"
 | `automation/36-akmod-guards.sh` (new) | `scripts__36-akmod-guards.sh` | §7 |
 | `automation/37-cosign-policy.sh` (new) | `scripts__37-cosign-policy.sh` | §5d |
 | `etc/containers/policy.json` (new) | `system_files__etc__containers__policy.json` | §5b |
-| `etc/containers/registries.d/ghcr.io-kabuki94.yaml` (new) | `system_files__etc__containers__registries.d__ghcr.io-kabuki94.yaml` | §5c |
+| `etc/containers/registries.d/ghcr.io-mios-project.yaml` (new) | `system_files__etc__containers__registries.d__ghcr.io-mios-project.yaml` | §5c |
 | `sigstore/fulcio_v1.crt.pem` (new; pinned from sigstore/root-signing) | `system_files__sigstore__fulcio_v1.crt.pem` | §5d prereq |
 | `sigstore/rekor.pub` (new; pinned from sigstore/root-signing) | `system_files__sigstore__rekor.pub` | §5d prereq |
 | `sigstore/ublue-os.pub` (new; from ublue-os/main cosign.pub) | `system_files__sigstore__ublue-os.pub` | §5d prereq |
@@ -931,7 +931,7 @@ Outstanding item A (cosign keyless):
 - etc/containers/policy.json: strict default-reject with
   sigstoreSigned rules for ghcr.io/mios-project/mios and
   ghcr.io/ublue-os.
-- etc/containers/registries.d/ghcr.io-kabuki94.yaml:
+- etc/containers/registries.d/ghcr.io-mios-project.yaml:
   use-sigstore-attachments: true.
 - automation/37-cosign-policy.sh: install policy + pinned TUF roots.
 

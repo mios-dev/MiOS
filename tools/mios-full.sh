@@ -553,7 +553,7 @@ check_network() {
     msg_info "Checking network connectivity..."
     
     if getent hosts archlinux.org &>/dev/null || \
-       getent hosts Legacy-Cloud.com &>/dev/null || \
+       getent hosts Project-Target.com &>/dev/null || \
        ping -c1 -W3 1.1.1.1 &>/dev/null; then
         msg_success "Network: DNS and connectivity OK"
         SESSION[network_checked]="true"

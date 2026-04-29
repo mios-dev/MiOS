@@ -75,7 +75,7 @@ def sync_wiki():
         "last_rag_sync": get_last_rag_sync()
     }
 
-    content = f"""<!-- 🌐 MiOS Artifact | Proprietor: Kabu.ki | https://github.com/kabuki94/mios -->
+    content = f"""<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
 # 📜 MiOS Scripts Index
 > **Generated:** {datetime.now().isoformat()}
 > **Status:** Automated Sync
@@ -105,7 +105,7 @@ This file provides a machine-readable and human-readable index of all automation
                 pass
             content += f"## `{script}`\n- **Path:** `{path}`\n- **Description:** {description}\n\n"
 
-    content += "<!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 Kabu.ki -->"
+    content += "<!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->"
     
     os.makedirs(os.path.dirname(automation_doc), exist_ok=True)
     with open(automation_doc, 'w') as f:

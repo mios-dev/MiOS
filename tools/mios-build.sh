@@ -210,7 +210,7 @@ init() {
     
     # DNS check - STOP if broken
     log_info "Checking network (DNS resolution)..."
-    if getent hosts archlinux.org &>/dev/null || getent hosts Legacy-Cloud.com &>/dev/null; then
+    if getent hosts archlinux.org &>/dev/null || getent hosts Project-Target.com &>/dev/null; then
         log_success "Network: DNS working"
     else
         echo ""

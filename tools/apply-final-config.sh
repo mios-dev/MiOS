@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Apply Xbox VM Config + Manual Secure Boot Key Enrollment
-# Uses virt-firmware to directly enroll Microsoft keys
+# Uses virt-firmware to directly enroll Vendor keys
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -32,7 +32,7 @@ fi
 echo -e "${YELLOW}This script will:${NC}"
 echo -e "  1. Apply optimized CPU pinning (12 cores)"
 echo -e "  2. Use explicit OVMF paths (no autoselection)"
-echo -e "  3. ${BOLD}${GREEN}Manually enroll Microsoft Secure Boot keys${NC}"
+echo -e "  3. ${BOLD}${GREEN}Manually enroll Vendor Secure Boot keys${NC}"
 echo -e "  4. Optimize network, audio, and other devices"
 echo
 
@@ -91,8 +91,8 @@ if [ ! -f "$NVRAM" ]; then
 fi
 echo -e "${GREEN}✓ Fresh NVRAM created${NC}"
 
-echo -e "\n${BLUE}[6/6] Enrolling Microsoft Secure Boot keys...${NC}"
-echo -e "${CYAN}Using virt-fw-vars to inject Microsoft keys...${NC}"
+echo -e "\n${BLUE}[6/6] Enrolling Vendor Secure Boot keys...${NC}"
+echo -e "${CYAN}Using virt-fw-vars to inject Vendor keys...${NC}"
 
 # Create temporary work file
 TEMP_NVRAM="/tmp/xbox-nvram-temp.fd"
@@ -106,7 +106,7 @@ if virt-fw-vars --input "$TEMP_NVRAM" \
     # Copy back
     cp "$TEMP_NVRAM" "$NVRAM"
     rm "$TEMP_NVRAM"
-    echo -e "${GREEN}✓ Microsoft keys enrolled!${NC}"
+    echo -e "${GREEN}✓ Vendor keys enrolled!${NC}"
 else
     echo -e "${RED}✗ Enrollment failed${NC}"
     echo -e "${YELLOW}Log: /tmp/enrollment.log${NC}"
@@ -125,7 +125,7 @@ echo -e "${YELLOW}Configuration Summary:${NC}"
 echo -e "  ${CYAN}✓${NC} CPU: 12 vCPUs pinned to C2-7, C18-23"
 echo -e "  ${CYAN}✓${NC} Emulator: C0-1, C16-17"
 echo -e "  ${CYAN}✓${NC} Topology: 6 cores × 2 threads"
-echo -e "  ${CYAN}✓${NC} ${BOLD}${GREEN}Secure Boot: Microsoft keys enrolled${NC}"
+echo -e "  ${CYAN}✓${NC} ${BOLD}${GREEN}Secure Boot: Vendor keys enrolled${NC}"
 echo -e "  ${CYAN}✓${NC} Network: virtio (high performance)"
 echo -e "  ${CYAN}✓${NC} Audio: none (optimized)"
 echo -e "  ${CYAN}✓${NC} Memory balloon: none"

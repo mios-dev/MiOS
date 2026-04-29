@@ -1,1 +1,4 @@
-permit all
+allow perm=any uid=0 : all
+allow perm=execute : ftype=application/x-executable trust=1
+allow perm=execute : ftype=application/x-sharedlib trust=1
+deny_audit perm=execute : all
