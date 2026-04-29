@@ -1,78 +1,66 @@
-# MiOS: Immutable OCI-Native Linux Distribution
+# MiOS
 
-MiOS is an open-source, user-defined, immutable Linux distribution packaged as a bootable OCI image. It utilizes a native Linux Filesystem Hierarchy Standard (FHS) repository structure designed for read-only root overlay patterns via `bootc` and `ostree`.
+> The deployed root-overlay tree of the MiOS immutable workstation OS.
 
----
-
-## 🚀 Ignition Workflow
-
-To ignite a MiOS root overlay on a target system (optimized for Fedora), use the following one-liner:
-
-```bash
-# 1. Download and ignite the MiOS overlay
-sudo curl -fsSL https://raw.githubusercontent.com/Kabuki94/MiOS/main/mios.sh -o /usr/bin/mios.sh && sudo chmod +x /usr/bin/mios.sh && sudo /usr/bin/mios.sh
-```
-
-### What happens during Ignition:
-1. **FHS Mapping:** The MiOS repository structure is natively overlaid onto the host system's root (`/`).
-2. **Environment Initialization:** AI environment components, system tools, and build scripts are placed into standard Linux paths.
-3. **AI Self-Initialization:** The `/v1` directory is populated with OpenAI API-compliant manifests, enabling local inference servers (vLLM, LocalAI) to auto-initialize.
-4. **Build Readiness:** The system is immediately ready to build, test, and deploy MiOS OCI images.
+**Version:** v0.1.5
+**Architecture:** OCI-bootc + ostree composefs
+**Base image:** `ghcr.io/ublue-os/ucore-hci:stable-nvidia`
+**Published:** `ghcr.io/kabuki94/mios:latest`
 
 ---
 
-## 📂 Repository Structure (FHS Native)
+## What this repo is
 
-The repository strictly follows the Linux Filesystem Hierarchy Standard to ensure seamless integration as a system overlay:
+This repo's working tree maps directly onto the deployed root filesystem (`/`).
+Each tracked directory corresponds 1:1 to its target path:
 
-- **/usr/lib/mios/automation/**: Master build runner (`build.sh`) and numbered phase scripts.
-- **/usr/lib/mios/tools/**: Internal engineering utilities and libraries.
-- **/usr/bin/**: User-facing MiOS command-line tools.
-- **/etc/mios/**: System configuration templates and environment overrides.
-- **/var/lib/mios/**: Build artifacts, OCI image layers, and persistent state.
-- **/v1/**: OpenAI API-compliant discovery root for local AI services.
+| Path in repo | Path on deployed host | Purpose |
+|---|---|---|
+| `usr/` | `/usr` | System binaries, libraries, units, manifests (read-only on bootc) |
+| `etc/` | `/etc` | System configuration overlays (Quadlets, etc.) |
+| `var/` | `/var` | State directory placeholders (declared via tmpfiles.d) |
+| `v1/` | `/v1` | OpenAI-namespace AI gateway (models/MCP discovery) |
+| `srv/` | `/srv` | Stateful workload mounts (e.g. `/srv/ai` for model weights) |
 
----
+The `.gitignore` is an allow-list: `/*` and `.*` ignore everything, then
+`!`-rules whitelist exactly the paths MiOS owns. Cloning this repo into `/`
+on a host therefore produces a clean overlay merge with no collisions against
+unrelated system content.
 
-## 🤖 AI-Native Integration
+## What this repo is NOT
 
-MiOS is architected for "AI-First" operations, providing a standardized interface for local FOSS AI agents:
+This repo does NOT contain build infrastructure. The `Containerfile`,
+`Justfile`, `automation/`, `tools/`, `install.sh`, `build-mios.sh`,
+`mios-build-local.ps1`, `push-to-github.ps1`, `preflight.ps1`, `.env.mios`,
+`INDEX.md`, and the AI-agent metadata files all live in
+[Kabuki94/MiOS-bootstrap](https://github.com/Kabuki94/MiOS-bootstrap).
 
-- **/v1/models**: JSON manifest for all available local models.
-- **/v1/mcp**: Configuration for Model Context Protocol (MCP) servers.
-- **/v1/knowledge.json.gz**: A high-density, compressed RAG snapshot of all MiOS documentation and engineering context.
+The OCI image build flow is:
 
----
+1. Bootstrap ignites onto a host root (or into a CI workspace), placing
+   `Containerfile` + `automation/` + `tools/` at the canonical paths.
+2. MiOS clones into the same root and overlays its tree (lossless additive merge).
+3. `podman build -f Containerfile` synthesizes the final OCI image from the
+   merged tree.
+4. CI signs (cosign keyless), rechunks (`bootc-base-imagectl`), and pushes to
+   `ghcr.io/kabuki94/mios:latest`.
+5. Deployed hosts pull updates via `sudo bootc upgrade`.
 
-## 🏗 Architectural Deep-Dive
+## OpenAI-namespace AI gateway
 
-### Immutable Core (bootc & ostree)
-MiOS leverages `bootc` to deliver a mathematically verifiable OS. The root filesystem is immutable, with state persistence managed via `ostree` overlays on `/var`. This ensures that every boot starts from a known-good cryptographic state, while allowing for dynamic AI model management.
+The `/v1` tree exposes models, MCP servers, and other AI metadata under the
+canonical OpenAI REST namespace. The Quadlet at
+`etc/containers/systemd/mios-ai.container` runs LocalAI bound to `/v1` so
+clients can hit `http://localhost:8080/v1/models` and have it resolved against
+the on-disk discovery tree.
 
-### Self-Initializing AI Gateway
-By consolidating AI metadata into `/v1`, MiOS provides a "Zero-Config" entry point for local inference. 
-- **LocalAI** acts as the universal API shim, discovering model definitions in `/usr/share/mios/ai/models/`.
-- **vLLM** provides high-throughput execution for large-scale models, bridged to the unified OpenAI-compatible API surface.
+## License
 
-For more details, see [BOOTC-AI-PATTERNS.md](/usr/share/doc/mios/engineering/BOOTC-AI-PATTERNS.md).
+Apache-2.0. See [LICENSE](https://github.com/Kabuki94/MiOS-bootstrap/blob/main/LICENSE)
+in the bootstrap repo.
 
----
+## Project resources
 
-## 🛠 Building MiOS
-
-Once overlaid, you can build the MiOS OCI image directly from the root:
-
-```bash
-# Build the MiOS OCI image using the native Containerfile
-sudo podman build -t mios:latest -f /Containerfile .
-```
-
----
-
-### 🌐 Project Resources
-- **Repository:** [https://github.com/Kabuki94/MiOS](https://github.com/Kabuki94/MiOS)
-- **License:** Apache-2.0
-- **Version:** v0.1.4
-
----
-*MiOS: The Operating System as an OCI Payload.*
+- Repository: https://github.com/Kabuki94/MiOS
+- Build infrastructure: https://github.com/Kabuki94/MiOS-bootstrap
+- Container registry: `ghcr.io/kabuki94/mios`

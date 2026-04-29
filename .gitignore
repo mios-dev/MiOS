@@ -1,14 +1,28 @@
+# MiOS root-overlay artifact -- selectively allow-list paths that map directly
+# onto the deployed root filesystem after merge.
+#
+# Architecture: this repo's working tree IS / on the target host. Top-level files
+# named in `!`-rules are tracked; everything else under / is ignored so that a
+# clone-into-root operation never tries to track unrelated host content.
+#
+# The build-infrastructure files (Containerfile, Justfile, install.sh, etc.)
+# live in MiOS-bootstrap and are merged onto / from there at build time. They
+# are intentionally NOT tracked here.
+
+# Default: ignore everything (including dotfiles)
 /*
 .*
+
+# Repo metadata
 !/.github/
 !/.gitignore
-!/Containerfile
+
+# Image-shape metadata (MiOS-owned, ships in the image)
 !/README.md
 !/VERSION
 !/AGENTS.md
-!/Justfile
 
-# Allow overlay directories and their contents explicitly
+# Root-overlay tree (the actual deployed filesystem content)
 !/usr/
 !/usr/**
 !/etc/
@@ -24,3 +38,4 @@
 **/__pycache__/
 **/*.pyc
 **/.DS_Store
+**/Thumbs.db

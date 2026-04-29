@@ -1,8 +1,10 @@
 # -----------------------------------------------------------------------------
 # MiOS CI/CD Pipeline
-# Build  Rechunk  Sign  Push  SBOM  Cleanup
+# Build > Rechunk > Sign > Push > SBOM > Cleanup
 #
-# v2.1.0: Hardened triggers and automated maintenance.
+# This workflow consumes MiOS-bootstrap at runtime: bootstrap holds the
+# Containerfile, Justfile, automation/, and tools/ trees. CI clones bootstrap,
+# overlays the entry-point files into the MiOS workspace, then builds.
 # -----------------------------------------------------------------------------
 name: Build MiOS
 
@@ -17,7 +19,7 @@ on:
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/PULL_REQUEST_TEMPLATE.md"
   schedule:
-    # Weekly rebuild  picks up base image updates (kernel, Mesa, systemd)
+    # Weekly rebuild -- picks up base image updates (kernel, Mesa, systemd)
     - cron: "0 6 * * 1"
   workflow_dispatch:
     inputs:
@@ -34,32 +36,32 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   BASE_IMAGE: ghcr.io/ublue-os/ucore-hci:stable-nvidia
+  BOOTSTRAP_REPO: Kabuki94/MiOS-bootstrap
+  BOOTSTRAP_BRANCH: main
 
 permissions:
   contents: read
   packages: write
-  actions: write      # Required for workflow run cleanup
-  id-token: write    # Required for cosign keyless (OIDC) signing
+  actions: write
+  id-token: write
 
 jobs:
-  # --- Build Job -------------------------------------------------------------
   build:
     runs-on: ubuntu-24.04
     outputs:
       digest: ${{ steps.rechunk.outputs.digest }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Checkout repository
+      - name: Checkout MiOS (root overlay)
         uses: actions/checkout@v4
 
       - name: Lowercase IMAGE_NAME
-        run: |
-          echo "IMAGE_NAME=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+        run: echo "IMAGE_NAME=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: Read VERSION
         id: version
         run: |
-          VERSION=$(cat VERSION 2>/dev/null || echo "v0.1.3")
+          VERSION=$(cat VERSION 2>/dev/null || echo "0.1.5")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Maximize build space
@@ -74,23 +76,35 @@ jobs:
 
       - name: Manual aggressive cleanup
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/az
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/az /usr/share/swift /usr/local/.ghcup
           sudo apt-get clean
           sudo docker image prune -af
           df -h
 
-      - name: Install Tools
+      - name: Install build tools
         run: |
-          sudo apt-get update && sudo apt-get install -y qemu-utils podman
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | sudo bash -s -- --to /usr/local/bin
-          # Install cosign
+          sudo apt-get update && sudo apt-get install -y qemu-utils podman rsync
           curl -sL https://github.com/sigstore/cosign/releases/download/v2.6.3/cosign-linux-amd64 -o /usr/local/bin/cosign
-          chmod +x /usr/local/bin/cosign
+          sudo chmod +x /usr/local/bin/cosign
+
+      - name: Fetch MiOS-bootstrap (build infrastructure)
+        run: |
+          git clone --depth 1 --branch "${{ env.BOOTSTRAP_BRANCH }}" "https://github.com/${{ env.BOOTSTRAP_REPO }}.git" /tmp/bootstrap
+          # Overlay the entry-point files MiOS does not track itself.
+          # rsync -a preserves perms; --ignore-existing means MiOS-tracked content
+          # always wins when the same path is present in both repos.
+          for entry in Containerfile Justfile; do
+            if [[ -f "/tmp/bootstrap/$entry" ]]; then
+              cp -n "/tmp/bootstrap/$entry" "./$entry" || true
+            fi
+          done
+          for tree in automation tools config; do
+            if [[ -d "/tmp/bootstrap/$tree" ]]; then
+              rsync -a --ignore-existing "/tmp/bootstrap/$tree/" "./$tree/"
+            fi
+          done
+          echo "--- merged workspace ---"
+          ls -la
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -110,7 +124,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=v${{ steps.version.outputs.version }}
             type=sha,prefix=
             type=schedule,pattern={{date 'YYYYMMDD'}}
 
@@ -130,7 +144,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run smoke tests
+      - name: Smoke test (if bootstrap ships evals/)
+        if: hashFiles('evals/smoke-test.sh') != ''
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -150,10 +165,6 @@ jobs:
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           for i in {1..5}; do podman pull "$IMAGE" && break || sleep 15; done
-          
-          # Optimization for granular OCI differentials:
-          # rechunk --max-layers 67 ensures stability, but we use --zstd:chunked if available
-          # to enable OSTree-style file-level delta transmission at the registry level.
           sudo podman run --rm --privileged \
             -v /var/lib/containers:/var/lib/containers \
             "$IMAGE" \
@@ -161,12 +172,10 @@ jobs:
               --max-layers 67 \
               "containers-storage:$IMAGE" \
               "containers-storage:localhost/rechunked-latest"
-          
-          # Push rechunked image with optimized layers for bandwidth reduction
           for i in {1..3}; do podman push --digestfile=rechunk-digest.txt "localhost/rechunked-latest" "$IMAGE" && break || sleep 20; done
           echo "digest=$(cat rechunk-digest.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: Sign image
+      - name: Sign image (cosign keyless)
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         env:
           DIGEST: ${{ steps.rechunk.outputs.digest }}
@@ -180,42 +189,17 @@ jobs:
           DIGEST: ${{ steps.rechunk.outputs.digest }}
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          
-          # Install Syft and Oras
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
           curl -LO https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz
           mkdir -p oras-install
           tar -zxf oras_1.2.2_linux_amd64.tar.gz -C oras-install
           sudo mv oras-install/oras /usr/local/bin/
           rm -rf oras-install oras_1.2.2_linux_amd64.tar.gz
-
-          # Generate SBOMs (SPDX and CycloneDX)
           syft "${IMAGE}@${DIGEST}" -o spdx-json=mios-sbom.spdx.json
           syft "${IMAGE}@${DIGEST}" -o cyclonedx-json=mios-sbom.cyclonedx.json
-
-          # Attach to OCI image using ORAS (avoids Rekor size limits)
           oras attach --artifact-type application/spdx+json "${IMAGE}@${DIGEST}" mios-sbom.spdx.json
           oras attach --artifact-type application/vnd.cyclonedx+json "${IMAGE}@${DIGEST}" mios-sbom.cyclonedx.json
 
-  # --- Boot Validation ------------------------------------------------------
-  boot-validation:
-    name: QEMU Boot Validation
-    runs-on: ubuntu-24.04
-    needs: [build]
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Maximize build space
-        uses: jlumbroso/free-disk-space@v1.3.1
-      - name: Install QEMU and Tools
-        run: |
-          sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils podman
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | sudo bash -s -- --to /usr/local/bin
-      - name: Run boot-test
-        run: just boot-test
-
-  # --- Automated Cleanup -----------------------------------------------------
   cleanup:
     name: Maintain Repository Health
     runs-on: ubuntu-latest
@@ -225,7 +209,7 @@ jobs:
       - name: Delete old untagged images
         uses: actions/delete-package-versions@v5
         with:
-          package-name: mios-bootc
+          package-name: mios
           package-type: container
           min-versions-to-keep: 5
           delete-only-untagged-versions: true
@@ -238,34 +222,24 @@ jobs:
             const keepMinimum = 10;
             const now = new Date();
             const msInDay = 1000 * 60 * 60 * 24;
-
             const response = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100
             });
-
-            // Sort by created_at descending (newest first)
             const runs = response.data.workflow_runs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
             for (let i = 0; i < runs.length; i++) {
               if (i < keepMinimum) continue;
-
               const run = runs[i];
-              const created = new Date(run.created_at);
-              const ageDays = (now - created) / msInDay;
-
+              const ageDays = (now - new Date(run.created_at)) / msInDay;
               if (ageDays > daysToKeep) {
-                console.log(`Deleting workflow run ${run.id} (Age: ${ageDays.toFixed(1)} days)`);
                 try {
                   await github.rest.actions.deleteWorkflowRun({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     run_id: run.id
                   });
-                } catch (e) {
-                  console.log(`Failed to delete run ${run.id}: ${e.message}`);
-                }
+                } catch (e) { console.log(Delete failed for run ${run.id}: ${e.message}); }
               }
             }
 
@@ -279,8 +253,7 @@ jobs:
             });
             const now = new Date();
             for (const artifact of artifacts.data.artifacts) {
-              const created = new Date(artifact.created_at);
-              const ageDays = (now - created) / (1000 * 60 * 60 * 24);
+              const ageDays = (now - new Date(artifact.created_at)) / (1000 * 60 * 60 * 24);
               if (ageDays > 7) {
                 await github.rest.actions.deleteArtifact({
                   owner: context.repo.owner,

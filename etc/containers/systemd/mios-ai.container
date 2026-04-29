@@ -1,18 +1,36 @@
+# /etc/containers/systemd/mios-ai.container
+#
+# LocalAI gateway exposing the OpenAI-compatible /v1 API surface against the
+# on-disk model discovery tree under /usr/share/mios/ai and the stateful weights
+# at /srv/ai.
+#
+# IMPORTANT: pin a specific image digest before publishing the immutable image.
+# Using :latest in a baked image means every boot pulls whatever is current at
+# that moment, which violates the offline-first / fully-baked principle.
+# To pin: replace `:latest` with `@sha256:<digest>` after running:
+#   podman pull quay.io/go-skynet/local-ai:latest
+#   podman inspect --format '{{index .RepoDigests 0}}' quay.io/go-skynet/local-ai:latest
+
 [Unit]
-Description=MiOS AI Gateway (LocalAI)
+Description=MiOS AI Gateway (LocalAI, OpenAI-compatible)
 After=network-online.target
+Wants=network-online.target
 
 [Container]
 Image=quay.io/go-skynet/local-ai:latest
-Environment=MODELS_PATH=/v1/models
+Environment=MODELS_PATH=/srv/ai/models
+Environment=THREADS=4
 Volume=/v1:/v1:ro
 Volume=/usr/share/mios/ai:/usr/share/mios/ai:ro
+Volume=/srv/ai:/srv/ai:rw,Z
 PublishPort=8080:8080
 Label=io.mios.role=ai-gateway
 Network=mios.network
 
 [Service]
 Restart=always
+RestartSec=10s
+TimeoutStartSec=120s
 
 [Install]
 WantedBy=multi-user.target
