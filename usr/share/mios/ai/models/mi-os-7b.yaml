@@ -1,5 +1,0 @@
-name: mi-os-7b
-backend: vllm
-parameters:
-  model: /var/lib/mios/ai/models/mi-os-7b
-  max_tokens: 4096

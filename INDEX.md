@@ -62,7 +62,7 @@ MiOS is OpenAI-API native. All agents MUST target the local proxy at http://loca
 | /v1/mcp | FS | MCP Registry | /usr/share/mios/ai/mcp/config.json |
 | /v1/embeddings | POST | Vector Search | - |
 
-**Inference Backend:** LocalAI (default), swappable with Ollama, vLLM, or llama.cpp.
+**Inference Backend:** OpenAI-compatible local provider (default), swappable with any standard-compliant backend.
 
 ---
 

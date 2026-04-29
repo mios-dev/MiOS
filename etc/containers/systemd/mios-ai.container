@@ -1,9 +1,9 @@
 # /etc/containers/systemd/mios-ai.container
-# LocalAI Quadlet -- OpenAI-compatible inference backend.
-# Pinned to a specific tag for reproducibility; bumped via image-versions.yml.
+# OpenAI-compatible inference backend.
+# Pinned to a specific tag for reproducibility.
 
 [Unit]
-Description=MiOS AI inference backend (LocalAI, OpenAI-compatible)
+Description=MiOS AI inference backend (OpenAI-compatible)
 After=network-online.target
 Wants=network-online.target
 

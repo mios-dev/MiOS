@@ -1,11 +1,1 @@
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "mi-os-7b",
-      "object": "model",
-      "created": 1777423304,
-      "owned_by": "mios"
-    }
-  ]
-}
+{"object":"list","data":[{"id":"mi-os-7b","object":"model","created":1777423304,"owned_by":"mios"}]}
