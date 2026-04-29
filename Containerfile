@@ -18,10 +18,10 @@ LABEL ostree.bootable="1"
 CMD ["/sbin/init"]
 
 # Overlay MiOS FHS components
-COPY usr/ /usr/
-COPY etc/ /etc/
-COPY var/ /var/
-COPY v1/ /v1/
+COPY usr /usr
+COPY etc /etc
+COPY var /var
+COPY v1 /v1
 
 # Build Orchestration
 RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
