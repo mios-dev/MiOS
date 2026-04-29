@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 
 MD_JOURNAL = "specs/memory/2026-04-26-Artifact-MEM-001-Journal.md"
-JSONL_JOURNAL = "var/lib/mios/memory/journal/v1.jsonl"
+JSONL_JOURNAL = "usr/share/mios/memory/v1.jsonl"
 
 def parse_markdown_journal(file_path):
     if not os.path.exists(file_path):

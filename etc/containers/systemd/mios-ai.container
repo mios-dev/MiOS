@@ -1,6 +1,5 @@
 # /etc/containers/systemd/mios-ai.container
 # OpenAI-compatible inference backend.
-# Pinned to a specific tag for reproducibility.
 
 [Unit]
 Description=MiOS AI inference backend (OpenAI-compatible)
@@ -17,11 +16,14 @@ Volume=/etc/mios/ai:/etc/mios/ai:Z,ro
 Environment=MODELS_PATH=/build/models
 Environment=THREADS=4
 Environment=CONTEXT_SIZE=4096
+User=mios-ai
+Group=mios-ai
 
 [Service]
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=900s
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target

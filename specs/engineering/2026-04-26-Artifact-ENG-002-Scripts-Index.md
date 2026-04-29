@@ -1,6 +1,6 @@
 <!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
 # 📜 MiOS Scripts Index
-> **Generated:** 2026-04-29T21:19:59.802286
+> **Generated:** 2026-04-29T23:07:13.662127
 > **Status:** Automated Sync
 
 ```json:knowledge
@@ -13,7 +13,7 @@
     "index"
   ],
   "version": "0.2.0",
-  "last_rag_sync": "2026-04-29T21:16:01.389879"
+  "last_rag_sync": "2026-04-29T23:06:38.455497"
 }
 ```
 

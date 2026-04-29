@@ -1,0 +1,22 @@
+# /etc/containers/systemd/mios-ceph.container
+# Minimal Ceph monitor for storage orchestration.
+
+[Unit]
+Description=MiOS Ceph Monitor (Podman-native)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=quay.io/ceph/ceph:latest
+ContainerName=mios-ceph
+Network=mios.network
+Volume=/var/lib/ceph:/var/lib/ceph:Z
+Volume=/etc/ceph:/etc/ceph:Z
+Exec=mon
+
+[Service]
+Restart=always
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target

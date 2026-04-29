@@ -30,7 +30,7 @@ MiOS follows a rootfs-native repository structure.
 
 ### ⚖️ Immutable Appliance Laws
 - **USR-OVER-ETC**: Never write static config to `/etc` at build time. Use `/usr/lib/<component>.d/`.
-- **NO-MKDIR-IN-VAR**: All `/var` directories must be declared via `tmpfiles.d`.
+- **NO-MKDIR-IN-VAR**: All `/var` directories must be declared via `tmpfiles.d`. Build-time `/var` overlays are strictly forbidden.
 
 ---
 
@@ -41,6 +41,7 @@ Native-tier performance via:
 - **NVIDIA**: Open-source GSP modules with CDI (Container Device Interface) support.
 - **AMD**: KFD/ROCm native support.
 - **Intel**: Arc/Xe native support.
+- **Hardware Targeting**: Primary GPU IDs `10de:2204,10de:1aef` (RTX 4090).
 
 ### ⚡ Virtualization Mastery
 The system operates as a Tier-1 hypervisor (KVM/QEMU).

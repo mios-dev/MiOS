@@ -68,6 +68,9 @@
 !v1/**
 !artifacts/
 !artifacts/**
+!agents/
+!agents/**
+agents/**/latest-context.json.gz
 
 # Re-ignore noise inside whitelisted dirs
 **/__pycache__/

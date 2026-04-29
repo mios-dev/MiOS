@@ -1,0 +1,23 @@
+# /etc/containers/systemd/mios-k3s.container
+# Rootless K3s orchestration via Podman.
+
+[Unit]
+Description=MiOS K3s Service (Podman-native)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/rancher/k3s:v1.32.1-k3s1
+ContainerName=mios-k3s
+Privileged=true
+Environment=K3S_TOKEN=mios-cluster-secret
+Volume=/var/lib/rancher/k3s:/var/lib/rancher/k3s:Z
+Volume=/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:ro
+Exec=server --disable=traefik
+
+[Service]
+Restart=always
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -13,20 +13,22 @@
 
 ### 🧠 Execution Control
 Strict binary whitelisting via `fapolicyd` (deny-by-default).
-- Authorized paths: `/usr/bin`, `/usr/lib`, `/usr/local/bin`.
+- **Authorized paths**: `/usr/bin`, `/usr/lib`, `/usr/local/bin`.
+- **Trust Boundary**: `allow perm=execute : ftype=application/x-executable trust=1`.
 
 ### 🔒 Kernel Hardening (29-Parameter Standard)
 - `slab_nomerge`: Prevents heap layout manipulation.
 - `init_on_alloc=1 / init_on_free=1`: Memory zeroing.
 - `lockdown=integrity`: Protects kernel integrity.
 - `iommu=force`: Hardware-level DMA isolation.
+- **VFIO Isolation**: Early-boot binding for IDs `10de:2204,10de:1aef`.
 
 ---
 
 ## 🏗️ Build Architecture
 
 ### 🔄 The Self-Build Loop
-MiOS is a self-replicating OS. A running MiOS instance can build its own successor.
+MiOS is a self-replicating OS. A running MiOS instance can build its own successor using Podman/Buildah without host-level dependencies.
 ```
 Running MiOS → Podman Build → New OCI Image → bootc switch → Reboot → New OS
 ```

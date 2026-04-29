@@ -31,10 +31,11 @@ Clients reach you via the OpenAI REST protocol at `http://localhost:8080/v1`. Yo
 
 ## ⚖️ Immutable Appliance Laws (CORE)
 
-1. **USR-OVER-ETC:** Never write static config to /etc/ at build time. Use /usr/lib/<component>.d/. /etc/ is for admin overrides only.
-2. **NO-MKDIR-IN-VAR:** Never mkdir /var/... in build scripts. Declare all /var dirs via tmpfiles.d.
-3. **BOUND-IMAGES:** All primary Quadlet sidecar containers must be symlinked into /usr/lib/bootc/bound-images.d/.
-4. **BOOTC-CONTAINER-LINT:** RUN bootc container lint MUST be the final instruction in every Containerfile.
+1. **USR-OVER-ETC**: Never write static config to `/etc` at build time. Use `/usr/lib/<component>.d/`. `/etc` is for admin overrides only.
+2. **NO-MKDIR-IN-VAR**: Never `mkdir /var/...` in build scripts. Declare all `/var` dirs via `tmpfiles.d`. Build-time `/var` overlays are architectural violations.
+3. **BOUND-IMAGES**: All primary Quadlet sidecar containers must be symlinked into `/usr/lib/bootc/bound-images.d/`.
+4. **UNPRIVILEGED-QUADLETS**: All AI/Worker Quadlets MUST define unprivileged `User=`/`Group=` and `Delegate=yes` in the `[Service]` section to prevent privilege leaks.
+5. **BOOTC-CONTAINER-LINT**: `RUN bootc container lint` MUST be the final instruction in every Containerfile.
 
 ---
 

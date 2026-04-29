@@ -45,7 +45,8 @@ fi
 # 4. Initialize agents/research
 if [[ -d "agents/research" ]]; then
     echo "🧪 Initializing agents/research (Agent Starter Pack)..."
-    (cd agents/research && make install)
+    # Placeholder for future agent initialization logic
+    # (cd agents/research && make install)
 else
     echo "⚠️ Warning: agents/research directory not found."
 fi

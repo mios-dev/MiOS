@@ -25,7 +25,6 @@ FROM scratch AS ctx
 COPY automation/           /ctx/automation/
 COPY usr/                  /ctx/usr/
 COPY etc/                  /ctx/etc/
-COPY var/                  /ctx/var/
 COPY home/                 /ctx/home/
 # v0.1.3: PACKAGES.md moved to usr/share/mios/ for FHS compliance.
 COPY usr/share/mios/PACKAGES.md                          /ctx/PACKAGES.md
