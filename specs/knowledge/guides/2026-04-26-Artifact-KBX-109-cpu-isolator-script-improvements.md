@@ -1,4 +1,4 @@
-<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
+<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-fss/mios -->
 # 🌐 MiOS
 ```json:knowledge
 {
@@ -19,7 +19,7 @@
 > **Proprietor:** MiOS Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to MiOS Project
-> **Source Reference:** MiOS-Core-v0.1.1
+> **Source Reference:** MiOS-Core-v0.1.4
 ---
 
 # CPU Isolation Script Improvements
@@ -198,8 +198,8 @@ Possible future improvements:
 ### ⚖️ Legal & Source Reference
 - **Copyright:** (c) 2026 MiOS Project
 - **Status:** Personal Property / Private Infrastructure
-- **Project Repository:** [mios-project/mios](https://github.com/mios-project/mios)
-- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-project/mios/blob/main/specs/Home.md)
-- **Artifact Hub:** [ai-context.json](https://github.com/mios-project/mios/blob/main/ai-context.json)
+- **Project Repository:** [mios-fss/mios](https://github.com/mios-fss/mios)
+- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-fss/mios/blob/main/specs/Home.md)
+- **Artifact Hub:** [ai-context.json](https://github.com/mios-fss/mios/blob/main/ai-context.json)
 ---
 <!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->

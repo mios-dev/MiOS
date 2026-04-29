@@ -1,92 +1,58 @@
-# INDEX.md — MiOS Universal Agent Hub (SSOT)
+# MiOS Universal Agent Hub — API Surface (Day 0)
 
 ```json:knowledge
 {
   "summary": "The SINGLE SOURCE OF TRUTH for MiOS. Architectural laws, agent behavior, and API surface contracts in a unified OpenAI-compliant manifest.",
   "logic_type": "documentation",
-  "tags": [
-    "MiOS",
-    "AI",
-    "Agent Hub",
-    "Index",
-    "OpenAI",
-    "SSOT"
-  ],
+  "tags": ["MiOS", "AI", "Agent Hub", "Index", "OpenAI", "SSOT"],
   "relations": {
-    "depends_on": [
-      ".env.mios",
-      "ai-context.json"
-    ],
+    "depends_on": [".env.mios"],
     "impacts": [
       "ARCHITECTURE.md",
       "ENGINEERING.md",
-      "llms.txt",
-      "llms-full.txt",
       "system-prompt.md",
-      ".cursorrules",
-      ".clinerules",
-      ".github/ai-instructions.md"
+      "llms.txt"
     ]
   },
-  "version": "0.2.0",
-  "last_rag_sync": "2026-04-29T23:06:38.455497"
+  "version": "v0.1.4"
 }
 ```
 
-> **DELEGATED AI FILES:**
-> - **.cursorrules**: Rules for VS Code Cursor.
-> - **.clinerules**: Rules for Cline/Roo-Code.
-> - **.github/ai-instructions.md**: Rules for GitHub Agents.
-> - **system-prompt.md**: Authoritative Persona & Identity.
-> - **llms.txt**: High-level AI ingestion index.
-> - **llms-full.txt**: Flattened repository context.
-
----
-
-## 🏗️ Project Profile
-MiOS is a **bootc-based, self-building, immutable workstation OS** on Fedora Rawhide. It uses a single OCI image to cover all roles: Desktop, K3s, VFIO, and WSL2.
+## 🏗️ System Profile
+MiOS is an immutable, AI-native workstation operating system. It provides a standardized surface for autonomous agents to interact with system resources via OpenAI-compatible APIs.
 
 ---
 
 ## 🤖 AI Agent Surface Contract (OpenAI Native)
-MiOS is OpenAI-API native. All agents MUST target the local proxy at `http://localhost:8080/v1`.
+All agents MUST target the local proxy at `http://localhost:8080/v1`.
 
-| Endpoint | Method | Purpose | Deployed Filesystem Mirror |
+| Endpoint | Method | Purpose | Deployed Path |
 |---|---|---|---|
-| /v1/chat/completions | POST | Primary Chat Interface | - |
-| /v1/models | GET | Model Discovery | /usr/share/mios/ai/v1/models.json |
-| /v1/mcp | FS | MCP Registry | /usr/share/mios/ai/mcp/config.json |
-| /v1/embeddings | POST | Vector Search | - |
+| /v1/chat/completions | POST | Primary System Chat | - |
+| /v1/models | GET | Hardware/Model Discovery | /usr/share/mios/ai/v1/models.json |
+| /v1/mcp | FS | Model Context Protocol Hub | /usr/share/mios/ai/mcp/config.json |
+| /v1/embeddings | POST | Semantic Search (Local) | - |
 
 ---
 
-## ⚖️ Immutable Appliance Laws (Day 0)
-These laws are absolute. Violations cause state drift and build failure.
+## ⚖️ Immutable Appliance Laws
+These laws define the system's operational boundaries. Violations cause state drift and are architectural failures.
 
-1. **USR-OVER-ETC**: Never write static config to `/etc` at build time. Use `/usr/lib/<component>.d/`.
-2. **NO-MKDIR-IN-VAR**: Declare all `/var` dirs via `tmpfiles.d`.
-3. **BOUND-IMAGES**: All primary Quadlet sidecar containers must be symlinked into `/usr/lib/bootc/bound-images.d/`.
-4. **BOOTC-CONTAINER-LINT**: `RUN bootc container lint` must be the final instruction in every Containerfile.
-5. **UNIFIED-AI-REDIRECTS**: Use agnostic environment variables (MIOS_AI_KEY, MIOS_AI_MODEL) targeting `http://localhost:8080/v1`.
-
----
-
-## 🛠️ Unified Specification Files
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)**: Hardware, Filesystem, and Virtualization.
-- **[ENGINEERING.md](./ENGINEERING.md)**: Security, Build Modes, and Automation.
+1. **USR-OVER-ETC**: All static configuration must reside in `/usr/lib/`. `/etc/` is reserved strictly for host-specific administrator overrides.
+2. **NO-MKDIR-IN-VAR**: Persistence in `/var/` is managed exclusively via `tmpfiles.d` declarations.
+3. **UNPRIVILEGED-QUADLETS**: Containerized sidecars MUST execute as unprivileged users with cgroup delegation enabled.
+4. **BOOTC-NATIVE**: System updates and configuration are cryptographically signed and managed via `bootc`.
 
 ---
 
-## 📂 Repository Directory Map (Rootfs-Native)
+## 📂 Environment Map (Indexed Verbs)
 
-| Path | Purpose | Manifest |
-|---|---|---|
-| `usr/` | System Binaries & Templates | `usr/manifest.json` |
-| `etc/` | Host Overrides | `etc/manifest.json` |
-| `var/` | Mutable State Templates | `var/manifest.json` |
-| `automation/` | Build Pipeline | `automation/manifest.json` |
-| `tools/` | Utility Toolchain | `tools/manifest.json` |
-| `specs/` | Research & Blueprints | `specs/manifest.json` |
+| Variable | Verb | Scope | Purpose |
+|---|---|---|---|
+| `MIOS_AI_KEY` | `SET_KEY` | AI | API Key for local inference. |
+| `MIOS_AI_MODEL` | `SET_MODEL` | AI | Target model for system operations. |
+| `MIOS_BASE_IMAGE` | `GET_BASE` | SYS | Root OCI image reference. |
+| `MIOS_LOCAL_TAG` | `SET_TAG` | SYS | Local image identifier. |
 
 ---
-*Copyright (c) 2026 MiOS Project. Day 0 Ready.*
+*Copyright (c) 2026 MiOS. Pure FOSS. Zero Day Ready.*

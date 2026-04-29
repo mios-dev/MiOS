@@ -25,7 +25,7 @@ readonly DIM='\033[2m'
 readonly NC='\033[0m'
 
 # Configuration
-readonly SCRIPT_VERSION="v0.1.1"
+readonly SCRIPT_VERSION="v0.1.4"
 readonly HOOK_DIR="/etc/libvirt/hooks"
 readonly CONFIG_DIR="/etc/libvirt/vm-cpu-pins"
 readonly BACKUP_SUFFIX=".backup-$(date +%Y%m%d-%H%M%S)"

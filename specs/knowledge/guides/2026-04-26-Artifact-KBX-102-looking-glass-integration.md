@@ -1,4 +1,4 @@
-<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
+<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-fss/mios -->
 # 🌐 MiOS
 ```json:knowledge
 {
@@ -19,25 +19,25 @@
 > **Proprietor:** MiOS Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to MiOS Project
-> **Source Reference:** MiOS-Core-v0.1.1
+> **Source Reference:** MiOS-Core-v0.1.4
 ---
 
-# MiOS-Build v0.1.1 - Looking Glass Integration
+# MiOS-Build v0.1.4 - Looking Glass Integration
 
 ## What's New
 
-The MiOS-Build installation script has been updated to version **v0.1.1** with full Looking Glass support for ultra-low latency GPU passthrough to Windows VMs!
+The MiOS-Build installation script has been updated to version **v0.1.4** with full Looking Glass support for ultra-low latency GPU passthrough to Windows VMs!
 
 ### Key Changes
 
 #### 1. **Upstream VirtIO ISO Integration**
 - **Previous**: Used standard virtio-win ISO without IVSHMEM driver
-- **New**: Downloads upstream virtio-win ISO (`v0.1.1`) that includes:
+- **New**: Downloads upstream virtio-win ISO (`v0.1.4`) that includes:
   - All standard VirtIO drivers for Windows 11
   - **IVSHMEM driver** required for Looking Glass shared memory
   - Latest Windows 11 24H2 driver support
 
-**URL**: `https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/upstream-virtio/virtio-win-v0.1.1.iso`  
+**URL**: `https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/upstream-virtio/virtio-win-v0.1.4.iso`  
 **Location**: `/var/lib/libvirt/images/virtio-win.iso`
 
 #### 2. **Looking Glass Installation (Phase 15)**
@@ -347,7 +347,7 @@ looking-glass-start VM_NAME
 
 ## Version History
 
-**v0.1.1** (2025-01-18)
+**v0.1.4** (2025-01-18)
 - âœ“ Added Looking Glass B7 installation
 - âœ“ Integrated upstream VirtIO ISO with IVSHMEM driver
 - âœ“ Created looking-glass-start helper script
@@ -355,7 +355,7 @@ looking-glass-start VM_NAME
 - âœ“ Added IVSHMEM device configuration
 - âœ“ Automated shared memory permissions setup
 
-**v0.1.1** (Previous)
+**v0.1.4** (Previous)
 - Initial MiOS-Build release
 - Basic QEMU/KVM setup
 - Cockpit integration
@@ -369,8 +369,8 @@ looking-glass-start VM_NAME
 ### ⚖️ Legal & Source Reference
 - **Copyright:** (c) 2026 MiOS Project
 - **Status:** Personal Property / Private Infrastructure
-- **Project Repository:** [mios-project/mios](https://github.com/mios-project/mios)
-- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-project/mios/blob/main/specs/Home.md)
-- **Artifact Hub:** [ai-context.json](https://github.com/mios-project/mios/blob/main/ai-context.json)
+- **Project Repository:** [mios-fss/mios](https://github.com/mios-fss/mios)
+- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-fss/mios/blob/main/specs/Home.md)
+- **Artifact Hub:** [ai-context.json](https://github.com/mios-fss/mios/blob/main/ai-context.json)
 ---
 <!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->

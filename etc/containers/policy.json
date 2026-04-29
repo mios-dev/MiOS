@@ -12,7 +12,7 @@
                     "keyPath": "/usr/share/pki/containers/ublue-os.pub"
                 }
             ],
-            "ghcr.io/mios-project": [
+            "ghcr.io/mios-fss": [
                 {
                     "type": "sigstoreSigned",
                     "keyPath": "/usr/share/pki/containers/mios-cosign.pub"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# MiOS v0.1.1 — Ephemeral QEMU boot test
+# MiOS v0.1.4 — Ephemeral QEMU boot test
 # Usage: bcvk-wrapper.sh <qcow2-path> [serial-log-path]
 #
 # Boots a QCOW2 image in headless QEMU with KVM, captures serial console,

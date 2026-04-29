@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-    MiOS v0.1.3 - MiOS Builder (Windows)
+    MiOS v0.1.4 - MiOS Builder (Windows)
 
 .DESCRIPTION
     Secure build orchestrator with workflow selection.
     Tokens/passwords NEVER appear in plain text in logs or terminal output.
 
-    SECURITY FIXES in v0.1.1:
+    SECURITY FIXES in v0.1.4:
       - Passwords pre-hashed (SHA-512) before injection - plaintext never in build log
       - Registry token uses SecureString - never echoed, never in process args
       - Workflow menu: Local Build, Push Build, Custom Build
       - Admin/origin-owner detection for default token inference
       - Hostname randomization option for HA clusters
 
-    SELF-BUILDING in v0.1.1:
+    SELF-BUILDING in v0.1.4:
       - Pulls existing MiOS image from GHCR as the helper/builder image
       - MiOS image replaces alpine/python for all helper operations
       - Falls back to alpine/python only on first-ever build (no prior image)
@@ -209,14 +209,14 @@ if (Test-Path ".env.mios") {
     }
 }
 
-$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.1.1" }
+$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.1.4" }
 $ImageName      = if ($env:MIOS_IMAGE_NAME) { ($env:MIOS_IMAGE_NAME -split '/')[-1] -replace ':.*$','' } else { "mios" }
 $ImageTag       = "latest"
 $MIOS_USER_ADMIN = "mios" # @track:USER_ADMIN
 $DefUser        = if ($env:MIOS_USER) { $env:MIOS_USER } elseif ($env:MIOS_DEFAULT_USER) { $env:MIOS_DEFAULT_USER } else { $MIOS_USER_ADMIN }
 $DefPass        = if ($env:MIOS_PASSWORD) { $env:MIOS_PASSWORD } elseif ($env:MIOS_DEFAULT_USER_PASSWORD) { $env:MIOS_DEFAULT_USER_PASSWORD } else { "mios" }
 $DefHostname    = if ($env:MIOS_HOSTNAME) { $env:MIOS_HOSTNAME } else { "mios" }
-$MIOS_REGISTRY_DEFAULT = "ghcr.io/mios-project/mios" # @track:REGISTRY_DEFAULT
+$MIOS_REGISTRY_DEFAULT = "ghcr.io/mios-fss/mios" # @track:REGISTRY_DEFAULT
 $DefRegistry    = if ($env:MIOS_IMAGE_NAME) { $env:MIOS_IMAGE_NAME -replace ':.*$','' } else { $MIOS_REGISTRY_DEFAULT }
 $BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" quay.io/centos-bootc/bootc-image-builder:latest # @track:IMG_BIB
 $BuilderMachine = "mios-builder"
@@ -325,7 +325,7 @@ if ($DoPush -or $DoPull) {
     if ($RegistryToken) { Register-Secret $RegistryToken }
 
     if (-not $RegistryUser) {
-        $RegistryUser = Read-Timed "Registry username:" "mios-project"
+        $RegistryUser = Read-Timed "Registry username:" "mios-fss"
     }
     if (-not $RegistryToken) {
         Write-Host ""
@@ -792,7 +792,7 @@ if ($env:MIOS_SKIP_DEPLOY -eq "1") {
                         $wslRAM = [Math]::Max(16, [Math]::Floor((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB * 0.75))
                         
                         $wslLines = @(
-                            "# MiOS v0.1.3 - WSL2 Configuration",
+                            "# MiOS v0.1.4 - WSL2 Configuration",
                             "[wsl2]",
                             "memory=${wslRAM}GB",
                             "processors=${wslCPUs}",

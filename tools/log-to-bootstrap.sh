@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 BOOTSTRAP_REPO="${BOOTSTRAP_REPO:-${HOME}/MiOS-bootstrap}"
-MIOS_VERSION=$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "v0.1.2")
+MIOS_VERSION=$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "v0.1.4")
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "MiOS Artifact Logging to Bootstrap Repository"
@@ -19,7 +19,7 @@ if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
     echo "❌ MiOS-bootstrap repository not found at: ${BOOTSTRAP_REPO}"
     echo ""
     echo "Clone it first:"
-    echo "  git clone https://github.com/MiOS-DEV/MiOS-bootstrap ${BOOTSTRAP_REPO}"
+    echo "  git clone https://github.com/mios-fss/MiOS-bootstrap ${BOOTSTRAP_REPO}"
     echo ""
     echo "Or set BOOTSTRAP_REPO environment variable:"
     echo "  export BOOTSTRAP_REPO=/path/to/MiOS-bootstrap"
@@ -119,7 +119,7 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     "vLLM"
   ],
   "license": "Personal Property - MiOS Project",
-  "repository": "https://github.com/mios-project/mios"
+  "repository": "https://github.com/mios-fss/mios"
 }
 MANIFEST
 
@@ -222,8 +222,8 @@ These artifacts enable:
 
 ---
 
-**Repository:** https://github.com/mios-project/mios  
-**Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap  
+**Repository:** https://github.com/mios-fss/mios  
+**Bootstrap:** https://github.com/mios-fss/MiOS-bootstrap  
 **License:** Personal Property - MiOS Project
 README
 

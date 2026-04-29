@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.1 — 34-gpu-detect: Bridge to GPU detection service
+# MiOS v0.1.4 — 34-gpu-detect: Bridge to GPU detection service
 # Blocks NVIDIA modules in VMs, enables hardware renderer on bare metal,
 # detects RTX 50-series VFIO reset bug.
 # Actual logic lives in /usr/libexec/mios/gpu-detect (system_files overlay).

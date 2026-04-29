@@ -1,4 +1,4 @@
-<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
+<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-fss/mios -->
 # 🌐 MiOS
 ```json:knowledge
 {
@@ -19,10 +19,10 @@
 > **Proprietor:** MiOS Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to MiOS Project
-> **Source Reference:** MiOS-Core-v0.1.1
+> **Source Reference:** MiOS-Core-v0.1.4
 ---
 
-# MiOS-Build Unified Management System v0.1.1
+# MiOS-Build Unified Management System v0.1.4
 
 ## Complete Integrated Edition
 
@@ -180,7 +180,7 @@ The script maintains persistent state in `/var/lib/mios/state.json`:
 
 ```json
 {
-    "version": "v0.1.1",
+    "version": "v0.1.4",
     "install_phase": "completed",
     "install_mode": "desktop",
     "assessment_done": "true",
@@ -327,7 +327,7 @@ Creates comprehensive report at:
 
 ## Version History
 
-### v0.1.1 - Integrated Edition
+### v0.1.4 - Integrated Edition
 - Complete rewrite as unified script
 - All functionality built-in (no external dependencies)
 - AMD X3D CPU optimization
@@ -355,8 +355,8 @@ For issues or questions:
 ### ⚖️ Legal & Source Reference
 - **Copyright:** (c) 2026 MiOS Project
 - **Status:** Personal Property / Private Infrastructure
-- **Project Repository:** [mios-project/mios](https://github.com/mios-project/mios)
-- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-project/mios/blob/main/specs/Home.md)
-- **Artifact Hub:** [ai-context.json](https://github.com/mios-project/mios/blob/main/ai-context.json)
+- **Project Repository:** [mios-fss/mios](https://github.com/mios-fss/mios)
+- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-fss/mios/blob/main/specs/Home.md)
+- **Artifact Hub:** [ai-context.json](https://github.com/mios-fss/mios/blob/main/ai-context.json)
 ---
 <!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->

@@ -1,72 +1,59 @@
-# MiOS FULL CONTEXT (Day 0 Flattened)
+# MiOS SYSTEM CONTEXT — API Native (Day 0)
 
-This file contains the consolidated, flattened context of the MiOS repository for Day 0 ingestion by any LLM.
+This document provides a flattened, high-density map of the MiOS environment for autonomous agent ingestion.
 
 ---
 
-## 1. ARCHITECTURAL HUB (INDEX.md)
-
-MiOS is a **bootc-based, self-building, immutable workstation OS** on Fedora Rawhide.
+## 1. ARCHITECTURAL SSOT (INDEX.md)
+MiOS is an immutable, AI-native workstation.
 
 ### ⚖️ Immutable Appliance Laws
-1. **USR-OVER-ETC**: Never write static config to `/etc` at build time. Use `/usr/lib/<component>.d/`.
-2. **NO-MKDIR-IN-VAR**: Declare all `/var` dirs via `tmpfiles.d`.
-3. **BOUND-IMAGES**: All Quadlet sidecar containers symlinked into `/usr/lib/bootc/bound-images.d/`.
-4. **BOOTC-CONTAINER-LINT**: `RUN bootc container lint` must be the final instruction in every Containerfile.
+1. **USR-OVER-ETC**: Static config in `/usr/lib/`. `/etc` for admin overrides.
+2. **NO-MKDIR-IN-VAR**: Persistence via `tmpfiles.d`. No build-time `/var` overlays.
+3. **UNPRIVILEGED-QUADLETS**: sidecars execute as unprivileged service accounts.
+4. **BOOTC-NATIVE**: Lifecycle managed via `bootc` and signed OCI images.
 
 ### 🤖 AI Agent Surface Contract
 - **Endpoint**: `http://localhost:8080/v1` (OpenAI-API compatible).
-- **Discovery**: `/.well-known/ai-tools.json` (MCP compatible).
-- **Authoritative Index**: `INDEX.md`.
+- **Interface Protocols**: REST, MCP (Model Context Protocol).
+- **Discovery Hub**: `/usr/share/mios/ai/`.
 
 ---
 
-## 2. SYSTEM ARCHITECTURE
+## 2. ENVIRONMENT MAP (Indexed Verbs)
 
-### 💾 Filesystem Layout
-- `/usr`: Immutable (composefs + fs-verity).
-- `/etc`: Persistent overlays for admin overrides.
-- `/var`: Persistent state (User home, Logs, DBs).
-
-### 🖥️ Hardware Support
-- **GPU**: NVIDIA GSP, AMD ROCm, Intel Arc.
-- **Virtualization**: VFIO, Looking Glass, K3s, Ceph.
+| Variable | Verb | Intent |
+|---|---|---|
+| `MIOS_AI_KEY` | `SET_KEY` | Set local inference API key. |
+| `MIOS_AI_MODEL` | `SET_MODEL` | Set target LLM for operations. |
+| `MIOS_BASE_IMAGE` | `GET_BASE` | Get root image reference. |
 
 ---
 
-## 3. ENGINEERING STANDARDS
+## 3. DIRECTORY HIERARCHY (Rootfs-Native)
 
-### 🛡️ Security
-- **Hardening**: 29-parameter kernel lockdown.
-- **Execution**: fapolicyd whitelisting.
-- **Peripherals**: USBGuard device gating.
-
-### 🏗️ Build Lifecycle
-- **Tooling**: `just`, `podman`, `bootc`.
-- **Modes**: CI/CD, Local Justfile, Windows PowerShell, and Self-Build.
-
----
-
-## 🤖 AGENT BEHAVIOR (system-prompt.md)
-
-You are a senior Linux / bootc / OCI / OpenAI-API engineer.
-- **Direct**: First sentence answers the question.
-- **Concrete**: Cite paths, commands, and unit names.
-- **FOSS-first**: Lead with open-source options.
-- **Security-aware**: Never recommend disabling security features (SELinux, fapolicyd).
+| Path | Persistence | Purpose |
+| :--- | :--- | :--- |
+| `/usr/bin/` | Immutable | Core system binaries and MiOS CLI. |
+| `/usr/lib/` | Immutable | Static configuration and systemd units. |
+| `/usr/share/mios/ai/` | Immutable | AI manifestos and API discovery files. |
+| `/etc/` | Persistent | Host-specific administrative overrides. |
+| `/var/lib/mios/` | Persistent | Local application state and AI models. |
+| `/srv/ai/` | Persistent | Large model weights and vector stores. |
 
 ---
 
-## 📂 REPOSITORY MAP (Rootfs-Native)
-
-| Path | Purpose |
-| :--- | :--- |
-| `usr/` | System Binaries & Configuration Templates. |
-| `etc/` | Host Configuration Overrides. |
-| `var/` | Persistent Data Templates. |
-| `automation/` | Numbered Build Pipeline (01-99). |
-| `tools/` | Utility Toolchain. |
-| `specs/` | Research & Blueprints. |
+## 4. AGENT BEHAVIOR (system-prompt.md)
+- **Persona**: Senior Linux/bootc/OpenAI-API engineer.
+- **Tone**: Direct, Concrete, FOSS-first.
+- **Constraints**: No fillers, no proprietary cloud APIs, no immutability violations.
 
 ---
-*Copyright (c) 2026 MiOS Project. Day 0 Ready.*
+
+## 5. SYSTEM TOOLCHAIN
+- `bootc`: `UPGRADE_CORE` — Atomic system updates.
+- `podman`: `RUN_SIDECAR` — Orchestrate unprivileged sidecars.
+- `mios-status`: `GET_STATE` — JSON-native system telemetry.
+
+---
+*Copyright (c) 2026 MiOS. Pure FOSS. Day 0 Ready.*

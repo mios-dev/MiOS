@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.9
 # ============================================================================
-# MiOS - Unified Image (v0.2.0)
+# MiOS - Unified Image (v0.1.4)
 # ============================================================================
 # One image. Every role. Every surface. Every GPU vendor.
 #
@@ -11,7 +11,7 @@
 # AMD:      Mesa + ROCm in-image (PACKAGES.md packages-gpu-amd-compute)
 # Intel:    intel-compute-runtime + intel-media-driver (packages-gpu-intel-compute)
 #
-# v0.1.3 Architecture: Rootfs-Native Repository
+# v0.1.4 Architecture: Rootfs-Native Repository
 #   - usr/, etc/, var/ directories promoted to the repository root.
 #   - matches upstream bootc and native Linux filesystem standards.
 # ============================================================================
@@ -26,7 +26,7 @@ COPY automation/           /ctx/automation/
 COPY usr/                  /ctx/usr/
 COPY etc/                  /ctx/etc/
 COPY home/                 /ctx/home/
-# v0.1.3: PACKAGES.md moved to usr/share/mios/ for FHS compliance.
+# v0.1.4: PACKAGES.md moved to usr/share/mios/ for FHS compliance.
 COPY usr/share/mios/PACKAGES.md                          /ctx/PACKAGES.md
 COPY VERSION            /ctx/VERSION
 COPY config/artifacts/       /ctx/bib-configs/
@@ -39,9 +39,9 @@ FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="Unified immutable cloud-native workstation OS (desktop/k3s/ha/hybrid)"
-LABEL org.opencontainers.image.source="https://github.com/MiOS-DEV/MiOS-bootstrap"
+LABEL org.opencontainers.image.source="https://github.com/mios-fss/MiOS-bootstrap"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
-LABEL org.opencontainers.image.version="v0.2.0"
+LABEL org.opencontainers.image.version="v0.1.4"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
@@ -90,7 +90,7 @@ RUN if [[ -n "${MIOS_FLATPAKS}" ]]; then \
 # ---------------------------------------------------------------------------
 # Overlay rootfs content onto the system.
 # ---------------------------------------------------------------------------
-# MiOS v0.1.3: delegate system_files overlay to the script so the
+# MiOS v0.1.4: delegate system_files overlay to the script so the
 # /usr/local -> /var/usrlocal symlink on ucore/bootc bases is handled correctly.
 RUN bash /ctx/automation/08-system-files-overlay.sh
 

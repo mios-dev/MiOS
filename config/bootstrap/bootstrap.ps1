@@ -1,6 +1,6 @@
 # MiOS Public Bootstrap — Windows (PowerShell 5.1+)
-# Repository: MiOS-DEV/MiOS-bootstrap
-# Usage: irm https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.ps1 | iex
+# Repository: MiOS-FSS/MiOS-bootstrap
+# Usage: irm https://raw.githubusercontent.com/MiOS-FSS/MiOS-bootstrap/main/bootstrap.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
@@ -16,7 +16,7 @@ $MiosDeployDir = Join-Path $MiosDocsDir "deployments"
 $MiosManifestsDir = Join-Path $MiosDocsDir "manifests"
 $MiosImagesDir = Join-Path $MiosDocsDir "images"
 
-$PrivateInstaller = "https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1"
+$PrivateInstaller = "https://raw.githubusercontent.com/MiOS-FSS/mios/main/install.ps1"
 $EnvFile = Join-Path $MiosEnvDir "mios-build.env"
 $SecretsFile = Join-Path $env:TEMP "mios-secrets.env"
 
@@ -109,7 +109,7 @@ try {
     $wslRAM = [Math]::Max(16, [Math]::Floor($totalRAM / 1GB * 0.80))
     $wslCPUs = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
     $wslLines = @(
-        "# MiOS v0.1.1 — WSL2 Configuration",
+        "# MiOS v0.1.4 — WSL2 Configuration",
         "[wsl2]",
         "memory=${wslRAM}GB",
         "processors=${wslCPUs}",

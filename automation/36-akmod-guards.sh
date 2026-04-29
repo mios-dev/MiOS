@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# automation/36-akmod-guards.sh - MiOS v0.1.1
+# automation/36-akmod-guards.sh - MiOS v0.1.4
 # ----------------------------------------------------------------------------
 # Install ExecCondition drop-ins that make NVIDIA systemd units exit cleanly
 # (skipped, not failed) when the running kernel's nvidia module has not yet
@@ -36,7 +36,7 @@ for svc in "${SERVICES[@]}"; do
     path="${dir}/${DROPIN_NAME}"
     install -d -m 0755 "${dir}"
     cat > "${path}" <<'EOF'
-# MiOS v0.1.1 akmod-guard
+# MiOS v0.1.4 akmod-guard
 # Skip unit if akmods has not yet registered the nvidia kernel module
 # for the currently running kernel. ExecCondition is additive (AND
 # semantics per systemd.service(5)), so this composes safely with any

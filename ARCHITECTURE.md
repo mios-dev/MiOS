@@ -1,71 +1,57 @@
-# MiOS ARCHITECTURE — Unified Blueprint (Day 0)
+# MiOS ARCHITECTURE — System Blueprint (Day 0)
 
 ```json:knowledge
 {
-  "summary": "Consolidated architectural specification for MiOS. Hardware, Filesystem, and Virtualization SSOT.",
+  "summary": "Consolidated architectural specification for MiOS. Hardware, Filesystem, and AI Interface SSOT.",
   "logic_type": "blueprint",
   "tags": ["MiOS", "Architecture", "Day-0", "SSOT"],
-  "version": "1.0.0"
+  "version": "v0.1.4"
 }
 ```
 
 ## 🏗️ Core Pillars
-MiOS is a container-native, immutable workstation engineered for high-performance virtualization and Generative AI development.
+MiOS is a container-native workstation engineered for high-performance virtualization and local Generative AI development.
 
-1. **Transactional Immutability**: The userspace is a cryptographically sealed OCI image.
-2. **Hardware Agnosticism**: Unified support for Intel, AMD, and NVIDIA silicon.
-3. **Zero-Trust Security**: Strict execution whitelisting and kernel-level hardening.
+1. **Transactional Integrity**: The system core is cryptographically sealed and managed via `bootc`.
+2. **Hardware Agnosticism**: Universal acceleration for primary GPU vendors (NVIDIA, AMD, Intel).
+3. **Zero-Trust Boundary**: Mandatory execution control and kernel-level isolation.
 
 ---
 
 ## 💾 Filesystem Hierarchy (FHS 3.0 + bootc)
-MiOS follows a rootfs-native repository structure.
+MiOS mirrors the standard Linux FHS within its OCI root.
 
-| Path | Type | Persistence | Purpose |
-| :--- | :--- | :--- | :--- |
-| `/usr` | `composefs` | Immutable | Core OS Binaries & Libraries |
-| `/etc` | `overlay` | Persistent | Admin Overrides (USR-OVER-ETC Law) |
-| `/var` | `ext4/btrfs` | Persistent | User Data & System State |
-| `/home` | `symlink` | Persistent | Points to `/var/home` |
-
-### ⚖️ Immutable Appliance Laws
-- **USR-OVER-ETC**: Never write static config to `/etc` at build time. Use `/usr/lib/<component>.d/`.
-- **NO-MKDIR-IN-VAR**: All `/var` directories must be declared via `tmpfiles.d`. Build-time `/var` overlays are strictly forbidden.
-
----
-
-## 🖥️ Hardware & Virtualization
-
-### 🎮 Graphics Acceleration
-Native-tier performance via:
-- **NVIDIA**: Open-source GSP modules with CDI (Container Device Interface) support.
-- **AMD**: KFD/ROCm native support.
-- **Intel**: Arc/Xe native support.
-- **Hardware Targeting**: Primary GPU IDs `10de:2204,10de:1aef` (RTX 4090).
-
-### ⚡ Virtualization Mastery
-The system operates as a Tier-1 hypervisor (KVM/QEMU).
-- **VFIO-PCI**: Dynamic GPU passthrough for Guest VMs.
-- **Looking Glass**: Shared Memory (KVMFR) for low-latency VM display.
-- **CPU Pinning**: Core shielding for X3D/Hybrid core isolation.
-
----
-
-## ⚡ Kernel & Performance
-- **Scheduler**: BORE (Burst-Oriented Response Enhancer).
-- **Tickrate**: 1000Hz.
-- **Memory**: zram (zstd compressed) with le9uo anti-thrashing patches.
-- **I/O**: BFQ for slow disks, Kyber for NVMe.
-
----
-
-## 📦 Deployment Matrix
-| Target | Format | Delivery |
+| Path | Type | Intent |
 | :--- | :--- | :--- |
-| **Bare Metal** | `RAW` | ISO / Disk Flash |
-| **Hyper-V** | `VHDX` | Gen2 VM |
-| **WSL2** | `Tarball` | WSL Import |
-| **OCI** | `Image` | `ghcr.io/kabuki94/mios` |
+| `/usr` | Immutable | System Binaries, Libraries, and Static Config. |
+| `/etc` | Persistent | Host-specific overrides. |
+| `/var` | Persistent | System state and User home directories. |
+| `/srv` | Persistent | Sidecar service data (Models, Databases). |
+
+### ⚖️ Immutability Mandate
+Build-time overlays into `/var` are architectural violations. All `/var` state must be declared via `tmpfiles.d` to ensure atomic, reproducible deployments.
 
 ---
-*Copyright (c) 2026 MiOS Project. Licensed as personal property.*
+
+## 🖥️ Hardware Delegation
+
+### 🎮 Universal Acceleration
+Standardized CDI (Container Device Interface) and ROCm/Arc drivers ensure local AI tools access native hardware performance.
+- **Hardware Targeting**: Primary GPU IDs `10de:2204,10de:1aef`.
+
+### ⚡ Virtualization
+Tier-1 Hypervisor capabilities (KVM/QEMU) are native to the system core, supporting VFIO-PCI passthrough and shared memory (KVMFR) buffers.
+
+---
+
+## 🤖 AI Interface Surface
+The system architecture exposes a local OpenAI-compatible API surface for autonomous management and user interaction.
+
+| Service | Protocol | Access Point |
+| :--- | :--- | :--- |
+| **Inference** | REST | `http://localhost:8080/v1` |
+| **Discovery** | MCP | `/usr/share/mios/ai/mcp/` |
+| **Metadata** | JSON | `/usr/share/mios/ai/v1/` |
+
+---
+*Copyright (c) 2026 MiOS. Pure FOSS. Zero Day Ready.*

@@ -1,26 +1,21 @@
-# MiOS .cursorrules — AI-Native Engineering Standards
+# MiOS .cursorrules — Engineering Standards (Day 0)
 
-You are assisting a developer in the **MiOS** repository. MiOS is a bootc-based, immutable workstation OS.
+You are assisting in the development of the **MiOS** repository. MiOS is an immutable, AI-native workstation.
 
 ## ⚖️ Immutable Appliance Laws
-1. **USR-OVER-ETC:** Never write to `/etc/` at build time. Use `/usr/lib/<component>.d/`.
-2. **NO-MKDIR-IN-VAR:** Never use `mkdir` for `/var/` in scripts. Use `tmpfiles.d`.
-3. **BOOTC-NATIVE:** Use `bootc` for system updates and `just build` for image creation.
-4. **FHS-COMPLIANT:** Mirror the FHS 3.0 standard in the `usr/`, `etc/`, and `var/` root directories.
+1. **USR-OVER-ETC**: Static config goes in `/usr/lib/`. No `/etc` in build context.
+2. **NO-MKDIR-IN-VAR**: Persistence via `tmpfiles.d`. No `/var` in build context.
+3. **UNPRIVILEGED-QUADLETS**: sidecars MUST define `User=`/`Group=` and `Delegate=yes`.
+4. **BOOTC-NATIVE**: Always ensure `bootc container lint` passes.
 
 ## 🛠 Coding Standards
-- **Bash:** `set -euo pipefail`. Use `VAR=$((VAR + 1))` instead of `((VAR++))`. Quote all variables.
-- **Justfile:** Use `just <recipe>` for all build and orchestration tasks.
-- **Containerfile:** `RUN bootc container lint` must be the final instruction. No `--squash-all`.
-- **Systemd:** Use Quadlets (`.container` files) for sidecar services.
+- **Pure FOSS**: No proprietary cloud APIs or services.
+- **Local AI**: Target the OpenAI-compatible proxy at `http://localhost:8080/v1`.
+- **Bash**: `set -euo pipefail`. Use `VAR=$((VAR + 1))`. Quote all variables.
+- **SSOT**: Consult `INDEX.md` for all architectural and API surface contracts.
 
-## 🤖 AI Integration
-- Target the local OpenAI-API proxy at `http://localhost:8080/v1`.
-- Defer to `INDEX.md` as the Single Source of Truth (SSOT).
-- Update `specs/memory/journal.md` with significant changes (The Cognitive Mirror Pattern).
-
-## 📂 Key Paths
-- **Automation:** `automation/` (Numbered pipeline)
-- **Tools:** `tools/` (Utilities)
-- **Blueprints:** `specs/core/`
-- **System Docs:** `/usr/share/doc/mios/` (on target)
+## 📂 Key Directories
+- `usr/`: Immutable rootfs content.
+- `etc/`: Persistence templates.
+- `tools/`: Utility toolchain.
+- `specs/`: Research and blueprints.

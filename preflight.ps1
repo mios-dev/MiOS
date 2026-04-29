@@ -6,7 +6,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 .SYNOPSIS
     MiOS Preflight -- Check and install prerequisites
 .DESCRIPTION
-    Usage: $tmp = "$env:TEMP\mios-preflight.ps1"; irm https://raw.githubusercontent.com/MiOS-DEV/mios/main/preflight.ps1 | Set-Content $tmp; & $tmp; Remove-Item $tmp
+    Usage: $tmp = "$env:TEMP\mios-preflight.ps1"; irm https://raw.githubusercontent.com/MiOS-FSS/mios/main/preflight.ps1 | Set-Content $tmp; & $tmp; Remove-Item $tmp
 #>
 $ErrorActionPreference = "Continue"
 
@@ -101,7 +101,7 @@ Write-Host "--- Results ---" -ForegroundColor Cyan
 Write-Host "  Passed: $pass  Failed: $fail  Fixed: $fixed" -ForegroundColor White
 if ($fail -eq 0 -or $fail -eq $fixed) {
     Write-Host "  [OK] Ready to build MiOS!" -ForegroundColor Green
-    Write-Host "    Run: `$tmp = `"`$env:TEMP\mios-install.ps1`"; irm https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1 | Set-Content `$tmp; & `$tmp; Remove-Item `$tmp" -ForegroundColor Gray
+    Write-Host "    Run: `$tmp = `"`$env:TEMP\mios-install.ps1`"; irm https://raw.githubusercontent.com/MiOS-FSS/mios/main/install.ps1 | Set-Content `$tmp; & `$tmp; Remove-Item `$tmp" -ForegroundColor Gray
 } else {
     Write-Host "  [WARN] Some prerequisites missing. Fix them and re-run." -ForegroundColor Yellow
 }

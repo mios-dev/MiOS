@@ -14,7 +14,7 @@ echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
 # ... (rest of the script)
 
 # Fetch latest release tags
-# v0.1.1: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
+# v0.1.4: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
 AICHAT_TAG=$( (scurl -s https://api.github.com/repos/sigoden/aichat/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 AICHAT_NG_TAG=$( (scurl -s https://api.github.com/repos/blob42/aichat-ng/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 

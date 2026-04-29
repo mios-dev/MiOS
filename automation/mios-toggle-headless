@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.1 — mios-toggle-headless
+# MiOS v0.1.4 — mios-toggle-headless
 # Toggle between GUI desktop (graphical.target) and headless (multi-user.target)
 # Works from TTY, terminal, SSH, or Cockpit console.
 # Usage: mios-toggle-headless [on|off|status]

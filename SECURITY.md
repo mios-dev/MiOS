@@ -1,8 +1,8 @@
-<!-- [NET] MiOS Artifact | Proprietor: MiOS-DEV | https://github.com/MiOS-DEV/MiOS-bootstrap -->
+<!-- [NET] MiOS Artifact | Proprietor: MiOS-FSS | https://github.com/mios-fss/MiOS-bootstrap -->
 # [NET] MiOS
 ```json:knowledge
 {
-  "summary": "> **Proprietor:** MiOS-DEV",
+  "summary": "> **Proprietor:** MiOS-FSS",
   "logic_type": "documentation",
   "tags": [
     "MiOS",
@@ -16,9 +16,9 @@
   }
 }
 ```
-> **Proprietor:** MiOS-DEV
+> **Proprietor:** MiOS-FSS
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
-> **License:** Licensed as personal property to MiOS-DEV
+> **License:** Licensed as personal property to MiOS-FSS
 ---
 # Security Hardening Checklist
 
@@ -200,9 +200,9 @@ MiOS images are signed with cosign via GitHub Actions OIDC (keyless signing). Ve
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/MiOS-DEV/MiOS-bootstrap" \
+  --certificate-identity-regexp="https://github.com/mios-fss/MiOS-bootstrap" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  ghcr.io/mios-project/mios:latest
+  ghcr.io/mios-fss/mios:latest
 ```
 
 ## Overriding Hardening
@@ -226,7 +226,7 @@ To report a security vulnerability, use GitHub's private vulnerability reporting
 - **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
 - **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
 - **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [MiOS-DEV/MiOS-bootstrap](https://github.com/MiOS-DEV/MiOS-bootstrap)
-- **Sole Proprietor:** MiOS-DEV
+- **Project Repository:** [MiOS-FSS/MiOS-bootstrap](https://github.com/mios-fss/MiOS-bootstrap)
+- **Sole Proprietor:** MiOS-FSS
 ---
-<!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-DEV -->
+<!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-FSS -->

@@ -1,7 +1,7 @@
 #!/bin/bash
 ###############################################################################
 # MiOS-Build Professional Virtualization Host
-# Version: v0.1.1
+# Version: v0.1.4
 # Target: CachyOS (Minimal or Full Install)
 #
 # Features:
@@ -23,7 +23,7 @@ set -o pipefail
 #==============================================================================
 # CONFIGURATION
 #==============================================================================
-SCRIPT_VERSION="v0.1.1"
+SCRIPT_VERSION="v0.1.4"
 LOG_DIR="/var/log/mios-build"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOGFILE="$LOG_DIR/install-$TIMESTAMP.log"

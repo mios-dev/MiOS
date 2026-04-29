@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.1 — 36-tools: CLI tools and consolidated mios command
+# MiOS v0.1.4 — 36-tools: CLI tools and consolidated mios command
 # Installs all mios-* tools to /usr/bin/ and the master 'mios' CLI.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

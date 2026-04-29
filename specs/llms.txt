@@ -1,6 +1,6 @@
 # MiOS AI Ingestion Index
-> Standardized AI Ingestion for MiOS v0.1.2
-> SSOT: https://github.com/MiOS-DEV/MiOS/blob/main/INDEX.md
+> Standardized AI Ingestion for MiOS v0.1.4
+> SSOT: https://github.com/mios-fss/MiOS/blob/main/INDEX.md
 
 ## 🏛️ Essential Context
 - [AI-Agent-Hub](../INDEX.md): Primary architectural laws and instruction patterns.

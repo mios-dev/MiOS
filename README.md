@@ -3,9 +3,9 @@
 > Immutable, bootc-native workstation OS. Self-hosted, OpenAI-API native,
 > aligned to FOSS standards. Monorepo for the system layer.
 
-**Version:** v0.2.0
-**Image:** `ghcr.io/mios-project/mios:latest`
-**Bootstrap (installer):** https://github.com/MiOS-DEV/MiOS-bootstrap
+**Version:** v0.1.4
+**Image:** `ghcr.io/mios-fss/mios:latest`
+**Bootstrap (installer):** https://github.com/mios-fss/MiOS-bootstrap
 
 ---
 
@@ -39,11 +39,11 @@ to apply the system overlay.
 End users run:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/install.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/MiOS-FSS/MiOS-bootstrap/main/install.sh)"
 ```
 
 The bootstrap installer prompts for username, hostname, password, etc. (all
-defaulting to `mios`), then runs `bootc switch ghcr.io/mios-project/mios:latest`.
+defaulting to `mios`), then runs `bootc switch ghcr.io/mios-fss/mios:latest`.
 Reboot to activate.
 
 ### FHS Fedora Server host

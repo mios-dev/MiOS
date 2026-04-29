@@ -1,28 +1,26 @@
-# MiOS (Modern immutable Operating System)
+# MiOS (Modern immutable Operating System) — Pure FOSS
 
-MiOS is a bootc-based, self-building, immutable workstation OS on Fedora Rawhide. It is engineered for high-performance virtualization (VFIO), local AI development, and transactional system stability.
+MiOS is an immutable, AI-native workstation. It is engineered for high-performance virtualization, local AI development, and zero-day transactional stability.
 
-## Core Documentation
-- [INDEX.md](./INDEX.md): The Single Source of Truth (SSOT) for architectural laws and agent behavior.
-- [ARCHITECTURE.md](./ARCHITECTURE.md): Unified hardware, filesystem, and virtualization blueprints.
-- [ENGINEERING.md](./ENGINEERING.md): Security, build-modes, automation pipeline, and AI integration.
-- [PACKAGES.md](./usr/share/doc/mios/PACKAGES.md): The definitive package manifest.
+## Core Documentation (Day 0)
+- [INDEX.md](./INDEX.md): The Single Source of Truth (SSOT) for laws and API surface.
+- [ARCHITECTURE.md](./ARCHITECTURE.md): Unified hardware and filesystem blueprints.
+- [ENGINEERING.md](./ENGINEERING.md): Security standards and AI integration patterns.
 
 ## AI & Agent Integration
 - [system-prompt.md](./system-prompt.md): The authoritative persona for MiOS agents.
-- [.cursorrules](./.cursorrules): Context rules for VS Code Cursor.
-- [.clinerules](./.clinerules): Context rules for Cline/Roo-Code.
-- [.github/ai-instructions.md](./.github/ai-instructions.md): Integration instructions for GitHub agents.
+- [.cursorrules](./.cursorrules): Engineering standards for VS Code Cursor.
+- [.clinerules](./.clinerules): Autonomous instructions for Cline/Roo-Code.
 - [llms-full.txt](./llms-full.txt): Comprehensive flattened context for LLM ingestion.
 
 ## Key Technical Specs
-- **OS Base**: Fedora Rawhide (bootc/OCI-native).
-- **Immutability**: composefs + fs-verity.
-- **Hardware**: Universal silicon support (NVIDIA GSP, AMD ROCm, Intel Arc).
-- **API**: Local OpenAI-compatible surface at `http://localhost:8080/v1`.
+- **OS Base**: Immutable bootc-native.
+- **Hardware**: Universal silicon support (Primary IDs: `10de:2204,10de:1aef`).
+- **AI API**: Local OpenAI-compatible surface at `http://localhost:8080/v1`.
 
 ## Repository Structure
-- `usr/`, `etc/`, `var/`: Rootfs-native overlay structure.
-- `automation/`: Numbered build pipeline (01-99).
-- `tools/`: Utility and diagnostic toolchain.
-- `specs/`: Detailed research and architectural blueprints.
+- `usr/`: Immutable rootfs templates.
+- `etc/`: Persistence templates.
+- `tools/`: Utility toolchain.
+- `specs/`: Research and blueprints.
+- `agents/`: Autonomous agent local environments.

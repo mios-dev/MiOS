@@ -9,7 +9,7 @@
 #   â•šâ•â•â•â•â•â•â•šâ•â•â•â•â•â•â• â•šâ•â•â•â•â•â•  â•šâ•â•â•â•â•â• â•šâ•â•â•â•â•â•        â•šâ•â•â•â•šâ•â•â• â•šâ•â•â•â•â•â•â•
 #
 #  MiOS-Build Unified Management System
-#  Version: v0.1.1 - Complete Integrated Edition
+#  Version: v0.1.4 - Complete Integrated Edition
 #
 #  A single comprehensive tool for:
 #    â€¢ Pre-installation system assessment
@@ -38,7 +38,7 @@ set -o pipefail
 #==============================================================================
 # VERSION & GLOBAL CONFIGURATION
 #==============================================================================
-readonly MIOS_VERSION="v0.1.1"
+readonly MIOS_VERSION="v0.1.4"
 readonly MIOS_NAME="MiOS-Build Unified Management System"
 readonly MIOS_CODENAME="Integrated Edition"
 

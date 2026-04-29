@@ -1,4 +1,4 @@
-<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
+<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-fss/mios -->
 # 🌐 MiOS
 ```json:knowledge
 {
@@ -152,7 +152,7 @@ working scripts unprompted, don't rewrite bash into other languages).*
 - **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
 - **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
 - **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [mios-project/mios](https://github.com/mios-project/mios)
+- **Project Repository:** [mios-fss/mios](https://github.com/mios-fss/mios)
 - **Sole Proprietor:** MiOS Project
 ---
 <!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->

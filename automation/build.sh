@@ -1,9 +1,9 @@
 #!/bin/bash
-# MiOS v0.1.1 — Master build runner
+# MiOS v0.1.4 — Master build runner
 # Executes all numbered scripts in order, then cleans up.
 # Called from Containerfile RUN layer via bind mount.
 #
-# CHANGELOG v0.1.1:
+# CHANGELOG v0.1.4:
 #   - Standardized versioning across the entire stack.
 #   - FIX: install_weakdeps=False (was True in v1.3 — contradicted docs)
 #   - FIX: Safe arithmetic: VAR=$((VAR + 1)) not ((VAR++)) (set -e compat)
@@ -27,7 +27,7 @@ log_ts() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
-VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.1.1')"
+VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.1.4')"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  MiOS v${VERSION_STR} — Building OS Image"

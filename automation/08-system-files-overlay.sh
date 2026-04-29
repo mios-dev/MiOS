@@ -1,11 +1,11 @@
 #!/bin/bash
 # ============================================================================
-# automation/08-system-files-overlay.sh - MiOS v0.1.1
+# automation/08-system-files-overlay.sh - MiOS v0.1.4
 # ----------------------------------------------------------------------------
 # Overlay /ctx/ onto the rootfs during the Containerfile build,
 # correctly handling the /usr/local -> /var/usrlocal symlink.
 #
-# v0.1.1 Architecture: Rootfs-Native
+# v0.1.4 Architecture: Rootfs-Native
 #   - Sources now directly from /ctx/usr, /ctx/etc, /ctx/var, /ctx/home
 # ============================================================================
 set -euo pipefail

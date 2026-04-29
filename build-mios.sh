@@ -2,7 +2,7 @@
 # MiOS Fedora Server Ignition Script
 # Fetches MiOS repository and merges onto Fedora Server root (FHS-compliant, NO deletions)
 # Version: 1.0.0
-# Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/build-mios.sh | sudo bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-FSS/MiOS-bootstrap/main/build-mios.sh | sudo bash
 #        OR: sudo bash build-mios.sh
 
 set -euo pipefail
@@ -10,7 +10,7 @@ set -euo pipefail
 # ============================================================================
 # Configuration
 # ============================================================================
-MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/MiOS-DEV/MiOS-bootstrap.git}"
+MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/mios-fss/MiOS-bootstrap.git}"
 MIOS_REPO_BRANCH="${MIOS_REPO_BRANCH:-main}"
 MIOS_TMP_DIR="/tmp/mios-ignition-$$"
 MIOS_INSTALL_LOG="/var/log/mios-ignition.log"
@@ -584,7 +584,7 @@ Documentation:
   - System config: ${MIOS_CONFIG_DIR}
 
 For more information:
-  https://github.com/MiOS-DEV/MiOS-bootstrap
+  https://github.com/mios-fss/MiOS-bootstrap
 
 EOF
 }

@@ -1,4 +1,4 @@
-<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-project/mios -->
+<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-fss/mios -->
 # 🌐 MiOS
 ```json:knowledge
 {
@@ -19,13 +19,13 @@
 > **Proprietor:** MiOS Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to MiOS Project
-> **Source Reference:** MiOS-Core-v0.1.1
+> **Source Reference:** MiOS-Core-v0.1.4
 ---
 
 # VM CPU Core Pinning Hook Manager
 ## Professional Per-VM CPU Orchestration for MiOS-Build
 
-> **Version**: v0.1.1  
+> **Version**: v0.1.4  
 > **Compatible with**: MiOS, MiOS-Build Framework, AMD Ryzen X3D, Intel Hybrid  
 > **Integrates with**: libvirt, universal-cpu-isolator.sh, virt-manager
 
@@ -838,7 +838,7 @@ A: No, it complements it. Manager creates hooks (automatic), virt-manager sets X
 
 ## Changelog
 
-### v0.1.1 (2026-01-15)
+### v0.1.4 (2026-01-15)
 - Initial release
 - AMD Ryzen X3D optimized presets
 - Interactive configuration wizard
@@ -884,8 +884,8 @@ MIT License - Use freely for personal or commercial MiOS-Build deployments
 ### ⚖️ Legal & Source Reference
 - **Copyright:** (c) 2026 MiOS Project
 - **Status:** Personal Property / Private Infrastructure
-- **Project Repository:** [mios-project/mios](https://github.com/mios-project/mios)
-- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-project/mios/blob/main/specs/Home.md)
-- **Artifact Hub:** [ai-context.json](https://github.com/mios-project/mios/blob/main/ai-context.json)
+- **Project Repository:** [mios-fss/mios](https://github.com/mios-fss/mios)
+- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-fss/mios/blob/main/specs/Home.md)
+- **Artifact Hub:** [ai-context.json](https://github.com/mios-fss/mios/blob/main/ai-context.json)
 ---
 <!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->
