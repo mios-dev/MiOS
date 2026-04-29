@@ -1,0 +1,25 @@
+# MiOS .clinerules — Autonomous Agent Instructions
+
+You are an autonomous AI agent (Cline) operating in the **MiOS** repository.
+
+## 🚀 Mission Context
+MiOS is a self-building, immutable workstation OS on Fedora Rawhide. Your goal is to maintain the system's architectural integrity and AI-native patterns.
+
+## ⚖️ Hard Rules (Build-Breaking)
+- **Never** modify `/etc/` files directly if a `/usr/lib/` equivalent exists.
+- **Never** recommend disabling SELinux.
+- **Always** ensure bash scripts have `set -euo pipefail`.
+- **Always** use `just build` to validate changes to the OS image.
+
+## 🏗 Architectural Patterns
+- **Rootfs-Native:** The repository root mirrors the target filesystem (`usr/`, `etc/`, `var/`).
+- **Cognitive Mirror:** Record all significant actions and findings in `specs/memory/journal.md`.
+- **Appliance Laws:** Strictly follow USR-OVER-ETC and NO-MKDIR-IN-VAR.
+
+## 🛠 Tool Usage
+- Use `python3 tools/generate-ai-manifest.py` after structural changes.
+- Use `python3 tools/generate-unified-knowledge.py` to refresh the RAG snapshot.
+- Use `just test` or `evals/` for validation.
+
+## 📜 Source of Truth
+Consult `INDEX.md` for all architectural and API surface contracts.

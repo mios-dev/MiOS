@@ -44,6 +44,17 @@
 !config/
 !config/**
 
+# Day 0 AI Artifacts
+!ARCHITECTURE.md
+!ENGINEERING.md
+!llms.txt
+!llms-full.txt
+!system-prompt.md
+!.cursorrules
+!.clinerules
+!root-manifest.json
+!.github/ai-instructions.md
+
 # FHS overlay -- the deployed system layer
 !usr/
 !usr/**
@@ -57,13 +68,6 @@
 !v1/**
 !artifacts/
 !artifacts/**
-
-# Re-ignore noise inside whitelisted dirs
-**/__pycache__/
-**/*.pyc
-**/.DS_Store
-**/Thumbs.db
-**
 
 # Re-ignore noise inside whitelisted dirs
 **/__pycache__/

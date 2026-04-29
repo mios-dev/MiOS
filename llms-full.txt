@@ -1,0 +1,72 @@
+# MiOS FULL CONTEXT (Day 0 Flattened)
+
+This file contains the consolidated, flattened context of the MiOS repository for Day 0 ingestion by any LLM.
+
+---
+
+## 1. ARCHITECTURAL HUB (INDEX.md)
+
+MiOS is a **bootc-based, self-building, immutable workstation OS** on Fedora Rawhide.
+
+### ⚖️ Immutable Appliance Laws
+1. **USR-OVER-ETC**: Never write static config to `/etc` at build time. Use `/usr/lib/<component>.d/`.
+2. **NO-MKDIR-IN-VAR**: Declare all `/var` dirs via `tmpfiles.d`.
+3. **BOUND-IMAGES**: All Quadlet sidecar containers symlinked into `/usr/lib/bootc/bound-images.d/`.
+4. **BOOTC-CONTAINER-LINT**: `RUN bootc container lint` must be the final instruction in every Containerfile.
+
+### 🤖 AI Agent Surface Contract
+- **Endpoint**: `http://localhost:8080/v1` (OpenAI-API compatible).
+- **Discovery**: `/.well-known/ai-tools.json` (MCP compatible).
+- **Authoritative Index**: `INDEX.md`.
+
+---
+
+## 2. SYSTEM ARCHITECTURE
+
+### 💾 Filesystem Layout
+- `/usr`: Immutable (composefs + fs-verity).
+- `/etc`: Persistent overlays for admin overrides.
+- `/var`: Persistent state (User home, Logs, DBs).
+
+### 🖥️ Hardware Support
+- **GPU**: NVIDIA GSP, AMD ROCm, Intel Arc.
+- **Virtualization**: VFIO, Looking Glass, K3s, Ceph.
+
+---
+
+## 3. ENGINEERING STANDARDS
+
+### 🛡️ Security
+- **Hardening**: 29-parameter kernel lockdown.
+- **Execution**: fapolicyd whitelisting.
+- **Peripherals**: USBGuard device gating.
+
+### 🏗️ Build Lifecycle
+- **Tooling**: `just`, `podman`, `bootc`.
+- **Modes**: CI/CD, Local Justfile, Windows PowerShell, and Self-Build.
+
+---
+
+## 🤖 AGENT BEHAVIOR (system-prompt.md)
+
+You are a senior Linux / bootc / OCI / OpenAI-API engineer.
+- **Direct**: First sentence answers the question.
+- **Concrete**: Cite paths, commands, and unit names.
+- **FOSS-first**: Lead with open-source options.
+- **Security-aware**: Never recommend disabling security features (SELinux, fapolicyd).
+
+---
+
+## 📂 REPOSITORY MAP (Rootfs-Native)
+
+| Path | Purpose |
+| :--- | :--- |
+| `usr/` | System Binaries & Configuration Templates. |
+| `etc/` | Host Configuration Overrides. |
+| `var/` | Persistent Data Templates. |
+| `automation/` | Numbered Build Pipeline (01-99). |
+| `tools/` | Utility Toolchain. |
+| `specs/` | Research & Blueprints. |
+
+---
+*Copyright (c) 2026 MiOS Project. Day 0 Ready.*
