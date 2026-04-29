@@ -1,66 +1,79 @@
 # MiOS
 
-> The deployed root-overlay tree of the MiOS immutable workstation OS.
+> Immutable, bootc-native workstation OS. Self-hosted, OpenAI-API native,
+> aligned to FOSS standards. Monorepo for the system layer.
 
-**Version:** v0.1.5
-**Architecture:** OCI-bootc + ostree composefs
-**Base image:** `ghcr.io/ublue-os/ucore-hci:stable-nvidia`
-**Published:** `ghcr.io/kabuki94/mios:latest`
+**Version:** v0.2.0
+**Image:** `ghcr.io/kabuki94/mios:latest`
+**Bootstrap (installer):** https://github.com/Kabuki94/MiOS-bootstrap
 
 ---
 
-## What this repo is
+## What lives here
 
-This repo's working tree maps directly onto the deployed root filesystem (`/`).
-Each tracked directory corresponds 1:1 to its target path:
+This repository is the **system layer** of MiOS. It contains:
 
-| Path in repo | Path on deployed host | Purpose |
-|---|---|---|
-| `usr/` | `/usr` | System binaries, libraries, units, manifests (read-only on bootc) |
-| `etc/` | `/etc` | System configuration overlays (Quadlets, etc.) |
-| `var/` | `/var` | State directory placeholders (declared via tmpfiles.d) |
-| `v1/` | `/v1` | OpenAI-namespace AI gateway (models/MCP discovery) |
-| `srv/` | `/srv` | Stateful workload mounts (e.g. `/srv/ai` for model weights) |
+- **Build infrastructure** -- `Containerfile`, `Justfile`, `build-mios.sh`,
+  `mios-build-local.ps1`, `preflight.ps1`, `push-to-github.ps1`, all the
+  scripts and config that build the bootc OCI image.
+- **System-side installer** -- `install.sh` applies the FHS overlay to a
+  non-bootc Fedora host. (On bootc-managed hosts, use `bootc switch` instead.)
+- **FHS overlay** -- `usr/`, `etc/`, `var/`, `srv/`, `v1/` are the
+  files baked into the deployed image. The repository's working tree mirrors
+  the deployed root.
+- **System docs** -- `INDEX.md`, `AGENTS.md`, `SECURITY.md`, `SELF-BUILD.md`,
+  `DEPLOY.md`.
+- **CI** -- `.github/workflows/mios-ci.yml` builds the image on every push.
 
-The `.gitignore` is an allow-list: `/*` and `.*` ignore everything, then
-`!`-rules whitelist exactly the paths MiOS owns. Cloning this repo into `/`
-on a host therefore produces a clean overlay merge with no collisions against
-unrelated system content.
+## What does NOT live here
 
-## What this repo is NOT
+User-facing installation, dotfiles, env templates, and the interactive setup
+wizard live in **MiOS-bootstrap**. End users never clone this repo directly;
+they run the bootstrap installer, which (on FHS hosts) clones MiOS automatically
+to apply the system overlay.
 
-This repo does NOT contain build infrastructure. The `Containerfile`,
-`Justfile`, `automation/`, `tools/`, `install.sh`, `build-mios.sh`,
-`mios-build-local.ps1`, `push-to-github.ps1`, `preflight.ps1`, `.env.mios`,
-`INDEX.md`, and the AI-agent metadata files all live in
-[Kabuki94/MiOS-bootstrap](https://github.com/Kabuki94/MiOS-bootstrap).
+## Installation flows
 
-The OCI image build flow is:
+### Bootc-managed Fedora host (preferred)
 
-1. Bootstrap ignites onto a host root (or into a CI workspace), placing
-   `Containerfile` + `automation/` + `tools/` at the canonical paths.
-2. MiOS clones into the same root and overlays its tree (lossless additive merge).
-3. `podman build -f Containerfile` synthesizes the final OCI image from the
-   merged tree.
-4. CI signs (cosign keyless), rechunks (`bootc-base-imagectl`), and pushes to
-   `ghcr.io/kabuki94/mios:latest`.
-5. Deployed hosts pull updates via `sudo bootc upgrade`.
+End users run:
 
-## OpenAI-namespace AI gateway
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Kabuki94/MiOS-bootstrap/main/install.sh)"
+```
 
-The `/v1` tree exposes models, MCP servers, and other AI metadata under the
-canonical OpenAI REST namespace. The Quadlet at
-`etc/containers/systemd/mios-ai.container` runs LocalAI bound to `/v1` so
-clients can hit `http://localhost:8080/v1/models` and have it resolved against
-the on-disk discovery tree.
+The bootstrap installer prompts for username, hostname, password, etc. (all
+defaulting to `mios`), then runs `bootc switch ghcr.io/kabuki94/mios:latest`.
+Reboot to activate.
+
+### FHS Fedora Server host
+
+The same bootstrap one-liner. On a non-bootc host, bootstrap clones this repo
+and runs `install.sh` to lay down the FHS overlay.
+
+### Local build
+
+For developers working on MiOS itself:
+
+```powershell
+# Windows host
+.\\mios-build-local.ps1
+```
+
+```bash
+# Linux host
+./build-mios.sh
+```
+
+Both orchestrators read defaults from `image-versions.yml` and the user's
+`/etc/mios/install.env` (written by bootstrap).
+
+## Architecture
+
+Single source of truth: [INDEX.md](INDEX.md). Agent contract for the deployed
+system: [AGENTS.md](AGENTS.md).
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/Kabuki94/MiOS-bootstrap/blob/main/LICENSE)
-in the bootstrap repo.
-
-## Project resources
-
-- Repository: https://github.com/Kabuki94/MiOS
-- Build infrastructure: https://github.com/Kabuki94/MiOS-bootstrap
-- Container registry: `ghcr.io/kabuki94/mios`
+Apache-2.0. See [LICENSE](LICENSE) and [LICENSES.md](LICENSES.md) for vendored
+component licenses.

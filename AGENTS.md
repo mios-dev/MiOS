@@ -1,54 +1,54 @@
-# AGENTS.md -- AI agent contract for the deployed MiOS root overlay
+# AGENTS.md
 
-This file describes how AI agents and OpenAI-compatible clients interact with a
-running MiOS host. It is the deployed-image counterpart to MiOS-bootstrap's
-INDEX.md (which governs build-time agent behavior).
+> In-image agent contract for MiOS. This file is baked into the deployed root
+> at `/AGENTS.md` and is the single source of truth for any AI agent running
+> on a MiOS host.
 
-## OpenAI namespace
+**MiOS version:** v0.2.0
+**API protocol:** OpenAI REST, served at `http://localhost:8080/v1` by LocalAI
+**MCP discovery:** `/v1/mcp` (filesystem mirror) and `/usr/share/mios/ai/mcp/config.json`
+**Model catalog:** `/usr/share/mios/ai/manifests/models.json`
+**Stateful storage:** `/srv/ai/` (model weights, MCP server state)
 
-The deployed root exposes:
+## Surface contract
 
-- `/v1/models`          -> JSON manifest of locally available models
-- `/v1/mcp`             -> MCP server configuration
-- `/v1/chat/completions`-> served by LocalAI (Quadlet `mios-ai.container`)
-- `/v1/responses`       -> served by LocalAI when configured for the 2026 Responses API
+MiOS exposes an OpenAI-compatible REST surface. Agents that speak the OpenAI
+protocol require no MiOS-specific SDK or wrapper.
 
-Both filesystem reads of `/v1/*` and HTTP requests to `http://localhost:8080/v1/*`
-return equivalent content. Filesystem reads are appropriate for offline tooling;
-HTTP is appropriate for any client expecting OpenAI semantics (streaming, tool
-calls, structured outputs).
+- `GET  /v1/models` -- list locally available models
+- `POST /v1/chat/completions` -- chat completions
+- `POST /v1/completions` -- legacy completions
+- `POST /v1/embeddings` -- embeddings
+- `POST /v1/responses` -- responses API (where supported by the backend)
 
-## Sovereign AI mandate
+The backend defaults to LocalAI but is drop-in replaceable with Ollama, vLLM,
+or llama.cpp. All speak the same protocol.
 
-MiOS is engineered to run AI workloads entirely locally:
+## Filesystem discovery
 
-- Model weights live under `/srv/ai/` (stateful, persistent across `bootc upgrade`)
-- Vector databases (Qdrant, Milvus) live under `/srv/ai/vectordb/`
-- No telemetry, prompts, or embeddings are transmitted to external providers
-  unless the operator explicitly configures an outbound endpoint in
-  `/etc/mios/runtime.env`
+For agents that prefer filesystem reads over HTTP (offline, sandboxed):
 
-## Filesystem laws agents must respect
+- `/v1/models` is symlinked to `/usr/share/mios/ai/v1/models.json`
+- `/v1/mcp` is symlinked to `/usr/share/mios/ai/mcp/`
 
-- `/usr` is read-only composefs at runtime. Never attempt to write under `/usr`.
-- `/etc` is read-write but bootc-managed; agent-modifiable config lives under
-  `/etc/mios/` (admin) or `~/.config/mios/` (per-user).
-- `/var/lib/mios/` and `/var/log/mios/` are agent-writable state.
-- `/srv/ai/` is the only sanctioned location for large binary AI assets.
+## Vendor-neutral by design
 
-## Update model
+MiOS does not ship vendor-specific agent SDKs, IDE plugins, or proprietary
+integration shims. If an agent's host environment provides them, that is the
+agent's concern; the OS surface is open-spec only.
 
-Agents should not invoke `dnf`, `rpm`, or `flatpak install` against the host.
-System updates flow exclusively via `bootc upgrade`; user applications via
-`flatpak --user install` from a configured remote.
+## Observability
 
-## Discovery
+- Logs: `/var/log/mios/` (mios-ai.service, mios-ai-mcp.service)
+- State: `/var/lib/mios/` (model cache, session state)
+- User config: `~/.config/mios/` (XDG)
 
-When introspecting a MiOS host, an agent's first reads should be:
+## Reference
 
-1. `/usr/share/mios/manifest.json` (image metadata)
-2. `/etc/mios/runtime.env`         (mutable per-host config)
-3. `/v1/models`                    (locally available inference targets)
-4. `/v1/mcp`                       (MCP server registry)
+- Architecture: `/usr/share/mios/INDEX.md` (system) or repository `INDEX.md`
+- License surface: `/usr/share/mios/LICENSES.md`
+- MCP spec: https://modelcontextprotocol.io/
 
-This ordering surfaces immutable facts before mutable ones.
+## License
+
+Apache-2.0.

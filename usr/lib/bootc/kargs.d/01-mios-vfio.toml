@@ -1,17 +1,9 @@
 # /usr/lib/bootc/kargs.d/01-mios-vfio.toml
-#
-# IOMMU enablement is universal -- intel_iommu and amd_iommu are mutually ignored
-# on the wrong vendor's hardware, so shipping both is safe. iommu=pt (passthrough
-# mode) avoids DMA translation overhead for non-passed-through devices.
-#
-# vfio-pci.ids is INTENTIONALLY ABSENT from the default overlay. PCI IDs are
-# host-specific and would force every MiOS install to pre-bind a stranger's GPU
-# to vfio-pci. Hosts that need passthrough should ship a variant overlay with
-# their own kargs.d drop-in (e.g. /etc/kernel/cmdline.d/vfio-pci-ids.conf
-# generated at first boot, or a dedicated MiOS-VFIO image variant).
+# Vendor-neutral IOMMU + VFIO kernel args. bootc applies these on update.
 
 kargs = [
-    "intel_iommu=on",
-    "amd_iommu=on",
     "iommu=pt",
+    "rd.driver.pre=vfio-pci",
+    "kvm.ignore_msrs=1",
+    "kvm.report_ignored_msrs=0",
 ]

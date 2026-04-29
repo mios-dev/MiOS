@@ -1,40 +1,62 @@
-# MiOS root-overlay artifact -- selectively allow-list paths that map directly
-# onto the deployed root filesystem after merge.
-#
-# Architecture: this repo's working tree IS / on the target host. Top-level files
-# named in `!`-rules are tracked; everything else under / is ignored so that a
-# clone-into-root operation never tries to track unrelated host content.
-#
-# The build-infrastructure files (Containerfile, Justfile, install.sh, etc.)
-# live in MiOS-bootstrap and are merged onto / from there at build time. They
-# are intentionally NOT tracked here.
-
-# Default: ignore everything (including dotfiles)
+# MiOS allow-list. Ignore everything, then unignore what MiOS owns.
 /*
 .*
 
-# Repo metadata
-!/.github/
-!/.gitignore
+# Top-level system docs and metadata
+!README.md
+!VERSION
+!LICENSE
+!LICENSES.md
+!AGENTS.md
+!INDEX.md
+!SECURITY.md
+!SELF-BUILD.md
+!DEPLOY.md
+!SUMMARY.md
+!CONTRIBUTING.md
 
-# Image-shape metadata (MiOS-owned, ships in the image)
-!/README.md
-!/VERSION
-!/AGENTS.md
+# Build infrastructure (Containerfile, Justfile, build orchestrators, helpers)
+!Containerfile
+!Justfile
+!build-mios.sh
+!install.sh
+!install.ps1
+!mios-build-local.ps1
+!preflight.ps1
+!push-to-github.ps1
+!image-versions.yml
+!renovate.json
 
-# Root-overlay tree (the actual deployed filesystem content)
-!/usr/
-!/usr/**
-!/etc/
-!/etc/**
-!/var/
-!/var/**
-!/v1/
-!/v1/**
-!/srv/
-!/srv/**
+# Repo hygiene
+!.editorconfig
+!.gitattributes
+!.gitignore
+!.github/
+!.github/**
 
-# Ignore common bloat/temp files
+# Build orchestration trees (placeholder; populated as project grows)
+!automation/
+!automation/**
+!tools/
+!tools/**
+!specs/
+!specs/**
+!config/
+!config/**
+
+# FHS overlay -- the deployed system layer
+!usr/
+!usr/**
+!etc/
+!etc/**
+!var/
+!var/**
+!srv/
+!srv/**
+!v1/
+!v1/**
+
+# Re-ignore noise inside whitelisted dirs
 **/__pycache__/
 **/*.pyc
 **/.DS_Store
