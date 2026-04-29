@@ -1,0 +1,26 @@
+/*
+.*
+!/.github/
+!/.gitignore
+!/Containerfile
+!/README.md
+!/VERSION
+!/AGENTS.md
+!/Justfile
+
+# Allow overlay directories and their contents explicitly
+!/usr/
+!/usr/**
+!/etc/
+!/etc/**
+!/var/
+!/var/**
+!/v1/
+!/v1/**
+!/srv/
+!/srv/**
+
+# Ignore common bloat/temp files
+**/__pycache__/
+**/*.pyc
+**/.DS_Store
