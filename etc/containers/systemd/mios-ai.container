@@ -13,6 +13,7 @@ ContainerName=mios-ai
 PublishPort=8080:8080
 Volume=/srv/ai/models:/build/models:Z
 Volume=/srv/ai/mcp:/build/mcp:Z
+Volume=/etc/mios/ai:/etc/mios/ai:Z,ro
 Environment=MODELS_PATH=/build/models
 Environment=THREADS=4
 Environment=CONTEXT_SIZE=4096
