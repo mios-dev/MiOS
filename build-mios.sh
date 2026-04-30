@@ -1,7 +1,7 @@
 #!/bin/bash
 # MiOS Fedora Server Ignition Script
 # Fetches MiOS repository and merges onto Fedora Server root (FHS-compliant, NO deletions)
-# Version: 1.0.0
+# Version: 0.2.0
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/build-mios.sh | sudo bash
 #        OR: sudo bash build-mios.sh
 
