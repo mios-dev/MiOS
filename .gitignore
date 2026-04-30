@@ -42,6 +42,8 @@
 !/llms-full.txt
 !/llms.txt
 !/root-manifest.json
+!/MiOS-SBOM.csv
+!/MiOS-Engineering-Reference.md
 !/image-versions.yml
 !/install.sh
 !/build-mios.sh
