@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import sys
+import os
+import requests
+import json
+
+SYSTEM_SPEC_PATH = "/usr/share/mios/ai/v1/system.md"
+API_URL = "http://localhost:8080/v1/chat/completions"
+
+def get_system_spec():
+    try:
+        with open(SYSTEM_SPEC_PATH, 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        # Fallback to relative path if not installed to rootfs
+        local_path = os.path.join(os.path.dirname(__file__), "../share/mios/ai/v1/system.md")
+        try:
+            with open(local_path, 'r') as f:
+                return f.read()
+        except FileNotFoundError:
+            return "MiOS Autonomous Agent Specification"
+
+def chat(prompt):
+    system_prompt = get_system_spec()
+    
+    payload = {
+        "model": "mi-os-7b",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        "stream": False
+    }
+    
+    try:
+        response = requests.post(API_URL, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        print(result['choices'][0]['message']['content'])
+    except Exception as e:
+        print(f"Error: Could not connect to MiOS AI backend ({e})")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: mios <prompt>")
+        sys.exit(1)
+    
+    chat(" ".join(sys.argv[1:]))

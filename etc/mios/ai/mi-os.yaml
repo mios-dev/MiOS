@@ -1,0 +1,10 @@
+name: mi-os-7b
+parameters:
+  model: mi-os-7b
+context_size: 4096
+template:
+  chat: |
+    {{.Input}}
+  system: |
+    # MiOS Autonomous Agent Specification
+    (Loaded from /usr/share/mios/ai/v1/system.md)
