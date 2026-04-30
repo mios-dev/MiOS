@@ -1,5 +1,11 @@
 {
   "object": "list",
-  "data": [],
-  "documentation": "Native model discovery schema."
+  "data": [
+    {
+      "id": "mi-os-7b",
+      "object": "model",
+      "created": 1777536280,
+      "owned_by": "mios-system"
+    }
+  ]
 }

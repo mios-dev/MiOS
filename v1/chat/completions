@@ -1,6 +1,1 @@
-# MiOS Unified Inference Schema
-{
-  "spec": "POST /v1/chat/completions",
-  "implementation": "Native system proxy",
-  "status": "ready"
-}
+../../usr/share/mios/ai/v1/system.md

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "mios-core": {
-      "command": "mios-agent",
-      "args": ["serve"],
-      "description": "Native MiOS system context provider"
-    }
-  }
-}
