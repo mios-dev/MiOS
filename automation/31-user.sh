@@ -21,7 +21,6 @@ fi
 # Defaults for CI builds or when environment variables are not provided:
 C_USER="${MIOS_USER:-mios}"
 # Note: MIOS_PASSWORD_HASH should be a SHA-512 crypt-style hash
-C_HASH="${MIOS_PASSWORD_HASH:-}"
 
 echo "[31-user] Creating user ${C_USER} via sysusers..."
 if [[ "${C_USER}" != "mios" ]]; then
@@ -48,10 +47,6 @@ if getent passwd "${C_USER}" >/dev/null; then
         echo "[31-user] Creating home directory for ${C_USER} from /etc/skel..."
         mkdir -p "$home"
         cp -a /etc/skel/. "$home/"
-    fi
-    if [[ -n "${C_HASH}" ]]; then
-        echo "${C_USER}:${C_HASH}" | chpasswd -e 2>/dev/null || true
-        echo "root:${C_HASH}" | chpasswd -e 2>/dev/null || true
     fi
     passwd -u "${C_USER}" 2>/dev/null || true
 else

@@ -139,13 +139,13 @@ iso: build
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)
 log-bootstrap:
     @echo "[START] Logging artifacts to MiOS-bootstrap repository (Linux FS native)..."
-    ./tools/prepare-bootstrap-native.sh
+    ./tools/log-to-bootstrap.sh
     @echo "[OK] Artifacts logged to bootstrap repository"
 
 # Complete build with bootstrap logging (recommended for releases)
 build-and-log: build-logged
     @echo "[START] Running bootstrap artifact logging (Linux FS native)..."
-    ./tools/prepare-bootstrap-native.sh
+    ./tools/log-to-bootstrap.sh
     @echo "[OK] Build complete with artifacts logged to bootstrap"
 
 # Full pipeline: build  rechunk  log to bootstrap (Linux FS native)
