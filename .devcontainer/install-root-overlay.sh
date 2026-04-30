@@ -1,36 +1,47 @@
-#!/usr/bin/zsh
+#!/bin/bash
 set -e
 
-echo "Applying MiOS FHS Symlink Overlay..."
-
-# Define the source (the repo mount)
 REPO_ROOT="/mios"
+SYSTEM_ROOT="/"
 
-# 1. Symlink .git to root
-if [ -d "${REPO_ROOT}/.git" ]; then
-    echo "  Symlinking /.git -> ${REPO_ROOT}/.git"
-    ln -sf "${REPO_ROOT}/.git" /.git
-fi
+echo "🔄 Initializing MiOS COMPLETE System Root Overlay..."
 
-# 2. Soft-merge FHS directories from the repository into the container root
-# This makes the repository "act" as the system root.
-for dir in etc usr var srv home; do
-    if [ -d "${REPO_ROOT}/$dir" ]; then
-        echo "  Merging ${REPO_ROOT}/$dir -> /$dir"
-        mkdir -p "/$dir"
-        # Use find to get all top-level items and symlink them
-        find "${REPO_ROOT}/$dir" -maxdepth 1 -mindepth 1 | while read item; do
-            target="/$dir/$(basename "$item")"
-            # We use ln -sf. This will replace existing symlinks but skip 
-            # real files/directories that already exist in the base image 
-            # to prevent system breakage (like /etc/passwd).
-            if [ -e "$target" ] && [ ! -L "$target" ]; then
-                echo "    Skipping existing real path: $target"
-            else
-                ln -sf "$item" "$target" 2>/dev/null || true
-            fi
-        done
+# 1. Mandatory Git Identity (The System Root IS the Git Repository)
+echo "  [ROOT] Mapping /.git -> ${REPO_ROOT}/.git"
+ln -sf "${REPO_ROOT}/.git" "${SYSTEM_ROOT}.git"
+
+# 2. Aggressive Global Merge
+# We include ALL files and directories from the repo root
+shopt -s dotglob
+for item in "${REPO_ROOT}"/*; do
+    [ -e "$item" ] || continue
+    name=$(basename "$item")
+    
+    # Avoid self-recursion and sensitive container mounts
+    case "$name" in
+        .devcontainer|vscode|workspaces|proc|sys|dev|run|tmp|boot|mnt|root)
+            continue
+            ;;
+    esac
+    
+    target="${SYSTEM_ROOT}${name}"
+    
+    if [ -d "$item" ]; then
+        # For FHS-standard directories, we merge the contents
+        if [[ "$name" =~ ^(usr|etc|var|srv|home|v1|bin|lib|lib64|sbin)$ ]]; then
+            echo "  [MERGE] /$name"
+            mkdir -p "$target"
+            cp -as "${item}/"* "$target/" 2>/dev/null || true
+        else
+            # For project-specific directories (automation, tools, etc.), link them directly
+            echo "  [LINK] /$name"
+            ln -sfn "$item" "$target"
+        fi
+    else
+        # For all root-level files (Justfile, Containerfile, VERSION, etc.)
+        echo "  [FILE] /$name"
+        ln -sf "$item" "$target"
     fi
 done
 
-echo "✓ MiOS Root Overlay Active"
+echo "✅ MiOS System Root Overlay: FULLY MERGED"
