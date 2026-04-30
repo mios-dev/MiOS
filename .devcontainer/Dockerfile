@@ -1,4 +1,4 @@
-FROM fedora:41
+FROM fedora:latest
 
 # 1. Install MiOS Toolchain + System Components (FHS & Build Stack)
 RUN dnf install -y     just     podman     podman-compose     buildah     skopeo     bootc     bootupd     ostree     rpm-ostree     jq     yq     rsync     git     nodejs     npm     sudo     zsh     findutils     grep     sed     gawk     policycoreutils     util-linux     authselect     openssl     qemu-img     attr     diffutils     && dnf clean all
