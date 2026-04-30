@@ -30,7 +30,7 @@ log_ts() {
 VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.1.4')"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  MiOS v${VERSION_STR} — Building OS Image"
+echo "  MiOS ${VERSION_STR} — Building OS Image"
 echo "  Base: ucore-hci:stable-nvidia + F44 + Rawhide kernel"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -224,7 +224,7 @@ if [[ $SCRIPT_FAIL -gt 0 ]]; then
 fi
 echo "  Packages:  $VALIDATION_FAIL critical missing"
 echo "  Duration:  ${TOTAL_ELAPSED}s ($((TOTAL_ELAPSED / 60))m $((TOTAL_ELAPSED % 60))s)"
-echo "  Version:   v$VERSION_STR"
+echo "  Version:   $VERSION_STR"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
