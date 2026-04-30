@@ -1,5 +1,5 @@
 {
-  "name": "MiOS System Root Dev (v0.2.0)",
+  "name": "MiOS System Root Dev (Fedora 41)",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
@@ -21,14 +21,15 @@
         "redhat.vscode-yaml",
         "ms-vscode.powershell",
         "eamodio.gitlens",
-        "usernamehw.errorlens"
+        "usernamehw.errorlens",
+        "editorconfig.editorconfig"
       ]
     }
   },
   "remoteUser": "mios-dev",
   "workspaceFolder": "/mios",
   "mounts": [
-    "source=${localWorkspaceFolder},target=/mios,type=bind,consistency=cached"
+    "source=,target=/mios,type=bind,consistency=cached"
   ],
   "postCreateCommand": "sudo /usr/local/bin/mios-root-overlay"
 }
