@@ -1,0 +1,7 @@
+{
+  "name": "Fedora MiOS Dev",
+  "image": "registry.fedoraproject.org/fedora:40",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {}
+  }
+}

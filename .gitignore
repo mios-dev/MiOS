@@ -32,7 +32,10 @@
 !.gitattributes
 !.gitignore
 !.github/
+!.devcontainer/
 !.github/**
+!.devcontainer/**
+!.devcontainer/
 
 # Build orchestration trees (placeholder; populated as project grows)
 !automation/
@@ -54,6 +57,7 @@
 !.clinerules
 !root-manifest.json
 !.github/ai-instructions.md
+!.devcontainer/
 
 # FHS overlay -- the deployed system layer
 !usr/
