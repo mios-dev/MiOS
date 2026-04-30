@@ -3,6 +3,6 @@ kargs = [
     "amd_iommu=on",
     "iommu=pt",
     "rd.driver.pre=vfio-pci",
-    "vfio-pci.ids=10de:2204,10de:1aef",
+    "vfio-pci.ids=",
     "kvm-intel.nested=1"
 ]

@@ -43,10 +43,12 @@ if [[ -d "${CTX}/etc" ]]; then
 fi
 
 # --- Stage 4: /var (Mutable System State Templates) ------------------------
-if [[ -d "${CTX}/var" ]]; then
-    log "  stage 4: overlay var content"
-    tar -C "${CTX}/var" -cf - . | tar -C /var --no-overwrite-dir -xf -
-fi
+# DEPRECATED: /var population via tar overlay violates zero-trust immutability.
+# All mandatory /var structure must be declared in /usr/lib/tmpfiles.d/*.conf.
+# if [[ -d "${CTX}/var" ]]; then
+#     log "  stage 4: overlay var content"
+#     tar -C "${CTX}/var" -cf - . | tar -C /var --no-overwrite-dir -xf -
+# fi
 
 # --- Stage 5: /home (User Space Templates) ---------------------------------
 if [[ -d "${CTX}/home" ]]; then

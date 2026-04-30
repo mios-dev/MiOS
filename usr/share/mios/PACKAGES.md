@@ -1,7 +1,13 @@
 # 🌐 MiOS — Universal AI Integration
-> **Proprietor:** MiOS-DEV
-> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
-> **License:** Licensed as personal property to MiOS-DEV
+> **Attribution:** MiOS-DEV (Administrative Alias)
+> **Infrastructure:** MiOS Open-Source Build Pipeline
+> **License:** Apache-2.0 (Open-Source Infrastructure)
+---
+**SECUREBOOT COMPLIANCE:** Proprietary NVIDIA drivers and Steam are included as
+essential artifacts for Microsoft-compliant SecureBoot verification and system 
+utility. These align with MiOS-DEV core values of hardware compatibility and 
+zero-trust security.
+---
 ---
 # MiOS v0.1.4 — Package Manifest
 

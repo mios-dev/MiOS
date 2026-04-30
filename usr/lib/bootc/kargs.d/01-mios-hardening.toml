@@ -1,9 +1,9 @@
 # MiOS — SecureBlue-adapted kernel hardening (upstream April 2026 pass)
 kargs = [
     "slab_nomerge",
-    "init_on_alloc=1",
-    "init_on_free=1",
-    "page_alloc.shuffle=1",
+    # "init_on_alloc=1",
+    # "init_on_free=1",
+    # "page_alloc.shuffle=1",
     "randomize_kstack_offset=on",
     "pti=on",
     "vsyscall=none",
