@@ -2,19 +2,28 @@
   "name": "Fedora MiOS Dev",
   "image": "registry.fedoraproject.org/fedora:40",
   "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "configureZshAsDefaultShell": true
+    },
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
-    }
+    },
+    "ghcr.io/devcontainers/features/podman:1": {}
   },
-  "postCreateCommand": "npm install -g @google/gemini-cli",
+  "postCreateCommand": "sudo dnf install -y just jq yq rsync bash-completion tar gzip xz python3 findutils grep sed gawk && npm install -g @google/gemini-cli",
   "customizations": {
     "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
       "extensions": [
         "ms-azuretools.vscode-docker",
         "redhat.vscode-yaml",
-        "ms-vscode.powershell"
+        "ms-vscode.powershell",
+        "eamodio.gitlens",
+        "usernamehw.errorlens"
       ]
     }
-  }
+  },
+  "remoteUser": "vscode"
 }
