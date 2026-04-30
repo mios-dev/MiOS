@@ -49,9 +49,10 @@ export SYSTEMD_OFFLINE=1
 export container=podman
 
 # ── Execute numbered scripts ────────────────────────────────────────────────
-# Scripts 18/19/20-fapolicyd/21/22 are called explicitly by the Containerfile
-# AFTER this script completes. Skip them here to prevent double-execution.
-CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 18-apply-boot-fixes.sh 19-k3s-selinux.sh 20-fapolicyd-trust.sh 21-moby-engine.sh 22-freeipa-client.sh 23-uki-render.sh 25-firewall-ports.sh 26-gnome-remote-desktop.sh 37-ollama-prep.sh"
+# Skip list:
+#   08-system-files-overlay.sh  — called explicitly by the Containerfile BEFORE this script
+#   37-ollama-prep.sh           — intentional local-only step (large model download; not for CI)
+CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 37-ollama-prep.sh"
 
 TOTAL_START=$SECONDS
 SCRIPT_COUNT=0
