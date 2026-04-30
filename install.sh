@@ -27,21 +27,24 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "[INFO] MiOS system installer running from ${REPO_ROOT}"
 
-# Apply FHS overlay. We rsync each top-level overlay dir if it exists.
-for d in usr etc var srv; do
-    if [[ -d "${REPO_ROOT}/${d}" ]]; then
-        echo "[INFO] Applying overlay: ${d}/"
-        rsync -aH --info=stats1 "${REPO_ROOT}/${d}/" "/${d}/"
+if [[ "${REPO_ROOT}" != "/" ]]; then
+    # Apply FHS overlay. We rsync each top-level overlay dir if it exists.
+    for d in usr etc var srv; do
+        if [[ -d "${REPO_ROOT}/${d}" ]]; then
+            echo "[INFO] Applying overlay: ${d}/"
+            rsync -aH --info=stats1 "${REPO_ROOT}/${d}/" "/${d}/"
+        fi
+    done
+
+    # v1/ holds discovery symlinks; we materialize them at /v1.
+    if [[ -d "${REPO_ROOT}/v1" ]]; then
+        echo "[INFO] Materializing /v1 discovery surface"
+        install -d /v1
+        rsync -aH "${REPO_ROOT}/v1/" "/v1/"
     fi
-done
-
-# v1/ holds discovery symlinks; we materialize them at /v1.
-if [[ -d "${REPO_ROOT}/v1" ]]; then
-    echo "[INFO] Materializing /v1 discovery surface"
-    install -d /v1
-    rsync -aH "${REPO_ROOT}/v1/" "/v1/"
+else
+    echo "[INFO] Running directly from root (/), skipping overlay sync."
 fi
-
 echo "[INFO] Running systemd-sysusers"
 systemd-sysusers
 
