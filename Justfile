@@ -26,18 +26,18 @@ flight-status:
 
 # Unified initialization (Mode 2: User-space)
 init:
-    @chmod +x tools/mios-init.sh
-    @./tools/mios-init.sh user
+    @chmod +x tools/mios-overlay.sh
+    sudo ./tools/mios-overlay.sh
 
 # System-wide deployment (Mode 1: FHS system install)
 deploy:
-    @chmod +x tools/mios-init.sh
-    @./tools/mios-init.sh deploy
+    @chmod +x tools/mios-overlay.sh
+    sudo ./tools/mios-overlay.sh
 
 # Live ISO Initiation (Mode 0: Overlay onto root)
 live-init:
-    @chmod +x tools/mios-init.sh
-    @./tools/mios-init.sh live-init
+    @chmod +x tools/mios-overlay.sh
+    sudo ./tools/mios-overlay.sh
 
 # Build OCI image locally
 build: artifact preflight flight-status
