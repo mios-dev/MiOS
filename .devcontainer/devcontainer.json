@@ -1,16 +1,14 @@
 {
-  "name": "Fedora MiOS Dev (Rawhide)",
+  "name": "MiOS Development Environment",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
-      "configureZshAsDefaultShell": true
-    },
-    "ghcr.io/devcontainers/features/docker-in-docker:1": {
-      "version": "latest",
-      "moby": true
+      "username": "mios-dev",
+      "userUid": "1000",
+      "userGid": "1000"
     }
   },
   "customizations": {
@@ -27,5 +25,9 @@
       ]
     }
   },
-  "remoteUser": "vscode"
+  "remoteUser": "mios-dev",
+  "workspaceFolder": "/mios",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/mios,type=bind,consistency=cached"
+  ]
 }
