@@ -30,5 +30,5 @@
   "mounts": [
     "source=${localWorkspaceFolder},target=/mios,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "sudo /usr/bin/zsh /mios/.devcontainer/install-root-overlay.sh"
+  "postCreateCommand": "sudo /usr/local/bin/mios-root-overlay"
 }
