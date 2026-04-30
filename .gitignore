@@ -81,3 +81,13 @@ agents/**/latest-context.json.gz
 **/*.pyc
 **/.DS_Store
 **/Thumbs.db
+
+# MiOS Runtime/Build Artifacts
+logs/
+*.log
+/artifacts/*.gz
+/artifacts/*.iso
+/artifacts/*.qcow2
+/artifacts/*.vhdx
+/artifacts/*.xz
+/artifacts/*.raw
