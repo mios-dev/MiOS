@@ -1,0 +1,12 @@
+[Unit]
+Description=MiOS Hyper-V Enhanced Session Setup (gnome-remote-desktop)
+After=local-fs.target network.target gdm.service
+ConditionVirtualization=microsoft
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios-hyperv-enhanced
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical.target

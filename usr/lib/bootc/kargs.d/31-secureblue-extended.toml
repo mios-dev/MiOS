@@ -1,0 +1,18 @@
+# MiOS — Extended SecureBlue-derived kernel hardening
+# v0.1.4 roadmap implementation pass
+match-architectures = ["x86_64"]
+kargs = [
+    "page_poison=1",
+    "slub_debug=FZ",
+    "debugfs=off",
+    "oops=panic",
+    "iommu=force",
+    "iommu.strict=1",
+    "iommu.passthrough=0",
+    "random.trust_bootloader=off",
+    "random.trust_cpu=off",
+    "efi=disable_early_pci_dma",
+    "itlb_multihit=flush,force",
+    "tsx_async_abort=full,force",
+    "mds=full,force"
+]

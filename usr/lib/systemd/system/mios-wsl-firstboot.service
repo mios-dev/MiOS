@@ -1,0 +1,15 @@
+[Unit]
+Description=MiOS WSL2 First Boot Initialization
+Documentation=https://github.com/MiOS-DEV/MiOS
+ConditionVirtualization=wsl
+ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done
+After=local-fs.target
+Before=systemd-user-sessions.service multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/wsl-firstboot
+
+[Install]
+WantedBy=multi-user.target

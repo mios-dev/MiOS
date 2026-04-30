@@ -1,0 +1,14 @@
+[Unit]
+Description=MiOS-OS Universal SR-IOV Initialization
+After=network-pre.target
+Wants=network-pre.target
+ConditionVirtualization=!wsl
+ConditionPathExists=/sys/class/net
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-sriov-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+{
+  "hardware_checks": {
+    "battery_threshold": 20,
+    "cpu_threshold": 50,
+    "memory_threshold": 90,
+    "network_threshold_kbs": 700
+  },
+  "updates": {
+    "bootc": true,
+    "bootc_args": ["--download-only"],
+    "flatpak": true,
+    "distrobox": true,
+    "brew": true
+  },
+  "notifications": {
+    "dbus": true
+  }
+}

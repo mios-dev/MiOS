@@ -1,0 +1,19 @@
+[Unit]
+Description=MiOS Ceph Cluster Bootstrap
+ConditionVirtualization=no
+# Only run if the cluster hasn't been bootstrapped yet
+ConditionPathExists=!/etc/ceph/ceph.conf
+After=network-online.target podman.socket
+Wants=network-online.target podman.socket
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Execute the full workstation-optimized bootstrap script
+ExecStart=/usr/local/bin/ceph-bootstrap.sh
+
+# Secure the admin keyring after generation
+ExecStartPost=/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring
+
+[Install]
+WantedBy=multi-user.target

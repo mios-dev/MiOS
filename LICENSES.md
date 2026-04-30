@@ -1,8 +1,8 @@
-<!-- [NET] MiOS Artifact | Proprietor: MiOS-FSS | https://github.com/mios-fss/MiOS-bootstrap -->
+<!-- [NET] MiOS Artifact | Proprietor: MiOS-DEV | https://github.com/MiOS-DEV/MiOS-bootstrap -->
 # [NET] MiOS
 ```json:knowledge
 {
-  "summary": "> **Proprietor:** MiOS-FSS",
+  "summary": "> **Proprietor:** MiOS-DEV",
   "logic_type": "documentation",
   "tags": [
     "MiOS",
@@ -16,9 +16,9 @@
   }
 }
 ```
-> **Proprietor:** MiOS-FSS
-> **Infrastructure:** Self-Building Infrastructure (Personal Property)
-> **License:** Licensed as personal property to MiOS-FSS
+> **Proprietor:** MiOS-DEV
+> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
+> **License:** Licensed as personal property to MiOS-DEV
 ---
 # Component Licenses
 
@@ -81,7 +81,7 @@ Each CI build generates an SPDX and CycloneDX Software Bill of Materials listing
 - **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
 - **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
 - **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [MiOS-FSS/MiOS-bootstrap](https://github.com/mios-fss/MiOS-bootstrap)
-- **Sole Proprietor:** MiOS-FSS
+- **Project Repository:** [MiOS-DEV/MiOS-bootstrap](https://github.com/MiOS-DEV/MiOS-bootstrap)
+- **Sole Proprietor:** MiOS-DEV
 ---
-<!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-FSS -->
+<!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-DEV -->

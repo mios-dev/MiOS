@@ -1,0 +1,12 @@
+[Unit]
+Description=MiOS CPU Core Isolation Engine
+ConditionVirtualization=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/cpu-isolate
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -36,17 +36,17 @@ MiOS is an immutable, AI-native workstation.
 | :--- | :--- | :--- |
 | `/usr/bin/` | Immutable | Core system binaries and MiOS CLI. |
 | `/usr/lib/` | Immutable | Static configuration and systemd units. |
-| `/usr/share/mios/ai/` | Immutable | AI manifestos and API discovery files. |
+| `/usr/share/mios/ai/v1/` | Immutable | Consolidated AI specifications and API discovery. |
 | `/etc/` | Persistent | Host-specific administrative overrides. |
 | `/var/lib/mios/` | Persistent | Local application state and AI models. |
 | `/srv/ai/` | Persistent | Large model weights and vector stores. |
 
 ---
 
-## 4. AGENT BEHAVIOR (system-prompt.md)
-- **Persona**: Senior Linux/bootc/OpenAI-API engineer.
-- **Tone**: Direct, Concrete, FOSS-first.
-- **Constraints**: No fillers, no proprietary cloud APIs, no immutability violations.
+## 4. AGENT SPECIFICATION (system.md)
+- **Protocol**: OpenAI-compatible API (`/v1`).
+- **Directives**: evidence-based, path-citing, FOSS-first.
+- **Constraints**: No proprietary cloud APIs, no immutability violations.
 
 ---
 

@@ -1,0 +1,23 @@
+[Unit]
+ConditionVirtualization=!container
+Description=MiOS Agent Context Service (MCP)
+After=network.target redis.service
+Wants=redis.service
+# High-availability context provider for autonomous agents.
+
+[Service]
+Type=simple
+User=mios
+Group=mios
+# Execution wrapper that verifies SQLite vaults exist before starting the MCP listener
+ExecStartPre=/usr/libexec/mios/mcp-init.sh
+ExecStart=/usr/libexec/mios/mcp-server-runner
+Restart=always
+RestartSec=5
+# Security hardening: isolate the MCP server from writing to the core OS
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/mios/mcp /var/log/mios/mcp
+
+[Install]
+WantedBy=multi-user.target

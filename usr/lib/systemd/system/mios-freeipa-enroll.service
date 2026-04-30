@@ -1,0 +1,17 @@
+[Unit]
+ConditionVirtualization=!container
+Description=MiOS FreeIPA Zero-Touch Enrollment
+ConditionPathExists=/etc/mios/ipa-enroll.env
+ConditionPathExists=!/etc/ipa/default.conf
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-freeipa-enroll.sh
+# Hardening to protect the credential reading process
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

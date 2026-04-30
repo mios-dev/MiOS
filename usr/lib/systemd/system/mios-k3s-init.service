@@ -1,0 +1,16 @@
+[Unit]
+ConditionVirtualization=!container
+Description=MiOS K3s Manifest Seeder
+Before=k3s.service
+ConditionPathExists=/usr/share/mios/k3s-manifests
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Copy the immutable manifests into the persistent datastore
+ExecStart=/bin/bash -c "cp -a /usr/share/mios/k3s-manifests/*.yaml /var/lib/rancher/k3s/server/manifests/ 2>/dev/null || true"
+ExecStartPost=/bin/chmod 0600 /var/lib/rancher/k3s/server/manifests/*.yaml
+
+[Install]
+WantedBy=multi-user.target

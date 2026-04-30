@@ -1,10 +1,10 @@
 import os
 import re
 
-HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/mios-fss/mios -->
+HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/MiOS-DEV/mios -->
 # 🌐 MiOS
 > **Proprietor:** MiOS Project
-> **Infrastructure:** Self-Building Infrastructure (Personal Property)
+> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
 > **License:** Licensed as personal property to MiOS Project
 > **Source Reference:** MiOS-Core-v0.1.4
 ---"""
@@ -12,10 +12,10 @@ HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.
 FOOTER = """---
 ### ⚖️ Legal & Source Reference
 - **Copyright:** (c) 2026 MiOS Project
-- **Status:** Personal Property / Private Infrastructure
-- **Project Repository:** [MiOS-FSS/mios](https://github.com/mios-fss/mios)
-- **Documentation:** [MiOS Navigation Hub](https://github.com/mios-fss/mios/blob/main/specs/Home.md)
-- **Artifact Hub:** [ai-context.json](https://github.com/mios-fss/mios/blob/main/ai-context.json)
+- **Status:** System Specificationl Property / Private Infrastructure
+- **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
+- **Documentation:** [MiOS Navigation Hub](https://github.com/MiOS-DEV/mios/blob/main/specs/Home.md)
+- **Artifact Hub:** [ai-context.json](https://github.com/MiOS-DEV/mios/blob/main/ai-context.json)
 ---"""
 
 def standardize_file(file_path):

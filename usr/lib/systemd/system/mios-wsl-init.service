@@ -1,0 +1,13 @@
+[Unit]
+Description=MiOS WSL2 Runtime Bridge
+ConditionVirtualization=wsl
+After=local-fs.target
+Before=mios-role.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/wsl-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

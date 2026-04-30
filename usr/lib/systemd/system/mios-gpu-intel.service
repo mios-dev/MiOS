@@ -1,0 +1,29 @@
+[Unit]
+Description=MiOS Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)
+ConditionVirtualization=!container
+Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
+ConditionPathExists=/dev/dri/renderD128
+After=systemd-modules-load.service systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+# NOTE: Supports universal iGPU + dGPU hybrid configurations across all vendors.
+# Standardizes renderD128 access for Intel (QuickSync/NEO) and AMD (ROCm/VA-API)
+# while allowing co-existence with discrete NVIDIA or AMD hardware.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/modprobe -a i915 xe amdgpu
+ExecStartPre=/usr/bin/install -d -m 0755 /var/run/cdi
+ExecStart=/usr/bin/bash -c ' \
+  # Defensive perms on primary render node — do not touch card* nodes (video group \
+  # handled by 99-mios-gpu.rules at udev-add time). \
+  if [ -e /dev/dri/renderD128 ]; then \
+    chgrp render /dev/dri/renderD128 2>/dev/null || true; \
+    chmod 0660   /dev/dri/renderD128 2>/dev/null || true; \
+  fi; \
+  exit 0'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

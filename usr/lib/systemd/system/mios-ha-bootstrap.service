@@ -1,0 +1,21 @@
+[Unit]
+Description=MiOS HA Cluster Bootstrap (Pacemaker/Corosync)
+ConditionVirtualization=no
+# Only run if the cluster hasn't been bootstrapped yet
+ConditionPathExists=!/etc/corosync/corosync.conf
+After=network-online.target pcsd.service
+Wants=network-online.target pcsd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# 1. Set the default hacluster password
+# 2. Authenticate the local node
+# 3. Bootstrap the cluster using the current hostname as the seed node
+# 4. Start the cluster and disable STONITH for the initial single-node state
+ExecStart=/bin/bash -c "echo 'hacluster:mios' | chpasswd && pcs host auth $(hostname -s) -u hacluster -p mios && pcs cluster setup --name mios-ha $(hostname -s) --force && pcs cluster start --all && pcs property set stonith-enabled=false"
+
+ExecStartPost=/bin/chmod 0600 /etc/corosync/corosync.conf
+
+[Install]
+WantedBy=multi-user.target

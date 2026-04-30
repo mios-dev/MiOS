@@ -1,0 +1,16 @@
+[Unit]
+Description=CephFS mount for Podman container storage
+ConditionPathExists=/etc/ceph/ceph.conf
+ConditionPathExists=/etc/ceph/mios.secret
+After=ceph.target network-online.target
+Wants=network-online.target
+RequiresMountsFor=/var/lib
+
+[Mount]
+What=mios@.cephfs=/containers
+Where=/var/lib/containers
+Type=ceph
+Options=secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30
+
+[Install]
+WantedBy=remote-fs.target

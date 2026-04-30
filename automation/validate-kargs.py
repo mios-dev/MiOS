@@ -13,7 +13,7 @@ Schema rules (bootc-dev/bootc authoritative):
   - NO other top-level keys.
   - NO [section] table headers anywhere in the file.
   - Each kargs entry must be a single string (not space-joined multi-arg).
-  - Keys with "delete" in their name are hallucinated by Assistant — reject.
+  - Keys with "delete" in their name are invalid parameter — reject.
 
 Exit codes: 0 = pass, 1 = validation failure(s), 2 = usage error.
 """
@@ -79,7 +79,7 @@ def validate_file(path: Path, *, github: bool = False, results: list[dict]) -> b
         if key not in ALLOWED_TOP_KEYS:
             if "delete" in key.lower():
                 msg = (
-                    f"'{key}' is a Assistant hallucination — bootc has no delete mechanism "
+                    f"'{key}' is an invalid parameter — bootc has no delete mechanism "
                     "in kargs.d drop-ins. Remove it."
                 )
             else:

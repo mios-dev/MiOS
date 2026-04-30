@@ -1,0 +1,149 @@
+#!/usr/bin/bash
+# ============================================================================
+# mios role-apply: MiOS Unified Initialization & Role Engine
+# ============================================================================
+# v0.1.4: FORMAL TARGET TRANSITION. Uses systemd .target units for roles.
+# ============================================================================
+set -euo pipefail
+
+ROLE_CONF=/etc/mios/role.conf
+STATE_DIR=/var/lib/mios
+mkdir -p "$STATE_DIR"
+
+log() { printf '[mios-role] %s\n' "$*"; }
+
+# ----------------------------------------------------------------------------
+# PHASE 1: System-wide Initialization
+# ----------------------------------------------------------------------------
+MAC=$(cat /sys/class/net/e*/address /sys/class/net/w*/address 2>/dev/null | head -1 || echo "")
+MACH_ID=$(cat /etc/machine-id 2>/dev/null || echo "")
+
+if [[ -n "$MACH_ID" ]]; then
+    TAG=$(echo "${MACH_ID}${MAC}" | md5sum | head -c 5)
+    CURRENT=$(hostname -s 2>/dev/null || echo "")
+    if [[ "$CURRENT" == "mios" || "$CURRENT" == "localhost" || "$CURRENT" == "linux" ]]; then
+        hostnamectl set-hostname "mios-${TAG}" 2>/dev/null || true
+        log "Hostname set to mios-${TAG}"
+    fi
+fi
+
+# Standard user home management
+for u in $(awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd); do
+    home=$(getent passwd "$u" | cut -d: -f6)
+    if [[ ! -d "$home" ]]; then
+        mkdir -p "$home"
+        cp -a /etc/skel/. "$home/" 2>/dev/null || true
+        uid=$(id -u "$u"); gid=$(id -g "$u")
+        chown -R "${uid}:${gid}" "$home"
+    fi
+    for g in wheel libvirt kvm video render input dialout; do
+        usermod -aG "$g" "$u" 2>/dev/null || true
+    done
+done
+
+# ----------------------------------------------------------------------------
+# PHASE 2: Environment & Hardware Detection
+# ----------------------------------------------------------------------------
+VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
+
+# ARCHITECTURAL SAFEGUARD: OCI Container Optimization
+# If running inside a container, skip the role engine. Containers are
+# implicitly "headless" and specialized via ENTRYPOINT/CMD.
+if [[ "$VIRT" == "container" ]]; then
+    log "Container environment detected - bypassing Role Engine for stability"
+    exit 0
+fi
+
+IS_BLACKWELL=false
+if lspci -d 10de: 2>/dev/null | grep -qi "GB20\|GB10"; then
+    IS_BLACKWELL=true
+    log "RTX 50 Blackwell detected - enforcing safety parameters"
+fi
+
+# ----------------------------------------------------------------------------
+# PHASE 3: Role Resolution
+# ----------------------------------------------------------------------------
+ROLE=""
+PROFILE=""
+FEATURES=""
+
+if [[ -r /proc/cmdline ]]; then
+    for tok in $(< /proc/cmdline); do
+        case "$tok" in
+            mios.role=*)     ROLE="${tok#mios.role=}" ;;
+            mios.profile=*)  PROFILE="${tok#mios.profile=}" ;;
+            mios.features=*) FEATURES="${tok#mios.features=}" ;;
+        esac
+    done
+fi
+
+if [[ -z "$ROLE" && -r "$ROLE_CONF" ]]; then
+    # shellcheck disable=SC1090
+    . "$ROLE_CONF"
+fi
+
+# Auto-Role selection
+if [[ -z "$ROLE" ]]; then
+    if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
+        ROLE="headless"
+        log "WSL detected - defaulting to headless role"
+    elif [[ "$IS_BLACKWELL" == "true" ]]; then
+        ROLE="headless"
+        log "Blackwell safety - defaulting to headless role"
+    elif ! compgen -G "/dev/dri/renderD*" >/dev/null && [[ ! -e /sys/class/drm/card0 ]]; then
+        ROLE="headless"
+        log "No DRM device - defaulting to headless role"
+    fi
+fi
+
+ROLE="${ROLE:-desktop}"
+PROFILE="${PROFILE:-workstation}"
+FEATURES="${FEATURES:-}"
+
+log "resolved role=$ROLE profile=$PROFILE features=$FEATURES"
+
+# ----------------------------------------------------------------------------
+# PHASE 4: Target Selection (Formal systemd management)
+# ----------------------------------------------------------------------------
+TARGET="mios-headless.target"
+case "$ROLE" in
+    desktop)  TARGET="mios-desktop.target" ;;
+    headless) TARGET="mios-headless.target" ;;
+    k3s*)     TARGET="mios-k3s-master.target" ;;
+    ha*)      TARGET="mios-ha-node.target" ;;
+    *)        log "WARN: unknown role '$ROLE' - defaulting to headless" ;;
+esac
+
+log "Setting default target to $TARGET"
+# We set the default target for the NEXT boot
+systemctl set-default --no-block "$TARGET" 2>/dev/null || true
+
+# CRITICAL FIX: Instead of 'isolate' (which creates deadlocks in early boot),
+# we start the target asynchronously. This ensures that systemd eventually
+# pulls in the role dependencies without hijacking the current transaction.
+log "Triggering role target: $TARGET"
+systemctl start --no-block "$TARGET" 2>/dev/null || true
+
+# Feature gates (Optional side-cars)
+IFS=',' read -r -a FEAT_ARR <<< "$FEATURES"
+for f in "${FEAT_ARR[@]}"; do
+    case "$f" in
+        ceph-mon)    systemctl start --no-block "ceph-mon@$(hostname -s).service" 2>/dev/null || true ;;
+        gamescope)   systemctl start --no-block gamescope-session.target 2>/dev/null || true ;;
+        waydroid)    systemctl start --no-block waydroid-container.service 2>/dev/null || true ;;
+        pxe-hub)     systemctl start --no-block mios-pxe-hub.service 2>/dev/null || true ;;
+    esac
+done
+
+# Record active state for diagnostics
+cat > "$STATE_DIR/role.active" <<EOF
+ROLE=$ROLE
+PROFILE=$PROFILE
+FEATURES=$FEATURES
+VIRT=$VIRT
+BLACKWELL=$IS_BLACKWELL
+TARGET=$TARGET
+APPLIED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+
+log "role apply complete; system is transitioning to $TARGET"

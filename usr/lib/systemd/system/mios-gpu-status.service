@@ -1,0 +1,46 @@
+[Unit]
+ConditionVirtualization=!container
+Description=MiOS GPU passthrough detection and status
+Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
+DefaultDependencies=yes
+After=systemd-udev-settle.service systemd-modules-load.service local-fs.target
+Wants=systemd-udev-settle.service
+# Before=podman.socket docker.socket removed: combining DefaultDependencies=yes
+# (which implies After=basic.target → After=sockets.target → After=podman.socket)
+# with Before=podman.socket creates an ordering cycle that systemd resolves by
+# skipping all three GPU services. The service still runs before containers are
+# used because WantedBy=multi-user.target fires after sockets.target anyway.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+RuntimeDirectory=mios
+RuntimeDirectoryMode=0755
+ExecStart=/usr/bin/bash -c ' \
+  set +e; \
+  HAS_NV=0; HAS_AMD=0; HAS_INTEL=0; \
+  [ -e /dev/nvidia0 ]            && HAS_NV=1; \
+  [ -e /dev/kfd ]                && HAS_AMD=1; \
+  [ -e /dev/dri/renderD128 ]     && HAS_INTEL=1; \
+  VIRT=$(systemd-detect-virt || echo none); \
+  install -d -m 0755 /run/mios /var/run/cdi /var/lib/mios/gpu; \
+  { \
+    echo "timestamp=$(date -Is)"; \
+    echo "virtualization=${VIRT}"; \
+    echo "nvidia=${HAS_NV}"; \
+    echo "amd=${HAS_AMD}"; \
+    echo "intel=${HAS_INTEL}"; \
+    lspci -nn 2>/dev/null | grep -iE "vga|3d|display" || true; \
+  } > /run/mios/gpu-passthrough.status; \
+  # Non-persistent (in-memory) SELinux boolean — build-time semanage handles \
+  # persistence; this guarantees the boolean is on even if the policy merge \
+  # dropped it. No-op on permissive / disabled / missing boolean. \
+  if command -v setsebool >/dev/null 2>&1; then \
+    setsebool container_use_devices on 2>/dev/null || true; \
+  fi; \
+  exit 0'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+# MiOS: kvmfr character device accessible by kvm group members
+SUBSYSTEM=="kvmfr", OWNER="root", GROUP="kvm", MODE="0660", TAG+="uaccess"

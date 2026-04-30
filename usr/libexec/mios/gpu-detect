@@ -1,0 +1,51 @@
+#!/bin/bash
+set -euo pipefail
+VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
+echo "[mios-gpu-detect] Virtualization: $VIRT"
+
+NVIDIA_CONF="/etc/modprobe.d/99-mios-virt-gpu.conf"
+ENV_DIR="/etc/environment.d"
+RENDERER_CONF="${ENV_DIR}/60-mios-renderer.conf"
+mkdir -p "$ENV_DIR"
+
+if [ "$VIRT" != "none" ]; then
+    echo "[mios-gpu-detect] VM detected ($VIRT) — blocking NVIDIA"
+    cat > "$NVIDIA_CONF" <<'EOMOD'
+install nvidia /bin/false
+install nvidia_drm /bin/false
+install nvidia_modeset /bin/false
+install nvidia_uvm /bin/false
+EOMOD
+    for mod in nvidia_uvm nvidia_drm nvidia_modeset nvidia; do
+        modprobe -r "$mod" 2>/dev/null || true
+    done
+
+    cat > "$RENDERER_CONF" <<'EORENDER'
+# GTK 4.16+ removed the cairo renderer. ngl via llvmpipe is the optimal VM fallback.
+GSK_RENDERER=ngl
+EORENDER
+
+    case "$VIRT" in
+        microsoft|wsl) modprobe hyperv_drm 2>/dev/null || true ;;
+        kvm|qemu)      modprobe virtio-gpu 2>/dev/null || true ;;
+        vmware)        modprobe vmwgfx 2>/dev/null || true ;;
+    esac
+else
+    echo "[mios-gpu-detect] Bare metal — NVIDIA enabled, hardware renderer"
+    rm -f "$NVIDIA_CONF"
+    rm -f /etc/modprobe.d/mios-nvidia-blacklist.conf
+    # Load nvidia now that blacklist is removed
+    modprobe nvidia_drm 2>/dev/null || true
+    rm -f "$RENDERER_CONF"
+
+    # RTX 50-series (Blackwell) VFIO reset bug detection
+    if command -v lspci &>/dev/null; then
+        if lspci -nn | grep -iE '\[10de:(2900|2901|2903|2904|2905|2b80|2b85)\]' &>/dev/null; then
+            echo "[mios-gpu-detect] WARNING: RTX 50-series GPU detected!"
+            echo "[mios-gpu-detect] VFIO passthrough may require full host reboot after VM shutdown."
+            wall "MiOS: RTX 50-series VFIO reset bug detected." 2>/dev/null || true
+        fi
+    fi
+fi
+
+touch /run/mios-gpu-detected

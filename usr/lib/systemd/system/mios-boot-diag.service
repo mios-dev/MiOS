@@ -1,0 +1,15 @@
+[Unit]
+ConditionVirtualization=!container
+Description=MiOS Boot Diagnostic — prints service status to console
+After=basic.target
+Before=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios-boot-diag
+StandardOutput=journal+console
+StandardError=journal+console
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical.target

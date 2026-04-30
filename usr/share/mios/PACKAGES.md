@@ -1,15 +1,15 @@
 # 🌐 MiOS — Universal AI Integration
-> **Proprietor:** Kabu.ki
-> **Infrastructure:** Self-Building Infrastructure (Personal Property)
-> **License:** Licensed as personal property to Kabu.ki
+> **Proprietor:** MiOS-DEV
+> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
+> **License:** Licensed as personal property to MiOS-DEV
 ---
-# MiOS v2.1.0 — Package Manifest
+# MiOS v0.1.4 — Package Manifest
 
 This file is both documentation and the **single source of truth** for all packages installed in MiOS.
 Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
 To add a package, add it to the appropriate section. One package per line.
 
-**CHANGELOG v2.1.0:**
+**CHANGELOG v0.1.4:**
 - Standardized versioning across the entire stack.
 - Added uupd (unified updater replacing bootc-fetch-apply-updates.timer)
 - Added greenboot + greenboot-default-health-checks (auto-rollback on boot failure)
@@ -28,7 +28,7 @@ To add a package, add it to the appropriate section. One package per line.
        sole source of truth; 40-series scripts handle config+services only
 - Added missing audited tools: strace, lsof, iotop, ntfs-3g, efibootmgr, nm-connection-editor
 
-**CHANGELOG v2.1.0 (previous):**
+**CHANGELOG v0.1.4 (previous):**
 - Added bootupd (unified bootloader updates — Fedora 44 phase 1)
 - Added dnf5-plugins (versionlock support for critical package pinning)
 - Added systemd-boot-unsigned (UKI preparation — future composefs+UKI chain)
@@ -37,7 +37,7 @@ To add a package, add it to the appropriate section. One package per line.
 - Added clevis, clevis-luks (automated LUKS unlock via TPM2/Tang)
 - Moved driverctl from security to utils (better categorization)
 
-**CHANGELOG v2.1.0 (previous):**
+**CHANGELOG v0.1.4 (previous):**
 - Removed htop (use btop instead)
 - Added nvidia-settings to NVIDIA section
 - Added avahi/nss-mdns for .local network discovery
@@ -657,7 +657,7 @@ libsss_nss_idmap
 ```
 
 ## AI Tools
-Rust-based LLM CLI assistants and shell integrations.
+Rust-based LLM CLI agents and shell integrations.
 
 ```packages-ai
 aichat
@@ -716,6 +716,6 @@ usbutils
 - **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osbuild/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
 - **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
 - **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [mios-fss/mios](https://github.com/mios-fss/mios)
-- **Sole Proprietor:** Kabu.ki
+- **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
+- **Sole Proprietor:** MiOS-DEV
 ---

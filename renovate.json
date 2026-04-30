@@ -25,7 +25,7 @@
       "description": "Protect image-versions.yml  require review",
       "matchFileNames": ["image-versions.yml"],
       "automerge": false,
-      "assignees": ["MiOS-FSS"]
+      "assignees": ["MiOS-DEV"]
     }
   ],
   "customManagers": [

@@ -1,0 +1,15 @@
+# MiOS v0.1.4 — Core kernel boot arguments
+# bootc kargs.d (v1.13+). Format: bare kargs = [...] ONLY.
+# NO [kargs] table headers. NO delete/append keys.
+
+kargs = [
+    "iommu=pt",
+    "amd_iommu=on",
+    "rd.driver.blacklist=nouveau",
+    "modprobe.blacklist=nouveau",
+    "systemd.show-status=true",
+    "systemd.mount-extra=/var/lib/containers:none:bind,rw,x-systemd.makefs",
+    "console=tty0",
+    "console=ttyS0,115200n8"
+]
+match-architectures = ["x86_64"]

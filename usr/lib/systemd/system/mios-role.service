@@ -1,0 +1,15 @@
+[Unit]
+Description=MiOS System Init & Role Engine
+ConditionVirtualization=!container
+Wants=network-online.target
+After=network-online.target local-fs.target
+DefaultDependencies=no
+Before=sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/role-apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

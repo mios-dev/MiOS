@@ -6,7 +6,7 @@
 # into push-vX.Y.Z.ps1 siblings.
 #
 # Behaviour:
-#   1. Clone github.com/mios-fss/MiOS-bootstrap into a temp directory.
+#   1. Clone github.com/MiOS-DEV/MiOS-bootstrap into a temp directory.
 #   2. Optionally overlay a staged companion directory (-StagedDir) onto the
 #      working tree, preserving layout relative to repo root. Files-only 
 #      directories are walked and replaced file by file. Nothing is deleted.
@@ -24,7 +24,7 @@ param(
     [string]$Version,
     [string]$Message = 'release sync',
     [string]$StagedDir,
-    [string]$Repo = 'github.com/mios-fss/MiOS-bootstrap',
+    [string]$Repo = 'github.com/MiOS-DEV/MiOS-bootstrap',
     [string]$Branch = 'main',
     [switch]$DryRun
 )
@@ -146,7 +146,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "git push failed (exit $LASTEXITCODE)." }
 
         Write-Ok "Commit: $sha"
-        Write-Ok "GHCR tag (built by CI): ghcr.io/mios-fss/mios:$Version"
+        Write-Ok "GHCR tag (built by CI): ghcr.io/MiOS-DEV/mios:$Version"
     }
     finally {
         Pop-Location

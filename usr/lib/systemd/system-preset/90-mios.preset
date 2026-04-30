@@ -1,0 +1,94 @@
+# MiOS systemd preset
+# "enable" = on boot; "disable" = off. Role-specific services are NOT here;
+# mios-role.service enables/disables them at runtime based on role.conf.
+
+# --- Always-on core ---
+enable sshd.service
+enable NetworkManager.service
+enable podman.socket
+enable podman-auto-update.timer
+enable libvirtd.socket
+enable virtnetworkd.socket
+enable virtqemud.socket
+enable uupd.timer
+enable nvidia-cdi-refresh.path
+enable nvidia-cdi-refresh.service
+enable nvidia-persistenced.service
+enable firewalld.service
+enable chronyd.service
+enable systemd-resolved.service
+enable pmproxy.service
+enable bootloader-update.service
+enable mios-role.service
+enable mios-gpu-detect.service
+enable mios-selinux-init.service
+enable mios-sriov-init.service
+enable mios-cdi-detect.service
+enable mios-libvirtd-setup.service
+enable mios-grd-setup.service
+enable systemd-sysext.service
+enable systemd-confext.service
+enable gnome-remote-desktop.service
+enable mios-firstboot.target
+enable greenboot-healthcheck.service
+enable greenboot-grub2-set-counter.service
+enable greenboot-grub2-set-success.service
+enable greenboot-rpm-ostree-grub2-check-fallback.service
+enable greenboot-status.service
+enable redboot-auto-reboot.service
+enable cockpit.socket
+enable usbguard.service
+enable auditd.service
+enable crowdsec.service
+enable crowdsec-firewall-bouncer.service
+enable nftables.service
+enable mios-mcp.service
+enable redis.service
+enable cloud-init.service
+enable cloud-final.service
+enable qemu-guest-agent.service
+
+# --- WSL2 fallback & initialization (ConditionVirtualization=wsl gated) ---
+enable mios-wsl-firstboot.service
+enable mios-wsl-init.service
+enable dbus-daemon-wsl.service
+
+# --- Disabled in favor of uupd ---
+disable bootc-fetch-apply-updates.timer
+disable rpm-ostreed-automatic.timer
+
+# --- Broken with composefs on F42+ ---
+disable systemd-remount-fs.service
+
+# --- Role-gated: default-off; mios-role.service turns on as appropriate ---
+disable libvirtd.service
+disable libvirtd-ro.socket
+disable libvirtd-admin.socket
+disable virtnetworkd.service
+disable virtnodedevd.service
+disable virtqemud.service
+disable virtstoraged.service
+disable gdm.service
+disable k3s.service
+disable k3s-agent.service
+disable corosync.service
+disable pacemaker.service
+disable ceph-mon@.service
+disable ceph-osd@.service
+
+# --- Optional / Fail-silent (default disabled) ---
+enable fapolicyd.service
+disable tailscaled.service
+disable mios-pxe-hub.service
+disable waydroid-container.service
+disable smb.service
+disable nmb.service
+disable nfs-server.service
+disable rpcbind.service
+disable libvirt-guests.service
+disable mios-ha-bootstrap.service
+disable osbuild-composer.service
+disable osbuild-worker@1.service
+disable multipathd.service
+disable cloud-init-local.service
+disable cloud-config.service

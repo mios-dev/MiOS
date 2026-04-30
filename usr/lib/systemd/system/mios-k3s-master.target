@@ -1,0 +1,8 @@
+[Unit]
+Description=MiOS K3s Master Role
+Requires=multi-user.target k3s.service
+After=multi-user.target
+Conflicts=mios-desktop.target mios-headless.target mios-ha-node.target
+AllowIsolate=yes
+[Install]
+WantedBy=multi-user.target

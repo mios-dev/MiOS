@@ -1,0 +1,11 @@
+source: journalctl
+journalctl_filter:
+  - "_SYSTEMD_UNIT=sshd.service"
+  - "_SYSTEMD_UNIT=nginx.service"
+  - "_SYSTEMD_UNIT=httpd.service"
+  - "_SYSTEMD_UNIT=cockpit.service"
+  - "_SYSTEMD_UNIT=gnome-remote-desktop.service"
+  - "_SYSTEMD_UNIT=libvirtd.service"
+  - "_SYSTEMD_UNIT=k3s.service"
+labels:
+  type: syslog

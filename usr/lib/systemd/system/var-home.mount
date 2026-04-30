@@ -1,0 +1,16 @@
+[Unit]
+Description=CephFS mount for user home directories
+Documentation=man:mount.ceph(8)
+ConditionPathExists=/etc/ceph/ceph.conf
+ConditionPathExists=/etc/ceph/mios.secret
+After=ceph.target network-online.target
+Wants=network-online.target
+
+[Mount]
+What=mios@.cephfs=/home
+Where=/var/home
+Type=ceph
+Options=secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30
+
+[Install]
+WantedBy=remote-fs.target

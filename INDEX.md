@@ -1,47 +1,43 @@
-# MiOS Universal Agent Hub — API Surface (Day 0)
+# MiOS System Interface — OpenAI-Native Surface (v0.1.4)
 
 ```json:knowledge
 {
-  "summary": "The SINGLE SOURCE OF TRUTH for MiOS. Architectural laws, agent behavior, and API surface contracts in a unified OpenAI-compliant manifest.",
-  "logic_type": "documentation",
-  "tags": ["MiOS", "AI", "Agent Hub", "Index", "OpenAI", "SSOT"],
+  "summary": "The SINGLE SOURCE OF TRUTH for MiOS. Architectural laws and API surface contracts in a unified OpenAI-compliant manifest.",
+  "logic_type": "specification",
+  "tags": ["MiOS", "OpenAI", "SSOT"],
   "relations": {
     "depends_on": [".env.mios"],
     "impacts": [
       "ARCHITECTURE.md",
       "ENGINEERING.md",
-      "system-prompt.md",
-      "llms.txt"
+      "system-prompt.md"
     ]
   },
   "version": "v0.1.4"
 }
 ```
 
-## 🏗️ System Profile
-MiOS is an immutable, AI-native workstation operating system. It provides a standardized surface for autonomous agents to interact with system resources via OpenAI-compatible APIs.
+## 1. System Profile
+MiOS is an immutable, AI-native workstation operating system. It exposes a standardized surface for autonomous agents to interact with system resources via OpenAI-compatible APIs.
 
 ---
 
-## 🤖 AI Agent Surface Contract (OpenAI Native)
-All agents MUST target the local proxy at `http://localhost:8080/v1`.
+## 2. API Surface (OpenAI Native)
+All system agents target the local proxy at `http://localhost:8080/v1`.
 
-| Endpoint | Method | Purpose | Deployed Path |
+| Path | Method | Purpose | Deployed Path |
 |---|---|---|---|
-| /v1/chat/completions | POST | Primary System Chat | - |
-| /v1/models | GET | Hardware/Model Discovery | /usr/share/mios/ai/v1/models.json |
-| /v1/mcp | FS | Model Context Protocol Hub | /usr/share/mios/ai/mcp/config.json |
-| /v1/embeddings | POST | Semantic Search (Local) | - |
+| `/v1/chat/completions` | POST | Primary System Interaction | - |
+| `/v1/models` | GET | Inventory Discovery | `/usr/share/mios/ai/v1/models.json` |
+| `/v1/mcp` | FS | Context Registry | `/usr/share/mios/ai/v1/mcp.json` |
 
 ---
 
-## ⚖️ Immutable Appliance Laws
-These laws define the system's operational boundaries. Violations cause state drift and are architectural failures.
-
-1. **USR-OVER-ETC**: All static configuration must reside in `/usr/lib/`. `/etc/` is reserved strictly for host-specific administrator overrides.
-2. **NO-MKDIR-IN-VAR**: Persistence in `/var/` is managed exclusively via `tmpfiles.d` declarations.
-3. **UNPRIVILEGED-QUADLETS**: Containerized sidecars MUST execute as unprivileged users with cgroup delegation enabled.
-4. **BOOTC-NATIVE**: System updates and configuration are cryptographically signed and managed via `bootc`.
+## 3. Operational Invariants
+1. **USR-OVER-ETC**: Persistent defaults reside in `/usr/lib/`.
+2. **STATELÉSS-VAR**: Mutable state is declared via `tmpfiles.d`.
+3. **UNPRIVILEGED-EXECUTION**: All agent containers execute without root privileges.
+4. **BOOTC-LIFECYCLE**: System updates are managed via OCI image commits.
 
 ---
 

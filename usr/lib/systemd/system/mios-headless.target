@@ -1,0 +1,8 @@
+[Unit]
+Description=MiOS Headless Role
+Requires=multi-user.target
+After=multi-user.target
+Conflicts=mios-desktop.target mios-k3s-master.target mios-ha-node.target
+AllowIsolate=yes
+[Install]
+WantedBy=multi-user.target

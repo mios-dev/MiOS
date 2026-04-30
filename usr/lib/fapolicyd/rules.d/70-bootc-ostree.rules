@@ -1,0 +1,5 @@
+# Allow execution from the ostree deployment directory and overlay
+allow perm=any all : dir=/sysroot/ostree/deploy/
+allow perm=any all : dir=/var/usrlocal/bin/
+allow perm=any all : dir=/var/lib/containers/
+allow perm=any all : dir=/var/lib/flatpak/

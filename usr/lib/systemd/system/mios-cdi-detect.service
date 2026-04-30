@@ -1,0 +1,13 @@
+[Unit]
+Description=MiOS CDI spec detection (WSL vs bare metal vs VM)
+ConditionVirtualization=!container
+Before=nvidia-cdi-refresh.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-cdi-detect
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=MiOS Hybrid role (desktop + k3s-worker + ceph-osd)
+Requires=graphical.target
+After=graphical.target
+AllowIsolate=yes
+Wants=k3s-agent.service
+
+[Install]
+Alias=default.target.mios-hybrid

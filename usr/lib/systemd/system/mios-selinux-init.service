@@ -1,0 +1,16 @@
+[Unit]
+Description=MiOS SELinux Policy Loader
+ConditionVirtualization=!container
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target
+ConditionPathExists=!/var/lib/mios/.selinux-init-done
+ConditionPathExists=/usr/share/selinux/packages/mios
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/selinux-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

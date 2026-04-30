@@ -1,0 +1,64 @@
+{
+    "default": [
+        { "type": "reject" }
+    ],
+    "transports": {
+        "docker": {
+            "ghcr.io/mios-dev/mios": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/usr/share/pki/containers/mios-cosign.pub",
+                    "signedIdentity": { "type": "matchRepository" }
+                },
+                {
+                    "type": "sigstoreSigned",
+                    "fulcio": {
+                        "caPath": "/usr/share/pki/containers/fulcio_v1.crt.pem",
+                        "oidcIssuer": "https://token.actions.githubusercontent.com",
+                        "subjectEmail": "https://github.com/MiOS-DEV/MiOS/.github/workflows/build.yml@refs/heads/main"
+                    },
+                    "rekorPublicKeyPath": "/usr/share/pki/containers/rekor.pub",
+                    "signedIdentity": { "type": "matchRepository" }
+                }
+            ],
+            "ghcr.io/ublue-os": [
+                {
+                    "type": "sigstoreSigned",
+                    "keyPath": "/usr/share/pki/containers/ublue-os.pub",
+                    "signedIdentity": { "type": "matchRepository" }
+                }
+            ],
+            "quay.io/fedora": [
+                {
+                    "type": "signedBy",
+                    "keyType": "GPGKeys",
+                    "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-rawhide-x86_64"
+                }
+            ],
+            "quay.io/centos-bootc": [
+                {
+                    "type": "signedBy",
+                    "keyType": "GPGKeys",
+                    "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-rawhide-x86_64"
+                }
+            ],
+            "registry.access.redhat.com": [
+                {
+                    "type": "signedBy",
+                    "keyType": "GPGKeys",
+                    "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
+                }
+            ],
+            "registry.redhat.io": [
+                {
+                    "type": "signedBy",
+                    "keyType": "GPGKeys",
+                    "keyPath": "/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
+                }
+            ]
+        },
+        "docker-daemon": {
+            "": [ { "type": "insecureAcceptAnything" } ]
+        }
+    }
+}

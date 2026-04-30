@@ -1,0 +1,20 @@
+[Unit]
+Description=MiOS Ceph Cluster Bootstrap (first boot only)
+Documentation=https://docs.ceph.com/en/latest/cephadm/
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/ceph/.bootstrapped
+ConditionVirtualization=no
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/ceph-bootstrap.sh
+ExecStartPost=/usr/bin/touch /var/lib/ceph/.bootstrapped
+TimeoutStartSec=600
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -13,7 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: mios-fss/mios
+  IMAGE_NAME: MiOS-DEV/mios
 
 jobs:
   build:

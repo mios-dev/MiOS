@@ -39,7 +39,7 @@ FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="Unified immutable cloud-native workstation OS (desktop/k3s/ha/hybrid)"
-LABEL org.opencontainers.image.source="https://github.com/mios-fss/MiOS-bootstrap"
+LABEL org.opencontainers.image.source="https://github.com/MiOS-DEV/MiOS-bootstrap"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.version="v0.1.4"
 LABEL containers.bootc="1"

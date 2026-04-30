@@ -1,5 +1,4 @@
 #!/bin/bash
-# 🌐 MiOS
 # 37-ollama-prep: Embed default LLM models during build
 set -euo pipefail
 

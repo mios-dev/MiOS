@@ -1,0 +1,13 @@
+[Unit]
+Description=MiOS GPU Environment Detection
+ConditionVirtualization=!container
+DefaultDependencies=no
+Before=gdm.service display-manager.service systemd-modules-load.service systemd-udevd.service
+After=systemd-journald.socket
+ConditionPathExists=!/run/mios-gpu-detected
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/gpu-detect
+RemainAfterExit=yes
+[Install]
+WantedBy=sysinit.target

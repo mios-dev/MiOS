@@ -19,7 +19,7 @@ if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
     echo "❌ MiOS-bootstrap repository not found at: ${BOOTSTRAP_REPO}"
     echo ""
     echo "Clone it first:"
-    echo "  git clone https://github.com/mios-fss/MiOS-bootstrap ${BOOTSTRAP_REPO}"
+    echo "  git clone https://github.com/MiOS-DEV/MiOS-bootstrap ${BOOTSTRAP_REPO}"
     echo ""
     echo "Or set BOOTSTRAP_REPO environment variable:"
     echo "  export BOOTSTRAP_REPO=/path/to/MiOS-bootstrap"
@@ -118,8 +118,8 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     "LocalAI",
     "vLLM"
   ],
-  "license": "Personal Property - MiOS Project",
-  "repository": "https://github.com/mios-fss/mios"
+  "license": "System Specificationl Property - MiOS Project",
+  "repository": "https://github.com/MiOS-DEV/mios"
 }
 MANIFEST
 
@@ -222,9 +222,9 @@ These artifacts enable:
 
 ---
 
-**Repository:** https://github.com/mios-fss/mios  
-**Bootstrap:** https://github.com/mios-fss/MiOS-bootstrap  
-**License:** Personal Property - MiOS Project
+**Repository:** https://github.com/MiOS-DEV/mios  
+**Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap  
+**License:** System Specificationl Property - MiOS Project
 README
 
 echo "✓ README generated: ${ARTIFACT_DIR}/README.md"

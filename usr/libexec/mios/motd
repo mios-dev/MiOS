@@ -1,0 +1,85 @@
+#!/bin/bash
+# MiOS v0.1.4 — Enhanced MOTD Dashboard
+# Natively supports Role, MOK, and Update status (v0.1.4 baseline).
+[[ $- != *i* ]] && exit 0
+[[ -n "$MIOS_NO_MOTD" ]] && exit 0
+
+_ip() { ip -4 route get v0.1.4.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1; }
+IP=$(_ip); [[ -z "$IP" ]] && IP="v0.1.4.1"
+HN=$(hostname -s 2>/dev/null || echo "MiOS")
+_l() { printf '\e]8;;%s\e\\%s\e]8;;\e\\' "$1" "$2"; }
+C=$'\033[0;36m';W=$'\033[1;37m';G=$'\033[0;32m';Y=$'\033[0;33m';R=$'\033[0;31m';D=$'\033[0;90m';N=$'\033[0m'
+
+_s() {
+    if systemctl is-active --quiet "$1" 2>/dev/null; then
+        printf '%s' "${G}●${N}"
+    else
+        printf '%s' "${D}○${N}"
+    fi
+}
+
+# ── Header ──────────────────────────────────────────────────────────────────
+echo ""
+printf '%s\n' "${C}════════════════════════════════════════════════════════════${N}"
+printf '%s\n' "${W}  MiOS v0.1.4${N}  ${D}${HN} — ${IP}${N}"
+printf '%s\n' "${C}════════════════════════════════════════════════════════════${N}"
+
+# ── Status Row (Role, Update, MOK) ──────────────────────────────────────────
+ROLE=$(grep "^ROLE=" /var/lib/mios/role.active 2>/dev/null | cut -d= -f2 || echo "unknown")
+case "$ROLE" in
+    desktop) ROLE_STR="${G}Desktop${N}" ;;
+    headless) ROLE_STR="${W}Headless${N}" ;;
+    k3s*) ROLE_STR="${C}K3s Master${N}" ;;
+    *) ROLE_STR="${Y}${ROLE}${N}" ;;
+esac
+
+MOK_STATUS="${R}✗ Unverified${N}"
+if command -v mokutil &>/dev/null; then
+    if mokutil --sb-state 2>/dev/null | grep -q "enabled"; then
+        MOK_STATUS="${G}✓ Secure Boot${N}"
+    else
+        MOK_STATUS="${Y}○ SB Disabled${N}"
+    fi
+fi
+
+UP_STATUS="${D}Check with 'mios update'${N}"
+if command -v bootc &>/dev/null; then
+    STAGED=$(bootc status --json 2>/dev/null | jq -r '.staged.image.image.repository' 2>/dev/null)
+    if [[ "$STAGED" != "null" && -n "$STAGED" ]]; then
+        UP_STATUS="${Y}⚠ Update Staged${N}"
+    else
+        UP_STATUS="${G}✓ Up-to-date${N}"
+    fi
+fi
+
+printf '  Role: %-15s  Update: %-15s  Boot: %s\n' "$ROLE_STR" "$UP_STATUS" "$MOK_STATUS"
+echo ""
+
+# ── Management ──────────────────────────────────────────────────────────────
+printf '%s\n' "${W}  Management Interfaces${N}"
+printf '%s\n' "  $(_s cockpit.socket)  Cockpit           $(_l "https://${IP}:9090" "https://${IP}:9090")"
+printf '%s\n' "  $(_s sshd)  SSH               $(_l "ssh://${IP}" "${IP}:22")"
+
+if systemctl is-active --quiet gnome-remote-desktop 2>/dev/null; then
+    printf '%s\n' "  ${G}●${N}  Remote Login      $(_l "rdp://${IP}:3389" "${IP}:3389") ${D}(GRD)${N}"
+fi
+
+if podman ps --format '{{.Names}}' 2>/dev/null | grep -q mios-guacamole; then
+    printf '%s\n' "  ${G}●${N}  Browser Desktop   $(_l "http://${IP}:8080/guacamole/" "http://${IP}:8080/guacamole/")"
+fi
+
+# ── Infrastructure ──────────────────────────────────────────────────────────
+echo ""
+printf '%s\n' "${W}  Infrastructure Status${N}"
+printf '%s\n' "  $(_s firewalld)  Firewall          ${D}firewall-cmd --list-all${N}"
+printf '%s\n' "  $(_s podman.socket)  Podman            ${D}$(podman ps -q 2>/dev/null | wc -l) containers${N}"
+printf '%s\n' "  $(_s libvirtd.socket)  Libvirt           ${D}virt-manager / virsh${N}"
+
+# Optional
+if systemctl is-active --quiet k3s.service 2>/dev/null; then
+    printf '%s\n' "  ${G}●${N}  K3s API           $(_l "https://${IP}:6443" "https://${IP}:6443")"
+fi
+
+echo ""
+printf '%s\n' "  ${D}Type 'mios' for management options. Output hidden via MIOS_NO_MOTD=1${N}"
+echo ""

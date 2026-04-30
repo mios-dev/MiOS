@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# libvirt QEMU hook to force FLR (Function Level Reset) on VFIO devices
+# Mitigates the RTX 50-series (Blackwell) GSP firmware initialization bug
+
+GUEST_NAME="$1"
+OPERATION="$2"
+SUB_OP="$3"
+
+# Find all PCI host devices attached to this VM
+PCI_DEVICES=$(virsh dumpxml "$GUEST_NAME" | grep -E "type='pci'" -A 5 | grep -E 'source' -A 3 | grep -oP "bus='0x[0-9a-fA-F]+' slot='0x[0-9a-fA-F]+' function='0x[0-9a-fA-F]+'" || true)
+
+if [ -n "$PCI_DEVICES" ]; then
+    if [ "$OPERATION" = "prepare" ] && [ "$SUB_OP" = "begin" ] || [ "$OPERATION" = "release" ] && [ "$SUB_OP" = "end" ]; then
+        echo "$PCI_DEVICES" | while read -r line; do
+            BUS=$(echo "$line" | grep -oP "bus='0x\K[0-9a-fA-F]+" | head -1)
+            SLOT=$(echo "$line" | grep -oP "slot='0x\K[0-9a-fA-F]+" | head -1)
+            FUNC=$(echo "$line" | grep -oP "function='0x\K[0-9a-fA-F]+" | head -1)
+            NODEDEV="pci_0000_${BUS}_${SLOT}_${FUNC}"
+            virsh nodedev-reset "$NODEDEV" || true
+        done
+    fi
+fi
+exit 0

@@ -1,0 +1,19 @@
+[Unit]
+Description=MiOS Waydroid Android Initialization
+Documentation=https://docs.waydro.id/
+ConditionVirtualization=!wsl
+# Only trigger if the Android system image hasn't been downloaded yet
+ConditionPathExists=!/var/lib/waydroid/images/system.img
+
+After=network-online.target
+Wants=network-online.target
+Before=waydroid-container.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Download the LineageOS images with Google Play Services (GAPPS) support
+ExecStart=/usr/bin/waydroid init -s GAPPS
+
+[Install]
+WantedBy=multi-user.target

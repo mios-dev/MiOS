@@ -1,0 +1,8 @@
+# MiOS-OS: Zero-Trust Local Security
+# Enforce strict deny-by-default on user directories and external media.
+# Overrides default allow rules for trusted directories if they fall in these paths.
+
+deny perm=any all trust=0 : dir=/var/home/
+deny perm=any all trust=0 : dir=/home/
+deny perm=any all trust=0 : dir=/run/media/
+deny perm=any all trust=0 : dir=/mnt/

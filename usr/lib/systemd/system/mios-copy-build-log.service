@@ -1,0 +1,12 @@
+[Unit]
+Description=MiOS Build Log Copy Service
+After=var.mount
+ConditionPathExists=/usr/libexec/mios/copy-build-log.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/copy-build-log.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -15,7 +15,7 @@ set -euo pipefail
 # Refuse to run on bootc-managed hosts.
 if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted"'; then
     echo "[FAIL] This host is bootc-managed. install.sh is for non-bootc Fedora hosts." >&2
-    echo "       Use 'sudo bootc switch ghcr.io/mios-fss/mios:latest' instead." >&2
+    echo "       Use 'sudo bootc switch ghcr.io/MiOS-DEV/mios:latest' instead." >&2
     exit 1
 fi
 
