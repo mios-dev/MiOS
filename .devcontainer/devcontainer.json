@@ -10,7 +10,7 @@
     },
     "ghcr.io/devcontainers/features/podman:1": {}
   },
-  "postCreateCommand": "sudo dnf install -y just jq yq rsync bash-completion tar gzip xz python3 findutils grep sed gawk && npm install -g @google/gemini-cli",
+  "postCreateCommand": "sudo dnf install -y just fastfetch btop jq yq rsync bash-completion tar gzip xz python3 findutils grep sed gawk && npm install -g @google/gemini-cli",
   "customizations": {
     "vscode": {
       "settings": {
