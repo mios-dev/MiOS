@@ -6,7 +6,7 @@ HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.
 > **Proprietor:** MiOS Project
 > **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
 > **License:** Licensed as personal property to MiOS Project
-> **Source Reference:** MiOS-Core-v0.1.4
+> **Source Reference:** MiOS-Core-v0.2.0
 ---"""
 
 FOOTER = """---

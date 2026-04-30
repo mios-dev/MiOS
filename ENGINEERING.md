@@ -5,7 +5,7 @@
   "summary": "Consolidated engineering standards, security specifications, and AI integration patterns for MiOS.",
   "logic_type": "engineering",
   "tags": ["MiOS", "Engineering", "Security", "AI"],
-  "version": "v0.1.4"
+  "version": "v0.2.0"
 }
 ```
 

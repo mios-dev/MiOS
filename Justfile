@@ -1,4 +1,4 @@
-# MiOS v0.1.4 - Linux Build Targets
+# MiOS v0.2.0 - Linux Build Targets
 # Requires: podman, just
 # Usage: just build | just iso | just all
 
@@ -8,7 +8,7 @@ _load_env := `bash -c 'source ./tools/load-user-env.sh 2>/dev/null || true'`
 
 MIOS_REGISTRY_DEFAULT := "ghcr.io/MiOS-DEV/mios" # @verb:GET_REGISTRY
 IMAGE_NAME := env_var_or_default("MIOS_IMAGE_NAME", MIOS_REGISTRY_DEFAULT) # @verb:GET_IMAGE
-MIOS_VAR_VERSION := "v0.1.4" # @verb:GET_VERSION
+MIOS_VAR_VERSION := "v0.2.0" # @verb:GET_VERSION
 VERSION := `cat VERSION 2>/dev/null || echo {{MIOS_VAR_VERSION}}`
 LOCAL := env_var_or_default("MIOS_LOCAL_TAG", "localhost/mios:latest") # @verb:SET_LOCAL
 MIOS_IMG_BIB := "quay.io/centos-bootc/bootc-image-builder:latest" # @verb:GET_BIB
@@ -124,7 +124,7 @@ raw: build
     @echo "[OK] RAW image in output/"
 
 # Generate Anaconda installer ISO
-# FIX v0.1.4: ONLY mount iso.toml (includes minsize). Do NOT also mount bib config.
+# FIX v0.2.0: ONLY mount iso.toml (includes minsize). Do NOT also mount bib config.
 # BIB crashes with: "found config.json and also config.toml"
 iso: build
     mkdir -p output

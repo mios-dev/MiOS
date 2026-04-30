@@ -1,9 +1,9 @@
 #!/bin/bash
-# MiOS v0.1.4 — 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
+# MiOS v0.2.0 — 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
 # Cephadm runs ALL server daemons as Podman containers.
 # Only client tools + orchestrator binary are baked into the image.
 #
-# v0.1.4 FIXES:
+# v0.2.0 FIXES:
 #   - K3s manifests stored in /usr/share/mios/k3s-manifests/ (not /var)
 #     First-boot service copies them to /var/lib/rancher/k3s/server/manifests/
 #     This fixes bootc lint: /var content must use tmpfiles.d entries
@@ -29,7 +29,7 @@ echo "[13-ceph-k3s] Resolving latest K3s release tag..."
 # Retry 3 times for flaky networks
 K3S_TAG=""
 for i in 1 2 3; do
-    # v0.1.4: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
+    # v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
     K3S_TAG=$( (scurl -sL -o /dev/null -w "%{url_effective}" https://github.com/k3s-io/k3s/releases/latest | grep -oE '[^/]+$') 2>/dev/null || true)
     if [[ -n "$K3S_TAG" && "$K3S_TAG" != "latest" ]]; then break; fi
     sleep 2

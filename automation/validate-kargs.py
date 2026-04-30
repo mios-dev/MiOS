@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MiOS v0.1.4 — Bootc kargs.d validator
+# MiOS v0.2.0 — Bootc kargs.d validator
 """
 validate-kargs.py — MiOS kargs.d schema validator.
 

@@ -1,7 +1,7 @@
 #!/bin/bash
-# MiOS v0.1.4 — 01-repos: Fedora 44 overlay on ucore (base kernel preserved)
+# MiOS v0.2.0 — 01-repos: Fedora 44 overlay on ucore (base kernel preserved)
 #
-# FIX v0.1.4: Two-phase distro-sync to handle filesystem scriptlet failure.
+# FIX v0.2.0: Two-phase distro-sync to handle filesystem scriptlet failure.
 # The filesystem package's lua %posttrans fails in container builds, aborting
 # the entire 1162-package transaction. Without this fix, the system boots with
 # F43 core libs but F44 desktop packages — a broken ABI mismatch.

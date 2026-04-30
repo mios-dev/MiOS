@@ -8,7 +8,7 @@ After=systemd-modules-load.service systemd-udev-settle.service akmods.service
 Wants=systemd-udev-settle.service
 Before=nvidia-cdi-refresh.service
 # This unit intentionally does NOT call nvidia-ctk directly when the upstream
-# nvidia-cdi-refresh.service is available (nvidia-container-toolkit >= v0.1.4).
+# nvidia-cdi-refresh.service is available (nvidia-container-toolkit >= v0.2.0).
 # It only ensures modules are loaded and /var/run/cdi exists before the
 # upstream service fires. On images without the upstream service (e.g. if
 # MiOS-1 ever ships nvidia-ctk manually) it falls back to direct generation.

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================================
-# MiOS v0.1.4 - 35-gpu-passthrough.sh
+# MiOS v0.2.0 - 35-gpu-passthrough.sh
 # ----------------------------------------------------------------------------
 # Manages systemd unit enablement and SELinux for GPU passthrough.
 #
-# v0.1.4: ARCHITECTURAL PURITY FIX. All files (systemd units, udev rules,
+# v0.2.0: ARCHITECTURAL PURITY FIX. All files (systemd units, udev rules,
 #         sysusers, kargs.d) are now delivered via the system_files overlay.
 #         This script no longer performs 'install' commands; it only handles
 #         symlinking and SELinux booleans.

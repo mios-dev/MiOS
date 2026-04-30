@@ -6,7 +6,7 @@
 # This runs INSIDE the Containerfile build. No runtime compile. BAKED IN -
 # WHEN POSSIBLE.
 #
-# v0.1.4 fix (supersedes 1.3.0):
+# v0.2.0 fix (supersedes 1.3.0):
 #   The previous `if ! dnf5 -y install ... 2>/dev/null; then ... fi` plus
 #
 #       AVAIL_REPO="$(dnf5 --showduplicates repoquery ... | tail -5 | tr ...)"

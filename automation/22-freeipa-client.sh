@@ -5,7 +5,7 @@
 # /etc/mios/ipa-enroll.env is present and /etc/ipa/default.conf is absent.
 #
 # Upstream regression notes (April 2026):
-#   bz 2320133 — SSSD file caps stripped by rpm-ostree < bootc v0.1.4-2.fc41.
+#   bz 2320133 — SSSD file caps stripped by rpm-ostree < bootc v0.2.0-2.fc41.
 #                Asserted post-install; build fails fast if caps are missing.
 #   bz 2332433 — /var/lib/ipa-client/sysrestore/ missing on first boot.
 #                Pre-created via tmpfiles.d.

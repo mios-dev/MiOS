@@ -9,13 +9,13 @@ utility. These align with MiOS-DEV core values of hardware compatibility and
 zero-trust security.
 ---
 ---
-# MiOS v0.1.4 — Package Manifest
+# MiOS v0.2.0 — Package Manifest
 
 This file is both documentation and the **single source of truth** for all packages installed in MiOS.
 Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
 To add a package, add it to the appropriate section. One package per line.
 
-**CHANGELOG v0.1.4:**
+**CHANGELOG v0.2.0:**
 - Standardized versioning across the entire stack.
 - Added uupd (unified updater replacing bootc-fetch-apply-updates.timer)
 - Added greenboot + greenboot-default-health-checks (auto-rollback on boot failure)
@@ -34,7 +34,7 @@ To add a package, add it to the appropriate section. One package per line.
        sole source of truth; 40-series scripts handle config+services only
 - Added missing audited tools: strace, lsof, iotop, ntfs-3g, efibootmgr, nm-connection-editor
 
-**CHANGELOG v0.1.4 (previous):**
+**CHANGELOG v0.2.0 (previous):**
 - Added bootupd (unified bootloader updates — Fedora 44 phase 1)
 - Added dnf5-plugins (versionlock support for critical package pinning)
 - Added systemd-boot-unsigned (UKI preparation — future composefs+UKI chain)
@@ -43,7 +43,7 @@ To add a package, add it to the appropriate section. One package per line.
 - Added clevis, clevis-luks (automated LUKS unlock via TPM2/Tang)
 - Moved driverctl from security to utils (better categorization)
 
-**CHANGELOG v0.1.4 (previous):**
+**CHANGELOG v0.2.0 (previous):**
 - Removed htop (use btop instead)
 - Added nvidia-settings to NVIDIA section
 - Added avahi/nss-mdns for .local network discovery

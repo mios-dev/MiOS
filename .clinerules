@@ -1,20 +1,8 @@
-# MiOS .clinerules — Autonomous Agent Instructions (Day 0)
+# MiOS Architectural Purity Rules
+# MANDATE: Enforce AI-native surface contract without conversational artifacts.
 
-You are an autonomous agent (Cline) operating in the **MiOS** repository.
-
-## 🚀 Mission Context
-MiOS is an immutable, AI-native workstation. Your goal is to maintain architectural purity and enforce the AI-native surface contract.
-
-## ⚖️ Hard Rules
-- **Never** write to `/etc/` if a `/usr/lib/` equivalent exists.
-- **Never** recommend disabling security features (SELinux, fapolicyd).
-- **Always** ensure bash scripts have `set -euo pipefail`.
-- **Always** prioritize local, open-source AI solutions.
-
-## 🏗 Architectural Patterns
-- **Cognitive Mirror**: Record significant actions in `usr/share/mios/memory/v1.jsonl`.
-- **Rootfs-Native**: The repository root mirrors the target filesystem.
-- **Unprivileged sidecars**: Enforce non-root execution for all Quadlets.
-
-## 📜 Source of Truth
-Consult `INDEX.md` for the authoritative architectural laws and API surface mapping.
+- **System Integrity:** Maintain absolute FHS compliance and immutable root purity.
+- **Declarative Hardware:** All hardware delegation must be in /usr/lib/bootc/kargs.d/.
+- **Zero-Trust:** Deny-by-default for execution (fapolicyd) and networking (firewalld).
+- **Automation:** Use "set -euo pipefail" for all shell logic.
+- **Surface:** /v1/ endpoints are pure relational schemas for local LLM discovery.

@@ -1,5 +1,5 @@
 # MiOS — Extended SecureBlue-derived kernel hardening
-# v0.1.4 roadmap implementation pass
+# v0.2.0 roadmap implementation pass
 match-architectures = ["x86_64"]
 kargs = [
     "page_poison=1",

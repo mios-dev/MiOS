@@ -1,19 +1,19 @@
 <#
 .SYNOPSIS
-    MiOS v0.1.4 - MiOS Builder (Windows)
+    MiOS v0.2.0 - MiOS Builder (Windows)
 
 .DESCRIPTION
     Secure build orchestrator with workflow selection.
     Tokens/passwords NEVER appear in plain text in logs or terminal output.
 
-    SECURITY FIXES in v0.1.4:
+    SECURITY FIXES in v0.2.0:
       - Passwords pre-hashed (SHA-512) before injection - plaintext never in build log
       - Registry token uses SecureString - never echoed, never in process args
       - Workflow menu: Local Build, Push Build, Custom Build
       - Admin/origin-owner detection for default token inference
       - Hostname randomization option for HA clusters
 
-    SELF-BUILDING in v0.1.4:
+    SELF-BUILDING in v0.2.0:
       - Pulls existing MiOS image from GHCR as the helper/builder image
       - MiOS image replaces alpine/python for all helper operations
       - Falls back to alpine/python only on first-ever build (no prior image)
@@ -209,7 +209,7 @@ if (Test-Path ".env.mios") {
     }
 }
 
-$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.1.4" }
+$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.2.0" }
 $ImageName      = if ($env:MIOS_IMAGE_NAME) { ($env:MIOS_IMAGE_NAME -split '/')[-1] -replace ':.*$','' } else { "mios" }
 $ImageTag       = "latest"
 $MIOS_USER_ADMIN = "mios" # @track:USER_ADMIN
@@ -792,7 +792,7 @@ if ($env:MIOS_SKIP_DEPLOY -eq "1") {
                         $wslRAM = [Math]::Max(16, [Math]::Floor((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB * 0.75))
                         
                         $wslLines = @(
-                            "# MiOS v0.1.4 - WSL2 Configuration",
+                            "# MiOS v0.2.0 - WSL2 Configuration",
                             "[wsl2]",
                             "memory=${wslRAM}GB",
                             "processors=${wslCPUs}",

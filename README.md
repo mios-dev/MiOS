@@ -3,7 +3,7 @@
 > Immutable, bootc-native workstation OS. Self-hosted, OpenAI-API native,
 > aligned to FOSS standards. Monorepo for the system layer.
 
-**Version:** v0.1.4
+**Version:** v0.2.0
 **Image:** `ghcr.io/MiOS-DEV/mios:latest`
 **Bootstrap (installer):** https://github.com/MiOS-DEV/MiOS-bootstrap
 

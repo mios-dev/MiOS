@@ -5,7 +5,7 @@
   "summary": "Consolidated architectural specification for MiOS. Hardware, Filesystem, and AI Interface SSOT.",
   "logic_type": "blueprint",
   "tags": ["MiOS", "Architecture", "Day-0", "SSOT"],
-  "version": "v0.1.4"
+  "version": "v0.2.0"
 }
 ```
 

@@ -12,7 +12,7 @@ Before=waydroid-container.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Download the LineageOS images with Google Play Services (GAPPS) support
+# Download the LineageOS images with Android Services (GAPPS) support
 ExecStart=/usr/bin/waydroid init -s GAPPS
 
 [Install]

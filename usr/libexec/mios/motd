@@ -1,11 +1,11 @@
 #!/bin/bash
-# MiOS v0.1.4 — Enhanced MOTD Dashboard
-# Natively supports Role, MOK, and Update status (v0.1.4 baseline).
+# MiOS v0.2.0 — Enhanced MOTD Dashboard
+# Natively supports Role, MOK, and Update status (v0.2.0 baseline).
 [[ $- != *i* ]] && exit 0
 [[ -n "$MIOS_NO_MOTD" ]] && exit 0
 
-_ip() { ip -4 route get v0.1.4.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1; }
-IP=$(_ip); [[ -z "$IP" ]] && IP="v0.1.4.1"
+_ip() { ip -4 route get v0.2.0.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1; }
+IP=$(_ip); [[ -z "$IP" ]] && IP="v0.2.0.1"
 HN=$(hostname -s 2>/dev/null || echo "MiOS")
 _l() { printf '\e]8;;%s\e\\%s\e]8;;\e\\' "$1" "$2"; }
 C=$'\033[0;36m';W=$'\033[1;37m';G=$'\033[0;32m';Y=$'\033[0;33m';R=$'\033[0;31m';D=$'\033[0;90m';N=$'\033[0m'
@@ -21,7 +21,7 @@ _s() {
 # ── Header ──────────────────────────────────────────────────────────────────
 echo ""
 printf '%s\n' "${C}════════════════════════════════════════════════════════════${N}"
-printf '%s\n' "${W}  MiOS v0.1.4${N}  ${D}${HN} — ${IP}${N}"
+printf '%s\n' "${W}  MiOS v0.2.0${N}  ${D}${HN} — ${IP}${N}"
 printf '%s\n' "${C}════════════════════════════════════════════════════════════${N}"
 
 # ── Status Row (Role, Update, MOK) ──────────────────────────────────────────

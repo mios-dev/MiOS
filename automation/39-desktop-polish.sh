@@ -1,7 +1,7 @@
 #!/bin/bash
-# MiOS v0.1.4 — 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
+# MiOS v0.2.0 — 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
 #
-# CHANGELOG v0.1.4:
+# CHANGELOG v0.2.0:
 #   - FIX: mios-motd source path was /tmp/automation/automation/ (never exists).
 #     Scripts run from /ctx/automation/ in the buildroot. The bogus path + the
 #     `|| true` swallowed the failure silently, so /usr/libexec/mios-motd
@@ -27,7 +27,7 @@ echo "[39-desktop-polish] NVIDIA Settings desktop entry delivered via overlay."
 echo "[39-desktop-polish] Ceph Dashboard desktop entry delivered via overlay."
 
 # ═══ MOTD DASHBOARD ═══
-# v0.1.4: ARCHITECTURAL PURITY FIX. The MOTD script is now delivered via the
+# v0.2.0: ARCHITECTURAL PURITY FIX. The MOTD script is now delivered via the
 # system_files overlay to /usr/libexec/mios/motd. We no longer perform
 # manual 'install' calls here.
 echo "[39-desktop-polish] MOTD dashboard delivered via overlay."

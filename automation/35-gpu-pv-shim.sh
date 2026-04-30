@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# automation/35-gpu-pv-shim.sh - MiOS v0.1.4
+# automation/35-gpu-pv-shim.sh - MiOS v0.2.0
 # ----------------------------------------------------------------------------
 # Automates guest-side shimming for Hyper-V GPU-PV (dxgkrnl).
 # Since dxgkrnl isn't mainlined yet, we provide the user-mode hooks
 # to bridge to host drivers mounted via WSL/Hyper-V.
 #
-# v0.1.4: Refactored to use common logging and build-safe symlinks.
+# v0.2.0: Refactored to use common logging and build-safe symlinks.
 # ----------------------------------------------------------------------------
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"

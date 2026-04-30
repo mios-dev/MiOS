@@ -1,10 +1,8 @@
-name: mi-os-7b
-parameters:
-  model: mi-os-7b
-context_size: 4096
-template:
-  chat: |
-    {{.Input}}
-  system: |
-    # MiOS Autonomous Agent Specification
-    (Loaded from /usr/share/mios/ai/v1/system.md)
+# MiOS Inference Configuration
+# Relational Documentation for local LLM orchestration.
+
+inference:
+  provider: localai
+  endpoint: http://localhost:8080
+  schema: /v1/chat/completions
+  inventory: /v1/models

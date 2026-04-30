@@ -1,6 +1,6 @@
 # MiOS Deployment Guide - Linux Filesystem Native
 
-**Version:** MiOS v0.1.4
+**Version:** MiOS v0.2.0
 **Date:** 2026-04-27
 
 ---
@@ -557,5 +557,5 @@ ls -la ~/.local/state/mios/logs/
 ---
 
 **Generated:** 2026-04-27
-**MiOS Version:** v0.1.4
+**MiOS Version:** v0.2.0
 **License:** System Specificationl Property - MiOS-DEV

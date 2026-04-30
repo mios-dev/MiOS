@@ -1,4 +1,4 @@
-# MiOS v0.1.4 — NVIDIA RTX 50 (Blackwell) VFIO/Idle fixes
+# MiOS v0.2.0 — NVIDIA RTX 50 (Blackwell) VFIO/Idle fixes
 match-architectures = ["x86_64"]
 kargs = [
     "vfio_pci.disable_idle_d3=1"

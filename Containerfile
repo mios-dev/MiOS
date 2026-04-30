@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.9
 # ============================================================================
-# MiOS - Unified Image (v0.1.4)
+# MiOS - Unified Image (v0.2.0)
 # ============================================================================
 # One image. Every role. Every surface. Every GPU vendor.
 #
@@ -32,7 +32,7 @@ LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="Unified immutable cloud-native workstation OS"
 LABEL org.opencontainers.image.source="https://github.com/MiOS-DEV/MiOS-bootstrap"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
-LABEL org.opencontainers.image.version="v0.1.4"
+LABEL org.opencontainers.image.version="v0.2.0"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 

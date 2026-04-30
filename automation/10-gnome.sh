@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.4 — 10-gnome: GNOME 50 desktop — PURE BUILD-UP
+# MiOS v0.2.0 — 10-gnome: GNOME 50 desktop — PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
 # With install_weakdeps=False (set globally in 01-repos.sh), only hard deps
@@ -12,7 +12,7 @@
 # Wayland desktop with GDM, all portals, audio, Bluetooth, networking,
 # security, and proper theming across GTK3/GTK4/Qt.
 #
-# CHANGELOG v0.1.4:
+# CHANGELOG v0.2.0:
 #   - MANDATORY Bibata cursor download — retries 3x, FAILS BUILD if missing
 #   - dconf profiles for user + GDM added to 
 #   - Flatpak: 7 apps (added Flatseal + LocalSend)
@@ -73,7 +73,7 @@ BIBATA_VER=""
 BIBATA_FALLBACK="2.0.7"
 
 # Try GitHub API for latest release tag (strips leading 'v')
-# v0.1.4: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
+# v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
 BIBATA_VER=$( (scurl -sL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
     | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/') 2>/dev/null || true)
 

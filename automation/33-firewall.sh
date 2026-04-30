@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.4 — 33-firewall: Firewall configuration script
+# MiOS v0.2.0 — 33-firewall: Firewall configuration script
 set -euo pipefail
 
 echo "[33-firewall] Installing firewall init script..."

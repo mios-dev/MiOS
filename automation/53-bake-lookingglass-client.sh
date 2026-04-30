@@ -2,7 +2,7 @@
 # 53-bake-lookingglass-client.sh - git clone Looking Glass B7, cmake/make,
 # install looking-glass-client binary to /usr/bin/. BAKED IN - WHEN POSSIBLE.
 #
-# v0.1.4 fix:
+# v0.2.0 fix:
 #   - SKIP (don't fail) when cmake or required dev libraries are missing.
 #     12-virt.sh already builds Looking Glass as part of its virtualization
 #     stack and then removes cmake/gcc/*-devel to shrink the image. By the

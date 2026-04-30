@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.4 — Upstream Feed Monitor
+# MiOS v0.2.0 — Upstream Feed Monitor
 # ----------------------------------------------------------------------------
 # Automates checking for updates from core MiOS dependencies.
 # Uses GitHub API and other feeds to identify new versions.

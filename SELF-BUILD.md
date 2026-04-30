@@ -31,11 +31,11 @@ MiOS ships all the tools needed to rebuild itself: Podman, Buildah, bootc, and b
 The build chain is:
 
 ```
-MiOS v0.1.4 (running)  builds  MiOS v0.1.4 (OCI image)
+MiOS v0.2.0 (running)  builds  MiOS v0.2.0 (OCI image)
                                         
                                   Rechunk  Sign  Push to GHCR
                                         
-                              MiOS v0.1.4 (running via bootc upgrade)
+                              MiOS v0.2.0 (running via bootc upgrade)
                                         
                                   builds  MiOS-NXT ...
 ```

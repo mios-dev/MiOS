@@ -1,4 +1,4 @@
-# MiOS Autonomous Agent — System Specification (v0.1.4)
+# MiOS Autonomous Agent — System Specification (v0.2.0)
 
 ## 0. Authoritative Logic
 - **Primary SSOT**: `/usr/share/mios/INDEX.md`

@@ -1,4 +1,4 @@
-# MiOS v0.1.4 — Root filesystem mount flags
+# MiOS v0.2.0 — Root filesystem mount flags
 match-architectures = ["x86_64"]
 kargs = [
     "rootflags=discard=async,noatime"

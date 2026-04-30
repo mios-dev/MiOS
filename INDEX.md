@@ -1,4 +1,4 @@
-# MiOS System Interface — OpenAI-Native Surface (v0.1.4)
+# MiOS System Interface — OpenAI-Native Surface (v0.2.0)
 
 ```json:knowledge
 {
@@ -13,7 +13,7 @@
       "system-prompt.md"
     ]
   },
-  "version": "v0.1.4"
+  "version": "v0.2.0"
 }
 ```
 

@@ -5,7 +5,7 @@
 #   - create the 'core' user (Podman machine convention)
 #   - enable services needed for machine backend operation
 #
-# v0.1.4 fix:
+# v0.2.0 fix:
 #   - Pre-create the `video`, `render`, `kvm`, `libvirt` groups if missing so
 #     useradd -G doesn't die with "group does not exist". The ucore-hci base
 #     ships udev rules that create these groups dynamically at runtime, but

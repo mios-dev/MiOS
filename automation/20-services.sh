@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.4 — 20-services: Enable systemd services + bare-metal/VM gating
+# MiOS v0.2.0 — 20-services: Enable systemd services + bare-metal/VM gating
 #
 # CHANGELOG v1.3:
 #   - systemd 260: cgroup v1 support REMOVED — all services must use cgroup v2
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 echo "═══════════════════════════════════════════════════════════════════"
-echo "  MiOS v0.1.4 — Service Configuration"
+echo "  MiOS v0.2.0 — Service Configuration"
 echo "═══════════════════════════════════════════════════════════════════"
 
 # ─── Fix systemd unit file permissions ────────────────────────────────────────

@@ -1,11 +1,10 @@
-# MiOS AI Chat Completions Endpoint Schema
-# This file serves as a documentation placeholder and schema reference for the mios-ai container.
-# Supported methods: POST
-# Path: /v1/chat/completions
-# Spec: https://platform.openai.com/docs/api-reference/chat/create
+# MiOS Unified Inference Schema
+# Relational Documentation: Chat Completions
+# Endpoint: /v1/chat/completions
+# Compliance: OpenAI API Standard (Day-0)
 
 {
-  "description": "OpenAI-compatible chat completions proxy schema",
-  "endpoint": "/v1/chat/completions",
-  "provider": "localai (mios-ai container)"
+  "spec": "POST /v1/chat/completions",
+  "implementation": "Native system proxy to local AI container",
+  "status": "ready"
 }

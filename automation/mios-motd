@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.1.4 — MOTD Dashboard
+# MiOS v0.2.0 — MOTD Dashboard
 # Shows management interfaces, service statuses, and clickable links.
 # Displayed on TTY login and terminal open via profile.d.
 [[ $- != *i* ]] && exit 0
@@ -14,7 +14,7 @@ _s() { systemctl is-active --quiet "$1" 2>/dev/null && printf "${G}●${N}" || p
 
 echo ""
 printf "${C}════════════════════════════════════════════════════════════${N}\n"
-printf "${W}  MiOS v0.1.4${N}  ${D}${HN} — ${IP}${N}\n"
+printf "${W}  MiOS v0.2.0${N}  ${D}${HN} — ${IP}${N}\n"
 printf "${C}════════════════════════════════════════════════════════════${N}\n"
 echo ""
 printf "${W}  Management${N}\n"

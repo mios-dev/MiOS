@@ -1,1 +1,5 @@
-{"object":"list","data":[{"id":"mi-os-7b","object":"model","created":1777423304,"owned_by":"mios"}]}
+{
+  "object": "list",
+  "data": [],
+  "documentation": "Native model discovery schema. Populate /srv/ai/models to reflect active inventory."
+}

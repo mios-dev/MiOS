@@ -10,7 +10,7 @@
 #   - Added Kubernetes stable v1.32 repo (kubectl not in Fedora repos).
 #   - Added ublue-os/packages COPR (uupd + greenboot; required by 43-uupd-installer.sh).
 #
-# v0.1.4 CHANGES:
+# v0.2.0 CHANGES:
 #   - removed redundant RPM Fusion install block (was using `rpm -E %fedora`
 #     which yielded 41/43 from the base image and clobbered 01-repos.sh's
 #     explicit F44 pin).

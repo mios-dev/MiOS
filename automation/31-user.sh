@@ -1,11 +1,11 @@
 #!/bin/bash
-# MiOS v0.1.4 — 31-user: PAM, user creation, groups, sudoers
+# MiOS v0.2.0 — 31-user: PAM, user creation, groups, sudoers
 # Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
 # and BEFORE any service that references the user.
 set -euo pipefail
 
 echo "——————————————————————?"
-echo "  MiOS v0.1.4 — User & Authentication"
+echo "  MiOS v0.2.0 — User & Authentication"
 echo "——————————————————————?"
 
 # — PAM FIX —
