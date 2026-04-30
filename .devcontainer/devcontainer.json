@@ -2,6 +2,19 @@
   "name": "Fedora MiOS Dev",
   "image": "registry.fedoraproject.org/fedora:40",
   "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {}
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "postCreateCommand": "npm install -g @google/gemini-cli",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "ms-vscode.powershell"
+      ]
+    }
   }
 }
