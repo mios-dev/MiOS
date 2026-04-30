@@ -18,7 +18,7 @@ COPY automation/           /ctx/automation/
 COPY usr/                  /ctx/usr/
 COPY etc/                  /ctx/etc/
 COPY home/                 /ctx/home/
-COPY usr/share/mios/PACKAGES.md                          /ctx/PACKAGES.md
+COPY usr/share/mios/PACKAGES.md /ctx/PACKAGES.md
 COPY VERSION            /ctx/VERSION
 COPY config/artifacts/       /ctx/bib-configs/
 COPY tools/             /ctx/tools/
