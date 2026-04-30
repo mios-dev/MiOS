@@ -1,10 +1,6 @@
 # MiOS Unified Inference Schema
-# Relational Documentation: Chat Completions
-# Endpoint: /v1/chat/completions
-# Compliance: OpenAI API Standard (Day-0)
-
 {
   "spec": "POST /v1/chat/completions",
-  "implementation": "Native system proxy to local AI container",
+  "implementation": "Native system proxy",
   "status": "ready"
 }

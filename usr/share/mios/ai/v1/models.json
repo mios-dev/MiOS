@@ -1,5 +1,5 @@
 {
   "object": "list",
   "data": [],
-  "documentation": "Native model discovery schema. Populate /srv/ai/models to reflect active inventory."
+  "documentation": "Native model discovery schema."
 }
