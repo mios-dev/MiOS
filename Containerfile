@@ -58,7 +58,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
 RUN bootc completion bash > /etc/bash_completion.d/bootc
 RUN --mount=type=bind,from=ctx,source=/ctx/tools,target=/ctx/tools,ro \
     install -d -m 0755 /usr/lib/extensions/source && \
-    /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
+    bash /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
 RUN bootc container lint
