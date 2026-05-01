@@ -1,18 +1,26 @@
-# MiOS (Modern immutable Operating System) — Pure FOSS
+# MiOS v0.2.2 — AI Ingestion Index
 
-MiOS is an immutable, AI-native workstation OS on Fedora Rawhide.
+MiOS is an immutable bootc-native Fedora workstation OS (base: `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) delivered as an OCI image. The `mios.git` repo root is the system root `/`. No separate workspace.
 
-## 1. System Specification (SSOT)
-- [INDEX.md](./INDEX.md): The authoritative system interface and laws.
-- [ARCHITECTURE.md](./ARCHITECTURE.md): Filesystem and hardware blueprints.
-- [ENGINEERING.md](./ENGINEERING.md): Security and build standards.
+## System specification
+- [AI.md](./AI.md): System-layer agent entry point (build, env, architecture)
+- [system.md](./system.md): Canonical master agent prompt (loaded by all agent CLIs)
+- [INDEX.md](./INDEX.md): Authoritative system interface and Architectural Laws
+- [ARCHITECTURE.md](./ARCHITECTURE.md): Filesystem and hardware blueprints
+- [ENGINEERING.md](./ENGINEERING.md): Security and build standards
+- [usr/share/mios/PACKAGES.md](./usr/share/mios/PACKAGES.md): SSOT for all RPMs
 
-## 2. AI Interface Specification
-- [usr/share/mios/ai/v1/system.md](./usr/share/mios/ai/v1/system.md): System agent specification.
-- [usr/share/mios/ai/v1/knowledge.md](./usr/share/mios/ai/v1/knowledge.md): AI integration blueprints.
-- [llms-full.txt](./llms-full.txt): Flattened system context.
+## AI interface (mios-bootstrap.git territory)
+- [usr/share/mios/ai/system.md](./usr/share/mios/ai/system.md): Deployed compact agent prompt
+- [usr/share/mios/ai/models.json](./usr/share/mios/ai/models.json): OpenAI /v1/models catalog
+- [usr/share/mios/ai/mcp.json](./usr/share/mios/ai/mcp.json): MCP server registry
 
-## 3. Operational Standards
-- **Protocol**: OpenAI-compatible REST API at `http://localhost:8080/v1`.
-- **Infrastructure**: bootc, Podman Quadlets, ComposeFS.
-- **Hardware**: VFIO/IOMMU optimization for universal compute.
+## Build
+- [Containerfile](./Containerfile): OCI image definition
+- [Justfile](./Justfile): Build orchestrator (just build / push / iso / raw / wsl2)
+- [automation/](./automation/): 48 numbered phase scripts + lib/{common,packages,masking}.sh
+
+## Operational standards
+- **Protocol**: OpenAI-compatible REST API at `http://localhost:8080/v1`
+- **Infrastructure**: bootc, Podman Quadlets, ComposeFS, greenboot
+- **Installer**: mios-bootstrap.git — `irm .../install.ps1 | iex` (Windows) · `curl ... | bash` (Linux)

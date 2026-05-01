@@ -1,59 +1,70 @@
-# MiOS SYSTEM CONTEXT — API Native (Day 0)
+# MiOS v0.2.2 — Flattened System Context
 
-This document provides a flattened, high-density map of the MiOS environment for autonomous agent ingestion.
-
----
-
-## 1. ARCHITECTURAL SSOT (INDEX.md)
-MiOS is an immutable, AI-native workstation.
-
-### ⚖️ Immutable Appliance Laws
-1. **USR-OVER-ETC**: Static config in `/usr/lib/`. `/etc` for admin overrides.
-2. **NO-MKDIR-IN-VAR**: Persistence via `tmpfiles.d`. No build-time `/var` overlays.
-3. **UNPRIVILEGED-QUADLETS**: sidecars execute as unprivileged service accounts.
-4. **BOOTC-NATIVE**: Lifecycle managed via `bootc` and signed OCI images.
-
-### 🤖 AI Agent Surface Contract
-- **Endpoint**: `http://localhost:8080/v1` (OpenAI-API compatible).
-- **Interface Protocols**: REST, MCP (Model Context Protocol).
-- **Discovery Hub**: `/usr/share/mios/ai/`.
+MiOS is an immutable, bootc-native Fedora workstation OS. Repo root `mios.git` IS the system root `/`.
 
 ---
 
-## 2. ENVIRONMENT MAP (Indexed Verbs)
+## Architectural Laws (INDEX.md, non-negotiable)
 
-| Variable | Verb | Intent |
-|---|---|---|
-| `MIOS_AI_KEY` | `SET_KEY` | Set local inference API key. |
-| `MIOS_AI_MODEL` | `SET_MODEL` | Set target LLM for operations. |
-| `MIOS_BASE_IMAGE` | `GET_BASE` | Get root image reference. |
+1. **USR-OVER-ETC** — Static config in `/usr/lib/<component>.d/`. `/etc/` for admin overrides only. Exception: `/etc/mios/install.env` (first-boot).
+2. **NO-MKDIR-IN-VAR** — All `/var/` paths declared via `usr/lib/tmpfiles.d/*.conf`. No `mkdir` in build scripts.
+3. **BOUND-IMAGES** — Every Quadlet sidecar image symlinked in `/usr/lib/bootc/bound-images.d/`.
+4. **BOOTC-CONTAINER-LINT** — `RUN bootc container lint` is the final Containerfile instruction. Always.
+5. **UNIFIED-AI-REDIRECTS** — `MIOS_AI_ENDPOINT/MODEL/KEY` target `http://localhost:8080/v1`. Zero vendor URLs in committed files.
+6. **UNPRIVILEGED-QUADLETS** — Every Quadlet: `User=`, `Group=`, `Delegate=yes`. Exception: `mios-k3s.container` and `mios-ceph.container`.
 
----
+## AI Agent Surface
 
-## 3. DIRECTORY HIERARCHY (Rootfs-Native)
+- **Endpoint**: `http://localhost:8080/v1` (LocalAI v2.20.0, OpenAI-compatible)
+- **Inference model**: `qwen2.5-coder:7b` (`MIOS_AI_MODEL`)
+- **Embedding model**: `nomic-embed-text` (`MIOS_AI_EMBED_MODEL`)
+- **MCP registry**: `/usr/share/mios/ai/mcp.json`
+- **System prompt resolution**: `$MIOS_AI_SYSTEM_PROMPT` > `~/.config/mios/system-prompt.md` > `/etc/mios/ai/system-prompt.md` > `/usr/share/mios/ai/system.md`
+
+## Directory Hierarchy
 
 | Path | Persistence | Purpose |
-| :--- | :--- | :--- |
-| `/usr/bin/` | Immutable | Core system binaries and MiOS CLI. |
-| `/usr/lib/` | Immutable | Static configuration and systemd units. |
-| `/usr/share/mios/ai/v1/` | Immutable | Consolidated AI specifications and API discovery. |
-| `/etc/` | Persistent | Host-specific administrative overrides. |
-| `/var/lib/mios/` | Persistent | Local application state and AI models. |
-| `/srv/ai/` | Persistent | Large model weights and vector stores. |
+|---|---|---|
+| `/usr/bin/mios` | Immutable | OpenAI client CLI |
+| `/usr/lib/` | Immutable | systemd units, kargs.d, tmpfiles.d, sysctl.d, bootc/ |
+| `/usr/share/mios/` | Immutable | PACKAGES.md, env.defaults, profile.toml, ai/ |
+| `/usr/share/mios/ai/` | Image (bootstrap) | system.md, models.json, mcp.json |
+| `/etc/mios/` | Persistent | profile.toml, install.env, ai/system-prompt.md |
+| `/var/lib/mios/ai/` | Persistent | memory/, scratch/, journal.md |
+| `/srv/ai/models/` | Persistent | GGUF/safetensors weights |
+| `/etc/containers/systemd/` | Immutable | Quadlet sidecar units + mios.network |
 
----
+## Build Pipeline (48 numbered scripts)
 
-## 4. AGENT SPECIFICATION (system.md)
-- **Protocol**: OpenAI-compatible API (`/v1`).
-- **Directives**: evidence-based, path-citing, FOSS-first.
-- **Constraints**: No proprietary cloud APIs, no immutability violations.
+`Containerfile` -> `08-system-files-overlay.sh` (FHS copy) -> `build.sh` -> all numbered scripts -> `bootc container lint`.
 
----
+| Phase range | Purpose |
+|---|---|
+| 01-05 | Repos, kernel, external repo enables |
+| 08 | FHS overlay copy + bound-images symlinks |
+| 10-13 | GNOME 50, hardware/GPU, KVM/Cockpit, Ceph/K3s |
+| 18-26 | Boot fixes, K3s SELinux, fapolicyd, services, FreeIPA, UKI, firewall, GRD |
+| 30-36 | Locale/theme, user creation, hostname, firewall, GPU detect/passthrough/PV |
+| 37-40 | aichat, Flatpak, SELinux modules, VM gating, composefs-verity |
+| 42-47 | cosign, uupd, podman-machine compat, NVIDIA CDI, greenboot, hardening |
+| 49-50 | Finalize, log-copy service enable |
+| 52-53 | KVMFR akmod (MOK-signed), Looking Glass B7 |
+| 90-99 | SBOM, boot config, cleanup, postcheck (build gate) |
 
-## 5. SYSTEM TOOLCHAIN
-- `bootc`: `UPGRADE_CORE` — Atomic system updates.
-- `podman`: `RUN_SIDECAR` — Orchestrate unprivileged sidecars.
-- `mios-status`: `GET_STATE` — JSON-native system telemetry.
+## Env Cascade (highest wins)
 
----
-*Copyright (c) 2026 MiOS. Pure FOSS. Day 0 Ready.*
+`~/.config/mios/env` > `/etc/mios/install.env` > `/etc/mios/env.d/*.env` > `/usr/share/mios/env.defaults`
+
+Key vars: `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, `MIOS_AI_EMBED_MODEL`, `MIOS_BASE_IMAGE`, `MIOS_VERSION`
+
+## System Toolchain
+
+- `bootc upgrade && systemctl reboot` — atomic update
+- `bootc switch <ref>` — change image ref
+- `bootc rollback` — undo last upgrade
+- `just build` — build OCI image locally
+- `mios "<prompt>"` — query local AI
+
+## Sanitization (all persisted AI artifacts)
+
+No vendor/corporate entity names in prose. No chat metadata. No foreign sandbox paths. All AI endpoints target `http://localhost:8080/v1`. Upstream package names, FHS paths, and protocol names (`/v1/chat/completions`) survive unchanged.
