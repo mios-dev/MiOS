@@ -122,6 +122,7 @@ usr/share/*
 !/usr/share/mios/**
 # AI files, knowledge, logs, user data belong in mios-bootstrap.git
 usr/share/mios/ai/
+usr/share/mios/knowledge/
 usr/share/mios/memory/
 usr/share/mios/user-preferences.md
 !/usr/share/containers/
