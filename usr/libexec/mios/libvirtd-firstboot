@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: libvirtd-firstboot
+# Implementation expected from bootstrap overlay or future automation script.
+# Override by dropping a real executable at: /usr/libexec/mios/libvirtd-firstboot
+set -euo pipefail
+logger -t mios "[libvirtd-firstboot] stub executed — replace with real implementation"
+echo "[mios/libvirtd-firstboot] stub: no-op" >&2
+exit 0

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: gpu-pv-detect
+# Implementation expected from bootstrap overlay or future automation script.
+# Override by dropping a real executable at: /usr/libexec/mios/gpu-pv-detect
+set -euo pipefail
+logger -t mios "[gpu-pv-detect] stub executed — replace with real implementation"
+echo "[mios/gpu-pv-detect] stub: no-op" >&2
+exit 0

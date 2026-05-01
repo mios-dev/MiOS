@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: wsl-init
+# Implementation expected from bootstrap overlay or future automation script.
+# Override by dropping a real executable at: /usr/libexec/mios/wsl-init
+set -euo pipefail
+logger -t mios "[wsl-init] stub executed — replace with real implementation"
+echo "[mios/wsl-init] stub: no-op" >&2
+exit 0

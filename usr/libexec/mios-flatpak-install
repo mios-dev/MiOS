@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: mios-flatpak-install
+# Implementation expected from bootstrap overlay or future automation script.
+set -euo pipefail
+logger -t mios "[mios-flatpak-install] stub executed — replace with real implementation"
+echo "[mios/mios-flatpak-install] stub: no-op" >&2
+exit 0

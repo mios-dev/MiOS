@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: mios-cdi-detect
+# Implementation expected from bootstrap overlay or future automation script.
+# Override by dropping a real executable at: /usr/libexec/mios/mios-cdi-detect
+set -euo pipefail
+logger -t mios "[mios-cdi-detect] stub executed — replace with real implementation"
+echo "[mios/mios-cdi-detect] stub: no-op" >&2
+exit 0

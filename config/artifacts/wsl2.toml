@@ -1,0 +1,14 @@
+# bib-configs/wsl2.toml - MiOS v0.2.0
+# Target: Windows Subsystem for Linux 2 (WSL2)
+# Import with: wsl --import MiOS <install-dir> output/disk.wsl2
+# BIB --type wsl2 emits a .tar.gz suitable for wsl --import.
+
+[[customizations.user]]
+name     = "mios"
+# No password or SSH key needed for WSL — Windows auth is used.
+# Set a password if you want: openssl passwd -6 'your-password'
+groups   = ["wheel"]
+
+[customizations.kernel]
+# WSL2 uses the Microsoft kernel — kargs are ignored but kept for parity.
+append = ""

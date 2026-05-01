@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: mios-hyperv-enhanced
+# Implementation expected from bootstrap overlay or future automation script.
+set -euo pipefail
+logger -t mios "[mios-hyperv-enhanced] stub executed — replace with real implementation"
+echo "[mios/mios-hyperv-enhanced] stub: no-op" >&2
+exit 0

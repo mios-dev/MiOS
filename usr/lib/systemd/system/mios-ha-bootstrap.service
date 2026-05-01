@@ -9,11 +9,14 @@ Wants=network-online.target pcsd.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# 1. Set the default hacluster password
-# 2. Authenticate the local node
-# 3. Bootstrap the cluster using the current hostname as the seed node
-# 4. Start the cluster and disable STONITH for the initial single-node state
-ExecStart=/bin/bash -c "echo 'hacluster:mios' | chpasswd && pcs host auth $(hostname -s) -u hacluster -p mios && pcs cluster setup --name mios-ha $(hostname -s) --force && pcs cluster start --all && pcs property set stonith-enabled=false"
+# Default hacluster password is "mios" — MiOS default, override via bootstrap drop-in:
+#   /etc/systemd/system/mios-ha-bootstrap.service.d/hacluster.conf
+#   [Service]
+#   Environment=HA_PASSWORD=your-real-password
+#   ExecStart=
+#   ExecStart=/bin/bash -c "echo 'hacluster:${HA_PASSWORD}' | chpasswd && pcs host auth $(hostname -s) -u hacluster -p '${HA_PASSWORD}' && pcs cluster setup --name mios-ha $(hostname -s) --force && pcs cluster start --all && pcs property set stonith-enabled=false"
+Environment=HA_PASSWORD=mios
+ExecStart=/bin/bash -c "echo 'hacluster:${HA_PASSWORD}' | chpasswd && pcs host auth $(hostname -s) -u hacluster -p '${HA_PASSWORD}' && pcs cluster setup --name mios-ha $(hostname -s) --force && pcs cluster start --all && pcs property set stonith-enabled=false"
 
 ExecStartPost=/bin/chmod 0600 /etc/corosync/corosync.conf
 

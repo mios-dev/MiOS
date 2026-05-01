@@ -36,6 +36,8 @@
 !/LICENSES.md
 !/README.md
 !/SECURITY.md
+!/AUDIT-FINDINGS-*.md
+!/WORKFLOW-AUDIT-*.md
 !/SELF-BUILD.md
 !/SUMMARY.md
 !/VERSION
@@ -127,15 +129,24 @@ usr/*
 usr/bin/*
 !/usr/bin/mios
 
-# usr/share — only mios/
+# usr/share — mios/ and containers/systemd/ for LBI quadlets
 usr/share/*
 !/usr/share/mios/
 !/usr/share/mios/**
+!/usr/share/containers/
+usr/share/containers/*
+!/usr/share/containers/systemd/
+!/usr/share/containers/systemd/**
 
-# usr/libexec — only mios/
+# usr/libexec — mios/ subdir and mios-* top-level stubs
 usr/libexec/*
 !/usr/libexec/mios/
 !/usr/libexec/mios/**
+!/usr/libexec/mios-boot-diag
+!/usr/libexec/mios-flatpak-install
+!/usr/libexec/mios-grd-setup
+!/usr/libexec/mios-hyperv-enhanced
+!/usr/libexec/mios-verify
 
 # usr/lib — cascade for each MiOS-owned subdirectory
 usr/lib/*

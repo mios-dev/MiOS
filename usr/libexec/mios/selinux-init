@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# MiOS v0.2.0 — stub: selinux-init
+# Implementation expected from bootstrap overlay or future automation script.
+# Override by dropping a real executable at: /usr/libexec/mios/selinux-init
+set -euo pipefail
+logger -t mios "[selinux-init] stub executed — replace with real implementation"
+echo "[mios/selinux-init] stub: no-op" >&2
+exit 0

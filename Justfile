@@ -142,6 +142,63 @@ iso: build
         {{BIB}} build --type iso --rootfs ext4 {{LOCAL}}
     @echo "[OK] ISO image in output/"
 
+# Generate QEMU qcow2 disk image
+# Substitutes MIOS_USER_PASSWORD_HASH and MIOS_SSH_PUBKEY from env before invoking BIB.
+qcow2: build
+    mkdir -p output
+    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH (openssl passwd -6 'yourpass')"; exit 1; fi
+    @TMPTOML="$(mktemp /tmp/mios-qcow2-XXXXXX.toml)" && \
+        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
+            -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
+            ./config/artifacts/qcow2.toml > "$$TMPTOML" && \
+        sudo podman run --rm -it --privileged \
+            --security-opt label=type:unconfined_t \
+            -v ./output:/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -v "$$TMPTOML":/config.toml:ro \
+            {{BIB}} build --type qcow2 --rootfs ext4 {{LOCAL}}; \
+        rm -f "$$TMPTOML"
+    @echo "[OK] QCOW2 image in output/"
+
+# Generate Hyper-V VHDX disk image
+# BIB emits VPC (.vhd); we convert to .vhdx via qemu-img.
+# Substitutes MIOS_USER_PASSWORD_HASH and MIOS_SSH_PUBKEY from env before invoking BIB.
+vhdx: build
+    mkdir -p output
+    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH (openssl passwd -6 'yourpass')"; exit 1; fi
+    @TMPTOML="$(mktemp /tmp/mios-vhdx-XXXXXX.toml)" && \
+        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
+            -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
+            ./config/artifacts/vhdx.toml > "$$TMPTOML" && \
+        sudo podman run --rm -it --privileged \
+            --security-opt label=type:unconfined_t \
+            -v ./output:/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -v "$$TMPTOML":/config.toml:ro \
+            {{BIB}} build --type vhd --rootfs ext4 {{LOCAL}}; \
+        rm -f "$$TMPTOML"
+    @if command -v qemu-img >/dev/null 2>&1 && ls output/*.vhd >/dev/null 2>&1; then \
+        for vhd in output/*.vhd; do \
+            vhdx="$${vhd%.vhd}.vhdx"; \
+            qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
+        done; \
+    else \
+        echo "[WARN] qemu-img not found or no .vhd produced — .vhd retained in output/"; \
+    fi
+    @echo "[OK] VHDX image in output/"
+
+# Generate WSL2 tar.gz for wsl --import
+wsl2: build
+    mkdir -p output
+    sudo podman run --rm -it --privileged \
+        --security-opt label=type:unconfined_t \
+        -v ./output:/output \
+        -v /var/lib/containers/storage:/var/lib/containers/storage \
+        -v ./config/artifacts/wsl2.toml:/config.toml:ro \
+        {{BIB}} build --type wsl2 {{LOCAL}}
+    @echo "[OK] WSL2 image in output/ — import with: wsl --import MiOS ./mios output/disk.wsl2"
+
+
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)
 log-bootstrap:
     @echo "[START] Logging artifacts to MiOS-bootstrap repository (Linux FS native)..."

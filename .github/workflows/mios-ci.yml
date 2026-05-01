@@ -85,10 +85,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install podman
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y podman
+
       - name: Build for smoke test
         run: |
-          if [[ -f Containerfile ]]; then
-            podman build -t mios:smoke -f Containerfile .
-          else
-            echo 'No Containerfile in repo root; skipping smoke build'
-          fi
+          podman build -t mios:smoke -f Containerfile .

@@ -1,0 +1,16 @@
+[Unit]
+Description=MiOS Apache Guacamole Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/guacamole/guacd:latest
+Network=mios.network
+AutoUpdate=registry
+
+[Service]
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target default.target
