@@ -39,8 +39,7 @@ RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
         audit \
         fapolicyd \
         crowdsec \
-        usbguard \
-        kernel-devel; \
+        usbguard; \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /ctx/usr/share/mios/flatpak-list; \
     fi; \
@@ -54,5 +53,4 @@ RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
 
 RUN bootc completion bash > /etc/bash_completion.d/bootc
 RUN mkdir -p /usr/lib/extensions/source && chmod +x /ctx/tools/mios-sysext-pack.sh && /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
-RUN rm -rf /ctx && ostree container commit
-RUN bootc container lint
+RUN rm -rf /ctx && bootc container lint && ostree container commit

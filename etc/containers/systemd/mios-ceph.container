@@ -1,5 +1,10 @@
 # /etc/containers/systemd/mios-ceph.container
 # Minimal Ceph monitor for storage orchestration.
+#
+# Image tag: bootstrap overrides this with the site-specific Ceph version.
+# v18 (Reef) is the MiOS default stable branch tag — less mutable than :latest.
+# Ceph and K3s run as root (uid 0) by necessity: Ceph requires privileged
+# storage access; both are documented architectural exceptions to UNPRIVILEGED-EXECUTION.
 
 [Unit]
 Description=MiOS Ceph Monitor (Podman-native)
@@ -7,7 +12,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=quay.io/ceph/ceph:latest
+Image=quay.io/ceph/ceph:v18
 ContainerName=mios-ceph
 Network=mios.network
 Volume=/var/lib/ceph:/var/lib/ceph:Z

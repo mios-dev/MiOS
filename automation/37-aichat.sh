@@ -10,7 +10,6 @@ echo "[37-aichat] Installing AI-related packages (redis, sqlite)..."
 install_packages "ai"
 
 echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
-# ... (rest of the script)
 
 # Fetch latest release tags
 # v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
@@ -32,17 +31,47 @@ else
     echo "[37-aichat]   Detected AIChat-NG version: ${AICHAT_NG_TAG}"
 fi
 
-# Download and install AIChat
-scurl -L -o /tmp/aichat.tar.gz "https://github.com/sigoden/aichat/releases/download/${AICHAT_TAG}/aichat-${AICHAT_TAG}-x86_64-unknown-linux-musl.tar.gz"
-tar -xzf /tmp/aichat.tar.gz -C /usr/bin/ aichat
+# ── AIChat ────────────────────────────────────────────────────────────────────
+AICHAT_ARCH="aichat-${AICHAT_TAG}-x86_64-unknown-linux-musl.tar.gz"
+AICHAT_BASE="https://github.com/sigoden/aichat/releases/download/${AICHAT_TAG}"
+
+mkdir -p /tmp/aichat-dl
+scurl -sfL "${AICHAT_BASE}/${AICHAT_ARCH}" -o "/tmp/aichat-dl/${AICHAT_ARCH}"
+scurl -sfL "${AICHAT_BASE}/${AICHAT_ARCH}.sha256" -o "/tmp/aichat-dl/${AICHAT_ARCH}.sha256" 2>/dev/null || {
+    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat — cannot verify integrity"
+    rm -f "/tmp/aichat-dl/${AICHAT_ARCH}.sha256"
+}
+
+if [[ -f "/tmp/aichat-dl/${AICHAT_ARCH}.sha256" ]]; then
+    # sha256 sidecar format: "<hash>  <filename>" or "<hash> *<filename>"
+    (cd /tmp/aichat-dl && grep "${AICHAT_ARCH}" "${AICHAT_ARCH}.sha256" | sha256sum -c -) \
+        || die "AIChat ${AICHAT_TAG} SHA256 mismatch — aborting"
+    echo "[37-aichat]   ✓ AIChat sha256 verified"
+fi
+
+tar -xzf "/tmp/aichat-dl/${AICHAT_ARCH}" -C /usr/bin/ aichat
 chmod +x /usr/bin/aichat
+rm -rf /tmp/aichat-dl
 
-# Download and install AIChat-NG
-scurl -L -o /tmp/aichat-ng.tar.gz "https://github.com/blob42/aichat-ng/releases/download/${AICHAT_NG_TAG}/aichat-ng-${AICHAT_NG_TAG}-x86_64-unknown-linux-musl.tar.gz"
-tar -xzf /tmp/aichat-ng.tar.gz -C /usr/bin/ aichat-ng
+# ── AIChat-NG ────────────────────────────────────────────────────────────────
+AICHAT_NG_ARCH="aichat-ng-${AICHAT_NG_TAG}-x86_64-unknown-linux-musl.tar.gz"
+AICHAT_NG_BASE="https://github.com/blob42/aichat-ng/releases/download/${AICHAT_NG_TAG}"
+
+mkdir -p /tmp/aichat-ng-dl
+scurl -sfL "${AICHAT_NG_BASE}/${AICHAT_NG_ARCH}" -o "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}"
+scurl -sfL "${AICHAT_NG_BASE}/${AICHAT_NG_ARCH}.sha256" -o "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256" 2>/dev/null || {
+    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat-NG — cannot verify integrity"
+    rm -f "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256"
+}
+
+if [[ -f "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256" ]]; then
+    (cd /tmp/aichat-ng-dl && grep "${AICHAT_NG_ARCH}" "${AICHAT_NG_ARCH}.sha256" | sha256sum -c -) \
+        || die "AIChat-NG ${AICHAT_NG_TAG} SHA256 mismatch — aborting"
+    echo "[37-aichat]   ✓ AIChat-NG sha256 verified"
+fi
+
+tar -xzf "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}" -C /usr/bin/ aichat-ng
 chmod +x /usr/bin/aichat-ng
-
-# Cleanup
-rm -f /tmp/aichat.tar.gz /tmp/aichat-ng.tar.gz
+rm -rf /tmp/aichat-ng-dl
 
 echo "[37-aichat] AIChat and AIChat-NG installed successfully."

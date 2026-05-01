@@ -5,7 +5,7 @@
 # Consolidates cosign binary installation, Sigstore trust roots, and policy.json.
 # Supercedes 37-cosign-policy.sh.
 #
-# Note: we pin to v0.2.0 because v3 breaks rpm-ostree bundle format (OCI 1.1).
+# Note: cosign must stay on v2.x — v3+ breaks rpm-ostree OCI 1.1 bundle format.
 # ============================================================================
 set -euo pipefail
 
@@ -16,9 +16,16 @@ log "42-cosign-policy: ensuring cosign + trust roots + policy.json"
 
 # 1. Install cosign binary (pinned to v2.x for rpm-ostree compatibility)
 if ! command -v cosign >/dev/null 2>&1; then
-    log "  downloading cosign v0.2.0 static binary..."
-    scurl "https://github.com/sigstore/cosign/releases/download/v0.2.0/cosign-linux-amd64" -o /usr/local/bin/cosign
-    chmod +x /usr/local/bin/cosign
+    COSIGN_VERSION="v2.4.3"
+    COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
+    log "  downloading cosign ${COSIGN_VERSION} static binary..."
+    mkdir -p /tmp/cosign-dl
+    scurl -sfL "${COSIGN_BASE_URL}/cosign-linux-amd64" -o /tmp/cosign-dl/cosign-linux-amd64
+    scurl -sfL "${COSIGN_BASE_URL}/cosign_checksums.txt" -o /tmp/cosign-dl/cosign_checksums.txt
+    (cd /tmp/cosign-dl && grep "cosign-linux-amd64$" cosign_checksums.txt | sha256sum -c -) \
+        || die "cosign ${COSIGN_VERSION} SHA256 mismatch — aborting"
+    install -m 0755 /tmp/cosign-dl/cosign-linux-amd64 /usr/local/bin/cosign
+    rm -rf /tmp/cosign-dl
 fi
 
 SYSFILES="/ctx/system_files"

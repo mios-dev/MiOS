@@ -9,8 +9,14 @@ source "$(dirname "$0")/lib/common.sh"
 # Install SELinux development tools required for compilation
 $DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" selinux-policy-devel git make
 
-# Clone the upstream k3s-selinux repository
-git clone --depth 1 https://github.com/k3s-io/k3s-selinux.git /tmp/k3s-selinux
+# Pin to a specific stable release tag — HEAD clones pick up unreviewed commits.
+# Update K3S_SELINUX_TAG when bumping K3s to stay in sync with its SELinux policy.
+K3S_SELINUX_TAG="${K3S_SELINUX_TAG:-v1.5.stable.2}"
+
+echo "==> Cloning k3s-selinux at tag ${K3S_SELINUX_TAG}..."
+git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \
+    https://github.com/k3s-io/k3s-selinux.git /tmp/k3s-selinux
+
 cd /tmp/k3s-selinux
 
 # K3s SELinux repo stores policies in subdirectories (e.g., policy/coreos or policy/centos9)
@@ -23,7 +29,6 @@ elif [ -d "policy/centos9" ]; then
 elif [ -d "policy/rhel9" ]; then
     POLICY_DIR="policy/rhel9"
 else
-    # Fallback to the first directory containing k3s.te
     POLICY_DIR=$(find policy -name k3s.te -printf '%h\n' | head -n 1)
 fi
 
@@ -48,4 +53,3 @@ install -m 0644 k3s.pp /usr/share/selinux/packages/mios/k3s.pp
 cd /
 rm -rf /tmp/k3s-selinux
 echo "==> K3s SELinux Policy staged in /usr/share/selinux/packages/mios/"
-

@@ -31,9 +31,9 @@ Shipped via `/usr/lib/bootc/kargs.d/00-mios.toml`  no bootloader modification ne
 | Parameter | Purpose | Override |
 |-----------|---------|----------|
 | `slab_nomerge` | Prevent slab cache merging (heap isolation) | Remove from kargs.d TOML |
-| `init_on_alloc=1` | Zero memory on allocation | Set `=0` to disable |
-| `init_on_free=1` | Zero memory on deallocation | Set `=0` to disable |
-| `page_alloc.shuffle=1` | Randomize page allocator freelists | Set `=0` to disable |
+| ~~`init_on_alloc=1`~~ | Zero memory on allocation — **disabled**: causes CUDA/NVIDIA memory init failures; enable only on CPU-only deployments | Re-enable in a higher-priority kargs.d file |
+| ~~`init_on_free=1`~~ | Zero memory on deallocation — **disabled**: same CUDA incompatibility | Re-enable in a higher-priority kargs.d file |
+| ~~`page_alloc.shuffle=1`~~ | Randomize page allocator freelists — **disabled**: NVIDIA driver instability under page-alloc randomisation | Re-enable in a higher-priority kargs.d file |
 | `randomize_kstack_offset=on` | Randomize kernel stack offsets per syscall | Set `=off` to disable |
 | `pti=on` | Page Table Isolation (Meltdown mitigation) | Set `=off` (not recommended) |
 | `vsyscall=none` | Disable legacy vsyscall table | Set `=emulate` for legacy apps |

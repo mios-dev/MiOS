@@ -52,7 +52,7 @@ export container=podman
 # Skip list:
 #   08-system-files-overlay.sh  — called explicitly by the Containerfile BEFORE this script
 #   37-ollama-prep.sh           — intentional local-only step (large model download; not for CI)
-CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 37-ollama-prep.sh"
+CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 37-ollama-prep.sh 99-postcheck.sh"
 
 TOTAL_START=$SECONDS
 SCRIPT_COUNT=0

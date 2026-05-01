@@ -5,21 +5,17 @@
 # To enable: install Renovate GitHub App on the repo.
 # Digests auto-update with a 7-day stability period.
 #
-# USAGE: This file is reference documentation  the Containerfile
-# now uses digests. Renovate will keep these SHA256 hashes updated.
+# USAGE: Renovate updates the Containerfile ARG digest directly via the
+# customManager regex in renovate.json. This file is reference documentation.
 
 # ucore-hci:stable-nvidia  Universal Blue CoreOS with pre-signed NVIDIA
 # renovate: datasource=docker depName=ghcr.io/ublue-os/ucore-hci
-ucore_hci_stable_nvidia_digest: sha256:3f4474648ab2835bdb8a29f1afe8805de96a32bc0.1.1345ecf485a395aa1d1d
+# NOTE: digest below is a placeholder — Renovate populates on first run.
+ucore_hci_stable_nvidia_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 # bootc-image-builder  OCI to disk image converter
 # renovate: datasource=docker depName=quay.io/centos-bootc/bootc-image-builder
 # bib_digest: sha256:<populated by Renovate>
-
-image-builder-cli:
-  # next-gen image builder (with SBOM support)
-  # renovate: datasource=docker depName=ghcr.io/osautomation/image-builder-cli
-  image_builder_cli_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 rechunk:
   # bootc-base-imagectl  image rechunking for efficient Day-2 updates

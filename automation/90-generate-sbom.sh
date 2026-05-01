@@ -14,35 +14,29 @@ mkdir -p "$ARTIFACT_DIR"
 # Check if syft is available
 if ! command -v syft &> /dev/null; then
     echo "[90-generate-sbom] WARN: Syft not found. Attempting to install..."
-    # Syft is in packages-utils, but if it's missing for some reason, try to install it.
-    dnf install -y syft || {
+    $DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" syft || {
         echo "[90-generate-sbom] ERROR: Failed to install Syft. Skipping SBOM generation."
         exit 0 # Non-fatal
     }
 fi
 
 VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "v0.2.0")
-TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 
 echo "[90-generate-sbom] Scanning root filesystem..."
 
 # Generate CycloneDX (JSON) - Primary for AI and automation
 syft scan dir:/ \
     --output cyclonedx-json \
-    --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}-${TIMESTAMP}.cyclonedx.json" \
+    --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
     --exclude "/ctx" \
     --exclude "/var/cache"
 
 # Generate SPDX (Tag-Value) - Standard compliance
 syft scan dir:/ \
     --output spdx-tag-value \
-    --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}-${TIMESTAMP}.spdx.txt" \
+    --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
     --exclude "/ctx" \
     --exclude "/var/cache"
-
-# Create latest symlinks
-ln -sf "mios-sbom-${VERSION}-${TIMESTAMP}.cyclonedx.json" "${ARTIFACT_DIR}/latest.cyclonedx.json"
-ln -sf "mios-sbom-${VERSION}-${TIMESTAMP}.spdx.txt" "${ARTIFACT_DIR}/latest.spdx.txt"
 
 echo "[90-generate-sbom] SBOMs generated in ${ARTIFACT_DIR}:"
 ls -lh "$ARTIFACT_DIR"

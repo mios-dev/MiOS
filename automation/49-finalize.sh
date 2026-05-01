@@ -26,7 +26,7 @@ rm -f /etc/containers/auth.json \
       /usr/bin/99-overrides.sh 2>/dev/null || true
 
 # Trim dnf caches
-dnf5 clean all || true
+$DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/libdnf5 /var/cache/dnf /var/log/dnf5.log* 2>/dev/null || true
 
 # Set image metadata

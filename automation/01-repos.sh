@@ -22,25 +22,36 @@ if [[ -d /etc/yum.repos.d ]]; then
     done
 fi
 
+echo "[01-repos] Importing Fedora 44 GPG key..."
+# The fedora-gpg-keys package ships the key at this path on Fedora-based systems.
+# On ucore (which is CoreOS-based on Fedora), the key is present.
+GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
+if [[ ! -f "$GPG_KEY_PATH" ]]; then
+    # Fallback: import from the package if key file is missing
+    $DNF_BIN "${DNF_SETOPT[@]}" install -y fedora-gpg-keys 2>/dev/null || true
+fi
+
 echo "[01-repos] Adding Fedora 44 repository..."
-cat > /etc/yum.repos.d/fedora-44.repo <<'EOREPO'
+cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
 [fedora-44]
-name=Fedora 44 - $basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=$basearch
+name=Fedora 44 - \$basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=\$basearch
 enabled=1
-repo_gpgcheck=0
+repo_gpgcheck=1
 type=rpm
-gpgcheck=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
 skip_if_unavailable=False
 priority=95
 
 [fedora-44-updates]
-name=Fedora 44 Updates - $basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=$basearch
+name=Fedora 44 Updates - \$basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=\$basearch
 enabled=1
-repo_gpgcheck=0
+repo_gpgcheck=1
 type=rpm
-gpgcheck=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
 skip_if_unavailable=True
 priority=95
 EOREPO

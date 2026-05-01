@@ -1,5 +1,17 @@
 # /etc/containers/systemd/mios-k3s.container
 # Rootless K3s orchestration via Podman.
+#
+# Privileged=true: K3s requires full host networking, kernel namespaces, and
+# eBPF — specific capability grants cannot replace these. This is a documented
+# architectural exception to UNPRIVILEGED-EXECUTION (see ARCHITECTURE.md).
+#
+# User= omitted: K3s runs as root by necessity (writes to /run/k3s, manages
+# cgroups, kernel netfilter). This is a second documented exception.
+#
+# K3S_TOKEN: This is the MiOS default cluster token. The bootstrap repository
+# overrides it via a systemd drop-in at ignition time:
+#   /etc/containers/systemd/mios-k3s.container.d/token.conf
+# NEVER change this default to a real secret — it is visible in the image.
 
 [Unit]
 Description=MiOS K3s Service (Podman-native)

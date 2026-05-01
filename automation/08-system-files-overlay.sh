@@ -53,6 +53,8 @@ fi
 # --- Stage 5: /home (User Space Templates) ---------------------------------
 if [[ -d "${CTX}/home" ]]; then
     log "  stage 5: overlay home content"
+    # mkdir required here so the tar overlay can write to /var/home during the build;
+    # tmpfiles.d will also create it at first boot (not a STATELESS-VAR violation—it is idempotent)
     mkdir -p /var/home
     tar -C "${CTX}/home" -cf - . | tar -C /var/home --no-overwrite-dir -xf -
 fi
