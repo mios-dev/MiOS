@@ -89,13 +89,10 @@ shopt -u nullglob
 # ═══ Pathing Compatibility ═══
 log "08-overlay: applying pathing compatibility symlinks"
 
-# 1. WSL2 looks for /etc/wsl.conf, but we store it in /usr/lib/wsl.conf for immutability
-if [[ -f /usr/lib/wsl.conf ]]; then
-    ln -sf /usr/lib/wsl.conf /etc/wsl.conf
-    log "  WSL: symlinked /etc/wsl.conf -> /usr/lib/wsl.conf"
-fi
+# /etc/wsl.conf is deployed as a real file via Stage 3 overlay (etc/wsl.conf in repo).
+# /usr/lib/wsl.conf is a reference stub; do not symlink it over /etc/wsl.conf.
 
-# 2. Standardize /home to /var/home (FCOS/bootc style)
+# 1. Standardize /home to /var/home (FCOS/bootc style)
 if [ ! -L /home ] && [ -d /home ] && [ ! "$(ls -A /home)" ]; then
     rm -rf /home
     ln -sf /var/home /home
