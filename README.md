@@ -27,6 +27,18 @@ directly.
 
 ## Install
 
+**Windows 11** (Podman Desktop + WSL2):
+
+```powershell
+irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.ps1 | iex
+```
+
+Installs as a Windows application (`%LOCALAPPDATA%\Programs\MiOS\`), clones both repos,
+registers in Add/Remove Programs, creates Start Menu shortcuts, and auto-configures WSL2.
+Requires [Git](https://git-scm.com/download/win), [Podman Desktop](https://podman-desktop.io), and WSL2.
+
+**Linux** (Fedora bootc):
+
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.sh)"
 ```

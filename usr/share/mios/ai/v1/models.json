@@ -2,7 +2,13 @@
   "object": "list",
   "data": [
     {
-      "id": "mi-os-7b",
+      "id": "qwen2.5-coder:7b",
+      "object": "model",
+      "created": 1777536280,
+      "owned_by": "mios-system"
+    },
+    {
+      "id": "nomic-embed-text",
       "object": "model",
       "created": 1777536280,
       "owned_by": "mios-system"

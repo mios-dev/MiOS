@@ -14,7 +14,7 @@ if [ -d "/var/lib/ollama/models" ] && [ "$(ls -A /var/lib/ollama/models)" ]; the
     exit 0
 fi
 
-log "Downloading default model: deepseek-coder-v2:lite..."
+log "Downloading default models: qwen2.5-coder:7b + nomic-embed-text..."
 
 # Install temporary ollama binary from GitHub releases (.tar.zst archive)
 # Standalone binary is no longer provided.
@@ -82,8 +82,9 @@ while ! scurl -s http://localhost:11434/api/tags > /dev/null; do
     fi
 done
 
-# Pull the model
-/usr/bin/ollama pull deepseek-coder-v2:lite
+# Pull inference model (8GB-tier default) and embedding model
+/usr/bin/ollama pull qwen2.5-coder:7b
+/usr/bin/ollama pull nomic-embed-text
 
 # Shutdown server
 kill $OLLAMA_PID
