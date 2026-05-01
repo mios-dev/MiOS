@@ -1,13 +1,27 @@
 # MiOS Engineering Standards
 
-## Build pipeline
+## Global pipeline phases
+
+The end-to-end pipeline (bootstrap → install) is partitioned into five
+phases. The numbered `automation/[0-9][0-9]-*.sh` scripts are *sub-phases*
+of Phase-2 (build).
+
+| Phase | Owner | Description |
+|---|---|---|
+| Phase-0 | `mios-bootstrap.git/install.sh` | Preflight + profile load + identity capture |
+| Phase-1 | `mios-bootstrap.git/install.sh` | Total Root Merge of `mios.git` and `mios-bootstrap.git` to `/` |
+| Phase-2 | `Containerfile`/`automation/build.sh` | Build the running system (this section's subject) |
+| Phase-3 | `mios.git/install.sh` + bootstrap profile staging | systemd-sysusers/tmpfiles/daemon-reload + user create + per-user `~/.config/mios/{profile.toml,system-prompt.md}` |
+| Phase-4 | `mios-bootstrap.git/install.sh` | Reboot prompt |
+
+## Phase-2: build pipeline (sub-phases)
 
 `Containerfile` triggers `automation/build.sh`, which iterates every
 `automation/[0-9][0-9]-*.sh` in numeric order. Skipped under build:
 `08-system-files-overlay.sh` (runs pre-pipeline from `Containerfile`),
-`37-ollama-prep.sh` (CI-skipped). Phase numbering encodes dependency order
-and must be preserved when adding new scripts. See `CLAUDE.md` for the
-phase ranges.
+`37-ollama-prep.sh` (CI-skipped). Sub-phase numbering encodes dependency
+order and must be preserved when adding new scripts. See `CLAUDE.md` for
+the sub-phase ranges.
 
 Per-phase error handling: `automation/build.sh:234-237` toggles `set +e`
 around each script invocation so individual failures are captured in

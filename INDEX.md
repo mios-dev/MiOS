@@ -46,7 +46,24 @@ Spec: <https://platform.openai.com/docs/api-reference>.
 | `MIOS_USER` / `MIOS_HOSTNAME` | build | Default account/hostname baked into the image (`Containerfile:26-27`). |
 | `MIOS_FLATPAKS` | build | Comma-separated Flatpak refs (`Containerfile:28`). |
 
-## 5. Cross-references
+## 5. Global pipeline phases
+
+The end-to-end bootstrap → install pipeline is partitioned into five phases
+shared across both repos:
+
+| Phase | Owner repo | Purpose |
+|---|---|---|
+| Phase-0 | `mios-bootstrap` | Preflight, profile load, identity capture |
+| Phase-1 | `mios-bootstrap` | Total Root Merge (clone `mios.git` into `/`, overlay bootstrap) |
+| Phase-2 | `mios` | Build (Containerfile + `automation/[0-9][0-9]-*.sh` sub-phases, OR dnf install on FHS) |
+| Phase-3 | both | sysusers/tmpfiles/services + user create + per-user `~/.config/mios/{profile.toml,system-prompt.md}` staging |
+| Phase-4 | `mios-bootstrap` | Reboot |
+
+The user profile card at `etc/mios/profile.toml` (host) and
+`~/.config/mios/profile.toml` (per-user) is read in Phase-0 to seed defaults
+and re-written/staged in Phase-3.
+
+## 6. Cross-references
 
 - Build pipeline architecture: `CLAUDE.md`, `automation/build.sh`.
 - Filesystem and hardware layout: `ARCHITECTURE.md`.

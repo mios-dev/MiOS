@@ -58,8 +58,6 @@
 !/tools/**
 !/config/
 !/config/**
-!/agents/
-!/agents/**
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. /v1 — MiOS AI API surface
@@ -81,27 +79,15 @@ etc/containers/systemd/*
 !/etc/fapolicyd/
 etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
-!/etc/mios/
-!/etc/mios/**
+
+# /etc/mios/ is BOOTSTRAP territory (mios-bootstrap.git). Not tracked here.
+# /home/ is BOOTSTRAP territory. Per-user templates and skel live in mios-bootstrap.
+# /srv/ structure is created at runtime by usr/lib/tmpfiles.d/mios.conf — no
+# placeholder files tracked here.
+# /agents/ is BOOTSTRAP territory (knowledge graphs / RAG manifests).
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. /home — placeholder only (no user data tracked)
-# ─────────────────────────────────────────────────────────────────────────────
-!/home/
-home/*
-!/home/.keep
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 7. /srv — MiOS service data
-# ─────────────────────────────────────────────────────────────────────────────
-!/srv/
-srv/*
-!/srv/.keep
-!/srv/ai/
-!/srv/ai/**
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 8. /root — MiOS shell skeleton for root user
+# 6. /root — MiOS shell skeleton for root user (system layer)
 # ─────────────────────────────────────────────────────────────────────────────
 !/root/
 root/*

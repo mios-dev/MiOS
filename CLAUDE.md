@@ -62,17 +62,31 @@ Day-2 (deployed host): `sudo bootc upgrade && sudo systemctl reboot`,
 
 ## Architecture (the parts that span multiple files)
 
-### The build pipeline
+### Global pipeline phases
+
+The full bootstrap → install pipeline is partitioned into five global phases.
+Every doc, log line, and orchestrator script in either repo refers to these
+by number:
+
+| Phase | Owner | Purpose |
+|---|---|---|
+| **Phase-0** | `mios-bootstrap.git/install.sh` | Preflight, profile load, host-kind detection, interactive identity capture. |
+| **Phase-1** | `mios-bootstrap.git/install.sh` (`trigger_mios_install`) | Total Root Merge — clone `mios.git` into `/`, copy bootstrap overlays (etc/, usr/, var/, profile/) on top. |
+| **Phase-2** | `Containerfile` + `automation/build.sh` (or FHS package install) | Build the running system. The numbered `automation/[0-9][0-9]-*.sh` scripts are *sub-phases* of Phase-2. |
+| **Phase-3** | `mios.git/install.sh` + `mios-bootstrap.git/install.sh` (`apply_user_profile`, `deploy_system_prompt`, `stage_user_profile_artifacts`) | systemd-sysusers, systemd-tmpfiles, daemon-reload, services; create the Linux user; stage `~/.config/mios/{profile.toml,system-prompt.md}` and host `/etc/mios/ai/system-prompt.md`. |
+| **Phase-4** | `mios-bootstrap.git/install.sh` (`reboot_prompt`) | Interactive `systemctl reboot`. |
+
+### The build pipeline (Phase-2 sub-phases)
 
 `Containerfile` is small. Its single big `RUN` calls
 `automation/08-system-files-overlay.sh` (overlay apply) then
 `automation/build.sh` — the master orchestrator that iterates every
-`automation/[0-9][0-9]-*.sh` in numeric order. Phase numbering is meaningful
-(repos → kernel → overlay → stack install → service config → user/GPU →
-AI/SELinux/polish → supply chain → finalize → from-source kmods → validate);
-do not renumber without understanding the dependency it encodes. Skipped
-under build: `08-system-files-overlay.sh` (runs pre-pipeline from
-Containerfile), `37-ollama-prep.sh` (CI-skipped).
+`automation/[0-9][0-9]-*.sh` in numeric order. The numbering is internal to
+Phase-2 and encodes dependencies (repos → kernel → overlay → stack install →
+service config → user/GPU → AI/SELinux/polish → supply chain → finalize →
+from-source kmods → validate). Do not renumber without understanding the
+dependency. Skipped under build: `08-system-files-overlay.sh` (runs
+pre-pipeline from Containerfile), `37-ollama-prep.sh` (CI-skipped).
 
 Every script sources `automation/lib/{common,packages,masking}.sh`. The
 masking library filters secrets out of build logs; output is teed through

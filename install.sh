@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# MiOS system-side installer (FHS overlay path).
+# MiOS system-side installer — runs as the system-init half of Phase-3
+# (Apply). Invoked by mios-bootstrap.git/install.sh after Phase-1 (overlay)
+# and Phase-2 (package install) have already completed.
 #
-# This script is invoked by the bootstrap installer on non-bootc Fedora hosts.
-# On bootc-managed hosts, do NOT run this -- use `bootc switch` instead.
+# Refuses to run on bootc-managed hosts (their /usr is read-only composefs);
+# on bootc, Phase-2/3 are handled by `bootc switch`.
 #
-# What it does:
-#   1. Refuses to run on bootc-managed hosts (their /usr is read-only composefs).
-#   2. Lays down the FHS overlay from this repository's working tree to /.
-#   3. Runs systemd-sysusers, systemd-tmpfiles, and reloads systemd units.
-#   4. Enables MiOS services.
+# What this script does (Phase-3 system-init responsibilities):
+#   1. Lay down any remaining FHS overlay rsyncs from this repository's
+#      working tree to / (idempotent if bootstrap already merged via git).
+#   2. systemd-sysusers (creates mios + sidecar service accounts).
+#   3. systemd-tmpfiles --create (declares /var/, /run/, /etc/cdi paths).
+#   4. systemctl daemon-reload + enable MiOS services.
 
 set -euo pipefail
 
@@ -25,7 +28,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "[INFO] MiOS system installer running from ${REPO_ROOT}"
+echo "[INFO] Phase-3 — MiOS system installer running from ${REPO_ROOT}"
 
 if [[ "${REPO_ROOT}" != "/" ]]; then
     # Apply FHS overlay. We rsync each top-level overlay dir if it exists.
@@ -59,5 +62,6 @@ if [[ -f /etc/containers/systemd/mios-ai.container ]]; then
     systemctl enable --now mios-ai.service || echo "[WARN] mios-ai.service not yet active; will retry on boot"
 fi
 
-echo "[ OK ] MiOS system installer complete."
-echo "       Log out and back in (or reboot) to pick up profile changes."
+echo "[ OK ] Phase-3 — MiOS system installer complete."
+echo "       Control returns to mios-bootstrap install.sh for Phase-3 user"
+echo "       staging and Phase-4 reboot prompt."
