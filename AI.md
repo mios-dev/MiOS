@@ -8,48 +8,47 @@ MiOS is an immutable bootc-native Fedora workstation OS delivered as an OCI imag
 
 | Path | Purpose |
 |---|---|
-| `/Containerfile` | OCI image definition (bootc, `FROM quay.io/fedora/fedora-bootc:42`) |
-| `/Justfile` | Build entry (`just build`, `just push`, `just clean`) |
-| `/automation/` | 48 shell scripts for system configuration |
-| `/usr/lib/systemd/` | 38 systemd units + 4 Quadlet container definitions |
-| `/usr/lib/dracut.conf.d/` + `/usr/lib/karg.d/` | 14 kernel argument files |
-| `/usr/share/mios/PACKAGES.md` | Package manifest (parsed by `automation/80-install-packages.sh`) |
+| `/Containerfile` | OCI image definition (bootc, FROM ucore-hci:stable) |
+| `/Justfile` | Build entry (`just build`, `just rechunk`, `just iso`, etc.) |
+| `/automation/` | 45 numbered phase scripts + lib/{common,packages,masking}.sh |
+| `/usr/lib/systemd/system/` | systemd units + drop-ins |
+| `/usr/lib/kargs.d/` | 14 kernel argument TOML files |
+| `/usr/share/mios/PACKAGES.md` | SSOT for all RPM packages (fenced packages-<category> blocks) |
 | `/usr/share/mios/profile.toml` | Vendor-default profile (lowest precedence) |
 | `/usr/share/mios/env.defaults` | Global `MIOS_*` env variable defaults |
 
 ## Global env surface
 
-All `MIOS_*` variables resolve via five-layer cascade (highest wins):
+All `MIOS_*` variables resolve via cascade (highest wins):
 
 ```
-$MIOS_VAR env → ~/.config/mios/env → /etc/mios/install.env → /etc/mios/env.overrides → /usr/share/mios/env.defaults
+~/.config/mios/env > /etc/mios/install.env > /etc/mios/env.d/*.env > /usr/share/mios/env.defaults
 ```
 
-Key vars: `MIOS_AI_MODEL`, `MIOS_AI_EMBED_MODEL`, `MIOS_AI_BASE_URL`, `MIOS_BASE_IMAGE`, `MIOS_VERSION`
+Key vars: `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, `MIOS_AI_EMBED_MODEL`, `MIOS_AI_KEY`, `MIOS_BASE_IMAGE`, `MIOS_VERSION`
 
 ## Build pipeline
 
 ```
-just build   # Containerfile → OCI image
-just push    # push to ghcr.io/mios-dev/mios:latest
-just clean   # prune local image cache
+just build          # Containerfile → OCI image → localhost/mios:latest
+just build-logged   # build with tee'd log
+just rechunk        # bootc-base-imagectl rechunk (smaller Day-2 deltas)
+just iso            # Anaconda installer ISO via bootc-image-builder
+just wsl2           # WSL2 tar.gz for wsl --import
+just sbom           # CycloneDX SBOM via syft
 ```
 
-Local dev: `./mios-build-local.ps1` (Windows) · `./automation/build.sh` (Linux)
-
-## Merge-at-build semantics
-
-At `just build`, `mios-bootstrap.git` is fetched and merged onto this repo via `automation/00-bootstrap-merge.sh`. Bootstrap values (user profile, AI files, flatpak lists) override the vendor defaults in this repo. The merged result is baked into the OCI image.
+Single-phase iteration: `bash automation/<NN>-<name>.sh`
 
 ## Six Architectural Laws
 
-1. **USR-OVER-ETC** — defaults in `/usr/share/`; overrides in `/etc/`; never reverse
-2. **NO-MKDIR-IN-VAR** — runtime dirs declared in `tmpfiles.d`, not `mkdir` in scripts
-3. **BOUND-IMAGES** — all container images pinned; never `:latest` in Quadlets
-4. **BOOTC-CONTAINER-LINT** — `RUN bootc container lint` is always the final Containerfile instruction
-5. **UNIFIED-AI-REDIRECTS** — all `MIOS_AI_*` vars point to `http://localhost:8080/v1`; no vendor endpoints in committed files
-6. **UNPRIVILEGED-QUADLETS** — all Quadlet containers run rootless unless security policy demands root
+1. **USR-OVER-ETC** — static config in `/usr/lib/<component>.d/`; `/etc/` for admin overrides only
+2. **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`
+3. **BOUND-IMAGES** — every Quadlet sidecar image symlinked in `/usr/lib/bootc/bound-images.d/`
+4. **BOOTC-CONTAINER-LINT** — `RUN bootc container lint` is the final Containerfile instruction
+5. **UNIFIED-AI-REDIRECTS** — `MIOS_AI_ENDPOINT/MODEL/KEY` target `http://localhost:8080/v1`; zero vendor URLs in committed files
+6. **UNPRIVILEGED-QUADLETS** — every Quadlet defines `User=`, `Group=`, `Delegate=yes`; exceptions: `mios-k3s.container`, `mios-ceph.container`
 
 ## Full agent context
 
-Load `/usr/share/mios/ai/system.md` for the complete prompt covering all 48 automation scripts, 38 systemd units, 4 Quadlets, 14 karg files, user creation, profile resolution, and day-2 operations.
+Load `/usr/share/mios/ai/system.md` for the complete prompt covering all automation scripts, systemd units, Quadlet sidecars, kernel args, user creation, profile resolution, and day-2 operations.
