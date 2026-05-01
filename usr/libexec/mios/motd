@@ -1,85 +1,129 @@
 #!/bin/bash
-# MiOS v0.2.0 — Enhanced MOTD Dashboard
-# Natively supports Role, MOK, and Update status (v0.2.0 baseline).
+# MiOS v0.2.2 -- System Dashboard (MOTD)
+# ASCII-safe, tty0/console compatible.
+# Suppress: export MIOS_NO_MOTD=1
 [[ $- != *i* ]] && exit 0
-[[ -n "$MIOS_NO_MOTD" ]] && exit 0
+[[ -n "${MIOS_NO_MOTD:-}" ]] && exit 0
 
-_ip() { ip -4 route get v0.2.0.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1; }
-IP=$(_ip); [[ -z "$IP" ]] && IP="v0.2.0.1"
-HN=$(hostname -s 2>/dev/null || echo "MiOS")
-_l() { printf '\e]8;;%s\e\\%s\e]8;;\e\\' "$1" "$2"; }
-C=$'\033[0;36m';W=$'\033[1;37m';G=$'\033[0;32m';Y=$'\033[0;33m';R=$'\033[0;31m';D=$'\033[0;90m';N=$'\033[0m'
+# ── Colors (ANSI basic -- safe for all TTYs) ─────────────────────────────────
+C=$'\033[0;36m'   # cyan
+W=$'\033[1;37m'   # bold white
+G=$'\033[0;32m'   # green
+Y=$'\033[0;33m'   # yellow
+R=$'\033[0;31m'   # red
+D=$'\033[0;90m'   # dark gray
+N=$'\033[0m'      # reset
 
-_s() {
+# ── Helpers ───────────────────────────────────────────────────────────────────
+_ip() {
+    ip -4 route get 1.1.1.1 2>/dev/null \
+      | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' \
+      | head -1
+}
+_svc() {   # _svc <unit> -- prints [OK] or [  ] in color
     if systemctl is-active --quiet "$1" 2>/dev/null; then
-        printf '%s' "${G}●${N}"
+        printf '%s[OK]%s' "$G" "$N"
     else
-        printf '%s' "${D}○${N}"
+        printf '%s[  ]%s' "$D" "$N"
     fi
 }
+_cnt() { printf '%d' "$(systemctl is-active --quiet "$1" 2>/dev/null && echo 1 || echo 0)"; }
+_bar() {   # _bar <used_pct> <width>
+    local pct=$1 w=$2 filled empty
+    filled=$(( pct * w / 100 ))
+    empty=$(( w - filled ))
+    printf '['; printf '%*s' "$filled" '' | tr ' ' '='; printf '%*s' "$empty" '' | tr ' ' '-'; printf '] %3d%%' "$pct"
+}
 
-# ── Header ──────────────────────────────────────────────────────────────────
-echo ""
-printf '%s\n' "${C}════════════════════════════════════════════════════════════${N}"
-printf '%s\n' "${W}  MiOS v0.2.0${N}  ${D}${HN} — ${IP}${N}"
-printf '%s\n' "${C}════════════════════════════════════════════════════════════${N}"
+IP=$(  _ip); [[ -z "$IP"  ]] && IP="(no route)"
+HN=$(  hostname -s 2>/dev/null || echo "mios")
+VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
 
-# ── Status Row (Role, Update, MOK) ──────────────────────────────────────────
-ROLE=$(grep "^ROLE=" /var/lib/mios/role.active 2>/dev/null | cut -d= -f2 || echo "unknown")
-case "$ROLE" in
-    desktop) ROLE_STR="${G}Desktop${N}" ;;
-    headless) ROLE_STR="${W}Headless${N}" ;;
-    k3s*) ROLE_STR="${C}K3s Master${N}" ;;
-    *) ROLE_STR="${Y}${ROLE}${N}" ;;
-esac
+# ── Hardware stats ────────────────────────────────────────────────────────────
+CPU_PCT=$(top -bn1 2>/dev/null | awk '/^%Cpu/{printf "%.0f", 100-$8}' || echo "?")
+MEM_TOTAL=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "?")
+MEM_AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "?")
+MEM_USED=$(( MEM_TOTAL - MEM_AVAIL ))
+MEM_PCT=$(( MEM_TOTAL > 0 ? MEM_USED * 100 / MEM_TOTAL : 0 ))
+DISK_PCT=$(df / 2>/dev/null | awk 'NR==2{sub(/%/,"",$5); print $5}' || echo "?")
+UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "?")
 
-MOK_STATUS="${R}✗ Unverified${N}"
+# ── MiOS-specific state ───────────────────────────────────────────────────────
+ROLE=$(  grep -m1 "^ROLE=" /var/lib/mios/role.active 2>/dev/null | cut -d= -f2 || echo "default")
+IMG_REF=$(bootc status --json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('booted',{}).get('image',{}).get('image',{}).get('image',''))" 2>/dev/null || echo "")
+[[ -z "$IMG_REF" ]] && IMG_REF=$(cat /usr/lib/os-release 2>/dev/null | grep PRETTY | cut -d= -f2 | tr -d '"' || echo "MiOS $MiosVersion")
+
+UPDATE_STR="${D}[  ] current${N}"
+if command -v bootc &>/dev/null; then
+    STAGED=$(bootc status --json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('staged') or '')" 2>/dev/null)
+    if [[ -n "$STAGED" && "$STAGED" != "None" ]]; then
+        UPDATE_STR="${Y}[!!] update staged${N}"
+    else
+        UPDATE_STR="${G}[OK] up-to-date${N}"
+    fi
+fi
+
+BOOT_STR="${D}[  ] standard${N}"
 if command -v mokutil &>/dev/null; then
     if mokutil --sb-state 2>/dev/null | grep -q "enabled"; then
-        MOK_STATUS="${G}✓ Secure Boot${N}"
+        BOOT_STR="${G}[OK] Secure Boot${N}"
     else
-        MOK_STATUS="${Y}○ SB Disabled${N}"
+        BOOT_STR="${Y}[  ] SB off${N}"
     fi
 fi
 
-UP_STATUS="${D}Check with 'mios update'${N}"
-if command -v bootc &>/dev/null; then
-    STAGED=$(bootc status --json 2>/dev/null | jq -r '.staged.image.image.repository' 2>/dev/null)
-    if [[ "$STAGED" != "null" && -n "$STAGED" ]]; then
-        UP_STATUS="${Y}⚠ Update Staged${N}"
-    else
-        UP_STATUS="${G}✓ Up-to-date${N}"
-    fi
+# ── AI stack ──────────────────────────────────────────────────────────────────
+AI_EP=$(grep -m1 "^endpoint" /etc/mios/ai/config.json 2>/dev/null | grep -oP 'http[^"]+' || echo "http://localhost:8080/v1")
+AI_MODEL=$(grep -m1 "^MIOS_AI_MODEL" /etc/mios/install.env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "qwen2.5-coder:7b")
+AI_PING="${D}[  ] offline${N}"
+if curl -sf --max-time 2 "${AI_EP}/models" &>/dev/null; then
+    AI_PING="${G}[OK] online${N}"
 fi
 
-printf '  Role: %-15s  Update: %-15s  Boot: %s\n' "$ROLE_STR" "$UP_STATUS" "$MOK_STATUS"
-echo ""
+CONTAINERS=$(podman ps -q 2>/dev/null | wc -l)
 
-# ── Management ──────────────────────────────────────────────────────────────
-printf '%s\n' "${W}  Management Interfaces${N}"
-printf '%s\n' "  $(_s cockpit.socket)  Cockpit           $(_l "https://${IP}:9090" "https://${IP}:9090")"
-printf '%s\n' "  $(_s sshd)  SSH               $(_l "ssh://${IP}" "${IP}:22")"
-
-if systemctl is-active --quiet gnome-remote-desktop 2>/dev/null; then
-    printf '%s\n' "  ${G}●${N}  Remote Login      $(_l "rdp://${IP}:3389" "${IP}:3389") ${D}(GRD)${N}"
-fi
-
-if podman ps --format '{{.Names}}' 2>/dev/null | grep -q mios-guacamole; then
-    printf '%s\n' "  ${G}●${N}  Browser Desktop   $(_l "http://${IP}:8080/guacamole/" "http://${IP}:8080/guacamole/")"
-fi
-
-# ── Infrastructure ──────────────────────────────────────────────────────────
-echo ""
-printf '%s\n' "${W}  Infrastructure Status${N}"
-printf '%s\n' "  $(_s firewalld)  Firewall          ${D}firewall-cmd --list-all${N}"
-printf '%s\n' "  $(_s podman.socket)  Podman            ${D}$(podman ps -q 2>/dev/null | wc -l) containers${N}"
-printf '%s\n' "  $(_s libvirtd.socket)  Libvirt           ${D}virt-manager / virsh${N}"
-
-# Optional
-if systemctl is-active --quiet k3s.service 2>/dev/null; then
-    printf '%s\n' "  ${G}●${N}  K3s API           $(_l "https://${IP}:6443" "https://${IP}:6443")"
-fi
+# ── Draw ──────────────────────────────────────────────────────────────────────
+W60="============================================================"
+S60="------------------------------------------------------------"
 
 echo ""
-printf '%s\n' "  ${D}Type 'mios' for management options. Output hidden via MIOS_NO_MOTD=1${N}"
+printf '%s\n' "${C}+${W60}+${N}"
+printf '%s\n' "${W}|  MiOS v0.2.2  --  ${HN}$(printf '%*s' $((42 - ${#HN})) '')${D}${IP}${N}  ${W}|${N}"
+printf '%s\n' "${C}+${S60}+${N}"
+printf "  %-12s %s\n" "Role:"   "$ROLE"
+printf "  %-12s %s\n" "Image:"  "$IMG_REF"
+printf "  %-12s %s  %-12s %s\n" "Update:" "$UPDATE_STR" "Boot:" "$BOOT_STR"
+printf "  %-12s %s\n" "Virt:"   "$VIRT"
+printf '%s\n' "${C}+${S60}+${N}"
+echo ""
+printf '  %s\n' "${W}System Resources${N}"
+printf '  %-10s ' "CPU:";   _bar "${CPU_PCT:-0}" 30; echo ""
+printf '  %-10s ' "Memory:"; _bar "$MEM_PCT"      30; printf '  %dM / %dM\n' "$MEM_USED" "$MEM_TOTAL"
+printf '  %-10s ' "Disk /":  _bar "${DISK_PCT:-0}" 30; echo "  $(df -h / 2>/dev/null | awk 'NR==2{print $3"/"$2}')"
+printf '  %-10s %s\n' "Uptime:" "$UPTIME"
+echo ""
+printf '%s\n' "${C}+${S60}+${N}"
+printf '  %s\n' "${W}Services${N}"
+printf '  %s  %-20s %s\n' "$(_svc cockpit.socket)"  "Cockpit"          "https://${IP}:9090"
+printf '  %s  %-20s %s\n' "$(_svc sshd)"            "SSH"              "${IP}:22"
+printf '  %s  %-20s %s\n' "$(_svc podman.socket)"   "Podman"           "${CONTAINERS} containers running"
+printf '  %s  %-20s %s\n' "$(_svc firewalld)"       "Firewall"         "firewall-cmd --list-all"
+printf '  %s  %-20s %s\n' "$(_svc libvirtd.socket)" "Libvirt"          "virsh / virt-manager"
+printf '  %s  %-20s %s\n' "$(_svc ollama.service)"  "Ollama"           "ollama list"
+printf '  %s  %-20s %s\n' "$(_svc mios-ai.service)" "LocalAI"          "$AI_EP  model: $AI_MODEL"
+
+# AI status
+printf '  %-24s %s\n' "  AI endpoint:" "$AI_PING"
+
+# Optional services
+systemctl is-active --quiet k3s.service 2>/dev/null && \
+  printf '  %s  %-20s %s\n' "${G}[OK]${N}" "K3s API" "https://${IP}:6443"
+
+systemctl is-active --quiet gnome-remote-desktop 2>/dev/null && \
+  printf '  %s  %-20s %s\n' "${G}[OK]${N}" "Remote Desktop (GRD)" "${IP}:3389 (RDP)"
+
+echo ""
+printf '%s\n' "${C}+${S60}+${N}"
+printf '  %s\n' "${D}Commands: mios  |  just build  |  bootc upgrade  |  MIOS_NO_MOTD=1 to suppress${N}"
+printf '%s\n' "${C}+${W60}+${N}"
 echo ""
