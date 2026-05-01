@@ -250,6 +250,10 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/*.service.d/**
 !/usr/lib/systemd/system/*.socket.d/
 !/usr/lib/systemd/system/*.socket.d/**
+!/usr/lib/systemd/system/*.mount.d/
+!/usr/lib/systemd/system/*.mount.d/**
+!/usr/lib/systemd/system/*.target.d/
+!/usr/lib/systemd/system/*.target.d/**
 # Exclude system-owned service.d dirs that MiOS doesn't manage
 usr/lib/systemd/system/systemd-udev-trigger.service.d/
 usr/lib/systemd/system/user@.service.d/
