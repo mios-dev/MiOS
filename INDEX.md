@@ -1,4 +1,4 @@
-# MiOS System Interface — v0.2.0
+# MiOS System Interface — v0.2.2
 
 Single source of truth for MiOS architectural laws and the OpenAI-compatible
 API surface. Sourced from `Containerfile`, `automation/`, `usr/lib/bootc/`,

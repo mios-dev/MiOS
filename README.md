@@ -3,7 +3,7 @@
 Immutable, bootc-native Fedora workstation OS distributed as an OCI
 image. Local OpenAI-compatible AI surface, FOSS-aligned.
 
-- **Version:** v0.2.0 (`VERSION`)
+- **Version:** v0.2.2 (`VERSION`)
 - **Image:** `ghcr.io/mios-dev/mios:latest`
 - **Bootstrap (user-facing installer):** <https://github.com/mios-dev/mios-bootstrap>
 

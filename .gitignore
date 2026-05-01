@@ -111,10 +111,14 @@ usr/*
 usr/bin/*
 !/usr/bin/mios
 
-# usr/share — mios/ and containers/systemd/ for LBI quadlets
+# usr/share — mios/ build files only; AI/user data tracked in mios-bootstrap.git
 usr/share/*
 !/usr/share/mios/
 !/usr/share/mios/**
+# AI files, knowledge, logs, user data belong in mios-bootstrap.git
+usr/share/mios/ai/
+usr/share/mios/memory/
+usr/share/mios/user-preferences.md
 !/usr/share/containers/
 usr/share/containers/*
 !/usr/share/containers/systemd/
