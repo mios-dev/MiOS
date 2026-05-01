@@ -1,21 +1,28 @@
-# MiOS .cursorrules — Engineering Standards (Day 0)
+# MiOS development agent rules — cursor/IDE AI assistant context.
+# Load /usr/share/mios/ai/system.md as the canonical system prompt.
+# Apply /etc/mios/ai/system-prompt.md as host-local override if present.
+# Apply ~/.config/mios/system-prompt.md as per-user override if present.
+# This file carries no tool-specific deltas — follow system.md verbatim.
 
-You are assisting in the development of the **MiOS** repository. MiOS is an immutable, AI-native workstation.
+## Architectural laws (non-negotiable)
 
-## ⚖️ Immutable Appliance Laws
-1. **USR-OVER-ETC**: Static config goes in `/usr/lib/`. No `/etc` in build context.
-2. **NO-MKDIR-IN-VAR**: Persistence via `tmpfiles.d`. No `/var` in build context.
-3. **UNPRIVILEGED-QUADLETS**: sidecars MUST define `User=`/`Group=` and `Delegate=yes`.
-4. **BOOTC-NATIVE**: Always ensure `bootc container lint` passes.
+1. USR-OVER-ETC: static config in /usr/lib/<component>.d/; /etc/ = admin overrides only
+2. NO-MKDIR-IN-VAR: every /var/ path declared via usr/lib/tmpfiles.d/*.conf
+3. BOUND-IMAGES: every Quadlet sidecar image symlinked in /usr/lib/bootc/bound-images.d/
+4. BOOTC-CONTAINER-LINT: RUN bootc container lint is the final Containerfile instruction
+5. UNIFIED-AI-REDIRECTS: MIOS_AI_ENDPOINT/MODEL/KEY target http://localhost:8080/v1; zero vendor URLs
+6. UNPRIVILEGED-QUADLETS: every Quadlet defines User=, Group=, Delegate=yes
 
-## 🛠 Coding Standards
-- **Pure FOSS**: No proprietary cloud APIs or services.
-- **Local AI**: Target the OpenAI-compatible proxy at `http://localhost:8080/v1`.
-- **Bash**: `set -euo pipefail`. Use `VAR=$((VAR + 1))`. Quote all variables.
-- **SSOT**: Consult `INDEX.md` for all architectural and API surface contracts.
+## Build standards
 
-## 📂 Key Directories
-- `usr/`: Immutable rootfs content.
-- `etc/`: Persistence templates.
-- `tools/`: Utility toolchain.
-- `specs/`: Research and blueprints.
+- Packages: /usr/share/mios/PACKAGES.md only (fenced packages-<category> blocks)
+- Shell: set -euo pipefail; VAR=$((VAR+1)) not ((VAR++)); dnf5: install_weak_deps=False
+- kargs: flat kargs = [...] array; no [kargs] header; no delete key
+- Never upgrade kernel/kernel-core; only kernel-modules-extra, kernel-devel, kernel-headers
+- All version pins, ports, paths defined in /usr/share/mios/env.defaults (MIOS_* vars)
+- Deliverables: complete replacement files only; no diffs, no patches
+
+## AI artifact sanitization
+
+No vendor/corporate names in persisted artifacts. No chat metadata. No foreign sandbox paths.
+All AI endpoints target http://localhost:8080/v1. Direct declarative prose only.

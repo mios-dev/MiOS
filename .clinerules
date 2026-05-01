@@ -1,8 +1,25 @@
-# MiOS Architectural Purity Rules
-# MANDATE: Enforce AI-native surface contract without conversational artifacts.
+# MiOS development agent rules — Cline/AI extension context.
+# Load /usr/share/mios/ai/system.md as the canonical system prompt.
+# Apply /etc/mios/ai/system-prompt.md as host-local override if present.
+# Apply ~/.config/mios/system-prompt.md as per-user override if present.
+# This file carries no tool-specific deltas — follow system.md verbatim.
 
-- **System Integrity:** Maintain absolute FHS compliance and immutable root purity.
-- **Declarative Hardware:** All hardware delegation must be in /usr/lib/bootc/kargs.d/.
-- **Zero-Trust:** Deny-by-default for execution (fapolicyd) and networking (firewalld).
-- **Automation:** Use "set -euo pipefail" for all shell logic.
-- **Surface:** /v1/ endpoints are pure relational schemas for local LLM discovery.
+## Architectural laws (non-negotiable)
+
+1. USR-OVER-ETC: static config in /usr/lib/<component>.d/; /etc/ = admin overrides only
+2. NO-MKDIR-IN-VAR: every /var/ path declared via usr/lib/tmpfiles.d/*.conf
+3. BOUND-IMAGES: every Quadlet sidecar image symlinked in /usr/lib/bootc/bound-images.d/
+4. BOOTC-CONTAINER-LINT: RUN bootc container lint is the final Containerfile instruction
+5. UNIFIED-AI-REDIRECTS: MIOS_AI_ENDPOINT/MODEL/KEY target http://localhost:8080/v1; zero vendor URLs
+6. UNPRIVILEGED-QUADLETS: every Quadlet defines User=, Group=, Delegate=yes
+
+## Repo structure
+
+The working directory is the OS root /. File paths are FHS paths, not repo-relative.
+System overlay (mios.git): /Containerfile, /Justfile, /automation/, /usr/share/mios/, /usr/lib/
+User overlay (mios-bootstrap.git): /etc/mios/, /usr/share/mios/ai/, /usr/share/mios/knowledge/
+
+## AI artifact sanitization
+
+No vendor/corporate names in persisted artifacts. No chat metadata. No foreign sandbox paths.
+All AI endpoints target http://localhost:8080/v1. Direct declarative prose only.

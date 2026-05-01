@@ -26,6 +26,9 @@
 !/.github/**
 !/AGENTS.md
 !/AI.md
+!/CLAUDE.md
+!/GEMINI.md
+!/system-prompt.md
 !/ARCHITECTURE.md
 !/CONTRIBUTING.md
 !/Containerfile
