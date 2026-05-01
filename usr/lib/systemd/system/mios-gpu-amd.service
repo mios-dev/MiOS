@@ -10,7 +10,7 @@ Wants=systemd-udev-settle.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/usr/sbin/modprobe -a amdgpu
-ExecStartPre=/usr/bin/install -d -m 0755 /var/run/cdi
+# /var/run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
 ExecStart=/usr/bin/bash -c ' \
   # If amd-ctk ever lands in Fedora RPM repos, drop a CDI spec automatically. \
   # Until then containers must pass --device /dev/kfd --device /dev/dri \

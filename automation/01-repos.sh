@@ -24,11 +24,14 @@ fi
 
 echo "[01-repos] Importing Fedora 44 GPG key..."
 # The fedora-gpg-keys package ships the key at this path on Fedora-based systems.
-# On ucore (which is CoreOS-based on Fedora), the key is present.
+# On ucore (which is CoreOS-based on Fedora), the key is usually present already.
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
-    # Fallback: import from the package if key file is missing
-    $DNF_BIN "${DNF_SETOPT[@]}" install -y fedora-gpg-keys 2>/dev/null || true
+    # Fallback: import from the package. Failure here is fatal — the F44 repo
+    # below uses repo_gpgcheck=1 and silently dropping the key would surface
+    # later as opaque "package not signed" errors on every install. (Audit
+    # 2026-05-01 finding: do not swallow this with 2>/dev/null.)
+    $DNF_BIN "${DNF_SETOPT[@]}" install -y fedora-gpg-keys
 fi
 
 echo "[01-repos] Adding Fedora 44 repository..."
@@ -57,7 +60,11 @@ priority=95
 EOREPO
 
 echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
-$DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --best     dnf rpm fedora-release fedora-repos filesystem systemd glibc dbus-broker 2>&1 || {
+# --best dropped per audit 2026-05-01: on the F44↔ucore boundary --best can
+# refuse the transaction over a single unresolvable kernel-adjacent dep, which
+# is then logged-and-continued, masking real breakage. --allowerasing is enough.
+$DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing \
+    dnf rpm fedora-release fedora-repos filesystem systemd glibc dbus-broker 2>&1 || {
     echo "[01-repos] NOTE: Pre-upgrade had warnings, continuing..."
 }
 

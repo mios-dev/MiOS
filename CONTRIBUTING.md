@@ -1,128 +1,122 @@
-<!-- [NET] MiOS Artifact | Proprietor: MiOS-DEV | https://github.com/MiOS-DEV/MiOS-bootstrap -->
-# [NET] MiOS
-```json:knowledge
-{
-  "summary": "> **Proprietor:** MiOS-DEV",
-  "logic_type": "documentation",
-  "tags": [
-    "MiOS",
-    "root"
-  ],
-  "relations": {
-    "depends_on": [
-      ".env.mios"
-    ],
-    "impacts": []
-  }
-}
-```
-> **Proprietor:** MiOS-DEV
-> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
-> **License:** Licensed as personal property to MiOS-DEV
----
 # Contributing to MiOS
 
-Thank you for your interest in contributing to MiOS. This document explains the project's conventions and how to submit changes.
+## Project rules
 
-## Project Philosophy
+- **Single source of truth: `INDEX.md` + `usr/share/mios/PACKAGES.md`.**
+  Every package belongs in `PACKAGES.md`, every architectural rule in
+  `INDEX.md`. Other docs cite, never duplicate.
+- **USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, BOOTC-CONTAINER-LINT,
+  UNIFIED-AI-REDIRECTS, UNPRIVILEGED-QUADLETS** — see `INDEX.md` §3.
+  Violating any of the six is a build/audit fail.
+- **Pure build-up.** Only the ~25 GNOME packages required for the desktop
+  ship. No `dnf remove` bloat blocks. User-facing apps are Flatpaks; RPMs
+  are restricted to kernel modules, drivers, virtualization, container
+  runtime, system tools, and GNOME infrastructure.
+- **Nothing gets removed without permission.** If a file or package
+  exists in the repo, do not delete it in a PR without prior discussion.
+- **Complete files only.** No diffs, patches, fragments, or
+  "paste this into X" instructions. Every contribution is a drop-in
+  replacement.
 
-MiOS is an immutable, cloud-native workstation OS built on Fedora Rawhide bootc. Every decision follows these principles:
+## Prerequisites
 
-- **Architectural Purity (Single Source of Truth):** ALL system configuration files, units, rules, and kargs MUST reside in the `` overlay. Top-level configuration directories are forbidden to prevent build-time path desynchronization.
-- **Declarative State (No Mkdir in Var):** In the bootc model, `/var` is a persistent volume. Any new directory or configuration required in `/var` MUST be declared in a `tmpfiles.d` file within the overlay. Manual `mkdir -p /var/...` calls in provisioning scripts are strictly forbidden.
-- **Pure build-up for GNOME**  only the explicitly needed ~25 GNOME packages are installed. No `dnf remove` bloat blocks. All user-facing apps are Flatpaks; RPMs are restricted to kernel modules, drivers, virtualization stack, container runtime, system tools, and GNOME infrastructure.
-- **PACKAGES.md is the single source of truth**  all package lists live in fenced code blocks parsed by `automation/lib/packages.sh`. Scripts use `install_packages`/`get_packages` helpers. Never add packages outside this system.
-- **Nothing gets removed without explicit permission**  if a file or package exists in the repo, do not remove it in your PR without discussing it first.
-- **Deliver complete files only**  never submit patches, diffs, fragments, or "paste this into X" instructions. Every contribution must be a drop-in replacement file.
+- Podman (rootful, for bootc image builds)
+- 8 GB RAM, 250 GB disk on the builder
+- Windows: PowerShell 7+ and WSL2
 
-## Getting Started
+## Building
 
-### Prerequisites
-
-- Podman (rootful, for building bootc images)
-- A machine with at least 8 GB RAM and 250 GB disk for the builder
-- On Windows: PowerShell 7+ and WSL2
-
-### Building locally
-
-On Linux (using the Justfile):
+Linux:
 
 ```bash
-just build      # Build the OCI image
-just lint       # Run bootc container lint
-just rechunk    # Rechunk for optimized deltas
-just raw        # Generate RAW disk image via BIB
-just iso        # Generate Anaconda ISO via BIB
+just preflight   # System prereq check
+just build       # Build the OCI image
+just lint        # Re-run bootc container lint on the built image
+just rechunk     # Optimized Day-2 deltas
+just raw         # RAW disk image via BIB
+just iso         # Anaconda ISO via BIB
+just sbom        # CycloneDX SBOM via syft
 ```
 
-On Windows (using the PowerShell orchestrator):
+Windows:
 
 ```powershell
+.\preflight.ps1
 .\mios-build-local.ps1
 ```
 
-The PowerShell script handles Podman machine creation, credential injection, image build, rechunk, disk image generation (RAW, VHDX, WSL, ISO), GHCR push, and cleanup.
+The PowerShell orchestrator handles Podman machine creation, credential
+injection, image build, rechunk, disk-image generation, GHCR push, and
+cleanup.
 
-## Code Conventions
+## Code conventions
 
 ### Shell scripts
 
-- Always start with `set -euo pipefail` (except `build.sh` which uses `set -uo pipefail` for per-script error handling).
-- Use `VAR=$((VAR + 1))` for arithmetic. Never use `((VAR++))`  it exits 1 when the result is 0, which kills the script under `set -e`.
-- Use the `install_packages` / `install_packages_strict` / `install_packages_optional` helpers from `automation/lib/packages.sh`.
-- Numbered script naming: `NN-name.sh` where NN is the execution order (01, 02, 10, 11, 12, 20, 99).
+- `set -euo pipefail`. `automation/build.sh` runs with `-e` and toggles
+  `set +e` only around the per-phase invocation
+  (`automation/build.sh:234-237`); phase scripts themselves are strict.
+- Arithmetic: `VAR=$((VAR + 1))`. Never `((VAR++))`.
+- Use `install_packages` / `install_packages_strict` /
+  `install_packages_optional` from `automation/lib/packages.sh`. Never
+  call `dnf install` on hard-coded names.
+- File naming: `NN-name.sh` where NN encodes execution order.
 
 ### Containerfile
 
-- Bind mounts from the `ctx` stage are READ-ONLY. Any `sed -i` or `chmod` must operate on `/tmp/build` copies.
-- `SYSTEMD_OFFLINE=1` and `container=podman` must be set to prevent systemd scriptlet hangs.
-- Always end with `bootc container lint`.
+- `/ctx` is bind-mounted read-only from the `ctx` stage. Mutating writes
+  go to `/tmp/build`.
+- `SYSTEMD_OFFLINE=1` and `container=podman` to prevent scriptlet hangs
+  (set automatically by Podman; do not override).
+- Final RUN must be `bootc container lint`.
 
 ### System files
 
-- Configuration that should be immutable goes in `/usr/lib/` (sysctl, systemd units, bootc kargs).
-- Configuration that admins may override goes in `/etc/`.
-- The `` directory mirrors the root filesystem  files are copied via `cp -a` in the Containerfile.
+- Immutable config: `/usr/lib/`.
+- Admin-overridable config: `/etc/` (only when upstream contract demands
+  /etc/, e.g., yum repos, nvidia-container-toolkit).
+- The `usr/`, `etc/`, `home/`, `srv/` directories at repo root mirror the
+  deployed root; the overlay is applied by
+  `automation/08-system-files-overlay.sh`.
 
 ### SELinux
 
-- Custom policies use individual per-rule `.te` modules (not monolithic).
-- New booleans and fcontexts go in the semanage import block in `99-overrides.sh`.
+- Per-rule individual `.te` modules, not monolithic.
+- New booleans/fcontexts go in the `semanage` block of
+  `automation/37-selinux.sh`.
 
 ### Services
 
-- Bare-metal-only services get `ConditionVirtualization=no` drop-ins.
-- WSL2-incompatible services get `ConditionVirtualization=!wsl` gating (native systemd detection, v252+).
-- Use `systemctl enable ... || true` for optional services that may not be installed.
+- Bare-metal-only: `ConditionVirtualization=no` drop-in.
+- WSL2-incompatible: `ConditionVirtualization=!wsl`.
+- Optional: `systemctl enable ... || true`.
 
-## Submitting Changes
+## Submitting changes
 
-1. Fork the repository and create a feature branch from `main`.
-2. Make your changes following the conventions above.
-3. Test locally with `podman build` and `bootc container lint` at minimum.
-4. Update `PACKAGES.md` if you added or changed packages.
-5. Update `VERSION` if the change is user-facing.
-6. Add an entry to `changelogs/03-Cumulative-Changelog.md`.
-7. Open a pull request against `main` using the PR template.
+1. Branch from `main`.
+2. Local validation: `just build` (Containerfile lint runs as final RUN).
+3. If you added or changed packages, edit `usr/share/mios/PACKAGES.md`.
+4. If user-facing, bump `VERSION`.
+5. Open a PR against `main`.
 
-## Reporting Issues
+## Issue templates
 
-Use the GitHub issue templates:
-
-- **Bug Report**  for things that are broken
-- **Feature Request**  for new functionality
-- **Security**  for vulnerabilities (use private reporting for sensitive issues)
+- Bug Report — for broken behavior.
+- Feature Request — for new functionality.
+- Security — see `SECURITY.md` for private disclosure.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same terms as the project (see LICENSE file).
+Contributions are accepted under the project license (Apache-2.0,
+`LICENSE`).
 
----
-###  Bootc Ecosystem & Resources
-- **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
-- **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
-- **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [MiOS-DEV/MiOS-bootstrap](https://github.com/MiOS-DEV/MiOS-bootstrap)
-- **Sole Proprietor:** MiOS-DEV
----
-<!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-DEV -->
+## Upstream references
+
+- bootc: <https://github.com/containers/bootc>
+- bootc-image-builder: <https://github.com/osbuild/bootc-image-builder>
+- bootc docs: <https://bootc-dev.github.io/bootc/>
+- Universal Blue (uCore base): <https://github.com/ublue-os/main>
+- uupd: <https://github.com/ublue-os/uupd>
+- rechunk: <https://github.com/hhd-dev/rechunk>
+- cosign: <https://github.com/sigstore/cosign>
+- bootstrap repo (user-facing installer): <https://github.com/mios-dev/mios-bootstrap>

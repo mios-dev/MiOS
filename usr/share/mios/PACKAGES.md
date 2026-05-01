@@ -64,6 +64,57 @@ dnf-plugins-core
 dnf5-plugins
 ```
 
+## Base — Security Stack (installed pre-pipeline)
+
+Installed by Containerfile before automation/build.sh runs because every
+later phase assumes SELinux tooling, audit, fapolicyd, crowdsec, and
+usbguard are already present. Strict install: a missing package here is a
+build failure, not a silent skip.
+
+```packages-base
+policycoreutils-python-utils
+selinux-policy-targeted
+firewalld
+audit
+fapolicyd
+crowdsec
+usbguard
+```
+
+## Moby — Docker-compatible engine
+
+Installed by automation/21-moby-engine.sh.
+
+```packages-moby
+moby-engine
+```
+
+## UKI — Unified Kernel Image tooling
+
+Installed by automation/23-uki-render.sh.
+
+```packages-uki
+systemd-ukify
+```
+
+## SBOM — Software Bill of Materials tooling
+
+Installed by automation/90-generate-sbom.sh.
+
+```packages-sbom-tools
+syft
+```
+
+## K3s SELinux build dependencies
+
+Installed by automation/19-k3s-selinux.sh to build the k3s SELinux module.
+
+```packages-k3s-selinux-build
+selinux-policy-devel
+git
+make
+```
+
 ## Kernel
 
 Kernel extras + development headers for akmod-nvidia and DKMS builds.
@@ -679,7 +730,7 @@ gdm
 podman
 bootc
 libvirt
-kernel
+kernel-core
 firewalld
 cockpit
 NetworkManager

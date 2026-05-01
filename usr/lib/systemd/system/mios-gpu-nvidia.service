@@ -17,7 +17,7 @@ Before=nvidia-cdi-refresh.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/usr/sbin/modprobe -a nvidia nvidia_uvm nvidia_modeset nvidia_drm
-ExecStartPre=/usr/bin/install -d -m 0755 /var/run/cdi
+# /var/run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
 ExecStart=/usr/bin/bash -c ' \
   if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null \
        | grep -q nvidia-cdi-refresh; then \

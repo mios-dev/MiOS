@@ -26,6 +26,10 @@ Environment=K3S_TOKEN=mios-cluster-secret
 Volume=/var/lib/rancher/k3s:/var/lib/rancher/k3s:Z
 Volume=/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:ro
 Exec=server --disable=traefik
+# Documented exception (see header): User=/Group= declared explicitly as
+# root per LAW 6, even though K3s requires Privileged=true and uid 0.
+User=root
+Group=root
 
 [Service]
 Restart=always

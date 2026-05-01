@@ -1,54 +1,56 @@
-# MiOS System Interface — OpenAI-Native Surface (v0.2.0)
+# MiOS System Interface — v0.2.0
 
-```json:knowledge
-{
-  "summary": "The SINGLE SOURCE OF TRUTH for MiOS. Architectural laws and API surface contracts in a unified OpenAI-compliant manifest.",
-  "logic_type": "specification",
-  "tags": ["MiOS", "OpenAI", "SSOT"],
-  "relations": {
-    "depends_on": [".env.mios"],
-    "impacts": [
-      "ARCHITECTURE.md",
-      "ENGINEERING.md",
-      "system-prompt.md"
-    ]
-  },
-  "version": "v0.2.0"
-}
-```
+Single source of truth for MiOS architectural laws and the OpenAI-compatible
+API surface. Sourced from `Containerfile`, `automation/`, `usr/lib/bootc/`,
+`usr/share/mios/ai/v1/`, and the upstream specs cited inline.
 
-## 1. System Profile
-MiOS is an immutable, AI-native workstation operating system. It exposes a standardized surface for autonomous agents to interact with system resources via OpenAI-compatible APIs.
+## 1. System profile
 
----
+MiOS is an immutable, bootc-managed Linux workstation OS distributed as an
+OCI image. Source: `README.md`, `Containerfile`. Image:
+`ghcr.io/mios-dev/mios:latest`.
 
-## 2. API Surface (OpenAI Native)
-All system agents target the local proxy at `http://localhost:8080/v1`.
+## 2. API surface (OpenAI-compatible)
 
-| Path | Method | Purpose | Deployed Path |
-|---|---|---|---|
-| `/v1/chat/completions` | POST | Primary System Interaction | - |
-| `/v1/models` | GET | Inventory Discovery | `/usr/share/mios/ai/v1/models.json` |
-| `/v1/mcp` | FS | Context Registry | `/usr/share/mios/ai/v1/mcp.json` |
+All system agents target the local proxy at `http://localhost:8080/v1`,
+served by the LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`.
 
----
+| Path | Method | Manifest |
+|---|---|---|
+| `/v1/chat/completions` | POST | LocalAI runtime |
+| `/v1/models` | GET | `usr/share/mios/ai/v1/models.json` |
+| `/v1/mcp` | filesystem | `usr/share/mios/ai/v1/mcp.json` |
 
-## 3. Operational Invariants
-1. **USR-OVER-ETC**: Persistent defaults reside in `/usr/lib/`.
-2. **STATELÉSS-VAR**: Mutable state is declared via `tmpfiles.d`.
-3. **UNPRIVILEGED-EXECUTION**: All agent containers execute without root privileges.
-4. **BOOTC-LIFECYCLE**: System updates are managed via OCI image commits.
+Spec: <https://platform.openai.com/docs/api-reference>.
 
----
+## 3. Architectural laws (enforced; non-negotiable)
 
-## 📂 Environment Map (Indexed Verbs)
+| # | Law | Enforced by |
+|---|---|---|
+| 1 | **USR-OVER-ETC** — static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only. Exceptions documented per-file (e.g., `/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/` — upstream-contract surfaces). | `automation/`, `usr/lib/`, `etc/` |
+| 2 | **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. | `usr/lib/tmpfiles.d/mios*.conf` |
+| 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh:74-86`. | `usr/lib/bootc/bound-images.d/` |
+| 4 | **BOOTC-CONTAINER-LINT** — final RUN of `Containerfile`. | `Containerfile` (last `RUN`) |
+| 5 | **UNIFIED-AI-REDIRECTS** — `MIOS_AI_KEY`, `MIOS_AI_MODEL`, `MIOS_AI_ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
+| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s` declare `User=root`/`Group=root` because Ceph/K3s require uid 0 (see file headers). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
-| Variable | Verb | Scope | Purpose |
-|---|---|---|---|
-| `MIOS_AI_KEY` | `SET_KEY` | AI | API Key for local inference. |
-| `MIOS_AI_MODEL` | `SET_MODEL` | AI | Target model for system operations. |
-| `MIOS_BASE_IMAGE` | `GET_BASE` | SYS | Root OCI image reference. |
-| `MIOS_LOCAL_TAG` | `SET_TAG` | SYS | Local image identifier. |
+## 4. Environment contract
 
----
-*Copyright (c) 2026 MiOS. Pure FOSS. Zero Day Ready.*
+| Variable | Scope | Purpose |
+|---|---|---|
+| `MIOS_AI_KEY` | AI | Local inference key (default empty for unauthenticated localhost). |
+| `MIOS_AI_MODEL` | AI | Target model id resolved via `usr/share/mios/ai/v1/models.json`. |
+| `MIOS_AI_ENDPOINT` | AI | API base URL. Default `http://localhost:8080/v1`. |
+| `MIOS_BASE_IMAGE` | build | OCI base image (default `ghcr.io/ublue-os/ucore-hci:stable-nvidia`, `Justfile:45`). |
+| `MIOS_LOCAL_TAG` | build | Local image tag (default `localhost/mios:latest`, `Justfile:13`). |
+| `MIOS_USER` / `MIOS_HOSTNAME` | build | Default account/hostname baked into the image (`Containerfile:26-27`). |
+| `MIOS_FLATPAKS` | build | Comma-separated Flatpak refs (`Containerfile:28`). |
+
+## 5. Cross-references
+
+- Build pipeline architecture: `CLAUDE.md`, `automation/build.sh`.
+- Filesystem and hardware layout: `ARCHITECTURE.md`.
+- Security posture and hardening kargs: `SECURITY.md`, `usr/lib/bootc/kargs.d/`.
+- Build modes (CI, Linux, Windows, self-build): `SELF-BUILD.md`.
+- Contribution conventions: `CONTRIBUTING.md`.
+- Component licenses: `LICENSES.md`.

@@ -3,11 +3,11 @@ set -euo pipefail
 
 echo "==> Compiling and Installing K3s SELinux Policy for Fedora 44..."
 
-# shellcheck source=lib/common.sh
+# shellcheck source=lib/packages.sh
+source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
-# Install SELinux development tools required for compilation
-$DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" selinux-policy-devel git make
+install_packages "k3s-selinux-build"
 
 # Pin to a specific stable release tag — HEAD clones pick up unreviewed commits.
 # Update K3S_SELINUX_TAG when bumping K3s to stay in sync with its SELinux policy.

@@ -3,7 +3,8 @@
 # Uses Syft to generate CycloneDX and SPDX manifests for the final image.
 set -euo pipefail
 
-# shellcheck source=lib/common.sh
+# shellcheck source=lib/packages.sh
+source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
 echo "[90-generate-sbom] Starting SBOM generation..."
@@ -11,10 +12,9 @@ echo "[90-generate-sbom] Starting SBOM generation..."
 ARTIFACT_DIR="/usr/lib/mios/artifacts/sbom"
 mkdir -p "$ARTIFACT_DIR"
 
-# Check if syft is available
 if ! command -v syft &> /dev/null; then
-    echo "[90-generate-sbom] WARN: Syft not found. Attempting to install..."
-    $DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" syft || {
+    echo "[90-generate-sbom] WARN: Syft not found. Attempting to install via PACKAGES.md..."
+    install_packages "sbom-tools" || {
         echo "[90-generate-sbom] ERROR: Failed to install Syft. Skipping SBOM generation."
         exit 0 # Non-fatal
     }

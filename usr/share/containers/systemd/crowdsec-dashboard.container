@@ -7,10 +7,13 @@ Wants=network-online.target
 Image=docker.io/crowdsecurity/crowdsec:latest
 Network=mios.network
 AutoUpdate=registry
+User=mios-crowdsec
+Group=mios-crowdsec
 
 [Service]
 Restart=on-failure
 RestartSec=10
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target

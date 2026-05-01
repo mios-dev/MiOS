@@ -7,10 +7,13 @@ Wants=network-online.target
 Image=docker.io/guacamole/guacd:latest
 Network=mios.network
 AutoUpdate=registry
+User=mios-guacd
+Group=mios-guacd
 
 [Service]
 Restart=on-failure
 RestartSec=10
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target

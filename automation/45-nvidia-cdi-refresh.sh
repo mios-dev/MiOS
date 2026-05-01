@@ -18,17 +18,10 @@ if [[ -f "$OCI_HOOK" ]]; then
     rm -f "$OCI_HOOK"
 fi
 
-# Pin nvidia-container-toolkit version in the CDI env file.
-# The systemd service reads this at boot via EnvironmentFile.
-install -d -m 0755 /etc/nvidia-container-toolkit
-cat >/etc/nvidia-container-toolkit/cdi-refresh.env <<'EOF'
-# Managed by 45-nvidia-cdi-refresh.sh
-# CDI output path — runtime location preferred by bootc (ephemeral, cleared on boot).
-CDI_OUTPUT_PATH=/var/run/cdi/nvidia.yaml
-# Debug logging — set to 1 for troubleshooting.
-NVIDIA_CTK_DEBUG=0
-EOF
-chmod 0644 /etc/nvidia-container-toolkit/cdi-refresh.env
+# /etc/nvidia-container-toolkit/cdi-refresh.env is created at first boot via
+# usr/lib/tmpfiles.d/mios-gpu.conf (`f` create-if-missing). nvidia-container-
+# toolkit's upstream systemd unit reads from /etc/ by hard-coded path, so this
+# file lives in the upstream-contract /etc/ surface, not /usr/lib/.
 
 # Enable units using build-safe symlinks
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
@@ -49,7 +42,7 @@ do
     fi
 done
 
-# Ensure CDI persistent dir exists; tmpfiles.d/mios-gpu.conf creates the runtime dir.
-install -d -m 0755 /etc/cdi
+# /etc/cdi and /var/run/cdi are declared in usr/lib/tmpfiles.d/mios-gpu.conf
+# (LAW 2 — NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
 
 log "CDI refresh pipeline configured"

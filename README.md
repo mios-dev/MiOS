@@ -1,79 +1,60 @@
 # MiOS
 
-> Immutable, bootc-native workstation OS. Self-hosted, OpenAI-API native,
-> aligned to FOSS standards. Monorepo for the system layer.
+Immutable, bootc-native Fedora workstation OS distributed as an OCI
+image. Local OpenAI-compatible AI surface, FOSS-aligned.
 
-**Version:** v0.2.0
-**Image:** `ghcr.io/MiOS-DEV/mios:latest`
-**Bootstrap (installer):** https://github.com/MiOS-DEV/MiOS-bootstrap
-
----
+- **Version:** v0.2.0 (`VERSION`)
+- **Image:** `ghcr.io/mios-dev/mios:latest`
+- **Bootstrap (user-facing installer):** <https://github.com/mios-dev/mios-bootstrap>
 
 ## What lives here
 
-This repository is the **system layer** of MiOS. It contains:
+This repo is the **system layer**. It contains:
 
-- **Build infrastructure** -- `Containerfile`, `Justfile`, `build-mios.sh`,
-  `mios-build-local.ps1`, `preflight.ps1`, `push-to-github.ps1`, all the
-  scripts and config that build the bootc OCI image.
-- **System-side installer** -- `install.sh` applies the FHS overlay to a
-  non-bootc Fedora host. (On bootc-managed hosts, use `bootc switch` instead.)
-- **FHS overlay** -- `usr/`, `etc/`, `var/`, `srv/`, `v1/` are the
-  files baked into the deployed image. The repository's working tree mirrors
-  the deployed root.
-- **System docs** -- `INDEX.md`, `AGENTS.md`, `SECURITY.md`, `SELF-BUILD.md`,
-  `DEPLOY.md`.
-- **CI** -- `.github/workflows/mios-ci.yml` builds the image on every push.
+- Build infrastructure: `Containerfile`, `Justfile`, `build-mios.sh`,
+  `mios-build-local.ps1`, `preflight.ps1`, `push-to-github.ps1`.
+- Build pipeline: `automation/build.sh` orchestrates 50+ numbered phase
+  scripts under `automation/`.
+- FHS overlay: `usr/`, `etc/`, `home/`, `srv/`, `v1/` mirror the
+  deployed image root 1:1.
+- System docs: `INDEX.md`, `ARCHITECTURE.md`, `ENGINEERING.md`,
+  `SECURITY.md`, `SELF-BUILD.md`, `DEPLOY.md`, `CONTRIBUTING.md`.
+- CI: `.github/workflows/mios-ci.yml`.
 
-## What does NOT live here
+User-facing install, dotfiles, env templates, and the interactive setup
+wizard live in `mios-bootstrap`. End users do not clone this repo
+directly.
 
-User-facing installation, dotfiles, env templates, and the interactive setup
-wizard live in **MiOS-bootstrap**. End users never clone this repo directly;
-they run the bootstrap installer, which (on FHS hosts) clones MiOS automatically
-to apply the system overlay.
-
-## Installation flows
-
-### Bootc-managed Fedora host (preferred)
-
-End users run:
+## Install
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/install.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.sh)"
 ```
 
-The bootstrap installer prompts for username, hostname, password, etc. (all
-defaulting to `mios`), then runs `bootc switch ghcr.io/MiOS-DEV/mios:latest`.
-Reboot to activate.
+On a bootc-managed Fedora host this resolves to `bootc switch
+ghcr.io/mios-dev/mios:latest`. On an FHS host it clones this repo and
+runs `install.sh` for the FHS overlay. See `DEPLOY.md`.
 
-### FHS Fedora Server host
-
-The same bootstrap one-liner. On a non-bootc host, bootstrap clones this repo
-and runs `install.sh` to lay down the FHS overlay.
-
-### Local build
-
-For developers working on MiOS itself:
-
-```powershell
-# Windows host
-.\\mios-build-local.ps1
-```
+## Build
 
 ```bash
-# Linux host
-./build-mios.sh
+just preflight      # System prereq check
+just build          # OCI image
+just lint           # bootc container lint (re-run on built image)
+just rechunk        # Optimized Day-2 deltas
+just iso            # Anaconda installer ISO
+just sbom           # CycloneDX SBOM
 ```
 
-Both orchestrators read defaults from `image-versions.yml` and the user's
-`/etc/mios/install.env` (written by bootstrap).
+Windows: `.\preflight.ps1 ; .\mios-build-local.ps1`. See `SELF-BUILD.md`.
 
 ## Architecture
 
-Single source of truth: [INDEX.md](INDEX.md). Agent contract for the deployed
-system: [AGENTS.md](AGENTS.md).
+Single source of truth: `INDEX.md`. Build pipeline and code conventions:
+`ENGINEERING.md`. Filesystem and hardware: `ARCHITECTURE.md`. Security
+posture: `SECURITY.md`. Agent contract: `usr/share/mios/ai/system.md`
+(canonical), `CLAUDE.md` / `GEMINI.md` / `AGENTS.md` (per-tool stubs).
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [LICENSES.md](LICENSES.md) for vendored
-component licenses.
+Apache-2.0 (`LICENSE`). Bundled-component licenses in `LICENSES.md`.

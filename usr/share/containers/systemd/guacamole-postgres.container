@@ -7,10 +7,13 @@ Wants=network-online.target
 Image=docker.io/library/postgres:16
 Network=mios.network
 AutoUpdate=registry
+User=mios-postgres
+Group=mios-postgres
 
 [Service]
 Restart=on-failure
 RestartSec=10
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target

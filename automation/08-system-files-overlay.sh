@@ -71,19 +71,20 @@ log "08-overlay: normalizing systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 
-# Logically Bound Images
-QDIR="/usr/share/containers/systemd"
+# Logically Bound Images — bind every Quadlet from both vendor and admin paths
+# (see ARCHITECTURAL LAW 3 — BOUND-IMAGES).
 BDIR="/usr/lib/bootc/bound-images.d"
-if [[ -d "${QDIR}" ]]; then
-    install -d -m 0755 "${BDIR}"
-    shopt -s nullglob
+install -d -m 0755 "${BDIR}"
+shopt -s nullglob
+for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
+    [[ -d "${QDIR}" ]] || continue
     for q in "${QDIR}"/*.container; do
         name="$(basename "$q")"
-        ln -sf "${QDIR}/${name}" "${BDIR}/${name}"
-        log "  LBI: bound ${name}"
+        ln -sf "${q}" "${BDIR}/${name}"
+        log "  LBI: bound ${name} (${QDIR})"
     done
-    shopt -u nullglob
-fi
+done
+shopt -u nullglob
 
 # ═══ Pathing Compatibility ═══
 log "08-overlay: applying pathing compatibility symlinks"

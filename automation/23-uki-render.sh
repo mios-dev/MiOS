@@ -3,16 +3,15 @@ set -euo pipefail
 
 echo "==> Preparing Unified Kernel Image (UKI) configuration..."
 
-# shellcheck source=lib/common.sh
+# shellcheck source=lib/packages.sh
+source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
-# systemd-ukify and binutils are required for this step.
-# Ensure they are declared in specs/engineering/2026-04-26-Artifact-ENG-001-Packages.md per the single-source-of-truth rules.
-# The packages-boot section installs ukify via install_packages (--skip-unavailable),
-# so install explicitly here as a safety net to guarantee it ends up in the image.
+# packages-boot already pulls systemd-ukify; reinstall via the SSOT block as a
+# safety net in case --skip-unavailable dropped it on a constrained mirror.
 if ! rpm -q systemd-ukify >/dev/null 2>&1; then
-    echo "==> systemd-ukify not found via boot-section install; installing explicitly..."
-    $DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" systemd-ukify
+    echo "==> systemd-ukify not found via boot-section install; reinstalling via PACKAGES.md..."
+    install_packages_strict "uki"
 fi
 
 # In a bootc Containerfile build, we use `bootc container render-kargs`

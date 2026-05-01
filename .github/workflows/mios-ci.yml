@@ -26,6 +26,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read VERSION
+        id: ver
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -47,7 +51,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=v0.2.0,enable={{is_default_branch}}
+            type=raw,value=${{ steps.ver.outputs.version }},enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
@@ -64,12 +68,38 @@ jobs:
           provenance: true
           sbom: true
 
+      # Rechunking produces 5-10x smaller Day-2 deltas (Justfile:rechunk).
+      # Only worth the cost on tag pushes; branch builds skip it.
+      - name: Install podman
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y podman
+
+      - name: Rechunk on tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          IMAGE_TAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}
+        run: |
+          podman pull "${IMAGE_TAG}"
+          podman run --rm \
+            --security-opt label=type:unconfined_t \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            "${IMAGE_TAG}" \
+            /usr/libexec/bootc-base-imagectl rechunk --max-layers 67 \
+              "containers-storage:${IMAGE_TAG}" \
+              "containers-storage:${IMAGE_TAG}-rechunked"
+          podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+          podman tag "${IMAGE_TAG}" "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          podman push "${IMAGE_TAG}"
+          podman push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+
       - name: Install cosign
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: sigstore/cosign-installer@v3
 
       - name: Cosign keyless sign
-        if: github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           COSIGN_EXPERIMENTAL: '1'
         run: |
@@ -90,6 +120,6 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y podman
 
-      - name: Build for smoke test
+      - name: Smoke build (lint via Containerfile final RUN)
         run: |
           podman build -t mios:smoke -f Containerfile .

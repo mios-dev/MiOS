@@ -27,30 +27,34 @@ ARG MIOS_USER=mios
 ARG MIOS_HOSTNAME=mios
 ARG MIOS_FLATPAKS=
 
-COPY --from=ctx /ctx /ctx
-
-RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
+# Build context is bind-mounted read-only from the `ctx` stage; the only
+# writable copy lives under /tmp/build for scripts that need to mutate it.
+RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
+    --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
-    dnf install -y --skip-unavailable --setopt=install_weak_deps=False \
-        policycoreutils-python-utils \
-        selinux-policy-targeted \
-        firewalld \
-        audit \
-        fapolicyd \
-        crowdsec \
-        usbguard; \
+    install -d -m 0755 /tmp/build; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/home /ctx/PACKAGES.md /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    export PACKAGES_MD=/tmp/build/PACKAGES.md; \
+    bash /tmp/build/automation/lib/packages.sh >/dev/null 2>&1 || true; \
+    source /tmp/build/automation/lib/packages.sh; \
+    install_packages_strict base; \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
-        echo "${MIOS_FLATPAKS}" | tr "," "\n" > /ctx/usr/share/mios/flatpak-list; \
+        echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \
-    bash /ctx/automation/08-system-files-overlay.sh; \
-    chmod +x /ctx/automation/build.sh /ctx/automation/*.sh 2>/dev/null || true; \
+    bash /tmp/build/automation/08-system-files-overlay.sh; \
+    chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
-    /ctx/automation/build.sh; \
+    CTX=/tmp/build /tmp/build/automation/build.sh; \
     dnf clean all; \
+    rm -rf /tmp/build; \
     find /var -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf {} +; \
     find /run -mindepth 1 -maxdepth 1 ! -name "secrets" -exec rm -rf {} + 2>/dev/null || true
 
 RUN bootc completion bash > /etc/bash_completion.d/bootc
-RUN mkdir -p /usr/lib/extensions/source && chmod +x /ctx/tools/mios-sysext-pack.sh && /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
-RUN rm -rf /ctx && bootc container lint && ostree container commit
+RUN --mount=type=bind,from=ctx,source=/ctx/tools,target=/ctx/tools,ro \
+    install -d -m 0755 /usr/lib/extensions/source && \
+    /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
+RUN ostree container commit
+# bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
+RUN bootc container lint

@@ -20,7 +20,6 @@ This document is the consolidated, file-grounded engineering reference for MiOS 
 | Bootstrap repo | `https://github.com/mios-dev/mios-bootstrap` |
 | Published image | `ghcr.io/mios-dev/mios:latest` |
 | Image tags | `latest`, `v0.2.0`, branch refs, PR refs, semver (per `.github/workflows/mios-ci.yml`) |
-| Memory caveat | User memory still contains references to `Kabuki94/CloudWS-bootc` and `Kabuki94/MiOS`. Those are stale. The current canonical org is **mios-dev** and the canonical repos are the two cloned above. |
 
 ### What MiOS is, in one paragraph
 
@@ -172,7 +171,7 @@ It detects host kind (bootc-managed vs FHS Fedora), gathers identity (username, 
 | **Userspace overlay** | Fedora 44 (added via `automation/01-repos.sh` two-phase distro-sync) | Brings F44 desktop/userspace stack |
 | **Kernel policy** | **Never upgraded in-container.** Inherited from ucore-hci. | Avoids broken initramfs from dracut-under-tmpfs |
 
-> **Memory caveat:** older project memory says base is `quay.io/fedora/fedora-bootc:rawhide`. That is the *secondary/legacy* base used in earlier MiOS-1 variant work. The active base per the live `Containerfile` is `ucore-hci:stable-nvidia`.
+> Note: an earlier MiOS-1 variant used `quay.io/fedora/fedora-bootc:rawhide`. The active base per `Containerfile` is `ghcr.io/ublue-os/ucore-hci:stable-nvidia`.
 
 ### 2.2 Pinned digests (`image-versions.yml`)
 
@@ -964,25 +963,15 @@ syft scan ghcr.io/mios-dev/mios:latest -o cyclonedx-json
 
 ---
 
-## Appendix B — Reconciliation with prior project memory
+## Appendix B — Project lineage
 
-The following items in user memory are **stale** as of `mios@v0.2.0`:
-
-| Memory says | Actual repo state |
-|---|---|
-| GitHub: `Kabuki94/CloudWS-bootc` | `mios-dev/mios` + `mios-dev/mios-bootstrap` |
-| Local clone path `C:\Users\Administrator\Documents\GitHub\CloudWS-bootc` | Stale; new clones use the mios-dev URLs |
-| Two image variants MiOS-1 (Fedora rawhide bootc) and MiOS-2 (ucore-hci) | Single canonical image now: ucore-hci:stable-nvidia base + F44 overlay |
-| Image tag `ghcr.io/kabuki94/cloudws-bootc:latest` | `ghcr.io/mios-dev/mios:latest` |
-| `cloud-ws.ps1` orchestrator | Replaced by `mios-build-local.ps1` |
-| Renamed-files-only PowerShell heredoc phase | Long superseded; current arch is the numbered `automation/` pipeline |
-| `Containerfile` "two-stage OCI build" | Still accurate (✅) |
-| `PACKAGES.md` as SSOT | Still accurate (✅), now lives at `usr/share/mios/PACKAGES.md` (FHS-correct) |
-| `system_files/` overlay | Replaced by rootfs-native `usr/`, `etc/`, `var/`, `home/`, `srv/` directories at repo root (v0.2.0 architecture) |
-| `Justfile` for Linux-native builds | Still accurate (✅) |
-
-The accurate items in memory (build-up principles, kernel-not-upgraded-in-container, dnf5 install_weak_deps spelling, malcontent trap, BIB config format, BORE+1000Hz+le9uo, ucore-hci pre-signed NVIDIA, etc.) all remain correct.
+Predecessor names: `CloudWS-bootc`, `CloudWS-OS`, `Kabuki94/CloudWS-bootc`,
+`MiOS-1`. All deprecated. Canonical repos: `mios-dev/mios` and
+`mios-dev/mios-bootstrap`. Canonical image: `ghcr.io/mios-dev/mios:latest`.
+Build orchestrators: `mios-build-local.ps1` (Windows), `Justfile` /
+`build-mios.sh` (Linux).
 
 ---
 
-*End of MiOS-Engineering-Reference. This document is the consolidated SBOM and engineering reference; for live updates, always cross-check `usr/share/mios/PACKAGES.md` and `INDEX.md` in the system repo.*
+*End of MiOS-Engineering-Reference. Cross-check live state via
+`usr/share/mios/PACKAGES.md` and `INDEX.md` before relying on this snapshot.*

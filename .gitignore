@@ -5,8 +5,8 @@
 #               then the parent's contents must be re-ignored before the child is unignored.
 #
 # IMPORTANT: /.gitignore must be a real file (not a symlink) because git opens it
-#            with O_NOFOLLOW. After editing this file run:
-#            sudo cp /workspaces/MiOS/.gitignore /.gitignore
+#            with O_NOFOLLOW. After editing this file at the repo root, run:
+#            sudo cp ./.gitignore /.gitignore
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. BLOCK EVERYTHING
@@ -36,15 +36,10 @@
 !/LICENSES.md
 !/README.md
 !/SECURITY.md
-!/AUDIT-FINDINGS-*.md
-!/WORKFLOW-AUDIT-*.md
 !/SELF-BUILD.md
-!/SUMMARY.md
 !/VERSION
 !/llms-full.txt
 !/llms.txt
-!/root-manifest.json
-!/MiOS-SBOM.csv
 !/MiOS-Engineering-Reference.md
 !/image-versions.yml
 !/install.sh

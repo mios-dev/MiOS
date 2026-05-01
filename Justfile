@@ -39,6 +39,12 @@ live-init:
     @chmod +x tools/mios-overlay.sh
     sudo ./tools/mios-overlay.sh
 
+# bootc container lint — runs against the locally built image.
+# The Containerfile already runs `bootc container lint` as its final RUN, so
+# `just build` is itself a lint gate. This target re-runs lint on demand.
+lint:
+    podman run --rm --entrypoint /usr/bin/bootc {{LOCAL}} container lint
+
 # Build OCI image locally
 build: artifact preflight flight-status
     podman build --no-cache \

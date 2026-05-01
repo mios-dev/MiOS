@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS MiOS PXE Boot Hub
+Description=MiOS PXE Boot Hub
 After=network-online.target
 Wants=network-online.target
 
@@ -7,10 +7,13 @@ Wants=network-online.target
 Image=quay.io/poseidon/matchbox:latest
 Network=mios.network
 AutoUpdate=registry
+User=mios-pxe-hub
+Group=mios-pxe-hub
 
 [Service]
 Restart=on-failure
 RestartSec=10
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target

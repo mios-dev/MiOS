@@ -23,7 +23,7 @@ ExecStart=/usr/bin/bash -c ' \
   [ -e /dev/kfd ]                && HAS_AMD=1; \
   [ -e /dev/dri/renderD128 ]     && HAS_INTEL=1; \
   VIRT=$(systemd-detect-virt || echo none); \
-  install -d -m 0755 /run/mios /var/run/cdi /var/lib/mios/gpu; \
+  # /run/mios, /var/run/cdi, /var/lib/mios/gpu declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2). \
   { \
     echo "timestamp=$(date -Is)"; \
     echo "virtualization=${VIRT}"; \

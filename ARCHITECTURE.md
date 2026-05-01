@@ -1,57 +1,59 @@
-# MiOS ARCHITECTURE — System Blueprint (Day 0)
+# MiOS Architecture
 
-```json:knowledge
-{
-  "summary": "Consolidated architectural specification for MiOS. Hardware, Filesystem, and AI Interface SSOT.",
-  "logic_type": "blueprint",
-  "tags": ["MiOS", "Architecture", "Day-0", "SSOT"],
-  "version": "v0.2.0"
-}
-```
+## Pillars
 
-## 🏗️ Core Pillars
-MiOS is a container-native workstation engineered for high-performance virtualization and local Generative AI development.
+1. **Transactional integrity** — system core is a content-addressed OCI image
+   managed by `bootc` (<https://bootc-dev.github.io/bootc/>). Atomic upgrade
+   and rollback via `bootc upgrade` / `bootc rollback`.
+2. **Hardware acceleration** — universal CDI (Container Device Interface,
+   <https://github.com/cncf-tags/container-device-interface>) for NVIDIA,
+   AMD ROCm/KFD, and Intel iGPU. CDI specs generated under `/var/run/cdi/`,
+   admin overrides under `/etc/cdi/` (declared in
+   `usr/lib/tmpfiles.d/mios-gpu.conf`).
+3. **Zero-trust execution** — `fapolicyd` deny-by-default, SELinux enforcing,
+   USBGuard, CrowdSec sovereign-mode IPS, kernel-lockdown integrity. See
+   `SECURITY.md`.
 
-1. **Transactional Integrity**: The system core is cryptographically sealed and managed via `bootc`.
-2. **Hardware Agnosticism**: Universal acceleration for primary GPU vendors (NVIDIA, AMD, Intel).
-3. **Zero-Trust Boundary**: Mandatory execution control and kernel-level isolation.
+## Filesystem layout (FHS 3.0 + bootc)
 
----
+Spec: <https://refspecs.linuxfoundation.org/FHS_3.0/>.
 
-## 💾 Filesystem Hierarchy (FHS 3.0 + bootc)
-MiOS mirrors the standard Linux FHS within its OCI root.
+| Path | Type | Source-of-truth in repo |
+|---|---|---|
+| `/usr` | Immutable image content | `usr/` (overlaid by `automation/08-system-files-overlay.sh`) |
+| `/etc` | Persistent admin-override surface; build-time writes are upstream-contract only | `etc/` |
+| `/var` | Persistent state; declared via `tmpfiles.d` | `usr/lib/tmpfiles.d/mios*.conf` |
+| `/srv` | Sidecar service data (models, databases) | `srv/`, `usr/lib/tmpfiles.d/mios.conf` |
 
-| Path | Type | Intent |
-| :--- | :--- | :--- |
-| `/usr` | Immutable | System Binaries, Libraries, and Static Config. |
-| `/etc` | Persistent | Host-specific overrides. |
-| `/var` | Persistent | System state and User home directories. |
-| `/srv` | Persistent | Sidecar service data (Models, Databases). |
+Build-time writes to `/var/` are forbidden (LAW 2). The overlay step at
+`automation/08-system-files-overlay.sh:49-67` writes home dotfiles to
+`/etc/skel/` and lets `systemd-sysusers` populate `/var/home/<user>/` at
+first boot.
 
-### ⚖️ Immutability Mandate
-Build-time overlays into `/var` are architectural violations. All `/var` state must be declared via `tmpfiles.d` to ensure atomic, reproducible deployments.
+## Hardware delegation
 
----
+Default GPU passthrough targets (`ARCHITECTURE.md` previously hard-coded
+`10de:2204,10de:1aef`; current behavior detects at runtime via
+`automation/34-gpu-detect.sh` and writes `/run/mios/gpu-passthrough.status`).
 
-## 🖥️ Hardware Delegation
+Virtualization: KVM/QEMU + libvirt (`automation/12-virt.sh`), VFIO-PCI
+passthrough kargs (`usr/lib/bootc/kargs.d/`), KVMFR shared-memory built
+in-image (`automation/52-bake-kvmfr.sh`), Looking Glass B7 client built
+in-image (`automation/53-bake-lookingglass-client.sh`).
 
-### 🎮 Universal Acceleration
-Standardized CDI (Container Device Interface) and ROCm/Arc drivers ensure local AI tools access native hardware performance.
-- **Hardware Targeting**: Primary GPU IDs `10de:2204,10de:1aef`.
+## AI surface
 
-### ⚡ Virtualization
-Tier-1 Hypervisor capabilities (KVM/QEMU) are native to the system core, supporting VFIO-PCI passthrough and shared memory (KVMFR) buffers.
+| Service | Protocol | Path |
+|---|---|---|
+| Inference | OpenAI-compatible REST | `http://localhost:8080/v1` (LocalAI Quadlet `etc/containers/systemd/mios-ai.container`) |
+| Discovery | MCP | `usr/share/mios/ai/v1/mcp.json` |
+| Metadata | JSON | `usr/share/mios/ai/v1/models.json` |
+| System prompt | markdown | `usr/share/mios/ai/system.md` (canonical), `etc/mios/ai/system-prompt.md` (host override) |
 
----
-
-## 🤖 AI Interface Surface
-The system architecture exposes a local OpenAI-compatible API surface for autonomous management and user interaction.
-
-| Service | Protocol | Access Point |
-| :--- | :--- | :--- |
-| **Inference** | REST | `http://localhost:8080/v1` |
-| **Discovery** | MCP | `/usr/share/mios/ai/mcp/` |
-| **Metadata** | JSON | `/usr/share/mios/ai/v1/` |
-
----
-*Copyright (c) 2026 MiOS. Pure FOSS. Zero Day Ready.*
+References:
+- bootc: <https://github.com/containers/bootc>
+- bootc-image-builder: <https://github.com/osbuild/bootc-image-builder>
+- Universal Blue (uCore base): <https://github.com/ublue-os/main>
+- rechunk: <https://github.com/hhd-dev/rechunk>
+- cosign: <https://github.com/sigstore/cosign>
+- LocalAI: <https://github.com/mudler/LocalAI>

@@ -1,185 +1,158 @@
-<!-- [NET] MiOS Artifact | Proprietor: MiOS-DEV | https://github.com/MiOS-DEV/MiOS-bootstrap -->
-# [NET] MiOS
-```json:knowledge
-{
-  "summary": "> **Proprietor:** MiOS-DEV",
-  "logic_type": "documentation",
-  "tags": [
-    "MiOS",
-    "root"
-  ],
-  "relations": {
-    "depends_on": [
-      ".env.mios"
-    ],
-    "impacts": []
-  }
-}
-```
-> **Proprietor:** MiOS-DEV
-> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
-> **License:** Licensed as personal property to MiOS-DEV
----
-# Security Hardening Checklist
+# MiOS Security Hardening
 
-MiOS ships with defense-in-depth security hardening enabled by default, adapted from SecureBlue's audit framework and Fedora's security guidelines. This document details every hardening measure, its rationale, and how to override it if your workload requires it.
+Defense-in-depth posture, sourced primarily from SecureBlue's audit
+framework (<https://github.com/secureblue/secureblue>) and the Fedora
+hardening guidelines (<https://docs.fedoraproject.org/en-US/quick-docs/securing-fedora/>).
+Every measure below cites the file that enforces it; admin overrides are
+listed in the right column.
 
-## Kernel Boot Parameters
+## Kernel boot parameters
 
-Shipped via `/usr/lib/bootc/kargs.d/00-mios.toml`  no bootloader modification needed. These are applied by bootc at boot time.
+Shipped via `usr/lib/bootc/kargs.d/00-mios.toml` (and other priority files
+in the same directory). bootc renders all `kargs.d/*.toml` into the active
+kernel cmdline at upgrade time.
 
 | Parameter | Purpose | Override |
-|-----------|---------|----------|
+|---|---|---|
 | `slab_nomerge` | Prevent slab cache merging (heap isolation) | Remove from kargs.d TOML |
-| ~~`init_on_alloc=1`~~ | Zero memory on allocation — **disabled**: causes CUDA/NVIDIA memory init failures; enable only on CPU-only deployments | Re-enable in a higher-priority kargs.d file |
-| ~~`init_on_free=1`~~ | Zero memory on deallocation — **disabled**: same CUDA incompatibility | Re-enable in a higher-priority kargs.d file |
-| ~~`page_alloc.shuffle=1`~~ | Randomize page allocator freelists — **disabled**: NVIDIA driver instability under page-alloc randomisation | Re-enable in a higher-priority kargs.d file |
-| `randomize_kstack_offset=on` | Randomize kernel stack offsets per syscall | Set `=off` to disable |
-| `pti=on` | Page Table Isolation (Meltdown mitigation) | Set `=off` (not recommended) |
-| `vsyscall=none` | Disable legacy vsyscall table | Set `=emulate` for legacy apps |
+| ~~`init_on_alloc=1`~~ | Disabled — causes CUDA memory init failures; enable for CPU-only builds | Higher-priority kargs.d file |
+| ~~`init_on_free=1`~~ | Disabled — same CUDA incompatibility | Higher-priority kargs.d file |
+| ~~`page_alloc.shuffle=1`~~ | Disabled — NVIDIA driver instability | Higher-priority kargs.d file |
+| `randomize_kstack_offset=on` | Per-syscall kernel stack randomization | `=off` |
+| `pti=on` | Page Table Isolation (Meltdown) | `=off` (not recommended) |
+| `vsyscall=none` | Disable legacy vsyscall table | `=emulate` |
 | `iommu=pt` | IOMMU passthrough for VFIO | Required for GPU passthrough |
 | `amd_iommu=on` / `intel_iommu=on` | Enable IOMMU | Required for VFIO |
-| `nvidia-drm.modeset=1` | NVIDIA DRM modesetting for Wayland | Required for GNOME Wayland |
-| `lockdown=confidentiality` | Kernel lockdown mode (v2.1+) | Remove to allow unsigned modules |
-| `spectre_v2=on` | Spectre v2 mitigation (v2.1+) | Performance cost ~2-5% |
-| `spec_store_bypass_disable=on` | Spectre v4 SSB mitigation (v2.1+) | Performance cost ~1-2% |
-| `l1tf=full,force` | L1 Terminal Fault mitigation (v2.1+) | Affects HyperThreading |
-| `gather_data_sampling=force` | GDS/Downfall mitigation (v2.1+) | Intel-specific |
+| `nvidia-drm.modeset=1` | NVIDIA DRM modesetting (Wayland) | Required for GNOME Wayland |
+| `lockdown=integrity` | Kernel lockdown mode | Remove to allow unsigned modules |
+| `spectre_v2=on` | Spectre v2 mitigation | Performance cost ~2-5% |
+| `spec_store_bypass_disable=on` | Spectre v4 SSB mitigation | Performance cost ~1-2% |
+| `l1tf=full,force` | L1TF mitigation | Affects HyperThreading |
+| `gather_data_sampling=force` | GDS/Downfall mitigation | Intel-specific |
 
-## Kernel Sysctl Hardening
+Source: kernel admin-guide,
+<https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html>.
 
-Shipped via `/usr/lib/sysctl.d/99-mios-hardening.conf`. Admin overrides go in `/etc/sysctl.d/`.
+## Sysctl hardening
+
+Shipped via `usr/lib/sysctl.d/99-mios-hardening.conf`. Admin overrides go
+in `/etc/sysctl.d/`.
 
 ### Kernel pointer and debug restrictions
 
 | Sysctl | Value | Purpose |
-|--------|-------|---------|
-| `kernel.kptr_restrict` | `2` | Hide kernel pointers from all users |
-| `kernel.dmesg_restrict` | `1` | Restrict dmesg to root |
-| `kernel.perf_event_paranoid` | `3` | Disable perf for unprivileged users |
-| `kernel.sysrq` | `0` | Disable Magic SysRq (prevents local DoS) |
-| `kernel.yama.ptrace_scope` | `2` | Only root can ptrace (prevents credential theft) |
-| `kernel.unprivileged_bpf_disabled` | `1` | Block unprivileged eBPF (attack surface reduction) |
-| `net.core.bpf_jit_harden` | `2` | Harden BPF JIT compiler |
-| `kernel.kexec_load_disabled` | `1` | Prevent runtime kernel replacement (v2.1+) |
-| `kernel.io_uring_disabled` | `2` | Block io_uring syscalls (v2.1+) |
+|---|---|---|
+| `kernel.kptr_restrict` | 2 | Hide kernel pointers from all users |
+| `kernel.dmesg_restrict` | 1 | Restrict dmesg to root |
+| `kernel.perf_event_paranoid` | 3 | Disable perf for unprivileged users |
+| `kernel.sysrq` | 0 | Disable Magic SysRq |
+| `kernel.yama.ptrace_scope` | 2 | Only root can ptrace |
+| `kernel.unprivileged_bpf_disabled` | 1 | Block unprivileged eBPF |
+| `net.core.bpf_jit_harden` | 2 | Harden BPF JIT |
+| `kernel.kexec_load_disabled` | 1 | Prevent runtime kernel replacement |
+| `kernel.io_uring_disabled` | 2 | Block io_uring |
 
 ### Network hardening
 
 | Sysctl | Value | Purpose |
-|--------|-------|---------|
-| `net.ipv4.tcp_syncookies` | `1` | SYN flood protection |
-| `net.ipv4.conf.all.accept_redirects` | `0` | Block ICMP redirects |
-| `net.ipv4.conf.all.send_redirects` | `0` | Don't send ICMP redirects |
-| `net.ipv4.conf.all.rp_filter` | `1` | Reverse path filtering (anti-spoof) |
-| `net.ipv4.conf.all.accept_source_route` | `0` | Block source-routed packets |
-| `net.ipv4.conf.all.log_martians` | `1` | Log impossible addresses |
-| `net.ipv4.icmp_echo_ignore_broadcasts` | `1` | Ignore broadcast pings |
-| `net.ipv4.tcp_timestamps` | `0` | Disable TCP timestamps (fingerprinting) |
+|---|---|---|
+| `net.ipv4.tcp_syncookies` | 1 | SYN flood protection |
+| `net.ipv4.conf.all.accept_redirects` | 0 | Block ICMP redirects |
+| `net.ipv4.conf.all.send_redirects` | 0 | Don't send ICMP redirects |
+| `net.ipv4.conf.all.rp_filter` | 1 | Reverse-path filtering |
+| `net.ipv4.conf.all.accept_source_route` | 0 | Block source-routed packets |
+| `net.ipv4.conf.all.log_martians` | 1 | Log impossible addresses |
+| `net.ipv4.icmp_echo_ignore_broadcasts` | 1 | Ignore broadcast pings |
+| `net.ipv4.tcp_timestamps` | 0 | Disable timestamps (anti-fingerprint) |
 
-IPv6 equivalents are also set for `accept_redirects` and `accept_source_route`.
+IPv6 equivalents are set for `accept_redirects` and `accept_source_route`.
 
 ### Filesystem protection
 
 | Sysctl | Value | Purpose |
-|--------|-------|---------|
-| `fs.suid_dumpable` | `0` | No core dumps for SUID binaries |
-| `fs.protected_hardlinks` | `1` | Restrict hardlink creation |
-| `fs.protected_symlinks` | `1` | Restrict symlink following |
-| `fs.protected_fifos` | `2` | Restrict FIFO creation in sticky dirs |
-| `fs.protected_regular` | `2` | Restrict regular file creation in sticky dirs |
+|---|---|---|
+| `fs.suid_dumpable` | 0 | No core dumps for SUID binaries |
+| `fs.protected_hardlinks` | 1 | Restrict hardlink creation |
+| `fs.protected_symlinks` | 1 | Restrict symlink following |
+| `fs.protected_fifos` | 2 | Restrict FIFOs in sticky dirs |
+| `fs.protected_regular` | 2 | Restrict regular files in sticky dirs |
+
+Source: kernel admin-guide / sysctl,
+<https://www.kernel.org/doc/Documentation/sysctl/>.
 
 ## SELinux
 
-MiOS runs SELinux in **enforcing** mode. Custom policies are split into per-rule individual `.te` modules:
+Mode: enforcing. Custom modules built and shipped in
+`usr/share/selinux/packages/mios/`:
 
-- `mios_portabled`  systemd-portabled D-Bus for sysext/confext (systemd 258+)
-- `mios_kvmfr`  Looking Glass shared memory device access for VMs
-- `mios_cdi`  NVIDIA CDI spec generation fcontext (v2.1+)
-- `mios_quadlet`  Podman quadlet container management (v2.1+)
-- `mios_sysext`  systemd-sysext extension activation (v2.1+)
+| Module | Purpose |
+|---|---|
+| `mios_portabled` | systemd-portabled D-Bus for sysext/confext |
+| `mios_kvmfr` | Looking Glass shared-memory device access |
+| `mios_cdi` | NVIDIA CDI spec generation fcontext |
+| `mios_quadlet` | Podman Quadlet container management |
+| `mios_sysext` | systemd-sysext extension activation |
 
-Additional booleans enabled:
+Booleans enabled: `container_use_cephfs`, `virt_use_samba`. Fcontext:
+`/var/home(/.*)?` labeled `user_home_dir_t`.
 
-- `container_use_cephfs`  Podman containers accessing CephFS
-- `virt_use_samba`  libvirt VMs accessing SMB shares
-
-Fcontext for bootc home path:
-
-- `/var/home(/.*)?` labeled `user_home_dir_t`
-
-### Checking SELinux status
+Status:
 
 ```bash
-# Current mode
 getenforce
-
-# Recent denials
 ausearch -m AVC -ts recent
-
-# All MiOS custom policies
 semodule -l | grep mios
 ```
 
 ## Firewall
 
-MiOS uses `firewalld` with a default-deny posture:
-
-- Default zone: `drop` (all incoming traffic dropped unless explicitly allowed)
-- Cockpit (9090/tcp)  allowed for web management
-- SSH (22/tcp)  allowed
-- Libvirt bridge  allowed for VM networking
-- CrowdSec bouncer  integrated with nftables
-
-### Viewing firewall rules
+`firewalld` default-deny. Default zone `drop`. Allowed: cockpit (9090/tcp),
+ssh (22/tcp), libvirt bridge, CrowdSec nftables bouncer integration.
+Configured in `automation/33-firewall.sh`.
 
 ```bash
 firewall-cmd --list-all
 firewall-cmd --list-all-zones
 ```
 
-## CrowdSec (Host-Based IPS)
+## CrowdSec
 
-CrowdSec runs in **sovereign/offline mode**  no data is sent to the CrowdSec cloud. It monitors system logs for brute-force attacks, port scans, and other threats, then applies bans via the nftables firewall bouncer.
+Sovereign/offline mode (`automation/12-virt.sh:42-50` disables
+`online_client` in `/etc/crowdsec/config.yaml` — upstream-contract /etc/
+location, no /usr/lib drop-in mechanism exists). Monitors logs, applies
+nftables bans.
 
 ```bash
-# Check CrowdSec status
 sudo cscli metrics
 sudo cscli decisions list
 sudo cscli alerts list
 ```
 
-## fapolicyd (Application Whitelisting)
+## fapolicyd
 
-When enabled, fapolicyd restricts which executables can run based on the RPM database and configured trust rules. This prevents execution of unauthorized binaries.
+Trust rules in `etc/fapolicyd/fapolicyd.rules`. Blocks unauthorized
+binary execution.
 
 ```bash
-# Check status
 systemctl status fapolicyd
-
-# View trust database
 fapolicyd-cli --dump-db | head -20
 ```
 
-## USBGuard (USB Device Control)
+## USBGuard
 
-When enabled, USBGuard blocks unauthorized USB devices by default. On first boot, generate a policy from currently connected devices:
+Off by default. To enable, generate a policy from currently-connected
+devices:
 
 ```bash
-# Generate initial policy from connected devices
 sudo usbguard generate-policy > /etc/usbguard/rules.conf
 sudo systemctl restart usbguard
-
-# List current devices
 sudo usbguard list-devices
-
-# Allow a blocked device
 sudo usbguard allow-device <id>
 ```
 
-## Composefs (Verified Boot Filesystem)
+## composefs
 
-MiOS enables composefs via `/usr/lib/ostree/prepare-root.conf`:
+Enabled via `usr/lib/ostree/prepare-root.conf`:
 
 ```toml
 [composefs]
@@ -192,41 +165,34 @@ transient = true
 transient-ro = true
 ```
 
-Composefs provides content-addressed deduplication and verified boot  the filesystem integrity is checked at mount time. The `transient = true` for `/etc` means `/etc` changes are ephemeral by default; persistent changes require explicit configuration.
+Provides content-addressed deduplication and verified boot. Source:
+<https://github.com/containers/composefs>.
 
-## Image Signing
+## Image signing
 
-MiOS images are signed with cosign via GitHub Actions OIDC (keyless signing). Verify any image before deploying:
+CI signs every push with cosign keyless via GitHub Actions OIDC
+(`.github/workflows/mios-ci.yml`). Verify before deploying:
 
 ```bash
 cosign verify \
-  --certificate-identity-regexp="https://github.com/MiOS-DEV/MiOS-bootstrap" \
+  --certificate-identity-regexp="https://github.com/mios-dev/mios" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  ghcr.io/MiOS-DEV/mios:latest
+  ghcr.io/mios-dev/mios:latest
 ```
 
-## Overriding Hardening
+## Override surfaces
 
-All hardening settings can be overridden by administrators:
+| Subsystem | Override path |
+|---|---|
+| Kernel kargs | `bootc kargs edit`, or higher-priority `usr/lib/bootc/kargs.d/*.toml` |
+| Sysctl | `/etc/sysctl.d/` |
+| SELinux | `setenforce 0` (transient), `/etc/selinux/config` (persistent) |
+| Firewall | `firewall-cmd --add-service=...`, `--add-port=...` |
+| CrowdSec | `sudo cscli decisions delete --all` |
+| fapolicyd | `/etc/fapolicyd/fapolicyd.trust` |
+| USBGuard | `/etc/usbguard/rules.conf`, `usbguard allow-device` |
 
-- **Kernel boot params**: create a higher-priority file in `/usr/lib/bootc/kargs.d/` or use `bootc kargs edit`
-- **Sysctl**: create overrides in `/etc/sysctl.d/` (higher priority than `/usr/lib/sysctl.d/`)
-- **SELinux**: `sudo setenforce 0` (temporary) or edit `/etc/selinux/config` (persistent  not recommended)
-- **Firewall**: `firewall-cmd --add-service=...` or `firewall-cmd --add-port=...`
-- **CrowdSec**: `sudo cscli decisions delete --all` to clear bans
-- **fapolicyd**: add trust rules in `/etc/fapolicyd/fapolicyd.trust`
-- **USBGuard**: `sudo usbguard allow-device <id>` or edit `/etc/usbguard/rules.conf`
+## Reporting vulnerabilities
 
-## Security Reporting
-
-To report a security vulnerability, use GitHub's private vulnerability reporting feature (Security tab  Report a vulnerability) or file a Security issue using the provided template. Do not disclose sensitive vulnerabilities in public issues.
-
----
-###  Bootc Ecosystem & Resources
-- **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
-- **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
-- **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [MiOS-DEV/MiOS-bootstrap](https://github.com/MiOS-DEV/MiOS-bootstrap)
-- **Sole Proprietor:** MiOS-DEV
----
-<!--  MiOS Proprietary Artifact | Copyright (c) 2026 MiOS-DEV -->
+GitHub private vulnerability reporting on this repo (Security tab → Report
+a vulnerability). Do not file public issues for sensitive disclosures.
