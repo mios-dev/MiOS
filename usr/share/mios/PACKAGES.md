@@ -1,4 +1,4 @@
-# 🌐 MiOS — Universal AI Integration
+# MiOS — Package Manifest (single source of truth for image RPMs)
 > **Attribution:** MiOS-DEV (Administrative Alias)
 > **Infrastructure:** MiOS Open-Source Build Pipeline
 > **License:** Apache-2.0 (Open-Source Infrastructure)
@@ -767,10 +767,15 @@ usbutils
 ```
 
 ---
-### 📚 Bootc Ecosystem & Resources
-- **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osbuild/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
-- **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
-- **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
+### Bootc ecosystem & resources
+
+- bootc: <https://github.com/containers/bootc>
+- bootc-image-builder: <https://github.com/osbuild/bootc-image-builder>
+- bootc docs: <https://bootc-dev.github.io/bootc/>
+- Universal Blue (uCore base): <https://github.com/ublue-os/main>
+- uupd: <https://github.com/ublue-os/uupd>
+- rechunk: <https://github.com/hhd-dev/rechunk>
+- cosign: <https://github.com/sigstore/cosign>
+- Project repo: <https://github.com/mios-dev/mios>
 - **Sole Proprietor:** MiOS-DEV
 ---

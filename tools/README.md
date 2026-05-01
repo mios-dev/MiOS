@@ -1,25 +1,3 @@
-<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/MiOS-DEV/mios -->
-# 🌐 MiOS
-```json:knowledge
-{
-  "summary": "> **Proprietor:** MiOS Project",
-  "logic_type": "documentation",
-  "tags": [
-    "MiOS",
-    "README.md"
-  ],
-  "relations": {
-    "depends_on": [
-      ".env.mios"
-    ],
-    "impacts": []
-  }
-}
-```
-> **Proprietor:** MiOS Project
-> **Infrastructure:** Self-Building Infrastructure (System Specificationl Property)
-> **License:** Licensed as personal property to MiOS Project
----
 # MiOS Toolkit Scripts
 
 This directory contains **standalone out-of-image tooling** that runs
@@ -148,11 +126,6 @@ agents should not do in this directory (summary: don't modernize
 working scripts unprompted, don't rewrite bash into other languages).*
 
 ---
-### 📚 Bootc Ecosystem & Resources
-- **Core:** [containers/bootc](https://github.com/containers/bootc) | [bootc-image-builder](https://github.com/osautomation/bootc-image-builder) | [bootc.pages.dev](https://bootc.pages.dev/)
-- **Upstream:** [Fedora Bootc](https://github.com/fedora-cloud/fedora-bootc) | [CentOS Bootc](https://gitlab.com/CentOS/bootc) | [ublue-os/main](https://github.com/ublue-os/main)
-- **Tools:** [uupd](https://github.com/ublue-os/uupd) | [rechunk](https://github.com/hhd-dev/rechunk) | [cosign](https://github.com/sigstore/cosign)
-- **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
-- **Sole Proprietor:** MiOS Project
----
-<!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->
+
+See `LICENSES.md` and `CONTRIBUTING.md` at the repo root for upstream
+ecosystem references (bootc, BIB, rechunk, cosign, Universal Blue, etc.).

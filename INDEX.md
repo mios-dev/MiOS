@@ -34,13 +34,33 @@ Spec: <https://platform.openai.com/docs/api-reference>.
 | 5 | **UNIFIED-AI-REDIRECTS** — `MIOS_AI_KEY`, `MIOS_AI_MODEL`, `MIOS_AI_ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s` declare `User=root`/`Group=root` because Ceph/K3s require uid 0 (see file headers). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
-## 4. Environment contract
+## 4. Profile + environment resolution
+
+Both the user profile (TOML) and runtime environment (env-style) follow a
+three-layer overlay. Higher layers supersede lower layers field-by-field.
+
+**Profile layers** (read by `mios-bootstrap/install.sh:load_profile_defaults`
+and at runtime by `mios` CLI clients):
+
+1. `~/.config/mios/profile.toml` — per-user override (highest precedence;
+   seeded into every uid≥1000 home from `/etc/skel/.config/mios/profile.toml`)
+2. `/etc/mios/profile.toml` — host/admin override (shipped by `mios-bootstrap`)
+3. `/usr/share/mios/profile.toml` — vendor defaults (shipped by `mios.git`,
+   immutable, USR-OVER-ETC)
+
+**Environment layers** (resolved by `/etc/profile.d/mios-env.sh` at login):
+
+1. `~/.config/mios/env`
+2. `/etc/mios/install.env` (written by bootstrap install.sh)
+3. `/etc/mios/env.d/*.env` (admin/distro drop-ins)
+4. `/usr/share/mios/env.defaults` (vendor defaults)
+5. `~/.env.mios` (legacy, deprecated; kept for backwards compatibility)
+
+**Build-time variables** read by `Justfile`:
 
 | Variable | Scope | Purpose |
 |---|---|---|
-| `MIOS_AI_KEY` | AI | Local inference key (default empty for unauthenticated localhost). |
-| `MIOS_AI_MODEL` | AI | Target model id resolved via `usr/share/mios/ai/v1/models.json`. |
-| `MIOS_AI_ENDPOINT` | AI | API base URL. Default `http://localhost:8080/v1`. |
+| `MIOS_AI_KEY` / `MIOS_AI_MODEL` / `MIOS_AI_ENDPOINT` | AI | Resolution per LAW 5; defaults in `usr/share/mios/env.defaults`. |
 | `MIOS_BASE_IMAGE` | build | OCI base image (default `ghcr.io/ublue-os/ucore-hci:stable-nvidia`, `Justfile:45`). |
 | `MIOS_LOCAL_TAG` | build | Local image tag (default `localhost/mios:latest`, `Justfile:13`). |
 | `MIOS_USER` / `MIOS_HOSTNAME` | build | Default account/hostname baked into the image (`Containerfile:26-27`). |

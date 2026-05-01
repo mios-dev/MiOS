@@ -49,7 +49,10 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     CTX=/tmp/build /tmp/build/automation/build.sh; \
     dnf clean all; \
     rm -rf /tmp/build; \
-    find /var -mindepth 1 -maxdepth 1 ! -name tmp -exec rm -rf {} +; \
+    # /var/cache is bind-mounted by buildkit (--mount=type=cache above) for
+    # the duration of this RUN, so trying to rm it returns EBUSY. Skip it;
+    # buildkit doesn't bake cache mounts into the layer regardless.
+    find /var -mindepth 1 -maxdepth 1 ! -name tmp ! -name cache -exec rm -rf {} +; \
     find /run -mindepth 1 -maxdepth 1 ! -name "secrets" -exec rm -rf {} + 2>/dev/null || true
 
 RUN bootc completion bash > /etc/bash_completion.d/bootc

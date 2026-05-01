@@ -124,11 +124,24 @@ so bootc pre-pulls it offline.
 This repo (`mios.git`) and `mios-bootstrap.git` resolve to the same physical
 root on the dev host but each gitignore whitelists a *different subset*. The
 `.gitignore` here is a **whitelist inverter** — `/*` ignores everything,
-then `!/path` re-includes the system-overlay subset. When committing, verify
-each path matches a negation; an untracked file outside the whitelist is
-correct gitignore behavior, not "a file to add". User/installer files
-(`/etc/mios/manifest.json`, user-account skeleton, knowledge graphs) belong
-in `mios-bootstrap.git`, not here.
+then `!/path` re-includes the system-overlay subset.
+
+| Path on deployed system | Owner repo | Purpose |
+|---|---|---|
+| `/usr/share/mios/profile.toml` | `mios.git` | vendor profile defaults (immutable) |
+| `/usr/share/mios/env.defaults` | `mios.git` | vendor env defaults |
+| `/usr/share/mios/ai/system.md` | `mios.git` | canonical agent prompt |
+| `/etc/mios/profile.toml` | `mios-bootstrap.git` | host/admin profile overrides |
+| `/etc/mios/install.env` | `mios-bootstrap.git` | runtime identity (written at install) |
+| `/etc/mios/ai/system-prompt.md` | `mios-bootstrap.git` | host AI prompt override |
+| `/etc/skel/.config/mios/profile.toml` | `mios-bootstrap.git` | per-user TOML template |
+| `/etc/skel/.config/mios/system-prompt.md` | `mios-bootstrap.git` | per-user AI prompt template |
+
+When committing to `mios.git`, verify each path matches a whitelist
+negation; an untracked file outside the whitelist is correct gitignore
+behavior, not "a file to add". User-installer files (`/etc/mios/*`,
+`/etc/skel/.config/mios/*`, knowledge graphs) belong in
+`mios-bootstrap.git`, not here.
 
 ## Architectural laws (from INDEX.md / .cursorrules — non-negotiable)
 

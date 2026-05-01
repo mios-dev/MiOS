@@ -16,7 +16,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 # Check if bootstrap repo exists
 if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
-    echo "❌ MiOS-bootstrap repository not found at: ${BOOTSTRAP_REPO}"
+    echo "ERROR: mios-bootstrap repository not found at: ${BOOTSTRAP_REPO}"
     echo ""
     echo "Clone it first:"
     echo "  git clone https://github.com/MiOS-DEV/MiOS-bootstrap ${BOOTSTRAP_REPO}"
@@ -47,7 +47,7 @@ if [[ -d "${REPO_ROOT}/artifacts/ai-rag" ]]; then
     
     echo "✓ AI RAG artifacts copied"
 else
-    echo "⚠️  No AI RAG artifacts found at artifacts/ai-rag/"
+    echo "WARN: No AI RAG artifacts found at artifacts/ai-rag/"
 fi
 
 # Copy Wiki documentation
@@ -232,7 +232,7 @@ echo "✓ README generated: ${ARTIFACT_DIR}/README.md"
 # Summary
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Artifact Logging Complete"
+echo "[ OK ] Artifact logging complete"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Logged to: ${BOOTSTRAP_REPO}"
