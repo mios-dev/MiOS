@@ -81,6 +81,7 @@ etc/containers/systemd/*
 !/etc/fapolicyd/
 etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
+!/etc/wsl.conf
 
 # /etc/mios/ is BOOTSTRAP territory (mios-bootstrap.git). Not tracked here.
 # /home/ is BOOTSTRAP territory. Per-user templates and skel live in mios-bootstrap.

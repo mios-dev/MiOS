@@ -25,8 +25,11 @@ if [[ -f /etc/mios/install.env ]]; then
 fi
 
 # ── Hostname ──
-if [[ -n "$MIOS_HOSTNAME" ]] && command -v hostnamectl &>/dev/null; then
-    hostnamectl set-hostname "$MIOS_HOSTNAME" 2>/dev/null || true
+if [[ -n "$MIOS_HOSTNAME" ]]; then
+    # Write /etc/hostname directly — hostnamectl requires logind which may not
+    # be running yet in WSL2 (logind is conditioned out in WSL2).
+    echo "$MIOS_HOSTNAME" > /etc/hostname
+    hostname "$MIOS_HOSTNAME" 2>/dev/null || true
     _log "Hostname set to $MIOS_HOSTNAME"
 fi
 
