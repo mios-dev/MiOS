@@ -57,7 +57,12 @@ if id "$MIOS_USER" &>/dev/null; then
     passwd -u "$MIOS_USER" 2>/dev/null || true
 fi
 
-# ── Password hash ──
+# ── Password hash (default: 'mios' if none supplied) ──
+if [[ -z "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
+    _log "No password hash supplied — generating default hash for password 'mios'"
+    MIOS_USER_HASH=$(openssl passwd -6 'mios' 2>/dev/null) || true
+fi
+
 if [[ -n "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
     if [[ "$MIOS_USER_HASH" =~ ^\$6\$ ]]; then
         _log "Setting password hash for $MIOS_USER"
@@ -66,7 +71,7 @@ if [[ -n "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
         _log "WARN: MIOS_USER_PASSWORD_HASH is not a valid sha512crypt hash (must start with \$6\$)"
     fi
 else
-    _log "WARN: No password hash found — $MIOS_USER will require password reset"
+    _log "WARN: Could not set password for $MIOS_USER — manual reset required"
 fi
 
 # ── Tmpfiles for /var/lib/mios ──

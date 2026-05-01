@@ -3,7 +3,7 @@
 # rebuilds the unified knowledge base (RAG snapshot), refreshes user-space
 # environment configs, and seeds shared agent context. Idempotent.
 
-set -euo pipefail
+set -uo pipefail
 
 echo "[ai-bootstrap] Initializing MiOS agent workspace..."
 
@@ -20,7 +20,7 @@ fi
 # 1. Generate manifests.
 if [[ -f "tools/generate-ai-manifest.py" ]]; then
     echo "[ai-bootstrap] Generating directory manifests..."
-    python3 tools/generate-ai-manifest.py
+    python3 tools/generate-ai-manifest.py || echo "[ai-bootstrap] WARN: manifest generation failed (non-fatal)"
 else
     echo "[ai-bootstrap] WARN: tools/generate-ai-manifest.py not found"
 fi
@@ -28,7 +28,7 @@ fi
 # 2. Sync Wiki documentation.
 if [[ -f "tools/sync-wiki.py" ]]; then
     echo "[ai-bootstrap] Syncing Wiki..."
-    python3 tools/sync-wiki.py
+    python3 tools/sync-wiki.py || echo "[ai-bootstrap] WARN: wiki sync failed (non-fatal)"
 else
     echo "[ai-bootstrap] WARN: tools/sync-wiki.py not found"
 fi
@@ -36,8 +36,8 @@ fi
 # 3. Generate unified knowledge base (RAG snapshot).
 if [[ -f "tools/generate-unified-knowledge.py" ]]; then
     echo "[ai-bootstrap] Generating unified knowledge base (RAG snapshot)..."
-    [[ -f "tools/journal-sync.py" ]] && python3 tools/journal-sync.py
-    python3 tools/generate-unified-knowledge.py
+    [[ -f "tools/journal-sync.py" ]] && { python3 tools/journal-sync.py || true; }
+    python3 tools/generate-unified-knowledge.py || echo "[ai-bootstrap] WARN: knowledge base generation failed (non-fatal)"
 else
     echo "[ai-bootstrap] WARN: tools/generate-unified-knowledge.py not found"
 fi

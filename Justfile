@@ -46,7 +46,7 @@ lint:
     podman run --rm --entrypoint /usr/bin/bootc {{LOCAL}} container lint
 
 # Build OCI image locally
-build: artifact preflight flight-status
+build: preflight flight-status
     podman build --no-cache \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
