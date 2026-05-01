@@ -1,7 +1,11 @@
 [Unit]
 Description=MiOS Apache Guacamole Web
-After=network-online.target
+After=network-online.target guacamole-postgres.service
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips when nested in another
+# container (no working network namespacing for the bridge backend).
+# guacamole-postgres must be reachable, hence After= on the DB unit.
+ConditionVirtualization=!container
 
 [Container]
 Image=docker.io/guacamole/guacamole:latest

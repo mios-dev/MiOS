@@ -1,7 +1,10 @@
 [Unit]
 Description=MiOS CrowdSec Dashboard
-After=network-online.target
+After=network-online.target crowdsec.service
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips when CrowdSec isn't
+# configured (no /etc/crowdsec/config.yaml = no LAPI to scrape).
+ConditionPathExists=/etc/crowdsec/config.yaml
 
 [Container]
 Image=docker.io/crowdsecurity/crowdsec:latest

@@ -17,6 +17,11 @@
 Description=MiOS K3s Service (Podman-native)
 After=network-online.target
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips on incompatible hosts.
+# K3s needs cgroup v2, eBPF, and full kernel namespaces — none of which
+# work reliably under WSL2 or in nested containers.
+ConditionVirtualization=!wsl
+ConditionVirtualization=!container
 
 [Container]
 Image=docker.io/rancher/k3s:v1.32.1-k3s1

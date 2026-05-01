@@ -66,7 +66,32 @@ and at runtime by `mios` CLI clients):
 | `MIOS_USER` / `MIOS_HOSTNAME` | build | Default account/hostname baked into the image (`Containerfile:26-27`). |
 | `MIOS_FLATPAKS` | build | Comma-separated Flatpak refs (`Containerfile:28`). |
 
-## 5. Global pipeline phases
+## 5. Defaults policy
+
+Every boolean feature flag in `usr/share/mios/profile.toml` and
+`/etc/mios/profile.toml` ships **`true`**. The system never disables a
+component via static config — when a component is incompatible with the
+host (wrong virtualization layer, missing required path, missing
+hardware), systemd `Condition*` directives in the corresponding
+Quadlet/service unit short-circuit it at boot/pre-boot and the unit
+silently no-ops. Operators can still set any flag to `false` to
+force-disable a component even when it would otherwise run.
+
+Active gating (referenced in `etc/containers/systemd/` and
+`usr/share/containers/systemd/`):
+
+| Unit | Condition | Skips on |
+|---|---|---|
+| `mios-ai` | `ConditionPathIsDirectory=/etc/mios/ai` | bootstrap incomplete |
+| `mios-ceph` | `ConditionPathExists=/etc/ceph/ceph.conf`, `!container` | Ceph not configured, nested |
+| `mios-k3s` | `!wsl`, `!container` | WSL2, nested containers |
+| `crowdsec-dashboard` | `ConditionPathExists=/etc/crowdsec/config.yaml` | CrowdSec not configured |
+| `cloudws-guacamole`, `guacd`, `guacamole-postgres` | `!container` | nested containers |
+| `cloudws-pxe-hub` | `!wsl`, `!container` | virtualized hosts without routable LAN |
+| `mios-gpu-{nvidia,amd,intel,status}` | `ConditionPathExists=/dev/...`, `!container`, `!wsl` (Intel) | no matching GPU device |
+| `ollama` | none | always runs (CPU fallback) |
+
+## 6. Global pipeline phases
 
 The end-to-end bootstrap → install pipeline is partitioned into five phases
 shared across both repos:
@@ -83,7 +108,7 @@ The user profile card at `etc/mios/profile.toml` (host) and
 `~/.config/mios/profile.toml` (per-user) is read in Phase-0 to seed defaults
 and re-written/staged in Phase-3.
 
-## 6. Cross-references
+## 7. Cross-references
 
 - Build pipeline architecture: `CLAUDE.md`, `automation/build.sh`.
 - Filesystem and hardware layout: `ARCHITECTURE.md`.

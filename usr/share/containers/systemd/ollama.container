@@ -2,6 +2,9 @@
 Description=MiOS Ollama LLM Server
 After=network-online.target
 Wants=network-online.target
+# Defaults policy: enabled by default. Ollama runs CPU-only when no
+# GPU is present, so no virtualization-class condition is required.
+# To force-disable, set [quadlets.enable] ollama = false in profile.toml.
 
 [Container]
 Image=docker.io/ollama/ollama:latest

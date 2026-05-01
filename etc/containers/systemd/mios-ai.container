@@ -1,10 +1,15 @@
 # /etc/containers/systemd/mios-ai.container
 # OpenAI-compatible inference backend.
+#
+# Defaults policy: enabled by default. ConditionPathExists guards the
+# config dir; if /etc/mios/ai/ doesn't exist (incomplete bootstrap),
+# the unit no-ops at pre-boot rather than crash-looping.
 
 [Unit]
 Description=MiOS AI inference backend (OpenAI-compatible)
 After=network-online.target
 Wants=network-online.target
+ConditionPathIsDirectory=/etc/mios/ai
 
 [Container]
 Image=docker.io/localai/localai:v2.20.0

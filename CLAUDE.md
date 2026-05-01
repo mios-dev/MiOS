@@ -143,6 +143,17 @@ behavior, not "a file to add". User-installer files (`/etc/mios/*`,
 `/etc/skel/.config/mios/*`, knowledge graphs) belong in
 `mios-bootstrap.git`, not here.
 
+## Defaults policy
+
+Every boolean feature flag in the profile (`[quadlets.enable]`, `[ai]`,
+`[network]`, `[bootstrap]`) ships **`true`**. The system does NOT
+disable a component via static config. When a component is incompatible
+with the host (wrong virtualization layer, missing required path,
+missing hardware), systemd `Condition*` directives in the corresponding
+Quadlet/service short-circuit it at boot/pre-boot and the unit silently
+no-ops. Operators can still set a flag to `false` to force-disable.
+See `INDEX.md` §5 for the gating table.
+
 ## Architectural laws (from INDEX.md / .cursorrules — non-negotiable)
 
 1. **USR-OVER-ETC** — static config goes in `/usr/lib/<component>.d/`.

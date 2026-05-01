@@ -2,6 +2,10 @@
 Description=MiOS PXE Boot Hub
 After=network-online.target
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips on virtualized hosts
+# without a routable LAN (PXE requires raw DHCP/TFTP on the host network).
+ConditionVirtualization=!wsl
+ConditionVirtualization=!container
 
 [Container]
 Image=quay.io/poseidon/matchbox:latest

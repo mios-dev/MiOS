@@ -2,6 +2,9 @@
 Description=MiOS Guacamole PostgreSQL
 After=network-online.target
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips inside another
+# container (postgres datadir on overlayfs-on-overlayfs is unreliable).
+ConditionVirtualization=!container
 
 [Container]
 Image=docker.io/library/postgres:16

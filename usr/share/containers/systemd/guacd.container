@@ -2,6 +2,9 @@
 Description=MiOS Apache Guacamole Daemon
 After=network-online.target
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips inside nested
+# containers (guacd needs raw VNC/RDP socket access).
+ConditionVirtualization=!container
 
 [Container]
 Image=docker.io/guacamole/guacd:latest

@@ -10,6 +10,12 @@
 Description=MiOS Ceph Monitor (Podman-native)
 After=network-online.target
 Wants=network-online.target
+# Defaults policy: enabled by default; auto-skips on hosts that aren't
+# Ceph-configured. Ceph requires a configured cluster; without
+# /etc/ceph/ceph.conf the monitor cannot bootstrap, so skip cleanly at
+# pre-boot. Nested containers cannot run a Ceph mon.
+ConditionPathExists=/etc/ceph/ceph.conf
+ConditionVirtualization=!container
 
 [Container]
 Image=quay.io/ceph/ceph:v18

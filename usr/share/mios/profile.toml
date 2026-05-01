@@ -49,7 +49,7 @@ allow_libvirt_bridge   = true
 endpoint        = "http://localhost:8080/v1"
 model           = "default"
 api_key         = ""
-enable_ollama   = false
+enable_ollama   = true
 enable_localai  = true
 mcp_registry    = "/usr/share/mios/ai/v1/mcp.json"
 
@@ -74,13 +74,23 @@ bootstrap_repo   = "https://github.com/mios-dev/mios-bootstrap.git"
 install_packages = true
 reboot_on_finish = true
 
+# Quadlet sidecar enablement.
+#
+# Defaults policy (project-wide invariant): every flag here defaults to
+# true. The system never disables a service via static config — when a
+# service is incompatible with the host (wrong virtualization layer,
+# missing required path, missing hardware), systemd `Condition*`
+# directives in the Quadlet itself short-circuit it at boot/pre-boot
+# and the service silently no-ops. Operators can still override any
+# flag in /etc/mios/profile.toml or ~/.config/mios/profile.toml to
+# force-disable a service even when it would otherwise run.
 [quadlets.enable]
 mios-ai            = true
-mios-ceph          = false
-mios-k3s           = false
-crowdsec-dashboard = false
-ollama             = false
-cloudws-guacamole  = false
-cloudws-pxe-hub    = false
-guacamole-postgres = false
-guacd              = false
+mios-ceph          = true
+mios-k3s           = true
+crowdsec-dashboard = true
+ollama             = true
+cloudws-guacamole  = true
+cloudws-pxe-hub    = true
+guacamole-postgres = true
+guacd              = true
