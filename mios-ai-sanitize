@@ -63,8 +63,6 @@ declare -ar FORBIDDEN_META=(
     '^AI:'
     '<thinking>'
     '</thinking>'
-    '<'
-    '</'
     '<scratchpad>'
     '</scratchpad>'
     '<reasoning>'
@@ -93,6 +91,7 @@ declare -ar WHITELIST_PATTERNS=(
     'OpenAI v1'
     'OpenAI API (spec|standard|protocol|format)'
     '/v1/(chat|completions|embeddings|models|responses|mcp)'
+    'OpenAI API[ -]compliant'
 )
 
 is_whitelisted() {

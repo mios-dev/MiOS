@@ -25,7 +25,7 @@ MiOS is an immutable, bootc-native Fedora workstation OS. Repo root `mios.git` I
 
 | Path | Persistence | Purpose |
 |---|---|---|
-| `/usr/bin/mios` | Immutable | OpenAI client CLI |
+| `/usr/bin/mios` | Immutable | OpenAI-compatible client CLI |
 | `/usr/lib/` | Immutable | systemd units, kargs.d, tmpfiles.d, sysctl.d, bootc/ |
 | `/usr/share/mios/` | Immutable | PACKAGES.md, env.defaults, profile.toml, ai/ |
 | `/usr/share/mios/ai/` | Image (bootstrap) | system.md, models.json, mcp.json |
