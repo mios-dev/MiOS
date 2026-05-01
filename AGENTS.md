@@ -1,8 +1,8 @@
 # AGENTS.md
 
-> Generic agent contract following the AGENTS.md standard.
-> Read by Codex, Cursor, Aider, Continue.dev, and other agents that don't
-> have a dedicated rules file. Redirector stub.
+> Generic agent contract following the AGENTS.md standard
+> (<https://agents.md>). Read by any agent CLI that consumes
+> AGENTS.md-style entry files. Redirector stub.
 >
 > Canonical agent prompt: `/usr/share/mios/ai/system.md`.
 
@@ -10,7 +10,8 @@
 
 1. Load `/usr/share/mios/ai/system.md` first.
 2. Apply `/etc/mios/ai/system-prompt.md` as host-local override if present.
-3. This file carries no tool-specific deltas; generic agents follow the
+3. Apply `~/.config/mios/system-prompt.md` as per-user override if present.
+4. This file carries no tool-specific deltas; generic agents follow the
    canonical prompt verbatim.
 
 If `/usr/share/mios/ai/system.md` is unreachable, fall back to

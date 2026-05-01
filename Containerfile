@@ -5,7 +5,8 @@ FROM scratch AS ctx
 COPY automation/           /ctx/automation/
 COPY usr/                  /ctx/usr/
 COPY etc/                  /ctx/etc/
-COPY home/                 /ctx/home/
+# /home/ is bootstrap territory (mios-bootstrap.git stages user homes via
+# profile/ in Phase-3); the build no longer pulls it.
 COPY usr/share/mios/PACKAGES.md /ctx/PACKAGES.md
 COPY VERSION               /ctx/VERSION
 COPY config/artifacts/     /ctx/bib-configs/
@@ -34,7 +35,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \
-    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/home /ctx/PACKAGES.md /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/PACKAGES.md /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
     export PACKAGES_MD=/tmp/build/PACKAGES.md; \
     bash /tmp/build/automation/lib/packages.sh >/dev/null 2>&1 || true; \
     source /tmp/build/automation/lib/packages.sh; \

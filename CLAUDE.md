@@ -1,14 +1,18 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file is the agent-CLI entry point for this repository. Tool resolution
+relies on the literal filename — the prose below is intentionally vendor-
+agnostic.
 
 ## Authoritative prompt
 
-This file is a **redirector stub**. The canonical agent prompt for MiOS-DEV is
-`/usr/share/mios/ai/system.md`, with `/etc/mios/ai/system-prompt.md` applied
-as a host-local override if present. A copy of the canonical prompt lives at
-`/system.md` in the repo root for off-host use. Load that first; the rest of
-this file is Claude Code-specific delta plus repo orientation.
+This file is a **redirector stub**. The canonical agent prompt for MiOS-DEV
+is `/usr/share/mios/ai/system.md`, with `/etc/mios/ai/system-prompt.md`
+applied as a host-local override and `~/.config/mios/system-prompt.md` as
+per-user override (see resolution order in `system-prompt.md`). A copy of
+the canonical prompt lives at `/system.md` in the repo root for off-host
+use. Load that first; the rest of this file is agent-CLI-specific delta
+plus repo orientation.
 
 ## What this repo is
 
@@ -174,12 +178,13 @@ sandbox paths (`/mnt/user-data/`, `/home/claude/`, `/repo/`). Upstream
 package names, FHS paths, source code, and protocol endpoints survive
 unchanged.
 
-## Claude Code-specific deltas
+## Agent-CLI deltas
 
-- **TodoWrite/TaskCreate:** Track multi-step audits, refactors, and
-  migrations. One in_progress at a time. Mark completed immediately on finish.
-- **File-creation defaults:** New scratch files default to
-  `/var/lib/mios/ai/scratch/` unless the user specifies a path or work
+- **Task tracking:** track multi-step audits, refactors, and migrations
+  with the agent's task tool. One in-progress at a time; mark completed
+  immediately on finish.
+- **File-creation defaults:** new scratch files default to
+  `/var/lib/mios/ai/scratch/` unless the user specifies a path or the work
   targets the system overlay.
 - **Confirm before mutating shared state:** never run `git push`,
   `bootc upgrade`, `dnf install`, `systemctl`, or `rm -rf` without explicit
@@ -187,4 +192,5 @@ unchanged.
 - **Memory:** per-session learnings go to `/var/lib/mios/ai/memory/`.
   Read the canonical prompt §12 (immutable records, supersedes-only updates)
   before writing.
-- **Skills:** docx/pptx/xlsx skills are not needed for routine work here.
+- **Document-format skills:** docx/pptx/xlsx generation skills are not
+  needed for routine work here; skip unless explicitly requested.
