@@ -32,7 +32,7 @@ if [[ -z "${DNF_SETOPT+x}" || "$(declare -p DNF_SETOPT 2>/dev/null)" != "declare
     declare -ga DNF_SETOPT=(--setopt=install_weak_deps=False)
 fi
 if [[ -z "${DNF_OPTS+x}" || "$(declare -p DNF_OPTS 2>/dev/null)" != "declare -a"* ]]; then
-    declare -ga DNF_OPTS=(--allowerasing --best)
+    declare -ga DNF_OPTS=(--allowerasing)
 fi
 # String variant for legacy/debug visibility only. Do NOT use in commands.
 export DNF_SETOPT_STR="${DNF_SETOPT[*]}"

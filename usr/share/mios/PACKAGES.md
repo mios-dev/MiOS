@@ -196,7 +196,7 @@ Mesa 26: ACO is now default shader compiler for RadeonSI.
 ```packages-gpu-mesa
 mesa-vulkan-drivers
 mesa-dri-drivers
-mesa-va-drivers-freeworld
+mesa-va-drivers
 vulkan-loader
 vulkan-tools
 libva-utils
@@ -253,7 +253,6 @@ nvidia-container-selinux
 Full KVM stack with virt-manager GUI and firmware/security tooling.
 
 ```packages-virt
-cockpit
 qemu-kvm
 libvirt
 libvirt-daemon
@@ -269,7 +268,6 @@ libguestfs-tools
 virt-viewer
 virt-v2v
 qemu-device-display-virtio-gpu
-dracut-live
 virt-firmware
 python3-cryptography
 ```

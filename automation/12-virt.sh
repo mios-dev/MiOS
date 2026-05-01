@@ -17,11 +17,11 @@ KVER=$(cat /tmp/mios-kver 2>/dev/null || find /usr/lib/modules/ -mindepth 1 -max
 
 # ── KVM / QEMU / Libvirt ────────────────────────────────────────────────────
 echo "[12-virt] Installing KVM/QEMU/Libvirt..."
-install_packages_strict "virt"
+install_packages "virt"
 
 # ── Containers (Podman, Buildah, Skopeo, bootc, self-build tools) ────────────
 echo "[12-virt] Installing container runtime and self-building tools..."
-install_packages_strict "containers"
+install_packages "containers"
 
 # Extra self-build tools (image-rechunking, etc. - may be repo-dependent)
 install_packages "self-build"
