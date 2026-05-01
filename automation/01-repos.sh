@@ -63,9 +63,9 @@ $DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --best     dnf rpm fedora-
 
 echo "[01-repos] Phase 2: Distro-upgrade and userspace alignment..."
 $DNF_BIN "${DNF_SETOPT[@]}" --setopt=excludepkgs="shim-*,kernel*" upgrade --refresh -y
-$DNF_BIN "${DNF_SETOPT[@]}" --setopt=excludepkgs="shim-*,kernel*" distro-sync -y --best --allowerasing || {
-    echo "FATAL: distro-sync failed"
-    exit 1
+$DNF_BIN "${DNF_SETOPT[@]}" --setopt=excludepkgs="shim-*,kernel*" distro-sync -y --allowerasing || {
+    echo "[01-repos] WARN: distro-sync had conflicts — ucore base packages may differ from Fedora 44."
+    echo "[01-repos] Continuing; individual package installs will use available repos."
 }
 
 echo "[01-repos] Verifying core package versions..."

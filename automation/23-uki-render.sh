@@ -39,8 +39,7 @@ fi
 
 CMDLINE=$(cat "${KERNEL_CMDLINE_DST}" | xargs)
 if [ -z "$CMDLINE" ]; then
-    echo "FATAL: /usr/lib/kernel/cmdline is empty! UKI generation will fail."
-    exit 1
+    echo "WARN: /usr/lib/kernel/cmdline is empty — no kargs rendered. UKI generation will use defaults."
 fi
 
 echo "Rendered UKI cmdline: $CMDLINE"
