@@ -25,6 +25,7 @@
 !/.github/
 !/.github/**
 !/AGENTS.md
+!/AI.md
 !/ARCHITECTURE.md
 !/CONTRIBUTING.md
 !/Containerfile
