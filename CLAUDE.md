@@ -39,16 +39,18 @@ just build-logged     # Build with tee'd log under logs/
 just rechunk          # bootc-base-imagectl rechunk for small Day-2 deltas
 just raw              # 80 GiB RAW disk image via bootc-image-builder (BIB)
 just iso              # Anaconda installer ISO via BIB
-just qcow2 / vhdx / wsl2   # Other disk formats (need MIOS_USER_PASSWORD_HASH)
+just qcow2            # QEMU qcow2 disk image (needs MIOS_USER_PASSWORD_HASH)
+just vhdx             # Hyper-V VHDX disk image (needs MIOS_USER_PASSWORD_HASH)
+just wsl2             # WSL2 tar.gz for wsl --import
 just sbom             # CycloneDX SBOM via syft
 just artifact         # Refresh AI manifests, knowledge, wiki (automation/ai-bootstrap.sh)
 just init-user-space  # Lay down ~/.config/mios/{env,images,build}.toml
 just show-env         # Print loaded MIOS_* vars
 ```
 
-`just lint` is referenced in CONTRIBUTING.md but the `lint` target is not
-defined in the current Justfile — `bootc container lint` runs as the final
-`RUN` of `Containerfile`, so a successful `just build` is the lint gate.
+`just lint` re-runs `bootc container lint` against the locally built image on
+demand. `bootc container lint` also runs as the final `RUN` of `Containerfile`,
+so a successful `just build` is itself a lint gate.
 
 There is no test suite. Validation gates: `automation/99-postcheck.sh` (run
 inside the image build), `bootc container lint` (last Containerfile RUN), and

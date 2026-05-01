@@ -1,8 +1,80 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: wsl-firstboot
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/wsl-firstboot
+# MiOS — wsl-firstboot: WSL2 first-boot user and runtime initialization.
+# Runs once (guarded by ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done).
+# Safe to re-run: all operations are idempotent.
 set -euo pipefail
-logger -t mios "[wsl-firstboot] stub executed — replace with real implementation"
-echo "[mios/wsl-firstboot] stub: no-op" >&2
-exit 0
+
+MARKER=/var/lib/mios/.wsl-firstboot-done
+
+# logger may fail if journald isn't up yet — never fatal
+_log() { logger -t mios-wsl-firstboot "$*" 2>/dev/null || true; echo "[wsl-firstboot] $*" >&2; }
+
+_log "Starting WSL2 first-boot initialization"
+
+# ── Load identity from install.env (written at bootstrap time) ──
+MIOS_USER="${MIOS_USER:-mios}"
+MIOS_USER_HASH="${MIOS_USER_PASSWORD_HASH:-}"
+MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
+
+if [[ -f /etc/mios/install.env ]]; then
+    # shellcheck disable=SC1091
+    source /etc/mios/install.env 2>/dev/null || true
+    MIOS_USER="${MIOS_USER:-mios}"
+    MIOS_USER_HASH="${MIOS_USER_PASSWORD_HASH:-$MIOS_USER_HASH}"
+    MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
+fi
+
+# ── Hostname ──
+if [[ -n "$MIOS_HOSTNAME" ]] && command -v hostnamectl &>/dev/null; then
+    hostnamectl set-hostname "$MIOS_HOSTNAME" 2>/dev/null || true
+    _log "Hostname set to $MIOS_HOSTNAME"
+fi
+
+# ── User creation ──
+if ! id "$MIOS_USER" &>/dev/null; then
+    _log "Creating user $MIOS_USER"
+    # Apply sysusers to get declarative user definitions
+    systemd-sysusers 2>/dev/null || true
+
+    if ! id "$MIOS_USER" &>/dev/null; then
+        # Fallback imperative creation if sysusers didn't create the user
+        useradd -m -s /bin/bash -G wheel "$MIOS_USER" 2>/dev/null || true
+    fi
+fi
+
+# ── Home directory ──
+if id "$MIOS_USER" &>/dev/null; then
+    _home=$(getent passwd "$MIOS_USER" | cut -d: -f6)
+    if [[ -n "$_home" && ! -d "$_home" ]]; then
+        mkdir -p "$_home"
+        cp -a /etc/skel/. "$_home/" 2>/dev/null || true
+    fi
+    if [[ -n "$_home" && -d "$_home" ]]; then
+        _uid=$(id -u "$MIOS_USER"); _gid=$(id -g "$MIOS_USER")
+        chown -R "${_uid}:${_gid}" "$_home" 2>/dev/null || true
+    fi
+    # Unlock account
+    passwd -u "$MIOS_USER" 2>/dev/null || true
+fi
+
+# ── Password hash ──
+if [[ -n "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
+    if [[ "$MIOS_USER_HASH" =~ ^\$6\$ ]]; then
+        _log "Setting password hash for $MIOS_USER"
+        echo "${MIOS_USER}:${MIOS_USER_HASH}" | chpasswd -e 2>/dev/null || true
+    else
+        _log "WARN: MIOS_USER_PASSWORD_HASH is not a valid sha512crypt hash (must start with \$6\$)"
+    fi
+else
+    _log "WARN: No password hash found — $MIOS_USER will require password reset"
+fi
+
+# ── Tmpfiles for /var/lib/mios ──
+if [[ -f /usr/lib/tmpfiles.d/mios.conf ]]; then
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios.conf 2>/dev/null || true
+fi
+
+# ── Mark done ──
+mkdir -p "$(dirname "$MARKER")"
+touch "$MARKER"
+_log "WSL2 first-boot initialization complete"

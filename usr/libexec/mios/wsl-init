@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: wsl-init
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/wsl-init
+# MiOS — wsl-init: WSL2 runtime bridge (runs every boot).
 set -euo pipefail
-logger -t mios "[wsl-init] stub executed — replace with real implementation"
-echo "[mios/wsl-init] stub: no-op" >&2
-exit 0
+
+_log() { logger -t mios-wsl-init "$*" 2>/dev/null || true; echo "[wsl-init] $*" >&2; }
+
+_log "WSL2 runtime bridge starting"
+
+# Ensure /var/lib/mios runtime dirs exist
+if [[ -f /usr/lib/tmpfiles.d/mios.conf ]]; then
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios.conf 2>/dev/null || true
+fi
+
+# Expose /mnt/wslg socket for GUI apps if WSLg is present
+if [[ -d /mnt/wslg && ! -e /tmp/.X11-unix ]]; then
+    ln -sf /mnt/wslg/.X11-unix /tmp/.X11-unix 2>/dev/null || true
+fi
+
+_log "WSL2 runtime bridge complete"

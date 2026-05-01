@@ -42,8 +42,13 @@ just preflight      # System prereq check
 just build          # OCI image
 just lint           # bootc container lint (re-run on built image)
 just rechunk        # Optimized Day-2 deltas
+just raw            # 80 GiB RAW disk image
 just iso            # Anaconda installer ISO
+just qcow2          # QEMU qcow2 disk image (needs MIOS_USER_PASSWORD_HASH)
+just vhdx           # Hyper-V VHDX disk image (needs MIOS_USER_PASSWORD_HASH)
+just wsl2           # WSL2 tar.gz for wsl --import
 just sbom           # CycloneDX SBOM
+just all-bootstrap  # build + rechunk + log artifacts to bootstrap repo
 ```
 
 Windows: `.\preflight.ps1 ; .\mios-build-local.ps1`. See `SELF-BUILD.md`.
