@@ -55,16 +55,17 @@ if [[ -n "$K3S_TAG" ]]; then
         cd /tmp/k3s-dl
         if grep -E "  k3s$" sha256sum.txt | sha256sum -c - >/dev/null 2>&1; then
             echo "[13-ceph-k3s] ✓ K3s SHA256 checksum verified"
-            mv k3s /usr/local/bin/k3s
-            chmod 755 /usr/local/bin/k3s
+            # Install into /usr/bin (immutable image surface). /usr/local is
+            # a symlink to /var/usrlocal on bootc/FCOS layouts and
+            # /var/usrlocal/bin/ does not exist at OCI build time (it's
+            # created at first boot by usr/lib/tmpfiles.d/mios.conf).
+            install -m 0755 -t /usr/bin/ k3s
+            install -m 0755 -t /usr/bin/ k3s-install.sh
 
-            # Only symlink if official RPM binaries don't exist, preventing PATH shadowing
-            [ ! -f /usr/bin/kubectl ] && ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl 2>/dev/null || true
-            [ ! -f /usr/bin/crictl ] && ln -sf /usr/local/bin/k3s /usr/local/bin/crictl 2>/dev/null || true
-            [ ! -f /usr/bin/ctr ] && ln -sf /usr/local/bin/k3s /usr/local/bin/ctr 2>/dev/null || true
-
-            mv k3s-install.sh /usr/local/bin/k3s-install.sh
-            chmod 755 /usr/local/bin/k3s-install.sh
+            # Symlink only if no official RPM binaries claim the names.
+            [ ! -e /usr/bin/kubectl ] && ln -sf k3s /usr/bin/kubectl || true
+            [ ! -e /usr/bin/crictl ]  && ln -sf k3s /usr/bin/crictl  || true
+            [ ! -e /usr/bin/ctr ]     && ln -sf k3s /usr/bin/ctr     || true
 
             echo "[13-ceph-k3s] K3s binary and install script installed (tag: $K3S_TAG)"
         else

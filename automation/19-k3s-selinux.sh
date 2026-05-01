@@ -11,11 +11,22 @@ install_packages "k3s-selinux-build"
 
 # Pin to a specific stable release tag — HEAD clones pick up unreviewed commits.
 # Update K3S_SELINUX_TAG when bumping K3s to stay in sync with its SELinux policy.
-K3S_SELINUX_TAG="${K3S_SELINUX_TAG:-v1.5.stable.2}"
+# Audit 2026-05-01: v1.5.stable.2 was deleted upstream; resolve "the latest
+# v* tag" dynamically and fall back to the override or master if discovery
+# fails.
+K3S_SELINUX_REPO="https://github.com/k3s-io/k3s-selinux.git"
+if [[ -z "${K3S_SELINUX_TAG:-}" ]]; then
+    K3S_SELINUX_TAG=$(git ls-remote --tags --refs "$K3S_SELINUX_REPO" 'v*' 2>/dev/null \
+        | awk -F/ '{print $NF}' \
+        | sort -V \
+        | tail -n1) || true
+    K3S_SELINUX_TAG="${K3S_SELINUX_TAG:-master}"
+fi
 
-echo "==> Cloning k3s-selinux at tag ${K3S_SELINUX_TAG}..."
+echo "==> Cloning k3s-selinux at ref ${K3S_SELINUX_TAG}..."
 git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \
-    https://github.com/k3s-io/k3s-selinux.git /tmp/k3s-selinux
+    "$K3S_SELINUX_REPO" /tmp/k3s-selinux 2>/dev/null \
+    || git clone --depth 1 "$K3S_SELINUX_REPO" /tmp/k3s-selinux
 
 cd /tmp/k3s-selinux
 

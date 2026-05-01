@@ -24,7 +24,10 @@ if ! command -v cosign >/dev/null 2>&1; then
     scurl -sfL "${COSIGN_BASE_URL}/cosign_checksums.txt" -o /tmp/cosign-dl/cosign_checksums.txt
     (cd /tmp/cosign-dl && grep "cosign-linux-amd64$" cosign_checksums.txt | sha256sum -c -) \
         || die "cosign ${COSIGN_VERSION} SHA256 mismatch — aborting"
-    install -m 0755 /tmp/cosign-dl/cosign-linux-amd64 /usr/local/bin/cosign
+    # Install into /usr/bin (immutable image surface). /usr/local is a
+    # symlink to /var/usrlocal on bootc/FCOS layouts and /var/usrlocal/bin/
+    # does not exist at OCI build time.
+    install -m 0755 /tmp/cosign-dl/cosign-linux-amd64 /usr/bin/cosign
     rm -rf /tmp/cosign-dl
 fi
 

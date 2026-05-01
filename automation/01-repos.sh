@@ -35,23 +35,31 @@ if [[ ! -f "$GPG_KEY_PATH" ]]; then
 fi
 
 echo "[01-repos] Adding Fedora 44 repository..."
+# F44 is in development at build time. Dev-tree repodata is NOT GPG-signed —
+# the .asc detached signature returns 404 from every Fedora mirror. Setting
+# repo_gpgcheck=1 turns that 404 into a fatal metadata-load error that
+# cascades into every subsequent dnf transaction.
+#   - repo_gpgcheck=0 : accept unsigned dev metadata (audit 2026-05-01).
+#   - gpgcheck=1      : individual *packages* still verified by RPM signature.
+#   - skip_if_unavailable=True : when F44 mirrors are intermittently down,
+#     fall back to F43 (base image) instead of breaking the whole build.
 cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
 [fedora-44]
 name=Fedora 44 - \$basearch
 metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=\$basearch
 enabled=1
-repo_gpgcheck=1
+repo_gpgcheck=0
 type=rpm
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
-skip_if_unavailable=False
+skip_if_unavailable=True
 priority=95
 
 [fedora-44-updates]
 name=Fedora 44 Updates - \$basearch
 metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=\$basearch
 enabled=1
-repo_gpgcheck=1
+repo_gpgcheck=0
 type=rpm
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64

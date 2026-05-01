@@ -14,10 +14,13 @@ mkdir -p "$ARTIFACT_DIR"
 
 if ! command -v syft &> /dev/null; then
     echo "[90-generate-sbom] WARN: Syft not found. Attempting to install via PACKAGES.md..."
-    install_packages "sbom-tools" || {
-        echo "[90-generate-sbom] ERROR: Failed to install Syft. Skipping SBOM generation."
-        exit 0 # Non-fatal
-    }
+    install_packages "sbom-tools"
+    # install_packages is best-effort and returns 0 even on miss; re-check
+    # presence and bail out cleanly if syft still isn't on PATH.
+    if ! command -v syft &> /dev/null; then
+        echo "[90-generate-sbom] WARN: syft unavailable in this build environment — skipping SBOM generation (non-fatal)."
+        exit 0
+    fi
 fi
 
 VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "v0.2.0")
