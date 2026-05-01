@@ -95,6 +95,21 @@ fcontexts are declared via `semanage` calls in `automation/37-selinux.sh`.
   `/var/lib/mios/memory/journal/` via `usr/lib/tmpfiles.d/mios.conf`.
 - Declarative state: `tmpfiles.d` and `sysusers.d` only.
 
+## Upstream base image constraints (bootc)
+
+`bootc container lint` (LAW 4) enforces at build time:
+- Kernel present and detectable at `/usr/lib/modules/<kver>/vmlinuz`
+- No files written under `/var` or `/run` in image layers — these are
+  runtime-mutable and never part of the composefs rootfs
+- `/usr` structurally valid (no dangling symlinks, no unexpected setuid files)
+- OCI config has `architecture` and `os` fields set
+- `systemd` must be PID 1 (init at `/sbin/init`)
+
+kargs.d constraint (also enforced by lint): flat `kargs = [...]` TOML array
+only. No `[kargs]` section header, no `delete` sub-key. Files processed in
+lexicographic order; earlier entries cannot be removed by later files in the
+same image — use runtime `bootc kargs --delete` for removal.
+
 ## Toolchain
 
 | Tool | Use |
