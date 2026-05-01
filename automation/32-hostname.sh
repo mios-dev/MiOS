@@ -15,9 +15,14 @@ echo "[32-hostname] Setting default hostname template..."
 # When set (e.g. "mios-ws-83427"), it becomes the static hostname.
 # When unset (default "mios"), the first-boot mios-init derives mios-XXXXX
 # from machine-id so every deployment still gets a unique hostname.
+# LAW 4: store the image-baked default in /usr/lib/hostname; a tmpfiles.d
+# rule seeds /etc/hostname from it on first boot only if the admin hasn't
+# already set one (C = copy-if-missing).  The mios-init service then
+# derives the unique mios-XXXXX suffix from machine-id on first boot.
 _hn="${MIOS_HOSTNAME:-mios}"
-echo "$_hn" > /etc/hostname
-echo "[32-hostname] Hostname set to: $_hn"
+install -d -m 0755 /usr/lib/mios
+echo "$_hn" > /usr/lib/mios/hostname.default
+echo "[32-hostname] Default hostname template written to /usr/lib/mios/hostname.default: $_hn"
 if [[ "$_hn" == "mios" ]]; then
     echo "[32-hostname] Will become mios-XXXXX on first boot via mios-init."
 fi

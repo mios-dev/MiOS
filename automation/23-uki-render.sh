@@ -17,9 +17,12 @@ fi
 
 # In a bootc Containerfile build, we use `bootc container render-kargs`
 # to flatten all kargs.d/*.toml drop-ins into a single string for the UKI.
+KERNEL_CMDLINE_DST="/usr/lib/kernel/cmdline"
+install -d -m 0755 /usr/lib/kernel
+
 if command -v bootc >/dev/null && bootc container --help | grep -q 'render-kargs'; then
     echo "==> Rendering bootc kargs for UKI natively..."
-    bootc container render-kargs > /etc/kernel/cmdline
+    bootc container render-kargs > "${KERNEL_CMDLINE_DST}"
 else
     echo "==> bootc render-kargs not available, rendering flat TOML via Python fallback..."
     python3 -c '
@@ -31,12 +34,12 @@ for f in sorted(glob.glob("/usr/lib/bootc/kargs.d/*.toml")):
         if "kargs" in d:
             kargs.extend(d["kargs"])
 print(" ".join(kargs))
-' > /etc/kernel/cmdline
+' > "${KERNEL_CMDLINE_DST}"
 fi
 
-CMDLINE=$(cat /etc/kernel/cmdline | xargs)
+CMDLINE=$(cat "${KERNEL_CMDLINE_DST}" | xargs)
 if [ -z "$CMDLINE" ]; then
-    echo "FATAL: /etc/kernel/cmdline is empty! UKI generation will fail."
+    echo "FATAL: /usr/lib/kernel/cmdline is empty! UKI generation will fail."
     exit 1
 fi
 

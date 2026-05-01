@@ -17,9 +17,10 @@ mkdir -p /usr/lib/wsl/lib
 mkdir -p /usr/lib/wsl/drivers
 
 # 2. Add ld.so.conf entry to ensure these libraries are in the search path
+# LAW 4: write to /usr/lib/ld.so.conf.d — /etc/ld.so.conf.d is for Day-2 admin overrides only
 log "Configuring dynamic linker paths for GPU-PV..."
-mkdir -p /etc/ld.so.conf.d
-echo "/usr/lib/wsl/lib" > /etc/ld.so.conf.d/mios-gpu-pv.conf
+install -d -m 0755 /usr/lib/ld.so.conf.d
+echo "/usr/lib/wsl/lib" > /usr/lib/ld.so.conf.d/mios-gpu-pv.conf
 
 # 3. Create a detection script for first-boot or deployment
 mkdir -p /usr/libexec/mios

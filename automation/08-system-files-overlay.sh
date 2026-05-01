@@ -24,12 +24,16 @@ if [[ -d "${CTX}/usr" ]]; then
 fi
 
 # --- Stage 2: /usr/local via /var/usrlocal ---------------------------------
+# LAW 5: /var/usrlocal must NOT be mkdir'd during OCI build.
+# It is declared in /usr/lib/tmpfiles.d/mios-infra.conf and created at boot.
+# If /usr/local is a symlink to /var/usrlocal (typical FCOS layout), skip the
+# tar write — the content will be available after first-boot tmpfiles.d runs.
+# If /usr/local is a real directory (non-FCOS base), write directly.
 if [[ -d "${CTX}/usr/local" ]]; then
     log "  stage 2: overlay /usr/local content"
     if [[ -L /usr/local ]]; then
-        log "    /usr/local is a symlink -> $(readlink /usr/local); writing through"
-        install -d -m 0755 /var/usrlocal
-        tar -C "${CTX}/usr/local" -cf - . | tar -C /var/usrlocal --no-overwrite-dir -xf -
+        local_target="$(readlink -f /usr/local 2>/dev/null || true)"
+        log "    /usr/local is a symlink -> ${local_target}; skipping /var write (tmpfiles.d will create at boot)"
     else
         log "    /usr/local is a real directory; writing directly"
         tar -C "${CTX}/usr/local" -cf - . | tar -C /usr/local --no-overwrite-dir -xf -
@@ -51,12 +55,15 @@ fi
 # fi
 
 # --- Stage 5: /home (User Space Templates) ---------------------------------
+# LAW 5: Writing to /var/home during OCI build violates the immutability contract —
+# /var is a persistent volume that is NOT populated from the OCI image on deployment.
+# Home directory dotfile templates must live in /etc/skel/ and are copied by
+# systemd-sysusers when the user is first created at boot.
+# This stage is intentionally a no-op; see /etc/skel/ for the skel overlay.
 if [[ -d "${CTX}/home" ]]; then
-    log "  stage 5: overlay home content"
-    # mkdir required here so the tar overlay can write to /var/home during the build;
-    # tmpfiles.d will also create it at first boot (not a STATELESS-VAR violation—it is idempotent)
-    mkdir -p /var/home
-    tar -C "${CTX}/home" -cf - . | tar -C /var/home --no-overwrite-dir -xf -
+    log "  stage 5: /ctx/home detected — seeding /etc/skel instead of /var/home (LAW 5)"
+    install -d -m 0755 /etc/skel
+    tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
 
 # Normalize permissions on systemd unit and config files.

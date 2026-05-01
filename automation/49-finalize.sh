@@ -10,11 +10,10 @@ systemctl preset-all 2>/dev/null || true
 # Bare-metal/VM roles will switch this to graphical.target/etc. at runtime.
 systemctl set-default multi-user.target 2>/dev/null || true
 
-# Ensure role directory exists with example config
-mkdir -p /etc/mios
-if [[ ! -f /etc/mios/role.conf ]]; then
-    cp -a /usr/share/mios/role.conf.example /etc/mios/role.conf 2>/dev/null || true
-fi
+# LAW 4: /etc/mios is for Day-2 admin overrides and is created by tmpfiles.d at boot.
+# Stage the example role.conf in /usr/share/mios/ so tmpfiles.d can seed it
+# to /etc/mios/role.conf on first boot via the C (copy-if-missing) directive.
+install -d -m 0755 /usr/share/mios
 
 # Scrub potential credential leaks from build-time placeholder injections
 log "scrubbing build-time credentials and override scripts"
@@ -29,13 +28,15 @@ rm -f /etc/containers/auth.json \
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/libdnf5 /var/cache/dnf /var/log/dnf5.log* 2>/dev/null || true
 
-# Set image metadata
+# Set image metadata — LAW 4: write to /usr/lib/mios/, not /etc/
+# /etc/mios-version and /etc/mios/version are Day-2 admin paths.
 MIOS_VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "unknown")
-echo "${MIOS_VERSION}" > /etc/mios-version
-cat > /etc/mios/version <<EOF
+install -d -m 0755 /usr/lib/mios
+cat > /usr/lib/mios/version <<EOF
 MIOS_VERSION=${MIOS_VERSION}
 MIOS_BASE=ucore-hci-stable-nvidia
 MIOS_BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
+ln -sf /usr/lib/mios/version /usr/lib/mios/mios-version
 
 log "finalize complete"

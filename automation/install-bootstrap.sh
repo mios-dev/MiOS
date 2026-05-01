@@ -152,14 +152,29 @@ main() {
     log_ok "User profile applied."
 
     # --- 3. Total Root Merge ---
+    # LAW 1: NON-DESTRUCTIVE SIMPLE MERGE — never use git checkout -f at /,
+    # which forcibly overwrites existing system files. Clone to a temp path,
+    # then rsync each FHS overlay dir with --ignore-existing semantics so that
+    # base system files are never clobbered.
     log_phase "MiOS Core Installation (Root Merge)"
-    log_info "Merging MiOS repository onto system root (/) ..."
-    if [[ ! -d "/.git" ]]; then
-        git init /
-        git -C / remote add origin "$MIOS_REPO" 2>/dev/null || git -C / remote set-url origin "$MIOS_REPO"
+    log_info "Cloning MiOS repository to staging area..."
+    MIOS_STAGE="$(mktemp -d /tmp/mios-stage-XXXXXX)"
+    trap 'rm -rf "${MIOS_STAGE}"' EXIT
+    git clone --depth=1 --branch "$DEFAULT_BRANCH" "$MIOS_REPO" "${MIOS_STAGE}"
+    log_ok "Repository cloned to ${MIOS_STAGE}"
+
+    log_info "Applying non-destructive FHS overlay from staging area..."
+    for d in usr etc var srv; do
+        if [[ -d "${MIOS_STAGE}/${d}" ]]; then
+            log_info "  Merging ${d}/ ..."
+            rsync -aH --info=stats1 "${MIOS_STAGE}/${d}/" "/${d}/"
+        fi
+    done
+    if [[ -d "${MIOS_STAGE}/v1" ]]; then
+        log_info "  Materializing /v1 discovery surface..."
+        install -d /v1
+        rsync -aH "${MIOS_STAGE}/v1/" "/v1/"
     fi
-    git -C / fetch --depth=1 origin "$DEFAULT_BRANCH"
-    git -C / checkout -f "$DEFAULT_BRANCH"
     log_ok "MiOS source tree merged to root."
 
     # --- 4. Package Installation ---
