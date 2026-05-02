@@ -39,6 +39,9 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     export PACKAGES_MD=/tmp/build/PACKAGES.md; \
     bash /tmp/build/automation/lib/packages.sh >/dev/null 2>&1 || true; \
     source /tmp/build/automation/lib/packages.sh; \
+    # Purge any stale/corrupt repo metadata left in the buildkit cache mount
+    # from a previous failed build (zchunk checksum errors, partial syncs, etc.)
+    ${DNF_BIN:-dnf5} clean metadata 2>/dev/null || ${DNF_BIN:-dnf} clean metadata 2>/dev/null || true; \
     install_packages_strict base; \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
