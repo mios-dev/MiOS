@@ -1,0 +1,26 @@
+{
+  "type": "function",
+  "name": "bootc_switch",
+  "description": "Switch the MiOS host to a new bootc container image reference. Stages the deployment; reboot to activate (or pass apply_now=true).",
+  "strict": true,
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "image_ref": {
+        "type": "string",
+        "description": "Full OCI reference, e.g. ghcr.io/mios-dev/mios:latest or ghcr.io/mios-dev/mios@sha256:..."
+      },
+      "transport": {
+        "type": "string",
+        "enum": ["registry", "containers-storage", "oci", "oci-archive"],
+        "description": "Container transport. 'registry' is the default for GHCR."
+      },
+      "apply_now": {
+        "type": ["boolean", "null"],
+        "description": "If true, run `bootc upgrade --apply` immediately. Null = stage only."
+      }
+    },
+    "required": ["image_ref", "transport", "apply_now"]
+  }
+}

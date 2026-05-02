@@ -1,0 +1,10 @@
+{
+  "type": "mcp",
+  "server_label": "mios-kb",
+  "server_description": "Search and fetch over the MiOS knowledge base (vector store + repo + live runtime state).",
+  "server_url": "https://mcp.mios.dev/mcp/",
+  "require_approval": "never",
+  "allowed_tools": ["search", "fetch", "bootc_status", "packages_md_query"],
+  "headers": {"Authorization": "Bearer ${MIOS_MCP_TOKEN}"},
+  "_comment": "OpenAI Responses API only. OpenAI retains only schema/domain/subdomains of server_url between calls; auth headers must be re-sent every request and are never logged. Do NOT put secrets in path/query."
+}

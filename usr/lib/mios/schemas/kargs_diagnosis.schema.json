@@ -1,0 +1,29 @@
+{
+  "type": "json_schema",
+  "name": "mios_kargs_diagnosis",
+  "description": "Structured output for diagnosing a kargs.d issue or proposing a kargs change.",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "verdict": {"type": "string", "enum": ["valid", "invalid", "warning"], "description": "Schema validity assessment."},
+      "violations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rule": {"type": "string", "enum": ["no_section_header", "no_delete_subkey", "invalid_arch", "duplicate_karg", "shadowed_by_higher_priority", "conflicts_with_nvidia", "conflicts_with_lockdown"]},
+            "detail": {"type": "string"}
+          },
+          "required": ["rule", "detail"]
+        }
+      },
+      "suggested_filename": {"type": "string", "description": "Recommended filename for placement under usr/lib/bootc/kargs.d/, e.g. '50-mios-vfio.toml'."},
+      "suggested_toml": {"type": "string", "description": "Corrected TOML body (flat top-level kargs array)."},
+      "verification_command": {"type": "string", "description": "Single shell command the user runs after rebuild to verify the kargs took effect."}
+    },
+    "required": ["verdict", "violations", "suggested_filename", "suggested_toml", "verification_command"]
+  }
+}

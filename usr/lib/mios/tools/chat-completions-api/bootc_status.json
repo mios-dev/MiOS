@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "bootc_status",
+    "description": "Return the current bootc deployment status of the MiOS host (booted image, staged image, rollback image, kargs). Wraps `bootc status --format=json`.",
+    "strict": true,
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "json",
+            "yaml",
+            "human"
+          ],
+          "description": "Output format. JSON is recommended for tool chaining."
+        },
+        "include_kargs": {
+          "type": "boolean",
+          "description": "If true, include kernel arguments parsed from /proc/cmdline and kargs.d."
+        }
+      },
+      "required": [
+        "format",
+        "include_kargs"
+      ]
+    }
+  }
+}

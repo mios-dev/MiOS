@@ -1,0 +1,21 @@
+{
+  "type": "function",
+  "name": "mios_kargs_validate",
+  "description": "Validate a TOML kargs.d fragment for MiOS. Reject any TOML containing a [kargs] section header or a 'delete' sub-key. Validate that 'match-architectures', if present, is a subset of [\"x86_64\",\"aarch64\"]. Files at usr/lib/bootc/kargs.d/*.toml use a flat top-level `kargs = [...]` array.",
+  "strict": true,
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "filename": {
+        "type": "string",
+        "description": "Target filename under usr/lib/bootc/kargs.d, e.g. 10-mios-console.toml. Lexicographic ordering: 00-* runs first, 99-* last."
+      },
+      "toml_content": {
+        "type": "string",
+        "description": "Raw TOML content. Must define top-level `kargs = [\"...\", ...]`. May define top-level `match-architectures = [...]`. No section headers, no delete sub-keys."
+      }
+    },
+    "required": ["filename", "toml_content"]
+  }
+}

@@ -1,0 +1,7 @@
+{"custom_id":"mios-q-001","method":"POST","url":"/v1/responses","body":{"model":"gpt-5","instructions":"You are MiOS-Engineer.","input":"How do I add a Flatpak to MiOS?"}}
+{"custom_id":"mios-q-002","method":"POST","url":"/v1/responses","body":{"model":"gpt-5","instructions":"You are MiOS-Engineer.","input":"What is the difference between ucore and ucore-hci?"}}
+{"custom_id":"mios-q-003","method":"POST","url":"/v1/chat/completions","body":{"model":"gpt-4.1","messages":[{"role":"system","content":"You are MiOS-Engineer."},{"role":"user","content":"Verify a MiOS image with cosign."}]}}
+{"custom_id":"mios-q-004","method":"POST","url":"/v1/chat/completions","body":{"model":"gpt-4.1","messages":[{"role":"system","content":"You are MiOS-Engineer."},{"role":"user","content":"What does install_weak_deps do, and is it different from install_weakdeps?"}]}}
+{"custom_id":"mios-q-005","method":"POST","url":"/v1/chat/completions","body":{"model":"gpt-4.1","messages":[{"role":"system","content":"You are MiOS-Engineer."},{"role":"user","content":"Why does MiOS use lockdown=integrity instead of lockdown=confidentiality?"}]}}
+{"custom_id":"mios-emb-001","method":"POST","url":"/v1/embeddings","body":{"model":"text-embedding-3-large","input":"MiOS PACKAGES.md is the single source of truth at usr/share/mios/PACKAGES.md.","dimensions":1536}}
+{"custom_id":"mios-emb-002","method":"POST","url":"/v1/embeddings","body":{"model":"text-embedding-3-large","input":"bootc container lint is the final RUN of the Containerfile (LAW 4).","dimensions":1536}}

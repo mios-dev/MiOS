@@ -1,0 +1,6 @@
+{
+  "type": "file_search",
+  "vector_store_ids": ["vs_REPLACE_ME"],
+  "max_num_results": 10,
+  "_comment": "OpenAI Responses API hosted file_search tool. Replace vs_REPLACE_ME with the vector store id returned from POST /v1/vector_stores. Available only on OpenAI cloud and Azure OpenAI; for local runtimes use the chunks.jsonl + ingest_local.py path."
+}

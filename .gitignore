@@ -39,6 +39,10 @@
 !/LICENSE
 !/LICENSES.md
 !/README.md
+!/INSTALL.md
+!/SOURCES.md
+!/manifest.json
+!/mios-kb.tar.gz
 !/SECURITY.md
 !/SELF-BUILD.md
 !/system.md
@@ -55,6 +59,15 @@
 !/preflight.ps1
 !/push-to-github.ps1
 !/renovate.json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2b. /proc/mios — synthetic KB index surface
+# ─────────────────────────────────────────────────────────────────────────────
+!/proc/
+proc/*
+!/proc/mios/
+proc/mios/*
+!/proc/mios/manifest.json
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. MIOS BUILD & AUTOMATION INFRASTRUCTURE
@@ -88,10 +101,16 @@ etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
 !/etc/wsl.conf
 
-# /etc/mios/ is BOOTSTRAP territory (mios-bootstrap.git). Not tracked here.
+# /etc/mios/ — KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
+# Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
+!/etc/mios/
+etc/mios/*
+!/etc/mios/kb.conf.toml
+!/etc/mios/eval-criteria.json
+!/etc/mios/system-prompts/
+!/etc/mios/system-prompts/**
+
 # /home/ is BOOTSTRAP territory. Per-user templates and skel live in mios-bootstrap.
-# /srv/ structure is created at runtime by usr/lib/tmpfiles.d/mios.conf — no
-# placeholder files tracked here.
 # /agents/ is BOOTSTRAP territory (knowledge graphs / RAG manifests).
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -118,8 +137,12 @@ usr/*
 usr/bin/*
 !/usr/bin/mios
 
-# usr/share — mios/ build files only; AI/user data tracked in mios-bootstrap.git
+# usr/share — mios/ build files + doc/mios/ KB docs
 usr/share/*
+!/usr/share/doc/
+usr/share/doc/*
+!/usr/share/doc/mios/
+!/usr/share/doc/mios/**
 !/usr/share/mios/
 !/usr/share/mios/**
 # AI files, knowledge, logs, user data belong in mios-bootstrap.git
@@ -146,6 +169,8 @@ usr/libexec/*
 
 # usr/lib — cascade for each MiOS-owned subdirectory
 usr/lib/*
+!/usr/lib/mios/
+!/usr/lib/mios/**
 
 # Directories containing exclusively MiOS content — allow all via **
 !/usr/lib/NetworkManager/
@@ -286,6 +311,48 @@ usr/lib/udev/*
 usr/lib/udev/rules.d/*
 !/usr/lib/udev/rules.d/99-kvmfr.rules
 !/usr/lib/udev/rules.d/99-mios-gpu.rules
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9b. /usr/local — cookbooks
+# ─────────────────────────────────────────────────────────────────────────────
+!/usr/local/
+usr/local/*
+!/usr/local/share/
+usr/local/share/*
+!/usr/local/share/mios/
+usr/local/share/mios/*
+!/usr/local/share/mios/cookbooks/
+!/usr/local/share/mios/cookbooks/**
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9c. /var — KB RAG, training, and evals data
+# ─────────────────────────────────────────────────────────────────────────────
+!/var/
+var/*
+!/var/lib/
+var/lib/*
+!/var/lib/mios/
+!/var/lib/mios/**
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9d. /srv — API example payloads
+# ─────────────────────────────────────────────────────────────────────────────
+!/srv/
+srv/*
+!/srv/mios/
+srv/mios/*
+!/srv/mios/api/
+!/srv/mios/api/**
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9e. /opt — XML-structured prompt templates
+# ─────────────────────────────────────────────────────────────────────────────
+!/opt/
+opt/*
+!/opt/mios/
+opt/mios/*
+!/opt/mios/prompts/
+!/opt/mios/prompts/**
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 10. SAFETY OVERRIDES — sensitive, volatile, or OS-managed files

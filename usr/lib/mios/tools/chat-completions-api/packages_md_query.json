@@ -1,0 +1,43 @@
+{
+  "type": "function",
+  "function": {
+    "name": "packages_md_query",
+    "description": "Query the MiOS PACKAGES.md SSOT (at usr/share/mios/PACKAGES.md). Returns whether a package is included, the fenced-block category that installs it, and the install helper that consumes the block. Categories live in fenced ```packages-<category>``` blocks parsed by automation/lib/packages.sh:get_packages.",
+    "strict": true,
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "package_name": {
+          "type": "string",
+          "description": "RPM package name (e.g. 'gnome-shell', 'akmod-nvidia', 'k3s-selinux')."
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "base",
+            "critical",
+            "self-build",
+            "desktop",
+            "nvidia",
+            "k3s",
+            "ceph",
+            "ai",
+            "gpu",
+            "virt",
+            "all",
+            null
+          ],
+          "description": "Optional category filter. 'all' searches every fenced block. Null defaults to 'all'."
+        }
+      },
+      "required": [
+        "package_name",
+        "category"
+      ]
+    }
+  }
+}

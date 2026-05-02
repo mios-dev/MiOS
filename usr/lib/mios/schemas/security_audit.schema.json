@@ -1,0 +1,31 @@
+{
+  "type": "json_schema",
+  "name": "mios_security_audit",
+  "description": "Structured output for an MiOS host security posture audit.",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "selinux_mode": {"type": "string", "enum": ["enforcing", "permissive", "disabled"]},
+      "lockdown_mode": {"type": "string", "enum": ["none", "integrity", "confidentiality"]},
+      "firewalld_default_zone": {"type": "string"},
+      "fapolicyd_active": {"type": "boolean"},
+      "usbguard_active": {"type": "boolean"},
+      "crowdsec_active": {"type": "boolean"},
+      "image_signature_verified": {"type": "boolean", "description": "Did `cosign verify` against the GitHub Actions OIDC identity succeed?"},
+      "composefs_enabled": {"type": "boolean"},
+      "missing_protections": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Human-readable list of protections that should be on but aren't (e.g. 'fapolicyd is masked', 'getenforce returned Permissive')."
+      },
+      "remediation_steps": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Ordered shell commands or file edits to restore baseline."
+      }
+    },
+    "required": ["selinux_mode", "lockdown_mode", "firewalld_default_zone", "fapolicyd_active", "usbguard_active", "crowdsec_active", "image_signature_verified", "composefs_enabled", "missing_protections", "remediation_steps"]
+  }
+}

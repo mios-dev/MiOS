@@ -1,0 +1,30 @@
+{
+  "type": "json_schema",
+  "name": "mios_build_status",
+  "description": "Structured output for an MiOS build pipeline result. Used as Responses API text.format or Chat Completions response_format.",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "image": {"type": "string", "description": "Full OCI image ref of the produced image."},
+      "digest": {"type": "string", "description": "sha256 digest of the produced image manifest."},
+      "phases_completed": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Names of automation/[0-9][0-9]-*.sh phase scripts that completed successfully."
+      },
+      "phases_failed": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Phase scripts that failed (captured in FAIL_LOG; build.sh continues with set +e)."
+      },
+      "lint_passed": {"type": "boolean", "description": "Did `bootc container lint` (LAW 4) pass?"},
+      "rechunked": {"type": "boolean", "description": "Was bootc-base-imagectl rechunk run?"},
+      "signed": {"type": "boolean", "description": "Was the image cosign keyless-signed?"},
+      "sbom_path": {"type": ["string", "null"], "description": "Path to CycloneDX SBOM if produced (e.g. artifacts/sbom/mios-sbom.json), else null."},
+      "warnings": {"type": "array", "items": {"type": "string"}, "description": "Any non-fatal warnings (from WARN_LOG)."}
+    },
+    "required": ["image", "digest", "phases_completed", "phases_failed", "lint_passed", "rechunked", "signed", "sbom_path", "warnings"]
+  }
+}

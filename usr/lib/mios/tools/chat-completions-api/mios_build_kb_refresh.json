@@ -1,0 +1,36 @@
+{
+  "type": "function",
+  "function": {
+    "name": "mios_build_kb_refresh",
+    "description": "Re-scrape the MiOS GitHub repo at a given git_ref and regenerate the vector_store import file, chunks.jsonl, SFT dataset, and eval dataset. Use when KB drift is suspected versus the live repo.",
+    "strict": true,
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "git_ref": {
+          "type": "string",
+          "description": "Branch, tag, or commit SHA to scrape. Defaults to 'main' if empty string."
+        },
+        "rebuild_embeddings": {
+          "type": "boolean",
+          "description": "Regenerate var/lib/mios/embeddings/{vector_store.import.jsonl,chunks.jsonl}."
+        },
+        "rebuild_training": {
+          "type": "boolean",
+          "description": "Regenerate var/lib/mios/training/{sft.jsonl,dpo.jsonl}."
+        },
+        "rebuild_evals": {
+          "type": "boolean",
+          "description": "Regenerate var/lib/mios/evals/dataset.jsonl."
+        }
+      },
+      "required": [
+        "git_ref",
+        "rebuild_embeddings",
+        "rebuild_training",
+        "rebuild_evals"
+      ]
+    }
+  }
+}

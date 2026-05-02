@@ -1,0 +1,58 @@
+{
+  "type": "function",
+  "function": {
+    "name": "mios_build",
+    "description": "Run the MiOS Containerfile build via Podman (calls the Justfile 'build' recipe or its Windows equivalent mios-build-local.ps1).",
+    "strict": true,
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_tag": {
+          "type": "string",
+          "description": "Output tag, e.g. localhost/mios:dev or ghcr.io/mios-dev/mios:dev-2026.05.02. Lowercase repo namespace required."
+        },
+        "base_image": {
+          "type": "string",
+          "description": "Base image. MiOS default: ghcr.io/ublue-os/ucore-hci:stable-nvidia. Alternative: ghcr.io/ublue-os/ucore-hci:stable-nvidia-lts."
+        },
+        "squash_all": {
+          "type": "boolean",
+          "description": "Pass --squash-all to podman build. WARNING: strips OCI metadata bootc needs and breaks Day-2 deltas. Almost always false."
+        },
+        "lint": {
+          "type": "boolean",
+          "description": "Re-run `bootc container lint` against the built image. The Containerfile's final RUN already lints; this is a redundant check (LAW 4)."
+        },
+        "sign": {
+          "type": "boolean",
+          "description": "Run cosign keyless sign on the resulting image. Requires GitHub Actions OIDC context \u2014 false for local builds."
+        },
+        "rechunk": {
+          "type": "boolean",
+          "description": "Run bootc-base-imagectl rechunk --max-layers 67 after build. Recommended for tags pushed to GHCR; skip for ephemeral builds."
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "linux/amd64",
+              "linux/arm64"
+            ]
+          },
+          "description": "Target platforms for multi-arch manifest list. MiOS currently ships amd64."
+        }
+      },
+      "required": [
+        "target_tag",
+        "base_image",
+        "squash_all",
+        "lint",
+        "sign",
+        "rechunk",
+        "platforms"
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "model": "text-embedding-3-large",
+  "input": [
+    "MiOS uses lockdown=integrity, not lockdown=confidentiality.",
+    "PACKAGES.md lives at usr/share/mios/PACKAGES.md and uses fenced packages-<category> blocks."
+  ],
+  "dimensions": 1536,
+  "encoding_format": "float",
+  "_comment": "POST /v1/embeddings. Works against OpenAI cloud and all OpenAI-compatible local runtimes; some local runtimes silently ignore `dimensions`."
+}
