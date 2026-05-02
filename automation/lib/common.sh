@@ -31,7 +31,10 @@ fi
 if [[ -z "${DNF_SETOPT+x}" || "$(declare -p DNF_SETOPT 2>/dev/null)" != "declare -a"* ]]; then
     declare -ga DNF_SETOPT=(
         --setopt=install_weak_deps=False
-        --setopt=timeout=15
+        --setopt=timeout=10          # cut per-mirror connection attempt at 10 s
+        --setopt=minrate=1k          # drop any mirror delivering < 1 kB/s after timeout
+        --setopt=max_parallel_downloads=10  # pull from 10 mirrors simultaneously
+        --setopt=ip_resolve=4        # prefer IPv4; many Fedora IPv6 paths time out in WSL2
     )
 fi
 if [[ -z "${DNF_OPTS+x}" || "$(declare -p DNF_OPTS 2>/dev/null)" != "declare -a"* ]]; then

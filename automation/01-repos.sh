@@ -54,6 +54,10 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
 skip_if_unavailable=True
 priority=95
+timeout=10
+minrate=1k
+max_parallel_downloads=10
+ip_resolve=4
 
 [fedora-44-updates]
 name=Fedora 44 Updates - \$basearch
@@ -65,6 +69,10 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
 skip_if_unavailable=True
 priority=95
+timeout=10
+minrate=1k
+max_parallel_downloads=10
+ip_resolve=4
 EOREPO
 
 echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
@@ -89,12 +97,22 @@ $DNF_BIN "${DNF_SETOPT[@]}" \
     upgrade --refresh -y --skip-unavailable || {
     echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) — continuing"
 }
-$DNF_BIN "${DNF_SETOPT[@]}" \
-    --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
-    distro-sync -y --allowerasing --skip-unavailable || {
-    echo "[01-repos] WARN: distro-sync had conflicts — ucore base packages may differ from Fedora 44."
+# distro-sync is retried once: F44 mirrors are occasionally in-progress sync state,
+# causing RPM signature mismatches that resolve on a second attempt with fresh metadata.
+_dsync_ok=0
+for _attempt in 1 2; do
+    if $DNF_BIN "${DNF_SETOPT[@]}" \
+            --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
+            distro-sync -y --allowerasing --skip-unavailable; then
+        _dsync_ok=1; break
+    fi
+    echo "[01-repos] WARN: distro-sync attempt $_attempt failed — cleaning cache and retrying..."
+    $DNF_BIN clean metadata 2>/dev/null || true
+done
+if [[ $_dsync_ok -eq 0 ]]; then
+    echo "[01-repos] WARN: distro-sync failed after 2 attempts — ucore packages may differ from Fedora 44."
     echo "[01-repos] Continuing; individual package installs will use available repos."
-}
+fi
 
 # Clean metadata so subsequent scripts start from a consistent cache state
 $DNF_BIN clean metadata 2>/dev/null || true
