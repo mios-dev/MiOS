@@ -529,6 +529,18 @@ if ($DoPull) {
 Write-Phase "3" "Generating Deployment Targets"
 $ErrorActionPreference = "Continue"
 
+# Ensure the BIB output directory exists inside MiOS-BUILDER.
+# podman bind-mounts the host path into the BIB container; the host path
+# must exist before `podman run -v` is called or crun returns ENOENT.
+# Compute the WSL2 Linux equivalent of the Windows $OutputFolder path and
+# pre-create it via `podman machine ssh`.
+if ($OutputFolder -match '^([A-Za-z]):\\(.*)$') {
+    $bibLinuxDir = "/mnt/$($Matches[1].ToLower())/$($Matches[2] -replace '\\','/')"
+} else {
+    $bibLinuxDir = $OutputFolder  # already a Linux path (e.g. /tmp/mios-bib-output)
+}
+$null = & podman machine ssh $BuilderMachine "mkdir -p '$bibLinuxDir'" 2>$null
+
 $bibConf = Join-Path $PWD "config\bib.toml"
 if (-not (Test-Path $bibConf)) { $bibConf = Join-Path $PWD "config\bib.json" }
 $bibConfDest = Join-Path $OutputFolder "bib-config"
@@ -800,7 +812,6 @@ if ($env:MIOS_SKIP_DEPLOY -eq "1") {
                             "localhostForwarding=true",
                             "nestedVirtualization=true",
                             "vmIdleTimeout=-1",
-                            "systemd=true",
                             "",
                             "[experimental]",
                             "networkingMode=mirrored",
