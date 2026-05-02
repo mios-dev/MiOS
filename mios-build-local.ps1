@@ -90,13 +90,14 @@ function Write-Warn {
     $script:BuildAudit += "  [WARN] $maskedM" 
 }
 
-function Write-Fatal { 
-    param([string]$M) 
+function Write-Fatal {
+    param([string]$M)
     $maskedM = Format-Masked $M
-    Write-Host "`n  [FAIL] FATAL: $maskedM" -ForegroundColor Red; 
-    $script:BuildAudit += "  [FAIL] $maskedM"; 
-    Show-StatusCard; 
-    exit 1 
+    Write-Host "`n  [FAIL] FATAL: $maskedM" -ForegroundColor Red;
+    $script:BuildAudit += "  [FAIL] $maskedM";
+    Show-StatusCard
+    try { Stop-Transcript | Out-Null } catch {}
+    exit 1
 }
 
 function Show-StatusCard {
@@ -182,6 +183,35 @@ function Get-SHA512Hash {
 
 function Clear-BIBTemp { foreach ($d in "image","vpc","qcow2","bootiso") { Get-ChildItem $OutputFolder -Directory -Filter $d -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue } }
 
+function Invoke-BIBRun {
+    param([string[]]$BIBArgs, [string]$Label)
+    $bibOp  = "Starting $Label..."
+    $bibN   = 0
+    $pctBase = if ($script:PhasePercent.ContainsKey('3')) { $script:PhasePercent['3'] } else { 82 }
+    Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+        -Status "Phase 3 — $Label" -CurrentOperation $bibOp -PercentComplete $pctBase
+    & podman @BIBArgs 2>&1 | ForEach-Object {
+        $line = $_
+        Write-Host (Format-Masked $line)
+        $bibN++
+        $stripped = ($line -replace '^\s*#\d+\s+(?:[\d.]+\s+)?', '').TrimStart()
+        if ($stripped -match 'org\.osbuild\.\S+') {
+            $bibOp = $Matches[0]
+        } elseif ($stripped -match '^(Assembling|Building|Extracting|Installing|Packaging|Pipeline|Stage|Writing)\b') {
+            $candidate = ($stripped -replace '\s+', ' ').Trim()
+            $bibOp = if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '…' } else { $candidate }
+        } elseif (-not [string]::IsNullOrWhiteSpace($stripped)) {
+            $candidate = ($stripped -replace '\s+', ' ').Trim()
+            $bibOp = Format-Masked (if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '…' } else { $candidate })
+        }
+        Write-Progress -Activity "  $Label" -Id 1 -ParentId 0 `
+            -Status "Lines: $bibN" -CurrentOperation $bibOp `
+            -PercentComplete ([Math]::Min(99, [int]($bibN / 10)))
+    }
+    Write-Progress -Activity "  $Label" -Id 1 -Completed
+    return $LASTEXITCODE
+}
+
 # --- Auto-Elevation ---
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "  Relaunching as Administrator..." -ForegroundColor Cyan
@@ -218,7 +248,7 @@ $DefPass        = if ($env:MIOS_PASSWORD) { $env:MIOS_PASSWORD } elseif ($env:MI
 $DefHostname    = if ($env:MIOS_HOSTNAME) { $env:MIOS_HOSTNAME } else { "mios" }
 $MIOS_REGISTRY_DEFAULT = "ghcr.io/MiOS-DEV/mios" # @track:REGISTRY_DEFAULT
 $DefRegistry    = if ($env:MIOS_IMAGE_NAME) { $env:MIOS_IMAGE_NAME -replace ':.*$','' } else { $MIOS_REGISTRY_DEFAULT }
-$BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" quay.io/centos-bootc/bootc-image-builder:latest # @track:IMG_BIB
+$BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" } # @track:IMG_BIB
 $BuilderMachine = "mios-builder"
 $LocalImage     = "localhost/${ImageName}:${ImageTag}"
 $MiosDocsDir      = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "MiOS"
@@ -350,6 +380,16 @@ Write-OK "Workflow: $(switch($workflow){'1'{'Local Build'}; '2'{'Build+Push'}; '
 # -- Validate prerequisites ---------------------------------------------------
 Write-Phase "0.5" "System Validation"
 if (-not (Test-Path $OutputFolder)) { New-Item -ItemType Directory -Path $OutputFolder -Force | Out-Null }
+if (-not (Test-Path $MiosImagesDir)) { New-Item -ItemType Directory -Path $MiosImagesDir -Force | Out-Null }
+
+# Unified log — one flat file from bootstrap to final target, injected into image.
+$script:UnifiedLog = if ($env:MIOS_UNIFIED_LOG) { $env:MIOS_UNIFIED_LOG } else {
+    Join-Path $MiosDocsDir "mios-build-$([DateTime]::Now.ToString('yyyyMMdd-HHmmss')).log"
+}
+[Environment]::SetEnvironmentVariable("MIOS_UNIFIED_LOG", $script:UnifiedLog)
+try { Start-Transcript -Path $script:UnifiedLog -Append -Force | Out-Null } catch {}
+Write-OK "Unified log: $($script:UnifiedLog)"
+
 try { $pv = & podman --version 2>&1; Write-OK "Podman: $pv" } catch { Write-Fatal "Podman not found" }
 $cpu = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 $ram = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1MB)
@@ -473,22 +513,37 @@ if ($DoPull) {
     #   +- STEP 01/50 : 01-repos.sh ---- 00:00 -+
     # BuildKit --progress=plain may prefix lines with "#N 0.123 " - handled
     # by matching anywhere in the line, not anchored to start.
+    $pbStep = 0; $pbTotal = 45; $pbSname = "Initializing"; $pbOp = "Starting podman build..."
+    Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+        -Status "Phase 2 — Pulling / preparing layers…" -CurrentOperation $pbOp -PercentComplete 15
+
     & podman build --progress=plain --no-cache `
         --build-arg MAKEFLAGS="-j$cpu" `
         --build-arg MIOS_USER="$U" `
         --build-arg MIOS_PASSWORD_HASH="$passHash" `
         --jobs 2 -t $LocalImage . 2>&1 | ForEach-Object {
-        Write-Host (Format-Masked $_)
-        if ($_ -match 'STEP\s+(\d+)/(\d+)\s*:\s*(\S+\.sh)') {
-            $step  = [int]$Matches[1]
-            $total = [int]$Matches[2]
-            $sname = $Matches[3]
-            # Map step progress onto the 15-82% window reserved for Phase 2
-            $innerPct = 15 + [int]($step * 67 / $total)
-            Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
-                -Status "Phase 2 — Script $step/$total: $sname" -PercentComplete $innerPct
-            Write-Progress -Activity "Automation scripts" -Id 1 -ParentId 0 `
-                -Status $sname -PercentComplete ([int]($step * 100 / $total))
+        $line = $_
+        $stripped = ($line -replace '^\s*#\d+\s+(?:[\d.]+\s+)?', '').TrimStart()
+        Write-Host (Format-Masked $line)
+
+        # build.sh emits: +- STEP 01/45 : 01-repos.sh ---- 00:00 -+
+        if ($stripped -match '\+-\s*STEP\s+(\d+)/(\d+)\s*:\s*(\S+\.sh)') {
+            $pbStep  = [int]$Matches[1]
+            $pbTotal = [int]$Matches[2]
+            $pbSname = $Matches[3]
+        }
+        $candidate = ($stripped -replace '\s+', ' ').Trim()
+        if ($candidate.Length -gt 80) { $candidate = $candidate.Substring(0, 80) + '…' }
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $pbOp = Format-Masked $candidate }
+
+        $outerPct  = [Math]::Min(99, 15 + [int]($pbStep * 67 / [Math]::Max(1, $pbTotal)))
+        $outerStat = if ($pbStep -gt 0) { "Script $pbStep/$pbTotal — $pbSname" } else { "Pulling / preparing layers…" }
+        Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+            -Status "Phase 2 — $outerStat" -CurrentOperation $pbOp -PercentComplete $outerPct
+        if ($pbStep -gt 0) {
+            Write-Progress -Activity "  $pbSname" -Id 1 -ParentId 0 `
+                -Status "Step $pbStep of $pbTotal" -CurrentOperation $pbOp `
+                -PercentComplete ([int]($pbStep * 100 / [Math]::Max(1, $pbTotal)))
         }
     }
     $buildExitCode = $LASTEXITCODE
@@ -536,6 +591,22 @@ if ($DoPull) {
     } else {
         Write-OK "Helper image updated to freshly built $LocalImage (self-building ready)"
     }
+}
+
+# Flush transcript so far into the OCI image at /usr/share/mios/build-log.txt.
+# BIB reads the image but never mutates it, so the log survives into VHDX/ISO.
+if ($script:UnifiedLog -and (Test-Path $script:UnifiedLog)) {
+    Write-Step "Injecting build log into OCI image (pre-BIB snapshot)..."
+    try { Stop-Transcript | Out-Null } catch {}
+    $logCid = (& podman create $LocalImage sh 2>$null).Trim()
+    if ($logCid) {
+        # podman cp works on stopped containers; /usr/share/mios exists in the built image
+        & podman cp $script:UnifiedLog "${logCid}:/usr/share/mios/build-log.txt" 2>$null | Out-Null
+        & podman commit --quiet --pause=false $logCid $LocalImage 2>$null | Out-Null
+        & podman rm -f $logCid 2>$null | Out-Null
+        Write-OK "Build log baked into image: /usr/share/mios/build-log.txt"
+    }
+    try { Start-Transcript -Path $script:UnifiedLog -Append -Force | Out-Null } catch {}
 }
 
 # ==============================================================================
@@ -614,7 +685,7 @@ if ($SelectedTargets -contains 1) {
     Write-Step "TARGET 1 - RAW disk image..."
     Clear-BIBTemp
     $rawArgs = Get-BIBArgs "raw"
-    & podman @rawArgs 2>&1
+    $null = Invoke-BIBRun -BIBArgs $rawArgs -Label "RAW disk image"
     if ($LASTEXITCODE -eq 0) {
         $rawFile = Get-ChildItem $OutputFolder -Recurse -Filter "*.raw" | Select-Object -First 1
         if ($rawFile) { Move-Item $rawFile.FullName $RawImg -Force; Write-OK "RAW: $(Get-FileSize $RawImg)" }
@@ -626,7 +697,7 @@ if ($SelectedTargets -contains 2) {
     Write-Step "TARGET 2 - VHD  VHDX (Hyper-V Gen2)..."
     Clear-BIBTemp
     $vhdArgs = Get-BIBArgs "vhd"
-    & podman @vhdArgs 2>&1
+    $null = Invoke-BIBRun -BIBArgs $vhdArgs -Label "VHDX (Hyper-V Gen2)"
     if ($LASTEXITCODE -eq 0) {
         # BIB nests output in subdirectories (vpc/disk.vhd or image/disk.vhd).
         # Move to output root first so the container mount path is simple.
@@ -686,7 +757,7 @@ if ($SelectedTargets -contains 4) {
     Write-Step "TARGET 4 - Anaconda installer ISO..."
     Clear-BIBTemp
     $isoArgs = Get-BIBArgs "anaconda-iso"
-    & podman @isoArgs 2>&1
+    $null = Invoke-BIBRun -BIBArgs $isoArgs -Label "Anaconda installer ISO"
     if ($LASTEXITCODE -eq 0) {
         $isoFile = Get-ChildItem $OutputFolder -Recurse -Filter "*.iso" | Select-Object -First 1
         if ($isoFile) { Move-Item $isoFile.FullName $TargetIso -Force; Write-OK "ISO: $(Get-FileSize $TargetIso)" }
@@ -921,6 +992,19 @@ Write-Host ""
 Write-Progress -Activity "MiOS Build ${Version}" -Id 0 -Completed
 
 Show-StatusCard
+
+# Copy final unified log to all output directories for post-boot assessment.
+if ($script:UnifiedLog -and (Test-Path $script:UnifiedLog)) {
+    $logName = Split-Path $script:UnifiedLog -Leaf
+    foreach ($dir in @($MiosImagesDir, $MiosDeployDir)) {
+        if (Test-Path $dir) {
+            Copy-Item $script:UnifiedLog (Join-Path $dir $logName) -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Write-OK "Build log copied to output directories: $logName"
+}
+
+try { Stop-Transcript | Out-Null } catch {}
 
 # Cleanup: wipe any credential variables from memory
 $P = $null; $passHash = $null; $RegistryToken = $null; $LuksPass = $null

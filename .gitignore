@@ -49,6 +49,7 @@
 !/image-versions.yml
 !/install.sh
 !/build-mios.sh
+!/Get-MiOS.ps1
 !/mios-build-local.ps1
 !/preflight.ps1
 !/push-to-github.ps1

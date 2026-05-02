@@ -29,9 +29,11 @@ REPO_DIR=/etc/yum.repos.d
 # Patched WINE/Mesa/miscellaneous packages missing from Fedora + RPM Fusion.
 if [[ ! -f "${REPO_DIR}/terra.repo" ]]; then
     log "enabling Terra repo (fyralabs)"
-    scurl -fsSL \
-        https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo \
-        -o "${REPO_DIR}/terra.repo"
+    if ! scurl -fsSL --connect-timeout 20 --max-time 60 \
+            https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo \
+            -o "${REPO_DIR}/terra.repo" 2>/dev/null; then
+        warn "Terra repo download failed (github.com unreachable?) — skipping Terra"
+    fi
 else
     log "Terra repo already present — skipping"
 fi

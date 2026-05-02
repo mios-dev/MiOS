@@ -50,7 +50,8 @@ echo "[10-gnome] Setting Qt Adwaita environment variables (managed via overlay).
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing Geist font family..."
 mkdir -p /usr/share/fonts/geist
-git clone --depth=1 https://github.com/vercel/geist-font.git /tmp/geist-font 2>/dev/null || true
+git clone --depth=1 --single-branch -c http.lowSpeedLimit=1 -c http.lowSpeedTime=20 \
+    https://github.com/vercel/geist-font.git /tmp/geist-font 2>/dev/null || true
 if [ -d /tmp/geist-font ]; then
     find /tmp/geist-font \( -name "*.otf" -o -name "*.ttf" \) -exec cp {} /usr/share/fonts/geist/ \; 2>/dev/null || true
     rm -rf /tmp/geist-font
@@ -74,7 +75,8 @@ BIBATA_FALLBACK="2.0.7"
 
 # Try GitHub API for latest release tag (strips leading 'v')
 # v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
-BIBATA_VER=$( (scurl -sL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
+BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
+    -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
     | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/') 2>/dev/null || true)
 
 # Fallback if API fails (rate limit, network issue)
@@ -94,9 +96,9 @@ BIBATA_OK=0
 BIBATA_SUM_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_VER}/sha256-${BIBATA_VER}.txt"
 for attempt in 1 2 3; do
     echo "[10-gnome]   Download attempt $attempt/3..."
-    if scurl -fSL --retry 3 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
+    if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
         # Attempt sha256 verification — non-fatal if sidecar unavailable
-        if scurl -fsSL "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
+        if scurl -fsSL --connect-timeout 15 --max-time 30 "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
                 echo "[10-gnome]   ✓ Bibata sha256 verified"
             else
