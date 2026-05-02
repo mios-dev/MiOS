@@ -129,6 +129,8 @@ usr/share/mios/user-preferences.md
 usr/share/containers/*
 !/usr/share/containers/systemd/
 !/usr/share/containers/systemd/**
+!/usr/share/containers/containers.conf.d/
+!/usr/share/containers/containers.conf.d/**
 
 # usr/libexec — mios/ subdir and mios-* top-level stubs
 usr/libexec/*

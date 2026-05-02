@@ -16,4 +16,49 @@ if [[ -d /mnt/wslg && ! -e /tmp/.X11-unix ]]; then
     ln -sf /mnt/wslg/.X11-unix /tmp/.X11-unix 2>/dev/null || true
 fi
 
+# ── Podman/WSL2 subnet conflict repair ───────────────────────────────────────
+# Podman rootful creates a bridge (podman0) on 10.88.0.0/16 by default.
+# WSL2 assigns eth0 addresses from the same range, so once Podman adds its
+# route the eth0 prefix route is shadowed and all WSL2 host networking breaks,
+# taking Cockpit (9090) and localhost forwarding down with it.
+#
+# containers.conf.d/99-mios-network.conf moves NEW default networks to
+# 172.28.0.0/16, but any previously-created "podman" network still carries
+# the old CIDR.  This block repairs both problems at boot time.
+
+_repair_podman_subnet() {
+    local eth0_ip eth0_prefix conflict_net podman_net_name
+
+    # Only relevant in a WSL2 environment
+    [[ -d /run/WSL || -f /proc/sys/fs/binfmt_misc/WSLInterop ]] || return 0
+
+    eth0_ip=$(ip -4 addr show eth0 2>/dev/null | awk '/inet /{print $2}' | head -1)
+    [[ -n "$eth0_ip" ]] || { _log "subnet-repair: eth0 not found, skipping"; return 0; }
+
+    eth0_prefix="${eth0_ip%.*.*}."   # e.g. "10.88." from "10.88.0.5/16"
+
+    # Find any Podman rootful network whose subnet starts on the same /8+/16
+    podman_net_name=$(podman network ls --format '{{.Name}}' 2>/dev/null | while read -r net; do
+        subnet=$(podman network inspect "$net" 2>/dev/null |
+                 python3 -c "import sys,json; d=json.load(sys.stdin); \
+                     [print(s) for n in d for s in [n.get('subnets',[{}])[0].get('subnet','')]]" \
+                 2>/dev/null)
+        [[ "$subnet" == "${eth0_prefix}"* ]] && echo "$net" && break
+    done)
+
+    if [[ -n "$podman_net_name" ]]; then
+        _log "subnet-repair: network '$podman_net_name' conflicts with eth0 $eth0_ip — recreating"
+        podman network rm -f "$podman_net_name" 2>/dev/null || true
+        if [[ "$podman_net_name" == "podman" ]]; then
+            # Recreate the default network on the safe range from containers.conf.d
+            podman network create podman 2>/dev/null || true
+        fi
+        _log "subnet-repair: done — new default bridge will use 172.28.0.0/16"
+    else
+        _log "subnet-repair: no conflict detected for eth0 $eth0_ip"
+    fi
+}
+
+_repair_podman_subnet
+
 _log "WSL2 runtime bridge complete"
