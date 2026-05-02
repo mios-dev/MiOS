@@ -58,16 +58,16 @@ function Write-Banner {
     Write-Host "$("="*$w)`n" -ForegroundColor Cyan 
 }
 
-function Write-Phase { 
-    param([string]$N,[string]$L) 
+$PhasePercent = @{ '0'=0; '0.1'=1; '0.5'=3; '1'=6; '1.5'=10; '2'=15; '3'=82; '3b'=90; '4'=95; '5'=100 }
+
+function Write-Phase {
+    param([string]$N,[string]$L)
     $maskedL = Format-Masked $L
-    Write-Host "`n  [$N] $maskedL" -ForegroundColor Yellow; 
-    Write-Host "  $("-"*70)" -ForegroundColor DarkGray 
+    Write-Host "`n  [$N] $maskedL" -ForegroundColor Yellow;
+    Write-Host "  $("-"*70)" -ForegroundColor DarkGray
     $script:BuildAudit += "PHASE ${N}: ${maskedL}"
-    try {
-        $percent = [int]($N) * 20
-        Write-Progress -Activity "MiOS Build ${Version}" -Status "Phase ${N}: ${maskedL}" -PercentComplete $percent
-    } catch {}
+    $pct = if ($script:PhasePercent.ContainsKey($N)) { $script:PhasePercent[$N] } else { 0 }
+    Write-Progress -Activity "MiOS Build ${Version}" -Id 0 -Status "Phase ${N}: ${maskedL}" -PercentComplete $pct
 }
 
 function Write-Step  { 
@@ -463,23 +463,38 @@ if ($DoPull) {
 
     $t0 = Get-Date
     Write-Step "Building OCI image (all $cpu threads, MAKEFLAGS=-j$cpu)..."
-    
-    # Force TTY detection and color for localized progress bars
-    $env:FORCE_COLOR = "1"
+
     $env:BUILDAH_FORMAT = "docker"
 
-    # Credentials passed as --build-arg: hash is available as MIOS_PASSWORD_HASH
-    # env var inside the container build (consumed by 31-user.sh). Plaintext NEVER
-    # written to disk, never appears in the build log or image layer metadata.
-    & podman build --progress=tty --no-cache `
+    # Stream podman build output; parse build.sh step markers to drive the
+    # nested Write-Progress bar so each automation script appears in the
+    # PowerShell progress UI as it executes inside the container.
+    # Pattern emitted by build.sh _step_header:
+    #   +- STEP 01/50 : 01-repos.sh ---- 00:00 -+
+    # BuildKit --progress=plain may prefix lines with "#N 0.123 " - handled
+    # by matching anywhere in the line, not anchored to start.
+    & podman build --progress=plain --no-cache `
         --build-arg MAKEFLAGS="-j$cpu" `
         --build-arg MIOS_USER="$U" `
         --build-arg MIOS_PASSWORD_HASH="$passHash" `
-        --jobs 2 -t $LocalImage .
-    
-    if ($LASTEXITCODE -ne 0) { Write-Fatal "podman build failed" }
+        --jobs 2 -t $LocalImage . 2>&1 | ForEach-Object {
+        Write-Host (Format-Masked $_)
+        if ($_ -match 'STEP\s+(\d+)/(\d+)\s*:\s*(\S+\.sh)') {
+            $step  = [int]$Matches[1]
+            $total = [int]$Matches[2]
+            $sname = $Matches[3]
+            # Map step progress onto the 15-82% window reserved for Phase 2
+            $innerPct = 15 + [int]($step * 67 / $total)
+            Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+                -Status "Phase 2 — Script $step/$total: $sname" -PercentComplete $innerPct
+            Write-Progress -Activity "Automation scripts" -Id 1 -ParentId 0 `
+                -Status $sname -PercentComplete ([int]($step * 100 / $total))
+        }
+    }
+    $buildExitCode = $LASTEXITCODE
 
-    Write-Progress -Activity "MiOS Build ${Version}" -Completed
+    Write-Progress -Activity "Automation scripts" -Id 1 -Completed
+    if ($buildExitCode -ne 0) { Write-Fatal "podman build failed" }
 
     # Restore hostname if it was temporarily overridden
     & git checkout etc/hostname 2>$null | Out-Null
@@ -902,6 +917,8 @@ Write-Host "  MiOS is self-replicating: pull  build  push  repeat" -ForegroundCo
 Write-Host "  On deployed MiOS:  mios-rebuild" -ForegroundColor Cyan
 Write-Host "  On any machine:       podman pull $GhcrImage" -ForegroundColor Cyan
 Write-Host ""
+
+Write-Progress -Activity "MiOS Build ${Version}" -Id 0 -Completed
 
 Show-StatusCard
 
