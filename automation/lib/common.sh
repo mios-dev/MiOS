@@ -29,7 +29,10 @@ fi
 # transaction overrides the global default. Array form so elements are one-
 # argv-each under `set -u`, and future flags can be added in one place.
 if [[ -z "${DNF_SETOPT+x}" || "$(declare -p DNF_SETOPT 2>/dev/null)" != "declare -a"* ]]; then
-    declare -ga DNF_SETOPT=(--setopt=install_weak_deps=False)
+    declare -ga DNF_SETOPT=(
+        --setopt=install_weak_deps=False
+        --setopt=timeout=15
+    )
 fi
 if [[ -z "${DNF_OPTS+x}" || "$(declare -p DNF_OPTS 2>/dev/null)" != "declare -a"* ]]; then
     declare -ga DNF_OPTS=(--allowerasing)

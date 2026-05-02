@@ -71,16 +71,27 @@ echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
 # --best dropped per audit 2026-05-01: on the F44↔ucore boundary --best can
 # refuse the transaction over a single unresolvable kernel-adjacent dep, which
 # is then logged-and-continued, masking real breakage. --allowerasing is enough.
-$DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing \
+# --skip-unavailable: packages from external repos (crowdsec, tailscale) have
+# no repo configured at this stage; skip them cleanly instead of aborting.
+$DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --skip-unavailable \
     dnf rpm fedora-release fedora-repos filesystem systemd glibc dbus-broker 2>&1 || {
     echo "[01-repos] NOTE: Pre-upgrade had warnings, continuing..."
 }
 
+# Packages whose repos are not yet configured (crowdsec) or whose ucore version
+# is intentionally newer than F44 (tailscale 1.96→1.94 downgrade).  Excluded
+# here; 05-enable-external-repos.sh and later scripts own their lifecycle.
+_THIRD_PARTY_EXCLUDES="shim-*,kernel*,tailscale*,crowdsec*,crowdsec-firewall-bouncer*"
+
 echo "[01-repos] Phase 2: Distro-upgrade and userspace alignment..."
-$DNF_BIN "${DNF_SETOPT[@]}" --setopt=excludepkgs="shim-*,kernel*" upgrade --refresh -y || {
+$DNF_BIN "${DNF_SETOPT[@]}" \
+    --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
+    upgrade --refresh -y --skip-unavailable || {
     echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) — continuing"
 }
-$DNF_BIN "${DNF_SETOPT[@]}" --setopt=excludepkgs="shim-*,kernel*" distro-sync -y --allowerasing || {
+$DNF_BIN "${DNF_SETOPT[@]}" \
+    --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
+    distro-sync -y --allowerasing --skip-unavailable || {
     echo "[01-repos] WARN: distro-sync had conflicts — ucore base packages may differ from Fedora 44."
     echo "[01-repos] Continuing; individual package installs will use available repos."
 }

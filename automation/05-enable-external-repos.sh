@@ -101,6 +101,27 @@ else
     log "aleasto/waydroid COPR already present — skipping"
 fi
 
+# ── Tailscale ────────────────────────────────────────────────────────────
+# ucore:stable ships tailscale but its version can lag. Using the official
+# Tailscale repo keeps it at the latest stable regardless of ucore cadence.
+if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
+    log "enabling Tailscale official repo"
+    scurl -fsSL https://pkgs.tailscale.com/stable/fedora/tailscale.repo \
+        -o "${REPO_DIR}/tailscale.repo"
+else
+    log "Tailscale repo already present — skipping"
+fi
+
+# ── CrowdSec ─────────────────────────────────────────────────────────────
+# crowdsec ships its own RPM repo; not in Fedora or RPM Fusion.
+if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
+    log "enabling CrowdSec repo"
+    scurl -fsSL https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=40&source=script \
+        -o "${REPO_DIR}/crowdsec.repo"
+else
+    log "CrowdSec repo already present — skipping"
+fi
+
 log "external repos enabled; refreshing metadata"
 $DNF_BIN "${DNF_SETOPT[@]}" makecache -y
 
