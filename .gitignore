@@ -60,6 +60,7 @@
 !/install-mios-agents.sh
 !/Get-MiOS.ps1
 !/install.ps1
+!/build-mios.ps1
 !/mios-build-local.ps1
 !/preflight.ps1
 !/preflight.sh
