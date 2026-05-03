@@ -300,22 +300,57 @@ fi
 # Catches: bad path syntax, unsupported types, missing required fields. The
 # legacy /var/run / /var/lock case is already covered by #9; this catches
 # every other tmpfiles syntax error.
+#
+# Boot-order caveat: at runtime systemd-sysusers runs before
+# systemd-tmpfiles, so groups/users declared in sysusers.d are present
+# in /etc/{passwd,group} by the time tmpfiles resolves them. At build
+# time inside the OCI image, sysusers has not run, so dry-running
+# tmpfiles reports false-positive "Failed to resolve user/group X:
+# Unknown user/group" warnings for entities declared in sysusers.d.
+# We harvest the declared name set and filter those warnings out --
+# every other tmpfiles error still fails the build.
 log "Validating MiOS tmpfiles.d syntax..."
 if command -v systemd-tmpfiles >/dev/null 2>&1; then
+    # Build the union of users + groups declared by sysusers.d (any file).
+    _sysusers_declared=$(
+        for d in /etc/sysusers.d /usr/lib/sysusers.d; do
+            [[ -d "$d" ]] || continue
+            for f in "$d"/*.conf; do
+                [[ -f "$f" ]] || continue
+                awk '/^[ug][[:space:]]+/ { print $2 }' "$f"
+            done
+        done | sort -u
+    )
     _bad_tmpfiles=$(
         for f in /usr/lib/tmpfiles.d/mios-*.conf; do
             [[ -f "$f" ]] || continue
             # --dry-run alone reports parse errors; combine with --create
             # (also dry-run) so it exercises the full directive interpreter.
             out=$(systemd-tmpfiles --dry-run --create "$f" 2>&1 || true)
-            echo "$out" | grep -E "^${f}:" || true
+            # Keep only lines that name THIS file (filename prefix).
+            echo "$out" | awk -v f="$f" -v decl="$_sysusers_declared" '
+                BEGIN {
+                    n = split(decl, a, "\n")
+                    for (i = 1; i <= n; i++) if (a[i] != "") known[a[i]] = 1
+                }
+                # Only this-file lines are real findings.
+                $0 !~ "^" f ":" { next }
+                {
+                    # If the warning is the boot-order false positive,
+                    # extract the missing entity name and drop the line
+                    # if it is declared in sysusers.d.
+                    if (match($0, /Failed to resolve (user|group) [\x27"]([^\x27"]+)[\x27"]/, m)) {
+                        if (m[2] in known) next
+                    }
+                    print
+                }'
         done
     )
     if [[ -n "$_bad_tmpfiles" ]]; then
         printf '%s\n' "$_bad_tmpfiles" >&2
         die "systemd-tmpfiles reported errors in MiOS tmpfiles.d config(s)"
     fi
-    log "  MiOS tmpfiles.d configs parse clean"
+    log "  MiOS tmpfiles.d configs parse clean (sysusers-declared names accepted)"
 else
     log "  systemd-tmpfiles unavailable -- skipping tmpfiles verification"
 fi
