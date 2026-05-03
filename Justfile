@@ -294,3 +294,30 @@ edit:
             echo "[FAIL] $CFG not found. Run: just init"; exit 1; \
         fi; \
         ${EDITOR:-vim} "$CFG"
+
+# Show mios-forge (Forgejo) status: Quadlet state, URL, admin identity,
+# initial-password file path, and a copy-pasteable 'git remote add' line.
+# Run on the deployed image after first boot.
+forge:
+    @echo "'MiOS' Forge (Forgejo)"
+    @if systemctl is-active --quiet mios-forge.service 2>/dev/null; then \
+        echo "  Service:        active"; \
+    else \
+        echo "  Service:        inactive (run: sudo systemctl start mios-forge)"; \
+    fi
+    @if systemctl is-active --quiet mios-forge-firstboot.service 2>/dev/null \
+        || [ -f /var/lib/mios/forge/.firstboot-done ]; then \
+        echo "  First-boot:     [ok] admin user created"; \
+    else \
+        echo "  First-boot:     pending (waiting on mios-forge.service readiness)"; \
+    fi
+    @echo "  Web UI:         http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/"
+    @echo "  git+ssh:        ssh://git@localhost:${MIOS_FORGE_SSH_PORT:-2222}/<user>/<repo>.git"
+    @echo "  Admin user:     $(grep -E '^MIOS_FORGE_ADMIN_USER=' /etc/mios/install.env 2>/dev/null | cut -d= -f2- | tr -d '\"' || echo '(check /etc/mios/install.env)')"
+    @echo "  Admin email:    $(grep -E '^MIOS_FORGE_ADMIN_EMAIL=' /etc/mios/install.env 2>/dev/null | cut -d= -f2- | tr -d '\"' || echo '(check /etc/mios/install.env)')"
+    @if [ -r /etc/mios/forge/admin-password ]; then \
+        echo "  Initial pwd:    sudo cat /etc/mios/forge/admin-password    (must change on first login)"; \
+    else \
+        echo "  Initial pwd:    (already changed, or firstboot not yet run)"; \
+    fi
+    @echo "  Local push:     git remote add origin http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/<user>/<repo>.git && git push origin main"

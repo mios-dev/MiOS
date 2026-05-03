@@ -83,7 +83,12 @@ fi
 # user already exists (e.g. someone created one via the web UI before
 # this service ran), 'forgejo admin user create' returns non-zero and
 # we accept that as a soft success.
-if podman exec --user mios-forge mios-forge \
+#
+# --user 816 matches the in-container UID we configured via USER_UID=816
+# in the Quadlet. The container's internal username is 'git' (the Forgejo
+# image's convention), not 'mios-forge'; we pass the numeric UID so the
+# podman exec lookup succeeds against the container's /etc/passwd.
+if podman exec --user 816:816 mios-forge \
         forgejo --config /data/gitea/conf/app.ini admin user create \
         --admin --must-change-password=true \
         --username "$admin_user" \

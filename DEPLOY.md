@@ -101,7 +101,29 @@ systemctl --failed                        # Any failed units
 mios "what is the current image tag?"     # Local AI sanity
 firewall-cmd --list-all                   # Firewall posture
 getenforce                                # SELinux mode (must be Enforcing)
+just forge                                # Self-hosted Git forge status + admin info
 ```
+
+### Self-hosted Git forge (`mios-forge`)
+
+The `mios-forge.container` Quadlet starts at first boot. The
+`mios-forge-firstboot.service` oneshot runs after it, reads the admin
+identity from `/etc/mios/install.env` (which `build-mios.{sh,ps1}`
+populated from `mios.toml`), generates a random initial password if
+none was supplied, and creates the admin user via the in-container
+`forgejo admin user create --must-change-password=true` CLI. The
+sentinel at `/var/lib/mios/forge/.firstboot-done` makes the service
+idempotent across reboots.
+
+```bash
+just forge                                       # status + URL + admin info
+sudo cat /etc/mios/forge/admin-password          # one-time password read
+git remote add origin http://localhost:3000/<user>/<repo>.git
+git push origin main
+```
+
+The forge runs at HTTP `:3000` and git+ssh `:2222`. Repository bytes
+live at `/srv/mios/forge/git/`; SQLite DB at `/srv/mios/forge/forgejo.db`.
 
 ## References
 

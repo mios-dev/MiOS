@@ -90,6 +90,8 @@ Active gating (referenced in `etc/containers/systemd/` and
 | `cloudws-pxe-hub` | `!wsl`, `!container` | virtualized hosts without routable LAN |
 | `mios-gpu-{nvidia,amd,intel,status}` | `ConditionPathExists=/dev/...`, `!container`, `!wsl` (Intel) | no matching GPU device |
 | `ollama` | none | always runs (CPU fallback) |
+| `mios-forge` | `ConditionPathIsDirectory=/etc/mios/forge`, `!container` | bootstrap incomplete, nested |
+| `mios-forge-firstboot` | `ConditionPathExists=/etc/mios/install.env`, `!sentinel`, `!container` | install.env absent, already ran, nested |
 
 ## 6. Global pipeline phases
 
