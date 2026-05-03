@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — Master build runner
+# 'MiOS' v0.2.0 — Master build runner
 # Framed ASCII console UI: progress bar, stage tracking, health metrics,
 # per-step timing, and consolidated failure/warn report at end.
 set -euo pipefail
@@ -106,7 +106,7 @@ _step_result() {
 
 _section_header() {
     _hline '=' '+' '+'
-    _row "  MiOS ${VERSION_STR} -- Build Console"
+    _row "  'MiOS' ${VERSION_STR} -- Build Console"
     _row "  Base: ucore-hci:stable-nvidia + Fedora 44"
     _row "  Started: $(date '+%Y-%m-%d %H:%M:%S')    Log: ${BUILD_LOG}"
     _hline '=' '+' '+'
@@ -159,7 +159,7 @@ _final_summary() {
     local elapsed_fmt
     elapsed_fmt=$(printf '%dm %02ds' $(( elapsed / 60 )) $(( elapsed % 60 )))
     _hline '=' '+' '+'
-    _row "  MiOS ${VERSION_STR} -- ${result_label}"
+    _row "  'MiOS' ${VERSION_STR} -- ${result_label}"
     _hline '-' '+' '+'
     _row "  Duration:   ${elapsed_fmt}"
     _row "  Scripts:    ${scripts} executed | ${fails} FAILED | ${warns} warned"
@@ -377,7 +377,7 @@ fi
 
 # Flatten per-step logs + manifest + main build log into single unified chain
 {
-    echo "# MiOS ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""
     echo "# ====== build-time :latest -> observed-version manifest ======"
     if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then

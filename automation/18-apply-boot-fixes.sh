@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# MiOS: Systemd execution analysis & WSL2 Boot Loop fixes
+# 'MiOS': Systemd execution analysis & WSL2 Boot Loop fixes
 # Resolves ordering cycles, executable stripping, and hardware-dependent
 # failure cascades detected during F44 boots on varied hardware/hypervisors.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-echo "==> Applying MiOS system service fixes..."
+echo "==> Applying 'MiOS' system service fixes..."
 
 # 1. Fix USBGuard Permissions
 # Log trace: Permissions for /etc/usbguard/usbguard-daemon.conf should be 0600
@@ -15,7 +15,7 @@ if [ -f /etc/usbguard/usbguard-daemon.conf ]; then
     chmod 0600 /etc/usbguard/usbguard-daemon.conf
 fi
 
-# 2. Fix 203/EXEC for custom MiOS services
+# 2. Fix 203/EXEC for custom 'MiOS' services
 # Log trace: mios-role.service & mios-cdi-detect.service exited 203/EXEC
 # Global chmod commands in earlier pipelines stripped execution bits.
 # Handle all scripts in /usr/libexec/mios/ and named patterns.
@@ -43,7 +43,7 @@ fi
 # Drop-in handled via overlay.
 
 # 6. OCI Container and WSL2 Service Gating
-# Custom MiOS services that require hardware access or full system init
+# Custom 'MiOS' services that require hardware access or full system init
 # skip OCI containers and WSL2 via drop-ins in system_files overlay.
 echo "==> Service gating drop-ins active via overlay"
 

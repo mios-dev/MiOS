@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 12-virt: Virtualization, containers, orchestration, gaming
+# 'MiOS' v0.2.0 — 12-virt: Virtualization, containers, orchestration, gaming
 #
 # CHANGELOG v1.3:
 #   - Looking Glass B7: MOVED to 53-bake-lookingglass-client.sh (refactored out)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0  90-generate-sbom: Generate Software Bill of Materials (SBOM)
+# 'MiOS' v0.2.0  90-generate-sbom: Generate Software Bill of Materials (SBOM)
 # Uses Syft to generate CycloneDX and SPDX manifests for the final image.
 set -euo pipefail
 

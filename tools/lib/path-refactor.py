@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lib/path-refactor.py — substitute hardcoded MiOS paths with constants.
+# tools/lib/path-refactor.py — substitute hardcoded 'MiOS' paths with constants.
 # Skips comment-only lines so doc comments stay literal/readable.
 # Longest-prefix first; refuses to touch trailing-glob forms (/usr/libexec/mios*).
 # Idempotent: running twice is a no-op.

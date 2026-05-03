@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# MiOS Bootstrap -- Interactive Ignition Installer (Total Root Merge Mode)
+# 'MiOS' Bootstrap -- Interactive Ignition Installer (Total Root Merge Mode)
 #
-# SSOT: This script installs EVERYTHING a fully built MiOS system has.
-# It transforms a bare Fedora host into a self-building MiOS workstation.
+# SSOT: This script installs EVERYTHING a fully built 'MiOS' system has.
+# It transforms a bare Fedora host into a self-building 'MiOS' workstation.
 #
 set -euo pipefail
 
@@ -12,7 +12,7 @@ set -euo pipefail
 # ============================================================================
 DEFAULT_USER="mios"
 DEFAULT_HOST="mios"
-DEFAULT_USER_FULLNAME="MiOS User"
+DEFAULT_USER_FULLNAME="'MiOS' User"
 DEFAULT_USER_SHELL="/bin/bash"
 DEFAULT_USER_GROUPS="wheel,libvirt,kvm,video,render,input,dialout"
 DEFAULT_SSH_KEY_TYPE="ed25519"
@@ -111,11 +111,11 @@ prompt_yesno() {
 # ============================================================================
 main() {
     require_root
-    log_phase "MiOS Bootstrap Installer (Full Build Mode)"
+    log_phase "'MiOS' Bootstrap Installer (Full Build Mode)"
 
     local hostkind=$(detect_host_kind)
     if [[ "$hostkind" == "unsupported" ]]; then
-        log_err "Host is not Fedora. MiOS requires a Fedora-based host."
+        log_err "Host is not Fedora. 'MiOS' requires a Fedora-based host."
         exit 1
     fi
     log_info "Detected host: ${hostkind}"
@@ -163,8 +163,8 @@ main() {
     # which forcibly overwrites existing system files. Clone to a temp path,
     # then rsync each FHS overlay dir with --ignore-existing semantics so that
     # base system files are never clobbered.
-    log_phase "MiOS Core Installation (Root Merge)"
-    log_info "Cloning MiOS repository to staging area..."
+    log_phase "'MiOS' Core Installation (Root Merge)"
+    log_info "Cloning 'MiOS' repository to staging area..."
     MIOS_STAGE="$(mktemp -d /tmp/mios-stage-XXXXXX)"
     trap 'rm -rf "${MIOS_STAGE}"' EXIT
     git clone --depth=1 --branch "$DEFAULT_BRANCH" "$MIOS_REPO" "${MIOS_STAGE}"
@@ -182,10 +182,10 @@ main() {
         install -d /v1
         rsync -aH "${MIOS_STAGE}/v1/" "/v1/"
     fi
-    log_ok "MiOS source tree merged to root."
+    log_ok "'MiOS' source tree merged to root."
 
     # --- 4. Package Installation ---
-    log_phase "Installing MiOS System Stack"
+    log_phase "Installing 'MiOS' System Stack"
     if [[ -f "${MIOS_SHARE_DIR}/PACKAGES.md" ]]; then
         log_info "Extracting package list from ${MIOS_SHARE_DIR}/PACKAGES.md..."
         local pkgs
@@ -216,8 +216,8 @@ main() {
         exit 1
     fi
 
-    log_phase "MiOS Installation Complete"
-    if prompt_yesno 'Reboot now to enter MiOS?' y; then
+    log_phase "'MiOS' Installation Complete"
+    if prompt_yesno 'Reboot now to enter 'MiOS'?' y; then
         systemctl reboot
     fi
 }

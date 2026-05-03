@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS Build Log Copy Service
+# 'MiOS' Build Log Copy Service
 # Preserves build-time logs for post-deployment diagnostics.
 set -euo pipefail
 # shellcheck source=/usr/lib/mios/paths.sh

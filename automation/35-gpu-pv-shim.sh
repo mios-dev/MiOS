@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# automation/35-gpu-pv-shim.sh - MiOS v0.2.0
+# automation/35-gpu-pv-shim.sh - 'MiOS' v0.2.0
 # ----------------------------------------------------------------------------
 # Automates guest-side shimming for Hyper-V GPU-PV (dxgkrnl).
 # Since dxgkrnl isn't mainlined yet, we provide the user-mode hooks
@@ -46,7 +46,7 @@ chmod +x ${MIOS_LIBEXEC_DIR}/gpu-pv-detect
 # 4. Create a systemd service to run the detection/setup on boot
 cat > /usr/lib/systemd/system/mios-gpu-pv-detect.service <<EOF
 [Unit]
-Description=MiOS Hyper-V GPU-PV Detection
+Description='MiOS' Hyper-V GPU-PV Detection
 ConditionVirtualization=microsoft
 After=local-fs.target
 Before=display-manager.service

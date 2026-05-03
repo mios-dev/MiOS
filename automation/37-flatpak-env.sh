@@ -1,11 +1,11 @@
 #!/bin/bash
-# MiOS v0.2.0  37-flatpak-env: Capture Flatpak environment for boot-time install
+# 'MiOS' v0.2.0  37-flatpak-env: Capture Flatpak environment for boot-time install
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 log "[37-flatpak-env] capturing Flatpak environment"
 
-# Directory for MiOS system-level environment definitions (USR-OVER-ETC compliance)
+# Directory for 'MiOS' system-level environment definitions (USR-OVER-ETC compliance)
 # Using /usr/lib/mios/env.d as a "venv/env" style storage
 mkdir -p ${MIOS_USR_DIR}/env.d
 
@@ -13,7 +13,7 @@ mkdir -p ${MIOS_USR_DIR}/env.d
 # This creates a system-baked environment file that mios-flatpak-install can read.
 ENV_FILE="${MIOS_USR_DIR}/env.d/flatpaks.env"
 
-echo "# MiOS System Environment Definition" > "$ENV_FILE"
+echo "# 'MiOS' System Environment Definition" > "$ENV_FILE"
 echo "# Generated at build time: $(date -u)" >> "$ENV_FILE"
 
 if [[ -n "${MIOS_FLATPAKS:-}" ]]; then
