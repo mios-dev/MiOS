@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    MiOS v0.2.2 - MiOS Builder (Windows)
+    'MiOS' v0.2.2 - 'MiOS' Builder (Windows)
 
 .DESCRIPTION
     Secure build orchestrator with workflow selection.
@@ -14,11 +14,11 @@
       - Hostname randomization option for HA clusters
 
     SELF-BUILDING in v0.2.2:
-      - Pulls existing MiOS image from GHCR as the helper/builder image
-      - MiOS image replaces alpine/python for all helper operations
+      - Pulls existing 'MiOS' image from GHCR as the helper/builder image
+      - 'MiOS' image replaces alpine/python for all helper operations
       - Falls back to alpine/python only on first-ever build (no prior image)
       - MAKEFLAGS passed into build for parallel compilation (akmod, Looking Glass)
-      - MiOS image IS the builder - podman, buildah, bootc, BIB all baked in
+      - 'MiOS' image IS the builder - podman, buildah, bootc, BIB all baked in
 #>
 
 $ErrorActionPreference = "Stop"
@@ -67,7 +67,7 @@ function Write-Phase {
     Write-Host "  $("-"*70)" -ForegroundColor DarkGray
     $script:BuildAudit += "PHASE ${N}: ${maskedL}"
     $pct = if ($script:PhasePercent.ContainsKey($N)) { $script:PhasePercent[$N] } else { 0 }
-    Write-Progress -Activity "MiOS Build ${Version}" -Id 0 -Status "Phase ${N}: ${maskedL}" -PercentComplete $pct
+    Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 -Status "Phase ${N}: ${maskedL}" -PercentComplete $pct
 }
 
 function Write-Step  { 
@@ -103,7 +103,7 @@ function Write-Fatal {
 function Show-StatusCard {
     $w = 78
     Write-Host "`n+$($("="*($w-2)))+" -ForegroundColor Cyan
-    Write-Host "|$($(" "*[math]::Floor(($w-18)/2)))MiOS BUILD SUMMARY$($(" "*[math]::Ceiling(($w-18)/2)))|" -ForegroundColor Cyan
+    Write-Host "|$($(" "*[math]::Floor(($w-18)/2)))'MiOS' BUILD SUMMARY$($(" "*[math]::Ceiling(($w-18)/2)))|" -ForegroundColor Cyan
     Write-Host "+$($("="*($w-2)))+" -ForegroundColor Cyan
     Write-Host "  Version:  $Version"
     Write-Host "  Status:   $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) UTC"
@@ -161,15 +161,20 @@ function Read-Timed {
     return $buf
 }
 
+# Shared helper: writes /etc/mios/install.env into a freshly-imported WSL2
+# distro so wsl-firstboot.service picks up the operator-supplied identity
+# instead of falling back to the literal default password "mios".
+. (Join-Path $PSScriptRoot "tools/lib/install-env.ps1")
+
 function Get-SHA512Hash {
     # Generate a SHA-512 crypt hash ($6$...) compatible with chpasswd -e
-    # Prefers MiOS helper image (has openssl), falls back to alpine/python
+    # Prefers 'MiOS' helper image (has openssl), falls back to alpine/python
     param([string]$SecretText)
     $salt = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 16 | ForEach-Object { [char]$_ })
 
     $hash = $null
 
-    # Try MiOS helper image first (openssl is already installed)
+    # Try 'MiOS' helper image first (openssl is already installed)
     if ($HelperImage) {
         $hash = & podman run --rm $HelperImage openssl passwd -6 -salt "$salt" "$SecretText" 2>$null
         if ($LASTEXITCODE -eq 0 -and $hash -match '^\$6\$') { return $hash.Trim() }
@@ -191,7 +196,7 @@ function Invoke-BIBRun {
     $bibOp  = "Starting $Label..."
     $bibN   = 0
     $pctBase = if ($script:PhasePercent.ContainsKey('3')) { $script:PhasePercent['3'] } else { 82 }
-    Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+    Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
         -Status "Phase 3 — $Label" -CurrentOperation $bibOp -PercentComplete $pctBase
     & podman @BIBArgs 2>&1 | ForEach-Object {
         $line = $_
@@ -268,7 +273,7 @@ $TargetVhdx     = Join-Path $MiosDeployDir "mios-hyperv.vhdx"
 $TargetWsl      = Join-Path $MiosDeployDir "mios-wsl.tar"
 $TargetIso      = Join-Path $MiosImagesDir "mios-installer.iso"
 
-# Helper image: prefer MiOS itself, fall back to alpine/python for first build
+# Helper image: prefer 'MiOS' itself, fall back to alpine/python for first build
 $HelperImage    = ""
 $FallbackHash   = "docker.io/library/alpine:latest"
 $FallbackConvert = "docker.io/library/alpine:latest"
@@ -276,7 +281,7 @@ $FallbackConvert = "docker.io/library/alpine:latest"
 # ==============================================================================
 #  BANNER + WORKFLOW MENU
 # ==============================================================================
-Write-Banner "MiOS v$Version - MiOS Builder"
+Write-Banner "'MiOS' v$Version - 'MiOS' Builder"
 
 $workflow = $env:MIOS_WORKFLOW
 if ([string]::IsNullOrWhiteSpace($workflow)) {
@@ -397,7 +402,7 @@ Write-OK "CPU: $cpu cores | RAM: $ram MB"
 
 if ($DoBuild) {
     foreach ($f in "Containerfile","usr/share/mios/PACKAGES.md","VERSION","automation/build.sh","automation/31-user.sh") {
-        if (-not (Test-Path $f)) { Write-Fatal "Missing required file: $f - are you in the MiOS repo root?" }
+        if (-not (Test-Path $f)) { Write-Fatal "Missing required file: $f - are you in the 'MiOS' repo root?" }
     }
     Write-OK "All repo files present"
 }
@@ -421,14 +426,14 @@ $ErrorActionPreference = "Stop"
 
 
 # ==============================================================================
-Write-Phase "1.5" "Self-Building - Pull MiOS Helper Image"
+Write-Phase "1.5" "Self-Building - Pull 'MiOS' Helper Image"
 $ErrorActionPreference = "Continue"
 
-# Try to pull the existing MiOS image from the registry.
+# Try to pull the existing 'MiOS' image from the registry.
 # If it exists, use it as the helper image for ALL container operations
-# (hash generation, qemu-img conversion, etc.) - MiOS IS the builder.
+# (hash generation, qemu-img conversion, etc.) - 'MiOS' IS the builder.
 # First build ever: no image exists yet, fall back to alpine/python.
-Write-Step "Checking for existing MiOS image at $GhcrImage..."
+Write-Step "Checking for existing 'MiOS' image at $GhcrImage..."
 
 # Authenticate if we have credentials
 if ($RegistryToken) {
@@ -439,22 +444,22 @@ if ($RegistryToken) {
 & podman pull $GhcrImage 2>$null
 if ($LASTEXITCODE -eq 0) {
     $HelperImage = $GhcrImage
-    Write-OK "MiOS helper image pulled - self-building cycle active"
-    Write-OK "All helper operations will use MiOS (openssl, qemu-img, etc.)"
+    Write-OK "'MiOS' helper image pulled - self-building cycle active"
+    Write-OK "All helper operations will use 'MiOS' (openssl, qemu-img, etc.)"
 } else {
     # Check if it exists locally already (previous local build)
     & podman image exists $LocalImage 2>$null
     if ($LASTEXITCODE -eq 0) {
         $HelperImage = $LocalImage
-        Write-OK "Using local MiOS image as helper - self-building cycle active"
+        Write-OK "Using local 'MiOS' image as helper - self-building cycle active"
     } else {
         $HelperImage = ""
-        Write-Warn "No existing MiOS image found - first build, using alpine/python fallbacks"
+        Write-Warn "No existing 'MiOS' image found - first build, using alpine/python fallbacks"
         Write-Step "After this build completes and pushes, subsequent builds will self-build"
     }
 }
-# -- Self-Building BIB: Try MiOS as bootc-image-builder --------------------
-# MiOS includes bootc-image-builder + osbuild as RPMs. If HelperImage is set,
+# -- Self-Building BIB: Try 'MiOS' as bootc-image-builder --------------------
+# 'MiOS' includes bootc-image-builder + osbuild as RPMs. If HelperImage is set,
 # verify it can serve as BIB. Falls back to centos-bootc on first build.
 $BIBSelfBuild = $false
 if ($HelperImage) {
@@ -463,9 +468,9 @@ if ($HelperImage) {
     if ($LASTEXITCODE -eq 0) {
         $BIBImage = $HelperImage
         $BIBSelfBuild = $true
-        Write-OK "Self-building BIB: MiOS image will be used as bootc-image-builder"
+        Write-OK "Self-building BIB: 'MiOS' image will be used as bootc-image-builder"
     } else {
-        Write-Step "MiOS image lacks bootc-image-builder binary - using centos-bootc BIB"
+        Write-Step "'MiOS' image lacks bootc-image-builder binary - using centos-bootc BIB"
     }
 }
 $ErrorActionPreference = "Stop"
@@ -514,12 +519,13 @@ if ($DoPull) {
     # BuildKit --progress=plain may prefix lines with "#N 0.123 " - handled
     # by matching anywhere in the line, not anchored to start.
     $pbStep = 0; $pbTotal = 45; $pbSname = "Initializing"; $pbOp = "Starting podman build..."
-    Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+    Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
         -Status "Phase 2 — Pulling / preparing layers…" -CurrentOperation $pbOp -PercentComplete 15
 
     & podman build --progress=plain --no-cache `
         --build-arg MAKEFLAGS="-j$cpu" `
         --build-arg MIOS_USER="$U" `
+        --build-arg MIOS_HOSTNAME="$HostIn" `
         --build-arg MIOS_PASSWORD_HASH="$passHash" `
         --jobs 2 -t $LocalImage . 2>&1 | ForEach-Object {
         $line = $_
@@ -538,7 +544,7 @@ if ($DoPull) {
 
         $outerPct  = [Math]::Min(99, 15 + [int]($pbStep * 67 / [Math]::Max(1, $pbTotal)))
         $outerStat = if ($pbStep -gt 0) { "Script $pbStep/$pbTotal — $pbSname" } else { "Pulling / preparing layers…" }
-        Write-Progress -Activity "MiOS Build ${Version}" -Id 0 `
+        Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
             -Status "Phase 2 — $outerStat" -CurrentOperation $pbOp -PercentComplete $outerPct
         if ($pbStep -gt 0) {
             Write-Progress -Activity "  $pbSname" -Id 1 -ParentId 0 `
@@ -587,7 +593,7 @@ if ($DoPull) {
     if ($LASTEXITCODE -eq 0) {
         $BIBImage = $LocalImage
         $BIBSelfBuild = $true
-        Write-OK "Helper image updated - self-building BIB active (MiOS IS the builder)"
+        Write-OK "Helper image updated - self-building BIB active ('MiOS' IS the builder)"
     } else {
         Write-OK "Helper image updated to freshly built $LocalImage (self-building ready)"
     }
@@ -883,14 +889,22 @@ if ($env:MIOS_SKIP_DEPLOY -eq "1") {
                     wsl --import $WslName $WslPath $TargetWsl --version 2
                     if ($LASTEXITCODE -eq 0) {
                         Write-OK "WSL2 distro '$WslName' imported"
-                        
+
+                        # Seed /etc/mios/install.env so wsl-firstboot.service uses the
+                        # operator-supplied identity instead of the default 'mios' password.
+                        if (Write-MiosInstallEnv -WslDistro $WslName -User $U -PasswordHash $passHash -Hostname $HostIn) {
+                            Write-OK "Seeded /etc/mios/install.env (user=$U, host=$HostIn)"
+                        } else {
+                            Write-Warn "install.env not written -- first-boot will fall back to default 'mios' password"
+                        }
+
                         # Generate .wslconfig
                         $wslConfigPath = Join-Path $env:USERPROFILE ".wslconfig"
                         $wslCPUs = $cpu
                         $wslRAM = [Math]::Max(16, [Math]::Floor((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB * 0.75))
                         
                         $wslLines = @(
-                            "# MiOS v0.2.2 - WSL2 Configuration",
+                            "# 'MiOS' v0.2.2 - WSL2 Configuration",
                             "[wsl2]",
                             "memory=${wslRAM}GB",
                             "processors=${wslCPUs}",
@@ -956,8 +970,8 @@ Write-Host ""
 
 # Self-building status
 if ($HelperImage) {
-    Write-OK "Self-building: ACTIVE - MiOS image used as builder"
-    if ($BIBSelfBuild) { Write-OK "  BIB: Self-building (MiOS used as bootc-image-builder)" }
+    Write-OK "Self-building: ACTIVE - 'MiOS' image used as builder"
+    if ($BIBSelfBuild) { Write-OK "  BIB: Self-building ('MiOS' used as bootc-image-builder)" }
     else { Write-OK "  BIB: External (centos-bootc)" }
     Write-OK "  Next build will pull this image and use it for all operations"
 } else {
@@ -984,12 +998,12 @@ foreach ($mf in $manifests) {
 Write-OK "Manifests staged in $MiosManifestsDir"
 
 Write-Host ""
-Write-Host "  MiOS is self-replicating: pull  build  push  repeat" -ForegroundColor Cyan
-Write-Host "  On deployed MiOS:  mios-rebuild" -ForegroundColor Cyan
+Write-Host "  'MiOS' is self-replicating: pull  build  push  repeat" -ForegroundColor Cyan
+Write-Host "  On deployed 'MiOS':  mios-rebuild" -ForegroundColor Cyan
 Write-Host "  On any machine:       podman pull $GhcrImage" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Progress -Activity "MiOS Build ${Version}" -Id 0 -Completed
+Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 -Completed
 
 Show-StatusCard
 

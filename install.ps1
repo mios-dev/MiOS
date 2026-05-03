@@ -1,5 +1,5 @@
 <#
-.SYNOPSIS  MiOS v0.2.2 — Unified Windows Installer
+.SYNOPSIS  'MiOS' v0.2.2 — Unified Windows Installer
 .DESCRIPTION
     Entry: irm https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1 | iex
     Normally downloaded + launched by bootstrap.ps1 after collecting credentials.
@@ -32,11 +32,16 @@ $MiosDocsDir      = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "MiO
 $MiosDeployDir    = Join-Path $MiosDocsDir "deployments"
 $MiosImagesDir    = Join-Path $MiosDocsDir "images"
 $MiosManifestsDir = Join-Path $MiosDocsDir "manifests"
-$RepoDir          = if ($env:MIOS_DIR) { $env:MIOS_DIR } else { Join-Path $env:LOCALAPPDATA "MiOS\repo" }
+$RepoDir          = if ($env:MIOS_DIR) { $env:MIOS_DIR } else { Join-Path $env:LOCALAPPDATA "'MiOS'\repo" }
 
 $TargetVhdx = Join-Path $MiosDeployDir "mios-hyperv.vhdx"
 $TargetWsl  = Join-Path $MiosDeployDir "mios-wsl.tar"
 $TargetIso  = Join-Path $MiosImagesDir "mios-installer.iso"
+
+# Shared helper: writes /etc/mios/install.env into a freshly-imported WSL2
+# distro so wsl-firstboot.service picks up the operator-supplied identity
+# instead of falling back to the literal default password "mios".
+. (Join-Path $PSScriptRoot "tools/lib/install-env.ps1")
 
 # ─── masking ──────────────────────────────────────────────────────────────────
 $script:MaskList = [System.Collections.Generic.List[string]]::new()
@@ -87,7 +92,7 @@ $script:Phases = @(
     [pscustomobject]@{Id=8;  Name="App registration";          State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=9;  Name="Building OCI image";        State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=48; EstSteps=48}
     [pscustomobject]@{Id=10; Name="Exporting WSL2 image";      State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=2}
-    [pscustomobject]@{Id=11; Name="Registering MiOS WSL2";     State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=2}
+    [pscustomobject]@{Id=11; Name="Registering 'MiOS' WSL2";     State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=2}
     [pscustomobject]@{Id=12; Name="Building disk images";      State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=4}
     [pscustomobject]@{Id=13; Name="Deploying Hyper-V VM";      State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
 )
@@ -133,7 +138,7 @@ function Show-Dashboard {
 
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add($(_dsep '-'))
-    $lines.Add("| $(_dpad "  MiOS v$Version  --  Build Dashboard" ($DW-9)) [ $tStr ] |")
+    $lines.Add("| $(_dpad "  'MiOS' v$Version  --  Build Dashboard" ($DW-9)) [ $tStr ] |")
     $lines.Add($(_dsep '-'))
     $lines.Add("| Ph : $(_dpad $phStr ($DW-7))|")
     $lines.Add("| Op : $op|")                                                     # offset 4
@@ -325,7 +330,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 # ─── static header (printed once, scrolls away) ───────────────────────────────
 [Console]::WriteLine("")
 [Console]::WriteLine('+' + [string]::new('=',78) + '+')
-[Console]::WriteLine("| $(_dpad "MiOS v$Version  --  Unified Windows Installer" 76) |")
+[Console]::WriteLine("| $(_dpad "'MiOS' v$Version  --  Unified Windows Installer" 76) |")
 [Console]::WriteLine("| $(_dpad "Immutable Fedora AI Workstation" 76) |")
 [Console]::WriteLine("| $(_dpad "WSL2 + Podman  |  Offline Build Pipeline" 76) |")
 [Console]::WriteLine('+' + [string]::new('=',78) + '+')
@@ -384,7 +389,7 @@ foreach ($d in @($MiosDocsDir,$MiosDeployDir,$MiosImagesDir,$MiosManifestsDir,(S
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 }
 
-Set-Op "Cloning / updating MiOS repo..."
+Set-Op "Cloning / updating 'MiOS' repo..."
 if (Test-Path (Join-Path $RepoDir ".git")) {
     Write-Log "Updating existing repo at $RepoDir..."
     Push-Location $RepoDir
@@ -429,7 +434,7 @@ Start-Phase 4 "Writing .wslconfig..."
 $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
 $wslRAM = [Math]::Max(16, [Math]::Floor($ram * 0.80))
 $wslLines = @(
-    "# MiOS v$Version — WSL2 Configuration"
+    "# 'MiOS' v$Version — WSL2 Configuration"
     "[wsl2]"
     "memory=${wslRAM}GB"
     "processors=${cpu}"
@@ -504,7 +509,7 @@ Finish-Phase 6
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 7 "Hashing password (SHA-512)..."
 
-# Pull helper image for openssl — try existing MiOS image first
+# Pull helper image for openssl — try existing 'MiOS' image first
 $HelperImage = ""
 if ($GhcrToken) {
     $GhcrToken | & podman login ghcr.io --username $RegUser --password-stdin 2>&1 | Out-Null
@@ -540,9 +545,9 @@ if ($HelperImage) {
     $null = & podman run --rm $HelperImage which bootc-image-builder 2>$null
     if ($LASTEXITCODE -eq 0) {
         $BIBImage = $HelperImage; $BIBSelfBuild = $true
-        Write-LogOK "Self-building BIB: MiOS image is the builder"
+        Write-LogOK "Self-building BIB: 'MiOS' image is the builder"
     } else {
-        Write-Log "Using centos-bootc BIB (MiOS lacks bootc-image-builder binary)"
+        Write-Log "Using centos-bootc BIB ('MiOS' lacks bootc-image-builder binary)"
     }
 }
 Finish-Phase 8
@@ -559,6 +564,7 @@ $t9 = [DateTime]::Now
 & podman build --progress=plain --no-cache `
     --build-arg MAKEFLAGS="-j$cpu" `
     --build-arg MIOS_USER="$U" `
+    --build-arg MIOS_HOSTNAME="$HostIn" `
     --build-arg MIOS_PASSWORD_HASH="$passHash" `
     --jobs 2 -t $LocalImage (Get-Location).Path 2>&1 | ForEach-Object {
 
@@ -670,7 +676,18 @@ if (Test-Path $TargetWsl) {
     if ($existing) { wsl --unregister $WslName 2>$null | Out-Null }
     New-Item -ItemType Directory -Path $WslPath -Force | Out-Null
     wsl --import $WslName $WslPath $TargetWsl --version 2 2>&1 | ForEach-Object { Set-Op $_ }
-    if ($LASTEXITCODE -eq 0) { Write-LogOK "WSL2 distro '$WslName' registered" } else { Write-LogWarn "WSL import failed" }
+    if ($LASTEXITCODE -eq 0) {
+        Write-LogOK "WSL2 distro '$WslName' registered"
+        # Seed /etc/mios/install.env so wsl-firstboot.service uses the
+        # operator-supplied identity instead of the default 'mios' password.
+        if (Write-MiosInstallEnv -WslDistro $WslName -User $U -PasswordHash $passHash -Hostname $HostIn) {
+            Write-LogOK "Seeded /etc/mios/install.env (user=$U, host=$HostIn)"
+        } else {
+            Write-LogWarn "install.env not written -- first-boot will fall back to default 'mios' password"
+        }
+    } else {
+        Write-LogWarn "WSL import failed"
+    }
 }
 $ErrorActionPreference = "Stop"
 Finish-Phase 11
@@ -777,7 +794,7 @@ foreach ($p in @($TargetVhdx,$TargetWsl,$TargetIso)) {
     if (Test-Path $p) { Write-Host "    [OK] $(Split-Path $p -Leaf)  $(Get-FileSize $p)" -ForegroundColor Green }
 }
 Write-Host ""
-Write-Host "  irm | iex → build → VHDX → Hyper-V  |  bootc upgrade on deployed MiOS" -ForegroundColor DarkGray
+Write-Host "  irm | iex → build → VHDX → Hyper-V  |  bootc upgrade on deployed 'MiOS'" -ForegroundColor DarkGray
 Write-Host ""
 
 try { Stop-Transcript | Out-Null } catch {}
