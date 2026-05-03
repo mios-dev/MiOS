@@ -1,0 +1,73 @@
+# /etc/containers/systemd/mios-forge.container
+# 'MiOS' self-hosted Git forge (Forgejo upstream).
+#
+# Rationale: Forgejo is the resource-fit-for-MiOS forge per the analysis
+# in CREDITS.md / SOURCES.md (idle 150-300 MB, single-core sufficient for
+# small teams, GPLv3+ governance under Codeberg e.V., GitHub Actions-
+# compatible CI engine via the Forgejo Runner so existing
+# .github/workflows/ runs unmodified). The image is pulled from
+# codeberg.org (Forgejo's upstream registry) by default.
+#
+# Defaults policy: enabled by default. ConditionPathIsDirectory guards
+# the config dir; if /etc/mios/forge/ doesn't exist (incomplete bootstrap)
+# the unit no-ops at pre-boot rather than crash-looping. !container also
+# skips inside nested containers where the bind-mount pattern would clash.
+
+[Unit]
+Description='MiOS' Git forge (Forgejo)
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsDirectory=/etc/mios/forge
+ConditionVirtualization=!container
+
+[Container]
+Image=codeberg.org/forgejo/forgejo:11
+ContainerName=mios-forge
+Network=mios.network
+PublishPort=3000:3000      # web UI; reverse-proxy via Cockpit/Caddy if desired
+PublishPort=2222:22        # git+ssh; non-22 to coexist with sshd
+
+# Persistent state: the Forgejo image expects /data to hold app state +
+# the SQLite DB + git repository bytes. /srv/mios/forge is the FHS-3.0
+# 'data served by the system' location declared in usr/lib/tmpfiles.d/
+# mios-forge.conf and chowned mios-forge:mios-forge there.
+Volume=/srv/mios/forge:/data:Z
+Volume=/etc/mios/forge:/etc/mios/forge:Z,ro
+
+# Identity inside the container. The upstream image creates a 'git' user
+# with USER_UID/USER_GID env vars at startup; we pin those to MiOS's
+# 50-mios-services.conf reservation (816 = next free slot in 810-829).
+Environment=USER=git
+Environment=USER_UID=816
+Environment=USER_GID=816
+
+# Forgejo configuration (env-var-driven; no app.ini needed for default
+# deployment). Format: FORGEJO__<section>__<key>=<value>. Operators
+# wanting richer config can drop a custom app.ini under /etc/mios/forge/
+# and add Environment=FORGEJO_APP_INI_PATH=/etc/mios/forge/app.ini.
+Environment=FORGEJO__server__ROOT_URL=http://localhost:3000/
+Environment=FORGEJO__server__HTTP_PORT=3000
+Environment=FORGEJO__server__SSH_PORT=2222
+Environment=FORGEJO__server__SSH_LISTEN_PORT=22
+Environment=FORGEJO__database__DB_TYPE=sqlite3
+Environment=FORGEJO__database__PATH=/data/forgejo.db
+Environment=FORGEJO__service__DISABLE_REGISTRATION=true
+Environment=FORGEJO__service__REQUIRE_SIGNIN_VIEW=false
+Environment=FORGEJO__security__INSTALL_LOCK=true
+Environment=FORGEJO__log__LEVEL=Info
+Environment=FORGEJO__log__MODE=console
+# Architectural Law 5: nothing in the forge calls vendor AI URLs.
+# Forgejo has no built-in AI surface; this comment exists so postcheck
+# #12 has a documented reason for the absence rather than an oversight.
+
+User=mios-forge
+Group=mios-forge
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target
