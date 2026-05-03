@@ -17,6 +17,20 @@ Group=mios-ollama
 # 0.0.0.0 on the host side makes the surface contract explicit.
 Environment=OLLAMA_HOST=0.0.0.0:11434
 Environment=OLLAMA_ORIGINS=*
+# Point ollama at the writable runtime store. mios-ollama-firstboot.
+# service hardlink-copies the build-baked seed (/usr/share/ollama/
+# models -- immutable composefs surface) into this path on first boot.
+# Subsequent 'ollama pull' commands write here too, so this is the
+# single source of truth ollama reads.
+Environment=OLLAMA_MODELS=/var/lib/ollama/models
+
+# Volumes (Architectural Law 2 -- /var paths declared via tmpfiles.d):
+#   /var/lib/ollama   writable runtime model store
+#   /usr/share/ollama immutable seed mounted RO so the firstboot service
+#                     and ollama itself can both reach it
+Volume=/var/lib/ollama:/var/lib/ollama:Z
+Volume=/usr/share/ollama:/usr/share/ollama:ro,Z
+
 PublishPort=0.0.0.0:11434:11434
 
 # OCI labels for Podman Desktop discovery. ollama is an alternate local

@@ -82,6 +82,40 @@ allow_libvirt_bridge   = true   # for VM networking
 # (postcheck #12 enforces this in the active config).
 # Maps to MIOS_AI_ENDPOINT, MIOS_AI_MODEL, MIOS_AI_EMBED_MODEL, MIOS_AI_KEY,
 # MIOS_SYSTEM_PROMPT_FILE, MIOS_MCP_REGISTRY.
+#
+# Default model selection (researched for the 12 GB system-RAM baseline,
+# CPU-only inference, ~8 GB available to the model):
+#
+#   model = "qwen2.5-coder:7b"
+#       - Best open-source code model in the 7B class as of 2026
+#         (HumanEval ~88%; multi-language including bash, PowerShell,
+#         Containerfiles, systemd units, TOML).
+#       - Q4_K_M quant: ~4.7 GB on disk, ~5-6 GB resident in CPU RAM.
+#       - 128K-token context window.
+#       - Strong at navigating Linux + Windows path semantics.
+#       - Apache 2.0 license.
+#       - https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct
+#
+#   embed_model = "nomic-embed-text"
+#       - 768-dim sentence embeddings (v1.5).
+#       - 8192-token context (long enough for whole source files).
+#       - ~270 MB Q4 GGUF; negligible runtime RAM cost.
+#       - Apache 2.0; OpenAI /v1/embeddings-shaped via LocalAI.
+#       - https://huggingface.co/nomic-ai/nomic-embed-text-v1.5
+#
+# Build-baked: automation/37-ollama-prep.sh pulls the 'model' +
+# 'embed_model' set into /usr/share/ollama/models on the immutable
+# composefs surface during 'just build'. mios-ollama-firstboot.service
+# hardlink-copies that seed into /var/lib/ollama/models on first deploy.
+# Operators can swap models post-deploy by editing this file
+# (/etc/mios/mios.toml or ~/.config/mios/mios.toml -- highest layer
+# wins) and running 'systemctl restart mios-ollama'.
+#
+# Larger / smaller alternates (NOT baked by default; operators opt in
+# via MIOS_OLLAMA_BAKE_MODELS at build time, or 'ollama pull' post-
+# deploy):
+#   "qwen2.5-coder:14b"    24+ GB RAM systems; better multi-step code
+#   "llama3.2:3b"          low-RAM (8 GB total) / fast-response profile
 # ----------------------------------------------------------------------------
 [ai]
 endpoint            = "http://localhost:8080/v1"
@@ -92,6 +126,18 @@ enable_ollama       = true
 enable_localai      = true
 mcp_registry        = "/usr/share/mios/ai/v1/mcp.json"
 system_prompt_file  = ""                # optional override; empty = use canonical
+# Build-time model bake list. Comma-separated; consumed by
+# automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Empty disables
+# baking (image stays small; first-boot pulls instead).
+bake_models         = "qwen2.5-coder:7b,nomic-embed-text"
+# Recommended floor for the default model. Informational; logged in
+# postcheck so operators know what they're signing up for.
+ram_floor_gb        = 12
+# Where ollama reads/writes models at runtime. Both paths are wired in
+# the Quadlet via Volume= directives; OLLAMA_MODELS points at the
+# writable one.
+seed_dir            = "/usr/share/ollama/models"     # immutable, build-baked
+runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-seeded
 
 # ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.

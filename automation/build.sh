@@ -176,7 +176,14 @@ if [[ ! -f "$PACKAGES_MD" ]]; then
 fi
 
 # ── Script classification ────────────────────────────────────────────────────
-CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 37-ollama-prep.sh 99-postcheck.sh"
+# CONTAINERFILE_SCRIPTS are explicitly skipped from the main loop because
+# they're invoked elsewhere in the build flow:
+#   08-system-files-overlay.sh -- called explicitly by the OCI overlay step
+#   99-postcheck.sh             -- called explicitly below after the loop
+# 37-ollama-prep.sh used to live here but was orphaned (never called).
+# It is now a regular pipeline step that bakes the default model set
+# into /usr/share/ollama/models, so it runs in the main loop.
+CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 99-postcheck.sh"
 
 NON_FATAL_SCRIPTS="
   05-enable-external-repos.sh

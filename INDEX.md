@@ -35,6 +35,28 @@ the manifest at `/v1/mcp` is what MiOS agents read to populate that
 `tools` array. The `x-mios:` prefix is a documentation marker only --
 the served URL is `/v1/mcp`.
 
+### 2a. Default model set
+
+| Slot | Default | Quant | Disk | Resident | Notes |
+|---|---|---|---|---|---|
+| chat / code | `qwen2.5-coder:7b` | Q4_K_M | ~4.7 GB | ~5-6 GB | Apache 2.0; 128K context; HumanEval ~88%; multi-language including bash, PowerShell, Containerfiles, systemd units, TOML |
+| embeddings | `nomic-embed-text` (v1.5) | Q4 | ~270 MB | <1 GB | Apache 2.0; 768-dim; 8192-token context; OpenAI `/v1/embeddings`-shape via LocalAI |
+
+Sized for the 12 GB system-RAM baseline (CPU-only inference, ~8 GB
+available to the model). Build-baked into
+`/usr/share/ollama/models` (immutable composefs surface) by
+`automation/37-ollama-prep.sh`; first-boot service
+(`mios-ollama-firstboot.service`) hardlink-copies the seed into
+`/var/lib/ollama/models` (the writable `OLLAMA_MODELS` path).
+
+Override the build-time set with `MIOS_OLLAMA_BAKE_MODELS=<csv>` (e.g.
+`"qwen2.5-coder:14b,nomic-embed-text"` for 24 GB+ profiles). Override
+the runtime selection by editing `[ai].model` / `[ai].embed_model` in
+`/etc/mios/mios.toml` (host) or `~/.config/mios/mios.toml` (per-user)
+and restarting `mios-ollama.service`. The `[ai]` section in
+`usr/share/mios/mios.toml` documents the alternates considered and
+their resource cost.
+
 ## 3. Architectural laws (enforced; non-negotiable)
 
 | # | Law | Enforced by |
