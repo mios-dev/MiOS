@@ -3,8 +3,10 @@
 # Runs once (guarded by ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done).
 # Safe to re-run: all operations are idempotent.
 set -euo pipefail
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
 
-MARKER=/var/lib/mios/.wsl-firstboot-done
+MARKER="${MIOS_VAR_DIR}/.wsl-firstboot-done"
 
 # logger may fail if journald isn't up yet — never fatal
 _log() { logger -t mios-wsl-firstboot "$*" 2>/dev/null || true; echo "[wsl-firstboot] $*" >&2; }
@@ -16,9 +18,9 @@ MIOS_USER="${MIOS_USER:-mios}"
 MIOS_USER_HASH="${MIOS_USER_PASSWORD_HASH:-}"
 MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 
-if [[ -f /etc/mios/install.env ]]; then
+if [[ -f ${MIOS_ETC_DIR}/install.env ]]; then
     # shellcheck disable=SC1091
-    source /etc/mios/install.env 2>/dev/null || true
+    source ${MIOS_ETC_DIR}/install.env 2>/dev/null || true
     MIOS_USER="${MIOS_USER:-mios}"
     MIOS_USER_HASH="${MIOS_USER_PASSWORD_HASH:-$MIOS_USER_HASH}"
     MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"

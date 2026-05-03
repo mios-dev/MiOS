@@ -8,7 +8,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-echo "════════════ MiOS Build-Time Validation ════════════"
+log "MiOS build-time validation"
 
 # 1. OpenSSH Version Check (CVE-2026-4631 / Cockpit RCE mitigation)
 # Requirement: ≥ 9.6
@@ -130,5 +130,5 @@ else
     log "  ⚠ /etc/wsl.conf not present in image — WSL2 deploys will fall back to defaults"
 fi
 
-echo "═════════════ Validation SUCCESSFUL ═════════════"
+log "Validation SUCCESSFUL"
 exit 0

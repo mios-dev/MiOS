@@ -5,9 +5,11 @@
 # v0.2.0: FORMAL TARGET TRANSITION. Uses systemd .target units for roles.
 # ============================================================================
 set -euo pipefail
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
 
-ROLE_CONF=/etc/mios/role.conf
-STATE_DIR=/var/lib/mios
+ROLE_CONF="${MIOS_ETC_DIR}/role.conf"
+STATE_DIR="${MIOS_VAR_DIR}"
 mkdir -p "$STATE_DIR"
 
 log() { printf '[mios-role] %s\n' "$*"; }

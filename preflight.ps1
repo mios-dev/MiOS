@@ -10,11 +10,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 #>
 $ErrorActionPreference = "Continue"
 
-Write-Host ""
-Write-Host "+==============================================================+" -ForegroundColor Cyan
-Write-Host "|  MiOS Preflight -- Prerequisites Check                    |" -ForegroundColor Cyan
-Write-Host "+==============================================================+" -ForegroundColor Cyan
-Write-Host ""
+Write-Host "MiOS Preflight -- Prerequisites Check" -ForegroundColor Cyan
 
 $pass = 0
 $fail = 0

@@ -361,10 +361,7 @@ if ($DoPush -or $DoPull) {
         $RegistryUser = Read-Timed "Registry username:" "MiOS-DEV"
     }
     if (-not $RegistryToken) {
-        Write-Host ""
-        Write-Host "      +-----------------------------------------------------+" -ForegroundColor DarkYellow
-        Write-Host "      |  Token input is masked. It will NEVER be displayed. |" -ForegroundColor DarkYellow
-        Write-Host "      +-----------------------------------------------------+" -ForegroundColor DarkYellow
+        Write-Host "  Token input is masked. It will NEVER be displayed." -ForegroundColor DarkYellow
         $RegistryToken = Read-Timed "Registry token/PAT:" "" -Secret
     }
 

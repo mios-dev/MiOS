@@ -14,7 +14,14 @@ MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/MiOS-DEV/MiOS-bootstrap.git}"
 MIOS_REPO_BRANCH="${MIOS_REPO_BRANCH:-main}"
 MIOS_TMP_DIR="/tmp/mios-ignition-$$"
 MIOS_INSTALL_LOG="/var/log/mios-ignition.log"
-MIOS_CONFIG_DIR="/etc/mios"
+
+# FHS path constants (override via env). Mirrors automation/lib/paths.sh.
+: "${MIOS_USR_DIR:=/usr/lib/mios}"
+: "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
+: "${MIOS_SHARE_DIR:=/usr/share/mios}"
+: "${MIOS_ETC_DIR:=/etc/mios}"
+: "${MIOS_VAR_DIR:=/var/lib/mios}"
+MIOS_CONFIG_DIR="${MIOS_ETC_DIR}"
 MIOS_USER_CONFIG_DIR="" # Will be set after user is determined
 
 # Colors for output
@@ -362,26 +369,26 @@ merge_mios_structure() {
 
     # 5. Copy tools and automation (for building)
     log_info "Installing tools and automation..."
-    rsync -av tools/ /usr/share/mios/tools/ || true
-    rsync -av automation/ /usr/share/mios/automation/ || true
+    rsync -av tools/ ${MIOS_SHARE_DIR}/tools/ || true
+    rsync -av automation/ ${MIOS_SHARE_DIR}/automation/ || true
 
     # 6. Make all scripts executable
     log_info "Setting executable permissions..."
     chmod +x /usr/bin/mios* /usr/bin/iommu-groups 2>/dev/null || true
     chmod +x /usr/libexec/mios* 2>/dev/null || true
-    chmod +x /usr/libexec/mios/* 2>/dev/null || true
-    chmod +x /usr/share/mios/tools/*.sh 2>/dev/null || true
-    chmod +x /usr/share/mios/automation/*.sh 2>/dev/null || true
+    chmod +x ${MIOS_LIBEXEC_DIR}/* 2>/dev/null || true
+    chmod +x ${MIOS_SHARE_DIR}/tools/*.sh 2>/dev/null || true
+    chmod +x ${MIOS_SHARE_DIR}/automation/*.sh 2>/dev/null || true
 
     # 7. Copy Containerfile and Justfile to /usr/share/mios for building
     log_info "Installing build files..."
-    cp -n Containerfile /usr/share/mios/ || true
-    cp -n Justfile /usr/share/mios/ || true
-    cp -n VERSION /usr/share/mios/ || true
+    cp -n Containerfile ${MIOS_SHARE_DIR}/ || true
+    cp -n Justfile ${MIOS_SHARE_DIR}/ || true
+    cp -n VERSION ${MIOS_SHARE_DIR}/ || true
 
     # 8. Create /usr/src/mios symlink (for mios rebuild command)
     log_info "Creating source symlink..."
-    ln -sf /usr/share/mios /usr/src/mios || true
+    ln -sf ${MIOS_SHARE_DIR} /usr/src/mios || true
 
     log "MiOS structure merged successfully (NO deletions)"
 }
@@ -479,14 +486,14 @@ set_hostname() {
 build_mios_image() {
     log_info "Would you like to build the MiOS OCI image now?"
     echo "  This will take 15-25 minutes on first build."
-    echo "  You can also build later with: cd /usr/share/mios && just build"
+    echo "  You can also build later with: cd ${MIOS_SHARE_DIR} && just build"
     echo ""
     read -p "Build now? (y/N): " BUILD_NOW
 
     if [[ "$BUILD_NOW" =~ ^[Yy]$ ]]; then
         log_info "Building MiOS OCI image..."
 
-        cd /usr/share/mios
+        cd ${MIOS_SHARE_DIR}
 
         # Load user environment
         export MIOS_BASE_IMAGE
@@ -521,7 +528,7 @@ build_mios_image() {
         fi
     else
         log_info "Skipping build. To build later, run:"
-        echo "  cd /usr/share/mios && just build"
+        echo "  cd ${MIOS_SHARE_DIR} && just build"
     fi
 }
 
@@ -559,7 +566,7 @@ Installation Details:
   âœ“ User-space initialized (XDG directories, configs, dotfiles)
   âœ“ Python virtual environment created
   âœ“ System configuration installed
-  âœ“ Build files installed to /usr/share/mios
+  âœ“ Build files installed to ${MIOS_SHARE_DIR}
 
 Next Steps:
 
@@ -567,7 +574,7 @@ Next Steps:
      su - ${MIOS_USERNAME}
 
   2. Build MiOS image (if not done):
-     cd /usr/share/mios && just build
+     cd ${MIOS_SHARE_DIR} && just build
 
   3. Check system status:
      mios status

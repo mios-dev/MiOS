@@ -23,8 +23,8 @@ install -d -m 0755 /usr/lib/ld.so.conf.d
 echo "/usr/lib/wsl/lib" > /usr/lib/ld.so.conf.d/mios-gpu-pv.conf
 
 # 3. Create a detection script for first-boot or deployment
-mkdir -p /usr/libexec/mios
-cat > /usr/libexec/mios/gpu-pv-detect <<'EOF'
+mkdir -p ${MIOS_LIBEXEC_DIR}
+cat > ${MIOS_LIBEXEC_DIR}/gpu-pv-detect <<'EOF'
 #!/usr/bin/bash
 set -euo pipefail
 log() { echo "[gpu-pv-detect] $*"; }
@@ -41,7 +41,7 @@ if [ -z "$(ls -A /usr/lib/wsl/lib)" ]; then
 fi
 EOF
 
-chmod +x /usr/libexec/mios/gpu-pv-detect
+chmod +x ${MIOS_LIBEXEC_DIR}/gpu-pv-detect
 
 # 4. Create a systemd service to run the detection/setup on boot
 cat > /usr/lib/systemd/system/mios-gpu-pv-detect.service <<EOF
@@ -53,7 +53,7 @@ Before=display-manager.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/mios/gpu-pv-detect
+ExecStart=${MIOS_LIBEXEC_DIR}/gpu-pv-detect
 RemainAfterExit=yes
 
 [Install]

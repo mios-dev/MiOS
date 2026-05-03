@@ -36,12 +36,8 @@ fi
 
 install -d -m 0700 "$KEY_DIR"
 
-echo "=== MiOS MOK Key Generation ==="
-echo ""
-echo "Generating 2048-bit RSA key (shim-compatible) with 10-year validity..."
-echo "You will be prompted for an encryption passphrase for the private key."
-echo "Store this passphrase in GitHub secret MIOS_MOK_KEY_PASSWORD."
-echo ""
+echo "MiOS MOK key generation — 2048-bit RSA, 10-year validity."
+echo "Set passphrase prompt: store in GitHub secret MIOS_MOK_KEY_PASSWORD."
 
 # Create EKU extension config
 EXTFILE=$(mktemp /tmp/mok-ext.XXXXXX.conf)
@@ -79,8 +75,7 @@ openssl req \
 openssl x509 -in "$PEM_CERT" -outform DER -out "$DER_CERT"
 
 # Encrypt the private key
-echo ""
-echo "Enter a passphrase to encrypt the private key (for GitHub secret storage):"
+echo "Enter passphrase to encrypt the private key (for GitHub secret storage):"
 openssl pkcs8 -topk8 -inform PEM -outform PEM \
     -in "${PRIV_KEY}.plain" \
     -out "$PRIV_KEY"
@@ -98,24 +93,15 @@ chmod 0644 "$DER_CERT" "$PEM_CERT"
 
 rm -f "$EXTFILE"
 
-echo ""
-echo "Key files created:"
-echo "  Private key (encrypted PEM): $PRIV_KEY"
-echo "  Certificate (DER):           $DER_CERT"
-echo "  Certificate (PEM):           $PEM_CERT"
-echo "  Base64 private key:          $B64_PRIV"
-echo "  SHA-256 fingerprint:         $SHA256_OUT"
-echo ""
-echo "Fingerprint: $FINGERPRINT"
-echo ""
-echo "GitHub secrets to set:"
-echo "  COSIGN_PRIVATE_KEY  — for cosign key-based signing (separate cosign keypair)"
-echo "  MIOS_MOK_KEY_B64 — content of $B64_PRIV"
-echo "  MIOS_MOK_KEY_PASSWORD — your passphrase"
-echo ""
-echo "Commit the DER cert to the repo:"
-echo "  cp $DER_CERT etc/pki/mios/mok.der"
-echo "  git add etc/pki/mios/mok.der"
-echo ""
-echo "Never commit the private key. Add to .gitignore:"
-echo "  /etc/pki/mios/mok.priv"
+cat <<EOF
+Key files:
+  $PRIV_KEY   (encrypted PEM)
+  $DER_CERT   (DER cert)
+  $PEM_CERT   (PEM cert)
+  $B64_PRIV   (base64 priv)
+  $SHA256_OUT (sha256 fp)
+Fingerprint: $FINGERPRINT
+GitHub secrets: COSIGN_PRIVATE_KEY, MIOS_MOK_KEY_B64 (= $B64_PRIV), MIOS_MOK_KEY_PASSWORD
+Commit DER:    cp $DER_CERT etc/pki/mios/mok.der && git add etc/pki/mios/mok.der
+Never commit:  /etc/pki/mios/mok.priv
+EOF

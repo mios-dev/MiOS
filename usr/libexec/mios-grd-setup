@@ -1,7 +1,42 @@
-#!/usr/bin/env bash
-# MiOS v0.2.0 — stub: mios-grd-setup
-# Implementation expected from bootstrap overlay or future automation script.
+#!/bin/bash
+# MiOS — mios-grd-setup: GNOME Remote Desktop firstboot setup.
+# Triggered by mios-grd-setup.service (oneshot, guarded by SENTINEL).
+# Generates a self-signed EC TLS keypair, wires it into grdctl, optionally
+# applies a default credential when MIOS_PASSWORD is exported, and opens the
+# RDP port via firewalld.
 set -euo pipefail
-logger -t mios "[mios-grd-setup] stub executed — replace with real implementation"
-echo "[mios/mios-grd-setup] stub: no-op" >&2
-exit 0
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+SENTINEL="${MIOS_VAR_DIR}/.grd-init-done"
+[ -f "$SENTINEL" ] && exit 0
+
+GRD_DIR="/var/lib/gnome-remote-desktop"
+mkdir -p "$GRD_DIR"
+
+if [ ! -f "$GRD_DIR/rdp-tls.key" ]; then
+    echo "Generating self-signed TLS material for GRD (EC prime256v1)..."
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -sha256 -days 3650 -nodes \
+        -keyout "$GRD_DIR/rdp-tls.key" -out "$GRD_DIR/rdp-tls.crt" -subj "/CN=MiOS-RDP" 2>/dev/null
+    chown -R gnome-remote-desktop:gnome-remote-desktop "$GRD_DIR" 2>/dev/null || true
+    chmod 600 "$GRD_DIR/rdp-tls.key"
+fi
+
+grdctl --system rdp set-tls-key "$GRD_DIR/rdp-tls.key" 2>/dev/null || true
+grdctl --system rdp set-tls-cert "$GRD_DIR/rdp-tls.crt" 2>/dev/null || true
+
+# Security: never bake mios:mios as a default. Caller may export MIOS_PASSWORD,
+# or admins may write ${MIOS_ETC_DIR}/grd/credentials post-install.
+if [[ -n "${MIOS_PASSWORD:-}" ]]; then
+    grdctl --system rdp set-credentials mios "$MIOS_PASSWORD" 2>/dev/null || true
+    grdctl --system rdp enable 2>/dev/null || true
+    systemctl enable --now gnome-remote-desktop.service 2>/dev/null || true
+fi
+
+if command -v firewall-cmd &>/dev/null && firewall-cmd --state &>/dev/null 2>&1; then
+    firewall-cmd --add-port=3389/tcp --add-port=8080/tcp 2>/dev/null || true
+    firewall-cmd --permanent --add-port=3389/tcp --add-port=8080/tcp 2>/dev/null || true
+fi
+
+mkdir -p "$(dirname "$SENTINEL")"
+touch "$SENTINEL"

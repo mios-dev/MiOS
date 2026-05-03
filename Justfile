@@ -4,7 +4,7 @@
 
 # Load user environment from XDG-compliant configuration
 # This sources $HOME/.config/mios/*.toml files and exports MIOS_* variables
-_load_env := `bash -c 'source ./tools/load-user-env.sh 2>/dev/null || true'`
+_load_env := `bash -c 'source ./tools/lib/userenv.sh 2>/dev/null || true'`
 
 MIOS_REGISTRY_DEFAULT := "ghcr.io/MiOS-DEV/mios" # @verb:GET_REGISTRY
 IMAGE_NAME := env_var_or_default("MIOS_IMAGE_NAME", MIOS_REGISTRY_DEFAULT) # @verb:GET_IMAGE
@@ -276,7 +276,7 @@ show-user-space:
 # Show loaded environment variables
 show-env:
     @echo "MiOS Environment Variables:"
-    @source ./tools/load-user-env.sh && env | grep '^MIOS_' | sort | sed 's/^/  /'
+    @source ./tools/lib/userenv.sh && env | grep '^MIOS_' | sort | sed 's/^/  /'
 
 # Edit user environment configuration
 edit-env:

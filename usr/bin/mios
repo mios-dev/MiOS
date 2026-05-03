@@ -4,8 +4,9 @@ import os
 import requests
 import json
 
-SYSTEM_SPEC_PATH = "/usr/share/mios/ai/v1/system.md"
-API_URL = "http://localhost:8080/v1/chat/completions"
+MIOS_SHARE_DIR = os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios")
+SYSTEM_SPEC_PATH = f"{MIOS_SHARE_DIR}/ai/v1/system.md"
+API_URL = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1") + "/chat/completions"
 
 def get_system_spec():
     try:

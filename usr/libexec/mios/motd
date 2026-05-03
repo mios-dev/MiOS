@@ -5,6 +5,9 @@
 [[ $- != *i* ]] && exit 0
 [[ -n "${MIOS_NO_MOTD:-}" ]] && exit 0
 
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
 # ── Colors (ANSI basic -- safe for all TTYs) ─────────────────────────────────
 C=$'\033[0;36m'   # cyan
 W=$'\033[1;37m'   # bold white
@@ -49,7 +52,7 @@ DISK_PCT=$(df / 2>/dev/null | awk 'NR==2{sub(/%/,"",$5); print $5}' || echo "?")
 UPTIME=$(uptime -p 2>/dev/null | sed 's/^up //' || echo "?")
 
 # ── MiOS-specific state ───────────────────────────────────────────────────────
-ROLE=$(  grep -m1 "^ROLE=" /var/lib/mios/role.active 2>/dev/null | cut -d= -f2 || echo "default")
+ROLE=$(  grep -m1 "^ROLE=" ${MIOS_VAR_DIR}/role.active 2>/dev/null | cut -d= -f2 || echo "default")
 IMG_REF=$(bootc status --json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('booted',{}).get('image',{}).get('image',{}).get('image',''))" 2>/dev/null || echo "")
 [[ -z "$IMG_REF" ]] && IMG_REF=$(cat /usr/lib/os-release 2>/dev/null | grep PRETTY | cut -d= -f2 | tr -d '"' || echo "MiOS $MiosVersion")
 
@@ -73,8 +76,8 @@ if command -v mokutil &>/dev/null; then
 fi
 
 # ── AI stack ──────────────────────────────────────────────────────────────────
-AI_EP=$(grep -m1 "^endpoint" /etc/mios/ai/config.json 2>/dev/null | grep -oP 'http[^"]+' || echo "http://localhost:8080/v1")
-AI_MODEL=$(grep -m1 "^MIOS_AI_MODEL" /etc/mios/install.env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "qwen2.5-coder:7b")
+AI_EP=$(grep -m1 "^endpoint" ${MIOS_ETC_DIR}/ai/config.json 2>/dev/null | grep -oP 'http[^"]+' || echo "http://localhost:8080/v1")
+AI_MODEL=$(grep -m1 "^MIOS_AI_MODEL" ${MIOS_ETC_DIR}/install.env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "qwen2.5-coder:7b")
 AI_PING="${D}[  ] offline${N}"
 if curl -sf --max-time 2 "${AI_EP}/models" &>/dev/null; then
     AI_PING="${G}[OK] online${N}"

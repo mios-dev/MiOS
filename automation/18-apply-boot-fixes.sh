@@ -5,6 +5,7 @@
 # failure cascades detected during F44 boots on varied hardware/hypervisors.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 echo "==> Applying MiOS system service fixes..."
 
@@ -18,7 +19,7 @@ fi
 # Log trace: mios-role.service & mios-cdi-detect.service exited 203/EXEC
 # Global chmod commands in earlier pipelines stripped execution bits.
 # Handle all scripts in /usr/libexec/mios/ and named patterns.
-find /usr/libexec/mios -type f -exec chmod +x {} \; || true
+find ${MIOS_LIBEXEC_DIR} -type f -exec chmod +x {} \; || true
 find /usr/libexec -type f \( -name 'mios-*' -o -name 'role-apply' -o -name 'selinux-init' -o -name 'gpu-detect' -o -name 'cpu-isolate' -o -name 'motd' -o -name 'dash' -o -name 'sb-audit' -o -name 'wsl-init' -o -name 'wsl-firstboot' -o -name 'sb-keygen' -o -name 'tpm-enroll' \) -exec chmod +x {} \; || true
 find /usr/bin -name 'mios-*' -type f -exec chmod +x {} \; || true
 

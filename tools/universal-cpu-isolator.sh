@@ -1056,12 +1056,7 @@ HOST_CPUS="$host_range"
 
 case "\$1" in
     on)
-        echo "================================================================"
-        echo "Enabling CPU Isolation"
-        echo "================================================================"
-        echo "Isolated CPUs (for VMs): \$ISOLATED_CPUS"
-        echo "Host CPUs (for system):  \$HOST_CPUS"
-        echo ""
+        echo "Enabling CPU isolation. Isolated: \$ISOLATED_CPUS  Host: \$HOST_CPUS"
         echo "Moving all processes to host cores..."
         
         moved=0
@@ -1089,10 +1084,7 @@ case "\$1" in
         echo "Isolation active. Check with 'htop' to verify."
         ;;
     off)
-        echo "================================================================"
-        echo "Disabling CPU Isolation"
-        echo "================================================================"
-        echo "Allowing all processes to use all CPUs..."
+        echo "Disabling CPU isolation — allowing all processes to use all CPUs..."
         
         all_cpus="0-\$(($(nproc) - 1))"
         moved=0
@@ -1110,11 +1102,7 @@ case "\$1" in
         echo "  (Failed: \$failed - expected for kernel threads)"
         ;;
     status)
-        echo "================================================================"
-        echo "CPU Isolation Status"
-        echo "================================================================"
-        echo "Isolated CPUs (for VMs): \$ISOLATED_CPUS"
-        echo "Host CPUs (for system):  \$HOST_CPUS"
+        echo "CPU isolation status — Isolated: \$ISOLATED_CPUS  Host: \$HOST_CPUS"
         echo ""
         echo "Kernel parameters:"
         cat /proc/cmdline | grep -o "isolcpus=[^ ]*" || echo "  No isolcpus parameter"
@@ -1146,8 +1134,6 @@ EOFSCRIPT
     cat > /usr/local/bin/cpu-verify << EOFSCRIPT
 #!/bin/bash
 echo "CPU Isolation Verification"
-echo "==========================="
-echo ""
 echo "Kernel Parameters:"
 cat /proc/cmdline | grep -o "isolcpus=[^ ]*\|nohz_full=[^ ]*\|rcu_nocbs=[^ ]*"
 echo ""

@@ -2,7 +2,7 @@
 # MiOS load-user-env — reads XDG TOML configs and exports MIOS_* variables
 # LAW 3: Defaults are sourced from /usr/share/mios/user-preferences.md (the
 # JSON-embedded preferences card). User overrides in env.toml take precedence.
-# Usage: source ./tools/load-user-env.sh
+# Usage: source ./tools/lib/userenv.sh
 # Note: must be sourced (not executed) to affect the calling shell.
 
 MIOS_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mios"

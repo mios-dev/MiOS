@@ -203,7 +203,6 @@ export_to_file() {
         echo "Hostname: $(hostname)"
         echo "Kernel: $(uname -r)"
         echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
         
         for d in /sys/kernel/iommu_groups/*/devices/*; do

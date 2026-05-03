@@ -9,7 +9,7 @@ source "$(dirname "$0")/lib/common.sh"
 
 echo "[90-generate-sbom] Starting SBOM generation..."
 
-ARTIFACT_DIR="/usr/lib/mios/artifacts/sbom"
+ARTIFACT_DIR="${MIOS_USR_DIR}/artifacts/sbom"
 mkdir -p "$ARTIFACT_DIR"
 
 if ! command -v syft &> /dev/null; then

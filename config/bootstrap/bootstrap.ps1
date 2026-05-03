@@ -89,11 +89,7 @@ function Export-EnvFile {
     }
 }
 
-Write-Host ""
-Write-Host "  +==============================================================+" -ForegroundColor Cyan
-Write-Host "  |  MiOS -- Local Build Configuration                          |" -ForegroundColor Cyan
-Write-Host "  +==============================================================+" -ForegroundColor Cyan
-Write-Host ""
+Write-Host "MiOS -- Local Build Configuration" -ForegroundColor Cyan
 
 # ── Stage Directories ──────────────────────────────────────────────────────
 Write-Host "  Staging MiOS environment..." -ForegroundColor Gray
@@ -156,9 +152,7 @@ if (-not $env:GHCR_TOKEN) {
     Write-Host "  [!] Token required." -ForegroundColor Red; exit 1
 }
 
-Write-Host ""
-Write-Host "  -- Build Configuration -----------------------------------------" -ForegroundColor Yellow
-Write-Host ""
+Write-Host "Build Configuration" -ForegroundColor Yellow
 
 # ── Admin username ────────────────────────────────────────────────────────────
 if (-not $env:MIOS_USER) {
@@ -205,9 +199,7 @@ if ($env:MIOS_GHCR_USER -and -not $env:MIOS_GHCR_PUSH_TOKEN) {
 }
 
 # ── Summary ────────────────────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "  -- Summary -----------------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
+Write-Host "Summary" -ForegroundColor Yellow
 Write-Host ("    {0,-20} {1}" -f "Admin user:",    $env:MIOS_USER)
 Write-Host ("    {0,-20} {1}" -f "Admin password:", "(masked)")
 Write-Host ("    {0,-20} {1}" -f "Hostname:",       $env:MIOS_HOSTNAME)

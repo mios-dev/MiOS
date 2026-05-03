@@ -364,19 +364,18 @@ fi
 # ── Log preservation (flatten all chain logs + version manifest into /usr) ──
 echo ""
 _hline '-' '+' '+'
-_row " LOG CHAIN: Flattening logs + version manifest -> /usr/lib/mios/logs/"
+_row " LOG CHAIN: Flattening logs + version manifest -> ${MIOS_LOG_DIR}/"
 _hline '-' '+' '+'
-mkdir -p /usr/lib/mios/logs
-cp -v /var/log/dnf5.log* /var/log/hawkey.log /usr/lib/mios/logs/ 2>/dev/null || true
+mkdir -p "$MIOS_LOG_DIR"
+cp -v /var/log/dnf5.log* /var/log/hawkey.log "$MIOS_LOG_DIR/" 2>/dev/null || true
 
 # Promote machine-readable version manifest (TSV, kept uncompressed for grep/awk)
 if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then
-    install -m 0644 "$MIOS_VERSION_MANIFEST" /usr/lib/mios/logs/mios-build-versions.tsv
-    _row "  Version manifest: /usr/lib/mios/logs/mios-build-versions.tsv ($(wc -l < "$MIOS_VERSION_MANIFEST") rows)"
+    install -m 0644 "$MIOS_VERSION_MANIFEST" "$MIOS_VERSION_MANIFEST_FINAL"
+    _row "  Version manifest: ${MIOS_VERSION_MANIFEST_FINAL} ($(wc -l < "$MIOS_VERSION_MANIFEST") rows)"
 fi
 
 # Flatten per-step logs + manifest + main build log into single unified chain
-UNIFIED_LOG="/usr/lib/mios/logs/mios-build-chain.log"
 {
     echo "# MiOS ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""
@@ -395,13 +394,13 @@ UNIFIED_LOG="/usr/lib/mios/logs/mios-build-chain.log"
     echo ""
     echo "# ====== mios-build.log ======"
     [[ -f "$BUILD_LOG" ]] && cat "$BUILD_LOG" || true
-} > "$UNIFIED_LOG"
-cp "$UNIFIED_LOG" /usr/lib/mios/logs/mios-build.log 2>/dev/null || true
+} > "$MIOS_BUILD_CHAIN_LOG"
+cp "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
 
 # Compress the bulky logs; keep the TSV manifest uncompressed for direct query.
-gzip -9f /usr/lib/mios/logs/mios-build-chain.log /usr/lib/mios/logs/mios-build.log 2>/dev/null || true
-gzip -9f /usr/lib/mios/logs/dnf5.log* /usr/lib/mios/logs/hawkey.log 2>/dev/null || true
-_row "  Unified chain log: /usr/lib/mios/logs/mios-build-chain.log.gz"
+gzip -9f "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
+gzip -9f "$MIOS_LOG_DIR"/dnf5.log* "$MIOS_LOG_DIR/hawkey.log" 2>/dev/null || true
+_row "  Unified chain log: ${MIOS_BUILD_CHAIN_LOG}.gz"
 _row "  Step count in chain: $(ls /tmp/mios-step-*.log 2>/dev/null | wc -l)"
 
 # ── Cleanup ─────────────────────────────────────────────────────────────────

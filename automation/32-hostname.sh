@@ -8,6 +8,7 @@
 # Result: Each instance gets mios-XXXXX (e.g., mios-a3f9c), unique
 # per deployment, stable across reboots.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 echo "[32-hostname] Setting default hostname template..."
 
@@ -20,9 +21,9 @@ echo "[32-hostname] Setting default hostname template..."
 # already set one (C = copy-if-missing).  The mios-init service then
 # derives the unique mios-XXXXX suffix from machine-id on first boot.
 _hn="${MIOS_HOSTNAME:-mios}"
-install -d -m 0755 /usr/lib/mios
-echo "$_hn" > /usr/lib/mios/hostname.default
-echo "[32-hostname] Default hostname template written to /usr/lib/mios/hostname.default: $_hn"
+install -d -m 0755 ${MIOS_USR_DIR}
+echo "$_hn" > ${MIOS_USR_DIR}/hostname.default
+echo "[32-hostname] Default hostname template written to ${MIOS_USR_DIR}/hostname.default: $_hn"
 if [[ "$_hn" == "mios" ]]; then
     echo "[32-hostname] Will become mios-XXXXX on first boot via mios-init."
 fi

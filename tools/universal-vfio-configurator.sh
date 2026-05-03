@@ -761,9 +761,6 @@ EOF
     cat > /usr/local/bin/vfio-verify << EOF
 #!/bin/bash
 echo "VFIO Configuration Verification"
-echo "================================"
-echo ""
-
 echo "Checking VFIO modules..."
 for mod in vfio vfio_pci vfio_iommu_type1; do
     if lsmod | grep -q "^\$mod"; then

@@ -19,7 +19,14 @@ DEFAULT_SSH_KEY_TYPE="ed25519"
 DEFAULT_BRANCH="main"
 
 MIOS_REPO="https://github.com/mios-dev/MiOS.git"
-PROFILE_DIR="/etc/mios"
+
+# FHS path constants (override via env). Mirrors automation/lib/paths.sh.
+: "${MIOS_USR_DIR:=/usr/lib/mios}"
+: "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
+: "${MIOS_SHARE_DIR:=/usr/share/mios}"
+: "${MIOS_ETC_DIR:=/etc/mios}"
+: "${MIOS_VAR_DIR:=/var/lib/mios}"
+PROFILE_DIR="${MIOS_ETC_DIR}"
 PROFILE_FILE="${PROFILE_DIR}/install.env"
 
 # ============================================================================
@@ -179,10 +186,10 @@ main() {
 
     # --- 4. Package Installation ---
     log_phase "Installing MiOS System Stack"
-    if [[ -f "/usr/share/mios/PACKAGES.md" ]]; then
-        log_info "Extracting package list from /usr/share/mios/PACKAGES.md..."
+    if [[ -f "${MIOS_SHARE_DIR}/PACKAGES.md" ]]; then
+        log_info "Extracting package list from ${MIOS_SHARE_DIR}/PACKAGES.md..."
         local pkgs
-        pkgs=$(sed -n '/^```packages-/,/^```$/{/^```/d;/^#/d;/^$/d;p}' /usr/share/mios/PACKAGES.md | tr '\n' ' ')
+        pkgs=$(sed -n '/^```packages-/,/^```$/{/^```/d;/^#/d;/^$/d;p}' ${MIOS_SHARE_DIR}/PACKAGES.md | tr '\n' ' ')
         
         if [[ -n "$pkgs" ]]; then
             local dnf_cmd="dnf"
@@ -194,7 +201,7 @@ main() {
             log_err "No packages found in manifest!"
         fi
     else
-        log_err "CRITICAL: /usr/share/mios/PACKAGES.md not found!"
+        log_err "CRITICAL: ${MIOS_SHARE_DIR}/PACKAGES.md not found!"
         exit 1
     fi
 

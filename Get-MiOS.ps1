@@ -47,11 +47,7 @@ function Require-Cmd {
     }
 }
 
-Write-Host ""
-Write-Host "  ══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "            MiOS Bootstrap  (irm | iex entry)           " -ForegroundColor Cyan
-Write-Host "  ══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host ""
+Write-Host "MiOS Bootstrap  (irm | iex entry)" -ForegroundColor Cyan
 
 # ── 3. Prerequisites ──────────────────────────────────────────────────────────
 Require-Cmd "git"    "Install Git from https://git-scm.com/download/win"

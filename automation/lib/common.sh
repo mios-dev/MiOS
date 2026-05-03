@@ -8,6 +8,8 @@
 
 # shellcheck source=lib/masking.sh
 source "$(dirname "${BASH_SOURCE[0]}")/masking.sh"
+# shellcheck source=lib/paths.sh
+source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
 
 # --- Logging ----------------------------------------------------------------
 log_ts() { date '+%Y-%m-%d %H:%M:%S'; }

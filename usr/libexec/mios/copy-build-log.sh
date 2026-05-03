@@ -2,8 +2,10 @@
 # MiOS Build Log Copy Service
 # Preserves build-time logs for post-deployment diagnostics.
 set -euo pipefail
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
 
-LOG_DIR="/usr/lib/mios/logs"
+LOG_DIR="${MIOS_LOG_DIR}"
 PERSISTENT_LOG="/var/log/mios/last-build.log"
 
 echo "[copy-build-log] Starting log preservation..."

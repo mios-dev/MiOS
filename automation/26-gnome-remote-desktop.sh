@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Configuring GNOME Remote Desktop (GNOME 50) ==="
+echo "[26-grd] Configuring GNOME Remote Desktop (GNOME 50)"
 
 # Pre-emptively disable/mask legacy xrdp services just in case they bleed in from a base image
 systemctl mask xrdp.service xrdp-sesman.service 2>/dev/null || true
@@ -10,4 +10,4 @@ systemctl mask xrdp.service xrdp-sesman.service 2>/dev/null || true
 # Enablement is handled via usr/lib/systemd/system-preset/90-mios.preset
 # Drop-in to wait for network is delivered via system_files overlay.
 
-echo "GNOME Remote Desktop provisioning complete."
+echo "[26-grd] complete."

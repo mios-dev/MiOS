@@ -175,7 +175,7 @@ the deployed image via the `ctx` scratch stage and the
 - `srv/` — data served by the system (AI model weights, Ceph data — declared via `usr/lib/tmpfiles.d/`)
 - `v1/` — versioned API surface artifacts
 - `config/` — build-time configs (notably `config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml` for BIB)
-- `tools/` — build helpers (`preflight.sh`, `mios-overlay.sh`, `mios-sysext-pack.sh`, `flight-control.sh`, `load-user-env.sh`, `init-user-space.sh`, `log-to-bootstrap.sh`)
+- `tools/` — build helpers (`preflight.sh`, `mios-overlay.sh`, `mios-sysext-pack.sh`, `flight-control.sh`, `init-user-space.sh`, `log-to-bootstrap.sh`); sourced helpers in `tools/lib/` (`userenv.sh`)
 
 ### 2.6 CI
 
@@ -681,4 +681,4 @@ detail:
 - `config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml` — BIB configs
 - `etc/fapolicyd/fapolicyd.rules` — actual fapolicyd policy
 - `.github/workflows/mios-ci.yml` — actual CI pipeline (build/rechunk/sign/push)
-- `tools/{preflight,mios-overlay,mios-sysext-pack,flight-control,load-user-env,init-user-space,log-to-bootstrap}.sh`
+- `tools/{preflight,mios-overlay,mios-sysext-pack,flight-control,init-user-space,log-to-bootstrap}.sh`, `tools/lib/userenv.sh`

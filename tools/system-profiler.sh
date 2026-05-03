@@ -33,29 +33,15 @@ JSON_DATA="{"
 # Helper Functions
 ################################################################################
 
-print_header() {
-    local title="$1"
-    echo -e "\n${BOLD}${CYAN}â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—${NC}"
-    echo -e "${BOLD}${CYAN}â•‘ ${title}${NC}"
-    echo -e "${BOLD}${CYAN}â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${NC}\n"
-}
-
-print_section() {
-    local section="$1"
-    echo -e "\n${BOLD}${YELLOW}â–¶ ${section}${NC}\n"
-}
-
-print_info() {
-    echo -e "${GREEN}âœ“${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}âš ${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}âœ—${NC} $1"
-}
+print_header()  { echo -e "
+${BOLD}${CYAN}== $1 ==${NC}
+"; }
+print_section() { echo -e "
+${BOLD}${YELLOW}>> $1${NC}
+"; }
+print_info()    { echo -e "${GREEN}+${NC} $1"; }
+print_warning() { echo -e "${YELLOW}!${NC} $1"; }
+print_error()   { echo -e "${RED}-${NC} $1"; }
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -602,11 +588,9 @@ main() {
     
     # Start profiling
     {
-        echo "################################################################################"
         echo "# Linux System Profile"
         echo "# Generated: $(date)"
         echo "# Hostname: $(hostname)"
-        echo "################################################################################"
         echo ""
     } > "$OUTPUT_FILE"
     
