@@ -117,6 +117,23 @@ allow_libvirt_bridge   = true   # for VM networking
 #   "qwen2.5-coder:14b"    24+ GB RAM systems; better multi-step code
 #   "llama3.2:3b"          low-RAM (8 GB total) / fast-response profile
 # ----------------------------------------------------------------------------
+[meta]
+# Global version tracking for the unified user-definitions dotfile.
+# All MiOS scripts (build-mios.sh, build-mios.ps1, userenv.sh,
+# Resolve-MiosTomlAiDefaults) read this header to decide whether the
+# layered overlay format is one they understand. schema_version uses
+# semver: MAJOR bumps are breaking, MINOR add backward-compatible
+# fields, PATCH are doc-only or default-value adjustments.
+schema_version = "1.1.0"
+mios_version   = "0.2.2"
+format         = "toml"
+# Spec for the on-disk format -- TOML 1.0.0 (https://toml.io/en/v1.0.0).
+# Editor: /usr/share/mios/configurator/index.html (static, runs from
+# file:// or behind any HTTP server) reads + writes this file via a
+# round-trip parser; no installation required.
+spec_url       = "https://toml.io/en/v1.0.0"
+editor_url     = "/usr/share/mios/configurator/index.html"
+
 [ai]
 endpoint            = "http://localhost:8080/v1"
 model               = "qwen2.5-coder:7b"

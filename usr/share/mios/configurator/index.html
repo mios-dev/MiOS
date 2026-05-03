@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MiOS configurator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  /usr/share/mios/configurator/index.html
+  Static, dependency-free editor for the unified user-definitions
+  dotfile (/etc/mios/mios.toml). Runs from file:// or behind any HTTP
+  server; no build step, no Node, no framework.
+
+  Lifecycle:
+    1. Operator loads the page and clicks "Open" to choose their
+       /etc/mios/mios.toml (or ~/.config/mios/mios.toml). Reading
+       happens via the File API, fully client-side.
+    2. Form fields populate from the parsed TOML.
+    3. Operator edits identity, hostname, AI model, etc.
+    4. Operator clicks "Save" and the page generates a new TOML and
+       triggers a download. They drop the downloaded file into place
+       (or upload it via Cockpit's file manager).
+
+  No data leaves the browser; no network round-trip. The page targets
+  the same TOML schema_version that the build-mios.{sh,ps1} prompts
+  and userenv.sh resolver consume (Architectural Law 5 -- one config
+  surface, one resolver, one editor).
+-->
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --border: #30363d;
+    --accent: #58a6ff;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --err: #f85149;
+    --mono: ui-monospace, "Cascadia Code", "Source Code Pro", Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  h1 .v { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .toolbar { display: flex; gap: 8px; }
+  button, .btn-label {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    padding: 6px 14px; font: inherit; border-radius: 6px; cursor: pointer;
+  }
+  button:hover, .btn-label:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #0e1116; border-color: var(--accent); }
+  button.primary:hover { color: #fff; background: #1f6feb; }
+  input[type="file"] { display: none; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  fieldset { border: 1px solid var(--border); border-radius: 6px; padding: 16px; background: var(--panel); }
+  legend { padding: 0 8px; color: var(--accent); font-weight: 600; }
+  label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 12px; }
+  input[type="text"], select, textarea {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 8px; font: 13px var(--mono);
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .checkbox-row input { margin: 0; }
+  .checkbox-row label { margin: 0; color: var(--text); font-size: 13px; }
+  .raw {
+    grid-column: 1 / -1; font-family: var(--mono); font-size: 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; max-height: 360px; overflow: auto; white-space: pre;
+  }
+  .status { padding: 8px 12px; border-radius: 4px; margin-top: 12px; font-size: 13px; }
+  .status.ok { background: rgba(63,185,80,.1); color: var(--ok); border-left: 3px solid var(--ok); }
+  .status.err { background: rgba(248,81,73,.1); color: var(--err); border-left: 3px solid var(--err); }
+  .status.info { background: rgba(88,166,255,.1); color: var(--accent); border-left: 3px solid var(--accent); }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12px; }
+  footer code { font-family: var(--mono); color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.1.0 / mios 0.2.2</span></h1>
+  <div class="toolbar">
+    <label class="btn-label" for="file-open">Open</label>
+    <input type="file" id="file-open" accept=".toml,text/plain">
+    <button id="btn-defaults" type="button">Defaults</button>
+    <button id="btn-save" class="primary" type="button">Save</button>
+  </div>
+</header>
+
+<div class="grid">
+
+  <fieldset>
+    <legend>identity</legend>
+    <label for="f-username">username</label>
+    <input type="text" id="f-username" data-key="identity.username" placeholder="mios">
+    <label for="f-hostname">hostname</label>
+    <input type="text" id="f-hostname" data-key="identity.hostname" placeholder="mios">
+    <label for="f-fullname">fullname</label>
+    <input type="text" id="f-fullname" data-key="identity.fullname" placeholder="MiOS User">
+    <label for="f-shell">shell</label>
+    <input type="text" id="f-shell" data-key="identity.shell" placeholder="/bin/bash">
+    <label for="f-groups">groups (CSV)</label>
+    <input type="text" id="f-groups" data-key="identity.groups" data-array="csv"
+           placeholder="wheel,libvirt,kvm,video,render,input,dialout,docker">
+  </fieldset>
+
+  <fieldset>
+    <legend>locale</legend>
+    <label for="f-tz">timezone</label>
+    <input type="text" id="f-tz" data-key="locale.timezone" placeholder="UTC">
+    <label for="f-kbd">keyboard_layout</label>
+    <input type="text" id="f-kbd" data-key="locale.keyboard_layout" placeholder="us">
+    <label for="f-lang">language</label>
+    <input type="text" id="f-lang" data-key="locale.language" placeholder="en_US.UTF-8">
+  </fieldset>
+
+  <fieldset>
+    <legend>ai (Architectural Law 5)</legend>
+    <label for="f-ai-endpoint">endpoint</label>
+    <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8080/v1">
+    <label for="f-ai-model">model</label>
+    <select id="f-ai-model" data-key="ai.model">
+      <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (12 GB RAM, default)</option>
+      <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (24+ GB RAM)</option>
+      <option value="llama3.2:3b">llama3.2:3b (8 GB RAM)</option>
+      <option value="__custom__">custom...</option>
+    </select>
+    <input type="text" id="f-ai-model-custom" data-key="ai.model" data-custom-of="f-ai-model"
+           placeholder="custom model id" style="margin-top:4px; display:none">
+    <label for="f-ai-embed">embed_model</label>
+    <input type="text" id="f-ai-embed" data-key="ai.embed_model" placeholder="nomic-embed-text">
+    <label for="f-ai-bake">bake_models (CSV; consumed by 37-ollama-prep.sh)</label>
+    <input type="text" id="f-ai-bake" data-key="ai.bake_models"
+           placeholder="qwen2.5-coder:7b,nomic-embed-text">
+    <label for="f-ai-key">api_key (empty for localhost)</label>
+    <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
+  </fieldset>
+
+  <fieldset>
+    <legend>image</legend>
+    <label for="f-img-ref">ref</label>
+    <input type="text" id="f-img-ref" data-key="image.ref" placeholder="ghcr.io/mios-dev/mios:latest">
+    <label for="f-img-branch">branch</label>
+    <input type="text" id="f-img-branch" data-key="image.branch" placeholder="main">
+    <label for="f-img-base">base</label>
+    <input type="text" id="f-img-base" data-key="image.base" placeholder="ghcr.io/ublue-os/ucore-hci:stable-nvidia">
+  </fieldset>
+
+  <fieldset>
+    <legend>auth</legend>
+    <label for="f-ssh-type">ssh_key_type</label>
+    <input type="text" id="f-ssh-type" data-key="auth.ssh_key_type" placeholder="ed25519">
+    <label for="f-ssh-action">ssh_key_action (generate / existing / skip)</label>
+    <input type="text" id="f-ssh-action" data-key="auth.ssh_key_action" placeholder="generate">
+  </fieldset>
+
+  <fieldset>
+    <legend>network</legend>
+    <label for="f-net-zone">firewalld_default_zone</label>
+    <input type="text" id="f-net-zone" data-key="network.firewalld_default_zone" placeholder="drop">
+    <div class="checkbox-row"><input type="checkbox" id="f-net-cockpit" data-key="network.allow_cockpit"><label for="f-net-cockpit">allow_cockpit (9090/tcp)</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (22/tcp)</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="f-net-rdp" data-key="network.allow_rdp"><label for="f-net-rdp">allow_rdp (3389/tcp)</label></div>
+  </fieldset>
+
+  <fieldset style="grid-column: 1 / -1">
+    <legend>quadlets.enable (per-Quadlet first-boot enablement)</legend>
+    <div id="quadlet-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px;"></div>
+  </fieldset>
+
+  <fieldset style="grid-column: 1 / -1">
+    <legend>raw TOML preview</legend>
+    <pre class="raw" id="raw"># Open a mios.toml file or click "Defaults" to start.</pre>
+  </fieldset>
+</div>
+
+<div id="status" class="status info" style="display:none"></div>
+
+<footer>
+  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · Layers (highest precedence first): <code>~/.config/mios/mios.toml</code> → <code>/etc/mios/mios.toml</code> → <code>/usr/share/mios/mios.toml</code>. After saving, drop the downloaded file at the layer you want to edit and run <code>systemctl restart mios-ai mios-ollama</code> if AI keys changed.</p>
+</footer>
+
+<script>
+"use strict";
+//
+// Tiny TOML round-tripper -- handles the subset MiOS uses
+// (sections, key=value strings/numbers/bools, csv arrays,
+// nested tables like [quadlets.enable]). Not a full TOML 1.0
+// parser; just enough to round-trip mios.toml without losing
+// keys we don't have form fields for. Comments are preserved
+// verbatim by streaming through unmodified lines.
+//
+
+const QUADLETS = [
+  "mios-ai", "mios-ceph", "mios-k3s", "mios-forge", "mios-cockpit-link",
+  "crowdsec-dashboard", "ollama", "cloudws-guacamole", "cloudws-pxe-hub",
+  "guacamole-postgres", "guacd"
+];
+
+function parseToml(text) {
+  // Returns: { sections: { 'identity': {username:'...'}, ... }, lines: [...] }
+  // lines is the original text split into rows so we can re-emit comments.
+  const sections = {};
+  let current = "";
+  text.split(/\r?\n/).forEach(raw => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+    const sec = line.match(/^\[([^\]]+)\]\s*$/);
+    if (sec) { current = sec[1]; sections[current] = sections[current] || {}; return; }
+    const kv = line.match(/^([A-Za-z0-9_.\-]+)\s*=\s*(.+?)\s*(?:#.*)?$/);
+    if (!kv) return;
+    const k = kv[1], v = kv[2];
+    sections[current] = sections[current] || {};
+    sections[current][k] = parseTomlValue(v);
+  });
+  return sections;
+}
+
+function parseTomlValue(v) {
+  if (/^".*"$/.test(v)) return v.slice(1, -1).replace(/\\"/g, '"');
+  if (/^(true|false)$/i.test(v)) return /^true$/i.test(v);
+  if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  if (/^\[.*\]$/.test(v)) {
+    return v.slice(1, -1).split(",").map(s => s.trim().replace(/^"|"$/g, "")).filter(Boolean);
+  }
+  return v.replace(/^"|"$/g, "");
+}
+
+function emitToml(sections) {
+  // Emit a deterministic TOML block in MiOS section order.
+  const order = ["meta", "identity", "locale", "auth", "network", "ai",
+                 "desktop", "image", "bootstrap", "profile", "quadlets.enable", "env"];
+  const lines = [];
+  const known = new Set(order);
+  // Meta header preamble (matches the canonical template).
+  lines.push("# /etc/mios/mios.toml -- generated by /usr/share/mios/configurator/");
+  lines.push("# This is the unified MiOS user-definitions dotfile (TOML 1.0.0).");
+  lines.push("# Higher overlay layers (~/.config/mios/mios.toml) override lower ones.");
+  lines.push("");
+  for (const sec of order) {
+    if (!sections[sec]) continue;
+    lines.push(`[${sec}]`);
+    for (const [k, v] of Object.entries(sections[sec])) {
+      lines.push(`${k} = ${emitTomlValue(v)}`);
+    }
+    lines.push("");
+  }
+  // Trailing: any sections we didn't recognize, preserved verbatim.
+  for (const sec of Object.keys(sections)) {
+    if (known.has(sec)) continue;
+    lines.push(`[${sec}]`);
+    for (const [k, v] of Object.entries(sections[sec])) {
+      lines.push(`${k} = ${emitTomlValue(v)}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+function emitTomlValue(v) {
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number")  return String(v);
+  if (Array.isArray(v))       return "[" + v.map(s => `"${String(s).replace(/"/g, '\\"')}"`).join(", ") + "]";
+  return `"${String(v).replace(/"/g, '\\"')}"`;
+}
+
+// ── Form ↔ data binding ──────────────────────────────────────────
+let DATA = {};
+
+function refreshFromData() {
+  document.querySelectorAll("[data-key]").forEach(el => {
+    const [sec, key] = el.dataset.key.split(".");
+    const v = DATA[sec]?.[key];
+    if (v === undefined) return;
+    if (el.type === "checkbox") el.checked = !!v;
+    else if (el.dataset.array === "csv") el.value = Array.isArray(v) ? v.join(",") : String(v);
+    else if (el.tagName === "SELECT") {
+      const opt = Array.from(el.options).find(o => o.value === String(v));
+      if (opt) el.value = String(v);
+      else { el.value = "__custom__"; }
+    }
+    else el.value = String(v);
+  });
+  // Custom-input visibility
+  document.querySelectorAll("[data-custom-of]").forEach(el => {
+    const parent = document.getElementById(el.dataset.customOf);
+    el.style.display = parent.value === "__custom__" ? "" : "none";
+    if (parent.value === "__custom__") {
+      const [sec, key] = parent.dataset.key.split(".");
+      el.value = DATA[sec]?.[key] || "";
+    }
+  });
+  // Quadlet checkboxes
+  const qg = document.getElementById("quadlet-grid");
+  qg.innerHTML = "";
+  for (const q of QUADLETS) {
+    const v = DATA["quadlets.enable"]?.[q] ?? true;
+    const id = `q-${q.replace(/[^A-Za-z0-9]/g, "-")}`;
+    const row = document.createElement("div");
+    row.className = "checkbox-row";
+    row.innerHTML = `<input type="checkbox" id="${id}" ${v ? "checked" : ""}><label for="${id}">${q}</label>`;
+    qg.appendChild(row);
+    row.querySelector("input").addEventListener("change", e => {
+      DATA["quadlets.enable"] = DATA["quadlets.enable"] || {};
+      DATA["quadlets.enable"][q] = e.target.checked;
+      renderRaw();
+    });
+  }
+  renderRaw();
+}
+
+function gatherFromForm() {
+  document.querySelectorAll("[data-key]").forEach(el => {
+    if (el.dataset.customOf) return;
+    const [sec, key] = el.dataset.key.split(".");
+    DATA[sec] = DATA[sec] || {};
+    if (el.type === "checkbox") DATA[sec][key] = el.checked;
+    else if (el.dataset.array === "csv") DATA[sec][key] = el.value.split(",").map(s => s.trim()).filter(Boolean);
+    else if (el.tagName === "SELECT" && el.value !== "__custom__") DATA[sec][key] = el.value;
+    else if (el.tagName === "SELECT" && el.value === "__custom__") {
+      const custom = document.querySelector(`[data-custom-of="${el.id}"]`);
+      DATA[sec][key] = custom?.value || "";
+    }
+    else DATA[sec][key] = el.value;
+  });
+}
+
+function renderRaw() {
+  document.getElementById("raw").textContent = emitToml(DATA);
+}
+
+function showStatus(msg, kind) {
+  const el = document.getElementById("status");
+  el.className = `status ${kind || "info"}`;
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+
+// ── Defaults bundle (shipped inline so the editor works offline / file://) ──
+const DEFAULTS_TOML = `
+[meta]
+schema_version = "1.1.0"
+mios_version   = "0.2.2"
+format         = "toml"
+spec_url       = "https://toml.io/en/v1.0.0"
+editor_url     = "/usr/share/mios/configurator/index.html"
+
+[identity]
+username = "mios"
+hostname = "mios"
+fullname = "MiOS User"
+shell    = "/bin/bash"
+groups   = ["wheel","libvirt","kvm","video","render","input","dialout","docker"]
+
+[locale]
+timezone        = "UTC"
+keyboard_layout = "us"
+language        = "en_US.UTF-8"
+
+[auth]
+ssh_key_type   = "ed25519"
+ssh_key_action = "generate"
+
+[network]
+firewalld_default_zone = "drop"
+allow_cockpit          = true
+allow_ssh              = true
+allow_rdp              = true
+
+[ai]
+endpoint     = "http://localhost:8080/v1"
+model        = "qwen2.5-coder:7b"
+embed_model  = "nomic-embed-text"
+bake_models  = "qwen2.5-coder:7b,nomic-embed-text"
+api_key      = ""
+
+[image]
+ref    = "ghcr.io/mios-dev/mios:latest"
+branch = "main"
+base   = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+`.trim();
+
+// ── Wire the toolbar ─────────────────────────────────────────────
+document.getElementById("file-open").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const text = await f.text();
+    DATA = parseToml(text);
+    refreshFromData();
+    showStatus(`Loaded ${f.name} (${text.length} bytes)`, "ok");
+  } catch (err) {
+    showStatus(`Parse failed: ${err.message}`, "err");
+  }
+});
+
+document.getElementById("btn-defaults").addEventListener("click", () => {
+  DATA = parseToml(DEFAULTS_TOML);
+  refreshFromData();
+  showStatus("Loaded built-in defaults (schema 1.1.0).", "info");
+});
+
+document.getElementById("btn-save").addEventListener("click", () => {
+  gatherFromForm();
+  renderRaw();
+  const toml = emitToml(DATA);
+  const blob = new Blob([toml], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "mios.toml";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  showStatus("Saved mios.toml -- drop it into /etc/mios/ (host) or ~/.config/mios/ (per-user).", "ok");
+});
+
+// Live form -> DATA -> raw preview
+document.querySelectorAll("[data-key]").forEach(el => {
+  el.addEventListener("input", () => { gatherFromForm(); renderRaw(); });
+  el.addEventListener("change", () => { gatherFromForm(); renderRaw(); });
+});
+
+// First paint with defaults
+DATA = parseToml(DEFAULTS_TOML);
+refreshFromData();
+</script>
+
+</body>
+</html>

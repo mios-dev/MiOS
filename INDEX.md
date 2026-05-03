@@ -134,6 +134,34 @@ Active gating (referenced in `etc/containers/systemd/` and
 | `mios-forge-firstboot` | `ConditionPathExists=/etc/mios/install.env`, `!sentinel`, `!container` | install.env absent, already ran, nested |
 | `mios-cockpit-link` | `ConditionPathExists=/usr/lib/systemd/system/cockpit.socket`, `!container` | Podman Desktop UI shim that publishes :19090 → host :9090 so the Cockpit web console is clickable from the container view; skipped when cockpit isn't installed |
 
+## 4a. Configurator UI (unified-dotfile editor)
+
+The unified user-definitions dotfile (`/etc/mios/mios.toml` host;
+`~/.config/mios/mios.toml` per-user) is TOML 1.0.0
+(<https://toml.io/en/v1.0.0>). The on-disk format is FHS-compliant
+(`/etc/mios/` for host config, `/usr/share/mios/` for vendor defaults)
+and round-trippable; every MiOS resolver -- `build-mios.sh`'s
+`toml_get_layered`, `build-mios.ps1`'s `Resolve-MiosTomlAiDefaults`,
+`tools/lib/userenv.sh`'s Python merger -- consumes the same schema.
+
+Schema versioning lives in the new `[meta]` section
+(`schema_version` + `mios_version` + `format` + `spec_url`) so
+parsers can refuse mismatched versions cleanly.
+
+A static, dependency-free editor ships at:
+
+```
+/usr/share/mios/configurator/index.html
+```
+
+Operators open it locally (`file://` or behind any HTTP server --
+Cockpit can serve it; no extension required), click **Open** to load
+their current `mios.toml`, edit identity / locale / AI / network /
+Quadlet-enable fields via the form, and click **Save** to download
+the updated TOML. No data leaves the browser; no install step. The
+page targets the same schema_version that the build-mios prompts and
+runtime resolvers consume, so edits flow through end-to-end.
+
 ## 5b. Service access surface (LAN-reachable by default)
 
 Every 'MiOS' service binds `0.0.0.0` on its listening port so the same
