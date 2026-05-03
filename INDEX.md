@@ -13,15 +13,27 @@ OCI image. Source: `README.md`, `Containerfile`. Image:
 ## 2. API surface (OpenAI-compatible)
 
 All system agents target the local proxy at `http://localhost:8080/v1`,
-served by the LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`.
+served by the `mios-ai.container` Quadlet (LocalAI runtime). The
+endpoints below follow the OpenAI public API spec
+(<https://platform.openai.com/docs/api-reference>) verb-for-verb;
+`x-mios.*` rows are MiOS extensions, clearly namespaced so strict
+OpenAI clients can ignore them.
 
-| Path | Method | Manifest |
-|---|---|---|
-| `/v1/chat/completions` | POST | LocalAI runtime |
-| `/v1/models` | GET | `usr/share/mios/ai/v1/models.json` |
-| `/v1/mcp` | filesystem | `usr/share/mios/ai/v1/mcp.json` |
+| Path | Method | Served by | Spec |
+|---|---|---|---|
+| `/v1/chat/completions` | POST | LocalAI runtime | <https://platform.openai.com/docs/api-reference/chat> |
+| `/v1/responses` | POST | LocalAI runtime | <https://platform.openai.com/docs/api-reference/responses> |
+| `/v1/embeddings` | POST | LocalAI runtime | <https://platform.openai.com/docs/api-reference/embeddings> |
+| `/v1/models` | GET | `usr/share/mios/ai/v1/models.json` | <https://platform.openai.com/docs/api-reference/models/list> |
+| `/v1/audio/{transcriptions,speech}` | POST | LocalAI runtime (when configured) | <https://platform.openai.com/docs/api-reference/audio> |
+| `x-mios:/v1/mcp` | GET | `usr/share/mios/ai/v1/mcp.json` | <https://modelcontextprotocol.io/specification> |
 
-Spec: <https://platform.openai.com/docs/api-reference>.
+`/v1/mcp` is a MiOS extension (not part of the OpenAI public API). The
+canonical OpenAI route to invoke an MCP server is
+`POST /v1/responses` with `tools=[{"type": "mcp", "server_url": ...}]`;
+the manifest at `/v1/mcp` is what MiOS agents read to populate that
+`tools` array. The `x-mios:` prefix is a documentation marker only --
+the served URL is `/v1/mcp`.
 
 ## 3. Architectural laws (enforced; non-negotiable)
 
@@ -31,7 +43,7 @@ Spec: <https://platform.openai.com/docs/api-reference>.
 | 2 | **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. | `usr/lib/tmpfiles.d/mios*.conf` |
 | 3 | **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh:74-86`. | `usr/lib/bootc/bound-images.d/` |
 | 4 | **BOOTC-CONTAINER-LINT** -- final RUN of `Containerfile`. | `Containerfile` (last `RUN`) |
-| 5 | **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_KEY`, `MIOS_AI_MODEL`, `MIOS_AI_ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
+| 5 | **UNIFIED-AI-REDIRECTS** -- every OpenAI-API-shaped client resolves through one canonical surface: `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`, the OpenAI-SDK `base_url` slot), `MIOS_AI_MODEL` (default model id), `MIOS_AI_KEY` (api key, empty for the local proxy). No vendor-hardcoded URLs. | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s` declare `User=root`/`Group=root` because Ceph/K3s require uid 0 (see file headers). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
 ## 4. Profile + environment resolution
@@ -48,13 +60,19 @@ and at runtime by `mios` CLI clients):
 3. `/usr/share/mios/profile.toml` -- vendor defaults (shipped by `mios.git`,
    immutable, USR-OVER-ETC)
 
-**Environment layers** (resolved by `/etc/profile.d/mios-env.sh` at login):
+**Environment layers** (resolved by `/etc/profile.d/mios-env.sh` at
+login; later sources override earlier values, so this list runs from
+**lowest** precedence to **highest**):
 
-1. `~/.config/mios/env`
-2. `/etc/mios/install.env` (written by bootstrap install.sh)
-3. `/etc/mios/env.d/*.env` (admin/distro drop-ins)
-4. `/usr/share/mios/env.defaults` (vendor defaults)
-5. `~/.env.mios` (legacy, deprecated; kept for backwards compatibility)
+1. `/usr/share/mios/env.defaults` -- vendor defaults (lowest)
+2. `~/.env.mios` -- legacy per-user (deprecated; honored only when no
+   admin/host/current source supplies the same key)
+3. `/etc/mios/env.d/*.env` -- admin/distro drop-ins (alphabetical)
+4. `/etc/mios/install.env` -- host identity, written by bootstrap
+5. `~/.config/mios/env` -- canonical per-user override (highest)
+
+The CLI `/usr/bin/mios-env` prints the resolved surface (`--explain`
+shows which layer supplied each key).
 
 **Build-time variables** read by `Justfile`:
 

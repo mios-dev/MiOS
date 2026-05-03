@@ -5,12 +5,17 @@
 # MIOS_* variables so every agent and CLI sees the same values regardless
 # of which shell or terminal launched them.
 #
-# Resolution order (later layers override earlier values):
+# Resolution order (later layers override earlier values, so this list
+# runs from LOWEST precedence to HIGHEST):
 #   1. /usr/share/mios/env.defaults    vendor defaults (lowest)
-#   2. /etc/mios/env.d/*.env           admin/distro drop-ins (alphabetical)
-#   3. /etc/mios/install.env           host bootstrap-written identity
-#   4. ~/.env.mios                     legacy per-user (deprecated)
-#   5. ~/.config/mios/env              per-user override (highest)
+#   2. ~/.env.mios                     legacy per-user (deprecated;
+#                                      sourced before admin/host so a
+#                                      stale legacy value cannot
+#                                      override a fresher install.env
+#                                      or env.d/*.env entry)
+#   3. /etc/mios/env.d/*.env           admin/distro drop-ins (alphabetical)
+#   4. /etc/mios/install.env           host bootstrap-written identity
+#   5. ~/.config/mios/env              canonical per-user override (highest)
 #
 # Architectural Law 5 (UNIFIED-AI-REDIRECTS): MIOS_AI_ENDPOINT,
 # MIOS_AI_MODEL, and MIOS_AI_KEY are exported here so every OpenAI-API
@@ -41,10 +46,14 @@ _mios_source_if_readable() {
     . "$1"
 }
 
-# Layer 1: vendor defaults (always present on a 'MiOS' system).
+# Layer 1 (lowest): vendor defaults (always present on a 'MiOS' system).
 _mios_source_if_readable /usr/share/mios/env.defaults
 
-# Layer 2: admin / distro drop-ins (alphabetical, env-style).
+# Layer 2: legacy per-user env file (deprecated; sourced before
+# admin/host so a stale ~/.env.mios cannot override fresher data).
+_mios_source_if_readable "${HOME}/.env.mios"
+
+# Layer 3: admin / distro drop-ins (alphabetical, env-style).
 if [ -d /etc/mios/env.d ]; then
     for _f in /etc/mios/env.d/*.env; do
         _mios_source_if_readable "$_f"
@@ -52,13 +61,10 @@ if [ -d /etc/mios/env.d ]; then
     unset _f
 fi
 
-# Layer 3: host install.env -- bootstrap writes identity here.
+# Layer 4: host install.env -- bootstrap writes identity here.
 _mios_source_if_readable /etc/mios/install.env
 
-# Layer 4: legacy per-user env file (deprecated; kept for migration).
-_mios_source_if_readable "${HOME}/.env.mios"
-
-# Layer 5: canonical per-user env override.
+# Layer 5 (highest): canonical per-user env override.
 _mios_source_if_readable "${HOME}/.config/mios/env"
 
 # Export the OpenAI-API surface required by every Law-5-compliant agent.

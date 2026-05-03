@@ -24,6 +24,7 @@ set -euo pipefail
 # Canonical layer paths (mirrors mios-env.sh).
 LAYERS=(
     "/usr/share/mios/env.defaults"
+    "${HOME}/.env.mios"
 )
 # /etc/mios/env.d/*.env (alphabetical)
 if [[ -d /etc/mios/env.d ]]; then
@@ -33,7 +34,6 @@ if [[ -d /etc/mios/env.d ]]; then
 fi
 LAYERS+=(
     "/etc/mios/install.env"
-    "${HOME}/.env.mios"
     "${HOME}/.config/mios/env"
 )
 
