@@ -1,0 +1,66 @@
+# /usr/share/mios/mios.toml.example -- vendor template.
+# Copy to ~/.config/mios/mios.toml (run: just init-user-space) and edit.
+# Anything left commented inherits the vendor default from
+# /usr/share/mios/env.defaults.
+#
+# This is THE single user dotfile for MiOS. It carries:
+#   user identity, image refs, build knobs, flatpaks, AI settings,
+#   profile/role overlay, and free-form env-var overrides.
+#
+# Resolution order (first non-empty wins):
+#   1. ~/.config/mios/mios.toml          (this file when copied -- user)
+#   2. /etc/mios/install.env             (host -- written by Windows installer)
+#   3. /etc/mios/env.d/*.env             (admin drop-ins, alphabetical)
+#   4. /usr/share/mios/env.defaults      (vendor)
+
+# ---- Identity ---------------------------------------------------------------
+[user]
+# name     = "mios"
+# hostname = "mios"
+
+# ---- Image refs -------------------------------------------------------------
+# Base/builder images and the GHCR push target.
+[image]
+# base = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+# bib  = "quay.io/centos-bootc/bootc-image-builder:latest"
+# name = "ghcr.io/mios-dev/mios"
+# tag  = "latest"
+
+# ---- Local build tag --------------------------------------------------------
+[build]
+# local_tag = "localhost/mios:latest"
+
+# ---- Flatpaks to install at first boot --------------------------------------
+[flatpaks]
+# install = [
+#   "com.spotify.Client",
+#   "com.valvesoftware.Steam",
+#   "org.mozilla.firefox",
+# ]
+
+# ---- AI inference (LAW 5: localhost-only by default) ------------------------
+# system_prompt_file: optional pointer to a long-form markdown prompt.
+# If set and the file exists, agents use that override instead of the vendor
+# prompt at /usr/share/mios/ai/system.md. Edit the .md file with your usual
+# markdown tooling; mios.toml just references it.
+[ai]
+# model              = "qwen2.5-coder:7b"
+# endpoint           = "http://localhost:8080/v1"
+# key                = ""
+# system_prompt_file = "~/.config/mios/system-prompt.md"
+
+# ---- Profile / role overlay -------------------------------------------------
+# Replaces ~/.config/mios/profile.toml. Read by mios-init / role-apply.
+[profile]
+# role     = "desktop"     # desktop | headless | k3s-master | ha-node
+# features = []            # extras: ceph-mon, gamescope, waydroid, pxe-hub
+
+# ---- Free-form environment overrides ---------------------------------------
+# Replaces ~/.config/mios/env. Each KEY = "VALUE" pair is exported as a
+# regular env var by /etc/profile.d/mios-env.sh on interactive login (and by
+# tools/lib/userenv.sh during builds). Keep this list short -- prefer the
+# typed sections above when a typed slot exists.
+[env]
+# EDITOR     = "nvim"
+# PAGER      = "less -R"
+# MIOS_DEBUG = "1"

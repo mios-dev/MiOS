@@ -1,6 +1,6 @@
-# MiOS — Windows Build Guide
+# 'MiOS' — Windows Build Guide
 
-Build MiOS locally on Windows using **Docker Desktop** (WSL2 backend) and produce a VHDX for Hyper-V.
+Build 'MiOS' locally on Windows using **Docker Desktop** (WSL2 backend) and produce a VHDX for Hyper-V.
 
 ---
 
@@ -19,25 +19,32 @@ Build MiOS locally on Windows using **Docker Desktop** (WSL2 backend) and produc
 
 ```powershell
 git clone https://github.com/mios-dev/MiOS.git
-cd MiOS
+cd 'MiOS'
 ```
 
 If you need to authenticate with a token:
 
 ```powershell
 git clone https://mios-dev:<YOUR_GITHUB_TOKEN>@github.com/mios-dev/MiOS.git
-cd MiOS
+cd 'MiOS'
 ```
 
 ---
 
 ## 2. Set up environment variables
 
-Create `~\.config\mios\env.toml` (loaded automatically by the build script):
+Create `~\.config\mios\mios.toml` (single unified config, loaded automatically
+by the build script). Schema documented in `usr/share/mios/mios.toml.example`:
 
 ```toml
+# Flat keys are read directly by Build-MiOS.ps1; sectioned keys ([user],
+# [image], etc.) are read by tools/lib/userenv.sh on the Linux side.
 MIOS_USER_PASSWORD_HASH = "$6$..."   # openssl passwd -6 yourpassword
-MIOS_SSH_PUBKEY = "ssh-ed25519 AAAA..."
+MIOS_SSH_PUBKEY         = "ssh-ed25519 AAAA..."
+
+[user]
+name     = "mios"
+hostname = "mios"
 ```
 
 Or export them in your PowerShell session:
@@ -72,20 +79,20 @@ Artifacts land in `.\output\`.
 
 ```powershell
 New-VM `
-  -Name MiOS `
+  -Name 'MiOS' `
   -BootDevice VHD `
   -VHDPath ".\output\disk.vhdx" `
   -Generation 2 `
   -MemoryStartupBytes 4GB
 
 # Enable Secure Boot with Microsoft UEFI CA (required for bootc/GRUB)
-Set-VMFirmware -VMName MiOS -SecureBootTemplate MicrosoftUEFICertificateAuthority
+Set-VMFirmware -VMName 'MiOS' -SecureBootTemplate MicrosoftUEFICertificateAuthority
 
 # Optional: Enable Enhanced Session (clipboard/audio/USB redirect)
 Set-VMHost -EnableEnhancedSessionMode $true
-Set-VM -VMName MiOS -EnhancedSessionTransportType HvSocket
+Set-VM -VMName 'MiOS' -EnhancedSessionTransportType HvSocket
 
-Start-VM -Name MiOS
+Start-VM -Name 'MiOS'
 ```
 
 ---
@@ -95,8 +102,8 @@ Start-VM -Name MiOS
 ```powershell
 .\tools\windows\Build-MiOS.ps1 -OutputFormat wsl2
 
-wsl --import MiOS "$HOME\AppData\Local\MiOS" ".\output\disk.wsl2"
-wsl -d MiOS
+wsl --import 'MiOS' "$HOME\AppData\Local\'MiOS'" ".\output\disk.wsl2"
+wsl -d 'MiOS'
 ```
 
 ---
@@ -105,7 +112,7 @@ wsl -d MiOS
 
 **"Docker daemon not running"** — Open Docker Desktop and wait for the whale icon to stop animating.
 
-**"Containerfile not found"** — Run the script from the repo root (`cd MiOS` first).
+**"Containerfile not found"** — Run the script from the repo root (`cd 'MiOS'` first).
 
 **BIB fails with "permission denied"** — Docker Desktop needs privileged containers enabled:
 Docker Desktop → Settings → Docker Engine → add `"privileged": true`.

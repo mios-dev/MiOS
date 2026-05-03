@@ -1,4 +1,4 @@
-# MiOS v0.2.0 - Linux Build Targets
+# 'MiOS' v0.2.0 - Linux Build Targets
 # Requires: podman, just
 # Usage: just build | just iso | just all
 
@@ -60,7 +60,7 @@ build-logged: artifact
     @mkdir -p logs
     @LOG_FILE="logs/build-$(date -u +%Y%m%dT%H%M%SZ).log"
     @echo "---" | tee -a "${LOG_FILE}"
-    @echo "[START] CHECKPOINT: Starting MiOS build..." | tee -a "${LOG_FILE}"
+    @echo "[START] CHECKPOINT: Starting 'MiOS' build..." | tee -a "${LOG_FILE}"
     @echo "Unified log will be available at: ${LOG_FILE}" | tee -a "${LOG_FILE}"
     @echo "---" | tee -a "${LOG_FILE}"
     @set -o pipefail; podman build --no-cache \
@@ -70,7 +70,7 @@ build-logged: artifact
         --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "mios")}} \
         -t {{LOCAL}} . 2>&1 | tee -a "${LOG_FILE}"
     @echo "---" | tee -a "${LOG_FILE}"
-    @echo "[OK] CHECKPOINT: MiOS build complete." | tee -a "${LOG_FILE}"
+    @echo "[OK] CHECKPOINT: 'MiOS' build complete." | tee -a "${LOG_FILE}"
     @echo "Unified log available at: ${LOG_FILE}" | tee -a "${LOG_FILE}"
     @echo "---"
 
@@ -202,7 +202,7 @@ wsl2: build
         -v /var/lib/containers/storage:/var/lib/containers/storage \
         -v ./config/artifacts/wsl2.toml:/config.toml:ro \
         {{BIB}} build --type wsl2 {{LOCAL}}
-    @echo "[OK] WSL2 image in output/ — import with: wsl --import MiOS ./mios output/disk.wsl2"
+    @echo "[OK] WSL2 image in output/ — import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
 
 
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)
@@ -235,77 +235,44 @@ sbom:
 # User-Space Management
 # ============================================================================
 
-# Initialize user-space configuration (XDG Base Directory structure)
+# Initialize user-space configuration (seeds ~/.config/mios/mios.toml).
 init-user-space:
-    @echo "[ENG]  Initializing MiOS user-space..."
-    ./tools/init-user-space.sh
-    @echo "[OK] User-space initialization complete"
+    @./tools/init-user-space.sh
 
-# Re-initialize user-space (overwrite existing configs)
+# Re-initialize user-space (overwrite mios.toml with vendor template).
 reinit-user-space:
-    @echo "[SYNC] Re-initializing MiOS user-space (overwriting existing configs)..."
-    ./tools/init-user-space.sh --force
-    @echo "[OK] User-space re-initialization complete"
+    @./tools/init-user-space.sh --force
 
 # Show user-space configuration paths
 show-user-space:
-    @echo "MiOS User-Space Directories:"
+    @echo "'MiOS' User-Space Directories:"
     @echo "  Config:  ${XDG_CONFIG_HOME:-$HOME/.config}/mios/"
     @echo "  Data:    ${XDG_DATA_HOME:-$HOME/.local/share}/mios/"
     @echo "  Cache:   ${XDG_CACHE_HOME:-$HOME/.cache}/mios/"
     @echo "  State:   ${XDG_STATE_HOME:-$HOME/.local/state}/mios/"
     @echo "  Runtime: ${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mios/"
     @echo ""
-    @echo "Configuration files:"
-    @if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/env.toml" ]; then \
-        echo "  [OK] env.toml"; \
+    @echo "Configuration:"
+    @if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/mios.toml" ]; then \
+        echo "  [OK] mios.toml"; \
     else \
-        echo "  [FAIL] env.toml (not found - run: just init-user-space)"; \
+        echo "  [FAIL] mios.toml (run: just init)"; \
     fi
-    @if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/images.toml" ]; then \
-        echo "  [OK] images.toml"; \
-    else \
-        echo "  [FAIL] images.toml (not found - run: just init-user-space)"; \
-    fi
-    @if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/build.toml" ]; then \
-        echo "  [OK] build.toml"; \
-    else \
-        echo "  [FAIL] build.toml (not found - run: just init-user-space)"; \
-    fi
+    @for f in env.toml images.toml build.toml flatpaks.list; do \
+        if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/$f" ]; then \
+            echo "  [legacy] $f -- migrate via: just init"; \
+        fi; \
+    done
 
 # Show loaded environment variables
 show-env:
-    @echo "MiOS Environment Variables:"
+    @echo "'MiOS' Environment Variables:"
     @source ./tools/lib/userenv.sh && env | grep '^MIOS_' | sort | sed 's/^/  /'
 
-# Edit user environment configuration
-edit-env:
-    @if [ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/env.toml" ]; then \
-        echo "[FAIL] User config not found. Run: just init-user-space"; \
-        exit 1; \
-    fi
-    @${EDITOR:-vim} "${XDG_CONFIG_HOME:-$HOME/.config}/mios/env.toml"
-
-# Edit user image configuration
-edit-images:
-    @if [ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/images.toml" ]; then \
-        echo "[FAIL] User config not found. Run: just init-user-space"; \
-        exit 1; \
-    fi
-    @${EDITOR:-vim} "${XDG_CONFIG_HOME:-$HOME/.config}/mios/images.toml"
-
-# Edit user build configuration
-edit-build:
-    @if [ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/build.toml" ]; then \
-        echo "[FAIL] User config not found. Run: just init-user-space"; \
-        exit 1; \
-    fi
-    @${EDITOR:-vim} "${XDG_CONFIG_HOME:-$HOME/.config}/mios/build.toml"
-
-# Edit Flatpak applications list
-edit-flatpaks:
-    @if [ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/flatpaks.list" ]; then \
-        echo "[FAIL] User config not found. Run: just init-user-space"; \
-        exit 1; \
-    fi
-    @${EDITOR:-vim} "${XDG_CONFIG_HOME:-$HOME/.config}/mios/flatpaks.list"
+# Edit the unified user configuration (mios.toml).
+edit:
+    @CFG="${XDG_CONFIG_HOME:-$HOME/.config}/mios/mios.toml"; \
+        if [ ! -f "$CFG" ]; then \
+            echo "[FAIL] $CFG not found. Run: just init"; exit 1; \
+        fi; \
+        ${EDITOR:-vim} "$CFG"

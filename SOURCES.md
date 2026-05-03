@@ -2,14 +2,14 @@
 
 This file consolidates every authoritative source consulted to build this
 knowledge base, plus pointers for further iteration on OpenAI API
-compliance and MiOS upstream technologies. Every claim in
+compliance and 'MiOS' upstream technologies. Every claim in
 `usr/share/doc/mios/**/*.md` should trace to one of these sources.
 
 ---
 
 ## 1. OpenAI Platform — API Compliance Anchors
 
-The MiOS KB is authored against these specifications. Each link is the
+The 'MiOS' KB is authored against these specifications. Each link is the
 *current* (2026) reference — re-fetch periodically; OpenAI iterates fast.
 
 ### 1.1 Responses API (recommended for new projects)
@@ -112,10 +112,10 @@ The MiOS KB is authored against these specifications. Each link is the
 
 ---
 
-## 2. MiOS Repository — File-Level Sources
+## 2. 'MiOS' Repository — File-Level Sources
 
 Every chunk in `usr/share/doc/mios/*.md` (under this KB) traces to one or
-more of these MiOS files. Re-fetch them via the `mios_build_kb_refresh`
+more of these 'MiOS' files. Re-fetch them via the `mios_build_kb_refresh`
 tool to refresh the KB.
 
 ### 2.1 Documentation files (root)
@@ -211,7 +211,7 @@ the deployed image via the `ctx` scratch stage and the
 - Project: https://github.com/containers/composefs (alt: https://github.com/composefs/composefs)
 - v1.0.0 release: https://github.com/composefs/composefs/releases/tag/v1.0.0
 - Stack: overlayfs + EROFS + fs-verity → verifiable read-only mount with content-addressed dedup
-- MiOS enables it via `usr/lib/ostree/prepare-root.conf`
+- 'MiOS' enables it via `usr/lib/ostree/prepare-root.conf`
 
 ### 3.4 Universal Blue / ucore / ucore-hci
 
@@ -275,13 +275,13 @@ the deployed image via the `ctx` scratch stage and the
 
 - Project: https://github.com/anchore/syft
 - Image: `anchore/syft:latest`
-- MiOS uses it via `automation/90-generate-sbom.sh` to emit CycloneDX-JSON
+- 'MiOS' uses it via `automation/90-generate-sbom.sh` to emit CycloneDX-JSON
 
 ### 3.12 GitHub Container Registry (GHCR)
 
 - Docs: https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-container-registry
 - Auth: GitHub PAT or `GITHUB_TOKEN` with `packages: write`
-- MiOS retention: latest signed digest + last 5 release digests protected; untagged pruned at 90 days
+- 'MiOS' retention: latest signed digest + last 5 release digests protected; untagged pruned at 90 days
 
 ### 3.13 NVIDIA on Fedora bootc
 
@@ -297,12 +297,12 @@ the deployed image via the `ctx` scratch stage and the
 - Admin overrides: `/etc/cdi/`
 - Universal layer for NVIDIA, AMD ROCm/KFD, Intel iGPU passthrough into containers
 
-### 3.15 LocalAI (the MiOS canonical local LLM endpoint)
+### 3.15 LocalAI (the 'MiOS' canonical local LLM endpoint)
 
 - Project: https://github.com/mudler/LocalAI
 - Docs: https://localai.io/
 - API surfaces (OpenAI-compatible): `/v1/models`, `/v1/chat/completions` (SSE + tools), `/v1/embeddings`, `/v1/completions`
-- MiOS Quadlet: `etc/containers/systemd/mios-ai.container` → `http://localhost:8080/v1`
+- 'MiOS' Quadlet: `etc/containers/systemd/mios-ai.container` → `http://localhost:8080/v1`
 - Backends: llama.cpp, vLLM-ish, transformers, gpt4all, exllama, etc.
 
 ### 3.16 Other local OpenAI-compatible runtimes (for Day-0 portability)
@@ -365,7 +365,7 @@ the deployed image via the `ctx` scratch stage and the
 
 ### 3.24 llms.txt standard (LLM ingestion entrypoint)
 
-- Spec: https://llmstxt.org/ (Answer.AI proposal — `/llms.txt` for LLM-friendly site indexing, `/llms-full.txt` for full-content variant). MiOS publishes both at the repo root.
+- Spec: https://llmstxt.org/ (Answer.AI proposal — `/llms.txt` for LLM-friendly site indexing, `/llms-full.txt` for full-content variant). 'MiOS' publishes both at the repo root.
 
 ---
 
@@ -398,7 +398,7 @@ referenced but not yet scraped to chunk-level detail):
 - Realtime API (voice/streaming): https://platform.openai.com/docs/guides/realtime
 - Image generation (`/v1/images/generations`): https://platform.openai.com/docs/api-reference/images
 - Audio (TTS, STT): https://platform.openai.com/docs/guides/audio
-- Computer Use / browser tools (Responses): if MiOS adds a UI-automation surface, integrate here
+- Computer Use / browser tools (Responses): if 'MiOS' adds a UI-automation surface, integrate here
 - Reasoning models (`o3`, `o4-mini`, future): `reasoning.effort`, `reasoning.summary` in Responses API
 
 ### 4.3 OpenAI API surfaces NOT supported by typical local runtimes
@@ -411,7 +411,7 @@ a translation proxy (LiteLLM):
 - `/v1/vector_stores` — Vector Stores
 - `/v1/batches` — Batch API
 - `/v1/evals` — Evals API
-- `/v1/fine_tuning/jobs` — Fine-tuning (local equivalent: axolotl, trl, llama-factory, MLX-LM, unsloth, all of which consume the same JSONL format MiOS ships)
+- `/v1/fine_tuning/jobs` — Fine-tuning (local equivalent: axolotl, trl, llama-factory, MLX-LM, unsloth, all of which consume the same JSONL format 'MiOS' ships)
 - `/v1/files` with `purpose: "assistants"` — file uploads for File Search
 
 The KB ships local-compatible alternatives for each (see top-level
@@ -445,8 +445,8 @@ The KB ships local-compatible alternatives for each (see top-level
 
 | Tier | Definition | Examples in this KB |
 |---|---|---|
-| **Primary** | Official upstream documentation | `bootc.dev`, `osbuild.org`, `platform.openai.com`, `developers.openai.com`, `docs.redhat.com`, the MiOS repo itself |
-| **Secondary** | Official project repos (GitHub) | `bootc-dev/bootc`, `containers/composefs`, `ublue-os/ucore`, `sigstore/cosign`, `mios-dev/MiOS` |
+| **Primary** | Official upstream documentation | `bootc.dev`, `osbuild.org`, `platform.openai.com`, `developers.openai.com`, `docs.redhat.com`, the 'MiOS' repo itself |
+| **Secondary** | Official project repos (GitHub) | `bootc-dev/bootc`, `containers/composefs`, `ublue-os/ucore`, `sigstore/cosign`, `mios-dev/'MiOS'` |
 | **Tertiary** | Vendor/community blogs corroborating primary sources | Fedora Magazine, Microsoft Learn, OpenAI Cookbook |
 | **Validating** | Third-party format references for cross-checking OpenAI specs | DeepWiki, Leanware, Vectorize, CodeFriends |
 
@@ -462,7 +462,7 @@ OpenAI surfaces change frequently. Recommended re-validation cadence:
 
 - **Quarterly**: re-fetch all OpenAI docs URLs in §1; verify field names,
   required fields, and limits haven't shifted.
-- **On every MiOS minor release**: run the `mios_build_kb_refresh` tool to
+- **On every 'MiOS' minor release**: run the `mios_build_kb_refresh` tool to
   regenerate chunks from the live repo.
 - **Immediately**: when OpenAI announces a new GA model, fine-tuning
   technique, or eval grader type — extend the relevant section here and in
@@ -476,8 +476,8 @@ OpenAI surfaces change frequently. Recommended re-validation cadence:
 ## 7. v2 Repo-Grounded Findings (live-fetched 2026-05-02)
 
 These corrections supersede the corresponding parts of v1. Each is
-traceable to a specific MiOS file fetched from
-`github.com/mios-dev/MiOS@main`.
+traceable to a specific 'MiOS' file fetched from
+`github.com/mios-dev/'MiOS'@main`.
 
 ### 7.1 Repo structure as fetched
 
@@ -536,7 +536,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | 1 | `.github/workflows/mios-ci.yml` | production CI (build → rechunk on tag → cosign keyless → push GHCR) |
 | 2 | `mios-build-local.ps1` | Windows local 5-phase orchestrator |
 | 3 | `Justfile` recipes | Linux local orchestrator |
-| 4 | self-build (running MiOS builds next MiOS) | `git clone && podman build && bootc switch --transport containers-storage localhost/mios:rechunked` |
+| 4 | self-build (running 'MiOS' builds next 'MiOS') | `git clone && podman build && bootc switch --transport containers-storage localhost/mios:rechunked` |
 | 5 | `config/ignition/` Butane configs → `.ign` | fully automated builds on fresh Fedora CoreOS / Fedora Server |
 
 ### 7.6 Justfile recipe inventory (verbatim from `Justfile`)
@@ -568,7 +568,7 @@ The repo root **is** the system root (no `system_files/` directory).
 
 ### 7.8 SECURITY.md kargs corrections (verbatim)
 
-| Parameter | Active in MiOS? | Rationale (per SECURITY.md) |
+| Parameter | Active in 'MiOS'? | Rationale (per SECURITY.md) |
 | --- | :-: | --- |
 | `slab_nomerge` | ✅ | Heap isolation |
 | `init_on_alloc=1` | ❌ | Disabled — CUDA memory init failures |
@@ -607,7 +607,7 @@ transient-ro = true
 `https://github.com/mios-dev/mios-bootstrap`
 
 Owns the user-facing installer, identity capture, Total Root Merge, and
-final reboot prompt. The `mios-dev/MiOS` repo (this KB's subject) is
+final reboot prompt. The `mios-dev/'MiOS'` repo (this KB's subject) is
 the system layer.
 
 ---
@@ -622,7 +622,7 @@ with `README.md` §"Day-0 local-model compatibility".
 | --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | OpenAI cloud | `https://api.openai.com/v1` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Azure OpenAI | (your resource) | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ region | ✅ | ✅ | ✅ |
-| **MiOS LocalAI** (canonical, LAW 5) | `http://localhost:8080/v1` | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **'MiOS' LocalAI** (canonical, LAW 5) | `http://localhost:8080/v1` | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Ollama | `http://localhost:11434/v1` | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | external |
 | vLLM | `http://localhost:8000/v1` | ✅ | ✅ | ✅ | ✅ via xgrammar | ❌ | partial | ❌ | ❌ | external |
 | LM Studio | `http://localhost:1234/v1` | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | ❌ |

@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    MiOS local build entry point for Windows (Docker Desktop + WSL2).
+    'MiOS' local build entry point for Windows (Docker Desktop + WSL2).
 
 .DESCRIPTION
-    Builds the MiOS OCI image locally using Docker Desktop (WSL2 backend),
+    Builds the 'MiOS' OCI image locally using Docker Desktop (WSL2 backend),
     then uses bootc-image-builder to produce a VHDX for Hyper-V import.
 
 .PARAMETER OutputFormat
@@ -52,19 +52,27 @@ if ($dockerInfo -notmatch 'WSL') {
 }
 
 if (-not (Test-Path 'Containerfile')) {
-    Write-Fail "Containerfile not found. Run this script from the MiOS repo root."
+    Write-Fail "Containerfile not found. Run this script from the 'MiOS' repo root."
 }
 Write-Ok "Docker Desktop + Containerfile found"
 
 # ── Environment variables ──────────────────────────────────────────────────
 Write-Step "Loading build environment"
 
-# Load from ~/.config/mios/env.toml if present
-$EnvToml = "$HOME\.config\mios\env.toml"
-if (Test-Path $EnvToml) {
-    Write-Ok "Reading $EnvToml"
-    Get-Content $EnvToml | ForEach-Object {
-        if ($_ -match '^\s*(\w+)\s*=\s*"?([^"#]+)"?') {
+# Load from the unified ~/.config/mios/mios.toml (or legacy env.toml fallback).
+$UnifiedToml = "$HOME\.config\mios\mios.toml"
+$LegacyEnv   = "$HOME\.config\mios\env.toml"
+$ConfigToml  = if (Test-Path $UnifiedToml) { $UnifiedToml }
+               elseif (Test-Path $LegacyEnv) { $LegacyEnv }
+               else { $null }
+if ($ConfigToml) {
+    Write-Ok "Reading $ConfigToml"
+    # Flat KEY = "value" lines. Sectioned subkeys (user.name, image.base, ...)
+    # not parsed here -- the canonical reader is tools/lib/userenv.sh on the
+    # Linux side. This Windows-side loader only needs MIOS_USER_PASSWORD_HASH
+    # and MIOS_SSH_PUBKEY which are flat KEY=VALUE in either file.
+    Get-Content $ConfigToml | ForEach-Object {
+        if ($_ -match '^\s*(MIOS_\w+)\s*=\s*"?([^"#]+)"?') {
             $k = $Matches[1]; $v = $Matches[2].Trim()
             if (-not [System.Environment]::GetEnvironmentVariable($k)) {
                 [System.Environment]::SetEnvironmentVariable($k, $v)
@@ -85,7 +93,7 @@ if (-not $env:MIOS_SSH_PUBKEY) {
 }
 
 # ── Build OCI image ────────────────────────────────────────────────────────
-Write-Step "Building MiOS OCI image ($Tag)"
+Write-Step "Building 'MiOS' OCI image ($Tag)"
 
 $BuildArgs = @(
     'build',
@@ -164,5 +172,5 @@ Write-Host "  Output    : $OutputDir"
 if ($OutputFormat -eq 'vhdx') {
     Write-Host ""
     Write-Host "  Import into Hyper-V:"
-    Write-Host "    New-VM -Name MiOS -BootDevice VHD -VHDPath '$OutputDir\disk.vhdx' -Generation 2"
+    Write-Host "    New-VM -Name 'MiOS' -BootDevice VHD -VHDPath '$OutputDir\disk.vhdx' -Generation 2"
 }

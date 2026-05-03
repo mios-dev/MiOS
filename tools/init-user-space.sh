@@ -1,60 +1,191 @@
 #!/usr/bin/env bash
-# MiOS init-user-space — initializes XDG user configuration for MiOS
+# 'MiOS' init-user-space -- initializes XDG user configuration for MiOS.
+# Seeds the single unified ~/.config/mios/mios.toml from the vendor template,
+# plus the empty $XDG_DATA / $XDG_CACHE / $XDG_STATE directories.
+#
+# If legacy split files (env.toml / images.toml / build.toml / flatpaks.list)
+# exist, their values are migrated into mios.toml on first run.
 set -euo pipefail
 
-FORCE="${1:-}"
+FORCE=""
+[[ "${1:-}" == "--force" || "${1:-}" == "-f" ]] && FORCE=1
+
 MIOS_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mios"
+MIOS_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/mios"
+MIOS_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/mios"
+MIOS_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/mios"
+MIOS_UNIFIED="${MIOS_CONFIG_DIR}/mios.toml"
+MIOS_TEMPLATE="${MIOS_TEMPLATE:-/usr/share/mios/mios.toml.example}"
 
-mkdir -p "${MIOS_CONFIG_DIR}" \
-         "${XDG_DATA_HOME:-$HOME/.local/share}/mios" \
-         "${XDG_CACHE_HOME:-$HOME/.cache}/mios" \
-         "${XDG_STATE_HOME:-$HOME/.local/state}/mios"
+mkdir -p "$MIOS_CONFIG_DIR" "$MIOS_DATA_DIR" "$MIOS_CACHE_DIR" "$MIOS_STATE_DIR"
 
-write_if_missing() {
-    local file="$1"; shift
-    if [[ -f "$file" && -z "$FORCE" ]]; then
-        echo "[skip] $file already exists (use --force to overwrite)"
+# Migrate legacy split files into a single mios.toml body. Returns the merged
+# TOML on stdout; emits the vendor template if no legacy data is found.
+_render_unified() {
+    local legacy_user="" legacy_host="" legacy_flat="" legacy_base=""
+    local legacy_localtag="" legacy_bib="" legacy_imagename=""
+
+    _get() {
+        # Trailing `|| true` because grep returns 1 on no-match, which under
+        # set -e + pipefail aborts the calling assignment.
+        grep -E "^$2\s*=" "$1" 2>/dev/null \
+            | head -1 \
+            | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' \
+            | tr -d '"' || true
+    }
+
+    if [[ -f "${MIOS_CONFIG_DIR}/env.toml" ]]; then
+        legacy_user=$(_get "${MIOS_CONFIG_DIR}/env.toml" MIOS_USER)
+        legacy_host=$(_get "${MIOS_CONFIG_DIR}/env.toml" MIOS_HOSTNAME)
+        legacy_flat=$(_get "${MIOS_CONFIG_DIR}/env.toml" MIOS_FLATPAKS)
+        legacy_base=$(_get "${MIOS_CONFIG_DIR}/env.toml" MIOS_BASE_IMAGE)
+        legacy_localtag=$(_get "${MIOS_CONFIG_DIR}/env.toml" MIOS_LOCAL_TAG)
+    fi
+    if [[ -f "${MIOS_CONFIG_DIR}/images.toml" ]]; then
+        [[ -z "$legacy_base" ]] && legacy_base=$(_get "${MIOS_CONFIG_DIR}/images.toml" MIOS_BASE_IMAGE)
+        legacy_bib=$(_get "${MIOS_CONFIG_DIR}/images.toml" MIOS_BIB_IMAGE)
+        legacy_imagename=$(_get "${MIOS_CONFIG_DIR}/images.toml" MIOS_IMAGE_NAME)
+    fi
+    if [[ -f "${MIOS_CONFIG_DIR}/build.toml" && -z "$legacy_localtag" ]]; then
+        legacy_localtag=$(_get "${MIOS_CONFIG_DIR}/build.toml" MIOS_LOCAL_TAG)
+    fi
+    local legacy_flatpaks_arr=()
+    if [[ -f "${MIOS_CONFIG_DIR}/flatpaks.list" ]]; then
+        while IFS= read -r line; do
+            line=$(echo "$line" | sed -E 's/^\s+|\s+$//g')
+            [[ -z "$line" || "$line" =~ ^# ]] && continue
+            legacy_flatpaks_arr+=("$line")
+        done < "${MIOS_CONFIG_DIR}/flatpaks.list"
+    fi
+    # Also seed from legacy MIOS_FLATPAKS string.
+    if [[ -n "$legacy_flat" && ${#legacy_flatpaks_arr[@]} -eq 0 ]]; then
+        IFS=',' read -ra legacy_flatpaks_arr <<<"$legacy_flat"
+    fi
+
+    # Legacy ~/.config/mios/profile.toml -> [profile] in mios.toml
+    local legacy_role="" legacy_features=""
+    if [[ -f "${MIOS_CONFIG_DIR}/profile.toml" ]]; then
+        legacy_role=$(_get "${MIOS_CONFIG_DIR}/profile.toml" role)
+        legacy_features=$(_get "${MIOS_CONFIG_DIR}/profile.toml" features)
+    fi
+
+    # Legacy bare ~/.config/mios/env (shell-format) -> [env] table.
+    # Capture each KEY=VALUE for emission below.
+    local legacy_env_pairs=()
+    if [[ -f "${MIOS_CONFIG_DIR}/env" ]]; then
+        while IFS= read -r line; do
+            line=$(echo "$line" | sed -E 's/^\s+|\s+$//g')
+            [[ -z "$line" || "$line" =~ ^# ]] && continue
+            # Match KEY=VALUE or KEY="VALUE" or KEY='VALUE'
+            if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.+)$ ]]; then
+                local k="${BASH_REMATCH[1]}" v="${BASH_REMATCH[2]}"
+                # Strip surrounding quotes if present.
+                v="${v#\"}"; v="${v%\"}"
+                v="${v#\'}"; v="${v%\'}"
+                legacy_env_pairs+=("$k=$v")
+            fi
+        done < "${MIOS_CONFIG_DIR}/env"
+    fi
+
+    # Did we find anything to migrate?
+    local any_legacy=""
+    [[ -n "$legacy_user$legacy_host$legacy_base$legacy_localtag$legacy_bib$legacy_imagename$legacy_role$legacy_features" ]] && any_legacy=1
+    [[ ${#legacy_flatpaks_arr[@]} -gt 0 || ${#legacy_env_pairs[@]} -gt 0 ]] && any_legacy=1
+
+    if [[ -z "$any_legacy" && -f "$MIOS_TEMPLATE" ]]; then
+        cat "$MIOS_TEMPLATE"
         return
     fi
-    cat > "$file"
-    echo "[OK]   wrote $file"
+
+    # Render a populated mios.toml from the legacy values.
+    cat <<TOML
+# ~/.config/mios/mios.toml -- generated by init-user-space.sh
+# Migrated from legacy env.toml / images.toml / build.toml / flatpaks.list.
+# Edit fields inline; comment a line to inherit the vendor default.
+
+[user]
+$( [[ -n "$legacy_user" ]] && echo "name = \"$legacy_user\"" || echo "# name = \"mios\"" )
+$( [[ -n "$legacy_host" ]] && echo "hostname = \"$legacy_host\"" || echo "# hostname = \"mios\"" )
+
+[image]
+$( [[ -n "$legacy_base" ]] && echo "base = \"$legacy_base\"" || echo "# base = \"ghcr.io/ublue-os/ucore-hci:stable-nvidia\"" )
+$( [[ -n "$legacy_bib" ]] && echo "bib  = \"$legacy_bib\"" || echo "# bib  = \"quay.io/centos-bootc/bootc-image-builder:latest\"" )
+$( [[ -n "$legacy_imagename" ]] && echo "name = \"$legacy_imagename\"" || echo "# name = \"ghcr.io/mios-dev/mios\"" )
+
+[build]
+$( [[ -n "$legacy_localtag" ]] && echo "local_tag = \"$legacy_localtag\"" || echo "# local_tag = \"localhost/mios:latest\"" )
+
+[flatpaks]
+TOML
+    if [[ ${#legacy_flatpaks_arr[@]} -gt 0 ]]; then
+        echo "install = ["
+        for f in "${legacy_flatpaks_arr[@]}"; do
+            echo "    \"$f\","
+        done
+        echo "]"
+    else
+        echo "# install = []"
+    fi
+    cat <<TOML
+
+[ai]
+# model              = "qwen2.5-coder:7b"
+# endpoint           = "http://localhost:8080/v1"
+# key                = ""
+# system_prompt_file = "~/.config/mios/system-prompt.md"
+
+[profile]
+TOML
+    if [[ -n "$legacy_role" ]]; then
+        echo "role = \"$legacy_role\""
+    else
+        echo "# role     = \"desktop\""
+    fi
+    if [[ -n "$legacy_features" ]]; then
+        # Render comma-joined string into TOML array
+        echo -n "features = ["
+        IFS=',' read -ra _ff <<<"$legacy_features"
+        local first=1
+        for f in "${_ff[@]}"; do
+            f=$(echo "$f" | sed -E 's/^\s+|\s+$//g')
+            [[ -z "$f" ]] && continue
+            [[ $first -eq 0 ]] && echo -n ", "
+            echo -n "\"$f\""
+            first=0
+        done
+        echo "]"
+    else
+        echo "# features = []"
+    fi
+    echo
+    echo "[env]"
+    if [[ ${#legacy_env_pairs[@]} -gt 0 ]]; then
+        for kv in "${legacy_env_pairs[@]}"; do
+            local ek="${kv%%=*}" ev="${kv#*=}"
+            echo "$ek = \"$ev\""
+        done
+    else
+        echo "# EDITOR = \"nvim\""
+        echo "# PAGER  = \"less -R\""
+    fi
 }
 
-write_if_missing "${MIOS_CONFIG_DIR}/env.toml" << 'TOML'
-# MiOS User Environment Configuration
-# Edit these values to override build defaults.
-# Run: just build   to apply.
+if [[ -f "$MIOS_UNIFIED" && -z "$FORCE" ]]; then
+    echo "[skip] $MIOS_UNIFIED already exists (use --force to overwrite)"
+else
+    _render_unified > "$MIOS_UNIFIED"
+    chmod 0644 "$MIOS_UNIFIED"
+    echo "[OK]   wrote $MIOS_UNIFIED"
+fi
 
-MIOS_USER     = "mios"
-MIOS_HOSTNAME = "mios"
-MIOS_FLATPAKS = ""
-# MIOS_BASE_IMAGE = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
-# MIOS_LOCAL_TAG  = "localhost/mios:latest"
-TOML
+cat <<MSG
 
-write_if_missing "${MIOS_CONFIG_DIR}/images.toml" << 'TOML'
-# MiOS Image Source Configuration
-# Override base images here.
+[OK] 'MiOS' user-space initialized
+     Config:  $MIOS_CONFIG_DIR (mios.toml)
+     Data:    $MIOS_DATA_DIR
+     Cache:   $MIOS_CACHE_DIR
+     State:   $MIOS_STATE_DIR
 
-# MIOS_BASE_IMAGE = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
-# MIOS_BIB_IMAGE  = "quay.io/centos-bootc/bootc-image-builder:latest"
-# MIOS_IMAGE_NAME = "ghcr.io/mios-dev/mios"
-TOML
-
-write_if_missing "${MIOS_CONFIG_DIR}/build.toml" << 'TOML'
-# MiOS Build Configuration
-
-# MIOS_LOCAL_TAG = "localhost/mios:latest"
-TOML
-
-write_if_missing "${MIOS_CONFIG_DIR}/flatpaks.list" << 'LIST'
-# MiOS Flatpak List — one per line, comma-separated or newline-separated
-# Example:
-# com.spotify.Client
-# com.valvesoftware.Steam
-LIST
-
-echo ""
-echo "[OK] MiOS user-space initialized at: ${MIOS_CONFIG_DIR}"
-echo "     Edit env.toml to set your username, hostname, and flatpaks."
-echo "     Then run: just build"
+Edit ~/.config/mios/mios.toml to override vendor defaults, then run:
+     just build
+MSG
