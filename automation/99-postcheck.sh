@@ -124,6 +124,16 @@ if [[ -f /etc/wsl.conf ]]; then
         die "/etc/wsl.conf contains non-ASCII bytes (WSL2's parser will choke)"
     fi
     log "  pure ASCII"
+    # CRLF detection. .gitattributes pins *.conf to eol=lf, but on a
+    # Windows host with core.autocrlf=true the working tree can carry
+    # CRLF that the build context inherits. WSL2's INI parser treats
+    # the trailing \r as garbage and reports "Expected ' ' or '\n' in
+    # /etc/wsl.conf:N+1" past the last LF -- exactly the same shape
+    # as a non-ASCII failure. Catch it independently here.
+    if LC_ALL=C grep -lP '\r' /etc/wsl.conf >/dev/null 2>&1; then
+        die "/etc/wsl.conf contains CRLF line endings (must be LF; WSL2's parser will choke)"
+    fi
+    log "  pure LF line endings"
     if command -v python3 >/dev/null 2>&1; then
         python3 -c '
 import configparser, sys

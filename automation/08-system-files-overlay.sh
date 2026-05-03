@@ -53,9 +53,34 @@ fi
 # trusting the tar overlay (which can be defeated by a base-image-shipped
 # copy or by tar metadata quirks). install -T treats the destination as a
 # filename, not a directory, and overwrites unconditionally.
+#
+# CRLF DEFENSE: when the build context is checked out on a Windows host
+# with core.autocrlf=true, .gitattributes 'eol=lf' can be silently
+# overridden in the working tree (git stores LF in the index but writes
+# CRLF on checkout). The CRLF leaks into podman's COPY-mounted context
+# and ends up in /etc/wsl.conf -- WSL2's parser then reports
+# "Expected ' ' or '\n' in /etc/wsl.conf:N" at the line just past the
+# last LF. Strip CR bytes and any UTF-8 BOM here before installing so
+# the build is robust against the working-tree state on the host.
 if [[ -f "${CTX}/etc/wsl.conf" ]]; then
-    install -m 0644 -o root -g root -T "${CTX}/etc/wsl.conf" /etc/wsl.conf
-    log "  stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root)"
+    tmp_wsl=$(mktemp)
+    # Drop UTF-8 BOM (0xEF 0xBB 0xBF) on the first line, strip CR bytes
+    # on every line. Use printf+tr instead of sed to avoid sed-version
+    # divergence in CR handling.
+    sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/etc/wsl.conf" > "$tmp_wsl"
+    install -m 0644 -o root -g root -T "$tmp_wsl" /etc/wsl.conf
+    rm -f "$tmp_wsl"
+    log "  stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root, CRLF-stripped)"
+fi
+# Mirror the same treatment for /usr/lib/wsl.conf -- wsl-init.service
+# uses it as the drift-restore reference and would otherwise re-introduce
+# CRLF on the next boot if it slipped through.
+if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
+    tmp_wsl=$(mktemp)
+    sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/usr/lib/wsl.conf" > "$tmp_wsl"
+    install -m 0644 -o root -g root -T "$tmp_wsl" /usr/lib/wsl.conf
+    rm -f "$tmp_wsl"
+    log "  stage 3a: force-installed /usr/lib/wsl.conf reference (CRLF-stripped)"
 fi
 
 # --- Stage 4: /var (Mutable System State Templates) ------------------------
