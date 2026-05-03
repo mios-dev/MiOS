@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Root Filesystem Verification
+Description='MiOS' Root Filesystem Verification
 ConditionVirtualization=!container
 Documentation=file:///usr/share/doc/mios/COMPOSEFS-VERIFICATION.md
 DefaultDependencies=no

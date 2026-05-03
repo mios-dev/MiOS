@@ -23,8 +23,8 @@ COPY config/artifacts/          /ctx/bib-configs/
 COPY tools/                     /ctx/tools/
 
 FROM ${BASE_IMAGE}
-LABEL org.opencontainers.image.title="MiOS" \
-      org.opencontainers.image.source="https://github.com/mios-dev/MiOS" \
+LABEL org.opencontainers.image.title="'MiOS'" \
+      org.opencontainers.image.source="https://github.com/mios-dev/'MiOS'" \
       org.opencontainers.image.version="v0.2.2" \
       containers.bootc="1" \
       ostree.bootable="1"

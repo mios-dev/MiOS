@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS System Init & Role Engine
+Description='MiOS' System Init & Role Engine
 ConditionVirtualization=!container
 Wants=network-online.target
 After=network-online.target local-fs.target sysinit.target

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS Public Bootstrap — Linux / WSL2
+# 'MiOS' Public Bootstrap — Linux / WSL2
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash
 set -euo pipefail
@@ -16,12 +16,12 @@ _r=$'\033[0m'; _b=$'\033[1m'; _dim=$'\033[2m'; _c=$'\033[36m'; _g=$'\033[32m'; _
 
 echo ""
 echo "  ${_c}╔══════════════════════════════════════════════════════════════╗${_r}"
-echo "  ${_c}║  MiOS — Local Build Configuration                           ║${_r}"
+echo "  ${_c}║  'MiOS' — Local Build Configuration                           ║${_r}"
 echo "  ${_c}╚══════════════════════════════════════════════════════════════╝${_r}"
 echo ""
 
 # ── Stage Directories ──────────────────────────────────────────────────────
-echo "  ${_dim}Staging MiOS environment in $MIOS_BASE_DIR...${_r}"
+echo "  ${_dim}Staging 'MiOS' environment in $MIOS_BASE_DIR...${_r}"
 mkdir -p "$MIOS_CONFIG_DIR" "$MIOS_REPO_DIR" "$MIOS_BUILDS_DIR"
 
 # ── Load saved build config ────────────────────────────────────────────────
@@ -112,7 +112,7 @@ read -rp "  ${_b}Proceed?${_r} [Y/n]: " _ok </dev/tty
 
 # ── Save build config ──────────────────────────────────────────────────────
 {
-    printf '# MiOS Build Configuration\n'
+    printf '# 'MiOS' Build Configuration\n'
     printf '# Generated: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     printf 'GHCR_TOKEN=%q\n'    "$GHCR_TOKEN"
     printf 'MIOS_USER=%q\n'     "$MIOS_USER"

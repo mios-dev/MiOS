@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Waydroid Android Initialization
+Description='MiOS' Waydroid Android Initialization
 Documentation=https://docs.waydro.id/
 ConditionVirtualization=!wsl
 # Only trigger if the Android system image hasn't been downloaded yet

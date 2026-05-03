@@ -1,9 +1,9 @@
-# MiOS Overview
+# 'MiOS' Overview
 
 > Source: `README.md`, `INDEX.md` §1, `ARCHITECTURE.md` §Pillars, `llms.txt`,
-> at `github.com/mios-dev/MiOS` (v0.2.2).
+> at `github.com/mios-dev/'MiOS'` (v0.2.2).
 
-MiOS is a user-defined, customisable Linux distribution: an immutable,
+'MiOS' is a user-defined, customisable Linux distribution: an immutable,
 bootc-managed Fedora workstation OS distributed as an OCI image at
 `ghcr.io/mios-dev/mios:latest`. Its mission is FOSS-aligned: a local
 OpenAI-compatible AI surface, transactional system upgrades, hardware
@@ -29,7 +29,7 @@ acceleration, and a defense-in-depth security posture.
 
 ## Base image — uCore HCI
 
-MiOS builds `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia`
+'MiOS' builds `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia`
 (`MIOS_BASE_IMAGE`). uCore HCI is a Universal Blue derivative of Fedora
 CoreOS targeting hyperconverged infrastructure:
 
@@ -41,7 +41,7 @@ CoreOS targeting hyperconverged infrastructure:
 | NVIDIA variant (`stable-nvidia`) | Proprietary driver akmods pre-built and MOK-signed; NVIDIA Container Toolkit |
 | Stable stream kernel | LTS Linux 6.12 — server-grade stability, consistent ABI across updates |
 
-MiOS adds GNOME 50, Looking Glass B7, KVM passthrough, k3s, Ceph, the
+'MiOS' adds GNOME 50, Looking Glass B7, KVM passthrough, k3s, Ceph, the
 local AI surface, and defense-in-depth hardening on top.
 
 Upstream: `github.com/ublue-os/ucore`.
@@ -57,7 +57,7 @@ bind-mounts `/ctx` read-only and copies a writable working set to
 
 ## Two-repo split
 
-- `github.com/mios-dev/MiOS` — **system layer** (this repo). Owns the
+- `github.com/mios-dev/'MiOS'` — **system layer** (this repo). Owns the
   Containerfile, automation phase scripts, FHS overlay, system docs, CI.
 - `github.com/mios-dev/mios-bootstrap` — **user-facing installer**. Owns
   Phase-0 preflight + identity capture, Phase-1 Total Root Merge, Phase-4

@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "Enabling MiOS build log copy service..."
+log "Enabling 'MiOS' build log copy service..."
 
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# automation/08-system-files-overlay.sh - MiOS v0.2.0
+# automation/08-system-files-overlay.sh - 'MiOS' v0.2.0
 # ----------------------------------------------------------------------------
 # Overlay /ctx/ onto the rootfs during the Containerfile build,
 # correctly handling the /usr/local -> /var/usrlocal symlink.

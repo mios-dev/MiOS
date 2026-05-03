@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Guacamole PostgreSQL
+Description='MiOS' Guacamole PostgreSQL
 After=network-online.target
 Wants=network-online.target
 # Defaults policy: enabled by default; auto-skips inside another

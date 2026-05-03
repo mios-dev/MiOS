@@ -1,7 +1,7 @@
 #!/bin/bash
 # vfio-verify.sh
 # Universal Verification script for VFIO passthrough configuration
-# MiOS: Hardware & Environment Agnostic Verification
+# 'MiOS': Hardware & Environment Agnostic Verification
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,7 +31,7 @@ check_warn() {
 }
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}MiOS VFIO Configuration Verification${NC}"
+echo -e "${GREEN}'MiOS' VFIO Configuration Verification${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 

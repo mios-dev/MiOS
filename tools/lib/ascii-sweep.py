@@ -41,6 +41,11 @@ SUBS = {
     "✓": "+", "✗": "x", "✔": "+", "✘": "x",  # check/cross
     "•": "*", "·": ".", "▪": "*", "▫": "*",  # bullets
     "⚠": "!", "⚡": "!", "ℹ": "i",  # symbols
+    "§": "S",  # section sign (legal-doc references)
+    "©": "(c)", "®": "(R)", "™": "(TM)",  # trademark/copyright
+    "°": " deg",  # degree sign
+    "±": "+/-", "×": "x", "÷": "/",  # math operators
+    "€": "EUR", "£": "GBP", "¥": "JPY", "¢": "c",  # currency
     "﻿": "",     # BOM (drop)
     "​": "",     # zero-width space (drop)
     "‎": "",     # left-to-right mark (drop)

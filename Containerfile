@@ -15,7 +15,7 @@ COPY tools/                /ctx/tools/
 FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="MiOS"
-LABEL org.opencontainers.image.description="MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
+LABEL org.opencontainers.image.description="\MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.source="https://github.com/mios-dev/MiOS"
 LABEL org.opencontainers.image.version="v0.2.2"

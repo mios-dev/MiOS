@@ -1,12 +1,12 @@
-# MiOS System Interface — v0.2.2
+# 'MiOS' System Interface — v0.2.2
 
-Single source of truth for MiOS architectural laws and the OpenAI-compatible
+Single source of truth for 'MiOS' architectural laws and the OpenAI-compatible
 API surface. Sourced from `Containerfile`, `automation/`, `usr/lib/bootc/`,
 `usr/share/mios/ai/v1/`, and the upstream specs cited inline.
 
 ## 1. System profile
 
-MiOS is an immutable, bootc-managed Linux workstation OS distributed as an
+'MiOS' is an immutable, bootc-managed Linux workstation OS distributed as an
 OCI image. Source: `README.md`, `Containerfile`. Image:
 `ghcr.io/mios-dev/mios:latest`.
 

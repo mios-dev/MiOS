@@ -2,7 +2,7 @@
 
 > Source: `DEPLOY.md`, `Justfile`.
 
-MiOS produces one OCI image and several disk-image artifacts via
+'MiOS' produces one OCI image and several disk-image artifacts via
 `bootc-image-builder` (BIB).
 
 ## Targets
@@ -63,7 +63,7 @@ sudo bootc rollback                           # undo most recent upgrade
   ```
 - **WSL2**:
   ```
-  wsl --import MiOS C:\WSL\MiOS output/disk.wsl2
+  wsl --import 'MiOS' C:\WSL\'MiOS' output/disk.wsl2
   ```
 
 ## ISO install

@@ -1,6 +1,6 @@
 [Unit]
 ConditionVirtualization=!container
-Description=MiOS Boot Diagnostic -- prints service status to console
+Description='MiOS' Boot Diagnostic -- prints service status to console
 After=basic.target
 Before=graphical.target
 

@@ -1,5 +1,5 @@
-# MiOS KB local config -- overrides for downstream consumers
-# Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8080/v1
+# \MiOS KB local config -- overrides for downstream consumers
+# Day-0 defaults target the \MiOS LocalAI endpoint at http://localhost:8080/v1
 # (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.
 
 [runtime]
@@ -26,7 +26,7 @@ grader          = "${MIOS_AI_GRADER:-o3}"
 premium_chat    = "gpt-5"
 
 [api_surface]
-# Which OpenAI surfaces the runtime supports. Defaults reflect MiOS LocalAI.
+# Which OpenAI surfaces the runtime supports. Defaults reflect \MiOS LocalAI.
 # Set to true when targeting OpenAI/Azure cloud.
 chat_completions = true
 embeddings       = true
@@ -58,7 +58,7 @@ collection  = "mios-kb"
 attributes_required = ["doc_type", "mios_subsystem", "upstream_tech", "fhs_path"]
 
 [mios]
-# Pin to the MiOS upstream this KB was generated against.
+# Pin to the \MiOS upstream this KB was generated against.
 upstream_repo = "https://github.com/mios-dev/MiOS"
 upstream_ref  = "main"
 kb_version    = "2026.05.02"

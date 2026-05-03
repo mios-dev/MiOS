@@ -1,4 +1,4 @@
-# MiOS Architecture
+# 'MiOS' Architecture
 
 ## Pillars
 
@@ -16,7 +16,7 @@
 
 ## Base image — uCore HCI
 
-MiOS builds `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia` (`MIOS_BASE_IMAGE`).
+'MiOS' builds `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia` (`MIOS_BASE_IMAGE`).
 uCore HCI is a Universal Blue derivative of Fedora CoreOS targeting
 hyperconverged infrastructure:
 
@@ -28,7 +28,7 @@ hyperconverged infrastructure:
 | NVIDIA variant (`stable-nvidia`) | Proprietary driver akmods pre-built and MOK-signed; NVIDIA Container Toolkit |
 | Stable stream kernel | LTS Linux 6.12 — server-grade stability, consistent ABI across updates |
 
-MiOS adds: GNOME 50 desktop, Looking Glass B7, KVM passthrough, k3s, Ceph,
+'MiOS' adds: GNOME 50 desktop, Looking Glass B7, KVM passthrough, k3s, Ceph,
 full AI surface, and defense-in-depth hardening on top.
 
 Upstream: <https://github.com/ublue-os/ucore>

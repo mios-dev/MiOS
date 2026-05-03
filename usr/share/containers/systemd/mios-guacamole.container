@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Apache Guacamole Web
+Description='MiOS' Apache Guacamole Web
 After=network-online.target guacamole-postgres.service
 Wants=network-online.target
 # Defaults policy: enabled by default; auto-skips when nested in another

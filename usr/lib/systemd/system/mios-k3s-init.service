@@ -1,6 +1,6 @@
 [Unit]
 ConditionVirtualization=!container
-Description=MiOS K3s Manifest Seeder
+Description='MiOS' K3s Manifest Seeder
 Before=k3s.service
 ConditionPathExists=/usr/share/mios/k3s-manifests
 

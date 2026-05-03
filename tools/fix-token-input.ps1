@@ -5,13 +5,13 @@
     Replace with Read-Host -MaskInput (PS 7.1+, handles paste natively).
 
     Run from repo root:
-      cd C:\Users\MiOS\OneDrive\Documents\GitHub\MiOS
+      cd C:\Users\\MiOS\OneDrive\Documents\GitHub\\MiOS
       .\fix-token-input.ps1
 #>
 $ErrorActionPreference = "Stop"
 
 if (-not (Test-Path "mios-build-local.ps1")) {
-    Write-Host "  ERROR: Run from MiOS repo root" -ForegroundColor Red; exit 1
+    Write-Host "  ERROR: Run from \MiOS repo root" -ForegroundColor Red; exit 1
 }
 
 $file = "mios-build-local.ps1"

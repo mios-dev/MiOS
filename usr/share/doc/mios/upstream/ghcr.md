@@ -1,6 +1,6 @@
 # GitHub Container Registry (GHCR)
 
-> MiOS images live at `ghcr.io/mios-dev/mios:*`. CI uses
+> 'MiOS' images live at `ghcr.io/mios-dev/mios:*`. CI uses
 > `GITHUB_TOKEN` with `packages: write` permission.
 
 - Docs: <https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-container-registry>
@@ -15,7 +15,7 @@
 
 ## Multi-arch
 
-GHCR supports OCI manifest lists. MiOS currently ships amd64 only;
+GHCR supports OCI manifest lists. 'MiOS' currently ships amd64 only;
 the `mios_build` tool's `platforms` parameter accepts `linux/arm64` for
 forward compat. Push with:
 
@@ -26,7 +26,7 @@ podman manifest add  ghcr.io/mios-dev/mios:latest containers-storage:localhost/m
 podman manifest push --all ghcr.io/mios-dev/mios:latest
 ```
 
-## Retention (MiOS policy)
+## Retention ('MiOS' policy)
 
 - Latest signed `:latest` digest — protected
 - Last 5 release-tag digests — protected
@@ -35,7 +35,7 @@ podman manifest push --all ghcr.io/mios-dev/mios:latest
 Configure protection via the GitHub package's "Manage Actions access"
 and "Manage versions" UI, or via the REST API.
 
-## Image refs MiOS uses
+## Image refs 'MiOS' uses
 
 | Ref | Purpose |
 | --- | --- |

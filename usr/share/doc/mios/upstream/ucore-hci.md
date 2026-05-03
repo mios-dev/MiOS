@@ -1,6 +1,6 @@
-# ucore-hci — MiOS Base Image
+# ucore-hci — 'MiOS' Base Image
 
-> The image MiOS builds `FROM`. `ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia`
+> The image 'MiOS' builds `FROM`. `ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia`
 > in `Containerfile`; default `MIOS_BASE_IMAGE` in `Justfile:45`.
 > Source: `ARCHITECTURE.md` §Base-image, `Containerfile:1`.
 
@@ -15,7 +15,7 @@ ucore-hci                      ← + libvirt/KVM/QEMU/VFIO-PCI/virtiofs
    ↓
 ucore-hci:stable-nvidia        ← + NVIDIA proprietary akmods (MOK-signed)
    ↓
-MiOS                           ← + GNOME 50, Looking Glass B7, k3s, Ceph,
+'MiOS'                           ← + GNOME 50, Looking Glass B7, k3s, Ceph,
                                   LocalAI surface, defense-in-depth
 ```
 
@@ -33,9 +33,9 @@ MiOS                           ← + GNOME 50, Looking Glass B7, k3s, Ceph,
 | NVIDIA variant (`:stable-nvidia`) | Proprietary driver akmods pre-built and **MOK-signed**; NVIDIA Container Toolkit |
 | Stable-stream kernel | LTS Linux 6.12 — server-grade stability, consistent ABI across updates |
 
-## Tags MiOS tracks
+## Tags 'MiOS' tracks
 
-- `:stable-nvidia` — primary base for MiOS (proprietary NVIDIA, open kernel modules where supported)
+- `:stable-nvidia` — primary base for 'MiOS' (proprietary NVIDIA, open kernel modules where supported)
 - `:stable-nvidia-lts` — alternative for older GPUs needing the 580 LTS proprietary stream (Maxwell/Pascal)
 - `:stable` — non-NVIDIA path for AMD-only or Intel-only hosts (not the default; override `MIOS_BASE_IMAGE`)
 
@@ -43,7 +43,7 @@ MiOS                           ← + GNOME 50, Looking Glass B7, k3s, Ceph,
 
 ucore is multi-arch (linux/amd64 + linux/arm64) since 2025-11-08. ZFS
 landed in base 2025-06-12 (older `:*-zfs` variants are deprecated).
-MiOS currently ships amd64 only — the `mios_build` tool's `platforms`
+'MiOS' currently ships amd64 only — the `mios_build` tool's `platforms`
 parameter accepts `linux/arm64` for forward compat.
 
 ## Sibling images (related distros)
@@ -54,7 +54,7 @@ parameter accepts `linux/arm64` for forward compat.
 | Aurora | KDE | KDE-preferred workstation |
 | Bazzite | Gaming/handheld | Steam Deck-class HTPC |
 | ucore | Server/HCI | self-hosted infrastructure |
-| **ucore-hci** | **HCI + NVIDIA** | **MiOS base** |
+| **ucore-hci** | **HCI + NVIDIA** | **'MiOS' base** |
 
 ## Cross-refs
 

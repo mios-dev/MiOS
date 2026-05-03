@@ -19,7 +19,7 @@
 | `install_weak_deps` | `False` | dnf5 spelling (underscore). `install_weakdeps` (no underscore) is the dnf4 form and is **silently ignored** by dnf5 — this caused real bugs in the v1 KB. |
 | `keepcache` | `0` (with cache mount) | Avoid baking the package cache into the image |
 | `repo_gpgcheck` | `True` (set in `automation/01-repos.sh`) | bootc-image-builder ISO depsolve fails with `repo_gpgcheck=1` AND `gpgcheck=1` not both set; configure carefully |
-| `tsflags` | `nodocs` (selective) | Only where MiOS doesn't ship man pages for that package |
+| `tsflags` | `nodocs` (selective) | Only where 'MiOS' doesn't ship man pages for that package |
 
 ## Cache mount idiom (buildkit)
 
@@ -32,7 +32,7 @@ RUN --mount=type=cache,dst=/var/cache/libdnf5,sharing=locked \
 ```
 
 Cache mounts are **not** baked into the image (BuildKit mounts them
-only for the duration of the RUN), so MiOS gets 5–10× faster rebuilds
+only for the duration of the RUN), so 'MiOS' gets 5–10× faster rebuilds
 without bloating the OCI layers.
 
 ## Kernel rule (re-stated)
@@ -43,7 +43,7 @@ Only `kernel-modules-extra`, `kernel-devel`, `kernel-headers`,
 (`ucore-hci:stable-nvidia`) owns the kernel; upgrading it desyncs the
 running ABI from akmod-built NVIDIA modules.
 
-## How MiOS calls dnf5 (helpers)
+## How 'MiOS' calls dnf5 (helpers)
 
 `automation/lib/packages.sh` exposes:
 

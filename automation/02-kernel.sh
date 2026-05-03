@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 02-kernel: Kernel extras + development headers
+# 'MiOS' v0.2.0 — 02-kernel: Kernel extras + development headers
 # The base fedora-bootc:rawhide image ships the newest kernel with a working
 # initramfs. We NEVER upgrade the base kernel packages inside the container —
 # doing so triggers dracut under the tmpfs mount, which fails with

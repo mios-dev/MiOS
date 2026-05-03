@@ -16,7 +16,7 @@ deployment automatically. This is the safety net for `bootc upgrade`:
 even an image that boots far enough to run health checks but fails them
 will get reverted without operator intervention.
 
-## How MiOS uses it
+## How 'MiOS' uses it
 
 | Check | Purpose | Path |
 | --- | --- | --- |

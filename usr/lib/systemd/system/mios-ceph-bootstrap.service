@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Ceph Cluster Bootstrap
+Description='MiOS' Ceph Cluster Bootstrap
 ConditionVirtualization=no
 # Only run if the cluster hasn't been bootstrapped yet
 ConditionPathExists=!/etc/ceph/ceph.conf

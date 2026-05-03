@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS WSL2 Runtime Bridge
+Description='MiOS' WSL2 Runtime Bridge
 ConditionVirtualization=wsl
 After=local-fs.target
 Before=mios-role.service

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 98-boot-config: Boot console + service configuration
+# 'MiOS' v0.2.0 — 98-boot-config: Boot console + service configuration
 # Plymouth disable is handled by usr/lib/bootc/kargs.d/10-mios-console.toml
 # Console verbosity is handled by usr/lib/bootc/kargs.d/00-mios.toml + 10-mios-verbose.toml
 set -euo pipefail

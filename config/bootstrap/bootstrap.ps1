@@ -1,4 +1,4 @@
-# MiOS Public Bootstrap — Windows (PowerShell 5.1+)
+# 'MiOS' Public Bootstrap — Windows (PowerShell 5.1+)
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: irm https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.ps1 | iex
 
@@ -59,7 +59,7 @@ function Export-EnvFile {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 
     $lines = @(
-        "# MiOS Build Configuration"
+        "# 'MiOS' Build Configuration"
         "# Generated: $([System.DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))"
         "MIOS_USER=$env:MIOS_USER"
         "MIOS_HOSTNAME=$env:MIOS_HOSTNAME"
@@ -89,10 +89,10 @@ function Export-EnvFile {
     }
 }
 
-Write-Host "MiOS -- Local Build Configuration" -ForegroundColor Cyan
+Write-Host "'MiOS' -- Local Build Configuration" -ForegroundColor Cyan
 
 # ── Stage Directories ──────────────────────────────────────────────────────
-Write-Host "  Staging MiOS environment..." -ForegroundColor Gray
+Write-Host "  Staging 'MiOS' environment..." -ForegroundColor Gray
 foreach ($d in @($MiosConfigDir, $MiosEnvDir, $MiosRepoDir, $MiosBuildsDir, $MiosDeployDir, $MiosManifestsDir, $MiosImagesDir)) {
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 }
@@ -105,7 +105,7 @@ try {
     $wslRAM = [Math]::Max(16, [Math]::Floor($totalRAM / 1GB * 0.80))
     $wslCPUs = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
     $wslLines = @(
-        "# MiOS v0.2.0 — WSL2 Configuration",
+        "# 'MiOS' v0.2.0 — WSL2 Configuration",
         "[wsl2]",
         "memory=${wslRAM}GB",
         "processors=${wslCPUs}",

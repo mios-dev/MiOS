@@ -51,8 +51,8 @@ def sync_json_embeds(file_path):
             return match.group(0)
 
     # Targeted regex for the status-style JSON blocks (not knowledge)
-    content = re.sub(r"# 🌐 MiOS: Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```", 
-                     r"# 🌐 MiOS: Immutable Cloud-Native Workstation\n\n```json\n\1\n```", content, flags=re.DOTALL)
+    content = re.sub(r"# 🌐 'MiOS': Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```", 
+                     r"# 🌐 'MiOS': Immutable Cloud-Native Workstation\n\n```json\n\1\n```", content, flags=re.DOTALL)
     # Actually apply the update to any generic json block that looks like a status block
     content = re.sub(r"```json\n(\{.*?\})\n```", update_status, content, flags=re.DOTALL)
 
@@ -68,15 +68,15 @@ def sync_wiki():
     automation_doc = "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
     
     knowledge_meta = {
-        "summary": "Automated index of all MiOS automation automation.",
+        "summary": "Automated index of all 'MiOS' automation automation.",
         "logic_type": "automation",
         "tags": ["automation", "automation", "index"],
         "version": get_version(),
         "last_rag_sync": get_last_rag_sync()
     }
 
-    content = f"""<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/MiOS-DEV/mios -->
-# 📜 MiOS Scripts Index
+    content = f"""<!-- 🌐 'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+# 📜 'MiOS' Scripts Index
 > **Generated:** {datetime.now().isoformat()}
 > **Status:** Automated Sync
 
@@ -105,7 +105,7 @@ This file provides a machine-readable and human-readable index of all automation
                 pass
             content += f"## `{script}`\n- **Path:** `{path}`\n- **Description:** {description}\n\n"
 
-    content += "<!-- ⚖️ MiOS Proprietary Artifact | Copyright (c) 2026 MiOS Project -->"
+    content += "<!-- ⚖️ 'MiOS' Proprietary Artifact | Copyright (c) 2026 'MiOS' Project -->"
     
     os.makedirs(os.path.dirname(automation_doc), exist_ok=True)
     with open(automation_doc, 'w') as f:

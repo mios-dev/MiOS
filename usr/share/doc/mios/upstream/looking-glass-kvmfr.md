@@ -1,6 +1,6 @@
 # Looking Glass B7 + KVMFR
 
-> MiOS bakes the KVMFR shared-memory kernel module and the Looking
+> 'MiOS' bakes the KVMFR shared-memory kernel module and the Looking
 > Glass B7 client into the image at build time. Source:
 > `ARCHITECTURE.md` §Hardware-delegation,
 > `automation/52-bake-kvmfr.sh`, `automation/53-bake-lookingglass-client.sh`.
@@ -23,7 +23,7 @@ Glass + KVMFR is the canonical low-latency answer:
 - Looking Glass: <https://looking-glass.io/>
 - Repo: <https://github.com/gnif/LookingGlass>
 
-## How MiOS builds it
+## How 'MiOS' builds it
 
 `automation/52-bake-kvmfr.sh` builds the KVMFR DKMS module against the
 running kernel (in-image) and signs it with the MOK chain so it loads

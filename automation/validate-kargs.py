@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# MiOS v0.2.0 — Bootc kargs.d validator
+# 'MiOS' v0.2.0 — Bootc kargs.d validator
 """
-validate-kargs.py — MiOS kargs.d schema validator.
+validate-kargs.py — 'MiOS' kargs.d schema validator.
 
 Checks every *.toml in:
   kargs.d/                              (repo root drop-ins)
@@ -165,7 +165,7 @@ def collect_files(dirs: list[Path]) -> list[Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate MiOS kargs.d TOML files.")
+    parser = argparse.ArgumentParser(description="Validate 'MiOS' kargs.d TOML files.")
     parser.add_argument("paths", nargs="*", help="Explicit .toml files or directories.")
     parser.add_argument("--github", action="store_true", help="Emit GitHub Actions annotation format.")
     parser.add_argument("--json", dest="json_out", action="store_true", help="Emit JSON report to stdout.")

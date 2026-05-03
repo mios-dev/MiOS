@@ -1,4 +1,4 @@
-# MiOS Engineering Standards
+# 'MiOS' Engineering Standards
 
 ## Global pipeline phases
 

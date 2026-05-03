@@ -1,4 +1,4 @@
-# SELinux on MiOS
+# SELinux on 'MiOS'
 
 > Mode: enforcing. Five custom modules in `usr/share/selinux/packages/mios/`,
 > compiled and shipped, **not auto-loaded at build** — see

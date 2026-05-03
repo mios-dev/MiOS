@@ -11,7 +11,7 @@ if [[ -f "$conf" ]]; then
 fi
 
 cat > "$conf" <<'EOF'
-# MiOS: composefs in verity mode. Tamper-evident root.
+# 'MiOS': composefs in verity mode. Tamper-evident root.
 # Target filesystems must support fsverity (ext4, btrfs). XFS is NOT supported.
 [composefs]
 enabled = verity

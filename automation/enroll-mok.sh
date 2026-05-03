@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# enroll-mok.sh — MiOS Secure Boot MOK enrollment helper.
+# enroll-mok.sh — 'MiOS' Secure Boot MOK enrollment helper.
 #
 # Uses mokutil throughout. sbctl is the WRONG tool for Fedora bootc
 # (GRUB2+shim chain, not systemd-boot+UKI). See specs/SECUREBOOT.md.
@@ -116,7 +116,7 @@ fi
 
 # ── runtime checks ────────────────────────────────────────────────────────────
 
-log "=== MiOS MOK Enrollment ==="
+log "=== 'MiOS' MOK Enrollment ==="
 
 if ! command -v mokutil >/dev/null 2>&1; then
     log "mokutil not found — install it: sudo dnf install mokutil"

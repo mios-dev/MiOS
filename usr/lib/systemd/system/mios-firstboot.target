@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS first-boot provisioning
+Description='MiOS' first-boot provisioning
 Documentation=https://github.com/MiOS-DEV/MiOS
 After=multi-user.target
 Wants=mios-cdi-detect.service mios-libvirtd-setup.service mios-grd-setup.service

@@ -1,7 +1,7 @@
 #Requires -Version 7.1
 <#
 .SYNOPSIS
-  MiOS builder - idempotent Podman machine provisioner for Windows.
+  'MiOS' builder - idempotent Podman machine provisioner for Windows.
 
 .DESCRIPTION
   Creates or reconfigures a rootful Podman machine named 'mios-builder'
@@ -202,6 +202,25 @@ if ($hasAmd) {
 if ($hasIntel -and -not $hasNvidia -and -not $hasAmd) {
   Log 'Intel GPU only — WSL2 GPU compute for Intel is not officially supported'
   Warn 'Builder will use CPU inference; this does not affect building bootc images.'
+}
+
+# ---------------------------------------------------------------------------
+# 'MiOS' overlay -- make BUILDER look/feel like a Live 'MiOS' environment.
+# Rsyncs the user-facing assets (mios CLI, motd, vendor docs, paths.sh,
+# profile.d hooks) into the podman-machine without touching its systemd /
+# sysusers / tmpfiles plumbing (those live only in the bootc image).
+# ---------------------------------------------------------------------------
+$repoRoot = (Get-Location).Path -replace '\\','/' -replace '^([A-Za-z]):','/mnt/$1'.ToLower()
+# The above string ops on $1 don't work in PS; recompute properly:
+if ((Get-Location).Path -match '^([A-Za-z]):\\(.*)$') {
+    $repoRoot = "/mnt/$($Matches[1].ToLower())/$($Matches[2] -replace '\\','/')"
+}
+if (Test-Path "automation/overlay-builder.sh") {
+    Log "Applying 'MiOS' overlay to BUILDER (user-facing files only)"
+    $rc = Invoke-MachineSSH "cd '$repoRoot' && bash automation/overlay-builder.sh '$repoRoot'"
+    if ($rc -ne 0) { Warn "Overlay exited non-zero ($rc); see output above." }
+} else {
+    Warn "automation/overlay-builder.sh not found in repo root; skipping overlay."
 }
 
 # ---------------------------------------------------------------------------

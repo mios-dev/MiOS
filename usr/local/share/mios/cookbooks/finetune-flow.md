@@ -127,7 +127,7 @@ Look for: ↑ pass rate, ↑ avg score vs the pre-tune baseline.
 
 ## When to re-tune
 
-- Major MiOS release (e.g. v0.3.0 with new architectural law)
+- Major 'MiOS' release (e.g. v0.3.0 with new architectural law)
 - New upstream tech adopted (e.g. switch from ostree to bootc-composefs-native)
 - Eval pass rate drops below 85% on the latest checkpoint
 

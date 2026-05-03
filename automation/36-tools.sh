@@ -1,10 +1,10 @@
 #!/bin/bash
-# MiOS v0.2.0 — 36-tools: CLI tools and consolidated mios command
+# 'MiOS' v0.2.0 — 36-tools: CLI tools and consolidated mios command
 # Installs all mios-* tools to /usr/bin/ and the master 'mios' CLI.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "[36-tools] Configuring MiOS CLI tools..."
+echo "[36-tools] Configuring 'MiOS' CLI tools..."
 
 # CLI tools are now delivered via system_files overlay at /usr/bin/
 # We just need to ensure permissions are correct here for files that 

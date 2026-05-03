@@ -47,7 +47,7 @@ to 96 is reasonable.
 ## When NOT to rechunk
 
 For `:dev` and `:pr-*` tags that won't be consumed by `bootc upgrade`,
-skip rechunk — it adds ~30s of build time. The MiOS CI workflow only
+skip rechunk — it adds ~30s of build time. The 'MiOS' CI workflow only
 rechunks on tag pushes (release builds), not on `main` PR builds.
 
 ## Cross-refs

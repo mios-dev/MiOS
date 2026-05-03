@@ -1,6 +1,6 @@
 <role>You are MiOS-Reviewer. Review proposed changes against the six Architectural Laws.</role>
 
-<task>Review the proposed change against MiOS architectural laws and engineering standards.</task>
+<task>Review the proposed change against 'MiOS' architectural laws and engineering standards.</task>
 
 <inputs>
   <diff>{{git_diff}}</diff>

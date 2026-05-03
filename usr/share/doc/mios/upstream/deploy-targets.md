@@ -1,6 +1,6 @@
 # Deployment Targets — Hyper-V / WSL2 / QEMU / ISO / RAW
 
-> MiOS produces one OCI image and several disk-image artifacts via BIB.
+> 'MiOS' produces one OCI image and several disk-image artifacts via BIB.
 > Source: `DEPLOY.md`, `Justfile` (recipes `raw`, `iso`, `qcow2`, `vhdx`,
 > `wsl2`), `config/artifacts/*.toml`.
 
@@ -41,14 +41,14 @@ For libvirt: `virt-install --import --osinfo fedora-bootc --disk path=output/*.q
 
 ```powershell
 just wsl2  # on a Linux build host
-wsl --import MiOS C:\WSL\MiOS .\output\disk.wsl2
-wsl -d MiOS
+wsl --import 'MiOS' C:\WSL\'MiOS' .\output\disk.wsl2
+wsl -d 'MiOS'
 ```
 
 WSL2 caveats:
 
 - The Windows-hosted kernel ignores the image's kargs.d
-- Set `systemd=true` in the imported instance's `/etc/wsl.conf` (MiOS
+- Set `systemd=true` in the imported instance's `/etc/wsl.conf` ('MiOS'
   ships this already)
 - bootc commands work, but `bootc switch` requires writing the new
   rootfs back into the WSL distribution — the bootstrap installer

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
+# 'MiOS' v0.2.0 — 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
 # Cephadm runs ALL server daemons as Podman containers.
 # Only client tools + orchestrator binary are baked into the image.
 #

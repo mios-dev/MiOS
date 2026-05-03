@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Desktop Role
+Description='MiOS' Desktop Role
 Requires=multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service
 After=multi-user.target
 Conflicts=mios-headless.target mios-k3s-master.target mios-ha-node.target

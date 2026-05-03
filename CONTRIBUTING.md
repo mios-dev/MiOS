@@ -1,4 +1,4 @@
-# Contributing to MiOS
+# Contributing to 'MiOS'
 
 ## Project rules
 

@@ -7,7 +7,7 @@
 ## CrowdSec — IPS in sovereign/offline mode
 
 - Project: <https://www.crowdsec.net/> · repo <https://github.com/crowdsecurity/crowdsec>
-- MiOS uses **sovereign/offline mode** — no telemetry to crowdsec.net,
+- 'MiOS' uses **sovereign/offline mode** — no telemetry to crowdsec.net,
   no community blocklists pulled. `online_client` is disabled in
   `/etc/crowdsec/config.yaml` (the only `/etc/` location, not
   `/usr/lib/`, because CrowdSec's upstream contract requires it there)
@@ -37,7 +37,7 @@
 ## USBGuard — USB Device Whitelisting
 
 - Project: <https://usbguard.github.io/>
-- Mode: **off by default** (MiOS choice; SecureBlue would have it on)
+- Mode: **off by default** ('MiOS' choice; SecureBlue would have it on)
 - To enable:
   ```bash
   sudo usbguard generate-policy > /etc/usbguard/rules.conf

@@ -1,11 +1,11 @@
-# MiOS AI Surface (LAW 5: UNIFIED-AI-REDIRECTS)
+# 'MiOS' AI Surface (LAW 5: UNIFIED-AI-REDIRECTS)
 
 > Source: `INDEX.md` §2, `ARCHITECTURE.md` §AI-surface,
 > `etc/containers/systemd/mios-ai.container`, `usr/share/mios/ai/system.md`.
 
 ## Contract
 
-All MiOS system agents, CLI tools, and embedded scripts target a single
+All 'MiOS' system agents, CLI tools, and embedded scripts target a single
 OpenAI-compatible endpoint:
 
 ```
@@ -35,7 +35,7 @@ A LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`:
 
 ```ini
 [Unit]
-Description=MiOS Local AI (OpenAI-compatible)
+Description='MiOS' Local AI (OpenAI-compatible)
 After=network-online.target
 Wants=network-online.target
 
@@ -101,7 +101,7 @@ overlay (see `30-overlay.md`).
 
 This contract is portable across every OpenAI-API-compatible runtime:
 
-- **MiOS LocalAI** (canonical): `http://localhost:8080/v1`
+- **'MiOS' LocalAI** (canonical): `http://localhost:8080/v1`
 - **OpenAI cloud**: `https://api.openai.com/v1`
 - **Azure OpenAI**: `https://<res>.openai.azure.com/openai/deployments/<dep>`
 - **Ollama**: `http://localhost:11434/v1`
@@ -114,7 +114,7 @@ This contract is portable across every OpenAI-API-compatible runtime:
 The KB ships sample payloads in both Chat Completions and Responses
 shapes; see `srv/mios/api/`.
 
-## What MiOS LocalAI does NOT support
+## What 'MiOS' LocalAI does NOT support
 
 | Cloud surface | Local alternative |
 | --- | --- |

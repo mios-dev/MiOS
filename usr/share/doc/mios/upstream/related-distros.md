@@ -8,9 +8,9 @@
 | Aurora | KDE | KDE-preferred workstation | <https://github.com/ublue-os/aurora> |
 | Bazzite | Gaming/handheld | Steam Deck-class, HTPC | <https://github.com/ublue-os/bazzite> |
 | ucore | Server/HCI base | self-hosted infra | <https://github.com/ublue-os/ucore> |
-| **MiOS** | **HCI workstation+server hybrid** | **immutable workstation w/ local AI** | <https://github.com/mios-dev/MiOS> |
+| **'MiOS'** | **HCI workstation+server hybrid** | **immutable workstation w/ local AI** | <https://github.com/mios-dev/'MiOS'> |
 
-MiOS sits closest to ucore/ucore-hci with a workstation-server hybrid
+'MiOS' sits closest to ucore/ucore-hci with a workstation-server hybrid
 posture (GNOME desktop + KVM passthrough + k3s + Ceph + local AI).
 
 ## Other immutable / atomic distros
@@ -19,7 +19,7 @@ posture (GNOME desktop + KVM passthrough + k3s + Ceph + local AI).
 | --- | --- | --- | --- |
 | Fedora Silverblue | rpm-ostree | no (rpm-ostree refs) | GNOME, predecessor of bootc |
 | Fedora Kinoite | rpm-ostree | no | KDE Silverblue |
-| Fedora bootc | bootc | yes | The lineage MiOS is in |
+| Fedora bootc | bootc | yes | The lineage 'MiOS' is in |
 | CentOS Stream bootc | bootc | yes | Where BIB is published from |
 | RHEL image mode | bootc | yes | Red Hat enterprise sibling |
 | CoreOS Layering | rpm-ostree | yes (via `coreos.inst.image_url`) | Pre-bootc |
@@ -29,9 +29,9 @@ posture (GNOME desktop + KVM passthrough + k3s + Ceph + local AI).
 | Vanilla OS | apx + abroot | yes | Ubuntu-based, dual-root atomic |
 | openSUSE MicroOS | btrfs snapshots | no | Btrfs-snapshot-based atomic |
 
-## Why MiOS vs each
+## Why 'MiOS' vs each
 
-| Alt | Why MiOS instead |
+| Alt | Why 'MiOS' instead |
 | --- | --- |
 | Bluefin | Bluefin is dev-desktop only — no KVM passthrough, no Ceph, no local AI surface |
 | Bazzite | Gaming-tuned; not suitable for HCI workloads |

@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Podman Garbage Collection
+Description='MiOS' Podman Garbage Collection
 ConditionVirtualization=!container
 [Service]
 Type=oneshot

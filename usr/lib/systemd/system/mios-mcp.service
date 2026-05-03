@@ -1,6 +1,6 @@
 [Unit]
 ConditionVirtualization=!container
-Description=MiOS Agent Context Service (MCP)
+Description='MiOS' Agent Context Service (MCP)
 After=network.target redis.service
 Wants=redis.service
 # High-availability context provider for autonomous agents.

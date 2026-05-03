@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Flatpak First-Boot Installer
+Description='MiOS' Flatpak First-Boot Installer
 ConditionVirtualization=!container
 After=network-online.target
 Wants=network-online.target

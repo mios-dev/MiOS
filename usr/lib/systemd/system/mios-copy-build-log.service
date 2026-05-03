@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Build Log Copy Service
+Description='MiOS' Build Log Copy Service
 After=var.mount
 ConditionPathExists=/usr/libexec/mios/copy-build-log.sh
 

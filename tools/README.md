@@ -1,13 +1,13 @@
-# MiOS Toolkit Scripts
+# 'MiOS' Toolkit Scripts
 
 This directory contains **standalone out-of-image tooling** that runs
-*on a booted MiOS host* (or any Fedora/RHEL-family host, in
+*on a booted 'MiOS' host* (or any Fedora/RHEL-family host, in
 most cases). These scripts are **not part of the image build** — the
 image-build scripts live in [`../automation/`](../automation/) and the
 overlays live in [`../`](../).
 
 Use these tools when you need to configure VFIO passthrough, isolate
-CPUs for VM pinning, profile a host before deploying MiOS to it, or
+CPUs for VM pinning, profile a host before deploying 'MiOS' to it, or
 troubleshoot Secure Boot / OVMF enrollment for Windows VMs.
 
 > **All rules from [`../INDEX.md`](../INDEX.md) §3.2 (Bash) apply
@@ -47,7 +47,7 @@ at [`../specs/knowledge/guides/cpu-isolation-guide.md`](../specs/knowledge/guide
 
 ## Host profiling & assessment
 
-Run these **before** installing MiOS on a new host to get a
+Run these **before** installing 'MiOS' on a new host to get a
 full picture of the hardware, virtualization capabilities, and
 deployment readiness.
 
@@ -99,7 +99,7 @@ predate the current `automation/NN-*.sh` modular design.
 
 | Script | Purpose |
 |--------|---------|
-| `mios-full.sh` | Standalone one-shot MiOS provisioner (188 KB — everything in one file, pre-refactor) |
+| `mios-full.sh` | Standalone one-shot 'MiOS' provisioner (188 KB — everything in one file, pre-refactor) |
 | `mios-build.sh` | Earlier Linux-side orchestrator (superseded by `Justfile` + `../mios-build-local.ps1`) |
 
 If you find yourself wanting to modify either of these, stop and work
@@ -111,7 +111,7 @@ on the modular replacement in `../automation/` instead.
 
 - The **image build** (Containerfile + `../automation/`) produces the OS.
 - These **toolkit scripts** run on a host that's already booted —
-  either a MiOS host, or a Fedora/RHEL host preparing to
+  either a 'MiOS' host, or a Fedora/RHEL host preparing to
   become one.
 - Nothing in this directory is copied into the image by default.
 - If you want one of these tools inside the image (e.g. `vfio-verify.sh`

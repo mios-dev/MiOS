@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS K3s worker role (agent)
+Description='MiOS' K3s worker role (agent)
 Requires=multi-user.target
 After=multi-user.target
 AllowIsolate=yes

@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS PXE Boot Hub
+Description='MiOS' PXE Boot Hub
 After=network-online.target
 Wants=network-online.target
 # Defaults policy: enabled by default; auto-skips on virtualized hosts

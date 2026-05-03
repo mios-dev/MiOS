@@ -1,6 +1,6 @@
 # composefs — Verifiable Read-Only Root
 
-> Enabled in MiOS via `usr/lib/ostree/prepare-root.conf`:
+> Enabled in 'MiOS' via `usr/lib/ostree/prepare-root.conf`:
 > `[composefs] enabled=true`, `[etc] transient=true`, `[root] transient-ro=true`.
 > Source: `SECURITY.md` §composefs.
 
@@ -33,7 +33,7 @@ kernel. Backing files live in a content-addressed object store
 `mount.composefs` validates each backing file's fs-verity digest before
 exposing it. Tampering on disk produces an `EIO`, not silent corruption.
 
-## MiOS enable shape
+## 'MiOS' enable shape
 
 `usr/lib/ostree/prepare-root.conf`:
 
@@ -56,7 +56,7 @@ Effects:
 - `/` — root mount is read-only; runtime writes go to `/var` (governed
   by LAW 2 NO-MKDIR-IN-VAR via `usr/lib/tmpfiles.d/`)
 
-## Why MiOS uses it
+## Why 'MiOS' uses it
 
 - **Trusted boot**: any tampering at the disk level is detected by
   fs-verity before the file is exposed to user space

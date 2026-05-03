@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Hybrid role (desktop + k3s-worker + ceph-osd)
+Description='MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)
 Requires=graphical.target
 After=graphical.target
 AllowIsolate=yes

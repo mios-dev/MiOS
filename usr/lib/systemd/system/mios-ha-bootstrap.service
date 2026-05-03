@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS HA Cluster Bootstrap (Pacemaker/Corosync)
+Description='MiOS' HA Cluster Bootstrap (Pacemaker/Corosync)
 ConditionVirtualization=no
 # Only run if the cluster hasn't been bootstrapped yet
 ConditionPathExists=!/etc/corosync/corosync.conf
@@ -9,7 +9,7 @@ Wants=network-online.target pcsd.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Default hacluster password is "mios" -- MiOS default, override via bootstrap drop-in:
+# Default hacluster password is "mios" -- 'MiOS' default, override via bootstrap drop-in:
 #   /etc/systemd/system/mios-ha-bootstrap.service.d/hacluster.conf
 #   [Service]
 #   Environment=HA_PASSWORD=your-real-password

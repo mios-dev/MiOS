@@ -1,7 +1,7 @@
 # bootc-image-builder (BIB)
 
 > Image: `quay.io/centos-bootc/bootc-image-builder:latest` (`Justfile:14`).
-> Used by MiOS to convert `localhost/mios:latest` (the OCI image) into
+> Used by 'MiOS' to convert `localhost/mios:latest` (the OCI image) into
 > deployable disk artifacts under `output/`. Source: `Justfile`,
 > `DEPLOY.md`, `config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml`.
 
@@ -15,7 +15,7 @@
 
 ## Output types
 
-| Type | MiOS Justfile recipe | Output location | Notes |
+| Type | 'MiOS' Justfile recipe | Output location | Notes |
 | --- | --- | --- | --- |
 | `raw` | `just raw` | `output/*.raw` | 80 GiB ext4 default |
 | `anaconda-iso` | `just iso` | `output/*.iso` | **Mount ONLY `iso.toml` — see warning below** |

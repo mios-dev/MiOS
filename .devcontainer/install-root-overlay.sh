@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# MiOS Day-0 Root Overlay: Aggressive FHS Symlink Merge
+# \MiOS Day-0 Root Overlay: Aggressive FHS Symlink Merge
 # SSOT: The repository IS the system root.
 
 # 1. Detect Repository Root
@@ -14,12 +14,12 @@ else
     if [ -d ".git" ] && [ -f "Justfile" ]; then
         REPO_ROOT=$(pwd)
     else
-        echo "Error: MiOS Repository not found in /mios, /workspaces/MiOS, or current dir."
+        echo "Error: \MiOS Repository not found in /mios, /workspaces/MiOS, or current dir."
         exit 1
     fi
 fi
 
-echo "🔄 Initializing MiOS COMPLETE System Root Overlay from $REPO_ROOT..."
+echo "🔄 Initializing \MiOS COMPLETE System Root Overlay from $REPO_ROOT..."
 
 # 2. Establish Git Identity of / (/.git -> REPO/.git)
 ln -sf "${REPO_ROOT}/.git" "/.git"
@@ -55,7 +55,7 @@ done
 # 4. Enforce Day-0 AI Surface
 mkdir -p /v1/chat
 cat <<EON > /v1/chat/completions
-# MiOS Unified Inference Schema
+# \MiOS Unified Inference Schema
 {
   "spec": "POST /v1/chat/completions",
   "implementation": "Native system proxy",
@@ -73,4 +73,4 @@ cat <<EON > /usr/share/mios/ai/v1/models.json
 EON
 ln -sf /usr/share/mios/ai/v1/models.json /v1/models 2>/dev/null || true
 
-echo "✅ MiOS System Root Overlay: FULLY SYNCHRONIZED"
+echo "✅ \MiOS System Root Overlay: FULLY SYNCHRONIZED"

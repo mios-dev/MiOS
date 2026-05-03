@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-mios-knowledge.local-runner.py — Run the MiOS Knowledge eval against any
+mios-knowledge.local-runner.py — Run the 'MiOS' Knowledge eval against any
 OpenAI-compatible /v1/chat/completions endpoint.
 
 Mirrors the testing_criteria from mios-knowledge.eval.json:
@@ -8,7 +8,7 @@ Mirrors the testing_criteria from mios-knowledge.eval.json:
   - score_model: an LLM grader rates 0.0 / 0.5 / 1.0 (cloud or local)
 
 Day-0 compatible. Set MIOS_AI_ENDPOINT to:
-  http://localhost:8080/v1   (MiOS LocalAI — canonical)
+  http://localhost:8080/v1   ('MiOS' LocalAI — canonical)
   http://localhost:11434/v1  (Ollama)
   http://localhost:8000/v1   (vLLM)
   http://localhost:1234/v1   (LM Studio)
@@ -66,8 +66,8 @@ def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
             grader_endpoint, grader_key, grader_model,
             messages=[
                 {"role": "system",
-                 "content": ("You are grading MiOS engineering answers. "
-                             "Score 1.0 = factually correct AND cites the right MiOS "
+                 "content": ("You are grading 'MiOS' engineering answers. "
+                             "Score 1.0 = factually correct AND cites the right 'MiOS' "
                              "file/upstream doc; 0.5 = correct but missing citation; "
                              "0.0 = incorrect or hallucinated. "
                              "Reply with JSON only: {\"score\": <float>, \"reason\": \"<terse>\"}")},
@@ -112,7 +112,7 @@ def main():
     if args.system_prompt and Path(args.system_prompt).exists():
         system = Path(args.system_prompt).read_text()
     else:
-        system = ("You are MiOS-Engineer. Cite MiOS files (e.g. INDEX.md, ENGINEERING.md, "
+        system = ("You are MiOS-Engineer. Cite 'MiOS' files (e.g. INDEX.md, ENGINEERING.md, "
                   "SECURITY.md, Containerfile, Justfile, usr/lib/bootc/kargs.d/00-mios.toml, "
                   "usr/share/mios/PACKAGES.md) when stating facts. Refuse to fabricate.")
 

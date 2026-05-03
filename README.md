@@ -1,150 +1,222 @@
-# MiOS Knowledge Base — OpenAI-API-Native, FHS-Compliant, Day-0 Local-Compatible
+# 'MiOS'
 
-This is the combined v1+v2 deliverable: a drop-in knowledge base for the MiOS
-Linux distribution (`github.com/mios-dev/MiOS`) authored to current OpenAI
-Platform specifications and laid out in Linux-FHS-3.0-compliant directories.
+An immutable, container-image-shaped Linux workstation that boots like an OS,
+upgrades like a `git pull`, and rolls back like a Ctrl-Z. It's Fedora
+underneath, with a curated stack on top for people who actually use their
+machines for AI, virtualization, and clusters — not just spreadsheets.
 
-Every artifact is **copy-paste-ready** at its prescribed path; the top-level
-`proc/mios/manifest.json` enumerates every file with path, purpose, format,
-and target endpoint, so an automation pipeline can iterate the manifest and
-POST each file to the correct endpoint with no human translation.
+The default ref:
 
-## What changed v1 → v2
+```
+ghcr.io/mios-dev/mios:latest
+```
 
-The v1 chunks were written before `github.com/mios-dev/MiOS` was directly
-fetchable. v2 is fully repo-grounded — content under `usr/share/doc/mios/`
-now reflects the actual `Containerfile`, `Justfile`, `INDEX.md`,
-`ARCHITECTURE.md`, `ENGINEERING.md`, `SECURITY.md`, `SELF-BUILD.md`,
-`DEPLOY.md`, `CLAUDE.md`, `AGENTS.md`, `llms.txt`. Notable corrections:
+If you've got a Fedora-bootc-compatible host (or a Hyper-V VHDX, ISO, qcow2,
+or WSL2 distro you can run), you can be on 'MiOS' in the time it takes the
+network to pull the image.
 
-- Repo root **is** the system root (`usr/`, `etc/`, `home/`, `srv/`, `v1/`).
-  No `system_files/` directory.
-- Containerfile is single-stage with a `ctx` scratch context. Not the
-  fabricated four-stage pipeline.
-- Linux orchestrator is `Justfile` (not `cloud-ws.ps1`); Windows is
-  `mios-build-local.ps1`.
-- Phase scripts: ~48 in `automation/[0-9][0-9]-*.sh` (not 01-39).
-- `PACKAGES.md` lives at `usr/share/mios/PACKAGES.md` and uses fenced
-  ` ```packages-<category>` blocks — not a column table.
-- `lockdown=integrity`, not `confidentiality`. `init_on_alloc=1`,
-  `init_on_free=1`, `page_alloc.shuffle=1` are **disabled** in MiOS due to
-  NVIDIA/CUDA incompatibility.
-- Six Architectural Laws (USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES,
-  BOOTC-CONTAINER-LINT, UNIFIED-AI-REDIRECTS, UNPRIVILEGED-QUADLETS).
-- Local AI surface: LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`
-  serving `http://localhost:8080/v1` (LAW 5).
+---
 
-## Day-0 local-model compatibility
+## Why bother
 
-This KB is designed to work against **any** OpenAI-API-compatible runtime
-without modification. The MiOS host's own LocalAI endpoint at
-`http://localhost:8080/v1` is the canonical local target — the same endpoint
-MiOS's own system agents use, satisfying LAW 5 (UNIFIED-AI-REDIRECTS).
+A normal distro evolves like a Jenga tower: every package update is a small
+prayer, every clean reinstall is a weekend. 'MiOS' is the opposite — the
+whole OS is one OCI image. You upgrade it the way you'd upgrade a container.
+If something breaks, `bootc rollback` and you're back where you started, with
+no "I sure hope `dnf` finishes" in the middle.
 
-Compatible runtimes verified:
+What you actually get out of the box:
 
-| Runtime | `/v1/chat/completions` | `/v1/embeddings` | tools | strict mode | Vector Stores | Responses API | Batch | Evals | Fine-tuning |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| OpenAI cloud | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Azure OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ region | ✅ | ✅ | ✅ |
-| MiOS LocalAI | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Ollama | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | external |
-| vLLM | ✅ | ✅ | ✅ | ✅ via xgrammar | ❌ | partial | ❌ | ❌ | external |
-| LM Studio | ✅ | ✅ | ✅ | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | ❌ |
-| llama.cpp server | ✅ | ✅ | ✅ via grammars | ⚠️ ignored | ❌ | ❌ | ❌ | ❌ | external |
-| LiteLLM | ✅ | ✅ | ✅ | ✅ proxied | proxied | translates | proxied | proxied | proxied |
-| OpenRouter | ✅ | partial | ✅ | per-model | ❌ | ❌ | ❌ | ❌ | ❌ |
+- **GNOME 50 on Wayland** (the desktop), plus Phosh as a tablet-style
+  fallback for portrait / RDP scenarios.
+- **NVIDIA + AMD ROCm + Intel iGPU**, all wired up via CDI so containers can
+  see the hardware without you fighting `--device` flags.
+- **KVM/QEMU + libvirt + Looking Glass B7** baked into the image, with
+  VFIO-PCI passthrough kargs already staged. Hand a discrete GPU to a
+  Windows VM and game on it.
+- **k3s + Ceph** for when you want to grow the box into a one-node cluster
+  without re-imaging.
+- **Local AI surface**, OpenAI-compatible at `http://localhost:8080/v1`. Every
+  agent and tool on the system targets that one endpoint, so your Cursor,
+  Cline, Gemini, and Claude Code installs all talk to the same brain.
+- **Real security defaults**: SELinux enforcing, fapolicyd deny-by-default,
+  USBGuard, CrowdSec sovereign-mode IPS, kernel-lockdown integrity, MOK-
+  signed kernel modules. Not the security-theater kind.
 
-`⚠️ ignored` means the server accepts `strict: true` as an unknown field and
-proceeds without enforcement — the schema is still useful as documentation
-to the model but the runtime does not reject malformed JSON.
+---
 
-How this KB handles the gaps:
+## The 30-second elevator pitch for engineers
 
-- **Tool schemas** are shipped in BOTH formats:
-  `usr/lib/mios/tools/responses-api/*.json` (OpenAI cloud, flat) and
-  `usr/lib/mios/tools/chat-completions-api/*.json` (universal,
-  `{type:function,function:{...}}`).
-- **Sample API payloads** are shipped for both:
-  `srv/mios/api/responses.example.json` (cloud-only) and
-  `srv/mios/api/chat.example.json` and `chat.local.example.json` (universal,
-  the latter targeting `http://localhost:8080/v1`).
-- **RAG** is shipped as both `var/lib/mios/embeddings/vector_store.import.jsonl`
-  (OpenAI Vector Stores) and `var/lib/mios/embeddings/chunks.jsonl` (universal,
-  feed any vector DB — pgvector, Qdrant, Chroma, Weaviate, Milvus).
-- **Evals** are shipped as both `var/lib/mios/evals/mios-knowledge.eval.json`
-  (OpenAI Evals API) and a Python local-runner that calls
-  `/v1/chat/completions` against any endpoint.
-- **Fine-tuning** datasets are JSONL — universally consumable by the OpenAI
-  fine-tuning API, axolotl, trl, llama-factory, MLX-LM, unsloth.
+It's [Universal Blue's `ucore-hci`](https://github.com/ublue-os/ucore) (which
+is itself Fedora CoreOS + uCore + HCI tooling) plus a deliberate workstation
+layer on top. The whole image is `bootc`-managed — meaning `/usr` is a
+read-only composefs mount, `/etc` gets a 3-way merge across upgrades, and
+`/var` survives everything. New release? `bootc upgrade`. Bad release?
+`bootc rollback`. No more "the package manager left my system in a state."
 
-See `INSTALL.md` for the full ingestion recipes.
+Think of it as a workstation flavor of CoreOS / Silverblue with the
+hyperconverged bits of Talos / openSUSE MicroOS, except it's still a
+day-to-day desktop you can ship code from.
 
-## Top-level files
+---
 
-| File | Purpose |
+## Try it
+
+### Already on a Fedora-bootc-compatible host
+
+```bash
+bootc switch ghcr.io/mios-dev/mios:latest
+sudo systemctl reboot
+```
+
+### From scratch, on Windows
+
+```powershell
+# One-liner from PowerShell (admin):
+irm https://raw.githubusercontent.com/MiOS-DEV/MiOS/main/Get-MiOS.ps1 | iex
+```
+
+That clones the repo, runs the preflight check, then hands you off to the
+local builder. You'll be prompted for a username, password, and hostname.
+The Windows installer drops the result as a WSL2 distro, a Hyper-V VHDX, an
+Anaconda installer ISO, and a qcow2 — pick whichever fits.
+
+### From scratch, on Linux
+
+```bash
+git clone https://github.com/mios-dev/MiOS.git && cd MiOS
+just preflight
+just build
+just iso       # or: just raw / just qcow2 / just vhdx / just wsl2
+```
+
+`just --list` shows every target. `Justfile` is the source of truth for the
+Linux side; `mios-build-local.ps1` is the Windows equivalent.
+
+---
+
+## How it's actually structured
+
+Most distros hide their layout behind a package manager. 'MiOS' doesn't — the
+**repo root is the deployed system root**. Browse `usr/`, `etc/`, `srv/`,
+`var/` here in GitHub and you're looking at exactly where those files land
+on a booted system. There's no `system_files/` indirection, no Ansible
+playbook materializing things into place. What you see is what gets baked.
+
+The build pipeline is just a `Containerfile` that runs every script in
+`automation/[NN]-*.sh` in numeric order. Each script does one thing
+(install packages, configure SELinux, render the UKI, generate CDI specs,
+etc.) and the numeric prefix encodes execution order. Add a new step? Drop
+a new `45-myfeature.sh` next to its peers.
+
+If you want to know what makes a package show up in the image, check
+[`usr/share/mios/PACKAGES.md`](usr/share/mios/PACKAGES.md) — it's the single
+source of truth, parsed at build time. Want to know what kernel arguments
+ship? They're in [`usr/lib/bootc/kargs.d/`](usr/lib/bootc/kargs.d/).
+
+---
+
+## The user-facing knobs
+
+The whole user side is one file:
+
+```
+~/.config/mios/mios.toml
+```
+
+That's where you set your preferred username, hostname, base image, AI
+model, Flatpaks to install at first boot, and any free-form environment
+variables you want exported on login. Everything else inherits from the
+vendor defaults at `/usr/share/mios/env.defaults`.
+
+```toml
+[user]
+name     = "you"
+hostname = "you-laptop"
+
+[ai]
+model = "qwen2.5-coder:14b"
+
+[flatpaks]
+install = [
+  "com.spotify.Client",
+  "org.mozilla.firefox",
+]
+
+[env]
+EDITOR = "nvim"
+```
+
+Run `just init-user-space` to seed it from the vendor template; `just edit`
+to open it in `$EDITOR`; `just show-env` to see the resolved values.
+
+---
+
+## The architectural laws (the boring but load-bearing bits)
+
+These are the rules every contribution has to obey. They're enforced by
+build-time lint and by `automation/99-postcheck.sh`:
+
+1. **USR-OVER-ETC** — static config lives in `/usr/lib/<component>.d/`.
+   `/etc/` is for admin overrides only.
+2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via
+   `usr/lib/tmpfiles.d/*.conf`. Never written at build time.
+3. **BOUND-IMAGES** — every Quadlet image is symlinked into
+   `/usr/lib/bootc/bound-images.d/` so it ships *with* the host.
+4. **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`.
+   Fail the lint, fail the build.
+5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`
+   (`http://localhost:8080/v1`). No vendor-hardcoded URLs.
+6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
+   `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s`
+   (rationale in their headers).
+
+If you want the deeper dive: [`INDEX.md`](INDEX.md) is the architectural
+contract, [`ARCHITECTURE.md`](ARCHITECTURE.md) is the layout, and
+[`ENGINEERING.md`](ENGINEERING.md) is the build-pipeline rules.
+
+---
+
+## Where things live
+
+| Document | What's in it |
 |---|---|
-| `README.md` | This file. |
-| `SOURCES.md` | All references — every OpenAI API doc URL, every MiOS repo file, every upstream project, plus sub-knowledge for further iteration. |
-| `INSTALL.md` | End-to-end ingestion recipes for OpenAI cloud and self-hosted local stacks. |
+| [`INDEX.md`](INDEX.md) | Architectural laws + API surface (the contract). |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Filesystem and hardware layout. |
+| [`ENGINEERING.md`](ENGINEERING.md) | Build pipeline + shell conventions. |
+| [`SECURITY.md`](SECURITY.md) | Hardening kargs and posture. |
+| [`SELF-BUILD.md`](SELF-BUILD.md) | Build modes (CI, Linux, Windows, self-build). |
+| [`DEPLOY.md`](DEPLOY.md) | bootc + Day-2 lifecycle. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution conventions. |
+| [`API.md`](API.md) | OpenAI-compatible AI surface. |
+| [`SOURCES.md`](SOURCES.md) | Every external reference, every upstream link. |
 
-## FHS layout
+For LLMs and AI agents arriving at the repo:
+[`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt) are the
+machine-readable index. [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md),
+and [`GEMINI.md`](GEMINI.md) are the per-tool entry points. They all
+ultimately defer to `/usr/share/mios/ai/system.md` once the OS is running.
 
-```
-proc/mios/manifest.json                      # KB index (synthetic /proc surface)
-etc/mios/
-  kb.conf.toml                              # KB-wide config
-  eval-criteria.json                        # default grader rubric
-  system-prompts/
-    mios-engineer.md                        # primary system prompt
-    mios-reviewer.md                        # PR review prompt
-    mios-troubleshoot.md                    # troubleshooting prompt
-usr/share/doc/mios/                         # primary subsystem docs
-  00-overview.md                            # MiOS overview
-  10-build-pipeline.md                      # Containerfile + automation/
-  20-packages-md.md                         # PACKAGES.md SSOT
-  30-overlay.md                             # repo-root-as-system-root
-  40-kargs.md                               # kargs.d format and content
-  50-orchestrators.md                       # Justfile + mios-build-local.ps1
-  60-ci-signing.md                          # cosign keyless + SBOM
-  70-ai-surface.md                          # LocalAI Quadlet, LAW 5
-  80-security.md                            # SELinux, firewalld, CrowdSec, fapolicyd
-  90-deploy.md                              # bootc + BIB
-  upstream/                                 # upstream tech deep dives
-    bootc.md ostree.md composefs.md ucore-hci.md fedora-bootc.md
-    dnf5.md podman.md bib.md cosign.md ghcr.md nvidia.md
-    localai.md cdi.md looking-glass-kvmfr.md rechunk.md
-    secureblue.md greenboot.md crowdsec-fapolicyd-usbguard.md
-    selinux.md k3s-cockpit.md deploy-targets.md related-distros.md
-usr/lib/mios/
-  tools/responses-api/                      # OpenAI Responses (flat) format
-  tools/chat-completions-api/               # universal Chat Completions format
-  schemas/                                  # structured-output JSON Schemas
-var/lib/mios/
-  embeddings/
-    vector_store.import.jsonl               # OpenAI Vector Stores payload
-    chunks.jsonl                            # universal RAG chunks
-  training/
-    sft.jsonl                               # SFT dataset
-    dpo.jsonl                               # DPO dataset
-  evals/
-    mios-knowledge.eval.json                # OpenAI Evals API definition
-    mios-knowledge.local-runner.py          # universal /v1/chat/completions runner
-srv/mios/api/
-  responses.example.json                    # OpenAI Responses payload
-  chat.example.json                         # universal Chat Completions
-  chat.local.example.json                   # MiOS-localhost-targeted
-  batch.requests.jsonl                      # Batch API input
-  mcp.tool.json                             # MCP tool snippet
-  embeddings.example.json                   # /v1/embeddings request
-opt/mios/prompts/                           # XML-structured prompt templates
-usr/local/share/mios/cookbooks/             # end-to-end recipes
-```
+---
 
-## Refresh contract
+## Status
 
-When the upstream MiOS repo changes, regenerate the KB by running the
-`mios_build_kb_refresh` tool (defined in
-`usr/lib/mios/tools/responses-api/mios_build_kb_refresh.json`). It re-scrapes
-the repo at a given `git_ref`, regenerates `chunks.jsonl` and
-`vector_store.import.jsonl`, and updates `var/lib/mios/training/sft.jsonl`.
+'MiOS' is in active development at `v0.2.x`. The build pipeline is stable,
+the image lints clean against `bootc container lint`, and the WSL2 + ISO
+paths are battle-tested through several weeks of daily-driving. The bare-
+metal install path works but expects you to know what `bootc switch` does
+before you run it.
+
+Open issues + roadmap live on the GitHub side. PRs welcome — read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) before you push.
+
+---
+
+## License
+
+Apache-2.0. Component licenses for every shipped piece are catalogued in
+[`LICENSES.md`](LICENSES.md).
+
+The `'MiOS'` name (capitalized) is a project mark; lowercase `mios` (used in
+file paths, package names, env-var prefixes, etc.) is the technical
+identifier and free of that constraint.

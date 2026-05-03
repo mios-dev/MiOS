@@ -2,7 +2,7 @@
 # ============================================================================
 # automation/05-enable-external-repos.sh
 # ----------------------------------------------------------------------------
-# Enable external DNF repositories for MiOS (Fedora 44 / Rawhide).
+# Enable external DNF repositories for 'MiOS' (Fedora 44 / Rawhide).
 # Idempotent; fails fast; uses ${DNF_SETOPT[@]} from automation/lib/common.sh.
 # RPM Fusion is intentionally NOT handled here — see 01-repos.sh.
 #

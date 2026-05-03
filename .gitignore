@@ -50,24 +50,27 @@
 !/llms-full.txt
 !/llms.txt
 !/MiOS-Engineering-Reference.md
+!/MiOS-SBOM.csv
+!/MiOS-Build-Scripts.md
+!/CLAUDE.AUDIT.md
 !/image-versions.yml
 !/install.sh
-!/build-mios.sh
+!/install-mios-agents.sh
+!/mios-ai-sanitize
 !/Get-MiOS.ps1
 !/install.ps1
 !/mios-build-local.ps1
 !/preflight.ps1
+!/preflight.sh
 !/push-to-github.ps1
 !/renovate.json
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2b. /proc/mios — synthetic KB index surface
+# 2b. /usr/share/mios/kb — KB index (moved from /proc/mios for FHS compliance;
+#                          /proc is the kernel virtual filesystem per FHS 3.0)
 # ─────────────────────────────────────────────────────────────────────────────
-!/proc/
-proc/*
-!/proc/mios/
-proc/mios/*
-!/proc/mios/manifest.json
+!/usr/share/mios/kb/
+!/usr/share/mios/kb/manifest.json
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. MIOS BUILD & AUTOMATION INFRASTRUCTURE

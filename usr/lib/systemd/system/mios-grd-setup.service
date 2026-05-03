@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS GNOME Remote Desktop Setup
+Description='MiOS' GNOME Remote Desktop Setup
 ConditionVirtualization=!container
 After=local-fs.target network-online.target gdm.service
 Wants=network-online.target

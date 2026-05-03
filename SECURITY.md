@@ -1,4 +1,4 @@
-# MiOS Security Hardening
+# 'MiOS' Security Hardening
 
 Defense-in-depth posture, sourced primarily from SecureBlue's audit
 framework (<https://github.com/secureblue/secureblue>) and the Fedora

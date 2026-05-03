@@ -1,4 +1,4 @@
-# MiOS -- Extended SecureBlue-derived kernel hardening
+# 'MiOS' -- Extended SecureBlue-derived kernel hardening
 # v0.2.0 roadmap implementation pass
 match-architectures = ["x86_64"]
 kargs = [

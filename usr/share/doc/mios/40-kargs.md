@@ -19,7 +19,7 @@ lint` rejects anything else. Files are processed lexicographically;
 **earlier entries cannot be removed by later files in the same image** —
 use runtime `bootc kargs --delete` for removal.
 
-## MiOS hardening kargs (00-mios.toml)
+## 'MiOS' hardening kargs (00-mios.toml)
 
 | Parameter | Active? | Purpose | Override |
 | --- | :-: | --- | --- |
@@ -39,7 +39,7 @@ use runtime `bootc kargs --delete` for removal.
 | `l1tf=full,force` | ✅ | L1TF mitigation | Affects HyperThreading |
 | `gather_data_sampling=force` | ✅ | GDS/Downfall mitigation | Intel-specific |
 
-**Note**: MiOS uses `lockdown=integrity` (NOT `confidentiality`). The v1
+**Note**: 'MiOS' uses `lockdown=integrity` (NOT `confidentiality`). The v1
 KB had this wrong.
 
 ## Day-2 changes

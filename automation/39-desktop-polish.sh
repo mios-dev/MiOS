@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
+# 'MiOS' v0.2.0 — 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
 #
 # CHANGELOG v0.2.0:
 #   - FIX: mios-motd source path was /tmp/automation/automation/ (never exists).

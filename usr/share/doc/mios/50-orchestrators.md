@@ -66,10 +66,10 @@ Companion Windows scripts:
 - **Mode 1 — CI/CD** (production): `.github/workflows/mios-ci.yml` builds, rechunks on tag, signs keyless with cosign, pushes on tag and `main`.
 - **Mode 2 — Windows local**: `.\mios-build-local.ps1`.
 - **Mode 3 — Linux local**: `just build` etc.
-- **Mode 4 — Self-build** (running MiOS builds the next MiOS):
+- **Mode 4 — Self-build** (running 'MiOS' builds the next 'MiOS'):
 
   ```bash
-  git clone https://github.com/mios-dev/MiOS.git && cd MiOS
+  git clone https://github.com/mios-dev/MiOS.git && cd 'MiOS'
   sudo podman build --no-cache --build-arg MIOS_USER=mios --build-arg MIOS_HOSTNAME=mios -t localhost/mios:dev .
   sudo podman run --rm --entrypoint /usr/bin/bootc localhost/mios:dev container lint
   sudo bootc-base-imagectl rechunk --max-layers 67 \

@@ -1,6 +1,6 @@
 # LocalAI — MiOS's Canonical Local LLM Endpoint
 
-> MiOS LAW 5 (UNIFIED-AI-REDIRECTS) requires every system agent to
+> 'MiOS' LAW 5 (UNIFIED-AI-REDIRECTS) requires every system agent to
 > target `http://localhost:8080/v1`. The endpoint is served by the
 > LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`.
 > Source: `INDEX.md` §AI-surface, `ARCHITECTURE.md` §AI-surface,
@@ -17,7 +17,7 @@
 LocalAI is the OpenAI-API-compatible facade with the broadest backend
 support — llama.cpp, vLLM-style, transformers, gpt4all, exllama,
 whisper.cpp, stable-diffusion, embeddings via sentence-transformers,
-audio TTS/STT, all behind one consistent `/v1/*` surface. MiOS treats
+audio TTS/STT, all behind one consistent `/v1/*` surface. 'MiOS' treats
 it as the runtime; users swap models via the LocalAI manifest, not by
 swapping endpoint code.
 
@@ -28,7 +28,7 @@ swapping endpoint code.
 | `GET /v1/models` | Model catalog | ✅ |
 | `POST /v1/chat/completions` | Chat (SSE streaming + tool calling) | ✅ — KB ships `chat.local.example.json` |
 | `POST /v1/embeddings` | Embeddings | ✅ — KB ships `chunks.jsonl` + `ingest_local.py` |
-| `POST /v1/completions` | Legacy completions | ⚠️ — not used by MiOS agents |
+| `POST /v1/completions` | Legacy completions | ⚠️ — not used by 'MiOS' agents |
 | `POST /v1/audio/speech` (TTS) | Optional | future |
 | `POST /v1/audio/transcriptions` (STT) | Optional | future |
 
@@ -41,7 +41,7 @@ unified env vars resolve via `/etc/profile.d/mios-env.sh`:
 ```bash
 export MIOS_AI_ENDPOINT=http://localhost:8080/v1
 export MIOS_AI_KEY=                # empty
-export MIOS_AI_MODEL=gpt-4o-mini   # whatever LocalAI manifest names; MiOS aliases
+export MIOS_AI_MODEL=gpt-4o-mini   # whatever LocalAI manifest names; 'MiOS' aliases
 ```
 
 ## Discovery surfaces (MiOS-specific)

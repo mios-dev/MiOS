@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
+# 'MiOS' v0.2.0 — 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
 #
 # NVIDIA strategy (v0.2.0):
 #   Primary:  ucore-hci:stable-nvidia ships pre-signed kmods for the base

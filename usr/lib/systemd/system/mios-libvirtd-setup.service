@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS first-boot libvirtd wiring
+Description='MiOS' first-boot libvirtd wiring
 ConditionPathExists=!/var/lib/mios/libvirtd-setup.done
 ConditionVirtualization=no
 After=libvirtd.service

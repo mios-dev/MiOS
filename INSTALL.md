@@ -1,4 +1,4 @@
-# INSTALL.md — Ingest the MiOS KB into any OpenAI-API-compatible runtime
+# INSTALL.md — Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
 
 Three target classes, three recipes. Pick the one matching your stack.
 
@@ -66,9 +66,9 @@ curl https://api.openai.com/v1/fine_tuning/jobs \
 
 ---
 
-## B) MiOS LocalAI (the canonical Day-0 path — `http://localhost:8080/v1`)
+## B) 'MiOS' LocalAI (the canonical Day-0 path — `http://localhost:8080/v1`)
 
-This is the endpoint MiOS itself uses (LAW 5: UNIFIED-AI-REDIRECTS). It's
+This is the endpoint 'MiOS' itself uses (LAW 5: UNIFIED-AI-REDIRECTS). It's
 served by the LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`
 and accepts the same Chat Completions / Embeddings shape as OpenAI.
 
@@ -161,7 +161,7 @@ JSON Schema compliance locally, use **vLLM with xgrammar** or
 
 ---
 
-## Refreshing the KB from upstream MiOS
+## Refreshing the KB from upstream 'MiOS'
 
 ```bash
 # Use the mios_build_kb_refresh function tool against any cloud or local model.

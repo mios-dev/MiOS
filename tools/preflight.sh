@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MiOS preflight check — verifies build prerequisites
+# 'MiOS' preflight check — verifies build prerequisites
 set -euo pipefail
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -9,7 +9,7 @@ warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$*"; }
 
 ERRORS=0
 
-echo "MiOS v$(cat "$(dirname "$0")/../VERSION" 2>/dev/null || echo '?') — Pre-flight Check"
+echo "'MiOS' v$(cat "$(dirname "$0")/../VERSION" 2>/dev/null || echo '?') — Pre-flight Check"
 
 for cmd in podman git just; do
     if command -v "$cmd" >/dev/null 2>&1; then ok "$cmd found"; else fail "$cmd not found"; ERRORS=$((ERRORS+1)); fi

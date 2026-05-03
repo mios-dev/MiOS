@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Hyper-V Enhanced Session Setup (gnome-remote-desktop)
+Description='MiOS' Hyper-V Enhanced Session Setup (gnome-remote-desktop)
 After=local-fs.target network.target gdm.service
 ConditionVirtualization=microsoft
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS greenboot — advisory K3s readiness check (wanted.d = no rollback on fail)
+# 'MiOS' greenboot — advisory K3s readiness check (wanted.d = no rollback on fail)
 # Logs a warning if K3s is enabled but not healthy after boot.
 # Lives in wanted.d so desktop/hybrid roles (where K3s is disabled) never fail.
 set -euo pipefail

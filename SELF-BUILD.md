@@ -1,6 +1,6 @@
 # Self-build guide
 
-MiOS is self-replicating: the published image contains every tool
+'MiOS' is self-replicating: the published image contains every tool
 (`podman`, `buildah`, `bootc`, `bootc-image-builder`) needed to produce
 its own next generation. Source: `Containerfile`, `Justfile`,
 `usr/share/mios/PACKAGES.md` `packages-self-build`.
@@ -8,11 +8,11 @@ its own next generation. Source: `Containerfile`, `Justfile`,
 ## Build chain
 
 ```
-MiOS vN (running) → podman build → MiOS vN+1 (OCI image)
+'MiOS' vN (running) → podman build → 'MiOS' vN+1 (OCI image)
                                          ↓
                               rechunk → cosign keyless sign → push to GHCR
                                          ↓
-                              bootc upgrade → reboot → MiOS vN+1 (running)
+                              bootc upgrade → reboot → 'MiOS' vN+1 (running)
 ```
 
 ## Modes
@@ -68,7 +68,7 @@ just sbom            # CycloneDX SBOM
 just all-bootstrap   # build + rechunk + log to bootstrap repo
 ```
 
-### Mode 4 — Self-build (running MiOS builds next MiOS)
+### Mode 4 — Self-build (running 'MiOS' builds next 'MiOS')
 
 ```bash
 git clone https://github.com/mios-dev/mios.git
@@ -90,12 +90,12 @@ sudo systemctl reboot
 fresh Fedora CoreOS or Fedora Server instance. Compile `.bu` →
 `.ign` with Butane (<https://coreos.github.io/butane/>), provision the
 target with the resulting `.ign`. On first boot it installs `git podman
-just`, clones MiOS, and produces a live installer ISO at
+just`, clones 'MiOS', and produces a live installer ISO at
 `/usr/src/mios/output/mios-installer.iso`.
 
 ## Bootstrapping the first image
 
-If no MiOS image exists yet:
+If no 'MiOS' image exists yet:
 
 1. Install Podman on any Linux (Fedora, Debian/Ubuntu) or use Podman
    Desktop on Windows.
@@ -103,10 +103,10 @@ If no MiOS image exists yet:
    Windows).
 3. The Containerfile pulls
    `ghcr.io/ublue-os/ucore-hci:stable-nvidia` as the base — no prior
-   MiOS image needed.
+   'MiOS' image needed.
 4. Deploy the result to the target (bare metal via ISO, Hyper-V via
    VHDX, etc.).
-5. Subsequent builds can run from inside the deployed MiOS (Mode 4).
+5. Subsequent builds can run from inside the deployed 'MiOS' (Mode 4).
 
 ## Verifying self-build capability
 

@@ -1,7 +1,7 @@
-# MiOS component licenses
+# 'MiOS' component licenses
 
-MiOS is Apache-2.0 (`LICENSE`). Bundled components retain their upstream
-licenses; using MiOS implies acceptance of all of them.
+'MiOS' is Apache-2.0 (`LICENSE`). Bundled components retain their upstream
+licenses; using 'MiOS' implies acceptance of all of them.
 
 ## Third-party (hardware/firmware/proprietary)
 

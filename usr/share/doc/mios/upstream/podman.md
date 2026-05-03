@@ -1,6 +1,6 @@
 # Podman, buildah, skopeo, Quadlets
 
-> Used in MiOS for: image build (`podman build` from `Justfile:build`),
+> Used in 'MiOS' for: image build (`podman build` from `Justfile:build`),
 > sidecar orchestration (Quadlet units in `etc/containers/systemd/` and
 > `usr/share/containers/systemd/`), Windows builder (`mios-build-local.ps1`
 > creates a rootful `mios-builder` Podman machine).
@@ -25,7 +25,7 @@
 ## Quadlets — the systemd-podman bridge
 
 A Quadlet is a systemd unit that podman generates from a `.container`,
-`.volume`, `.network`, or `.kube` file. MiOS uses Quadlets for every
+`.volume`, `.network`, or `.kube` file. 'MiOS' uses Quadlets for every
 image-delivered service.
 
 - Vendor-shipped Quadlets: `usr/share/containers/systemd/`

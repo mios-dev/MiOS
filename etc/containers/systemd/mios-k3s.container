@@ -8,13 +8,13 @@
 # User= omitted: K3s runs as root by necessity (writes to /run/k3s, manages
 # cgroups, kernel netfilter). This is a second documented exception.
 #
-# K3S_TOKEN: This is the MiOS default cluster token. The bootstrap repository
+# K3S_TOKEN: This is the 'MiOS' default cluster token. The bootstrap repository
 # overrides it via a systemd drop-in at ignition time:
 #   /etc/containers/systemd/mios-k3s.container.d/token.conf
 # NEVER change this default to a real secret -- it is visible in the image.
 
 [Unit]
-Description=MiOS K3s Service (Podman-native)
+Description='MiOS' K3s Service (Podman-native)
 After=network-online.target
 Wants=network-online.target
 # Defaults policy: enabled by default; auto-skips on incompatible hosts.

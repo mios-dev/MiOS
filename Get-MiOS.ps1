@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    MiOS bootstrap — one-liner entry point.
+    'MiOS' bootstrap — one-liner entry point.
 
 .DESCRIPTION
     Designed for:  irm https://raw.githubusercontent.com/MiOS-DEV/MiOS/main/Get-MiOS.ps1 | iex
@@ -8,7 +8,7 @@
     What it does:
       1. Elevates to Administrator if needed.
       2. Ensures Git + Podman are present.
-      3. Clones / updates the MiOS repo into $env:USERPROFILE\MiOS.
+      3. Clones / updates the 'MiOS' repo into $env:USERPROFILE\MiOS.
       4. Sets MIOS_UNIFIED_LOG so the entire session writes one flat transcript.
       5. Starts Start-Transcript (unified log).
       6. Calls mios-build-local.ps1 from the repo root.
@@ -47,7 +47,7 @@ function Require-Cmd {
     }
 }
 
-Write-Host "MiOS Bootstrap  (irm | iex entry)" -ForegroundColor Cyan
+Write-Host "'MiOS' Bootstrap  (irm | iex entry)" -ForegroundColor Cyan
 
 # ── 3. Prerequisites ──────────────────────────────────────────────────────────
 Require-Cmd "git"    "Install Git from https://git-scm.com/download/win"

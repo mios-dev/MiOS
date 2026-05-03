@@ -1,5 +1,5 @@
 # ============================================================================
-# MiOS v0.2.0 - 99-mios-gpu.rules
+# 'MiOS' v0.2.0 - 99-mios-gpu.rules
 # Pinned GPU device permissions across all vendors.
 # Fedora Rawhide's kernel udev rules already handle most of this; this file
 # exists to pin behavior deterministically in case setup/systemd-udev ever

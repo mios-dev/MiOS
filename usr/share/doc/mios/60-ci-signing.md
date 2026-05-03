@@ -72,7 +72,7 @@ same scope.
 
 ## GHCR retention
 
-Untagged manifests are pruned after 90 days by default. MiOS protects:
+Untagged manifests are pruned after 90 days by default. 'MiOS' protects:
 
 - The latest signed digest (`:latest`)
 - The last 5 release-tag digests
@@ -91,7 +91,7 @@ podman manifest add    ghcr.io/mios-dev/mios:<tag> docker://localhost/mios-arm64
 podman manifest push --all ghcr.io/mios-dev/mios:<tag>
 ```
 
-Currently MiOS publishes `linux/amd64` only; `linux/arm64` is on the
+Currently 'MiOS' publishes `linux/amd64` only; `linux/arm64` is on the
 roadmap once the NVIDIA stack on aarch64 (Grace, Orin, Spark) stabilizes.
 
 ## image-versions.yml + Renovate

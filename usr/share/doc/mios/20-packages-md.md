@@ -4,7 +4,7 @@
 > `automation/lib/packages.sh:get_packages`.
 
 `usr/share/mios/PACKAGES.md` (NOT repo root) is the SSOT for every RPM
-installed into the MiOS image. The format is **fenced markdown blocks**,
+installed into the 'MiOS' image. The format is **fenced markdown blocks**,
 not a table. Each category lives in a fenced ` ```packages-<category>`
 block:
 

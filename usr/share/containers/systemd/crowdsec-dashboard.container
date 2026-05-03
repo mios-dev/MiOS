@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS CrowdSec Dashboard
+Description='MiOS' CrowdSec Dashboard
 After=network-online.target crowdsec.service
 Wants=network-online.target
 # Defaults policy: enabled by default; auto-skips when CrowdSec isn't

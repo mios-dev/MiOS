@@ -1,6 +1,6 @@
-# MiOS — Package Manifest (single source of truth for image RPMs)
+# 'MiOS' — Package Manifest (single source of truth for image RPMs)
 > **Attribution:** MiOS-DEV (Administrative Alias)
-> **Infrastructure:** MiOS Open-Source Build Pipeline
+> **Infrastructure:** 'MiOS' Open-Source Build Pipeline
 > **License:** Apache-2.0 (Open-Source Infrastructure)
 ---
 **SECUREBOOT COMPLIANCE:** Proprietary NVIDIA drivers and Steam are included as
@@ -9,7 +9,7 @@ utility. These align with MiOS-DEV core values of hardware compatibility and
 zero-trust security.
 ---
 ---
-# MiOS v0.2.0 — Package Manifest
+# 'MiOS' v0.2.0 — Package Manifest
 
 This file is both documentation and the **single source of truth** for all packages installed in MiOS.
 Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
@@ -667,7 +667,7 @@ gettext
 ## Network Discovery — Avahi / mDNS
 
 mDNS/DNS-SD for automatic .local hostname discovery on LAN.
-Every MiOS instance advertises Cockpit and RDP services.
+Every 'MiOS' instance advertises Cockpit and RDP services.
 
 ```packages-network-discovery
 avahi

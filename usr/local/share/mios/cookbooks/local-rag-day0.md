@@ -1,4 +1,4 @@
-# Cookbook: Day-0 Local RAG against MiOS LocalAI
+# Cookbook: Day-0 Local RAG against 'MiOS' LocalAI
 
 > Full path: `/usr/local/share/mios/cookbooks/local-rag-day0.md`
 > Canonical local target. Same recipe works against Ollama / vLLM /
@@ -6,7 +6,7 @@
 
 ## Why this path
 
-LAW 5 (UNIFIED-AI-REDIRECTS) requires every MiOS agent to target
+LAW 5 (UNIFIED-AI-REDIRECTS) requires every 'MiOS' agent to target
 `http://localhost:8080/v1` — the LocalAI Quadlet at
 `etc/containers/systemd/mios-ai.container`. Running the KB through
 the same endpoint gives bit-for-bit consistency between what an
@@ -15,10 +15,10 @@ end-user agent sees and what your retrieval/eval pipeline sees.
 ## Prerequisites
 
 ```bash
-# Inside MiOS (or any Linux host with podman + python3)
+# Inside 'MiOS' (or any Linux host with podman + python3)
 sudo systemctl is-active mios-ai.service && echo "LocalAI is up"
 
-# Or for non-MiOS hosts, start a Qdrant for the vector index:
+# Or for non-'MiOS' hosts, start a Qdrant for the vector index:
 podman run -d --name qdrant -p 6333:6333 -p 6334:6334 \
   -v $PWD/qdrant_data:/qdrant/storage:Z docker.io/qdrant/qdrant:latest
 
@@ -82,7 +82,7 @@ def answer(query: str):
     return httpx.post(f"{endpoint}/chat/completions", headers=headers,
                       json={"model": chat_m, "messages": msgs}).json()["choices"][0]["message"]["content"]
 
-print(answer("Why does MiOS use lockdown=integrity not confidentiality?"))
+print(answer("Why does 'MiOS' use lockdown=integrity not confidentiality?"))
 ```
 
 ## Step 4 — Run the eval against your local stack
@@ -102,7 +102,7 @@ Pass rate < 100% indicates retrieval/model gaps to address.
 
 | Runtime | `MIOS_AI_ENDPOINT` | `MIOS_AI_MODEL` |
 | --- | --- | --- |
-| MiOS LocalAI (canonical) | `http://localhost:8080/v1` | (per LocalAI manifest) |
+| 'MiOS' LocalAI (canonical) | `http://localhost:8080/v1` | (per LocalAI manifest) |
 | Ollama | `http://localhost:11434/v1` | `qwen2.5:32b` etc. |
 | vLLM | `http://localhost:8000/v1` | `meta-llama/Llama-3.1-70B-Instruct` |
 | LM Studio | `http://localhost:1234/v1` | (per LM Studio loaded model) |

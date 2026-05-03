@@ -1,4 +1,4 @@
-# bib-configs/iso.toml - MiOS v0.2.0
+# bib-configs/iso.toml - 'MiOS' v0.2.0
 # Target: Anaconda unattended installer ISO for bare-metal install.
 #
 # NOTE: BIB #528 - [customizations.user] is ignored when kickstart is present.

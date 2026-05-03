@@ -1,11 +1,11 @@
 # Deployment
 
-This document covers how to deploy a built MiOS image. For build
+This document covers how to deploy a built 'MiOS' image. For build
 instructions see `SELF-BUILD.md`.
 
 ## Targets
 
-MiOS produces one OCI image and several disk-image artifacts derived
+'MiOS' produces one OCI image and several disk-image artifacts derived
 from it via `bootc-image-builder` (BIB) — see `Justfile`:
 
 | Target | `just` recipe | BIB config | Output |
@@ -68,7 +68,7 @@ with the Microsoft UEFI CA.
 QEMU/KVM: `qemu-system-x86_64 -enable-kvm -drive file=output/*.qcow2,if=virtio
 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd ...`.
 
-WSL2: `wsl --import MiOS C:\WSL\MiOS output/disk.wsl2`.
+WSL2: `wsl --import 'MiOS' C:\WSL\'MiOS' output/disk.wsl2`.
 
 ## Image verification
 

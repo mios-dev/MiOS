@@ -1,4 +1,4 @@
-# /usr/share/mios/profile.toml -- MiOS Profile Defaults (vendor-immutable)
+# /usr/share/mios/profile.toml -- 'MiOS' Profile Defaults (vendor-immutable)
 #
 # This file ships in mios.git and is baked into every image. It is the
 # read-only DEFAULT layer of the three-layer profile resolution:
@@ -20,7 +20,7 @@
 
 [identity]
 username  = "mios"
-fullname  = "MiOS User"
+fullname  = "'MiOS' User"
 hostname  = "mios"
 shell     = "/bin/bash"
 groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "docker"]

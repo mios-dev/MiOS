@@ -3,7 +3,7 @@
 > Source: `README.md`, `ARCHITECTURE.md` §Filesystem-layout,
 > `Containerfile` (`ctx` scratch stage), `INDEX.md` §1.
 
-The MiOS repo's root **is** the deployed system root. There is **no
+The 'MiOS' repo's root **is** the deployed system root. There is **no
 `system_files/` directory** — that was a v1 KB fabrication. The `ctx`
 scratch stage in `Containerfile` does:
 

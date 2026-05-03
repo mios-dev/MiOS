@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-MiOS is an immutable, `bootc`-managed Fedora-derived workstation OS distributed as an OCI image. The repo root **is** the deployed system root: `usr/`, `etc/`, `srv/`, `var/`, `proc/`, `opt/` at the top level mirror their FHS-3.0 destinations. There is no `system_files/` indirection; `automation/08-system-files-overlay.sh` overlays them into the image.
+'MiOS' is an immutable, `bootc`-managed Fedora-derived workstation OS distributed as an OCI image. The repo root **is** the deployed system root: `usr/`, `etc/`, `srv/`, `var/`, `proc/`, `opt/` at the top level mirror their FHS-3.0 destinations. There is no `system_files/` indirection; `automation/08-system-files-overlay.sh` overlays them into the image.
 
 The published image is `ghcr.io/mios-dev/mios:latest` and is built `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia` (set via `MIOS_BASE_IMAGE`).
 
@@ -92,7 +92,7 @@ kargs = ["init_on_alloc=1", "lockdown=integrity"]
 
 No `[kargs]` section header, no `delete` sub-key. Files processed in lexicographic order; earlier entries cannot be removed by later files in the same image — use runtime `bootc kargs --delete` for removal.
 
-Note: `lockdown=integrity` (not `confidentiality`). `init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` are **disabled** in MiOS due to NVIDIA/CUDA incompatibility.
+Note: `lockdown=integrity` (not `confidentiality`). `init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` are **disabled** in 'MiOS' due to NVIDIA/CUDA incompatibility.
 
 ## Service gating
 

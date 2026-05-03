@@ -1,6 +1,6 @@
-# MiOS v0.2.2 — AI Ingestion Index
+# 'MiOS' v0.2.2 — AI Ingestion Index
 
-MiOS is an immutable bootc-native Fedora workstation OS (base: `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) delivered as an OCI image. The `mios.git` repo root is the system root `/`. No separate workspace.
+'MiOS' is an immutable bootc-native Fedora workstation OS (base: `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) delivered as an OCI image. The `mios.git` repo root is the system root `/`. No separate workspace.
 
 ## System specification
 - [AI.md](./AI.md): System-layer agent entry point (build, env, architecture)

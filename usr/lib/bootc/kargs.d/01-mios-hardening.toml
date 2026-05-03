@@ -1,4 +1,4 @@
-# MiOS -- SecureBlue-adapted kernel hardening (upstream April 2026 pass)
+# 'MiOS' -- SecureBlue-adapted kernel hardening (upstream April 2026 pass)
 kargs = [
     "slab_nomerge",
     # "init_on_alloc=1",

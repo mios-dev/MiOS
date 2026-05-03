@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Ollama LLM Server
+Description='MiOS' Ollama LLM Server
 After=network-online.target
 Wants=network-online.target
 # Defaults policy: enabled by default. Ollama runs CPU-only when no

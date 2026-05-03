@@ -6,7 +6,7 @@
 # the unit no-ops at pre-boot rather than crash-looping.
 
 [Unit]
-Description=MiOS AI inference backend (OpenAI-compatible)
+Description='MiOS' AI inference backend (OpenAI-compatible)
 After=network-online.target
 Wants=network-online.target
 ConditionPathIsDirectory=/etc/mios/ai

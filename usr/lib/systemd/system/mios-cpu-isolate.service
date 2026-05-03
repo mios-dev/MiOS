@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS CPU Core Isolation Engine
+Description='MiOS' CPU Core Isolation Engine
 ConditionVirtualization=no
 After=local-fs.target
 

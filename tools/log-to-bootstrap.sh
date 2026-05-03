@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS Artifact Logging to MiOS-Bootstrap Repository
+# 'MiOS' Artifact Logging to MiOS-Bootstrap Repository
 # Purpose: Log AI RAG and build artifacts to bootstrap repo for distribution
 
 set -euo pipefail
@@ -9,7 +9,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 BOOTSTRAP_REPO="${BOOTSTRAP_REPO:-${HOME}/MiOS-bootstrap}"
 MIOS_VERSION=$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "v0.2.0")
 
-echo "MiOS Artifact Logging to Bootstrap Repository"
+echo "'MiOS' Artifact Logging to Bootstrap Repository"
 echo "Version: ${MIOS_VERSION}"
 
 # Check if bootstrap repo exists
@@ -116,7 +116,7 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     "LocalAI",
     "vLLM"
   ],
-  "license": "Personal Property - MiOS Project",
+  "license": "Personal Property - 'MiOS' Project",
   "repository": "https://github.com/MiOS-DEV/mios"
 }
 MANIFEST
@@ -125,7 +125,7 @@ echo "✓ Manifest generated: ${ARTIFACT_DIR}/manifest.json"
 
 # Create README for bootstrap artifacts
 cat > "${ARTIFACT_DIR}/README.md" << README
-# MiOS ${MIOS_VERSION} - AI RAG Artifacts
+# 'MiOS' ${MIOS_VERSION} - AI RAG Artifacts
 
 **Generated:** $(date -u +%Y-%m-%d)  
 **Compression:** 928 MB → 752 KB (99.92% reduction)  
@@ -205,7 +205,7 @@ curl http://localhost:11434/api/chat -d '{
   "model": "llama3.1:8b",
   "messages": [
     {"role": "system", "content": "$(cat mios-knowledge-graph.json)"},
-    {"role": "user", "content": "Explain MiOS architecture"}
+    {"role": "user", "content": "Explain 'MiOS' architecture"}
   ]
 }'
 \`\`\`
@@ -213,7 +213,7 @@ curl http://localhost:11434/api/chat -d '{
 ## Distribution
 
 These artifacts enable:
-- FOSS AI agent initialization with full MiOS context
+- FOSS AI agent initialization with full 'MiOS' context
 - Offline RAG deployment (no cloud AI required)
 - Reproducible AI-assisted development
 - Knowledge preservation across versions
@@ -222,7 +222,7 @@ These artifacts enable:
 
 **Repository:** https://github.com/MiOS-DEV/mios  
 **Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap  
-**License:** Personal Property - MiOS Project
+**License:** Personal Property - 'MiOS' Project
 README
 
 echo "✓ README generated: ${ARTIFACT_DIR}/README.md"
@@ -262,5 +262,5 @@ echo ""
 echo "Next steps:"
 echo "  cd ${BOOTSTRAP_REPO}"
 echo "  git add ."
-echo "  git commit -m \"Add MiOS ${MIOS_VERSION} AI RAG artifacts\""
+echo "  git commit -m \"Add 'MiOS' ${MIOS_VERSION} AI RAG artifacts\""
 echo "  git push"

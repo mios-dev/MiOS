@@ -1,6 +1,6 @@
 # ostree — Content-Addressed Filesystem Tree
 
-> Used by MiOS as: the storage backend underneath bootc. The
+> Used by 'MiOS' as: the storage backend underneath bootc. The
 > `Containerfile` ends with `RUN ostree container commit` immediately
 > before `bootc container lint`. composefs (next page) is layered on top.
 
@@ -14,7 +14,7 @@ trees. Each commit references a tree of file objects (deduplicated by
 SHA-256). A "deployment" is a hardlinked checkout of a commit into
 `/sysroot/ostree/deploy/<stateroot>/deploy/<csum>.<n>`.
 
-| Concept | What it is | Where in MiOS |
+| Concept | What it is | Where in 'MiOS' |
 | --- | --- | --- |
 | Object store | `/sysroot/ostree/repo/objects/` | composefs makes this immutable + verified |
 | Refs | named pointers to commits | `bootc switch` rewrites the active ref |
@@ -38,7 +38,7 @@ bootc currently uses ostree as backend. The two share metadata:
 ## composefs is the migration path
 
 `bootc-composefs-native` (in development) replaces ostree-as-backend with
-a thin composefs binding. MiOS already enables composefs *on top of*
+a thin composefs binding. 'MiOS' already enables composefs *on top of*
 ostree via `usr/lib/ostree/prepare-root.conf`, getting the
 content-addressed read-only `/usr` mount today.
 

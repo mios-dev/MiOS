@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS GPU Environment Detection
+Description='MiOS' GPU Environment Detection
 ConditionVirtualization=!container
 DefaultDependencies=no
 Before=gdm.service display-manager.service systemd-modules-load.service systemd-udevd.service

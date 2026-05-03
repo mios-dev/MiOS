@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — 30-locale-theme: Unified dark theme for EVERY window type
+# 'MiOS' v0.2.0 — 30-locale-theme: Unified dark theme for EVERY window type
 #
 # Coverage matrix (ALL must be dark):
 #   ✓ libadwaita / GTK4 apps (GNOME native) — color-scheme=prefer-dark via dconf
@@ -16,7 +16,7 @@
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
 
-echo "  MiOS v0.2.0 — Universal Dark Theme"
+echo "  'MiOS' v0.2.0 — Universal Dark Theme"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
 # v0.2.0: Delivered via usr/share/skel/.bashrc overlay.

@@ -8,7 +8,7 @@
 Shipped via `usr/lib/bootc/kargs.d/00-mios.toml` and friends. See
 `40-kargs.md` for the full table. Notable: `lockdown=integrity` (NOT
 `confidentiality`); `init_on_alloc=1`/`init_on_free=1`/
-`page_alloc.shuffle=1` are **disabled** in MiOS due to NVIDIA/CUDA
+`page_alloc.shuffle=1` are **disabled** in 'MiOS' due to NVIDIA/CUDA
 memory-init incompatibility.
 
 ## Layer 2 — Sysctl
@@ -156,6 +156,6 @@ CI signs every push with cosign keyless via GitHub Actions OIDC. See
 
 ## Reporting vulnerabilities
 
-GitHub private vulnerability reporting on the MiOS repo (Security tab →
+GitHub private vulnerability reporting on the 'MiOS' repo (Security tab →
 Report a vulnerability). Do not file public issues for sensitive
 disclosures.

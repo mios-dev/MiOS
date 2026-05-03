@@ -1,11 +1,11 @@
 #!/bin/bash
-# MiOS AI/manifest bootstrap. Regenerates directory manifests, syncs the Wiki,
+# 'MiOS' AI/manifest bootstrap. Regenerates directory manifests, syncs the Wiki,
 # rebuilds the unified knowledge base (RAG snapshot), refreshes user-space
 # environment configs, and seeds shared agent context. Idempotent.
 
 set -uo pipefail
 
-echo "[ai-bootstrap] Initializing MiOS agent workspace..."
+echo "[ai-bootstrap] Initializing 'MiOS' agent workspace..."
 
 # 0. Load unified environment (legacy .env.mios; deprecated — prefer
 # /etc/mios/profile.toml for new installs).
@@ -60,7 +60,7 @@ fi
 echo "[ai-bootstrap] Workspace initialization complete."
 
 # 6. Seed RAG context for downstream agents.
-echo "[ai-bootstrap] Seeding latest MiOS context for initialized agents..."
+echo "[ai-bootstrap] Seeding latest 'MiOS' context for initialized agents..."
 if [[ -f "artifacts/repo-rag-snapshot.json.gz" ]]; then
     mkdir -p .ai/foundation/shared-tmp/
     cp artifacts/repo-rag-snapshot.json.gz .ai/foundation/shared-tmp/latest-context.json.gz

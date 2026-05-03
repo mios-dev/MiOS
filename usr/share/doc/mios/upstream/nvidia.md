@@ -1,6 +1,6 @@
-# NVIDIA on MiOS
+# NVIDIA on 'MiOS'
 
-> MiOS uses `:stable-nvidia` from ucore-hci (proprietary driver,
+> 'MiOS' uses `:stable-nvidia` from ucore-hci (proprietary driver,
 > akmod-built, MOK-signed). NVIDIA Container Toolkit + CDI is the path
 > for containerized GPU workloads. Source: `ARCHITECTURE.md` §Pillars,
 > `usr/share/doc/mios/40-kargs.md` §VFIO, `automation/34-gpu-detect.sh`.
@@ -20,8 +20,8 @@
 
 `akmod-nvidia` builds the kernel module against the running kernel and
 signs it with the MOK (Machine Owner Key) baked into the base image.
-Because MiOS is locked-down (`lockdown=integrity`), only signed
-modules load. MiOS doesn't re-sign — the base image's MOK is trusted by
+Because 'MiOS' is locked-down (`lockdown=integrity`), only signed
+modules load. 'MiOS' doesn't re-sign — the base image's MOK is trusted by
 the bootloader chain.
 
 ## NVIDIA-LTS variant
@@ -33,7 +33,7 @@ driver, override `MIOS_BASE_IMAGE`:
 MIOS_BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia-lts just build
 ```
 
-Note: `:stable-nvidia-lts` is an **ucore-hci tag**, not a separate MiOS
+Note: `:stable-nvidia-lts` is an **ucore-hci tag**, not a separate 'MiOS'
 image tag (the v1 KB had this wrong).
 
 ## Container GPU access
@@ -53,7 +53,7 @@ specific containers via `/etc/cdi/<override>.yaml`.
 - NVIDIA Container Toolkit: <https://github.com/NVIDIA/nvidia-container-toolkit>
 - CDI spec: <https://github.com/cncf-tags/container-device-interface>
 
-## VFIO passthrough (MiOS specifically)
+## VFIO passthrough ('MiOS' specifically)
 
 For passthrough to a guest VM, see `usr/share/doc/mios/40-kargs.md`
 §VFIO. The host detects passthrough-eligible devices at runtime via

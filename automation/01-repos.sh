@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — 01-repos: Fedora 44 overlay on ucore
+# 'MiOS' v0.2.0 — 01-repos: Fedora 44 overlay on ucore
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"

@@ -1,20 +1,20 @@
 import os
 import re
 
-HEADER = """<!-- 🌐 MiOS Artifact | Proprietor: MiOS Project | https://github.com/MiOS-DEV/mios -->
-# 🌐 MiOS
-> **Proprietor:** MiOS Project
+HEADER = """<!-- 🌐 'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+# 🌐 'MiOS'
+> **Proprietor:** 'MiOS' Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
-> **License:** Licensed as personal property to MiOS Project
+> **License:** Licensed as personal property to 'MiOS' Project
 > **Source Reference:** MiOS-Core-v0.2.0
 ---"""
 
 FOOTER = """---
 ### ⚖️ Legal & Source Reference
-- **Copyright:** (c) 2026 MiOS Project
+- **Copyright:** (c) 2026 'MiOS' Project
 - **Status:** Personal Property / Private Infrastructure
 - **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
-- **Documentation:** [MiOS Navigation Hub](https://github.com/MiOS-DEV/mios/blob/main/specs/Home.md)
+- **Documentation:** ['MiOS' Navigation Hub](https://github.com/MiOS-DEV/mios/blob/main/specs/Home.md)
 - **Artifact Hub:** [ai-context.json](https://github.com/MiOS-DEV/mios/blob/main/ai-context.json)
 ---"""
 
