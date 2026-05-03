@@ -31,12 +31,15 @@ ConditionVirtualization=!container
 [Container]
 Image=docker.io/alpine/socat:latest
 ContainerName=mios-cockpit-link
-# Forward 19090 (container) -> host:9090 (cockpit). host.containers.internal
-# is Podman's documented loopback-to-host alias (mirrors Docker's
-# host.docker.internal); falls back to the well-known
-# 10.88.0.1 gateway if the alias isn't resolvable.
-Exec=tcp-listen:19090,fork,reuseaddr tcp:host.containers.internal:9090
-PublishPort=19090:19090
+# Forward 19090 (container, bound 0.0.0.0) -> host:9090 (cockpit).
+# host.containers.internal is Podman's documented loopback-to-host
+# alias (mirrors Docker's host.docker.internal); falls back to the
+# well-known 10.88.0.1 gateway if the alias isn't resolvable.
+# bind=0.0.0.0 makes the listener reachable from the host LAN,
+# sibling containers, and the loopback alike (matches the access
+# surface contract every other MiOS service holds to).
+Exec=tcp-listen:19090,bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
+PublishPort=0.0.0.0:19090:19090
 
 # OCI labels Podman Desktop renders. The url label is the canonical
 # Cockpit endpoint (https; cockpit-ws issues a self-signed cert by

@@ -29,10 +29,21 @@ firewall-cmd --permanent --add-port=5900-5999/tcp 2>/dev/null || true
 firewall-cmd --permanent --add-port=6443/tcp --add-port=10250/tcp 2>/dev/null || true
 # Pacemaker/Corosync
 firewall-cmd --permanent --add-port=2224/tcp --add-port=5403-5405/udp 2>/dev/null || true
-# CrowdSec dashboard + iVentoy
+# mios-ai (LocalAI /v1 OpenAI-API endpoint -- Architectural Law 5)
+firewall-cmd --permanent --add-port=8080/tcp 2>/dev/null || true
+# mios-guacamole web (Browser desktop; mapped from container :8080 to host :8090
+# to avoid the mios-ai port collision)
+firewall-cmd --permanent --add-port=8090/tcp 2>/dev/null || true
+# ollama API (alternate local LLM backend alongside mios-ai)
+firewall-cmd --permanent --add-port=11434/tcp 2>/dev/null || true
+# CrowdSec dashboard + iVentoy + mios-forge HTTP (port 3000 shared by both)
 firewall-cmd --permanent --add-port=3000/tcp --add-port=26000/tcp 2>/dev/null || true
+# mios-forge git+ssh (non-22 to coexist with sshd)
+firewall-cmd --permanent --add-port=2222/tcp 2>/dev/null || true
 # Cockpit on 9090 (already via service but explicit)
 firewall-cmd --permanent --add-port=9090/tcp 2>/dev/null || true
+# mios-cockpit-link Podman Desktop discovery shim (19090 -> host 9090)
+firewall-cmd --permanent --add-port=19090/tcp 2>/dev/null || true
 # Trust internal interfaces (including dynamic netavark/k3s bridges via wildcards)
 # nftables backend drops unassigned interfaces strictly into the drop zone
 for iface in lo podman+ br-+ veth+ virbr0 cni0 flannel.1 waydroid0; do

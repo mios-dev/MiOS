@@ -112,6 +112,47 @@ Active gating (referenced in `etc/containers/systemd/` and
 | `mios-forge-firstboot` | `ConditionPathExists=/etc/mios/install.env`, `!sentinel`, `!container` | install.env absent, already ran, nested |
 | `mios-cockpit-link` | `ConditionPathExists=/usr/lib/systemd/system/cockpit.socket`, `!container` | Podman Desktop UI shim that publishes :19090 → host :9090 so the Cockpit web console is clickable from the container view; skipped when cockpit isn't installed |
 
+## 5b. Service access surface (LAN-reachable by default)
+
+Every 'MiOS' service binds `0.0.0.0` on its listening port so the same
+deployment is reachable from
+- `127.0.0.1` / `::1` (local loopback)
+- the host LAN IP (remote-LAN access on bare-metal, Hyper-V VM, or
+  WSL2 with `networkingMode=mirrored`)
+- Podman bridge / `cni0` / `virbr0` (sibling-container access on
+  `mios.network` and the libvirt bridge)
+
+Container Quadlets use `PublishPort=0.0.0.0:HOST:CONTAINER` (Podman's
+default already binds 0.0.0.0; the explicit prefix makes the contract
+auditable). Apps inside containers that take an explicit listen
+address get `Environment=ADDRESS=0.0.0.0:PORT` (LocalAI),
+`OLLAMA_HOST=0.0.0.0:11434` (Ollama), or
+`FORGEJO__server__HTTP_ADDR=0.0.0.0` (Forgejo). Cockpit on the host
+listens via `cockpit.socket` whose default `ListenStream=9090` already
+binds the wildcard address.
+
+Firewalld is the actual gate. Default zone is `drop`; the ports below
+are opened by `automation/25-firewall-ports.sh` (build-time) and
+`automation/33-firewall.sh` (runtime mios-firewall-init):
+
+| Port  | Proto | Service | Notes |
+|---|---|---|---|
+| 22    | tcp | sshd          | host service |
+| 2222  | tcp | mios-forge    | git+ssh (non-22 to coexist with sshd) |
+| 3000  | tcp | mios-forge    | Forgejo HTTP web UI |
+| 3389  | tcp | RDP           | GNOME Remote Desktop / xRDP |
+| 6443  | tcp | k3s           | Kubernetes API |
+| 8080  | tcp | mios-ai       | LocalAI /v1 (Architectural Law 5) |
+| 8090  | tcp | mios-guacamole| Browser desktop (mapped from container 8080) |
+| 8443  | tcp | mios-ceph     | Ceph dashboard |
+| 9090  | tcp | cockpit       | host web console |
+| 11434 | tcp | ollama        | alternate local LLM backend |
+| 19090 | tcp | mios-cockpit-link | Podman Desktop discovery shim → 9090 |
+
+Internal-only services (no `PublishPort`, reachable only from the
+`mios.network` bridge): `guacamole-postgres` (5432), `guacd` (4822),
+`crowdsec-dashboard` (LAPI 8080 sibling-only), `mios-pxe-hub`.
+
 ## 6. Global pipeline phases
 
 The end-to-end bootstrap → install pipeline is partitioned into five phases
