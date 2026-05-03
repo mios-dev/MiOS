@@ -19,6 +19,14 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Acknowledgment banner (dot-sourced; respects MIOS_AGREEMENT_BANNER and
+# MIOS_REQUIRE_AGREEMENT_ACK).
+$_bannerPath = Join-Path -Path $PSScriptRoot -ChildPath 'automation/lib/agreements-banner.ps1'
+if ($_bannerPath -and (Test-Path $_bannerPath)) {
+    . $_bannerPath; Invoke-MiOSAgreementBanner -Entry 'install.ps1'
+}
+Remove-Variable _bannerPath -ErrorAction SilentlyContinue
+
 # ─── constants ────────────────────────────────────────────────────────────────
 $Version        = (Get-Content (Join-Path $PSScriptRoot "VERSION") -EA SilentlyContinue)?.Trim() ?? "0.2.2"
 $RepoUrl        = "https://github.com/MiOS-DEV/MiOS.git"

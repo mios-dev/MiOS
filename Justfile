@@ -1,10 +1,28 @@
 # 'MiOS' v0.2.0 - Linux Build Targets
 # Requires: podman, just
 # Usage: just build | just iso | just all
+#
+# By invoking any 'just' target you acknowledge AGREEMENTS.md
+# (Apache-2.0 main + bundled-component licenses in LICENSES.md +
+# attribution in CREDITS.md). 'MiOS' is a research project (pronounced
+# 'MyOS'; generative, seed-script-derived). Set MIOS_AGREEMENT_BANNER=quiet
+# to silence the per-script banners that appear during build.
 
 # Load user environment from XDG-compliant configuration
 # This sources $HOME/.config/mios/*.toml files and exports MIOS_* variables
 _load_env := `bash -c 'source ./tools/lib/userenv.sh 2>/dev/null || true'`
+_agreement_banner := `bash -c '
+case "${MIOS_AGREEMENT_BANNER:-}" in
+    quiet|silent|off|0|false|FALSE) ;;
+    *)
+        cat >&2 <<__EOF__
+[mios] just build target invoked. AGREEMENTS.md acknowledged
+       (Apache-2.0 + LICENSES.md + CREDITS.md). Research project
+       (pronounced MyOS; generative, seed-script-derived).
+__EOF__
+        ;;
+esac
+true'`
 
 MIOS_REGISTRY_DEFAULT := "ghcr.io/MiOS-DEV/mios" # @verb:GET_REGISTRY
 IMAGE_NAME := env_var_or_default("MIOS_IMAGE_NAME", MIOS_REGISTRY_DEFAULT) # @verb:GET_IMAGE

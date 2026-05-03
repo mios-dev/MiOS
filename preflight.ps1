@@ -10,6 +10,12 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 #>
 $ErrorActionPreference = "Continue"
 
+# Acknowledgment banner (dot-sourced; respects $env:MIOS_AGREEMENT_BANNER
+# and $env:MIOS_REQUIRE_AGREEMENT_ACK).
+$_bannerPath = Join-Path -Path $PSScriptRoot -ChildPath 'automation/lib/agreements-banner.ps1'
+if (Test-Path $_bannerPath) { . $_bannerPath; Invoke-MiOSAgreementBanner -Entry 'preflight.ps1' }
+Remove-Variable _bannerPath -ErrorAction SilentlyContinue
+
 Write-Host "'MiOS' Preflight -- Prerequisites Check" -ForegroundColor Cyan
 
 $pass = 0

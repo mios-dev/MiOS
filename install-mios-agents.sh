@@ -18,6 +18,15 @@
 # Run: bash /path/to/install-mios-agents.sh
 set -euo pipefail
 
+# Acknowledgment banner (sourced; respects MIOS_AGREEMENT_BANNER and
+# MIOS_REQUIRE_AGREEMENT_ACK).
+_repo_root_for_banner="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=automation/lib/agreements-banner.sh
+[[ -r "${_repo_root_for_banner}/automation/lib/agreements-banner.sh" ]] && \
+    . "${_repo_root_for_banner}/automation/lib/agreements-banner.sh" && \
+    mios_print_agreement_banner "install-mios-agents.sh"
+unset _repo_root_for_banner
+
 MIOS_REPO="/mios"
 PROMPT_SRC="${MIOS_REPO}/system-prompt.md"
 

@@ -26,6 +26,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Acknowledgment banner. Get-MiOS.ps1 is designed for the
+# 'irm ... | iex' one-liner case where $PSScriptRoot is empty, so the
+# banner is inlined rather than dot-sourced. Respects
+# $env:MIOS_AGREEMENT_BANNER for quiet invocation.
+if ($env:MIOS_AGREEMENT_BANNER -notin @('quiet','silent','off','0','false','FALSE')) {
+    [Console]::Error.WriteLine(@"
+[mios] By invoking Get-MiOS.ps1 you acknowledge AGREEMENTS.md
+       (Apache-2.0 main + bundled-component licenses in LICENSES.md +
+        attribution in CREDITS.md). 'MiOS' is a research project
+       (pronounced 'MyOS'; generative, seed-script-derived).
+"@)
+}
+
 # ── 1. Elevation ──────────────────────────────────────────────────────────────
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
          ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {

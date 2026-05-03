@@ -15,6 +15,15 @@
 
 set -euo pipefail
 
+# Acknowledgment banner (sourced; informational; respects
+# MIOS_AGREEMENT_BANNER=quiet and MIOS_REQUIRE_AGREEMENT_ACK=1).
+_repo_root_for_banner="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=automation/lib/agreements-banner.sh
+[[ -r "${_repo_root_for_banner}/automation/lib/agreements-banner.sh" ]] && \
+    . "${_repo_root_for_banner}/automation/lib/agreements-banner.sh" && \
+    mios_print_agreement_banner "install.sh"
+unset _repo_root_for_banner
+
 # Refuse to run on bootc-managed hosts.
 if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted"'; then
     echo "[FAIL] This host is bootc-managed. install.sh is for non-bootc Fedora hosts." >&2

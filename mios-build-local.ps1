@@ -23,6 +23,14 @@
 
 $ErrorActionPreference = "Stop"
 
+# Acknowledgment banner (dot-sourced; respects MIOS_AGREEMENT_BANNER and
+# MIOS_REQUIRE_AGREEMENT_ACK env vars).
+$_bannerPath = Join-Path -Path $PSScriptRoot -ChildPath 'automation/lib/agreements-banner.ps1'
+if ($_bannerPath -and (Test-Path $_bannerPath)) {
+    . $_bannerPath; Invoke-MiOSAgreementBanner -Entry 'mios-build-local.ps1'
+}
+Remove-Variable _bannerPath -ErrorAction SilentlyContinue
+
 # ==============================================================================
 #  UI HELPERS & MASKING ENGINE
 # ==============================================================================

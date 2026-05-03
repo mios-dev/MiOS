@@ -32,6 +32,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Acknowledgment banner.
+$_bannerPath = Join-Path -Path $PSScriptRoot -ChildPath 'automation/lib/agreements-banner.ps1'
+if ($_bannerPath -and (Test-Path $_bannerPath)) {
+    . $_bannerPath; Invoke-MiOSAgreementBanner -Entry 'push-to-github.ps1'
+}
+Remove-Variable _bannerPath -ErrorAction SilentlyContinue
+
 function Write-Step([string]$msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Write-Ok  ([string]$msg) { Write-Host "    $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "    $msg" -ForegroundColor Yellow }

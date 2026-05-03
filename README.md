@@ -1,5 +1,25 @@
 # 'MiOS'
 
+> **Pronounced "MyOS"** -- short for *My OS* / *My Operating System*. The
+> name is a stylistic capitalization of the same shorthand; it carries no
+> other meaning and refers to no person or organization.
+>
+> **Project nature.** 'MiOS' is a **research project**, not a commercial
+> product. It is *generative*: synthesized from a small set of seed
+> scripts and manually-curated documentation, then iteratively expanded
+> by automated tooling and human review. Treat every script, lint, and
+> default as an artifact under ongoing review.
+>
+> **Runtime agreements.** By invoking any entry point in this repo
+> (`just <target>`, `install.sh`, `install.ps1`, `bootstrap.{sh,ps1}`,
+> the deployed `mios` CLIs, `bootc upgrade` against a 'MiOS' image, ...),
+> you acknowledge [`AGREEMENTS.md`](./AGREEMENTS.md) -- Apache-2.0 main
+> license, bundled-component licenses ([`LICENSES.md`](./LICENSES.md)),
+> and attribution ([`CREDITS.md`](./CREDITS.md)). All upstream projects
+> and standards referenced here are the property of their respective
+> owners; 'MiOS' integrates with them but claims no affiliation with
+> them.
+
 An immutable, container-image-shaped Linux workstation that boots like an OS,
 upgrades like a `git pull`, and rolls back like a Ctrl-Z. It's Fedora
 underneath, with a curated stack on top for people who actually use their
