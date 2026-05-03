@@ -14,7 +14,9 @@ function Write-MiosInstallEnv {
         [Parameter(Mandatory)][string]$WslDistro,
         [Parameter(Mandatory)][string]$User,
         [Parameter(Mandatory)][string]$PasswordHash,
-        [Parameter(Mandatory)][string]$Hostname
+        [Parameter(Mandatory)][string]$Hostname,
+        [string]$ForgeAdminUser  = "",
+        [string]$ForgeAdminEmail = ""
     )
 
     # The hash MUST be sha512crypt ($6$salt$digest). Anything else is a bug
@@ -26,17 +28,25 @@ function Write-MiosInstallEnv {
         return $false
     }
 
+    # Default the forge admin to the linux user identity if not supplied.
+    if (-not $ForgeAdminUser)  { $ForgeAdminUser  = $User }
+    if (-not $ForgeAdminEmail) { $ForgeAdminEmail = "$User@$Hostname.local" }
+
     # Single-quote the hash because $6$... contains literal $-sigils that
     # bash would otherwise treat as parameter expansion when the env file
     # is sourced. sha512crypt charset is [A-Za-z0-9./$] -- no single quotes
     # ever appear in the hash, so the wrap is safe.
     $lines = @(
         "# /etc/mios/install.env -- written by the 'MiOS' Windows installer.",
-        "# Read by /usr/libexec/mios/wsl-firstboot and /usr/libexec/mios/motd.",
+        "# Read by /usr/libexec/mios/wsl-firstboot, /usr/libexec/mios/motd,",
+        "# and /usr/libexec/mios/forge-firstboot.sh.",
         "# Vendor defaults: /usr/share/mios/env.defaults",
         "MIOS_USER=$User",
         "MIOS_USER_PASSWORD_HASH='$PasswordHash'",
-        "MIOS_HOSTNAME=$Hostname"
+        "MIOS_HOSTNAME=$Hostname",
+        "MIOS_FORGE_ADMIN_USER=$ForgeAdminUser",
+        "MIOS_FORGE_ADMIN_EMAIL=$ForgeAdminEmail",
+        "MIOS_FORGE_ADMIN_PASSWORD="
     )
     $body = ($lines -join "`n") + "`n"
 

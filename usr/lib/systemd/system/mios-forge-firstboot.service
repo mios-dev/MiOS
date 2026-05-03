@@ -1,0 +1,32 @@
+[Unit]
+Description='MiOS' Forge first-boot admin-bootstrap (Forgejo)
+Documentation=https://github.com/mios-dev/MiOS/blob/main/etc/containers/systemd/mios-forge.container
+After=mios-forge.service network-online.target
+Wants=mios-forge.service network-online.target
+ConditionPathExists=/etc/mios/install.env
+ConditionPathExists=!/var/lib/mios/forge/.firstboot-done
+ConditionVirtualization=!container
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/mios/install.env
+ExecStart=/usr/libexec/mios/forge-firstboot.sh
+TimeoutStartSec=600s
+
+# Hardening: this service writes to a small set of paths, so we lock
+# everything else down. The script needs network for the readiness
+# probe and podman exec, plus write access to the password / sentinel
+# files declared in usr/lib/tmpfiles.d/mios-forge.conf.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/etc/mios/forge /var/lib/mios/forge /var/log/mios/forge
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

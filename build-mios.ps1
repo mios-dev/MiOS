@@ -346,6 +346,14 @@ if ($DoCustom) {
     $LuksPass = if ($UseLuks) { Read-Timed "LUKS passphrase:" "mios" -Secret } else { "" }
     $RegistryUrl = Read-Timed "Registry URL:" $DefRegistry
 
+    # mios-forge (Forgejo) admin -- defaults to the linux identity above so
+    # the locally-hosted .git = ./ pattern works without further config.
+    # Empty password -> firstboot generates a random one and stores it at
+    # /etc/mios/forge/admin-password (root-owned, mode 0600).
+    $forgeHostFallback = if ($HostIn) { $HostIn } else { "mios" }
+    $ForgeAdmin = Read-Timed "Forge admin username (Forgejo):" $U
+    $ForgeEmail = Read-Timed "Forge admin email:" "$U@$forgeHostFallback.local"
+
     Write-Host ""
     Write-Host "      Select Deployment Targets (comma separated or 'all'):" -ForegroundColor DarkCyan
     Write-Host "      1) RAW, 2) VHDX, 3) WSL, 4) ISO" -ForegroundColor DarkGray
@@ -359,6 +367,8 @@ if ($DoCustom) {
     $UseLuks = $false
     $LuksPass = ""
     $RegistryUrl = $DefRegistry
+    $ForgeAdmin = $U
+    $ForgeEmail = if ($env:MIOS_FORGE_ADMIN_EMAIL) { $env:MIOS_FORGE_ADMIN_EMAIL } else { "$U@$(if($HostIn){$HostIn}else{'mios'}).local" }
     
     # Target selection inheritance
     if ($env:MIOS_TARGETS) {
@@ -912,7 +922,7 @@ if ($env:MIOS_SKIP_DEPLOY -eq "1") {
 
                         # Seed /etc/mios/install.env so wsl-firstboot.service uses the
                         # operator-supplied identity instead of the default 'mios' password.
-                        if (Write-MiosInstallEnv -WslDistro $WslName -User $U -PasswordHash $passHash -Hostname $HostIn) {
+                        if (Write-MiosInstallEnv -WslDistro $WslName -User $U -PasswordHash $passHash -Hostname $HostIn -ForgeAdminUser $ForgeAdmin -ForgeAdminEmail $ForgeEmail) {
                             Write-OK "Seeded /etc/mios/install.env (user=$U, host=$HostIn)"
                         } else {
                             Write-Warn "install.env not written -- first-boot will fall back to default 'mios' password"
@@ -1021,6 +1031,22 @@ Write-Host ""
 Write-Host "  'MiOS' is self-replicating: pull  build  push  repeat" -ForegroundColor Cyan
 Write-Host "  On deployed 'MiOS':  mios-rebuild" -ForegroundColor Cyan
 Write-Host "  On any machine:       podman pull $GhcrImage" -ForegroundColor Cyan
+Write-Host ""
+
+# -- mios-forge (Forgejo) post-deploy operator hint --
+# The forge ships disabled-by-default behavior is bounded by the Quadlet's
+# Condition* directives, not by us; but we tell the operator how to reach
+# it once the deployed image boots and mios-forge-firstboot.service has
+# created the admin user from /etc/mios/install.env.
+$forgeUser = if ($ForgeAdmin) { $ForgeAdmin } else { $U }
+$forgeMail = if ($ForgeEmail) { $ForgeEmail } else { "$U@$(if($HostIn){$HostIn}else{'mios'}).local" }
+Write-Host "  Self-hosted Git forge (mios-forge / Forgejo)" -ForegroundColor Cyan
+Write-Host "    Web UI:        http://localhost:3000/" -ForegroundColor Gray
+Write-Host "    git+ssh:       ssh://git@localhost:2222/<user>/<repo>.git" -ForegroundColor Gray
+Write-Host "    Admin user:    $forgeUser" -ForegroundColor Gray
+Write-Host "    Admin email:   $forgeMail" -ForegroundColor Gray
+Write-Host "    Initial pwd:   sudo cat /etc/mios/forge/admin-password    (must change on first login)" -ForegroundColor Gray
+Write-Host "    Local push:    cd <repo>; git remote add origin http://localhost:3000/$forgeUser/<repo>.git; git push origin main" -ForegroundColor Gray
 Write-Host ""
 
 Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 -Completed
