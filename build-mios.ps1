@@ -138,8 +138,8 @@ function Show-StatusCard {
 function Get-FileSize { param([string]$P) if(!(Test-Path $P)){return "N/A"} $s=(Get-Item $P).Length; if($s -gt 1GB){"$([math]::Round($s/1GB,2)) GB"}else{"$([math]::Round($s/1MB,2)) MB"} }
 
 function Read-Timed {
-    # 3-minute (180s) auto-accept timeout: if the operator types nothing
-    # before $TimeoutSec elapses, the resolved default (from mios.toml via
+    # 90-second auto-accept timeout: if the operator types nothing before
+    # $TimeoutSec elapses, the resolved default (from mios.toml via
     # tools/lib/userenv.sh, or the caller-supplied -Default) is taken
     # silently. Operators can override per-call via -TimeoutSec, or
     # globally via $env:MIOS_PROMPT_TIMEOUT (seconds; 0 = wait forever).
@@ -147,7 +147,7 @@ function Read-Timed {
         [string]$Prompt,
         [string]$Default,
         [switch]$Secret,
-        [int]$TimeoutSec = $(if ($env:MIOS_PROMPT_TIMEOUT) { [int]$env:MIOS_PROMPT_TIMEOUT } else { 180 })
+        [int]$TimeoutSec = $(if ($env:MIOS_PROMPT_TIMEOUT) { [int]$env:MIOS_PROMPT_TIMEOUT } else { 90 })
     )
     if ($Secret) {
         Write-Host "      $Prompt " -NoNewline -ForegroundColor DarkCyan
