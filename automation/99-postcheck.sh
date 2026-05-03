@@ -10,6 +10,23 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 log "'MiOS' build-time validation"
 
+# 0. Materialize sysusers.d entries so subsequent checks (#11 in particular)
+# see the same /etc/passwd + /etc/group state the deployed image will have
+# at first boot. Without this, upstream-RPM-shipped sysusers.d files (e.g.
+# cockpit-ws shipping a 'g cockpit' line) are present on disk but their
+# users/groups are not yet in /etc/group, so 'systemd-tmpfiles --dry-run'
+# reports false-positive 'Failed to resolve group cockpit: Unknown group'
+# warnings on lines that will resolve fine at runtime. systemd-sysusers
+# is idempotent and the same operation that runs at first boot anyway.
+if command -v systemd-sysusers >/dev/null 2>&1; then
+    log "Materializing sysusers.d into /etc/passwd + /etc/group..."
+    if systemd-sysusers --no-pager 2>/dev/null; then
+        log "  [ok] sysusers.d entries materialized"
+    else
+        log "  [warn] systemd-sysusers exited non-zero; subsequent checks may have false-positives"
+    fi
+fi
+
 # 1. OpenSSH Version Check (CVE-2026-4631 / Cockpit RCE mitigation)
 # Requirement: ≥ 9.6
 log "Checking OpenSSH version..."
