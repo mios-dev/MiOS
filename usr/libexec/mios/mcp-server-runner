@@ -1,8 +1,45 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: mcp-server-runner
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/mcp-server-runner
+# 'MiOS' MCP server runtime wrapper (ExecStart for mios-mcp.service).
+# Discovers and runs the MCP server entrypoint under /srv/ai/mcp/. Three
+# entrypoint forms are supported (first match wins):
+#
+#   1. /srv/ai/mcp/server.py         -- Python 3 module, run via `python3 -m`
+#   2. /srv/ai/mcp/server.sh         -- shell script, exec'd directly
+#   3. /srv/ai/mcp/server            -- bare executable
+#
+# When none is present, the runner sleeps as a placeholder so the unit
+# stays "active" without thrashing through restarts. The MCP image / config
+# is expected to drop one of those entry points at /srv/ai/mcp/.
+#
+# Env passed through:
+#     MIOS_AI_ENDPOINT  (default http://localhost:8080/v1)
+#     MIOS_MCP_PORT     (default 8765)
+#     MIOS_MCP_LOG_DIR  (default /var/log/mios/mcp)
 set -euo pipefail
-logger -t mios "[mcp-server-runner] stub executed — replace with real implementation"
-echo "[mios/mcp-server-runner] stub: no-op" >&2
-exit 0
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+_log()  { logger -t mios-mcp "$*" 2>/dev/null || true; echo "[mcp] $*" >&2; }
+
+: "${MIOS_AI_ENDPOINT:=http://localhost:8080/v1}"
+: "${MIOS_MCP_PORT:=8765}"
+: "${MIOS_MCP_LOG_DIR:=/var/log/mios/mcp}"
+export MIOS_AI_ENDPOINT MIOS_MCP_PORT MIOS_MCP_LOG_DIR
+
+MCP_DIR="/srv/ai/mcp"
+mkdir -p "$MIOS_MCP_LOG_DIR"
+
+if [[ -f "$MCP_DIR/server.py" ]]; then
+    _log "starting Python MCP server: $MCP_DIR/server.py (port $MIOS_MCP_PORT)"
+    cd "$MCP_DIR"
+    exec python3 server.py
+elif [[ -x "$MCP_DIR/server.sh" ]]; then
+    _log "starting shell MCP server: $MCP_DIR/server.sh"
+    exec "$MCP_DIR/server.sh"
+elif [[ -x "$MCP_DIR/server" ]]; then
+    _log "starting MCP server binary: $MCP_DIR/server"
+    exec "$MCP_DIR/server"
+else
+    _log "no MCP entrypoint at $MCP_DIR/server{.py,.sh,} -- placeholder mode"
+    while :; do sleep 3600; done
+fi

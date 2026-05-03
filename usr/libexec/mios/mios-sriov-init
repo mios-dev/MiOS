@@ -1,8 +1,74 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: mios-sriov-init
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/mios-sriov-init
+# 'MiOS' Universal SR-IOV initialization.
+# Run by mios-sriov-init.service early in boot (After=network-pre.target).
+# Reads operator config from /etc/mios/sriov.conf, configures the requested
+# number of Virtual Functions on every listed PF (Physical Function).
+#
+# Config format -- one PF per line:
+#     <pci_addr>  <num_vfs>
+# Example /etc/mios/sriov.conf:
+#     0000:01:00.0  4
+#     0000:01:00.1  4
+#
+# When the config file is absent OR no PFs support SR-IOV, this is a
+# no-op. Re-running is safe: it writes the same num_vfs and ignores
+# "device or resource busy" if VFs are already configured.
 set -euo pipefail
-logger -t mios "[mios-sriov-init] stub executed — replace with real implementation"
-echo "[mios/mios-sriov-init] stub: no-op" >&2
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+_log()  { logger -t mios-sriov-init "$*" 2>/dev/null || true; echo "[sriov-init] $*" >&2; }
+
+CONF="${MIOS_ETC_DIR}/sriov.conf"
+if [[ ! -r "$CONF" ]]; then
+    _log "no $CONF -- nothing to do"
+    exit 0
+fi
+
+configured=0
+skipped=0
+errored=0
+while IFS=$' \t' read -r pci numvfs _rest; do
+    [[ -z "$pci" || "$pci" =~ ^# ]] && continue
+    [[ -z "$numvfs" ]] && continue
+    sriov_path="/sys/bus/pci/devices/$pci/sriov_numvfs"
+    totalvfs_path="/sys/bus/pci/devices/$pci/sriov_totalvfs"
+    if [[ ! -w "$sriov_path" ]]; then
+        _log "  $pci: no SR-IOV support (skipping)"
+        skipped=$((skipped + 1))
+        continue
+    fi
+    totalvfs=$(< "$totalvfs_path" 2>/dev/null || echo 0)
+    if (( numvfs > totalvfs )); then
+        _log "  $pci: requested $numvfs > totalvfs $totalvfs (capping)"
+        numvfs=$totalvfs
+    fi
+    current=$(< "$sriov_path" 2>/dev/null || echo 0)
+    if [[ "$current" == "$numvfs" ]]; then
+        _log "  $pci: already $numvfs VFs"
+        configured=$((configured + 1))
+        continue
+    fi
+    # Setting numvfs requires zero first if non-zero (kernel requirement)
+    if (( current != 0 )); then
+        echo 0 > "$sriov_path" 2>/dev/null || true
+    fi
+    if echo "$numvfs" > "$sriov_path" 2>/dev/null; then
+        _log "  $pci: $numvfs VFs configured"
+        configured=$((configured + 1))
+    else
+        _log "  $pci: FAIL to set $numvfs VFs"
+        errored=$((errored + 1))
+    fi
+done < "$CONF"
+
+install -d -m 0755 /run/mios
+{
+    echo "timestamp=$(date -Is)"
+    echo "configured=$configured"
+    echo "skipped=$skipped"
+    echo "errored=$errored"
+} > /run/mios/sriov-init.status
+
+_log "configured=$configured skipped=$skipped errored=$errored"
 exit 0

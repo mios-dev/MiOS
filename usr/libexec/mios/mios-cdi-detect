@@ -1,8 +1,66 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: mios-cdi-detect
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/mios-cdi-detect
+# 'MiOS' CDI spec detection -- generate Container Device Interface specs
+# for every detected GPU vendor before nvidia-cdi-refresh.service fires.
+# Run by mios-cdi-detect.service (Before=nvidia-cdi-refresh.service).
+#
+# Writes specs to /run/cdi/ (declared in usr/lib/tmpfiles.d/mios-gpu.conf
+# under LAW 2). On WSL2 we generate with --mode=wsl. On bare metal /
+# regular VMs the mode is auto-detected. AMD ROCm and Intel iGPU specs
+# are stubs (upstream tooling is still emerging) -- only NVIDIA gets a
+# real CDI spec today.
+#
+# When no GPU is present (e.g. headless server, container, WSL2 without
+# /dev/dxg), this is a no-op (writes an empty status file).
 set -euo pipefail
-logger -t mios "[mios-cdi-detect] stub executed — replace with real implementation"
-echo "[mios/mios-cdi-detect] stub: no-op" >&2
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+_log()  { logger -t mios-cdi-detect "$*" 2>/dev/null || true; echo "[cdi-detect] $*" >&2; }
+
+install -d -m 0755 /run/cdi /run/mios
+VIRT=$(systemd-detect-virt 2>/dev/null || echo none)
+HAS_NVIDIA=0
+HAS_AMD=0
+HAS_INTEL=0
+[[ -e /dev/nvidia0 || -e /dev/dxg ]]              && HAS_NVIDIA=1
+[[ -e /dev/kfd ]]                                  && HAS_AMD=1
+[[ -e /dev/dri/renderD128 ]]                       && HAS_INTEL=1
+
+_log "virt=$VIRT nvidia=$HAS_NVIDIA amd=$HAS_AMD intel=$HAS_INTEL"
+
+# NVIDIA: prefer upstream nvidia-cdi-refresh.service when its unit is
+# installed (toolkit v1.18+). Otherwise generate the spec ourselves.
+if [[ "$HAS_NVIDIA" == 1 ]] && command -v nvidia-ctk >/dev/null 2>&1; then
+    if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null \
+         | grep -q nvidia-cdi-refresh; then
+        _log "nvidia-cdi-refresh.service present; deferring spec generation"
+    else
+        mode_arg=()
+        [[ "$VIRT" == "wsl" ]] && mode_arg=(--mode=wsl)
+        if nvidia-ctk cdi generate "${mode_arg[@]}" \
+                --output=/run/cdi/nvidia.yaml 2>/dev/null; then
+            _log "wrote /run/cdi/nvidia.yaml"
+        else
+            _log "nvidia-ctk cdi generate failed (non-fatal)"
+        fi
+    fi
+fi
+
+# AMD: drop a placeholder if amd-ctk ever appears
+if [[ "$HAS_AMD" == 1 ]] && command -v amd-ctk >/dev/null 2>&1; then
+    amd-ctk cdi generate --output=/run/cdi/amd.json 2>/dev/null \
+        && _log "wrote /run/cdi/amd.json" \
+        || _log "amd-ctk cdi generate failed (non-fatal)"
+fi
+
+# Status snapshot
+{
+    echo "timestamp=$(date -Is)"
+    echo "virt=$VIRT"
+    echo "nvidia=$HAS_NVIDIA"
+    echo "amd=$HAS_AMD"
+    echo "intel=$HAS_INTEL"
+    echo "cdi_specs=$(ls /run/cdi/ 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+} > /run/mios/cdi-detect.status
+
 exit 0

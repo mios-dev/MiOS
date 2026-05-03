@@ -1,8 +1,98 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: cpu-isolate
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/cpu-isolate
+# 'MiOS' CPU core isolation engine -- runtime helper.
+# Reads `isolcpus=` from /proc/cmdline (set by usr/lib/bootc/kargs.d/), then
+# moves every existing user-space process onto the non-isolated host cores
+# via `taskset -cp`. Kernel threads are left alone (taskset can't move them
+# and the scheduler routes them by other means).
+#
+# Service unit: mios-cpu-isolate.service (Type=oneshot, RemainAfterExit=yes,
+# ConditionVirtualization=no). Skipped on virtualization where isolcpus has
+# no effect.
+#
+# When `isolcpus=` is absent, this is a no-op (logs "no isolation kargs").
+# When set, the service activates at multi-user.target and the host range
+# becomes the complement (e.g. isolcpus=4-7 on 8-core box -> host range 0-3).
 set -euo pipefail
-logger -t mios "[cpu-isolate] stub executed — replace with real implementation"
-echo "[mios/cpu-isolate] stub: no-op" >&2
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+_log()  { logger -t mios-cpu-isolate "$*" 2>/dev/null || true; echo "[cpu-isolate] $*" >&2; }
+
+# Parse isolcpus= from /proc/cmdline (handles "isolcpus=4-7" and
+# "isolcpus=managed_irq,4-7" variants -- pulls the trailing CPU list).
+ISOL=""
+for tok in $(< /proc/cmdline); do
+    case "$tok" in
+        isolcpus=*)
+            v="${tok#isolcpus=}"
+            # Strip leading flag terms (managed_irq, domain, ...) keeping last comma-sep field
+            ISOL=${v##*,}
+            ;;
+    esac
+done
+
+if [[ -z "$ISOL" ]]; then
+    _log "no isolcpus karg present; nothing to do"
+    exit 0
+fi
+
+# Compute host range = full CPU set minus isolated set
+TOTAL=$(nproc)
+LAST=$((TOTAL - 1))
+expand() {
+    local spec="$1" out=""
+    IFS=',' read -ra parts <<<"$spec"
+    for p in "${parts[@]}"; do
+        if [[ "$p" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+            for i in $(seq "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"); do out+="$i "; done
+        elif [[ "$p" =~ ^[0-9]+$ ]]; then
+            out+="$p "
+        fi
+    done
+    echo "$out"
+}
+ISOL_SET=$(expand "$ISOL")
+HOST_SET=""
+for i in $(seq 0 "$LAST"); do
+    case " $ISOL_SET " in
+        *" $i "*) ;;
+        *)        HOST_SET+="$i," ;;
+    esac
+done
+HOST_SET="${HOST_SET%,}"
+
+if [[ -z "$HOST_SET" ]]; then
+    _log "ALL CPUs are isolated -- refusing (would orphan userspace)"
+    exit 1
+fi
+
+_log "isolated: $ISOL  host: $HOST_SET  (total=$TOTAL)"
+
+moved=0; skipped=0; failed=0
+for pid in $(ps -eo pid --no-headers); do
+    [[ -d "/proc/$pid" ]] || continue
+    ppid=$(awk '{print $4}' "/proc/$pid/stat" 2>/dev/null) || continue
+    # Skip kernel threads (kthreadd is pid 2; its children are kthreads)
+    if [[ "$ppid" == 2 || "$pid" == 2 ]]; then
+        skipped=$((skipped + 1))
+        continue
+    fi
+    if taskset -cpa "$HOST_SET" "$pid" >/dev/null 2>&1; then
+        moved=$((moved + 1))
+    else
+        failed=$((failed + 1))
+    fi
+done
+
+_log "moved=$moved kernel-skipped=$skipped failed=$failed"
+
+install -d -m 0755 /run/mios
+{
+    echo "timestamp=$(date -Is)"
+    echo "isolated=$ISOL"
+    echo "host_range=$HOST_SET"
+    echo "moved=$moved"
+    echo "kernel_threads_skipped=$skipped"
+    echo "failed=$failed"
+} > /run/mios/cpu-isolate.status
 exit 0

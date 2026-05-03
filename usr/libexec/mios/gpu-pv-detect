@@ -1,8 +1,34 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: gpu-pv-detect
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/gpu-pv-detect
+# 'MiOS' Hyper-V GPU paravirt guest detection.
+# Run by mios-gpu-pv-detect.service (gated ConditionVirtualization=microsoft;
+# only fires inside Hyper-V/WSL2 guests). Writes a status file the rest of
+# the GPU stack reads to decide whether to enable hardware-accelerated
+# rendering vs llvmpipe software rendering.
+#
+# Status file: /run/mios/gpu-pv.status  (KEY=VALUE)
+#   gpu_pv_present=1|0     -- /dev/dxg present (DirectX kernel passthrough)
+#   wslg_active=1|0        -- /mnt/wslg/.X11-unix exists (WSLg display)
+#   nvidia_in_guest=1|0    -- nvidia-smi succeeds inside the guest
 set -euo pipefail
-logger -t mios "[gpu-pv-detect] stub executed — replace with real implementation"
-echo "[mios/gpu-pv-detect] stub: no-op" >&2
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+_log()  { logger -t mios-gpu-pv-detect "$*" 2>/dev/null || true; echo "[gpu-pv-detect] $*" >&2; }
+
+[[ -e /dev/dxg ]]               && DXG=1 || DXG=0
+[[ -d /mnt/wslg/.X11-unix ]]    && WSLG=1 || WSLG=0
+NV=0
+if command -v nvidia-smi >/dev/null 2>&1; then
+    nvidia-smi --query-gpu=name --format=csv,noheader >/dev/null 2>&1 && NV=1 || NV=0
+fi
+
+install -d -m 0755 /run/mios
+{
+    echo "timestamp=$(date -Is)"
+    echo "gpu_pv_present=$DXG"
+    echo "wslg_active=$WSLG"
+    echo "nvidia_in_guest=$NV"
+} > /run/mios/gpu-pv.status
+
+_log "dxg=$DXG wslg=$WSLG nvidia=$NV"
 exit 0

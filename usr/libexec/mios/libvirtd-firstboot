@@ -1,8 +1,96 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: libvirtd-firstboot
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/libvirtd-firstboot
+# 'MiOS' libvirtd first-boot wiring.
+# Run by mios-libvirtd-setup.service once per deploy (sentinel:
+# /var/lib/mios/libvirtd-setup.done, written by ExecStartPost in the
+# unit). After=libvirtd.service so the daemon is up.
+#
+# What it does:
+#   * Defines the default 'mios' libvirt network if missing
+#   * Defines the default 'images' storage pool at /var/lib/libvirt/images
+#   * Autostarts both
+#   * Joins the mios user to the libvirt group (idempotent)
+#
+# All steps are idempotent: skipping when already-defined, autostart-
+# already-on, member-already-of-group.
 set -euo pipefail
-logger -t mios "[libvirtd-firstboot] stub executed — replace with real implementation"
-echo "[mios/libvirtd-firstboot] stub: no-op" >&2
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+_log()  { logger -t mios-libvirtd-firstboot "$*" 2>/dev/null || true; echo "[libvirtd-firstboot] $*" >&2; }
+
+if ! command -v virsh >/dev/null 2>&1; then
+    _log "virsh not present -- libvirt-client missing; nothing to do"
+    exit 0
+fi
+
+# Wait briefly for libvirtd socket
+for _ in {1..20}; do
+    virsh -c qemu:///system list >/dev/null 2>&1 && break
+    sleep 0.5
+done
+if ! virsh -c qemu:///system list >/dev/null 2>&1; then
+    _log "libvirtd not reachable on qemu:///system after 10s -- skipping"
+    exit 0
+fi
+
+# Default network 'mios'
+if ! virsh -c qemu:///system net-info mios >/dev/null 2>&1; then
+    NET_XML=$(mktemp)
+    cat > "$NET_XML" <<'XML'
+<network>
+  <name>mios</name>
+  <forward mode='nat'/>
+  <bridge name='mios-br0' stp='on' delay='0'/>
+  <ip address='10.99.0.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='10.99.0.100' end='10.99.0.250'/>
+    </dhcp>
+  </ip>
+</network>
+XML
+    virsh -c qemu:///system net-define "$NET_XML" >/dev/null 2>&1 \
+        && _log "  defined network: mios" \
+        || _log "  net-define mios FAIL"
+    rm -f "$NET_XML"
+fi
+virsh -c qemu:///system net-autostart mios >/dev/null 2>&1 || true
+virsh -c qemu:///system net-start     mios >/dev/null 2>&1 || true
+
+# Default storage pool 'images'
+if ! virsh -c qemu:///system pool-info images >/dev/null 2>&1; then
+    install -d -m 0711 /var/lib/libvirt/images
+    POOL_XML=$(mktemp)
+    cat > "$POOL_XML" <<'XML'
+<pool type='dir'>
+  <name>images</name>
+  <target>
+    <path>/var/lib/libvirt/images</path>
+    <permissions>
+      <mode>0711</mode>
+      <owner>0</owner>
+      <group>0</group>
+    </permissions>
+  </target>
+</pool>
+XML
+    virsh -c qemu:///system pool-define "$POOL_XML" >/dev/null 2>&1 \
+        && _log "  defined pool: images" \
+        || _log "  pool-define images FAIL"
+    rm -f "$POOL_XML"
+fi
+virsh -c qemu:///system pool-autostart images >/dev/null 2>&1 || true
+virsh -c qemu:///system pool-start     images >/dev/null 2>&1 || true
+virsh -c qemu:///system pool-build     images >/dev/null 2>&1 || true
+
+# Join the mios user to libvirt group (sysusers.d already does this, but
+# be defensive for distros that didn't pick up the m-line)
+if id mios >/dev/null 2>&1 && getent group libvirt >/dev/null 2>&1; then
+    if ! id -nG mios | tr ' ' '\n' | grep -qx libvirt; then
+        usermod -aG libvirt mios 2>/dev/null \
+            && _log "  mios joined group libvirt" \
+            || _log "  usermod -aG libvirt mios FAIL"
+    fi
+fi
+
+_log "firstboot complete"
 exit 0

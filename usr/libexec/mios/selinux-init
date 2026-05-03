@@ -1,8 +1,90 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: selinux-init
-# Implementation expected from bootstrap overlay or future automation script.
-# Override by dropping a real executable at: /usr/libexec/mios/selinux-init
+# 'MiOS' SELinux init -- load custom MiOS SELinux modules at first boot.
+# Run by mios-selinux-init.service (gated by sentinel
+# /var/lib/mios/.selinux-init-done so it only fires once per deploy).
+#
+# Modules ship as compiled .pp policy modules in
+# /usr/share/selinux/packages/mios/. They're built but NOT loaded at
+# image-build time -- composefs verity would seal a stale state. Loading
+# happens on the booted host where the running policy can absorb the
+# modules cleanly.
+#
+# After loading, persistent booleans + fcontexts are applied via semanage.
 set -euo pipefail
-logger -t mios "[selinux-init] stub executed — replace with real implementation"
-echo "[mios/selinux-init] stub: no-op" >&2
+# shellcheck source=/usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh
+
+SENTINEL="${MIOS_VAR_DIR}/.selinux-init-done"
+MOD_DIR="${MIOS_SHARE_DIR%/mios}/selinux/packages/mios"
+
+_log()  { logger -t mios-selinux-init "$*" 2>/dev/null || true; echo "[selinux-init] $*" >&2; }
+
+# Sentinel guard (also enforced by service unit ConditionPathExists)
+if [[ -f "$SENTINEL" ]]; then
+    _log "sentinel exists ($SENTINEL); nothing to do"
+    exit 0
+fi
+
+# SELinux must be available
+if ! command -v semodule >/dev/null 2>&1; then
+    _log "semodule not found -- SELinux userspace tools missing; nothing to do"
+    install -d -m 0755 "$(dirname "$SENTINEL")"
+    touch "$SENTINEL"
+    exit 0
+fi
+
+# Detect mode (enforcing/permissive/disabled). On disabled, skip module loads.
+if [[ -r /sys/fs/selinux/enforce ]]; then
+    enforce=$(< /sys/fs/selinux/enforce)
+    _log "SELinux mode: $([[ $enforce == 1 ]] && echo enforcing || echo permissive)"
+elif command -v getenforce >/dev/null 2>&1; then
+    _log "SELinux: $(getenforce)"
+else
+    _log "SELinux state unknown; proceeding best-effort"
+fi
+
+if [[ ! -d "$MOD_DIR" ]]; then
+    _log "no module dir at $MOD_DIR; nothing to load"
+    install -d -m 0755 "$(dirname "$SENTINEL")"
+    touch "$SENTINEL"
+    exit 0
+fi
+
+# Load every .pp under the module dir (compiled policy module package)
+shopt -s nullglob
+loaded=0
+for pp in "$MOD_DIR"/*.pp; do
+    name=$(basename "$pp" .pp)
+    if semodule -l 2>/dev/null | grep -qx "$name"; then
+        _log "  already loaded: $name"
+        continue
+    fi
+    if semodule -i "$pp" 2>/dev/null; then
+        _log "  loaded: $name"
+        loaded=$((loaded + 1))
+    else
+        _log "  FAIL load: $name (continuing)"
+    fi
+done
+_log "loaded $loaded module(s)"
+
+# Apply persistent booleans declared by the policy package
+BOOL_FILE="$MOD_DIR/booleans.conf"
+if [[ -r "$BOOL_FILE" ]] && command -v setsebool >/dev/null 2>&1; then
+    while IFS='=' read -r bool val; do
+        [[ -z "$bool" || "$bool" =~ ^[[:space:]]*# ]] && continue
+        bool=$(echo "$bool" | tr -d '[:space:]')
+        val=$(echo "$val"   | tr -d '[:space:]')
+        [[ -z "$bool" || -z "$val" ]] && continue
+        if setsebool -P "$bool" "$val" 2>/dev/null; then
+            _log "  boolean: $bool=$val"
+        else
+            _log "  boolean FAIL: $bool=$val"
+        fi
+    done < "$BOOL_FILE"
+fi
+
+install -d -m 0755 "$(dirname "$SENTINEL")"
+touch "$SENTINEL"
+_log "init complete"
 exit 0
