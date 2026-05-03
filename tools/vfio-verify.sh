@@ -16,17 +16,17 @@ FAIL=0
 WARN=0
 
 check_pass() {
-    echo -e "${GREEN}✓${NC} $1"
+    echo -e "${GREEN}[ok]${NC} $1"
     PASS=$((PASS + 1))
 }
 
 check_fail() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}[x]${NC} $1"
     FAIL=$((FAIL + 1))
 }
 
 check_warn() {
-    echo -e "${YELLOW}⚠${NC} $1"
+    echo -e "${YELLOW}[!]${NC} $1"
     WARN=$((WARN + 1))
 }
 
@@ -59,9 +59,9 @@ VFIO_MODULES=("vfio" "vfio_pci" "vfio_iommu_type1")
 ALL_LOADED=true
 for module in "${VFIO_MODULES[@]}"; do
     if lsmod | grep -q "^$module"; then
-        echo "  ${GREEN}✓${NC} $module loaded"
+        echo "  ${GREEN}[ok]${NC} $module loaded"
     else
-        echo "  ${RED}✗${NC} $module not loaded"
+        echo "  ${RED}[x]${NC} $module not loaded"
         ALL_LOADED=false
     fi
 done
@@ -236,14 +236,14 @@ echo -e "${RED}Failed:  $FAIL${NC}"
 echo ""
 
 if [[ $FAIL -eq 0 ]]; then
-    echo -e "${GREEN}✓ VFIO configuration is correct for your hardware!${NC}"
+    echo -e "${GREEN}[ok] VFIO configuration is correct for your hardware!${NC}"
     echo ""
     echo "Environment: $(systemd-detect-virt)"
     echo ""
 elif [[ $FAIL -le 2 && $PASS -ge 6 ]]; then
-    echo -e "${YELLOW}⚠ Configuration mostly correct with minor issues${NC}"
+    echo -e "${YELLOW}[!] Configuration mostly correct with minor issues${NC}"
 else
-    echo -e "${RED}✗ VFIO configuration has significant issues${NC}"
+    echo -e "${RED}[x] VFIO configuration has significant issues${NC}"
 fi
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"

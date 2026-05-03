@@ -36,9 +36,9 @@ into the image must live in a fenced `packages-<category>` block, parsed
 by `automation/lib/packages.sh:get_packages` (regex
 `/^\`\`\`packages-${category}$/,/^\`\`\`$/`). Helpers:
 
-- `install_packages "<category>"` — best-effort, `--skip-unavailable`.
-- `install_packages_strict "<category>"` — fails the script on any miss.
-- `install_packages_optional "<category>"` — pure best-effort, never fails.
+- `install_packages "<category>"` -- best-effort, `--skip-unavailable`.
+- `install_packages_strict "<category>"` -- fails the script on any miss.
+- `install_packages_optional "<category>"` -- pure best-effort, never fails.
 
 The `Containerfile` pre-pipeline `RUN` installs `packages-base`
 (security stack) before `automation/build.sh` runs.
@@ -46,7 +46,7 @@ The `Containerfile` pre-pipeline `RUN` installs `packages-base`
 ## Shell conventions
 
 - `set -euo pipefail` at the top of every phase script.
-- `VAR=$((VAR + 1))` for arithmetic. `((VAR++))` is forbidden — under
+- `VAR=$((VAR + 1))` for arithmetic. `((VAR++))` is forbidden -- under
   `set -e` it exits 1 when the result is 0.
 - shellcheck-clean. SC2038 is fatal in CI (`.github/workflows/mios-ci.yml`).
 - File names: `NN-name.sh` where NN encodes execution order.
@@ -56,10 +56,10 @@ The `Containerfile` pre-pipeline `RUN` installs `packages-base`
 - `ctx` stage holds the build context; the main stage bind-mounts `/ctx`
   read-only and writes mutable copies to `/tmp/build` (`Containerfile`).
 - Final `RUN bootc container lint` (LAW 4).
-- No `--squash-all` — strips OCI metadata bootc needs.
+- No `--squash-all` -- strips OCI metadata bootc needs.
 - Kernel rule: only add `kernel-modules-extra`, `kernel-devel`,
   `kernel-headers`, `kernel-tools`. Never upgrade `kernel`/`kernel-core`
-  in-container — `automation/01-repos.sh:65,68` excludes them explicitly.
+  in-container -- `automation/01-repos.sh:65,68` excludes them explicitly.
 - dnf option: `install_weak_deps=False` (underscore). `install_weakdeps`
   is silently ignored by dnf5.
 
@@ -78,7 +78,7 @@ else (<https://bootc-dev.github.io/bootc/man/bootc-edit.html>).
 
 Custom policies are split into per-rule `.te` modules in
 `usr/share/selinux/packages/mios/` (compiled and shipped, not loaded at
-build time — see `automation/19-k3s-selinux.sh:46-51`). New booleans and
+build time -- see `automation/19-k3s-selinux.sh:46-51`). New booleans and
 fcontexts are declared via `semanage` calls in `automation/37-selinux.sh`.
 
 ## Service gating
@@ -99,7 +99,7 @@ fcontexts are declared via `semanage` calls in `automation/37-selinux.sh`.
 
 `bootc container lint` (LAW 4) enforces at build time:
 - Kernel present and detectable at `/usr/lib/modules/<kver>/vmlinuz`
-- No files written under `/var` or `/run` in image layers — these are
+- No files written under `/var` or `/run` in image layers -- these are
   runtime-mutable and never part of the composefs rootfs
 - `/usr` structurally valid (no dangling symlinks, no unexpected setuid files)
 - OCI config has `architecture` and `os` fields set
@@ -108,7 +108,7 @@ fcontexts are declared via `semanage` calls in `automation/37-selinux.sh`.
 kargs.d constraint (also enforced by lint): flat `kargs = [...]` TOML array
 only. No `[kargs]` section header, no `delete` sub-key. Files processed in
 lexicographic order; earlier entries cannot be removed by later files in the
-same image — use runtime `bootc kargs --delete` for removal.
+same image -- use runtime `bootc kargs --delete` for removal.
 
 ## Toolchain
 

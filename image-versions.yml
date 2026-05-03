@@ -10,7 +10,7 @@
 
 # ucore-hci:stable-nvidia  Universal Blue CoreOS with pre-signed NVIDIA
 # renovate: datasource=docker depName=ghcr.io/ublue-os/ucore-hci
-# NOTE: digest below is a placeholder — Renovate populates on first run.
+# NOTE: digest below is a placeholder -- Renovate populates on first run.
 ucore_hci_stable_nvidia_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 # bootc-image-builder  OCI to disk image converter

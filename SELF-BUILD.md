@@ -17,7 +17,7 @@ its own next generation. Source: `Containerfile`, `Justfile`,
 
 ## Modes
 
-### Mode 0 — Bootstrap (initial install, fresh Linux)
+### Mode 0 -- Bootstrap (initial install, fresh Linux)
 
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.sh)"
@@ -28,7 +28,7 @@ host it clones this repo and runs `install.sh` to lay down the FHS
 overlay; on a bootc-managed Fedora host it runs
 `bootc switch ghcr.io/mios-dev/mios:latest`.
 
-### Mode 1 — CI/CD (recommended for production)
+### Mode 1 -- CI/CD (recommended for production)
 
 `.github/workflows/mios-ci.yml` builds, rechunks (on tag push), signs
 (keyless cosign), and pushes the image on every tag and on `main`.
@@ -38,7 +38,7 @@ End users receive updates via:
 sudo bootc upgrade && sudo systemctl reboot
 ```
 
-### Mode 2 — Windows local build
+### Mode 2 -- Windows local build
 
 ```powershell
 .\mios-build-local.ps1
@@ -55,7 +55,7 @@ Five-phase orchestrator (`mios-build-local.ps1`):
 5. Push to GHCR, mark package public; restore default Podman machine;
    print report.
 
-### Mode 3 — Linux local build (Justfile)
+### Mode 3 -- Linux local build (Justfile)
 
 ```bash
 just build           # OCI image
@@ -68,7 +68,7 @@ just sbom            # CycloneDX SBOM
 just all-bootstrap   # build + rechunk + log to bootstrap repo
 ```
 
-### Mode 4 — Self-build (running 'MiOS' builds next 'MiOS')
+### Mode 4 -- Self-build (running 'MiOS' builds next 'MiOS')
 
 ```bash
 git clone https://github.com/mios-dev/mios.git
@@ -84,7 +84,7 @@ sudo bootc switch --transport containers-storage localhost/mios:rechunked
 sudo systemctl reboot
 ```
 
-### Mode 5 — Ignition appliance
+### Mode 5 -- Ignition appliance
 
 `config/ignition/` holds Butane configs for fully automated builds on a
 fresh Fedora CoreOS or Fedora Server instance. Compile `.bu` →
@@ -102,7 +102,7 @@ If no 'MiOS' image exists yet:
 2. Clone the repo and run `podman build` (or `mios-build-local.ps1` on
    Windows).
 3. The Containerfile pulls
-   `ghcr.io/ublue-os/ucore-hci:stable-nvidia` as the base — no prior
+   `ghcr.io/ublue-os/ucore-hci:stable-nvidia` as the base -- no prior
    'MiOS' image needed.
 4. Deploy the result to the target (bare metal via ISO, Hyper-V via
    VHDX, etc.).
@@ -134,7 +134,7 @@ subsequent rebuilds 5-10× faster.
 
 `bootc-image-builder` (BIB) is the current disk-image generator.
 `image-builder-cli` (<https://github.com/osbuild/image-builder-cli>) is
-under evaluation as a successor — adds first-class SBOM generation and
+under evaluation as a successor -- adds first-class SBOM generation and
 cross-architecture support. `image-versions.yml` has commented-out
 entries for `image_builder_cli_digest` ready for Renovate tracking.
 

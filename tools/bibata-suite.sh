@@ -23,7 +23,7 @@ NIRI_CONF="$HOME/.config/niri/config.kdl"
 if [ -f "$NIRI_CONF" ]; then
     sed -i "s/xcursor-theme \".*\"/xcursor-theme \"$SELECTED\"/" "$NIRI_CONF"
     sed -i "s/xcursor-size .*/xcursor-size $SIZE/" "$NIRI_CONF"
-    echo "[âœ“] Niri updated."
+    echo "[âœ"] Niri updated."
 fi
 
 # --- 4. APPLY TO GTK 3 & 4 (Native Apps) ---
@@ -31,7 +31,7 @@ for v in "3.0" "4.0"; do
     CONF="$HOME/.config/gtk-$v/settings.ini"
     mkdir -p "$(dirname "$CONF")"
     echo -e "[Settings]\ngtk-cursor-theme-name=$SELECTED\ngtk-cursor-theme-size=$SIZE" > "$CONF"
-    echo "[âœ“] GTK $v updated."
+    echo "[âœ"] GTK $v updated."
 done
 
 # --- 5. APPLY TO X11 & XWAYLAND (The 'Flicker' Fix) ---
@@ -42,7 +42,7 @@ echo -e "[Icon Theme]\nInherits=$SELECTED" > "$HOME/.icons/default/index.theme"
 echo "Xcursor.theme: $SELECTED" > "$HOME/.Xresources"
 echo "Xcursor.size: $SIZE" >> "$HOME/.Xresources"
 xrdb -merge "$HOME/.Xresources" 2>/dev/null
-echo "[âœ“] X11/XWayland global settings updated."
+echo "[âœ"] X11/XWayland global settings updated."
 
 # --- 6. APPLY TO FLATPAK (Sandbox Fix) ---
 # Gives Flatpaks permission to see the icons and forces the env variables
@@ -50,6 +50,6 @@ echo "Punching through Flatpak sandbox..."
 flatpak override --user --filesystem=xdg-config/gtk-3.0:ro --filesystem=xdg-config/gtk-4.0:ro
 flatpak override --user --filesystem=$HOME/.icons:ro --filesystem=/usr/share/icons:ro
 flatpak override --user --env=XCURSOR_THEME="$SELECTED" --env=XCURSOR_SIZE="$SIZE"
-echo "[âœ“] Flatpak environment synchronized."
+echo "[âœ"] Flatpak environment synchronized."
 
 echo "Done! Please restart your session (Mod+Shift+E) to apply everywhere."

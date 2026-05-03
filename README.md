@@ -3,7 +3,7 @@
 An immutable, container-image-shaped Linux workstation that boots like an OS,
 upgrades like a `git pull`, and rolls back like a Ctrl-Z. It's Fedora
 underneath, with a curated stack on top for people who actually use their
-machines for AI, virtualization, and clusters — not just spreadsheets.
+machines for AI, virtualization, and clusters -- not just spreadsheets.
 
 The default ref:
 
@@ -20,7 +20,7 @@ network to pull the image.
 ## Why bother
 
 A normal distro evolves like a Jenga tower: every package update is a small
-prayer, every clean reinstall is a weekend. 'MiOS' is the opposite — the
+prayer, every clean reinstall is a weekend. 'MiOS' is the opposite -- the
 whole OS is one OCI image. You upgrade it the way you'd upgrade a container.
 If something breaks, `bootc rollback` and you're back where you started, with
 no "I sure hope `dnf` finishes" in the middle.
@@ -49,7 +49,7 @@ What you actually get out of the box:
 
 It's [Universal Blue's `ucore-hci`](https://github.com/ublue-os/ucore) (which
 is itself Fedora CoreOS + uCore + HCI tooling) plus a deliberate workstation
-layer on top. The whole image is `bootc`-managed — meaning `/usr` is a
+layer on top. The whole image is `bootc`-managed -- meaning `/usr` is a
 read-only composefs mount, `/etc` gets a 3-way merge across upgrades, and
 `/var` survives everything. New release? `bootc upgrade`. Bad release?
 `bootc rollback`. No more "the package manager left my system in a state."
@@ -79,7 +79,7 @@ irm https://raw.githubusercontent.com/MiOS-DEV/MiOS/main/Get-MiOS.ps1 | iex
 That clones the repo, runs the preflight check, then hands you off to the
 local builder. You'll be prompted for a username, password, and hostname.
 The Windows installer drops the result as a WSL2 distro, a Hyper-V VHDX, an
-Anaconda installer ISO, and a qcow2 — pick whichever fits.
+Anaconda installer ISO, and a qcow2 -- pick whichever fits.
 
 ### From scratch, on Linux
 
@@ -97,7 +97,7 @@ Linux side; `mios-build-local.ps1` is the Windows equivalent.
 
 ## How it's actually structured
 
-Most distros hide their layout behind a package manager. 'MiOS' doesn't — the
+Most distros hide their layout behind a package manager. 'MiOS' doesn't -- the
 **repo root is the deployed system root**. Browse `usr/`, `etc/`, `srv/`,
 `var/` here in GitHub and you're looking at exactly where those files land
 on a booted system. There's no `system_files/` indirection, no Ansible
@@ -110,7 +110,7 @@ etc.) and the numeric prefix encodes execution order. Add a new step? Drop
 a new `45-myfeature.sh` next to its peers.
 
 If you want to know what makes a package show up in the image, check
-[`usr/share/mios/PACKAGES.md`](usr/share/mios/PACKAGES.md) — it's the single
+[`usr/share/mios/PACKAGES.md`](usr/share/mios/PACKAGES.md) -- it's the single
 source of truth, parsed at build time. Want to know what kernel arguments
 ship? They're in [`usr/lib/bootc/kargs.d/`](usr/lib/bootc/kargs.d/).
 
@@ -157,17 +157,17 @@ to open it in `$EDITOR`; `just show-env` to see the resolved values.
 These are the rules every contribution has to obey. They're enforced by
 build-time lint and by `automation/99-postcheck.sh`:
 
-1. **USR-OVER-ETC** — static config lives in `/usr/lib/<component>.d/`.
+1. **USR-OVER-ETC** -- static config lives in `/usr/lib/<component>.d/`.
    `/etc/` is for admin overrides only.
-2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via
+2. **NO-MKDIR-IN-VAR** -- every `/var/` path is declared via
    `usr/lib/tmpfiles.d/*.conf`. Never written at build time.
-3. **BOUND-IMAGES** — every Quadlet image is symlinked into
+3. **BOUND-IMAGES** -- every Quadlet image is symlinked into
    `/usr/lib/bootc/bound-images.d/` so it ships *with* the host.
-4. **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`.
+4. **BOOTC-CONTAINER-LINT** -- every build ends with `bootc container lint`.
    Fail the lint, fail the build.
-5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`
+5. **UNIFIED-AI-REDIRECTS** -- every agent and tool targets `MIOS_AI_ENDPOINT`
    (`http://localhost:8080/v1`). No vendor-hardcoded URLs.
-6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
+6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s`
    (rationale in their headers).
 
@@ -203,11 +203,11 @@ ultimately defer to `/usr/share/mios/ai/system.md` once the OS is running.
 
 'MiOS' is in active development at `v0.2.x`. The build pipeline is stable,
 the image lints clean against `bootc container lint`, and the WSL2 + ISO
-paths are battle-tested through several weeks of daily-driving. The bare-
-metal install path works but expects you to know what `bootc switch` does
-before you run it.
+paths boot to a working desktop on the developer's daily-driver. The
+bare-metal install path works but expects you to know what `bootc switch`
+does before you run it.
 
-Open issues + roadmap live on the GitHub side. PRs welcome — read
+Open issues + roadmap live on the GitHub side. PRs welcome -- read
 [`CONTRIBUTING.md`](CONTRIBUTING.md) before you push.
 
 ---

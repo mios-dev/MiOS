@@ -10,7 +10,7 @@
 - `jq`, `curl`, `python3`
 - Working directory: this KB's repo root (the `proc/`, `etc/`, `usr/`, ... tree)
 
-## Step 1 — Create a vector store
+## Step 1 -- Create a vector store
 
 ```bash
 VS=$(curl -s https://api.openai.com/v1/vector_stores \
@@ -22,7 +22,7 @@ echo "VS_ID=$VS"
 export VS_ID="$VS"
 ```
 
-## Step 2 — Upload every doc as a File
+## Step 2 -- Upload every doc as a File
 
 ```bash
 declare -A FILE_IDS
@@ -42,7 +42,7 @@ python3 -c "import json,sys; d={k.lstrip('/'): v for k,v in dict([line.split(' -
 export FILE_IDS_JSON="$(cat /tmp/mios-file-ids.json)"
 ```
 
-## Step 3 — Attach with attributes + chunking strategy
+## Step 3 -- Attach with attributes + chunking strategy
 
 ```bash
 python3 - <<'PY'
@@ -60,7 +60,7 @@ for line in open("./var/lib/mios/embeddings/vector_store.import.jsonl"):
         obj["file_id"] = mapping[rel]
         files.append(obj)
     else:
-        print(f"WARN: no file_id for {rel} — skipping")
+        print(f"WARN: no file_id for {rel} -- skipping")
 
 req = urllib.request.Request(
     f"https://api.openai.com/v1/vector_stores/{vs_id}/file_batches",
@@ -75,7 +75,7 @@ most, smaller chunks for kargs.d and PACKAGES.md) and rich `attributes`
 (`doc_type`, `mios_subsystem`, `upstream_tech`, `fhs_path`,
 `kb_version`) for filtered retrieval.
 
-## Step 4 — Query via Responses API
+## Step 4 -- Query via Responses API
 
 ```bash
 curl https://api.openai.com/v1/responses \
@@ -85,7 +85,7 @@ curl https://api.openai.com/v1/responses \
        ./srv/mios/api/responses.example.json)"
 ```
 
-## Step 5 — Optional: create the eval
+## Step 5 -- Optional: create the eval
 
 ```bash
 curl https://api.openai.com/v1/evals \
@@ -93,7 +93,7 @@ curl https://api.openai.com/v1/evals \
   -d @./var/lib/mios/evals/mios-knowledge.eval.json
 ```
 
-## Step 6 — Optional: SFT fine-tuning
+## Step 6 -- Optional: SFT fine-tuning
 
 ```bash
 FILE_ID=$(curl -s https://api.openai.com/v1/files \
@@ -105,7 +105,7 @@ curl https://api.openai.com/v1/fine_tuning/jobs \
   -d "{\"training_file\":\"$FILE_ID\",\"model\":\"gpt-4.1-mini\"}"
 ```
 
-## Step 7 — Optional: DPO after SFT
+## Step 7 -- Optional: DPO after SFT
 
 ```bash
 DPO=$(curl -s https://api.openai.com/v1/files \

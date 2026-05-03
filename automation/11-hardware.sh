@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
+# 'MiOS' v0.2.0 -- 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
 #
 # NVIDIA strategy (v0.2.0):
 #   Primary:  ucore-hci:stable-nvidia ships pre-signed kmods for the base
@@ -32,7 +32,7 @@ install_packages_strict "gpu-mesa"
 echo "[11-hardware] Installing ROCm (optional)..."
 install_packages "gpu-amd-compute"
 
-# ── Intel GPU Compute (fault-tolerant — may not be on all architectures) ──
+# ── Intel GPU Compute (fault-tolerant -- may not be on all architectures) ──
 echo "[11-hardware] Installing Intel compute runtime (fault-tolerant)..."
 install_packages "gpu-intel-compute" || true
 
@@ -43,7 +43,7 @@ NVIDIA_PRESENT=0
 if [[ -d "/lib/modules/$KVER/extra/nvidia" ]] || \
    [[ -d "/lib/modules/$KVER/extra/nvidia-open" ]] || \
    modinfo nvidia -k "$KVER" &>/dev/null; then
-    echo "[11-hardware] ✓ NVIDIA kmod present for kernel $KVER (ucore pre-signed)"
+    echo "[11-hardware] [ok] NVIDIA kmod present for kernel $KVER (ucore pre-signed)"
     NVIDIA_PRESENT=1
 fi
 
@@ -60,7 +60,7 @@ if [[ $NVIDIA_PRESENT -eq 0 ]]; then
         if command -v akmods &>/dev/null; then
             akmods --force --kernels "$KVER" 2>&1 | tail -10 || true
             if modinfo nvidia -k "$KVER" &>/dev/null; then
-                echo "[11-hardware] ✓ NVIDIA kmod rebuilt via akmods for $KVER"
+                echo "[11-hardware] [ok] NVIDIA kmod rebuilt via akmods for $KVER"
                 NVIDIA_PRESENT=1
             fi
         fi
@@ -68,7 +68,7 @@ if [[ $NVIDIA_PRESENT -eq 0 ]]; then
 fi
 
 if [[ $NVIDIA_PRESENT -eq 0 ]]; then
-    echo "[11-hardware] ⚠ No NVIDIA kmod for $KVER after all fallback attempts."
+    echo "[11-hardware] [!] No NVIDIA kmod for $KVER after all fallback attempts."
     echo "[11-hardware]    Image will ship without NVIDIA acceleration. Users with"
     echo "[11-hardware]    NVIDIA hardware can rebuild the kmod at runtime:"
     echo "[11-hardware]       sudo dnf install kernel-devel-\$(uname -r) akmod-nvidia"

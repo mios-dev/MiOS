@@ -1,8 +1,8 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 20-services: Enable systemd services + bare-metal/VM gating
+# 'MiOS' v0.2.0 -- 20-services: Enable systemd services + bare-metal/VM gating
 #
 # CHANGELOG v1.3:
-#   - systemd 260: cgroup v1 support REMOVED — all services must use cgroup v2
+#   - systemd 260: cgroup v1 support REMOVED -- all services must use cgroup v2
 #   - systemd 260: SysV service scripts no longer supported
 #   - Fixed: pmcd/pmlogger services removed (only pmproxy is installed)
 #   - Added: bootloader-update.service for bootc systems
@@ -10,7 +10,7 @@
 #   - Improved: Bare-metal vs VM vs WSL2 service gating
 set -euo pipefail
 
-echo "  'MiOS' v0.2.0 — Service Configuration"
+echo "  'MiOS' v0.2.0 -- Service Configuration"
 
 # ─── Fix systemd unit file permissions ────────────────────────────────────────
 # Container builds sometimes leave bad perms from COPY operations.

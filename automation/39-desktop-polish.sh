@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
+# 'MiOS' v0.2.0 -- 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
 #
 # CHANGELOG v0.2.0:
 #   - FIX: mios-motd source path was /tmp/automation/automation/ (never exists).
@@ -17,13 +17,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "[39-desktop-polish] Final desktop polish..."
 
-# ═══ COCKPIT DESKTOP ENTRY — uses cockpit-desktop (no TLS warnings) ═══
+# ═══ COCKPIT DESKTOP ENTRY -- uses cockpit-desktop (no TLS warnings) ═══
 echo "[39-desktop-polish] Cockpit desktop entry delivered via overlay."
 
 # ═══ NVIDIA SETTINGS DESKTOP ENTRY ═══
 echo "[39-desktop-polish] NVIDIA Settings desktop entry delivered via overlay."
 
-# ═══ CEPH DASHBOARD — update to use correct app name ═══
+# ═══ CEPH DASHBOARD -- update to use correct app name ═══
 echo "[39-desktop-polish] Ceph Dashboard desktop entry delivered via overlay."
 
 # ═══ MOTD DASHBOARD ═══
@@ -32,10 +32,10 @@ echo "[39-desktop-polish] Ceph Dashboard desktop entry delivered via overlay."
 # manual 'install' calls here.
 echo "[39-desktop-polish] MOTD dashboard delivered via overlay."
 
-# ═══ FASTFETCH CONFIG — services dashboard on terminal open ═══
+# ═══ FASTFETCH CONFIG -- services dashboard on terminal open ═══
 echo "[39-desktop-polish] Fastfetch config delivered via overlay."
 
-# ═══ PROFILE.D — fastfetch + MOTD on terminal/TTY open ═══
+# ═══ PROFILE.D -- fastfetch + MOTD on terminal/TTY open ═══
 echo "[39-desktop-polish] Profile.d MOTD script delivered via overlay."
 
 echo "[39-desktop-polish] Desktop polish complete."

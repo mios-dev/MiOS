@@ -1,7 +1,7 @@
 {
   "type": "function",
   "name": "repo_overlay_inspect",
-  "description": "Inspect a path under the MiOS repo root. The repo root IS the system root in MiOS — usr/, etc/, home/, srv/, v1/ mirror the deployed image 1:1. There is no separate system_files/ directory.",
+  "description": "Inspect a path under the MiOS repo root. The repo root IS the system root in MiOS -- usr/, etc/, home/, srv/, v1/ mirror the deployed image 1:1. There is no separate system_files/ directory.",
   "strict": true,
   "parameters": {
     "type": "object",

@@ -1,22 +1,22 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 30-locale-theme: Unified dark theme for EVERY window type
+# 'MiOS' v0.2.0 -- 30-locale-theme: Unified dark theme for EVERY window type
 #
 # Coverage matrix (ALL must be dark):
-#   ✓ libadwaita / GTK4 apps (GNOME native) — color-scheme=prefer-dark via dconf
-#   ✓ GTK3 apps (legacy GNOME) — adw-gtk3-dark theme
-#   ✓ GDM login screen — separate dconf db (gdm user)
-#   ✓ GNOME lock screen — inherits user session (automatic)
-#   ✓ Flatpak apps — ADW_DEBUG_COLOR_SCHEME + portal + filesystem overrides
-#   ✓ Qt5/Qt6 apps — adwaita-qt + QGnomePlatform env vars
-#   ✓ Electron/Chromium apps — ELECTRON_FORCE_DARK_MODE
-#   ✓ Firefox — MOZ_ENABLE_WAYLAND + portal color-scheme
-#   ✓ GNOME Remote Desktop — XCURSOR_THEME + session env
-#   ✓ TTY/console — no theming needed (terminal colors)
+#   [ok] libadwaita / GTK4 apps (GNOME native) -- color-scheme=prefer-dark via dconf
+#   [ok] GTK3 apps (legacy GNOME) -- adw-gtk3-dark theme
+#   [ok] GDM login screen -- separate dconf db (gdm user)
+#   [ok] GNOME lock screen -- inherits user session (automatic)
+#   [ok] Flatpak apps -- ADW_DEBUG_COLOR_SCHEME + portal + filesystem overrides
+#   [ok] Qt5/Qt6 apps -- adwaita-qt + QGnomePlatform env vars
+#   [ok] Electron/Chromium apps -- ELECTRON_FORCE_DARK_MODE
+#   [ok] Firefox -- MOZ_ENABLE_WAYLAND + portal color-scheme
+#   [ok] GNOME Remote Desktop -- XCURSOR_THEME + session env
+#   [ok] TTY/console -- no theming needed (terminal colors)
 #
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
 
-echo "  'MiOS' v0.2.0 — Universal Dark Theme"
+echo "  'MiOS' v0.2.0 -- Universal Dark Theme"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
 # v0.2.0: Delivered via usr/share/skel/.bashrc overlay.
@@ -34,7 +34,7 @@ echo "[30-locale-theme] Using GTK4 theme from overlay..."
 # v0.2.0: Delivered via etc/environment.d/ overlay.
 echo "[30-locale-theme] Using environment.d from overlay..."
 
-# ═══ Flatpak overrides — dark theme + cursor + fonts ═══
+# ═══ Flatpak overrides -- dark theme + cursor + fonts ═══
 echo "[30-locale-theme] Applying Flatpak dark theme + filesystem overrides..."
 flatpak override --system --env=ADW_DEBUG_COLOR_SCHEME=prefer-dark 2>/dev/null || true
 flatpak override --system --env=XCURSOR_THEME=Bibata-Modern-Classic 2>/dev/null || true
@@ -56,7 +56,7 @@ flatpak override --system --filesystem=/etc/gtk-4.0:ro 2>/dev/null || true
 if [ -f /usr/share/glib-2.0/schemas/90-mios.gschema.override ]; then
     echo "[30-locale-theme] Compiling GSchema overrides..."
     glib-compile-schemas /usr/share/glib-2.0/schemas/ || true
-    echo "[30-locale-theme] ✓ GSchema overrides compiled"
+    echo "[30-locale-theme] [ok] GSchema overrides compiled"
 fi
 
 # Suppress DBus warnings during headless update without swallowing real syntax errors

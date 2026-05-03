@@ -15,9 +15,9 @@ kernel cmdline at upgrade time.
 | Parameter | Purpose | Override |
 |---|---|---|
 | `slab_nomerge` | Prevent slab cache merging (heap isolation) | Remove from kargs.d TOML |
-| ~~`init_on_alloc=1`~~ | Disabled — causes CUDA memory init failures; enable for CPU-only builds | Higher-priority kargs.d file |
-| ~~`init_on_free=1`~~ | Disabled — same CUDA incompatibility | Higher-priority kargs.d file |
-| ~~`page_alloc.shuffle=1`~~ | Disabled — NVIDIA driver instability | Higher-priority kargs.d file |
+| ~~`init_on_alloc=1`~~ | Disabled -- causes CUDA memory init failures; enable for CPU-only builds | Higher-priority kargs.d file |
+| ~~`init_on_free=1`~~ | Disabled -- same CUDA incompatibility | Higher-priority kargs.d file |
+| ~~`page_alloc.shuffle=1`~~ | Disabled -- NVIDIA driver instability | Higher-priority kargs.d file |
 | `randomize_kstack_offset=on` | Per-syscall kernel stack randomization | `=off` |
 | `pti=on` | Page Table Isolation (Meltdown) | `=off` (not recommended) |
 | `vsyscall=none` | Disable legacy vsyscall table | `=emulate` |
@@ -118,7 +118,7 @@ firewall-cmd --list-all-zones
 ## CrowdSec
 
 Sovereign/offline mode (`automation/12-virt.sh:42-50` disables
-`online_client` in `/etc/crowdsec/config.yaml` — upstream-contract /etc/
+`online_client` in `/etc/crowdsec/config.yaml` -- upstream-contract /etc/
 location, no /usr/lib drop-in mechanism exists). Monitors logs, applies
 nftables bans.
 

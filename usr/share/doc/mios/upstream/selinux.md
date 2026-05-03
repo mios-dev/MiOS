@@ -1,7 +1,7 @@
 # SELinux on 'MiOS'
 
 > Mode: enforcing. Five custom modules in `usr/share/selinux/packages/mios/`,
-> compiled and shipped, **not auto-loaded at build** — see
+> compiled and shipped, **not auto-loaded at build** -- see
 > `automation/19-k3s-selinux.sh:46-51`. Booleans and fcontexts declared
 > via `semanage` in `automation/37-selinux.sh`.
 
@@ -23,13 +23,13 @@
 
 ## Booleans
 
-- `container_use_cephfs=on` — let containers read/write CephFS
-- `virt_use_samba=on` — let libvirt VMs talk to host Samba shares
+- `container_use_cephfs=on` -- let containers read/write CephFS
+- `virt_use_samba=on` -- let libvirt VMs talk to host Samba shares
 
 ## Fcontexts
 
 - `/var/home(/.*)?` → `user_home_dir_t` (so `/var/home/<user>`
-  inherits the right context — `home_dirs` is a virtual link)
+  inherits the right context -- `home_dirs` is a virtual link)
 
 ## Verification
 

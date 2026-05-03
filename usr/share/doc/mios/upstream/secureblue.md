@@ -1,4 +1,4 @@
-# SecureBlue — Audit Framework 'MiOS' Draws From
+# SecureBlue -- Audit Framework 'MiOS' Draws From
 
 > MiOS's `SECURITY.md` is "sourced primarily from SecureBlue's audit
 > framework and the Fedora hardening guidelines." Most of the kargs and
@@ -15,20 +15,20 @@
 
 | SecureBlue measure | 'MiOS' adoption | Where |
 | --- | --- | --- |
-| `slab_nomerge` | ✅ | `usr/lib/bootc/kargs.d/00-mios.toml` |
-| `init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` | **❌ disabled** — CUDA incompatibility | `00-mios.toml` (commented; SECURITY.md notes this) |
-| `randomize_kstack_offset=on`, `pti=on`, `vsyscall=none` | ✅ | `00-mios.toml` |
-| `lockdown=integrity` | ✅ (SecureBlue prefers `confidentiality`; 'MiOS' chose `integrity` to allow signed-but-unlocked workloads) | `00-mios.toml` |
-| Spectre/Meltdown/L1TF/GDS mitigations (full set) | ✅ | `00-mios.toml` |
-| `kernel.kptr_restrict=2`, `kernel.dmesg_restrict=1` | ✅ | `usr/lib/sysctl.d/99-mios-hardening.conf` |
-| `kernel.unprivileged_bpf_disabled=1`, `net.core.bpf_jit_harden=2` | ✅ | `99-mios-hardening.conf` |
-| `kernel.kexec_load_disabled=1`, `kernel.io_uring_disabled=2` | ✅ | `99-mios-hardening.conf` |
-| `fs.protected_*` series | ✅ | `99-mios-hardening.conf` |
-| Network: rp_filter, tcp_syncookies, accept_redirects=0 | ✅ | `99-mios-hardening.conf` |
-| fapolicyd deny-by-default | ✅ | `etc/fapolicyd/fapolicyd.rules` |
-| USBGuard | ✅ (off by default) | per `SECURITY.md` §USBGuard |
-| firewalld default-deny | ✅ (drop zone) | `automation/33-firewall.sh` |
-| Kernel module signing | ✅ (via base-image MOK) | inherited from ucore-hci |
+| `slab_nomerge` | [ok] | `usr/lib/bootc/kargs.d/00-mios.toml` |
+| `init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` | ** disabled** -- CUDA incompatibility | `00-mios.toml` (commented; SECURITY.md notes this) |
+| `randomize_kstack_offset=on`, `pti=on`, `vsyscall=none` | [ok] | `00-mios.toml` |
+| `lockdown=integrity` | [ok] (SecureBlue prefers `confidentiality`; 'MiOS' chose `integrity` to allow signed-but-unlocked workloads) | `00-mios.toml` |
+| Spectre/Meltdown/L1TF/GDS mitigations (full set) | [ok] | `00-mios.toml` |
+| `kernel.kptr_restrict=2`, `kernel.dmesg_restrict=1` | [ok] | `usr/lib/sysctl.d/99-mios-hardening.conf` |
+| `kernel.unprivileged_bpf_disabled=1`, `net.core.bpf_jit_harden=2` | [ok] | `99-mios-hardening.conf` |
+| `kernel.kexec_load_disabled=1`, `kernel.io_uring_disabled=2` | [ok] | `99-mios-hardening.conf` |
+| `fs.protected_*` series | [ok] | `99-mios-hardening.conf` |
+| Network: rp_filter, tcp_syncookies, accept_redirects=0 | [ok] | `99-mios-hardening.conf` |
+| fapolicyd deny-by-default | [ok] | `etc/fapolicyd/fapolicyd.rules` |
+| USBGuard | [ok] (off by default) | per `SECURITY.md` §USBGuard |
+| firewalld default-deny | [ok] (drop zone) | `automation/33-firewall.sh` |
+| Kernel module signing | [ok] (via base-image MOK) | inherited from ucore-hci |
 
 ## What 'MiOS' diverges on
 
@@ -45,7 +45,7 @@
 > framework (https://github.com/secureblue/secureblue) and the Fedora
 > hardening guidelines.
 
-The SecureBlue audit set is the *baseline* — MiOS's deviations are
+The SecureBlue audit set is the *baseline* -- MiOS's deviations are
 documented inline so a reviewer can see exactly what was relaxed and
 why.
 

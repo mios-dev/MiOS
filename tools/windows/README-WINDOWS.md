@@ -1,4 +1,4 @@
-# 'MiOS' — Windows Build Guide
+# 'MiOS' -- Windows Build Guide
 
 Build 'MiOS' locally on Windows using **Docker Desktop** (WSL2 backend) and produce a VHDX for Hyper-V.
 
@@ -11,7 +11,7 @@ Build 'MiOS' locally on Windows using **Docker Desktop** (WSL2 backend) and prod
 | Docker Desktop (WSL2 backend) | <https://www.docker.com/products/docker-desktop/> |
 | Git for Windows | <https://git-scm.com/download/win> |
 | PowerShell 5.1+ | Built-in on Windows 10/11 |
-| (Optional) Hyper-V | Windows 10/11 Pro — enable in "Turn Windows features on or off" |
+| (Optional) Hyper-V | Windows 10/11 Pro -- enable in "Turn Windows features on or off" |
 
 ---
 
@@ -110,12 +110,12 @@ wsl -d 'MiOS'
 
 ## Troubleshooting
 
-**"Docker daemon not running"** — Open Docker Desktop and wait for the whale icon to stop animating.
+**"Docker daemon not running"** -- Open Docker Desktop and wait for the whale icon to stop animating.
 
-**"Containerfile not found"** — Run the script from the repo root (`cd 'MiOS'` first).
+**"Containerfile not found"** -- Run the script from the repo root (`cd 'MiOS'` first).
 
-**BIB fails with "permission denied"** — Docker Desktop needs privileged containers enabled:
+**BIB fails with "permission denied"** -- Docker Desktop needs privileged containers enabled:
 Docker Desktop → Settings → Docker Engine → add `"privileged": true`.
 
-**VHDX won't boot in Hyper-V** — Ensure Generation 2 VM and Secure Boot template is set to
+**VHDX won't boot in Hyper-V** -- Ensure Generation 2 VM and Secure Boot template is set to
 `MicrosoftUEFICertificateAuthority` (not the default Windows one).

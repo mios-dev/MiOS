@@ -44,23 +44,23 @@ for location in "${OVMF_LOCATIONS[@]}"; do
     if [ -f "$location/OVMF_CODE.secboot.fd" ]; then
         OVMF_CODE="$location/OVMF_CODE.secboot.fd"
         OVMF_VARS="$location/OVMF_VARS.fd"
-        echo -e "${GREEN}✓ Found Secure Boot OVMF at: $location${NC}"
+        echo -e "${GREEN}[ok] Found Secure Boot OVMF at: $location${NC}"
         break
     elif [ -f "$location/OVMF_CODE.secboot.4m.fd" ]; then
         OVMF_CODE="$location/OVMF_CODE.secboot.4m.fd"
         OVMF_VARS="$location/OVMF_VARS.4m.fd"
-        echo -e "${GREEN}✓ Found 4MB Secure Boot OVMF at: $location${NC}"
+        echo -e "${GREEN}[ok] Found 4MB Secure Boot OVMF at: $location${NC}"
         break
     elif [ -f "$location/OVMF_CODE.fd" ]; then
         OVMF_CODE="$location/OVMF_CODE.fd"
         OVMF_VARS="$location/OVMF_VARS.fd"
-        echo -e "${YELLOW}⚠ Found standard OVMF (no Secure Boot) at: $location${NC}"
+        echo -e "${YELLOW}[!] Found standard OVMF (no Secure Boot) at: $location${NC}"
         break
     fi
 done
 
 if [ -z "$OVMF_CODE" ]; then
-    echo -e "${RED}✗ No OVMF firmware found!${NC}"
+    echo -e "${RED}[x] No OVMF firmware found!${NC}"
     echo -e "${YELLOW}Installing edk2-ovmf package...${NC}"
     $SUDO pacman -S --noconfirm edk2-ovmf
     
@@ -74,7 +74,7 @@ if [ -z "$OVMF_CODE" ]; then
     done
     
     if [ -z "$OVMF_CODE" ]; then
-        echo -e "${RED}✗ Still can't find OVMF files after installation!${NC}"
+        echo -e "${RED}[x] Still can't find OVMF files after installation!${NC}"
         echo "Please check package installation manually."
         exit 1
     fi
@@ -85,7 +85,7 @@ echo -e "  VARS: $OVMF_VARS"
 
 # Check if VARS template actually exists
 if [ ! -f "$OVMF_VARS" ]; then
-    echo -e "${RED}✗ OVMF_VARS template doesn't exist: $OVMF_VARS${NC}"
+    echo -e "${RED}[x] OVMF_VARS template doesn't exist: $OVMF_VARS${NC}"
     echo "Available files in directory:"
     ls -lh "$(dirname "$OVMF_VARS")"
     exit 1
@@ -93,7 +93,7 @@ fi
 
 echo -e "\n${BLUE}[2/6] Checking VM status...${NC}"
 if virsh dominfo Xbox &>/dev/null; then
-    echo -e "${GREEN}✓ VM 'Xbox' found${NC}"
+    echo -e "${GREEN}[ok] VM 'Xbox' found${NC}"
     VM_STATE=$(virsh domstate Xbox 2>/dev/null)
     echo "  Current state: $VM_STATE"
     
@@ -103,7 +103,7 @@ if virsh dominfo Xbox &>/dev/null; then
         sleep 5
     fi
 else
-    echo -e "${YELLOW}⚠ VM 'Xbox' not currently defined${NC}"
+    echo -e "${YELLOW}[!] VM 'Xbox' not currently defined${NC}"
 fi
 
 echo -e "\n${BLUE}[3/6] Backing up current NVRAM...${NC}"
@@ -111,12 +111,12 @@ NVRAM_PATH="/var/lib/libvirt/qemu/nvram/Xbox_VARS.fd"
 if [ -f "$NVRAM_PATH" ]; then
     BACKUP_PATH="${NVRAM_PATH}.backup-$(date +%Y%m%d-%H%M%S)"
     $SUDO cp "$NVRAM_PATH" "$BACKUP_PATH"
-    echo -e "${GREEN}✓ Backed up to: $BACKUP_PATH${NC}"
+    echo -e "${GREEN}[ok] Backed up to: $BACKUP_PATH${NC}"
     
     echo -e "${YELLOW}  Removing old NVRAM to get fresh Secure Boot keys...${NC}"
     $SUDO rm "$NVRAM_PATH"
 else
-    echo -e "${YELLOW}⚠ No existing NVRAM found (first boot)${NC}"
+    echo -e "${YELLOW}[!] No existing NVRAM found (first boot)${NC}"
 fi
 
 echo -e "\n${BLUE}[4/6] Creating corrected VM XML configuration...${NC}"
@@ -378,28 +378,28 @@ XMLEOF
 sed -i "s|OVMF_CODE_PLACEHOLDER|$OVMF_CODE|g" /tmp/Xbox-fixed.xml
 sed -i "s|OVMF_VARS_PLACEHOLDER|$OVMF_VARS|g" /tmp/Xbox-fixed.xml
 
-echo -e "${GREEN}✓ XML configuration created${NC}"
+echo -e "${GREEN}[ok] XML configuration created${NC}"
 
 echo -e "\n${BLUE}[5/6] Applying VM configuration...${NC}"
 if virsh define /tmp/Xbox-fixed.xml; then
-    echo -e "${GREEN}✓ VM configuration applied successfully${NC}"
+    echo -e "${GREEN}[ok] VM configuration applied successfully${NC}"
 else
-    echo -e "${RED}✗ Failed to apply configuration${NC}"
+    echo -e "${RED}[x] Failed to apply configuration${NC}"
     echo "Configuration saved to: /tmp/Xbox-fixed.xml"
     exit 1
 fi
 
 echo -e "\n${BLUE}[6/6] Starting VM...${NC}"
 if virsh start Xbox; then
-    echo -e "${GREEN}✓ VM started successfully${NC}"
+    echo -e "${GREEN}[ok] VM started successfully${NC}"
 else
-    echo -e "${RED}✗ Failed to start VM${NC}"
+    echo -e "${RED}[x] Failed to start VM${NC}"
     echo "Check: sudo journalctl -u libvirtd -n 50"
     exit 1
 fi
 
 echo -e "\n${GREEN}╔════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║         ✓ Fix Complete!                ║${NC}"
+echo -e "${GREEN}║         [ok] Fix Complete!                ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════╝${NC}\n"
 
 echo -e "${YELLOW}Configuration Summary:${NC}"

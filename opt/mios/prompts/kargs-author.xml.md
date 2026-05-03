@@ -29,5 +29,5 @@ A single backticked filename, e.g. `usr/lib/bootc/kargs.d/50-mios-vfio.toml`.
 A single fenced ` ```toml` block containing the complete file contents.
 
 ## Rationale
-2–4 bullets explaining each karg added (purpose, conflict considerations, override path).
+2-4 bullets explaining each karg added (purpose, conflict considerations, override path).
 </output_contract>

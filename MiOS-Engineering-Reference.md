@@ -1,19 +1,19 @@
 # 'MiOS' Engineering Reference
 
-A single comprehensive reference covering every architectural decision,
-build pipeline phase, supply-chain artifact, and operational law of the
-'MiOS' Linux distribution. Every claim cites a real file path.
+A reference covering every architectural decision, build pipeline phase,
+supply-chain artifact, and operational law of the 'MiOS' Linux
+distribution. Every claim cites a real file path.
 
 ---
 
 ## §0. Project identity
 
-- Org: **`mios-dev`** (https://github.com/mios-dev). All earlier names —
-  *CloudWS-bootc*, *CloudWS-OS* — are deprecated.
+- Org: **`mios-dev`** (https://github.com/mios-dev). All earlier names --
+  *CloudWS-bootc*, *CloudWS-OS* -- are deprecated.
 - Two repos:
-  - **System layer:** `https://github.com/mios-dev/MiOS.git` — the bootc
+  - **System layer:** `https://github.com/mios-dev/MiOS.git` -- the bootc
     image source. Repo root *is* the deployed system root.
-  - **Bootstrap/installer:** `https://github.com/mios-dev/mios-bootstrap.git` —
+  - **Bootstrap/installer:** `https://github.com/mios-dev/mios-bootstrap.git` --
     Phase 0/1/4 of the global install pipeline (preflight, total root merge,
     reboot prompt).
 - Published image: **`ghcr.io/mios-dev/mios:latest`**.
@@ -28,7 +28,7 @@ build pipeline phase, supply-chain artifact, and operational law of the
 
 ## §1. Repository topology
 
-### `'MiOS'` repo (system layer) — repo root is system root
+### `'MiOS'` repo (system layer) -- repo root is system root
 
 ```
 .                                  # = / on a deployed host
@@ -123,7 +123,7 @@ build pipeline phase, supply-chain artifact, and operational law of the
 └── VERSION                        # Single line: "v0.2.x"
 ```
 
-### `mios-bootstrap` repo (installer layer) — sibling root overlay
+### `mios-bootstrap` repo (installer layer) -- sibling root overlay
 
 ```
 .
@@ -145,7 +145,7 @@ build pipeline phase, supply-chain artifact, and operational law of the
 ## §2. Base image and supply chain
 
 ### Primary base
-- **`ghcr.io/ublue-os/ucore-hci:stable-nvidia`** (Containerfile:2 — `ARG BASE_IMAGE`).
+- **`ghcr.io/ublue-os/ucore-hci:stable-nvidia`** (Containerfile:2 -- `ARG BASE_IMAGE`).
 - Resolved digest captured per build by `automation/build.sh` via `record_version`
   (`automation/lib/common.sh`).
 
@@ -204,13 +204,13 @@ COPY config/artifacts/            → /ctx/bib-configs/
 COPY tools/                       → /ctx/tools/
 
 FROM ${BASE_IMAGE}                  # main build stage
-LABEL …
+LABEL ...
 CMD ["/sbin/init"]
 ARG MIOS_USER=mios
 ARG MIOS_HOSTNAME=mios
 ARG MIOS_FLATPAKS=
-RUN --mount=type=bind,from=ctx,…
-    --mount=type=cache,…
+RUN --mount=type=bind,from=ctx,...
+    --mount=type=cache,...
     set -ex;
     cp -a /ctx/* /tmp/build/;
     install_packages_strict base;            # Containerfile pre-pipeline
@@ -287,7 +287,7 @@ post-validated via `rpm -q` against `packages-critical` from `PACKAGES.md`
 
 Skipped under in-Containerfile build: `08-system-files-overlay.sh` (runs
 pre-pipeline directly from Containerfile) and `37-ollama-prep.sh`
-(CI-skipped — too slow / network-heavy).
+(CI-skipped -- too slow / network-heavy).
 
 ### Sub-phase numbering
 The numeric prefix encodes execution order. Multiple scripts share a prefix
@@ -303,9 +303,9 @@ a fenced ` ```packages-<category>` block parsed by
 `/^\`\`\`packages-${category}$/,/^\`\`\`$/`).
 
 Helpers (provided by `lib/packages.sh`):
-- `install_packages "<category>"` — best-effort, `--skip-unavailable`.
-- `install_packages_strict "<category>"` — fails the script on any miss.
-- `install_packages_optional "<category>"` — pure best-effort, never fails.
+- `install_packages "<category>"` -- best-effort, `--skip-unavailable`.
+- `install_packages_strict "<category>"` -- fails the script on any miss.
+- `install_packages_optional "<category>"` -- pure best-effort, never fails.
 
 Categories and their counts (from `MiOS-SBOM.csv`):
 
@@ -354,7 +354,7 @@ Categories and their counts (from `MiOS-SBOM.csv`):
 
 ### Kernel rule (LAW-adjacent)
 ONLY add: `kernel-modules-extra`, `kernel-devel`, `kernel-headers`,
-`kernel-tools`. NEVER upgrade `kernel`/`kernel-core` in-container —
+`kernel-tools`. NEVER upgrade `kernel`/`kernel-core` in-container --
 `automation/01-repos.sh:65,68` excludes them explicitly. dnf option spelling
 is `install_weak_deps=False` (underscore); `install_weakdeps` is silently
 ignored by dnf5.
@@ -376,7 +376,7 @@ ignored by dnf5.
 
 ### LAW-relevant from-source policy
 - Looking Glass + KVMFR build during `12-virt.sh` toolchain install; cmake/
-  gcc/*-devel removed before image commit (image stays slim) — see
+  gcc/*-devel removed before image commit (image stays slim) -- see
   `automation/53-bake-lookingglass-client.sh:8`.
 - SELinux modules ship as `.te` source AND compiled `.pp`; load happens
   at boot via `mios-selinux-init.service`, NOT during build (avoids
@@ -388,33 +388,33 @@ ignored by dnf5.
 
 ### kargs.d (`usr/lib/bootc/kargs.d/*.toml`)
 
-Flat array form only — bootc rejects `[kargs]` section headers and `delete`
+Flat array form only -- bootc rejects `[kargs]` section headers and `delete`
 sub-keys.
 
 | File | Kargs | Purpose |
 |---|---|---|
 | 00-mios.toml | `init=/sbin/init`, `audit=1`, `lockdown=integrity`, `iommu=pt`, `intel_iommu=on`, `amd_iommu=on` | Core boot / IOMMU |
-| 01-mios-hardening.toml | `slab_nomerge`, `randomize_kstack_offset=on`, `vsyscall=none`, `oops=panic`, `module.sig_enforce=1` | Kernel hardening (note: `init_on_alloc/free` and `page_alloc.shuffle` deliberately disabled — NVIDIA/CUDA incompatibility) |
+| 01-mios-hardening.toml | `slab_nomerge`, `randomize_kstack_offset=on`, `vsyscall=none`, `oops=panic`, `module.sig_enforce=1` | Kernel hardening (note: `init_on_alloc/free` and `page_alloc.shuffle` deliberately disabled -- NVIDIA/CUDA incompatibility) |
 | 02-mios-gpu.toml | NVIDIA/AMD/Intel GPU silicon-specific flags | Per-vendor GPU workarounds |
 | 10-mios-verbose.toml | (commented-out by default) | Verbose boot for debugging |
 | 10-nvidia.toml | `nvidia.NVreg_PreserveVideoMemoryAllocations=1` etc. | NVIDIA module overrides |
-| 13-rtx50-vfio-workaround.toml | `pcie_acs_override=…`, RTX 50 idle workarounds | Blackwell VFIO/idle fix |
-| 15-rootflags.toml | `rootflags=…` | Root mount options |
-| 20-vfio.toml | `vfio-pci.ids=…` (placeholder) | VFIO passthrough |
+| 13-rtx50-vfio-workaround.toml | `pcie_acs_override=...`, RTX 50 idle workarounds | Blackwell VFIO/idle fix |
+| 15-rootflags.toml | `rootflags=...` | Root mount options |
+| 20-vfio.toml | `vfio-pci.ids=...` (placeholder) | VFIO passthrough |
 | 30-security.toml | secureblue-derived flags | Extended hardening |
 | 31-secureblue-extended.toml | additional secureblue kargs | Extended secureblue |
 
 ### sysctl.d (`usr/lib/sysctl.d/*.conf`)
-- `90-mios-le9uo.conf` — BORE/le9uo scheduler tuning (keys prefixed `-` so
+- `90-mios-le9uo.conf` -- BORE/le9uo scheduler tuning (keys prefixed `-` so
   missing-on-vanilla kernels is silent).
-- `90-mios-overlayfs.conf` — overlay/sysext tuning.
-- `99-mios-hardening.conf` — TCP/IP hardening + `unprivileged_userns_clone`
+- `90-mios-overlayfs.conf` -- overlay/sysext tuning.
+- `99-mios-hardening.conf` -- TCP/IP hardening + `unprivileged_userns_clone`
   (also `-`-prefixed for kernel portability).
 
 ### modprobe.d (`usr/lib/modprobe.d/*.conf`)
-- `nvidia-open.conf` — open kernel module flag (managed at /usr to prevent
+- `nvidia-open.conf` -- open kernel module flag (managed at /usr to prevent
   /etc state drift).
-- `blacklist-vmw_vsock.conf` — blacklists VMware vsock (conflicts with
+- `blacklist-vmw_vsock.conf` -- blacklists VMware vsock (conflicts with
   Hyper-V hv_sock).
 
 ### modules-load.d (`usr/lib/modules-load.d/mios.conf`)
@@ -439,7 +439,7 @@ to `/etc/skel/` and lets `systemd-sysusers` populate `/var/home/<user>/`
 at first boot.
 
 ### sysusers.d (`usr/lib/sysusers.d/*.conf`)
-Canonical: `10-mios.conf` — declares `g mios 1000` (numeric GID lookup
+Canonical: `10-mios.conf` -- declares `g mios 1000` (numeric GID lookup
 required by `u mios 1000:mios`). Critical: login users MUST have fixed UIDs
 ≥ UID_MIN (1000). Auto-allocation (`-`) picks from the system range
 (< 1000) and breaks logind/XDG_RUNTIME_DIR. Postcheck #8/#8b enforce.
@@ -450,9 +450,9 @@ Service users: `50-mios.conf` (mios-virt UID 800), `50-mios-services.conf`
 (mios-ai service), `20-podman-machine.conf` (`g core 1001` + `u core 1001:core`).
 
 ### dracut
-- `usr/lib/dracut/dracut-logger.sh` — upstream dracut (Apache/GPL,
-  Amadeusz Żołnowski) — vendored unchanged.
-- Module setup overrides under `usr/lib/dracut/modules.d/*` — vendored
+- `usr/lib/dracut/dracut-logger.sh` -- upstream dracut (Apache/GPL,
+  Amadeusz Żołnowski) -- vendored unchanged.
+- Module setup overrides under `usr/lib/dracut/modules.d/*` -- vendored
   as upstream.
 
 ---
@@ -469,11 +469,11 @@ Service users: `50-mios.conf` (mios-virt UID 800), `50-mios-services.conf`
 
 ### `etc/containers/systemd/mios-ceph.container`
 - **Image:** `quay.io/ceph/ceph:latest`
-- **User/Group:** `root`/`root` (documented exception — Ceph requires uid 0)
+- **User/Group:** `root`/`root` (documented exception -- Ceph requires uid 0)
 
 ### `etc/containers/systemd/mios-k3s.container`
 - **Image:** `docker.io/rancher/k3s:latest`
-- **User/Group:** `root`/`root` (documented exception — k3s requires uid 0)
+- **User/Group:** `root`/`root` (documented exception -- k3s requires uid 0)
 
 ### `usr/share/containers/systemd/mios-pxe-hub.container`
 - **Image:** `quay.io/poseidon/matchbox:latest`
@@ -499,37 +499,37 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 70+ MiOS-owned units across `usr/lib/systemd/system/`. Grouped:
 
 ### Targets (role hierarchy)
-- `mios-firstboot.target` — Wants= cdi-detect, libvirtd-setup, grd-setup
+- `mios-firstboot.target` -- Wants= cdi-detect, libvirtd-setup, grd-setup
 - `mios-desktop.target`, `mios-headless.target`, `mios-hybrid.target`
 - `mios-k3s-master.target`, `mios-k3s-worker.target`, `mios-ha-node.target`
 
 ### Firstboot services
-- `mios-wsl-firstboot.service` — WSL2 user creation + hostname + passwd
-- `mios-wsl-init.service` — WSL2 boot init
-- `mios-wsl-runtime-dir.service` — `/run/user/<uid>/` fallback (LAW-style fallback for non-PAM session paths)
-- `mios-grd-setup.service` — GNOME Remote Desktop firstboot (TLS keygen)
-- `mios-cdi-detect.service` — CDI generation (gated stub today)
-- `mios-libvirtd-setup.service` — libvirtd firstboot
-- `mios-firstboot.target` — pulls the above together
+- `mios-wsl-firstboot.service` -- WSL2 user creation + hostname + passwd
+- `mios-wsl-init.service` -- WSL2 boot init
+- `mios-wsl-runtime-dir.service` -- `/run/user/<uid>/` fallback (LAW-style fallback for non-PAM session paths)
+- `mios-grd-setup.service` -- GNOME Remote Desktop firstboot (TLS keygen)
+- `mios-cdi-detect.service` -- CDI generation (gated stub today)
+- `mios-libvirtd-setup.service` -- libvirtd firstboot
+- `mios-firstboot.target` -- pulls the above together
 
 ### GPU services
-- `mios-gpu-amd.service` — AMD ROCm/KFD plumbing
-- `mios-gpu-intel.service` — Intel iGPU/i915/xe plumbing
-- `mios-gpu-nvidia.service` — NVIDIA module load + CDI ordering
-- `mios-gpu-status.service` — GPU passthrough status writer
+- `mios-gpu-amd.service` -- AMD ROCm/KFD plumbing
+- `mios-gpu-intel.service` -- Intel iGPU/i915/xe plumbing
+- `mios-gpu-nvidia.service` -- NVIDIA module load + CDI ordering
+- `mios-gpu-status.service` -- GPU passthrough status writer
 
 ### Service drop-ins (`*.service.d/`)
-- `10-bare-metal-only.conf` — `ConditionVirtualization=no` (corosync,
+- `10-bare-metal-only.conf` -- `ConditionVirtualization=no` (corosync,
   crowdsec, multipathd, nfs-server, nvidia-powerd, osbuild-*, pacemaker,
   pcsd, smb, nmb, mios-ha-bootstrap)
-- `10-mios-wsl2.conf` — `ConditionVirtualization=!wsl` (avahi, cloud-*,
+- `10-mios-wsl2.conf` -- `ConditionVirtualization=!wsl` (avahi, cloud-*,
   greenboot-healthcheck, qemu-guest-agent, rpm-ostree-fix-shadow-mode,
   stratisd, systemd-homed, systemd-logind, virtlxcd, zincati)
-- `10-mios-virt-gate.conf` — virtualization gating (audit*, bootloader-update,
+- `10-mios-virt-gate.conf` -- virtualization gating (audit*, bootloader-update,
   ceph-bootstrap, chronyd, fapolicyd, firewalld, gdm, nvidia-powerd, tuned,
   usbguard, waydroid-container)
-- `10-virt-gate.conf` — applies to 'MiOS' units skipping in containers/WSL
-- `10-mios-container-gate.conf` — NetworkManager + systemd-resolved gating
+- `10-virt-gate.conf` -- applies to 'MiOS' units skipping in containers/WSL
+- `10-mios-container-gate.conf` -- NetworkManager + systemd-resolved gating
 
 ### Timers
 - `uupd.timer` (Day-2 updates)
@@ -541,39 +541,39 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 ## §9. Greenboot health checks
 
 ### Required (boot fails on failure)
-- `usr/lib/greenboot/check/required.d/10-mios-role.sh` — verify role applied
+- `usr/lib/greenboot/check/required.d/10-mios-role.sh` -- verify role applied
 
 ### Wanted (warn, don't fail)
 - (Standard upstream Fedora-bootc + greenboot defaults)
 
 ### Failure handling
-- `usr/lib/greenboot/fail.d/00-log-fail.sh` — captures journalctl --failed
+- `usr/lib/greenboot/fail.d/00-log-fail.sh` -- captures journalctl --failed
   to `/var/log/greenboot.fail` before rollback.
 
 ---
 
-## §10. Security stack — 10 layers
+## §10. Security stack -- 10 layers
 
-1. **Kernel kargs** (`usr/lib/bootc/kargs.d/*.toml`) — `lockdown=integrity`,
+1. **Kernel kargs** (`usr/lib/bootc/kargs.d/*.toml`) -- `lockdown=integrity`,
    `slab_nomerge`, `randomize_kstack_offset=on`, `vsyscall=none`,
    `oops=panic`, `module.sig_enforce=1`. NOT: `init_on_alloc/free`,
-   `page_alloc.shuffle` (NVIDIA incompat — see `SECURITY.md`).
-2. **sysctl** (`usr/lib/sysctl.d/99-mios-hardening.conf`) — TCP/IP
+   `page_alloc.shuffle` (NVIDIA incompat -- see `SECURITY.md`).
+2. **sysctl** (`usr/lib/sysctl.d/99-mios-hardening.conf`) -- TCP/IP
    hardening, ASLR, ptrace_scope, dmesg_restrict.
-3. **SELinux modules** (`usr/share/selinux/packages/mios/*.te`) — per-rule
+3. **SELinux modules** (`usr/share/selinux/packages/mios/*.te`) -- per-rule
    custom modules; booleans + fcontexts via semanage in `37-selinux.sh`.
-4. **fapolicyd** (`etc/fapolicyd/fapolicyd.rules`, `usr/lib/fapolicyd/`) —
+4. **fapolicyd** (`etc/fapolicyd/fapolicyd.rules`, `usr/lib/fapolicyd/`) --
    zero-trust deny-by-default; trust DB seeded in `20-fapolicyd-trust.sh`.
-5. **CrowdSec** (`mios-ai-sanitize` + crowdsec-bouncer Quadlet) — sovereign
+5. **CrowdSec** (`mios-ai-sanitize` + crowdsec-bouncer Quadlet) -- sovereign
    IPS mode; firewall-bouncer wires to firewalld.
-6. **USBGuard** — deny-by-default device policy; permissions enforced via
+6. **USBGuard** -- deny-by-default device policy; permissions enforced via
    `automation/18-apply-boot-fixes.sh:13`.
-7. **firewalld** — default zone `drop`; service set in `33-firewall.sh`.
-8. **Audit / AIDE / OpenSCAP** — audit subsystem present; AIDE policy
+7. **firewalld** -- default zone `drop`; service set in `33-firewall.sh`.
+8. **Audit / AIDE / OpenSCAP** -- audit subsystem present; AIDE policy
    shipped; OpenSCAP profile bound to PCI-DSS / DISA-STIG.
-9. **composefs verity** (`automation/40-composefs-verity.sh`) — `/usr` is
+9. **composefs verity** (`automation/40-composefs-verity.sh`) -- `/usr` is
    verity-sealed read-only; tampering detected at boot.
-10. **TPM2 / Clevis + image signing** — cosign keyless OIDC chain; MOK
+10. **TPM2 / Clevis + image signing** -- cosign keyless OIDC chain; MOK
     keys at `etc/pki/mios/mok.der` (public); private key encrypted in
     GitHub secret per `automation/generate-mok-key.sh`.
 
@@ -609,14 +609,14 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 ## §12. Build modes and output targets
 
 ### 5 build modes
-1. **CI (`.github/workflows/mios-ci.yml`)** — build → rechunk on tag → cosign
+1. **CI (`.github/workflows/mios-ci.yml`)** -- build → rechunk on tag → cosign
    keyless sign → push to GHCR.
-2. **Linux local (`Justfile`)** — `just build` → `localhost/mios:latest`.
-3. **Windows local (`mios-build-local.ps1`)** — same, via rootful Podman
+2. **Linux local (`Justfile`)** -- `just build` → `localhost/mios:latest`.
+3. **Windows local (`mios-build-local.ps1`)** -- same, via rootful Podman
    machine on WSL2.
-4. **Self-build** — a running 'MiOS' host runs `just build` against the repo
+4. **Self-build** -- a running 'MiOS' host runs `just build` against the repo
    it shipped with. The image contains its own toolchain (`packages-self-build`).
-5. **Bootstrap (mios-bootstrap repo)** — Total Root Merge of `mios.git` +
+5. **Bootstrap (mios-bootstrap repo)** -- Total Root Merge of `mios.git` +
    `mios-bootstrap.git` onto a bare Fedora host, then `just build` from there.
 
 ### Output targets (Justfile)
@@ -654,85 +654,85 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 
 ## §14. Architectural Laws (verbatim from `INDEX.md`)
 
-1. **USR-OVER-ETC** — static config in `/usr/lib/<component>.d/`; `/etc/`
+1. **USR-OVER-ETC** -- static config in `/usr/lib/<component>.d/`; `/etc/`
    is admin-override only. Documented exceptions are upstream-contract
    surfaces (`/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/`).
-2. **NO-MKDIR-IN-VAR** — every `/var/` path declared via
+2. **NO-MKDIR-IN-VAR** -- every `/var/` path declared via
    `usr/lib/tmpfiles.d/*.conf`. Never write to `/var/` at build time.
    bootc forbids it; lint will fail.
-3. **BOUND-IMAGES** — every Quadlet image symlinked into
+3. **BOUND-IMAGES** -- every Quadlet image symlinked into
    `/usr/lib/bootc/bound-images.d/`.
-4. **BOOTC-CONTAINER-LINT** — must be the final `RUN` of `Containerfile`.
+4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`.
    No `--squash-all` (strips OCI metadata bootc needs).
-5. **UNIFIED-AI-REDIRECTS** — all agents target `MIOS_AI_ENDPOINT`
+5. **UNIFIED-AI-REDIRECTS** -- all agents target `MIOS_AI_ENDPOINT`
    (`http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden.
-6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
+6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`.
 
 ---
 
 ## §15. Known issues and footguns (15+ hard-won lessons)
 
-1. **WSL2 wsl.conf is byte-naive** — em-dashes (any multibyte char) shift
+1. **WSL2 wsl.conf is byte-naive** -- em-dashes (any multibyte char) shift
    its line counter and surface as bogus `Expected ' ' or '\n' in
    /etc/wsl.conf:N` errors. Postcheck #7 enforces strict ASCII.
 2. **systemd-sysusers `u name -` allocates from system range** (< UID_MIN).
    logind then refuses to create `/run/user/<uid>/`, breaking dbus user
    session, dconf, Wayland session services. Pin login UIDs to 1000+.
    Postcheck #8 enforces.
-3. **`u name UID:NUM` requires `g name NUM` first** — sysusers won't
+3. **`u name UID:NUM` requires `g name NUM` first** -- sysusers won't
    auto-create the group. Without the `g` line, sysusers fails with
    "please create GID NUM" and the user is never created. Postcheck #8b.
-4. **`/var/run` is a symlink to `/run`** — systemd-tmpfiles rejects entries
+4. **`/var/run` is a symlink to `/run`** -- systemd-tmpfiles rejects entries
    whose path component is `/var/run/...` ("Line references path below
    /var/run"). Use `/run/...` directly. Postcheck #9 enforces.
-5. **`/proc/mios/` is non-FHS** — original KB delivery shipped to
+5. **`/proc/mios/` is non-FHS** -- original KB delivery shipped to
    `proc/mios/manifest.json` as a "synthetic /proc surface", but FHS 3.0
    defines /proc as the kernel virtual filesystem. Moved to
    `/usr/share/mios/kb/manifest.json` for compliance.
-6. **`((VAR++))` is forbidden under `set -e`** — bash exits 1 when the
+6. **`((VAR++))` is forbidden under `set -e`** -- bash exits 1 when the
    pre-increment value is 0. Use `VAR=$((VAR + 1))`.
-7. **`--squash-all` strips bootc OCI metadata** — never use it. bootc
+7. **`--squash-all` strips bootc OCI metadata** -- never use it. bootc
    relies on layer metadata for upgrade deltas.
-8. **`install_weakdeps` is silently ignored by dnf5** — correct spelling
+8. **`install_weakdeps` is silently ignored by dnf5** -- correct spelling
    is `install_weak_deps=False` (underscore).
 9. **`init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` are
-   incompatible with NVIDIA/CUDA** — disable in 'MiOS' despite secureblue
+   incompatible with NVIDIA/CUDA** -- disable in 'MiOS' despite secureblue
    recommending them. See `SECURITY.md`.
-10. **`lockdown=integrity` not `confidentiality`** — confidentiality
+10. **`lockdown=integrity` not `confidentiality`** -- confidentiality
     breaks too many 'MiOS' workloads (kexec, /dev/mem, suspend-to-disk).
-11. **Never upgrade `kernel`/`kernel-core` in-container** — bootc's
+11. **Never upgrade `kernel`/`kernel-core` in-container** -- bootc's
     composefs/UKI flow assumes the base-image kernel. Only add
     `kernel-modules-extra/devel/headers/tools`. `automation/01-repos.sh`
     excludes the upgrade.
-12. **systemd-udev-settle is deprecated upstream** — emits warnings
+12. **systemd-udev-settle is deprecated upstream** -- emits warnings
     forever. Replace with `systemd-udev-trigger.service` ordering.
-13. **WSL2 kernel 6.6 lacks `ntsync`** — modules-load.d entry generates a
+13. **WSL2 kernel 6.6 lacks `ntsync`** -- modules-load.d entry generates a
     cosmetic "Failed to find module" warning. Bare-metal Fedora 6.10+ has
     it. Acceptable.
-14. **PAM session not opened under `wsl -u root` + `su - mios`** — logind
+14. **PAM session not opened under `wsl -u root` + `su - mios`** -- logind
     skips creating `/run/user/<uid>/`, so dbus/dconf/Wayland session
     services break. `mios-wsl-runtime-dir.service` is the belt-and-suspenders
     fallback (creates the dir unconditionally on WSL2 boot).
 15. **systemd-tmpfiles 'D' type with no argument is interpreted as
-    "purge"** — always specify the args field (`-` for default age) to
+    "purge"** -- always specify the args field (`-` for default age) to
     avoid wiping pre-existing data.
 16. **BIB requires `/tmp/mios-bib-output` (or whatever Linux path) to
-    exist BEFORE `podman run -v`** — crun returns ENOENT otherwise. The
+    exist BEFORE `podman run -v`** -- crun returns ENOENT otherwise. The
     `mios-build-local.ps1` `Phase 3` step pre-creates it via
     `podman machine ssh`.
 17. **Sysusers files run lexicographically; `10-` runs before unprefixed
-    base-distro files** — duplicate `g <name> <gid>` lines are tolerated
+    base-distro files** -- duplicate `g <name> <gid>` lines are tolerated
     if the GID matches; mismatch fails the user creation.
 18. **systemd Description= field is UTF-8-aware but most other fields
-    aren't** — keep all unit file content ASCII-only outside Description=
+    aren't** -- keep all unit file content ASCII-only outside Description=
     to avoid surprise. Postcheck #11 enforces via `systemd-analyze verify`.
 19. **`'MiOS'` (capital) in JSON keys breaks single-quote-wrapping policy**
-    — quote-mios.py's regex skips bare-string-literal `"MiOS"` so
+    -- quote-mios.py's regex skips bare-string-literal `"MiOS"` so
     identifier values are preserved. Without that exclusion the
     PowerShell `$WslName = "MiOS"` becomes `"'MiOS'"` and WSL imports a
     distro literally named `'MiOS'`.
-20. **`init.mount: target is busy` on WSL2 shutdown** — WSL2-specific quirk
+20. **`init.mount: target is busy` on WSL2 shutdown** -- WSL2-specific quirk
     where /init can't be unmounted because the WSL relay process holds it.
     Cosmetic; not a 'MiOS' bug.
 
@@ -770,7 +770,7 @@ Full audit in `LICENSES.md` and `SOURCES.md`.
 - **SPDX**: same script with `-o spdx-json`. Output beside CycloneDX.
 - **Justfile target**: `just sbom` runs `syft` against `localhost/mios:latest`
   on a deployed host or in CI.
-- **Manual**: `MiOS-SBOM.csv` (this delivery) — generated by
+- **Manual**: `MiOS-SBOM.csv` (this delivery) -- generated by
   `tools/lib/generate-sbom.py` from PACKAGES.md + Quadlet refs +
   from-source list + Flatpak defaults.
 
@@ -828,15 +828,15 @@ Build-time path constants (`automation/lib/paths.sh` + runtime
 
 ### Supported topologies
 - **AI workstation**: AMD/Intel CPU + NVIDIA dGPU (Blackwell RTX 50, Ada
-  RTX 40, Ampere RTX 30) — full CUDA + LocalAI on-host.
-- **Hyperconverged**: Single-node Ceph + k3s + KVM + Looking Glass —
+  RTX 40, Ampere RTX 30) -- full CUDA + LocalAI on-host.
+- **Hyperconverged**: Single-node Ceph + k3s + KVM + Looking Glass --
   passthrough one GPU to a Windows VM, retain another for the host.
 - **Headless server**: AMD EPYC / Intel Xeon, no display, k3s-master role.
 - **WSL2**: Windows host, no GPU passthrough (compute fallback to CPU).
 
 ### Specific silicon workarounds
 - **RTX 50 Blackwell**: GB20*/GB10* detected at runtime by
-  `usr/libexec/mios/role-apply` — defaults to headless role to avoid VFIO
+  `usr/libexec/mios/role-apply` -- defaults to headless role to avoid VFIO
   reset bug; `13-rtx50-vfio-workaround.toml` adds idle-flush kargs.
 - **NVIDIA**: open kernel module via `usr/lib/modprobe.d/nvidia-open.conf`.
 - **AMD ROCm**: `/dev/kfd` + `/dev/dri/renderD*` permissions hardened in
@@ -899,7 +899,7 @@ ls /var/lib/mios/              # memory, scratch, embeddings/, training/, evals/
 | `/etc` | Host-specific config | 3-way merge overlay; admin edits survive upgrades | `etc/` |
 | `/var` | Mutable, persistent | Fully writable; never replaced on upgrade | `usr/lib/tmpfiles.d/mios*.conf` (LAW 2) |
 | `/srv` | Data served by the system | Persistent | `usr/lib/tmpfiles.d/mios.conf` |
-| `/run` | Ephemeral runtime (FHS 3.0) | tmpfs; cleared at boot; never in image layers | — |
+| `/run` | Ephemeral runtime (FHS 3.0) | tmpfs; cleared at boot; never in image layers | -- |
 | `/home` | User home directories | Persistent via `/var/home/<user>` + symlink | `usr/lib/sysusers.d/` |
 | `/opt` | Add-on software packages | Used for `opt/mios/prompts/` | direct overlay |
 | `/usr/local` | Local additions | `/usr/local/share/mios/cookbooks/` | direct overlay |
@@ -910,18 +910,18 @@ ls /var/lib/mios/              # memory, scratch, embeddings/, training/, evals/
 
 ### Stale references no longer present (pre-this-session)
 - `~/.config/mios/env.toml`, `images.toml`, `build.toml`, `flatpaks.list`
-  — collapsed into single `mios.toml` (§18 chain). Legacy fallback in
+  -- collapsed into single `mios.toml` (§18 chain). Legacy fallback in
   `tools/lib/userenv.sh` if `mios.toml` is absent.
-- `~/.config/mios/profile.toml` — folded into `mios.toml [profile]`.
-- `~/.config/mios/env` (bare shell-format) — folded into `mios.toml [env]`.
-- `proc/mios/manifest.json` — moved to `usr/share/mios/kb/manifest.json`
+- `~/.config/mios/profile.toml` -- folded into `mios.toml [profile]`.
+- `~/.config/mios/env` (bare shell-format) -- folded into `mios.toml [env]`.
+- `proc/mios/manifest.json` -- moved to `usr/share/mios/kb/manifest.json`
   for FHS compliance. Self-references in the manifest content rewrote.
-- `automation/install-fhs.sh` — byte-identical to `automation/install.sh`,
+- `automation/install-fhs.sh` -- byte-identical to `automation/install.sh`,
   deleted.
-- `system-prompt.md` (root) — byte-identical to `system.md`, deleted.
-- `build-mios.sh` (root) — near-duplicate of `automation/build-mios.sh`,
+- `system-prompt.md` (root) -- byte-identical to `system.md`, deleted.
+- `build-mios.sh` (root) -- near-duplicate of `automation/build-mios.sh`,
   deleted.
-- `cloudws-pxe-hub.container`, `cloudws-guacamole.container` — renamed to
+- `cloudws-pxe-hub.container`, `cloudws-guacamole.container` -- renamed to
   `mios-pxe-hub.container`, `mios-guacamole.container` for naming hygiene.
 
 ### Canonical naming map

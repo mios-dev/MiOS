@@ -92,13 +92,8 @@ wait $OLLAMA_PID || true
 
 # Cleanup
 rm -f /tmp/ollama.tar.zst
-# We keep the binary in /usr/bin as it's part of the image now
-# unless the user wanted it temporary? The script previously rm -f /tmp/ollama.
-# Let's keep it temporary to match original intent of "prep" if needed, 
-# but usually we want ollama available. 
-# Original script: rm -f /tmp/ollama.
-# If I want to match original intent: rm -f /usr/bin/ollama
-# But wait, 37-ollama.sh (if it exists) would install it. 
-# Let's check if ollama is in PACKAGES.md as a permanent package.
+# Keep the binary in /usr/bin: ollama is listed under packages-ai in
+# usr/share/mios/PACKAGES.md and is treated as a permanent image
+# component, not a build-time scratch tool.
 
 echo "[37-ollama-prep] Model embedded successfully."

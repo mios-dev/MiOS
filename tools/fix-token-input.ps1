@@ -45,7 +45,7 @@ if ($content.Contains($old)) {
         (Resolve-Path $file).Path, $content,
         [System.Text.UTF8Encoding]::new($true)  # BOM for PS file
     )
-    Write-Host "  ✓ Token input fixed: Read-Host -MaskInput (handles paste)" -ForegroundColor Green
+    Write-Host "  [ok] Token input fixed: Read-Host -MaskInput (handles paste)" -ForegroundColor Green
 } else {
     # Try with normalized line endings
     $content = $content -replace "`r`n", "`n"
@@ -57,17 +57,17 @@ if ($content.Contains($old)) {
             (Resolve-Path $file).Path, $content,
             [System.Text.UTF8Encoding]::new($true)
         )
-        Write-Host "  ✓ Token input fixed (LF normalized)" -ForegroundColor Green
+        Write-Host "  [ok] Token input fixed (LF normalized)" -ForegroundColor Green
     } else {
-        Write-Host "  ✗ ReadKey pattern not found — checking manually" -ForegroundColor Red
+        Write-Host "  [x] ReadKey pattern not found -- checking manually" -ForegroundColor Red
         Write-Host "  Line 91:" -ForegroundColor Yellow
         Get-Content $file | Select-Object -Skip 90 -First 1
     }
 }
 
 git add mios-build-local.ps1
-git commit -m "fix: token paste bug — replace ReadKey loop with Read-Host -MaskInput`n`n[Console]::ReadKey loop in Read-Timed -Secret doesn't detect Enter`nafter paste in PowerShell 7.6/Windows Terminal. Each Enter press`nadds another masked character instead of submitting.`n`nRead-Host -MaskInput (PS 7.1+) handles paste, Enter, backspace`nnatively with * masking."
+git commit -m "fix: token paste bug -- replace ReadKey loop with Read-Host -MaskInput`n`n[Console]::ReadKey loop in Read-Timed -Secret doesn't detect Enter`nafter paste in PowerShell 7.6/Windows Terminal. Each Enter press`nadds another masked character instead of submitting.`n`nRead-Host -MaskInput (PS 7.1+) handles paste, Enter, backspace`nnatively with * masking."
 git push origin main 2>&1 | ForEach-Object { Write-Host "  $_" }
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "`n  ✓ Pushed. Re-clone and rebuild.`n" -ForegroundColor Green
+    Write-Host "`n  [ok] Pushed. Re-clone and rebuild.`n" -ForegroundColor Green
 }

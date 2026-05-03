@@ -1,10 +1,10 @@
-# INSTALL.md — Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
+# INSTALL.md -- Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
 
 Three target classes, three recipes. Pick the one matching your stack.
 
 ---
 
-## A) OpenAI cloud (full surface — Vector Stores, Responses API, Evals, Batch)
+## A) OpenAI cloud (full surface -- Vector Stores, Responses API, Evals, Batch)
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -66,7 +66,7 @@ curl https://api.openai.com/v1/fine_tuning/jobs \
 
 ---
 
-## B) 'MiOS' LocalAI (the canonical Day-0 path — `http://localhost:8080/v1`)
+## B) 'MiOS' LocalAI (the canonical Day-0 path -- `http://localhost:8080/v1`)
 
 This is the endpoint 'MiOS' itself uses (LAW 5: UNIFIED-AI-REDIRECTS). It's
 served by the LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`
@@ -90,7 +90,7 @@ python3 ./var/lib/mios/embeddings/ingest_local.py    # emitted alongside chunks.
 # That script reads chunks.jsonl, calls $MIOS_AI_ENDPOINT/embeddings,
 # and upserts into Qdrant collection "mios-kb".
 
-# 4. Use it — Chat Completions form (universal)
+# 4. Use it -- Chat Completions form (universal)
 curl "$MIOS_AI_ENDPOINT/chat/completions" \
   -H "Authorization: Bearer $MIOS_AI_KEY" -H "Content-Type: application/json" \
   -d @./srv/mios/api/chat.local.example.json
@@ -134,7 +134,7 @@ export MIOS_AI_ENDPOINT=http://localhost:4000/v1
 export MIOS_AI_MODEL=gpt-4o-mini   # virtual model defined in litellm config.yaml
 ```
 
-Then run recipe B steps 3–5 unchanged. The KB's chat-form payloads and
+Then run recipe B steps 3-5 unchanged. The KB's chat-form payloads and
 chat-form tool schemas are universal across all of these.
 
 ---
@@ -145,16 +145,16 @@ Function calling support varies by model:
 
 | Model family | Tool-call support | Notes |
 |---|---|---|
-| Llama 3.1+ Instruct | ✅ | Native, OpenAI-format tools |
-| Llama 3.2 Vision | ✅ | Same |
-| Qwen 2.5 / 3 Instruct | ✅ | Excellent; supports parallel tool calls |
-| Mistral / Mixtral Instruct | ✅ | Recent versions |
-| Hermes 3 / Hermes 4 | ✅ | Specifically tuned for tools |
-| Firefunction v2 | ✅ | Purpose-built for function calling |
-| Phi-3+ Instruct | ⚠️ partial | Single tool calls only |
-| Older base models | ❌ | Use a tool-tuned variant |
+| Llama 3.1+ Instruct | [ok] | Native, OpenAI-format tools |
+| Llama 3.2 Vision | [ok] | Same |
+| Qwen 2.5 / 3 Instruct | [ok] | Excellent; supports parallel tool calls |
+| Mistral / Mixtral Instruct | [ok] | Recent versions |
+| Hermes 3 / Hermes 4 | [ok] | Specifically tuned for tools |
+| Firefunction v2 | [ok] | Purpose-built for function calling |
+| Phi-3+ Instruct | [!] partial | Single tool calls only |
+| Older base models |  | Use a tool-tuned variant |
 
-For models that ignore `strict: true`, ship the schemas anyway — they
+For models that ignore `strict: true`, ship the schemas anyway -- they
 serve as in-context documentation for the model. If you need *enforced*
 JSON Schema compliance locally, use **vLLM with xgrammar** or
 **llama.cpp grammars** (compile your JSON Schema to a GBNF grammar).

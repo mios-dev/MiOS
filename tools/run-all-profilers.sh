@@ -1,5 +1,5 @@
 #!/bin/bash
-# run-all-profilers.sh — execute all profiling tools consecutively
+# run-all-profilers.sh -- execute all profiling tools consecutively
 set -euo pipefail
 
 readonly RED='\033[0;31m'
@@ -23,7 +23,7 @@ fi
 
 readonly RUN_DIR="$REAL_HOME/profiler-run-$(date +%Y%m%d_%H%M%S)"
 
-print_banner()  { clear; echo -e "${BOLD}${CYAN}SYSTEM PROFILER — chain runner${NC}\n"; }
+print_banner()  { clear; echo -e "${BOLD}${CYAN}SYSTEM PROFILER -- chain runner${NC}\n"; }
 print_step()    { echo -e "\n${BOLD}${CYAN}>> $1${NC}"; }
 print_info()    { echo -e "${BLUE}i${NC} $1"; }
 print_success() { echo -e "${GREEN}+${NC} $1"; }
@@ -35,7 +35,7 @@ wait_for_user() {
 
 check_sudo() {
     if [ "$EUID" -ne 0 ]; then
-        echo -e "${YELLOW}Warning: not running as root — some tools will be limited.${NC}"
+        echo -e "${YELLOW}Warning: not running as root -- some tools will be limited.${NC}"
         read -p "Continue anyway? (y/N) " -n 1 -r
         echo
         [[ $REPLY =~ ^[Yy]$ ]] || { echo "Exiting. Run with: sudo $0"; exit 1; }

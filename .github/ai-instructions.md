@@ -1,4 +1,4 @@
-# 'MiOS' — GitHub Copilot entry point.
+# 'MiOS' -- GitHub Copilot entry point.
 # Canonical prompt: usr/share/mios/ai/system.md (deployed from mios-bootstrap).
 # Architectural laws and contribution rules: INDEX.md.
 

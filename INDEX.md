@@ -1,4 +1,4 @@
-# 'MiOS' System Interface — v0.2.2
+# 'MiOS' System Interface -- v0.2.2
 
 Single source of truth for 'MiOS' architectural laws and the OpenAI-compatible
 API surface. Sourced from `Containerfile`, `automation/`, `usr/lib/bootc/`,
@@ -27,12 +27,12 @@ Spec: <https://platform.openai.com/docs/api-reference>.
 
 | # | Law | Enforced by |
 |---|---|---|
-| 1 | **USR-OVER-ETC** — static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only. Exceptions documented per-file (e.g., `/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/` — upstream-contract surfaces). | `automation/`, `usr/lib/`, `etc/` |
-| 2 | **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. | `usr/lib/tmpfiles.d/mios*.conf` |
-| 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh:74-86`. | `usr/lib/bootc/bound-images.d/` |
-| 4 | **BOOTC-CONTAINER-LINT** — final RUN of `Containerfile`. | `Containerfile` (last `RUN`) |
-| 5 | **UNIFIED-AI-REDIRECTS** — `MIOS_AI_KEY`, `MIOS_AI_MODEL`, `MIOS_AI_ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
-| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s` declare `User=root`/`Group=root` because Ceph/K3s require uid 0 (see file headers). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
+| 1 | **USR-OVER-ETC** -- static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only. Exceptions documented per-file (e.g., `/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/` -- upstream-contract surfaces). | `automation/`, `usr/lib/`, `etc/` |
+| 2 | **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. | `usr/lib/tmpfiles.d/mios*.conf` |
+| 3 | **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh:74-86`. | `usr/lib/bootc/bound-images.d/` |
+| 4 | **BOOTC-CONTAINER-LINT** -- final RUN of `Containerfile`. | `Containerfile` (last `RUN`) |
+| 5 | **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_KEY`, `MIOS_AI_MODEL`, `MIOS_AI_ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
+| 6 | **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s` declare `User=root`/`Group=root` because Ceph/K3s require uid 0 (see file headers). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
 ## 4. Profile + environment resolution
 
@@ -42,10 +42,10 @@ three-layer overlay. Higher layers supersede lower layers field-by-field.
 **Profile layers** (read by `mios-bootstrap/install.sh:load_profile_defaults`
 and at runtime by `mios` CLI clients):
 
-1. `~/.config/mios/profile.toml` — per-user override (highest precedence;
+1. `~/.config/mios/profile.toml` -- per-user override (highest precedence;
    seeded into every uid≥1000 home from `/etc/skel/.config/mios/profile.toml`)
-2. `/etc/mios/profile.toml` — host/admin override (shipped by `mios-bootstrap`)
-3. `/usr/share/mios/profile.toml` — vendor defaults (shipped by `mios.git`,
+2. `/etc/mios/profile.toml` -- host/admin override (shipped by `mios-bootstrap`)
+3. `/usr/share/mios/profile.toml` -- vendor defaults (shipped by `mios.git`,
    immutable, USR-OVER-ETC)
 
 **Environment layers** (resolved by `/etc/profile.d/mios-env.sh` at login):
@@ -70,7 +70,7 @@ and at runtime by `mios` CLI clients):
 
 Every boolean feature flag in `usr/share/mios/profile.toml` and
 `/etc/mios/profile.toml` ships **`true`**. The system never disables a
-component via static config — when a component is incompatible with the
+component via static config -- when a component is incompatible with the
 host (wrong virtualization layer, missing required path, missing
 hardware), systemd `Condition*` directives in the corresponding
 Quadlet/service unit short-circuit it at boot/pre-boot and the unit

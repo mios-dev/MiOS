@@ -77,9 +77,9 @@ echo "Validating XML..."
 
 # Validate the XML
 if sudo virt-xml-validate /tmp/xbox-edit.xml 2>/dev/null; then
-    echo "âœ“ XML validation passed"
+    echo "âœ" XML validation passed"
 else
-    echo "âš  Warning: XML validation skipped (virt-xml-validate not found)"
+    echo "âš  Warning: XML validation skipped (virt-xml-validate not found)"
 fi
 
 echo ""
@@ -95,7 +95,7 @@ if [[ "$confirm" =~ ^[Yy]$ ]]; then
     sudo virsh define /tmp/xbox-edit.xml
     
     echo ""
-    echo "âœ“ Configuration Applied!"
+    echo "âœ" Configuration Applied!"
     echo ""
     echo "Verification:"
     sudo virsh dumpxml Xbox | grep -A 5 vcpupin

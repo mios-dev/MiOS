@@ -29,7 +29,7 @@ for svc in mios-gpu-status.service mios-gpu-nvidia.service mios-gpu-amd.service 
     ln -sf "../${svc}" "${WANTS}/${svc}"
     log "Enabled ${svc}"
   else
-    log "WARN: ${svc} missing from /usr/lib/systemd/system/ — skipping"
+    log "WARN: ${svc} missing from /usr/lib/systemd/system/ -- skipping"
   fi
 done
 

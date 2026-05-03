@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
+# 'MiOS' v0.2.0 -- 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
 #
 # MANDATORY for bootc images. Every ublue-os image runs this pattern.
 # Without it, BIB deployment fails or the booted system has broken /var state.
@@ -15,11 +15,11 @@ source "$(dirname "$0")/lib/common.sh"
 
 echo "[99-cleanup] Running final image cleanup..."
 
-# 1. Clean /boot — BIB generates fresh bootloader, stale content causes conflicts
+# 1. Clean /boot -- BIB generates fresh bootloader, stale content causes conflicts
 echo "[99-cleanup] Cleaning /boot..."
 find /boot/ -maxdepth 1 -mindepth 1 -exec rm -fr {} \; || true
 
-# 2. Clean /var — bootc treats /var as persistent state (like Docker VOLUME)
+# 2. Clean /var -- bootc treats /var as persistent state (like Docker VOLUME)
 # We remove content but KEEP directories to preserve permissions/labels.
 echo "[99-cleanup] Cleaning /var content (preserving structure)..."
 # Remove all files and subdirs in /var/tmp and /var/log
@@ -47,4 +47,4 @@ systemd-tmpfiles --create --boot --root=/ 2>/dev/null || true
 echo "[99-cleanup] Cleaning package manager caches..."
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 
-echo "[99-cleanup] ✓ Image cleanup complete"
+echo "[99-cleanup] [ok] Image cleanup complete"

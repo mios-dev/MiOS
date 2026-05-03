@@ -30,7 +30,7 @@ EOF
 
 check_iommu() {
     if [ ! -d /sys/kernel/iommu_groups ]; then
-        echo -e "${RED}✗ IOMMU not available${NC}"
+        echo -e "${RED}[x] IOMMU not available${NC}"
         echo "Please enable IOMMU in BIOS and add kernel parameters:"
         echo "  Intel: intel_iommu=on iommu=pt"
         echo "  AMD:   amd_iommu=on iommu=pt"
@@ -38,7 +38,7 @@ check_iommu() {
     fi
     
     if ! dmesg | grep -i iommu | grep -qi enabled; then
-        echo -e "${YELLOW}⚠ IOMMU may not be enabled in kernel${NC}"
+        echo -e "${YELLOW}[!] IOMMU may not be enabled in kernel${NC}"
         echo "Check dmesg | grep -i iommu"
         echo ""
     fi
@@ -96,12 +96,12 @@ visualize_groups() {
     echo -e "GPU Groups: ${BOLD}${#gpu_groups[@]}${NC}"
     
     if [ ${#isolated_gpus[@]} -gt 0 ]; then
-        echo -e "${GREEN}✓ Isolated GPUs (good for passthrough):${NC}"
+        echo -e "${GREEN}[ok] Isolated GPUs (good for passthrough):${NC}"
         for gpu in "${isolated_gpus[@]}"; do
-            echo -e "  • $gpu"
+            echo -e "  * $gpu"
         done
     else
-        echo -e "${YELLOW}⚠ No isolated GPUs found${NC}"
+        echo -e "${YELLOW}[!] No isolated GPUs found${NC}"
         echo "GPUs share IOMMU groups with other devices"
     fi
     
@@ -147,9 +147,9 @@ show_gpu_details() {
                 # Check if suitable for passthrough
                 device_count=$(find /sys/kernel/iommu_groups/$n/devices/ -type l | wc -l)
                 if [ "$device_count" -le 2 ]; then
-                    echo -e "  ${GREEN}✓ Good for passthrough (isolated or with audio only)${NC}"
+                    echo -e "  ${GREEN}[ok] Good for passthrough (isolated or with audio only)${NC}"
                 else
-                    echo -e "  ${YELLOW}⚠ Shares group with $((device_count-1)) other device(s)${NC}"
+                    echo -e "  ${YELLOW}[!] Shares group with $((device_count-1)) other device(s)${NC}"
                     echo -e "  ${YELLOW}  Consider ACS override patch if needed${NC}"
                 fi
                 
@@ -215,7 +215,7 @@ export_to_file() {
         done | sort -V
     } > "$output"
     
-    echo -e "${GREEN}✓ Topology exported to: $output${NC}"
+    echo -e "${GREEN}[ok] Topology exported to: $output${NC}"
 }
 
 interactive_menu() {
@@ -251,10 +251,10 @@ main() {
     show_usb_controllers
     
     echo -e "\n${BOLD}${GREEN}Passthrough Recommendations:${NC}"
-    echo -e "• ${GREEN}✓${NC} Isolated GPU groups are ideal for passthrough"
-    echo -e "• ${YELLOW}⚠${NC} Shared groups may need ACS override patch"
-    echo -e "• ${BLUE}ℹ${NC} GPU audio devices in same group is normal and safe"
-    echo -e "• ${BLUE}ℹ${NC} Check that your GPU supports reset (important!)"
+    echo -e "* ${GREEN}[ok]${NC} Isolated GPU groups are ideal for passthrough"
+    echo -e "* ${YELLOW}[!]${NC} Shared groups may need ACS override patch"
+    echo -e "* ${BLUE}[i]${NC} GPU audio devices in same group is normal and safe"
+    echo -e "* ${BLUE}[i]${NC} Check that your GPU supports reset (important!)"
     
     if [ "${1:-}" != "--no-menu" ]; then
         interactive_menu

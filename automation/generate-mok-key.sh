@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# generate-mok-key.sh — one-shot 'MiOS' MOK key generator.
+# generate-mok-key.sh -- one-shot 'MiOS' MOK key generator.
 #
 # Generates a 2048-bit RSA key (NOT 4096: shim compatibility) with:
 #   - codeSigning EKU
@@ -36,7 +36,7 @@ fi
 
 install -d -m 0700 "$KEY_DIR"
 
-echo "'MiOS' MOK key generation — 2048-bit RSA, 10-year validity."
+echo "'MiOS' MOK key generation -- 2048-bit RSA, 10-year validity."
 echo "Set passphrase prompt: store in GitHub secret MIOS_MOK_KEY_PASSWORD."
 
 # Create EKU extension config

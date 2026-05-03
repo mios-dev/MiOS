@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 32-hostname: Unique per-instance hostname
+# 'MiOS' v0.2.0 -- 32-hostname: Unique per-instance hostname
 #
 # Strategy: Set a template hostname in the image. On first boot, systemd
 # generates /etc/machine-id. The mios-init service (35-init-service.sh)

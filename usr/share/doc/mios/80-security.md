@@ -3,7 +3,7 @@
 > Source: `SECURITY.md` (~200 lines), drawn from SecureBlue
 > (`github.com/secureblue/secureblue`) and Fedora hardening guidelines.
 
-## Layer 1 — Kernel boot parameters
+## Layer 1 -- Kernel boot parameters
 
 Shipped via `usr/lib/bootc/kargs.d/00-mios.toml` and friends. See
 `40-kargs.md` for the full table. Notable: `lockdown=integrity` (NOT
@@ -11,7 +11,7 @@ Shipped via `usr/lib/bootc/kargs.d/00-mios.toml` and friends. See
 `page_alloc.shuffle=1` are **disabled** in 'MiOS' due to NVIDIA/CUDA
 memory-init incompatibility.
 
-## Layer 2 — Sysctl
+## Layer 2 -- Sysctl
 
 Shipped via `usr/lib/sysctl.d/99-mios-hardening.conf`. Admin overrides
 go in `/etc/sysctl.d/`.
@@ -55,11 +55,11 @@ IPv6 equivalents are set for `accept_redirects` and `accept_source_route`.
 | `fs.protected_fifos` | 2 | Restrict FIFOs in sticky dirs |
 | `fs.protected_regular` | 2 | Restrict regular files in sticky dirs |
 
-## Layer 3 — SELinux
+## Layer 3 -- SELinux
 
 Mode: enforcing. Five custom modules built and shipped at
 `usr/share/selinux/packages/mios/` (compiled but **not auto-loaded** at
-build — they're available via `semodule -i`):
+build -- they're available via `semodule -i`):
 
 | Module | Purpose |
 | --- | --- |
@@ -78,13 +78,13 @@ ausearch -m AVC -ts recent          # any recent denials
 semodule -l | grep mios             # which mios_* modules are loaded
 ```
 
-## Layer 4 — firewalld
+## Layer 4 -- firewalld
 
 Default-deny zone `drop`. Allowed: cockpit (9090/tcp), ssh (22/tcp),
 libvirt bridge, CrowdSec nftables bouncer integration. Configured in
 `automation/33-firewall.sh`.
 
-## Layer 5 — CrowdSec (sovereign mode)
+## Layer 5 -- CrowdSec (sovereign mode)
 
 `automation/12-virt.sh:42-50` disables `online_client` in
 `/etc/crowdsec/config.yaml` (this is one of the documented `/etc/`
@@ -98,7 +98,7 @@ sudo cscli decisions list
 sudo cscli alerts list
 ```
 
-## Layer 6 — fapolicyd
+## Layer 6 -- fapolicyd
 
 Trust rules at `etc/fapolicyd/fapolicyd.rules`. Blocks unauthorized
 binary execution.
@@ -108,7 +108,7 @@ systemctl status fapolicyd
 fapolicyd-cli --dump-db | head -20
 ```
 
-## Layer 7 — USBGuard
+## Layer 7 -- USBGuard
 
 Off by default. To enable, generate a policy from currently-connected
 devices:
@@ -120,7 +120,7 @@ sudo usbguard list-devices
 sudo usbguard allow-device <id>
 ```
 
-## Layer 8 — composefs
+## Layer 8 -- composefs
 
 Enabled via `usr/lib/ostree/prepare-root.conf`:
 
@@ -137,7 +137,7 @@ transient-ro = true
 
 Provides content-addressed deduplication and verified boot.
 
-## Layer 9 — Image signing
+## Layer 9 -- Image signing
 
 CI signs every push with cosign keyless via GitHub Actions OIDC. See
 `60-ci-signing.md`.

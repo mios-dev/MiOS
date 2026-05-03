@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# enroll-mok.sh — 'MiOS' Secure Boot MOK enrollment helper.
+# enroll-mok.sh -- 'MiOS' Secure Boot MOK enrollment helper.
 #
 # Uses mokutil throughout. sbctl is the WRONG tool for Fedora bootc
 # (GRUB2+shim chain, not systemd-boot+UKI). See specs/SECUREBOOT.md.
@@ -17,7 +17,7 @@
 #   0 = enrolled / pending / no-secureboot (no action needed)
 #   1 = error
 #   2 = key not found
-#   3 = conflict (key CN matches but fingerprint differs — manual intervention)
+#   3 = conflict (key CN matches but fingerprint differs -- manual intervention)
 set -euo pipefail
 
 STATUS_ONLY=0
@@ -119,14 +119,14 @@ fi
 log "=== 'MiOS' MOK Enrollment ==="
 
 if ! command -v mokutil >/dev/null 2>&1; then
-    log "mokutil not found — install it: sudo dnf install mokutil"
+    log "mokutil not found -- install it: sudo dnf install mokutil"
     exit 1
 fi
 
 # Secure Boot state check
 sb_state=$(mokutil --sb-state 2>/dev/null || true)
 if echo "$sb_state" | grep -qi "SecureBoot disabled"; then
-    log "Secure Boot is disabled — MOK enrollment not required"
+    log "Secure Boot is disabled -- MOK enrollment not required"
     exit 0
 fi
 log "Secure Boot state: $sb_state"
@@ -152,11 +152,11 @@ log "Current status: $CURRENT_STATUS"
 
 case "$CURRENT_STATUS" in
     enrolled)
-        log "Key already enrolled — no action needed"
+        log "Key already enrolled -- no action needed"
         exit 0
         ;;
     pending)
-        log "Key already queued for enrollment — reboot to complete in MokManager"
+        log "Key already queued for enrollment -- reboot to complete in MokManager"
         exit 0
         ;;
     conflict)
@@ -168,7 +168,7 @@ case "$CURRENT_STATUS" in
         exit 3
         ;;
     no-secureboot)
-        log "Secure Boot appears disabled — nothing to enroll"
+        log "Secure Boot appears disabled -- nothing to enroll"
         exit 0
         ;;
 esac
@@ -187,15 +187,15 @@ if ! mokutil --import "$KEY" --root-pw; then
     log "mokutil --import failed"
     # Attempt rollback
     log "Attempting to revoke pending import (rollback)..."
-    mokutil --revoke-import "$KEY" 2>/dev/null || log "revoke-import also failed — check mokutil state manually"
+    mokutil --revoke-import "$KEY" 2>/dev/null || log "revoke-import also failed -- check mokutil state manually"
     exit 1
 fi
 
-# Optional: set MokManager timeout (non-fatal — known to fail on some ASUS boards)
+# Optional: set MokManager timeout (non-fatal -- known to fail on some ASUS boards)
 mokutil --timeout 10 2>/dev/null || log "note: --timeout ignored on this firmware (non-fatal)"
 
 log ""
-log "✓ Key queued for enrollment."
+log "[ok] Key queued for enrollment."
 log ""
 log "NEXT STEPS:"
 log "  1. Reboot the system."

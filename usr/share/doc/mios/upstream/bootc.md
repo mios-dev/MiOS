@@ -1,4 +1,4 @@
-# bootc — Bootable Containers (CNCF Sandbox)
+# bootc -- Bootable Containers (CNCF Sandbox)
 
 > Used by 'MiOS' for: every host-state mutation. `Containerfile` produces
 > a bootc image; `bootc upgrade`/`switch`/`rollback` is the only sanctioned
@@ -9,7 +9,7 @@
 
 bootc boots and upgrades a Linux host from an **OCI container image**.
 The booted host today is backed by ostree (with composefs work in
-progress as `bootc composefs-native`). 'MiOS' is a bootc image —
+progress as `bootc composefs-native`). 'MiOS' is a bootc image --
 `ghcr.io/mios-dev/mios:latest`.
 
 - Project: <https://github.com/bootc-dev/bootc>

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — Master build runner
+# 'MiOS' v0.2.0 -- Master build runner
 # Framed ASCII console UI: progress bar, stage tracking, health metrics,
 # per-step timing, and consolidated failure/warn report at end.
 set -euo pipefail
@@ -323,7 +323,7 @@ if rpm -q malcontent-libs > /dev/null 2>&1; then
     printf '|  %-38s [ OK ] |\n' "malcontent-libs (flatpak dep)"
 else
     printf '|  %-38s [WARN] |\n' "malcontent-libs MISSING -- flatpak may break"
-    WARN_LOG+=("malcontent-libs missing — flatpak may break")
+    WARN_LOG+=("malcontent-libs missing -- flatpak may break")
 fi
 _hline '-' '+' '+'
 
@@ -341,7 +341,7 @@ fi
 # Quadlets are pulled by bootc at deploy time, not at OCI-build time, so
 # their :latest will re-resolve on every deploy. Record the digest skopeo
 # sees right now, so the shipped image carries a precise snapshot of what
-# build day's :latest pointed at — even though deploys may differ later.
+# build day's :latest pointed at -- even though deploys may differ later.
 echo ""
 _hline '-' '+' '+'
 _row " POST-BUILD: Capturing Quadlet image digests"
@@ -358,7 +358,7 @@ if command -v skopeo >/dev/null 2>&1; then
     done
     shopt -u nullglob
 else
-    warn "skopeo not available — Quadlet image digests not captured"
+    warn "skopeo not available -- Quadlet image digests not captured"
 fi
 
 # ── Log preservation (flatten all chain logs + version manifest into /usr) ──
@@ -377,7 +377,7 @@ fi
 
 # Flatten per-step logs + manifest + main build log into single unified chain
 {
-    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain -- $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""
     echo "# ====== build-time :latest -> observed-version manifest ======"
     if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then

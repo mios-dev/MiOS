@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
+# 'MiOS' v0.2.0 -- 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
 # Cephadm runs ALL server daemons as Podman containers.
 # Only client tools + orchestrator binary are baked into the image.
 #
@@ -55,7 +55,7 @@ if [[ -n "$K3S_TAG" ]]; then
        scurl -sfL "$K3S_INSTALL_URL" -o /tmp/k3s-dl/k3s-install.sh; then
         cd /tmp/k3s-dl
         if grep -E "  k3s$" sha256sum.txt | sha256sum -c - >/dev/null 2>&1; then
-            echo "[13-ceph-k3s] ✓ K3s SHA256 checksum verified"
+            echo "[13-ceph-k3s] [ok] K3s SHA256 checksum verified"
             # Install into /usr/bin (immutable image surface). /usr/local is
             # a symlink to /var/usrlocal on bootc/FCOS layouts and
             # /var/usrlocal/bin/ does not exist at OCI build time (it's

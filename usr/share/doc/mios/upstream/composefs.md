@@ -1,4 +1,4 @@
-# composefs — Verifiable Read-Only Root
+# composefs -- Verifiable Read-Only Root
 
 > Enabled in 'MiOS' via `usr/lib/ostree/prepare-root.conf`:
 > `[composefs] enabled=true`, `[etc] transient=true`, `[root] transient-ro=true`.
@@ -19,7 +19,7 @@ kernel. Backing files live in a content-addressed object store
 ```
 ┌────────────────────────────────────┐
 │ overlayfs (/usr writable for tools │   ← ephemeral, top
-│   that must — never persists)      │
+│   that must -- never persists)      │
 ├────────────────────────────────────┤
 │ EROFS image (synthesized by         │   ← read-only middle layer
 │   mkcomposefs from manifest +       │
@@ -50,10 +50,10 @@ transient-ro = true  # / is read-only with a tmpfs upper for ephemeral writes
 
 Effects:
 
-- `/usr` — content-addressed, deduplicated, verified
-- `/etc` — written each boot from the image's `/etc` + persisted admin
+- `/usr` -- content-addressed, deduplicated, verified
+- `/etc` -- written each boot from the image's `/etc` + persisted admin
   overrides (3-way merge); LAW 1 USR-OVER-ETC discourages writing here
-- `/` — root mount is read-only; runtime writes go to `/var` (governed
+- `/` -- root mount is read-only; runtime writes go to `/var` (governed
   by LAW 2 NO-MKDIR-IN-VAR via `usr/lib/tmpfiles.d/`)
 
 ## Why 'MiOS' uses it

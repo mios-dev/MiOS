@@ -45,10 +45,10 @@ redistribution licenses. Required for hardware functionality.
 
 ## User obligations
 
-- **Steam** — Steam Subscriber Agreement applies on first launch.
-- **NVIDIA** — drivers shipped under NVIDIA Software License.
-- **Flatpak apps** — each Flathub app has its own license metadata.
-- **Windows VM guests** — bring your own valid licenses.
+- **Steam** -- Steam Subscriber Agreement applies on first launch.
+- **NVIDIA** -- drivers shipped under NVIDIA Software License.
+- **Flatpak apps** -- each Flathub app has its own license metadata.
+- **Windows VM guests** -- bring your own valid licenses.
 
 ## SBOM
 

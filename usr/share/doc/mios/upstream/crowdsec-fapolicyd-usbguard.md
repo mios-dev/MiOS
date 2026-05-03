@@ -1,13 +1,13 @@
-# Defense-in-Depth Layer 3 — Runtime Guards
+# Defense-in-Depth Layer 3 -- Runtime Guards
 
 > CrowdSec, fapolicyd, and USBGuard are MiOS's runtime watchdogs.
 > Configured by `automation/33-firewall.sh`, `automation/12-virt.sh:42-50`
 > (CrowdSec sovereign mode), and shipped via `etc/fapolicyd/fapolicyd.rules`.
 
-## CrowdSec — IPS in sovereign/offline mode
+## CrowdSec -- IPS in sovereign/offline mode
 
-- Project: <https://www.crowdsec.net/> · repo <https://github.com/crowdsecurity/crowdsec>
-- 'MiOS' uses **sovereign/offline mode** — no telemetry to crowdsec.net,
+- Project: <https://www.crowdsec.net/> * repo <https://github.com/crowdsecurity/crowdsec>
+- 'MiOS' uses **sovereign/offline mode** -- no telemetry to crowdsec.net,
   no community blocklists pulled. `online_client` is disabled in
   `/etc/crowdsec/config.yaml` (the only `/etc/` location, not
   `/usr/lib/`, because CrowdSec's upstream contract requires it there)
@@ -19,13 +19,13 @@
   sudo cscli alerts list
   ```
 
-## fapolicyd — Application Whitelisting
+## fapolicyd -- Application Whitelisting
 
 - Project: <https://github.com/linux-application-whitelisting/fapolicyd>
 - Mode: deny-by-default
 - Trust DB: built from RPM database (every package-installed binary is
   trusted), plus `/etc/fapolicyd/fapolicyd.trust` for admin additions
-- Rules: `etc/fapolicyd/fapolicyd.rules` — MiOS-tuned ruleset
+- Rules: `etc/fapolicyd/fapolicyd.rules` -- MiOS-tuned ruleset
 - Status:
   ```bash
   systemctl status fapolicyd
@@ -34,7 +34,7 @@
 - When a binary is blocked, the user sees `Permission denied` and an
   AVC-style log entry in journal.
 
-## USBGuard — USB Device Whitelisting
+## USBGuard -- USB Device Whitelisting
 
 - Project: <https://usbguard.github.io/>
 - Mode: **off by default** ('MiOS' choice; SecureBlue would have it on)
@@ -57,7 +57,7 @@
 | Attacker tampers with disk content offline | composefs (fs-verity) |
 | Attacker swaps the OS image | cosign signature verification |
 
-Each layer is independent — failure of one doesn't compromise the others.
+Each layer is independent -- failure of one doesn't compromise the others.
 
 ## Cross-refs
 

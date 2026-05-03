@@ -112,7 +112,7 @@
     {
       "path": "/usr/share/mios/kb/manifest.json",
       "format": "json",
-      "purpose": "this file — KB index",
+      "purpose": "this file -- KB index",
       "endpoint": null
     },
     {
@@ -310,7 +310,7 @@
     {
       "path": "/usr/share/doc/mios/upstream/crowdsec-fapolicyd-usbguard.md",
       "format": "markdown",
-      "purpose": "DiD layer 3 — runtime guards",
+      "purpose": "DiD layer 3 -- runtime guards",
       "endpoint": "vector_stores.files"
     },
     {

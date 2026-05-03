@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.2 — Flattened System Context
+# 'MiOS' v0.2.2 -- Flattened System Context
 
 'MiOS' is an immutable, bootc-native Fedora workstation OS. Repo root `mios.git` IS the system root `/`.
 
@@ -6,12 +6,12 @@
 
 ## Architectural Laws (INDEX.md, non-negotiable)
 
-1. **USR-OVER-ETC** — Static config in `/usr/lib/<component>.d/`. `/etc/` for admin overrides only. Exception: `/etc/mios/install.env` (first-boot).
-2. **NO-MKDIR-IN-VAR** — All `/var/` paths declared via `usr/lib/tmpfiles.d/*.conf`. No `mkdir` in build scripts.
-3. **BOUND-IMAGES** — Every Quadlet sidecar image symlinked in `/usr/lib/bootc/bound-images.d/`.
-4. **BOOTC-CONTAINER-LINT** — `RUN bootc container lint` is the final Containerfile instruction. Always.
-5. **UNIFIED-AI-REDIRECTS** — `MIOS_AI_ENDPOINT/MODEL/KEY` target `http://localhost:8080/v1`. Zero vendor URLs in committed files.
-6. **UNPRIVILEGED-QUADLETS** — Every Quadlet: `User=`, `Group=`, `Delegate=yes`. Exception: `mios-k3s.container` and `mios-ceph.container`.
+1. **USR-OVER-ETC** -- Static config in `/usr/lib/<component>.d/`. `/etc/` for admin overrides only. Exception: `/etc/mios/install.env` (first-boot).
+2. **NO-MKDIR-IN-VAR** -- All `/var/` paths declared via `usr/lib/tmpfiles.d/*.conf`. No `mkdir` in build scripts.
+3. **BOUND-IMAGES** -- Every Quadlet sidecar image symlinked in `/usr/lib/bootc/bound-images.d/`.
+4. **BOOTC-CONTAINER-LINT** -- `RUN bootc container lint` is the final Containerfile instruction. Always.
+5. **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_ENDPOINT/MODEL/KEY` target `http://localhost:8080/v1`. Zero vendor URLs in committed files.
+6. **UNPRIVILEGED-QUADLETS** -- Every Quadlet: `User=`, `Group=`, `Delegate=yes`. Exception: `mios-k3s.container` and `mios-ceph.container`.
 
 ## AI Agent Surface
 
@@ -59,11 +59,11 @@ Key vars: `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, `MIOS_AI_EMBED_MODEL`, `MIOS_BASE
 
 ## System Toolchain
 
-- `bootc upgrade && systemctl reboot` — atomic update
-- `bootc switch <ref>` — change image ref
-- `bootc rollback` — undo last upgrade
-- `just build` — build OCI image locally
-- `mios "<prompt>"` — query local AI
+- `bootc upgrade && systemctl reboot` -- atomic update
+- `bootc switch <ref>` -- change image ref
+- `bootc rollback` -- undo last upgrade
+- `just build` -- build OCI image locally
+- `mios "<prompt>"` -- query local AI
 
 ## Sanitization (all persisted AI artifacts)
 

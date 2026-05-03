@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 'MiOS' system-side installer — runs as the system-init half of Phase-3
+# 'MiOS' system-side installer -- runs as the system-init half of Phase-3
 # (Apply). Invoked by mios-bootstrap.git/install.sh after Phase-1 (overlay)
 # and Phase-2 (package install) have already completed.
 #
@@ -28,7 +28,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "[INFO] Phase-3 — 'MiOS' system installer running from ${REPO_ROOT}"
+echo "[INFO] Phase-3 -- 'MiOS' system installer running from ${REPO_ROOT}"
 
 if [[ "${REPO_ROOT}" != "/" ]]; then
     # Apply FHS overlay. We rsync each top-level overlay dir if it exists.
@@ -62,6 +62,6 @@ if [[ -f /etc/containers/systemd/mios-ai.container ]]; then
     systemctl enable --now mios-ai.service || echo "[WARN] mios-ai.service not yet active; will retry on boot"
 fi
 
-echo "[ OK ] Phase-3 — 'MiOS' system installer complete."
+echo "[ OK ] Phase-3 -- 'MiOS' system installer complete."
 echo "       Control returns to mios-bootstrap install.sh for Phase-3 user"
 echo "       staging and Phase-4 reboot prompt."

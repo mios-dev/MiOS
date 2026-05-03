@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 'MiOS' v0.2.0 — 01-repos: Fedora 44 overlay on ucore
+# 'MiOS' v0.2.0 -- 01-repos: Fedora 44 overlay on ucore
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
@@ -27,7 +27,7 @@ echo "[01-repos] Importing Fedora 44 GPG key..."
 # On ucore (which is CoreOS-based on Fedora), the key is usually present already.
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
-    # Fallback: import from the package. Failure here is fatal — the F44 repo
+    # Fallback: import from the package. Failure here is fatal -- the F44 repo
     # below uses repo_gpgcheck=1 and silently dropping the key would surface
     # later as opaque "package not signed" errors on every install. (Audit
     # 2026-05-01 finding: do not swallow this with 2>/dev/null.)
@@ -35,7 +35,7 @@ if [[ ! -f "$GPG_KEY_PATH" ]]; then
 fi
 
 echo "[01-repos] Adding Fedora 44 repository..."
-# F44 is in development at build time. Dev-tree repodata is NOT GPG-signed —
+# F44 is in development at build time. Dev-tree repodata is NOT GPG-signed --
 # the .asc detached signature returns 404 from every Fedora mirror. Setting
 # repo_gpgcheck=1 turns that 404 into a fatal metadata-load error that
 # cascades into every subsequent dnf transaction.
@@ -95,7 +95,7 @@ echo "[01-repos] Phase 2: Distro-upgrade and userspace alignment..."
 $DNF_BIN "${DNF_SETOPT[@]}" \
     --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
     upgrade --refresh -y --skip-unavailable || {
-    echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) — continuing"
+    echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) -- continuing"
 }
 # distro-sync is retried once: F44 mirrors are occasionally in-progress sync state,
 # causing RPM signature mismatches that resolve on a second attempt with fresh metadata.
@@ -106,11 +106,11 @@ for _attempt in 1 2; do
             distro-sync -y --allowerasing --skip-unavailable; then
         _dsync_ok=1; break
     fi
-    echo "[01-repos] WARN: distro-sync attempt $_attempt failed — cleaning cache and retrying..."
+    echo "[01-repos] WARN: distro-sync attempt $_attempt failed -- cleaning cache and retrying..."
     $DNF_BIN clean metadata 2>/dev/null || true
 done
 if [[ $_dsync_ok -eq 0 ]]; then
-    echo "[01-repos] WARN: distro-sync failed after 2 attempts — ucore packages may differ from Fedora 44."
+    echo "[01-repos] WARN: distro-sync failed after 2 attempts -- ucore packages may differ from Fedora 44."
     echo "[01-repos] Continuing; individual package installs will use available repos."
 fi
 

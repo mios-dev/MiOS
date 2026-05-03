@@ -1,4 +1,4 @@
-# 'MiOS' Public Bootstrap — Windows (PowerShell 5.1+)
+# 'MiOS' Public Bootstrap -- Windows (PowerShell 5.1+)
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: irm https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.ps1 | iex
 
@@ -105,7 +105,7 @@ try {
     $wslRAM = [Math]::Max(16, [Math]::Floor($totalRAM / 1GB * 0.80))
     $wslCPUs = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
     $wslLines = @(
-        "# 'MiOS' v0.2.0 — WSL2 Configuration",
+        "# 'MiOS' v0.2.0 -- WSL2 Configuration",
         "[wsl2]",
         "memory=${wslRAM}GB",
         "processors=${wslCPUs}",

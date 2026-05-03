@@ -27,7 +27,7 @@ fi
 # LAW 5: /var/usrlocal must NOT be mkdir'd during OCI build.
 # It is declared in /usr/lib/tmpfiles.d/mios-infra.conf and created at boot.
 # If /usr/local is a symlink to /var/usrlocal (typical FCOS layout), skip the
-# tar write — the content will be available after first-boot tmpfiles.d runs.
+# tar write -- the content will be available after first-boot tmpfiles.d runs.
 # If /usr/local is a real directory (non-FCOS base), write directly.
 if [[ -d "${CTX}/usr/local" ]]; then
     log "  stage 2: overlay /usr/local content"
@@ -47,7 +47,7 @@ if [[ -d "${CTX}/etc" ]]; then
 fi
 
 # --- Stage 3a: /etc/wsl.conf force-install ---------------------------------
-# WSL2's wsl.conf parser is unforgiving — a single malformed byte takes down
+# WSL2's wsl.conf parser is unforgiving -- a single malformed byte takes down
 # systemd-as-PID1, which cascades into a broken user session and home dir.
 # Force-install from the canonical reference with explicit perms instead of
 # trusting the tar overlay (which can be defeated by a base-image-shipped
@@ -67,13 +67,13 @@ fi
 # fi
 
 # --- Stage 5: /home (User Space Templates) ---------------------------------
-# LAW 5: Writing to /var/home during OCI build violates the immutability contract —
+# LAW 5: Writing to /var/home during OCI build violates the immutability contract --
 # /var is a persistent volume that is NOT populated from the OCI image on deployment.
 # Home directory dotfile templates must live in /etc/skel/ and are copied by
 # systemd-sysusers when the user is first created at boot.
 # This stage is intentionally a no-op; see /etc/skel/ for the skel overlay.
 if [[ -d "${CTX}/home" ]]; then
-    log "  stage 5: /ctx/home detected — seeding /etc/skel instead of /var/home (LAW 5)"
+    log "  stage 5: /ctx/home detected -- seeding /etc/skel instead of /var/home (LAW 5)"
     install -d -m 0755 /etc/skel
     tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
@@ -83,8 +83,8 @@ log "08-overlay: normalizing systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 
-# Logically Bound Images — bind every Quadlet from both vendor and admin paths
-# (see ARCHITECTURAL LAW 3 — BOUND-IMAGES).
+# Logically Bound Images -- bind every Quadlet from both vendor and admin paths
+# (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES).
 BDIR="/usr/lib/bootc/bound-images.d"
 install -d -m 0755 "${BDIR}"
 shopt -s nullglob

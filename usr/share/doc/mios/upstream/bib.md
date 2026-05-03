@@ -18,13 +18,13 @@
 | Type | 'MiOS' Justfile recipe | Output location | Notes |
 | --- | --- | --- | --- |
 | `raw` | `just raw` | `output/*.raw` | 80 GiB ext4 default |
-| `anaconda-iso` | `just iso` | `output/*.iso` | **Mount ONLY `iso.toml` — see warning below** |
+| `anaconda-iso` | `just iso` | `output/*.iso` | **Mount ONLY `iso.toml` -- see warning below** |
 | `qcow2` | `just qcow2` | `output/*.qcow2` | requires `MIOS_USER_PASSWORD_HASH` |
 | `vhd` | `just vhdx` (then qemu-img convert) | `output/*.vhdx` | BIB emits VPC `.vhd`; converted to `.vhdx` |
 | `wsl2` | `just wsl2` | `output/*.wsl2` | tar.gz for `wsl --import` |
-| `vmdk` | (not currently in Justfile) | — | available |
-| `gce` | (not currently in Justfile) | — | available |
-| `ami` | (not currently in Justfile) | — | available |
+| `vmdk` | (not currently in Justfile) | -- | available |
+| `gce` | (not currently in Justfile) | -- | available |
+| `ami` | (not currently in Justfile) | -- | available |
 
 ## Critical: ISO recipe gotcha
 
@@ -41,7 +41,7 @@ exactly one config TOML.
 ## TOML schema (high-level)
 
 ```toml
-# config/artifacts/iso.toml — illustrative
+# config/artifacts/iso.toml -- illustrative
 [customizations.installer.kickstart]
 contents = """
 text --non-interactive

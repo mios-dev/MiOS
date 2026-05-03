@@ -25,7 +25,7 @@
       },
       "sign": {
         "type": "boolean",
-        "description": "Run cosign keyless sign on the resulting image. Requires GitHub Actions OIDC context — false for local builds."
+        "description": "Run cosign keyless sign on the resulting image. Requires GitHub Actions OIDC context -- false for local builds."
       },
       "rechunk": {
         "type": "boolean",

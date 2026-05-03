@@ -1,16 +1,16 @@
 <#
-.SYNOPSIS  'MiOS' v0.2.2 — Unified Windows Installer
+.SYNOPSIS  'MiOS' v0.2.2 -- Unified Windows Installer
 .DESCRIPTION
     Entry: irm https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1 | iex
     Normally downloaded + launched by bootstrap.ps1 after collecting credentials.
 
-    Platform entrypoints are thin bootstraps — all build logic runs against the
+    Platform entrypoints are thin bootstraps -- all build logic runs against the
     shared codebase (Containerfile + automation/) via `podman build`.
 
     Expected env vars from bootstrap.ps1 (or set manually):
         GHCR_TOKEN          GitHub PAT for image pull / push
         MIOS_USER           Admin username
-        MIOS_PASSWORD       Admin password (plaintext — hashed before injection)
+        MIOS_PASSWORD       Admin password (plaintext -- hashed before injection)
         MIOS_HOSTNAME       Static hostname (default: mios-XXXXX)
         MIOS_DIR            Repo clone target directory
         MIOS_AUTOINSTALL    Set to "1" for non-interactive defaults
@@ -79,7 +79,7 @@ $script:WarnCount  = 0
 $script:Op         = "Initializing..."
 $script:LogFile    = ""
 
-# Phase definitions — EstSteps drives the progress denominator
+# Phase definitions -- EstSteps drives the progress denominator
 $script:Phases = @(
     [pscustomobject]@{Id=0;  Name="Hardware + Prerequisites";  State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=1;  Name="Detecting environment";     State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
@@ -169,12 +169,12 @@ function Show-Dashboard {
     $script:DashH = $lines.Count
 
     if (-not $script:DashReady) {
-        # First render — write fresh, record position
+        # First render -- write fresh, record position
         $script:DashRow = [Console]::CursorTop
         foreach ($l in $lines) { [Console]::WriteLine($l) }
         $script:DashReady = $true
     } else {
-        # In-place redraw — only rewrite if cursor is still on screen
+        # In-place redraw -- only rewrite if cursor is still on screen
         try {
             $savedTop = [Console]::CursorTop
             $savedLeft = [Console]::CursorLeft
@@ -189,7 +189,7 @@ function Show-Dashboard {
     }
 }
 
-# Fast partial update — just the Op: line, avoids redrawing 28 lines on every build output line
+# Fast partial update -- just the Op: line, avoids redrawing 28 lines on every build output line
 function Set-Op {
     param([string]$NewOp)
     $masked = Format-Masked $NewOp
@@ -350,7 +350,7 @@ try { Start-Transcript -Path $script:LogFile -Append -Force | Out-Null } catch {
 Show-Dashboard
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 0 — Hardware + Prerequisites
+#  PHASE 0 -- Hardware + Prerequisites
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 0 "Checking Windows version..."
 $os = Get-CimInstance Win32_OperatingSystem
@@ -361,7 +361,7 @@ if ($os.Caption -notmatch "Pro|Enterprise|Education|Server") {
 foreach ($feat in @("Microsoft-Hyper-V","VirtualMachinePlatform","Microsoft-Windows-Subsystem-Linux")) {
     $f = Get-WindowsOptionalFeature -Online -FeatureName $feat -EA SilentlyContinue
     if ($f -and $f.State -eq "Enabled") { Write-LogOK "$feat enabled" }
-    else { Write-LogWarn "$feat not enabled — some targets may be unavailable" }
+    else { Write-LogWarn "$feat not enabled -- some targets may be unavailable" }
 }
 try {
     $null = & podman --version 2>&1
@@ -371,7 +371,7 @@ try {
 Finish-Phase 0
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 1 — Detecting environment
+#  PHASE 1 -- Detecting environment
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 1 "Detecting hardware..."
 $cpu = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
@@ -382,7 +382,7 @@ if ($disk -lt 80) { Write-LogWarn "Low disk space (<80 GB). Build may fail." }
 Finish-Phase 1
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 2 — Directories and repos
+#  PHASE 2 -- Directories and repos
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 2 "Preparing directories..."
 foreach ($d in @($MiosDocsDir,$MiosDeployDir,$MiosImagesDir,$MiosManifestsDir,(Split-Path $RepoDir -Parent))) {
@@ -412,7 +412,7 @@ Set-Location $RepoDir
 Finish-Phase 2
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 3 — MiOS-BUILDER distro
+#  PHASE 3 -- MiOS-BUILDER distro
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 3 "Provisioning $BuilderMachine Podman machine..."
 $builderScript = Join-Path $RepoDir "automation\mios-build-builder.ps1"
@@ -428,13 +428,13 @@ Write-LogOK "Connection: ${BuilderMachine}-root"
 Finish-Phase 3
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 4 — WSL2 configuration
+#  PHASE 4 -- WSL2 configuration
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 4 "Writing .wslconfig..."
 $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
 $wslRAM = [Math]::Max(16, [Math]::Floor($ram * 0.80))
 $wslLines = @(
-    "# 'MiOS' v$Version — WSL2 Configuration"
+    "# 'MiOS' v$Version -- WSL2 Configuration"
     "[wsl2]"
     "memory=${wslRAM}GB"
     "processors=${cpu}"
@@ -453,7 +453,7 @@ Write-LogOK ".wslconfig: ${wslRAM}GB RAM, $cpu CPUs"
 Finish-Phase 4
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 5 — Verifying build context
+#  PHASE 5 -- Verifying build context
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 5 "Checking repo files..."
 foreach ($f in @("Containerfile","VERSION","automation/build.sh","automation/31-user.sh")) {
@@ -463,7 +463,7 @@ Write-LogOK "Build context verified"
 Finish-Phase 5
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 6 — Identity
+#  PHASE 6 -- Identity
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 6 "Collecting credentials..."
 $AutoInstall = $env:MIOS_AUTOINSTALL -eq "1"
@@ -476,7 +476,7 @@ $P = if ($env:MIOS_PASSWORD) { $env:MIOS_PASSWORD } else {
         $pw1 = Read-Masked "Admin password:" ""
         $pw2 = Read-Masked "Confirm password:" ""
         while ($pw1 -ne $pw2) {
-            Write-LogWarn "Passwords do not match — retry"
+            Write-LogWarn "Passwords do not match -- retry"
             $pw1 = Read-Masked "Admin password:" ""
             $pw2 = Read-Masked "Confirm password:" ""
         }
@@ -505,11 +505,11 @@ Write-LogOK "User: $U  Hostname: $HostIn  Registry: $GhcrImage"
 Finish-Phase 6
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 7 — Writing identity
+#  PHASE 7 -- Writing identity
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 7 "Hashing password (SHA-512)..."
 
-# Pull helper image for openssl — try existing 'MiOS' image first
+# Pull helper image for openssl -- try existing 'MiOS' image first
 $HelperImage = ""
 if ($GhcrToken) {
     $GhcrToken | & podman login ghcr.io --username $RegUser --password-stdin 2>&1 | Out-Null
@@ -537,7 +537,7 @@ if ($HostIn -ne "mios") {
 Finish-Phase 7
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 8 — App registration (BIB self-build detection)
+#  PHASE 8 -- App registration (BIB self-build detection)
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 8 "Checking BIB capability..."
 $BIBSelfBuild = $false
@@ -553,8 +553,8 @@ if ($HelperImage) {
 Finish-Phase 8
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 9 — Building OCI image
-#  Every output line from podman build drives Op: — no frozen dashboard.
+#  PHASE 9 -- Building OCI image
+#  Every output line from podman build drives Op: -- no frozen dashboard.
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 9 "podman build starting..."
 $env:BUILDAH_FORMAT = "docker"
@@ -576,7 +576,7 @@ $t9 = [DateTime]::Now
     if ($stripped -match '\+-\s*STEP\s+(\d+)/(\d+)\s*:\s*(\S+)') {
         $script:Phases[9].InnerStep  = [int]$Matches[1]
         $script:Phases[9].InnerTotal = [int]$Matches[2]
-        Set-Op "STEP $($Matches[1])/$($Matches[2]) — $($Matches[3])"
+        Set-Op "STEP $($Matches[1])/$($Matches[2]) -- $($Matches[3])"
         Show-Dashboard   # full redraw on each script boundary
     } else {
         # Every non-empty line updates Op: for live feedback
@@ -633,7 +633,7 @@ if ($script:LogFile -and (Test-Path $script:LogFile)) {
 Finish-Phase 9
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASES 10-12 — Export / register / disk images
+#  PHASES 10-12 -- Export / register / disk images
 # ══════════════════════════════════════════════════════════════════════════════
 $bibConf     = Join-Path $RepoDir "config\bib.toml"
 if (-not (Test-Path $bibConf)) { $bibConf = Join-Path $RepoDir "config\bib.json" }
@@ -653,7 +653,7 @@ function Get-BIBArgs {
     return $a
 }
 
-# Phase 10 — WSL2 export
+# Phase 10 -- WSL2 export
 Start-Phase 10 "Exporting WSL2 image..."
 $ErrorActionPreference = "Continue"
 if ($HelperImage) {
@@ -667,7 +667,7 @@ if (Test-Path $TargetWsl) { Write-LogOK "WSL: $(Get-FileSize $TargetWsl)" } else
 $ErrorActionPreference = "Stop"
 Finish-Phase 10
 
-# Phase 11 — WSL2 registration
+# Phase 11 -- WSL2 registration
 Start-Phase 11 "Importing WSL2 distro..."
 $ErrorActionPreference = "Continue"
 if (Test-Path $TargetWsl) {
@@ -692,7 +692,7 @@ if (Test-Path $TargetWsl) {
 $ErrorActionPreference = "Stop"
 Finish-Phase 11
 
-# Phase 12 — Disk images (VHDX + ISO via BIB)
+# Phase 12 -- Disk images (VHDX + ISO via BIB)
 Start-Phase 12 "Building disk images (BIB)..."
 $script:Phases[12].InnerTotal = 2
 $ErrorActionPreference = "Continue"
@@ -728,7 +728,7 @@ $ErrorActionPreference = "Stop"
 Finish-Phase 12
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 13 — Hyper-V deployment
+#  PHASE 13 -- Hyper-V deployment
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 13 "Preparing Hyper-V VM..."
 $ErrorActionPreference = "Continue"
@@ -776,7 +776,7 @@ $ErrorActionPreference = "Stop"
 Finish-Phase 13
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  FINAL — Summary
+#  FINAL -- Summary
 # ══════════════════════════════════════════════════════════════════════════════
 Set-Op "Build complete."
 Show-Dashboard

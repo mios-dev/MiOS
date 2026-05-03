@@ -19,7 +19,7 @@ else
     fi
 fi
 
-echo "🔄 Initializing \MiOS COMPLETE System Root Overlay from $REPO_ROOT..."
+echo " Initializing \MiOS COMPLETE System Root Overlay from $REPO_ROOT..."
 
 # 2. Establish Git Identity of / (/.git -> REPO/.git)
 ln -sf "${REPO_ROOT}/.git" "/.git"
@@ -73,4 +73,4 @@ cat <<EON > /usr/share/mios/ai/v1/models.json
 EON
 ln -sf /usr/share/mios/ai/v1/models.json /v1/models 2>/dev/null || true
 
-echo "✅ \MiOS System Root Overlay: FULLY SYNCHRONIZED"
+echo "[ok] \MiOS System Root Overlay: FULLY SYNCHRONIZED"

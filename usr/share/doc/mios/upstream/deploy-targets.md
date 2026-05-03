@@ -1,4 +1,4 @@
-# Deployment Targets — Hyper-V / WSL2 / QEMU / ISO / RAW
+# Deployment Targets -- Hyper-V / WSL2 / QEMU / ISO / RAW
 
 > 'MiOS' produces one OCI image and several disk-image artifacts via BIB.
 > Source: `DEPLOY.md`, `Justfile` (recipes `raw`, `iso`, `qcow2`, `vhdx`,
@@ -20,7 +20,7 @@ sudo bootc rollback         # undo last upgrade
 1. Build the VHDX: `just vhdx` (requires `MIOS_USER_PASSWORD_HASH`)
 2. In Hyper-V Manager: New VM, Generation 2, attach `output/*.vhdx`
 3. **Enable Secure Boot** with the **Microsoft UEFI CA** template (not
-   "Microsoft Windows" template — the latter rejects Linux shim)
+   "Microsoft Windows" template -- the latter rejects Linux shim)
 4. First-boot Plymouth fix is already baked via
    `usr/lib/bootc/kargs.d/05-mios-plymouth.toml`
    (`plymouth.enable=0 rd.plymouth=0`)
@@ -51,7 +51,7 @@ WSL2 caveats:
 - Set `systemd=true` in the imported instance's `/etc/wsl.conf` ('MiOS'
   ships this already)
 - bootc commands work, but `bootc switch` requires writing the new
-  rootfs back into the WSL distribution — the bootstrap installer
+  rootfs back into the WSL distribution -- the bootstrap installer
   re-imports rather than `bootc switch`-in-place
 
 ## Anaconda installer ISO

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 33-firewall: Firewall configuration script
+# 'MiOS' v0.2.0 -- 33-firewall: Firewall configuration script
 set -euo pipefail
 
 echo "[33-firewall] Installing firewall init script..."
@@ -8,7 +8,7 @@ cat > /usr/libexec/mios-firewall-init <<'EOFW'
 #!/bin/bash
 set -euo pipefail
 if ! systemctl is-active --quiet firewalld 2>/dev/null; then
-    echo "[mios-firewall] firewalld not active — skipping"
+    echo "[mios-firewall] firewalld not active -- skipping"
     exit 0
 fi
 # Default zone: drop (deny all inbound by default)
@@ -39,7 +39,7 @@ for iface in lo podman+ br-+ veth+ virbr0 cni0 flannel.1 waydroid0; do
     firewall-cmd --permanent --zone=trusted --add-interface="$iface" 2>/dev/null || true
 done
 
-# ── Cockpit — accessible from ALL zones ──
+# ── Cockpit -- accessible from ALL zones ──
 for zone in public libvirt trusted; do
     firewall-cmd --permanent --zone="$zone" --add-service=cockpit 2>/dev/null || true
     firewall-cmd --permanent --zone="$zone" --add-port=9090/tcp 2>/dev/null || true

@@ -2,7 +2,7 @@
 
 This directory contains **standalone out-of-image tooling** that runs
 *on a booted 'MiOS' host* (or any Fedora/RHEL-family host, in
-most cases). These scripts are **not part of the image build** — the
+most cases). These scripts are **not part of the image build** -- the
 image-build scripts live in [`../automation/`](../automation/) and the
 overlays live in [`../`](../).
 
@@ -25,7 +25,7 @@ for full documentation.
 | Script | Purpose |
 |--------|---------|
 | `rtx4090-vfio-configurator.sh` | Opinionated RTX 4090 VFIO setup (MiOS's primary GPU) |
-| `universal-vfio-configurator.sh` | Generic VFIO configurator — any GPU, any USB controller |
+| `universal-vfio-configurator.sh` | Generic VFIO configurator -- any GPU, any USB controller |
 | `vfio-verify.sh` | Verify VFIO binding, IOMMU groups, host lockout |
 | `iommu-visualizer.sh` | Pretty-print IOMMU group membership |
 
@@ -39,7 +39,7 @@ at [`../specs/knowledge/guides/cpu-isolation-guide.md`](../specs/knowledge/guide
 
 | Script | Purpose |
 |--------|---------|
-| `universal-cpu-isolator.sh` | Generic CPU isolation — grub kargs, systemd cpuset, irqbalance tuning |
+| `universal-cpu-isolator.sh` | Generic CPU isolation -- grub kargs, systemd cpuset, irqbalance tuning |
 | `vm-cpu-pin-manager.sh` | Pin specific VM vCPUs to host physical cores |
 | `configure-xbox-cpu.sh` | Xbox-VM-specific CPU configuration (8 dedicated cores) |
 
@@ -54,7 +54,7 @@ deployment readiness.
 | Script | Purpose |
 |--------|---------|
 | `system-profiler.sh` | CPU / memory / GPU / storage inventory |
-| `system-assess.sh` | Full system assessment — virtualization, IOMMU, Secure Boot, TPM |
+| `system-assess.sh` | Full system assessment -- virtualization, IOMMU, Secure Boot, TPM |
 | `mios-build-assess.sh` | MiOS-specific readiness check |
 | `run-all-profilers.sh` | Chain every profiler, produce consolidated report |
 | `profiler-menu.sh` | Interactive menu wrapping the profilers |
@@ -79,7 +79,7 @@ and enrollment.
 | `fix-secureboot-now.sh` | Emergency Secure Boot fixer |
 | `fix-xbox-secureboot.sh` | Xbox-VM-specific Secure Boot fix |
 | `Xbox-AutoEnroll.xml` | libvirt domain with PK/KEK/db/dbx auto-enrollment |
-| `Xbox-Final-NoAutoSelect.xml` | libvirt domain — final config, no boot menu auto-select |
+| `Xbox-Final-NoAutoSelect.xml` | libvirt domain -- final config, no boot menu auto-select |
 | `win11-secureboot-template.xml` | Generic Windows 11 + Secure Boot libvirt template |
 
 ---
@@ -94,12 +94,12 @@ and enrollment.
 
 ## Legacy mega-scripts
 
-Kept for reference. New work should **not** extend these — they
+Kept for reference. New work should **not** extend these -- they
 predate the current `automation/NN-*.sh` modular design.
 
 | Script | Purpose |
 |--------|---------|
-| `mios-full.sh` | Standalone one-shot 'MiOS' provisioner (188 KB — everything in one file, pre-refactor) |
+| `mios-full.sh` | Standalone one-shot 'MiOS' provisioner (188 KB -- everything in one file, pre-refactor) |
 | `mios-build.sh` | Earlier Linux-side orchestrator (superseded by `Justfile` + `../mios-build-local.ps1`) |
 
 If you find yourself wanting to modify either of these, stop and work
@@ -110,7 +110,7 @@ on the modular replacement in `../automation/` instead.
 ## How these scripts interact with the bootc image
 
 - The **image build** (Containerfile + `../automation/`) produces the OS.
-- These **toolkit scripts** run on a host that's already booted —
+- These **toolkit scripts** run on a host that's already booted --
   either a 'MiOS' host, or a Fedora/RHEL host preparing to
   become one.
 - Nothing in this directory is copied into the image by default.

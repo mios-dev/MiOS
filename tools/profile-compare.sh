@@ -36,10 +36,10 @@ compare_sections() {
     sed -n "/^╔.*$section/,/^╔/p" "$file2" | head -n -1 > "$tmp2"
     
     if ! diff -u "$tmp1" "$tmp2" > /dev/null 2>&1; then
-        echo -e "${RED}✗ Differences found${NC}"
+        echo -e "${RED}[x] Differences found${NC}"
         diff -u "$tmp1" "$tmp2" | head -50
     else
-        echo -e "${GREEN}✓ Identical${NC}"
+        echo -e "${GREEN}[ok] Identical${NC}"
     fi
     
     rm -f "$tmp1" "$tmp2"

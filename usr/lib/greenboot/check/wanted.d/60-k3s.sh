@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' greenboot — advisory K3s readiness check (wanted.d = no rollback on fail)
+# 'MiOS' greenboot -- advisory K3s readiness check (wanted.d = no rollback on fail)
 # Logs a warning if K3s is enabled but not healthy after boot.
 # Lives in wanted.d so desktop/hybrid roles (where K3s is disabled) never fail.
 set -euo pipefail
@@ -8,11 +8,11 @@ TIMEOUT=60
 
 # Skip entirely if K3s is not enabled for this role
 if ! systemctl is-enabled --quiet k3s 2>/dev/null; then
-    echo "[mios-greenboot] K3s not enabled on this role — skipping check."
+    echo "[mios-greenboot] K3s not enabled on this role -- skipping check."
     exit 0
 fi
 
-echo "[mios-greenboot] K3s enabled — waiting up to ${TIMEOUT}s for active state..."
+echo "[mios-greenboot] K3s enabled -- waiting up to ${TIMEOUT}s for active state..."
 
 # Wait for K3s to reach active state
 deadline=$(( $(date +%s) + TIMEOUT ))

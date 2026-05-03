@@ -1,4 +1,4 @@
-# Related Distros — Comparison Context
+# Related Distros -- Comparison Context
 
 ## Sibling Universal Blue images
 
@@ -23,7 +23,7 @@ posture (GNOME desktop + KVM passthrough + k3s + Ceph + local AI).
 | CentOS Stream bootc | bootc | yes | Where BIB is published from |
 | RHEL image mode | bootc | yes | Red Hat enterprise sibling |
 | CoreOS Layering | rpm-ostree | yes (via `coreos.inst.image_url`) | Pre-bootc |
-| NixOS | Nix | no (declarative TOML/Nix) | Different model — declarative not image-based |
+| NixOS | Nix | no (declarative TOML/Nix) | Different model -- declarative not image-based |
 | Talos | bespoke | yes (Kubernetes-only API-driven) | No SSH, no shell |
 | Flatcar | Container Linux | yes | CoreOS Linux successor |
 | Vanilla OS | apx + abroot | yes | Ubuntu-based, dual-root atomic |
@@ -33,7 +33,7 @@ posture (GNOME desktop + KVM passthrough + k3s + Ceph + local AI).
 
 | Alt | Why 'MiOS' instead |
 | --- | --- |
-| Bluefin | Bluefin is dev-desktop only — no KVM passthrough, no Ceph, no local AI surface |
+| Bluefin | Bluefin is dev-desktop only -- no KVM passthrough, no Ceph, no local AI surface |
 | Bazzite | Gaming-tuned; not suitable for HCI workloads |
 | Silverblue | Pre-bootc (rpm-ostree); harder to run as a pure container image |
 | RHEL image mode | Closed source, requires subscription |

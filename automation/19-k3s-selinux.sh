@@ -9,7 +9,7 @@ source "$(dirname "$0")/lib/common.sh"
 
 install_packages "k3s-selinux-build"
 
-# Pin to a specific stable release tag — HEAD clones pick up unreviewed commits.
+# Pin to a specific stable release tag -- HEAD clones pick up unreviewed commits.
 # Update K3S_SELINUX_TAG when bumping K3s to stay in sync with its SELinux policy.
 # Audit 2026-05-01: v1.5.stable.2 was deleted upstream; resolve "the latest
 # v* tag" dynamically and fall back to the override or master if discovery

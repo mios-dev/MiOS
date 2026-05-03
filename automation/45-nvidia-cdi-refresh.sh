@@ -11,7 +11,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-# Remove legacy OCI hook — conflicts with CDI when both are present.
+# Remove legacy OCI hook -- conflicts with CDI when both are present.
 OCI_HOOK=/usr/share/containers/oci/hooks.d/oci-nvidia-hook.json
 if [[ -f "$OCI_HOOK" ]]; then
     log "removing legacy OCI nvidia hook (conflicts with CDI)"
@@ -43,6 +43,6 @@ do
 done
 
 # /etc/cdi and /var/run/cdi are declared in usr/lib/tmpfiles.d/mios-gpu.conf
-# (LAW 2 — NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
+# (LAW 2 -- NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
 
 log "CDI refresh pipeline configured"

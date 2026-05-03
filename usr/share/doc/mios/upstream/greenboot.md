@@ -1,4 +1,4 @@
-# greenboot — Operational Health Checks
+# greenboot -- Operational Health Checks
 
 > Mentioned in `llms.txt` as part of MiOS's operational stack.
 

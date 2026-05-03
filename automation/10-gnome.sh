@@ -1,19 +1,19 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 10-gnome: GNOME 50 desktop — PURE BUILD-UP
+# 'MiOS' v0.2.0 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
 # With install_weakdeps=False (set globally in 01-repos.sh), only hard deps
 # get pulled in. This means:
-#   - malcontent-libs comes in (gnome-control-center hard dep) — CORRECT
-#   - malcontent-control/pam/tools do NOT come in (weak deps) — CORRECT
-#   - No GNOME bloat apps get installed — nothing to remove
+#   - malcontent-libs comes in (gnome-control-center hard dep) -- CORRECT
+#   - malcontent-control/pam/tools do NOT come in (weak deps) -- CORRECT
+#   - No GNOME bloat apps get installed -- nothing to remove
 #
 # The ~25 core packages from the docs produce a fully functional GNOME 50
 # Wayland desktop with GDM, all portals, audio, Bluetooth, networking,
 # security, and proper theming across GTK3/GTK4/Qt.
 #
 # CHANGELOG v0.2.0:
-#   - MANDATORY Bibata cursor download — retries 3x, FAILS BUILD if missing
+#   - MANDATORY Bibata cursor download -- retries 3x, FAILS BUILD if missing
 #   - dconf profiles for user + GDM added to 
 #   - Flatpak: 7 apps (added Flatseal + LocalSend)
 #   - adw-gtk3 theme for GTK3 visual consistency
@@ -24,7 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
 # ═════════════════════════════════════════════════════════════════════════════
-# GNOME 50 — Install from PACKAGES.md (build-up, NOT strip-down)
+# GNOME 50 -- Install from PACKAGES.md (build-up, NOT strip-down)
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing GNOME 50 desktop (pure build-up)..."
 install_packages "gnome"
@@ -33,14 +33,14 @@ install_packages "gnome"
 install_packages_optional "gnome-core-apps"
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Localsearch/tracker — disable indexing without removing
+# Localsearch/tracker -- disable indexing without removing
 # Removing localsearch breaks Nautilus search + Activities Overview.
 # Hide via autostart overrides in usr/share/xdg/autostart/
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Disabling localsearch/tracker indexing (keep package, hide autostart)..."
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Qt Adwaita theming — required for Qt apps to match GNOME look
+# Qt Adwaita theming -- required for Qt apps to match GNOME look
 # Managed via usr/lib/environment.d/60-mios-qt-adwaita.conf
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Setting Qt Adwaita environment variables (managed via overlay)..."
@@ -59,7 +59,7 @@ fi
 fc-cache -f /usr/share/fonts/geist 2>/dev/null || true
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Bibata Cursor Theme — MANDATORY (build fails if download fails)
+# Bibata Cursor Theme -- MANDATORY (build fails if download fails)
 #
 # The cursor shows as a SQUARE when:
 #   - /usr/share/icons/Bibata-Modern-Classic/ doesn't exist (download failed)
@@ -67,12 +67,12 @@ fc-cache -f /usr/share/fonts/geist 2>/dev/null || true
 #   - dconf cursor-theme references a theme with no files
 #
 # FIX: Retry download 3 times. VERIFY the cursors directory exists.
-#      FAIL THE BUILD if cursors are missing — a square cursor is unacceptable.
+#      FAIL THE BUILD if cursors are missing -- a square cursor is unacceptable.
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing Bibata-Modern-Classic cursor (MANDATORY)..."
 
 # Resolve latest release from upstream. Project policy: every dependency
-# tracks :latest from its source, so no fallback pin — if api.github.com is
+# tracks :latest from its source, so no fallback pin -- if api.github.com is
 # unreachable, fail loud rather than silently shipping a stale version.
 BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
     -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
@@ -91,16 +91,16 @@ BIBATA_SUM_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIB
 for attempt in 1 2 3; do
     echo "[10-gnome]   Download attempt $attempt/3..."
     if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
-        # Attempt sha256 verification — non-fatal if sidecar unavailable
+        # Attempt sha256 verification -- non-fatal if sidecar unavailable
         if scurl -fsSL --connect-timeout 15 --max-time 30 "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
-                echo "[10-gnome]   ✓ Bibata sha256 verified"
+                echo "[10-gnome]   [ok] Bibata sha256 verified"
             else
-                echo "[10-gnome]   WARN: Bibata sha256 mismatch or sidecar format mismatch — continuing anyway"
+                echo "[10-gnome]   WARN: Bibata sha256 mismatch or sidecar format mismatch -- continuing anyway"
             fi
             rm -f /tmp/bibata.sha256
         else
-            echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable — skipping integrity check"
+            echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable -- skipping integrity check"
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
             rm -f /tmp/bibata.tar.xz
@@ -112,39 +112,39 @@ for attempt in 1 2 3; do
     sleep 5
 done
 
-# VERIFY cursor files actually exist — log warning if missing but DO NOT fail build
+# VERIFY cursor files actually exist -- log warning if missing but DO NOT fail build
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
     echo "  WARNING: Bibata cursor theme download FAILED after 3 attempts"
     echo "  URL: $BIBATA_URL"
     echo "  The cursor will show as a SQUARE until the theme is installed."
     echo "  This failure is non-fatal for the build; users can install later."
 else
-    echo "[10-gnome] ✓ Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
+    echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 fi
 
-# Comprehensive cursor default — every layer that reads cursor theme
+# Cursor default -- covers every layer that reads cursor theme.
 # Managed via usr/share/icons/default/index.theme
-# and usr/share/X11/icons/default/index.theme
+# and usr/share/X11/icons/default/index.theme.
 
 # 3. update-alternatives for x-cursor-theme (Fedora cursor resolution)
 if [ -d "$BIBATA_DIR/cursors" ]; then
     update-alternatives --install /usr/share/icons/default/index.theme \
         x-cursor-theme /usr/share/icons/Bibata-Modern-Classic/cursor.theme 100 2>/dev/null || true
-    echo "[10-gnome] ✓ x-cursor-theme alternative set to Bibata"
+    echo "[10-gnome] [ok] x-cursor-theme alternative set to Bibata"
 fi
 
 # 4. Symlink into /usr/share/cursors/xorg-x11 (legacy X11 cursor path)
 mkdir -p /usr/share/cursors/xorg-x11
 ln -sf /usr/share/icons/Bibata-Modern-Classic /usr/share/cursors/xorg-x11/Bibata-Modern-Classic 2>/dev/null || true
 
-# 5. GDM user cursor — ensure cursor files are world-readable
+# 5. GDM user cursor -- ensure cursor files are world-readable
 chmod -R a+rX "$BIBATA_DIR" 2>/dev/null || true
 
 # 6. Xresources fallback (oldest X11 cursor method)
 # Managed via usr/lib/X11/Xresources
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Phosh — Mobile session for portrait/tablet remote access
+# Phosh -- Mobile session for portrait/tablet remote access
 # ═══════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing Phosh mobile session..."
 install_packages_optional "phosh"

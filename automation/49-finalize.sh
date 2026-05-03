@@ -28,7 +28,7 @@ rm -f /etc/containers/auth.json \
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/libdnf5 /var/cache/dnf /var/log/dnf5.log* 2>/dev/null || true
 
-# Set image metadata — LAW 4: write to /usr/lib/mios/, not /etc/
+# Set image metadata -- LAW 4: write to /usr/lib/mios/, not /etc/
 # /etc/mios-version and /etc/mios/version are Day-2 admin paths.
 MIOS_VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "unknown")
 install -d -m 0755 ${MIOS_USR_DIR}

@@ -28,9 +28,9 @@ podman manifest push --all ghcr.io/mios-dev/mios:latest
 
 ## Retention ('MiOS' policy)
 
-- Latest signed `:latest` digest — protected
-- Last 5 release-tag digests — protected
-- Untagged manifests — pruned at 90 days (GHCR default)
+- Latest signed `:latest` digest -- protected
+- Last 5 release-tag digests -- protected
+- Untagged manifests -- pruned at 90 days (GHCR default)
 
 Configure protection via the GitHub package's "Manage Actions access"
 and "Manage versions" UI, or via the REST API.
@@ -39,9 +39,9 @@ and "Manage versions" UI, or via the REST API.
 
 | Ref | Purpose |
 | --- | --- |
-| `ghcr.io/mios-dev/mios:latest` | Production image — bootc switch target |
+| `ghcr.io/mios-dev/mios:latest` | Production image -- bootc switch target |
 | `ghcr.io/mios-dev/mios:v0.2.2` | Pinned release |
-| `ghcr.io/mios-dev/mios@sha256:…` | Digest-pinned (most secure) |
+| `ghcr.io/mios-dev/mios@sha256:...` | Digest-pinned (most secure) |
 | `localhost/mios:latest` | `Justfile` local build target (`Justfile:13`) |
 | `ghcr.io/ublue-os/ucore-hci:stable-nvidia` | Upstream base (`Justfile:45`) |
 | `quay.io/centos-bootc/bootc-image-builder:latest` | BIB (`Justfile:14`) |

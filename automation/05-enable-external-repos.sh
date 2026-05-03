@@ -4,7 +4,7 @@
 # ----------------------------------------------------------------------------
 # Enable external DNF repositories for 'MiOS' (Fedora 44 / Rawhide).
 # Idempotent; fails fast; uses ${DNF_SETOPT[@]} from automation/lib/common.sh.
-# RPM Fusion is intentionally NOT handled here — see 01-repos.sh.
+# RPM Fusion is intentionally NOT handled here -- see 01-repos.sh.
 #
 # v2.3 CHANGES:
 #   - Added Kubernetes stable v1.32 repo (kubectl not in Fedora repos).
@@ -32,10 +32,10 @@ if [[ ! -f "${REPO_DIR}/terra.repo" ]]; then
     if ! scurl -fsSL --connect-timeout 20 --max-time 60 \
             https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo \
             -o "${REPO_DIR}/terra.repo" 2>/dev/null; then
-        warn "Terra repo download failed (github.com unreachable?) — skipping Terra"
+        warn "Terra repo download failed (github.com unreachable?) -- skipping Terra"
     fi
 else
-    log "Terra repo already present — skipping"
+    log "Terra repo already present -- skipping"
 fi
 
 # --- 2. VSCodium (FOSS) ------------------------------------------------------
@@ -54,11 +54,11 @@ gpgcheck=1
 gpgkey=https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg
 EOF
 else
-    log "VSCodium repo already present — skipping"
+    log "VSCodium repo already present -- skipping"
 fi
 
 # --- 7. Kubernetes stable v1.32 (kubectl) -----------------------------------
-# kubectl is NOT in standard Fedora repos — must come from the Kubernetes
+# kubectl is NOT in standard Fedora repos -- must come from the Kubernetes
 # project's own RPM repository. Pinned to v1.32 (current stable).
 # Only kubectl is installed from here; kubeadm/kubelet are intentionally
 # excluded (k3s is used for the cluster runtime, not kubeadm).
@@ -75,7 +75,7 @@ repo_gpgcheck=1
 exclude=kubelet kubeadm cri-tools kubernetes-cni
 EOF
 else
-    log "Kubernetes repo already present — skipping"
+    log "Kubernetes repo already present -- skipping"
 fi
 
 # --- 8. ublue-os/packages COPR (uupd + greenboot) ---------------------------
@@ -92,7 +92,7 @@ if [[ ! -f "${REPO_DIR}/ublue-os-packages.repo" ]]; then
         sed -i '/^\[/a priority=75' "${REPO_DIR}/ublue-os-packages.repo"
     fi
 else
-    log "ublue-os/packages COPR already present — skipping"
+    log "ublue-os/packages COPR already present -- skipping"
 fi
 
 # ── Waydroid (Aleasto) ───────────────────────────────────────────────────
@@ -100,7 +100,7 @@ if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:aleasto:waydroid.repo
     log "enabling aleasto/waydroid COPR (GNOME 50 fix)"
     $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y aleasto/waydroid
 else
-    log "aleasto/waydroid COPR already present — skipping"
+    log "aleasto/waydroid COPR already present -- skipping"
 fi
 
 # ── Tailscale ────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
     scurl -fsSL https://pkgs.tailscale.com/stable/fedora/tailscale.repo \
         -o "${REPO_DIR}/tailscale.repo"
 else
-    log "Tailscale repo already present — skipping"
+    log "Tailscale repo already present -- skipping"
 fi
 
 # ── CrowdSec ─────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
     scurl -fsSL https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=40&source=script \
         -o "${REPO_DIR}/crowdsec.repo"
 else
-    log "CrowdSec repo already present — skipping"
+    log "CrowdSec repo already present -- skipping"
 fi
 
 log "external repos enabled; refreshing metadata"

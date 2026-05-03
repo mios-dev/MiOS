@@ -27,7 +27,7 @@ acceleration, and a defense-in-depth security posture.
    enforcing, USBGuard ready, CrowdSec sovereign-mode IPS, kernel-lockdown
    integrity. See `80-security.md`.
 
-## Base image — uCore HCI
+## Base image -- uCore HCI
 
 'MiOS' builds `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia`
 (`MIOS_BASE_IMAGE`). uCore HCI is a Universal Blue derivative of Fedora
@@ -39,7 +39,7 @@ CoreOS targeting hyperconverged infrastructure:
 | uCore additions | cockpit, firewalld, tailscale, mergerfs, samba, NFS |
 | HCI additions | libvirt/KVM, QEMU, VFIO-PCI tooling, virtiofs |
 | NVIDIA variant (`stable-nvidia`) | Proprietary driver akmods pre-built and MOK-signed; NVIDIA Container Toolkit |
-| Stable stream kernel | LTS Linux 6.12 — server-grade stability, consistent ABI across updates |
+| Stable stream kernel | LTS Linux 6.12 -- server-grade stability, consistent ABI across updates |
 
 'MiOS' adds GNOME 50, Looking Glass B7, KVM passthrough, k3s, Ceph, the
 local AI surface, and defense-in-depth hardening on top.
@@ -49,7 +49,7 @@ Upstream: `github.com/ublue-os/ucore`.
 ## Repo == system root
 
 `usr/`, `etc/`, `home/`, `srv/`, `v1/` in the repo mirror the deployed
-image 1:1. There is **no separate `system_files/` directory** — overlay
+image 1:1. There is **no separate `system_files/` directory** -- overlay
 edits target real on-disk paths directly. The `Containerfile`'s `ctx`
 scratch stage copies these directories into `/ctx`, then the main build
 bind-mounts `/ctx` read-only and copies a writable working set to
@@ -57,9 +57,9 @@ bind-mounts `/ctx` read-only and copies a writable working set to
 
 ## Two-repo split
 
-- `github.com/mios-dev/'MiOS'` — **system layer** (this repo). Owns the
+- `github.com/mios-dev/'MiOS'` -- **system layer** (this repo). Owns the
   Containerfile, automation phase scripts, FHS overlay, system docs, CI.
-- `github.com/mios-dev/mios-bootstrap` — **user-facing installer**. Owns
+- `github.com/mios-dev/mios-bootstrap` -- **user-facing installer**. Owns
   Phase-0 preflight + identity capture, Phase-1 Total Root Merge, Phase-4
   reboot. End users do not clone the system layer directly.
 

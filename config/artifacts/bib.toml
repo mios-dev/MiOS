@@ -1,4 +1,4 @@
-# 'MiOS' — bootc-image-builder configuration
+# 'MiOS' -- bootc-image-builder configuration
 # Ensures disk images have enough free space for runtime operations
 
 [[customizations.filesystem]]

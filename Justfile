@@ -39,7 +39,7 @@ live-init:
     @chmod +x tools/mios-overlay.sh
     sudo ./tools/mios-overlay.sh
 
-# bootc container lint — runs against the locally built image.
+# bootc container lint -- runs against the locally built image.
 # The Containerfile already runs `bootc container lint` as its final RUN, so
 # `just build` is itself a lint gate. This target re-runs lint on demand.
 lint:
@@ -189,7 +189,7 @@ vhdx: build
             qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
         done; \
     else \
-        echo "[WARN] qemu-img not found or no .vhd produced — .vhd retained in output/"; \
+        echo "[WARN] qemu-img not found or no .vhd produced -- .vhd retained in output/"; \
     fi
     @echo "[OK] VHDX image in output/"
 
@@ -202,7 +202,7 @@ wsl2: build
         -v /var/lib/containers/storage:/var/lib/containers/storage \
         -v ./config/artifacts/wsl2.toml:/config.toml:ro \
         {{BIB}} build --type wsl2 {{LOCAL}}
-    @echo "[OK] WSL2 image in output/ — import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
+    @echo "[OK] WSL2 image in output/ -- import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
 
 
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)

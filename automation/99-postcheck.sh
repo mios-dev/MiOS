@@ -24,7 +24,7 @@ log "  Found: OpenSSH $SSH_VER_RAW"
 if [[ $(printf '%s\n9.6' "$SSH_VER_RAW" | sort -V | head -n1) != "9.6" ]]; then
     die "OpenSSH version $SSH_VER_RAW is below required 9.6 (Vulnerable to CVE-2026-4631 in Cockpit context)"
 fi
-log "  ✓ OpenSSH version is safe"
+log "  [ok] OpenSSH version is safe"
 
 # 2. Cockpit Security Posture
 log "Checking Cockpit configuration..."
@@ -41,9 +41,9 @@ if [[ -f "$COCKPIT_CONF" ]]; then
     if ! grep -q "LoginTo = false" "$COCKPIT_CONF"; then
         die "Cockpit LoginTo mitigation missing in $COCKPIT_CONF (CVE-2026-4631)"
     fi
-    log "  ✓ Cockpit LoginTo = false is enforced"
+    log "  [ok] Cockpit LoginTo = false is enforced"
 else
-    log "  ⚠ Cockpit config not found at expected paths; skipping check"
+    log "  [!] Cockpit config not found at expected paths; skipping check"
 fi
 
 # 3. Kernel Argument Validation (Schema Strictness Preparation)
@@ -54,7 +54,7 @@ if [[ -d /usr/lib/bootc/kargs.d ]]; then
         # Future: run 'bootc container lint' or specialized schema check
         log "  found karg: $(basename "$f")"
     done
-    log "  ✓ kargs.d presence verified"
+    log "  [ok] kargs.d presence verified"
 fi
 
 # 4. Critical Package Verification
@@ -64,7 +64,7 @@ for tool in "${CRITICAL_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         die "Critical tool '$tool' is missing from the image"
     fi
-    log "  ✓ $tool present"
+    log "  [ok] $tool present"
 done
 
 # 5. NVIDIA Container Toolkit Version Check
@@ -75,7 +75,7 @@ if command -v nvidia-ctk >/dev/null 2>&1; then
     if [[ $(printf '%s\n1.18' "$NCT_VER" | sort -V | head -n1) != "1.18" ]]; then
         die "nvidia-container-toolkit version $NCT_VER is below required 1.18"
     fi
-    log "  ✓ NVIDIA Container Toolkit version is safe"
+    log "  [ok] NVIDIA Container Toolkit version is safe"
 fi
 
 # 6. Cockpit Version Check (for CVE-2026-4631)
@@ -85,9 +85,9 @@ if rpm -q cockpit >/dev/null 2>&1; then
     log "  Found: Cockpit $COCKPIT_VER"
     # CVE fixed in 360. 'MiOS' targets 361+ for Fedora 44 GA stability.
     if [[ $(printf '%s\n361' "$COCKPIT_VER" | sort -V | head -n1) != "361" ]]; then
-        log "  ⚠ Cockpit version $COCKPIT_VER is below 361 (Risk: CVE-2026-4631 / Regressions)"
+        log "  [!] Cockpit version $COCKPIT_VER is below 361 (Risk: CVE-2026-4631 / Regressions)"
     else
-        log "  ✓ Cockpit version is safe"
+        log "  [ok] Cockpit version is safe"
     fi
 fi
 
@@ -99,7 +99,7 @@ fi
 # wsl-init.service uses to auto-restore).
 log "Validating /etc/wsl.conf (ASCII + parse + parity with /usr/lib/wsl.conf)..."
 if [[ -f /etc/wsl.conf ]]; then
-    # WSL2's INI parser is byte-naive — multibyte chars (em-dashes, smart quotes,
+    # WSL2's INI parser is byte-naive -- multibyte chars (em-dashes, smart quotes,
     # NBSP) shift its line counter and surface as bogus "Expected ' ' or '\n' in
     # /etc/wsl.conf:N" errors at boot. Python configparser tolerates UTF-8 so a
     # parse-only check misses these. Enforce strict ASCII before the parse runs.
@@ -126,19 +126,19 @@ for section, keys in required.items():
 print("  /etc/wsl.conf parses cleanly with all required sections/keys")
 ' || die "/etc/wsl.conf failed parse/required-keys validation"
     else
-        log "  ⚠ python3 unavailable — skipping wsl.conf parse (post-build only)"
+        log "  [!] python3 unavailable -- skipping wsl.conf parse (post-build only)"
     fi
     if [[ -f /usr/lib/wsl.conf ]]; then
         if ! cmp -s /etc/wsl.conf /usr/lib/wsl.conf; then
             die "/etc/wsl.conf drifted from /usr/lib/wsl.conf reference at build time"
         fi
-        log "  ✓ /etc/wsl.conf matches /usr/lib/wsl.conf reference"
+        log "  [ok] /etc/wsl.conf matches /usr/lib/wsl.conf reference"
     fi
 else
-    log "  ⚠ /etc/wsl.conf not present in image — WSL2 deploys will fall back to defaults"
+    log "  [!] /etc/wsl.conf not present in image -- WSL2 deploys will fall back to defaults"
 fi
 
-# 8. sysusers.d sanity — login-shell users MUST have a fixed UID.
+# 8. sysusers.d sanity -- login-shell users MUST have a fixed UID.
 # Auto-allocation ('-') picks from the SYSTEM range (<UID_MIN), and logind
 # then refuses to create /run/user/<uid>/. The cascade kills dbus user
 # session, dconf, Wayland session services, and every GTK app that needs
@@ -146,7 +146,7 @@ fi
 #
 # Files in /etc/sysusers.d/ override files of the same basename in
 # /usr/lib/sysusers.d/ (systemd-sysusers.d(5)), so when an override exists
-# the /usr/lib/ file is shadowed at runtime — validate the effective file.
+# the /usr/lib/ file is shadowed at runtime -- validate the effective file.
 log "Validating sysusers.d login users have fixed UIDs..."
 _sysusers_effective() {
     local d

@@ -37,7 +37,7 @@ fi
 
 # Resolve latest Looking Glass release branch from upstream. Project policy:
 # every dependency tracks :latest from its source. LG uses letter-numbered
-# release branches (B6, B7, …); pick the highest by version sort.
+# release branches (B6, B7, ...); pick the highest by version sort.
 if [[ -z "${LG_BRANCH:-}" ]]; then
     LG_BRANCH=$(git ls-remote --heads https://github.com/gnif/LookingGlass.git 'B*' 2>/dev/null \
         | awk -F/ '{print $NF}' \

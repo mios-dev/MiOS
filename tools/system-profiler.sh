@@ -2,7 +2,9 @@
 
 ################################################################################
 # Linux System & Hardware Profiler
-# Comprehensive system information collection for MiOS-Build development
+# System information collection for MiOS-Build development.
+# Captures kernel, CPU, memory, PCI, USB, block, network, GPU, IOMMU,
+# audio, sensors, BIOS, and firmware data into a single text report.
 ################################################################################
 
 set -euo pipefail
@@ -573,7 +575,7 @@ collect_display_server() {
 main() {
     clear
     print_header "LINUX SYSTEM & HARDWARE PROFILER"
-    echo -e "${BOLD}Starting comprehensive system profile...${NC}"
+    echo -e "${BOLD}Starting system profile...${NC}"
     echo -e "Output file: ${GREEN}$OUTPUT_FILE${NC}\n"
     
     # Check for root/sudo
@@ -620,8 +622,8 @@ main() {
     
     # Final summary
     print_header "PROFILE COMPLETE"
-    echo -e "${GREEN}âœ“${NC} Full system profile saved to: ${BOLD}$OUTPUT_FILE${NC}"
-    echo -e "${GREEN}âœ“${NC} Profile directory: ${BOLD}$OUTPUT_DIR${NC}"
+    echo -e "${GREEN}âœ"${NC} Full system profile saved to: ${BOLD}$OUTPUT_FILE${NC}"
+    echo -e "${GREEN}âœ"${NC} Profile directory: ${BOLD}$OUTPUT_DIR${NC}"
     echo ""
     echo -e "${CYAN}File size: $(du -h "$OUTPUT_FILE" | cut -f1)${NC}"
     echo -e "${CYAN}Total sections: 22${NC}"

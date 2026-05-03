@@ -67,19 +67,19 @@ binder loop in `automation/08-system-files-overlay.sh:74-86`.
 
 ## Discovery surfaces
 
-- `usr/share/mios/ai/v1/models.json` — `/v1/models`-shaped catalog
-- `usr/share/mios/ai/v1/mcp.json` — MCP server registry (for clients that
+- `usr/share/mios/ai/v1/models.json` -- `/v1/models`-shaped catalog
+- `usr/share/mios/ai/v1/mcp.json` -- MCP server registry (for clients that
   speak Model Context Protocol)
-- `usr/share/mios/ai/system.md` — canonical agent prompt (see override
+- `usr/share/mios/ai/system.md` -- canonical agent prompt (see override
   chain below)
 
 ## System-prompt override chain
 
 Highest to lowest precedence:
 
-1. `~/.config/mios/system-prompt.md` — per-user
-2. `/etc/mios/ai/system-prompt.md` — host/admin
-3. `/usr/share/mios/ai/system.md` — vendor canonical (immutable)
+1. `~/.config/mios/system-prompt.md` -- per-user
+2. `/etc/mios/ai/system-prompt.md` -- host/admin
+3. `/usr/share/mios/ai/system.md` -- vendor canonical (immutable)
 
 Per-tool stubs at the repo root (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`)
 are thin pointers that reference this chain.
@@ -107,7 +107,7 @@ This contract is portable across every OpenAI-API-compatible runtime:
 - **Ollama**: `http://localhost:11434/v1`
 - **vLLM**: `http://localhost:8000/v1`
 - **LM Studio**: `http://localhost:1234/v1`
-- **llama.cpp server**: `http://localhost:8080/v1` (collides with LocalAI on the same port — pick one)
+- **llama.cpp server**: `http://localhost:8080/v1` (collides with LocalAI on the same port -- pick one)
 - **LiteLLM proxy**: `http://localhost:4000/v1` (translates to/from any backend, including a Responses API shim)
 - **OpenRouter**: `https://openrouter.ai/api/v1`
 

@@ -159,7 +159,7 @@ main() {
     log_ok "User profile applied."
 
     # --- 3. Total Root Merge ---
-    # LAW 1: NON-DESTRUCTIVE SIMPLE MERGE — never use git checkout -f at /,
+    # LAW 1: NON-DESTRUCTIVE SIMPLE MERGE -- never use git checkout -f at /,
     # which forcibly overwrites existing system files. Clone to a temp path,
     # then rsync each FHS overlay dir with --ignore-existing semantics so that
     # base system files are never clobbered.

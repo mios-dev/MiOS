@@ -31,14 +31,14 @@ declare -A NUMA_MAP
 
 # Logging
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[âœ“]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[âš ]${NC} $1"; }
-log_error() { echo -e "${RED}[âœ—]${NC} $1"; }
+log_success() { echo -e "${GREEN}[âœ"]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[âš ]${NC} $1"; }
+log_error() { echo -e "${RED}[âœ--]${NC} $1"; }
 log_header() {
     echo ""
-    echo -e "${CYAN}â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—${NC}"
-    echo -e "${CYAN}â•‘${NC} ${BOLD}$1${NC}"
-    echo -e "${CYAN}â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${NC}"
+    echo -e "${CYAN}â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--${NC}"
+    echo -e "${CYAN}â*'${NC} ${BOLD}$1${NC}"
+    echo -e "${CYAN}â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
     echo ""
 }
 
@@ -142,19 +142,19 @@ display_cpu_topology() {
     local total_cpus=${CPU_INFO[threads]}
     local smt_enabled=$([[ ${CPU_INFO[threads_per_core]} -eq 2 ]] && echo "Yes" || echo "No")
     
-    echo -e "${CYAN}â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—${NC}"
-    echo -e "${CYAN}â•‘${NC} ${BOLD}CPU Configuration${NC}"
-    echo -e "${CYAN}â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£${NC}"
-    echo -e "${CYAN}â•‘${NC} Model:        ${CPU_INFO[model]}"
-    echo -e "${CYAN}â•‘${NC} Cores:        ${CPU_INFO[cores]} physical"
-    echo -e "${CYAN}â•‘${NC} Threads:      ${CPU_INFO[threads]} logical (SMT: $smt_enabled)"
-    echo -e "${CYAN}â•‘${NC} NUMA Nodes:   ${CPU_INFO[numa_nodes]}"
+    echo -e "${CYAN}â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--${NC}"
+    echo -e "${CYAN}â*'${NC} ${BOLD}CPU Configuration${NC}"
+    echo -e "${CYAN}â* â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*£${NC}"
+    echo -e "${CYAN}â*'${NC} Model:        ${CPU_INFO[model]}"
+    echo -e "${CYAN}â*'${NC} Cores:        ${CPU_INFO[cores]} physical"
+    echo -e "${CYAN}â*'${NC} Threads:      ${CPU_INFO[threads]} logical (SMT: $smt_enabled)"
+    echo -e "${CYAN}â*'${NC} NUMA Nodes:   ${CPU_INFO[numa_nodes]}"
     
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
-        echo -e "${CYAN}â•‘${NC} CCDs:         ${CPU_INFO[ccd_count]} (AMD X3D)"
+        echo -e "${CYAN}â*'${NC} CCDs:         ${CPU_INFO[ccd_count]} (AMD X3D)"
     fi
     
-    echo -e "${CYAN}â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${NC}"
+    echo -e "${CYAN}â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
     echo ""
     
     # Visual CPU grid
@@ -1078,13 +1078,13 @@ case "\$1" in
         
         echo -e "\rProgress: \$((moved + failed))/\$total processes processed... Done!"
         echo ""
-        echo "âœ“ Successfully moved \$moved processes to host cores"
+        echo "âœ" Successfully moved \$moved processes to host cores"
         echo "  (Failed: \$failed - expected for kernel threads)"
         echo ""
         echo "Isolation active. Check with 'htop' to verify."
         ;;
     off)
-        echo "Disabling CPU isolation — allowing all processes to use all CPUs..."
+        echo "Disabling CPU isolation -- allowing all processes to use all CPUs..."
         
         all_cpus="0-\$(($(nproc) - 1))"
         moved=0
@@ -1098,11 +1098,11 @@ case "\$1" in
             fi
         done
         
-        echo "âœ“ Restored access to all CPUs for \$moved processes"
+        echo "âœ" Restored access to all CPUs for \$moved processes"
         echo "  (Failed: \$failed - expected for kernel threads)"
         ;;
     status)
-        echo "CPU isolation status — Isolated: \$ISOLATED_CPUS  Host: \$HOST_CPUS"
+        echo "CPU isolation status -- Isolated: \$ISOLATED_CPUS  Host: \$HOST_CPUS"
         echo ""
         echo "Kernel parameters:"
         cat /proc/cmdline | grep -o "isolcpus=[^ ]*" || echo "  No isolcpus parameter"
@@ -1187,7 +1187,7 @@ generate_summary() {
     
     # Check if systemd affinity was configured
     if grep -q "^CPUAffinity=" /etc/systemd/system.conf 2>/dev/null; then
-        echo -e "${GREEN}âœ“ systemd CPUAffinity is active (processes already moved)${NC}"
+        echo -e "${GREEN}âœ" systemd CPUAffinity is active (processes already moved)${NC}"
         echo "  You can verify with: htop (press 't' for tree view)"
         echo "  Host cores should show activity, VM cores should be idle"
         echo ""
@@ -1233,7 +1233,7 @@ main() {
     configure_isolation
     generate_summary
     
-    echo -e "${YELLOW}â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${NC}"
+    echo -e "${YELLOW}â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
     read -p "Reboot now to apply kernel changes? [y/N]: " reboot_now
     
     if [[ "$reboot_now" =~ ^[Yy]$ ]]; then

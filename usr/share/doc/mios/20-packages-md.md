@@ -1,4 +1,4 @@
-# PACKAGES.md — Single Source of Truth
+# PACKAGES.md -- Single Source of Truth
 
 > Source: `ENGINEERING.md` §Package-management,
 > `automation/lib/packages.sh:get_packages`.
@@ -78,11 +78,11 @@ get_packages() {
 - Adding a package → add it to the appropriate fenced block. **Do not
   install packages from inside phase scripts that are not declared in
   PACKAGES.md.** CI cross-references the two.
-- Removing a package → delete from the block. Pure build-up only — `dnf
+- Removing a package → delete from the block. Pure build-up only -- `dnf
   remove` is forbidden in the build pipeline (use `NoDisplay=true` or
   `install_weak_deps=False` to suppress unwanted noise instead).
 - The build pipeline is **strictly additive** on the base image. Anything
-  the base ships that you don't want must be hidden, masked, or filtered —
+  the base ships that you don't want must be hidden, masked, or filtered --
   not removed.
 
 ## Querying

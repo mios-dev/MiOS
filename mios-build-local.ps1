@@ -197,7 +197,7 @@ function Invoke-BIBRun {
     $bibN   = 0
     $pctBase = if ($script:PhasePercent.ContainsKey('3')) { $script:PhasePercent['3'] } else { 82 }
     Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
-        -Status "Phase 3 — $Label" -CurrentOperation $bibOp -PercentComplete $pctBase
+        -Status "Phase 3 -- $Label" -CurrentOperation $bibOp -PercentComplete $pctBase
     & podman @BIBArgs 2>&1 | ForEach-Object {
         $line = $_
         Write-Host (Format-Masked $line)
@@ -207,10 +207,10 @@ function Invoke-BIBRun {
             $bibOp = $Matches[0]
         } elseif ($stripped -match '^(Assembling|Building|Extracting|Installing|Packaging|Pipeline|Stage|Writing)\b') {
             $candidate = ($stripped -replace '\s+', ' ').Trim()
-            $bibOp = if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '…' } else { $candidate }
+            $bibOp = if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate }
         } elseif (-not [string]::IsNullOrWhiteSpace($stripped)) {
             $candidate = ($stripped -replace '\s+', ' ').Trim()
-            $bibOp = Format-Masked (if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '…' } else { $candidate })
+            $bibOp = Format-Masked (if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate })
         }
         Write-Progress -Activity "  $Label" -Id 1 -ParentId 0 `
             -Status "Lines: $bibN" -CurrentOperation $bibOp `
@@ -387,7 +387,7 @@ Write-Phase "0.5" "System Validation"
 if (-not (Test-Path $OutputFolder)) { New-Item -ItemType Directory -Path $OutputFolder -Force | Out-Null }
 if (-not (Test-Path $MiosImagesDir)) { New-Item -ItemType Directory -Path $MiosImagesDir -Force | Out-Null }
 
-# Unified log — one flat file from bootstrap to final target, injected into image.
+# Unified log -- one flat file from bootstrap to final target, injected into image.
 $script:UnifiedLog = if ($env:MIOS_UNIFIED_LOG) { $env:MIOS_UNIFIED_LOG } else {
     Join-Path $MiosDocsDir "mios-build-$([DateTime]::Now.ToString('yyyyMMdd-HHmmss')).log"
 }
@@ -520,7 +520,7 @@ if ($DoPull) {
     # by matching anywhere in the line, not anchored to start.
     $pbStep = 0; $pbTotal = 45; $pbSname = "Initializing"; $pbOp = "Starting podman build..."
     Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
-        -Status "Phase 2 — Pulling / preparing layers…" -CurrentOperation $pbOp -PercentComplete 15
+        -Status "Phase 2 -- Pulling / preparing layers..." -CurrentOperation $pbOp -PercentComplete 15
 
     & podman build --progress=plain --no-cache `
         --build-arg MAKEFLAGS="-j$cpu" `
@@ -539,13 +539,13 @@ if ($DoPull) {
             $pbSname = $Matches[3]
         }
         $candidate = ($stripped -replace '\s+', ' ').Trim()
-        if ($candidate.Length -gt 80) { $candidate = $candidate.Substring(0, 80) + '…' }
+        if ($candidate.Length -gt 80) { $candidate = $candidate.Substring(0, 80) + '...' }
         if (-not [string]::IsNullOrWhiteSpace($candidate)) { $pbOp = Format-Masked $candidate }
 
         $outerPct  = [Math]::Min(99, 15 + [int]($pbStep * 67 / [Math]::Max(1, $pbTotal)))
-        $outerStat = if ($pbStep -gt 0) { "Script $pbStep/$pbTotal — $pbSname" } else { "Pulling / preparing layers…" }
+        $outerStat = if ($pbStep -gt 0) { "Script $pbStep/$pbTotal -- $pbSname" } else { "Pulling / preparing layers..." }
         Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
-            -Status "Phase 2 — $outerStat" -CurrentOperation $pbOp -PercentComplete $outerPct
+            -Status "Phase 2 -- $outerStat" -CurrentOperation $pbOp -PercentComplete $outerPct
         if ($pbStep -gt 0) {
             Write-Progress -Activity "  $pbSname" -Id 1 -ParentId 0 `
                 -Status "Step $pbStep of $pbTotal" -CurrentOperation $pbOp `

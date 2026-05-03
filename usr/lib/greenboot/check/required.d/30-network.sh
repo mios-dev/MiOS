@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' greenboot — required network reachability check
+# 'MiOS' greenboot -- required network reachability check
 # Fails if DNS resolution is broken after a boot, triggering rollback
 # after GREENBOOT_MAX_BOOT_ATTEMPTS consecutive failures.
 #

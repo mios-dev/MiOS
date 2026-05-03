@@ -82,7 +82,7 @@ if ($ConfigToml) {
     }
 }
 
-# Mandatory secrets — prompt if not set
+# Mandatory secrets -- prompt if not set
 if (-not $env:MIOS_USER_PASSWORD_HASH) {
     $pw = Read-Host -Prompt "MIOS_USER_PASSWORD_HASH (openssl passwd -6 <password>)"
     $env:MIOS_USER_PASSWORD_HASH = $pw
@@ -111,7 +111,7 @@ if ($LASTEXITCODE -ne 0) { Write-Fail "docker build failed (exit $LASTEXITCODE)"
 Write-Ok "OCI image built: $Tag"
 
 if ($SkipBib) {
-    Write-Ok "Done (SkipBib set — skipping disk image conversion)"
+    Write-Ok "Done (SkipBib set -- skipping disk image conversion)"
     exit 0
 }
 
@@ -129,7 +129,7 @@ $BibType = switch ($OutputFormat) {
     'wsl2'  { 'wsl2'  }
 }
 
-# BIB config — substitute env vars
+# BIB config -- substitute env vars
 $BibConfig = @"
 [[customizations.user]]
 name = "mios"

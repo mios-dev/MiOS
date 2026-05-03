@@ -200,7 +200,7 @@ if ($hasAmd) {
 }
 
 if ($hasIntel -and -not $hasNvidia -and -not $hasAmd) {
-  Log 'Intel GPU only — WSL2 GPU compute for Intel is not officially supported'
+  Log 'Intel GPU only -- WSL2 GPU compute for Intel is not officially supported'
   Warn 'Builder will use CPU inference; this does not affect building bootc images.'
 }
 
@@ -250,6 +250,6 @@ Log "Builder ready. Example usage:"
 Log "  podman --connection ${MachineName}-root build -t mios:latest ."
 Log "  podman --connection ${MachineName}-root run --rm --device nvidia.com/gpu=all \\"
 Log "       docker.io/nvidia/cuda:10.1.1-base-ubi9 nvidia-smi"
-# Explicit exit 0 — non-fatal warnings (NVIDIA CDI, AMD/Intel) leave
+# Explicit exit 0 -- non-fatal warnings (NVIDIA CDI, AMD/Intel) leave
 # $LASTEXITCODE non-zero; without this the caller sees a failure.
 exit 0

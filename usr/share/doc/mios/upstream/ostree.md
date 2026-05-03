@@ -1,4 +1,4 @@
-# ostree — Content-Addressed Filesystem Tree
+# ostree -- Content-Addressed Filesystem Tree
 
 > Used by 'MiOS' as: the storage backend underneath bootc. The
 > `Containerfile` ends with `RUN ostree container commit` immediately

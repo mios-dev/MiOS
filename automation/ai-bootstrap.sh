@@ -7,7 +7,7 @@ set -uo pipefail
 
 echo "[ai-bootstrap] Initializing 'MiOS' agent workspace..."
 
-# 0. Load unified environment (legacy .env.mios; deprecated — prefer
+# 0. Load unified environment (legacy .env.mios; deprecated -- prefer
 # /etc/mios/profile.toml for new installs).
 if [[ -f ".env.mios" ]]; then
     echo "[ai-bootstrap] Loading legacy environment from .env.mios..."

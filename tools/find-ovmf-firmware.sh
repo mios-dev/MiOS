@@ -21,7 +21,7 @@ echo -e "${BLUE}Scanning for OVMF firmware files...${NC}\n"
 OVMF_FILES=$(find /usr/share -name "OVMF*.fd" 2>/dev/null | sort)
 
 if [ -z "$OVMF_FILES" ]; then
-    echo -e "${RED}✗ No OVMF files found!${NC}\n"
+    echo -e "${RED}[x] No OVMF files found!${NC}\n"
     echo -e "${YELLOW}Ensure it is in PACKAGES.md: ${NC}${CYAN}edk2-ovmf${NC}\n"
     exit 1
 fi
@@ -98,11 +98,11 @@ echo "$OVMF_FILES" | grep "CODE" | while read -r code_file; do
 
         if [[ "$code_file" =~ "secboot" ]]; then
             TYPE="Secure Boot"
-            SECURE="${GREEN}✓ Secure Boot Supported${NC}"
+            SECURE="${GREEN}[ok] Secure Boot Supported${NC}"
             if [[ "$code_file" =~ "4m" ]]; then
-                RECOMMENDED="${BOLD}${GREEN}★ RECOMMENDED FOR WINDOWS 11 ★${NC}"
+                RECOMMENDED="${BOLD}${GREEN} RECOMMENDED FOR WINDOWS 11 ${NC}"
             else
-                RECOMMENDED="${GREEN}★ GOOD FOR WINDOWS 11${NC}"
+                RECOMMENDED="${GREEN} GOOD FOR WINDOWS 11${NC}"
             fi
         fi
 
@@ -189,17 +189,17 @@ if [ -n "$BEST_CODE" ] && [ -n "$BEST_VARS" ]; then
 
     # Check if they actually exist and are readable
     if [ ! -f "$BEST_CODE" ]; then
-        echo -e "  ${RED}✗ CODE file doesn't exist or isn't readable${NC}"
+        echo -e "  ${RED}[x] CODE file doesn't exist or isn't readable${NC}"
     else
         CODE_SIZE=$(stat -f%z "$BEST_CODE" 2>/dev/null || stat -c%s "$BEST_CODE" 2>/dev/null)
-        echo -e "  ${GREEN}✓ CODE file exists ($(numfmt --to=iec-i --suffix=B $CODE_SIZE))${NC}"
+        echo -e "  ${GREEN}[ok] CODE file exists ($(numfmt --to=iec-i --suffix=B $CODE_SIZE))${NC}"
     fi
 
     if [ ! -f "$BEST_VARS" ]; then
-        echo -e "  ${RED}✗ VARS file doesn't exist or isn't readable${NC}"
+        echo -e "  ${RED}[x] VARS file doesn't exist or isn't readable${NC}"
     else
         VARS_SIZE=$(stat -f%z "$BEST_VARS" 2>/dev/null || stat -c%s "$BEST_VARS" 2>/dev/null)
-        echo -e "  ${GREEN}✓ VARS file exists ($(numfmt --to=iec-i --suffix=B $VARS_SIZE))${NC}"
+        echo -e "  ${GREEN}[ok] VARS file exists ($(numfmt --to=iec-i --suffix=B $VARS_SIZE))${NC}"
     fi
 
     echo
@@ -237,10 +237,10 @@ TYPE=$RECOMMENDATION
 EOF
 
     echo
-    echo -e "${GREEN}✓ Paths saved to: ${NC}${CYAN}/tmp/ovmf-paths.txt${NC}"
+    echo -e "${GREEN}[ok] Paths saved to: ${NC}${CYAN}/tmp/ovmf-paths.txt${NC}"
 
 else
-    echo -e "${RED}✗ Could not find a usable CODE/VARS pair!${NC}"
+    echo -e "${RED}[x] Could not find a usable CODE/VARS pair!${NC}"
     echo -e "${YELLOW}This might indicate:${NC}"
     echo -e "  1. edk2-ovmf package not installed"
     echo -e "  2. Files are in an unexpected location"

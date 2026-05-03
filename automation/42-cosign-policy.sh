@@ -5,7 +5,7 @@
 # Consolidates cosign binary installation, Sigstore trust roots, and policy.json.
 # Supercedes 37-cosign-policy.sh.
 #
-# Note: cosign must stay on v2.x — v3+ breaks rpm-ostree OCI 1.1 bundle format.
+# Note: cosign must stay on v2.x -- v3+ breaks rpm-ostree OCI 1.1 bundle format.
 # ============================================================================
 set -euo pipefail
 
@@ -31,7 +31,7 @@ if ! command -v cosign >/dev/null 2>&1; then
     scurl -sfL "${COSIGN_BASE_URL}/cosign-linux-amd64" -o /tmp/cosign-dl/cosign-linux-amd64
     scurl -sfL "${COSIGN_BASE_URL}/cosign_checksums.txt" -o /tmp/cosign-dl/cosign_checksums.txt
     (cd /tmp/cosign-dl && grep "cosign-linux-amd64$" cosign_checksums.txt | sha256sum -c -) \
-        || die "cosign ${COSIGN_VERSION} SHA256 mismatch — aborting"
+        || die "cosign ${COSIGN_VERSION} SHA256 mismatch -- aborting"
     # Install into /usr/bin (immutable image surface). /usr/local is a
     # symlink to /var/usrlocal on bootc/FCOS layouts and /var/usrlocal/bin/
     # does not exist at OCI build time.

@@ -39,34 +39,34 @@ show_banner() {
     clear
     echo -e "${BOLD}${CYAN}"
     cat << 'EOF'
-â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-â•‘           INTERACTIVE SYSTEM PROFILER MENU                    â•‘
-â•‘              Choose Your Tools                                â•‘
-â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--
+â*'           INTERACTIVE SYSTEM PROFILER MENU                    â*'
+â*'              Choose Your Tools                                â*'
+â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*
 EOF
     echo -e "${NC}\n"
 }
 
 show_menu() {
-    echo -e "${BOLD}${CYAN}â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${NC}"
+    echo -e "${BOLD}${CYAN}â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
     echo -e "${BOLD}                    MAIN MENU${NC}"
-    echo -e "${BOLD}${CYAN}â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•${NC}\n"
+    echo -e "${BOLD}${CYAN}â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}\n"
     
     # Show status indicators
     if [ "$QUICK_SUMMARY_DONE" = true ]; then
-        echo -e "  ${GREEN}âœ“${NC} 1) Quick System Summary        ${CYAN}[COMPLETED]${NC}"
+        echo -e "  ${GREEN}âœ"${NC} 1) Quick System Summary        ${CYAN}[COMPLETED]${NC}"
     else
         echo -e "    1) Quick System Summary        ${YELLOW}[~30 seconds]${NC}"
     fi
     
     if [ "$IOMMU_DONE" = true ]; then
-        echo -e "  ${GREEN}âœ“${NC} 2) IOMMU Group Analyzer        ${CYAN}[COMPLETED]${NC}"
+        echo -e "  ${GREEN}âœ"${NC} 2) IOMMU Group Analyzer        ${CYAN}[COMPLETED]${NC}"
     else
         echo -e "    2) IOMMU Group Analyzer        ${YELLOW}[~1-2 minutes]${NC}"
     fi
     
     if [ "$FULL_PROFILE_DONE" = true ]; then
-        echo -e "  ${GREEN}âœ“${NC} 3) Full System Profiler        ${CYAN}[COMPLETED]${NC}"
+        echo -e "  ${GREEN}âœ"${NC} 3) Full System Profiler        ${CYAN}[COMPLETED]${NC}"
     else
         echo -e "    3) Full System Profiler        ${YELLOW}[~3-5 minutes]${NC}"
     fi
@@ -74,18 +74,18 @@ show_menu() {
     echo ""
     echo -e "    4) ${BOLD}Run All Tools Consecutively${NC}  ${YELLOW}[~5-8 minutes]${NC}"
     echo ""
-    echo -e "${BOLD}${MAGENTA}â•â•â• Results & Comparison â•â•â•${NC}"
+    echo -e "${BOLD}${MAGENTA}â*â*â* Results & Comparison â*â*â*${NC}"
     echo -e "    5) View Latest Results"
     echo -e "    6) Compare Two Profiles"
     echo -e "    7) Open Output Directory"
     echo ""
-    echo -e "${BOLD}${BLUE}â•â•â• Help & Info â•â•â•${NC}"
+    echo -e "${BOLD}${BLUE}â*â*â* Help & Info â*â*â*${NC}"
     echo -e "    h) Help - Tool Descriptions"
     echo -e "    s) System Status Check"
     echo ""
     echo -e "    q) Quit"
     echo ""
-    echo -e "${CYAN}â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€${NC}"
+    echo -e "${CYAN}â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€${NC}"
 }
 
 show_help() {
@@ -106,9 +106,9 @@ show_help() {
     echo ""
     
     echo -e "${BOLD}${CYAN}3) Full System Profiler${NC}"
-    echo "   Comprehensive system documentation (22+ sections)"
-    echo "   Collects: Hardware, drivers, packages, BIOS, sensors, everything!"
-    echo "   Use when: Pre-installation baseline, troubleshooting, documentation"
+    echo "   System documentation (22+ sections)"
+    echo "   Collects: hardware, drivers, packages, BIOS, sensors"
+    echo "   Use when: pre-installation baseline, troubleshooting, documentation"
     echo ""
     
     echo -e "${BOLD}${CYAN}4) Run All Tools${NC}"
@@ -142,9 +142,9 @@ run_quick_summary() {
         "$SCRIPT_DIR/quick-summary.sh" | tee "$OUTPUT_DIR/quick-summary-$(date +%Y%m%d_%H%M%S).txt"
         QUICK_SUMMARY_DONE=true
         echo ""
-        echo -e "${GREEN}âœ“ Complete!${NC} Saved to: $OUTPUT_DIR"
+        echo -e "${GREEN}âœ" Complete!${NC} Saved to: $OUTPUT_DIR"
     else
-        echo -e "${RED}âœ— Error: quick-summary.sh not found!${NC}"
+        echo -e "${RED}âœ-- Error: quick-summary.sh not found!${NC}"
     fi
     
     echo ""
@@ -167,9 +167,9 @@ run_iommu_analyzer() {
         "$SCRIPT_DIR/iommu-visualizer.sh" --no-menu 2>&1 | tee "$OUTPUT_DIR/iommu-analysis-$(date +%Y%m%d_%H%M%S).txt"
         IOMMU_DONE=true
         echo ""
-        echo -e "${GREEN}âœ“ Complete!${NC} Saved to: $OUTPUT_DIR"
+        echo -e "${GREEN}âœ" Complete!${NC} Saved to: $OUTPUT_DIR"
     else
-        echo -e "${RED}âœ— Error: iommu-visualizer.sh not found!${NC}"
+        echo -e "${RED}âœ-- Error: iommu-visualizer.sh not found!${NC}"
     fi
     
     echo ""
@@ -191,13 +191,13 @@ run_full_profiler() {
         if [ -f "$LATEST_PROFILE" ]; then
             FULL_PROFILE_DONE=true
             echo ""
-            echo -e "${GREEN}âœ“ Complete!${NC}"
+            echo -e "${GREEN}âœ" Complete!${NC}"
             echo -e "Profile saved to: ${CYAN}$LATEST_PROFILE${NC}"
         else
-            echo -e "${RED}âœ— Error: Profile generation failed!${NC}"
+            echo -e "${RED}âœ-- Error: Profile generation failed!${NC}"
         fi
     else
-        echo -e "${RED}âœ— Error: system-profiler.sh not found!${NC}"
+        echo -e "${RED}âœ-- Error: system-profiler.sh not found!${NC}"
     fi
     
     echo ""
@@ -230,7 +230,7 @@ run_all_tools() {
         IOMMU_DONE=true
         FULL_PROFILE_DONE=true
     else
-        echo -e "${RED}âœ— Error: run-all-profilers.sh not found!${NC}"
+        echo -e "${RED}âœ-- Error: run-all-profilers.sh not found!${NC}"
         echo ""
         echo "Running tools individually instead..."
         echo ""
@@ -327,7 +327,7 @@ compare_profiles() {
                     "${profiles[$((first-1))]}" \
                     "${profiles[$((second-1))]}"
             else
-                echo -e "${RED}âœ— Error: profile-compare.sh not found!${NC}"
+                echo -e "${RED}âœ-- Error: profile-compare.sh not found!${NC}"
             fi
         else
             echo -e "${RED}Invalid selection!${NC}"
@@ -356,7 +356,7 @@ open_output_dir() {
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             xdg-open "$OUTPUT_DIR" 2>/dev/null &
-            echo -e "${GREEN}âœ“ Opened!${NC}"
+            echo -e "${GREEN}âœ" Opened!${NC}"
         fi
     else
         echo -e "Location: ${CYAN}$OUTPUT_DIR${NC}"
@@ -373,35 +373,35 @@ check_system_status() {
     
     echo -e "${BOLD}Virtualization:${NC}"
     if grep -q -E '(vmx|svm)' /proc/cpuinfo 2>/dev/null; then
-        echo -e "  ${GREEN}âœ“${NC} CPU virtualization enabled"
+        echo -e "  ${GREEN}âœ"${NC} CPU virtualization enabled"
     else
-        echo -e "  ${RED}âœ—${NC} CPU virtualization not detected"
+        echo -e "  ${RED}âœ--${NC} CPU virtualization not detected"
     fi
     
     echo -e "\n${BOLD}IOMMU:${NC}"
     if [ -d /sys/kernel/iommu_groups ]; then
         local groups=$(ls -1 /sys/kernel/iommu_groups/ | wc -l)
-        echo -e "  ${GREEN}âœ“${NC} IOMMU enabled ($groups groups)"
+        echo -e "  ${GREEN}âœ"${NC} IOMMU enabled ($groups groups)"
     else
-        echo -e "  ${RED}âœ—${NC} IOMMU not available"
+        echo -e "  ${RED}âœ--${NC} IOMMU not available"
     fi
     
     echo -e "\n${BOLD}KVM:${NC}"
     if [ -e /dev/kvm ]; then
-        echo -e "  ${GREEN}âœ“${NC} KVM available"
+        echo -e "  ${GREEN}âœ"${NC} KVM available"
     else
-        echo -e "  ${RED}âœ—${NC} KVM not available"
+        echo -e "  ${RED}âœ--${NC} KVM not available"
     fi
     
     echo -e "\n${BOLD}GPU:${NC}"
     local gpu_count=$(lspci | grep -c -E "VGA|3D" || echo "0")
     if [ "$gpu_count" -gt 0 ]; then
-        echo -e "  ${GREEN}âœ“${NC} $gpu_count GPU(s) detected"
+        echo -e "  ${GREEN}âœ"${NC} $gpu_count GPU(s) detected"
         lspci | grep -E "VGA|3D" | while read -r line; do
             echo "    â€¢ ${line#*: }"
         done
     else
-        echo -e "  ${YELLOW}âš ${NC} No discrete GPU detected"
+        echo -e "  ${YELLOW}âš ${NC} No discrete GPU detected"
     fi
     
     echo -e "\n${BOLD}Memory:${NC}"

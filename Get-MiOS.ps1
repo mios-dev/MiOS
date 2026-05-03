@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    'MiOS' bootstrap — one-liner entry point.
+    'MiOS' bootstrap -- one-liner entry point.
 
 .DESCRIPTION
     Designed for:  irm https://raw.githubusercontent.com/MiOS-DEV/MiOS/main/Get-MiOS.ps1 | iex

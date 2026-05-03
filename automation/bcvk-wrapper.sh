@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# 'MiOS' v0.2.0 — Ephemeral QEMU boot test
+# 'MiOS' v0.2.0 -- Ephemeral QEMU boot test
 # Usage: bcvk-wrapper.sh <qcow2-path> [serial-log-path]
 #
 # Boots a QCOW2 image in headless QEMU with KVM, captures serial console,
@@ -61,7 +61,7 @@ while [[ $ELAPSED -lt $TIMEOUT_SECS ]]; do
     ELAPSED=$((ELAPSED + POLL_INTERVAL))
 done
 
-echo "[bcvk] TIMEOUT after ${TIMEOUT_SECS}s — boot did not reach target"
+echo "[bcvk] TIMEOUT after ${TIMEOUT_SECS}s -- boot did not reach target"
 echo "[bcvk] Last 100 lines of serial log:"
 tail -100 "$SERIAL_LOG"
 exit 4

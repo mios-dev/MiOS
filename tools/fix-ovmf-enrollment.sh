@@ -18,7 +18,7 @@ echo -e "${BOLD}${GREEN}     OVMF Secure Boot Enrollment Fixer${NC}"
 echo -e "${BOLD}${GREEN}═══════════════════════════════════════════════════════${NC}\n"
 
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}✗ This script must be run as root${NC}"
+    echo -e "${RED}[x] This script must be run as root${NC}"
     echo -e "  Run: ${CYAN}sudo $0${NC}"
     exit 1
 fi
@@ -29,7 +29,7 @@ TARGET_VARS="$OVMF_DIR/OVMF_VARS.secboot.4m.fd"
 echo -e "${BLUE}[1/5] Checking current OVMF files...${NC}\n"
 
 if [ -f "$TARGET_VARS" ]; then
-    echo -e "${GREEN}✓ Pre-enrolled VARS file already exists!${NC}"
+    echo -e "${GREEN}[ok] Pre-enrolled VARS file already exists!${NC}"
     echo -e "  Location: $TARGET_VARS"
     echo -e "  Size: $(stat -c%s "$TARGET_VARS" | numfmt --to=iec-i --suffix=B)"
     echo
@@ -37,7 +37,7 @@ if [ -f "$TARGET_VARS" ]; then
     exit 0
 fi
 
-echo -e "${YELLOW}⚠ Pre-enrolled VARS file not found${NC}"
+echo -e "${YELLOW}[!] Pre-enrolled VARS file not found${NC}"
 echo -e "  Looking for: $TARGET_VARS\n"
 
 echo -e "${BLUE}[2/5] Checking for alternative packages...${NC}\n"
@@ -54,7 +54,7 @@ elif command -v paru &>/dev/null; then
     paru -Ss ovmf edk2 2>/dev/null | grep -E "^(aur|extra)" | head -20 || true
     echo
 else
-    echo -e "${YELLOW}⚠ No AUR helper found (yay/paru)${NC}"
+    echo -e "${YELLOW}[!] No AUR helper found (yay/paru)${NC}"
 fi
 
 echo -e "\n${BLUE}[3/5] Solution options...${NC}\n"
@@ -84,16 +84,16 @@ case $choice in
         echo -e "  Downloading OVMF package..."
         if command -v wget &>/dev/null; then
             wget -q --show-progress "$LATEST_URL" -O ovmf.rpm || {
-                echo -e "${RED}✗ Download failed${NC}"
+                echo -e "${RED}[x] Download failed${NC}"
                 exit 1
             }
         elif command -v curl &>/dev/null; then
             curl -L -# "$LATEST_URL" -o ovmf.rpm || {
-                echo -e "${RED}✗ Download failed${NC}"
+                echo -e "${RED}[x] Download failed${NC}"
                 exit 1
             }
         else
-            echo -e "${RED}✗ Neither wget nor curl available${NC}"
+            echo -e "${RED}[x] Neither wget nor curl available${NC}"
             exit 1
         fi
         
@@ -103,7 +103,7 @@ case $choice in
         elif command -v bsdtar &>/dev/null; then
             bsdtar -xf ovmf.rpm
         else
-            echo -e "${RED}✗ No extraction tool available (rpm2cpio or bsdtar)${NC}"
+            echo -e "${RED}[x] No extraction tool available (rpm2cpio or bsdtar)${NC}"
             echo -e "${YELLOW}Install rpmextract: sudo pacman -S rpmextract${NC}"
             exit 1
         fi
@@ -113,7 +113,7 @@ case $choice in
         EXTRACTED_VARS=$(find . -name "OVMF_VARS.secboot.fd" -o -name "OVMF_VARS.fd" | grep secboot | head -1)
         
         if [ -z "$EXTRACTED_CODE" ] || [ -z "$EXTRACTED_VARS" ]; then
-            echo -e "${RED}✗ Could not find OVMF files in package${NC}"
+            echo -e "${RED}[x] Could not find OVMF files in package${NC}"
             ls -R
             exit 1
         fi
@@ -130,14 +130,14 @@ case $choice in
         cp "$EXTRACTED_VARS" "$DEST_VARS"
         chmod 644 "$DEST_VARS"
         
-        echo -e "${GREEN}✓ Installed: $DEST_VARS${NC}"
+        echo -e "${GREEN}[ok] Installed: $DEST_VARS${NC}"
         echo -e "  Size: $(stat -c%s "$DEST_VARS" | numfmt --to=iec-i --suffix=B)"
         
         # Cleanup
         cd /
         rm -rf "$WORK_DIR"
         
-        echo -e "\n${GREEN}✓ Installation complete!${NC}"
+        echo -e "\n${GREEN}[ok] Installation complete!${NC}"
         echo -e "\n${YELLOW}Use this file in your VM XML:${NC}"
         echo -e "  ${CYAN}<nvram template=\"$DEST_VARS\">...${NC}"
         ;;
@@ -148,13 +148,13 @@ case $choice in
         TEMPLATE_VARS="$OVMF_DIR/OVMF_VARS.4m.fd"
         
         if [ ! -f "$TEMPLATE_VARS" ]; then
-            echo -e "${RED}✗ Template VARS file not found: $TEMPLATE_VARS${NC}"
+            echo -e "${RED}[x] Template VARS file not found: $TEMPLATE_VARS${NC}"
             exit 1
         fi
         
         # Copy template
         cp "$TEMPLATE_VARS" "$TARGET_VARS"
-        echo -e "${GREEN}✓ Created: $TARGET_VARS${NC}"
+        echo -e "${GREEN}[ok] Created: $TARGET_VARS${NC}"
         
         echo -e "\n${YELLOW}Note: Keys will be enrolled on first VM boot${NC}"
         echo -e "  Use firmware autoselection with enrolled-keys=yes"
@@ -182,9 +182,9 @@ XMLEOF
         
     4)
         echo -e "\n${YELLOW}Manual installation options:${NC}"
-        echo -e "  • Search AUR: ${CYAN}yay -Ss ovmf secureboot${NC}"
-        echo -e "  • Check: ${CYAN}https://aur.archlinux.org/${NC}"
-        echo -e "  • Or install from: ${CYAN}https://www.kraxel.org/repos/${NC}"
+        echo -e "  * Search AUR: ${CYAN}yay -Ss ovmf secureboot${NC}"
+        echo -e "  * Check: ${CYAN}https://aur.archlinux.org/${NC}"
+        echo -e "  * Or install from: ${CYAN}https://www.kraxel.org/repos/${NC}"
         exit 0
         ;;
         

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — 12-virt: Virtualization, containers, orchestration, gaming
+# 'MiOS' v0.2.0 -- 12-virt: Virtualization, containers, orchestration, gaming
 #
 # CHANGELOG v1.3:
 #   - Looking Glass B7: MOVED to 53-bake-lookingglass-client.sh (refactored out)
@@ -89,7 +89,7 @@ echo "[12-virt] Downloading VirtIO-Win ISO..."
 VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
 mkdir -p ${MIOS_SHARE_DIR}/virtio
 scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null || {
-    echo "[12-virt] WARNING: VirtIO-Win ISO download failed — download manually later"
+    echo "[12-virt] WARNING: VirtIO-Win ISO download failed -- download manually later"
 }
 
 # Symlink the immutable ISO into /var/lib/libvirt/images via tmpfiles.d so it survives upgrades

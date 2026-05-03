@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 — Package extraction library
+# 'MiOS' v0.2.0 -- Package extraction library
 # Parses PACKAGES.md fenced code blocks tagged with ```packages-<category>
 #
 # Usage:
@@ -49,7 +49,7 @@ install_packages() {
             echo "[packages.sh] Packages requested: $packages" >&2
         }
     else
-        echo "[packages.sh] WARN: No packages in section '$category' — skipping"
+        echo "[packages.sh] WARN: No packages in section '$category' -- skipping"
     fi
 }
 
@@ -61,7 +61,7 @@ install_packages_strict() {
     echo "[packages.sh] Installing '$category' packages (strict section)..."
     # shellcheck disable=SC2086 # $packages is intentionally word-split here
     # Note: --allowerasing without --best: allows conflict resolution by erasure
-    # without requiring the "best" (newest) version — avoids hard failures when
+    # without requiring the "best" (newest) version -- avoids hard failures when
     # ucore base packages are newer than Fedora 44 versions.
     $DNF_BIN "${DNF_SETOPT[@]}" install -y --allowerasing --skip-unavailable --exclude=PackageKit $packages || {
         echo "[packages.sh] FATAL: Mandatory '$category' packages failed to install" >&2
@@ -79,7 +79,7 @@ install_packages_optional() {
     raw_section=$(sed -n "/^\`\`\`packages-${category}$/,/^\`\`\`$/{/^\`\`\`/d;p}" "$packages_file")
 
     if [[ -z "$raw_section" ]]; then
-        echo "[packages.sh] WARN: Section 'packages-${category}' not found — skipping"
+        echo "[packages.sh] WARN: Section 'packages-${category}' not found -- skipping"
         return 0
     fi
 
@@ -92,7 +92,7 @@ install_packages_optional() {
         return 0
     fi
 
-    # Some packages are uncommented — install those
+    # Some packages are uncommented -- install those
     local packages
     packages=$(get_packages "$category" "$packages_file")
     if [[ -n "$packages" ]]; then

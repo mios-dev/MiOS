@@ -1,4 +1,4 @@
-# Cosign / Sigstore — Keyless Image Signing
+# Cosign / Sigstore -- Keyless Image Signing
 
 > CI signs every push with cosign keyless via GitHub Actions OIDC
 > (`.github/workflows/mios-ci.yml`). Verify before deploying.

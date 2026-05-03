@@ -24,7 +24,7 @@ if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
     exit 1
 fi
 
-echo "✓ Bootstrap repository: ${BOOTSTRAP_REPO}"
+echo "[ok] Bootstrap repository: ${BOOTSTRAP_REPO}"
 echo ""
 
 # Create artifact directories
@@ -43,7 +43,7 @@ if [[ -d "${REPO_ROOT}/artifacts/ai-rag" ]]; then
     # Copy compressed bundles separately (track in Git LFS if available)
     cp -v "${REPO_ROOT}"/artifacts/ai-rag/*.tar.gz "${ARTIFACT_DIR}/" 2>/dev/null || true
     
-    echo "✓ AI RAG artifacts copied"
+    echo "[ok] AI RAG artifacts copied"
 else
     echo "WARN: No AI RAG artifacts found at artifacts/ai-rag/"
 fi
@@ -58,7 +58,7 @@ if [[ -d "${REPO_ROOT}/specs/ai-integration" ]]; then
     rsync -av \
         "${REPO_ROOT}/specs/ai-integration/" \
         "${WIKI_DIR}/ai-integration/" 2>/dev/null || true
-    echo "✓ Wiki AI integration docs copied"
+    echo "[ok] Wiki AI integration docs copied"
 fi
 
 # Copy core documentation
@@ -68,7 +68,7 @@ for doc in INDEX.md README.md SELF-BUILD.md SECURITY.md llms.txt; do
     fi
 done
 
-echo "✓ Core documentation copied"
+echo "[ok] Core documentation copied"
 
 # Generate artifact manifest
 echo "▶ Generating artifact manifest..."
@@ -121,7 +121,7 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
 }
 MANIFEST
 
-echo "✓ Manifest generated: ${ARTIFACT_DIR}/manifest.json"
+echo "[ok] Manifest generated: ${ARTIFACT_DIR}/manifest.json"
 
 # Create README for bootstrap artifacts
 cat > "${ARTIFACT_DIR}/README.md" << README
@@ -151,9 +151,9 @@ cat > "${ARTIFACT_DIR}/README.md" << README
    - Knowledge source weights
 
 4. **README-AI-INTEGRATION.md** (8.0 KB)
-   - Comprehensive integration guide
-   - Quick start for Ollama/llama.cpp/LocalAI/vLLM
-   - Advanced RAG techniques
+   - Integration guide for Ollama, llama.cpp, LocalAI, vLLM
+   - Quick-start commands per runtime
+   - RAG configuration notes
 
 5. **QUICKREF.md** (2.7 KB)
    - AI agent quick reference card
@@ -225,7 +225,7 @@ These artifacts enable:
 **License:** Personal Property - 'MiOS' Project
 README
 
-echo "✓ README generated: ${ARTIFACT_DIR}/README.md"
+echo "[ok] README generated: ${ARTIFACT_DIR}/README.md"
 
 # Summary
 echo ""

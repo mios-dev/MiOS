@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# automation/lib/paths.sh — FHS path constants for MiOS.
+# automation/lib/paths.sh -- FHS path constants for MiOS.
 # Source via common.sh; safe to source multiple times (idempotent).
 # Override any constant from the environment before sourcing.
 
-# /usr/* — read-only image surface
+# /usr/* -- read-only image surface
 : "${MIOS_USR_DIR:=/usr/lib/mios}"
 : "${MIOS_LOG_DIR:=${MIOS_USR_DIR}/logs}"
 : "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
 : "${MIOS_SHARE_DIR:=/usr/share/mios}"
 
-# /etc/* — admin-override surface
+# /etc/* -- admin-override surface
 : "${MIOS_ETC_DIR:=/etc/mios}"
 
-# /var/* — runtime mutable
+# /var/* -- runtime mutable
 : "${MIOS_VAR_DIR:=/var/lib/mios}"
 : "${MIOS_MEMORY_DIR:=${MIOS_VAR_DIR}/memory}"
 : "${MIOS_SCRATCH_DIR:=${MIOS_VAR_DIR}/scratch}"

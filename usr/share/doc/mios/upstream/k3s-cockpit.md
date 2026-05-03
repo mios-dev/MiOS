@@ -11,7 +11,7 @@
 - Repo: <https://github.com/k3s-io/k3s>
 - 'MiOS' gating: `mios-k3s.container` Quadlet has
   `ConditionVirtualization=!wsl,!container` (skips on WSL2 and inside
-  containers — INDEX.md §5)
+  containers -- INDEX.md §5)
 - SELinux integration: `automation/19-k3s-selinux.sh` (custom policy)
 
 ### Why baked, not Quadlet-only
@@ -29,11 +29,11 @@ in by populating that directory.
 - Inherited from ucore base
 - Port: 9090/tcp (firewalld allowed in default zone)
 - Modules 'MiOS' uses:
-  - `cockpit-podman` — manage Quadlet sidecars from the browser
-  - `cockpit-machines` — libvirt/KVM VM dashboard
-  - `cockpit-storaged` — disk/LVM/Btrfs management (not ZFS — Cockpit doesn't speak ZFS)
-  - `cockpit-networkmanager` — network interface admin
-  - `cockpit-selinux` — view denials, toggle booleans
+  - `cockpit-podman` -- manage Quadlet sidecars from the browser
+  - `cockpit-machines` -- libvirt/KVM VM dashboard
+  - `cockpit-storaged` -- disk/LVM/Btrfs management (not ZFS -- Cockpit doesn't speak ZFS)
+  - `cockpit-networkmanager` -- network interface admin
+  - `cockpit-selinux` -- view denials, toggle booleans
 
 ### Verification
 

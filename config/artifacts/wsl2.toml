@@ -5,10 +5,10 @@
 
 [[customizations.user]]
 name     = "mios"
-# No password or SSH key needed for WSL — Windows auth is used.
+# No password or SSH key needed for WSL -- Windows auth is used.
 # Set a password if you want: openssl passwd -6 'your-password'
 groups   = ["wheel"]
 
 [customizations.kernel]
-# WSL2 uses the Microsoft kernel — kargs are ignored but kept for parity.
+# WSL2 uses the Microsoft kernel -- kargs are ignored but kept for parity.
 append = ""

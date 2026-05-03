@@ -1,4 +1,4 @@
-# 'MiOS' — Package Manifest (single source of truth for image RPMs)
+# 'MiOS' -- Package Manifest (single source of truth for image RPMs)
 > **Attribution:** MiOS-DEV (Administrative Alias)
 > **Infrastructure:** 'MiOS' Open-Source Build Pipeline
 > **License:** Apache-2.0 (Open-Source Infrastructure)
@@ -9,7 +9,7 @@ utility. These align with MiOS-DEV core values of hardware compatibility and
 zero-trust security.
 ---
 ---
-# 'MiOS' v0.2.0 — Package Manifest
+# 'MiOS' v0.2.0 -- Package Manifest
 
 This file is both documentation and the **single source of truth** for all packages installed in MiOS.
 Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
@@ -35,9 +35,9 @@ To add a package, add it to the appropriate section. One package per line.
 - Added missing audited tools: strace, lsof, iotop, ntfs-3g, efibootmgr, nm-connection-editor
 
 **CHANGELOG v0.2.0 (previous):**
-- Added bootupd (unified bootloader updates — Fedora 44 phase 1)
+- Added bootupd (unified bootloader updates -- Fedora 44 phase 1)
 - Added dnf5-plugins (versionlock support for critical package pinning)
-- Added systemd-boot-unsigned (UKI preparation — future composefs+UKI chain)
+- Added systemd-boot-unsigned (UKI preparation -- future composefs+UKI chain)
 - Added libsss_nss_idmap (fixes sssd-related dep resolution on F44)
 - Added tpm2-tools (TPM2 support for measured boot / future attestation)
 - Added clevis, clevis-luks (automated LUKS unlock via TPM2/Tang)
@@ -64,7 +64,7 @@ dnf-plugins-core
 dnf5-plugins
 ```
 
-## Base — Security Stack (installed pre-pipeline)
+## Base -- Security Stack (installed pre-pipeline)
 
 Installed by Containerfile before automation/build.sh runs because every
 later phase assumes SELinux tooling, audit, fapolicyd, crowdsec, and
@@ -81,7 +81,7 @@ crowdsec
 usbguard
 ```
 
-## Moby — Docker-compatible engine
+## Moby -- Docker-compatible engine
 
 Installed by automation/21-moby-engine.sh.
 
@@ -89,7 +89,7 @@ Installed by automation/21-moby-engine.sh.
 moby-engine
 ```
 
-## UKI — Unified Kernel Image tooling
+## UKI -- Unified Kernel Image tooling
 
 Installed by automation/23-uki-render.sh.
 
@@ -97,7 +97,7 @@ Installed by automation/23-uki-render.sh.
 systemd-ukify
 ```
 
-## SBOM — Software Bill of Materials tooling
+## SBOM -- Software Bill of Materials tooling
 
 Installed by automation/90-generate-sbom.sh.
 
@@ -118,7 +118,7 @@ make
 ## Kernel
 
 Kernel extras + development headers for akmod-nvidia and DKMS builds.
-Base kernel ships with fedora-bootc:rawhide — NEVER upgrade it in-container.
+Base kernel ships with fedora-bootc:rawhide -- NEVER upgrade it in-container.
 Upgrading triggers dracut under tmpfs which breaks the initramfs.
 
 ```packages-kernel
@@ -133,7 +133,7 @@ python3
 
 ## GNOME 50 Desktop
 
-MINIMAL GNOME shell — infrastructure ONLY. NO viewer/editor apps as RPMs.
+MINIMAL GNOME shell -- infrastructure ONLY. NO viewer/editor apps as RPMs.
 Epiphany (Flatpak browser) handles documents, photos, and media natively.
 Steam, Wine, virt-manager, Waydroid are RPM exceptions (need system-level access).
 
@@ -169,7 +169,7 @@ xdg-desktop-portal-gtk
 pipewire-alsa
 pipewire-pulseaudio
 wireplumber
-# ── GStreamer (MUST be explicit — ucore fc43 base ships older GStreamer that
+# ── GStreamer (MUST be explicit -- ucore fc43 base ships older GStreamer that
 #    is ABI-incompatible with GNOME 50. Without these, gnome-shell crashes on
 #    launch with "undefined symbol: gst_state_get_name" in libgstplay) ──
 gstreamer1
@@ -180,7 +180,7 @@ upower
 gnome-bluetooth
 bluez
 bluez-tools
-# ── Flatpak (gnome-software manages these — no rpm-ostree plugin needed) ──
+# ── Flatpak (gnome-software manages these -- no rpm-ostree plugin needed) ──
 flatpak
 # ── Filesystem access ──
 gvfs
@@ -199,9 +199,9 @@ qadwaitadecorations-qt5
 adw-gtk3-theme
 ```
 
-## GNOME Core Apps (OPTIONAL — uncomment to include)
+## GNOME Core Apps (OPTIONAL -- uncomment to include)
 
-Optional GNOME Core Apps. ALL commented out by default — uncomment to include.
+Optional GNOME Core Apps. ALL commented out by default -- uncomment to include.
 Epiphany (Flatpak browser) handles documents, photos, and media natively.
 
 ```packages-gnome-core-apps
@@ -239,7 +239,7 @@ Epiphany (Flatpak browser) handles documents, photos, and media natively.
 # gnome-boxes
 ```
 
-## GPU Drivers — Mesa (AMD / Intel / software fallback)
+## GPU Drivers -- Mesa (AMD / Intel / software fallback)
 
 Universal Mesa stack supporting all AMD and Intel GPUs out of the box.
 Mesa 26: ACO is now default shader compiler for RadeonSI.
@@ -255,7 +255,7 @@ linux-firmware
 # microcode_ctl removed: redundant on F44+
 ```
 
-## GPU Drivers — AMD Compute (optional, fault-tolerant)
+## GPU Drivers -- AMD Compute (optional, fault-tolerant)
 
 ROCm OpenCL/HIP for AMD compute workloads.
 
@@ -267,11 +267,11 @@ rocm-smi
 rocminfo
 ```
 
-## GPU Drivers — Intel Compute (oneAPI Level Zero)
+## GPU Drivers -- Intel Compute (oneAPI Level Zero)
 
 Intel GPU compute runtime for OpenCL and Level Zero API.
 Supports Intel Arc, Iris Xe, and integrated GPUs.
-All packages are in official Fedora repos — no extra repo needed.
+All packages are in official Fedora repos -- no extra repo needed.
 
 ```packages-gpu-intel-compute
 intel-compute-runtime
@@ -280,12 +280,12 @@ intel-media-driver
 # intel-gpu-tools REMOVED: needs libproc2.so.0 missing in F44.
 ```
 
-## GPU Drivers — NVIDIA (akmod, builds for any NVIDIA card)
+## GPU Drivers -- NVIDIA (akmod, builds for any NVIDIA card)
 
 NVIDIA proprietary drivers via RPMFusion akmod. Builds kmod at image time.
 Driver 590+: Open kernel modules are DEFAULT for Turing (RTX 20+) and newer.
-Blackwell (RTX 50): Open modules are the ONLY option — proprietary incompatible.
-WARNING: RTX 50-series has a VFIO reset bug — see /usr/share/doc/mios-vfio-warning.txt
+Blackwell (RTX 50): Open modules are the ONLY option -- proprietary incompatible.
+WARNING: RTX 50-series has a VFIO reset bug -- see /usr/share/doc/mios-vfio-warning.txt
 CDI is now the default mode in nvidia-container-toolkit v1.19+.
 
 ```packages-gpu-nvidia
@@ -299,7 +299,7 @@ xorg-x11-drv-nvidia-power
 nvidia-container-selinux
 ```
 
-## Virtualization — KVM / QEMU / Libvirt
+## Virtualization -- KVM / QEMU / Libvirt
 
 Full KVM stack with virt-manager GUI and firmware/security tooling.
 
@@ -361,7 +361,7 @@ cmake
 golang
 podman-plugins
 cosign
-# REMOVED — podman-docker: conflicts with moby-engine from ucore-hci base
+# REMOVED -- podman-docker: conflicts with moby-engine from ucore-hci base
 ```
 
 ## Self-Building Tools (Experimental/Repository dependent)
@@ -539,13 +539,13 @@ ceph-selinux
 ## K3s Lightweight Kubernetes
 
 K3s binary is downloaded directly (not via dnf).
-k3s-selinux only exists for RHEL/CentOS — not available on Fedora Rawhide.
+k3s-selinux only exists for RHEL/CentOS -- not available on Fedora Rawhide.
 
 ```packages-k3s
 container-selinux
 ```
 
-## High Availability — Pacemaker / Corosync
+## High Availability -- Pacemaker / Corosync
 
 Full HA cluster stack with fence agents and SBD.
 
@@ -615,7 +615,7 @@ syft
 oras-cli
 ```
 
-## Android — Waydroid
+## Android -- Waydroid
 
 Waydroid container runtime for Android apps.
 Note: NVIDIA GPUs lack full 3D acceleration in Waydroid (Mesa/AMD/Intel only).
@@ -624,7 +624,7 @@ Note: NVIDIA GPUs lack full 3D acceleration in Waydroid (Mesa/AMD/Intel only).
 waydroid
 ```
 
-## Looking Glass B7 — Build Dependencies
+## Looking Glass B7 -- Build Dependencies
 
 These packages are installed during the build to compile Looking Glass B7.
 They are REMOVED after compilation to keep the image small.
@@ -664,7 +664,7 @@ npm
 gettext
 ```
 
-## Network Discovery — Avahi / mDNS
+## Network Discovery -- Avahi / mDNS
 
 mDNS/DNS-SD for automatic .local hostname discovery on LAN.
 Every 'MiOS' instance advertises Cockpit and RDP services.
@@ -719,7 +719,7 @@ aichat
 aichat-ng
 ```
 
-## Internal — Critical Validation
+## Internal -- Critical Validation
 
 These packages MUST be present in the final image. Build scripts use this
 section for post-build verification.
@@ -740,7 +740,7 @@ chrony
 openssh-server
 ```
 
-## Internal — Bloat Removal
+## Internal -- Bloat Removal
 
 These packages are explicitly removed during the build to keep the image
 lean and free of unwanted UI components.

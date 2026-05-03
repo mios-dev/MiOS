@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.2 — AI Ingestion Index
+# 'MiOS' v0.2.2 -- AI Ingestion Index
 
 'MiOS' is an immutable bootc-native Fedora workstation OS (base: `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) delivered as an OCI image. The `mios.git` repo root is the system root `/`. No separate workspace.
 
@@ -23,4 +23,4 @@
 ## Operational standards
 - **Protocol**: OpenAI-compatible REST API at `http://localhost:8080/v1`
 - **Infrastructure**: bootc, Podman Quadlets, ComposeFS, greenboot
-- **Installer**: mios-bootstrap.git — `irm .../install.ps1 | iex` (Windows) · `curl ... | bash` (Linux)
+- **Installer**: mios-bootstrap.git -- `irm .../install.ps1 | iex` (Windows) * `curl ... | bash` (Linux)

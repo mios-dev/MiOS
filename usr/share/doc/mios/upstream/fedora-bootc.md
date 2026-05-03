@@ -4,7 +4,7 @@
 
 ## Base images
 
-- `quay.io/fedora/fedora-bootc` — official Fedora bootc images
+- `quay.io/fedora/fedora-bootc` -- official Fedora bootc images
 - Tags: `42`, `43`, `rawhide`. Fedora 44 was branched from rawhide in early 2026.
 - Building blocks: <https://gitlab.com/fedora/bootc/base-images>
 
@@ -42,10 +42,10 @@ the RHEL image-mode pattern: a kargs.d entry plus
 
 ## Why 'MiOS' doesn't FROM `fedora-bootc:rawhide` directly
 
-'MiOS' uses `ghcr.io/ublue-os/ucore-hci:stable-nvidia` instead — ucore-hci
+'MiOS' uses `ghcr.io/ublue-os/ucore-hci:stable-nvidia` instead -- ucore-hci
 adds the NVIDIA, libvirt/KVM, ZFS, and virtualization plumbing that
 fedora-bootc base does not. MiOS's pillars (transactional integrity,
-hardware acceleration, defense-in-depth — `ARCHITECTURE.md`) presuppose
+hardware acceleration, defense-in-depth -- `ARCHITECTURE.md`) presuppose
 these are already there.
 
 ## Cross-refs

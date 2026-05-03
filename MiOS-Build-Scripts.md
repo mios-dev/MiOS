@@ -1,4 +1,4 @@
-# 'MiOS' Build Scripts — Full Source Bundle
+# 'MiOS' Build Scripts -- Full Source Bundle
 
 Every script that participates in building the 'MiOS' OCI image, in
 execution order, with complete source and no truncation. Each section
@@ -8,14 +8,14 @@ file contents. Use `Ctrl-F` against a path to find a script.
 ---
 
 
-## Layer 1 — User entry points (mios-bootstrap repo)
+## Layer 1 -- User entry points (mios-bootstrap repo)
 
 
 ### `C:\Users\Administrator\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.sh`
 
 ```bash
 #!/bin/bash
-# 'MiOS' Public Bootstrap — Linux / WSL2
+# 'MiOS' Public Bootstrap -- Linux / WSL2
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash
 set -euo pipefail
@@ -27,7 +27,7 @@ _r=$'\033[0m'; _b=$'\033[1m'; _dim=$'\033[2m'; _c=$'\033[36m'; _g=$'\033[32m'; _
 
 echo ""
 echo "  ${_c}╔══════════════════════════════════════════════════════════════╗${_r}"
-echo "  ${_c}║  'MiOS' — Local Build Configuration                           ║${_r}"
+echo "  ${_c}║  'MiOS' -- Local Build Configuration                           ║${_r}"
 echo "  ${_c}╚══════════════════════════════════════════════════════════════╝${_r}"
 echo ""
 
@@ -74,10 +74,10 @@ if [[ -z "${MIOS_PASSWORD:-}" ]]; then
         [[ -z "${MIOS_PASSWORD:-}" ]] && { echo "  ${_red}[!] Password cannot be empty.${_r}"; continue; }
         read -rsp "  Confirm password: " _c2 </dev/tty; echo ""
         [[ "$MIOS_PASSWORD" == "$_c2" ]] && break
-        echo "  ${_red}[!] Mismatch — try again.${_r}"
+        echo "  ${_red}[!] Mismatch -- try again.${_r}"
     done
 else
-    echo "  Admin password: ${_dim}(env — masked)${_r}"
+    echo "  Admin password: ${_dim}(env -- masked)${_r}"
 fi
 export MIOS_PASSWORD
 
@@ -155,7 +155,7 @@ fi
 
 ```powershell
 #Requires -Version 5.1
-# 'MiOS' Bootstrap — redirector
+# 'MiOS' Bootstrap -- redirector
 #
 # The unified entry point is now install.ps1.
 # This file is retained so existing shortcuts and docs that reference
@@ -171,7 +171,7 @@ $installScript = Join-Path $PSScriptRoot "install.ps1"
 if (Test-Path $installScript) {
     & $installScript @PSBoundParameters
 } else {
-    # Running piped — fetch install.ps1 directly
+    # Running piped -- fetch install.ps1 directly
     $url = "https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.ps1"
     & ([scriptblock]::Create((Invoke-RestMethod $url))) @PSBoundParameters
 }
@@ -193,19 +193,19 @@ if (Test-Path $installScript) {
 # Global pipeline phases (numbered; reused everywhere this project speaks of
 # "phases"):
 #
-#   Phase-0  mios-bootstrap    — preflight, profile load, host detection,
+#   Phase-0  mios-bootstrap    -- preflight, profile load, host detection,
 #                                interactive identity capture (this script).
-#   Phase-1  overlay-merge     — clone mios.git into /, copy bootstrap
+#   Phase-1  overlay-merge     -- clone mios.git into /, copy bootstrap
 #                                overlays (etc/, usr/, var/, profile/) on top.
-#   Phase-2  build             — optional self-build: `podman build` an OCI
+#   Phase-2  build             -- optional self-build: `podman build` an OCI
 #                                image from the merged tree. The numbered
 #                                automation/[0-9][0-9]-*.sh scripts inside
 #                                Containerfile are sub-phases of Phase-2.
-#   Phase-3  apply             — systemd-sysusers, systemd-tmpfiles, daemon
+#   Phase-3  apply             -- systemd-sysusers, systemd-tmpfiles, daemon
 #                                reload; create the Linux user; stage
 #                                ~/.config/mios/{profile.toml,system-prompt.md}
 #                                + ~/.ssh/; deploy /etc/mios/ai/system-prompt.md.
-#   Phase-4  reboot            — interactive y/N to `systemctl reboot`.
+#   Phase-4  reboot            -- interactive y/N to `systemctl reboot`.
 #
 # Idempotent: re-running with the same answers updates rather than duplicates.
 # load_profile_defaults() reads /etc/mios/profile.toml on a previously-
@@ -215,7 +215,7 @@ if (Test-Path $installScript) {
 set -euo pipefail
 
 # ============================================================================
-# Defaults — sourced from the user profile card (etc/mios/profile.toml in
+# Defaults -- sourced from the user profile card (etc/mios/profile.toml in
 # this repo, or /etc/mios/profile.toml on a previously-bootstrapped host).
 # load_profile_defaults() below parses the TOML on-the-fly with sed/grep so
 # we don't pull in any TOML library at install time.
@@ -276,7 +276,7 @@ toml_get_array_csv() {
 #   4. /etc/mios/install.env (legacy)      previous-install identity env
 #
 # Empty strings in higher layers do NOT override non-empty defaults below
-# them — that's how this implements "user-set fields supersede defaults"
+# them -- that's how this implements "user-set fields supersede defaults"
 # without requiring sparse TOML files.
 resolve_profile_layers() {
     local layers=()
@@ -305,7 +305,7 @@ load_profile_defaults() {
     local layers; layers=$(resolve_profile_layers | tr '\n' ' ')
     [[ -n "$layers" ]] || return 0
     log_info "Loading profile layers (lowest→highest precedence):"
-    while IFS= read -r card; do log_info "  · ${card}"; done < <(resolve_profile_layers)
+    while IFS= read -r card; do log_info "  * ${card}"; done < <(resolve_profile_layers)
 
     local v
     v="$(toml_get_layered identity username)";        [[ -n "$v" ]] && DEFAULT_USER="$v"
@@ -471,7 +471,7 @@ prompt_yesno() {
 # Phase-0 (continued): gather installation profile
 # ============================================================================
 gather_user_choices() {
-    log_phase "Phase-0 — Installation profile"
+    log_phase "Phase-0 -- Installation profile"
     log_info "Press Enter to accept defaults (everything defaults to 'MiOS')."
     echo
 
@@ -512,7 +512,7 @@ gather_user_choices() {
 # Phase-0 (continued): confirm before applying
 # ============================================================================
 print_summary() {
-    log_phase "Phase-0 — Review profile"
+    log_phase "Phase-0 -- Review profile"
     cat <<EOF
   ${_BOLD}Linux user${_RESET}     : ${LINUX_USER}  (full name: ${USER_FULLNAME})
   ${_BOLD}Sudo groups${_RESET}    : ${DEFAULT_USER_GROUPS}
@@ -533,7 +533,7 @@ EOF
 # Phase-3: apply profile to host
 # ============================================================================
 apply_user_profile() {
-    log_phase "Phase-3 — Apply profile to host"
+    log_phase "Phase-3 -- Apply profile to host"
     mkdir -p "${PROFILE_DIR}"
     chmod 0750 "${PROFILE_DIR}"
 
@@ -613,7 +613,7 @@ EOF
 # Phase-3 (continued): deploy AI system prompt to host AND user home
 # ============================================================================
 deploy_system_prompt() {
-    log_phase "Phase-3 — Deploy AI system prompt"
+    log_phase "Phase-3 -- Deploy AI system prompt"
     install -d -m 0755 /etc/mios/ai
 
     local src_local prompt_url
@@ -640,7 +640,7 @@ deploy_system_prompt() {
     log_ok "Host system prompt deployed: /etc/mios/ai/system-prompt.md"
 
     # Stage per-user copies for every existing human account
-    # (uid 1000–65533). Single helper avoids duplicate logic across
+    # (uid 1000-65533). Single helper avoids duplicate logic across
     # deploy_system_prompt + stage_user_profile_artifacts; the call sites
     # remain distinct so the bootstrap-created user still gets the
     # name-bearing log line.
@@ -657,7 +657,7 @@ deploy_system_prompt() {
 seed_user_skel_for_all_accounts() {
     local skel_root=/etc/skel/.config/mios
     [[ -d "$skel_root" ]] || {
-        log_warn "etc/skel/.config/mios missing — per-user staging skipped"
+        log_warn "etc/skel/.config/mios missing -- per-user staging skipped"
         return 0
     }
 
@@ -680,7 +680,7 @@ seed_user_skel_for_all_accounts() {
 # template surface that mios-bootstrap.git populates from etc/skel/.
 # ============================================================================
 stage_user_profile_artifacts() {
-    log_phase "Phase-3 — Stage per-user 'MiOS' artifacts"
+    log_phase "Phase-3 -- Stage per-user 'MiOS' artifacts"
     local home; home="$(getent passwd "${LINUX_USER}" | cut -d: -f6)"
     [[ -n "$home" && -d "$home" ]] || {
         log_warn "User home not found; skipping per-user staging"
@@ -699,7 +699,7 @@ stage_user_profile_artifacts() {
             log_ok "User artifact: ${home}/.config/mios/$(basename "$f")"
         done
     else
-        log_warn "etc/skel/.config/mios missing — bootstrap user staging skipped"
+        log_warn "etc/skel/.config/mios missing -- bootstrap user staging skipped"
     fi
 
     # Re-run the multi-user pass so a newly added user picks up the same
@@ -715,7 +715,7 @@ stage_user_profile_artifacts() {
 # on bootc hosts Phase-2 is `bootc switch` to a pre-built image.
 # ============================================================================
 trigger_mios_install() {
-    log_phase "Phase-1 — Total Root Merge"
+    log_phase "Phase-1 -- Total Root Merge"
     
     case "${INSTALL_MODE}" in
         bootc)
@@ -758,9 +758,9 @@ trigger_mios_install() {
 
             # 3. Phase-2: RPM package install from PACKAGES.md SSOT.
             # Build-only blocks (kernel kmods, selinux policy source, looking-glass
-            # build deps, cockpit plugin build deps) are excluded — they only make
+            # build deps, cockpit plugin build deps) are excluded -- they only make
             # sense inside the OCI build pipeline, not on a running FHS host.
-            log_phase "Phase-2 — FHS package install (from PACKAGES.md)"
+            log_phase "Phase-2 -- FHS package install (from PACKAGES.md)"
             local packages_md="/usr/share/mios/PACKAGES.md"
             if [[ -f "$packages_md" ]]; then
                 # Excluded block names: build-time / image-only groups
@@ -813,13 +813,13 @@ trigger_mios_install() {
                     log_warn "No packages extracted from PACKAGES.md"
                 fi
             else
-                log_err "PACKAGES.md not found at ${packages_md} — package installation skipped"
+                log_err "PACKAGES.md not found at ${packages_md} -- package installation skipped"
             fi
 
             # 4. Phase-3: systemd-sysusers, systemd-tmpfiles, daemon-reload.
             # This wires up 'MiOS' user/group definitions and creates /var/ paths
             # declared in usr/lib/tmpfiles.d/mios*.conf.
-            log_phase "Phase-3 — System init (sysusers + tmpfiles + daemon-reload)"
+            log_phase "Phase-3 -- System init (sysusers + tmpfiles + daemon-reload)"
             spin_start "Running systemd-sysusers"
             systemctl-sysusers 2>/dev/null || systemd-sysusers 2>/dev/null || log_warn "systemd-sysusers not available"
             spin_stop
@@ -841,7 +841,7 @@ trigger_mios_install() {
 # Phase-4: reboot prompt
 # ============================================================================
 reboot_prompt() {
-    log_phase "Phase-4 — Reboot"
+    log_phase "Phase-4 -- Reboot"
     if prompt_yesno 'Reboot now to activate 'MiOS'?' y; then
         log_info "Rebooting in 3s..."
         sleep 3
@@ -856,7 +856,7 @@ reboot_prompt() {
 # ============================================================================
 main() {
     require_root
-    log_phase "Phase-0 — mios-bootstrap (Total Root Merge Mode)"
+    log_phase "Phase-0 -- mios-bootstrap (Total Root Merge Mode)"
 
     local hostkind
     hostkind="$(detect_host_kind)"
@@ -933,7 +933,7 @@ $StartMenuDir     = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Program
 $null = New-Item -ItemType Directory -Path $MiosLogDir -Force -ErrorAction SilentlyContinue
 $LogStamp       = [datetime]::Now.ToString("yyyyMMdd-HHmmss")
 $LogFile        = Join-Path $MiosLogDir "mios-install-$LogStamp.log"
-# Separate raw build-output log — NOT the transcript file.
+# Separate raw build-output log -- NOT the transcript file.
 # Start-Transcript locks $LogFile exclusively; any Out-File/Add-Content to the
 # same path throws a TerminatingError that -EA SilentlyContinue cannot suppress.
 # Build lines are appended here via [IO.File]::AppendAllText (no lock conflict).
@@ -986,7 +986,7 @@ $script:BuildSubTotal = 48
 $script:BuildSubDone  = 0
 $script:BuildSubStep  = ""
 $script:GhcrToken     = ""
-# Live build tracking — updated each loop tick; shown in debug row
+# Live build tracking -- updated each loop tick; shown in debug row
 $script:DebugLine     = ""
 $script:LineCount     = 0
 $script:HWInfo        = ""   # set after Get-Hardware; shown in dashboard info row
@@ -996,7 +996,7 @@ $script:IdentInfo     = ""   # set after phase 6 identity; User/Host/Base/Model 
 $script:DashSync = [hashtable]::Synchronized(@{
     Running    = $true
     SpinnerRow = -1
-    SpinnerCol = 5     # "| Op X" — spinner char is always at col 5
+    SpinnerCol = 5     # "| Op X" -- spinner char is always at col 5
 })
 $script:BgPs = $null
 $script:BgRs = $null
@@ -1040,7 +1040,7 @@ function Update-BuildSubPhase([string]$line) {
 
 function Show-Dashboard {
     try {
-    # ── Sizing — max 80 cols (standard tty0/console) ──────────────────────────
+    # ── Sizing -- max 80 cols (standard tty0/console) ──────────────────────────
     $winW = try { [Console]::WindowWidth  } catch { 80 }
     $bufH = try { [Console]::BufferHeight } catch { 9999 }
     # Always 1 char narrower than actual terminal so old content to the right
@@ -1050,7 +1050,7 @@ function Show-Dashboard {
     $sepD = ("+" + ("-" * ($w - 2)) + "+").PadRight($winW)
     $sepE = ("+" + ("=" * ($w - 2)) + "+").PadRight($winW)
 
-    # ── Row helper — script block closes over $in/$winW from caller scope ─────
+    # ── Row helper -- script block closes over $in/$winW from caller scope ─────
     $mkRow = {
         param([string]$c)
         ("| " + $c.PadRight($in) + " |").PadRight($winW)
@@ -1066,7 +1066,7 @@ function Show-Dashboard {
                  else { "IDLE" }
     $curName   = if ($script:CurPhase -ge 0) { [string]$script:PhaseNames[$script:CurPhase] } else { "Initializing" }
 
-    # Spinner — 500ms tick; visible on slow/remote consoles, animates even when
+    # Spinner -- 500ms tick; visible on slow/remote consoles, animates even when
     # build output is silent.
     $spinChar = @('|','/','-',[char]92)[[int]($elapsed.TotalMilliseconds / 500) % 4]
 
@@ -1093,7 +1093,7 @@ function Show-Dashboard {
     # ── Assemble rows ─────────────────────────────────────────────────────────
     $rows = [System.Collections.Generic.List[string]]::new()
 
-    # Header — gap computed so total row width = $w, then padded to $winW
+    # Header -- gap computed so total row width = $w, then padded to $winW
     $rows.Add($sepE)
     $title = " 'MiOS' $MiosVersion  --  Build Dashboard"
     $right = "[ $elStr ] "
@@ -1160,7 +1160,7 @@ function Show-Dashboard {
     }
     $rows.Add($sepD)
 
-    # Log footer — unified log only ($BuildDetailLog is merged in at exit)
+    # Log footer -- unified log only ($BuildDetailLog is merged in at exit)
     $logLeaf = try { Split-Path $LogFile -Leaf } catch { "?" }
     $rows.Add((& $mkRow "Log: $logLeaf"))
     $rows.Add($sepE)
@@ -1273,7 +1273,7 @@ function Get-PasswordHash([string]$Plain) {
         $h = (& podman run --rm docker.io/library/alpine:latest sh -c "apk add -q openssl && openssl passwd -6 -salt '$salt' '$Plain'" 2>$null) -join ""
         if ($LASTEXITCODE -eq 0 -and $h -match '^\$6\$') { return $h.Trim() }
     } catch {}
-    throw "Cannot generate sha512crypt hash — install openssl or run from a distro."
+    throw "Cannot generate sha512crypt hash -- install openssl or run from a distro."
 }
 
 function Get-Hardware {
@@ -1399,7 +1399,7 @@ function Invoke-WindowsPodmanBuild([string]$BaseImage, [string]$MiosUser, [strin
     while (-not $proc.StandardOutput.EndOfStream) {
         $line = $proc.StandardOutput.ReadLine()
         if ($null -eq $line) { break }
-        # Write to detail log only — no Write-Host here.
+        # Write to detail log only -- no Write-Host here.
         # Printing raw build lines to the console scrolls the terminal buffer
         # and drifts the dashboard position on every tick.
         try { [System.IO.File]::AppendAllText($BuildDetailLog, $line + "`n", [Text.Encoding]::UTF8) } catch {}
@@ -1551,7 +1551,7 @@ function Invoke-BibBuild([string[]]$Types, [string]$MachineOutDir, [int]$Timeout
     Set-Step "BIB: $($Types -join '+')..."
     Write-Log "BIB start: types=$($Types -join ',')  out=$MachineOutDir"
 
-    # Pre-create the output directory inside the machine — podman volume mounts require
+    # Pre-create the output directory inside the machine -- podman volume mounts require
     # the host-side path to exist before the container starts.
     Set-Step "BIB: creating output dir in machine..."
     & podman run --rm --privileged --security-opt label=disable `
@@ -1753,7 +1753,7 @@ Write-Host ""
 # Capture the row where the dashboard will be drawn (right after banner)
 $script:DashRow = try { [Console]::CursorTop } catch { 0 }
 
-# ── Background heartbeat — keeps spinner animating independently ──────────────
+# ── Background heartbeat -- keeps spinner animating independently ──────────────
 # Runs on a dedicated runspace so the operator always sees spinner movement.
 # A frozen spinner means a true fault/hang/timeout, not just a slow operation.
 $script:BgRs = [runspacefactory]::CreateRunspace()
@@ -1889,7 +1889,7 @@ if ($activeDistro) {
                 if ($LASTEXITCODE -eq 0) {
                     $machineRunning = $true; Log-Ok "$BuilderDistro started"
                 } elseif (($startOut -join " ") -match "DISTRO_NOT_FOUND|bootstrap script failed|WSL_E_DISTRO") {
-                    # Stale Podman machine metadata — WSL distro was deleted but Podman registry entry remains.
+                    # Stale Podman machine metadata -- WSL distro was deleted but Podman registry entry remains.
                     # Force-remove the stale entry so New-BuilderDistro can re-init cleanly.
                     Write-Log "podman-start: stale machine registration detected -- removing $BuilderDistro" "WARN"
                     & podman machine rm --force $BuilderDistro 2>&1 | ForEach-Object { Write-Log "podman-rm: $_" }
@@ -1916,7 +1916,7 @@ if ($activeDistro) {
     Start-Phase 4
     $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
 
-    # Required keys — always ensure these are present regardless of existing config.
+    # Required keys -- always ensure these are present regardless of existing config.
     # Mirrored networking + localhostForwarding are essential for Cockpit (port 9090)
     # and general WSL2 → Windows host reachability.
     $requiredKeys = [ordered]@{
@@ -1931,13 +1931,13 @@ if ($activeDistro) {
     $cfgRaw = if (Test-Path $wslCfg) { Get-Content $wslCfg -Raw } else { "" }
 
     if ($cfgRaw -notmatch "\[wsl2\]") {
-        # No [wsl2] section at all — append one wholesale
+        # No [wsl2] section at all -- append one wholesale
         $block = "`n[wsl2]`n# MiOS-managed -- host resources for MiOS-BUILDER`n"
         foreach ($kv in $requiredKeys.GetEnumerator()) { $block += "$($kv.Key)=$($kv.Value)`n" }
         Add-Content -Path $wslCfg -Value $block
-        Log-Ok ".wslconfig: wrote [wsl2] — $($HW.RamGB)GB RAM, $($HW.Cpus) CPUs, mirrored"
+        Log-Ok ".wslconfig: wrote [wsl2] -- $($HW.RamGB)GB RAM, $($HW.Cpus) CPUs, mirrored"
     } else {
-        # [wsl2] exists — patch each required key in place; append missing ones
+        # [wsl2] exists -- patch each required key in place; append missing ones
         $lines    = (Get-Content $wslCfg)
         $inWsl2   = $false
         $patched  = [System.Collections.Generic.List[string]]::new()
@@ -1981,7 +1981,7 @@ if ($activeDistro) {
         }
 
         Set-Content -Path $wslCfg -Value $patched -Encoding UTF8
-        Log-Ok ".wslconfig: merged [wsl2] — $($HW.RamGB)GB RAM, $($HW.Cpus) CPUs, mirrored"
+        Log-Ok ".wslconfig: merged [wsl2] -- $($HW.RamGB)GB RAM, $($HW.Cpus) CPUs, mirrored"
     }
     End-Phase 4
 
@@ -2194,7 +2194,7 @@ Write-Host ''; Write-Host "  'MiOS' removed. Config at `$C preserved." -Foregrou
 ```
 
 
-## Layer 2 — System-side installers
+## Layer 2 -- System-side installers
 
 
 ### `automation\install.sh`
@@ -2430,7 +2430,7 @@ main() {
     log_ok "User profile applied."
 
     # --- 3. Total Root Merge ---
-    # LAW 1: NON-DESTRUCTIVE SIMPLE MERGE — never use git checkout -f at /,
+    # LAW 1: NON-DESTRUCTIVE SIMPLE MERGE -- never use git checkout -f at /,
     # which forcibly overwrites existing system files. Clone to a temp path,
     # then rsync each FHS overlay dir with --ignore-existing semantics so that
     # base system files are never clobbered.
@@ -2557,10 +2557,10 @@ log_info() {
 # ============================================================================
 show_banner() {
     cat << 'EOF'
-â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-â•‘                   'MiOS' Fedora Server Ignition                            â•‘
-â•‘                         Version 1.0.0                                    â•‘
-â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--
+â*'                   'MiOS' Fedora Server Ignition                            â*'
+â*'                         Version 1.0.0                                    â*'
+â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*
 
 This script will:
   1. Fetch 'MiOS' repository from GitHub
@@ -3033,9 +3033,9 @@ cleanup() {
 show_summary() {
     cat << EOF
 
-â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-â•‘                   'MiOS' Installation Complete!                            â•‘
-â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--
+â*'                   'MiOS' Installation Complete!                            â*'
+â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*
 
 Configuration:
   Username:     ${MIOS_USERNAME}
@@ -3043,12 +3043,12 @@ Configuration:
   Config Dir:   ${MIOS_USER_CONFIG_DIR}
 
 Installation Details:
-  âœ“ 'MiOS' structure merged to system root (FHS-compliant)
-  âœ“ User account created with full permissions
-  âœ“ User-space initialized (XDG directories, configs, dotfiles)
-  âœ“ Python virtual environment created
-  âœ“ System configuration installed
-  âœ“ Build files installed to ${MIOS_SHARE_DIR}
+  âœ" 'MiOS' structure merged to system root (FHS-compliant)
+  âœ" User account created with full permissions
+  âœ" User-space initialized (XDG directories, configs, dotfiles)
+  âœ" Python virtual environment created
+  âœ" System configuration installed
+  âœ" Build files installed to ${MIOS_SHARE_DIR}
 
 Next Steps:
 
@@ -3111,7 +3111,7 @@ main "$@"
 ```
 
 
-## Layer 3 — Build orchestrators
+## Layer 3 -- Build orchestrators
 
 
 ### `Containerfile`
@@ -3231,7 +3231,7 @@ live-init:
     @chmod +x tools/mios-overlay.sh
     sudo ./tools/mios-overlay.sh
 
-# bootc container lint — runs against the locally built image.
+# bootc container lint -- runs against the locally built image.
 # The Containerfile already runs `bootc container lint` as its final RUN, so
 # `just build` is itself a lint gate. This target re-runs lint on demand.
 lint:
@@ -3381,7 +3381,7 @@ vhdx: build
             qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
         done; \
     else \
-        echo "[WARN] qemu-img not found or no .vhd produced — .vhd retained in output/"; \
+        echo "[WARN] qemu-img not found or no .vhd produced -- .vhd retained in output/"; \
     fi
     @echo "[OK] VHDX image in output/"
 
@@ -3394,7 +3394,7 @@ wsl2: build
         -v /var/lib/containers/storage:/var/lib/containers/storage \
         -v ./config/artifacts/wsl2.toml:/config.toml:ro \
         {{BIB}} build --type wsl2 {{LOCAL}}
-    @echo "[OK] WSL2 image in output/ — import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
+    @echo "[OK] WSL2 image in output/ -- import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
 
 
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)
@@ -3673,7 +3673,7 @@ function Invoke-BIBRun {
     $bibN   = 0
     $pctBase = if ($script:PhasePercent.ContainsKey('3')) { $script:PhasePercent['3'] } else { 82 }
     Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
-        -Status "Phase 3 — $Label" -CurrentOperation $bibOp -PercentComplete $pctBase
+        -Status "Phase 3 -- $Label" -CurrentOperation $bibOp -PercentComplete $pctBase
     & podman @BIBArgs 2>&1 | ForEach-Object {
         $line = $_
         Write-Host (Format-Masked $line)
@@ -3683,10 +3683,10 @@ function Invoke-BIBRun {
             $bibOp = $Matches[0]
         } elseif ($stripped -match '^(Assembling|Building|Extracting|Installing|Packaging|Pipeline|Stage|Writing)\b') {
             $candidate = ($stripped -replace '\s+', ' ').Trim()
-            $bibOp = if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '…' } else { $candidate }
+            $bibOp = if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate }
         } elseif (-not [string]::IsNullOrWhiteSpace($stripped)) {
             $candidate = ($stripped -replace '\s+', ' ').Trim()
-            $bibOp = Format-Masked (if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '…' } else { $candidate })
+            $bibOp = Format-Masked (if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate })
         }
         Write-Progress -Activity "  $Label" -Id 1 -ParentId 0 `
             -Status "Lines: $bibN" -CurrentOperation $bibOp `
@@ -3863,7 +3863,7 @@ Write-Phase "0.5" "System Validation"
 if (-not (Test-Path $OutputFolder)) { New-Item -ItemType Directory -Path $OutputFolder -Force | Out-Null }
 if (-not (Test-Path $MiosImagesDir)) { New-Item -ItemType Directory -Path $MiosImagesDir -Force | Out-Null }
 
-# Unified log — one flat file from bootstrap to final target, injected into image.
+# Unified log -- one flat file from bootstrap to final target, injected into image.
 $script:UnifiedLog = if ($env:MIOS_UNIFIED_LOG) { $env:MIOS_UNIFIED_LOG } else {
     Join-Path $MiosDocsDir "mios-build-$([DateTime]::Now.ToString('yyyyMMdd-HHmmss')).log"
 }
@@ -3996,7 +3996,7 @@ if ($DoPull) {
     # by matching anywhere in the line, not anchored to start.
     $pbStep = 0; $pbTotal = 45; $pbSname = "Initializing"; $pbOp = "Starting podman build..."
     Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
-        -Status "Phase 2 — Pulling / preparing layers…" -CurrentOperation $pbOp -PercentComplete 15
+        -Status "Phase 2 -- Pulling / preparing layers..." -CurrentOperation $pbOp -PercentComplete 15
 
     & podman build --progress=plain --no-cache `
         --build-arg MAKEFLAGS="-j$cpu" `
@@ -4015,13 +4015,13 @@ if ($DoPull) {
             $pbSname = $Matches[3]
         }
         $candidate = ($stripped -replace '\s+', ' ').Trim()
-        if ($candidate.Length -gt 80) { $candidate = $candidate.Substring(0, 80) + '…' }
+        if ($candidate.Length -gt 80) { $candidate = $candidate.Substring(0, 80) + '...' }
         if (-not [string]::IsNullOrWhiteSpace($candidate)) { $pbOp = Format-Masked $candidate }
 
         $outerPct  = [Math]::Min(99, 15 + [int]($pbStep * 67 / [Math]::Max(1, $pbTotal)))
-        $outerStat = if ($pbStep -gt 0) { "Script $pbStep/$pbTotal — $pbSname" } else { "Pulling / preparing layers…" }
+        $outerStat = if ($pbStep -gt 0) { "Script $pbStep/$pbTotal -- $pbSname" } else { "Pulling / preparing layers..." }
         Write-Progress -Activity "'MiOS' Build ${Version}" -Id 0 `
-            -Status "Phase 2 — $outerStat" -CurrentOperation $pbOp -PercentComplete $outerPct
+            -Status "Phase 2 -- $outerStat" -CurrentOperation $pbOp -PercentComplete $outerPct
         if ($pbStep -gt 0) {
             Write-Progress -Activity "  $pbSname" -Id 1 -ParentId 0 `
                 -Status "Step $pbStep of $pbTotal" -CurrentOperation $pbOp `
@@ -4707,7 +4707,7 @@ if ($hasAmd) {
 }
 
 if ($hasIntel -and -not $hasNvidia -and -not $hasAmd) {
-  Log 'Intel GPU only — WSL2 GPU compute for Intel is not officially supported'
+  Log 'Intel GPU only -- WSL2 GPU compute for Intel is not officially supported'
   Warn 'Builder will use CPU inference; this does not affect building bootc images.'
 }
 
@@ -4757,7 +4757,7 @@ Log "Builder ready. Example usage:"
 Log "  podman --connection ${MachineName}-root build -t mios:latest ."
 Log "  podman --connection ${MachineName}-root run --rm --device nvidia.com/gpu=all \\"
 Log "       docker.io/nvidia/cuda:10.1.1-base-ubi9 nvidia-smi"
-# Explicit exit 0 — non-fatal warnings (NVIDIA CDI, AMD/Intel) leave
+# Explicit exit 0 -- non-fatal warnings (NVIDIA CDI, AMD/Intel) leave
 # $LASTEXITCODE non-zero; without this the caller sees a failure.
 exit 0
 ```
@@ -5043,7 +5043,7 @@ finally {
 ```powershell
 <#
 .SYNOPSIS
-    'MiOS' bootstrap — one-liner entry point.
+    'MiOS' bootstrap -- one-liner entry point.
 
 .DESCRIPTION
     Designed for:  irm https://raw.githubusercontent.com/MiOS-DEV/MiOS/main/Get-MiOS.ps1 | iex
@@ -5151,18 +5151,18 @@ try {
 
 ```powershell
 <#
-.SYNOPSIS  'MiOS' v0.2.2 — Unified Windows Installer
+.SYNOPSIS  'MiOS' v0.2.2 -- Unified Windows Installer
 .DESCRIPTION
     Entry: irm https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1 | iex
     Normally downloaded + launched by bootstrap.ps1 after collecting credentials.
 
-    Platform entrypoints are thin bootstraps — all build logic runs against the
+    Platform entrypoints are thin bootstraps -- all build logic runs against the
     shared codebase (Containerfile + automation/) via `podman build`.
 
     Expected env vars from bootstrap.ps1 (or set manually):
         GHCR_TOKEN          GitHub PAT for image pull / push
         MIOS_USER           Admin username
-        MIOS_PASSWORD       Admin password (plaintext — hashed before injection)
+        MIOS_PASSWORD       Admin password (plaintext -- hashed before injection)
         MIOS_HOSTNAME       Static hostname (default: mios-XXXXX)
         MIOS_DIR            Repo clone target directory
         MIOS_AUTOINSTALL    Set to "1" for non-interactive defaults
@@ -5231,7 +5231,7 @@ $script:WarnCount  = 0
 $script:Op         = "Initializing..."
 $script:LogFile    = ""
 
-# Phase definitions — EstSteps drives the progress denominator
+# Phase definitions -- EstSteps drives the progress denominator
 $script:Phases = @(
     [pscustomobject]@{Id=0;  Name="Hardware + Prerequisites";  State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=1;  Name="Detecting environment";     State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
@@ -5321,12 +5321,12 @@ function Show-Dashboard {
     $script:DashH = $lines.Count
 
     if (-not $script:DashReady) {
-        # First render — write fresh, record position
+        # First render -- write fresh, record position
         $script:DashRow = [Console]::CursorTop
         foreach ($l in $lines) { [Console]::WriteLine($l) }
         $script:DashReady = $true
     } else {
-        # In-place redraw — only rewrite if cursor is still on screen
+        # In-place redraw -- only rewrite if cursor is still on screen
         try {
             $savedTop = [Console]::CursorTop
             $savedLeft = [Console]::CursorLeft
@@ -5341,7 +5341,7 @@ function Show-Dashboard {
     }
 }
 
-# Fast partial update — just the Op: line, avoids redrawing 28 lines on every build output line
+# Fast partial update -- just the Op: line, avoids redrawing 28 lines on every build output line
 function Set-Op {
     param([string]$NewOp)
     $masked = Format-Masked $NewOp
@@ -5502,7 +5502,7 @@ try { Start-Transcript -Path $script:LogFile -Append -Force | Out-Null } catch {
 Show-Dashboard
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 0 — Hardware + Prerequisites
+#  PHASE 0 -- Hardware + Prerequisites
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 0 "Checking Windows version..."
 $os = Get-CimInstance Win32_OperatingSystem
@@ -5513,7 +5513,7 @@ if ($os.Caption -notmatch "Pro|Enterprise|Education|Server") {
 foreach ($feat in @("Microsoft-Hyper-V","VirtualMachinePlatform","Microsoft-Windows-Subsystem-Linux")) {
     $f = Get-WindowsOptionalFeature -Online -FeatureName $feat -EA SilentlyContinue
     if ($f -and $f.State -eq "Enabled") { Write-LogOK "$feat enabled" }
-    else { Write-LogWarn "$feat not enabled — some targets may be unavailable" }
+    else { Write-LogWarn "$feat not enabled -- some targets may be unavailable" }
 }
 try {
     $null = & podman --version 2>&1
@@ -5523,7 +5523,7 @@ try {
 Finish-Phase 0
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 1 — Detecting environment
+#  PHASE 1 -- Detecting environment
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 1 "Detecting hardware..."
 $cpu = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
@@ -5534,7 +5534,7 @@ if ($disk -lt 80) { Write-LogWarn "Low disk space (<80 GB). Build may fail." }
 Finish-Phase 1
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 2 — Directories and repos
+#  PHASE 2 -- Directories and repos
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 2 "Preparing directories..."
 foreach ($d in @($MiosDocsDir,$MiosDeployDir,$MiosImagesDir,$MiosManifestsDir,(Split-Path $RepoDir -Parent))) {
@@ -5564,7 +5564,7 @@ Set-Location $RepoDir
 Finish-Phase 2
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 3 — MiOS-BUILDER distro
+#  PHASE 3 -- MiOS-BUILDER distro
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 3 "Provisioning $BuilderMachine Podman machine..."
 $builderScript = Join-Path $RepoDir "automation\mios-build-builder.ps1"
@@ -5580,13 +5580,13 @@ Write-LogOK "Connection: ${BuilderMachine}-root"
 Finish-Phase 3
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 4 — WSL2 configuration
+#  PHASE 4 -- WSL2 configuration
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 4 "Writing .wslconfig..."
 $wslCfg = Join-Path $env:USERPROFILE ".wslconfig"
 $wslRAM = [Math]::Max(16, [Math]::Floor($ram * 0.80))
 $wslLines = @(
-    "# 'MiOS' v$Version — WSL2 Configuration"
+    "# 'MiOS' v$Version -- WSL2 Configuration"
     "[wsl2]"
     "memory=${wslRAM}GB"
     "processors=${cpu}"
@@ -5605,7 +5605,7 @@ Write-LogOK ".wslconfig: ${wslRAM}GB RAM, $cpu CPUs"
 Finish-Phase 4
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 5 — Verifying build context
+#  PHASE 5 -- Verifying build context
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 5 "Checking repo files..."
 foreach ($f in @("Containerfile","VERSION","automation/build.sh","automation/31-user.sh")) {
@@ -5615,7 +5615,7 @@ Write-LogOK "Build context verified"
 Finish-Phase 5
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 6 — Identity
+#  PHASE 6 -- Identity
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 6 "Collecting credentials..."
 $AutoInstall = $env:MIOS_AUTOINSTALL -eq "1"
@@ -5628,7 +5628,7 @@ $P = if ($env:MIOS_PASSWORD) { $env:MIOS_PASSWORD } else {
         $pw1 = Read-Masked "Admin password:" ""
         $pw2 = Read-Masked "Confirm password:" ""
         while ($pw1 -ne $pw2) {
-            Write-LogWarn "Passwords do not match — retry"
+            Write-LogWarn "Passwords do not match -- retry"
             $pw1 = Read-Masked "Admin password:" ""
             $pw2 = Read-Masked "Confirm password:" ""
         }
@@ -5657,11 +5657,11 @@ Write-LogOK "User: $U  Hostname: $HostIn  Registry: $GhcrImage"
 Finish-Phase 6
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 7 — Writing identity
+#  PHASE 7 -- Writing identity
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 7 "Hashing password (SHA-512)..."
 
-# Pull helper image for openssl — try existing 'MiOS' image first
+# Pull helper image for openssl -- try existing 'MiOS' image first
 $HelperImage = ""
 if ($GhcrToken) {
     $GhcrToken | & podman login ghcr.io --username $RegUser --password-stdin 2>&1 | Out-Null
@@ -5689,7 +5689,7 @@ if ($HostIn -ne "mios") {
 Finish-Phase 7
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 8 — App registration (BIB self-build detection)
+#  PHASE 8 -- App registration (BIB self-build detection)
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 8 "Checking BIB capability..."
 $BIBSelfBuild = $false
@@ -5705,8 +5705,8 @@ if ($HelperImage) {
 Finish-Phase 8
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 9 — Building OCI image
-#  Every output line from podman build drives Op: — no frozen dashboard.
+#  PHASE 9 -- Building OCI image
+#  Every output line from podman build drives Op: -- no frozen dashboard.
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 9 "podman build starting..."
 $env:BUILDAH_FORMAT = "docker"
@@ -5728,7 +5728,7 @@ $t9 = [DateTime]::Now
     if ($stripped -match '\+-\s*STEP\s+(\d+)/(\d+)\s*:\s*(\S+)') {
         $script:Phases[9].InnerStep  = [int]$Matches[1]
         $script:Phases[9].InnerTotal = [int]$Matches[2]
-        Set-Op "STEP $($Matches[1])/$($Matches[2]) — $($Matches[3])"
+        Set-Op "STEP $($Matches[1])/$($Matches[2]) -- $($Matches[3])"
         Show-Dashboard   # full redraw on each script boundary
     } else {
         # Every non-empty line updates Op: for live feedback
@@ -5785,7 +5785,7 @@ if ($script:LogFile -and (Test-Path $script:LogFile)) {
 Finish-Phase 9
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASES 10-12 — Export / register / disk images
+#  PHASES 10-12 -- Export / register / disk images
 # ══════════════════════════════════════════════════════════════════════════════
 $bibConf     = Join-Path $RepoDir "config\bib.toml"
 if (-not (Test-Path $bibConf)) { $bibConf = Join-Path $RepoDir "config\bib.json" }
@@ -5805,7 +5805,7 @@ function Get-BIBArgs {
     return $a
 }
 
-# Phase 10 — WSL2 export
+# Phase 10 -- WSL2 export
 Start-Phase 10 "Exporting WSL2 image..."
 $ErrorActionPreference = "Continue"
 if ($HelperImage) {
@@ -5819,7 +5819,7 @@ if (Test-Path $TargetWsl) { Write-LogOK "WSL: $(Get-FileSize $TargetWsl)" } else
 $ErrorActionPreference = "Stop"
 Finish-Phase 10
 
-# Phase 11 — WSL2 registration
+# Phase 11 -- WSL2 registration
 Start-Phase 11 "Importing WSL2 distro..."
 $ErrorActionPreference = "Continue"
 if (Test-Path $TargetWsl) {
@@ -5844,7 +5844,7 @@ if (Test-Path $TargetWsl) {
 $ErrorActionPreference = "Stop"
 Finish-Phase 11
 
-# Phase 12 — Disk images (VHDX + ISO via BIB)
+# Phase 12 -- Disk images (VHDX + ISO via BIB)
 Start-Phase 12 "Building disk images (BIB)..."
 $script:Phases[12].InnerTotal = 2
 $ErrorActionPreference = "Continue"
@@ -5880,7 +5880,7 @@ $ErrorActionPreference = "Stop"
 Finish-Phase 12
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 13 — Hyper-V deployment
+#  PHASE 13 -- Hyper-V deployment
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 13 "Preparing Hyper-V VM..."
 $ErrorActionPreference = "Continue"
@@ -5928,7 +5928,7 @@ $ErrorActionPreference = "Stop"
 Finish-Phase 13
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  FINAL — Summary
+#  FINAL -- Summary
 # ══════════════════════════════════════════════════════════════════════════════
 Set-Op "Build complete."
 Show-Dashboard
@@ -5957,7 +5957,7 @@ $P = $null; $passHash = $null; $GhcrToken = $null
 ```
 
 
-## Layer 4a — Library (sourced helpers)
+## Layer 4a -- Library (sourced helpers)
 
 
 ### `automation\lib\common.sh`
@@ -6041,7 +6041,7 @@ record_version() {
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — Package extraction library
+# 'MiOS' v0.2.0 -- Package extraction library
 # Parses PACKAGES.md fenced code blocks tagged with ```packages-<category>
 #
 # Usage:
@@ -6091,7 +6091,7 @@ install_packages() {
             echo "[packages.sh] Packages requested: $packages" >&2
         }
     else
-        echo "[packages.sh] WARN: No packages in section '$category' — skipping"
+        echo "[packages.sh] WARN: No packages in section '$category' -- skipping"
     fi
 }
 
@@ -6103,7 +6103,7 @@ install_packages_strict() {
     echo "[packages.sh] Installing '$category' packages (strict section)..."
     # shellcheck disable=SC2086 # $packages is intentionally word-split here
     # Note: --allowerasing without --best: allows conflict resolution by erasure
-    # without requiring the "best" (newest) version — avoids hard failures when
+    # without requiring the "best" (newest) version -- avoids hard failures when
     # ucore base packages are newer than Fedora 44 versions.
     $DNF_BIN "${DNF_SETOPT[@]}" install -y --allowerasing --skip-unavailable --exclude=PackageKit $packages || {
         echo "[packages.sh] FATAL: Mandatory '$category' packages failed to install" >&2
@@ -6121,7 +6121,7 @@ install_packages_optional() {
     raw_section=$(sed -n "/^\`\`\`packages-${category}$/,/^\`\`\`$/{/^\`\`\`/d;p}" "$packages_file")
 
     if [[ -z "$raw_section" ]]; then
-        echo "[packages.sh] WARN: Section 'packages-${category}' not found — skipping"
+        echo "[packages.sh] WARN: Section 'packages-${category}' not found -- skipping"
         return 0
     fi
 
@@ -6134,7 +6134,7 @@ install_packages_optional() {
         return 0
     fi
 
-    # Some packages are uncommented — install those
+    # Some packages are uncommented -- install those
     local packages
     packages=$(get_packages "$category" "$packages_file")
     if [[ -n "$packages" ]]; then
@@ -6264,20 +6264,20 @@ scurl() {
 
 ```bash
 #!/usr/bin/env bash
-# automation/lib/paths.sh — FHS path constants for MiOS.
+# automation/lib/paths.sh -- FHS path constants for MiOS.
 # Source via common.sh; safe to source multiple times (idempotent).
 # Override any constant from the environment before sourcing.
 
-# /usr/* — read-only image surface
+# /usr/* -- read-only image surface
 : "${MIOS_USR_DIR:=/usr/lib/mios}"
 : "${MIOS_LOG_DIR:=${MIOS_USR_DIR}/logs}"
 : "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
 : "${MIOS_SHARE_DIR:=/usr/share/mios}"
 
-# /etc/* — admin-override surface
+# /etc/* -- admin-override surface
 : "${MIOS_ETC_DIR:=/etc/mios}"
 
-# /var/* — runtime mutable
+# /var/* -- runtime mutable
 : "${MIOS_VAR_DIR:=/var/lib/mios}"
 : "${MIOS_MEMORY_DIR:=${MIOS_VAR_DIR}/memory}"
 : "${MIOS_SCRATCH_DIR:=${MIOS_VAR_DIR}/scratch}"
@@ -6294,14 +6294,14 @@ export MIOS_BUILD_LOG MIOS_BUILD_CHAIN_LOG MIOS_VERSION_MANIFEST_FINAL
 ```
 
 
-## Layer 4b — Master orchestrator
+## Layer 4b -- Master orchestrator
 
 
 ### `automation\build.sh`
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — Master build runner
+# 'MiOS' v0.2.0 -- Master build runner
 # Framed ASCII console UI: progress bar, stage tracking, health metrics,
 # per-step timing, and consolidated failure/warn report at end.
 set -euo pipefail
@@ -6625,7 +6625,7 @@ if rpm -q malcontent-libs > /dev/null 2>&1; then
     printf '|  %-38s [ OK ] |\n' "malcontent-libs (flatpak dep)"
 else
     printf '|  %-38s [WARN] |\n' "malcontent-libs MISSING -- flatpak may break"
-    WARN_LOG+=("malcontent-libs missing — flatpak may break")
+    WARN_LOG+=("malcontent-libs missing -- flatpak may break")
 fi
 _hline '-' '+' '+'
 
@@ -6643,7 +6643,7 @@ fi
 # Quadlets are pulled by bootc at deploy time, not at OCI-build time, so
 # their :latest will re-resolve on every deploy. Record the digest skopeo
 # sees right now, so the shipped image carries a precise snapshot of what
-# build day's :latest pointed at — even though deploys may differ later.
+# build day's :latest pointed at -- even though deploys may differ later.
 echo ""
 _hline '-' '+' '+'
 _row " POST-BUILD: Capturing Quadlet image digests"
@@ -6660,7 +6660,7 @@ if command -v skopeo >/dev/null 2>&1; then
     done
     shopt -u nullglob
 else
-    warn "skopeo not available — Quadlet image digests not captured"
+    warn "skopeo not available -- Quadlet image digests not captured"
 fi
 
 # ── Log preservation (flatten all chain logs + version manifest into /usr) ──
@@ -6679,7 +6679,7 @@ fi
 
 # Flatten per-step logs + manifest + main build log into single unified chain
 {
-    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain -- $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""
     echo "# ====== build-time :latest -> observed-version manifest ======"
     if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then
@@ -6729,14 +6729,14 @@ fi
 ```
 
 
-## Layer 4c-j — Numbered phase scripts (lex order)
+## Layer 4c-j -- Numbered phase scripts (lex order)
 
 
 ### `automation\01-repos.sh`
 
 ```bash
 #!/usr/bin/env bash
-# 'MiOS' v0.2.0 — 01-repos: Fedora 44 overlay on ucore
+# 'MiOS' v0.2.0 -- 01-repos: Fedora 44 overlay on ucore
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
@@ -6764,7 +6764,7 @@ echo "[01-repos] Importing Fedora 44 GPG key..."
 # On ucore (which is CoreOS-based on Fedora), the key is usually present already.
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
-    # Fallback: import from the package. Failure here is fatal — the F44 repo
+    # Fallback: import from the package. Failure here is fatal -- the F44 repo
     # below uses repo_gpgcheck=1 and silently dropping the key would surface
     # later as opaque "package not signed" errors on every install. (Audit
     # 2026-05-01 finding: do not swallow this with 2>/dev/null.)
@@ -6772,7 +6772,7 @@ if [[ ! -f "$GPG_KEY_PATH" ]]; then
 fi
 
 echo "[01-repos] Adding Fedora 44 repository..."
-# F44 is in development at build time. Dev-tree repodata is NOT GPG-signed —
+# F44 is in development at build time. Dev-tree repodata is NOT GPG-signed --
 # the .asc detached signature returns 404 from every Fedora mirror. Setting
 # repo_gpgcheck=1 turns that 404 into a fatal metadata-load error that
 # cascades into every subsequent dnf transaction.
@@ -6832,7 +6832,7 @@ echo "[01-repos] Phase 2: Distro-upgrade and userspace alignment..."
 $DNF_BIN "${DNF_SETOPT[@]}" \
     --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
     upgrade --refresh -y --skip-unavailable || {
-    echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) — continuing"
+    echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) -- continuing"
 }
 # distro-sync is retried once: F44 mirrors are occasionally in-progress sync state,
 # causing RPM signature mismatches that resolve on a second attempt with fresh metadata.
@@ -6843,11 +6843,11 @@ for _attempt in 1 2; do
             distro-sync -y --allowerasing --skip-unavailable; then
         _dsync_ok=1; break
     fi
-    echo "[01-repos] WARN: distro-sync attempt $_attempt failed — cleaning cache and retrying..."
+    echo "[01-repos] WARN: distro-sync attempt $_attempt failed -- cleaning cache and retrying..."
     $DNF_BIN clean metadata 2>/dev/null || true
 done
 if [[ $_dsync_ok -eq 0 ]]; then
-    echo "[01-repos] WARN: distro-sync failed after 2 attempts — ucore packages may differ from Fedora 44."
+    echo "[01-repos] WARN: distro-sync failed after 2 attempts -- ucore packages may differ from Fedora 44."
     echo "[01-repos] Continuing; individual package installs will use available repos."
 fi
 
@@ -6863,9 +6863,9 @@ rpm -q systemd glibc dbus-broker filesystem || true
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 02-kernel: Kernel extras + development headers
+# 'MiOS' v0.2.0 -- 02-kernel: Kernel extras + development headers
 # The base fedora-bootc:rawhide image ships the newest kernel with a working
-# initramfs. We NEVER upgrade the base kernel packages inside the container —
+# initramfs. We NEVER upgrade the base kernel packages inside the container --
 # doing so triggers dracut under the tmpfs mount, which fails with
 # "Invalid cross-device link (os error 18)" and produces a broken initramfs.
 #
@@ -6877,7 +6877,7 @@ rpm -q systemd glibc dbus-broker filesystem || true
 #
 # CHANGELOG v0.2.0:
 #   - REMOVED kernel/kernel-core/kernel-modules/kernel-modules-core
-#     (base image already has them — upgrading broke dracut)
+#     (base image already has them -- upgrading broke dracut)
 #   - kernel-modules-extra ensures VFIO/USB/storage modules are present
 #   - kernel-devel enables akmod-nvidia and DKMS builds
 set -euo pipefail
@@ -6901,7 +6901,7 @@ fi
 
 # Verify kernel-devel is installed (akmod-nvidia needs it)
 if [[ ! -d "/usr/lib/modules/$KVER/build" ]]; then
-    echo "[02-kernel] WARNING: /usr/lib/modules/$KVER/build missing — akmod may fail"
+    echo "[02-kernel] WARNING: /usr/lib/modules/$KVER/build missing -- akmod may fail"
 fi
 
 echo "[02-kernel] Kernel extras for $KVER installed successfully."
@@ -6917,7 +6917,7 @@ echo "[02-kernel] Kernel extras for $KVER installed successfully."
 # ----------------------------------------------------------------------------
 # Enable external DNF repositories for 'MiOS' (Fedora 44 / Rawhide).
 # Idempotent; fails fast; uses ${DNF_SETOPT[@]} from automation/lib/common.sh.
-# RPM Fusion is intentionally NOT handled here — see 01-repos.sh.
+# RPM Fusion is intentionally NOT handled here -- see 01-repos.sh.
 #
 # v2.3 CHANGES:
 #   - Added Kubernetes stable v1.32 repo (kubectl not in Fedora repos).
@@ -6945,10 +6945,10 @@ if [[ ! -f "${REPO_DIR}/terra.repo" ]]; then
     if ! scurl -fsSL --connect-timeout 20 --max-time 60 \
             https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo \
             -o "${REPO_DIR}/terra.repo" 2>/dev/null; then
-        warn "Terra repo download failed (github.com unreachable?) — skipping Terra"
+        warn "Terra repo download failed (github.com unreachable?) -- skipping Terra"
     fi
 else
-    log "Terra repo already present — skipping"
+    log "Terra repo already present -- skipping"
 fi
 
 # --- 2. VSCodium (FOSS) ------------------------------------------------------
@@ -6967,11 +6967,11 @@ gpgcheck=1
 gpgkey=https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg
 EOF
 else
-    log "VSCodium repo already present — skipping"
+    log "VSCodium repo already present -- skipping"
 fi
 
 # --- 7. Kubernetes stable v1.32 (kubectl) -----------------------------------
-# kubectl is NOT in standard Fedora repos — must come from the Kubernetes
+# kubectl is NOT in standard Fedora repos -- must come from the Kubernetes
 # project's own RPM repository. Pinned to v1.32 (current stable).
 # Only kubectl is installed from here; kubeadm/kubelet are intentionally
 # excluded (k3s is used for the cluster runtime, not kubeadm).
@@ -6988,7 +6988,7 @@ repo_gpgcheck=1
 exclude=kubelet kubeadm cri-tools kubernetes-cni
 EOF
 else
-    log "Kubernetes repo already present — skipping"
+    log "Kubernetes repo already present -- skipping"
 fi
 
 # --- 8. ublue-os/packages COPR (uupd + greenboot) ---------------------------
@@ -7005,7 +7005,7 @@ if [[ ! -f "${REPO_DIR}/ublue-os-packages.repo" ]]; then
         sed -i '/^\[/a priority=75' "${REPO_DIR}/ublue-os-packages.repo"
     fi
 else
-    log "ublue-os/packages COPR already present — skipping"
+    log "ublue-os/packages COPR already present -- skipping"
 fi
 
 # ── Waydroid (Aleasto) ───────────────────────────────────────────────────
@@ -7013,7 +7013,7 @@ if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:aleasto:waydroid.repo
     log "enabling aleasto/waydroid COPR (GNOME 50 fix)"
     $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y aleasto/waydroid
 else
-    log "aleasto/waydroid COPR already present — skipping"
+    log "aleasto/waydroid COPR already present -- skipping"
 fi
 
 # ── Tailscale ────────────────────────────────────────────────────────────
@@ -7024,7 +7024,7 @@ if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
     scurl -fsSL https://pkgs.tailscale.com/stable/fedora/tailscale.repo \
         -o "${REPO_DIR}/tailscale.repo"
 else
-    log "Tailscale repo already present — skipping"
+    log "Tailscale repo already present -- skipping"
 fi
 
 # ── CrowdSec ─────────────────────────────────────────────────────────────
@@ -7034,7 +7034,7 @@ if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
     scurl -fsSL https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=40&source=script \
         -o "${REPO_DIR}/crowdsec.repo"
 else
-    log "CrowdSec repo already present — skipping"
+    log "CrowdSec repo already present -- skipping"
 fi
 
 log "external repos enabled; refreshing metadata"
@@ -7076,7 +7076,7 @@ fi
 # LAW 5: /var/usrlocal must NOT be mkdir'd during OCI build.
 # It is declared in /usr/lib/tmpfiles.d/mios-infra.conf and created at boot.
 # If /usr/local is a symlink to /var/usrlocal (typical FCOS layout), skip the
-# tar write — the content will be available after first-boot tmpfiles.d runs.
+# tar write -- the content will be available after first-boot tmpfiles.d runs.
 # If /usr/local is a real directory (non-FCOS base), write directly.
 if [[ -d "${CTX}/usr/local" ]]; then
     log "  stage 2: overlay /usr/local content"
@@ -7096,7 +7096,7 @@ if [[ -d "${CTX}/etc" ]]; then
 fi
 
 # --- Stage 3a: /etc/wsl.conf force-install ---------------------------------
-# WSL2's wsl.conf parser is unforgiving — a single malformed byte takes down
+# WSL2's wsl.conf parser is unforgiving -- a single malformed byte takes down
 # systemd-as-PID1, which cascades into a broken user session and home dir.
 # Force-install from the canonical reference with explicit perms instead of
 # trusting the tar overlay (which can be defeated by a base-image-shipped
@@ -7116,13 +7116,13 @@ fi
 # fi
 
 # --- Stage 5: /home (User Space Templates) ---------------------------------
-# LAW 5: Writing to /var/home during OCI build violates the immutability contract —
+# LAW 5: Writing to /var/home during OCI build violates the immutability contract --
 # /var is a persistent volume that is NOT populated from the OCI image on deployment.
 # Home directory dotfile templates must live in /etc/skel/ and are copied by
 # systemd-sysusers when the user is first created at boot.
 # This stage is intentionally a no-op; see /etc/skel/ for the skel overlay.
 if [[ -d "${CTX}/home" ]]; then
-    log "  stage 5: /ctx/home detected — seeding /etc/skel instead of /var/home (LAW 5)"
+    log "  stage 5: /ctx/home detected -- seeding /etc/skel instead of /var/home (LAW 5)"
     install -d -m 0755 /etc/skel
     tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
@@ -7132,8 +7132,8 @@ log "08-overlay: normalizing systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 
-# Logically Bound Images — bind every Quadlet from both vendor and admin paths
-# (see ARCHITECTURAL LAW 3 — BOUND-IMAGES).
+# Logically Bound Images -- bind every Quadlet from both vendor and admin paths
+# (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES).
 BDIR="/usr/lib/bootc/bound-images.d"
 install -d -m 0755 "${BDIR}"
 shopt -s nullglob
@@ -7175,21 +7175,21 @@ log "08-overlay: complete"
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 10-gnome: GNOME 50 desktop — PURE BUILD-UP
+# 'MiOS' v0.2.0 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
 # With install_weakdeps=False (set globally in 01-repos.sh), only hard deps
 # get pulled in. This means:
-#   - malcontent-libs comes in (gnome-control-center hard dep) — CORRECT
-#   - malcontent-control/pam/tools do NOT come in (weak deps) — CORRECT
-#   - No GNOME bloat apps get installed — nothing to remove
+#   - malcontent-libs comes in (gnome-control-center hard dep) -- CORRECT
+#   - malcontent-control/pam/tools do NOT come in (weak deps) -- CORRECT
+#   - No GNOME bloat apps get installed -- nothing to remove
 #
 # The ~25 core packages from the docs produce a fully functional GNOME 50
 # Wayland desktop with GDM, all portals, audio, Bluetooth, networking,
 # security, and proper theming across GTK3/GTK4/Qt.
 #
 # CHANGELOG v0.2.0:
-#   - MANDATORY Bibata cursor download — retries 3x, FAILS BUILD if missing
+#   - MANDATORY Bibata cursor download -- retries 3x, FAILS BUILD if missing
 #   - dconf profiles for user + GDM added to 
 #   - Flatpak: 7 apps (added Flatseal + LocalSend)
 #   - adw-gtk3 theme for GTK3 visual consistency
@@ -7200,7 +7200,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
 # ═════════════════════════════════════════════════════════════════════════════
-# GNOME 50 — Install from PACKAGES.md (build-up, NOT strip-down)
+# GNOME 50 -- Install from PACKAGES.md (build-up, NOT strip-down)
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing GNOME 50 desktop (pure build-up)..."
 install_packages "gnome"
@@ -7209,14 +7209,14 @@ install_packages "gnome"
 install_packages_optional "gnome-core-apps"
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Localsearch/tracker — disable indexing without removing
+# Localsearch/tracker -- disable indexing without removing
 # Removing localsearch breaks Nautilus search + Activities Overview.
 # Hide via autostart overrides in usr/share/xdg/autostart/
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Disabling localsearch/tracker indexing (keep package, hide autostart)..."
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Qt Adwaita theming — required for Qt apps to match GNOME look
+# Qt Adwaita theming -- required for Qt apps to match GNOME look
 # Managed via usr/lib/environment.d/60-mios-qt-adwaita.conf
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Setting Qt Adwaita environment variables (managed via overlay)..."
@@ -7235,7 +7235,7 @@ fi
 fc-cache -f /usr/share/fonts/geist 2>/dev/null || true
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Bibata Cursor Theme — MANDATORY (build fails if download fails)
+# Bibata Cursor Theme -- MANDATORY (build fails if download fails)
 #
 # The cursor shows as a SQUARE when:
 #   - /usr/share/icons/Bibata-Modern-Classic/ doesn't exist (download failed)
@@ -7243,12 +7243,12 @@ fc-cache -f /usr/share/fonts/geist 2>/dev/null || true
 #   - dconf cursor-theme references a theme with no files
 #
 # FIX: Retry download 3 times. VERIFY the cursors directory exists.
-#      FAIL THE BUILD if cursors are missing — a square cursor is unacceptable.
+#      FAIL THE BUILD if cursors are missing -- a square cursor is unacceptable.
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing Bibata-Modern-Classic cursor (MANDATORY)..."
 
 # Resolve latest release from upstream. Project policy: every dependency
-# tracks :latest from its source, so no fallback pin — if api.github.com is
+# tracks :latest from its source, so no fallback pin -- if api.github.com is
 # unreachable, fail loud rather than silently shipping a stale version.
 BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
     -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
@@ -7267,16 +7267,16 @@ BIBATA_SUM_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIB
 for attempt in 1 2 3; do
     echo "[10-gnome]   Download attempt $attempt/3..."
     if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
-        # Attempt sha256 verification — non-fatal if sidecar unavailable
+        # Attempt sha256 verification -- non-fatal if sidecar unavailable
         if scurl -fsSL --connect-timeout 15 --max-time 30 "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
-                echo "[10-gnome]   ✓ Bibata sha256 verified"
+                echo "[10-gnome]   [ok] Bibata sha256 verified"
             else
-                echo "[10-gnome]   WARN: Bibata sha256 mismatch or sidecar format mismatch — continuing anyway"
+                echo "[10-gnome]   WARN: Bibata sha256 mismatch or sidecar format mismatch -- continuing anyway"
             fi
             rm -f /tmp/bibata.sha256
         else
-            echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable — skipping integrity check"
+            echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable -- skipping integrity check"
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
             rm -f /tmp/bibata.tar.xz
@@ -7288,17 +7288,17 @@ for attempt in 1 2 3; do
     sleep 5
 done
 
-# VERIFY cursor files actually exist — log warning if missing but DO NOT fail build
+# VERIFY cursor files actually exist -- log warning if missing but DO NOT fail build
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
     echo "  WARNING: Bibata cursor theme download FAILED after 3 attempts"
     echo "  URL: $BIBATA_URL"
     echo "  The cursor will show as a SQUARE until the theme is installed."
     echo "  This failure is non-fatal for the build; users can install later."
 else
-    echo "[10-gnome] ✓ Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
+    echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 fi
 
-# Comprehensive cursor default — every layer that reads cursor theme
+# Comprehensive cursor default -- every layer that reads cursor theme
 # Managed via usr/share/icons/default/index.theme
 # and usr/share/X11/icons/default/index.theme
 
@@ -7306,21 +7306,21 @@ fi
 if [ -d "$BIBATA_DIR/cursors" ]; then
     update-alternatives --install /usr/share/icons/default/index.theme \
         x-cursor-theme /usr/share/icons/Bibata-Modern-Classic/cursor.theme 100 2>/dev/null || true
-    echo "[10-gnome] ✓ x-cursor-theme alternative set to Bibata"
+    echo "[10-gnome] [ok] x-cursor-theme alternative set to Bibata"
 fi
 
 # 4. Symlink into /usr/share/cursors/xorg-x11 (legacy X11 cursor path)
 mkdir -p /usr/share/cursors/xorg-x11
 ln -sf /usr/share/icons/Bibata-Modern-Classic /usr/share/cursors/xorg-x11/Bibata-Modern-Classic 2>/dev/null || true
 
-# 5. GDM user cursor — ensure cursor files are world-readable
+# 5. GDM user cursor -- ensure cursor files are world-readable
 chmod -R a+rX "$BIBATA_DIR" 2>/dev/null || true
 
 # 6. Xresources fallback (oldest X11 cursor method)
 # Managed via usr/lib/X11/Xresources
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Phosh — Mobile session for portrait/tablet remote access
+# Phosh -- Mobile session for portrait/tablet remote access
 # ═══════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing Phosh mobile session..."
 install_packages_optional "phosh"
@@ -7355,7 +7355,7 @@ exit 0
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
+# 'MiOS' v0.2.0 -- 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
 #
 # NVIDIA strategy (v0.2.0):
 #   Primary:  ucore-hci:stable-nvidia ships pre-signed kmods for the base
@@ -7388,7 +7388,7 @@ install_packages_strict "gpu-mesa"
 echo "[11-hardware] Installing ROCm (optional)..."
 install_packages "gpu-amd-compute"
 
-# ── Intel GPU Compute (fault-tolerant — may not be on all architectures) ──
+# ── Intel GPU Compute (fault-tolerant -- may not be on all architectures) ──
 echo "[11-hardware] Installing Intel compute runtime (fault-tolerant)..."
 install_packages "gpu-intel-compute" || true
 
@@ -7399,7 +7399,7 @@ NVIDIA_PRESENT=0
 if [[ -d "/lib/modules/$KVER/extra/nvidia" ]] || \
    [[ -d "/lib/modules/$KVER/extra/nvidia-open" ]] || \
    modinfo nvidia -k "$KVER" &>/dev/null; then
-    echo "[11-hardware] ✓ NVIDIA kmod present for kernel $KVER (ucore pre-signed)"
+    echo "[11-hardware] [ok] NVIDIA kmod present for kernel $KVER (ucore pre-signed)"
     NVIDIA_PRESENT=1
 fi
 
@@ -7416,7 +7416,7 @@ if [[ $NVIDIA_PRESENT -eq 0 ]]; then
         if command -v akmods &>/dev/null; then
             akmods --force --kernels "$KVER" 2>&1 | tail -10 || true
             if modinfo nvidia -k "$KVER" &>/dev/null; then
-                echo "[11-hardware] ✓ NVIDIA kmod rebuilt via akmods for $KVER"
+                echo "[11-hardware] [ok] NVIDIA kmod rebuilt via akmods for $KVER"
                 NVIDIA_PRESENT=1
             fi
         fi
@@ -7424,7 +7424,7 @@ if [[ $NVIDIA_PRESENT -eq 0 ]]; then
 fi
 
 if [[ $NVIDIA_PRESENT -eq 0 ]]; then
-    echo "[11-hardware] ⚠ No NVIDIA kmod for $KVER after all fallback attempts."
+    echo "[11-hardware] [!] No NVIDIA kmod for $KVER after all fallback attempts."
     echo "[11-hardware]    Image will ship without NVIDIA acceleration. Users with"
     echo "[11-hardware]    NVIDIA hardware can rebuild the kmod at runtime:"
     echo "[11-hardware]       sudo dnf install kernel-devel-\$(uname -r) akmod-nvidia"
@@ -7452,7 +7452,7 @@ echo "[11-hardware] GPU stack complete. Mesa + AMD ROCm + Intel + NVIDIA (ucore 
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 12-virt: Virtualization, containers, orchestration, gaming
+# 'MiOS' v0.2.0 -- 12-virt: Virtualization, containers, orchestration, gaming
 #
 # CHANGELOG v1.3:
 #   - Looking Glass B7: MOVED to 53-bake-lookingglass-client.sh (refactored out)
@@ -7542,7 +7542,7 @@ echo "[12-virt] Downloading VirtIO-Win ISO..."
 VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
 mkdir -p ${MIOS_SHARE_DIR}/virtio
 scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null || {
-    echo "[12-virt] WARNING: VirtIO-Win ISO download failed — download manually later"
+    echo "[12-virt] WARNING: VirtIO-Win ISO download failed -- download manually later"
 }
 
 # Symlink the immutable ISO into /var/lib/libvirt/images via tmpfiles.d so it survives upgrades
@@ -7556,7 +7556,7 @@ echo "[12-virt] Virtualization stack complete. (LG: refactored to 53-lg; K3s: re
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
+# 'MiOS' v0.2.0 -- 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
 # Cephadm runs ALL server daemons as Podman containers.
 # Only client tools + orchestrator binary are baked into the image.
 #
@@ -7612,7 +7612,7 @@ if [[ -n "$K3S_TAG" ]]; then
        scurl -sfL "$K3S_INSTALL_URL" -o /tmp/k3s-dl/k3s-install.sh; then
         cd /tmp/k3s-dl
         if grep -E "  k3s$" sha256sum.txt | sha256sum -c - >/dev/null 2>&1; then
-            echo "[13-ceph-k3s] ✓ K3s SHA256 checksum verified"
+            echo "[13-ceph-k3s] [ok] K3s SHA256 checksum verified"
             # Install into /usr/bin (immutable image surface). /usr/local is
             # a symlink to /var/usrlocal on bootc/FCOS layouts and
             # /var/usrlocal/bin/ does not exist at OCI build time (it's
@@ -7720,7 +7720,7 @@ source "$(dirname "$0")/lib/common.sh"
 
 install_packages "k3s-selinux-build"
 
-# Pin to a specific stable release tag — HEAD clones pick up unreviewed commits.
+# Pin to a specific stable release tag -- HEAD clones pick up unreviewed commits.
 # Update K3S_SELINUX_TAG when bumping K3s to stay in sync with its SELinux policy.
 # Audit 2026-05-01: v1.5.stable.2 was deleted upstream; resolve "the latest
 # v* tag" dynamically and fall back to the override or master if discovery
@@ -7811,10 +7811,10 @@ echo "==> fapolicyd configured successfully."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 20-services: Enable systemd services + bare-metal/VM gating
+# 'MiOS' v0.2.0 -- 20-services: Enable systemd services + bare-metal/VM gating
 #
 # CHANGELOG v1.3:
-#   - systemd 260: cgroup v1 support REMOVED — all services must use cgroup v2
+#   - systemd 260: cgroup v1 support REMOVED -- all services must use cgroup v2
 #   - systemd 260: SysV service scripts no longer supported
 #   - Fixed: pmcd/pmlogger services removed (only pmproxy is installed)
 #   - Added: bootloader-update.service for bootc systems
@@ -7822,7 +7822,7 @@ echo "==> fapolicyd configured successfully."
 #   - Improved: Bare-metal vs VM vs WSL2 service gating
 set -euo pipefail
 
-echo "  'MiOS' v0.2.0 — Service Configuration"
+echo "  'MiOS' v0.2.0 -- Service Configuration"
 
 # ─── Fix systemd unit file permissions ────────────────────────────────────────
 # Container builds sometimes leave bad perms from COPY operations.
@@ -7885,15 +7885,15 @@ groupadd -r docker 2>/dev/null || true
 
 ```bash
 #!/usr/bin/env bash
-# 22-freeipa-client.sh — install FreeIPA/SSSD client + arm zero-touch enrollment.
+# 22-freeipa-client.sh -- install FreeIPA/SSSD client + arm zero-touch enrollment.
 #
 # Runtime path: mios-freeipa-enroll.service runs only when
 # /etc/mios/ipa-enroll.env is present and /etc/ipa/default.conf is absent.
 #
 # Upstream regression notes (April 2026):
-#   bz 2320133 — SSSD file caps stripped by rpm-ostree < bootc v0.2.0-2.fc41.
+#   bz 2320133 -- SSSD file caps stripped by rpm-ostree < bootc v0.2.0-2.fc41.
 #                Asserted post-install; build fails fast if caps are missing.
-#   bz 2332433 — /var/lib/ipa-client/sysrestore/ missing on first boot.
+#   bz 2332433 -- /var/lib/ipa-client/sysrestore/ missing on first boot.
 #                Pre-created via tmpfiles.d.
 set -euo pipefail
 
@@ -7923,7 +7923,7 @@ for bin in "${SSSD_CAP_BINS[@]}"; do
     fi
 done
 if (( CAP_FAIL > 0 )); then
-    echo "WARNING: ${CAP_FAIL} SSSD binary(ies) lost file capabilities — FreeIPA authentication may require 'setcap' at runtime."
+    echo "WARNING: ${CAP_FAIL} SSSD binary(ies) lost file capabilities -- FreeIPA authentication may require 'setcap' at runtime."
 fi
 
 # Arm the zero-touch enrollment oneshot (gated by ConditionPathExists).
@@ -7974,7 +7974,7 @@ fi
 
 CMDLINE=$(cat "${KERNEL_CMDLINE_DST}" | xargs)
 if [ -z "$CMDLINE" ]; then
-    echo "WARN: /usr/lib/kernel/cmdline is empty — no kargs rendered. UKI generation will use defaults."
+    echo "WARN: /usr/lib/kernel/cmdline is empty -- no kargs rendered. UKI generation will use defaults."
 fi
 
 echo "Rendered UKI cmdline: $CMDLINE"
@@ -8028,24 +8028,24 @@ echo "[26-grd] complete."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 30-locale-theme: Unified dark theme for EVERY window type
+# 'MiOS' v0.2.0 -- 30-locale-theme: Unified dark theme for EVERY window type
 #
 # Coverage matrix (ALL must be dark):
-#   ✓ libadwaita / GTK4 apps (GNOME native) — color-scheme=prefer-dark via dconf
-#   ✓ GTK3 apps (legacy GNOME) — adw-gtk3-dark theme
-#   ✓ GDM login screen — separate dconf db (gdm user)
-#   ✓ GNOME lock screen — inherits user session (automatic)
-#   ✓ Flatpak apps — ADW_DEBUG_COLOR_SCHEME + portal + filesystem overrides
-#   ✓ Qt5/Qt6 apps — adwaita-qt + QGnomePlatform env vars
-#   ✓ Electron/Chromium apps — ELECTRON_FORCE_DARK_MODE
-#   ✓ Firefox — MOZ_ENABLE_WAYLAND + portal color-scheme
-#   ✓ GNOME Remote Desktop — XCURSOR_THEME + session env
-#   ✓ TTY/console — no theming needed (terminal colors)
+#   [ok] libadwaita / GTK4 apps (GNOME native) -- color-scheme=prefer-dark via dconf
+#   [ok] GTK3 apps (legacy GNOME) -- adw-gtk3-dark theme
+#   [ok] GDM login screen -- separate dconf db (gdm user)
+#   [ok] GNOME lock screen -- inherits user session (automatic)
+#   [ok] Flatpak apps -- ADW_DEBUG_COLOR_SCHEME + portal + filesystem overrides
+#   [ok] Qt5/Qt6 apps -- adwaita-qt + QGnomePlatform env vars
+#   [ok] Electron/Chromium apps -- ELECTRON_FORCE_DARK_MODE
+#   [ok] Firefox -- MOZ_ENABLE_WAYLAND + portal color-scheme
+#   [ok] GNOME Remote Desktop -- XCURSOR_THEME + session env
+#   [ok] TTY/console -- no theming needed (terminal colors)
 #
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
 
-echo "  'MiOS' v0.2.0 — Universal Dark Theme"
+echo "  'MiOS' v0.2.0 -- Universal Dark Theme"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
 # v0.2.0: Delivered via usr/share/skel/.bashrc overlay.
@@ -8063,7 +8063,7 @@ echo "[30-locale-theme] Using GTK4 theme from overlay..."
 # v0.2.0: Delivered via etc/environment.d/ overlay.
 echo "[30-locale-theme] Using environment.d from overlay..."
 
-# ═══ Flatpak overrides — dark theme + cursor + fonts ═══
+# ═══ Flatpak overrides -- dark theme + cursor + fonts ═══
 echo "[30-locale-theme] Applying Flatpak dark theme + filesystem overrides..."
 flatpak override --system --env=ADW_DEBUG_COLOR_SCHEME=prefer-dark 2>/dev/null || true
 flatpak override --system --env=XCURSOR_THEME=Bibata-Modern-Classic 2>/dev/null || true
@@ -8085,7 +8085,7 @@ flatpak override --system --filesystem=/etc/gtk-4.0:ro 2>/dev/null || true
 if [ -f /usr/share/glib-2.0/schemas/90-mios.gschema.override ]; then
     echo "[30-locale-theme] Compiling GSchema overrides..."
     glib-compile-schemas /usr/share/glib-2.0/schemas/ || true
-    echo "[30-locale-theme] ✓ GSchema overrides compiled"
+    echo "[30-locale-theme] [ok] GSchema overrides compiled"
 fi
 
 # Suppress DBus warnings during headless update without swallowing real syntax errors
@@ -8108,23 +8108,23 @@ echo "[30-locale-theme] Dark theme configured for all toolkits."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 31-user: PAM, user creation, groups, sudoers
+# 'MiOS' v0.2.0 -- 31-user: PAM, user creation, groups, sudoers
 # Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
 # and BEFORE any service that references the user.
 set -euo pipefail
 
-echo "  'MiOS' v0.2.0 — User & Authentication"
+echo "  'MiOS' v0.2.0 -- User & Authentication"
 
-# — PAM FIX —
+# -- PAM FIX --
 echo "[31-user] Configuring PAM via authselect..."
 if command -v authselect &>/dev/null; then
     authselect select local --force 2>/dev/null || {
-        echo "[31-user] WARNING: authselect failed — using system_files overlay fallback"
+        echo "[31-user] WARNING: authselect failed -- using system_files overlay fallback"
     }
 fi
 
-# — USER CREATION —
-# Password is pre-hashed (SHA-512) by the orchestrator — plaintext NEVER in build log.
+# -- USER CREATION --
+# Password is pre-hashed (SHA-512) by the orchestrator -- plaintext NEVER in build log.
 # Defaults for CI builds or when environment variables are not provided:
 C_USER="${MIOS_USER:-mios}"
 # Note: MIOS_PASSWORD_HASH should be a SHA-512 crypt-style hash
@@ -8163,25 +8163,25 @@ else
     echo "[31-user] ERROR: Failed to create user ${C_USER}"
 fi
 
-# — GROUP INJECTION —
+# -- GROUP INJECTION --
 # Groups are pre-created and memberships injected via /usr/lib/sysusers.d/*.conf
 # and processed by systemd-sysusers above. Imperative calls removed.
 
-# — SUDOERS —
+# -- SUDOERS --
 # Managed via usr/lib/sudoers.d/10-mios-wheel
 chmod 440 /usr/lib/sudoers.d/10-mios-wheel 2>/dev/null || true
 
-# — LOCALE —
+# -- LOCALE --
 # Managed via usr/lib/locale.conf
 localedef -i en_US -f UTF-8 en_US.UTF-8 2>/dev/null || true
 
-# — CLOUD-INIT —
+# -- CLOUD-INIT --
 # Managed via usr/lib/cloud/cloud.cfg.d/10-mios.cfg
 
-# — MULTIPATH —
+# -- MULTIPATH --
 # Managed via usr/lib/multipath.conf
 
-# — FIX HOME DIRECTORY OWNERSHIP —
+# -- FIX HOME DIRECTORY OWNERSHIP --
 echo "[31-user] Fixing home directory ownership..."
 awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd | while read -r u; do
     home=$(getent passwd "$u" | cut -d: -f6)
@@ -8191,7 +8191,7 @@ awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd | while read -r u; do
     fi
 done
 
-# — NFS STATE DIRECTORY —
+# -- NFS STATE DIRECTORY --
 # Managed via usr/lib/tmpfiles.d/mios-nfs.conf
 
 echo "[31-user] User & authentication configured."
@@ -8202,7 +8202,7 @@ echo "[31-user] User & authentication configured."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 32-hostname: Unique per-instance hostname
+# 'MiOS' v0.2.0 -- 32-hostname: Unique per-instance hostname
 #
 # Strategy: Set a template hostname in the image. On first boot, systemd
 # generates /etc/machine-id. The mios-init service (35-init-service.sh)
@@ -8237,7 +8237,7 @@ fi
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 33-firewall: Firewall configuration script
+# 'MiOS' v0.2.0 -- 33-firewall: Firewall configuration script
 set -euo pipefail
 
 echo "[33-firewall] Installing firewall init script..."
@@ -8246,7 +8246,7 @@ cat > /usr/libexec/mios-firewall-init <<'EOFW'
 #!/bin/bash
 set -euo pipefail
 if ! systemctl is-active --quiet firewalld 2>/dev/null; then
-    echo "[mios-firewall] firewalld not active — skipping"
+    echo "[mios-firewall] firewalld not active -- skipping"
     exit 0
 fi
 # Default zone: drop (deny all inbound by default)
@@ -8277,7 +8277,7 @@ for iface in lo podman+ br-+ veth+ virbr0 cni0 flannel.1 waydroid0; do
     firewall-cmd --permanent --zone=trusted --add-interface="$iface" 2>/dev/null || true
 done
 
-# ── Cockpit — accessible from ALL zones ──
+# ── Cockpit -- accessible from ALL zones ──
 for zone in public libvirt trusted; do
     firewall-cmd --permanent --zone="$zone" --add-service=cockpit 2>/dev/null || true
     firewall-cmd --permanent --zone="$zone" --add-port=9090/tcp 2>/dev/null || true
@@ -8295,7 +8295,7 @@ echo "[33-firewall] Firewall init script installed."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 34-gpu-detect: Bridge to GPU detection service
+# 'MiOS' v0.2.0 -- 34-gpu-detect: Bridge to GPU detection service
 # Blocks NVIDIA modules in VMs, enables hardware renderer on bare metal,
 # detects RTX 50-series VFIO reset bug.
 # Actual logic lives in /usr/libexec/mios/gpu-detect (system_files overlay).
@@ -8344,7 +8344,7 @@ for svc in mios-gpu-status.service mios-gpu-nvidia.service mios-gpu-amd.service 
     ln -sf "../${svc}" "${WANTS}/${svc}"
     log "Enabled ${svc}"
   else
-    log "WARN: ${svc} missing from /usr/lib/systemd/system/ — skipping"
+    log "WARN: ${svc} missing from /usr/lib/systemd/system/ -- skipping"
   fi
 done
 
@@ -8393,7 +8393,7 @@ mkdir -p /usr/lib/wsl/lib
 mkdir -p /usr/lib/wsl/drivers
 
 # 2. Add ld.so.conf entry to ensure these libraries are in the search path
-# LAW 4: write to /usr/lib/ld.so.conf.d — /etc/ld.so.conf.d is for Day-2 admin overrides only
+# LAW 4: write to /usr/lib/ld.so.conf.d -- /etc/ld.so.conf.d is for Day-2 admin overrides only
 log "Configuring dynamic linker paths for GPU-PV..."
 install -d -m 0755 /usr/lib/ld.so.conf.d
 echo "/usr/lib/wsl/lib" > /usr/lib/ld.so.conf.d/mios-gpu-pv.conf
@@ -8451,7 +8451,7 @@ log "GPU-PV shim integration complete."
 
 ```bash
 #!/usr/bin/env bash
-# 'MiOS' v0.2.0 — 35-init-service: Bridge to Unified Role Engine
+# 'MiOS' v0.2.0 -- 35-init-service: Bridge to Unified Role Engine
 # This script ensures mios-role.service is correctly enabled.
 # The actual logic lives in /usr/libexec/mios/role-apply (system_files overlay).
 set -euo pipefail
@@ -8544,7 +8544,7 @@ log "36-akmod-guards: done (${count} drop-ins)"
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 36-tools: CLI tools and consolidated mios command
+# 'MiOS' v0.2.0 -- 36-tools: CLI tools and consolidated mios command
 # Installs all mios-* tools to /usr/bin/ and the master 'mios' CLI.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8610,7 +8610,7 @@ install_packages "ai"
 echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
 
 # Resolve latest release tags from upstream. Project policy: every dependency
-# tracks :latest from its source, so no fallback pin — if api.github.com is
+# tracks :latest from its source, so no fallback pin -- if api.github.com is
 # unreachable, fail loud rather than silently shipping a stale version.
 AICHAT_TAG=$( (scurl -s https://api.github.com/repos/sigoden/aichat/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 AICHAT_NG_TAG=$( (scurl -s https://api.github.com/repos/blob42/aichat-ng/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
@@ -8627,15 +8627,15 @@ AICHAT_BASE="https://github.com/sigoden/aichat/releases/download/${AICHAT_TAG}"
 mkdir -p /tmp/aichat-dl
 scurl -sfL "${AICHAT_BASE}/${AICHAT_ARCH}" -o "/tmp/aichat-dl/${AICHAT_ARCH}"
 scurl -sfL "${AICHAT_BASE}/${AICHAT_ARCH}.sha256" -o "/tmp/aichat-dl/${AICHAT_ARCH}.sha256" 2>/dev/null || {
-    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat — cannot verify integrity"
+    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat -- cannot verify integrity"
     rm -f "/tmp/aichat-dl/${AICHAT_ARCH}.sha256"
 }
 
 if [[ -f "/tmp/aichat-dl/${AICHAT_ARCH}.sha256" ]]; then
     # sha256 sidecar format: "<hash>  <filename>" or "<hash> *<filename>"
     (cd /tmp/aichat-dl && grep "${AICHAT_ARCH}" "${AICHAT_ARCH}.sha256" | sha256sum -c -) \
-        || die "AIChat ${AICHAT_TAG} SHA256 mismatch — aborting"
-    echo "[37-aichat]   ✓ AIChat sha256 verified"
+        || die "AIChat ${AICHAT_TAG} SHA256 mismatch -- aborting"
+    echo "[37-aichat]   [ok] AIChat sha256 verified"
 fi
 
 tar -xzf "/tmp/aichat-dl/${AICHAT_ARCH}" -C /usr/bin/ aichat
@@ -8649,14 +8649,14 @@ AICHAT_NG_BASE="https://github.com/blob42/aichat-ng/releases/download/${AICHAT_N
 mkdir -p /tmp/aichat-ng-dl
 scurl -sfL "${AICHAT_NG_BASE}/${AICHAT_NG_ARCH}" -o "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}"
 scurl -sfL "${AICHAT_NG_BASE}/${AICHAT_NG_ARCH}.sha256" -o "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256" 2>/dev/null || {
-    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat-NG — cannot verify integrity"
+    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat-NG -- cannot verify integrity"
     rm -f "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256"
 }
 
 if [[ -f "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256" ]]; then
     (cd /tmp/aichat-ng-dl && grep "${AICHAT_NG_ARCH}" "${AICHAT_NG_ARCH}.sha256" | sha256sum -c -) \
-        || die "AIChat-NG ${AICHAT_NG_TAG} SHA256 mismatch — aborting"
-    echo "[37-aichat]   ✓ AIChat-NG sha256 verified"
+        || die "AIChat-NG ${AICHAT_NG_TAG} SHA256 mismatch -- aborting"
+    echo "[37-aichat]   [ok] AIChat-NG sha256 verified"
 fi
 
 tar -xzf "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}" -C /usr/bin/ aichat-ng
@@ -8816,19 +8816,19 @@ echo "[37-ollama-prep] Model embedded successfully."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 37-selinux: Build-time SELinux policy fixes
+# 'MiOS' v0.2.0 -- 37-selinux: Build-time SELinux policy fixes
 # Custom per-rule modules for known Fedora Rawhide / systemd 260 denials.
 set -euo pipefail
 
 echo "[37-selinux] Applying SELinux build-time fixes..."
 
-# ═══ Restorecon — fix labels for all major trees ═══
+# ═══ Restorecon -- fix labels for all major trees ═══
 if command -v restorecon &>/dev/null; then
     echo "[37-selinux] Running restorecon on /boot /etc /usr /var..."
     restorecon -R /boot /etc /usr /var 2>/dev/null || true
 fi
 
-# ═══ Semanage import — atomic booleans + fcontexts ═══
+# ═══ Semanage import -- atomic booleans + fcontexts ═══
 if command -v semanage &>/dev/null; then
     echo "[37-selinux] Applying SELinux booleans and fcontexts..."
     semanage import <<'EOSEM' 2>/dev/null || true
@@ -8849,7 +8849,7 @@ EOSEM
     restorecon -v /boot/bootupd-state.json 2>/dev/null || true
     restorecon -R /usr/share/accountsservice 2>/dev/null || true
     restorecon -R /var/lib/gnome-remote-desktop 2>/dev/null || true
-    echo "[37-selinux] ✓ Booleans and fcontexts applied"
+    echo "[37-selinux] [ok] Booleans and fcontexts applied"
 fi
 
 # ═══ Custom policy modules ═══
@@ -8996,15 +8996,15 @@ echo "[37-selinux] SELinux configuration complete."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 38-vm-gating: VM service gating + Hyper-V Enhanced Session
+# 'MiOS' v0.2.0 -- 38-vm-gating: VM service gating + Hyper-V Enhanced Session
 #
 # v0.2.0 CRITICAL FIX: GNOME 50 / Mutter 50 completely removed the X11 backend.
-# xorgxrdp is an X11 technology — it CANNOT work with Wayland-only Mutter 50.
+# xorgxrdp is an X11 technology -- it CANNOT work with Wayland-only Mutter 50.
 # The old approach caused a GDM crash loop on Hyper-V, preventing boot.
 #
 # NEW APPROACH: Use gnome-remote-desktop (GRD) for Enhanced Session.
 # GRD provides Wayland-native RDP and can bind to vsock for Hyper-V transport.
-# xrdp is kept installed but NOT auto-enabled — it's available as a manual
+# xrdp is kept installed but NOT auto-enabled -- it's available as a manual
 # fallback for non-GNOME sessions (XFCE, Phosh) only.
 #
 # HYPER-V BOOT PATH (without Enhanced Session):
@@ -9018,7 +9018,7 @@ echo "[38-vm-gating] Configuring VM-specific service gating..."
 # ═══ GDM / nvidia-powerd / Waydroid + binder gating ═══
 # Drop-ins for gdm, nvidia-powerd, waydroid-container, dev-binderfs.mount are
 # created by 20-services.sh (WSL_SKIP_SERVICES + bare-metal nvidia-powerd block).
-# Do NOT duplicate them here — last writer wins and we want 20's canonical drop-ins.
+# Do NOT duplicate them here -- last writer wins and we want 20's canonical drop-ins.
 
 # ═══ Polkit container workaround ═══
 # Managed via usr/lib/systemd/system/polkit.service.d/10-mios-container.conf
@@ -9029,7 +9029,7 @@ if [ -f /usr/lib/systemd/system/cockpit.socket.d/listen.conf ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════
-# HYPER-V ENHANCED SESSION — WAYLAND-NATIVE VIA GNOME REMOTE DESKTOP
+# HYPER-V ENHANCED SESSION -- WAYLAND-NATIVE VIA GNOME REMOTE DESKTOP
 # ═══════════════════════════════════════════════════════════════════════════
 echo "[38-vm-gating] Configuring Hyper-V Enhanced Session (gnome-remote-desktop)..."
 
@@ -9044,12 +9044,12 @@ fi
 # 3. Polkit rule for colord (prevents "not authorized" errors in RDP sessions)
 # Managed via usr/share/polkit-1/rules.d/45-allow-colord.rules
 
-# 4. Hyper-V Enhanced Session service — uses gnome-remote-desktop
+# 4. Hyper-V Enhanced Session service -- uses gnome-remote-desktop
 # Managed via usr/lib/systemd/system/mios-hyperv-enhanced.service
 # and usr/libexec/mios-hyperv-enhanced
 systemctl enable mios-hyperv-enhanced.service 2>/dev/null || true
 
-# 5. GNOME Remote Desktop — first-boot setup script
+# 5. GNOME Remote Desktop -- first-boot setup script
 # mios-grd-setup is installed via system_files overlay (08-system-files-overlay.sh)
 # into /usr/libexec/mios-grd-setup. No copy needed here.
 chmod +x /usr/libexec/mios-grd-setup 2>/dev/null || true
@@ -9057,7 +9057,7 @@ chmod +x /usr/libexec/mios-grd-setup 2>/dev/null || true
 # ── WSL2 systemd-machined gating ─────────────────────────────────────────
 # dbus-broker.service.d/wsl2-fix.conf is provided by system_files overlay
 # (OOMScoreAdjust only; --audit removal is in 10-mios-no-audit.conf).
-# Do NOT overwrite it here — previous versions wrote a broken drop-in with
+# Do NOT overwrite it here -- previous versions wrote a broken drop-in with
 # ConditionPathExists=|/proc/version which is always true and caused dbus
 # to be misconfigured on bare metal.
 
@@ -9072,7 +9072,7 @@ echo "[38-vm-gating] VM gating + Hyper-V Enhanced Session (gnome-remote-desktop)
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
+# 'MiOS' v0.2.0 -- 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
 #
 # CHANGELOG v0.2.0:
 #   - FIX: mios-motd source path was /tmp/automation/automation/ (never exists).
@@ -9090,13 +9090,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "[39-desktop-polish] Final desktop polish..."
 
-# ═══ COCKPIT DESKTOP ENTRY — uses cockpit-desktop (no TLS warnings) ═══
+# ═══ COCKPIT DESKTOP ENTRY -- uses cockpit-desktop (no TLS warnings) ═══
 echo "[39-desktop-polish] Cockpit desktop entry delivered via overlay."
 
 # ═══ NVIDIA SETTINGS DESKTOP ENTRY ═══
 echo "[39-desktop-polish] NVIDIA Settings desktop entry delivered via overlay."
 
-# ═══ CEPH DASHBOARD — update to use correct app name ═══
+# ═══ CEPH DASHBOARD -- update to use correct app name ═══
 echo "[39-desktop-polish] Ceph Dashboard desktop entry delivered via overlay."
 
 # ═══ MOTD DASHBOARD ═══
@@ -9105,10 +9105,10 @@ echo "[39-desktop-polish] Ceph Dashboard desktop entry delivered via overlay."
 # manual 'install' calls here.
 echo "[39-desktop-polish] MOTD dashboard delivered via overlay."
 
-# ═══ FASTFETCH CONFIG — services dashboard on terminal open ═══
+# ═══ FASTFETCH CONFIG -- services dashboard on terminal open ═══
 echo "[39-desktop-polish] Fastfetch config delivered via overlay."
 
-# ═══ PROFILE.D — fastfetch + MOTD on terminal/TTY open ═══
+# ═══ PROFILE.D -- fastfetch + MOTD on terminal/TTY open ═══
 echo "[39-desktop-polish] Profile.d MOTD script delivered via overlay."
 
 echo "[39-desktop-polish] Desktop polish complete."
@@ -9161,7 +9161,7 @@ log "composefs verity mode configured"
 # Consolidates cosign binary installation, Sigstore trust roots, and policy.json.
 # Supercedes 37-cosign-policy.sh.
 #
-# Note: cosign must stay on v2.x — v3+ breaks rpm-ostree OCI 1.1 bundle format.
+# Note: cosign must stay on v2.x -- v3+ breaks rpm-ostree OCI 1.1 bundle format.
 # ============================================================================
 set -euo pipefail
 
@@ -9187,7 +9187,7 @@ if ! command -v cosign >/dev/null 2>&1; then
     scurl -sfL "${COSIGN_BASE_URL}/cosign-linux-amd64" -o /tmp/cosign-dl/cosign-linux-amd64
     scurl -sfL "${COSIGN_BASE_URL}/cosign_checksums.txt" -o /tmp/cosign-dl/cosign_checksums.txt
     (cd /tmp/cosign-dl && grep "cosign-linux-amd64$" cosign_checksums.txt | sha256sum -c -) \
-        || die "cosign ${COSIGN_VERSION} SHA256 mismatch — aborting"
+        || die "cosign ${COSIGN_VERSION} SHA256 mismatch -- aborting"
     # Install into /usr/bin (immutable image surface). /usr/local is a
     # symlink to /var/usrlocal on bootc/FCOS layouts and /var/usrlocal/bin/
     # does not exist at OCI build time.
@@ -9338,7 +9338,7 @@ log "podman-machine compatibility wired"
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-# Remove legacy OCI hook — conflicts with CDI when both are present.
+# Remove legacy OCI hook -- conflicts with CDI when both are present.
 OCI_HOOK=/usr/share/containers/oci/hooks.d/oci-nvidia-hook.json
 if [[ -f "$OCI_HOOK" ]]; then
     log "removing legacy OCI nvidia hook (conflicts with CDI)"
@@ -9370,7 +9370,7 @@ do
 done
 
 # /etc/cdi and /var/run/cdi are declared in usr/lib/tmpfiles.d/mios-gpu.conf
-# (LAW 2 — NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
+# (LAW 2 -- NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
 
 log "CDI refresh pipeline configured"
 ```
@@ -9495,7 +9495,7 @@ rm -f /etc/containers/auth.json \
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/libdnf5 /var/cache/dnf /var/log/dnf5.log* 2>/dev/null || true
 
-# Set image metadata — LAW 4: write to /usr/lib/mios/, not /etc/
+# Set image metadata -- LAW 4: write to /usr/lib/mios/, not /etc/
 # /etc/mios-version and /etc/mios/version are Day-2 admin paths.
 MIOS_VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "unknown")
 install -d -m 0755 ${MIOS_USR_DIR}
@@ -9699,7 +9699,7 @@ fi
 
 # Resolve latest Looking Glass release branch from upstream. Project policy:
 # every dependency tracks :latest from its source. LG uses letter-numbered
-# release branches (B6, B7, …); pick the highest by version sort.
+# release branches (B6, B7, ...); pick the highest by version sort.
 if [[ -z "${LG_BRANCH:-}" ]]; then
     LG_BRANCH=$(git ls-remote --heads https://github.com/gnif/LookingGlass.git 'B*' 2>/dev/null \
         | awk -F/ '{print $NF}' \
@@ -9799,7 +9799,7 @@ if ! command -v syft &> /dev/null; then
     # install_packages is best-effort and returns 0 even on miss; re-check
     # presence and bail out cleanly if syft still isn't on PATH.
     if ! command -v syft &> /dev/null; then
-        echo "[90-generate-sbom] WARN: syft unavailable in this build environment — skipping SBOM generation (non-fatal)."
+        echo "[90-generate-sbom] WARN: syft unavailable in this build environment -- skipping SBOM generation (non-fatal)."
         exit 0
     fi
 fi
@@ -9833,7 +9833,7 @@ echo "[90-generate-sbom] Done."
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 98-boot-config: Boot console + service configuration
+# 'MiOS' v0.2.0 -- 98-boot-config: Boot console + service configuration
 # Plymouth disable is handled by usr/lib/bootc/kargs.d/10-mios-console.toml
 # Console verbosity is handled by usr/lib/bootc/kargs.d/00-mios.toml + 10-mios-verbose.toml
 set -euo pipefail
@@ -9841,11 +9841,11 @@ set -euo pipefail
 echo "[98-boot-config] Configuring boot console output..."
 
 # ── Verify kargs TOML files exist ──────────────────────────────────────────
-# These are static files from  — if missing, the overlay step failed.
+# These are static files from  -- if missing, the overlay step failed.
 if [ -f /usr/lib/bootc/kargs.d/10-mios-console.toml ]; then
     echo "[98-boot-config] Configuring plymouth disable via kernel cmdline..."
 else
-    echo "[98-boot-config] ERROR: 10-mios-console.toml not found — check overlay!"
+    echo "[98-boot-config] ERROR: 10-mios-console.toml not found -- check overlay!"
 fi
 
 # ── Ensure agetty on tty1 ─────────────────────────────────────────────────
@@ -9865,7 +9865,7 @@ systemctl enable serial-getty@ttyS0.service 2>/dev/null || true
 # ── NetworkManager-wait-online timeout ────────────────────────────────────
 echo "[98-boot-config] NetworkManager-wait-online timeout delivered via overlay."
 
-echo "[98-boot-config] ✓ Boot console configured"
+echo "[98-boot-config] [ok] Boot console configured"
 echo "[98-boot-config]   plymouth: disabled (kernel cmdline plymouth.enable=0)"
 echo "[98-boot-config]   getty@tty1: enabled (fallback text console)"
 echo "[98-boot-config]   serial-getty@ttyS0: enabled (serial console)"
@@ -9877,7 +9877,7 @@ echo "[98-boot-config]   NM-wait-online: 10s timeout (was 90s)"
 
 ```bash
 #!/bin/bash
-# 'MiOS' v0.2.0 — 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
+# 'MiOS' v0.2.0 -- 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
 #
 # MANDATORY for bootc images. Every ublue-os image runs this pattern.
 # Without it, BIB deployment fails or the booted system has broken /var state.
@@ -9893,11 +9893,11 @@ source "$(dirname "$0")/lib/common.sh"
 
 echo "[99-cleanup] Running final image cleanup..."
 
-# 1. Clean /boot — BIB generates fresh bootloader, stale content causes conflicts
+# 1. Clean /boot -- BIB generates fresh bootloader, stale content causes conflicts
 echo "[99-cleanup] Cleaning /boot..."
 find /boot/ -maxdepth 1 -mindepth 1 -exec rm -fr {} \; || true
 
-# 2. Clean /var — bootc treats /var as persistent state (like Docker VOLUME)
+# 2. Clean /var -- bootc treats /var as persistent state (like Docker VOLUME)
 # We remove content but KEEP directories to preserve permissions/labels.
 echo "[99-cleanup] Cleaning /var content (preserving structure)..."
 # Remove all files and subdirs in /var/tmp and /var/log
@@ -9925,7 +9925,7 @@ systemd-tmpfiles --create --boot --root=/ 2>/dev/null || true
 echo "[99-cleanup] Cleaning package manager caches..."
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 
-echo "[99-cleanup] ✓ Image cleanup complete"
+echo "[99-cleanup] [ok] Image cleanup complete"
 ```
 
 
@@ -9958,7 +9958,7 @@ log "  Found: OpenSSH $SSH_VER_RAW"
 if [[ $(printf '%s\n9.6' "$SSH_VER_RAW" | sort -V | head -n1) != "9.6" ]]; then
     die "OpenSSH version $SSH_VER_RAW is below required 9.6 (Vulnerable to CVE-2026-4631 in Cockpit context)"
 fi
-log "  ✓ OpenSSH version is safe"
+log "  [ok] OpenSSH version is safe"
 
 # 2. Cockpit Security Posture
 log "Checking Cockpit configuration..."
@@ -9975,9 +9975,9 @@ if [[ -f "$COCKPIT_CONF" ]]; then
     if ! grep -q "LoginTo = false" "$COCKPIT_CONF"; then
         die "Cockpit LoginTo mitigation missing in $COCKPIT_CONF (CVE-2026-4631)"
     fi
-    log "  ✓ Cockpit LoginTo = false is enforced"
+    log "  [ok] Cockpit LoginTo = false is enforced"
 else
-    log "  ⚠ Cockpit config not found at expected paths; skipping check"
+    log "  [!] Cockpit config not found at expected paths; skipping check"
 fi
 
 # 3. Kernel Argument Validation (Schema Strictness Preparation)
@@ -9988,7 +9988,7 @@ if [[ -d /usr/lib/bootc/kargs.d ]]; then
         # Future: run 'bootc container lint' or specialized schema check
         log "  found karg: $(basename "$f")"
     done
-    log "  ✓ kargs.d presence verified"
+    log "  [ok] kargs.d presence verified"
 fi
 
 # 4. Critical Package Verification
@@ -9998,7 +9998,7 @@ for tool in "${CRITICAL_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         die "Critical tool '$tool' is missing from the image"
     fi
-    log "  ✓ $tool present"
+    log "  [ok] $tool present"
 done
 
 # 5. NVIDIA Container Toolkit Version Check
@@ -10009,7 +10009,7 @@ if command -v nvidia-ctk >/dev/null 2>&1; then
     if [[ $(printf '%s\n1.18' "$NCT_VER" | sort -V | head -n1) != "1.18" ]]; then
         die "nvidia-container-toolkit version $NCT_VER is below required 1.18"
     fi
-    log "  ✓ NVIDIA Container Toolkit version is safe"
+    log "  [ok] NVIDIA Container Toolkit version is safe"
 fi
 
 # 6. Cockpit Version Check (for CVE-2026-4631)
@@ -10019,9 +10019,9 @@ if rpm -q cockpit >/dev/null 2>&1; then
     log "  Found: Cockpit $COCKPIT_VER"
     # CVE fixed in 360. 'MiOS' targets 361+ for Fedora 44 GA stability.
     if [[ $(printf '%s\n361' "$COCKPIT_VER" | sort -V | head -n1) != "361" ]]; then
-        log "  ⚠ Cockpit version $COCKPIT_VER is below 361 (Risk: CVE-2026-4631 / Regressions)"
+        log "  [!] Cockpit version $COCKPIT_VER is below 361 (Risk: CVE-2026-4631 / Regressions)"
     else
-        log "  ✓ Cockpit version is safe"
+        log "  [ok] Cockpit version is safe"
     fi
 fi
 
@@ -10033,7 +10033,7 @@ fi
 # wsl-init.service uses to auto-restore).
 log "Validating /etc/wsl.conf (ASCII + parse + parity with /usr/lib/wsl.conf)..."
 if [[ -f /etc/wsl.conf ]]; then
-    # WSL2's INI parser is byte-naive — multibyte chars (em-dashes, smart quotes,
+    # WSL2's INI parser is byte-naive -- multibyte chars (em-dashes, smart quotes,
     # NBSP) shift its line counter and surface as bogus "Expected ' ' or '\n' in
     # /etc/wsl.conf:N" errors at boot. Python configparser tolerates UTF-8 so a
     # parse-only check misses these. Enforce strict ASCII before the parse runs.
@@ -10060,19 +10060,19 @@ for section, keys in required.items():
 print("  /etc/wsl.conf parses cleanly with all required sections/keys")
 ' || die "/etc/wsl.conf failed parse/required-keys validation"
     else
-        log "  ⚠ python3 unavailable — skipping wsl.conf parse (post-build only)"
+        log "  [!] python3 unavailable -- skipping wsl.conf parse (post-build only)"
     fi
     if [[ -f /usr/lib/wsl.conf ]]; then
         if ! cmp -s /etc/wsl.conf /usr/lib/wsl.conf; then
             die "/etc/wsl.conf drifted from /usr/lib/wsl.conf reference at build time"
         fi
-        log "  ✓ /etc/wsl.conf matches /usr/lib/wsl.conf reference"
+        log "  [ok] /etc/wsl.conf matches /usr/lib/wsl.conf reference"
     fi
 else
-    log "  ⚠ /etc/wsl.conf not present in image — WSL2 deploys will fall back to defaults"
+    log "  [!] /etc/wsl.conf not present in image -- WSL2 deploys will fall back to defaults"
 fi
 
-# 8. sysusers.d sanity — login-shell users MUST have a fixed UID.
+# 8. sysusers.d sanity -- login-shell users MUST have a fixed UID.
 # Auto-allocation ('-') picks from the SYSTEM range (<UID_MIN), and logind
 # then refuses to create /run/user/<uid>/. The cascade kills dbus user
 # session, dconf, Wayland session services, and every GTK app that needs
@@ -10212,7 +10212,7 @@ exit 0
 ```
 
 
-## Layer 4k — Helpers
+## Layer 4k -- Helpers
 
 
 ### `automation\ai-bootstrap.sh`
@@ -10227,7 +10227,7 @@ set -uo pipefail
 
 echo "[ai-bootstrap] Initializing 'MiOS' agent workspace..."
 
-# 0. Load unified environment (legacy .env.mios; deprecated — prefer
+# 0. Load unified environment (legacy .env.mios; deprecated -- prefer
 # /etc/mios/profile.toml for new installs).
 if [[ -f ".env.mios" ]]; then
     echo "[ai-bootstrap] Loading legacy environment from .env.mios..."
@@ -10297,7 +10297,7 @@ fi
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-# 'MiOS' v0.2.0 — Ephemeral QEMU boot test
+# 'MiOS' v0.2.0 -- Ephemeral QEMU boot test
 # Usage: bcvk-wrapper.sh <qcow2-path> [serial-log-path]
 #
 # Boots a QCOW2 image in headless QEMU with KVM, captures serial console,
@@ -10358,7 +10358,7 @@ while [[ $ELAPSED -lt $TIMEOUT_SECS ]]; do
     ELAPSED=$((ELAPSED + POLL_INTERVAL))
 done
 
-echo "[bcvk] TIMEOUT after ${TIMEOUT_SECS}s — boot did not reach target"
+echo "[bcvk] TIMEOUT after ${TIMEOUT_SECS}s -- boot did not reach target"
 echo "[bcvk] Last 100 lines of serial log:"
 tail -100 "$SERIAL_LOG"
 exit 4
@@ -10369,7 +10369,7 @@ exit 4
 
 ```bash
 #!/bin/bash
-# 'MiOS' Public Bootstrap — Linux / WSL2
+# 'MiOS' Public Bootstrap -- Linux / WSL2
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash
 set -euo pipefail
@@ -10381,7 +10381,7 @@ _r=$'\033[0m'; _b=$'\033[1m'; _dim=$'\033[2m'; _c=$'\033[36m'; _g=$'\033[32m'; _
 
 echo ""
 echo "  ${_c}╔══════════════════════════════════════════════════════════════╗${_r}"
-echo "  ${_c}║  'MiOS' — Local Build Configuration                           ║${_r}"
+echo "  ${_c}║  'MiOS' -- Local Build Configuration                           ║${_r}"
 echo "  ${_c}╚══════════════════════════════════════════════════════════════╝${_r}"
 echo ""
 
@@ -10428,10 +10428,10 @@ if [[ -z "${MIOS_PASSWORD:-}" ]]; then
         [[ -z "${MIOS_PASSWORD:-}" ]] && { echo "  ${_red}[!] Password cannot be empty.${_r}"; continue; }
         read -rsp "  Confirm password: " _c2 </dev/tty; echo ""
         [[ "$MIOS_PASSWORD" == "$_c2" ]] && break
-        echo "  ${_red}[!] Mismatch — try again.${_r}"
+        echo "  ${_red}[!] Mismatch -- try again.${_r}"
     done
 else
-    echo "  Admin password: ${_dim}(env — masked)${_r}"
+    echo "  Admin password: ${_dim}(env -- masked)${_r}"
 fi
 export MIOS_PASSWORD
 
@@ -10509,7 +10509,7 @@ fi
 
 ```bash
 #!/usr/bin/bash
-# enroll-mok.sh — 'MiOS' Secure Boot MOK enrollment helper.
+# enroll-mok.sh -- 'MiOS' Secure Boot MOK enrollment helper.
 #
 # Uses mokutil throughout. sbctl is the WRONG tool for Fedora bootc
 # (GRUB2+shim chain, not systemd-boot+UKI). See specs/SECUREBOOT.md.
@@ -10527,7 +10527,7 @@ fi
 #   0 = enrolled / pending / no-secureboot (no action needed)
 #   1 = error
 #   2 = key not found
-#   3 = conflict (key CN matches but fingerprint differs — manual intervention)
+#   3 = conflict (key CN matches but fingerprint differs -- manual intervention)
 set -euo pipefail
 
 STATUS_ONLY=0
@@ -10629,14 +10629,14 @@ fi
 log "=== 'MiOS' MOK Enrollment ==="
 
 if ! command -v mokutil >/dev/null 2>&1; then
-    log "mokutil not found — install it: sudo dnf install mokutil"
+    log "mokutil not found -- install it: sudo dnf install mokutil"
     exit 1
 fi
 
 # Secure Boot state check
 sb_state=$(mokutil --sb-state 2>/dev/null || true)
 if echo "$sb_state" | grep -qi "SecureBoot disabled"; then
-    log "Secure Boot is disabled — MOK enrollment not required"
+    log "Secure Boot is disabled -- MOK enrollment not required"
     exit 0
 fi
 log "Secure Boot state: $sb_state"
@@ -10662,11 +10662,11 @@ log "Current status: $CURRENT_STATUS"
 
 case "$CURRENT_STATUS" in
     enrolled)
-        log "Key already enrolled — no action needed"
+        log "Key already enrolled -- no action needed"
         exit 0
         ;;
     pending)
-        log "Key already queued for enrollment — reboot to complete in MokManager"
+        log "Key already queued for enrollment -- reboot to complete in MokManager"
         exit 0
         ;;
     conflict)
@@ -10678,7 +10678,7 @@ case "$CURRENT_STATUS" in
         exit 3
         ;;
     no-secureboot)
-        log "Secure Boot appears disabled — nothing to enroll"
+        log "Secure Boot appears disabled -- nothing to enroll"
         exit 0
         ;;
 esac
@@ -10697,15 +10697,15 @@ if ! mokutil --import "$KEY" --root-pw; then
     log "mokutil --import failed"
     # Attempt rollback
     log "Attempting to revoke pending import (rollback)..."
-    mokutil --revoke-import "$KEY" 2>/dev/null || log "revoke-import also failed — check mokutil state manually"
+    mokutil --revoke-import "$KEY" 2>/dev/null || log "revoke-import also failed -- check mokutil state manually"
     exit 1
 fi
 
-# Optional: set MokManager timeout (non-fatal — known to fail on some ASUS boards)
+# Optional: set MokManager timeout (non-fatal -- known to fail on some ASUS boards)
 mokutil --timeout 10 2>/dev/null || log "note: --timeout ignored on this firmware (non-fatal)"
 
 log ""
-log "✓ Key queued for enrollment."
+log "[ok] Key queued for enrollment."
 log ""
 log "NEXT STEPS:"
 log "  1. Reboot the system."
@@ -10728,7 +10728,7 @@ log "Full log: $LOG_FILE"
 
 ```bash
 #!/usr/bin/bash
-# generate-mok-key.sh — one-shot 'MiOS' MOK key generator.
+# generate-mok-key.sh -- one-shot 'MiOS' MOK key generator.
 #
 # Generates a 2048-bit RSA key (NOT 4096: shim compatibility) with:
 #   - codeSigning EKU
@@ -10765,7 +10765,7 @@ fi
 
 install -d -m 0700 "$KEY_DIR"
 
-echo "'MiOS' MOK key generation — 2048-bit RSA, 10-year validity."
+echo "'MiOS' MOK key generation -- 2048-bit RSA, 10-year validity."
 echo "Set passphrase prompt: store in GitHub secret MIOS_MOK_KEY_PASSWORD."
 
 # Create EKU extension config

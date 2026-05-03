@@ -6,7 +6,7 @@
   Every package belongs in `PACKAGES.md`, every architectural rule in
   `INDEX.md`. Other docs cite, never duplicate.
 - **USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, BOOTC-CONTAINER-LINT,
-  UNIFIED-AI-REDIRECTS, UNPRIVILEGED-QUADLETS** — see `INDEX.md` §3.
+  UNIFIED-AI-REDIRECTS, UNPRIVILEGED-QUADLETS** -- see `INDEX.md` §3.
   Violating any of the six is a build/audit fail.
 - **Pure build-up.** Only the ~25 GNOME packages required for the desktop
   ship. No `dnf remove` bloat blocks. User-facing apps are Flatpaks; RPMs
@@ -101,9 +101,9 @@ cleanup.
 
 ## Issue templates
 
-- Bug Report — for broken behavior.
-- Feature Request — for new functionality.
-- Security — see `SECURITY.md` for private disclosure.
+- Bug Report -- for broken behavior.
+- Feature Request -- for new functionality.
+- Security -- see `SECURITY.md` for private disclosure.
 
 ## License
 

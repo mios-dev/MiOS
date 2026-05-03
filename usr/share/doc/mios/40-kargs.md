@@ -1,4 +1,4 @@
-# Kernel Arguments — `usr/lib/bootc/kargs.d/`
+# Kernel Arguments -- `usr/lib/bootc/kargs.d/`
 
 > Source: `ENGINEERING.md` §Kargs-format, `SECURITY.md` §Kernel-boot-parameters,
 > bootc upstream docs at `bootc.dev/bootc/building/kernel-arguments.html`.
@@ -16,28 +16,28 @@ match-architectures = ["x86_64"]
 
 **No `[kargs]` section header. No `delete` sub-key.** `bootc container
 lint` rejects anything else. Files are processed lexicographically;
-**earlier entries cannot be removed by later files in the same image** —
+**earlier entries cannot be removed by later files in the same image** --
 use runtime `bootc kargs --delete` for removal.
 
 ## 'MiOS' hardening kargs (00-mios.toml)
 
 | Parameter | Active? | Purpose | Override |
 | --- | :-: | --- | --- |
-| `slab_nomerge` | ✅ | Prevent slab cache merging (heap isolation) | Higher-priority kargs.d file |
-| `init_on_alloc=1` | ❌ | DISABLED — causes CUDA memory init failures | Higher-priority file (CPU-only builds only) |
-| `init_on_free=1` | ❌ | DISABLED — same CUDA incompatibility | Higher-priority file |
-| `page_alloc.shuffle=1` | ❌ | DISABLED — NVIDIA driver instability | Higher-priority file |
-| `randomize_kstack_offset=on` | ✅ | Per-syscall kernel stack randomization | `=off` |
-| `pti=on` | ✅ | Page Table Isolation (Meltdown) | `=off` (not recommended) |
-| `vsyscall=none` | ✅ | Disable legacy vsyscall table | `=emulate` |
-| `iommu=pt` | ✅ | IOMMU passthrough for VFIO | Required for GPU passthrough |
-| `amd_iommu=on` / `intel_iommu=on` | ✅ | Enable IOMMU | Required for VFIO |
-| `nvidia-drm.modeset=1` | ✅ | NVIDIA DRM modesetting (Wayland) | Required for GNOME Wayland |
-| `lockdown=integrity` | ✅ | Kernel lockdown integrity mode | Remove to allow unsigned modules |
-| `spectre_v2=on` | ✅ | Spectre v2 mitigation | Performance cost ~2-5% |
-| `spec_store_bypass_disable=on` | ✅ | Spectre v4 SSB mitigation | ~1-2% |
-| `l1tf=full,force` | ✅ | L1TF mitigation | Affects HyperThreading |
-| `gather_data_sampling=force` | ✅ | GDS/Downfall mitigation | Intel-specific |
+| `slab_nomerge` | [ok] | Prevent slab cache merging (heap isolation) | Higher-priority kargs.d file |
+| `init_on_alloc=1` |  | DISABLED -- causes CUDA memory init failures | Higher-priority file (CPU-only builds only) |
+| `init_on_free=1` |  | DISABLED -- same CUDA incompatibility | Higher-priority file |
+| `page_alloc.shuffle=1` |  | DISABLED -- NVIDIA driver instability | Higher-priority file |
+| `randomize_kstack_offset=on` | [ok] | Per-syscall kernel stack randomization | `=off` |
+| `pti=on` | [ok] | Page Table Isolation (Meltdown) | `=off` (not recommended) |
+| `vsyscall=none` | [ok] | Disable legacy vsyscall table | `=emulate` |
+| `iommu=pt` | [ok] | IOMMU passthrough for VFIO | Required for GPU passthrough |
+| `amd_iommu=on` / `intel_iommu=on` | [ok] | Enable IOMMU | Required for VFIO |
+| `nvidia-drm.modeset=1` | [ok] | NVIDIA DRM modesetting (Wayland) | Required for GNOME Wayland |
+| `lockdown=integrity` | [ok] | Kernel lockdown integrity mode | Remove to allow unsigned modules |
+| `spectre_v2=on` | [ok] | Spectre v2 mitigation | Performance cost ~2-5% |
+| `spec_store_bypass_disable=on` | [ok] | Spectre v4 SSB mitigation | ~1-2% |
+| `l1tf=full,force` | [ok] | L1TF mitigation | Affects HyperThreading |
+| `gather_data_sampling=force` | [ok] | GDS/Downfall mitigation | Intel-specific |
 
 **Note**: 'MiOS' uses `lockdown=integrity` (NOT `confidentiality`). The v1
 KB had this wrong.
@@ -60,7 +60,7 @@ For VFIO passthrough to a guest VM, supplement with:
 kargs = [
   "intel_iommu=on",      # or "amd_iommu=on"
   "iommu=pt",
-  "vfio-pci.ids=10de:2204,10de:1aef"   # vendor:device — runtime-detected by automation/34-gpu-detect.sh
+  "vfio-pci.ids=10de:2204,10de:1aef"   # vendor:device -- runtime-detected by automation/34-gpu-detect.sh
 ]
 ```
 
