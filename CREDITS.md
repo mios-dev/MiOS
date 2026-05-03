@@ -386,7 +386,6 @@ Aliasing files that all point to the same canonical prompt:
 | Alias / pointer | Purpose |
 |---|---|
 | `system-prompt.md` | Repo-root pointer to the canonical prompt |
-| `system.md` | Short root-level pointer (`usr/share/mios/ai/system.md`) |
 | `AI.md` (mios-bootstrap) | Bootstrap-side AI entry point + path index |
 | `usr/share/mios/ai/system.md` | The single canonical agent system prompt (image-baked, deployed from `mios-bootstrap`) |
 | `usr/share/mios/ai/v1/models.json` | OpenAI-shaped `/v1/models` catalog the agents discover |

@@ -228,7 +228,7 @@ directory. Structure:
   it as missing -- if the postcheck catches it, the regression risk is
   contained.
 
-## Sanitization (per `system.md` §6)
+## Sanitization (per `usr/share/mios/ai/system.md` §6)
 
 The audit-findings file you produce **MUST** be sanitized to OpenAI-API-
 compliant minimal form before write:

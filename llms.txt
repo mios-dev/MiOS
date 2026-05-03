@@ -4,7 +4,7 @@
 
 ## System specification
 - [AI.md](./AI.md): System-layer agent entry point (build, env, architecture)
-- [system.md](./system.md): Canonical master agent prompt (loaded by all agent CLIs)
+- [system-prompt.md](./system-prompt.md): Repo-root pointer to the canonical master agent prompt at `usr/share/mios/ai/system.md` (loaded by all agent CLIs)
 - [INDEX.md](./INDEX.md): Authoritative system interface and Architectural Laws
 - [ARCHITECTURE.md](./ARCHITECTURE.md): Filesystem and hardware blueprints
 - [ENGINEERING.md](./ENGINEERING.md): Security and build standards

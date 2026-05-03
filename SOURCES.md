@@ -134,11 +134,10 @@ tool to refresh the KB.
 
 ### 2.2 Agent-facing documentation
 
-- `CLAUDE.md` -- https://github.com/mios-dev/MiOS/blob/main/CLAUDE.md (Claude-specific deltas; canonical prompt redirected to `usr/share/mios/ai/system.md`)
+- `CLAUDE.md` -- https://github.com/mios-dev/MiOS/blob/main/CLAUDE.md (un-labeled OpenAI-API pointer; filename for tooling discovery only)
 - `AGENTS.md` -- https://github.com/mios-dev/MiOS/blob/main/AGENTS.md (generic agents.md standard)
 - `GEMINI.md` -- https://github.com/mios-dev/MiOS/blob/main/GEMINI.md
-- `system.md` (root pointer) -- https://github.com/mios-dev/MiOS/blob/main/system.md
-- `system-prompt.md` -- https://github.com/mios-dev/MiOS/blob/main/system-prompt.md
+- `system-prompt.md` -- https://github.com/mios-dev/MiOS/blob/main/system-prompt.md (canonical repo-root pointer; matches override-layer naming)
 - `usr/share/mios/ai/system.md` -- canonical agent prompt (deployed into the image)
 - `usr/share/mios/ai/v1/models.json` -- `/v1/models`-shaped catalog
 - `usr/share/mios/ai/v1/mcp.json` -- MCP server registry
@@ -161,7 +160,7 @@ tool to refresh the KB.
 
 - `llms.txt` -- https://github.com/mios-dev/MiOS/blob/main/llms.txt (lightweight AI ingestion index, llmstxt.org standard)
 - `llms-full.txt` -- https://github.com/mios-dev/MiOS/blob/main/llms-full.txt (full-content variant)
-- `mios-ai-sanitize` -- https://github.com/mios-dev/MiOS/blob/main/mios-ai-sanitize (sanitization helper)
+- `tools/ascii-sweep.py` -- https://github.com/mios-dev/MiOS/blob/main/tools/ascii-sweep.py (typography + emoji scrubber across `git ls-files`; the AI-artifact sanitization helper)
 
 ### 2.5 Repository layout (FHS overlay)
 
@@ -488,8 +487,8 @@ AGENTS.md ARCHITECTURE.md CLAUDE.md CONTRIBUTING.md Containerfile
 DEPLOY.md ENGINEERING.md GEMINI.md Get-MiOS.ps1 INDEX.md Justfile
 LICENSE LICENSES.md README.md SECURITY.md SELF-BUILD.md VERSION
 build-mios.sh image-versions.yml install.ps1 install.sh
-llms-full.txt llms.txt mios-ai-sanitize mios-build-local.ps1
-preflight.ps1 push-to-github.ps1 renovate.json system-prompt.md system.md
+llms-full.txt llms.txt mios-build-local.ps1
+preflight.ps1 push-to-github.ps1 renovate.json system-prompt.md
 ```
 
 The repo root **is** the system root (no `system_files/` directory).

@@ -45,10 +45,8 @@
 !/INSTALL.md
 !/SOURCES.md
 !/manifest.json
-!/mios-kb.tar.gz
 !/SECURITY.md
 !/SELF-BUILD.md
-!/system.md
 !/VERSION
 !/llms-full.txt
 !/llms.txt
@@ -59,7 +57,6 @@
 !/image-versions.yml
 !/install.sh
 !/install-mios-agents.sh
-!/mios-ai-sanitize
 !/Get-MiOS.ps1
 !/install.ps1
 !/mios-build-local.ps1

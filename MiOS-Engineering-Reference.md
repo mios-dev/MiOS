@@ -564,8 +564,8 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
    custom modules; booleans + fcontexts via semanage in `37-selinux.sh`.
 4. **fapolicyd** (`etc/fapolicyd/fapolicyd.rules`, `usr/lib/fapolicyd/`) --
    zero-trust deny-by-default; trust DB seeded in `20-fapolicyd-trust.sh`.
-5. **CrowdSec** (`mios-ai-sanitize` + crowdsec-bouncer Quadlet) -- sovereign
-   IPS mode; firewall-bouncer wires to firewalld.
+5. **CrowdSec** (crowdsec-bouncer Quadlet) -- sovereign IPS mode;
+   firewall-bouncer wires to firewalld.
 6. **USBGuard** -- deny-by-default device policy; permissions enforced via
    `automation/18-apply-boot-fixes.sh:13`.
 7. **firewalld** -- default zone `drop`; service set in `33-firewall.sh`.
@@ -601,8 +601,9 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 - **Structured output schemas:** `/usr/lib/mios/schemas/*.json`.
 - **Sample API payloads:** `/srv/mios/api/{chat,responses,embeddings,
   batch.requests,mcp.tool}.{json,jsonl}`.
-- **Sanitization tool:** `/usr/libexec/mios/ai-sanitize` (also
-  `mios-ai-sanitize` at repo root).
+- **Sanitization tooling:** `tools/ascii-sweep.py` (typography + emoji
+  scrub across `git ls-files`), `automation/99-postcheck.sh` checks
+  #12-#14 (vendor-URL / Quadlet User= / bound-images-coverage lint).
 
 ---
 
@@ -918,7 +919,10 @@ ls /var/lib/mios/              # memory, scratch, embeddings/, training/, evals/
   for FHS compliance. Self-references in the manifest content rewrote.
 - `automation/install-fhs.sh` -- byte-identical to `automation/install.sh`,
   deleted.
-- `system-prompt.md` (root) -- byte-identical to `system.md`, deleted.
+- `system.md` (root) -- byte-identical to `system-prompt.md`, deleted.
+  `system-prompt.md` is the canonical repo-root pointer (matches the
+  override-layer naming `/etc/mios/ai/system-prompt.md` and
+  `~/.config/mios/system-prompt.md`).
 - `build-mios.sh` (root) -- near-duplicate of `automation/build-mios.sh`,
   deleted.
 - `cloudws-pxe-hub.container`, `cloudws-guacamole.container` -- renamed to
