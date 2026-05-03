@@ -171,4 +171,20 @@ allow xdm_t cache_home_t:file { create write read open getattr setattr };'
     echo "[37-selinux] ${SELINUX_OK} policies staged in /usr/share/selinux/packages/mios/, ${SELINUX_FAIL} skipped"
 fi
 
+# ─── Persistent SELinux booleans applied at first boot ─────────────────────
+# usr/libexec/mios/selinux-init reads booleans.conf next to the staged .pp
+# modules and applies each entry via 'setsebool -P'. semanage is typically
+# inoperative inside an OCI build (no running policy / read-only contexts),
+# so booleans MUST be applied at runtime; this file is the manifest the
+# runtime service consults.
+#
+# container_use_devices=on  -- required by 35-gpu-passthrough.sh / GPU
+#   container CDI flow (NVIDIA, ROCm, Intel xe). Without it, the first
+#   GPU container start is denied by SELinux on enforcing hosts.
+mkdir -p /usr/share/selinux/packages/mios
+cat > /usr/share/selinux/packages/mios/booleans.conf <<'EOBOOL'
+container_use_devices=on
+EOBOOL
+echo "[37-selinux] booleans.conf staged for runtime selinux-init"
+
 echo "[37-selinux] SELinux configuration complete."

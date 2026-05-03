@@ -118,7 +118,13 @@ fi
 # crowdsec ships its own RPM repo; not in Fedora or RPM Fusion.
 if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
     log "enabling CrowdSec repo"
-    scurl -fsSL https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=40&source=script \
+    # URL must be quoted -- the unquoted '&' is parsed as a job-control
+    # background, which silently splits '-o "${REPO_DIR}/crowdsec.repo"'
+    # onto its own command line and yields 'line N: -o: command not found'.
+    # The 'dist' query parameter pins the packagecloud distro release;
+    # crowdsec ships a single fedora repo across releases (the value is
+    # only used for substituting $releasever in baseurl).
+    scurl -fsSL "https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=44&source=script" \
         -o "${REPO_DIR}/crowdsec.repo"
 else
     log "CrowdSec repo already present -- skipping"

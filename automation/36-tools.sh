@@ -11,19 +11,21 @@ echo "[36-tools] Configuring 'MiOS' CLI tools..."
 # might have lost the executable bit during git/Windows transfer.
 
 TOOLS=(
-    mios 
-    mios-update 
-    mios-rebuild 
-    mios-build 
-    mios-backup 
-    mios-deploy 
-    mios-status 
-    mios-vfio-toggle 
-    mios-vfio-check 
+    mios
+    mios-env
+    mios-update
+    mios-rebuild
+    mios-build
+    mios-backup
+    mios-deploy
+    mios-status
+    mios-vfio-toggle
+    mios-vfio-check
     iommu-groups
-    aichat
-    aichat-ng
 )
+# Note: aichat / aichat-ng are installed by 37-aichat.sh (which fetches
+# the upstream binaries); attempting to chmod them here printed a WARN
+# every build because the binaries do not exist yet at this stage.
 
 for tool in "${TOOLS[@]}"; do
     if [ -f "/usr/bin/$tool" ]; then

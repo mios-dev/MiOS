@@ -1,0 +1,63 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "qwen2.5-coder:7b",
+      "object": "model",
+      "created": 1746230400,
+      "owned_by": "mios-localai",
+      "permission": [],
+      "root": "qwen2.5-coder:7b",
+      "parent": null,
+      "x-mios": {
+        "role": "default-chat",
+        "context_window": 32768,
+        "endpoint": "http://localhost:8080/v1",
+        "served_by": "mios-ai.container",
+        "openai_api_compat": ["chat/completions", "completions"],
+        "law": "Law 5 -- UNIFIED-AI-REDIRECTS"
+      }
+    },
+    {
+      "id": "qwen2.5-coder:14b",
+      "object": "model",
+      "created": 1746230400,
+      "owned_by": "mios-localai",
+      "permission": [],
+      "root": "qwen2.5-coder:14b",
+      "parent": null,
+      "x-mios": {
+        "role": "alt-chat",
+        "context_window": 32768,
+        "endpoint": "http://localhost:8080/v1",
+        "served_by": "mios-ai.container",
+        "openai_api_compat": ["chat/completions", "completions"]
+      }
+    },
+    {
+      "id": "nomic-embed-text",
+      "object": "model",
+      "created": 1746230400,
+      "owned_by": "mios-localai",
+      "permission": [],
+      "root": "nomic-embed-text",
+      "parent": null,
+      "x-mios": {
+        "role": "default-embed",
+        "dimensions": 768,
+        "endpoint": "http://localhost:8080/v1",
+        "served_by": "mios-ai.container",
+        "openai_api_compat": ["embeddings"]
+      }
+    }
+  ],
+  "x-mios": {
+    "schema": "OpenAI /v1/models response shape",
+    "schema_ref": "https://platform.openai.com/docs/api-reference/models/list",
+    "manifest_path": "/usr/share/mios/ai/v1/models.json",
+    "endpoint": "http://localhost:8080/v1/models",
+    "served_by": "mios-ai.container",
+    "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
+    "note": "x-mios extensions are non-OpenAI metadata; ignore for strict OpenAI clients."
+  }
+}

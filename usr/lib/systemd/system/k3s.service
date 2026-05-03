@@ -22,7 +22,11 @@ Restart=always
 RestartSec=5s
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart=/usr/local/bin/k3s server --disable traefik --write-kubeconfig-mode 644
+# Binary lives at /usr/bin/k3s (immutable image surface, installed by
+# automation/13-ceph-k3s.sh). /usr/local/bin -> /var/usrlocal/bin on
+# bootc/FCOS layouts and is mutable per-host; /usr/bin keeps the unit
+# pinned to the image's authoritative copy.
+ExecStart=/usr/bin/k3s server --disable traefik --write-kubeconfig-mode 644
 
 [Install]
 WantedBy=multi-user.target

@@ -106,6 +106,13 @@ etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
 !/etc/wsl.conf
 
+# /etc/profile.d/ -- login-shell environment resolver (INDEX.md sec 4).
+# mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +
+# identity vars system-wide. Bash sources /etc/profile.d/*.sh from
+# /etc/profile, so the file must live under /etc to be picked up.
+!/etc/profile.d/
+!/etc/profile.d/mios-env.sh
+
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
 !/etc/mios/
@@ -143,9 +150,10 @@ usr/*
 !/usr/libexec/
 !/usr/share/
 
-# usr/bin -- only the mios binary
+# usr/bin -- only MiOS-owned CLIs
 usr/bin/*
 !/usr/bin/mios
+!/usr/bin/mios-env
 
 # usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*
@@ -155,8 +163,14 @@ usr/share/doc/*
 !/usr/share/doc/mios/**
 !/usr/share/mios/
 !/usr/share/mios/**
-# AI files, knowledge, logs, user data belong in mios-bootstrap.git
-usr/share/mios/ai/
+# AI runtime state (memory, knowledge graphs, scratch) belongs in
+# mios-bootstrap.git -- it is per-host and seeded into /var at first
+# boot. The OpenAI-API surface manifests in usr/share/mios/ai/v1/
+# (models.json + mcp.json) ARE shipped from MiOS because INDEX.md sec 2
+# declares them as the canonical /v1/* manifest source.
+usr/share/mios/ai/*
+!/usr/share/mios/ai/v1/
+!/usr/share/mios/ai/v1/**
 usr/share/mios/knowledge/
 usr/share/mios/memory/
 usr/share/mios/user-preferences.md

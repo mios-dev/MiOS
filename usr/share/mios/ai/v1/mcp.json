@@ -1,0 +1,34 @@
+{
+  "object": "mios.mcp.registry",
+  "version": "v1",
+  "endpoint": "http://localhost:8080/v1",
+  "schema_ref": "https://modelcontextprotocol.io/specification",
+  "manifest_path": "/usr/share/mios/ai/v1/mcp.json",
+  "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
+  "note": "MCP servers MiOS agents may discover. The OpenAI Responses API consumes these via tools=[{type:'mcp', server_url:...}]; non-Responses callers may invoke them directly. All entries default to localhost; remote servers must be opted-in via host overlay at /etc/mios/ai/v1/mcp.json.",
+  "servers": [
+    {
+      "name": "mios-fs",
+      "transport": "stdio",
+      "command": "/usr/libexec/mios/mcp/fs-server",
+      "args": [],
+      "scope": "host",
+      "description": "Read-only filesystem browser scoped to /var/lib/mios and /usr/share/mios."
+    },
+    {
+      "name": "mios-kb",
+      "transport": "stdio",
+      "command": "/usr/libexec/mios/mcp/kb-server",
+      "args": ["--manifest", "/usr/share/mios/kb/manifest.json"],
+      "scope": "host",
+      "description": "Local knowledge-base retrieval over the OpenAI-API-shaped kb manifest."
+    },
+    {
+      "name": "mios-forge",
+      "transport": "http",
+      "url": "http://localhost:3000/api/v1",
+      "scope": "host",
+      "description": "Self-hosted Forgejo instance (mios-forge.container). Forgejo exposes a Gitea-compatible REST API at /api/v1; this entry lets agents browse repos, issues, and pull requests on the local forge."
+    }
+  ]
+}

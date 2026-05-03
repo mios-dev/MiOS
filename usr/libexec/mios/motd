@@ -76,8 +76,20 @@ if command -v mokutil &>/dev/null; then
 fi
 
 # ── AI stack ──────────────────────────────────────────────────────────────────
-AI_EP=$(grep -m1 "^endpoint" ${MIOS_ETC_DIR}/ai/config.json 2>/dev/null | grep -oP 'http[^"]+' || echo "http://localhost:8080/v1")
-AI_MODEL=$(grep -m1 "^MIOS_AI_MODEL" ${MIOS_ETC_DIR}/install.env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "qwen2.5-coder:7b")
+# Architectural Law 5 (UNIFIED-AI-REDIRECTS): resolve via the canonical
+# environment surface populated by /etc/profile.d/mios-env.sh -- which
+# walks /usr/share/mios/env.defaults -> /etc/mios/env.d -> install.env ->
+# ~/.config/mios/env. No per-component config-file probing; that path
+# diverges from the documented overlay and silently misreports the model.
+if [[ -z "${MIOS_AI_ENDPOINT:-}" || -z "${MIOS_AI_MODEL:-}" ]]; then
+    # MOTD may run before /etc/profile.d/mios-env.sh is sourced (cron,
+    # systemd-run, login managers that bypass /etc/profile). Source it
+    # directly when the env vars are missing so we always reflect the
+    # operator-configured surface.
+    [[ -r /etc/profile.d/mios-env.sh ]] && . /etc/profile.d/mios-env.sh
+fi
+AI_EP="${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
+AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
 AI_PING="${D}[  ] offline${N}"
 if curl -sf --max-time 2 "${AI_EP}/models" &>/dev/null; then
     AI_PING="${G}[OK] online${N}"
