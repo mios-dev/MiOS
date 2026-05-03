@@ -19,8 +19,8 @@ AICHAT_NG_TAG=$( (scurl -s https://api.github.com/repos/blob42/aichat-ng/release
 
 [[ -n "$AICHAT_TAG"    ]] || die "AIChat: api.github.com release-latest lookup returned empty"
 [[ -n "$AICHAT_NG_TAG" ]] || die "AIChat-NG: api.github.com release-latest lookup returned empty"
-echo "[37-aichat]   AIChat latest:    ${AICHAT_TAG}"
-echo "[37-aichat]   AIChat-NG latest: ${AICHAT_NG_TAG}"
+record_version aichat    "$AICHAT_TAG"    "https://github.com/sigoden/aichat/releases/tag/${AICHAT_TAG}"
+record_version aichat-ng "$AICHAT_NG_TAG" "https://github.com/blob42/aichat-ng/releases/tag/${AICHAT_NG_TAG}"
 
 # ── AIChat ────────────────────────────────────────────────────────────────────
 AICHAT_ARCH="aichat-${AICHAT_TAG}-x86_64-unknown-linux-musl.tar.gz"

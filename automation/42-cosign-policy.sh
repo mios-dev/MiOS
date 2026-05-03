@@ -14,10 +14,18 @@ source "$(dirname "$0")/lib/common.sh"
 
 log "42-cosign-policy: ensuring cosign + trust roots + policy.json"
 
-# 1. Install cosign binary (pinned to v2.x for rpm-ostree compatibility)
+# 1. Install cosign binary
+# Project policy: every dependency tracks :latest from its source. Cosign is
+# constrained to the v2.x series here because v3+ breaks rpm-ostree OCI 1.1
+# bundle format (see header). Lift the v2 filter when v3 compat is confirmed.
 if ! command -v cosign >/dev/null 2>&1; then
-    COSIGN_VERSION="v2.4.3"
+    COSIGN_VERSION=$( (scurl -s https://api.github.com/repos/sigstore/cosign/releases?per_page=30 \
+        | grep -Po '"tag_name": "\Kv2\.[^"]+' \
+        | head -n1) 2>/dev/null || true)
+    [[ -n "$COSIGN_VERSION" ]] || die "cosign: api.github.com release lookup returned no v2.x match"
     COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
+    record_version cosign "$COSIGN_VERSION" "https://github.com/sigstore/cosign/releases/tag/${COSIGN_VERSION}"
+    log "  resolved cosign latest v2.x: ${COSIGN_VERSION}"
     log "  downloading cosign ${COSIGN_VERSION} static binary..."
     mkdir -p /tmp/cosign-dl
     scurl -sfL "${COSIGN_BASE_URL}/cosign-linux-amd64" -o /tmp/cosign-dl/cosign-linux-amd64

@@ -211,6 +211,17 @@ _section_header
 echo ""
 
 TOTAL_START=$SECONDS
+
+# ── Build-time version manifest (records :latest -> observed-version) ────────
+# Project policy: every dependency tracks :latest from upstream. To make
+# day-0 images reproducible-after-the-fact, every script that resolves a
+# floating tag calls record_version (lib/common.sh). build.sh seeds the
+# manifest with image-level metadata; phase scripts append component rows.
+rm -f "$MIOS_VERSION_MANIFEST"
+record_version mios       "$VERSION_STR"                               "git:$(cat /ctx/VERSION 2>/dev/null || echo unknown)"
+record_version base-image "${BASE_IMAGE:-ghcr.io/ublue-os/ucore-hci:stable-nvidia}" "build-time floating tag"
+record_version kernel     "$(find /usr/lib/modules/ -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null | sort -V | tail -1)" "from base image"
+
 SCRIPT_COUNT=0
 SCRIPT_FAIL=0
 WARN_FAIL=0
@@ -325,28 +336,71 @@ else
     _row "  WARNING: 99-postcheck.sh not found -- skipping"
 fi
 
-# ── Log preservation (flatten all chain logs into /usr/lib/mios/logs/) ──────
+# ── Quadlet image digest capture (build-day :latest snapshot) ───────────────
+# Quadlets are pulled by bootc at deploy time, not at OCI-build time, so
+# their :latest will re-resolve on every deploy. Record the digest skopeo
+# sees right now, so the shipped image carries a precise snapshot of what
+# build day's :latest pointed at — even though deploys may differ later.
 echo ""
 _hline '-' '+' '+'
-_row " LOG CHAIN: Flattening all build logs -> /usr/lib/mios/logs/"
+_row " POST-BUILD: Capturing Quadlet image digests"
+_hline '-' '+' '+'
+if command -v skopeo >/dev/null 2>&1; then
+    shopt -s nullglob
+    for q in /usr/share/containers/systemd/*.container /etc/containers/systemd/*.container; do
+        img=$(awk -F= '/^Image=/{print $2; exit}' "$q" 2>/dev/null)
+        [[ -n "$img" ]] || continue
+        digest=$(skopeo inspect "docker://${img}" 2>/dev/null \
+            | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("Digest",""))' 2>/dev/null \
+            || true)
+        record_version "quadlet:$(basename "$q" .container)" "$img" "${digest:-<unresolved>}"
+    done
+    shopt -u nullglob
+else
+    warn "skopeo not available — Quadlet image digests not captured"
+fi
+
+# ── Log preservation (flatten all chain logs + version manifest into /usr) ──
+echo ""
+_hline '-' '+' '+'
+_row " LOG CHAIN: Flattening logs + version manifest -> /usr/lib/mios/logs/"
 _hline '-' '+' '+'
 mkdir -p /usr/lib/mios/logs
 cp -v /var/log/dnf5.log* /var/log/hawkey.log /usr/lib/mios/logs/ 2>/dev/null || true
-# Flatten per-step logs into single unified chain log
+
+# Promote machine-readable version manifest (TSV, kept uncompressed for grep/awk)
+if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then
+    install -m 0644 "$MIOS_VERSION_MANIFEST" /usr/lib/mios/logs/mios-build-versions.tsv
+    _row "  Version manifest: /usr/lib/mios/logs/mios-build-versions.tsv ($(wc -l < "$MIOS_VERSION_MANIFEST") rows)"
+fi
+
+# Flatten per-step logs + manifest + main build log into single unified chain
 UNIFIED_LOG="/usr/lib/mios/logs/mios-build-chain.log"
-echo "# MiOS ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')" > "$UNIFIED_LOG"
-for step_log in /tmp/mios-step-*.log; do
-    [[ -f "$step_log" ]] || continue
-    echo "" >> "$UNIFIED_LOG"
-    echo "# ====== $(basename "$step_log") ======" >> "$UNIFIED_LOG"
-    cat "$step_log" >> "$UNIFIED_LOG"
-done
-# Append main build log
-echo "" >> "$UNIFIED_LOG"
-echo "# ====== mios-build.log ======" >> "$UNIFIED_LOG"
-[[ -f "$BUILD_LOG" ]] && cat "$BUILD_LOG" >> "$UNIFIED_LOG" || true
+{
+    echo "# MiOS ${VERSION_STR} Unified Build Log Chain — $(date '+%Y-%m-%d %H:%M:%S')"
+    echo ""
+    echo "# ====== build-time :latest -> observed-version manifest ======"
+    if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then
+        cat "$MIOS_VERSION_MANIFEST"
+    else
+        echo "(no manifest produced)"
+    fi
+    for step_log in /tmp/mios-step-*.log; do
+        [[ -f "$step_log" ]] || continue
+        echo ""
+        echo "# ====== $(basename "$step_log") ======"
+        cat "$step_log"
+    done
+    echo ""
+    echo "# ====== mios-build.log ======"
+    [[ -f "$BUILD_LOG" ]] && cat "$BUILD_LOG" || true
+} > "$UNIFIED_LOG"
 cp "$UNIFIED_LOG" /usr/lib/mios/logs/mios-build.log 2>/dev/null || true
-_row "  Unified chain log: /usr/lib/mios/logs/mios-build-chain.log"
+
+# Compress the bulky logs; keep the TSV manifest uncompressed for direct query.
+gzip -9f /usr/lib/mios/logs/mios-build-chain.log /usr/lib/mios/logs/mios-build.log 2>/dev/null || true
+gzip -9f /usr/lib/mios/logs/dnf5.log* /usr/lib/mios/logs/hawkey.log 2>/dev/null || true
+_row "  Unified chain log: /usr/lib/mios/logs/mios-build-chain.log.gz"
 _row "  Step count in chain: $(ls /tmp/mios-step-*.log 2>/dev/null | wc -l)"
 
 # ── Cleanup ─────────────────────────────────────────────────────────────────
@@ -356,7 +410,7 @@ rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* 2>/dev/null || true
 rm -rf /usr/share/gnome/help/* /usr/share/help/* 2>/dev/null || true
 rm -f /var/log/dnf5.log* /var/log/hawkey.log 2>/dev/null || true
 rm -rf /run/ceph /run/cockpit /run/k3s /tmp/mios-step-*.log 2>/dev/null || true
-rm -f /var/lib/systemd/random-seed /tmp/mios-build.log 2>/dev/null || true
+rm -f /var/lib/systemd/random-seed /tmp/mios-build.log "$MIOS_VERSION_MANIFEST" 2>/dev/null || true
 
 # ── Final summary + failure/warn report ──────────────────────────────────────
 TOTAL_ELAPSED=$(( SECONDS - TOTAL_START ))

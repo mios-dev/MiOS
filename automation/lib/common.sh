@@ -43,3 +43,27 @@ fi
 # String variant for legacy/debug visibility only. Do NOT use in commands.
 export DNF_SETOPT_STR="${DNF_SETOPT[*]}"
 export DNF_OPTS_STR="${DNF_OPTS[*]}"
+
+# --- Build-time version manifest --------------------------------------------
+# Project policy: every dependency tracks :latest from upstream (no human
+# pins). To keep day-0 builds reproducible-after-the-fact, every phase script
+# that resolves a :latest tag MUST call record_version so the observed value
+# is captured into the per-image manifest. build.sh promotes this file into
+# /usr/lib/mios/logs/ at the end of the build, alongside the flattened log.
+#
+# Usage: record_version <component> <version_or_tag> [resolved_to]
+#   component       short id, e.g. "aichat", "cosign", "quadlet:mios-k3s"
+#   version_or_tag  what was observed, e.g. "v0.30.1" or "docker.io/x:latest"
+#   resolved_to     optional: digest, source URL, or commit ref
+export MIOS_VERSION_MANIFEST="${MIOS_VERSION_MANIFEST:-/tmp/mios-build-versions.tsv}"
+
+record_version() {
+    local component="$1" version="$2" resolved_to="${3:-}"
+    if [[ ! -f "$MIOS_VERSION_MANIFEST" ]]; then
+        printf 'component\tversion\tresolved_to\trecorded_at\n' > "$MIOS_VERSION_MANIFEST"
+    fi
+    printf '%s\t%s\t%s\t%s\n' \
+        "$component" "$version" "$resolved_to" "$(log_ts)" \
+        >> "$MIOS_VERSION_MANIFEST"
+    log "version: ${component} = ${version}${resolved_to:+ (${resolved_to})}"
+}

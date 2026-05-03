@@ -42,6 +42,7 @@ fi
 
 if [[ -n "$K3S_TAG" ]]; then
     echo "[13-ceph-k3s] Latest K3s tag: $K3S_TAG"
+    record_version k3s "$K3S_TAG" "https://github.com/k3s-io/k3s/releases/tag/${K3S_TAG}"
 
     echo "[13-ceph-k3s] Downloading K3s binary, checksum, and install script..."
     K3S_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/k3s"

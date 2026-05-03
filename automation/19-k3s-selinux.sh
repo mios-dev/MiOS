@@ -22,6 +22,7 @@ if [[ -z "${K3S_SELINUX_TAG:-}" ]]; then
         | tail -n1) || true
     K3S_SELINUX_TAG="${K3S_SELINUX_TAG:-master}"
 fi
+record_version k3s-selinux "$K3S_SELINUX_TAG" "https://github.com/k3s-io/k3s-selinux/tree/${K3S_SELINUX_TAG}"
 
 echo "==> Cloning k3s-selinux at ref ${K3S_SELINUX_TAG}..."
 git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \

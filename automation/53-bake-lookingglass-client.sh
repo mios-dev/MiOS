@@ -35,7 +35,17 @@ if [[ -n "$MISSING" ]]; then
     exit 0
 fi
 
-LG_BRANCH="${LG_BRANCH:-B7}"
+# Resolve latest Looking Glass release branch from upstream. Project policy:
+# every dependency tracks :latest from its source. LG uses letter-numbered
+# release branches (B6, B7, …); pick the highest by version sort.
+if [[ -z "${LG_BRANCH:-}" ]]; then
+    LG_BRANCH=$(git ls-remote --heads https://github.com/gnif/LookingGlass.git 'B*' 2>/dev/null \
+        | awk -F/ '{print $NF}' \
+        | sort -V \
+        | tail -n1 || true)
+    [[ -n "$LG_BRANCH" ]] || die "Looking Glass: git ls-remote returned no B* release branch"
+fi
+record_version looking-glass "$LG_BRANCH" "https://github.com/gnif/LookingGlass/tree/${LG_BRANCH}"
 BUILD_DIR="/tmp/LookingGlass-build"
 
 # --- Clone -----------------------------------------------------------------

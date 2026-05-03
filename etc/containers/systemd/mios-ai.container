@@ -12,7 +12,7 @@ Wants=network-online.target
 ConditionPathIsDirectory=/etc/mios/ai
 
 [Container]
-Image=docker.io/localai/localai:v2.20.0
+Image=docker.io/localai/localai:latest
 ContainerName=mios-ai
 PublishPort=8080:8080
 Volume=/srv/ai/models:/build/models:Z

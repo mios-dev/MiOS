@@ -79,7 +79,7 @@ BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
     | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/') 2>/dev/null || true)
 
 [[ -n "$BIBATA_VER" ]] || die "Bibata: api.github.com release-latest lookup returned empty"
-echo "[10-gnome]   Latest release: v${BIBATA_VER}"
+record_version bibata "v${BIBATA_VER}" "https://github.com/ful1e5/Bibata_Cursor/releases/tag/v${BIBATA_VER}"
 
 BIBATA_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_VER}/Bibata-Modern-Classic.tar.xz"
 BIBATA_DIR="/usr/share/icons/Bibata-Modern-Classic"
