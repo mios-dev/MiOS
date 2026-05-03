@@ -4,9 +4,7 @@
 # and BEFORE any service that references the user.
 set -euo pipefail
 
-echo "——————————————————————?"
 echo "  MiOS v0.2.0 — User & Authentication"
-echo "——————————————————————?"
 
 # — PAM FIX —
 echo "[31-user] Configuring PAM via authselect..."

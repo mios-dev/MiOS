@@ -9,10 +9,8 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 BOOTSTRAP_REPO="${BOOTSTRAP_REPO:-${HOME}/MiOS-bootstrap}"
 MIOS_VERSION=$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "v0.2.0")
 
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "MiOS Artifact Logging to Bootstrap Repository"
 echo "Version: ${MIOS_VERSION}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Check if bootstrap repo exists
 if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
@@ -118,7 +116,7 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     "LocalAI",
     "vLLM"
   ],
-  "license": "System Specificationl Property - MiOS Project",
+  "license": "Personal Property - MiOS Project",
   "repository": "https://github.com/MiOS-DEV/mios"
 }
 MANIFEST
@@ -224,16 +222,14 @@ These artifacts enable:
 
 **Repository:** https://github.com/MiOS-DEV/mios  
 **Bootstrap:** https://github.com/MiOS-DEV/MiOS-bootstrap  
-**License:** System Specificationl Property - MiOS Project
+**License:** Personal Property - MiOS Project
 README
 
 echo "✓ README generated: ${ARTIFACT_DIR}/README.md"
 
 # Summary
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "[ OK ] Artifact logging complete"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Logged to: ${BOOTSTRAP_REPO}"
 echo ""
@@ -268,5 +264,3 @@ echo "  cd ${BOOTSTRAP_REPO}"
 echo "  git add ."
 echo "  git commit -m \"Add MiOS ${MIOS_VERSION} AI RAG artifacts\""
 echo "  git push"
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

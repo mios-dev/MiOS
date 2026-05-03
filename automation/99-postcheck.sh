@@ -91,5 +91,44 @@ if rpm -q cockpit >/dev/null 2>&1; then
     fi
 fi
 
+# 7. WSL2 wsl.conf parse + parity check
+# A malformed /etc/wsl.conf takes down systemd-as-PID1 in WSL2, which
+# cascades to a broken user session, missing /var/home/mios, and a fallback
+# cwd of /mnt/c/.... Catch drift at build time so we never ship a broken
+# file. Also enforces parity with /usr/lib/wsl.conf (the canonical reference
+# wsl-init.service uses to auto-restore).
+log "Validating /etc/wsl.conf (parse + parity with /usr/lib/wsl.conf)..."
+if [[ -f /etc/wsl.conf ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c '
+import configparser, sys
+p = configparser.ConfigParser(strict=True, interpolation=None)
+try:
+    with open("/etc/wsl.conf") as f:
+        p.read_file(f)
+except Exception as e:
+    sys.stderr.write(f"wsl.conf parse failed: {e}\n"); sys.exit(1)
+required = {"boot": ["systemd"], "user": ["default"]}
+for section, keys in required.items():
+    if not p.has_section(section):
+        sys.stderr.write(f"wsl.conf missing required [section]: {section}\n"); sys.exit(1)
+    for k in keys:
+        if not p.has_option(section, k):
+            sys.stderr.write(f"wsl.conf missing required key: {section}.{k}\n"); sys.exit(1)
+print("  /etc/wsl.conf parses cleanly with all required sections/keys")
+' || die "/etc/wsl.conf failed parse/required-keys validation"
+    else
+        log "  ⚠ python3 unavailable — skipping wsl.conf parse (post-build only)"
+    fi
+    if [[ -f /usr/lib/wsl.conf ]]; then
+        if ! cmp -s /etc/wsl.conf /usr/lib/wsl.conf; then
+            die "/etc/wsl.conf drifted from /usr/lib/wsl.conf reference at build time"
+        fi
+        log "  ✓ /etc/wsl.conf matches /usr/lib/wsl.conf reference"
+    fi
+else
+    log "  ⚠ /etc/wsl.conf not present in image — WSL2 deploys will fall back to defaults"
+fi
+
 echo "═════════════ Validation SUCCESSFUL ═════════════"
 exit 0

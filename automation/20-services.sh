@@ -10,9 +10,7 @@
 #   - Improved: Bare-metal vs VM vs WSL2 service gating
 set -euo pipefail
 
-echo "═══════════════════════════════════════════════════════════════════"
 echo "  MiOS v0.2.0 — Service Configuration"
-echo "═══════════════════════════════════════════════════════════════════"
 
 # ─── Fix systemd unit file permissions ────────────────────────────────────────
 # Container builds sometimes leave bad perms from COPY operations.

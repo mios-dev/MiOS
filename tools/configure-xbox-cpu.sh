@@ -2,9 +2,7 @@
 # Xbox VM CPU Pinning Configuration Script
 # Automated XML editing for nano users
 
-echo "=========================================="
 echo "Xbox VM CPU Pinning Configuration"
-echo "=========================================="
 echo ""
 echo "This script will:"
 echo "  1. Export current Xbox VM configuration"
@@ -24,9 +22,7 @@ cp /tmp/xbox-original.xml /tmp/xbox-backup-$(date +%Y%m%d-%H%M%S).xml
 cp /tmp/xbox-original.xml /tmp/xbox-edit.xml
 
 echo ""
-echo "=========================================="
 echo "INSTRUCTIONS FOR NANO EDITOR:"
-echo "=========================================="
 echo ""
 echo "1. Find the line: <vcpu placement=\"static\">12</vcpu>"
 echo "   - Press: Ctrl+W"
@@ -42,9 +38,7 @@ echo "   - Press: Ctrl+X"
 echo "   - Press: Y (to confirm)"
 echo "   - Press: ENTER"
 echo ""
-echo "=========================================="
 echo "CPU CONFIGURATION TO PASTE:"
-echo "=========================================="
 cat << 'EOF'
 
   <vcpu placement="static">12</vcpu>
@@ -101,9 +95,7 @@ if [[ "$confirm" =~ ^[Yy]$ ]]; then
     sudo virsh define /tmp/xbox-edit.xml
     
     echo ""
-    echo "=========================================="
     echo "âœ“ Configuration Applied!"
-    echo "=========================================="
     echo ""
     echo "Verification:"
     sudo virsh dumpxml Xbox | grep -A 5 vcpupin

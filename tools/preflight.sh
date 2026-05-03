@@ -10,7 +10,6 @@ warn() { printf "${YELLOW}[WARN]${NC} %s\n" "$*"; }
 ERRORS=0
 
 echo "MiOS v$(cat "$(dirname "$0")/../VERSION" 2>/dev/null || echo '?') — Pre-flight Check"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 for cmd in podman git just; do
     if command -v "$cmd" >/dev/null 2>&1; then ok "$cmd found"; else fail "$cmd not found"; ERRORS=$((ERRORS+1)); fi

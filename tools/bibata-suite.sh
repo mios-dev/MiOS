@@ -8,7 +8,6 @@ fi
 
 # --- 2. INTERACTIVE SELECTION ---
 mapfile -t THEMES < <(ls /usr/share/icons/ | grep "Bibata-Modern")
-echo "------------------------------------------"
 echo "Select your cursor theme:"
 for i in "${!THEMES[@]}"; do
     echo "$((i+1))) ${THEMES[$i]}"
@@ -53,5 +52,4 @@ flatpak override --user --filesystem=$HOME/.icons:ro --filesystem=/usr/share/ico
 flatpak override --user --env=XCURSOR_THEME="$SELECTED" --env=XCURSOR_SIZE="$SIZE"
 echo "[âœ“] Flatpak environment synchronized."
 
-echo "------------------------------------------"
 echo "Done! Please restart your session (Mod+Shift+E) to apply everywhere."

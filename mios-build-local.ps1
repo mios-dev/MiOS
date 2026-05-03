@@ -121,7 +121,10 @@ function Show-StatusCard {
 
 # -- Register initial secrets from environment (if present) --
 @("MIOS_PASSWORD", "GHCR_TOKEN", "MIOS_GHCR_PUSH_TOKEN", "MIOS_PASSWORD_HASH") | ForEach-Object {
-    if ($env:$_) { Register-Secret $env:$_ }
+    # PowerShell parses $env:$_ as a scope-qualified var ref and rejects it
+    # at parse time. Use [Environment]::GetEnvironmentVariable instead.
+    $val = [Environment]::GetEnvironmentVariable($_)
+    if ($val) { Register-Secret $val }
 }
 
 function Get-FileSize { param([string]$P) if(!(Test-Path $P)){return "N/A"} $s=(Get-Item $P).Length; if($s -gt 1GB){"$([math]::Round($s/1GB,2)) GB"}else{"$([math]::Round($s/1MB,2)) MB"} }

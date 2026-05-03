@@ -6,6 +6,24 @@ _log() { logger -t mios-wsl-init "$*" 2>/dev/null || true; echo "[wsl-init] $*" 
 
 _log "WSL2 runtime bridge starting"
 
+# ── /etc/wsl.conf drift guard ──
+# WSL2 reads /etc/wsl.conf only at instance startup, so we can't repair it
+# during the same boot it broke. But if a user (or a misbehaving service)
+# edits /etc/wsl.conf into an unparseable state, this restores it from the
+# canonical reference at /usr/lib/wsl.conf so the NEXT `wsl --shutdown` +
+# relaunch comes up clean. Intentionally cmp-strict: drift in either
+# direction means re-sync, not merge.
+if [[ -f /usr/lib/wsl.conf ]]; then
+    if [[ ! -f /etc/wsl.conf ]] || ! cmp -s /etc/wsl.conf /usr/lib/wsl.conf; then
+        if [[ -f /etc/wsl.conf ]]; then
+            cp -a /etc/wsl.conf "/etc/wsl.conf.drifted-$(date +%s)" 2>/dev/null || true
+            _log "wsl-conf-restore: /etc/wsl.conf drifted; previous saved as /etc/wsl.conf.drifted-*"
+        fi
+        install -m 0644 -o root -g root -T /usr/lib/wsl.conf /etc/wsl.conf
+        _log "wsl-conf-restore: /etc/wsl.conf restored from /usr/lib/wsl.conf — takes effect on next 'wsl --shutdown'"
+    fi
+fi
+
 # Ensure /var/lib/mios runtime dirs exist
 if [[ -f /usr/lib/tmpfiles.d/mios.conf ]]; then
     systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios.conf 2>/dev/null || true

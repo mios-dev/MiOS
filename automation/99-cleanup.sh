@@ -43,7 +43,6 @@ rm -rf /var/lib/flatpak/repo/tmp/* 2>/dev/null || true
 echo "[99-cleanup] Restoring system skeleton..."
 systemd-tmpfiles --create --boot --root=/ 2>/dev/null || true
 
-
 # 5. Clean DNF caches
 echo "[99-cleanup] Cleaning package manager caches..."
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true

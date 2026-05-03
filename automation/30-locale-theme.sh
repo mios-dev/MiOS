@@ -16,9 +16,7 @@
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
 
-echo "═══════════════════════════════════════════════════════════════════"
 echo "  MiOS v0.2.0 — Universal Dark Theme"
-echo "═══════════════════════════════════════════════════════════════════"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
 # v0.2.0: Delivered via usr/share/skel/.bashrc overlay.

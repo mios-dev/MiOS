@@ -88,5 +88,4 @@ fi
 # ARCHITECTURAL FIX: Managed via usr/lib/modprobe.d/nvidia-open.conf
 # to prevent /etc state drift.
 
-
 echo "[11-hardware] GPU stack complete. Mesa + AMD ROCm + Intel + NVIDIA (ucore / akmod rebuild)."

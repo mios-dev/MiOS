@@ -58,7 +58,10 @@ function Format-Masked {
 }
 
 @("GHCR_TOKEN","GH_TOKEN","GITHUB_TOKEN","MIOS_PASSWORD","MIOS_GHCR_TOKEN") | ForEach-Object {
-    if ($env:$_) { Register-Secret $env:$_ }
+    # PowerShell parses $env:$_ as a scope-qualified var ref and rejects it
+    # at parse time. Use [Environment]::GetEnvironmentVariable instead.
+    $val = [Environment]::GetEnvironmentVariable($_)
+    if ($val) { Register-Secret $val }
 }
 
 # ─── dashboard state ──────────────────────────────────────────────────────────
@@ -202,7 +205,7 @@ function Start-Phase {
     $ph.StartT  = [DateTime]::Now
     if ($InitOp) { $script:Op = $InitOp }
     Show-Dashboard -FullRedraw
-    Write-Log "=== Phase $Id: $($ph.Name) ===" -Color Cyan
+    Write-Log "=== Phase ${Id}: $($ph.Name) ===" -Color Cyan
 }
 
 function Finish-Phase {

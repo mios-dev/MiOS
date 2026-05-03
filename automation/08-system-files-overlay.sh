@@ -46,6 +46,18 @@ if [[ -d "${CTX}/etc" ]]; then
     tar -C "${CTX}/etc" -cf - . | tar -C /etc --no-overwrite-dir -xf -
 fi
 
+# --- Stage 3a: /etc/wsl.conf force-install ---------------------------------
+# WSL2's wsl.conf parser is unforgiving — a single malformed byte takes down
+# systemd-as-PID1, which cascades into a broken user session and home dir.
+# Force-install from the canonical reference with explicit perms instead of
+# trusting the tar overlay (which can be defeated by a base-image-shipped
+# copy or by tar metadata quirks). install -T treats the destination as a
+# filename, not a directory, and overwrites unconditionally.
+if [[ -f "${CTX}/etc/wsl.conf" ]]; then
+    install -m 0644 -o root -g root -T "${CTX}/etc/wsl.conf" /etc/wsl.conf
+    log "  stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root)"
+fi
+
 # --- Stage 4: /var (Mutable System State Templates) ------------------------
 # DEPRECATED: /var population via tar overlay violates zero-trust immutability.
 # All mandatory /var structure must be declared in /usr/lib/tmpfiles.d/*.conf.

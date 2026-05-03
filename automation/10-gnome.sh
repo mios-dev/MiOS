@@ -114,12 +114,10 @@ done
 
 # VERIFY cursor files actually exist — log warning if missing but DO NOT fail build
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  WARNING: Bibata cursor theme download FAILED after 3 attempts"
     echo "  URL: $BIBATA_URL"
     echo "  The cursor will show as a SQUARE until the theme is installed."
     echo "  This failure is non-fatal for the build; users can install later."
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 else
     echo "[10-gnome] ✓ Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 fi
@@ -144,7 +142,6 @@ chmod -R a+rX "$BIBATA_DIR" 2>/dev/null || true
 
 # 6. Xresources fallback (oldest X11 cursor method)
 # Managed via usr/lib/X11/Xresources
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Phosh — Mobile session for portrait/tablet remote access
