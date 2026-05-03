@@ -22,10 +22,12 @@
 !/.clinerules
 !/.cursorrules
 !/.editorconfig
+!/.env.mios
 !/.github/
 !/.github/**
 !/AGENTS.md
 !/AI.md
+!/API.md
 !/CLAUDE.md
 !/GEMINI.md
 !/system-prompt.md
@@ -112,6 +114,11 @@ etc/mios/*
 !/etc/mios/eval-criteria.json
 !/etc/mios/system-prompts/
 !/etc/mios/system-prompts/**
+
+# /etc/sysusers.d/ — admin overrides for upstream-RPM sysusers entries
+# (e.g. cephadm.conf pins UID >= 1000 so the postcheck #8 invariant passes).
+!/etc/sysusers.d/
+!/etc/sysusers.d/**
 
 # /home/ is BOOTSTRAP territory. Per-user templates and skel live in mios-bootstrap.
 # /agents/ is BOOTSTRAP territory (knowledge graphs / RAG manifests).

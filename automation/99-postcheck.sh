@@ -143,9 +143,28 @@ fi
 # then refuses to create /run/user/<uid>/. The cascade kills dbus user
 # session, dconf, Wayland session services, and every GTK app that needs
 # a session bus.
+#
+# Files in /etc/sysusers.d/ override files of the same basename in
+# /usr/lib/sysusers.d/ (systemd-sysusers.d(5)), so when an override exists
+# the /usr/lib/ file is shadowed at runtime — validate the effective file.
 log "Validating sysusers.d login users have fixed UIDs..."
+_sysusers_effective() {
+    local d
+    declare -A _seen=()
+    for d in /etc/sysusers.d /usr/lib/sysusers.d; do
+        [[ -d "$d" ]] || continue
+        for f in "$d"/*.conf; do
+            [[ -f "$f" ]] || continue
+            local base
+            base="$(basename "$f")"
+            [[ -n "${_seen[$base]:-}" ]] && continue
+            _seen[$base]=1
+            printf '%s\n' "$f"
+        done
+    done
+}
 _sysusers_bad=$(
-    for f in /usr/lib/sysusers.d/*.conf; do
+    while IFS= read -r f; do
         [[ -f "$f" ]] || continue
         # u <name> <uid_or_-> [<gecos>] [<home>] [<shell>]
         # Match users whose shell is a login shell and uid is bare '-'.
@@ -157,7 +176,7 @@ _sysusers_bad=$(
                     print FILENAME ":" NR ": " $0
                 }
             }' "$f"
-    done
+    done < <(_sysusers_effective)
 )
 if [[ -n "$_sysusers_bad" ]]; then
     printf '%s\n' "$_sysusers_bad" >&2
@@ -171,7 +190,7 @@ log "  all login-shell sysusers entries have fixed UIDs"
 # at first boot and the user never gets created.
 log "Validating sysusers.d UID:GID resolves to a created group..."
 _sysusers_unresolved=$(
-    for f in /usr/lib/sysusers.d/*.conf; do
+    while IFS= read -r f; do
         [[ -f "$f" ]] || continue
         awk '
             # collect g lines in this file
@@ -188,7 +207,7 @@ _sysusers_unresolved=$(
                     print FILENAME ":" NR ": " $0
                 }
             }' "$f"
-    done
+    done < <(_sysusers_effective)
 )
 if [[ -n "$_sysusers_unresolved" ]]; then
     printf '%s\n' "$_sysusers_unresolved" >&2
