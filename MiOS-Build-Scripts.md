@@ -11,7 +11,7 @@ file contents. Use `Ctrl-F` against a path to find a script.
 ## Layer 1 -- User entry points (mios-bootstrap repo)
 
 
-### `C:\Users\Administrator\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.sh`
+### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.sh`
 
 ```bash
 #!/bin/bash
@@ -151,7 +151,7 @@ fi
 ```
 
 
-### `C:\Users\Administrator\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.ps1`
+### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.ps1`
 
 ```powershell
 #Requires -Version 5.1
@@ -178,7 +178,7 @@ if (Test-Path $installScript) {
 ```
 
 
-### `C:\Users\Administrator\OneDrive\Documents\GitHub\mios-bootstrap\install.sh`
+### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\install.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -896,7 +896,7 @@ main "$@"
 ```
 
 
-### `C:\Users\Administrator\OneDrive\Documents\GitHub\mios-bootstrap\install.ps1`
+### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\install.ps1`
 
 ```powershell
 #Requires -Version 5.1

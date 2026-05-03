@@ -192,7 +192,7 @@ cat > /tmp/Xbox-fixed.xml << 'XMLEOF'
     <emulator>/usr/bin/qemu-system-x86_64</emulator>
     <disk type="file" device="cdrom">
       <driver name="qemu" type="raw"/>
-      <source file="/home/ISOs/Win11_25H2_English_x64.iso"/>
+      <source file="/var/lib/libvirt/images/Win11_25H2_English_x64.iso"/>
       <target dev="sda" bus="sata"/>
       <readonly/>
       <address type="drive" controller="0" bus="0" target="0" unit="0"/>

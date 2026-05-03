@@ -5,7 +5,7 @@
     Replace with Read-Host -MaskInput (PS 7.1+, handles paste natively).
 
     Run from repo root:
-      cd C:\Users\\MiOS\OneDrive\Documents\GitHub\\MiOS
+      cd $env:USERPROFILE\OneDrive\Documents\GitHub\MiOS   # or wherever the repo is
       .\fix-token-input.ps1
 #>
 $ErrorActionPreference = "Stop"
