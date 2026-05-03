@@ -1,10 +1,10 @@
 [Unit]
-Description=MiOS Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)
+Description='MiOS' Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)
 ConditionVirtualization=!container
 Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
 ConditionPathExists=/dev/dri/renderD128
-After=systemd-modules-load.service systemd-udev-settle.service
-Wants=systemd-udev-settle.service
+After=systemd-modules-load.service systemd-udev-trigger.service
+# systemd-udev-settle is deprecated; using udev-trigger instead.
 # NOTE: Supports universal iGPU + dGPU hybrid configurations across all vendors.
 # Standardizes renderD128 access for Intel (QuickSync/NEO) and AMD (ROCm/VA-API)
 # while allowing co-existence with discrete NVIDIA or AMD hardware.
@@ -13,7 +13,7 @@ Wants=systemd-udev-settle.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=-/usr/sbin/modprobe -a i915 xe amdgpu
-# /var/run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
+# /run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
 ExecStart=/usr/bin/bash -c ' \
   # Defensive perms on primary render node -- do not touch card* nodes (video group \
   # handled by 99-mios-gpu.rules at udev-add time). \

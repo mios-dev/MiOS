@@ -1,22 +1,23 @@
 [Unit]
-Description=MiOS AMD GPU container plumbing (ROCm/KFD + DRI)
+Description='MiOS' AMD GPU container plumbing (ROCm/KFD + DRI)
 ConditionVirtualization=!container
 Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
 ConditionPathExists=/dev/kfd
-After=systemd-modules-load.service systemd-udev-settle.service
-Wants=systemd-udev-settle.service
+After=systemd-modules-load.service systemd-udev-trigger.service
+# systemd-udev-settle is deprecated upstream (warns at boot). udev-trigger
+# fires the device coldplug; the [ -e /dev/... ] checks tolerate races.
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/usr/sbin/modprobe -a amdgpu
-# /var/run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
+# /run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
 ExecStart=/usr/bin/bash -c ' \
   # If amd-ctk ever lands in Fedora RPM repos, drop a CDI spec automatically. \
   # Until then containers must pass --device /dev/kfd --device /dev/dri \
   # --group-add keep-groups explicitly. \
   if command -v amd-ctk >/dev/null 2>&1; then \
-    amd-ctk cdi generate --output=/var/run/cdi/amd.json || true; \
+    amd-ctk cdi generate --output=/run/cdi/amd.json || true; \
   fi; \
   # Defensive perms -- Fedora Rawhide already labels /dev/kfd as root:render \
   # 0660 via kernel, but pin it in case of drift. \

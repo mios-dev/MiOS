@@ -1,10 +1,10 @@
 #!/bin/bash
-# MiOS v0.2.0 — 31-user: PAM, user creation, groups, sudoers
+# 'MiOS' v0.2.0 — 31-user: PAM, user creation, groups, sudoers
 # Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
 # and BEFORE any service that references the user.
 set -euo pipefail
 
-echo "  MiOS v0.2.0 — User & Authentication"
+echo "  'MiOS' v0.2.0 — User & Authentication"
 
 # — PAM FIX —
 echo "[31-user] Configuring PAM via authselect..."
@@ -27,7 +27,7 @@ if [[ "${C_USER}" != "mios" ]]; then
     # SYSTEM range (<UID_MIN), which makes logind skip XDG_RUNTIME_DIR creation
     # and cascades into dbus/dconf/Wayland session-service failures.
     cat <<EOF > /usr/lib/sysusers.d/15-mios-custom.conf
-u ${C_USER} 1000:1000 "MiOS Custom User" /var/home/${C_USER} /bin/bash
+u ${C_USER} 1000:1000 "'MiOS' Custom User" /var/home/${C_USER} /bin/bash
 m ${C_USER} wheel
 m ${C_USER} libvirt
 m ${C_USER} kvm

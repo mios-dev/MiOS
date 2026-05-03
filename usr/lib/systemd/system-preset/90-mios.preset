@@ -1,4 +1,4 @@
-# MiOS systemd preset
+# 'MiOS' systemd preset
 # "enable" = on boot; "disable" = off. Role-specific services are NOT here;
 # mios-role.service enables/disables them at runtime based on role.conf.
 
@@ -51,6 +51,7 @@ enable qemu-guest-agent.service
 # --- WSL2 fallback & initialization (ConditionVirtualization=wsl gated) ---
 enable mios-wsl-firstboot.service
 enable mios-wsl-init.service
+enable mios-wsl-runtime-dir.service
 enable dbus-daemon-wsl.service
 
 # --- Disabled in favor of uupd ---

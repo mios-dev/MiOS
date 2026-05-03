@@ -1,0 +1,30 @@
+[Unit]
+# 'MiOS' WSL2 user-runtime-directory fallback.
+# pam_systemd creates /run/user/<uid> on a real PAM login session. WSL2's
+# default-user invocation does open a PAM session, but `wsl -u root` followed
+# by `su - mios` bypasses pam_systemd and leaves /run/user/1000 missing,
+# which then surfaces as "Unsupported or missing session type ''" in GTK
+# apps, dconf "Permission denied", and dbus user-session failures.
+#
+# This service unconditionally creates the directory for the canonical mios
+# user on WSL2 boots so the cascade can't happen. On a real logind session
+# the directory already exists -- install -d is idempotent and a no-op.
+Description='MiOS' WSL2 user-runtime-dir fallback
+Documentation=https://github.com/MiOS-DEV/MiOS
+ConditionVirtualization=wsl
+After=local-fs.target systemd-sysusers.service
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Resolve mios uid/gid via getent (handles future renumbering). Failures are
+# non-fatal -- if the user doesn't exist yet, sysusers / wsl-firstboot will
+# create it and a subsequent boot will populate the directory.
+ExecStart=/bin/bash -c '\
+    getent passwd mios >/dev/null 2>&1 || exit 0; \
+    UID_=$(id -u mios); GID_=$(id -g mios); \
+    install -d -m 0700 -o "$UID_" -g "$GID_" "/run/user/$UID_"'
+
+[Install]
+WantedBy=multi-user.target

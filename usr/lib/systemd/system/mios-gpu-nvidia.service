@@ -1,15 +1,15 @@
 [Unit]
-Description=MiOS NVIDIA GPU container plumbing
+Description='MiOS' NVIDIA GPU container plumbing
 ConditionVirtualization=!container
 ConditionVirtualization=!wsl
 Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
 ConditionPathExists=/dev/nvidia0
-After=systemd-modules-load.service systemd-udev-settle.service akmods.service
-Wants=systemd-udev-settle.service
+After=systemd-modules-load.service systemd-udev-trigger.service akmods.service
+# systemd-udev-settle is deprecated; using udev-trigger instead.
 Before=nvidia-cdi-refresh.service
 # This unit intentionally does NOT call nvidia-ctk directly when the upstream
 # nvidia-cdi-refresh.service is available (nvidia-container-toolkit >= v0.2.0).
-# It only ensures modules are loaded and /var/run/cdi exists before the
+# It only ensures modules are loaded and /run/cdi exists before the
 # upstream service fires. On images without the upstream service (e.g. if
 # MiOS-1 ever ships nvidia-ctk manually) it falls back to direct generation.
 
@@ -17,7 +17,7 @@ Before=nvidia-cdi-refresh.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/usr/sbin/modprobe -a nvidia nvidia_uvm nvidia_modeset nvidia_drm
-# /var/run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
+# /run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
 ExecStart=/usr/bin/bash -c ' \
   if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null \
        | grep -q nvidia-cdi-refresh; then \
@@ -25,7 +25,7 @@ ExecStart=/usr/bin/bash -c ' \
     exit 0; \
   fi; \
   if command -v nvidia-ctk >/dev/null 2>&1; then \
-    nvidia-ctk cdi generate --output=/var/run/cdi/nvidia.yaml || true; \
+    nvidia-ctk cdi generate --output=/run/cdi/nvidia.yaml || true; \
   fi; \
   exit 0'
 StandardOutput=journal

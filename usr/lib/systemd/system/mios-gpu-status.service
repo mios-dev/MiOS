@@ -1,10 +1,10 @@
 [Unit]
 ConditionVirtualization=!container
-Description=MiOS GPU passthrough detection and status
+Description='MiOS' GPU passthrough detection and status
 Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
 DefaultDependencies=yes
-After=systemd-udev-settle.service systemd-modules-load.service local-fs.target
-Wants=systemd-udev-settle.service
+After=systemd-udev-trigger.service systemd-modules-load.service local-fs.target
+# systemd-udev-settle is deprecated; using udev-trigger instead.
 # Before=podman.socket docker.socket removed: combining DefaultDependencies=yes
 # (which implies After=basic.target -> After=sockets.target -> After=podman.socket)
 # with Before=podman.socket creates an ordering cycle that systemd resolves by
@@ -23,7 +23,7 @@ ExecStart=/usr/bin/bash -c ' \
   [ -e /dev/kfd ]                && HAS_AMD=1; \
   [ -e /dev/dri/renderD128 ]     && HAS_INTEL=1; \
   VIRT=$(systemd-detect-virt || echo none); \
-  # /run/mios, /var/run/cdi, /var/lib/mios/gpu declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2). \
+  # /run/mios, /run/cdi, /var/lib/mios/gpu declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2). \
   { \
     echo "timestamp=$(date -Is)"; \
     echo "virtualization=${VIRT}"; \
