@@ -320,5 +320,106 @@ else
     log "  systemd-tmpfiles unavailable -- skipping tmpfiles verification"
 fi
 
+# 12. UNIFIED-AI-REDIRECTS (Architectural Law 5).
+# Active configuration MUST NOT hard-code vendor cloud URLs. Comments may
+# show alternatives for documentation, so we strip comment lines before
+# matching. Scope: actual config dirs in the deployed image, not docs.
+log "Validating UNIFIED-AI-REDIRECTS (Law 5): no vendor URLs in active config..."
+_law5_dirs=(
+    /etc/containers/systemd
+    /usr/share/containers/systemd
+    /usr/lib/systemd/system
+    /usr/share/mios/ai
+    /etc/mios/ai
+)
+_law5_pattern='https?://(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com|api\.cohere\.|api\.mistral\.|api\.cline\.bot|api\.cursor\.com|api\.githubcopilot\.com)'
+_law5_hits=""
+for d in "${_law5_dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        # Strip leading-whitespace + comment lines for the file's syntax;
+        # then match. Cover #-comment files (toml/yaml/conf/sh/Quadlet) and
+        # //-comment files. JSON has no comments so the strip is a no-op.
+        active=$(sed -E '/^[[:space:]]*(#|\/\/)/d' "$f")
+        if printf '%s\n' "$active" | grep -qE "$_law5_pattern"; then
+            _law5_hits+="$f"$'\n'
+        fi
+    done < <(find "$d" -type f \( -name '*.container' -o -name '*.service' \
+        -o -name '*.json' -o -name '*.toml' -o -name '*.conf' -o -name '*.yaml' \
+        -o -name '*.yml' \) 2>/dev/null)
+done
+if [[ -n "$_law5_hits" ]]; then
+    printf '%s' "$_law5_hits" >&2
+    die "UNIFIED-AI-REDIRECTS: vendor cloud URL found in active config (must route through MIOS_AI_ENDPOINT)"
+fi
+log "  no vendor URLs in active config"
+
+# 13. UNPRIVILEGED-QUADLETS (Architectural Law 6).
+# Every Quadlet *.container under /etc/containers/systemd or
+# /usr/share/containers/systemd MUST declare User= (with the documented
+# mios-ceph and mios-k3s exceptions, both of which require uid 0). Group=
+# and Delegate=yes are SHOULD-have but not strictly load-bearing for the
+# unprivileged invariant; the User= guarantee is what matters.
+log "Validating UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User=..."
+_law6_exceptions='^(mios-ceph|mios-k3s)\.container$'
+_law6_missing=""
+for d in /etc/containers/systemd /usr/share/containers/systemd; do
+    [[ -d "$d" ]] || continue
+    for f in "$d"/*.container; do
+        [[ -f "$f" ]] || continue
+        base=$(basename "$f")
+        if [[ "$base" =~ $_law6_exceptions ]]; then continue; fi
+        if ! grep -qE '^[[:space:]]*User=' "$f"; then
+            _law6_missing+="$f: missing User= directive"$'\n'
+        fi
+    done
+done
+if [[ -n "$_law6_missing" ]]; then
+    printf '%s' "$_law6_missing" >&2
+    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s)"
+fi
+log "  every Quadlet declares User= (or is a documented root exception)"
+
+# 14. BOUND-IMAGES (Architectural Law 3).
+# Every Quadlet *.container in /etc/containers/systemd or
+# /usr/share/containers/systemd MUST be symlinked (by basename) into
+# /usr/lib/bootc/bound-images.d/ so the image bind-binds with the host.
+# Detected drift = a Quadlet that ships without its image binding, or
+# a stale binding pointing at a Quadlet that no longer exists.
+log "Validating BOUND-IMAGES (Law 3): Quadlet -> bound-images.d/ coverage..."
+_bind_dir=/usr/lib/bootc/bound-images.d
+_law3_missing=""
+_law3_extra=""
+if [[ -d "$_bind_dir" ]]; then
+    declare -A _seen_quadlets=()
+    for d in /etc/containers/systemd /usr/share/containers/systemd; do
+        [[ -d "$d" ]] || continue
+        for f in "$d"/*.container; do
+            [[ -f "$f" ]] || continue
+            base=$(basename "$f")
+            _seen_quadlets["$base"]=1
+            if [[ ! -e "$_bind_dir/$base" ]]; then
+                _law3_missing+="$base: no symlink in $_bind_dir/"$'\n'
+            fi
+        done
+    done
+    for b in "$_bind_dir"/*.container; do
+        [[ -e "$b" ]] || continue
+        base=$(basename "$b")
+        if [[ -z "${_seen_quadlets[$base]:-}" ]]; then
+            _law3_extra+="$base: stale binding in $_bind_dir/ (no source Quadlet)"$'\n'
+        fi
+    done
+    if [[ -n "$_law3_missing" || -n "$_law3_extra" ]]; then
+        [[ -n "$_law3_missing" ]] && printf '%s' "$_law3_missing" >&2
+        [[ -n "$_law3_extra" ]] && printf '%s' "$_law3_extra" >&2
+        die "BOUND-IMAGES: Quadlet/binder drift (every *.container must symlink into $_bind_dir/)"
+    fi
+    log "  every Quadlet has a corresponding bound-images.d/ symlink"
+else
+    log "  $_bind_dir not present -- skipping (binder loop did not run)"
+fi
+
 log "Validation SUCCESSFUL"
 exit 0

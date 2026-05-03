@@ -1,8 +1,8 @@
 import os
 import re
 
-HEADER = """<!-- 🌐 'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
-# 🌐 'MiOS'
+HEADER = """<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+#  'MiOS'
 > **Proprietor:** 'MiOS' Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to 'MiOS' Project
@@ -10,7 +10,7 @@ HEADER = """<!-- 🌐 'MiOS' Artifact | Proprietor: 'MiOS' Project | https://git
 ---"""
 
 FOOTER = """---
-### ⚖️ Legal & Source Reference
+###  Legal & Source Reference
 - **Copyright:** (c) 2026 'MiOS' Project
 - **Status:** Personal Property / Private Infrastructure
 - **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
@@ -24,9 +24,9 @@ def standardize_file(file_path):
 
     # Clean existing header/footer if they look like our old ones
     # This regex looks for the proprietor line to identify the header
-    content = re.sub(r'^# 🌐 MiOS.*?\n---\n', '', content, flags=re.DOTALL | re.MULTILINE)
+    content = re.sub(r'^#  MiOS.*?\n---\n', '', content, flags=re.DOTALL | re.MULTILINE)
     # This looks for the "Legal & Source Reference" or the old "Bootc Ecosystem" footer
-    content = re.sub(r'\n---\n### (⚖️ Legal & Source Reference|📚 Bootc Ecosystem & Resources).*?---$', '', content, flags=re.DOTALL)
+    content = re.sub(r'\n---\n### ( Legal & Source Reference| Bootc Ecosystem & Resources).*?---$', '', content, flags=re.DOTALL)
 
     # Strip extra whitespace
     content = content.strip()

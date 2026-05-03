@@ -115,7 +115,7 @@ scan_file() {
     # Skip non-prose files
     case "$path" in
         *.sh|*.py|*.rs|*.go|*.c|*.cpp|*.h|*.hpp|*.toml|*.ini|*.conf)
-            return 0  # Source code — skip
+            return 0  # Source code -- skip
             ;;
     esac
 
@@ -232,7 +232,7 @@ case "$MODE" in
     diff)
         clean_file "$TARGET" >/dev/null
         diff -u "${TARGET}.bak" "$TARGET" || true
-        mv "${TARGET}.bak" "$TARGET"  # Restore — diff mode is non-destructive
+        mv "${TARGET}.bak" "$TARGET"  # Restore -- diff mode is non-destructive
         ;;
     *)
         echo "Unknown mode: $MODE" >&2

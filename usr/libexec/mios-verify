@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 — stub: mios-verify
+# MiOS v0.2.0 -- stub: mios-verify
 # Implementation expected from bootstrap overlay or future automation script.
 set -euo pipefail
-logger -t mios "[mios-verify] stub executed — replace with real implementation"
+logger -t mios "[mios-verify] stub executed -- replace with real implementation"
 echo "[mios/mios-verify] stub: no-op" >&2
 exit 0

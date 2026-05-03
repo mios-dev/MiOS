@@ -83,32 +83,66 @@ DECORATIVE_RE = re.compile(
 # first 8 KiB and bail on NUL.
 TEXT_EXTS = {
     ".md", ".txt", ".sh", ".bash", ".zsh", ".ps1", ".psd1",
+    ".py", ".pl", ".rb",   # interpreted scripts
     ".toml", ".yaml", ".yml", ".json", ".jsonl",
     ".conf", ".cfg", ".ini", ".rules", ".preset", ".target",
     ".service", ".socket", ".timer", ".mount", ".path",
     ".container", ".image", ".network", ".volume",
     ".te", ".fc", ".if",   # SELinux
     ".kbd", ".env",
+    ".xml",                # libvirt / etc.
 }
-TEXT_BASENAMES = {"Containerfile", "Justfile", "Dockerfile", "Makefile",
-                   "LICENSE", "VERSION"}
+TEXT_BASENAMES = {
+    "Containerfile", "Justfile", "Dockerfile", "Makefile", "LICENSE", "VERSION",
+    # Repo-root dotfiles (no extension; full basename matches).
+    ".gitignore", ".gitattributes", ".editorconfig",
+    ".clinerules", ".cursorrules",
+    ".env", ".env.mios",
+    # /usr/share/mios/env.defaults -- vendor env file; non-standard extension.
+    "env.defaults",
+}
 
-# Skip auto-generated AI training data and embeddings -- these are derived
-# from KB source files; sanitizing them in place would diverge them from
-# the regenerator output. Re-run the KB build to refresh them after the
-# sweep instead.
+# Skip:
+#   - auto-generated AI training data and embeddings (derived from KB
+#     sources; sanitizing them in place would diverge them from the
+#     regenerator output -- refresh via KB build instead).
+#   - this script and its sibling, because their substitution dicts
+#     intentionally hold the very characters being scrubbed. The dicts
+#     are written with \uXXXX escapes so a self-sweep is a no-op anyway,
+#     but skipping is belt-and-braces.
 SKIP_PATTERNS = (
     "var/lib/mios/embeddings/",
     "var/lib/mios/training/",
     "var\\lib\\mios\\embeddings\\",  # Windows path form from git ls-files
     "var\\lib\\mios\\training\\",
+    "tools/ascii-sweep.py",
+    "tools/lib/ascii-sweep.py",
+    "tools\\ascii-sweep.py",
+    "tools\\lib\\ascii-sweep.py",
 )
+
+
+def _shebang_is_text(path: Path) -> bool:
+    """Treat extensionless executables as text if they start with a shebang."""
+    try:
+        with path.open("rb") as fh:
+            head = fh.read(512)
+    except OSError:
+        return False
+    if not head.startswith(b"#!"):
+        return False
+    if b"\x00" in head:
+        return False
+    return True
 
 
 def is_text_file(path: Path) -> bool:
     if path.name in TEXT_BASENAMES:
         return True
     if path.suffix.lower() in TEXT_EXTS:
+        return True
+    # Extensionless files in tools/ or automation/ that begin with a shebang.
+    if path.suffix == "" and _shebang_is_text(path):
         return True
     return False
 

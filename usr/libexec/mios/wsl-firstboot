@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MiOS — wsl-firstboot: WSL2 first-boot user and runtime initialization.
+# MiOS -- wsl-firstboot: WSL2 first-boot user and runtime initialization.
 # Runs once (guarded by ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done).
 # Safe to re-run: all operations are idempotent.
 set -euo pipefail
@@ -8,7 +8,7 @@ source /usr/lib/mios/paths.sh
 
 MARKER="${MIOS_VAR_DIR}/.wsl-firstboot-done"
 
-# logger may fail if journald isn't up yet — never fatal
+# logger may fail if journald isn't up yet -- never fatal
 _log() { logger -t mios-wsl-firstboot "$*" 2>/dev/null || true; echo "[wsl-firstboot] $*" >&2; }
 
 _log "Starting WSL2 first-boot initialization"
@@ -28,7 +28,7 @@ fi
 
 # ── Hostname ──
 if [[ -n "$MIOS_HOSTNAME" ]]; then
-    # Write /etc/hostname directly — hostnamectl requires logind which may not
+    # Write /etc/hostname directly -- hostnamectl requires logind which may not
     # be running yet in WSL2 (logind is conditioned out in WSL2).
     echo "$MIOS_HOSTNAME" > /etc/hostname
     hostname "$MIOS_HOSTNAME" 2>/dev/null || true
@@ -64,7 +64,7 @@ fi
 
 # ── Password hash (default: 'mios' if none supplied) ──
 if [[ -z "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
-    _log "No password hash supplied — generating default hash for password 'mios'"
+    _log "No password hash supplied -- generating default hash for password 'mios'"
     MIOS_USER_HASH=$(openssl passwd -6 'mios' 2>/dev/null) || true
 fi
 
@@ -76,7 +76,7 @@ if [[ -n "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
         _log "WARN: MIOS_USER_PASSWORD_HASH is not a valid sha512crypt hash (must start with \$6\$)"
     fi
 else
-    _log "WARN: Could not set password for $MIOS_USER — manual reset required"
+    _log "WARN: Could not set password for $MIOS_USER -- manual reset required"
 fi
 
 # ── Tmpfiles for /var/lib/mios ──

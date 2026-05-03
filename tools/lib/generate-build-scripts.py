@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lib/generate-build-scripts.py — emit MiOS-Build-Scripts.md, a single
+# tools/lib/generate-build-scripts.py -- emit MiOS-Build-Scripts.md, a single
 # markdown bundle containing the full source of every script that
 # participates in building 'MiOS', in execution order.
 
@@ -9,22 +9,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "MiOS-Build-Scripts.md"
 
-# Layered ordering per delivery contract. Each (label, [paths]) — paths are
+# Layered ordering per delivery contract. Each (label, [paths]) -- paths are
 # relative to ROOT. Glob-expand patterns inside each layer.
 LAYERS = [
-    ("Layer 1 — User entry points (mios-bootstrap repo)",
+    ("Layer 1 -- User entry points (mios-bootstrap repo)",
      # mios-bootstrap repo lives at ../mios-bootstrap; check both possible
      # checkouts.
      []),  # populated dynamically below if sibling repo exists
 
-    ("Layer 2 — System-side installers",
+    ("Layer 2 -- System-side installers",
      [
          "automation/install.sh",
          "automation/install-bootstrap.sh",
          "automation/build-mios.sh",
      ]),
 
-    ("Layer 3 — Build orchestrators",
+    ("Layer 3 -- Build orchestrators",
      [
          "Containerfile",
          "Justfile",
@@ -37,7 +37,7 @@ LAYERS = [
          "install.ps1",
      ]),
 
-    ("Layer 4a — Library (sourced helpers)",
+    ("Layer 4a -- Library (sourced helpers)",
      [
          "automation/lib/common.sh",
          "automation/lib/packages.sh",
@@ -45,16 +45,16 @@ LAYERS = [
          "automation/lib/paths.sh",
      ]),
 
-    ("Layer 4b — Master orchestrator",
+    ("Layer 4b -- Master orchestrator",
      [
          "automation/build.sh",
      ]),
 
     # Layer 4c-j: every NN-*.sh in automation/, expanded below.
-    ("Layer 4c-j — Numbered phase scripts (lex order)",
+    ("Layer 4c-j -- Numbered phase scripts (lex order)",
      []),  # populated below
 
-    ("Layer 4k — Helpers",
+    ("Layer 4k -- Helpers",
      [
          "automation/ai-bootstrap.sh",
          "automation/bcvk-wrapper.sh",
@@ -64,7 +64,7 @@ LAYERS = [
          "automation/overlay-builder.sh",
      ]),
 
-    ("Layer 5 — Postcheck + system-files overlay",
+    ("Layer 5 -- Postcheck + system-files overlay",
      [
          # 99-postcheck.sh is in the NN scripts; called out here for emphasis
      ]),
@@ -103,7 +103,7 @@ def section(path_str: str, content: str, fence: str) -> str:
 
 def main():
     lines = []
-    lines.append("# 'MiOS' Build Scripts — Full Source Bundle\n")
+    lines.append("# 'MiOS' Build Scripts -- Full Source Bundle\n")
     lines.append("Every script that participates in building the 'MiOS' OCI image, in")
     lines.append("execution order, with complete source and no truncation. Each section")
     lines.append("header carries the file path; each fenced block carries the verbatim")
@@ -130,11 +130,30 @@ def main():
             except Exception as e:
                 skipped.append(f"{path_str} (read error: {e})")
                 continue
-            # Use the relative path if inside ROOT, else absolute
+            # Display path: prefer relative-to-ROOT; fall back to a stable
+            # sibling-form (e.g. 'mios-bootstrap/bootstrap.sh') so the bundle
+            # never embeds the build host's absolute path. Absolute paths
+            # leak the developer's machine setup; bare basenames lose
+            # repo context. The sibling form is the one users see in
+            # 'git status' and matches the tracked layout on GHCR.
             try:
-                display = str(p.relative_to(ROOT))
+                display = str(p.relative_to(ROOT)).replace("\\", "/")
             except ValueError:
-                display = str(p)
+                # Outside ROOT -- expected for the mios-bootstrap sibling.
+                # Walk parents until we find a *.git directory; emit the
+                # path relative to that repo's parent so the output reads
+                # 'mios-bootstrap/<file>' regardless of the absolute checkout
+                # location on the host. Fall back to bare basename if no
+                # repo root is detectable (e.g. file outside any git tree).
+                anchor = None
+                for ancestor in p.parents:
+                    if (ancestor / ".git").exists():
+                        anchor = ancestor.parent
+                        break
+                if anchor is not None:
+                    display = str(p.relative_to(anchor)).replace("\\", "/")
+                else:
+                    display = p.name
             lines.append(section(display, content.rstrip("\n"), fence_for(p)))
             total_files += 1
             total_lines += content.count("\n") + 1

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.0 — mios-toggle-headless
+# MiOS v0.2.0 -- mios-toggle-headless
 # Toggle between GUI desktop (graphical.target) and headless (multi-user.target)
 # Works from TTY, terminal, SSH, or Cockpit console.
 # Usage: mios-toggle-headless [on|off|status]
@@ -23,7 +23,7 @@ show_status() {
     local target
     target=$(current_target)
     echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║  MiOS — Display Mode Status                  ║${NC}"
+    echo -e "${CYAN}║  MiOS -- Display Mode Status                  ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "  Default target:  ${YELLOW}${target}${NC}"
@@ -59,7 +59,7 @@ go_headless() {
         systemctl stop display-manager.service 2>/dev/null || true
     fi
 
-    echo -e "${GREEN}✓ Headless mode active.${NC}"
+    echo -e "${GREEN}[ok] Headless mode active.${NC}"
     echo -e "  GDM is stopped. System boots to CLI on next reboot."
     echo -e "  Access via: SSH, Cockpit (https://$(hostname -I | awk '{print $1}'):9090), or TTY."
     echo -e "  Restore GUI: ${CYAN}sudo mios-toggle-headless on${NC}"
@@ -71,7 +71,7 @@ go_gui() {
         exit 1
     fi
 
-    # Check if we're in WSL2 — GDM doesn't work there
+    # Check if we're in WSL2 -- GDM doesn't work there
     VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
     if [[ "$VIRT" == "wsl" ]]; then
         echo -e "${RED}Error: GDM cannot run in WSL2. Use WSLg for graphical apps.${NC}"
@@ -89,7 +89,7 @@ go_gui() {
         systemctl start gdm.service 2>/dev/null || true
     fi
 
-    echo -e "${GREEN}✓ GUI desktop mode active.${NC}"
+    echo -e "${GREEN}[ok] GUI desktop mode active.${NC}"
     echo -e "  GDM is running. System boots to desktop on next reboot."
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lib/generate-sbom.py — emit MiOS-SBOM.csv from PACKAGES.md +
+# tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from PACKAGES.md +
 # Quadlet Image= refs + base image refs + .env.mios Flatpak defaults.
 
 import re

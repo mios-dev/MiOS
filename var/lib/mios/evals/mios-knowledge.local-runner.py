@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-mios-knowledge.local-runner.py — Run the 'MiOS' Knowledge eval against any
+mios-knowledge.local-runner.py -- Run the 'MiOS' Knowledge eval against any
 OpenAI-compatible /v1/chat/completions endpoint.
 
 Mirrors the testing_criteria from mios-knowledge.eval.json:
@@ -8,7 +8,7 @@ Mirrors the testing_criteria from mios-knowledge.eval.json:
   - score_model: an LLM grader rates 0.0 / 0.5 / 1.0 (cloud or local)
 
 Day-0 compatible. Set MIOS_AI_ENDPOINT to:
-  http://localhost:8080/v1   ('MiOS' LocalAI — canonical)
+  http://localhost:8080/v1   ('MiOS' LocalAI -- canonical)
   http://localhost:11434/v1  (Ollama)
   http://localhost:8000/v1   (vLLM)
   http://localhost:1234/v1   (LM Studio)
@@ -54,7 +54,7 @@ def chat(endpoint: str, key: str, model: str, messages: list[dict],
 
 
 def grade_string_check(output_text: str, must_mention: str) -> bool:
-    """ilike — case-insensitive substring."""
+    """ilike -- case-insensitive substring."""
     return must_mention.lower() in (output_text or "").lower()
 
 
@@ -79,7 +79,7 @@ def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
             ],
             response_format={"type": "json_object"},
         )
-        # Some local servers ignore json_object — best-effort extract
+        # Some local servers ignore json_object -- best-effort extract
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         obj = json.loads(m.group(0)) if m else {"score": 0.0, "reason": "ungradable"}
         return float(obj.get("score", 0.0)), str(obj.get("reason", ""))
@@ -140,7 +140,7 @@ def main():
         passed_overall = passed_string and score >= 0.7
 
         elapsed = time.time() - t0
-        marker = "✅" if passed_overall else "❌"
+        marker = "[ok]" if passed_overall else ""
         print(f"{marker} [{i:>3}/{len(items)}] {item['topic']:<12} "
               f"string={passed_string!s:<5} score={score:.2f}  ({elapsed:.1f}s)  "
               f"{item['question'][:70]}")

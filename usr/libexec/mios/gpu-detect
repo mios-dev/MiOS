@@ -9,7 +9,7 @@ RENDERER_CONF="${ENV_DIR}/60-mios-renderer.conf"
 mkdir -p "$ENV_DIR"
 
 if [ "$VIRT" != "none" ]; then
-    echo "[mios-gpu-detect] VM detected ($VIRT) — blocking NVIDIA"
+    echo "[mios-gpu-detect] VM detected ($VIRT) -- blocking NVIDIA"
     cat > "$NVIDIA_CONF" <<'EOMOD'
 install nvidia /bin/false
 install nvidia_drm /bin/false
@@ -31,7 +31,7 @@ EORENDER
         vmware)        modprobe vmwgfx 2>/dev/null || true ;;
     esac
 else
-    echo "[mios-gpu-detect] Bare metal — NVIDIA enabled, hardware renderer"
+    echo "[mios-gpu-detect] Bare metal -- NVIDIA enabled, hardware renderer"
     rm -f "$NVIDIA_CONF"
     rm -f /etc/modprobe.d/mios-nvidia-blacklist.conf
     # Load nvidia now that blacklist is removed

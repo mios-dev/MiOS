@@ -11,7 +11,7 @@ file contents. Use `Ctrl-F` against a path to find a script.
 ## Layer 1 -- User entry points (mios-bootstrap repo)
 
 
-### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.sh`
+### `mios-bootstrap/bootstrap.sh`
 
 ```bash
 #!/bin/bash
@@ -151,7 +151,7 @@ fi
 ```
 
 
-### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\bootstrap.ps1`
+### `mios-bootstrap/bootstrap.ps1`
 
 ```powershell
 #Requires -Version 5.1
@@ -178,7 +178,7 @@ if (Test-Path $installScript) {
 ```
 
 
-### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\install.sh`
+### `mios-bootstrap/install.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -896,7 +896,7 @@ main "$@"
 ```
 
 
-### `C:\Users\USER\OneDrive\Documents\GitHub\mios-bootstrap\install.ps1`
+### `mios-bootstrap/install.ps1`
 
 ```powershell
 #Requires -Version 5.1
@@ -1551,13 +1551,19 @@ function Invoke-BibBuild([string[]]$Types, [string]$MachineOutDir, [int]$Timeout
     Set-Step "BIB: $($Types -join '+')..."
     Write-Log "BIB start: types=$($Types -join ',')  out=$MachineOutDir"
 
-    # Pre-create the output directory inside the machine -- podman volume mounts require
-    # the host-side path to exist before the container starts.
-    Set-Step "BIB: creating output dir in machine..."
-    & podman run --rm --privileged --security-opt label=disable `
-        docker.io/library/alpine:latest `
-        mkdir -p $MachineOutDir 2>&1 | ForEach-Object { Write-Log "bib-mkdir: $_" }
-    if ($LASTEXITCODE -ne 0) { Write-Log "WARN: bib mkdir returned $LASTEXITCODE (may still work)" }
+    # Pre-create the output directory on the BUILDER MACHINE filesystem.
+    # podman volume bind-mounts require the host-side path to exist before
+    # the container starts; otherwise crun fails with `statfs ENOENT`.
+    # CRITICAL: must run via `podman machine ssh` -- running `mkdir` inside
+    # a transient alpine container only creates the dir in the container's
+    # ephemeral fs, which evaporates before the BIB container starts.
+    Set-Step "BIB: creating output dir on builder machine..."
+    $machineName = if ($env:MIOS_BUILDER_MACHINE) { $env:MIOS_BUILDER_MACHINE } else { "mios-builder" }
+    & podman machine ssh $machineName -- "sudo mkdir -p '$MachineOutDir' && sudo chmod 0755 '$MachineOutDir'" 2>&1 |
+        ForEach-Object { Write-Log "bib-mkdir: $_" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "WARN: 'podman machine ssh ... mkdir' returned $LASTEXITCODE -- BIB will likely fail with statfs ENOENT"
+    }
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName  = "cmd.exe"
@@ -2197,7 +2203,7 @@ Write-Host ''; Write-Host "  'MiOS' removed. Config at `$C preserved." -Foregrou
 ## Layer 2 -- System-side installers
 
 
-### `automation\install.sh`
+### `automation/install.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -2266,7 +2272,7 @@ echo "       Log out and back in (or reboot) to pick up profile changes."
 ```
 
 
-### `automation\install-bootstrap.sh`
+### `automation/install-bootstrap.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -2497,7 +2503,7 @@ main "$@"
 ```
 
 
-### `automation\build-mios.sh`
+### `automation/build-mios.sh`
 
 ```bash
 #!/bin/bash
@@ -4502,7 +4508,7 @@ $P = $null; $passHash = $null; $RegistryToken = $null; $LuksPass = $null
 ```
 
 
-### `automation\mios-build-builder.ps1`
+### `automation/mios-build-builder.ps1`
 
 ```powershell
 #Requires -Version 7.1
@@ -5960,7 +5966,7 @@ $P = $null; $passHash = $null; $GhcrToken = $null
 ## Layer 4a -- Library (sourced helpers)
 
 
-### `automation\lib\common.sh`
+### `automation/lib/common.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -6037,7 +6043,7 @@ record_version() {
 ```
 
 
-### `automation\lib\packages.sh`
+### `automation/lib/packages.sh`
 
 ```bash
 #!/bin/bash
@@ -6148,7 +6154,7 @@ install_packages_optional() {
 ```
 
 
-### `automation\lib\masking.sh`
+### `automation/lib/masking.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -6260,7 +6266,7 @@ scurl() {
 ```
 
 
-### `automation\lib\paths.sh`
+### `automation/lib/paths.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -6297,7 +6303,7 @@ export MIOS_BUILD_LOG MIOS_BUILD_CHAIN_LOG MIOS_VERSION_MANIFEST_FINAL
 ## Layer 4b -- Master orchestrator
 
 
-### `automation\build.sh`
+### `automation/build.sh`
 
 ```bash
 #!/bin/bash
@@ -6732,7 +6738,7 @@ fi
 ## Layer 4c-j -- Numbered phase scripts (lex order)
 
 
-### `automation\01-repos.sh`
+### `automation/01-repos.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -6859,7 +6865,7 @@ rpm -q systemd glibc dbus-broker filesystem || true
 ```
 
 
-### `automation\02-kernel.sh`
+### `automation/02-kernel.sh`
 
 ```bash
 #!/bin/bash
@@ -6908,7 +6914,7 @@ echo "[02-kernel] Kernel extras for $KVER installed successfully."
 ```
 
 
-### `automation\05-enable-external-repos.sh`
+### `automation/05-enable-external-repos.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7044,7 +7050,7 @@ log "05-enable-external-repos.sh complete"
 ```
 
 
-### `automation\08-system-files-overlay.sh`
+### `automation/08-system-files-overlay.sh`
 
 ```bash
 #!/bin/bash
@@ -7171,7 +7177,7 @@ log "08-overlay: complete"
 ```
 
 
-### `automation\10-gnome.sh`
+### `automation/10-gnome.sh`
 
 ```bash
 #!/bin/bash
@@ -7298,9 +7304,9 @@ else
     echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 fi
 
-# Comprehensive cursor default -- every layer that reads cursor theme
+# Cursor default -- covers every layer that reads cursor theme.
 # Managed via usr/share/icons/default/index.theme
-# and usr/share/X11/icons/default/index.theme
+# and usr/share/X11/icons/default/index.theme.
 
 # 3. update-alternatives for x-cursor-theme (Fedora cursor resolution)
 if [ -d "$BIBATA_DIR/cursors" ]; then
@@ -7351,7 +7357,7 @@ exit 0
 ```
 
 
-### `automation\11-hardware.sh`
+### `automation/11-hardware.sh`
 
 ```bash
 #!/bin/bash
@@ -7448,7 +7454,7 @@ echo "[11-hardware] GPU stack complete. Mesa + AMD ROCm + Intel + NVIDIA (ucore 
 ```
 
 
-### `automation\12-virt.sh`
+### `automation/12-virt.sh`
 
 ```bash
 #!/bin/bash
@@ -7552,7 +7558,7 @@ echo "[12-virt] Virtualization stack complete. (LG: refactored to 53-lg; K3s: re
 ```
 
 
-### `automation\13-ceph-k3s.sh`
+### `automation/13-ceph-k3s.sh`
 
 ```bash
 #!/bin/bash
@@ -7650,7 +7656,7 @@ echo "[13-ceph-k3s]   K3s API server:  https://<host>:6443 (after boot)"
 ```
 
 
-### `automation\18-apply-boot-fixes.sh`
+### `automation/18-apply-boot-fixes.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7706,7 +7712,7 @@ echo "==> Service gating drop-ins active via overlay"
 ```
 
 
-### `automation\19-k3s-selinux.sh`
+### `automation/19-k3s-selinux.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7779,7 +7785,7 @@ echo "==> K3s SELinux Policy staged in /usr/share/selinux/packages/mios/"
 ```
 
 
-### `automation\20-fapolicyd-trust.sh`
+### `automation/20-fapolicyd-trust.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7807,7 +7813,7 @@ echo "==> fapolicyd configured successfully."
 ```
 
 
-### `automation\20-services.sh`
+### `automation/20-services.sh`
 
 ```bash
 #!/bin/bash
@@ -7855,7 +7861,7 @@ echo "[20-services] Service configuration baseline complete. v1.4"
 ```
 
 
-### `automation\21-moby-engine.sh`
+### `automation/21-moby-engine.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7881,7 +7887,7 @@ groupadd -r docker 2>/dev/null || true
 ```
 
 
-### `automation\22-freeipa-client.sh`
+### `automation/22-freeipa-client.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7931,7 +7937,7 @@ systemctl enable mios-freeipa-enroll.service
 ```
 
 
-### `automation\23-uki-render.sh`
+### `automation/23-uki-render.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -7983,7 +7989,7 @@ echo "==> UKI cmdline preparation complete."
 ```
 
 
-### `automation\25-firewall-ports.sh`
+### `automation/25-firewall-ports.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -8005,7 +8011,7 @@ firewall-offline-cmd --zone=public --add-service=mios-pxe
 ```
 
 
-### `automation\26-gnome-remote-desktop.sh`
+### `automation/26-gnome-remote-desktop.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -8024,7 +8030,7 @@ echo "[26-grd] complete."
 ```
 
 
-### `automation\30-locale-theme.sh`
+### `automation/30-locale-theme.sh`
 
 ```bash
 #!/bin/bash
@@ -8104,7 +8110,7 @@ echo "[30-locale-theme] Dark theme configured for all toolkits."
 ```
 
 
-### `automation\31-user.sh`
+### `automation/31-user.sh`
 
 ```bash
 #!/bin/bash
@@ -8198,7 +8204,7 @@ echo "[31-user] User & authentication configured."
 ```
 
 
-### `automation\32-hostname.sh`
+### `automation/32-hostname.sh`
 
 ```bash
 #!/bin/bash
@@ -8233,7 +8239,7 @@ fi
 ```
 
 
-### `automation\33-firewall.sh`
+### `automation/33-firewall.sh`
 
 ```bash
 #!/bin/bash
@@ -8291,7 +8297,7 @@ echo "[33-firewall] Firewall init script installed."
 ```
 
 
-### `automation\34-gpu-detect.sh`
+### `automation/34-gpu-detect.sh`
 
 ```bash
 #!/bin/bash
@@ -8310,7 +8316,7 @@ echo "[34-gpu-detect] GPU detection service enabled."
 ```
 
 
-### `automation\35-gpu-passthrough.sh`
+### `automation/35-gpu-passthrough.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -8371,7 +8377,7 @@ log "GPU passthrough services enabled successfully"
 ```
 
 
-### `automation\35-gpu-pv-shim.sh`
+### `automation/35-gpu-pv-shim.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -8447,7 +8453,7 @@ log "GPU-PV shim integration complete."
 ```
 
 
-### `automation\35-init-service.sh`
+### `automation/35-init-service.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -8479,7 +8485,7 @@ log "Initialization system services enabled."
 ```
 
 
-### `automation\36-akmod-guards.sh`
+### `automation/36-akmod-guards.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -8540,7 +8546,7 @@ log "36-akmod-guards: done (${count} drop-ins)"
 ```
 
 
-### `automation\36-tools.sh`
+### `automation/36-tools.sh`
 
 ```bash
 #!/bin/bash
@@ -8593,7 +8599,7 @@ echo "[36-tools] CLI tools configuration complete. Run 'mios --help' for command
 ```
 
 
-### `automation\37-aichat.sh`
+### `automation/37-aichat.sh`
 
 ```bash
 #!/bin/bash
@@ -8667,7 +8673,7 @@ echo "[37-aichat] AIChat and AIChat-NG installed successfully."
 ```
 
 
-### `automation\37-flatpak-env.sh`
+### `automation/37-flatpak-env.sh`
 
 ```bash
 #!/bin/bash
@@ -8702,7 +8708,7 @@ echo "[37-flatpak-env] Flatpak environment configured in /usr."
 ```
 
 
-### `automation\37-ollama-prep.sh`
+### `automation/37-ollama-prep.sh`
 
 ```bash
 #!/bin/bash
@@ -8799,20 +8805,15 @@ wait $OLLAMA_PID || true
 
 # Cleanup
 rm -f /tmp/ollama.tar.zst
-# We keep the binary in /usr/bin as it's part of the image now
-# unless the user wanted it temporary? The script previously rm -f /tmp/ollama.
-# Let's keep it temporary to match original intent of "prep" if needed, 
-# but usually we want ollama available. 
-# Original script: rm -f /tmp/ollama.
-# If I want to match original intent: rm -f /usr/bin/ollama
-# But wait, 37-ollama.sh (if it exists) would install it. 
-# Let's check if ollama is in PACKAGES.md as a permanent package.
+# Keep the binary in /usr/bin: ollama is listed under packages-ai in
+# usr/share/mios/PACKAGES.md and is treated as a permanent image
+# component, not a build-time scratch tool.
 
 echo "[37-ollama-prep] Model embedded successfully."
 ```
 
 
-### `automation\37-selinux.sh`
+### `automation/37-selinux.sh`
 
 ```bash
 #!/bin/bash
@@ -8992,7 +8993,7 @@ echo "[37-selinux] SELinux configuration complete."
 ```
 
 
-### `automation\38-vm-gating.sh`
+### `automation/38-vm-gating.sh`
 
 ```bash
 #!/bin/bash
@@ -9068,7 +9069,7 @@ echo "[38-vm-gating] VM gating + Hyper-V Enhanced Session (gnome-remote-desktop)
 ```
 
 
-### `automation\39-desktop-polish.sh`
+### `automation/39-desktop-polish.sh`
 
 ```bash
 #!/bin/bash
@@ -9115,7 +9116,7 @@ echo "[39-desktop-polish] Desktop polish complete."
 ```
 
 
-### `automation\40-composefs-verity.sh`
+### `automation/40-composefs-verity.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9151,7 +9152,7 @@ log "composefs verity mode configured"
 ```
 
 
-### `automation\42-cosign-policy.sh`
+### `automation/42-cosign-policy.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9231,7 +9232,7 @@ log "42-cosign-policy: validation complete"
 ```
 
 
-### `automation\43-uupd-installer.sh`
+### `automation/43-uupd-installer.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9266,7 +9267,7 @@ log "uupd configured; bootc-fetch-apply-updates.timer and rpm-ostreed-automatic.
 ```
 
 
-### `automation\44-podman-machine-compat.sh`
+### `automation/44-podman-machine-compat.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9322,7 +9323,7 @@ log "podman-machine compatibility wired"
 ```
 
 
-### `automation\45-nvidia-cdi-refresh.sh`
+### `automation/45-nvidia-cdi-refresh.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9376,7 +9377,7 @@ log "CDI refresh pipeline configured"
 ```
 
 
-### `automation\46-greenboot.sh`
+### `automation/46-greenboot.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9417,7 +9418,7 @@ log "greenboot wired"
 ```
 
 
-### `automation\47-hardening.sh`
+### `automation/47-hardening.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9462,7 +9463,7 @@ log "hardening services wired"
 ```
 
 
-### `automation\49-finalize.sh`
+### `automation/49-finalize.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9510,7 +9511,7 @@ log "finalize complete"
 ```
 
 
-### `automation\50-enable-log-copy-service.sh`
+### `automation/50-enable-log-copy-service.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9531,7 +9532,7 @@ fi
 ```
 
 
-### `automation\52-bake-kvmfr.sh`
+### `automation/52-bake-kvmfr.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9657,7 +9658,7 @@ log "kvmfr kmod BAKED IN"
 ```
 
 
-### `automation\53-bake-lookingglass-client.sh`
+### `automation/53-bake-lookingglass-client.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -9776,7 +9777,7 @@ log "Looking Glass client BAKED IN"
 ```
 
 
-### `automation\90-generate-sbom.sh`
+### `automation/90-generate-sbom.sh`
 
 ```bash
 #!/bin/bash
@@ -9829,7 +9830,7 @@ echo "[90-generate-sbom] Done."
 ```
 
 
-### `automation\98-boot-config.sh`
+### `automation/98-boot-config.sh`
 
 ```bash
 #!/bin/bash
@@ -9873,7 +9874,7 @@ echo "[98-boot-config]   NM-wait-online: 10s timeout (was 90s)"
 ```
 
 
-### `automation\99-cleanup.sh`
+### `automation/99-cleanup.sh`
 
 ```bash
 #!/bin/bash
@@ -9929,7 +9930,7 @@ echo "[99-cleanup] [ok] Image cleanup complete"
 ```
 
 
-### `automation\99-postcheck.sh`
+### `automation/99-postcheck.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -10077,9 +10078,28 @@ fi
 # then refuses to create /run/user/<uid>/. The cascade kills dbus user
 # session, dconf, Wayland session services, and every GTK app that needs
 # a session bus.
+#
+# Files in /etc/sysusers.d/ override files of the same basename in
+# /usr/lib/sysusers.d/ (systemd-sysusers.d(5)), so when an override exists
+# the /usr/lib/ file is shadowed at runtime -- validate the effective file.
 log "Validating sysusers.d login users have fixed UIDs..."
+_sysusers_effective() {
+    local d
+    declare -A _seen=()
+    for d in /etc/sysusers.d /usr/lib/sysusers.d; do
+        [[ -d "$d" ]] || continue
+        for f in "$d"/*.conf; do
+            [[ -f "$f" ]] || continue
+            local base
+            base="$(basename "$f")"
+            [[ -n "${_seen[$base]:-}" ]] && continue
+            _seen[$base]=1
+            printf '%s\n' "$f"
+        done
+    done
+}
 _sysusers_bad=$(
-    for f in /usr/lib/sysusers.d/*.conf; do
+    while IFS= read -r f; do
         [[ -f "$f" ]] || continue
         # u <name> <uid_or_-> [<gecos>] [<home>] [<shell>]
         # Match users whose shell is a login shell and uid is bare '-'.
@@ -10091,7 +10111,7 @@ _sysusers_bad=$(
                     print FILENAME ":" NR ": " $0
                 }
             }' "$f"
-    done
+    done < <(_sysusers_effective)
 )
 if [[ -n "$_sysusers_bad" ]]; then
     printf '%s\n' "$_sysusers_bad" >&2
@@ -10099,36 +10119,64 @@ if [[ -n "$_sysusers_bad" ]]; then
 fi
 log "  all login-shell sysusers entries have fixed UIDs"
 
-# 8b. sysusers.d: every `u user UID:NUM` must be preceded by a `g name NUM`
-# line in the same file (or use a name reference instead of NUM). If the
-# numeric GID is unresolvable, sysusers fails with "please create GID NUM"
-# at first boot and the user never gets created.
+# 8b. sysusers.d: every `u user UID:GID` must reference a GID that
+# systemd-sysusers will be able to resolve at first boot. Resolution order
+# matches sysusers itself:
+#   1. `g <name> <gid>` line in ANY effective sysusers.d file (cross-file).
+#   2. Existing entry in /etc/group at build time (NSS).
+# Either path satisfies the invariant; both must miss before we flag.
+#
+# Upstream packages (setup, nfs-utils, ...) ship u-lines like
+# `u root 0:0 ...` and `u nfsnobody 65534:65534 ...` whose GIDs come from
+# /etc/group seeded by the base image, not from a co-located g-line.
+# Single-file scope flagged those as broken; the cross-file + NSS lookup
+# below matches what sysusers actually does at boot.
 log "Validating sysusers.d UID:GID resolves to a created group..."
-_sysusers_unresolved=$(
-    for f in /usr/lib/sysusers.d/*.conf; do
+# First pass: collect every `g <name> <gid>` declared anywhere in the
+# effective sysusers tree.
+_sysusers_known_gids=$(
+    while IFS= read -r f; do
         [[ -f "$f" ]] || continue
-        awk '
-            # collect g lines in this file
-            /^g[[:space:]]+/ {
-                # 2nd field = group name, 3rd = id (or "-")
-                groups[$2] = 1
-                if ($3 ~ /^[0-9]+$/) gids[$3] = $2
+        awk '/^g[[:space:]]+/ && $3 ~ /^[0-9]+$/ { print $3 }' "$f"
+    done < <(_sysusers_effective) | sort -u
+)
+# Helper: is GID resolvable via /etc/group at build time?
+_gid_in_etc_group() {
+    [[ -r /etc/group ]] || return 1
+    awk -F: -v g="$1" '$3 == g {found=1} END {exit !found}' /etc/group
+}
+_sysusers_unresolved=$(
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        awk -v known="$_sysusers_known_gids" '
+            BEGIN {
+                n = split(known, k, "\n")
+                for (i = 1; i <= n; i++) if (k[i] != "") seen[k[i]] = 1
             }
             /^u[[:space:]]+/ {
-                # 3rd field is UID:GID. Split on colon.
+                # field 3 = UID:GID. Skip "-" or empty.
                 split($3, a, ":")
-                # If GID part is numeric and no g line in this file claims it, flag.
-                if (a[2] ~ /^[0-9]+$/ && !(a[2] in gids)) {
-                    print FILENAME ":" NR ": " $0
-                }
+                if (a[2] !~ /^[0-9]+$/) next
+                if (a[2] in seen) next
+                print FILENAME ":" NR ":" a[2] ": " $0
             }' "$f"
-    done
+    done < <(_sysusers_effective)
 )
-if [[ -n "$_sysusers_unresolved" ]]; then
-    printf '%s\n' "$_sysusers_unresolved" >&2
-    die "sysusers.d: u-line references a numeric GID with no matching 'g name GID' line in the same file"
+# Second pass: drop hits whose GID is already in /etc/group.
+_sysusers_truly_unresolved=$(
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        gid="${line#*:*:}"; gid="${gid%%:*}"
+        if _gid_in_etc_group "$gid"; then continue; fi
+        # Strip the synthetic ':<gid>:' marker before reporting.
+        echo "${line%%:*}:${line#*:}" | sed -E 's/:[0-9]+:/:/'
+    done <<< "$_sysusers_unresolved"
+)
+if [[ -n "$_sysusers_truly_unresolved" ]]; then
+    printf '%s\n' "$_sysusers_truly_unresolved" >&2
+    die "sysusers.d: u-line references a numeric GID with no 'g name GID' anywhere in /etc/sysusers.d or /usr/lib/sysusers.d AND no matching entry in /etc/group"
 fi
-log "  all u-line GIDs resolve to created groups"
+log "  all u-line GIDs resolve via cross-file g-lines or /etc/group"
 
 # 9. tmpfiles.d: no /var/run or /var/lock paths.
 # Both are FHS-compat symlinks to /run subdirs. systemd-tmpfiles emits
@@ -10162,7 +10210,7 @@ log "  tmpfiles.d entries use canonical /run paths"
 # referenced as "Failed to load configuration" or "directive not understood"
 # are fatal; everything else (file-not-found from external Wants=, etc.) is
 # tolerable and gets filtered out.
-log "Validating 'MiOS' systemd unit syntax..."
+log "Validating MiOS systemd unit syntax..."
 if command -v systemd-analyze >/dev/null 2>&1; then
     _bad_units=$(
         for u in /usr/lib/systemd/system/mios-*.service \
@@ -10176,9 +10224,9 @@ if command -v systemd-analyze >/dev/null 2>&1; then
     )
     if [[ -n "$_bad_units" ]]; then
         printf '%s\n' "$_bad_units" >&2
-        die "systemd-analyze verify reported errors in 'MiOS' unit(s)"
+        die "systemd-analyze verify reported errors in MiOS unit(s)"
     fi
-    log "  'MiOS' units lint clean"
+    log "  MiOS units lint clean"
 else
     log "  systemd-analyze unavailable -- skipping unit verification"
 fi
@@ -10187,7 +10235,7 @@ fi
 # Catches: bad path syntax, unsupported types, missing required fields. The
 # legacy /var/run / /var/lock case is already covered by #9; this catches
 # every other tmpfiles syntax error.
-log "Validating 'MiOS' tmpfiles.d syntax..."
+log "Validating MiOS tmpfiles.d syntax..."
 if command -v systemd-tmpfiles >/dev/null 2>&1; then
     _bad_tmpfiles=$(
         for f in /usr/lib/tmpfiles.d/mios-*.conf; do
@@ -10200,11 +10248,112 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
     )
     if [[ -n "$_bad_tmpfiles" ]]; then
         printf '%s\n' "$_bad_tmpfiles" >&2
-        die "systemd-tmpfiles reported errors in 'MiOS' tmpfiles.d config(s)"
+        die "systemd-tmpfiles reported errors in MiOS tmpfiles.d config(s)"
     fi
-    log "  'MiOS' tmpfiles.d configs parse clean"
+    log "  MiOS tmpfiles.d configs parse clean"
 else
     log "  systemd-tmpfiles unavailable -- skipping tmpfiles verification"
+fi
+
+# 12. UNIFIED-AI-REDIRECTS (Architectural Law 5).
+# Active configuration MUST NOT hard-code vendor cloud URLs. Comments may
+# show alternatives for documentation, so we strip comment lines before
+# matching. Scope: actual config dirs in the deployed image, not docs.
+log "Validating UNIFIED-AI-REDIRECTS (Law 5): no vendor URLs in active config..."
+_law5_dirs=(
+    /etc/containers/systemd
+    /usr/share/containers/systemd
+    /usr/lib/systemd/system
+    /usr/share/mios/ai
+    /etc/mios/ai
+)
+_law5_pattern='https?://(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com|api\.cohere\.|api\.mistral\.|api\.cline\.bot|api\.cursor\.com|api\.githubcopilot\.com)'
+_law5_hits=""
+for d in "${_law5_dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        # Strip leading-whitespace + comment lines for the file's syntax;
+        # then match. Cover #-comment files (toml/yaml/conf/sh/Quadlet) and
+        # //-comment files. JSON has no comments so the strip is a no-op.
+        active=$(sed -E '/^[[:space:]]*(#|\/\/)/d' "$f")
+        if printf '%s\n' "$active" | grep -qE "$_law5_pattern"; then
+            _law5_hits+="$f"$'\n'
+        fi
+    done < <(find "$d" -type f \( -name '*.container' -o -name '*.service' \
+        -o -name '*.json' -o -name '*.toml' -o -name '*.conf' -o -name '*.yaml' \
+        -o -name '*.yml' \) 2>/dev/null)
+done
+if [[ -n "$_law5_hits" ]]; then
+    printf '%s' "$_law5_hits" >&2
+    die "UNIFIED-AI-REDIRECTS: vendor cloud URL found in active config (must route through MIOS_AI_ENDPOINT)"
+fi
+log "  no vendor URLs in active config"
+
+# 13. UNPRIVILEGED-QUADLETS (Architectural Law 6).
+# Every Quadlet *.container under /etc/containers/systemd or
+# /usr/share/containers/systemd MUST declare User= (with the documented
+# mios-ceph and mios-k3s exceptions, both of which require uid 0). Group=
+# and Delegate=yes are SHOULD-have but not strictly load-bearing for the
+# unprivileged invariant; the User= guarantee is what matters.
+log "Validating UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User=..."
+_law6_exceptions='^(mios-ceph|mios-k3s)\.container$'
+_law6_missing=""
+for d in /etc/containers/systemd /usr/share/containers/systemd; do
+    [[ -d "$d" ]] || continue
+    for f in "$d"/*.container; do
+        [[ -f "$f" ]] || continue
+        base=$(basename "$f")
+        if [[ "$base" =~ $_law6_exceptions ]]; then continue; fi
+        if ! grep -qE '^[[:space:]]*User=' "$f"; then
+            _law6_missing+="$f: missing User= directive"$'\n'
+        fi
+    done
+done
+if [[ -n "$_law6_missing" ]]; then
+    printf '%s' "$_law6_missing" >&2
+    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s)"
+fi
+log "  every Quadlet declares User= (or is a documented root exception)"
+
+# 14. BOUND-IMAGES (Architectural Law 3).
+# Every Quadlet *.container in /etc/containers/systemd or
+# /usr/share/containers/systemd MUST be symlinked (by basename) into
+# /usr/lib/bootc/bound-images.d/ so the image bind-binds with the host.
+# Detected drift = a Quadlet that ships without its image binding, or
+# a stale binding pointing at a Quadlet that no longer exists.
+log "Validating BOUND-IMAGES (Law 3): Quadlet -> bound-images.d/ coverage..."
+_bind_dir=/usr/lib/bootc/bound-images.d
+_law3_missing=""
+_law3_extra=""
+if [[ -d "$_bind_dir" ]]; then
+    declare -A _seen_quadlets=()
+    for d in /etc/containers/systemd /usr/share/containers/systemd; do
+        [[ -d "$d" ]] || continue
+        for f in "$d"/*.container; do
+            [[ -f "$f" ]] || continue
+            base=$(basename "$f")
+            _seen_quadlets["$base"]=1
+            if [[ ! -e "$_bind_dir/$base" ]]; then
+                _law3_missing+="$base: no symlink in $_bind_dir/"$'\n'
+            fi
+        done
+    done
+    for b in "$_bind_dir"/*.container; do
+        [[ -e "$b" ]] || continue
+        base=$(basename "$b")
+        if [[ -z "${_seen_quadlets[$base]:-}" ]]; then
+            _law3_extra+="$base: stale binding in $_bind_dir/ (no source Quadlet)"$'\n'
+        fi
+    done
+    if [[ -n "$_law3_missing" || -n "$_law3_extra" ]]; then
+        [[ -n "$_law3_missing" ]] && printf '%s' "$_law3_missing" >&2
+        [[ -n "$_law3_extra" ]] && printf '%s' "$_law3_extra" >&2
+        die "BOUND-IMAGES: Quadlet/binder drift (every *.container must symlink into $_bind_dir/)"
+    fi
+    log "  every Quadlet has a corresponding bound-images.d/ symlink"
+else
+    log "  $_bind_dir not present -- skipping (binder loop did not run)"
 fi
 
 log "Validation SUCCESSFUL"
@@ -10215,7 +10364,7 @@ exit 0
 ## Layer 4k -- Helpers
 
 
-### `automation\ai-bootstrap.sh`
+### `automation/ai-bootstrap.sh`
 
 ```bash
 #!/bin/bash
@@ -10292,7 +10441,7 @@ fi
 ```
 
 
-### `automation\bcvk-wrapper.sh`
+### `automation/bcvk-wrapper.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -10365,7 +10514,7 @@ exit 4
 ```
 
 
-### `automation\bootstrap.sh`
+### `automation/bootstrap.sh`
 
 ```bash
 #!/bin/bash
@@ -10505,7 +10654,7 @@ fi
 ```
 
 
-### `automation\enroll-mok.sh`
+### `automation/enroll-mok.sh`
 
 ```bash
 #!/usr/bin/bash
@@ -10724,7 +10873,7 @@ log "Full log: $LOG_FILE"
 ```
 
 
-### `automation\generate-mok-key.sh`
+### `automation/generate-mok-key.sh`
 
 ```bash
 #!/usr/bin/bash
@@ -10837,7 +10986,7 @@ EOF
 ```
 
 
-### `automation\overlay-builder.sh`
+### `automation/overlay-builder.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -10845,7 +10994,7 @@ EOF
 # look and feel like a Live 'MiOS' environment without breaking the
 # podman-machine OS plumbing underneath.
 #
-# Run inside the BUILDER, from the 'MiOS' repo working tree:
+# Run inside the BUILDER, from the MiOS repo working tree:
 #   sudo bash automation/overlay-builder.sh /path/to/MiOS-repo
 #
 # What it does (idempotent, --ignore-existing throughout):
@@ -10943,4 +11092,4 @@ echo "[overlay-builder] Open a fresh shell to see the 'MiOS' MOTD."
 ---
 
 
-**Bundle stats:** 74 files, 10533 source lines aggregated.
+**Bundle stats:** 74 files, 10682 source lines aggregated.

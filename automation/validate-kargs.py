@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# 'MiOS' v0.2.0 — Bootc kargs.d validator
+# 'MiOS' v0.2.0 -- Bootc kargs.d validator
 """
-validate-kargs.py — 'MiOS' kargs.d schema validator.
+validate-kargs.py -- 'MiOS' kargs.d schema validator.
 
 Checks every *.toml in:
   kargs.d/                              (repo root drop-ins)
@@ -13,7 +13,7 @@ Schema rules (bootc-dev/bootc authoritative):
   - NO other top-level keys.
   - NO [section] table headers anywhere in the file.
   - Each kargs entry must be a single string (not space-joined multi-arg).
-  - Keys with "delete" in their name are invalid parameter — reject.
+  - Keys with "delete" in their name are invalid parameter -- reject.
 
 Exit codes: 0 = pass, 1 = validation failure(s), 2 = usage error.
 """
@@ -62,7 +62,7 @@ def validate_file(path: Path, *, github: bool = False, results: list[dict]) -> b
 
     for lineno, text in enumerate(lines, start=1):
         if SECTION_HEADER_RE.match(text) and not text.strip().startswith("#"):
-            msg = "[section] header found — bootc forbids table headers in kargs.d"
+            msg = "[section] header found -- bootc forbids table headers in kargs.d"
             issues.append({"line": lineno, "msg": msg, "level": "error"})
             ok = False
 
@@ -79,7 +79,7 @@ def validate_file(path: Path, *, github: bool = False, results: list[dict]) -> b
         if key not in ALLOWED_TOP_KEYS:
             if "delete" in key.lower():
                 msg = (
-                    f"'{key}' is an invalid parameter — bootc has no delete mechanism "
+                    f"'{key}' is an invalid parameter -- bootc has no delete mechanism "
                     "in kargs.d drop-ins. Remove it."
                 )
             else:
@@ -196,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for f in candidates:
         if not args.github and not args.json_out:
-            print(f"Checking {f} …")
+            print(f"Checking {f} ...")
         passed = validate_file(f, github=args.github, results=results)
         if not passed:
             all_ok = False

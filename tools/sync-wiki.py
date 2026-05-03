@@ -51,17 +51,17 @@ def sync_json_embeds(file_path):
             return match.group(0)
 
     # Targeted regex for the status-style JSON blocks (not knowledge)
-    content = re.sub(r"# 🌐 'MiOS': Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```", 
-                     r"# 🌐 'MiOS': Immutable Cloud-Native Workstation\n\n```json\n\1\n```", content, flags=re.DOTALL)
+    content = re.sub(r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```", 
+                     r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n\1\n```", content, flags=re.DOTALL)
     # Actually apply the update to any generic json block that looks like a status block
     content = re.sub(r"```json\n(\{.*?\})\n```", update_status, content, flags=re.DOTALL)
 
     with open(file_path, 'w') as f:
         f.write(content)
-    print(f"✅ Propagated sync values to {file_path}")
+    print(f"[ok] Propagated sync values to {file_path}")
 
 def sync_wiki():
-    print("📖 Syncing Wiki Documentation...")
+    print(" Syncing Wiki Documentation...")
     
     # 1. Update Scripts Index
     automation_dir = "automation"
@@ -75,8 +75,8 @@ def sync_wiki():
         "last_rag_sync": get_last_rag_sync()
     }
 
-    content = f"""<!-- 🌐 'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
-# 📜 'MiOS' Scripts Index
+    content = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+#  'MiOS' Scripts Index
 > **Generated:** {datetime.now().isoformat()}
 > **Status:** Automated Sync
 
@@ -105,12 +105,12 @@ This file provides a machine-readable and human-readable index of all automation
                 pass
             content += f"## `{script}`\n- **Path:** `{path}`\n- **Description:** {description}\n\n"
 
-    content += "<!-- ⚖️ 'MiOS' Proprietary Artifact | Copyright (c) 2026 'MiOS' Project -->"
+    content += "<!--  'MiOS' Proprietary Artifact | Copyright (c) 2026 'MiOS' Project -->"
     
     os.makedirs(os.path.dirname(automation_doc), exist_ok=True)
     with open(automation_doc, 'w') as f:
         f.write(content)
-    print(f"✅ Updated {automation_doc}")
+    print(f"[ok] Updated {automation_doc}")
 
     # 2. Sync embeds in key files
     target_files = ["README.md", "INDEX.md", "INDEX.md", "INDEX.md", "INDEX.md", "specs/Home.md"]

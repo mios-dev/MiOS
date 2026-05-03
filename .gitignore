@@ -69,7 +69,7 @@
 !/renovate.json
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2b. /usr/share/mios/kb — KB index (moved from /proc/mios for FHS compliance;
+# 2b. /usr/share/mios/kb -- KB index (moved from /proc/mios for FHS compliance;
 #                          /proc is the kernel virtual filesystem per FHS 3.0)
 # ─────────────────────────────────────────────────────────────────────────────
 !/usr/share/mios/kb/
@@ -86,13 +86,13 @@
 !/config/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. /v1 — MiOS AI API surface
+# 4. /v1 -- MiOS AI API surface
 # ─────────────────────────────────────────────────────────────────────────────
 !/v1/
 !/v1/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. /etc — only MiOS-managed config paths
+# 5. /etc -- only MiOS-managed config paths
 # ─────────────────────────────────────────────────────────────────────────────
 !/etc/
 etc/*
@@ -107,7 +107,7 @@ etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
 !/etc/wsl.conf
 
-# /etc/mios/ — KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
+# /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
 !/etc/mios/
 etc/mios/*
@@ -116,7 +116,7 @@ etc/mios/*
 !/etc/mios/system-prompts/
 !/etc/mios/system-prompts/**
 
-# /etc/sysusers.d/ — admin overrides for upstream-RPM sysusers entries
+# /etc/sysusers.d/ -- admin overrides for upstream-RPM sysusers entries
 # (e.g. cephadm.conf pins UID >= 1000 so the postcheck #8 invariant passes).
 !/etc/sysusers.d/
 !/etc/sysusers.d/**
@@ -125,7 +125,7 @@ etc/mios/*
 # /agents/ is BOOTSTRAP territory (knowledge graphs / RAG manifests).
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. /root — MiOS shell skeleton for root user (system layer)
+# 6. /root -- MiOS shell skeleton for root user (system layer)
 # ─────────────────────────────────────────────────────────────────────────────
 !/root/
 root/*
@@ -135,7 +135,7 @@ root/*
 !/root/.oh-my-zsh/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9. /usr — full cascade whitelist
+# 9. /usr -- full cascade whitelist
 # ─────────────────────────────────────────────────────────────────────────────
 !/usr/
 usr/*
@@ -144,11 +144,11 @@ usr/*
 !/usr/libexec/
 !/usr/share/
 
-# usr/bin — only the mios binary
+# usr/bin -- only the mios binary
 usr/bin/*
 !/usr/bin/mios
 
-# usr/share — mios/ build files + doc/mios/ KB docs
+# usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*
 !/usr/share/doc/
 usr/share/doc/*
@@ -168,7 +168,7 @@ usr/share/containers/*
 !/usr/share/containers/containers.conf.d/
 !/usr/share/containers/containers.conf.d/**
 
-# usr/libexec — mios/ subdir and mios-* top-level stubs
+# usr/libexec -- mios/ subdir and mios-* top-level stubs
 usr/libexec/*
 !/usr/libexec/mios/
 !/usr/libexec/mios/**
@@ -178,12 +178,12 @@ usr/libexec/*
 !/usr/libexec/mios-hyperv-enhanced
 !/usr/libexec/mios-verify
 
-# usr/lib — cascade for each MiOS-owned subdirectory
+# usr/lib -- cascade for each MiOS-owned subdirectory
 usr/lib/*
 !/usr/lib/mios/
 !/usr/lib/mios/**
 
-# Directories containing exclusively MiOS content — allow all via **
+# Directories containing exclusively MiOS content -- allow all via **
 !/usr/lib/NetworkManager/
 !/usr/lib/NetworkManager/**
 !/usr/lib/X11/
@@ -235,14 +235,14 @@ usr/lib/*
 !/usr/lib/xrdp/
 !/usr/lib/xrdp/**
 
-# Mixed directories (MiOS + OS files) — cascade with MiOS-specific patterns
+# Mixed directories (MiOS + OS files) -- cascade with MiOS-specific patterns
 
-# environment.d — MiOS named *mios*.conf only; blocks 99-environment.conf etc.
+# environment.d -- MiOS named *mios*.conf only; blocks 99-environment.conf etc.
 !/usr/lib/environment.d/
 usr/lib/environment.d/*
 !/usr/lib/environment.d/*mios*
 
-# modprobe.d — MiOS blacklist/nvidia/kvmfr/mios-* only; blocks dist-blacklist.conf, systemd.conf
+# modprobe.d -- MiOS blacklist/nvidia/kvmfr/mios-* only; blocks dist-blacklist.conf, systemd.conf
 !/usr/lib/modprobe.d/
 usr/lib/modprobe.d/*
 !/usr/lib/modprobe.d/blacklist-*
@@ -250,28 +250,28 @@ usr/lib/modprobe.d/*
 !/usr/lib/modprobe.d/*mios*
 !/usr/lib/modprobe.d/nvidia*
 
-# modules-load.d — MiOS *mios* only; blocks fuse-overlayfs.conf etc.
+# modules-load.d -- MiOS *mios* only; blocks fuse-overlayfs.conf etc.
 !/usr/lib/modules-load.d/
 usr/lib/modules-load.d/*
 !/usr/lib/modules-load.d/*mios*
 
-# pam.d — MiOS PAM files only; blocks systemd-run0, systemd-user etc.
+# pam.d -- MiOS PAM files only; blocks systemd-run0, systemd-user etc.
 !/usr/lib/pam.d/
 usr/lib/pam.d/*
 !/usr/lib/pam.d/mios-*
 !/usr/lib/pam.d/password-auth
 !/usr/lib/pam.d/system-auth
 
-# profile.d — all MiOS content
+# profile.d -- all MiOS content
 !/usr/lib/profile.d/
 !/usr/lib/profile.d/**
 
-# sysctl.d — MiOS *mios* only; blocks 10-default-yama-scope.conf, 50-*.conf etc.
+# sysctl.d -- MiOS *mios* only; blocks 10-default-yama-scope.conf, 50-*.conf etc.
 !/usr/lib/sysctl.d/
 usr/lib/sysctl.d/*
 !/usr/lib/sysctl.d/*mios*
 
-# systemd — only MiOS-managed subdirs; blocks user/, user-generators/, timesyncd.conf etc.
+# systemd -- only MiOS-managed subdirs; blocks user/, user-generators/, timesyncd.conf etc.
 !/usr/lib/systemd/
 usr/lib/systemd/*
 !/usr/lib/systemd/journald.conf.d/
@@ -281,11 +281,11 @@ usr/lib/systemd/*
 !/usr/lib/systemd/zram-generator.conf.d/
 !/usr/lib/systemd/zram-generator.conf.d/**
 
-# systemd/system-preset — *mios* only; blocks 90-default.preset, 90-systemd.preset etc.
+# systemd/system-preset -- *mios* only; blocks 90-default.preset, 90-systemd.preset etc.
 usr/lib/systemd/system-preset/*
 !/usr/lib/systemd/system-preset/*mios*
 
-# systemd/system — MiOS units and drop-in dirs only; blocks sshd.service, NetworkManager.service etc.
+# systemd/system -- MiOS units and drop-in dirs only; blocks sshd.service, NetworkManager.service etc.
 usr/lib/systemd/system/*
 !/usr/lib/systemd/system/mios-*.service
 !/usr/lib/systemd/system/mios-*.timer
@@ -304,18 +304,18 @@ usr/lib/systemd/system/systemd-udev-trigger.service.d/
 usr/lib/systemd/system/user@.service.d/
 usr/lib/systemd/system/user@0.service.d/
 
-# sysusers.d — MiOS user/group definitions only; blocks basic.conf, dbus.conf etc.
+# sysusers.d -- MiOS user/group definitions only; blocks basic.conf, dbus.conf etc.
 !/usr/lib/sysusers.d/
 usr/lib/sysusers.d/*
 !/usr/lib/sysusers.d/*mios*
 !/usr/lib/sysusers.d/20-podman-machine.conf
 
-# tmpfiles.d — MiOS tmpfiles only; blocks podman.conf, sudo.conf, systemd-*.conf etc.
+# tmpfiles.d -- MiOS tmpfiles only; blocks podman.conf, sudo.conf, systemd-*.conf etc.
 !/usr/lib/tmpfiles.d/
 usr/lib/tmpfiles.d/*
 !/usr/lib/tmpfiles.d/*mios*
 
-# udev — only MiOS rules; blocks system udev binaries and all other rules
+# udev -- only MiOS rules; blocks system udev binaries and all other rules
 !/usr/lib/udev/
 usr/lib/udev/*
 !/usr/lib/udev/rules.d/
@@ -324,7 +324,7 @@ usr/lib/udev/rules.d/*
 !/usr/lib/udev/rules.d/99-mios-gpu.rules
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9b. /usr/local — cookbooks
+# 9b. /usr/local -- cookbooks
 # ─────────────────────────────────────────────────────────────────────────────
 !/usr/local/
 usr/local/*
@@ -336,7 +336,7 @@ usr/local/share/mios/*
 !/usr/local/share/mios/cookbooks/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9c. /var — KB RAG, training, and evals data
+# 9c. /var -- KB RAG, training, and evals data
 # ─────────────────────────────────────────────────────────────────────────────
 !/var/
 var/*
@@ -346,7 +346,7 @@ var/lib/*
 !/var/lib/mios/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9d. /srv — API example payloads
+# 9d. /srv -- API example payloads
 # ─────────────────────────────────────────────────────────────────────────────
 !/srv/
 srv/*
@@ -356,7 +356,7 @@ srv/mios/*
 !/srv/mios/api/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9e. /opt — XML-structured prompt templates
+# 9e. /opt -- XML-structured prompt templates
 # ─────────────────────────────────────────────────────────────────────────────
 !/opt/
 opt/*
@@ -366,7 +366,7 @@ opt/mios/*
 !/opt/mios/prompts/**
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 10. SAFETY OVERRIDES — sensitive, volatile, or OS-managed files
+# 10. SAFETY OVERRIDES -- sensitive, volatile, or OS-managed files
 # These exclusions always win regardless of section 9 allows above.
 # ─────────────────────────────────────────────────────────────────────────────
 etc/.pwd.lock

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS — mios-grd-setup: GNOME Remote Desktop firstboot setup.
+# MiOS -- mios-grd-setup: GNOME Remote Desktop firstboot setup.
 # Triggered by mios-grd-setup.service (oneshot, guarded by SENTINEL).
 # Generates a self-signed EC TLS keypair, wires it into grdctl, optionally
 # applies a default credential when MIOS_PASSWORD is exported, and opens the

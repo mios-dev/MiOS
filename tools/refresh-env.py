@@ -7,7 +7,7 @@ def refresh_env():
     vscode_file = ".vscode/settings.json"
     
     if not os.path.exists(env_file):
-        print(f"❌ {env_file} not found.")
+        print(f" {env_file} not found.")
         return
 
     with open(env_file, 'r') as f:
@@ -29,9 +29,9 @@ def refresh_env():
                 
                 env_data["aesthetic_preferences"]["fonts"]["monospace"] = font_family
                 env_data["aesthetic_preferences"]["fonts"]["size"] = font_size
-                print(f"✅ Refreshed aesthetic preferences from {vscode_file}")
+                print(f"[ok] Refreshed aesthetic preferences from {vscode_file}")
             except json.JSONDecodeError as e:
-                print(f"⚠️ Warning: Could not parse {vscode_file}: {e}")
+                print(f"[!] Warning: Could not parse {vscode_file}: {e}")
 
     # 2. Update Timestamp/Version
     env_data["last_refresh"] = datetime.now().isoformat()
@@ -39,7 +39,7 @@ def refresh_env():
     with open(env_file, 'w') as f:
         json.dump(env_data, f, indent=2)
     
-    print(f"✅ {env_file} updated and cloned as latest.")
+    print(f"[ok] {env_file} updated and cloned as latest.")
 
 if __name__ == "__main__":
     refresh_env()

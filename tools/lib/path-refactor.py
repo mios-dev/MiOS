@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lib/path-refactor.py — substitute hardcoded 'MiOS' paths with constants.
+# tools/lib/path-refactor.py -- substitute hardcoded 'MiOS' paths with constants.
 # Skips comment-only lines so doc comments stay literal/readable.
 # Longest-prefix first; refuses to touch trailing-glob forms (/usr/libexec/mios*).
 # Idempotent: running twice is a no-op.
@@ -7,7 +7,7 @@
 import re, sys
 from pathlib import Path
 
-# Order matters — longest first
+# Order matters -- longest first
 SUBS = [
     ("/usr/lib/mios/logs",   "${MIOS_LOG_DIR}"),
     ("/usr/libexec/mios",    "${MIOS_LIBEXEC_DIR}"),
@@ -28,7 +28,7 @@ def substitute_line(line: str) -> str:
     # (don't rewrite our own constant declarations into self-references).
     if _DEFAULT_PATTERN.search(line):
         return line
-    # Skip the bootstrap `source .../paths.sh` line itself — that path must stay
+    # Skip the bootstrap `source .../paths.sh` line itself -- that path must stay
     # literal because the variables aren't defined until paths.sh runs.
     if _BOOTSTRAP_PATTERN.search(line):
         return line

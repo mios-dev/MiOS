@@ -49,7 +49,7 @@ def parse_metadata(content, file_path):
     return meta
 
 def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"):
-    print(f"🧠 Flattening Historical Knowledge into UKB: {output_file}...")
+    print(f" Flattening Historical Knowledge into UKB: {output_file}...")
     
     ignore_dirs = {".git", ".venv", "__pycache__", "node_modules", "artifacts"}
     snapshot = {
@@ -132,7 +132,7 @@ def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"
                     })
 
             except Exception as e:
-                print(f"⚠️ Could not process {rel_path}: {e}")
+                print(f"[!] Could not process {rel_path}: {e}")
 
     # Ensure artifacts directory exists
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -140,7 +140,7 @@ def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"
     with gzip.open(output_file, 'wt', encoding='utf-8') as f:
         json.dump(snapshot, f, indent=2)
     
-    print(f"✅ Flattened UKB generated with {len(snapshot['knowledge_nodes'])} semantic nodes.")
+    print(f"[ok] Flattened UKB generated with {len(snapshot['knowledge_nodes'])} semantic nodes.")
 
 if __name__ == "__main__":
     generate_unified_knowledge()

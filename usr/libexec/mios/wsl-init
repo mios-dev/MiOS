@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MiOS — wsl-init: WSL2 runtime bridge (runs every boot).
+# MiOS -- wsl-init: WSL2 runtime bridge (runs every boot).
 set -euo pipefail
 
 _log() { logger -t mios-wsl-init "$*" 2>/dev/null || true; echo "[wsl-init] $*" >&2; }
@@ -20,7 +20,7 @@ if [[ -f /usr/lib/wsl.conf ]]; then
             _log "wsl-conf-restore: /etc/wsl.conf drifted; previous saved as /etc/wsl.conf.drifted-*"
         fi
         install -m 0644 -o root -g root -T /usr/lib/wsl.conf /etc/wsl.conf
-        _log "wsl-conf-restore: /etc/wsl.conf restored from /usr/lib/wsl.conf — takes effect on next 'wsl --shutdown'"
+        _log "wsl-conf-restore: /etc/wsl.conf restored from /usr/lib/wsl.conf -- takes effect on next 'wsl --shutdown'"
     fi
 fi
 
@@ -65,13 +65,13 @@ _repair_podman_subnet() {
     done)
 
     if [[ -n "$podman_net_name" ]]; then
-        _log "subnet-repair: network '$podman_net_name' conflicts with eth0 $eth0_ip — recreating"
+        _log "subnet-repair: network '$podman_net_name' conflicts with eth0 $eth0_ip -- recreating"
         podman network rm -f "$podman_net_name" 2>/dev/null || true
         if [[ "$podman_net_name" == "podman" ]]; then
             # Recreate the default network on the safe range from containers.conf.d
             podman network create podman 2>/dev/null || true
         fi
-        _log "subnet-repair: done — new default bridge will use 172.28.0.0/16"
+        _log "subnet-repair: done -- new default bridge will use 172.28.0.0/16"
     else
         _log "subnet-repair: no conflict detected for eth0 $eth0_ip"
     fi

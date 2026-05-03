@@ -70,14 +70,14 @@ def parse_markdown_journal(file_path):
     return parsed
 
 def sync_journal():
-    print(f"🔄 Syncing Legacy Journal to API-Native JSONL (Deep Scan)...")
+    print(f" Syncing Legacy Journal to API-Native JSONL (Deep Scan)...")
     entries = parse_markdown_journal(MD_JOURNAL)
     
     with open(JSONL_JOURNAL, 'w', encoding='utf-8') as f:
         for entry in entries:
             f.write(json.dumps(entry) + '\n')
             
-    print(f"✅ Exported {len(entries)} entries to {JSONL_JOURNAL}")
+    print(f"[ok] Exported {len(entries)} entries to {JSONL_JOURNAL}")
 
 if __name__ == "__main__":
     sync_journal()
