@@ -439,13 +439,35 @@ function suggestedPaths() {
   };
 }
 
+function querySuggestedPath() {
+  // build-mios.{sh,ps1} pass ?suggested_path=/tmp/mios-config.XXXX.toml
+  // when launching the configurator from the bootstrap flow. The
+  // banner renders that path prominently so the operator clicks
+  // "Pick file" and binds the FSA handle to the right target.
+  try {
+    const u = new URL(window.location.href);
+    return u.searchParams.get("suggested_path") || "";
+  } catch (e) { return ""; }
+}
+
 function renderPathBanner() {
   const p = suggestedPaths();
   const banner = document.getElementById("path-banner");
+  const sp = querySuggestedPath();
   const fsaNote = HAS_FSA
     ? "Click <b>Pick file</b> to bind a file handle; subsequent saves overwrite that file directly (no Downloads detour, no \"(1)\" suffix)."
     : "Your browser doesn't expose the File System Access API. The <b>Open (fallback)</b> button reads a file you choose; <b>Save</b> goes through Downloads. Move it into place manually after.";
-  banner.innerHTML =
+
+  let suggestedRow = "";
+  if (sp) {
+    suggestedRow =
+      `<div style="margin:4px 0 8px;padding:6px 8px;background:rgba(88,166,255,.12);border-radius:4px">` +
+      `<b>Bootstrap is waiting on:</b> <code>${sp}</code><br>` +
+      `Click <b>Pick file</b> above and open this exact path; edit; click Save. The bootstrap script will pick up the values when you press Enter back in the terminal.` +
+      `</div>`;
+  }
+
+  banner.innerHTML = suggestedRow +
     `<div><b>${p.label}</b> -- canonical paths for the unified user-definitions dotfile (highest precedence first):</div>` +
     `<div>&nbsp;&nbsp;per-user&nbsp;&nbsp;<code>${p.user}</code></div>` +
     `<div>&nbsp;&nbsp;per-host&nbsp;&nbsp;<code>${p.host}</code></div>` +
