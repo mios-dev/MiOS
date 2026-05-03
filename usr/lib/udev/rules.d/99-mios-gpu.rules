@@ -12,11 +12,11 @@ SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="render", MODE="0660", TAG+="uaccess
 # DRM card nodes -> video group (KMS/modesetting/management ioctls)
 SUBSYSTEM=="drm", KERNEL=="card*",    GROUP="video",  MODE="0660", TAG+="uaccess"
 
-# AMD KFD (ROCm compute entrypoint) — kernel labels this root:render 0660 by
+# AMD KFD (ROCm compute entrypoint) -- kernel labels this root:render 0660 by
 # default on kernel >= 5.14; explicit rule pins it.
 KERNEL=="kfd", GROUP="render", MODE="0660", TAG+="uaccess"
 
-# NVIDIA character devices — only if nvidia-modprobe did not already set them.
+# NVIDIA character devices -- only if nvidia-modprobe did not already set them.
 # nvidia-container-toolkit may set these differently; these are a safe baseline.
 KERNEL=="nvidia[0-9]*",   GROUP="video", MODE="0660", TAG+="uaccess"
 KERNEL=="nvidia-uvm*",    GROUP="video", MODE="0660", TAG+="uaccess"

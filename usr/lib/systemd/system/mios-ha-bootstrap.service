@@ -9,7 +9,7 @@ Wants=network-online.target pcsd.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Default hacluster password is "mios" — MiOS default, override via bootstrap drop-in:
+# Default hacluster password is "mios" -- MiOS default, override via bootstrap drop-in:
 #   /etc/systemd/system/mios-ha-bootstrap.service.d/hacluster.conf
 #   [Service]
 #   Environment=HA_PASSWORD=your-real-password

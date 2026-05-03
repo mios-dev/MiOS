@@ -1,4 +1,4 @@
-# MiOS — Force verbose boot output on console
+# MiOS -- Force verbose boot output on console
 # Without this, plymouth steals the framebuffer and hides all systemd output.
 # In Hyper-V this means a black screen with no progress indication.
 kargs = ["systemd.show-status=true", "systemd.log_level=info", "console=tty0", "console=ttyS0,115200n8"]

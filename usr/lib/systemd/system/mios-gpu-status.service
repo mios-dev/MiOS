@@ -6,7 +6,7 @@ DefaultDependencies=yes
 After=systemd-udev-settle.service systemd-modules-load.service local-fs.target
 Wants=systemd-udev-settle.service
 # Before=podman.socket docker.socket removed: combining DefaultDependencies=yes
-# (which implies After=basic.target → After=sockets.target → After=podman.socket)
+# (which implies After=basic.target -> After=sockets.target -> After=podman.socket)
 # with Before=podman.socket creates an ordering cycle that systemd resolves by
 # skipping all three GPU services. The service still runs before containers are
 # used because WantedBy=multi-user.target fires after sockets.target anyway.
@@ -32,7 +32,7 @@ ExecStart=/usr/bin/bash -c ' \
     echo "intel=${HAS_INTEL}"; \
     lspci -nn 2>/dev/null | grep -iE "vga|3d|display" || true; \
   } > /run/mios/gpu-passthrough.status; \
-  # Non-persistent (in-memory) SELinux boolean — build-time semanage handles \
+  # Non-persistent (in-memory) SELinux boolean -- build-time semanage handles \
   # persistence; this guarantees the boolean is on even if the policy merge \
   # dropped it. No-op on permissive / disabled / missing boolean. \
   if command -v setsebool >/dev/null 2>&1; then \

@@ -1,11 +1,11 @@
-# /usr/share/mios/profile.toml — MiOS Profile Defaults (vendor-immutable)
+# /usr/share/mios/profile.toml -- MiOS Profile Defaults (vendor-immutable)
 #
 # This file ships in mios.git and is baked into every image. It is the
 # read-only DEFAULT layer of the three-layer profile resolution:
 #
 #   1. ~/.config/mios/profile.toml     per-user override   (highest)
 #   2. /etc/mios/profile.toml          host/admin override (bootstrap user-edit)
-#   3. /usr/share/mios/profile.toml    vendor defaults     (THIS FILE — lowest)
+#   3. /usr/share/mios/profile.toml    vendor defaults     (THIS FILE -- lowest)
 #
 # At install time, mios-bootstrap.git ships /etc/mios/profile.toml as the
 # user-edit copy with the same field shape; bootstrap install.sh reads
@@ -16,7 +16,7 @@
 # Edit this file ONLY to change the vendor default for every fresh install.
 # For per-host or per-user overrides, edit the respective layer above.
 #
-# Format: TOML 1.0 — https://toml.io/en/v1.0.0.
+# Format: TOML 1.0 -- https://toml.io/en/v1.0.0.
 
 [identity]
 username  = "mios"
@@ -78,7 +78,7 @@ reboot_on_finish = true
 # Quadlet sidecar enablement.
 #
 # Defaults policy (project-wide invariant): every flag here defaults to
-# true. The system never disables a service via static config — when a
+# true. The system never disables a service via static config -- when a
 # service is incompatible with the host (wrong virtualization layer,
 # missing required path, missing hardware), systemd `Condition*`
 # directives in the Quadlet itself short-circuit it at boot/pre-boot

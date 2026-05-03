@@ -15,7 +15,7 @@ RemainAfterExit=yes
 ExecStartPre=-/usr/sbin/modprobe -a i915 xe amdgpu
 # /var/run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
 ExecStart=/usr/bin/bash -c ' \
-  # Defensive perms on primary render node — do not touch card* nodes (video group \
+  # Defensive perms on primary render node -- do not touch card* nodes (video group \
   # handled by 99-mios-gpu.rules at udev-add time). \
   if [ -e /dev/dri/renderD128 ]; then \
     chgrp render /dev/dri/renderD128 2>/dev/null || true; \

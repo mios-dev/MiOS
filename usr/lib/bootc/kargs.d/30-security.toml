@@ -2,7 +2,7 @@
 # or init_on_alloc=1 globally (can interfere with large CUDA allocations).
 # lockdown=integrity: overrides 01-mios-hardening's confidentiality so that
 # ucore-hci signed NVIDIA modules (enrolled via Universal Blue MOK) can load.
-# module.sig_enforce is NOT disabled — MOK-enrolled keys are sufficient.
+# module.sig_enforce is NOT disabled -- MOK-enrolled keys are sufficient.
 kargs = [
   "slab_nomerge",
   "lockdown=integrity",

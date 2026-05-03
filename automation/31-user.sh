@@ -22,9 +22,12 @@ C_USER="${MIOS_USER:-mios}"
 
 echo "[31-user] Creating user ${C_USER} via sysusers..."
 if [[ "${C_USER}" != "mios" ]]; then
-    # Generate dynamic sysusers for custom username
+    # Generate dynamic sysusers for custom username.
+    # CRITICAL: pin UID to 1000. systemd-sysusers' '-' UID allocator uses the
+    # SYSTEM range (<UID_MIN), which makes logind skip XDG_RUNTIME_DIR creation
+    # and cascades into dbus/dconf/Wayland session-service failures.
     cat <<EOF > /usr/lib/sysusers.d/15-mios-custom.conf
-u ${C_USER} - "MiOS Custom User" /var/home/${C_USER} /bin/bash
+u ${C_USER} 1000:1000 "MiOS Custom User" /var/home/${C_USER} /bin/bash
 m ${C_USER} wheel
 m ${C_USER} libvirt
 m ${C_USER} kvm

@@ -12,7 +12,7 @@ Type=oneshot
 ExecStart=/usr/libexec/mios/verify-root.sh
 RemainAfterExit=yes
 
-# Hardening — this unit runs very early and touches no writable state.
+# Hardening -- this unit runs very early and touches no writable state.
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

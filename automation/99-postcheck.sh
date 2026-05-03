@@ -97,8 +97,16 @@ fi
 # cwd of /mnt/c/.... Catch drift at build time so we never ship a broken
 # file. Also enforces parity with /usr/lib/wsl.conf (the canonical reference
 # wsl-init.service uses to auto-restore).
-log "Validating /etc/wsl.conf (parse + parity with /usr/lib/wsl.conf)..."
+log "Validating /etc/wsl.conf (ASCII + parse + parity with /usr/lib/wsl.conf)..."
 if [[ -f /etc/wsl.conf ]]; then
+    # WSL2's INI parser is byte-naive — multibyte chars (em-dashes, smart quotes,
+    # NBSP) shift its line counter and surface as bogus "Expected ' ' or '\n' in
+    # /etc/wsl.conf:N" errors at boot. Python configparser tolerates UTF-8 so a
+    # parse-only check misses these. Enforce strict ASCII before the parse runs.
+    if LC_ALL=C grep -nP '[^\x00-\x7F]' /etc/wsl.conf >&2; then
+        die "/etc/wsl.conf contains non-ASCII bytes (WSL2's parser will choke)"
+    fi
+    log "  pure ASCII"
     if command -v python3 >/dev/null 2>&1; then
         python3 -c '
 import configparser, sys

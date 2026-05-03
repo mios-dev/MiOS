@@ -18,7 +18,7 @@ ExecStart=/usr/bin/bash -c ' \
   if command -v amd-ctk >/dev/null 2>&1; then \
     amd-ctk cdi generate --output=/var/run/cdi/amd.json || true; \
   fi; \
-  # Defensive perms — Fedora Rawhide already labels /dev/kfd as root:render \
+  # Defensive perms -- Fedora Rawhide already labels /dev/kfd as root:render \
   # 0660 via kernel, but pin it in case of drift. \
   chgrp render /dev/kfd 2>/dev/null || true; \
   chmod 0660   /dev/kfd 2>/dev/null || true; \
