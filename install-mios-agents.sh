@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
-# 'MiOS' Agent Launcher Installer
+# 'MiOS' Agent Launcher Installer (vendor-neutral)
+#
+# Installs three thin wrappers under /usr/local/bin/ that pre-load the
+# canonical 'MiOS' system prompt before launching an OpenAI-API-compatible
+# CLI client:
+#
+#   mios-agent-claude  -- wraps the local 'claude' binary if present
+#   mios-agent-gemini  -- wraps the local 'gemini' binary if present
+#   mios-llm           -- generic OpenAI /v1/chat/completions client
+#
+# All three resolve through MIOS_AI_ENDPOINT (Architectural Law 5:
+# UNIFIED-AI-REDIRECTS) and emit OpenAI-shaped requests. The first two
+# wrappers exist only because their underlying CLI binaries take a
+# system-prompt argument; the wrappers themselves do not contain any
+# vendor logic beyond that single CLI invocation.
+#
 # Run: bash /path/to/install-mios-agents.sh
 set -euo pipefail
 
@@ -32,35 +47,35 @@ sudo cp "$PROMPT_SRC" /usr/share/mios/ai/system.md
 sudo cp "$PROMPT_SRC" /etc/mios/ai/system-prompt.md
 echo "Installed system prompt to /usr/share/mios/ai/system.md"
 
-# ── Install mios-claude ──
-sudo tee /usr/local/bin/mios-claude > /dev/null <<'SCRIPT'
+# -- Install mios-agent-claude (wraps the 'claude' CLI if present) --
+sudo tee /usr/local/bin/mios-agent-claude > /dev/null <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 PROMPT_FILE=""
 for p in /usr/share/mios/ai/system.md /etc/mios/ai/system-prompt.md /system-prompt.md "${PWD}/system-prompt.md" "${PWD}/CLAUDE.md"; do
     [[ -r "$p" ]] && PROMPT_FILE="$p" && break
 done
-[[ -z "$PROMPT_FILE" ]] && { echo "mios-claude: no system prompt found" >&2; exit 1; }
-echo "→ Claude Code with system prompt: $PROMPT_FILE" >&2
+[[ -z "$PROMPT_FILE" ]] && { echo "mios-agent-claude: no system prompt found" >&2; exit 1; }
+echo "[agent] launching with system prompt: $PROMPT_FILE" >&2
 exec claude --append-system-prompt "$(cat "$PROMPT_FILE")" "$@"
 SCRIPT
-sudo chmod 755 /usr/local/bin/mios-claude
-echo "Installed /usr/local/bin/mios-claude"
+sudo chmod 755 /usr/local/bin/mios-agent-claude
+echo "Installed /usr/local/bin/mios-agent-claude"
 
-# ── Install mios-gemini ──
-sudo tee /usr/local/bin/mios-gemini > /dev/null <<'SCRIPT'
+# -- Install mios-agent-gemini (wraps the 'gemini' CLI if present) --
+sudo tee /usr/local/bin/mios-agent-gemini > /dev/null <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 PROMPT_FILE=""
 for p in /usr/share/mios/ai/system.md /etc/mios/ai/system-prompt.md /system-prompt.md "${PWD}/system-prompt.md" "${PWD}/GEMINI.md"; do
     [[ -r "$p" ]] && PROMPT_FILE="$p" && break
 done
-[[ -z "$PROMPT_FILE" ]] && { echo "mios-gemini: no system prompt found" >&2; exit 1; }
-echo "→ Gemini CLI with system prompt: $PROMPT_FILE" >&2
+[[ -z "$PROMPT_FILE" ]] && { echo "mios-agent-gemini: no system prompt found" >&2; exit 1; }
+echo "[agent] launching with system prompt: $PROMPT_FILE" >&2
 exec gemini --system-prompt "$(cat "$PROMPT_FILE")" "$@"
 SCRIPT
-sudo chmod 755 /usr/local/bin/mios-gemini
-echo "Installed /usr/local/bin/mios-gemini"
+sudo chmod 755 /usr/local/bin/mios-agent-gemini
+echo "Installed /usr/local/bin/mios-agent-gemini"
 
 # ── Install mios-llm ──
 sudo tee /usr/local/bin/mios-llm > /dev/null <<'SCRIPT'
@@ -74,7 +89,7 @@ done
 ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
 MODEL="${MIOS_AI_MODEL:-mi-os-7b}"
 USER_PROMPT="${*:-What are the six 'MiOS' Architectural Laws, in order?}"
-echo "→ Local LLM ($MODEL @ $ENDPOINT) with system prompt: $PROMPT_FILE" >&2
+echo "[agent] $MODEL @ $ENDPOINT (OpenAI /v1/chat/completions) prompt: $PROMPT_FILE" >&2
 curl -sS "$ENDPOINT/chat/completions" \
     -H "Content-Type: application/json" \
     -d "$(jq -n --arg model "$MODEL" --arg sys "$(cat "$PROMPT_FILE")" --arg user "$USER_PROMPT" \
@@ -94,9 +109,9 @@ echo "First line:"
 head -1 /usr/share/mios/ai/system.md
 echo ""
 echo "Launcher path check (should show clean paths, no brackets):"
-grep "for p in" /usr/local/bin/mios-claude
+grep "for p in" /usr/local/bin/mios-agent-claude
 echo ""
 echo "Done. Run:"
-echo "  mios-claude"
-echo "  mios-gemini"
-echo "  mios-llm 'your question here'"
+echo "  mios-agent-claude     # if the 'claude' CLI binary is installed"
+echo "  mios-agent-gemini     # if the 'gemini' CLI binary is installed"
+echo "  mios-llm 'your question here'   # vendor-neutral, OpenAI /v1 only"

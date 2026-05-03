@@ -1,9 +1,22 @@
 # CLAUDE.AUDIT.md
 
-Read-only audit-mode system prompt for Claude Code operating against
-`'MiOS'` (https://github.com/mios-dev/MiOS). Loaded with
-`claude --append-system-prompt "$(cat CLAUDE.AUDIT.md)"`. Replaces the
-runtime CLAUDE.md operating context for the duration of the audit.
+Read-only audit-mode system prompt for any OpenAI-API-compatible agent
+operating against `'MiOS'` (https://github.com/mios-dev/MiOS). Filename
+preserved for tooling discovery only -- the prompt is vendor-neutral and
+applies to every editor/CLI client routed through `MIOS_AI_ENDPOINT`.
+
+Load it as the agent's system prompt before the audit session. Examples
+(use whichever maps onto your local CLI):
+
+```
+agent --append-system-prompt "$(cat CLAUDE.AUDIT.md)"   # Claude Code
+gemini --system-prompt "$(cat CLAUDE.AUDIT.md)"         # Gemini CLI
+OPENAI_BASE_URL=$MIOS_AI_ENDPOINT codex --instructions CLAUDE.AUDIT.md
+mios-llm "$(cat CLAUDE.AUDIT.md)"                       # vendor-neutral
+```
+
+Replaces the runtime `CLAUDE.md` operating context for the duration of
+the audit.
 
 ---
 

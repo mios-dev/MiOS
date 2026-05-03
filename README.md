@@ -37,8 +37,9 @@ What you actually get out of the box:
 - **k3s + Ceph** for when you want to grow the box into a one-node cluster
   without re-imaging.
 - **Local AI surface**, OpenAI-compatible at `http://localhost:8080/v1`. Every
-  agent and tool on the system targets that one endpoint, so your Cursor,
-  Cline, Gemini, and Claude Code installs all talk to the same brain.
+  agent and tool on the system targets that one endpoint via
+  `MIOS_AI_ENDPOINT`, so any OpenAI-API-compatible editor/CLI client (no
+  vendor lock-in) talks to the same brain.
 - **Real security defaults**: SELinux enforcing, fapolicyd deny-by-default,
   USBGuard, CrowdSec sovereign-mode IPS, kernel-lockdown integrity, MOK-
   signed kernel modules. Not the security-theater kind.
