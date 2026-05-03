@@ -70,22 +70,16 @@ fc-cache -f /usr/share/fonts/geist 2>/dev/null || true
 #      FAIL THE BUILD if cursors are missing — a square cursor is unacceptable.
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing Bibata-Modern-Classic cursor (MANDATORY)..."
-BIBATA_VER=""
-BIBATA_FALLBACK="2.0.7"
 
-# Try GitHub API for latest release tag (strips leading 'v')
-# v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
+# Resolve latest release from upstream. Project policy: every dependency
+# tracks :latest from its source, so no fallback pin — if api.github.com is
+# unreachable, fail loud rather than silently shipping a stale version.
 BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
     -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
     | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/') 2>/dev/null || true)
 
-# Fallback if API fails (rate limit, network issue)
-if [ -z "$BIBATA_VER" ]; then
-    BIBATA_VER="$BIBATA_FALLBACK"
-    echo "[10-gnome]   GitHub API unavailable — using fallback v${BIBATA_VER}"
-else
-    echo "[10-gnome]   Latest release: v${BIBATA_VER}"
-fi
+[[ -n "$BIBATA_VER" ]] || die "Bibata: api.github.com release-latest lookup returned empty"
+echo "[10-gnome]   Latest release: v${BIBATA_VER}"
 
 BIBATA_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_VER}/Bibata-Modern-Classic.tar.xz"
 BIBATA_DIR="/usr/share/icons/Bibata-Modern-Classic"

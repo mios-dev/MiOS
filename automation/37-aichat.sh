@@ -11,25 +11,16 @@ install_packages "ai"
 
 echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
 
-# Fetch latest release tags
-# v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
+# Resolve latest release tags from upstream. Project policy: every dependency
+# tracks :latest from its source, so no fallback pin — if api.github.com is
+# unreachable, fail loud rather than silently shipping a stale version.
 AICHAT_TAG=$( (scurl -s https://api.github.com/repos/sigoden/aichat/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 AICHAT_NG_TAG=$( (scurl -s https://api.github.com/repos/blob42/aichat-ng/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 
-# Fallbacks if API fails
-if [[ -z "$AICHAT_TAG" ]]; then
-    AICHAT_TAG="v0.25.0"
-    echo "[37-aichat]   AIChat API unavailable — using fallback ${AICHAT_TAG}"
-else
-    echo "[37-aichat]   Detected AIChat version: ${AICHAT_TAG}"
-fi
-
-if [[ -z "$AICHAT_NG_TAG" ]]; then
-    AICHAT_NG_TAG="v0.25.0"
-    echo "[37-aichat]   AIChat-NG API unavailable — using fallback ${AICHAT_NG_TAG}"
-else
-    echo "[37-aichat]   Detected AIChat-NG version: ${AICHAT_NG_TAG}"
-fi
+[[ -n "$AICHAT_TAG"    ]] || die "AIChat: api.github.com release-latest lookup returned empty"
+[[ -n "$AICHAT_NG_TAG" ]] || die "AIChat-NG: api.github.com release-latest lookup returned empty"
+echo "[37-aichat]   AIChat latest:    ${AICHAT_TAG}"
+echo "[37-aichat]   AIChat-NG latest: ${AICHAT_NG_TAG}"
 
 # ── AIChat ────────────────────────────────────────────────────────────────────
 AICHAT_ARCH="aichat-${AICHAT_TAG}-x86_64-unknown-linux-musl.tar.gz"
