@@ -9,11 +9,15 @@ Wants=network-online.target podman.socket
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# Execute the full workstation-optimized bootstrap script
-ExecStart=/usr/local/bin/ceph-bootstrap.sh
+# Execute the full workstation-optimized bootstrap script. Lives in
+# /usr/libexec/mios (immutable composefs surface). The previous
+# /usr/local/bin path resolved to /var/usrlocal on bootc/FCOS where
+# the build-time /var cleanup deleted it before the image was committed.
+ExecStart=/usr/libexec/mios/ceph-bootstrap.sh
 
-# Secure the admin keyring after generation
-ExecStartPost=/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring
+# Secure the admin keyring after generation. '-' prefix tolerates
+# the keyring being absent on builds without cephadm installed.
+ExecStartPost=-/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring
 
 [Install]
 WantedBy=multi-user.target

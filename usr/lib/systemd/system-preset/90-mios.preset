@@ -54,6 +54,12 @@ enable mios-wsl-init.service
 enable mios-wsl-runtime-dir.service
 enable dbus-daemon-wsl.service
 
+# --- First-boot AI model pull (sentinel-guarded) ---
+# Build-time embedding fails because the OCI build's final /var
+# cleanup deletes /var/lib/ollama. The first-boot service pulls the
+# default model set into the persistent /var post-deploy.
+enable mios-ollama-firstboot.service
+
 # --- Disabled in favor of uupd ---
 disable bootc-fetch-apply-updates.timer
 disable rpm-ostreed-automatic.timer

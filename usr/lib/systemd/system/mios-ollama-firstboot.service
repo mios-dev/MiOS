@@ -1,0 +1,23 @@
+[Unit]
+Description='MiOS' Ollama first-boot model pull
+Documentation=https://ollama.com/
+# Pull the default model set into /var/lib/ollama on first boot. We
+# deliberately don't bake models into the image (build-time /var
+# cleanup would wipe them). Sentinel /var/lib/mios/.ollama-firstboot-
+# done marks completion; deleting it forces a re-pull on next start.
+After=ollama.service network-online.target
+Wants=ollama.service network-online.target
+Requires=ollama.service
+ConditionPathExists=!/var/lib/mios/.ollama-firstboot-done
+ConditionVirtualization=!container
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/ollama-firstboot.sh
+TimeoutStartSec=1800
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target default.target

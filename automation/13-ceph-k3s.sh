@@ -80,7 +80,12 @@ if [[ -n "$K3S_TAG" ]]; then
 fi
 
 # ─── Make bootstrap script executable ────────────────────────────────────────
-chmod 755 /usr/local/bin/ceph-bootstrap.sh 2>/dev/null || true
+# Script lives at /usr/libexec/mios/ceph-bootstrap.sh on the image
+# surface. The legacy /usr/local/bin path resolved to /var/usrlocal
+# on bootc/FCOS layouts and was wiped by the build-time /var cleanup;
+# both ceph-bootstrap.service + mios-ceph-bootstrap.service now
+# ExecStart at the immutable libexec path.
+chmod 755 /usr/libexec/mios/ceph-bootstrap.sh 2>/dev/null || true
 
 # ─── NOTE: Service enables are in Containerfile STEP D ───────────────────────
 # k3s.service, mios-ceph-bootstrap.service, var-home.mount,

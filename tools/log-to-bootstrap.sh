@@ -70,8 +70,47 @@ done
 
 echo "[ok] Core documentation copied"
 
-# Generate artifact manifest
+# Generate artifact manifest. Compute repo metrics from the actual file
+# tree at run time -- the previous version of this script hard-coded
+# stats (928 MB, 153 markdown files) that drifted away from reality on
+# every commit.
 echo "▶ Generating artifact manifest..."
+
+# Repo size: 'du -sh' on the working copy minus the .git directory so we
+# count source-of-truth content, not git metadata. Falls back to a literal
+# 'unknown' if du isn't available (defensive; du is in coreutils).
+if command -v du >/dev/null 2>&1; then
+    REPO_SIZE_BYTES=$(du -sb --exclude='.git' "${REPO_ROOT}" 2>/dev/null | awk '{print $1}')
+    REPO_SIZE_HUMAN=$(du -sh --exclude='.git' "${REPO_ROOT}" 2>/dev/null | awk '{print $1}')
+else
+    REPO_SIZE_BYTES=0
+    REPO_SIZE_HUMAN="unknown"
+fi
+
+# Compressed-context size: pick the newest tar.gz in artifacts/ai-rag if
+# present, otherwise leave 0. Avoids hard-coding a specific bundle name.
+COMPRESSED_BYTES=0
+COMPRESSED_HUMAN="0 B"
+NEWEST_BUNDLE=$(ls -t "${REPO_ROOT}"/artifacts/ai-rag/*.tar.gz 2>/dev/null | head -1 || true)
+if [[ -n "$NEWEST_BUNDLE" && -f "$NEWEST_BUNDLE" ]]; then
+    COMPRESSED_BYTES=$(stat -c%s "$NEWEST_BUNDLE" 2>/dev/null || echo 0)
+    COMPRESSED_HUMAN=$(du -h "$NEWEST_BUNDLE" 2>/dev/null | awk '{print $1}')
+fi
+
+# File counts: walk the tree once each. -prune the .git dir so we don't
+# double-count every fixture on disk.
+MARKDOWN_FILES=$(find "${REPO_ROOT}" -path "${REPO_ROOT}/.git" -prune -o -type f -name '*.md' -print 2>/dev/null | wc -l | tr -d ' ')
+SHELL_SCRIPTS=$(find "${REPO_ROOT}" -path "${REPO_ROOT}/.git" -prune -o -type f \( -name '*.sh' -o -name '*.bash' \) -print 2>/dev/null | wc -l | tr -d ' ')
+
+# Compression ratio. Use bc when available for the percentage; otherwise
+# fall back to integer-arithmetic two-decimal approximation.
+if [[ "$REPO_SIZE_BYTES" -gt 0 && "$COMPRESSED_BYTES" -gt 0 ]] && command -v bc >/dev/null 2>&1; then
+    COMPRESSION_RATIO=$(echo "scale=2; (1 - ${COMPRESSED_BYTES}/${REPO_SIZE_BYTES}) * 100" | bc 2>/dev/null)"%"
+elif [[ "$REPO_SIZE_BYTES" -gt 0 && "$COMPRESSED_BYTES" -gt 0 ]]; then
+    COMPRESSION_RATIO="$(( 100 - (COMPRESSED_BYTES * 100 / REPO_SIZE_BYTES) ))%"
+else
+    COMPRESSION_RATIO="n/a"
+fi
 
 cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
 {
@@ -104,11 +143,13 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     }
   },
   "stats": {
-    "original_repo_size": "928 MB",
-    "compressed_context_size": "752 KB",
-    "compression_ratio": "99.92%",
-    "markdown_files": 153,
-    "shell_scripts": 116
+    "original_repo_size": "${REPO_SIZE_HUMAN}",
+    "original_repo_size_bytes": ${REPO_SIZE_BYTES},
+    "compressed_context_size": "${COMPRESSED_HUMAN}",
+    "compressed_context_size_bytes": ${COMPRESSED_BYTES},
+    "compression_ratio": "${COMPRESSION_RATIO}",
+    "markdown_files": ${MARKDOWN_FILES},
+    "shell_scripts": ${SHELL_SCRIPTS}
   },
   "foss_ai_apis": [
     "Ollama",
@@ -127,8 +168,8 @@ echo "[ok] Manifest generated: ${ARTIFACT_DIR}/manifest.json"
 cat > "${ARTIFACT_DIR}/README.md" << README
 # 'MiOS' ${MIOS_VERSION} - AI RAG Artifacts
 
-**Generated:** $(date -u +%Y-%m-%d)  
-**Compression:** 928 MB → 752 KB (99.92% reduction)  
+**Generated:** $(date -u +%Y-%m-%d)
+**Compression:** ${REPO_SIZE_HUMAN} → ${COMPRESSED_HUMAN} (${COMPRESSION_RATIO} reduction)
 **Target:** FOSS AI APIs (Ollama, llama.cpp, LocalAI, vLLM)
 
 ## Artifacts in This Package

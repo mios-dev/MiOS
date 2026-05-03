@@ -44,11 +44,14 @@ systemd-sysusers --root=/ 2>/dev/null || true
 
 if getent passwd "${C_USER}" >/dev/null; then
     home=$(getent passwd "${C_USER}" | cut -d: -f6)
-    if [ ! -d "$home" ]; then
-        echo "[31-user] Creating home directory for ${C_USER} from /etc/skel..."
-        mkdir -p "$home"
-        cp -a /etc/skel/. "$home/"
-    fi
+    # Architectural Law 2 -- NO-MKDIR-IN-VAR. The home directory lives
+    # under /var/home/<user> and the build-time /var cleanup (in the
+    # Containerfile final RUN) wipes anything written there at build
+    # time. Home creation + skel copy is handled at first boot by:
+    #   - usr/libexec/mios/wsl-firstboot (WSL2 path)
+    #   - usr/libexec/mios/role-apply (bootc + bare-metal path)
+    # Both call 'cp -a /etc/skel/. "$home/"' once the persistent /var
+    # is mounted. Don't attempt the same here at build time.
     passwd -u "${C_USER}" 2>/dev/null || true
 else
     echo "[31-user] ERROR: Failed to create user ${C_USER}"

@@ -46,4 +46,27 @@ for ext_tool in mios-toggle-headless mios-test; do
     fi
 done
 
+# ═══ Install the userenv.sh resolver library ═══
+# /usr/bin/mios-env (Architectural Law 5 -- UNIFIED-AI-REDIRECTS)
+# resolves the layered MIOS_* environment by sourcing
+# /usr/lib/mios/userenv.sh. The library lives at tools/lib/userenv.sh
+# in the build context and previously had no installation step --
+# mios-env therefore fell back to its env-defaults-only path and
+# ignored the TOML overlay. Stage it now so the CLI sees the full
+# three-layer mios.toml resolver.
+USERENV_SRC=""
+for cand in \
+    "${SCRIPT_DIR}/../tools/lib/userenv.sh" \
+    "/tmp/build/tools/lib/userenv.sh" \
+    "/ctx/tools/lib/userenv.sh"
+do
+    if [[ -f "$cand" ]]; then USERENV_SRC="$cand"; break; fi
+done
+if [[ -n "$USERENV_SRC" ]]; then
+    install -D -m 0644 "$USERENV_SRC" /usr/lib/mios/userenv.sh
+    echo "[36-tools] Installed userenv.sh resolver to /usr/lib/mios/userenv.sh"
+else
+    echo "[36-tools] WARN: tools/lib/userenv.sh not found in build context; mios-env will fall back to env.defaults-only resolution"
+fi
+
 echo "[36-tools] CLI tools configuration complete. Run 'mios --help' for commands."

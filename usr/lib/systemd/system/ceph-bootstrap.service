@@ -10,7 +10,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/bin/ceph-bootstrap.sh
+ExecStart=/usr/libexec/mios/ceph-bootstrap.sh
 ExecStartPost=/usr/bin/touch /var/lib/ceph/.bootstrapped
 TimeoutStartSec=600
 StandardOutput=journal+console

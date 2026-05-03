@@ -604,6 +604,10 @@ ansible-core
 # v2.2 additions
 wslu
 python3-pip
+# /usr/bin/mios (Python CLI) imports the 'requests' module. Without
+# this package the import fails at runtime and a pip install isn't
+# viable on the read-only composefs /usr surface.
+python3-requests
 cloud-init
 libei
 strace
