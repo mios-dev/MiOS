@@ -83,12 +83,14 @@
 <header>
   <h1>MiOS configurator <span class="v" id="v-meta">schema 1.1.0 / mios 0.2.2</span></h1>
   <div class="toolbar">
-    <label class="btn-label" for="file-open">Open</label>
+    <button id="btn-pick" type="button" title="Pick the file to edit (uses File System Access API where available; remembers the handle so subsequent saves are one-click no-prompt overwrites with no (1) suffix)">Pick file</button>
+    <label class="btn-label" for="file-open" id="file-open-label" title="Fallback: open via standard file picker; saves go through Downloads">Open (fallback)</label>
     <input type="file" id="file-open" accept=".toml,text/plain">
     <button id="btn-defaults" type="button">Defaults</button>
     <button id="btn-save" class="primary" type="button">Save</button>
   </div>
 </header>
+<div id="path-banner" class="status info" style="display:none"></div>
 
 <div class="grid">
 
@@ -180,7 +182,7 @@
 <div id="status" class="status info" style="display:none"></div>
 
 <footer>
-  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · Layers (highest precedence first): <code>~/.config/mios/mios.toml</code> → <code>/etc/mios/mios.toml</code> → <code>/usr/share/mios/mios.toml</code>. After saving, drop the downloaded file at the layer you want to edit and run <code>systemctl restart mios-ai mios-ollama</code> if AI keys changed.</p>
+  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · After saving, run <code>sudo mios-sync-env</code> to regenerate <code>/etc/mios/install.env</code> from the layered <code>mios.toml</code>, then <code>systemctl restart mios-ai mios-ollama</code> if AI keys changed. <code>mios-env --explain</code> shows which layer supplied each resolved <code>MIOS_*</code> value.</p>
 </footer>
 
 <script>
@@ -384,14 +386,121 @@ branch = "main"
 base   = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
 `.trim();
 
+// ── File handle (File System Access API) ─────────────────────────
+// FSA is supported in Chromium-based browsers (Chrome, Edge, Brave,
+// Opera, Vivaldi). Firefox + Safari fall back to <a download>.
+// When FSA is available, "Pick file" lets the operator select the
+// canonical mios.toml at its FHS-compliant location, and the page
+// remembers the handle for the rest of the session -- subsequent
+// "Save" clicks overwrite the same file in place with no Downloads-
+// folder detour and no "(1)" suffix.
+let FILE_HANDLE = null;
+const HAS_FSA = typeof window.showSaveFilePicker === "function" &&
+                typeof window.showOpenFilePicker === "function";
+
+function detectPlatform() {
+  // Heuristic from navigator.platform / userAgentData. Used only to
+  // suggest the right per-platform path in the banner; never as a
+  // gate -- the operator can always pick whatever file they want.
+  const p = (navigator.userAgentData?.platform || navigator.platform || "").toLowerCase();
+  if (p.includes("win"))   return "windows";
+  if (p.includes("mac"))   return "macos";
+  return "linux";
+}
+
+function suggestedPaths() {
+  // Canonical FHS / Windows-AppData paths per platform. The "user"
+  // path has highest precedence in the layered overlay
+  // (~/.config/mios/mios.toml > /etc/mios/mios.toml > /usr/share/
+  // mios/mios.toml). Most operators want to edit the user path; only
+  // sysadmins editing for everyone on the host use /etc/mios/.
+  const plat = detectPlatform();
+  if (plat === "windows") {
+    return {
+      label: "Windows",
+      user:  "%APPDATA%\\MiOS\\mios.toml",
+      host:  "C:\\ProgramData\\MiOS\\config\\mios.toml",
+      vendor:"C:\\Program Files\\MiOS\\share\\system\\usr\\share\\mios\\mios.toml"
+    };
+  }
+  if (plat === "macos") {
+    return {
+      label: "macOS",
+      user:  "~/Library/Application Support/MiOS/mios.toml",
+      host:  "/Library/Application Support/MiOS/mios.toml",
+      vendor:"/usr/local/share/mios/mios.toml"
+    };
+  }
+  return {
+    label: "Linux (FHS)",
+    user:  "~/.config/mios/mios.toml",
+    host:  "/etc/mios/mios.toml",
+    vendor:"/usr/share/mios/mios.toml"
+  };
+}
+
+function renderPathBanner() {
+  const p = suggestedPaths();
+  const banner = document.getElementById("path-banner");
+  const fsaNote = HAS_FSA
+    ? "Click <b>Pick file</b> to bind a file handle; subsequent saves overwrite that file directly (no Downloads detour, no \"(1)\" suffix)."
+    : "Your browser doesn't expose the File System Access API. The <b>Open (fallback)</b> button reads a file you choose; <b>Save</b> goes through Downloads. Move it into place manually after.";
+  banner.innerHTML =
+    `<div><b>${p.label}</b> -- canonical paths for the unified user-definitions dotfile (highest precedence first):</div>` +
+    `<div>&nbsp;&nbsp;per-user&nbsp;&nbsp;<code>${p.user}</code></div>` +
+    `<div>&nbsp;&nbsp;per-host&nbsp;&nbsp;<code>${p.host}</code></div>` +
+    `<div>&nbsp;&nbsp;vendor&nbsp;&nbsp;&nbsp;&nbsp;<code>${p.vendor}</code></div>` +
+    `<div style="margin-top:8px">${fsaNote}</div>`;
+  banner.style.display = "block";
+}
+
 // ── Wire the toolbar ─────────────────────────────────────────────
+async function readFileHandle(handle) {
+  const f = await handle.getFile();
+  const text = await f.text();
+  DATA = parseToml(text);
+  refreshFromData();
+  showStatus(`Bound to ${handle.name} (${text.length} bytes). Save will overwrite in place.`, "ok");
+}
+
+async function writeFileHandle(handle, text) {
+  // Permissions: granted on pick. If the picker bound write at choose-
+  // time we don't need to re-request; otherwise queryPermission first.
+  if (handle.queryPermission) {
+    let perm = await handle.queryPermission({ mode: "readwrite" });
+    if (perm !== "granted") perm = await handle.requestPermission({ mode: "readwrite" });
+    if (perm !== "granted") throw new Error("write permission denied by browser");
+  }
+  const w = await handle.createWritable({ keepExistingData: false });
+  await w.write(text);
+  await w.close();
+}
+
+document.getElementById("btn-pick").addEventListener("click", async () => {
+  if (!HAS_FSA) {
+    showStatus("File System Access API not available in this browser. Use Open (fallback).", "err");
+    return;
+  }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: "MiOS dotfile", accept: { "text/plain": [".toml"] } }],
+      multiple: false
+    });
+    FILE_HANDLE = handle;
+    await readFileHandle(handle);
+  } catch (err) {
+    if (err.name !== "AbortError") showStatus(`Pick failed: ${err.message}`, "err");
+  }
+});
+
 document.getElementById("file-open").addEventListener("change", async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
     const text = await f.text();
     DATA = parseToml(text);
     refreshFromData();
-    showStatus(`Loaded ${f.name} (${text.length} bytes)`, "ok");
+    FILE_HANDLE = null;   // legacy path -> no handle
+    showStatus(`Loaded ${f.name} (${text.length} bytes). Save will go through Downloads.`, "info");
   } catch (err) {
     showStatus(`Parse failed: ${err.message}`, "err");
   }
@@ -400,20 +509,60 @@ document.getElementById("file-open").addEventListener("change", async e => {
 document.getElementById("btn-defaults").addEventListener("click", () => {
   DATA = parseToml(DEFAULTS_TOML);
   refreshFromData();
-  showStatus("Loaded built-in defaults (schema 1.1.0).", "info");
+  FILE_HANDLE = null;
+  showStatus("Loaded built-in defaults (schema 1.1.0). Pick a target file to bind a handle.", "info");
 });
 
-document.getElementById("btn-save").addEventListener("click", () => {
+document.getElementById("btn-save").addEventListener("click", async () => {
   gatherFromForm();
   renderRaw();
   const toml = emitToml(DATA);
+
+  // Path 1: bound file handle -- direct in-place overwrite.
+  if (FILE_HANDLE) {
+    try {
+      await writeFileHandle(FILE_HANDLE, toml);
+      showStatus(`Wrote ${FILE_HANDLE.name} in place (${toml.length} bytes).`, "ok");
+      return;
+    } catch (err) {
+      showStatus(`In-place write failed: ${err.message} -- falling back to Save As.`, "err");
+    }
+  }
+
+  // Path 2: FSA available but no handle bound -- "Save As" picker
+  // with suggestedName so the OS save dialog opens already pointing
+  // at "mios.toml". Operator confirms once and the handle binds for
+  // the rest of the session.
+  if (HAS_FSA) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: "mios.toml",
+        types: [{ description: "MiOS dotfile", accept: { "text/plain": [".toml"] } }]
+      });
+      FILE_HANDLE = handle;
+      await writeFileHandle(handle, toml);
+      showStatus(`Saved to ${handle.name} (${toml.length} bytes). Subsequent saves overwrite in place.`, "ok");
+      return;
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        showStatus(`Save As failed: ${err.message} -- falling back to Downloads.`, "err");
+      } else {
+        return;
+      }
+    }
+  }
+
+  // Path 3: legacy <a download>. Saves to Downloads. Browser appends
+  // " (1)" if the same name already exists -- the operator must
+  // rename and move the file manually. This is what the FSA paths
+  // above are designed to avoid.
   const blob = new Blob([toml], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "mios.toml";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  showStatus("Saved mios.toml -- drop it into /etc/mios/ (host) or ~/.config/mios/ (per-user).", "ok");
+  showStatus("Downloaded mios.toml -- drop it at one of the paths above.", "ok");
 });
 
 // Live form -> DATA -> raw preview
@@ -422,9 +571,10 @@ document.querySelectorAll("[data-key]").forEach(el => {
   el.addEventListener("change", () => { gatherFromForm(); renderRaw(); });
 });
 
-// First paint with defaults
+// First paint with defaults + per-platform path banner
 DATA = parseToml(DEFAULTS_TOML);
 refreshFromData();
+renderPathBanner();
 </script>
 
 </body>

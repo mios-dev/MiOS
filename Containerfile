@@ -27,6 +27,13 @@ CMD ["/sbin/init"]
 ARG MIOS_USER=mios
 ARG MIOS_HOSTNAME=mios
 ARG MIOS_FLATPAKS=
+# Default AI model selection. Build-time overrides flow from
+# mios.toml [ai] (resolved by build-mios.{sh,ps1} interactive prompts)
+# and propagate to automation/37-ollama-prep.sh via the
+# MIOS_OLLAMA_BAKE_MODELS env var. Empty disables the build-time bake.
+ARG MIOS_AI_MODEL=qwen2.5-coder:7b
+ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
+ARG MIOS_OLLAMA_BAKE_MODELS=qwen2.5-coder:7b,nomic-embed-text
 
 # Build context is bind-mounted read-only from the `ctx` stage; the only
 # writable copy lives under /tmp/build for scripts that need to mutate it.
@@ -46,6 +53,10 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     if [[ -n "${MIOS_FLATPAKS}" ]]; then \
         echo "${MIOS_FLATPAKS}" | tr "," "\n" > /tmp/build/usr/share/mios/flatpak-list; \
     fi; \
+    # Propagate operator-chosen model selection into 37-ollama-prep.sh.
+    # The build-mios.{sh,ps1} prompt sets MIOS_OLLAMA_BAKE_MODELS to the
+    # selected chat + embed model pair (or operator-supplied custom CSV).
+    export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_OLLAMA_BAKE_MODELS; \
     bash /tmp/build/automation/08-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \

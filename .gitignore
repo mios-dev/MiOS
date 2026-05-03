@@ -154,6 +154,7 @@ usr/*
 usr/bin/*
 !/usr/bin/mios
 !/usr/bin/mios-env
+!/usr/bin/mios-sync-env
 
 # usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*
