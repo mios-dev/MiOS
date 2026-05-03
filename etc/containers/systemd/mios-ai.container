@@ -24,6 +24,16 @@ Environment=CONTEXT_SIZE=4096
 User=mios-ai
 Group=mios-ai
 
+# OCI image labels for Podman Desktop. Architectural Law 5: this is the
+# single MIOS_AI_ENDPOINT every agent on the system targets; surfacing
+# it in Podman Desktop lets operators sanity-check that the OpenAI-API-
+# shaped surface is reachable without leaving the GUI.
+Label=org.opencontainers.image.title=MiOS AI inference (LocalAI)
+Label=org.opencontainers.image.description=OpenAI-API-compatible /v1 endpoint at port 8080 (chat/completions, responses, embeddings, models).
+Label=org.opencontainers.image.url=http://localhost:8080/v1/models
+Label=org.opencontainers.image.documentation=https://platform.openai.com/docs/api-reference
+Label=io.podman_desktop.openInBrowser=http://localhost:8080/v1/models
+
 [Service]
 Restart=on-failure
 RestartSec=10s

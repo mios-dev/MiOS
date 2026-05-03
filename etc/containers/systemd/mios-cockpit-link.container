@@ -1,0 +1,63 @@
+# /etc/containers/systemd/mios-cockpit-link.container
+# Podman Desktop UI surfacing for the host-side Cockpit web console.
+#
+# Cockpit on 'MiOS' runs as a host systemd service (cockpit.socket bound
+# to :9090), not in a container -- so Podman Desktop's container view
+# normally has no way to render a clickable link to it. This Quadlet is
+# a discovery shim: a tiny socat forwarder that publishes
+#
+#   localhost:19090   ->   host:9090   (Cockpit web console)
+#
+# When Podman Desktop scans running containers it sees the published
+# port and the OCI labels below, and renders a clickable "open" link
+# straight into Cockpit. The alternate port (19090) is required because
+# the host's :9090 is already bound by cockpit-ws and a second bind
+# would collide.
+#
+# Footprint: alpine/socat is ~3MB and the container is essentially idle
+# (single TCP-relay loop). Disable it via /etc/mios/profile.toml's
+# [quadlets.enable] table if you don't want this discovery surface.
+
+[Unit]
+Description='MiOS' Cockpit web-console discovery shim (Podman Desktop link)
+Documentation=https://cockpit-project.org/
+After=network-online.target cockpit.socket
+Wants=network-online.target
+# Skip when cockpit isn't installed or hasn't bound :9090 yet -- no point
+# in advertising a dead URL.
+ConditionPathExists=/usr/lib/systemd/system/cockpit.socket
+ConditionVirtualization=!container
+
+[Container]
+Image=docker.io/alpine/socat:latest
+ContainerName=mios-cockpit-link
+# Forward 19090 (container) -> host:9090 (cockpit). host.containers.internal
+# is Podman's documented loopback-to-host alias (mirrors Docker's
+# host.docker.internal); falls back to the well-known
+# 10.88.0.1 gateway if the alias isn't resolvable.
+Exec=tcp-listen:19090,fork,reuseaddr tcp:host.containers.internal:9090
+PublishPort=19090:19090
+
+# OCI labels Podman Desktop renders. The url label is the canonical
+# Cockpit endpoint (https; cockpit-ws issues a self-signed cert by
+# default and clients accept it on first visit).
+Label=org.opencontainers.image.title=MiOS Cockpit web console
+Label=org.opencontainers.image.description=Web-based system administration UI (host service on :9090, surfaced via :19090 port-forward).
+Label=org.opencontainers.image.url=https://localhost:9090/
+Label=org.opencontainers.image.documentation=https://cockpit-project.org/documentation.html
+Label=io.podman_desktop.openInBrowser=https://localhost:9090/
+
+# Architectural Law 6: unprivileged Quadlet with explicit User/Group.
+# Reuse the mios-ai uid for the shim since it's running a single TCP
+# relay and doesn't need its own dedicated account in sysusers.d.
+User=mios-ai
+Group=mios-ai
+
+[Service]
+Restart=on-failure
+RestartSec=15s
+TimeoutStartSec=60s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

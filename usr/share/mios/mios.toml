@@ -161,6 +161,7 @@ mios-ai            = true
 mios-ceph          = true
 mios-k3s           = true
 mios-forge         = true
+mios-cockpit-link  = true   # surfaces host Cockpit (9090) in Podman Desktop UI
 crowdsec-dashboard = true
 ollama             = true
 cloudws-guacamole  = true

@@ -27,6 +27,16 @@ Network=mios.network
 PublishPort=3000:3000      # web UI; reverse-proxy via Cockpit/Caddy if desired
 PublishPort=2222:22        # git+ssh; non-22 to coexist with sshd
 
+# OCI image labels surfaced in Podman Desktop's container detail panel.
+# org.opencontainers.image.url is rendered as a clickable "open" link
+# alongside the published-port list, so operators can open the forge
+# web UI directly from the Podman Desktop container view.
+Label=org.opencontainers.image.title=MiOS Git forge (Forgejo)
+Label=org.opencontainers.image.description=Self-hosted Forgejo on port 3000 (HTTP) and 2222 (git+ssh).
+Label=org.opencontainers.image.url=http://localhost:3000/
+Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/
+Label=io.podman_desktop.openInBrowser=http://localhost:3000/
+
 # Persistent state: the Forgejo image expects /data to hold app state +
 # the SQLite DB + git repository bytes. /srv/mios/forge is the FHS-3.0
 # 'data served by the system' location declared in usr/lib/tmpfiles.d/
