@@ -184,36 +184,64 @@ if [[ -n "$_sysusers_bad" ]]; then
 fi
 log "  all login-shell sysusers entries have fixed UIDs"
 
-# 8b. sysusers.d: every `u user UID:NUM` must be preceded by a `g name NUM`
-# line in the same file (or use a name reference instead of NUM). If the
-# numeric GID is unresolvable, sysusers fails with "please create GID NUM"
-# at first boot and the user never gets created.
+# 8b. sysusers.d: every `u user UID:GID` must reference a GID that
+# systemd-sysusers will be able to resolve at first boot. Resolution order
+# matches sysusers itself:
+#   1. `g <name> <gid>` line in ANY effective sysusers.d file (cross-file).
+#   2. Existing entry in /etc/group at build time (NSS).
+# Either path satisfies the invariant; both must miss before we flag.
+#
+# Upstream packages (setup, nfs-utils, ...) ship u-lines like
+# `u root 0:0 ...` and `u nfsnobody 65534:65534 ...` whose GIDs come from
+# /etc/group seeded by the base image, not from a co-located g-line.
+# Single-file scope flagged those as broken; the cross-file + NSS lookup
+# below matches what sysusers actually does at boot.
 log "Validating sysusers.d UID:GID resolves to a created group..."
+# First pass: collect every `g <name> <gid>` declared anywhere in the
+# effective sysusers tree.
+_sysusers_known_gids=$(
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        awk '/^g[[:space:]]+/ && $3 ~ /^[0-9]+$/ { print $3 }' "$f"
+    done < <(_sysusers_effective) | sort -u
+)
+# Helper: is GID resolvable via /etc/group at build time?
+_gid_in_etc_group() {
+    [[ -r /etc/group ]] || return 1
+    awk -F: -v g="$1" '$3 == g {found=1} END {exit !found}' /etc/group
+}
 _sysusers_unresolved=$(
     while IFS= read -r f; do
         [[ -f "$f" ]] || continue
-        awk '
-            # collect g lines in this file
-            /^g[[:space:]]+/ {
-                # 2nd field = group name, 3rd = id (or "-")
-                groups[$2] = 1
-                if ($3 ~ /^[0-9]+$/) gids[$3] = $2
+        awk -v known="$_sysusers_known_gids" '
+            BEGIN {
+                n = split(known, k, "\n")
+                for (i = 1; i <= n; i++) if (k[i] != "") seen[k[i]] = 1
             }
             /^u[[:space:]]+/ {
-                # 3rd field is UID:GID. Split on colon.
+                # field 3 = UID:GID. Skip "-" or empty.
                 split($3, a, ":")
-                # If GID part is numeric and no g line in this file claims it, flag.
-                if (a[2] ~ /^[0-9]+$/ && !(a[2] in gids)) {
-                    print FILENAME ":" NR ": " $0
-                }
+                if (a[2] !~ /^[0-9]+$/) next
+                if (a[2] in seen) next
+                print FILENAME ":" NR ":" a[2] ": " $0
             }' "$f"
     done < <(_sysusers_effective)
 )
-if [[ -n "$_sysusers_unresolved" ]]; then
-    printf '%s\n' "$_sysusers_unresolved" >&2
-    die "sysusers.d: u-line references a numeric GID with no matching 'g name GID' line in the same file"
+# Second pass: drop hits whose GID is already in /etc/group.
+_sysusers_truly_unresolved=$(
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        gid="${line#*:*:}"; gid="${gid%%:*}"
+        if _gid_in_etc_group "$gid"; then continue; fi
+        # Strip the synthetic ':<gid>:' marker before reporting.
+        echo "${line%%:*}:${line#*:}" | sed -E 's/:[0-9]+:/:/'
+    done <<< "$_sysusers_unresolved"
+)
+if [[ -n "$_sysusers_truly_unresolved" ]]; then
+    printf '%s\n' "$_sysusers_truly_unresolved" >&2
+    die "sysusers.d: u-line references a numeric GID with no 'g name GID' anywhere in /etc/sysusers.d or /usr/lib/sysusers.d AND no matching entry in /etc/group"
 fi
-log "  all u-line GIDs resolve to created groups"
+log "  all u-line GIDs resolve via cross-file g-lines or /etc/group"
 
 # 9. tmpfiles.d: no /var/run or /var/lock paths.
 # Both are FHS-compat symlinks to /run subdirs. systemd-tmpfiles emits
