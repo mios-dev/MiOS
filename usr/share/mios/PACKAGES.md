@@ -722,6 +722,16 @@ Rust-based LLM CLI agents and shell integrations.
 aichat
 aichat-ng
 ```
+<!--
+  ollama is NOT a Fedora RPM; it ships as a tarball from
+  https://github.com/ollama/ollama/releases and is fetched by
+  automation/37-ollama-prep.sh at build time. The runtime container
+  also has its own ollama binary baked into the docker.io/ollama/
+  ollama image used by the mios-ollama Quadlet -- both are
+  ARM/x86_64-multi-arch and share the same model store at
+  /usr/share/ollama/models (build-baked) and /var/lib/ollama/models
+  (runtime, hardlink-seeded by mios-ollama-firstboot.service).
+-->
 
 ## Internal -- Critical Validation
 

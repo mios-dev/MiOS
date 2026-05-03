@@ -43,12 +43,49 @@ if [[ -d "${BAKE_DIR}/manifests" ]] && [[ -n "$(ls -A "${BAKE_DIR}/manifests" 2>
     exit 0
 fi
 
-# ollama is installed as part of packages-ai (see usr/share/mios/PACKAGES.md).
-# If it's not on PATH the build context didn't include the AI pack -- skip
-# rather than fail so unrelated CI builds still pass.
+# ollama is NOT a Fedora RPM -- fetch the official upstream tarball
+# from github.com/ollama/ollama/releases when it isn't already on
+# PATH. The binary lands in /usr/bin/ollama (immutable composefs
+# surface, FHS-canonical for system binaries) and stays there in the
+# deployed image so the mios-ollama Quadlet's container can also exec
+# it via 'podman exec mios-ollama ollama ...' if needed.
 if ! command -v ollama >/dev/null 2>&1; then
-    log "ollama binary not found -- skipping bake (AI pack missing from this build)"
-    exit 0
+    log "ollama binary missing -- fetching upstream tarball"
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64)  ollama_arch="amd64"  ;;
+        aarch64) ollama_arch="arm64"  ;;
+        *)       log "Unsupported arch '$arch' for ollama upstream tarball -- skipping bake"; exit 0 ;;
+    esac
+    url="https://github.com/ollama/ollama/releases/latest/download/ollama-linux-${ollama_arch}.tgz"
+    tmp="$(mktemp -d /tmp/ollama-fetch.XXXXXX)"
+    trap 'rm -rf "$tmp"' EXIT
+    if ! command -v zstd >/dev/null 2>&1; then
+        # The .tgz upstream uses gzip, but newer releases ship .tar.zst.
+        # Pull zstd in case the asset shape changes -- 'dnf install' is
+        # only invoked when missing so this is a no-op on most builds.
+        $DNF_BIN "${DNF_SETOPT[@]}" install -y zstd >/dev/null 2>&1 || true
+    fi
+    if scurl -fsSL "$url" -o "$tmp/ollama.tgz"; then
+        # Try .tgz first; fall back to zst extraction if upstream changes.
+        if tar -xzf "$tmp/ollama.tgz" -C "$tmp" 2>/dev/null \
+           || tar --zstd -xf "$tmp/ollama.tgz" -C "$tmp" 2>/dev/null; then
+            bin="$(find "$tmp" -type f -name 'ollama' -perm -u+x | head -1)"
+            if [[ -n "$bin" ]] && file "$bin" 2>/dev/null | grep -q ELF; then
+                install -m 0755 -t /usr/bin/ "$bin"
+                log "Installed /usr/bin/ollama from upstream tarball"
+            else
+                log "Upstream tarball did not contain a usable ollama ELF -- skipping bake"
+                exit 0
+            fi
+        else
+            log "Failed to extract ollama tarball -- skipping bake"
+            exit 0
+        fi
+    else
+        log "Failed to download ${url} -- skipping bake"
+        exit 0
+    fi
 fi
 
 # Bake destination; OLLAMA_MODELS is the canonical override env var
