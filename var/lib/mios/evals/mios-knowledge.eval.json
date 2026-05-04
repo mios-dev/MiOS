@@ -2,8 +2,8 @@
   "name": "mios-knowledge",
   "metadata": {
     "description": "Tests an LLM's MiOS engineering knowledge across packages, kargs, build pipeline, signing, AI surface (LAW 5), defense-in-depth, and upstream tech (bootc/composefs/ucore-hci/cosign/CDI/LocalAI).",
-    "kb_version": "2026.05.02",
-    "mios_version": "v0.2.2"
+    "kb_version": "2026.05.04",
+    "mios_version": "v0.2.4"
   },
   "data_source_config": {
     "type": "custom",

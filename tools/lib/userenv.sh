@@ -42,6 +42,13 @@
 #                 -> MIOS_BOOTSTRAP_MODE, MIOS_REPO_URL, MIOS_BOOTSTRAP_REPO_URL
 #   [profile]     .role/.features
 #                 -> MIOS_PROFILE_ROLE, MIOS_PROFILE_FEATURES (CSV)
+#   [colors]      .bg/.fg/.accent/.cursor/.success/.warning/.error/.info/
+#                 .muted/.subtle/.earth/.silver/.ansi_*
+#                 -> MIOS_COLOR_BG, MIOS_COLOR_FG, MIOS_COLOR_ACCENT, ...
+#                    MIOS_ANSI_0_BLACK, MIOS_ANSI_1_RED, ...
+#                 (consumed by /etc/profile.d/mios-colors.sh, the
+#                 oh-my-posh theme, the configurator HTML's :root,
+#                 and globals.{sh,ps1} as default overrides)
 #   [env]         arbitrary KEY = "VALUE" pairs                exported verbatim
 #
 # Backwards compat:
@@ -157,6 +164,41 @@ slots = [
     # profile
     ("profile.role",            "MIOS_PROFILE_ROLE"),
     ("profile.features",        "MIOS_PROFILE_FEATURES"),
+    # colors -- Hokusai + operator-neutrals palette, applied across every
+    # console / terminal / oh-my-posh / Cockpit / configurator HTML.
+    # /etc/profile.d/mios-colors.sh emits OSC-4 / OSC-10 / OSC-11 / OSC-12
+    # at every interactive shell start using these MIOS_COLOR_* values.
+    # The configurator HTML's :root CSS variables also bind to these
+    # tokens via applyColorsToRoot(), so an edit there re-skins every
+    # surface that resolves through this slot map.
+    ("colors.bg",               "MIOS_COLOR_BG"),
+    ("colors.fg",               "MIOS_COLOR_FG"),
+    ("colors.accent",           "MIOS_COLOR_ACCENT"),
+    ("colors.cursor",           "MIOS_COLOR_CURSOR"),
+    ("colors.success",          "MIOS_COLOR_SUCCESS"),
+    ("colors.warning",          "MIOS_COLOR_WARNING"),
+    ("colors.error",            "MIOS_COLOR_ERROR"),
+    ("colors.info",             "MIOS_COLOR_INFO"),
+    ("colors.muted",            "MIOS_COLOR_MUTED"),
+    ("colors.subtle",           "MIOS_COLOR_SUBTLE"),
+    ("colors.earth",            "MIOS_COLOR_EARTH"),
+    ("colors.silver",           "MIOS_COLOR_SILVER"),
+    ("colors.ansi_0_black",            "MIOS_ANSI_0_BLACK"),
+    ("colors.ansi_1_red",              "MIOS_ANSI_1_RED"),
+    ("colors.ansi_2_green",            "MIOS_ANSI_2_GREEN"),
+    ("colors.ansi_3_yellow",           "MIOS_ANSI_3_YELLOW"),
+    ("colors.ansi_4_blue",             "MIOS_ANSI_4_BLUE"),
+    ("colors.ansi_5_magenta",          "MIOS_ANSI_5_MAGENTA"),
+    ("colors.ansi_6_cyan",             "MIOS_ANSI_6_CYAN"),
+    ("colors.ansi_7_white",            "MIOS_ANSI_7_WHITE"),
+    ("colors.ansi_8_bright_black",     "MIOS_ANSI_8_BRIGHT_BLACK"),
+    ("colors.ansi_9_bright_red",       "MIOS_ANSI_9_BRIGHT_RED"),
+    ("colors.ansi_10_bright_green",    "MIOS_ANSI_10_BRIGHT_GREEN"),
+    ("colors.ansi_11_bright_yellow",   "MIOS_ANSI_11_BRIGHT_YELLOW"),
+    ("colors.ansi_12_bright_blue",     "MIOS_ANSI_12_BRIGHT_BLUE"),
+    ("colors.ansi_13_bright_magenta",  "MIOS_ANSI_13_BRIGHT_MAGENTA"),
+    ("colors.ansi_14_bright_cyan",     "MIOS_ANSI_14_BRIGHT_CYAN"),
+    ("colors.ansi_15_bright_white",    "MIOS_ANSI_15_BRIGHT_WHITE"),
     # legacy/lightweight aliases (keep older mios.toml drafts working)
     ("user.name",               "MIOS_USER"),
     ("user.hostname",           "MIOS_HOSTNAME"),

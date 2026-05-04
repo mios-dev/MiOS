@@ -1,4 +1,4 @@
-# bib-configs/wsl2.toml - 'MiOS' v0.2.0
+# bib-configs/wsl2.toml - 'MiOS' v0.2.4
 # Target: Windows Subsystem for Linux 2 (WSL2)
 # Import with: wsl --import 'MiOS' <install-dir> output/disk.wsl2
 # BIB --type wsl2 emits a .tar.gz suitable for wsl --import.

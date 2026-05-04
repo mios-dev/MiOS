@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 -- Master build runner
+# 'MiOS' v0.2.4 -- Master build runner
 # Framed ASCII console UI: progress bar, stage tracking, health metrics,
 # per-step timing, and consolidated failure/warn report at end.
 set -euo pipefail
@@ -11,7 +11,7 @@ register_common_masks
 
 export PACKAGES_MD="${PACKAGES_MD:-/ctx/PACKAGES.md}"
 BUILD_LOG="/tmp/mios-build.log"
-VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.2.0')"
+VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.2.4')"
 
 # ── Redirect all output through mask filter and tee to log ──────────────────
 exec > >(mask_filter | tee -a "$BUILD_LOG") 2>&1

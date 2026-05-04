@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# automation/42-cosign-policy.sh - 'MiOS' v0.2.0
+# automation/42-cosign-policy.sh - 'MiOS' v0.2.4
 # ----------------------------------------------------------------------------
 # Consolidates cosign binary installation, Sigstore trust roots, and policy.json.
 # Supercedes 37-cosign-policy.sh.

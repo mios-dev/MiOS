@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# automation/35-gpu-pv-shim.sh - 'MiOS' v0.2.0
+# automation/35-gpu-pv-shim.sh - 'MiOS' v0.2.4
 # ----------------------------------------------------------------------------
 # Automates guest-side shimming for Hyper-V GPU-PV (dxgkrnl).
 # Since dxgkrnl isn't mainlined yet, we provide the user-mode hooks

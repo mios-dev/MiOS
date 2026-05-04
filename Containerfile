@@ -14,11 +14,19 @@ COPY tools/                /ctx/tools/
 
 FROM ${BASE_IMAGE}
 
+# MIOS_VERSION: parameterized from the canonical repo-root VERSION file
+# via build-mios.{sh,ps1} (which reads VERSION and passes
+# `--build-arg MIOS_VERSION=$(cat VERSION)`). The default tracks the
+# current stamp so a manual `podman build` without --build-arg still
+# produces a valid image; callers who need a different version pin it
+# at the command line.
+ARG MIOS_VERSION=0.2.4
+
 LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="\MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.source="https://github.com/mios-dev/MiOS"
-LABEL org.opencontainers.image.version="v0.2.2"
+LABEL org.opencontainers.image.version="v${MIOS_VERSION}"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 

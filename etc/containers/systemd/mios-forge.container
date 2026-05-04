@@ -80,8 +80,15 @@ Environment=FORGEJO__log__MODE=console
 # Forgejo has no built-in AI surface; this comment exists so postcheck
 # #12 has a documented reason for the absence rather than an oversight.
 
-User=mios-forge
-Group=mios-forge
+# NUMERIC uid/gid -- podman's `--user` looks names up in the
+# CONTAINER'S /etc/passwd, not the host's, and the upstream Forgejo
+# image has a `git` user (created at startup from USER_UID/USER_GID
+# above), not `mios-forge`. Passing the numeric uid that USER_UID
+# pins to (816) sidesteps the lookup entirely. Host-side ownership
+# of /srv/mios/forge is set by usr/lib/tmpfiles.d/mios-forge.conf to
+# the same uid 816.
+User=816
+Group=816
 
 [Service]
 Restart=on-failure

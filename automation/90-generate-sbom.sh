@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0  90-generate-sbom: Generate Software Bill of Materials (SBOM)
+# 'MiOS' v0.2.4  90-generate-sbom: Generate Software Bill of Materials (SBOM)
 # Uses Syft to generate CycloneDX and SPDX manifests for the final image.
 set -euo pipefail
 
@@ -23,7 +23,7 @@ if ! command -v syft &> /dev/null; then
     fi
 fi
 
-VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "v0.2.0")
+VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "v0.2.4")
 
 echo "[90-generate-sbom] Scanning root filesystem..."
 

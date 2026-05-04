@@ -1,5 +1,5 @@
 #!/bin/bash
-# MiOS v0.2.2 -- System Dashboard (MOTD)
+# MiOS v0.2.4 -- System Dashboard (MOTD)
 # ASCII-safe, tty0/console compatible.
 # Suppress: export MIOS_NO_MOTD=1
 [[ $- != *i* ]] && exit 0
@@ -7,6 +7,13 @@
 
 # shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
+
+# Resolve the running image version dynamically -- the canonical
+# /usr/share/mios/VERSION is overlay-baked at build time and tracks
+# whatever the global stamp is (mios.toml [meta].mios_version,
+# Containerfile LABEL, etc.). Falls back to the env var (set by
+# install.env) and finally to the on-disk default.
+MIOS_VERSION="${MIOS_VERSION:-$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")}"
 
 # ── Colors (ANSI basic -- safe for all TTYs) ─────────────────────────────────
 C=$'\033[0;36m'   # cyan
@@ -103,7 +110,7 @@ S60="------------------------------------------------------------"
 
 echo ""
 printf '%s\n' "${C}+${W60}+${N}"
-printf '%s\n' "${W}|  MiOS v0.2.2  --  ${HN}$(printf '%*s' $((42 - ${#HN})) '')${D}${IP}${N}  ${W}|${N}"
+printf '%s\n' "${W}|  MiOS v${MIOS_VERSION}  --  ${HN}$(printf '%*s' $((42 - ${#HN})) '')${D}${IP}${N}  ${W}|${N}"
 printf '%s\n' "${C}+${S60}+${N}"
 printf "  %-12s %s\n" "Role:"   "$ROLE"
 printf "  %-12s %s\n" "Image:"  "$IMG_REF"

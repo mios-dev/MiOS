@@ -1,0 +1,25 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS AI Chat
+GenericName=AI Chat (Terminal)
+Comment=Interactive AI chat against MiOS's unified local AI endpoint
+# Terminal=true tells the desktop session (GNOME / Phosh / KDE) to
+# spawn the user's preferred terminal emulator and run /usr/bin/mios-ai
+# inside it. The actual aichat binary lives in the mios-aichat
+# Distrobox container; mios-ai is the opinionated entrypoint that
+# routes through /usr/bin/aichat (the distrobox host shim) with the
+# right --model + endpoint pre-set from mios.toml [ai].
+#
+# The same .desktop file gives:
+#   * GNOME Activities / app grid an icon on a deployed MiOS host
+#   * WSLg-published "MiOS-DEV Apps" entry on the Windows Start Menu
+#     when the Windows-side dev VM is the source distro
+#   * Phosh / mobile launcher tile when the deployment ships phosh
+Exec=/usr/bin/mios-ai
+TryExec=/usr/bin/mios-ai
+Icon=utilities-terminal
+Categories=Development;ConsoleOnly;Utility;
+Keywords=mios;ai;chat;llm;aichat;localai;ollama;
+Terminal=true
+StartupNotify=false

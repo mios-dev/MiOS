@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.0 -- Core kernel boot arguments
+# 'MiOS' v0.2.4 -- Core kernel boot arguments
 # bootc kargs.d (v1.13+). Format: bare kargs = [...] ONLY.
 # NO [kargs] table headers. NO delete/append keys.
 

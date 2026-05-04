@@ -2,6 +2,15 @@
 # 'MiOS' Public Bootstrap -- Linux / WSL2
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash
+#
+# CANONICAL ENTRY POINT NOTICE (v0.2.4+):
+# The user-facing end-to-end pipeline now lives at `./mios-pipeline.sh`
+# (11 phases: Questions -> Stage -> MiOS-DEV -> Overlay -> Account ->
+# Install -> Smoketest -> Build -> Deploy -> Boot -> Repeat). This
+# script is invoked BY mios-pipeline.sh as the worker for Phases 1-2
+# (Questions + Stage) and remains fully functional as the curl-pipe-
+# bash entry point. New operator-facing automation should target
+# mios-pipeline.sh.
 set -euo pipefail
 
 PRIVATE_INSTALLER="https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.sh"

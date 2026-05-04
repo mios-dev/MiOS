@@ -1,4 +1,4 @@
-# bib-configs/vhdx.toml - 'MiOS' v0.2.0
+# bib-configs/vhdx.toml - 'MiOS' v0.2.4
 # Target: Hyper-V on Windows host (MiOS-2 bare metal + Win11 + RTX 4090)
 # BIB --type vhd emits VPC/.vhd; CI post-converts to .vhdx via qemu-img convert.
 

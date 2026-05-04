@@ -8,6 +8,12 @@ Wants=network-online.target
 
 [Container]
 Image=docker.io/ollama/ollama:latest
+# ContainerName must be 'mios-ollama' -- ollama-firstboot.sh polls
+# `podman exec mios-ollama ollama list` to know when the container is
+# ready, and Podman Desktop's link discovery treats the name as the
+# canonical handle. Quadlet's default would be `systemd-ollama`,
+# which the firstboot script wouldn't find.
+ContainerName=mios-ollama
 Network=mios.network
 AutoUpdate=registry
 User=mios-ollama

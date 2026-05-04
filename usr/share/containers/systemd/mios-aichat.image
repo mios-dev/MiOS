@@ -1,0 +1,24 @@
+[Unit]
+Description='MiOS' aichat Distrobox image (pre-pull on boot)
+# .image Quadlets (Podman 5.6+) emit a oneshot service that runs
+# `podman pull` before any consumer container/build references the
+# image. Pre-pulling at boot avoids a first-run latency spike when
+# the operator runs `distrobox enter mios-aichat`.
+#
+# This image is BUILT locally (mios-aichat.build below produces it)
+# rather than pulled from a registry, so PullPolicy=missing means
+# "skip pull when the local build has already populated podman
+# storage". On a fresh dev VM, the build Quadlet runs first; this
+# unit then no-ops because the image already exists.
+
+[Image]
+# localhost/ scope tells Podman this is a locally-built image (no
+# remote registry); the .build Quadlet writes it under this name.
+Image=localhost/mios/aichat:latest
+PullPolicy=missing
+# Auto-update annotation: bump the tag on the .build Quadlet to
+# force a rebuild + repull. The aichat upstream is :latest pinned
+# via Containerfile ARG (defaults documented in the Containerfile).
+
+[Install]
+WantedBy=default.target

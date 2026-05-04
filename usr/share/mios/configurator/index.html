@@ -26,16 +26,37 @@
   surface, one resolver, one editor).
 -->
 <style>
+  /* MiOS palette -- Hokusai + operator-neutrals.
+     Defaults match mios.toml [colors] vendor entries (and globals.{sh,ps1}
+     MIOS_COLOR_* exports). Loading a mios.toml that overrides [colors]
+     re-emits these CSS variables at runtime via setRootColorsFromData(),
+     so the configurator UI re-skins itself the moment the operator picks
+     a new palette -- WYSIWYG editing.
+     Token map:
+       --bg      MIOS_COLOR_BG        deep indigo  (Hokusai sky)
+       --fg      MIOS_COLOR_FG        foam cream
+       --accent  MIOS_COLOR_ACCENT    operator blue
+       --text    MIOS_COLOR_FG        body text (alias of fg)
+       --muted   MIOS_COLOR_MUTED     warm grey
+       --panel   derived from --bg    fieldset surfaces
+       --border  MIOS_COLOR_SUBTLE    pale blue-grey
+       --ok      MIOS_COLOR_SUCCESS   wave green
+       --warn    MIOS_COLOR_WARNING   sunset orange
+       --err     MIOS_COLOR_ERROR     coral red
+   */
   :root {
-    --bg: #0e1116;
-    --panel: #161b22;
-    --border: #30363d;
-    --accent: #58a6ff;
-    --text: #c9d1d9;
-    --muted: #8b949e;
-    --ok: #3fb950;
-    --warn: #d29922;
-    --err: #f85149;
+    --bg:     #282262;   /* MIOS_COLOR_BG     -- deep indigo */
+    --fg:     #E7DFD3;   /* MIOS_COLOR_FG     -- foam cream */
+    --panel:  #1A407F;   /* MIOS_COLOR_ACCENT -- operator blue (panels stand out from bg) */
+    --border: #B7C9D7;   /* MIOS_COLOR_SUBTLE -- pale blue-grey */
+    --accent: #F35C15;   /* MIOS_COLOR_CURSOR -- sunset orange (interactive accents) */
+    --text:   #E7DFD3;   /* MIOS_COLOR_FG     -- body text alias */
+    --muted:  #B7C9D7;   /* MIOS_COLOR_SUBTLE -- secondary text */
+    --ok:     #3E7765;   /* MIOS_COLOR_SUCCESS -- wave green */
+    --warn:   #F35C15;   /* MIOS_COLOR_WARNING -- sunset orange */
+    --err:    #DC271B;   /* MIOS_COLOR_ERROR  -- coral red */
+    --silver: #E0E0E0;   /* MIOS_COLOR_SILVER */
+    --earth:  #734F39;   /* MIOS_COLOR_EARTH */
     --mono: ui-monospace, "Cascadia Code", "Source Code Pro", Consolas, monospace;
     --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
   }
@@ -76,12 +97,66 @@
   .status.info { background: rgba(88,166,255,.1); color: var(--accent); border-left: 3px solid var(--accent); }
   footer { margin-top: 24px; color: var(--muted); font-size: 12px; }
   footer code { font-family: var(--mono); color: var(--text); }
+
+  /* Progressive-disclosure sections. The configurator is the SSOT
+     editor for mios.toml; the editable surface is grouped by which
+     mios-pipeline.{sh,ps1} phase consumes the values, so an operator
+     can ignore Apps/Services until they're configuring those phases. */
+  details.section {
+    margin: 0 0 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  details.section[open] { background: color-mix(in srgb, var(--panel) 85%, var(--bg) 15%); }
+  details.section > summary {
+    cursor: pointer;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: var(--fg);
+    list-style: none;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 8px;
+  }
+  details.section > summary::-webkit-details-marker { display: none; }
+  details.section > summary::before {
+    content: '▸';
+    color: var(--accent);
+    transition: transform 0.15s;
+    display: inline-block;
+    width: 12px;
+  }
+  details.section[open] > summary::before { transform: rotate(90deg); }
+  details.section > summary:hover { color: var(--accent); }
+  details.section .phase-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: .3px;
+  }
+  details.section .section-body {
+    padding: 0 16px 16px;
+  }
+  details.section .grid { margin-top: 4px; }
+  /* Inside a details, fieldsets shed their own bg/border so the section
+     panel reads as one surface; the legend keeps its anchor role. */
+  details.section fieldset {
+    background: transparent;
+    border: 1px dashed var(--border);
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.2.0 / mios 0.2.2</span></h1>
+  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.2.0 / mios 0.2.4</span></h1>
   <div class="toolbar">
     <button id="btn-pick" type="button" title="Pick the file to edit (uses File System Access API where available; remembers the handle so subsequent saves are one-click no-prompt overwrites with no (1) suffix)">Pick file</button>
     <label class="btn-label" for="file-open" id="file-open-label" title="Fallback: open via standard file picker; saves go through Downloads">Open (fallback)</label>
@@ -92,35 +167,41 @@
 </header>
 <div id="path-banner" class="status info" style="display:none"></div>
 
-<div class="grid">
+<!--
+  Layout: the configurator is the SSOT editor for mios.toml. The pipeline
+  (mios-pipeline.{sh,ps1}, see ./mios-pipeline.{sh,ps1}) consumes these
+  same values phase-by-phase. Each <details> section's phase-badge maps
+  to the pipeline phase that actually reads the keys it contains -- so
+  editing here is editing the pipeline's input.
+-->
 
-  <fieldset>
-    <legend>identity</legend>
-    <label for="f-username">username</label>
-    <input type="text" id="f-username" data-key="identity.username" placeholder="mios">
-    <label for="f-hostname">hostname</label>
-    <input type="text" id="f-hostname" data-key="identity.hostname" placeholder="mios">
-    <label for="f-fullname">fullname</label>
-    <input type="text" id="f-fullname" data-key="identity.fullname" placeholder="MiOS User">
-    <label for="f-shell">shell</label>
-    <input type="text" id="f-shell" data-key="identity.shell" placeholder="/bin/bash">
-    <label for="f-groups">groups (CSV)</label>
-    <input type="text" id="f-groups" data-key="identity.groups" data-array="csv"
-           placeholder="wheel,libvirt,kvm,video,render,input,dialout,docker">
-  </fieldset>
+<details class="section" open>
+  <summary>Identity &amp; AI <span class="phase-badge">Phase 1 · Questions</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      The hot day-1 tunables. Pipeline Phase 1 (Questions) reads
+      <code>identity.*</code> + <code>ai.*</code> from this file (or
+      prompts when missing); every later phase inherits the values
+      via <code>/etc/mios/install.env</code>.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>identity</legend>
+        <label for="f-username">username</label>
+        <input type="text" id="f-username" data-key="identity.username" placeholder="mios">
+        <label for="f-hostname">hostname</label>
+        <input type="text" id="f-hostname" data-key="identity.hostname" placeholder="mios">
+        <label for="f-fullname">fullname</label>
+        <input type="text" id="f-fullname" data-key="identity.fullname" placeholder="MiOS User">
+        <label for="f-shell">shell</label>
+        <input type="text" id="f-shell" data-key="identity.shell" placeholder="/bin/bash">
+        <label for="f-groups">groups (CSV)</label>
+        <input type="text" id="f-groups" data-key="identity.groups" data-array="csv"
+               placeholder="wheel,libvirt,kvm,video,render,input,dialout,docker">
+      </fieldset>
 
-  <fieldset>
-    <legend>locale</legend>
-    <label for="f-tz">timezone</label>
-    <input type="text" id="f-tz" data-key="locale.timezone" placeholder="UTC">
-    <label for="f-kbd">keyboard_layout</label>
-    <input type="text" id="f-kbd" data-key="locale.keyboard_layout" placeholder="us">
-    <label for="f-lang">language</label>
-    <input type="text" id="f-lang" data-key="locale.language" placeholder="en_US.UTF-8">
-  </fieldset>
-
-  <fieldset>
-    <legend>ai (Architectural Law 5)</legend>
+      <fieldset>
+        <legend>ai (Architectural Law 5)</legend>
     <label for="f-ai-endpoint">endpoint</label>
     <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8080/v1">
     <label for="f-ai-model">model</label>
@@ -139,37 +220,68 @@
            placeholder="qwen2.5-coder:7b,nomic-embed-text">
     <label for="f-ai-key">api_key (empty for localhost)</label>
     <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
-  </fieldset>
+      </fieldset>
+    </div>
+  </div>
+</details>
 
-  <fieldset>
-    <legend>image</legend>
-    <label for="f-img-ref">ref</label>
-    <input type="text" id="f-img-ref" data-key="image.ref" placeholder="ghcr.io/mios-dev/mios:latest">
-    <label for="f-img-branch">branch</label>
-    <input type="text" id="f-img-branch" data-key="image.branch" placeholder="main">
-    <label for="f-img-base">base</label>
-    <input type="text" id="f-img-base" data-key="image.base" placeholder="ghcr.io/ublue-os/ucore-hci:stable-nvidia">
-  </fieldset>
+<details class="section">
+  <summary>Defaults: locale, image, auth, network <span class="phase-badge">Phase 2-6 · Stage → Install</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Day-2 tunables. <code>locale.*</code> drives systemd-localed at
+      first boot (Phase 10); <code>image.*</code> picks the base /
+      build target for the OCI build (Phase 8) and the
+      <code>bootc switch</code> ref for upgrades; <code>auth.*</code>
+      shapes SSH key generation in Phase 5 (Account); <code>network.*</code>
+      drives the firewalld rules baked at Phase 6 (Install).
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>locale</legend>
+        <label for="f-tz">timezone</label>
+        <input type="text" id="f-tz" data-key="locale.timezone" placeholder="UTC">
+        <label for="f-kbd">keyboard_layout</label>
+        <input type="text" id="f-kbd" data-key="locale.keyboard_layout" placeholder="us">
+        <label for="f-lang">language</label>
+        <input type="text" id="f-lang" data-key="locale.language" placeholder="en_US.UTF-8">
+      </fieldset>
 
-  <fieldset>
-    <legend>auth</legend>
-    <label for="f-ssh-type">ssh_key_type</label>
-    <input type="text" id="f-ssh-type" data-key="auth.ssh_key_type" placeholder="ed25519">
-    <label for="f-ssh-action">ssh_key_action (generate / existing / skip)</label>
-    <input type="text" id="f-ssh-action" data-key="auth.ssh_key_action" placeholder="generate">
-  </fieldset>
+      <fieldset>
+        <legend>image</legend>
+        <label for="f-img-ref">ref</label>
+        <input type="text" id="f-img-ref" data-key="image.ref" placeholder="ghcr.io/mios-dev/mios:latest">
+        <label for="f-img-branch">branch</label>
+        <input type="text" id="f-img-branch" data-key="image.branch" placeholder="main">
+        <label for="f-img-base">base</label>
+        <input type="text" id="f-img-base" data-key="image.base" placeholder="ghcr.io/ublue-os/ucore-hci:stable-nvidia">
+      </fieldset>
 
-  <fieldset>
-    <legend>network</legend>
-    <label for="f-net-zone">firewalld_default_zone</label>
-    <input type="text" id="f-net-zone" data-key="network.firewalld_default_zone" placeholder="drop">
-    <div class="checkbox-row"><input type="checkbox" id="f-net-cockpit" data-key="network.allow_cockpit"><label for="f-net-cockpit">allow_cockpit (9090/tcp)</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (22/tcp)</label></div>
-    <div class="checkbox-row"><input type="checkbox" id="f-net-rdp" data-key="network.allow_rdp"><label for="f-net-rdp">allow_rdp (3389/tcp)</label></div>
-  </fieldset>
+      <fieldset>
+        <legend>auth</legend>
+        <label for="f-ssh-type">ssh_key_type</label>
+        <input type="text" id="f-ssh-type" data-key="auth.ssh_key_type" placeholder="ed25519">
+        <label for="f-ssh-action">ssh_key_action (generate / existing / skip)</label>
+        <input type="text" id="f-ssh-action" data-key="auth.ssh_key_action" placeholder="generate">
+      </fieldset>
 
-  <fieldset style="grid-column: 1 / -1">
-    <legend>colors (palette applied across every console / terminal / tty / oh-my-posh)</legend>
+      <fieldset>
+        <legend>network</legend>
+        <label for="f-net-zone">firewalld_default_zone</label>
+        <input type="text" id="f-net-zone" data-key="network.firewalld_default_zone" placeholder="drop">
+        <div class="checkbox-row"><input type="checkbox" id="f-net-cockpit" data-key="network.allow_cockpit"><label for="f-net-cockpit">allow_cockpit (9090/tcp)</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (22/tcp)</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="f-net-rdp" data-key="network.allow_rdp"><label for="f-net-rdp">allow_rdp (3389/tcp)</label></div>
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Appearance · color palette <span class="phase-badge">Phase 4 · Overlay</span></summary>
+  <div class="section-body">
+    <fieldset style="grid-column: 1 / -1">
+      <legend>colors (palette applied across every console / terminal / tty / oh-my-posh)</legend>
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
       Defaults are the MiOS unified palette: operator neutrals
       (#1A407F deep-blue, #E0E0E0 silver, #B7C9D7 pale blue-grey,
@@ -198,10 +310,15 @@
       <button type="button" id="btn-colors-reset" style="margin-right: 8px;">Reset to MiOS defaults</button>
       <button type="button" id="btn-colors-hokusai">Pure Hokusai (no neutrals)</button>
     </div>
-  </fieldset>
+    </fieldset>
+  </div>
+</details>
 
-  <fieldset style="grid-column: 1 / -1">
-    <legend>desktop (session + Flatpak applications)</legend>
+<details class="section">
+  <summary>Apps &amp; Desktop <span class="phase-badge">Phase 6-8 · Install → Build</span></summary>
+  <div class="section-body">
+    <fieldset style="grid-column: 1 / -1">
+      <legend>desktop (session + Flatpak applications)</legend>
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
       <div>
         <label for="f-desktop-session">session</label>
@@ -238,18 +355,36 @@
               spellcheck="false"
               placeholder="org.blender.Blender, com.discordapp.Discord, https://flathub.org/apps/details/com.spotify.Client"></textarea>
     <div id="f-flatpak-extra-hint" style="color: var(--muted); font-size: 11px; margin-top: 4px;"></div>
-  </fieldset>
+    </fieldset>
+  </div>
+</details>
 
-  <fieldset style="grid-column: 1 / -1">
-    <legend>quadlets.enable (per-Quadlet first-boot enablement)</legend>
-    <div id="quadlet-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px;"></div>
-  </fieldset>
+<details class="section">
+  <summary>Services · per-Quadlet first-boot enablement <span class="phase-badge">Phase 9-10 · Deploy → Boot</span></summary>
+  <div class="section-body">
+    <fieldset style="grid-column: 1 / -1">
+      <legend>quadlets.enable</legend>
+      <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+        Each toggle controls whether the corresponding
+        <code>/etc/containers/systemd/&lt;name&gt;.container</code>
+        Quadlet is enabled at first boot. Disabled Quadlets stay
+        on the image (so re-enabling later is one toggle + reboot)
+        but their generated <code>.service</code> is masked.
+      </p>
+      <div id="quadlet-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px;"></div>
+    </fieldset>
+  </div>
+</details>
 
-  <fieldset style="grid-column: 1 / -1">
-    <legend>raw TOML preview</legend>
-    <pre class="raw" id="raw"># Open a mios.toml file or click "Defaults" to start.</pre>
-  </fieldset>
-</div>
+<details class="section">
+  <summary>Advanced · raw TOML preview</summary>
+  <div class="section-body">
+    <fieldset style="grid-column: 1 / -1">
+      <legend>raw TOML preview</legend>
+      <pre class="raw" id="raw"># Open a mios.toml file or click "Defaults" to start.</pre>
+    </fieldset>
+  </div>
+</details>
 
 <div id="status" class="status info" style="display:none"></div>
 
@@ -619,6 +754,7 @@ function renderColors() {
       DATA.colors = DATA.colors || {};
       DATA.colors[key] = e.target.value.toUpperCase();
       code.textContent = DATA.colors[key];
+      applyColorsToRoot();
       renderRaw();
     });
   };
@@ -632,6 +768,7 @@ function renderColors() {
     resetBtn.onclick = () => {
       DATA.colors = { ...COLOR_DEFAULTS };
       renderColors();
+      applyColorsToRoot();
       renderRaw();
     };
   }
@@ -640,9 +777,44 @@ function renderColors() {
     hokusaiBtn.onclick = () => {
       DATA.colors = { ...COLOR_HOKUSAI };
       renderColors();
+      applyColorsToRoot();
       renderRaw();
     };
   }
+
+  // First call after picker rows are wired -- sync the CSS root to whatever
+  // DATA.colors holds at this point (vendor defaults, COLOR_DEFAULTS, or a
+  // loaded mios.toml).
+  applyColorsToRoot();
+}
+
+// Push DATA.colors values into the live :root CSS variables so the
+// configurator's own chrome reflects the palette being edited
+// (WYSIWYG). The mapping is the same one documented in the :root
+// block at the top of the file. Called from:
+//   * renderColors() initial sync
+//   * each color picker `input` event
+//   * Defaults / Pure Hokusai reset buttons
+//   * loadFromText() after parsing a mios.toml from disk
+function applyColorsToRoot() {
+  if (!DATA.colors) return;
+  const r = document.documentElement.style;
+  const c = DATA.colors;
+  // Named tokens -> CSS variables. Falls back to COLOR_DEFAULTS so a
+  // partial [colors] block in mios.toml doesn't leave variables blank.
+  const get = k => (c[k] || COLOR_DEFAULTS[k] || "");
+  if (get("bg"))      r.setProperty("--bg",     get("bg"));
+  if (get("fg"))    { r.setProperty("--fg",     get("fg"));
+                      r.setProperty("--text",   get("fg")); }
+  if (get("accent"))  r.setProperty("--panel",  get("accent"));
+  if (get("subtle")){ r.setProperty("--border", get("subtle"));
+                      r.setProperty("--muted",  get("subtle")); }
+  if (get("cursor"))  r.setProperty("--accent", get("cursor"));
+  if (get("success")) r.setProperty("--ok",     get("success"));
+  if (get("warning")) r.setProperty("--warn",   get("warning"));
+  if (get("error"))   r.setProperty("--err",    get("error"));
+  if (get("silver"))  r.setProperty("--silver", get("silver"));
+  if (get("earth"))   r.setProperty("--earth",  get("earth"));
 }
 
 function renderFlatpaks() {
@@ -839,7 +1011,7 @@ function showStatus(msg, kind) {
 const DEFAULTS_TOML = `
 [meta]
 schema_version = "1.1.0"
-mios_version   = "0.2.2"
+mios_version   = "0.2.4"
 format         = "toml"
 spec_url       = "https://toml.io/en/v1.0.0"
 editor_url     = "/usr/share/mios/configurator/index.html"

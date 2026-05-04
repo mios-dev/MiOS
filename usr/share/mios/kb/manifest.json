@@ -1,9 +1,9 @@
 {
   "$schema": "https://mios.dev/schemas/kb-manifest-2.json",
   "kb_name": "mios-knowledge-base",
-  "kb_version": "2026.05.02",
-  "mios_version": "v0.2.2",
-  "generated_at": "2026-05-02T00:00:00Z",
+  "kb_version": "2026.05.04",
+  "mios_version": "v0.2.4",
+  "generated_at": "2026-05-04T00:00:00Z",
   "openai_api_compatibility": {
     "responses_api": "2025-03+",
     "chat_completions": "v1",

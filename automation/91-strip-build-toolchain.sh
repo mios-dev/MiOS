@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.2 -- 91-strip-build-toolchain
+# 'MiOS' v0.2.4 -- 91-strip-build-toolchain
 #
 # Removes the build toolchain (compilers, build-system headers) from the
 # image after every build-phase that needs them has finished. Runs after

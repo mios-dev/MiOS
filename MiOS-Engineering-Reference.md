@@ -790,7 +790,7 @@ Canonical vars (see `usr/share/mios/env.defaults`):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MIOS_VERSION` | `0.2.2` | Image version |
+| `MIOS_VERSION` | `0.2.4` | Image version |
 | `MIOS_DEFAULT_USER` | `mios` | Login user name |
 | `MIOS_DEFAULT_HOST` | `mios` | Hostname |
 | `MIOS_REPO_URL` | https://github.com/mios-dev/mios | System repo URL |

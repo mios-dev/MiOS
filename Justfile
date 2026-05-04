@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.0 - Linux Build Targets
+# 'MiOS' v0.2.4 - Linux Build Targets
 # Requires: podman, just
 # Usage: just build | just iso | just all
 #

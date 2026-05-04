@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
+# 'MiOS' v0.2.4 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
 # With install_weakdeps=False (set globally in 01-repos.sh), only hard deps

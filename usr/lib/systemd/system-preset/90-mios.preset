@@ -17,6 +17,8 @@ enable nvidia-persistenced.service
 enable firewalld.service
 enable chronyd.service
 enable systemd-resolved.service
+enable pmcd.service
+enable pmlogger.service
 enable pmproxy.service
 enable bootloader-update.service
 enable mios-role.service
@@ -40,6 +42,16 @@ enable greenboot-rpm-ostree-grub2-check-fallback.service
 enable greenboot-status.service
 enable redboot-auto-reboot.service
 enable cockpit.socket
+# user@1000.service starts the per-user systemd manager + user D-Bus
+# session bus for the 'mios' user (uid 1000, pinned in
+# /usr/lib/sysusers.d/10-mios.conf). Normally systemd-logind reads
+# /var/lib/systemd/linger/mios and starts this; on WSL2 logind is
+# ConditionVirtualization=!wsl-gated, so we enable the template
+# directly so the user bus exists regardless of logind. This is what
+# eliminates the boot-time "Failed to connect to system scope bus
+# via local transport" error from `wsl -d MiOS` and lets `wsl -- foo`
+# reach the user D-Bus.
+enable user@1000.service
 enable usbguard.service
 enable auditd.service
 enable crowdsec.service

@@ -5,24 +5,36 @@
 # experience tracks /etc/mios/install.env (operator selection from
 # Phase 6 identity) without needing a config file regenerate.
 #
-#   mios-ai                    interactive REPL against MIOS_AI_MODEL
-#   mios-ai "<prompt>"         single-shot prompt; print response
-#   mios-ai -m <model>         override model for this call
-#   mios-ai -e ollama|localai  switch endpoint (ollama=11434, localai=8080)
-#   mios-ai --help             usage
+#   mios-ai                          interactive REPL against MIOS_AI_*
+#   mios-ai "<prompt>"               single-shot prompt; print response
+#   mios-ai -m <model>               override model for this call
+#   mios-ai -e mios|ollama|localai   switch backend client
+#   mios-ai -f <file> "..."          attach a file to the prompt
+#   mios-ai --help                   usage
 #
 # Reads in order of precedence:
 #   1. CLI args (highest)
 #   2. $MIOS_AI_ENDPOINT / $MIOS_AI_MODEL (env, set by mios-env.sh)
 #   3. /etc/mios/install.env defaults
-#   4. Hardcoded fallbacks (ollama @ qwen2.5-coder:7b)
+#   4. Hardcoded fallbacks (mios @ qwen2.5-coder:7b)
 #
-# Routes through aichat. Falls back to a curl-and-jq pipeline if
-# aichat isn't installed (e.g. minimal deploy or pre-Distrobox host).
+# Routes through aichat. /usr/bin/aichat on a deployed MiOS host is the
+# distrobox-routed shim (see automation/37-aichat.sh + the
+# mios-aichat.{build,image} Quadlets), so the actual aichat binary
+# lives inside the mios-aichat Distrobox container, and the host
+# substrate carries no application binary. Falls back to a curl+jq
+# pipeline when aichat is unavailable (minimal deploy / pre-Distrobox).
+#
+# `mios` is the canonical client name in
+# /usr/share/mios/distrobox/aichat/config.yaml -- it points at MiOS's
+# unified AI endpoint (mios.toml [ai].endpoint, LocalAI :8080 by
+# default). Picking `mios` as the default tracks whatever mios.toml
+# says without the operator having to know whether their host is
+# running LocalAI or Ollama under the hood.
 set -euo pipefail
 
 usage() {
-    sed -n '2,18p' "$0" | sed 's/^# \?//'
+    sed -n '2,21p' "$0" | sed 's/^# \?//'
     exit "${1:-0}"
 }
 
@@ -35,7 +47,12 @@ while (( $# > 0 )); do
         -m|--model)        MODEL_OVERRIDE="$2"; shift 2 ;;
         -e|--endpoint)     ENDPOINT_NAME="$2"; shift 2 ;;
         --)                shift; PROMPT_ARGS+=("$@"); break ;;
-        -*)                printf 'mios-ai: unknown flag %s\n' "$1" >&2; usage 2 ;;
+        -*)                # Anything else (e.g. -f file.py, --no-stream)
+                           # passes through to aichat unchanged. This
+                           # keeps mios-ai a thin opinionated wrapper
+                           # rather than a re-implementation of every
+                           # aichat flag.
+                           PROMPT_ARGS+=("$1"); shift ;;
         *)                 PROMPT_ARGS+=("$1"); shift ;;
     esac
 done
@@ -47,38 +64,78 @@ if [[ -r /etc/mios/install.env ]]; then
 fi
 
 MIOS_AI_MODEL="${MODEL_OVERRIDE:-${MIOS_AI_MODEL:-qwen2.5-coder:7b}}"
-MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:11434/v1}"
+# Strip any client-prefix that may have been set in install.env or env
+# (e.g. MIOS_AI_MODEL=mios:qwen2.5-coder:7b). The CLIENT name is
+# composed below; this leaves us with just the model.
+case "$MIOS_AI_MODEL" in
+    mios:*|ollama:*|localai:*) MIOS_AI_MODEL="${MIOS_AI_MODEL#*:}" ;;
+esac
+MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
 
-# -e ollama|localai shortcut maps to known endpoint URLs.
+# Endpoint shortcut: -e <name> picks the named client from
+# ~/.config/aichat/config.yaml. `mios` is the unified-AI client that
+# tracks whatever mios.toml [ai].endpoint resolves to (LocalAI by
+# default). `ollama` and `localai` are explicit alternates if the
+# operator wants to bypass the unified abstraction.
 case "$ENDPOINT_NAME" in
+    mios)    MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT}";              CLIENT="mios" ;;
     ollama)  MIOS_AI_ENDPOINT="http://localhost:11434/v1"; CLIENT="ollama" ;;
     localai) MIOS_AI_ENDPOINT="http://localhost:8080/v1";  CLIENT="localai" ;;
-    "")      CLIENT="ollama" ;;
-    *)       printf 'mios-ai: unknown endpoint %s (expected ollama|localai)\n' "$ENDPOINT_NAME" >&2; exit 2 ;;
+    "")      CLIENT="mios" ;;
+    *)       printf 'mios-ai: unknown endpoint %s (expected mios|ollama|localai)\n' "$ENDPOINT_NAME" >&2; exit 2 ;;
 esac
 
 # Quick reachability probe so we fail loudly with a useful message
-# instead of timing out inside aichat.
+# instead of timing out inside aichat. Reachability is verified
+# against the actual endpoint URL (host loopback :8080 or :11434),
+# regardless of whether the call routes via the distrobox shim --
+# distrobox shares the host network namespace per distrobox.ini, so
+# what's reachable from the host is reachable from the container.
 if ! curl -fsS --max-time 2 -o /dev/null "${MIOS_AI_ENDPOINT}/models" 2>/dev/null; then
-    printf 'mios-ai: %s not responding (is ollama up? check `systemctl status ollama.service`)\n' "$MIOS_AI_ENDPOINT" >&2
+    printf 'mios-ai: %s not responding\n' "$MIOS_AI_ENDPOINT" >&2
+    case "$CLIENT" in
+        mios|localai)
+            printf '         (LocalAI default; check `systemctl status mios-ai.service`)\n' >&2
+            ;;
+        ollama)
+            printf '         (Ollama; check `systemctl status ollama.service`)\n' >&2
+            ;;
+    esac
     exit 4
 fi
 
+# Seed user config on first run. The image-baked default declares the
+# `mios` / `ollama` / `localai` clients; without it the distrobox-
+# routed aichat would error on `--model mios:...` because no client
+# of that name would be configured. Existing configs are preserved.
+if [[ ! -f "${HOME}/.config/aichat/config.yaml" \
+   && -f /usr/share/mios/distrobox/aichat/config.yaml ]]; then
+    install -d -m 0700 "${HOME}/.config/aichat"
+    install -m 0644 /usr/share/mios/distrobox/aichat/config.yaml \
+        "${HOME}/.config/aichat/config.yaml"
+fi
+
 # Preferred path: aichat with the matching client.
-if command -v aichat >/dev/null 2>&1; then
+# /usr/bin/aichat on a deployed host is the distrobox shim. Use the
+# absolute path so the call works even when the operator's $PATH
+# omits /usr/bin (rare on MiOS, but defensive).
+if [[ -x /usr/bin/aichat ]] || command -v aichat >/dev/null 2>&1; then
+    AICHAT_BIN="$(command -v aichat || echo /usr/bin/aichat)"
     AICHAT_ARGS=(--model "${CLIENT}:${MIOS_AI_MODEL}")
     if (( ${#PROMPT_ARGS[@]} > 0 )); then
-        # Single-shot: pass remaining args as the prompt.
-        exec aichat "${AICHAT_ARGS[@]}" -- "${PROMPT_ARGS[*]}"
+        exec "$AICHAT_BIN" "${AICHAT_ARGS[@]}" -- "${PROMPT_ARGS[@]}"
     else
-        exec aichat "${AICHAT_ARGS[@]}"
+        exec "$AICHAT_BIN" "${AICHAT_ARGS[@]}"
     fi
 fi
 
-# Fallback: curl + jq one-shot (no REPL). Useful in minimal containers.
+# Fallback: curl + jq one-shot (no REPL). Useful in minimal containers
+# where the distrobox container hasn't been assembled yet.
 if (( ${#PROMPT_ARGS[@]} == 0 )); then
     printf 'mios-ai: aichat is not installed and no prompt was given.\n' >&2
-    printf '         Install aichat or pass a prompt: mios-ai "<your question>"\n' >&2
+    printf '         Either run automation/37-aichat.sh on this host to\n' >&2
+    printf '         drop the distrobox shims, or pass a prompt for the\n' >&2
+    printf '         curl-and-jq fallback path: mios-ai "<your question>"\n' >&2
     exit 3
 fi
 prompt="${PROMPT_ARGS[*]}"

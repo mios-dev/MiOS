@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# automation/08-system-files-overlay.sh - 'MiOS' v0.2.0
+# automation/08-system-files-overlay.sh - 'MiOS' v0.2.4
 # ----------------------------------------------------------------------------
 # Overlay /ctx/ onto the rootfs during the Containerfile build,
 # correctly handling the /usr/local -> /var/usrlocal symlink.
@@ -16,6 +16,19 @@ source "$(dirname "$0")/lib/common.sh"
 CTX="${CTX:-/ctx}"
 
 log "08-overlay: starting Rootfs-Native overlay"
+
+# Derive /usr/share/mios/VERSION from the canonical top-level VERSION
+# file. The MOTD (/usr/libexec/mios/motd) and the dashboard runtime
+# (/usr/libexec/mios/mios-dashboard.sh) both read this path to render
+# `MiOS v<version>` -- having a single overlay-time emit step here
+# means the source of truth stays at the repo-root VERSION file and
+# can never drift from /usr/share/mios/mios.toml [meta].mios_version
+# or the Containerfile LABEL.
+if [[ -f "${CTX}/VERSION" ]]; then
+    install -d -m 0755 /usr/share/mios
+    install -m 0644 "${CTX}/VERSION" /usr/share/mios/VERSION
+    log "  staged /usr/share/mios/VERSION -> $(cat /usr/share/mios/VERSION)"
+fi
 
 # --- Stage 1: /usr (everything except /usr/local) --------------------------
 if [[ -d "${CTX}/usr" ]]; then
@@ -109,6 +122,32 @@ fi
 log "08-overlay: normalizing systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
+
+# Normalize permissions on udev rules, tmpfiles.d, sysusers.d, modprobe.d.
+# When the build context is checked out on Windows (NTFS via 9p in MiOS-DEV
+# WSL2), every file inherits 0755 + world-writable. udev rejects executable
+# rules files at every boot ("99-kvmfr.rules is marked executable. Please
+# remove executable permission bits"), and the "world-writable" warning is
+# raised on the same files. Force 0644 across every declarative-config
+# directory in /usr/lib/. Mirrors the systemd-units normalization above.
+log "08-overlay: normalizing udev/tmpfiles/sysusers/modprobe permissions"
+for d in \
+    /usr/lib/udev/rules.d \
+    /usr/lib/tmpfiles.d \
+    /usr/lib/sysusers.d \
+    /usr/lib/modprobe.d \
+    /usr/lib/sysctl.d \
+    /usr/lib/binfmt.d \
+    /etc/udev/rules.d \
+    /etc/tmpfiles.d \
+    /etc/sysusers.d \
+    /etc/modprobe.d \
+    /etc/sysctl.d
+do
+    [[ -d "$d" ]] || continue
+    find "$d" -type f -exec chmod 0644 {} + 2>/dev/null || true
+    find "$d" -type d -exec chmod 0755 {} + 2>/dev/null || true
+done
 
 # Logically Bound Images -- bind every Quadlet from both vendor and admin paths
 # (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES).

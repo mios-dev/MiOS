@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+#
+# CANONICAL ENTRY POINT NOTICE (v0.2.4+):
+# The user-facing end-to-end pipeline now lives at `./mios-pipeline.sh`
+# (11 phases: Questions -> Stage -> MiOS-DEV -> Overlay -> Account ->
+# Install -> Smoketest -> Build -> Deploy -> Boot -> Repeat). This
+# script is invoked BY mios-pipeline.sh as the worker for Phase 9
+# (Deploy) and remains fully functional standalone. Operator
+# automation should call mios-pipeline.sh instead of install.sh
+# directly; calling install.sh still works but skips Phases 1-8.
+#
 # 'MiOS' system-side installer -- runs as the system-init half of Phase-3
 # (Apply). Invoked by mios-bootstrap.git/install.sh after Phase-1 (overlay)
 # and Phase-2 (package install) have already completed.

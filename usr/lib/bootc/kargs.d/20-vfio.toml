@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.0 -- VFIO / PCI Passthrough generic hooks
+# 'MiOS' v0.2.4 -- VFIO / PCI Passthrough generic hooks
 match-architectures = ["x86_64"]
 kargs = [
     "intel_iommu=on",

@@ -1,26 +1,41 @@
-# 'MiOS' v0.2.2 -- AI Ingestion Index
+# 'MiOS' v0.2.4 -- AI Ingestion Index
 
-'MiOS' is an immutable bootc-native Fedora workstation OS (base: `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) delivered as an OCI image. The `mios.git` repo root is the system root `/`. No separate workspace.
+'MiOS' is an immutable bootc-native Fedora workstation OS (base:
+`ghcr.io/ublue-os/ucore-hci:stable-nvidia`) delivered as an OCI image.
+The `mios.git` repo root is the system root `/`. No separate workspace.
 
-## System specification
-- [AI.md](./AI.md): System-layer agent entry point (build, env, architecture)
-- [system-prompt.md](./system-prompt.md): Repo-root pointer to the canonical master agent prompt at `usr/share/mios/ai/system.md` (loaded by all agent CLIs)
-- [INDEX.md](./INDEX.md): Authoritative system interface and Architectural Laws
-- [ARCHITECTURE.md](./ARCHITECTURE.md): Filesystem and hardware blueprints
-- [ENGINEERING.md](./ENGINEERING.md): Security and build standards
-- [usr/share/mios/PACKAGES.md](./usr/share/mios/PACKAGES.md): SSOT for all RPMs
+## Day-0 agent entry points
+- [usr/share/mios/ai/system.md](./usr/share/mios/ai/system.md): canonical agent system prompt (Day-0 contract; v0.2.4)
+- [system-prompt.md](./system-prompt.md): repo-root pointer to the canonical prompt above (loaded by all agent CLIs)
+- [INDEX.md](./INDEX.md): Architectural Laws + system interface
+- [AGREEMENTS.md](./AGREEMENTS.md): runtime agreements + research-project framing
 
-## AI interface (mios-bootstrap.git territory)
-- [usr/share/mios/ai/system.md](./usr/share/mios/ai/system.md): Deployed compact agent prompt
-- [usr/share/mios/ai/models.json](./usr/share/mios/ai/models.json): OpenAI /v1/models catalog
-- [usr/share/mios/ai/mcp.json](./usr/share/mios/ai/mcp.json): MCP server registry
+## Single source of truth
+- [VERSION](./VERSION): canonical version stamp (mirrored to `/usr/share/mios/VERSION` at overlay time)
+- [usr/share/mios/mios.toml](./usr/share/mios/mios.toml): vendor defaults for every operator-tunable option
+- [usr/share/mios/configurator/index.html](./usr/share/mios/configurator/index.html): WYSIWYG editor for `mios.toml` (the user-facing surface)
+- [automation/lib/globals.sh](./automation/lib/globals.sh) and [automation/lib/globals.ps1](./automation/lib/globals.ps1): single registry for VERSION + USERS + IMAGES + PORTS + URLS + REPOS + PATHS + FILES + UNITS + CONTAINERS + COLORS
+- [tools/lib/userenv.sh](./tools/lib/userenv.sh): three-layer (vendor < host < user) `mios.toml` resolver -> `MIOS_*` env exports
 
-## Build
-- [Containerfile](./Containerfile): OCI image definition
-- [Justfile](./Justfile): Build orchestrator (just build / push / iso / raw / wsl2)
-- [automation/](./automation/): 48 numbered phase scripts + lib/{common,packages,masking}.sh
+## Pipeline (canonical 11-phase orchestrator)
+- [mios-pipeline.sh](./mios-pipeline.sh) and [mios-pipeline.ps1](./mios-pipeline.ps1): Questions → Stage → MiOS-DEV → Overlay → Account → Install → Smoketest → Build → Deploy → Boot → Repeat
+- [Containerfile](./Containerfile): OCI image definition (LABEL version parameterized via `ARG MIOS_VERSION`)
+- [automation/](./automation/): numbered phase scripts + `lib/{common,packages,masking,paths,globals,agreements-banner}.{sh,ps1}`
+- [usr/share/mios/PACKAGES.md](./usr/share/mios/PACKAGES.md): catalog (the SSOT lives in `mios.toml [packages].sections`)
+
+## AI interface (OpenAI-compatible)
+- [usr/share/mios/ai/v1/models.json](./usr/share/mios/ai/v1/models.json): OpenAI `/v1/models` catalog (chat + embedding)
+- [usr/share/mios/ai/v1/mcp.json](./usr/share/mios/ai/v1/mcp.json): MCP server registry (mios-fs, mios-kb, mios-forge)
+- [usr/lib/mios/tools/chat-completions-api/](./usr/lib/mios/tools/chat-completions-api/): chat-completions function definitions
+- [usr/lib/mios/tools/responses-api/](./usr/lib/mios/tools/responses-api/): Responses API tool definitions
+- [usr/lib/mios/schemas/](./usr/lib/mios/schemas/): JSON-schema outputs for structured responses
 
 ## Operational standards
-- **Protocol**: OpenAI-compatible REST API at `http://localhost:8080/v1`
-- **Infrastructure**: bootc, Podman Quadlets, ComposeFS, greenboot
-- **Installer**: mios-bootstrap.git -- `irm .../install.ps1 | iex` (Windows) * `curl ... | bash` (Linux)
+- **AI Endpoint**: OpenAI-compatible REST at `http://localhost:8080/v1` (LocalAI / `mios-ai.container`); falls through to `http://localhost:11434` (Ollama) when `[ai].endpoint` is repointed
+- **Architectural Laws**: USR-OVER-ETC, NO /VAR WRITES AT BUILD, GIT-MANAGED ROOT, VM|CONTAINER|FLATPAK ONLY, UNIFIED AI REDIRECTS
+- **Infrastructure**: bootc, Podman Quadlets (5.6+ .build/.image/.container), composefs, greenboot, distrobox (mios-aichat container, `mios-ai` entrypoint)
+- **User accounts**: provisioned at OVERLAY TIME via `/usr/lib/sysusers.d/*.conf` + `automation/31-user.sh` + `/usr/lib/tmpfiles.d/mios-user.conf`. Never patched at firstboot.
+- **Operator entrypoints**:
+  - Linux/WSL: `curl -fsSL .../bootstrap.sh | bash` → invokes `./mios-pipeline.sh` for the 11-phase chain
+  - Windows: `irm .../install.ps1 | iex` → invokes `./mios-pipeline.ps1` for the 11-phase chain
+  - Already on a deployed host: `./mios-pipeline.sh -p 6` (or `-Phase 6`) to re-run a single phase

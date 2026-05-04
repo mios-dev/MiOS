@@ -1,6 +1,16 @@
 <#
+.NOTES
+    CANONICAL ENTRY POINT NOTICE (v0.2.4+):
+    The user-facing end-to-end pipeline now lives at
+    `./mios-pipeline.ps1` (11 phases: Questions -> Stage -> MiOS-DEV ->
+    Overlay -> Account -> Install -> Smoketest -> Build -> Deploy ->
+    Boot -> Repeat). build-mios.ps1 is invoked BY mios-pipeline.ps1
+    as the worker for Phases 1-8 and remains fully functional as a
+    standalone orchestrator. New operator-facing automation should
+    target mios-pipeline.ps1.
+
 .SYNOPSIS
-    'MiOS' v0.2.2 - 'MiOS' Builder (Windows)
+    'MiOS' v0.2.4 - 'MiOS' Builder (Windows)
 
 .DESCRIPTION
     Secure build orchestrator with workflow selection.
@@ -267,7 +277,7 @@ if (Test-Path ".env.mios") {
     }
 }
 
-$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.2.2" }
+$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.2.4" }
 $ImageName      = if ($env:MIOS_IMAGE_NAME) { ($env:MIOS_IMAGE_NAME -split '/')[-1] -replace ':.*$','' } else { "mios" }
 $ImageTag       = "latest"
 $MIOS_USER_ADMIN = "mios" # @track:USER_ADMIN
@@ -557,6 +567,7 @@ if ($DoPull) {
         --build-arg MIOS_USER="$U" `
         --build-arg MIOS_HOSTNAME="$HostIn" `
         --build-arg MIOS_PASSWORD_HASH="$passHash" `
+        --build-arg MIOS_VERSION="$Version" `
         --jobs 2 -t $LocalImage . 2>&1 | ForEach-Object {
         $line = $_
         $stripped = ($line -replace '^\s*#\d+\s+(?:[\d.]+\s+)?', '').TrimStart()
@@ -934,7 +945,7 @@ if ($env:MIOS_SKIP_DEPLOY -eq "1") {
                         $wslRAM = [Math]::Max(16, [Math]::Floor((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB * 0.75))
                         
                         $wslLines = @(
-                            "# 'MiOS' v0.2.2 - WSL2 Configuration",
+                            "# 'MiOS' v0.2.4 - WSL2 Configuration",
                             "[wsl2]",
                             "memory=${wslRAM}GB",
                             "processors=${wslCPUs}",

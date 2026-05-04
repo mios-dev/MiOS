@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 'MiOS' v0.2.0 - 35-gpu-passthrough.sh
+# 'MiOS' v0.2.4 - 35-gpu-passthrough.sh
 # ----------------------------------------------------------------------------
 # Manages systemd unit enablement and SELinux for GPU passthrough.
 #

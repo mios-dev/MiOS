@@ -1,10 +1,10 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 -- 31-user: PAM, user creation, groups, sudoers
+# 'MiOS' v0.2.4 -- 31-user: PAM, user creation, groups, sudoers
 # Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
 # and BEFORE any service that references the user.
 set -euo pipefail
 
-echo "  'MiOS' v0.2.0 -- User & Authentication"
+echo "  'MiOS' v0.2.4 -- User & Authentication"
 
 # -- PAM FIX --
 echo "[31-user] Configuring PAM via authselect..."
@@ -47,12 +47,41 @@ if getent passwd "${C_USER}" >/dev/null; then
     # Architectural Law 2 -- NO-MKDIR-IN-VAR. The home directory lives
     # under /var/home/<user> and the build-time /var cleanup (in the
     # Containerfile final RUN) wipes anything written there at build
-    # time. Home creation + skel copy is handled at first boot by:
-    #   - usr/libexec/mios/wsl-firstboot (WSL2 path)
-    #   - usr/libexec/mios/role-apply (bootc + bare-metal path)
-    # Both call 'cp -a /etc/skel/. "$home/"' once the persistent /var
-    # is mounted. Don't attempt the same here at build time.
+    # time. Home creation + skel copy is materialized at first boot
+    # by usr/lib/tmpfiles.d/mios-home.conf (a declarative `C` rule
+    # that copies /etc/skel into /var/home/<user> with correct perms),
+    # not by ad-hoc shell in wsl-firstboot.
     passwd -u "${C_USER}" 2>/dev/null || true
+
+    # ── subuid / subgid for rootless containers ──
+    # Bake the rootless-user namespace allocation at IMAGE BUILD TIME
+    # (overlay layer) instead of patching it from wsl-firstboot. This
+    # follows Fedora's standard /etc/subuid and /etc/subgid format and
+    # uses the same 100000:65536 range that `useradd -m` would assign
+    # on a regular Fedora install.
+    for subfile in /etc/subuid /etc/subgid; do
+        if ! grep -qE "^${C_USER}:" "$subfile" 2>/dev/null; then
+            echo "${C_USER}:100000:65536" >> "$subfile"
+            echo "[31-user] Added ${C_USER} -> ${subfile}"
+        fi
+    done
+
+    # ── Password hash baked into /etc/shadow at build time ──
+    # Reads MIOS_USER_PASSWORD_HASH from the build environment (set by
+    # build-mios.{sh,ps1} from mios.toml [auth].password_hash, or by
+    # bootstrap install.env). If absent, default to 'mios' so a fresh
+    # CI/dev image is immediately usable.
+    pw_hash="${MIOS_USER_PASSWORD_HASH:-}"
+    if [[ -z "$pw_hash" ]]; then
+        pw_hash=$(openssl passwd -6 'mios' 2>/dev/null || true)
+        echo "[31-user] No MIOS_USER_PASSWORD_HASH provided; defaulting to 'mios'"
+    fi
+    if [[ "$pw_hash" =~ ^\$6\$ ]]; then
+        echo "${C_USER}:${pw_hash}" | chpasswd -e
+        echo "[31-user] Password hash baked into /etc/shadow for ${C_USER}"
+    else
+        echo "[31-user] WARN: pw_hash is not sha512crypt -- skipping; user will be locked"
+    fi
 else
     echo "[31-user] ERROR: Failed to create user ${C_USER}"
 fi

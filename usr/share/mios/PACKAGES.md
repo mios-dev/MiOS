@@ -1,7 +1,37 @@
-# 'MiOS' -- Package Manifest (single source of truth for image RPMs)
+# 'MiOS' -- Package Documentation
 > **Attribution:** MiOS-DEV (Administrative Alias)
 > **Infrastructure:** 'MiOS' Open-Source Build Pipeline
 > **License:** Apache-2.0 (Open-Source Infrastructure)
+
+---
+
+## SSOT moved to mios.toml (v0.2.4+)
+
+**This file is documentation, not the source of truth.** As of MiOS
+v0.2.4 the definitive package surface lives in
+`mios.toml [packages.<section>].pkgs`, resolved through the layered
+overlay chain (highest precedence first):
+
+```
+~/.config/mios/mios.toml     per-user override
+/etc/mios/mios.toml          host/admin override
+/usr/share/mios/mios.toml    vendor defaults  (lowest)
+```
+
+To add, remove, or replace packages, edit the matching
+`[packages.<section>]` table in any layer. The bootstrap entry
+(`mios-bootstrap/mios.toml`) is the canonical user-edit copy --
+operators can ship a single-file deployment override without
+touching mios.git.
+
+`automation/lib/packages.sh` now reads from the TOML chain first
+and only falls back to the legacy fenced ```packages-<section>```
+blocks below when the TOML lookup misses (with a deprecation note
+to stderr). The fenced blocks remain in this file as a human-
+readable reference for *why* each package is in MiOS -- the prose
+between sections is the documentation, the fenced lists are the
+quickly-reviewable summary. Keep both in sync until the legacy
+fallback is removed in v0.3.
 
 ---
 
@@ -36,7 +66,7 @@ Steam ships exclusively as a Flatpak (`com.valvesoftware.Steam`).
 
 ---
 
-# 'MiOS' v0.2.0 -- Package Manifest
+# 'MiOS' v0.2.4 -- Package Manifest
 
 This file is both documentation and the **single source of truth** for all RPM packages installed in MiOS.
 Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
@@ -548,8 +578,35 @@ tpm2-tss
 
 ## Cockpit Web Management
 
-Full Cockpit ecosystem with file browser and all plugins.
-cockpit-pcp removed (PCP metrics now native in cockpit-bridge since Cockpit 326).
+Full Cockpit ecosystem -- file browser, virt, podman, storage, network,
+SELinux, ostree, kdump, sosreport -- plus the Performance Co-Pilot
+(PCP) stack that powers the Metrics page.
+
+`cockpit-packagekit` is intentionally **excluded**: PackageKit is in
+`packages-bloat` because bootc + Flatpak handle every update path on
+MiOS, so the Cockpit "Software Updates" tab has nothing to drive.
+
+`pcp-zeroconf` is the load-bearing fix for the "Metrics history could
+not be loaded -- pmlogger.service is not running" error: stock `pcp`
+ships pmlogger.service / pmproxy.service with `disabled` preset, and
+`pcp-zeroconf` is the package whose `%post` flips the preset and
+writes the default archive-collection config under
+`/etc/pcp/pmlogger/control.d/`. Without zeroconf the Cockpit Metrics
+page renders an empty error state on first boot.
+
+`cockpit-pcp` is restored (was removed in v0.2.0 with the rationale
+"now native in cockpit-bridge since Cockpit 326" -- accurate for the
+LIVE metrics view, but the historical-archive renderer in the Metrics
+tab still consults the cockpit-pcp bridge for `/var/log/pcp/pmlogger/`
+archives).
+
+PMDAs added so the Metrics tab has interesting series to plot:
+
+* `pcp-pmda-systemd` -- per-service CPU / mem / I/O metrics, indexed
+  by unit name. Required for the "by service" Metrics drill-down.
+* `pcp-pmda-openmetrics` -- scrapes any Prometheus `/metrics` endpoint
+  on the host into PCP, so node_exporter / cadvisor / etc. show up
+  in the same Cockpit Metrics graphs as native PCP metrics.
 
 ```packages-cockpit
 cockpit
@@ -563,8 +620,14 @@ cockpit-machines
 cockpit-ostree
 cockpit-selinux
 cockpit-files
+cockpit-pcp
+cockpit-sosreport
+cockpit-kdump
 pcp
 pcp-system-tools
+pcp-zeroconf
+pcp-pmda-systemd
+pcp-pmda-openmetrics
 ```
 
 ## Windows Interop & Remote Desktop

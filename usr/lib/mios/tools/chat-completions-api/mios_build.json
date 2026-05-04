@@ -2,7 +2,7 @@
   "type": "function",
   "function": {
     "name": "mios_build",
-    "description": "Run the MiOS Containerfile build via Podman (calls the Justfile 'build' recipe or its Windows equivalent mios-build-local.ps1).",
+    "description": "Run the MiOS Containerfile build via Podman. Delegates to ./mios-pipeline.{sh,ps1} (Phase 8 -- Build), the canonical 11-phase orchestrator. The pipeline reads mios.toml [image].* (ref/base/bib) and [desktop].flatpaks; pass overrides via the params below to bypass the toml resolution for one build.",
     "strict": true,
     "parameters": {
       "type": "object",

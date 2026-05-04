@@ -10,6 +10,11 @@
 source "$(dirname "${BASH_SOURCE[0]}")/masking.sh"
 # shellcheck source=lib/paths.sh
 source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
+# shellcheck source=lib/globals.sh
+# globals.sh is the single registry for VERSION + USERS + IMAGES +
+# PORTS + URLS + REPOS. Sourced after paths.sh so it can derive
+# defaults from MIOS_ETC_DIR / MIOS_VAR_DIR if needed in future.
+source "$(dirname "${BASH_SOURCE[0]}")/globals.sh"
 
 # --- Logging ----------------------------------------------------------------
 log_ts() { date '+%Y-%m-%d %H:%M:%S'; }

@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.0: Disable plymouth (no-op on framebuffer/serial consoles)
+# 'MiOS' v0.2.4: Disable plymouth (no-op on framebuffer/serial consoles)
 # Plymouth steals the framebuffer, making Hyper-V/QEMU/serial boot invisible.
 # Console output args are in 00-mios.toml + 10-mios-verbose.toml; this file only disables plymouth.
 match-architectures = ["x86_64"]

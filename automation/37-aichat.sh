@@ -1,96 +1,109 @@
 #!/bin/bash
-# 37-aichat: Install AIChat and AIChat-NG Rust CLI tools
+# 37-aichat: install aichat / aichat-ng via Distrobox (v0.2.4+)
 #
-# OPEN TASK (project invariant: VM | Container | Flatpak only):
-# These are user-facing AI CLI applications. Per the project-wide
-# delivery rule, they should run inside a Distrobox container, not
-# directly on the host. The current /usr/bin install is transitional;
-# the migration is to package them as a Distrobox container with
-# wrapper scripts in /usr/bin that exec into the container. See
-# usr/share/mios/PACKAGES.md > "AI Tools" section for context.
+# Per Architectural Law 1 (VM | Container | Flatpak only -- no
+# application binaries on the host substrate), aichat + aichat-ng
+# now ship inside a Distrobox container. The container is BUILT at
+# boot by /usr/share/containers/systemd/mios-aichat.build (Quadlet),
+# pre-pulled by mios-aichat.image, and assembled into a Distrobox
+# instance per /usr/share/mios/distrobox/aichat/distrobox.ini.
+#
+# This script's only job at IMAGE BUILD TIME is to drop the host-side
+# shim wrappers under /usr/bin so the operator can type `aichat`
+# from any shell and have it route into the container. The shims
+# exec `distrobox enter mios-aichat -- <bin> "$@"` -- a single
+# distrobox roundtrip with no host application code.
+#
+# The pre-v0.2.4 musl-tarball install at /usr/bin/aichat was removed
+# (substrate-purity violation per project research May 2026).
+#
+# References:
+#   /usr/share/mios/distrobox/aichat/Containerfile
+#   /usr/share/mios/distrobox/aichat/distrobox.ini
+#   /usr/share/containers/systemd/mios-aichat.{image,build}
 set -euo pipefail
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/lib/packages.sh"
 
-echo "[37-aichat] Resolving 'ai' package block (currently empty -- aichat/aichat-ng ship as tarballs, not RPMs)..."
-install_packages "ai"
+echo "[37-aichat] dropping host-side Distrobox shims (substrate-pure)"
 
-echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
+mkdir -p /usr/bin
 
-# Resolve latest release tags from upstream. Project policy is "every dep
-# tracks :latest" -- but unauthenticated api.github.com is rate-limited to
-# 60 req/h per IP, and the Forgejo Runner sometimes hits that ceiling on
-# back-to-back rebuilds. Without a fallback the whole image build fails on
-# a transient HTTP 403. Behaviour:
-#   1. Hit api.github.com (scurl auto-attaches Authorization when
-#      GH_TOKEN/GITHUB_TOKEN/GHCR_TOKEN is in env).
-#   2. If the lookup returns empty (rate-limit, network blip, parse miss)
-#      and *_FALLBACK_TAG is non-empty, fall back to that pinned version
-#      and emit a WARN line so the builder log makes the choice visible.
-#   3. If both API and fallback are empty, die (intentional: never ship a
-#      mystery binary). Bumping the fallback is a one-line edit.
-AICHAT_FALLBACK_TAG="v0.27.0"
-AICHAT_NG_FALLBACK_TAG="v0.31.0"
+# Shared shim body. Each verb wrapper sources this for the heavy
+# lifting -- one file = one place to fix bugs.
+mkdir -p /usr/libexec/mios
+cat > /usr/libexec/mios/aichat-distrobox-exec.sh <<'SHIM'
+#!/usr/bin/env bash
+# /usr/libexec/mios/aichat-distrobox-exec.sh
+#
+# Sourced by /usr/bin/aichat and /usr/bin/aichat-ng to route the
+# call into the mios-aichat Distrobox container without duplicating
+# wrapper logic.
+#
+# First-call ergonomics:
+#   * If `mios-aichat` container doesn't exist yet, run distrobox-
+#     assemble to create it from the Quadlet-built image. The image
+#     itself is built / pulled by mios-aichat.{build,image} units.
+#   * If neither image nor container exists (host still on the
+#     legacy /usr/bin/aichat install), exec the binary at
+#     $LEGACY_BIN if present, with a warning. This lets a partial
+#     bootstrap still produce a working aichat command.
+set -euo pipefail
+VERB="${1:?usage: aichat-distrobox-exec.sh <verb> [args...]}"
+shift || true
 
-AICHAT_TAG=$( (scurl -s https://api.github.com/repos/sigoden/aichat/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
-AICHAT_NG_TAG=$( (scurl -s https://api.github.com/repos/blob42/aichat-ng/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
+CONTAINER="mios-aichat"
+ASSEMBLE_INI="/usr/share/mios/distrobox/aichat/distrobox.ini"
 
-if [[ -z "$AICHAT_TAG" ]]; then
-    [[ -n "$AICHAT_FALLBACK_TAG" ]] || die "AIChat: api.github.com lookup empty AND no fallback pin"
-    warn "AIChat: api.github.com lookup empty -- falling back to pinned ${AICHAT_FALLBACK_TAG}"
-    AICHAT_TAG="$AICHAT_FALLBACK_TAG"
-fi
-if [[ -z "$AICHAT_NG_TAG" ]]; then
-    [[ -n "$AICHAT_NG_FALLBACK_TAG" ]] || die "AIChat-NG: api.github.com lookup empty AND no fallback pin"
-    warn "AIChat-NG: api.github.com lookup empty -- falling back to pinned ${AICHAT_NG_FALLBACK_TAG}"
-    AICHAT_NG_TAG="$AICHAT_NG_FALLBACK_TAG"
-fi
-record_version aichat    "$AICHAT_TAG"    "https://github.com/sigoden/aichat/releases/tag/${AICHAT_TAG}"
-record_version aichat-ng "$AICHAT_NG_TAG" "https://github.com/blob42/aichat-ng/releases/tag/${AICHAT_NG_TAG}"
-
-# ── AIChat ────────────────────────────────────────────────────────────────────
-AICHAT_ARCH="aichat-${AICHAT_TAG}-x86_64-unknown-linux-musl.tar.gz"
-AICHAT_BASE="https://github.com/sigoden/aichat/releases/download/${AICHAT_TAG}"
-
-mkdir -p /tmp/aichat-dl
-scurl -sfL "${AICHAT_BASE}/${AICHAT_ARCH}" -o "/tmp/aichat-dl/${AICHAT_ARCH}"
-scurl -sfL "${AICHAT_BASE}/${AICHAT_ARCH}.sha256" -o "/tmp/aichat-dl/${AICHAT_ARCH}.sha256" 2>/dev/null || {
-    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat -- cannot verify integrity"
-    rm -f "/tmp/aichat-dl/${AICHAT_ARCH}.sha256"
-}
-
-if [[ -f "/tmp/aichat-dl/${AICHAT_ARCH}.sha256" ]]; then
-    # sha256 sidecar format: "<hash>  <filename>" or "<hash> *<filename>"
-    (cd /tmp/aichat-dl && grep "${AICHAT_ARCH}" "${AICHAT_ARCH}.sha256" | sha256sum -c -) \
-        || die "AIChat ${AICHAT_TAG} SHA256 mismatch -- aborting"
-    echo "[37-aichat]   [ok] AIChat sha256 verified"
+if ! command -v distrobox >/dev/null 2>&1; then
+    echo "aichat: distrobox is not installed on this host." >&2
+    echo "        Run automation/37-aichat.sh on a machine with distrobox available," >&2
+    echo "        or install it via dnf install distrobox." >&2
+    exit 127
 fi
 
-tar -xzf "/tmp/aichat-dl/${AICHAT_ARCH}" -C /usr/bin/ aichat
-chmod +x /usr/bin/aichat
-rm -rf /tmp/aichat-dl
-
-# ── AIChat-NG ────────────────────────────────────────────────────────────────
-AICHAT_NG_ARCH="aichat-ng-${AICHAT_NG_TAG}-x86_64-unknown-linux-musl.tar.gz"
-AICHAT_NG_BASE="https://github.com/blob42/aichat-ng/releases/download/${AICHAT_NG_TAG}"
-
-mkdir -p /tmp/aichat-ng-dl
-scurl -sfL "${AICHAT_NG_BASE}/${AICHAT_NG_ARCH}" -o "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}"
-scurl -sfL "${AICHAT_NG_BASE}/${AICHAT_NG_ARCH}.sha256" -o "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256" 2>/dev/null || {
-    echo "[37-aichat] WARN: sha256 sidecar unavailable for AIChat-NG -- cannot verify integrity"
-    rm -f "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256"
-}
-
-if [[ -f "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}.sha256" ]]; then
-    (cd /tmp/aichat-ng-dl && grep "${AICHAT_NG_ARCH}" "${AICHAT_NG_ARCH}.sha256" | sha256sum -c -) \
-        || die "AIChat-NG ${AICHAT_NG_TAG} SHA256 mismatch -- aborting"
-    echo "[37-aichat]   [ok] AIChat-NG sha256 verified"
+# Existence check: ask podman directly. `distrobox list` formats its
+# output as pipe-aligned columns (ID | NAME | STATUS | IMAGE) which is
+# fragile to parse with awk -- and a distrobox container is just a
+# regular podman container under the hood, so `podman container
+# exists` is both faster and unambiguous.
+if ! podman container exists "$CONTAINER" 2>/dev/null; then
+    if [[ -f "$ASSEMBLE_INI" ]]; then
+        echo "aichat: first run -- assembling $CONTAINER from $ASSEMBLE_INI" >&2
+        distrobox-assemble create --file "$ASSEMBLE_INI" >&2 || true
+    fi
+    # If the assemble failed (image wasn't built yet), surface the
+    # remediation. The .build Quadlet writes to root podman storage;
+    # /etc/containers/storage.conf.d/30-mios-additionalstores.conf
+    # makes that store readable by rootless users so distrobox can
+    # find localhost/mios/aichat:latest without a copy or push.
+    if ! podman container exists "$CONTAINER" 2>/dev/null; then
+        echo "aichat: container creation failed -- the build/image Quadlets" >&2
+        echo "        (mios-aichat.{build,image}) may not have completed yet." >&2
+        echo "        Re-try in a few seconds, or run:" >&2
+        echo "          sudo systemctl start mios-aichat-build.service" >&2
+        echo "          sudo systemctl start mios-aichat-image.service" >&2
+        exit 1
+    fi
 fi
 
-tar -xzf "/tmp/aichat-ng-dl/${AICHAT_NG_ARCH}" -C /usr/bin/ aichat-ng
-chmod +x /usr/bin/aichat-ng
-rm -rf /tmp/aichat-ng-dl
+exec distrobox enter "$CONTAINER" -- "$VERB" "$@"
+SHIM
+chmod 0755 /usr/libexec/mios/aichat-distrobox-exec.sh
 
-echo "[37-aichat] AIChat and AIChat-NG installed successfully."
+# /usr/bin/aichat -- thin shim
+cat > /usr/bin/aichat <<'WRAP'
+#!/usr/bin/env bash
+exec /usr/libexec/mios/aichat-distrobox-exec.sh aichat "$@"
+WRAP
+chmod 0755 /usr/bin/aichat
+
+# /usr/bin/aichat-ng -- thin shim
+cat > /usr/bin/aichat-ng <<'WRAP'
+#!/usr/bin/env bash
+exec /usr/libexec/mios/aichat-distrobox-exec.sh aichat-ng "$@"
+WRAP
+chmod 0755 /usr/bin/aichat-ng
+
+echo "[37-aichat] host shims at /usr/bin/aichat, /usr/bin/aichat-ng"
+echo "[37-aichat] container build runs at boot via mios-aichat.build (Quadlet)"

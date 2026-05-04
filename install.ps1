@@ -1,5 +1,13 @@
 <#
-.SYNOPSIS  'MiOS' v0.2.2 -- Unified Windows Installer
+.NOTES
+    CANONICAL ENTRY POINT NOTICE (v0.2.4+):
+    The user-facing end-to-end pipeline now lives at
+    `./mios-pipeline.ps1`. install.ps1 is invoked BY that pipeline as
+    the worker for Phase 9 (Deploy) and Phase 10 (Boot). Operator
+    automation should call mios-pipeline.ps1 instead of install.ps1
+    directly; calling install.ps1 still works but skips Phases 1-8.
+
+.SYNOPSIS  'MiOS' v0.2.4 -- Unified Windows Installer
 .DESCRIPTION
     Entry: irm https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1 | iex
     Normally downloaded + launched by bootstrap.ps1 after collecting credentials.
@@ -28,7 +36,7 @@ if ($_bannerPath -and (Test-Path $_bannerPath)) {
 Remove-Variable _bannerPath -ErrorAction SilentlyContinue
 
 # ─── constants ────────────────────────────────────────────────────────────────
-$Version        = (Get-Content (Join-Path $PSScriptRoot "VERSION") -EA SilentlyContinue)?.Trim() ?? "0.2.2"
+$Version        = (Get-Content (Join-Path $PSScriptRoot "VERSION") -EA SilentlyContinue)?.Trim() ?? "0.2.4"
 $RepoUrl        = "https://github.com/MiOS-DEV/MiOS.git"
 $BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" }
 $BuilderMachine = "mios-dev"   # canonical lowercase form (was "mios-builder" pre-v0.2.3)

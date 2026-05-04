@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0  37-flatpak-env: Capture Flatpak environment for boot-time install
+# 'MiOS' v0.2.4  37-flatpak-env: Capture Flatpak environment for boot-time install
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 

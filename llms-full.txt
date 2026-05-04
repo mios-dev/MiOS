@@ -1,4 +1,4 @@
-# 'MiOS' v0.2.2 -- Flattened System Context
+# 'MiOS' v0.2.4 -- Flattened System Context
 
 'MiOS' is an immutable, bootc-native Fedora workstation OS. Repo root `mios.git` IS the system root `/`.
 

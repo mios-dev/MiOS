@@ -26,10 +26,19 @@ Wants=network-online.target
 # Skip when cockpit isn't installed or hasn't bound :9090 yet -- no point
 # in advertising a dead URL.
 ConditionPathExists=/usr/lib/systemd/system/cockpit.socket
-# Pure userspace TCP relay -- safe on every shape including WSL where
-# Cockpit is also reachable on :9090 inside the distro.
-ConditionVirtualization=|!container
-ConditionVirtualization=|wsl
+# Skip on WSL2. The discovery shim's whole purpose is to give the
+# Linux-host Podman Desktop a clickable link to the host's Cockpit
+# console; on WSL2 deployments Podman Desktop runs on the *Windows*
+# side and reaches Cockpit at https://localhost:9090/ directly
+# (Windows port-forwards loopback into the WSL distro), so there is
+# no value in spinning up an alpine/socat relay -- and on the WSL2
+# kernel the systemd-executor reliably trips
+# `Failed to spawn executor: Device or resource busy` on this Quadlet
+# when the rootless namespace plumbing collides with WSLInterop
+# pidfd quirks. Saving the resource churn outweighs the (zero)
+# discoverability benefit on this shape.
+ConditionVirtualization=!wsl
+ConditionVirtualization=!container
 
 [Container]
 Image=docker.io/alpine/socat:latest

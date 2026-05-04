@@ -1,5 +1,5 @@
 #!/bin/bash
-# 'MiOS' v0.2.0 -- 38-vm-gating: VM service gating + Hyper-V Enhanced Session
+# 'MiOS' v0.2.4 -- 38-vm-gating: VM service gating + Hyper-V Enhanced Session
 #
 # v0.2.0 CRITICAL FIX: GNOME 50 / Mutter 50 completely removed the X11 backend.
 # xorgxrdp is an X11 technology -- it CANNOT work with Wayland-only Mutter 50.

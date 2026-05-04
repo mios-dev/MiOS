@@ -1,5 +1,26 @@
 #!/usr/bin/env bash
-# MiOS -- wsl-firstboot: WSL2 first-boot user and runtime initialization.
+# MiOS -- wsl-firstboot: minimal WSL-specific first-boot bridge.
+#
+# Everything that can be declared at IMAGE BUILD TIME has been moved
+# out of this script per the "native Fedora user creation at overlay
+# time" principle:
+#
+#   * /etc/passwd, /etc/group, /etc/shadow              -> automation/31-user.sh
+#                                                          + /usr/lib/sysusers.d/10-mios.conf
+#   * /etc/subuid, /etc/subgid                          -> automation/31-user.sh
+#   * /var/home/mios + skel copy + ownership            -> /usr/lib/tmpfiles.d/mios-user.conf
+#   * /var/lib/systemd/linger/mios marker               -> /usr/lib/tmpfiles.d/mios-user.conf
+#
+# What's left here is the genuinely WSL-runtime-bound work that has
+# no native Fedora declarative equivalent:
+#
+#   * /etc/hostname  -- comes from install.env which is only readable
+#                       at boot, not at the cross-platform build phase
+#   * loginctl-shaped warnings if the marker didn't materialize
+#                       (defensive; tmpfiles.d should already have
+#                       handled it but logind being condition-gated
+#                       off on WSL means we can't verify via varlink)
+#
 # Runs once (guarded by ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done).
 # Safe to re-run: all operations are idempotent.
 set -euo pipefail
@@ -11,116 +32,45 @@ MARKER="${MIOS_VAR_DIR}/.wsl-firstboot-done"
 # logger may fail if journald isn't up yet -- never fatal
 _log() { logger -t mios-wsl-firstboot "$*" 2>/dev/null || true; echo "[wsl-firstboot] $*" >&2; }
 
-_log "Starting WSL2 first-boot initialization"
+_log "Starting WSL2 first-boot bridge (substrate already provisioned at overlay time)"
 
 # ── Load identity from install.env (written at bootstrap time) ──
-MIOS_USER="${MIOS_USER:-mios}"
-MIOS_USER_HASH="${MIOS_USER_PASSWORD_HASH:-}"
 MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
-
 if [[ -f ${MIOS_ETC_DIR}/install.env ]]; then
     # shellcheck disable=SC1091
     source ${MIOS_ETC_DIR}/install.env 2>/dev/null || true
-    MIOS_USER="${MIOS_USER:-mios}"
-    MIOS_USER_HASH="${MIOS_USER_PASSWORD_HASH:-$MIOS_USER_HASH}"
     MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 fi
 
 # ── Hostname ──
+# hostnamectl requires logind which is condition-gated off on WSL,
+# so write /etc/hostname directly. The kernel call is best-effort.
 if [[ -n "$MIOS_HOSTNAME" ]]; then
-    # Write /etc/hostname directly -- hostnamectl requires logind which may not
-    # be running yet in WSL2 (logind is conditioned out in WSL2).
     echo "$MIOS_HOSTNAME" > /etc/hostname
     hostname "$MIOS_HOSTNAME" 2>/dev/null || true
     _log "Hostname set to $MIOS_HOSTNAME"
 fi
 
-# ── User creation ──
-if ! id "$MIOS_USER" &>/dev/null; then
-    _log "Creating user $MIOS_USER"
-    # Apply sysusers to get declarative user definitions
-    systemd-sysusers 2>/dev/null || true
-
-    if ! id "$MIOS_USER" &>/dev/null; then
-        # Fallback imperative creation if sysusers didn't create the user
-        useradd -m -s /bin/bash -G wheel "$MIOS_USER" 2>/dev/null || true
+# ── Defensive verification (no-op when overlay-time setup worked) ──
+# tmpfiles.d/mios-user.conf and automation/31-user.sh should have
+# already handled all of these. The blocks below are defensive logging
+# only -- they never repair, just warn so a broken image is loud rather
+# than quietly degraded.
+if id mios &>/dev/null; then
+    if [[ ! -d /var/home/mios ]]; then
+        _log "WARN: /var/home/mios missing -- tmpfiles.d/mios-user.conf may not have run"
     fi
-fi
-
-# ── Home directory ──
-if id "$MIOS_USER" &>/dev/null; then
-    _home=$(getent passwd "$MIOS_USER" | cut -d: -f6)
-    if [[ -n "$_home" && ! -d "$_home" ]]; then
-        mkdir -p "$_home"
-        cp -a /etc/skel/. "$_home/" 2>/dev/null || true
+    if ! grep -qE '^mios:' /etc/subuid 2>/dev/null; then
+        _log "WARN: /etc/subuid lacks mios entry -- automation/31-user.sh should have added it at build time"
     fi
-    if [[ -n "$_home" && -d "$_home" ]]; then
-        _uid=$(id -u "$MIOS_USER"); _gid=$(id -g "$MIOS_USER")
-        chown -R "${_uid}:${_gid}" "$_home" 2>/dev/null || true
-    fi
-    # Unlock account
-    passwd -u "$MIOS_USER" 2>/dev/null || true
-fi
-
-# ── Password hash (default: 'mios' if none supplied) ──
-if [[ -z "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
-    _log "No password hash supplied -- generating default hash for password 'mios'"
-    MIOS_USER_HASH=$(openssl passwd -6 'mios' 2>/dev/null) || true
-fi
-
-if [[ -n "$MIOS_USER_HASH" ]] && id "$MIOS_USER" &>/dev/null; then
-    if [[ "$MIOS_USER_HASH" =~ ^\$6\$ ]]; then
-        _log "Setting password hash for $MIOS_USER"
-        echo "${MIOS_USER}:${MIOS_USER_HASH}" | chpasswd -e 2>/dev/null || true
-    else
-        _log "WARN: MIOS_USER_PASSWORD_HASH is not a valid sha512crypt hash (must start with \$6\$)"
+    if [[ ! -f /var/lib/systemd/linger/mios ]]; then
+        _log "WARN: /var/lib/systemd/linger/mios missing -- tmpfiles.d/mios-user.conf may not have run"
     fi
 else
-    _log "WARN: Could not set password for $MIOS_USER -- manual reset required"
-fi
-
-# ── Tmpfiles for /var/lib/mios ──
-if [[ -f /usr/lib/tmpfiles.d/mios.conf ]]; then
-    systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios.conf 2>/dev/null || true
-fi
-
-# ── subuid / subgid for rootless containers ──
-# `wsl -d MiOS -- <gui-app>` runs apps under the user's namespace
-# without spawning a login shell. If /etc/subuid lacks an entry for
-# the mios user, podman/buildah's rootless mode aborts with:
-#     "no subuid ranges found for user 'mios' in /etc/subuid"
-# Idempotent: appends only if missing. The 100000:65536 range matches
-# Fedora's standard rootless-user allocation and doesn't collide with
-# MiOS's 800-829 service-user reservation.
-if id "$MIOS_USER" &>/dev/null; then
-    if ! grep -qE "^${MIOS_USER}:" /etc/subuid 2>/dev/null; then
-        _log "Adding /etc/subuid entry for ${MIOS_USER} (rootless containers)"
-        echo "${MIOS_USER}:100000:65536" >> /etc/subuid
-    fi
-    if ! grep -qE "^${MIOS_USER}:" /etc/subgid 2>/dev/null; then
-        _log "Adding /etc/subgid entry for ${MIOS_USER} (rootless containers)"
-        echo "${MIOS_USER}:100000:65536" >> /etc/subgid
-    fi
-fi
-
-# ── Enable systemd user-session lingering for the mios user ──
-# Without lingering, `wsl -d MiOS -- <gui-app>` finds no user-systemd
-# and no user D-Bus session bus, surfacing as:
-#     "Cannot autolaunch D-Bus without X11 $DISPLAY"
-#     "Failed to connect to user scope bus via local transport"
-#     "cgroupv2 manager is set to systemd but no systemd user session"
-# enable-linger starts the user manager at boot and keeps it running
-# even when no interactive login is active -- correct semantics for
-# WSL where `wsl -d MiOS -- <cmd>` enters the distro without login.
-if id "$MIOS_USER" &>/dev/null; then
-    if ! loginctl show-user "$MIOS_USER" 2>/dev/null | grep -q '^Linger=yes$'; then
-        _log "Enabling user-systemd lingering for ${MIOS_USER}"
-        loginctl enable-linger "$MIOS_USER" 2>/dev/null || \
-            _log "WARN: loginctl enable-linger ${MIOS_USER} failed (may need re-run after login)"
-    fi
+    _log "ERROR: 'mios' user does not exist -- /usr/lib/sysusers.d/10-mios.conf was not materialized"
 fi
 
 # ── Mark done ──
 mkdir -p "$(dirname "$MARKER")"
 touch "$MARKER"
-_log "WSL2 first-boot initialization complete"
+_log "WSL2 first-boot bridge complete"

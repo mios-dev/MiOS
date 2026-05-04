@@ -15,18 +15,21 @@ ConditionPathIsDirectory=/etc/mios/ai
 Image=docker.io/localai/localai:latest
 ContainerName=mios-ai
 PublishPort=8080:8080
+# LocalAI v4 layout: /build/models is canonical (matches MODELS_PATH /
+# upstream Containerfile WORKDIR), but /data/{outputs,collections} is
+# hard-coded for image+audio generation and the AgentJobService vector
+# store. Earlier MiOS Quadlets remapped these via LOCALAI_*_PATH env
+# vars, but v4.1.3 ignores those overrides and falls back to /data/...
+# anyway -- yielding `mkdir /data/outputs: permission denied` because
+# /data is created at root:root inside the image and mios-ai runs as
+# UID 817. Mount the host-side dirs straight onto the canonical paths
+# so the binary writes where it expects, with the correct ownership.
 Volume=/srv/ai/models:/build/models:Z
 Volume=/srv/ai/mcp:/build/mcp:Z
-Volume=/srv/ai/outputs:/build/outputs:Z
+Volume=/srv/ai/outputs:/data/outputs:Z
+Volume=/srv/ai/collections:/data/collections:Z
 Volume=/etc/mios/ai:/etc/mios/ai:Z,ro
 Environment=MODELS_PATH=/build/models
-# LocalAI image hard-codes /data/outputs as the audio/image generation
-# scratch path. The image creates that dir at root:root (rwx by root
-# only); mios-ai runs as UID 817 -> EACCES on first write. Redirect to
-# the mounted /build/outputs volume which tmpfiles owns to UID 817.
-Environment=LOCALAI_IMAGE_PATH=/build/outputs
-Environment=LOCALAI_AUDIO_PATH=/build/outputs
-Environment=LOCALAI_UPLOAD_PATH=/build/outputs
 Environment=THREADS=4
 Environment=CONTEXT_SIZE=4096
 # Bind 0.0.0.0 so the OpenAI-API endpoint is reachable from the host
