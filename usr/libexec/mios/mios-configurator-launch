@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# /usr/libexec/mios/mios-configurator-launch -- open the MiOS HTML
+# configurator in a sensible browser, with the layered mios.toml
+# pre-staged in ~/Downloads so File System Access API can bind to it
+# (or fall back to the standard <input type="file">).
+#
+# Targets, in order of preference:
+#   1. Epiphany flatpak (org.gnome.Epiphany)   -- best FSA support;
+#      WSLg routes the window to the Windows desktop.
+#   2. xdg-open                                -- whatever the host
+#      desktop has set as default browser.
+#   3. Plain echo of the URL                   -- last resort if
+#      nothing else is available.
+#
+# Invoked from:
+#   - /usr/share/applications/mios-configurator.desktop (GNOME Dock /
+#     Activities on deployed hosts; Windows Start Menu via WSLg on
+#     MiOS-DEV)
+#   - Windows-side `MiOS Configurator.lnk` Start Menu / Desktop
+#     shortcuts (which call `wsl -d podman-MiOS-DEV --exec
+#     /usr/libexec/mios/mios-configurator-launch`)
+set -euo pipefail
+
+HTML=/usr/share/mios/configurator/index.html
+DL_DIR="${HOME}/Downloads"
+mkdir -p "$DL_DIR"
+
+# Stage a writable mios.toml seed (highest layer wins).
+if [[ ! -f "$DL_DIR/mios.toml" ]]; then
+    for src in "$HOME/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        if [[ -r "$src" ]]; then
+            cp "$src" "$DL_DIR/mios.toml"
+            chmod 0644 "$DL_DIR/mios.toml"
+            break
+        fi
+    done
+fi
+
+# Stage the HTML where Flatpak's home-portal exposes it.
+if [[ -r "$HTML" ]]; then
+    cp "$HTML" "$DL_DIR/mios-configurator.html"
+fi
+
+URL="file://$DL_DIR/mios-configurator.html"
+[[ ! -f "$DL_DIR/mios-configurator.html" ]] && URL="file://$HTML"
+
+# Try Epiphany flatpak first.
+if flatpak list --app --columns=application 2>/dev/null | grep -qx org.gnome.Epiphany; then
+    exec flatpak run --system org.gnome.Epiphany "$URL" >/dev/null 2>&1 &
+    disown
+    echo "MiOS Configurator opened in Epiphany: $URL"
+    exit 0
+fi
+
+# Fall back to xdg-open (delegates to whatever browser is registered).
+if command -v xdg-open >/dev/null 2>&1; then
+    exec xdg-open "$URL" >/dev/null 2>&1 &
+    disown
+    echo "MiOS Configurator opened via xdg-open: $URL"
+    exit 0
+fi
+
+# Last resort: print the URL so the operator can copy/paste.
+echo "MiOS Configurator URL (no browser found):"
+echo "  $URL"
+echo "Edit ~/Downloads/mios.toml and re-run mios-rebuild to apply."
+exit 0

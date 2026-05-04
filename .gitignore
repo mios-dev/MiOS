@@ -184,6 +184,12 @@ usr/share/doc/*
 !/usr/share/doc/mios/**
 !/usr/share/mios/
 !/usr/share/mios/**
+# Desktop-entry .desktop files for the GNOME Dock / Activities (deployed
+# hosts) and the WSLg-published Windows Start Menu (MiOS-DEV). Only
+# MiOS-owned entries are tracked.
+!/usr/share/applications/
+usr/share/applications/*
+!/usr/share/applications/mios-*.desktop
 # AI runtime state (memory, knowledge graphs, scratch) belongs in
 # mios-bootstrap.git -- it is per-host and seeded into /var at first
 # boot. The OpenAI-API surface manifests in usr/share/mios/ai/v1/

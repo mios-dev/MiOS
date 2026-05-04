@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Configurator
+GenericName=System Configuration Editor
+Comment=Edit /etc/mios/mios.toml — identity, AI, packages, flatpaks, desktop
+Exec=/usr/libexec/mios/mios-configurator-launch
+Icon=preferences-system
+Categories=System;Settings;PackageManager;
+Keywords=mios;configurator;system;settings;packages;flatpak;ai;
+Terminal=false
+StartupNotify=true
+StartupWMClass=org.gnome.Epiphany
+# WSLg auto-publishes this entry to the Windows Start Menu under
+# "<Distro> Apps" when MiOS-DEV is the source distro, so the same
+# .desktop file gives Linux GNOME Dock + Activities visibility on a
+# deployed MiOS host AND a Windows Start Menu entry on the Win-side
+# dev VM. One file, two surfaces.
