@@ -199,6 +199,7 @@ usr/share/applications/*
 usr/share/mios/ai/*
 !/usr/share/mios/ai/v1/
 !/usr/share/mios/ai/v1/**
+!/usr/share/mios/ai/system.md
 usr/share/mios/knowledge/
 usr/share/mios/memory/
 usr/share/mios/user-preferences.md
