@@ -17,7 +17,14 @@
     "type": "raw",
     "source": "/usr/share/mios/branding/mios.txt",
     "color": { "1": "blue" },
-    "padding": { "top": 1, "right": 2 }
+    // position:top renders the ASCII art ABOVE the info table instead
+    // of side-by-side. The 3D /\__\ logo is 54 chars wide -- in the
+    // default side-by-side layout fastfetch v2.60 picks "logo on right"
+    // when the logo is too wide for a left column, and the info text
+    // bleeds into / overlaps the logo's right edge. Top-position gives
+    // a clean separation: logo block, then a horizontal gap, then info.
+    "position": "top",
+    "padding": { "top": 1, "right": 0, "left": 2 }
   },
 
   "display": {
