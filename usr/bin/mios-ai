@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# /usr/bin/mios-ai -- canonical "talk to the local AI" entrypoint.
+#
+# Resolves the AI endpoint + model at call time so the bare-shell
+# experience tracks /etc/mios/install.env (operator selection from
+# Phase 6 identity) without needing a config file regenerate.
+#
+#   mios-ai                    interactive REPL against MIOS_AI_MODEL
+#   mios-ai "<prompt>"         single-shot prompt; print response
+#   mios-ai -m <model>         override model for this call
+#   mios-ai -e ollama|localai  switch endpoint (ollama=11434, localai=8080)
+#   mios-ai --help             usage
+#
+# Reads in order of precedence:
+#   1. CLI args (highest)
+#   2. $MIOS_AI_ENDPOINT / $MIOS_AI_MODEL (env, set by mios-env.sh)
+#   3. /etc/mios/install.env defaults
+#   4. Hardcoded fallbacks (ollama @ qwen2.5-coder:7b)
+#
+# Routes through aichat. Falls back to a curl-and-jq pipeline if
+# aichat isn't installed (e.g. minimal deploy or pre-Distrobox host).
+set -euo pipefail
+
+usage() {
+    sed -n '2,18p' "$0" | sed 's/^# \?//'
+    exit "${1:-0}"
+}
+
+ENDPOINT_NAME=""
+MODEL_OVERRIDE=""
+PROMPT_ARGS=()
+while (( $# > 0 )); do
+    case "$1" in
+        -h|--help)         usage 0 ;;
+        -m|--model)        MODEL_OVERRIDE="$2"; shift 2 ;;
+        -e|--endpoint)     ENDPOINT_NAME="$2"; shift 2 ;;
+        --)                shift; PROMPT_ARGS+=("$@"); break ;;
+        -*)                printf 'mios-ai: unknown flag %s\n' "$1" >&2; usage 2 ;;
+        *)                 PROMPT_ARGS+=("$1"); shift ;;
+    esac
+done
+
+# Source install.env if present (covers shells that didn't eval profile.d).
+if [[ -r /etc/mios/install.env ]]; then
+    # shellcheck disable=SC1091
+    set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
+fi
+
+MIOS_AI_MODEL="${MODEL_OVERRIDE:-${MIOS_AI_MODEL:-qwen2.5-coder:7b}}"
+MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:11434/v1}"
+
+# -e ollama|localai shortcut maps to known endpoint URLs.
+case "$ENDPOINT_NAME" in
+    ollama)  MIOS_AI_ENDPOINT="http://localhost:11434/v1"; CLIENT="ollama" ;;
+    localai) MIOS_AI_ENDPOINT="http://localhost:8080/v1";  CLIENT="localai" ;;
+    "")      CLIENT="ollama" ;;
+    *)       printf 'mios-ai: unknown endpoint %s (expected ollama|localai)\n' "$ENDPOINT_NAME" >&2; exit 2 ;;
+esac
+
+# Quick reachability probe so we fail loudly with a useful message
+# instead of timing out inside aichat.
+if ! curl -fsS --max-time 2 -o /dev/null "${MIOS_AI_ENDPOINT}/models" 2>/dev/null; then
+    printf 'mios-ai: %s not responding (is ollama up? check `systemctl status ollama.service`)\n' "$MIOS_AI_ENDPOINT" >&2
+    exit 4
+fi
+
+# Preferred path: aichat with the matching client.
+if command -v aichat >/dev/null 2>&1; then
+    AICHAT_ARGS=(--model "${CLIENT}:${MIOS_AI_MODEL}")
+    if (( ${#PROMPT_ARGS[@]} > 0 )); then
+        # Single-shot: pass remaining args as the prompt.
+        exec aichat "${AICHAT_ARGS[@]}" -- "${PROMPT_ARGS[*]}"
+    else
+        exec aichat "${AICHAT_ARGS[@]}"
+    fi
+fi
+
+# Fallback: curl + jq one-shot (no REPL). Useful in minimal containers.
+if (( ${#PROMPT_ARGS[@]} == 0 )); then
+    printf 'mios-ai: aichat is not installed and no prompt was given.\n' >&2
+    printf '         Install aichat or pass a prompt: mios-ai "<your question>"\n' >&2
+    exit 3
+fi
+prompt="${PROMPT_ARGS[*]}"
+payload=$(jq -nc --arg model "$MIOS_AI_MODEL" --arg content "$prompt" '
+    { model: $model, stream: false, messages: [{role: "user", content: $content}] }')
+curl -fsS -X POST "${MIOS_AI_ENDPOINT}/chat/completions" \
+     -H 'Content-Type: application/json' \
+     -d "$payload" \
+  | jq -r '.choices[0].message.content // empty'
