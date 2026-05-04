@@ -193,7 +193,7 @@ gnome-backgrounds
 # ── Application RPMs removed per project invariant ──
 # ptyxis           -> Flathub: org.gnome.Ptyxis
 # nautilus         -> Flathub: org.gnome.Nautilus
-# gnome-software   -> Flathub: io.github.kolunmi.Bazaar (already in mios.toml)
+# gnome-software   -> Flathub: org.gnome.Software (native GNOME, already in mios.toml)
 # ── Extensions ──
 gnome-shell-extension-appindicator
 gnome-shell-extension-dash-to-dock
@@ -284,7 +284,7 @@ qt6-qtbase-gui
 qt6-qtwayland
 qadwaitadecorations-qt5
 adw-gtk3-theme
-# ── Flatpak itself + Bazaar / gnome-software handle install/upgrade ──
+# ── Flatpak itself; org.gnome.Software (Flathub) handles install/upgrade ──
 flatpak
 ```
 
