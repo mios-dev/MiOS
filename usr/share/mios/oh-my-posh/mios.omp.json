@@ -1,0 +1,99 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "version": 3,
+  "final_space": true,
+
+  "//": [
+    "MiOS Oh-My-Posh theme. Two-line prompt:",
+    "  Line 1: [MiOS] [path] [git status with ahead/behind] [exec time if >1s]",
+    "  Line 2: ❯ (green when last command succeeded, red on non-zero exit)",
+    "Color palette matches the configurator HTML and Cockpit dark theme so",
+    "every MiOS surface feels like the same product:",
+    "  --bg #0e1116  --panel #161b22  --border #30363d",
+    "  --accent #58a6ff  --ok #3fb950  --warn #d29922  --err #f85149  --muted #8b949e",
+    "Loaded by /etc/profile.d/mios-prompt.sh for every interactive bash/zsh login.",
+    "Powerline glyphs (, , ❯) require a Nerd Font terminal; fastfetch + the",
+    "MiOS dashboard already use a plain-ASCII fallback path on tty0/console."
+  ],
+
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "type": "text",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": "",
+          "background": "#58a6ff",
+          "foreground": "#0e1116",
+          "template": " MiOS "
+        },
+        {
+          "type": "path",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "#161b22",
+          "foreground": "#c9d1d9",
+          "properties": {
+            "style": "agnoster_short",
+            "max_depth": 3,
+            "home_icon": "~",
+            "folder_separator_icon": " / "
+          },
+          "template": " {{ .Path }} "
+        },
+        {
+          "type": "git",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "foreground": "#0e1116",
+          "background": "#3fb950",
+          "background_templates": [
+            "{{ if and (gt .Ahead 0) (gt .Behind 0) }}#f85149{{ end }}",
+            "{{ if or (.Working.Changed) (.Staging.Changed) }}#d29922{{ end }}",
+            "{{ if gt .Ahead 0 }}#58a6ff{{ end }}",
+            "{{ if gt .Behind 0 }}#a371f7{{ end }}"
+          ],
+          "properties": {
+            "fetch_status": true,
+            "fetch_upstream_icon": true,
+            "branch_icon": " ",
+            "branch_identical_icon": "",
+            "commit_icon": "@"
+          },
+          "template": " {{ .HEAD }}{{ if .Working.Changed }} +{{ .Working.String }}{{ end }}{{ if .Staging.Changed }} *{{ .Staging.String }}{{ end }}{{ if gt .Ahead 0 }} ↑{{ .Ahead }}{{ end }}{{ if gt .Behind 0 }} ↓{{ .Behind }}{{ end }} "
+        },
+        {
+          "type": "executiontime",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "#21262d",
+          "foreground": "#8b949e",
+          "properties": {
+            "threshold": 1000,
+            "style": "round"
+          },
+          "template": "  {{ .FormattedMs }} "
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "newline": true,
+      "segments": [
+        {
+          "type": "status",
+          "style": "plain",
+          "foreground": "#3fb950",
+          "foreground_templates": [
+            "{{ if gt .Code 0 }}#f85149{{ end }}"
+          ],
+          "template": "❯ "
+        }
+      ]
+    }
+  ]
+}

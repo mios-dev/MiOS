@@ -1,0 +1,46 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+
+  // MiOS fastfetch config -- standard system info + a custom MiOS module
+  // that shells out to /usr/libexec/mios/mios-dashboard.sh in
+  // --services-only mode so the self-replication-loop status (Forge / AI /
+  // Cockpit / Ollama / Quadlet rollup / git working tree state) sits
+  // inline with the other fastfetch modules.
+  //
+  // Invoked from:
+  //   /etc/profile.d/zz-mios-motd.sh  -> /usr/libexec/mios/mios-dashboard.sh -> fastfetch -c <this>
+
+  "logo": {
+    "type": "auto",
+    "padding": { "top": 1, "right": 2 }
+  },
+
+  "display": {
+    "separator": "  "
+  },
+
+  "modules": [
+    "title",
+    "separator",
+    { "type": "os",       "key": "OS" },
+    { "type": "kernel",   "key": "Kernel" },
+    { "type": "uptime",   "key": "Uptime" },
+    { "type": "packages", "key": "Packages" },
+    { "type": "shell",    "key": "Shell" },
+    { "type": "cpu",      "key": "CPU" },
+    { "type": "gpu",      "key": "GPU" },
+    { "type": "memory",   "key": "Memory" },
+    { "type": "swap",     "key": "Swap" },
+    { "type": "disk",     "key": "Disk" },
+    { "type": "localip",  "key": "Local IP" },
+    { "type": "locale",   "key": "Locale" },
+    "break",
+    {
+      "type": "command",
+      "shell": "/bin/bash",
+      "key": "MiOS",
+      "keyColor": "blue",
+      "text": "/usr/libexec/mios/mios-dashboard.sh --services-only"
+    }
+  ]
+}

@@ -117,8 +117,10 @@ etc/fapolicyd/*
 # mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +
 # identity vars system-wide. Bash sources /etc/profile.d/*.sh from
 # /etc/profile, so the file must live under /etc to be picked up.
+# zz-mios-motd.sh prints the live system dashboard at every interactive
+# shell login; mios-prompt.sh wires Oh-My-Posh into bash/zsh.
 !/etc/profile.d/
-!/etc/profile.d/mios-env.sh
+!/etc/profile.d/*mios*.sh
 
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).

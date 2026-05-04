@@ -194,6 +194,7 @@ NON_FATAL_SCRIPTS="
   23-uki-render.sh
   36-akmod-guards.sh
   37-aichat.sh
+  38-oh-my-posh.sh
   42-cosign-policy.sh
   43-uupd-installer.sh
   52-bake-kvmfr.sh
