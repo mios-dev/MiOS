@@ -146,8 +146,9 @@ print_endpoints() {
         "$(ep_dot http://localhost:3000/api/v1/version)" "$C_D" "$C_R"
     printf '    %s  AI          %shttp://localhost:8080/v1%s   %s%s%s\n' \
         "$(ep_dot http://localhost:8080/v1/models)" "$C_D" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
-    printf '    %s  Cockpit     %shttps://localhost:9090/%s\n' \
-        "$(ep_dot https://localhost:9090/)" "$C_D" "$C_R"
+    printf '    %s  Cockpit     %shttps://localhost:9090/%s   %slogin: %s / %s%s\n' \
+        "$(ep_dot https://localhost:9090/)" "$C_D" "$C_R" \
+        "$C_GRY" "${MIOS_LINUX_USER:-mios}" "${MIOS_DEV_DEFAULT_PASSWORD:-mios}" "$C_R"
     printf '    %s  Ollama      %shttp://localhost:11434%s\n' \
         "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R"
 }
