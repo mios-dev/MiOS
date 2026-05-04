@@ -19,11 +19,11 @@ Group=mios-guacamole
 # path is preserved so links from the README and MOTD still resolve.
 PublishPort=0.0.0.0:8090:8080
 
-# OCI labels for Podman Desktop discovery -- "Browser desktop" entry
-# point. Path includes /guacamole because the upstream image serves on
-# that context root.
-Label=org.opencontainers.image.title=MiOS Apache Guacamole (Browser desktop)
-Label=org.opencontainers.image.description=Web client for RDP / VNC / SSH connections, served on port 8090 (mapped from container 8080 to avoid mios-ai conflict).
+# OCI labels for Podman Desktop discovery. Values MUST NOT contain
+# spaces -- Quadlet's Label= parser word-splits on whitespace and breaks
+# the generated podman-run command. Path includes /guacamole because
+# the upstream image serves on that context root.
+Label=org.opencontainers.image.title=mios-guacamole
 Label=org.opencontainers.image.url=http://localhost:8090/guacamole/
 Label=org.opencontainers.image.documentation=https://guacamole.apache.org/doc/
 Label=io.podman_desktop.openInBrowser=http://localhost:8090/guacamole/

@@ -82,17 +82,28 @@ hr_line() {
 # service_status <unit>
 # Echoes "<state>|<dot>|<color>" so callers don't shell out twice.
 # state: active / failed / inactive / skipped / missing / unknown
+#
+# Uses `systemctl show ... LoadState,ActiveState` rather than
+# `list-unit-files` -- the latter misses Quadlet-generated units that
+# live in /run/systemd/generator/ until they're loaded into the
+# manager's set, causing the dashboard to mis-report every running
+# Quadlet as "missing".
 service_status() {
     local svc="$1"
     if ! command -v systemctl >/dev/null 2>&1; then
         printf 'no-systemd|%s|%s' "$DOT_DOWN" "$C_GRY"; return
     fi
-    if ! systemctl list-unit-files "$svc" --no-legend 2>/dev/null | grep -q .; then
+    # Read both LoadState (does the unit exist at all?) and ActiveState
+    # (is it running?) in one call. LoadState=not-found means the unit
+    # truly doesn't exist; anything else means it's loaded somewhere.
+    local out load active
+    out="$(systemctl show "$svc" --property=LoadState --property=ActiveState 2>/dev/null || true)"
+    load="$(printf '%s' "$out"   | sed -nE 's/^LoadState=(.*)$/\1/p')"
+    active="$(printf '%s' "$out" | sed -nE 's/^ActiveState=(.*)$/\1/p')"
+    if [[ -z "$load" ]] || [[ "$load" == "not-found" ]] || [[ "$load" == "masked" ]]; then
         printf 'missing|%s|%s' "$DOT_DOWN" "$C_GRY"; return
     fi
-    local state
-    state="$(systemctl is-active "$svc" 2>/dev/null || true)"
-    case "$state" in
+    case "$active" in
         active)
             printf 'active|%s|%s' "$DOT_UP" "$C_GRN" ;;
         activating|reloading)

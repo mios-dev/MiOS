@@ -41,11 +41,12 @@ ContainerName=mios-cockpit-link
 Exec=tcp-listen:19090,bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
 PublishPort=0.0.0.0:19090:19090
 
-# OCI labels Podman Desktop renders. The url label is the canonical
-# Cockpit endpoint (https; cockpit-ws issues a self-signed cert by
-# default and clients accept it on first visit).
-Label=org.opencontainers.image.title=MiOS Cockpit web console
-Label=org.opencontainers.image.description=Web-based system administration UI (host service on :9090, surfaced via :19090 port-forward).
+# OCI labels Podman Desktop renders. Values MUST NOT contain spaces --
+# Quadlet's Label= parser word-splits on whitespace and breaks the
+# generated podman-run command. The url label is the canonical Cockpit
+# endpoint (https; cockpit-ws issues a self-signed cert by default and
+# clients accept it on first visit).
+Label=org.opencontainers.image.title=mios-cockpit-link
 Label=org.opencontainers.image.url=https://localhost:9090/
 Label=org.opencontainers.image.documentation=https://cockpit-project.org/documentation.html
 Label=io.podman_desktop.openInBrowser=https://localhost:9090/
