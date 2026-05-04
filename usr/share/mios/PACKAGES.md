@@ -801,8 +801,16 @@ agents in a Distrobox container so the host substrate carries no
 application binaries.
 
 ```packages-ai
-# Intentionally empty. aichat/aichat-ng install via 37-aichat.sh
-# (musl tarball -> /usr/bin). Migrate to Distrobox in a follow-up.
+# python3-openai: official OpenAI Python SDK, used by /usr/bin/mios to
+# drive the local OpenAI-API-compatible endpoint at MIOS_AI_ENDPOINT.
+# The SDK provides the streaming + tool-call roundtrip + structured-
+# outputs surface that maps onto Architectural Law 5. F44+ ships the
+# SDK in repos as python3-openai; we install via dnf rather than pip
+# so it is captured by the image SBOM.
+#
+# aichat/aichat-ng install via 37-aichat.sh (musl tarball -> /usr/bin).
+# Migrate to Distrobox in a follow-up.
+python3-openai
 ```
 <!--
   ollama is NOT a Fedora RPM; it ships as a tarball from

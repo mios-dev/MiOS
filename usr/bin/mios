@@ -1,50 +1,253 @@
 #!/usr/bin/env python3
-import sys
-import os
-import requests
+# /usr/bin/mios -- the locally-hosted OpenAI-API-compatible agent shell.
+#
+# Drives whichever model is bound to MIOS_AI_ENDPOINT (default
+# http://localhost:8080/v1 via Architectural Law 5 -- LocalAI Quadlet,
+# Ollama, vLLM, LM Studio, llama.cpp, LiteLLM all expose the same
+# surface). Streams tokens to the terminal, runs the function-calling
+# roundtrip against the tool definitions in /usr/lib/mios/tools/
+# chat-completions-api/, and resolves the canonical system prompt via
+# the layered override chain.
+#
+# Usage:
+#   mios <prompt>
+#   mios --json <schema-name> <prompt>   # structured output, no tools
+#   mios --no-tools <prompt>             # disable function calling
+#
+# Environment (per Architectural Law 5):
+#   MIOS_AI_ENDPOINT=http://localhost:8080/v1   the OpenAI-compatible base URL
+#   MIOS_AI_KEY=                                bearer token (empty OK locally)
+#   MIOS_AI_MODEL=qwen2.5-coder:7b              the chat model id
+#   MIOS_AI_SYSTEM_PROMPT=/path/to/system.md    explicit override
+#   MIOS_SHARE_DIR=/usr/share/mios              base for resolved files
+#
+# The local model is the orchestrator -- no vendor URLs, no
+# vendor-native protocols, no proprietary side-channels.
+
+from __future__ import annotations
+
+import glob
 import json
+import os
+import pathlib
+import subprocess
+import sys
+from typing import Any, Iterable
 
-MIOS_SHARE_DIR = os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios")
-SYSTEM_SPEC_PATH = f"{MIOS_SHARE_DIR}/ai/v1/system.md"
-API_URL = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1") + "/chat/completions"
+try:
+    from openai import OpenAI                      # openai>=1.55
+except ImportError:
+    sys.stderr.write(
+        "mios: openai SDK missing. Install via:\n"
+        "    sudo dnf install -y python3-openai      # Fedora 44+\n"
+        "  OR\n"
+        "    pip install --user 'openai>=1.55'\n"
+    )
+    sys.exit(127)
 
-def get_system_spec():
-    try:
-        with open(SYSTEM_SPEC_PATH, 'r') as f:
-            return f.read()
-    except FileNotFoundError:
-        # Fallback to relative path if not installed to rootfs
-        local_path = os.path.join(os.path.dirname(__file__), "../share/mios/ai/v1/system.md")
+# ─── Configuration ────────────────────────────────────────────────────
+ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1")
+MODEL    = os.environ.get("MIOS_AI_MODEL",    "qwen2.5-coder:7b")
+API_KEY  = os.environ.get("MIOS_AI_KEY",      "sk-noop")
+SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
+LIB      = pathlib.Path("/usr/lib/mios")
+LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")
+
+
+def resolve_system_prompt() -> str:
+    # Layered override chain (highest wins):
+    #   $MIOS_AI_SYSTEM_PROMPT -> ~/.config/mios/system-prompt.md
+    #   -> /etc/mios/ai/system-prompt.md -> /usr/share/mios/ai/system.md
+    candidates = [
+        os.environ.get("MIOS_AI_SYSTEM_PROMPT"),
+        str(pathlib.Path.home() / ".config/mios/system-prompt.md"),
+        "/etc/mios/ai/system-prompt.md",
+        str(SHARE / "ai/system.md"),
+        # Fallback for development when the package isn't deployed
+        str(pathlib.Path(__file__).parent.parent / "share/mios/ai/system.md"),
+    ]
+    parts = []
+    for c in candidates:
+        if c and pathlib.Path(c).is_file():
+            try:
+                txt = pathlib.Path(c).read_text(encoding="utf-8").strip()
+                if txt:
+                    parts.append(txt)
+            except OSError:
+                continue
+    if not parts:
+        return "You are the MiOS local agent."
+    # Highest-precedence layer LAST so it has the final word in-prompt;
+    # canonical prompt first sets the baseline.
+    return "\n\n---\n\n".join(reversed(parts))
+
+
+def load_tools() -> list[dict[str, Any]]:
+    paths = sorted(glob.glob(str(LIB / "tools/chat-completions-api/*.json")))
+    tools: list[dict[str, Any]] = []
+    for p in paths:
         try:
-            with open(local_path, 'r') as f:
-                return f.read()
-        except FileNotFoundError:
-            return "MiOS Autonomous Agent Specification"
+            tools.append(json.loads(pathlib.Path(p).read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"[mios] WARN: skipping malformed tool {p}: {e}", file=sys.stderr)
+    return tools
 
-def chat(prompt):
-    system_prompt = get_system_spec()
-    
-    payload = {
-        "model": "mi-os-7b",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
-        "stream": False
-    }
-    
+
+def load_schema(name: str) -> dict[str, Any] | None:
+    p = LIB / "schemas" / f"{name}.schema.json"
+    if not p.is_file():
+        return None
     try:
-        response = requests.post(API_URL, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        print(result['choices'][0]['message']['content'])
-    except Exception as e:
-        print(f"Error: Could not connect to MiOS AI backend ({e})")
-        sys.exit(1)
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def dispatch_tool(name: str, args: dict[str, Any]) -> str:
+    # Tool implementations live at /usr/libexec/mios/tools/<name>. Each
+    # is a self-contained executable that reads JSON args on stdin and
+    # writes the result string on stdout. Missing dispatchers report
+    # cleanly so the model can recover via a different tool or a direct
+    # answer.
+    exe = LIBEXEC / name
+    if not exe.is_file() or not os.access(exe, os.X_OK):
+        return json.dumps({
+            "error": f"tool '{name}' not implemented at {exe}",
+            "hint":  "create /usr/libexec/mios/tools/" + name + " (chmod +x)"
+        })
+    try:
+        r = subprocess.run(
+            [str(exe)],
+            input=json.dumps(args),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return json.dumps({"error": f"tool '{name}' timed out after 120s"})
+    if r.returncode != 0:
+        return json.dumps({
+            "error":  f"tool '{name}' exited {r.returncode}",
+            "stderr": r.stderr.strip()[-2000:],
+            "stdout": r.stdout.strip()[-2000:],
+        })
+    return r.stdout or json.dumps({"ok": True})
+
+
+def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
+                   tools: list[dict[str, Any]] | None,
+                   schema: dict[str, Any] | None) -> None:
+    # Tool-calling roundtrip. The model may emit zero or more
+    # tool_calls; for each we append the assistant turn then a
+    # role:tool result and re-call. Loop until the model finishes
+    # without requesting another tool. Print content deltas as they
+    # arrive so the operator sees incremental output.
+    while True:
+        kwargs: dict[str, Any] = {"model": MODEL, "messages": msgs}
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        if schema:
+            # Structured outputs (Chat Completions response_format).
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name":   schema.get("$id", "mios_structured_output").split("/")[-1].replace(".schema.json", ""),
+                    "schema": schema,
+                    "strict": True,
+                },
+            }
+        # SDK 1.30+ stream context manager auto-accumulates tool-call
+        # argument fragments and exposes a typed event union.
+        with client.chat.completions.stream(**kwargs) as s:
+            for ev in s:
+                if ev.type == "content.delta":
+                    sys.stdout.write(ev.delta)
+                    sys.stdout.flush()
+            final = s.get_final_completion()
+
+        msg = final.choices[0].message
+        # Append the assistant turn verbatim so the next iteration sees
+        # the same conversation the model produced.
+        msgs.append(msg.model_dump(exclude_none=True))
+
+        if not getattr(msg, "tool_calls", None):
+            sys.stdout.write("\n")
+            return
+
+        # Resolve every tool call requested in this turn before looping.
+        for tc in msg.tool_calls:
+            try:
+                args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+            except json.JSONDecodeError:
+                args = {"_raw": tc.function.arguments}
+            sys.stdout.write(f"\n[tool] {tc.function.name}({json.dumps(args)})\n")
+            sys.stdout.flush()
+            result = dispatch_tool(tc.function.name, args)
+            msgs.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result,
+            })
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        sys.stderr.write(
+            "mios -- locally-hosted OpenAI-API-compatible agent shell.\n\n"
+            "Usage:\n"
+            "  mios <prompt>                        chat + tool calls\n"
+            "  mios --no-tools <prompt>             disable function calling\n"
+            "  mios --json <schema-name> <prompt>   structured output\n"
+            "                                       (schema-name = file in\n"
+            "                                       /usr/lib/mios/schemas/\n"
+            "                                       without .schema.json)\n"
+        )
+        return 1 if len(argv) < 2 else 0
+
+    use_tools  = True
+    schema_obj = None
+    args = argv[1:]
+    if args and args[0] == "--no-tools":
+        use_tools = False
+        args = args[1:]
+    elif args and args[0] == "--json":
+        if len(args) < 3:
+            sys.stderr.write("mios --json requires <schema-name> <prompt>\n")
+            return 2
+        schema_obj = load_schema(args[1])
+        if not schema_obj:
+            sys.stderr.write(
+                f"mios: schema '{args[1]}' not found at "
+                f"{LIB}/schemas/{args[1]}.schema.json\n"
+            )
+            return 2
+        use_tools = False
+        args = args[2:]
+
+    prompt = " ".join(args).strip()
+    if not prompt:
+        sys.stderr.write("mios: empty prompt\n")
+        return 2
+
+    client = OpenAI(base_url=ENDPOINT, api_key=API_KEY)
+    msgs: list[dict[str, Any]] = [
+        {"role": "system", "content": resolve_system_prompt()},
+        {"role": "user",   "content": prompt},
+    ]
+    tools = load_tools() if use_tools else None
+
+    try:
+        chat_streaming(client, msgs, tools, schema_obj)
+        return 0
+    except KeyboardInterrupt:
+        sys.stderr.write("\nmios: interrupted\n")
+        return 130
+    except Exception as e:                    # noqa: BLE001
+        sys.stderr.write(f"\nmios: {type(e).__name__}: {e}\n")
+        sys.stderr.write(f"  endpoint: {ENDPOINT}\n  model: {MODEL}\n")
+        return 1
+
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: mios <prompt>")
-        sys.exit(1)
-    
-    chat(" ".join(sys.argv[1:]))
+    sys.exit(main(sys.argv))
