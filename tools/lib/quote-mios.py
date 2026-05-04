@@ -37,7 +37,7 @@ _LIT = "M" + "iOS"
 PATTERN = re.compile(rf"(?<!['\w\"/\\]){_LIT}(?![-./\\\w'\"])")
 REPLACE = f"'{_LIT}'"
 
-# File extensions / names we'll happily touch. Anything else is skipped.
+# File extensions / names this script touches. Anything else is skipped.
 ALLOW_EXT = {
     ".md", ".sh", ".ps1", ".py", ".toml", ".conf", ".service",
     ".target", ".container", ".preset", ".txt", ".rules", ".cfg",

@@ -16,7 +16,7 @@ All system agents target the local proxy at `http://localhost:8080/v1`,
 served by the `mios-ai.container` Quadlet (LocalAI runtime). The
 endpoints below follow the OpenAI public API spec
 (<https://platform.openai.com/docs/api-reference>) verb-for-verb;
-`x-mios.*` rows are MiOS extensions, clearly namespaced so strict
+`x-mios.*` rows are MiOS extensions, namespaced so strict
 OpenAI clients can ignore them.
 
 | Path | Method | Served by | Spec |

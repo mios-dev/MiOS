@@ -16,5 +16,5 @@ install_packages "moby"
 # Enable the Docker socket to ensure it's available on boot
 systemctl enable docker.socket
 
-# Ensure the docker group exists so we can map users to it later via sysusers
+# Ensure the docker group exists so users can be mapped to it later via sysusers
 groupadd -r docker 2>/dev/null || true

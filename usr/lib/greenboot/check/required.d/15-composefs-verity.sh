@@ -16,13 +16,13 @@ if mount | grep "type composefs" >/dev/null; then
 else
     echo "[greenboot] ERROR: composefs requested but not active"
     # Note: we don't exit 1 here yet because it might be the first boot
-    # but we should definitely log it.
+    # but log it.
 fi
 
 # 3. Quick integrity sample (if composefs-info is present)
 if command -v composefs-info >/dev/null; then
     # We can't easily find the .cfs image path at runtime without parsing 
-    # ostree metadata, but we can verify that some core files have verity bits.
+    # ostree metadata, this verifies a few core-binary verity bits.
     if fsverity digest /usr/bin/bash >/dev/null 2>&1; then
         echo "[greenboot] SUCCESS: fsverity is active on /usr/bin/bash"
     else

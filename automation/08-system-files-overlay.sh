@@ -74,7 +74,7 @@ fi
 # and ends up in /etc/wsl.conf -- WSL2's parser then reports
 # "Expected ' ' or '\n' in /etc/wsl.conf:N" at the line just past the
 # last LF. Strip CR bytes and any UTF-8 BOM here before installing so
-# the build is robust against the working-tree state on the host.
+# the build resists the working-tree state on the host.
 if [[ -f "${CTX}/etc/wsl.conf" ]]; then
     tmp_wsl=$(mktemp)
     # Drop UTF-8 BOM (0xEF 0xBB 0xBF) on the first line, strip CR bytes

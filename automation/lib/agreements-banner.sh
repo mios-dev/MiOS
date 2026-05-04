@@ -154,7 +154,7 @@ To stop, choose No thanks. The script exits without making changes
 (exit code 78, EX_CONFIG). Re-run any time you want to reconsider.
 
 For unattended / CI invocation, set MIOS_AGREEMENT_ACK=accepted in
-the environment to bypass this prompt as a matter of declared policy.
+the environment to bypass this prompt as declared policy.
 
 ================================================================================
 EOF

@@ -75,7 +75,7 @@ if [[ $NVIDIA_PRESENT -eq 0 ]]; then
     echo "[11-hardware]       sudo akmods --force --kernels \$(uname -r)"
 fi
 
-# Regenerate CDI spec if nvidia-ctk is available (fails gracefully in no-GPU builds)
+# Regenerate CDI spec if nvidia-ctk is available (no-op in no-GPU builds)
 if command -v nvidia-ctk &>/dev/null; then
     nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml 2>/dev/null || true
     echo "[11-hardware] NVIDIA CDI spec generated (build-time; runtime refresh handled by nvidia-cdi-refresh.path)"

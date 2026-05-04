@@ -146,7 +146,7 @@ for raw in sys.stdin:
 ART_FILE=/usr/share/mios/branding/mios.txt
 print_ascii_header() {
     if [[ ! -r "$ART_FILE" ]]; then return; fi
-    # Find max width of art lines so we can center as a block.
+    # Find max width of art lines to center it as a block.
     local maxw=0 line
     while IFS= read -r line; do
         local stripped="$line"

@@ -30,7 +30,7 @@
 # unified AI endpoint (mios.toml [ai].endpoint, LocalAI :8080 by
 # default). Picking `mios` as the default tracks whatever mios.toml
 # says without the operator having to know whether their host is
-# running LocalAI or Ollama under the hood.
+# running LocalAI or Ollama internally.
 set -euo pipefail
 
 usage() {
@@ -49,7 +49,7 @@ while (( $# > 0 )); do
         --)                shift; PROMPT_ARGS+=("$@"); break ;;
         -*)                # Anything else (e.g. -f file.py, --no-stream)
                            # passes through to aichat unchanged. This
-                           # keeps mios-ai a thin opinionated wrapper
+                           # keeps mios-ai a thin wrapper
                            # rather than a re-implementation of every
                            # aichat flag.
                            PROMPT_ARGS+=("$1"); shift ;;
