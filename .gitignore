@@ -112,6 +112,8 @@ etc/containers/systemd/*
 etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
 !/etc/wsl.conf
+!/etc/aichat/
+!/etc/aichat/**
 
 # /etc/profile.d/ -- login-shell environment resolver (INDEX.md sec 4).
 # mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +

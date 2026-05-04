@@ -1,0 +1,56 @@
+# /etc/aichat/config.yaml -- MiOS default aichat configuration.
+#
+# Shipped by mios.git so the operator gets a working `aichat` shell
+# the moment they open a terminal on a MiOS host (deployed image OR
+# MiOS-DEV WSL2 distro). Users who want their own config drop a
+# ~/.config/aichat/config.yaml -- aichat reads the user file first
+# and ignores the system default when present.
+#
+# Endpoint: localhost:11434/v1 -- Ollama's OpenAI-compat surface.
+# The `ollama.container` Quadlet publishes 0.0.0.0:11434; the
+# mios-ollama-firstboot.service oneshot pulls the configured model
+# set into /var/lib/ollama/models on first boot. By the time the
+# operator's first interactive shell renders the dashboard, the
+# default chat + embed models are present and aichat can connect
+# without any user-side config.
+#
+# Model: pinned to qwen2.5-coder:7b as a safe default. Override per
+# session: `aichat --model ollama:<model>`. Persistent override:
+# copy this file to ~/.config/aichat/config.yaml and edit `model`.
+# The MIOS_AI_MODEL env var (set by /etc/profile.d/mios-env.sh from
+# /etc/mios/install.env) is the canonical source-of-truth; the
+# /usr/bin/mios-ai wrapper substitutes it at call time so the bare
+# `aichat` and `mios-ai` paths can drift apart cleanly.
+
+model: ollama:qwen2.5-coder:7b
+stream: true
+save_session: true
+keybindings: emacs
+
+clients:
+  - type: openai-compatible
+    name: ollama
+    api_base: http://localhost:11434/v1
+    api_key: ollama   # any non-empty string; ollama ignores the key
+    models:
+      - name: qwen2.5-coder:7b
+        max_input_tokens: 32768
+        supports_function_calling: true
+      - name: qwen2.5-coder:14b
+        max_input_tokens: 32768
+        supports_function_calling: true
+      - name: nomic-embed-text
+        type: embedding
+        max_input_tokens: 8192
+      # Add additional models pulled via mios-ollama-firstboot here.
+      # `ollama list` from the host shows what's actually available.
+
+  # MiOS canonical OpenAI surface (LocalAI / mios-ai Quadlet on :8080)
+  # remains as a secondary client. Switch via `aichat -c localai`.
+  - type: openai-compatible
+    name: localai
+    api_base: http://localhost:8080/v1
+    api_key: localai
+    models:
+      - name: qwen2.5-coder:7b
+        max_input_tokens: 32768
