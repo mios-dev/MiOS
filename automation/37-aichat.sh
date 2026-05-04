@@ -19,14 +19,34 @@ install_packages "ai"
 
 echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
 
-# Resolve latest release tags from upstream. Project policy: every dependency
-# tracks :latest from its source, so no fallback pin -- if api.github.com is
-# unreachable, fail loud rather than silently shipping a stale version.
+# Resolve latest release tags from upstream. Project policy is "every dep
+# tracks :latest" -- but unauthenticated api.github.com is rate-limited to
+# 60 req/h per IP, and the Forgejo Runner sometimes hits that ceiling on
+# back-to-back rebuilds. Without a fallback the whole image build fails on
+# a transient HTTP 403. Behaviour:
+#   1. Hit api.github.com (scurl auto-attaches Authorization when
+#      GH_TOKEN/GITHUB_TOKEN/GHCR_TOKEN is in env).
+#   2. If the lookup returns empty (rate-limit, network blip, parse miss)
+#      and *_FALLBACK_TAG is non-empty, fall back to that pinned version
+#      and emit a WARN line so the builder log makes the choice visible.
+#   3. If both API and fallback are empty, die (intentional: never ship a
+#      mystery binary). Bumping the fallback is a one-line edit.
+AICHAT_FALLBACK_TAG="v0.27.0"
+AICHAT_NG_FALLBACK_TAG="v0.31.0"
+
 AICHAT_TAG=$( (scurl -s https://api.github.com/repos/sigoden/aichat/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 AICHAT_NG_TAG=$( (scurl -s https://api.github.com/repos/blob42/aichat-ng/releases/latest | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 
-[[ -n "$AICHAT_TAG"    ]] || die "AIChat: api.github.com release-latest lookup returned empty"
-[[ -n "$AICHAT_NG_TAG" ]] || die "AIChat-NG: api.github.com release-latest lookup returned empty"
+if [[ -z "$AICHAT_TAG" ]]; then
+    [[ -n "$AICHAT_FALLBACK_TAG" ]] || die "AIChat: api.github.com lookup empty AND no fallback pin"
+    warn "AIChat: api.github.com lookup empty -- falling back to pinned ${AICHAT_FALLBACK_TAG}"
+    AICHAT_TAG="$AICHAT_FALLBACK_TAG"
+fi
+if [[ -z "$AICHAT_NG_TAG" ]]; then
+    [[ -n "$AICHAT_NG_FALLBACK_TAG" ]] || die "AIChat-NG: api.github.com lookup empty AND no fallback pin"
+    warn "AIChat-NG: api.github.com lookup empty -- falling back to pinned ${AICHAT_NG_FALLBACK_TAG}"
+    AICHAT_NG_TAG="$AICHAT_NG_FALLBACK_TAG"
+fi
 record_version aichat    "$AICHAT_TAG"    "https://github.com/sigoden/aichat/releases/tag/${AICHAT_TAG}"
 record_version aichat-ng "$AICHAT_NG_TAG" "https://github.com/blob42/aichat-ng/releases/tag/${AICHAT_NG_TAG}"
 

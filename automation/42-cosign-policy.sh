@@ -19,10 +19,20 @@ log "42-cosign-policy: ensuring cosign + trust roots + policy.json"
 # constrained to the v2.x series here because v3+ breaks rpm-ostree OCI 1.1
 # bundle format (see header). Lift the v2 filter when v3 compat is confirmed.
 if ! command -v cosign >/dev/null 2>&1; then
+    # Pinned-fallback pattern (matches 37-aichat.sh): bump COSIGN_FALLBACK_VERSION
+    # whenever a newer v2.x ships, so a rate-limited api.github.com (HTTP 403 on
+    # the 61st unauthenticated call per hour from the runner IP) doesn't kill the
+    # whole image build. scurl auto-attaches GH_TOKEN/GITHUB_TOKEN/GHCR_TOKEN
+    # when those are in the build env -- the fallback is the safety net.
+    COSIGN_FALLBACK_VERSION="v2.6.4"
     COSIGN_VERSION=$( (scurl -s https://api.github.com/repos/sigstore/cosign/releases?per_page=30 \
         | grep -Po '"tag_name": "\Kv2\.[^"]+' \
         | head -n1) 2>/dev/null || true)
-    [[ -n "$COSIGN_VERSION" ]] || die "cosign: api.github.com release lookup returned no v2.x match"
+    if [[ -z "$COSIGN_VERSION" ]]; then
+        [[ -n "$COSIGN_FALLBACK_VERSION" ]] || die "cosign: api.github.com lookup empty AND no fallback pin"
+        warn "cosign: api.github.com lookup empty -- falling back to pinned ${COSIGN_FALLBACK_VERSION}"
+        COSIGN_VERSION="$COSIGN_FALLBACK_VERSION"
+    fi
     COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
     record_version cosign "$COSIGN_VERSION" "https://github.com/sigstore/cosign/releases/tag/${COSIGN_VERSION}"
     log "  resolved cosign latest v2.x: ${COSIGN_VERSION}"
