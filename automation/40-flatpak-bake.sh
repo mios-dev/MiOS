@@ -35,11 +35,24 @@ fi
 # env nor flatpak-list provided refs (e.g., when build was kicked off
 # without the wrapper that propagates the build-arg).
 if [[ -z "$FLATPAK_LIST" ]] && [[ -r /tmp/build/mios.toml ]]; then
+    # Scrape [desktop].flatpaks array out of mios.toml. The configurator
+    # (usr/share/mios/configurator/index.html) emits multi-line arrays
+    # for >4 entries so awk's section bracket includes the
+    # multi-line continuation; grep -oE pulls every quoted string and
+    # the trailing flatpak-id regex filters out any non-ref strings
+    # (e.g. session/color_scheme values).
+    #
+    # The leading-char class is [A-Za-z] (case-insensitive) so extras
+    # entered through the configurator's "extra flatpaks" textarea --
+    # which validates against /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*){2,}$/
+    # -- are accepted by this scrape too. Previous [a-z]-only anchor
+    # silently dropped capital-leading IDs, breaking parity between
+    # configurator validation and bake-time scraping.
     FLATPAK_LIST="$(awk '/^\[desktop\]/,/^\[/{ if ($0 ~ /^\[desktop\]/) next; if ($0 ~ /^\[/) exit; print }' \
                    /tmp/build/mios.toml \
         | grep -oE '"[^"]+"' \
         | tr -d '"' \
-        | grep -E '^[a-z][a-z0-9_-]*\.[A-Za-z][A-Za-z0-9._-]+\.[A-Za-z][A-Za-z0-9._-]+' \
+        | grep -E '^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*){2,}$' \
         | tr '\n' ',' \
         | sed 's/,*$//')"
 fi

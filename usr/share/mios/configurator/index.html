@@ -191,6 +191,21 @@
       <span id="f-flatpak-count" style="color: var(--accent); margin-left: 8px;"></span>
     </p>
     <div id="flatpak-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 12px;"></div>
+
+    <label for="f-flatpak-extra" style="margin-top: 16px;">
+      extra flatpaks (manual)
+      <span style="color: var(--muted); font-weight: 400; font-size: 11px;">
+        -- comma-space separated app IDs or flathub URLs (e.g.
+        <code>org.blender.Blender, com.discordapp.Discord</code>).
+        Anything here is appended to the catalog selection above and baked
+        at build time alongside the checkbox-driven set.
+      </span>
+    </label>
+    <textarea id="f-flatpak-extra"
+              rows="3"
+              spellcheck="false"
+              placeholder="org.blender.Blender, com.discordapp.Discord, https://flathub.org/apps/details/com.spotify.Client"></textarea>
+    <div id="f-flatpak-extra-hint" style="color: var(--muted); font-size: 11px; margin-top: 4px;"></div>
   </fieldset>
 
   <fieldset style="grid-column: 1 / -1">
@@ -438,6 +453,30 @@ function refreshFromData() {
   renderRaw();
 }
 
+// Flatpak ref shape: alphanumeric domain segments separated by dots,
+// at least three segments (org.foo.Bar). Anything else (including
+// flathub URLs) is normalized via parseFlatpakInput before this regex
+// is checked.
+const FLATPAK_ID_RE = /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*){2,}$/;
+const CATALOG_IDS = new Set(FLATPAKS.map(f => f.id));
+
+// Strip a flathub URL down to the bare app ID. Accepts:
+//   https://flathub.org/apps/com.foo.Bar
+//   https://flathub.org/apps/details/com.foo.Bar
+//   https://flathub.org/apps/details/com.foo.Bar/x86_64
+//   com.foo.Bar
+// Returns the app ID or "" if the input is malformed.
+function parseFlatpakInput(raw) {
+  let s = (raw || "").trim();
+  if (!s) return "";
+  if (s.startsWith("#")) return "";  // comment-shaped input -- bake script ignores these too
+  // Strip leading scheme://flathub.org/apps[/details]/
+  s = s.replace(/^https?:\/\/(?:dl\.)?flathub\.org\/apps\/(?:details\/)?/i, "");
+  // Drop any trailing /arch or /branch suffix so com.foo.Bar/x86_64 -> com.foo.Bar
+  s = s.split("/")[0];
+  return s;
+}
+
 function renderFlatpaks() {
   const grid = document.getElementById("flatpak-grid");
   if (!grid) return;
@@ -462,10 +501,42 @@ function renderFlatpaks() {
 
   for (const cat of FLATPAK_CATEGORY_ORDER) {
     if (!grouped[cat]) continue;
+    // Category header + master "select all in category" toggle. The
+    // master is a one-click bulk action: ticking it adds every entry
+    // in this category to DATA.desktop.flatpaks; unticking removes
+    // them all. Tri-state visual: checked (all selected), unchecked
+    // (none), indeterminate (some). Default for opt-in categories
+    // is "none selected" -- e.g. the GNOME core apps stay unchecked
+    // unless the operator explicitly opts in.
     const header = document.createElement("div");
-    header.style.cssText = "grid-column: 1 / -1; color: var(--accent); font-weight: 600; margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;";
-    header.textContent = FLATPAK_CATEGORY_LABELS[cat] || cat;
+    header.style.cssText = "grid-column: 1 / -1; color: var(--accent); font-weight: 600; margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 10px;";
+    const masterId = `fp-master-${cat}`;
+    const total    = grouped[cat].length;
+    const selCount = grouped[cat].filter(fp => selected.has(fp.id)).length;
+    const masterState = selCount === 0 ? "off" : (selCount === total ? "on" : "mixed");
+    header.innerHTML =
+      `<input type="checkbox" id="${masterId}" ${masterState === "on" ? "checked" : ""} ` +
+      `style="margin: 0; cursor: pointer;" title="Select / deselect every Flatpak in this category">` +
+      `<label for="${masterId}" style="margin: 0; cursor: pointer; color: var(--accent); font-weight: 600; ` +
+      `font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">` +
+      `${FLATPAK_CATEGORY_LABELS[cat] || cat}` +
+      `<span style="color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 8px;">` +
+      `(${selCount}/${total})</span></label>`;
     grid.appendChild(header);
+    const masterCb = header.querySelector(`#${masterId}`);
+    if (masterState === "mixed") masterCb.indeterminate = true;
+    masterCb.addEventListener("change", e => {
+      const set = new Set(DATA.desktop?.flatpaks || []);
+      if (e.target.checked) {
+        for (const fp of grouped[cat]) set.add(fp.id);
+      } else {
+        for (const fp of grouped[cat]) set.delete(fp.id);
+      }
+      DATA.desktop = DATA.desktop || {};
+      DATA.desktop.flatpaks = [...set];
+      renderFlatpaks();   // re-render to sync child checkboxes + counts
+      renderRaw();
+    });
     for (const fp of grouped[cat]) {
       const id = `fp-${fp.id.replace(/[^A-Za-z0-9]/g, "-")}`;
       const row = document.createElement("div");
@@ -482,20 +553,90 @@ function renderFlatpaks() {
         else                  set.delete(fp.id);
         DATA.desktop = DATA.desktop || {};
         DATA.desktop.flatpaks = [...set];
-        updateFlatpakCount();
+        // Re-render the whole catalog so the per-category master toggle's
+        // checked/indeterminate state stays in sync with child selections.
+        // Cheaper than tracking each master ref individually since the
+        // grid is small (<60 items total).
+        renderFlatpaks();
         renderRaw();
       });
     }
   }
+  // Render the extras textarea (refs in DATA.desktop.flatpaks that are
+  // not in the catalog) and wire its input handler. Extras roundtrip
+  // through DATA.desktop.flatpaks alongside catalog members; the bake
+  // script (automation/40-flatpak-bake.sh) just iterates the array.
+  syncFlatpakExtraTextarea();
+  const extraEl = document.getElementById("f-flatpak-extra");
+  if (extraEl && !extraEl.dataset.bound) {
+    extraEl.addEventListener("input", onFlatpakExtraInput);
+    extraEl.addEventListener("blur",  onFlatpakExtraInput);
+    extraEl.dataset.bound = "1";
+  }
   updateFlatpakCount();
+}
+
+// Pull extras out of DATA.desktop.flatpaks and stamp them into the textarea.
+// Called whenever the catalog renders so file-load / Defaults / cross-tab
+// changes stay in sync.
+function syncFlatpakExtraTextarea() {
+  const el = document.getElementById("f-flatpak-extra");
+  if (!el) return;
+  const all = DATA.desktop?.flatpaks || [];
+  const extras = all.filter(id => !CATALOG_IDS.has(id));
+  el.value = extras.join(", ");
+}
+
+// Parse the textarea, validate each ref, merge with the catalog-driven
+// selection in DATA.desktop.flatpaks. Catalog refs in the textarea are
+// silently de-duped (the checkbox is the canonical source for those).
+function onFlatpakExtraInput(ev) {
+  const text = (ev.target.value || "");
+  // Accept comma OR newline as separators; the spec is "comma-space"
+  // but operators paste lists too -- be liberal in what we accept.
+  const parts = text.split(/[,\n]/).map(parseFlatpakInput).filter(Boolean);
+  const seen = new Set();
+  const valid = [];
+  const invalid = [];
+  for (const p of parts) {
+    if (seen.has(p)) continue;
+    seen.add(p);
+    if (FLATPAK_ID_RE.test(p)) valid.push(p);
+    else invalid.push(p);
+  }
+  // Catalog selections come from DATA.desktop.flatpaks minus any
+  // non-catalog leftovers; preserve catalog state, replace extras.
+  const all = new Set((DATA.desktop?.flatpaks || []).filter(id => CATALOG_IDS.has(id)));
+  for (const v of valid) all.add(v);
+  DATA.desktop = DATA.desktop || {};
+  DATA.desktop.flatpaks = [...all];
+
+  const hint = document.getElementById("f-flatpak-extra-hint");
+  if (hint) {
+    if (invalid.length) {
+      hint.style.color = "var(--err)";
+      hint.textContent = `${valid.length} accepted, ${invalid.length} rejected (not flatpak-id-shaped): ${invalid.join(", ")}`;
+    } else if (valid.length) {
+      hint.style.color = "var(--ok)";
+      hint.textContent = `${valid.length} extra ref${valid.length === 1 ? "" : "s"} merged into [desktop].flatpaks`;
+    } else {
+      hint.textContent = "";
+    }
+  }
+  updateFlatpakCount();
+  renderRaw();
 }
 
 function updateFlatpakCount() {
   const el = document.getElementById("f-flatpak-count");
   if (!el) return;
-  const n = (DATA.desktop?.flatpaks || []).length;
+  const all = DATA.desktop?.flatpaks || [];
+  const n = all.length;
+  const extras = all.filter(id => !CATALOG_IDS.has(id)).length;
   const min = FLATPAKS.filter(f => f.def).length;
-  el.textContent = `(${n} selected; ${min} minimal default)`;
+  el.textContent = extras
+    ? `(${n} selected; ${min} minimal default; ${extras} extra)`
+    : `(${n} selected; ${min} minimal default)`;
 }
 
 function gatherFromForm() {
