@@ -190,6 +190,50 @@ tag       = "latest"
 local_tag = "localhost/mios:latest"
 
 # ----------------------------------------------------------------------------
+# [packages] -- SSOT mapping mios.toml -> usr/share/mios/PACKAGES.md sections.
+# Operators tick / untick sections in the configurator HTML; the build
+# (Containerfile + automation/build.sh) and the MiOS-DEV live overlay
+# (Invoke-MiosOverlaySeed in mios-bootstrap/build-mios.ps1) both consume
+# this list instead of iterating every fenced ```packages-<cat>``` block.
+#
+#   sections        sections to install on a deployed MiOS host (image-time).
+#   dev_overlay     subset to install on the Windows-side MiOS-DEV podman
+#                   backend. Empty/unset = use a minimal sane default
+#                   (no GNOME shell, no Phosh, no gaming -- the dev VM is
+#                   a podman backend, not a desktop session; operators see
+#                   GUIs via flatpak windows routed through WSLg, e.g.
+#                   org.gnome.Ptyxis terminal).
+#
+# Always-skipped (regardless of selection): kernel, boot, moby, bloat,
+# critical -- these are either WSL-incompatible or anti-pattern fence
+# sections.
+# ----------------------------------------------------------------------------
+[packages]
+sections = [
+    "base", "security", "utils", "build-toolchain", "containers",
+    "cockpit", "storage", "virt", "guests",
+    "gpu-mesa", "gpu-nvidia", "gpu-amd-compute", "gpu-intel-compute",
+    "gnome", "phosh",
+    "ai", "k3s", "k3s-selinux-build", "cockpit-plugins-build",
+    "sbom-tools", "uki", "self-build", "network-discovery", "updater",
+    "wintools", "gaming", "nut", "ceph", "freeipa", "ha",
+    "looking-glass-build", "android",
+]
+
+[packages.dev_overlay]
+# MiOS-DEV (podman-WSL2 backend on Windows) minimal-but-complete:
+# every operator/dev/security daemon + the GPU CDI plumbing for /dev/dxg,
+# but NO desktop session (gnome/phosh) -- Ptyxis/Bazaar/Nautilus run as
+# Flatpaks routed through WSLg, the dev VM doesn't host its own session.
+sections = [
+    "base", "security", "utils", "build-toolchain", "containers",
+    "cockpit", "storage", "virt",
+    "gpu-mesa", "gpu-nvidia", "gpu-amd-compute", "gpu-intel-compute",
+    "ai", "sbom-tools", "self-build", "network-discovery", "updater",
+    "cockpit-plugins-build", "k3s-selinux-build", "uki",
+]
+
+# ----------------------------------------------------------------------------
 # [bootstrap] -- behavior of mios-bootstrap.git/install.sh during Phase-0.
 #   mode: auto | bootc | fhs
 #     - auto  : detect host kind, prefer 'bootc switch' when available
