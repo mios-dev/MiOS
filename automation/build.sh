@@ -195,6 +195,7 @@ NON_FATAL_SCRIPTS="
   36-akmod-guards.sh
   37-aichat.sh
   38-oh-my-posh.sh
+  40-flatpak-bake.sh
   42-cosign-policy.sh
   43-uupd-installer.sh
   52-bake-kvmfr.sh
