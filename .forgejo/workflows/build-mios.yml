@@ -1,0 +1,114 @@
+# .forgejo/workflows/build-mios.yml
+# Self-replication loop: triggered by `git push http://localhost:3000/<admin>/mios`,
+# this workflow runs in the mios-forgejo-runner Quadlet, builds a new OCI
+# image via `podman build` against /Containerfile, and signals the host's
+# mios-bootc-switch.path watcher to stage the new image for next boot.
+#
+# Privilege boundary:
+#   - Runner container (Privileged=true, documented exception): does
+#     `podman build` and writes the build-output sentinel.
+#   - Host (mios-bootc-switch.service triggered by mios-bootc-switch.path):
+#     reads the sentinel, runs `bootc switch --transport containers-storage`.
+#   - The runner has NO access to /usr/bin/bootc; the split is intentional.
+#
+# Storage: the runner shares /var/lib/containers/storage with the host
+# (Volume= in the Quadlet). After `podman build` produces
+# `localhost/mios:latest`, the image is visible to host bootc directly.
+
+name: build-mios
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: mios-self-hosted
+    steps:
+      - name: Checkout (live working tree of /)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          # The repo IS the deployed root; checkout fetches the freshly
+          # pushed state into the runner's job workspace. The
+          # /Containerfile in that workspace is what podman build consumes.
+
+      - name: Resolve image tag from VERSION + commit
+        id: tag
+        run: |
+          VER="$(cat VERSION 2>/dev/null || echo 'v0.0.0')"
+          SHA="$(git rev-parse --short=12 HEAD)"
+          TS="$(date -u +%Y%m%d-%H%M%S)"
+          TAG="${VER#v}-${TS}-${SHA}"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building tag: ${TAG}"
+
+      - name: Build OCI image (localhost/mios:latest + tagged)
+        run: |
+          set -euo pipefail
+          # Build args sourced from /etc/mios/install.env if present
+          # (host-mounted by the runner Quadlet for read-only access).
+          BUILD_ARGS=()
+          if [[ -r /etc/mios/install.env ]]; then
+              # shellcheck source=/dev/null
+              source /etc/mios/install.env
+              [[ -n "${MIOS_LINUX_USER:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
+              [[ -n "${MIOS_HOSTNAME:-}"   ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
+              [[ -n "${MIOS_AI_MODEL:-}"   ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
+              [[ -n "${MIOS_AI_EMBED_MODEL:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
+              [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_OLLAMA_BAKE_MODELS=${MIOS_OLLAMA_BAKE_MODELS}")
+          fi
+          podman build \
+              "${BUILD_ARGS[@]}" \
+              -f Containerfile \
+              -t "localhost/mios:latest" \
+              -t "localhost/mios:${{ steps.tag.outputs.image_tag }}" \
+              .
+
+      - name: Verify bootc lint passes (image must be bootc-switchable)
+        run: |
+          # Containerfile already runs `bootc container lint` as the final
+          # build step (Architectural Law 4). This is a belt-and-suspenders
+          # check: confirm the freshly-built image still carries the
+          # required bootc labels before signaling the host watcher.
+          podman image inspect localhost/mios:latest \
+              --format '{{ index .Config.Labels "containers.bootc" }}' \
+              | grep -qx '1' || {
+                  echo "ERROR: built image missing containers.bootc=1 label" >&2
+                  exit 1
+              }
+          podman image inspect localhost/mios:latest \
+              --format '{{ index .Config.Labels "ostree.bootable" }}' \
+              | grep -qx '1' || {
+                  echo "ERROR: built image missing ostree.bootable=1 label" >&2
+                  exit 1
+              }
+
+      - name: Signal host -> bootc switch on next boot
+        run: |
+          # The host's mios-bootc-switch.path watches this file. Writing
+          # the timestamp + image ref triggers mios-bootc-switch.service,
+          # which validates the image exists in containers-storage and
+          # runs `bootc switch --transport containers-storage <ref>`.
+          # No reboot here; operator decides when to apply.
+          install -d -m 0755 /var/lib/mios/forge-runner
+          printf '%s %s\n' \
+              "$(date -u +%FT%TZ)" \
+              "localhost/mios:latest" \
+              > /var/lib/mios/forge-runner/last-build.txt
+          chmod 0644 /var/lib/mios/forge-runner/last-build.txt
+          echo "Build signaled. Host will stage on next boot."
+          echo "Apply now: sudo bootc upgrade --apply"
+
+      - name: Optional - mirror to GHCR
+        if: ${{ env.GHCR_TOKEN != '' }}
+        env:
+          GHCR_USER: ${{ secrets.GHCR_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          podman login -u "${GHCR_USER}" -p "${GHCR_TOKEN}" ghcr.io
+          podman tag  localhost/mios:latest "ghcr.io/mios-dev/mios:latest"
+          podman tag  localhost/mios:latest "ghcr.io/mios-dev/mios:${{ steps.tag.outputs.image_tag }}"
+          podman push "ghcr.io/mios-dev/mios:latest"
+          podman push "ghcr.io/mios-dev/mios:${{ steps.tag.outputs.image_tag }}"

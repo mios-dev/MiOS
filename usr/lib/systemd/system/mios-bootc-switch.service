@@ -1,0 +1,27 @@
+# /usr/lib/systemd/system/mios-bootc-switch.service
+# Host-side counterpart of the Forgejo Runner build step.
+#
+# Triggered by mios-bootc-switch.path watching
+# /var/lib/mios/forge-runner/last-build.txt for changes. Reads the sentinel
+# (timestamp + image ref), verifies the image exists in containers-storage,
+# and stages it via `bootc switch --transport containers-storage <ref>`.
+# Closes the build->switch half of the self-replication loop without
+# letting the runner container itself touch bootc.
+
+[Unit]
+Description='MiOS' bootc-switch from local build sentinel
+Documentation=file:///usr/libexec/mios/bootc-switch-from-build.sh
+After=local-fs.target
+ConditionPathExists=/var/lib/mios/forge-runner/last-build.txt
+ConditionPathExists=/usr/bin/bootc
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/bootc-switch-from-build.sh
+StandardOutput=journal
+StandardError=journal
+# bootc switch writes to ostree's state store; needs root.
+User=root
+
+[Install]
+WantedBy=multi-user.target

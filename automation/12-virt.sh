@@ -26,6 +26,13 @@ install_packages "containers"
 # Extra self-build tools (image-rechunking, etc. - may be repo-dependent)
 install_packages "self-build"
 
+# ── Build toolchain (image-build only; stripped by 91-strip-build-toolchain.sh) ──
+# Required by 19-k3s-selinux.sh (SELinux module compile) and
+# 53-bake-lookingglass-client.sh (Looking Glass B7 from source). Removed
+# before image commit so the runtime carries no compilers.
+echo "[12-virt] Installing build toolchain (image-build only; will be stripped)..."
+install_packages "build-toolchain"
+
 # ── Cockpit Web Management ──────────────────────────────────────────────────
 echo "[12-virt] Installing Cockpit..."
 install_packages_strict "cockpit"

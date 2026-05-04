@@ -70,9 +70,19 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     find /run -mindepth 1 -maxdepth 1 ! -name "secrets" -exec rm -rf {} + 2>/dev/null || true
 
 RUN bootc completion bash > /etc/bash_completion.d/bootc
-RUN --mount=type=bind,from=ctx,source=/ctx/tools,target=/ctx/tools,ro \
-    install -d -m 0755 /usr/lib/extensions/source && \
-    bash /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
+# System-extension pack step: intentionally a no-op when no sysext source
+# trees are staged in the image. The pack tool at tools/mios-sysext-pack.sh
+# consolidates one-or-more `/usr/lib/extensions/source-*` trees into a single
+# monolithic SquashFS sysext (mitigation for the overlayfs stacking-depth
+# limit on bootc systems). The current build is FHS-overlay-only and stages
+# no sysext sources, so this step skips silently. To start packing sysexts:
+#   1. Have an earlier automation/*.sh phase populate
+#      /usr/lib/extensions/source-<name>/{usr,etc,...} with the files to pack.
+#   2. Re-enable the RUN below (un-comment), passing every populated source
+#      dir as a positional argument to mios-sysext-pack.sh.
+#
+# RUN --mount=type=bind,from=ctx,source=/ctx/tools,target=/ctx/tools,ro \
+#     bash /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source-*
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
 RUN bootc container lint

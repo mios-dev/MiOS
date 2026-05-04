@@ -2,18 +2,46 @@
 > **Attribution:** MiOS-DEV (Administrative Alias)
 > **Infrastructure:** 'MiOS' Open-Source Build Pipeline
 > **License:** Apache-2.0 (Open-Source Infrastructure)
+
 ---
-**SECUREBOOT COMPLIANCE:** Proprietary NVIDIA drivers and Steam are included as
-essential artifacts for Microsoft-compliant SecureBoot verification and system 
-utility. These align with MiOS-DEV core values of hardware compatibility and 
-zero-trust security.
+
+## DELIVERY POLICY (project-wide invariant)
+
+Every software artifact in MiOS ships as **one of three formats**:
+
+| Format | What goes here | Where it's defined |
+|---|---|---|
+| **Flatpak** | User-facing applications (GUI apps, games, IDEs, file managers, terminal emulators, viewers, editors, gaming clients, virt GUIs). | `mios-bootstrap/mios.toml` `[desktop].flatpaks` → `MIOS_FLATPAKS` build-arg → `/usr/lib/mios/env.d/flatpaks.env` → `mios-flatpak-install` at first boot. |
+| **Container** (Quadlet / Podman / Distrobox) | Long-lived services and isolated workloads (LocalAI, Ollama, Forgejo, Ceph daemons, k3s workloads, AI CLI agents, NUT). | `etc/containers/systemd/*.container` (Quadlet) or `usr/share/distrobox/`. |
+| **VM** (libvirt / QEMU) | Heavyweight guest workloads needing a full guest OS (Windows guests, legacy distros, hardware-emulation testbeds). | Driven by libvirt/QEMU from the host substrate. |
+
+**RPM (this file)** is reserved strictly for the **irreducible host
+substrate** — the minimum set required for the three delivery formats
+above to function. That means: kernel + drivers + firmware, boot
+tooling, init / PID-1, system libraries, system daemons, the runtimes
+themselves (Podman/bootc, Flatpak/portals, libvirt/QEMU), display-
+server foundation, host-scope security daemons, filesystem drivers,
+core CLI admin tools, and image-build toolchain.
+
+**Before adding any RPM to this file:** ask "is this an app, a service,
+or a guest workload?" If yes to any, it does NOT belong here — route
+it to the appropriate Flatpak / Container / VM channel above. Repos
+in `automation/05-enable-external-repos.sh` follow the same rule:
+no application RPM repos (the VSCodium repo was removed for this
+reason).
+
+**SECUREBOOT NOTE:** Proprietary NVIDIA drivers are included as
+essential RPM artifacts for Microsoft-compliant SecureBoot verification.
+Steam ships exclusively as a Flatpak (`com.valvesoftware.Steam`).
+
 ---
----
+
 # 'MiOS' v0.2.0 -- Package Manifest
 
-This file is both documentation and the **single source of truth** for all packages installed in MiOS.
+This file is both documentation and the **single source of truth** for all RPM packages installed in MiOS.
 Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
 To add a package, add it to the appropriate section. One package per line.
+Apps go in `mios.toml` `[desktop].flatpaks`, services in `etc/containers/systemd/`.
 
 **CHANGELOG v0.2.0:**
 - Standardized versioning across the entire stack.
@@ -133,9 +161,9 @@ python3
 
 ## GNOME 50 Desktop
 
-MINIMAL GNOME shell -- infrastructure ONLY. NO viewer/editor apps as RPMs.
-Epiphany (Flatpak browser) handles documents, photos, and media natively.
-Steam, Wine, virt-manager, Waydroid are RPM exceptions (need system-level access).
+MINIMAL GNOME shell -- infrastructure ONLY. **PROJECT INVARIANT:**
+applications ship as Flatpaks (see `mios.toml` `[desktop].flatpaks`),
+only system dependencies ship as RPMs. No exceptions.
 
 GNOME 49+: systemd is a HARD dependency. gnome-session's built-in service
 manager was removed. Full systemd user session support is required.
@@ -150,12 +178,15 @@ gnome-session-wayland-session
 gnome-control-center
 gnome-keyring
 gdm
-# ── Desktop apps ──
-ptyxis
-nautilus
-gnome-software
+# ── System services (NOT apps) ──
+# gnome-remote-desktop is a systemd-managed RDP/VNC service, not a user app.
 gnome-remote-desktop
+# Theme/wallpaper data, not an executable app.
 gnome-backgrounds
+# ── Application RPMs removed per project invariant ──
+# ptyxis           -> Flathub: org.gnome.Ptyxis
+# nautilus         -> Flathub: org.gnome.Nautilus
+# gnome-software   -> Flathub: io.github.kolunmi.Bazaar (already in mios.toml)
 # ── Extensions ──
 gnome-shell-extension-appindicator
 gnome-shell-extension-dash-to-dock
@@ -199,44 +230,44 @@ qadwaitadecorations-qt5
 adw-gtk3-theme
 ```
 
-## GNOME Core Apps (OPTIONAL -- uncomment to include)
+## GNOME Core Apps -- DO NOT INSTALL AS RPM
 
-Optional GNOME Core Apps. ALL commented out by default -- uncomment to include.
-Epiphany (Flatpak browser) handles documents, photos, and media natively.
+**PROJECT INVARIANT:** GNOME Core apps are user-facing applications and
+ship STRICTLY as Flatpaks. Add the Flathub ref to `mios.toml`
+`[desktop].flatpaks` instead of uncommenting an RPM here.
+
+| RPM (do not use) | Flathub ref |
+|---|---|
+| papers              | org.gnome.Papers |
+| loupe               | org.gnome.Loupe |
+| showtime            | org.gnome.Showtime |
+| gnome-text-editor   | org.gnome.TextEditor |
+| gnome-disk-utility  | org.gnome.DiskUtility |
+| gnome-system-monitor| (not on Flathub; use `btop`/`nvtop` CLI) |
+| baobab              | org.gnome.baobab |
+| gnome-connections   | org.gnome.Connections |
+| gnome-tweaks        | (use Flathub: com.mattjakeman.ExtensionManager) |
+| file-roller         | org.gnome.FileRoller |
+| gnome-calculator    | org.gnome.Calculator |
+| gnome-calendar      | org.gnome.Calendar |
+| gnome-contacts      | org.gnome.Contacts |
+| gnome-clocks        | org.gnome.clocks |
+| gnome-weather       | org.gnome.Weather |
+| gnome-maps          | org.gnome.Maps |
+| gnome-characters    | org.gnome.Characters |
+| gnome-font-viewer   | org.gnome.FontManager |
+| gnome-music         | org.gnome.Music |
+| snapshot            | org.gnome.Snapshot |
+| decibels            | org.gnome.Decibels |
+| cheese              | org.gnome.Cheese |
+| gnome-logs          | org.gnome.Logs |
+| deja-dup            | org.gnome.DejaDup |
+| simple-scan         | org.gnome.SimpleScan |
+| seahorse            | org.gnome.seahorse.Application |
+| gnome-boxes         | org.gnome.Boxes |
 
 ```packages-gnome-core-apps
-# ── Viewers (uncomment to include) ──
-# papers
-# loupe
-# showtime
-# gnome-text-editor
-# ── Utilities ──
-# gnome-disk-utility
-# gnome-system-monitor
-# baobab
-# gnome-connections
-# gnome-tweaks
-# file-roller
-# resources
-# gnome-calculator
-# gnome-calendar
-# gnome-contacts
-# gnome-clocks
-# gnome-weather
-# gnome-maps
-# gnome-characters
-# gnome-font-viewer
-# ── Media ──
-# gnome-music
-# snapshot
-# decibels
-# cheese
-# ── System ──
-# gnome-logs
-# deja-dup
-# simple-scan
-# seahorse
-# gnome-boxes
+# Intentionally empty. See table above; install via mios.toml flatpaks.
 ```
 
 ## GPU Drivers -- Mesa (AMD / Intel / software fallback)
@@ -301,14 +332,16 @@ nvidia-container-selinux
 
 ## Virtualization -- KVM / QEMU / Libvirt
 
-Full KVM stack with virt-manager GUI and firmware/security tooling.
+System-level KVM stack: hypervisor, libvirt daemon, firmware, CLI helpers.
+GUI front-ends ship as Flatpaks per project invariant -- see `mios.toml`
+`[desktop].flatpaks` (`org.virt_manager.Manager`,
+`org.remmina.Remmina` for VNC/SPICE/RDP viewer needs).
 
 ```packages-virt
 qemu-kvm
 libvirt
 libvirt-daemon
 virt-install
-virt-manager
 edk2-ovmf
 swtpm
 swtpm-tools
@@ -316,11 +349,13 @@ dnsmasq
 mdevctl
 libguestfs-tools
 # v2.2 additions
-virt-viewer
 virt-v2v
 qemu-device-display-virtio-gpu
 virt-firmware
 python3-cryptography
+# ── Application RPMs removed per project invariant ──
+# virt-manager  -> Flathub: org.virt_manager.Manager
+# virt-viewer   -> Flathub: org.remmina.Remmina (covers SPICE/VNC/RDP)
 ```
 
 ## Container Runtime
@@ -349,19 +384,43 @@ image-builder
 bootc-image-builder
 dracut-live
 squashfs-tools
-selinux-policy-devel
 containers-common
 toolbox
 kubectl
 helm
+podman-plugins
+cosign
+# Build toolchain moved to `packages-build-toolchain` (image-build only;
+# stripped by automation/91-strip-build-toolchain.sh before image commit
+# so the deployed runtime carries no compilers).
+# REMOVED -- podman-docker: conflicts with moby-engine from ucore-hci base
+```
+
+## Build Toolchain (image-build time ONLY)
+
+These compilers and devel headers are required by image-build phases
+(`19-k3s-selinux.sh` builds the k3s SELinux policy module,
+`53-bake-lookingglass-client.sh` compiles Looking Glass B7 from source)
+but **do not belong on the runtime image** -- a deployed host carrying
+gcc/cmake/golang is unnecessary attack surface for any process that
+gets a shell.
+
+`automation/12-virt.sh` installs this block early, the build phases
+that need it consume it, and `automation/91-strip-build-toolchain.sh`
+removes it after `90-generate-sbom.sh` records the versions and before
+`99-cleanup.sh` runs. The block is also in the FHS-install exclude
+list (`mios-bootstrap/build-mios.sh`) so a deployed FHS host never
+installs it in the first place.
+
+```packages-build-toolchain
 make
 gcc
 gcc-c++
 cmake
 golang
-podman-plugins
-cosign
-# REMOVED -- podman-docker: conflicts with moby-engine from ucore-hci base
+selinux-policy-devel
+binutils
+pkgconf-pkg-config
 ```
 
 ## Self-Building Tools (Experimental/Repository dependent)
@@ -422,8 +481,10 @@ hyperv-tools
 samba
 samba-client
 cifs-utils
-# v2.2 additions
-freerdp
+# freerdp-libs stays as a system library (gnome-remote-desktop and other
+# host services link against it). The freerdp CLI client itself was an
+# application -- removed per project invariant; use org.remmina.Remmina
+# (already in mios.toml [desktop].flatpaks) for RDP/SPICE/VNC.
 freerdp-libs
 ```
 
@@ -463,27 +524,32 @@ iptables-legacy
 
 ## Gaming
 
-Steam, Wine, and Gamescope for gaming.
-Gamescope SteamOS-mode GDM session baked via system_files (no COPR needed).
-Removed lib32-gamemode and libstrangle (Arch-only, not in Fedora repos).
-NTSYNC kernel module available in Fedora 44 for improved Wine/Steam performance.
+Gaming clients and Wine ship STRICTLY as Flatpaks per project invariant.
+This section retains only the system-level pieces that Flatpak gaming
+clients depend on (gamemode daemon, vulkan tooling, controller udev
+rules, the gamemode shell extension).
+
+NTSYNC kernel module available in Fedora 44 for improved Wine/Steam
+performance via the Steam Flatpak's bundled Proton.
 
 ```packages-gaming
-steam
-gamescope
-gnome-shell-extension-gamemode
-wine
-wine-mono
-wine-dxvk
-winetricks
-lutris
+# ── System daemons / shell extension / udev (NOT apps) ──
 gamemode
-mangohud
+gnome-shell-extension-gamemode
 vulkan-tools
-dosbox-staging
-protontricks
-# v2.2 additions
 steam-devices
+# ── Application RPMs removed per project invariant ──
+# steam            -> Flathub: com.valvesoftware.Steam (bundles Proton)
+# lutris           -> Flathub: net.lutris.Lutris
+# dosbox-staging   -> Flathub: io.github.dosbox_staging.dosbox-staging
+# protontricks     -> Flathub: com.github.Matoking.protontricks
+# mangohud         -> Flathub extension: org.freedesktop.Platform.VulkanLayer.MangoHud
+# gamescope        -> shipped inside Steam Flatpak; install separately only if
+#                     a non-Steam Wayland gaming session is required (then via
+#                     Flathub: org.gamescope.Session if/when published)
+# wine, wine-mono, wine-dxvk, winetricks
+#                  -> non-Steam Windows apps: Flathub com.usebottles.bottles
+#                     (bundles its own Wine/DXVK/winetricks)
 ```
 
 ## Guest Agents
@@ -718,9 +784,18 @@ libsss_nss_idmap
 ## AI Tools
 Rust-based LLM CLI agents and shell integrations.
 
+`aichat` and `aichat-ng` are NOT Fedora RPMs -- they ship as static
+musl binaries fetched by `automation/37-aichat.sh` from upstream
+GitHub releases. They are user-facing CLI applications and should
+run inside a Distrobox container per the project invariant
+(VM | Container | Flatpak only). The current direct-to-`/usr/bin`
+install is a transitional state; an open task is to wrap these
+agents in a Distrobox container so the host substrate carries no
+application binaries.
+
 ```packages-ai
-aichat
-aichat-ng
+# Intentionally empty. aichat/aichat-ng install via 37-aichat.sh
+# (musl tarball -> /usr/bin). Migrate to Distrobox in a follow-up.
 ```
 <!--
   ollama is NOT a Fedora RPM; it ships as a tarball from

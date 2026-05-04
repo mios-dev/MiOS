@@ -1,0 +1,101 @@
+# /etc/containers/systemd/mios-forgejo-runner.container
+# 'MiOS' Forgejo Runner -- self-hosted CI for the closed self-replication loop.
+#
+# Closes the loop:
+#   operator edits /  ->  git -C / push http://localhost:3000/<admin>/mios
+#   ->  this Runner picks up the push  ->  podman build -f /Containerfile
+#   ->  new OCI image  ->  /var/lib/mios/forge-runner/last-build.txt
+#   ->  mios-bootc-switch.path triggers `bootc switch --transport
+#       containers-storage localhost/mios:latest`  ->  reboot to A/B-swap.
+#
+# Registration: mios-forge-firstboot.sh mints a token via the admin API
+# (or the in-container `forgejo actions generate-runner-token` CLI),
+# writes it to /etc/mios/forge/runner-token (mode 0600, root-only),
+# and triggers this unit. The Runner image's entrypoint reads the
+# FORGEJO_RUNNER_REGISTRATION_TOKEN env var on first start, registers
+# itself, and persists /data/.runner so subsequent starts skip
+# registration.
+#
+# Defaults policy: enabled by default. ConditionPathExists guards the
+# token file -- if firstboot hasn't minted it yet (or has been deleted
+# for re-bootstrap), the unit no-ops at pre-boot rather than crash-
+# looping with "registration token missing".
+
+[Unit]
+Description='MiOS' Forgejo Runner (self-hosted CI for /=git working tree)
+Documentation=https://forgejo.org/docs/latest/admin/actions/
+After=network-online.target mios-forge.service
+Wants=network-online.target
+Requires=mios-forge.service
+ConditionPathExists=/etc/mios/forge/runner-token
+ConditionVirtualization=!container
+
+[Container]
+Image=code.forgejo.org/forgejo/runner:6.5
+ContainerName=mios-forgejo-runner
+Network=mios.network
+
+# DOCUMENTED ARCHITECTURAL EXCEPTION (UNPRIVILEGED-EXECUTION):
+# Forgejo Runner needs to run `podman build` against /Containerfile
+# in checked-out worktrees, which requires user-namespace manipulation
+# and full container-storage access. Running unprivileged would force
+# Docker-in-Docker / nested-podman patterns that are demonstrably
+# slower and have their own security tradeoffs.
+#
+# The runner's *job sandbox* is what protects the host -- each workflow
+# run executes in an ephemeral container started by the runner with
+# its own image, env, and FS view. The runner container itself is
+# privileged so it can act as the namespace orchestrator.
+#
+# Joins the existing exception list: mios-ceph (Ceph requires uid 0)
+# and mios-k3s (full kernel namespaces + eBPF). See ARCHITECTURE.md.
+Privileged=true
+
+# Shared container storage with the host. This is what makes
+# `bootc switch --transport containers-storage localhost/mios:latest`
+# work after a build: the image lands in /var/lib/containers/storage
+# which the host's bootc reads from directly. No registry required.
+Volume=/var/lib/containers/storage:/var/lib/containers/storage:Z
+
+# Runner state (persistent registration, workflow caches, job logs).
+# The .runner file inside /data is what the entrypoint checks to decide
+# whether to register or just start.
+Volume=/srv/mios/forge-runner:/data:Z
+
+# Read-only access to the token bundle so the entrypoint can register
+# without writing through to the host filesystem.
+Volume=/etc/mios/forge:/etc/mios/forge:Z,ro
+
+# Build-output sentinel directory: workflows write
+# /var/lib/mios/forge-runner/last-build.txt with the freshly-built
+# image ref; the host's mios-bootc-switch.path watches it.
+Volume=/var/lib/mios/forge-runner:/var/lib/mios/forge-runner:Z
+
+# Registration credentials live in /etc/mios/forge/runner-token,
+# written by mios-forge-firstboot.sh as a shell-style env file
+# (FORGEJO_RUNNER_REGISTRATION_TOKEN=, FORGEJO_INSTANCE_URL=).
+EnvironmentFile=/etc/mios/forge/runner-token
+
+Environment=FORGEJO_RUNNER_NAME=mios-self-hosted
+Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44
+# Use podman for jobs (not Docker). The runner's "host" mode runs
+# steps directly in the runner container; for OCI builds we use
+# the podman socket via the shared containers/storage volume above.
+Environment=FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted
+
+User=root
+Group=root
+
+Label=org.opencontainers.image.title=MiOS Forgejo Runner
+Label=org.opencontainers.image.description=Self-hosted CI runner for the MiOS self-replication loop. Builds OCI images via podman build, signals bootc-switch.
+Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/
+Label=io.podman_desktop.openInBrowser=http://localhost:3000/-/admin/actions/runners
+
+[Service]
+Restart=on-failure
+RestartSec=15s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

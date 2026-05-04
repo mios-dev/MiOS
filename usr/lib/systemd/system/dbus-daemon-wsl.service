@@ -8,6 +8,16 @@ Before=systemd-logind.service
 DefaultDependencies=no
 
 [Service]
+# Type=notify + dbus-daemon's `--systemd-activation` flag together close the
+# startup race that surfaced as "Failed to connect to system scope bus via
+# local transport: Connection refused" in the user's first login shell on
+# WSL2: without it, systemd marked the unit active as soon as the dbus-daemon
+# process forked, and systemd-logind raced ahead and tried to bind a session
+# before the daemon had finished listening on /run/dbus/system_bus_socket.
+# `--systemd-activation` makes dbus-daemon emit sd_notify(READY=1) once the
+# socket is fully bound; Type=notify makes systemd wait for it.
+Type=notify
+NotifyAccess=main
 ExecStart=/usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation
 ExecReload=/usr/bin/dbus-send --print-reply --system --type=method_call --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig
 OOMScoreAdjust=-900

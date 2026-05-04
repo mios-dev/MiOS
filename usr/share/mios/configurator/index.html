@@ -81,7 +81,7 @@
 <body>
 
 <header>
-  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.1.0 / mios 0.2.2</span></h1>
+  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.2.0 / mios 0.2.2</span></h1>
   <div class="toolbar">
     <button id="btn-pick" type="button" title="Pick the file to edit (uses File System Access API where available; remembers the handle so subsequent saves are one-click no-prompt overwrites with no (1) suffix)">Pick file</button>
     <label class="btn-label" for="file-open" id="file-open-label" title="Fallback: open via standard file picker; saves go through Downloads">Open (fallback)</label>
@@ -169,6 +169,31 @@
   </fieldset>
 
   <fieldset style="grid-column: 1 / -1">
+    <legend>desktop (session + Flatpak applications)</legend>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+      <div>
+        <label for="f-desktop-session">session</label>
+        <input type="text" id="f-desktop-session" data-key="desktop.session" placeholder="gnome">
+      </div>
+      <div>
+        <label for="f-desktop-color">color_scheme</label>
+        <input type="text" id="f-desktop-color" data-key="desktop.color_scheme" placeholder="prefer-dark">
+      </div>
+    </div>
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+      <b>desktop.flatpaks</b> -- per the project invariant (VM | Container | Flatpak only),
+      every user-facing application ships as a Flatpak. The image bakes the
+      minimal pre-selected set; tick more below to layer them in. Saving this
+      file as <code>/etc/mios/mios.toml</code> (host) or
+      <code>~/.config/mios/mios.toml</code> (user) overrides
+      <code>/usr/share/mios/mios.toml</code> via the layered resolver --
+      MiOS auto-detects the override at install / first-boot, no extra wiring.
+      <span id="f-flatpak-count" style="color: var(--accent); margin-left: 8px;"></span>
+    </p>
+    <div id="flatpak-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 12px;"></div>
+  </fieldset>
+
+  <fieldset style="grid-column: 1 / -1">
     <legend>quadlets.enable (per-Quadlet first-boot enablement)</legend>
     <div id="quadlet-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px;"></div>
   </fieldset>
@@ -202,22 +227,112 @@ const QUADLETS = [
   "guacamole-postgres", "guacd"
 ];
 
+// ── Flatpak catalog ───────────────────────────────────────────────────────────
+// Every Flatpak referenced anywhere in the MiOS codebase. The 'def' field
+// marks the MINIMAL pre-selected set baked into the image as defaults; all
+// other entries are SELECTABLE BEFORE SAVING -- the operator ticks them in
+// this UI, hits Save, and the resulting mios.toml at /etc/ or ~/.config/
+// overrides the vendor defaults at /usr/share/mios/mios.toml via the
+// layered resolver (tools/lib/userenv.sh).
+//
+// Per the project invariant (VM | Container | Flatpak only), every
+// user-facing application must appear in this catalog. Adding a new
+// Flatpak ref to mios.toml without listing it here means the configurator
+// cannot present it -- always update both.
+const FLATPAKS = [
+  // ── Default session apps (substrate-like; pre-selected) ──
+  { id: "org.gnome.Epiphany",                          cat: "session",  label: "Epiphany",            note: "GNOME Web (default browser)",                    def: true },
+  { id: "org.gnome.Ptyxis",                            cat: "session",  label: "Ptyxis",              note: "Terminal emulator (replaces RPM)",               def: true },
+  { id: "org.gnome.Nautilus",                          cat: "session",  label: "Nautilus",            note: "File manager (replaces RPM)",                    def: true },
+  // ── App management / Flatpak tooling (pre-selected) ──
+  { id: "io.github.kolunmi.Bazaar",                    cat: "appmgmt",  label: "Bazaar",              note: "App store (replaces gnome-software)",            def: true },
+  { id: "com.github.tchx84.Flatseal",                  cat: "appmgmt",  label: "Flatseal",            note: "Flatpak permissions UI",                         def: true },
+  { id: "com.mattjakeman.ExtensionManager",            cat: "appmgmt",  label: "Extension Manager",   note: "GNOME Shell extensions (replaces gnome-tweaks)", def: true },
+  // ── Virtualization GUIs (pre-selected; libvirt/qemu daemons stay as RPM) ──
+  { id: "org.virt_manager.Manager",                    cat: "virt",     label: "virt-manager",        note: "VM manager GUI (replaces RPM)",                  def: true },
+  { id: "org.remmina.Remmina",                         cat: "virt",     label: "Remmina",             note: "RDP/SPICE/VNC viewer (replaces virt-viewer RPM)", def: true },
+  // ── Gaming (default-OFF; opt-in) ──
+  { id: "com.valvesoftware.Steam",                     cat: "gaming",   label: "Steam",               note: "Bundles Proton (replaces RPM)",                  def: false },
+  { id: "net.lutris.Lutris",                           cat: "gaming",   label: "Lutris",              note: "Game launcher (replaces RPM)",                   def: false },
+  { id: "com.usebottles.bottles",                      cat: "gaming",   label: "Bottles",             note: "Wine/DXVK/winetricks for non-Steam apps",        def: false },
+  { id: "io.github.dosbox_staging.dosbox-staging",     cat: "gaming",   label: "DOSBox Staging",      note: "Replaces dosbox-staging RPM",                    def: false },
+  { id: "com.github.Matoking.protontricks",            cat: "gaming",   label: "protontricks",        note: "Replaces RPM",                                   def: false },
+  { id: "org.freedesktop.Platform.VulkanLayer.MangoHud", cat: "gaming", label: "MangoHud",            note: "Vulkan overlay extension",                       def: false },
+  { id: "org.gamescope.Session",                       cat: "gaming",   label: "Gamescope Session",   note: "Standalone gaming session (when published)",     def: false },
+  // ── GNOME Core apps (default-OFF; opt-in) ──
+  { id: "org.gnome.TextEditor",                        cat: "gnome",    label: "Text Editor",         note: "",                                               def: false },
+  { id: "org.gnome.Papers",                            cat: "gnome",    label: "Papers",              note: "PDF reader",                                     def: false },
+  { id: "org.gnome.Loupe",                             cat: "gnome",    label: "Loupe",               note: "Image viewer",                                   def: false },
+  { id: "org.gnome.Showtime",                          cat: "gnome",    label: "Showtime",            note: "Video player",                                   def: false },
+  { id: "org.gnome.DiskUtility",                       cat: "gnome",    label: "Disks",               note: "",                                               def: false },
+  { id: "org.gnome.baobab",                            cat: "gnome",    label: "Disk Usage Analyzer", note: "baobab",                                         def: false },
+  { id: "org.gnome.Connections",                       cat: "gnome",    label: "Connections",         note: "RDP/VNC client",                                 def: false },
+  { id: "org.gnome.FileRoller",                        cat: "gnome",    label: "Archive Manager",     note: "file-roller",                                    def: false },
+  { id: "org.gnome.Calculator",                        cat: "gnome",    label: "Calculator",          note: "",                                               def: false },
+  { id: "org.gnome.Calendar",                          cat: "gnome",    label: "Calendar",            note: "",                                               def: false },
+  { id: "org.gnome.Contacts",                          cat: "gnome",    label: "Contacts",            note: "",                                               def: false },
+  { id: "org.gnome.clocks",                            cat: "gnome",    label: "Clocks",              note: "",                                               def: false },
+  { id: "org.gnome.Weather",                           cat: "gnome",    label: "Weather",             note: "",                                               def: false },
+  { id: "org.gnome.Maps",                              cat: "gnome",    label: "Maps",                note: "",                                               def: false },
+  { id: "org.gnome.Characters",                        cat: "gnome",    label: "Characters",          note: "",                                               def: false },
+  { id: "org.gnome.FontManager",                       cat: "gnome",    label: "Font Viewer",         note: "",                                               def: false },
+  { id: "org.gnome.Music",                             cat: "gnome",    label: "Music",               note: "",                                               def: false },
+  { id: "org.gnome.Snapshot",                          cat: "gnome",    label: "Snapshot",            note: "Camera",                                         def: false },
+  { id: "org.gnome.Decibels",                          cat: "gnome",    label: "Decibels",            note: "Audio player",                                   def: false },
+  { id: "org.gnome.Cheese",                            cat: "gnome",    label: "Cheese",              note: "Webcam",                                         def: false },
+  { id: "org.gnome.Logs",                              cat: "gnome",    label: "Logs",                note: "",                                               def: false },
+  { id: "org.gnome.DejaDup",                           cat: "gnome",    label: "Deja Dup",            note: "Backups",                                        def: false },
+  { id: "org.gnome.SimpleScan",                        cat: "gnome",    label: "Document Scanner",    note: "simple-scan",                                    def: false },
+  { id: "org.gnome.seahorse.Application",              cat: "gnome",    label: "Passwords and Keys",  note: "seahorse",                                       def: false },
+  { id: "org.gnome.Boxes",                             cat: "gnome",    label: "Boxes",               note: "Lightweight VMs (alt to virt-manager)",          def: false },
+  // ── Alternatives mentioned in user-preferences.md (default-OFF) ──
+  { id: "org.mozilla.firefox",                         cat: "other",    label: "Firefox",             note: "Alternative browser",                            def: false },
+  { id: "com.spotify.Client",                          cat: "other",    label: "Spotify",             note: "Music streaming",                                def: false },
+];
+
+const FLATPAK_CATEGORY_LABELS = {
+  session: "Default session apps (pre-selected)",
+  appmgmt: "App management / Flatpak tooling (pre-selected)",
+  virt:    "Virtualization GUIs (pre-selected)",
+  gaming:  "Gaming (opt-in)",
+  gnome:   "GNOME core apps (opt-in)",
+  other:   "Alternatives (opt-in)"
+};
+const FLATPAK_CATEGORY_ORDER = ["session", "appmgmt", "virt", "gaming", "gnome", "other"];
+
 function parseToml(text) {
-  // Returns: { sections: { 'identity': {username:'...'}, ... }, lines: [...] }
-  // lines is the original text split into rows so we can re-emit comments.
+  // Returns: { 'identity': {username:'...'}, ..., 'desktop': {flatpaks: [...]}, ... }
+  // Handles single-line and multi-line arrays (the canonical mios.toml uses
+  // multi-line arrays for [desktop].flatpaks).
   const sections = {};
   let current = "";
-  text.split(/\r?\n/).forEach(raw => {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) return;
+  const rows = text.split(/\r?\n/);
+  let i = 0;
+  while (i < rows.length) {
+    const line = rows[i].trim();
+    if (!line || line.startsWith("#")) { i++; continue; }
     const sec = line.match(/^\[([^\]]+)\]\s*$/);
-    if (sec) { current = sec[1]; sections[current] = sections[current] || {}; return; }
-    const kv = line.match(/^([A-Za-z0-9_.\-]+)\s*=\s*(.+?)\s*(?:#.*)?$/);
-    if (!kv) return;
-    const k = kv[1], v = kv[2];
+    if (sec) { current = sec[1]; sections[current] = sections[current] || {}; i++; continue; }
+    const kv = line.match(/^([A-Za-z0-9_.\-]+)\s*=\s*(.*?)\s*$/);
+    if (!kv) { i++; continue; }
+    const k = kv[1];
+    let v = kv[2].replace(/\s*#.*$/, "").trim();
+    // Multi-line array detection: opens with [ but doesn't close on same line.
+    if (v.startsWith("[") && !/\]\s*$/.test(v)) {
+      let buf = v;
+      i++;
+      while (i < rows.length) {
+        const nl = rows[i].replace(/\s*#.*$/, "").trim();
+        buf += " " + nl;
+        if (/\]\s*$/.test(nl)) break;
+        i++;
+      }
+      v = buf;
+    }
     sections[current] = sections[current] || {};
     sections[current][k] = parseTomlValue(v);
-  });
+    i++;
+  }
   return sections;
 }
 
@@ -265,7 +380,14 @@ function emitToml(sections) {
 function emitTomlValue(v) {
   if (typeof v === "boolean") return v ? "true" : "false";
   if (typeof v === "number")  return String(v);
-  if (Array.isArray(v))       return "[" + v.map(s => `"${String(s).replace(/"/g, '\\"')}"`).join(", ") + "]";
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "[]";
+    const items = v.map(s => `"${String(s).replace(/"/g, '\\"')}"`);
+    // Inline for short arrays (groups, small sets); multi-line for long
+    // arrays (desktop.flatpaks) so the saved TOML stays human-readable.
+    if (v.length <= 4) return "[" + items.join(", ") + "]";
+    return "[\n    " + items.join(",\n    ") + ",\n]";
+  }
   return `"${String(v).replace(/"/g, '\\"')}"`;
 }
 
@@ -311,7 +433,69 @@ function refreshFromData() {
       renderRaw();
     });
   }
+  // Flatpak checkboxes
+  renderFlatpaks();
   renderRaw();
+}
+
+function renderFlatpaks() {
+  const grid = document.getElementById("flatpak-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  // Selected set: from DATA if a file was loaded, otherwise the catalog's
+  // 'def' (minimal pre-selected). DATA wins over catalog defaults so a
+  // saved override fully controls the resulting list.
+  const stored = DATA.desktop?.flatpaks;
+  const selected = new Set(
+    Array.isArray(stored)
+      ? stored
+      : FLATPAKS.filter(f => f.def).map(f => f.id)
+  );
+  // Persist the resolved selection back into DATA so renderRaw reflects it
+  // even before the operator toggles anything.
+  DATA.desktop = DATA.desktop || {};
+  DATA.desktop.flatpaks = [...selected];
+
+  // Group by category, render headers + rows
+  const grouped = {};
+  for (const fp of FLATPAKS) (grouped[fp.cat] = grouped[fp.cat] || []).push(fp);
+
+  for (const cat of FLATPAK_CATEGORY_ORDER) {
+    if (!grouped[cat]) continue;
+    const header = document.createElement("div");
+    header.style.cssText = "grid-column: 1 / -1; color: var(--accent); font-weight: 600; margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;";
+    header.textContent = FLATPAK_CATEGORY_LABELS[cat] || cat;
+    grid.appendChild(header);
+    for (const fp of grouped[cat]) {
+      const id = `fp-${fp.id.replace(/[^A-Za-z0-9]/g, "-")}`;
+      const row = document.createElement("div");
+      row.className = "checkbox-row";
+      const note = fp.note ? `<span style="color: var(--muted); font-size: 11px;"> -- ${fp.note}</span>` : "";
+      row.innerHTML =
+        `<input type="checkbox" id="${id}" ${selected.has(fp.id) ? "checked" : ""}>` +
+        `<label for="${id}" title="${fp.id}"><b>${fp.label}</b>${note}<br>` +
+        `<code style="font-size: 11px; color: var(--muted);">${fp.id}</code></label>`;
+      grid.appendChild(row);
+      row.querySelector("input").addEventListener("change", e => {
+        const set = new Set(DATA.desktop?.flatpaks || []);
+        if (e.target.checked) set.add(fp.id);
+        else                  set.delete(fp.id);
+        DATA.desktop = DATA.desktop || {};
+        DATA.desktop.flatpaks = [...set];
+        updateFlatpakCount();
+        renderRaw();
+      });
+    }
+  }
+  updateFlatpakCount();
+}
+
+function updateFlatpakCount() {
+  const el = document.getElementById("f-flatpak-count");
+  if (!el) return;
+  const n = (DATA.desktop?.flatpaks || []).length;
+  const min = FLATPAKS.filter(f => f.def).length;
+  el.textContent = `(${n} selected; ${min} minimal default)`;
 }
 
 function gatherFromForm() {
@@ -384,6 +568,24 @@ api_key      = ""
 ref    = "ghcr.io/mios-dev/mios:latest"
 branch = "main"
 base   = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+
+[desktop]
+session       = "gnome"
+color_scheme  = "prefer-dark"
+# Minimal pre-selected Flatpaks baked into the image. The configurator
+# above lets the operator add more from the full FLATPAKS catalog;
+# saving the file as /etc/mios/mios.toml or ~/.config/mios/mios.toml
+# overrides this set via the layered resolver.
+flatpaks      = [
+    "org.gnome.Epiphany",
+    "org.gnome.Ptyxis",
+    "org.gnome.Nautilus",
+    "io.github.kolunmi.Bazaar",
+    "com.github.tchx84.Flatseal",
+    "com.mattjakeman.ExtensionManager",
+    "org.virt_manager.Manager",
+    "org.remmina.Remmina",
+]
 `.trim();
 
 // ── File handle (File System Access API) ─────────────────────────

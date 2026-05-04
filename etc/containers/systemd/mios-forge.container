@@ -24,8 +24,11 @@ ConditionVirtualization=!container
 Image=codeberg.org/forgejo/forgejo:11
 ContainerName=mios-forge
 Network=mios.network
-PublishPort=3000:3000      # web UI; reverse-proxy via Cockpit/Caddy if desired
-PublishPort=2222:22        # git+ssh; non-22 to coexist with sshd
+# 3000 = web UI (reverse-proxy via Cockpit/Caddy if desired).
+# 2222 = git+ssh, mapped to container :22; non-22 host port so sshd
+# (also on :22) and the forge's git transport coexist on the same host.
+PublishPort=3000:3000
+PublishPort=2222:22
 
 # OCI image labels surfaced in Podman Desktop's container detail panel.
 # org.opencontainers.image.url is rendered as a clickable "open" link

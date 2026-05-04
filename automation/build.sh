@@ -203,6 +203,7 @@ NON_FATAL_SCRIPTS="
   38-vm-gating.sh
   44-podman-machine-compat.sh
   50-enable-log-copy-service.sh
+  91-strip-build-toolchain.sh
 "
 
 # Count total runnable scripts

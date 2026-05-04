@@ -25,6 +25,13 @@
 !/.env.mios
 !/.github/
 !/.github/**
+# Forgejo Actions workflows (consumed by mios-forgejo-runner Quadlet
+# inside the closed self-replication loop). Forgejo Runner accepts
+# both .forgejo/workflows/ and .github/workflows/; the .forgejo/ path
+# is canonical for self-hosted-only workflows that shouldn't leak to
+# GHCR-side CI.
+!/.forgejo/
+!/.forgejo/**
 !/AGENTS.md
 !/AGREEMENTS.md
 !/AI.md
@@ -304,6 +311,8 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/mios-*.service
 !/usr/lib/systemd/system/mios-*.timer
 !/usr/lib/systemd/system/mios-*.target
+!/usr/lib/systemd/system/mios-*.path
+!/usr/lib/systemd/system/mios-*.socket
 !/usr/lib/systemd/system/var-*.mount
 !/usr/lib/systemd/system/*.service.d/
 !/usr/lib/systemd/system/*.service.d/**
@@ -378,6 +387,18 @@ opt/*
 opt/mios/*
 !/opt/mios/prompts/
 !/opt/mios/prompts/**
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9f. /var/lib/mios -- exclude runtime state written by services after boot.
+# These files are operationally produced (firstboot sentinels, build-output
+# pointers, switch history) and MUST NOT round-trip through `git push`.
+# Whitelisted directories are still tracked; only specific runtime files
+# are excluded.
+# ─────────────────────────────────────────────────────────────────────────────
+var/lib/mios/forge/.firstboot-done
+var/lib/mios/forge-runner/
+var/lib/mios/bootc-switch-history.tsv
+var/lib/mios/.wsl-firstboot-done
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 10. SAFETY OVERRIDES -- sensitive, volatile, or OS-managed files

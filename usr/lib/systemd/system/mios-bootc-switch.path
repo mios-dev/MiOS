@@ -1,0 +1,17 @@
+# /usr/lib/systemd/system/mios-bootc-switch.path
+# Watches the build-output sentinel that the Forgejo Runner workflow
+# writes after a successful `podman build`. PathChanged fires on
+# either creation or modification, so re-running the workflow with
+# the same image ref still triggers a re-stage (bootc switch is
+# idempotent on identical refs -- this is fine).
+
+[Unit]
+Description='MiOS' watch for Forgejo Runner build output -> bootc switch
+Documentation=file:///usr/libexec/mios/bootc-switch-from-build.sh
+
+[Path]
+PathChanged=/var/lib/mios/forge-runner/last-build.txt
+Unit=mios-bootc-switch.service
+
+[Install]
+WantedBy=multi-user.target

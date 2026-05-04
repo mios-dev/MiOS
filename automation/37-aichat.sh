@@ -1,12 +1,20 @@
 #!/bin/bash
 # 37-aichat: Install AIChat and AIChat-NG Rust CLI tools
+#
+# OPEN TASK (project invariant: VM | Container | Flatpak only):
+# These are user-facing AI CLI applications. Per the project-wide
+# delivery rule, they should run inside a Distrobox container, not
+# directly on the host. The current /usr/bin install is transitional;
+# the migration is to package them as a Distrobox container with
+# wrapper scripts in /usr/bin that exec into the container. See
+# usr/share/mios/PACKAGES.md > "AI Tools" section for context.
 set -euo pipefail
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-echo "[37-aichat] Installing AI-related packages (redis, sqlite)..."
+echo "[37-aichat] Resolving 'ai' package block (currently empty -- aichat/aichat-ng ship as tarballs, not RPMs)..."
 install_packages "ai"
 
 echo "[37-aichat] Installing AIChat and AIChat-NG binaries..."
