@@ -218,43 +218,14 @@ print_loop_hint() {
         "$C_GRY" "$MIOS_LINUX_USER" "$MIOS_LINUX_USER" "$C_R"
 }
 
-print_flatpaks() {
-    if ! command -v flatpak >/dev/null 2>&1; then
-        return 0
-    fi
-    section_header "Flatpaks (system-wide; baked at build time)"
-    # Count first so we can show a single line if empty.
-    local total
-    total=$(flatpak list --system --app --columns=application 2>/dev/null | wc -l)
-    if [[ "$total" -eq 0 ]]; then
-        printf '    %s(no flatpaks installed; check mios.toml [desktop].flatpaks)%s\n' "$C_GRY" "$C_R"
-        return 0
-    fi
-    printf '    %s%d application(s) installed:%s\n' "$C_D" "$total" "$C_R"
-    # First N lines visible; tail collapses to "+N more". Output sorted
-    # so re-runs are idempotent visually.
-    local shown=12
-    flatpak list --system --app --columns=application,version,branch 2>/dev/null \
-        | sort \
-        | head -n "$shown" \
-        | while IFS=$'\t' read -r appid version branch; do
-            [[ -z "$appid" ]] && continue
-            printf '    %s%s%s  %s%-38s%s  %s%s%s  %s%s%s\n' \
-                "$C_GRN" "$DOT_UP" "$C_R" \
-                "$C_D"  "$appid"   "$C_R" \
-                "$C_GRY" "${version:--}" "$C_R" \
-                "$C_GRY" "${branch:--}"  "$C_R"
-        done
-    if [[ "$total" -gt "$shown" ]]; then
-        printf '    %s+ %d more  (run `flatpak list --app` to see all)%s\n' \
-            "$C_GRY" "$((total - shown))" "$C_R"
-    fi
-}
-
 print_services_block() {
+    # NOTE: flatpaks panel removed -- the count now lives in fastfetch's
+    # `Packages` line (e.g. "Packages  1437 (rpm), 10 (flatpak)") which
+    # fastfetch emits natively when both backends are present. Operators
+    # who want the per-app rollup run `flatpak list --system --app`
+    # directly. See /usr/bin/mios-flatpaks for the wrapper.
     print_endpoints
     print_quadlets
-    print_flatpaks
     print_git_state
 }
 

@@ -12,6 +12,7 @@ echo "[36-tools] Configuring 'MiOS' CLI tools..."
 
 TOOLS=(
     mios
+    mios-dash
     mios-env
     mios-sync-env
     mios-update
