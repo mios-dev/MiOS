@@ -12,8 +12,14 @@
 [Unit]
 Description='MiOS' dashboard -> /etc/issue.d (pre-login banner)
 Documentation=file:///usr/libexec/mios/mios-dashboard-render-issue.sh
-After=multi-user.target console-login-helper-messages.service
-Before=getty.target serial-getty@.service getty@.service
+# DO NOT use Before=getty.target -- getty.target is WantedBy=multi-user.target,
+# so combining After=multi-user.target with Before=getty.target creates an
+# ordering cycle:
+#   multi-user.target -> mios-dashboard-issue -> getty.target -> multi-user.target
+# systemd breaks the cycle by deleting getty.target's start job, which means
+# NO console getty spawns at boot. The 2-minute OnBootSec timer + getty's
+# Restart=always pick up the issue.d snippet within minutes of boot anyway.
+After=local-fs.target console-login-helper-messages.service
 ConditionPathExists=/usr/libexec/mios/mios-dashboard-render-issue.sh
 
 [Service]

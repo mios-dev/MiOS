@@ -186,29 +186,30 @@ print_loop_hint() {
         "$C_GRY" "$MIOS_LINUX_USER" "$MIOS_LINUX_USER" "$C_R"
 }
 
-print_services() {
+print_services_block() {
     print_endpoints
     print_quadlets
     print_git_state
-    print_loop_hint
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 case "$MODE" in
     services-only)
-        print_services
+        # Used by fastfetch as a custom command-module embedded inside its
+        # column layout, AND by mios-dashboard-render-issue.sh writing to
+        # /etc/issue.d. Both contexts want the services block ALONE, no
+        # loop hint -- the wrapper that called us prints the hint itself.
+        print_services_block
         ;;
     *)
+        # Default: header -> fastfetch (system info ONLY, no MiOS module
+        # because side-by-side multi-line text bleeds into the ASCII logo
+        # column) -> services block -> loop hint.
         printf '\n  %s%sMiOS%s %sv%s%s  %s%s%s\n' \
             "$C_B" "$C_CYN" "$C_R" "$C_D" "$MIOS_VERSION" "$C_R" \
             "$C_GRY" "$(uname -srm)" "$C_R"
         hr_line 79
 
-        # Fastfetch sits between the header and the services block.
-        # Use the MiOS-themed config when present; fall back to its
-        # default when fastfetch can't find ours (e.g. fresh image
-        # before tmpfiles ran). Suppress fastfetch errors -- never
-        # block the dashboard on a fastfetch hiccup.
         if command -v fastfetch >/dev/null 2>&1; then
             local_cfg=/usr/share/mios/fastfetch/config.jsonc
             if [[ -r "$local_cfg" ]]; then
@@ -216,16 +217,10 @@ case "$MODE" in
             else
                 fastfetch 2>/dev/null || true
             fi
-        else
-            print_services
-            exit 0
         fi
-        # When fastfetch's custom MiOS module printed the services
-        # block, skip the second copy. Detect by checking whether the
-        # config exists -- if not, fastfetch won't have shown it.
-        if [[ ! -r /usr/share/mios/fastfetch/config.jsonc ]]; then
-            print_services
-        fi
+        # Services block always renders below fastfetch (or alone if
+        # fastfetch is absent). Full-width, no column collision.
+        print_services_block
         print_loop_hint
         ;;
 esac

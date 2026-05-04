@@ -1,11 +1,14 @@
 {
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
 
-  // MiOS fastfetch config -- standard system info + a custom MiOS module
-  // that shells out to /usr/libexec/mios/mios-dashboard.sh in
-  // --services-only mode so the self-replication-loop status (Forge / AI /
-  // Cockpit / Ollama / Quadlet rollup / git working tree state) sits
-  // inline with the other fastfetch modules.
+  // MiOS fastfetch config -- standard system info ONLY. The MiOS
+  // dashboard's services block (self-replication loop + Quadlet rollup
+  // + git state) is printed AFTER fastfetch returns, full-width, by
+  // mios-dashboard.sh's default mode. An earlier iteration embedded
+  // the services block as a fastfetch custom command-module, but
+  // fastfetch's column layout made multi-line module output bleed
+  // into the ASCII logo column on the right; rendering the block
+  // separately below fastfetch keeps both surfaces clean.
   //
   // Invoked from:
   //   /etc/profile.d/zz-mios-motd.sh  -> /usr/libexec/mios/mios-dashboard.sh -> fastfetch -c <this>
@@ -33,14 +36,6 @@
     { "type": "swap",     "key": "Swap" },
     { "type": "disk",     "key": "Disk" },
     { "type": "localip",  "key": "Local IP" },
-    { "type": "locale",   "key": "Locale" },
-    "break",
-    {
-      "type": "command",
-      "shell": "/bin/bash",
-      "key": "MiOS",
-      "keyColor": "blue",
-      "text": "/usr/libexec/mios/mios-dashboard.sh --services-only"
-    }
+    { "type": "locale",   "key": "Locale" }
   ]
 }
