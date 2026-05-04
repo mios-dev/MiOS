@@ -176,13 +176,33 @@ print_git_state() {
             "$C_D" "$MIOS_LINUX_USER" "$MIOS_LINUX_USER" "$C_R"
         return
     fi
-    local branch ahead behind modified untracked staged
+    local branch ahead behind modified untracked staged porcelain
     branch="$(git -C / symbolic-ref --short HEAD 2>/dev/null || echo "(detached)")"
-    ahead="$(git -C / rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo "?")"
-    behind="$(git -C / rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo "?")"
-    modified="$(git -C / status --porcelain=v1 2>/dev/null | grep -cE '^.M' || echo 0)"
-    staged="$(git -C / status --porcelain=v1 2>/dev/null | grep -cE '^M.|^A.' || echo 0)"
-    untracked="$(git -C / status --porcelain=v1 2>/dev/null | grep -cE '^\?\?' || echo 0)"
+    # `git rev-list @{upstream}..HEAD` errors when no upstream tracking
+    # branch is set. We try the explicit `origin/<branch>` form first;
+    # if that ref also doesn't exist, show "?". The previous `|| echo "?"`
+    # path returned the literal string but ALSO the partial number from
+    # rev-list's stderr leak in some shells.
+    if git -C / show-ref --verify --quiet "refs/remotes/origin/$branch" 2>/dev/null; then
+        ahead="$(git -C / rev-list --count "origin/${branch}..HEAD" 2>/dev/null || echo "?")"
+        behind="$(git -C / rev-list --count "HEAD..origin/${branch}" 2>/dev/null || echo "?")"
+    else
+        ahead="?"; behind="?"
+    fi
+    # `grep -c` exits 1 when match count is 0 -- which fires `|| echo 0`,
+    # producing the literal string "0\n0" in the captured value (one 0
+    # from grep's count, one from the fallback echo). Pipe the output
+    # through `wc -l` instead so the count is always an integer with a
+    # well-defined exit status.
+    porcelain="$(git -C / status --porcelain=v1 2>/dev/null)"
+    modified="$(printf '%s\n' "$porcelain"  | grep -cE '^.M'   2>/dev/null; true)"
+    staged="$(printf '%s\n'   "$porcelain"  | grep -cE '^[MA]' 2>/dev/null; true)"
+    untracked="$(printf '%s\n' "$porcelain" | grep -cE '^\?\?' 2>/dev/null; true)"
+    # Strip any trailing newline (grep -c only ever emits one int) so
+    # the dashboard formatting doesn't break a row across two lines.
+    modified="${modified%%[!0-9]*}"; modified="${modified:-0}"
+    staged="${staged%%[!0-9]*}";     staged="${staged:-0}"
+    untracked="${untracked%%[!0-9]*}"; untracked="${untracked:-0}"
     printf '    %sbranch%s     %s%s%s\n' "$C_D" "$C_R" "$C_B" "$branch" "$C_R"
     printf '    %sahead%s      %s%s%s\n' "$C_D" "$C_R" "$C_GRN" "$ahead" "$C_R"
     printf '    %sbehind%s     %s%s%s\n' "$C_D" "$C_R" "$C_YLW" "$behind" "$C_R"
