@@ -20,10 +20,16 @@
 [ -n "${PS1:-}" ] || return 0
 [ -t 0 ] && [ -t 1 ] || return 0
 
-OMP_BIN="/usr/libexec/mios/oh-my-posh/oh-my-posh"
+# Resolve the binary via PATH (canonical /usr/bin/oh-my-posh after the
+# 2026-05 path-unification commit) with a fallback to the older
+# /usr/libexec location for hosts that haven't pulled the new image
+# yet. Either path being -x is enough.
+OMP_BIN="$(command -v oh-my-posh 2>/dev/null)"
+[ -z "$OMP_BIN" ] && [ -x /usr/libexec/mios/oh-my-posh/oh-my-posh ] \
+    && OMP_BIN=/usr/libexec/mios/oh-my-posh/oh-my-posh
 OMP_THEME="/usr/share/mios/oh-my-posh/mios.omp.json"
 
-if [ -x "$OMP_BIN" ] && [ -r "$OMP_THEME" ]; then
+if [ -n "$OMP_BIN" ] && [ -x "$OMP_BIN" ] && [ -r "$OMP_THEME" ]; then
     if [ -n "${BASH_VERSION:-}" ]; then
         eval "$("$OMP_BIN" init bash --config="$OMP_THEME")"
     elif [ -n "${ZSH_VERSION:-}" ]; then

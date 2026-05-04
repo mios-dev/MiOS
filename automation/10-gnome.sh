@@ -45,48 +45,13 @@ echo "[10-gnome] Disabling localsearch/tracker indexing (keep package, hide auto
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Setting Qt Adwaita environment variables (managed via overlay)..."
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Geist Font (Vercel)
-# ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Installing Geist font family..."
-mkdir -p /usr/share/fonts/geist
-git clone --depth=1 --single-branch -c http.lowSpeedLimit=1 -c http.lowSpeedTime=20 \
-    https://github.com/vercel/geist-font.git /tmp/geist-font 2>/dev/null || true
-if [ -d /tmp/geist-font ]; then
-    find /tmp/geist-font \( -name "*.otf" -o -name "*.ttf" \) -exec cp {} /usr/share/fonts/geist/ \; 2>/dev/null || true
-    rm -rf /tmp/geist-font
-fi
-fc-cache -f /usr/share/fonts/geist 2>/dev/null || true
-
-# ═════════════════════════════════════════════════════════════════════════════
-# Symbols-Only Nerd Font (icon-glyph fallback for Geist Mono)
-# ═════════════════════════════════════════════════════════════════════════════
-# Vercel's Geist Mono is a clean monospace; it does NOT carry the
-# Powerline (E0xx), Devicon (E7xx), Material (F0xxx), or Octicon
-# private-use-area ranges that the Oh-My-Posh prompt theme
-# (usr/share/mios/oh-my-posh/mios.omp.json) and other MiOS UI surfaces
-# reference. Patching Geist with Nerd-Font glyphs creates a derivative
-# work; pulling Symbols-Only-Nerd-Font as a SEPARATE family and using
-# fontconfig per-glyph fallback (usr/share/fontconfig/conf.avail/
-# 30-mios-geist.conf) keeps Geist's letterforms for text while the
-# missing icon glyphs resolve through the symbols font transparently.
-echo "[10-gnome] Installing Symbols-Only Nerd Font (icon fallback for Geist Mono)..."
-mkdir -p /usr/share/fonts/nerd-symbols
-NERD_TAG=$( (scurl -s https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest \
-            | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
-if [ -n "$NERD_TAG" ] && command -v unzip >/dev/null 2>&1; then
-    NERD_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/NerdFontsSymbolsOnly.zip"
-    if scurl -fsL --max-time 90 "$NERD_URL" -o /tmp/nerd-symbols.zip 2>/dev/null; then
-        unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
-        rm -f /tmp/nerd-symbols.zip
-        fc-cache -f /usr/share/fonts/nerd-symbols 2>/dev/null || true
-        echo "[10-gnome] Symbols-Only Nerd Font ${NERD_TAG} installed"
-    else
-        echo "[10-gnome] WARN: Symbols-Only Nerd Font download failed -- prompt icons will render as missing-glyph squares" >&2
-    fi
-else
-    echo "[10-gnome] WARN: Nerd Fonts release-tag lookup or unzip unavailable -- skipping symbols font" >&2
-fi
+# Geist + Symbols-Only Nerd Font now install via automation/09-fonts.sh
+# UNCONDITIONALLY (BEFORE this script runs). The font fetch was moved
+# out of 10-gnome.sh because headless deployments and the Windows-side
+# MiOS-DEV podman backend (which excludes the gnome section in
+# [packages.dev_overlay].sections) need the same Geist + Nerd glyphs
+# for the dashboard + oh-my-posh prompt to render correctly. See
+# automation/09-fonts.sh for the canonical fetch.
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Bibata Cursor Theme -- MANDATORY (build fails if download fails)
