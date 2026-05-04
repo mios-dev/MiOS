@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# mios-ollama -- thin wrapper around the upstream `ollama` CLI that
+# pins OLLAMA_HOST to the locally-running Ollama Quadlet
+# (usr/share/containers/systemd/ollama.container, port 11434), so
+# `ollama list / pull / run / rm` Just Work from any host shell --
+# including Ptyxis flatpak's `flatpak-spawn --host bash` session,
+# the MiOS-DEV WSLg-routed terminal, or a plain TTY on a deployed
+# MiOS host.
+#
+#   mios-ollama                  list installed models
+#   mios-ollama run <model>      interactive chat (upstream UX)
+#   mios-ollama pull <model>     download a model
+#   mios-ollama rm <model>       delete a model
+#   mios-ollama serve            (don't -- the Quadlet does this)
+#   mios-ollama chat "<prompt>"  one-shot prompt via OpenAI-compat
+#                                /v1/chat/completions; routes through
+#                                /usr/bin/mios with MIOS_AI_ENDPOINT
+#                                pointed at Ollama (:11434/v1) and
+#                                falls back to streaming raw curl
+#                                when the openai SDK is unavailable
+#
+# Env overrides:
+#   OLLAMA_HOST       default http://localhost:11434
+#   OLLAMA_API_BASE   default http://localhost:11434/v1 (OpenAI-compat)
+#   MIOS_AI_MODEL     default qwen2.5-coder:7b
+#
+# Note: per Architectural Law 5, the canonical agent surface is
+# MIOS_AI_ENDPOINT (LocalAI on :8080). This wrapper is for operators
+# who want to drive Ollama directly without changing global env.
+set -euo pipefail
+
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+OLLAMA_API_BASE="${OLLAMA_API_BASE:-${OLLAMA_HOST%/}/v1}"
+MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
+export OLLAMA_HOST
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    sed -n '2,28p' "$0" | sed 's/^# \?//'
+    exit 0
+fi
+
+# `mios-ollama chat "<prompt>"` routes through the canonical mios CLI
+# but pins MIOS_AI_ENDPOINT/KEY at Ollama. Streams + tool-calls work
+# the same way; the local model just happens to be served by Ollama.
+if [[ "${1:-}" == "chat" ]]; then
+    shift
+    if [[ -x /usr/bin/mios ]]; then
+        exec env \
+            MIOS_AI_ENDPOINT="$OLLAMA_API_BASE" \
+            MIOS_AI_MODEL="$MIOS_AI_MODEL" \
+            MIOS_AI_KEY="${MIOS_AI_KEY:-sk-noop}" \
+            /usr/bin/mios "$@"
+    fi
+    # Fallback: openai SDK / mios CLI not available -- raw curl streaming.
+    # Useful in minimal images that haven't pulled python3-openai yet.
+    if [[ $# -eq 0 ]]; then echo "mios-ollama chat <prompt>" >&2; exit 2; fi
+    body=$(jq -n \
+        --arg model   "$MIOS_AI_MODEL" \
+        --arg content "$*" \
+        '{model:$model, stream:true, messages:[{role:"user",content:$content}]}')
+    curl -sNH "Content-Type: application/json" -d "$body" \
+        "$OLLAMA_API_BASE/chat/completions" \
+        | sed -nE 's/^data: //p' \
+        | jq -j 'select(. != "[DONE]") | .choices[0].delta.content // empty'
+    echo
+    exit 0
+fi
+
+# Anything else: delegate to the upstream `ollama` CLI verbatim.
+if ! command -v ollama >/dev/null 2>&1; then
+    echo "mios-ollama: /usr/bin/ollama not found -- check 37-ollama-prep.sh ran" >&2
+    exit 127
+fi
+exec /usr/bin/ollama "$@"

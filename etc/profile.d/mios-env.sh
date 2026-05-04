@@ -73,6 +73,18 @@ export MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
 export MIOS_AI_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
 export MIOS_AI_KEY="${MIOS_AI_KEY:-}"
 
+# Ollama-specific bind. /usr/bin/ollama (upstream CLI) reads OLLAMA_HOST
+# to find the API server. The MiOS Ollama Quadlet
+# (usr/share/containers/systemd/ollama.container) publishes 0.0.0.0:11434
+# on the host, so any host-side shell -- including Ptyxis flatpak's
+# default `flatpak-spawn --host bash` session -- talks to it via this
+# env. Set explicitly here so `ollama list` / `ollama run <model>` work
+# without arguments out of the box. Architectural Law 5 still has the
+# canonical OpenAI surface at MIOS_AI_ENDPOINT (LocalAI on :8080);
+# Ollama's OpenAI-compatible endpoint at localhost:11434/v1 is reached
+# via the mios-ollama wrapper or by overriding MIOS_AI_ENDPOINT.
+export OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+
 # Identity surface (consumed by 'mios' CLI, ai-bootstrap, postcheck).
 export MIOS_USER="${MIOS_USER:-${MIOS_DEFAULT_USER:-mios}}"
 export MIOS_HOSTNAME="${MIOS_HOSTNAME:-${MIOS_DEFAULT_HOST:-mios}}"

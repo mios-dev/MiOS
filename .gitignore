@@ -173,6 +173,8 @@ usr/bin/*
 # iommu-groups doesn't carry the mios- prefix (it's the canonical Linux
 # verb name) but ships alongside mios-vfio-* as part of the MiOS CLI.
 !/usr/bin/iommu-groups
+# (mios-ollama is an OpenAI-compat wrapper around upstream `ollama`;
+# matches the !/usr/bin/mios-* pattern above but listed for clarity.)
 
 # usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*

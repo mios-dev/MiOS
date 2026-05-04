@@ -22,6 +22,7 @@ TOOLS=(
     mios-status
     mios-vfio-toggle
     mios-vfio-check
+    mios-ollama
     iommu-groups
 )
 # Note: aichat / aichat-ng are installed by 37-aichat.sh (which fetches
