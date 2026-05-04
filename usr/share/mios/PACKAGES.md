@@ -241,7 +241,7 @@ adw-gtk3-theme
 
 The MiOS-DEV podman backend (Windows-side) does not host its own
 GNOME session -- WSLg is the Windows compositor and operators see
-Flatpaks (Ptyxis terminal, Nautilus file manager, Bazaar app store,
+Flatpaks (Ptyxis terminal, Nautilus file manager, Software app store,
 Epiphany browser, Flatseal permissions UI) as Windows windows routed
 through the WSLg portal. Those Flatpaks ship their own GTK/libadwaita
 via `org.gnome.Platform`, but they still need a **host portal +
@@ -271,7 +271,7 @@ wireplumber
 gstreamer1
 gstreamer1-plugins-base
 gstreamer1-plugins-good
-# ── GVFS: lets Nautilus / Bazaar / Ptyxis traverse SMB / MTP /
+# ── GVFS: lets Nautilus / Software / Ptyxis traverse SMB / MTP /
 #    other backend filesystems via the host ──
 gvfs
 gvfs-smb

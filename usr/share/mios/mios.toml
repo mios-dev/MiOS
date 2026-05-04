@@ -166,8 +166,9 @@ color_scheme  = "prefer-dark"   # libadwaita / dconf color-scheme
 flatpaks      = [
     "org.gnome.Epiphany",
     "com.github.tchx84.Flatseal",
-    "io.github.kolunmi.Bazaar",
+    "org.gnome.Software",
     "com.mattjakeman.ExtensionManager",
+    "com.vscodium.codium",
 ]
 
 # ----------------------------------------------------------------------------
@@ -224,7 +225,7 @@ sections = [
 # MiOS-DEV (podman-WSL2 backend on Windows) minimal-but-complete:
 # every operator/dev/security daemon + the GPU CDI plumbing for /dev/dxg
 # + the GNOME Flatpak runtime (portals/audio/theming) so the GNOME
-# Flatpaks (Ptyxis, Nautilus, Bazaar, Epiphany, Flatseal) routed through
+# Flatpaks (Ptyxis, Nautilus, Software, Epiphany, Flatseal) routed through
 # WSLg can render with file dialogs / audio / Adwaita theming intact.
 # NO full GNOME session (no gnome-shell / GDM / control-center) -- the
 # dev VM is a podman backend, not a workstation; the Windows compositor

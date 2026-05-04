@@ -60,8 +60,9 @@ color_scheme  = "prefer-dark"
 flatpaks      = [
     "org.gnome.Epiphany",
     "com.github.tchx84.Flatseal",
-    "io.github.kolunmi.Bazaar",
+    "org.gnome.Software",
     "com.mattjakeman.ExtensionManager",
+    "com.vscodium.codium",
 ]
 
 [image]

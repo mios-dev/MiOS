@@ -366,6 +366,8 @@ const FLATPAKS = [
   { id: "org.gnome.Software",                          cat: "appmgmt",  label: "GNOME Software",      note: "Native GNOME app store (Flatpak frontend)",       def: true },
   { id: "com.github.tchx84.Flatseal",                  cat: "appmgmt",  label: "Flatseal",            note: "Flatpak permissions UI",                         def: true },
   { id: "com.mattjakeman.ExtensionManager",            cat: "appmgmt",  label: "Extension Manager",   note: "GNOME Shell extensions (replaces gnome-tweaks)", def: true },
+  // ── Developer (pre-selected; the only IDE MiOS ships globally) ──
+  { id: "com.vscodium.codium",                         cat: "dev",      label: "VSCodium",            note: "FOSS rebuild of VS Code (replaces VSCodium RPM)", def: true },
   // ── Virtualization GUIs (pre-selected; libvirt/qemu daemons stay as RPM) ──
   { id: "org.virt_manager.Manager",                    cat: "virt",     label: "virt-manager",        note: "VM manager GUI (replaces RPM)",                  def: true },
   { id: "org.remmina.Remmina",                         cat: "virt",     label: "Remmina",             note: "RDP/SPICE/VNC viewer (replaces virt-viewer RPM)", def: true },
@@ -411,12 +413,13 @@ const FLATPAKS = [
 const FLATPAK_CATEGORY_LABELS = {
   session: "Default session apps (pre-selected)",
   appmgmt: "App management / Flatpak tooling (pre-selected)",
+  dev:     "Developer (pre-selected)",
   virt:    "Virtualization GUIs (pre-selected)",
   gaming:  "Gaming (opt-in)",
   gnome:   "GNOME core apps (opt-in)",
   other:   "Alternatives (opt-in)"
 };
-const FLATPAK_CATEGORY_ORDER = ["session", "appmgmt", "virt", "gaming", "gnome", "other"];
+const FLATPAK_CATEGORY_ORDER = ["session", "appmgmt", "dev", "virt", "gaming", "gnome", "other"];
 
 function parseToml(text) {
   // Returns: { 'identity': {username:'...'}, ..., 'desktop': {flatpaks: [...]}, ... }
@@ -886,7 +889,7 @@ flatpaks      = [
     "org.gnome.Epiphany",
     "org.gnome.Ptyxis",
     "org.gnome.Nautilus",
-    "io.github.kolunmi.Bazaar",
+    "org.gnome.Software",
     "com.github.tchx84.Flatseal",
     "com.mattjakeman.ExtensionManager",
     "org.virt_manager.Manager",
