@@ -651,7 +651,7 @@ if ($script:UnifiedLog -and (Test-Path $script:UnifiedLog)) {
 Write-Phase "3" "Generating Deployment Targets"
 $ErrorActionPreference = "Continue"
 
-# Ensure the BIB output directory exists inside MiOS-BUILDER.
+# Ensure the BIB output directory exists inside MiOS-DEV.
 # podman bind-mounts the host path into the BIB container; the host path
 # must exist before `podman run -v` is called or crun returns ENOENT.
 # Compute the WSL2 Linux equivalent of the Windows $OutputFolder path and

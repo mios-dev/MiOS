@@ -168,6 +168,9 @@ usr/*
 usr/bin/*
 !/usr/bin/mios
 !/usr/bin/mios-*
+# iommu-groups doesn't carry the mios- prefix (it's the canonical Linux
+# verb name) but ships alongside mios-vfio-* as part of the MiOS CLI.
+!/usr/bin/iommu-groups
 
 # usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*

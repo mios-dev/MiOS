@@ -209,7 +209,7 @@ subset. Every URL below is the source-of-truth for the named surface.
 | virtio-win | Windows-guest paravirt drivers | <https://github.com/virtio-win/virtio-win-pkg-automation> |
 | `virt-viewer` / `virt-manager` | VM consoles + GUI | <https://gitlab.com/virt-viewer/virt-viewer> -- <https://virt-manager.org/> |
 | FreeRDP | RDP client used for `cloudws-guacamole` integration | <https://www.freerdp.com/> |
-| Forgejo | Self-hosted Git forge served by `mios-forge.container` (HTTP 3000, git+ssh 2222); SQLite-default; matches MiOS-BUILDER's resource budget without a separate PostgreSQL | <https://forgejo.org/> -- <https://codeberg.org/forgejo/forgejo> -- governance: Codeberg e.V. (German non-profit), GPLv3+ |
+| Forgejo | Self-hosted Git forge served by `mios-forge.container` (HTTP 3000, git+ssh 2222); SQLite-default; matches MiOS-DEV's resource budget without a separate PostgreSQL | <https://forgejo.org/> -- <https://codeberg.org/forgejo/forgejo> -- governance: Codeberg e.V. (German non-profit), GPLv3+ |
 | Forgejo Runner | GitHub-Actions-compatible CI runner that authenticates against `mios-forge` and executes `.github/workflows/` / `.forgejo/workflows/` jobs in ephemeral Podman containers | <https://code.forgejo.org/forgejo/runner> -- <https://forgejo.org/docs/latest/admin/actions/> |
 | ActivityPub / ForgeFed | Federation protocol for Forgejo: cross-instance issue, PR, and star without surrendering source-code custody | <https://www.w3.org/TR/activitypub/> -- <https://forgefed.org/> |
 

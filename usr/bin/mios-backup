@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# mios-backup -- snapshot operator state from a MiOS deployment.
+# Captures the parts of `/` that are NOT trivially reproducible from
+# the OCI image: /etc, /var/lib/mios, /var/lib/forge, /var/log/mios,
+# /home/mios/{.config,.ssh,Documents}. Skips the OCI-managed portions
+# (containers-storage, /usr, /var/cache, etc.) since `bootc rollback`
+# already covers those.
+#
+#   mios-backup                     write tar.zst to /var/lib/mios/backups/
+#   mios-backup --to <path>         write to <path> (single .tar.zst file)
+#   mios-backup --restore <path>    extract a backup over `/` (root + confirm)
+#   mios-backup --list              list backups in /var/lib/mios/backups/
+#
+# Companion to bootc rollback: mios-backup covers user/operator data,
+# bootc rollback covers the OS image.
+set -euo pipefail
+
+BACKUP_DIR="/var/lib/mios/backups"
+INCLUDE=(
+    /etc
+    /var/lib/mios
+    /var/lib/forge
+    /var/log/mios
+    /home/mios/.config
+    /home/mios/.ssh
+    /home/mios/Documents
+    /root/.ssh
+)
+EXCLUDE=(
+    /var/lib/mios/backups
+    /var/lib/mios/cache
+    /var/lib/mios/forge-runner/.cache
+    /etc/.git
+)
+
+build_tar_args() {
+    local args=(--zstd --create --preserve-permissions --acls --xattrs --one-file-system)
+    local p
+    for p in "${EXCLUDE[@]}"; do args+=(--exclude="$p"); done
+    for p in "${INCLUDE[@]}"; do [[ -e "$p" ]] && args+=("$p"); done
+    printf '%s\n' "${args[@]}"
+}
+
+case "${1:-}" in
+    --help|-h)
+        sed -n '2,17p' "$0" | sed 's/^# \?//'
+        exit 0
+        ;;
+    --list)
+        if [[ -d "$BACKUP_DIR" ]]; then
+            ls -lh "$BACKUP_DIR"/*.tar.zst 2>/dev/null || echo "(no backups in $BACKUP_DIR)"
+        else
+            echo "(no $BACKUP_DIR)"
+        fi
+        exit 0
+        ;;
+    --to)
+        out="${2:?--to requires a path}"
+        ;;
+    --restore)
+        src="${2:?--restore requires a backup path}"
+        [[ -r "$src" ]] || { echo "mios-backup: cannot read $src" >&2; exit 1; }
+        if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" --restore "$src"; fi
+        echo "ABOUT TO RESTORE OVER /:"
+        echo "    $src"
+        echo "This overwrites /etc, /var/lib/mios, ~mios/.config (etc.)."
+        read -rp "Type 'restore' to confirm: " ans
+        [[ "$ans" == "restore" ]] || { echo "Aborted."; exit 1; }
+        tar --zstd -xf "$src" -C / --acls --xattrs
+        echo "[mios-backup] restore complete; reboot recommended"
+        exit 0
+        ;;
+    "")
+        if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" "$@"; fi
+        mkdir -p "$BACKUP_DIR"
+        out="${BACKUP_DIR}/mios-backup-$(date +%Y%m%d-%H%M%S).tar.zst"
+        ;;
+    *)
+        echo "mios-backup: unknown flag '$1' (try --help)" >&2
+        exit 2
+        ;;
+esac
+
+if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" --to "$out"; fi
+
+mapfile -t TAR_ARGS < <(build_tar_args)
+echo "[mios-backup] writing $out"
+tar "${TAR_ARGS[@]}" --file="$out"
+size=$(du -h "$out" | awk '{print $1}')
+echo "[mios-backup] done ($size)"

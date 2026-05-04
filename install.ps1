@@ -31,7 +31,7 @@ Remove-Variable _bannerPath -ErrorAction SilentlyContinue
 $Version        = (Get-Content (Join-Path $PSScriptRoot "VERSION") -EA SilentlyContinue)?.Trim() ?? "0.2.2"
 $RepoUrl        = "https://github.com/MiOS-DEV/MiOS.git"
 $BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" }
-$BuilderMachine = "mios-builder"
+$BuilderMachine = "mios-dev"   # canonical lowercase form (was "mios-builder" pre-v0.2.3)
 $ImageName      = "mios"
 $ImageTag       = "latest"
 $LocalImage     = "localhost/${ImageName}:${ImageTag}"
@@ -92,7 +92,7 @@ $script:Phases = @(
     [pscustomobject]@{Id=0;  Name="Hardware + Prerequisites";  State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=1;  Name="Detecting environment";     State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=2;  Name="Directories and repos";     State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
-    [pscustomobject]@{Id=3;  Name="MiOS-BUILDER distro";       State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
+    [pscustomobject]@{Id=3;  Name="MiOS-DEV distro";           State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=4;  Name="WSL2 configuration";        State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=5;  Name="Verifying build context";   State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
     [pscustomobject]@{Id=6;  Name="Identity";                  State="pending"; StartT=$null; ElapsedS=0; InnerStep=0; InnerTotal=0; EstSteps=1}
@@ -420,7 +420,7 @@ Set-Location $RepoDir
 Finish-Phase 2
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  PHASE 3 -- MiOS-BUILDER distro
+#  PHASE 3 -- MiOS-DEV distro (formerly MiOS-BUILDER pre-v0.2.3)
 # ══════════════════════════════════════════════════════════════════════════════
 Start-Phase 3 "Provisioning $BuilderMachine Podman machine..."
 $builderScript = Join-Path $RepoDir "automation\mios-build-builder.ps1"
