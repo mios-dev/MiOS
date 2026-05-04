@@ -1,0 +1,29 @@
+# /usr/lib/systemd/system/mios-dashboard-issue.service
+# Render the MiOS dashboard into /etc/issue.d/30-mios.issue so the
+# system state is shown on every getty BEFORE the login prompt.
+#
+# Runs once at boot (after multi-user.target so all Quadlets have
+# attempted to start) and is also pulled by mios-dashboard-issue.timer
+# every 5 minutes for state freshness.
+#
+# Ordered Before= the getty units so the very first console that
+# opens already has the rendered snippet visible.
+
+[Unit]
+Description='MiOS' dashboard -> /etc/issue.d (pre-login banner)
+Documentation=file:///usr/libexec/mios/mios-dashboard-render-issue.sh
+After=multi-user.target console-login-helper-messages.service
+Before=getty.target serial-getty@.service getty@.service
+ConditionPathExists=/usr/libexec/mios/mios-dashboard-render-issue.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-dashboard-render-issue.sh
+StandardOutput=journal
+StandardError=journal
+# bounded; never block boot
+TimeoutStartSec=15s
+
+[Install]
+WantedBy=multi-user.target

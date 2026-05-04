@@ -28,6 +28,9 @@ enable mios-libvirtd-setup.service
 enable mios-grd-setup.service
 enable systemd-sysext.service
 enable systemd-confext.service
+enable mios-dashboard-issue.service
+enable mios-dashboard-issue.timer
+enable mios-bootc-switch.path
 enable gnome-remote-desktop.service
 enable mios-firstboot.target
 enable greenboot-healthcheck.service

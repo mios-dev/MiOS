@@ -1,0 +1,19 @@
+# /usr/lib/systemd/system/mios-dashboard-issue.timer
+# Refresh the /etc/issue.d/ dashboard snippet every 5 minutes so
+# Quadlet state changes (services flapping, endpoint reachability
+# coming and going) reach the pre-login banner without operator
+# intervention.
+
+[Unit]
+Description='MiOS' dashboard /etc/issue.d refresh timer
+Documentation=file:///usr/libexec/mios/mios-dashboard-render-issue.sh
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=mios-dashboard-issue.service
+Persistent=false
+
+[Install]
+WantedBy=timers.target

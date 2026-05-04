@@ -191,6 +191,12 @@ usr/share/containers/*
 !/usr/share/containers/containers.conf.d/
 !/usr/share/containers/containers.conf.d/**
 
+# MiOS-managed fontconfig drop-ins (Geist Mono primary monospace,
+# Symbols-Only Nerd Font icon-glyph fallback). Symlinked into
+# /etc/fonts/conf.d/ at boot via usr/lib/tmpfiles.d/mios-fontconfig.conf.
+!/usr/share/fontconfig/
+!/usr/share/fontconfig/**
+
 # usr/libexec -- mios/ subdir and mios-* top-level stubs
 usr/libexec/*
 !/usr/libexec/mios/
