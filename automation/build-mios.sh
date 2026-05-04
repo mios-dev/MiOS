@@ -419,7 +419,6 @@ create_user_account() {
 # 'MiOS' User-Space .bashrc extension
 # This file is injected into the image during build-time.
 alias ll='ls -alF'
-alias mios-status='mios assess'
 export EDITOR=vim
 DOTFILE_EOF
     fi

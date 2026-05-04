@@ -21,12 +21,14 @@ TOOLS=(
     mios-build
     mios-backup
     mios-deploy
-    mios-status
     mios-vfio-toggle
     mios-vfio-check
     mios-ollama
     iommu-groups
 )
+# Note: mios-status was removed (v0.2.4) -- it was a 1-line `exec` to
+# /usr/libexec/mios/mios-dashboard.sh identical to mios-dash. Keep
+# mios-dash as the single canonical dashboard verb.
 # Note: aichat / aichat-ng are installed by 37-aichat.sh (which fetches
 # the upstream binaries); attempting to chmod them here printed a WARN
 # every build because the binaries do not exist yet at this stage.

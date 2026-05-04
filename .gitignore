@@ -162,11 +162,12 @@ usr/*
 !/usr/share/
 
 # usr/bin -- only MiOS-owned CLIs. Glob covers all mios-* operator
-# verbs (mios-status, mios-update, mios-rebuild, mios-build, mios-deploy,
-# mios-flatpaks, plus future additions). Each is a thin shell wrapper
-# around the underlying mechanism (bootc / podman / git-against-/.git /
-# the local Forgejo at localhost:3000) so operators don't have to
-# remember the long invocations.
+# verbs (mios-dash, mios-update, mios-rebuild, mios-build, mios-deploy,
+# mios-pull, mios-flatpaks, mios-vfio-*, mios-backup, mios-ollama, plus
+# future additions). Each is a thin shell wrapper around the underlying
+# mechanism (bootc / podman / git-against-/.git / the local Forgejo at
+# localhost:3000) so operators don't have to remember the long
+# invocations.
 usr/bin/*
 !/usr/bin/mios
 !/usr/bin/mios-*

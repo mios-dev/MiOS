@@ -17,8 +17,9 @@
 #     Activities on deployed hosts; Windows Start Menu via WSLg on
 #     MiOS-DEV)
 #   - Windows-side `MiOS Configurator.lnk` Start Menu / Desktop
-#     shortcuts (which call `wsl -d podman-MiOS-DEV --exec
-#     /usr/libexec/mios/mios-configurator-launch`)
+#     shortcuts (which call `wsl -d MiOS-DEV --exec
+#     /usr/libexec/mios/mios-configurator-launch`; pre-rename
+#     installs may still expose the distro as `podman-MiOS-DEV`)
 set -euo pipefail
 
 HTML=/usr/share/mios/configurator/index.html

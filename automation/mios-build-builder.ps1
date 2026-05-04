@@ -18,6 +18,15 @@
   - SSHs into the machine to install nvidia-container-toolkit and generate
     the CDI spec at /var/run/cdi/nvidia.yaml (WSL mode auto-detected).
 
+  NOTE (v0.2.4+): The CANONICAL Windows entry point is now
+  mios-bootstrap/build-mios.ps1 (under https://github.com/mios-dev/
+  mios-bootstrap.git), which provisions a podman machine named
+  'MiOS-DEV' and renames the resulting WSL distro from
+  'podman-MiOS-DEV' to 'MiOS-DEV' post-install (Rename-PodmanDevDistro).
+  This script is preserved for the legacy MiOS/install.ps1 +
+  MiOS/build-mios.ps1 entry points (still served from the public
+  curl-bash URL); new installs should prefer the bootstrap entry.
+
 .PARAMETER MachineName
   Podman machine name (default: mios-builder).
 

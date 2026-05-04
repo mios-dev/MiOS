@@ -79,8 +79,8 @@ fi
 _log "[ok] staged ${ref} for next boot."
 _log "Reboot to activate: 'sudo systemctl reboot' (or 'sudo bootc upgrade --apply' if you want bootc to handle it)."
 
-# Drop a marker so operators can see in `mios-status` (if installed) what
-# the last successful switch was.
+# Drop a marker so operators can see in `mios-dash` what the last
+# successful switch was.
 install -d -m 0755 /var/lib/mios
 { printf '%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$ts" "$ref"; } >> /var/lib/mios/bootc-switch-history.tsv
 chmod 0644 /var/lib/mios/bootc-switch-history.tsv
