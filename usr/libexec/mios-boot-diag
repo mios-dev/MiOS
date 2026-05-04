@@ -1,7 +1,113 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 -- stub: mios-boot-diag
-# Implementation expected from bootstrap overlay or future automation script.
-set -euo pipefail
-logger -t mios "[mios-boot-diag] stub executed -- replace with real implementation"
-echo "[mios/mios-boot-diag] stub: no-op" >&2
+# /usr/libexec/mios-boot-diag -- MiOS boot-time diagnostic.
+#
+# Wired in via /usr/lib/systemd/system/mios-boot-diag.service which
+# runs once per boot, after basic.target, before graphical.target.
+# Output goes to journal+console so a degraded boot still surfaces
+# the diagnostic on the console without requiring an interactive
+# login.
+#
+# Read-only by design: enumerates known signals (failed units,
+# greenboot result, bootc state, NVIDIA CDI freshness, ostree HEAD,
+# fs-verity status, /run/mios/* status files) and prints a concise
+# summary. Never modifies state -- safe on every deploy shape.
+set -uo pipefail
+
+C_R=$'\033[0m'; C_B=$'\033[1m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_RED=$'\033[31m'; C_GRY=$'\033[90m'
+[[ -t 1 ]] || { C_R=""; C_B=""; C_GRN=""; C_YLW=""; C_RED=""; C_GRY=""; }
+
+hdr() { printf '%s== %s ==%s\n' "$C_B" "$1" "$C_R"; }
+ok()  { printf '  %s[ok]%s   %s\n' "$C_GRN" "$C_R" "$1"; }
+warn(){ printf '  %s[warn]%s %s\n' "$C_YLW" "$C_R" "$1"; }
+fail(){ printf '  %s[fail]%s %s\n' "$C_RED" "$C_R" "$1"; }
+info(){ printf '  %s[info]%s %s\n' "$C_GRY" "$C_R" "$1"; }
+
+ts="$(date -u +%FT%TZ)"
+host="$(hostname 2>/dev/null || echo unknown)"
+printf '%sMiOS boot diagnostic%s  %s%s @ %s%s\n' "$C_B" "$C_R" "$C_GRY" "$host" "$ts" "$C_R"
+
+hdr "MiOS identity"
+if [[ -r /usr/share/mios/VERSION ]]; then
+    info "version: $(cat /usr/share/mios/VERSION 2>/dev/null)"
+else
+    warn "VERSION file missing -- /usr/share/mios overlay may not be applied"
+fi
+if [[ -r /etc/mios/install.env ]]; then
+    info "install.env present"
+    awk -F= '/^(MIOS_USER|MIOS_HOSTNAME|MIOS_AI_MODEL)=/ {gsub(/"/,"",$2); printf "    %s = %s\n", $1, $2}' /etc/mios/install.env 2>/dev/null
+fi
+
+hdr "Failed systemd units"
+mapfile -t failed < <(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}')
+if (( ${#failed[@]} == 0 )); then
+    ok "no failed units"
+else
+    for u in "${failed[@]}"; do fail "$u"; done
+fi
+
+hdr "Greenboot health"
+if command -v greenboot-status >/dev/null 2>&1; then
+    out=$(greenboot-status 2>&1 || true)
+    case "$out" in
+        *"GREEN"*) ok   "$(echo "$out" | head -1)" ;;
+        *"RED"*)   fail "$(echo "$out" | head -1)" ;;
+        *)         info "$(echo "$out" | head -1)" ;;
+    esac
+elif systemctl is-active --quiet greenboot-healthcheck.service 2>/dev/null; then
+    info "greenboot-healthcheck.service ran (no greenboot-status binary)"
+else
+    info "greenboot not active (non-bootc shape)"
+fi
+
+hdr "bootc state"
+if command -v bootc >/dev/null 2>&1; then
+    bootc_status=$(bootc status --format json 2>/dev/null || true)
+    if [[ -n "$bootc_status" ]] && command -v jq >/dev/null 2>&1; then
+        booted=$(printf '%s' "$bootc_status" | jq -r '.status.booted.image.image.image // empty' 2>/dev/null)
+        staged=$(printf '%s' "$bootc_status" | jq -r '.status.staged.image.image.image // empty' 2>/dev/null)
+        [[ -n "$booted" ]] && info "booted: $booted"
+        [[ -n "$staged" ]] && info "staged: $staged (reboot to apply)"
+        [[ -z "$booted$staged" ]] && info "bootc returned no images"
+    else
+        info "bootc present but no status data"
+    fi
+else
+    info "bootc not present (legacy / non-bootc deploy)"
+fi
+
+hdr "fs-verity / composefs"
+if [[ -d /sysroot/ostree/deploy ]]; then
+    ok "ostree deploy tree present at /sysroot/ostree/deploy"
+elif mountpoint -q /usr 2>/dev/null && grep -qE 'composefs' /proc/mounts 2>/dev/null; then
+    ok "composefs mount on /usr"
+else
+    info "non-ostree filesystem (dev VM, container, WSL distro)"
+fi
+
+hdr "GPU / CDI"
+if [[ -r /run/mios/gpu-passthrough.status ]]; then
+    out=$(cat /run/mios/gpu-passthrough.status)
+    if command -v jq >/dev/null 2>&1; then
+        out=$(printf '%s' "$out" | jq -c . 2>/dev/null || printf '%s' "$out")
+    fi
+    info "gpu-passthrough: $out"
+fi
+if [[ -r /run/cdi/nvidia.yaml ]]; then
+    age=$(( $(date +%s) - $(stat -c %Y /run/cdi/nvidia.yaml 2>/dev/null || echo 0) ))
+    ok "nvidia CDI generated ($age s ago)"
+elif [[ -e /dev/nvidia0 || -e /dev/dxg ]]; then
+    warn "GPU devices present but /run/cdi/nvidia.yaml missing -- mios-cdi-detect.service may have failed"
+else
+    info "no GPU devices detected"
+fi
+
+hdr "MiOS overlay sanity"
+for p in /usr/bin/mios /usr/share/mios /etc/mios; do
+    if [[ -e "$p" ]]; then ok "$p"; else fail "$p missing"; fi
+done
+
+hdr "Kernel + uptime"
+info "kernel: $(uname -srm)"
+info "uptime: $(uptime -p 2>/dev/null || cut -d. -f1 /proc/uptime)"
+
 exit 0

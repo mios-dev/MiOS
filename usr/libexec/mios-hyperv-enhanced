@@ -1,7 +1,123 @@
 #!/usr/bin/env bash
-# MiOS v0.2.0 -- stub: mios-hyperv-enhanced
-# Implementation expected from bootstrap overlay or future automation script.
-set -euo pipefail
-logger -t mios "[mios-hyperv-enhanced] stub executed -- replace with real implementation"
-echo "[mios/mios-hyperv-enhanced] stub: no-op" >&2
+# /usr/libexec/mios-hyperv-enhanced -- Hyper-V Enhanced Session bring-up.
+#
+# Wired in via /usr/lib/systemd/system/mios-hyperv-enhanced.service:
+#   ConditionVirtualization=microsoft, oneshot, after gdm.service.
+#
+# Configures the guest side of Hyper-V Enhanced Session so the
+# Windows host can connect via the integrated VMConnect viewer
+# (clipboard sync, dynamic resolution, audio, USB redirection)
+# instead of the bare framebuffer console.
+#
+# Steps:
+#   1. Confirm we're a Hyper-V guest (ConditionVirtualization is the
+#      first gate; we re-check at runtime so manual invocation is safe).
+#   2. Ensure hv_* kernel modules are loaded (hv_sock, hv_utils,
+#      hv_balloon, hv_storvsc, hv_netvsc).
+#   3. Enable systemd units required by Enhanced Session: hv-kvp-daemon,
+#      hv-vss-daemon, hv-fcopy-daemon (best-effort -- naming varies
+#      slightly by Fedora release).
+#   4. Configure xrdp to listen on the Hyper-V vsock transport
+#      (hvsock://2:5d2a17ed-... vendored by hyperv-daemons / xrdp).
+#   5. Symlink the colord polkit "color manager" rule that suppresses
+#      the GNOME color popup that breaks Enhanced Session login.
+#   6. Set GDM to remember the last login (avoids the picker hang
+#      that some Hyper-V displays trigger).
+#
+# Idempotent: every step probes for the desired final state first
+# and skips if already there. /var/lib/mios/.hyperv-enhanced-applied
+# acts as a coarse sentinel for log output filtering.
+set -uo pipefail
+
+LOG_TAG="mios-hyperv-enhanced"
+log() { logger -t "$LOG_TAG" -- "$*"; printf '[%s] %s\n' "$LOG_TAG" "$*"; }
+
+# 1. Defensive virt check (the systemd unit gates on this too, but
+# manual `bash mios-hyperv-enhanced` from a non-HV host is a no-op).
+virt=$(systemd-detect-virt 2>/dev/null || echo unknown)
+if [[ "$virt" != "microsoft" ]]; then
+    log "not running on Hyper-V (detect-virt: $virt) -- nothing to do"
+    exit 0
+fi
+
+# 2. Hyper-V kernel modules. Most Fedora kernels load these via udev
+# automatically; explicitly loading is harmless.
+for mod in hv_vmbus hv_storvsc hv_netvsc hv_utils hv_balloon hv_sock; do
+    if ! lsmod 2>/dev/null | awk '{print $1}' | grep -qx "$mod"; then
+        modprobe "$mod" 2>/dev/null && log "loaded kmod: $mod" || log "skip kmod (unavailable): $mod"
+    fi
+done
+
+# 3. Hyper-V daemons.
+for unit in hv-kvp-daemon.service hypervkvpd.service hv-vss-daemon.service hv-fcopy-daemon.service; do
+    if systemctl list-unit-files --no-legend --plain "$unit" 2>/dev/null | grep -q "$unit"; then
+        if ! systemctl is-enabled --quiet "$unit" 2>/dev/null; then
+            systemctl enable --now "$unit" 2>&1 | while read -r ln; do log "$ln"; done || true
+            log "enabled: $unit"
+        fi
+    fi
+done
+
+# 4. xrdp on the Hyper-V vsock transport. Hyper-V Enhanced Session
+# uses HV_SOCK CIDs (instead of TCP) -- xrdp supports this via
+# `port=vsock://-1:3389` on Fedora 39+. We patch xrdp.ini idempotently.
+xrdp_ini=/etc/xrdp/xrdp.ini
+if [[ -r "$xrdp_ini" ]]; then
+    if ! grep -q '^port=vsock://-1:3389' "$xrdp_ini"; then
+        log "patching $xrdp_ini -> vsock transport"
+        # Backup once.
+        [[ -e "${xrdp_ini}.mios-orig" ]] || cp -a "$xrdp_ini" "${xrdp_ini}.mios-orig"
+        sed -i -E 's|^port=.*$|port=vsock://-1:3389|' "$xrdp_ini" 2>&1 | while read -r ln; do log "$ln"; done || true
+    fi
+    if systemctl list-unit-files --no-legend xrdp.service 2>/dev/null | grep -q xrdp.service; then
+        systemctl enable --now xrdp.service 2>&1 | while read -r ln; do log "$ln"; done || true
+    fi
+fi
+
+# 5. Suppress the color-manager auth popup that hangs Enhanced
+# Session logins on first display attach. Polkit drops the prompt
+# entirely for users in the wheel group.
+polkit_rule=/etc/polkit-1/rules.d/49-mios-hyperv-color.rules
+if [[ ! -e "$polkit_rule" ]]; then
+    install -d -m 0755 "$(dirname "$polkit_rule")"
+    cat > "$polkit_rule" <<'POLKIT'
+// Auto-installed by mios-hyperv-enhanced.
+// Hyper-V Enhanced Session triggers a colord auth prompt on each
+// display attach which blocks the login screen. Skip the prompt
+// for wheel users; the colord daemon still profiles the display.
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.color-manager.create-device" ||
+         action.id == "org.freedesktop.color-manager.create-profile" ||
+         action.id == "org.freedesktop.color-manager.delete-device" ||
+         action.id == "org.freedesktop.color-manager.delete-profile" ||
+         action.id == "org.freedesktop.color-manager.modify-device" ||
+         action.id == "org.freedesktop.color-manager.modify-profile") &&
+        subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});
+POLKIT
+    chmod 0644 "$polkit_rule"
+    log "wrote $polkit_rule"
+fi
+
+# 6. GDM "remember last login" -- skips the picker that hangs on
+# some Hyper-V framebuffer rotations.
+if [[ -d /etc/dconf/db/gdm.d ]]; then
+    gdm_cfg=/etc/dconf/db/gdm.d/30-mios-hyperv
+    if [[ ! -e "$gdm_cfg" ]]; then
+        cat > "$gdm_cfg" <<'GDMCFG'
+[org/gnome/login-screen]
+disable-user-list=false
+banner-message-enable=false
+GDMCFG
+        if command -v dconf >/dev/null 2>&1; then dconf update 2>&1 | while read -r ln; do log "$ln"; done || true; fi
+        log "wrote $gdm_cfg + dconf update"
+    fi
+fi
+
+install -d -m 0755 /var/lib/mios
+date -u +%FT%TZ > /var/lib/mios/.hyperv-enhanced-applied
+log "Hyper-V Enhanced Session config applied"
+
 exit 0

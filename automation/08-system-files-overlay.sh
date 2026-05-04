@@ -83,13 +83,15 @@ if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
     log "  stage 3a: force-installed /usr/lib/wsl.conf reference (CRLF-stripped)"
 fi
 
-# --- Stage 4: /var (Mutable System State Templates) ------------------------
-# DEPRECATED: /var population via tar overlay violates zero-trust immutability.
-# All mandatory /var structure must be declared in /usr/lib/tmpfiles.d/*.conf.
-# if [[ -d "${CTX}/var" ]]; then
-#     log "  stage 4: overlay var content"
-#     tar -C "${CTX}/var" -cf - . | tar -C /var --no-overwrite-dir -xf -
-# fi
+# --- Stage 4: /var (intentionally empty) ----------------------------------
+# Removed in v0.2.4. /var population at build time violated LAW 2
+# (NO /VAR WRITES AT BUILD); all mandatory /var structure is now
+# declared in /usr/lib/tmpfiles.d/*.conf and realized by
+# systemd-tmpfiles --create at first boot. See:
+#   /usr/lib/tmpfiles.d/mios-infra.conf
+#   /usr/lib/tmpfiles.d/mios-bootstrap.conf
+# If /ctx/var content needs to ship in the image, declare it in a
+# tmpfiles.d C-line; do not write directly here.
 
 # --- Stage 5: /home (User Space Templates) ---------------------------------
 # LAW 5: Writing to /var/home during OCI build violates the immutability contract --
