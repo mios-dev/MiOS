@@ -159,11 +159,15 @@ usr/*
 !/usr/libexec/
 !/usr/share/
 
-# usr/bin -- only MiOS-owned CLIs
+# usr/bin -- only MiOS-owned CLIs. Glob covers all mios-* operator
+# verbs (mios-status, mios-update, mios-rebuild, mios-build, mios-deploy,
+# mios-flatpaks, plus future additions). Each is a thin shell wrapper
+# around the underlying mechanism (bootc / podman / git-against-/.git /
+# the local Forgejo at localhost:3000) so operators don't have to
+# remember the long invocations.
 usr/bin/*
 !/usr/bin/mios
-!/usr/bin/mios-env
-!/usr/bin/mios-sync-env
+!/usr/bin/mios-*
 
 # usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*

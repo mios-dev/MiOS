@@ -14,7 +14,9 @@
   //   /etc/profile.d/zz-mios-motd.sh  -> /usr/libexec/mios/mios-dashboard.sh -> fastfetch -c <this>
 
   "logo": {
-    "type": "auto",
+    "type": "raw",
+    "source": "/usr/share/mios/branding/mios.txt",
+    "color": { "1": "blue" },
     "padding": { "top": 1, "right": 2 }
   },
 

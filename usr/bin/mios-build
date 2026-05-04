@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# mios-build -- run a LOCAL podman build of the live working tree at /,
+# without going through the Forgejo Runner. Produces localhost/mios:latest
+# in the host's containers-storage directly. Useful for fast iteration when
+# you want to skip the push -> runner -> sentinel -> watch -> bootc switch
+# loop and just rebuild + switch immediately.
+#
+#   mios-build                  # podman build + bootc switch (no reboot)
+#   mios-build --apply          # build, switch, AND reboot
+#   mios-build --no-switch      # build only; don't stage with bootc
+#   mios-build --tag <name>     # use a custom local tag (default: mios:latest)
+#
+# For the full closed-loop pattern (push -> runner -> CI -> bootc switch),
+# use mios-rebuild instead.
+
+set -euo pipefail
+
+TAG="localhost/mios:latest"
+DO_SWITCH=1
+DO_REBOOT=0
+
+while (( $# > 0 )); do
+    case "$1" in
+        --apply)      DO_REBOOT=1; shift ;;
+        --no-switch)  DO_SWITCH=0; shift ;;
+        --tag)        TAG="$2"; shift 2 ;;
+        --help|-h)
+            sed -n '2,15p' "$0" | sed 's/^# \?//'
+            exit 0
+            ;;
+        *)
+            echo "mios-build: unknown flag '$1' (try --help)" >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [[ $EUID -ne 0 ]]; then
+    exec sudo -E "$0" "$@"
+fi
+
+if [[ ! -f /Containerfile ]]; then
+    echo "ERROR: /Containerfile not found. Is this a MiOS-deployed root?" >&2
+    exit 1
+fi
+
+# Source build args from install.env so the rebuild matches the installed identity.
+if [[ -r /etc/mios/install.env ]]; then
+    # shellcheck disable=SC1091
+    set -a; source /etc/mios/install.env; set +a
+fi
+
+BUILD_ARGS=()
+[[ -n "${MIOS_LINUX_USER:-}"        ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
+[[ -n "${MIOS_HOSTNAME:-}"          ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
+[[ -n "${MIOS_AI_MODEL:-}"          ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
+[[ -n "${MIOS_AI_EMBED_MODEL:-}"    ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
+[[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_OLLAMA_BAKE_MODELS=${MIOS_OLLAMA_BAKE_MODELS}")
+
+echo "[mios-build] building ${TAG} from /"
+podman build "${BUILD_ARGS[@]}" -f /Containerfile -t "${TAG}" /
+
+if (( DO_SWITCH )); then
+    echo "[mios-build] staging via bootc switch (containers-storage transport)"
+    bootc switch --transport containers-storage "${TAG}"
+fi
+
+if (( DO_REBOOT )); then
+    echo "[mios-build] rebooting in 3s ..."
+    sleep 3
+    systemctl reboot
+else
+    echo
+    echo "Build staged. Reboot to apply:"
+    echo "    sudo systemctl reboot"
+fi
+
+exit 0

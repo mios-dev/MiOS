@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# mios-status -- live MiOS system dashboard. Thin wrapper around
+# /usr/libexec/mios/mios-dashboard.sh; exists at /usr/bin/ so operators
+# don't have to remember the libexec path. All flags pass through:
+#   mios-status              full dashboard (header + fastfetch + services)
+#   mios-status --services-only   just the loop status block
+#   mios-status --no-color   plain ASCII (for piping)
+exec /usr/libexec/mios/mios-dashboard.sh "$@"

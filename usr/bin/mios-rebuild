@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# mios-rebuild -- push the live working tree at / to the local Forgejo
+# at localhost:3000 so the Forgejo Runner Quadlet picks up the change,
+# runs .forgejo/workflows/build-mios.yml, produces a new OCI image at
+# localhost/mios:latest, and the host's mios-bootc-switch.path watcher
+# stages it for the next reboot.
+#
+# This is the "edit anywhere -> push -> rebuild -> bootc switch" closed
+# self-replication loop. The git working tree at / is the deployed
+# system itself.
+#
+#   mios-rebuild [-m "<commit msg>"]   stage all changes, commit, push
+#   mios-rebuild --status              show last build sentinel content
+#   mios-rebuild --no-push             commit only; don't trigger build
+#
+# Prerequisites checked at runtime:
+#   - / is a git working tree (.git exists)
+#   - Forgejo at localhost:3000 is reachable (mios-forge.service active)
+#   - Origin remote points at the local forge
+
+set -euo pipefail
+
+DEFAULT_MSG="mios-rebuild: live root snapshot $(date -u +%FT%TZ)"
+COMMIT_MSG="$DEFAULT_MSG"
+DO_PUSH=1
+
+while (( $# > 0 )); do
+    case "$1" in
+        -m|--message) COMMIT_MSG="$2"; shift 2 ;;
+        --no-push)    DO_PUSH=0; shift ;;
+        --status)
+            if [[ -r /var/lib/mios/forge-runner/last-build.txt ]]; then
+                echo "Last Forge Runner build:"
+                cat /var/lib/mios/forge-runner/last-build.txt
+            else
+                echo "No build sentinel yet -- runner hasn't completed a build."
+            fi
+            exit 0
+            ;;
+        --help|-h)
+            sed -n '2,21p' "$0" | sed 's/^# \?//'
+            exit 0
+            ;;
+        *)
+            echo "mios-rebuild: unknown flag '$1' (try --help)" >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [[ ! -d /.git ]]; then
+    echo "ERROR: / is not a git working tree. Run mios-forge-firstboot first" >&2
+    echo "       to initialize the local forge and seed the working tree." >&2
+    exit 1
+fi
+
+# Validate the local forge is up before committing -- fail-fast beats
+# committing changes that have nowhere to go.
+if (( DO_PUSH )); then
+    if ! curl -fsS --max-time 3 -o /dev/null "http://localhost:3000/api/v1/version"; then
+        echo "ERROR: Forgejo at http://localhost:3000/ is not reachable." >&2
+        echo "       Check: systemctl status mios-forge.service" >&2
+        exit 1
+    fi
+fi
+
+if [[ -z "$(git -C / status --porcelain)" ]]; then
+    echo "Working tree clean -- nothing to commit."
+    if (( DO_PUSH )); then
+        echo "Forcing a runner trigger by pushing the current HEAD."
+        git -C / push origin HEAD || {
+            echo "ERROR: push failed. Verify origin: git -C / remote -v" >&2
+            exit 1
+        }
+        echo
+        echo "Pushed. Runner workflow should kick off shortly. Watch with:"
+        echo "    journalctl -fu mios-forgejo-runner.service"
+    fi
+    exit 0
+fi
+
+echo "[mios-rebuild] staging all changes under /"
+git -C / add -A
+
+echo "[mios-rebuild] committing: ${COMMIT_MSG}"
+git -C / commit -m "$COMMIT_MSG"
+
+if (( DO_PUSH )); then
+    echo "[mios-rebuild] pushing to local Forgejo (localhost:3000)"
+    git -C / push origin HEAD
+    echo
+    echo "Pushed. Runner workflow should kick off shortly. Watch with:"
+    echo "    journalctl -fu mios-forgejo-runner.service"
+    echo "Once the build completes, the host stages it via:"
+    echo "    bootc switch --transport containers-storage localhost/mios:latest"
+    echo "Reboot to apply: sudo systemctl reboot"
+fi
+
+exit 0

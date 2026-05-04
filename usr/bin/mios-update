@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# mios-update -- pull the next published MiOS image and stage it for
+# the next reboot. Wraps `bootc upgrade` so operators don't need to
+# remember the bootc verbs.
+#
+#   mios-update              # fetch + stage; reboot to apply
+#   mios-update --apply      # fetch, stage, AND reboot now
+#   mios-update --check      # show what's available; don't stage
+#   mios-update --rollback   # undo the last upgrade (boot the previous deployment)
+#
+# To switch to a DIFFERENT image (rather than upgrade the current one):
+#   sudo bootc switch ghcr.io/mios-dev/mios:<tag>
+#   sudo systemctl reboot
+#
+# To rebuild from your live working tree at /, see `mios-rebuild`.
+set -euo pipefail
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    sed -n '2,18p' "$0" | sed 's/^# \?//'
+    exit 0
+fi
+
+if [[ $EUID -ne 0 ]]; then
+    exec sudo -E "$0" "$@"
+fi
+
+case "${1:-}" in
+    --check)
+        bootc upgrade --check
+        ;;
+    --apply)
+        bootc upgrade --apply
+        ;;
+    --rollback)
+        bootc rollback
+        echo "Rollback staged. Reboot to apply: sudo systemctl reboot"
+        ;;
+    "")
+        bootc upgrade
+        echo
+        echo "Update staged for next boot. Apply now with:"
+        echo "    sudo systemctl reboot      # full reboot"
+        echo "    sudo bootc upgrade --apply # immediate apply"
+        ;;
+    *)
+        echo "mios-update: unknown flag '$1'" >&2
+        echo "Try: mios-update --help" >&2
+        exit 2
+        ;;
+esac

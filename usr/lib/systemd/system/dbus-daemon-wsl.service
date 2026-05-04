@@ -23,5 +23,17 @@ ExecReload=/usr/bin/dbus-send --print-reply --system --type=method_call --dest=o
 StandardError=journal+console
 
 [Install]
-WantedBy=multi-user.target
+# DO NOT use WantedBy=multi-user.target. With --systemd-activation in
+# ExecStart, dbus-daemon expects to receive the listening socket FD via
+# systemd socket-activation. WantedBy= causes systemd to start the unit
+# directly at boot WITHOUT socket activation -- no FD is passed -- and
+# dbus-daemon exits with "Failed to start message bus: No socket
+# received." Result: every D-Bus consumer (logind, polkit, cockpit,
+# homectl) cascade-fails with "Failed to connect to system scope bus".
+#
+# Pure socket-activation: dbus.socket (already listening on
+# /run/dbus/system_bus_socket) triggers Service=dbus.service, the
+# Alias= below maps that to this unit, and the socket FD is passed
+# correctly. The service starts on first client connection (typically
+# milliseconds after multi-user.target as logind / polkit come up).
 Alias=dbus.service
