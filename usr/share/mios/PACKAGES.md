@@ -237,6 +237,57 @@ qadwaitadecorations-qt5
 adw-gtk3-theme
 ```
 
+## GNOME Flatpak Runtime -- portals + audio + theming for Flatpaks via WSLg
+
+The MiOS-DEV podman backend (Windows-side) does not host its own
+GNOME session -- WSLg is the Windows compositor and operators see
+Flatpaks (Ptyxis terminal, Nautilus file manager, Bazaar app store,
+Epiphany browser, Flatseal permissions UI) as Windows windows routed
+through the WSLg portal. Those Flatpaks ship their own GTK/libadwaita
+via `org.gnome.Platform`, but they still need a **host portal +
+audio router + Qt-Adwaita theming** so file dialogs, drag-and-drop,
+audio output, and consistent theming all work. This section is the
+**runtime-only** subset of `packages-gnome` -- the bits required for
+Flatpaks to function on the dev VM, with **no display manager, no
+gnome-shell, no GDM, no session services**.
+
+Deployed bare-metal / Hyper-V / QEMU MiOS hosts install
+`packages-gnome` (full session) instead.
+
+```packages-gnome-flatpak-runtime
+# ── Portals: file dialogs / drag-and-drop / desktop integration ──
+xdg-user-dirs
+xdg-utils
+xdg-desktop-portal
+xdg-desktop-portal-gnome
+xdg-desktop-portal-gtk
+# ── Audio: PipeWire is the host router; Flatpaks bind to it via
+#    portal sockets ──
+pipewire-alsa
+pipewire-pulseaudio
+wireplumber
+# ── GStreamer base: required by libsoup / libgweather inside
+#    Flatpak runtimes for media-rendering helpers ──
+gstreamer1
+gstreamer1-plugins-base
+gstreamer1-plugins-good
+# ── GVFS: lets Nautilus / Bazaar / Ptyxis traverse SMB / MTP /
+#    other backend filesystems via the host ──
+gvfs
+gvfs-smb
+gvfs-mtp
+# ── Locale ──
+glibc-langpack-en
+# ── Qt Adwaita theming -- so Qt apps (e.g. Wireshark Flatpak)
+#    match GNOME look on WSLg ──
+qt6-qtbase-gui
+qt6-qtwayland
+qadwaitadecorations-qt5
+adw-gtk3-theme
+# ── Flatpak itself + Bazaar / gnome-software handle install/upgrade ──
+flatpak
+```
+
 ## GNOME Core Apps -- DO NOT INSTALL AS RPM
 
 **PROJECT INVARIANT:** GNOME Core apps are user-facing applications and
