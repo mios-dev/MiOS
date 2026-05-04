@@ -16,6 +16,7 @@ TOOLS=(
     mios-env
     mios-sync-env
     mios-update
+    mios-pull
     mios-rebuild
     mios-build
     mios-backup

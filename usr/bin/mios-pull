@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# mios-pull -- update the live MiOS overlay at `/` from upstream
+#
+# One canonical update verb runnable from any MiOS host's bash:
+#   - fetches mios.git + mios-bootstrap.git (URLs from mios.toml SSOT)
+#   - resets / to origin/main (every mios.git tracked file lands at its
+#     FHS path; untracked Fedora-base files are left alone)
+#   - clones / refreshes mios-bootstrap into /var/lib/mios/mios-bootstrap
+#     and seed-merges it on top so bootstrap-owned files (etc/skel, the
+#     canonical AI prompt, mios.toml templates, agent .md stubs) overlay
+#     mios.git's defaults
+#   - re-runs the lightweight build-time automation that fetches non-RPM
+#     binaries + fonts (09-fonts.sh, 38-oh-my-posh.sh)
+#   - daemon-reloads systemd (via nsenter into the systemd ns when run
+#     inside a podman-machine WSL distro, where wsl --exec lands in the
+#     OUTER ns and bare systemctl can't reach the bus)
+#
+# Designed to work on EVERY MiOS shape:
+#   bare-metal / Hyper-V / QEMU / WSL distro / Podman-WSL2 dev VM
+#
+# All settings resolve through mios.toml [bootstrap] / [image] via the
+# layered overlay (~/.config/mios/mios.toml > /etc/mios/mios.toml >
+# /usr/share/mios/mios.toml). Env knobs:
+#   MIOS_REPO_URL              git URL for mios.git
+#   MIOS_BOOTSTRAP_REPO_URL    git URL for mios-bootstrap.git
+#   MIOS_BRANCH                branch to pull (default: main)
+#   MIOS_PULL_SKIP_BOOTSTRAP   set to 1 to skip mios-bootstrap merge
+#   MIOS_PULL_SKIP_AUTOMATION  set to 1 to skip 09-fonts/38-oh-my-posh
+#   MIOS_PULL_SKIP_DAEMON_RELOAD set to 1 to skip systemctl daemon-reload
+#
+# Companion to mios-update (bootc-managed hosts) and mios-rebuild
+# (push-to-Forgejo CI loop). mios-pull is the FAST path: pull + apply
+# WITHOUT a bootc redeploy.
+#
+#   mios-pull                 fetch + reset + bootstrap-merge + automation
+#   mios-pull --check         show what would change; no writes
+#   mios-pull --no-bootstrap  skip mios-bootstrap (only mios.git)
+#   mios-pull --no-automation skip 09-fonts.sh + 38-oh-my-posh.sh
+#   mios-pull --branch <name> pull a non-main branch
+#   mios-pull --help          this banner
+
+set -euo pipefail
+
+MODE="apply"
+BRANCH="${MIOS_BRANCH:-main}"
+SKIP_BOOTSTRAP="${MIOS_PULL_SKIP_BOOTSTRAP:-0}"
+SKIP_AUTOMATION="${MIOS_PULL_SKIP_AUTOMATION:-0}"
+SKIP_DAEMON_RELOAD="${MIOS_PULL_SKIP_DAEMON_RELOAD:-0}"
+
+while (( $# > 0 )); do
+    case "$1" in
+        --help|-h)        sed -n '2,42p' "$0" | sed 's/^# \?//'; exit 0 ;;
+        --check)          MODE="check"; shift ;;
+        --no-bootstrap)   SKIP_BOOTSTRAP=1; shift ;;
+        --no-automation)  SKIP_AUTOMATION=1; shift ;;
+        --branch)         BRANCH="$2"; shift 2 ;;
+        *) echo "mios-pull: unknown flag '$1' (try --help)" >&2; exit 2 ;;
+    esac
+done
+
+if [[ $EUID -ne 0 ]] && [[ "$MODE" != "check" ]]; then
+    exec sudo -E "$0" "$@"
+fi
+
+# /etc/profile.d/mios-env.sh layers vendor/host/user mios.toml into env
+# vars before login shells run; we honor that here without re-parsing TOML.
+MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/mios-dev/mios.git}"
+MIOS_BOOTSTRAP_REPO_URL="${MIOS_BOOTSTRAP_REPO_URL:-https://github.com/mios-dev/mios-bootstrap.git}"
+
+C_R=$'\033[0m'; C_B=$'\033[1m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_GRY=$'\033[90m'
+[[ -t 1 ]] || { C_R=""; C_B=""; C_GRN=""; C_YLW=""; C_GRY=""; }
+say()  { printf '%s[mios-pull]%s %s\n' "$C_B" "$C_R" "$*"; }
+warn() { printf '%s[mios-pull]%s %sWARN:%s %s\n' "$C_B" "$C_R" "$C_YLW" "$C_R" "$*" >&2; }
+ok()   { printf '%s[mios-pull]%s %s%s%s %s\n' "$C_B" "$C_R" "$C_GRN" "OK" "$C_R" "$*"; }
+die()  { printf '%s[mios-pull] ERROR:%s %s\n' "$C_B" "$C_R" "$*" >&2; exit 1; }
+
+git config --global --add safe.directory / 2>/dev/null || true
+if ! git -C / rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    die "/ is not a git working tree. mios-pull requires the root-as-git overlay (mios-forge-firstboot wires this on first deploy; see usr/share/doc/mios/30-overlay.md)."
+fi
+
+CURRENT_HEAD="$(git -C / rev-parse --short HEAD 2>/dev/null || echo unknown)"
+say "current /  HEAD: ${C_GRN}${CURRENT_HEAD}${C_R}"
+say "branch         : ${BRANCH}"
+say "mios.git       : ${MIOS_REPO_URL}"
+say "mios-bootstrap : ${MIOS_BOOTSTRAP_REPO_URL}"
+
+say "fetching mios.git origin/${BRANCH} ..."
+git -C / fetch --depth=1 origin "$BRANCH" 2>&1 | tail -3 || die "git fetch failed"
+INCOMING="$(git -C / rev-parse --short FETCH_HEAD 2>/dev/null || echo unknown)"
+if [[ "$CURRENT_HEAD" == "$INCOMING" ]]; then
+    ok "/ already at ${INCOMING}; no mios.git changes to apply"
+else
+    say "would update / ${CURRENT_HEAD} -> ${INCOMING}"
+    say "diffstat (top 12 paths):"
+    git -C / diff --stat "$CURRENT_HEAD..FETCH_HEAD" 2>/dev/null | head -12 | sed "s/^/  ${C_GRY}/" | sed "s/$/${C_R}/"
+fi
+
+if [[ "$MODE" == "check" ]]; then
+    ok "--check: no writes performed"
+    exit 0
+fi
+
+say "resetting / to FETCH_HEAD ..."
+git -C / reset --hard FETCH_HEAD 2>&1 | tail -3
+ok "/ now at $(git -C / rev-parse --short HEAD)"
+
+if [[ "$SKIP_BOOTSTRAP" != "1" ]]; then
+    boot=/var/lib/mios/mios-bootstrap
+    install -d -m 0755 "$boot"
+    if [[ -d "$boot/.git" ]]; then
+        say "refreshing mios-bootstrap clone at $boot ..."
+        git -C "$boot" fetch --depth=1 origin "$BRANCH" 2>&1 | tail -2 || true
+        git -C "$boot" reset --hard "origin/${BRANCH}" 2>&1 | tail -2 || true
+    else
+        say "cloning mios-bootstrap ($BRANCH) -> $boot ..."
+        git clone --depth=1 -b "$BRANCH" "$MIOS_BOOTSTRAP_REPO_URL" "$boot" 2>&1 | tail -3
+    fi
+    if [[ -x "$boot/seed-merge.sh" ]]; then
+        say "seed-merging $boot onto / ..."
+        # seed-merge.sh's CLI: ARG1 is the mios.git target tree, ARG2 is
+        # the mios-bootstrap source. Both default-arg-friendly.
+        "$boot/seed-merge.sh" / "$boot" 2>&1 | tail -5 || warn "seed-merge.sh exited non-zero"
+        ok "bootstrap layer applied"
+    else
+        warn "$boot/seed-merge.sh missing or non-executable -- skipping seed-merge"
+    fi
+fi
+
+if [[ "$SKIP_AUTOMATION" != "1" ]]; then
+    for script in /automation/09-fonts.sh /automation/38-oh-my-posh.sh; do
+        if [[ -x "$script" ]]; then
+            say "running $(basename "$script") ..."
+            bash "$script" 2>&1 | tail -3 || warn "$(basename "$script") returned non-zero"
+        fi
+    done
+fi
+
+if [[ "$SKIP_DAEMON_RELOAD" != "1" ]]; then
+    say "refreshing sysusers / tmpfiles / daemon-reload ..."
+    # podman-machine WSL distros run systemd in a NESTED process
+    # namespace. wsl --exec lands in the OUTER ns where systemctl can't
+    # reach the bus ("Transport endpoint is not connected"). nsenter
+    # into systemd's PID gets us the same view an interactive `wsl -d`
+    # session has.
+    SYSTEMD_PID=$(pidof systemd 2>/dev/null | tr ' ' '\n' | head -1)
+    NS=""
+    if [[ -n "$SYSTEMD_PID" ]] && command -v nsenter >/dev/null 2>&1; then
+        case "$(systemctl is-system-running 2>/dev/null || true)" in
+            "" | offline | unknown)
+                NS="nsenter -t $SYSTEMD_PID -a"
+                say "  using nsenter -t $SYSTEMD_PID -a (nested systemd ns)"
+                ;;
+        esac
+    fi
+    $NS systemd-sysusers 2>&1 | tail -2 || true
+    $NS systemd-tmpfiles --create 2>&1 | tail -2 || true
+    $NS systemctl daemon-reload 2>&1 | tail -2 || true
+fi
+
+ok "mios-pull complete. / now at $(git -C / rev-parse --short HEAD)"
+echo
+echo "  Next interactive shell will pick up:"
+echo "    - new /etc/profile.d/* (env, prompt, colors, motd)"
+echo "    - new /usr/bin/* CLI verbs"
+echo "    - refreshed /usr/share/mios/oh-my-posh/mios.omp.json theme"
+echo "  Re-render dashboard:    ${C_B}mios-dash${C_R}"
+echo "  Re-trigger forge build: ${C_B}mios-rebuild${C_R}"

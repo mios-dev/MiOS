@@ -12,7 +12,12 @@
 #   sudo bootc switch ghcr.io/mios-dev/mios:<tag>
 #   sudo systemctl reboot
 #
-# To rebuild from your live working tree at /, see `mios-rebuild`.
+# Three update flavors -- pick by deployment shape:
+#   mios-update    bootc-managed deployed host (this script; A/B redeploy)
+#   mios-pull      / IS git working tree (dev VMs, Forge-driven hosts)
+#                  -- fast `git pull + reset` + bootstrap seed-merge
+#   mios-rebuild   trigger a CI rebuild via push to local Forgejo
+#                  (push to localhost:3000 -> runner -> bootc switch)
 set -euo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
