@@ -1,6 +1,6 @@
 # Cookbook: Ingest the MiOS KB into a Vector Store (OpenAI cloud)
 
-> Full path: `/usr/local/share/mios/cookbooks/ingest-kb.md`
+> Full path: `/usr/share/mios/cookbooks/ingest-kb.md`
 > See `INSTALL.md` (top-level) for the full three-recipe set; this is the
 > step-by-step OpenAI-cloud variant.
 
@@ -82,7 +82,7 @@ curl https://api.openai.com/v1/responses \
   -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
   -d "$(jq --arg vs "$VS_ID" \
        '.tools[0].vector_store_ids = [$vs]' \
-       ./srv/mios/api/responses.example.json)"
+       ./usr/share/mios/api/responses.example.json)"
 ```
 
 ## Step 5 — Optional: create the eval

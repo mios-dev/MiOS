@@ -372,19 +372,7 @@ usr/lib/udev/rules.d/*
 !/usr/lib/udev/rules.d/99-mios-gpu.rules
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9b. /usr/local -- cookbooks
-# ─────────────────────────────────────────────────────────────────────────────
-!/usr/local/
-usr/local/*
-!/usr/local/share/
-usr/local/share/*
-!/usr/local/share/mios/
-usr/local/share/mios/*
-!/usr/local/share/mios/cookbooks/
-!/usr/local/share/mios/cookbooks/**
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 9c. /var -- KB RAG, training, and evals data
+# 9b. /var -- KB RAG, training, and evals data (runtime state)
 # ─────────────────────────────────────────────────────────────────────────────
 !/var/
 var/*
@@ -392,26 +380,12 @@ var/*
 var/lib/*
 !/var/lib/mios/
 !/var/lib/mios/**
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 9d. /srv -- API example payloads
-# ─────────────────────────────────────────────────────────────────────────────
-!/srv/
-srv/*
-!/srv/mios/
-srv/mios/*
-!/srv/mios/api/
-!/srv/mios/api/**
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 9e. /opt -- XML-structured prompt templates
-# ─────────────────────────────────────────────────────────────────────────────
-!/opt/
-opt/*
-!/opt/mios/
-opt/mios/*
-!/opt/mios/prompts/
-!/opt/mios/prompts/**
+# Cookbooks (was /usr/local/share/mios/cookbooks/), prompt templates
+# (was /opt/mios/prompts/), and API examples (was /srv/mios/api/) all
+# moved to /usr/share/mios/{cookbooks,prompts,api}/ as of v0.2.3 path-
+# consolidation. The single /usr/share/mios/ vendor-read-only home is
+# whitelisted further up via !/usr/share/mios/** so no per-subdir
+# entries needed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 9f. /var/lib/mios -- exclude runtime state written by services after boot.

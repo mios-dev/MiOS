@@ -95,7 +95,7 @@ distribution. Every claim cites a real file path.
 │       ├── embeddings/            # RAG: chunks.jsonl, vector_store.import.jsonl, ingest_local.py
 │       ├── training/              # Fine-tune datasets (sft.jsonl, dpo.jsonl)
 │       └── evals/                 # OpenAI Evals API artifacts
-├── opt/mios/prompts/              # XML-structured prompt templates
+├── usr/share/mios/prompts/              # XML-structured prompt templates
 ├── tools/                         # Repo-internal dev/operator tooling
 │   ├── lib/                       # Shared helpers (path-refactor.py, ascii-sweep.py,
 │   │                              #   quote-mios.py, install-env.ps1, userenv.sh,
@@ -599,7 +599,7 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 - **OpenAI tool schemas:** `/usr/lib/mios/tools/responses-api/*.json` +
   `/usr/lib/mios/tools/chat-completions-api/*.json`.
 - **Structured output schemas:** `/usr/lib/mios/schemas/*.json`.
-- **Sample API payloads:** `/srv/mios/api/{chat,responses,embeddings,
+- **Sample API payloads:** `/usr/share/mios/api/{chat,responses,embeddings,
   batch.requests,mcp.tool}.{json,jsonl}`.
 - **Sanitization tooling:** `tools/ascii-sweep.py` (typography + emoji
   scrub across `git ls-files`), `automation/99-postcheck.sh` checks
@@ -881,7 +881,7 @@ mios "ask the local AI a question"
 
 # AI surface
 curl -s http://localhost:8080/v1/models | jq
-curl -s http://localhost:8080/v1/chat/completions -d @srv/mios/api/chat.local.example.json -H 'Content-Type: application/json' | jq
+curl -s http://localhost:8080/v1/chat/completions -d @usr/share/mios/api/chat.local.example.json -H 'Content-Type: application/json' | jq
 
 # Repo overlay (sanity)
 ls /usr/lib/mios/             # paths.sh, logs/
@@ -902,8 +902,8 @@ ls /var/lib/mios/              # memory, scratch, embeddings/, training/, evals/
 | `/srv` | Data served by the system | Persistent | `usr/lib/tmpfiles.d/mios.conf` |
 | `/run` | Ephemeral runtime (FHS 3.0) | tmpfs; cleared at boot; never in image layers | -- |
 | `/home` | User home directories | Persistent via `/var/home/<user>` + symlink | `usr/lib/sysusers.d/` |
-| `/opt` | Add-on software packages | Used for `opt/mios/prompts/` | direct overlay |
-| `/usr/local` | Local additions | `/usr/local/share/mios/cookbooks/` | direct overlay |
+| `/opt` | Add-on software packages | Used for `usr/share/mios/prompts/` | direct overlay |
+| `/usr/local` | Local additions | `/usr/share/mios/cookbooks/` | direct overlay |
 
 ---
 

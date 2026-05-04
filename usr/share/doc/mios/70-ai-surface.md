@@ -112,7 +112,7 @@ This contract is portable across every OpenAI-API-compatible runtime:
 - **OpenRouter**: `https://openrouter.ai/api/v1`
 
 The KB ships sample payloads in both Chat Completions and Responses
-shapes; see `srv/mios/api/`.
+shapes; see `usr/share/mios/api/`.
 
 ## What MiOS LocalAI does NOT support
 

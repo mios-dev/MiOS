@@ -1,6 +1,6 @@
 # Cookbook: SFT → DPO Fine-Tuning Flow
 
-> Full path: `/usr/local/share/mios/cookbooks/finetune-flow.md`
+> Full path: `/usr/share/mios/cookbooks/finetune-flow.md`
 > Datasets: `var/lib/mios/training/sft.jsonl` and `dpo.jsonl`
 > Both are universal JSONL — consumable by OpenAI fine-tuning,
 > axolotl, trl, llama-factory, MLX-LM, unsloth.

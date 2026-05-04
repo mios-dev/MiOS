@@ -48,7 +48,7 @@ PY
 # 4. Use it from Responses API
 curl https://api.openai.com/v1/responses \
   -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "$(jq --arg vs "$VS_ID" '.tools[0].vector_store_ids = [$vs]' ./srv/mios/api/responses.example.json)"
+  -d "$(jq --arg vs "$VS_ID" '.tools[0].vector_store_ids = [$vs]' ./usr/share/mios/api/responses.example.json)"
 
 # 5. (Optional) create an eval
 curl https://api.openai.com/v1/evals \
@@ -93,7 +93,7 @@ python3 ./var/lib/mios/embeddings/ingest_local.py    # emitted alongside chunks.
 # 4. Use it -- Chat Completions form (universal)
 curl "$MIOS_AI_ENDPOINT/chat/completions" \
   -H "Authorization: Bearer $MIOS_AI_KEY" -H "Content-Type: application/json" \
-  -d @./srv/mios/api/chat.local.example.json
+  -d @./usr/share/mios/api/chat.local.example.json
 
 # 5. Run the eval against the local endpoint
 python3 ./var/lib/mios/evals/mios-knowledge.local-runner.py \

@@ -1,6 +1,6 @@
 # Cookbook: Day-0 Local RAG against MiOS LocalAI
 
-> Full path: `/usr/local/share/mios/cookbooks/local-rag-day0.md`
+> Full path: `/usr/share/mios/cookbooks/local-rag-day0.md`
 > Canonical local target. Same recipe works against Ollama / vLLM /
 > LM Studio / llama.cpp / LiteLLM by changing `MIOS_AI_ENDPOINT`.
 

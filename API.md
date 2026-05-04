@@ -574,7 +574,7 @@ Status / list.
 ### `POST /v1/batches/{batch_id}/cancel`
 Cancel; status transitions through `cancelling` → `cancelled`.
 
-'MiOS' cross-ref: `srv/mios/api/batch.requests.jsonl` is the canonical input format -- one JSON object per line, each `{ custom_id, method, url, body }`.
+'MiOS' cross-ref: `usr/share/mios/api/batch.requests.jsonl` is the canonical input format -- one JSON object per line, each `{ custom_id, method, url, body }`.
 
 ---
 
@@ -705,7 +705,7 @@ export OPENAI_API_KEY="$MIOS_AI_API_KEY"
 - Architectural Law 5 (UNIFIED-AI-REDIRECTS): [`CLAUDE.md`](CLAUDE.md), [`INDEX.md`](INDEX.md), [`ENGINEERING.md`](ENGINEERING.md).
 - Endpoint binding: [`etc/containers/systemd/mios-ai.container`](etc/containers/systemd/mios-ai.container).
 - Endpoint manifest (machine-readable): [`manifest.json`](manifest.json) (entries keyed by `endpoint:`).
-- Batch input format: [`srv/mios/api/batch.requests.jsonl`](srv/mios/api/batch.requests.jsonl).
+- Batch input format: [`usr/share/mios/api/batch.requests.jsonl`](usr/share/mios/api/batch.requests.jsonl).
 - Embedding output format: [`var/lib/mios/embeddings/chunks.jsonl`](var/lib/mios/embeddings/chunks.jsonl).
 - Fine-tuning training data: [`var/lib/mios/training/sft.jsonl`](var/lib/mios/training/sft.jsonl), [`var/lib/mios/training/dpo.jsonl`](var/lib/mios/training/dpo.jsonl).
 - Eval datasets: [`var/lib/mios/evals/dataset.jsonl`](var/lib/mios/evals/dataset.jsonl).

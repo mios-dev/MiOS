@@ -500,73 +500,73 @@
       "endpoint": "evals.data_source"
     },
     {
-      "path": "/srv/mios/api/responses.example.json",
+      "path": "/usr/share/mios/api/responses.example.json",
       "format": "json",
       "purpose": "Responses API payload",
       "endpoint": "POST /v1/responses"
     },
     {
-      "path": "/srv/mios/api/chat.example.json",
+      "path": "/usr/share/mios/api/chat.example.json",
       "format": "json",
       "purpose": "Chat Completions payload (cloud)",
       "endpoint": "POST /v1/chat/completions"
     },
     {
-      "path": "/srv/mios/api/chat.local.example.json",
+      "path": "/usr/share/mios/api/chat.local.example.json",
       "format": "json",
       "purpose": "Chat Completions payload (MiOS LocalAI)",
       "endpoint": "POST $MIOS_AI_ENDPOINT/chat/completions"
     },
     {
-      "path": "/srv/mios/api/batch.requests.jsonl",
+      "path": "/usr/share/mios/api/batch.requests.jsonl",
       "format": "jsonl",
       "purpose": "Batch API input",
       "endpoint": "POST /v1/batches"
     },
     {
-      "path": "/srv/mios/api/mcp.tool.json",
+      "path": "/usr/share/mios/api/mcp.tool.json",
       "format": "json",
       "purpose": "MCP tool snippet (Responses only)",
       "endpoint": "responses.tools[]"
     },
     {
-      "path": "/srv/mios/api/embeddings.example.json",
+      "path": "/usr/share/mios/api/embeddings.example.json",
       "format": "json",
       "purpose": "Embeddings request",
       "endpoint": "POST /v1/embeddings"
     },
     {
-      "path": "/opt/mios/prompts/troubleshoot.xml.md",
+      "path": "/usr/share/mios/prompts/troubleshoot.xml.md",
       "format": "markdown",
       "purpose": "XML-structured troubleshoot prompt",
       "endpoint": "responses.input | chat.user"
     },
     {
-      "path": "/opt/mios/prompts/build-review.xml.md",
+      "path": "/usr/share/mios/prompts/build-review.xml.md",
       "format": "markdown",
       "purpose": "XML-structured build-review prompt",
       "endpoint": "responses.input | chat.user"
     },
     {
-      "path": "/opt/mios/prompts/kargs-author.xml.md",
+      "path": "/usr/share/mios/prompts/kargs-author.xml.md",
       "format": "markdown",
       "purpose": "XML-structured kargs-authoring prompt",
       "endpoint": "responses.input | chat.user"
     },
     {
-      "path": "/usr/local/share/mios/cookbooks/ingest-kb.md",
+      "path": "/usr/share/mios/cookbooks/ingest-kb.md",
       "format": "markdown",
       "purpose": "end-to-end ingestion recipe",
       "endpoint": null
     },
     {
-      "path": "/usr/local/share/mios/cookbooks/local-rag-day0.md",
+      "path": "/usr/share/mios/cookbooks/local-rag-day0.md",
       "format": "markdown",
       "purpose": "Day-0 local RAG against MiOS LocalAI",
       "endpoint": null
     },
     {
-      "path": "/usr/local/share/mios/cookbooks/finetune-flow.md",
+      "path": "/usr/share/mios/cookbooks/finetune-flow.md",
       "format": "markdown",
       "purpose": "SFT → DPO fine-tuning workflow",
       "endpoint": null
