@@ -1,59 +1,134 @@
 #!/usr/bin/env bash
-# 'MiOS' CDI spec detection -- generate Container Device Interface specs
-# for every detected GPU vendor before nvidia-cdi-refresh.service fires.
-# Run by mios-cdi-detect.service (Before=nvidia-cdi-refresh.service).
+# 'MiOS' CDI spec detection -- generate Container Device Interface
+# specs for every detected GPU vendor before nvidia-cdi-refresh.service
+# fires. Run by mios-cdi-detect.service (Before=nvidia-cdi-refresh.service).
 #
 # Writes specs to /run/cdi/ (declared in usr/lib/tmpfiles.d/mios-gpu.conf
-# under LAW 2). On WSL2 we generate with --mode=wsl. On bare metal /
-# regular VMs the mode is auto-detected. AMD ROCm and Intel iGPU specs
-# are stubs (upstream tooling is still emerging) -- only NVIDIA gets a
-# real CDI spec today.
+# under LAW 2). All paths are best-effort -- a missing toolkit makes
+# the corresponding branch a no-op rather than failing the boot.
 #
-# When no GPU is present (e.g. headless server, container, WSL2 without
-# /dev/dxg), this is a no-op (writes an empty status file).
-set -euo pipefail
+# Vendor coverage (May 2026):
+#   * NVIDIA  via nvidia-ctk (NVIDIA Container Toolkit v1.19+)
+#             /run/cdi/nvidia.yaml or /run/cdi/nvidia-wsl.yaml
+#   * AMD     via amd-ctk    (AMD Container Toolkit v1.3+, Apr 2026)
+#             /run/cdi/amd.json -- AMD outputs JSON, not YAML
+#   * Intel   via intel-cdi-specs-generator
+#             (intel/intel-resource-drivers-for-kubernetes v0.1+)
+#             /run/cdi/intel.yaml -- best-effort; tooling is v0.x
+#
+# When no GPU is present (headless server, container without /dev/dxg
+# or /dev/kfd or /dev/dri), this is a no-op except for the status
+# snapshot at /run/mios/cdi-detect.status.
+set -uo pipefail
 # shellcheck source=/usr/lib/mios/paths.sh
-source /usr/lib/mios/paths.sh
+source /usr/lib/mios/paths.sh 2>/dev/null || true
 
-_log()  { logger -t mios-cdi-detect "$*" 2>/dev/null || true; echo "[cdi-detect] $*" >&2; }
+_log() { logger -t mios-cdi-detect "$*" 2>/dev/null || true; echo "[cdi-detect] $*" >&2; }
 
 install -d -m 0755 /run/cdi /run/mios
+
 VIRT=$(systemd-detect-virt 2>/dev/null || echo none)
 HAS_NVIDIA=0
 HAS_AMD=0
 HAS_INTEL=0
-[[ -e /dev/nvidia0 || -e /dev/dxg ]]              && HAS_NVIDIA=1
-[[ -e /dev/kfd ]]                                  && HAS_AMD=1
-[[ -e /dev/dri/renderD128 ]]                       && HAS_INTEL=1
+[[ -e /dev/nvidia0 || -e /dev/dxg ]] && HAS_NVIDIA=1
+[[ -e /dev/kfd ]]                    && HAS_AMD=1
+# Intel iGPU/Arc detection: a renderD* node whose vendor reads 0x8086.
+# Iterate every renderD* node so multi-GPU boxes are correctly handled
+# (e.g. discrete NVIDIA + Intel iGPU coexisting).
+for r in /dev/dri/renderD*; do
+    [[ -e "$r" ]] || continue
+    pci=$(readlink -f "/sys/class/drm/$(basename "$r")/device" 2>/dev/null)
+    [[ -n "$pci" && -r "$pci/vendor" ]] || continue
+    if [[ "$(cat "$pci/vendor" 2>/dev/null)" == "0x8086" ]]; then
+        HAS_INTEL=1
+        break
+    fi
+done
 
 _log "virt=$VIRT nvidia=$HAS_NVIDIA amd=$HAS_AMD intel=$HAS_INTEL"
 
-# NVIDIA: prefer upstream nvidia-cdi-refresh.service when its unit is
-# installed (toolkit v1.18+). Otherwise generate the spec ourselves.
+# ── NVIDIA ───────────────────────────────────────────────────────────
+# Prefer upstream nvidia-cdi-refresh.service when its unit is installed
+# (NVIDIA Container Toolkit v1.18+). It auto-regenerates on driver/device
+# change, so we don't want to race with it.
 if [[ "$HAS_NVIDIA" == 1 ]] && command -v nvidia-ctk >/dev/null 2>&1; then
-    if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null \
-         | grep -q nvidia-cdi-refresh; then
-        _log "nvidia-cdi-refresh.service present; deferring spec generation"
+    if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null | grep -q nvidia-cdi-refresh; then
+        _log "nvidia: nvidia-cdi-refresh.service present -- deferring to upstream"
     else
+        # WSL2 surfaces GPUs via /dev/dxg with the standard WDDM
+        # paravirt driver. nvidia-ctk's --mode=wsl emits a CDI spec
+        # that picks up the host's NVIDIA driver via the WSL /usr/lib/
+        # wsl/lib bind-mount.
         mode_arg=()
-        [[ "$VIRT" == "wsl" ]] && mode_arg=(--mode=wsl)
-        if nvidia-ctk cdi generate "${mode_arg[@]}" \
-                --output=/run/cdi/nvidia.yaml 2>/dev/null; then
-            _log "wrote /run/cdi/nvidia.yaml"
+        out=/run/cdi/nvidia.yaml
+        if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
+            mode_arg=(--mode=wsl)
+            out=/run/cdi/nvidia-wsl.yaml
         else
-            _log "nvidia-ctk cdi generate failed (non-fatal)"
+            # nvidia-ctk auto-detects mode (nvml/csv/management) on
+            # bare metal; --mode=auto is the explicit form.
+            mode_arg=(--mode=auto)
         fi
+        if nvidia-ctk cdi generate "${mode_arg[@]}" --output="$out" 2>&1 | logger -t mios-cdi-detect; then
+            _log "nvidia: wrote $out (mode=${mode_arg[0]#--mode=})"
+        else
+            _log "nvidia: nvidia-ctk cdi generate failed (non-fatal)"
+        fi
+    fi
+elif [[ "$HAS_NVIDIA" == 1 ]]; then
+    _log "nvidia: device present but nvidia-ctk missing -- install nvidia-container-toolkit"
+fi
+
+# ── AMD (ROCm) ───────────────────────────────────────────────────────
+# AMD Container Toolkit v1.3.0 (Apr 2026) ships amd-ctk which
+# generates a CDI spec the same way nvidia-ctk does. Output is JSON
+# by default; podman accepts both .yaml and .json under /etc/cdi or
+# /run/cdi. Spec naming follows the CNCF CDI convention:
+# vendor.com/class=identifier -> amd.com/gpu=all.
+if [[ "$HAS_AMD" == 1 ]] && command -v amd-ctk >/dev/null 2>&1; then
+    if amd-ctk cdi generate --output=/run/cdi/amd.json 2>&1 | logger -t mios-cdi-detect; then
+        _log "amd: wrote /run/cdi/amd.json"
+        # Validate the spec with the toolkit's own checker; mark the
+        # spec stale if it fails so podman doesn't pick up a broken file.
+        if amd-ctk cdi validate --path=/run/cdi/amd.json >/dev/null 2>&1; then
+            _log "amd: spec validated"
+        else
+            _log "amd: spec validation FAILED -- moving aside"
+            mv -f /run/cdi/amd.json /run/cdi/amd.json.invalid 2>/dev/null || true
+        fi
+    else
+        _log "amd: amd-ctk cdi generate failed (non-fatal)"
+    fi
+elif [[ "$HAS_AMD" == 1 ]]; then
+    _log "amd: /dev/kfd present but amd-ctk missing -- run automation/41-gpu-cdi-toolkits.sh"
+fi
+
+# ── Intel (iGPU / Arc) ───────────────────────────────────────────────
+# Intel's CDI tooling lives in intel/intel-resource-drivers-for-kubernetes.
+# The specs-generator binary is a non-Kubernetes friendly way to
+# produce a /etc/cdi/intel.yaml. Best-effort: this binary is at v0.x
+# upstream and lacks the polish of nvidia-ctk / amd-ctk -- failures
+# here are logged but never break the boot.
+if [[ "$HAS_INTEL" == 1 ]]; then
+    INTEL_GEN=""
+    for cand in /usr/libexec/mios/intel-cdi-specs-generator \
+                /usr/local/bin/intel-cdi-specs-generator \
+                /usr/bin/intel-cdi-specs-generator; do
+        if [[ -x "$cand" ]]; then INTEL_GEN="$cand"; break; fi
+    done
+    if [[ -n "$INTEL_GEN" ]]; then
+        if "$INTEL_GEN" --output=/run/cdi/intel.yaml 2>&1 | logger -t mios-cdi-detect; then
+            _log "intel: wrote /run/cdi/intel.yaml via $INTEL_GEN"
+        else
+            _log "intel: specs-generator failed (non-fatal; tooling is v0.x best-effort)"
+        fi
+    else
+        _log "intel: GPU present but intel-cdi-specs-generator missing -- run automation/41-gpu-cdi-toolkits.sh"
     fi
 fi
 
-# AMD: drop a placeholder if amd-ctk ever appears
-if [[ "$HAS_AMD" == 1 ]] && command -v amd-ctk >/dev/null 2>&1; then
-    amd-ctk cdi generate --output=/run/cdi/amd.json 2>/dev/null \
-        && _log "wrote /run/cdi/amd.json" \
-        || _log "amd-ctk cdi generate failed (non-fatal)"
-fi
-
-# Status snapshot
+# ── Status snapshot for the dashboard / mios-boot-diag ───────────────
 {
     echo "timestamp=$(date -Is)"
     echo "virt=$VIRT"
@@ -62,5 +137,18 @@ fi
     echo "intel=$HAS_INTEL"
     echo "cdi_specs=$(ls /run/cdi/ 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
 } > /run/mios/cdi-detect.status
+
+# JSON variant for tooling that reads structured output (boot-diag's
+# `gpu-passthrough.status` consumer pattern).
+{
+    printf '{'
+    printf '"timestamp":"%s",'    "$(date -Is)"
+    printf '"virt":"%s",'          "$VIRT"
+    printf '"nvidia":%s,'          "$HAS_NVIDIA"
+    printf '"amd":%s,'             "$HAS_AMD"
+    printf '"intel":%s,'           "$HAS_INTEL"
+    printf '"cdi_specs":"%s"'      "$(ls /run/cdi/ 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+    printf '}\n'
+} > /run/mios/gpu-passthrough.status
 
 exit 0

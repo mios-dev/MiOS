@@ -365,8 +365,15 @@ All packages are in official Fedora repos -- no extra repo needed.
 ```packages-gpu-intel-compute
 intel-compute-runtime
 intel-media-driver
-# level-zero REMOVED: not in F44 repos as standalone package.
-# intel-gpu-tools REMOVED: needs libproc2.so.0 missing in F44.
+# Intel oneAPI Level Zero loader. Ships in F44 via the
+# intel-compute-runtime source RPM under the name intel-level-zero
+# (the generic standalone "level-zero" loader is still in active
+# Fedora packaging review -- track Phoronix/Fedora-IntelCompute2025).
+intel-level-zero
+# IGT (Intel GPU Tools): renamed from intel-gpu-tools to igt-gpu-tools
+# in Fedora 44; provides intel_gpu_top, IGT test runner, and pmu-help
+# for diagnostics. The "needs libproc2.so.0" issue cleared on F44.
+igt-gpu-tools
 ```
 
 ## GPU Drivers -- NVIDIA (akmod, builds for any NVIDIA card)
@@ -386,6 +393,36 @@ nvidia-settings
 xorg-x11-drv-nvidia-power
 # v2.2 additions
 nvidia-container-selinux
+```
+
+## GPU Container Device Interface toolkits (vendor CDI generators)
+
+Out-of-Fedora binaries that emit `/run/cdi/*.{yaml,json}` so podman
+containers can claim GPU access via `--device <vendor>.com/gpu=all`.
+NVIDIA's `nvidia-ctk` is part of `nvidia-container-toolkit` (above);
+the AMD + Intel paths install via `automation/41-gpu-cdi-toolkits.sh`
+because neither ships in Fedora repos as of May 2026:
+
+* `amd-ctk` -- AMD Container Toolkit v1.3+ (RHEL9 RPM works on F44).
+  Source: github.com/ROCm/container-toolkit. Generates
+  `/run/cdi/amd.json` for any host with `/dev/kfd`. CDI key:
+  `amd.com/gpu=all`.
+
+* `intel-cdi-specs-generator` -- intel/intel-resource-drivers-for-
+  kubernetes static binary. Best-effort (v0.x upstream). Installed
+  to `/usr/libexec/mios/intel-cdi-specs-generator`. Generates
+  `/run/cdi/intel.yaml` for hosts with an Intel render node
+  (vendor:0x8086 on /dev/dri/renderD*). CDI key: `intel.com/gpu=all`.
+
+Both are consumed by `/usr/libexec/mios/mios-cdi-detect` at boot
+(via `mios-cdi-detect.service`). Missing toolkits make the
+corresponding branch a no-op rather than failing the boot.
+
+```packages-gpu-cdi-toolkits
+# Intentionally empty -- amd-ctk + intel-cdi-specs-generator are
+# fetched by automation/41-gpu-cdi-toolkits.sh from upstream
+# GitHub releases (same pattern as 37-aichat.sh / 38-oh-my-posh.sh).
+# Versions tracked via record_version (build metadata).
 ```
 
 ## Virtualization -- KVM / QEMU / Libvirt
