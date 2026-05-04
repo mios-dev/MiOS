@@ -1,38 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
-  "version": 3,
+  "version": 4,
   "final_space": true,
 
   "//": [
-    "MiOS Oh-My-Posh theme -- two-line prompt with rounded Powerline frames.",
-    "Every glyph is an explicit \\u escape so the file roundtrips through",
-    "any editor / git / OneDrive sync without losing the Nerd Font private-use",
-    "code points (which is what was happening before -- segments rendered",
-    "as blank '' because the bytes got stripped on save).",
+    "MiOS Oh-My-Posh theme. Two-line prompt + right-aligned dev language",
+    "rollup; recolored to mios.toml [colors] (Hokusai + operator neutrals).",
+    "Applied globally on every shape: Windows host (PowerShell via",
+    "Install-WindowsBranding), deployed Linux MiOS hosts (via",
+    "/etc/profile.d/mios-prompt.sh), and the MiOS-DEV podman backend.",
     "",
-    "Glyphs used (Nerd Font PUA -- requires Symbols-Only Nerd Font fallback,",
-    "which automation/09-fonts.sh installs unconditionally on every shape):",
-    "  \\uE0B6   rounded left half-circle (segment opener)",
-    "  \\uE0B4   rounded right half-circle (segment closer)",
-    "  \\uE0B0   Powerline right arrow",
-    "  \\uE0B2   Powerline left arrow",
-    "  \\uE7A8   Linux (Tux)        -- MiOS segment",
-    "  \\uF07B   folder              -- path segment",
-    "  \\uE702   git                 -- git segment",
-    "  \\uE0A0   git branch          -- branch in git template",
-    "  \\uF252   terminal/timer      -- executiontime segment",
-    "  \\uF068   AI/brain (mdi)      -- AI status segment",
-    "  \\uF00C   check / \\uF00D x   -- prompt success/failure",
+    "MiOS-owned segments (shell/path/git/exec/status/os/time) use the MiOS",
+    "palette so every prompt FEELS like the same product:",
+    "  --bg #282262 deep-indigo  --fg #E7DFD3 cream  --accent #1A407F op-blue",
+    "  --cursor/warning #F35C15 sunset  --error #DC271B coral",
+    "  --success #3E7765 wave-green  --muted #948E8E warm-grey",
+    "  --earth #734F39 brown  --silver #E0E0E0  --subtle #B7C9D7",
     "",
-    "Color palette matches the MiOS configurator HTML + Cockpit dark theme",
-    "so every surface feels like the same product:",
-    "  --bg #0e1116  --panel #161b22  --border #30363d",
-    "  --accent #58a6ff  --ok #3fb950  --warn #d29922  --err #f85149",
-    "  --muted #8b949e  --git-clean #3fb950  --git-dirty #d29922",
+    "Language-version segments (right-aligned) keep their brand colors so",
+    "Node green / Python blue+yellow / Rust orange etc. stay instantly",
+    "recognizable -- the brand glyph + brand palette is operator memory.",
     "",
-    "Loaded by /etc/profile.d/mios-prompt.sh for every interactive bash/zsh",
-    "login. fastfetch + the MiOS dashboard already plain-ASCII-fall-back on",
-    "tty0/console where Nerd Font glyphs aren't available."
+    "Every Nerd Font PUA glyph is an explicit UTF-8 codepoint so the file",
+    "roundtrips through editor/git/OneDrive sync without losing the",
+    "U+E000..U+F8FF code points. Symbols-Only Nerd Font (installed by",
+    "automation/09-fonts.sh) is the per-glyph fallback for Geist Mono."
   ],
 
   "blocks": [
@@ -41,69 +33,184 @@
       "alignment": "left",
       "segments": [
         {
-          "type": "text",
+          "type": "shell",
           "style": "diamond",
-          "leading_diamond": "",
-          "trailing_diamond": "",
-          "background": "#58a6ff",
-          "foreground": "#0e1116",
-          "template": "  MiOS "
+          "leading_diamond": "╭─",
+          "background": "#1A407F",
+          "foreground": "#E7DFD3",
+          "template": " {{ .Name }} "
+        },
+        {
+          "type": "root",
+          "style": "diamond",
+          "background": "#DC271B",
+          "foreground": "#F35C15",
+          "template": "<parentBackground></> # "
         },
         {
           "type": "path",
           "style": "powerline",
-          "powerline_symbol": "",
-          "background": "#161b22",
-          "foreground": "#c9d1d9",
+          "powerline_symbol": "",
+          "background": "#F35C15",
+          "foreground": "#282262",
           "properties": {
+            "folder_icon": " ",
+            "home_icon": "",
             "style": "agnoster_short",
-            "max_depth": 3,
-            "home_icon": "~",
-            "folder_separator_icon": "  "
+            "max_depth": 3
           },
-          "template": "   {{ .Path }} "
+          "template": "  {{ .Path }} "
         },
         {
           "type": "git",
           "style": "powerline",
-          "powerline_symbol": "",
-          "foreground": "#0e1116",
-          "background": "#3fb950",
+          "powerline_symbol": "",
+          "background": "#3E7765",
           "background_templates": [
-            "{{ if and (gt .Ahead 0) (gt .Behind 0) }}#f85149{{ end }}",
-            "{{ if or (.Working.Changed) (.Staging.Changed) }}#d29922{{ end }}",
-            "{{ if gt .Ahead 0 }}#58a6ff{{ end }}",
-            "{{ if gt .Behind 0 }}#a371f7{{ end }}"
+            "{{ if or (.Working.Changed) (.Staging.Changed) }}#F35C15{{ end }}",
+            "{{ if and (gt .Ahead 0) (gt .Behind 0) }}#DC271B{{ end }}",
+            "{{ if gt .Ahead 0 }}#1A407F{{ end }}",
+            "{{ if gt .Behind 0 }}#734F39{{ end }}"
           ],
+          "foreground": "#282262",
           "properties": {
+            "branch_icon": " ",
             "fetch_status": true,
-            "fetch_upstream_icon": true,
-            "branch_icon": " ",
-            "branch_identical_icon": "",
-            "commit_icon": " "
+            "fetch_upstream_icon": true
           },
-          "template": "  {{ .HEAD }}{{ if .Working.Changed }} +{{ .Working.String }}{{ end }}{{ if .Staging.Changed }} *{{ .Staging.String }}{{ end }}{{ if gt .Ahead 0 }} ⇡{{ .Ahead }}{{ end }}{{ if gt .Behind 0 }} ⇣{{ .Behind }}{{ end }} "
+          "template": " {{ .UpstreamIcon }}{{ .HEAD }}{{ if .BranchStatus }} {{ .BranchStatus }}{{ end }}{{ if .Working.Changed }}  {{ .Working.String }}{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Staging.Changed }}<#DC271B>  {{ .Staging.String }}</>{{ end }} "
         },
         {
           "type": "executiontime",
-          "style": "powerline",
-          "powerline_symbol": "",
-          "background": "#21262d",
-          "foreground": "#8b949e",
+          "style": "diamond",
+          "trailing_diamond": "",
+          "background": "#948E8E",
+          "foreground": "#282262",
           "properties": {
-            "threshold": 1000,
-            "style": "round"
+            "style": "roundrock",
+            "threshold": 0
           },
-          "template": "  {{ .FormattedMs }} "
-        },
+          "template": "  {{ .FormattedMs }} "
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "right",
+      "segments": [
         {
-          "type": "text",
+          "type": "node",
           "style": "diamond",
           "leading_diamond": "",
-          "trailing_diamond": "",
-          "background": "#21262d",
-          "foreground": "#21262d",
-          "template": ""
+          "trailing_diamond": " ",
+          "background": "#303030",
+          "foreground": "#3C873A",
+          "properties": {
+            "fetch_package_manager": true,
+            "npm_icon": " <#cc3a3a></> ",
+            "yarn_icon": " <#348cba></>"
+          },
+          "template": " {{ if .PackageManagerIcon }}{{ .PackageManagerIcon }} {{ end }}{{ .Full }}"
+        },
+        {
+          "type": "python",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": " ",
+          "background": "#306998",
+          "foreground": "#FFE873",
+          "template": " {{ if .Error }}{{ .Error }}{{ else }}{{ if .Venv }}{{ .Venv }} {{ end }}{{ .Full }}{{ end }}"
+        },
+        {
+          "type": "go",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": " ",
+          "background": "#E7DFD3",
+          "foreground": "#06aad5",
+          "template": " {{ if .Error }}{{ .Error }}{{ else }}{{ .Full }}{{ end }}"
+        },
+        {
+          "type": "rust",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": " ",
+          "background": "#E7DFD3",
+          "foreground": "#925837",
+          "template": " {{ if .Error }}{{ .Error }}{{ else }}{{ .Full }}{{ end }}"
+        },
+        {
+          "type": "dotnet",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": " ",
+          "background": "#0e0e0e",
+          "foreground": "#0d6da8",
+          "template": " {{ if .Unsupported }}{{ else }}{{ .Full }}{{ end }}"
+        },
+        {
+          "type": "kubectl",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": " ",
+          "background": "#1A407F",
+          "foreground": "#E7DFD3",
+          "template": " {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}"
+        },
+        {
+          "type": "aws",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": " ",
+          "background": "#565656",
+          "foreground": "#F35C15",
+          "template": " {{ .Profile }}{{ if .Region }}@{{ .Region }}{{ end }}"
+        },
+        {
+          "type": "os",
+          "style": "diamond",
+          "leading_diamond": "",
+          "trailing_diamond": "<transparent,background></>",
+          "background": "#B7C9D7",
+          "foreground": "#282262",
+          "properties": {
+            "linux": "",
+            "macos": "",
+            "windows": ""
+          },
+          "template": " {{ if .WSL }}WSL at {{ end }}{{ .Icon }} "
+        },
+        {
+          "type": "battery",
+          "style": "powerline",
+          "invert_powerline": true,
+          "powerline_symbol": "",
+          "background": "#F35C15",
+          "background_templates": [
+            "{{ if eq \"Charging\" .State.String }}#3E7765{{ end }}",
+            "{{ if eq \"Discharging\" .State.String }}#F35C15{{ end }}",
+            "{{ if eq \"Full\" .State.String }}#3E7765{{ end }}"
+          ],
+          "foreground": "#282262",
+          "properties": {
+            "charged_icon": " ",
+            "charging_icon": " ",
+            "discharging_icon": " "
+          },
+          "template": " {{ if not .Error }}{{ .Icon }}{{ .Percentage }}{{ end }}{{ .Error }} "
+        },
+        {
+          "type": "time",
+          "style": "diamond",
+          "invert_powerline": true,
+          "leading_diamond": "",
+          "trailing_diamond": "",
+          "background": "#1A407F",
+          "foreground": "#E7DFD3",
+          "properties": {
+            "time_format": "_2,15:04"
+          },
+          "template": "  {{ .CurrentDate | date .Format }} "
         }
       ]
     },
@@ -113,16 +220,20 @@
       "newline": true,
       "segments": [
         {
+          "type": "text",
+          "style": "plain",
+          "foreground": "#B7C9D7",
+          "template": "╰─"
+        },
+        {
           "type": "status",
           "style": "plain",
-          "foreground": "#3fb950",
+          "foreground": "#3E7765",
           "foreground_templates": [
-            "{{ if gt .Code 0 }}#f85149{{ end }}"
+            "{{ if gt .Code 0 }}#DC271B{{ end }}"
           ],
-          "templates": [
-            "{{ if gt .Code 0 }} ❯ {{ else }} ❯ {{ end }}"
-          ],
-          "template": "❯ "
+          "properties": { "always_enabled": true },
+          "template": " ❯ "
         }
       ]
     }

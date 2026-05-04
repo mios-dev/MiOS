@@ -169,6 +169,38 @@
   </fieldset>
 
   <fieldset style="grid-column: 1 / -1">
+    <legend>colors (palette applied across every console / terminal / tty / oh-my-posh)</legend>
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+      Defaults are the MiOS unified palette: operator neutrals
+      (#1A407F deep-blue, #E0E0E0 silver, #B7C9D7 pale blue-grey,
+      #948E8E warm grey, #734F39 brown) combined with Hokusai's
+      "The Great Wave off Kanagawa" (#3E7765 wave-green, #E7DFD3
+      foam-cream, #F35C15 sunset-orange, #DC271B coral-red, #282262
+      deep-indigo). Edit any color below; on save, /etc/profile.d/
+      mios-colors.sh reads these values and emits OSC-4 / OSC-10 /
+      OSC-11 / OSC-12 escape sequences at every interactive shell
+      start so bash / zsh / PowerShell / Windows Terminal / Ptyxis
+      all repaint. The oh-my-posh theme + Cockpit dark theme + the
+      configurator HTML itself read the same SSOT.
+    </p>
+
+    <div style="margin-bottom: 16px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
+      Named tokens
+    </div>
+    <div id="colors-named" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px;"></div>
+
+    <div style="margin: 16px 0 8px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
+      ANSI 16-color slots (terminal palette)
+    </div>
+    <div id="colors-ansi" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px;"></div>
+
+    <div style="margin-top: 12px;">
+      <button type="button" id="btn-colors-reset" style="margin-right: 8px;">Reset to MiOS defaults</button>
+      <button type="button" id="btn-colors-hokusai">Pure Hokusai (no neutrals)</button>
+    </div>
+  </fieldset>
+
+  <fieldset style="grid-column: 1 / -1">
     <legend>desktop (session + Flatpak applications)</legend>
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
       <div>
@@ -241,6 +273,77 @@ const QUADLETS = [
   "crowdsec-dashboard", "ollama", "cloudws-guacamole", "cloudws-pxe-hub",
   "guacamole-postgres", "guacd"
 ];
+
+// ── Color palette: defaults + named-token / ANSI-slot definitions ─────────────
+// Defaults match the canonical [colors] block in mios.toml SSOT
+// (Hokusai "Great Wave" + operator neutrals). Configurator color pickers
+// initialize from these unless an existing mios.toml override has loaded.
+const COLOR_DEFAULTS = {
+  bg:          "#282262", fg:          "#E7DFD3",
+  accent:      "#1A407F", cursor:      "#F35C15",
+  success:     "#3E7765", warning:     "#F35C15",
+  error:       "#DC271B", info:        "#1A407F",
+  muted:       "#948E8E", subtle:      "#B7C9D7",
+  earth:       "#734F39", silver:      "#E0E0E0",
+  ansi_0_black:           "#282262",
+  ansi_1_red:             "#DC271B",
+  ansi_2_green:           "#3E7765",
+  ansi_3_yellow:          "#F35C15",
+  ansi_4_blue:            "#1A407F",
+  ansi_5_magenta:         "#734F39",
+  ansi_6_cyan:            "#B7C9D7",
+  ansi_7_white:           "#E7DFD3",
+  ansi_8_bright_black:    "#948E8E",
+  ansi_9_bright_red:      "#FF6B5C",
+  ansi_10_bright_green:   "#5FAA8E",
+  ansi_11_bright_yellow:  "#FF8540",
+  ansi_12_bright_blue:    "#3D6BA8",
+  ansi_13_bright_magenta: "#9D7660",
+  ansi_14_bright_cyan:    "#E0E0E0",
+  ansi_15_bright_white:   "#FFFFFF"
+};
+
+// Pure Hokusai variant: drops the operator neutrals, picks from the wave
+// alone. One-click button in the configurator for operators who want the
+// strict Hokusai aesthetic on their MiOS surface.
+const COLOR_HOKUSAI = {
+  bg: "#282262", fg: "#E7DFD3", accent: "#3E7765", cursor: "#F35C15",
+  success: "#3E7765", warning: "#F35C15", error: "#DC271B", info: "#3E7765",
+  muted: "#948E8E", subtle: "#E7DFD3", earth: "#734F39", silver: "#E7DFD3",
+  ansi_0_black:           "#282262",  ansi_1_red:             "#DC271B",
+  ansi_2_green:           "#3E7765",  ansi_3_yellow:          "#F35C15",
+  ansi_4_blue:            "#282262",  ansi_5_magenta:         "#DC271B",
+  ansi_6_cyan:            "#E7DFD3",  ansi_7_white:           "#E7DFD3",
+  ansi_8_bright_black:    "#948E8E",  ansi_9_bright_red:      "#FF6B5C",
+  ansi_10_bright_green:   "#5FAA8E",  ansi_11_bright_yellow:  "#FF8540",
+  ansi_12_bright_blue:    "#3E7765",  ansi_13_bright_magenta: "#FF6B5C",
+  ansi_14_bright_cyan:    "#E7DFD3",  ansi_15_bright_white:   "#FFFFFF"
+};
+
+const COLOR_NAMED_LABELS = {
+  bg:      "background",   fg:       "foreground", accent:  "accent",
+  cursor:  "cursor",       success:  "success",    warning: "warning",
+  error:   "error",        info:     "info",       muted:   "muted",
+  subtle:  "subtle",       earth:    "earth",      silver:  "silver"
+};
+const COLOR_ANSI_LABELS = {
+  ansi_0_black:           "0  black",
+  ansi_1_red:             "1  red",
+  ansi_2_green:           "2  green",
+  ansi_3_yellow:          "3  yellow",
+  ansi_4_blue:            "4  blue",
+  ansi_5_magenta:         "5  magenta",
+  ansi_6_cyan:            "6  cyan",
+  ansi_7_white:           "7  white",
+  ansi_8_bright_black:    "8  br.black",
+  ansi_9_bright_red:      "9  br.red",
+  ansi_10_bright_green:   "10 br.green",
+  ansi_11_bright_yellow:  "11 br.yellow",
+  ansi_12_bright_blue:    "12 br.blue",
+  ansi_13_bright_magenta: "13 br.magenta",
+  ansi_14_bright_cyan:    "14 br.cyan",
+  ansi_15_bright_white:   "15 br.white"
+};
 
 // ── Flatpak catalog ───────────────────────────────────────────────────────────
 // Every Flatpak referenced anywhere in the MiOS codebase. The 'def' field
@@ -364,7 +467,8 @@ function parseTomlValue(v) {
 function emitToml(sections) {
   // Emit a deterministic TOML block in MiOS section order.
   const order = ["meta", "identity", "locale", "auth", "network", "ai",
-                 "desktop", "image", "bootstrap", "profile", "quadlets.enable", "env"];
+                 "desktop", "colors", "image", "bootstrap", "profile",
+                 "quadlets.enable", "env"];
   const lines = [];
   const known = new Set(order);
   // Meta header preamble (matches the canonical template).
@@ -450,6 +554,9 @@ function refreshFromData() {
   }
   // Flatpak checkboxes
   renderFlatpaks();
+  // Color palette pickers (defaults populate from COLOR_DEFAULTS when no
+  // mios.toml override has loaded; values bind two-way into DATA.colors.*).
+  renderColors();
   renderRaw();
 }
 
@@ -475,6 +582,64 @@ function parseFlatpakInput(raw) {
   // Drop any trailing /arch or /branch suffix so com.foo.Bar/x86_64 -> com.foo.Bar
   s = s.split("/")[0];
   return s;
+}
+
+// ── Color palette: render the [colors] fieldset and bind inputs ──────────────
+function renderColors() {
+  const named = document.getElementById("colors-named");
+  const ansi  = document.getElementById("colors-ansi");
+  if (!named || !ansi) return;
+  named.innerHTML = "";
+  ansi.innerHTML  = "";
+
+  // Initialize DATA.colors from defaults if missing -- so the saved
+  // mios.toml always carries the full [colors] block even if the
+  // operator never opens this fieldset.
+  DATA.colors = DATA.colors || {};
+  for (const k of Object.keys(COLOR_DEFAULTS)) {
+    if (!DATA.colors[k]) DATA.colors[k] = COLOR_DEFAULTS[k];
+  }
+
+  const renderRow = (parent, key, label) => {
+    const id  = `f-color-${key}`;
+    const val = DATA.colors[key] || COLOR_DEFAULTS[key] || "#000000";
+    const row = document.createElement("div");
+    row.style.cssText = "display: flex; align-items: center; gap: 8px;";
+    row.innerHTML =
+      `<input type="color" id="${id}" value="${val}" style="width: 32px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">` +
+      `<label for="${id}" style="margin: 0; flex: 1; font-family: var(--mono); font-size: 12px; color: var(--text);">${label}</label>` +
+      `<code style="font-size: 10px; color: var(--muted); font-family: var(--mono);">${val}</code>`;
+    parent.appendChild(row);
+    const input = row.querySelector("input");
+    const code  = row.querySelector("code");
+    input.addEventListener("input", e => {
+      DATA.colors = DATA.colors || {};
+      DATA.colors[key] = e.target.value.toUpperCase();
+      code.textContent = DATA.colors[key];
+      renderRaw();
+    });
+  };
+
+  for (const [key, label] of Object.entries(COLOR_NAMED_LABELS)) renderRow(named, key, label);
+  for (const [key, label] of Object.entries(COLOR_ANSI_LABELS))  renderRow(ansi,  key, label);
+
+  // Reset buttons (idempotent: re-binds on every renderColors call).
+  const resetBtn = document.getElementById("btn-colors-reset");
+  if (resetBtn) {
+    resetBtn.onclick = () => {
+      DATA.colors = { ...COLOR_DEFAULTS };
+      renderColors();
+      renderRaw();
+    };
+  }
+  const hokusaiBtn = document.getElementById("btn-colors-hokusai");
+  if (hokusaiBtn) {
+    hokusaiBtn.onclick = () => {
+      DATA.colors = { ...COLOR_HOKUSAI };
+      renderColors();
+      renderRaw();
+    };
+  }
 }
 
 function renderFlatpaks() {
