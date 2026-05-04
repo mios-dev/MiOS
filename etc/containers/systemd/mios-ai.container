@@ -28,8 +28,13 @@ Environment=CONTEXT_SIZE=4096
 Environment=ADDRESS=0.0.0.0:8080
 Environment=API_KEY=
 Environment=CORS=true
-User=mios-ai
-Group=mios-ai
+# Use NUMERIC UID/GID -- the LocalAI image has no `mios-ai` user in its
+# /etc/passwd, so a name-based User= lookup fails with "unable to find
+# user mios-ai: no matching entries in passwd file". UID 817 is pinned
+# in usr/lib/sysusers.d/50-mios-ai.conf so the host's mios-ai user has
+# the same UID, and shared-volume ownership stays consistent.
+User=817
+Group=817
 
 # OCI image labels for Podman Desktop. Architectural Law 5: this is the
 # single MIOS_AI_ENDPOINT every agent on the system targets; surfacing

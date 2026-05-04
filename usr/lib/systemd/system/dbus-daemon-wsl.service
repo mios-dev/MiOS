@@ -20,7 +20,14 @@ Type=notify
 NotifyAccess=main
 ExecStart=/usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation
 ExecReload=/usr/bin/dbus-send --print-reply --system --type=method_call --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig
-OOMScoreAdjust=-900
+# OOMScoreAdjust intentionally OMITTED on WSL.
+# The WSL2 kernel restricts unprivileged OOM-score-adjust below 0;
+# setting -900 here causes "Unable to set OOM score adjust to -900"
+# at startup, the dbus-daemon process exits before binding the bus
+# socket, dbus.socket retries hit the trigger limit, and every
+# downstream service that needs the system bus (logind, NetworkManager,
+# polkit, etc.) cascade-fails. This unit is already gated by
+# ConditionVirtualization=wsl, so we know we're on WSL when it runs.
 StandardError=journal+console
 
 [Install]

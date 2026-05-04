@@ -84,6 +84,42 @@ if [[ -f /usr/lib/tmpfiles.d/mios.conf ]]; then
     systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios.conf 2>/dev/null || true
 fi
 
+# ── subuid / subgid for rootless containers ──
+# `wsl -d MiOS -- <gui-app>` runs apps under the user's namespace
+# without spawning a login shell. If /etc/subuid lacks an entry for
+# the mios user, podman/buildah's rootless mode aborts with:
+#     "no subuid ranges found for user 'mios' in /etc/subuid"
+# Idempotent: appends only if missing. The 100000:65536 range matches
+# Fedora's standard rootless-user allocation and doesn't collide with
+# MiOS's 800-829 service-user reservation.
+if id "$MIOS_USER" &>/dev/null; then
+    if ! grep -qE "^${MIOS_USER}:" /etc/subuid 2>/dev/null; then
+        _log "Adding /etc/subuid entry for ${MIOS_USER} (rootless containers)"
+        echo "${MIOS_USER}:100000:65536" >> /etc/subuid
+    fi
+    if ! grep -qE "^${MIOS_USER}:" /etc/subgid 2>/dev/null; then
+        _log "Adding /etc/subgid entry for ${MIOS_USER} (rootless containers)"
+        echo "${MIOS_USER}:100000:65536" >> /etc/subgid
+    fi
+fi
+
+# ── Enable systemd user-session lingering for the mios user ──
+# Without lingering, `wsl -d MiOS -- <gui-app>` finds no user-systemd
+# and no user D-Bus session bus, surfacing as:
+#     "Cannot autolaunch D-Bus without X11 $DISPLAY"
+#     "Failed to connect to user scope bus via local transport"
+#     "cgroupv2 manager is set to systemd but no systemd user session"
+# enable-linger starts the user manager at boot and keeps it running
+# even when no interactive login is active -- correct semantics for
+# WSL where `wsl -d MiOS -- <cmd>` enters the distro without login.
+if id "$MIOS_USER" &>/dev/null; then
+    if ! loginctl show-user "$MIOS_USER" 2>/dev/null | grep -q '^Linger=yes$'; then
+        _log "Enabling user-systemd lingering for ${MIOS_USER}"
+        loginctl enable-linger "$MIOS_USER" 2>/dev/null || \
+            _log "WARN: loginctl enable-linger ${MIOS_USER} failed (may need re-run after login)"
+    fi
+fi
+
 # ── Mark done ──
 mkdir -p "$(dirname "$MARKER")"
 touch "$MARKER"

@@ -51,10 +51,11 @@ Label=org.opencontainers.image.documentation=https://cockpit-project.org/documen
 Label=io.podman_desktop.openInBrowser=https://localhost:9090/
 
 # Architectural Law 6: unprivileged Quadlet with explicit User/Group.
-# Reuse the mios-ai uid for the shim since it's running a single TCP
-# relay and doesn't need its own dedicated account in sysusers.d.
-User=mios-ai
-Group=mios-ai
+# Reuse the mios-ai uid (NUMERIC -- the alpine/socat image has no
+# `mios-ai` user, and podman looks up names IN the container's
+# /etc/passwd. UID 817 is pinned in usr/lib/sysusers.d/50-mios-ai.conf).
+User=817
+Group=817
 
 [Service]
 Restart=on-failure

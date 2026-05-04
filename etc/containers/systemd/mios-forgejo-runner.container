@@ -83,8 +83,13 @@ Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44
 # the podman socket via the shared containers/storage volume above.
 Environment=FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted
 
-User=root
-Group=root
+# Documented architectural exception (alongside Ceph + K3s): runner
+# runs as numeric uid 0 inside the container so it can manipulate
+# /var/lib/containers/storage during `podman build`. The runner
+# container's job sandbox is what protects the host, not the runner
+# itself.
+User=0
+Group=0
 
 Label=org.opencontainers.image.title=MiOS Forgejo Runner
 Label=org.opencontainers.image.description=Self-hosted CI runner for the MiOS self-replication loop. Builds OCI images via podman build, signals bootc-switch.
