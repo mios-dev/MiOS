@@ -8,26 +8,18 @@ Before=systemd-logind.service
 DefaultDependencies=no
 
 [Service]
-# Type=notify + dbus-daemon's `--systemd-activation` flag together close the
-# startup race that surfaced as "Failed to connect to system scope bus via
-# local transport: Connection refused" in the user's first login shell on
-# WSL2: without it, systemd marked the unit active as soon as the dbus-daemon
-# process forked, and systemd-logind raced ahead and tried to bind a session
-# before the daemon had finished listening on /run/dbus/system_bus_socket.
-# `--systemd-activation` makes dbus-daemon emit sd_notify(READY=1) once the
-# socket is fully bound; Type=notify makes systemd wait for it.
-Type=notify
-NotifyAccess=main
+# Earlier experiment used Type=notify + NotifyAccess=main with the
+# `--systemd-activation` flag, on the theory that dbus-daemon would emit
+# sd_notify(READY=1) once bound. In practice on WSL2 + Fedora 44's
+# dbus-daemon build, the notify never arrives and systemd times the
+# unit out -> [FAILED] Failed to start dbus-daemon-wsl.service. Reverted
+# to the default (Type=simple); the race the experiment tried to close
+# (logind starting before the bus socket binds) is rare and not visible
+# under WSL2's actual boot order. The bigger blocker -- OOMScoreAdjust=-900
+# -- stays removed (WSL2 kernel rejects unprivileged negative OOM
+# adjustments and the daemon exited before binding the socket).
 ExecStart=/usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation
 ExecReload=/usr/bin/dbus-send --print-reply --system --type=method_call --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig
-# OOMScoreAdjust intentionally OMITTED on WSL.
-# The WSL2 kernel restricts unprivileged OOM-score-adjust below 0;
-# setting -900 here causes "Unable to set OOM score adjust to -900"
-# at startup, the dbus-daemon process exits before binding the bus
-# socket, dbus.socket retries hit the trigger limit, and every
-# downstream service that needs the system bus (logind, NetworkManager,
-# polkit, etc.) cascade-fails. This unit is already gated by
-# ConditionVirtualization=wsl, so we know we're on WSL when it runs.
 StandardError=journal+console
 
 [Install]
