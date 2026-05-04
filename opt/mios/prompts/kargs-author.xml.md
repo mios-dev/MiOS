@@ -14,8 +14,8 @@
 - `bootc container lint` (LAW 4) rejects anything else.
 - Files processed lexicographically; later files cannot remove earlier kargs in the same image.
 - Use runtime `bootc kargs --delete` for in-place removal.
-- 'MiOS' NVIDIA hosts MUST NOT enable `init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` (CUDA incompatibility).
-- 'MiOS' uses `lockdown=integrity` (not `confidentiality`).
+- MiOS NVIDIA hosts MUST NOT enable `init_on_alloc=1`, `init_on_free=1`, `page_alloc.shuffle=1` (CUDA incompatibility).
+- MiOS uses `lockdown=integrity` (not `confidentiality`).
 - File-naming convention: `NN-mios-<topic>.toml` where NN encodes priority. `00-mios.toml` is the entry point; topic-specific files use `05-`, `10-`, `50-`, `99-`.
 </rules>
 
@@ -29,5 +29,5 @@ A single backticked filename, e.g. `usr/lib/bootc/kargs.d/50-mios-vfio.toml`.
 A single fenced ` ```toml` block containing the complete file contents.
 
 ## Rationale
-2-4 bullets explaining each karg added (purpose, conflict considerations, override path).
+2–4 bullets explaining each karg added (purpose, conflict considerations, override path).
 </output_contract>

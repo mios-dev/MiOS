@@ -2,14 +2,14 @@
 
 > Source: `DEPLOY.md`, `Justfile`.
 
-'MiOS' produces one OCI image and several disk-image artifacts via
+MiOS produces one OCI image and several disk-image artifacts via
 `bootc-image-builder` (BIB).
 
 ## Targets
 
 | Target | `just` recipe | BIB config | Output |
 | --- | --- | --- | --- |
-| OCI image | `just build` | -- | `localhost/mios:latest` |
+| OCI image | `just build` | — | `localhost/mios:latest` |
 | RAW (80 GiB ext4) | `just raw` | `config/artifacts/bib.toml` | `output/*.raw` |
 | Anaconda ISO | `just iso` | `config/artifacts/iso.toml` | `output/*.iso` |
 | QCOW2 | `just qcow2` | `config/artifacts/qcow2.toml` | `output/*.qcow2` |
@@ -42,7 +42,7 @@ sudo systemctl reboot
 The same one-liner. On a non-bootc host, bootstrap clones the system
 repo and runs the FHS overlay applier at `install.sh` to populate
 `/usr/lib/`, `/etc/`, etc. directly. `install.sh` refuses to run on a
-bootc-managed host -- switch via `bootc switch` instead.
+bootc-managed host — switch via `bootc switch` instead.
 
 ## Day-2 lifecycle
 
@@ -63,7 +63,7 @@ sudo bootc rollback                           # undo most recent upgrade
   ```
 - **WSL2**:
   ```
-  wsl --import 'MiOS' C:\WSL\'MiOS' output/disk.wsl2
+  wsl --import MiOS C:\WSL\MiOS output/disk.wsl2
   ```
 
 ## ISO install

@@ -1,10 +1,10 @@
-# Repo Overlay -- Repo Root === System Root
+# Repo Overlay — Repo Root === System Root
 
 > Source: `README.md`, `ARCHITECTURE.md` §Filesystem-layout,
 > `Containerfile` (`ctx` scratch stage), `INDEX.md` §1.
 
-The 'MiOS' repo's root **is** the deployed system root. There is **no
-`system_files/` directory** -- that was a v1 KB fabrication. The `ctx`
+The MiOS repo's root **is** the deployed system root. There is **no
+`system_files/` directory** — that was a v1 KB fabrication. The `ctx`
 scratch stage in `Containerfile` does:
 
 ```dockerfile
@@ -13,7 +13,7 @@ COPY usr/        /ctx/usr/
 COPY etc/        /ctx/etc/
 ```
 
-...and then `automation/08-system-files-overlay.sh` (which runs
+…and then `automation/08-system-files-overlay.sh` (which runs
 pre-pipeline from `Containerfile`) lays these onto `/`.
 
 ## Per-directory FHS disposition
@@ -24,7 +24,7 @@ pre-pipeline from `Containerfile`) lays these onto `/`.
 | `/etc` | Host-specific config | 3-way merge overlay; admin edits survive upgrades | `etc/` |
 | `/var` | Mutable, persistent | Fully writable; never replaced on upgrade | Declared via `usr/lib/tmpfiles.d/mios*.conf` (LAW 2: NO-MKDIR-IN-VAR) |
 | `/srv` | Data served by the system | Persistent; AI model weights, Ceph data | Declared via `usr/lib/tmpfiles.d/mios.conf` |
-| `/run` | Ephemeral runtime | tmpfs; cleared at boot; never in image layers | -- |
+| `/run` | Ephemeral runtime | tmpfs; cleared at boot; never in image layers | — |
 | `/home` | User homes | Persistent via `/var/home/<user>` + symlink | `usr/lib/sysusers.d/`, dotfiles staged via `/etc/skel` |
 
 ## Where to put what
@@ -73,9 +73,9 @@ pre-pipeline from `Containerfile`) lays these onto `/`.
 Every MiOS-aware config (profile.toml, env, AI prompts, sysctl, etc.) has
 a three-layer overlay:
 
-1. `~/.config/mios/<name>` -- per-user (highest precedence)
-2. `/etc/mios/<name>` -- host/admin
-3. `/usr/share/mios/<name>` -- vendor defaults (lowest, immutable)
+1. `~/.config/mios/<name>` — per-user (highest precedence)
+2. `/etc/mios/<name>` — host/admin
+3. `/usr/share/mios/<name>` — vendor defaults (lowest, immutable)
 
 Resolved by `/etc/profile.d/mios-env.sh` for env files; by the `mios` CLI
 clients for profile.toml; by the agent loader for system prompts.

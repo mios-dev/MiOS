@@ -1,6 +1,6 @@
 # Container Device Interface (CDI)
 
-> Used by 'MiOS' as the universal layer for NVIDIA, AMD ROCm/KFD, and
+> Used by MiOS as the universal layer for NVIDIA, AMD ROCm/KFD, and
 > Intel iGPU passthrough into containers. Specs at `/var/run/cdi/`,
 > admin overrides at `/etc/cdi/`, declared in
 > `usr/lib/tmpfiles.d/mios-gpu.conf`. Source:
@@ -37,7 +37,7 @@ devices:
         - NVIDIA_VISIBLE_DEVICES=0
 ```
 
-## 'MiOS' detection flow
+## MiOS detection flow
 
 1. `automation/34-gpu-detect.sh` runs at first boot, writes
    `/run/mios/gpu-passthrough.status`

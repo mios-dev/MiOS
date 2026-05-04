@@ -1,5 +1,5 @@
-# \MiOS KB local config -- overrides for downstream consumers
-# Day-0 defaults target the \MiOS LocalAI endpoint at http://localhost:8080/v1
+# MiOS KB local config — overrides for downstream consumers
+# Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8080/v1
 # (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.
 
 [runtime]
@@ -16,7 +16,7 @@ api_key_env = "MIOS_AI_KEY"   # empty key accepted by LocalAI; required for clou
 #   LiteLLM proxy:   base_url = "http://localhost:4000/v1"
 
 [models]
-# Default model -- honors $MIOS_AI_MODEL.
+# Default model — honors $MIOS_AI_MODEL.
 chat            = "${MIOS_AI_MODEL:-gpt-4o-mini}"
 fallback_chat   = "gpt-4.1"
 embedding       = "${MIOS_AI_EMBED_MODEL:-text-embedding-3-large}"
@@ -26,7 +26,7 @@ grader          = "${MIOS_AI_GRADER:-o3}"
 premium_chat    = "gpt-5"
 
 [api_surface]
-# Which OpenAI surfaces the runtime supports. Defaults reflect \MiOS LocalAI.
+# Which OpenAI surfaces the runtime supports. Defaults reflect MiOS LocalAI.
 # Set to true when targeting OpenAI/Azure cloud.
 chat_completions = true
 embeddings       = true
@@ -35,8 +35,8 @@ tools_strict     = false   # LocalAI accepts but does not enforce; flip true for
 responses_api    = false   # cloud-only
 vector_stores    = false   # cloud-only
 batch_api        = false   # cloud-only
-evals_api        = false   # cloud-only -- use the local-runner.py instead
-fine_tuning      = false   # cloud-only -- use axolotl/trl/llama-factory locally
+evals_api        = false   # cloud-only — use the local-runner.py instead
+fine_tuning      = false   # cloud-only — use axolotl/trl/llama-factory locally
 mcp_tool         = false   # Responses-only
 
 [chunking]
@@ -58,7 +58,7 @@ collection  = "mios-kb"
 attributes_required = ["doc_type", "mios_subsystem", "upstream_tech", "fhs_path"]
 
 [mios]
-# Pin to the \MiOS upstream this KB was generated against.
+# Pin to the MiOS upstream this KB was generated against.
 upstream_repo = "https://github.com/mios-dev/MiOS"
 upstream_ref  = "main"
 kb_version    = "2026.05.02"

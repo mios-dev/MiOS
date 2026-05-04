@@ -1,4 +1,4 @@
-# Build Pipeline -- Containerfile + automation/
+# Build Pipeline — Containerfile + automation/
 
 > Source: `Containerfile`, `automation/build.sh`, `ENGINEERING.md` §Phase-2,
 > `ENGINEERING.md` §Containerfile-conventions.
@@ -23,8 +23,8 @@ COPY config/artifacts/          /ctx/bib-configs/
 COPY tools/                     /ctx/tools/
 
 FROM ${BASE_IMAGE}
-LABEL org.opencontainers.image.title="'MiOS'" \
-      org.opencontainers.image.source="https://github.com/mios-dev/'MiOS'" \
+LABEL org.opencontainers.image.title="MiOS" \
+      org.opencontainers.image.source="https://github.com/mios-dev/MiOS" \
       org.opencontainers.image.version="v0.2.2" \
       containers.bootc="1" \
       ostree.bootable="1"
@@ -62,20 +62,20 @@ RUN --mount=type=bind,from=ctx,source=/ctx/tools,target=/ctx/tools,ro \
     bash /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source || true
 
 RUN ostree container commit
-RUN bootc container lint   # ARCHITECTURAL LAW 4 -- must be the final RUN
+RUN bootc container lint   # ARCHITECTURAL LAW 4 — must be the final RUN
 ```
 
 ## Pipeline phases (sub-phases of Phase-2)
 
 The `Containerfile` triggers `automation/build.sh`, which iterates every
 `automation/[0-9][0-9]-*.sh` script in numeric order. **~48 phase scripts**
-exist (not 01-39 as v1 claimed). Notable ones:
+exist (not 01–39 as v1 claimed). Notable ones:
 
 | Phase | Purpose |
 | --- | --- |
 | `01-repos.sh` | Configure dnf repos. **Excludes `kernel`/`kernel-core` from upgrades** (lines 65, 68). |
-| `08-system-files-overlay.sh` | Apply the FHS overlay onto `/`. **Runs pre-pipeline from `Containerfile`**, so `build.sh` skips it. Includes the BOUND-IMAGES binder loop at lines 74-86 (LAW 3). Writes home dotfiles to `/etc/skel/`. |
-| `12-virt.sh` | Configure virtualization. Disables CrowdSec `online_client` at lines 42-50 -- `/etc/crowdsec/config.yaml` is an upstream-contract `/etc/` location with no `/usr/lib` drop-in. |
+| `08-system-files-overlay.sh` | Apply the FHS overlay onto `/`. **Runs pre-pipeline from `Containerfile`**, so `build.sh` skips it. Includes the BOUND-IMAGES binder loop at lines 74–86 (LAW 3). Writes home dotfiles to `/etc/skel/`. |
+| `12-virt.sh` | Configure virtualization. Disables CrowdSec `online_client` at lines 42–50 — `/etc/crowdsec/config.yaml` is an upstream-contract `/etc/` location with no `/usr/lib` drop-in. |
 | `19-k3s-selinux.sh` | Ship custom SELinux modules to `usr/share/selinux/packages/mios/`. Compiled but not auto-loaded. |
 | `33-firewall.sh` | firewalld default-deny zone=drop; allow cockpit/9090, ssh/22, libvirt bridge, CrowdSec nftables bouncer. |
 | `34-gpu-detect.sh` | Detect GPUs at runtime; write `/run/mios/gpu-passthrough.status`. |
@@ -85,25 +85,25 @@ exist (not 01-39 as v1 claimed). Notable ones:
 | `53-bake-lookingglass-client.sh` | Build Looking Glass B7 client. |
 | `90-generate-sbom.sh` | Run syft to emit a CycloneDX SBOM. |
 
-`automation/build.sh` wraps each script in `set +e` (lines 234-237) so
+`automation/build.sh` wraps each script in `set +e` (lines 234–237) so
 individual failures are captured in `FAIL_LOG`/`WARN_LOG` rather than
 aborting the orchestrator. Critical packages from the
 ` ```packages-critical` block in `usr/share/mios/PACKAGES.md` are
-post-validated via `rpm -q` (lines 285-300).
+post-validated via `rpm -q` (lines 285–300).
 
 ## Build invariants enforced in CI
 
 - `set -euo pipefail` at the top of every phase script.
-- `VAR=$((VAR + 1))` only -- `((VAR++))` is forbidden because under
+- `VAR=$((VAR + 1))` only — `((VAR++))` is forbidden because under
   `set -e` it exits 1 when the result is 0, silently killing the script.
 - shellcheck-clean; **SC2038 fatal**.
 - File names: `NN-name.sh` where `NN` encodes execution order.
 - `Containerfile` final RUN is `bootc container lint` (LAW 4).
-- No `--squash-all` on `podman build` -- strips OCI metadata bootc needs
+- No `--squash-all` on `podman build` — strips OCI metadata bootc needs
   for client-side delta updates.
 - Kernel rule: only `kernel-modules-extra`, `kernel-devel`,
   `kernel-headers`, `kernel-tools`. Never `kernel`/`kernel-core`.
-- `dnf install_weak_deps=False` (underscore -- dnf5 spelling).
+- `dnf install_weak_deps=False` (underscore — dnf5 spelling).
   `install_weakdeps` (no underscore, dnf4) is silently ignored by dnf5.
 
 ## What `bootc container lint` enforces (final RUN)

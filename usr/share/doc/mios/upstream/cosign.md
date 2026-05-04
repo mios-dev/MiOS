@@ -1,4 +1,4 @@
-# Cosign / Sigstore -- Keyless Image Signing
+# Cosign / Sigstore — Keyless Image Signing
 
 > CI signs every push with cosign keyless via GitHub Actions OIDC
 > (`.github/workflows/mios-ci.yml`). Verify before deploying.
@@ -25,7 +25,7 @@ ephemeral keypair (in-memory)
 No long-lived signing key ever touches disk. Identity is the GitHub
 Actions workflow itself.
 
-## 'MiOS' verification
+## MiOS verification
 
 ```bash
 cosign verify \
@@ -57,7 +57,7 @@ cosign verify-attestation \
 ```
 
 Predicate types: `slsaprovenance`, `slsaprovenance1`, `spdxjson`,
-`cyclonedx`, `vuln`, `openvex`. 'MiOS' uses `cyclonedx` for SBOM via
+`cyclonedx`, `vuln`, `openvex`. MiOS uses `cyclonedx` for SBOM via
 `automation/90-generate-sbom.sh` (syft).
 
 ## Cross-refs

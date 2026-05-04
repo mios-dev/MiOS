@@ -1,4 +1,4 @@
-# rechunk -- Day-2 Delta Optimization
+# rechunk — Day-2 Delta Optimization
 
 > Used by `just rechunk` (and the `mios-build-local.ps1` Phase-3) via
 > `bootc-base-imagectl rechunk --max-layers 67 <src> <dst>`.
@@ -23,9 +23,9 @@ component changes, only that component's layer is re-pulled.
 | --- | --- | --- |
 | Single-package update (e.g. firefox bump) | Re-pull the layer that contains firefox + every later layer | Re-pull just firefox's layer |
 | Kernel-modules-extra rev | ~500 MB | ~50 MB |
-| Tag-to-tag bytes transferred | ~2 GB typical | ~200-400 MB typical |
+| Tag-to-tag bytes transferred | ~2 GB typical | ~200–400 MB typical |
 
-5-10× smaller is the documented expectation (`SELF-BUILD.md`).
+5–10× smaller is the documented expectation (`SELF-BUILD.md`).
 
 ## Invocation (`Justfile:rechunk`)
 
@@ -47,7 +47,7 @@ to 96 is reasonable.
 ## When NOT to rechunk
 
 For `:dev` and `:pr-*` tags that won't be consumed by `bootc upgrade`,
-skip rechunk -- it adds ~30s of build time. The 'MiOS' CI workflow only
+skip rechunk — it adds ~30s of build time. The MiOS CI workflow only
 rechunks on tag pushes (release builds), not on `main` PR builds.
 
 ## Cross-refs

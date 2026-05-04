@@ -7,20 +7,20 @@
 
 On every tag push and every push to `main`:
 
-1. **Lint** -- `hadolint` on `Containerfile`, `shellcheck` on every
+1. **Lint** — `hadolint` on `Containerfile`, `shellcheck` on every
    numbered phase script (SC2038 fatal), TOML validation (every TOML
    under `usr/lib/bootc/kargs.d/`, `config/artifacts/`).
-2. **Build** -- `podman build` with the same `--build-arg` flags as
+2. **Build** — `podman build` with the same `--build-arg` flags as
    `just build`. The `Containerfile`'s final RUN is `bootc container
    lint`, so build success implies lint success.
-3. **Rechunk** (tag pushes only) -- `bootc-base-imagectl rechunk
+3. **Rechunk** (tag pushes only) — `bootc-base-imagectl rechunk
    --max-layers 67` for optimized Day-2 deltas.
-4. **SBOM** -- `automation/90-generate-sbom.sh` runs `anchore/syft` to
+4. **SBOM** — `automation/90-generate-sbom.sh` runs `anchore/syft` to
    emit a CycloneDX-JSON SBOM at `artifacts/sbom/mios-sbom.json`.
-5. **Sign** -- `cosign sign --yes` keyless via GitHub Actions OIDC.
-6. **Push** -- push to `ghcr.io/mios-dev/mios:<tag>` and (on `main`)
+5. **Sign** — `cosign sign --yes` keyless via GitHub Actions OIDC.
+6. **Push** — push to `ghcr.io/mios-dev/mios:<tag>` and (on `main`)
    `:latest`.
-7. **Verify** -- sanity `cosign verify` against the freshly-pushed image
+7. **Verify** — sanity `cosign verify` against the freshly-pushed image
    before marking the workflow green.
 
 ## Cosign keyless flow
@@ -72,7 +72,7 @@ same scope.
 
 ## GHCR retention
 
-Untagged manifests are pruned after 90 days by default. 'MiOS' protects:
+Untagged manifests are pruned after 90 days by default. MiOS protects:
 
 - The latest signed digest (`:latest`)
 - The last 5 release-tag digests
@@ -91,7 +91,7 @@ podman manifest add    ghcr.io/mios-dev/mios:<tag> docker://localhost/mios-arm64
 podman manifest push --all ghcr.io/mios-dev/mios:<tag>
 ```
 
-Currently 'MiOS' publishes `linux/amd64` only; `linux/arm64` is on the
+Currently MiOS publishes `linux/amd64` only; `linux/arm64` is on the
 roadmap once the NVIDIA stack on aarch64 (Grace, Orin, Spark) stabilizes.
 
 ## image-versions.yml + Renovate

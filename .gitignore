@@ -130,6 +130,8 @@ etc/mios/*
 !/etc/mios/eval-criteria.json
 !/etc/mios/system-prompts/
 !/etc/mios/system-prompts/**
+!/etc/mios/ai/
+!/etc/mios/ai/system-prompt.md
 
 # /etc/sysusers.d/ -- admin overrides for upstream-RPM sysusers entries
 # (e.g. cephadm.conf pins UID >= 1000 so the postcheck #8 invariant passes).

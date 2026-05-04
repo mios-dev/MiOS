@@ -14,5 +14,5 @@
         "required": ["filename", "toml_content"]}}}
   ],
   "response_format": {"type": "text"},
-  "_comment": "Universal Chat Completions form -- works against OpenAI cloud, Azure OpenAI, and every local OpenAI-compatible runtime (LocalAI, Ollama, vLLM, LM Studio, llama.cpp, LiteLLM, OpenRouter)."
+  "_comment": "Universal Chat Completions form — works against OpenAI cloud, Azure OpenAI, and every local OpenAI-compatible runtime (LocalAI, Ollama, vLLM, LM Studio, llama.cpp, LiteLLM, OpenRouter)."
 }
