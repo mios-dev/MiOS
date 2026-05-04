@@ -26,7 +26,10 @@ Wants=network-online.target
 # Skip when cockpit isn't installed or hasn't bound :9090 yet -- no point
 # in advertising a dead URL.
 ConditionPathExists=/usr/lib/systemd/system/cockpit.socket
-ConditionVirtualization=!container
+# Pure userspace TCP relay -- safe on every shape including WSL where
+# Cockpit is also reachable on :9090 inside the distro.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Container]
 Image=docker.io/alpine/socat:latest

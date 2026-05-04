@@ -28,7 +28,11 @@ After=network-online.target mios-forge.service
 Wants=network-online.target
 Requires=mios-forge.service
 ConditionPathExists=/etc/mios/forge/runner-token
-ConditionVirtualization=!container
+# Runner closes the push -> CI -> bootc-switch loop on every shape
+# including WSL. WSL = `container` virt to systemd, so `!container` would
+# silently skip WSL and break self-replication on Windows hosts.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Container]
 Image=code.forgejo.org/forgejo/runner:6.5

@@ -5,7 +5,12 @@ After=mios-forge.service network-online.target
 Wants=mios-forge.service network-online.target
 ConditionPathExists=/etc/mios/install.env
 ConditionPathExists=!/var/lib/mios/forge/.firstboot-done
-ConditionVirtualization=!container
+# Forgejo bootstrap MUST run on WSL too (the localhost:3000 git origin
+# is the heart of the MiOS self-replication loop on every shape). A
+# plain `!container` would skip WSL because systemd reports virtualization
+# as `wsl` -- a container variant. Use OR: "not a container OR is WSL".
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Service]
 Type=oneshot

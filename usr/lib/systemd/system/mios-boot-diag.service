@@ -1,6 +1,8 @@
 [Unit]
-ConditionVirtualization=!container
 Description='MiOS' Boot Diagnostic -- prints service status to console
+# Read-only journal/systemctl introspection -- safe on every shape.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 After=basic.target
 Before=graphical.target
 

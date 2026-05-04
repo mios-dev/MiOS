@@ -1,8 +1,12 @@
 [Unit]
-ConditionVirtualization=!container
 Description='MiOS' FreeIPA Zero-Touch Enrollment
 ConditionPathExists=/etc/mios/ipa-enroll.env
 ConditionPathExists=!/etc/ipa/default.conf
+# Network-driven enrollment -- WSL deployments enrolling against a
+# corporate IPA realm need this too. Gated by /etc/mios/ipa-enroll.env
+# existence, so it stays a no-op unless explicitly configured.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 Wants=network-online.target
 After=network-online.target
 

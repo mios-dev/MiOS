@@ -107,15 +107,13 @@ audit
 fapolicyd
 crowdsec
 usbguard
-# dbus-daemon: Fedora CoreOS ships dbus-broker by default and does NOT
-# carry /usr/bin/dbus-daemon. The WSL2 D-Bus fallback unit
-# (usr/lib/systemd/system/dbus-daemon-wsl.service) ExecStart='s
-# /usr/bin/dbus-daemon because dbus-broker fails on WSL2 kernels (the
-# audit subsystem dbus-broker requires is stripped from MS WSL kernels).
-# Without this package, dbus-daemon-wsl exits 203/EXEC and the entire
-# system D-Bus stack stays down -- logind/polkit/cockpit/homectl all
-# cascade-fail with "Failed to connect to system scope bus".
-dbus-daemon
+# D-Bus: dbus-broker (CoreOS default) is the system bus on every
+# deployment shape, including WSL. The WSL audit-subsystem-stripped
+# kernel is handled by usr/lib/systemd/system/dbus-broker.service.d/
+# 10-mios-no-audit.conf, which drops `--audit` from the broker's
+# ExecStart. The legacy /usr/bin/dbus-daemon package is intentionally
+# NOT installed -- shipping both broker and reference daemon would
+# create a unit-file conflict (alias dbus.service -> two providers).
 ```
 
 ## Moby -- Docker-compatible engine

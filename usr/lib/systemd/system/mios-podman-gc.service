@@ -1,6 +1,10 @@
 [Unit]
 Description='MiOS' Podman Garbage Collection
-ConditionVirtualization=!container
+# Podman runs on every MiOS shape including WSL -- garbage collection
+# must run too. systemd treats wsl as a container variant, so a plain
+# `!container` would silently skip WSL.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/podman system prune -a -f

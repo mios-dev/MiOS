@@ -1,10 +1,13 @@
 [Unit]
 Description='MiOS' Root Filesystem Verification
-ConditionVirtualization=!container
 Documentation=file:///usr/share/doc/mios/COMPOSEFS-VERIFICATION.md
 DefaultDependencies=no
 Before=greenboot-healthcheck.service basic.target local-fs.target
 After=ostree-remount.service
+# Already gated by /run/ostree-booted -- WSL doesn't have an ostree
+# deployment so the marker is absent and the unit no-ops naturally.
+# The previous virt-gate was redundant and silently skipped WSL even
+# when ostree-booted was somehow present (e.g. nested test setup).
 ConditionPathExists=/run/ostree-booted
 
 [Service]

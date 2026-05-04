@@ -18,7 +18,12 @@ Description='MiOS' Git forge (Forgejo)
 After=network-online.target
 Wants=network-online.target
 ConditionPathIsDirectory=/etc/mios/forge
-ConditionVirtualization=!container
+# Forgejo IS the self-replication loop's git origin -- must run on every
+# shape including WSL. systemd reports WSL as a `container` virt variant,
+# so a bare `!container` would skip WSL and break the entire push -> CI
+# -> bootc switch loop on Windows hosts.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Container]
 Image=codeberg.org/forgejo/forgejo:11

@@ -1,9 +1,12 @@
 [Unit]
-ConditionVirtualization=!container
 Description='MiOS' Agent Context Service (MCP)
+# High-availability context provider for autonomous agents. Pure
+# userspace daemon (no kernel/audit/hardware coupling) so it runs on
+# every MiOS shape -- bare-metal, Hyper-V, QEMU, WSL, Podman-WSL.
+# The previous `ConditionVirtualization=!container` would silently skip
+# WSL, since systemd reports WSL as a `container` virt variant.
 After=network.target redis.service
 Wants=redis.service
-# High-availability context provider for autonomous agents.
 
 [Service]
 Type=simple

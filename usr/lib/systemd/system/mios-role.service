@@ -1,6 +1,10 @@
 [Unit]
 Description='MiOS' System Init & Role Engine
-ConditionVirtualization=!container
+# Pure userspace role-apply (reads /etc/mios/role.conf, toggles services).
+# MUST run on WSL since role gating is what selects the WSL-friendly
+# subset on first boot. Standard `!container` skips wsl => bug.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 Wants=network-online.target
 After=network-online.target local-fs.target sysinit.target
 DefaultDependencies=no

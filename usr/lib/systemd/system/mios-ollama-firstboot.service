@@ -9,7 +9,12 @@ After=ollama.service network-online.target
 Wants=ollama.service network-online.target
 Requires=ollama.service
 ConditionPathExists=!/var/lib/mios/.ollama-firstboot-done
-ConditionVirtualization=!container
+# Run on bare-metal/VM AND on WSL. systemd treats `wsl` as a container
+# variant, so a plain `!container` would skip every WSL deployment --
+# but Ollama is a core MiOS feature on WSL too. The two-line ORed form
+# below evaluates to "not a container OR is WSL".
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Service]
 Type=oneshot

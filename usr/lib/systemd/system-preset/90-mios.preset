@@ -55,7 +55,9 @@ enable qemu-guest-agent.service
 enable mios-wsl-firstboot.service
 enable mios-wsl-init.service
 enable mios-wsl-runtime-dir.service
-enable dbus-daemon-wsl.service
+# (dbus-daemon-wsl.service was removed entirely -- dbus-broker now runs
+# on WSL via 10-mios-no-audit.conf, and the legacy /usr/bin/dbus-daemon
+# binary is not shipped on Fedora CoreOS 44.)
 
 # --- First-boot AI model pull (sentinel-guarded) ---
 # Build-time embedding fails because the OCI build's final /var

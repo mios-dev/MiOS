@@ -1,8 +1,12 @@
 [Unit]
-ConditionVirtualization=!container
 Description='MiOS' K3s Manifest Seeder
 Before=k3s.service
 ConditionPathExists=/usr/share/mios/k3s-manifests
+# Pure file-copy oneshot -- no kernel/hardware coupling. Run on every
+# shape including WSL (k3s.container itself stays !wsl-gated; this
+# seeder is harmless if k3s ultimately doesn't start).
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Service]
 Type=oneshot

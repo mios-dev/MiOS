@@ -1,6 +1,8 @@
 [Unit]
 Description='MiOS' CDI spec detection (WSL vs bare metal vs VM)
-ConditionVirtualization=!container
+# The detection script EXPLICITLY branches on virt shape (WSL vs
+# bare-metal vs VM) -- gating it out on WSL was a bug. Removed the
+# condition; the script picks the correct CDI spec on every host.
 Before=nvidia-cdi-refresh.service
 After=local-fs.target
 
