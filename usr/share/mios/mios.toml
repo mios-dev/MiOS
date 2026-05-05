@@ -189,6 +189,73 @@ bib       = "quay.io/centos-bootc/bootc-image-builder:latest"
 name      = "ghcr.io/mios-dev/mios"
 tag       = "latest"
 local_tag = "localhost/mios:latest"
+# Sibling minimal-track image (Containerfile.minimal): builds from
+# bare fedora-bootc instead of ucore-hci. Smaller (~1.2 GB vs ~2.5 GB)
+# but lacks NVIDIA kmod + libvirt + ZFS prebakes. Operators on
+# non-HCI workloads can target the minimal tag instead.
+minimal_base = "quay.io/fedora/fedora-bootc:latest"
+minimal_tag  = "localhost/mios-minimal:latest"
+minimal_name = "ghcr.io/mios-dev/mios-minimal"
+
+# ----------------------------------------------------------------------------
+# [hwcaps] -- x86-64 microarchitecture level for runtime-selected
+# optimized libraries.
+#
+# Background: Fedora ships glibc-hwcaps subpackages
+# (glibc-hwcaps-x86-64-v3, glibc-hwcaps-x86-64-v4) that drop alternative
+# .so files into /usr/lib64/glibc-hwcaps/x86-64-vN/. The dynamic linker
+# (ld.so) auto-selects them at process start when the host CPU advertises
+# the matching capability bits via AT_HWCAP / AT_HWCAP2 in the auxiliary
+# vector. No application changes; transparent perf uplift.
+#
+# Hardware floor:
+#   v1 (baseline)  every x86-64 CPU since 2003 (the original AMD64 ISA)
+#   v2             SSE3 + SSSE3 + SSE4.1 + SSE4.2 + POPCNT
+#                  Intel Nehalem 2008+, AMD Barcelona 2007+
+#   v3             AVX + AVX2 + BMI1 + BMI2 + FMA + F16C + LZCNT + MOVBE
+#                  Intel Haswell 2013+, AMD Excavator 2015+, AMD Zen 1 2017+
+#                  AMD Ryzen 9000 series (Zen 5) supports v3 and v4
+#                  AMD Ryzen 7000 series (Zen 4) supports v3 and v4
+#                  AMD Ryzen 5000 series (Zen 3) supports v3
+#   v4             AVX-512 (foundation + DQ + CD + BW + VL)
+#                  Intel Skylake-X 2017+, Ice Lake 2019+
+#                  AMD Zen 4 2022+ (Ryzen 7000), Zen 5 2024+ (Ryzen 9000)
+#
+# Tradeoffs:
+#   - v3/v4 binaries can be 5-30% faster on numeric / SIMD-heavy workloads
+#     (BLAS, libvips, ffmpeg, video transcoding, ML inference, blake3
+#     hashing, json/yaml parsing with -O3 simd codegen).
+#   - Storage cost: each hwcaps subpackage adds ~5-15 MB per glibc revision.
+#     The whole hwcaps loader infrastructure is ~30 MB combined for v3+v4.
+#   - Runtime cost: zero. ld.so picks the right loader at exec time; no
+#     branching at hot-path level.
+#   - Binary compat: hwcaps libraries are PURE ADDITIVE -- they never
+#     replace the baseline v1 .so files. Older / cross-arch binaries
+#     keep working.
+#
+# Native rebuild (future track): MiOS may eventually compile select hot-path
+# packages (kernel, glibc itself, openssl, zstd, ffmpeg, mesa-vulkan-drivers)
+# with -march=znver4 / -march=x86-64-v4 directly instead of relying on the
+# hwcaps multi-build trick. That work is documented in
+# usr/share/doc/mios/reference/hwcaps.md and tracked as a Day-N goal.
+# ----------------------------------------------------------------------------
+[hwcaps]
+# Microarchitecture level. Set to "v3" or "v4" to pull the matching
+# glibc-hwcaps-* RPMs into the image; the loader auto-selects them on
+# capable CPUs at boot. Operators on Zen 5 (Ryzen 9000) hosts can safely
+# enable "v4". Operators on Zen 1-3 hosts cap at "v3". Setting "v1"
+# (baseline) skips the hwcaps install entirely (smallest image, widest
+# CPU compat).
+level = "v1"
+# Allow ld.so glibc-hwcaps loader autoselect at runtime (the default).
+# Setting false would force baseline-only paths even when v3/v4 .so files
+# are present -- exists for benchmarking / regression isolation.
+ld_so_hwcaps_autoselect = true
+# Native-rebuild track gate. When true, automation/45-hwcaps-rebuild.sh
+# would recompile the hot-path package set with -march=<level> via mock
+# or COPR. Default false; flipping to true is a roadmap item (see
+# usr/share/doc/mios/reference/hwcaps.md).
+native_rebuild = false
 
 # ----------------------------------------------------------------------------
 # [packages] -- SSOT mapping mios.toml -> usr/share/mios/PACKAGES.md sections.
@@ -814,6 +881,40 @@ pkgs = [
     "nut-client",
     "nut-xml",
     "usbutils",
+]
+
+# ----------------------------------------------------------------------------
+# [packages.glibc-hwcaps-v3] / [packages.glibc-hwcaps-v4]
+#
+# Optional sections gated by [hwcaps].level. Pulled into the install set by
+# automation/lib/packages.sh when [hwcaps].level == "v3" or "v4". Skipped
+# (or installed best-effort if --skip-unavailable in dnf) for hosts where
+# the matching glibc-hwcaps subpackage isn't shipped in the active Fedora
+# release -- Fedora's hwcaps packaging cadence has been uneven, and
+# secureblue / x86-64-v3 derivative projects sometimes carry COPR rebuilds
+# instead. dnf's --skip-unavailable + --skip-broken handle the gap.
+#
+# Hardware floor:
+#   v3:  Intel Haswell 2013+ / AMD Zen 1+ (most consumer CPUs from the
+#        last decade). Recommended for the canonical MiOS image.
+#   v4:  Intel Skylake-X / Ice Lake / AMD Zen 4+. Required: AVX-512.
+#        Recommended for HCI / compute / inference workloads on Zen 4-5.
+#
+# Operators enable by editing /etc/mios/mios.toml:
+#     [hwcaps]
+#     level = "v3"   # or "v4"
+#     [packages]
+#     sections = [..., "glibc-hwcaps-v3"]   # or "glibc-hwcaps-v4"
+# and re-running `just build`.
+# ----------------------------------------------------------------------------
+[packages.glibc-hwcaps-v3]
+pkgs = [
+    "glibc-hwcaps-x86-64-v3",
+]
+
+[packages.glibc-hwcaps-v4]
+pkgs = [
+    "glibc-hwcaps-x86-64-v4",
 ]
 
 
