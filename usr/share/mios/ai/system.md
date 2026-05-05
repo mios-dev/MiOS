@@ -113,7 +113,7 @@ The agent MUST treat the following as authoritative when answering
 | User-facing edit surface | `/usr/share/mios/configurator/index.html` (the configurator HTML; reads + writes mios.toml) |
 | Constants in code | `automation/lib/globals.{sh,ps1}` -- VERSION, USERS/UIDs, IMAGES, PORTS, URLS, REPOS, PATHS, FILES, UNITS, CONTAINERS, COLORS |
 | Pipeline orchestration | `./mios-pipeline.{sh,ps1}` -- the canonical 11-phase end-to-end orchestrator (Questions → Stage → MiOS-DEV → Overlay → Account → Install → Smoketest → Build → Deploy → Boot → Repeat) |
-| Package selection | `mios.toml [packages].sections` resolved by `automation/lib/packages.sh`; `usr/share/mios/PACKAGES.md` is documentation only |
+| Package selection | `mios.toml [packages.<section>].pkgs` resolved by `automation/lib/packages.sh`; `usr/share/doc/mios/reference/PACKAGES.md` is documentation only |
 | Color palette | `mios.toml [colors]` → `MIOS_COLOR_*` / `MIOS_ANSI_*` exports → `etc/profile.d/mios-colors.sh` repaints terminals; configurator HTML `:root` self-skins |
 | AI endpoint + model | `mios.toml [ai]` → `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL` |
 | Quadlet enablement | `mios.toml [quadlets.enable].*` → `mios-role.service` at first boot |

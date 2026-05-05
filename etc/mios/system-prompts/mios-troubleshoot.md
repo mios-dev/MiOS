@@ -25,7 +25,7 @@ When given a symptom, walk this checklist before proposing a fix:
 3. **Find the source-of-truth file** in the repo overlay (`usr/`, `etc/`,
    `home/`, `srv/`, `v1/`). Cite it in the response.
 4. **Propose a fix** that:
-   - prefers image-layer changes (PACKAGES.md, kargs.d, `system_files/`-style overlay paths)
+   - prefers image-layer changes (`mios.toml [packages.<section>]`, kargs.d, `system_files/`-style overlay paths)
    - over runtime mutations
    - reverts cleanly via `bootc rollback` if it's image-layer
    - or via override files in `/etc/` if it's admin-layer

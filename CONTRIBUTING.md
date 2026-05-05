@@ -2,9 +2,12 @@
 
 ## Project rules
 
-- **Single source of truth: `usr/share/mios/ai/INDEX.md` + `usr/share/mios/PACKAGES.md`.**
-  Every package belongs in `PACKAGES.md`, every architectural rule in
-  `usr/share/mios/ai/INDEX.md`. Other docs cite, never duplicate.
+- **Single source of truth: `usr/share/mios/ai/INDEX.md` + `usr/share/mios/mios.toml`.**
+  Every package belongs in `mios.toml [packages.<section>].pkgs`,
+  every architectural rule in `usr/share/mios/ai/INDEX.md`. Other docs
+  cite, never duplicate. Human-readable package documentation lives at
+  `usr/share/doc/mios/reference/PACKAGES.md` -- it is documentation, not
+  the runtime SSOT.
 - **USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, BOOTC-CONTAINER-LINT,
   UNIFIED-AI-REDIRECTS, UNPRIVILEGED-QUADLETS** -- see `usr/share/mios/ai/INDEX.md` §3.
   Violating any of the six is a build/audit fail.
@@ -95,7 +98,11 @@ cleanup.
 
 1. Branch from `main`.
 2. Local validation: `just build` (Containerfile lint runs as final RUN).
-3. If you added or changed packages, edit `usr/share/mios/PACKAGES.md`.
+3. If you added or changed packages, edit `usr/share/mios/mios.toml`
+   under the matching `[packages.<section>]` table (the configurator
+   HTML at `usr/share/mios/configurator/index.html` is the WYSIWYG
+   editor for the same file). Update `usr/share/doc/mios/reference/PACKAGES.md`
+   in the same PR if the prose rationale changes.
 4. If user-facing, bump `VERSION`.
 5. Open a PR against `main`.
 

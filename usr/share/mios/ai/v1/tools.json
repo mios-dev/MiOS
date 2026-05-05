@@ -69,7 +69,7 @@
     },
     {
       "name": "packages_md_query",
-      "description": "Query the package single-source-of-truth (usr/share/mios/PACKAGES.md). Returns the resolved package list for a given category.",
+      "description": "Query the package single-source-of-truth (mios.toml [packages.<section>].pkgs at usr/share/mios/mios.toml). Returns the resolved package list for a given section. Legacy name retained for tool-call compat; underlying source is TOML, not PACKAGES.md.",
       "chat_completions": "/usr/lib/mios/tools/chat-completions-api/packages_md_query.json",
       "responses": "/usr/lib/mios/tools/responses-api/packages_md_query.json",
       "dispatcher": "/usr/libexec/mios/tools/packages_md_query",

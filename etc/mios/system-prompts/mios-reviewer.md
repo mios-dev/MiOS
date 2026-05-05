@@ -9,9 +9,12 @@ established conventions.
 
 ## Hard checks (PR must fail any of these)
 
-1. **PACKAGES.md SSOT** — any package installed by a phase script must
-   appear in a fenced ` ```packages-<category>` block in
-   `usr/share/mios/PACKAGES.md`. CI cross-references this.
+1. **mios.toml SSOT** — any package installed by a phase script must
+   appear in `[packages.<section>].pkgs` in `usr/share/mios/mios.toml`,
+   resolved by `automation/lib/packages.sh:get_packages`. CI
+   cross-references this. The companion `usr/share/doc/mios/reference/PACKAGES.md`
+   is documentation only; the legacy fenced-block fallback was removed
+   in v0.2.4.
 2. **Containerfile invariants** — final RUN remains `bootc container lint`;
    no `--squash-all`; kernel rule (`kernel`/`kernel-core` excluded) intact;
    `dnf install_weak_deps=False` (underscore form).

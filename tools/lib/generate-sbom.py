@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-# tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from PACKAGES.md +
-# Quadlet Image= refs + base image refs + .env.mios Flatpak defaults.
+# tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from mios.toml
+# [packages.<section>].pkgs + Quadlet Image= refs + base image refs +
+# .env.mios Flatpak defaults. As of v0.2.4 (2026-05-05) PACKAGES.md is
+# documentation only; mios.toml is the runtime SSOT.
 
 import re
 import csv
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -109,26 +112,28 @@ OCI_IMAGES = [
 def main(out_path: Path):
     rows = []
 
-    # 1. PACKAGES.md
-    pmd = (ROOT / "usr/share/mios/PACKAGES.md").read_text(encoding="utf-8")
-    section_re = re.compile(r"^```packages-([a-z0-9-]+)\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
-    for m in section_re.finditer(pmd):
-        cat = m.group(1)
-        body = m.group(2)
+    # 1. mios.toml [packages.<section>].pkgs (runtime SSOT)
+    toml_path = ROOT / "usr/share/mios/mios.toml"
+    with toml_path.open("rb") as fh:
+        toml = tomllib.load(fh)
+    pkg_tables = toml.get("packages", {}) or {}
+    for cat, table in sorted(pkg_tables.items()):
+        if not isinstance(table, dict):
+            continue
+        pkgs = table.get("pkgs", []) or []
+        if not pkgs:
+            continue
         classification, purpose = CAT_META.get(cat, (f"rpm-{cat}", "(uncategorized)"))
-        for ln in body.splitlines():
-            ln = ln.strip()
-            if not ln or ln.startswith("#"):
-                continue
-            ln = ln.split("#", 1)[0].strip()
-            if not ln:
+        for pkg in pkgs:
+            pkg = (pkg or "").strip()
+            if not pkg:
                 continue
             rows.append({
                 "section":        f"packages-{cat}",
-                "package":        ln,
+                "package":        pkg,
                 "classification": classification,
                 "purpose":        purpose,
-                "notes":          f"From usr/share/mios/PACKAGES.md packages-{cat} block",
+                "notes":          f"From usr/share/mios/mios.toml [packages.{cat}].pkgs",
             })
 
     # 2. From-source

@@ -2,7 +2,7 @@
   "model": "text-embedding-3-large",
   "input": [
     "MiOS uses lockdown=integrity, not lockdown=confidentiality.",
-    "PACKAGES.md lives at usr/share/mios/PACKAGES.md and uses fenced packages-<category> blocks."
+    "MiOS package selection lives at usr/share/mios/mios.toml under [packages.<section>].pkgs; usr/share/doc/mios/reference/PACKAGES.md is the human-readable companion."
   ],
   "dimensions": 1536,
   "encoding_format": "float",

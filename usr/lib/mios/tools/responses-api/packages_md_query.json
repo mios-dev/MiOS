@@ -1,7 +1,7 @@
 {
   "type": "function",
   "name": "packages_md_query",
-  "description": "Query the MiOS PACKAGES.md SSOT (at usr/share/mios/PACKAGES.md). Returns whether a package is included, the fenced-block category that installs it, and the install helper that consumes the block. Categories live in fenced ```packages-<category>``` blocks parsed by automation/lib/packages.sh:get_packages.",
+  "description": "Query the MiOS package SSOT (mios.toml [packages.<section>].pkgs at usr/share/mios/mios.toml). Returns whether a package is included, the section table that installs it, and the install helper that consumes the table. As of v0.2.4 the legacy PACKAGES.md fenced-block fallback is removed; mios.toml is the only runtime source. The companion human-readable doc is usr/share/doc/mios/reference/PACKAGES.md.",
   "strict": true,
   "parameters": {
     "type": "object",
@@ -13,8 +13,8 @@
       },
       "category": {
         "type": ["string", "null"],
-        "enum": ["base", "critical", "self-build", "desktop", "nvidia", "k3s", "ceph", "ai", "gpu", "virt", "all", null],
-        "description": "Optional category filter. 'all' searches every fenced block. Null defaults to 'all'."
+        "enum": ["base", "ai", "boot", "ceph", "cockpit", "containers", "critical", "gnome", "gpu-nvidia", "gpu-mesa", "k3s", "kernel", "security", "self-build", "storage", "uki", "updater", "utils", "virt", "all", null],
+        "description": "Optional [packages.<section>] filter. 'all' searches every section table. Null defaults to 'all'."
       }
     },
     "required": ["package_name", "category"]

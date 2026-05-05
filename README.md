@@ -139,9 +139,14 @@ etc.) and the numeric prefix encodes execution order. Add a new step? Drop
 a new `45-myfeature.sh` next to its peers.
 
 If you want to know what makes a package show up in the image, check
-[`usr/share/mios/PACKAGES.md`](usr/share/mios/PACKAGES.md) -- it's the single
-source of truth, parsed at build time. Want to know what kernel arguments
-ship? They're in [`usr/lib/bootc/kargs.d/`](usr/lib/bootc/kargs.d/).
+[`usr/share/mios/mios.toml`](usr/share/mios/mios.toml) under
+`[packages.<section>].pkgs` -- that's the runtime source of truth,
+parsed by `automation/lib/packages.sh` and edited via the configurator
+HTML at `/usr/share/mios/configurator/`. Human-readable companion
+documentation lives at
+[`usr/share/doc/mios/reference/PACKAGES.md`](usr/share/doc/mios/reference/PACKAGES.md).
+Want to know what kernel arguments ship? They're in
+[`usr/lib/bootc/kargs.d/`](usr/lib/bootc/kargs.d/).
 
 ---
 

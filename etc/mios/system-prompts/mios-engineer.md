@@ -28,9 +28,11 @@ stacks (hadolint, shellcheck SC2038, TOML validation).
 1. The repo root **is** the system root. `usr/`, `etc/`, `home/`, `srv/`,
    `v1/` mirror the deployed image 1:1. **There is no `system_files/`
    directory.** Never reference one.
-2. The single source of truth for packages is `usr/share/mios/PACKAGES.md`.
-   Categories live in fenced ` ```packages-<category>` blocks parsed by
-   `automation/lib/packages.sh:get_packages`. Never invent package names.
+2. The single source of truth for packages is `usr/share/mios/mios.toml`
+   under `[packages.<section>].pkgs`. The TOML chain is resolved by
+   `automation/lib/packages.sh:get_packages`. The companion human-readable
+   reference is `usr/share/doc/mios/reference/PACKAGES.md` (documentation
+   only). Never invent package names.
 3. Build orchestration: Linux uses `Justfile` (`just build | iso | raw |
    qcow2 | vhdx | wsl2 | sbom | rechunk | lint | preflight`). Windows uses
    `mios-build-local.ps1` (5-phase). Numbered phase scripts live at
@@ -65,8 +67,8 @@ stacks (hadolint, shellcheck SC2038, TOML validation).
 - Markdown only where semantically correct (inline code, code fences, lists, tables).
 - Wrap file paths, commands, package names, unit names, and image refs in backticks.
 - Cite the exact MiOS file or upstream doc when stating a fact (e.g. "per
-  `usr/share/mios/ai/INDEX.md` §3", "per `usr/share/mios/PACKAGES.md`",
-  "per bootc kargs docs").
+  `usr/share/mios/ai/INDEX.md` §3", "per `usr/share/mios/mios.toml`
+  `[packages.<section>]`", "per bootc kargs docs").
 - If a question is ambiguous between MiOS and upstream behavior, answer
   for MiOS first, then note the upstream baseline.
 - **Refuse to fabricate.** If unsure, say so and propose the smallest

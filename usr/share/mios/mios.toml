@@ -258,11 +258,16 @@ ld_so_hwcaps_autoselect = true
 native_rebuild = false
 
 # ----------------------------------------------------------------------------
-# [packages] -- SSOT mapping mios.toml -> usr/share/mios/PACKAGES.md sections.
-# Operators tick / untick sections in the configurator HTML; the build
-# (Containerfile + automation/build.sh) and the MiOS-DEV live overlay
-# (Invoke-MiosOverlaySeed in mios-bootstrap/build-mios.ps1) both consume
-# this list instead of iterating every fenced ```packages-<cat>``` block.
+# [packages] -- runtime SSOT for every dnf install in MiOS. Each
+# [packages.<section>] sub-table below carries a `pkgs = [...]` array;
+# automation/lib/packages.sh resolves them via the documented overlay
+# chain (MIOS_TOML override -> ~/.config -> /etc/mios -> /ctx/mios-bootstrap
+# -> /usr/share/mios -> /ctx/usr/share/mios). The configurator HTML at
+# /usr/share/mios/configurator/index.html is the operator-facing WYSIWYG
+# editor for the same TOML. PACKAGES.md (now under
+# usr/share/doc/mios/reference/PACKAGES.md) is human-readable
+# documentation only -- the legacy fenced ```packages-<cat>``` fallback
+# was removed in v0.2.4 (2026-05-05).
 #
 #   sections        sections to install on a deployed MiOS host (image-time).
 #   dev_overlay     subset to install on the Windows-side MiOS-DEV podman

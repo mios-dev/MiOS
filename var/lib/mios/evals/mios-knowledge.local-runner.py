@@ -117,7 +117,7 @@ def main():
     else:
         system = ("You are MiOS-Engineer. Cite MiOS files (e.g. INDEX.md, ENGINEERING.md, "
                   "SECURITY.md, Containerfile, Justfile, usr/lib/bootc/kargs.d/00-mios.toml, "
-                  "usr/share/mios/PACKAGES.md) when stating facts. Refuse to fabricate.")
+                  "usr/share/mios/mios.toml) when stating facts. Refuse to fabricate.")
 
     items = [json.loads(l) for l in Path(args.dataset).read_text().splitlines() if l.strip()]
     if args.limit:
