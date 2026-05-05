@@ -108,6 +108,17 @@ etc/containers/*
 !/etc/containers/systemd/
 etc/containers/systemd/*
 !/etc/containers/systemd/mios*
+# storage.conf.d/ -- additionalimagestores bridge so rootless distrobox
+# can read images built into rootful podman storage by the system-scope
+# .build Quadlets (Universal Blue / Bazzite pattern).
+!/etc/containers/storage.conf.d/
+etc/containers/storage.conf.d/*
+!/etc/containers/storage.conf.d/30-mios-*
+# containers.conf.d/ -- per-host podman tunables (rootless network
+# backend, runtime defaults). All shipped .conf files are MiOS-authored.
+!/etc/containers/containers.conf.d/
+etc/containers/containers.conf.d/*
+!/etc/containers/containers.conf.d/30-mios-*
 !/etc/fapolicyd/
 etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
