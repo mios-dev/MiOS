@@ -217,6 +217,12 @@ usr/share/containers/*
 !/usr/share/containers/systemd/**
 !/usr/share/containers/containers.conf.d/
 !/usr/share/containers/containers.conf.d/**
+# Vendor-default containers/storage.conf -- shipped at the lowest precedence
+# layer so /etc and ~/.config layers can override. Switches the rootless
+# default driver from fuse-overlayfs (broken inside WSL2/nested-container
+# without /dev/fuse) to kernel-native overlay, which works in unprivileged
+# user namespaces since Linux 5.11.
+!/usr/share/containers/storage.conf
 
 # usr/share/ollama -- build-baked model seed dir bind-mounted RO into
 # the ollama.container Quadlet. Tracked because on MiOS-DEV (WSL2
@@ -250,6 +256,11 @@ usr/libexec/*
 usr/lib/*
 !/usr/lib/mios/
 !/usr/lib/mios/**
+# /usr/lib/os-release: MiOS overrides the FCOS-inherited identity file so
+# fastfetch / motd / postcheck see NAME=MiOS / ID=mios instead of the base
+# image's "Fedora CoreOS 44". Single tracked file at the canonical path
+# the os-release(5) spec requires.
+!/usr/lib/os-release
 
 # Directories containing exclusively MiOS content -- allow all via **
 !/usr/lib/NetworkManager/
@@ -389,10 +400,20 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/*.mount.d/**
 !/usr/lib/systemd/system/*.target.d/
 !/usr/lib/systemd/system/*.target.d/**
-# Exclude system-owned service.d dirs that MiOS doesn't manage
-usr/lib/systemd/system/systemd-udev-trigger.service.d/
-usr/lib/systemd/system/user@.service.d/
-usr/lib/systemd/system/user@0.service.d/
+# Exclude all CONTENTS of system-owned service.d dirs MiOS doesn't manage,
+# but keep the dirs themselves traversable so the file-level whitelist below
+# can re-add MiOS drop-ins. Cascade order matters: parent dirs must be
+# unignored before child file patterns can match.
+usr/lib/systemd/system/systemd-udev-trigger.service.d/*
+usr/lib/systemd/system/user@.service.d/*
+usr/lib/systemd/system/user@0.service.d/*
+# Allow MiOS-named drop-ins under those system-owned dirs.
+# Required for usr/lib/systemd/system/user@.service.d/10-mios-wsl-runtime.conf
+# which seeds XDG_RUNTIME_DIR for the systemd user manager when logind is
+# skipped under WSL2. Only files matching 10-mios-*.conf are tracked.
+!/usr/lib/systemd/system/user@.service.d/10-mios-*.conf
+!/usr/lib/systemd/system/user@0.service.d/10-mios-*.conf
+!/usr/lib/systemd/system/systemd-udev-trigger.service.d/10-mios-*.conf
 
 # sysusers.d -- MiOS user/group definitions only; blocks basic.conf, dbus.conf etc.
 !/usr/lib/sysusers.d/

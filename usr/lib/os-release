@@ -1,0 +1,30 @@
+NAME="MiOS"
+VERSION="0.2.4"
+ID=mios
+ID_LIKE="fedora coreos"
+VERSION_ID="0.2.4"
+VERSION_CODENAME=""
+PLATFORM_ID="platform:f44"
+PRETTY_NAME="MiOS 0.2.4"
+ANSI_COLOR="0;38;5;213"
+LOGO=mios
+CPE_NAME="cpe:/o:mios-dev:mios:0.2.4"
+DEFAULT_HOSTNAME="mios"
+HOME_URL="https://github.com/mios-dev/mios"
+DOCUMENTATION_URL="https://github.com/mios-dev/mios"
+SUPPORT_URL="https://github.com/mios-dev/mios/issues"
+BUG_REPORT_URL="https://github.com/mios-dev/mios/issues"
+VARIANT="MiOS Edition"
+VARIANT_ID=mios
+BUILD_ID="0.2.4"
+IMAGE_ID="mios"
+IMAGE_VERSION="0.2.4"
+OSTREE_VERSION="0.2.4"
+
+# MiOS is a bootc-based OCI bootable OS built on top of
+# ghcr.io/ublue-os/ucore-hci:stable-nvidia (Universal Blue's HCI variant
+# of Fedora CoreOS), with a sibling minimal target on
+# quay.io/fedora/fedora-bootc:latest available as Containerfile.minimal.
+# The ID_LIKE chain "fedora coreos" preserves CoreOS ancestry for tools
+# (zincati, rpm-ostree, bootc) that branch on it; the ID=mios is the new
+# canonical identity that fastfetch / motd / postcheck see.
