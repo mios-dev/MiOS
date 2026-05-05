@@ -201,6 +201,43 @@ if (-not $env:MIOS_PIPELINE_ELEVATED) {
     }
 }
 
+# ── Unified global flattened log file ────────────────────────────────
+# Single log file per pipeline invocation, captured at the orchestrator
+# level (not per-phase) so that every line of every legacy worker
+# (build-mios.ps1, install.ps1, Get-MiOS.ps1, ...) and every native
+# command they shell out to (wsl.exe, podman, bib, ...) lands in one
+# flat chronologically-interleaved file at a stable, predictable path.
+#
+#   M:\MiOS\logs\mios-install-YYYYMMDD-HHMMSS.log    per-invocation
+#   M:\MiOS\logs\latest.log                          copy of most recent
+#
+# (The exact drive depends on $PSScriptRoot; on a typical Windows host
+# after Phase-2 migration this resolves to M:\MiOS\logs\, which the
+# build dashboard already advertises as the canonical log location.)
+#
+# Transcript captures Write-Host / Write-Output / Write-Error / Verbose
+# / Warning + native-command stdout that the orchestrator dispatches
+# via `&`, so this single file is everything the operator needs to
+# diagnose a failed run -- no scattered phase logs.
+$script:MiosLogDir  = Join-Path -Path $PSScriptRoot -ChildPath 'logs'
+$script:MiosLogFile = $null
+$script:MiosLogOK   = $false
+try {
+    if (-not (Test-Path -LiteralPath $script:MiosLogDir)) {
+        New-Item -Path $script:MiosLogDir -ItemType Directory -Force | Out-Null
+    }
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $script:MiosLogFile = Join-Path -Path $script:MiosLogDir -ChildPath ("mios-install-{0}.log" -f $stamp)
+    Start-Transcript -Path $script:MiosLogFile -Force | Out-Null
+    $script:MiosLogOK = $true
+    Write-Host ('[mios-pipeline] unified log: {0}' -f $script:MiosLogFile) -ForegroundColor DarkGray
+} catch {
+    # Some constrained-language hosts reject Start-Transcript; emit a
+    # warning rather than failing the whole pipeline -- a missing log
+    # file is far less important than a missing build.
+    Write-Host ('[mios-pipeline] WARN: Start-Transcript failed ({0}); continuing without unified log.' -f $_.Exception.Message) -ForegroundColor DarkYellow
+}
+
 # ── Phase index ──────────────────────────────────────────────────────
 $Phases = @(
     [pscustomobject]@{Id=1;  Name='Questions';  Desc='Interactive prompts -> mios.toml'                              ; Fn={ Invoke-PhaseQuestions  } }
@@ -352,7 +389,25 @@ if ($From -gt $To) {
 }
 
 $selected = $Phases | Where-Object { $_.Id -ge $From -and $_.Id -le $To }
-foreach ($p in $selected) {
-    Write-PhaseBanner -Id $p.Id -Name $p.Name -Desc $p.Desc
-    & $p.Fn
+try {
+    foreach ($p in $selected) {
+        Write-PhaseBanner -Id $p.Id -Name $p.Name -Desc $p.Desc
+        & $p.Fn
+    }
+} finally {
+    # Always stop the unified log -- even on phase failure -- so the
+    # operator gets a complete record of what ran before the abort.
+    if ($script:MiosLogOK) {
+        try { Stop-Transcript | Out-Null } catch { }
+        # Refresh the `latest.log` pointer to the just-finished run so
+        # any post-build helper that wants "the most recent log" has a
+        # stable target. Plain Copy-Item rather than a symlink because
+        # symlink creation requires Developer Mode or admin token,
+        # neither of which we want to require here.
+        try {
+            $latest = Join-Path -Path $script:MiosLogDir -ChildPath 'latest.log'
+            Copy-Item -LiteralPath $script:MiosLogFile -Destination $latest -Force -ErrorAction Stop
+        } catch { }
+        Write-Host ('[mios-pipeline] log written: {0}' -f $script:MiosLogFile) -ForegroundColor Green
+    }
 }
