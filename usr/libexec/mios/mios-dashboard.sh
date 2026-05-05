@@ -84,13 +84,21 @@ WIDTH=80
 INNER=$((WIDTH - 4))
 
 # Identity from install.env (written by mios-bootstrap at install time).
+# install.env is sourced FIRST so MIOS_USER lands in env, then we fall
+# back to $USER only when install.env didn't supply a value. The previous
+# order (`MIOS_LINUX_USER="${USER:-mios}"` set BEFORE sourcing) made the
+# MOTD render `login: root / mios` because mios-dashboard-issue.service
+# runs as root -- $USER == 'root' wins over the unset MIOS_LINUX_USER.
 MIOS_VERSION=""
 MIOS_AI_MODEL=""
-MIOS_LINUX_USER="${USER:-mios}"
 if [[ -r /etc/mios/install.env ]]; then
     # shellcheck disable=SC1091
     set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
 fi
+# Resolution order: install.env-staged MIOS_USER (canonical) > MIOS_LINUX_USER
+# (legacy alias if some env path set it) > running-process $USER (only when
+# both above are unset, e.g. running mios-dashboard.sh by hand) > literal 'mios'.
+MIOS_LINUX_USER="${MIOS_USER:-${MIOS_LINUX_USER:-${USER:-mios}}}"
 [[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")"
 MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
 
