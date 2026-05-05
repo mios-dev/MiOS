@@ -24,7 +24,9 @@ RemainAfterExit=yes
 ExecStart=/bin/bash -c '\
     getent passwd mios >/dev/null 2>&1 || exit 0; \
     UID_=$(id -u mios); GID_=$(id -g mios); \
-    install -d -m 0700 -o "$UID_" -g "$GID_" "/run/user/$UID_"'
+    install -d -m 0700 -o "$UID_" -g "$GID_" "/run/user/$UID_"; \
+    : > "/var/lib/systemd/linger/mios" 2>/dev/null || true; \
+    systemctl start "user@$UID_.service" 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
