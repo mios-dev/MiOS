@@ -38,7 +38,7 @@ function Write-MiosInstallEnv {
     # ever appear in the hash, so the wrap is safe.
     $lines = @(
         "# /etc/mios/install.env -- written by the 'MiOS' Windows installer.",
-        "# Read by /usr/libexec/mios/wsl-firstboot, /usr/libexec/mios/motd,",
+        "# Read by /usr/libexec/mios/wsl-firstboot, /usr/libexec/mios/mios-dashboard.sh,",
         "# and /usr/libexec/mios/forge-firstboot.sh.",
         "# Vendor defaults: /usr/share/mios/env.defaults",
         "MIOS_USER=$User",
