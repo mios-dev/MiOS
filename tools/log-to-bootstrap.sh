@@ -61,8 +61,20 @@ if [[ -d "${REPO_ROOT}/specs/ai-integration" ]]; then
     echo "[ok] Wiki AI integration docs copied"
 fi
 
-# Copy core documentation
-for doc in usr/share/mios/ai/INDEX.md README.md usr/share/doc/mios/guides/self-build.md SECURITY.md llms.txt; do
+# Copy core documentation. After the 2026-05-05 FHS-consolidation
+# pass, operator-facing docs live under usr/share/doc/mios/ and the
+# agent contract lives under usr/share/mios/ai/. Root-level
+# SECURITY.md is now a 5-line GitHub Security-tab redirector; the
+# canonical full content is at usr/share/doc/mios/guides/security.md
+# -- pull from there so the wiki bundle ships the full posture, not
+# the stub. Same reasoning for guides/self-build.md.
+for doc in \
+    usr/share/mios/ai/INDEX.md \
+    README.md \
+    usr/share/doc/mios/guides/self-build.md \
+    usr/share/doc/mios/guides/security.md \
+    llms.txt
+do
     if [[ -f "${REPO_ROOT}/${doc}" ]]; then
         cp -v "${REPO_ROOT}/${doc}" "${WIKI_DIR}/" 2>/dev/null || true
     fi
@@ -137,8 +149,8 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
     "core_docs": {
       "index": "../wiki/${MIOS_VERSION}/INDEX.md",
       "readme": "../wiki/${MIOS_VERSION}/README.md",
-      "self_build": "../wiki/${MIOS_VERSION}/SELF-BUILD.md",
-      "security": "../wiki/${MIOS_VERSION}/SECURITY.md",
+      "self_build": "../wiki/${MIOS_VERSION}/self-build.md",
+      "security": "../wiki/${MIOS_VERSION}/security.md",
       "llms_txt": "../wiki/${MIOS_VERSION}/llms.txt"
     }
   },
@@ -288,11 +300,11 @@ echo "  │  ├─ ai-prompts.md"
 echo "  │  ├─ script-inventory.json"
 echo "  │  └─ mios-docs-*.tar.gz"
 echo "  └─ wiki/${MIOS_VERSION}/"
-echo "     ├─ usr/share/mios/ai/INDEX.md"
-echo "     ├─ README.md"
-echo "     ├─ usr/share/doc/mios/guides/self-build.md"
-echo "     ├─ SECURITY.md"
-echo "     ├─ llms.txt"
+echo "     ├─ INDEX.md          (from usr/share/mios/ai/INDEX.md)"
+echo "     ├─ README.md         (from README.md)"
+echo "     ├─ self-build.md     (from usr/share/doc/mios/guides/self-build.md)"
+echo "     ├─ security.md       (from usr/share/doc/mios/guides/security.md)"
+echo "     ├─ llms.txt          (from llms.txt)"
 echo "     └─ ai-integration/"
 echo "        ├─ 2026-04-27-Artifact-AI-000-Index.md"
 echo "        ├─ 2026-04-27-Artifact-AI-001-RAG-Integration.md"
