@@ -69,6 +69,7 @@
 !/Get-MiOS.ps1
 !/install.ps1
 !/build-mios.ps1
+!/mios-pipeline.ps1
 !/mios-build-local.ps1
 !/preflight.ps1
 !/preflight.sh
@@ -333,19 +334,39 @@ usr/lib/pam.d/*
 usr/lib/sysctl.d/*
 !/usr/lib/sysctl.d/*mios*
 
-# systemd -- only MiOS-managed subdirs; blocks user/, user-generators/, timesyncd.conf etc.
+# systemd -- only MiOS-managed subdirs; blocks user-generators/, timesyncd.conf etc.
+# user/ and user-preset/ are admitted for MiOS-shipped user services
+# (ConditionVirtualization-gated bridges that need the per-user dbus
+# session, like mios-wsl-theme-bridge); the *mios* filter below keeps
+# distro defaults out the same way it does for system-preset.
 !/usr/lib/systemd/
 usr/lib/systemd/*
 !/usr/lib/systemd/journald.conf.d/
 !/usr/lib/systemd/journald.conf.d/**
 !/usr/lib/systemd/system/
 !/usr/lib/systemd/system-preset/
+!/usr/lib/systemd/user/
+!/usr/lib/systemd/user-preset/
 !/usr/lib/systemd/zram-generator.conf.d/
 !/usr/lib/systemd/zram-generator.conf.d/**
 
 # systemd/system-preset -- *mios* only; blocks 90-default.preset, 90-systemd.preset etc.
 usr/lib/systemd/system-preset/*
 !/usr/lib/systemd/system-preset/*mios*
+
+# systemd/user -- MiOS-shipped user services only; blocks dbus.service,
+# pipewire.service, etc. that the distro packages own.
+usr/lib/systemd/user/*
+!/usr/lib/systemd/user/mios-*.service
+!/usr/lib/systemd/user/mios-*.timer
+!/usr/lib/systemd/user/mios-*.target
+!/usr/lib/systemd/user/mios-*.path
+!/usr/lib/systemd/user/mios-*.socket
+
+# systemd/user-preset -- *mios* only; blocks distro defaults like
+# 90-systemd-user.preset.
+usr/lib/systemd/user-preset/*
+!/usr/lib/systemd/user-preset/*mios*
 
 # systemd/system -- MiOS units and drop-in dirs only; blocks sshd.service, NetworkManager.service etc.
 usr/lib/systemd/system/*

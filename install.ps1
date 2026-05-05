@@ -86,9 +86,14 @@ function Format-Masked {
 }
 
 # ─── dashboard state ──────────────────────────────────────────────────────────
-$script:DashRow    = 0
-$script:DashH      = 0
-$script:DashReady  = $false
+$script:DashRow         = 0
+$script:DashH           = 0
+$script:DashReady       = $false
+# Resolved on first Show-Dashboard call: $true if [Console] has a real
+# console with usable cursor positioning, $false if we're running under
+# captured stdout (background pipeline invocation). $null means "probe
+# hasn't run yet".
+$script:DashInteractive = $null
 $script:BuildStart = [DateTime]::Now
 $script:ErrCount   = 0
 $script:WarnCount  = 0
@@ -174,7 +179,7 @@ function Show-Dashboard {
             default   { "[  ] " }
         }
         $tCell = if ($ph.ElapsedS -gt 0) { "{0:D2}:{1:D2}" -f [int]($ph.ElapsedS/60), ($ph.ElapsedS%60) } else { "     " }
-        $lines.Add("| {0,3}  {1}  {2}  {3} |" -f $ph.Id, $stateStr, (_dpad $ph.Name 48), $tCell)
+        $lines.Add(("| {0,3}  {1}  {2}  {3} |" -f $ph.Id, $stateStr, (_dpad $ph.Name 48), $tCell))
     }
 
     $lines.Add($(_dsep '-'))
@@ -183,6 +188,33 @@ function Show-Dashboard {
     $lines.Add($(_dsep '-'))
 
     $script:DashH = $lines.Count
+
+    # Probe once whether [Console] is a real console with a usable cursor.
+    # Background pipeline invocations (mios-pipeline.ps1 -> install.ps1
+    # via Start-Process redirected stdout) have no console handle and
+    # CursorTop throws "The handle is invalid." Detect that up front and
+    # fall back to plain line writes -- the dashboard becomes a snapshot
+    # log instead of an in-place TUI, which is the right shape for
+    # captured output anyway.
+    if ($null -eq $script:DashInteractive) {
+        try {
+            $null = [Console]::CursorTop
+            $script:DashInteractive = $true
+        } catch {
+            $script:DashInteractive = $false
+        }
+    }
+
+    if (-not $script:DashInteractive) {
+        # Non-interactive: emit on first call only (full state) then
+        # just the changed Op line via Set-Op. Avoids spamming 28 lines
+        # for every progress tick.
+        if (-not $script:DashReady) {
+            foreach ($l in $lines) { Write-Host $l }
+            $script:DashReady = $true
+        }
+        return
+    }
 
     if (-not $script:DashReady) {
         # First render -- write fresh, record position
@@ -336,11 +368,18 @@ function Invoke-BIBRun {
 }
 
 # ─── elevation ────────────────────────────────────────────────────────────────
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "  Relaunching as Administrator..." -ForegroundColor Cyan
-    Start-Process pwsh.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$($MyInvocation.MyCommand.Path)`"" -Verb RunAs
-    return
+# Trust mios-pipeline.ps1's centralized elevation; only self-elevate
+# when invoked standalone (the legacy operator path). Skipping when
+# MIOS_PIPELINE_ELEVATED=1 prevents the previous failure mode where the
+# pipeline's elevated session would re-fork and orphan another UAC
+# window on this script's entry.
+if (-not $env:MIOS_PIPELINE_ELEVATED) {
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+             ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "  Relaunching as Administrator..." -ForegroundColor Cyan
+        Start-Process pwsh.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$($MyInvocation.MyCommand.Path)`"" -Verb RunAs -Wait
+        return
+    }
 }
 
 # ─── static header (printed once, scrolls away) ───────────────────────────────
@@ -484,9 +523,9 @@ Finish-Phase 5
 Start-Phase 6 "Collecting credentials..."
 $AutoInstall = $env:MIOS_AUTOINSTALL -eq "1"
 
-$U = if ($env:MIOS_USER) { $env:MIOS_USER } else {
-    Read-Plain "Admin username:" "mios"
-}
+$U = if ($env:MIOS_USER) { $env:MIOS_USER }
+     elseif ($AutoInstall) { 'mios' }
+     else { Read-Plain "Admin username:" "mios" }
 $P = if ($env:MIOS_PASSWORD) { $env:MIOS_PASSWORD } else {
     if ($AutoInstall) { "mios" } else {
         $pw1 = Read-Masked "Admin password:" ""
@@ -508,11 +547,15 @@ if ($HostIn -eq "mios") {
     $HostIn = "mios-$('{0:D5}' -f (Get-Random -Min 10000 -Max 99999))"
 }
 
-$GhcrToken = if ($env:GHCR_TOKEN) { $env:GHCR_TOKEN } else {
-    $t = Read-Masked "GitHub PAT for ghcr.io base image pull (github.com/settings/tokens):"
-    $t
-}
-Register-Secret $GhcrToken
+# GHCR token: only needed for pulling the private MiOS helper image as
+# the build base on the *first* build of a new host. AutoInstall (which
+# pipeline -NoPrompt sets) skips the prompt; the build then falls back
+# to alpine/python helpers, which is the same path a fresh first-time
+# build takes anyway.
+$GhcrToken = if ($env:GHCR_TOKEN) { $env:GHCR_TOKEN }
+             elseif ($AutoInstall) { '' }
+             else { Read-Masked "GitHub PAT for ghcr.io base image pull (github.com/settings/tokens):" }
+if ($GhcrToken) { Register-Secret $GhcrToken }
 
 $RegUser  = if ($env:MIOS_GHCR_USER) { $env:MIOS_GHCR_USER } else { "MiOS-DEV" }
 $GhcrImage = "ghcr.io/$RegUser/${ImageName}:${ImageTag}"

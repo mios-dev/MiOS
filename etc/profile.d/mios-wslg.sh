@@ -17,13 +17,40 @@
 
 [ -d /mnt/wslg ] || return 0
 
-# Wayland socket: WSLg publishes wayland-0 inside /mnt/wslg/ which itself
-# becomes XDG_RUNTIME_DIR's source. Some flatpak runtimes also need
-# WAYLAND_DISPLAY pointing at the bare socket name.
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/mnt/wslg/runtime-dir}"
+# XDG_RUNTIME_DIR: WSLg's default of /mnt/wslg/runtime-dir is a 9p mount
+# from the Windows host and does not support sticky-bit chmod. Rootless
+# podman creates $XDG_RUNTIME_DIR/libpod with the sticky bit and crashes
+# with "set sticky bit on: chmod ... operation not permitted" if pointed
+# there. mios-wsl-runtime-dir.service pre-creates /run/user/$UID on a
+# real tmpfs; prefer it when present, fall back to the WSLg dir only if
+# the service hasn't run (early-boot interactive shells).
+if [ -d "/run/user/$(id -u)" ]; then
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    # If we landed in /mnt/wslg/runtime-dir from an outer login that
+    # exported it before this script ran, swap it out -- podman will
+    # crash otherwise.
+    case "$XDG_RUNTIME_DIR" in
+        /mnt/wslg/*) export XDG_RUNTIME_DIR="/run/user/$(id -u)" ;;
+    esac
+else
+    export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/mnt/wslg/runtime-dir}"
+fi
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export DISPLAY="${DISPLAY:-:0}"
 export PULSE_SERVER="${PULSE_SERVER:-/mnt/wslg/PulseServer}"
+
+# DBUS_SESSION_BUS_ADDRESS: pam_systemd would normally set this to the
+# user@$UID.service bus socket on a real login. WSL's `wsl -u root` ->
+# `su - mios` chain bypasses PAM so the var is unset. libportal then
+# tries to autolaunch a session bus via the X11 cookie, which fails with
+# "Cannot autolaunch D-Bus without X11 $DISPLAY", taking down xdg-desktop-
+# portal (and dconf-service, which is dbus-activated through the same
+# bus) for every flatpak / GTK app. mios-wsl-runtime-dir.service starts
+# user@$UID.service so the bus socket exists -- this just exports the
+# address so apps can find it.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+fi
 
 # WSLg sets WSL_INTEROP via /init for the outer ns; the nested ns may
 # lose it. Re-derive from /run/WSL/<pid>_interop if present so

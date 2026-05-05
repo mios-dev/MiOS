@@ -358,6 +358,13 @@ pkgs = [
 ]
 
 [packages.gnome-flatpak-runtime]
+# Without dconf + gsettings-desktop-schemas + adwaita-icon-theme +
+# gnome-themes-extra, GTK apps fall back to a "GTK2-era" Adwaita default
+# (no icons, light theme only, no color-scheme propagation) -- a full
+# GNOME session pulls these as gnome-shell deps, but the dev_overlay
+# explicitly drops gnome-shell, so they have to be listed here. gnome-
+# keyring provides the Secret Service portal that epiphany / geary /
+# vscode-flatpak need to store credentials.
 pkgs = [
     "xdg-user-dirs",
     "xdg-utils",
@@ -378,6 +385,11 @@ pkgs = [
     "qt6-qtwayland",
     "qadwaitadecorations-qt5",
     "adw-gtk3-theme",
+    "adwaita-icon-theme",
+    "gnome-themes-extra",
+    "dconf",
+    "gsettings-desktop-schemas",
+    "gnome-keyring",
     "flatpak",
 ]
 

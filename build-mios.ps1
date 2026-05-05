@@ -240,7 +240,7 @@ function Invoke-BIBRun {
             $bibOp = if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate }
         } elseif (-not [string]::IsNullOrWhiteSpace($stripped)) {
             $candidate = ($stripped -replace '\s+', ' ').Trim()
-            $bibOp = Format-Masked (if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate })
+            $bibOp = Format-Masked $(if ($candidate.Length -gt 80) { $candidate.Substring(0, 80) + '...' } else { $candidate })
         }
         Write-Progress -Activity "  $Label" -Id 1 -ParentId 0 `
             -Status "Lines: $bibN" -CurrentOperation $bibOp `
@@ -251,10 +251,17 @@ function Invoke-BIBRun {
 }
 
 # --- Auto-Elevation ---
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "  Relaunching as Administrator..." -ForegroundColor Cyan
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$($MyInvocation.MyCommand.Path)`"" -Verb RunAs
-    return
+# mios-pipeline.ps1 elevates the whole chain once and sets
+# MIOS_PIPELINE_ELEVATED=1; trust that and skip the self-elevation
+# fork (which historically broke non-interactive parents -- the
+# elevated child became an orphan UAC window, the un-elevated copy
+# returned 0, and the pipeline thought the build had succeeded).
+if (-not $env:MIOS_PIPELINE_ELEVATED) {
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Host "  Relaunching as Administrator..." -ForegroundColor Cyan
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$($MyInvocation.MyCommand.Path)`"" -Verb RunAs -Wait
+        return
+    }
 }
 
 # -- Self-Build defaults (initialized early - referenced throughout) --
@@ -265,6 +272,13 @@ Set-StrictMode -Version Latest
 # ==============================================================================
 #  CONFIGURATION
 # ==============================================================================
+# Resolve $Version up front -- Write-Phase formats its progress label with
+# "${Version}", and StrictMode ($ErrorActionPreference=Stop) treats an
+# unset variable in a string interpolation as fatal. The first Write-Phase
+# call lives in the .env.mios block immediately below, so this assignment
+# has to happen before that, not after the .env import.
+$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.2.4" }
+
 # Source .env.mios if present
 if (Test-Path ".env.mios") {
     Write-Phase "0.1" "Loading Unified Environment"
@@ -277,7 +291,6 @@ if (Test-Path ".env.mios") {
     }
 }
 
-$v = Get-Content "VERSION" -ErrorAction SilentlyContinue; $Version = if ($v) { $v.Trim() } else { "v0.2.4" }
 $ImageName      = if ($env:MIOS_IMAGE_NAME) { ($env:MIOS_IMAGE_NAME -split '/')[-1] -replace ':.*$','' } else { "mios" }
 $ImageTag       = "latest"
 $MIOS_USER_ADMIN = "mios" # @track:USER_ADMIN

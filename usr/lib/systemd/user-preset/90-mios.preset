@@ -1,0 +1,7 @@
+# /usr/lib/systemd/user-preset/90-mios.preset
+#
+# Preset evaluated when systemd's per-user instance (user@$UID.service)
+# starts up for the first time. ConditionVirtualization=wsl on the unit
+# itself keeps it inert on non-WSL deployments, so enabling it here is
+# safe across every MiOS shape.
+enable mios-wsl-theme-bridge.service

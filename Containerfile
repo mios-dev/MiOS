@@ -51,6 +51,24 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     set -ex; \
     install -d -m 0755 /tmp/build; \
     cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/PACKAGES.md /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    # Defensive CRLF -> LF normalization. .gitattributes already pins
+    # *.sh / *.toml / *.conf / *.yaml / *.json / *.md to LF, but Windows
+    # build hosts (OneDrive sync in particular) bypass git's filter and
+    # leak CRLF into the working tree. A single \r in a #!/bin/bash file
+    # produces "$'\r': command not found" the moment bash sources it,
+    # which surfaces as opaque exit-127 build failures hundreds of lines
+    # later. Strip CRs from every text file in the writable build context
+    # before any script runs -- cheap, idempotent, and immune to where
+    # the leak originated. Binary files are skipped via grep -Iq. \
+    find /tmp/build -type f \
+        \( -name "*.sh" -o -name "*.toml" -o -name "*.conf" \
+           -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" \
+           -o -name "*.md"  -o -name "*.service" -o -name "*.socket" \
+           -o -name "*.timer" -o -name "*.target" -o -name "*.preset" \
+           -o -name "*.container" -o -name "*.image" -o -name "*.kube" \
+           -o -name "*.volume" -o -name "*.repo" -o -name "*.policy" \
+           -o -name "*.rules" \) \
+        -exec sed -i 's/\r$//' {} +; \
     export PACKAGES_MD=/tmp/build/PACKAGES.md; \
     bash /tmp/build/automation/lib/packages.sh >/dev/null 2>&1 || true; \
     source /tmp/build/automation/lib/packages.sh; \

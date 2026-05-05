@@ -25,6 +25,12 @@ ExecStart=/bin/bash -c '\
     getent passwd mios >/dev/null 2>&1 || exit 0; \
     UID_=$(id -u mios); GID_=$(id -g mios); \
     install -d -m 0700 -o "$UID_" -g "$GID_" "/run/user/$UID_"; \
+    if [ -S /mnt/wslg/runtime-dir/wayland-0 ] || [ -S /mnt/wslg/wayland-0 ]; then \
+        src=/mnt/wslg/runtime-dir/wayland-0; [ -S "$src" ] || src=/mnt/wslg/wayland-0; \
+        ln -sfn "$src" "/run/user/$UID_/wayland-0"; \
+        [ -S "${src}.lock" ] && ln -sfn "${src}.lock" "/run/user/$UID_/wayland-0.lock" || true; \
+        chown -h "$UID_:$GID_" "/run/user/$UID_/wayland-0" "/run/user/$UID_/wayland-0.lock" 2>/dev/null || true; \
+    fi; \
     : > "/var/lib/systemd/linger/mios" 2>/dev/null || true; \
     systemctl start "user@$UID_.service" 2>/dev/null || true'
 

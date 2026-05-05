@@ -1,0 +1,23 @@
+[Unit]
+Description='MiOS' WSL theme bridge (Windows light/dark -> GNOME color-scheme)
+Documentation=https://github.com/MiOS-DEV/MiOS
+# WSL-only. On bare metal / Hyper-V / QEMU MiOS hosts the Windows
+# registry isn't reachable and the Wayland compositor is GNOME's own,
+# so theme propagation happens through the regular xdg-desktop-portal
+# path -- no bridge needed (or possible).
+ConditionVirtualization=wsl
+ConditionPathIsDirectory=/mnt/wslg
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/wsl-theme-bridge.sh
+Restart=on-failure
+RestartSec=10
+# The script's loop body is a registry read + (rare) gsettings write;
+# memory and CPU footprint are trivial. Cap them so a runaway can't
+# eat the user session.
+MemoryMax=64M
+CPUQuota=10%
+
+[Install]
+WantedBy=default.target
