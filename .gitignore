@@ -45,6 +45,10 @@
 !/CLAUDE.md
 !/CONTRIBUTING.md
 !/Containerfile
+# Containerfile.minimal: experimental fedora-bootc-rooted sibling to the
+# canonical ucore-hci-rooted Containerfile. Produces a "MiOS-Lite" tag for
+# operators who don't need the HCI surface (NVIDIA/libvirt/ZFS pre-bakes).
+!/Containerfile.minimal
 !/GEMINI.md
 !/Justfile
 !/LICENSE
