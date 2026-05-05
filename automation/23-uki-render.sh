@@ -7,10 +7,11 @@ echo "==> Preparing Unified Kernel Image (UKI) configuration..."
 source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
-# packages-boot already pulls systemd-ukify; reinstall via the SSOT block as a
-# safety net in case --skip-unavailable dropped it on a constrained mirror.
+# [packages.boot] already pulls systemd-ukify; reinstall via the SSOT
+# [packages.uki] section as a safety net in case --skip-unavailable dropped
+# it on a constrained mirror.
 if ! rpm -q systemd-ukify >/dev/null 2>&1; then
-    echo "==> systemd-ukify not found via boot-section install; reinstalling via PACKAGES.md..."
+    echo "==> systemd-ukify not found via boot-section install; reinstalling via mios.toml [packages.uki]..."
     install_packages_strict "uki"
 fi
 

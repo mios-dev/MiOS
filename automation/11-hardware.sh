@@ -9,7 +9,8 @@
 #             NVIDIA acceleration - image still works for everything else.
 #
 # Mesa (AMD/Intel/software fallback) and ROCm + intel-compute-runtime are
-# installed from PACKAGES.md. They have no kernel-version coupling.
+# installed from mios.toml [packages.gpu-amd] / [packages.gpu-intel]. They
+# have no kernel-version coupling.
 #
 # CHANGELOG:
 #   v0.2.0: Dropped COPY-layer fallback. ucore-hci IS already built from

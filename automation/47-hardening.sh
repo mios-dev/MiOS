@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 47-hardening.sh - enable hardening services (USBGuard, auditd).
-# Package installs moved to PACKAGES.md (packages-security).
+# Package installs moved to mios.toml [packages.security].
 # sysctl drop-in shipped via usr/lib/sysctl.d/99-mios-hardening.conf.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"

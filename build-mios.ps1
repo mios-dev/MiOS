@@ -454,7 +454,10 @@ $ram = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory 
 Write-OK "CPU: $cpu cores | RAM: $ram MB"
 
 if ($DoBuild) {
-    foreach ($f in "Containerfile","usr/share/mios/PACKAGES.md","VERSION","automation/build.sh","automation/31-user.sh") {
+    # SSOT: usr/share/mios/mios.toml carries every [packages.<section>].pkgs
+    # the build chain consults. PACKAGES.md is documentation-only as of
+    # 2026-05-05 and is no longer required for the build to succeed.
+    foreach ($f in "Containerfile","usr/share/mios/mios.toml","VERSION","automation/build.sh","automation/31-user.sh") {
         if (-not (Test-Path $f)) { Write-Fatal "Missing required file: $f - are you in the 'MiOS' repo root?" }
     }
     Write-OK "All repo files present"

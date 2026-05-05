@@ -13,7 +13,7 @@ ARTIFACT_DIR="${MIOS_USR_DIR}/artifacts/sbom"
 mkdir -p "$ARTIFACT_DIR"
 
 if ! command -v syft &> /dev/null; then
-    echo "[90-generate-sbom] WARN: Syft not found. Attempting to install via PACKAGES.md..."
+    echo "[90-generate-sbom] WARN: Syft not found. Attempting to install via mios.toml [packages.sbom-tools]..."
     install_packages "sbom-tools"
     # install_packages is best-effort and returns 0 even on miss; re-check
     # presence and bail out cleanly if syft still isn't on PATH.

@@ -185,23 +185,39 @@ main() {
     log_ok "'MiOS' source tree merged to root."
 
     # --- 4. Package Installation ---
+    # SSOT: mios.toml [packages.<section>].pkgs (resolved via packages.sh).
+    # We source packages.sh from the freshly-staged repo so the ignition
+    # path uses the same TOML-only resolver as the OCI build chain.
     log_phase "Installing 'MiOS' System Stack"
-    if [[ -f "${MIOS_SHARE_DIR}/PACKAGES.md" ]]; then
-        log_info "Extracting package list from ${MIOS_SHARE_DIR}/PACKAGES.md..."
-        local pkgs
-        pkgs=$(sed -n '/^```packages-/,/^```$/{/^```/d;/^#/d;/^$/d;p}' ${MIOS_SHARE_DIR}/PACKAGES.md | tr '\n' ' ')
-        
-        if [[ -n "$pkgs" ]]; then
-            local dnf_cmd="dnf"
-            command -v dnf5 >/dev/null 2>&1 && dnf_cmd="dnf5"
-            log_info "Executing: $dnf_cmd install -y --skip-unavailable --best [PACKAGES]"
-            $dnf_cmd install -y --skip-unavailable --best $pkgs || log_warn "Some packages failed to install."
-            log_ok "Package stack installation complete."
-        else
-            log_err "No packages found in manifest!"
-        fi
+    local toml_path="${MIOS_SHARE_DIR}/mios.toml"
+    [[ -f "$toml_path" ]] || toml_path="${MIOS_STAGE}/usr/share/mios/mios.toml"
+    if [[ ! -f "$toml_path" ]]; then
+        log_err "CRITICAL: mios.toml SSOT not found at ${MIOS_SHARE_DIR}/ or staging."
+        exit 1
+    fi
+
+    log_info "Sourcing package resolver from ${MIOS_STAGE}/automation/lib/packages.sh"
+    # shellcheck source=automation/lib/packages.sh
+    export MIOS_TOML="$toml_path"
+    source "${MIOS_STAGE}/automation/lib/packages.sh"
+
+    # Aggregate every declared section so a fresh-host ignition matches the
+    # full vendor manifest (the OCI build chain installs section-by-section
+    # for staging discipline; bootstrap collapses them into one transaction).
+    local section pkgs all_pkgs=""
+    for section in $(awk -F'[][.]' '/^\[packages\./ { print $3 }' "$toml_path" | sort -u); do
+        pkgs=$(get_packages "$section" 2>/dev/null || true)
+        [[ -n "${pkgs// }" ]] && all_pkgs+=" $pkgs"
+    done
+
+    if [[ -n "${all_pkgs// }" ]]; then
+        local dnf_cmd="dnf"
+        command -v dnf5 >/dev/null 2>&1 && dnf_cmd="dnf5"
+        log_info "Executing: $dnf_cmd install -y --skip-unavailable --best [PACKAGES]"
+        $dnf_cmd install -y --skip-unavailable --best $all_pkgs || log_warn "Some packages failed to install."
+        log_ok "Package stack installation complete."
     else
-        log_err "CRITICAL: ${MIOS_SHARE_DIR}/PACKAGES.md not found!"
+        log_err "No [packages.*] sections found in ${toml_path}!"
         exit 1
     fi
 

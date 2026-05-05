@@ -96,8 +96,9 @@ else
     fail "/usr/lib/mios/userenv.sh missing -- TOML resolver absent"
 fi
 
-# 6. /usr/share/mios overlay.
-for p in /usr/share/mios /usr/share/mios/PACKAGES.md /usr/share/mios/mios.toml /usr/share/mios/ai/system.md; do
+# 6. /usr/share/mios overlay. PACKAGES.md moved to /usr/share/doc/mios/reference/
+# in v0.2.4 (mios.toml [packages.<section>].pkgs is the only runtime SSOT).
+for p in /usr/share/mios /usr/share/mios/mios.toml /usr/share/mios/ai/system.md /usr/share/doc/mios/reference/PACKAGES.md; do
     if [[ -e "$p" ]]; then ok "$p"; else fail "$p missing"; fi
 done
 

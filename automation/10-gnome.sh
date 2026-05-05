@@ -24,12 +24,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
 # ═════════════════════════════════════════════════════════════════════════════
-# GNOME 50 -- Install from PACKAGES.md (build-up, NOT strip-down)
+# GNOME 50 -- Install from mios.toml [packages.gnome] (build-up, NOT strip-down)
 # ═════════════════════════════════════════════════════════════════════════════
 echo "[10-gnome] Installing GNOME 50 desktop (pure build-up)..."
 install_packages "gnome"
 
-# Optional GNOME Core Apps (all commented out by default in PACKAGES.md)
+# Optional GNOME Core Apps (empty pkgs[] in [packages.gnome-core-apps] by default)
 install_packages_optional "gnome-core-apps"
 
 # ═════════════════════════════════════════════════════════════════════════════

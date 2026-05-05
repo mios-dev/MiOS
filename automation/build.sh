@@ -9,7 +9,13 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 register_common_masks
 
-export PACKAGES_MD="${PACKAGES_MD:-/ctx/PACKAGES.md}"
+# SSOT: mios.toml is the only runtime source for [packages.<section>].pkgs.
+# Legacy PACKAGES.md is documentation under usr/share/doc/mios/reference/
+# and is no longer consulted at build time. Resolution chain (highest first):
+#   $MIOS_TOML override, ~/.config/mios/mios.toml, /etc/mios/mios.toml,
+#   /ctx/mios-bootstrap/mios.toml, /usr/share/mios/mios.toml,
+#   /ctx/usr/share/mios/mios.toml -- see _resolve_mios_toml in lib/packages.sh.
+export MIOS_TOML="${MIOS_TOML:-/ctx/usr/share/mios/mios.toml}"
 BUILD_LOG="/tmp/mios-build.log"
 VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.2.4')"
 
@@ -170,8 +176,10 @@ _final_summary() {
 export SYSTEMD_OFFLINE=1
 export container=podman
 
-if [[ ! -f "$PACKAGES_MD" ]]; then
-    printf '[FATAL] PACKAGES_MD not found: %s\n' "$PACKAGES_MD" >&2
+if [[ ! -f "$MIOS_TOML" ]]; then
+    printf '[FATAL] mios.toml SSOT not found: %s\n' "$MIOS_TOML" >&2
+    printf '        Set $MIOS_TOML to the path of the package manifest\n' >&2
+    printf '        (default: /ctx/usr/share/mios/mios.toml during OCI build)\n' >&2
     exit 1
 fi
 

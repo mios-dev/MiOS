@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 44-podman-machine-compat.sh - Podman-machine backend compatibility.
-# Package installs moved to PACKAGES.md (packages-containers, packages-utils).
+# Package installs moved to mios.toml [packages.containers] / [packages.utils].
 # This script only does the runtime config that cannot be expressed as packages:
 #   - create the 'core' user (Podman machine convention)
 #   - enable services needed for machine backend operation

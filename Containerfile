@@ -7,7 +7,10 @@ COPY usr/                  /ctx/usr/
 COPY etc/                  /ctx/etc/
 # /home/ is bootstrap territory (mios-bootstrap.git stages user homes via
 # profile/ in Phase-3); the build no longer pulls it.
-COPY usr/share/mios/PACKAGES.md /ctx/PACKAGES.md
+# SSOT: mios.toml [packages.<section>].pkgs lives at
+# usr/share/mios/mios.toml and is already shipped via the COPY usr/ above.
+# build.sh exports $MIOS_TOML to /ctx/usr/share/mios/mios.toml so
+# automation/lib/packages.sh resolves the canonical TOML manifest.
 COPY VERSION               /ctx/VERSION
 COPY config/artifacts/     /ctx/bib-configs/
 COPY tools/                /ctx/tools/
@@ -50,7 +53,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \
-    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/PACKAGES.md /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
     # Defensive CRLF -> LF normalization. .gitattributes already pins
     # *.sh / *.toml / *.conf / *.yaml / *.json / *.md to LF, but Windows
     # build hosts (OneDrive sync in particular) bypass git's filter and
@@ -69,7 +72,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
            -o -name "*.volume" -o -name "*.repo" -o -name "*.policy" \
            -o -name "*.rules" \) \
         -exec sed -i 's/\r$//' {} +; \
-    export PACKAGES_MD=/tmp/build/PACKAGES.md; \
+    export MIOS_TOML=/tmp/build/usr/share/mios/mios.toml; \
     bash /tmp/build/automation/lib/packages.sh >/dev/null 2>&1 || true; \
     source /tmp/build/automation/lib/packages.sh; \
     # Purge any stale/corrupt repo metadata left in the buildkit cache mount

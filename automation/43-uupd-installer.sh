@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 43-uupd-installer.sh - install uupd + greenboot (from PACKAGES.md
-# packages-updater section) and disable the updaters it supersedes.
+# 43-uupd-installer.sh - install uupd + greenboot (from mios.toml
+# [packages.updater]) and disable the updaters it supersedes.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

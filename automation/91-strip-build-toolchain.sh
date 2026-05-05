@@ -12,7 +12,7 @@
 # does not compile on the host -- it ships in containers/Flatpaks/VMs
 # that bring their own toolchains where needed.
 #
-# Block parsed from PACKAGES.md `packages-build-toolchain`. The strip is
+# Block resolved from mios.toml [packages.build-toolchain]. The strip is
 # best-effort: a missing package is fine (host already lean), but a
 # failed dnf transaction is logged loud since it leaves the toolchain in
 # place.

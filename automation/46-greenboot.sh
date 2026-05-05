@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 46-greenboot.sh - wire greenboot services; package installs via PACKAGES.md
-# (packages-updater section: greenboot, greenboot-default-health-checks).
+# 46-greenboot.sh - wire greenboot services; package installs via mios.toml
+# [packages.updater] (greenboot, greenboot-default-health-checks).
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 

@@ -9,8 +9,8 @@ source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
 # moby-engine conflicts with podman-docker over /usr/bin/docker. install_packages
-# routes through dnf which resolves the conflict at install time; PACKAGES.md is
-# the SSOT for every RPM (see CLAUDE.md / CONTRIBUTING.md).
+# routes through dnf which resolves the conflict at install time; mios.toml
+# [packages.moby] is the SSOT for every RPM (see CLAUDE.md / CONTRIBUTING.md).
 install_packages "moby"
 
 # Enable the Docker socket to ensure it's available on boot

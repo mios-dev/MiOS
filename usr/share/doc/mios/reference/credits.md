@@ -337,7 +337,8 @@ the source of truth for a given concern. When in doubt, these win:
 | `usr/share/doc/mios/reference/api.md` | OpenAI surface trace + Build/Architecture appendix | <https://github.com/mios-dev/MiOS/blob/main/API.md> |
 | `CLAUDE.md` | Agent-identity pointer to OpenAI docs + standards | <https://github.com/mios-dev/MiOS/blob/main/CLAUDE.md> |
 | `AGENTS.md` / `GEMINI.md` | Sibling agent-identity pointers | <https://github.com/mios-dev/MiOS/blob/main/AGENTS.md> -- <https://github.com/mios-dev/MiOS/blob/main/GEMINI.md> |
-| `usr/share/mios/PACKAGES.md` | Single source of truth for every RPM | <https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/PACKAGES.md> |
+| `usr/share/mios/mios.toml` | Single source of truth for every RPM (`[packages.<section>].pkgs`) | <https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/mios.toml> |
+| `usr/share/doc/mios/reference/PACKAGES.md` | Human-readable companion documentation for the package surface | <https://github.com/mios-dev/MiOS/blob/main/usr/share/doc/mios/reference/PACKAGES.md> |
 | `usr/share/mios/ai/system.md` | Canonical agent system prompt (image-baked) | <https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/ai/system.md> |
 | `usr/share/mios/ai/v1/models.json` | Local `/v1/models` catalog | <https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/ai/v1/models.json> |
 | `usr/share/mios/ai/v1/mcp.json` | MCP server registry | <https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/ai/v1/mcp.json> |

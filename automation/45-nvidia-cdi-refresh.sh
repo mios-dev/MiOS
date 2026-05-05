@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 45-nvidia-cdi-refresh.sh - wire up NVIDIA CDI auto-refresh services.
-# Package installs live in PACKAGES.md (packages-gpu-nvidia section).
+# Package installs live in mios.toml [packages.gpu-nvidia].
 #
 # Key invariants:
 #   - nvidia-container-toolkit ≥ 1.18 for nvidia-cdi-refresh.service/path.

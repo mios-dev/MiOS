@@ -5,33 +5,37 @@
 
 ---
 
-## SSOT moved to mios.toml (v0.2.4+)
+## SSOT is mios.toml (PACKAGES.md is documentation only)
 
 **This file is documentation, not the source of truth.** As of MiOS
-v0.2.4 the definitive package surface lives in
-`mios.toml [packages.<section>].pkgs`, resolved through the layered
-overlay chain (highest precedence first):
+v0.2.4 (2026-05-05) the legacy fenced ```packages-<section>```
+fallback has been **removed from the runtime path entirely**. The
+definitive package surface lives in `mios.toml [packages.<section>].pkgs`,
+resolved through the layered overlay chain (highest precedence first):
 
 ```
-~/.config/mios/mios.toml     per-user override
-/etc/mios/mios.toml          host/admin override
-/usr/share/mios/mios.toml    vendor defaults  (lowest)
+$MIOS_TOML override                build-time staging only
+~/.config/mios/mios.toml           per-user override
+/etc/mios/mios.toml                host/admin override
+/ctx/mios-bootstrap/mios.toml      bootstrap-side override (build-time)
+/usr/share/mios/mios.toml          vendor defaults
+/ctx/usr/share/mios/mios.toml      build context (during OCI build)
 ```
 
 To add, remove, or replace packages, edit the matching
 `[packages.<section>]` table in any layer. The bootstrap entry
 (`mios-bootstrap/mios.toml`) is the canonical user-edit copy --
 operators can ship a single-file deployment override without
-touching mios.git.
+touching mios.git. The HTML configurator at
+`/usr/share/mios/configurator/index.html` is the operator-facing
+editor for the same TOML.
 
-`automation/lib/packages.sh` now reads from the TOML chain first
-and only falls back to the legacy fenced ```packages-<section>```
-blocks below when the TOML lookup misses (with a deprecation note
-to stderr). The fenced blocks remain in this file as a human-
-readable reference for *why* each package is in MiOS -- the prose
-between sections is the documentation, the fenced lists are the
-quickly-reviewable summary. Keep both in sync until the legacy
-fallback is removed in v0.3.
+`automation/lib/packages.sh` reads exclusively from the TOML chain.
+This file remains under `usr/share/doc/mios/reference/PACKAGES.md`
+as a human-readable reference for *why* each package is in MiOS --
+the prose between sections is the documentation; the fenced lists
+are the quickly-reviewable summary. Keep both in sync as a courtesy
+to readers, but only mios.toml affects what dnf actually installs.
 
 ---
 

@@ -21,7 +21,7 @@ The `mios.git` repo root is the system root `/`. No separate workspace.
 - [mios-pipeline.sh](./mios-pipeline.sh) and [mios-pipeline.ps1](./mios-pipeline.ps1): Questions → Stage → MiOS-DEV → Overlay → Account → Install → Smoketest → Build → Deploy → Boot → Repeat
 - [Containerfile](./Containerfile): OCI image definition (LABEL version parameterized via `ARG MIOS_VERSION`)
 - [automation/](./automation/): numbered phase scripts + `lib/{common,packages,masking,paths,globals,agreements-banner}.{sh,ps1}`
-- [usr/share/mios/PACKAGES.md](./usr/share/mios/PACKAGES.md): catalog (the SSOT lives in `mios.toml [packages].sections`)
+- [usr/share/doc/mios/reference/PACKAGES.md](./usr/share/doc/mios/reference/PACKAGES.md): documentation-only catalog (the SSOT is `mios.toml [packages.<section>].pkgs` resolved by `automation/lib/packages.sh`)
 
 ## AI interface (OpenAI-compatible)
 - [usr/share/mios/ai/v1/models.json](./usr/share/mios/ai/v1/models.json): OpenAI `/v1/models` catalog (chat + embedding)
