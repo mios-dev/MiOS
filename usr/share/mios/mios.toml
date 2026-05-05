@@ -659,6 +659,14 @@ pkgs = [
     "tuned-ppd",
     "fuse",
     "fuse3",
+    # fuse-overlayfs: rootless-podman storage driver for environments
+    # where the kernel overlayfs isn't accessible -- specifically a
+    # MiOS-DEV podman-machine WSL distro running Quadlet containers
+    # against bind-mounted /var. Without it `podman run` against a
+    # rootless image fails with `creating overlay mount: fuse-overlayfs:
+    # cannot mount: No such file or directory` (the literal failure
+    # mode visible in the deployed-host journal for mios-forge).
+    "fuse-overlayfs",
     "7zip-standalone",
     "unzip",
     "zstd",
