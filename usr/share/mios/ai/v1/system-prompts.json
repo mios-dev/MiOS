@@ -1,0 +1,71 @@
+{
+  "object": "mios.system-prompts.registry",
+  "version": "v1",
+  "manifest_path": "/usr/share/mios/ai/v1/system-prompts.json",
+  "endpoint": "http://localhost:8080/v1",
+  "served_by": "mios-ai.container",
+  "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
+  "x-mios": {
+    "schema_kind": "Registry of system-prompt assets shipped with MiOS. Each entry is a markdown file the operator (or an OpenAI-API client) loads as the `system` / `developer` message on a chat/completions or responses request. Vendor-neutral: every prompt is OpenAI-API-shape regardless of which model or runtime consumes it.",
+    "resolution_order": [
+      "${MIOS_AI_SYSTEM_PROMPT}",
+      "~/.config/mios/system-prompt.md",
+      "/etc/mios/ai/system-prompt.md",
+      "/usr/share/mios/ai/system.md"
+    ],
+    "resolution_note": "Highest precedence first. The host-layer override at /etc/mios/ai/system-prompt.md is shipped by mios-bootstrap.git; the user-layer override at ~/.config/mios/system-prompt.md is seeded into every uid >= 1000 home from /etc/skel/.config/mios/.",
+    "vendor_neutral": true,
+    "no_vendor_brand_names": true
+  },
+  "data": [
+    {
+      "name": "system",
+      "role": "default-agent-prompt",
+      "path": "/usr/share/mios/ai/system.md",
+      "scope": "vendor",
+      "precedence": 4,
+      "purpose": "Day-0 contract: an agent that reads only this file should know enough to be useful on a fresh MiOS deployment. Identity, endpoint contract, response style, architectural laws, single-source-of-truth pointers, hardware/runtime context, persistence sanitization rules, tool surface, pipeline awareness, failure modes."
+    },
+    {
+      "name": "audit",
+      "role": "read-only-audit-mode",
+      "path": "/usr/share/mios/ai/audit-prompt.md",
+      "scope": "vendor",
+      "precedence": null,
+      "purpose": "Read-only audit-mode prompt: any OpenAI-API-compatible agent loaded with this prompt enters audit mode (no Edit/Write, no mutating bash, no commits/pushes). Writes findings to AUDIT-FINDINGS-YYYYMMDD.md in the repo's audits directory.",
+      "swap_for": "system",
+      "loader_examples": [
+        "agent --append-system-prompt \"$(cat /usr/share/mios/ai/audit-prompt.md)\"",
+        "OPENAI_BASE_URL=$MIOS_AI_ENDPOINT codex --instructions /usr/share/mios/ai/audit-prompt.md",
+        "mios-llm \"$(cat /usr/share/mios/ai/audit-prompt.md)\""
+      ]
+    },
+    {
+      "name": "engineer",
+      "role": "engineering-task-prompt",
+      "path": "/etc/mios/system-prompts/mios-engineer.md",
+      "scope": "host",
+      "precedence": null,
+      "purpose": "Engineering-focused operator persona: Bash hygiene, kargs.d schema, package SSOT, Quadlet conventions, build pipeline phases.",
+      "swap_for": "system"
+    },
+    {
+      "name": "reviewer",
+      "role": "code-review-prompt",
+      "path": "/etc/mios/system-prompts/mios-reviewer.md",
+      "scope": "host",
+      "precedence": null,
+      "purpose": "Code-review persona: architectural-law compliance, idempotency, security posture, supply-chain integrity.",
+      "swap_for": "system"
+    },
+    {
+      "name": "troubleshoot",
+      "role": "diagnostic-prompt",
+      "path": "/etc/mios/system-prompts/mios-troubleshoot.md",
+      "scope": "host",
+      "precedence": null,
+      "purpose": "Diagnostic persona: log triage, systemd unit failure analysis, Quadlet activation faults, kargs validation, postcheck failures.",
+      "swap_for": "system"
+    }
+  ]
+}

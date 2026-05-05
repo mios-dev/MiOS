@@ -1,0 +1,104 @@
+{
+  "object": "mios.tools.registry",
+  "version": "v1",
+  "manifest_path": "/usr/share/mios/ai/v1/tools.json",
+  "endpoint": "http://localhost:8080/v1",
+  "served_by": "mios-ai.container",
+  "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
+  "schema_refs": {
+    "chat_completions": "https://platform.openai.com/docs/api-reference/chat/create#chat-create-tools",
+    "responses": "https://platform.openai.com/docs/api-reference/responses/create#responses-create-tools"
+  },
+  "x-mios": {
+    "schema_kind": "Registry of host-side function-calling tools shipped with MiOS, in both OpenAI tool shapes (chat-completions function format and Responses flat-tool format). Each entry points at the on-disk JSON definition; the dispatcher binary at /usr/libexec/mios/tools/<name> implements the tool.",
+    "intent": "MiOS agents read this manifest to populate the `tools` array on chat/completions or responses requests without hardcoding tool names. Adding a new tool means dropping {chat-completions-api,responses-api}/<name>.json + /usr/libexec/mios/tools/<name> and appending an entry here.",
+    "preference_order": [
+      "in-process file ops",
+      "local shell",
+      "MCP server",
+      "network call"
+    ],
+    "vendor_neutral": true,
+    "no_vendor_brand_names": true
+  },
+  "data": [
+    {
+      "name": "bootc_status",
+      "description": "Inspect current bootc state (image ref, deployment, staged update, rollback target).",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/bootc_status.json",
+      "responses": "/usr/lib/mios/tools/responses-api/bootc_status.json",
+      "dispatcher": "/usr/libexec/mios/tools/bootc_status",
+      "side_effects": "read-only",
+      "schema_output": "/usr/lib/mios/schemas/build_status.schema.json"
+    },
+    {
+      "name": "bootc_switch",
+      "description": "Switch to a different image reference. Stages a new deployment; reboot to activate.",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/bootc_switch.json",
+      "responses": "/usr/lib/mios/tools/responses-api/bootc_switch.json",
+      "dispatcher": "/usr/libexec/mios/tools/bootc_switch",
+      "side_effects": "mutating",
+      "confirm_before_use": true
+    },
+    {
+      "name": "mios_build",
+      "description": "Run the OCI build (delegates to mios-pipeline.{ps1,sh} Phase 8). Produces localhost/mios:latest.",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/mios_build.json",
+      "responses": "/usr/lib/mios/tools/responses-api/mios_build.json",
+      "dispatcher": "/usr/libexec/mios/tools/mios_build",
+      "side_effects": "mutating",
+      "long_running": true,
+      "schema_output": "/usr/lib/mios/schemas/build_status.schema.json"
+    },
+    {
+      "name": "mios_build_kb_refresh",
+      "description": "Regenerate the local Knowledge Base index. Reads /usr/share/mios/kb/manifest.json and rebuilds the embedding store.",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/mios_build_kb_refresh.json",
+      "responses": "/usr/lib/mios/tools/responses-api/mios_build_kb_refresh.json",
+      "dispatcher": "/usr/libexec/mios/tools/mios_build_kb_refresh",
+      "side_effects": "mutating"
+    },
+    {
+      "name": "mios_kargs_validate",
+      "description": "Lint usr/lib/bootc/kargs.d/*.toml against the bootc schema (flat kargs = [...] only; no [kargs] header).",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/mios_kargs_validate.json",
+      "responses": "/usr/lib/mios/tools/responses-api/mios_kargs_validate.json",
+      "dispatcher": "/usr/libexec/mios/tools/mios_kargs_validate",
+      "side_effects": "read-only",
+      "schema_output": "/usr/lib/mios/schemas/kargs_diagnosis.schema.json"
+    },
+    {
+      "name": "packages_md_query",
+      "description": "Query the package single-source-of-truth (usr/share/mios/PACKAGES.md). Returns the resolved package list for a given category.",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/packages_md_query.json",
+      "responses": "/usr/lib/mios/tools/responses-api/packages_md_query.json",
+      "dispatcher": "/usr/libexec/mios/tools/packages_md_query",
+      "side_effects": "read-only"
+    },
+    {
+      "name": "repo_overlay_inspect",
+      "description": "Diff /usr against the in-repo overlay tree. Reports drift between the deployed root and the canonical source-of-truth in mios.git.",
+      "chat_completions": "/usr/lib/mios/tools/chat-completions-api/repo_overlay_inspect.json",
+      "responses": "/usr/lib/mios/tools/responses-api/repo_overlay_inspect.json",
+      "dispatcher": "/usr/libexec/mios/tools/repo_overlay_inspect",
+      "side_effects": "read-only"
+    },
+    {
+      "name": "file_search",
+      "description": "OpenAI Responses-API-shaped file_search tool. Backed by the local vector store (Qdrant by default; configurable via etc/mios/kb.conf.toml).",
+      "responses": "/usr/lib/mios/tools/responses-api/file_search.json",
+      "side_effects": "read-only",
+      "responses_only": true,
+      "spec_ref": "https://platform.openai.com/docs/guides/tools-file-search"
+    },
+    {
+      "name": "mcp",
+      "description": "OpenAI Responses-API-shaped MCP tool. Resolves to the server registry at /usr/share/mios/ai/v1/mcp.json.",
+      "responses": "/usr/lib/mios/tools/responses-api/mcp.json",
+      "side_effects": "varies-by-server",
+      "responses_only": true,
+      "registry": "/usr/share/mios/ai/v1/mcp.json",
+      "spec_ref": "https://platform.openai.com/docs/guides/tools-remote-mcp"
+    }
+  ]
+}
