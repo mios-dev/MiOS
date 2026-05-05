@@ -12,7 +12,7 @@ Wants=network-online.target
 ConditionPathIsDirectory=/etc/mios/ai
 
 [Container]
-Image=docker.io/localai/localai:latest
+Image=docker.io/localai/localai:latest@sha256:a6af99e17a73a92caa134e70ae84492cc47b67645c1676268a7522ad14f4c09d
 ContainerName=mios-ai
 # Single MiOS internal network so sibling Quadlets (mios-forge,
 # mios-aichat, mios-mcp, ollama, etc.) reach LocalAI by container name

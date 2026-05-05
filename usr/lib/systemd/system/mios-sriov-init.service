@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS-OS Universal SR-IOV Initialization
+Description='MiOS' Universal SR-IOV Initialization
 After=network-pre.target
 Wants=network-pre.target
 ConditionVirtualization=!wsl

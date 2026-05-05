@@ -7,7 +7,7 @@ Wants=network-online.target
 ConditionVirtualization=!container
 
 [Container]
-Image=docker.io/library/postgres:latest
+Image=docker.io/library/postgres:latest@sha256:78481659c47e862334611ccdaf7c369c986b3046da9857112f3b309114a65fb4
 Network=mios.network
 AutoUpdate=registry
 User=mios-postgres

@@ -24,7 +24,7 @@ ConditionVirtualization=!wsl
 ConditionVirtualization=!container
 
 [Container]
-Image=docker.io/rancher/k3s:latest
+Image=docker.io/rancher/k3s:latest@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c
 ContainerName=mios-k3s
 Privileged=true
 Environment=K3S_TOKEN=mios-cluster-secret

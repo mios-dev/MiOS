@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS-OS Hyper-V GPU-PV Guest Detection
+Description='MiOS' Hyper-V GPU-PV Guest Detection
 DefaultDependencies=no
 After=systemd-modules-load.service
 Before=display-manager.service

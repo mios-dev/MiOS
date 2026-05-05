@@ -2,7 +2,7 @@
 # 'MiOS' v0.2.4 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
-# With install_weakdeps=False (set globally in 01-repos.sh), only hard deps
+# With install_weak_deps=False (set globally in 01-repos.sh), only hard deps
 # get pulled in. This means:
 #   - malcontent-libs comes in (gnome-control-center hard dep) -- CORRECT
 #   - malcontent-control/pam/tools do NOT come in (weak deps) -- CORRECT

@@ -8,7 +8,7 @@ Wants=network-online.target
 ConditionVirtualization=!container
 
 [Container]
-Image=docker.io/guacamole/guacamole:latest
+Image=docker.io/guacamole/guacamole:latest@sha256:1d3a2ce78d928fca610b01a644c51853dc72719d083e41260f6a4319ca054d96
 Network=mios.network
 AutoUpdate=registry
 User=mios-guacamole

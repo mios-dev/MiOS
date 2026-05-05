@@ -7,7 +7,11 @@ kargs = [
     "randomize_kstack_offset=on",
     "pti=on",
     "vsyscall=none",
-    "lockdown=confidentiality",
+    # lockdown= set in 30-security.toml as `integrity` (NVIDIA-safe; allows
+    # MOK-enrolled signed modules to load). Do not duplicate here -- bootc
+    # kargs.d is additive across files; setting both `confidentiality` here
+    # and `integrity` in 30-security.toml puts ambiguous values on the
+    # kernel command line.
     "spectre_v2=on",
     "spectre_bhi=on",
     "spec_store_bypass_disable=on",

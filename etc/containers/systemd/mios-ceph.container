@@ -18,7 +18,7 @@ ConditionPathExists=/etc/ceph/ceph.conf
 ConditionVirtualization=!container
 
 [Container]
-Image=quay.io/ceph/ceph:latest
+Image=quay.io/ceph/ceph:v18@sha256:69cbef90eb58cf96e572e7497227a2bcb0ec9175bc2247809c0a37857db9b820
 ContainerName=mios-ceph
 Network=mios.network
 Volume=/var/lib/ceph:/var/lib/ceph:Z

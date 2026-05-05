@@ -1,4 +1,17 @@
-allow perm=any uid=0 : all
+# Architectural Law: README.md/SECURITY.md document fapolicyd as
+# "deny-by-default". The previous form (`allow perm=any uid=0 : all`)
+# unconditionally bypassed the policy for every root process, which on a
+# bootc host with `/usr` mounted read-only via composefs is functionally
+# equivalent to "deny-by-default for non-root only". Constraining root to
+# `trust=1` keeps RPM-signed binaries fully unblocked (every system
+# service: systemd, podman, libvirt, k3s, ceph, ...) while denying
+# execution of arbitrary uid=0-owned scripts dropped under /tmp, /var,
+# or /home -- the actual escalation path that "deny-by-default" is meant
+# to close. If a legitimate root-executed binary is missing from the
+# RPM trust db, add a targeted `allow perm=execute path=/exact/path
+# uid=0 : all` rule above this block rather than re-broadening the
+# uid=0 catch-all.
+allow perm=any uid=0 trust=1 : all
 allow perm=execute : ftype=application/x-executable trust=1
 allow perm=execute : ftype=application/x-sharedlib trust=1
 deny_audit perm=execute : all

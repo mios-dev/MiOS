@@ -20,6 +20,16 @@
 # token file -- if firstboot hasn't minted it yet (or has been deleted
 # for re-bootstrap), the unit no-ops at pre-boot rather than crash-
 # looping with "registration token missing".
+#
+# LAW 6 (UNPRIVILEGED-QUADLETS) exception: this Quadlet runs `User=0`
+# / `Group=0` because the build step in the self-replication loop
+# (`podman build -f /Containerfile`) needs write access to rootful
+# `/var/lib/containers/storage/` and the resulting image must be
+# usable by `bootc switch --transport containers-storage`. Rootless
+# podman would require subuid/subgid mappings against /var/lib/mios/
+# forge-runner with allowed write into the rootful storage path,
+# which the bootc immutable-/usr model does not currently support.
+# Documented in INDEX.md sec 3 row 6 alongside mios-ceph / mios-k3s.
 
 [Unit]
 Description='MiOS' Forgejo Runner (self-hosted CI for /=git working tree)
@@ -35,7 +45,7 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
-Image=code.forgejo.org/forgejo/runner:6.5
+Image=code.forgejo.org/forgejo/runner:6@sha256:e8dd2880f2fc81984d2308b93f1bc064dfb41187942300676536c09a3b30043d
 ContainerName=mios-forgejo-runner
 Network=mios.network
 

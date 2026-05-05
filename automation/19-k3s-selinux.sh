@@ -50,7 +50,7 @@ if [ -z "$POLICY_DIR" ]; then
 fi
 
 echo "Using policy source from: $POLICY_DIR"
-cp "$POLICY_DIR"/k3s.* .
+cp -p "$POLICY_DIR"/k3s.* .
 
 # Compile the policy using the Fedora 44 SELinux Makefile
 make -f /usr/share/selinux/devel/Makefile k3s.pp

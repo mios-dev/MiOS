@@ -26,7 +26,7 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
-Image=codeberg.org/forgejo/forgejo:11
+Image=codeberg.org/forgejo/forgejo:11@sha256:1d5f7d9e7ec970b50d5817317c3ec86d4aabb10893c5dea2e9dd4f8c3470a09c
 ContainerName=mios-forge
 Network=mios.network
 # 3000 = web UI (reverse-proxy via Cockpit/Caddy if desired).

@@ -1,6 +1,6 @@
 [Unit]
 ConditionVirtualization=!container
-Description=MiOS-OS Cryptographic Integrity Audit (fs-verity)
+Description='MiOS' Cryptographic Integrity Audit (fs-verity)
 DefaultDependencies=no
 After=ostree-prepare-root.service
 Before=sysroot.mount

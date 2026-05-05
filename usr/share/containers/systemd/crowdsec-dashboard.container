@@ -7,7 +7,7 @@ Wants=network-online.target
 ConditionPathExists=/etc/crowdsec/config.yaml
 
 [Container]
-Image=docker.io/crowdsecurity/crowdsec:latest
+Image=docker.io/crowdsecurity/crowdsec:latest@sha256:6ca53ad26196ca59ddd4fa692a586b73d8fcde085046163b9ca2f04887dca563
 Network=mios.network
 AutoUpdate=registry
 User=mios-crowdsec
