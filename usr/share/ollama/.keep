@@ -1,0 +1,21 @@
+# /usr/share/ollama/.keep
+#
+# Placeholder so `git reset --hard` materializes /usr/share/ollama/
+# on the dev-overlay seed path that bypasses the OCI build. The
+# ollama.container Quadlet bind-mounts this directory read-only into
+# the container at the same path:
+#
+#     Volume=/usr/share/ollama:/usr/share/ollama:ro,Z
+#
+# On a normally-built MiOS image, automation/37-ollama-prep.sh has
+# baked the configured model set into ./models/ before this file is
+# read. On MiOS-DEV (the WSL2 dev VM seeded via build-mios.ps1), the
+# build prep step never runs, so this directory would otherwise be
+# absent and `podman run` would fail with:
+#
+#     Error: statfs /usr/share/ollama: no such file or directory
+#
+# Keeping a single tracked .keep file under each tier (this dir +
+# models/) is the minimum tracked-content that survives a
+# `reset --hard` and reproduces the on-disk surface the Quadlet
+# expects.

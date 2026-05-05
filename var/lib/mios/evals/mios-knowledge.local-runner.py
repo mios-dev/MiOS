@@ -12,8 +12,11 @@ Day-0 compatible. Set MIOS_AI_ENDPOINT to:
   http://localhost:11434/v1  (Ollama)
   http://localhost:8000/v1   (vLLM)
   http://localhost:1234/v1   (LM Studio)
-  http://localhost:4000/v1   (LiteLLM)
-  https://api.openai.com/v1  (OpenAI cloud)
+  http://localhost:4000/v1   (LiteLLM — use this for routing to vendor clouds)
+
+LAW 5 — UNIFIED-AI-REDIRECTS: vendor cloud endpoints (api.openai.com,
+api.anthropic.com, etc.) must not be used directly. Route through LiteLLM
+at http://localhost:4000/v1 with provider routing if cloud grading is required.
 
 Usage:
   pip install httpx
@@ -60,7 +63,7 @@ def grade_string_check(output_text: str, must_mention: str) -> bool:
 
 def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
                       item: dict, output_text: str) -> tuple[float, str]:
-    """o3-style grader. Returns (score, reason)."""
+    """LLM-as-judge grader. Returns (score, reason)."""
     try:
         raw = chat(
             grader_endpoint, grader_key, grader_model,
@@ -91,7 +94,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--endpoint", default=os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1"))
     ap.add_argument("--key",      default=os.environ.get("MIOS_AI_KEY", ""))
-    ap.add_argument("--model",    default=os.environ.get("MIOS_AI_MODEL", "gpt-4o-mini"))
+    ap.add_argument("--model",    default=os.environ.get("MIOS_AI_MODEL", "qwen2.5-coder:7b"))
     ap.add_argument("--grader-endpoint", default=None)
     ap.add_argument("--grader-key",      default=None)
     ap.add_argument("--grader-model",    default=None)

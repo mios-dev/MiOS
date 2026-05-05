@@ -1,0 +1,111 @@
+#!/bin/sh
+# /usr/libexec/mios/flatpak-launch <flatpak-app-id> [args...]
+#
+# Robust GUI flatpak launcher. Re-derives the WSLg / Wayland / X11 / PulseAudio
+# / D-Bus environment whenever the calling shell stripped it (su -, nsenter -m,
+# sudo without -E, systemd-run, cron), then exec's `flatpak run --system <id>`.
+#
+# WHY THIS EXISTS
+# ───────────────
+# The per-app shims under /usr/local/bin/ (nautilus, epiphany, ptyxis, codium,
+# gnome-software, flatseal) get launched from every imaginable context. Login
+# shells under WSL get DISPLAY/WAYLAND_DISPLAY via /etc/profile.d/mios-wslg.sh,
+# but the moment the operator goes through `su - mios`, `sudo nsenter -m -p`,
+# `sudo -i`, or any systemd unit, those vars vanish and the flatpak fails with
+# one of:
+#
+#     Cannot autolaunch D-Bus without X11 $DISPLAY
+#     Gtk-WARNING **: cannot open display:
+#     ** WARNING **: Failed to create XdpPortal instance:
+#         Cannot autolaunch D-Bus without X11 $DISPLAY
+#
+# The /etc/profile.d/mios-wslg.sh helper would fix all of those, but only
+# login shells source profile.d/. Flatpak shims invoked from a non-login
+# shell (e.g. `bash -c 'nautilus'` from a script, or interactive bash from
+# `su -l mios` whose PAM stack didn't run because we entered via nsenter)
+# bypass it entirely.
+#
+# This script is the inner-shell complement: it runs every time a GUI
+# flatpak is launched, and only sets variables that are unset, so it never
+# overrides a working bare-metal GNOME or Wayland session that already
+# arranged its own environment.
+#
+# DESIGN
+# ──────
+# 1. WSL detection via /proc/version (namespace-stable; survives nsenter -m
+#    because /proc is bind-mounted into every namespace).
+# 2. XDG_RUNTIME_DIR: prefer /run/user/$UID (real tmpfs that supports the
+#    sticky-bit chmods rootless podman performs); fall back to WSLg's 9p
+#    runtime-dir when the per-uid tmpfs is absent.
+# 3. DISPLAY / WAYLAND_DISPLAY: WSLg defaults (:0 / wayland-0).
+# 4. PULSE_SERVER: prefer $XDG_RUNTIME_DIR/pulse/native, fall back to
+#    /mnt/wslg/PulseServer.
+# 5. DBUS_SESSION_BUS_ADDRESS: derived from $XDG_RUNTIME_DIR/bus when the
+#    user@$UID.service socket is up. This is the single var that breaks
+#    epiphany the loudest -- "Cannot autolaunch D-Bus without X11 $DISPLAY"
+#    is libportal's complaint when DBUS_SESSION_BUS_ADDRESS is empty AND
+#    DISPLAY is empty (it tries X11 cookie autolaunch as last resort).
+#
+# Inert on bare-metal Linux desktops (where the session manager already
+# set everything) and on macOS hosts running MiOS in a VM (no /proc/version
+# Microsoft signal, no /mnt/wslg). On those substrates the exec falls
+# straight through to `flatpak run` with the caller's environment intact.
+
+set -eu
+
+APP_ID="${1:?usage: flatpak-launch <flatpak-app-id> [args...]}"
+shift || true
+
+# Step 1 ── WSL detection. /proc/version is namespace-stable.
+IS_WSL=0
+if [ -r /proc/version ]; then
+    case "$(cat /proc/version 2>/dev/null)" in
+        *Microsoft*|*microsoft*|*WSL*) IS_WSL=1 ;;
+    esac
+fi
+
+# Step 2 ── XDG_RUNTIME_DIR. Prefer /run/user/$UID; on WSL fall back to
+# /mnt/wslg/runtime-dir if the per-uid tmpfs hasn't been created yet
+# (early-boot interactive shells before mios-wsl-runtime-dir.service runs).
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    uid="$(id -u)"
+    if [ -d "/run/user/$uid" ]; then
+        XDG_RUNTIME_DIR="/run/user/$uid"
+    elif [ "$IS_WSL" = "1" ] && [ -d /mnt/wslg/runtime-dir ]; then
+        XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir"
+    fi
+    [ -n "${XDG_RUNTIME_DIR:-}" ] && export XDG_RUNTIME_DIR
+fi
+
+# Step 3 ── Wayland / X11 / Pulse defaults. Only on WSL: a bare-metal GNOME
+# session that's missing DISPLAY is in a broken state we can't paper over,
+# but on WSL we know the defaults are stable across every distro that has
+# guiApplications=true in /etc/wsl.conf.
+if [ "$IS_WSL" = "1" ]; then
+    : "${WAYLAND_DISPLAY:=wayland-0}"
+    : "${DISPLAY:=:0}"
+    if [ -z "${PULSE_SERVER:-}" ]; then
+        if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then
+            PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
+        elif [ -S /mnt/wslg/PulseServer ]; then
+            PULSE_SERVER="unix:/mnt/wslg/PulseServer"
+        fi
+    fi
+    export WAYLAND_DISPLAY DISPLAY
+    [ -n "${PULSE_SERVER:-}" ] && export PULSE_SERVER
+fi
+
+# Step 4 ── D-Bus session bus. The libportal autolaunch-error path triggers
+# when this is empty -- portals (Open File, Save File, Notification) refuse
+# to function without it, and nautilus/epiphany then crash on first dialog.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
+   && [ -n "${XDG_RUNTIME_DIR:-}" ] \
+   && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    export DBUS_SESSION_BUS_ADDRESS
+fi
+
+# Step 5 ── exec the flatpak. `flatpak run --system` resolves the app
+# from the system installation (/var/lib/flatpak); --user installs are
+# not used by MiOS because the dev VM is single-tenant.
+exec flatpak run --system "$APP_ID" "$@"

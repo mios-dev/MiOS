@@ -80,15 +80,24 @@ Environment=FORGEJO__log__MODE=console
 # Forgejo has no built-in AI surface; this comment exists so postcheck
 # #12 has a documented reason for the absence rather than an oversight.
 
-# NUMERIC uid/gid -- podman's `--user` looks names up in the
-# CONTAINER'S /etc/passwd, not the host's, and the upstream Forgejo
-# image has a `git` user (created at startup from USER_UID/USER_GID
-# above), not `mios-forge`. Passing the numeric uid that USER_UID
-# pins to (816) sidesteps the lookup entirely. Host-side ownership
-# of /srv/mios/forge is set by usr/lib/tmpfiles.d/mios-forge.conf to
-# the same uid 816.
-User=816
-Group=816
+# DO NOT set User=/Group= here. The upstream Forgejo image is built
+# around s6-overlay: the entrypoint MUST start as root so it can
+# (a) `sed` /etc/group + /etc/passwd to pin the `git` user to
+# USER_UID/USER_GID (816), (b) chown /data and the runtime dirs to
+# that uid, and (c) start s6-svscan, which writes its supervisor
+# lock under /run. All three steps fail with "Permission denied"
+# the moment the container starts as a non-root uid -- the symptoms
+# observed are:
+#     sed: can't create temp file '/etc/groupXXXXXX': Permission denied
+#     sed: can't create temp file '/etc/passwdXXXXXX': Permission denied
+#     s6-svscan: fatal: unable to open .s6-svscan/lock: Permission denied
+# After the entrypoint finishes its root-only setup, s6-overlay drops
+# to the `git` user (uid 816) for the actual forgejo daemon process,
+# so the running surface is still unprivileged. Host-side ownership
+# of /srv/mios/forge stays at uid 816 via usr/lib/tmpfiles.d/
+# mios-forge.conf. LAW 6 (UNPRIVILEGED-QUADLETS) is satisfied at the
+# runtime layer that matters (the long-lived forgejo process), not
+# the millisecond root-bootstrap window the image's design requires.
 
 [Service]
 Restart=on-failure

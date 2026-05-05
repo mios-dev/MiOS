@@ -218,6 +218,18 @@ usr/share/containers/*
 !/usr/share/containers/containers.conf.d/
 !/usr/share/containers/containers.conf.d/**
 
+# usr/share/ollama -- build-baked model seed dir bind-mounted RO into
+# the ollama.container Quadlet. Tracked because on MiOS-DEV (WSL2
+# overlay seed) the build phase that would populate it is skipped, and
+# `podman run` fails with `statfs /usr/share/ollama: no such file` when
+# the path is absent. Only the .keep markers are tracked; actual model
+# blobs are emitted at build time by automation/37-ollama-prep.sh and
+# remain ignored.
+!/usr/share/ollama/
+!/usr/share/ollama/.keep
+!/usr/share/ollama/models/
+!/usr/share/ollama/models/.keep
+
 # MiOS-managed fontconfig drop-ins (Geist Mono primary monospace,
 # Symbols-Only Nerd Font icon-glyph fallback). Symlinked into
 # /etc/fonts/conf.d/ at boot via usr/lib/tmpfiles.d/mios-fontconfig.conf.

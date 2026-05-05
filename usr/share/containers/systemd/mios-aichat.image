@@ -15,7 +15,12 @@ Description='MiOS' aichat Distrobox image (pre-pull on boot)
 # localhost/ scope tells Podman this is a locally-built image (no
 # remote registry); the .build Quadlet writes it under this name.
 Image=localhost/mios/aichat:latest
-PullPolicy=missing
+# Pull-if-missing semantics for .image quadlets are intrinsic --
+# the generated `podman image pull` only runs when the image is
+# absent from local storage. PullPolicy= is NOT a valid key for
+# [Image] units (only [Container] units), so it's omitted: every
+# Fedora/podman release that ships quadlet-generator emits a
+# warning and ignores the line, breaking unit reload semantics.
 # Auto-update annotation: bump the tag on the .build Quadlet to
 # force a rebuild + repull. The aichat upstream is :latest pinned
 # via Containerfile ARG (defaults documented in the Containerfile).

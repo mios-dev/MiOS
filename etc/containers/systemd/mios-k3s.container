@@ -26,7 +26,12 @@ ConditionVirtualization=!container
 [Container]
 Image=docker.io/rancher/k3s:latest@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c
 ContainerName=mios-k3s
-Privileged=true
+# `Privileged=` requires podman 5.7+; older quadlet-generators (Fedora
+# 43's bundled stack) silently drop the key with a warning, leaving
+# k3s unprivileged and unable to manage cgroups/netfilter. The portable
+# form is `PodmanArgs=--privileged`, which quadlet has forwarded
+# verbatim since 4.4.
+PodmanArgs=--privileged
 Environment=K3S_TOKEN=mios-cluster-secret
 Volume=/var/lib/rancher/k3s:/var/lib/rancher/k3s:Z
 Volume=/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:ro

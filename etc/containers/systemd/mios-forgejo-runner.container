@@ -63,7 +63,15 @@ Network=mios.network
 #
 # Joins the existing exception list: mios-ceph (Ceph requires uid 0)
 # and mios-k3s (full kernel namespaces + eBPF). See usr/share/doc/mios/concepts/architecture.md.
-Privileged=true
+#
+# Quadlet's `Privileged=` key is only honoured by podman 5.7+; on
+# older stacks (Fedora 43 ships an earlier quadlet-generator) the key
+# is silently dropped with an "unsupported key" warning, leaving the
+# runner unprivileged and `podman build` failing inside the runner.
+# `PodmanArgs=--privileged` is the portable form -- quadlet has emitted
+# `--podman-args` verbatim into the generated unit since 4.4, so this
+# works on every release that supports Quadlet at all.
+PodmanArgs=--privileged
 
 # Shared container storage with the host. This is what makes
 # `bootc switch --transport containers-storage localhost/mios:latest`

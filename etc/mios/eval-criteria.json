@@ -1,14 +1,17 @@
 {
   "$schema": "https://mios.dev/schemas/eval-criteria-1.json",
-  "description": "Default grader rubric used by var/lib/mios/evals/mios-knowledge.eval.json (OpenAI Evals) and var/lib/mios/evals/mios-knowledge.local-runner.py (any /v1/chat/completions endpoint).",
-  "graders": [
+  "spec_ref": "https://platform.openai.com/docs/api-reference/evals/create",
+  "description": "Default rubric used by var/lib/mios/evals/mios-knowledge.eval.json (POST /v1/evals body) and var/lib/mios/evals/mios-knowledge.local-runner.py (any /v1/chat/completions endpoint). Field names match the OpenAI Evals API spec; MiOS-specific extensions live under x-mios.*.",
+  "testing_criteria": [
     {
       "type": "string_check",
       "name": "must_mention_packages_md_for_packaging_q",
       "operation": "ilike",
       "input": "{{sample.output_text}}",
       "reference": "%PACKAGES.md%",
-      "applies_when": "item.topic == 'packaging'"
+      "x-mios": {
+        "applies_when": "item.topic == 'packaging'"
+      }
     },
     {
       "type": "string_check",
@@ -16,7 +19,9 @@
       "operation": "ilike",
       "input": "{{sample.output_text}}",
       "reference": "%kargs.d%",
-      "applies_when": "item.topic == 'kargs'"
+      "x-mios": {
+        "applies_when": "item.topic == 'kargs'"
+      }
     },
     {
       "type": "string_check",
@@ -42,11 +47,11 @@
     {
       "type": "score_model",
       "name": "mios_correctness",
-      "model": "${MIOS_AI_GRADER:-o3}",
+      "model": "${MIOS_AI_GRADER:-${MIOS_AI_MODEL:-qwen2.5-coder:7b}}",
       "input": [
         {
           "role": "system",
-          "content": "You are grading MiOS engineering answers. Score 1.0 = factually correct AND cites the right MiOS file or upstream doc; 0.5 = correct but missing citation; 0.0 = incorrect or hallucinated. Reply with JSON {score: float, reason: string} only — no prose."
+          "content": "You are grading MiOS engineering answers. Score 1.0 = factually correct AND cites the right MiOS file or upstream doc; 0.5 = correct but missing citation; 0.0 = incorrect or hallucinated. Reply with JSON {score: float, reason: string} only -- no prose."
         },
         {
           "role": "user",
@@ -65,6 +70,15 @@
       "pass_threshold": 0.5
     }
   ],
-  "applies_to_local_runner": true,
-  "notes": "The string_check graders run in pure Python and require no model. The score_model grader requires a /v1/chat/completions endpoint. The text_similarity grader requires /v1/embeddings. All three are supported by MiOS LocalAI at http://localhost:8080/v1."
+  "x-mios": {
+    "schema_kind": "Default rubric for grading MiOS engineering answers. Consumed by both the OpenAI Evals API (when targeting /v1/evals) and the local-runner.py (when targeting /v1/chat/completions on any compatible endpoint).",
+    "applies_to_local_runner": true,
+    "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
+    "vendor_neutral": true,
+    "no_vendor_brand_names": true,
+    "model_resolution": {
+      "score_model.model": "Resolves through MIOS_AI_GRADER env var; falls back to MIOS_AI_MODEL; final fallback is qwen2.5-coder:7b (the locally-baked default chat model). Operators wanting a stronger grader set MIOS_AI_GRADER to a model their endpoint serves (e.g. qwen2.5:32b for a 24GB+ profile)."
+    },
+    "notes": "The string_check graders run in pure Python and require no model. The score_model grader requires a /v1/chat/completions endpoint. The text_similarity grader requires /v1/embeddings. All three are supported by MiOS LocalAI at MIOS_AI_ENDPOINT (default http://localhost:8080/v1). Vendor cloud endpoints (api.openai.com, api.anthropic.com, etc.) are forbidden by LAW 5; if you need cloud grading, set MIOS_AI_ENDPOINT to LiteLLM at http://localhost:4000/v1 with provider routing."
+  }
 }

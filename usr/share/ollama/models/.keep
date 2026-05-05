@@ -1,0 +1,16 @@
+# /usr/share/ollama/models/.keep
+#
+# Placeholder marking the build-baked, immutable model seed dir.
+# automation/37-ollama-prep.sh writes manifest-style ollama model
+# blobs into this tree at build time when MIOS_OLLAMA_BAKE_MODELS is
+# non-empty (default: qwen2.5-coder:7b,nomic-embed-text per the
+# `[ai].bake_models` field in /usr/share/mios/mios.toml). On first
+# boot mios-ollama-firstboot.service hardlink-copies this dir into
+# /var/lib/ollama/models/ (the writable runtime store ollama
+# actually reads/writes via OLLAMA_MODELS).
+#
+# On MiOS-DEV (the WSL2 dev VM seeded via build-mios.ps1) the bake
+# step is skipped because there is no OCI build phase; this file is
+# what guarantees the directory still exists so the read-only volume
+# mount in ollama.container resolves. Network fallback path in
+# usr/libexec/mios/ollama-firstboot.sh handles the empty-seed case.
