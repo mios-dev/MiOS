@@ -29,7 +29,7 @@
 # podman would require subuid/subgid mappings against /var/lib/mios/
 # forge-runner with allowed write into the rootful storage path,
 # which the bootc immutable-/usr model does not currently support.
-# Documented in INDEX.md sec 3 row 6 alongside mios-ceph / mios-k3s.
+# Documented in usr/share/mios/ai/INDEX.md sec 3 row 6 alongside mios-ceph / mios-k3s.
 
 [Unit]
 Description='MiOS' Forgejo Runner (self-hosted CI for /=git working tree)
@@ -62,7 +62,7 @@ Network=mios.network
 # privileged so it can act as the namespace orchestrator.
 #
 # Joins the existing exception list: mios-ceph (Ceph requires uid 0)
-# and mios-k3s (full kernel namespaces + eBPF). See ARCHITECTURE.md.
+# and mios-k3s (full kernel namespaces + eBPF). See usr/share/doc/mios/concepts/architecture.md.
 Privileged=true
 
 # Shared container storage with the host. This is what makes

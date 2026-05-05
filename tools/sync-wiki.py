@@ -113,7 +113,7 @@ This file provides a machine-readable and human-readable index of all automation
     print(f"[ok] Updated {automation_doc}")
 
     # 2. Sync embeds in key files
-    target_files = ["README.md", "INDEX.md", "INDEX.md", "INDEX.md", "INDEX.md", "specs/Home.md"]
+    target_files = ["README.md", "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/INDEX.md", "specs/Home.md"]
     for f in target_files:
         sync_json_embeds(f)
 

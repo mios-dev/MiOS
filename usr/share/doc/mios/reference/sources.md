@@ -1,4 +1,4 @@
-# SOURCES.md -- References, Sub-Knowledge, and Iteration Pointers
+# usr/share/doc/mios/reference/sources.md -- References, Sub-Knowledge, and Iteration Pointers
 
 This file consolidates every authoritative source consulted to build this
 knowledge base, plus pointers for further iteration on OpenAI API
@@ -121,14 +121,14 @@ tool to refresh the KB.
 ### 2.1 Documentation files (root)
 
 - `README.md` -- https://github.com/mios-dev/MiOS/blob/main/README.md
-- `INDEX.md` -- https://github.com/mios-dev/MiOS/blob/main/INDEX.md (single source of truth for architectural laws)
-- `ARCHITECTURE.md` -- https://github.com/mios-dev/MiOS/blob/main/ARCHITECTURE.md
-- `ENGINEERING.md` -- https://github.com/mios-dev/MiOS/blob/main/ENGINEERING.md
+- `usr/share/mios/ai/INDEX.md` -- https://github.com/mios-dev/MiOS/blob/main/INDEX.md (single source of truth for architectural laws)
+- `usr/share/doc/mios/concepts/architecture.md` -- https://github.com/mios-dev/MiOS/blob/main/ARCHITECTURE.md
+- `usr/share/doc/mios/guides/engineering.md` -- https://github.com/mios-dev/MiOS/blob/main/ENGINEERING.md
 - `SECURITY.md` -- https://github.com/mios-dev/MiOS/blob/main/SECURITY.md
-- `SELF-BUILD.md` -- https://github.com/mios-dev/MiOS/blob/main/SELF-BUILD.md
-- `DEPLOY.md` -- https://github.com/mios-dev/MiOS/blob/main/DEPLOY.md
+- `usr/share/doc/mios/guides/self-build.md` -- https://github.com/mios-dev/MiOS/blob/main/SELF-BUILD.md
+- `usr/share/doc/mios/guides/deploy.md` -- https://github.com/mios-dev/MiOS/blob/main/DEPLOY.md
 - `CONTRIBUTING.md` -- https://github.com/mios-dev/MiOS/blob/main/CONTRIBUTING.md
-- `LICENSES.md` -- https://github.com/mios-dev/MiOS/blob/main/LICENSES.md
+- `usr/share/doc/mios/reference/licenses.md` -- https://github.com/mios-dev/MiOS/blob/main/LICENSES.md
 - `LICENSE` -- https://github.com/mios-dev/MiOS/blob/main/LICENSE (Apache-2.0)
 - `VERSION` -- https://github.com/mios-dev/MiOS/blob/main/VERSION
 
@@ -483,9 +483,9 @@ traceable to a specific 'MiOS' file fetched from
 ```
 .devcontainer/  .github/  automation/  config/  etc/  tools/  usr/  v1/
 .clinerules .cursorrules .editorconfig .gitattributes .gitignore
-AGENTS.md ARCHITECTURE.md CLAUDE.md CONTRIBUTING.md Containerfile
-DEPLOY.md ENGINEERING.md GEMINI.md Get-MiOS.ps1 INDEX.md Justfile
-LICENSE LICENSES.md README.md SECURITY.md SELF-BUILD.md VERSION
+AGENTS.md usr/share/doc/mios/concepts/architecture.md CLAUDE.md CONTRIBUTING.md Containerfile
+usr/share/doc/mios/guides/deploy.md usr/share/doc/mios/guides/engineering.md GEMINI.md Get-MiOS.ps1 usr/share/mios/ai/INDEX.md Justfile
+LICENSE usr/share/doc/mios/reference/licenses.md README.md SECURITY.md usr/share/doc/mios/guides/self-build.md VERSION
 build-mios.sh image-versions.yml install.ps1 install.sh
 llms-full.txt llms.txt mios-build-local.ps1
 preflight.ps1 push-to-github.ps1 renovate.json system-prompt.md
@@ -493,7 +493,7 @@ preflight.ps1 push-to-github.ps1 renovate.json system-prompt.md
 
 The repo root **is** the system root (no `system_files/` directory).
 
-### 7.2 Architectural Laws -- verbatim from `INDEX.md` §3
+### 7.2 Architectural Laws -- verbatim from `usr/share/mios/ai/INDEX.md` §3
 
 | # | Law | Enforced by |
 | --- | --- | --- |
@@ -504,7 +504,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | 5 | **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_KEY/MODEL/ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** -- `User=`, `Group=`, `Delegate=yes` on every Quadlet. Documented exceptions: `mios-ceph`, `mios-k3s` as `User=root` (Ceph/K3s require uid 0). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
-### 7.3 Service gating table -- verbatim from `INDEX.md` §5
+### 7.3 Service gating table -- verbatim from `usr/share/mios/ai/INDEX.md` §5
 
 | Unit | Condition | Skips on |
 | --- | --- | --- |
@@ -517,7 +517,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | `mios-gpu-{nvidia,amd,intel,status}` | `ConditionPathExists=/dev/...`, `!container`, `!wsl` (Intel) | no matching GPU device |
 | `ollama` | none | always runs (CPU fallback) |
 
-### 7.4 Pipeline phases (verbatim from `INDEX.md` §6 and `ENGINEERING.md`)
+### 7.4 Pipeline phases (verbatim from `usr/share/mios/ai/INDEX.md` §6 and `usr/share/doc/mios/guides/engineering.md`)
 
 | Phase | Owner | Description |
 | --- | --- | --- |
@@ -527,7 +527,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | Phase-3 | `mios.git/install.sh` + bootstrap profile staging | systemd-sysusers/tmpfiles/daemon-reload + user create + per-user `~/.config/mios/{profile.toml,system-prompt.md}` |
 | Phase-4 | `mios-bootstrap.git/install.sh` | Reboot prompt |
 
-### 7.5 Build-mode summary (verbatim from `SELF-BUILD.md`)
+### 7.5 Build-mode summary (verbatim from `usr/share/doc/mios/guides/self-build.md`)
 
 | Mode | Path | Use |
 | --- | --- | --- |

@@ -18,7 +18,7 @@
 - LAW 5 UNIFIED-AI-REDIRECTS — `MIOS_AI_*` resolves to `http://localhost:8080/v1`; vendor URLs forbidden.
 - LAW 6 UNPRIVILEGED-QUADLETS — `User=`, `Group=`, `Delegate=yes` on every Quadlet (exceptions: `mios-ceph`, `mios-k3s` as `User=root`).
 
-Plus engineering standards (ENGINEERING.md):
+Plus engineering standards (usr/share/doc/mios/guides/engineering.md):
 - `set -euo pipefail` at top of every phase script.
 - `VAR=$((VAR + 1))` only — `((VAR++))` forbidden under `set -e`.
 - shellcheck-clean (SC2038 fatal).
@@ -36,7 +36,7 @@ Reply with exactly three sections in this order:
 One of: APPROVE, APPROVE-WITH-MINOR-CHANGES, REQUEST-CHANGES, REJECT.
 
 ## Required changes
-A bullet list. Each bullet starts with the LAW or rule violated (e.g. "**LAW 4**: ..." or "**ENGINEERING.md §Shell-conventions**: ..."), describes the issue tersely, and gives the exact replacement.
+A bullet list. Each bullet starts with the LAW or rule violated (e.g. "**LAW 4**: ..." or "**usr/share/doc/mios/guides/engineering.md §Shell-conventions**: ..."), describes the issue tersely, and gives the exact replacement.
 
 ## Optional improvements
 Non-blocking suggestions, same format. Empty list is fine.

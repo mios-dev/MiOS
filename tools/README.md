@@ -10,7 +10,7 @@ Use these tools when you need to configure VFIO passthrough, isolate
 CPUs for VM pinning, profile a host before deploying 'MiOS' to it, or
 troubleshoot Secure Boot / OVMF enrollment for Windows VMs.
 
-> **All rules from [`../INDEX.md`](../INDEX.md) §3.2 (Bash) apply
+> **All rules from [`.usr/share/mios/ai/INDEX.md`](.usr/share/mios/ai/INDEX.md) §3.2 (Bash) apply
 > here too.** No `((VAR++))` under `set -euo pipefail`, quote every
 > expansion, prefer `compgen -G` / `find -exec` / `read -ra`, etc.
 
@@ -121,11 +121,11 @@ on the modular replacement in `../automation/` instead.
 
 ---
 
-*See [`../INDEX.md`](../INDEX.md) §8 for what System Code / other AI
+*See [`.usr/share/mios/ai/INDEX.md`](.usr/share/mios/ai/INDEX.md) §8 for what System Code / other AI
 agents should not do in this directory (summary: don't modernize
 working scripts unprompted, don't rewrite bash into other languages).*
 
 ---
 
-See `LICENSES.md` and `CONTRIBUTING.md` at the repo root for upstream
+See `usr/share/doc/mios/reference/licenses.md` and `CONTRIBUTING.md` at the repo root for upstream
 ecosystem references (bootc, BIB, rechunk, cosign, Universal Blue, etc.).

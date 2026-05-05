@@ -71,4 +71,4 @@ Effects:
 - `usr/share/doc/mios/upstream/ostree.md`
 - `usr/share/doc/mios/upstream/rechunk.md`
 - `SECURITY.md` §composefs
-- `ARCHITECTURE.md` §Filesystem-layout (FHS 3.0 + bootc)
+- `usr/share/doc/mios/concepts/architecture.md` §Filesystem-layout (FHS 3.0 + bootc)

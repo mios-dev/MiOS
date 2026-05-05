@@ -264,8 +264,8 @@ and re-written/staged in Phase-3.
 ## 7. Cross-references
 
 - Build pipeline architecture: `CLAUDE.md`, `automation/build.sh`.
-- Filesystem and hardware layout: `ARCHITECTURE.md`.
+- Filesystem and hardware layout: `usr/share/doc/mios/concepts/architecture.md`.
 - Security posture and hardening kargs: `SECURITY.md`, `usr/lib/bootc/kargs.d/`.
-- Build modes (CI, Linux, Windows, self-build): `SELF-BUILD.md`.
+- Build modes (CI, Linux, Windows, self-build): `usr/share/doc/mios/guides/self-build.md`.
 - Contribution conventions: `CONTRIBUTING.md`.
-- Component licenses: `LICENSES.md`.
+- Component licenses: `usr/share/doc/mios/reference/licenses.md`.

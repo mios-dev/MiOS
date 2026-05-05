@@ -2,7 +2,7 @@
 
 > The image MiOS builds `FROM`. `ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia`
 > in `Containerfile`; default `MIOS_BASE_IMAGE` in `Justfile:45`.
-> Source: `ARCHITECTURE.md` §Base-image, `Containerfile:1`.
+> Source: `usr/share/doc/mios/concepts/architecture.md` §Base-image, `Containerfile:1`.
 
 ## Lineage
 
@@ -61,4 +61,4 @@ parameter accepts `linux/arm64` for forward compat.
 - `usr/share/doc/mios/upstream/fedora-bootc.md`
 - `usr/share/doc/mios/upstream/related-distros.md`
 - `usr/share/doc/mios/upstream/nvidia.md`
-- `ARCHITECTURE.md` §Base-image-uCore-HCI
+- `usr/share/doc/mios/concepts/architecture.md` §Base-image-uCore-HCI

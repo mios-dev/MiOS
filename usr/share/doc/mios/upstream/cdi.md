@@ -4,7 +4,7 @@
 > Intel iGPU passthrough into containers. Specs at `/var/run/cdi/`,
 > admin overrides at `/etc/cdi/`, declared in
 > `usr/lib/tmpfiles.d/mios-gpu.conf`. Source:
-> `ARCHITECTURE.md` §Hardware-acceleration.
+> `usr/share/doc/mios/concepts/architecture.md` §Hardware-acceleration.
 
 ## Project
 

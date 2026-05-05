@@ -2,7 +2,7 @@
 
 > MiOS uses `:stable-nvidia` from ucore-hci (proprietary driver,
 > akmod-built, MOK-signed). NVIDIA Container Toolkit + CDI is the path
-> for containerized GPU workloads. Source: `ARCHITECTURE.md` §Pillars,
+> for containerized GPU workloads. Source: `usr/share/doc/mios/concepts/architecture.md` §Pillars,
 > `usr/share/doc/mios/40-kargs.md` §VFIO, `automation/34-gpu-detect.sh`.
 
 ## Stack

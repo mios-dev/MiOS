@@ -1,7 +1,7 @@
 # /etc/profile.d/mios-env.sh -- 'MiOS' login-shell environment resolver.
 #
 # Sourced from /etc/profile by every interactive login shell. Walks the
-# documented five-layer overlay (INDEX.md sec 4) and exports the resolved
+# documented five-layer overlay (usr/share/mios/ai/INDEX.md sec 4) and exports the resolved
 # MIOS_* variables so every agent and CLI sees the same values regardless
 # of which shell or terminal launched them.
 #

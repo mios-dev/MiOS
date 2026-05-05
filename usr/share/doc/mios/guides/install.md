@@ -1,4 +1,4 @@
-# INSTALL.md -- Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
+# usr/share/doc/mios/guides/install.md -- Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
 
 Three target classes, three recipes. Pick the one matching your stack.
 

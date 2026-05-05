@@ -14,8 +14,8 @@
 > (`just <target>`, `install.sh`, `install.ps1`, `bootstrap.{sh,ps1}`,
 > the deployed `mios` CLIs, `bootc upgrade` against a 'MiOS' image, ...),
 > you acknowledge [`AGREEMENTS.md`](./AGREEMENTS.md) -- Apache-2.0 main
-> license, bundled-component licenses ([`LICENSES.md`](./LICENSES.md)),
-> and attribution ([`CREDITS.md`](./CREDITS.md)). All upstream projects
+> license, bundled-component licenses ([`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md)),
+> and attribution ([`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md)). All upstream projects
 > and standards referenced here are the property of their respective
 > owners; 'MiOS' integrates with them but claims no affiliation with
 > them.
@@ -200,31 +200,47 @@ build-time lint and by `automation/99-postcheck.sh`:
    `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s`
    (rationale in their headers).
 
-If you want the deeper dive: [`INDEX.md`](INDEX.md) is the architectural
-contract, [`ARCHITECTURE.md`](ARCHITECTURE.md) is the layout, and
-[`ENGINEERING.md`](ENGINEERING.md) is the build-pipeline rules.
+If you want the deeper dive: [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md)
+is the architectural contract (agent-facing),
+[`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md)
+is the layout, and
+[`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md)
+is the build-pipeline rules.
 
 ---
 
 ## Where things live
 
+Documentation follows the FHS doc layout (`/usr/share/doc/<pkg>/`) with an
+OpenAI-style topical split: `concepts/`, `guides/`, `reference/`, `audits/`.
+The agent-facing contract lives under `/usr/share/mios/ai/`.
+
 | Document | What's in it |
 |---|---|
-| [`INDEX.md`](INDEX.md) | Architectural laws + API surface (the contract). |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Filesystem and hardware layout. |
-| [`ENGINEERING.md`](ENGINEERING.md) | Build pipeline + shell conventions. |
-| [`SECURITY.md`](SECURITY.md) | Hardening kargs and posture. |
-| [`SELF-BUILD.md`](SELF-BUILD.md) | Build modes (CI, Linux, Windows, self-build). |
-| [`DEPLOY.md`](DEPLOY.md) | bootc + Day-2 lifecycle. |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution conventions. |
-| [`API.md`](API.md) | OpenAI-compatible AI surface. |
-| [`SOURCES.md`](SOURCES.md) | Every external reference, every upstream link. |
+| [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md) | Architectural laws + OpenAI-compatible API surface (agent contract). |
+| [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) | Canonical agent system prompt. |
+| [`usr/share/mios/ai/audit-prompt.md`](usr/share/mios/ai/audit-prompt.md) | Read-only audit-mode prompt for any OpenAI-API-compatible agent. |
+| [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) | `models.json`, `mcp.json`, etc. -- per-OpenAI-v1-surface manifests. |
+| [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) | Filesystem and hardware layout. |
+| [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md) | Build pipeline + shell conventions. |
+| [`usr/share/doc/mios/guides/security.md`](usr/share/doc/mios/guides/security.md) | Hardening kargs and posture. |
+| [`usr/share/doc/mios/guides/self-build.md`](usr/share/doc/mios/guides/self-build.md) | Build modes (CI, Linux, Windows, self-build). |
+| [`usr/share/doc/mios/guides/deploy.md`](usr/share/doc/mios/guides/deploy.md) | bootc + Day-2 lifecycle. |
+| [`usr/share/doc/mios/guides/install.md`](usr/share/doc/mios/guides/install.md) | KB ingest recipes (OpenAI-shaped). |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution conventions (root by GitHub convention). |
+| [`usr/share/doc/mios/reference/api.md`](usr/share/doc/mios/reference/api.md) | OpenAI-compatible AI surface (full spec). |
+| [`usr/share/doc/mios/reference/sources.md`](usr/share/doc/mios/reference/sources.md) | Every external reference, every upstream link. |
+| [`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md) | Attribution registry. |
+| [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md) | Component licenses. |
+| [`usr/share/doc/mios/reference/tree.md`](usr/share/doc/mios/reference/tree.md) | Annotated FHS tree. |
+| [`usr/share/doc/mios/audits/`](usr/share/doc/mios/audits/) | Audit reports. |
 
 For LLMs and AI agents arriving at the repo:
 [`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt) are the
 machine-readable index. [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md),
-and [`GEMINI.md`](GEMINI.md) are the per-tool entry points. They all
-ultimately defer to `/usr/share/mios/ai/system.md` once the OS is running.
+and [`GEMINI.md`](GEMINI.md) are the per-tool entry-point redirectors at
+repo root for tool discovery -- they all defer to
+`/usr/share/mios/ai/system.md` (canonical) once the OS is running.
 
 ---
 
@@ -244,7 +260,7 @@ Open issues + roadmap live on the GitHub side. PRs welcome -- read
 ## License
 
 Apache-2.0. Component licenses for every shipped piece are catalogued in
-[`LICENSES.md`](LICENSES.md).
+[`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md).
 
 The `'MiOS'` name (capitalized) is a project mark; lowercase `mios` (used in
 file paths, package names, env-var prefixes, etc.) is the technical

@@ -2,7 +2,7 @@
 
 > MiOS bakes the KVMFR shared-memory kernel module and the Looking
 > Glass B7 client into the image at build time. Source:
-> `ARCHITECTURE.md` §Hardware-delegation,
+> `usr/share/doc/mios/concepts/architecture.md` §Hardware-delegation,
 > `automation/52-bake-kvmfr.sh`, `automation/53-bake-lookingglass-client.sh`.
 
 ## What it solves

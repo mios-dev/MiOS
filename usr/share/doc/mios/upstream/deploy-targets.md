@@ -1,7 +1,7 @@
 # Deployment Targets — Hyper-V / WSL2 / QEMU / ISO / RAW
 
 > MiOS produces one OCI image and several disk-image artifacts via BIB.
-> Source: `DEPLOY.md`, `Justfile` (recipes `raw`, `iso`, `qcow2`, `vhdx`,
+> Source: `usr/share/doc/mios/guides/deploy.md`, `Justfile` (recipes `raw`, `iso`, `qcow2`, `vhdx`,
 > `wsl2`), `config/artifacts/*.toml`.
 
 ## Bootc-managed Fedora host (preferred)

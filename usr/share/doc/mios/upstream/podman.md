@@ -16,7 +16,7 @@
 
 | Rule | Why | Where |
 | --- | --- | --- |
-| **No `--squash-all`** | Strips OCI metadata bootc needs (`ostree.final-diffid`); breaks layer reuse for `bootc upgrade` deltas | `ENGINEERING.md` §Containerfile-conventions |
+| **No `--squash-all`** | Strips OCI metadata bootc needs (`ostree.final-diffid`); breaks layer reuse for `bootc upgrade` deltas | `usr/share/doc/mios/guides/engineering.md` §Containerfile-conventions |
 | `--no-cache` for production builds | Predictable, reproducible | `Justfile:build` and `mios-build-local.ps1` |
 | Bind-mount build context | Keep `/ctx` read-only, mutate at `/tmp/build` | `Containerfile` `ctx` scratch stage |
 | BuildKit cache mounts for dnf | 5–10× faster rebuilds without layer bloat | `Containerfile` `--mount=type=cache,...` |
@@ -43,7 +43,7 @@ Every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/`
 so `bootc upgrade` knows to pull/cache it alongside the OS image.
 Binder loop: `automation/08-system-files-overlay.sh:74-86`.
 
-### Service gating (defaults policy, INDEX.md §5)
+### Service gating (defaults policy, usr/share/mios/ai/INDEX.md §5)
 
 Every boolean ships `true`. Disablement happens via systemd
 `Condition*` directives in the Quadlet/unit, not via static config:

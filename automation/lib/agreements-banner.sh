@@ -70,9 +70,9 @@ under ongoing review.
 
 * MiOS-owned source code is licensed under Apache-2.0 (see ./LICENSE).
 * Bundled vendor components retain their upstream licenses; see
-  ./LICENSES.md for the full inventory.
+  usr/share/doc/mios/reference/licenses.md for the full inventory.
 * Attribution to every upstream project, specification, vendor, and
-  community is recorded in ./CREDITS.md.
+  community is recorded in usr/share/doc/mios/reference/credits.md.
 
 By invoking any entry point you acknowledge these terms. If you do
 not agree with them, decline at the prompt below; no files will be
@@ -205,8 +205,8 @@ mios_print_agreement_banner() {
     if [[ "${MIOS_REQUIRE_AGREEMENT_ACK:-1}" == "0" ]]; then
         cat >&2 <<EOF
 [mios] By invoking ${entry} you acknowledge AGREEMENTS.md
-       (Apache-2.0 + bundled-component licenses in LICENSES.md +
-        attribution in CREDITS.md). 'MiOS' is a research project.
+       (Apache-2.0 + bundled-component licenses in usr/share/doc/mios/reference/licenses.md +
+        attribution in usr/share/doc/mios/reference/credits.md). 'MiOS' is a research project.
 EOF
         return 0
     fi

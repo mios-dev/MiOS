@@ -56,4 +56,4 @@ sudo ostree admin undeploy <index>   # free a slot
 
 - `usr/share/doc/mios/upstream/composefs.md`
 - `usr/share/doc/mios/upstream/bootc.md`
-- `ARCHITECTURE.md` §Pillars (transactional integrity)
+- `usr/share/doc/mios/concepts/architecture.md` §Pillars (transactional integrity)

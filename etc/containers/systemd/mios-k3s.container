@@ -3,7 +3,7 @@
 #
 # Privileged=true: K3s requires full host networking, kernel namespaces, and
 # eBPF -- specific capability grants cannot replace these. This is a documented
-# architectural exception to UNPRIVILEGED-EXECUTION (see ARCHITECTURE.md).
+# architectural exception to UNPRIVILEGED-EXECUTION (see usr/share/doc/mios/concepts/architecture.md).
 #
 # User= omitted: K3s runs as root by necessity (writes to /run/k3s, manages
 # cgroups, kernel netfilter). This is a second documented exception.

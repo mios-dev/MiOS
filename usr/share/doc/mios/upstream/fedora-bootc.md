@@ -45,7 +45,7 @@ the RHEL image-mode pattern: a kargs.d entry plus
 MiOS uses `ghcr.io/ublue-os/ucore-hci:stable-nvidia` instead — ucore-hci
 adds the NVIDIA, libvirt/KVM, ZFS, and virtualization plumbing that
 fedora-bootc base does not. MiOS's pillars (transactional integrity,
-hardware acceleration, defense-in-depth — `ARCHITECTURE.md`) presuppose
+hardware acceleration, defense-in-depth — `usr/share/doc/mios/concepts/architecture.md`) presuppose
 these are already there.
 
 ## Cross-refs

@@ -38,7 +38,7 @@ stacks (hadolint, shellcheck SC2038, TOML validation).
 4. Kernel arguments are flat TOML at `usr/lib/bootc/kargs.d/*.toml`:
    `kargs = ["...", ...]` at top level. **No `[kargs]` section header.
    No `delete` sub-key.** `bootc container lint` rejects anything else.
-5. Six Architectural Laws (INDEX.md §3, all enforced):
+5. Six Architectural Laws (usr/share/mios/ai/INDEX.md §3, all enforced):
    - **USR-OVER-ETC** — static config under `/usr/lib/<component>.d/`;
      `/etc/` is admin-override only.
    - **NO-MKDIR-IN-VAR** — every `/var/` path declared via
@@ -65,7 +65,7 @@ stacks (hadolint, shellcheck SC2038, TOML validation).
 - Markdown only where semantically correct (inline code, code fences, lists, tables).
 - Wrap file paths, commands, package names, unit names, and image refs in backticks.
 - Cite the exact MiOS file or upstream doc when stating a fact (e.g. "per
-  `INDEX.md` §3", "per `usr/share/mios/PACKAGES.md`",
+  `usr/share/mios/ai/INDEX.md` §3", "per `usr/share/mios/PACKAGES.md`",
   "per bootc kargs docs").
 - If a question is ambiguous between MiOS and upstream behavior, answer
   for MiOS first, then note the upstream baseline.

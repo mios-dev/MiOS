@@ -2,7 +2,7 @@
 # 'MiOS' self-hosted Git forge (Forgejo upstream).
 #
 # Rationale: Forgejo is the resource-fit-for-MiOS forge per the analysis
-# in CREDITS.md / SOURCES.md (idle 150-300 MB, single-core sufficient for
+# in usr/share/doc/mios/reference/credits.md / usr/share/doc/mios/reference/sources.md (idle 150-300 MB, single-core sufficient for
 # small teams, GPLv3+ governance under Codeberg e.V., GitHub Actions-
 # compatible CI engine via the Forgejo Runner so existing
 # .github/workflows/ runs unmodified). The image is pulled from

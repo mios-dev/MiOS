@@ -653,7 +653,7 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 
 ---
 
-## §14. Architectural Laws (verbatim from `INDEX.md`)
+## §14. Architectural Laws (verbatim from `usr/share/mios/ai/INDEX.md`)
 
 1. **USR-OVER-ETC** -- static config in `/usr/lib/<component>.d/`; `/etc/`
    is admin-override only. Documented exceptions are upstream-contract
@@ -756,11 +756,11 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 | Bibata cursor theme | GPL-3.0 | tarball download |
 | dracut-logger.sh | GPL-2.0 | vendored upstream (Amadeusz Żołnowski) |
 | systemd | LGPL-2.1+ | upstream Fedora |
-| All RPMs | per individual SPEC | see `LICENSES.md` for full audit |
+| All RPMs | per individual SPEC | see `usr/share/doc/mios/reference/licenses.md` for full audit |
 | NVIDIA proprietary driver | NVIDIA Software License Agreement | redistributable per RPMFusion |
 | Microsoft Mono / .NET firmware | various Microsoft licenses | optional install |
 
-Full audit in `LICENSES.md` and `SOURCES.md`.
+Full audit in `usr/share/doc/mios/reference/licenses.md` and `usr/share/doc/mios/reference/sources.md`.
 
 ---
 

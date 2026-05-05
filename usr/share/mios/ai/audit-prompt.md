@@ -1,4 +1,4 @@
-# CLAUDE.AUDIT.md
+# usr/share/mios/ai/audit-prompt.md
 
 Read-only audit-mode system prompt for any OpenAI-API-compatible agent
 operating against `'MiOS'` (https://github.com/mios-dev/MiOS). Filename
@@ -9,10 +9,10 @@ Load it as the agent's system prompt before the audit session. Examples
 (use whichever maps onto your local CLI):
 
 ```
-agent --append-system-prompt "$(cat CLAUDE.AUDIT.md)"   # Claude Code
-gemini --system-prompt "$(cat CLAUDE.AUDIT.md)"         # Gemini CLI
-OPENAI_BASE_URL=$MIOS_AI_ENDPOINT codex --instructions CLAUDE.AUDIT.md
-mios-llm "$(cat CLAUDE.AUDIT.md)"                       # vendor-neutral
+agent --append-system-prompt "$(cat usr/share/mios/ai/audit-prompt.md)"   # Claude Code
+gemini --system-prompt "$(cat usr/share/mios/ai/audit-prompt.md)"         # Gemini CLI
+OPENAI_BASE_URL=$MIOS_AI_ENDPOINT codex --instructions usr/share/mios/ai/audit-prompt.md
+mios-llm "$(cat usr/share/mios/ai/audit-prompt.md)"                       # vendor-neutral
 ```
 
 Replaces the runtime `CLAUDE.md` operating context for the duration of
@@ -47,7 +47,7 @@ You are auditing the entire repo. Eight dimensions, each with a structured
 sub-section in your output:
 
 ### 1. Architectural Law Compliance
-Verify every architectural law from `INDEX.md` §3:
+Verify every architectural law from `usr/share/mios/ai/INDEX.md` §3:
 
 | Law | Verification |
 |---|---|
@@ -68,7 +68,7 @@ Verify every architectural law from `INDEX.md` §3:
   `install_packages*` from `lib/packages.sh`. Find: `grep -nE '^\s*(dnf|dnf5)\s+install' automation/[0-9][0-9]-*.sh`.
 
 ### 3. Bash Hygiene
-Per `ENGINEERING.md` shell conventions:
+Per `usr/share/doc/mios/guides/engineering.md` shell conventions:
 - Every `automation/[0-9][0-9]-*.sh` must declare `set -euo pipefail` near the top.
   Find non-conformers: `for f in automation/[0-9][0-9]-*.sh; do head -10 "$f" \| grep -q 'set -euo pipefail' \|\| echo "$f"; done`.
 - `((VAR++))` is forbidden under `set -e`. Find: `grep -nE '\(\([A-Za-z_]+\+\+\)\)' automation/[0-9][0-9]-*.sh tools/*.sh usr/libexec/mios/*`.
@@ -104,8 +104,8 @@ Per `ENGINEERING.md` shell conventions:
   `grep -E 'SENTINEL\|MARKER' usr/libexec/mios/wsl-firstboot usr/libexec/mios-grd-setup`.
 
 ### 7. Documentation Drift
-- Every architectural claim in `CLAUDE.md`, `INDEX.md`, `ARCHITECTURE.md`,
-  `ENGINEERING.md`, `SECURITY.md` must cite a real file. Heuristic:
+- Every architectural claim in `CLAUDE.md`, `usr/share/mios/ai/INDEX.md`, `usr/share/doc/mios/concepts/architecture.md`,
+  `usr/share/doc/mios/guides/engineering.md`, `SECURITY.md` must cite a real file. Heuristic:
   `grep -hoE '\b(automation|usr|etc|var|srv)/[a-zA-Z0-9._/-]+' *.md | sort -u | xargs -I{} sh -c 'test -e "{}" || echo "missing: {}"'`.
 - `Justfile` targets mentioned in any `.md` must exist:
   `grep -hoE 'just [a-z-]+' *.md | awk '{print $2}' | sort -u | xargs -I{} sh -c 'grep -q "^{}:" Justfile || echo "missing target: {}"'`.

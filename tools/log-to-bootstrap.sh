@@ -62,7 +62,7 @@ if [[ -d "${REPO_ROOT}/specs/ai-integration" ]]; then
 fi
 
 # Copy core documentation
-for doc in INDEX.md README.md SELF-BUILD.md SECURITY.md llms.txt; do
+for doc in usr/share/mios/ai/INDEX.md README.md usr/share/doc/mios/guides/self-build.md SECURITY.md llms.txt; do
     if [[ -f "${REPO_ROOT}/${doc}" ]]; then
         cp -v "${REPO_ROOT}/${doc}" "${WIKI_DIR}/" 2>/dev/null || true
     fi
@@ -288,9 +288,9 @@ echo "  │  ├─ ai-prompts.md"
 echo "  │  ├─ script-inventory.json"
 echo "  │  └─ mios-docs-*.tar.gz"
 echo "  └─ wiki/${MIOS_VERSION}/"
-echo "     ├─ INDEX.md"
+echo "     ├─ usr/share/mios/ai/INDEX.md"
 echo "     ├─ README.md"
-echo "     ├─ SELF-BUILD.md"
+echo "     ├─ usr/share/doc/mios/guides/self-build.md"
 echo "     ├─ SECURITY.md"
 echo "     ├─ llms.txt"
 echo "     └─ ai-integration/"

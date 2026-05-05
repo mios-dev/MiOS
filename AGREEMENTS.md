@@ -50,8 +50,8 @@ that is the expected mode of contribution.
 
 Every upstream project, specification, vendor, and community whose
 work 'MiOS' depends on or refers to is listed -- with a link to its
-canonical home -- in [`CREDITS.md`](./CREDITS.md). License terms for
-each component are inventoried in [`LICENSES.md`](./LICENSES.md). The
+canonical home -- in [`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md). License terms for
+each component are inventoried in [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md). The
 'MiOS'-owned source of this repository is licensed under
 [`LICENSE`](./LICENSE) (Apache-2.0).
 
@@ -69,8 +69,8 @@ by, or partnered with OpenAI.
 Invoking any of the following entry points is treated as
 acknowledgment of this document, the Apache-2.0 license at
 [`LICENSE`](./LICENSE), the bundled-component licenses inventoried in
-[`LICENSES.md`](./LICENSES.md), and the attribution registry in
-[`CREDITS.md`](./CREDITS.md). Each entry point displays a banner
+[`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md), and the attribution registry in
+[`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md). Each entry point displays a banner
 referencing this file when it starts.
 
 | Entry point | Repo | Purpose |
@@ -88,17 +88,17 @@ referencing this file when it starts.
 | `bootc upgrade`, `bootc switch ghcr.io/mios-dev/mios` | deployed image | OS lifecycle commands operating on a 'MiOS' image |
 
 If you do not agree with the terms inventoried in `LICENSE`,
-`LICENSES.md`, or `CREDITS.md`, do not invoke these entry points.
+`usr/share/doc/mios/reference/licenses.md`, or `usr/share/doc/mios/reference/credits.md`, do not invoke these entry points.
 
 ## 5. Runtime agreements that apply implicitly
 
 By using a deployed 'MiOS' image you also accept any third-party
 agreements that govern bundled vendor components. The notable ones
-are listed verbatim in `LICENSES.md`; non-exhaustive highlights:
+are listed verbatim in `usr/share/doc/mios/reference/licenses.md`; non-exhaustive highlights:
 
 - **NVIDIA** -- proprietary GPU drivers and CUDA libraries are
   governed by the NVIDIA Software License.
-  [`LICENSES.md`](./LICENSES.md) carries the link.
+  [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md) carries the link.
 - **Steam** -- if installed, the Steam Subscriber Agreement applies
   on first launch.
 - **Microsoft Windows VM guests** -- bring-your-own valid licenses
@@ -144,8 +144,8 @@ canonical form is:
 
 ```
 [mios] By invoking this entry point you acknowledge AGREEMENTS.md
-       (Apache-2.0 main + bundled-component licenses in LICENSES.md +
-        attribution in CREDITS.md). MiOS is a research project.
+       (Apache-2.0 main + bundled-component licenses in usr/share/doc/mios/reference/licenses.md +
+        attribution in usr/share/doc/mios/reference/credits.md). MiOS is a research project.
 ```
 
 The banner is informational; there is no interactive y/n prompt by
@@ -190,8 +190,8 @@ re-source `tools/lib/userenv.sh` in your shell).
 ## 9. Pointers
 
 - [`LICENSE`](./LICENSE) -- Apache-2.0 main license
-- [`LICENSES.md`](./LICENSES.md) -- bundled-component license inventory
-- [`CREDITS.md`](./CREDITS.md) -- attribution registry (every
+- [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md) -- bundled-component license inventory
+- [`usr/share/doc/mios/reference/credits.md`](usr/share/doc/mios/reference/credits.md) -- attribution registry (every
   upstream project, dependency, application, repo, file, and pattern)
 - [`SECURITY.md`](./SECURITY.md) -- security posture and hardening
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) -- contributor conventions

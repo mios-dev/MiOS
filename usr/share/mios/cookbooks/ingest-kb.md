@@ -1,7 +1,7 @@
 # Cookbook: Ingest the MiOS KB into a Vector Store (OpenAI cloud)
 
 > Full path: `/usr/share/mios/cookbooks/ingest-kb.md`
-> See `INSTALL.md` (top-level) for the full three-recipe set; this is the
+> See `usr/share/doc/mios/guides/install.md` (top-level) for the full three-recipe set; this is the
 > step-by-step OpenAI-cloud variant.
 
 ## Prerequisites

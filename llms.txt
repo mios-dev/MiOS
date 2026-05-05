@@ -7,7 +7,7 @@ The `mios.git` repo root is the system root `/`. No separate workspace.
 ## Day-0 agent entry points
 - [usr/share/mios/ai/system.md](./usr/share/mios/ai/system.md): canonical agent system prompt (Day-0 contract; v0.2.4)
 - [system-prompt.md](./system-prompt.md): repo-root pointer to the canonical prompt above (loaded by all agent CLIs)
-- [INDEX.md](./INDEX.md): Architectural Laws + system interface
+- [usr/share/mios/ai/INDEX.md](./usr/share/mios/ai/INDEX.md): Architectural Laws + system interface
 - [AGREEMENTS.md](./AGREEMENTS.md): runtime agreements + research-project framing
 
 ## Single source of truth

@@ -2,7 +2,7 @@
 
 > Used by `just rechunk` (and the `mios-build-local.ps1` Phase-3) via
 > `bootc-base-imagectl rechunk --max-layers 67 <src> <dst>`.
-> Source: `Justfile:rechunk`, `SELF-BUILD.md` §Build-chain.
+> Source: `Justfile:rechunk`, `usr/share/doc/mios/guides/self-build.md` §Build-chain.
 
 ## Project
 
@@ -25,7 +25,7 @@ component changes, only that component's layer is re-pulled.
 | Kernel-modules-extra rev | ~500 MB | ~50 MB |
 | Tag-to-tag bytes transferred | ~2 GB typical | ~200–400 MB typical |
 
-5–10× smaller is the documented expectation (`SELF-BUILD.md`).
+5–10× smaller is the documented expectation (`usr/share/doc/mios/guides/self-build.md`).
 
 ## Invocation (`Justfile:rechunk`)
 

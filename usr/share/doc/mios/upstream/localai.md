@@ -3,7 +3,7 @@
 > MiOS LAW 5 (UNIFIED-AI-REDIRECTS) requires every system agent to
 > target `http://localhost:8080/v1`. The endpoint is served by the
 > LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`.
-> Source: `INDEX.md` §AI-surface, `ARCHITECTURE.md` §AI-surface,
+> Source: `usr/share/mios/ai/INDEX.md` §AI-surface, `usr/share/doc/mios/concepts/architecture.md` §AI-surface,
 > `usr/share/doc/mios/70-ai-surface.md`.
 
 ## Project

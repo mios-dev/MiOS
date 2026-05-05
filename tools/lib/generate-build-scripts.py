@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/lib/generate-build-scripts.py -- emit MiOS-Build-Scripts.md, a single
+# tools/lib/generate-build-scripts.py -- emit usr/share/doc/mios/reference/build-scripts.md, a single
 # markdown bundle containing the full source of every script that
 # participates in building 'MiOS', in execution order.
 
@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "MiOS-Build-Scripts.md"
+OUT = ROOT / "usr/share/doc/mios/reference/build-scripts.md"
 
 # Layered ordering per delivery contract. Each (label, [paths]) -- paths are
 # relative to ROOT. Glob-expand patterns inside each layer.

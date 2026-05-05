@@ -1,4 +1,4 @@
-# CREDITS.md
+# usr/share/doc/mios/reference/credits.md
 
 > Attribution registry for every upstream project, dependency, application,
 > repository, file, and pattern that 'MiOS' is built on top of or refers to.
@@ -15,12 +15,12 @@
 > listed there is treated as acknowledgment of this attribution
 > registry, the Apache-2.0 main license at
 > [`LICENSE`](./LICENSE), and the bundled-component licenses inventoried
-> in [`LICENSES.md`](./LICENSES.md).
+> in [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md).
 >
 > **Scope of this file:** *attribution* (what we use and where it came
-> from). License terms live in `LICENSES.md`. Citation/source-of-truth
+> from). License terms live in `usr/share/doc/mios/reference/licenses.md`. Citation/source-of-truth
 > tracking for the `usr/share/doc/mios` knowledge base lives in
-> `SOURCES.md`. Per-package RPM accounting lives in
+> `usr/share/doc/mios/reference/sources.md`. Per-package RPM accounting lives in
 > `usr/share/mios/PACKAGES.md`. Cryptographic SBOMs are emitted per build
 > by `automation/90-generate-sbom.sh` (CycloneDX-JSON via syft) and
 > attached as a cosign attestation to the OCI image.
@@ -120,7 +120,7 @@ listed as **Day-0 portability targets**: 'MiOS' agents resolve through
 
 ## 7. OpenAI public API spec & standards (the surface 'MiOS' targets)
 
-CLAUDE.md is a thin pointer to these documents; `API.md` tracks the served
+CLAUDE.md is a thin pointer to these documents; `usr/share/doc/mios/reference/api.md` tracks the served
 subset. Every URL below is the source-of-truth for the named surface.
 
 | Surface | Spec |
@@ -325,16 +325,16 @@ the source of truth for a given concern. When in doubt, these win:
 
 | File | Concern | Path |
 |---|---|---|
-| `INDEX.md` | Architectural laws + API surface index | <https://github.com/mios-dev/MiOS/blob/main/INDEX.md> |
-| `ARCHITECTURE.md` | FHS layout + hardware model | <https://github.com/mios-dev/MiOS/blob/main/ARCHITECTURE.md> |
-| `ENGINEERING.md` | Build + lint + shell conventions | <https://github.com/mios-dev/MiOS/blob/main/ENGINEERING.md> |
-| `SELF-BUILD.md` | Build modes (just / Windows orchestrator / BIB) | <https://github.com/mios-dev/MiOS/blob/main/SELF-BUILD.md> |
-| `DEPLOY.md` | Day-2 lifecycle | <https://github.com/mios-dev/MiOS/blob/main/DEPLOY.md> |
+| `usr/share/mios/ai/INDEX.md` | Architectural laws + API surface index | <https://github.com/mios-dev/MiOS/blob/main/INDEX.md> |
+| `usr/share/doc/mios/concepts/architecture.md` | FHS layout + hardware model | <https://github.com/mios-dev/MiOS/blob/main/ARCHITECTURE.md> |
+| `usr/share/doc/mios/guides/engineering.md` | Build + lint + shell conventions | <https://github.com/mios-dev/MiOS/blob/main/ENGINEERING.md> |
+| `usr/share/doc/mios/guides/self-build.md` | Build modes (just / Windows orchestrator / BIB) | <https://github.com/mios-dev/MiOS/blob/main/SELF-BUILD.md> |
+| `usr/share/doc/mios/guides/deploy.md` | Day-2 lifecycle | <https://github.com/mios-dev/MiOS/blob/main/DEPLOY.md> |
 | `SECURITY.md` | Security posture and hardening kargs | <https://github.com/mios-dev/MiOS/blob/main/SECURITY.md> |
 | `CONTRIBUTING.md` | Contributor conventions | <https://github.com/mios-dev/MiOS/blob/main/CONTRIBUTING.md> |
-| `LICENSES.md` | Component license inventory | <https://github.com/mios-dev/MiOS/blob/main/LICENSES.md> |
-| `SOURCES.md` | KB-grade citation tracking | <https://github.com/mios-dev/MiOS/blob/main/SOURCES.md> |
-| `API.md` | OpenAI surface trace + Build/Architecture appendix | <https://github.com/mios-dev/MiOS/blob/main/API.md> |
+| `usr/share/doc/mios/reference/licenses.md` | Component license inventory | <https://github.com/mios-dev/MiOS/blob/main/LICENSES.md> |
+| `usr/share/doc/mios/reference/sources.md` | KB-grade citation tracking | <https://github.com/mios-dev/MiOS/blob/main/SOURCES.md> |
+| `usr/share/doc/mios/reference/api.md` | OpenAI surface trace + Build/Architecture appendix | <https://github.com/mios-dev/MiOS/blob/main/API.md> |
 | `CLAUDE.md` | Agent-identity pointer to OpenAI docs + standards | <https://github.com/mios-dev/MiOS/blob/main/CLAUDE.md> |
 | `AGENTS.md` / `GEMINI.md` | Sibling agent-identity pointers | <https://github.com/mios-dev/MiOS/blob/main/AGENTS.md> -- <https://github.com/mios-dev/MiOS/blob/main/GEMINI.md> |
 | `usr/share/mios/PACKAGES.md` | Single source of truth for every RPM | <https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/PACKAGES.md> |

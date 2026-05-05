@@ -1,4 +1,4 @@
-# API.md
+# usr/share/doc/mios/reference/api.md
 
 > Canonical OpenAI-API-compatible reference for MiOS.
 >
@@ -702,7 +702,7 @@ export OPENAI_API_KEY="$MIOS_AI_API_KEY"
 
 ## Cross-references
 
-- Architectural Law 5 (UNIFIED-AI-REDIRECTS): [`CLAUDE.md`](CLAUDE.md), [`INDEX.md`](INDEX.md), [`ENGINEERING.md`](ENGINEERING.md).
+- Architectural Law 5 (UNIFIED-AI-REDIRECTS): [`CLAUDE.md`](CLAUDE.md), [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md), [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md).
 - Endpoint binding: [`etc/containers/systemd/mios-ai.container`](etc/containers/systemd/mios-ai.container).
 - Endpoint manifest (machine-readable): [`manifest.json`](manifest.json) (entries keyed by `endpoint:`).
 - Batch input format: [`usr/share/mios/api/batch.requests.jsonl`](usr/share/mios/api/batch.requests.jsonl).
@@ -859,10 +859,10 @@ Every boolean in `usr/share/mios/profile.toml` ships **`true`**; the system neve
 
 ## A.11 Cross-references
 
-- Architectural laws and API surface: `INDEX.md`
-- Filesystem and hardware layout: `ARCHITECTURE.md`
-- Engineering standards (authoritative source for build rules): `ENGINEERING.md`
-- Build modes: `SELF-BUILD.md`
-- Deployment and Day-2 lifecycle: `DEPLOY.md`
+- Architectural laws and API surface: `usr/share/mios/ai/INDEX.md`
+- Filesystem and hardware layout: `usr/share/doc/mios/concepts/architecture.md`
+- Engineering standards (authoritative source for build rules): `usr/share/doc/mios/guides/engineering.md`
+- Build modes: `usr/share/doc/mios/guides/self-build.md`
+- Deployment and Day-2 lifecycle: `usr/share/doc/mios/guides/deploy.md`
 - Security posture and hardening kargs: `SECURITY.md`
 - Contribution conventions: `CONTRIBUTING.md`

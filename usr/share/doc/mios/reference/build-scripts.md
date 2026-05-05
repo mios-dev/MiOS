@@ -4885,7 +4885,7 @@ Write-Host ""
 # ============================================================================
 # push-to-github.ps1  'MiOS' release deliverable (v0.2.2 baseline)
 # ----------------------------------------------------------------------------
-# Single source of truth for the release pipeline. Per INDEX.md 4 + the
+# Single source of truth for the release pipeline. Per usr/share/mios/ai/INDEX.md 4 + the
 # /push-version skill, this script is rewritten per release and never split
 # into push-vX.Y.Z.ps1 siblings.
 #

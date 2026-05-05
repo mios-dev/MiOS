@@ -4,7 +4,7 @@
 
 ---
 
-## Architectural Laws (INDEX.md, non-negotiable)
+## Architectural Laws (usr/share/mios/ai/INDEX.md, non-negotiable)
 
 1. **USR-OVER-ETC** -- Static config in `/usr/lib/<component>.d/`. `/etc/` for admin overrides only. Exception: `/etc/mios/install.env` (first-boot).
 2. **NO-MKDIR-IN-VAR** -- All `/var/` paths declared via `usr/lib/tmpfiles.d/*.conf`. No `mkdir` in build scripts.

@@ -11,7 +11,7 @@
 - Repo: <https://github.com/k3s-io/k3s>
 - MiOS gating: `mios-k3s.container` Quadlet has
   `ConditionVirtualization=!wsl,!container` (skips on WSL2 and inside
-  containers — INDEX.md §5)
+  containers — usr/share/mios/ai/INDEX.md §5)
 - SELinux integration: `automation/19-k3s-selinux.sh` (custom policy)
 
 ### Why baked, not Quadlet-only

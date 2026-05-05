@@ -33,23 +33,23 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │
 ├─ Documentation  ────────────────────────────────────────────────────
 │   ├─ README.md                 project overview
-│   ├─ INDEX.md                  authoritative system interface + Architectural Laws
-│   ├─ ARCHITECTURE.md           filesystem + hardware blueprints
-│   ├─ ENGINEERING.md            security + build standards
-│   ├─ DEPLOY.md                 deploy-time instructions
-│   ├─ INSTALL.md                install-time instructions
-│   ├─ SELF-BUILD.md             self-replication-loop docs
+│   ├─ usr/share/mios/ai/INDEX.md                  authoritative system interface + Architectural Laws
+│   ├─ usr/share/doc/mios/concepts/architecture.md           filesystem + hardware blueprints
+│   ├─ usr/share/doc/mios/guides/engineering.md            security + build standards
+│   ├─ usr/share/doc/mios/guides/deploy.md                 deploy-time instructions
+│   ├─ usr/share/doc/mios/guides/install.md                install-time instructions
+│   ├─ usr/share/doc/mios/guides/self-build.md             self-replication-loop docs
 │   ├─ SECURITY.md               security posture
-│   ├─ LICENSE / LICENSES.md     Apache-2.0 + bundled-component licenses
-│   ├─ CREDITS.md                upstream attribution registry
-│   ├─ SOURCES.md                upstream-source pointers
+│   ├─ LICENSE / usr/share/doc/mios/reference/licenses.md     Apache-2.0 + bundled-component licenses
+│   ├─ usr/share/doc/mios/reference/credits.md                upstream attribution registry
+│   ├─ usr/share/doc/mios/reference/sources.md                upstream-source pointers
 │   ├─ AGREEMENTS.md             runtime agreements + research-project framing
 │   ├─ CONTRIBUTING.md           contributor conventions
-│   ├─ API.md                    OpenAI-compatible API surface docs
+│   ├─ usr/share/doc/mios/reference/api.md                    OpenAI-compatible API surface docs
 │   ├─ AGENTS.md / GEMINI.md     agent-specific entry hints
-│   ├─ CLAUDE.md / CLAUDE.AUDIT.md     Claude Code guidance + audit
-│   ├─ MiOS-Engineering-Reference.md   env-var + path reference table
-│   ├─ TREE.md                   this file
+│   ├─ CLAUDE.md / usr/share/mios/ai/audit-prompt.md     Claude Code guidance + audit
+│   ├─ usr/share/doc/mios/reference/engineering-reference.md   env-var + path reference table
+│   ├─ usr/share/doc/mios/reference/tree.md                   this file
 │   ├─ llms.txt                  AI ingestion index
 │   └─ system-prompt.md          repo-root pointer to /usr/share/mios/ai/system.md
 │
@@ -156,7 +156,7 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ check-ovmf-enrollment.sh    OVMF SecureBoot key check
 │   │   ├─ configure-xbox-cpu.sh       Xbox-controller CPU pinning
 │   │   ├─ flight-control.sh           ops control helper
-│   │   ├─ generate-build-scripts.py   regenerate flat MiOS-Build-Scripts.md
+│   │   ├─ generate-build-scripts.py   regenerate flat usr/share/doc/mios/reference/build-scripts.md
 │   │   ├─ generate-sbom.py            syft → CSV/JSON SBOM emitter
 │   │   ├─ log-to-bootstrap.sh         log routing helper
 │   │   ├─ mios-upstream-monitor.sh    upstream-deps drift watcher
@@ -1626,29 +1626,29 @@ the source tree show up here on the next regen.
 +- .gitignore
 +- AGENTS.md
 +- AGREEMENTS.md
-+- API.md
-+- ARCHITECTURE.md
-+- CLAUDE.AUDIT.md
++- usr/share/doc/mios/reference/api.md
++- usr/share/doc/mios/concepts/architecture.md
++- usr/share/mios/ai/audit-prompt.md
 +- CLAUDE.md
 +- CONTRIBUTING.md
-+- CREDITS.md
++- usr/share/doc/mios/reference/credits.md
 +- Containerfile
-+- DEPLOY.md
-+- ENGINEERING.md
++- usr/share/doc/mios/guides/deploy.md
++- usr/share/doc/mios/guides/engineering.md
 +- GEMINI.md
 +- Get-MiOS.ps1
-+- INDEX.md
-+- INSTALL.md
++- usr/share/mios/ai/INDEX.md
++- usr/share/doc/mios/guides/install.md
 +- Justfile
 +- LICENSE
-+- LICENSES.md
-+- MiOS-Build-Scripts.md
-+- MiOS-Engineering-Reference.md
++- usr/share/doc/mios/reference/licenses.md
++- usr/share/doc/mios/reference/build-scripts.md
++- usr/share/doc/mios/reference/engineering-reference.md
 +- MiOS-SBOM.csv
 +- README.md
 +- SECURITY.md
-+- SELF-BUILD.md
-+- SOURCES.md
++- usr/share/doc/mios/guides/self-build.md
++- usr/share/doc/mios/reference/sources.md
 +- VERSION
 +- build-mios.ps1
 +- image-versions.yml

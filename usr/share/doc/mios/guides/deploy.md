@@ -1,7 +1,7 @@
 # Deployment
 
 This document covers how to deploy a built 'MiOS' image. For build
-instructions see `SELF-BUILD.md`.
+instructions see `usr/share/doc/mios/guides/self-build.md`.
 
 ## Targets
 

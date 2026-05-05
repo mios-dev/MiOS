@@ -3,7 +3,7 @@
 > MiOS's `Containerfile` mounts `/var/cache/libdnf5` and `/var/cache/dnf`
 > as buildkit cache mounts and calls `${DNF_BIN:-dnf5} clean metadata`
 > before `install_packages_strict base`.
-> Source: `Containerfile`, `ENGINEERING.md` §Containerfile-conventions.
+> Source: `Containerfile`, `usr/share/doc/mios/guides/engineering.md` §Containerfile-conventions.
 
 ## Project
 
@@ -60,4 +60,4 @@ Each helper parses `usr/share/mios/PACKAGES.md` for a fenced
 
 - `usr/share/doc/mios/20-packages-md.md`
 - `usr/share/doc/mios/10-build-pipeline.md`
-- `ENGINEERING.md` §Package-management
+- `usr/share/doc/mios/guides/engineering.md` §Package-management

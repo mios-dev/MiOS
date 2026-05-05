@@ -59,7 +59,7 @@ first boot.
 
 ## Hardware delegation
 
-Default GPU passthrough targets (`ARCHITECTURE.md` previously hard-coded
+Default GPU passthrough targets (`usr/share/doc/mios/concepts/architecture.md` previously hard-coded
 `10de:2204,10de:1aef`; current behavior detects at runtime via
 `automation/34-gpu-detect.sh` and writes `/run/mios/gpu-passthrough.status`).
 

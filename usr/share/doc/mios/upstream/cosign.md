@@ -2,7 +2,7 @@
 
 > CI signs every push with cosign keyless via GitHub Actions OIDC
 > (`.github/workflows/mios-ci.yml`). Verify before deploying.
-> Source: `SECURITY.md` §Image-signing, `DEPLOY.md` §Image-verification.
+> Source: `SECURITY.md` §Image-signing, `usr/share/doc/mios/guides/deploy.md` §Image-verification.
 
 ## Project
 
@@ -35,7 +35,7 @@ cosign verify \
 ```
 
 This is the verbatim verification command from `SECURITY.md` and
-`DEPLOY.md`. The `--certificate-identity-regexp` matches any
+`usr/share/doc/mios/guides/deploy.md`. The `--certificate-identity-regexp` matches any
 `mios-dev/mios*` workflow path; tighten in production to the specific
 `.github/workflows/mios-ci.yml@refs/tags/v*` if you want pinned trust.
 

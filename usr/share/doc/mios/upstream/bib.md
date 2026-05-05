@@ -3,7 +3,7 @@
 > Image: `quay.io/centos-bootc/bootc-image-builder:latest` (`Justfile:14`).
 > Used by MiOS to convert `localhost/mios:latest` (the OCI image) into
 > deployable disk artifacts under `output/`. Source: `Justfile`,
-> `DEPLOY.md`, `config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml`.
+> `usr/share/doc/mios/guides/deploy.md`, `config/artifacts/{bib,iso,qcow2,vhdx,wsl2}.toml`.
 
 ## Project
 

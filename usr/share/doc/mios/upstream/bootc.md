@@ -2,8 +2,8 @@
 
 > Used by MiOS for: every host-state mutation. `Containerfile` produces
 > a bootc image; `bootc upgrade`/`switch`/`rollback` is the only sanctioned
-> way to mutate the deployed system. Source: `ARCHITECTURE.md` §Pillars,
-> `Containerfile` final RUN, `ENGINEERING.md` §Toolchain.
+> way to mutate the deployed system. Source: `usr/share/doc/mios/concepts/architecture.md` §Pillars,
+> `Containerfile` final RUN, `usr/share/doc/mios/guides/engineering.md` §Toolchain.
 
 ## What it is
 
@@ -60,7 +60,7 @@ image?" without parsing free-form output. See `mios.go` agent in
 - `Justfile` `lint` recipe re-runs lint on the locally-built tag
 - `automation/build.sh` calls `bootc container lint` once more inside the
   build to fail fast (mirrored by the Containerfile's final RUN)
-- `ENGINEERING.md` §Upstream-base-image-constraints lists every lint
+- `usr/share/doc/mios/guides/engineering.md` §Upstream-base-image-constraints lists every lint
   invariant
 - `SECURITY.md` §Image-signing combines `bootc switch` with
   `cosign verify` for trusted boot
