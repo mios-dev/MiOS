@@ -63,6 +63,12 @@
 !/MiOS-SBOM.csv
 !/MiOS-Build-Scripts.md
 !/CLAUDE.AUDIT.md
+# Audit findings reports. Recurring class -- one file per audit pass,
+# named AUDIT-FINDINGS-YYYYMMDD.md per the format defined in
+# CLAUDE.AUDIT.md. Always tracked so a fresh clone restores full
+# audit history alongside the rest of the repo (per project
+# invariant: pulling the latest must reconstitute context).
+!/AUDIT-FINDINGS-*.md
 !/image-versions.yml
 !/install.sh
 !/install-mios-agents.sh
