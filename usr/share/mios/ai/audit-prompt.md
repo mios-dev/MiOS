@@ -120,7 +120,7 @@ Each is a one-line `grep`/`find`. Any hit is a finding.
 | 3 | sysusers login user with `-` UID | `awk '/^u[[:space:]]+/ { if ($3 == "-" && $NF ~ /\/(bash\|zsh\|sh\|fish)$/) print FILENAME":"NR" "$0 }' usr/lib/sysusers.d/*.conf` |
 | 4 | sysusers `u name UID:NUM` without matching `g name NUM` in same file | (see postcheck #8b for awk script) |
 | 5 | `tmpfiles.d` paths under `/var/run` or `/var/lock` | `awk '/^[a-zA-Z]/ { if ($2 ~ /^\/var\/(run\|lock)\//) print FILENAME":"NR" "$0 }' usr/lib/tmpfiles.d/*.conf` |
-| 6 | `kernel`/`kernel-core` listed in `packages-*` (must NEVER upgrade in container) | `grep -nE '^kernel(-core)?$' usr/share/mios/PACKAGES.md` |
+| 6 | `kernel`/`kernel-core` listed in `[packages.<section>].pkgs` (must NEVER upgrade in container) | `grep -nE '"kernel(-core)?"' usr/share/mios/mios.toml` |
 | 7 | `((VAR++))` arithmetic under `set -e` | `grep -nE '\(\([A-Za-z_]+\+\+\)\)' automation/[0-9][0-9]-*.sh` |
 | 8 | `--squash-all` in Containerfile (strips bootc OCI metadata) | `grep -n 'squash-all' Containerfile` |
 | 9 | systemd-udev-settle in 'MiOS' units (deprecated) | `grep -rn 'systemd-udev-settle' usr/lib/systemd/system/mios-*.service` |
