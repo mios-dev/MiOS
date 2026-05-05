@@ -95,10 +95,13 @@ if [[ -r /etc/mios/install.env ]]; then
     # shellcheck disable=SC1091
     set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
 fi
-# Resolution order: install.env-staged MIOS_USER (canonical) > MIOS_LINUX_USER
-# (legacy alias if some env path set it) > running-process $USER (only when
-# both above are unset, e.g. running mios-dashboard.sh by hand) > literal 'mios'.
-MIOS_LINUX_USER="${MIOS_USER:-${MIOS_LINUX_USER:-${USER:-mios}}}"
+# Resolution order: install.env-staged MIOS_USER (canonical) > legacy
+# MIOS_LINUX_USER alias > literal 'mios'. Critically NEVER falls back
+# to $USER -- the service `mios-dashboard-issue.service` runs as root,
+# so $USER == 'root' would render `login: root / mios` in the pre-login
+# banner even though the configured login user is 'mios'. The banner
+# describes the OPERATOR'S login surface, not the running process.
+MIOS_LINUX_USER="${MIOS_USER:-${MIOS_LINUX_USER:-mios}}"
 [[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")"
 MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
 

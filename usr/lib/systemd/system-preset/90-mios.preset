@@ -35,6 +35,10 @@ enable mios-dashboard-issue.timer
 enable mios-bootc-switch.path
 enable gnome-remote-desktop.service
 enable mios-firstboot.target
+# /=git auto-init: turns / into a git working tree of the operator's
+# Forgejo mios.git repo on first boot, after mios-forge-firstboot has
+# created the admin user. Idempotent (sentinel = /.git presence).
+enable mios-git-root-init.service
 enable greenboot-healthcheck.service
 enable greenboot-grub2-set-counter.service
 enable greenboot-grub2-set-success.service

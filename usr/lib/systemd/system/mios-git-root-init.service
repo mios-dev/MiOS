@@ -1,0 +1,27 @@
+[Unit]
+Description='MiOS' first-boot: init / as a git working tree of localhost:3000/<user>/mios.git
+Documentation=https://github.com/mios-dev/mios
+# Runs AFTER the operator's Forgejo admin user and the empty mios.git
+# repo are in place (mios-forge-firstboot.service drops the admin
+# password file and bootstraps the user). The script itself is
+# idempotent (/.git presence is the sentinel) and short-circuits if
+# Forgejo or the repo aren't reachable yet -- so re-running on every
+# boot is harmless.
+After=mios-forge.service mios-forge-firstboot.service network-online.target
+Wants=mios-forge.service network-online.target
+ConditionPathExists=!/.git
+ConditionPathExists=/usr/libexec/mios/git-root-init.sh
+# Skip on container-style hosts where the deployed root is itself a
+# nested mount (podman containers, build sandboxes); a real MiOS host
+# (bare-metal, Hyper-V, QEMU, WSL) gets the / it expects.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/git-root-init.sh
+TimeoutStartSec=180
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target default.target
