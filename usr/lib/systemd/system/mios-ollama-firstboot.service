@@ -7,7 +7,14 @@ Documentation=https://ollama.com/
 # done marks completion; deleting it forces a re-pull on next start.
 After=ollama.service network-online.target
 Wants=ollama.service network-online.target
-Requires=ollama.service
+# Requires=ollama.service was here -- removed because the bootstrap's
+# overlay-seed step `enable --now mios-ollama-firstboot.service` fires
+# BEFORE it `start ollama.service` (the order is alphabetical via
+# `for unit in $(ls ...); do enable --now $unit; done`). With Requires=
+# the firstboot unit failed-fast on dependency-failed instead of
+# waiting; the unit's own ExecStart polls `podman exec mios-ollama
+# ollama list` for 50s and gracefully marks the sentinel even if
+# ollama never comes up, so Wants= alone is sufficient.
 ConditionPathExists=!/var/lib/mios/.ollama-firstboot-done
 # Run on bare-metal/VM AND on WSL. systemd treats `wsl` as a container
 # variant, so a plain `!container` would skip every WSL deployment --
