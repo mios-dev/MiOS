@@ -14,6 +14,12 @@ ConditionPathIsDirectory=/etc/mios/ai
 [Container]
 Image=docker.io/localai/localai:latest
 ContainerName=mios-ai
+# Single MiOS internal network so sibling Quadlets (mios-forge,
+# mios-aichat, mios-mcp, ollama, etc.) reach LocalAI by container name
+# at http://mios-ai:8080/v1 without going through host loopback. Keeps
+# the network surface KISS: one bridge, all services on it. PublishPort
+# below still maps to the host so external clients can reach :8080.
+Network=mios.network
 PublishPort=8080:8080
 # LocalAI v4 layout: /build/models is canonical (matches MODELS_PATH /
 # upstream Containerfile WORKDIR), but /data/{outputs,collections} is

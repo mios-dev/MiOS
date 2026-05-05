@@ -43,6 +43,12 @@ ConditionVirtualization=!container
 [Container]
 Image=docker.io/alpine/socat:latest
 ContainerName=mios-cockpit-link
+# Single MiOS internal network -- KISS, every Quadlet on the same
+# bridge so sibling lookups by container name work without host-
+# loopback gymnastics. The host.containers.internal hop below is
+# still needed because cockpit-ws runs as a HOST service, not a
+# Quadlet -- it doesn't have a sibling-name on this bridge.
+Network=mios.network
 # Forward 19090 (container, bound 0.0.0.0) -> host:9090 (cockpit).
 # host.containers.internal is Podman's documented loopback-to-host
 # alias (mirrors Docker's host.docker.internal); falls back to the
