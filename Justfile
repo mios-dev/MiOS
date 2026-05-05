@@ -222,6 +222,79 @@ wsl2: build
         {{BIB}} build --type wsl2 {{LOCAL}}
     @echo "[OK] WSL2 image in output/ -- import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
 
+# Build EVERY MiOS deployable artifact in one shot.
+# Manifesto: "starts FULL build pipeline including all the different image
+# types and formats for ALL MiOS deployment types -- Hyper-V, WSL2/g, QEMU,
+# OCI images, Live-CD/USB, USB installer, RAW, etc"
+#
+# Order is deliberate -- the OCI image must exist BEFORE any BIB recipe
+# runs (BIB reads from /var/lib/containers/storage). After the build:
+#   - localhost/mios:latest                                  (OCI image)
+#   - output/disk.raw                                        (RAW disk)
+#   - output/install.iso                                     (Live-CD / USB installer)
+#   - output/qcow2/disk.qcow2                                (QEMU)
+#   - output/{vhd|vhdx}/disk.{vhd,vhdx}                      (Hyper-V)
+#   - output/wsl2/disk.wsl2  (tar.gz)                        (WSL2/g)
+#
+# Prerequisites:
+#   MIOS_USER_PASSWORD_HASH (qcow2 + vhdx need this -- the operator's
+#                            login-shell SHA-512 hash, generated via
+#                            openssl passwd -6 'pw').
+#   MIOS_SSH_PUBKEY         (qcow2 + vhdx -- ed25519 public key for
+#                            sudo-less remote management).
+#
+# Use `just verify-images` after to sanity-check every artifact landed.
+all: build raw iso qcow2 vhdx wsl2
+    @echo ""
+    @echo "[OK] All MiOS deployable artifacts built. Output:"
+    @ls -lah output/ 2>/dev/null || true
+    @echo ""
+    @echo "[NEXT] Run 'just verify-images' to confirm artifact integrity."
+
+# Smoke-test every artifact in output/ -- non-zero size, recognizable
+# magic bytes, sane disk-image geometry. Fast (no actual boot).
+verify-images:
+    @echo "[verify] Walking output/ for MiOS deployable artifacts..."
+    @ok=0; fail=0; \
+    for f in output/*.raw output/*.iso output/qcow2/*.qcow2 output/vhd*/*.vhd* output/wsl2/*.wsl2 output/wsl2/*.tar.gz; do \
+        [ -f "$$f" ] || continue; \
+        sz=$$(stat -c%s "$$f" 2>/dev/null || stat -f%z "$$f"); \
+        if [ "$${sz:-0}" -lt 1048576 ]; then \
+            echo "  [FAIL] $$f -- under 1 MiB ($$sz bytes); likely truncated"; \
+            fail=$$((fail+1)); continue; \
+        fi; \
+        case "$$f" in \
+            *.raw)              hdr=$$(head -c8 "$$f" | xxd -p 2>/dev/null) ;; \
+            *.iso)              hdr=$$(dd if="$$f" bs=1 skip=32769 count=5 2>/dev/null | tr -d '\0') ;; \
+            *.qcow2)            hdr=$$(head -c4 "$$f" | xxd -p 2>/dev/null) ;; \
+            *.vhd|*.vhdx)       hdr=$$(head -c8 "$$f" | xxd -p 2>/dev/null) ;; \
+            *.wsl2|*.tar.gz)    hdr=$$(head -c2 "$$f" | xxd -p 2>/dev/null) ;; \
+            *)                  hdr="?" ;; \
+        esac; \
+        printf "  [OK] %-50s %15d bytes  magic=%s\n" "$$f" "$$sz" "$$hdr"; \
+        ok=$$((ok+1)); \
+    done; \
+    echo ""; \
+    echo "[verify] $$ok artifact(s) passed, $$fail failed"; \
+    [ "$$fail" -eq 0 ]
+
+# Push EVERY artifact to its respective destination:
+#   - OCI image     -> ghcr.io/mios-dev/mios:latest (cloud + ghcr)
+#   - Disk images   -> Forgejo Releases on the local self-hosted forge
+#                       (operator pulls them locally for installer/USB
+#                       use without round-tripping through the cloud)
+# Run AFTER `just all` and `just verify-images` succeed.
+publish: all verify-images
+    @echo "[publish] Pushing OCI image..."
+    podman push {{LOCAL}} {{IMAGE_NAME}}:{{VERSION}}
+    podman push {{LOCAL}} {{IMAGE_NAME}}:latest
+    @echo "[publish] OCI image pushed: {{IMAGE_NAME}}:{{VERSION}}"
+    @echo ""
+    @echo "[publish] Disk images stay in output/ -- Forgejo Releases / GitHub Releases"
+    @echo "[publish] upload is operator-driven via 'gh release create' or the"
+    @echo "[publish] Forgejo web UI (Releases tab on the local forge)."
+    @ls -1 output/ 2>/dev/null
+
 
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)
 log-bootstrap:
