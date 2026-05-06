@@ -68,6 +68,11 @@ enable cloud-final.service
 enable qemu-guest-agent.service
 
 # --- WSL2 fallback & initialization (ConditionVirtualization=wsl gated) ---
+# mios-wsl-early MUST stay first: it makes / rshared and creates
+# /dev/{net/tun,fuse} before any unit with sandboxing or rootless
+# podman fires. Without it, cockpit fails 226/NAMESPACE and every
+# Quadlet fails fuse-overlayfs/slirp4netns at boot.
+enable mios-wsl-early.service
 enable mios-wsl-firstboot.service
 enable mios-wsl-init.service
 enable mios-wsl-runtime-dir.service

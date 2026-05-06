@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# MiOS -- wsl-early: WSL2 pre-sysinit fixups.
+#
+# Runs as PID 1's child with full root caps BEFORE basic.target and BEFORE
+# any service that creates a mount namespace. Fixes two WSL2-specific gaps
+# that cause cascading failures across cockpit and rootless podman:
+#
+#   1. Root mount propagation -- WSL2's /init mounts / private, which makes
+#      systemd's per-unit `mount(NULL, "/", NULL, MS_REC|MS_SLAVE, NULL)`
+#      return EOPNOTSUPP. That's the actual cause of `cockpit.service:
+#      Failed to set up mount namespacing: Operation not supported` and
+#      every "status=226/NAMESPACE" failure on WSL. Marking root rshared
+#      lets every subsequent unit's PrivateTmp/ProtectSystem/etc. clone
+#      a private mount namespace cleanly.
+#
+#   2. /dev/net/tun and /dev/fuse -- the WSL2 kernel builds tun + fuse
+#      in-tree, but systemd-udevd is condition-gated off (ConditionPathIs
+#      ReadWrite=/sys fails because /sys is RO under WSL2's /init), so
+#      nothing auto-creates the char device nodes. Without /dev/net/tun
+#      slirp4netns can't open its tap fd; without /dev/fuse fuse-overlayfs
+#      reports "cannot mount: No such file or directory" and rootless
+#      podman storage init fails entirely. We mknod them by hand here.
+#
+# Why this script and not tmpfiles.d:
+#   * `c!` lines in tmpfiles.d would work in theory, but tmpfiles is run
+#     after some early namespace-using units have already failed, and
+#     because tmpfiles itself uses sandboxing on some unit paths, mknod
+#     can return EPERM under the same propagation lock that bites cockpit.
+#     Doing it from a no-sandbox oneshot before basic.target avoids both.
+set -euo pipefail
+
+_log() { logger -t mios-wsl-early "$*" 2>/dev/null || true; echo "[wsl-early] $*" >&2; }
+
+# Hard gate: only on WSL.
+if [[ ! -f /proc/sys/fs/binfmt_misc/WSLInterop && ! -d /run/WSL ]]; then
+    case "$(systemd-detect-virt 2>/dev/null || echo unknown)" in
+        wsl) ;;
+        *)   _log "not running under WSL; nothing to do"; exit 0 ;;
+    esac
+fi
+
+# 1. Make / rshared so per-unit mount namespaces can MS_SLAVE-propagate.
+#    Idempotent: a second --make-rshared on an already-shared mount is a no-op.
+if mount --make-rshared / 2>/dev/null; then
+    _log "mount --make-rshared / OK"
+else
+    _log "WARN: mount --make-rshared / failed (continuing -- some namespace setups may still fail)"
+fi
+
+# 2. Ensure /dev/net/tun (c 10:200) and /dev/fuse (c 10:229) exist.
+#    Both are kernel-builtin on the microsoft-standard-WSL2 kernel; the
+#    nodes only need to be present in /dev for slirp4netns and
+#    fuse-overlayfs to open them.
+mkdir -p /dev/net 2>/dev/null || true
+if [[ ! -e /dev/net/tun ]]; then
+    if mknod /dev/net/tun c 10 200 2>/dev/null && chmod 0666 /dev/net/tun 2>/dev/null; then
+        _log "mknod /dev/net/tun (c 10:200) OK"
+    else
+        _log "WARN: /dev/net/tun mknod failed (slirp4netns may not work)"
+    fi
+fi
+if [[ ! -e /dev/fuse ]]; then
+    if mknod /dev/fuse c 10 229 2>/dev/null && chmod 0666 /dev/fuse 2>/dev/null; then
+        _log "mknod /dev/fuse (c 10:229) OK"
+    else
+        _log "WARN: /dev/fuse mknod failed (fuse-overlayfs may not work)"
+    fi
+fi
+
+_log "WSL2 early fixups complete"
