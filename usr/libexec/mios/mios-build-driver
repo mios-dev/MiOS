@@ -105,6 +105,79 @@ else
     _log "WARN: build will use vendor defaults from usr/share/mios/env.defaults"
 fi
 
+# ── Configurator step: Epiphany on /configurator.html ────────────────────────
+# Per the self-replication-vision memo:
+#
+#   "MiOS setup requires Epiphany for editing the SSOT TOML/HTML file
+#    that's locally present and used to overwrite overlay global defaults"
+#
+# Launch the HTML configurator in Epiphany (via WSLg if MiOS-DEV is the
+# WSL distro, native Wayland if running on bare-metal MiOS) BEFORE the
+# build pipeline starts. The operator edits their identity, model
+# choice, package toggles, etc., saves the resulting mios.toml from the
+# browser's File System Access API, then presses Enter here to proceed.
+#
+# The mios-configurator-launch helper handles the browser plumbing:
+#   * stages mios.toml in ~/Downloads where the FSA portal can bind it
+#   * stages the HTML next to it (so file:// URLs resolve relative paths)
+#   * tries Epiphany flatpak first (best FSA support, WSLg-native)
+#   * falls back to xdg-open if Epiphany isn't installed
+#   * last-resort prints the URL for manual copy/paste
+#
+# Skipped if MIOS_SKIP_CONFIGURATOR=1 (CI / unattended runs that already
+# have a populated /etc/mios/mios.toml from a prior session).
+if [[ "${MIOS_SKIP_CONFIGURATOR:-0}" == "1" ]]; then
+    _log "MIOS_SKIP_CONFIGURATOR=1 -- skipping Epiphany configurator launch"
+elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
+    _log ""
+    _log "── Configurator: edit your settings before the build ──"
+    _log "Launching Epiphany on /configurator.html (via WSLg / Wayland portal)..."
+    /usr/libexec/mios/mios-configurator-launch 2>&1 | tee -a "$LOG_FILE"
+    echo
+    echo "  ┌─ MiOS Configurator launched ──────────────────────────────┐"
+    echo "  │                                                            │"
+    echo "  │  Epiphany should now be visible on your Windows desktop    │"
+    echo "  │  (via WSLg's Wayland portal). It's loading the MiOS HTML   │"
+    echo "  │  configurator backed by your layered mios.toml chain:      │"
+    echo "  │                                                            │"
+    echo "  │    ~/.config/mios/mios.toml   highest priority (per-user)  │"
+    echo "  │    /etc/mios/mios.toml        host overrides               │"
+    echo "  │    /usr/share/mios/mios.toml  vendor defaults              │"
+    echo "  │                                                            │"
+    echo "  │  Edit identity / model / package toggles in the page,      │"
+    echo "  │  click Save to write mios.toml back, then return here and  │"
+    echo "  │  press Enter to start the build with your settings.        │"
+    echo "  │                                                            │"
+    echo "  │  Set MIOS_SKIP_CONFIGURATOR=1 to skip this step on next    │"
+    echo "  │  invocation (uses whatever mios.toml is already saved).    │"
+    echo "  └────────────────────────────────────────────────────────────┘"
+    echo
+    read -r -p "  Press Enter when you've saved the configurator (or Ctrl-C to abort)..." _ || true
+
+    # If the operator saved to ~/Downloads/mios.toml (the FSA portal's
+    # default landing point), promote it to the host layer
+    # (/etc/mios/mios.toml) so the build pipeline picks it up
+    # automatically. The host layer beats vendor defaults but loses
+    # to ~/.config/mios -- so an existing per-user override still wins
+    # if the operator has one. Symmetric with mios-bootstrap's
+    # bootstrap.ps1 -BootstrapOnly identity-write step.
+    DL_TOML="${HOME}/Downloads/mios.toml"
+    if [[ -f "$DL_TOML" ]]; then
+        sudo install -d -m 0755 /etc/mios
+        sudo install -m 0644 "$DL_TOML" /etc/mios/mios.toml
+        _log "Promoted ~/Downloads/mios.toml -> /etc/mios/mios.toml"
+        # Re-source the env layering so subsequent steps see the new values.
+        if [[ -r /etc/profile.d/mios-env.sh ]]; then
+            # shellcheck disable=SC1091
+            . /etc/profile.d/mios-env.sh || true
+        fi
+    else
+        _log "no ~/Downloads/mios.toml saved -- proceeding with current layered config"
+    fi
+else
+    _log "WARN: /usr/libexec/mios/mios-configurator-launch not present -- skipping configurator step"
+fi
+
 # ── Build invocation ─────────────────────────────────────────────────────────
 # automation/build.sh expects to run inside a `podman build` against the
 # Containerfile. Outside that context it's a no-op driver entry. The
