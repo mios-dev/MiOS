@@ -90,123 +90,9 @@ else
 fi
 _log "mios-bootstrap repo: $BOOT_REPO"
 
-# ── Identity ─────────────────────────────────────────────────────────────────
-# /etc/mios/install.env is written by the Windows side BEFORE handoff
-# (Phase 7 in build-mios.ps1) so the prompts already happened on the
-# Windows side this round. Future migration chunks move the prompts
-# in here so the operator answers them in the MiOS-DEV terminal --
-# NOT in Windows -- per the architecture memo.
-# ── Identity capture ─────────────────────────────────────────────────────────
-# Per the self-replication architecture (memo:
-# project_mios_self_replication_vision.md), identity prompts run INSIDE
-# MiOS-DEV's tty -- not on the Windows side. This is migration chunk 3:
-# port what was build-mios.ps1's Phase 6 (Read-Line / Read-Password /
-# Read-Model) into bash here.
-#
-# If /etc/mios/install.env already has all the required keys (set by
-# either a previous driver invocation or, transitionally, by the
-# Windows-side Phase 7 code that's still in place pending its removal
-# in chunk 6), source it and skip prompts. Otherwise capture
-# interactively.
-_capture_identity() {
-    echo
-    echo "  +-- MiOS Identity ----------------------------------------+"
-    echo "  |  Settings persist to /etc/mios/install.env. Defaults    |"
-    echo "  |  in [brackets]; press Enter to accept.                  |"
-    echo "  +---------------------------------------------------------+"
-
-    read -r -p "  Linux username [mios]: " MIOS_USER
-    : "${MIOS_USER:=mios}"
-
-    read -r -p "  Hostname [mios]: " MIOS_HOSTNAME
-    : "${MIOS_HOSTNAME:=mios}"
-
-    # Password capture: silent (-s) read, default to literal 'mios' if blank.
-    read -rsp "  Password (sha512crypt-hashed) [mios]: " _pw_plain
-    echo
-    : "${_pw_plain:=mios}"
-
-    # Hash via mkpasswd if available, else python3 (always present on
-    # FCOS-based MiOS-DEV), else last-resort openssl. The result is what
-    # /usr/lib/sysusers.d/10-mios.conf reads at first boot to set the
-    # mios user's password without ever materializing the cleartext
-    # anywhere on disk.
-    if command -v mkpasswd >/dev/null 2>&1; then
-        MIOS_USER_PASSWORD_HASH=$(mkpasswd -m sha-512 "$_pw_plain")
-    elif command -v python3 >/dev/null 2>&1; then
-        MIOS_USER_PASSWORD_HASH=$(python3 -c 'import crypt,sys;print(crypt.crypt(sys.argv[1], crypt.METHOD_SHA512))' "$_pw_plain")
-    elif command -v openssl >/dev/null 2>&1; then
-        MIOS_USER_PASSWORD_HASH=$(openssl passwd -6 "$_pw_plain")
-    else
-        _log "WARN: no password-hash tool available (mkpasswd / python3 / openssl all missing) -- storing plaintext"
-        MIOS_USER_PASSWORD_HASH="$_pw_plain"
-    fi
-    unset _pw_plain
-
-    # AI model menu -- default set sized for the 12 GB system-RAM
-    # baseline. The 14b option is for hosts with 24+ GB RAM that can
-    # comfortably run a larger code model in CPU-only inference.
-    echo
-    echo "  AI model:"
-    echo "    1) qwen2.5-coder:7b      [default; ~5 GB on disk, 12 GB host RAM]"
-    echo "    2) qwen2.5-coder:14b     [~10 GB on disk, 24 GB host RAM]"
-    echo "    3) llama3.2:3b           [low-RAM / fast-response profile]"
-    echo "    4) custom                [type your own ollama model id]"
-    read -r -p "  Choice [1]: " _model_choice
-    case "${_model_choice:-1}" in
-        2) MIOS_AI_MODEL="qwen2.5-coder:14b" ;;
-        3) MIOS_AI_MODEL="llama3.2:3b" ;;
-        4) read -r -p "  Custom model id (e.g. mistral:7b): " MIOS_AI_MODEL
-           : "${MIOS_AI_MODEL:=qwen2.5-coder:7b}" ;;
-        *) MIOS_AI_MODEL="qwen2.5-coder:7b" ;;
-    esac
-
-    read -r -p "  AI embedding model [nomic-embed-text]: " MIOS_AI_EMBED_MODEL
-    : "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
-
-    MIOS_OLLAMA_BAKE_MODELS="${MIOS_AI_MODEL},${MIOS_AI_EMBED_MODEL}"
-
-    # Persist. install.env is sourced by /etc/profile.d/mios-env.sh
-    # at every interactive login + by automation/build.sh during the
-    # OCI build, so writing it here propagates to every downstream
-    # consumer without further action.
-    sudo install -d -m 0755 /etc/mios
-    {
-        printf 'MIOS_USER="%s"\n'                  "$MIOS_USER"
-        printf 'MIOS_HOSTNAME="%s"\n'              "$MIOS_HOSTNAME"
-        printf 'MIOS_USER_PASSWORD_HASH="%s"\n'    "$MIOS_USER_PASSWORD_HASH"
-        printf 'MIOS_AI_MODEL="%s"\n'              "$MIOS_AI_MODEL"
-        printf 'MIOS_AI_EMBED_MODEL="%s"\n'        "$MIOS_AI_EMBED_MODEL"
-        printf 'MIOS_OLLAMA_BAKE_MODELS="%s"\n'    "$MIOS_OLLAMA_BAKE_MODELS"
-    } | sudo tee /etc/mios/install.env >/dev/null
-    sudo chmod 0640 /etc/mios/install.env
-    _log "identity persisted: user=$MIOS_USER host=$MIOS_HOSTNAME ai=$MIOS_AI_MODEL embed=$MIOS_AI_EMBED_MODEL"
-
-    export MIOS_USER MIOS_HOSTNAME MIOS_USER_PASSWORD_HASH \
-           MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_OLLAMA_BAKE_MODELS
-}
-
-if [[ -f /etc/mios/install.env ]] \
-    && grep -q '^MIOS_USER=' /etc/mios/install.env \
-    && grep -q '^MIOS_HOSTNAME=' /etc/mios/install.env \
-    && grep -q '^MIOS_AI_MODEL=' /etc/mios/install.env; then
-    _log "identity loaded from /etc/mios/install.env"
-    # shellcheck disable=SC1091
-    source /etc/mios/install.env
-else
-    _log "no usable /etc/mios/install.env -- prompting for identity"
-    if [[ "${MIOS_NONINTERACTIVE:-0}" == "1" ]]; then
-        _log "MIOS_NONINTERACTIVE=1 -- using vendor defaults instead of prompting"
-        MIOS_USER='mios'
-        MIOS_HOSTNAME='mios'
-        MIOS_AI_MODEL='qwen2.5-coder:7b'
-        MIOS_AI_EMBED_MODEL='nomic-embed-text'
-        MIOS_OLLAMA_BAKE_MODELS="${MIOS_AI_MODEL},${MIOS_AI_EMBED_MODEL}"
-        export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL MIOS_OLLAMA_BAKE_MODELS
-    else
-        _capture_identity
-    fi
-fi
+# CRITICAL ORDERING: Configurator FIRST (operator edits the toml in
+# Epiphany), then Resolve (sources the edited toml). Don't reverse;
+# resolving before the operator has edited would lock in stale values.
 
 # ── Configurator step: Epiphany on /configurator.html ────────────────────────
 # Per the self-replication-vision memo:
@@ -280,6 +166,123 @@ elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
 else
     _log "WARN: /usr/libexec/mios/mios-configurator-launch not present -- skipping configurator step"
 fi
+
+# ── Resolve all settings from the layered mios.toml chain ───────────────────
+# Runs AFTER the configurator step so the operator's edits in Epiphany
+# (now landed at /etc/mios/mios.toml) are sourced into env.
+#
+# CANONICAL: identity, AI choices, locale, image, network, desktop,
+# packages-to-layer (every [packages.*] enable flag), hosting/dev/build/
+# run profile flags -- EVERY operator-visible setting comes from the
+# layered mios.toml, edited via /configurator.html. The driver does NOT
+# prompt for any of these values; they're set in the toml.
+#
+# Layer chain (highest wins):
+#   /usr/share/mios/mios.toml      vendor defaults baked into the image
+#   /etc/mios/mios.toml            host overlay (configurator promotes
+#                                  ~/Downloads/mios.toml here when the
+#                                  operator clicks Save in Epiphany)
+#   ~/.config/mios/mios.toml       per-user XDG overlay
+#
+# tools/lib/userenv.sh resolves the chain, exports MIOS_* env vars, and
+# is the single canonical reader. Source it so the entire build pipeline
+# downstream (automation/build.sh, sysusers, tmpfiles, profile.d,
+# Containerfile build args) inherits the resolved values without
+# re-parsing toml in 12 different ways.
+USERENV_SH=""
+for cand in \
+    /tools/lib/userenv.sh \
+    "${MIOS_REPO:-}/tools/lib/userenv.sh" \
+    /usr/share/mios/lib/userenv.sh \
+; do
+    if [[ -n "$cand" && -r "$cand" ]]; then USERENV_SH="$cand"; break; fi
+done
+if [[ -n "$USERENV_SH" ]]; then
+    _log "Sourcing layered config: $USERENV_SH"
+    # shellcheck disable=SC1090
+    source "$USERENV_SH"
+else
+    _log "WARN: tools/lib/userenv.sh not found -- using vendor-default env"
+fi
+
+# Vendor-shipped fallbacks for any MIOS_* the toml didn't define. Never
+# prompt -- the principle is "configurator is SSOT". Missing means the
+# operator hasn't edited that field and the vendor default applies.
+: "${MIOS_USER:=mios}"
+: "${MIOS_HOSTNAME:=mios}"
+: "${MIOS_AI_MODEL:=qwen2.5-coder:7b}"
+: "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
+: "${MIOS_OLLAMA_BAKE_MODELS:=${MIOS_AI_MODEL},${MIOS_AI_EMBED_MODEL}}"
+: "${MIOS_PASSWORD_POLICY:=interactive}"
+export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL \
+       MIOS_OLLAMA_BAKE_MODELS MIOS_PASSWORD_POLICY
+
+# Password handling. The toml schema says password_hash is NEVER
+# tracked in a checked-in copy. Three policies:
+#   * interactive: prompt once if no /etc/mios/secrets.env exists --
+#     the ONLY operator prompt; everything else came from the toml
+#   * hashed     : use literal MIOS_USER_PASSWORD_HASH already in env
+#                  (operator pasted a sha512crypt hash into the
+#                  configurator's password field)
+#   * none       : skip password setup; useful for kiosk / CI
+case "${MIOS_PASSWORD_POLICY}" in
+    none)
+        _log "MIOS_PASSWORD_POLICY=none -- no password set"
+        MIOS_USER_PASSWORD_HASH=""
+        ;;
+    hashed)
+        if [[ -z "${MIOS_USER_PASSWORD_HASH:-}" ]]; then
+            _log "WARN: password_policy=hashed but MIOS_USER_PASSWORD_HASH is empty -- falling back to 'mios'"
+            MIOS_USER_PASSWORD_HASH=$(python3 -c 'import crypt;print(crypt.crypt("mios", crypt.METHOD_SHA512))')
+        fi
+        ;;
+    interactive|*)
+        if [[ -r /etc/mios/secrets.env ]] && grep -q '^MIOS_USER_PASSWORD_HASH=' /etc/mios/secrets.env; then
+            _log "password hash loaded from /etc/mios/secrets.env"
+            # shellcheck disable=SC1091
+            source /etc/mios/secrets.env
+        elif [[ "${MIOS_NONINTERACTIVE:-0}" == "1" ]]; then
+            _log "MIOS_NONINTERACTIVE=1 -- defaulting password to 'mios'"
+            MIOS_USER_PASSWORD_HASH=$(python3 -c 'import crypt;print(crypt.crypt("mios", crypt.METHOD_SHA512))')
+        else
+            echo
+            echo "  password_policy=interactive and no /etc/mios/secrets.env yet."
+            echo "  This is the ONLY operator prompt -- everything else came from"
+            echo "  /mios.toml (edited via the Epiphany configurator above)."
+            read -rsp "  Set password for ${MIOS_USER} (default: 'mios'): " _pw_plain
+            echo
+            : "${_pw_plain:=mios}"
+            if command -v mkpasswd >/dev/null 2>&1; then
+                MIOS_USER_PASSWORD_HASH=$(mkpasswd -m sha-512 "$_pw_plain")
+            else
+                MIOS_USER_PASSWORD_HASH=$(python3 -c 'import crypt,sys;print(crypt.crypt(sys.argv[1], crypt.METHOD_SHA512))' "$_pw_plain")
+            fi
+            unset _pw_plain
+            sudo install -d -m 0755 /etc/mios
+            printf 'MIOS_USER_PASSWORD_HASH="%s"\n' "$MIOS_USER_PASSWORD_HASH" |
+                sudo tee /etc/mios/secrets.env >/dev/null
+            sudo chmod 0600 /etc/mios/secrets.env
+        fi
+        ;;
+esac
+export MIOS_USER_PASSWORD_HASH
+
+# Persist a flat install.env for downstream consumers that don't grok
+# layered toml directly: /etc/profile.d/mios-env.sh, automation/build.sh
+# during `podman build`, sysusers/tmpfiles generators. install.env
+# mirrors a subset of the resolved env.
+sudo install -d -m 0755 /etc/mios
+{
+    printf 'MIOS_USER="%s"\n'                  "$MIOS_USER"
+    printf 'MIOS_HOSTNAME="%s"\n'              "$MIOS_HOSTNAME"
+    printf 'MIOS_USER_PASSWORD_HASH="%s"\n'    "$MIOS_USER_PASSWORD_HASH"
+    printf 'MIOS_AI_MODEL="%s"\n'              "$MIOS_AI_MODEL"
+    printf 'MIOS_AI_EMBED_MODEL="%s"\n'        "$MIOS_AI_EMBED_MODEL"
+    printf 'MIOS_OLLAMA_BAKE_MODELS="%s"\n'    "$MIOS_OLLAMA_BAKE_MODELS"
+} | sudo tee /etc/mios/install.env >/dev/null
+sudo chmod 0640 /etc/mios/install.env
+
+_log "Resolved settings: user=$MIOS_USER host=$MIOS_HOSTNAME ai=$MIOS_AI_MODEL embed=$MIOS_AI_EMBED_MODEL pwpolicy=$MIOS_PASSWORD_POLICY"
 
 # ── Build invocation ─────────────────────────────────────────────────────────
 # automation/build.sh expects to run inside a `podman build` against the
