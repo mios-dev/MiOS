@@ -34,27 +34,22 @@ BIB := env_var_or_default("MIOS_BIB_IMAGE", MIOS_IMG_BIB)
 
 # Run preflight system check
 preflight:
-    @chmod +x tools/preflight.sh
     @./tools/preflight.sh
 
 # Show current flight status and variable mappings
 flight-status:
-    @chmod +x tools/flight-control.sh
     @./tools/flight-control.sh
 
 # Unified initialization (Mode 2: User-space)
 init:
-    @chmod +x tools/mios-overlay.sh
     sudo ./tools/mios-overlay.sh
 
 # System-wide deployment (Mode 1: FHS system install)
 deploy:
-    @chmod +x tools/mios-overlay.sh
     sudo ./tools/mios-overlay.sh
 
 # Live ISO Initiation (Mode 0: Overlay onto root)
 live-init:
-    @chmod +x tools/mios-overlay.sh
     sudo ./tools/mios-overlay.sh
 
 # bootc container lint -- runs against the locally built image.

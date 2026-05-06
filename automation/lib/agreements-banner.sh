@@ -175,7 +175,16 @@ _mios_agreement_render() {
         # -F  quit immediately if content fits on one screen
         # -X  do not clear the screen on exit
         # -K  abort on Ctrl-C without leaving terminal in alt screen
-        mios_agreement_summary | less -RFXK <"$tty_in" >"$tty_out"
+        #
+        # No `<"$tty_in"` redirect: the previous `cmd | less <"$tty_in"`
+        # form was wrong -- the `<` redirect REPLACES the pipe stdin,
+        # so less saw `</dev/tty` (a TTY, not piped data) AND no
+        # filename arg, then aborted with:
+        #   Missing filename ("less --help" for help)
+        # which is what the operator hit running ./install.sh from /
+        # inside MiOS-DEV. less reads keyboard input from /dev/tty
+        # automatically when stdin is a pipe; no override needed.
+        mios_agreement_summary | less -RFXK >"$tty_out"
     else
         mios_agreement_summary >"$tty_out"
     fi
