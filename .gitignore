@@ -104,6 +104,12 @@ etc/*
 !/etc/.keep
 !/etc/containers/
 etc/containers/*
+# storage.conf -- rootful containers/storage config. /usr/share/containers/
+# storage.conf is NOT read by libcontainers/storage at runtime (only /etc/
+# and ~/.config/), so the vendor file there is ignored and the base image's
+# /etc/containers/storage.conf wins. Shipping our own here puts kernel
+# overlay (mount_program="") in front of the cascade.
+!/etc/containers/storage.conf
 !/etc/containers/systemd/
 etc/containers/systemd/*
 !/etc/containers/systemd/mios*
