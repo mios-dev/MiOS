@@ -450,10 +450,13 @@ Service users: `50-mios.conf` (mios-virt UID 800), `50-mios-services.conf`
 (mios-ai service), `20-podman-machine.conf` (`g core 1001` + `u core 1001:core`).
 
 ### dracut
-- `usr/lib/dracut/dracut-logger.sh` -- upstream dracut (Apache/GPL,
-  Amadeusz Żołnowski) -- vendored unchanged.
-- Module setup overrides under `usr/lib/dracut/modules.d/*` -- vendored
-  as upstream.
+- `usr/lib/dracut/dracut.conf.d/*-mios-*.conf` -- the only MiOS-authored
+  dracut surface (5 drop-ins: 10-mios-generic, 50-mios-hyperv,
+  51-mios-virtio, 52-mios-nvidia-exclude, 90-mios-verify). These layer
+  over whatever the dracut RPM ships; we no longer carry verbatim copies
+  of dracut binaries or `modules.d/` (dropped 2026-05-05 per audit
+  finding F10 -- carrying upstream snapshots silently shadowed newer
+  RPMs on update). The dracut RPM itself is pulled by the base image.
 
 ---
 

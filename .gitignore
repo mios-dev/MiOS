@@ -283,8 +283,16 @@ usr/lib/*
 !/usr/lib/crowdsec/**
 !/usr/lib/dnf/
 !/usr/lib/dnf/**
+# dracut: only MiOS-authored conf.d drop-ins are tracked. The dracut RPM
+# owns the binaries (dracut-init.sh, dracut-functions.sh, dracut-install,
+# dracut-cpio, ...) and the 100+ upstream modules under modules.d/. Carrying
+# verbatim copies in this repo would silently shadow newer dracut RPMs --
+# 292 vestigial files were dropped on 2026-05-05 (audit finding F10).
 !/usr/lib/dracut/
-!/usr/lib/dracut/**
+usr/lib/dracut/*
+!/usr/lib/dracut/dracut.conf.d/
+usr/lib/dracut/dracut.conf.d/*
+!/usr/lib/dracut/dracut.conf.d/*-mios-*.conf
 !/usr/lib/firewalld/
 !/usr/lib/firewalld/**
 !/usr/lib/greenboot/

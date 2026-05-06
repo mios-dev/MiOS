@@ -5,7 +5,7 @@ Read-only audit per `usr/share/mios/ai/audit-prompt.md`. Repo: `mios-dev/MiOS` (
 ## Executive summary
 
 - **0 CRITICAL, 4 HIGH, 1 MEDIUM, 3 LOW, 2 INFO** findings at audit time.
-- All HIGH + MEDIUM + LOW findings are remediated in commit `507a7fa`. INFO findings deferred (see per-finding "Remediation" rows).
+- All HIGH + MEDIUM + LOW findings are remediated in commit `507a7fa`. INFO finding F10 (vestigial dracut overlay) remediated post-`507a7fa` on 2026-05-05; F9 (set -euo pipefail placement) deferred per the per-finding row.
 - Top 3 HIGH:
   1. `etc/fapolicyd/fapolicyd.rules:1` -- `allow perm=any uid=0 : all` neutralized deny-by-default fapolicyd posture for every root process; conflicted with `README.md`'s "fapolicyd deny-by-default" claim.
   2. **LAW 3 (BOUND-IMAGES) drift** -- 3 of 12 Quadlets had no `usr/lib/bootc/bound-images.d/` entry: `mios-forgejo-runner`, `mios-forge`, `mios-cockpit-link`. Image not pulled at deploy time.
@@ -37,7 +37,7 @@ These two files were broken-as-shipped — every operator pulling the image fres
 | 7 | LOW | Footgun #12 | Comment references misspelled `install_weakdeps` while implementation uses correct `install_weak_deps` | `automation/10-gnome.sh:5` (vs `automation/01-repos.sh:13`) | YES (comment corrected) |
 | 8 | LOW | Idempotency | `cp` without `-p` flag will overwrite previous run state on retry | `automation/19-k3s-selinux.sh:53` | YES (`cp -p`) |
 | 9 | INFO | Bash Hygiene | 27 numbered scripts place `set -euo pipefail` after a leading documentation block (line 11-25); strict reading of "at the top" not met, but functionally present | `automation/02-kernel.sh:19`, `10-gnome.sh:20`, plus 25 others | NO (accept current form; `usr/share/doc/mios/guides/engineering.md` convention can be softened to "before any executable statement") |
-| 10 | INFO | Drift Risk | Repo carries upstream dracut files in `usr/lib/dracut/`; if the dracut RPM updates upstream these copies will silently shadow it | `usr/lib/dracut/dracut-init.sh`, `usr/lib/dracut/dracut-functions.sh` | NO (needs investigation: are these MiOS patches or vestigial snapshots?) |
+| 10 | INFO | Drift Risk | Repo carries upstream dracut files in `usr/lib/dracut/`; if the dracut RPM updates upstream these copies will silently shadow it | `usr/lib/dracut/dracut-init.sh`, `usr/lib/dracut/dracut-functions.sh` | YES, post-507a7fa (292 vestigial snapshots dropped 2026-05-05; only the 5 `dracut.conf.d/*-mios-*.conf` files MiOS authors remain. `.gitignore` tightened to whitelist only those.) |
 
 ## Detailed findings
 
@@ -133,7 +133,7 @@ These two files were broken-as-shipped — every operator pulling the image fres
 - **Severity:** INFO
 - **Dimension:** Drift Risk
 - **Evidence:** `usr/lib/dracut/dracut-init.sh:148,196` and `usr/lib/dracut/dracut-functions.sh:197` contain `((_ret++))` / `((__level++))` -- valid upstream dracut usage but flagged by the broad footgun #7 grep (the rule scopes to `automation/[0-9][0-9]-*.sh` so this is *not* a footgun finding).
-- **Status:** NOT REMEDIATED. Needs investigation: are the `usr/lib/dracut/*.sh` files in the repo MiOS-specific patches or vestigial snapshots? If patches, document the rationale in a `usr/lib/dracut/README.md`. If snapshots, delete them and let the dracut RPM provide the canonical versions.
+- **Status:** REMEDIATED post-507a7fa (2026-05-05). Investigation confirmed all 292 non-MiOS files were verbatim upstream snapshots (single-import commit `39ce4e8`, no subsequent edits, zero MiOS-authored `modules.d/mios-*` directory). They were dropped via `git rm`; `.gitignore` tightened to whitelist only `usr/lib/dracut/dracut.conf.d/*-mios-*.conf` (the 5 MiOS-authored drop-ins: `10-mios-generic`, `50-mios-hyperv`, `51-mios-virtio`, `52-mios-nvidia-exclude`, `90-mios-verify`). The dracut RPM now provides canonical binaries + modules; the MiOS configs layer over them.
 
 ## Per-section summaries
 
