@@ -46,6 +46,7 @@ enable greenboot-rpm-ostree-grub2-check-fallback.service
 enable greenboot-status.service
 enable redboot-auto-reboot.service
 enable cockpit.socket
+enable mios-searxng.service
 # user@1000.service starts the per-user systemd manager + user D-Bus
 # session bus for the 'mios' user (uid 1000, pinned in
 # /usr/lib/sysusers.d/10-mios.conf). Normally systemd-logind reads

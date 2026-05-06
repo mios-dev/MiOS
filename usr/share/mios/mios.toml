@@ -134,6 +134,16 @@ format         = "toml"
 spec_url       = "https://toml.io/en/v1.0.0"
 editor_url     = "/usr/share/mios/configurator/index.html"
 
+[search]
+# Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
+# etc/containers/systemd/mios-searxng.container; the agent surface
+# (usr/share/mios/ai/v1/tools.json) can plug into this as a localhost
+# `web_search` tool target without breaking Architectural Law 5 -- a
+# search proxy is not a model, so no UNIFIED-AI-REDIRECTS exception
+# is required.
+endpoint = "http://localhost:8888/"
+enable   = true
+
 [ai]
 endpoint            = "http://localhost:8080/v1"
 model               = "qwen2.5-coder:7b"

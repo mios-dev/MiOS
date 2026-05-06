@@ -1,0 +1,58 @@
+# /usr/share/mios/searxng/settings.yml
+# 'MiOS' SearXNG vendor defaults.
+#
+# This file is copied into /etc/mios/searxng/settings.yml on first boot
+# by usr/lib/tmpfiles.d/mios-searxng.conf (C= line: copy-if-absent).
+# Once present in /etc, operator edits survive every subsequent boot.
+# To restore vendor defaults: rm /etc/mios/searxng/settings.yml +
+# `systemctl restart systemd-tmpfiles-setup.service`.
+#
+# secret_key is left as the placeholder PLACEHOLDER_SECRET_KEY_REGENERATE_ON_FIRST_BOOT;
+# the SearXNG entrypoint detects this sentinel and overwrites it with a
+# fresh 64-char value on container startup, then never touches it again.
+
+use_default_settings: true
+
+general:
+  instance_name: "MiOS Search"
+  privacypolicy_url: false
+  donation_url: false
+  contact_url: false
+  enable_metrics: false
+
+server:
+  base_url: "http://localhost:8888/"
+  port: 8080
+  bind_address: "0.0.0.0"
+  # Filled in at first-boot by SearXNG's entrypoint.
+  secret_key: "PLACEHOLDER_SECRET_KEY_REGENERATE_ON_FIRST_BOOT"
+  limiter: false
+  image_proxy: true
+  http_protocol_version: "1.0"
+  method: "GET"
+  default_http_headers:
+    X-Content-Type-Options: nosniff
+    X-Download-Options: noopen
+    X-Robots-Tag: noindex, nofollow
+    Referrer-Policy: no-referrer
+
+ui:
+  static_use_hash: true
+  default_locale: "en"
+  query_in_title: false
+  infinite_scroll: false
+  center_alignment: false
+  theme_args:
+    simple_style: dark
+
+search:
+  safe_search: 0
+  autocomplete: "duckduckgo"
+  default_lang: "en"
+  formats:
+    - html
+    - json    # required for the agent web_search tool surface
+
+# Engines: keep upstream defaults; operators tune on a per-instance
+# basis under /etc/mios/searxng/settings.yml. Comment block here so
+# the vendor copy is short and the diff against upstream is auditable.

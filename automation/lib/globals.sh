@@ -70,6 +70,10 @@ export MIOS_VERSION
 : "${MIOS_CEPH_UID:=819}"
 : "${MIOS_CEPH_GID:=819}"
 
+: "${MIOS_SEARXNG_USER:=mios-searxng}"
+: "${MIOS_SEARXNG_UID:=818}"
+: "${MIOS_SEARXNG_GID:=818}"
+
 # Rootless-container subuid/subgid range. Standard Fedora useradd -m
 # allocates 100000:65536; we keep the same so /etc/subuid + /etc/subgid
 # stay consistent with stock Fedora workflows.
@@ -81,6 +85,7 @@ export MIOS_FORGE_USER MIOS_FORGE_UID MIOS_FORGE_GID
 export MIOS_AI_USER MIOS_AI_UID MIOS_AI_GID
 export MIOS_OLLAMA_USER MIOS_OLLAMA_UID MIOS_OLLAMA_GID
 export MIOS_CEPH_USER MIOS_CEPH_UID MIOS_CEPH_GID
+export MIOS_SEARXNG_USER MIOS_SEARXNG_UID MIOS_SEARXNG_GID
 export MIOS_SUBUID_START MIOS_SUBUID_COUNT
 
 # ── IMAGES ───────────────────────────────────────────────────────────
@@ -100,9 +105,11 @@ export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 : "${MIOS_PORT_LOCALAI:=8080}"
 : "${MIOS_PORT_COCKPIT:=9090}"
 : "${MIOS_PORT_OLLAMA:=11434}"
+: "${MIOS_PORT_SEARXNG:=8888}"
 : "${MIOS_PORT_COCKPIT_LINK:=19090}"   # podman-desktop discovery shim
 export MIOS_PORT_SSH MIOS_PORT_FORGE_HTTP MIOS_PORT_FORGE_SSH
-export MIOS_PORT_LOCALAI MIOS_PORT_COCKPIT MIOS_PORT_OLLAMA MIOS_PORT_COCKPIT_LINK
+export MIOS_PORT_LOCALAI MIOS_PORT_COCKPIT MIOS_PORT_OLLAMA
+export MIOS_PORT_SEARXNG MIOS_PORT_COCKPIT_LINK
 
 # ── URLS ─────────────────────────────────────────────────────────────
 # Derived from PORTS so a single port change propagates. MIOS_AI_ENDPOINT
@@ -111,7 +118,8 @@ export MIOS_PORT_LOCALAI MIOS_PORT_COCKPIT MIOS_PORT_OLLAMA MIOS_PORT_COCKPIT_LI
 : "${MIOS_FORGE_URL:=http://localhost:${MIOS_PORT_FORGE_HTTP}}"
 : "${MIOS_COCKPIT_URL:=https://localhost:${MIOS_PORT_COCKPIT}}"
 : "${MIOS_OLLAMA_URL:=http://localhost:${MIOS_PORT_OLLAMA}}"
-export MIOS_AI_ENDPOINT MIOS_FORGE_URL MIOS_COCKPIT_URL MIOS_OLLAMA_URL
+: "${MIOS_SEARXNG_URL:=http://localhost:${MIOS_PORT_SEARXNG}}"
+export MIOS_AI_ENDPOINT MIOS_FORGE_URL MIOS_COCKPIT_URL MIOS_OLLAMA_URL MIOS_SEARXNG_URL
 
 # ── REPOS ────────────────────────────────────────────────────────────
 : "${MIOS_REPO_URL:=https://github.com/mios-dev/mios.git}"
@@ -203,6 +211,7 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 : "${MIOS_UNIT_AICHAT_BUILD:=mios-aichat-build.service}"
 : "${MIOS_UNIT_AICHAT_IMAGE:=mios-aichat-image.service}"
 : "${MIOS_UNIT_COCKPIT_LINK:=mios-cockpit-link.service}"
+: "${MIOS_UNIT_SEARXNG:=mios-searxng.service}"
 
 # Hand-written units
 : "${MIOS_UNIT_FIRSTBOOT_TARGET:=mios-firstboot.target}"
@@ -212,7 +221,7 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 
 export MIOS_UNIT_AI MIOS_UNIT_FORGE MIOS_UNIT_FORGE_RUNNER MIOS_UNIT_OLLAMA
 export MIOS_UNIT_CEPH MIOS_UNIT_K3S MIOS_UNIT_AICHAT_BUILD MIOS_UNIT_AICHAT_IMAGE
-export MIOS_UNIT_COCKPIT_LINK MIOS_UNIT_FIRSTBOOT_TARGET
+export MIOS_UNIT_COCKPIT_LINK MIOS_UNIT_SEARXNG MIOS_UNIT_FIRSTBOOT_TARGET
 export MIOS_UNIT_OLLAMA_FIRSTBOOT MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
 
 # ── CONTAINERS / DISTROBOX ───────────────────────────────────────────
@@ -221,10 +230,11 @@ export MIOS_UNIT_OLLAMA_FIRSTBOOT MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
 : "${MIOS_CONTAINER_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:12}"
 : "${MIOS_CONTAINER_LOCALAI_IMAGE:=docker.io/localai/localai:latest}"
 : "${MIOS_CONTAINER_OLLAMA_IMAGE:=docker.io/ollama/ollama:latest}"
+: "${MIOS_CONTAINER_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 
 export MIOS_DISTROBOX_AICHAT MIOS_CONTAINER_AICHAT_IMAGE
 export MIOS_CONTAINER_FORGE_IMAGE MIOS_CONTAINER_LOCALAI_IMAGE
-export MIOS_CONTAINER_OLLAMA_IMAGE
+export MIOS_CONTAINER_OLLAMA_IMAGE MIOS_CONTAINER_SEARXNG_IMAGE
 
 # ── COLOR PALETTE ────────────────────────────────────────────────────
 # Hokusai + operator-neutrals palette. Resolved from mios.toml [colors]

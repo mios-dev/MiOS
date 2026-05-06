@@ -51,6 +51,10 @@ $script:MIOS_CEPH_USER    = if ($env:MIOS_CEPH_USER)    { $env:MIOS_CEPH_USER } 
 $script:MIOS_CEPH_UID     = if ($env:MIOS_CEPH_UID)     { [int]$env:MIOS_CEPH_UID }  else { 819 }
 $script:MIOS_CEPH_GID     = if ($env:MIOS_CEPH_GID)     { [int]$env:MIOS_CEPH_GID }  else { 819 }
 
+$script:MIOS_SEARXNG_USER = if ($env:MIOS_SEARXNG_USER) { $env:MIOS_SEARXNG_USER } else { 'mios-searxng' }
+$script:MIOS_SEARXNG_UID  = if ($env:MIOS_SEARXNG_UID)  { [int]$env:MIOS_SEARXNG_UID } else { 818 }
+$script:MIOS_SEARXNG_GID  = if ($env:MIOS_SEARXNG_GID)  { [int]$env:MIOS_SEARXNG_GID } else { 818 }
+
 $script:MIOS_SUBUID_START = if ($env:MIOS_SUBUID_START) { [int]$env:MIOS_SUBUID_START } else { 100000 }
 $script:MIOS_SUBUID_COUNT = if ($env:MIOS_SUBUID_COUNT) { [int]$env:MIOS_SUBUID_COUNT } else { 65536 }
 
@@ -69,6 +73,7 @@ $script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:
 $script:MIOS_PORT_LOCALAI       = if ($env:MIOS_PORT_LOCALAI)       { [int]$env:MIOS_PORT_LOCALAI }       else { 8080 }
 $script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:MIOS_PORT_COCKPIT }       else { 9090 }
 $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11434 }
+$script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
 $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 19090 }
 
 # ── URLS ─────────────────────────────────────────────────────────────
@@ -76,6 +81,7 @@ $script:MIOS_AI_ENDPOINT  = if ($env:MIOS_AI_ENDPOINT)  { $env:MIOS_AI_ENDPOINT 
 $script:MIOS_FORGE_URL    = if ($env:MIOS_FORGE_URL)    { $env:MIOS_FORGE_URL }    else { "http://localhost:$($script:MIOS_PORT_FORGE_HTTP)" }
 $script:MIOS_COCKPIT_URL  = if ($env:MIOS_COCKPIT_URL)  { $env:MIOS_COCKPIT_URL }  else { "https://localhost:$($script:MIOS_PORT_COCKPIT)" }
 $script:MIOS_OLLAMA_URL   = if ($env:MIOS_OLLAMA_URL)   { $env:MIOS_OLLAMA_URL }   else { "http://localhost:$($script:MIOS_PORT_OLLAMA)" }
+$script:MIOS_SEARXNG_URL  = if ($env:MIOS_SEARXNG_URL)  { $env:MIOS_SEARXNG_URL }  else { "http://localhost:$($script:MIOS_PORT_SEARXNG)" }
 
 # ── REPOS ────────────────────────────────────────────────────────────
 $script:MIOS_REPO_URL           = if ($env:MIOS_REPO_URL)           { $env:MIOS_REPO_URL }           else { 'https://github.com/mios-dev/mios.git' }
@@ -144,6 +150,7 @@ $script:MIOS_UNIT_K3S               = 'mios-k3s.service'
 $script:MIOS_UNIT_AICHAT_BUILD      = 'mios-aichat-build.service'
 $script:MIOS_UNIT_AICHAT_IMAGE      = 'mios-aichat-image.service'
 $script:MIOS_UNIT_COCKPIT_LINK      = 'mios-cockpit-link.service'
+$script:MIOS_UNIT_SEARXNG           = 'mios-searxng.service'
 $script:MIOS_UNIT_FIRSTBOOT_TARGET  = 'mios-firstboot.target'
 $script:MIOS_UNIT_OLLAMA_FIRSTBOOT  = 'mios-ollama-firstboot.service'
 $script:MIOS_UNIT_WSL_FIRSTBOOT     = 'mios-wsl-firstboot.service'
@@ -155,6 +162,7 @@ $script:MIOS_CONTAINER_AICHAT_IMAGE     = 'localhost/mios/aichat:latest'
 $script:MIOS_CONTAINER_FORGE_IMAGE      = 'codeberg.org/forgejo/forgejo:12'
 $script:MIOS_CONTAINER_LOCALAI_IMAGE    = 'docker.io/localai/localai:latest'
 $script:MIOS_CONTAINER_OLLAMA_IMAGE     = 'docker.io/ollama/ollama:latest'
+$script:MIOS_CONTAINER_SEARXNG_IMAGE    = 'docker.io/searxng/searxng:latest'
 
 # ── COLOR PALETTE ────────────────────────────────────────────────────
 # Hokusai + operator-neutrals palette. Vendor defaults; resolved from

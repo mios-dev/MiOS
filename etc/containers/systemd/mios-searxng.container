@@ -1,0 +1,81 @@
+# /etc/containers/systemd/mios-searxng.container
+# 'MiOS' privacy-respecting metasearch (SearXNG upstream).
+#
+# SearXNG is the search counterpart to mios-ai/ollama: it gives the
+# operator (and the LLM, via Tools) a single localhost endpoint that
+# aggregates results from ~250 upstream search engines without leaking
+# any IP, user-agent, or session identifier to those engines. It is
+# AGPL-3.0 and 100% local -- no external account, no API key, no
+# telemetry. Pairs naturally with the agent surface as a `web_search`
+# tool target without breaking Architectural Law 5 (no vendor cloud
+# AI URL): SearXNG is a *search proxy*, not a model.
+#
+# Defaults policy: enabled by default. ConditionPathIsDirectory guards
+# the config dir; if /etc/mios/searxng/ doesn't exist (incomplete
+# bootstrap) the unit no-ops at pre-boot rather than crash-looping.
+
+[Unit]
+Description='MiOS' SearXNG metasearch (privacy-respecting search proxy)
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsDirectory=/etc/mios/searxng
+
+[Container]
+# Multi-arch index pin -- the @sha256 covers amd64, arm64, and armv7
+# manifests via the OCI image index, so a single digest works across
+# every host shape MiOS targets.
+Image=docker.io/searxng/searxng:latest@sha256:885f1cd1bb86d759aa4724a1986a61c000292823ff8eeb17d34de1a8acb74477
+ContainerName=mios-searxng
+Network=mios.network
+# 8888 host -> 8080 container. 8080 is taken by mios-ai (LocalAI's
+# OpenAI-compatible endpoint), so SearXNG goes on the next conventional
+# search-proxy port. Sibling Quadlets on mios.network reach it as
+# http://mios-searxng:8080/ without going through host loopback.
+PublishPort=8888:8080
+
+# Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
+# the container expects them at /etc/searxng inside. We bind-mount the
+# host's /etc/mios/searxng read-write so the operator (and SearXNG's
+# own first-run secret_key generator) can persist edits across image
+# rebuilds. /var/cache/mios/searxng holds the on-disk results cache so
+# a restart doesn't repeat queries that the upstream engines have
+# already answered.
+Volume=/etc/mios/searxng:/etc/searxng:Z
+Volume=/var/cache/mios/searxng:/var/cache/searxng:Z
+
+# Identity. UID 818 is pinned in usr/lib/sysusers.d/50-mios-services.conf
+# so /etc/mios/searxng and /var/cache/mios/searxng ownership stays
+# stable across image rebuilds. The upstream SearXNG image's `searxng`
+# user inside the container is uid 977; we're overriding it so the
+# host-side bind-mounts are owned by mios-searxng (818) and the
+# container process can still read+write because the volumes are
+# chowned 818:818 by usr/lib/tmpfiles.d/mios-searxng.conf at boot.
+User=818
+Group=818
+
+# Public-facing URL. SearXNG uses this as the canonical base for
+# generated absolute links (RSS feeds, opensearch.xml, etc.). Operators
+# fronting SearXNG behind a reverse proxy override this in
+# /etc/mios/searxng/settings.yml -> server.base_url.
+Environment=SEARXNG_BASE_URL=http://localhost:8888/
+Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:8080
+
+# Limit log volume; SearXNG is chatty per-query.
+Environment=SEARXNG_LOG_LEVEL=WARNING
+
+# OCI image labels for Podman Desktop. Values MUST NOT contain
+# whitespace -- Quadlet's Label= parser word-splits on spaces and
+# emits each word as a separate --label arg, breaking the run line.
+Label=org.opencontainers.image.title=mios-searxng
+Label=org.opencontainers.image.url=http://localhost:8888/
+Label=org.opencontainers.image.documentation=https://docs.searxng.org/
+Label=io.podman_desktop.openInBrowser=http://localhost:8888/
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

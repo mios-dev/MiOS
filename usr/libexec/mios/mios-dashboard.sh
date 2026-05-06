@@ -242,13 +242,15 @@ print_endpoints() {
         "$C_GRY" "${MIOS_LINUX_USER:-mios}" "${MIOS_DEV_DEFAULT_PASSWORD:-mios}" "$C_R"
     printf '    %s  Ollama      %shttp://localhost:11434%s\n' \
         "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R"
+    printf '    %s  Search      %shttp://localhost:8888/%s\n' \
+        "$(ep_dot http://localhost:8888/)" "$C_D" "$C_R"
 }
 
 print_quadlets() {
     section_header "Quadlet services"
     local svc info name dot color
     for svc in mios-ai mios-forge mios-forgejo-runner mios-cockpit-link \
-               mios-ceph mios-k3s ollama crowdsec-dashboard \
+               mios-ceph mios-k3s ollama mios-searxng crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"
