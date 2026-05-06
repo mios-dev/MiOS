@@ -126,10 +126,46 @@ _PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=automation/lib/common.sh
 source "${_PKG_DIR}/common.sh"
 
+# _is_section_enabled <section>
+# Returns 0 (enabled) if [packages.<section>].enable is missing OR true.
+# Returns 1 (disabled) only when explicitly set to false in the toml.
+# This is the runtime side of the configurator HTML's package toggles --
+# the operator unchecks a box, the configurator writes
+# `[packages.<name>].enable = false` to mios.toml, and this helper
+# tells install_packages* to skip that group's dnf install.
+#
+# Parses with awk (no python3 dependency -- safe even at very-early
+# build phases before python is layered in).
+_is_section_enabled() {
+    local section="$1"
+    local toml result
+    toml=$(_resolve_mios_toml) || return 0  # no toml at all -> default enabled
+    result=$(awk -v sect="[packages.$section]" '
+        $0 == sect { in_section = 1; next }
+        /^\[/ && in_section { in_section = 0 }
+        in_section && /^[[:space:]]*enable[[:space:]]*=/ {
+            # match "enable = false" or "enable = true" (any whitespace).
+            # Anything other than literal "false" is treated as enabled
+            # (covers "true", missing-quote variants, comments after the
+            # value, etc.) since the schema default is true.
+            if ($0 ~ /=[[:space:]]*false[[:space:]]*($|#)/) print "false"
+            else print "true"
+            exit
+        }
+    ' "$toml" 2>/dev/null)
+    [[ "$result" != "false" ]]
+}
+
 # install_packages <section>
 # Best-effort: warns on per-package install failures, doesn't return non-zero.
+# Honors [packages.<section>].enable -- if the operator unchecked the
+# group in /configurator.html, this is a no-op.
 install_packages() {
     local category="$1"
+    if ! _is_section_enabled "$category"; then
+        echo "[packages.sh] [packages.${category}].enable=false -- skipping (operator disabled via /configurator.html)"
+        return 0
+    fi
     local packages
     packages=$(get_packages "$category")
     if [[ -n "${packages// }" ]]; then
@@ -165,11 +201,14 @@ install_packages_strict() {
 }
 
 # install_packages_optional <section>
-# Silent skip when the section is absent / empty (intentionally disabled
-# via the configurator HTML or a /etc/mios/mios.toml host override).
+# Silent skip when the section is absent / empty / disabled.
 # Otherwise behaves like install_packages (best-effort).
 install_packages_optional() {
     local category="$1"
+    if ! _is_section_enabled "$category"; then
+        echo "[packages.sh] INFO: [packages.${category}].enable=false -- skipping (operator disabled via /configurator.html)"
+        return 0
+    fi
     local packages
     packages=$(get_packages "$category")
     if [[ -z "${packages// }" ]]; then

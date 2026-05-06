@@ -353,23 +353,59 @@ else
     _log "BIB image: $BIB_IMG"
     _log "Output dir: $BIB_OUT"
 
-    # The artifact format list. Operator can override via
-    # MIOS_BIB_FORMATS="vhdx qcow2" to skip slow ones during iteration.
-    BIB_FORMATS="${MIOS_BIB_FORMATS:-vhdx qcow2 iso raw wsl}"
-    _log "Formats: $BIB_FORMATS"
+    # Build BIB_FORMATS from [deployment].target_<key> in the layered
+    # mios.toml -- the configurator HTML's "Deployment targets" section
+    # toggles these. Operator override via $MIOS_BIB_FORMATS="vhdx qcow2"
+    # still wins for fast-iter dev cycles. Final fallback to the
+    # historical 5-format default if the toml is missing entirely.
+    if [[ -n "${MIOS_BIB_FORMATS:-}" ]]; then
+        BIB_FORMATS="$MIOS_BIB_FORMATS"
+        _log "Formats from MIOS_BIB_FORMATS env: $BIB_FORMATS"
+    else
+        DEP_TOML=""
+        for cand in \
+            "${HOME:-/root}/.config/mios/mios.toml" \
+            /etc/mios/mios.toml \
+            /usr/share/mios/mios.toml \
+        ; do
+            if [[ -r "$cand" ]]; then DEP_TOML="$cand"; break; fi
+        done
+        BIB_FORMATS=""
+        if [[ -n "$DEP_TOML" ]]; then
+            while read -r tgt; do
+                [[ -n "$tgt" ]] && BIB_FORMATS+="${tgt} "
+            done < <(awk '
+                /^\[deployment\]$/ { in_deploy=1; next }
+                /^\[/ && in_deploy { in_deploy=0 }
+                in_deploy && /^[[:space:]]*target_[a-z0-9_]+[[:space:]]*=[[:space:]]*true/ {
+                    sub(/^[[:space:]]*target_/, "")
+                    sub(/[[:space:]]*=.*$/, "")
+                    print
+                }
+            ' "$DEP_TOML")
+            _log "Formats from $DEP_TOML [deployment]: ${BIB_FORMATS:-<none enabled>}"
+        fi
+        if [[ -z "${BIB_FORMATS// }" ]]; then
+            BIB_FORMATS="vhdx qcow2 iso raw wsl"
+            _log "Formats fallback to historical default: $BIB_FORMATS"
+        fi
+    fi
 
     BIB_OK=()
     BIB_FAIL=()
     for fmt in $BIB_FORMATS; do
+        # toml field names use underscores (target_anaconda_iso); BIB
+        # --type uses hyphens (anaconda-iso). Translate.
+        bib_type="${fmt//_/-}"
         _log ""
-        _log "→ building $fmt …"
+        _log "→ building $fmt (BIB --type $bib_type) …"
         if sudo podman run --rm --privileged \
                 --pull=newer \
                 --security-opt label=type:unconfined_t \
                 -v "$BIB_OUT:/output:Z" \
                 -v /var/lib/containers/storage:/var/lib/containers/storage \
                 "$BIB_IMG" \
-                --type "$fmt" \
+                --type "$bib_type" \
                 --local localhost/mios:latest 2>&1 | tee -a "$LOG_FILE"; then
             _log "[ok] $fmt artifact written under $BIB_OUT"
             BIB_OK+=("$fmt")
