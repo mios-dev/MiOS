@@ -1,0 +1,83 @@
+# /etc/containers/systemd/mios-hermes.container
+# 'MiOS' Hermes-Agent OpenAI-compatible gateway.
+#
+# Hermes-Agent (Nous Research) sits between an Open WebUI / aichat /
+# Claude Code-style frontend and the underlying LLM backend (mios-ollama
+# by default). It exposes /v1 OpenAI-shaped endpoints with first-class
+# agent / tool-use semantics on top of any backend that lacks them, so
+# operators can drive non-Hermes models (qwen2.5-coder, granite, llama)
+# through the same agent surface.
+#
+# Defaults policy: enabled by default. ConditionPathIsDirectory guards
+# the config dir; if /etc/mios/hermes/ doesn't exist (incomplete
+# bootstrap), the unit no-ops at pre-boot rather than crash-looping.
+# mios-hermes-firstboot.service generates a fresh API_SERVER_KEY into
+# /etc/mios/hermes/api.env on first boot if missing -- that key is what
+# Open WebUI uses as its OPENAI_API_KEY when calling mios-hermes.
+
+[Unit]
+Description='MiOS' Hermes-Agent OpenAI-compatible gateway
+After=network-online.target mios-hermes-firstboot.service ollama.service
+Wants=network-online.target mios-hermes-firstboot.service
+ConditionPathIsDirectory=/etc/mios/hermes
+ConditionPathExists=/etc/mios/hermes/api.env
+
+[Container]
+Image=docker.io/nousresearch/hermes-agent:latest
+ContainerName=mios-hermes
+# Dual-network: ai-net is the canonical subnet for the AI stack
+# (Open WebUI <-> Hermes <-> Ollama), mios.network keeps the unit
+# reachable from the rest of MiOS by container name.
+Network=ai-net.network
+Network=mios.network
+PublishPort=8642:8642
+AutoUpdate=registry
+
+# Persistent state. /opt/data inside the container is where Hermes
+# stores its config.yaml, prompt history, and tool registry. Bind-mount
+# the host's /var/lib/mios/hermes there so state survives image rebuilds.
+Volume=/var/lib/mios/hermes:/opt/data:Z
+# /etc/mios/hermes/config.yaml is a vendor-shipped declarative config
+# that wires Hermes at mios-ollama:11434 by default; operators can
+# override via /etc/mios/hermes/config.local.yaml (see config.yaml's
+# trailing include directive).
+Volume=/etc/mios/hermes:/etc/hermes:Z,ro
+
+# API key + server settings come from /etc/mios/hermes/api.env, which
+# mios-hermes-firstboot.service generates on first boot via
+# `openssl rand -hex 32` if not already present. Open WebUI reads the
+# same file so the key flows through declaratively.
+EnvironmentFile=/etc/mios/hermes/api.env
+
+# Force the agent to point at MiOS's mios-ollama by container name on
+# ai-net. The deploy-aistack.sh first-run wizard prompts for these
+# interactively; we bake them in so the unit is fully declarative.
+Environment=HERMES_BACKEND_PROVIDER=ollama
+Environment=HERMES_BACKEND_BASE_URL=http://mios-ollama:11434
+Environment=HERMES_BACKEND_MODEL=qwen2.5-coder:7b
+Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
+
+# Identity. UID 820 is pinned in usr/lib/sysusers.d/50-mios-services.conf.
+User=820
+Group=820
+
+Label=org.opencontainers.image.title=mios-hermes
+Label=org.opencontainers.image.url=http://localhost:8642/v1/models
+Label=org.opencontainers.image.documentation=https://nousresearch.com/
+Label=io.podman_desktop.openInBrowser=http://localhost:8642/v1/models
+
+# `gateway run` is the long-lived Hermes API-server mode. The
+# alternative `setup` interactive wizard (used by deploy-aistack.sh on
+# first run) is bypassed here -- /etc/mios/hermes/config.yaml is
+# pre-shipped at build time so the gateway can start without an
+# operator-driven setup pass.
+Exec=gateway run
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

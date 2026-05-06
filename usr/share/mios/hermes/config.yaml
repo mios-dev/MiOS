@@ -1,0 +1,55 @@
+# /usr/share/mios/hermes/config.yaml
+# 'MiOS' Hermes-Agent vendor defaults.
+#
+# Copied into /etc/mios/hermes/config.yaml on first boot by usr/lib/
+# tmpfiles.d/mios-hermes.conf (C= line: copy-if-absent). Operators
+# override under /etc/mios/hermes/config.local.yaml -- the trailing
+# `include` directive picks that up if present, so vendor edits and
+# operator edits stay separable.
+#
+# This file replaces the interactive `setup` wizard that
+# deploy-aistack.sh runs on bare-metal first-deploy. Wiring is fully
+# declarative: backend = mios-ollama on ai-net, model = MiOS's baked
+# default (qwen2.5-coder:7b), API server reads its key from
+# /etc/mios/hermes/api.env via EnvironmentFile= in the Quadlet.
+
+backend:
+  provider: ollama
+  base_url: http://mios-ollama:11434
+  model: qwen2.5-coder:7b
+  # Listed alternates so the WebUI's model picker shows what's
+  # available. mios-ollama-firstboot bakes qwen2.5-coder:7b and
+  # nomic-embed-text by default; operators can pull others post-deploy.
+  available_models:
+    - qwen2.5-coder:7b
+    - nomic-embed-text
+
+api_server:
+  # Bind / port / key / cors values come from the EnvironmentFile=
+  # /etc/mios/hermes/api.env in the Quadlet. They're listed here as
+  # ${VAR} placeholders so a hand-edit of this file makes the resolution
+  # path obvious.
+  enabled: ${API_SERVER_ENABLED}
+  host: ${API_SERVER_HOST}
+  key: ${API_SERVER_KEY}
+  cors_origins: ${API_SERVER_CORS_ORIGINS}
+
+# Tool surface: SearXNG is reachable as mios-searxng:8080 inside the
+# ai-net bridge, so the agent's web_search tool can call it without
+# leaving the network. Architectural Law 5 unaffected -- search is not
+# AI inference.
+tools:
+  web_search:
+    enabled: true
+    provider: searxng
+    base_url: http://mios-searxng:8080
+
+logging:
+  level: info
+  format: json
+
+# Operator overrides: drop a /etc/mios/hermes/config.local.yaml file
+# alongside this one to override any of the above. The local file is
+# merged on top, so partial overrides (e.g. just `backend.model`) work.
+include:
+  - /etc/hermes/config.local.yaml

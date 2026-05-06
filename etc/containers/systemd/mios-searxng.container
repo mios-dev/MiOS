@@ -26,7 +26,12 @@ ConditionPathIsDirectory=/etc/mios/searxng
 # every host shape MiOS targets.
 Image=docker.io/searxng/searxng:latest@sha256:885f1cd1bb86d759aa4724a1986a61c000292823ff8eeb17d34de1a8acb74477
 ContainerName=mios-searxng
+# Dual-network: mios.network keeps the unit reachable for the rest of
+# MiOS; ai-net.network puts SearXNG on the same bridge as mios-hermes
+# so the agent's `web_search` tool can call mios-searxng:8080 by
+# container name without leaving the network.
 Network=mios.network
+Network=ai-net.network
 # 8888 host -> 8080 container. 8080 is taken by mios-ai (LocalAI's
 # OpenAI-compatible endpoint), so SearXNG goes on the next conventional
 # search-proxy port. Sibling Quadlets on mios.network reach it as

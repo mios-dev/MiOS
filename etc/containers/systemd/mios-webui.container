@@ -1,0 +1,70 @@
+# /etc/containers/systemd/mios-webui.container
+# 'MiOS' Open WebUI browser frontend.
+#
+# Open WebUI (https://github.com/open-webui/open-webui) is the
+# browser-side companion to mios-hermes / mios-ai. By default it points
+# at mios-hermes:8642/v1 (the Hermes-Agent gateway), which then proxies
+# to mios-ollama:11434 inside the ai-net bridge. Operators can also add
+# mios-ai (LocalAI on :8080) as a second OpenAI-compatible backend
+# inside the WebUI's settings panel -- both are reachable by container
+# name on the ai-net bridge.
+#
+# Port choice (3030, NOT 8080):
+#   The upstream deploy-aistack.sh maps Open WebUI to host :8080. MiOS
+#   already publishes mios-ai (LocalAI's OpenAI-compatible /v1 endpoint)
+#   on :8080 -- that port is the canonical Architectural-Law-5 surface
+#   that aichat / system prompts / agent SDKs all reference. Moving
+#   LocalAI off 8080 would break every existing client. So WebUI gets
+#   a different host port (3030) instead. Internal port stays 8080 to
+#   match upstream defaults.
+#
+# Defaults policy: enabled by default. After= mios-hermes so the
+# OPENAI_API_BASE_URL target is reachable when the frontend starts.
+
+[Unit]
+Description='MiOS' Open WebUI browser frontend
+After=network-online.target mios-hermes.service
+Wants=network-online.target
+Requires=mios-hermes.service
+
+[Container]
+Image=docker.io/openwebui/open-webui:latest
+ContainerName=mios-webui
+Network=ai-net.network
+Network=mios.network
+PublishPort=3030:8080
+AutoUpdate=registry
+
+Volume=/var/lib/mios/webui:/app/backend/data:Z
+
+# Disable the built-in Ollama API path so Open WebUI ALWAYS goes
+# through the Hermes-Agent gateway. That keeps tool-use, prompt
+# history, and rate-limiting decisions in one place rather than
+# bypassing them when the user picks a non-Hermes-aware model.
+Environment=ENABLE_OLLAMA_API=false
+Environment=OPENAI_API_BASE_URL=http://mios-hermes:8642/v1
+
+# OPENAI_API_KEY is sourced from the same /etc/mios/hermes/api.env
+# that mios-hermes itself reads, so the WebUI <-> Hermes auth pair
+# stays in sync without operator copy-paste. The key is generated on
+# first boot by mios-hermes-firstboot.service.
+EnvironmentFile=/etc/mios/hermes/api.env
+Environment=WEBUI_AUTH=true
+Environment=WEBUI_NAME=MiOS
+
+User=821
+Group=821
+
+Label=org.opencontainers.image.title=mios-webui
+Label=org.opencontainers.image.url=http://localhost:3030/
+Label=org.opencontainers.image.documentation=https://docs.openwebui.com/
+Label=io.podman_desktop.openInBrowser=http://localhost:3030/
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

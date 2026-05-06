@@ -144,6 +144,30 @@ editor_url     = "/usr/share/mios/configurator/index.html"
 endpoint = "http://localhost:8888/"
 enable   = true
 
+[hermes]
+# Hermes-Agent OpenAI-compatible gateway (Nous Research). Pairs with
+# mios-ollama (backend) and mios-webui (frontend) on the ai-net.network
+# bridge. Wiring is fully declarative -- /etc/mios/hermes/config.yaml
+# (vendor-shipped) sets backend = mios-ollama:11434 and the API key is
+# generated on first boot by mios-hermes-firstboot.service into
+# /etc/mios/hermes/api.env, then read by both mios-hermes (server) and
+# mios-webui (client) via Quadlet EnvironmentFile=.
+endpoint = "http://localhost:8642/v1"
+backend  = "http://mios-ollama:11434"
+model    = "qwen2.5-coder:7b"
+enable   = true
+
+[webui]
+# Open WebUI browser frontend. Defaults its OPENAI_API_BASE_URL at
+# http://mios-hermes:8642/v1 (the Hermes-Agent gateway), so all chat
+# traffic flows browser -> WebUI -> Hermes -> Ollama. Operators can
+# add mios-ai (LocalAI on :8080) as a second OpenAI backend inside the
+# WebUI's settings panel for image / audio / vector-store features
+# Hermes doesn't expose. Host port is 3030 because mios-ai already
+# owns 8080 (LAW 5 canonical endpoint).
+endpoint = "http://localhost:3030/"
+enable   = true
+
 [ai]
 endpoint            = "http://localhost:8080/v1"
 model               = "qwen2.5-coder:7b"

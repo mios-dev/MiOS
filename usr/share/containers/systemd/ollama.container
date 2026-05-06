@@ -14,7 +14,11 @@ Image=docker.io/ollama/ollama:latest@sha256:5600a652d1081050f398152127c584222546
 # canonical handle. Quadlet's default would be `systemd-ollama`,
 # which the firstboot script wouldn't find.
 ContainerName=mios-ollama
+# Dual-network: mios.network = historical core bridge; ai-net.network =
+# AI-stack bridge so mios-hermes can reach mios-ollama:11434 by
+# container name (deploy-aistack.sh's HERMES_BACKEND_BASE_URL target).
 Network=mios.network
+Network=ai-net.network
 AutoUpdate=registry
 User=mios-ollama
 Group=mios-ollama

@@ -14,12 +14,14 @@ ConditionPathIsDirectory=/etc/mios/ai
 [Container]
 Image=docker.io/localai/localai:latest@sha256:a6af99e17a73a92caa134e70ae84492cc47b67645c1676268a7522ad14f4c09d
 ContainerName=mios-ai
-# Single MiOS internal network so sibling Quadlets (mios-forge,
-# mios-aichat, mios-mcp, ollama, etc.) reach LocalAI by container name
-# at http://mios-ai:8080/v1 without going through host loopback. Keeps
-# the network surface KISS: one bridge, all services on it. PublishPort
-# below still maps to the host so external clients can reach :8080.
+# MiOS internal networks: mios.network is the historical core bridge
+# (mios-forge / mios-cockpit-link / mios-mcp etc.); ai-net.network is
+# the dedicated AI-stack bridge that mios-hermes / mios-webui /
+# mios-ollama / mios-searxng all share so the gateway can address
+# them by container name without leaving the bridge. Multi-network
+# membership keeps mios-ai reachable from BOTH worlds.
 Network=mios.network
+Network=ai-net.network
 PublishPort=8080:8080
 # LocalAI v4 layout: /build/models is canonical (matches MODELS_PATH /
 # upstream Containerfile WORKDIR), but /data/{outputs,collections} is
