@@ -359,6 +359,44 @@
   </div>
 </details>
 
+<details class="section" open>
+  <summary>Packages · what gets layered into the image <span class="phase-badge">Phase 7-8 · Install → Build</span></summary>
+  <div class="section-body">
+    <fieldset style="grid-column: 1 / -1">
+      <legend>packages.&lt;section&gt;.enable</legend>
+      <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+        Each toggle controls whether
+        <code>[packages.&lt;name&gt;].pkgs</code> is installed during the
+        OCI build. <strong>Default = everything ON</strong> (full MiOS:
+        host, hosting, dev, build, run, deploy, gaming/SteamOS, AI,
+        Kubernetes, virt, GPU compute) <strong>except bloat</strong>
+        (gnome-tour, PackageKit, malcontent — opt-in only).
+        Hover for description.
+      </p>
+      <div id="package-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px;"></div>
+    </fieldset>
+  </div>
+</details>
+
+<details class="section" open>
+  <summary>Deployment targets · output image formats <span class="phase-badge">Phase 9 · Deploy</span></summary>
+  <div class="section-body">
+    <fieldset style="grid-column: 1 / -1">
+      <legend>deployment.target_&lt;format&gt;</legend>
+      <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+        After the OCI image is built, bootc-image-builder renders one
+        artifact per enabled format under
+        <code>/var/lib/mios/build/output/</code>.
+        <strong>Default = vhdx + qcow2 + iso + raw + wsl ON</strong>
+        (every portable target). AMI / OVA / Anaconda installer are
+        OFF by default — they need extra host tools (aws-cli, ovftool,
+        anaconda).
+      </p>
+      <div id="deploy-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px;"></div>
+    </fieldset>
+  </div>
+</details>
+
 <details class="section">
   <summary>Services · per-Quadlet first-boot enablement <span class="phase-badge">Phase 9-10 · Deploy → Boot</span></summary>
   <div class="section-body">
@@ -407,6 +445,75 @@ const QUADLETS = [
   "mios-ai", "mios-ceph", "mios-k3s", "mios-forge", "mios-cockpit-link",
   "crowdsec-dashboard", "ollama", "cloudws-guacamole", "cloudws-pxe-hub",
   "guacamole-postgres", "guacd"
+];
+
+// ── Package groups: every [packages.<name>] table the build can layer ─────
+// One checkbox per group; default ON for every group EXCEPT bloat (per
+// operator instruction 2026-05-06: "MiOS Defaults are all pre-checked
+// on, excluding bloat and including everything else"). Toggling a group
+// writes [packages.<name>].enable in the saved mios.toml.
+const PACKAGES = [
+  // core
+  { name: "base",                  default: true,  group: "core",    desc: "kernel + glibc + systemd + bash baseline" },
+  { name: "security",              default: true,  group: "core",    desc: "audit, tpm2-tools, clevis, openscap, aide, nftables" },
+  { name: "utils",                 default: true,  group: "core",    desc: "lsof, jq, ripgrep, vim, tmux, fastfetch, htop" },
+  { name: "boot",                  default: true,  group: "core",    desc: "shim, grub2, dracut, plymouth (boot chain)" },
+  // dev / build
+  { name: "build-toolchain",       default: true,  group: "dev",     desc: "gcc, make, cmake, go, rust, python-devel" },
+  { name: "self-build",            default: true,  group: "dev",     desc: "in-tree build automation deps" },
+  { name: "sbom-tools",            default: true,  group: "build",   desc: "syft, grype, cosign, regctl" },
+  { name: "uki",                   default: true,  group: "build",   desc: "Unified Kernel Image tooling" },
+  { name: "k3s-selinux-build",     default: true,  group: "build",   desc: "build-time SELinux policy for k3s" },
+  { name: "cockpit-plugins-build", default: true,  group: "build",   desc: "in-house cockpit plugin packages" },
+  { name: "looking-glass-build",   default: true,  group: "build",   desc: "build LookingGlass for VFIO GPU passthrough" },
+  // host / hosting
+  { name: "containers",            default: true,  group: "host",    desc: "podman, buildah, skopeo, podman-compose" },
+  { name: "cockpit",               default: true,  group: "host",    desc: "cockpit + cockpit-podman + cockpit-machines" },
+  { name: "storage",               default: true,  group: "host",    desc: "btrfs / zfs / luks / lvm tooling" },
+  { name: "virt",                  default: true,  group: "host",    desc: "qemu-kvm, libvirt, virt-install, spice" },
+  { name: "guests",                default: true,  group: "host",    desc: "qemu-guest-agent, hyperv-daemons, spice-vdagent" },
+  { name: "network-discovery",     default: true,  group: "host",    desc: "avahi, mdns, llmnr, ssdp" },
+  { name: "updater",               default: true,  group: "host",    desc: "rpm-ostree, bootc, fwupd" },
+  { name: "nut",                   default: true,  group: "host",    desc: "Network UPS Tools (APC/Eaton/CyberPower)" },
+  // gpu / compute
+  { name: "gpu-mesa",              default: true,  group: "gpu",     desc: "Mesa userspace drivers (Intel/AMD/Vulkan)" },
+  { name: "gpu-nvidia",            default: true,  group: "gpu",     desc: "akmod-nvidia, CUDA, NVIDIA Container Toolkit" },
+  { name: "gpu-amd-compute",       default: true,  group: "gpu",     desc: "ROCm runtime (amdgpu compute)" },
+  { name: "gpu-intel-compute",     default: true,  group: "gpu",     desc: "Intel Compute Runtime (oneAPI)" },
+  // desktop
+  { name: "gnome",                 default: true,  group: "desktop", desc: "GNOME Shell + core session" },
+  { name: "phosh",                 default: true,  group: "desktop", desc: "Phosh mobile shell (PinePhone form-factor)" },
+  // ai
+  { name: "ai",                    default: true,  group: "ai",      desc: "ollama, mios-ai container, embedding tools" },
+  // k8s / cluster
+  { name: "k3s",                   default: true,  group: "cluster", desc: "k3s lightweight Kubernetes" },
+  { name: "ceph",                  default: true,  group: "cluster", desc: "Ceph storage cluster client + cephadm" },
+  { name: "ha",                    default: true,  group: "cluster", desc: "pacemaker + corosync (HA clustering)" },
+  // identity / interop
+  { name: "freeipa",               default: true,  group: "iam",     desc: "FreeIPA identity domain client" },
+  { name: "wintools",              default: true,  group: "interop", desc: "Windows interop (clipboard, RDP, smbclient)" },
+  { name: "android",               default: true,  group: "interop", desc: "android-tools, scrcpy, waydroid" },
+  // gaming
+  { name: "gaming",                default: true,  group: "gaming",  desc: "gamemode, vulkan-tools (base gaming utilities)" },
+  { name: "steam",                 default: true,  group: "gaming",  desc: "Steam + Proton + Wine + Lutris + gamescope (SteamOS surface)" },
+  // bloat -- intentionally OFF
+  { name: "bloat",                 default: false, group: "bloat",   desc: "gnome-tour, malcontent, PackageKit (intentionally bloat; opt-in only)" },
+];
+
+// ── Deployment target image formats (bootc-image-builder) ─────────────────
+// Each toggle controls whether the build pipeline produces that image
+// format. Default ON for the 5 portable formats; OFF for cloud-specific
+// (AMI/OVA) and Anaconda-installer ISO since those require additional
+// host-side tools (aws-cli, ovftool, anaconda) the operator may not have.
+const DEPLOY_TARGETS = [
+  { key: "vhdx",         default: true,  desc: "Hyper-V / Azure VM disk" },
+  { key: "qcow2",        default: true,  desc: "QEMU / KVM / libvirt / Proxmox / GNOME Boxes" },
+  { key: "iso",          default: true,  desc: "live + installer ISO" },
+  { key: "raw",          default: true,  desc: "raw disk image (bare-metal write)" },
+  { key: "wsl",          default: true,  desc: "WSL2 rootfs tarball" },
+  { key: "ami",          default: false, desc: "AWS AMI (requires aws-cli + signing)" },
+  { key: "ova",          default: false, desc: "vSphere OVA (requires ovftool)" },
+  { key: "anaconda_iso", default: false, desc: "Anaconda installer ISO (slower build path)" },
 ];
 
 // ── Color palette: defaults + named-token / ANSI-slot definitions ─────────────
@@ -674,6 +781,57 @@ function refreshFromData() {
       el.value = DATA[sec]?.[key] || "";
     }
   });
+  // Package-group checkboxes ([packages.<name>].enable)
+  const pg = document.getElementById("package-grid");
+  if (pg) {
+    pg.innerHTML = "";
+    for (const p of PACKAGES) {
+      const tableKey = `packages.${p.name}`;
+      // Read order: existing toml > spec default. The toml's enable
+      // shadows the spec for returning operators.
+      const v = DATA[tableKey]?.enable ?? p.default;
+      const id = `pk-${p.name.replace(/[^A-Za-z0-9]/g, "-")}`;
+      const row = document.createElement("div");
+      row.className = "checkbox-row";
+      row.title = p.desc;
+      row.innerHTML =
+        `<input type="checkbox" id="${id}" ${v ? "checked" : ""}>` +
+        `<label for="${id}">${p.name}` +
+        ` <span style="color:var(--muted); font-size:11px;">[${p.group}]</span>` +
+        `</label>`;
+      pg.appendChild(row);
+      row.querySelector("input").addEventListener("change", e => {
+        DATA[tableKey] = DATA[tableKey] || {};
+        DATA[tableKey].enable = e.target.checked;
+        renderRaw();
+      });
+    }
+  }
+  // Deployment-target checkboxes ([deployment].target_<key>)
+  const dg = document.getElementById("deploy-grid");
+  if (dg) {
+    dg.innerHTML = "";
+    for (const t of DEPLOY_TARGETS) {
+      const tableKey = "deployment";
+      const fieldKey = `target_${t.key}`;
+      const v = DATA[tableKey]?.[fieldKey] ?? t.default;
+      const id = `dp-${t.key.replace(/[^A-Za-z0-9]/g, "-")}`;
+      const row = document.createElement("div");
+      row.className = "checkbox-row";
+      row.title = t.desc;
+      row.innerHTML =
+        `<input type="checkbox" id="${id}" ${v ? "checked" : ""}>` +
+        `<label for="${id}">${t.key}` +
+        ` <span style="color:var(--muted); font-size:11px;">${t.desc}</span>` +
+        `</label>`;
+      dg.appendChild(row);
+      row.querySelector("input").addEventListener("change", e => {
+        DATA[tableKey] = DATA[tableKey] || {};
+        DATA[tableKey][fieldKey] = e.target.checked;
+        renderRaw();
+      });
+    }
+  }
   // Quadlet checkboxes
   const qg = document.getElementById("quadlet-grid");
   qg.innerHTML = "";
