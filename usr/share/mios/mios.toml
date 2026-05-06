@@ -232,6 +232,32 @@ minimal_tag  = "localhost/mios-minimal:latest"
 minimal_name = "ghcr.io/mios-dev/mios-minimal"
 
 # ----------------------------------------------------------------------------
+# [deployment] -- bootc-image-builder (BIB) target formats.
+#
+# After the OCI image is built, mios-build-driver runs BIB once per
+# enabled target to render the disk image for that platform. Default
+# = ALL targets ON per operator instruction 2026-05-06: "deploy all
+# target images / build target images for ALL deployment types".
+#
+# Each toggle maps to a `--type` arg passed to bootc-image-builder.
+# Add new targets here and the build-driver picks them up via
+# MIOS_DEPLOY_<TARGET> env vars (synthesized by tools/lib/userenv.sh).
+#
+# Storage cost: each format produces a multi-GB artifact under
+# /var/lib/mios/build/output/. With all 7 targets enabled and the
+# image at ~6 GB compressed, expect ~30-40 GB output.
+# ----------------------------------------------------------------------------
+[deployment]
+target_vhdx  = true     # Hyper-V VM disk (Windows guest VMs, Azure)
+target_qcow2 = true     # QEMU/KVM disk for libvirt / Proxmox / GNOME Boxes
+target_iso   = true     # bootable ISO (live + installer)
+target_raw   = true     # raw disk image (write directly to disk; bare-metal)
+target_wsl   = true     # WSL2 rootfs tarball (sibling MiOS-DEV deployments)
+target_ami   = false    # AWS AMI (default OFF; needs aws-cli + signing)
+target_ova   = false    # vSphere OVA (default OFF; needs ovftool)
+target_anaconda_iso = false  # Anaconda-based installer ISO (default OFF; slower build)
+
+# ----------------------------------------------------------------------------
 # [hwcaps] -- x86-64 microarchitecture level for runtime-selected
 # optimized libraries.
 #
@@ -367,6 +393,19 @@ mask_systemd_remount_fs = true
 # sections.
 # ----------------------------------------------------------------------------
 [packages]
+# Master inclusion list -- the build pipeline installs every section
+# named here. Each [packages.<section>] table now also has its own
+# `enable = true|false` field; the build resolver respects BOTH (a
+# section is installed only if its name appears here AND its enable
+# flag is true). The configurator HTML toggles enable; the array
+# stays as the canonical "what groups exist". To add a new section
+# permanently, add it both here and as [packages.<section>] below.
+#
+# Default = EVERYTHING ON except bloat (per operator instruction
+# 2026-05-06: "MiOS Defaults are all pre-checked on, excluding bloat
+# and including everything else -- steamos, proton/wine11+, ALL the
+# self; dev, build, host, hosting, run, deploy"). The configurator
+# pre-checks every box on first paint.
 sections = [
     "base", "security", "utils", "build-toolchain", "containers",
     "cockpit", "storage", "virt", "guests",
@@ -374,11 +413,12 @@ sections = [
     "gnome", "phosh",
     "ai", "k3s", "k3s-selinux-build", "cockpit-plugins-build",
     "sbom-tools", "uki", "self-build", "network-discovery", "updater",
-    "wintools", "gaming", "nut", "ceph", "freeipa", "ha",
+    "wintools", "gaming", "steam", "nut", "ceph", "freeipa", "ha",
     "looking-glass-build", "android",
 ]
 
 [packages.dev_overlay]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 # MiOS-DEV (podman-WSL2 backend on Windows) minimal-but-complete:
 # every operator/dev/security daemon + the GPU CDI plumbing for /dev/dxg
 # + the GNOME Flatpak runtime (portals/audio/theming) so the GNOME
@@ -422,6 +462,7 @@ sections = [
 # ─────────────────────────────────────────────────────────────────────
 
 [packages.repos]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "rpmfusion-free-release-rawhide",
     "rpmfusion-nonfree-release-rawhide",
@@ -431,6 +472,7 @@ pkgs = [
 ]
 
 [packages.base]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "policycoreutils-python-utils",
     "selinux-policy-targeted",
@@ -442,21 +484,25 @@ pkgs = [
 ]
 
 [packages.moby]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "moby-engine",
 ]
 
 [packages.uki]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "systemd-ukify",
 ]
 
 [packages.sbom-tools]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "syft",
 ]
 
 [packages.k3s-selinux-build]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "selinux-policy-devel",
     "git",
@@ -464,6 +510,7 @@ pkgs = [
 ]
 
 [packages.kernel]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "kernel-modules-extra",
     "kernel-devel",
@@ -475,6 +522,7 @@ pkgs = [
 ]
 
 [packages.gnome]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "gnome-shell",
     "gnome-session-wayland-session",
@@ -515,6 +563,7 @@ pkgs = [
 ]
 
 [packages.gnome-flatpak-runtime]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 # Without dconf + gsettings-desktop-schemas + adwaita-icon-theme +
 # gnome-themes-extra, GTK apps fall back to a "GTK2-era" Adwaita default
 # (no icons, light theme only, no color-scheme propagation) -- a full
@@ -551,10 +600,12 @@ pkgs = [
 ]
 
 [packages.gnome-core-apps]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
 ]
 
 [packages.gpu-mesa]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "mesa-vulkan-drivers",
     "mesa-dri-drivers",
@@ -566,6 +617,7 @@ pkgs = [
 ]
 
 [packages.gpu-amd-compute]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "rocm-opencl",
     "rocm-hip",
@@ -575,6 +627,7 @@ pkgs = [
 ]
 
 [packages.gpu-intel-compute]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "intel-compute-runtime",
     "intel-media-driver",
@@ -583,6 +636,7 @@ pkgs = [
 ]
 
 [packages.gpu-nvidia]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "akmod-nvidia",
     "xorg-x11-drv-nvidia-cuda",
@@ -594,10 +648,12 @@ pkgs = [
 ]
 
 [packages.gpu-cdi-toolkits]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
 ]
 
 [packages.virt]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "qemu-kvm",
     "libvirt",
@@ -616,6 +672,7 @@ pkgs = [
 ]
 
 [packages.containers]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "podman",
     "podman-compose",
@@ -647,6 +704,7 @@ pkgs = [
 ]
 
 [packages.build-toolchain]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "make",
     "gcc",
@@ -659,12 +717,14 @@ pkgs = [
 ]
 
 [packages.self-build]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "bootc-base-imagectl",
     "konflux-image-tools",
 ]
 
 [packages.boot]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "bootupd",
     "dnf5-plugins",
@@ -678,6 +738,7 @@ pkgs = [
 ]
 
 [packages.cockpit]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 # Full Cockpit suite + PCP stack. cockpit-packagekit is intentionally
 # omitted because PackageKit is in [packages.bloat] (bootc + flatpak
 # handle updates on MiOS). pcp-zeroconf is the package that flips the
@@ -707,6 +768,7 @@ pkgs = [
 ]
 
 [packages.wintools]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "hyperv-tools",
     "samba",
@@ -716,6 +778,7 @@ pkgs = [
 ]
 
 [packages.security]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "crowdsec",
     "crowdsec-firewall-bouncer-nftables",
@@ -741,6 +804,7 @@ pkgs = [
 ]
 
 [packages.gaming]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "gamemode",
     "gnome-shell-extension-gamemode",
@@ -748,7 +812,29 @@ pkgs = [
     "steam-devices",
 ]
 
+# SteamOS-equivalent gaming surface: Steam + Proton (via RPM Fusion's
+# steam package; flatpak Steam at com.valvesoftware.Steam is layered
+# in [packages].flatpaks for the SteamOS-style sandbox), Wine, Lutris,
+# gamescope (Valve compositor), mangohud (perf overlay).
+# Default ON per operator instruction "steamos, proton/wine11+, ALL".
+# RPM Fusion (in [packages.repos]) is the source for steam/wine RPMs.
+[packages.steam]
+enable = true
+pkgs = [
+    "steam",                  # Steam launcher + bundled Proton runtime
+    "wine",                   # Win32/Win64 compatibility layer (>=11 in Fedora 44)
+    "wine-staging",           # patchset for newer-game compat
+    "winetricks",             # script collection for game prereqs
+    "lutris",                 # game launcher with multiple runners
+    "gamescope",              # Valve's microcompositor (HDR / FSR upscaling)
+    "mangohud",               # in-game perf HUD
+    "vkbasalt",               # post-processing (sharpening, AO)
+    "goverlay",               # GUI for mangohud / vkbasalt config
+    "protontricks",           # winetricks for Steam-installed games
+]
+
 [packages.guests]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "qemu-guest-agent",
     "hyperv-daemons",
@@ -759,6 +845,7 @@ pkgs = [
 ]
 
 [packages.storage]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "nfs-utils",
     "rpcbind",
@@ -781,6 +868,7 @@ pkgs = [
 ]
 
 [packages.ceph]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "ceph-common",
     "cephadm",
@@ -789,11 +877,13 @@ pkgs = [
 ]
 
 [packages.k3s]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "container-selinux",
 ]
 
 [packages.ha]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "pacemaker",
     "corosync",
@@ -813,6 +903,7 @@ pkgs = [
 ]
 
 [packages.utils]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "git",
     "tmux",
@@ -865,11 +956,13 @@ pkgs = [
 ]
 
 [packages.android]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "waydroid",
 ]
 
 [packages.looking-glass-build]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "cmake",
     "gcc",
@@ -897,12 +990,14 @@ pkgs = [
 ]
 
 [packages.cockpit-plugins-build]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "npm",
     "gettext",
 ]
 
 [packages.network-discovery]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "avahi",
     "avahi-tools",
@@ -910,6 +1005,7 @@ pkgs = [
 ]
 
 [packages.phosh]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "phosh",
     "phoc",
@@ -918,6 +1014,7 @@ pkgs = [
 ]
 
 [packages.updater]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "uupd",
     "greenboot",
@@ -925,6 +1022,7 @@ pkgs = [
 ]
 
 [packages.freeipa]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "freeipa-client",
     "sssd",
@@ -933,11 +1031,13 @@ pkgs = [
 ]
 
 [packages.ai]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "python3-openai",
 ]
 
 [packages.critical]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "gnome-shell",
     "gdm",
@@ -955,6 +1055,7 @@ pkgs = [
 ]
 
 [packages.bloat]
+enable = false  # opt-in only; gnome-tour / PackageKit / malcontent — bloat by design, default OFF
 pkgs = [
     "malcontent-control",
     "malcontent-pam",
@@ -966,6 +1067,7 @@ pkgs = [
 ]
 
 [packages.nut]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "nut",
     "nut-client",
@@ -998,11 +1100,13 @@ pkgs = [
 # and re-running `just build`.
 # ----------------------------------------------------------------------------
 [packages.glibc-hwcaps-v3]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "glibc-hwcaps-x86-64-v3",
 ]
 
 [packages.glibc-hwcaps-v4]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
     "glibc-hwcaps-x86-64-v4",
 ]
