@@ -152,7 +152,7 @@ $script:MIOS_UNIT_USER_SESSION      = "user@$($script:MIOS_UID).service"
 # ── CONTAINERS / DISTROBOX ───────────────────────────────────────────
 $script:MIOS_DISTROBOX_AICHAT           = 'mios-aichat'
 $script:MIOS_CONTAINER_AICHAT_IMAGE     = 'localhost/mios/aichat:latest'
-$script:MIOS_CONTAINER_FORGE_IMAGE      = 'codeberg.org/forgejo/forgejo:11'
+$script:MIOS_CONTAINER_FORGE_IMAGE      = 'codeberg.org/forgejo/forgejo:12'
 $script:MIOS_CONTAINER_LOCALAI_IMAGE    = 'docker.io/localai/localai:latest'
 $script:MIOS_CONTAINER_OLLAMA_IMAGE     = 'docker.io/ollama/ollama:latest'
 

@@ -2,7 +2,11 @@
 # Minimal Ceph monitor for storage orchestration.
 #
 # Image tag: bootstrap overrides this with the site-specific Ceph version.
-# v18 (Reef) is the 'MiOS' default stable branch tag -- less mutable than :latest.
+# v19 (Squid) is the 'MiOS' default stable branch tag -- the current upstream
+# stable line. v18 (Reef) is still supported but Squid is the active release;
+# we track the newest stable per the "target latest" policy. The pinned digest
+# below freezes the build-time snapshot; the floating :v19 tag in the ref is
+# what the configurator HTML / mios.toml override should point at.
 # Ceph and K3s run as root (uid 0) by necessity: Ceph requires privileged
 # storage access; both are documented architectural exceptions to UNPRIVILEGED-EXECUTION.
 
@@ -18,7 +22,7 @@ ConditionPathExists=/etc/ceph/ceph.conf
 ConditionVirtualization=!container
 
 [Container]
-Image=quay.io/ceph/ceph:v18@sha256:69cbef90eb58cf96e572e7497227a2bcb0ec9175bc2247809c0a37857db9b820
+Image=quay.io/ceph/ceph:v19@sha256:af0c5903e901e329adabe219dfc8d0c3efc1f05102a753902f33ee16c26b6cee
 ContainerName=mios-ceph
 Network=mios.network
 Volume=/var/lib/ceph:/var/lib/ceph:Z

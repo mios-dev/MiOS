@@ -218,7 +218,7 @@ export MIOS_UNIT_OLLAMA_FIRSTBOOT MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
 # ── CONTAINERS / DISTROBOX ───────────────────────────────────────────
 : "${MIOS_DISTROBOX_AICHAT:=mios-aichat}"
 : "${MIOS_CONTAINER_AICHAT_IMAGE:=localhost/mios/aichat:latest}"
-: "${MIOS_CONTAINER_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:11}"
+: "${MIOS_CONTAINER_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:12}"
 : "${MIOS_CONTAINER_LOCALAI_IMAGE:=docker.io/localai/localai:latest}"
 : "${MIOS_CONTAINER_OLLAMA_IMAGE:=docker.io/ollama/ollama:latest}"
 
