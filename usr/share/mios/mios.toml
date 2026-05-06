@@ -258,6 +258,57 @@ ld_so_hwcaps_autoselect = true
 native_rebuild = false
 
 # ----------------------------------------------------------------------------
+# [security] -- sealed-image and tamper-evident root knobs.
+#
+# composefs_mode controls how /usr/lib/ostree/prepare-root.conf is
+# rendered by automation/40-composefs-verity.sh:
+#
+#   "verity"   composefs in fs-verity mode (default). Tamper-evident
+#              root: every ostree object is content-addressed and
+#              cryptographically chained back to a single trusted root
+#              digest. Requires the target filesystem to support
+#              fs-verity natively (ext4, btrfs). XFS does NOT support
+#              fs-verity and will fail to boot if this mode is selected
+#              on an XFS root.
+#   "yes"      composefs enabled without verity. Same content-addressed
+#              read-only /usr root, but no cryptographic integrity
+#              chain on individual objects. Works on every filesystem
+#              composefs supports (including XFS) and is the upstream
+#              FCOS / bootc default.
+#   "off"      do not write prepare-root.conf at all. Falls through to
+#              whatever the base image (ucore-hci / fedora-bootc /
+#              UBlue) already configured. Use this when running on a
+#              host that already has a custom prepare-root.conf you
+#              don't want MiOS to clobber.
+#
+# Why this is opt-in rather than always-on:
+#   - On bare-metal hosts with ext4/btrfs, "verity" is the strongest
+#     anti-tamper posture we can ship without rebuilding userland against
+#     a signing key (the native-rebuild track in [hwcaps]).
+#   - Inside WSL2 / podman-machine / cloud images that target XFS,
+#     "verity" will brick the deploy. "yes" keeps the read-only-/usr
+#     guarantee without the verity dependency on the underlying FS.
+#   - Day-N+1: when sealed-image fs-verity userspace + signing-key
+#     plumbing lands (the "sealed-image-track" referenced in
+#     usr/share/doc/mios/reference/bootc-comparison.md), this same key
+#     gates the cryptographic boot path. Operators who already set
+#     "verity" today inherit it automatically; operators on "off"/"yes"
+#     keep their existing posture.
+#
+# Default policy: "verity" matches the existing behavior of the script
+# before this knob was introduced (no behavior change for existing
+# deployments).
+# ----------------------------------------------------------------------------
+[security]
+composefs_mode = "verity"
+# When composefs is in verity mode, automation/40-composefs-verity.sh
+# also masks systemd-remount-fs.service (known-broken with composefs on
+# Fedora 42+). Set to false to skip the mask if the base image's
+# systemd-remount-fs has been patched. No effect when composefs_mode is
+# "yes" or "off".
+mask_systemd_remount_fs = true
+
+# ----------------------------------------------------------------------------
 # [packages] -- runtime SSOT for every dnf install in MiOS. Each
 # [packages.<section>] sub-table below carries a `pkgs = [...]` array;
 # automation/lib/packages.sh resolves them via the documented overlay
