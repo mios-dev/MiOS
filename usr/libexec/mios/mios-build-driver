@@ -134,6 +134,79 @@ else
     _fail "podman build failed -- see $LOG_FILE"
 fi
 
+# ── Multi-format deployment artifacts ────────────────────────────────────────
+# Per the self-replication architecture, the build pipeline produces
+# every deployment-shape MiOS targets. We use bootc-image-builder
+# (BIB) -- the upstream-canonical tool from the bootc project -- to
+# render the just-built OCI image into:
+#
+#   * vhdx          Hyper-V disk
+#   * qcow2         QEMU / virt-manager
+#   * iso           Live-CD / Live-USB / Anaconda installer media
+#   * raw           dd-able to any block device (USB stick, SD card)
+#   * wsl           tar.zst usable with `wsl --import` on Windows
+#
+# All artifacts go to /var/lib/mios/build/output/ inside MiOS-DEV.
+# When MiOS-DEV is hosting on M:\, that path is on the dedicated
+# 256 GB partition (junctioned via the mount setup in Windows entry).
+# Multi-GB artifact set comfortably fits.
+#
+# BIB is invoked via `podman run --rm --privileged --pull=newer` per
+# its documented invocation pattern. Each format runs separately so
+# a transient failure in one (e.g. ISO bootloader signing on a
+# locked-down host) doesn't kill the whole batch -- partial success
+# is logged and the operator can re-run with --type=<missing> to
+# fill gaps.
+#
+# Skipped if MIOS_SKIP_BIB=1 is set (useful for fast-iter dev cycles
+# where the operator only cares about the OCI image -- the bootc
+# switch above is the actual self-replication closure; BIB outputs
+# are for distributing the image to other machines).
+if [[ "${MIOS_SKIP_BIB:-0}" == "1" ]]; then
+    _log "MIOS_SKIP_BIB=1 -- skipping multi-format artifact build"
+else
+    _log ""
+    _log "── Multi-format deployment artifacts (bootc-image-builder) ──"
+    BIB_OUT="/var/lib/mios/build/output"
+    mkdir -p "$BIB_OUT"
+
+    BIB_IMG="${MIOS_BIB_IMAGE:-quay.io/centos-bootc/bootc-image-builder:latest}"
+    _log "BIB image: $BIB_IMG"
+    _log "Output dir: $BIB_OUT"
+
+    # The artifact format list. Operator can override via
+    # MIOS_BIB_FORMATS="vhdx qcow2" to skip slow ones during iteration.
+    BIB_FORMATS="${MIOS_BIB_FORMATS:-vhdx qcow2 iso raw wsl}"
+    _log "Formats: $BIB_FORMATS"
+
+    BIB_OK=()
+    BIB_FAIL=()
+    for fmt in $BIB_FORMATS; do
+        _log ""
+        _log "→ building $fmt …"
+        if sudo podman run --rm --privileged \
+                --pull=newer \
+                --security-opt label=type:unconfined_t \
+                -v "$BIB_OUT:/output:Z" \
+                -v /var/lib/containers/storage:/var/lib/containers/storage \
+                "$BIB_IMG" \
+                --type "$fmt" \
+                --local localhost/mios:latest 2>&1 | tee -a "$LOG_FILE"; then
+            _log "[ok] $fmt artifact written under $BIB_OUT"
+            BIB_OK+=("$fmt")
+        else
+            _log "[fail] $fmt build failed -- see $LOG_FILE"
+            BIB_FAIL+=("$fmt")
+        fi
+    done
+
+    _log ""
+    _log "BIB summary:"
+    _log "  succeeded: ${BIB_OK[*]:-(none)}"
+    _log "  failed:    ${BIB_FAIL[*]:-(none)}"
+    _log "  artifacts: $(ls -1 "$BIB_OUT" 2>/dev/null | tr '\n' ' ')"
+fi
+
 # ── Self-replication closure: MiOS-DEV becomes MiOS ──────────────────────────
 # Per feedback_mios_dev_equals_mios.md, podman-MiOS-DEV must contain
 # EVERYTHING that any MiOS deployment contains -- every package, every
