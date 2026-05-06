@@ -134,15 +134,85 @@ else
     _fail "podman build failed -- see $LOG_FILE"
 fi
 
+# ── Self-replication closure: MiOS-DEV becomes MiOS ──────────────────────────
+# Per feedback_mios_dev_equals_mios.md, podman-MiOS-DEV must contain
+# EVERYTHING that any MiOS deployment contains -- every package, every
+# Quadlet container image, every flatpak runtime + app, every ollama
+# model, every systemd unit. The cleanest way to achieve full feature
+# parity is `bootc switch` the running dev distro to the OCI image we
+# JUST built, then reboot. After reboot, MiOS-DEV is bit-for-bit MiOS.
+#
+# Why this is the right shape:
+#   * The MiOS OCI image (localhost/mios:latest) IS the canonical
+#     source of truth for "what MiOS contains". Anything that's in the
+#     image gets into the dev distro automatically. No separate
+#     dev-distro install path; no drift between "MiOS" and "MiOS-DEV".
+#   * `bootc switch --transport containers-storage` consumes the image
+#     directly from the local podman storage we just built into. No
+#     registry round-trip, no signature ceremony for a local build.
+#   * The reboot is required because bootc-style image-mode systems
+#     apply layered changes on next boot. WSL2 distros support
+#     `wsl --terminate <distro>` from the Windows side, OR
+#     `systemctl reboot` from inside (depending on systemd's WSL
+#     support). The latter is cleaner; the former is the fallback.
+#
+# This also closes the feature gap the operator hit when `epiphany`
+# /`nautilus` failed with "flatpak: not found" -- post-bootc-switch,
+# flatpak + every flatpak app the production image carries is in
+# place, and Epiphany works for SSOT toml/html editing via WSLg.
+_log ""
+_log "── Self-replication closure: bootc switch to localhost/mios:latest ──"
+_log "MiOS-DEV will reboot into the just-built MiOS image. After reboot,"
+_log "podman-MiOS-DEV IS MiOS -- every package, container, flatpak, model,"
+_log "and systemd unit, identical to a freshly-deployed MiOS host."
+
+if command -v bootc >/dev/null 2>&1; then
+    _log "running: sudo bootc switch --transport containers-storage localhost/mios:latest"
+    if sudo bootc switch --transport containers-storage localhost/mios:latest 2>&1 | tee -a "$LOG_FILE"; then
+        _log "bootc switch staged successfully -- new image will activate on reboot"
+        echo
+        echo "  +-- MiOS build complete -- self-replication closure ready --+"
+        echo "  |  OCI image:   localhost/mios:latest (just built)          |"
+        echo "  |  Build log:   $LOG_FILE"
+        echo "  |                                                            |"
+        echo "  |  bootc switch is staged. The next reboot of MiOS-DEV will  |"
+        echo "  |  activate the new image -- after that, MiOS-DEV IS MiOS    |"
+        echo "  |  with every package, container, flatpak, and model in      |"
+        echo "  |  place (Epiphany / Nautilus / GNOME runtime / mios-forge / |"
+        echo "  |  mios-ai / mios-ollama / mios-searxng / mios-hermes /      |"
+        echo "  |  mios-webui / etc).                                        |"
+        echo "  +------------------------------------------------------------+"
+        echo
+        echo "  Press Enter to reboot MiOS-DEV now (recommended), or Ctrl-C to defer."
+        read -r _ || true
+        _log "rebooting MiOS-DEV to activate the new image..."
+        sudo systemctl reboot 2>/dev/null || {
+            _log "systemctl reboot failed -- run \`wsl --terminate podman-MiOS-DEV\` from Windows then \`wsl -d podman-MiOS-DEV\` to reactivate"
+        }
+    else
+        _log "WARN: bootc switch failed -- the OCI image was built successfully but isn't applied to the running distro"
+        _log "WARN: full feature parity (flatpak + every package + every container) is NOT yet in podman-MiOS-DEV"
+        _log "WARN: re-run this driver once the bootc switch issue is resolved, OR rebuild the WSL distro from the freshly-built image"
+        echo
+        echo "  +-- MiOS build complete -- bootc switch failed -------------+"
+        echo "  |  OCI image:   localhost/mios:latest (built)               |"
+        echo "  |  Build log:   $LOG_FILE"
+        echo "  |  Status:      switch FAILED -- runtime parity not yet     |"
+        echo "  |               applied to MiOS-DEV. See log for details.   |"
+        echo "  +------------------------------------------------------------+"
+    fi
+else
+    _log "WARN: bootc binary not found -- MiOS-DEV's base image lacks bootc"
+    _log "WARN: cannot close the self-replication loop on this run"
+    _log "WARN: install bootc into the dev distro (rpm-ostree install bootc + reboot) and re-run this driver"
+    echo
+    echo "  +-- MiOS build complete -- bootc not installed -------------+"
+    echo "  |  OCI image:   localhost/mios:latest (built)               |"
+    echo "  |  Build log:   $LOG_FILE"
+    echo "  |  Status:      bootc not present in MiOS-DEV; run           |"
+    echo "  |               'sudo rpm-ostree install bootc' + reboot,    |"
+    echo "  |               then re-invoke /usr/libexec/mios/            |"
+    echo "  |               mios-build-driver to close the loop.         |"
+    echo "  +------------------------------------------------------------+"
+fi
 _log "build-driver complete"
-echo
-echo "  +-- MiOS build complete -----------------------------------+"
-echo "  |  OCI image:   localhost/mios:latest                      |"
-echo "  |  Build log:   $LOG_FILE"
-echo "  |                                                          |"
-echo "  |  Next chunks will produce: WSL2/g .tar, Hyper-V .vhdx,   |"
-echo "  |  QEMU qcow2, Live-CD/USB ISO, USB installer, RAW image.  |"
-echo "  +----------------------------------------------------------+"
-echo
-echo "  Press Enter to close this terminal, or run \`bash\` to drop into a shell..."
-read -r _ || true
