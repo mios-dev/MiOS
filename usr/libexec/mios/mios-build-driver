@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# /usr/libexec/mios/mios-build-driver
+#
+# Entry point for the inside-MiOS-DEV phase of the MiOS build pipeline.
+#
+# This script is INVOKED FROM WINDOWS (via `wt.exe new-tab wsl.exe -d
+# MiOS-DEV ... bash /usr/libexec/mios/mios-build-driver`) AFTER the
+# Windows-side bootstrap finishes:
+#
+#   Day-0 split (per the self-replication architecture):
+#     * Windows side  irm | iex -> ack -> MiOS-DEV podman machine setup
+#     * <handoff>     Show-PostBootstrapMenu choice "Continue to build"
+#                     spawns a fresh Windows Terminal hosting `wsl.exe
+#                     -d MiOS-DEV` running THIS driver
+#     * MiOS-DEV side fetch + overlay + identity + FULL build pipeline
+#                     for all output formats (OCI, WSL2/g, Hyper-V,
+#                     QEMU, Live-CD/USB, USB installer, RAW)
+#
+# The Windows side does NOT stream the build dashboard back -- the
+# dashboard renders on MiOS-DEV's tty inside the SSH/wsl session, and
+# the Windows Terminal is the host of that tty. That keeps the
+# multi-GB, multi-image build off the WSL2/Windows boundary.
+#
+# Idempotent: re-running picks up where the previous attempt left off
+# (clone is shallow; build cache is podman-managed; identity is
+# already-saved-to-/etc/mios/install.env on second run).
+set -euo pipefail
+
+# ── MiOS dashboard (banner + fastfetch + motd stats) ─────────────────────────
+# The operator's expectation per the architecture memo is that the
+# Windows-Terminal-hosted SSH window shows the unified MiOS dashboard,
+# not just plain build output. /etc/issue.d/ has the live banner
+# rendered by mios-dashboard-issue.service; printing it once here
+# anchors the operator in the MiOS context before the build noise
+# starts.
+if command -v mios-dashboard >/dev/null 2>&1; then
+    mios-dashboard 2>/dev/null || true
+elif [[ -f /etc/motd ]]; then
+    cat /etc/motd 2>/dev/null || true
+fi
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+LOG_DIR="/var/log/mios"
+LOG_FILE="${LOG_DIR}/build-driver-$(date +%Y%m%d-%H%M%S).log"
+mkdir -p "$LOG_DIR"
+echo "[mios-build-driver] starting at $(date -Iseconds)" | tee -a "$LOG_FILE"
+echo "[mios-build-driver] logging to $LOG_FILE"
+
+_log() { echo "[mios-build-driver] $*" | tee -a "$LOG_FILE"; }
+_fail() { _log "FATAL: $*"; exit 1; }
+
+# ── Pre-flight ───────────────────────────────────────────────────────────────
+WORKDIR="${MIOS_BUILD_WORKDIR:-/var/lib/mios/build}"
+mkdir -p "$WORKDIR"
+
+# Resolve the MiOS repo location. Three candidates in priority order:
+#   1. /.git -- live working tree (canonical when running on a real
+#      MiOS host where `.git IS /` per the self-replication contract)
+#   2. /var/lib/mios/build/mios -- the dedicated build workspace
+#   3. /ctx -- the build-context bind mount inside `podman build`
+MIOS_REPO=""
+if [[ -d /.git ]]; then
+    MIOS_REPO="/"
+    _log "MiOS repo: live root (/.git present -- self-replication path)"
+elif [[ -d "$WORKDIR/mios/.git" ]]; then
+    MIOS_REPO="$WORKDIR/mios"
+    _log "MiOS repo: $MIOS_REPO (build workspace)"
+else
+    _log "MiOS repo not found -- cloning to $WORKDIR/mios"
+    mkdir -p "$WORKDIR/mios"
+    git clone --depth=1 https://github.com/mios-dev/mios.git "$WORKDIR/mios" \
+        2>&1 | tee -a "$LOG_FILE" \
+        || _fail "git clone of mios.git failed -- check network connectivity"
+    MIOS_REPO="$WORKDIR/mios"
+fi
+
+# mios-bootstrap is needed for build helper scripts under automation/lib/.
+BOOT_REPO=""
+if [[ -d "$WORKDIR/mios-bootstrap/.git" ]]; then
+    BOOT_REPO="$WORKDIR/mios-bootstrap"
+elif [[ -d /opt/mios-bootstrap/.git ]]; then
+    BOOT_REPO="/opt/mios-bootstrap"
+else
+    _log "mios-bootstrap repo not found -- cloning to $WORKDIR/mios-bootstrap"
+    mkdir -p "$WORKDIR/mios-bootstrap"
+    git clone --depth=1 https://github.com/mios-dev/mios-bootstrap.git "$WORKDIR/mios-bootstrap" \
+        2>&1 | tee -a "$LOG_FILE" \
+        || _fail "git clone of mios-bootstrap.git failed -- check network connectivity"
+    BOOT_REPO="$WORKDIR/mios-bootstrap"
+fi
+_log "mios-bootstrap repo: $BOOT_REPO"
+
+# ── Identity ─────────────────────────────────────────────────────────────────
+# /etc/mios/install.env is written by the Windows side BEFORE handoff
+# (Phase 7 in build-mios.ps1) so the prompts already happened on the
+# Windows side this round. Future migration chunks move the prompts
+# in here so the operator answers them in the MiOS-DEV terminal --
+# NOT in Windows -- per the architecture memo.
+if [[ -f /etc/mios/install.env ]]; then
+    _log "identity loaded from /etc/mios/install.env (written by Windows side)"
+    # shellcheck disable=SC1091
+    source /etc/mios/install.env
+else
+    _log "WARN: /etc/mios/install.env missing -- identity prompts not yet migrated to MiOS-DEV side"
+    _log "WARN: build will use vendor defaults from usr/share/mios/env.defaults"
+fi
+
+# ── Build invocation ─────────────────────────────────────────────────────────
+# automation/build.sh expects to run inside a `podman build` against the
+# Containerfile. Outside that context it's a no-op driver entry. The
+# canonical way to drive the build from here is:
+#
+#     cd <MIOS_REPO> && podman build -t localhost/mios:latest .
+#
+# The Containerfile then RUNs automation/build.sh with /ctx bind-mounted
+# at the repo root, which in turn exec's every automation/[0-9][0-9]-*.sh
+# step in order, masking secrets, capturing logs, etc.
+#
+# For now this driver is a SCAFFOLD. Subsequent migration chunks will
+# wire in:
+#   * Multi-format output via bootc-image-builder (vhdx, qcow2, iso, raw)
+#   * Identity-prompt migration from build-mios.ps1 Phase 6
+#   * Dashboard renderer matching the Windows-side ASCII-frame UI
+#   * WSLg/Wayland verification for Epiphany SSOT-config editing
+_log "starting podman build at $MIOS_REPO"
+_log "  podman build -t localhost/mios:latest -f Containerfile $MIOS_REPO"
+
+if cd "$MIOS_REPO" && podman build \
+        -t localhost/mios:latest \
+        -f Containerfile \
+        . 2>&1 | tee -a "$LOG_FILE"; then
+    _log "podman build succeeded"
+else
+    _fail "podman build failed -- see $LOG_FILE"
+fi
+
+_log "build-driver complete"
+echo
+echo "  +-- MiOS build complete -----------------------------------+"
+echo "  |  OCI image:   localhost/mios:latest                      |"
+echo "  |  Build log:   $LOG_FILE"
+echo "  |                                                          |"
+echo "  |  Next chunks will produce: WSL2/g .tar, Hyper-V .vhdx,   |"
+echo "  |  QEMU qcow2, Live-CD/USB ISO, USB installer, RAW image.  |"
+echo "  +----------------------------------------------------------+"
+echo
+echo "  Press Enter to close this terminal, or run \`bash\` to drop into a shell..."
+read -r _ || true
