@@ -76,7 +76,7 @@ elif [[ -d "$WORKDIR/mios/.git" ]]; then
 else
     _log "MiOS repo not found -- cloning to $WORKDIR/mios"
     mkdir -p "$WORKDIR/mios"
-    git clone --depth=1 https://github.com/mios-dev/mios.git "$WORKDIR/mios" \
+    git clone --depth=1 https://github.com/mios-dev/MiOS.git "$WORKDIR/mios" \
         2>&1 | tee -a "$LOG_FILE" \
         || _fail "git clone of mios.git failed -- check network connectivity"
     MIOS_REPO="$WORKDIR/mios"

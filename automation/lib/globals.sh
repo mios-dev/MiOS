@@ -137,7 +137,7 @@ export MIOS_AI_ENDPOINT MIOS_FORGE_URL MIOS_COCKPIT_URL MIOS_OLLAMA_URL
 export MIOS_SEARXNG_URL MIOS_HERMES_URL MIOS_WEBUI_URL
 
 # ── REPOS ────────────────────────────────────────────────────────────
-: "${MIOS_REPO_URL:=https://github.com/mios-dev/mios.git}"
+: "${MIOS_REPO_URL:=https://github.com/mios-dev/MiOS.git}"
 : "${MIOS_BOOTSTRAP_REPO_URL:=https://github.com/mios-dev/mios-bootstrap.git}"
 : "${MIOS_LOCAL_FORGE_REPO:=http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git}"
 export MIOS_REPO_URL MIOS_BOOTSTRAP_REPO_URL MIOS_LOCAL_FORGE_REPO

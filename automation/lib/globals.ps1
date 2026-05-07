@@ -96,7 +96,7 @@ $script:MIOS_HERMES_URL   = if ($env:MIOS_HERMES_URL)   { $env:MIOS_HERMES_URL }
 $script:MIOS_WEBUI_URL    = if ($env:MIOS_WEBUI_URL)    { $env:MIOS_WEBUI_URL }    else { "http://localhost:$($script:MIOS_PORT_WEBUI)/" }
 
 # ── REPOS ────────────────────────────────────────────────────────────
-$script:MIOS_REPO_URL           = if ($env:MIOS_REPO_URL)           { $env:MIOS_REPO_URL }           else { 'https://github.com/mios-dev/mios.git' }
+$script:MIOS_REPO_URL           = if ($env:MIOS_REPO_URL)           { $env:MIOS_REPO_URL }           else { 'https://github.com/mios-dev/MiOS.git' }
 $script:MIOS_BOOTSTRAP_REPO_URL = if ($env:MIOS_BOOTSTRAP_REPO_URL) { $env:MIOS_BOOTSTRAP_REPO_URL } else { 'https://github.com/mios-dev/mios-bootstrap.git' }
 $script:MIOS_LOCAL_FORGE_REPO   = if ($env:MIOS_LOCAL_FORGE_REPO)   { $env:MIOS_LOCAL_FORGE_REPO }   else { "http://localhost:$($script:MIOS_PORT_FORGE_HTTP)/mios/mios.git" }
 

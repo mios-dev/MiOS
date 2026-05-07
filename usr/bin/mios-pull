@@ -64,7 +64,7 @@ fi
 
 # /etc/profile.d/mios-env.sh layers vendor/host/user mios.toml into env
 # vars before login shells run; we honor that here without re-parsing TOML.
-MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/mios-dev/mios.git}"
+MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/mios-dev/MiOS.git}"
 MIOS_BOOTSTRAP_REPO_URL="${MIOS_BOOTSTRAP_REPO_URL:-https://github.com/mios-dev/mios-bootstrap.git}"
 
 C_R=$'\033[0m'; C_B=$'\033[1m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_GRY=$'\033[90m'
