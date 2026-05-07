@@ -248,14 +248,21 @@ minimal_name = "ghcr.io/mios-dev/mios-minimal"
 # image at ~6 GB compressed, expect ~30-40 GB output.
 # ----------------------------------------------------------------------------
 [deployment]
-target_vhdx  = true     # Hyper-V VM disk (Windows guest VMs, Azure)
-target_qcow2 = true     # QEMU/KVM disk for libvirt / Proxmox / GNOME Boxes
-target_iso   = true     # bootable ISO (live + installer)
-target_raw   = true     # raw disk image (write directly to disk; bare-metal)
-target_wsl   = true     # WSL2 rootfs tarball (sibling MiOS-DEV deployments)
-target_ami   = false    # AWS AMI (default OFF; needs aws-cli + signing)
-target_ova   = false    # vSphere OVA (default OFF; needs ovftool)
-target_anaconda_iso = false  # Anaconda-based installer ISO (default OFF; slower build)
+# BIB-supported types: ami, anaconda-iso, bootc-installer, gce, iso,
+# ova, pxe-tar-xz, qcow2, raw, vhd, vmdk. Names below map directly
+# (target_vhd → vhd, etc.) per the resolver's `target_<bib_type>`
+# convention. There is no `wsl` BIB type; for WSL2 distributions
+# we use podman save + post-process the tarball outside of BIB.
+target_qcow2        = true   # QEMU/KVM disk (libvirt / Proxmox / GNOME Boxes)
+target_iso          = true   # bootc-installer ISO (live + installer)
+target_anaconda_iso = true   # Anaconda-based installer ISO (Fedora-style)
+target_raw          = true   # raw disk image (dd-able to USB / bare-metal)
+target_vhd          = true   # Hyper-V VM disk (Windows guest VMs, Azure)
+target_vmdk         = false  # VirtualBox / VMware
+target_ami          = false  # AWS AMI (needs aws-cli + signing)
+target_ova          = false  # vSphere OVA (needs ovftool)
+target_gce          = false  # Google Compute Engine
+target_pxe_tar_xz   = false  # PXE network boot tarball
 
 # ----------------------------------------------------------------------------
 # [hwcaps] -- x86-64 microarchitecture level for runtime-selected
