@@ -10,10 +10,43 @@
 source "$(dirname "${BASH_SOURCE[0]}")/masking.sh"
 # shellcheck source=lib/paths.sh
 source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"
+
+# tools/lib/userenv.sh -- TOML-as-singular-SSOT resolver. Sourced
+# BEFORE globals.sh so that MIOS_* env vars emitted from the layered
+# mios.toml (vendor < host < user) take precedence over globals.sh's
+# `:=` shell-default fallbacks. Silently no-ops if the userenv.sh
+# path can't be located (e.g. when automation/ runs outside a full
+# repo checkout) or when python3 isn't available yet.
+_mios_locate_userenv() {
+    local self_dir="$(dirname "${BASH_SOURCE[0]}")"
+    local candidates=(
+        "${self_dir}/../../tools/lib/userenv.sh"
+        "/tools/lib/userenv.sh"
+        "/ctx/tools/lib/userenv.sh"
+        "/usr/share/mios/tools/lib/userenv.sh"
+    )
+    for c in "${candidates[@]}"; do
+        if [[ -f "$c" ]]; then
+            printf '%s' "$c"
+            return 0
+        fi
+    done
+    return 1
+}
+_mios_userenv_path="$(_mios_locate_userenv 2>/dev/null || true)"
+if [[ -n "$_mios_userenv_path" ]]; then
+    # shellcheck source=/dev/null
+    source "$_mios_userenv_path"
+fi
+unset _mios_userenv_path
+unset -f _mios_locate_userenv
+
 # shellcheck source=lib/globals.sh
-# globals.sh is the single registry for VERSION + USERS + IMAGES +
-# PORTS + URLS + REPOS. Sourced after paths.sh so it can derive
-# defaults from MIOS_ETC_DIR / MIOS_VAR_DIR if needed in future.
+# globals.sh is the registry for VERSION + USERS + IMAGES + PORTS +
+# URLS + REPOS. Its `:=` assignments are fallbacks; userenv.sh above
+# already exported the same names from mios.toml when the TOML had
+# them. globals.sh fills in any gaps (e.g. if no TOML layer is
+# present yet during early build).
 source "$(dirname "${BASH_SOURCE[0]}")/globals.sh"
 
 # --- Logging ----------------------------------------------------------------

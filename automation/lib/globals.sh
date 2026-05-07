@@ -109,6 +109,10 @@ export MIOS_IMAGE_NAME MIOS_IMAGE_TAG MIOS_IMAGE_REF
 export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 
 # ── PORTS ────────────────────────────────────────────────────────────
+# Defaults below are fallbacks. mios.toml [ports].* (resolved through
+# tools/lib/userenv.sh — sourced ahead of this file by common.sh) is
+# the SSOT; these `:=` assignments are no-ops when userenv.sh has
+# already exported the same names from the layered TOML.
 : "${MIOS_PORT_SSH:=22}"
 : "${MIOS_PORT_FORGE_HTTP:=3000}"
 : "${MIOS_PORT_FORGE_SSH:=2222}"
@@ -119,9 +123,14 @@ export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 : "${MIOS_PORT_HERMES:=8642}"
 : "${MIOS_PORT_WEBUI:=3030}"
 : "${MIOS_PORT_COCKPIT_LINK:=19090}"   # podman-desktop discovery shim
+: "${MIOS_K3S_API_PORT:=6443}"
+: "${MIOS_GUACAMOLE_PORT:=8090}"       # mios-guacamole web (mapped from container :8080)
+: "${MIOS_CEPH_DASHBOARD_PORT:=8443}"
+: "${MIOS_RDP_PORT:=3389}"             # GNOME Remote Desktop / xRDP
 export MIOS_PORT_SSH MIOS_PORT_FORGE_HTTP MIOS_PORT_FORGE_SSH
 export MIOS_PORT_LOCALAI MIOS_PORT_COCKPIT MIOS_PORT_OLLAMA
 export MIOS_PORT_SEARXNG MIOS_PORT_HERMES MIOS_PORT_WEBUI MIOS_PORT_COCKPIT_LINK
+export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_PORT
 
 # ── URLS ─────────────────────────────────────────────────────────────
 # Derived from PORTS so a single port change propagates. MIOS_AI_ENDPOINT
