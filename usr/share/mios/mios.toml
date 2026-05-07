@@ -417,6 +417,70 @@ sections = [
     "looking-glass-build", "android",
 ]
 
+[packages.windows]
+# Windows-side winget package list installed by mios-bootstrap's
+# Get-MiOS.ps1 Pass-1 (current-user scope). Read by the bootstrap
+# at install time -- this is the SSOT for "what gets installed on
+# the operator's Windows host"; the hardcoded list previously in
+# Get-MiOS.ps1 has been removed in favor of this section per
+# operator instruction "ALL Global packages SOURCE FROM THE
+# TOML/HTML FILE!!!".
+#
+# To override per-operator: drop a [packages.windows] table in
+# ~/.config/mios/mios.toml with your own pkgs = [...] -- replaces
+# this list field-for-field per the layered TOML resolver.
+#
+# Default = strictly-needed runtime/toolchain + MiOS terminal CLI
+# surface only. No browser/editor/utility GUIs (operator brings
+# their own). Bloat-free per 2026-05 directive.
+enable = true
+pkgs = [
+    # ── Critical runtime / toolchain ─────────────────────────────
+    "Git.Git",                       # git for clone + fetch + reset
+    "Microsoft.PowerShell",          # pwsh 7 (trampoline target)
+    "Microsoft.WSL",                 # Windows Subsystem for Linux 2
+    "Microsoft.WindowsTerminal",     # WT (also installed earlier; idempotent)
+    "7zip.7zip",                     # archive support
+    "Microsoft.VCRedist.2015+.x64",  # VC++ runtime
+    # ── MiOS terminal CLI surface (mirrors the deployed Linux side) ─
+    "sharkdp.bat",                   # syntax-highlighted cat
+    "sharkdp.fd",                    # fast find
+    "BurntSushi.ripgrep.MSVC",       # rg
+    "junegunn.fzf",                  # fuzzy finder
+    "jqlang.jq",                     # JSON query
+    "GitHub.cli",                    # gh
+    "aristocratos.btop4win",         # btop (Windows port)
+    "fastfetch-cli.fastfetch",       # fastfetch
+]
+
+[packages.dev_vm_essentials]
+# Minimum DNF package set installed into podman-MiOS-DEV at Phase-3
+# provisioning so the build pipeline can RUN -- mkpasswd / openssl /
+# passlib for password hashing, bootc for the self-replication
+# closure, git for the in-distro clone, iptables/nftables for
+# netavark networking, fastfetch + oh-my-posh + bash-completion for
+# the MiOS terminal experience pre-bootc-switch.
+#
+# This is the SEED layer; full feature parity (every package in
+# every other [packages.<section>] above) lands via bootc switch
+# at end of mios-build-driver per feedback_mios_dev_equals_mios.md.
+# To customize, drop a [packages.dev_vm_essentials] table in a
+# higher-precedence layer with your own pkgs list.
+enable = true
+pkgs = [
+    "mkpasswd",            # sha512crypt password hash
+    "whois",               # mkpasswd is in mkpasswd pkg on F44, but ship whois too
+    "openssl",             # password fallback + general TLS
+    "python3-passlib",     # password fallback (Python 3.13+ removed crypt)
+    "bootc",               # bootc switch + self-replication closure
+    "git",                 # in-distro clone
+    "iptables",            # netavark backend (binary; firewall_driver=none)
+    "nftables",            # netavark alternative backend
+    "fastfetch",           # MiOS dashboard / motd
+    "oh-my-posh",          # MiOS themed prompt
+    "bash-completion",     # tab-complete in interactive shells
+]
+
 [packages.dev_overlay]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 # MiOS-DEV (podman-WSL2 backend on Windows) minimal-but-complete:
