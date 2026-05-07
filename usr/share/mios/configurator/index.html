@@ -481,7 +481,7 @@
         <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="19">
       </fieldset>
       <fieldset>
-        <legend>theme</legend>
+        <legend>theme (acrylic 50% / frame-less / scrollbar-less = MiOS GLOBAL defaults)</legend>
         <label for="f-theme-mode">mode</label>
         <select id="f-theme-mode" data-key="theme.mode">
           <option value="dark">dark</option>
@@ -489,17 +489,42 @@
         </select>
         <div class="checkbox-row">
           <input type="checkbox" id="f-theme-acrylic" data-key="theme.acrylic">
-          <label for="f-theme-acrylic">acrylic (WT background blur)</label>
+          <label for="f-theme-acrylic">acrylic (WT useAcrylic ON)</label>
         </div>
-        <label for="f-theme-opacity">opacity (0.0 - 1.0)</label>
-        <input type="text" id="f-theme-opacity" data-key="theme.opacity" data-type="float" placeholder="0.85">
+        <label for="f-theme-opacity">opacity (0-100; 50 = 50% transparency)</label>
+        <input type="text" id="f-theme-opacity" data-key="theme.opacity" data-type="int" placeholder="50">
+        <label for="f-theme-backdrop">system_backdrop (WT 1.18+)</label>
+        <select id="f-theme-backdrop" data-key="theme.system_backdrop">
+          <option value="acrylic">acrylic</option>
+          <option value="mica">mica</option>
+          <option value="default">default</option>
+        </select>
         <label for="f-theme-cursor">cursor_shape</label>
         <select id="f-theme-cursor" data-key="theme.cursor_shape">
+          <option value="bar">bar</option>
           <option value="filledBox">filledBox</option>
           <option value="emptyBox">emptyBox</option>
-          <option value="bar">bar</option>
           <option value="underscore">underscore</option>
           <option value="vintage">vintage</option>
+        </select>
+        <label for="f-theme-scroll">scrollbar_state</label>
+        <select id="f-theme-scroll" data-key="theme.scrollbar_state">
+          <option value="hidden">hidden (frame uses every col)</option>
+          <option value="visible">visible</option>
+          <option value="always">always</option>
+        </select>
+        <label for="f-theme-pad">padding</label>
+        <input type="text" id="f-theme-pad" data-key="theme.padding" placeholder="0">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-theme-supp" data-key="theme.suppress_app_title">
+          <label for="f-theme-supp">suppress_app_title (WT doesn't override our title)</label>
+        </div>
+        <label for="f-theme-launch">launch_mode</label>
+        <select id="f-theme-launch" data-key="theme.launch_mode">
+          <option value="focus">focus (frame-less / no-titlebar / no-tab-row)</option>
+          <option value="default">default</option>
+          <option value="maximized">maximized</option>
+          <option value="fullscreen">fullscreen</option>
         </select>
       </fieldset>
       <fieldset>
