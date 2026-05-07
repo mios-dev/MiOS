@@ -468,7 +468,7 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>terminal (80x20 = MiOS portal default; 80x30 for taller console)</legend>
+        <legend>terminal (post-install MiOS app: 80x20 portal feel)</legend>
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>
@@ -479,6 +479,13 @@
         <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="79">
         <label for="f-term-fh">frame_height (rows - 1)</label>
         <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="19">
+      </fieldset>
+      <fieldset>
+        <legend>terminal.install (BOOTSTRAP window: 80x40 for install output + readme)</legend>
+        <label for="f-tinst-cols">cols</label>
+        <input type="text" id="f-tinst-cols" data-key="terminal.install.cols" data-type="int" placeholder="80">
+        <label for="f-tinst-rows">rows</label>
+        <input type="text" id="f-tinst-rows" data-key="terminal.install.rows" data-type="int" placeholder="40">
       </fieldset>
       <fieldset>
         <legend>theme (acrylic 50% / frame-less / scrollbar-less = MiOS GLOBAL defaults)</legend>
@@ -911,7 +918,7 @@ function emitToml(sections) {
   const order = ["meta", "identity", "locale", "auth", "network", "ai",
                  "desktop", "colors", "image", "bootstrap",
                  "bootstrap.host_storage", "bootstrap.dev_vm",
-                 "terminal", "theme", "theme.font", "theme.terminal",
+                 "terminal", "terminal.install", "theme", "theme.font", "theme.terminal",
                  "theme.prompt", "branding", "branding.dashboard",
                  "apps", "apps.shortcuts", "preflight", "network.retry",
                  "profile", "quadlets.enable", "env"];

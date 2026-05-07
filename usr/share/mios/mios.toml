@@ -1302,6 +1302,16 @@ frame_width         = 79      # cols - 1 -- dashboard box width
 frame_height        = 19      # rows - 1 -- dashboard box max height
 
 # ----------------------------------------------------------------------------
+# [terminal.install] -- the BOOTSTRAP window dims (taller so the install
+# output / readme / acknowledgements / Pass-1 + Pass-2 logs fit without
+# scrolling). The post-install MiOS app uses [terminal] above (80x20
+# portal feel). The install conhost uses these dims.
+# ----------------------------------------------------------------------------
+[terminal.install]
+cols                = 80
+rows                = 40      # taller for install output + readme
+
+# ----------------------------------------------------------------------------
 # [theme] -- visual styling tokens. The [colors] table above defines
 # the palette; this section names the typography, opacity, prompt,
 # and per-host theme switches that consumers (WT settings.json patcher,
