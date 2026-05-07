@@ -1287,14 +1287,19 @@ disk_size_gb        = 100
 # ----------------------------------------------------------------------------
 # [terminal] -- canonical MiOS terminal dimensions. EVERY spawned shell
 # (wt.exe new-tab, conhost fallback, wsl.exe into MiOS-DEV, the
-# auto-elevated bootstrap window, the native-app launcher) opens at
-# exactly cols × rows so the dashboard's 80-col frame renders cleanly.
+# auto-elevated bootstrap window, the native-app launcher, Linux tty0
+# console via /etc/profile.d/mios-tty.sh) opens at exactly cols × rows.
+# Frame dims are cols-1 / rows-1 so the dashboard's box-drawing fits
+# inside the borderless + scrollbar-less MiOS terminal without the
+# right border colliding with the line-wrap boundary.
 # Per memory feedback_mios_terminal_dimensions.
 # ----------------------------------------------------------------------------
 [terminal]
 cols                = 80
-rows                = 40
+rows                = 30      # 30 = MiOS default; bump to 20 for a tighter portal-feel
 scrollback_rows     = 9000
+frame_width         = 79      # cols - 1 -- dashboard box width
+frame_height        = 29      # rows - 1 -- dashboard box max height
 
 # ----------------------------------------------------------------------------
 # [theme] -- visual styling tokens. The [colors] table above defines
