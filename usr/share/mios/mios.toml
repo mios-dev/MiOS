@@ -1200,6 +1200,145 @@ pkgs = [
 # launched it. Ptyxis / GNOME Terminal also read this same TOML via
 # the configurator HTML when the operator picks a custom override.
 # ----------------------------------------------------------------------------
+
+# ============================================================================
+# INFRASTRUCTURE CONSTANTS — migrated from /usr/share/mios/env.defaults
+# ============================================================================
+# These sections capture every operator-tunable infrastructure constant
+# that previously lived in env.defaults. Per the project's TOML-as-
+# singular-SSOT directive, mios.toml is now the canonical source for
+# ports / sidecar pins / service identities / runtime paths / build
+# tunables. tools/lib/userenv.sh emits MIOS_* env vars from these
+# sections; consumer scripts source userenv.sh and read the env vars.
+#
+# Hardcoded values that could live in mios.toml are bugs.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# [ports] -- canonical port allocations. MUST stay in sync with
+# automation/25-firewall-ports.sh (firewall-offline-cmd at build time)
+# and automation/33-firewall.sh (runtime mios-firewall-init). Both
+# consume MIOS_PORT_* env vars synthesized from these slots by
+# tools/lib/userenv.sh, so editing here flows through end-to-end.
+#
+# Service access surface contract: every service binds 0.0.0.0 inside
+# its Quadlet and the firewall is what gates LAN reachability. See
+# usr/share/mios/ai/INDEX.md §5b.
+# ----------------------------------------------------------------------------
+[ports]
+ssh                = 22       # host sshd
+forge_http         = 3000     # Forgejo HTTP web UI
+forge_ssh          = 2222     # Forgejo git+ssh (non-22 to coexist with sshd)
+localai            = 8080     # mios-ai LocalAI /v1 (LAW 5 canonical endpoint)
+cockpit            = 9090     # host Cockpit web console
+cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
+ollama             = 11434    # alternate local LLM backend
+searxng            = 8888     # local privacy-respecting metasearch
+hermes             = 8642     # Hermes-Agent OpenAI-compatible gateway
+webui              = 3030     # Open WebUI (port 3030 because mios-ai owns 8080)
+k3s_api            = 6443     # K3s Kubernetes API
+guacamole_web      = 8090     # mios-guacamole browser desktop
+ceph_dashboard     = 8443     # Ceph dashboard
+rdp                = 3389     # GNOME Remote Desktop / xRDP
+
+# ----------------------------------------------------------------------------
+# [image.sidecars] -- pinned upstream container references for every
+# Quadlet sidecar. version + image (where present) are paired; consumers
+# read either via MIOS_<svc>_VERSION / MIOS_<svc>_IMAGE.
+# ----------------------------------------------------------------------------
+[image.sidecars]
+localai_version    = "v2.20.0"
+localai            = "localai/localai:v2.20.0"
+k3s_version        = "v1.32.1-k3s1"
+k3s                = "rancher/k3s:v1.32.1-k3s1"
+ceph_version       = "v19"
+ceph               = "quay.io/ceph/ceph:v19"
+forge_version      = "12"
+forge              = "codeberg.org/forgejo/forgejo:12"
+searxng_version    = "latest"
+searxng            = "docker.io/searxng/searxng:latest"
+hermes_version     = "latest"
+hermes             = "docker.io/nousresearch/hermes-agent:latest"
+webui_version      = "latest"
+webui              = "docker.io/openwebui/open-webui:latest"
+bib_alpine         = "docker.io/library/alpine:latest"
+
+# ----------------------------------------------------------------------------
+# [services.<svc>] -- per-service identity (UID / GID / username) baked
+# at OVERLAY TIME via /usr/lib/sysusers.d/*.conf + automation/31-user.sh
+# + /usr/lib/tmpfiles.d/mios-user.conf. Never propose runtime patches
+# to /etc/passwd / /etc/subuid / /etc/subgid in firstboot scripts —
+# the principle is "native Fedora user creation at overlay time".
+# Numeric UID allocations match /usr/lib/sysusers.d/mios-*.conf.
+# ----------------------------------------------------------------------------
+[services.forge]
+user = "mios-forge"
+uid  = 816
+gid  = 816
+
+[services.localai]
+user = "mios-ai"
+uid  = 817
+gid  = 817
+
+[services.searxng]
+user = "mios-searxng"
+uid  = 818
+gid  = 818
+
+[services.ceph]
+user = "mios-ceph"
+uid  = 819
+gid  = 819
+
+[services.hermes]
+user = "mios-hermes"
+uid  = 820
+gid  = 820
+
+[services.webui]
+user = "mios-webui"
+uid  = 821
+gid  = 821
+
+# ----------------------------------------------------------------------------
+# [paths] -- canonical FHS paths for runtime artifacts. Consumed by
+# every script that needs to know where AI memory, scratch, journal,
+# install env, or first-boot sentinels live.
+# ----------------------------------------------------------------------------
+[paths]
+ai_dir              = "/usr/share/mios/ai"
+ai_models_dir       = "/srv/ai/models"
+ai_mcp_dir          = "/srv/ai/mcp"
+ai_scratch_dir      = "/var/lib/mios/ai/scratch"
+ai_memory_dir       = "/var/lib/mios/ai/memory"
+ai_journal          = "/var/lib/mios/ai/journal.md"
+install_env         = "/etc/mios/install.env"
+profile_toml_vendor = "/usr/share/mios/profile.toml"
+profile_toml_host   = "/etc/mios/profile.toml"
+wsl_firstboot_done  = "/var/lib/mios/.wsl-firstboot-done"
+ollama_firstboot_done = "/var/lib/mios/.ollama-firstboot-done"
+ollama_seed_dir     = "/usr/share/ollama/models"   # immutable, build-baked
+ollama_runtime_dir  = "/var/lib/ollama/models"      # writable, first-boot-seeded
+mios_toml           = "/usr/share/mios/mios.toml"   # this file's vendor path
+
+# ----------------------------------------------------------------------------
+# [build] -- build-time tunables consumed by automation/[NN]-*.sh and
+# the mios-build-driver.
+# ----------------------------------------------------------------------------
+[build]
+rechunk_max_layers = 67   # hhd-dev/rechunk: max OCI layer count post-rechunk
+ai_ram_floor_gb    = 12   # informational; logged by postcheck
+
+# ----------------------------------------------------------------------------
+# [network.quadlet] -- internal podman bridge for sidecar containers.
+# Every Quadlet declares Network=mios.network so they share a flat
+# rootful bridge with the LAN-reachable PublishPort= surface above.
+# ----------------------------------------------------------------------------
+[network.quadlet]
+network = "mios.network"
+subnet  = "10.89.0.0/24"
+
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
 bg          = "#282262"   # deep indigo  (Hokusai sky)            [main bg]
