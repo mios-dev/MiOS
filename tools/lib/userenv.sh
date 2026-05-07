@@ -229,7 +229,14 @@ for k, v in ev.items():
     print(f"export {k}={shlex.quote(str(v))}")
 PY
     )
-    [[ -n "$exports" ]] && eval "$exports"
+    # `[[ ... ]] && cmd` returns 1 when the test is false. Under `set -e`
+    # in the caller (mios-build-driver: `set -euo pipefail`), that
+    # propagates as a fatal exit even though "no exports to apply" is the
+    # expected state for a fresh install with no toml content yet. Use
+    # `if`-form so set -e treats the test as a conditional, not a fatal.
+    if [[ -n "$exports" ]]; then
+        eval "$exports"
+    fi
 }
 _mios_load_unified
 
@@ -246,27 +253,32 @@ _mios_legacy_get() {
 }
 
 if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]; then
+    # `[[ ... ]] && cmd` returns 1 when the test is false; under set -e
+    # in callers like mios-build-driver, that's fatal even though
+    # "key not present in legacy file" is the expected case for fresh
+    # installs. Use `[[ -z ... ]] || cmd` form so set -e treats the
+    # whole expression as a guard, not a hard fail.
     if [[ -f "${MIOS_CONFIG_DIR}/env.toml" ]]; then
         f="${MIOS_CONFIG_DIR}/env.toml"
         for key in MIOS_USER MIOS_HOSTNAME MIOS_FLATPAKS MIOS_BASE_IMAGE MIOS_LOCAL_TAG; do
             val="$(_mios_legacy_get "$f" "$key")"
-            [[ -n "$val" ]] && export "$key=$val"
+            [[ -z "$val" ]] || export "$key=$val"
         done
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/images.toml" ]]; then
         f="${MIOS_CONFIG_DIR}/images.toml"
         for key in MIOS_BASE_IMAGE MIOS_BIB_IMAGE MIOS_IMAGE_NAME; do
             val="$(_mios_legacy_get "$f" "$key")"
-            [[ -n "$val" ]] && export "$key=$val"
+            [[ -z "$val" ]] || export "$key=$val"
         done
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/build.toml" ]]; then
         val="$(_mios_legacy_get "${MIOS_CONFIG_DIR}/build.toml" MIOS_LOCAL_TAG)"
-        [[ -n "$val" ]] && export "MIOS_LOCAL_TAG=$val"
+        [[ -z "$val" ]] || export "MIOS_LOCAL_TAG=$val"
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/flatpaks.list" ]]; then
         flat=$(grep -vE '^\s*(#|$)' "${MIOS_CONFIG_DIR}/flatpaks.list" 2>/dev/null | paste -sd,)
-        [[ -n "$flat" ]] && export "MIOS_FLATPAKS=$flat"
+        [[ -z "$flat" ]] || export "MIOS_FLATPAKS=$flat"
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/env" ]]; then
         set -a
