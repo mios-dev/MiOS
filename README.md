@@ -92,23 +92,37 @@ sudo systemctl reboot
 
 ### From scratch, on Windows
 
-```powershell
-# One-liner from PowerShell (admin) -- fetched from the bootstrap repo,
-# which owns the user-facing entry surface (dotfiles, mios.toml, the
-# build orchestrator). 'mios.git' (this repo) is the system FHS overlay
-# baked into the deployed image; user definitions in mios-bootstrap.git
-# overlay these factory defaults at build/install time, with user-set
-# fields taking precedence.
-irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex
+**Canonical entry — `WinKey+R` → paste → Enter → accept UAC:**
+
+```text
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex"
 ```
 
-That clones the bootstrap repo, runs the preflight check, then hands you
-off to the local builder. You'll be prompted for a username, password,
-hostname, forge admin, and a few other fields; each prompt auto-accepts
-the resolved-from-`mios.toml` default after **90 seconds** idle (set
-`$env:MIOS_PROMPT_TIMEOUT=0` to disable, `=1` for fastest unattended).
-The Windows installer drops the result as a WSL2 distro, a Hyper-V VHDX, an
-Anaconda installer ISO, and a qcow2 -- pick whichever fits.
+That `irm | iex` shape is the entry contract -- runnable from the
+Windows Run dialog, cmd.exe, or any PowerShell session, with no
+pre-existing pwsh, ExecutionPolicy override, or manual elevation.
+`Get-MiOS.ps1` self-cache-busts on entry (Fastly's 5-min TTL is
+invisible to you), self-elevates two-pass (user profile + admin
+provisioning), shrinks `C:\` and creates `M:\` at exactly 256 GB
+NTFS, installs Podman Desktop, provisions the `MiOS-DEV` podman
+machine, clones `mios.git` + `mios-bootstrap` onto `M:\`, then
+auto-chains into `/usr/libexec/mios/mios-build-driver` inside
+`MiOS-DEV` for the OCI build.
+
+The Windows installer drops the result as a WSL2 distro, a Hyper-V VHDX,
+an Anaconda installer ISO, and a qcow2 -- pick whichever fits.
+
+`mios.bat` (in [mios-bootstrap](https://github.com/mios-dev/mios-bootstrap))
+is an equivalent shortcut: `WinKey+R` → `mios.bat` (or double-click)
+invokes the same `irm | iex` one-liner above. The `irm | iex` shape is
+the contract; the `.bat` is one wrapper.
+
+mios.git (this repo) is the system FHS overlay baked into the deployed
+image; user definitions in mios-bootstrap.git overlay these factory
+defaults at build/install time, with user-set fields taking precedence.
+Each prompt auto-accepts the resolved-from-`mios.toml` default after
+**90 seconds** idle (set `$env:MIOS_PROMPT_TIMEOUT=0` to disable,
+`=1` for fastest unattended).
 
 ### From scratch, on Linux
 
