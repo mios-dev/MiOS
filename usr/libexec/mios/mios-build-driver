@@ -64,7 +64,15 @@ if [[ -d /.git ]]; then
     _log "MiOS repo: live root (/.git present -- self-replication path)"
 elif [[ -d "$WORKDIR/mios/.git" ]]; then
     MIOS_REPO="$WORKDIR/mios"
-    _log "MiOS repo: $MIOS_REPO (build workspace)"
+    _log "MiOS repo: $MIOS_REPO (build workspace) -- fetching latest"
+    # Fetch + reset --hard origin/main so the cached clone tracks the
+    # latest mios.git fixes. Without this, fixes pushed since the
+    # initial clone never reach the build (driver bugs, userenv.sh
+    # fixes, Containerfile updates -- all stale until manual rm).
+    # `|| true` so transient network errors don't kill the build --
+    # falling back to the cached version is better than no build.
+    git -C "$MIOS_REPO" fetch --depth=1 origin main 2>&1 | tee -a "$LOG_FILE" || true
+    git -C "$MIOS_REPO" reset --hard FETCH_HEAD 2>&1 | tee -a "$LOG_FILE" || true
 else
     _log "MiOS repo not found -- cloning to $WORKDIR/mios"
     mkdir -p "$WORKDIR/mios"
@@ -78,6 +86,9 @@ fi
 BOOT_REPO=""
 if [[ -d "$WORKDIR/mios-bootstrap/.git" ]]; then
     BOOT_REPO="$WORKDIR/mios-bootstrap"
+    _log "mios-bootstrap repo: $BOOT_REPO -- fetching latest"
+    git -C "$BOOT_REPO" fetch --depth=1 origin main 2>&1 | tee -a "$LOG_FILE" || true
+    git -C "$BOOT_REPO" reset --hard FETCH_HEAD 2>&1 | tee -a "$LOG_FILE" || true
 elif [[ -d /opt/mios-bootstrap/.git ]]; then
     BOOT_REPO="/opt/mios-bootstrap"
 else
@@ -261,8 +272,19 @@ case "${MIOS_PASSWORD_POLICY}" in
     interactive|*)
         if [[ -r /etc/mios/secrets.env ]] && grep -q '^MIOS_USER_PASSWORD_HASH=' /etc/mios/secrets.env; then
             _log "password hash loaded from /etc/mios/secrets.env"
-            # shellcheck disable=SC1091
-            source /etc/mios/secrets.env
+            # `source` performs parameter expansion inside double-quoted
+            # values, and a sha512crypt hash starts with `$6$...$...$...`
+            # -- under `set -euo pipefail`, $6 triggers "unbound variable"
+            # and kills the driver. Parse the file with grep + manual
+            # stripping instead of `source` so $6 stays literal.
+            _line=$(grep -E '^MIOS_USER_PASSWORD_HASH=' /etc/mios/secrets.env | head -1)
+            _val="${_line#MIOS_USER_PASSWORD_HASH=}"
+            # Strip surrounding quotes (single OR double).
+            if [[ "$_val" == \"*\" || "$_val" == \'*\' ]]; then
+                _val="${_val:1:${#_val}-2}"
+            fi
+            MIOS_USER_PASSWORD_HASH="$_val"
+            unset _line _val
         elif [[ "${MIOS_NONINTERACTIVE:-0}" == "1" ]]; then
             _log "MIOS_NONINTERACTIVE=1 -- defaulting password to 'mios'"
             MIOS_USER_PASSWORD_HASH=$(_hash_password mios)
@@ -277,9 +299,15 @@ case "${MIOS_PASSWORD_POLICY}" in
             MIOS_USER_PASSWORD_HASH=$(_hash_password "$_pw_plain")
             unset _pw_plain
             sudo install -d -m 0755 /etc/mios
-            printf 'MIOS_USER_PASSWORD_HASH="%s"\n' "$MIOS_USER_PASSWORD_HASH" |
+            # SINGLE-quote the hash so $6$ in sha512crypt format is
+            # treated as a literal, not as "$6 (param 6) followed by $".
+            # Embedded single quotes are unlikely in a sha512crypt hash
+            # but escape defensively just in case.
+            _q_hash=${MIOS_USER_PASSWORD_HASH//\'/\'\\\'\'}
+            printf "MIOS_USER_PASSWORD_HASH='%s'\n" "$_q_hash" |
                 sudo tee /etc/mios/secrets.env >/dev/null
             sudo chmod 0600 /etc/mios/secrets.env
+            unset _q_hash
         fi
         ;;
 esac
