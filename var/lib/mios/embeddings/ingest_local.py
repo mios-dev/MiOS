@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ingest_local.py — Embed chunks.jsonl against any OpenAI-compatible
-/v1/embeddings endpoint and upsert into Qdrant.
+ingest_local.py — Embed chunks.jsonl against any OpenAI-API-compatible
+/v1/embeddings endpoint (LAW 5) and upsert into Qdrant.
 
 Day-0 compatible. Works against:
   - MiOS LocalAI         (http://localhost:8080/v1)  ← canonical (LAW 5)
@@ -10,13 +10,11 @@ Day-0 compatible. Works against:
   - LM Studio            (http://localhost:1234/v1)
   - llama.cpp server     (http://localhost:8080/v1)
   - LiteLLM proxy        (http://localhost:4000/v1)
-  - OpenAI cloud         (https://api.openai.com/v1)
-  - Azure OpenAI         (your resource URL)
 
 Env vars (matches MiOS LAW 5: UNIFIED-AI-REDIRECTS):
-  MIOS_AI_ENDPOINT   — default http://localhost:8080/v1
-  MIOS_AI_KEY        — default empty (LocalAI accepts empty key)
-  MIOS_AI_EMBED_MODEL — default text-embedding-3-large (or your local equivalent)
+  MIOS_AI_ENDPOINT    — default http://localhost:8080/v1
+  MIOS_AI_KEY         — default empty (LocalAI accepts empty key)
+  MIOS_AI_EMBED_MODEL — default nomic-embed-text (canonical mios.toml [ai].embed_model)
 
 Qdrant:
   QDRANT_URL         — default http://localhost:6333
@@ -54,11 +52,11 @@ def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {"model": model, "input": texts}
-    # text-embedding-3-* support a `dimensions` parameter; many local
-    # runtimes ignore it. Pass it for cloud, omit for local — detected
-    # by endpoint host.
-    if "api.openai.com" in endpoint or "azure" in endpoint:
-        body["dimensions"] = 1536
+    # Optional `dimensions` parameter — set MIOS_AI_EMBED_DIMS to enable.
+    # Many local runtimes silently ignore it; nomic-embed-text default is 768-dim.
+    dims = os.environ.get("MIOS_AI_EMBED_DIMS")
+    if dims:
+        body["dimensions"] = int(dims)
     r = client.post(f"{endpoint}/embeddings", headers=headers, json=body, timeout=120.0)
     r.raise_for_status()
     return [d["embedding"] for d in r.json()["data"]]
@@ -72,7 +70,7 @@ def stable_id(chunk_id: str) -> int:
 def main(chunks_path: str = "chunks.jsonl") -> int:
     endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1").rstrip("/")
     key      = os.environ.get("MIOS_AI_KEY", "")
-    model    = os.environ.get("MIOS_AI_EMBED_MODEL", "text-embedding-3-large")
+    model    = os.environ.get("MIOS_AI_EMBED_MODEL", "nomic-embed-text")
     qdrant_url        = os.environ.get("QDRANT_URL", "http://localhost:6333")
     qdrant_collection = os.environ.get("QDRANT_COLLECTION", "mios-kb")
 

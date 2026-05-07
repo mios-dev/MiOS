@@ -1468,6 +1468,6 @@ guacd              = true
 # Examples:
 #   MIOS_BUILDER_DISTRO = "MiOS-DEV"
 #   MIOS_RECHUNK_MAX_LAYERS = "67"
-#   MIOS_AI_GRADER = "o3"
+#   MIOS_AI_GRADER = "qwen2.5-coder:7b"
 # ----------------------------------------------------------------------------
 [env]

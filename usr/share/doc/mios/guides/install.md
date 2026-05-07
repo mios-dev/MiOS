@@ -1,82 +1,24 @@
 # usr/share/doc/mios/guides/install.md -- Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
 
-Three target classes, three recipes. Pick the one matching your stack.
+Two recipe classes — pick the one matching your stack. Both target an
+OpenAI-API-compatible local endpoint per Architectural Law 5
+(UNIFIED-AI-REDIRECTS): no vendor-cloud URLs, no proprietary
+side-channels.
 
 ---
 
-## A) OpenAI cloud (full surface -- Vector Stores, Responses API, Evals, Batch)
+## A) 'MiOS' LocalAI (the canonical Day-0 path -- `http://localhost:8080/v1`)
 
-```bash
-export OPENAI_API_KEY=sk-...
-
-# 1. Create a vector store
-VS_ID=$(curl -s https://api.openai.com/v1/vector_stores \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d '{"name":"mios-kb"}' | jq -r .id)
-echo "Vector store: $VS_ID"
-
-# 2. Upload every doc as a File and capture file_ids
-declare -A FILE_IDS
-while IFS= read -r f; do
-  fid=$(curl -s https://api.openai.com/v1/files \
-    -H "Authorization: Bearer $OPENAI_API_KEY" \
-    -F purpose=assistants -F file=@"$f" | jq -r .id)
-  rel="${f#./}"
-  FILE_IDS["$rel"]="$fid"
-done < <(find ./usr/share/doc/mios -name '*.md' -type f)
-
-# 3. Rewrite vector_store.import.jsonl with real file_ids and POST as file_batches
-python3 - <<'PY'
-import json, os, urllib.request
-vs_id = os.environ["VS_ID"]
-api_key = os.environ["OPENAI_API_KEY"]
-mapping = json.loads(os.environ["FILE_IDS_JSON"])  # supply via env
-files = []
-for line in open("./var/lib/mios/embeddings/vector_store.import.jsonl"):
-    obj = json.loads(line)
-    rel = obj["attributes"]["fhs_path"].lstrip("/")
-    if rel in mapping:
-        obj["file_id"] = mapping[rel]
-        files.append(obj)
-req = urllib.request.Request(
-    f"https://api.openai.com/v1/vector_stores/{vs_id}/file_batches",
-    data=json.dumps({"files": files}).encode(),
-    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
-print(urllib.request.urlopen(req).read().decode())
-PY
-
-# 4. Use it from Responses API
-curl https://api.openai.com/v1/responses \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "$(jq --arg vs "$VS_ID" '.tools[0].vector_store_ids = [$vs]' ./usr/share/mios/api/responses.example.json)"
-
-# 5. (Optional) create an eval
-curl https://api.openai.com/v1/evals \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d @./var/lib/mios/evals/mios-knowledge.eval.json
-
-# 6. (Optional) submit a fine-tuning job
-FILE_ID=$(curl -s https://api.openai.com/v1/files \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -F purpose=fine-tune -F file=@./var/lib/mios/training/sft.jsonl | jq -r .id)
-curl https://api.openai.com/v1/fine_tuning/jobs \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "{\"training_file\":\"$FILE_ID\",\"model\":\"gpt-4.1-mini\"}"
-```
-
----
-
-## B) 'MiOS' LocalAI (the canonical Day-0 path -- `http://localhost:8080/v1`)
-
-This is the endpoint 'MiOS' itself uses (LAW 5: UNIFIED-AI-REDIRECTS). It's
-served by the LocalAI Quadlet at `etc/containers/systemd/mios-ai.container`
-and accepts the same Chat Completions / Embeddings shape as OpenAI.
+This is the endpoint 'MiOS' itself uses. It's served by the LocalAI
+Quadlet at `etc/containers/systemd/mios-ai.container` and accepts the
+OpenAI Chat Completions / Embeddings / Responses shapes.
 
 ```bash
 # 0. Set the unified env vars (or rely on /etc/profile.d/mios-env.sh)
 export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}
 export MIOS_AI_KEY=${MIOS_AI_KEY:-}    # empty key accepted
-export MIOS_AI_MODEL=${MIOS_AI_MODEL:-gpt-4o-mini}    # or whatever your LocalAI manifest names
+export MIOS_AI_MODEL=${MIOS_AI_MODEL:-qwen2.5-coder:7b}     # canonical mios.toml [ai].model
+export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-nomic-embed-text}
 
 # 1. Verify the endpoint
 curl -fsS "$MIOS_AI_ENDPOINT/models" -H "Authorization: Bearer $MIOS_AI_KEY" | jq '.data[].id'
@@ -108,9 +50,9 @@ against any `/v1/chat/completions` endpoint.
 
 ---
 
-## C) Other local runtimes (Ollama / vLLM / LM Studio / llama.cpp / LiteLLM)
+## B) Other local runtimes (Ollama / vLLM / LM Studio / llama.cpp / LiteLLM)
 
-Same as recipe B with a different `MIOS_AI_ENDPOINT`:
+Same as recipe A with a different `MIOS_AI_ENDPOINT`:
 
 ```bash
 # Ollama
@@ -129,12 +71,12 @@ export MIOS_AI_MODEL=lmstudio-community/Qwen2.5-72B-Instruct-GGUF
 export MIOS_AI_ENDPOINT=http://localhost:8080/v1
 export MIOS_AI_MODEL=any   # llama.cpp ignores model name, returns its loaded model
 
-# LiteLLM proxy (translates many backends + emulates Responses API for cloud parity)
+# LiteLLM proxy (translates many backends through one OpenAI-compatible surface)
 export MIOS_AI_ENDPOINT=http://localhost:4000/v1
-export MIOS_AI_MODEL=gpt-4o-mini   # virtual model defined in litellm config.yaml
+export MIOS_AI_MODEL=qwen2.5-coder:7b   # virtual model defined in litellm config.yaml
 ```
 
-Then run recipe B steps 3-5 unchanged. The KB's chat-form payloads and
+Then run recipe A steps 3-5 unchanged. The KB's chat-form payloads and
 chat-form tool schemas are universal across all of these.
 
 ---
@@ -161,12 +103,29 @@ JSON Schema compliance locally, use **vLLM with xgrammar** or
 
 ---
 
+## Cloud-only OpenAI API surfaces
+
+The OpenAI API spec defines surfaces that LocalAI / Ollama / vLLM / LM
+Studio / llama.cpp typically do **not** implement: Vector Stores,
+Files (`purpose=assistants`/`fine-tune`), Batch API, Evals API, Fine-
+tuning Jobs. **MiOS does not document a recipe that hardcodes a
+vendor-cloud endpoint** — Architectural Law 5 forbids it.
+
+If you have an OpenAI-API-compatible endpoint that implements these
+surfaces (LocalAI v3+ partial support, LiteLLM proxy fronting a custom
+backend, a self-hosted compatible service), set `$MIOS_AI_ENDPOINT` and
+`$MIOS_AI_KEY` and the recipes work unchanged. For local fine-tuning
+without those surfaces, see `usr/share/mios/cookbooks/finetune-flow.md`
+(axolotl / trl / MLX-LM / unsloth paths).
+
+---
+
 ## Refreshing the KB from upstream 'MiOS'
 
 ```bash
-# Use the mios_build_kb_refresh function tool against any cloud or local model.
+# Use the mios_build_kb_refresh function tool against any local endpoint.
 # Or manually:
 git clone https://github.com/mios-dev/MiOS.git /tmp/mios-src
 python3 ./tools/regenerate_chunks.py /tmp/mios-src ./var/lib/mios/embeddings/chunks.jsonl
-# then re-run the ingestion in recipe A or B.
+# then re-run the ingestion in recipe A.
 ```

@@ -1,10 +1,9 @@
 {
-  "model": "text-embedding-3-large",
+  "model": "nomic-embed-text",
   "input": [
     "MiOS uses lockdown=integrity, not lockdown=confidentiality.",
     "MiOS package selection lives at usr/share/mios/mios.toml under [packages.<section>].pkgs; usr/share/doc/mios/reference/PACKAGES.md is the human-readable companion."
   ],
-  "dimensions": 1536,
   "encoding_format": "float",
-  "_comment": "POST /v1/embeddings. Works against OpenAI cloud and all OpenAI-compatible local runtimes; some local runtimes silently ignore `dimensions`."
+  "_comment": "POST $MIOS_AI_ENDPOINT/embeddings (LAW 5). The `model` field defaults to the canonical mios.toml [ai].embed_model value (nomic-embed-text, 768-dim, 8192-token context). Set $MIOS_AI_EMBED_MODEL to override. Works against any OpenAI-API-compatible runtime."
 }

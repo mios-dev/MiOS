@@ -41,7 +41,7 @@ unified env vars resolve via `/etc/profile.d/mios-env.sh`:
 ```bash
 export MIOS_AI_ENDPOINT=http://localhost:8080/v1
 export MIOS_AI_KEY=                # empty
-export MIOS_AI_MODEL=gpt-4o-mini   # whatever LocalAI manifest names; MiOS aliases
+export MIOS_AI_MODEL=qwen2.5-coder:7b   # canonical mios.toml [ai].model; override per local manifest
 ```
 
 ## Discovery surfaces (MiOS-specific)

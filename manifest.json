@@ -15,10 +15,7 @@
       "dpo": true
     },
     "mcp_tool": "type=mcp (Responses API only)",
-    "embeddings": [
-      "text-embedding-3-small",
-      "text-embedding-3-large"
-    ],
+    "embeddings": "v1 (OpenAI-API /v1/embeddings shape; default model from mios.toml [ai].embed_model)",
     "structured_outputs": "json_schema with strict:true"
   },
   "local_runtime_compatibility": {
@@ -73,22 +70,14 @@
         "tools",
         "responses-translation"
       ]
-    },
-    "openrouter": {
-      "endpoint": "https://openrouter.ai/api/v1",
-      "supports": [
-        "chat/completions",
-        "tools"
-      ]
     }
   },
   "default_models": {
-    "chat": "gpt-5",
-    "fallback_chat": "gpt-4.1",
-    "local_chat": "${MIOS_AI_MODEL:-gpt-4o-mini}",
-    "embedding": "text-embedding-3-large",
-    "embedding_dimensions": 1536,
-    "grader": "o3"
+    "chat": "${MIOS_AI_MODEL:-qwen2.5-coder:7b}",
+    "embedding": "${MIOS_AI_EMBED_MODEL:-nomic-embed-text}",
+    "embedding_dimensions": 768,
+    "grader": "${MIOS_AI_GRADER:-qwen2.5-coder:7b}",
+    "_note": "All defaults source from mios.toml [ai] (vendor < host < user three-layer overlay). Models resolve through $MIOS_AI_ENDPOINT (LAW 5). No vendor-cloud model names — see usr/share/mios/mios.toml [ai] for the canonical local default set."
   },
   "files": [
     {

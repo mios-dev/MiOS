@@ -1,20 +1,37 @@
-# Cookbook: Ingest the MiOS KB into a Vector Store (OpenAI cloud)
+# Cookbook: Ingest the MiOS KB via the OpenAI Vector Stores API shape
 
 > Full path: `/usr/share/mios/cookbooks/ingest-kb.md`
-> See `usr/share/doc/mios/guides/install.md` (top-level) for the full three-recipe set; this is the
-> step-by-step OpenAI-cloud variant.
+> See `usr/share/doc/mios/guides/install.md` for the full recipe set;
+> this cookbook covers the Vector-Stores-API path (Files → Vector Store
+> → file_batches → Responses API).
 
 ## Prerequisites
 
-- `OPENAI_API_KEY` set
+- An OpenAI-API-compatible endpoint that implements the Vector Stores,
+  Files (`purpose=assistants`), and Responses API surfaces. **MiOS
+  LocalAI v3+ implements a subset; LiteLLM proxy fronting a backend that
+  supports these surfaces is another option.** Architectural Law 5
+  (UNIFIED-AI-REDIRECTS) forbids hardcoding any vendor-cloud URL — use
+  `$MIOS_AI_ENDPOINT`.
+- For pure-local Day-0 ingestion using only `/v1/embeddings` + Qdrant
+  (no Vector Stores API needed), see
+  `usr/share/mios/cookbooks/local-rag-day0.md` instead.
 - `jq`, `curl`, `python3`
-- Working directory: this KB's repo root (the `proc/`, `etc/`, `usr/`, ... tree)
+- Working directory: this KB's repo root (the `proc/`, `etc/`, `usr/`,
+  ... tree)
+
+## Step 0 — Set the unified env
+
+```bash
+export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}
+export MIOS_AI_KEY=${MIOS_AI_KEY:-}    # empty key accepted by LocalAI
+```
 
 ## Step 1 — Create a vector store
 
 ```bash
-VS=$(curl -s https://api.openai.com/v1/vector_stores \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
+VS=$(curl -s "$MIOS_AI_ENDPOINT/vector_stores" \
+  -H "Authorization: Bearer $MIOS_AI_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name":"mios-kb","metadata":{"kb_version":"2026.05.02"}}' \
   | jq -r .id)
@@ -27,8 +44,8 @@ export VS_ID="$VS"
 ```bash
 declare -A FILE_IDS
 while IFS= read -r f; do
-  fid=$(curl -s https://api.openai.com/v1/files \
-    -H "Authorization: Bearer $OPENAI_API_KEY" \
+  fid=$(curl -s "$MIOS_AI_ENDPOINT/files" \
+    -H "Authorization: Bearer $MIOS_AI_KEY" \
     -F purpose=assistants \
     -F file=@"$f" | jq -r .id)
   rel="${f#./}"
@@ -48,9 +65,10 @@ export FILE_IDS_JSON="$(cat /tmp/mios-file-ids.json)"
 python3 - <<'PY'
 import json, os, urllib.request
 
-vs_id = os.environ["VS_ID"]
-api_key = os.environ["OPENAI_API_KEY"]
-mapping = json.loads(os.environ["FILE_IDS_JSON"])
+vs_id    = os.environ["VS_ID"]
+endpoint = os.environ["MIOS_AI_ENDPOINT"].rstrip("/")
+api_key  = os.environ.get("MIOS_AI_KEY", "")
+mapping  = json.loads(os.environ["FILE_IDS_JSON"])
 
 files = []
 for line in open("./var/lib/mios/embeddings/vector_store.import.jsonl"):
@@ -62,10 +80,14 @@ for line in open("./var/lib/mios/embeddings/vector_store.import.jsonl"):
     else:
         print(f"WARN: no file_id for {rel} — skipping")
 
+headers = {"Content-Type": "application/json"}
+if api_key:
+    headers["Authorization"] = f"Bearer {api_key}"
+
 req = urllib.request.Request(
-    f"https://api.openai.com/v1/vector_stores/{vs_id}/file_batches",
+    f"{endpoint}/vector_stores/{vs_id}/file_batches",
     data=json.dumps({"files": files}).encode(),
-    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
+    headers=headers)
 print(urllib.request.urlopen(req).read().decode())
 PY
 ```
@@ -78,8 +100,8 @@ most, smaller chunks for kargs.d and PACKAGES.md) and rich `attributes`
 ## Step 4 — Query via Responses API
 
 ```bash
-curl https://api.openai.com/v1/responses \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
+curl "$MIOS_AI_ENDPOINT/responses" \
+  -H "Authorization: Bearer $MIOS_AI_KEY" -H "Content-Type: application/json" \
   -d "$(jq --arg vs "$VS_ID" \
        '.tools[0].vector_store_ids = [$vs]' \
        ./usr/share/mios/api/responses.example.json)"
@@ -88,32 +110,22 @@ curl https://api.openai.com/v1/responses \
 ## Step 5 — Optional: create the eval
 
 ```bash
-curl https://api.openai.com/v1/evals \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
+curl "$MIOS_AI_ENDPOINT/evals" \
+  -H "Authorization: Bearer $MIOS_AI_KEY" -H "Content-Type: application/json" \
   -d @./var/lib/mios/evals/mios-knowledge.eval.json
 ```
 
+Note: the local Evals API surface depends on the runtime. If
+`$MIOS_AI_ENDPOINT` doesn't implement `/v1/evals`, run
+`./var/lib/mios/evals/mios-knowledge.local-runner.py` instead — it
+implements the same grader logic against any
+`/v1/chat/completions` endpoint.
+
 ## Step 6 — Optional: SFT fine-tuning
 
-```bash
-FILE_ID=$(curl -s https://api.openai.com/v1/files \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -F purpose=fine-tune -F file=@./var/lib/mios/training/sft.jsonl \
-  | jq -r .id)
-curl https://api.openai.com/v1/fine_tuning/jobs \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "{\"training_file\":\"$FILE_ID\",\"model\":\"gpt-4.1-mini\"}"
-```
-
-## Step 7 — Optional: DPO after SFT
-
-```bash
-DPO=$(curl -s https://api.openai.com/v1/files \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -F purpose=fine-tune -F file=@./var/lib/mios/training/dpo.jsonl \
-  | jq -r .id)
-# Use the SFT-tuned model as the base for DPO:
-curl https://api.openai.com/v1/fine_tuning/jobs \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "{\"training_file\":\"$DPO\",\"model\":\"<your-sft-tuned-model-id>\",\"method\":{\"type\":\"dpo\"}}"
-```
+The Fine-Tuning Jobs API path is documented for endpoints that support
+it (`POST /v1/files` with `purpose=fine-tune`, then
+`POST /v1/fine_tuning/jobs`). Most local OpenAI-API runtimes do not
+implement these surfaces — see
+`usr/share/mios/cookbooks/finetune-flow.md` for the local trainer paths
+(axolotl / trl / MLX-LM / unsloth).

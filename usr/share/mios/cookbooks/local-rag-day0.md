@@ -30,8 +30,8 @@ pip install httpx qdrant-client
 ```bash
 export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}
 export MIOS_AI_KEY=${MIOS_AI_KEY:-}              # empty key OK for local
-export MIOS_AI_MODEL=${MIOS_AI_MODEL:-gpt-4o-mini}    # whatever LocalAI alias
-export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-text-embedding-3-large}
+export MIOS_AI_MODEL=${MIOS_AI_MODEL:-qwen2.5-coder:7b}     # canonical mios.toml [ai].model
+export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-nomic-embed-text}  # canonical [ai].embed_model
 ```
 
 Verify:
@@ -102,13 +102,12 @@ Pass rate < 100% indicates retrieval/model gaps to address.
 
 | Runtime | `MIOS_AI_ENDPOINT` | `MIOS_AI_MODEL` |
 | --- | --- | --- |
-| MiOS LocalAI (canonical) | `http://localhost:8080/v1` | (per LocalAI manifest) |
+| MiOS LocalAI (canonical) | `http://localhost:8080/v1` | `qwen2.5-coder:7b` (mios.toml default) |
 | Ollama | `http://localhost:11434/v1` | `qwen2.5:32b` etc. |
 | vLLM | `http://localhost:8000/v1` | `meta-llama/Llama-3.1-70B-Instruct` |
 | LM Studio | `http://localhost:1234/v1` | (per LM Studio loaded model) |
 | llama.cpp server | `http://localhost:8080/v1` | `any` (server returns its loaded model) |
 | LiteLLM proxy | `http://localhost:4000/v1` | (per litellm config.yaml) |
-| OpenRouter | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.1-70b-instruct` |
 
 The rest of the recipe is unchanged. **This is the Day-0 portability
 guarantee.**

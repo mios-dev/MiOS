@@ -196,7 +196,7 @@ Probe:
 ```bash
 curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-4.1","messages":[{"role":"user","content":"ping"}]}' \
+  -d '{"model":"qwen2.5-coder:7b","messages":[{"role":"user","content":"ping"}]}' \
   "$MIOS_AI_ENDPOINT/chat/completions"
 ```
 

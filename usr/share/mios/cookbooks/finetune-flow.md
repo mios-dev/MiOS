@@ -2,12 +2,12 @@
 
 > Full path: `/usr/share/mios/cookbooks/finetune-flow.md`
 > Datasets: `var/lib/mios/training/sft.jsonl` and `dpo.jsonl`
-> Both are universal JSONL — consumable by OpenAI fine-tuning,
-> axolotl, trl, llama-factory, MLX-LM, unsloth.
+> Both are universal JSONL — consumable by axolotl, trl, llama-factory,
+> MLX-LM, unsloth, and any OpenAI-API-compatible fine-tuning endpoint.
 
 ## Why SFT then DPO
 
-OpenAI's recommended PFT (Preference Fine-Tuning) flow:
+Two-stage Preference Fine-Tuning:
 
 1. **SFT** establishes the format and base behavior. The model learns to
    produce MiOS-shaped answers (cite files, three-section troubleshoot
@@ -19,30 +19,20 @@ OpenAI's recommended PFT (Preference Fine-Tuning) flow:
 DPO without an SFT pass tends to under-train; the dataset is too small
 to teach format from scratch.
 
-## OpenAI cloud path
-
-```bash
-# 1. SFT
-SFT_FILE=$(curl -s https://api.openai.com/v1/files \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -F purpose=fine-tune -F file=@./var/lib/mios/training/sft.jsonl | jq -r .id)
-SFT_JOB=$(curl -s https://api.openai.com/v1/fine_tuning/jobs \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "{\"training_file\":\"$SFT_FILE\",\"model\":\"gpt-4.1-mini\"}" | jq -r .id)
-# Wait for completion (poll), capture fine_tuned_model id
-SFT_MODEL=$(curl -s https://api.openai.com/v1/fine_tuning/jobs/$SFT_JOB \
-  -H "Authorization: Bearer $OPENAI_API_KEY" | jq -r .fine_tuned_model)
-
-# 2. DPO on top of the SFT-tuned model
-DPO_FILE=$(curl -s https://api.openai.com/v1/files \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -F purpose=fine-tune -F file=@./var/lib/mios/training/dpo.jsonl | jq -r .id)
-curl https://api.openai.com/v1/fine_tuning/jobs \
-  -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-  -d "{\"training_file\":\"$DPO_FILE\",\"model\":\"$SFT_MODEL\",\"method\":{\"type\":\"dpo\"}}"
-```
-
 ## Local fine-tuning paths
+
+The Fine-Tuning Jobs API (`POST /v1/fine_tuning/jobs`) is part of the
+OpenAI API spec, but most local OpenAI-API-compatible runtimes
+(LocalAI / Ollama / vLLM / LM Studio / llama.cpp) do not implement it.
+Use one of the local trainers below instead. **MiOS does not document
+a recipe that hardcodes a vendor-cloud endpoint** (Architectural
+Law 5).
+
+If your `$MIOS_AI_ENDPOINT` happens to expose `/v1/fine_tuning/jobs`
+(e.g. a LiteLLM proxy fronting a compatible backend), the OpenAI-API
+shape is identical: POST a JSONL file via `/v1/files` with
+`purpose=fine-tune`, then create the job referencing the returned
+`file_id`.
 
 ### axolotl (most popular, supports SFT + DPO + ORPO)
 
@@ -105,22 +95,18 @@ model, tok = FastLanguageModel.from_pretrained("unsloth/llama-3.1-8b-instruct-bn
 
 ## Validating the tuned model
 
-Re-run the local-runner.py against the deployed (cloud) or served
-(local) tuned model:
+After local training, serve the tuned model via vLLM / llama.cpp /
+Ollama (any OpenAI-API-compatible runtime), point `$MIOS_AI_ENDPOINT`
+at it, and re-run the local-runner against the served model:
 
 ```bash
-# Cloud OpenAI:
+# Local served model (after vLLM / llama.cpp / Ollama serve)
 python3 ./var/lib/mios/evals/mios-knowledge.local-runner.py \
-  --endpoint https://api.openai.com/v1 \
-  --key $OPENAI_API_KEY \
-  --model ft:gpt-4.1-mini:org:mios-engineer:abc123 \
-  --eval ./var/lib/mios/evals/mios-knowledge.eval.json \
-  --dataset ./var/lib/mios/evals/dataset.jsonl
-
-# Local (after deploying via vLLM, llama.cpp, etc.):
-python3 ./var/lib/mios/evals/mios-knowledge.local-runner.py \
-  --endpoint http://localhost:8000/v1 \
-  --model ./mios-llama-3.1-8b-tuned/
+  --endpoint "$MIOS_AI_ENDPOINT" \
+  --model    "$MIOS_AI_MODEL" \
+  --eval     ./var/lib/mios/evals/mios-knowledge.eval.json \
+  --dataset  ./var/lib/mios/evals/dataset.jsonl \
+  --report   ./mios-eval-report.json
 ```
 
 Look for: ↑ pass rate, ↑ avg score vs the pre-tune baseline.
