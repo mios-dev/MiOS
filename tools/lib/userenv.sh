@@ -66,17 +66,12 @@ MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
 MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
 MIOS_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mios"
 MIOS_USER_TOML="${MIOS_CONFIG_DIR}/mios.toml"
-MIOS_VENDOR_DEFAULTS="${MIOS_VENDOR_DEFAULTS:-/usr/share/mios/env.defaults}"
 
-# 0. Vendor env-defaults (lowest priority, shell-format KEY="VALUE" file).
-# Surfaces port numbers, paths, and infrastructure constants that don't
-# belong in the TOML schema.
-if [[ -f "$MIOS_VENDOR_DEFAULTS" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$MIOS_VENDOR_DEFAULTS"
-    set +a
-fi
+# Removed: vendor env.defaults sourcing block. As of v0.2.4 mios.toml is
+# THE singular SSOT for every operator-tunable infrastructure constant
+# (ports, sidecar pins, service identities, runtime paths, build
+# tunables); env.defaults has been deleted. The Python TOML merger
+# below is the only source of MIOS_* env-var emission.
 
 # 1. TOML overlay (vendor -> host -> per-user). Use python tomllib (3.11+
 # stdlib; tomli fallback for older). The Python block prints shell-safe

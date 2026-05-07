@@ -21,9 +21,10 @@
 # client on the system.
 set -euo pipefail
 
-# Canonical layer paths (mirrors mios-env.sh).
+# Canonical layer paths (mirrors mios-env.sh). The mios.toml overlay
+# is loaded LAST via _load_toml_layers below so TOML overrides every
+# legacy env-style file. mios.toml is THE singular SSOT.
 LAYERS=(
-    "/usr/share/mios/env.defaults"
     "${HOME}/.env.mios"
 )
 # /etc/mios/env.d/*.env (alphabetical)
