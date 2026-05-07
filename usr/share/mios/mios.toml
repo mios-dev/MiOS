@@ -1343,6 +1343,15 @@ chrome_h_px         = 12
 scheme_name         = "MiOS"
 profile_name        = "MiOS"
 dev_profile_name    = "MiOS-DEV"
+# Global summon keybinding (toggle MiOS WT window open/close from
+# anywhere on the desktop). Uses WT's globalSummon action targeting
+# the named window. Operator: "MiOS app should be invokable via a
+# chord/keycombo like winkey + Spacebar to open and close the
+# window at will". Override here to change the chord (e.g.
+# "ctrl+shift+space", "win+grave_accent" for the classic quake
+# pattern, "ctrl+win+m" for a more MiOS-flavored chord).
+summon_keys         = "win+space"
+summon_window_name  = "MiOS"
 
 [theme.prompt]
 # oh-my-posh renderer config. The mios.omp.json on disk is the source
