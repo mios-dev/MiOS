@@ -415,6 +415,163 @@
 </details>
 
 <details class="section">
+  <summary>Windows bootstrap · M:\ partition + dev VM <span class="phase-badge">irm|iex Pass-2</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Get-MiOS.ps1's Initialize-DataDisk shrinks C:\ and creates the
+      MiOS data partition. Default <code>shrink_mb = 262656</code>
+      (256 GiB + 512 MB buffer for NTFS reserved space) -- the bare
+      262144 MB shrink shows up as "255 GB" in Explorer because
+      NTFS reserves ~16 MB at the start.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>bootstrap.host_storage</legend>
+        <label for="f-host-drive">drive_letter</label>
+        <input type="text" id="f-host-drive" data-key="bootstrap.host_storage.drive_letter" placeholder="M">
+        <label for="f-host-label">volume_label</label>
+        <input type="text" id="f-host-label" data-key="bootstrap.host_storage.volume_label" placeholder="MIOS-DEV">
+        <label for="f-host-shrink">shrink_mb (MB to take from C:\)</label>
+        <input type="text" id="f-host-shrink" data-key="bootstrap.host_storage.shrink_mb" data-type="int" placeholder="262656">
+        <label for="f-host-display">display_size_gb (informational)</label>
+        <input type="text" id="f-host-display" data-key="bootstrap.host_storage.display_size_gb" data-type="int" placeholder="256">
+        <label for="f-host-fs">filesystem</label>
+        <input type="text" id="f-host-fs" data-key="bootstrap.host_storage.filesystem" placeholder="NTFS">
+        <label for="f-host-alloc">allocation_unit</label>
+        <input type="text" id="f-host-alloc" data-key="bootstrap.host_storage.allocation_unit" data-type="int" placeholder="4096">
+      </fieldset>
+      <fieldset>
+        <legend>bootstrap.dev_vm</legend>
+        <label for="f-dvm-name">machine_name</label>
+        <input type="text" id="f-dvm-name" data-key="bootstrap.dev_vm.machine_name" placeholder="MiOS-DEV">
+        <label for="f-dvm-image">base_image (machine-os 6.0+ LOCKED)</label>
+        <input type="text" id="f-dvm-image" data-key="bootstrap.dev_vm.base_image" placeholder="quay.io/podman/machine-os:6.0">
+        <label for="f-dvm-cpus">cpus</label>
+        <input type="text" id="f-dvm-cpus" data-key="bootstrap.dev_vm.cpus" data-type="int" placeholder="4">
+        <label for="f-dvm-mem">memory_mb</label>
+        <input type="text" id="f-dvm-mem" data-key="bootstrap.dev_vm.memory_mb" data-type="int" placeholder="8192">
+        <label for="f-dvm-disk">disk_size_gb</label>
+        <input type="text" id="f-dvm-disk" data-key="bootstrap.dev_vm.disk_size_gb" data-type="int" placeholder="100">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Terminal · MiOS terminal dimensions and theming <span class="phase-badge">every spawned shell</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Every MiOS-spawned window (wt, conhost fallback, wsl into MiOS-DEV,
+      the elevated bootstrap window, the launcher) opens at these dims.
+      Cell metrics drive the launcher's pixel-size computation for
+      centered placement on the active monitor.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>terminal</legend>
+        <label for="f-term-cols">cols</label>
+        <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
+        <label for="f-term-rows">rows</label>
+        <input type="text" id="f-term-rows" data-key="terminal.rows" data-type="int" placeholder="40">
+        <label for="f-term-scroll">scrollback_rows</label>
+        <input type="text" id="f-term-scroll" data-key="terminal.scrollback_rows" data-type="int" placeholder="9000">
+      </fieldset>
+      <fieldset>
+        <legend>theme</legend>
+        <label for="f-theme-mode">mode</label>
+        <select id="f-theme-mode" data-key="theme.mode">
+          <option value="dark">dark</option>
+          <option value="light">light</option>
+        </select>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-theme-acrylic" data-key="theme.acrylic">
+          <label for="f-theme-acrylic">acrylic (WT background blur)</label>
+        </div>
+        <label for="f-theme-opacity">opacity (0.0 - 1.0)</label>
+        <input type="text" id="f-theme-opacity" data-key="theme.opacity" data-type="float" placeholder="0.85">
+        <label for="f-theme-cursor">cursor_shape</label>
+        <select id="f-theme-cursor" data-key="theme.cursor_shape">
+          <option value="filledBox">filledBox</option>
+          <option value="emptyBox">emptyBox</option>
+          <option value="bar">bar</option>
+          <option value="underscore">underscore</option>
+          <option value="vintage">vintage</option>
+        </select>
+      </fieldset>
+      <fieldset>
+        <legend>theme.font</legend>
+        <label for="f-font-family">family</label>
+        <input type="text" id="f-font-family" data-key="theme.font.family" placeholder="GeistMono Nerd Font Mono">
+        <label for="f-font-size">size</label>
+        <input type="text" id="f-font-size" data-key="theme.font.size" data-type="int" placeholder="12">
+        <label for="f-font-weight">weight</label>
+        <input type="text" id="f-font-weight" data-key="theme.font.weight" placeholder="normal">
+        <label for="f-font-url">url (Nerd Fonts release zip)</label>
+        <input type="text" id="f-font-url" data-key="theme.font.url" placeholder="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/GeistMono.zip">
+        <label for="f-font-cellw">cell_w_px</label>
+        <input type="text" id="f-font-cellw" data-key="theme.font.cell_w_px" data-type="int" placeholder="10">
+        <label for="f-font-cellh">cell_h_px</label>
+        <input type="text" id="f-font-cellh" data-key="theme.font.cell_h_px" data-type="int" placeholder="20">
+      </fieldset>
+      <fieldset>
+        <legend>theme.terminal &amp; theme.prompt</legend>
+        <label for="f-tt-scheme">scheme_name</label>
+        <input type="text" id="f-tt-scheme" data-key="theme.terminal.scheme_name" placeholder="MiOS">
+        <label for="f-tt-profile">profile_name</label>
+        <input type="text" id="f-tt-profile" data-key="theme.terminal.profile_name" placeholder="MiOS">
+        <label for="f-tt-devprofile">dev_profile_name</label>
+        <input type="text" id="f-tt-devprofile" data-key="theme.terminal.dev_profile_name" placeholder="MiOS-DEV">
+        <label for="f-tp-omp">omp_path</label>
+        <input type="text" id="f-tp-omp" data-key="theme.prompt.omp_path" placeholder="/usr/share/mios/oh-my-posh/mios.omp.json">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Apps &amp; preflight · Windows native-app surface, host requirements <span class="phase-badge">irm|iex Pass-1</span></summary>
+  <div class="section-body">
+    <div class="grid">
+      <fieldset>
+        <legend>apps</legend>
+        <label for="f-apps-aumid">aumid (taskbar grouping)</label>
+        <input type="text" id="f-apps-aumid" data-key="apps.aumid" placeholder="MiOS.Workstation">
+        <label for="f-apps-folder">start_menu_folder</label>
+        <input type="text" id="f-apps-folder" data-key="apps.start_menu_folder" placeholder="MiOS">
+        <label for="f-apps-hub">hub_shortcut_name</label>
+        <input type="text" id="f-apps-hub" data-key="apps.hub_shortcut_name" placeholder="MiOS">
+      </fieldset>
+      <fieldset>
+        <legend>preflight (min host requirements)</legend>
+        <label for="f-pre-build">min_windows_build</label>
+        <input type="text" id="f-pre-build" data-key="preflight.min_windows_build" data-type="int" placeholder="22000">
+        <label for="f-pre-disk">min_disk_free_gb</label>
+        <input type="text" id="f-pre-disk" data-key="preflight.min_disk_free_gb" data-type="int" placeholder="280">
+        <label for="f-pre-ram">min_ram_gb</label>
+        <input type="text" id="f-pre-ram" data-key="preflight.min_ram_gb" data-type="int" placeholder="8">
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-pre-virt" data-key="preflight.require_virt">
+          <label for="f-pre-virt">require virtualization (Hyper-V + WSL2)</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-pre-admin" data-key="preflight.require_admin">
+          <label for="f-pre-admin">require admin (auto-elevation handles this)</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>network.retry (transient-error retries)</legend>
+        <label for="f-net-delays">delays_seconds (CSV)</label>
+        <input type="text" id="f-net-delays" data-key="network.retry.delays_seconds" data-array="csv-int" placeholder="0,5,15,30">
+        <label for="f-net-codes">http_status_retry (CSV)</label>
+        <input type="text" id="f-net-codes" data-key="network.retry.http_status_retry" data-array="csv-int" placeholder="502,503,504">
+        <label for="f-net-timeout">total_timeout_sec</label>
+        <input type="text" id="f-net-timeout" data-key="network.retry.total_timeout_sec" data-type="int" placeholder="120">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
   <summary>Advanced · raw TOML preview</summary>
   <div class="section-body">
     <fieldset style="grid-column: 1 / -1">
@@ -704,7 +861,13 @@ function parseTomlValue(v) {
   if (/^(true|false)$/i.test(v)) return /^true$/i.test(v);
   if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
   if (/^\[.*\]$/.test(v)) {
-    return v.slice(1, -1).split(",").map(s => s.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    return v.slice(1, -1).split(",").map(s => {
+      const trimmed = s.trim().replace(/^"|"$/g, "");
+      // Coerce numeric items so [0, 5, 15, 30] round-trips as ints,
+      // not strings. String items (with quotes) keep their string type.
+      if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed);
+      return trimmed;
+    }).filter(s => s !== "");
   }
   return v.replace(/^"|"$/g, "");
 }
@@ -712,8 +875,12 @@ function parseTomlValue(v) {
 function emitToml(sections) {
   // Emit a deterministic TOML block in MiOS section order.
   const order = ["meta", "identity", "locale", "auth", "network", "ai",
-                 "desktop", "colors", "image", "bootstrap", "profile",
-                 "quadlets.enable", "env"];
+                 "desktop", "colors", "image", "bootstrap",
+                 "bootstrap.host_storage", "bootstrap.dev_vm",
+                 "terminal", "theme", "theme.font", "theme.terminal",
+                 "theme.prompt", "branding", "branding.dashboard",
+                 "apps", "apps.shortcuts", "preflight", "network.retry",
+                 "profile", "quadlets.enable", "env"];
   const lines = [];
   const known = new Set(order);
   // Meta header preamble (matches the canonical template).
@@ -746,7 +913,13 @@ function emitTomlValue(v) {
   if (typeof v === "number")  return String(v);
   if (Array.isArray(v)) {
     if (v.length === 0) return "[]";
-    const items = v.map(s => `"${String(s).replace(/"/g, '\\"')}"`);
+    // Numeric arrays (network.retry.delays_seconds = [0, 5, 15, 30]) stay
+    // unquoted; string arrays (identity.groups, desktop.flatpaks) get
+    // quoted. Mixed arrays quote everything (best-effort fallback).
+    const allNumeric = v.every(x => typeof x === "number");
+    const items = allNumeric
+      ? v.map(n => String(n))
+      : v.map(s => `"${String(s).replace(/"/g, '\\"')}"`);
     // Inline for short arrays (groups, small sets); multi-line for long
     // arrays (desktop.flatpaks) so the saved TOML stays human-readable.
     if (v.length <= 4) return "[" + items.join(", ") + "]";
@@ -758,13 +931,23 @@ function emitTomlValue(v) {
 // ── Form ↔ data binding ──────────────────────────────────────────
 let DATA = {};
 
+// Split "section.maybe.subsection.key" -> ["section.maybe.subsection", "key"]
+// so [bootstrap.host_storage].shrink_mb maps to DATA["bootstrap.host_storage"]["shrink_mb"]
+// (matching the parseToml output for nested-table headers like [a.b]).
+function splitDataKey(k) {
+  const i = k.lastIndexOf(".");
+  return i < 0 ? ["", k] : [k.substring(0, i), k.substring(i + 1)];
+}
+
 function refreshFromData() {
   document.querySelectorAll("[data-key]").forEach(el => {
-    const [sec, key] = el.dataset.key.split(".");
+    const [sec, key] = splitDataKey(el.dataset.key);
     const v = DATA[sec]?.[key];
     if (v === undefined) return;
     if (el.type === "checkbox") el.checked = !!v;
-    else if (el.dataset.array === "csv") el.value = Array.isArray(v) ? v.join(",") : String(v);
+    else if (el.dataset.array === "csv" || el.dataset.array === "csv-int") {
+      el.value = Array.isArray(v) ? v.join(",") : String(v);
+    }
     else if (el.tagName === "SELECT") {
       const opt = Array.from(el.options).find(o => o.value === String(v));
       if (opt) el.value = String(v);
@@ -1140,10 +1323,25 @@ function updateFlatpakCount() {
 function gatherFromForm() {
   document.querySelectorAll("[data-key]").forEach(el => {
     if (el.dataset.customOf) return;
-    const [sec, key] = el.dataset.key.split(".");
+    const [sec, key] = splitDataKey(el.dataset.key);
     DATA[sec] = DATA[sec] || {};
     if (el.type === "checkbox") DATA[sec][key] = el.checked;
-    else if (el.dataset.array === "csv") DATA[sec][key] = el.value.split(",").map(s => s.trim()).filter(Boolean);
+    else if (el.dataset.array === "csv") {
+      DATA[sec][key] = el.value.split(",").map(s => s.trim()).filter(Boolean);
+    }
+    else if (el.dataset.array === "csv-int") {
+      DATA[sec][key] = el.value.split(",")
+        .map(s => s.trim()).filter(Boolean)
+        .map(s => { const n = parseInt(s, 10); return Number.isFinite(n) ? n : s; });
+    }
+    else if (el.dataset.type === "int") {
+      const n = parseInt(el.value, 10);
+      DATA[sec][key] = Number.isFinite(n) ? n : el.value;
+    }
+    else if (el.dataset.type === "float") {
+      const n = parseFloat(el.value);
+      DATA[sec][key] = Number.isFinite(n) ? n : el.value;
+    }
     else if (el.tagName === "SELECT" && el.value !== "__custom__") DATA[sec][key] = el.value;
     else if (el.tagName === "SELECT" && el.value === "__custom__") {
       const custom = document.querySelector(`[data-custom-of="${el.id}"]`);
