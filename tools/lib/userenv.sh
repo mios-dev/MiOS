@@ -222,6 +222,25 @@ slots = [
     ("ports.hermes",                   "MIOS_HERMES_PORT"),
     ("ports.webui",                    "MIOS_WEBUI_PORT"),
     ("ports.cockpit",                  "MIOS_COCKPIT_PORT"),
+    ("ports.ssh",                      "MIOS_SSH_PORT"),
+    # ── MIOS_DEFAULT_* aliases (env.defaults compat — TOML wins) ─────────
+    ("identity.username",              "MIOS_DEFAULT_USER"),
+    ("identity.hostname",              "MIOS_DEFAULT_HOST"),
+    ("identity.shell",                 "MIOS_DEFAULT_SHELL"),
+    ("identity.groups",                "MIOS_DEFAULT_GROUPS"),
+    ("locale.timezone",                "MIOS_DEFAULT_TIMEZONE"),
+    ("locale.language",                "MIOS_DEFAULT_LOCALE"),
+    ("locale.keyboard_layout",         "MIOS_DEFAULT_KEYBOARD"),
+    # ── meta / version ──────────────────────────────────────────────────
+    ("meta.mios_version",              "MIOS_VERSION"),
+    # ── ai bake list ────────────────────────────────────────────────────
+    ("ai.bake_models",                 "MIOS_AI_BAKE_MODELS"),
+    ("ai.bake_models",                 "MIOS_OLLAMA_BAKE_MODELS"),
+    # ── bootstrap dev VM + host storage ─────────────────────────────────
+    ("bootstrap.dev_vm.machine_name",  "MIOS_BUILDER_DISTRO"),
+    ("bootstrap.dev_vm.wsl_distro",    "MIOS_WSL_DISTRO"),
+    ("bootstrap.host_storage.shrink_mb",   "MIOS_DATA_DISK_MB"),
+    ("bootstrap.host_storage.drive_letter","MIOS_DATA_DISK_LETTER"),
     # ── image.sidecars (sidecar container pins) ───────────────────────────
     ("image.sidecars.localai_version", "MIOS_LOCALAI_VERSION"),
     ("image.sidecars.localai",         "MIOS_LOCALAI_IMAGE"),

@@ -1418,6 +1418,7 @@ allocation_unit     = 4096       # NTFS default cluster size
 # ----------------------------------------------------------------------------
 [bootstrap.dev_vm]
 machine_name        = "MiOS-DEV"   # podman derives "podman-MiOS-DEV"
+wsl_distro          = "MiOS"        # the eventual MiOS WSL distro (built from the OCI image)
 base_image          = "quay.io/podman/machine-os:6.0"   # LOCKED base
 cpus                = 4
 memory_mb           = 8192
