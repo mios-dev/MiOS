@@ -239,6 +239,16 @@ slots = [
     # ── bootstrap dev VM + host storage ─────────────────────────────────
     ("bootstrap.dev_vm.machine_name",  "MIOS_BUILDER_DISTRO"),
     ("bootstrap.dev_vm.wsl_distro",    "MIOS_WSL_DISTRO"),
+    ("bootstrap.dev_vm.base_image",    "MIOS_DEV_VM_BASE_IMAGE"),
+    ("bootstrap.dev_vm.cpus",          "MIOS_DEV_VM_CPUS"),
+    ("bootstrap.dev_vm.memory_mb",     "MIOS_DEV_VM_MEMORY_MB"),
+    ("bootstrap.dev_vm.disk_size_gb",  "MIOS_DEV_VM_DISK_GB"),
+    ("bootstrap.dev_vm.gpu_passthrough","MIOS_DEV_VM_GPU"),
+    ("bootstrap.dev_vm.host_reserve.cpu_pct",    "MIOS_DEV_VM_CPU_RESERVE_PCT"),
+    ("bootstrap.dev_vm.host_reserve.cpu_min",    "MIOS_DEV_VM_CPU_RESERVE_MIN"),
+    ("bootstrap.dev_vm.host_reserve.memory_pct", "MIOS_DEV_VM_MEMORY_RESERVE_PCT"),
+    ("bootstrap.dev_vm.host_reserve.memory_gb",  "MIOS_DEV_VM_MEMORY_RESERVE_GB"),
+    ("bootstrap.dev_vm.host_reserve.disk_gb",    "MIOS_DEV_VM_DISK_RESERVE_GB"),
     ("bootstrap.host_storage.shrink_mb",   "MIOS_DATA_DISK_MB"),
     ("bootstrap.host_storage.drive_letter","MIOS_DATA_DISK_LETTER"),
     # ── image.sidecars (sidecar container pins) ───────────────────────────

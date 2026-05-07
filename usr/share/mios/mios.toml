@@ -1420,9 +1420,29 @@ allocation_unit     = 4096       # NTFS default cluster size
 machine_name        = "MiOS-DEV"   # podman derives "podman-MiOS-DEV"
 wsl_distro          = "MiOS"        # the eventual MiOS WSL distro (built from the OCI image)
 base_image          = "quay.io/podman/machine-os:6.0"   # LOCKED base
-cpus                = 4
-memory_mb           = 8192
-disk_size_gb        = 100
+# Maximalist allocation — the dev VM IS the builder, so it gets every CPU
+# core, every GB of RAM, every GB of free disk, and every GPU the host
+# offers (minus the host_reserve below). Set to "max" to auto-detect via
+# Get-Hardware in build-mios.ps1; pin to a number to cap explicitly.
+cpus                = "max"
+memory_mb           = "max"
+disk_size_gb        = "max"
+gpu_passthrough     = "max"      # "max" | "none" | "nvidia" | "amd" | "intel"
+
+# ----------------------------------------------------------------------------
+# [bootstrap.dev_vm.host_reserve] -- headroom kept for the Windows host
+# when the values above are "max". The dev VM is the builder, so we err
+# heavily toward feeding it; reserves are tuned to keep the Windows
+# host responsive (Explorer, browser, IDE) during long builds, not to
+# guarantee gaming-class throughput on Windows during a build.
+# ----------------------------------------------------------------------------
+[bootstrap.dev_vm.host_reserve]
+cpu_pct             = 15      # reserve 15% of logical CPUs for Windows host
+cpu_min             = 2       # always reserve at least 2 cores
+memory_pct          = 15      # reserve 15% of host RAM for Windows host
+memory_gb           = 4       # always reserve at least 4 GB
+disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
+                              # artifacts (build outputs, podman cache, etc.)
 
 # ----------------------------------------------------------------------------
 # [terminal] -- canonical MiOS terminal dimensions. EVERY spawned shell
