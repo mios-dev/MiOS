@@ -1296,10 +1296,10 @@ disk_size_gb        = 100
 # ----------------------------------------------------------------------------
 [terminal]
 cols                = 80
-rows                = 30      # 30 = MiOS default; bump to 20 for a tighter portal-feel
+rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
 frame_width         = 79      # cols - 1 -- dashboard box width
-frame_height        = 29      # rows - 1 -- dashboard box max height
+frame_height        = 19      # rows - 1 -- dashboard box max height
 
 # ----------------------------------------------------------------------------
 # [theme] -- visual styling tokens. The [colors] table above defines
