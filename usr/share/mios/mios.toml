@@ -1245,10 +1245,156 @@ ansi_15_bright_white    = "#FFFFFF"   # pure white
 # ----------------------------------------------------------------------------
 [bootstrap]
 mode             = "auto"
-mios_repo        = "https://github.com/mios-dev/mios.git"
+mios_repo        = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo   = "https://github.com/mios-dev/mios-bootstrap.git"
+branch           = "main"
 install_packages = true   # run dnf install on PACKAGES.md after FHS overlay
 reboot_on_finish = true   # interactive y/N prompt at end of install
+
+# ----------------------------------------------------------------------------
+# [bootstrap.host_storage] -- Windows-side dedicated data partition.
+# Get-MiOS.ps1's Initialize-MiosDataDisk shrinks C:\ by `shrink_mb` and
+# creates a partition labeled `volume_label` at drive `drive_letter`.
+# ALL MiOS install paths redirect onto this disk (M:\MiOS, M:\etc\mios,
+# M:\podman\machine, M:\MiOS\repo\mios + mios-bootstrap, BIB output).
+#
+# Why shrink_mb = 262656 (not 262144)?
+#   262144 MB = 256 GiB exactly, but NTFS reserves ~16 MB at the start
+#   for boot sector + alignment + initial $MFT extents. The resulting
+#   "Capacity" in Windows Explorer falls 16-32 MB shy of the boundary,
+#   rounding DOWN to "255 GB". 262656 MB (= 256 GiB + 512 MB buffer)
+#   guarantees Explorer shows "256 GB".
+# ----------------------------------------------------------------------------
+[bootstrap.host_storage]
+drive_letter        = "M"
+volume_label        = "MIOS-DEV"
+shrink_mb           = 262656     # produces "256 GB" in Windows Explorer
+display_size_gb     = 256        # what the operator should see (informational)
+filesystem          = "NTFS"
+allocation_unit     = 4096       # NTFS default cluster size
+
+# ----------------------------------------------------------------------------
+# [bootstrap.dev_vm] -- podman-MiOS-DEV machine specifics. The VM that
+# IS the builder (per feedback_mios_dev_is_the_builder memory).
+# ----------------------------------------------------------------------------
+[bootstrap.dev_vm]
+machine_name        = "MiOS-DEV"   # podman derives "podman-MiOS-DEV"
+base_image          = "quay.io/podman/machine-os:6.0"   # LOCKED base
+cpus                = 4
+memory_mb           = 8192
+disk_size_gb        = 100
+
+# ----------------------------------------------------------------------------
+# [terminal] -- canonical MiOS terminal dimensions. EVERY spawned shell
+# (wt.exe new-tab, conhost fallback, wsl.exe into MiOS-DEV, the
+# auto-elevated bootstrap window, the native-app launcher) opens at
+# exactly cols × rows so the dashboard's 80-col frame renders cleanly.
+# Per memory feedback_mios_terminal_dimensions.
+# ----------------------------------------------------------------------------
+[terminal]
+cols                = 80
+rows                = 40
+scrollback_rows     = 9000
+
+# ----------------------------------------------------------------------------
+# [theme] -- visual styling tokens. The [colors] table above defines
+# the palette; this section names the typography, opacity, prompt,
+# and per-host theme switches that consumers (WT settings.json patcher,
+# oh-my-posh renderer, GTK/Adwaita, KDE Plasma) read.
+# ----------------------------------------------------------------------------
+[theme]
+mode                = "dark"             # "dark" | "light" (rare; vendor=dark)
+acrylic             = true               # WT background acrylic ON
+opacity             = 0.85               # 0.0 transparent .. 1.0 opaque
+cursor_shape        = "filledBox"        # WT cursorShape
+
+[theme.font]
+family              = "GeistMono Nerd Font Mono"
+size                = 12
+weight              = "normal"
+url                 = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/GeistMono.zip"
+# Cell metrics at 100% DPI (used to compute window pixel size for
+# centering): cell_w * cols + chrome_w, cell_h * rows + chrome_h.
+cell_w_px           = 10
+cell_h_px           = 20
+chrome_w_px         = 20
+chrome_h_px         = 12
+
+[theme.terminal]
+# Windows Terminal "MiOS" scheme name -- the WT settings.json patcher
+# stamps a scheme block whose colors come from the [colors] table above.
+scheme_name         = "MiOS"
+profile_name        = "MiOS"
+dev_profile_name    = "MiOS-DEV"
+
+[theme.prompt]
+# oh-my-posh renderer config. The mios.omp.json on disk is the source
+# of truth for segment shapes; this table sets the "knobs" the
+# configurator surfaces to operators (palette, separators, segments).
+omp_path            = "/usr/share/mios/oh-my-posh/mios.omp.json"
+separator           = ""                 # PowerLine right separator
+prompt_symbol       = ""                 #
+prompt_symbol_root  = ""                 #
+
+# ----------------------------------------------------------------------------
+# [branding] -- assets the dashboard / fastfetch / splash screens use.
+# Paths resolve relative to /usr/share/mios on Linux and to the
+# corresponding M:\MiOS\usr\share\mios on Windows.
+# ----------------------------------------------------------------------------
+[branding]
+logo_ascii          = "fastfetch/mios.txt"
+logo_image          = "branding/mios-logo.png"
+icon_ico            = "branding/mios.ico"
+fastfetch_config    = "fastfetch/config.jsonc"
+
+[branding.dashboard]
+frame_width_cols    = 80
+frame_chars         = "╭─╮│╰╯"           # WT-only Unicode box-drawing
+frame_color         = "blue"             # ANSI name resolves through [colors]
+show_fastfetch      = true
+show_logo           = true
+
+# ----------------------------------------------------------------------------
+# [apps] -- Windows native-app surface. Get-MiOS.ps1's
+# Install-MiOSNativeApp creates Start Menu + Desktop shortcuts using
+# these names + the AumID below.
+# ----------------------------------------------------------------------------
+[apps]
+aumid               = "MiOS.Workstation"
+start_menu_folder   = "MiOS"
+hub_shortcut_name   = "MiOS"
+
+[apps.shortcuts]
+# Each verb gets its own .lnk under Start Menu/MiOS/. Keys are the
+# verb names; values are the display label + arg passed to `mios <verb>`.
+mios_dev            = { label = "MiOS-DEV",          verb = "dev" }
+mios_build          = { label = "MiOS Build",        verb = "build" }
+mios_dashboard      = { label = "MiOS Dashboard",    verb = "dash" }
+mios_configurator   = { label = "MiOS Configurator", verb = "config" }
+mios_update         = { label = "MiOS Update",       verb = "update" }
+mios_pull           = { label = "MiOS Pull",         verb = "pull" }
+
+# ----------------------------------------------------------------------------
+# [preflight] -- minimum host requirements. Get-MiOS.ps1 checks these
+# before starting the install; a violation aborts with a clear message
+# pointing at which knob the operator can lower (e.g. via mios.html).
+# ----------------------------------------------------------------------------
+[preflight]
+min_windows_build   = 22000      # Windows 11 21H2 minimum
+min_disk_free_gb    = 280        # 256 GB partition + headroom
+min_ram_gb          = 8
+require_virt        = true       # Hyper-V + WSL2 require virtualization
+require_admin       = true       # auto-elevation handles this; check is informational
+
+# ----------------------------------------------------------------------------
+# [network.retry] -- transient-error retry schedules (seconds). Used by
+# anywhere we hit upstream services (quay.io image pulls, GitHub raw
+# fetches, winget repository sync, dnf metadata refresh).
+# ----------------------------------------------------------------------------
+[network.retry]
+delays_seconds      = [0, 5, 15, 30]   # 4 attempts: immediate, 5s, 15s, 30s
+http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
+total_timeout_sec   = 120
 
 # ----------------------------------------------------------------------------
 # [profile] -- developer-vs-server-vs-kiosk flavor and feature toggles.
