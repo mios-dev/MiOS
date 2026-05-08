@@ -1621,7 +1621,7 @@ podman_pkg          = "RedHat.Podman-Desktop"
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 80      # full window width -- matches the powerline edge-to-edge (cap at col 0 + cap at col 79)
+frame_width         = 79      # cols - 1 -- per operator "everything should be -1 width" so the frame leaves a 1-cell gutter on the right edge that neither the frame nor the right-aligned powerline can overflow into
 frame_height        = 19      # rows - 1 -- one row reserved for the prompt under the dashboard
 
 # ----------------------------------------------------------------------------
