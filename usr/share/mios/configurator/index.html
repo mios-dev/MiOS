@@ -732,7 +732,7 @@
         <input type="text" id="f-font-cellh" data-key="theme.font.cell_h_px" data-type="int" placeholder="20">
       </fieldset>
       <fieldset>
-        <legend>theme.terminal &amp; theme.prompt</legend>
+        <legend>theme.terminal</legend>
         <label for="f-tt-scheme">scheme_name</label>
         <input type="text" id="f-tt-scheme" data-key="theme.terminal.scheme_name" placeholder="MiOS">
         <label for="f-tt-profile">profile_name</label>
@@ -743,8 +743,34 @@
         <input type="text" id="f-tt-summon-keys" data-key="theme.terminal.summon_keys" placeholder="win+space">
         <label for="f-tt-summon-name">summon_window_name</label>
         <input type="text" id="f-tt-summon-name" data-key="theme.terminal.summon_window_name" placeholder="MiOS">
+      </fieldset>
+      <fieldset>
+        <legend>theme.prompt — powerline glyphs (rounded by default)</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          mios.toml IS the SSOT for every powerline glyph and prompt
+          symbol. Defaults are rounded (`` U+E0B4 / `` U+E0B6).
+          Sharp triangles ``/`` (U+E0B0/B2) or flat ` `/` ` are
+          operator overrides — paste a different glyph in any field
+          to override globally.
+        </p>
         <label for="f-tp-omp">omp_path</label>
         <input type="text" id="f-tp-omp" data-key="theme.prompt.omp_path" placeholder="/usr/share/mios/oh-my-posh/mios.omp.json">
+        <label for="f-tp-pl-r">powerline_right (default: rounded ``)</label>
+        <input type="text" id="f-tp-pl-r" data-key="theme.prompt.powerline_right" placeholder="">
+        <label for="f-tp-pl-l">powerline_left (default: rounded ``)</label>
+        <input type="text" id="f-tp-pl-l" data-key="theme.prompt.powerline_left" placeholder="">
+        <label for="f-tp-pl-rs">powerline_right_soft (between same-color segments)</label>
+        <input type="text" id="f-tp-pl-rs" data-key="theme.prompt.powerline_right_soft" placeholder="">
+        <label for="f-tp-pl-ls">powerline_left_soft</label>
+        <input type="text" id="f-tp-pl-ls" data-key="theme.prompt.powerline_left_soft" placeholder="">
+        <label for="f-tp-ld">leading_diamond (start of leftmost segment)</label>
+        <input type="text" id="f-tp-ld" data-key="theme.prompt.leading_diamond" placeholder="">
+        <label for="f-tp-td">trailing_diamond (end of rightmost segment)</label>
+        <input type="text" id="f-tp-td" data-key="theme.prompt.trailing_diamond" placeholder="">
+        <label for="f-tp-ps">prompt_symbol (default: ❯)</label>
+        <input type="text" id="f-tp-ps" data-key="theme.prompt.prompt_symbol" placeholder="❯">
+        <label for="f-tp-psr">prompt_symbol_root (default: ⚠)</label>
+        <input type="text" id="f-tp-psr" data-key="theme.prompt.prompt_symbol_root" placeholder="⚠">
       </fieldset>
     </div>
   </div>

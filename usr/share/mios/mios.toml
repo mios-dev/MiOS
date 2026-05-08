@@ -1472,8 +1472,8 @@ disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 79      # cols - 1 -- dashboard box width
-frame_height        = 19      # rows - 1 -- dashboard box max height
+frame_width         = 80      # exact cols -- dashboard box fills the 80-col terminal edge-to-edge
+frame_height        = 19      # rows - 1 -- one row reserved for the prompt under the dashboard
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install
@@ -1538,13 +1538,32 @@ summon_keys         = "win+space"
 summon_window_name  = "MiOS"
 
 [theme.prompt]
-# oh-my-posh renderer config. The mios.omp.json on disk is the source
-# of truth for segment shapes; this table sets the "knobs" the
-# configurator surfaces to operators (palette, separators, segments).
-omp_path            = "/usr/share/mios/oh-my-posh/mios.omp.json"
-separator           = ""                 # PowerLine right separator
-prompt_symbol       = ""                 #
-prompt_symbol_root  = ""                 #
+# oh-my-posh renderer SSOT. mios.toml IS the canonical source for
+# every powerline glyph + prompt symbol; mios.omp.json on disk uses
+# placeholder strings that the bootstrap substitutes from this
+# section at staging time. Operators edit these values via
+# mios.html to change the prompt look without touching omp JSON.
+#
+# DEFAULTS = rounded powerline (`` U+E0B4 + `` U+E0B6). Sharp
+# triangles (`` `` U+E0B0/B2) are an operator override; flat
+# (` ` `) is another override. The configurator HTML exposes
+# all three.
+omp_path                = "/usr/share/mios/oh-my-posh/mios.omp.json"
+
+# Powerline separators between segments. Rounded by default.
+powerline_right         = ""   #  rounded right (segment ends on right side)
+powerline_left          = ""   #  rounded left  (segment ends on left side)
+# Soft separator -- light vertical bar between same-color segments.
+powerline_right_soft    = ""   #
+powerline_left_soft     = ""   #
+
+# Diamond / leading caps (start of leftmost segment, end of rightmost).
+leading_diamond         = ""   #  rounded leading diamond
+trailing_diamond        = ""   #  rounded trailing diamond
+
+# Prompt cursor symbol (rendered after the last segment).
+prompt_symbol           = "❯"   # ❯ heavy right angle (default user)
+prompt_symbol_root      = "⚠"   # ⚠  warning (default root)
 
 # ----------------------------------------------------------------------------
 # [branding] -- assets the dashboard / fastfetch / splash screens use.
