@@ -1597,6 +1597,17 @@ disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
                               # artifacts (build outputs, podman cache, etc.)
 
 # ----------------------------------------------------------------------------
+# [bootstrap.prereqs] -- Phase 0 auto-install catalog. The irm|iex web
+# entry now winget-installs each missing prerequisite instead of
+# failing. Operators swap implementations (e.g. an alternative WSL
+# package id, a different Podman distribution channel) via mios.html.
+# ----------------------------------------------------------------------------
+[bootstrap.prereqs]
+git_pkg             = "Git.Git"
+wsl_pkg             = "Microsoft.WSL"
+podman_pkg          = "RedHat.Podman-Desktop"
+
+# ----------------------------------------------------------------------------
 # [terminal] -- canonical MiOS terminal dimensions. EVERY spawned shell
 # (wt.exe new-tab, conhost fallback, wsl.exe into MiOS-DEV, the
 # auto-elevated bootstrap window, the native-app launcher, Linux tty0
