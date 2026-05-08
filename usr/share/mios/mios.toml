@@ -1614,25 +1614,32 @@ podman_pkg          = "RedHat.Podman-Desktop"
 # console via /etc/profile.d/mios-tty.sh) opens at exactly cols × rows.
 #
 # EDGE-TO-EDGE: frame_width = cols, frame_height = rows, right_margin = 0.
-# The dashboard box-drawing reaches the rightmost paintable cell. The
-# right-aligned powerline block ends at the last paintable cell. There
-# is NO gutter.
+# Operator pivot 2026-05-08: "MiOS app/windows terminal windows should
+# be completely frameless/borderless with no margin (edge-to-edge
+# printing!!!!!)" -> "go fix mios-bootstrap edge-to-edge now".
 #
-# This requires the WT/MiOS app window to actually be frameless --
-# the [theme] section below sets padding=0, scrollbar_state=hidden,
-# acrylic on, suppress_app_title, launch_mode=focus so the visible cell
-# count == the reported cell count. Any wrap on the right edge is a WT
-# chrome bug (a missing knob in [theme] or in the settings.json patcher);
-# do NOT shrink frame_width / right_margin to mask it. Operator pivot
-# 2026-05-08: stop band-aiding the frame, fix the chrome.
+# Enabled by mios-bootstrap's Install-MiOSTerminalProfile writing
+# `launchMode = "focus"` at the ROOT of settings.json plus
+# `profiles.defaults.suppressApplicationTitle = true`. With both, WT
+# strips the titlebar and tab-row from frame 0 so the pseudo-console
+# reports the actual visible cell count immediately, no off-by-N
+# window before scrollbarState=hidden takes effect. oh-my-posh aligns
+# correctly, no powerline wrap.
+#
+# If the powerline ever wraps again (acrylic-recompute on first paint
+# MAY re-trigger the off-by-N briefly when animations are on), the
+# targeted band-aid is `right_margin = 1` -- NOT `disable_animations =
+# true` (operator wants the aesthetics: window fade on open/close +
+# preview features). 1 cell of slack is invisible to the eye but
+# gives oh-my-posh enough room to absorb a 1-cell first-paint lie.
 # ----------------------------------------------------------------------------
 [terminal]
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 80      # = cols. Edge-to-edge -- the dashboard frame paints from col 0 to col cols-1 with no gutter. Vendor default is exactly cols; anything narrower is an operator override (e.g. for a quirky third-party terminal that lies about its width). Get-MiOS.ps1's Show-MiosDashboard, mios-dash.ps1, and mios-dashboard.sh ALL read this value via Get-MiosTomlValue / awk.
-frame_height        = 20      # = rows. Edge-to-edge vertically -- the dashboard scrolls naturally and the prompt renders below as a NEW row. The conhost cursor advances past the bottom border on its own; no row needs to be "reserved" inside the frame.
-right_margin        = 0       # zero gutter on the right edge. Applied in Get-MiOS.ps1's WIDTH calc (MIN(WindowWidth - right_margin, frame_width)) and in mios-dash.ps1 (cols - right_margin). 0 = edge-to-edge. Increase ONLY if the WT chrome cannot be made frameless on a given host (e.g. a remote conhost without scrollbarState support); the proper home for those workarounds is the consumer, not this knob.
+frame_width         = 80      # = cols. True edge-to-edge -- the dashboard frame paints from col 0 to col cols-1 with no gutter. Get-MiOS.ps1's Show-MiosDashboard, mios-dash.ps1, and mios-dashboard.sh ALL read this value via Get-MiosTomlValue / awk.
+frame_height        = 20      # = rows. The dashboard scrolls naturally and the prompt renders below as a NEW row -- the conhost cursor advances past the bottom border on its own; no row needs to be "reserved" inside the frame.
+right_margin        = 0       # zero gutter on the right edge. Get-MiOS.ps1's Show-MiosDashboard uses MIN(WindowWidth - right_margin, frame_width); mios-dash.ps1 uses cols - right_margin; mios-dashboard.sh (awk reader) uses cols - right_margin; mios.omp.json's trailing-spacer segment template = "" with final_space=false. Raise to 1 ONLY if the powerline wraps with animations on (acrylic-recompute first-paint timing).
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install
@@ -1665,8 +1672,9 @@ cursor_shape        = "filledBox"        # block-style cursor mimics Linux termi
 scrollbar_state     = "hidden"           # no scrollbar -- frame uses every col
 padding             = "0"                # zero padding -- frame flush to edges
 suppress_app_title  = true               # WT doesn't override our title
-launch_mode         = "focus"            # frame-less / border-less / no-titlebar / no-tab-row
-disable_animations  = false              # keep tab-fade / acrylic-recompute live
+launch_mode         = "focus"            # frame-less / border-less / no-titlebar / no-tab-row -- forces WT to measure the viewport at the actual cell count cols × rows from FIRST PAINT (no titlebar to strip later, no off-by-1/2 cell-count window before scrollbarState='hidden' applies). Required for true edge-to-edge in mios-bootstrap's Install-MiOSTerminalProfile.
+disable_animations  = false              # animations ON -- per operator "enable animations and all preview features in the MiOS Windows Terminal profile, full aesthetics! ALSO: can it quickly fade on open and close??". The WT window open/close fade is gated on disableAnimations=false + useAcrylic=true; both are on. If the powerline ever wraps with animations on, raise [terminal].right_margin to 1 as a targeted band-aid -- do NOT flip animations off (operator wants the aesthetics).
+enable_preview_features = true           # WT experimental.* knobs bundle (useAtlasEngine GPU renderer, experimental.detectURLs, experimental.input.forceVT, experimental.rendering.forceFullRepaint). Per operator "all preview features in the MiOS Windows Terminal profile". Set to false only if a specific WT version regresses one of the gated keys; the patcher in mios-bootstrap will skip the whole bundle if false.
 
 [theme.font]
 family              = "GeistMono Nerd Font Mono"

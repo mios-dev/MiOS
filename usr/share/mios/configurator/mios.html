@@ -911,7 +911,7 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>terminal (post-install MiOS app: 80x20, edge-to-edge frameless)</legend>
+        <legend>terminal (post-install MiOS app: 80x20, edge-to-edge frameless via launch_mode=focus)</legend>
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>
@@ -922,7 +922,7 @@
         <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="80">
         <label for="f-term-fh">frame_height (= rows, edge-to-edge)</label>
         <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="20">
-        <label for="f-term-rm">right_margin (0 = edge-to-edge; raise only if WT chrome can't be hidden)</label>
+        <label for="f-term-rm">right_margin (0 = true edge-to-edge; raise to 1 only if powerline wraps with animations on)</label>
         <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="0">
       </fieldset>
       <fieldset>
@@ -977,8 +977,18 @@
           <option value="focus">focus (frame-less / no-titlebar / no-tab-row)</option>
           <option value="default">default</option>
           <option value="maximized">maximized</option>
+          <option value="maximizedFocus">maximizedFocus</option>
           <option value="fullscreen">fullscreen</option>
+          <option value="focusFullscreen">focusFullscreen</option>
         </select>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-theme-anim" data-key="theme.disable_animations">
+          <label for="f-theme-anim">disable_animations (UNCHECK = animations ON, fade on open/close)</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="f-theme-preview" data-key="theme.enable_preview_features">
+          <label for="f-theme-preview">enable_preview_features (WT useAtlasEngine + experimental.detectURLs / forceVT / forceFullRepaint)</label>
+        </div>
       </fieldset>
       <fieldset>
         <legend>theme.font</legend>
