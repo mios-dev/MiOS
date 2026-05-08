@@ -155,6 +155,59 @@ pull   = { description = "Sync M:\\ overlay to origin/main",                    
 update = { description = "Re-run the bootstrap (cache-busted)",                                  surface = "windows" }
 help   = { description = "List every verb",                                                       surface = "windows" }
 
+# ----------------------------------------------------------------------------
+# [apps] -- canonical Windows-side native-app catalog. Each app gets a
+# Start Menu .lnk + Desktop .lnk during build-mios.ps1's Install-MiOSLauncher.
+# Operators rename apps via mios.html; the next install regenerates
+# shortcuts against the new name. The "MiOS" hub app and "Uninstall MiOS"
+# entry are fixed-name + handled outside this loop (they're the entry +
+# teardown surface). The ones below are the per-verb apps the operator
+# can customize.
+# ----------------------------------------------------------------------------
+[apps]
+# Note: [apps] table proper (with native-app catalog) is consolidated
+# at line ~1665 with the rest of the Windows-side app metadata; THIS
+# location was a duplicate-and-removed staging table.
+
+# ----------------------------------------------------------------------------
+# [install_phases.<mode>] -- ordered list of phase names rendered by
+# build-mios.ps1's dashboard + log lines. Two modes:
+#   bootstrap -- the Windows-side "ack + dev VM + handoff" path (default).
+#   full      -- the legacy end-to-end path (deprecated; only kicks in
+#                when -FullBuild / -BuildOnly are passed, which the
+#                self-replication architecture forces to BootstrapOnly).
+# Operators rename phases via mios.html. The order here is structural
+# (each name is a step in the install state machine); reordering may
+# break callers that hardcode `Start-Phase 0`. Add/remove with care.
+# ----------------------------------------------------------------------------
+[install_phases.bootstrap]
+names = [
+    "Hardware + Prerequisites",
+    "Detecting environment",
+    "Directories and repos",
+    "MiOS-DEV distro",
+    "WSL2 configuration",
+    "App registration"
+]
+
+[install_phases.full]
+names = [
+    "Hardware + Prerequisites",
+    "Detecting environment",
+    "Directories and repos",
+    "MiOS-DEV distro",
+    "WSL2 configuration",
+    "Verifying build context",
+    "Identity",
+    "Writing identity",
+    "App registration",
+    "Building OCI image",
+    "Exporting WSL2 image",
+    "Registering 'MiOS' WSL2",
+    "Building disk images",
+    "Deploying Hyper-V VM"
+]
+
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
 # etc/containers/systemd/mios-searxng.container; the agent surface
@@ -1615,14 +1668,16 @@ start_menu_folder   = "MiOS"
 hub_shortcut_name   = "MiOS"
 
 [apps.shortcuts]
-# Each verb gets its own .lnk under Start Menu/MiOS/. Keys are the
-# verb names; values are the display label + arg passed to `mios <verb>`.
-mios_dev            = { label = "MiOS-DEV",          verb = "dev" }
-mios_build          = { label = "MiOS Build",        verb = "build" }
-mios_dashboard      = { label = "MiOS Dashboard",    verb = "dash" }
-mios_configurator   = { label = "MiOS Configurator", verb = "config" }
-mios_update         = { label = "MiOS Update",       verb = "update" }
-mios_pull           = { label = "MiOS Pull",         verb = "pull" }
+# Per-verb Start Menu + Desktop shortcuts. The hub "MiOS.lnk" + the
+# "Uninstall MiOS.lnk" entry are NOT in this table (they're handled
+# separately by Install-MiOSLauncher's hub block + the legacy
+# uninstall block). The 3 per-verb apps below are the operator-
+# customizable surface; mios.html exposes them as editable fields.
+# Each entry: name=display-label, bin=script-in-MiosBinDir,
+# icon=ico-name-in-MiosIconsDir, description=tooltip text.
+mios_dev    = { name = "MiOS-DEV",    bin = "mios-dev.ps1",    icon = "mios-dev.ico",    description = "Open MiOS-DEV (podman machine) directly to its themed dashboard" }
+mios_config = { name = "MiOS Config", bin = "mios-config.ps1", icon = "mios-config.ico", description = "Open mios.html (the HTML configurator) in your default browser to edit mios.toml" }
+mios_help   = { name = "MiOS Help",   bin = "mios-help.ps1",   icon = "mios-help.ico",   description = "Full verb + functionality reference (every MiOS command and where things live)" }
 
 # ----------------------------------------------------------------------------
 # [preflight] -- minimum host requirements. Get-MiOS.ps1 checks these
