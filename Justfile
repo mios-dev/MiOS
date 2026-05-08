@@ -239,12 +239,40 @@ wsl2: build
 #                            sudo-less remote management).
 #
 # Use `just verify-images` after to sanity-check every artifact landed.
-all: build raw iso qcow2 vhdx wsl2
+all: build raw iso usb-installer qcow2 vhdx wsl2
     @echo ""
     @echo "[OK] All MiOS deployable artifacts built. Output:"
     @ls -lah output/ 2>/dev/null || true
     @echo ""
     @echo "[NEXT] Run 'just verify-images' to confirm artifact integrity."
+
+# USB installer artifact -- explicit alias for the Anaconda installer
+# ISO repackaged as a USB-flashable image with a clear filename.
+# The same .iso BIB produces is bootable from USB via `dd if=output/*.iso
+# of=/dev/sdX bs=4M status=progress` (Linux) or `Rufus` (Windows). This
+# target just provides a discoverable name and prints the operator
+# flash recipe so "where's the USB installer?" doesn't end at the
+# generic `iso` target.
+usb-installer: iso
+    @mkdir -p output/usb-installer
+    @if ls output/*.iso >/dev/null 2>&1; then \
+        for src in output/*.iso; do \
+            base=$$(basename "$$src" .iso); \
+            dst="output/usb-installer/$${base}-usb.iso"; \
+            [ -f "$$dst" ] || cp -p "$$src" "$$dst"; \
+            sz=$$(stat -c%s "$$dst" 2>/dev/null || stat -f%z "$$dst"); \
+            echo "[OK] USB installer: $$dst ($$sz bytes)"; \
+        done; \
+    else \
+        echo "[FAIL] no .iso in output/ — run 'just iso' first"; exit 1; \
+    fi
+    @echo ""
+    @echo "Flash to USB (replace /dev/sdX with your actual device):"
+    @echo "  Linux:    sudo dd if=output/usb-installer/*.iso of=/dev/sdX bs=4M status=progress conv=fdatasync"
+    @echo "  macOS:    sudo dd if=output/usb-installer/*.iso of=/dev/rdiskN bs=4m"
+    @echo "  Windows:  use Rufus (https://rufus.ie) or balenaEtcher"
+    @echo ""
+    @echo "WARNING: dd will destroy ALL data on the target device — verify the device first."
 
 # Smoke-test every artifact in output/ -- non-zero size, recognizable
 # magic bytes, sane disk-image geometry. Fast (no actual boot).

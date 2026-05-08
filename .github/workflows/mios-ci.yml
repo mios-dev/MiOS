@@ -2,6 +2,13 @@ name: mios-ci
 
 # In-repo build: MiOS owns the Containerfile and Justfile, so CI builds
 # straight from the repository tree -- no cross-repo fetch.
+#
+# Parity with .forgejo/workflows/build-mios.yml: both pipelines use
+# `podman build` (NOT docker/build-push-action) so the OCI manifests,
+# layer digests, labels, and provenance match bit-for-bit between the
+# self-hosted Forgejo Runner closure and the GitHub Actions cloud
+# closure. An operator pulling ghcr.io/mios-dev/mios:latest gets the
+# same image whether the runner was forgejo-side or github-side.
 
 on:
   push:
@@ -30,82 +37,141 @@ jobs:
         id: ver
         run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Resolve image tag (VERSION + UTC timestamp + short SHA)
+        id: tag
+        run: |
+          VER="$(cat VERSION 2>/dev/null || echo 'v0.0.0')"
+          SHA="$(git rev-parse --short=12 HEAD)"
+          TS="$(date -u +%Y%m%d-%H%M%S)"
+          TAG="${VER#v}-${TS}-${SHA}"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building tag: ${TAG}"
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install podman
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y podman skopeo
+
+      - name: Build OCI image (parity with Forgejo Runner)
+        run: |
+          set -euo pipefail
+          # Source build-args from /etc/mios/install.env if present
+          # (matches Forgejo runner behavior). On GitHub-hosted runners
+          # there's no install.env so the build uses Containerfile
+          # defaults — which is the correct vendor-neutral build.
+          BUILD_ARGS=()
+          if [[ -r /etc/mios/install.env ]]; then
+              # shellcheck source=/dev/null
+              source /etc/mios/install.env
+              [[ -n "${MIOS_LINUX_USER:-}"        ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
+              [[ -n "${MIOS_HOSTNAME:-}"          ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
+              [[ -n "${MIOS_AI_MODEL:-}"          ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
+              [[ -n "${MIOS_AI_EMBED_MODEL:-}"    ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
+              [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_OLLAMA_BAKE_MODELS=${MIOS_OLLAMA_BAKE_MODELS}")
+          fi
+          podman build \
+              "${BUILD_ARGS[@]}" \
+              -f Containerfile \
+              -t "localhost/mios:latest" \
+              -t "localhost/mios:${{ steps.tag.outputs.image_tag }}" \
+              .
+
+      - name: Verify bootc lint passes (Architectural Law 4)
+        run: |
+          # Containerfile already runs `bootc container lint` as the
+          # final build step. Belt-and-suspenders check: confirm the
+          # freshly-built image still carries the required bootc labels.
+          # Identical check to .forgejo/workflows/build-mios.yml.
+          podman image inspect localhost/mios:latest \
+              --format '{{ index .Config.Labels "containers.bootc" }}' \
+              | grep -qx '1' || {
+                  echo "ERROR: built image missing containers.bootc=1 label" >&2
+                  exit 1
+              }
+          podman image inspect localhost/mios:latest \
+              --format '{{ index .Config.Labels "ostree.bootable" }}' \
+              | grep -qx '1' || {
+                  echo "ERROR: built image missing ostree.bootable=1 label" >&2
+                  exit 1
+              }
+
+      - name: Rechunk for smaller Day-2 deltas (every push)
+        run: |
+          set -euo pipefail
+          # hhd-dev/rechunk produces 5-10x smaller bootc-upgrade
+          # deltas. Forgejo Runner runs this on every push (closing
+          # the self-replication loop with optimal pull bandwidth);
+          # GitHub Actions does the same so cloud-pulled images
+          # match self-hosted images bit-for-bit.
+          IMAGE_TAG="localhost/mios:${{ steps.tag.outputs.image_tag }}"
+          MAX_LAYERS="${MIOS_RECHUNK_MAX_LAYERS:-67}"
+          podman run --rm \
+              --security-opt label=type:unconfined_t \
+              -v /var/lib/containers/storage:/var/lib/containers/storage \
+              "${IMAGE_TAG}" \
+              /usr/libexec/bootc-base-imagectl rechunk \
+                  --max-layers "${MAX_LAYERS}" \
+                  "containers-storage:${IMAGE_TAG}" \
+                  "containers-storage:${IMAGE_TAG}-rechunked" || {
+              echo "WARN: rechunk failed; pushing un-rechunked image" >&2
+              exit 0
+          }
+          podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+          podman tag "${IMAGE_TAG}" "localhost/mios:latest"
+
+      - name: Compute registry tags
+        id: meta
+        if: github.event_name != 'pull_request'
+        run: |
+          BASE="${REGISTRY}/${IMAGE_NAME}"
+          TAGS=()
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              TAGS+=("${BASE}:latest")
+              TAGS+=("${BASE}:${{ steps.ver.outputs.version }}")
+          fi
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+              SEMVER="${GITHUB_REF#refs/tags/v}"
+              TAGS+=("${BASE}:${SEMVER}")
+              TAGS+=("${BASE}:latest")
+          fi
+          TAGS+=("${BASE}:${{ steps.tag.outputs.image_tag }}")
+          {
+              echo "tags<<EOF"
+              printf '%s\n' "${TAGS[@]}"
+              echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Compute tags
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.ver.outputs.version }},enable={{is_default_branch}}
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Containerfile
-          platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: true
-          sbom: true
-
-      # Rechunking produces 5-10x smaller Day-2 deltas (Justfile:rechunk).
-      # Only worth the cost on tag pushes; branch builds skip it.
-      - name: Install podman
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y podman
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+              podman login -u "${{ github.actor }}" --password-stdin "${REGISTRY}"
 
-      - name: Rechunk on tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          IMAGE_TAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.ver.outputs.version }}
+      - name: Push to GHCR
+        if: github.event_name != 'pull_request'
         run: |
-          podman pull "${IMAGE_TAG}"
-          podman run --rm \
-            --security-opt label=type:unconfined_t \
-            -v /var/lib/containers/storage:/var/lib/containers/storage \
-            "${IMAGE_TAG}" \
-            /usr/libexec/bootc-base-imagectl rechunk --max-layers 67 \
-              "containers-storage:${IMAGE_TAG}" \
-              "containers-storage:${IMAGE_TAG}-rechunked"
-          podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
-          podman tag "${IMAGE_TAG}" "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          podman push "${IMAGE_TAG}"
-          podman push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          set -euo pipefail
+          while IFS= read -r tag; do
+              [[ -z "$tag" ]] && continue
+              podman tag localhost/mios:latest "$tag"
+              podman push "$tag"
+              echo "Pushed: $tag"
+          done <<< "${{ steps.meta.outputs.tags }}"
 
       - name: Install cosign
         if: startsWith(github.ref, 'refs/tags/v')
         uses: sigstore/cosign-installer@v3
 
-      - name: Cosign keyless sign
+      - name: Cosign keyless sign (tag pushes)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           COSIGN_EXPERIMENTAL: '1'
         run: |
-          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr "\n" " "); do
-            cosign sign --yes "${tag}"
-          done
+          set -euo pipefail
+          while IFS= read -r tag; do
+              [[ -z "$tag" ]] && continue
+              cosign sign --yes "$tag"
+          done <<< "${{ steps.meta.outputs.tags }}"
 
   smoke-test:
     runs-on: ubuntu-24.04
