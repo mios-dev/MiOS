@@ -1621,8 +1621,9 @@ podman_pkg          = "RedHat.Podman-Desktop"
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 79      # cols - 1 -- per operator "everything should be -1 width" so the frame leaves a 1-cell gutter on the right edge that neither the frame nor the right-aligned powerline can overflow into
+frame_width         = 78      # cols - 2 -- per operator "framing too wide STILL" the previous cols-1 still wrapped because WT pseudo-console reports 1 cell over the visible cell count when the scrollbar reservation hasn't been applied yet (profiles.defaults scrollbarState='hidden' takes effect after the first paint). cols-2 leaves a 2-cell gutter so neither the box-drawing frame nor the right-aligned powerline block can wrap regardless of WT version / DPI / scrollbar timing.
 frame_height        = 19      # rows - 1 -- one row reserved for the prompt under the dashboard
+right_margin        = 2       # cells of slack between the rightmost paintable cell and where prompt right-aligned segments stop. Applied in Get-MiOS.ps1's WIDTH calc (MIN(WindowWidth - right_margin, frame_width)) and as a trailing spacer segment in mios.omp.json. cols-2 not cols-1: cols-1 still wrapped on the operator's hardware because the WT reported window width was 1 cell wider than the actual visible/paintable width during the first prompt render.
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install

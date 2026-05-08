@@ -207,6 +207,12 @@
             "time_format": "15:04"
           },
           "template": " {{ .CurrentDate | date .Format }} "
+        },
+        {
+          "//": "Trailing spacer -- reserves 2 cells of right margin so the powerline right block can't wrap to the next line on hosts where the pseudo-console reports a window width 1+ cells over the visible cells (operator's WT during the first paint, before scrollbarState='hidden' takes effect). final_space=true at the theme root reserves 1 additional cell on top, totaling 3 cells of slack from the rightmost cell. Lifted from mios.toml [terminal].right_margin via build-mios.ps1's mios.omp.json substitution; this 2-space template is the vendor default.",
+          "type": "text",
+          "style": "plain",
+          "template": "  "
         }
       ]
     },
