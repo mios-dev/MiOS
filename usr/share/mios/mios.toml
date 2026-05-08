@@ -218,6 +218,15 @@ bullets = [
     "MiOS PowerShell profile (oh-my-posh, dashboard, mios <verb>)"
 ]
 
+[messages.installer_banner]
+# The Unified Installer banner box at the top of every build-mios.ps1 run.
+# {version} is substituted from [meta].mios_version at render time.
+title    = "'MiOS' {version}  --  Unified Windows Installer"
+taglines = [
+    "Immutable Fedora AI Workstation",
+    "WSL2 + Podman  │  Offline Build Pipeline"
+]
+
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
 # etc/containers/systemd/mios-searxng.container; the agent surface
