@@ -200,6 +200,24 @@ names = [
     "Deploying Hyper-V VM"
 ]
 
+# ----------------------------------------------------------------------------
+# [messages.<context>] -- operator-facing prose strings rendered by the
+# install pipeline. Lifted out of build-mios.ps1 so operators can rebrand
+# the bootstrap banners via mios.html without touching code. Bullets
+# support a {disk_gb} placeholder which build-mios.ps1 substitutes at
+# render time.
+# ----------------------------------------------------------------------------
+[messages.install_complete]
+title   = "MiOS Windows-side install complete"
+bullets = [
+    "M:\\ partition ({disk_gb} GB NTFS, label MIOS-DEV)",
+    "Podman Desktop + podman-MiOS-DEV machine",
+    "mios.git + mios-bootstrap overlaid at M:\\",
+    "MiOS terminal essentials layered into MiOS-DEV",
+    "Native Windows app: Start Menu + Desktop + per-verb shortcuts",
+    "MiOS PowerShell profile (oh-my-posh, dashboard, mios <verb>)"
+]
+
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
 # etc/containers/systemd/mios-searxng.container; the agent surface
