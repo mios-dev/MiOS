@@ -7,8 +7,11 @@ Wants=network-online.target
 ConditionVirtualization=!container
 
 [Container]
-Image=docker.io/guacamole/guacd:latest@sha256:2d266a525a72ad55d8ea7cd4ca8342a1b44075759b03660d8684821b3636a922
-Network=mios.network
+# Image / Network placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml
+# [image.sidecars].guacd and [network.quadlet].network.
+Image=${MIOS_GUACD_IMAGE:-docker.io/guacamole/guacd:latest}
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 AutoUpdate=registry
 User=mios-guacd
 Group=mios-guacd

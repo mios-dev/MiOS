@@ -7,8 +7,11 @@ Wants=network-online.target
 ConditionPathExists=/etc/crowdsec/config.yaml
 
 [Container]
-Image=docker.io/crowdsecurity/crowdsec:latest@sha256:6ca53ad26196ca59ddd4fa692a586b73d8fcde085046163b9ca2f04887dca563
-Network=mios.network
+# Image / Network placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml
+# [image.sidecars].crowdsec and [network.quadlet].network.
+Image=${MIOS_CROWDSEC_IMAGE:-docker.io/crowdsecurity/crowdsec:latest}
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 AutoUpdate=registry
 User=mios-crowdsec
 Group=mios-crowdsec

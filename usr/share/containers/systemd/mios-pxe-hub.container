@@ -8,8 +8,11 @@ ConditionVirtualization=!wsl
 ConditionVirtualization=!container
 
 [Container]
-Image=quay.io/poseidon/matchbox:latest@sha256:cc7566650886df53b09f35a30760e45d14c1d639e2a4aa65de0162bb37e7da5a
-Network=mios.network
+# Image / Network placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml
+# [image.sidecars].pxe_hub and [network.quadlet].network.
+Image=${MIOS_PXE_HUB_IMAGE:-quay.io/poseidon/matchbox:latest}
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 AutoUpdate=registry
 User=mios-pxe-hub
 Group=mios-pxe-hub

@@ -7,8 +7,11 @@ Wants=network-online.target
 ConditionVirtualization=!container
 
 [Container]
-Image=docker.io/library/postgres:latest@sha256:78481659c47e862334611ccdaf7c369c986b3046da9857112f3b309114a65fb4
-Network=mios.network
+# Image / Network placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml
+# [image.sidecars].postgres and [network.quadlet].network.
+Image=${MIOS_POSTGRES_IMAGE:-docker.io/library/postgres:latest}
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 AutoUpdate=registry
 User=mios-postgres
 Group=mios-postgres

@@ -45,9 +45,12 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
-Image=code.forgejo.org/forgejo/runner:7@sha256:f66c6bed9e8ff5a886cf5b302a52317d8e05c392ddcc8d9f34398142ee2a5822
+# Image / Network placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml
+# [image.sidecars].forge_runner and [network.quadlet].network.
+Image=${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}
 ContainerName=mios-forgejo-runner
-Network=mios.network
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 
 # DOCUMENTED ARCHITECTURAL EXCEPTION (UNPRIVILEGED-EXECUTION):
 # Forgejo Runner needs to run `podman build` against /Containerfile
