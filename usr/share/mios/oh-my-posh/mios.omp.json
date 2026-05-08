@@ -21,14 +21,11 @@
       "alignment": "left",
       "segments": [
         {
-          "//": "Leading rounded cap (U+E0B6) so the colored powerline starts at col 0 of the frameless MiOS terminal -- replaces the previous plain U+256D U+2500 text prefix that left cols 0-2 uncolored. Background shared with the next 'shell' segment so the cap merges visually.",
+          "//": "Leading rounded cap (U+E0B6) rendered as a plain-style text segment whose template IS the cap glyph and foreground = next-segment's bg. The U+E0B6 glyph is a filled half-circle; against the terminal's transparent default bg with foreground #1A407F, it renders as a blue half-circle that visually merges into the following 'shell' powerline segment (also #1A407F bg). The previous diamond-style with empty template was unreliable -- oh-my-posh skipped the segment on some versions, leaving cols 0-2 uncolored.",
           "type": "text",
-          "style": "diamond",
-          "leading_diamond": "\ue0b6",
-          "trailing_diamond": "",
-          "background": "#1A407F",
-          "foreground": "#E7DFD3",
-          "template": ""
+          "style": "plain",
+          "foreground": "#1A407F",
+          "template": "\ue0b6"
         },
         {
           "type": "shell",
