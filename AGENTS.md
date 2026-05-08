@@ -82,7 +82,7 @@ locally, and fetched by the pipeline.
 ### The edit-save-fetch lifecycle
 
 1. **Edit:** operator opens `mios.html` (or
-   `/usr/share/mios/configurator/index.html`) in a **local browser**.
+   `/usr/share/mios/configurator/mios.html`) in a **local browser**.
    No server, no extension, no install step — `file://` is fine.
 2. **Save:** configurator writes the updated TOML to disk.
 3. **Fetch:** the pipeline reads the TOML from the layered overlay
@@ -319,7 +319,7 @@ to `/etc/passwd`, `/etc/subuid`, `/etc/subgid`, or
 | Canonical agent system prompt | [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) |
 | Read-only audit-mode prompt | [`usr/share/mios/ai/audit-prompt.md`](usr/share/mios/ai/audit-prompt.md) |
 | OpenAI v1 surface manifests | [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) |
-| HTML configurator (TOML editor) | [`usr/share/mios/configurator/index.html`](usr/share/mios/configurator/index.html) |
+| HTML configurator (TOML editor) | [`usr/share/mios/configurator/mios.html`](usr/share/mios/configurator/mios.html) |
 | Filesystem and hardware layout | [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) |
 | Build pipeline conventions | [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md) |
 | Hardening kargs and posture | [`usr/share/doc/mios/guides/security.md`](usr/share/doc/mios/guides/security.md) |

@@ -29,7 +29,7 @@ of deployment shape (bare-metal, Hyper-V, QEMU, WSL2 distro,
 podman-WSL2 dev VM).
 
 **Single source of truth for user-facing options is `mios.toml`,
-edited via the configurator HTML at `/usr/share/mios/configurator/index.html`,
+edited via the configurator HTML at `/usr/share/mios/configurator/mios.html`,
 resolved through the same three-layer overlay as this prompt.**
 
 ---
@@ -110,7 +110,7 @@ The agent MUST treat the following as authoritative when answering
 |---|---|
 | The version | `/VERSION` (top-level) → mirrored to `/usr/share/mios/VERSION` at overlay time → resolved by `automation/lib/globals.{sh,ps1}` |
 | User-tunable options | `mios.toml` (vendor / host / user three-layer chain) |
-| User-facing edit surface | `/usr/share/mios/configurator/index.html` (the configurator HTML; reads + writes mios.toml) |
+| User-facing edit surface | `/usr/share/mios/configurator/mios.html` (the configurator HTML; reads + writes mios.toml) |
 | Constants in code | `automation/lib/globals.{sh,ps1}` -- VERSION, USERS/UIDs, IMAGES, PORTS, URLS, REPOS, PATHS, FILES, UNITS, CONTAINERS, COLORS |
 | Pipeline orchestration | `./mios-pipeline.{sh,ps1}` -- the canonical 11-phase end-to-end orchestrator (Questions → Stage → MiOS-DEV → Overlay → Account → Install → Smoketest → Build → Deploy → Boot → Repeat) |
 | Package selection | `mios.toml [packages.<section>].pkgs` resolved by `automation/lib/packages.sh`; `usr/share/doc/mios/reference/PACKAGES.md` is documentation only |

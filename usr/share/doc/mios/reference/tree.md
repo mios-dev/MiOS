@@ -231,7 +231,7 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ branding/
 │   │   │   └─ mios.txt                  ASCII banner art
 │   │   ├─ configurator/
-│   │   │   └─ index.html                WYSIWYG mios.toml editor (progressive-disclosure sections)
+│   │   │   └─ mios.html                 WYSIWYG mios.toml editor (progressive-disclosure sections)
 │   │   ├─ distrobox/
 │   │   │   └─ aichat/                   distrobox aichat assemble files
 │   │   │       ├─ Containerfile         in-container aichat install
@@ -1570,7 +1570,7 @@ the source tree show up here on the next regen.
 |  |     +- branding/
 |  |     |  `- mios.txt
 |  |     +- configurator/
-|  |     |  `- index.html
+|  |     |  `- mios.html
 |  |     +- cookbooks/
 |  |     |  +- finetune-flow.md
 |  |     |  +- ingest-kb.md

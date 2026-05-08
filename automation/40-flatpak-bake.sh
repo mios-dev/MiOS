@@ -36,7 +36,7 @@ fi
 # without the wrapper that propagates the build-arg).
 if [[ -z "$FLATPAK_LIST" ]] && [[ -r /tmp/build/mios.toml ]]; then
     # Scrape [desktop].flatpaks array out of mios.toml. The configurator
-    # (usr/share/mios/configurator/index.html) emits multi-line arrays
+    # (usr/share/mios/configurator/mios.html) emits multi-line arrays
     # for >4 entries so awk's section bracket includes the
     # multi-line continuation; grep -oE pulls every quoted string and
     # the trailing flatpak-id regex filters out any non-ref strings

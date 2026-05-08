@@ -13,7 +13,7 @@
 #
 # To make a Flatpak persist across `bootc switch` (the self-replication
 # loop), edit the canonical mios.toml [desktop].flatpaks array via the
-# configurator HTML at /usr/share/mios/configurator/index.html, then
+# configurator HTML at /usr/share/mios/configurator/mios.html, then
 # `mios-rebuild` to push and trigger a runner-side rebuild.
 set -euo pipefail
 

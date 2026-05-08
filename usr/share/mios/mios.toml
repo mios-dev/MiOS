@@ -128,11 +128,11 @@ schema_version = "1.1.0"
 mios_version   = "0.2.4"
 format         = "toml"
 # Spec for the on-disk format -- TOML 1.0.0 (https://toml.io/en/v1.0.0).
-# Editor: /usr/share/mios/configurator/index.html (static, runs from
+# Editor: /usr/share/mios/configurator/mios.html (static, runs from
 # file:// or behind any HTTP server) reads + writes this file via a
 # round-trip parser; no installation required.
 spec_url       = "https://toml.io/en/v1.0.0"
-editor_url     = "/usr/share/mios/configurator/index.html"
+editor_url     = "/usr/share/mios/configurator/mios.html"
 
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
@@ -381,7 +381,7 @@ mask_systemd_remount_fs = true
 # automation/lib/packages.sh resolves them via the documented overlay
 # chain (MIOS_TOML override -> ~/.config -> /etc/mios -> /ctx/mios-bootstrap
 # -> /usr/share/mios -> /ctx/usr/share/mios). The configurator HTML at
-# /usr/share/mios/configurator/index.html is the operator-facing WYSIWYG
+# /usr/share/mios/configurator/mios.html is the operator-facing WYSIWYG
 # editor for the same TOML. PACKAGES.md (now under
 # usr/share/doc/mios/reference/PACKAGES.md) is human-readable
 # documentation only -- the legacy fenced ```packages-<cat>``` fallback

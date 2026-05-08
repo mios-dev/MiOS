@@ -13,7 +13,7 @@
 # mios.toml is the only runtime source of truth. PACKAGES.md is retained
 # under usr/share/doc/mios/reference/ as human-readable documentation
 # (the mios.toml [packages.*] tables are the canonical machine-readable
-# encoding). The HTML configurator at /usr/share/mios/configurator/index.html
+# encoding). The HTML configurator at /usr/share/mios/configurator/mios.html
 # is the operator-facing editor for the same TOML.
 #
 # Usage:

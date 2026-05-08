@@ -27,7 +27,7 @@ To add, remove, or replace packages, edit the matching
 (`mios-bootstrap/mios.toml`) is the canonical user-edit copy --
 operators can ship a single-file deployment override without
 touching mios.git. The HTML configurator at
-`/usr/share/mios/configurator/index.html` is the operator-facing
+`/usr/share/mios/configurator/mios.html` is the operator-facing
 editor for the same TOML.
 
 `automation/lib/packages.sh` reads exclusively from the TOML chain.

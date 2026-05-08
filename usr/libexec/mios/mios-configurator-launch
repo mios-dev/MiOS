@@ -22,7 +22,7 @@
 #     installs may still expose the distro as `podman-MiOS-DEV`)
 set -euo pipefail
 
-HTML=/usr/share/mios/configurator/index.html
+HTML=/usr/share/mios/configurator/mios.html
 DL_DIR="${HOME}/Downloads"
 mkdir -p "$DL_DIR"
 

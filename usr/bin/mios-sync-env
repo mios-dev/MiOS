@@ -12,7 +12,7 @@
 #                Owned by the system; regenerated from mios.toml.
 #
 # This CLI is the bridge: edit mios.toml (via /usr/share/mios/
-# configurator/index.html or your editor of choice), then run
+# configurator/mios.html or your editor of choice), then run
 # 'mios-sync-env' to refresh install.env. Idempotent; preserves
 # secret fields the user can't put in mios.toml (e.g.
 # MIOS_USER_PASSWORD_HASH, MIOS_FORGE_ADMIN_PASSWORD) by reading the
@@ -74,7 +74,7 @@ fi
 generate_env() {
     cat <<EOF
 # /etc/mios/install.env -- DERIVED from mios.toml by mios-sync-env.
-# Edit mios.toml (or use /usr/share/mios/configurator/index.html), then
+# Edit mios.toml (or use /usr/share/mios/configurator/mios.html), then
 # run 'sudo mios-sync-env' to refresh this file. Manual edits here are
 # overwritten on the next sync. Secrets (MIOS_USER_PASSWORD_HASH,
 # MIOS_FORGE_ADMIN_PASSWORD, MIOS_GITHUB_TOKEN) are preserved verbatim

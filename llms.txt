@@ -13,7 +13,7 @@ The `mios.git` repo root is the system root `/`. No separate workspace.
 ## Single source of truth
 - [VERSION](./VERSION): canonical version stamp (mirrored to `/usr/share/mios/VERSION` at overlay time)
 - [usr/share/mios/mios.toml](./usr/share/mios/mios.toml): vendor defaults for every operator-tunable option
-- [usr/share/mios/configurator/index.html](./usr/share/mios/configurator/index.html): WYSIWYG editor for `mios.toml` (the user-facing surface)
+- [usr/share/mios/configurator/mios.html](./usr/share/mios/configurator/mios.html): WYSIWYG editor for `mios.toml` (the user-facing surface)
 - [automation/lib/globals.sh](./automation/lib/globals.sh) and [automation/lib/globals.ps1](./automation/lib/globals.ps1): single registry for VERSION + USERS + IMAGES + PORTS + URLS + REPOS + PATHS + FILES + UNITS + CONTAINERS + COLORS
 - [tools/lib/userenv.sh](./tools/lib/userenv.sh): three-layer (vendor < host < user) `mios.toml` resolver -> `MIOS_*` env exports
 
