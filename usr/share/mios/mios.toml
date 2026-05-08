@@ -1613,33 +1613,37 @@ podman_pkg          = "RedHat.Podman-Desktop"
 # auto-elevated bootstrap window, the native-app launcher, Linux tty0
 # console via /etc/profile.d/mios-tty.sh) opens at exactly cols × rows.
 #
-# EDGE-TO-EDGE: frame_width = cols, frame_height = rows, right_margin = 0.
-# Operator pivot 2026-05-08: "MiOS app/windows terminal windows should
-# be completely frameless/borderless with no margin (edge-to-edge
-# printing!!!!!)" -> "go fix mios-bootstrap edge-to-edge now".
+# EDGE-TO-EDGE = cols-1 (NOT cols). Operator's original instinct from
+# commit 9c40990 ("everything should be -1 width") was the correct
+# read. WT's text buffer width is `cols - 1`, NOT `cols`, even with
+# `scrollbarState = "hidden"` and `padding = "0"`. The scrollbar
+# gutter is a STRUCTURAL 1-cell reservation in WT's renderer:
+# scrollbarState only controls visibility (drawn vs. transparent),
+# not allocation. Cells 0..cols-2 are paintable; cell cols-1 is
+# reserved. A frame at width=cols emits its right border `│` at the
+# reserved cell, which WT wraps to col 0 of the next visible line --
+# producing the double-`||` left-border ghosting in the dashboard
+# render and the "powerline seconds rolling over to the left" wrap
+# in oh-my-posh.
 #
-# Enabled by mios-bootstrap's Install-MiOSTerminalProfile writing
-# `launchMode = "focus"` at the ROOT of settings.json plus
-# `profiles.defaults.suppressApplicationTitle = true`. With both, WT
-# strips the titlebar and tab-row from frame 0 so the pseudo-console
-# reports the actual visible cell count immediately, no off-by-N
-# window before scrollbarState=hidden takes effect. oh-my-posh aligns
-# correctly, no powerline wrap.
+# So the canonical "edge-to-edge" is `frame_width = cols - 1`,
+# `right_margin = 1`. The dashboard frame ends exactly at the last
+# PAINTABLE cell (cols-2), and the scrollbar-reserve cell stays
+# empty. Visually indistinguishable from cols-wide edge-to-edge,
+# functionally identical -- the operator's MiOS app already has
+# acrylic + scrollbarState=hidden so the gutter cell is invisible.
 #
-# If the powerline ever wraps again (acrylic-recompute on first paint
-# MAY re-trigger the off-by-N briefly when animations are on), the
-# targeted band-aid is `right_margin = 1` -- NOT `disable_animations =
-# true` (operator wants the aesthetics: window fade on open/close +
-# preview features). 1 cell of slack is invisible to the eye but
-# gives oh-my-posh enough room to absorb a 1-cell first-paint lie.
+# Operator confirmed visual via screenshot 2026-05-08: setting
+# right_margin=0 / frame_width=cols produced the doubled-border ghost
+# wrap. Reverting to right_margin=1 / frame_width=cols-1.
 # ----------------------------------------------------------------------------
 [terminal]
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 80      # = cols. True edge-to-edge -- the dashboard frame paints from col 0 to col cols-1 with no gutter. Get-MiOS.ps1's Show-MiosDashboard, mios-dash.ps1, and mios-dashboard.sh ALL read this value via Get-MiosTomlValue / awk.
-frame_height        = 20      # = rows. The dashboard scrolls naturally and the prompt renders below as a NEW row -- the conhost cursor advances past the bottom border on its own; no row needs to be "reserved" inside the frame.
-right_margin        = 0       # zero gutter on the right edge. Get-MiOS.ps1's Show-MiosDashboard uses MIN(WindowWidth - right_margin, frame_width); mios-dash.ps1 uses cols - right_margin; mios-dashboard.sh (awk reader) uses cols - right_margin; mios.omp.json's trailing-spacer segment template = "" with final_space=false. Raise to 1 ONLY if the powerline wraps with animations on (acrylic-recompute first-paint timing).
+frame_width         = 79      # = cols - 1. The WT scrollbar gutter reserves 1 cell of buffer width regardless of scrollbar visibility, so the rightmost PAINTABLE cell is cols-2 and the frame border `│` lives at cols-2. Setting frame_width to cols (= 80) emits the border at the gutter cell, which WT wraps to col 0 of the next visible line. Get-MiOS.ps1's Show-MiosDashboard, mios-dash.ps1, and mios-dashboard.sh ALL read this value.
+frame_height        = 19      # = rows - 1. Reserves 1 row at the bottom for the prompt under the dashboard so the frame doesn't push the prompt's first line off-screen on initial render.
+right_margin        = 1       # 1 cell of structural slack matching WT's scrollbar gutter reservation. Get-MiOS.ps1's Show-MiosDashboard uses MIN(WindowWidth - right_margin, frame_width); mios-dash.ps1 uses cols - right_margin; mios-dashboard.sh (awk reader) uses cols - right_margin; mios.omp.json mirrors this with final_space=true (1 cell). 0 is impossible without a WT renderer change to remove the gutter reservation entirely (no current setting exposes that).
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install
