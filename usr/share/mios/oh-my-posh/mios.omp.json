@@ -21,11 +21,11 @@
       "alignment": "left",
       "segments": [
         {
-          "//": "Leading rounded cap (U+E0B6) rendered as a plain-style text segment whose template IS the cap glyph and foreground = next-segment's bg. The U+E0B6 glyph is a filled half-circle; against the terminal's transparent default bg with foreground #1A407F, it renders as a blue half-circle that visually merges into the following 'shell' powerline segment (also #1A407F bg). The previous diamond-style with empty template was unreliable -- oh-my-posh skipped the segment on some versions, leaving cols 0-2 uncolored.",
+          "//": "Leading prompt prefix -- box-drawing chars (U+256D/U+2500) which are guaranteed to render in any monospace font. The U+E0B6 rounded-cap PUA approach we tried earlier was unreliable on the operator's GeistMono Nerd Font Mono build -- the cap glyph never surfaced, leaving cols 0-2 blank. Box-drawing fallback in subtle blue (#B7C9D7) reads as a soft corner that hands off into the following powerline shell segment.",
           "type": "text",
           "style": "plain",
-          "foreground": "#1A407F",
-          "template": "\ue0b6"
+          "foreground": "#B7C9D7",
+          "template": "\u256d\u2500"
         },
         {
           "type": "shell",
@@ -196,11 +196,10 @@
           "template": " {{ if not .Error }}{{ .Icon }}{{ .Percentage }}{{ end }}{{ .Error }} \uf295 "
         },
         {
-          "//": "Trailing rounded cap (U+E0B4) so the right-aligned powerline reaches the right edge of the frameless terminal. diamond style with leading_diamond=cap-merge + trailing_diamond=hard-cap fills the last cell with color instead of dropping back to terminal default.",
           "type": "time",
-          "style": "diamond",
-          "leading_diamond": "\ue0b6",
-          "trailing_diamond": "\ue0b4",
+          "style": "powerline",
+          "invert_powerline": true,
+          "powerline_symbol": "\ue0b6",
           "background": "#1A407F",
           "foreground": "#E7DFD3",
           "properties": {
@@ -216,24 +215,19 @@
       "newline": true,
       "segments": [
         {
-          "//": "Second-line leading rounded cap (U+E0B6) so the colored powerline reaches col 0. Status segment is now powerline-style sharing the cap's background.",
+          "//": "Second-line leading prompt prefix -- same box-drawing fallback as line 1 (U+2570/U+2500) so it renders in any monospace font.",
           "type": "text",
-          "style": "diamond",
-          "leading_diamond": "",
-          "trailing_diamond": "",
-          "background": "#3E7765",
-          "foreground": "#E7DFD3",
-          "template": ""
+          "style": "plain",
+          "foreground": "#B7C9D7",
+          "template": "\u2570\u2500"
         },
         {
           "type": "status",
-          "style": "powerline",
-          "powerline_symbol": "",
-          "background": "#3E7765",
-          "background_templates": [
+          "style": "plain",
+          "foreground": "#3E7765",
+          "foreground_templates": [
             "{{ if gt .Code 0 }}#DC271B{{ end }}"
           ],
-          "foreground": "#E7DFD3",
           "properties": {
             "always_enabled": true
           },
