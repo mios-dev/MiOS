@@ -196,6 +196,7 @@
           "template": " {{ if not .Error }}{{ .Icon }}{{ .Percentage }}{{ end }}{{ .Error }} \uf295 "
         },
         {
+          "//": "Compacted: dropped day-of-month prefix (`_2,`) and the clock icon U+F073. Time-only HH:MM keeps the right block visually small so it doesn't crowd the dashboard frame above. Operator-tunable via mios.toml [theme.prompt] -- but the format string is omp.json-internal so a future SSOT lift would be needed for runtime override.",
           "type": "time",
           "style": "powerline",
           "invert_powerline": true,
@@ -203,9 +204,9 @@
           "background": "#1A407F",
           "foreground": "#E7DFD3",
           "properties": {
-            "time_format": "_2,15:04"
+            "time_format": "15:04"
           },
-          "template": " \uf073 {{ .CurrentDate | date .Format }} "
+          "template": " {{ .CurrentDate | date .Format }} "
         }
       ]
     },
