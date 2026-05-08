@@ -1472,7 +1472,7 @@ disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 80      # exact cols -- dashboard box fills the 80-col terminal edge-to-edge
+frame_width         = 78      # cols - 2 -- one-column gutter on left + right of the 80-col terminal
 frame_height        = 19      # rows - 1 -- one row reserved for the prompt under the dashboard
 
 # ----------------------------------------------------------------------------
