@@ -1700,8 +1700,8 @@ fastfetch_config    = "fastfetch/config.jsonc"
 # taglines, the .lnk Description fields, the Add/Remove Programs
 # DisplayName, and the dashboard footer. Operator rebrands via
 # mios.html for a custom downstream (e.g. "MyCo Dev Workstation").
-tagline             = "Immutable Fedora AI Workstation"
-tagline_long        = "Immutable Fedora AI Workstation  --  Self-replicating bootc OS"
+tagline             = "My Personalized OS"
+tagline_long        = "My Personalized OS  --  Self-replicating bootc OS, immutable and personal"
 
 [branding.dashboard]
 frame_width_cols    = 80
