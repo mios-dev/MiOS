@@ -441,17 +441,179 @@
         <input type="text" id="f-host-alloc" data-key="bootstrap.host_storage.allocation_unit" data-type="int" placeholder="4096">
       </fieldset>
       <fieldset>
-        <legend>bootstrap.dev_vm</legend>
+        <legend>bootstrap.dev_vm — maximalist allocation</legend>
         <label for="f-dvm-name">machine_name</label>
         <input type="text" id="f-dvm-name" data-key="bootstrap.dev_vm.machine_name" placeholder="MiOS-DEV">
+        <label for="f-dvm-wsl">wsl_distro (eventual MiOS WSL distro)</label>
+        <input type="text" id="f-dvm-wsl" data-key="bootstrap.dev_vm.wsl_distro" placeholder="MiOS">
         <label for="f-dvm-image">base_image (machine-os 6.0+ LOCKED)</label>
         <input type="text" id="f-dvm-image" data-key="bootstrap.dev_vm.base_image" placeholder="quay.io/podman/machine-os:6.0">
-        <label for="f-dvm-cpus">cpus</label>
-        <input type="text" id="f-dvm-cpus" data-key="bootstrap.dev_vm.cpus" data-type="int" placeholder="4">
-        <label for="f-dvm-mem">memory_mb</label>
-        <input type="text" id="f-dvm-mem" data-key="bootstrap.dev_vm.memory_mb" data-type="int" placeholder="8192">
-        <label for="f-dvm-disk">disk_size_gb</label>
-        <input type="text" id="f-dvm-disk" data-key="bootstrap.dev_vm.disk_size_gb" data-type="int" placeholder="100">
+        <label for="f-dvm-cpus">cpus ("max" or integer; max = host_cpus − host_reserve)</label>
+        <input type="text" id="f-dvm-cpus" data-key="bootstrap.dev_vm.cpus" placeholder="max">
+        <label for="f-dvm-mem">memory_mb ("max" or integer)</label>
+        <input type="text" id="f-dvm-mem" data-key="bootstrap.dev_vm.memory_mb" placeholder="max">
+        <label for="f-dvm-disk">disk_size_gb ("max" or integer)</label>
+        <input type="text" id="f-dvm-disk" data-key="bootstrap.dev_vm.disk_size_gb" placeholder="max">
+        <label for="f-dvm-gpu">gpu_passthrough ("max" / "none" / "nvidia" / "amd" / "intel")</label>
+        <input type="text" id="f-dvm-gpu" data-key="bootstrap.dev_vm.gpu_passthrough" placeholder="max">
+      </fieldset>
+      <fieldset>
+        <legend>bootstrap.dev_vm.host_reserve — Windows headroom</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          Applied only when cpus / memory_mb / disk_size_gb is "max".
+          Tuned so Explorer / browser / IDE stay responsive during builds.
+        </p>
+        <label for="f-hr-cpu-pct">cpu_pct (% of host CPUs reserved)</label>
+        <input type="text" id="f-hr-cpu-pct" data-key="bootstrap.dev_vm.host_reserve.cpu_pct" data-type="int" placeholder="15">
+        <label for="f-hr-cpu-min">cpu_min (always reserve at least)</label>
+        <input type="text" id="f-hr-cpu-min" data-key="bootstrap.dev_vm.host_reserve.cpu_min" data-type="int" placeholder="2">
+        <label for="f-hr-mem-pct">memory_pct (% of host RAM reserved)</label>
+        <input type="text" id="f-hr-mem-pct" data-key="bootstrap.dev_vm.host_reserve.memory_pct" data-type="int" placeholder="15">
+        <label for="f-hr-mem-gb">memory_gb (always reserve at least, GB)</label>
+        <input type="text" id="f-hr-mem-gb" data-key="bootstrap.dev_vm.host_reserve.memory_gb" data-type="int" placeholder="4">
+        <label for="f-hr-disk-gb">disk_gb (free GB on M:\ kept for Windows)</label>
+        <input type="text" id="f-hr-disk-gb" data-key="bootstrap.dev_vm.host_reserve.disk_gb" data-type="int" placeholder="32">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Ports · LAN-reachable services <span class="phase-badge">Phase 9-10 · Deploy → Boot</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Host loopback ports for every Quadlet/host service. Editing any
+      port here flows through firewalld rules
+      (automation/25-firewall-ports.sh, 33-firewall.sh) and the rendered
+      Quadlet PublishPort= directives at build time.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>ports — core services</legend>
+        <label for="f-port-ssh">ssh (host sshd)</label>
+        <input type="text" id="f-port-ssh" data-key="ports.ssh" data-type="int" placeholder="22">
+        <label for="f-port-localai">localai (LAW 5 OpenAI-API endpoint)</label>
+        <input type="text" id="f-port-localai" data-key="ports.localai" data-type="int" placeholder="8080">
+        <label for="f-port-cockpit">cockpit (host web console)</label>
+        <input type="text" id="f-port-cockpit" data-key="ports.cockpit" data-type="int" placeholder="9090">
+        <label for="f-port-cockpit-link">cockpit_link (Podman Desktop discovery shim)</label>
+        <input type="text" id="f-port-cockpit-link" data-key="ports.cockpit_link" data-type="int" placeholder="19090">
+        <label for="f-port-ollama">ollama (alternate local LLM backend)</label>
+        <input type="text" id="f-port-ollama" data-key="ports.ollama" data-type="int" placeholder="11434">
+        <label for="f-port-k3s">k3s_api (Kubernetes API)</label>
+        <input type="text" id="f-port-k3s" data-key="ports.k3s_api" data-type="int" placeholder="6443">
+      </fieldset>
+      <fieldset>
+        <legend>ports — sidecar services</legend>
+        <label for="f-port-forge-http">forge_http (Forgejo web UI)</label>
+        <input type="text" id="f-port-forge-http" data-key="ports.forge_http" data-type="int" placeholder="3000">
+        <label for="f-port-forge-ssh">forge_ssh (Forgejo git+ssh)</label>
+        <input type="text" id="f-port-forge-ssh" data-key="ports.forge_ssh" data-type="int" placeholder="2222">
+        <label for="f-port-searxng">searxng (privacy metasearch)</label>
+        <input type="text" id="f-port-searxng" data-key="ports.searxng" data-type="int" placeholder="8888">
+        <label for="f-port-hermes">hermes (OpenAI-compatible gateway)</label>
+        <input type="text" id="f-port-hermes" data-key="ports.hermes" data-type="int" placeholder="8642">
+        <label for="f-port-webui">webui (Open WebUI frontend)</label>
+        <input type="text" id="f-port-webui" data-key="ports.webui" data-type="int" placeholder="3030">
+        <label for="f-port-guacamole">guacamole_web (browser desktop)</label>
+        <input type="text" id="f-port-guacamole" data-key="ports.guacamole_web" data-type="int" placeholder="8090">
+        <label for="f-port-ceph">ceph_dashboard</label>
+        <input type="text" id="f-port-ceph" data-key="ports.ceph_dashboard" data-type="int" placeholder="8443">
+        <label for="f-port-rdp">rdp (GNOME Remote Desktop / xRDP)</label>
+        <input type="text" id="f-port-rdp" data-key="ports.rdp" data-type="int" placeholder="3389">
+      </fieldset>
+      <fieldset>
+        <legend>network.quadlet — internal podman bridge</legend>
+        <label for="f-qnet-network">network</label>
+        <input type="text" id="f-qnet-network" data-key="network.quadlet.network" placeholder="mios.network">
+        <label for="f-qnet-subnet">subnet</label>
+        <input type="text" id="f-qnet-subnet" data-key="network.quadlet.subnet" placeholder="10.89.0.0/24">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Sidecar containers · pinned image refs + service identities <span class="phase-badge">Phase 8 · Build</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Pinned upstream container references for every Quadlet sidecar.
+      automation/15-render-quadlets.sh substitutes these at build time
+      into the *.container PublishPort= / Image= / User= / Group= fields.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>image.sidecars — container pins</legend>
+        <label for="f-img-localai">localai</label>
+        <input type="text" id="f-img-localai" data-key="image.sidecars.localai" placeholder="localai/localai:v2.20.0">
+        <label for="f-img-k3s">k3s</label>
+        <input type="text" id="f-img-k3s" data-key="image.sidecars.k3s" placeholder="rancher/k3s:v1.32.1-k3s1">
+        <label for="f-img-ceph">ceph</label>
+        <input type="text" id="f-img-ceph" data-key="image.sidecars.ceph" placeholder="quay.io/ceph/ceph:v19">
+        <label for="f-img-forge">forge (Forgejo)</label>
+        <input type="text" id="f-img-forge" data-key="image.sidecars.forge" placeholder="codeberg.org/forgejo/forgejo:12">
+        <label for="f-img-searxng">searxng</label>
+        <input type="text" id="f-img-searxng" data-key="image.sidecars.searxng" placeholder="docker.io/searxng/searxng:latest">
+        <label for="f-img-hermes">hermes</label>
+        <input type="text" id="f-img-hermes" data-key="image.sidecars.hermes" placeholder="docker.io/nousresearch/hermes-agent:latest">
+        <label for="f-img-webui">webui (Open WebUI)</label>
+        <input type="text" id="f-img-webui" data-key="image.sidecars.webui" placeholder="docker.io/openwebui/open-webui:latest">
+      </fieldset>
+      <fieldset>
+        <legend>services — per-Quadlet identity (UID 800–829)</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          UIDs/GIDs are pinned in /usr/lib/sysusers.d/50-mios-services.conf.
+          Edit only if you're carving out a custom UID range.
+        </p>
+        <label for="f-svc-forge-uid">forge.uid / .gid</label>
+        <input type="text" id="f-svc-forge-uid" data-key="services.forge.uid" data-type="int" placeholder="816">
+        <label for="f-svc-localai-uid">localai.uid / .gid (mios-ai user)</label>
+        <input type="text" id="f-svc-localai-uid" data-key="services.localai.uid" data-type="int" placeholder="817">
+        <label for="f-svc-searxng-uid">searxng.uid / .gid</label>
+        <input type="text" id="f-svc-searxng-uid" data-key="services.searxng.uid" data-type="int" placeholder="818">
+        <label for="f-svc-ceph-uid">ceph.uid / .gid</label>
+        <input type="text" id="f-svc-ceph-uid" data-key="services.ceph.uid" data-type="int" placeholder="819">
+        <label for="f-svc-hermes-uid">hermes.uid / .gid</label>
+        <input type="text" id="f-svc-hermes-uid" data-key="services.hermes.uid" data-type="int" placeholder="820">
+        <label for="f-svc-webui-uid">webui.uid / .gid</label>
+        <input type="text" id="f-svc-webui-uid" data-key="services.webui.uid" data-type="int" placeholder="821">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Paths &amp; build · runtime FHS paths + build tunables <span class="phase-badge">Phase 7-8 · Smoketest → Build</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Canonical FHS paths for runtime artifacts (AI memory, scratch,
+      journal, install env, first-boot sentinels) and image build
+      tunables (rechunk max layers, RAM floor for default model).
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>paths — runtime artifacts</legend>
+        <label for="f-path-aidir">ai_dir</label>
+        <input type="text" id="f-path-aidir" data-key="paths.ai_dir" placeholder="/usr/share/mios/ai">
+        <label for="f-path-aimem">ai_memory_dir</label>
+        <input type="text" id="f-path-aimem" data-key="paths.ai_memory_dir" placeholder="/var/lib/mios/ai/memory">
+        <label for="f-path-aiscratch">ai_scratch_dir</label>
+        <input type="text" id="f-path-aiscratch" data-key="paths.ai_scratch_dir" placeholder="/var/lib/mios/ai/scratch">
+        <label for="f-path-aimodel">ai_models_dir</label>
+        <input type="text" id="f-path-aimodel" data-key="paths.ai_models_dir" placeholder="/srv/ai/models">
+        <label for="f-path-mcp">ai_mcp_dir</label>
+        <input type="text" id="f-path-mcp" data-key="paths.ai_mcp_dir" placeholder="/srv/ai/mcp">
+        <label for="f-path-ollama-seed">ollama_seed_dir (build-baked)</label>
+        <input type="text" id="f-path-ollama-seed" data-key="paths.ollama_seed_dir" placeholder="/usr/share/ollama/models">
+        <label for="f-path-ollama-rt">ollama_runtime_dir (writable)</label>
+        <input type="text" id="f-path-ollama-rt" data-key="paths.ollama_runtime_dir" placeholder="/var/lib/ollama/models">
+      </fieldset>
+      <fieldset>
+        <legend>build — build-time tunables</legend>
+        <label for="f-build-rechunk">rechunk_max_layers (hhd-dev/rechunk)</label>
+        <input type="text" id="f-build-rechunk" data-key="build.rechunk_max_layers" data-type="int" placeholder="67">
+        <label for="f-build-ram-floor">ai_ram_floor_gb (informational)</label>
+        <input type="text" id="f-build-ram-floor" data-key="build.ai_ram_floor_gb" data-type="int" placeholder="12">
       </fieldset>
     </div>
   </div>
