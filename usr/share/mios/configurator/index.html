@@ -543,21 +543,40 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>image.sidecars — container pins</legend>
+        <legend>image.sidecars — primary AI / forge / cluster</legend>
         <label for="f-img-localai">localai</label>
         <input type="text" id="f-img-localai" data-key="image.sidecars.localai" placeholder="localai/localai:v2.20.0">
-        <label for="f-img-k3s">k3s</label>
-        <input type="text" id="f-img-k3s" data-key="image.sidecars.k3s" placeholder="rancher/k3s:v1.32.1-k3s1">
-        <label for="f-img-ceph">ceph</label>
-        <input type="text" id="f-img-ceph" data-key="image.sidecars.ceph" placeholder="quay.io/ceph/ceph:v19">
-        <label for="f-img-forge">forge (Forgejo)</label>
-        <input type="text" id="f-img-forge" data-key="image.sidecars.forge" placeholder="codeberg.org/forgejo/forgejo:12">
-        <label for="f-img-searxng">searxng</label>
-        <input type="text" id="f-img-searxng" data-key="image.sidecars.searxng" placeholder="docker.io/searxng/searxng:latest">
+        <label for="f-img-ollama">ollama</label>
+        <input type="text" id="f-img-ollama" data-key="image.sidecars.ollama" placeholder="docker.io/ollama/ollama:latest">
         <label for="f-img-hermes">hermes</label>
         <input type="text" id="f-img-hermes" data-key="image.sidecars.hermes" placeholder="docker.io/nousresearch/hermes-agent:latest">
         <label for="f-img-webui">webui (Open WebUI)</label>
         <input type="text" id="f-img-webui" data-key="image.sidecars.webui" placeholder="docker.io/openwebui/open-webui:latest">
+        <label for="f-img-searxng">searxng</label>
+        <input type="text" id="f-img-searxng" data-key="image.sidecars.searxng" placeholder="docker.io/searxng/searxng:latest">
+        <label for="f-img-forge">forge (Forgejo)</label>
+        <input type="text" id="f-img-forge" data-key="image.sidecars.forge" placeholder="codeberg.org/forgejo/forgejo:12">
+        <label for="f-img-forge-runner">forge_runner (CI)</label>
+        <input type="text" id="f-img-forge-runner" data-key="image.sidecars.forge_runner" placeholder="code.forgejo.org/forgejo/runner:7">
+        <label for="f-img-k3s">k3s</label>
+        <input type="text" id="f-img-k3s" data-key="image.sidecars.k3s" placeholder="rancher/k3s:v1.32.1-k3s1">
+        <label for="f-img-ceph">ceph</label>
+        <input type="text" id="f-img-ceph" data-key="image.sidecars.ceph" placeholder="quay.io/ceph/ceph:v19">
+      </fieldset>
+      <fieldset>
+        <legend>image.sidecars — auxiliary services</legend>
+        <label for="f-img-guacamole">guacamole (browser desktop)</label>
+        <input type="text" id="f-img-guacamole" data-key="image.sidecars.guacamole" placeholder="docker.io/guacamole/guacamole:latest">
+        <label for="f-img-guacd">guacd (Guacamole protocol daemon)</label>
+        <input type="text" id="f-img-guacd" data-key="image.sidecars.guacd" placeholder="docker.io/guacamole/guacd:latest">
+        <label for="f-img-postgres">postgres (Guacamole DB)</label>
+        <input type="text" id="f-img-postgres" data-key="image.sidecars.postgres" placeholder="docker.io/library/postgres:latest">
+        <label for="f-img-crowdsec">crowdsec (IPS dashboard)</label>
+        <input type="text" id="f-img-crowdsec" data-key="image.sidecars.crowdsec" placeholder="docker.io/crowdsecurity/crowdsec:latest">
+        <label for="f-img-pxe-hub">pxe_hub (Matchbox PXE)</label>
+        <input type="text" id="f-img-pxe-hub" data-key="image.sidecars.pxe_hub" placeholder="quay.io/poseidon/matchbox:latest">
+        <label for="f-img-bib-alpine">bib_alpine (build helper)</label>
+        <input type="text" id="f-img-bib-alpine" data-key="image.sidecars.bib_alpine" placeholder="docker.io/library/alpine:latest">
       </fieldset>
       <fieldset>
         <legend>services — per-Quadlet identity (UID 800–829)</legend>
