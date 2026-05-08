@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "version": 4,
-  "//final_space": "false: don't reserve a trailing column after the prompt -- the right-aligned time segment uses trailing_diamond U+E0B4 to reach col 79 of the frameless 80-col terminal.",
-  "final_space": false,
+  "//final_space": "true: reserve a trailing cell so oh-my-posh's right-aligned block doesn't push to the actual right edge -- the operator's WT pseudo-console sometimes reports terminal width 1 cell over the visible cell count, which made the trailing time char wrap to the next line ('powerline time wraps to the left side'). Reserving one cell gives the segment safety margin against off-by-one width reports.",
+  "final_space": true,
   "//": [
     "MiOS Oh-My-Posh theme.",
     "All Nerd Font private-use-area glyphs are encoded as JSON \\uXXXX",
