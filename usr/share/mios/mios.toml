@@ -580,6 +580,24 @@ pkgs = [
     "fastfetch-cli.fastfetch",       # fastfetch
 ]
 
+# Post-install PATH verification probes -- the binaries build-mios.ps1's
+# Install-MiosWindowsTools loops through to confirm `Get-Command <name>`
+# resolves after the winget installs + PATH augmentation. Operators who
+# add a custom package above (or remove the default set) extend / shrink
+# this list to match.
+verify_probes = [
+    "fastfetch",
+    "btop",
+    "rg",
+    "fzf",
+    "jq",
+    "gh",
+    "bat",
+    "fd",
+    "pwsh",
+    "oh-my-posh"
+]
+
 [packages.dev_vm_essentials]
 # Minimum DNF package set installed into podman-MiOS-DEV at Phase-3
 # provisioning so the build pipeline can RUN -- mkpasswd / openssl /
