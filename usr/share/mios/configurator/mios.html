@@ -338,215 +338,290 @@
 <div id="path-banner" class="status info" style="display:none"></div>
 
 <!--
-  Layout: the configurator is the SSOT editor for mios.toml. The pipeline
-  (mios-pipeline.{sh,ps1}, see ./mios-pipeline.{sh,ps1}) consumes these
-  same values phase-by-phase. Each <details> section's phase-badge maps
-  to the pipeline phase that actually reads the keys it contains -- so
-  editing here is editing the pipeline's input.
+  Layout: three top-down zones for non-technical users.
+    Zone 1 — Personal (identity, locale, theme/colors, prompt) — open by default
+    Zone 2 — Apps & Flatpaks (desktop session + Flatpak catalog + Windows shortcuts) — open by default
+    Zone 3 — Advanced / Admin (everything technical) — collapsed by default
+
+  Every original [data-key] field is preserved verbatim — only the
+  containing <details> shells were rearranged. The pipeline still
+  consumes the same TOML keys; the script block (parseToml /
+  emitToml / refreshFromData / gatherFromForm / renderColors /
+  renderFlatpaks / applyColorsToRoot / etc.) was not modified.
 -->
 
-<details class="section" open>
-  <summary>Identity &amp; AI <span class="phase-badge">Phase 1 · Questions</span></summary>
-  <div class="section-body">
-    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
-      The hot day-1 tunables. Pipeline Phase 1 (Questions) reads
-      <code>identity.*</code> + <code>ai.*</code> from this file (or
-      prompts when missing); every later phase inherits the values
-      via <code>/etc/mios/install.env</code>.
-    </p>
-    <div class="grid">
-      <fieldset>
-        <legend>identity</legend>
-        <label for="f-username">username</label>
-        <input type="text" id="f-username" data-key="identity.username" placeholder="mios">
-        <label for="f-hostname">hostname</label>
-        <input type="text" id="f-hostname" data-key="identity.hostname" placeholder="mios">
-        <label for="f-fullname">fullname</label>
-        <input type="text" id="f-fullname" data-key="identity.fullname" placeholder="MiOS User">
-        <label for="f-shell">shell</label>
-        <input type="text" id="f-shell" data-key="identity.shell" placeholder="/bin/bash">
-        <label for="f-groups">groups (CSV)</label>
-        <input type="text" id="f-groups" data-key="identity.groups" data-array="csv"
-               placeholder="wheel,libvirt,kvm,video,render,input,dialout,docker">
-      </fieldset>
+<div class="zones">
 
-      <fieldset>
-        <legend>ai (Architectural Law 5)</legend>
-    <label for="f-ai-endpoint">endpoint</label>
-    <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8080/v1">
-    <label for="f-ai-model">model</label>
-    <select id="f-ai-model" data-key="ai.model">
-      <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (12 GB RAM, default)</option>
-      <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (24+ GB RAM)</option>
-      <option value="llama3.2:3b">llama3.2:3b (8 GB RAM)</option>
-      <option value="__custom__">custom...</option>
-    </select>
-    <input type="text" id="f-ai-model-custom" data-key="ai.model" data-custom-of="f-ai-model"
-           placeholder="custom model id" style="margin-top:4px; display:none">
-    <label for="f-ai-embed">embed_model</label>
-    <input type="text" id="f-ai-embed" data-key="ai.embed_model" placeholder="nomic-embed-text">
-    <label for="f-ai-bake">bake_models (CSV; consumed by 37-ollama-prep.sh)</label>
-    <input type="text" id="f-ai-bake" data-key="ai.bake_models"
-           placeholder="qwen2.5-coder:7b,nomic-embed-text">
-    <label for="f-ai-key">api_key (empty for localhost)</label>
-    <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
-      </fieldset>
-    </div>
-  </div>
-</details>
-
-<details class="section">
-  <summary>Defaults: locale, image, auth, network <span class="phase-badge">Phase 2-6 · Stage → Install</span></summary>
-  <div class="section-body">
-    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
-      Day-2 tunables. <code>locale.*</code> drives systemd-localed at
-      first boot (Phase 10); <code>image.*</code> picks the base /
-      build target for the OCI build (Phase 8) and the
-      <code>bootc switch</code> ref for upgrades; <code>auth.*</code>
-      shapes SSH key generation in Phase 5 (Account); <code>network.*</code>
-      drives the firewalld rules baked at Phase 6 (Install).
-    </p>
-    <div class="grid">
-      <fieldset>
-        <legend>locale</legend>
-        <label for="f-tz">timezone</label>
-        <input type="text" id="f-tz" data-key="locale.timezone" placeholder="UTC">
-        <label for="f-kbd">keyboard_layout</label>
-        <input type="text" id="f-kbd" data-key="locale.keyboard_layout" placeholder="us">
-        <label for="f-lang">language</label>
-        <input type="text" id="f-lang" data-key="locale.language" placeholder="en_US.UTF-8">
-      </fieldset>
-
-      <fieldset>
-        <legend>image</legend>
-        <label for="f-img-ref">ref</label>
-        <input type="text" id="f-img-ref" data-key="image.ref" placeholder="ghcr.io/mios-dev/mios:latest">
-        <label for="f-img-branch">branch</label>
-        <input type="text" id="f-img-branch" data-key="image.branch" placeholder="main">
-        <label for="f-img-base">base</label>
-        <input type="text" id="f-img-base" data-key="image.base" placeholder="ghcr.io/ublue-os/ucore-hci:stable-nvidia">
-      </fieldset>
-
-      <fieldset>
-        <legend>auth</legend>
-        <label for="f-ssh-type">ssh_key_type</label>
-        <input type="text" id="f-ssh-type" data-key="auth.ssh_key_type" placeholder="ed25519">
-        <label for="f-ssh-action">ssh_key_action (generate / existing / skip)</label>
-        <input type="text" id="f-ssh-action" data-key="auth.ssh_key_action" placeholder="generate">
-      </fieldset>
-
-      <fieldset>
-        <legend>network</legend>
-        <label for="f-net-zone">firewalld_default_zone</label>
-        <input type="text" id="f-net-zone" data-key="network.firewalld_default_zone" placeholder="drop">
-        <div class="checkbox-row"><input type="checkbox" id="f-net-cockpit" data-key="network.allow_cockpit"><label for="f-net-cockpit">allow_cockpit (9090/tcp)</label></div>
-        <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (22/tcp)</label></div>
-        <div class="checkbox-row"><input type="checkbox" id="f-net-rdp" data-key="network.allow_rdp"><label for="f-net-rdp">allow_rdp (3389/tcp)</label></div>
-      </fieldset>
-    </div>
-  </div>
-</details>
-
-<details class="section">
-  <summary>Appearance · color palette <span class="phase-badge">Phase 4 · Overlay</span></summary>
-  <div class="section-body">
-    <fieldset style="grid-column: 1 / -1">
-      <legend>colors (palette applied across every console / terminal / tty / oh-my-posh)</legend>
-    <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
-      Defaults are the MiOS unified palette: operator neutrals
-      (#1A407F deep-blue, #E0E0E0 silver, #B7C9D7 pale blue-grey,
-      #948E8E warm grey, #734F39 brown) combined with Hokusai's
-      "The Great Wave off Kanagawa" (#3E7765 wave-green, #E7DFD3
-      foam-cream, #F35C15 sunset-orange, #DC271B coral-red, #282262
-      deep-indigo). Edit any color below; on save, /etc/profile.d/
-      mios-colors.sh reads these values and emits OSC-4 / OSC-10 /
-      OSC-11 / OSC-12 escape sequences at every interactive shell
-      start so bash / zsh / PowerShell / Windows Terminal / Ptyxis
-      all repaint. The oh-my-posh theme + Cockpit dark theme + the
-      configurator HTML itself read the same SSOT.
+  <!-- ═════════════════════════════════════════════════════════════════
+       ZONE 1 — Personal
+       ═════════════════════════════════════════════════════════════════ -->
+  <section class="zone zone-personal">
+    <h2>Personal <span class="badge">you</span></h2>
+    <p class="lead">
+      The everyday choices: who you are, where you live, what your
+      desktop looks like. Saved to <code>~/.config/mios/mios.toml</code>
+      (per-user) so each operator can carry their own preferences.
     </p>
 
-    <div style="margin-bottom: 6px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
-      Preset palettes
-    </div>
-    <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 6px;">
-      Jump-to baselines. <b>MiOS Hokusai</b> (the SSOT default) takes
-      precedence: when a mios.toml is loaded, its <code>[colors]</code>
-      block populates the fields below regardless of preset. Click a card
-      to overwrite the form with that preset's hexes; hand-tune any
-      individual color afterward and the page re-skins live. Use Tab to
-      focus a card and Enter / Space to apply.
-    </p>
-    <div id="palette-presets"
-         class="preset-grid"
-         role="radiogroup"
-         aria-label="Preset color palettes">
+    <div class="card">
+      <h3>Identity</h3>
+      <label for="f-username">username</label>
+      <input type="text" id="f-username" data-key="identity.username" placeholder="mios">
+      <label for="f-hostname">hostname</label>
+      <input type="text" id="f-hostname" data-key="identity.hostname" placeholder="mios">
+      <label for="f-fullname">full name</label>
+      <input type="text" id="f-fullname" data-key="identity.fullname" placeholder="MiOS User">
     </div>
 
-    <div style="margin-bottom: 16px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
-      Named tokens
+    <div class="card">
+      <h3>Locale &amp; language</h3>
+      <label for="f-tz">timezone</label>
+      <input type="text" id="f-tz" data-key="locale.timezone" placeholder="UTC">
+      <label for="f-lang">language</label>
+      <input type="text" id="f-lang" data-key="locale.language" placeholder="en_US.UTF-8">
+      <label for="f-kbd">keyboard layout</label>
+      <input type="text" id="f-kbd" data-key="locale.keyboard_layout" placeholder="us">
     </div>
-    <div id="colors-named" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px;"></div>
 
-    <div style="margin: 16px 0 8px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
-      ANSI 16-color slots (terminal palette)
-    </div>
-    <div id="colors-ansi" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px;"></div>
-
-    <div style="margin-top: 12px;">
-      <button type="button" id="btn-colors-reset" style="margin-right: 8px;">Reset to MiOS defaults</button>
-      <button type="button" id="btn-colors-hokusai">Pure Hokusai (no neutrals)</button>
-    </div>
-    </fieldset>
-  </div>
-</details>
-
-<details class="section">
-  <summary>Apps &amp; Desktop <span class="phase-badge">Phase 6-8 · Install → Build</span></summary>
-  <div class="section-body">
-    <fieldset style="grid-column: 1 / -1">
-      <legend>desktop (session + Flatpak applications)</legend>
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-      <div>
-        <label for="f-desktop-session">session</label>
-        <input type="text" id="f-desktop-session" data-key="desktop.session" placeholder="gnome">
+    <div class="card">
+      <h3>Look &amp; feel</h3>
+      <div class="grid">
+        <div>
+          <label for="f-theme-mode">mode</label>
+          <select id="f-theme-mode" data-key="theme.mode">
+            <option value="dark">dark</option>
+            <option value="light">light</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-desktop-color">desktop color scheme</label>
+          <input type="text" id="f-desktop-color" data-key="desktop.color_scheme" placeholder="prefer-dark">
+        </div>
       </div>
-      <div>
-        <label for="f-desktop-color">color_scheme</label>
-        <input type="text" id="f-desktop-color" data-key="desktop.color_scheme" placeholder="prefer-dark">
+      <label for="f-tp-ps">prompt style — primary symbol</label>
+      <input type="text" id="f-tp-ps" data-key="theme.prompt.prompt_symbol" placeholder="❯">
+      <p style="color: var(--muted); font-size: 11px; margin: 4px 0 0;">
+        Powerline shape: rounded <code>``</code>, sharp triangles
+        <code>``</code>/<code>``</code>, or flat <code>` `</code>.
+        Paste a different glyph below to override globally.
+      </p>
+      <label for="f-tp-pl-r">powerline (right separator)</label>
+      <input type="text" id="f-tp-pl-r" data-key="theme.prompt.powerline_right" placeholder="">
+      <label for="f-tp-pl-l">powerline (left separator)</label>
+      <input type="text" id="f-tp-pl-l" data-key="theme.prompt.powerline_left" placeholder="">
+    </div>
+
+    <div class="card">
+      <h3>Color palette</h3>
+      <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+        Edits here re-skin every console, terminal and Windows Terminal
+        profile via OSC escape sequences. The configurator itself
+        repaints live as you pick.
+      </p>
+      <div style="margin-bottom: 10px; color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px;">
+        Named tokens
+      </div>
+      <div id="colors-named" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px;"></div>
+
+      <details style="margin-top: 14px;">
+        <summary style="cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 0;">ANSI 16-color slots</summary>
+        <div id="colors-ansi" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px; margin-top: 8px;"></div>
+      </details>
+
+      <div style="margin-top: 12px;">
+        <button type="button" id="btn-colors-reset" style="margin-right: 8px;">Reset to MiOS defaults</button>
+        <button type="button" id="btn-colors-hokusai">Pure Hokusai</button>
       </div>
     </div>
-    <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
-      <b>desktop.flatpaks</b> -- per the project invariant (VM | Container | Flatpak only),
-      every user-facing application ships as a Flatpak. The image bakes the
-      minimal pre-selected set; tick more below to layer them in. Saving this
-      file as <code>/etc/mios/mios.toml</code> (host) or
-      <code>~/.config/mios/mios.toml</code> (user) overrides
-      <code>/usr/share/mios/mios.toml</code> via the layered resolver --
-      MiOS auto-detects the override at install / first-boot, no extra wiring.
-      <span id="f-flatpak-count" style="color: var(--accent); margin-left: 8px;"></span>
+  </section>
+
+  <!-- ═════════════════════════════════════════════════════════════════
+       ZONE 2 — Apps & Flatpaks
+       ═════════════════════════════════════════════════════════════════ -->
+  <section class="zone zone-apps">
+    <h2>Apps &amp; Flatpaks <span class="badge">install</span></h2>
+    <p class="lead">
+      Everything user-facing on MiOS ships as a Flatpak. Tick the apps
+      you want; the image bakes them in at build time.
+      <span id="f-flatpak-count" style="color: var(--accent); margin-left: 6px;"></span>
     </p>
-    <div id="flatpak-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 12px;"></div>
 
-    <label for="f-flatpak-extra" style="margin-top: 16px;">
-      extra flatpaks (manual)
-      <span style="color: var(--muted); font-weight: 400; font-size: 11px;">
-        -- comma-space separated app IDs or flathub URLs (e.g.
-        <code>org.blender.Blender, com.discordapp.Discord</code>).
-        Anything here is appended to the catalog selection above and baked
-        at build time alongside the checkbox-driven set.
-      </span>
-    </label>
-    <textarea id="f-flatpak-extra"
-              rows="3"
-              spellcheck="false"
-              placeholder="org.blender.Blender, com.discordapp.Discord, https://flathub.org/apps/details/com.spotify.Client"></textarea>
-    <div id="f-flatpak-extra-hint" style="color: var(--muted); font-size: 11px; margin-top: 4px;"></div>
-    </fieldset>
-  </div>
-</details>
+    <div class="card">
+      <h3>Desktop session</h3>
+      <div class="grid">
+        <div>
+          <label for="f-desktop-session">session</label>
+          <input type="text" id="f-desktop-session" data-key="desktop.session" placeholder="gnome">
+        </div>
+      </div>
+    </div>
 
-<details class="section" open>
+    <div class="card">
+      <h3>Flatpak catalog</h3>
+      <p style="color: var(--muted); font-size: 12px; margin: 0 0 10px;">
+        Categories: session apps, app management, developer, virtualization,
+        gaming, GNOME core, alternatives. Pre-selected items are the
+        minimal default set baked into the image. Saving the file as
+        <code>~/.config/mios/mios.toml</code> overrides the vendor list
+        via the layered resolver.
+      </p>
+      <div id="flatpak-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 12px;"></div>
+
+      <label for="f-flatpak-extra" style="margin-top: 16px;">
+        Extra flatpaks (paste app IDs / Flathub URLs)
+        <span style="color: var(--muted); font-weight: 400; font-size: 11px;">
+          — comma- or newline-separated. Anything here is appended
+          to the catalog selection above.
+        </span>
+      </label>
+      <textarea id="f-flatpak-extra"
+                rows="3"
+                spellcheck="false"
+                placeholder="org.blender.Blender, com.discordapp.Discord, https://flathub.org/apps/details/com.spotify.Client"></textarea>
+      <div id="f-flatpak-extra-hint" style="color: var(--muted); font-size: 11px; margin-top: 4px;"></div>
+    </div>
+
+    <div class="card">
+      <h3>Windows shortcuts</h3>
+      <p style="color: var(--muted); font-size: 12px; margin: 0 0 10px;">
+        Names that appear in Start Menu / taskbar / pinned shortcuts on
+        the Windows host side.
+      </p>
+      <label for="f-apps-folder">Start Menu folder</label>
+      <input type="text" id="f-apps-folder" data-key="apps.start_menu_folder" placeholder="MiOS">
+      <label for="f-apps-hub">Hub shortcut name</label>
+      <input type="text" id="f-apps-hub" data-key="apps.hub_shortcut_name" placeholder="MiOS">
+      <label for="f-apps-aumid">AUMID (taskbar grouping)</label>
+      <input type="text" id="f-apps-aumid" data-key="apps.aumid" placeholder="MiOS.Workstation">
+    </div>
+  </section>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ZONE 3 — Advanced / Admin (collapsed by default)
+     The entire admin surface is wrapped in ONE outer <details> so
+     a single click reveals or hides every technical sub-section.
+     ═══════════════════════════════════════════════════════════════ -->
+<details class="admin-wrap">
+  <summary>
+    Advanced settings
+    <span class="badge">admin</span>
+    <span class="hint">click to expand · packages, services, ports, build, networking, security</span>
+  </summary>
+  <div class="admin-body">
+    <p style="color: var(--muted); font-size: 12.5px; margin: 4px 0 18px;">
+      Everything below is for operators configuring the build pipeline,
+      service mesh, or host bootstrap. Defaults are sane — leave it alone
+      unless you have a specific reason to change something.
+    </p>
+
+    <details class="section" id="adv-identity-net">
+      <summary>Identity (advanced), image, auth &amp; firewall <span class="phase-badge">Phase 1-6</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Pipeline Phase 1 (Questions) reads <code>identity.*</code>;
+          <code>image.*</code> picks the OCI build target and the
+          <code>bootc switch</code> ref for upgrades; <code>auth.*</code>
+          shapes SSH key generation; <code>network.*</code> drives the
+          firewalld rules baked at install time.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>identity (advanced)</legend>
+            <label for="f-shell">shell</label>
+            <input type="text" id="f-shell" data-key="identity.shell" placeholder="/bin/bash">
+            <label for="f-groups">groups (CSV)</label>
+            <input type="text" id="f-groups" data-key="identity.groups" data-array="csv"
+                   placeholder="wheel,libvirt,kvm,video,render,input,dialout,docker">
+          </fieldset>
+
+          <fieldset>
+            <legend>image</legend>
+            <label for="f-img-ref">ref</label>
+            <input type="text" id="f-img-ref" data-key="image.ref" placeholder="ghcr.io/mios-dev/mios:latest">
+            <label for="f-img-branch">branch</label>
+            <input type="text" id="f-img-branch" data-key="image.branch" placeholder="main">
+            <label for="f-img-base">base</label>
+            <input type="text" id="f-img-base" data-key="image.base" placeholder="ghcr.io/ublue-os/ucore-hci:stable-nvidia">
+          </fieldset>
+
+          <fieldset>
+            <legend>auth</legend>
+            <label for="f-ssh-type">ssh_key_type</label>
+            <input type="text" id="f-ssh-type" data-key="auth.ssh_key_type" placeholder="ed25519">
+            <label for="f-ssh-action">ssh_key_action (generate / existing / skip)</label>
+            <input type="text" id="f-ssh-action" data-key="auth.ssh_key_action" placeholder="generate">
+          </fieldset>
+
+          <fieldset>
+            <legend>network &amp; firewall</legend>
+            <label for="f-net-zone">firewalld_default_zone</label>
+            <input type="text" id="f-net-zone" data-key="network.firewalld_default_zone" placeholder="drop">
+            <div class="checkbox-row"><input type="checkbox" id="f-net-cockpit" data-key="network.allow_cockpit"><label for="f-net-cockpit">allow_cockpit (9090/tcp)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (22/tcp)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="f-net-rdp" data-key="network.allow_rdp"><label for="f-net-rdp">allow_rdp (3389/tcp)</label></div>
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
+    <details class="section" id="adv-ai">
+      <summary>AI endpoints &amp; models <span class="phase-badge">Phase 1 · Questions / LAW 5</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Architectural Law 5: every MiOS surface speaks to one local
+          OpenAI-compatible endpoint. Edit only when swapping backends
+          (LocalAI / Ollama / Hermes / external).
+        </p>
+        <fieldset style="grid-column: 1 / -1;">
+          <legend>ai</legend>
+          <label for="f-ai-endpoint">endpoint</label>
+          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8080/v1">
+          <label for="f-ai-model">model</label>
+          <select id="f-ai-model" data-key="ai.model">
+            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (12 GB RAM, default)</option>
+            <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (24+ GB RAM)</option>
+            <option value="llama3.2:3b">llama3.2:3b (8 GB RAM)</option>
+            <option value="__custom__">custom...</option>
+          </select>
+          <input type="text" id="f-ai-model-custom" data-key="ai.model" data-custom-of="f-ai-model"
+                 placeholder="custom model id" style="margin-top:4px; display:none">
+          <label for="f-ai-embed">embed_model</label>
+          <input type="text" id="f-ai-embed" data-key="ai.embed_model" placeholder="nomic-embed-text">
+          <label for="f-ai-bake">bake_models (CSV; consumed by 37-ollama-prep.sh)</label>
+          <input type="text" id="f-ai-bake" data-key="ai.bake_models"
+                 placeholder="qwen2.5-coder:7b,nomic-embed-text">
+          <label for="f-ai-key">api_key (empty for localhost)</label>
+          <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
+        </fieldset>
+      </div>
+    </details>
+
+    <details class="section" id="adv-color-presets">
+      <summary>Color presets · jump-to baselines <span class="phase-badge">Phase 4 · Overlay</span></summary>
+      <div class="section-body">
+        <fieldset style="grid-column: 1 / -1">
+          <legend>preset palettes</legend>
+          <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 6px;">
+            Jump-to baselines. <b>MiOS Hokusai</b> (the SSOT default) takes
+            precedence: when a mios.toml is loaded, its <code>[colors]</code>
+            block populates the picker fields in the Personal zone above
+            regardless of preset. Click a card to overwrite the form with
+            that preset's hexes; hand-tune any individual color afterward
+            and the page re-skins live. Use Tab to focus a card and
+            Enter / Space to apply.
+          </p>
+          <div id="palette-presets"
+               class="preset-grid"
+               role="radiogroup"
+               aria-label="Preset color palettes">
+          </div>
+        </fieldset>
+      </div>
+    </details>
+
+<details class="section">
   <summary>Packages · what gets layered into the image <span class="phase-badge">Phase 7-8 · Install → Build</span></summary>
   <div class="section-body">
     <fieldset style="grid-column: 1 / -1">
@@ -565,7 +640,7 @@
   </div>
 </details>
 
-<details class="section" open>
+<details class="section">
   <summary>Deployment targets · output image formats <span class="phase-badge">Phase 9 · Deploy</span></summary>
   <div class="section-body">
     <fieldset style="grid-column: 1 / -1">
@@ -857,11 +932,11 @@
       </fieldset>
       <fieldset>
         <legend>theme (acrylic 50% / frame-less / scrollbar-less = MiOS GLOBAL defaults)</legend>
-        <label for="f-theme-mode">mode</label>
-        <select id="f-theme-mode" data-key="theme.mode">
-          <option value="dark">dark</option>
-          <option value="light">light</option>
-        </select>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          Light/dark mode is in the Personal zone above. These remaining
+          knobs fine-tune Windows Terminal acrylic, opacity, cursor,
+          scrollbar and launch mode.
+        </p>
         <div class="checkbox-row">
           <input type="checkbox" id="f-theme-acrylic" data-key="theme.acrylic">
           <label for="f-theme-acrylic">acrylic (WT useAcrylic ON)</label>
@@ -932,20 +1007,16 @@
         <input type="text" id="f-tt-summon-name" data-key="theme.terminal.summon_window_name" placeholder="MiOS">
       </fieldset>
       <fieldset>
-        <legend>theme.prompt — powerline glyphs (rounded by default)</legend>
+        <legend>theme.prompt — additional powerline glyphs</legend>
         <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
-          mios.toml IS the SSOT for every powerline glyph and prompt
-          symbol. Defaults are rounded (`` U+E0B4 / `` U+E0B6).
-          Sharp triangles ``/`` (U+E0B0/B2) or flat ` `/` ` are
-          operator overrides — paste a different glyph in any field
-          to override globally.
+          Primary prompt symbol and powerline left/right are in the
+          Personal zone above. These remaining tokens fine-tune the
+          oh-my-posh template path, soft separators, leading/trailing
+          diamonds, and the root prompt. Defaults are rounded; sharp
+          triangles or flat characters are operator overrides.
         </p>
         <label for="f-tp-omp">omp_path</label>
         <input type="text" id="f-tp-omp" data-key="theme.prompt.omp_path" placeholder="/usr/share/mios/oh-my-posh/mios.omp.json">
-        <label for="f-tp-pl-r">powerline_right (default: rounded ``)</label>
-        <input type="text" id="f-tp-pl-r" data-key="theme.prompt.powerline_right" placeholder="">
-        <label for="f-tp-pl-l">powerline_left (default: rounded ``)</label>
-        <input type="text" id="f-tp-pl-l" data-key="theme.prompt.powerline_left" placeholder="">
         <label for="f-tp-pl-rs">powerline_right_soft (between same-color segments)</label>
         <input type="text" id="f-tp-pl-rs" data-key="theme.prompt.powerline_right_soft" placeholder="">
         <label for="f-tp-pl-ls">powerline_left_soft</label>
@@ -954,8 +1025,6 @@
         <input type="text" id="f-tp-ld" data-key="theme.prompt.leading_diamond" placeholder="">
         <label for="f-tp-td">trailing_diamond (end of rightmost segment)</label>
         <input type="text" id="f-tp-td" data-key="theme.prompt.trailing_diamond" placeholder="">
-        <label for="f-tp-ps">prompt_symbol (default: ❯)</label>
-        <input type="text" id="f-tp-ps" data-key="theme.prompt.prompt_symbol" placeholder="❯">
         <label for="f-tp-psr">prompt_symbol_root (default: ⚠)</label>
         <input type="text" id="f-tp-psr" data-key="theme.prompt.prompt_symbol_root" placeholder="⚠">
       </fieldset>
@@ -964,18 +1033,14 @@
 </details>
 
 <details class="section">
-  <summary>Apps &amp; preflight · Windows native-app surface, host requirements <span class="phase-badge">irm|iex Pass-1</span></summary>
+  <summary>Preflight &amp; retry · host requirements + transient-error backoff <span class="phase-badge">irm|iex Pass-1</span></summary>
   <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Windows-side native-app names (apps.aumid / start_menu_folder /
+      hub_shortcut_name) live in the Apps zone above. These remaining
+      knobs gate the bootstrap and retry transient HTTP errors.
+    </p>
     <div class="grid">
-      <fieldset>
-        <legend>apps</legend>
-        <label for="f-apps-aumid">aumid (taskbar grouping)</label>
-        <input type="text" id="f-apps-aumid" data-key="apps.aumid" placeholder="MiOS.Workstation">
-        <label for="f-apps-folder">start_menu_folder</label>
-        <input type="text" id="f-apps-folder" data-key="apps.start_menu_folder" placeholder="MiOS">
-        <label for="f-apps-hub">hub_shortcut_name</label>
-        <input type="text" id="f-apps-hub" data-key="apps.hub_shortcut_name" placeholder="MiOS">
-      </fieldset>
       <fieldset>
         <legend>preflight (min host requirements)</legend>
         <label for="f-pre-build">min_windows_build</label>
@@ -1007,7 +1072,7 @@
 </details>
 
 <details class="section">
-  <summary>Advanced · raw TOML preview</summary>
+  <summary>Raw TOML preview</summary>
   <div class="section-body">
     <fieldset style="grid-column: 1 / -1">
       <legend>raw TOML preview</legend>
@@ -1015,6 +1080,9 @@
     </fieldset>
   </div>
 </details>
+
+  </div><!-- /.admin-body -->
+</details><!-- /.admin-wrap -->
 
 <div id="status" class="status info" style="display:none"></div>
 
