@@ -155,19 +155,11 @@ pull   = { description = "Sync M:\\ overlay to origin/main",                    
 update = { description = "Re-run the bootstrap (cache-busted)",                                  surface = "windows" }
 help   = { description = "List every verb",                                                       surface = "windows" }
 
-# ----------------------------------------------------------------------------
-# [apps] -- canonical Windows-side native-app catalog. Each app gets a
-# Start Menu .lnk + Desktop .lnk during build-mios.ps1's Install-MiOSLauncher.
-# Operators rename apps via mios.html; the next install regenerates
-# shortcuts against the new name. The "MiOS" hub app and "Uninstall MiOS"
-# entry are fixed-name + handled outside this loop (they're the entry +
-# teardown surface). The ones below are the per-verb apps the operator
-# can customize.
-# ----------------------------------------------------------------------------
-[apps]
-# Note: [apps] table proper (with native-app catalog) is consolidated
-# at line ~1665 with the rest of the Windows-side app metadata; THIS
-# location was a duplicate-and-removed staging table.
+# Note: the canonical [apps] table is consolidated below (~line 1690)
+# with the rest of the Windows-side app metadata. The verb catalog
+# above ([verbs]) is the SSOT for `mios <verb>` command names; the
+# [apps.shortcuts] table below maps a subset of those verbs to
+# Start Menu / Desktop .lnk files.
 
 # ----------------------------------------------------------------------------
 # [install_phases.<mode>] -- ordered list of phase names rendered by
@@ -265,6 +257,20 @@ seed_dir            = "/usr/share/ollama/models"     # immutable, build-baked
 runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-seeded
 
 # ----------------------------------------------------------------------------
+# [ai.host_thresholds] -- auto-pick model based on host RAM during the
+# Get-Hardware phase. Operators tune the cutoffs (raise mid_ram_gb to
+# 16 if their box runs hotter on 14B; swap small_ram_model to a
+# different small-context family) via mios.html. Build-mios.ps1 reads
+# these and assigns $aiModel = big/mid/small at install time.
+# ----------------------------------------------------------------------------
+[ai.host_thresholds]
+big_ram_gb       = 32                            # >= this -> big_ram_model
+mid_ram_gb       = 12                            # >= this -> mid_ram_model
+big_ram_model    = "qwen2.5-coder:14b"
+mid_ram_model    = "qwen2.5-coder:7b"
+small_ram_model  = "phi4-mini:3.8b-q4_K_M"      # < mid_ram_gb fallback
+
+# ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.
 # desktop.flatpaks -> MIOS_FLATPAKS (comma-joined for the Containerfile arg).
 # ----------------------------------------------------------------------------
@@ -290,13 +296,26 @@ flatpaks      = [
 # MIOS_IMAGE_NAME, MIOS_IMAGE_TAG, MIOS_LOCAL_TAG.
 # ----------------------------------------------------------------------------
 [image]
-ref       = "ghcr.io/mios-dev/mios:latest"
-branch    = "main"
-base      = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
-bib       = "quay.io/centos-bootc/bootc-image-builder:latest"
-name      = "ghcr.io/mios-dev/mios"
-tag       = "latest"
-local_tag = "localhost/mios:latest"
+ref            = "ghcr.io/mios-dev/mios:latest"
+branch         = "main"
+# Base OCI image. The script auto-picks NVIDIA vs non-NVIDIA at install
+# time based on detected GPU; both variants are listed here so operators
+# can swap to a different upstream (e.g. ucore-minimal, fedora-bootc) via
+# mios.html without touching code.
+base           = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"   # default (NVIDIA preferred)
+base_nvidia    = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+base_no_nvidia = "ghcr.io/ublue-os/ucore-hci:stable"
+# bootc-image-builder image (BIB). Used inside MiOS-DEV to convert the
+# OCI image into qcow2/raw/iso/vhdx etc. for Hyper-V, QEMU, USB sticks.
+bib            = "quay.io/centos-bootc/bootc-image-builder:latest"
+name           = "ghcr.io/mios-dev/mios"
+tag            = "latest"
+local_tag      = "localhost/mios:latest"
+# Machine-os layer (the WSL2 root podman-machine init pulls). The
+# canonical 6.0 tag is operator-overridable via mios.html so they can
+# track 6.1/7.0 without bumping code.
+machine_os_repo = "quay.io/podman/machine-os"
+machine_os_tag  = "6.0"
 # Sibling minimal-track image (Containerfile.minimal): builds from
 # bare fedora-bootc instead of ucore-hci. Smaller (~1.2 GB vs ~2.5 GB)
 # but lacks NVIDIA kmod + libvirt + ZFS prebakes. Operators on
