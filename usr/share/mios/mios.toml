@@ -134,6 +134,27 @@ format         = "toml"
 spec_url       = "https://toml.io/en/v1.0.0"
 editor_url     = "/usr/share/mios/configurator/mios.html"
 
+# ----------------------------------------------------------------------------
+# [verbs] -- canonical list of operator-facing `mios <verb>` commands. The
+# Windows pwsh dispatcher (in M:\MiOS\powershell\profile.ps1), the post-
+# install hint banner, the Start Menu / Desktop per-verb shortcuts, and
+# the mios-help.ps1 listing all read from THIS table. Operators can
+# rename or reorder verbs via mios.html; the dispatcher + shortcuts
+# regenerate on the next install. Names must be lowercase ASCII a-z.
+# ----------------------------------------------------------------------------
+[verbs]
+# Each entry: name = { description = "<help text>", surface = "<windows|dev_vm|both>" }
+#   windows -- runs in the Windows pwsh host
+#   dev_vm  -- forwards into podman-MiOS-DEV via wsl.exe
+#   both    -- routes by current shell
+build  = { description = "Open mios.html, save edits, then build the OCI image inside MiOS-DEV", surface = "dev_vm" }
+config = { description = "Edit mios.toml in the HTML configurator (no build)",                   surface = "windows" }
+dash   = { description = "Show the MiOS dashboard (framed banner + fastfetch)",                  surface = "windows" }
+dev    = { description = "Enter the MiOS-DEV podman machine",                                    surface = "dev_vm" }
+pull   = { description = "Sync M:\\ overlay to origin/main",                                      surface = "windows" }
+update = { description = "Re-run the bootstrap (cache-busted)",                                  surface = "windows" }
+help   = { description = "List every verb",                                                       surface = "windows" }
+
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
 # etc/containers/systemd/mios-searxng.container; the agent surface
