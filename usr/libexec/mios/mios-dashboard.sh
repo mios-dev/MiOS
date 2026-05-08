@@ -4,9 +4,11 @@
 # MiOS live system dashboard. Renders to ANY tty -- detects color
 # capability, degrades to plain ASCII on tty0 / `linux` console.
 #
-# Everything renders inside an 80-column frame so output never bleeds
-# past a tty0/console viewport. Long lines are truncated with an
-# ellipsis (default) or marquee-scrolled when --ticker is passed.
+# Everything renders inside a frame whose width comes from
+# /usr/share/mios/mios.toml [terminal].cols - [terminal].right_margin
+# (default 80, edge-to-edge), so output never bleeds past the tty0 /
+# console viewport. Long lines are truncated with an ellipsis (default)
+# or marquee-scrolled when --ticker is passed.
 #
 # Modes:
 #   default          : framed header (ASCII art) + fastfetch + services + loop hint
@@ -18,9 +20,13 @@
 #                      blocks until Ctrl-C, so NOT used in motd path)
 #   --no-frame       : disable the outer frame (legacy / debug)
 #
-# Frame dimensions are FIXED at 80 cols wide. The Windows desktop
-# launcher (build-mios.ps1's Install-WindowsBranding) sizes its
-# Windows Terminal profile to match exactly.
+# Frame dimensions are sourced from /usr/share/mios/mios.toml [terminal]
+# (cols, right_margin) -- WIDTH = cols - right_margin, edge-to-edge by
+# default (cols=80, right_margin=0 -> WIDTH=80). Set MIOS_TOML to point
+# the awk helper at a different TOML file (e.g. for testing). The
+# Windows desktop launcher (build-mios.ps1's Install-WindowsBranding)
+# reads the same [terminal] keys via its own PowerShell TOML reader,
+# so cross-platform values stay aligned.
 #
 # Entry points:
 #   - /etc/profile.d/zz-mios-motd.sh runs the default mode at every
@@ -77,10 +83,50 @@ else
     F_LT="+"; F_RT="+"; F_V="|"
 fi
 
-# ── Frame dimensions (FIXED 80 cols) ─────────────────────────────────────────
-# 80 = tty0 native width and the Windows Terminal MiOS profile size.
-# Inner width = 76: "│ " (2) + content + " │" (2) = 80.
-WIDTH=80
+# ── Frame dimensions (sourced from mios.toml [terminal]) ─────────────────────
+# WIDTH = cols - right_margin. EDGE-TO-EDGE by default
+# (right_margin=0, frame_width=cols=80). The TOML is the SSOT --
+# mios.html edits flow here on next render. Vendor fallback is
+# 80 cols / margin 0 if the TOML is missing (cold first-boot before
+# /usr/share/mios is staged). Inner width = WIDTH - 4 because the
+# frame chars consume "│ " + content + " │" = 4 cells.
+#
+# All MiOS consoles (Linux tty0, GNOME terminal, Ptyxis, WT MiOS
+# profile, conhost fallback, WSL pwsh dispatcher) honor the same
+# [terminal].cols / right_margin via their respective TOML readers
+# (Get-MiOS.ps1's Get-MiosTomlValue / mios-dash.ps1's regex / this
+# awk helper). No hardcoded 80 anywhere -- if you find one, lift it.
+_mios_toml_value() {
+    local section="$1" key="$2" default="$3"
+    local toml="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+    [[ -r "$toml" ]] || { printf '%s' "$default"; return; }
+    awk -v want_section="$section" -v want_key="$key" -v default="$default" '
+        BEGIN { in_section = 0; found = 0 }
+        /^\[/ {
+            line = $0
+            sub(/[[:space:]]*#.*$/, "", line)
+            in_section = (line == "[" want_section "]") ? 1 : 0
+            next
+        }
+        in_section && /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
+            line = $0
+            sub(/[[:space:]]*#.*$/, "", line)
+            eq = index(line, "=")
+            if (eq == 0) next
+            k = substr(line, 1, eq - 1)
+            v = substr(line, eq + 1)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+            gsub(/^"|"$/, "", v)
+            if (k == want_key) { print v; found = 1; exit }
+        }
+        END { if (!found) print default }
+    ' "$toml"
+}
+_mios_cols=$(_mios_toml_value "terminal" "cols" "80")
+_mios_rmgn=$(_mios_toml_value "terminal" "right_margin" "0")
+WIDTH=$(( _mios_cols - _mios_rmgn ))
+(( WIDTH < 20 )) && WIDTH=80     # safety floor: malformed TOML / negative math
 INNER=$((WIDTH - 4))
 
 # Identity from install.env (written by mios-bootstrap at install time).

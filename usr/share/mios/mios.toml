@@ -1612,18 +1612,27 @@ podman_pkg          = "RedHat.Podman-Desktop"
 # (wt.exe new-tab, conhost fallback, wsl.exe into MiOS-DEV, the
 # auto-elevated bootstrap window, the native-app launcher, Linux tty0
 # console via /etc/profile.d/mios-tty.sh) opens at exactly cols × rows.
-# Frame dims are cols-1 / rows-1 so the dashboard's box-drawing fits
-# inside the borderless + scrollbar-less MiOS terminal without the
-# right border colliding with the line-wrap boundary.
-# Per memory feedback_mios_terminal_dimensions.
+#
+# EDGE-TO-EDGE: frame_width = cols, frame_height = rows, right_margin = 0.
+# The dashboard box-drawing reaches the rightmost paintable cell. The
+# right-aligned powerline block ends at the last paintable cell. There
+# is NO gutter.
+#
+# This requires the WT/MiOS app window to actually be frameless --
+# the [theme] section below sets padding=0, scrollbar_state=hidden,
+# acrylic on, suppress_app_title, launch_mode=focus so the visible cell
+# count == the reported cell count. Any wrap on the right edge is a WT
+# chrome bug (a missing knob in [theme] or in the settings.json patcher);
+# do NOT shrink frame_width / right_margin to mask it. Operator pivot
+# 2026-05-08: stop band-aiding the frame, fix the chrome.
 # ----------------------------------------------------------------------------
 [terminal]
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 78      # cols - 2 -- per operator "framing too wide STILL" the previous cols-1 still wrapped because WT pseudo-console reports 1 cell over the visible cell count when the scrollbar reservation hasn't been applied yet (profiles.defaults scrollbarState='hidden' takes effect after the first paint). cols-2 leaves a 2-cell gutter so neither the box-drawing frame nor the right-aligned powerline block can wrap regardless of WT version / DPI / scrollbar timing.
-frame_height        = 19      # rows - 1 -- one row reserved for the prompt under the dashboard
-right_margin        = 2       # cells of slack between the rightmost paintable cell and where prompt right-aligned segments stop. Applied in Get-MiOS.ps1's WIDTH calc (MIN(WindowWidth - right_margin, frame_width)) and as a trailing spacer segment in mios.omp.json. cols-2 not cols-1: cols-1 still wrapped on the operator's hardware because the WT reported window width was 1 cell wider than the actual visible/paintable width during the first prompt render.
+frame_width         = 80      # = cols. Edge-to-edge -- the dashboard frame paints from col 0 to col cols-1 with no gutter. Vendor default is exactly cols; anything narrower is an operator override (e.g. for a quirky third-party terminal that lies about its width). Get-MiOS.ps1's Show-MiosDashboard, mios-dash.ps1, and mios-dashboard.sh ALL read this value via Get-MiosTomlValue / awk.
+frame_height        = 20      # = rows. Edge-to-edge vertically -- the dashboard scrolls naturally and the prompt renders below as a NEW row. The conhost cursor advances past the bottom border on its own; no row needs to be "reserved" inside the frame.
+right_margin        = 0       # zero gutter on the right edge. Applied in Get-MiOS.ps1's WIDTH calc (MIN(WindowWidth - right_margin, frame_width)) and in mios-dash.ps1 (cols - right_margin). 0 = edge-to-edge. Increase ONLY if the WT chrome cannot be made frameless on a given host (e.g. a remote conhost without scrollbarState support); the proper home for those workarounds is the consumer, not this knob.
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install

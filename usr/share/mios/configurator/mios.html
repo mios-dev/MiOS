@@ -911,17 +911,19 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>terminal (post-install MiOS app: 80x20 portal feel)</legend>
+        <legend>terminal (post-install MiOS app: 80x20, edge-to-edge frameless)</legend>
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>
         <input type="text" id="f-term-rows" data-key="terminal.rows" data-type="int" placeholder="20">
         <label for="f-term-scroll">scrollback_rows</label>
         <input type="text" id="f-term-scroll" data-key="terminal.scrollback_rows" data-type="int" placeholder="9000">
-        <label for="f-term-fw">frame_width (cols - 1, borderless fit)</label>
-        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="79">
-        <label for="f-term-fh">frame_height (rows - 1)</label>
-        <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="19">
+        <label for="f-term-fw">frame_width (= cols, edge-to-edge)</label>
+        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="80">
+        <label for="f-term-fh">frame_height (= rows, edge-to-edge)</label>
+        <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="20">
+        <label for="f-term-rm">right_margin (0 = edge-to-edge; raise only if WT chrome can't be hidden)</label>
+        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="0">
       </fieldset>
       <fieldset>
         <legend>terminal.install (BOOTSTRAP window: 80x40 for install output + readme)</legend>

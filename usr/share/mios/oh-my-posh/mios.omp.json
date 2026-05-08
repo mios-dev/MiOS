@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "version": 4,
-  "//final_space": "true: reserve a trailing cell so oh-my-posh's right-aligned block doesn't push to the actual right edge -- the operator's WT pseudo-console sometimes reports terminal width 1 cell over the visible cell count, which made the trailing time char wrap to the next line ('powerline time wraps to the left side'). Reserving one cell gives the segment safety margin against off-by-one width reports.",
-  "final_space": true,
+  "//final_space": "false: edge-to-edge per [terminal].right_margin=0 in mios.toml. The right-aligned powerline block ends exactly at the last paintable cell. Pre-2026-05-08 this was true to mask a WT chrome bug (pseudo-console reporting +1 col before scrollbarState='hidden' took effect on first paint); the proper fix is in mios.toml [theme] (padding=0, scrollbar_state=hidden, launch_mode=focus, suppress_app_title=true) which makes the visible col count == the reported col count. If the rightmost time char ever wraps again, audit the WT settings.json patcher in Get-MiOS.ps1, NOT this knob.",
+  "final_space": false,
   "//": [
     "MiOS Oh-My-Posh theme.",
     "All Nerd Font private-use-area glyphs are encoded as JSON \\uXXXX",
@@ -209,10 +209,10 @@
           "template": " {{ .CurrentDate | date .Format }} "
         },
         {
-          "//": "Trailing spacer -- reserves 2 cells of right margin so the powerline right block can't wrap to the next line on hosts where the pseudo-console reports a window width 1+ cells over the visible cells (operator's WT during the first paint, before scrollbarState='hidden' takes effect). final_space=true at the theme root reserves 1 additional cell on top, totaling 3 cells of slack from the rightmost cell. Lifted from mios.toml [terminal].right_margin via build-mios.ps1's mios.omp.json substitution; this 2-space template is the vendor default.",
+          "//": "Trailing spacer REMOVED 2026-05-08 per operator pivot to edge-to-edge. The right-aligned block now ends at the last paintable cell. mios.toml [terminal].right_margin=0 is the SSOT; if a future operator re-introduces a non-zero margin, the build-mios.ps1 substitution should re-emit this segment with template = (right_margin spaces). For now: kept as a stub for substitution-target stability so build-mios.ps1's regex doesn't break.",
           "type": "text",
           "style": "plain",
-          "template": "  "
+          "template": ""
         }
       ]
     },
