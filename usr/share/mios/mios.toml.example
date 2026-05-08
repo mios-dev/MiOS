@@ -7,11 +7,14 @@
 #   user identity, image refs, build knobs, flatpaks, AI settings,
 #   profile/role overlay, and free-form env-var overrides.
 #
-# Resolution order (first non-empty wins):
+# Resolution order (highest precedence first):
 #   1. ~/.config/mios/mios.toml          (this file when copied -- user)
-#   2. /etc/mios/install.env             (host -- written by Windows installer)
-#   3. /etc/mios/env.d/*.env             (admin drop-ins, alphabetical)
-#   4. /usr/share/mios/env.defaults      (vendor)
+#   2. /etc/mios/mios.toml               (host -- written by bootstrap)
+#   3. /usr/share/mios/mios.toml         (vendor -- canonical SSOT)
+# Legacy env-style files (~/.env.mios / /etc/mios/install.env /
+# /etc/mios/env.d/*.env / ~/.config/mios/env) are still read by
+# /etc/profile.d/mios-env.sh for back-compat with pre-v0.2.4 installs;
+# the layered TOML above is the canonical surface for new edits.
 
 # ---- Identity ---------------------------------------------------------------
 [user]

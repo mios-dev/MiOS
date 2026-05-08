@@ -73,7 +73,7 @@ if [[ -n "$USERENV_SRC" ]]; then
     install -D -m 0644 "$USERENV_SRC" /usr/lib/mios/userenv.sh
     echo "[36-tools] Installed userenv.sh resolver to /usr/lib/mios/userenv.sh"
 else
-    echo "[36-tools] WARN: tools/lib/userenv.sh not found in build context; mios-env will fall back to env.defaults-only resolution"
+    echo "[36-tools] WARN: tools/lib/userenv.sh not found in build context; mios-env will fall back to legacy env-style files only"
 fi
 
 echo "[36-tools] CLI tools configuration complete. Run 'mios --help' for commands."

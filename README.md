@@ -175,7 +175,7 @@ The whole user side is one file:
 That's where you set your preferred username, hostname, base image, AI
 model, Flatpaks to install at first boot, and any free-form environment
 variables you want exported on login. Everything else inherits from the
-vendor defaults at `/usr/share/mios/env.defaults`.
+vendor TOML at `/usr/share/mios/mios.toml` (the canonical SSOT).
 
 ```toml
 [user]

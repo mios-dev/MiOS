@@ -2,7 +2,7 @@
 # /usr/bin/mios-env -- print the resolved MIOS_* environment surface.
 #
 # Documented in INDEX.md sec 4 as the canonical CLI for inspecting the
-# layered environment overlay (/usr/share/mios/env.defaults ->
+# layered environment overlay (legacy env-style files /etc/mios/env.d/*.env ->
 # /etc/mios/env.d/*.env -> /etc/mios/install.env -> ~/.env.mios ->
 # ~/.config/mios/env). Wraps /etc/profile.d/mios-env.sh + the
 # tools/lib/userenv.sh TOML resolver and reports the consolidated values

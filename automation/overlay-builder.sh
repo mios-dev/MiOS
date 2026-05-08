@@ -72,7 +72,8 @@ _rsync_in() {
     echo "[overlay-builder]  $src -> $dst"
 }
 
-# /usr/share/mios -- vendor docs, profile.toml, env.defaults, mios.toml.example
+# /usr/share/mios -- vendor docs, profile.toml, mios.toml (canonical SSOT),
+# mios.toml.example, ai/, configurator/
 _rsync_in "usr/share/mios/"    "/usr/share/mios/"
 
 # /usr/lib/mios -- runtime paths.sh + any future shared lib
@@ -100,7 +101,7 @@ _rsync_in "etc/skel/"          "/etc/skel/"
 
 # /etc/mios -- vendor host config templates (install.env will be missing on
 # BUILDER because no Windows installer ran here; that's fine, agents fall
-# back to /usr/share/mios/env.defaults)
+# back to the layered mios.toml overlay -- the canonical SSOT)
 _rsync_in "etc/mios/"          "/etc/mios/"
 
 # Mark the executable bits on the canonical libexec scripts
