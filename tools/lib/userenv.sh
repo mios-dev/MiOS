@@ -261,6 +261,10 @@ slots = [
     ("image.sidecars.hermes",          "MIOS_HERMES_IMAGE"),
     ("image.sidecars.webui_version",   "MIOS_WEBUI_VERSION"),
     ("image.sidecars.webui",           "MIOS_WEBUI_IMAGE"),
+    ("image.sidecars.ollama_version",  "MIOS_OLLAMA_VERSION"),
+    ("image.sidecars.ollama",          "MIOS_OLLAMA_IMAGE"),
+    ("image.sidecars.guacamole_version","MIOS_GUACAMOLE_VERSION"),
+    ("image.sidecars.guacamole",       "MIOS_GUACAMOLE_IMAGE"),
     ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
     # ── services (per-service identity: user / uid / gid) ─────────────────
     ("services.forge.user",            "MIOS_FORGE_USER"),

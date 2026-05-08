@@ -28,11 +28,14 @@ Wants=network-online.target
 Requires=mios-hermes.service
 
 [Container]
-Image=docker.io/openwebui/open-webui:latest
+# Image / Port / UID placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].webui,
+# [ports].webui, [services.webui].uid/.gid.
+Image=${MIOS_WEBUI_IMAGE:-docker.io/openwebui/open-webui:latest}
 ContainerName=mios-webui
 Network=ai-net.network
-Network=mios.network
-PublishPort=3030:8080
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
+PublishPort=${MIOS_PORT_WEBUI:-3030}:8080
 AutoUpdate=registry
 
 Volume=/var/lib/mios/webui:/app/backend/data:Z
@@ -52,8 +55,10 @@ EnvironmentFile=/etc/mios/hermes/api.env
 Environment=WEBUI_AUTH=true
 Environment=WEBUI_NAME=MiOS
 
-User=821
-Group=821
+# Identity. UID resolved from mios.toml [services.webui].uid (default
+# 821, pinned in usr/lib/sysusers.d/50-mios-services.conf).
+User=${MIOS_WEBUI_UID:-821}
+Group=${MIOS_WEBUI_GID:-821}
 
 Label=org.opencontainers.image.title=mios-webui
 Label=org.opencontainers.image.url=http://localhost:3030/

@@ -157,8 +157,43 @@ def main(out_path: Path):
         })
 
     # 4. Default Flatpaks
+    # SSOT: mios.toml [desktop].flatpaks (the canonical operator-tunable
+    # source). env.defaults was the legacy fallback (deleted in v0.2.4
+    # when mios.toml became THE singular SSOT). The legacy ~/.env.mios
+    # is still read for backward-compat with pre-migration installs.
     flat_seen = set()
-    for env_path in [".env.mios", "usr/share/mios/env.defaults"]:
+
+    # Primary source: mios.toml [desktop].flatpaks (TOML array of strings)
+    toml_path = ROOT / "usr/share/mios/mios.toml"
+    if toml_path.is_file():
+        try:
+            try:
+                import tomllib  # Python 3.11+
+            except ImportError:
+                import tomli as tomllib  # type: ignore
+            with open(toml_path, "rb") as fh:
+                doc = tomllib.load(fh)
+            flatpaks = (doc.get("desktop") or {}).get("flatpaks") or []
+            if isinstance(flatpaks, dict):
+                # Some schemas put flatpaks under [desktop.flatpaks] with
+                # an `install` key; honor both shapes.
+                flatpaks = flatpaks.get("install") or []
+            for fp in flatpaks:
+                fp = str(fp).strip()
+                if fp and fp not in flat_seen:
+                    flat_seen.add(fp)
+                    rows.append({
+                        "section":        "flatpak-default",
+                        "package":        fp,
+                        "classification": "flatpak",
+                        "purpose":        "Default Flatpak installed at first boot",
+                        "notes":          "From usr/share/mios/mios.toml [desktop].flatpaks",
+                    })
+        except Exception as e:
+            print(f"WARN: failed to parse {toml_path}: {e}", file=sys.stderr)
+
+    # Backward-compat fallback: legacy .env.mios (pre-v0.2.4 installs).
+    for env_path in [".env.mios"]:
         p = ROOT / env_path
         if not p.is_file():
             continue
@@ -174,7 +209,7 @@ def main(out_path: Path):
                         "package":        fp,
                         "classification": "flatpak",
                         "purpose":        "Default Flatpak installed at first boot",
-                        "notes":          f"From {env_path}",
+                        "notes":          f"From {env_path} (legacy fallback)",
                     })
 
     fieldnames = ["section", "package", "classification", "purpose", "notes"]

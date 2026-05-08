@@ -7,7 +7,10 @@ Wants=network-online.target
 # To force-disable, set [quadlets.enable] ollama = false in profile.toml.
 
 [Container]
-Image=docker.io/ollama/ollama:latest@sha256:5600a652d1081050f398152127c584222546354491f27fe47ccbc6351bc870bd
+# Image / Port placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].ollama
+# and [ports].ollama.
+Image=${MIOS_OLLAMA_IMAGE:-docker.io/ollama/ollama:latest}
 # ContainerName must be 'mios-ollama' -- ollama-firstboot.sh polls
 # `podman exec mios-ollama ollama list` to know when the container is
 # ready, and Podman Desktop's link discovery treats the name as the
@@ -15,9 +18,9 @@ Image=docker.io/ollama/ollama:latest@sha256:5600a652d1081050f398152127c584222546
 # which the firstboot script wouldn't find.
 ContainerName=mios-ollama
 # Dual-network: mios.network = historical core bridge; ai-net.network =
-# AI-stack bridge so mios-hermes can reach mios-ollama:11434 by
+# AI-stack bridge so mios-hermes can reach mios-ollama:<port> by
 # container name (deploy-aistack.sh's HERMES_BACKEND_BASE_URL target).
-Network=mios.network
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
 AutoUpdate=registry
 User=mios-ollama
@@ -25,7 +28,7 @@ Group=mios-ollama
 # Bind 0.0.0.0 inside the container so the API is reachable from the
 # host LAN, sibling containers, and loopback. PublishPort with explicit
 # 0.0.0.0 on the host side makes the surface contract explicit.
-Environment=OLLAMA_HOST=0.0.0.0:11434
+Environment=OLLAMA_HOST=0.0.0.0:${MIOS_PORT_OLLAMA:-11434}
 Environment=OLLAMA_ORIGINS=*
 # Point ollama at the writable runtime store. mios-ollama-firstboot.
 # service hardlink-copies the build-baked seed (/usr/share/ollama/
@@ -41,7 +44,7 @@ Environment=OLLAMA_MODELS=/var/lib/ollama/models
 Volume=/var/lib/ollama:/var/lib/ollama:Z
 Volume=/usr/share/ollama:/usr/share/ollama:ro,Z
 
-PublishPort=0.0.0.0:11434:11434
+PublishPort=0.0.0.0:${MIOS_PORT_OLLAMA:-11434}:11434
 
 # OCI labels for Podman Desktop discovery. Values MUST NOT contain
 # spaces -- Quadlet's Label= parser word-splits on whitespace and emits

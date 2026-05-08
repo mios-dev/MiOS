@@ -21,22 +21,23 @@ Wants=network-online.target
 ConditionPathIsDirectory=/etc/mios/searxng
 
 [Container]
-# Multi-arch index pin -- the @sha256 covers amd64, arm64, and armv7
-# manifests via the OCI image index, so a single digest works across
-# every host shape MiOS targets.
-Image=docker.io/searxng/searxng:latest@sha256:885f1cd1bb86d759aa4724a1986a61c000292823ff8eeb17d34de1a8acb74477
+# Image / Port / UID placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].searxng,
+# [ports].searxng, [services.searxng].uid/.gid. Multi-arch index manifest
+# at the upstream tag covers amd64 / arm64 / armv7.
+Image=${MIOS_SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}
 ContainerName=mios-searxng
 # Dual-network: mios.network keeps the unit reachable for the rest of
 # MiOS; ai-net.network puts SearXNG on the same bridge as mios-hermes
 # so the agent's `web_search` tool can call mios-searxng:8080 by
 # container name without leaving the network.
-Network=mios.network
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
-# 8888 host -> 8080 container. 8080 is taken by mios-ai (LocalAI's
-# OpenAI-compatible endpoint), so SearXNG goes on the next conventional
-# search-proxy port. Sibling Quadlets on mios.network reach it as
-# http://mios-searxng:8080/ without going through host loopback.
-PublishPort=8888:8080
+# searxng host -> 8080 container. The localai port is taken by mios-ai
+# (LocalAI's OpenAI-compatible endpoint), so SearXNG goes on the next
+# conventional search-proxy port. Sibling Quadlets on mios.network reach
+# it as http://mios-searxng:8080/ without going through host loopback.
+PublishPort=${MIOS_PORT_SEARXNG:-8888}:8080
 
 # Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
 # the container expects them at /etc/searxng inside. We bind-mount the
@@ -48,21 +49,20 @@ PublishPort=8888:8080
 Volume=/etc/mios/searxng:/etc/searxng:Z
 Volume=/var/cache/mios/searxng:/var/cache/searxng:Z
 
-# Identity. UID 818 is pinned in usr/lib/sysusers.d/50-mios-services.conf
-# so /etc/mios/searxng and /var/cache/mios/searxng ownership stays
-# stable across image rebuilds. The upstream SearXNG image's `searxng`
-# user inside the container is uid 977; we're overriding it so the
-# host-side bind-mounts are owned by mios-searxng (818) and the
-# container process can still read+write because the volumes are
-# chowned 818:818 by usr/lib/tmpfiles.d/mios-searxng.conf at boot.
-User=818
-Group=818
+# Identity. UID resolved from mios.toml [services.searxng].uid (default
+# 818, pinned in usr/lib/sysusers.d/50-mios-services.conf). The upstream
+# SearXNG image's `searxng` user inside the container is uid 977; we're
+# overriding it so host-side bind-mounts are owned by mios-searxng and
+# the container process can still read+write because the volumes are
+# chowned <uid>:<gid> by usr/lib/tmpfiles.d/mios-searxng.conf at boot.
+User=${MIOS_SEARXNG_UID:-818}
+Group=${MIOS_SEARXNG_GID:-818}
 
 # Public-facing URL. SearXNG uses this as the canonical base for
 # generated absolute links (RSS feeds, opensearch.xml, etc.). Operators
 # fronting SearXNG behind a reverse proxy override this in
 # /etc/mios/searxng/settings.yml -> server.base_url.
-Environment=SEARXNG_BASE_URL=http://localhost:8888/
+Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8888}/
 Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:8080
 
 # Limit log volume; SearXNG is chatty per-query.

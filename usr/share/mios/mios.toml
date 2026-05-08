@@ -1261,6 +1261,10 @@ hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 webui_version      = "latest"
 webui              = "docker.io/openwebui/open-webui:latest"
+ollama_version     = "latest"
+ollama             = "docker.io/ollama/ollama:latest"
+guacamole_version  = "latest"
+guacamole          = "docker.io/guacamole/guacamole:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 
 # ----------------------------------------------------------------------------

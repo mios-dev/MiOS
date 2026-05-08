@@ -26,14 +26,17 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
-Image=codeberg.org/forgejo/forgejo:12@sha256:dbb0f88677f0c65cd1b66fb83504225aa5a04c4bc4a5ffdf9fc9a3a6d5bb1c68
+# Image / Port / UID placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].forge,
+# [ports].forge_http, [ports].forge_ssh, [services.forge].uid/.gid.
+Image=${MIOS_FORGE_IMAGE:-codeberg.org/forgejo/forgejo:12}
 ContainerName=mios-forge
-Network=mios.network
-# 3000 = web UI (reverse-proxy via Cockpit/Caddy if desired).
-# 2222 = git+ssh, mapped to container :22; non-22 host port so sshd
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
+# forge_http = web UI (reverse-proxy via Cockpit/Caddy if desired).
+# forge_ssh  = git+ssh, mapped to container :22; non-22 host port so sshd
 # (also on :22) and the forge's git transport coexist on the same host.
-PublishPort=3000:3000
-PublishPort=2222:22
+PublishPort=${MIOS_PORT_FORGE_HTTP:-3000}:3000
+PublishPort=${MIOS_PORT_FORGE_SSH:-2222}:22
 
 # OCI image labels. Values MUST NOT contain whitespace -- Quadlet's
 # Label= parser word-splits on spaces and emits each word as a separate
@@ -56,17 +59,17 @@ Volume=/etc/mios/forge:/etc/mios/forge:Z,ro
 # with USER_UID/USER_GID env vars at startup; we pin those to MiOS's
 # 50-mios-services.conf reservation (816 = next free slot in 810-829).
 Environment=USER=git
-Environment=USER_UID=816
-Environment=USER_GID=816
+Environment=USER_UID=${MIOS_FORGE_UID:-816}
+Environment=USER_GID=${MIOS_FORGE_GID:-816}
 
 # Forgejo configuration (env-var-driven; no app.ini needed for default
 # deployment). Format: FORGEJO__<section>__<key>=<value>. Operators
 # wanting richer config can drop a custom app.ini under /etc/mios/forge/
 # and add Environment=FORGEJO_APP_INI_PATH=/etc/mios/forge/app.ini.
-Environment=FORGEJO__server__ROOT_URL=http://localhost:3000/
+Environment=FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP:-3000}/
 Environment=FORGEJO__server__HTTP_ADDR=0.0.0.0
-Environment=FORGEJO__server__HTTP_PORT=3000
-Environment=FORGEJO__server__SSH_PORT=2222
+Environment=FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-3000}
+Environment=FORGEJO__server__SSH_PORT=${MIOS_PORT_FORGE_SSH:-2222}
 Environment=FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0
 Environment=FORGEJO__server__SSH_LISTEN_PORT=22
 Environment=FORGEJO__database__DB_TYPE=sqlite3

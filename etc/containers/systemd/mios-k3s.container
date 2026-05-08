@@ -24,7 +24,9 @@ ConditionVirtualization=!wsl
 ConditionVirtualization=!container
 
 [Container]
-Image=docker.io/rancher/k3s:latest@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c
+# Image placeholder -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].k3s.
+Image=${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.32.1-k3s1}
 ContainerName=mios-k3s
 # `Privileged=` requires podman 5.7+; older quadlet-generators (Fedora
 # 43's bundled stack) silently drop the key with a warning, leaving

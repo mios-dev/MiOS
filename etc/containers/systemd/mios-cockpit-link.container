@@ -56,8 +56,8 @@ Network=mios.network
 # bind=0.0.0.0 makes the listener reachable from the host LAN,
 # sibling containers, and the loopback alike (matches the access
 # surface contract every other MiOS service holds to).
-Exec=tcp-listen:19090,bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
-PublishPort=0.0.0.0:19090:19090
+Exec=tcp-listen:${MIOS_PORT_COCKPIT_LINK:-19090},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:${MIOS_PORT_COCKPIT:-9090}
+PublishPort=0.0.0.0:${MIOS_PORT_COCKPIT_LINK:-19090}:${MIOS_PORT_COCKPIT_LINK:-19090}
 
 # OCI labels Podman Desktop renders. Values MUST NOT contain spaces --
 # Quadlet's Label= parser word-splits on whitespace and breaks the
@@ -73,8 +73,11 @@ Label=io.podman_desktop.openInBrowser=https://localhost:9090/
 # Reuse the mios-ai uid (NUMERIC -- the alpine/socat image has no
 # `mios-ai` user, and podman looks up names IN the container's
 # /etc/passwd. UID 817 is pinned in usr/lib/sysusers.d/50-mios-ai.conf).
-User=817
-Group=817
+# Identity. Reuses the mios-ai uid (mios.toml [services.localai].uid)
+# because alpine/socat has no `mios-ai` user in /etc/passwd; numeric
+# resolution is consistent with mios-ai.container's pattern.
+User=${MIOS_LOCALAI_UID:-817}
+Group=${MIOS_LOCALAI_GID:-817}
 
 [Service]
 Restart=on-failure

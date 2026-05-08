@@ -22,9 +22,11 @@ ConditionPathExists=/etc/ceph/ceph.conf
 ConditionVirtualization=!container
 
 [Container]
-Image=quay.io/ceph/ceph:v19@sha256:af0c5903e901e329adabe219dfc8d0c3efc1f05102a753902f33ee16c26b6cee
+# Image placeholder -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].ceph.
+Image=${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:v19}
 ContainerName=mios-ceph
-Network=mios.network
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Volume=/var/lib/ceph:/var/lib/ceph:Z
 Volume=/etc/ceph:/etc/ceph:Z
 Exec=mon

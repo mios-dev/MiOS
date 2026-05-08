@@ -23,14 +23,17 @@ ConditionPathIsDirectory=/etc/mios/hermes
 ConditionPathExists=/etc/mios/hermes/api.env
 
 [Container]
-Image=docker.io/nousresearch/hermes-agent:latest
+# Image / Port / UID placeholders -- resolved at image build time by
+# automation/15-render-quadlets.sh from mios.toml [image.sidecars].hermes,
+# [ports].hermes, [services.hermes].uid/.gid.
+Image=${MIOS_HERMES_IMAGE:-docker.io/nousresearch/hermes-agent:latest}
 ContainerName=mios-hermes
 # Dual-network: ai-net is the canonical subnet for the AI stack
 # (Open WebUI <-> Hermes <-> Ollama), mios.network keeps the unit
 # reachable from the rest of MiOS by container name.
 Network=ai-net.network
-Network=mios.network
-PublishPort=8642:8642
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
+PublishPort=${MIOS_PORT_HERMES:-8642}:8642
 AutoUpdate=registry
 
 # Persistent state. /opt/data inside the container is where Hermes
@@ -57,9 +60,10 @@ Environment=HERMES_BACKEND_BASE_URL=http://mios-ollama:11434
 Environment=HERMES_BACKEND_MODEL=qwen2.5-coder:7b
 Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
 
-# Identity. UID 820 is pinned in usr/lib/sysusers.d/50-mios-services.conf.
-User=820
-Group=820
+# Identity. UID resolved from mios.toml [services.hermes].uid (default
+# 820, pinned in usr/lib/sysusers.d/50-mios-services.conf).
+User=${MIOS_HERMES_UID:-820}
+Group=${MIOS_HERMES_GID:-820}
 
 Label=org.opencontainers.image.title=mios-hermes
 Label=org.opencontainers.image.url=http://localhost:8642/v1/models
