@@ -61,57 +61,127 @@
     --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
-  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  h1 { font-size: 20px; margin: 0; font-weight: 600; }
-  h1 .v { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
-  .toolbar { display: flex; gap: 8px; }
+  body {
+    margin: 0; padding: 28px max(24px, calc((100vw - 1280px) / 2));
+    background:
+      radial-gradient(1200px 600px at 12% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--panel) 60%, transparent), transparent 55%),
+      var(--bg);
+    color: var(--text); font: 14px/1.55 var(--sans);
+    min-height: 100vh;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; gap: 16px; flex-wrap: wrap;
+  }
+  h1 { font-size: 22px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  h1 .v { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 10px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
   button, .btn-label {
-    background: var(--panel); color: var(--text); border: 1px solid var(--border);
-    padding: 6px 14px; font: inherit; border-radius: 6px; cursor: pointer;
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    color: var(--text); border: 1px solid var(--border);
+    padding: 7px 16px; font: inherit; border-radius: 8px; cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s, transform .05s;
+    backdrop-filter: blur(6px);
   }
   button:hover, .btn-label:hover { border-color: var(--accent); color: var(--accent); }
-  button.primary { background: var(--accent); color: #0e1116; border-color: var(--accent); }
-  button.primary:hover { color: #fff; background: #1f6feb; }
+  button:focus-visible, .btn-label:focus-visible,
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); color: #0e1116; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { color: #fff; background: color-mix(in srgb, var(--accent) 80%, #fff 20%); }
   input[type="file"] { display: none; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-  fieldset { border: 1px solid var(--border); border-radius: 6px; padding: 16px; background: var(--panel); }
-  legend { padding: 0 8px; color: var(--accent); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; gap: 14px; } }
+  fieldset {
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px 16px;
+    background: color-mix(in srgb, var(--panel) 70%, transparent);
+    box-shadow: 0 1px 2px rgba(0,0,0,.18);
+  }
+  legend { padding: 0 8px; color: var(--accent); font-weight: 600; letter-spacing: .2px; }
   label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 12px; }
   input[type="text"], select, textarea {
     width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
-    border-radius: 4px; padding: 6px 8px; font: 13px var(--mono);
+    border-radius: 6px; padding: 7px 9px; font: 13px var(--mono);
+    transition: border-color .12s;
   }
+  input[type="text"]:hover, select:hover, textarea:hover { border-color: var(--accent); }
   textarea { min-height: 60px; resize: vertical; }
-  .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
-  .checkbox-row input { margin: 0; }
-  .checkbox-row label { margin: 0; color: var(--text); font-size: 13px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 3px 4px; border-radius: 4px; }
+  .checkbox-row:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  .checkbox-row input { margin: 0; cursor: pointer; }
+  .checkbox-row label { margin: 0; color: var(--text); font-size: 13px; cursor: pointer; }
   .raw {
     grid-column: 1 / -1; font-family: var(--mono); font-size: 12px;
     background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
     padding: 12px; max-height: 360px; overflow: auto; white-space: pre;
   }
-  .status { padding: 8px 12px; border-radius: 4px; margin-top: 12px; font-size: 13px; }
-  .status.ok { background: rgba(63,185,80,.1); color: var(--ok); border-left: 3px solid var(--ok); }
-  .status.err { background: rgba(248,81,73,.1); color: var(--err); border-left: 3px solid var(--err); }
-  .status.info { background: rgba(88,166,255,.1); color: var(--accent); border-left: 3px solid var(--accent); }
-  footer { margin-top: 24px; color: var(--muted); font-size: 12px; }
+  .status { padding: 9px 14px; border-radius: 6px; margin-top: 12px; font-size: 13px; }
+  .status.ok   { background: rgba(63,185,80,.10); color: var(--ok);     border-left: 3px solid var(--ok); }
+  .status.err  { background: rgba(248,81,73,.10); color: var(--err);    border-left: 3px solid var(--err); }
+  .status.info { background: rgba(88,166,255,.10); color: var(--accent); border-left: 3px solid var(--accent); }
+  footer { margin-top: 28px; color: var(--muted); font-size: 12px; opacity: .9; }
   footer code { font-family: var(--mono); color: var(--text); }
 
-  /* Progressive-disclosure sections. The configurator is the SSOT
-     editor for mios.toml; the editable surface is grouped by which
-     mios-pipeline.{sh,ps1} phase consumes the values, so an operator
-     can ignore Apps/Services until they're configuring those phases. */
-  details.section {
-    margin: 0 0 18px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
+  /* ── Three-zone layout ──────────────────────────────────────────────
+     Zone 1 (Personal) and Zone 2 (Apps) sit side-by-side on desktop,
+     stack on narrow viewports. Zone 3 (Admin) is full-width below. */
+  .zones {
+    display: grid; gap: 22px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    margin-bottom: 22px;
   }
-  details.section[open] { background: color-mix(in srgb, var(--panel) 85%, var(--bg) 15%); }
+  @media (max-width: 1100px) { .zones { grid-template-columns: 1fr; } }
+
+  .zone {
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 18px 4px;
+    background: linear-gradient(180deg,
+                color-mix(in srgb, var(--panel) 85%, transparent),
+                color-mix(in srgb, var(--panel) 65%, transparent));
+    box-shadow: 0 4px 16px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .zone > h2 {
+    margin: 0 0 4px; font-size: 17px; font-weight: 600; letter-spacing: .2px;
+    color: var(--fg);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .zone > h2 .badge {
+    font-size: 11px; font-weight: 500; color: var(--bg);
+    background: var(--accent); padding: 2px 9px; border-radius: 999px;
+    letter-spacing: .3px;
+  }
+  .zone > p.lead {
+    margin: 0 0 14px; color: var(--muted); font-size: 12.5px;
+  }
+  .zone-admin { grid-column: 1 / -1; }
+
+  /* Card sub-sections inside a zone */
+  .card {
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; margin: 0 0 14px;
+  }
+  .card > h3 {
+    margin: 0 0 10px; font-size: 13.5px; font-weight: 600;
+    color: var(--accent); letter-spacing: .3px; text-transform: uppercase;
+  }
+
+  /* Progressive-disclosure sections inside zones (mostly the admin zone) */
+  details.section {
+    margin: 0 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+    transition: background .2s;
+    overflow: hidden;
+  }
+  details.section[open] { background: color-mix(in srgb, var(--panel) 80%, var(--bg) 20%); }
   details.section > summary {
     cursor: pointer;
-    padding: 12px 16px;
+    padding: 11px 16px;
     font-weight: 600;
     color: var(--fg);
     list-style: none;
@@ -119,18 +189,18 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    border-radius: 8px;
+    border-radius: 10px;
   }
   details.section > summary::-webkit-details-marker { display: none; }
   details.section > summary::before {
     content: '▸';
     color: var(--accent);
-    transition: transform 0.15s;
+    transition: transform 0.18s ease;
     display: inline-block;
     width: 12px;
   }
   details.section[open] > summary::before { transform: rotate(90deg); }
-  details.section > summary:hover { color: var(--accent); }
+  details.section > summary:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
   details.section .phase-badge {
     margin-left: auto;
     font-size: 11px;
@@ -150,6 +220,106 @@
   details.section fieldset {
     background: transparent;
     border: 1px dashed var(--border);
+    box-shadow: none;
+  }
+
+  /* Outer admin wrapper -- the entire admin zone collapses into one click */
+  details.admin-wrap {
+    border: 1px solid var(--border); border-radius: 14px;
+    background: linear-gradient(180deg,
+                color-mix(in srgb, var(--panel) 70%, transparent),
+                color-mix(in srgb, var(--panel) 50%, transparent));
+    box-shadow: 0 4px 16px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.04);
+    transition: background .25s;
+  }
+  details.admin-wrap[open] {
+    background: linear-gradient(180deg,
+                color-mix(in srgb, var(--panel) 85%, transparent),
+                color-mix(in srgb, var(--panel) 65%, transparent));
+  }
+  details.admin-wrap > summary {
+    cursor: pointer; list-style: none; user-select: none;
+    padding: 18px 22px; font-size: 17px; font-weight: 600;
+    color: var(--fg); border-radius: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  details.admin-wrap > summary::-webkit-details-marker { display: none; }
+  details.admin-wrap > summary::before {
+    content: '▸'; color: var(--accent); display: inline-block; width: 14px;
+    transition: transform .2s ease;
+  }
+  details.admin-wrap[open] > summary::before { transform: rotate(90deg); }
+  details.admin-wrap > summary .badge {
+    font-size: 11px; font-weight: 500; color: var(--bg);
+    background: var(--muted); padding: 2px 9px; border-radius: 999px;
+    letter-spacing: .3px;
+  }
+  details.admin-wrap > summary .hint {
+    margin-left: auto; font-weight: 400; color: var(--muted); font-size: 12px;
+  }
+  details.admin-wrap > .admin-body { padding: 4px 22px 18px; }
+
+  /* ── Preset palette picker ──────────────────────────────────────────
+     Compact, keyboard-navigable swatch row that sits above the [colors]
+     fieldset's named-token grid. Each card previews a palette via four
+     mini-swatches (bg / fg / accent / cursor) so the operator can read
+     the mood at a glance. Click jumps every color field to that preset;
+     individual hand-edits afterward keep the same live-reflect path
+     through applyColorsToRoot(). MiOS Hokusai is the SSOT default --
+     when a mios.toml loads, its [colors] block "wins" and the picker
+     reads as a jump-to, never an autoplay. */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 10px;
+    margin: 6px 0 14px;
+  }
+  .preset-card {
+    display: flex; flex-direction: column; gap: 8px;
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    transition: border-color .12s, transform .05s, background .15s, box-shadow .15s;
+  }
+  .preset-card:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel) 60%);
+    box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  }
+  .preset-card:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .preset-card:active { transform: translateY(1px); }
+  .preset-card.is-active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 2px 10px rgba(0,0,0,.18);
+  }
+  .preset-card .preset-name {
+    font-size: 12.5px; font-weight: 600; color: var(--text); letter-spacing: .2px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .preset-card .preset-name .pin {
+    font-size: 10px; font-weight: 500;
+    color: var(--bg); background: var(--accent);
+    padding: 1px 7px; border-radius: 999px;
+    letter-spacing: .3px;
+  }
+  .preset-card .preset-swatches {
+    display: flex; gap: 3px; height: 18px;
+    border-radius: 4px; overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .preset-card .preset-swatches span {
+    flex: 1 1 0; display: block;
+  }
+  .preset-card .preset-meta {
+    color: var(--muted); font-size: 10.5px; line-height: 1.35;
+    font-family: var(--mono);
   }
 </style>
 </head>
@@ -295,6 +465,23 @@
       all repaint. The oh-my-posh theme + Cockpit dark theme + the
       configurator HTML itself read the same SSOT.
     </p>
+
+    <div style="margin-bottom: 6px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
+      Preset palettes
+    </div>
+    <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 6px;">
+      Jump-to baselines. <b>MiOS Hokusai</b> (the SSOT default) takes
+      precedence: when a mios.toml is loaded, its <code>[colors]</code>
+      block populates the fields below regardless of preset. Click a card
+      to overwrite the form with that preset's hexes; hand-tune any
+      individual color afterward and the page re-skins live. Use Tab to
+      focus a card and Enter / Space to apply.
+    </p>
+    <div id="palette-presets"
+         class="preset-grid"
+         role="radiogroup"
+         aria-label="Preset color palettes">
+    </div>
 
     <div style="margin-bottom: 16px; color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;">
       Named tokens
@@ -967,6 +1154,178 @@ const COLOR_HOKUSAI = {
   ansi_14_bright_cyan:    "#E7DFD3",  ansi_15_bright_white:   "#FFFFFF"
 };
 
+// ── Preset palette catalog ────────────────────────────────────────────────────
+// Popular community palettes mapped onto the MiOS [colors] schema (named
+// tokens + 16 ANSI slots). MiOS Hokusai is listed first and is the SSOT
+// default -- when a mios.toml loads, its [colors] block "wins" over any
+// preset selection (see refreshFromData() -> renderColors() -> applyColorsToRoot()).
+// Operators click a card to JUMP-TO that preset; hand-edits stay live.
+//
+// All hex values are baked into the page (no CDN / no network). Sources:
+//   * Solarized   -- Ethan Schoonover, https://ethanschoonover.com/solarized/
+//   * Dracula     -- https://draculatheme.com / contribute spec
+//   * Nord        -- https://nordtheme.com (Polar Night / Snow Storm / Frost / Aurora)
+//   * Tokyo Night -- https://github.com/folke/tokyonight.nvim (storm variant)
+//   * Catppuccin  -- https://catppuccin.com (Mocha flavor)
+//   * Gruvbox     -- https://github.com/morhetz/gruvbox (dark medium)
+//   * Monokai     -- classic (Wimer Hazenberg, 2006)
+const PRESET_PALETTES = [
+  {
+    id: "mios-hokusai",
+    name: "MiOS Hokusai",
+    pin: true,
+    note: "Hokusai + operator neutrals · SSOT default",
+    colors: COLOR_DEFAULTS
+  },
+  {
+    id: "solarized-dark",
+    name: "Solarized Dark",
+    note: "Ethan Schoonover · low-contrast",
+    colors: {
+      bg:      "#002B36", fg:          "#839496",
+      accent:  "#073642", cursor:      "#B58900",
+      success: "#859900", warning:     "#CB4B16",
+      error:   "#DC322F", info:        "#268BD2",
+      muted:   "#586E75", subtle:      "#93A1A1",
+      earth:   "#B58900", silver:      "#EEE8D5",
+      ansi_0_black:           "#073642", ansi_1_red:             "#DC322F",
+      ansi_2_green:           "#859900", ansi_3_yellow:          "#B58900",
+      ansi_4_blue:            "#268BD2", ansi_5_magenta:         "#D33682",
+      ansi_6_cyan:            "#2AA198", ansi_7_white:           "#EEE8D5",
+      ansi_8_bright_black:    "#586E75", ansi_9_bright_red:      "#CB4B16",
+      ansi_10_bright_green:   "#586E75", ansi_11_bright_yellow:  "#657B83",
+      ansi_12_bright_blue:    "#839496", ansi_13_bright_magenta: "#6C71C4",
+      ansi_14_bright_cyan:    "#93A1A1", ansi_15_bright_white:   "#FDF6E3"
+    }
+  },
+  {
+    id: "dracula",
+    name: "Dracula",
+    note: "draculatheme.com · vampiric purple",
+    colors: {
+      bg:      "#282A36", fg:          "#F8F8F2",
+      accent:  "#44475A", cursor:      "#FF79C6",
+      success: "#50FA7B", warning:     "#FFB86C",
+      error:   "#FF5555", info:        "#8BE9FD",
+      muted:   "#6272A4", subtle:      "#BFBFBF",
+      earth:   "#BD93F9", silver:      "#F8F8F2",
+      ansi_0_black:           "#21222C", ansi_1_red:             "#FF5555",
+      ansi_2_green:           "#50FA7B", ansi_3_yellow:          "#F1FA8C",
+      ansi_4_blue:            "#BD93F9", ansi_5_magenta:         "#FF79C6",
+      ansi_6_cyan:            "#8BE9FD", ansi_7_white:           "#F8F8F2",
+      ansi_8_bright_black:    "#6272A4", ansi_9_bright_red:      "#FF6E6E",
+      ansi_10_bright_green:   "#69FF94", ansi_11_bright_yellow:  "#FFFFA5",
+      ansi_12_bright_blue:    "#D6ACFF", ansi_13_bright_magenta: "#FF92DF",
+      ansi_14_bright_cyan:    "#A4FFFF", ansi_15_bright_white:   "#FFFFFF"
+    }
+  },
+  {
+    id: "nord",
+    name: "Nord",
+    note: "nordtheme.com · arctic minimal",
+    colors: {
+      bg:      "#2E3440", fg:          "#D8DEE9",
+      accent:  "#3B4252", cursor:      "#88C0D0",
+      success: "#A3BE8C", warning:     "#EBCB8B",
+      error:   "#BF616A", info:        "#5E81AC",
+      muted:   "#4C566A", subtle:      "#E5E9F0",
+      earth:   "#D08770", silver:      "#ECEFF4",
+      ansi_0_black:           "#3B4252", ansi_1_red:             "#BF616A",
+      ansi_2_green:           "#A3BE8C", ansi_3_yellow:          "#EBCB8B",
+      ansi_4_blue:            "#81A1C1", ansi_5_magenta:         "#B48EAD",
+      ansi_6_cyan:            "#88C0D0", ansi_7_white:           "#E5E9F0",
+      ansi_8_bright_black:    "#4C566A", ansi_9_bright_red:      "#BF616A",
+      ansi_10_bright_green:   "#A3BE8C", ansi_11_bright_yellow:  "#EBCB8B",
+      ansi_12_bright_blue:    "#81A1C1", ansi_13_bright_magenta: "#B48EAD",
+      ansi_14_bright_cyan:    "#8FBCBB", ansi_15_bright_white:   "#ECEFF4"
+    }
+  },
+  {
+    id: "tokyo-night",
+    name: "Tokyo Night",
+    note: "folke/tokyonight.nvim · storm",
+    colors: {
+      bg:      "#1A1B26", fg:          "#A9B1D6",
+      accent:  "#24283B", cursor:      "#7AA2F7",
+      success: "#9ECE6A", warning:     "#E0AF68",
+      error:   "#F7768E", info:        "#7AA2F7",
+      muted:   "#565F89", subtle:      "#9AA5CE",
+      earth:   "#FF9E64", silver:      "#C0CAF5",
+      ansi_0_black:           "#15161E", ansi_1_red:             "#F7768E",
+      ansi_2_green:           "#9ECE6A", ansi_3_yellow:          "#E0AF68",
+      ansi_4_blue:            "#7AA2F7", ansi_5_magenta:         "#BB9AF7",
+      ansi_6_cyan:            "#7DCFFF", ansi_7_white:           "#A9B1D6",
+      ansi_8_bright_black:    "#414868", ansi_9_bright_red:      "#F7768E",
+      ansi_10_bright_green:   "#9ECE6A", ansi_11_bright_yellow:  "#E0AF68",
+      ansi_12_bright_blue:    "#7AA2F7", ansi_13_bright_magenta: "#BB9AF7",
+      ansi_14_bright_cyan:    "#7DCFFF", ansi_15_bright_white:   "#C0CAF5"
+    }
+  },
+  {
+    id: "catppuccin-mocha",
+    name: "Catppuccin Mocha",
+    note: "catppuccin.com · soothing pastel",
+    colors: {
+      bg:      "#1E1E2E", fg:          "#CDD6F4",
+      accent:  "#313244", cursor:      "#F5E0DC",
+      success: "#A6E3A1", warning:     "#F9E2AF",
+      error:   "#F38BA8", info:        "#89B4FA",
+      muted:   "#6C7086", subtle:      "#BAC2DE",
+      earth:   "#FAB387", silver:      "#A6ADC8",
+      ansi_0_black:           "#45475A", ansi_1_red:             "#F38BA8",
+      ansi_2_green:           "#A6E3A1", ansi_3_yellow:          "#F9E2AF",
+      ansi_4_blue:            "#89B4FA", ansi_5_magenta:         "#F5C2E7",
+      ansi_6_cyan:            "#94E2D5", ansi_7_white:           "#BAC2DE",
+      ansi_8_bright_black:    "#585B70", ansi_9_bright_red:      "#F38BA8",
+      ansi_10_bright_green:   "#A6E3A1", ansi_11_bright_yellow:  "#F9E2AF",
+      ansi_12_bright_blue:    "#89B4FA", ansi_13_bright_magenta: "#F5C2E7",
+      ansi_14_bright_cyan:    "#94E2D5", ansi_15_bright_white:   "#A6ADC8"
+    }
+  },
+  {
+    id: "gruvbox-dark",
+    name: "Gruvbox Dark",
+    note: "morhetz/gruvbox · retro warm",
+    colors: {
+      bg:      "#282828", fg:          "#EBDBB2",
+      accent:  "#3C3836", cursor:      "#FE8019",
+      success: "#B8BB26", warning:     "#FABD2F",
+      error:   "#FB4934", info:        "#83A598",
+      muted:   "#928374", subtle:      "#A89984",
+      earth:   "#D65D0E", silver:      "#D5C4A1",
+      ansi_0_black:           "#282828", ansi_1_red:             "#CC241D",
+      ansi_2_green:           "#98971A", ansi_3_yellow:          "#D79921",
+      ansi_4_blue:            "#458588", ansi_5_magenta:         "#B16286",
+      ansi_6_cyan:            "#689D6A", ansi_7_white:           "#A89984",
+      ansi_8_bright_black:    "#928374", ansi_9_bright_red:      "#FB4934",
+      ansi_10_bright_green:   "#B8BB26", ansi_11_bright_yellow:  "#FABD2F",
+      ansi_12_bright_blue:    "#83A598", ansi_13_bright_magenta: "#D3869B",
+      ansi_14_bright_cyan:    "#8EC07C", ansi_15_bright_white:   "#EBDBB2"
+    }
+  },
+  {
+    id: "monokai",
+    name: "Monokai",
+    note: "Wimer Hazenberg · classic",
+    colors: {
+      bg:      "#272822", fg:          "#F8F8F2",
+      accent:  "#3E3D32", cursor:      "#F92672",
+      success: "#A6E22E", warning:     "#FD971F",
+      error:   "#F92672", info:        "#66D9EF",
+      muted:   "#75715E", subtle:      "#CFCFC2",
+      earth:   "#FD971F", silver:      "#F8F8F0",
+      ansi_0_black:           "#272822", ansi_1_red:             "#F92672",
+      ansi_2_green:           "#A6E22E", ansi_3_yellow:          "#F4BF75",
+      ansi_4_blue:            "#66D9EF", ansi_5_magenta:         "#AE81FF",
+      ansi_6_cyan:            "#A1EFE4", ansi_7_white:           "#F8F8F2",
+      ansi_8_bright_black:    "#75715E", ansi_9_bright_red:      "#F92672",
+      ansi_10_bright_green:   "#A6E22E", ansi_11_bright_yellow:  "#FD971F",
+      ansi_12_bright_blue:    "#66D9EF", ansi_13_bright_magenta: "#AE81FF",
+      ansi_14_bright_cyan:    "#A1EFE4", ansi_15_bright_white:   "#F9F8F5"
+    }
+  }
+];
+
 const COLOR_NAMED_LABELS = {
   bg:      "background",   fg:       "foreground", accent:  "accent",
   cursor:  "cursor",       success:  "success",    warning: "warning",
@@ -1351,6 +1710,11 @@ function renderColors() {
   for (const [key, label] of Object.entries(COLOR_NAMED_LABELS)) renderRow(named, key, label);
   for (const [key, label] of Object.entries(COLOR_ANSI_LABELS))  renderRow(ansi,  key, label);
 
+  // Preset palette swatch row (jump-to baselines; MiOS Hokusai is SSOT).
+  // Re-rendered on every renderColors() call so the active-card highlight
+  // tracks DATA.colors after individual hand-edits.
+  renderPresets();
+
   // Reset buttons (idempotent: re-binds on every renderColors call).
   const resetBtn = document.getElementById("btn-colors-reset");
   if (resetBtn) {
@@ -1404,6 +1768,104 @@ function applyColorsToRoot() {
   if (get("error"))   r.setProperty("--err",    get("error"));
   if (get("silver"))  r.setProperty("--silver", get("silver"));
   if (get("earth"))   r.setProperty("--earth",  get("earth"));
+}
+
+// ── Preset palette picker: render swatch cards + bind jump-to clicks ─────────
+// Renders one card per entry in PRESET_PALETTES. Each card previews the
+// palette via four mini-swatches (bg / accent / fg / cursor). Click /
+// keyboard activate jumps DATA.colors to a clone of the preset, then
+// re-renders the color rows so each <input type="color"> reflects the
+// new value, then calls applyColorsToRoot() so the page itself re-skins
+// in real time. MiOS Hokusai gets a "default" pin badge and is selected
+// by default when DATA.colors matches it (or no override has loaded).
+function renderPresets() {
+  const host = document.getElementById("palette-presets");
+  if (!host) return;
+  host.innerHTML = "";
+
+  const activeId = detectActivePresetId();
+
+  for (const preset of PRESET_PALETTES) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "preset-card" + (preset.id === activeId ? " is-active" : "");
+    card.setAttribute("role", "radio");
+    card.setAttribute("aria-checked", preset.id === activeId ? "true" : "false");
+    card.setAttribute("aria-label",
+      `Apply ${preset.name} palette` + (preset.note ? ` (${preset.note})` : ""));
+    card.title = preset.note
+      ? `${preset.name} — ${preset.note}\nClick to apply across every color field.`
+      : `${preset.name}\nClick to apply across every color field.`;
+    card.dataset.presetId = preset.id;
+
+    // Swatch strip: bg / accent / fg / cursor + a few ANSI accents for flavor.
+    const c = preset.colors;
+    const sw = (hex, lbl) =>
+      `<span style="background:${hex}" title="${lbl}: ${hex}" aria-hidden="true"></span>`;
+    card.innerHTML =
+      `<div class="preset-name">` +
+        escapeHtml(preset.name) +
+        (preset.pin ? ` <span class="pin" aria-label="MiOS default">default</span>` : ``) +
+      `</div>` +
+      `<div class="preset-swatches" aria-hidden="true">` +
+        sw(c.bg     || "#000", "bg") +
+        sw(c.accent || "#000", "accent") +
+        sw(c.fg     || "#fff", "fg") +
+        sw(c.cursor || "#fff", "cursor") +
+        sw(c.ansi_2_green  || c.success || "#0a0", "green") +
+        sw(c.ansi_1_red    || c.error   || "#a00", "red")   +
+        sw(c.ansi_4_blue   || c.info    || "#00a", "blue")  +
+        sw(c.ansi_3_yellow || c.warning || "#aa0", "yellow") +
+      `</div>` +
+      (preset.note
+        ? `<div class="preset-meta">${escapeHtml(preset.note)}</div>`
+        : ``);
+
+    card.addEventListener("click", () => applyPreset(preset));
+    host.appendChild(card);
+  }
+}
+
+// Detect which preset (if any) DATA.colors currently matches. We compare
+// the named tokens + every ANSI slot defined on the preset; if all match
+// (case-insensitive), that preset is the active one. Lets the picker
+// reflect "you're currently on Solarized Dark" after a TOML load.
+function detectActivePresetId() {
+  if (!DATA.colors) return "mios-hokusai";
+  const cur = DATA.colors;
+  const norm = v => (v || "").toString().toUpperCase();
+  for (const preset of PRESET_PALETTES) {
+    let match = true;
+    for (const [k, v] of Object.entries(preset.colors)) {
+      if (norm(cur[k]) !== norm(v)) { match = false; break; }
+    }
+    if (match) return preset.id;
+  }
+  return null;
+}
+
+// Click handler: jump DATA.colors to a clone of the preset, re-render
+// the color inputs (so every <input type="color">.value picks up the
+// new hex), and re-skin the page chrome via applyColorsToRoot().
+// renderRaw() flushes the new values into the [colors] block of the
+// raw-TOML preview so Save round-trips them faithfully.
+function applyPreset(preset) {
+  DATA.colors = { ...preset.colors };
+  renderColors();      // also re-renders presets (active-card flips)
+  applyColorsToRoot();
+  renderRaw();
+}
+
+// Tiny HTML escape for preset names / notes (defense in depth -- the
+// catalog is operator-trusted but rendering through innerHTML still
+// deserves a guard).
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function renderFlatpaks() {
