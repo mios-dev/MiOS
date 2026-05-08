@@ -12,7 +12,13 @@ Wants=network-online.target
 ConditionPathIsDirectory=/etc/mios/ai
 
 [Container]
-Image=docker.io/localai/localai:latest@sha256:a6af99e17a73a92caa134e70ae84492cc47b67645c1676268a7522ad14f4c09d
+# Image / Port / User-Group placeholders -- resolved at image build
+# time by automation/15-render-quadlets.sh from mios.toml
+# [image.sidecars].localai, [ports].localai, [services.localai].uid,
+# [services.localai].gid (via tools/lib/userenv.sh's MIOS_* env vars).
+# Editing mios.toml is the only place these values change; the
+# rendered file in the deployed image carries the resolved literals.
+Image=docker.io/${MIOS_LOCALAI_IMAGE:-localai/localai:v2.20.0}
 ContainerName=mios-ai
 # MiOS internal networks: mios.network is the historical core bridge
 # (mios-forge / mios-cockpit-link / mios-mcp etc.); ai-net.network is
@@ -20,9 +26,9 @@ ContainerName=mios-ai
 # mios-ollama / mios-searxng all share so the gateway can address
 # them by container name without leaving the bridge. Multi-network
 # membership keeps mios-ai reachable from BOTH worlds.
-Network=mios.network
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
-PublishPort=8080:8080
+PublishPort=${MIOS_PORT_LOCALAI:-8080}:8080
 # LocalAI v4 layout: /build/models is canonical (matches MODELS_PATH /
 # upstream Containerfile WORKDIR), but /data/{outputs,collections} is
 # hard-coded for image+audio generation and the AgentJobService vector
@@ -43,17 +49,18 @@ Environment=CONTEXT_SIZE=4096
 # Bind 0.0.0.0 so the OpenAI-API endpoint is reachable from the host
 # LAN, sibling containers on mios.network, and the loopback when MiOS
 # is deployed as a VM, container, or bare-metal host. The PublishPort
-# mapping on the host side is already 0.0.0.0:8080 by Podman default.
+# mapping on the host side is already 0.0.0.0:${MIOS_PORT_LOCALAI} by
+# Podman default.
 Environment=ADDRESS=0.0.0.0:8080
 Environment=API_KEY=
 Environment=CORS=true
 # Use NUMERIC UID/GID -- the LocalAI image has no `mios-ai` user in its
-# /etc/passwd, so a name-based User= lookup fails with "unable to find
-# user mios-ai: no matching entries in passwd file". UID 817 is pinned
+# /etc/passwd, so a name-based User= lookup fails. UID/GID resolved
+# from mios.toml [services.localai].uid/.gid (default 817) and pinned
 # in usr/lib/sysusers.d/50-mios-ai.conf so the host's mios-ai user has
-# the same UID, and shared-volume ownership stays consistent.
-User=817
-Group=817
+# the same UID and shared-volume ownership stays consistent.
+User=${MIOS_LOCALAI_UID:-817}
+Group=${MIOS_LOCALAI_GID:-817}
 
 # OCI image labels for Podman Desktop. Values MUST NOT contain spaces
 # -- Quadlet's Label= parser word-splits on whitespace and emits each
