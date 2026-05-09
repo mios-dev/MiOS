@@ -911,19 +911,19 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>terminal (post-install MiOS app: 80x20, edge-to-edge = cols-1 due to WT scrollbar-gutter reservation)</legend>
+        <legend>terminal (post-install MiOS app: 80x20; cols-2 absorbs WT chrome over-report, drop only after verifying [Console]::WindowWidth == cols)</legend>
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>
         <input type="text" id="f-term-rows" data-key="terminal.rows" data-type="int" placeholder="20">
         <label for="f-term-scroll">scrollback_rows</label>
         <input type="text" id="f-term-scroll" data-key="terminal.scrollback_rows" data-type="int" placeholder="9000">
-        <label for="f-term-fw">frame_width (= cols - 1; the rightmost paintable cell in WT)</label>
-        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="79">
+        <label for="f-term-fw">frame_width (= cols - right_margin; cols-2 = the empirically-validated proven floor)</label>
+        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="78">
         <label for="f-term-fh">frame_height (= rows - 1, leave 1 row for prompt)</label>
         <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="19">
-        <label for="f-term-rm">right_margin (1 = matches WT scrollbar-gutter reservation)</label>
-        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="1">
+        <label for="f-term-rm">right_margin (cells of slack absorbing WT chrome over-report; 2 = proven floor)</label>
+        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="2">
       </fieldset>
       <fieldset>
         <legend>terminal.install (BOOTSTRAP window: 80x40 for install output + readme)</legend>

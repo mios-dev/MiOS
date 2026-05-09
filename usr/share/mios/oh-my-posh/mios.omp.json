@@ -209,10 +209,10 @@
           "template": " {{ .CurrentDate | date .Format }} "
         },
         {
-          "//": "Trailing spacer stub -- mirrors mios.toml [terminal].right_margin (currently 0, so template is empty). Kept as a substitution target so build-mios.ps1's regex doesn't break: when right_margin changes via mios.html, the build re-emits this template as (right_margin spaces). If [theme].disable_animations is flipped on (or WT chrome flakes on a specific build), bump right_margin to 1 in mios.toml and this template becomes a single space.",
+          "//": "Trailing spacer -- mirrors mios.toml [terminal].right_margin=2, template = 2 spaces. With final_space=true (1 cell), total slack from the rightmost paintable cell is 3 cells. This absorbs WT chrome's 2-3-cell over-report on the operator's hardware (scrollbar gutter + acrylic blur edge + sub-pixel rounding). build-mios.ps1's omp.json substitution should re-emit this template with (right_margin spaces) when the toml value changes.",
           "type": "text",
           "style": "plain",
-          "template": ""
+          "template": "  "
         }
       ]
     },
