@@ -221,7 +221,7 @@ bullets = [
 [messages.installer_banner]
 # The Unified Installer banner box at the top of every build-mios.ps1 run.
 # {version} is substituted from [meta].mios_version at render time.
-title    = "'MiOS' {version}  --  Unified Windows Installer"
+title    = "'MiOS' {version}  --  My Personal Operating System"
 taglines = [
     "Immutable Fedora AI Workstation",
     "WSL2 + Podman  │  Offline Build Pipeline"
@@ -1760,8 +1760,18 @@ fastfetch_config    = "fastfetch/config.jsonc"
 # taglines, the .lnk Description fields, the Add/Remove Programs
 # DisplayName, and the dashboard footer. Operator rebrands via
 # mios.html for a custom downstream (e.g. "MyCo Dev Workstation").
-tagline             = "My Personalized OS"
-tagline_long        = "My Personalized OS  --  Self-replicating bootc OS, immutable and personal"
+tagline             = "My Personal Operating System"
+tagline_long        = "My Personal Operating System  --  Immutable Fedora AI Workstation"
+# tagline_app is the one shown in Windows Application registrations
+# (Add/Remove Programs DisplayName, .lnk Description tooltips,
+# AppX manifest description, agreement gate banner). Operator
+# 2026-05-09: 'the Applications tag/description when installed
+# "MiOS - Immutable Fedora AI Workstation" should be defined as
+# My Personal Operating System or similar' -- so OS-wide the app
+# face says "MiOS - My Personal Operating System" while the
+# technical descriptor "Immutable Fedora AI Workstation" lives
+# in the dashboard subtitle for context.
+tagline_app         = "My Personal Operating System"
 
 [branding.dashboard]
 frame_width_cols    = 80
