@@ -102,6 +102,7 @@
           "background": "#303030",
           "foreground": "#3C873A",
           "properties": {
+            "display_mode": "files",
             "fetch_package_manager": true,
             "npm_icon": " <#cc3a3a></> ",
             "yarn_icon": " <#348cba></>"
@@ -115,6 +116,7 @@
           "powerline_symbol": "",
           "background": "#306998",
           "foreground": "#FFE873",
+          "properties": { "display_mode": "files" },
           "template": "  {{ if .Error }}{{ .Error }}{{ else }}{{ if .Venv }}{{ .Venv }} {{ end }}{{ .Full }}{{ end }} "
         },
         {
@@ -124,6 +126,7 @@
           "powerline_symbol": "",
           "background": "#E7DFD3",
           "foreground": "#06aad5",
+          "properties": { "display_mode": "files" },
           "template": "  {{ if .Error }}{{ .Error }}{{ else }}{{ .Full }}{{ end }} "
         },
         {
@@ -133,6 +136,7 @@
           "powerline_symbol": "",
           "background": "#E7DFD3",
           "foreground": "#925837",
+          "properties": { "display_mode": "files" },
           "template": "  {{ if .Error }}{{ .Error }}{{ else }}{{ .Full }}{{ end }} "
         },
         {
@@ -142,6 +146,7 @@
           "powerline_symbol": "",
           "background": "#0e0e0e",
           "foreground": "#0d6da8",
+          "properties": { "display_mode": "files" },
           "template": "  {{ if .Unsupported }}{{ else }}{{ .Full }}{{ end }} "
         },
         {
