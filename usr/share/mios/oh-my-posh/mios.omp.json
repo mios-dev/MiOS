@@ -212,7 +212,7 @@
           "//": "Trailing spacer -- 6 NBSPs (U+00A0). SSOT: mios.toml [terminal].right_margin=5 + 1 ANSI-cursor-positioning slack = 6. Total trailing buffer is 6 NBSPs + final_space (1) = 7 cells, which absorbs WT pseudo-console chrome (~3 cells: scrollbar gutter + acrylic blur + sub-pixel rounding) + invert_powerline cap over-render (1 cell) + visible-edge safety. 2026-05-09 operator screenshot at 10:02 with only 4 NBSPs: time fit cleanly at right but a 1-cell phantom blue rectangle appeared at col 0 of the second prompt line, just left of the entry field corner -- that was the right block last invert_powerline cap wrapping past the buffer to col 0 of the next row. Bumping to 6 NBSPs absorbs the cap. NBSPs not regular spaces because oh-my-posh strips trailing all-whitespace text segments before alignment math.",
           "type": "text",
           "style": "plain",
-          "template": "      "
+          "template": "       "
         }
       ]
     },
