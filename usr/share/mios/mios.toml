@@ -317,6 +317,15 @@ mios_bootstrap_update      = "Updating mios-bootstrap.git shadow (fetch + hard r
 mios_bootstrap_overlay     = "Overlaying mios-bootstrap files onto M:\\"
 entry_scripts_staged       = "Entry scripts staged at M:\\MiOS\\bin"
 miosdev_init_template      = "Initializing MiOS-DEV ({cpus} CPUs / {ram_gb}GB / {disk_gb}GB disk)"
+# Smoke-test labels (post-Phase-3 dev VM health check).  Operator
+# sees these whenever Test-MiosDevDistroHealthy runs.  All 4 are
+# templates with {name} = the resolved distro (podman-MiOS-DEV or
+# MiOS-DEV depending on whether Rename-PodmanDevDistro fired).
+smoke_header_template      = "Smoke-testing {distro} before rename..."
+smoke_responsive_template  = "smoke 1/4: {name} is responsive"
+smoke_systemd_template     = "smoke 2/4: systemd state '{state}' in {name}"
+smoke_overlay_template     = "smoke 3/4: /usr/share/mios overlay present in {name}"
+smoke_podman_api_template  = "smoke 4/4: podman API server v{version}"
 
 # ----------------------------------------------------------------------------
 # [messages.install_complete] -- end-of-bootstrap operator-facing
