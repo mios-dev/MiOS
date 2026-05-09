@@ -97,10 +97,14 @@ fi
 # (Get-MiOS.ps1's Get-MiosTomlValue / mios-dash.ps1's regex / this
 # awk helper). No hardcoded 80 anywhere -- if you find one, lift it.
 _mios_toml_value() {
-    local section="$1" key="$2" default="$3"
+    local section="$1" key="$2" def_val="$3"
     local toml="${MIOS_TOML:-/usr/share/mios/mios.toml}"
-    [[ -r "$toml" ]] || { printf '%s' "$default"; return; }
-    awk -v want_section="$section" -v want_key="$key" -v default="$default" '
+    [[ -r "$toml" ]] || { printf '%s' "$def_val"; return; }
+    # gawk reserves `default` as a keyword (used in switch/case).  Passing
+    # `-v default=...` raises `cannot use gawk builtin 'default' as variable
+    # name` on Fedora's gawk.  Renamed to `def_val` everywhere -- mawk and
+    # gawk both accept it.
+    awk -v want_section="$section" -v want_key="$key" -v def_val="$def_val" '
         BEGIN { in_section = 0; found = 0 }
         /^\[/ {
             line = $0
@@ -120,7 +124,7 @@ _mios_toml_value() {
             gsub(/^"|"$/, "", v)
             if (k == want_key) { print v; found = 1; exit }
         }
-        END { if (!found) print default }
+        END { if (!found) print def_val }
     ' "$toml"
 }
 _mios_cols=$(_mios_toml_value "terminal" "cols" "80")
@@ -670,7 +674,10 @@ case "$MODE" in
                 # Keep the Linux-only services block when explicitly
                 # requested via MIOS_DASH_SERVICES=1 OR when the
                 # configurator toggled [dashboard].show_services=true.
-                local _show_services
+                # Bash's `local` only works inside a function -- this
+                # branch is at script scope (case/esac body), so use
+                # a plain assignment instead (operator 2026-05-09 hit
+                # `local: can only be used in a function` here).
                 _show_services="$(_mios_toml_value 'dashboard' 'show_services' 'false')"
                 if [[ "${MIOS_DASH_SERVICES:-0}" == "1" ]] || [[ "$_show_services" == "true" ]]; then
                     frame_divide
