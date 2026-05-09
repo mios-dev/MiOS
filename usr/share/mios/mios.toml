@@ -1771,6 +1771,54 @@ show_fastfetch      = true
 show_logo           = true
 
 # ----------------------------------------------------------------------------
+# [dashboard] -- the framed top-of-terminal banner shown by BOTH the
+# Windows-side Show-MiosDashboard (M:\MiOS\powershell\profile.ps1)
+# and the Linux-side mios-dashboard (/usr/libexec/mios/mios-dashboard.sh).
+# Per operator 2026-05-09: "the dash is set GLOBALLY to Windows and
+# Linux dashboards!! same settings!!! ... smaller metric can be
+# side-by-side in the dash; freeing up more room for the prompt
+# field." Both renderers read THIS section so a configurator edit
+# re-skins both terminals on the next render.
+#
+# Default = compact 80x20-friendly: 1 title + 5 metric rows
+# (side-by-side) + 1 verb hint + 4 frame rows = 11 rows total,
+# leaves 9 rows for the prompt and command output.
+# ----------------------------------------------------------------------------
+[dashboard]
+title           = "MiOS  --  Immutable Fedora AI Workstation"
+show_title      = true
+show_logo       = false           # 80x20 doesn't fit the 11-row ASCII logo. Set true once rows >= 30.
+show_verb_hints = true
+verb_hint       = "build  config  dash  dev  pull  update  help"
+
+# rows: each entry is a list of field-keys.  Multiple keys per row =
+# side-by-side rendering with equal column widths within the framed
+# inner area.  Available field-keys (built into both renderers; un-
+# known keys are silently skipped):
+#
+#   host_os         "$user@$host -- $os $arch"
+#   cpu             "CPU $name $clock GHz ($n c)"
+#   gpu_discrete    "GPU $name $vram GiB"     (top discrete GPU only)
+#   gpu_integrated  "GPU $name $vram GiB"     (top integrated GPU)
+#   ram             "RAM $used / $total GiB ($pct %)"
+#   swap            "Swap $used / $total GiB ($pct %)"
+#   disk_c          "C: $used / $total GiB ($pct %)"           [Windows]
+#   disk_m          "M: $used / $total GiB ($pct %)"
+#   disk_root       "/ $used / $total GiB ($pct %)"            [Linux]
+#   disk_home       "/home $used / $total GiB ($pct %)"        [Linux]
+#   kernel          "Kernel $version"
+#   shell           "Shell $name $version"
+#   font            "Font $family $size pt"   (from [theme.font])
+#   uptime          "Up $days d $hours h $min m"
+rows = [
+    ["host_os"],
+    ["cpu", "gpu_discrete"],
+    ["ram", "swap"],
+    ["disk_c", "disk_m"],
+    ["kernel", "shell", "font"],
+]
+
+# ----------------------------------------------------------------------------
 # [apps] -- Windows native-app surface. Get-MiOS.ps1's
 # Install-MiOSNativeApp creates Start Menu + Desktop shortcuts using
 # these names + the AumID below.
