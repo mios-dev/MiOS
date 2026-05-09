@@ -1826,20 +1826,23 @@ chrome_h_px         = 12
 [theme.terminal]
 # Windows Terminal "MiOS" scheme name -- the WT settings.json patcher
 # stamps a scheme block whose colors come from the [colors] table above.
-# Operator 2026-05-09: "MiOS-DEV is the main application the end
-# user uses, MiOS app itself should be defined as MiOS-WIN from
-# here on out".  The Linux dev VM (MiOS-DEV) is the canonical MiOS
-# experience; the Windows-side launcher/dispatcher app gets the
-# explicit "-WIN" suffix to distinguish.  The PROJECT name remains
-# "MiOS"; only the Windows TERMINAL APP name changes.
+# Operator 2026-05-09 (re-decision): "MiOS app opens direct to the
+# local OCI image(s) or podman-MiOS-DEV!!!".  Consolidated: ONE
+# user-facing app named "MiOS" that opens straight into MiOS-DEV
+# (the canonical MiOS Linux experience).  The Windows-side pwsh
+# WT profile keeps the "MiOS-WIN" name (for the post-install
+# transition surface and operator-typed `mios <verb>` workflow)
+# but it's NOT a Start Menu app -- only "MiOS.lnk" lives in the
+# Start Menu, and it launches the MiOS-DEV WT profile directly.
 scheme_name         = "MiOS"        # color scheme, project palette
-profile_name        = "MiOS-WIN"    # WT profile + .lnk + Add/Remove
-dev_profile_name    = "MiOS-DEV"    # WT profile for the dev VM
-# Global summon keybinding (toggle MiOS-WIN WT window open/close
-# from anywhere on the desktop). Uses WT's globalSummon action
-# targeting the named window.  Operator override via mios.html.
+profile_name        = "MiOS-WIN"    # WT pwsh dashboard profile (no .lnk)
+dev_profile_name    = "MiOS-DEV"    # WT dev VM profile (the "MiOS.lnk" target)
+hub_target_profile  = "MiOS-DEV"    # WT profile launched by the hub .lnk
+# Global summon keybinding (toggle MiOS WT window open/close from
+# anywhere on the desktop).  The summoned window is the dev VM
+# (MiOS-DEV) per the consolidation -- one MiOS, one chord.
 summon_keys         = "win+space"
-summon_window_name  = "MiOS-WIN"
+summon_window_name  = "MiOS-DEV"
 
 [theme.prompt]
 # oh-my-posh renderer SSOT. mios.toml IS the canonical source for
@@ -1991,10 +1994,16 @@ rows = [
 [apps]
 aumid               = "MiOS.Workstation"
 start_menu_folder   = "MiOS"        # umbrella folder name (project)
-hub_shortcut_name   = "MiOS-WIN"    # the .lnk file name + display label
-                                    # (operator 2026-05-09: "MiOS app
-                                    # itself should be defined as MiOS-WIN
-                                    # from here on out").
+hub_shortcut_name   = "MiOS"        # the ONE MiOS .lnk -- opens MiOS-DEV
+                                    # WT profile directly (operator
+                                    # 2026-05-09: "MiOS app opens direct
+                                    # to ... podman-MiOS-DEV").  Per-verb
+                                    # shortcuts (MiOS Help / MiOS Config /
+                                    # MiOS-DEV / MiOS-WIN) are intentionally
+                                    # NOT created -- those are typed verbs
+                                    # in the terminal (`mios help`,
+                                    # `mios config`, etc.), not separate
+                                    # native apps.
 
 [apps.shortcuts]
 # Per-verb Start Menu + Desktop shortcuts. The hub "MiOS.lnk" + the
