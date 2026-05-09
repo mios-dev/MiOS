@@ -222,10 +222,10 @@
       "newline": true,
       "segments": [
         {
-          "//": "Second-line prompt -- combined ╰─ ❯  into one segment so oh-my-posh doesn't run inter-segment cursor-positioning between the corner cap and the arrow. Operator screenshot 17 (2026-05-08 22:07) showed the 4-NBSP trailing in block 1 made time fit cleanly but a 1-cell powerline artifact remained between the powerline row and the ╰─ ❯ row -- caused by the inter-segment seam in the prior 2-segment block 2 (text segment for ╰─ then status segment for  ❯ ). status type retains the .Code-aware foreground coloring (green on success, red on error) for the entire combined template.",
+          "//": "Second-line prompt -- combined ╰─ ❯ into one segment so oh-my-posh doesn't run inter-segment cursor-positioning between the corner cap and the arrow. Operator 2026-05-09: '>' chevron 'down a row from where it should' -- the row gap was the dark green #3E7765 corner being washed out against the operator's acrylic dark wallpaper, NOT an extra newline.  Switched to #B7C9D7 (subtle pale blue-grey) which matches the `╭─` leading cap color for visual symmetry, and stays readable on every wallpaper.  status segment still reacts to .Code -- error path tints the whole `╰─ ❯` red.",
           "type": "status",
           "style": "plain",
-          "foreground": "#3E7765",
+          "foreground": "#B7C9D7",
           "foreground_templates": [
             "{{ if gt .Code 0 }}#DC271B{{ end }}"
           ],
