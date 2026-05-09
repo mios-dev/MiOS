@@ -209,10 +209,10 @@
           "template": " {{ .CurrentDate | date .Format }} "
         },
         {
-          "//": "Trailing spacer -- 1 NBSP (U+00A0). With WT preview features disabled (mios.toml [theme].enable_preview_features=false), WT chrome no longer eats cells -- diagnostic at M:\\MiOS\\diagnostics\\window-width.txt confirms WindowWidth=80 BufferWidth=80 and dashboard renders at frame_width=79 with the right border at the visible edge. So oh-my-posh's right block needs minimal trailing slack: just 1 NBSP to keep the rightmost time char from landing AT the phantom col where any next char would auto-wrap. NBSP (not regular space) because oh-my-posh strips trailing all-whitespace text segments before alignment math.",
+          "//": "Trailing spacer -- 4 NBSPs (U+00A0). Empirically calibrated 2026-05-08 from operator screenshot at 21:54: with 1 NBSP, time 21:54 wrapped 2 chars (54) to next line, proving WT chrome eats ~4 cells at 80x20 (buffer=80, visible=76) even with padding=0 + scrollbarState=hidden + launchMode=focus + preview features off. The user's same MiOS WT resized larger (image 14/15) showed the same powerline rendering cleanly because chrome stays fixed (~4 cells) and becomes proportionally smaller. 4 NBSPs gives the right block 4 cells of slack (3 to absorb chrome + 1 visible-edge safety) so time 21:54 ends flush at the rightmost visible cell with no wrap. NBSPs not regular spaces because oh-my-posh strips trailing all-whitespace text segments before alignment math.",
           "type": "text",
           "style": "plain",
-          "template": " "
+          "template": "    "
         }
       ]
     },
