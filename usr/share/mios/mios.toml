@@ -267,6 +267,27 @@ lines = [
 linear_log_note = "Note: console doesn't support in-place repaint -- running in linear log mode."
 linear_log_hint = "      Phase transitions + throttled step updates print sequentially below."
 
+# ----------------------------------------------------------------------------
+# [messages.install_complete] -- end-of-bootstrap operator-facing
+# summary banner.  Title + bullets are operator-tunable; verb hints
+# render from [verbs] (already SSOT).  Operators rebrand via mios.html.
+# ----------------------------------------------------------------------------
+[messages.install_complete]
+title          = "MiOS Windows-side install complete"
+installed_lead = "    Installed ..............................................................."
+next_steps     = "    What's next? Type any of these in the MiOS terminal:"
+hub_hint       = "    The MiOS hub shortcut is in your Start Menu / Desktop / Win+Search."
+# Bullets accept {disk_gb} substitution at render time so the
+# storage-size value stays current per host.
+bullets = [
+    "M:\\ partition ({disk_gb} GB NTFS, label MIOS-DEV)",
+    "Podman Desktop + podman-MiOS-DEV machine",
+    "mios.git + mios-bootstrap overlaid at M:\\",
+    "MiOS terminal essentials layered into MiOS-DEV",
+    "Native Windows app: Start Menu + Desktop + per-verb shortcuts",
+    "MiOS PowerShell profile (oh-my-posh, dashboard, mios <verb>)",
+]
+
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
 # etc/containers/systemd/mios-searxng.container; the agent surface
