@@ -219,14 +219,13 @@
     {
       "type": "prompt",
       "alignment": "left",
-      "newline": true,
       "segments": [
         {
-          "//": "Second-line leading prompt prefix -- same box-drawing fallback as line 1 (U+2570/U+2500) so it renders in any monospace font.",
+          "//": "Second-line leading prompt prefix. Template starts with \\r\\n instead of using newline:true at the block level. Reason: when oh-my-posh's right block ends at col cols-1 (= last visible cell), the cursor sits at col cols (phantom column past the visible area). A bare \\n from that position triggers WT's auto-wrap (cursor advances to col 0 of next row), THEN the \\n itself advances another row -- producing one empty row between the powerline and the second-line `\u2570\u2500 \u276f` block, AND making PSReadLine's input land on the empty row above the `\u276f` arrow. Prefixing the template with \\r first resets the cursor to col 0 of the CURRENT row (no auto-wrap because \\r doesn't print anything at the phantom col), THEN \\n advances exactly one row, so the next-line prompt prints right below the powerline and PSReadLine's input lands on the same row as `\u276f`.",
           "type": "text",
           "style": "plain",
           "foreground": "#B7C9D7",
-          "template": "\u2570\u2500"
+          "template": "\r\n\u2570\u2500"
         },
         {
           "type": "status",
