@@ -911,7 +911,7 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>terminal (post-install MiOS app: 80x20; cols-3 absorbs WT chrome over-report on the operator's hardware)</legend>
+        <legend>terminal (post-install MiOS app: 80x20; cols-4 absorbs WT chrome ~3 cells + Write-Host CRLF auto-wrap protection 1 cell)</legend>
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>
@@ -919,11 +919,11 @@
         <label for="f-term-scroll">scrollback_rows</label>
         <input type="text" id="f-term-scroll" data-key="terminal.scrollback_rows" data-type="int" placeholder="9000">
         <label for="f-term-fw">frame_width (= cols - right_margin)</label>
-        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="77">
+        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="76">
         <label for="f-term-fh">frame_height (= rows - 1, leave 1 row for prompt)</label>
         <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="19">
-        <label for="f-term-rm">right_margin (cells of slack absorbing WT chrome over-report; 3 = empirically validated)</label>
-        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="3">
+        <label for="f-term-rm">right_margin (chrome + CRLF-wrap; check M:\MiOS\diagnostics\window-width.txt to recompute)</label>
+        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="4">
       </fieldset>
       <fieldset>
         <legend>terminal.install (BOOTSTRAP window: 80x40 for install output + readme)</legend>
