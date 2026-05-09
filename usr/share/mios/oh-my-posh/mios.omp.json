@@ -222,13 +222,7 @@
       "newline": true,
       "segments": [
         {
-          "//": "Second-line leading prompt prefix. Reverted from `\\r\\n` template + no-newline approach (operator screenshot 21:36 showed the cursor STILL 1 row off, and the powerlines pushed too far inward) back to oh-my-posh's native newline:true block-advance + plain `╰─` template. oh-my-posh uses ANSI cursor positioning (not literal \\n) to advance to the next row, which avoids the phantom-column auto-wrap empty row that bare \\n would trigger.",
-          "type": "text",
-          "style": "plain",
-          "foreground": "#B7C9D7",
-          "template": "╰─"
-        },
-        {
+          "//": "Second-line prompt -- combined ╰─ ❯  into one segment so oh-my-posh doesn't run inter-segment cursor-positioning between the corner cap and the arrow. Operator screenshot 17 (2026-05-08 22:07) showed the 4-NBSP trailing in block 1 made time fit cleanly but a 1-cell powerline artifact remained between the powerline row and the ╰─ ❯ row -- caused by the inter-segment seam in the prior 2-segment block 2 (text segment for ╰─ then status segment for  ❯ ). status type retains the .Code-aware foreground coloring (green on success, red on error) for the entire combined template.",
           "type": "status",
           "style": "plain",
           "foreground": "#3E7765",
@@ -238,7 +232,7 @@
           "properties": {
             "always_enabled": true
           },
-          "template": " ❯ "
+          "template": "╰─ ❯ "
         }
       ]
     }
