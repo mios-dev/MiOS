@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "version": 4,
-  "//final_space": "true: reserves 1 trailing cell matching mios.toml [terminal].right_margin=1, which mirrors WT's structural scrollbar-gutter reservation. WT reserves 1 buffer column for the scrollbar even with `scrollbarState=hidden` (visibility !== reservation); the rightmost paintable cell is cols-2 and the powerline must end there. Without this, the trailing time char ends up at the gutter cell which WT wraps to col 0 of the next line ('powerline seconds rolling over to the left under the second-line ❯'). final_space=false would only be safe if a future WT version exposes a knob to drop the gutter reservation entirely.",
+  "//final_space": "true: reserves 1 trailing cell. Combined with the 6-NBSP trailing spacer in the right block, gives 7 cells of total trailing buffer = mios.toml [terminal].right_margin (5) + 1 ANSI-cursor-positioning slack + 1 final_space gutter. mios.toml line 1655 is the SSOT for this calc: 'oh-my-posh aligns via ANSI cursor positioning rather than character-by-character output, so it needs +1 over the toml margin to prevent the powerline time chars from hitting the same edge that auto-wraps Write-Host.' Without this stack, the trailing time char ends up at the gutter cell which WT wraps to col 0 of the next line ('powerline seconds rolling over to the left under the second-line ❯').",
   "final_space": true,
   "//": [
     "MiOS Oh-My-Posh theme.",
@@ -209,10 +209,10 @@
           "template": " {{ .CurrentDate | date .Format }} "
         },
         {
-          "//": "Trailing spacer -- 4 NBSPs (U+00A0). Empirically calibrated 2026-05-08 from operator screenshot at 21:54: with 1 NBSP, time 21:54 wrapped 2 chars (54) to next line, proving WT chrome eats ~4 cells at 80x20 (buffer=80, visible=76) even with padding=0 + scrollbarState=hidden + launchMode=focus + preview features off. The user's same MiOS WT resized larger (image 14/15) showed the same powerline rendering cleanly because chrome stays fixed (~4 cells) and becomes proportionally smaller. 4 NBSPs gives the right block 4 cells of slack (3 to absorb chrome + 1 visible-edge safety) so time 21:54 ends flush at the rightmost visible cell with no wrap. NBSPs not regular spaces because oh-my-posh strips trailing all-whitespace text segments before alignment math.",
+          "//": "Trailing spacer -- 6 NBSPs (U+00A0). SSOT: mios.toml [terminal].right_margin=5 + 1 ANSI-cursor-positioning slack = 6. Total trailing buffer is 6 NBSPs + final_space (1) = 7 cells, which absorbs WT pseudo-console chrome (~3 cells: scrollbar gutter + acrylic blur + sub-pixel rounding) + invert_powerline cap over-render (1 cell) + visible-edge safety. 2026-05-09 operator screenshot at 10:02 with only 4 NBSPs: time fit cleanly at right but a 1-cell phantom blue rectangle appeared at col 0 of the second prompt line, just left of the entry field corner -- that was the right block last invert_powerline cap wrapping past the buffer to col 0 of the next row. Bumping to 6 NBSPs absorbs the cap. NBSPs not regular spaces because oh-my-posh strips trailing all-whitespace text segments before alignment math.",
           "type": "text",
           "style": "plain",
-          "template": "    "
+          "template": "      "
         }
       ]
     },
