@@ -1772,9 +1772,20 @@ podman_pkg          = "RedHat.Podman-Desktop"
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-frame_width         = 75      # = cols - 5. Diagnostic root cause of the 5-hour wrap loop: Write-Host CRLF auto-wrap, NOT chrome reservation alone. When Write-Host emits a string EQUAL to display width N, cursor hits col N (phantom rightmost), auto-wraps to col 0 of next line, then CRLF advances one MORE line -- producing the orphan `|` row between every content row in operator screenshots at 18:38 / 20:26 / 20:38. The 20:48 screenshot at margin=4 / frame=76 stopped the orphan rows BUT the right `│` border landed exactly on the visible edge (col 75 in display=76) and was invisible/clipped. Bumping to margin=5 / frame=75 puts the right `│` at col 74 with 1 visible cell of clear slack to the right edge. Install-MiOSPowerShellProfile writes [Console]::WindowWidth to M:\MiOS\diagnostics\window-width.txt at profile load so the actual cell count is recorded -- if WindowWidth != 80, recompute right_margin = cols - WindowWidth + 2.
-frame_height        = 19      # = rows - 1. Reserves 1 row for the prompt under the dashboard.
-right_margin        = 5       # 5 cells of slack: 3 for WT chrome over-report (scrollbar gutter + acrylic blur + sub-pixel rounding) + 1 for Write-Host CRLF auto-wrap protection + 1 for the right `│` border to render visibly INSIDE the display edge (not on it). mios.omp.json mirrors with final_space=true (1) + trailing-spacer "      " (6) = 7 cells from rightmost; oh-my-posh aligns via ANSI cursor positioning rather than character-by-character output, so it needs +1 over the toml margin to prevent the powerline time chars from hitting the same edge that auto-wraps Write-Host.
+# Operator 2026-05-09: "ALL dashboards render to the edge of the
+# MiOS app window size constraints!!" -- edge-to-edge framing.
+# frame_width = cols - 1, right_margin = 1: the rightmost frame
+# `│` lands at col 78, leaving exactly 1 cell of safety against
+# WT's pseudo-console over-reporting WindowWidth by 1 cell during
+# the first paint (before scrollbarState='hidden' applies).
+# Tighter than the prior 5-cell margin -- WT 1.18+ with
+# launchMode=focus + scrollbarState=hidden + padding=0 reports
+# the visible-cell count correctly from FIRST paint, so the
+# legacy 5-cell chrome reservation is overkill.  Bump back to 5
+# only if powerline wrap returns.
+frame_width         = 79      # = cols - 1, edge-minus-one
+frame_height        = 19      # = rows - 1, reserves 1 row for prompt
+right_margin        = 1       # 1 cell of slack against WT first-paint over-report
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install
