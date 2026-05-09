@@ -16,6 +16,11 @@
   "logo": {
     "type": "raw",
     "source": "/usr/share/mios/branding/mios.txt",
+    // ANSI color name -- resolves through the terminal palette which
+    // is sourced from mios.toml [colors] (WT scheme on Windows,
+    // OSC-4 on Linux), so the rendered hex matches MiOS palette
+    // without per-config hardcoding.  Override per-platform via
+    // [theme.fastfetch].logo_color in mios.toml.
     "color": { "1": "blue" },
     // position:top renders the ASCII art ABOVE the info table instead
     // of side-by-side. The 3D /\__\ logo is 54 chars wide -- in the
@@ -28,7 +33,20 @@
   },
 
   "display": {
-    "separator": "  "
+    "separator": "  ",
+    // Per-module color overrides -- ANSI color names that resolve
+    // through the terminal palette (which is sourced from mios.toml
+    // [colors]).  Operators tune via [theme.fastfetch] in mios.html;
+    // build-mios.ps1's Install-MiOSFastfetch substitutes these
+    // strings at install time.  ANSI mapping vs MiOS palette:
+    //   yellow = ansi_3_yellow = cursor   (sunset orange #F35C15)
+    //   white  = ansi_7_white  = fg       (cream #E7DFD3)
+    //   cyan   = ansi_6_cyan   = subtle   (pale blue-grey #B7C9D7)
+    "color": {
+      "keys":   "yellow",
+      "title":  "white",
+      "output": "cyan"
+    }
   },
 
   "modules": [

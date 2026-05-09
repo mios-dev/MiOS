@@ -1781,6 +1781,30 @@ show_fastfetch      = true
 show_logo           = true
 
 # ----------------------------------------------------------------------------
+# [theme.fastfetch] -- ANSI-color tags applied to the four fastfetch
+# surfaces (ASCII logo, key labels, title line, value output).  These
+# resolve through the terminal palette which is sourced from
+# mios.toml [colors] -- so the rendered hex always matches MiOS
+# palette without per-config hardcoding.  Operators tune via
+# mios.html [theme.fastfetch].  build-mios.ps1's Install-MiOSFastfetch
+# substitutes these strings into M:\MiOS\fastfetch\config.jsonc at
+# install time.
+#
+# ANSI vs MiOS palette mapping (default):
+#   blue   = ansi_4_blue   = accent  (operator blue   #1A407F)
+#   yellow = ansi_3_yellow = cursor  (sunset orange   #F35C15)
+#   white  = ansi_7_white  = fg      (cream           #E7DFD3)
+#   cyan   = ansi_6_cyan   = subtle  (pale blue-grey  #B7C9D7)
+#   green  = ansi_2_green  = success (wave green      #3E7765)
+#   red    = ansi_1_red    = error   (coral red       #DC271B)
+# ----------------------------------------------------------------------------
+[theme.fastfetch]
+logo_color   = "blue"
+keys_color   = "yellow"
+title_color  = "white"
+output_color = "cyan"
+
+# ----------------------------------------------------------------------------
 # [dashboard] -- the framed top-of-terminal banner shown by BOTH the
 # Windows-side Show-MiosDashboard (M:\MiOS\powershell\profile.ps1)
 # and the Linux-side mios-dashboard (/usr/libexec/mios/mios-dashboard.sh).
