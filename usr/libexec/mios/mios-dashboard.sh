@@ -357,17 +357,277 @@ print_services_block() {
 }
 
 # ── Fastfetch capture (logo suppressed; we render our own header) ────────────
+# Kept for the legacy `--ticker` / `--no-frame` paths and as a fallback
+# when [dashboard].rows is missing/unparseable.  The default render path
+# now uses _dashboard_rows_render below for parity with the Windows-side
+# Show-MiosDashboard.
 print_fastfetch() {
     if ! command -v fastfetch >/dev/null 2>&1; then return; fi
     local local_cfg=/usr/share/mios/fastfetch/config.jsonc
     if [[ -r "$local_cfg" ]]; then
-        # --logo none kills fastfetch's logo so our centered MiOS art at
-        # the top of the frame is the only logo. Width forced narrow so
-        # the info column doesn't push past INNER.
         fastfetch -c "$local_cfg" --logo none 2>/dev/null || fastfetch --logo none 2>/dev/null || true
     else
         fastfetch --logo none 2>/dev/null || true
     fi
+}
+
+# ── [dashboard] row-driven renderer (parity with Windows Show-MiosDashboard) ─
+# Per operator 2026-05-09: "the dash is set GLOBALLY to Windows and
+# Linux dashboards!! same settings!!!".  Reads mios.toml [dashboard].rows
+# (a list of lists of field-keys) and emits one framed line per row,
+# laying out fields side-by-side with equal column width.  Same field-
+# key library as the Windows side -- host_os / cpu / gpu_* / ram / swap /
+# disk_root / disk_home / kernel / shell / font / uptime.  disk_c /
+# disk_m are accepted on Linux too (they fall back to disk_root).
+
+# _df_human BYTES -- format as "<n.n>GiB" / "<n.n>TiB".
+_df_human() {
+    local b=$1
+    if [[ -z "$b" ]] || [[ "$b" == "0" ]]; then printf '0GiB'; return; fi
+    awk -v b="$b" 'BEGIN {
+        gib = b / (1024*1024*1024)
+        if (gib < 1024) { printf "%.1fGiB", gib }
+        else            { printf "%.2fTiB", gib / 1024 }
+    }'
+}
+
+# _dash_field KEY -- emit the rendered string for one field-key.
+# Echoes empty string for unknown keys so unknown -> silently skipped.
+_dash_field() {
+    local k="$1"
+    case "$k" in
+        host_os)
+            local user host os arch
+            user="${MIOS_LINUX_USER:-${USER:-mios}}"
+            host="$(hostname -s 2>/dev/null || echo localhost)"
+            if [[ -r /etc/os-release ]]; then
+                # shellcheck disable=SC1091
+                os="$(. /etc/os-release; echo "${PRETTY_NAME:-$NAME}")"
+            else
+                os="$(uname -o 2>/dev/null || uname -s)"
+            fi
+            arch="$(uname -m)"
+            printf '%s@%s -- %s %s' "$user" "$host" "$os" "$arch"
+            ;;
+        cpu)
+            local model cores clk
+            model="$(awk -F: '/^model name/ { sub(/^[[:space:]]+/, "", $2); print $2; exit }' /proc/cpuinfo 2>/dev/null)"
+            cores="$(grep -cE '^processor[[:space:]]*:' /proc/cpuinfo 2>/dev/null || echo 0)"
+            # Max clock from /sys if available, else cpufreq scaling_max_freq, else /proc.
+            if [[ -r /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq ]]; then
+                clk=$(awk '{ printf "%.2f", $1 / 1000000 }' /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq)
+            else
+                clk=$(awk -F: '/^cpu MHz/ { printf "%.2f", $2/1000; exit }' /proc/cpuinfo 2>/dev/null)
+            fi
+            model="${model//(R)/}"; model="${model//(TM)/}"
+            model="$(echo "$model" | sed -E 's/[[:space:]]*@.*$//; s/[[:space:]]*Processor[[:space:]]*//; s/[[:space:]]+/ /g')"
+            if [[ -n "$clk" ]]; then printf 'CPU %s %sGHz (%sc)' "$model" "$clk" "$cores"
+            else                     printf 'CPU %s (%sc)' "$model" "$cores"; fi
+            ;;
+        gpu_discrete|gpu_integrated)
+            local pat
+            if [[ "$k" == "gpu_discrete" ]]; then pat='NVIDIA|GeForce|Radeon RX|Radeon Pro|Quadro|RTX|GTX'
+            else                                  pat='Intel.*Graphics|UHD Graphics|Iris|Radeon\(TM\) Graphics|integrated'; fi
+            local line=""
+            if command -v lspci >/dev/null 2>&1; then
+                line="$(lspci -mm 2>/dev/null | grep -iE 'VGA|3D|Display' | grep -iE "$pat" | head -1)"
+                # Strip class label, keep vendor + device.
+                line="$(echo "$line" | awk -F'"' '{ printf "%s %s", $4, $6 }')"
+            fi
+            if [[ -z "$line" ]]; then printf 'GPU --'
+            else                       printf 'GPU %s' "$line"; fi
+            ;;
+        ram)
+            local total used free pct
+            total=$(awk '/^MemTotal:/  { print $2 }' /proc/meminfo)
+            free=$( awk '/^MemAvailable:/{ print $2 }' /proc/meminfo)
+            [[ -z "$free" ]] && free=$(awk '/^MemFree:/{ print $2 }' /proc/meminfo)
+            used=$((total - free))
+            pct=$(( total > 0 ? (used * 100 / total) : 0 ))
+            printf 'RAM %.1f / %.1fGiB (%d%%)' \
+                "$(awk -v u="$used" 'BEGIN{print u/1024/1024}')" \
+                "$(awk -v t="$total" 'BEGIN{print t/1024/1024}')" \
+                "$pct"
+            ;;
+        swap)
+            local total used pct
+            total=$(awk '/^SwapTotal:/{ print $2 }' /proc/meminfo)
+            local sfree
+            sfree=$(awk '/^SwapFree:/ { print $2 }' /proc/meminfo)
+            used=$((total - sfree))
+            if [[ -z "$total" ]] || [[ "$total" == "0" ]]; then printf 'Swap --'; return; fi
+            pct=$(( total > 0 ? (used * 100 / total) : 0 ))
+            printf 'Swap %.1f / %.1fGiB (%d%%)' \
+                "$(awk -v u="$used" 'BEGIN{print u/1024/1024}')" \
+                "$(awk -v t="$total" 'BEGIN{print t/1024/1024}')" \
+                "$pct"
+            ;;
+        disk_root|disk_c)
+            _dash_disk / "/"
+            ;;
+        disk_home|disk_m)
+            if mountpoint -q /home 2>/dev/null; then _dash_disk /home "/home"
+            elif [[ "$k" == "disk_m" ]] && mountpoint -q /mnt/m 2>/dev/null; then _dash_disk /mnt/m "M:"
+            else _dash_disk / "/"; fi
+            ;;
+        disk_var)
+            if mountpoint -q /var 2>/dev/null; then _dash_disk /var "/var"
+            else _dash_disk / "/"; fi
+            ;;
+        kernel)
+            printf 'Kernel %s' "$(uname -r)"
+            ;;
+        shell)
+            local sh ver
+            sh="$(basename "${SHELL:-bash}")"
+            case "$sh" in
+                bash) ver="$(bash --version 2>/dev/null | head -1 | sed -E 's/.*version ([0-9.]+).*/\1/')" ;;
+                zsh)  ver="$(zsh --version 2>/dev/null  | awk '{print $2}')" ;;
+                fish) ver="$(fish --version 2>/dev/null | awk '{print $3}')" ;;
+                pwsh|pwsh.exe) ver="$(pwsh --version 2>/dev/null | awk '{print $2}')" ;;
+                *)    ver=""
+            esac
+            if [[ -n "$ver" ]]; then printf 'Shell %s %s' "$sh" "$ver"
+            else                     printf 'Shell %s' "$sh"; fi
+            ;;
+        font)
+            # Resolves through mios.toml [theme.font].family / .size --
+            # Linux terminals usually inherit the user's terminal font
+            # config, but the SSOT-correct value lives in mios.toml.
+            local family size
+            family="$(_mios_toml_value "theme.font" "family" "GeistMono Nerd Font Mono")"
+            size="$(_mios_toml_value "theme.font" "size" "12")"
+            printf 'Font %s %spt' "$family" "$size"
+            ;;
+        uptime)
+            local up_s d h m
+            up_s=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+            [[ -z "$up_s" ]] && { printf 'Up --'; return; }
+            d=$((up_s / 86400)); h=$(((up_s % 86400) / 3600)); m=$(((up_s % 3600) / 60))
+            printf 'Up %dd %dh %dm' "$d" "$h" "$m"
+            ;;
+        *)
+            # Unknown field-key -- emit empty string; renderer skips it.
+            printf ''
+            ;;
+    esac
+}
+
+# _dash_disk MOUNT LABEL -- emit "<label>: <used> / <total>GiB (<pct>%)"
+_dash_disk() {
+    local mp="$1" lbl="$2"
+    if ! command -v df >/dev/null 2>&1; then printf '%s --' "$lbl"; return; fi
+    local out total used pct
+    out="$(df -B1 --output=size,used,pcent "$mp" 2>/dev/null | tail -n +2 | awk '{ print $1, $2, $3 }')"
+    if [[ -z "$out" ]]; then printf '%s --' "$lbl"; return; fi
+    read -r total used pct <<< "$out"
+    pct="${pct%%%}"
+    printf '%s %.1f / %.1fGiB (%s%%)' "$lbl" \
+        "$(awk -v u="$used"  'BEGIN{print u/1024/1024/1024}')" \
+        "$(awk -v t="$total" 'BEGIN{print t/1024/1024/1024}')" \
+        "$pct"
+}
+
+# _dashboard_rows_render -- read [dashboard].rows and emit one line per
+# row with fields padded to equal column width.  Pipes through
+# frame_filter for the framed render.  Awk-driven extraction of the
+# nested-array TOML (rows = [["a"],["b","c"]]) since /usr/bin/awk and
+# bash regex both struggle with that shape; we tokenize char-by-char.
+_dashboard_rows_parse() {
+    local toml="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+    [[ -r "$toml" ]] || return 1
+    awk '
+        # Find [dashboard] section
+        /^\[/ {
+            line = $0; sub(/[[:space:]]*#.*$/, "", line)
+            in_dash = (line == "[dashboard]") ? 1 : 0
+            next
+        }
+        in_dash && /^[[:space:]]*rows[[:space:]]*=[[:space:]]*\[/ { capturing = 1 }
+        capturing { buf = buf $0 "\n" }
+        capturing && /^\][[:space:]]*$/ { capturing = 0; in_dash = 0 }
+        END {
+            if (buf == "") exit 1
+            # Strip everything before the first [[ and after the last ]]
+            n = split(buf, lines, "\n")
+            # Walk char by char, find each [...] inner row
+            text = buf
+            depth = 0
+            row = ""
+            current = ""
+            in_str = 0
+            for (i = 1; i <= length(text); i++) {
+                c = substr(text, i, 1)
+                if (c == "\"") { in_str = !in_str; current = current c; continue }
+                if (in_str)    { current = current c; continue }
+                if (c == "[")  { depth++; if (depth == 2) current = ""; continue }
+                if (c == "]")  {
+                    depth--
+                    if (depth == 1 && current != "") {
+                        # Emit one row -- normalize whitespace + commas
+                        gsub(/[[:space:]]+/, " ", current)
+                        gsub(/^[[:space:]]+|[[:space:]]+$/, "", current)
+                        print current
+                        current = ""
+                    }
+                    continue
+                }
+                if (depth >= 2) current = current c
+            }
+        }
+    ' "$toml"
+}
+
+_dashboard_rows_render() {
+    local rows
+    rows="$(_dashboard_rows_parse 2>/dev/null)"
+    if [[ -z "$rows" ]]; then
+        # Vendor default (matches mios.toml [dashboard].rows default)
+        rows='"host_os"
+"cpu", "gpu_discrete"
+"ram", "swap"
+"disk_root", "disk_home"
+"kernel", "shell", "font"'
+    fi
+
+    local row n colW cells field val
+    while IFS= read -r row; do
+        [[ -z "$row" ]] && continue
+        # Strip surrounding "..." per token, comma-split.
+        IFS=',' read -ra fields <<< "$row"
+        # Trim + dequote each token.
+        local trimmed=()
+        for field in "${fields[@]}"; do
+            field="${field#"${field%%[![:space:]]*}"}"
+            field="${field%"${field##*[![:space:]]}"}"
+            field="${field#\"}"; field="${field%\"}"
+            [[ -n "$field" ]] && trimmed+=("$field")
+        done
+        n=${#trimmed[@]}
+        (( n == 0 )) && continue
+        colW=$(( (INNER - (n - 1) * 2) / n ))
+        (( colW < 8 )) && colW=8
+
+        local line="" pad
+        local i=0
+        for field in "${trimmed[@]}"; do
+            val="$(_dash_field "$field")"
+            # Truncate -- code-point safe via awk (mawk uses bytes; gawk does code points).
+            if (( ${#val} > colW )); then
+                val="${val:0:$((colW - 1))}…"
+            fi
+            # Pad to exact colW.
+            pad=$((colW - ${#val}))
+            (( pad < 0 )) && pad=0
+            local padstr; padstr="$(hr_repeat ' ' "$pad")"
+            if (( i == 0 )); then line="${val}${padstr}"
+            else                  line="${line}  ${val}${padstr}"; fi
+            i=$((i + 1))
+        done
+        # Trim trailing whitespace -- frame_filter will pad to INNER.
+        line="${line%"${line##*[![:space:]]}"}"
+        printf '%s\n' "$line"
+    done <<< "$rows"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -382,22 +642,41 @@ case "$MODE" in
         if [[ $NO_FRAME -eq 1 ]]; then
             print_ascii_header
             print_title
-            print_fastfetch
+            _dashboard_rows_render
             print_services_block
             print_loop_hint
         else
             # Capture each section, pipe through frame_filter so each
             # line is wrapped and truncated to fit INNER chars exactly.
+            # The metric block uses [dashboard].rows from mios.toml --
+            # matches the Windows-side Show-MiosDashboard exactly so
+            # the operator sees the same compact side-by-side layout
+            # on both hosts.  Set MIOS_DASH_LEGACY=1 to fall back to
+            # the verbose fastfetch + services + loop-hint render
+            # (one metric per row, no [dashboard].rows).
             frame_top
             print_ascii_header | frame_filter
             frame_divide
             { print_title; } | frame_filter
             frame_divide
-            print_fastfetch | frame_filter
-            frame_divide
-            print_services_block | frame_filter
-            frame_divide
-            print_loop_hint | frame_filter
+            if [[ "${MIOS_DASH_LEGACY:-0}" == "1" ]]; then
+                print_fastfetch     | frame_filter
+                frame_divide
+                print_services_block | frame_filter
+                frame_divide
+                print_loop_hint     | frame_filter
+            else
+                _dashboard_rows_render | frame_filter
+                # Keep the Linux-only services block when explicitly
+                # requested via MIOS_DASH_SERVICES=1 OR when the
+                # configurator toggled [dashboard].show_services=true.
+                local _show_services
+                _show_services="$(_mios_toml_value 'dashboard' 'show_services' 'false')"
+                if [[ "${MIOS_DASH_SERVICES:-0}" == "1" ]] || [[ "$_show_services" == "true" ]]; then
+                    frame_divide
+                    print_services_block | frame_filter
+                fi
+            fi
             frame_bot
         fi
         ;;

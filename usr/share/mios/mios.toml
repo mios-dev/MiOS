@@ -1825,6 +1825,13 @@ show_logo       = false           # 80x20 doesn't fit the 11-row ASCII logo. Set
 show_verb_hints = true
 verb_hint       = "build  config  dash  dev  pull  update  help"
 
+# show_services -- Linux-only.  When true (or MIOS_DASH_SERVICES=1),
+# mios-dashboard.sh appends the framed Self-replication-loop /
+# Quadlet-services / Working-tree blocks below the metric rows.
+# Default false so the dashboard stays at ~11 rows in 80x20.  No
+# effect on the Windows-side dashboard (those services don't apply).
+show_services   = false
+
 # rows: each entry is a list of field-keys.  Multiple keys per row =
 # side-by-side rendering with equal column widths within the framed
 # inner area.  Available field-keys (built into both renderers; un-
