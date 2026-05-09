@@ -209,10 +209,10 @@
           "template": " {{ .CurrentDate | date .Format }} "
         },
         {
-          "//": "Trailing spacer -- mirrors mios.toml [terminal].right_margin=2, template = 2 spaces. With final_space=true (1 cell), total slack from the rightmost paintable cell is 3 cells. This absorbs WT chrome's 2-3-cell over-report on the operator's hardware (scrollbar gutter + acrylic blur edge + sub-pixel rounding). build-mios.ps1's omp.json substitution should re-emit this template with (right_margin spaces) when the toml value changes.",
+          "//": "Trailing spacer -- mirrors mios.toml [terminal].right_margin=3, template = 3 spaces. With final_space=true (1 cell), total slack from the rightmost paintable cell is 4 cells. This absorbs WT chrome's 3-cell over-report on the operator's hardware (validated via screenshot at 20:26 where margin=2 still wrapped time `:26` to next line). build-mios.ps1's omp.json substitution should re-emit this template with (right_margin spaces) when the toml value changes via mios.html.",
           "type": "text",
           "style": "plain",
-          "template": "  "
+          "template": "   "
         }
       ]
     },
