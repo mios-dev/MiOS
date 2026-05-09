@@ -288,6 +288,35 @@ failure_detail     = "      Output above is the failure detail (Pass-1 has no se
 build_log_hint     = "      build-mios.ps1's own log at M:\\MiOS\\logs\\mios-install-*.log only kicks in on Pass-2 success."
 fetch_run_failed   = "  [!] Bootstrap fetch/run failed: "
 press_enter_close  = "  Press Enter to close this elevated bootstrap window..."
+# In-line success transition (operator 2026-05-09: "spawn too many
+# powershell windows ... should be performed in-line in one
+# promoted Powershell window after bootstrap").  After install
+# completes, this conhost dot-sources the MiOS profile so the
+# operator stays in the same window and types `mios <verb>` here.
+success_transition  = "  [+] Bootstrap complete. Loading MiOS terminal in this window..."
+profile_load_failed = "  [!] MiOS profile load failed: "
+profile_load_hint   = "      Open a fresh MiOS shortcut to retry."
+profile_missing     = "  [!] M:\\MiOS\\powershell\\profile.ps1 not found -- open the MiOS shortcut to launch the app window."
+
+# ----------------------------------------------------------------------------
+# [messages.steps] -- Set-Step descriptions emitted during the install
+# pipeline.  These are the per-line yellow-bracket prefix strings the
+# operator sees during Phase 3 (data disk, mios.git overlay,
+# mios-bootstrap shadow, MiOS-DEV provisioning, etc.).  Operators
+# rebrand the install narrative via mios.html [messages.steps] without
+# touching any PowerShell.
+# ----------------------------------------------------------------------------
+[messages.steps]
+disk_sizing_template       = "Sizing MiOS data disk ({mb} MB on {drive}:)..."
+disk_already_template      = "MiOS data disk already on {drive}: ({size_gb} GB, NTFS)"
+mios_git_init              = "Initializing mios.git as the M:\\ working tree"
+mios_git_update            = "Updating mios.git (fetch + hard reset @ M:\\)"
+mios_git_overlaid          = "mios.git overlaid at M:\\"
+mios_bootstrap_clone       = "Cloning mios-bootstrap.git -> shadow M:\\MiOS\\bootstrap-shadow"
+mios_bootstrap_update      = "Updating mios-bootstrap.git shadow (fetch + hard reset)"
+mios_bootstrap_overlay     = "Overlaying mios-bootstrap files onto M:\\"
+entry_scripts_staged       = "Entry scripts staged at M:\\MiOS\\bin"
+miosdev_init_template      = "Initializing MiOS-DEV ({cpus} CPUs / {ram_gb}GB / {disk_gb}GB disk)"
 
 # ----------------------------------------------------------------------------
 # [messages.install_complete] -- end-of-bootstrap operator-facing
