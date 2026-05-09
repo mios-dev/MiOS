@@ -227,6 +227,46 @@ taglines = [
     "WSL2 + Podman  │  Offline Build Pipeline"
 ]
 
+[messages.eula]
+# Pre-dashboard EULA banner shown on every MiOS terminal open BEFORE
+# the framed dashboard renders.  The lines scroll out of the visible
+# viewport when Clear-Host fires after `display_ms`, but stay
+# scroll-up-readable in the WT scrollback so the operator can review
+# at any time.  Operators opt out per-session via $env:MIOS_SKIP_EULA=1.
+# Edit via mios.html [messages.eula] -- changes flow on the next
+# `mios update` (re-runs Get-MiOS.ps1 which re-bakes the EULA into
+# M:\MiOS\powershell\profile.ps1).
+display_ms = 600
+lines = [
+    "",
+    "  MiOS -- My Personal Operating System",
+    "  Immutable Fedora AI Workstation (pronounced \"MyOS\")",
+    "",
+    "  By invoking any MiOS entry point you acknowledge:",
+    "    * MiOS is provided AS IS, NO WARRANTY (MIT license).",
+    "    * Build/install scripts can modify your system globally",
+    "      (registry, env vars, fonts, WT settings, WSL distros, M:\\ partition).",
+    "    * Telemetry: NONE (no data leaves the host without explicit operator action).",
+    "    * Full text: M:\\AGREEMENTS.md  +  M:\\LICENSE",
+    "",
+    "  Continued use of this terminal is treated as acknowledgment.",
+    "",
+]
+
+# ----------------------------------------------------------------------------
+# [messages.build_pipeline] -- copy strings emitted by build-mios.ps1
+# during the install pipeline.  Phase LABELS live in
+# [install_phases.bootstrap] / [install_phases.full] above (already
+# SSOT-driven via Start-Phase / End-Phase); this section captures the
+# remaining hardcoded prose.  Operators rebrand the installer face
+# via mios.html without touching any PowerShell.
+# ----------------------------------------------------------------------------
+[messages.build_pipeline]
+# Linear-log mode header, shown when the host can't do in-place
+# repaint (most non-WT shells).  Two lines: the headline + a hint.
+linear_log_note = "Note: console doesn't support in-place repaint -- running in linear log mode."
+linear_log_hint = "      Phase transitions + throttled step updates print sequentially below."
+
 [search]
 # Local privacy-respecting metasearch (SearXNG). Always-on Quadlet at
 # etc/containers/systemd/mios-searxng.container; the agent surface
