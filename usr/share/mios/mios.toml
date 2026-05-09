@@ -416,8 +416,18 @@ small_ram_model  = "phi4-mini:3.8b-q4_K_M"      # < mid_ram_gb fallback
 [desktop]
 session       = "gnome"
 color_scheme  = "prefer-dark"   # libadwaita / dconf color-scheme
+# Flatpak refs installed across EVERY MiOS deployment shape -- the
+# OCI build pipeline (automation/40-flatpak-bake.sh) and the
+# dev-VM overlay layer (mios-bootstrap/build-mios.ps1's
+# Layer-MiOSEssentials) BOTH read this list, so what lands here
+# lands in podman-MiOS-DEV AND in the deployed bootc image.  Per
+# feedback_mios_dev_equals_mios memory: "every flatpak (Epiphany /
+# Nautilus / GNOME runtime)" -- canonical MiOS desktop surface.
+# Nautilus is the GNOME file manager (`Files`); shipping it here
+# means `flatpak run org.gnome.Nautilus` works on every host.
 flatpaks      = [
     "org.gnome.Epiphany",
+    "org.gnome.Nautilus",
     "com.github.tchx84.Flatseal",
     "org.gnome.Software",
     "com.mattjakeman.ExtensionManager",
