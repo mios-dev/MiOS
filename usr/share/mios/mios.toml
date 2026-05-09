@@ -1826,18 +1826,20 @@ chrome_h_px         = 12
 [theme.terminal]
 # Windows Terminal "MiOS" scheme name -- the WT settings.json patcher
 # stamps a scheme block whose colors come from the [colors] table above.
-scheme_name         = "MiOS"
-profile_name        = "MiOS"
-dev_profile_name    = "MiOS-DEV"
-# Global summon keybinding (toggle MiOS WT window open/close from
-# anywhere on the desktop). Uses WT's globalSummon action targeting
-# the named window. Operator: "MiOS app should be invokable via a
-# chord/keycombo like winkey + Spacebar to open and close the
-# window at will". Override here to change the chord (e.g.
-# "ctrl+shift+space", "win+grave_accent" for the classic quake
-# pattern, "ctrl+win+m" for a more MiOS-flavored chord).
+# Operator 2026-05-09: "MiOS-DEV is the main application the end
+# user uses, MiOS app itself should be defined as MiOS-WIN from
+# here on out".  The Linux dev VM (MiOS-DEV) is the canonical MiOS
+# experience; the Windows-side launcher/dispatcher app gets the
+# explicit "-WIN" suffix to distinguish.  The PROJECT name remains
+# "MiOS"; only the Windows TERMINAL APP name changes.
+scheme_name         = "MiOS"        # color scheme, project palette
+profile_name        = "MiOS-WIN"    # WT profile + .lnk + Add/Remove
+dev_profile_name    = "MiOS-DEV"    # WT profile for the dev VM
+# Global summon keybinding (toggle MiOS-WIN WT window open/close
+# from anywhere on the desktop). Uses WT's globalSummon action
+# targeting the named window.  Operator override via mios.html.
 summon_keys         = "win+space"
-summon_window_name  = "MiOS"
+summon_window_name  = "MiOS-WIN"
 
 [theme.prompt]
 # oh-my-posh renderer SSOT. mios.toml IS the canonical source for
@@ -1988,8 +1990,11 @@ rows = [
 # ----------------------------------------------------------------------------
 [apps]
 aumid               = "MiOS.Workstation"
-start_menu_folder   = "MiOS"
-hub_shortcut_name   = "MiOS"
+start_menu_folder   = "MiOS"        # umbrella folder name (project)
+hub_shortcut_name   = "MiOS-WIN"    # the .lnk file name + display label
+                                    # (operator 2026-05-09: "MiOS app
+                                    # itself should be defined as MiOS-WIN
+                                    # from here on out").
 
 [apps.shortcuts]
 # Per-verb Start Menu + Desktop shortcuts. The hub "MiOS.lnk" + the
