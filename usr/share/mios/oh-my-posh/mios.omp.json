@@ -209,10 +209,10 @@
           "template": " {{ .CurrentDate | date .Format }} "
         },
         {
-          "//": "Trailing spacer -- mirrors mios.toml [terminal].right_margin=4, template = 4 spaces. With final_space=true (1 cell), total slack from the rightmost paintable cell is 5 cells. Empirically required because WT chrome eats ~3 cells AND Write-Host CRLF auto-wraps when content == display width (causing orphan rows). build-mios.ps1's omp.json substitution should re-emit this template with (right_margin spaces) when the toml value changes via mios.html.",
+          "//": "Trailing spacer -- 6 spaces (= mios.toml [terminal].right_margin + 1). The +1 is because oh-my-posh aligns via ANSI cursor positioning (not Write-Host), so the Write-Host CRLF auto-wrap protection that the dashboard frame's right_margin includes doesn't help oh-my-posh -- the powerline right block needs its own 1-cell extra slack to avoid the time segment's trailing chars hitting the same auto-wrap boundary. With final_space=true (1 cell), total slack from the rightmost paintable cell is 7 cells.",
           "type": "text",
           "style": "plain",
-          "template": "    "
+          "template": "      "
         }
       ]
     },
