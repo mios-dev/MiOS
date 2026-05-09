@@ -40,9 +40,33 @@ elif [[ -f /etc/motd ]]; then
 fi
 
 # ── Logging ──────────────────────────────────────────────────────────────────
-LOG_DIR="/var/log/mios"
+# When invoked as the mios user (the canonical handoff path from
+# Windows: `wsl.exe -d podman-MiOS-DEV --user mios`), /var/log/mios
+# is root-owned (FHS) and the tee write fails with "Permission denied".
+# Combined with `set -euo pipefail` that silently kills the driver
+# before it prints anything useful, dropping the operator to an
+# interactive login bash prompt -- exactly the regression operator
+# flagged 2026-05-09: "[mios@CloudWS-602 ~]$ ... random invisible
+# square window... NOTHING actually happening".
+#
+# Fix: fall back to $XDG_STATE_HOME (or $HOME/.local/state/mios) when
+# /var/log/mios isn't writable.  Root invocations still get the
+# canonical /var/log path; non-root land in $HOME and can rotate /
+# tail without sudo.
+if [[ "$(id -u)" -eq 0 ]]; then
+    LOG_DIR="/var/log/mios"
+else
+    _state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
+    LOG_DIR="$_state_root/mios/log"
+fi
 LOG_FILE="${LOG_DIR}/build-driver-$(date +%Y%m%d-%H%M%S).log"
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+# Probe write access -- if mkdir failed or the dir isn't writable,
+# fall through to /tmp so the driver still emits visible output.
+if ! ( : >> "$LOG_FILE" ) 2>/dev/null; then
+    LOG_DIR="/tmp"
+    LOG_FILE="$LOG_DIR/mios-build-driver-$(date +%Y%m%d-%H%M%S).log"
+fi
 echo "[mios-build-driver] starting at $(date -Iseconds)" | tee -a "$LOG_FILE"
 echo "[mios-build-driver] logging to $LOG_FILE"
 
