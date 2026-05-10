@@ -26,8 +26,19 @@ After=basic.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl --user import-environment XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_RUNTIME_DIR PULSE_SERVER
-ExecStart=/usr/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_RUNTIME_DIR PULSE_SERVER
+# XDG_SESSION_CLASS=user is required by localsearch-3 (the renamed
+# tracker3 indexer) and several other GNOME services that gate on
+# being a real "user" session. WSLg has no display manager to set
+# it; without it, dbus activation of org.freedesktop.Tracker3.Miner.Files
+# fails with "unit failed", nautilus then crashes on the SPARQL
+# backend ServiceUnknown error -> GLib G_IS_OBJECT assertion.
+# Operator-confirmed 2026-05-10 via journalctl --user -u
+# localsearch-3.service: "skipped, unmet condition check
+# ConditionEnvironment=XDG_SESSION_CLASS=user".  Force-setting it
+# here unblocks the whole chain.
+ExecStart=/usr/bin/systemctl --user set-environment XDG_SESSION_CLASS=user
+ExecStart=/usr/bin/systemctl --user import-environment XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_SESSION_CLASS XDG_RUNTIME_DIR PULSE_SERVER
+ExecStart=/usr/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_SESSION_CLASS XDG_RUNTIME_DIR PULSE_SERVER
 RemainAfterExit=yes
 
 [Install]

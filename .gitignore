@@ -152,6 +152,15 @@ etc/fapolicyd/*
 !/etc/xdg/
 !/etc/xdg/**
 
+# /etc/systemd/user/<upstream-unit>.service.d/ -- drop-in overrides for
+# upstream-shipped systemd user units (localsearch-3 et al.). Drop-in
+# files MUST be named with the mios- prefix so they're distinguishable
+# from operator-authored overrides at /etc/systemd/user/<unit>.d/.
+!/etc/systemd/
+!/etc/systemd/user/
+!/etc/systemd/user/**/
+!/etc/systemd/user/**/10-mios-*.conf
+
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
 !/etc/mios/
