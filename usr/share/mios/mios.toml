@@ -1869,7 +1869,7 @@ mode                = "dark"             # "dark" | "light" (rare; vendor=dark)
 acrylic             = true               # WT useAcrylic ON
 opacity             = 50                 # WT opacity 0..100 (50 = 50% transparency)
 system_backdrop     = "acrylic"          # WT 1.18+ per-profile backdrop
-cursor_shape        = "bar"        # block-style cursor mimics Linux terminal default (gnome-terminal / xterm / konsole steady block)
+cursor_shape        = "vintage"    # steady half-block; operator 2026-05-10: thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
 scrollbar_state     = "hidden"           # no scrollbar -- frame uses every col
 padding             = "0"                # zero padding -- frame flush to edges
 suppress_app_title  = true               # WT doesn't override our title

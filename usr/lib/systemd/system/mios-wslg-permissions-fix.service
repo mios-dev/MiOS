@@ -1,0 +1,39 @@
+[Unit]
+Description=MiOS: chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR
+Documentation=https://github.com/mios-dev/MiOS
+Documentation=https://github.com/microsoft/wslg/discussions/312
+
+# WSL2 mounts /mnt/wslg/runtime-dir with mode 0777 (world-writable),
+# but weston's wayland-server treats anything looser than 0700 as a
+# protocol violation and refuses to advance past the RAIL fallback
+# into VAIL (shared-memory) mode. Operator-confirmed via weston.log:
+#   warning: XDG_RUNTIME_DIR "/mnt/wslg/runtime-dir" is not configured
+#   correctly.  Unix access mode must be 0700 (current mode is 777)
+#
+# This service runs ONCE at boot, BEFORE weston starts, chmoding the
+# directory to 0700. It's a precondition for VAIL; combined with WSL
+# 2.7.3+'s shared-memory handshake (provided wslservice on the
+# Windows host successfully exposes the Section object), this should
+# nudge weston past COPY MODE into native VAIL rendering.
+#
+# Note: this is a NECESSARY but not SUFFICIENT condition. Some
+# COPY MODE deployments persist due to host-side wslservice problems
+# that no Linux-side fix can address (per WSLg upstream issues #312,
+# #972, #982, #1278). When that's the case the warning disappears
+# but RAIL fallback stays -- diagnose via `WAYLAND_DEBUG=client
+# weston-info` on the host side.
+
+ConditionPathIsDirectory=/mnt/wslg/runtime-dir
+DefaultDependencies=no
+After=systemd-tmpfiles-setup.service
+Before=wslg-x11.service
+Before=wslg-wayland.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/chmod 0700 /mnt/wslg/runtime-dir
+ExecStart=/usr/bin/chown user:user /mnt/wslg/runtime-dir
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -63,19 +63,37 @@ _resolve_npm_globals() {
 }
 
 # Ensure npm prefix is a system path that's on $PATH for all users.
-# Default `npm -g` prefix on Fedora is /usr/local; we use /usr/local
-# so installed bins land at /usr/local/bin/ (which IS on PATH).
+# Default `npm -g` prefix on Fedora is /usr/local; install bins land
+# at /usr/local/bin/ which IS on PATH (in /etc/login.defs's PATH +
+# /etc/profile + /etc/skel default shells).
 mkdir -p /usr/local/lib/node_modules
 
-echo "  installing AI CLIs (npm -g) ..."
+# Force npm prefix explicitly so installed binstubs ALWAYS land in
+# /usr/local/bin (some NodeSource RPMs ship a per-user default of
+# ~/.npm-global which would put the binaries outside the operator's
+# default PATH).
+npm config set prefix /usr/local 2>/dev/null || true
+
+echo "  npm version: $(npm --version 2>/dev/null || echo NOT-INSTALLED)"
+echo "  node version: $(node --version 2>/dev/null || echo NOT-INSTALLED)"
+echo "  installing AI CLIs (npm -g, target prefix /usr/local) ..."
 _failed=0
 _resolve_npm_globals | while read -r pkg; do
     [ -z "$pkg" ] && continue
     echo "    -> $pkg"
-    if ! npm install -g --silent "$pkg" 2>&1 | tail -3; then
+    # NOT --silent so operator sees download progress / failure detail.
+    # Capture exit via process-subst-friendly form.
+    if npm install -g "$pkg" 2>&1 | tail -8; then
+        echo "      [ok] $pkg installed"
+    else
         echo "      [warn] failed: $pkg"
         _failed=$((_failed + 1))
     fi
 done
 
+echo
+echo "  installed binaries in /usr/local/bin:"
+ls -la /usr/local/bin/claude /usr/local/bin/gemini 2>/dev/null || echo "    (neither claude nor gemini found -- npm install above must have failed)"
+echo "  PATH (must include /usr/local/bin): $PATH"
+echo
 echo "  done.  Try: claude --version  /  gemini --version"

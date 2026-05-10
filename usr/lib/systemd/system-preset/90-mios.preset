@@ -3,6 +3,10 @@
 # mios-role.service enables/disables them at runtime based on role.conf.
 
 # --- Always-on core ---
+# WSLg-only: chmod /mnt/wslg/runtime-dir to 0700 BEFORE weston starts,
+# unblocking VAIL (shared-memory) mode. No-ops on non-WSLg
+# substrates via ConditionPathIsDirectory.
+enable mios-wslg-permissions-fix.service
 enable sshd.service
 enable NetworkManager.service
 enable podman.socket
