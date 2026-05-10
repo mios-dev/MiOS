@@ -17,3 +17,11 @@ enable mios-wsl-theme-bridge.service
 # only; bare-metal MiOS keeps the canonical gnome-session activation
 # path.
 enable mios-wsl-graphical-session.service
+
+# WSLg-only env-import precondition. graphical-session.service
+# Requires= this unit so the systemd-user environment carries
+# XDG_CURRENT_DESKTOP / WAYLAND_DISPLAY / DISPLAY / XDG_SESSION_TYPE
+# before xdg-desktop-portal-gnome activates -- otherwise the portal
+# frontend starts but rejects every dbus call from nautilus /
+# epiphany / gnome-software with NameHasNoOwner.
+enable mios-wsl-env-import.service

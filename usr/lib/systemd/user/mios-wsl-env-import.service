@@ -1,0 +1,34 @@
+[Unit]
+Description=MiOS: import WSLg env into systemd user-bus + dbus activation
+Documentation=https://github.com/mios-dev/MiOS
+Documentation=https://wiki.archlinux.org/title/XDG_Desktop_Portal
+
+# WSLg-only. xdg-desktop-portal-gnome (and most graphical-session.target
+# children) require XDG_CURRENT_DESKTOP / WAYLAND_DISPLAY / DISPLAY /
+# XDG_SESSION_TYPE to be present in the systemd user-bus environment.
+# WSLg sets them in the operator's login shell via /etc/profile.d/
+# wslg.sh + WSLENV, but they NEVER reach systemd-user automatically
+# (different env-passing path).
+#
+# Per Arch wiki XDG Desktop Portal + GNOME Discourse "Start a systemd
+# user service with graphical session in GNOME 40", the canonical
+# remediation is a oneshot that runs:
+#
+#   systemctl --user import-environment <vars...>
+#   dbus-update-activation-environment --systemd <vars...>
+#
+# at user-bus startup. After this, every dbus-activated service that
+# d-bus launches (including the portal frontends + backends) sees the
+# WSLg env.
+ConditionPathIsDirectory=/mnt/wslg
+DefaultDependencies=no
+After=basic.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user import-environment XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_RUNTIME_DIR PULSE_SERVER
+ExecStart=/usr/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_RUNTIME_DIR PULSE_SERVER
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

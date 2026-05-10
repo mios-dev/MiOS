@@ -1,35 +1,43 @@
 [Unit]
-Description=MiOS: activate graphical-session.target on WSLg
+Description=MiOS: pull in graphical-session.target on WSLg
 Documentation=https://github.com/mios-dev/MiOS
+Documentation=https://systemd.io/DESKTOP_ENVIRONMENTS/
 
 # WSLg-only. On bare-metal MiOS the GNOME session manager
 # (gnome-session.service) is the canonical activator of
-# graphical-session.target -- we don't want to fight that here. On
-# WSLg there is NO gnome-session (WSLg's compositor is the Wayland
-# server, NOT a GNOME shell), so graphical-session.target never
-# activates. Without the target active, every unit that
-# BindsTo=graphical-session.target / Requires=graphical-session.target
-# fails to start -- including xdg-desktop-portal-gnome.service,
-# which then cascades a "Dependency failed" to xdg-desktop-portal.
-# service, which then takes down nautilus / epiphany / gnome-software
-# / every flatpak that touches a portal.
+# graphical-session.target -- we don't want to fight that here.
+# On WSLg there is NO gnome-session (WSLg's compositor is the
+# Wayland server, NOT a GNOME shell), so graphical-session.target
+# never activates and every BindsTo=graphical-session.target unit
+# fails -- including xdg-desktop-portal-gnome -> a "Dependency
+# failed" cascade to xdg-desktop-portal -> nautilus / epiphany /
+# gnome-software / every flatpak that touches a portal break.
 #
-# Operator-confirmed 2026-05-10 via journalctl --user -u
-# xdg-desktop-portal: 60 lines of nothing but
-#     "Dependency failed for xdg-desktop-portal.service - Portal service"
-# `systemctl --user list-dependencies xdg-desktop-portal.service`
-# showed graphical-session.target marked O (inactive) while every
-# child of it (gvfs, flatpak-portal, xdg-document-portal, etc) was
-# marked active. Just the target itself was never started.
+# Canonical fix per upstream conventions (Sway/Hyprland model,
+# Arch waybar wiki, systemd.io/DESKTOP_ENVIRONMENTS): a oneshot
+# user unit with Wants=graphical-session.target and
+# WantedBy=default.target. Dependency-driven activation pulls in
+# graphical-session.target legitimately -- RefuseManualStart=yes
+# only blocks `systemctl start graphical-session.target`, not
+# Wants= dependency activation.
+#
+# Env-import precondition: xdg-desktop-portal-gnome refuses to
+# operate without XDG_CURRENT_DESKTOP / WAYLAND_DISPLAY /
+# DISPLAY / XDG_SESSION_TYPE in the systemd-user environment.
+# WSLg sets them in the login shell only, so we run
+# mios-wsl-env-import.service first to push them into systemd
+# user-bus + dbus activation environment.
 ConditionPathIsDirectory=/mnt/wslg
 DefaultDependencies=no
 After=basic.target
+After=mios-wsl-env-import.service
+Requires=mios-wsl-env-import.service
+Wants=graphical-session.target
+After=graphical-session.target
 
 [Service]
 Type=oneshot
-# --no-block so we don't deadlock on the target's own startup
-# (the target's units are concurrently activating).
-ExecStart=/usr/bin/systemctl --user --no-block start graphical-session.target
+ExecStart=/bin/true
 RemainAfterExit=yes
 
 [Install]
