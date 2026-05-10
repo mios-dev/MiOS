@@ -37,8 +37,18 @@ Type=oneshot
 # ConditionEnvironment=XDG_SESSION_CLASS=user".  Force-setting it
 # here unblocks the whole chain.
 ExecStart=/usr/bin/systemctl --user set-environment XDG_SESSION_CLASS=user
-ExecStart=/usr/bin/systemctl --user import-environment XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_SESSION_CLASS XDG_RUNTIME_DIR PULSE_SERVER
-ExecStart=/usr/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_SESSION_CLASS XDG_RUNTIME_DIR PULSE_SERVER
+# XDG_DATA_DIRS must include flatpak's exports/share dirs so WSLg's
+# app-list-monitor sees the flatpak .desktop files and registers them
+# as native Windows Start Menu entries via the RDP-RAIL bridge.
+# Without this, only system /usr/share/applications/*.desktop are
+# discovered -- every installed flatpak (Epiphany, Nautilus, gnome-
+# software, etc.) is invisible to Windows. Operator-flagged
+# 2026-05-10 "flatpak apps no longer showing in windows as native apps."
+# Order: ~/.local first (per-user installs), then /var/lib (system-wide
+# installs), then standard /usr/local/share + /usr/share.
+ExecStart=/usr/bin/systemctl --user set-environment XDG_DATA_DIRS=/var/home/mios/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
+ExecStart=/usr/bin/systemctl --user import-environment XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_SESSION_CLASS XDG_DATA_DIRS XDG_RUNTIME_DIR PULSE_SERVER
+ExecStart=/usr/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP WAYLAND_DISPLAY DISPLAY XDG_SESSION_TYPE XDG_SESSION_CLASS XDG_DATA_DIRS XDG_RUNTIME_DIR PULSE_SERVER
 RemainAfterExit=yes
 
 [Install]
