@@ -1,0 +1,26 @@
+# /etc/dconf/db/local.d/00-mios-theme
+#
+# MiOS canonical GNOME / GTK theming defaults. Applied at every
+# user-bus login via dconf's system-db cascade -- operator sees
+# adw-gtk3-dark + prefer-dark color scheme on first launch of any
+# GTK app without having to gsettings-set it themselves.
+#
+# Operator-overridable per-user (gsettings set ... or the GNOME
+# Tweaks UI). System defaults here only take effect when the
+# user-db doesn't have a key set.
+#
+# /etc/dconf/profile/user (ships alongside this file) wires the
+# local system-db into the user dconf profile cascade.
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+gtk-theme='adw-gtk3-dark'
+icon-theme='Adwaita'
+cursor-theme='Adwaita'
+font-name='Adwaita Sans 11'
+monospace-font-name='GeistMono Nerd Font Mono 10'
+document-font-name='Adwaita Sans 11'
+
+[org/gnome/desktop/wm/preferences]
+theme='adw-gtk3-dark'
+button-layout='appmenu:minimize,maximize,close'

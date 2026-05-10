@@ -161,6 +161,16 @@ etc/fapolicyd/*
 !/etc/systemd/user/**/
 !/etc/systemd/user/**/10-mios-*.conf
 
+# /etc/dconf/ -- system-wide GNOME / GTK defaults (color scheme,
+# gtk-theme, icon-theme, fonts). Cascade applied to every user-bus
+# at login; operator overrides per-user via gsettings / Tweaks.
+!/etc/dconf/
+!/etc/dconf/db/
+!/etc/dconf/db/local.d/
+!/etc/dconf/db/local.d/*
+!/etc/dconf/profile/
+!/etc/dconf/profile/*
+
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
 !/etc/mios/
