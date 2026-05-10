@@ -432,7 +432,12 @@ flatpaks      = [
     "org.gnome.Epiphany",
     "org.gnome.Nautilus",
     "com.github.tchx84.Flatseal",
-    "org.gnome.Software",
+    # NOTE: org.gnome.Software was previously listed here but Flathub
+    # returns "Nothing matches org.gnome.Software in remote flathub" as
+    # of 2026-05 -- it appears to have been delisted or moved to a
+    # different ID. Operators who want a Flatpak app-browser UI can add
+    # one back via mios.html (e.g. "io.github.flattool.Warehouse" /
+    # "com.github.tchx84.Flatseal" already covers permissions).
     "com.mattjakeman.ExtensionManager",
     "com.vscodium.codium",
 ]
@@ -662,7 +667,7 @@ sections = [
     "base", "security", "utils", "build-toolchain", "containers",
     "cockpit", "storage", "virt", "guests",
     "gpu-mesa", "gpu-nvidia", "gpu-amd-compute", "gpu-intel-compute",
-    "gnome", "phosh",
+    "gnome", "gnome-core-apps", "phosh",
     "ai", "k3s", "k3s-selinux-build", "cockpit-plugins-build",
     "sbom-tools", "uki", "self-build", "network-discovery", "updater",
     "wintools", "gaming", "steam", "nut", "ceph", "freeipa", "ha",
@@ -936,6 +941,13 @@ pkgs = [
 [packages.gnome-core-apps]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
+    # GNOME Software ships from Fedora repos as an RPM, NOT from Flathub.
+    # The Flathub `org.gnome.Software` ID returns "Nothing matches" as
+    # of 2026-05 -- delisted/renamed. dnf-installed gnome-software still
+    # surfaces Flathub apps (and any other configured remote) via its
+    # PackageKit + flatpak plugins, so the operator-facing UX is the
+    # same; just the install channel is the Fedora vendor.
+    "gnome-software",
 ]
 
 [packages.gpu-mesa]

@@ -1,19 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "version": 4,
-  "//final_space": "true: reserves 1 trailing cell. Combined with the 6-NBSP trailing spacer in the right block, gives 7 cells of total trailing buffer = mios.toml [terminal].right_margin (5) + 1 ANSI-cursor-positioning slack + 1 final_space gutter. mios.toml line 1655 is the SSOT for this calc: 'oh-my-posh aligns via ANSI cursor positioning rather than character-by-character output, so it needs +1 over the toml margin to prevent the powerline time chars from hitting the same edge that auto-wraps Write-Host.' Without this stack, the trailing time char ends up at the gutter cell which WT wraps to col 0 of the next line ('powerline seconds rolling over to the left under the second-line ❯').",
   "final_space": false,
   "//": [
     "MiOS Oh-My-Posh theme.",
-    "All Nerd Font private-use-area glyphs are encoded as JSON \\uXXXX",
-    "escape sequences (json.dump ensure_ascii=True) so the file roundtrips",
-    "through any editor/git/sync layer without losing the U+E000..F8FF",
-    "code points -- write-tool sanitizers strip raw PUA chars on save.",
-    "Palette: mios.toml [colors] (Hokusai + operator neutrals).",
-    "MiOS-owned segments use the MiOS palette; language segments keep",
-    "brand colors so Node-green / Python-blue+yellow / Rust-orange stay",
-    "instantly recognizable. Squared Powerline arrows only -- rounded",
-    "caps (E0B4 / E0B6) dropped for cross-terminal compat."
+    "DETERMINISTIC TWO-LINE LAYOUT (2026-05-10 redesign): the prior",
+    "left+right alignment scheme overflowed to a 3rd line on 80x20",
+    "terminals because oh-my-posh's right-block alignment math saw",
+    "the trailing 6-NBSP buffer + right_margin as part of the right",
+    "block's render width and triggered an early wrap. Operator-",
+    "reported as 'powerlines wrap incorrectly' with screenshot.",
+    "",
+    "New layout:",
+    "  Line 1 (block 1): leader cap + shell + path + git + exectime",
+    "                    + WSL/OS indicator + HH:MM time, all packed",
+    "                    LEFT-aligned -- no right alignment, no",
+    "                    cross-block math, no wrap risk.",
+    "  Line 2 (block 2): closer cap + chevron prompt arrow.",
+    "",
+    "All segments still pull glyphs from mios.toml [theme.prompt]",
+    "via the post-install template substitution in",
+    "Install-MiOSOhMyPoshTheme. Palette: mios.toml [colors] (Hokusai +",
+    "operator neutrals). Language segments (node/python/go/rust/dotnet)",
+    "and conditional infrastructure segments (kubectl/aws/battery)",
+    "removed -- they pollute the line and rarely render meaningfully",
+    "on the dev VM. Operators who need them can add via mios.html."
   ],
   "blocks": [
     {
@@ -21,7 +32,7 @@
       "alignment": "left",
       "segments": [
         {
-          "//": "Leading prompt prefix -- box-drawing chars (U+256D/U+2500) which are guaranteed to render in any monospace font. The U+E0B6 rounded-cap PUA approach we tried earlier was unreliable on the operator's GeistMono Nerd Font Mono build -- the cap glyph never surfaced, leaving cols 0-2 blank. Box-drawing fallback in subtle blue (#B7C9D7) reads as a soft corner that hands off into the following powerline shell segment.",
+          "//": "Leading prompt cap. Box-drawing chars (U+256D / U+2500) are guaranteed in any monospace font; the U+E0B6 rounded-cap PUA approach we tried in v1 was unreliable on operator's GeistMono Nerd Font Mono build (cap glyph never surfaced, leaving cols 0-2 blank).",
           "type": "text",
           "style": "plain",
           "foreground": "#B7C9D7",
@@ -30,37 +41,37 @@
         {
           "type": "shell",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#1A407F",
           "foreground": "#E7DFD3",
-          "template": "  {{ .Name }} "
+          "template": "  {{ .Name }} "
         },
         {
           "type": "root",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#DC271B",
           "foreground": "#F35C15",
-          "template": "  "
+          "template": "  "
         },
         {
           "type": "path",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#F35C15",
           "foreground": "#282262",
           "properties": {
-            "folder_icon": "  ",
-            "home_icon": "",
+            "folder_icon": "  ",
+            "home_icon": "",
             "style": "agnoster_short",
             "max_depth": 3
           },
-          "template": "  {{ .Path }} "
+          "template": "  {{ .Path }} "
         },
         {
           "type": "git",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#3E7765",
           "background_templates": [
             "{{ if or (.Working.Changed) (.Staging.Changed) }}#F35C15{{ end }}",
@@ -70,154 +81,48 @@
           ],
           "foreground": "#282262",
           "properties": {
-            "branch_icon": " ",
+            "branch_icon": " ",
             "fetch_status": true,
             "fetch_upstream_icon": true
           },
-          "template": "  {{ .UpstreamIcon }}{{ .HEAD }}{{ if .BranchStatus }} {{ .BranchStatus }}{{ end }}{{ if .Working.Changed }} ✎{{ .Working.String }}{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Staging.Changed }}<#DC271B> +{{ .Staging.String }}</>{{ end }} "
+          "template": "  {{ .UpstreamIcon }}{{ .HEAD }}{{ if .BranchStatus }} {{ .BranchStatus }}{{ end }}{{ if .Working.Changed }} ✎{{ .Working.String }}{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Staging.Changed }}<#DC271B> +{{ .Staging.String }}</>{{ end }} "
         },
         {
           "type": "executiontime",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#948E8E",
           "foreground": "#282262",
           "properties": {
             "style": "roundrock",
             "threshold": 0
           },
-          "template": "  {{ .FormattedMs }} "
-        }
-      ]
-    },
-    {
-      "type": "prompt",
-      "alignment": "right",
-      "segments": [
-        {
-          "type": "node",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#303030",
-          "foreground": "#3C873A",
-          "properties": {
-            "display_mode": "files",
-            "fetch_package_manager": true,
-            "npm_icon": " <#cc3a3a></> ",
-            "yarn_icon": " <#348cba></>"
-          },
-          "template": "  {{ if .PackageManagerIcon }}{{ .PackageManagerIcon }} {{ end }}{{ .Full }} "
+          "template": "  {{ .FormattedMs }} "
         },
         {
-          "type": "python",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#306998",
-          "foreground": "#FFE873",
-          "properties": { "display_mode": "files" },
-          "template": "  {{ if .Error }}{{ .Error }}{{ else }}{{ if .Venv }}{{ .Venv }} {{ end }}{{ .Full }}{{ end }} "
-        },
-        {
-          "type": "go",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#E7DFD3",
-          "foreground": "#06aad5",
-          "properties": { "display_mode": "files" },
-          "template": "  {{ if .Error }}{{ .Error }}{{ else }}{{ .Full }}{{ end }} "
-        },
-        {
-          "type": "rust",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#E7DFD3",
-          "foreground": "#925837",
-          "properties": { "display_mode": "files" },
-          "template": "  {{ if .Error }}{{ .Error }}{{ else }}{{ .Full }}{{ end }} "
-        },
-        {
-          "type": "dotnet",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#0e0e0e",
-          "foreground": "#0d6da8",
-          "properties": { "display_mode": "files" },
-          "template": "  {{ if .Unsupported }}{{ else }}{{ .Full }}{{ end }} "
-        },
-        {
-          "type": "kubectl",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#1A407F",
-          "foreground": "#E7DFD3",
-          "template": "  {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }} "
-        },
-        {
-          "type": "aws",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#565656",
-          "foreground": "#F35C15",
-          "template": "  {{ .Profile }}{{ if .Region }}@{{ .Region }}{{ end }} "
-        },
-        {
+          "//": "Compact OS indicator -- just the platform glyph, no 'WSL at' prose. Saves cells; the framed dashboard already names the host kind explicitly.",
           "type": "os",
           "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#B7C9D7",
           "foreground": "#282262",
           "properties": {
-            "linux": "",
-            "macos": "",
-            "windows": ""
+            "linux": "",
+            "macos": "",
+            "windows": ""
           },
-          "template": " {{ if .WSL }}WSL at {{ end }}{{ .Icon }} "
+          "template": " {{ .Icon }} "
         },
         {
-          "type": "battery",
-          "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
-          "background": "#F35C15",
-          "background_templates": [
-            "{{ if eq \"Charging\" .State.String }}#3E7765{{ end }}",
-            "{{ if eq \"Discharging\" .State.String }}#F35C15{{ end }}",
-            "{{ if eq \"Full\" .State.String }}#3E7765{{ end }}"
-          ],
-          "foreground": "#282262",
-          "properties": {
-            "charged_icon": " ",
-            "charging_icon": " ",
-            "discharging_icon": " "
-          },
-          "template": " {{ if not .Error }}{{ .Icon }}{{ .Percentage }}{{ end }}{{ .Error }}  "
-        },
-        {
-          "//": "Compacted: dropped day-of-month prefix (`_2,`) and the clock icon U+F073. Time-only HH:MM keeps the right block visually small so it doesn't crowd the dashboard frame above. Operator-tunable via mios.toml [theme.prompt] -- but the format string is omp.json-internal so a future SSOT lift would be needed for runtime override.",
           "type": "time",
           "style": "powerline",
-          "invert_powerline": true,
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#1A407F",
           "foreground": "#E7DFD3",
           "properties": {
             "time_format": "15:04"
           },
           "template": " {{ .CurrentDate | date .Format }} "
-        },
-        {
-          "//": "Trailing spacer -- 6 NBSPs (U+00A0). SSOT: mios.toml [terminal].right_margin=5 + 1 ANSI-cursor-positioning slack = 6. Total trailing buffer is 6 NBSPs + final_space (1) = 7 cells, which absorbs WT pseudo-console chrome (~3 cells: scrollbar gutter + acrylic blur + sub-pixel rounding) + invert_powerline cap over-render (1 cell) + visible-edge safety. 2026-05-09 operator screenshot at 10:02 with only 4 NBSPs: time fit cleanly at right but a 1-cell phantom blue rectangle appeared at col 0 of the second prompt line, just left of the entry field corner -- that was the right block last invert_powerline cap wrapping past the buffer to col 0 of the next row. Bumping to 6 NBSPs absorbs the cap. NBSPs not regular spaces because oh-my-posh strips trailing all-whitespace text segments before alignment math.",
-          "type": "text",
-          "style": "plain",
-          "template": " "
         }
       ]
     },
@@ -227,7 +132,7 @@
       "newline": true,
       "segments": [
         {
-          "//": "Second-line prompt -- combined ╰─ ❯ into one segment so oh-my-posh doesn't run inter-segment cursor-positioning between the corner cap and the arrow. Operator 2026-05-09: '>' chevron 'down a row from where it should' -- the row gap was the dark green #3E7765 corner being washed out against the operator's acrylic dark wallpaper, NOT an extra newline.  Switched to #B7C9D7 (subtle pale blue-grey) which matches the `╭─` leading cap color for visual symmetry, and stays readable on every wallpaper.  status segment still reacts to .Code -- error path tints the whole `╰─ ❯` red.",
+          "//": "Closer cap + prompt arrow. Status-tinted: tints the whole `╰─ ❯` red on non-zero exit code (.Code > 0), pale-blue otherwise (matches the leading `╭─` cap for visual symmetry).",
           "type": "status",
           "style": "plain",
           "foreground": "#B7C9D7",
