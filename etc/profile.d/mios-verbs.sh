@@ -21,12 +21,45 @@
 
 mios() {
     case "${1:-help}" in
+        mini)
+            shift
+            # MINI dashboard -- compact framed banner + fastfetch row
+            # set, fits inside the 80x20 portal. Auto-fired on every
+            # interactive shell spawn via /etc/profile.d/zz-mios-motd.sh
+            # which dispatches the verb declared in
+            # mios.toml [terminal.startup].linux (vendor default = mini).
+            # Operator 2026-05-10: "have launch be the mini-dashboard
+            # ... NOT PRINT ON LAUNCH" -- the dotfile fires this verb,
+            # the verb's command output is what renders.
+            local _dash=""
+            for _c in /usr/libexec/mios/mios-dashboard.sh \
+                      /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
+                [[ -x "$_c" ]] && { _dash="$_c"; break; }
+            done
+            if [[ -n "$_dash" ]]; then
+                # Force compact + skip services to stay inside 80x20.
+                MIOS_DASH_SERVICES=0 "$_dash" "$@"
+            else
+                echo "mios mini: mios-dashboard.sh not found" >&2
+                return 127
+            fi
+            ;;
         dash|dashboard)
             shift
-            if [[ -x /usr/libexec/mios/mios-dashboard.sh ]]; then
-                /usr/libexec/mios/mios-dashboard.sh "$@"
-            elif [[ -x /mnt/m/usr/libexec/mios/mios-dashboard.sh ]]; then
-                /mnt/m/usr/libexec/mios/mios-dashboard.sh "$@"
+            # FULL dashboard -- ASCII banner + fastfetch + Quadlet
+            # service status + git/working-tree state + endpoint
+            # health. Operator-triggered explicitly; doesn't fit in
+            # 80x20 so NOT auto-fired on shell spawn.
+            local _dash=""
+            for _c in /usr/libexec/mios/mios-dashboard.sh \
+                      /mnt/m/usr/libexec/mios/mios-dashboard.sh; do
+                [[ -x "$_c" ]] && { _dash="$_c"; break; }
+            done
+            if [[ -n "$_dash" ]]; then
+                # Force the full path: services block + non-compact
+                # ASCII banner + extended sys info. mios-dashboard.sh
+                # already supports this via env toggles.
+                MIOS_DASH_SERVICES=1 MIOS_COMPACT=0 "$_dash" "$@"
             else
                 echo "mios dash: mios-dashboard.sh not found" >&2
                 return 127
@@ -85,7 +118,8 @@ mios() {
             cat <<'EOH'
 
   MiOS verbs (inside MiOS-DEV):
-    mios dash    -- show the MiOS dashboard (framed banner + fastfetch)
+    mios mini    -- compact 80x20 framed banner + fastfetch (auto on shell spawn)
+    mios dash    -- FULL dashboard: ASCII banner + services + extended sys specs
     mios build   -- run /usr/libexec/mios/mios-build-driver (OCI image build)
     mios config  -- launch the configurator (mios.html in default browser)
     mios dev     -- nested bash session (you're already in MiOS-DEV)
