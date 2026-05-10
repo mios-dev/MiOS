@@ -39,6 +39,24 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export DISPLAY="${DISPLAY:-:0}"
 export PULSE_SERVER="${PULSE_SERVER:-/mnt/wslg/PulseServer}"
 
+# XDG_CURRENT_DESKTOP -- picks which xdg-desktop-portal backend will be
+# used. Without it, the portal frontend (org.freedesktop.portal.Desktop)
+# starts but can't find a "preferred portal" matching the desktop, the
+# backend selection fails, and the dbus-activation aborts with:
+#     "Could not activate remote peer 'org.freedesktop.portal.Desktop':
+#      startup job failed"
+# which then takes down nautilus / epiphany / every flatpak that hits a
+# portal. The var IS already in /usr/lib/environment.d/50-mios.conf, but
+# environment.d is read by `systemd --user` only -- pam_systemd is
+# supposed to bridge it into bash logins, on WSL2 that bridge breaks
+# (logind is ConditionVirtualization=!wsl-gated, so pam_systemd never
+# runs). Operator-confirmed 2026-05-10 via diagnostic capture: env|grep
+# XDG_ inside dev VM bash showed XDG_CURRENT_DESKTOP unset.
+# Setting it here makes it available to every interactive bash, every
+# flatpak the operator launches, and (transitively) to xdg-desktop-portal
+# when the user's D-Bus session activates it.
+export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-GNOME}"
+
 # DBUS_SESSION_BUS_ADDRESS: pam_systemd would normally set this to the
 # user@$UID.service bus socket on a real login. WSL's `wsl -u root` ->
 # `su - mios` chain bypasses PAM so the var is unset. libportal then
