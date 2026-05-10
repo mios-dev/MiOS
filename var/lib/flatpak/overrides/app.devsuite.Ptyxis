@@ -1,6 +1,10 @@
+[Context]
+filesystems=xdg-config/dconf:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
+
 [Environment]
 GSK_RENDERER=cairo
 LIBGL_ALWAYS_SOFTWARE=1
 GALLIUM_DRIVER=llvmpipe
 LIBGL_KOPPER_DISABLE=1
+WEBKIT_DISABLE_COMPOSITING_MODE=1
 ADW_DEBUG_COLOR_SCHEME=force-dark

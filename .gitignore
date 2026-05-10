@@ -171,6 +171,18 @@ etc/fapolicyd/*
 !/etc/dconf/profile/
 !/etc/dconf/profile/*
 
+# /etc/skel/ -- default home contents copied to every new user.
+# GTK3/GTK4 settings.ini under .config/ ensures fresh accounts boot
+# with adw-gtk3-dark + prefer-dark before any gsettings/dconf calls
+# need to happen. Flatpak apps read these settings via their
+# xdg-config/gtk-{3,4}.0 filesystem overrides.
+!/etc/skel/
+!/etc/skel/.config/
+!/etc/skel/.config/gtk-3.0/
+!/etc/skel/.config/gtk-3.0/*
+!/etc/skel/.config/gtk-4.0/
+!/etc/skel/.config/gtk-4.0/*
+
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
 !/etc/mios/
