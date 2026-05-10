@@ -74,6 +74,24 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 # XWayland at /tmp/.X11-unix/X0 -- ensure DISPLAY points there.
 export DISPLAY="${DISPLAY:-:0}"
 
+# ── GTK / Qt scaling on 4K Windows hosts ──────────────────────────
+# Operator-flagged 2026-05-10: "gnome scaling of apps is probably
+# 25% too big relative to windows application windows". WSLg
+# inherits the Windows host's effective DPI scale (typically
+# 1.25 / 1.5 on high-DPI laptops). Linux GTK apps then render at
+# that scale on top of WSLg's own scale -> apps end up ~25% larger
+# than the Windows-native UI they sit next to.
+#
+# Fix: GDK_DPI_SCALE=0.75 (fractional, scales DOWN by 25%). GDK
+# applies this AFTER GDK_SCALE (which is integer-only), so the
+# net effect at GDK_SCALE=1 + GDK_DPI_SCALE=0.75 is rendering at
+# 75% of native. Operators on standard-DPI hosts can override
+# to 1.0 via shell export or ~/.config/environment.d/.
+export GDK_DPI_SCALE="${GDK_DPI_SCALE:-0.75}"
+# Qt apps (eventual Plasma/KDE GUI) honor the same intent via
+# the QT_FONT_DPI knob -- 72 = 75% of the default 96.
+export QT_FONT_DPI="${QT_FONT_DPI:-72}"
+
 # ── Vulkan ICD ──────────────────────────────────────────────────
 # WSLg ships dzn at /usr/share/vulkan/icd.d/dzn_icd.x86_64.json.
 # We don't unset it -- apps that explicitly request Vulkan can
