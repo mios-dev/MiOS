@@ -5,3 +5,15 @@
 # itself keeps it inert on non-WSL deployments, so enabling it here is
 # safe across every MiOS shape.
 enable mios-wsl-theme-bridge.service
+
+# WSLg-only graphical-session.target activator. Without this, the
+# user-systemd graphical-session.target stays INACTIVE because no
+# gnome-session.service exists to pull it in -- which then fails
+# every BindsTo=graphical-session.target unit (xdg-desktop-portal-
+# gnome and friends), which then cascades dependency failures to
+# xdg-desktop-portal frontend, which then takes down every flatpak
+# that touches a portal (nautilus / epiphany / gnome-software).
+# ConditionPathIsDirectory=/mnt/wslg on the unit gates it to WSLg
+# only; bare-metal MiOS keeps the canonical gnome-session activation
+# path.
+enable mios-wsl-graphical-session.service

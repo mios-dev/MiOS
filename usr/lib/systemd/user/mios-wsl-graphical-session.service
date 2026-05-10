@@ -1,0 +1,36 @@
+[Unit]
+Description=MiOS: activate graphical-session.target on WSLg
+Documentation=https://github.com/mios-dev/MiOS
+
+# WSLg-only. On bare-metal MiOS the GNOME session manager
+# (gnome-session.service) is the canonical activator of
+# graphical-session.target -- we don't want to fight that here. On
+# WSLg there is NO gnome-session (WSLg's compositor is the Wayland
+# server, NOT a GNOME shell), so graphical-session.target never
+# activates. Without the target active, every unit that
+# BindsTo=graphical-session.target / Requires=graphical-session.target
+# fails to start -- including xdg-desktop-portal-gnome.service,
+# which then cascades a "Dependency failed" to xdg-desktop-portal.
+# service, which then takes down nautilus / epiphany / gnome-software
+# / every flatpak that touches a portal.
+#
+# Operator-confirmed 2026-05-10 via journalctl --user -u
+# xdg-desktop-portal: 60 lines of nothing but
+#     "Dependency failed for xdg-desktop-portal.service - Portal service"
+# `systemctl --user list-dependencies xdg-desktop-portal.service`
+# showed graphical-session.target marked O (inactive) while every
+# child of it (gvfs, flatpak-portal, xdg-document-portal, etc) was
+# marked active. Just the target itself was never started.
+ConditionPathIsDirectory=/mnt/wslg
+DefaultDependencies=no
+After=basic.target
+
+[Service]
+Type=oneshot
+# --no-block so we don't deadlock on the target's own startup
+# (the target's units are concurrently activating).
+ExecStart=/usr/bin/systemctl --user --no-block start graphical-session.target
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
