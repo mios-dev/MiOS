@@ -1807,6 +1807,28 @@ right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-
                               # to 0 matches mios-bootstrap/mios.toml (UNIFIED).
 
 # ----------------------------------------------------------------------------
+# [terminal.gui_min] -- minimum size for WSLg-hosted GUI app windows.
+# Read by M:\MiOS\bin\mios-gui-watch.ps1 (Windows side). The daemon
+# polls msrdc.exe processes and auto-resizes any newly-spawned RDP-RAIL
+# window smaller than these dims to exactly these dims, centered on
+# the cursor monitor.
+#
+# Operator 2026-05-10: GUI apps on WSLg spawn at native X11/GTK
+# default sizes (xeyes 129x113, nautilus 942x649, gnome-software
+# 714x486) which look invisible on a 4K display against acrylic
+# terminals. Vendor default 1600x1000 covers ~55% of a 2926x1646
+# work area -- comfortable to read + manage without dominating
+# the desktop.
+#
+# Once a window is auto-adopted (resized once) the operator can
+# drag/resize freely; the daemon only touches each window's initial
+# spawn frame.
+# ----------------------------------------------------------------------------
+[terminal.gui_min]
+width               = 1600
+height              = 1000
+
+# ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install
 # output / readme / acknowledgements / Pass-1 + Pass-2 logs fit without
 # scrolling). The post-install MiOS app uses [terminal] above (80x20

@@ -38,29 +38,35 @@ if [ "${MIOS_GPU_SOFTWARE:-0}" = "1" ]; then
 fi
 
 # ── Mesa / GL ────────────────────────────────────────────────────
-# d3d12 = the Mesa Gallium driver that targets WSLg's WDDM via
-# /dev/dxg. Far more reliable than dzn (Vulkan) for typical GTK
-# workloads. The MESA_LOADER override forces Mesa's loader to
-# pick the d3d12 driver even when its auto-detection fails (which
-# it does on WSLg because /dev/dri/* devices don't exist).
-export GALLIUM_DRIVER="${GALLIUM_DRIVER:-d3d12}"
-export MESA_LOADER_DRIVER_OVERRIDE="${MESA_LOADER_DRIVER_OVERRIDE:-d3d12}"
 # Mesa-25+ replaced the old DRI2 path with Kopper for X-on-Vulkan;
-# Kopper on WSLg goes through Zink which goes through dzn -- so
-# disable Kopper to keep GL apps on the d3d12 path.
+# Kopper on WSLg goes through Zink which goes through dzn (broken
+# for many GTK4 features) -- disable Kopper unconditionally to
+# keep apps off the Zink path. This alone is non-destructive.
 export LIBGL_KOPPER_DISABLE="${LIBGL_KOPPER_DISABLE:-1}"
 
-# ── GTK4 ─────────────────────────────────────────────────────────
-# GTK4's default GSK_RENDERER on >= 4.14 is "ngl" (preferring
-# Vulkan). On WSLg with dzn broken that renders to a 0x0 surface.
-# Force "gl" (the OpenGL renderer that uses GALLIUM_DRIVER=d3d12
-# above). "cairo" is the software fallback if d3d12 also fails.
-export GSK_RENDERER="${GSK_RENDERER:-gl}"
+# d3d12 Gallium driver targets WSLg's WDDM via /dev/dxg.
+# Operator-tested 2026-05-10: forcing GALLIUM_DRIVER=d3d12 +
+# GSK_RENDERER=gl made GTK4 apps spawn windows but they crashed
+# shortly after on GLib G_IS_OBJECT assertions (Zink / dzn
+# inconsistency in the GTK4 GL renderer's surface handling).
+# Defaulting to MESA's auto-detection has proved more stable --
+# the loader picks llvmpipe (CPU) when no real GPU surfaces, and
+# GTK4's NGL renderer falls back to its own GL implementation.
+# Operators on hosts where d3d12 IS reliable can opt back in:
+#   export GALLIUM_DRIVER=d3d12
+#   export MESA_LOADER_DRIVER_OVERRIDE=d3d12
+#   export GSK_RENDERER=gl
+
+# ── GTK4 / GSK ───────────────────────────────────────────────────
+# Don't force GSK_RENDERER -- let GTK4 auto-detect. On WSLg with
+# Mesa 25 the auto path picks NGL which works for most apps.
+# When NGL fails (operator sees app-crash-shortly-after-spawn),
+# flip to MIOS_GPU_SOFTWARE=1 (block above) for cairo + llvmpipe.
 
 # ── WebKit (Epiphany / GNOME-Web) ───────────────────────────────
-# WebKit's accelerated compositing path tries Vulkan first too.
-# Disabling AC mode keeps WebKit on the GL path which honors
-# GALLIUM_DRIVER=d3d12.
+# WebKit-on-WSLg works best with hardware compositing disabled --
+# the dzn path can't reliably back WebKit's compositing layers.
+# Operators with a stable hardware path can unset to re-enable.
 export WEBKIT_DISABLE_COMPOSITING_MODE="${WEBKIT_DISABLE_COMPOSITING_MODE:-1}"
 
 # ── Wayland defaults ─────────────────────────────────────────────
