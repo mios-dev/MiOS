@@ -74,8 +74,22 @@ _log() { echo "[mios-build-driver] $*" | tee -a "$LOG_FILE"; }
 _fail() { _log "FATAL: $*"; exit 1; }
 
 # ── Pre-flight ───────────────────────────────────────────────────────────────
-WORKDIR="${MIOS_BUILD_WORKDIR:-/var/lib/mios/build}"
-mkdir -p "$WORKDIR"
+# WORKDIR follows the same root-vs-user split the LOG_DIR section above
+# uses: root invocations get the canonical /var/lib/mios/build (FHS),
+# non-root land under $XDG_STATE_HOME so `mkdir -p` doesn't fail with
+# "Permission denied" -- which was killing the driver under `set -euo
+# pipefail` before it printed anything useful (regression caught by
+# operator 2026-05-09: build chained from Windows-side auto-build,
+# handed off as user `mios`, died at this mkdir).
+if [[ -n "${MIOS_BUILD_WORKDIR:-}" ]]; then
+    WORKDIR="${MIOS_BUILD_WORKDIR}"
+elif [[ "$(id -u)" -eq 0 ]]; then
+    WORKDIR="/var/lib/mios/build"
+else
+    _state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
+    WORKDIR="${_state_root}/mios/build"
+fi
+mkdir -p "$WORKDIR" 2>/dev/null || _fail "mkdir $WORKDIR failed (uid=$(id -u))"
 
 # Resolve the MiOS repo location. Three candidates in priority order:
 #   1. /.git -- live working tree (canonical when running on a real
