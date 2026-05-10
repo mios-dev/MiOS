@@ -129,9 +129,39 @@ _mios_toml_value() {
 }
 _mios_cols=$(_mios_toml_value "terminal" "cols" "80")
 _mios_rmgn=$(_mios_toml_value "terminal" "right_margin" "0")
-WIDTH=$(( _mios_cols - _mios_rmgn ))
-(( WIDTH < 20 )) && WIDTH=80     # safety floor: malformed TOML / negative math
+_mios_rows=$(_mios_toml_value "terminal" "rows" "20")
+# Operator 2026-05-09: dashboard inside MiOS-DEV (WSL bash) was rendering
+# 80-wide but visible window only ~75 cells -> right edge cut off. Plus
+# image #22: full ASCII logo overflows window vertically. Operator's
+# benchmark: "full framed dash and 1 line of the prompt visible".
+# Strategy: read LIVE tput cols/lines (actual paintable cells) over TOML
+# values. TOML acts as fallback when tput fails. WIDTH = tput_cols -
+# right_margin. AVAIL_ROWS = tput_lines - 1 (reserve 1 row for the
+# prompt line). Logo render decision and content budget below honor
+# AVAIL_ROWS so the dashboard always fits.
+_term_cols=$(tput cols 2>/dev/null || true)
+_term_rows=$(tput lines 2>/dev/null || true)
+if [[ -n "$_term_cols" ]] && (( _term_cols > 0 )); then
+    WIDTH=$(( _term_cols - _mios_rmgn ))
+else
+    WIDTH=$(( _mios_cols - _mios_rmgn ))
+fi
+(( WIDTH < 20 )) && WIDTH=80     # safety floor
 INNER=$((WIDTH - 4))
+if [[ -n "$_term_rows" ]] && (( _term_rows > 0 )); then
+    AVAIL_ROWS=$(( _term_rows - 1 ))    # reserve 1 row for prompt
+else
+    AVAIL_ROWS=$(( _mios_rows - 1 ))
+fi
+(( AVAIL_ROWS < 6 )) && AVAIL_ROWS=18    # safety floor: too small to render
+# Compact mode = drop the multi-row ASCII logo when window can't fit it
+# AND the framed banner + system info + prompt. Logo is ~12 rows;
+# system info is 5 rows; framing + dividers add ~5; total ~22.
+# AVAIL_ROWS < 22 triggers compact mode (no logo).
+MIOS_COMPACT=1
+if (( AVAIL_ROWS >= 22 )); then
+    MIOS_COMPACT=0
+fi
 
 # Identity from install.env (written by mios-bootstrap at install time).
 # install.env is sourced FIRST so MIOS_USER lands in env, then we fall
@@ -659,8 +689,14 @@ case "$MODE" in
             # the verbose fastfetch + services + loop-hint render
             # (one metric per row, no [dashboard].rows).
             frame_top
-            print_ascii_header | frame_filter
-            frame_divide
+            # Operator 2026-05-09 image #22 benchmark: "full framed dash
+            # AND 1 line of the prompt visible". Skip the ~12-row ASCII
+            # logo + its divider in compact mode (window too short to
+            # fit logo + framed banner + system info + prompt).
+            if (( MIOS_COMPACT == 0 )); then
+                print_ascii_header | frame_filter
+                frame_divide
+            fi
             { print_title; } | frame_filter
             frame_divide
             if [[ "${MIOS_DASH_LEGACY:-0}" == "1" ]]; then
