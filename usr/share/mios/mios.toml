@@ -1798,9 +1798,13 @@ scrollback_rows     = 9000
 # the visible-cell count correctly from FIRST paint, so the
 # legacy 5-cell chrome reservation is overkill.  Bump back to 5
 # only if powerline wrap returns.
-frame_width         = 79      # = cols - 1, edge-minus-one
+frame_width         = 80      # = cols, edge-to-edge (operator 2026-05-10: unified)
 frame_height        = 19      # = rows - 1, reserves 1 row for prompt
-right_margin        = 1       # 1 cell of slack against WT first-paint over-report
+right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-paint
+                              # over-report) but on settled WT renders that produced
+                              # a visible 1-char gap on the right of the bash dashboard.
+                              # Operator-flagged 2026-05-10 with screenshot. Setting
+                              # to 0 matches mios-bootstrap/mios.toml (UNIFIED).
 
 # ----------------------------------------------------------------------------
 # [terminal.install] -- the BOOTSTRAP window dims (taller so the install
