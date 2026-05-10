@@ -145,6 +145,13 @@ etc/fapolicyd/*
 !/etc/profile.d/
 !/etc/profile.d/*mios*.sh
 
+# /etc/xdg/ -- xdg-desktop-portal backend selection + future XDG-spec
+# tracked configs. portals.conf with [preferred] default=gnome ensures
+# the portal frontend can find a backend even when XDG_CURRENT_DESKTOP
+# isn't propagated to the activating shell (WSL2 logind bypass).
+!/etc/xdg/
+!/etc/xdg/**
+
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
 !/etc/mios/
