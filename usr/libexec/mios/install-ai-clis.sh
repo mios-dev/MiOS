@@ -29,14 +29,19 @@ fi
 # Vendor fallback if the toml lookup fails: the two operator-canonical
 # AI CLIs.
 _resolve_npm_globals() {
-    local toml
+    local toml extracted
     for toml in \
         "${HOME:-/var/home/mios}/.config/mios/mios.toml" \
         /etc/mios/mios.toml \
         /usr/share/mios/mios.toml; do
         [ -r "$toml" ] || continue
         # Extract npm_globals = [ "...", "..." ] from [packages.ai] section.
-        awk '
+        # Capture into a var so we can check if any content was produced.
+        # Previous form `awk | grep | tr && return 0` always returned 0
+        # because tr (last cmd in the pipe) exits 0 on empty input -- the
+        # function short-circuited before reaching the vendor fallback,
+        # leaving the install loop with zero packages to install.
+        extracted=$(awk '
             /^\[/ {
                 line=$0; sub(/[[:space:]]*#.*$/, "", line)
                 in_ai = (line == "[packages.ai]") ? 1 : 0
@@ -44,7 +49,6 @@ _resolve_npm_globals() {
             }
             in_ai && /^[[:space:]]*npm_globals[[:space:]]*=[[:space:]]*\[/ {
                 capturing = 1
-                # On the same line?
                 if (match($0, /\[.*\]/)) {
                     body = substr($0, RSTART+1, RLENGTH-2)
                     print body
@@ -55,9 +59,14 @@ _resolve_npm_globals() {
             }
             capturing { buf = buf $0 "\n" }
             capturing && /^[[:space:]]*\][[:space:]]*$/ { print buf; capturing = 0; in_ai = 0; exit }
-        ' "$toml" | grep -oE '"[^"]+"' | tr -d '"' && return 0
+        ' "$toml" | grep -oE '"[^"]+"' | tr -d '"')
+        if [ -n "$extracted" ]; then
+            echo "$extracted"
+            return 0
+        fi
     done
-    # Vendor fallback
+    # Vendor fallback -- claude-code + gemini-cli are the operator-canonical
+    # AI CLIs (defaults ON per mios.toml [packages.ai].npm_globals).
     echo "@anthropic-ai/claude-code"
     echo "@google/gemini-cli"
 }
