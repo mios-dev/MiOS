@@ -472,8 +472,27 @@ if [[ "${MIOS_SKIP_BIB:-0}" == "1" ]]; then
 else
     _log ""
     _log "── Multi-format deployment artifacts (bootc-image-builder) ──"
-    BIB_OUT="/var/lib/mios/build/output"
-    mkdir -p "$BIB_OUT"
+    # Same root-vs-user split the LOG_DIR + WORKDIR sections use: when
+    # invoked as the mios user (the canonical handoff path from
+    # Windows: `wsl.exe -d podman-MiOS-DEV --user mios`),
+    # /var/lib/mios is root-owned (FHS) and `mkdir -p` fails with
+    # "Permission denied" -- killing the driver under set -euo
+    # pipefail BEFORE the bootc switch can run, so the dev VM stays
+    # on its previous deployment. Operator-flagged 2026-05-10:
+    # build succeeded, bootc deploy stayed un-switched, auto-chain
+    # correctly reported "service succeeded but bootc deployment
+    # is NOT localhost/mios". Honor explicit MIOS_BIB_OUT override,
+    # else root -> /var/lib/mios/build/output, else non-root ->
+    # $XDG_STATE_HOME/mios/build/output.
+    if [[ -n "${MIOS_BIB_OUT:-}" ]]; then
+        BIB_OUT="${MIOS_BIB_OUT}"
+    elif [[ "$(id -u)" -eq 0 ]]; then
+        BIB_OUT="/var/lib/mios/build/output"
+    else
+        _state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
+        BIB_OUT="${_state_root}/mios/build/output"
+    fi
+    mkdir -p "$BIB_OUT" 2>/dev/null || _fail "mkdir $BIB_OUT failed (uid=$(id -u))"
 
     BIB_IMG="${MIOS_BIB_IMAGE:-quay.io/centos-bootc/bootc-image-builder:latest}"
     _log "BIB image: $BIB_IMG"

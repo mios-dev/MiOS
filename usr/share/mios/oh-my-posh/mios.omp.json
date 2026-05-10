@@ -24,7 +24,12 @@
     "operator neutrals). Language segments (node/python/go/rust/dotnet)",
     "and conditional infrastructure segments (kubectl/aws/battery)",
     "removed -- they pollute the line and rarely render meaningfully",
-    "on the dev VM. Operators who need them can add via mios.html."
+    "on the dev VM. Operators who need them can add via mios.html.",
+    "",
+    "Powerline cap glyph: U+E0B4 (rounded right half-circle). Geist",
+    "Mono Nerd Font has full Powerline coverage; the previous design",
+    "used \"\" (empty) which produced abutting square color blocks --",
+    "operator-flagged 2026-05-10 'pipelin isn't rounded anymore'."
   ],
   "blocks": [
     {
@@ -41,7 +46,7 @@
         {
           "type": "shell",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#1A407F",
           "foreground": "#E7DFD3",
           "template": "  {{ .Name }} "
@@ -49,7 +54,7 @@
         {
           "type": "root",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#DC271B",
           "foreground": "#F35C15",
           "template": "  "
@@ -57,7 +62,7 @@
         {
           "type": "path",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#F35C15",
           "foreground": "#282262",
           "properties": {
@@ -71,7 +76,7 @@
         {
           "type": "git",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#3E7765",
           "background_templates": [
             "{{ if or (.Working.Changed) (.Staging.Changed) }}#F35C15{{ end }}",
@@ -90,7 +95,7 @@
         {
           "type": "executiontime",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#948E8E",
           "foreground": "#282262",
           "properties": {
@@ -103,7 +108,7 @@
           "//": "Compact OS indicator -- just the platform glyph, no 'WSL at' prose. Saves cells; the framed dashboard already names the host kind explicitly.",
           "type": "os",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#B7C9D7",
           "foreground": "#282262",
           "properties": {
@@ -116,7 +121,7 @@
         {
           "type": "time",
           "style": "powerline",
-          "powerline_symbol": "",
+          "powerline_symbol": "",
           "background": "#1A407F",
           "foreground": "#E7DFD3",
           "properties": {
