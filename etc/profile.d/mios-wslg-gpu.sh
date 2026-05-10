@@ -23,6 +23,20 @@
 
 [ -d /mnt/wslg ] || return 0
 
+# ── Cairo / software-rendering fallback toggle ───────────────────
+# Set MIOS_GPU_SOFTWARE=1 to force CPU-only rendering (cairo +
+# llvmpipe). Slow but always produces visible content -- useful
+# when dzn / d3d12 / NVIDIA paths are all failing for a specific
+# app. Operator can flip per-shell or persist via
+# ~/.config/environment.d/. Default (unset) = hardware-accelerated
+# d3d12 path below.
+if [ "${MIOS_GPU_SOFTWARE:-0}" = "1" ]; then
+    export GALLIUM_DRIVER="${GALLIUM_DRIVER:-llvmpipe}"
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+    return 0 2>/dev/null || exit 0
+fi
+
 # ── Mesa / GL ────────────────────────────────────────────────────
 # d3d12 = the Mesa Gallium driver that targets WSLg's WDDM via
 # /dev/dxg. Far more reliable than dzn (Vulkan) for typical GTK
