@@ -33,6 +33,22 @@ Before=wslg-wayland.service
 Type=oneshot
 ExecStart=/usr/bin/chmod 0700 /mnt/wslg/runtime-dir
 ExecStart=/usr/bin/chown user:user /mnt/wslg/runtime-dir
+# /tmp/.X11-unix: WSL2 ships it as a SYMLINK -> /mnt/wslg/.X11-unix.
+# Flatpak bwrap chokes on symlinks ("Can't mount tmpfs on
+# /newroot/tmp/.X11-unix: No such file or directory") for any GUI app
+# that uses --socket=fallback-x11 (Nautilus.Devel, gnome-text-editor,
+# epiphany under XWayland fallback, etc.). Replace symlink with a
+# real directory + bind-mount the host's WSLg X11 socket dir onto
+# it so bwrap can chroot freely without losing X11 access.
+# Operator-flagged 2026-05-10: "bwrap: Can't mount tmpfs on
+# /newroot/tmp/.X11-unix: No such file or directory" when launching
+# Nautilus.Devel from gnome-nightly.
+ExecStart=-/usr/bin/test -L /tmp/.X11-unix
+ExecStart=-/usr/bin/rm -f /tmp/.X11-unix
+ExecStart=/usr/bin/mkdir -p /tmp/.X11-unix
+ExecStart=/usr/bin/chmod 1777 /tmp/.X11-unix
+ExecStart=-/usr/bin/mountpoint -q /tmp/.X11-unix
+ExecStart=-/usr/bin/mount --bind /mnt/wslg/.X11-unix /tmp/.X11-unix
 RemainAfterExit=yes
 
 [Install]
