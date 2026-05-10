@@ -482,6 +482,13 @@ var/*
 var/lib/*
 !/var/lib/mios/
 !/var/lib/mios/**
+
+# /var/lib/flatpak/overrides/ -- per-app environment overrides that
+# get applied INSIDE the flatpak sandbox. Tracked here so software-
+# rendering defaults survive operator deletions + re-install.
+!/var/lib/flatpak/
+!/var/lib/flatpak/overrides/
+!/var/lib/flatpak/overrides/*
 # Cookbooks (was /usr/local/share/mios/cookbooks/), prompt templates
 # (was /opt/mios/prompts/), and API examples (was /srv/mios/api/) all
 # moved to /usr/share/mios/{cookbooks,prompts,api}/ as of v0.2.3 path-
