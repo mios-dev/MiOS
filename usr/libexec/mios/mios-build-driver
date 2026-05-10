@@ -405,10 +405,32 @@ _log "Resolved settings: user=$MIOS_USER host=$MIOS_HOSTNAME ai=$MIOS_AI_MODEL e
 #   * Identity-prompt migration from build-mios.ps1 Phase 6
 #   * Dashboard renderer matching the Windows-side ASCII-frame UI
 #   * WSLg/Wayland verification for Epiphany SSOT-config editing
-_log "starting podman build at $MIOS_REPO"
-_log "  podman build -t localhost/mios:latest -f Containerfile $MIOS_REPO"
+# When MIOS_REPO=/, podman build with `.` as context fails with:
+#   "Error: mounting an overlay over build context directory: ...
+#    mount overlay:..., data: lowerdir=/,upperdir=...: invalid argument"
+# Buildah's overlay storage driver cannot stack an overlay on top of /
+# (the root mount itself). We materialize the tracked tree into a fresh
+# tmpdir via `git archive | tar -x`, then build from there. Operates
+# on native ext4 (the cache or repo workspace), avoids overlay-on-/,
+# and excludes everything outside the git index (no /proc, /sys,
+# /var/lib state, etc. leaking into the build context).
+BUILD_CTX="$MIOS_REPO"
+if [[ "$MIOS_REPO" = "/" ]]; then
+    BUILD_CTX="$WORKDIR/build-context"
+    _log "MIOS_REPO=/ -- materializing build context to $BUILD_CTX"
+    _log "  (buildah refuses overlay-on-/; archive only tracked files)"
+    sudo rm -rf "$BUILD_CTX"
+    mkdir -p "$BUILD_CTX"
+    if ! git -C / archive --format=tar HEAD | tar -x -C "$BUILD_CTX" 2>&1 | tee -a "$LOG_FILE"; then
+        _fail "git archive | tar -x to $BUILD_CTX failed -- see $LOG_FILE"
+    fi
+    _log "build context staged: $(find "$BUILD_CTX" -type f | wc -l) files"
+fi
 
-if cd "$MIOS_REPO" && podman build \
+_log "starting podman build at $BUILD_CTX"
+_log "  podman build -t localhost/mios:latest -f Containerfile $BUILD_CTX"
+
+if cd "$BUILD_CTX" && podman build \
         -t localhost/mios:latest \
         -f Containerfile \
         . 2>&1 | tee -a "$LOG_FILE"; then

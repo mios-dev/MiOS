@@ -205,18 +205,12 @@ names = [
 # install pipeline. Lifted out of build-mios.ps1 so operators can rebrand
 # the bootstrap banners via mios.html without touching code. Bullets
 # support a {disk_gb} placeholder which build-mios.ps1 substitutes at
-# render time.
+# render time. NOTE: the canonical [messages.install_complete] table
+# lives below at line ~335 (richer schema with installed_lead /
+# next_steps / hub_hint). The earlier duplicate that previously sat
+# here was removed -- TOML's "table can't be redeclared" parse rule
+# was breaking userenv.sh + every other resolver.
 # ----------------------------------------------------------------------------
-[messages.install_complete]
-title   = "MiOS Windows-side install complete"
-bullets = [
-    "M:\\ partition ({disk_gb} GB NTFS, label MIOS-DEV)",
-    "Podman Desktop + podman-MiOS-DEV machine",
-    "mios.git + mios-bootstrap overlaid at M:\\",
-    "MiOS terminal essentials layered into MiOS-DEV",
-    "Native Windows app: Start Menu + Desktop + per-verb shortcuts",
-    "MiOS PowerShell profile (oh-my-posh, dashboard, mios <verb>)"
-]
 
 [messages.installer_banner]
 # The Unified Installer banner box at the top of every build-mios.ps1 run.
