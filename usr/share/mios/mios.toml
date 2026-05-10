@@ -1817,6 +1817,20 @@ cols                = 80
 rows                = 40      # taller for install output + readme
 
 # ----------------------------------------------------------------------------
+# [terminal.reading] -- larger centered window mode for outputs that
+# don't fit the canonical 80x20 portal (btop, long log tails, code
+# review, multi-pane fastfetch, etc). `mios reading` resizes + re-
+# centers the CURRENT MiOS window to these dims; `mios portal` flips
+# back to [terminal].cols/.rows. btop's launcher invokes
+# `mios reading` automatically because btop's hardcoded minimum is
+# 80x24 -- WSLg's effective viewport at portal-size 80x20 is 75x18,
+# below the minimum, so btop refuses to render.
+# ----------------------------------------------------------------------------
+[terminal.reading]
+cols                = 100
+rows                = 50
+
+# ----------------------------------------------------------------------------
 # [theme] -- visual styling tokens. The [colors] table above defines
 # the palette; this section names the typography, opacity, prompt,
 # and per-host theme switches that consumers (WT settings.json patcher,
