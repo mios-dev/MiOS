@@ -1,3 +1,6 @@
+[Context]
+filesystems=/usr/share/icons:ro;/usr/share/fonts:ro;
+
 [Environment]
 XCURSOR_SIZE=16
 XCURSOR_THEME=Bibata-Modern-Classic
