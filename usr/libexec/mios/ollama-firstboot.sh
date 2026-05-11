@@ -84,10 +84,18 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
     sleep 5
 done
 if ! podman exec "$CONTAINER" ollama list >/dev/null 2>&1; then
-    _log "WARN: $CONTAINER not reachable after 50 s; skipping pull check"
-    install -d -m 0755 "$(dirname "$SENTINEL")"
-    touch "$SENTINEL"
-    exit 0
+    # Do NOT touch the sentinel here. Earlier revisions did; symptom
+    # 2026-05-11: if the ollama container crash-looped during first
+    # boot (e.g. UID mismatch with /var/lib/ollama bind-mount), this
+    # script gave up after 50 s, wrote the sentinel as if successful,
+    # and the unit's ConditionPathExists permanently blocked any
+    # retry. The operator's `mios hello` then hit a chat-completions
+    # endpoint with zero models loaded and got 500s forever. Exit
+    # non-zero so systemd's Restart= (or the next boot's
+    # ConditionPathExists=!sentinel) retries until the container is
+    # actually reachable.
+    _log "WARN: $CONTAINER not reachable after 50 s -- exiting non-zero to retry on next start (sentinel NOT written)"
+    exit 1
 fi
 
 failures=0

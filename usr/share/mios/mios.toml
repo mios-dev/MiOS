@@ -392,7 +392,17 @@ endpoint = "http://localhost:3030/"
 enable   = true
 
 [ai]
-endpoint            = "http://localhost:8080/v1"
+# Point at Ollama's OpenAI-compatible /v1, NOT LocalAI's. The `model`
+# below uses Ollama's name:tag format which Ollama natively understands.
+# LocalAI uses different model names and (on 2.20.0) chokes on aichat's
+# multimodal content-list format with
+#   InternalServerError: interface conversion:
+#   interface {} is []interface {}, not string
+# LocalAI stays in the stack for sidecar surfaces (embeddings,
+# image gen, STT/TTS); the chat surface `mios <prompt>` drives is
+# Ollama. Operator-flagged 2026-05-11 (`mios hello` -> 500 from
+# LocalAI before this fix).
+endpoint            = "http://localhost:11434/v1"
 model               = "qwen2.5-coder:7b"
 embed_model         = "nomic-embed-text"
 api_key             = ""                # empty for localhost; cloud needs a key
