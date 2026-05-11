@@ -53,7 +53,18 @@ enable cockpit.socket
 enable mios-searxng.service
 enable mios-hermes-firstboot.service
 enable mios-hermes.service
-enable mios-webui.service
+enable mios-hermes-workspace-firstboot.service
+enable mios-hermes-workspace.service
+# Operator directive 2026-05-11: Open WebUI replaced by hermes-workspace
+# (Ollama >> Hermes Agent >> Hermes Workspace is the chat front-end).
+# `mask` (not `disable`) prevents Quadlet-generated .service from being
+# pulled in by multi-user.target via [Install]WantedBy= in the .container.
+mask mios-webui.service
+# Operator directive 2026-05-11: LocalAI (mios-ai) dropped -- 31.9 GB
+# image redundant; Ollama already serves /v1 surface. Same masking
+# rationale as mios-webui above (Quadlet [Install]WantedBy= would
+# otherwise auto-start the unit despite no `enable` line here).
+mask mios-ai.service
 # user@1000.service starts the per-user systemd manager + user D-Bus
 # session bus for the 'mios' user (uid 1000, pinned in
 # /usr/lib/sysusers.d/10-mios.conf). Normally systemd-logind reads

@@ -194,6 +194,32 @@ etc/fapolicyd/*
 !/etc/skel/.config/gtk-3.0/*
 !/etc/skel/.config/gtk-4.0/
 !/etc/skel/.config/gtk-4.0/*
+# /etc/skel/.config/user-dirs.dirs -- XDG user-dir mapping so flatpak
+# `xdg-download` permission resolves to ~/Downloads (not $HOME) and so
+# every fresh MiOS user gets the standard sidebar entries (Desktop /
+# Documents / Downloads / Music / Pictures / Public / Templates /
+# Videos) without having to run `xdg-user-dirs-update` themselves.
+!/etc/skel/.config/user-dirs.dirs
+# Native Linux home dir tree shipped via /etc/skel so every newly-
+# created user (uid >= 1000) inherits the standard XDG layout
+# automatically. .keep markers are the only tracked entries; users
+# fill the dirs at runtime.
+!/etc/skel/Desktop/
+!/etc/skel/Desktop/.keep
+!/etc/skel/Documents/
+!/etc/skel/Documents/.keep
+!/etc/skel/Downloads/
+!/etc/skel/Downloads/.keep
+!/etc/skel/Music/
+!/etc/skel/Music/.keep
+!/etc/skel/Pictures/
+!/etc/skel/Pictures/.keep
+!/etc/skel/Public/
+!/etc/skel/Public/.keep
+!/etc/skel/Templates/
+!/etc/skel/Templates/.keep
+!/etc/skel/Videos/
+!/etc/skel/Videos/.keep
 
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).

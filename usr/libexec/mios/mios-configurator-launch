@@ -26,6 +26,40 @@ HTML=/usr/share/mios/configurator/mios.html
 DL_DIR="${HOME}/Downloads"
 mkdir -p "$DL_DIR"
 
+# Flatpak's xdg-download permission bind-mounts the host's resolved
+# `xdg-user-dir DOWNLOAD` into the sandbox. On a freshly created user
+# without ~/.config/user-dirs.dirs, xdg-user-dir falls back to $HOME
+# (NOT $HOME/Downloads), so the bind-mount covers the home root rather
+# than the actual Downloads dir -- and Epiphany then sees
+# file:///var/home/mios/Downloads/mios-configurator.html as a missing
+# path inside its sandbox view. Resolution: seed user-dirs.dirs so the
+# bind-mount targets ~/Downloads precisely. Operator-flagged 2026-05-11
+# (Epiphany "Unable to display this website" on `mios config`).
+if [[ ! -f "${HOME}/.config/user-dirs.dirs" ]]; then
+    mkdir -p "${HOME}/.config"
+    if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+        xdg-user-dirs-update --force >/dev/null 2>&1 || true
+    fi
+    # If the helper didn't exist (no xdg-user-dirs RPM on the dev VM) or
+    # produced nothing, hand-roll a minimal user-dirs.dirs that points
+    # XDG_DOWNLOAD_DIR at ~/Downloads. Flatpak only needs DOWNLOAD for
+    # the configurator flow; the other entries match the standard
+    # Fedora skel.
+    if [[ ! -f "${HOME}/.config/user-dirs.dirs" ]]; then
+        cat > "${HOME}/.config/user-dirs.dirs" <<EOF
+XDG_DESKTOP_DIR="\$HOME/Desktop"
+XDG_DOWNLOAD_DIR="\$HOME/Downloads"
+XDG_TEMPLATES_DIR="\$HOME/Templates"
+XDG_PUBLICSHARE_DIR="\$HOME/Public"
+XDG_DOCUMENTS_DIR="\$HOME/Documents"
+XDG_MUSIC_DIR="\$HOME/Music"
+XDG_PICTURES_DIR="\$HOME/Pictures"
+XDG_VIDEOS_DIR="\$HOME/Videos"
+EOF
+        chmod 0644 "${HOME}/.config/user-dirs.dirs"
+    fi
+fi
+
 # Stage a writable mios.toml seed (highest layer wins).
 if [[ ! -f "$DL_DIR/mios.toml" ]]; then
     for src in "$HOME/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
