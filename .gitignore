@@ -218,6 +218,16 @@ etc/fapolicyd/*
 !/etc/skel/Templates/.keep
 !/etc/skel/Videos/
 !/etc/skel/Videos/.keep
+# .local/share/{icons,fonts} -- empty dirs in skel that
+# /usr/lib/tmpfiles.d/mios-user.conf populates with symlinks to the
+# vendor /usr/share/{icons,fonts} subtrees so flatpak sandboxes can
+# find them via xdg-data (flatpak refuses to expose /usr/* directly).
+!/etc/skel/.local/
+!/etc/skel/.local/share/
+!/etc/skel/.local/share/icons/
+!/etc/skel/.local/share/icons/.keep
+!/etc/skel/.local/share/fonts/
+!/etc/skel/.local/share/fonts/.keep
 
 # /etc/mios/ -- KB config (system-prompts, kb.conf.toml, eval-criteria.json) tracked here.
 # Runtime secrets and per-host overrides are NOT tracked (handled by mios-bootstrap.git).
