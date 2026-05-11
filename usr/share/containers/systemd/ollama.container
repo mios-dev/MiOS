@@ -23,8 +23,18 @@ ContainerName=mios-ollama
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
 AutoUpdate=registry
-User=mios-ollama
-Group=mios-ollama
+# Numeric UID/GID -- the upstream ollama/ollama image has no
+# `mios-ollama` user in its /etc/passwd, so a name-based User= lookup
+# fails with "unable to find user mios-ollama: no matching entries in
+# passwd file" (status 126). UID/GID resolved from mios.toml
+# [services.ollama].uid/.gid (default 815) and pinned in
+# usr/lib/sysusers.d/50-mios-services.conf so the host's mios-ollama
+# user has the same UID and the /var/lib/ollama volume ownership
+# stays consistent. Mirrors the mios-ai.container pattern that
+# already solved this for the LocalAI image (which has the same
+# missing-user issue).
+User=${MIOS_OLLAMA_UID:-815}
+Group=${MIOS_OLLAMA_GID:-815}
 # Bind 0.0.0.0 inside the container so the API is reachable from the
 # host LAN, sibling containers, and loopback. PublishPort with explicit
 # 0.0.0.0 on the host side makes the surface contract explicit.
