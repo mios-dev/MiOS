@@ -44,10 +44,13 @@ PublishPort=${MIOS_PORT_CODE_SERVER:-8800}:8080
 # code-server IS the operator's development surface.
 Volume=/var/home/mios:/home/coder:Z
 
-# Auth: MIOS_DEFAULT_PASSWORD from /etc/mios/install.env (mios.toml
-# [identity].default_password). EnvironmentFile= leading `-` so a fresh
-# build without install.env still boots; the fallbacks below resolve.
-EnvironmentFile=-/etc/mios/install.env
+# Auth: MIOS_DEFAULT_PASSWORD baked at image-build time from
+# mios.toml [identity].default_password via 15-render-quadlets.sh.
+# No runtime EnvironmentFile= -- Quadlet [Container] doesn't honor
+# the systemd `-` optional-file prefix and concatenates `-/etc/...`
+# into the path arg, breaking podman --env-file. Rotate by editing
+# mios.toml + rebuilding (or hand-edit this Environment= line on a
+# live host then `systemctl daemon-reload && systemctl restart`).
 Environment=PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}
 Environment=SUDO_PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}
 Environment=DEFAULT_WORKSPACE=/home/coder

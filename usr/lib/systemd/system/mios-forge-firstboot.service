@@ -3,7 +3,11 @@ Description='MiOS' Forge first-boot admin-bootstrap (Forgejo)
 Documentation=https://github.com/mios-dev/MiOS/blob/main/etc/containers/systemd/mios-forge.container
 After=mios-forge.service network-online.target
 Wants=mios-forge.service network-online.target
-ConditionPathExists=/etc/mios/install.env
+# /etc/mios/install.env is the optional layered-TOML resolver output
+# from mios-sync-env. The firstboot script tolerates its absence:
+# admin user, email, password all resolve from MIOS_DEFAULT_* or
+# fall back to "mios" / mios@hostname.local. Keep the unit gated only
+# by the firstboot sentinel.
 ConditionPathExists=!/var/lib/mios/forge/.firstboot-done
 # Forgejo bootstrap MUST run on WSL too (the localhost:3000 git origin
 # is the heart of the MiOS self-replication loop on every shape). A
