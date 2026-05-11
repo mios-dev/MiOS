@@ -15,7 +15,15 @@
 
 backend:
   provider: ollama
-  base_url: http://mios-ollama:11434
+  # localhost not bridge-DNS. Hermes-Agent does NOT honor mios.git's
+  # custom `include:` directive (it's a YAML hint we never wired into
+  # the upstream YAML parser), so config.local.yaml never overrides
+  # this value at runtime. Default it to localhost so the dev-VM
+  # host-network Quadlet hits ollama on the same netns. Bare-metal
+  # bridge deployments override to http://mios-ollama:11434 via
+  # /etc/mios/hermes/config.yaml.local-edit -- there is no auto-
+  # rewrite, it's a one-line manual fix. Operator-flagged 2026-05-11.
+  base_url: http://localhost:11434
   model: qwen3.5:2b
   # Listed alternates so the WebUI's model picker shows what's
   # available. mios-ollama-firstboot bakes qwen3.5:2b and
@@ -38,7 +46,7 @@ backend:
 # accepts unauthenticated localhost requests by default.
 auxiliary:
   provider: local/custom
-  base_url: http://mios-ollama:11434/v1
+  base_url: http://localhost:11434/v1
   model: qwen3.5:2b
   api_key: ""
 
