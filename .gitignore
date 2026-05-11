@@ -135,8 +135,6 @@ etc/containers/containers.conf.d/*
 etc/fapolicyd/*
 !/etc/fapolicyd/fapolicyd.rules
 !/etc/wsl.conf
-!/etc/aichat/
-!/etc/aichat/**
 
 # /etc/btop/ -- system-wide btop preset + MiOS palette theme. mios-btop.sh
 # resolves BTOP_CONFIG_DIR=/etc/btop when the user has no ~/.config/btop,

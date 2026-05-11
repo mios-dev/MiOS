@@ -77,7 +77,6 @@ PublishPort=0.0.0.0:${MIOS_PORT_OLLAMA:-11434}:11434
 # podman-run command line. ollama is THE local model + embedding
 # backend; Hermes-Agent (the LIVE MiOS agent at root) fronts it on
 # :8642 as the canonical MIOS_AI_ENDPOINT per Architectural Law 5.
-# LocalAI was purged 2026-05-11.
 Label=org.opencontainers.image.title=mios-ollama
 Label=org.opencontainers.image.url=http://localhost:11434/
 Label=io.podman_desktop.openInBrowser=http://localhost:11434/

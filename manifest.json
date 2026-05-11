@@ -179,7 +179,7 @@
     {
       "path": "/usr/share/doc/mios/70-ai-surface.md",
       "format": "markdown",
-      "purpose": "LocalAI Quadlet, LAW 5",
+      "purpose": "Hermes-Agent Quadlet, LAW 5",
       "endpoint": "vector_stores.files"
     },
     {
@@ -497,7 +497,7 @@
     {
       "path": "/usr/share/mios/api/chat.local.example.json",
       "format": "json",
-      "purpose": "Chat Completions payload (MiOS LocalAI)",
+      "purpose": "Chat Completions payload (Hermes-Agent)",
       "endpoint": "POST $MIOS_AI_ENDPOINT/chat/completions"
     },
     {
@@ -545,7 +545,7 @@
     {
       "path": "/usr/share/mios/cookbooks/local-rag-day0.md",
       "format": "markdown",
-      "purpose": "Day-0 local RAG against MiOS LocalAI",
+      "purpose": "Day-0 local RAG against Hermes-Agent",
       "endpoint": null
     },
     {

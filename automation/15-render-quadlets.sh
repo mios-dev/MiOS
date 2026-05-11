@@ -35,25 +35,11 @@ QUADLET_DIRS=(
     /usr/share/containers/systemd/users
 )
 
-# envsubst is part of gettext; available in every Fedora/CentOS/RHEL
-# bootc base. Fall back to a portable shell helper if not.
-#
-# CRITICAL: GNU envsubst supports ONLY bare ${VAR} / $VAR forms and does
-# NOT parse ${VAR:-default}. Since the Quadlet source files use the
-# shell-style ${VAR:-default} syntax (so they remain valid placeholder
-# templates even when MIOS_PORT_* is unset at parse time), running
-# envsubst directly leaves those patterns LITERAL in the rendered output.
-# Podman then chokes:
-#    Error: cannot parse "${MIOS_PORT_LOCALAI" as an IP address
-# because PublishPort=${MIOS_PORT_LOCALAI:-8080}:8080 reaches it verbatim
-# and the colon makes podman think `${MIOS_PORT_LOCALAI:-8080}` is an IP
-# (it splits on first `:` and treats the head as IP). Operator-flagged
-# 2026-05-10: every Quadlet auto-restart-loops with exit 125.
-#
-# Fix: pre-process ${VAR:-default} patterns ourselves (Bash regex match;
-# substitute VAR's value if set, else the default) BEFORE handing the
-# stream to envsubst. After preprocessing, the only remaining $-refs
-# are bare ${VAR} or $VAR which envsubst handles correctly.
+# envsubst is part of gettext; available in every Fedora bootc base.
+# GNU envsubst only handles bare ${VAR} / $VAR; ${VAR:-default} is
+# pre-processed below by a Bash regex pass so envsubst sees only the
+# substituted form. Falls back to a portable Bash-only helper if
+# envsubst is missing.
 _render_with_envsubst() {
     local f="$1"
     local content
@@ -69,7 +55,7 @@ _render_with_envsubst() {
         content="${content//${BASH_REMATCH[0]}/${_rep}}"
     done
     # shellcheck disable=SC2016
-    printf '%s' "$content" | envsubst '${MIOS_K3S_IMAGE} ${MIOS_CEPH_IMAGE} ${MIOS_FORGE_IMAGE} ${MIOS_SEARXNG_IMAGE} ${MIOS_HERMES_IMAGE} ${MIOS_HERMES_WORKSPACE_IMAGE} ${MIOS_WEBUI_IMAGE} ${MIOS_OLLAMA_IMAGE} ${MIOS_GUACAMOLE_IMAGE} ${MIOS_FORGE_RUNNER_IMAGE} ${MIOS_CROWDSEC_IMAGE} ${MIOS_POSTGRES_IMAGE} ${MIOS_GUACD_IMAGE} ${MIOS_PXE_HUB_IMAGE} ${MIOS_BIB_ALPINE_IMAGE} ${MIOS_PORT_SSH} ${MIOS_PORT_FORGE_HTTP} ${MIOS_PORT_FORGE_SSH} ${MIOS_PORT_COCKPIT} ${MIOS_PORT_COCKPIT_LINK} ${MIOS_PORT_OLLAMA} ${MIOS_PORT_SEARXNG} ${MIOS_PORT_HERMES} ${MIOS_PORT_HERMES_WORKSPACE} ${MIOS_PORT_WEBUI} ${MIOS_K3S_API_PORT} ${MIOS_GUACAMOLE_PORT} ${MIOS_CEPH_DASHBOARD_PORT} ${MIOS_RDP_PORT} ${MIOS_FORGE_USER} ${MIOS_FORGE_UID} ${MIOS_FORGE_GID} ${MIOS_SEARXNG_USER} ${MIOS_SEARXNG_UID} ${MIOS_SEARXNG_GID} ${MIOS_CEPH_USER} ${MIOS_CEPH_UID} ${MIOS_CEPH_GID} ${MIOS_HERMES_USER} ${MIOS_HERMES_UID} ${MIOS_HERMES_GID} ${MIOS_OLLAMA_USER} ${MIOS_OLLAMA_UID} ${MIOS_OLLAMA_GID} ${MIOS_WEBUI_USER} ${MIOS_WEBUI_UID} ${MIOS_WEBUI_GID} ${MIOS_QUADLET_NETWORK} ${MIOS_QUADLET_SUBNET} ${MIOS_AI_DIR} ${MIOS_AI_MODELS_DIR} ${MIOS_AI_MCP_DIR}'
+    printf '%s' "$content" | envsubst '${MIOS_K3S_IMAGE} ${MIOS_CEPH_IMAGE} ${MIOS_FORGE_IMAGE} ${MIOS_SEARXNG_IMAGE} ${MIOS_HERMES_IMAGE} ${MIOS_HERMES_WORKSPACE_IMAGE} ${MIOS_OLLAMA_IMAGE} ${MIOS_GUACAMOLE_IMAGE} ${MIOS_FORGE_RUNNER_IMAGE} ${MIOS_CROWDSEC_IMAGE} ${MIOS_POSTGRES_IMAGE} ${MIOS_GUACD_IMAGE} ${MIOS_PXE_HUB_IMAGE} ${MIOS_BIB_ALPINE_IMAGE} ${MIOS_PORT_SSH} ${MIOS_PORT_FORGE_HTTP} ${MIOS_PORT_FORGE_SSH} ${MIOS_PORT_COCKPIT} ${MIOS_PORT_COCKPIT_LINK} ${MIOS_PORT_OLLAMA} ${MIOS_PORT_SEARXNG} ${MIOS_PORT_HERMES} ${MIOS_PORT_HERMES_WORKSPACE} ${MIOS_K3S_API_PORT} ${MIOS_GUACAMOLE_PORT} ${MIOS_CEPH_DASHBOARD_PORT} ${MIOS_RDP_PORT} ${MIOS_FORGE_USER} ${MIOS_FORGE_UID} ${MIOS_FORGE_GID} ${MIOS_SEARXNG_USER} ${MIOS_SEARXNG_UID} ${MIOS_SEARXNG_GID} ${MIOS_CEPH_USER} ${MIOS_CEPH_UID} ${MIOS_CEPH_GID} ${MIOS_HERMES_USER} ${MIOS_HERMES_UID} ${MIOS_HERMES_GID} ${MIOS_OLLAMA_USER} ${MIOS_OLLAMA_UID} ${MIOS_OLLAMA_GID} ${MIOS_QUADLET_NETWORK} ${MIOS_QUADLET_SUBNET} ${MIOS_AI_DIR} ${MIOS_AI_MODELS_DIR} ${MIOS_AI_MCP_DIR}'
 }
 
 # Bash-only fallback for hosts without envsubst. Walks the same allow-
@@ -84,19 +70,18 @@ _render_with_bash() {
     content="$(cat "$f")"
     # shellcheck disable=SC2016
     for var in MIOS_K3S_IMAGE MIOS_CEPH_IMAGE MIOS_FORGE_IMAGE \
-               MIOS_SEARXNG_IMAGE MIOS_HERMES_IMAGE MIOS_HERMES_WORKSPACE_IMAGE MIOS_WEBUI_IMAGE \
+               MIOS_SEARXNG_IMAGE MIOS_HERMES_IMAGE MIOS_HERMES_WORKSPACE_IMAGE \
                MIOS_OLLAMA_IMAGE MIOS_GUACAMOLE_IMAGE \
                MIOS_FORGE_RUNNER_IMAGE MIOS_CROWDSEC_IMAGE MIOS_POSTGRES_IMAGE \
                MIOS_GUACD_IMAGE MIOS_PXE_HUB_IMAGE MIOS_BIB_ALPINE_IMAGE \
                MIOS_PORT_SSH MIOS_PORT_FORGE_HTTP MIOS_PORT_FORGE_SSH \
                MIOS_PORT_COCKPIT MIOS_PORT_COCKPIT_LINK MIOS_PORT_OLLAMA MIOS_PORT_SEARXNG \
-               MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKSPACE MIOS_PORT_WEBUI MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT \
+               MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKSPACE MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT \
                MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_PORT \
                MIOS_FORGE_USER MIOS_FORGE_UID MIOS_FORGE_GID \
                MIOS_SEARXNG_USER MIOS_SEARXNG_UID MIOS_SEARXNG_GID \
                MIOS_CEPH_USER MIOS_CEPH_UID MIOS_CEPH_GID \
                MIOS_HERMES_USER MIOS_HERMES_UID MIOS_HERMES_GID MIOS_OLLAMA_USER MIOS_OLLAMA_UID MIOS_OLLAMA_GID \
-               MIOS_WEBUI_USER MIOS_WEBUI_UID MIOS_WEBUI_GID \
                MIOS_QUADLET_NETWORK MIOS_QUADLET_SUBNET \
                MIOS_AI_DIR MIOS_AI_MODELS_DIR MIOS_AI_MCP_DIR; do
         local val="${!var:-}"

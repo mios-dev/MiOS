@@ -50,8 +50,7 @@ platform protocol layer:
 | POST | `/v1/embeddings`         | embeddings (forwarded to Ollama: `nomic-embed-text`) |
 | POST | `/v1/responses`          | OpenAI Responses API |
 
-All MiOS embedded models are served by Ollama. LocalAI was purged
-from the codebase 2026-05-11.
+All MiOS embedded models are served by Ollama.
 
 Default model: `mios.toml [ai].model` (host-RAM-driven default). The
 configurator HTML's `Identity & AI` section is the authoritative edit

@@ -10,225 +10,54 @@
     "scheme": "Bearer",
     "header": "Authorization",
     "env": "MIOS_AI_KEY",
-    "empty_accepted": false,
-    "note": "Hermes-Agent enforces API_SERVER_KEY (generated at firstboot into /etc/mios/hermes/api.env). Operators export the key into MIOS_AI_KEY or pass it explicitly. The /v1 surface fronts Ollama, which handles ALL MiOS embedded models."
-  },
-  "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
-  "x-mios": {
-    "schema_kind": "Comprehensive endpoint directory for the MiOS AI surface.",
-    "intent": "Any OpenAI-API-compatible client that can read this manifest learns the full set of v1 surfaces this deployment targets, the canonical spec each surface follows, the method tuple, and (for collection endpoints) the on-disk path of the static manifest the runtime ships pre-populated with vendor data.",
-    "status_legend": {
-      "served": "Confirmed reachable + protocol-conformant against the deployed Hermes-Agent + Ollama stack.",
-      "unverified": "Endpoint defined in this spec but not yet probed against the live deployment. Default at first boot.",
-      "proxied": "Request is forwarded to an upstream that may or may not be MiOS-resident.",
-      "unsupported": "Definitively not implemented by the current Hermes/Ollama stack; client SHOULD short-circuit."
-    },
-    "verification_command": "curl -fsS -H \"Authorization: Bearer $MIOS_AI_KEY\" \"$MIOS_AI_ENDPOINT/models\" | jq '.data[].id'",
-    "vendor_neutral": true,
-    "no_vendor_brand_names": true,
-    "note": "x-mios extensions are non-OpenAI metadata; strict OpenAI clients should ignore every key under x-mios.* without warning."
+    "source": "/etc/mios/hermes/api.env"
   },
   "groups": [
     {
       "name": "Models",
       "endpoints": [
-        {"method": "GET",    "path": "/v1/models",                "spec_ref": "https://platform.openai.com/docs/api-reference/models/list",     "status": "unverified", "manifest": "/usr/share/mios/ai/v1/models.json"},
-        {"method": "GET",    "path": "/v1/models/{model}",        "spec_ref": "https://platform.openai.com/docs/api-reference/models/retrieve", "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/models/{model}",        "spec_ref": "https://platform.openai.com/docs/api-reference/models/delete",   "status": "unverified", "note": "Base/system models cannot be deleted; only fine-tuned/uploaded."}
+        {"method": "GET",  "path": "/v1/models",         "spec_ref": "https://platform.openai.com/docs/api-reference/models/list",     "manifest": "/usr/share/mios/ai/v1/models.json"},
+        {"method": "GET",  "path": "/v1/models/{model}", "spec_ref": "https://platform.openai.com/docs/api-reference/models/retrieve"}
       ]
     },
     {
       "name": "Chat Completions",
       "endpoints": [
-        {"method": "POST", "path": "/v1/chat/completions", "spec_ref": "https://platform.openai.com/docs/api-reference/chat/create", "status": "unverified", "streaming": true, "tools": true, "vision": true, "audio_input": true, "json_mode": true, "json_schema": true}
+        {"method": "POST", "path": "/v1/chat/completions", "spec_ref": "https://platform.openai.com/docs/api-reference/chat/create", "streaming": true, "tools": true, "json_mode": true, "json_schema": true}
       ]
     },
     {
       "name": "Completions (legacy)",
       "endpoints": [
-        {"method": "POST", "path": "/v1/completions", "spec_ref": "https://platform.openai.com/docs/api-reference/completions/create", "status": "unverified", "deprecated": true, "successor": "/v1/chat/completions or /v1/responses"}
+        {"method": "POST", "path": "/v1/completions", "spec_ref": "https://platform.openai.com/docs/api-reference/completions/create", "deprecated": true, "successor": "/v1/chat/completions or /v1/responses"}
       ]
     },
     {
       "name": "Responses",
       "endpoints": [
-        {"method": "POST",   "path": "/v1/responses",                       "spec_ref": "https://platform.openai.com/docs/api-reference/responses/create",      "status": "unverified", "streaming": true, "stateful": true, "tools": true, "mcp": true},
-        {"method": "GET",    "path": "/v1/responses/{response_id}",         "spec_ref": "https://platform.openai.com/docs/api-reference/responses/get",         "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/responses/{response_id}",         "spec_ref": "https://platform.openai.com/docs/api-reference/responses/delete",      "status": "unverified"},
-        {"method": "GET",    "path": "/v1/responses/{response_id}/input_items", "spec_ref": "https://platform.openai.com/docs/api-reference/responses/input-items", "status": "unverified"},
-        {"method": "POST",   "path": "/v1/responses/{response_id}/cancel",  "spec_ref": "https://platform.openai.com/docs/api-reference/responses/cancel",      "status": "unverified", "note": "Cancel a background:true response in progress."}
+        {"method": "POST",   "path": "/v1/responses",                           "spec_ref": "https://platform.openai.com/docs/api-reference/responses/create", "streaming": true, "stateful": true, "tools": true, "mcp": true},
+        {"method": "GET",    "path": "/v1/responses/{response_id}",             "spec_ref": "https://platform.openai.com/docs/api-reference/responses/get"},
+        {"method": "DELETE", "path": "/v1/responses/{response_id}",             "spec_ref": "https://platform.openai.com/docs/api-reference/responses/delete"},
+        {"method": "GET",    "path": "/v1/responses/{response_id}/input_items", "spec_ref": "https://platform.openai.com/docs/api-reference/responses/input-items"},
+        {"method": "POST",   "path": "/v1/responses/{response_id}/cancel",      "spec_ref": "https://platform.openai.com/docs/api-reference/responses/cancel"}
       ]
     },
     {
       "name": "Embeddings",
       "endpoints": [
-        {"method": "POST", "path": "/v1/embeddings", "spec_ref": "https://platform.openai.com/docs/api-reference/embeddings/create", "status": "unverified"}
+        {"method": "POST", "path": "/v1/embeddings", "spec_ref": "https://platform.openai.com/docs/api-reference/embeddings/create"}
       ]
     },
     {
-      "name": "Audio",
+      "name": "MCP",
       "endpoints": [
-        {"method": "POST", "path": "/v1/audio/transcriptions", "spec_ref": "https://platform.openai.com/docs/api-reference/audio/createTranscription", "status": "unverified", "multipart": true},
-        {"method": "POST", "path": "/v1/audio/translations",   "spec_ref": "https://platform.openai.com/docs/api-reference/audio/createTranslation",  "status": "unverified", "multipart": true},
-        {"method": "POST", "path": "/v1/audio/speech",         "spec_ref": "https://platform.openai.com/docs/api-reference/audio/createSpeech",       "status": "unverified", "streaming": true}
+        {"method": "GET", "path": "/v1/mcp", "spec_ref": "https://modelcontextprotocol.io/specification", "manifest": "/usr/share/mios/ai/v1/mcp.json"}
       ]
     },
     {
-      "name": "Images",
+      "name": "Tools",
       "endpoints": [
-        {"method": "POST", "path": "/v1/images/generations", "spec_ref": "https://platform.openai.com/docs/api-reference/images/create",        "status": "unverified"},
-        {"method": "POST", "path": "/v1/images/edits",       "spec_ref": "https://platform.openai.com/docs/api-reference/images/createEdit",    "status": "unverified", "multipart": true},
-        {"method": "POST", "path": "/v1/images/variations",  "spec_ref": "https://platform.openai.com/docs/api-reference/images/createVariation","status": "unverified", "multipart": true}
-      ]
-    },
-    {
-      "name": "Files",
-      "endpoints": [
-        {"method": "POST",   "path": "/v1/files",                  "spec_ref": "https://platform.openai.com/docs/api-reference/files/create",   "status": "unverified", "multipart": true},
-        {"method": "GET",    "path": "/v1/files",                  "spec_ref": "https://platform.openai.com/docs/api-reference/files/list",     "status": "unverified"},
-        {"method": "GET",    "path": "/v1/files/{file_id}",        "spec_ref": "https://platform.openai.com/docs/api-reference/files/retrieve", "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/files/{file_id}",        "spec_ref": "https://platform.openai.com/docs/api-reference/files/delete",   "status": "unverified"},
-        {"method": "GET",    "path": "/v1/files/{file_id}/content","spec_ref": "https://platform.openai.com/docs/api-reference/files/retrieve-contents", "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Uploads",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/uploads",                       "spec_ref": "https://platform.openai.com/docs/api-reference/uploads/create",        "status": "unverified", "note": "Multi-part upload protocol for files larger than the single-shot 512 MB ceiling."},
-        {"method": "POST", "path": "/v1/uploads/{upload_id}/parts",     "spec_ref": "https://platform.openai.com/docs/api-reference/uploads/add-part",      "status": "unverified", "multipart": true},
-        {"method": "POST", "path": "/v1/uploads/{upload_id}/complete",  "spec_ref": "https://platform.openai.com/docs/api-reference/uploads/complete",     "status": "unverified"},
-        {"method": "POST", "path": "/v1/uploads/{upload_id}/cancel",    "spec_ref": "https://platform.openai.com/docs/api-reference/uploads/cancel",       "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Vector Stores",
-      "endpoints": [
-        {"method": "POST",   "path": "/v1/vector_stores",                       "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores/create",   "status": "unverified"},
-        {"method": "GET",    "path": "/v1/vector_stores",                       "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores/list",     "status": "unverified"},
-        {"method": "GET",    "path": "/v1/vector_stores/{vector_store_id}",    "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores/retrieve", "status": "unverified"},
-        {"method": "POST",   "path": "/v1/vector_stores/{vector_store_id}",    "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores/modify",   "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/vector_stores/{vector_store_id}",    "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores/delete",   "status": "unverified"},
-        {"method": "POST",   "path": "/v1/vector_stores/{vector_store_id}/search", "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores/search","status": "unverified"}
-      ]
-    },
-    {
-      "name": "Vector Store Files",
-      "endpoints": [
-        {"method": "POST",   "path": "/v1/vector_stores/{vector_store_id}/files",                  "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-files/createFile",   "status": "unverified"},
-        {"method": "GET",    "path": "/v1/vector_stores/{vector_store_id}/files",                  "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-files/listFiles",    "status": "unverified"},
-        {"method": "GET",    "path": "/v1/vector_stores/{vector_store_id}/files/{file_id}",        "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-files/getFile",     "status": "unverified"},
-        {"method": "POST",   "path": "/v1/vector_stores/{vector_store_id}/files/{file_id}",        "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-files/updateAttributes", "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/vector_stores/{vector_store_id}/files/{file_id}",        "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-files/deleteFile",  "status": "unverified", "note": "Detaches the file from the store; does not delete the underlying File."},
-        {"method": "GET",    "path": "/v1/vector_stores/{vector_store_id}/files/{file_id}/content","spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-files/getFileContent","status": "unverified"}
-      ]
-    },
-    {
-      "name": "Vector Store File Batches",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/vector_stores/{vector_store_id}/file_batches",                  "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-file-batches/createBatch", "status": "unverified"},
-        {"method": "GET",  "path": "/v1/vector_stores/{vector_store_id}/file_batches/{batch_id}",        "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-file-batches/getBatch",    "status": "unverified"},
-        {"method": "POST", "path": "/v1/vector_stores/{vector_store_id}/file_batches/{batch_id}/cancel", "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-file-batches/cancelBatch", "status": "unverified"},
-        {"method": "GET",  "path": "/v1/vector_stores/{vector_store_id}/file_batches/{batch_id}/files",  "spec_ref": "https://platform.openai.com/docs/api-reference/vector-stores-file-batches/listBatchFiles","status": "unverified"}
-      ]
-    },
-    {
-      "name": "Assistants",
-      "endpoints": [
-        {"method": "POST",   "path": "/v1/assistants",        "spec_ref": "https://platform.openai.com/docs/api-reference/assistants/createAssistant", "status": "unverified"},
-        {"method": "GET",    "path": "/v1/assistants",        "spec_ref": "https://platform.openai.com/docs/api-reference/assistants/listAssistants",  "status": "unverified"},
-        {"method": "GET",    "path": "/v1/assistants/{id}",   "spec_ref": "https://platform.openai.com/docs/api-reference/assistants/getAssistant",    "status": "unverified"},
-        {"method": "POST",   "path": "/v1/assistants/{id}",   "spec_ref": "https://platform.openai.com/docs/api-reference/assistants/modifyAssistant", "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/assistants/{id}",   "spec_ref": "https://platform.openai.com/docs/api-reference/assistants/deleteAssistant", "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Threads",
-      "endpoints": [
-        {"method": "POST",   "path": "/v1/threads",        "spec_ref": "https://platform.openai.com/docs/api-reference/threads/createThread", "status": "unverified"},
-        {"method": "GET",    "path": "/v1/threads/{id}",   "spec_ref": "https://platform.openai.com/docs/api-reference/threads/getThread",    "status": "unverified"},
-        {"method": "POST",   "path": "/v1/threads/{id}",   "spec_ref": "https://platform.openai.com/docs/api-reference/threads/modifyThread", "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/threads/{id}",   "spec_ref": "https://platform.openai.com/docs/api-reference/threads/deleteThread", "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Messages",
-      "endpoints": [
-        {"method": "POST",   "path": "/v1/threads/{thread_id}/messages",              "spec_ref": "https://platform.openai.com/docs/api-reference/messages/createMessage", "status": "unverified"},
-        {"method": "GET",    "path": "/v1/threads/{thread_id}/messages",              "spec_ref": "https://platform.openai.com/docs/api-reference/messages/listMessages",  "status": "unverified"},
-        {"method": "GET",    "path": "/v1/threads/{thread_id}/messages/{message_id}", "spec_ref": "https://platform.openai.com/docs/api-reference/messages/getMessage",    "status": "unverified"},
-        {"method": "POST",   "path": "/v1/threads/{thread_id}/messages/{message_id}", "spec_ref": "https://platform.openai.com/docs/api-reference/messages/modifyMessage", "status": "unverified"},
-        {"method": "DELETE", "path": "/v1/threads/{thread_id}/messages/{message_id}", "spec_ref": "https://platform.openai.com/docs/api-reference/messages/deleteMessage", "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Runs",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/threads/{thread_id}/runs",                                  "spec_ref": "https://platform.openai.com/docs/api-reference/runs/createRun",                "status": "unverified", "streaming": true, "tools": true},
-        {"method": "POST", "path": "/v1/threads/runs",                                              "spec_ref": "https://platform.openai.com/docs/api-reference/runs/createThreadAndRun",       "status": "unverified", "streaming": true},
-        {"method": "GET",  "path": "/v1/threads/{thread_id}/runs",                                  "spec_ref": "https://platform.openai.com/docs/api-reference/runs/listRuns",                 "status": "unverified"},
-        {"method": "GET",  "path": "/v1/threads/{thread_id}/runs/{run_id}",                        "spec_ref": "https://platform.openai.com/docs/api-reference/runs/getRun",                   "status": "unverified"},
-        {"method": "POST", "path": "/v1/threads/{thread_id}/runs/{run_id}",                        "spec_ref": "https://platform.openai.com/docs/api-reference/runs/modifyRun",                "status": "unverified"},
-        {"method": "POST", "path": "/v1/threads/{thread_id}/runs/{run_id}/cancel",                  "spec_ref": "https://platform.openai.com/docs/api-reference/runs/cancelRun",                "status": "unverified"},
-        {"method": "POST", "path": "/v1/threads/{thread_id}/runs/{run_id}/submit_tool_outputs",     "spec_ref": "https://platform.openai.com/docs/api-reference/runs/submitToolOutputs",        "status": "unverified", "streaming": true}
-      ]
-    },
-    {
-      "name": "Run Steps",
-      "endpoints": [
-        {"method": "GET", "path": "/v1/threads/{thread_id}/runs/{run_id}/steps",            "spec_ref": "https://platform.openai.com/docs/api-reference/run-steps/listRunSteps", "status": "unverified"},
-        {"method": "GET", "path": "/v1/threads/{thread_id}/runs/{run_id}/steps/{step_id}",  "spec_ref": "https://platform.openai.com/docs/api-reference/run-steps/getRunStep",   "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Batches",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/batches",                  "spec_ref": "https://platform.openai.com/docs/api-reference/batch/create",   "status": "unverified", "input_format": "/usr/share/mios/api/batch.requests.jsonl"},
-        {"method": "GET",  "path": "/v1/batches",                  "spec_ref": "https://platform.openai.com/docs/api-reference/batch/list",     "status": "unverified"},
-        {"method": "GET",  "path": "/v1/batches/{batch_id}",       "spec_ref": "https://platform.openai.com/docs/api-reference/batch/retrieve", "status": "unverified"},
-        {"method": "POST", "path": "/v1/batches/{batch_id}/cancel","spec_ref": "https://platform.openai.com/docs/api-reference/batch/cancel",   "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Fine-tuning",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/fine_tuning/jobs",                       "spec_ref": "https://platform.openai.com/docs/api-reference/fine-tuning/create",      "status": "unverified", "training_data": ["/var/lib/mios/training/sft.jsonl", "/var/lib/mios/training/dpo.jsonl"]},
-        {"method": "GET",  "path": "/v1/fine_tuning/jobs",                       "spec_ref": "https://platform.openai.com/docs/api-reference/fine-tuning/list",        "status": "unverified"},
-        {"method": "GET",  "path": "/v1/fine_tuning/jobs/{id}",                  "spec_ref": "https://platform.openai.com/docs/api-reference/fine-tuning/retrieve",    "status": "unverified"},
-        {"method": "POST", "path": "/v1/fine_tuning/jobs/{id}/cancel",           "spec_ref": "https://platform.openai.com/docs/api-reference/fine-tuning/cancel",      "status": "unverified"},
-        {"method": "GET",  "path": "/v1/fine_tuning/jobs/{id}/events",           "spec_ref": "https://platform.openai.com/docs/api-reference/fine-tuning/list-events", "status": "unverified"},
-        {"method": "GET",  "path": "/v1/fine_tuning/jobs/{id}/checkpoints",      "spec_ref": "https://platform.openai.com/docs/api-reference/fine-tuning/list-checkpoints", "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Moderations",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/moderations", "spec_ref": "https://platform.openai.com/docs/api-reference/moderations/create", "status": "unverified"}
-      ]
-    },
-    {
-      "name": "Realtime",
-      "endpoints": [
-        {"method": "WS",   "path": "/v1/realtime",                       "spec_ref": "https://platform.openai.com/docs/api-reference/realtime",          "status": "unverified", "transport": "websocket", "audio_format": "pcm16-base64"},
-        {"method": "POST", "path": "/v1/realtime/sessions",              "spec_ref": "https://platform.openai.com/docs/api-reference/realtime-sessions", "status": "unverified", "ephemeral_token": true},
-        {"method": "POST", "path": "/v1/realtime/transcription_sessions","spec_ref": "https://platform.openai.com/docs/api-reference/realtime-sessions", "status": "unverified", "ephemeral_token": true, "scope": "transcription-only"}
-      ]
-    },
-    {
-      "name": "MCP (x-mios extension)",
-      "endpoints": [
-        {"method": "GET", "path": "/v1/mcp", "spec_ref": "https://modelcontextprotocol.io/specification", "status": "served", "manifest": "/usr/share/mios/ai/v1/mcp.json", "note": "MiOS extension. Canonical OpenAI route to invoke an MCP server is POST /v1/responses with tools=[{type:'mcp', server_url:...}]; this manifest enumerates which servers MiOS agents pre-discover."}
-      ]
-    },
-    {
-      "name": "MiOS Tools (x-mios extension)",
-      "endpoints": [
-        {"method": "GET", "path": "/v1/tools", "spec_ref": null, "status": "served", "manifest": "/usr/share/mios/ai/v1/tools.json", "note": "MiOS extension. Registry of host-side function-calling tools shipped at /usr/lib/mios/tools/{chat-completions-api,responses-api}/*.json. Strict OpenAI clients ignore this surface; MiOS agents read it to populate the tools array on chat/completions or responses requests."}
-      ]
-    },
-    {
-      "name": "Admin / Organization",
-      "endpoints": [
-        {"method": "*", "path": "/v1/organization/*", "spec_ref": "https://platform.openai.com/docs/api-reference/administration", "status": "unsupported", "note": "Single-tenant deployment. Auth + access control are enforced at the reverse-proxy layer, not via the org-admin API."}
+        {"method": "GET", "path": "/v1/tools", "manifest": "/usr/share/mios/ai/v1/tools.json"}
       ]
     }
   ]

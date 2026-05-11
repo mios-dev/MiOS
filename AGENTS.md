@@ -127,14 +127,15 @@ Enforced by build-time lint and `automation/99-postcheck.sh`:
 | 2 | **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. Never written at build time. | `usr/lib/tmpfiles.d/mios*.conf` |
 | 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. | `usr/lib/bootc/bound-images.d/`, `automation/08-system-files-overlay.sh` |
 | 4 | **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`. | `Containerfile` (last `RUN`) |
-| 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. **No vendor-cloud URLs. No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
+| 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (default `http://localhost:8642/v1`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. **No vendor-cloud URLs. No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`. | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
 ## 6. Endpoint contract (OpenAI-compatible)
 
-Local API at `http://localhost:8080/v1`, served by the
-`mios-ai.container` Quadlet (LocalAI runtime). Every MiOS AI surface
-resolves through `MIOS_AI_ENDPOINT`.
+Local API at `http://localhost:8642/v1`, served by the
+`mios-hermes.container` Quadlet (Hermes-Agent — the live MiOS agent at
+`/`). Hermes fronts Ollama (`http://localhost:11434`) for inference
+and embeddings. Every MiOS AI surface resolves through `MIOS_AI_ENDPOINT`.
 
 | Path | Method | Purpose |
 |---|---|---|
@@ -304,8 +305,9 @@ sudo systemctl reboot
 * `/var/lib/mios/bootc-switch-history.tsv` — last successful `bootc switch`
 * `/var/lib/mios/.wsl-firstboot-done`, `/var/lib/mios/.ollama-firstboot-done`
 
-User accounts (`mios` uid 1000, sidecars `mios-forge`=816, `mios-ai`=817,
-`mios-ollama`=818, `mios-ceph`=819) are baked at OVERLAY TIME via
+User accounts (`mios` uid 1000, sidecars `mios-ollama`=815,
+`mios-forge`=816, `mios-searxng`=818, `mios-ceph`=819,
+`mios-hermes`=820) are baked at OVERLAY TIME via
 `/usr/lib/sysusers.d/*.conf` + `automation/31-user.sh` +
 `/usr/lib/tmpfiles.d/mios-user.conf`. **Never propose runtime patches
 to `/etc/passwd`, `/etc/subuid`, `/etc/subgid`, or

@@ -1,5 +1,5 @@
 {
-  "model": "qwen2.5-coder:7b",
+  "model": "qwen3.5:2b",
   "messages": [
     {"role": "system",
      "content": "You are MiOS-Engineer. Cite MiOS files (usr/share/mios/ai/INDEX.md, usr/share/doc/mios/guides/engineering.md, SECURITY.md, Containerfile, Justfile, usr/lib/bootc/kargs.d/00-mios.toml, usr/share/mios/mios.toml) when stating facts."},
@@ -14,5 +14,5 @@
         "required": ["filename", "toml_content"]}}}
   ],
   "stream": false,
-  "_comment": "Targets MiOS LocalAI (LAW 5) at $MIOS_AI_ENDPOINT (default http://localhost:8080/v1). The `model` field defaults to the canonical mios.toml [ai].model value (qwen2.5-coder:7b); replace with $MIOS_AI_MODEL or the runtime's served-model name. Use with: curl $MIOS_AI_ENDPOINT/chat/completions -H 'Authorization: Bearer $MIOS_AI_KEY' -H 'Content-Type: application/json' -d @chat.local.example.json"
+  "_comment": "Targets $MIOS_AI_ENDPOINT (default http://localhost:8642/v1 -- Hermes-Agent). Use with: curl $MIOS_AI_ENDPOINT/chat/completions -H 'Authorization: Bearer $MIOS_AI_KEY' -H 'Content-Type: application/json' -d @chat.local.example.json"
 }

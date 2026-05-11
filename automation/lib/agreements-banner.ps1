@@ -103,7 +103,7 @@ surfaces them at install time.
     - Fedora / RPMFusion / Flathub package mirrors during build and
       ``bootc upgrade``
     - GitHub Container Registry (ghcr.io) during image fetch
-    - User-chosen Quadlet workloads (Forgejo, LocalAI, Ollama,
+    - User-chosen Quadlet workloads (Forgejo, Ollama, Hermes-Agent,
       Guacamole, ...)
     - The local AI runtime at MIOS_AI_ENDPOINT (default: localhost)
 * Operators can audit by inspecting /etc/containers/systemd/,

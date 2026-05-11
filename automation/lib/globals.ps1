@@ -59,10 +59,6 @@ $script:MIOS_HERMES_USER  = if ($env:MIOS_HERMES_USER)  { $env:MIOS_HERMES_USER 
 $script:MIOS_HERMES_UID   = if ($env:MIOS_HERMES_UID)   { [int]$env:MIOS_HERMES_UID } else { 820 }
 $script:MIOS_HERMES_GID   = if ($env:MIOS_HERMES_GID)   { [int]$env:MIOS_HERMES_GID } else { 820 }
 
-$script:MIOS_WEBUI_USER   = if ($env:MIOS_WEBUI_USER)   { $env:MIOS_WEBUI_USER }   else { 'mios-webui' }
-$script:MIOS_WEBUI_UID    = if ($env:MIOS_WEBUI_UID)    { [int]$env:MIOS_WEBUI_UID } else { 821 }
-$script:MIOS_WEBUI_GID    = if ($env:MIOS_WEBUI_GID)    { [int]$env:MIOS_WEBUI_GID } else { 821 }
-
 $script:MIOS_SUBUID_START = if ($env:MIOS_SUBUID_START) { [int]$env:MIOS_SUBUID_START } else { 100000 }
 $script:MIOS_SUBUID_COUNT = if ($env:MIOS_SUBUID_COUNT) { [int]$env:MIOS_SUBUID_COUNT } else { 65536 }
 
@@ -82,7 +78,7 @@ $script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:
 $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11434 }
 $script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
 $script:MIOS_PORT_HERMES        = if ($env:MIOS_PORT_HERMES)        { [int]$env:MIOS_PORT_HERMES }        else { 8642 }
-$script:MIOS_PORT_WEBUI         = if ($env:MIOS_PORT_WEBUI)         { [int]$env:MIOS_PORT_WEBUI }         else { 3030 }
+$script:MIOS_PORT_HERMES_WORKSPACE = if ($env:MIOS_PORT_HERMES_WORKSPACE) { [int]$env:MIOS_PORT_HERMES_WORKSPACE } else { 3030 }
 $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 19090 }
 
 # ── URLS ─────────────────────────────────────────────────────────────
@@ -92,7 +88,7 @@ $script:MIOS_COCKPIT_URL  = if ($env:MIOS_COCKPIT_URL)  { $env:MIOS_COCKPIT_URL 
 $script:MIOS_OLLAMA_URL   = if ($env:MIOS_OLLAMA_URL)   { $env:MIOS_OLLAMA_URL }   else { "http://localhost:$($script:MIOS_PORT_OLLAMA)" }
 $script:MIOS_SEARXNG_URL  = if ($env:MIOS_SEARXNG_URL)  { $env:MIOS_SEARXNG_URL }  else { "http://localhost:$($script:MIOS_PORT_SEARXNG)" }
 $script:MIOS_HERMES_URL   = if ($env:MIOS_HERMES_URL)   { $env:MIOS_HERMES_URL }   else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
-$script:MIOS_WEBUI_URL    = if ($env:MIOS_WEBUI_URL)    { $env:MIOS_WEBUI_URL }    else { "http://localhost:$($script:MIOS_PORT_WEBUI)/" }
+$script:MIOS_HERMES_WORKSPACE_URL = if ($env:MIOS_HERMES_WORKSPACE_URL) { $env:MIOS_HERMES_WORKSPACE_URL } else { "http://localhost:$($script:MIOS_PORT_HERMES_WORKSPACE)/" }
 
 # ── REPOS ────────────────────────────────────────────────────────────
 $script:MIOS_REPO_URL           = if ($env:MIOS_REPO_URL)           { $env:MIOS_REPO_URL }           else { 'https://github.com/mios-dev/MiOS.git' }
@@ -144,9 +140,6 @@ $script:MIOS_TOML_USER          = if ($env:HOME) { "$env:HOME/.config/mios/mios.
 $script:MIOS_INSTALL_ENV        = "$($script:MIOS_ETC_DIR)/install.env"
 $script:MIOS_FIRSTBOOT_SENTINEL = "$($script:MIOS_VAR_DIR)/.wsl-firstboot-done"
 $script:MIOS_OLLAMA_SENTINEL    = "$($script:MIOS_VAR_DIR)/.ollama-firstboot-done"
-$script:MIOS_AICHAT_DISTROBOX_INI    = "$($script:MIOS_SHARE_DISTROBOX_DIR)/aichat/distrobox.ini"
-$script:MIOS_AICHAT_CONFIG_DEFAULT   = "$($script:MIOS_SHARE_DISTROBOX_DIR)/aichat/config.yaml"
-$script:MIOS_AICHAT_USER_CONFIG      = if ($env:HOME) { "$env:HOME/.config/aichat/config.yaml" } else { '~/.config/aichat/config.yaml' }
 $script:MIOS_AI_SYSTEM_PROMPT        = "$($script:MIOS_SHARE_AI_DIR)/system.md"
 $script:MIOS_MCP_REGISTRY            = "$($script:MIOS_SHARE_AI_DIR)/v1/mcp.json"
 $script:MIOS_BUILD_ENV_FILE          = if ($env:HOME) { "$env:HOME/.config/mios/mios-build.env" } else { '~/.config/mios/mios-build.env' }
@@ -157,26 +150,22 @@ $script:MIOS_UNIT_FORGE_RUNNER      = 'mios-forgejo-runner.service'
 $script:MIOS_UNIT_OLLAMA            = 'ollama.service'
 $script:MIOS_UNIT_CEPH              = 'mios-ceph.service'
 $script:MIOS_UNIT_K3S               = 'mios-k3s.service'
-$script:MIOS_UNIT_AICHAT_BUILD      = 'mios-aichat-build.service'
-$script:MIOS_UNIT_AICHAT_IMAGE      = 'mios-aichat-image.service'
 $script:MIOS_UNIT_COCKPIT_LINK      = 'mios-cockpit-link.service'
 $script:MIOS_UNIT_SEARXNG           = 'mios-searxng.service'
 $script:MIOS_UNIT_HERMES            = 'mios-hermes.service'
-$script:MIOS_UNIT_WEBUI             = 'mios-webui.service'
+$script:MIOS_UNIT_HERMES_WORKSPACE  = 'mios-hermes-workspace.service'
 $script:MIOS_UNIT_HERMES_FIRSTBOOT  = 'mios-hermes-firstboot.service'
 $script:MIOS_UNIT_FIRSTBOOT_TARGET  = 'mios-firstboot.target'
 $script:MIOS_UNIT_OLLAMA_FIRSTBOOT  = 'mios-ollama-firstboot.service'
 $script:MIOS_UNIT_WSL_FIRSTBOOT     = 'mios-wsl-firstboot.service'
 $script:MIOS_UNIT_USER_SESSION      = "user@$($script:MIOS_UID).service"
 
-# ── CONTAINERS / DISTROBOX ───────────────────────────────────────────
-$script:MIOS_DISTROBOX_AICHAT           = 'mios-aichat'
-$script:MIOS_CONTAINER_AICHAT_IMAGE     = 'localhost/mios/aichat:latest'
-$script:MIOS_CONTAINER_FORGE_IMAGE      = 'codeberg.org/forgejo/forgejo:12'
-$script:MIOS_CONTAINER_OLLAMA_IMAGE     = 'docker.io/ollama/ollama:latest'
-$script:MIOS_CONTAINER_SEARXNG_IMAGE    = 'docker.io/searxng/searxng:latest'
-$script:MIOS_CONTAINER_HERMES_IMAGE     = 'docker.io/nousresearch/hermes-agent:latest'
-$script:MIOS_CONTAINER_WEBUI_IMAGE      = 'docker.io/openwebui/open-webui:latest'
+# ── CONTAINER IMAGES ─────────────────────────────────────────────────
+$script:MIOS_CONTAINER_FORGE_IMAGE             = 'codeberg.org/forgejo/forgejo:12'
+$script:MIOS_CONTAINER_OLLAMA_IMAGE            = 'docker.io/ollama/ollama:latest'
+$script:MIOS_CONTAINER_SEARXNG_IMAGE           = 'docker.io/searxng/searxng:latest'
+$script:MIOS_CONTAINER_HERMES_IMAGE            = 'docker.io/nousresearch/hermes-agent:latest'
+$script:MIOS_CONTAINER_HERMES_WORKSPACE_IMAGE  = 'ghcr.io/outsourc-e/hermes-workspace:latest'
 
 # ── COLOR PALETTE ────────────────────────────────────────────────────
 # Hokusai + operator-neutrals palette. Vendor defaults; resolved from

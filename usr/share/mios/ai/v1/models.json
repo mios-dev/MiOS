@@ -43,6 +43,6 @@
     "endpoint": "http://localhost:8642/v1/models",
     "served_by": "mios-hermes.container",
     "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
-    "note": "LocalAI purged 2026-05-11. Hermes-Agent is the LIVE MiOS agent at root; it serves the canonical /v1 surface (chat/completions, completions) on port 8642 and proxies inference + embeddings to Ollama (port 11434), which handles ALL MiOS embedded models. Strict OpenAI clients should ignore x-mios extensions."
+    "note": "Hermes-Agent serves the canonical /v1 surface on :8642 and proxies inference + embeddings to Ollama on :11434. Strict OpenAI clients should ignore x-mios extensions."
   }
 }

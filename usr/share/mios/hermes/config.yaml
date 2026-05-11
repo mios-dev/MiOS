@@ -1,49 +1,21 @@
 # /usr/share/mios/hermes/config.yaml
-# 'MiOS' Hermes-Agent vendor defaults.
-#
-# Copied into /etc/mios/hermes/config.yaml on first boot by usr/lib/
-# tmpfiles.d/mios-hermes.conf (C= line: copy-if-absent). Operators
-# override under /etc/mios/hermes/config.local.yaml -- the trailing
-# `include` directive picks that up if present, so vendor edits and
-# operator edits stay separable.
-#
-# This file replaces the interactive `setup` wizard that
-# deploy-aistack.sh runs on bare-metal first-deploy. Wiring is fully
-# declarative: backend = mios-ollama on ai-net, model = MiOS's baked
-# default (qwen3.5:2b), API server reads its key from
-# /etc/mios/hermes/api.env via EnvironmentFile= in the Quadlet.
+# Hermes-Agent vendor defaults. Copied to /etc/mios/hermes/config.yaml
+# on first boot by usr/lib/tmpfiles.d/mios-hermes.conf. Operators
+# override under /etc/mios/hermes/config.local.yaml.
 
 backend:
   provider: ollama
-  # localhost not bridge-DNS. Hermes-Agent does NOT honor mios.git's
-  # custom `include:` directive (it's a YAML hint we never wired into
-  # the upstream YAML parser), so config.local.yaml never overrides
-  # this value at runtime. Default it to localhost so the dev-VM
-  # host-network Quadlet hits ollama on the same netns. Bare-metal
-  # bridge deployments override to http://mios-ollama:11434 via
-  # /etc/mios/hermes/config.yaml.local-edit -- there is no auto-
-  # rewrite, it's a one-line manual fix. Operator-flagged 2026-05-11.
+  # localhost: dev-VM with Network=host hits ollama in the same netns.
+  # Bare-metal bridge deployments override to http://mios-ollama:11434.
   base_url: http://localhost:11434
   model: qwen3.5:2b
-  # Listed alternates so the WebUI's model picker shows what's
-  # available. mios-ollama-firstboot bakes qwen3.5:2b and
-  # nomic-embed-text by default; operators can pull others post-deploy.
   available_models:
     - qwen3.5:2b
     - nomic-embed-text
 
-# Auxiliary LLM -- Hermes uses this for context compression,
-# summarization, and memory flush (separate from the main backend
-# that handles the operator-facing chat). Without it Hermes logs:
-#     Auxiliary auto-detect: no provider available
-#         (tried: openrouter, nous, local/custom, api-key)
-# and silently degrades (compression drops middle turns without a
-# summary, memory flush no-ops). Operator directive 2026-05-11
-# dropped LocalAI (mios-ai) -- redundant 31.9 GB image; Ollama
-# already serves the same /v1 surface. Aux now points at Ollama
-# too; the same backend handles primary chat AND the compression /
-# summarization passes. Empty api_key works because Ollama's /v1
-# accepts unauthenticated localhost requests by default.
+# Auxiliary LLM for context compression, summarization, and memory
+# flush. Points at the same Ollama backend; localhost /v1 accepts
+# unauthenticated requests.
 auxiliary:
   provider: local/custom
   base_url: http://localhost:11434/v1

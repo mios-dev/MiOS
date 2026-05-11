@@ -315,10 +315,8 @@ print_endpoints() {
     section_header "Self-replication loop"
     printf '    %s  Forge       %shttp://localhost:3000/%s\n' \
         "$(ep_dot http://localhost:3000/api/v1/version)" "$C_D" "$C_R"
-    # Ollama is THE local model + embedding backend (operator directive
-    # 2026-05-11: LocalAI purged from codebase; Ollama handles ALL MiOS
-    # embedded models). Hermes-Agent (the LIVE MiOS agent at root) fronts
-    # Ollama on :8642 with the canonical /v1 surface.
+    # Ollama is the local model + embedding backend; Hermes-Agent
+    # fronts it at :8642 with the canonical /v1 surface.
     printf '    %s  Ollama      %shttp://localhost:11434%s   %s%s%s\n' \
         "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
     printf '    %s  Cockpit     %shttps://localhost:9090/%s   %slogin: %s / %s%s\n' \

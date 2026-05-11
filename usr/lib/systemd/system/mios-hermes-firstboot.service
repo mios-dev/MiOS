@@ -2,7 +2,7 @@
 Description='MiOS' Hermes-Agent first-boot key generation
 Documentation=https://github.com/MiOS-DEV/MiOS
 After=local-fs.target systemd-tmpfiles-setup.service
-Before=mios-hermes.service mios-webui.service multi-user.target
+Before=mios-hermes.service mios-hermes-workspace.service multi-user.target
 ConditionPathExists=!/etc/mios/hermes/api.env
 
 [Service]

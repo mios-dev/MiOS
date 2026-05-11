@@ -368,47 +368,26 @@ endpoint = "http://localhost:8888/"
 enable   = true
 
 [hermes]
-# Hermes-Agent OpenAI-compatible gateway (Nous Research). Pairs with
-# mios-ollama (backend) and mios-webui (frontend) on the ai-net.network
-# bridge. Wiring is fully declarative -- /etc/mios/hermes/config.yaml
-# (vendor-shipped) sets backend = mios-ollama:11434 and the API key is
-# generated on first boot by mios-hermes-firstboot.service into
-# /etc/mios/hermes/api.env, then read by both mios-hermes (server) and
-# mios-webui (client) via Quadlet EnvironmentFile=.
+# Hermes-Agent: OpenAI-compatible gateway and the live MiOS agent at /.
+# Fronts Ollama (mios-ollama:11434). API key generated at first boot
+# into /etc/mios/hermes/api.env.
 endpoint = "http://localhost:8642/v1"
 backend  = "http://mios-ollama:11434"
-model    = "qwen2.5-coder:7b"
+model    = "qwen3.5:2b"
 enable   = true
 
-[webui]
-# Open WebUI browser frontend. Defaults its OPENAI_API_BASE_URL at
-# http://mios-hermes:8642/v1 (the Hermes-Agent gateway), so all chat
-# traffic flows browser -> WebUI -> Hermes -> Ollama. Operators can
-# add mios-ai (LocalAI on :8080) as a second OpenAI backend inside the
-# WebUI's settings panel for image / audio / vector-store features
-# Hermes doesn't expose. Host port is 3030 because mios-ai already
-# owns 8080 (LAW 5 canonical endpoint).
+[hermes_workspace]
+# Hermes Workspace: browser chat front-end. Targets mios-hermes:8642/v1.
 endpoint = "http://localhost:3030/"
 enable   = true
 
 [ai]
-# Point at Ollama's OpenAI-compatible /v1, NOT LocalAI's. The `model`
-# below uses Ollama's name:tag format which Ollama natively understands.
-# LocalAI uses different model names and (on 2.20.0) chokes on aichat's
-# multimodal content-list format with
-#   InternalServerError: interface conversion:
-#   interface {} is []interface {}, not string
-# LocalAI stays in the stack for sidecar surfaces (embeddings,
-# image gen, STT/TTS); the chat surface `mios <prompt>` drives is
-# Ollama. Operator-flagged 2026-05-11 (`mios hello` -> 500 from
-# LocalAI before this fix).
-endpoint            = "http://localhost:11434/v1"
-# Global MiOS chat default. Operator directive 2026-05-11: "qwen3.5:2b
-# make it the GLOBAL MiOS defaults". Operator-pickable from mios.html;
-# overrideable per-install via MIOS_AI_MODEL.
+# Canonical agent surface. Defaults to Hermes-Agent (the live MiOS
+# agent at /), which fronts Ollama for inference + embeddings.
+endpoint            = "http://localhost:8642/v1"
 model               = "qwen3.5:2b"
 embed_model         = "nomic-embed-text"
-api_key             = ""                # empty for localhost; cloud needs a key
+api_key             = ""
 enable_ollama       = true
 mcp_registry        = "/usr/share/mios/ai/v1/mcp.json"
 system_prompt_file  = ""                # optional override; empty = use canonical
@@ -1553,9 +1532,8 @@ cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend
 searxng            = 8888     # local privacy-respecting metasearch
-hermes             = 8642     # Hermes-Agent OpenAI-compatible gateway
-hermes_workspace   = 3030     # Hermes Workspace web frontend (default chat UI)
-webui              = 3031     # Open WebUI (legacy; mios-webui Quadlet disabled by default 2026-05-11)
+hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
+hermes_workspace   = 3030     # Hermes Workspace chat front-end
 k3s_api            = 6443     # K3s Kubernetes API
 guacamole_web      = 8090     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
@@ -1577,8 +1555,6 @@ searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
-webui_version      = "latest"
-webui              = "docker.io/openwebui/open-webui:latest"
 hermes_workspace_version = "latest"
 hermes_workspace   = "ghcr.io/outsourc-e/hermes-workspace:latest"
 ollama_version     = "latest"
@@ -1624,11 +1600,6 @@ gid  = 819
 user = "mios-hermes"
 uid  = 820
 gid  = 820
-
-[services.webui]
-user = "mios-webui"
-uid  = 821
-gid  = 821
 
 # ----------------------------------------------------------------------------
 # [paths] -- canonical FHS paths for runtime artifacts. Consumed by
@@ -2161,21 +2132,14 @@ features = ["ai", "virtualization", "k3s"]
 # force-disable a service even when it would otherwise run.
 # ----------------------------------------------------------------------------
 [quadlets.enable]
-# Chat chain: ollama (LLM) -> mios-hermes (OpenAI gateway) ->
-# mios-hermes-workspace (web frontend). mios-ai (LocalAI) and
-# mios-webui (Open WebUI) stay in-tree but disabled by default:
-# operator directives 2026-05-11 ("forget open webui for now",
-# "we don't need these components" re LocalAI's 31.9 GB image).
-# Flip to true in /etc/mios/mios.toml [quadlets.enable] to opt in
-# (LocalAI for non-chat surfaces -- embeddings, image-gen, STT/TTS).
-mios-ai               = false  # LocalAI -- opt-in only; chat goes via Ollama
+# Chat chain: ollama (LLM + embeddings) -> mios-hermes (OpenAI gateway,
+# live MiOS agent at /) -> mios-hermes-workspace (web frontend).
 mios-ceph             = true
 mios-k3s              = true
 mios-forge            = true
-mios-cockpit-link     = true   # surfaces host Cockpit (9090) in Podman Desktop UI
+mios-cockpit-link     = true
 mios-hermes           = true
-mios-hermes-workspace = true   # default chat frontend (Ollama -> Hermes -> Workspace)
-mios-webui            = false  # disabled 2026-05-11: hermes-workspace is the default chat UI
+mios-hermes-workspace = true
 crowdsec-dashboard    = true
 ollama                = true
 cloudws-guacamole     = true

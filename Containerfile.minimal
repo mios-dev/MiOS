@@ -16,7 +16,7 @@
 #
 # What works:
 #   - MiOS file overlay (usr/, etc/, automation/lib/packages.sh)
-#   - AI surface (mios-ai, ollama, MCP, OpenAI v1 manifests)
+#   - AI surface (mios-hermes, ollama, MCP, OpenAI v1 manifests)
 #   - Forgejo + Forgejo Runner self-replication loop
 #   - Cockpit, greenboot, uupd
 #   - sealed-image-candidate composefs+fsverity hooks (gap #1 from the

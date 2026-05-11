@@ -2,24 +2,11 @@
   "object": "mios.tools.registry",
   "version": "v1",
   "manifest_path": "/usr/share/mios/ai/v1/tools.json",
-  "endpoint": "http://localhost:8080/v1",
-  "served_by": "mios-ai.container",
-  "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
+  "endpoint": "http://localhost:8642/v1",
+  "served_by": "mios-hermes.container",
   "schema_refs": {
     "chat_completions": "https://platform.openai.com/docs/api-reference/chat/create#chat-create-tools",
     "responses": "https://platform.openai.com/docs/api-reference/responses/create#responses-create-tools"
-  },
-  "x-mios": {
-    "schema_kind": "Registry of host-side function-calling tools shipped with MiOS, in both OpenAI tool shapes (chat-completions function format and Responses flat-tool format). Each entry points at the on-disk JSON definition; the dispatcher binary at /usr/libexec/mios/tools/<name> implements the tool.",
-    "intent": "MiOS agents read this manifest to populate the `tools` array on chat/completions or responses requests without hardcoding tool names. Adding a new tool means dropping {chat-completions-api,responses-api}/<name>.json + /usr/libexec/mios/tools/<name> and appending an entry here.",
-    "preference_order": [
-      "in-process file ops",
-      "local shell",
-      "MCP server",
-      "network call"
-    ],
-    "vendor_neutral": true,
-    "no_vendor_brand_names": true
   },
   "data": [
     {

@@ -9,7 +9,7 @@
     "properties": {
       "overlay_path": {
         "type": "string",
-        "description": "Path relative to repo root, e.g. 'usr/lib/bootc/kargs.d/00-mios.toml' or 'etc/containers/systemd/mios-ai.container'."
+        "description": "Path relative to repo root, e.g. 'usr/lib/bootc/kargs.d/00-mios.toml' or 'etc/containers/systemd/mios-hermes.container'."
       },
       "compare_with_base": {
         "type": "boolean",

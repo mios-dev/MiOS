@@ -1,22 +1,12 @@
 # /etc/containers/systemd/ai-net.network
-# 'MiOS' AI stack network (Hermes-Agent <-> Hermes-Workspace <-> Ollama).
+# 'MiOS' AI stack network: Hermes-Workspace -> Hermes-Agent -> Ollama.
 #
-# Operator directive 2026-05-11:
-#   Ollama >> Hermes Agent >> Hermes Workspace app  (chat front-end)
-#   LocalAI purged from the codebase; Open WebUI dropped to legacy/masked.
-#
-# Topology of the live AI stack:
-#
+# Topology:
 #   browser -> mios-hermes-workspace (3030) -> mios-hermes (8642) -> ollama (11434) -> GPU
 #
-# Every MiOS AI sidecar (mios-hermes, mios-hermes-workspace, ollama,
-# mios-searxng) lives on this bridge in addition to mios.network. That way:
-#
-#   * Hermes-Agent (the LIVE MiOS agent at root /) reaches ollama by
-#     container name without leaving the bridge.
-#   * mios-hermes-workspace targets mios-hermes:8642/v1 via container DNS.
-#   * SearXNG is reachable from the agent's `web_search` tool surface as
-#     mios-searxng:8888 without going through host loopback.
+# Sidecars (mios-hermes, mios-hermes-workspace, ollama, mios-searxng)
+# join this bridge in addition to mios.network so they can reach each
+# other by container DNS without going through host loopback.
 #
 # Subnet 10.90.0.0/24 is one octet beyond mios.network's 10.89.0.0/24 to
 # stay clear of any podman default ranges, the WSL2 eth0 prefixes
