@@ -35,10 +35,16 @@ AutoUpdate=registry
 # missing-user issue).
 User=${MIOS_OLLAMA_UID:-815}
 Group=${MIOS_OLLAMA_GID:-815}
-# Bind 0.0.0.0 inside the container so the API is reachable from the
-# host LAN, sibling containers, and loopback. PublishPort with explicit
-# 0.0.0.0 on the host side makes the surface contract explicit.
-Environment=OLLAMA_HOST=0.0.0.0:${MIOS_PORT_OLLAMA:-11434}
+# 127.0.0.1, NOT 0.0.0.0. ollama (Go binary, same pattern as gitea)
+# calls net.Listen("tcp", $OLLAMA_HOST) which upgrades 0.0.0.0 to
+# AF_INET6 dual-stack (`*:N` in ss output); WSL2 NAT-mode
+# localhostForwarding only forwards AF_INET binds. Loopback v4 keeps
+# the API reachable on Windows-side 127.0.0.1:11434 (Open WebUI /
+# Hermes / Claude Code on Windows -- the common case). LAN-side
+# reach for phone / second laptop is handled by the same socat
+# 0.0.0.0:N -> 127.0.0.1:N bridge that mios-forge needs (tracked
+# as follow-up). Operator-flagged 2026-05-11.
+Environment=OLLAMA_HOST=127.0.0.1:${MIOS_PORT_OLLAMA:-11434}
 Environment=OLLAMA_ORIGINS=*
 # Point ollama at the writable runtime store. mios-ollama-firstboot.
 # service hardlink-copies the build-baked seed (/usr/share/ollama/

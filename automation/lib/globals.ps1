@@ -44,8 +44,12 @@ $script:MIOS_AI_UID       = if ($env:MIOS_AI_UID)       { [int]$env:MIOS_AI_UID 
 $script:MIOS_AI_GID       = if ($env:MIOS_AI_GID)       { [int]$env:MIOS_AI_GID }  else { 817 }
 
 $script:MIOS_OLLAMA_USER  = if ($env:MIOS_OLLAMA_USER)  { $env:MIOS_OLLAMA_USER }  else { 'mios-ollama' }
-$script:MIOS_OLLAMA_UID   = if ($env:MIOS_OLLAMA_UID)   { [int]$env:MIOS_OLLAMA_UID } else { 818 }
-$script:MIOS_OLLAMA_GID   = if ($env:MIOS_OLLAMA_GID)   { [int]$env:MIOS_OLLAMA_GID } else { 818 }
+# 815 -- MUST match usr/lib/sysusers.d/50-mios-services.conf. Was 818
+# (typo, collided with mios-searxng). Caused ollama container to start
+# as UID 818 and `mkdir /var/lib/ollama/.ollama` -> permission denied
+# because the host bind-mount is chowned to UID 815 (mios-ollama).
+$script:MIOS_OLLAMA_UID   = if ($env:MIOS_OLLAMA_UID)   { [int]$env:MIOS_OLLAMA_UID } else { 815 }
+$script:MIOS_OLLAMA_GID   = if ($env:MIOS_OLLAMA_GID)   { [int]$env:MIOS_OLLAMA_GID } else { 815 }
 
 $script:MIOS_CEPH_USER    = if ($env:MIOS_CEPH_USER)    { $env:MIOS_CEPH_USER }    else { 'mios-ceph' }
 $script:MIOS_CEPH_UID     = if ($env:MIOS_CEPH_UID)     { [int]$env:MIOS_CEPH_UID }  else { 819 }

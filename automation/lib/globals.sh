@@ -63,8 +63,16 @@ export MIOS_VERSION
 : "${MIOS_AI_GID:=817}"
 
 : "${MIOS_OLLAMA_USER:=mios-ollama}"
-: "${MIOS_OLLAMA_UID:=818}"
-: "${MIOS_OLLAMA_GID:=818}"
+# UID/GID 815 -- MUST match usr/lib/sysusers.d/50-mios-services.conf
+# (`u mios-ollama 815:mios-ollama ...`). Was 818 by typo, which collided
+# with mios-searxng (also 818). The renderer exported MIOS_OLLAMA_UID=818
+# into 15-render-quadlets.sh's env, the Quadlet's `${MIOS_OLLAMA_UID:-815}`
+# template substituted to 818, the container started as UID 818 (searxng's
+# user), and `mkdir /var/lib/ollama/.ollama` failed with "permission
+# denied" because the host bind-mount /var/lib/ollama is chowned to
+# mios-ollama (UID 815). Operator-flagged 2026-05-11.
+: "${MIOS_OLLAMA_UID:=815}"
+: "${MIOS_OLLAMA_GID:=815}"
 
 : "${MIOS_CEPH_USER:=mios-ceph}"
 : "${MIOS_CEPH_UID:=819}"
