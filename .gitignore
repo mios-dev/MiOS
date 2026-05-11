@@ -68,6 +68,7 @@
 !/build-mios.ps1
 !/mios-pipeline.ps1
 !/mios-build-local.ps1
+!/mios-cloud-build.ps1
 !/preflight.ps1
 !/preflight.sh
 !/push-to-github.ps1
