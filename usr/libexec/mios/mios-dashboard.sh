@@ -368,24 +368,42 @@ print_endpoints() {
     d_workspace=$(ep_dot "http://localhost:${_p_workspace}/")
     d_code=$(ep_dot      "http://localhost:${_p_code}/")
 
-    section_header "Services"
-    # Row 1: forge / ollama / cockpit / search.
-    printf '    %s %sForge%s:%-5s  %s %sOllama%s:%-6s  %s %sCockpit%s:%-5s  %s %sSearch%s:%-5s\n' \
-        "$d_forge"     "$C_D" "$C_R" "$_p_forge" \
-        "$d_ollama"    "$C_D" "$C_R" "$_p_ollama" \
-        "$d_cockpit"   "$C_D" "$C_R" "$_p_cockpit" \
-        "$d_searxng"   "$C_D" "$C_R" "$_p_searxng"
-    # Row 2: chat trio (Hermes / Workspace / Code).
-    printf '    %s %sHermes%s:%-5s    %s %sWorkspace%s:%-5s    %s %sCode%s:%-5s\n' \
-        "$d_hermes"    "$C_D" "$C_R" "$_p_hermes" \
-        "$d_workspace" "$C_D" "$C_R" "$_p_workspace" \
-        "$d_code"      "$C_D" "$C_R" "$_p_code"
-    # Row 3: credentials (global MiOS password unless per-service override).
-    # Skipped in mini mode -- the prompt rows are the priority there.
-    if [[ "$MODE" != "mini" ]]; then
-        printf '    %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
-            "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
+    # Mini: 2-row services with ports (one of every endpoint, no
+    # credentials, no section header). 12 rows total fits 80x20 with
+    # 8 rows free for the prompt.
+    if [[ "$MODE" == "mini" ]]; then
+        printf '  %s Forge:%-5s   %s Ollama:%-5s   %s Cockpit:%-5s   %s Search:%-5s\n' \
+            "$d_forge"   "$_p_forge" \
+            "$d_ollama"  "$_p_ollama" \
+            "$d_cockpit" "$_p_cockpit" \
+            "$d_searxng" "$_p_searxng"
+        printf '  %s Hermes:%-5s      %s Workspace:%-5s      %s Code:%-5s\n' \
+            "$d_hermes"    "$_p_hermes" \
+            "$d_workspace" "$_p_workspace" \
+            "$d_code"      "$_p_code"
+        return
     fi
+
+    section_header "Services"
+    # Full dash: every service on its own line, 2-column side-by-side.
+    # Format: "<dot> <Name:port>" left-padded to a fixed column width
+    # so the right-column entries align vertically.
+    local fmt='    %s %s%-9s%s:%-6s    %s %s%-9s%s:%-6s\n'
+    printf "$fmt" \
+        "$d_forge"   "$C_D" "Forge"     "$C_R" "$_p_forge" \
+        "$d_ollama"  "$C_D" "Ollama"    "$C_R" "$_p_ollama"
+    printf "$fmt" \
+        "$d_cockpit" "$C_D" "Cockpit"   "$C_R" "$_p_cockpit" \
+        "$d_searxng" "$C_D" "Search"    "$C_R" "$_p_searxng"
+    printf "$fmt" \
+        "$d_hermes"    "$C_D" "Hermes"    "$C_R" "$_p_hermes" \
+        "$d_workspace" "$C_D" "Workspace" "$C_R" "$_p_workspace"
+    # Last row: Code on the left, blank right-column to keep alignment.
+    printf '    %s %s%-9s%s:%-6s\n' \
+        "$d_code" "$C_D" "Code" "$C_R" "$_p_code"
+    # Credentials row (global MiOS password unless per-service override).
+    printf '    %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
+        "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
 }
 
 print_quadlets() {
@@ -618,16 +636,17 @@ _dash_field() {
 # _dash_disk MOUNT LABEL -- emit "<label>: <used> / <total>GiB (<pct>%)"
 _dash_disk() {
     local mp="$1" lbl="$2"
-    #  nf-fa-hdd-o U+F0A0 prefixed so the disk rows match the rest
-    # of the icon-driven hardware section.
-    local icon=$'\xef\x82\xa0'
-    if ! command -v df >/dev/null 2>&1; then printf '%s %s --' "$icon" "$lbl"; return; fi
+    # Operator directive: drives and disks use their drive letter
+    # (or mountpoint) directly -- no icon prefix. Frees horizontal
+    # room and matches the at-a-glance "M:" / "/" identity the
+    # operator already uses on the host filesystem.
+    if ! command -v df >/dev/null 2>&1; then printf '%s --' "$lbl"; return; fi
     local out total used pct
     out="$(df -B1 --output=size,used,pcent "$mp" 2>/dev/null | tail -n +2 | awk '{ print $1, $2, $3 }')"
-    if [[ -z "$out" ]]; then printf '%s %s --' "$icon" "$lbl"; return; fi
+    if [[ -z "$out" ]]; then printf '%s --' "$lbl"; return; fi
     read -r total used pct <<< "$out"
     pct="${pct%%%}"
-    printf '%s %s %.1f / %.1fGiB (%s%%)' "$icon" "$lbl" \
+    printf '%s %.1f / %.1fGiB (%s%%)' "$lbl" \
         "$(awk -v u="$used"  'BEGIN{print u/1024/1024/1024}')" \
         "$(awk -v t="$total" 'BEGIN{print t/1024/1024/1024}')" \
         "$pct"
