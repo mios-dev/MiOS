@@ -67,7 +67,21 @@ Environment=USER_GID=${MIOS_FORGE_GID:-816}
 # wanting richer config can drop a custom app.ini under /etc/mios/forge/
 # and add Environment=FORGEJO_APP_INI_PATH=/etc/mios/forge/app.ini.
 Environment=FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP:-3000}/
-Environment=FORGEJO__server__HTTP_ADDR=0.0.0.0
+# 127.0.0.1, NOT 0.0.0.0. gitea/forgejo's net.Listen("tcp",
+# "0.0.0.0:3000") path internally upgrades to AF_INET6 dual-stack
+# (`*:3000` in ss output, AF_INET6-with-V6ONLY=0). WSL2 NAT-mode
+# localhostForwarding only catches AF_INET binds; AF_INET6 dual-
+# stack listens silently miss the forwarder and Windows times out
+# on 127.0.0.1:3000. Forcing HTTP_ADDR=127.0.0.1 makes gitea bind
+# AF_INET on 127.0.0.1:3000 explicitly, which WSL2 forwards.
+# Operator-flagged 2026-05-11 (`localhost:3000 timed out` after
+# searxng+cockpit IPv4 fixes were in).
+# Trade-off: LAN-side reach (phone, second laptop) needs an extra
+# socat hop or Windows-side netsh portproxy from the host's LAN IP
+# to the dev VM's NAT IP. Tracked separately; Windows-localhost
+# access is the higher-volume use case so that wins for the default.
+Environment=FORGEJO__server__HTTP_ADDR=127.0.0.1
+Environment=GITEA__server__HTTP_ADDR=127.0.0.1
 Environment=FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-3000}
 Environment=FORGEJO__server__SSH_PORT=${MIOS_PORT_FORGE_SSH:-2222}
 Environment=FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0
