@@ -38,6 +38,13 @@ fi
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export DISPLAY="${DISPLAY:-:0}"
 export PULSE_SERVER="${PULSE_SERVER:-/mnt/wslg/PulseServer}"
+# XDG_SESSION_TYPE: GTK4 / Nautilus refuse to attach to a Wayland
+# display when this is empty OR `tty` ("Failed to initialize display
+# server connection: Unsupported or missing session type ''"). The
+# pam_systemd fallback path WSL bash logins hit sets it to "tty"
+# (text-only session). Force `wayland` whenever /mnt/wslg is mounted
+# (already gated above) so flatpak GUI apps see a graphical session.
+export XDG_SESSION_TYPE=wayland
 
 # XDG_CURRENT_DESKTOP -- picks which xdg-desktop-portal backend will be
 # used. Without it, the portal frontend (org.freedesktop.portal.Desktop)
