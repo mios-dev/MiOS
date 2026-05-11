@@ -213,6 +213,7 @@ KNOWN_VERBS = {
     # / pathlib.is_file before dispatch so missing wrappers fall through
     # to chat rather than 127ing.
     "dash":   ["/usr/libexec/mios/mios-dashboard.sh"],
+    "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
     "code":   ["xdg-open", "http://localhost:8080/"],
     "help":   None,        # special-cased below

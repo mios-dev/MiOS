@@ -49,6 +49,7 @@ TICKER=0
 for arg in "$@"; do
     case "$arg" in
         --services-only) MODE="services-only"; NO_FRAME=1 ;;
+        --mini)          MODE="mini" ;;
         --no-color)      NO_COLOR=1 ;;
         --no-frame)      NO_FRAME=1 ;;
         --ticker)        TICKER=1 ;;
@@ -264,8 +265,11 @@ print_title() {
 }
 
 # ── Section header ───────────────────────────────────────────────────────────
+# Inline (no leading blank) to keep the dashboard inside an 18-row
+# budget on an 80x20 terminal -- each section header now costs 1 row
+# instead of 2.
 section_header() {
-    printf '\n  %s%s%s%s\n' "$C_B" "$C_CYN" "$1" "$C_R"
+    printf '  %s%s%s%s\n' "$C_B" "$C_CYN" "$1" "$C_R"
 }
 
 # ── Service status helpers ───────────────────────────────────────────────────
@@ -377,8 +381,11 @@ print_endpoints() {
         "$d_workspace" "$C_D" "$C_R" "$_p_workspace" \
         "$d_code"      "$C_D" "$C_R" "$_p_code"
     # Row 3: credentials (global MiOS password unless per-service override).
-    printf '    %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
-        "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
+    # Skipped in mini mode -- the prompt rows are the priority there.
+    if [[ "$MODE" != "mini" ]]; then
+        printf '    %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
+            "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
+    fi
 }
 
 print_quadlets() {
@@ -442,8 +449,13 @@ print_loop_hint() {
 
 print_services_block() {
     print_endpoints
-    print_quadlets
-    print_git_state
+    # Mini mode: only the endpoints (dots + names + ports). Skip the
+    # credential row + Stack count + Tree git-state to leave shell-
+    # rows free for the prompt. Default mode shows everything.
+    if [[ "$MODE" != "mini" ]]; then
+        print_quadlets
+        print_git_state
+    fi
 }
 
 # ── Fastfetch capture (logo suppressed; we render our own header) ────────────
@@ -748,11 +760,11 @@ case "$MODE" in
             # the verbose fastfetch + services + loop-hint render
             # (one metric per row, no [dashboard].rows).
             frame_top
-            # Operator 2026-05-09 image #22 benchmark: "full framed dash
-            # AND 1 line of the prompt visible". Skip the ~12-row ASCII
-            # logo + its divider in compact mode (window too short to
-            # fit logo + framed banner + system info + prompt).
-            if (( MIOS_COMPACT == 0 )); then
+            # Full `mios dash` (MODE=default) shows the ASCII banner +
+            # every section + verb hints regardless of terminal height
+            # -- operator may scroll. `mios mini` (MODE=mini) drops the
+            # logo to fit in 18 rows on an 80x20 terminal.
+            if [[ "$MODE" != "mini" ]]; then
                 print_ascii_header | frame_filter
                 frame_divide
             fi
@@ -774,9 +786,22 @@ case "$MODE" in
                 # a plain assignment instead (operator 2026-05-09 hit
                 # `local: can only be used in a function` here).
                 _show_services="$(_mios_toml_value 'dashboard' 'show_services' 'false')"
-                if [[ "${MIOS_DASH_SERVICES:-0}" == "1" ]] || [[ "$_show_services" == "true" ]]; then
+                # mini ALWAYS shows the abbreviated services block --
+                # that's the whole point of mini (hardware + a few
+                # services, no Stack/Tree/credentials).
+                if [[ "$MODE" == "mini" ]] || [[ "${MIOS_DASH_SERVICES:-0}" == "1" ]] || [[ "$_show_services" == "true" ]]; then
                     frame_divide
                     print_services_block | frame_filter
+                fi
+                # Verb hints -- full dash only. Mini drops them to
+                # leave room for the prompt. Reads [dashboard].verb_hint
+                # from mios.toml so operators rebrand the hint line.
+                if [[ "$MODE" != "mini" ]]; then
+                    _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  dev  pull  update  help')"
+                    if [[ -n "$_verb_hint" ]]; then
+                        frame_divide
+                        printf '  %s mios %s%s\n' "$C_GRY" "$_verb_hint" "$C_R" | frame_filter
+                    fi
                 fi
             fi
             frame_bot
