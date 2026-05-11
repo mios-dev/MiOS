@@ -429,17 +429,20 @@ color_scheme  = "prefer-dark"   # libadwaita / dconf color-scheme
 # Nautilus is the GNOME file manager (`Files`); shipping it here
 # means `flatpak run org.gnome.Nautilus` works on every host.
 flatpaks      = [
-    "org.gnome.Epiphany",
-    "org.gnome.Nautilus",
-    "com.github.tchx84.Flatseal",
-    # NOTE: org.gnome.Software was previously listed here but Flathub
-    # returns "Nothing matches org.gnome.Software in remote flathub" as
-    # of 2026-05 -- it appears to have been delisted or moved to a
-    # different ID. Operators who want a Flatpak app-browser UI can add
-    # one back via mios.html (e.g. "io.github.flattool.Warehouse" /
-    # "com.github.tchx84.Flatseal" already covers permissions).
-    "com.mattjakeman.ExtensionManager",
-    "com.vscodium.codium",
+    # GTK theme extensions so flatpak apps honor host dark-Adwaita.
+    "org.gtk.Gtk3theme.adw-gtk3-dark",
+    "org.gtk.Gtk3theme.adw-gtk3",
+    # Default session apps.
+    "app.devsuite.Ptyxis",                             # terminal (renamed from org.gnome.Ptyxis 2026-Q1)
+    # Nautilus modern: ONLY available as org.gnome.Nautilus.Devel on the
+    # gnome-nightly remote. Flathub's org.gnome.Nautilus is END-OF-LIFE
+    # (pinned to GNOME 3.28 runtime); Fedora flatpak registry doesn't
+    # carry Nautilus.
+    "gnome-nightly:org.gnome.Nautilus.Devel",
+    "fedora:org.gnome.Epiphany",                       # 50.x current (vs. potentially-stale Flathub)
+    "com.github.tchx84.Flatseal",                      # Flatpak permissions UI
+    "com.mattjakeman.ExtensionManager",                # GNOME shell extensions
+    "com.vscodium.codium",                             # VSCodium IDE
 ]
 
 # ----------------------------------------------------------------------------
