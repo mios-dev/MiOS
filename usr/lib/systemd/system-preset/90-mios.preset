@@ -62,6 +62,7 @@ enable mios-code-server.service
 # (ConditionPathExists=/etc/mios/forge/runner-token never satisfied).
 enable mios-forge.service
 enable mios-forge-firstboot.service
+enable mios-forgejo-runner-firstboot.service
 enable mios-forgejo-runner.service
 # user@1000.service starts the per-user systemd manager + user D-Bus
 # session bus for the 'mios' user (uid 1000, pinned in

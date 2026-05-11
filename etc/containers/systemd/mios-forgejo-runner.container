@@ -34,10 +34,14 @@
 [Unit]
 Description='MiOS' Forgejo Runner (self-hosted CI for /=git working tree)
 Documentation=https://forgejo.org/docs/latest/admin/actions/
-After=network-online.target mios-forge.service
-Wants=network-online.target
+After=network-online.target mios-forge.service mios-forgejo-runner-firstboot.service
+Wants=network-online.target mios-forgejo-runner-firstboot.service
 Requires=mios-forge.service
-ConditionPathExists=/etc/mios/forge/runner-token
+# v7+ daemon requires /srv/mios/forge-runner/.runner on disk -- the
+# firstboot service creates it from the registration token. Gate the
+# daemon on its presence so we don't restart-loop with "registration
+# file not found" before firstboot has had a chance to run.
+ConditionPathExists=/srv/mios/forge-runner/.runner
 # Runner closes the push -> CI -> bootc-switch loop on every shape
 # including WSL. WSL = `container` virt to systemd, so `!container` would
 # silently skip WSL and break self-replication on Windows hosts.

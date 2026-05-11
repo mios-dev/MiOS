@@ -1,0 +1,17 @@
+[Unit]
+Description='MiOS' Forgejo Runner first-boot registration
+Documentation=https://forgejo.org/docs/latest/admin/actions/
+After=mios-forge.service mios-forge-firstboot.service
+Wants=mios-forge.service
+Before=mios-forgejo-runner.service
+ConditionPathExists=/etc/mios/forge/runner-token
+ConditionPathExists=!/srv/mios/forge-runner/.runner
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-forgejo-runner-firstboot.sh
+TimeoutStartSec=180s
+
+[Install]
+WantedBy=multi-user.target
