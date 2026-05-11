@@ -25,6 +25,14 @@ ExecStart=/bin/bash -c '\
     getent passwd mios >/dev/null 2>&1 || exit 0; \
     UID_=$(id -u mios); GID_=$(id -g mios); \
     install -d -m 0700 -o "$UID_" -g "$GID_" "/run/user/$UID_"; \
+    # WSLg materializes /mnt/wslg/runtime-dir/wayland-0 a few seconds \
+    # after distro init. Wait up to 30s before bailing so the symlink \
+    # ALWAYS gets created on a healthy WSLg distro. \
+    for _ in $(seq 1 60); do \
+        [ -S /mnt/wslg/runtime-dir/wayland-0 ] && break; \
+        [ -S /mnt/wslg/wayland-0 ] && break; \
+        sleep 0.5; \
+    done; \
     if [ -S /mnt/wslg/runtime-dir/wayland-0 ] || [ -S /mnt/wslg/wayland-0 ]; then \
         src=/mnt/wslg/runtime-dir/wayland-0; [ -S "$src" ] || src=/mnt/wslg/wayland-0; \
         ln -sfn "$src" "/run/user/$UID_/wayland-0"; \
