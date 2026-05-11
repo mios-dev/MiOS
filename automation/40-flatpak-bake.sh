@@ -76,6 +76,10 @@ flatpak remote-add --system --if-not-exists flathub \
 log "[40-flatpak-bake] selected refs: ${FLATPAK_LIST}"
 log "[40-flatpak-bake] beginning system-wide install (this may take several minutes)"
 
+# Per-remote install: mios.toml accepts `<remote>:<appid>` entries so
+# the operator can pull Nautilus.Devel from gnome-nightly and Epiphany
+# from fedora's flatpak registry rather than the stale Flathub copy.
+# Bare `<appid>` still defaults to flathub.
 INSTALLED=0
 FAILED=0
 IFS=',' read -ra REFS <<< "$FLATPAK_LIST"
@@ -89,15 +93,50 @@ for raw in "${REFS[@]}"; do
         \#*) continue ;;
     esac
 
-    log "[40-flatpak-bake]   installing ${ref}"
+    # Split on first colon -- `gnome-nightly:org.gnome.Nautilus.Devel`
+    # -> remote=gnome-nightly, app=org.gnome.Nautilus.Devel. No colon
+    # means bare app id -> flathub.
+    case "$ref" in
+        *:*)
+            remote="${ref%%:*}"
+            app="${ref#*:}"
+            ;;
+        *)
+            remote="flathub"
+            app="$ref"
+            ;;
+    esac
+
+    # Ensure the remote exists. flathub is added above; other remotes
+    # are added on-demand here (the standard URLs are well-known).
+    if ! flatpak remote-list --system --columns=name 2>/dev/null | grep -qw "$remote"; then
+        case "$remote" in
+            flathub)
+                flatpak remote-add --system --if-not-exists flathub \
+                    https://dl.flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true ;;
+            flathub-beta)
+                flatpak remote-add --system --if-not-exists flathub-beta \
+                    https://flathub.org/beta-repo/flathub-beta.flatpakrepo 2>/dev/null || true ;;
+            gnome-nightly)
+                flatpak remote-add --system --if-not-exists gnome-nightly \
+                    https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>/dev/null || true ;;
+            fedora)
+                flatpak remote-add --system --if-not-exists fedora \
+                    oci+https://registry.fedoraproject.org 2>/dev/null || true ;;
+            *)
+                warn "[40-flatpak-bake]   unknown remote '$remote' for $ref -- attempting install anyway" ;;
+        esac
+    fi
+
+    log "[40-flatpak-bake]   installing ${app} (from ${remote})"
     if flatpak install --system --noninteractive --assumeyes --or-update \
-            flathub "${ref}" 2>&1 \
+            "${remote}" "${app}" 2>&1 \
             | grep -E '^(Installing|Updating|Already installed|Skipping|Error|Warning)' \
             || true; then
         INSTALLED=$((INSTALLED + 1))
     else
         FAILED=$((FAILED + 1))
-        warn "[40-flatpak-bake]   ${ref} install returned non-zero -- will retry at first boot"
+        warn "[40-flatpak-bake]   ${remote}:${app} install returned non-zero -- will retry at first boot"
     fi
 done
 

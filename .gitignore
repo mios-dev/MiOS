@@ -136,6 +136,16 @@ etc/fapolicyd/*
 !/etc/aichat/
 !/etc/aichat/**
 
+# /etc/btop/ -- system-wide btop preset + MiOS palette theme. mios-btop.sh
+# resolves BTOP_CONFIG_DIR=/etc/btop when the user has no ~/.config/btop,
+# so this is the canonical fallback that ships with the image. Operator
+# can override per-user; the system-wide copy guarantees `btop` and
+# `btop -p 3` render the MiOS preset out of the box.
+!/etc/btop/
+!/etc/btop/btop.conf
+!/etc/btop/themes/
+!/etc/btop/themes/mios.theme
+
 # /etc/profile.d/ -- login-shell environment resolver (INDEX.md sec 4).
 # mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +
 # identity vars system-wide. Bash sources /etc/profile.d/*.sh from

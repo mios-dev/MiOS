@@ -60,17 +60,52 @@ fi
 mapfile -t WANTED < <(printf '%s\n' "$flatpaks" | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' -e '/^#/d')
 log "operator-selected flatpaks (${#WANTED[@]}): ${WANTED[*]}"
 
-# Skip those already installed system-wide.
+# Skip those already installed system-wide. mios.toml entries may be
+# prefixed with `<remote>:<appid>`; split on the first colon. Bare
+# app ids fall back to flathub.
+parse_ref() {
+    case "$1" in
+        *:*) printf '%s\n%s\n' "${1%%:*}" "${1#*:}" ;;
+        *)   printf 'flathub\n%s\n' "$1" ;;
+    esac
+}
+
+ensure_remote() {
+    local remote="$1"
+    if flatpak remote-list --system --columns=name 2>/dev/null | grep -qw "$remote"; then
+        return 0
+    fi
+    case "$remote" in
+        flathub)
+            flatpak remote-add --if-not-exists --system flathub \
+                https://dl.flathub.org/repo/flathub.flatpakrepo 2>&1 | while read -r ln; do log "$ln"; done || true ;;
+        flathub-beta)
+            flatpak remote-add --if-not-exists --system flathub-beta \
+                https://flathub.org/beta-repo/flathub-beta.flatpakrepo 2>&1 | while read -r ln; do log "$ln"; done || true ;;
+        gnome-nightly)
+            flatpak remote-add --if-not-exists --system gnome-nightly \
+                https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>&1 | while read -r ln; do log "$ln"; done || true ;;
+        fedora)
+            flatpak remote-add --if-not-exists --system fedora \
+                oci+https://registry.fedoraproject.org 2>&1 | while read -r ln; do log "$ln"; done || true ;;
+        *)
+            log "unknown remote '$remote' -- skipping remote-add" ;;
+    esac
+}
+
 mapfile -t INSTALLED < <(flatpak list --system --app --columns=application 2>/dev/null)
 declare -A have
 for app in "${INSTALLED[@]}"; do have["$app"]=1; done
 
 TODO=()
-for app in "${WANTED[@]}"; do
+for raw in "${WANTED[@]}"; do
+    # shellcheck disable=SC2207
+    pair=( $(parse_ref "$raw") )
+    app="${pair[1]}"
     if [[ -n "${have[$app]:-}" ]]; then
         log "already installed: $app"
     else
-        TODO+=("$app")
+        TODO+=("$raw")
     fi
 done
 
@@ -81,18 +116,23 @@ if (( ${#TODO[@]} == 0 )); then
     exit 0
 fi
 
-# Refresh appstream so search/Deploy sees current metadata, then
-# install. --noninteractive lets first-boot install without a TTY.
-log "refreshing flathub appstream"
-flatpak update --system --appstream flathub 2>&1 | while read -r ln; do log "$ln"; done || true
-
 log "installing ${#TODO[@]} flatpak(s)"
 rc=0
-for app in "${TODO[@]}"; do
-    if flatpak install --system --noninteractive --or-update -y flathub "$app" 2>&1 | while read -r ln; do log "$ln"; done; then
-        log "installed: $app"
+for raw in "${TODO[@]}"; do
+    # shellcheck disable=SC2207
+    pair=( $(parse_ref "$raw") )
+    remote="${pair[0]}"
+    app="${pair[1]}"
+
+    ensure_remote "$remote"
+
+    # Refresh appstream for the target remote so search sees current metadata.
+    flatpak update --system --appstream "$remote" 2>&1 | while read -r ln; do log "$ln"; done || true
+
+    if flatpak install --system --noninteractive --or-update -y "$remote" "$app" 2>&1 | while read -r ln; do log "$ln"; done; then
+        log "installed: ${remote}:${app}"
     else
-        log "FAILED: $app (continuing)"
+        log "FAILED: ${remote}:${app} (continuing)"
         rc=1
     fi
 done

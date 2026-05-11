@@ -9,14 +9,29 @@
 # `btop -p 4` (also reachable via `mios proc`-style) shows only the
 # processes section per operator's preset-4 request.
 #
-# Operator can bypass by passing any explicit -p / --preset arg:
-#   btop          -> btop -p 3
-#   btop -p 4     -> btop -p 4         (operator override wins)
-#   btop --preset 1 -> btop --preset 1 (operator override wins)
-#
-# Interactive-shell only; cron/scripted btop sees the real binary.
+# Operator-flagged 2026-05-10 (screenshot): btop launched at preset 3
+# but rendered cpu+NET (btop's compiled-in default preset 3) with
+# update_ms=2000 (default). That's btop ignoring our config entirely.
+# Root cause: btop reads `$XDG_CONFIG_HOME/btop/btop.conf` ->
+# `$HOME/.config/btop/btop.conf` and DOESN'T fall back to /etc when
+# either is unset/invalid. On the dev VM, `mios` user's $HOME can
+# resolve to `/` (the /=git root), and `/.config/btop/btop.conf`
+# may not exist if the build-time seed missed that path. Force the
+# resolution explicitly via BTOP_CONFIG_DIR so the canonical MiOS
+# config under /etc/btop/ is always honored.
 
 [ -n "${PS1:-}" ] || return 0
+
+# Resolve BTOP_CONFIG_DIR if the operator hasn't pinned one. Prefer
+# the user's own config if it exists; otherwise fall back to the
+# system-wide MiOS preset baked into the image.
+if [ -z "${BTOP_CONFIG_DIR:-}" ]; then
+    if [ -f "${HOME:-/root}/.config/btop/btop.conf" ]; then
+        export BTOP_CONFIG_DIR="${HOME:-/root}/.config/btop"
+    elif [ -f /etc/btop/btop.conf ]; then
+        export BTOP_CONFIG_DIR=/etc/btop
+    fi
+fi
 
 btop() {
     local has_preset=0
