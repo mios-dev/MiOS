@@ -75,22 +75,27 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export DISPLAY="${DISPLAY:-:0}"
 
 # ── GTK / Qt scaling on 4K Windows hosts ──────────────────────────
-# Operator-flagged 2026-05-10: "gnome scaling of apps is probably
-# 25% too big relative to windows application windows". WSLg
-# inherits the Windows host's effective DPI scale (typically
-# 1.25 / 1.5 on high-DPI laptops). Linux GTK apps then render at
-# that scale on top of WSLg's own scale -> apps end up ~25% larger
-# than the Windows-native UI they sit next to.
+# Operator-flagged 2026-05-10 (rev 2): "GLOBAL Scaling is still 25%
+# too big -- the cursor itself is huge compared to the windows cursor".
+# Earlier 0.75 wasn't aggressive enough. WSLg compounds the Windows
+# host's DPI scale (1.25-1.5 on 4K laptops) with its own scale, so
+# GDK_DPI_SCALE has to drop further to match Windows-native UI sizes.
 #
-# Fix: GDK_DPI_SCALE=0.75 (fractional, scales DOWN by 25%). GDK
-# applies this AFTER GDK_SCALE (which is integer-only), so the
-# net effect at GDK_SCALE=1 + GDK_DPI_SCALE=0.75 is rendering at
-# 75% of native. Operators on standard-DPI hosts can override
-# to 1.0 via shell export or ~/.config/environment.d/.
-export GDK_DPI_SCALE="${GDK_DPI_SCALE:-0.75}"
-# Qt apps (eventual Plasma/KDE GUI) honor the same intent via
-# the QT_FONT_DPI knob -- 72 = 75% of the default 96.
-export QT_FONT_DPI="${QT_FONT_DPI:-72}"
+# Two cooperating knobs:
+#   * GDK_DPI_SCALE -> 0.60: fractional DPI scale. 0.60 * Windows 1.25
+#     = ~0.75 effective, matching the visual size of native Win32 apps.
+#   * QT_FONT_DPI    -> 58 (~60% of GDK's default 96 px-per-em). Keeps
+#     future Plasma/Qt apps visually consistent with the GTK stack.
+#
+# Cursor sizing piggybacks on this via dconf cursor-size=16 (set in
+# /etc/dconf/db/local.d/00-mios-theme); XCURSOR_SIZE makes apps that
+# read libXcursor directly (xterm, libreoffice, electron) honor the
+# same value. Bibata is mandatory at /usr/share/icons/Bibata-Modern-Classic/
+# per automation/10-gnome.sh.
+export GDK_DPI_SCALE="${GDK_DPI_SCALE:-0.60}"
+export QT_FONT_DPI="${QT_FONT_DPI:-58}"
+export XCURSOR_SIZE="${XCURSOR_SIZE:-16}"
+export XCURSOR_THEME="${XCURSOR_THEME:-Bibata-Modern-Classic}"
 
 # ── Vulkan ICD ──────────────────────────────────────────────────
 # WSLg ships dzn at /usr/share/vulkan/icd.d/dzn_icd.x86_64.json.

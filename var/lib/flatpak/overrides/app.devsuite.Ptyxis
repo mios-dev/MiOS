@@ -2,11 +2,13 @@
 filesystems=xdg-config/dconf:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;
 
 [Environment]
+XCURSOR_SIZE=16
+XCURSOR_THEME=Bibata-Modern-Classic
 GSK_RENDERER=cairo
 LIBGL_ALWAYS_SOFTWARE=1
 GALLIUM_DRIVER=llvmpipe
 LIBGL_KOPPER_DISABLE=1
 WEBKIT_DISABLE_COMPOSITING_MODE=1
 ADW_DEBUG_COLOR_SCHEME=prefer-dark
-GDK_DPI_SCALE=0.75
-QT_FONT_DPI=72
+GDK_DPI_SCALE=0.60
+QT_FONT_DPI=58

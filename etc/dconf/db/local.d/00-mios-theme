@@ -2,8 +2,8 @@
 #
 # MiOS canonical GNOME / GTK theming defaults. Applied at every
 # user-bus login via dconf's system-db cascade -- operator sees
-# adw-gtk3-dark + prefer-dark color scheme on first launch of any
-# GTK app without having to gsettings-set it themselves.
+# adw-gtk3-dark + prefer-dark color scheme + Bibata cursor on first
+# launch of any GTK app without having to gsettings-set them themselves.
 #
 # Operator-overridable per-user (gsettings set ... or the GNOME
 # Tweaks UI). System defaults here only take effect when the
@@ -11,15 +11,29 @@
 #
 # /etc/dconf/profile/user (ships alongside this file) wires the
 # local system-db into the user dconf profile cascade.
+#
+# Cursor: Bibata-Modern-Classic is installed mandatorily by
+# automation/10-gnome.sh into /usr/share/icons/Bibata-Modern-Classic/
+# (build fails if download misses). Operator-flagged 2026-05-10:
+# "not seeing bibata cursor that is the GLOBAL MiOS defaults -- YOU
+# FORGOT" -- the dconf key here was 'Adwaita' so Bibata installed
+# but never activated. Pointed at Bibata-Modern-Classic.
+#
+# cursor-size=16: WSLg upscales the cursor relative to Windows native
+# rendering; the GNOME default (24) renders huge compared to the
+# Windows cursor on a 4K monitor. 16 puts MiOS's cursor visually in
+# the same size class as Windows's default cursor.
 
 [org/gnome/desktop/interface]
 color-scheme='prefer-dark'
 gtk-theme='adw-gtk3-dark'
 icon-theme='Adwaita'
-cursor-theme='Adwaita'
-font-name='Adwaita Sans 11'
-monospace-font-name='GeistMono Nerd Font Mono 10'
-document-font-name='Adwaita Sans 11'
+cursor-theme='Bibata-Modern-Classic'
+cursor-size=16
+text-scaling-factor=0.85
+font-name='GeistMono Nerd Font Mono 11'
+monospace-font-name='GeistMono Nerd Font Mono 11'
+document-font-name='GeistMono Nerd Font Mono 11'
 
 [org/gnome/desktop/wm/preferences]
 theme='adw-gtk3-dark'
