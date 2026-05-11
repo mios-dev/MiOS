@@ -1,0 +1,15 @@
+# /usr/lib/systemd/system/mios-hermes-workspace-firstboot.service
+# Generate the workspace login password on first boot.
+[Unit]
+Description='MiOS' Hermes Workspace first-boot password generation
+ConditionPathExists=!/etc/mios/hermes-workspace/workspace.env
+Before=mios-hermes-workspace.service
+After=mios-hermes-firstboot.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-hermes-workspace-firstboot.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1556,7 +1556,8 @@ cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend
 searxng            = 8888     # local privacy-respecting metasearch
 hermes             = 8642     # Hermes-Agent OpenAI-compatible gateway
-webui              = 3030     # Open WebUI (port 3030 because mios-ai owns 8080)
+hermes_workspace   = 3030     # Hermes Workspace web frontend (default chat UI)
+webui              = 3031     # Open WebUI (legacy; mios-webui Quadlet disabled by default 2026-05-11)
 k3s_api            = 6443     # K3s Kubernetes API
 guacamole_web      = 8090     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
@@ -1582,6 +1583,8 @@ hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 webui_version      = "latest"
 webui              = "docker.io/openwebui/open-webui:latest"
+hermes_workspace_version = "latest"
+hermes_workspace   = "ghcr.io/outsourc-e/hermes-workspace:latest"
 ollama_version     = "latest"
 ollama             = "docker.io/ollama/ollama:latest"
 guacamole_version  = "latest"
@@ -2167,17 +2170,20 @@ features = ["ai", "virtualization", "k3s"]
 # force-disable a service even when it would otherwise run.
 # ----------------------------------------------------------------------------
 [quadlets.enable]
-mios-ai            = true
-mios-ceph          = true
-mios-k3s           = true
-mios-forge         = true
-mios-cockpit-link  = true   # surfaces host Cockpit (9090) in Podman Desktop UI
-crowdsec-dashboard = true
-ollama             = true
-cloudws-guacamole  = true
-cloudws-pxe-hub    = true
-guacamole-postgres = true
-guacd              = true
+mios-ai               = true
+mios-ceph             = true
+mios-k3s              = true
+mios-forge            = true
+mios-cockpit-link     = true   # surfaces host Cockpit (9090) in Podman Desktop UI
+mios-hermes           = true
+mios-hermes-workspace = true   # default chat frontend (Ollama -> Hermes -> Workspace)
+mios-webui            = false  # disabled 2026-05-11: hermes-workspace is the default chat UI
+crowdsec-dashboard    = true
+ollama                = true
+cloudws-guacamole     = true
+cloudws-pxe-hub       = true
+guacamole-postgres    = true
+guacd                 = true
 
 # ----------------------------------------------------------------------------
 # [env] -- free-form environment-variable additions. Keys must match POSIX
