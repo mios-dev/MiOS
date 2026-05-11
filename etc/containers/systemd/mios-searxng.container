@@ -37,7 +37,7 @@ Network=ai-net.network
 # (LocalAI's OpenAI-compatible endpoint), so SearXNG goes on the next
 # conventional search-proxy port. Sibling Quadlets on mios.network reach
 # it as http://mios-searxng:8080/ without going through host loopback.
-PublishPort=${MIOS_PORT_SEARXNG:-8888}:8080
+PublishPort=${MIOS_PORT_SEARXNG:-8888}:${MIOS_PORT_SEARXNG:-8888}
 
 # Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
 # the container expects them at /etc/searxng inside. We bind-mount the
@@ -63,7 +63,18 @@ Group=${MIOS_SEARXNG_GID:-818}
 # fronting SearXNG behind a reverse proxy override this in
 # /etc/mios/searxng/settings.yml -> server.base_url.
 Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8888}/
-Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:8080
+# Bind directly to the canonical MiOS port (mios.toml [ports].searxng).
+# Previously this said 0.0.0.0:8080 with PublishPort=${MIOS_PORT_SEARXNG}:8080
+# doing the 8888->8080 remap inside Quadlet's bridge network. That fails
+# on the dev VM where Network=host drop-ins make PublishPort a no-op:
+# SearXNG ends up trying to bind 0.0.0.0:8080 in the host netns and
+# collides with mios-ai (LocalAI) which already owns 8080. Operator-
+# flagged 2026-05-11 with `RuntimeError: Address already in use
+# (os error 98)` in granian's _init_shared_socket. Bind 8888 directly
+# so host-network mode just works; bridge-network deployments still
+# work via PublishPort= forwarding to 8888.
+Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
+Environment=BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
 
 # Limit log volume; SearXNG is chatty per-query.
 Environment=SEARXNG_LOG_LEVEL=WARNING
