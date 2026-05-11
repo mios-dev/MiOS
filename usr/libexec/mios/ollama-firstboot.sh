@@ -64,7 +64,7 @@ fi
 # ── Layer 2: ensure the configured models are present, pulling any gaps ──
 # Read the runtime model selection from install.env so operators can
 # override the build-baked default without rebuilding the image.
-DEFAULT_CHAT="qwen2.5-coder:7b"
+DEFAULT_CHAT="qwen3.5:2b"
 DEFAULT_EMBED="nomic-embed-text"
 MIOS_AI_MODEL="$DEFAULT_CHAT"
 MIOS_AI_EMBED_MODEL="$DEFAULT_EMBED"

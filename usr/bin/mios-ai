@@ -16,7 +16,7 @@
 #   1. CLI args (highest)
 #   2. $MIOS_AI_ENDPOINT / $MIOS_AI_MODEL (env, set by mios-env.sh)
 #   3. /etc/mios/install.env defaults
-#   4. Hardcoded fallbacks (mios @ qwen2.5-coder:7b)
+#   4. Hardcoded fallbacks (mios @ qwen3.5:2b)
 #
 # Routes through aichat. /usr/bin/aichat on a deployed MiOS host is the
 # distrobox-routed shim (see automation/37-aichat.sh + the
@@ -63,9 +63,9 @@ if [[ -r /etc/mios/install.env ]]; then
     set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
 fi
 
-MIOS_AI_MODEL="${MODEL_OVERRIDE:-${MIOS_AI_MODEL:-qwen2.5-coder:7b}}"
+MIOS_AI_MODEL="${MODEL_OVERRIDE:-${MIOS_AI_MODEL:-qwen3.5:2b}}"
 # Strip any client-prefix that may have been set in install.env or env
-# (e.g. MIOS_AI_MODEL=mios:qwen2.5-coder:7b). The CLIENT name is
+# (e.g. MIOS_AI_MODEL=mios:qwen3.5:2b). The CLIENT name is
 # composed below; this leaves us with just the model.
 case "$MIOS_AI_MODEL" in
     mios:*|ollama:*|localai:*) MIOS_AI_MODEL="${MIOS_AI_MODEL#*:}" ;;

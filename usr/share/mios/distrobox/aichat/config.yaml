@@ -13,9 +13,9 @@
 #
 # `ollama` and `localai` remain available as named alternates for
 # operators who want to switch backends without editing the default
-# (e.g. `aichat --model ollama:qwen2.5-coder:7b "..."`).
+# (e.g. `aichat --model ollama:qwen3.5:2b "..."`).
 
-model: mios:qwen2.5-coder:7b
+model: mios:qwen3.5:2b
 stream: true
 save_session: true
 keybindings: emacs
@@ -26,7 +26,7 @@ clients:
     api_base: http://localhost:8080/v1
     api_key: localai
     models:
-      - name: qwen2.5-coder:7b
+      - name: qwen3.5:2b
         max_input_tokens: 32768
         supports_function_calling: true
       - name: qwen2.5-coder:14b
@@ -41,7 +41,7 @@ clients:
     api_base: http://localhost:11434/v1
     api_key: ollama
     models:
-      - name: qwen2.5-coder:7b
+      - name: qwen3.5:2b
         max_input_tokens: 32768
         supports_function_calling: true
       - name: qwen2.5-coder:14b
@@ -56,5 +56,5 @@ clients:
     api_base: http://localhost:8080/v1
     api_key: localai
     models:
-      - name: qwen2.5-coder:7b
+      - name: qwen3.5:2b
         max_input_tokens: 32768

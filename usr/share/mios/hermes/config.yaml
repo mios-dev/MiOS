@@ -10,18 +10,18 @@
 # This file replaces the interactive `setup` wizard that
 # deploy-aistack.sh runs on bare-metal first-deploy. Wiring is fully
 # declarative: backend = mios-ollama on ai-net, model = MiOS's baked
-# default (qwen2.5-coder:7b), API server reads its key from
+# default (qwen3.5:2b), API server reads its key from
 # /etc/mios/hermes/api.env via EnvironmentFile= in the Quadlet.
 
 backend:
   provider: ollama
   base_url: http://mios-ollama:11434
-  model: qwen2.5-coder:7b
+  model: qwen3.5:2b
   # Listed alternates so the WebUI's model picker shows what's
-  # available. mios-ollama-firstboot bakes qwen2.5-coder:7b and
+  # available. mios-ollama-firstboot bakes qwen3.5:2b and
   # nomic-embed-text by default; operators can pull others post-deploy.
   available_models:
-    - qwen2.5-coder:7b
+    - qwen3.5:2b
     - nomic-embed-text
 
 # Auxiliary LLM -- Hermes uses this for context compression,
@@ -37,7 +37,7 @@ backend:
 auxiliary:
   provider: local/custom
   base_url: http://mios-ai:8080/v1
-  model: qwen2.5-coder:7b
+  model: qwen3.5:2b
   api_key: ${API_SERVER_KEY}
 
 api_server:

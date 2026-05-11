@@ -57,7 +57,7 @@ EnvironmentFile=/etc/mios/hermes/api.env
 # interactively; we bake them in so the unit is fully declarative.
 Environment=HERMES_BACKEND_PROVIDER=ollama
 Environment=HERMES_BACKEND_BASE_URL=http://mios-ollama:11434
-Environment=HERMES_BACKEND_MODEL=qwen2.5-coder:7b
+Environment=HERMES_BACKEND_MODEL=qwen3.5:2b
 Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
 
 # Identity. UID resolved from mios.toml [services.hermes].uid (default

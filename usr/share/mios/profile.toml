@@ -46,8 +46,9 @@ allow_cockpit          = true
 allow_libvirt_bridge   = true
 
 [ai]
-endpoint        = "http://localhost:8080/v1"
-model           = "qwen2.5-coder:7b"
+# Point at Ollama (not LocalAI). Model uses Ollama name:tag format.
+endpoint        = "http://localhost:11434/v1"
+model           = "qwen3.5:2b"
 embed_model     = "nomic-embed-text"
 api_key         = ""
 enable_ollama   = true

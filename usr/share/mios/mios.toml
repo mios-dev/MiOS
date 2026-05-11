@@ -403,7 +403,10 @@ enable   = true
 # Ollama. Operator-flagged 2026-05-11 (`mios hello` -> 500 from
 # LocalAI before this fix).
 endpoint            = "http://localhost:11434/v1"
-model               = "qwen2.5-coder:7b"
+# Global MiOS chat default. Operator directive 2026-05-11: "qwen3.5:2b
+# make it the GLOBAL MiOS defaults". Operator-pickable from mios.html;
+# overrideable per-install via MIOS_AI_MODEL.
+model               = "qwen3.5:2b"
 embed_model         = "nomic-embed-text"
 api_key             = ""                # empty for localhost; cloud needs a key
 enable_ollama       = true
@@ -413,7 +416,7 @@ system_prompt_file  = ""                # optional override; empty = use canonic
 # Build-time model bake list. Comma-separated; consumed by
 # automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
-bake_models         = "qwen2.5-coder:7b,nomic-embed-text"
+bake_models         = "qwen3.5:2b,nomic-embed-text"
 # Recommended floor for the default model. Informational; logged in
 # postcheck so operators know what they're signing up for.
 ram_floor_gb        = 12
@@ -431,11 +434,14 @@ runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-see
 # these and assigns $aiModel = big/mid/small at install time.
 # ----------------------------------------------------------------------------
 [ai.host_thresholds]
+# Auto-pick rolls UP from the small default (qwen3.5:2b at < 12 GB
+# RAM). Operators with 12+ GB get qwen3.5:7b; 32+ GB get qwen3.5:14b.
+# All three are operator-pickable from mios.html.
 big_ram_gb       = 32                            # >= this -> big_ram_model
 mid_ram_gb       = 12                            # >= this -> mid_ram_model
-big_ram_model    = "qwen2.5-coder:14b"
-mid_ram_model    = "qwen2.5-coder:7b"
-small_ram_model  = "phi4-mini:3.8b-q4_K_M"      # < mid_ram_gb fallback
+big_ram_model    = "qwen3.5:14b"
+mid_ram_model    = "qwen3.5:7b"
+small_ram_model  = "qwen3.5:2b"                  # < mid_ram_gb fallback (also the global default)
 
 # ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.

@@ -14,7 +14,7 @@
 # default chat + embed models are present and aichat can connect
 # without any user-side config.
 #
-# Model: pinned to qwen2.5-coder:7b as a safe default. Override per
+# Model: pinned to qwen3.5:2b as a safe default. Override per
 # session: `aichat --model ollama:<model>`. Persistent override:
 # copy this file to ~/.config/aichat/config.yaml and edit `model`.
 # The MIOS_AI_MODEL env var (set by /etc/profile.d/mios-env.sh from
@@ -22,7 +22,7 @@
 # /usr/bin/mios-ai wrapper substitutes it at call time so the bare
 # `aichat` and `mios-ai` paths can drift apart cleanly.
 
-model: ollama:qwen2.5-coder:7b
+model: ollama:qwen3.5:2b
 stream: true
 save_session: true
 keybindings: emacs
@@ -33,7 +33,7 @@ clients:
     api_base: http://localhost:11434/v1
     api_key: ollama   # any non-empty string; ollama ignores the key
     models:
-      - name: qwen2.5-coder:7b
+      - name: qwen3.5:2b
         max_input_tokens: 32768
         supports_function_calling: true
       - name: qwen2.5-coder:14b
@@ -52,5 +52,5 @@ clients:
     api_base: http://localhost:8080/v1
     api_key: localai
     models:
-      - name: qwen2.5-coder:7b
+      - name: qwen3.5:2b
         max_input_tokens: 32768

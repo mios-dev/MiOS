@@ -17,7 +17,7 @@
 # Environment (per Architectural Law 5):
 #   MIOS_AI_ENDPOINT=http://localhost:8080/v1   the OpenAI-compatible base URL
 #   MIOS_AI_KEY=                                bearer token (empty OK locally)
-#   MIOS_AI_MODEL=qwen2.5-coder:7b              the chat model id
+#   MIOS_AI_MODEL=qwen3.5:2b              the chat model id
 #   MIOS_AI_SYSTEM_PROMPT=/path/to/system.md    explicit override
 #   MIOS_SHARE_DIR=/usr/share/mios              base for resolved files
 #
@@ -47,7 +47,7 @@ except ImportError:
 
 # ─── Configuration ────────────────────────────────────────────────────
 ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1")
-MODEL    = os.environ.get("MIOS_AI_MODEL",    "qwen2.5-coder:7b")
+MODEL    = os.environ.get("MIOS_AI_MODEL",    "qwen3.5:2b")
 API_KEY  = os.environ.get("MIOS_AI_KEY",      "sk-noop")
 SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
 LIB      = pathlib.Path("/usr/lib/mios")
