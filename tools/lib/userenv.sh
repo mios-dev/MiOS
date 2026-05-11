@@ -220,6 +220,7 @@ slots = [
     ("identity.hostname",              "MIOS_DEFAULT_HOST"),
     ("identity.shell",                 "MIOS_DEFAULT_SHELL"),
     ("identity.groups",                "MIOS_DEFAULT_GROUPS"),
+    ("identity.default_password",      "MIOS_DEFAULT_PASSWORD"),
     ("locale.timezone",                "MIOS_DEFAULT_TIMEZONE"),
     ("locale.language",                "MIOS_DEFAULT_LOCALE"),
     ("locale.keyboard_layout",         "MIOS_DEFAULT_KEYBOARD"),

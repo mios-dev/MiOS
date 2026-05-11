@@ -48,7 +48,13 @@ fi
 admin_user="${MIOS_FORGE_ADMIN_USER:-${MIOS_LINUX_USER:-${MIOS_USER:-mios}}}"
 admin_host="${MIOS_HOSTNAME:-mios}"
 admin_email="${MIOS_FORGE_ADMIN_EMAIL:-${admin_user}@${admin_host}.local}"
-admin_password="${MIOS_FORGE_ADMIN_PASSWORD:-}"
+# Default to the global MiOS password (mios.toml [identity].default_password).
+# Operators can override per-service via MIOS_FORGE_ADMIN_PASSWORD, or set
+# MIOS_FORGE_ADMIN_PASSWORD=__random__ to force a generated value.
+admin_password="${MIOS_FORGE_ADMIN_PASSWORD:-${MIOS_DEFAULT_PASSWORD:-mios}}"
+if [[ "$admin_password" == "__random__" ]]; then
+    admin_password=""
+fi
 
 # Wait for mios-forge to come up. The Quadlet sets TimeoutStartSec=300s;
 # we mirror that ceiling. Forgejo's HTTP listener is the canonical

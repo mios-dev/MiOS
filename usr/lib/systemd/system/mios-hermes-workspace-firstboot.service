@@ -9,6 +9,10 @@ After=mios-hermes-firstboot.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# install.env exports MIOS_DEFAULT_PASSWORD (and optional
+# MIOS_HERMES_WORKSPACE_PASSWORD override). Leading `-` makes the file
+# optional so the unit still fires on a host without install.env.
+EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/mios-hermes-workspace-firstboot.sh
 
 [Install]

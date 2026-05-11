@@ -38,6 +38,12 @@ fullname  = "'MiOS' User"
 hostname  = "mios"
 shell     = "/bin/bash"
 groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "docker"]
+# Global MiOS default password. Every service (Hermes Workspace, Forge
+# admin, Cockpit, Ceph dashboard, etc.) defaults to this credential
+# unless the operator overrides per-service. Vendor default is "mios".
+# Operators rotate by editing /etc/mios/mios.toml or
+# ~/.config/mios/mios.toml [identity].default_password.
+default_password = "mios"
 
 # ----------------------------------------------------------------------------
 # [locale] -- system-wide defaults applied via systemd-localed at first boot.

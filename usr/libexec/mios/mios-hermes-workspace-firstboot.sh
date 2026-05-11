@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # /usr/libexec/mios/mios-hermes-workspace-firstboot.sh
 #
-# Generate the Hermes Workspace session password on first boot. The
-# upstream image binds 0.0.0.0:3030 (non-loopback), which makes
-# HERMES_PASSWORD REQUIRED -- without it the container exits with a
-# clear "session password missing" error.
+# Seed the Hermes Workspace session password on first boot. The upstream
+# image binds 0.0.0.0:3030 and requires HERMES_PASSWORD. By default we
+# use the global MiOS password (mios.toml [identity].default_password,
+# exported as MIOS_DEFAULT_PASSWORD via /etc/mios/install.env). Set
+# MIOS_HERMES_WORKSPACE_PASSWORD in /etc/mios/install.env to override
+# per-service; set MIOS_HERMES_WORKSPACE_PASSWORD=__random__ to force
+# a random 48-hex-char value.
 #
-# Sentinel: /etc/mios/hermes-workspace/workspace.env -- delete the
-# file + restart this unit to rotate the password.
+# Rotate: delete /etc/mios/hermes-workspace/workspace.env and restart
+# this unit.
 set -euo pipefail
+
+# Pull MIOS_DEFAULT_PASSWORD + MIOS_HERMES_WORKSPACE_PASSWORD from
+# install.env. The .service unit also passes them via EnvironmentFile=
+# but we re-source here for direct-invocation paths (mios update).
+[[ -r /etc/mios/install.env ]] && . /etc/mios/install.env
 
 DEST=/etc/mios/hermes-workspace/workspace.env
 install -d -m 0755 /etc/mios/hermes-workspace
@@ -18,10 +26,12 @@ if [[ -s "$DEST" ]] && grep -q '^HERMES_PASSWORD=' "$DEST" 2>/dev/null; then
     exit 0
 fi
 
-# 24 random bytes -> 48 hex chars. Strong enough for a session
-# password; rotate by deleting the file.
-PW=$(openssl rand -hex 24 2>/dev/null || \
-     head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+PW="${MIOS_HERMES_WORKSPACE_PASSWORD:-${MIOS_DEFAULT_PASSWORD:-mios}}"
+if [[ "$PW" == "__random__" ]]; then
+    PW=$(openssl rand -hex 24 2>/dev/null || \
+         head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    echo "[hermes-workspace-firstboot] MIOS_HERMES_WORKSPACE_PASSWORD=__random__ -> generated 48-char value"
+fi
 
 cat > "$DEST" <<EOF
 # /etc/mios/hermes-workspace/workspace.env

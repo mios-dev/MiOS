@@ -100,10 +100,15 @@ EOF
     echo "MIOS_HOSTNAME=\"${MIOS_HOSTNAME:-mios}\""
     [[ -n "${MIOS_USER_FULLNAME:-}" ]] && echo "MIOS_USER_FULLNAME=\"${MIOS_USER_FULLNAME}\""
     [[ -n "${MIOS_USER_GROUPS:-}" ]]   && echo "MIOS_USER_GROUPS=\"${MIOS_USER_GROUPS}\""
+    # Global default password. Every MiOS service (Hermes Workspace,
+    # Forge admin, etc.) reads this as its default login credential
+    # unless the operator overrides per-service. Vendor default is
+    # "mios"; override in /etc/mios/mios.toml [identity].default_password.
+    echo "MIOS_DEFAULT_PASSWORD=\"${MIOS_DEFAULT_PASSWORD:-mios}\""
 
     # AI surface (Architectural Law 5)
-    echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}\""
-    echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-qwen2.5-coder:7b}\""
+    echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}\""
+    echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-qwen3.5:2b}\""
     echo "MIOS_AI_EMBED_MODEL=\"${MIOS_AI_EMBED_MODEL:-nomic-embed-text}\""
     [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && echo "MIOS_OLLAMA_BAKE_MODELS=\"${MIOS_OLLAMA_BAKE_MODELS}\""
 
