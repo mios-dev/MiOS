@@ -333,9 +333,11 @@ _mios_port() {
     printf '%s' "$default"
 }
 
+GLYPH_QUADLETS=$''   #  cubes
+GLYPH_GIT=$''        #  code-branch
+
 # ── Sections (each printed UNFRAMED; frame_filter wraps after capture) ───────
 print_endpoints() {
-    section_header "Self-replication loop"
     local _user _pw _fpw _hw_pw
     _user="${MIOS_LINUX_USER:-${MIOS_USER:-mios}}"
     _pw="${MIOS_DEFAULT_PASSWORD:-mios}"
@@ -344,7 +346,6 @@ print_endpoints() {
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
     [[ -z "$_hw_pw" ]]  && _hw_pw="$_pw"
 
-    # Every URL resolves from mios.toml [ports].*; no hardcoded literals.
     local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_workspace _p_code
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
@@ -354,50 +355,63 @@ print_endpoints() {
     _p_workspace=$(_mios_port hermes_workspace 3030)
     _p_code=$(_mios_port code_server 8080)
 
-    printf '    %s  Forge       %shttp://localhost:%s/%s   %slogin: %s / %s%s\n' \
-        "$(ep_dot "http://localhost:${_p_forge}/api/v1/version")" "$C_D" "$_p_forge" "$C_R" \
-        "$C_GRY" "$_user" "$_fpw" "$C_R"
-    printf '    %s  Ollama      %shttp://localhost:%s%s   %s%s%s\n' \
-        "$(ep_dot "http://localhost:${_p_ollama}/")" "$C_D" "$_p_ollama" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
-    printf '    %s  Cockpit     %shttps://localhost:%s/%s   %slogin: %s / %s%s\n' \
-        "$(ep_dot "https://localhost:${_p_cockpit}/")" "$C_D" "$_p_cockpit" "$C_R" \
-        "$C_GRY" "$_user" "$_pw" "$C_R"
-    printf '    %s  Search      %shttp://localhost:%s/%s\n' \
-        "$(ep_dot "http://localhost:${_p_searxng}/")" "$C_D" "$_p_searxng" "$C_R"
-    # Hermes /v1/models needs Bearer auth; probe /health which is unauthenticated.
-    printf '    %s  Hermes      %shttp://localhost:%s/v1%s\n' \
-        "$(ep_dot "http://localhost:${_p_hermes}/health")" "$C_D" "$_p_hermes" "$C_R"
-    printf '    %s  Workspace   %shttp://localhost:%s/%s   %slogin: %s%s\n' \
-        "$(ep_dot "http://localhost:${_p_workspace}/")" "$C_D" "$_p_workspace" "$C_R" \
-        "$C_GRY" "$_hw_pw" "$C_R"
-    printf '    %s  Code        %shttp://localhost:%s/%s   %slogin: %s%s\n' \
-        "$(ep_dot "http://localhost:${_p_code}/")" "$C_D" "$_p_code" "$C_R" \
-        "$C_GRY" "$_pw" "$C_R"
+    local d_forge d_ollama d_cockpit d_searxng d_hermes d_workspace d_code
+    d_forge=$(ep_dot     "http://localhost:${_p_forge}/api/v1/version")
+    d_ollama=$(ep_dot    "http://localhost:${_p_ollama}/")
+    d_cockpit=$(ep_dot   "https://localhost:${_p_cockpit}/")
+    d_searxng=$(ep_dot   "http://localhost:${_p_searxng}/")
+    d_hermes=$(ep_dot    "http://localhost:${_p_hermes}/health")
+    d_workspace=$(ep_dot "http://localhost:${_p_workspace}/")
+    d_code=$(ep_dot      "http://localhost:${_p_code}/")
+
+    section_header "Services"
+    # Row 1: forge / ollama / cockpit / search.
+    printf '    %s %sForge%s:%-5s  %s %sOllama%s:%-6s  %s %sCockpit%s:%-5s  %s %sSearch%s:%-5s\n' \
+        "$d_forge"     "$C_D" "$C_R" "$_p_forge" \
+        "$d_ollama"    "$C_D" "$C_R" "$_p_ollama" \
+        "$d_cockpit"   "$C_D" "$C_R" "$_p_cockpit" \
+        "$d_searxng"   "$C_D" "$C_R" "$_p_searxng"
+    # Row 2: chat trio (Hermes / Workspace / Code).
+    printf '    %s %sHermes%s:%-5s    %s %sWorkspace%s:%-5s    %s %sCode%s:%-5s\n' \
+        "$d_hermes"    "$C_D" "$C_R" "$_p_hermes" \
+        "$d_workspace" "$C_D" "$C_R" "$_p_workspace" \
+        "$d_code"      "$C_D" "$C_R" "$_p_code"
+    # Row 3: credentials (global MiOS password unless per-service override).
+    printf '    %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
+        "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
 }
 
 print_quadlets() {
-    section_header "Quadlet services"
+    # Count-only summary instead of a 14-row listing. Full state:
+    # `systemctl --no-pager list-units 'mios-*' ollama.service`.
     local svc info name dot color
+    local n_active=0 n_starting=0 n_inactive=0 n_failed=0
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-searxng \
                mios-hermes mios-hermes-workspace mios-code-server crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"
-        printf '    %s%s%s  %s%-22s%s  %s%s%s\n' \
-            "$color" "$dot" "$C_R" \
-            "$C_D" "$svc" "$C_R" \
-            "$C_GRY" "$name" "$C_R"
+        case "$name" in
+            active|running)      n_active=$((n_active + 1)) ;;
+            activating|starting) n_starting=$((n_starting + 1)) ;;
+            failed)              n_failed=$((n_failed + 1)) ;;
+            *)                   n_inactive=$((n_inactive + 1)) ;;
+        esac
     done
+    section_header "Stack"
+    printf '    %s  %s%d active%s   %s%d starting%s   %s%d inactive%s   %s%d failed%s\n' \
+        "$GLYPH_QUADLETS" \
+        "$C_GRN" "$n_active"   "$C_R" \
+        "$C_YLW" "$n_starting" "$C_R" \
+        "$C_GRY" "$n_inactive" "$C_R" \
+        "$C_RED" "$n_failed"   "$C_R"
 }
 
 print_git_state() {
-    section_header "Working tree (/=git)"
+    section_header "Tree"
     if [[ ! -d /.git ]]; then
-        printf '    %s(no .git at /; live root is not yet a git working tree)%s\n' "$C_GRY" "$C_R"
-        printf '    %srun forge-firstboot to initialize, then:%s\n' "$C_D" "$C_R"
-        printf '    %sgit -C / init && remote add origin localhost:3000/%s/mios.git%s\n' \
-            "$C_D" "$MIOS_LINUX_USER" "$C_R"
+        printf '    %s  %s(/ is not yet a git working tree)%s\n' "$GLYPH_GIT" "$C_GRY" "$C_R"
         return
     fi
     local branch ahead behind modified untracked staged porcelain
@@ -415,12 +429,9 @@ print_git_state() {
     modified="${modified%%[!0-9]*}";   modified="${modified:-0}"
     staged="${staged%%[!0-9]*}";       staged="${staged:-0}"
     untracked="${untracked%%[!0-9]*}"; untracked="${untracked:-0}"
-    printf '    %sbranch%s     %s%s%s\n' "$C_D" "$C_R" "$C_B" "$branch" "$C_R"
-    printf '    %sahead%s      %s%s%s\n' "$C_D" "$C_R" "$C_GRN" "$ahead" "$C_R"
-    printf '    %sbehind%s     %s%s%s\n' "$C_D" "$C_R" "$C_YLW" "$behind" "$C_R"
-    printf '    %sstaged%s     %s\n' "$C_D" "$C_R" "$staged"
-    printf '    %smodified%s   %s\n' "$C_D" "$C_R" "$modified"
-    printf '    %suntracked%s  %s\n' "$C_D" "$C_R" "$untracked"
+    printf '    %s  %s%s%s  +%s/-%s   %s%d staged  %d modified  %d untracked%s\n' \
+        "$GLYPH_GIT" "$C_B" "$branch" "$C_R" "$ahead" "$behind" \
+        "$C_GRY" "$staged" "$modified" "$untracked" "$C_R"
 }
 
 print_loop_hint() {
@@ -500,8 +511,8 @@ _dash_field() {
             fi
             model="${model//(R)/}"; model="${model//(TM)/}"
             model="$(echo "$model" | sed -E 's/[[:space:]]*@.*$//; s/[[:space:]]*Processor[[:space:]]*//; s/[[:space:]]+/ /g')"
-            if [[ -n "$clk" ]]; then printf 'CPU %s %sGHz (%sc)' "$model" "$clk" "$cores"
-            else                     printf 'CPU %s (%sc)' "$model" "$cores"; fi
+            if [[ -n "$clk" ]]; then printf ' %s %sGHz (%sc)' "$model" "$clk" "$cores"
+            else                     printf ' %s (%sc)' "$model" "$cores"; fi
             ;;
         gpu_discrete|gpu_integrated)
             local pat
@@ -513,8 +524,8 @@ _dash_field() {
                 # Strip class label, keep vendor + device.
                 line="$(echo "$line" | awk -F'"' '{ printf "%s %s", $4, $6 }')"
             fi
-            if [[ -z "$line" ]]; then printf 'GPU --'
-            else                       printf 'GPU %s' "$line"; fi
+            if [[ -z "$line" ]]; then printf ' --'
+            else                       printf ' %s' "$line"; fi
             ;;
         ram)
             local total used free pct
@@ -523,7 +534,7 @@ _dash_field() {
             [[ -z "$free" ]] && free=$(awk '/^MemFree:/{ print $2 }' /proc/meminfo)
             used=$((total - free))
             pct=$(( total > 0 ? (used * 100 / total) : 0 ))
-            printf 'RAM %.1f / %.1fGiB (%d%%)' \
+            printf ' %.1f / %.1fGiB (%d%%)' \
                 "$(awk -v u="$used" 'BEGIN{print u/1024/1024}')" \
                 "$(awk -v t="$total" 'BEGIN{print t/1024/1024}')" \
                 "$pct"
@@ -534,9 +545,9 @@ _dash_field() {
             local sfree
             sfree=$(awk '/^SwapFree:/ { print $2 }' /proc/meminfo)
             used=$((total - sfree))
-            if [[ -z "$total" ]] || [[ "$total" == "0" ]]; then printf 'Swap --'; return; fi
+            if [[ -z "$total" ]] || [[ "$total" == "0" ]]; then printf ' --'; return; fi
             pct=$(( total > 0 ? (used * 100 / total) : 0 ))
-            printf 'Swap %.1f / %.1fGiB (%d%%)' \
+            printf ' %.1f / %.1fGiB (%d%%)' \
                 "$(awk -v u="$used" 'BEGIN{print u/1024/1024}')" \
                 "$(awk -v t="$total" 'BEGIN{print t/1024/1024}')" \
                 "$pct"
@@ -554,7 +565,7 @@ _dash_field() {
             else _dash_disk / "/"; fi
             ;;
         kernel)
-            printf 'Kernel %s' "$(uname -r)"
+            printf ' %s' "$(uname -r)"
             ;;
         shell)
             local sh ver
@@ -566,8 +577,8 @@ _dash_field() {
                 pwsh|pwsh.exe) ver="$(pwsh --version 2>/dev/null | awk '{print $2}')" ;;
                 *)    ver=""
             esac
-            if [[ -n "$ver" ]]; then printf 'Shell %s %s' "$sh" "$ver"
-            else                     printf 'Shell %s' "$sh"; fi
+            if [[ -n "$ver" ]]; then printf ' %s %s' "$sh" "$ver"
+            else                     printf ' %s' "$sh"; fi
             ;;
         font)
             # Resolves through mios.toml [theme.font].family / .size --
@@ -576,14 +587,14 @@ _dash_field() {
             local family size
             family="$(_mios_toml_value "theme.font" "family" "GeistMono Nerd Font Mono")"
             size="$(_mios_toml_value "theme.font" "size" "12")"
-            printf 'Font %s %spt' "$family" "$size"
+            printf ' %s %spt' "$family" "$size"
             ;;
         uptime)
             local up_s d h m
             up_s=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
-            [[ -z "$up_s" ]] && { printf 'Up --'; return; }
+            [[ -z "$up_s" ]] && { printf ' --'; return; }
             d=$((up_s / 86400)); h=$(((up_s % 86400) / 3600)); m=$(((up_s % 3600) / 60))
-            printf 'Up %dd %dh %dm' "$d" "$h" "$m"
+            printf ' %dd %dh %dm' "$d" "$h" "$m"
             ;;
         *)
             # Unknown field-key -- emit empty string; renderer skips it.
@@ -595,13 +606,16 @@ _dash_field() {
 # _dash_disk MOUNT LABEL -- emit "<label>: <used> / <total>GiB (<pct>%)"
 _dash_disk() {
     local mp="$1" lbl="$2"
-    if ! command -v df >/dev/null 2>&1; then printf '%s --' "$lbl"; return; fi
+    #  nf-fa-hdd-o U+F0A0 prefixed so the disk rows match the rest
+    # of the icon-driven hardware section.
+    local icon=$'\xef\x82\xa0'
+    if ! command -v df >/dev/null 2>&1; then printf '%s %s --' "$icon" "$lbl"; return; fi
     local out total used pct
     out="$(df -B1 --output=size,used,pcent "$mp" 2>/dev/null | tail -n +2 | awk '{ print $1, $2, $3 }')"
-    if [[ -z "$out" ]]; then printf '%s --' "$lbl"; return; fi
+    if [[ -z "$out" ]]; then printf '%s %s --' "$icon" "$lbl"; return; fi
     read -r total used pct <<< "$out"
     pct="${pct%%%}"
-    printf '%s %.1f / %.1fGiB (%s%%)' "$lbl" \
+    printf '%s %s %.1f / %.1fGiB (%s%%)' "$icon" "$lbl" \
         "$(awk -v u="$used"  'BEGIN{print u/1024/1024/1024}')" \
         "$(awk -v t="$total" 'BEGIN{print t/1024/1024/1024}')" \
         "$pct"

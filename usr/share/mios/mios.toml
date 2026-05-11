@@ -2039,11 +2039,10 @@ show_verb_hints = true
 verb_hint       = "build  config  dash  dev  pull  update  help"
 
 # show_services -- Linux-only.  When true (or MIOS_DASH_SERVICES=1),
-# mios-dashboard.sh appends the framed Self-replication-loop /
-# Quadlet-services / Working-tree blocks below the metric rows.
-# Default false so the dashboard stays at ~11 rows in 80x20.  No
-# effect on the Windows-side dashboard (those services don't apply).
-show_services   = false
+# mios-dashboard.sh appends the icon-driven Services / Stack / Tree
+# blocks below the metric rows. Default true now that the blocks
+# fit in 80x20 (3 service rows + 1 stack-count + 1 tree row).
+show_services   = true
 
 # rows: each entry is a list of field-keys.  Multiple keys per row =
 # side-by-side rendering with equal column widths within the framed
@@ -2065,7 +2064,7 @@ show_services   = false
 #   font            "Font $family $size pt"   (from [theme.font])
 #   uptime          "Up $days d $hours h $min m"
 rows = [
-    ["host_os"],
+    ["host_os", "uptime"],
     ["cpu", "gpu_discrete"],
     ["ram", "swap"],
     ["disk_c", "disk_m"],
