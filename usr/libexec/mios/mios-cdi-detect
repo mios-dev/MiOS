@@ -76,6 +76,38 @@ if [[ "$HAS_NVIDIA" == 1 ]] && command -v nvidia-ctk >/dev/null 2>&1; then
             _log "nvidia: nvidia-ctk cdi generate failed (non-fatal)"
         fi
     fi
+elif [[ "$HAS_NVIDIA" == 1 && ( "$VIRT" == "wsl" || -e /dev/dxg ) ]]; then
+    # WSL2-specific fallback when nvidia-ctk isn't on the dev VM
+    # (podman-machine-os 6.0 doesn't ship it; the dev-VM overlay can't
+    # always install it cleanly). Hand-roll the CDI YAML using the
+    # standard WSL2 GPU surface: /dev/dxg device node + rbind of
+    # /usr/lib/wsl (which has libcuda.so + libcudadebugger.so + the
+    # nvidia-smi binary). rbind, NOT bind: /usr/lib/wsl/lib is an
+    # overlay sub-mount that doesn't propagate through a plain bind.
+    # Operator-flagged 2026-05-11: ollama loaded models on CPU
+    # (`load_tensors: CPU model buffer size = 16676 MiB`) because no
+    # CDI spec was generated and the Quadlet had no AddDevice for the
+    # GPU. After this YAML lands + the Quadlet adds AddDevice=
+    # nvidia.com/gpu=all, ollama detects the GPU via libcuda.so 1.1
+    # and `inference compute ... library=CUDA ... description=NVIDIA
+    # GeForce RTX 4090` shows in the journal.
+    out=/run/cdi/wsl2-nvidia.yaml
+    cat > "$out" <<'WSLCDI'
+cdiVersion: "0.6.0"
+kind: nvidia.com/gpu
+devices:
+  - name: all
+    containerEdits:
+      deviceNodes:
+        - path: /dev/dxg
+      mounts:
+        - hostPath: /usr/lib/wsl
+          containerPath: /usr/lib/wsl
+          options: ["ro", "nosuid", "nodev", "rbind"]
+      env:
+        - LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+WSLCDI
+    _log "nvidia: wrote $out (WSL2 hand-rolled CDI; nvidia-ctk unavailable on this distro)"
 elif [[ "$HAS_NVIDIA" == 1 ]]; then
     _log "nvidia: device present but nvidia-ctk missing -- install nvidia-container-toolkit"
 fi

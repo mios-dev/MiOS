@@ -23,6 +23,17 @@ ContainerName=mios-ollama
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
 AutoUpdate=registry
+# GPU passthrough. nvidia.com/gpu=all resolves to the CDI spec written
+# by mios-cdi-detect.service (Before=ollama.service). On bare metal
+# that's nvidia-ctk's generated /run/cdi/nvidia.yaml; on WSL2 it's the
+# hand-rolled /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds
+# /usr/lib/wsl. Operator-flagged 2026-05-11 (`load_tensors: CPU model
+# buffer size = 16676 MiB` -- ollama was CPU-only because no CDI spec
+# was attached). With this device line, ollama's runner.go reports
+# `inference compute library=CUDA name=CUDA0 description=NVIDIA
+# GeForce RTX 4090`. AMD/Intel hosts can swap the device class via
+# /etc/containers/systemd/ollama.container.d/ drop-in overrides.
+AddDevice=nvidia.com/gpu=all
 # Numeric UID/GID -- the upstream ollama/ollama image has no
 # `mios-ollama` user in its /etc/passwd, so a name-based User= lookup
 # fails with "unable to find user mios-ollama: no matching entries in
