@@ -30,15 +30,17 @@ backend:
 #     Auxiliary auto-detect: no provider available
 #         (tried: openrouter, nous, local/custom, api-key)
 # and silently degrades (compression drops middle turns without a
-# summary, memory flush no-ops). Point it at the same mios-ai
-# (LocalAI OpenAI-compatible /v1) surface the rest of MiOS uses
-# so the agent stays 100% local-stack by default. API key reused
-# from /etc/mios/hermes/api.env so we don't add another secret.
+# summary, memory flush no-ops). Operator directive 2026-05-11
+# dropped LocalAI (mios-ai) -- redundant 31.9 GB image; Ollama
+# already serves the same /v1 surface. Aux now points at Ollama
+# too; the same backend handles primary chat AND the compression /
+# summarization passes. Empty api_key works because Ollama's /v1
+# accepts unauthenticated localhost requests by default.
 auxiliary:
   provider: local/custom
-  base_url: http://mios-ai:8080/v1
+  base_url: http://mios-ollama:11434/v1
   model: qwen3.5:2b
-  api_key: ${API_SERVER_KEY}
+  api_key: ""
 
 api_server:
   # Bind / port / key / cors values come from the EnvironmentFile=

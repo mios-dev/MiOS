@@ -183,7 +183,7 @@ fi
 # describes the OPERATOR'S login surface, not the running process.
 MIOS_LINUX_USER="${MIOS_USER:-${MIOS_LINUX_USER:-mios}}"
 [[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")"
-MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
+MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen3.5:2b}"
 
 # ── Frame helpers ────────────────────────────────────────────────────────────
 # Repeat a single char N times.
@@ -315,18 +315,28 @@ print_endpoints() {
     section_header "Self-replication loop"
     printf '    %s  Forge       %shttp://localhost:3000/%s\n' \
         "$(ep_dot http://localhost:3000/api/v1/version)" "$C_D" "$C_R"
-    printf '    %s  AI          %shttp://localhost:8080/v1%s   %s%s%s\n' \
-        "$(ep_dot http://localhost:8080/v1/models)" "$C_D" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
+    # Ollama is the canonical chat model surface (operator directive
+    # 2026-05-11: drop LocalAI -- redundant ~32 GB image). Hermes
+    # talks to Ollama via /v1; mios-ai (LocalAI) stays in-tree as an
+    # opt-in sidecar for non-chat surfaces (embeddings, image-gen,
+    # STT/TTS) but doesn't autostart.
+    printf '    %s  Ollama      %shttp://localhost:11434%s   %s%s%s\n' \
+        "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
     printf '    %s  Cockpit     %shttps://localhost:9090/%s   %slogin: %s / %s%s\n' \
         "$(ep_dot https://localhost:9090/)" "$C_D" "$C_R" \
         "$C_GRY" "${MIOS_LINUX_USER:-mios}" "${MIOS_DEV_DEFAULT_PASSWORD:-mios}" "$C_R"
-    printf '    %s  Ollama      %shttp://localhost:11434%s\n' \
-        "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R"
     printf '    %s  Search      %shttp://localhost:8888/%s\n' \
         "$(ep_dot http://localhost:8888/)" "$C_D" "$C_R"
+    # Hermes /v1/models needs Bearer auth -- returns 401 to ep_dot's
+    # naive curl and reads as DOWN even when Hermes is healthy.
+    # Probe /health instead (200, no auth required by Hermes Gateway).
     printf '    %s  Hermes      %shttp://localhost:8642/v1%s\n' \
-        "$(ep_dot http://localhost:8642/v1/models)" "$C_D" "$C_R"
-    printf '    %s  WebUI       %shttp://localhost:3030/%s\n' \
+        "$(ep_dot http://localhost:8642/health)" "$C_D" "$C_R"
+    # Default chat frontend is Hermes Workspace (operator directive
+    # 2026-05-11). Open WebUI moves to :3031 if re-enabled; the legacy
+    # 'WebUI' label here would be confusing now that 3030 is the
+    # workspace, so rename it.
+    printf '    %s  Workspace   %shttp://localhost:3030/%s\n' \
         "$(ep_dot http://localhost:3030/)" "$C_D" "$C_R"
 }
 
@@ -335,7 +345,7 @@ print_quadlets() {
     local svc info name dot color
     for svc in mios-ai mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-searxng \
-               mios-hermes mios-webui crowdsec-dashboard \
+               mios-hermes mios-hermes-workspace mios-webui crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"

@@ -2170,7 +2170,14 @@ features = ["ai", "virtualization", "k3s"]
 # force-disable a service even when it would otherwise run.
 # ----------------------------------------------------------------------------
 [quadlets.enable]
-mios-ai               = true
+# Chat chain: ollama (LLM) -> mios-hermes (OpenAI gateway) ->
+# mios-hermes-workspace (web frontend). mios-ai (LocalAI) and
+# mios-webui (Open WebUI) stay in-tree but disabled by default:
+# operator directives 2026-05-11 ("forget open webui for now",
+# "we don't need these components" re LocalAI's 31.9 GB image).
+# Flip to true in /etc/mios/mios.toml [quadlets.enable] to opt in
+# (LocalAI for non-chat surfaces -- embeddings, image-gen, STT/TTS).
+mios-ai               = false  # LocalAI -- opt-in only; chat goes via Ollama
 mios-ceph             = true
 mios-k3s              = true
 mios-forge            = true
