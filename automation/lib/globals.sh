@@ -119,7 +119,7 @@ export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 : "${MIOS_PORT_SEARXNG:=8888}"
 : "${MIOS_PORT_HERMES:=8642}"
 : "${MIOS_PORT_HERMES_WORKSPACE:=3030}"
-: "${MIOS_PORT_CODE_SERVER:=8800}"
+: "${MIOS_PORT_CODE_SERVER:=8080}"
 : "${MIOS_PORT_COCKPIT_LINK:=19090}"   # podman-desktop discovery shim
 : "${MIOS_K3S_API_PORT:=6443}"
 : "${MIOS_GUACAMOLE_PORT:=8090}"       # mios-guacamole web (mapped from container :8080)

@@ -34,21 +34,25 @@ ContainerName=mios-code-server
 # below lines up regardless of which uid the base distro auto-allocated
 # for the mios sysuser (podman-machine-os 6.0 happens to land mios at
 # 992, not the 1000 the MiOS overlay assumes elsewhere).
-User=${MIOS_CODE_SERVER_UID:-1000}
-Group=${MIOS_CODE_SERVER_GID:-1000}
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
-Network=ai-net.network
-PublishPort=${MIOS_PORT_CODE_SERVER:-8800}:8080
-# WSL2/podman-machine-os has no SELinux enforcement; :Z relabel was a
-# no-op at best. Disable security-label entirely to skip the relabel
-# attempt that podman otherwise logs on every start.
+# Run as the in-container 'coder' user (uid 1000 in the upstream image).
+# The Volume= mount below points at a dedicated host dir chown'd
+# 1000:1000 by tmpfiles.d so the perms line up regardless of which uid
+# the dev VM's base distro auto-allocated for mios (podman-machine-os
+# 6.0 lands mios at 992, breaking the host-home-mount pattern).
+User=1000
+Group=1000
+# Network=host: bind on the dev VM netns directly so localhost:<port>
+# hits the editor without netavark's port-forwarder (which intermittently
+# times out on WSL2/podman-machine-os 6.0). Forge is reachable as
+# http://localhost:3000/ from code-server's terminal in this mode.
+Network=host
 SecurityLabelDisable=true
 
-# Operator's home is the editor's home. Edits land in /var/home/mios
-# directly, visible to the GNOME desktop and every MiOS tool. The
-# container has read/write access to ~/.ssh by design -- code-server
-# IS the operator's development surface.
-Volume=/var/home/mios:/home/coder
+# Dedicated workspace dir (NOT /var/home/mios) so the in-container uid
+# 1000 matches the host dir owner. Operator can symlink /var/home/mios/
+# git into /var/lib/mios/code-server to surface their repos in the
+# editor sidebar without UID-drift gymnastics.
+Volume=/var/lib/mios/code-server:/home/coder
 
 # Auth: MIOS_DEFAULT_PASSWORD baked at image-build time from
 # mios.toml [identity].default_password via 15-render-quadlets.sh.
@@ -60,15 +64,17 @@ Volume=/var/home/mios:/home/coder
 Environment=PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}
 Environment=SUDO_PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}
 Environment=DEFAULT_WORKSPACE=/home/coder
-# code-server binds 0.0.0.0:8080 inside the container; the host
-# PublishPort= forwards :8800 -> :8080.
-Environment=BIND_ADDR=0.0.0.0:8080
+# The upstream image's ENTRYPOINT hardcodes --bind-addr 0.0.0.0:8080.
+# We use port 8080 with Network=host so the container's listener IS
+# the host's. BIND_ADDR is kept for completeness but the entrypoint
+# arg wins.
+Environment=BIND_ADDR=0.0.0.0:${MIOS_PORT_CODE_SERVER:-8080}
 AutoUpdate=registry
 
 Label=org.opencontainers.image.title=mios-code-server
-Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8800}/
+Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8080}/
 Label=org.opencontainers.image.documentation=https://github.com/coder/code-server
-Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_CODE_SERVER:-8800}/
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_CODE_SERVER:-8080}/
 
 [Service]
 Restart=on-failure

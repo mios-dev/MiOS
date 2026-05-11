@@ -343,8 +343,8 @@ print_endpoints() {
     printf '    %s  Workspace   %shttp://localhost:3030/%s   %slogin: %s%s\n' \
         "$(ep_dot http://localhost:3030/)" "$C_D" "$C_R" \
         "$C_GRY" "$_hw_pw" "$C_R"
-    printf '    %s  Code        %shttp://localhost:8800/%s   %slogin: %s%s\n' \
-        "$(ep_dot http://localhost:8800/)" "$C_D" "$C_R" \
+    printf '    %s  Code        %shttp://localhost:8080/%s   %slogin: %s%s\n' \
+        "$(ep_dot http://localhost:8080/)" "$C_D" "$C_R" \
         "$C_GRY" "$_pw" "$C_R"
 }
 

@@ -79,7 +79,7 @@ $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:
 $script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
 $script:MIOS_PORT_HERMES        = if ($env:MIOS_PORT_HERMES)        { [int]$env:MIOS_PORT_HERMES }        else { 8642 }
 $script:MIOS_PORT_HERMES_WORKSPACE = if ($env:MIOS_PORT_HERMES_WORKSPACE) { [int]$env:MIOS_PORT_HERMES_WORKSPACE } else { 3030 }
-$script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8800 }
+$script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8080 }
 $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 19090 }
 
 # ── URLS ─────────────────────────────────────────────────────────────

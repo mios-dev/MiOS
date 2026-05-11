@@ -32,6 +32,13 @@ enable mios-sriov-init.service
 enable mios-cdi-detect.service
 enable mios-libvirtd-setup.service
 enable mios-grd-setup.service
+# Hyper-V Enhanced Session bring-up: hv_sock module + hv-kvp-daemon +
+# hv-vss-daemon + hv-fcopy-daemon + xrdp on the VMBus vsock transport.
+# ConditionVirtualization=microsoft inside the unit gates the actual
+# work to Hyper-V hosts; on every other deployment shape (bare-metal,
+# WSL2, QEMU, VirtualBox) the unit no-ops at the systemd condition
+# check. Safe to enable everywhere.
+enable mios-hyperv-enhanced.service
 enable systemd-sysext.service
 enable systemd-confext.service
 enable mios-dashboard-issue.service
