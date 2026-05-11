@@ -19,15 +19,15 @@
     "structured_outputs": "json_schema with strict:true"
   },
   "local_runtime_compatibility": {
-    "mios_localai": {
-      "endpoint": "http://localhost:8080/v1",
+    "mios_hermes": {
+      "endpoint": "http://localhost:8642/v1",
       "supports": [
         "chat/completions",
         "embeddings",
         "models",
         "tools"
       ],
-      "strict_mode": "ignored-but-accepted"
+      "note": "Hermes-Agent is the LIVE MiOS agent at root (/). Fronts Ollama for inference; adds the tool / agent / messaging-platform protocol layer."
     },
     "ollama": {
       "endpoint": "http://localhost:11434/v1",
@@ -258,12 +258,6 @@
       "path": "/usr/share/doc/mios/upstream/nvidia.md",
       "format": "markdown",
       "purpose": "NVIDIA on Fedora bootc",
-      "endpoint": "vector_stores.files"
-    },
-    {
-      "path": "/usr/share/doc/mios/upstream/localai.md",
-      "format": "markdown",
-      "purpose": "LocalAI (the canonical local LLM endpoint)",
       "endpoint": "vector_stores.files"
     },
     {

@@ -25,13 +25,14 @@
 #   MIOS_AI_MODEL     default qwen2.5-coder:7b
 #
 # Note: per Architectural Law 5, the canonical agent surface is
-# MIOS_AI_ENDPOINT (LocalAI on :8080). This wrapper is for operators
+# MIOS_AI_ENDPOINT (Hermes-Agent on :8642 -- the LIVE MiOS agent at
+# root, fronting Ollama). This wrapper bypasses Hermes for operators
 # who want to drive Ollama directly without changing global env.
 set -euo pipefail
 
 OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
 OLLAMA_API_BASE="${OLLAMA_API_BASE:-${OLLAMA_HOST%/}/v1}"
-MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
+MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen3.5:2b}"
 export OLLAMA_HOST
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then

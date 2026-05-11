@@ -39,10 +39,6 @@ $script:MIOS_FORGE_USER   = if ($env:MIOS_FORGE_USER)   { $env:MIOS_FORGE_USER }
 $script:MIOS_FORGE_UID    = if ($env:MIOS_FORGE_UID)    { [int]$env:MIOS_FORGE_UID } else { 816 }
 $script:MIOS_FORGE_GID    = if ($env:MIOS_FORGE_GID)    { [int]$env:MIOS_FORGE_GID } else { 816 }
 
-$script:MIOS_AI_USER      = if ($env:MIOS_AI_USER)      { $env:MIOS_AI_USER }      else { 'mios-ai' }
-$script:MIOS_AI_UID       = if ($env:MIOS_AI_UID)       { [int]$env:MIOS_AI_UID }  else { 817 }
-$script:MIOS_AI_GID       = if ($env:MIOS_AI_GID)       { [int]$env:MIOS_AI_GID }  else { 817 }
-
 $script:MIOS_OLLAMA_USER  = if ($env:MIOS_OLLAMA_USER)  { $env:MIOS_OLLAMA_USER }  else { 'mios-ollama' }
 # 815 -- MUST match usr/lib/sysusers.d/50-mios-services.conf. Was 818
 # (typo, collided with mios-searxng). Caused ollama container to start
@@ -82,7 +78,6 @@ $script:MIOS_BIB_IMAGE    = if ($env:MIOS_BIB_IMAGE)    { $env:MIOS_BIB_IMAGE } 
 $script:MIOS_PORT_SSH           = if ($env:MIOS_PORT_SSH)           { [int]$env:MIOS_PORT_SSH }           else { 22 }
 $script:MIOS_PORT_FORGE_HTTP    = if ($env:MIOS_PORT_FORGE_HTTP)    { [int]$env:MIOS_PORT_FORGE_HTTP }    else { 3000 }
 $script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:MIOS_PORT_FORGE_SSH }     else { 2222 }
-$script:MIOS_PORT_LOCALAI       = if ($env:MIOS_PORT_LOCALAI)       { [int]$env:MIOS_PORT_LOCALAI }       else { 8080 }
 $script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:MIOS_PORT_COCKPIT }       else { 9090 }
 $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11434 }
 $script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
@@ -91,7 +86,7 @@ $script:MIOS_PORT_WEBUI         = if ($env:MIOS_PORT_WEBUI)         { [int]$env:
 $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 19090 }
 
 # ── URLS ─────────────────────────────────────────────────────────────
-$script:MIOS_AI_ENDPOINT  = if ($env:MIOS_AI_ENDPOINT)  { $env:MIOS_AI_ENDPOINT }  else { "http://localhost:$($script:MIOS_PORT_LOCALAI)/v1" }
+$script:MIOS_AI_ENDPOINT  = if ($env:MIOS_AI_ENDPOINT)  { $env:MIOS_AI_ENDPOINT }  else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_FORGE_URL    = if ($env:MIOS_FORGE_URL)    { $env:MIOS_FORGE_URL }    else { "http://localhost:$($script:MIOS_PORT_FORGE_HTTP)" }
 $script:MIOS_COCKPIT_URL  = if ($env:MIOS_COCKPIT_URL)  { $env:MIOS_COCKPIT_URL }  else { "https://localhost:$($script:MIOS_PORT_COCKPIT)" }
 $script:MIOS_OLLAMA_URL   = if ($env:MIOS_OLLAMA_URL)   { $env:MIOS_OLLAMA_URL }   else { "http://localhost:$($script:MIOS_PORT_OLLAMA)" }
@@ -157,7 +152,6 @@ $script:MIOS_MCP_REGISTRY            = "$($script:MIOS_SHARE_AI_DIR)/v1/mcp.json
 $script:MIOS_BUILD_ENV_FILE          = if ($env:HOME) { "$env:HOME/.config/mios/mios-build.env" } else { '~/.config/mios/mios-build.env' }
 
 # ── SYSTEMD UNITS ────────────────────────────────────────────────────
-$script:MIOS_UNIT_AI                = 'mios-ai.service'
 $script:MIOS_UNIT_FORGE             = 'mios-forge.service'
 $script:MIOS_UNIT_FORGE_RUNNER      = 'mios-forgejo-runner.service'
 $script:MIOS_UNIT_OLLAMA            = 'ollama.service'
@@ -179,7 +173,6 @@ $script:MIOS_UNIT_USER_SESSION      = "user@$($script:MIOS_UID).service"
 $script:MIOS_DISTROBOX_AICHAT           = 'mios-aichat'
 $script:MIOS_CONTAINER_AICHAT_IMAGE     = 'localhost/mios/aichat:latest'
 $script:MIOS_CONTAINER_FORGE_IMAGE      = 'codeberg.org/forgejo/forgejo:12'
-$script:MIOS_CONTAINER_LOCALAI_IMAGE    = 'docker.io/localai/localai:latest'
 $script:MIOS_CONTAINER_OLLAMA_IMAGE     = 'docker.io/ollama/ollama:latest'
 $script:MIOS_CONTAINER_SEARXNG_IMAGE    = 'docker.io/searxng/searxng:latest'
 $script:MIOS_CONTAINER_HERMES_IMAGE     = 'docker.io/nousresearch/hermes-agent:latest'

@@ -70,14 +70,12 @@ Label=org.opencontainers.image.documentation=https://cockpit-project.org/documen
 Label=io.podman_desktop.openInBrowser=https://localhost:9090/
 
 # Architectural Law 6: unprivileged Quadlet with explicit User/Group.
-# Reuse the mios-ai uid (NUMERIC -- the alpine/socat image has no
-# `mios-ai` user, and podman looks up names IN the container's
-# /etc/passwd. UID 817 is pinned in usr/lib/sysusers.d/50-mios-ai.conf).
-# Identity. Reuses the mios-ai uid (mios.toml [services.localai].uid)
-# because alpine/socat has no `mios-ai` user in /etc/passwd; numeric
-# resolution is consistent with mios-ai.container's pattern.
-User=${MIOS_LOCALAI_UID:-817}
-Group=${MIOS_LOCALAI_GID:-817}
+# Use the `nobody` uid/gid (65534). alpine/socat doesn't need any
+# host-side file access; the discovery shim is a pure TCP relay between
+# container :19090 and host :9090. Numeric resolution avoids depending
+# on a username that doesn't exist in alpine's /etc/passwd.
+User=65534
+Group=65534
 
 [Service]
 Restart=on-failure

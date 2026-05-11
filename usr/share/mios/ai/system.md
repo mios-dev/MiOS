@@ -36,15 +36,22 @@ resolved through the same three-layer overlay as this prompt.**
 
 ## 2. Endpoint contract
 
-OpenAI v1 compatible API at `http://localhost:8080/v1` (LocalAI,
-served by the `mios-ai.container` Quadlet):
+OpenAI v1 compatible API at `http://localhost:8642/v1` (Hermes-Agent,
+served by the `mios-hermes.container` Quadlet). Hermes is THE LIVE
+MiOS agent located at root (`/` — the same git working tree of
+mios.git the OS itself is). It fronts Ollama (`http://localhost:11434`)
+for inference and embeddings, and adds the tool / agent / messaging-
+platform protocol layer:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET  | `/v1/models`             | list available models |
+| GET  | `/v1/models`             | list available models (forwarded from Ollama) |
 | POST | `/v1/chat/completions`   | chat completions (streaming via SSE) |
-| POST | `/v1/embeddings`         | embeddings |
-| POST | `/v1/responses`          | OpenAI Responses API (when LocalAI version supports it) |
+| POST | `/v1/embeddings`         | embeddings (forwarded to Ollama: `nomic-embed-text`) |
+| POST | `/v1/responses`          | OpenAI Responses API |
+
+All MiOS embedded models are served by Ollama. LocalAI was purged
+from the codebase 2026-05-11.
 
 Default model: `mios.toml [ai].model` (host-RAM-driven default). The
 configurator HTML's `Identity & AI` section is the authoritative edit

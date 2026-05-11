@@ -571,16 +571,18 @@
       <div class="section-body">
         <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
           Architectural Law 5: every MiOS surface speaks to one local
-          OpenAI-compatible endpoint. Edit only when swapping backends
-          (LocalAI / Ollama / Hermes / external).
+          OpenAI-compatible endpoint. Default is Hermes-Agent on :8642
+          (the LIVE MiOS agent at root, fronting Ollama). Edit only when
+          swapping backends (Ollama direct / external).
         </p>
         <fieldset style="grid-column: 1 / -1;">
           <legend>ai</legend>
           <label for="f-ai-endpoint">endpoint</label>
-          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8080/v1">
+          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8642/v1">
           <label for="f-ai-model">model</label>
           <select id="f-ai-model" data-key="ai.model">
-            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (12 GB RAM, default)</option>
+            <option value="qwen3.5:2b">qwen3.5:2b (8 GB RAM, default)</option>
+            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (12 GB RAM)</option>
             <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (24+ GB RAM)</option>
             <option value="llama3.2:3b">llama3.2:3b (8 GB RAM)</option>
             <option value="__custom__">custom...</option>
@@ -754,8 +756,10 @@
         <legend>ports — core services</legend>
         <label for="f-port-ssh">ssh (host sshd)</label>
         <input type="text" id="f-port-ssh" data-key="ports.ssh" data-type="int" placeholder="22">
-        <label for="f-port-localai">localai (LAW 5 OpenAI-API endpoint)</label>
-        <input type="text" id="f-port-localai" data-key="ports.localai" data-type="int" placeholder="8080">
+        <label for="f-port-hermes">hermes (LAW 5 OpenAI-API endpoint -- live agent)</label>
+        <input type="text" id="f-port-hermes" data-key="ports.hermes" data-type="int" placeholder="8642">
+        <label for="f-port-hermes-workspace">hermes_workspace (chat front-end)</label>
+        <input type="text" id="f-port-hermes-workspace" data-key="ports.hermes_workspace" data-type="int" placeholder="3030">
         <label for="f-port-cockpit">cockpit (host web console)</label>
         <input type="text" id="f-port-cockpit" data-key="ports.cockpit" data-type="int" placeholder="9090">
         <label for="f-port-cockpit-link">cockpit_link (Podman Desktop discovery shim)</label>
@@ -806,12 +810,12 @@
     <div class="grid">
       <fieldset>
         <legend>image.sidecars — primary AI / forge / cluster</legend>
-        <label for="f-img-localai">localai</label>
-        <input type="text" id="f-img-localai" data-key="image.sidecars.localai" placeholder="localai/localai:v2.20.0">
-        <label for="f-img-ollama">ollama</label>
+        <label for="f-img-ollama">ollama (LLM + embedding backend)</label>
         <input type="text" id="f-img-ollama" data-key="image.sidecars.ollama" placeholder="docker.io/ollama/ollama:latest">
-        <label for="f-img-hermes">hermes</label>
+        <label for="f-img-hermes">hermes (live MiOS agent at /)</label>
         <input type="text" id="f-img-hermes" data-key="image.sidecars.hermes" placeholder="docker.io/nousresearch/hermes-agent:latest">
+        <label for="f-img-hermes-workspace">hermes_workspace (chat front-end)</label>
+        <input type="text" id="f-img-hermes-workspace" data-key="image.sidecars.hermes_workspace" placeholder="ghcr.io/outsourc-e/hermes-workspace:latest">
         <label for="f-img-webui">webui (Open WebUI)</label>
         <input type="text" id="f-img-webui" data-key="image.sidecars.webui" placeholder="docker.io/openwebui/open-webui:latest">
         <label for="f-img-searxng">searxng</label>
@@ -848,8 +852,6 @@
         </p>
         <label for="f-svc-forge-uid">forge.uid / .gid</label>
         <input type="text" id="f-svc-forge-uid" data-key="services.forge.uid" data-type="int" placeholder="816">
-        <label for="f-svc-localai-uid">localai.uid / .gid (mios-ai user)</label>
-        <input type="text" id="f-svc-localai-uid" data-key="services.localai.uid" data-type="int" placeholder="817">
         <label for="f-svc-searxng-uid">searxng.uid / .gid</label>
         <input type="text" id="f-svc-searxng-uid" data-key="services.searxng.uid" data-type="int" placeholder="818">
         <label for="f-svc-ceph-uid">ceph.uid / .gid</label>
@@ -1099,7 +1101,7 @@
 <div id="status" class="status info" style="display:none"></div>
 
 <footer>
-  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · After saving, run <code>sudo mios-sync-env</code> to regenerate <code>/etc/mios/install.env</code> from the layered <code>mios.toml</code>, then <code>systemctl restart mios-ai mios-ollama</code> if AI keys changed. <code>mios-env --explain</code> shows which layer supplied each resolved <code>MIOS_*</code> value.</p>
+  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · After saving, run <code>sudo mios-sync-env</code> to regenerate <code>/etc/mios/install.env</code> from the layered <code>mios.toml</code>, then <code>systemctl restart mios-hermes ollama</code> if AI keys changed. <code>mios-env --explain</code> shows which layer supplied each resolved <code>MIOS_*</code> value.</p>
 </footer>
 
 <script>
@@ -1114,7 +1116,8 @@
 //
 
 const QUADLETS = [
-  "mios-ai", "mios-ceph", "mios-k3s", "mios-forge", "mios-cockpit-link",
+  "mios-hermes", "mios-hermes-workspace", "mios-ceph", "mios-k3s",
+  "mios-forge", "mios-cockpit-link", "mios-searxng",
   "crowdsec-dashboard", "ollama", "cloudws-guacamole", "cloudws-pxe-hub",
   "guacamole-postgres", "guacd"
 ];
@@ -1156,7 +1159,7 @@ const PACKAGES = [
   { name: "gnome",                 default: true,  group: "desktop", desc: "GNOME Shell + core session" },
   { name: "phosh",                 default: true,  group: "desktop", desc: "Phosh mobile shell (PinePhone form-factor)" },
   // ai
-  { name: "ai",                    default: true,  group: "ai",      desc: "ollama, mios-ai container, embedding tools" },
+  { name: "ai",                    default: true,  group: "ai",      desc: "ollama (LLM + embeddings), hermes-agent, chat front-end" },
   // k8s / cluster
   { name: "k3s",                   default: true,  group: "cluster", desc: "k3s lightweight Kubernetes" },
   { name: "ceph",                  default: true,  group: "cluster", desc: "Ceph storage cluster client + cephadm" },

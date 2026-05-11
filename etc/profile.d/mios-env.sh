@@ -106,8 +106,9 @@ export MIOS_AI_KEY="${MIOS_AI_KEY:-}"
 # default `flatpak-spawn --host bash` session -- talks to it via this
 # env. Set explicitly here so `ollama list` / `ollama run <model>` work
 # without arguments out of the box. Architectural Law 5 still has the
-# canonical OpenAI surface at MIOS_AI_ENDPOINT (LocalAI on :8080);
-# Ollama's OpenAI-compatible endpoint at localhost:11434/v1 is reached
+# canonical OpenAI surface at MIOS_AI_ENDPOINT (Hermes-Agent on :8642 --
+# the LIVE MiOS agent at root, fronting Ollama for chat + embeddings).
+# Ollama's raw OpenAI-compatible endpoint at localhost:11434/v1 is reached
 # via the mios-ollama wrapper or by overriding MIOS_AI_ENDPOINT.
 export OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
 

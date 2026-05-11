@@ -58,10 +58,6 @@ export MIOS_VERSION
 : "${MIOS_FORGE_UID:=816}"
 : "${MIOS_FORGE_GID:=816}"
 
-: "${MIOS_AI_USER:=mios-ai}"
-: "${MIOS_AI_UID:=817}"
-: "${MIOS_AI_GID:=817}"
-
 : "${MIOS_OLLAMA_USER:=mios-ollama}"
 # UID/GID 815 -- MUST match usr/lib/sysusers.d/50-mios-services.conf
 # (`u mios-ollama 815:mios-ollama ...`). Was 818 by typo, which collided
@@ -98,7 +94,6 @@ export MIOS_VERSION
 
 export MIOS_USER MIOS_GROUP MIOS_UID MIOS_GID
 export MIOS_FORGE_USER MIOS_FORGE_UID MIOS_FORGE_GID
-export MIOS_AI_USER MIOS_AI_UID MIOS_AI_GID
 export MIOS_OLLAMA_USER MIOS_OLLAMA_UID MIOS_OLLAMA_GID
 export MIOS_CEPH_USER MIOS_CEPH_UID MIOS_CEPH_GID
 export MIOS_SEARXNG_USER MIOS_SEARXNG_UID MIOS_SEARXNG_GID
@@ -124,7 +119,6 @@ export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 : "${MIOS_PORT_SSH:=22}"
 : "${MIOS_PORT_FORGE_HTTP:=3000}"
 : "${MIOS_PORT_FORGE_SSH:=2222}"
-: "${MIOS_PORT_LOCALAI:=8080}"
 : "${MIOS_PORT_COCKPIT:=9090}"
 : "${MIOS_PORT_OLLAMA:=11434}"
 : "${MIOS_PORT_SEARXNG:=8888}"
@@ -136,14 +130,16 @@ export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 : "${MIOS_CEPH_DASHBOARD_PORT:=8443}"
 : "${MIOS_RDP_PORT:=3389}"             # GNOME Remote Desktop / xRDP
 export MIOS_PORT_SSH MIOS_PORT_FORGE_HTTP MIOS_PORT_FORGE_SSH
-export MIOS_PORT_LOCALAI MIOS_PORT_COCKPIT MIOS_PORT_OLLAMA
+export MIOS_PORT_COCKPIT MIOS_PORT_OLLAMA
 export MIOS_PORT_SEARXNG MIOS_PORT_HERMES MIOS_PORT_WEBUI MIOS_PORT_COCKPIT_LINK
 export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_PORT
 
 # ── URLS ─────────────────────────────────────────────────────────────
 # Derived from PORTS so a single port change propagates. MIOS_AI_ENDPOINT
-# is the unified-AI-redirects target (Architectural Law 5).
-: "${MIOS_AI_ENDPOINT:=http://localhost:${MIOS_PORT_LOCALAI}/v1}"
+# is the unified-AI-redirects target (Architectural Law 5). LocalAI was
+# purged 2026-05-11; Hermes-Agent now serves the canonical /v1 surface
+# as the live MiOS agent at root.
+: "${MIOS_AI_ENDPOINT:=http://localhost:${MIOS_PORT_HERMES}/v1}"
 : "${MIOS_FORGE_URL:=http://localhost:${MIOS_PORT_FORGE_HTTP}}"
 : "${MIOS_COCKPIT_URL:=https://localhost:${MIOS_PORT_COCKPIT}}"
 : "${MIOS_OLLAMA_URL:=http://localhost:${MIOS_PORT_OLLAMA}}"
@@ -234,7 +230,6 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 
 # ── SYSTEMD UNITS ────────────────────────────────────────────────────
 # Quadlet-generated service names (one per .container/.build/.image file)
-: "${MIOS_UNIT_AI:=mios-ai.service}"
 : "${MIOS_UNIT_FORGE:=mios-forge.service}"
 : "${MIOS_UNIT_FORGE_RUNNER:=mios-forgejo-runner.service}"
 : "${MIOS_UNIT_OLLAMA:=ollama.service}"
@@ -254,7 +249,7 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 : "${MIOS_UNIT_WSL_FIRSTBOOT:=mios-wsl-firstboot.service}"
 : "${MIOS_UNIT_USER_SESSION:=user@${MIOS_UID}.service}"
 
-export MIOS_UNIT_AI MIOS_UNIT_FORGE MIOS_UNIT_FORGE_RUNNER MIOS_UNIT_OLLAMA
+export MIOS_UNIT_FORGE MIOS_UNIT_FORGE_RUNNER MIOS_UNIT_OLLAMA
 export MIOS_UNIT_CEPH MIOS_UNIT_K3S MIOS_UNIT_AICHAT_BUILD MIOS_UNIT_AICHAT_IMAGE
 export MIOS_UNIT_COCKPIT_LINK MIOS_UNIT_SEARXNG MIOS_UNIT_FIRSTBOOT_TARGET
 export MIOS_UNIT_HERMES MIOS_UNIT_WEBUI MIOS_UNIT_HERMES_FIRSTBOOT
@@ -264,14 +259,13 @@ export MIOS_UNIT_OLLAMA_FIRSTBOOT MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
 : "${MIOS_DISTROBOX_AICHAT:=mios-aichat}"
 : "${MIOS_CONTAINER_AICHAT_IMAGE:=localhost/mios/aichat:latest}"
 : "${MIOS_CONTAINER_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:12}"
-: "${MIOS_CONTAINER_LOCALAI_IMAGE:=docker.io/localai/localai:latest}"
 : "${MIOS_CONTAINER_OLLAMA_IMAGE:=docker.io/ollama/ollama:latest}"
 : "${MIOS_CONTAINER_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 : "${MIOS_CONTAINER_HERMES_IMAGE:=docker.io/nousresearch/hermes-agent:latest}"
 : "${MIOS_CONTAINER_WEBUI_IMAGE:=docker.io/openwebui/open-webui:latest}"
 
 export MIOS_DISTROBOX_AICHAT MIOS_CONTAINER_AICHAT_IMAGE
-export MIOS_CONTAINER_FORGE_IMAGE MIOS_CONTAINER_LOCALAI_IMAGE
+export MIOS_CONTAINER_FORGE_IMAGE
 export MIOS_CONTAINER_OLLAMA_IMAGE MIOS_CONTAINER_SEARXNG_IMAGE
 export MIOS_CONTAINER_HERMES_IMAGE MIOS_CONTAINER_WEBUI_IMAGE
 

@@ -410,7 +410,6 @@ model               = "qwen3.5:2b"
 embed_model         = "nomic-embed-text"
 api_key             = ""                # empty for localhost; cloud needs a key
 enable_ollama       = true
-enable_localai      = true
 mcp_registry        = "/usr/share/mios/ai/v1/mcp.json"
 system_prompt_file  = ""                # optional override; empty = use canonical
 # Build-time model bake list. Comma-separated; consumed by
@@ -1550,7 +1549,6 @@ pkgs = [
 ssh                = 22       # host sshd
 forge_http         = 3000     # Forgejo HTTP web UI
 forge_ssh          = 2222     # Forgejo git+ssh (non-22 to coexist with sshd)
-localai            = 8080     # mios-ai LocalAI /v1 (LAW 5 canonical endpoint)
 cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend
@@ -1569,8 +1567,6 @@ rdp                = 3389     # GNOME Remote Desktop / xRDP
 # read either via MIOS_<svc>_VERSION / MIOS_<svc>_IMAGE.
 # ----------------------------------------------------------------------------
 [image.sidecars]
-localai_version    = "v2.20.0"
-localai            = "localai/localai:v2.20.0"
 k3s_version        = "v1.32.1-k3s1"
 k3s                = "rancher/k3s:v1.32.1-k3s1"
 ceph_version       = "v19"
@@ -1613,11 +1609,6 @@ bib_alpine         = "docker.io/library/alpine:latest"
 user = "mios-forge"
 uid  = 816
 gid  = 816
-
-[services.localai]
-user = "mios-ai"
-uid  = 817
-gid  = 817
 
 [services.searxng]
 user = "mios-searxng"

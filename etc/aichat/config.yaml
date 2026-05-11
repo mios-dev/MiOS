@@ -18,9 +18,7 @@
 # session: `aichat --model ollama:<model>`. Persistent override:
 # copy this file to ~/.config/aichat/config.yaml and edit `model`.
 # The MIOS_AI_MODEL env var (set by /etc/profile.d/mios-env.sh from
-# /etc/mios/install.env) is the canonical source-of-truth; the
-# /usr/bin/mios-ai wrapper substitutes it at call time so the bare
-# `aichat` and `mios-ai` paths can drift apart cleanly.
+# /etc/mios/install.env) is the canonical source-of-truth.
 
 model: ollama:qwen3.5:2b
 stream: true
@@ -45,12 +43,14 @@ clients:
       # Add additional models pulled via mios-ollama-firstboot here.
       # `ollama list` from the host shows what's actually available.
 
-  # MiOS canonical OpenAI surface (LocalAI / mios-ai Quadlet on :8080)
-  # remains as a secondary client. Switch via `aichat -c localai`.
+  # MiOS canonical OpenAI surface (Hermes-Agent on :8642). Hermes is the
+  # LIVE MiOS agent at root; it fronts Ollama and adds the tool/agent
+  # protocol layer. Switch via `aichat -c hermes`.
   - type: openai-compatible
-    name: localai
-    api_base: http://localhost:8080/v1
-    api_key: localai
+    name: hermes
+    api_base: http://localhost:8642/v1
+    api_key: $MIOS_AI_KEY
     models:
       - name: qwen3.5:2b
         max_input_tokens: 32768
+        supports_function_calling: true

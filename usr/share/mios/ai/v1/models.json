@@ -2,51 +2,36 @@
   "object": "list",
   "data": [
     {
-      "id": "qwen2.5-coder:7b",
+      "id": "qwen3.5:2b",
       "object": "model",
-      "created": 1746230400,
-      "owned_by": "mios-localai",
+      "created": 1747000000,
+      "owned_by": "mios-ollama",
       "permission": [],
-      "root": "qwen2.5-coder:7b",
+      "root": "qwen3.5:2b",
       "parent": null,
       "x-mios": {
         "role": "default-chat",
         "context_window": 32768,
-        "endpoint": "http://localhost:8080/v1",
-        "served_by": "mios-ai.container",
+        "endpoint": "http://localhost:8642/v1",
+        "served_by": "mios-hermes.container",
+        "backed_by": "ollama.container",
         "openai_api_compat": ["chat/completions", "completions"],
         "law": "Law 5 -- UNIFIED-AI-REDIRECTS"
       }
     },
     {
-      "id": "qwen2.5-coder:14b",
-      "object": "model",
-      "created": 1746230400,
-      "owned_by": "mios-localai",
-      "permission": [],
-      "root": "qwen2.5-coder:14b",
-      "parent": null,
-      "x-mios": {
-        "role": "alt-chat",
-        "context_window": 32768,
-        "endpoint": "http://localhost:8080/v1",
-        "served_by": "mios-ai.container",
-        "openai_api_compat": ["chat/completions", "completions"]
-      }
-    },
-    {
       "id": "nomic-embed-text",
       "object": "model",
-      "created": 1746230400,
-      "owned_by": "mios-localai",
+      "created": 1747000000,
+      "owned_by": "mios-ollama",
       "permission": [],
       "root": "nomic-embed-text",
       "parent": null,
       "x-mios": {
         "role": "default-embed",
         "dimensions": 768,
-        "endpoint": "http://localhost:8080/v1",
-        "served_by": "mios-ai.container",
+        "endpoint": "http://localhost:11434/v1",
+        "served_by": "ollama.container",
         "openai_api_compat": ["embeddings"]
       }
     }
@@ -55,9 +40,9 @@
     "schema": "OpenAI /v1/models response shape",
     "schema_ref": "https://platform.openai.com/docs/api-reference/models/list",
     "manifest_path": "/usr/share/mios/ai/v1/models.json",
-    "endpoint": "http://localhost:8080/v1/models",
-    "served_by": "mios-ai.container",
+    "endpoint": "http://localhost:8642/v1/models",
+    "served_by": "mios-hermes.container",
     "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
-    "note": "x-mios extensions are non-OpenAI metadata; ignore for strict OpenAI clients."
+    "note": "LocalAI purged 2026-05-11. Hermes-Agent is the LIVE MiOS agent at root; it serves the canonical /v1 surface (chat/completions, completions) on port 8642 and proxies inference + embeddings to Ollama (port 11434), which handles ALL MiOS embedded models. Strict OpenAI clients should ignore x-mios extensions."
   }
 }

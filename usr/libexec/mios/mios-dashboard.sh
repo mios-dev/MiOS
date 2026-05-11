@@ -315,11 +315,10 @@ print_endpoints() {
     section_header "Self-replication loop"
     printf '    %s  Forge       %shttp://localhost:3000/%s\n' \
         "$(ep_dot http://localhost:3000/api/v1/version)" "$C_D" "$C_R"
-    # Ollama is the canonical chat model surface (operator directive
-    # 2026-05-11: drop LocalAI -- redundant ~32 GB image). Hermes
-    # talks to Ollama via /v1; mios-ai (LocalAI) stays in-tree as an
-    # opt-in sidecar for non-chat surfaces (embeddings, image-gen,
-    # STT/TTS) but doesn't autostart.
+    # Ollama is THE local model + embedding backend (operator directive
+    # 2026-05-11: LocalAI purged from codebase; Ollama handles ALL MiOS
+    # embedded models). Hermes-Agent (the LIVE MiOS agent at root) fronts
+    # Ollama on :8642 with the canonical /v1 surface.
     printf '    %s  Ollama      %shttp://localhost:11434%s   %s%s%s\n' \
         "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
     printf '    %s  Cockpit     %shttps://localhost:9090/%s   %slogin: %s / %s%s\n' \
@@ -352,9 +351,9 @@ print_endpoints() {
 print_quadlets() {
     section_header "Quadlet services"
     local svc info name dot color
-    for svc in mios-ai mios-forge mios-forgejo-runner mios-cockpit-link \
+    for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-searxng \
-               mios-hermes mios-hermes-workspace mios-webui crowdsec-dashboard \
+               mios-hermes mios-hermes-workspace crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"

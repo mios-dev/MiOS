@@ -45,20 +45,34 @@ Volume=/var/lib/mios/hermes:/opt/data:Z
 # override via /etc/mios/hermes/config.local.yaml (see config.yaml's
 # trailing include directive).
 Volume=/etc/mios/hermes:/etc/hermes:Z,ro
+# Hermes-Agent is THE live MiOS agent at root. The OS's root `/` IS
+# a git working tree of mios.git; bind it read-only into the container
+# at /mios so the agent can read system files, configs, and the full
+# tracked repo (via /mios/.git) to answer questions about the live
+# system without leaving its sandbox. Read-only because the agent
+# mutates state via Hermes-Agent tools (file I/O via the tool
+# protocol), not via direct writes. The :ro flag is dropped if/when
+# operator opts in to read-write self-modifying agent flows.
+Volume=/:/mios:ro
 
 # API key + server settings come from /etc/mios/hermes/api.env, which
 # mios-hermes-firstboot.service generates on first boot via
-# `openssl rand -hex 32` if not already present. Open WebUI reads the
-# same file so the key flows through declaratively.
+# `openssl rand -hex 32` if not already present. Hermes Workspace
+# reads the same file so the key flows through declaratively.
 EnvironmentFile=/etc/mios/hermes/api.env
 
 # Force the agent to point at MiOS's mios-ollama by container name on
 # ai-net. The deploy-aistack.sh first-run wizard prompts for these
 # interactively; we bake them in so the unit is fully declarative.
+# Ollama handles ALL MiOS embedded models (chat + embeddings) per
+# operator directive 2026-05-11.
 Environment=HERMES_BACKEND_PROVIDER=ollama
 Environment=HERMES_BACKEND_BASE_URL=http://mios-ollama:11434
 Environment=HERMES_BACKEND_MODEL=qwen3.5:2b
 Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
+# Hermes-Agent is THE live MiOS agent at root: it can introspect the
+# OS's git working tree at /mios (read-only bind mount above).
+Environment=MIOS_AGENT_ROOT=/mios
 
 # Identity. UID resolved from mios.toml [services.hermes].uid (default
 # 820, pinned in usr/lib/sysusers.d/50-mios-services.conf).

@@ -76,10 +76,7 @@ systemd-tmpfiles --create
 echo "[INFO] Reloading systemd"
 systemctl daemon-reload
 
-echo "[INFO] Enabling 'MiOS' services"
-if [[ -f /etc/containers/systemd/mios-ai.container ]]; then
-    systemctl enable --now mios-ai.service || echo "[WARN] mios-ai.service not yet active; will retry on boot"
-fi
+echo "[INFO] Enabling 'MiOS' services (Quadlets pulled in via systemd preset)"
 
 echo "[ OK ] Phase-3 -- 'MiOS' system installer complete."
 echo "       Control returns to mios-bootstrap install.sh for Phase-3 user"

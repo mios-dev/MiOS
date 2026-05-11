@@ -115,8 +115,8 @@ etc/containers/*
 !/etc/containers/systemd/
 etc/containers/systemd/*
 !/etc/containers/systemd/mios*
-# ai-net.network is the AI-stack bridge that mios-hermes / mios-webui /
-# mios-ai / mios-ollama / mios-searxng share. Doesn't match the mios*
+# ai-net.network is the AI-stack bridge that mios-hermes /
+# mios-hermes-workspace / ollama / mios-searxng share. Doesn't match the mios*
 # glob because the deploy-aistack.sh reference flow names it ai-net,
 # and we keep the literal name for cross-deploy interop.
 !/etc/containers/systemd/ai-net.network

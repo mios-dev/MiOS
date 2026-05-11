@@ -119,7 +119,6 @@ _sysusers_added=0
 for sf in usr/lib/sysusers.d/10-mios.conf \
           usr/lib/sysusers.d/30-mios-tmpfiles-prereq.conf \
           usr/lib/sysusers.d/50-mios.conf \
-          usr/lib/sysusers.d/50-mios-ai.conf \
           usr/lib/sysusers.d/50-mios-gpu.conf \
           usr/lib/sysusers.d/50-mios-services.conf \
 ; do
@@ -146,7 +145,6 @@ for tf in usr/lib/tmpfiles.d/mios.conf \
           usr/lib/tmpfiles.d/mios-ollama.conf \
           usr/lib/tmpfiles.d/mios-forge.conf \
           usr/lib/tmpfiles.d/mios-forge-runner.conf \
-          usr/lib/tmpfiles.d/mios-ai.conf \
           usr/lib/tmpfiles.d/mios-pxe-hub.conf \
           usr/lib/tmpfiles.d/mios-guacamole.conf \
           usr/lib/tmpfiles.d/mios-infra.conf \

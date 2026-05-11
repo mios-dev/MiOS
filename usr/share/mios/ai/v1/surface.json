@@ -3,24 +3,25 @@
   "version": "v1",
   "spec_ref": "https://platform.openai.com/docs/api-reference",
   "manifest_path": "/usr/share/mios/ai/v1/surface.json",
-  "base_url": "http://localhost:8080/v1",
-  "served_by": "mios-ai.container",
+  "base_url": "http://localhost:8642/v1",
+  "served_by": "mios-hermes.container",
+  "backed_by": "ollama.container",
   "auth": {
     "scheme": "Bearer",
     "header": "Authorization",
     "env": "MIOS_AI_KEY",
-    "empty_accepted": true,
-    "note": "LocalAI accepts empty/no token by default. Production deployments should set MIOS_AI_KEY in /etc/mios/install.env or via a reverse-proxy gate."
+    "empty_accepted": false,
+    "note": "Hermes-Agent enforces API_SERVER_KEY (generated at firstboot into /etc/mios/hermes/api.env). Operators export the key into MIOS_AI_KEY or pass it explicitly. The /v1 surface fronts Ollama, which handles ALL MiOS embedded models."
   },
   "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
   "x-mios": {
     "schema_kind": "Comprehensive endpoint directory for the MiOS AI surface.",
     "intent": "Any OpenAI-API-compatible client that can read this manifest learns the full set of v1 surfaces this deployment targets, the canonical spec each surface follows, the method tuple, and (for collection endpoints) the on-disk path of the static manifest the runtime ships pre-populated with vendor data.",
     "status_legend": {
-      "served": "Confirmed reachable + protocol-conformant against the deployed LocalAI image.",
+      "served": "Confirmed reachable + protocol-conformant against the deployed Hermes-Agent + Ollama stack.",
       "unverified": "Endpoint defined in this spec but not yet probed against the live deployment. Default at first boot.",
       "proxied": "Request is forwarded to an upstream that may or may not be MiOS-resident.",
-      "unsupported": "Definitively not implemented by the current LocalAI build; client SHOULD short-circuit."
+      "unsupported": "Definitively not implemented by the current Hermes/Ollama stack; client SHOULD short-circuit."
     },
     "verification_command": "curl -fsS -H \"Authorization: Bearer $MIOS_AI_KEY\" \"$MIOS_AI_ENDPOINT/models\" | jq '.data[].id'",
     "vendor_neutral": true,

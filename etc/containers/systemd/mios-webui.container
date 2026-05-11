@@ -1,22 +1,21 @@
 # /etc/containers/systemd/mios-webui.container
-# 'MiOS' Open WebUI browser frontend.
+# 'MiOS' Open WebUI browser frontend (LEGACY).
 #
-# Open WebUI (https://github.com/open-webui/open-webui) is the
-# browser-side companion to mios-hermes / mios-ai. By default it points
-# at mios-hermes:8642/v1 (the Hermes-Agent gateway), which then proxies
-# to mios-ollama:11434 inside the ai-net bridge. Operators can also add
-# mios-ai (LocalAI on :8080) as a second OpenAI-compatible backend
-# inside the WebUI's settings panel -- both are reachable by container
-# name on the ai-net bridge.
+# Operator directive 2026-05-11: Open WebUI replaced by the
+# mios-hermes-workspace front-end (Ollama >> Hermes Agent >> Hermes
+# Workspace). This .container is masked in 90-mios.preset; kept on
+# disk as a fallback browser surface for operators who explicitly
+# `systemctl unmask mios-webui.service`. Default chat UI is now
+# mios-hermes-workspace.container.
 #
-# Port choice (3030, NOT 8080):
-#   The upstream deploy-aistack.sh maps Open WebUI to host :8080. MiOS
-#   already publishes mios-ai (LocalAI's OpenAI-compatible /v1 endpoint)
-#   on :8080 -- that port is the canonical Architectural-Law-5 surface
-#   that aichat / system prompts / agent SDKs all reference. Moving
-#   LocalAI off 8080 would break every existing client. So WebUI gets
-#   a different host port (3030) instead. Internal port stays 8080 to
-#   match upstream defaults.
+# When unmasked, Open WebUI points at mios-hermes:8642/v1 (the
+# Hermes-Agent gateway), which proxies to mios-ollama:11434 inside
+# the ai-net bridge.
+#
+# Port choice (3031 publish, internal 8080):
+#   Upstream Open WebUI listens on :8080 inside the container. Host
+#   port 3031 avoids collision with mios-hermes-workspace (:3030)
+#   which is the default chat UI.
 #
 # Defaults policy: enabled by default. After= mios-hermes so the
 # OPENAI_API_BASE_URL target is reachable when the frontend starts.

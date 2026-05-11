@@ -22,8 +22,9 @@ echo "==> Configuring firewalld ports for 'MiOS' services..."
 # fallbacks). Hardcoded port literals are bugs; lift them.
 
 # Open essential ports for local/LAN access
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_LOCALAI}/tcp        # mios-ai (LocalAI /v1, Architectural Law 5)
-firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp       # mios-guacamole (Browser desktop, mapped from container :${MIOS_PORT_LOCALAI})
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp          # mios-hermes (Hermes-Agent /v1 -- LIVE MiOS agent at /)
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES_WORKSPACE}/tcp # mios-hermes-workspace (chat front-end)
+firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp       # mios-guacamole (Browser desktop)
 firewall-offline-cmd --zone=public --add-port=${MIOS_CEPH_DASHBOARD_PORT}/tcp  # Ceph dashboard
 firewall-offline-cmd --zone=public --add-port=${MIOS_K3S_API_PORT}/tcp         # K3s API
 firewall-offline-cmd --zone=public --add-port=${MIOS_RDP_PORT}/tcp             # RDP

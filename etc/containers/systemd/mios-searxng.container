@@ -1,7 +1,7 @@
 # /etc/containers/systemd/mios-searxng.container
 # 'MiOS' privacy-respecting metasearch (SearXNG upstream).
 #
-# SearXNG is the search counterpart to mios-ai/ollama: it gives the
+# SearXNG is the search counterpart to mios-hermes/ollama: it gives the
 # operator (and the LLM, via Tools) a single localhost endpoint that
 # aggregates results from ~250 upstream search engines without leaking
 # any IP, user-agent, or session identifier to those engines. It is
@@ -33,10 +33,12 @@ ContainerName=mios-searxng
 # container name without leaving the network.
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
-# searxng host -> 8080 container. The localai port is taken by mios-ai
-# (LocalAI's OpenAI-compatible endpoint), so SearXNG goes on the next
-# conventional search-proxy port. Sibling Quadlets on mios.network reach
-# it as http://mios-searxng:8080/ without going through host loopback.
+# searxng host:8888 -> container:8888. 8080 (the granian default) was
+# avoided historically to dodge a collision with LocalAI; LocalAI was
+# purged 2026-05-11 but 8888 stays the canonical SearXNG port because
+# every Hermes-Agent tool wire-up + agent system prompt references it.
+# Sibling Quadlets on mios.network reach it as http://mios-searxng:8888/
+# without going through host loopback.
 PublishPort=${MIOS_PORT_SEARXNG:-8888}:${MIOS_PORT_SEARXNG:-8888}
 
 # Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
@@ -68,19 +70,20 @@ Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8888}/
 # doing the 8888->8080 remap inside Quadlet's bridge network. That fails
 # on the dev VM where Network=host drop-ins make PublishPort a no-op:
 # SearXNG ends up trying to bind 0.0.0.0:8080 in the host netns and
-# collides with mios-ai (LocalAI) which already owns 8080. Operator-
-# flagged 2026-05-11 with `RuntimeError: Address already in use
-# (os error 98)` in granian's _init_shared_socket. Bind 8888 directly
-# so host-network mode just works; bridge-network deployments still
-# work via PublishPort= forwarding to 8888.
+# historically collided with mios-ai (LocalAI, since purged) on 8080.
+# Operator-flagged 2026-05-11 with `RuntimeError: Address already in
+# use (os error 98)` in granian's _init_shared_socket. Bind 8888
+# directly so host-network mode just works; bridge-network deployments
+# still work via PublishPort= forwarding to 8888.
 Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
 Environment=BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
 # SearXNG's entrypoint calls granian, which reads GRANIAN_HOST +
 # GRANIAN_PORT directly (the BIND_ADDRESS / SEARXNG_BIND_ADDRESS
 # above are SearXNG-app-level hints used by the upstream Helm chart
 # and aren't read by the image's CMD). On the dev VM with Network=
-# host, the unmodified granian defaults bind 0.0.0.0:8080 and
-# collide with mios-ai (LocalAI). Operator-flagged 2026-05-11.
+# host, the unmodified granian defaults bind 0.0.0.0:8080; we pin
+# them to 8888 explicitly so SearXNG always ends up where MiOS expects.
+# Operator-flagged 2026-05-11.
 Environment=GRANIAN_HOST=0.0.0.0
 Environment=GRANIAN_PORT=${MIOS_PORT_SEARXNG:-8888}
 

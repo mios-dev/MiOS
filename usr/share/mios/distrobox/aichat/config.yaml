@@ -5,15 +5,10 @@
 # both inside `distrobox enter mios-aichat` and from the host shim.
 #
 # Client naming: the FIRST client is `mios` -- the unified MiOS AI
-# endpoint, mapped to whatever mios.toml [ai].endpoint resolves to
-# (LocalAI on :8080 by default; can be retargeted to Ollama on :11434
-# or to a remote OpenAI-compatible server). The /usr/bin/mios-ai
-# entrypoint references this client by name so changing the underlying
-# backend is a single api_base edit.
-#
-# `ollama` and `localai` remain available as named alternates for
-# operators who want to switch backends without editing the default
-# (e.g. `aichat --model ollama:qwen3.5:2b "..."`).
+# endpoint, mapped to Hermes-Agent on :8642 (the LIVE MiOS agent at
+# root). `ollama` remains available as a named alternate for
+# operators who want to bypass Hermes and talk directly to the model
+# server (e.g. `aichat --model ollama:qwen3.5:2b "..."`).
 
 model: mios:qwen3.5:2b
 stream: true
@@ -23,13 +18,10 @@ keybindings: emacs
 clients:
   - type: openai-compatible
     name: mios
-    api_base: http://localhost:8080/v1
-    api_key: localai
+    api_base: http://localhost:8642/v1
+    api_key: $MIOS_AI_KEY
     models:
       - name: qwen3.5:2b
-        max_input_tokens: 32768
-        supports_function_calling: true
-      - name: qwen2.5-coder:14b
         max_input_tokens: 32768
         supports_function_calling: true
       - name: nomic-embed-text
@@ -44,17 +36,6 @@ clients:
       - name: qwen3.5:2b
         max_input_tokens: 32768
         supports_function_calling: true
-      - name: qwen2.5-coder:14b
-        max_input_tokens: 32768
-        supports_function_calling: true
       - name: nomic-embed-text
         type: embedding
         max_input_tokens: 8192
-
-  - type: openai-compatible
-    name: localai
-    api_base: http://localhost:8080/v1
-    api_key: localai
-    models:
-      - name: qwen3.5:2b
-        max_input_tokens: 32768

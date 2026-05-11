@@ -41,12 +41,14 @@ firewall-cmd --permanent --add-port=5900-5999/tcp 2>/dev/null || true
 firewall-cmd --permanent --add-port=${MIOS_K3S_API_PORT}/tcp --add-port=10250/tcp 2>/dev/null || true
 # Pacemaker/Corosync
 firewall-cmd --permanent --add-port=2224/tcp --add-port=5403-5405/udp 2>/dev/null || true
-# mios-ai (LocalAI /v1 OpenAI-API endpoint -- Architectural Law 5)
-firewall-cmd --permanent --add-port=${MIOS_PORT_LOCALAI}/tcp 2>/dev/null || true
-# mios-guacamole web (Browser desktop; mapped from container :${MIOS_PORT_LOCALAI} to
-# host :${MIOS_GUACAMOLE_PORT} to avoid the mios-ai port collision)
+# mios-hermes (Hermes-Agent /v1 -- canonical OpenAI-API endpoint for the
+# LIVE MiOS agent at root; Architectural Law 5)
+firewall-cmd --permanent --add-port=${MIOS_PORT_HERMES}/tcp 2>/dev/null || true
+# mios-hermes-workspace (web chat front-end -- default chat UI)
+firewall-cmd --permanent --add-port=${MIOS_PORT_HERMES_WORKSPACE}/tcp 2>/dev/null || true
+# mios-guacamole web (Browser desktop)
 firewall-cmd --permanent --add-port=${MIOS_GUACAMOLE_PORT}/tcp 2>/dev/null || true
-# ollama API (alternate local LLM backend alongside mios-ai)
+# ollama API (local LLM + embedding backend; handles all MiOS embedded models)
 firewall-cmd --permanent --add-port=${MIOS_PORT_OLLAMA}/tcp 2>/dev/null || true
 # CrowdSec dashboard + iVentoy + mios-forge HTTP (port ${MIOS_PORT_FORGE_HTTP} shared by both)
 firewall-cmd --permanent --add-port=${MIOS_PORT_FORGE_HTTP}/tcp --add-port=26000/tcp 2>/dev/null || true
