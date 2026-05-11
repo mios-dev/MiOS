@@ -50,6 +50,16 @@ API_SERVER_HOST=0.0.0.0
 API_SERVER_KEY=${api_key}
 API_SERVER_CORS_ORIGINS=*
 OPENAI_API_KEY=${api_key}
+
+# Hermes Workspace consumes these via the SAME EnvironmentFile= mount.
+# Systemd Quadlet Environment= directives do NOT expand \${API_SERVER_KEY}
+# from sibling EnvironmentFile= contents, so we have to write the
+# explicit duplicates here. The workspace falls back to a legacy HTML-
+# scrape token flow when CLAUDE_DASHBOARD_TOKEN is unset, which fails
+# against our minimal gateway image and triggers a client-side
+# redirect to /error. Operator-flagged 2026-05-11.
+HERMES_API_TOKEN=${api_key}
+CLAUDE_DASHBOARD_TOKEN=${api_key}
 EOF
 umask 0022
 chown root:mios-hermes "$ENV_FILE" 2>/dev/null || true
