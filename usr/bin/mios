@@ -43,10 +43,32 @@ except ImportError:
 # ─── Configuration ────────────────────────────────────────────────────
 ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
 MODEL    = os.environ.get("MIOS_AI_MODEL",    "qwen3.5:2b")
-API_KEY  = os.environ.get("MIOS_AI_KEY",      "sk-noop")
 SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
 LIB      = pathlib.Path("/usr/lib/mios")
 LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")
+
+
+def _resolve_api_key() -> str:
+    # Order: MIOS_AI_KEY env > /etc/mios/install.env > /etc/mios/hermes/api.env > "sk-noop".
+    # Hermes-Agent requires the shared API_SERVER_KEY for /v1/* calls;
+    # an empty/wrong key returns 401 with "Invalid API key".
+    v = os.environ.get("MIOS_AI_KEY")
+    if v:
+        return v
+    import re
+    for env_file in ("/etc/mios/install.env", "/etc/mios/hermes/api.env"):
+        try:
+            with open(env_file, encoding="utf-8") as f:
+                for line in f:
+                    m = re.match(r'^(?:API_SERVER_KEY|MIOS_AI_KEY|OPENAI_API_KEY)\s*=\s*"?([^"\r\n]+)"?', line)
+                    if m:
+                        return m.group(1).strip()
+        except OSError:
+            continue
+    return "sk-noop"
+
+
+API_KEY = _resolve_api_key()
 
 
 def resolve_system_prompt() -> str:
@@ -186,19 +208,46 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
             })
 
 
+KNOWN_VERBS = {
+    # verb name -> command argv (list of str). Resolved via shutil.which
+    # / pathlib.is_file before dispatch so missing wrappers fall through
+    # to chat rather than 127ing.
+    "dash":   ["/usr/libexec/mios/mios-dashboard.sh"],
+    "config": ["/usr/libexec/mios/mios-configurator-launch"],
+    "code":   ["xdg-open", "http://localhost:8080/"],
+    "help":   None,        # special-cased below
+}
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+    if len(argv) < 2 or argv[1] in ("-h", "--help") or (len(argv) >= 2 and argv[1] == "help"):
         sys.stderr.write(
-            "mios -- locally-hosted OpenAI-API-compatible agent shell.\n\n"
-            "Usage:\n"
-            "  mios <prompt>                        chat + tool calls\n"
+            "mios -- MiOS verb dispatcher + locally-hosted OpenAI agent shell.\n\n"
+            "Verbs:\n"
+            "  mios dash                            framed dashboard (services + endpoints + git tree)\n"
+            "  mios config                          open the HTML configurator in your browser\n"
+            "  mios code                            open code-server in your browser\n"
+            "  mios help                            this help\n\n"
+            "Chat (anything else):\n"
+            "  mios <prompt>                        chat + tool calls against Hermes-Agent\n"
             "  mios --no-tools <prompt>             disable function calling\n"
-            "  mios --json <schema-name> <prompt>   structured output\n"
-            "                                       (schema-name = file in\n"
-            "                                       /usr/lib/mios/schemas/\n"
-            "                                       without .schema.json)\n"
+            "  mios --json <schema-name> <prompt>   structured output (schema-name = file in\n"
+            "                                       /usr/lib/mios/schemas/ without .schema.json)\n"
         )
-        return 1 if len(argv) < 2 else 0
+        return 0 if len(argv) >= 2 else 1
+
+    # Verb dispatch -- if the first arg matches a known verb AND the
+    # target wrapper is reachable, exec it directly. Falls through to
+    # chat if the wrapper is missing so the operator still gets useful
+    # output on a partially-deployed system.
+    first = argv[1]
+    if first in KNOWN_VERBS and KNOWN_VERBS[first] is not None:
+        cmd = KNOWN_VERBS[first]
+        target = cmd[0]
+        if pathlib.Path(target).is_file() or subprocess.run(
+            ["sh", "-c", f"command -v {target}"], capture_output=True, text=True
+        ).returncode == 0:
+            os.execvp(cmd[0], cmd + argv[2:])
 
     use_tools  = True
     schema_obj = None

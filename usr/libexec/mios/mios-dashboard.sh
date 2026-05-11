@@ -310,12 +310,32 @@ ep_dot() {
     else                       printf '%s%s%s' "$C_GRY" "$DOT_DOWN" "$C_R"; fi
 }
 
+# Resolve a [ports].<key> value from the layered mios.toml SSOT.
+# Honors ~/.config/mios > /etc/mios > /usr/share/mios precedence so an
+# operator port-edit in mios.toml flows through to every URL on this
+# dashboard without re-baking. Falls back to $2 if no layer matches.
+_mios_port() {
+    local key=$1 default=$2 t v
+    for t in "${HOME:-/root}/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        [ -r "$t" ] || continue
+        v=$(awk -v k="$key" '
+            /^\[ports\]/{in_ports=1; next}
+            /^\[/{in_ports=0}
+            in_ports && $0 ~ "^[[:space:]]*"k"[[:space:]]*=" {
+                sub(/^[^=]*=[[:space:]]*/, "")
+                sub(/[[:space:]]*#.*$/, "")
+                gsub(/[[:space:]"]/, "")
+                print; exit
+            }
+        ' "$t" 2>/dev/null)
+        [ -n "$v" ] && { printf '%s' "$v"; return; }
+    done
+    printf '%s' "$default"
+}
+
 # ── Sections (each printed UNFRAMED; frame_filter wraps after capture) ───────
 print_endpoints() {
     section_header "Self-replication loop"
-    # All user-facing logins default to the global MiOS password
-    # (mios.toml [identity].default_password). Surface the resolved
-    # value once at the top so operators don't hunt per-service.
     local _user _pw _fpw _hw_pw
     _user="${MIOS_LINUX_USER:-${MIOS_USER:-mios}}"
     _pw="${MIOS_DEFAULT_PASSWORD:-mios}"
@@ -324,27 +344,34 @@ print_endpoints() {
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
     [[ -z "$_hw_pw" ]]  && _hw_pw="$_pw"
 
-    printf '    %s  Forge       %shttp://localhost:3000/%s   %slogin: %s / %s%s\n' \
-        "$(ep_dot http://localhost:3000/api/v1/version)" "$C_D" "$C_R" \
+    # Every URL resolves from mios.toml [ports].*; no hardcoded literals.
+    local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_workspace _p_code
+    _p_forge=$(_mios_port forge_http 3000)
+    _p_cockpit=$(_mios_port cockpit 9090)
+    _p_ollama=$(_mios_port ollama 11434)
+    _p_searxng=$(_mios_port searxng 8888)
+    _p_hermes=$(_mios_port hermes 8642)
+    _p_workspace=$(_mios_port hermes_workspace 3030)
+    _p_code=$(_mios_port code_server 8080)
+
+    printf '    %s  Forge       %shttp://localhost:%s/%s   %slogin: %s / %s%s\n' \
+        "$(ep_dot "http://localhost:${_p_forge}/api/v1/version")" "$C_D" "$_p_forge" "$C_R" \
         "$C_GRY" "$_user" "$_fpw" "$C_R"
-    # Ollama is the local model + embedding backend; Hermes-Agent
-    # fronts it at :8642 with the canonical /v1 surface.
-    printf '    %s  Ollama      %shttp://localhost:11434%s   %s%s%s\n' \
-        "$(ep_dot http://localhost:11434/)" "$C_D" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
-    printf '    %s  Cockpit     %shttps://localhost:9090/%s   %slogin: %s / %s%s\n' \
-        "$(ep_dot https://localhost:9090/)" "$C_D" "$C_R" \
+    printf '    %s  Ollama      %shttp://localhost:%s%s   %s%s%s\n' \
+        "$(ep_dot "http://localhost:${_p_ollama}/")" "$C_D" "$_p_ollama" "$C_R" "$C_GRY" "$MIOS_AI_MODEL" "$C_R"
+    printf '    %s  Cockpit     %shttps://localhost:%s/%s   %slogin: %s / %s%s\n' \
+        "$(ep_dot "https://localhost:${_p_cockpit}/")" "$C_D" "$_p_cockpit" "$C_R" \
         "$C_GRY" "$_user" "$_pw" "$C_R"
-    printf '    %s  Search      %shttp://localhost:8888/%s\n' \
-        "$(ep_dot http://localhost:8888/)" "$C_D" "$C_R"
-    # Hermes /v1/models needs Bearer auth and reads as DOWN to the naive
-    # probe; /health is unauthenticated.
-    printf '    %s  Hermes      %shttp://localhost:8642/v1%s\n' \
-        "$(ep_dot http://localhost:8642/health)" "$C_D" "$C_R"
-    printf '    %s  Workspace   %shttp://localhost:3030/%s   %slogin: %s%s\n' \
-        "$(ep_dot http://localhost:3030/)" "$C_D" "$C_R" \
+    printf '    %s  Search      %shttp://localhost:%s/%s\n' \
+        "$(ep_dot "http://localhost:${_p_searxng}/")" "$C_D" "$_p_searxng" "$C_R"
+    # Hermes /v1/models needs Bearer auth; probe /health which is unauthenticated.
+    printf '    %s  Hermes      %shttp://localhost:%s/v1%s\n' \
+        "$(ep_dot "http://localhost:${_p_hermes}/health")" "$C_D" "$_p_hermes" "$C_R"
+    printf '    %s  Workspace   %shttp://localhost:%s/%s   %slogin: %s%s\n' \
+        "$(ep_dot "http://localhost:${_p_workspace}/")" "$C_D" "$_p_workspace" "$C_R" \
         "$C_GRY" "$_hw_pw" "$C_R"
-    printf '    %s  Code        %shttp://localhost:8080/%s   %slogin: %s%s\n' \
-        "$(ep_dot http://localhost:8080/)" "$C_D" "$C_R" \
+    printf '    %s  Code        %shttp://localhost:%s/%s   %slogin: %s%s\n' \
+        "$(ep_dot "http://localhost:${_p_code}/")" "$C_D" "$_p_code" "$C_R" \
         "$C_GRY" "$_pw" "$C_R"
 }
 
