@@ -51,6 +51,10 @@ ConditionVirtualization=|wsl
 Image=${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}
 ContainerName=mios-forgejo-runner
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
+# Forgejo Runner v7+ uses an `act_runner`-style CLI: bare invocation
+# prints help and exits. Explicit `daemon` subcommand starts the
+# long-running registration + job-fetch loop.
+Exec=daemon
 
 # DOCUMENTED ARCHITECTURAL EXCEPTION (UNPRIVILEGED-EXECUTION):
 # Forgejo Runner needs to run `podman build` against /Containerfile

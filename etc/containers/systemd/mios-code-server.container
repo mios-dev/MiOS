@@ -34,15 +34,22 @@ ContainerName=mios-code-server
 # real home dir. No new sysuser required.
 User=${MIOS_CODE_SERVER_UID:-1000}
 Group=${MIOS_CODE_SERVER_GID:-1000}
+# UserNS=keep-id maps host uid 1000 (the mios operator) to container
+# uid 1000 (the 'coder' user the upstream image runs as), preserving
+# bind-mount ownership across the namespace boundary. Without this,
+# rootful podman remaps host uid 1000 -> a different uid inside the
+# user namespace and code-server hits EACCES on mkdir /home/coder/.config.
+UserNS=keep-id:uid=1000,gid=1000
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
 PublishPort=${MIOS_PORT_CODE_SERVER:-8800}:8080
+SecurityLabelDisable=true
 
 # Operator's home is the editor's home. Edits land in /var/home/mios
-# directly, visible to the GNOME desktop and every MiOS tool. Trade-off:
-# the container has read/write access to ~/.ssh -- acceptable since
-# code-server IS the operator's development surface.
-Volume=/var/home/mios:/home/coder:Z
+# directly, visible to the GNOME desktop and every MiOS tool. The
+# container has read/write access to ~/.ssh by design -- code-server
+# IS the operator's development surface.
+Volume=/var/home/mios:/home/coder
 
 # Auth: MIOS_DEFAULT_PASSWORD baked at image-build time from
 # mios.toml [identity].default_password via 15-render-quadlets.sh.
