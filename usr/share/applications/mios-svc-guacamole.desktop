@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Guacamole
+GenericName=Browser Remote Desktop
+Comment=Open Apache Guacamole at http://localhost:8090/guacamole/
+Exec=xdg-open http://localhost:8090/guacamole/
+Icon=preferences-desktop-remote-desktop-symbolic
+Categories=Network;RemoteAccess;
+Keywords=mios;guacamole;rdp;vnc;remote;desktop;
+Terminal=false
+StartupNotify=true

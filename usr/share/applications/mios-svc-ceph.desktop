@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Ceph Dashboard
+GenericName=Storage Cluster Dashboard
+Comment=Open the Ceph storage dashboard at https://localhost:8443/
+Exec=xdg-open https://localhost:8443/
+Icon=drive-multidisk-symbolic
+Categories=System;Network;
+Keywords=mios;ceph;storage;cluster;dashboard;
+Terminal=false
+StartupNotify=true
+NoDisplay=false

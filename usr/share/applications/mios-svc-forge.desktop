@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Forge
+GenericName=Self-Hosted Git Forge (Forgejo)
+Comment=Open the local Forgejo git forge at http://localhost:3000/
+Exec=xdg-open http://localhost:3000/
+Icon=text-x-generic-symbolic
+Categories=Development;RevisionControl;Network;
+Keywords=mios;forge;forgejo;git;gitea;repo;
+Terminal=false
+StartupNotify=true

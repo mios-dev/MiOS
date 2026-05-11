@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Hermes Agent
+GenericName=AI Agent Gateway
+Comment=Open the Hermes-Agent /v1 surface (the LIVE MiOS agent at root)
+Exec=xdg-open http://localhost:8642/v1
+Icon=applications-science-symbolic
+Categories=Development;Network;
+Keywords=mios;hermes;agent;api;openai;v1;
+Terminal=false
+StartupNotify=true

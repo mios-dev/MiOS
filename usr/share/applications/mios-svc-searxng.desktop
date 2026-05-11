@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Search (SearXNG)
+GenericName=Privacy Metasearch
+Comment=Open the local SearXNG metasearch proxy at http://localhost:8888/
+Exec=xdg-open http://localhost:8888/
+Icon=system-search-symbolic
+Categories=Network;WebBrowser;
+Keywords=mios;searxng;search;metasearch;privacy;
+Terminal=false
+StartupNotify=true

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Cockpit
+GenericName=System Console
+Comment=Open the Cockpit host web console at https://localhost:9090/
+Exec=xdg-open https://localhost:9090/
+Icon=utilities-system-monitor-symbolic
+Categories=System;Network;Settings;
+Keywords=mios;cockpit;admin;console;system;
+Terminal=false
+StartupNotify=true

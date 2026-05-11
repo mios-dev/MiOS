@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Ollama
+GenericName=Local LLM + Embedding Backend
+Comment=Open the Ollama API surface (local model server)
+Exec=xdg-open http://localhost:11434/
+Icon=applications-engineering-symbolic
+Categories=Development;Network;
+Keywords=mios;ollama;llm;embedding;ai;
+Terminal=false
+StartupNotify=true
