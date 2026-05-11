@@ -24,6 +24,22 @@ backend:
     - qwen2.5-coder:7b
     - nomic-embed-text
 
+# Auxiliary LLM -- Hermes uses this for context compression,
+# summarization, and memory flush (separate from the main backend
+# that handles the operator-facing chat). Without it Hermes logs:
+#     Auxiliary auto-detect: no provider available
+#         (tried: openrouter, nous, local/custom, api-key)
+# and silently degrades (compression drops middle turns without a
+# summary, memory flush no-ops). Point it at the same mios-ai
+# (LocalAI OpenAI-compatible /v1) surface the rest of MiOS uses
+# so the agent stays 100% local-stack by default. API key reused
+# from /etc/mios/hermes/api.env so we don't add another secret.
+auxiliary:
+  provider: local/custom
+  base_url: http://mios-ai:8080/v1
+  model: qwen2.5-coder:7b
+  api_key: ${API_SERVER_KEY}
+
 api_server:
   # Bind / port / key / cors values come from the EnvironmentFile=
   # /etc/mios/hermes/api.env in the Quadlet. They're listed here as
