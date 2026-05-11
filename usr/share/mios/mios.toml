@@ -51,18 +51,33 @@ language        = "en_US.UTF-8"
 # ----------------------------------------------------------------------------
 # [auth] -- credential and SSH key policy.
 #   ssh_key_action: generate | existing | skip
-#   password_policy: interactive | hashed | none
-#     - interactive : prompt at install (recommended)
-#     - hashed      : use the literal hash in password_hash (openssl passwd -6)
+#   password_policy: interactive | hashed | plain | none
+#     - interactive : prompt at install (recommended for hardened deploys)
+#     - hashed      : use the literal hash in password_hash (openssl passwd -y)
+#     - plain       : use the literal string in password (chpasswd hashes it)
 #     - none        : no password set; useful for kiosk / CI builds
-# All secret fields stay empty in any tracked copy of this file.
+#
+# Dev VM default is "plain" with password="mios" so Cockpit web at
+# https://localhost:9090/ accepts the operator-typed `mios / mios`
+# the dashboard advertises. Operator-overridable via mios.html. The
+# build-mios.ps1 Invoke-MiosQuadletOverlay step reads this section
+# and runs `chpasswd` accordingly inside the dev VM.
+#
+# Secret fields (password / password_hash / luks_passphrase / github_pat)
+# stay empty in any tracked copy of THIS file when password_policy is
+# 'interactive' or 'hashed' (the installer prompts and writes them to
+# a mode-0600 file outside this profile). For the 'plain' / 'none'
+# vendor-default cases, leaving 'password' set here is intentional --
+# the dev VM is single-tenant on Windows and the trust boundary is
+# the host login, not the VM password.
 # ----------------------------------------------------------------------------
 [auth]
 ssh_key_type     = "ed25519"
 ssh_key_action   = "generate"
 existing_ssh_key = ""
-password_policy  = "interactive"
-password_hash    = ""           # never tracked; bootstrap writes mode-0600
+password_policy  = "plain"
+password          = "mios"      # SSOT: dashboard advertises this; cockpit PAM uses it
+password_hash    = ""           # only when password_policy = "hashed"
 luks_passphrase  = ""           # never tracked; FHS installer + LUKS only
 github_pat       = ""           # never tracked; configures git credential helper
 
