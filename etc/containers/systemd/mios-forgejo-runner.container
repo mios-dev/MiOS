@@ -51,9 +51,11 @@ ConditionVirtualization=|wsl
 Image=${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}
 ContainerName=mios-forgejo-runner
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
-# Forgejo Runner v7+ uses an `act_runner`-style CLI: bare invocation
-# prints help and exits. Explicit `daemon` subcommand starts the
-# long-running registration + job-fetch loop.
+# The upstream image ships CMD=[/bin/forgejo-runner] with an empty
+# entrypoint, so the bare invocation prints CLI help and exits.
+# Force the entrypoint + daemon subcommand so the registration +
+# job-fetch loop runs.
+Entrypoint=/bin/forgejo-runner
 Exec=daemon
 
 # DOCUMENTED ARCHITECTURAL EXCEPTION (UNPRIVILEGED-EXECUTION):

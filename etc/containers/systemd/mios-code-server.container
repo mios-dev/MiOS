@@ -28,21 +28,20 @@ Wants=network-online.target
 # code_server + [ports].code_server.
 Image=${MIOS_CODE_SERVER_IMAGE:-ghcr.io/coder/code-server:latest}
 ContainerName=mios-code-server
-# Run as the mios operator (uid 1000). The bind mount below maps
-# /var/home/mios -> /home/coder so the in-container 'coder' user
-# (also uid 1000 in the upstream image) reads and writes the operator's
-# real home dir. No new sysuser required.
+# Run as the mios operator. MIOS_CODE_SERVER_UID / MIOS_CODE_SERVER_GID
+# are resolved at image-build time by 15-render-quadlets.sh from
+# `id -u mios` / `id -g mios` on the host so the bind-mount ownership
+# below lines up regardless of which uid the base distro auto-allocated
+# for the mios sysuser (podman-machine-os 6.0 happens to land mios at
+# 992, not the 1000 the MiOS overlay assumes elsewhere).
 User=${MIOS_CODE_SERVER_UID:-1000}
 Group=${MIOS_CODE_SERVER_GID:-1000}
-# UserNS=keep-id maps host uid 1000 (the mios operator) to container
-# uid 1000 (the 'coder' user the upstream image runs as), preserving
-# bind-mount ownership across the namespace boundary. Without this,
-# rootful podman remaps host uid 1000 -> a different uid inside the
-# user namespace and code-server hits EACCES on mkdir /home/coder/.config.
-UserNS=keep-id:uid=1000,gid=1000
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
 Network=ai-net.network
 PublishPort=${MIOS_PORT_CODE_SERVER:-8800}:8080
+# WSL2/podman-machine-os has no SELinux enforcement; :Z relabel was a
+# no-op at best. Disable security-label entirely to skip the relabel
+# attempt that podman otherwise logs on every start.
 SecurityLabelDisable=true
 
 # Operator's home is the editor's home. Edits land in /var/home/mios

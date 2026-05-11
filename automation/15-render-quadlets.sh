@@ -22,6 +22,16 @@ set -euo pipefail
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
+# Resolve host-side mios uid/gid from the live passwd database so the
+# code-server Quadlet's User=/Group= bind-mount ownership matches what
+# /var/home/mios actually is on disk. podman-machine-os 6.0 happens to
+# land mios at uid 992 (not 1000); reading via getent ensures the
+# rendered Quadlet works regardless.
+if id -u mios >/dev/null 2>&1; then
+    export MIOS_CODE_SERVER_UID="$(id -u mios)"
+    export MIOS_CODE_SERVER_GID="$(id -g mios)"
+fi
+
 echo "[15-render-quadlets] Rendering Quadlet placeholders from mios.toml..."
 
 # Quadlet search paths: every directory systemd-generator-quadlet scans
