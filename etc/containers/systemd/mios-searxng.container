@@ -75,6 +75,14 @@ Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8888}/
 # work via PublishPort= forwarding to 8888.
 Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
 Environment=BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
+# SearXNG's entrypoint calls granian, which reads GRANIAN_HOST +
+# GRANIAN_PORT directly (the BIND_ADDRESS / SEARXNG_BIND_ADDRESS
+# above are SearXNG-app-level hints used by the upstream Helm chart
+# and aren't read by the image's CMD). On the dev VM with Network=
+# host, the unmodified granian defaults bind 0.0.0.0:8080 and
+# collide with mios-ai (LocalAI). Operator-flagged 2026-05-11.
+Environment=GRANIAN_HOST=0.0.0.0
+Environment=GRANIAN_PORT=${MIOS_PORT_SEARXNG:-8888}
 
 # Limit log volume; SearXNG is chatty per-query.
 Environment=SEARXNG_LOG_LEVEL=WARNING
