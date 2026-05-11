@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS Code (code-server)
+GenericName=VS Code in a Browser
+Comment=Open code-server at http://localhost:8800/ in the default browser
+Exec=xdg-open http://localhost:8800/
+Icon=visual-studio-code
+Categories=Development;IDE;TextEditor;
+Keywords=mios;code-server;vscode;editor;ide;git;
+Terminal=false
+StartupNotify=true

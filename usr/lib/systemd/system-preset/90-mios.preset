@@ -55,6 +55,14 @@ enable mios-hermes-firstboot.service
 enable mios-hermes.service
 enable mios-hermes-workspace-firstboot.service
 enable mios-hermes-workspace.service
+enable mios-code-server.service
+# Forge bootstrap: admin user + initial repo + runner registration token
+# all minted on first boot. mios-forgejo-runner reads the token and
+# self-registers; without firstboot enabled the runner stays inactive
+# (ConditionPathExists=/etc/mios/forge/runner-token never satisfied).
+enable mios-forge.service
+enable mios-forge-firstboot.service
+enable mios-forgejo-runner.service
 # user@1000.service starts the per-user systemd manager + user D-Bus
 # session bus for the 'mios' user (uid 1000, pinned in
 # /usr/lib/sysusers.d/10-mios.conf). Normally systemd-logind reads

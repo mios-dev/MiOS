@@ -32,6 +32,9 @@ ConditionVirtualization=|wsl
 Image=${MIOS_FORGE_IMAGE:-codeberg.org/forgejo/forgejo:12}
 ContainerName=mios-forge
 Network=${MIOS_QUADLET_NETWORK:-mios.network}
+# Also join ai-net so mios-code-server (and any future editor / agent
+# container) can reach the forge by container DNS as mios-forge:3000.
+Network=ai-net.network
 # forge_http = web UI (reverse-proxy via Cockpit/Caddy if desired).
 # forge_ssh  = git+ssh, mapped to container :22; non-22 host port so sshd
 # (also on :22) and the forge's git transport coexist on the same host.

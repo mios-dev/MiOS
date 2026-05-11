@@ -46,6 +46,8 @@ firewall-cmd --permanent --add-port=2224/tcp --add-port=5403-5405/udp 2>/dev/nul
 firewall-cmd --permanent --add-port=${MIOS_PORT_HERMES}/tcp 2>/dev/null || true
 # mios-hermes-workspace (web chat front-end -- default chat UI)
 firewall-cmd --permanent --add-port=${MIOS_PORT_HERMES_WORKSPACE}/tcp 2>/dev/null || true
+# mios-code-server (VS Code in a browser)
+firewall-cmd --permanent --add-port=${MIOS_PORT_CODE_SERVER}/tcp 2>/dev/null || true
 # mios-guacamole web (Browser desktop)
 firewall-cmd --permanent --add-port=${MIOS_GUACAMOLE_PORT}/tcp 2>/dev/null || true
 # ollama API (local LLM + embedding backend; handles all MiOS embedded models)

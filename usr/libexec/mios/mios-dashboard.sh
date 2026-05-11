@@ -343,6 +343,9 @@ print_endpoints() {
     printf '    %s  Workspace   %shttp://localhost:3030/%s   %slogin: %s%s\n' \
         "$(ep_dot http://localhost:3030/)" "$C_D" "$C_R" \
         "$C_GRY" "$_hw_pw" "$C_R"
+    printf '    %s  Code        %shttp://localhost:8800/%s   %slogin: %s%s\n' \
+        "$(ep_dot http://localhost:8800/)" "$C_D" "$C_R" \
+        "$C_GRY" "$_pw" "$C_R"
 }
 
 print_quadlets() {
@@ -350,7 +353,7 @@ print_quadlets() {
     local svc info name dot color
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-searxng \
-               mios-hermes mios-hermes-workspace crowdsec-dashboard \
+               mios-hermes mios-hermes-workspace mios-code-server crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"

@@ -1,30 +1,31 @@
 # /etc/profile.d/mios-btop.sh
 #
 # Wrap `btop` so plain invocations land on the canonical MiOS preset
-# (preset 3 = cpu+mem full, transparent-bg, mios palette). Operator
-# 2026-05-10: "btop -p 3 is the correct profile -- make it default
-# launch to preset 3 and have the background be uncolored so we can
-# utilize the Windows acrylic rendering".
+# (preset 4 = proc only, transparent-bg, mios palette).
 #
-# `btop -p 4` (also reachable via `mios proc`-style) shows only the
-# processes section per operator's preset-4 request.
-#
-# Operator-flagged 2026-05-10 (screenshot): btop launched at preset 3
-# but rendered cpu+NET (btop's compiled-in default preset 3) with
-# update_ms=2000 (default). That's btop ignoring our config entirely.
-# Root cause: btop reads `$XDG_CONFIG_HOME/btop/btop.conf` ->
-# `$HOME/.config/btop/btop.conf` and DOESN'T fall back to /etc when
-# either is unset/invalid. On the dev VM, `mios` user's $HOME can
-# resolve to `/` (the /=git root), and `/.config/btop/btop.conf`
-# may not exist if the build-time seed missed that path. Force the
-# resolution explicitly via BTOP_CONFIG_DIR so the canonical MiOS
-# config under /etc/btop/ is always honored.
+# btop reads $XDG_CONFIG_HOME/btop/btop.conf -> $HOME/.config/btop/
+# btop.conf and does NOT fall back to /etc/btop/. Seed the user
+# config from /etc/btop/ on first interactive launch so the MiOS
+# preset, palette, and theme_background=False all apply.
 
 [ -n "${PS1:-}" ] || return 0
 
-# Resolve BTOP_CONFIG_DIR if the operator hasn't pinned one. Prefer
-# the user's own config if it exists; otherwise fall back to the
-# system-wide MiOS preset baked into the image.
+_mios_btop_seed_user_config() {
+    local _src=/etc/btop/btop.conf
+    local _dst="${HOME:-/root}/.config/btop/btop.conf"
+    [ -f "$_src" ] || return 0
+    [ -f "$_dst" ] && return 0
+    mkdir -p "$(dirname "$_dst")" 2>/dev/null || return 0
+    cp "$_src" "$_dst" 2>/dev/null && chmod 0644 "$_dst" 2>/dev/null
+    # Also seed the mios theme if not already present in the user dir.
+    if [ -f /etc/btop/themes/mios.theme ] && [ ! -f "${HOME:-/root}/.config/btop/themes/mios.theme" ]; then
+        mkdir -p "${HOME:-/root}/.config/btop/themes" 2>/dev/null
+        cp /etc/btop/themes/mios.theme "${HOME:-/root}/.config/btop/themes/mios.theme" 2>/dev/null
+    fi
+}
+_mios_btop_seed_user_config
+unset -f _mios_btop_seed_user_config
+
 if [ -z "${BTOP_CONFIG_DIR:-}" ]; then
     if [ -f "${HOME:-/root}/.config/btop/btop.conf" ]; then
         export BTOP_CONFIG_DIR="${HOME:-/root}/.config/btop"
@@ -41,7 +42,7 @@ btop() {
         esac
     done
     if [ $has_preset -eq 0 ]; then
-        command btop -p 3 "$@"
+        command btop -p 4 "$@"
     else
         command btop "$@"
     fi

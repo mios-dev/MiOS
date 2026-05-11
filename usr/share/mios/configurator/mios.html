@@ -779,6 +779,8 @@
         <input type="text" id="f-port-searxng" data-key="ports.searxng" data-type="int" placeholder="8888">
         <label for="f-port-hermes">hermes (OpenAI-compatible gateway)</label>
         <input type="text" id="f-port-hermes" data-key="ports.hermes" data-type="int" placeholder="8642">
+        <label for="f-port-code-server">code_server (VS Code in browser)</label>
+        <input type="text" id="f-port-code-server" data-key="ports.code_server" data-type="int" placeholder="8800">
         <label for="f-port-guacamole">guacamole_web (browser desktop)</label>
         <input type="text" id="f-port-guacamole" data-key="ports.guacamole_web" data-type="int" placeholder="8090">
         <label for="f-port-ceph">ceph_dashboard</label>
@@ -814,6 +816,8 @@
         <input type="text" id="f-img-hermes" data-key="image.sidecars.hermes" placeholder="docker.io/nousresearch/hermes-agent:latest">
         <label for="f-img-hermes-workspace">hermes_workspace (chat front-end)</label>
         <input type="text" id="f-img-hermes-workspace" data-key="image.sidecars.hermes_workspace" placeholder="ghcr.io/outsourc-e/hermes-workspace:latest">
+        <label for="f-img-code-server">code_server (VS Code in browser)</label>
+        <input type="text" id="f-img-code-server" data-key="image.sidecars.code_server" placeholder="ghcr.io/coder/code-server:latest">
         <label for="f-img-searxng">searxng</label>
         <input type="text" id="f-img-searxng" data-key="image.sidecars.searxng" placeholder="docker.io/searxng/searxng:latest">
         <label for="f-img-forge">forge (Forgejo)</label>
@@ -1110,8 +1114,8 @@
 //
 
 const QUADLETS = [
-  "mios-hermes", "mios-hermes-workspace", "mios-ceph", "mios-k3s",
-  "mios-forge", "mios-cockpit-link", "mios-searxng",
+  "mios-hermes", "mios-hermes-workspace", "mios-code-server",
+  "mios-ceph", "mios-k3s", "mios-forge", "mios-cockpit-link", "mios-searxng",
   "crowdsec-dashboard", "ollama", "cloudws-guacamole", "cloudws-pxe-hub",
   "guacamole-postgres", "guacd"
 ];
