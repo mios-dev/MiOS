@@ -38,9 +38,17 @@ RUNNER_IMAGE="${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}"
 install -d -m 0750 -o root -g root /srv/mios/forge-runner
 
 echo "[runner-firstboot] registering $RUNNER_NAME against $INSTANCE_URL"
+# --user 0:0 so the in-container forgejo-runner can write
+# /data/.runner. The host /srv/mios/forge-runner is root-owned
+# (Law-6 exception alongside ceph + k3s), and the daemon Quadlet
+# also runs User=0, so root-owned .runner is the consistent
+# ownership across register + daemon. Without --user 0:0 the
+# image's default uid 1000 hits "permission denied" on the
+# .runner write.
 podman run --rm \
     -v /srv/mios/forge-runner:/data:Z \
     --network host \
+    --user 0:0 \
     --entrypoint /bin/forgejo-runner \
     "$RUNNER_IMAGE" \
     register --no-interactive \
