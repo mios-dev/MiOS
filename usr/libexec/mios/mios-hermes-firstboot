@@ -1,14 +1,153 @@
 #!/usr/bin/env bash
-# MiOS -- mios-hermes-firstboot: generate /etc/mios/hermes/api.env if missing.
+# MiOS -- mios-hermes-firstboot: generate /etc/mios/hermes/api.env if missing
+# AND seed /var/lib/mios/hermes/config.yaml with the model selected in
+# mios.toml [ai] + [ai.host_thresholds] auto-pick.
 #
 # The same key is read by both mios-hermes (gateway) and
 # mios-hermes-workspace (chat front-end) via EnvironmentFile= in their
-# Quadlets. Idempotent: re-runs are no-ops via ConditionPathExists.
+# Quadlets. Idempotent: re-runs are no-ops once API_SERVER_KEY exists
+# and the seeded config.yaml's MiOS-seeded sentinel + model match the
+# resolved mios.toml [ai].model.
 set -euo pipefail
 
 ENV_FILE="/etc/mios/hermes/api.env"
 
 _log() { logger -t mios-hermes-firstboot "$*" 2>/dev/null || true; echo "[hermes-firstboot] $*" >&2; }
+
+# ─── mios.toml layered overlay reader ───────────────────────────────────────
+#
+# Reads [section].key from ~/.config/mios/mios.toml -> /etc/mios/mios.toml
+# -> /usr/share/mios/mios.toml, returning the FIRST non-empty match
+# (operator overlay wins). Same arity + semantics as the bash resolver
+# in /usr/libexec/mios/mios-dashboard.sh -- copied here so this script
+# can run before mios-dashboard's helper is sourced.
+_mios_toml_layers() {
+    local home="${HOME:-/root}"
+    printf '%s\n' \
+        "$home/.config/mios/mios.toml" \
+        "/etc/mios/mios.toml" \
+        "/usr/share/mios/mios.toml"
+}
+
+_mios_toml_value() {
+    local section="$1" key="$2" def_val="$3"
+    local toml
+    while IFS= read -r toml; do
+        [[ -r "$toml" ]] || continue
+        local v
+        v="$(awk -v want_section="$section" -v want_key="$key" '
+            BEGIN { in_section = 0; found = 0 }
+            /^\[/ {
+                line = $0
+                sub(/[[:space:]]*#.*$/, "", line)
+                in_section = (line == "[" want_section "]") ? 1 : 0
+                next
+            }
+            in_section && /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
+                line = $0
+                sub(/[[:space:]]*#.*$/, "", line)
+                eq = index(line, "=")
+                if (eq == 0) next
+                k = substr(line, 1, eq - 1)
+                v = substr(line, eq + 1)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+                gsub(/^"|"$/, "", v)
+                if (k == want_key) { print v; found = 1; exit }
+            }
+        ' "$toml")"
+        if [[ -n "$v" ]]; then printf '%s' "$v"; return; fi
+    done < <(_mios_toml_layers)
+    printf '%s' "$def_val"
+}
+
+# Read an array-of-tables [[ai.catalog]] and emit id<TAB>label<TAB>ram_gb
+# per row. Layered overlay: rows from the highest-precedence file that
+# has ANY [[ai.catalog]] entries win wholesale (no merging across layers
+# -- TOML AoT semantics don't merge, and operator editing the dropdown
+# means they want their list, not the vendor's appended).
+_mios_toml_catalog() {
+    local toml
+    while IFS= read -r toml; do
+        [[ -r "$toml" ]] || continue
+        local out
+        out="$(awk '
+            BEGIN { in_t = 0; id = ""; label = ""; ram = "" }
+            /^\[\[ai\.catalog\]\]/ {
+                if (in_t && id != "") printf "%s\t%s\t%s\n", id, label, ram
+                in_t = 1; id = ""; label = ""; ram = ""
+                next
+            }
+            /^\[/ {
+                if (in_t && id != "") printf "%s\t%s\t%s\n", id, label, ram
+                in_t = 0; id = ""; label = ""; ram = ""
+                next
+            }
+            in_t && /^[[:space:]]*[A-Za-z_]+[[:space:]]*=/ {
+                line = $0
+                sub(/[[:space:]]*#.*$/, "", line)
+                eq = index(line, "=")
+                if (eq == 0) next
+                k = substr(line, 1, eq - 1)
+                v = substr(line, eq + 1)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+                gsub(/^"|"$/, "", v)
+                if (k == "id") id = v
+                else if (k == "label") label = v
+                else if (k == "ram_gb") ram = v
+            }
+            END {
+                if (in_t && id != "") printf "%s\t%s\t%s\n", id, label, ram
+            }
+        ' "$toml")"
+        if [[ -n "$out" ]]; then printf '%s' "$out"; return; fi
+    done < <(_mios_toml_layers)
+}
+
+# ─── Resolve the model to seed ──────────────────────────────────────────────
+#
+# Start from [ai].model (the operator's chosen / vendor-default value).
+# Then apply [ai.host_thresholds] auto-pick: if the host has enough RAM,
+# roll up to mid_ram_model or big_ram_model. Auto-pick only runs when
+# the operator hasn't overlaid [ai].model in /etc/mios/mios.toml or
+# ~/.config/mios/mios.toml (operator override wins).
+_AI_MODEL_DEFAULT="$(_mios_toml_value 'ai' 'model' 'granite4.1:3b')"
+
+# Is [ai].model overlaid by an operator layer? (any non-vendor layer)
+_overlaid=0
+for _layer in "${HOME:-/root}/.config/mios/mios.toml" "/etc/mios/mios.toml"; do
+    [[ -r "$_layer" ]] || continue
+    if grep -qE '^\[ai\]' "$_layer" && \
+       awk '/^\[ai\]/,/^\[/{if (/^model[[:space:]]*=/) {print; exit}}' "$_layer" | grep -q '='; then
+        _overlaid=1
+        break
+    fi
+done
+
+_AI_MODEL_RESOLVED="$_AI_MODEL_DEFAULT"
+if [[ "$_overlaid" -eq 0 ]]; then
+    # Auto-pick from host RAM (MemTotal in /proc/meminfo, kB -> GB).
+    _ram_kb="$(awk '/^MemTotal:/ {print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
+    _ram_gb=$(( _ram_kb / 1024 / 1024 ))
+    _big_gb="$(_mios_toml_value 'ai.host_thresholds' 'big_ram_gb' '24')"
+    _mid_gb="$(_mios_toml_value 'ai.host_thresholds' 'mid_ram_gb' '16')"
+    _big_m="$(_mios_toml_value 'ai.host_thresholds' 'big_ram_model' 'granite4.1:30b')"
+    _mid_m="$(_mios_toml_value 'ai.host_thresholds' 'mid_ram_model'  'gpt-oss:20b')"
+    _small_m="$(_mios_toml_value 'ai.host_thresholds' 'small_ram_model' "$_AI_MODEL_DEFAULT")"
+    if (( _ram_gb >= _big_gb )); then
+        _AI_MODEL_RESOLVED="$_big_m"
+        _log "auto-pick: host RAM ${_ram_gb} GB >= ${_big_gb} -> ${_AI_MODEL_RESOLVED}"
+    elif (( _ram_gb >= _mid_gb )); then
+        _AI_MODEL_RESOLVED="$_mid_m"
+        _log "auto-pick: host RAM ${_ram_gb} GB >= ${_mid_gb} -> ${_AI_MODEL_RESOLVED}"
+    else
+        _AI_MODEL_RESOLVED="$_small_m"
+        _log "auto-pick: host RAM ${_ram_gb} GB < ${_mid_gb} -> ${_AI_MODEL_RESOLVED}"
+    fi
+else
+    _log "operator overlay sets [ai].model=${_AI_MODEL_RESOLVED} -- skipping auto-pick"
+fi
 
 # Make sure the directory exists with the right ownership. tmpfiles.d
 # should have done this already, but be defensive in case the .service
@@ -18,23 +157,26 @@ chown -h mios-hermes:mios-hermes /etc/mios/hermes 2>/dev/null || true
 chmod 0750 /etc/mios/hermes 2>/dev/null || true
 
 if [[ -f "$ENV_FILE" ]] && grep -q '^API_SERVER_KEY=' "$ENV_FILE"; then
-    _log "$ENV_FILE already has API_SERVER_KEY -- nothing to do"
-    exit 0
-fi
-
-# Generate a 64-char hex key. openssl is in @core on Fedora CoreOS so
-# this is always available; fall back to /dev/urandom if it isn't.
-if command -v openssl >/dev/null 2>&1; then
-    api_key="$(openssl rand -hex 32)"
+    _log "$ENV_FILE already has API_SERVER_KEY -- skipping key generation"
+    _skip_keygen=1
 else
-    api_key="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    _skip_keygen=0
 fi
 
-# Write the env file with secure perms BEFORE chowning to mios-hermes
-# so the Quadlet's EnvironmentFile= read-as-root can succeed even if
-# the per-uid mios-hermes login is denied (`/usr/sbin/nologin`).
-umask 0077
-cat > "$ENV_FILE" <<EOF
+if [[ "$_skip_keygen" -eq 0 ]]; then
+    # Generate a 64-char hex key. openssl is in @core on Fedora CoreOS so
+    # this is always available; fall back to /dev/urandom if it isn't.
+    if command -v openssl >/dev/null 2>&1; then
+        api_key="$(openssl rand -hex 32)"
+    else
+        api_key="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    fi
+
+    # Write the env file with secure perms BEFORE chowning to mios-hermes
+    # so the Quadlet's EnvironmentFile= read-as-root can succeed even if
+    # the per-uid mios-hermes login is denied (`/usr/sbin/nologin`).
+    umask 0077
+    cat > "$ENV_FILE" <<EOF
 # /etc/mios/hermes/api.env -- generated by mios-hermes-firstboot.service
 # at $(date -Iseconds) on $(hostname).
 # Rotate by deleting this file and restarting mios-hermes-firstboot.
@@ -44,6 +186,17 @@ API_SERVER_HOST=0.0.0.0
 API_SERVER_KEY=${api_key}
 API_SERVER_CORS_ORIGINS=*
 OPENAI_API_KEY=${api_key}
+
+# Hermes's "gateway run" mode bundles a messaging-platform router
+# (Telegram / Discord / Slack) that enforces a USER ALLOWLIST on every
+# request -- chat-completions included. Without an allowlist, the
+# gateway DENIES all requests with the cryptic "No user allowlists
+# configured. All unauthorized users will be denied" warning, then
+# 401s the chat. MiOS isn't running messaging platforms (Workspace
+# UI is the only frontend), so we opt out of the allowlist gate to
+# let any caller with a valid API_SERVER_KEY through.
+# Operator-flagged 2026-05-11: "all messages get Retry".
+GATEWAY_ALLOW_ALL_USERS=true
 
 # Hermes Workspace consumes these via the SAME EnvironmentFile= mount.
 # Systemd Quadlet Environment= directives do NOT expand \${API_SERVER_KEY}
@@ -55,8 +208,124 @@ OPENAI_API_KEY=${api_key}
 HERMES_API_TOKEN=${api_key}
 CLAUDE_DASHBOARD_TOKEN=${api_key}
 EOF
-umask 0022
-chown root:mios-hermes "$ENV_FILE" 2>/dev/null || true
-chmod 0640 "$ENV_FILE" 2>/dev/null || true
+    umask 0022
+    chown root:mios-hermes "$ENV_FILE" 2>/dev/null || true
+    chmod 0640 "$ENV_FILE" 2>/dev/null || true
 
-_log "wrote $ENV_FILE (64-char API_SERVER_KEY)"
+    _log "wrote $ENV_FILE (64-char API_SERVER_KEY)"
+fi
+
+# ─── /var/lib/mios/hermes/config.yaml (Hermes-agent main config) ────────
+#
+# Hermes-Agent's `gateway run` reads ${HERMES_HOME}/config.yaml -- that's
+# /opt/data/config.yaml inside the container, which the .container's
+# Volume= bind-mounts from /var/lib/mios/hermes on the host. The stock
+# image ships a config that defaults `model.provider: auto` +
+# `model.default: anthropic/claude-opus-4.6` + `model.base_url:
+# https://openrouter.ai/api/v1`, which 401s on every install that doesn't
+# have an OPENROUTER_API_KEY. Operator vision: Hermes is the LIVE MiOS
+# agent at /, fully offline, fronting local Ollama -- so we seed a
+# config.yaml that pins the agent loop to ollama+<_AI_MODEL_RESOLVED> at
+# http://localhost:11434/v1.
+#
+# Idempotent re-seed: we re-seed if the file is missing, still contains
+# the openrouter default, OR has the MiOS-seeded sentinel but a stale
+# model id. That last branch lets an [ai].model edit in mios.html
+# propagate forward on next firstboot run without losing the operator's
+# unrelated edits (we preserve operator edits via the include directive
+# in /etc/mios/hermes/config.local.yaml, not the file we're rewriting).
+HERMES_DATA=/var/lib/mios/hermes
+HERMES_DATA_CFG="${HERMES_DATA}/config.yaml"
+mkdir -p "$HERMES_DATA"
+
+# `mios-hermes` runs as uid:gid from [services.hermes] (default 820:820)
+# inside the container; the host-side dir must be owned by the same
+# numeric uid for the bind-mount writes to land. Re-chown on every
+# firstboot run -- cheap, idempotent.
+chown -R 820:820 "$HERMES_DATA" 2>/dev/null || true
+
+_should_seed=0
+if [[ ! -f "$HERMES_DATA_CFG" ]]; then
+    _should_seed=1
+elif grep -q 'openrouter\.ai/api/v1' "$HERMES_DATA_CFG" 2>/dev/null && \
+     ! grep -q '# MiOS-seeded' "$HERMES_DATA_CFG" 2>/dev/null; then
+    _should_seed=1
+elif grep -q '# MiOS-seeded' "$HERMES_DATA_CFG" 2>/dev/null && \
+     ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- model drift: want=${_AI_MODEL_RESOLVED}, file has another"
+fi
+
+if [[ "$_should_seed" -eq 1 ]]; then
+    # Build the custom_providers.models list from [[ai.catalog]] so the
+    # set of choices Hermes Workspace shows tracks mios.toml. Falls
+    # back to just the resolved model when the catalog is empty.
+    _catalog="$(_mios_toml_catalog)"
+    if [[ -z "$_catalog" ]]; then
+        _catalog=$'granite4.1:3b\tGranite 4.1 3B (local)\t8'
+    fi
+    # Emit YAML for the models: list, indented to fit under
+    # custom_providers[0].models.
+    _models_yaml=""
+    while IFS=$'\t' read -r _id _label _ram; do
+        [[ -z "$_id" ]] && continue
+        _models_yaml+="      - id: ${_id}"$'\n'
+        _models_yaml+="        label: \"${_label:-$_id}\""$'\n'
+    done <<< "$_catalog"
+
+    # Unquoted heredoc so ${_AI_MODEL_RESOLVED} expands. ${API_SERVER_KEY}-
+    # style values from api.env are not referenced here.
+    cat > "$HERMES_DATA_CFG" <<EOF
+# MiOS-seeded /var/lib/mios/hermes/config.yaml
+# (= /opt/data/config.yaml inside the mios-hermes container)
+#
+# Generated by mios-hermes-firstboot.service. Operator edits at
+# /etc/mios/hermes/config.local.yaml are layered on top by the
+# vendor config's \`include:\` directive.
+#
+# Architectural Law 5 (UNIFIED-AI-REDIRECTS): the live MiOS agent at
+# / stays fully local. Hermes reads model.provider + model.default
+# (see /opt/hermes/agent/auxiliary_client.py::_read_main_provider);
+# the "ollama" provider is an alias for "custom" with base_url set
+# below. Net result: /v1/chat/completions runs the agent loop
+# against local Ollama, no cloud calls.
+#
+# Resolved values:
+#   [ai].model              -> ${_AI_MODEL_DEFAULT}
+#   auto-picked (host RAM)  -> ${_AI_MODEL_RESOLVED}
+
+model:
+  provider: custom:local-ollama
+  default: ${_AI_MODEL_RESOLVED}
+  base_url: http://localhost:11434/v1
+  api_key: ""
+
+custom_providers:
+  - name: local-ollama
+    base_url: http://localhost:11434/v1
+    api_key: ""
+    models:
+${_models_yaml}
+
+auxiliary:
+  provider: custom:local-ollama
+  base_url: http://localhost:11434/v1
+  model: ${_AI_MODEL_RESOLVED}
+  api_key: ""
+
+tools:
+  web_search:
+    enabled: true
+    provider: searxng
+    base_url: http://localhost:8888
+
+logging:
+  level: info
+  format: json
+EOF
+    chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
+    chmod 0640 "$HERMES_DATA_CFG" 2>/dev/null || true
+    _log "seeded $HERMES_DATA_CFG (model.provider=custom:local-ollama, model.default=${_AI_MODEL_RESOLVED})"
+else
+    _log "$HERMES_DATA_CFG already configured (model.default=${_AI_MODEL_RESOLVED}) -- not overwriting"
+fi

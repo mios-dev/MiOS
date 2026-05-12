@@ -580,22 +580,73 @@
           <label for="f-ai-endpoint">endpoint</label>
           <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8642/v1">
           <label for="f-ai-model">model</label>
-          <select id="f-ai-model" data-key="ai.model">
-            <option value="qwen3.5:2b">qwen3.5:2b (8 GB RAM, default)</option>
-            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (12 GB RAM)</option>
-            <option value="qwen2.5-coder:14b">qwen2.5-coder:14b (24+ GB RAM)</option>
-            <option value="llama3.2:3b">llama3.2:3b (8 GB RAM)</option>
+          <select id="f-ai-model" data-key="ai.model" data-catalog-of="ai.catalog">
+            <!-- Options are repopulated at load-time from [[ai.catalog]]
+                 in mios.toml; the static fallback below mirrors the
+                 vendor catalog so the page works even without a parsed
+                 mios.toml. Keep in sync with [[ai.catalog]] in
+                 /usr/share/mios/mios.toml. -->
+            <option value="granite4.1:3b">granite4.1:3b (8 GB RAM, low-RAM default)</option>
+            <option value="gpt-oss:20b">gpt-oss:20b (16 GB RAM, agent-tuned MoE)</option>
+            <option value="granite4.1:30b">granite4.1:30b (24+ GB RAM, big-RAM auto-pick)</option>
+            <option value="qwen3-coder:30b">qwen3-coder:30b (24+ GB RAM, code-focused)</option>
+            <option value="qwen3:32b">qwen3:32b (28+ GB RAM, dense)</option>
             <option value="__custom__">custom...</option>
           </select>
           <input type="text" id="f-ai-model-custom" data-key="ai.model" data-custom-of="f-ai-model"
-                 placeholder="custom model id" style="margin-top:4px; display:none">
+                 placeholder="custom model id (any Ollama tag, e.g. mistral-small3:24b)" style="margin-top:4px; display:none">
           <label for="f-ai-embed">embed_model</label>
           <input type="text" id="f-ai-embed" data-key="ai.embed_model" placeholder="nomic-embed-text">
           <label for="f-ai-bake">bake_models (CSV; consumed by 37-ollama-prep.sh)</label>
           <input type="text" id="f-ai-bake" data-key="ai.bake_models"
-                 placeholder="qwen2.5-coder:7b,nomic-embed-text">
+                 placeholder="granite4.1:3b,nomic-embed-text">
           <label for="f-ai-key">api_key (empty for localhost)</label>
           <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
+        </fieldset>
+      </div>
+    </details>
+
+    <details class="section" id="adv-enhanced-session">
+      <summary>Enhanced Session &middot; Full Desktop via xrdp <span class="phase-badge">Phase 1 &middot; Alternate Launch</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Alternate launch path that gives you a FULL GNOME desktop inside
+          the dev VM, RDP'd to Windows via mstsc.exe (the same Hyper-V
+          Enhanced Session client). Complements the per-window WSLg path:
+          MiOS Apps shortcuts keep working, plus a new <b>MiOS Full
+          Desktop</b> shortcut for the unified GNOME session. Use this
+          when you want libadwaita-consistent theming, rounded corners,
+          and Bibata cursor that the WSLg RDP backend can't deliver
+          per-window.
+        </p>
+        <fieldset style="grid-column: 1 / -1;">
+          <legend>enhanced_session</legend>
+
+          <label for="f-enhsess-enabled">enabled (install xrdp at <code>irm|iex</code> time)</label>
+          <select id="f-enhsess-enabled" data-key="enhanced_session.enabled">
+            <option value="true">true &mdash; install xrdp + GNOME, bind port, enable service</option>
+            <option value="false">false &mdash; skip xrdp; rely on WSLg-per-window only</option>
+          </select>
+
+          <label for="f-enhsess-port">port (TCP, mstsc connects to localhost:&lt;port&gt;)</label>
+          <input type="number" id="f-enhsess-port" data-key="enhanced_session.port"
+                 min="1024" max="65535" placeholder="3389">
+
+          <label for="f-enhsess-user">user (empty = inherit <code>[identity].username</code>)</label>
+          <input type="text" id="f-enhsess-user" data-key="enhanced_session.user"
+                 placeholder="(blank inherits identity.username = mios)">
+
+          <label for="f-enhsess-res">resolution (&quot;auto&quot; lets mstsc pick from Windows display; or e.g. 1920x1080)</label>
+          <input type="text" id="f-enhsess-res" data-key="enhanced_session.resolution"
+                 placeholder="auto">
+
+          <p style="color: var(--muted); font-size: 11.5px; margin: 8px 0 0;">
+            RDP credentials: username from <code>[identity].username</code>,
+            password from <code>[identity].default_password</code> (same
+            SSOT the keyring auto-unlock service reads). Change either
+            of those above to rotate. LAN access from phone / tablet uses
+            <code>[ports].rdp</code> + netsh portproxy on the Windows side.
+          </p>
         </fieldset>
       </div>
     </details>
@@ -2186,10 +2237,10 @@ allow_ssh              = true
 allow_rdp              = true
 
 [ai]
-endpoint     = "http://localhost:8080/v1"
-model        = "qwen2.5-coder:7b"
+endpoint     = "http://localhost:8642/v1"
+model        = "granite4.1:3b"
 embed_model  = "nomic-embed-text"
-bake_models  = "qwen2.5-coder:7b,nomic-embed-text"
+bake_models  = "granite4.1:3b,nomic-embed-text"
 api_key      = ""
 
 [image]

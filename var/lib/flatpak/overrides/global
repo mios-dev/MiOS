@@ -1,0 +1,18 @@
+[Context]
+# Minimal global flatpak override -- ONLY the changes needed to make
+# Bibata cursor visible across flatpak sandboxes. Everything else
+# (theme env, WSLg-compat env, DPI scaling) stays per-app where it
+# was already working.
+
+# Expose ~/.local/share/icons (which has Bibata-Modern-Classic) and
+# ~/.local/share/themes into the sandbox read-only. Apps look here
+# via libXcursor's XCURSOR_PATH chain.
+filesystems=xdg-data/icons:ro;xdg-data/themes:ro;
+
+[Environment]
+# libXcursor's compiled-in default search path doesn't always include
+# $XDG_DATA_HOME/icons. Set it explicitly so the Bibata cursor that
+# lives at ~/.local/share/icons/Bibata-Modern-Classic is findable
+# inside the flatpak sandbox (where /usr/share/icons is the runtime's
+# stripped-down version that lacks Bibata).
+XCURSOR_PATH=~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps

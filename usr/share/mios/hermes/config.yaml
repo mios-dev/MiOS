@@ -8,9 +8,15 @@ backend:
   # localhost: dev-VM with Network=host hits ollama in the same netns.
   # Bare-metal bridge deployments override to http://mios-ollama:11434.
   base_url: http://localhost:11434
-  model: qwen3.5:2b
+  # Default reflects mios.toml [ai].model (the small low-RAM default).
+  # mios-hermes-firstboot re-templates this YAML at first boot to pick
+  # up the resolved value from the layered overlay
+  # (~/.config/mios/mios.toml -> /etc/mios/mios.toml -> /usr/share/mios/mios.toml).
+  model: granite4.1:3b
   available_models:
-    - qwen3.5:2b
+    - granite4.1:3b
+    - granite4.1:30b
+    - gpt-oss:20b
     - nomic-embed-text
 
 # Auxiliary LLM for context compression, summarization, and memory
@@ -19,18 +25,18 @@ backend:
 auxiliary:
   provider: local/custom
   base_url: http://localhost:11434/v1
-  model: qwen3.5:2b
+  model: granite4.1:3b
   api_key: ""
 
-api_server:
-  # Bind / port / key / cors values come from the EnvironmentFile=
-  # /etc/mios/hermes/api.env in the Quadlet. They're listed here as
-  # ${VAR} placeholders so a hand-edit of this file makes the resolution
-  # path obvious.
-  enabled: ${API_SERVER_ENABLED}
-  host: ${API_SERVER_HOST}
-  key: ${API_SERVER_KEY}
-  cors_origins: ${API_SERVER_CORS_ORIGINS}
+# api_server bind / port / key / cors come from the EnvironmentFile=
+# /etc/mios/hermes/api.env in the Quadlet (API_SERVER_HOST / _PORT /
+# _KEY / _CORS_ORIGINS). DO NOT add an `api_server:` block here with
+# `${API_SERVER_KEY}` placeholders -- the Hermes YAML loader does NOT
+# expand env vars, so the literal string "${API_SERVER_KEY}" becomes
+# the accepted bearer token and every real request 401s.
+# Operator-flagged 2026-05-12: "Invalid API key" on every /v1 request
+# after the firstboot config rewrite; root cause was the placeholder
+# block left behind.
 
 # Tool surface: SearXNG is reachable as mios-searxng:8080 inside the
 # ai-net bridge, so the agent's web_search tool can call it without
@@ -41,6 +47,32 @@ tools:
     enabled: true
     provider: searxng
     base_url: http://mios-searxng:8080
+
+# Architectural Law 5 (UNIFIED-AI-REDIRECTS) -- the agent loop must
+# stay local. Without this block Hermes routes /v1/chat/completions
+# to openrouter.ai with anthropic/claude-opus-4.6, which 401s on a
+# fresh install (no OPENROUTER_API_KEY). custom_providers declares
+# the local Ollama OpenAI surface; `agent` pins the thinking loop
+# to that provider. config.local.yaml from build-mios.ps1 re-asserts
+# these on the dev VM with the Network=host loopback URLs.
+custom_providers:
+  - name: local-ollama
+    base_url: http://localhost:11434/v1
+    api_key: ""
+    models:
+      - id: granite4.1:3b
+        label: "Granite 4.1 3B (local, low-RAM default)"
+      - id: granite4.1:30b
+        label: "Granite 4.1 30B (local, big-RAM)"
+      - id: gpt-oss:20b
+        label: "GPT-OSS 20B (local, agent-tuned)"
+# Hermes reads `model.provider` + `model.default` from config.yaml --
+# see /opt/hermes/agent/auxiliary_client.py::_read_main_provider /
+# _read_main_model. Without these the agent loop defaults to
+# openrouter+anthropic/claude-opus-4.6 and 401s on a local install.
+model:
+  provider: custom:local-ollama
+  default: granite4.1:3b
 
 logging:
   level: info

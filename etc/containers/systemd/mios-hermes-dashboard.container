@@ -1,0 +1,76 @@
+# /etc/containers/systemd/mios-hermes-dashboard.container
+# 'MiOS' Hermes Dashboard sidecar.
+#
+# Hermes-Agent splits its API surface across TWO processes:
+#   * `hermes gateway run` (:8642) -- OpenAI-shaped /v1 chat + messaging
+#     platforms + cron scheduler. Already in mios-hermes.container.
+#   * `hermes dashboard`   (:9119) -- web UI for sessions, skills, config,
+#     mcp, jobs, memory stats. THIS unit.
+#
+# The Hermes Workspace SPA (mios-hermes-workspace.container) probes BOTH
+# endpoints on launch. With only the gateway running, the workspace
+# logs "missing=[sessions, enhancedChat, skills, config, mcp,
+# mcpFallback, dashboard]" and the stats / sessions / skills panes in
+# the chat UI stay empty. Adding this sidecar fills those panes.
+# Operator-flagged 2026-05-11: "hermes workspace isn't showing any
+# hermes stats at all".
+#
+# Same image + same /opt/data + same /etc/hermes config + same api.env
+# as the gateway container so both processes see one shared agent
+# state (sessions, memory, skills).
+
+[Unit]
+Description='MiOS' Hermes Dashboard (web UI for sessions / skills / config)
+After=network-online.target mios-hermes-firstboot.service ollama.service mios-hermes.service
+Wants=network-online.target mios-hermes-firstboot.service
+ConditionPathIsDirectory=/etc/mios/hermes
+ConditionPathExists=/etc/mios/hermes/api.env
+
+[Container]
+Image=${MIOS_HERMES_IMAGE:-docker.io/nousresearch/hermes-agent:latest}
+ContainerName=mios-hermes-dashboard
+Network=ai-net.network
+Network=${MIOS_QUADLET_NETWORK:-mios.network}
+PublishPort=${MIOS_PORT_HERMES_DASHBOARD:-9119}:9119
+AutoUpdate=registry
+
+# SHARED state with the gateway -- /opt/data is the same /var/lib/mios/hermes
+# host dir mounted into both containers so sessions / memory / skills /
+# config edits round-trip between the gateway and the dashboard.
+Volume=/var/lib/mios/hermes:/opt/data:Z
+Volume=/etc/mios/hermes:/etc/hermes:Z,ro
+Volume=/:/mios:ro
+
+EnvironmentFile=/etc/mios/hermes/api.env
+
+# Same model + backend wiring as the gateway so the dashboard's stats
+# panes report consistent values (provider, model, backend URL).
+Environment=HERMES_BACKEND_PROVIDER=ollama
+Environment=HERMES_BACKEND_BASE_URL=http://localhost:11434
+Environment=HERMES_BACKEND_MODEL=qwen3.5:2b
+Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
+Environment=MIOS_AGENT_ROOT=/mios
+
+User=${MIOS_HERMES_UID:-820}
+Group=${MIOS_HERMES_GID:-820}
+
+Label=org.opencontainers.image.title=mios-hermes-dashboard
+Label=org.opencontainers.image.url=http://localhost:9119/
+Label=io.podman_desktop.openInBrowser=http://localhost:9119/
+
+# `dashboard` subcommand:
+#   --port 9119            bind port (workspace expects this exact port)
+#   --host 0.0.0.0         bind all interfaces (--insecure required for non-127.0.0.1)
+#   --no-open              don't try to launch a browser (no DISPLAY here)
+#   --skip-build           serve the pre-built web/dist; the image bakes it
+#   --insecure             accept binding to 0.0.0.0; required for sidecar exposure
+Exec=dashboard --port 9119 --host 0.0.0.0 --no-open --skip-build --insecure
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

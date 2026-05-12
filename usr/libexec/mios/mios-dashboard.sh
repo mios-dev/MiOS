@@ -368,41 +368,75 @@ print_endpoints() {
     d_workspace=$(ep_dot "http://localhost:${_p_workspace}/")
     d_code=$(ep_dot      "http://localhost:${_p_code}/")
 
-    # Mini: 2-row services with ports (one of every endpoint, no
-    # credentials, no section header). 12 rows total fits 80x20 with
-    # 8 rows free for the prompt.
+    # Mini: count recap + 4 clickable hyperlink rows (Cockpit, Code,
+    # Workspace, Search) per operator spec 2026-05-11 ("you STILL have
+    # 4 rows available... can include some links to Cockpit, Code,
+    # hermes workspace, search"). Modern terminals (WT, Ptyxis, Konsole)
+    # auto-detect bare http(s):// URLs as OSC 8 hyperlinks even without
+    # explicit escape sequences, so each row's URL is click-to-launch.
     if [[ "$MODE" == "mini" ]]; then
-        printf '  %s Forge:%-5s   %s Ollama:%-5s   %s Cockpit:%-5s   %s Search:%-5s\n' \
-            "$d_forge"   "$_p_forge" \
-            "$d_ollama"  "$_p_ollama" \
-            "$d_cockpit" "$_p_cockpit" \
-            "$d_searxng" "$_p_searxng"
-        printf '  %s Hermes:%-5s      %s Workspace:%-5s      %s Code:%-5s\n' \
-            "$d_hermes"    "$_p_hermes" \
-            "$d_workspace" "$_p_workspace" \
-            "$d_code"      "$_p_code"
+        local n_up=0 n_down=0
+        for _d in "$d_forge" "$d_ollama" "$d_cockpit" "$d_searxng" \
+                  "$d_hermes" "$d_workspace" "$d_code"; do
+            case "$_d" in
+                *"$DOT_UP"*) n_up=$((n_up + 1)) ;;
+                *)           n_down=$((n_down + 1)) ;;
+            esac
+        done
+        printf '  %s%s%s %s%d up%s    %s%s%s %s%d down%s    %sforge:%s  hermes:%s  ollama:%s%s\n' \
+            "$C_GRN" "$DOT_UP" "$C_R"   "$C_B"   "$n_up"   "$C_R" \
+            "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$n_down" "$C_R" \
+            "$C_GRY" "$_p_forge" "$_p_hermes" "$_p_ollama" "$C_R"
+        local link_fmt='  %s %-10s %s%s%s\n'
+        printf "$link_fmt" "$d_cockpit"   "Cockpit"   "$C_D" "https://localhost:${_p_cockpit}/"  "$C_R"
+        printf "$link_fmt" "$d_code"      "Code"      "$C_D" "http://localhost:${_p_code}/"      "$C_R"
+        printf "$link_fmt" "$d_workspace" "Workspace" "$C_D" "http://localhost:${_p_workspace}/" "$C_R"
+        printf "$link_fmt" "$d_searxng"   "Search"    "$C_D" "http://localhost:${_p_searxng}/"   "$C_R"
         return
     fi
 
+    # Full dash: every service as "<dot> <Name> <full URL>" in a
+    # 2-column grid -- the operator's "hyperlinks" requirement.
+    # Modern terminals (WT, Ptyxis, Konsole) auto-detect bare URLs as
+    # OSC 8 hyperlinks even without explicit escape sequences, so a
+    # plain `http://localhost:PORT/` is clickable.
     section_header "Services"
-    # Full dash: every service on its own line, 2-column side-by-side.
-    # Format: "<dot> <Name:port>" left-padded to a fixed column width
-    # so the right-column entries align vertically.
-    local fmt='    %s %s%-9s%s:%-6s    %s %s%-9s%s:%-6s\n'
-    printf "$fmt" \
-        "$d_forge"   "$C_D" "Forge"     "$C_R" "$_p_forge" \
-        "$d_ollama"  "$C_D" "Ollama"    "$C_R" "$_p_ollama"
-    printf "$fmt" \
-        "$d_cockpit" "$C_D" "Cockpit"   "$C_R" "$_p_cockpit" \
-        "$d_searxng" "$C_D" "Search"    "$C_R" "$_p_searxng"
-    printf "$fmt" \
-        "$d_hermes"    "$C_D" "Hermes"    "$C_R" "$_p_hermes" \
-        "$d_workspace" "$C_D" "Workspace" "$C_R" "$_p_workspace"
-    # Last row: Code on the left, blank right-column to keep alignment.
-    printf '    %s %s%-9s%s:%-6s\n' \
-        "$d_code" "$C_D" "Code" "$C_R" "$_p_code"
+    # Cell budget: 76 inner cols - 2-space indent - 2-space row sep =
+    # 72 visible / 2 cells = 36 per cell. Cell = dot(1)+sp(1)+name(9)+
+    # sp(1)+url(24) = 36. Longest URL "http://localhost:8642/v1" = 24
+    # chars exactly, so 24-wide URL pad fits without truncation.
+    local cell_fmt='%s %-9s %s%-24s%s'
+    local row_fmt='  %b  %b\n'
+    local c_forge c_ollama c_cock c_srch c_herm c_work c_code
+    c_forge=$( printf  "$cell_fmt" "$d_forge"     "Forge"     "$C_D" "http://localhost:${_p_forge}/"     "$C_R")
+    c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "Ollama"    "$C_D" "http://localhost:${_p_ollama}/"    "$C_R")
+    c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "Cockpit"   "$C_D" "https://localhost:${_p_cockpit}/"  "$C_R")
+    c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "Search"    "$C_D" "http://localhost:${_p_searxng}/"   "$C_R")
+    c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "Hermes"    "$C_D" "http://localhost:${_p_hermes}/v1"  "$C_R")
+    c_work=$(  printf  "$cell_fmt" "$d_workspace" "Workspace" "$C_D" "http://localhost:${_p_workspace}/" "$C_R")
+    c_code=$(  printf  "$cell_fmt" "$d_code"      "Code"      "$C_D" "http://localhost:${_p_code}/"      "$C_R")
+    printf "$row_fmt" "$c_forge" "$c_ollama"
+    printf "$row_fmt" "$c_cock"  "$c_srch"
+    printf "$row_fmt" "$c_herm"  "$c_work"
+    printf '  %b\n' "$c_code"
+    # Backing services -- no exposed URL but stack-critical (CI runner,
+    # network bridge, cluster). Dot-only indicators so the operator sees
+    # the full stack at a glance in `mios dash`. Operator 2026-05-11:
+    # "mios dash(FULL) should show ALL services!!"
+    local d_runner d_ceph d_k3s
+    local s_runner s_ceph s_k3s
+    s_runner=$(service_status mios-forgejo-runner.service); IFS='|' read -r _ d_runner _ <<< "$s_runner"
+    s_ceph=$(  service_status mios-ceph.service);            IFS='|' read -r _ d_ceph   _ <<< "$s_ceph"
+    s_k3s=$(   service_status mios-k3s.service);             IFS='|' read -r _ d_k3s    _ <<< "$s_k3s"
+    [[ -z "$d_runner" ]] && d_runner="$DOT_DOWN"
+    [[ -z "$d_ceph"   ]] && d_ceph="$DOT_DOWN"
+    [[ -z "$d_k3s"    ]] && d_k3s="$DOT_DOWN"
+    printf '  %s%s %s Runner%s    %s%s %s Ceph%s    %s%s %s K3s%s\n' \
+        "$C_R" "$d_runner" "$C_D" "$C_R" \
+        "$C_R" "$d_ceph"   "$C_D" "$C_R" \
+        "$C_R" "$d_k3s"    "$C_D" "$C_R"
     # Credentials row (global MiOS password unless per-service override).
-    printf '    %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
+    printf '  %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
         "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
 }
 
@@ -413,7 +447,7 @@ print_quadlets() {
     local n_active=0 n_starting=0 n_inactive=0 n_failed=0
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-searxng \
-               mios-hermes mios-hermes-workspace mios-code-server crowdsec-dashboard \
+               mios-hermes mios-hermes-dashboard mios-hermes-workspace mios-code-server crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"

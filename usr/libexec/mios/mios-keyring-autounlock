@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# /usr/libexec/mios/mios-keyring-autounlock
+#
+# Dual-mode keyring unlock helper:
+#   1. systemd ExecStart  (no args)            -> --daemonize (forks, exits 0)
+#   2. D-Bus activation   (--foreground arg)   -> --foreground (stays attached,
+#                                                  owns org.freedesktop.secrets
+#                                                  AND org.freedesktop.impl.portal.Secret)
+#
+# Reads the unlock password from mios.toml [identity].default_password
+# and pipes it to gnome-keyring-daemon. The daemon then unlocks (or
+# creates) the login keyring + handles ALL bus interfaces for libsecret
+# AND the secrets portal -- which is what flatpak apps using the
+# modern xdg-desktop-portal Secret API need.
+#
+# Operator-flagged 2026-05-12:
+#   "keyring prompts when launching apps again"  (libsecret-direct path)
+#   "no Bibata cursor in Flatpaks"                (theme propagation)
+#   "we need credential saving"                   (portal Secret needs to work)
+#
+# Why both modes in one script:
+#   systemd starts us at WSL boot (proactive unlock so first app launch
+#   doesn't prompt). D-Bus may ALSO activate us on-demand if a portal
+#   Secret call beats the systemd unit (race). Same script handles
+#   both -- --replace ensures only one daemon ever owns the bus name.
+set -euo pipefail
+
+# ─── mios.toml resolver ──────────────────────────────────────────────
+_mios_toml_value() {
+    local section="$1" key="$2" def_val="$3"
+    local toml
+    for toml in "${HOME:-/var/home/mios}/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        [ -r "$toml" ] || continue
+        local v
+        v=$(awk -v want_section="$section" -v want_key="$key" '
+            /^\[/ {
+                line = $0
+                sub(/[[:space:]]*#.*$/, "", line)
+                in_s = (line == "[" want_section "]") ? 1 : 0
+                next
+            }
+            in_s && /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
+                line = $0
+                sub(/[[:space:]]*#.*$/, "", line)
+                eq = index(line, "=")
+                if (eq == 0) next
+                k = substr(line, 1, eq - 1)
+                v = substr(line, eq + 1)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+                gsub(/^"|"$/, "", v)
+                if (k == want_key) { print v; exit }
+            }
+        ' "$toml" 2>/dev/null)
+        if [ -n "$v" ]; then printf '%s' "$v"; return; fi
+    done
+    printf '%s' "$def_val"
+}
+
+PW="$(_mios_toml_value 'identity' 'default_password' 'mios')"
+
+# Standard envs the daemon expects.
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+
+# Mode selection:
+#   $1 == "--foreground" : dbus activation context. Exec the daemon
+#       in --foreground so dbus sees us own the bus name. Stays attached
+#       for the lifetime of the daemon.
+#   otherwise            : systemd context. Use --daemonize so the
+#       service unit (Type=forking) sees a clean exit + forked bg pid.
+if [ "${1:-}" = "--foreground" ]; then
+    # Replace any running daemon (--replace evicts the previous bus owner).
+    # --foreground keeps us in the dbus activation context.
+    exec /usr/bin/gnome-keyring-daemon \
+        --replace \
+        --foreground \
+        --login \
+        --components=secrets,pkcs11,ssh \
+        <<<"$PW"
+else
+    printf '%s' "$PW" | /usr/bin/gnome-keyring-daemon \
+        --replace \
+        --login \
+        --components=secrets,pkcs11,ssh \
+        --daemonize
+fi

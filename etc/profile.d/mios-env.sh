@@ -29,7 +29,7 @@
 # Architectural Law 5 (UNIFIED-AI-REDIRECTS): MIOS_AI_ENDPOINT,
 # MIOS_AI_MODEL, and MIOS_AI_KEY are exported here so every OpenAI-API
 # client on the system resolves the same canonical surface at
-# http://localhost:8080/v1.
+# http://localhost:8642/v1 (Hermes-Agent -- the live MiOS agent at /).
 #
 # Safe to source in non-bash POSIX shells; uses only POSIX builtins
 # (the TOML resolver is bash-only and is sourced separately at the end).
@@ -94,9 +94,17 @@ done
 unset _ue
 
 # Export the OpenAI-API surface required by every Law-5-compliant agent.
-export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
-export MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen2.5-coder:7b}"
+# Hermes-Agent on :8642 is the LIVE MiOS agent at / (fronts Ollama for
+# chat + embeddings). Default model = qwen3.5:2b (matches [ai].model in
+# mios.toml + the baked Ollama seed). API key is resolved from the
+# Hermes-managed API_SERVER_KEY in /etc/mios/hermes/api.env when no
+# higher-precedence layer (env / install.env / TOML) has supplied one.
+export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
+export MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen3.5:2b}"
 export MIOS_AI_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
+if [ -z "${MIOS_AI_KEY:-}" ] && [ -r /etc/mios/hermes/api.env ]; then
+    MIOS_AI_KEY="$(awk -F= '/^API_SERVER_KEY=/ { gsub(/"/, "", $2); print $2; exit }' /etc/mios/hermes/api.env 2>/dev/null)"
+fi
 export MIOS_AI_KEY="${MIOS_AI_KEY:-}"
 
 # Ollama-specific bind. /usr/bin/ollama (upstream CLI) reads OLLAMA_HOST

@@ -376,10 +376,11 @@ enable   = true
 [hermes]
 # Hermes-Agent: OpenAI-compatible gateway and the live MiOS agent at /.
 # Fronts Ollama (mios-ollama:11434). API key generated at first boot
-# into /etc/mios/hermes/api.env.
+# into /etc/mios/hermes/api.env. Mirrors [ai].model -- this key is
+# kept for back-compat with older callers; the SSOT default is [ai].model.
 endpoint = "http://localhost:8642/v1"
 backend  = "http://mios-ollama:11434"
-model    = "qwen3.5:2b"
+model    = "granite4.1:3b"
 enable   = true
 
 [hermes_workspace]
@@ -387,23 +388,74 @@ enable   = true
 endpoint = "http://localhost:3030/"
 enable   = true
 
+# ----------------------------------------------------------------------------
+# [enhanced_session] -- alternate launch path: full GNOME desktop inside
+# the dev VM, exposed via xrdp on `port`, connected to from Windows via
+# mstsc.exe (the same Hyper-V Enhanced Session client). Complements the
+# WSLg per-window launch path (which keeps working). Operator picks per
+# session: per-window for native-Windows-window feel, Enhanced Session
+# for libadwaita-consistent theming + rounded corners + Bibata cursor
+# (because the full session renders inside the VM and only the final
+# pixmap is RDP'd to Windows -- no WSLg-per-window decoration drift).
+#
+# Driven by:
+#   * automation/35-xrdp-enhanced-session.sh installs xrdp + gnome-session
+#     and binds the port at install time.
+#   * Update-MiOSStartMenuShortcuts.ps1 writes a `MiOS Full Desktop` .lnk
+#     pointing at mstsc.exe /v:localhost:<port> /f.
+#   * RDP creds = [identity].default_password (same source the keyring
+#     auto-unlock service uses).
+# ----------------------------------------------------------------------------
+[enhanced_session]
+enabled    = true
+# Port 13389 (NOT the standard 3389). Windows blocks RDP via loopback
+# on the canonical 3389 with error 0x708 "console session in progress"
+# as a security measure -- mstsc /v:localhost:3389 short-circuits to
+# the local console RDP check and refuses to connect even though the
+# target is xrdp inside the dev VM. Port 13389 bypasses that check:
+# loopback detection only triggers on the standard port.
+# Operator-flagged 2026-05-12: mstsc 0x708 error.
+port       = 13389
+user       = ""                    # empty = inherits [identity].username
+resolution = "auto"                # "auto" lets mstsc pick from Windows display; otherwise WxH (e.g. "1920x1080")
+
 [ai]
 # Canonical agent surface. Defaults to Hermes-Agent (the live MiOS
 # agent at /), which fronts Ollama for inference + embeddings.
 endpoint            = "http://localhost:8642/v1"
-model               = "qwen3.5:2b"
+# SSOT for the default chat model. Stays small (granite4.1:3b, ~3 GB
+# resident) so 12 GB / 8-core hosts are still usable out of the box.
+# build-mios.ps1's auto-pick in [ai.host_thresholds] below promotes
+# this to gpt-oss:20b / granite4.1:30b on hosts with enough RAM by
+# writing the picked value into the per-host mios.toml overlay at
+# /etc/mios/mios.toml. mios-hermes-firstboot reads the resolved
+# value through the layered overlay chain (~/.config -> /etc ->
+# /usr/share). mios.html exposes [[ai.catalog]] in the dropdown.
+model               = "granite4.1:3b"
 embed_model         = "nomic-embed-text"
 api_key             = ""
 enable_ollama       = true
 mcp_registry        = "/usr/share/mios/ai/v1/mcp.json"
 system_prompt_file  = ""                # optional override; empty = use canonical
+# Bash prompt shortcut: type `@how do I X` (no space after the char)
+# and the shell forwards the rest to /usr/bin/mios (-> Hermes /v1).
+# Implemented via command_not_found_handle in /etc/profile.d/mios-verbs.sh.
+# Operator may override the prefix glyph here -- pick any char bash leaves
+# alone at command-position. Avoid: ~ ! ? : # > < & | ; ' " (all reserved
+# by the shell parser at command-start). Safe choices: @ , %
+prompt_shortcut     = "@"
 # Build-time model bake list. Comma-separated; consumed by
 # automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
-bake_models         = "qwen3.5:2b,nomic-embed-text"
-# Recommended floor for the default model. Informational; logged in
-# postcheck so operators know what they're signing up for.
-ram_floor_gb        = 12
+# Default keeps the embed model + the small Granite so a fresh image
+# is usable offline; the heavier default (granite4.1:30b, ~17.5 GB)
+# pulls at first-boot to avoid bloating the OCI layer.
+bake_models         = "granite4.1:3b,nomic-embed-text"
+# Recommended floor for the default model. granite4.1:3b is a dense
+# 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
+# the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
+# beyond this on hosts with more headroom.
+ram_floor_gb        = 8
 # Where ollama reads/writes models at runtime. Both paths are wired in
 # the Quadlet via Volume= directives; OLLAMA_MODELS points at the
 # writable one.
@@ -411,21 +463,54 @@ seed_dir            = "/usr/share/ollama/models"     # immutable, build-baked
 runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-seeded
 
 # ----------------------------------------------------------------------------
+# [[ai.catalog]] -- array of model entries the mios.html dropdown
+# renders for [ai].model selection. Adding a row here adds an option
+# in the UI; build-mios.ps1's Read-Model + mios-hermes-firstboot's
+# custom_providers list both iterate this array. `id` is the Ollama
+# tag, `label` is the human display text, `ram_gb` is the rule-of-
+# thumb RAM floor (informational; surfaces under each <option>).
+# Keep ordered small -> large; first entry is the no-RAM-info fallback.
+# ----------------------------------------------------------------------------
+[[ai.catalog]]
+id      = "granite4.1:3b"
+label   = "Granite 4.1 3B (IBM, dense, ~3 GB, low-RAM default)"
+ram_gb  = 8
+
+[[ai.catalog]]
+id      = "gpt-oss:20b"
+label   = "GPT-OSS 20B (OpenAI, MoE, agent-tuned, ~13 GB)"
+ram_gb  = 16
+
+[[ai.catalog]]
+id      = "granite4.1:30b"
+label   = "Granite 4.1 30B (IBM, MoE, ~17.5 GB, big-RAM auto-pick)"
+ram_gb  = 24
+
+[[ai.catalog]]
+id      = "qwen3-coder:30b"
+label   = "Qwen3 Coder 30B (Alibaba, MoE, code-focused, ~19 GB)"
+ram_gb  = 24
+
+[[ai.catalog]]
+id      = "qwen3:32b"
+label   = "Qwen3 32B (Alibaba, dense, ~20 GB)"
+ram_gb  = 28
+
+# ----------------------------------------------------------------------------
 # [ai.host_thresholds] -- auto-pick model based on host RAM during the
-# Get-Hardware phase. Operators tune the cutoffs (raise mid_ram_gb to
-# 16 if their box runs hotter on 14B; swap small_ram_model to a
-# different small-context family) via mios.html. Build-mios.ps1 reads
-# these and assigns $aiModel = big/mid/small at install time.
+# Get-Hardware phase. Operators tune the cutoffs via mios.html.
+# Build-mios.ps1 reads these and assigns $aiModel = big/mid/small at
+# install time. All three entries must be `id` values present in
+# [[ai.catalog]] above.
 # ----------------------------------------------------------------------------
 [ai.host_thresholds]
-# Auto-pick rolls UP from the small default (qwen3.5:2b at < 12 GB
-# RAM). Operators with 12+ GB get qwen3.5:7b; 32+ GB get qwen3.5:14b.
-# All three are operator-pickable from mios.html.
-big_ram_gb       = 32                            # >= this -> big_ram_model
-mid_ram_gb       = 12                            # >= this -> mid_ram_model
-big_ram_model    = "qwen3.5:14b"
-mid_ram_model    = "qwen3.5:7b"
-small_ram_model  = "qwen3.5:2b"                  # < mid_ram_gb fallback (also the global default)
+# Auto-pick rolls UP from the small fallback (granite4.1:3b at < 16 GB
+# RAM). Operators with 16+ GB get gpt-oss:20b; 24+ GB get granite4.1:30b.
+big_ram_gb       = 24                            # >= this -> big_ram_model
+mid_ram_gb       = 16                            # >= this -> mid_ram_model
+big_ram_model    = "granite4.1:30b"
+mid_ram_model    = "gpt-oss:20b"
+small_ram_model  = "granite4.1:3b"               # < mid_ram_gb fallback
 
 # ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.
@@ -458,6 +543,14 @@ flatpaks      = [
     "com.github.tchx84.Flatseal",                      # Flatpak permissions UI
     "com.mattjakeman.ExtensionManager",                # GNOME shell extensions
     "com.vscodium.codium",                             # VSCodium IDE
+    # Google Chrome Dev channel -- closest flathub-available analog to
+    # the Windows "Canary" channel (true Canary doesn't ship for Linux;
+    # Dev releases ~weekly, one channel ahead of Beta). Operator-requested
+    # 2026-05-11 to provide a Chromium-derived browser the Hermes agent
+    # (and the operator) can drive for web tasks. Hermes's bundled
+    # Playwright Chromium still handles agent browser_use tools; this
+    # flatpak is for operator-facing browsing + manual CDP integration.
+    "com.google.ChromeDev",
 ]
 
 # ----------------------------------------------------------------------------
@@ -1539,6 +1632,7 @@ cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend
 searxng            = 8888     # local privacy-respecting metasearch
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
+hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
 hermes_workspace   = 3030     # Hermes Workspace chat front-end
 code_server        = 8080     # code-server (VS Code in a browser; matches image default)
 k3s_api            = 6443     # K3s Kubernetes API
@@ -1897,6 +1991,39 @@ launch_mode         = "focus"            # frame-less / border-less / no-titleba
 disable_animations  = false              # animations ON -- per operator "enable animations and all preview features in the MiOS Windows Terminal profile, full aesthetics! ALSO: can it quickly fade on open and close??". The WT window open/close fade is gated on disableAnimations=false + useAcrylic=true; both are on. If the powerline ever wraps with animations on, raise [terminal].right_margin to 1 as a targeted band-aid -- do NOT flip animations off (operator wants the aesthetics).
 enable_preview_features = false          # WT experimental.* knobs bundle (useAtlasEngine GPU renderer, experimental.detectURLs, experimental.input.forceVT, experimental.rendering.forceFullRepaint). DISABLED 2026-05-08: operator screenshots showed CLI apps (Gemini CLI, Claude Code CLI) rendering TUI frames that extend past the visible cell boundary -- text wrapping that doesn't happen in conhost or non-MiOS WT at the same window size. Strongest hypothesis: experimental.input.forceVT changes how WT's pseudo-console reports buffer dimensions to apps querying [Console]::WindowWidth (which the diagnostic at M:\MiOS\diagnostics\window-width.txt shows reporting 80 even though actual visible cells is ~76). Re-enable once WT exposes a stable knob whose width-reporting is verified correct.
 
+[theme.cursor_windows]
+# Windows-side cursor SSOT. Bibata-Modern-Classic ships a Windows release
+# whose smallest .cur image variant is 32x32; even that renders visibly
+# bigger than typical Aero cursors because the bibata glyph fills more
+# of the canvas. Lowering CursorBaseSize forces Windows to downscale.
+# Get-MiOS.ps1's Install-MiOSBibataCursor reads this key and writes
+# HKCU\Control Panel\Cursors\CursorBaseSize accordingly.
+#
+# Range: 16..256 (Windows clamps below 16 and above 256). 24 matches
+# the operator's visual benchmark of "normal weight, not too large".
+base_size           = 24
+
+# ----------------------------------------------------------------------------
+# [theme.cursor_linux] -- Linux-side (dev VM + bare-metal MiOS) cursor SSOT.
+# Read by:
+#   * gsettings org.gnome.desktop.interface.cursor-{theme,size} (mios-firstboot)
+#   * /var/lib/flatpak/overrides/global -> XCURSOR_THEME / XCURSOR_SIZE
+#     so flatpak sandboxes (Flatseal, Extension Manager, Nautilus,
+#     Epiphany, VSCodium, Ptyxis, ChromeDev) inherit the same cursor
+#   * /etc/profile.d/mios-cursor.sh -> XCURSOR_THEME / XCURSOR_SIZE
+#     for raw X/Wayland clients launched outside flatpak
+# Bibata-Modern-Classic ships at /usr/share/icons/Bibata-Modern-Classic
+# (RPM: bibata-cursor-themes). Size is DIFFERENT from Windows's
+# base_size (24) on purpose: WSLg's Wayland compositor renders Bibata
+# SVGs at their literal pixel size, while Windows downscales Bibata's
+# 32x32 .cur images via CursorBaseSize. At equal `size` values, the
+# Linux cursor renders ~2x larger than the Windows cursor; 16 lines
+# them up visually. Operator-flagged 2026-05-12.
+# ----------------------------------------------------------------------------
+[theme.cursor_linux]
+theme               = "Bibata-Modern-Classic"
+size                = 16
+
 [theme.font]
 family              = "GeistMono Nerd Font Mono"
 size                = 12
@@ -2064,14 +2191,13 @@ show_services   = true
 #   font            "Font $family $size pt"   (from [theme.font])
 #   uptime          "Up $days d $hours h $min m"
 rows = [
-    ["host", "version", "date"],
+    ["version", "date"],
     ["user", "uptime"],
     ["cpu", "gpu_discrete"],
     ["disk_c", "disk_m"],
     ["ram", "swap"],
-    ["kernel"],
-    ["shell"],
-    ["font"],
+    ["kernel", "shell"],
+    ["host", "font"],
 ]
 
 # ----------------------------------------------------------------------------

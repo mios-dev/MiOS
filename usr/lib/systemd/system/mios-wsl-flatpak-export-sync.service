@@ -1,0 +1,22 @@
+[Unit]
+Description='MiOS' Sync flatpak .desktop + icon exports into /usr/share so WSL Start Menu picks them up
+# Runs after flatpak's own update process finishes (so newly installed
+# flatpaks land before we mirror), and after the early WSL fixup boot
+# group so /usr is mounted writable.
+After=mios-wsl-early.service
+ConditionPathIsDirectory=/var/lib/flatpak/exports/share
+# WSL2-only: on bare-metal MiOS the bootc tree handles /usr/share via
+# its own immutable composefs layer and direct symlinks land via
+# rpm-ostree overrides. Gate on the WSL marker file dropped by
+# mios-wsl-early.service.
+ConditionPathExists=/run/mios-is-wsl
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-wsl-flatpak-export-sync.sh
+RemainAfterExit=yes
+# Re-fire on any flatpak install/uninstall by watching the exports dir
+# mtime. Path units below trigger a restart automatically.
+
+[Install]
+WantedBy=multi-user.target default.target

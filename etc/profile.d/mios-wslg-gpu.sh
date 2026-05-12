@@ -75,23 +75,17 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export DISPLAY="${DISPLAY:-:0}"
 
 # ── GTK / Qt scaling on 4K Windows hosts ──────────────────────────
-# Operator-flagged 2026-05-10 (rev 2): "GLOBAL Scaling is still 25%
-# too big -- the cursor itself is huge compared to the windows cursor".
-# Earlier 0.75 wasn't aggressive enough. WSLg compounds the Windows
-# host's DPI scale (1.25-1.5 on 4K laptops) with its own scale, so
-# GDK_DPI_SCALE has to drop further to match Windows-native UI sizes.
+# Restored 2026-05-12 after a regression: removing these broke the
+# operator-tuned visual sizing that had previously been working.
+# Per the original comment, WSLg compounds the Windows host's DPI
+# scale (1.25-1.5 on 4K laptops) with its own scale, so without a
+# fractional GDK_DPI_SCALE every GTK4 / libadwaita app renders ~25%
+# too large vs the Windows-native baseline.
 #
 # Two cooperating knobs:
-#   * GDK_DPI_SCALE -> 0.60: fractional DPI scale. 0.60 * Windows 1.25
-#     = ~0.75 effective, matching the visual size of native Win32 apps.
-#   * QT_FONT_DPI    -> 58 (~60% of GDK's default 96 px-per-em). Keeps
-#     future Plasma/Qt apps visually consistent with the GTK stack.
-#
-# Cursor sizing piggybacks on this via dconf cursor-size=16 (set in
-# /etc/dconf/db/local.d/00-mios-theme); XCURSOR_SIZE makes apps that
-# read libXcursor directly (xterm, libreoffice, electron) honor the
-# same value. Bibata is mandatory at /usr/share/icons/Bibata-Modern-Classic/
-# per automation/10-gnome.sh.
+#   * GDK_DPI_SCALE -> 0.60: fractional DPI scale matching the
+#     operator's visual benchmark
+#   * QT_FONT_DPI   -> 58 (~60% of GDK's default 96 px-per-em)
 export GDK_DPI_SCALE="${GDK_DPI_SCALE:-0.60}"
 export QT_FONT_DPI="${QT_FONT_DPI:-58}"
 export XCURSOR_SIZE="${XCURSOR_SIZE:-16}"

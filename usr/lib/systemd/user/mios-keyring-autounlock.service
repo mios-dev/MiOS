@@ -1,0 +1,32 @@
+[Unit]
+Description=MiOS gnome-keyring auto-unlock with mios.toml password
+Documentation=man:gnome-keyring-daemon(1)
+# Run BEFORE any app would try to access secrets. graphical-session
+# fires the moment WSLg's gnome-session-equivalent starts; we hook
+# pre-graphical-session so the daemon is up + unlocked the instant
+# the operator can launch anything.
+After=dbus.socket
+Before=graphical-session.target
+PartOf=graphical-session.target
+# If the daemon is already running (eg. via dbus-activation), let
+# --replace evict it.
+ConditionPathExists=/usr/bin/gnome-keyring-daemon
+
+[Service]
+Type=forking
+# Resolve [identity].default_password from the layered mios.toml
+# overlay (~/.config -> /etc -> /usr/share). Pipe it as stdin to
+# gnome-keyring-daemon --login --daemonize. Daemon unlocks (or
+# creates) the login keyring with that password, registers on the
+# session bus, and exits to background. Apps that call libsecret
+# afterwards talk to it via xdg-dbus-proxy / host dbus.
+#
+# Why a wrapper instead of inline: gnome-keyring-daemon expects the
+# password on stdin; systemd ExecStart can't easily provide a
+# password via pipe without a wrapper script.
+ExecStart=/usr/libexec/mios/mios-keyring-autounlock
+# Daemon manages its own lifecycle; we just kick it off.
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

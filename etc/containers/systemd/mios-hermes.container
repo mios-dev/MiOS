@@ -23,17 +23,26 @@ ConditionPathIsDirectory=/etc/mios/hermes
 ConditionPathExists=/etc/mios/hermes/api.env
 
 [Container]
-# Image / Port / UID placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml [image.sidecars].hermes,
-# [ports].hermes, [services.hermes].uid/.gid.
-Image=${MIOS_HERMES_IMAGE:-docker.io/nousresearch/hermes-agent:latest}
+# Image / Port / Network placeholders were rendered via envsubst by
+# automation/15-render-quadlets.sh at image build time. Hand-rendered
+# here so the Quadlet is parseable as-is on the dev VM (where the
+# render step doesn't run -- bootstrap copies this file verbatim).
+# Operator-flagged 2026-05-12: podman parses literal ${VAR:-default}
+# strings and bails ("invalid reference format" / "cannot parse as IP").
+#
+# SSOT resolution still happens at install time -- build-mios.ps1 reads
+# mios.toml [image.sidecars].hermes / [ports].hermes / [services.hermes]
+# and overwrites the literals below before the dev VM imports it.
+Image=docker.io/nousresearch/hermes-agent:latest
 ContainerName=mios-hermes
 # Dual-network: ai-net is the canonical subnet for the AI stack
 # (Open WebUI <-> Hermes <-> Ollama), mios.network keeps the unit
-# reachable from the rest of MiOS by container name.
+# reachable from the rest of MiOS by container name. The dev VM
+# dropin (10-mios-dev-host-network.conf) blanks Network= and re-sets
+# it to host so this becomes a no-op there.
 Network=ai-net.network
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
-PublishPort=${MIOS_PORT_HERMES:-8642}:8642
+Network=mios.network
+PublishPort=8642:8642
 AutoUpdate=registry
 
 # Persistent state. /opt/data inside the container is where Hermes
@@ -68,7 +77,13 @@ EnvironmentFile=/etc/mios/hermes/api.env
 # operator directive 2026-05-11.
 Environment=HERMES_BACKEND_PROVIDER=ollama
 Environment=HERMES_BACKEND_BASE_URL=http://mios-ollama:11434
-Environment=HERMES_BACKEND_MODEL=qwen3.5:2b
+# HERMES_BACKEND_MODEL intentionally omitted -- mios-hermes-firstboot
+# resolves [ai].model from mios.toml + [ai.host_thresholds] auto-pick
+# and writes the picked value into /var/lib/mios/hermes/config.yaml's
+# `model.default`, which Hermes loads as the canonical chat model.
+# Hardcoding a model id here OVERRIDES that SSOT-derived value with
+# a build-time guess -- exactly the regression that left operator
+# stuck on qwen3.5:2b after a granite4.1:30b switchover.
 Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
 # Hermes-Agent is THE live MiOS agent at root: it can introspect the
 # OS's git working tree at /mios (read-only bind mount above).

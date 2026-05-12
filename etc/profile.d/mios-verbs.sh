@@ -37,8 +37,11 @@ mios() {
                 [[ -x "$_c" ]] && { _dash="$_c"; break; }
             done
             if [[ -n "$_dash" ]]; then
-                # Force compact + skip services to stay inside 80x20.
-                MIOS_DASH_SERVICES=0 "$_dash" "$@"
+                # --mini flag = MODE=mini in dashboard.sh: NO ASCII
+                # banner, NO Stack section, NO Tree git-state, NO verb
+                # hints, single-line up/down service count recap.
+                # Fits 80x20 with rows free for the prompt.
+                "$_dash" --mini "$@"
             else
                 echo "mios mini: mios-dashboard.sh not found" >&2
                 return 127
@@ -137,3 +140,51 @@ EOH
     esac
 }
 export -f mios 2>/dev/null || true
+
+# Completion for `mios <TAB>` -- list the canonical verbs. Anything
+# typed after the verb falls through to the AI agent's prompt, so we
+# only complete position 1.
+_mios_complete() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [[ $COMP_CWORD -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "mini dash build config dev pull update help" -- "$cur") )
+    fi
+}
+complete -F _mios_complete mios
+
+# ── @<query> bash prompt shortcut for Hermes ───────────────────────────────
+# Operator-requested 2026-05-11: type `@how do I X` (no space after @) and
+# it routes to the live MiOS agent (Hermes-Agent on :8642 via /usr/bin/mios).
+# Why `@`: bash leaves it untouched at command-position (no expansion).
+# Why NOT alternatives:
+#   ~  -- bash expands to $HOME (`~/Documents` -> `/var/home/mios/Documents`)
+#   !  -- history expansion (`!!`, `!ls`)
+#   ?  -- glob wildcard at command-position
+#   :  -- shell builtin (no-op)
+#   #  -- comment marker
+# Mechanism: bash's `command_not_found_handle` fires whenever the shell
+# can't resolve a command-position word. We inspect the first token; if
+# it starts with `@` we strip the `@`, glue it to the remaining args, and
+# forward to /usr/bin/mios (the OpenAI-compatible agent CLI). Anything
+# else gets the default "command not found" error.
+#
+# Examples:
+#   @hello                       -> mios hello
+#   @how do I list pods          -> mios how do I list pods
+#   @"explain this code"         -> mios explain this code
+#   @--no-tools quick question   -> mios --no-tools quick question
+command_not_found_handle() {
+    if [[ "${1:-}" == @* ]] && [[ "${1}" != "@" ]]; then
+        local first="${1#@}"
+        shift
+        if [[ -x /usr/bin/mios ]]; then
+            /usr/bin/mios "$first" "$@"
+            return $?
+        fi
+    fi
+    # Default behavior: 127 with stderr message, matching bash's
+    # untouched-shell fallback.
+    printf '%s: %s: command not found\n' "${BASH_SOURCE[0]##*/}" "${1:-}" >&2
+    return 127
+}
+export -f command_not_found_handle 2>/dev/null || true

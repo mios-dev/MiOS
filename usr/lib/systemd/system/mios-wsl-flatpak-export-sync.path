@@ -1,0 +1,12 @@
+[Unit]
+Description='MiOS' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land
+ConditionPathExists=/run/mios-is-wsl
+
+[Path]
+# Trigger whenever flatpak adds/removes an exported .desktop (any
+# system-wide install / uninstall touches this dir mtime).
+PathChanged=/var/lib/flatpak/exports/share/applications
+PathChanged=/var/lib/flatpak/exports/share/icons
+
+[Install]
+WantedBy=multi-user.target default.target

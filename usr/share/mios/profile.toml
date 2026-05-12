@@ -48,7 +48,7 @@ allow_libvirt_bridge   = true
 [ai]
 # Hermes-Agent /v1 (the live MiOS agent at /) fronts Ollama.
 endpoint        = "http://localhost:8642/v1"
-model           = "qwen3.5:2b"
+model           = "granite4.1:3b"
 embed_model     = "nomic-embed-text"
 api_key         = ""
 enable_ollama   = true

@@ -1,0 +1,35 @@
+[Context]
+# MiOS flatpak override for Google Chrome Dev. Adds the filesystems +
+# network exposure Hermes-Agent needs to drive Chrome over CDP.
+#
+# Hermes runs in mios-hermes (port 8642 host net) and connects to Chrome's
+# DevTools Protocol when an agent tool calls browser_use / playwright with
+# `connectOverCDP("http://localhost:9222")`. For that to work:
+#   * Chrome must launch with --remote-debugging-port=9222 (we set this
+#     via a desktop launcher wrapper; alternatively start Chrome with
+#     `flatpak run com.google.ChromeDev --remote-debugging-port=9222`).
+#   * Chrome's flatpak sandbox must allow inbound 127.0.0.1 connections
+#     (network=true grants outbound; --share=network grants both).
+#   * Hermes's container shares the host network namespace (Network=host
+#     in mios-hermes.container.d/10-mios-dev-host-network.conf), so
+#     127.0.0.1:9222 is reachable from inside Hermes.
+filesystems=xdg-config/dconf:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;xdg-download;
+
+[Environment]
+# Cursor / theme env -- the cursor SSOT keys (XCURSOR_THEME / XCURSOR_SIZE /
+# XCURSOR_PATH) come from the global override.
+# Hint to Chrome to use Wayland natively (WSLg compositor) instead of
+# launching XWayland which has no GPU acceleration on this host.
+GDK_BACKEND=wayland
+# Force Ozone-Wayland so Chrome draws its own libadwaita-aware decorations
+# (xdg-decoration protocol). Without these flags Chromium on WSLg falls
+# back to XWayland and renders SQUARE window corners instead of the
+# rounded libadwaita-style corners every other MiOS app shows.
+# Operator-flagged 2026-05-12: "chrome browser installed to MiOS-DEV
+# doesn't have rounded corners!!"
+CHROME_DEFAULT_ARGS=--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1
+
+[Session Bus Policy]
+# Allow Chrome to talk to the GNOME portal for color-scheme / file pickers.
+org.freedesktop.portal.Desktop=talk
+org.freedesktop.portal.Documents=talk

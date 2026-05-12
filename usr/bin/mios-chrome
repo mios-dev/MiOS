@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# /usr/bin/mios-chrome -- launch Google Chrome Dev (flatpak) with the
+# Hermes Agent CDP integration enabled. Operator-facing wrapper.
+#
+# Why this exists: bare `flatpak run com.google.ChromeDev` opens Chrome
+# without DevTools Protocol exposure. Hermes-Agent's browser_use /
+# playwright tools connect over CDP at http://localhost:9222 -- without
+# the --remote-debugging-port flag, Hermes falls back to its bundled
+# Playwright Chromium (which works but doesn't share state with the
+# operator's browsing session: no shared cookies, no bookmarks, no
+# logged-in accounts). Launching Chrome via THIS wrapper lets the
+# operator AND Hermes drive the same browser instance.
+#
+# Operator-requested 2026-05-11: "make sure hermes has chrome access".
+#
+# Usage:
+#   mios-chrome                  -- open Chrome with CDP on :9222
+#   mios-chrome <url>            -- open Chrome to <url> with CDP
+#   mios-chrome --no-cdp [...]   -- skip the CDP port (private browsing)
+#   mios-chrome --status         -- report Chrome + CDP availability
+#
+# Hermes-side use:
+#   from Hermes Agent: browser_use(connectUrl="http://localhost:9222")
+
+set -euo pipefail
+
+CDP_PORT="${MIOS_CHROME_CDP_PORT:-9222}"
+FLATPAK_ID="${MIOS_CHROME_FLATPAK_ID:-com.google.ChromeDev}"
+
+_status() {
+    if ! command -v flatpak >/dev/null 2>&1; then
+        echo "flatpak: not installed"; return 1
+    fi
+    if ! flatpak info "$FLATPAK_ID" >/dev/null 2>&1; then
+        echo "flatpak: $FLATPAK_ID NOT installed (install via: flatpak install -y --system flathub $FLATPAK_ID)"
+        return 1
+    fi
+    echo "flatpak: $FLATPAK_ID installed"
+    if curl -fsS -m 2 "http://localhost:${CDP_PORT}/json/version" >/dev/null 2>&1; then
+        echo "CDP: reachable on :$CDP_PORT"
+        curl -s "http://localhost:${CDP_PORT}/json/version" | head -3
+    else
+        echo "CDP: not reachable on :$CDP_PORT (Chrome not running or launched without --remote-debugging-port)"
+    fi
+}
+
+case "${1:-}" in
+    --status|status)
+        _status; exit $?
+        ;;
+    --help|-h|help)
+        sed -n '/^# /,/^$/{s/^# \?//;p}' "$0" | head -32
+        exit 0
+        ;;
+esac
+
+# Strip optional --no-cdp flag; remaining args go to chrome.
+USE_CDP=1
+if [[ "${1:-}" == "--no-cdp" ]]; then
+    USE_CDP=0
+    shift
+fi
+
+cdp_args=()
+if [[ $USE_CDP -eq 1 ]]; then
+    cdp_args+=("--remote-debugging-port=${CDP_PORT}")
+    cdp_args+=("--remote-debugging-address=127.0.0.1")
+    # Profile dir under the flatpak's xdg-data so multiple `mios-chrome`
+    # invocations share state.
+    cdp_args+=("--user-data-dir=${HOME}/.local/share/mios-chrome-profile")
+fi
+
+# Wayland + GTK4 frame so the window chrome matches MiOS's other
+# libadwaita apps (rounded corners, drop shadow, accent-aware buttons).
+# Without --ozone-platform=wayland, Chromium on WSLg falls back to
+# XWayland which has no GPU acceleration AND renders square corners.
+# Operator-flagged 2026-05-12: "chrome browser installed to MiOS-DEV
+# doesn't have rounded corners!!".
+wayland_args=(
+    "--ozone-platform=wayland"
+    "--enable-features=UseOzonePlatform,WaylandWindowDecorations"
+    "--gtk-version=4"
+)
+
+exec flatpak run "$FLATPAK_ID" "${wayland_args[@]}" "${cdp_args[@]}" "$@"
