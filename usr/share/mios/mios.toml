@@ -2064,11 +2064,14 @@ show_services   = true
 #   font            "Font $family $size pt"   (from [theme.font])
 #   uptime          "Up $days d $hours h $min m"
 rows = [
-    ["host_os", "uptime"],
+    ["host", "version", "date"],
+    ["user", "uptime"],
     ["cpu", "gpu_discrete"],
-    ["ram", "swap"],
     ["disk_c", "disk_m"],
-    ["kernel", "shell", "font"],
+    ["ram", "swap"],
+    ["kernel"],
+    ["shell"],
+    ["font"],
 ]
 
 # ----------------------------------------------------------------------------

@@ -529,6 +529,35 @@ _dash_field() {
             arch="$(uname -m)"
             printf '%s@%s -- %s %s' "$user" "$host" "$os" "$arch"
             ;;
+        host)
+            #  nf-fa-server U+F233 -- hostname only
+            local h
+            h="$(hostname -s 2>/dev/null || echo localhost)"
+            printf $'\xef\x88\xb3'" %s" "$h"
+            ;;
+        version)
+            #  nf-fa-tag U+F02B -- MiOS version + arch. VERSION ships
+            # at the repo root (/VERSION on deployed hosts; mios.git's
+            # working tree is overlaid AT /). Fall back to mios.toml
+            # [meta].mios_version then "?" if neither is readable.
+            local v
+            for _vf in /VERSION /usr/share/mios/VERSION; do
+                if [[ -r "$_vf" ]]; then v="$(cat "$_vf")"; break; fi
+            done
+            [[ -z "${v:-}" ]] && v="$(_mios_toml_value 'meta' 'mios_version' '?')"
+            printf $'\xef\x80\xab'" MiOS v%s %s" "$v" "$(uname -m)"
+            ;;
+        date)
+            # 󰃭 nf-md-calendar U+F00ED -- today's date, no time
+            # (powerline already shows time).
+            printf $'\xf3\xb0\x83\xad'" %s" "$(date '+%Y-%m-%d')"
+            ;;
+        user)
+            #  nf-fa-user U+F007 -- username only
+            local u
+            u="${MIOS_LINUX_USER:-${USER:-mios}}"
+            printf $'\xef\x80\x87'" %s" "$u"
+            ;;
         cpu)
             local model cores clk
             model="$(awk -F: '/^model name/ { sub(/^[[:space:]]+/, "", $2); print $2; exit }' /proc/cpuinfo 2>/dev/null)"
@@ -787,8 +816,15 @@ case "$MODE" in
                 print_ascii_header | frame_filter
                 frame_divide
             fi
-            { print_title; } | frame_filter
-            frame_divide
+            # The MiOS banner is part of the ASCII header. In mini mode
+            # (no ASCII header) the host/version/date row at the top of
+            # [dashboard].rows carries the identity, so we skip the
+            # standalone print_title banner -- otherwise mini would
+            # show "MiOS v0.2.4" twice (banner + version row).
+            if [[ "$MODE" != "mini" ]]; then
+                { print_title; } | frame_filter
+                frame_divide
+            fi
             if [[ "${MIOS_DASH_LEGACY:-0}" == "1" ]]; then
                 print_fastfetch     | frame_filter
                 frame_divide
