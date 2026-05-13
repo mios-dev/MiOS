@@ -25,8 +25,17 @@ if [ -n "${BASH_VERSION-}" ]; then
                 ;;
         esac
     }
+    # CRITICAL: the trailing terminator MUST be \C-j (line-feed), NOT
+    # \C-m (carriage return). \C-m IS the same character as \r, so a
+    # binding `\r -> ...\C-m` recursively re-triggers itself and bash
+    # readline aborts with "maximum macro execution nesting level
+    # exceeded" on every Enter press, breaking ALL shell input
+    # (operator-confirmed 2026-05-13 in podman-MiOS-DEV: every keystroke
+    # surfaced the readline error). \C-j is bound to accept-line by
+    # default and is NOT in the rebinding chain, so it submits the line
+    # cleanly without recursion.
     bind -x '"\C-x@": __mios_at_dispatch' 2>/dev/null || true
-    bind '"\r": "\C-x@\C-m"'              2>/dev/null || true
+    bind '"\r": "\C-x@\C-j"'              2>/dev/null || true
 fi
 
 # ---- zsh ----
