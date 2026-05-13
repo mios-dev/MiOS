@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# /usr/bin/@
+# Real-binary form of the '@' invocation. Pipes and scripts use this.
+# Interactive shells use the widget in /etc/profile.d/mios-agent.sh.
+#
+# Delegates to /usr/bin/mios (canonical chat CLI) so '@<prompt>' and
+# 'mios <prompt>' resolve to the same agent surface.
+
+set -euo pipefail
+
+prompt="$*"
+if [ -z "$prompt" ] && [ ! -t 0 ]; then
+    prompt="$(cat)"
+fi
+if [ -z "$prompt" ]; then
+    echo "@: empty prompt. Usage: @ <query>  or  echo Q | @" >&2
+    exit 2
+fi
+exec /usr/bin/mios "$prompt"

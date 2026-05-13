@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# /usr/bin/hermes
+# Sibling of /usr/bin/@ -- both delegate to /usr/bin/mios (the
+# OpenAI-compatible Python CLI that targets MIOS_AI_ENDPOINT, default
+# http://localhost:8642/v1 = the Hermes-Agent gateway).
+#
+# Why three names for the same thing:
+#   * mios <prompt>     -- canonical CLI, also dispatches verbs (dash,
+#                          config, etc.) when the first arg matches.
+#   * @ <prompt>        -- shell-position-free shortcut (bundle's
+#                          designed convention; works in scripts + pipes).
+#   * hermes <prompt>   -- explicit name for "talk to Hermes"; useful
+#                          when scripts make the agent identity readable.
+#
+# Pipes work: `echo "summarize this" | hermes`
+set -euo pipefail
+
+prompt="$*"
+if [ -z "$prompt" ] && [ ! -t 0 ]; then
+    prompt="$(cat)"
+fi
+if [ -z "$prompt" ]; then
+    echo "hermes: empty prompt. Usage: hermes <query>  or  echo Q | hermes" >&2
+    exit 2
+fi
+exec /usr/bin/mios "$prompt"

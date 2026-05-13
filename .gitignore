@@ -283,6 +283,15 @@ usr/bin/*
 !/usr/bin/iommu-groups
 # (mios-ollama is an OpenAI-compat wrapper around upstream `ollama`;
 # matches the !/usr/bin/mios-* pattern above but listed for clarity.)
+# Agent-CLI shortcuts: thin bash wrappers that delegate to /usr/bin/mios
+# (the OpenAI-compatible Python client). Three names, one behavior:
+#   @<prompt>       -- shell-position-free shortcut (also handled by
+#                      command_not_found_handle in mios-verbs.sh for the
+#                      glued `@hello` form; this binary covers pipes /
+#                      scripts: `echo Q | @`)
+#   hermes <prompt> -- explicit-name variant for "talk to Hermes"
+!/usr/bin/@
+!/usr/bin/hermes
 
 # usr/share -- mios/ build files + doc/mios/ KB docs
 usr/share/*
