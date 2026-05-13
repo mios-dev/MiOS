@@ -60,8 +60,6 @@ enable cockpit.socket
 enable mios-searxng.service
 enable mios-hermes-firstboot.service
 enable mios-hermes.service
-enable mios-hermes-workspace-firstboot.service
-enable mios-hermes-workspace.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token
 # all minted on first boot. mios-forgejo-runner reads the token and

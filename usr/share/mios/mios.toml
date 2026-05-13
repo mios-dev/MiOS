@@ -383,10 +383,16 @@ backend  = "http://mios-ollama:11434"
 model    = "granite4.1:3b"
 enable   = true
 
-[hermes_workspace]
-# Hermes Workspace: browser chat front-end. Targets mios-hermes:8642/v1.
-endpoint = "http://localhost:3030/"
-enable   = true
+# [hermes_workspace] -- REMOVED 2026-05-13. The hermes-agent's own
+# dashboard at port 9119 is the canonical web UI (Sessions, Skills,
+# MCP, Plugins, Kanban -- the kanban API is /api/plugins/kanban/* on
+# port 9119 backed by /var/lib/mios/hermes/kanban.db). The separate
+# outsourc-e/hermes-workspace project at port 3030 was a redundant
+# chat front-end whose Tasks/Kanban panels haven't completed the
+# upstream migration to the agent's kanban API (Issue #311). Use
+# http://localhost:9119/ -- the agent dashboard auto-injects its
+# session token into its own HTML, so /api/plugins/kanban/* calls
+# authenticate from the in-page JS without external token wiring.
 
 # ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
@@ -1633,7 +1639,8 @@ ollama             = 11434    # alternate local LLM backend
 searxng            = 8888     # local privacy-respecting metasearch
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
-hermes_workspace   = 3030     # Hermes Workspace chat front-end
+# hermes_workspace REMOVED 2026-05-13 (port 3030 freed) -- use the
+# hermes-agent dashboard at port 9119 instead.
 code_server        = 8080     # code-server (VS Code in a browser; matches image default)
 k3s_api            = 6443     # K3s Kubernetes API
 guacamole_web      = 8090     # mios-guacamole browser desktop
@@ -1656,8 +1663,8 @@ searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
-hermes_workspace_version = "latest"
-hermes_workspace   = "ghcr.io/outsourc-e/hermes-workspace:latest"
+# hermes_workspace sidecar REMOVED 2026-05-13 -- replaced by the
+# hermes-agent's built-in dashboard at port 9119.
 code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
 ollama_version     = "latest"
@@ -1919,7 +1926,7 @@ quadlet_network_mode = "host"   # "host" (NAT default) | "bridge" (mirrored-safe
 # Pass-0 reap; safe to delete manually).
 # ----------------------------------------------------------------------------
 [desktop.start_menu]
-publish = ["forge", "cockpit", "code_server", "hermes_workspace", "searxng", "hermes_dashboard", "guacamole_web"]
+publish = ["forge", "cockpit", "code_server", "searxng", "hermes_dashboard", "guacamole_web"]
 
 forge_label              = "Forge"
 forge_scheme             = "http"
@@ -1933,9 +1940,8 @@ code_server_label        = "Code"
 code_server_scheme       = "http"
 code_server_port_key     = "code_server"
 
-hermes_workspace_label   = "Workspace"
-hermes_workspace_scheme  = "http"
-hermes_workspace_port_key = "hermes_workspace"
+# hermes_workspace shortcut REMOVED 2026-05-13 -- use the dashboard
+# shortcut (already in `publish` list above) at http://localhost:9119/.
 
 searxng_label            = "Search"
 searxng_scheme           = "http"
@@ -2441,13 +2447,16 @@ features = ["ai", "virtualization", "k3s"]
 # ----------------------------------------------------------------------------
 [quadlets.enable]
 # Chat chain: ollama (LLM + embeddings) -> mios-hermes (OpenAI gateway,
-# live MiOS agent at /) -> mios-hermes-workspace (web frontend).
+# live MiOS agent at /) -> mios-hermes-dashboard (web UI at port 9119
+# with built-in Sessions / Skills / MCP / Plugins / Kanban). The
+# separate outsourc-e/hermes-workspace front-end at port 3030 was
+# REMOVED 2026-05-13 -- redundant with the agent's own dashboard.
 mios-ceph             = true
 mios-k3s              = true
 mios-forge            = true
 mios-cockpit-link     = true
 mios-hermes           = true
-mios-hermes-workspace = true
+mios-hermes-dashboard = true
 mios-code-server      = true
 crowdsec-dashboard    = true
 ollama                = true

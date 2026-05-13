@@ -361,22 +361,22 @@ print_endpoints() {
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
     [[ -z "$_hw_pw" ]]  && _hw_pw="$_pw"
 
-    local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_workspace _p_code
+    local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_dash _p_code
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
     _p_searxng=$(_mios_port searxng 8888)
     _p_hermes=$(_mios_port hermes 8642)
-    _p_workspace=$(_mios_port hermes_workspace 3030)
+    _p_dash=$(_mios_port hermes_dashboard 9119)
     _p_code=$(_mios_port code_server 8080)
 
-    local d_forge d_ollama d_cockpit d_searxng d_hermes d_workspace d_code
+    local d_forge d_ollama d_cockpit d_searxng d_hermes d_dash d_code
     d_forge=$(ep_dot     "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot    "http://localhost:${_p_ollama}/")
     d_cockpit=$(ep_dot   "https://localhost:${_p_cockpit}/")
     d_searxng=$(ep_dot   "http://localhost:${_p_searxng}/")
     d_hermes=$(ep_dot    "http://localhost:${_p_hermes}/health")
-    d_workspace=$(ep_dot "http://localhost:${_p_workspace}/")
+    d_dash=$(ep_dot      "http://localhost:${_p_dash}/")
     d_code=$(ep_dot      "http://localhost:${_p_code}/")
 
     # Mini: count recap + 4 clickable hyperlink rows (Cockpit, Code,
@@ -434,17 +434,17 @@ print_endpoints() {
     local osc_lnk="${_esc}]8;;%s${_esc}\\%-9s${_esc}]8;;${_esc}\\"
     local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
     local row_fmt='  %b  %b\n'
-    local c_forge c_ollama c_cock c_srch c_herm c_work c_code
+    local c_forge c_ollama c_cock c_srch c_herm c_dash c_code
     c_forge=$( printf  "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"     "$C_D" "$_p_forge"     "$C_R")
     c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "http://localhost:${_p_ollama}/"    "Ollama"    "$C_D" "$_p_ollama"    "$C_R")
     c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"   "$C_D" "$_p_cockpit"   "$C_R")
     c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"    "$C_D" "$_p_searxng"   "$C_R")
     c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "http://localhost:${_p_hermes}/v1"  "Hermes"    "$C_D" "$_p_hermes"    "$C_R")
-    c_work=$(  printf  "$cell_fmt" "$d_workspace" "http://localhost:${_p_workspace}/" "Workspace" "$C_D" "$_p_workspace" "$C_R")
+    c_dash=$(  printf  "$cell_fmt" "$d_dash"      "http://localhost:${_p_dash}/"      "Dashboard" "$C_D" "$_p_dash"      "$C_R")
     c_code=$(  printf  "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"      "$C_D" "$_p_code"      "$C_R")
     printf "$row_fmt" "$c_forge" "$c_ollama"
     printf "$row_fmt" "$c_cock"  "$c_srch"
-    printf "$row_fmt" "$c_herm"  "$c_work"
+    printf "$row_fmt" "$c_herm"  "$c_dash"
     printf '  %b\n' "$c_code"
     # Backing services -- no exposed URL but stack-critical (CI runner,
     # network bridge, cluster). Dot-only indicators so the operator sees
