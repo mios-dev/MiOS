@@ -464,7 +464,7 @@ Service users: `50-mios.conf` (mios-virt UID 800), `50-mios-services.conf`
 
 ### `etc/containers/systemd/mios-ai.container`
 - **Image:** `docker.io/localai/localai:latest`
-- **Network:** `mios.network` (bound 10.89.0.0/24)
+- **Network:** `mios.network` (default 10.89.0.0/24; see `[network.quadlet]` in `mios.toml`)
 - **Port:** 8080 → `http://localhost:8080/v1` (LAW 5)
 - **Volumes:** `/srv/ai/models`, `/srv/ai/mcp`
 - **Env:** `MIOS_AI_KEY`, `MIOS_AI_MODEL`

@@ -216,6 +216,17 @@ KNOWN_VERBS = {
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
     "code":   ["xdg-open", "http://localhost:8080/"],
+    "xbox":   ["/usr/libexec/mios/fix-xbox-secureboot.sh"],
+    "virt":   ["/usr/libexec/mios/apply-final-config.sh"],
+    "vfio":   ["/usr/libexec/mios/universal-vfio-configurator.sh"],
+    "tune":   ["/usr/libexec/mios/universal-cpu-isolator.sh"],
+    "summary":["/usr/libexec/mios/quick-summary.sh"],
+    "profile":["/usr/libexec/mios/profiler-menu.sh"],
+    "assess": ["/usr/libexec/mios/system-assess.sh"],
+    "theme":  ["/usr/libexec/mios/bibata-suite.sh"],
+    "iommu":  ["/usr/libexec/mios/iommu-visualizer.sh"],
+    "user":   ["/usr/libexec/mios/init-user-space.sh"],
+    "flight": ["/usr/libexec/mios/flight-control.sh"],
     "help":   None,        # special-cased below
 }
 
@@ -228,6 +239,16 @@ def main(argv: list[str]) -> int:
             "  mios dash                            framed dashboard (services + endpoints + git tree)\n"
             "  mios config                          open the HTML configurator in your browser\n"
             "  mios code                            open code-server in your browser\n"
+            "  mios xbox                            Xbox VM Secure Boot / XML repair\n"
+            "  mios virt                            apply optimized VM config + CPU pinning\n"
+            "  mios vfio                            configure GPU/USB passthrough (Isolation)\n"
+            "  mios tune                            system-wide CPU isolation & latency tuning\n"
+            "  mios summary                         quick ASCII system overview\n"
+            "  mios profile                         interactive hardware/system profiler menu\n"
+            "  mios assess                          comprehensive system capability report\n"
+            "  mios iommu                           pretty-print hardware IOMMU topology\n"
+            "  mios theme                           sync bibata/GTK/Qt themes\n"
+            "  mios user                            initialize user space (dotfiles/XDG)\n"
             "  mios help                            this help\n\n"
             "Chat (anything else):\n"
             "  mios <prompt>                        chat + tool calls against Hermes-Agent\n"

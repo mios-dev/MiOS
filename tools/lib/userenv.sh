@@ -318,6 +318,10 @@ slots = [
     # ── network.quadlet (internal podman bridge) ───────────────────────────
     ("network.quadlet.network",        "MIOS_QUADLET_NETWORK"),
     ("network.quadlet.subnet",         "MIOS_QUADLET_SUBNET"),
+    ("network.quadlet.core_subnet",    "MIOS_CORE_NET_SUBNET"),
+    ("network.quadlet.core_gateway",   "MIOS_CORE_NET_GATEWAY"),
+    ("network.quadlet.ai_subnet",      "MIOS_AI_NET_SUBNET"),
+    ("network.quadlet.ai_gateway",     "MIOS_AI_NET_GATEWAY"),
     # legacy/lightweight aliases (keep older mios.toml drafts working)
     ("user.name",               "MIOS_USER"),
     ("user.hostname",           "MIOS_HOSTNAME"),

@@ -389,7 +389,8 @@ shadow lower layers field-by-field.
         │       (deployed `/` IS a git working tree of mios.git)
         │
         ├─ git push http://localhost:3000/mios/mios.git
-        │       (Forgejo on mios.network at 10.89.0.0/24)
+        (Forgejo on mios.network at 10.89.0.0/24 (default))
+
         │
         ├─ Forgejo Runner builds new OCI image
         │       (.forgejo/workflows/build-mios.yml; same Containerfile)

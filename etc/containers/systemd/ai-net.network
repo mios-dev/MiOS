@@ -14,6 +14,6 @@
 # Quadlet generates the actual podman network as 'systemd-ai-net'.
 
 [Network]
-Subnet=10.90.0.0/24
-Gateway=10.90.0.1
+Subnet=${MIOS_AI_NET_SUBNET:-10.90.0.0/24}
+Gateway=${MIOS_AI_NET_GATEWAY:-10.90.0.1}
 Label=io.mios.network=ai-stack

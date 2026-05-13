@@ -1748,6 +1748,10 @@ ai_ram_floor_gb    = 12   # informational; logged by postcheck
 [network.quadlet]
 network = "mios.network"
 subnet  = "10.89.0.0/24"
+core_subnet = "10.89.0.0/24"
+core_gateway = "10.89.0.1"
+ai_subnet = "10.90.0.0/24"
+ai_gateway = "10.90.0.1"
 
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
