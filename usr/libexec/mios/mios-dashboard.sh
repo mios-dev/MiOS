@@ -353,13 +353,11 @@ GLYPH_GIT=$''        #  code-branch
 
 # ── Sections (each printed UNFRAMED; frame_filter wraps after capture) ───────
 print_endpoints() {
-    local _user _pw _fpw _hw_pw
+    local _user _pw _fpw
     _user="${MIOS_LINUX_USER:-${MIOS_USER:-mios}}"
     _pw="${MIOS_DEFAULT_PASSWORD:-mios}"
     _fpw="$(cat /etc/mios/forge/admin-password 2>/dev/null)"
-    _hw_pw="$(grep '^HERMES_PASSWORD=' /etc/mios/hermes-workspace/workspace.env 2>/dev/null | cut -d= -f2)"
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
-    [[ -z "$_hw_pw" ]]  && _hw_pw="$_pw"
 
     local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_dash _p_code
     _p_forge=$(_mios_port forge_http 3000)
@@ -463,8 +461,8 @@ print_endpoints() {
         "$C_R" "$d_ceph"   "$C_D" "$C_R" \
         "$C_R" "$d_k3s"    "$C_D" "$C_R"
     # Credentials row (global MiOS password unless per-service override).
-    printf '  %slogin %s/%s   forge %s/%s   workspace %s/%s%s\n' \
-        "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$_user" "$_hw_pw" "$C_R"
+    printf '  %slogin %s/%s   forge %s/%s%s\n' \
+        "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$C_R"
 }
 
 print_quadlets() {
