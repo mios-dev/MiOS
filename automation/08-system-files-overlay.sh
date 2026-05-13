@@ -149,6 +149,23 @@ do
     find "$d" -type d -exec chmod 0755 {} + 2>/dev/null || true
 done
 
+# Dev VM Quadlet network mode -- mios.toml [wsl2.dev_vm].quadlet_network_mode
+# decides whether the *-host-network.conf dropins under
+# /etc/containers/systemd/<unit>.container.d/ stay installed (host mode,
+# NAT default) or get removed (bridge mode, mirrored-safe). Reads the
+# already-exported MIOS_QUADLET_DEV_NETWORK_MODE from userenv.sh; falls
+# back to "host" if userenv hasn't been sourced (vanilla bootc-only path).
+_dev_net_mode="${MIOS_QUADLET_DEV_NETWORK_MODE:-host}"
+if [[ "${_dev_net_mode}" == "bridge" ]]; then
+    log "08-overlay: [wsl2.dev_vm].quadlet_network_mode=bridge -- removing *-host-network.conf dropins"
+    shopt -s nullglob
+    for d in /etc/containers/systemd/*.container.d/*-host-network.conf; do
+        log "  removed (bridge mode): $d"
+        rm -f "$d"
+    done
+    shopt -u nullglob
+fi
+
 # Logically Bound Images -- bind every Quadlet from both vendor and admin paths
 # (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES).
 BDIR="/usr/lib/bootc/bound-images.d"

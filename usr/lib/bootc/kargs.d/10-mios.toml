@@ -1,0 +1,16 @@
+# /usr/lib/bootc/kargs.d/10-mios.toml
+# Flat array only. Honored by bootc per bootc.dev/bootc/building/kernel-arguments.html
+# Schema: kargs = [...]  and optional match-architectures = [...].
+# Do NOT introduce a [kargs] section header.
+
+kargs = [
+  "lockdown=integrity",
+  "init_on_alloc=0",
+  "init_on_free=0",
+  "page_alloc.shuffle=0",
+  "rd.driver.blacklist=nouveau",
+  "modprobe.blacklist=nouveau",
+  "nvidia-drm.modeset=1",
+  "nvidia.NVreg_PreserveVideoMemoryAllocations=1",
+]
+match-architectures = ["x86_64"]

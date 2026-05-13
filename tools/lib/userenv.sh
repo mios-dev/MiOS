@@ -245,6 +245,15 @@ slots = [
     ("bootstrap.dev_vm.host_reserve.disk_gb",    "MIOS_DEV_VM_DISK_RESERVE_GB"),
     ("bootstrap.host_storage.shrink_mb",   "MIOS_DATA_DISK_MB"),
     ("bootstrap.host_storage.drive_letter","MIOS_DATA_DISK_LETTER"),
+    # ── wsl2 (utility VM networking + dev VM Quadlet network mode) ────────
+    ("wsl2.networking_mode",                  "MIOS_WSL2_NETWORKING_MODE"),
+    ("wsl2.localhost_forwarding",             "MIOS_WSL2_LOCALHOST_FORWARDING"),
+    ("wsl2.firewall",                         "MIOS_WSL2_FIREWALL"),
+    ("wsl2.gui_applications",                 "MIOS_WSL2_GUI_APPLICATIONS"),
+    ("wsl2.desktop_compat.gdk_backend",       "MIOS_WSLG_GDK_BACKEND"),
+    ("wsl2.desktop_compat.moz_wayland",       "MIOS_WSLG_MOZ_WAYLAND"),
+    ("wsl2.desktop_compat.qt_platform",       "MIOS_WSLG_QT_PLATFORM"),
+    ("wsl2.dev_vm.quadlet_network_mode",      "MIOS_QUADLET_DEV_NETWORK_MODE"),
     # ── image.sidecars (sidecar container pins) ───────────────────────────
     ("image.sidecars.k3s_version",     "MIOS_K3S_VERSION"),
     ("image.sidecars.k3s",             "MIOS_K3S_IMAGE"),

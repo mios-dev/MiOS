@@ -1831,6 +1831,123 @@ cpus                = "max"
 memory_mb           = "max"
 disk_size_gb        = "max"
 gpu_passthrough     = "max"      # "max" | "none" | "nvidia" | "amd" | "intel"
+# rename_distro: false (default) keeps the WSL distro registered as
+# `podman-MiOS-DEV` (the name `podman machine init` creates) so Podman
+# Desktop can see and control the machine. true opts back in to the
+# legacy export/unregister/import-as-MiOS-DEV cycle which broke Podman
+# Desktop visibility (operator-confirmed regression 2026-05-12).
+# Operator-facing UX continues to read "MiOS-DEV" via the WT profile
+# name, Start Menu labels, and the `mios-dev` shell helper regardless.
+rename_distro       = false
+
+# ----------------------------------------------------------------------------
+# [wsl2] -- pre-Phase-0 WSL utility VM networking + resource knobs.
+# Get-MiOS.ps1 reads these and writes %USERPROFILE%\.wslconfig before any
+# `wsl.exe` invocation; build-mios.ps1 Phase 4 layers RAM/CPU/swap on top.
+# ----------------------------------------------------------------------------
+[wsl2]
+# networking_mode: "NAT" or "mirrored". NAT + localhost_forwarding=true is
+# the safe default. Mirrored mode TRIAL on build 26300.8376 / WSL 2.7.3.0
+# reproduced a port-mirror desync (Windows-side svchost relay holds the
+# Quadlet ports after WSL services crash → EADDRINUSE death-spiral on
+# auto-restart). Re-attempt mirrored after Quadlet migration: host-network
+# removal, sshd off the mirrored port range, explicit mirror cleanup on
+# service stop. Operator-confirmed 2026-05-12.
+networking_mode      = "NAT"
+localhost_forwarding = true
+firewall             = false        # only meaningful under mirrored mode
+gui_applications     = true
+dns_tunneling        = true
+auto_proxy           = true
+
+# ----------------------------------------------------------------------------
+# [wsl2.desktop_compat] -- WSLg-specific GUI app behavior knobs. WSLg's
+# Wayland compositor lacks xdg_popup reposition support (operator-
+# confirmed 2026-05-12: GTK4 popups detach from parent windows, stay
+# visible after minimize, don't follow window moves). Routing GTK / Qt
+# / Mozilla apps through Xwayland (X11 semantics work correctly under
+# WSLg) is the documented workaround. Switch back to native Wayland via
+# mios.html when WSLg's compositor implements the missing protocol.
+#
+# /etc/profile.d/mios-wslg.sh exports these as GDK_BACKEND /
+# MOZ_ENABLE_WAYLAND / QT_QPA_PLATFORM whenever /mnt/wslg is mounted.
+# ----------------------------------------------------------------------------
+[wsl2.desktop_compat]
+gdk_backend     = "x11"     # GTK apps: "x11" (Xwayland) | "wayland"
+moz_wayland     = "0"       # Firefox / mozilla: "0" (X11) | "1" (Wayland)
+qt_platform     = "xcb"     # Qt apps: "xcb" (X11) | "wayland" | "wayland;xcb"
+
+# ----------------------------------------------------------------------------
+# [wsl2.dev_vm] -- Quadlet networking knobs specific to the dev VM
+# (podman-MiOS-DEV). The dev VM ships dropins under
+# /etc/containers/systemd/<unit>.container.d/ that override the parent
+# unit's Network= directive (typically Network=mios.network +
+# Network=ai-net.network) to Network=host. This makes container-side
+# `localhost:N` references reach sibling services directly without
+# relying on the bridge's container-name DNS.
+#
+# Under WSL2 networking_mode=NAT the dev VM's loopback is isolated from
+# the Windows host's loopback, so Network=host is safe. Under
+# networking_mode=mirrored the WSL VM's loopback IS the Windows host's
+# loopback, and Network=host produces EADDRINUSE death-spirals
+# (operator-confirmed 2026-05-12: ollama/sshd/hermes etc. all looped
+# auto-restart with "address already in use"). Switch to "bridge" when
+# migrating to mirrored mode -- the parent units already declare
+# ai-net.network, so the only change is to NOT install the host-network
+# dropins. automation/08-system-files-overlay.sh honors this key and
+# removes any *-host-network.conf dropin when bridge is selected.
+# ----------------------------------------------------------------------------
+[wsl2.dev_vm]
+quadlet_network_mode = "host"   # "host" (NAT default) | "bridge" (mirrored-safe)
+
+# ----------------------------------------------------------------------------
+# [desktop.start_menu] -- explicit Windows Start Menu shortcuts for MiOS
+# web services. WSLg's auto-publish heuristic filters out
+# Categories=System;Network;Settings; entries and Exec=xdg-open URL
+# patterns (operator-confirmed 2026-05-12 in podman-MiOS-DEV: 10
+# mios-svc-*.desktop files present, 0 surfaced as native Windows
+# shortcuts). Install-MiOSServiceShortcuts in Get-MiOS.ps1 reads the
+# `publish` list below + per-entry label/scheme keys, resolves the port
+# from [ports].<port_key>, and writes one .url Internet shortcut per
+# entry into %APPDATA%\Microsoft\Windows\Start Menu\Programs\
+# podman-MiOS-DEV\. Each shortcut opens scheme://localhost:port/ in the
+# default Windows browser. Idempotent.
+#
+# Add a new service: append its key to `publish` and add three keys
+# (<key>_label, <key>_scheme, <key>_port_key). Remove a service by
+# dropping it from `publish` (existing .lnk persists until the next
+# Pass-0 reap; safe to delete manually).
+# ----------------------------------------------------------------------------
+[desktop.start_menu]
+publish = ["forge", "cockpit", "code_server", "hermes_workspace", "searxng", "hermes_dashboard", "guacamole_web"]
+
+forge_label              = "Forge"
+forge_scheme             = "http"
+forge_port_key           = "forge_http"
+
+cockpit_label            = "Cockpit"
+cockpit_scheme           = "https"
+cockpit_port_key         = "cockpit"
+
+code_server_label        = "Code"
+code_server_scheme       = "http"
+code_server_port_key     = "code_server"
+
+hermes_workspace_label   = "Workspace"
+hermes_workspace_scheme  = "http"
+hermes_workspace_port_key = "hermes_workspace"
+
+searxng_label            = "Search"
+searxng_scheme           = "http"
+searxng_port_key         = "searxng"
+
+hermes_dashboard_label   = "Dashboard"
+hermes_dashboard_scheme  = "http"
+hermes_dashboard_port_key = "hermes_dashboard"
+
+guacamole_web_label      = "Guacamole"
+guacamole_web_scheme     = "http"
+guacamole_web_port_key   = "guacamole_web"
 
 # ----------------------------------------------------------------------------
 # [bootstrap.dev_vm.host_reserve] -- headroom kept for the Windows host
@@ -1854,9 +1971,50 @@ disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
 # package id, a different Podman distribution channel) via mios.html.
 # ----------------------------------------------------------------------------
 [bootstrap.prereqs]
-git_pkg             = "Git.Git"
-wsl_pkg             = "Microsoft.WSL"
-podman_pkg          = "RedHat.Podman-Desktop"
+# Every winget ID + Windows feature the irm|iex bootstrap installs on a
+# truly-fresh Win 11 host. Operator-confirmed 2026-05-12: "MiOS should
+# automatically install EVERYTHING needed to install MiOS via irm|iex".
+# Scattered hardcoded IDs in Get-MiOS.ps1's Install-MiOS* functions
+# should be lifted to these keys (one TOML-first refactor in flight).
+#
+# winget package IDs (each Install-MiOS* function reads its key here):
+git_pkg             = "Git.Git"                         # Git for Windows (Install-* uses for clone)
+wsl_pkg             = "Microsoft.WSL"                   # WSL2 substrate (kernel + wsl.exe)
+podman_pkg          = "RedHat.Podman-Desktop"           # Podman Desktop GUI + machine
+podman_cli_pkg      = "RedHat.Podman"                   # Podman CLI MSI (lays down podman.exe + PATH)
+terminal_pkg        = "Microsoft.WindowsTerminal"       # Windows Terminal (Install-MiOSWindowsTerminal)
+pwsh_pkg            = "Microsoft.PowerShell"            # pwsh 7+ (Install-MiOSPwsh7)
+ohmyposh_pkg        = "JanDeDobbeleer.OhMyPosh"         # oh-my-posh prompt (Install-MiOSOhMyPoshTheme)
+fastfetch_pkg       = "fastfetch-cli.fastfetch"         # fastfetch (Install-MiOSFastfetch)
+appinstaller_pkg    = "Microsoft.AppInstaller"          # winget itself (bootstrap winget on truly bare Win 11 ≤ 21H2)
+# Direct-download URL for the App Installer MSIXBUNDLE. Used by
+# Ensure-MiOSWinget when winget is missing AND no source for it exists
+# (truly fresh Win 10 21H2 / OOBE-fresh hosts). aka.ms/getwinget redirects
+# to the latest stable .msixbundle from microsoft/winget-cli releases.
+appinstaller_url    = "https://aka.ms/getwinget"
+
+# Windows optional features (Enable-MiOSWindowsFeatures iterates these).
+# label keys are operator-readable strings used in install banners.
+[bootstrap.prereqs.features]
+wsl                 = "Microsoft-Windows-Subsystem-Linux"   # WSL substrate
+vmp                 = "VirtualMachinePlatform"              # WSL2 + Hyper-V hypervisor
+hyperv              = "Microsoft-Hyper-V"                   # Hyper-V Manager + VMs (Pro/Ent only)
+# reboot_required_features: the ordered list above; if any reports
+# RestartNeeded after Enable-WindowsOptionalFeature, Pass-2 must reboot
+# and re-enter (operator-flagged: NO mid-install reboots without a
+# resume-on-next-boot mechanism). Until that resume mechanism is wired,
+# Get-MiOS.ps1 surfaces a "reboot then re-run irm|iex" hint and exits
+# Pass-2 cleanly so the operator doesn't watch downstream steps fail.
+require_reboot_to_continue = true
+
+# Repo URLs cloned to M:\MiOS\repo\{mios,mios-bootstrap} during Pass-2.
+# Branch defaults to main; pin to a tag/SHA for reproducible installs.
+[bootstrap.prereqs.repos]
+mios_url            = "https://github.com/mios-dev/mios.git"
+mios_branch         = "main"
+bootstrap_url       = "https://github.com/mios-dev/mios-bootstrap.git"
+bootstrap_branch    = "main"
+clone_root          = "M:\\MiOS\\repo"
 
 # ----------------------------------------------------------------------------
 # [terminal] -- canonical MiOS terminal dimensions. EVERY spawned shell
@@ -2028,7 +2186,20 @@ size                = 16
 family              = "GeistMono Nerd Font Mono"
 size                = 12
 weight              = "normal"
-url                 = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/GeistMono.zip"
+# Source URLs for the three font families MiOS deploys system-wide. All
+# three are read by build-mios.ps1's font installer; mios.html exposes
+# them so operators can pin to a specific release tag instead of
+# "latest". Linux side: automation/09-fonts.sh reads the same keys.
+url                 = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/GeistMono.zip"   # GeistMono Nerd Font (mono + glyphs)
+vercel_repo         = "https://github.com/vercel/geist-font.git"                                         # Vercel Geist (sans + mono, no glyphs)
+symbols_url         = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip"   # Nerd Symbols Only (icon glyphs the omp theme uses)
+# install_scope: "system" forces HKLM + C:\Windows\Fonts (requires admin),
+# "user" forces HKCU + %LOCALAPPDATA%\Microsoft\Windows\Fonts, "auto"
+# (default) picks system when running elevated, user otherwise. Operator
+# can pin via mios.html. Geist is the MiOS GLOBAL font per operator
+# 2026-05-12: "Linux and Windows Font is Geist font (system-wide --
+# terminals, apps, UI, etc-etc)" -- system scope is the canonical mode.
+install_scope       = "auto"
 # Cell metrics at 100% DPI (used to compute window pixel size for
 # centering): cell_w * cols + chrome_w, cell_h * rows + chrome_h.
 cell_w_px           = 10

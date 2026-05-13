@@ -1,0 +1,28 @@
+# /etc/containers/systemd/localai.container
+# Optional. Drop /etc/mios/agents/localai.enabled to activate the
+# discovery probe path.
+
+[Unit]
+Description=LocalAI (OpenAI-compatible multi-modal inference)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=localai
+Image=quay.io/go-skynet/local-ai:latest-gpu-nvidia-cuda-12
+AutoUpdate=registry
+Volume=/var/lib/mios/localai/models:/build/models:Z
+# Bind 0.0.0.0 so WSL2 NAT-mode localhostForwarding reaches Windows host.
+PublishPort=8080:8080
+AddDevice=nvidia.com/gpu=all
+Environment=LOCALAI_MODELS_PATH=/build/models
+Environment=THREADS=8
+Environment=DEBUG=false
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

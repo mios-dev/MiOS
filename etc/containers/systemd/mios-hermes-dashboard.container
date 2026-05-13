@@ -27,11 +27,21 @@ ConditionPathIsDirectory=/etc/mios/hermes
 ConditionPathExists=/etc/mios/hermes/api.env
 
 [Container]
-Image=${MIOS_HERMES_IMAGE:-docker.io/nousresearch/hermes-agent:latest}
+# Image / Port / Network: hand-rendered literals to bypass podman's
+# "cannot parse ${VAR:-default} as IP" parser bug -- same pattern as
+# mios-hermes.container lines 30-45. SSOT resolution happens at install
+# time when build-mios.ps1 reads mios.toml [image.sidecars].hermes /
+# [ports].hermes_dashboard / [services.hermes] and overwrites these
+# literals before the dev VM imports the file. Operator-flagged
+# 2026-05-12: with the envsubst expression left in place,
+# mios-hermes-dashboard.service died in auto-restart with
+#   "Error: cannot parse \"${MIOS_PORT_HERMES_DASHBOARD\" as an IP address"
+# (15+ restart cycles before debug capture).
+Image=docker.io/nousresearch/hermes-agent:latest
 ContainerName=mios-hermes-dashboard
 Network=ai-net.network
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
-PublishPort=${MIOS_PORT_HERMES_DASHBOARD:-9119}:9119
+Network=mios.network
+PublishPort=9119:9119
 AutoUpdate=registry
 
 # SHARED state with the gateway -- /opt/data is the same /var/lib/mios/hermes

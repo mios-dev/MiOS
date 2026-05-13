@@ -85,3 +85,35 @@ if [ -z "${WSL_INTEROP:-}" ]; then
     [ -n "$_wsl_interop" ] && export WSL_INTEROP="$_wsl_interop"
     unset _wsl_interop
 fi
+
+# GDK_BACKEND=x11 -- WSLg's Wayland compositor (mios-confirmed
+# 2026-05-12) lacks xdg_popup reposition support. Symptom: GTK4 apps
+# (Epiphany, Nautilus, GNOME Settings) emit
+#   "Gdk-WARNING **: Compositor doesn't support moving popups, relying
+#    on remapping"
+# and their dropdowns / context menus / autocomplete popups detach from
+# the parent window, stay rendered when the window is minimized, and
+# don't follow window movement. Routing GTK through Xwayland (which
+# handles popups via X11 semantics that the compositor implements
+# correctly) is the documented WSLg workaround until WSLg's compositor
+# implements the missing protocol.
+#
+# Operator override: set MIOS_WSLG_GDK_BACKEND=wayland (via mios.toml
+# [wsl2.desktop_compat].gdk_backend) to opt back in to native Wayland.
+# Empty / unset means use the default ("x11"). Honor a pre-existing
+# user export (operator running a one-off `GDK_BACKEND=wayland epiphany`
+# from the shell wins).
+if [ -z "${GDK_BACKEND:-}" ]; then
+    export GDK_BACKEND="${MIOS_WSLG_GDK_BACKEND:-x11}"
+fi
+# MOZ_ENABLE_WAYLAND=0 -- same reasoning for Firefox / mozilla apps.
+# Pure Wayland Firefox in WSLg has the same popup-detachment bug.
+if [ -z "${MOZ_ENABLE_WAYLAND:-}" ]; then
+    export MOZ_ENABLE_WAYLAND="${MIOS_WSLG_MOZ_WAYLAND:-0}"
+fi
+# QT_QPA_PLATFORM -- Qt apps fall back to xcb (X11) for the same reason.
+# Comma-separated lets Qt try wayland first then xcb if the operator
+# overrides; default routes straight to xcb to skip the broken path.
+if [ -z "${QT_QPA_PLATFORM:-}" ]; then
+    export QT_QPA_PLATFORM="${MIOS_WSLG_QT_PLATFORM:-xcb}"
+fi
