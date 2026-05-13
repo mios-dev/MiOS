@@ -1,26 +1,42 @@
 #!/usr/bin/env bash
 # /usr/bin/hermes
-# Sibling of /usr/bin/@ -- both delegate to /usr/bin/mios (the
-# OpenAI-compatible Python CLI that targets MIOS_AI_ENDPOINT, default
-# http://localhost:8642/v1 = the Hermes-Agent gateway).
+# Launch the actual hermes-agent CLI inside the mios-hermes container.
+# Operator directive 2026-05-13: "'hermes' should launch Hermes directly".
 #
-# Why three names for the same thing:
-#   * mios <prompt>     -- canonical CLI, also dispatches verbs (dash,
-#                          config, etc.) when the first arg matches.
-#   * @ <prompt>        -- shell-position-free shortcut (bundle's
-#                          designed convention; works in scripts + pipes).
-#   * hermes <prompt>   -- explicit name for "talk to Hermes"; useful
-#                          when scripts make the agent identity readable.
+# Usage:
+#   hermes                          interactive chat REPL (no args)
+#   hermes dashboard                start the agent dashboard server
+#   hermes session list             list sessions
+#   hermes <any subcommand>         passes through to upstream hermes CLI
 #
-# Pipes work: `echo "summarize this" | hermes`
+# Why exec into the container instead of installing the hermes binary
+# host-side: the hermes-agent CLI ships with the agent's Python venv +
+# config + skills + kanban DB inside docker.io/nousresearch/hermes-agent.
+# Re-installing host-side would diverge from the in-container state and
+# break SQLite/file-path assumptions. The container is the canonical
+# install -- this wrapper just makes it CLI-accessible from any MiOS
+# bash session.
+#
+# `mios <prompt>` and `@<prompt>` (no space) remain the canonical
+# one-shot chat surfaces -- they target the OpenAI gateway directly
+# via /usr/bin/mios. `hermes` is the Hermes CLI itself.
+
 set -euo pipefail
 
-prompt="$*"
-if [ -z "$prompt" ] && [ ! -t 0 ]; then
-    prompt="$(cat)"
+if ! command -v podman >/dev/null 2>&1; then
+    echo "hermes: podman not found -- the agent CLI runs inside the mios-hermes container." >&2
+    exit 127
 fi
-if [ -z "$prompt" ]; then
-    echo "hermes: empty prompt. Usage: hermes <query>  or  echo Q | hermes" >&2
-    exit 2
+
+if ! podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'mios-hermes'; then
+    echo "hermes: mios-hermes container is not running." >&2
+    echo "  start it: systemctl --user start mios-hermes.service  (or: sudo systemctl start mios-hermes.service)" >&2
+    exit 1
 fi
-exec /usr/bin/mios "$prompt"
+
+# -i + -t when the parent has a tty (interactive); -i only when piped.
+if [ -t 0 ] && [ -t 1 ]; then
+    exec podman exec -it mios-hermes hermes "$@"
+else
+    exec podman exec -i  mios-hermes hermes "$@"
+fi
