@@ -401,20 +401,35 @@ print_endpoints() {
     # OSC 8 hyperlinks even without explicit escape sequences, so a
     # plain `http://localhost:PORT/` is clickable.
     section_header "Services"
-    # Cell budget: 76 inner cols - 2-space indent - 2-space row sep =
-    # 72 visible / 2 cells = 36 per cell. Cell = dot(1)+sp(1)+name(9)+
-    # sp(1)+url(24) = 36. Longest URL "http://localhost:8642/v1" = 24
-    # chars exactly, so 24-wide URL pad fits without truncation.
-    local cell_fmt='%s %-9s %s%-24s%s'
+    # OSC 8 hyperlink format -- the service NAME itself is the click
+    # target; the URL is hidden in the OSC 8 metadata. Modern terminals
+    # (Windows Terminal, Ptyxis, Konsole, GNOME Terminal, kitty,
+    # WezTerm, Alacritty) all render this as a clickable link without
+    # showing the URL inline. Frees ~24 cols per cell and lets the
+    # full 7-service grid fit in the canonical 80x40 frame without
+    # right-edge URL truncation (operator-confirmed 2026-05-13:
+    # `http://localhost:11434/` was eaten to `http://localhos…` because
+    # the 24-char URL pad + frame chrome overflowed the inner width).
+    #
+    # Cell budget now: dot(1)+sp(1)+name(9)+sp(1)+:port(6) = 18 cols.
+    # Two cells + 2-space indent + 2-space row sep = 40 cols. ~36 cols
+    # of slack vs the previous 76-col packed layout.
+    #
+    # OSC 8 escape: \e]8;;URL\e\\TEXT\e]8;;\e\\  -- emits a hyperlink
+    # whose anchor text is TEXT and whose target is URL. Operator
+    # clicks the service name, browser opens. printf %b expands the
+    # escapes; %s would print them literally.
+    local osc_lnk='\033]8;;%s\033\\%-9s\033]8;;\033\\'
+    local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
     local row_fmt='  %b  %b\n'
     local c_forge c_ollama c_cock c_srch c_herm c_work c_code
-    c_forge=$( printf  "$cell_fmt" "$d_forge"     "Forge"     "$C_D" "http://localhost:${_p_forge}/"     "$C_R")
-    c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "Ollama"    "$C_D" "http://localhost:${_p_ollama}/"    "$C_R")
-    c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "Cockpit"   "$C_D" "https://localhost:${_p_cockpit}/"  "$C_R")
-    c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "Search"    "$C_D" "http://localhost:${_p_searxng}/"   "$C_R")
-    c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "Hermes"    "$C_D" "http://localhost:${_p_hermes}/v1"  "$C_R")
-    c_work=$(  printf  "$cell_fmt" "$d_workspace" "Workspace" "$C_D" "http://localhost:${_p_workspace}/" "$C_R")
-    c_code=$(  printf  "$cell_fmt" "$d_code"      "Code"      "$C_D" "http://localhost:${_p_code}/"      "$C_R")
+    c_forge=$( printf  "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"     "$C_D" "$_p_forge"     "$C_R")
+    c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "http://localhost:${_p_ollama}/"    "Ollama"    "$C_D" "$_p_ollama"    "$C_R")
+    c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"   "$C_D" "$_p_cockpit"   "$C_R")
+    c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"    "$C_D" "$_p_searxng"   "$C_R")
+    c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "http://localhost:${_p_hermes}/v1"  "Hermes"    "$C_D" "$_p_hermes"    "$C_R")
+    c_work=$(  printf  "$cell_fmt" "$d_workspace" "http://localhost:${_p_workspace}/" "Workspace" "$C_D" "$_p_workspace" "$C_R")
+    c_code=$(  printf  "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"      "$C_D" "$_p_code"      "$C_R")
     printf "$row_fmt" "$c_forge" "$c_ollama"
     printf "$row_fmt" "$c_cock"  "$c_srch"
     printf "$row_fmt" "$c_herm"  "$c_work"
