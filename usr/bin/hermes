@@ -34,9 +34,16 @@ if ! podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'mios-hermes'; then
     exit 1
 fi
 
+# Full path -- the upstream image's PATH doesn't include
+# /opt/hermes/.venv/bin (the Python venv where the hermes entry-point
+# script lives). Operator-confirmed 2026-05-13: bare `hermes` in the
+# container failed with `crun: executable file 'hermes' not found in
+# $PATH`. Hardcoding the venv path is the canonical workaround.
+HERMES_BIN=/opt/hermes/.venv/bin/hermes
+
 # -i + -t when the parent has a tty (interactive); -i only when piped.
 if [ -t 0 ] && [ -t 1 ]; then
-    exec podman exec -it mios-hermes hermes "$@"
+    exec podman exec -it mios-hermes "$HERMES_BIN" "$@"
 else
-    exec podman exec -i  mios-hermes hermes "$@"
+    exec podman exec -i  mios-hermes "$HERMES_BIN" "$@"
 fi
