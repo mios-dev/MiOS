@@ -28,7 +28,7 @@ ConditionPathExists=/etc/mios/hermes/api.env
 
 [Container]
 # Image / Port / Network: hand-rendered literals to bypass podman's
-# "cannot parse ${VAR:-default} as IP" parser bug -- same pattern as
+# "cannot parse default as IP" parser bug -- same pattern as
 # mios-hermes.container lines 30-45. SSOT resolution happens at install
 # time when build-mios.ps1 reads mios.toml [image.sidecars].hermes /
 # [ports].hermes_dashboard / [services.hermes] and overwrites these
@@ -61,8 +61,8 @@ Environment=HERMES_BACKEND_MODEL=qwen3.5:2b
 Environment=HERMES_CONFIG_PATH=/etc/hermes/config.yaml
 Environment=MIOS_AGENT_ROOT=/mios
 
-User=${MIOS_HERMES_UID:-820}
-Group=${MIOS_HERMES_GID:-820}
+User=820
+Group=820
 
 Label=org.opencontainers.image.title=mios-hermes-dashboard
 Label=org.opencontainers.image.url=http://localhost:9119/

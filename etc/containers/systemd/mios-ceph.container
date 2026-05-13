@@ -24,9 +24,9 @@ ConditionVirtualization=!container
 [Container]
 # Image placeholder -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].ceph.
-Image=${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:v19}
+Image=quay.io/ceph/ceph:v19
 ContainerName=mios-ceph
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Network=mios.network
 Volume=/var/lib/ceph:/var/lib/ceph:Z
 Volume=/etc/ceph:/etc/ceph:Z
 Exec=mon

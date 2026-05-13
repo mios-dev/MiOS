@@ -26,7 +26,7 @@ Wants=network-online.target
 # Image / port placeholders rendered at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].
 # code_server + [ports].code_server.
-Image=${MIOS_CODE_SERVER_IMAGE:-ghcr.io/coder/code-server:latest}
+Image=ghcr.io/coder/code-server:latest
 ContainerName=mios-code-server
 # Run as the mios operator. MIOS_CODE_SERVER_UID / MIOS_CODE_SERVER_GID
 # are resolved at image-build time by 15-render-quadlets.sh from
@@ -61,20 +61,20 @@ Volume=/var/lib/mios/code-server:/home/coder
 # into the path arg, breaking podman --env-file. Rotate by editing
 # mios.toml + rebuilding (or hand-edit this Environment= line on a
 # live host then `systemctl daemon-reload && systemctl restart`).
-Environment=PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}
-Environment=SUDO_PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}
+Environment=PASSWORD=mios
+Environment=SUDO_PASSWORD=mios
 Environment=DEFAULT_WORKSPACE=/home/coder
 # The upstream image's ENTRYPOINT hardcodes --bind-addr 0.0.0.0:8080.
 # We use port 8080 with Network=host so the container's listener IS
 # the host's. BIND_ADDR is kept for completeness but the entrypoint
 # arg wins.
-Environment=BIND_ADDR=0.0.0.0:${MIOS_PORT_CODE_SERVER:-8080}
+Environment=BIND_ADDR=0.0.0.0:8080
 AutoUpdate=registry
 
 Label=org.opencontainers.image.title=mios-code-server
-Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8080}/
+Label=org.opencontainers.image.url=http://localhost:8080/
 Label=org.opencontainers.image.documentation=https://github.com/coder/code-server
-Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_CODE_SERVER:-8080}/
+Label=io.podman_desktop.openInBrowser=http://localhost:8080/
 
 [Service]
 Restart=on-failure

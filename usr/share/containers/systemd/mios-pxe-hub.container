@@ -11,8 +11,8 @@ ConditionVirtualization=!container
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].pxe_hub and [network.quadlet].network.
-Image=${MIOS_PXE_HUB_IMAGE:-quay.io/poseidon/matchbox:latest}
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Image=quay.io/poseidon/matchbox:latest
+Network=mios.network
 AutoUpdate=registry
 User=mios-pxe-hub
 Group=mios-pxe-hub

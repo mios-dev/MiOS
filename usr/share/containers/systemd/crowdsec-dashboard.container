@@ -10,8 +10,8 @@ ConditionPathExists=/etc/crowdsec/config.yaml
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].crowdsec and [network.quadlet].network.
-Image=${MIOS_CROWDSEC_IMAGE:-docker.io/crowdsecurity/crowdsec:latest}
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Image=docker.io/crowdsecurity/crowdsec:latest
+Network=mios.network
 AutoUpdate=registry
 User=mios-crowdsec
 Group=mios-crowdsec

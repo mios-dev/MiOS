@@ -52,9 +52,9 @@ ConditionVirtualization=|wsl
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].forge_runner and [network.quadlet].network.
-Image=${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}
+Image=code.forgejo.org/forgejo/runner:7
 ContainerName=mios-forgejo-runner
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Network=mios.network
 # The upstream image ships CMD=[/bin/forgejo-runner] with an empty
 # entrypoint, so the bare invocation prints CLI help and exits.
 # Force the entrypoint + daemon subcommand so the registration +

@@ -13,7 +13,7 @@ Volume=/var/lib/mios/qdrant:/qdrant/storage:Z
 # Bind 0.0.0.0 so WSL2 NAT-mode localhostForwarding reaches Windows host.
 PublishPort=6333:6333
 PublishPort=6334:6334
-Environment=QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
+Environment=QDRANT__SERVICE__API_KEY=
 # LAW 6 (UNPRIVILEGED-QUADLETS) compliance per AGENTS.md §5: every
 # Quadlet must declare User=, Group=, Delegate=. qdrant needs root for
 # the /qdrant/storage bind volume (upstream image runs as root and

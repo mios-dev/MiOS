@@ -10,7 +10,7 @@ Wants=network-online.target
 # Image / Port placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].ollama
 # and [ports].ollama.
-Image=${MIOS_OLLAMA_IMAGE:-docker.io/ollama/ollama:latest}
+Image=docker.io/ollama/ollama:latest
 # ContainerName must be 'mios-ollama' -- ollama-firstboot.sh polls
 # `podman exec mios-ollama ollama list` to know when the container is
 # ready, and Podman Desktop's link discovery treats the name as the
@@ -20,7 +20,7 @@ ContainerName=mios-ollama
 # Dual-network: mios.network = historical core bridge; ai-net.network =
 # AI-stack bridge so mios-hermes can reach mios-ollama:<port> by
 # container name (deploy-aistack.sh's HERMES_BACKEND_BASE_URL target).
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Network=mios.network
 Network=ai-net.network
 AutoUpdate=registry
 # GPU passthrough. nvidia.com/gpu=all resolves to the CDI spec written
@@ -42,8 +42,8 @@ AddDevice=nvidia.com/gpu=all
 # usr/lib/sysusers.d/50-mios-services.conf so the host's mios-ollama
 # user has the same UID and the /var/lib/ollama volume ownership
 # stays consistent.
-User=${MIOS_OLLAMA_UID:-815}
-Group=${MIOS_OLLAMA_GID:-815}
+User=815
+Group=815
 # Bind 0.0.0.0 so the WSL VM's eth0 (NAT IP) accepts inbound from the
 # Windows-host netsh portproxy that build-mios.ps1 sets up
 # (0.0.0.0:11434 -> <WSL-VM-IP>:11434). Pre-2026-05-13 history: was
@@ -58,7 +58,7 @@ Group=${MIOS_OLLAMA_GID:-815}
 # Open WebUI). Operator-confirmed 2026-05-13: with HOST=127.0.0.1,
 # Windows-host localhost:11434 returned 000 even with portproxy +
 # Hyper-V firewall opened.
-Environment=OLLAMA_HOST=0.0.0.0:${MIOS_PORT_OLLAMA:-11434}
+Environment=OLLAMA_HOST=0.0.0.0:11434
 Environment=OLLAMA_ORIGINS=*
 # Point ollama at the writable runtime store. mios-ollama-firstboot.
 # service hardlink-copies the build-baked seed (/usr/share/ollama/
@@ -74,7 +74,7 @@ Environment=OLLAMA_MODELS=/var/lib/ollama/models
 Volume=/var/lib/ollama:/var/lib/ollama:Z
 Volume=/usr/share/ollama:/usr/share/ollama:ro,Z
 
-PublishPort=0.0.0.0:${MIOS_PORT_OLLAMA:-11434}:11434
+PublishPort=0.0.0.0:11434:11434
 
 # OCI labels for Podman Desktop discovery. Values MUST NOT contain
 # spaces -- Quadlet's Label= parser word-splits on whitespace and emits

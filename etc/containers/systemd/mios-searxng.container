@@ -25,15 +25,15 @@ ConditionPathIsDirectory=/etc/mios/searxng
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].searxng,
 # [ports].searxng, [services.searxng].uid/.gid. Multi-arch index manifest
 # at the upstream tag covers amd64 / arm64 / armv7.
-Image=${MIOS_SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}
+Image=docker.io/searxng/searxng:latest
 ContainerName=mios-searxng
 # Dual-network: mios.network keeps the unit reachable; ai-net.network
 # puts SearXNG on the same bridge as mios-hermes so the agent's
 # `web_search` tool reaches it by container name.
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Network=mios.network
 Network=ai-net.network
 # Canonical MiOS SearXNG port (mios.toml [ports].searxng = 8888).
-PublishPort=${MIOS_PORT_SEARXNG:-8888}:${MIOS_PORT_SEARXNG:-8888}
+PublishPort=8888:8888
 
 # Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
 # the container expects them at /etc/searxng inside. We bind-mount the
@@ -51,21 +51,21 @@ Volume=/var/cache/mios/searxng:/var/cache/searxng:Z
 # overriding it so host-side bind-mounts are owned by mios-searxng and
 # the container process can still read+write because the volumes are
 # chowned <uid>:<gid> by usr/lib/tmpfiles.d/mios-searxng.conf at boot.
-User=${MIOS_SEARXNG_UID:-818}
-Group=${MIOS_SEARXNG_GID:-818}
+User=818
+Group=818
 
 # Public base URL for generated absolute links (RSS, opensearch.xml).
 # Operators fronting SearXNG behind a reverse proxy override this in
 # /etc/mios/searxng/settings.yml -> server.base_url.
-Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8888}/
+Environment=SEARXNG_BASE_URL=http://localhost:8888/
 # SearXNG's entrypoint runs granian, which reads GRANIAN_HOST/PORT.
 # Pin both to 8888 so host-network and bridge-network deployments
 # both bind where MiOS expects. BIND_ADDRESS/SEARXNG_BIND_ADDRESS
 # are kept for upstream Helm-chart parity.
-Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
-Environment=BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8888}
+Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:8888
+Environment=BIND_ADDRESS=0.0.0.0:8888
 Environment=GRANIAN_HOST=0.0.0.0
-Environment=GRANIAN_PORT=${MIOS_PORT_SEARXNG:-8888}
+Environment=GRANIAN_PORT=8888
 
 # Limit log volume; SearXNG is chatty per-query.
 Environment=SEARXNG_LOG_LEVEL=WARNING

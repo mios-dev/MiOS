@@ -21,16 +21,16 @@ ConditionPathExists=/etc/mios/hermes/api.env
 [Container]
 # Image / port placeholders rendered at image build time by
 # automation/15-render-quadlets.sh from mios.toml.
-Image=${MIOS_HERMES_WORKSPACE_IMAGE:-ghcr.io/outsourc-e/hermes-workspace:latest}
+Image=ghcr.io/outsourc-e/hermes-workspace:latest
 ContainerName=mios-hermes-workspace
 # Upstream node:22-slim image declares no USER and expects root to
 # chown /app/data + spawn /scripts/pty-helper. Law 6 exception
 # matches mios-ceph and mios-k3s.
 User=0
 Group=0
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Network=mios.network
 Network=ai-net.network
-PublishPort=${MIOS_PORT_HERMES_WORKSPACE:-3030}:${MIOS_PORT_HERMES_WORKSPACE:-3030}
+PublishPort=3030:3030
 AutoUpdate=registry
 
 # HERMES_API_TOKEN sourced from /etc/mios/hermes/api.env. Quadlet
@@ -38,9 +38,9 @@ AutoUpdate=registry
 # contents, so the env file is loaded directly here.
 EnvironmentFile=/etc/mios/hermes/api.env
 EnvironmentFile=/etc/mios/hermes-workspace/workspace.env
-Environment=HERMES_API_URL=http://mios-hermes:${MIOS_PORT_HERMES:-8642}
+Environment=HERMES_API_URL=http://mios-hermes:8642
 # Override upstream PORT=3000 to keep 3030 (mios.toml [ports].hermes_workspace).
-Environment=PORT=${MIOS_PORT_HERMES_WORKSPACE:-3030}
+Environment=PORT=3030
 # Browsers drop Secure cookies over plain HTTP; the workspace's
 # NODE_ENV=production default sets Secure. Disable so first-time login
 # works without a TLS proxy in front. Flip back to 1 in
@@ -48,9 +48,9 @@ Environment=PORT=${MIOS_PORT_HERMES_WORKSPACE:-3030}
 Environment=COOKIE_SECURE=0
 
 Label=org.opencontainers.image.title=mios-hermes-workspace
-Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_HERMES_WORKSPACE:-3030}/
+Label=org.opencontainers.image.url=http://localhost:3030/
 Label=org.opencontainers.image.documentation=https://github.com/outsourc-e/hermes-workspace
-Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_HERMES_WORKSPACE:-3030}/
+Label=io.podman_desktop.openInBrowser=http://localhost:3030/
 
 [Service]
 Restart=on-failure

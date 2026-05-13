@@ -11,8 +11,8 @@ ConditionVirtualization=!container
 # Image / Port placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].guacamole
 # and [ports].guacamole_web.
-Image=${MIOS_GUACAMOLE_IMAGE:-docker.io/guacamole/guacamole:latest}
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Image=docker.io/guacamole/guacamole:latest
+Network=mios.network
 AutoUpdate=registry
 User=mios-guacamole
 Group=mios-guacamole
@@ -21,7 +21,7 @@ Group=mios-guacamole
 # already taken by mios-ai (LocalAI OpenAI-API endpoint, LAW 5). The
 # /guacamole context path is preserved so links from the README and
 # MOTD still resolve.
-PublishPort=0.0.0.0:${MIOS_GUACAMOLE_PORT:-8090}:8080
+PublishPort=0.0.0.0:8090:8080
 
 # OCI labels for Podman Desktop discovery. Values MUST NOT contain
 # spaces -- Quadlet's Label= parser word-splits on whitespace and breaks

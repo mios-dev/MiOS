@@ -27,7 +27,7 @@ ConditionPathExists=/etc/mios/hermes/api.env
 # automation/15-render-quadlets.sh at image build time. Hand-rendered
 # here so the Quadlet is parseable as-is on the dev VM (where the
 # render step doesn't run -- bootstrap copies this file verbatim).
-# Operator-flagged 2026-05-12: podman parses literal ${VAR:-default}
+# Operator-flagged 2026-05-12: podman parses literal default
 # strings and bails ("invalid reference format" / "cannot parse as IP").
 #
 # SSOT resolution still happens at install time -- build-mios.ps1 reads
@@ -91,8 +91,8 @@ Environment=MIOS_AGENT_ROOT=/mios
 
 # Identity. UID resolved from mios.toml [services.hermes].uid (default
 # 820, pinned in usr/lib/sysusers.d/50-mios-services.conf).
-User=${MIOS_HERMES_UID:-820}
-Group=${MIOS_HERMES_GID:-820}
+User=820
+Group=820
 
 Label=org.opencontainers.image.title=mios-hermes
 Label=org.opencontainers.image.url=http://localhost:8642/v1/models

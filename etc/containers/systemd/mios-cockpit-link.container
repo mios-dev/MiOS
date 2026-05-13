@@ -56,8 +56,8 @@ Network=mios.network
 # bind=0.0.0.0 makes the listener reachable from the host LAN,
 # sibling containers, and the loopback alike (matches the access
 # surface contract every other MiOS service holds to).
-Exec=tcp-listen:${MIOS_PORT_COCKPIT_LINK:-19090},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:${MIOS_PORT_COCKPIT:-9090}
-PublishPort=0.0.0.0:${MIOS_PORT_COCKPIT_LINK:-19090}:${MIOS_PORT_COCKPIT_LINK:-19090}
+Exec=tcp-listen:19090,bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
+PublishPort=0.0.0.0:19090:19090
 
 # OCI labels Podman Desktop renders. Values MUST NOT contain spaces --
 # Quadlet's Label= parser word-splits on whitespace and breaks the

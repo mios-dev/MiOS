@@ -10,8 +10,8 @@ ConditionVirtualization=!container
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].postgres and [network.quadlet].network.
-Image=${MIOS_POSTGRES_IMAGE:-docker.io/library/postgres:latest}
-Network=${MIOS_QUADLET_NETWORK:-mios.network}
+Image=docker.io/library/postgres:latest
+Network=mios.network
 AutoUpdate=registry
 User=mios-postgres
 Group=mios-postgres
