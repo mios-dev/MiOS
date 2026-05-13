@@ -219,14 +219,25 @@ sys.stdout.reconfigure(encoding="utf-8")
 inner = int(os.environ["INNER"])
 vr    = os.environ["F_V"]
 ell   = os.environ["ELL"]
-ansi  = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# CSI escape (color codes etc.): \e[...letter
+csi   = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# OSC escape (hyperlinks, title sets): \e]...ST  where ST = BEL or ESC\
+# OSC 8 hyperlinks for clickable service names produce
+# `\e]8;;URL\e\\NAME\e]8;;\e\\` -- visually 0 + len(NAME) + 0 chars,
+# but raw byte length is 30+. Without OSC stripping, the framer would
+# count the ESC sequence bytes as visible width and wrap the row.
+osc   = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+def strip_invisible(s):
+    return osc.sub("", csi.sub("", s))
 for raw in sys.stdin:
     line = raw.rstrip("\n").rstrip("\r")
-    visible = ansi.sub("", line)
+    visible = strip_invisible(line)
     vis = len(visible)
     if vis > inner:
         # Truncating mid-ANSI would orphan a color start without its
-        # reset; strip ANSI on the truncate path so colors are clean.
+        # reset; strip ANSI+OSC on the truncate path so colors and
+        # hyperlinks are clean. Drop hyperlink wrappers but keep the
+        # visible anchor text.
         line = visible[:max(0, inner - len(ell))] + ell
         vis = len(line)
     pad = " " * max(0, inner - vis)
@@ -401,33 +412,36 @@ print_endpoints() {
     # OSC 8 hyperlinks even without explicit escape sequences, so a
     # plain `http://localhost:PORT/` is clickable.
     section_header "Services"
-    # Compact "name :port" layout -- replaces the prior URL column
-    # which truncated to `http://localhos…` because 24-char URL pad +
-    # frame chrome overflowed the canonical 80-col inner width
-    # (operator-confirmed 2026-05-13). Cell budget now:
-    # dot(1)+sp(1)+name(9)+sp(1)+:port(6) = 18 cols visible. Two cells
-    # + 2-space indent + 2-space row sep = 40 cols, ~36 cols of slack.
+    # Compact "name :port" cell -- name is an OSC 8 hyperlink, click
+    # opens the service URL in the operator's default browser. The
+    # frame_filter at the top of this script strips OSC 8 sequences
+    # before counting visible width, so the multi-row 2-column layout
+    # survives the framing pass cleanly (operator-confirmed 2026-05-13:
+    # without OSC stripping in the framer, the ESC bytes inflated cell
+    # widths past the row budget and the wrapper collapsed everything
+    # to one line).
     #
-    # OSC 8 hyperlinks (clickable name) were tried as an intermediate
-    # form but broke the panel-framing pipeline -- the wrapper's
-    # width math counts raw bytes including the ESC sequences, which
-    # inflated cell widths and collapsed multi-row layout to a single
-    # line. Plain text is what fits cleanly through the framing pass.
-    # Modern terminals (WT, Ptyxis, Konsole, kitty, WezTerm) auto-
-    # detect bare URLs in scrollback for click-launch, so dropping
-    # the URL column means losing that click affordance from this
-    # surface specifically -- `mios <verb>` shortcuts (mios cockpit,
-    # mios code, etc.) are the canonical launch path either way.
-    local cell_fmt='%s %-9s %s:%-5s%s'
+    # Cell budget: dot(1)+sp(1)+name(9)+sp(1)+:port(6) = 18 cols
+    # visible. Two cells + 2-space indent + 2-space row sep = 40 cols,
+    # ~36 cols of slack inside the canonical 80-col frame.
+    #
+    # OSC 8 escape: \e]8;;URL\e\\TEXT\e]8;;\e\\ -- bash $'...' ANSI-C
+    # quoting on $_esc converts \e to literal ESC at parse time, so
+    # printf %s passes it through unchanged. Modern terminals (WT,
+    # Ptyxis, Konsole, kitty, WezTerm, Alacritty, GNOME Terminal)
+    # render the anchor text as a clickable link.
+    local _esc=$'\e'
+    local osc_lnk="${_esc}]8;;%s${_esc}\\%-9s${_esc}]8;;${_esc}\\"
+    local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
     local row_fmt='  %b  %b\n'
     local c_forge c_ollama c_cock c_srch c_herm c_work c_code
-    c_forge=$( printf  "$cell_fmt" "$d_forge"     "Forge"     "$C_D" "$_p_forge"     "$C_R")
-    c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "Ollama"    "$C_D" "$_p_ollama"    "$C_R")
-    c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "Cockpit"   "$C_D" "$_p_cockpit"   "$C_R")
-    c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "Search"    "$C_D" "$_p_searxng"   "$C_R")
-    c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "Hermes"    "$C_D" "$_p_hermes"    "$C_R")
-    c_work=$(  printf  "$cell_fmt" "$d_workspace" "Workspace" "$C_D" "$_p_workspace" "$C_R")
-    c_code=$(  printf  "$cell_fmt" "$d_code"      "Code"      "$C_D" "$_p_code"      "$C_R")
+    c_forge=$( printf  "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"     "$C_D" "$_p_forge"     "$C_R")
+    c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "http://localhost:${_p_ollama}/"    "Ollama"    "$C_D" "$_p_ollama"    "$C_R")
+    c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"   "$C_D" "$_p_cockpit"   "$C_R")
+    c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"    "$C_D" "$_p_searxng"   "$C_R")
+    c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "http://localhost:${_p_hermes}/v1"  "Hermes"    "$C_D" "$_p_hermes"    "$C_R")
+    c_work=$(  printf  "$cell_fmt" "$d_workspace" "http://localhost:${_p_workspace}/" "Workspace" "$C_D" "$_p_workspace" "$C_R")
+    c_code=$(  printf  "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"      "$C_D" "$_p_code"      "$C_R")
     printf "$row_fmt" "$c_forge" "$c_ollama"
     printf "$row_fmt" "$c_cock"  "$c_srch"
     printf "$row_fmt" "$c_herm"  "$c_work"
