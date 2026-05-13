@@ -1,0 +1,38 @@
+[Unit]
+# /usr/lib/systemd/system/mios-hermes-token-sync.service
+#
+# Scrape the ephemeral dashboard session token after each
+# mios-hermes-dashboard.service start and write it as
+# HERMES_DASHBOARD_TOKEN into /etc/mios/hermes/api.env so
+# mios-hermes-workspace can authenticate against the dashboard's
+# /api/* endpoints (sessions, tasks, kanban, skills, mcp, status).
+#
+# Architecture: upstream nousresearch/hermes-agent's web_server.py
+# generates _SESSION_TOKEN = secrets.token_urlsafe(32) at process
+# start (random per dashboard restart) and injects it into the
+# dashboard's HTML page as window.__HERMES_SESSION_TOKEN__. The
+# canonical workspace integration scrapes that HTML for the token --
+# this service automates the scrape so the workspace stays in sync
+# with the dashboard's current token.
+#
+# Operator-confirmed 2026-05-13: without this sync, every workspace
+# panel (Sessions, Tasks, Kanban, etc.) returns "401 Unauthorized"
+# because the workspace had no way to know the dashboard's random
+# token.
+Description='MiOS' Hermes dashboard session-token sync (workspace auth)
+After=mios-hermes-dashboard.service
+PartOf=mios-hermes-dashboard.service
+BindsTo=mios-hermes-dashboard.service
+Requires=mios-hermes-dashboard.service
+ConditionPathExists=/usr/libexec/mios/mios-hermes-token-sync.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-hermes-token-sync.sh
+# Re-run on dashboard restarts: PartOf above auto-stops/starts this
+# unit when the dashboard does, so the script re-scrapes the new token.
+RemainAfterExit=no
+TimeoutStartSec=60s
+
+[Install]
+WantedBy=multi-user.target
