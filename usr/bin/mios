@@ -216,16 +216,22 @@ KNOWN_VERBS = {
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
     "code":   ["xdg-open", "http://localhost:8080/"],
-    "xbox":   ["/usr/libexec/mios/fix-xbox-secureboot.sh"],
-    "virt":   ["/usr/libexec/mios/apply-final-config.sh"],
-    "vfio":   ["/usr/libexec/mios/universal-vfio-configurator.sh"],
-    "tune":   ["/usr/libexec/mios/universal-cpu-isolator.sh"],
-    "summary":["/usr/libexec/mios/quick-summary.sh"],
-    "profile":["/usr/libexec/mios/profiler-menu.sh"],
-    "assess": ["/usr/libexec/mios/system-assess.sh"],
-    "theme":  ["/usr/libexec/mios/bibata-suite.sh"],
-    "iommu":  ["/usr/libexec/mios/iommu-visualizer.sh"],
-    "user":   ["/usr/libexec/mios/init-user-space.sh"],
+    "xbox":   ["/usr/libexec/mios/xbox-repair.sh"],
+    "virt":   ["/usr/libexec/mios/virt-apply.sh"],
+    "vfio":   ["/usr/libexec/mios/vfio-config.sh"],
+    "vfio-check":  ["/usr/libexec/mios/vfio-check.sh"],
+    "vfio-toggle": ["/usr/libexec/mios/vfio-toggle.sh"],
+    "tune":   ["/usr/libexec/mios/tune-performance.sh"],
+    "summary":["/usr/libexec/mios/system-summary.sh"],
+    "profile":["/usr/libexec/mios/system-profile.sh"],
+    "assess": ["/usr/libexec/mios/capability-audit.sh"],
+    "theme":  ["/usr/libexec/mios/theme-sync.sh"],
+    "iommu":  ["/usr/libexec/mios/hardware-iommu.sh"],
+    "iommu-groups": ["/usr/libexec/mios/hardware-iommu-groups.sh"],
+    "env":    ["/usr/libexec/mios/system-env.sh"],
+    "sync-env": ["/usr/libexec/mios/system-sync-env.sh"],
+    "flatpaks": ["/usr/libexec/mios/flatpaks-manage.sh"],
+    "user":   ["/usr/libexec/mios/user-setup.sh"],
     "flight": ["/usr/libexec/mios/flight-control.sh"],
     "help":   None,        # special-cased below
 }
@@ -242,11 +248,17 @@ def main(argv: list[str]) -> int:
             "  mios xbox                            Xbox VM Secure Boot / XML repair\n"
             "  mios virt                            apply optimized VM config + CPU pinning\n"
             "  mios vfio                            configure GPU/USB passthrough (Isolation)\n"
+            "  mios vfio-check                      report VFIO / IOMMU binding state\n"
+            "  mios vfio-toggle                     interactive VFIO device selector\n"
             "  mios tune                            system-wide CPU isolation & latency tuning\n"
             "  mios summary                         quick ASCII system overview\n"
             "  mios profile                         interactive hardware/system profiler menu\n"
             "  mios assess                          comprehensive system capability report\n"
             "  mios iommu                           pretty-print hardware IOMMU topology\n"
+            "  mios iommu-groups                    list raw IOMMU groups and devices\n"
+            "  mios env                             inspect layered MIOS_* environment\n"
+            "  mios sync-env                        regenerate install.env from mios.toml\n"
+            "  mios flatpaks                        manage system-wide Flatpaks\n"
             "  mios theme                           sync bibata/GTK/Qt themes\n"
             "  mios user                            initialize user space (dotfiles/XDG)\n"
             "  mios help                            this help\n\n"

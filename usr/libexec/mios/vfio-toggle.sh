@@ -15,7 +15,7 @@
 set -euo pipefail
 
 VFIO_CONF="/etc/modprobe.d/vfio.conf"
-TOOL_SH="/usr/share/mios/tools/universal-vfio-configurator.sh"
+TOOL_SH="/usr/libexec/mios/vfio-config.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     sed -n '2,16p' "$0" | sed 's/^# \?//'
