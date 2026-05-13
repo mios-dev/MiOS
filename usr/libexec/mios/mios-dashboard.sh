@@ -417,9 +417,14 @@ print_endpoints() {
     #
     # OSC 8 escape: \e]8;;URL\e\\TEXT\e]8;;\e\\  -- emits a hyperlink
     # whose anchor text is TEXT and whose target is URL. Operator
-    # clicks the service name, browser opens. printf %b expands the
-    # escapes; %s would print them literally.
-    local osc_lnk='\033]8;;%s\033\\%-9s\033]8;;\033\\'
+    # clicks the service name, browser opens. Use bash $'...' ANSI-C
+    # quoting so \e and \\ are converted to literal ESC + backslash
+    # bytes at parse time -- printf %s then passes them through to
+    # the terminal unchanged (printf in `%s` does NOT re-interpret
+    # backslash escapes; double-quoted '\033' would be printed as
+    # the literal four-char string).
+    local _esc=$'\e'
+    local osc_lnk="${_esc}]8;;%s${_esc}\\%-9s${_esc}]8;;${_esc}\\"
     local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
     local row_fmt='  %b  %b\n'
     local c_forge c_ollama c_cock c_srch c_herm c_work c_code
