@@ -18,6 +18,16 @@ AddDevice=nvidia.com/gpu=all
 Environment=LOCALAI_MODELS_PATH=/build/models
 Environment=THREADS=8
 Environment=DEBUG=false
+# LAW 6 (UNPRIVILEGED-QUADLETS) compliance per AGENTS.md §5: every
+# Quadlet must declare User=, Group=, Delegate=. localai needs root for
+# CUDA driver init + nvidia-container-toolkit hook + writeable
+# /build/models bind volume (operator-confirmed 2026-05-13: build fails
+# at 99-postcheck.sh "missing User= directive" without this). Documented
+# Law 6 exception, same pattern as mios-hermes-workspace / mios-ceph /
+# mios-k3s.
+User=0
+Group=0
+Delegate=yes
 
 [Service]
 Restart=always

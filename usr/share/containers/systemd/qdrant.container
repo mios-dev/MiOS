@@ -14,6 +14,15 @@ Volume=/var/lib/mios/qdrant:/qdrant/storage:Z
 PublishPort=6333:6333
 PublishPort=6334:6334
 Environment=QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
+# LAW 6 (UNPRIVILEGED-QUADLETS) compliance per AGENTS.md §5: every
+# Quadlet must declare User=, Group=, Delegate=. qdrant needs root for
+# the /qdrant/storage bind volume (upstream image runs as root and
+# chown-s storage at startup). Documented Law 6 exception, same pattern
+# as mios-hermes-workspace. Operator-confirmed 2026-05-13: build fails
+# at 99-postcheck.sh "missing User= directive" without this.
+User=0
+Group=0
+Delegate=yes
 
 [Service]
 Restart=always
