@@ -8,9 +8,6 @@
 #
 # MUST run elevated. The script self-checks and re-launches itself
 # via UAC if not already admin.
-#
-# Operator-flagged 2026-05-11: "none of my services are available on
-# my local wifi network".
 
 $ErrorActionPreference = 'Stop'
 

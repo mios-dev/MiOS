@@ -30,7 +30,9 @@ EnvironmentFile=/etc/mios/hermes/api.env
 # We point to Hermes-Agent on ai-net.network (Law 5)
 Environment=OPENAI_API_BASE_URL=http://mios-hermes:8642/v1
 # OPENAI_API_KEY is picked up from EnvironmentFile above (API_SERVER_KEY)
-Environment=OPENAI_API_KEY=${API_SERVER_KEY}
+# In Open WebUI, we need to map API_SERVER_KEY to OPENAI_API_KEY if they differ.
+# But we can just ensure they match in the env file or use a simpler assignment.
+Environment=OPENAI_API_KEY_FILE=/etc/mios/hermes/api.env
 
 # Disable direct Ollama to force Law 5 compliance (Hermes as gateway)
 Environment=ENABLE_OLLAMA=False
