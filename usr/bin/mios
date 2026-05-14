@@ -42,7 +42,17 @@ except ImportError:
 
 # ─── Configuration ────────────────────────────────────────────────────
 ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
-MODEL    = os.environ.get("MIOS_AI_MODEL",    "qwen3.5:2b")
+# The endpoint is the Hermes-Agent OpenAI gateway, which exposes ONE
+# virtual model -- "hermes-agent" -- the agent loop itself. The actual
+# Ollama model is configured INSIDE Hermes (config.yaml model:), not
+# selected per request. Sending a raw Ollama tag here (the old default,
+# e.g. "qwen3.5:2b") is a model id the gateway does not recognise -- the
+# streaming chat call then hangs indefinitely instead of erroring
+# (operator-confirmed 2026-05-14: `mios <prompt>` and `@<prompt>` hung
+# ~90s+ with no output). MIOS_AI_MODEL stays the raw-tag SSOT for the
+# image build / Ollama bake; the gateway request model is its own knob
+# (MIOS_AI_GATEWAY_MODEL) and defaults to what the gateway serves.
+MODEL    = os.environ.get("MIOS_AI_GATEWAY_MODEL", "hermes-agent")
 SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
 LIB      = pathlib.Path("/usr/lib/mios")
 LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")
