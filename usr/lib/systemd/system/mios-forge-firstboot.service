@@ -29,10 +29,26 @@ TimeoutStartSec=600s
 # attach path on rootful container exec; we drop them and lean on the
 # read-write path scoping + ProtectHome instead, which is sufficient for
 # this script's actual surface area.
+#
+# /run is LOAD-BEARING and must be writable as a whole: rootful
+# `podman exec` -- even a plain exec, no container lifecycle -- grabs
+# coordination locks across multiple /run subtrees: /run/libpod/
+# alive.lck (runtime init lock), /run/lock/netavark.lock (network
+# coordination), /run/containers/ (storage runroot). Listing them
+# individually is whack-a-mole; each missing one surfaces only at
+# runtime as "open <path>: read-only file system" (exit 125). /run is
+# tmpfs runtime state, so granting it RW is low-risk and is exactly
+# podman's requirement. That exit-125 failure is silent-deadly here:
+# forge-firstboot.sh's `admin user create` idempotency guard mis-reads
+# 125 as "user already exists", so the admin is never created, the
+# repo-create 401s, the runner-token mint fails, and the entire
+# self-replication CI chain (runner-firstboot -> .runner ->
+# mios-forgejo-runner.service) stays dead behind unmet
+# ConditionPathExists guards. Operator-confirmed regression 2026-05-14.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/etc/mios/forge /var/lib/mios/forge /var/log/mios/forge /var/lib/containers /run/containers
+ReadWritePaths=/etc/mios/forge /var/lib/mios/forge /var/log/mios/forge /var/lib/containers /run
 PrivateTmp=yes
 LockPersonality=yes
 RestrictRealtime=yes
