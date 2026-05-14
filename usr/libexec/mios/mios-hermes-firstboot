@@ -284,6 +284,12 @@ elif grep -qE '^backend:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # Leftover pre-0.13 `backend:` block -- stale schema, rewrite.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- detected pre-0.13 container-era schema"
+elif ! grep -qE '^auxiliary:' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Config predates the auxiliary-services mapping -- 0.13.x would
+    # log "No auxiliary LLM provider configured" and drop compression
+    # summaries. Rewrite to add the auxiliary: + web: blocks.
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- missing auxiliary endpoint mapping"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
@@ -324,6 +330,58 @@ custom_providers:
   - name: local-ollama
     base_url: http://localhost:11434/v1
     api_key: ""
+
+# Auxiliary LLM services (context compression / summarization, memory
+# flush, title + triage + curation, MCP reasoning, web-extract,
+# approvals, skills-hub). 0.13.x does NOT inherit the main provider for
+# these -- left unmapped it logs "No auxiliary LLM provider configured"
+# and silently drops context-compression summaries. Map every one at
+# the same on-box Ollama provider so the agent is fully self-contained.
+auxiliary:
+  compression:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  session_search:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  title_generation:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  triage_specifier:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  curator:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  mcp:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  web_extract:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  approval:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+  skills_hub:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: ${_AI_MODEL_RESOLVED}
+
+# Web search/extract -> the on-box SearXNG (mios-searxng). The
+# concrete URL is exported as SEARXNG_URL by hermes-agent.service
+# (shape-aware: localhost:8888 on the dev-VM host-net build,
+# mios-searxng:8080 on bridge builds). Law 5 unaffected -- search is
+# retrieval, not inference.
+web:
+  search_backend: searxng
 EOF
     umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
@@ -331,4 +389,37 @@ EOF
     _log "seeded $HERMES_DATA_CFG (provider=custom:local-ollama default=${_AI_MODEL_RESOLVED})"
 else
     _log "$HERMES_DATA_CFG already current (default=${_AI_MODEL_RESOLVED}) -- not overwriting"
+fi
+
+# ── Operator CLI config (~/.hermes/config.yaml) ─────────────────────────
+# The `hermes` CLI runs as the operator (not the mios-hermes sysuser)
+# and reads ~/.hermes/config.yaml. Seed it with the SAME TOML-derived
+# config as the gateway so the CLI is pre-configured against local
+# Ollama and never drops into the interactive `hermes setup` wizard.
+# Resolve the operator from mios.toml [identity].username; this is a
+# plain copy of the gateway config -- one SSOT, two consumers.
+#
+# Re-seed conditions mirror the gateway: missing, OR carries the
+# broken `hermes setup` wizard value (https://0.0.0.0:11434/v1), OR
+# the gateway config was just (re)written this run (_should_seed=1).
+# Operator customisation that must survive belongs in mios.toml, not
+# hand-edits to this generated file.
+_op_user="$(_mios_toml_value 'identity' 'username' 'mios')"
+_op_home="$(getent passwd "$_op_user" 2>/dev/null | cut -d: -f6)"
+if [[ -n "$_op_home" && -d "$_op_home" ]]; then
+    _op_cfg_dir="${_op_home}/.hermes"
+    _op_cfg="${_op_cfg_dir}/config.yaml"
+    if [[ ! -f "$_op_cfg" ]] || grep -q '0\.0\.0\.0:11434' "$_op_cfg" 2>/dev/null \
+       || [[ "$_should_seed" -eq 1 ]]; then
+        mkdir -p "$_op_cfg_dir"
+        cp -f "$HERMES_DATA_CFG" "$_op_cfg"
+        chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
+        chmod 0700 "$_op_cfg_dir" 2>/dev/null || true
+        chmod 0600 "$_op_cfg" 2>/dev/null || true
+        _log "seeded operator CLI config $_op_cfg (user=$_op_user)"
+    else
+        _log "operator CLI config $_op_cfg already current -- not overwriting"
+    fi
+else
+    _log "operator home for '$_op_user' not found -- skipping CLI config seed"
 fi

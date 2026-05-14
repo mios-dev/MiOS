@@ -30,16 +30,28 @@ Type=simple
 # ownership stays consistent across the container->direct migration.
 User=mios-hermes
 Group=mios-hermes
-# Runtime state dir -- systemd creates + chowns it (NO-MKDIR-IN-VAR law).
-# ConfigurationDirectory= deliberately omitted: /etc/mios/hermes is
-# pre-created by mios-hermes-firstboot at mode 0750; declaring
-# ConfigurationDirectory=mios/hermes here makes systemd fight that
-# (warns "mode is different. File system: 750 ConfigurationDirectoryMode:
-# 755"). ReadWritePaths=/etc/mios below already grants write access.
-StateDirectory=mios/hermes
+# Runtime state dir: /var/lib/mios/hermes. StateDirectory= is
+# deliberately NOT used -- systemd re-applies StateDirectoryMode (and
+# silently drops the setgid bit, landing 0700) on EVERY start, which
+# races and clobbers the 2770 group-shared mode that mios-hermes-
+# firstboot sets so the `hermes` CLI (run as the mios operator, a
+# mios-hermes group member) and this gateway service can share one
+# config + state tree. mios-hermes-firstboot.service is ordered
+# Before= this unit and does the mkdir + chown 820:820 + chmod 2770,
+# so the directory is guaranteed present and correctly-permissioned
+# before ExecStart. ReadWritePaths=/var/lib/mios below grants write.
+# ConfigurationDirectory= likewise omitted: /etc/mios/hermes is
+# pre-created by firstboot at mode 0750.
 Environment=HOME=/var/lib/mios/hermes
 Environment=HERMES_HOME=/var/lib/mios/hermes
-Environment=HERMES_CONFIG_PATH=/etc/mios/hermes/config.yaml
+# HERMES_CONFIG_PATH deliberately NOT set: Hermes-Agent 0.13.x ignores
+# it entirely and reads $HERMES_HOME/config.yaml. Keeping a stale
+# HERMES_CONFIG_PATH=/etc/mios/hermes/config.yaml here just misleads
+# operators into editing a file the agent never loads.
+# SearXNG endpoint for the agent's web-search/extract tools. Host-net
+# dev-VM value; bridge builds get mios-searxng:8080 via a Quadlet-style
+# drop-in or 15-render. Web search is retrieval, not inference (Law 5).
+Environment=SEARXNG_URL=http://localhost:8888
 # Gateway bind: PORT is the OpenAI /v1 surface port (mios.toml
 # [ports].hermes, default 8642). API_SERVER_HOST=0.0.0.0 comes from
 # api.env (so the WSL2 portproxy + LAN reach it). HERMES_BACKEND_BASE_URL

@@ -25,4 +25,13 @@ if [[ ! -x "$HERMES_BIN" ]]; then
     echo "  -- run 'mios update' or re-run the bootstrap to install it." >&2
     exit 127
 fi
+
+# The CLI uses its natural ~/.hermes home. mios-hermes-firstboot seeds
+# ~/.hermes/config.yaml for the operator with the SAME TOML-derived
+# config it writes for the gateway service (/var/lib/mios/hermes/
+# config.yaml) -- both regenerated every boot from mios.toml [ai], so
+# the CLI is pre-configured against local Ollama and never drops into
+# the `hermes setup` wizard. Sharing the gateway's live state dir was
+# tried and abandoned: it is owned by the mios-hermes sysuser and
+# group-permission sharing proved unreliable across login contexts.
 exec "$HERMES_BIN" "$@"
