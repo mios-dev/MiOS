@@ -48,11 +48,27 @@ Group=1000
 Network=host
 SecurityLabelDisable=true
 
-# Dedicated workspace dir (NOT /var/home/mios) so the in-container uid
-# 1000 matches the host dir owner. Operator can symlink /var/home/mios/
-# git into /var/lib/mios/code-server to surface their repos in the
-# editor sidebar without UID-drift gymnastics.
+# code-server's own state (settings, extensions, User/ dir). Dedicated
+# host dir chown'd 1000:1000 by tmpfiles.d so the in-container uid
+# lines up regardless of the base distro's mios uid drift.
 Volume=/var/lib/mios/code-server:/home/coder
+
+# FHS root link -- closes the self-replication editor loop.
+# MiOS's `/` IS a git working tree: /.git is the repo the Forgejo
+# self-replication pipeline tracks (.forgejo/workflows/build-mios.yml).
+# Bind the LIVE root into the editor at /mnt/mios-root so the operator
+# edits the actual deployed system in the browser, commits, and
+# `git -C /mnt/mios-root push http://localhost:3000/<user>/mios` --
+# which mios-forgejo-runner picks up to `podman build` + signal the
+# host's bootc-switch watcher. DEFAULT_WORKSPACE below opens here.
+#
+# :rw because editing the system IS the point. The bootc immutable-/usr
+# model still protects /usr at the OS layer -- a container FS write to
+# /mnt/mios-root/usr lands in the working tree, but the running system's
+# /usr only changes via a bootc upgrade/switch, never a live FS write.
+# rslave propagation so host mounts (the overlay, sub-fs) stay visible
+# without the container pinning them.
+Volume=/:/mnt/mios-root:rw,rslave
 
 # Auth: MIOS_DEFAULT_PASSWORD baked at image-build time from
 # mios.toml [identity].default_password via 15-render-quadlets.sh.
@@ -63,12 +79,25 @@ Volume=/var/lib/mios/code-server:/home/coder
 # live host then `systemctl daemon-reload && systemctl restart`).
 Environment=PASSWORD=mios
 Environment=SUDO_PASSWORD=mios
-Environment=DEFAULT_WORKSPACE=/home/coder
+# Open the editor on the live MiOS root (the git working tree) so the
+# self-replication edit -> commit -> push -> CI loop is the default
+# workflow, not an opt-in clone.
+Environment=DEFAULT_WORKSPACE=/mnt/mios-root
 # The upstream image's ENTRYPOINT hardcodes --bind-addr 0.0.0.0:8080.
 # We use port 8080 with Network=host so the container's listener IS
 # the host's. BIND_ADDR is kept for completeness but the entrypoint
 # arg wins.
 Environment=BIND_ADDR=0.0.0.0:8080
+
+# git "dubious ownership" guard: the FHS-root bind /mnt/mios-root is
+# owned by root, code-server runs as uid 1000 -- without an explicit
+# safe.directory every git command in the editor terminal aborts
+# ("detected dubious ownership"). GIT_CONFIG_COUNT/KEY_n/VALUE_n inject
+# an ad-hoc global config entry, so this works without a writable
+# ~/.gitconfig in the container.
+Environment=GIT_CONFIG_COUNT=1
+Environment=GIT_CONFIG_KEY_0=safe.directory
+Environment=GIT_CONFIG_VALUE_0=/mnt/mios-root
 AutoUpdate=registry
 
 Label=org.opencontainers.image.title=mios-code-server
