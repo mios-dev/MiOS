@@ -13,11 +13,11 @@ ConditionPathExists=/etc/mios/hermes/api.env
 
 [Container]
 # Image / Port / Network placeholders rendered by automation/15-render-quadlets.sh
-Image=ghcr.io/open-webui/open-webui:main
+Image=${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
 ContainerName=mios-open-webui
 Network=ai-net.network
 Network=mios.network
-PublishPort=3030:8080
+PublishPort=${MIOS_PORT_OPEN_WEBUI:-3030}:8080
 AutoUpdate=registry
 
 # Persistent state.
@@ -30,11 +30,7 @@ EnvironmentFile=/etc/mios/hermes/api.env
 # We point to Hermes-Agent on ai-net.network (Law 5)
 Environment=OPENAI_API_BASE_URL=http://mios-hermes:8642/v1
 # OPENAI_API_KEY is picked up from EnvironmentFile above (API_SERVER_KEY)
-# In standard Quadlet Environment=, we can't interpolate from EnvironmentFile=,
-# but we don't need to because the process will see both.
-# Setting a literal or removing this line is safer.
-# Open WebUI specifically looks for OPENAI_API_KEY.
-# Since the EnvironmentFile contains OPENAI_API_KEY=${api_key}, it should work.
+Environment=OPENAI_API_KEY=${API_SERVER_KEY}
 
 # Disable direct Ollama to force Law 5 compliance (Hermes as gateway)
 Environment=ENABLE_OLLAMA=False
@@ -48,8 +44,8 @@ Environment=ENABLE_SIGNUP=False
 Environment=DEFAULT_USER_ROLE=admin
 
 # Identity. UID 817 (mios-open-webui)
-User=817
-Group=817
+User=${MIOS_OPEN_WEBUI_UID:-817}
+Group=${MIOS_OPEN_WEBUI_GID:-817}
 
 Label=org.opencontainers.image.title=mios-open-webui
 Label=org.opencontainers.image.url=http://localhost:3030/

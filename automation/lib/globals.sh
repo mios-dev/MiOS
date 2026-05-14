@@ -86,8 +86,7 @@ export MIOS_VERSION
 : "${MIOS_OPEN_WEBUI_UID:=817}"
 : "${MIOS_OPEN_WEBUI_GID:=817}"
 
-# Rootless-container subuid/subgid range.
- Standard Fedora useradd -m
+# Rootless-container subuid/subgid range. Standard Fedora useradd -m
 # allocates 100000:65536; we keep the same so /etc/subuid + /etc/subgid
 # stay consistent with stock Fedora workflows.
 : "${MIOS_SUBUID_START:=100000}"
