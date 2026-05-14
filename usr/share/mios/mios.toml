@@ -437,9 +437,21 @@ user       = ""                    # empty = inherits [identity].username
 resolution = "auto"                # "auto" lets mstsc pick from Windows display; otherwise WxH (e.g. "1920x1080")
 
 [ai]
-# Canonical agent surface. Defaults to Hermes-Agent (the live MiOS
-# agent at /), which fronts Ollama for inference + embeddings.
+# Canonical agent surface. Hermes-Agent (the live MiOS agent at /) is a
+# DIRECT host install as of 2026-05-13 (automation/38-hermes-agent.sh +
+# hermes-agent.service -- NOT the shelved mios-hermes container Quadlet).
+# AI chain: ollama container (:11434, raw inference) -> Hermes-Agent
+# (:8642/v1, OpenAI gateway + agent layer) -> Open WebUI (:3030, browser
+# UI). Open WebUI's OPENAI_API_BASE_URL points at Hermes (:8642/v1), so
+# the agent -- not raw ollama -- is the model Open WebUI serves.
 endpoint            = "http://localhost:8642/v1"
+# Direct-install source for automation/38-hermes-agent.sh. Operators
+# pin a tag/SHA for reproducible images via mios.html.
+hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
+hermes_agent_ref    = "main"
+# Inference backend Hermes-Agent forwards to. The ollama container's
+# OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
+hermes_backend_url  = "http://localhost:11434/v1"
 # SSOT for the default chat model. Stays small (granite4.1:3b, ~3 GB
 # resident) so 12 GB / 8-core hosts are still usable out of the box.
 # build-mios.ps1's auto-pick in [ai.host_thresholds] below promotes
