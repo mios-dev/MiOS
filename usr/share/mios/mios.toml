@@ -2471,17 +2471,29 @@ features = ["ai", "virtualization", "k3s"]
 # force-disable a service even when it would otherwise run.
 # ----------------------------------------------------------------------------
 [quadlets.enable]
-# Chat chain: ollama (LLM + embeddings) -> mios-hermes (OpenAI gateway,
-# live MiOS agent at /) -> mios-hermes-dashboard (web UI at port 9119
-# with built-in Sessions / Skills / MCP / Plugins / Kanban). The
-# separate outsourc-e/hermes-workspace front-end at port 3030 was
-# REMOVED 2026-05-13 -- redundant with the agent's own dashboard.
+# AI chain (2026-05-13 architecture, operator-directed):
+#   ollama (container)         -- LLM + embeddings inference backend.
+#                                 OpenAI-compatible /v1 surface on :11434.
+#   hermes-agent (DIRECT)      -- installed natively on the root
+#                                 filesystem (NOT containerized), runs as
+#                                 a host systemd service, uses the ollama
+#                                 container (and vllm/llama.cpp when
+#                                 present) as its inference backend.
+#                                 See automation/38-hermes-agent.sh +
+#                                 usr/lib/systemd/system/hermes-agent.service.
+#   open-webui (container)     -- rich browser LLM UI on :3030, talks to
+#                                 the OpenAI /v1 surface.
+#
+# mios-hermes + mios-hermes-dashboard CONTAINER Quadlets are SHELVED
+# (false) -- the agent is a direct host install now, not a sidecar.
+# The Quadlet files stay in the tree for operators who want to flip
+# back to the containerized agent, but they're disabled by default.
 mios-ceph             = true
 mios-k3s              = true
 mios-forge            = true
 mios-cockpit-link     = true
-mios-hermes           = true
-mios-hermes-dashboard = true
+mios-hermes           = false   # SHELVED -- hermes-agent is a direct host install
+mios-hermes-dashboard = false   # SHELVED -- part of the direct hermes-agent install
 mios-open-webui       = true
 mios-code-server      = true
 crowdsec-dashboard    = true
