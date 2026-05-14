@@ -139,6 +139,10 @@ slots = [
     ("ai.embed_model",          "MIOS_AI_EMBED_MODEL"),
     ("ai.api_key",              "MIOS_AI_KEY"),
     ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
+    # Hermes-Agent direct host install (automation/38-hermes-agent.sh).
+    ("ai.hermes_agent_repo",    "MIOS_HERMES_AGENT_REPO"),
+    ("ai.hermes_agent_ref",     "MIOS_HERMES_AGENT_REF"),
+    ("ai.hermes_backend_url",   "MIOS_HERMES_BACKEND_URL"),
     ("ai.mcp_registry",         "MIOS_MCP_REGISTRY"),
     # desktop
     ("desktop.session",         "MIOS_DESKTOP_SESSION"),

@@ -7,71 +7,85 @@
 # directory and ALL other MiOS Images/deployment types".
 #
 # Rationale: Hermes-Agent IS the live MiOS agent at `/` (AGENTS.md §6).
-# Running it as a Quadlet sidecar put a container boundary between the
-# agent and the system it operates on -- the agent couldn't see the
-# real root FS, the real systemd, the real git working tree without
-# bind-mount gymnastics. A direct host install removes that boundary:
-# the agent runs as a host systemd service, sees `/` natively, and
-# uses the ollama CONTAINER (plus vllm / llama.cpp when present) purely
-# as a swappable inference backend over the OpenAI-compatible /v1 wire.
+# A container boundary between the agent and the system it operates on
+# meant the agent couldn't see the real root FS / systemd / git tree
+# without bind-mount gymnastics. A direct host install removes that
+# boundary: the agent runs as a host systemd service (hermes-agent.
+# service), sees `/` natively, and uses the ollama CONTAINER as a
+# swappable OpenAI-compatible inference backend.
 #
-# This script runs at OCI BUILD time (numbered 38-*, after
-# 37-ollama-prep.sh so the inference backend's model seed is staged
-# first). It installs into a vendor-owned venv under /usr/lib/ per FHS;
-# /var + /etc paths for runtime state are declared via tmpfiles.d /
-# the unit file, never written here (NO-MKDIR-IN-VAR law).
+# CRITICAL: this script MUST NOT fail the OCI build. Network egress,
+# PyPI, and git are best-effort at build time -- if any step fails the
+# script logs a warning and `exit 0`s. hermes-agent.service carries
+# ConditionPathExists so it cleanly no-ops on hosts where the install
+# didn't land; `mios update` / a firstboot retry can complete it later.
 #
-# Backend wiring is TOML-first: hermes-agent.service reads
-# MIOS_AI_ENDPOINT / MIOS_AI_MODEL from /etc/profile.d/mios-env.sh
-# (resolved from mios.toml [ai].* via tools/lib/userenv.sh).
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# TOML-first: HERMES_REPO/REF resolve from MIOS_HERMES_AGENT_* env vars
+# (exported by tools/lib/userenv.sh from mios.toml [ai].hermes_agent_*),
+# with the canonical upstream as the `:-` shell default -- the same
+# pattern 37-ollama-prep.sh uses for MIOS_OLLAMA_BAKE_MODELS.
+#
+# NO `set -e` -- a sub-failure here must never cascade into a build
+# failure. Explicit guards + `exit 0` everywhere.
+set -uo pipefail
+
 # shellcheck source=lib/common.sh
-source "${SCRIPT_DIR}/lib/common.sh"
+source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
+    printf '[38-hermes-agent] WARN: lib/common.sh unavailable -- skipping\n' >&2
+    exit 0
+}
 
-# ── SSOT: read the pinned hermes-agent ref from mios.toml ─────────────
-# [image.sidecars].hermes carries the upstream ref the project tracks;
-# for the direct install we want the git ref, exposed as
-# [ai].hermes_agent_ref (default: main). Falls back to main.
-HERMES_REPO="$(mios_toml_get 'ai' 'hermes_agent_repo' 'https://github.com/NousResearch/hermes-agent.git')"
-HERMES_REF="$(mios_toml_get 'ai'  'hermes_agent_ref'  'main')"
-
-VENV_ROOT=/usr/lib/mios/hermes-agent           # vendor code (FHS /usr/lib)
-SRC_DIR=/usr/lib/mios/hermes-agent/src
+HERMES_REPO="${MIOS_HERMES_AGENT_REPO:-https://github.com/NousResearch/hermes-agent.git}"
+HERMES_REF="${MIOS_HERMES_AGENT_REF:-main}"
+VENV_ROOT=/usr/lib/mios/hermes-agent          # vendor code (FHS /usr/lib)
 VENV_DIR="${VENV_ROOT}/.venv"
+BIN_DIR="${VENV_ROOT}/bin"
 
-log "[38-hermes-agent] installing Hermes-Agent direct (repo=${HERMES_REPO} ref=${HERMES_REF})"
+log "[38-hermes-agent] direct install: repo=${HERMES_REPO} ref=${HERMES_REF}"
 
-install -d -m 0755 "${VENV_ROOT}"
-
-# Clone the agent source. Shallow + single-branch -- we only need the
-# tree at HERMES_REF, not history. Tolerant of slow mirrors.
-if [ ! -d "${SRC_DIR}/.git" ]; then
-    git clone --depth=1 --single-branch --branch "${HERMES_REF}" \
-        -c http.lowSpeedLimit=1 -c http.lowSpeedTime=30 \
-        "${HERMES_REPO}" "${SRC_DIR}" \
-        || { log "[38-hermes-agent] WARN: clone failed -- skipping direct install"; exit 0; }
-else
-    git -C "${SRC_DIR}" fetch --depth=1 origin "${HERMES_REF}" \
-        && git -C "${SRC_DIR}" reset --hard FETCH_HEAD
+# Tooling preflight -- python3 + pip + git must all be present. They're
+# pulled by [packages.base] (git) + policycoreutils-python-utils
+# (python3). If any is missing, skip cleanly rather than die.
+_missing=""
+for tool in python3 git; do
+    command -v "$tool" >/dev/null 2>&1 || _missing="${_missing} ${tool}"
+done
+if [[ -n "$_missing" ]]; then
+    warn "[38-hermes-agent] missing build tools:${_missing} -- skipping direct install (hermes-agent.service will no-op via ConditionPathExists)"
+    exit 0
 fi
 
-# Build the venv. python3 + pip ship in [packages.base]; uv is preferred
-# when present (much faster, matches upstream's own tooling) but pip is
-# the guaranteed fallback.
-python3 -m venv "${VENV_DIR}"
-if command -v uv >/dev/null 2>&1; then
-    UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv pip install --python "${VENV_DIR}/bin/python" -e "${SRC_DIR}" \
-        || "${VENV_DIR}/bin/pip" install -e "${SRC_DIR}"
-else
-    "${VENV_DIR}/bin/pip" install --no-input -e "${SRC_DIR}"
+install -d -m 0755 "${VENV_ROOT}" "${BIN_DIR}" || { warn "[38-hermes-agent] mkdir ${VENV_ROOT} failed -- skipping"; exit 0; }
+
+# Build the venv. pip install directly from the git ref -- no editable
+# checkout, no leftover src tree in the image.
+if ! python3 -m venv "${VENV_DIR}" 2>/dev/null; then
+    warn "[38-hermes-agent] python3 -m venv failed -- skipping direct install"
+    exit 0
 fi
 
-# Stable entry-point symlink on PATH. /usr/bin/hermes already exists as
-# the MiOS wrapper -- the DIRECT install exposes the real binary at a
-# vendor path the wrapper can prefer when the host install is present.
-install -d -m 0755 /usr/lib/mios/hermes-agent/bin
-ln -sf "${VENV_DIR}/bin/hermes" /usr/lib/mios/hermes-agent/bin/hermes
+# `pip install git+URL@ref` -- single step, network best-effort. The
+# --no-input keeps it non-interactive; failure here is non-fatal.
+if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
+        "git+${HERMES_REPO}@${HERMES_REF}" 2>&1 | tail -5; then
+    :
+else
+    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} failed (network? PyPI?) -- removing partial venv, skipping"
+    rm -rf "${VENV_DIR}"
+    exit 0
+fi
 
-log "[38-hermes-agent] Hermes-Agent installed direct at ${VENV_DIR}"
-log "[38-hermes-agent] runtime: hermes-agent.service (gateway mode), backend = mios.toml [ai].endpoint"
+# The pip install drops a `hermes` entry-point into the venv's bin.
+# Verify it landed; symlink it to a stable vendor path the
+# /usr/bin/hermes wrapper + hermes-agent.service both reference.
+if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
+    ln -sf "${VENV_DIR}/bin/hermes" "${BIN_DIR}/hermes"
+    log "[38-hermes-agent] installed: ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
+    record_version "hermes-agent" "${HERMES_REF}" "$(${VENV_DIR}/bin/hermes --version 2>&1 | head -1)" 2>/dev/null || true
+else
+    warn "[38-hermes-agent] pip succeeded but no 'hermes' entry-point in venv -- skipping symlink"
+    exit 0
+fi
+
+log "[38-hermes-agent] done -- runtime: hermes-agent.service (gateway mode); backend = mios.toml [ai].hermes_backend_url"
+exit 0

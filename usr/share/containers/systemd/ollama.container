@@ -66,6 +66,13 @@ Environment=OLLAMA_ORIGINS=*
 # Subsequent 'ollama pull' commands write here too, so this is the
 # single source of truth ollama reads.
 Environment=OLLAMA_MODELS=/var/lib/ollama/models
+# HOME -- ollama (Go binary) writes its identity key id_ed25519 under
+# $HOME/.ollama on startup. The container runs as User=815 (mios-ollama);
+# with HOME unset it defaults to "/" and dies with
+#   "Error: could not create directory mkdir /.ollama: permission denied"
+# (operator-confirmed 2026-05-14 crash-loop, status=1/FAILURE).
+# /var/lib/ollama is owned by mios-ollama (uid 815) -- point HOME there.
+Environment=HOME=/var/lib/ollama
 
 # Volumes (Architectural Law 2 -- /var paths declared via tmpfiles.d):
 #   /var/lib/ollama   writable runtime model store
