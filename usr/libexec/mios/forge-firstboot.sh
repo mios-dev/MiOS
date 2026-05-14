@@ -94,9 +94,21 @@ fi
 # in the Quadlet. The container's internal username is 'git' (the Forgejo
 # image's convention), not 'mios-forge'; we pass the numeric UID so the
 # podman exec lookup succeeds against the container's /etc/passwd.
+# --must-change-password=false: TOML-first invariant. The admin
+# password is resolved from mios.toml [identity] (default_password /
+# MIOS_FORGE_ADMIN_PASSWORD) -- it IS the operator's intended
+# credential, not a throwaway. With =true Forgejo locks every
+# basic-auth API call behind a "you must change your password" 403,
+# which breaks the very next steps in THIS script (repo-create,
+# runner-token mint) and every downstream automation that authbenticates
+# as the admin (the self-replication push loop, CI). The dashboard
+# even advertises `forge mios/mios` as working credentials. Operators
+# who want a forced rotation can set MIOS_FORGE_ADMIN_PASSWORD=__random__
+# (handled above) -- that path still leaves the password usable, just
+# unknown until read from /etc/mios/forge/admin-password.
 if podman exec --user 816:816 mios-forge \
         forgejo --config /data/gitea/conf/app.ini admin user create \
-        --admin --must-change-password=true \
+        --admin --must-change-password=false \
         --username "$admin_user" \
         --email "$admin_email" \
         --password "$admin_password" 2>&1 | tee -a /var/log/mios/forge/firstboot.log; then
