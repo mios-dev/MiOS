@@ -22,6 +22,7 @@ if (-not $isAdmin) {
     Start-Process -FilePath 'pwsh.exe' -ArgumentList $args -Verb RunAs
     return
 }
+
 $portMap = @(
     @{ Port = 3000;  Name = 'forge'            }
     @{ Port = 3030;  Name = 'open-webui'       }
@@ -34,13 +35,6 @@ $portMap = @(
     @{ Port = 8090;  Name = 'guacamole'        }
     @{ Port = 8443;  Name = 'ceph-dash'        }
     @{ Port = 3389;  Name = 'rdp'              }
-)
-
-    @{ Port = 8642;  Name = 'hermes'           }
-    @{ Port = 8888;  Name = 'searxng'          }
-    @{ Port = 9090;  Name = 'cockpit'          }
-    @{ Port = 9119;  Name = 'hermes-dashboard' }
-    @{ Port = 11434; Name = 'ollama'           }
 )
 
 # 1. iphlpsvc must be running for netsh portproxy.
