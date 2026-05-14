@@ -64,13 +64,18 @@ if ! python3 -m venv "${VENV_DIR}" 2>/dev/null; then
     exit 0
 fi
 
-# `pip install git+URL@ref` -- single step, network best-effort. The
+# `pip install git+URL@ref` plus aiohttp -- single step, network
+# best-effort. aiohttp is REQUIRED by hermes-agent's api_server adapter
+# (the OpenAI /v1 surface). The base package doesn't pull it as a hard
+# dep, so the gateway starts but logs "API Server: aiohttp not installed
+# / No adapter available for api_server" and /v1 never comes up
+# (operator-confirmed 2026-05-14). Installing it explicitly alongside.
 # --no-input keeps it non-interactive; failure here is non-fatal.
 if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
-        "git+${HERMES_REPO}@${HERMES_REF}" 2>&1 | tail -5; then
+        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp 2>&1 | tail -5; then
     :
 else
-    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} failed (network? PyPI?) -- removing partial venv, skipping"
+    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + aiohttp failed (network? PyPI?) -- removing partial venv, skipping"
     rm -rf "${VENV_DIR}"
     exit 0
 fi

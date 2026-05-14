@@ -30,26 +30,45 @@ Type=simple
 # ownership stays consistent across the container->direct migration.
 User=mios-hermes
 Group=mios-hermes
-# Runtime state dirs -- systemd creates + chowns these, satisfying the
-# NO-MKDIR-IN-VAR law without a tmpfiles.d drop-in.
+# Runtime state dir -- systemd creates + chowns it (NO-MKDIR-IN-VAR law).
+# ConfigurationDirectory= deliberately omitted: /etc/mios/hermes is
+# pre-created by mios-hermes-firstboot at mode 0750; declaring
+# ConfigurationDirectory=mios/hermes here makes systemd fight that
+# (warns "mode is different. File system: 750 ConfigurationDirectoryMode:
+# 755"). ReadWritePaths=/etc/mios below already grants write access.
 StateDirectory=mios/hermes
-ConfigurationDirectory=mios/hermes
 Environment=HOME=/var/lib/mios/hermes
 Environment=HERMES_HOME=/var/lib/mios/hermes
 Environment=HERMES_CONFIG_PATH=/etc/mios/hermes/config.yaml
-# MIOS_AI_ENDPOINT / MIOS_AI_MODEL / MIOS_AI_KEY are exported by
-# /etc/profile.d/mios-env.sh from mios.toml [ai].* -- but profile.d
-# isn't sourced for system units, so pull the same values from the
-# install-env bridge that bootstrap stages.
+# Gateway bind: PORT is the OpenAI /v1 surface port (mios.toml
+# [ports].hermes, default 8642). API_SERVER_HOST=0.0.0.0 comes from
+# api.env (so the WSL2 portproxy + LAN reach it). HERMES_BACKEND_BASE_URL
+# points at the ollama container's host-net OpenAI surface -- hermes-agent
+# runs ON the host now (direct install), so localhost:11434 reaches the
+# Network=host ollama container directly.
+Environment=PORT=8642
+Environment=HERMES_BACKEND_BASE_URL=http://localhost:11434
+# api.env carries API_SERVER_HOST=0.0.0.0, API_SERVER_KEY, the dashboard
+# token, GATEWAY_ALLOW_ALL_USERS, etc. install.env is the non-secret
+# bootstrap bridge. Both optional (- prefix) so the unit still starts
+# pre-firstboot.
 EnvironmentFile=-/etc/mios/install.env
 EnvironmentFile=-/etc/mios/hermes/api.env
-# `hermes gateway` serves the OpenAI-compatible /v1 surface + the agent
-# dashboard. --host 0.0.0.0 so the WSL2 portproxy + LAN clients reach
-# it (mios.toml [ports].hermes, default 8642).
-ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes gateway --host 0.0.0.0 --port 8642
+# `hermes gateway run` serves the OpenAI /v1 surface + agent dashboard
+# in the foreground (Type=simple). --replace evicts any stale gateway
+# instance -- essential for clean systemd restarts. Host/port come from
+# the env above (API_SERVER_HOST + PORT), NOT CLI flags: `hermes gateway`
+# itself is a service-manager subcommand whose only positional is
+# {run,start,stop,...} -- passing --host/--port to it is an arg error.
+ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes gateway run --replace
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=300s
+# hermes gateway's restart drain (agent.restart_drain_timeout, default
+# 180s) needs TimeoutStopSec >= drain_timeout + 30s headroom or systemd
+# SIGKILLs the gateway mid-drain (operator-confirmed 2026-05-14 warning:
+# "TimeoutStopSec=45s but drain_timeout=180s, expected >=210s").
+TimeoutStopSec=240s
 # Hardening -- the agent reads `/` but should not be able to rewrite
 # vendor /usr; /etc + /var/lib/mios/hermes stay writable via the
 # Directory= directives above.
