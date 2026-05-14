@@ -1,9 +1,26 @@
 [Unit]
-Description='MiOS' Hermes-Agent first-boot key generation
+Description='MiOS' Hermes-Agent first-boot config + key generation
 Documentation=https://github.com/MiOS-DEV/MiOS
-After=local-fs.target systemd-tmpfiles-setup.service
-Before=mios-hermes.service mios-hermes-workspace.service multi-user.target
-ConditionPathExists=!/etc/mios/hermes/api.env
+# Runs before the DIRECT-install hermes-agent.service so the gateway
+# starts with a valid $HERMES_HOME/config.yaml + api.env already on
+# disk. The pre-2026-05-14 ordering targeted mios-hermes.service /
+# mios-hermes-workspace.service -- both deleted when the Hermes
+# container Quadlets were removed; hermes-agent.service is the runtime
+# now.
+After=local-fs.target systemd-tmpfiles-setup.service ollama.service
+Wants=ollama.service
+Before=hermes-agent.service multi-user.target
+# NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
+# this unit a true once-ever oneshot -- but the script does TWO jobs:
+# (1) mint api.env (genuinely once), and (2) seed/heal
+# /var/lib/mios/hermes/config.yaml (must re-run when the Hermes config
+# SCHEMA drifts across upgrades, or when the container->direct-install
+# migration left $HERMES_HOME orphan-owned). The script is fully
+# idempotent -- it skips keygen when API_SERVER_KEY exists and only
+# rewrites config.yaml on detected drift -- so letting it run every
+# boot is cheap and self-healing. Operator-confirmed 2026-05-14: the
+# gate left a stale pre-0.13 config.yaml in place that the firstboot
+# rewrite could never reach.
 
 [Service]
 Type=oneshot

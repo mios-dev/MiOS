@@ -215,85 +215,105 @@ EOF
     _log "wrote $ENV_FILE (64-char API_SERVER_KEY)"
 fi
 
-# ─── /var/lib/mios/hermes/config.yaml (Hermes-agent main config) ────────
+# ─── /var/lib/mios/hermes/config.yaml (Hermes-Agent main config) ────────
 #
-# Hermes-Agent's `gateway run` reads ${HERMES_HOME}/config.yaml -- that's
-# /opt/data/config.yaml inside the container, which the .container's
-# Volume= bind-mounts from /var/lib/mios/hermes on the host. The stock
-# image ships a config that defaults `model.provider: auto` +
-# `model.default: anthropic/claude-opus-4.6` + `model.base_url:
-# https://openrouter.ai/api/v1`, which 401s on every install that doesn't
-# have an OPENROUTER_API_KEY. Operator vision: Hermes is the LIVE MiOS
-# agent at /, fully offline, fronting local Ollama -- so we seed a
-# config.yaml that pins the agent loop to ollama+<_AI_MODEL_RESOLVED> at
-# http://localhost:11434/v1.
+# Hermes-Agent 0.13.x reads $HERMES_HOME/config.yaml. The direct host
+# install (automation/38-hermes-agent.sh + hermes-agent.service) sets
+# HERMES_HOME=/var/lib/mios/hermes, so the agent's config lives at
+# /var/lib/mios/hermes/config.yaml. NOTE: 0.13.x ignores the
+# HERMES_CONFIG_PATH env var entirely -- HERMES_HOME is authoritative.
 #
-# Idempotent re-seed: we re-seed if the file is missing, still contains
-# the openrouter default, OR has the MiOS-seeded sentinel but a stale
-# model id. That last branch lets an [ai].model edit in mios.html
-# propagate forward on next firstboot run without losing the operator's
-# unrelated edits (we preserve operator edits via the include directive
-# in /etc/mios/hermes/config.local.yaml, not the file we're rewriting).
+# SCHEMA -- load-bearing. Hermes-Agent 0.13.x resolves the inference
+# provider via hermes_cli/runtime_provider.py::resolve_requested_provider:
+# it reads config["model"], and ONLY honours a `provider:` key when
+# `model` is a DICT. If `model` is a bare string the provider is
+# unknown -> falls through to "auto" -> tries openrouter -> HTTP 401
+# "Missing Authentication header" (no OPENROUTER_API_KEY).
+# Operator-confirmed 2026-05-14. So `model` MUST be a mapping:
+#   model:
+#     provider: custom:<name>     # matches a custom_providers[].name
+#     default:  <ollama-model-id>
+#     base_url: http://localhost:11434/v1
+# `provider: custom:local-ollama` then resolves against the
+# `custom_providers:` list entry named `local-ollama`. The pre-0.13
+# `backend:` block is genuinely unused by 0.13.x -- we drop it (the
+# re-seed detection below treats a leftover `backend:` as stale).
+#
+# Architectural Law 5 (UNIFIED-AI-REDIRECTS): the agent loop stays
+# fully local -- custom_providers[local-ollama] points at the on-box
+# Ollama OpenAI surface, no cloud calls.
 HERMES_DATA=/var/lib/mios/hermes
 HERMES_DATA_CFG="${HERMES_DATA}/config.yaml"
 mkdir -p "$HERMES_DATA"
 
-# `mios-hermes` runs as uid:gid from [services.hermes] (default 820:820)
-# inside the container; the host-side dir must be owned by the same
-# numeric uid for the bind-mount writes to land. Re-chown on every
-# firstboot run -- cheap, idempotent.
+# Ownership: hermes-agent.service runs as the mios-hermes sysuser
+# (uid 820). The pre-2026-05-14 mios-hermes CONTAINER ran with an
+# in-container uid (10000) and bind-mounted this dir, leaving it
+# orphan-owned 10000:10000 mode 0700 -- the direct-install service
+# (uid 820) then cannot write its own state dir and chat completions
+# die with "Permission denied: /var/lib/mios/hermes/cron". Force the
+# whole tree to 820:820 on every run -- cheap, idempotent, and heals
+# the container -> direct-install migration.
 chown -R 820:820 "$HERMES_DATA" 2>/dev/null || true
+chmod 0750 "$HERMES_DATA" 2>/dev/null || true
+
+# Validate the resolved model against what Ollama actually serves. The
+# [ai.host_thresholds] auto-pick can resolve to a model (e.g.
+# granite4.1:30b) that was never baked or pulled on this host --
+# pointing Hermes at a missing model breaks chat just as hard as a
+# stale schema. Query Ollama's tag list; if the resolved model isn't
+# present, fall back to the first available non-embedding model.
+_ollama_tags="$(curl -fsS --max-time 5 http://localhost:11434/api/tags 2>/dev/null \
+    | grep -oE '"name":"[^"]+"' | sed 's/"name":"//;s/"$//')"
+if [[ -n "$_ollama_tags" ]]; then
+    if ! grep -qxF "$_AI_MODEL_RESOLVED" <<< "$_ollama_tags"; then
+        _fallback="$(grep -viE 'embed' <<< "$_ollama_tags" | head -1)"
+        if [[ -n "$_fallback" ]]; then
+            _log "resolved model '${_AI_MODEL_RESOLVED}' not present in Ollama -- falling back to '${_fallback}'"
+            _AI_MODEL_RESOLVED="$_fallback"
+        else
+            _log "WARN: '${_AI_MODEL_RESOLVED}' not in Ollama and no non-embed fallback found"
+        fi
+    fi
+fi
 
 _should_seed=0
 if [[ ! -f "$HERMES_DATA_CFG" ]]; then
     _should_seed=1
-elif grep -q 'openrouter\.ai/api/v1' "$HERMES_DATA_CFG" 2>/dev/null && \
-     ! grep -q '# MiOS-seeded' "$HERMES_DATA_CFG" 2>/dev/null; then
+elif grep -qE '^backend:' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Leftover pre-0.13 `backend:` block -- stale schema, rewrite.
     _should_seed=1
-elif grep -q '# MiOS-seeded' "$HERMES_DATA_CFG" 2>/dev/null && \
-     ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
+    _log "re-seeding $HERMES_DATA_CFG -- detected pre-0.13 container-era schema"
+elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
-    _log "re-seeding $HERMES_DATA_CFG -- model drift: want=${_AI_MODEL_RESOLVED}, file has another"
+    _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
 fi
 
 if [[ "$_should_seed" -eq 1 ]]; then
-    # Build the custom_providers.models list from [[ai.catalog]] so the
-    # set of choices Hermes Workspace shows tracks mios.toml. Falls
-    # back to just the resolved model when the catalog is empty.
-    _catalog="$(_mios_toml_catalog)"
-    if [[ -z "$_catalog" ]]; then
-        _catalog=$'granite4.1:3b\tGranite 4.1 3B (local)\t8'
-    fi
-    # Emit YAML for the models: list, indented to fit under
-    # custom_providers[0].models.
-    _models_yaml=""
-    while IFS=$'\t' read -r _id _label _ram; do
-        [[ -z "$_id" ]] && continue
-        _models_yaml+="      - id: ${_id}"$'\n'
-        _models_yaml+="        label: \"${_label:-$_id}\""$'\n'
-    done <<< "$_catalog"
-
-    # Unquoted heredoc so ${_AI_MODEL_RESOLVED} expands. ${API_SERVER_KEY}-
-    # style values from api.env are not referenced here.
+    # Unquoted heredoc so ${_AI_MODEL_RESOLVED} / ${_AI_MODEL_DEFAULT}
+    # expand. No ${API_SERVER_KEY}-style values referenced here (those
+    # live in api.env, loaded separately via hermes-agent.service
+    # EnvironmentFile=).
+    umask 0077
     cat > "$HERMES_DATA_CFG" <<EOF
-# MiOS-seeded /var/lib/mios/hermes/config.yaml
-# (= /opt/data/config.yaml inside the mios-hermes container)
+# /var/lib/mios/hermes/config.yaml -- MiOS-seeded (Hermes-Agent 0.13.x schema)
+# Generated by mios-hermes-firstboot.service. Hermes-Agent reads
+# \$HERMES_HOME/config.yaml; HERMES_HOME=/var/lib/mios/hermes.
 #
-# Generated by mios-hermes-firstboot.service. Operator edits at
-# /etc/mios/hermes/config.local.yaml are layered on top by the
-# vendor config's \`include:\` directive.
-#
-# Architectural Law 5 (UNIFIED-AI-REDIRECTS): the live MiOS agent at
-# / stays fully local. Hermes reads model.provider + model.default
-# (see /opt/hermes/agent/auxiliary_client.py::_read_main_provider);
-# the "ollama" provider is an alias for "custom" with base_url set
-# below. Net result: /v1/chat/completions runs the agent loop
-# against local Ollama, no cloud calls.
+# AI chain: ollama (:11434, raw inference) -> Hermes-Agent (:8642/v1,
+# OpenAI gateway + agent loop) -> Open WebUI (:3030). The gateway's own
+# API key lives in /etc/mios/hermes/api.env (API_SERVER_KEY), loaded by
+# hermes-agent.service via EnvironmentFile=.
 #
 # Resolved values:
-#   [ai].model              -> ${_AI_MODEL_DEFAULT}
-#   auto-picked (host RAM)  -> ${_AI_MODEL_RESOLVED}
+#   [ai].model            -> ${_AI_MODEL_DEFAULT}
+#   validated vs Ollama   -> ${_AI_MODEL_RESOLVED}
+_config_version: 23
 
+# Primary model. MUST be a mapping (not a bare string) so
+# resolve_requested_provider() sees the provider= key. provider=
+# "custom:local-ollama" resolves against the custom_providers entry
+# below. Architectural Law 5: local Ollama only, no cloud calls.
 model:
   provider: custom:local-ollama
   default: ${_AI_MODEL_RESOLVED}
@@ -304,28 +324,11 @@ custom_providers:
   - name: local-ollama
     base_url: http://localhost:11434/v1
     api_key: ""
-    models:
-${_models_yaml}
-
-auxiliary:
-  provider: custom:local-ollama
-  base_url: http://localhost:11434/v1
-  model: ${_AI_MODEL_RESOLVED}
-  api_key: ""
-
-tools:
-  web_search:
-    enabled: true
-    provider: searxng
-    base_url: http://localhost:8888
-
-logging:
-  level: info
-  format: json
 EOF
+    umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
     chmod 0640 "$HERMES_DATA_CFG" 2>/dev/null || true
-    _log "seeded $HERMES_DATA_CFG (model.provider=custom:local-ollama, model.default=${_AI_MODEL_RESOLVED})"
+    _log "seeded $HERMES_DATA_CFG (provider=custom:local-ollama default=${_AI_MODEL_RESOLVED})"
 else
-    _log "$HERMES_DATA_CFG already configured (model.default=${_AI_MODEL_RESOLVED}) -- not overwriting"
+    _log "$HERMES_DATA_CFG already current (default=${_AI_MODEL_RESOLVED}) -- not overwriting"
 fi
