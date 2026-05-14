@@ -1,0 +1,62 @@
+[Unit]
+# /usr/lib/systemd/system/hermes-agent.service
+#
+# Hermes-Agent as a DIRECT host service -- not a container Quadlet.
+# Operator directive 2026-05-13: the agent is installed natively onto
+# the MiOS root filesystem (automation/38-hermes-agent.sh) and runs
+# here as a host systemd service so it sees the real `/`, the real
+# systemd, and the real git working tree without container bind-mount
+# indirection. The mios-hermes + mios-hermes-dashboard CONTAINER
+# Quadlets are shelved (mios.toml [quadlets.enable] = false).
+#
+# Inference backend: the OpenAI-compatible /v1 surface resolved from
+# mios.toml [ai].endpoint (default http://localhost:11434/v1 = the
+# ollama container; swap to vllm / llama.cpp by editing mios.toml).
+# This unit deliberately depends on ollama.service so the backend is
+# up first, but stays Wants= (not Requires=) so the agent still starts
+# -- and can be repointed -- if ollama is swapped out.
+Description='MiOS' Hermes-Agent (direct host install, OpenAI gateway)
+Documentation=https://github.com/NousResearch/hermes-agent
+After=network-online.target ollama.service
+Wants=network-online.target ollama.service
+# Skip cleanly if the direct install didn't land (e.g. clone failed at
+# build time) rather than crash-looping.
+ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+
+[Service]
+Type=simple
+# Runtime identity: the mios-hermes sysuser (uid 820) already exists in
+# /usr/lib/sysusers.d/ from the container era -- reuse it so /var/lib
+# ownership stays consistent across the container->direct migration.
+User=mios-hermes
+Group=mios-hermes
+# Runtime state dirs -- systemd creates + chowns these, satisfying the
+# NO-MKDIR-IN-VAR law without a tmpfiles.d drop-in.
+StateDirectory=mios/hermes
+ConfigurationDirectory=mios/hermes
+Environment=HOME=/var/lib/mios/hermes
+Environment=HERMES_HOME=/var/lib/mios/hermes
+Environment=HERMES_CONFIG_PATH=/etc/mios/hermes/config.yaml
+# MIOS_AI_ENDPOINT / MIOS_AI_MODEL / MIOS_AI_KEY are exported by
+# /etc/profile.d/mios-env.sh from mios.toml [ai].* -- but profile.d
+# isn't sourced for system units, so pull the same values from the
+# install-env bridge that bootstrap stages.
+EnvironmentFile=-/etc/mios/install.env
+EnvironmentFile=-/etc/mios/hermes/api.env
+# `hermes gateway` serves the OpenAI-compatible /v1 surface + the agent
+# dashboard. --host 0.0.0.0 so the WSL2 portproxy + LAN clients reach
+# it (mios.toml [ports].hermes, default 8642).
+ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes gateway --host 0.0.0.0 --port 8642
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+# Hardening -- the agent reads `/` but should not be able to rewrite
+# vendor /usr; /etc + /var/lib/mios/hermes stay writable via the
+# Directory= directives above.
+ProtectSystem=strict
+ReadWritePaths=/etc/mios /var/lib/mios
+ProtectHome=false
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

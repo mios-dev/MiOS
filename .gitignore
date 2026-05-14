@@ -508,6 +508,10 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/mios-*.path
 !/usr/lib/systemd/system/mios-*.socket
 !/usr/lib/systemd/system/var-*.mount
+# hermes-agent.service -- the DIRECT host install of Hermes-Agent
+# (automation/38-hermes-agent.sh). Doesn't carry the mios- prefix
+# because it IS Hermes-Agent, not a MiOS wrapper; whitelisted explicitly.
+!/usr/lib/systemd/system/hermes-agent.service
 !/usr/lib/systemd/system/*.service.d/
 !/usr/lib/systemd/system/*.service.d/**
 !/usr/lib/systemd/system/*.socket.d/
