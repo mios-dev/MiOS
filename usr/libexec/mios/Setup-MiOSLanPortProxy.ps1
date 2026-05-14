@@ -22,11 +22,20 @@ if (-not $isAdmin) {
     Start-Process -FilePath 'pwsh.exe' -ArgumentList $args -Verb RunAs
     return
 }
-
 $portMap = @(
     @{ Port = 3000;  Name = 'forge'            }
     @{ Port = 3030;  Name = 'open-webui'       }
     @{ Port = 8080;  Name = 'code-server'      }
+    @{ Port = 9090;  Name = 'cockpit'          }
+    @{ Port = 11434; Name = 'ollama'           }
+    @{ Port = 8888;  Name = 'searxng'          }
+    @{ Port = 8642;  Name = 'hermes'           }
+    @{ Port = 9119;  Name = 'dash-ai'          }
+    @{ Port = 8090;  Name = 'guacamole'        }
+    @{ Port = 8443;  Name = 'ceph-dash'        }
+    @{ Port = 3389;  Name = 'rdp'              }
+)
+
     @{ Port = 8642;  Name = 'hermes'           }
     @{ Port = 8888;  Name = 'searxng'          }
     @{ Port = 9090;  Name = 'cockpit'          }
