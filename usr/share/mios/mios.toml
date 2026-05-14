@@ -2496,16 +2496,15 @@ features = ["ai", "virtualization", "k3s"]
 #   open-webui (container)     -- rich browser LLM UI on :3030, talks to
 #                                 the OpenAI /v1 surface.
 #
-# mios-hermes + mios-hermes-dashboard CONTAINER Quadlets are SHELVED
-# (false) -- the agent is a direct host install now, not a sidecar.
-# The Quadlet files stay in the tree for operators who want to flip
-# back to the containerized agent, but they're disabled by default.
+# mios-hermes + mios-hermes-dashboard CONTAINER Quadlets were REMOVED
+# 2026-05-14 (operator directive). Hermes-Agent is a DIRECT host install
+# (automation/38-hermes-agent.sh + hermes-agent.service) -- there is no
+# containerized agent path anymore. The agent's dashboard ships inside
+# that same install; Open WebUI is the browser LLM UI.
 mios-ceph             = true
 mios-k3s              = true
 mios-forge            = true
 mios-cockpit-link     = true
-mios-hermes           = false   # SHELVED -- hermes-agent is a direct host install
-mios-hermes-dashboard = false   # SHELVED -- part of the direct hermes-agent install
 mios-open-webui       = true
 mios-code-server      = true
 crowdsec-dashboard    = true

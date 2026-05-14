@@ -1,49 +1,28 @@
 #!/usr/bin/env bash
 # /usr/bin/hermes
-# Launch the actual hermes-agent CLI inside the mios-hermes container.
-# Operator directive 2026-05-13: "'hermes' should launch Hermes directly".
+# Thin launcher for the DIRECT-installed Hermes-Agent. Operator
+# directive 2026-05-13/14: Hermes-Agent is installed natively onto the
+# MiOS root filesystem (automation/38-hermes-agent.sh -> venv at
+# /usr/lib/mios/hermes-agent/.venv) and runs as the hermes-agent.service
+# host systemd service. There is NO mios-hermes container -- the
+# container Quadlets were removed.
 #
 # Usage:
-#   hermes                          interactive chat REPL (no args)
-#   hermes dashboard                start the agent dashboard server
-#   hermes session list             list sessions
-#   hermes <any subcommand>         passes through to upstream hermes CLI
+#   hermes                  interactive chat REPL
+#   hermes gateway status   gateway service control
+#   hermes kanban ...        kanban subcommands
+#   hermes <any subcommand>  passes through to the upstream CLI
 #
-# Why exec into the container instead of installing the hermes binary
-# host-side: the hermes-agent CLI ships with the agent's Python venv +
-# config + skills + kanban DB inside docker.io/nousresearch/hermes-agent.
-# Re-installing host-side would diverge from the in-container state and
-# break SQLite/file-path assumptions. The container is the canonical
-# install -- this wrapper just makes it CLI-accessible from any MiOS
-# bash session.
-#
-# `mios <prompt>` and `@<prompt>` (no space) remain the canonical
-# one-shot chat surfaces -- they target the OpenAI gateway directly
-# via /usr/bin/mios. `hermes` is the Hermes CLI itself.
-
+# `mios <prompt>` and `@<prompt>` remain the one-shot chat shortcuts
+# (they target the OpenAI gateway via /usr/bin/mios). `hermes` is the
+# agent's own CLI.
 set -euo pipefail
 
-if ! command -v podman >/dev/null 2>&1; then
-    echo "hermes: podman not found -- the agent CLI runs inside the mios-hermes container." >&2
+HERMES_BIN=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+if [[ ! -x "$HERMES_BIN" ]]; then
+    echo "hermes: direct install not found at $HERMES_BIN" >&2
+    echo "  the Hermes-Agent host install (automation/38-hermes-agent.sh) hasn't run" >&2
+    echo "  -- run 'mios update' or re-run the bootstrap to install it." >&2
     exit 127
 fi
-
-if ! podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'mios-hermes'; then
-    echo "hermes: mios-hermes container is not running." >&2
-    echo "  start it: systemctl --user start mios-hermes.service  (or: sudo systemctl start mios-hermes.service)" >&2
-    exit 1
-fi
-
-# Full path -- the upstream image's PATH doesn't include
-# /opt/hermes/.venv/bin (the Python venv where the hermes entry-point
-# script lives). Operator-confirmed 2026-05-13: bare `hermes` in the
-# container failed with `crun: executable file 'hermes' not found in
-# $PATH`. Hardcoding the venv path is the canonical workaround.
-HERMES_BIN=/opt/hermes/.venv/bin/hermes
-
-# -i + -t when the parent has a tty (interactive); -i only when piped.
-if [ -t 0 ] && [ -t 1 ]; then
-    exec podman exec -it mios-hermes "$HERMES_BIN" "$@"
-else
-    exec podman exec -i  mios-hermes "$HERMES_BIN" "$@"
-fi
+exec "$HERMES_BIN" "$@"
