@@ -1,0 +1,56 @@
+# /etc/containers/systemd/mios-open-webui.container
+# 'MiOS' Open WebUI - rich LLM interface.
+#
+# Open WebUI provides a ChatGPT-like interface fronting the MiOS AI stack.
+# It is wired to Hermes-Agent (Architectural Law 5) for unified agentic
+# capabilities.
+
+[Unit]
+Description='MiOS' Open WebUI
+After=network-online.target mios-hermes.service
+Wants=network-online.target
+ConditionPathExists=/etc/mios/hermes/api.env
+
+[Container]
+# Image / Port / Network placeholders rendered by automation/15-render-quadlets.sh
+Image=ghcr.io/open-webui/open-webui:main
+ContainerName=mios-open-webui
+Network=ai-net.network
+Network=mios.network
+PublishPort=3030:8080
+AutoUpdate=registry
+
+# Persistent state.
+Volume=/var/lib/mios/open-webui:/app/backend/data:Z
+
+# API key + server settings. Shared with Hermes-Agent.
+EnvironmentFile=/etc/mios/hermes/api.env
+
+# Wiring to MiOS AI Stack
+# We point to Hermes-Agent on ai-net.network (Law 5)
+Environment=OPENAI_API_BASE_URL=http://mios-hermes:8642/v1
+# OPENAI_API_KEY is picked up from EnvironmentFile above (API_SERVER_KEY)
+# In standard Quadlet Environment=, we can't interpolate from EnvironmentFile=,
+# but we don't need to because the process will see both.
+# Setting a literal or removing this line is safer.
+# Open WebUI specifically looks for OPENAI_API_KEY.
+# Since the EnvironmentFile contains OPENAI_API_KEY=${api_key}, it should work.
+
+# Disable direct Ollama to force Law 5 compliance (Hermes as gateway)
+Environment=ENABLE_OLLAMA=False
+# But we can still provide the URL for other features if needed
+Environment=OLLAMA_BASE_URL=http://mios-ollama:11434
+
+# General config
+Environment=WEBUI_NAME="MiOS AI"
+Environment=WEBUI_SECRET_KEY=mios-stable-secret-change-me
+Environment=ENABLE_SIGNUP=False
+Environment=DEFAULT_USER_ROLE=admin
+
+# Identity. UID 817 (mios-open-webui)
+User=817
+Group=817
+
+Label=org.opencontainers.image.title=mios-open-webui
+Label=org.opencontainers.image.url=http://localhost:3030/
+Label=io.podman_desktop.openInBrowser=http://localhost:3030/

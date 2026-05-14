@@ -4,7 +4,7 @@
 # mios.toml [ai] + [ai.host_thresholds] auto-pick.
 #
 # The same key is read by both mios-hermes (gateway) and
-# mios-hermes-workspace (chat front-end) via EnvironmentFile= in their
+# mios-open-webui (chat front-end) via EnvironmentFile= in their
 # Quadlets. Idempotent: re-runs are no-ops once API_SERVER_KEY exists
 # and the seeded config.yaml's MiOS-seeded sentinel + model match the
 # resolved mios.toml [ai].model.

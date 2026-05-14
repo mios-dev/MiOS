@@ -359,7 +359,7 @@ print_endpoints() {
     _fpw="$(cat /etc/mios/forge/admin-password 2>/dev/null)"
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
 
-    local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_dash _p_code
+    local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_dash _p_code _p_webui
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
@@ -367,8 +367,9 @@ print_endpoints() {
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)
     _p_code=$(_mios_port code_server 8080)
+    _p_webui=$(_mios_port open_webui 3030)
 
-    local d_forge d_ollama d_cockpit d_searxng d_hermes d_dash d_code
+    local d_forge d_ollama d_cockpit d_searxng d_hermes d_dash d_code d_webui
     d_forge=$(ep_dot     "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot    "http://localhost:${_p_ollama}/")
     d_cockpit=$(ep_dot   "https://localhost:${_p_cockpit}/")
@@ -376,6 +377,7 @@ print_endpoints() {
     d_hermes=$(ep_dot    "http://localhost:${_p_hermes}/health")
     d_dash=$(ep_dot      "http://localhost:${_p_dash}/")
     d_code=$(ep_dot      "http://localhost:${_p_code}/")
+    d_webui=$(ep_dot     "http://localhost:${_p_webui}/")
 
     # Mini: count recap + 4 clickable hyperlink rows (Cockpit, Code,
     # Workspace, Search) per operator spec 2026-05-11 ("you STILL have
@@ -386,7 +388,7 @@ print_endpoints() {
     if [[ "$MODE" == "mini" ]]; then
         local n_up=0 n_down=0
         for _d in "$d_forge" "$d_ollama" "$d_cockpit" "$d_searxng" \
-                  "$d_hermes" "$d_workspace" "$d_code"; do
+                  "$d_hermes" "$d_webui" "$d_code"; do
             case "$_d" in
                 *"$DOT_UP"*) n_up=$((n_up + 1)) ;;
                 *)           n_down=$((n_down + 1)) ;;
@@ -399,7 +401,7 @@ print_endpoints() {
         local link_fmt='  %s %-10s %s%s%s\n'
         printf "$link_fmt" "$d_cockpit"   "Cockpit"   "$C_D" "https://localhost:${_p_cockpit}/"  "$C_R"
         printf "$link_fmt" "$d_code"      "Code"      "$C_D" "http://localhost:${_p_code}/"      "$C_R"
-        printf "$link_fmt" "$d_workspace" "Workspace" "$C_D" "http://localhost:${_p_workspace}/" "$C_R"
+        printf "$link_fmt" "$d_webui"     "WebUI"     "$C_D" "http://localhost:${_p_webui}/"     "$C_R"
         printf "$link_fmt" "$d_searxng"   "Search"    "$C_D" "http://localhost:${_p_searxng}/"   "$C_R"
         return
     fi
@@ -432,18 +434,20 @@ print_endpoints() {
     local osc_lnk="${_esc}]8;;%s${_esc}\\%-9s${_esc}]8;;${_esc}\\"
     local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
     local row_fmt='  %b  %b\n'
-    local c_forge c_ollama c_cock c_srch c_herm c_dash c_code
+    local c_forge c_ollama c_cock c_srch c_herm c_dash c_code c_webui
     c_forge=$( printf  "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"     "$C_D" "$_p_forge"     "$C_R")
     c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "http://localhost:${_p_ollama}/"    "Ollama"    "$C_D" "$_p_ollama"    "$C_R")
     c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"   "$C_D" "$_p_cockpit"   "$C_R")
     c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"    "$C_D" "$_p_searxng"   "$C_R")
     c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "http://localhost:${_p_hermes}/v1"  "Hermes"    "$C_D" "$_p_hermes"    "$C_R")
-    c_dash=$(  printf  "$cell_fmt" "$d_dash"      "http://localhost:${_p_dash}/"      "Dashboard" "$C_D" "$_p_dash"      "$C_R")
+    c_dash=$(  printf  "$cell_fmt" "$d_dash"      "http://localhost:${_p_dash}/"      "Dash-AI"   "$C_D" "$_p_dash"      "$C_R")
     c_code=$(  printf  "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"      "$C_D" "$_p_code"      "$C_R")
+    c_webui=$( printf  "$cell_fmt" "$d_webui"     "http://localhost:${_p_webui}/"     "WebUI"     "$C_D" "$_p_webui"     "$C_R")
     printf "$row_fmt" "$c_forge" "$c_ollama"
     printf "$row_fmt" "$c_cock"  "$c_srch"
     printf "$row_fmt" "$c_herm"  "$c_dash"
-    printf '  %b\n' "$c_code"
+    printf "$row_fmt" "$c_code"  "$c_webui"
+
     # Backing services -- no exposed URL but stack-critical (CI runner,
     # network bridge, cluster). Dot-only indicators so the operator sees
     # the full stack at a glance in `mios dash`. Operator 2026-05-11:
@@ -472,8 +476,9 @@ print_quadlets() {
     local n_active=0 n_starting=0 n_inactive=0 n_failed=0
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-searxng \
-               mios-hermes mios-hermes-dashboard mios-hermes-workspace mios-code-server crowdsec-dashboard \
+               mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres; do
+
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"
         case "$name" in

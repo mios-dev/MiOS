@@ -24,6 +24,25 @@ if ! command -v virsh >/dev/null 2>&1; then
 fi
 
 # Wait briefly for libvirtd socket
+MODULAR_SOCKETS=(
+    virtqemud.socket
+    virtnetworkd.socket
+    virtstoraged.socket
+    virtnodedevd.socket
+    virtnwfilterd.socket
+    virtsecretd.socket
+    virtproxyd.socket
+)
+
+_log "ensuring modular libvirt sockets are enabled and started"
+for sock in "${MODULAR_SOCKETS[@]}"; do
+    if systemctl is-enabled "$sock" >/dev/null 2>&1; then
+        systemctl start "$sock" >/dev/null 2>&1 || _log "  start $sock FAIL"
+    else
+        systemctl enable --now "$sock" >/dev/null 2>&1 || _log "  enable --now $sock FAIL"
+    fi
+done
+
 for _ in {1..20}; do
     virsh -c qemu:///system list >/dev/null 2>&1 && break
     sleep 0.5

@@ -216,6 +216,7 @@ KNOWN_VERBS = {
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
     "code":   ["xdg-open", "http://localhost:8080/"],
+    "ai":     ["xdg-open", "http://localhost:3030/"],
     "xbox":   ["/usr/libexec/mios/xbox-repair.sh"],
     "virt":   ["/usr/libexec/mios/virt-apply.sh"],
     "vfio":   ["/usr/libexec/mios/vfio-config.sh"],
@@ -245,6 +246,7 @@ def main(argv: list[str]) -> int:
             "  mios dash                            framed dashboard (services + endpoints + git tree)\n"
             "  mios config                          open the HTML configurator in your browser\n"
             "  mios code                            open code-server in your browser\n"
+            "  mios ai                              open Open WebUI in your browser\n"
             "  mios xbox                            Xbox VM Secure Boot / XML repair\n"
             "  mios virt                            apply optimized VM config + CPU pinning\n"
             "  mios vfio                            configure GPU/USB passthrough (Isolation)\n"

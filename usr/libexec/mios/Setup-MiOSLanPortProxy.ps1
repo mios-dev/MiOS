@@ -25,7 +25,7 @@ if (-not $isAdmin) {
 
 $portMap = @(
     @{ Port = 3000;  Name = 'forge'            }
-    @{ Port = 3030;  Name = 'hermes-workspace' }
+    @{ Port = 3030;  Name = 'open-webui'       }
     @{ Port = 8080;  Name = 'code-server'      }
     @{ Port = 8642;  Name = 'hermes'           }
     @{ Port = 8888;  Name = 'searxng'          }

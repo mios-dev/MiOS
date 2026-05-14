@@ -1,9 +1,9 @@
 [Unit]
 Description='MiOS' first-boot libvirtd wiring
 ConditionPathExists=!/var/lib/mios/libvirtd-setup.done
-ConditionVirtualization=no
-After=libvirtd.service
-Wants=libvirtd.service
+ConditionVirtualization=!container
+After=libvirtd.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket
+Wants=libvirtd.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket
 
 [Service]
 Type=oneshot

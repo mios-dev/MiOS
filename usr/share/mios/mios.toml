@@ -171,7 +171,18 @@ editor_url     = "/usr/share/mios/configurator/mios.html"
 build  = { description = "Open mios.html, save edits, then build the OCI image inside MiOS-DEV", surface = "dev_vm" }
 config = { description = "Edit mios.toml in the HTML configurator (no build)",                   surface = "windows" }
 dash   = { description = "Show the MiOS dashboard (framed banner + fastfetch)",                  surface = "windows" }
+ai     = { description = "Open Open WebUI (rich LLM interface) in your browser",                 surface = "windows" }
 dev    = { description = "Enter the MiOS-DEV podman machine",                                    surface = "dev_vm" }
+xbox   = { description = "Xbox VM Secure Boot / XML repair",                                     surface = "dev_vm" }
+virt   = { description = "Apply optimized VM config + CPU pinning",                              surface = "dev_vm" }
+vfio   = { description = "Configure GPU/USB passthrough (Isolation)",                            surface = "dev_vm" }
+tune   = { description = "System-wide CPU isolation & latency tuning",                           surface = "dev_vm" }
+summary= { description = "Quick ASCII system overview",                                          surface = "dev_vm" }
+profile= { description = "Interactive hardware/system profiler menu",                            surface = "dev_vm" }
+assess = { description = "Comprehensive system capability report",                               surface = "dev_vm" }
+iommu  = { description = "Pretty-print hardware IOMMU topology",                                 surface = "dev_vm" }
+theme  = { description = "Sync bibata/GTK/Qt themes",                                            surface = "dev_vm" }
+user   = { description = "Initialize user space (dotfiles/XDG)",                                 surface = "dev_vm" }
 pull   = { description = "Sync M:\\ overlay to origin/main",                                      surface = "windows" }
 update = { description = "Re-run the bootstrap (cache-busted)",                                  surface = "windows" }
 help   = { description = "List every verb",                                                       surface = "windows" }
@@ -866,6 +877,8 @@ pkgs = [
     "python3-passlib",     # password fallback (Python 3.13+ removed crypt)
     "bootc",               # bootc switch + self-replication closure
     "git",                 # in-distro clone
+    "curl",                # required for Bibata/AI CLI downloads
+    "tar",                 # required for Bibata extraction
     "iptables",            # netavark backend (binary; firewall_driver=none)
     "nftables",            # netavark alternative backend
     "fastfetch",           # MiOS dashboard / motd
@@ -1639,6 +1652,7 @@ ollama             = 11434    # alternate local LLM backend
 searxng            = 8888     # local privacy-respecting metasearch
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
+open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
 # hermes_workspace REMOVED 2026-05-13 (port 3030 freed) -- use the
 # hermes-agent dashboard at port 9119 instead.
 code_server        = 8080     # code-server (VS Code in a browser; matches image default)
@@ -1663,6 +1677,8 @@ searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
+open_webui_version = "latest"
+open_webui         = "ghcr.io/open-webui/open-webui:main"
 # hermes_workspace sidecar REMOVED 2026-05-13 -- replaced by the
 # hermes-agent's built-in dashboard at port 9119.
 code_server_version = "latest"
@@ -1695,6 +1711,11 @@ bib_alpine         = "docker.io/library/alpine:latest"
 user = "mios-forge"
 uid  = 816
 gid  = 816
+
+[services.open_webui]
+user = "mios-open-webui"
+uid  = 817
+gid  = 817
 
 [services.searxng]
 user = "mios-searxng"
@@ -2461,6 +2482,7 @@ mios-forge            = true
 mios-cockpit-link     = true
 mios-hermes           = true
 mios-hermes-dashboard = true
+mios-open-webui       = true
 mios-code-server      = true
 crowdsec-dashboard    = true
 ollama                = true

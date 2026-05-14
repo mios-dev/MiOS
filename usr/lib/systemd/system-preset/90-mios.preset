@@ -14,6 +14,11 @@ enable podman-auto-update.timer
 enable libvirtd.socket
 enable virtnetworkd.socket
 enable virtqemud.socket
+enable virtstoraged.socket
+enable virtnodedevd.socket
+enable virtnwfilterd.socket
+enable virtsecretd.socket
+enable virtproxyd.socket
 enable uupd.timer
 enable nvidia-cdi-refresh.path
 enable nvidia-cdi-refresh.service
@@ -60,6 +65,7 @@ enable cockpit.socket
 enable mios-searxng.service
 enable mios-hermes-firstboot.service
 enable mios-hermes.service
+enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token
 # all minted on first boot. mios-forgejo-runner reads the token and

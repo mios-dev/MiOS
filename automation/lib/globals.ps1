@@ -78,7 +78,7 @@ $script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:
 $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11434 }
 $script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
 $script:MIOS_PORT_HERMES        = if ($env:MIOS_PORT_HERMES)        { [int]$env:MIOS_PORT_HERMES }        else { 8642 }
-$script:MIOS_PORT_HERMES_WORKSPACE = if ($env:MIOS_PORT_HERMES_WORKSPACE) { [int]$env:MIOS_PORT_HERMES_WORKSPACE } else { 3030 }
+$script:MIOS_PORT_OPEN_WEBUI    = if ($env:MIOS_PORT_OPEN_WEBUI)    { [int]$env:MIOS_PORT_OPEN_WEBUI }    else { 3030 }
 $script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8080 }
 $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 19090 }
 
@@ -89,7 +89,7 @@ $script:MIOS_COCKPIT_URL  = if ($env:MIOS_COCKPIT_URL)  { $env:MIOS_COCKPIT_URL 
 $script:MIOS_OLLAMA_URL   = if ($env:MIOS_OLLAMA_URL)   { $env:MIOS_OLLAMA_URL }   else { "http://localhost:$($script:MIOS_PORT_OLLAMA)" }
 $script:MIOS_SEARXNG_URL  = if ($env:MIOS_SEARXNG_URL)  { $env:MIOS_SEARXNG_URL }  else { "http://localhost:$($script:MIOS_PORT_SEARXNG)" }
 $script:MIOS_HERMES_URL   = if ($env:MIOS_HERMES_URL)   { $env:MIOS_HERMES_URL }   else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
-$script:MIOS_HERMES_WORKSPACE_URL = if ($env:MIOS_HERMES_WORKSPACE_URL) { $env:MIOS_HERMES_WORKSPACE_URL } else { "http://localhost:$($script:MIOS_PORT_HERMES_WORKSPACE)/" }
+$script:MIOS_OPEN_WEBUI_URL     = if ($env:MIOS_OPEN_WEBUI_URL)     { $env:MIOS_OPEN_WEBUI_URL }     else { "http://localhost:$($script:MIOS_PORT_OPEN_WEBUI)/" }
 $script:MIOS_CODE_SERVER_URL     = if ($env:MIOS_CODE_SERVER_URL)     { $env:MIOS_CODE_SERVER_URL }     else { "http://localhost:$($script:MIOS_PORT_CODE_SERVER)/" }
 
 # ── REPOS ────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ $script:MIOS_UNIT_K3S               = 'mios-k3s.service'
 $script:MIOS_UNIT_COCKPIT_LINK      = 'mios-cockpit-link.service'
 $script:MIOS_UNIT_SEARXNG           = 'mios-searxng.service'
 $script:MIOS_UNIT_HERMES            = 'mios-hermes.service'
-$script:MIOS_UNIT_HERMES_WORKSPACE  = 'mios-hermes-workspace.service'
+$script:MIOS_UNIT_OPEN_WEBUI          = 'mios-open-webui.service'
 $script:MIOS_UNIT_HERMES_FIRSTBOOT  = 'mios-hermes-firstboot.service'
 $script:MIOS_UNIT_CODE_SERVER       = 'mios-code-server.service'
 $script:MIOS_UNIT_FIRSTBOOT_TARGET  = 'mios-firstboot.target'
@@ -168,7 +168,7 @@ $script:MIOS_CONTAINER_FORGE_IMAGE             = 'codeberg.org/forgejo/forgejo:1
 $script:MIOS_CONTAINER_OLLAMA_IMAGE            = 'docker.io/ollama/ollama:latest'
 $script:MIOS_CONTAINER_SEARXNG_IMAGE           = 'docker.io/searxng/searxng:latest'
 $script:MIOS_CONTAINER_HERMES_IMAGE            = 'docker.io/nousresearch/hermes-agent:latest'
-$script:MIOS_CONTAINER_HERMES_WORKSPACE_IMAGE  = 'ghcr.io/outsourc-e/hermes-workspace:latest'
+$script:MIOS_CONTAINER_OPEN_WEBUI_IMAGE        = 'ghcr.io/open-webui/open-webui:main'
 $script:MIOS_CONTAINER_CODE_SERVER_IMAGE       = 'ghcr.io/coder/code-server:latest'
 
 # ── COLOR PALETTE ────────────────────────────────────────────────────
