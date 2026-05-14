@@ -23,7 +23,7 @@ echo "==> Configuring firewalld ports for 'MiOS' services..."
 
 # Open essential ports for local/LAN access
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp          # mios-hermes (Hermes-Agent /v1)
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES_WORKSPACE}/tcp # mios-hermes-workspace (chat UI)
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp     # mios-open-webui (rich chat UI)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8080}/tcp # mios-code-server (VS Code in a browser)
 firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp       # mios-guacamole (Browser desktop)
 firewall-offline-cmd --zone=public --add-port=${MIOS_CEPH_DASHBOARD_PORT}/tcp  # Ceph dashboard

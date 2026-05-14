@@ -44,8 +44,8 @@ firewall-cmd --permanent --add-port=2224/tcp --add-port=5403-5405/udp 2>/dev/nul
 # mios-hermes (Hermes-Agent /v1 -- canonical OpenAI-API endpoint for the
 # LIVE MiOS agent at root; Architectural Law 5)
 firewall-cmd --permanent --add-port=${MIOS_PORT_HERMES}/tcp 2>/dev/null || true
-# mios-hermes-workspace (web chat front-end -- default chat UI)
-firewall-cmd --permanent --add-port=${MIOS_PORT_HERMES_WORKSPACE}/tcp 2>/dev/null || true
+# mios-open-webui (web chat front-end -- default chat UI)
+firewall-cmd --permanent --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp 2>/dev/null || true
 # mios-code-server (VS Code in a browser)
 firewall-cmd --permanent --add-port=${MIOS_PORT_CODE_SERVER}/tcp 2>/dev/null || true
 # mios-guacamole web (Browser desktop)
