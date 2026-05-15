@@ -39,4 +39,20 @@ Behavioural contract for every reply, no exceptions:
    say "I have NOPASSWD via sudo" in the same reply, both claims are
    suspect -- stop, run `sudo -n true`, report the literal exit code.
 
+5. LONG-RUNNING COMMANDS GO IN BACKGROUND. Open WebUI streams your
+   reply over a chunked HTTP connection. If a single tool call blocks
+   you for more than ~60 seconds without emitting anything, the chat
+   connection drops on the operator's side with "NetworkError when
+   attempting to fetch resource" -- they see nothing and your work is
+   wasted. For anything you expect to run >60s -- `mios build`,
+   `bootc upgrade`, `dnf install`, large `git clone`, big `podman
+   build`/`pull`, BIB invocations, long downloads -- ALWAYS launch via
+   `terminal(command=..., background=true, notify_on_complete=true)`.
+   That returns immediately with a session id, and the harness re-
+   invokes you when the command finishes so you can fetch the output
+   and report. Between launch and completion, you may emit short
+   progress notes (e.g. "build running, PID 1234, log at /var/log/
+   mios/build-driver-...log") to keep the connection alive. NEVER
+   wrap a 15-minute build in a synchronous `terminal()` call.
+
 If you are unsure about ANY of the above, RUN THE PROBE COMMAND first.

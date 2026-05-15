@@ -123,7 +123,15 @@ fi
 # parent service's namespace short of explicit setns() with CAP_SYS_ADMIN.
 # Preserves all CLI args; the re-exec inherits stdin/stdout/stderr via --pty.
 _MIOS_BUILD_ESCAPED="${_MIOS_BUILD_ESCAPED:-0}"   # guard against re-exec loop
-if [[ "$_MIOS_BUILD_ESCAPED" != "1" && "$(id -u)" -eq 0 && -d /var/lib/containers/storage ]]; then
+# Probe BOTH cases: agent might invoke us as root (after sudo wrap), OR as
+# the unprivileged service user with a passwordless sudo grant. Both are
+# affected identically by the parent service's mount namespace -- read-only
+# is read-only regardless of UID. Earlier the probe only ran when id==0,
+# so non-root invocations slipped past the escape and died later on `sudo
+# podman build` (operator-confirmed 2026-05-15: agent dropped the `sudo`
+# from `sudo mios build`, ran the driver as uid 820, escape never fired,
+# build hit storage.lock read-only mid-pipeline).
+if [[ "$_MIOS_BUILD_ESCAPED" != "1" && -d /var/lib/containers/storage ]]; then
     if ! ( : > /var/lib/containers/storage/.mios-sandbox-probe ) 2>/dev/null; then
         if command -v systemd-run >/dev/null 2>&1; then
             _log "detected restricted mount namespace (parent service has ProtectSystem=strict);"
@@ -145,12 +153,25 @@ if [[ "$_MIOS_BUILD_ESCAPED" != "1" && "$(id -u)" -eq 0 && -d /var/lib/container
             # --quiet:   no "Running as unit:" preamble in stderr
             # --uid=0:   run as root explicitly (we already are, but be loud)
             # --same-dir:keep CWD instead of jumping to /
-            exec systemd-run --pipe --wait --collect --quiet --uid=0 --same-dir \
-                /usr/libexec/mios/mios-build-driver "$@"
+            #
+            # Wrap with sudo when we're NOT already root -- systemd-run needs
+            # CAP_SYS_ADMIN/root to register the transient unit with PID 1.
+            # The privilege preflight above guarantees `sudo -n true` works
+            # for the calling user when uid != 0 (else we'd have FATAL'd
+            # before reaching here).
+            if [[ "$(id -u)" -eq 0 ]]; then
+                exec systemd-run --pipe --wait --collect --quiet --uid=0 --same-dir \
+                    /usr/libexec/mios/mios-build-driver "$@"
+            else
+                _log "(escalating to root via 'sudo' for the systemd-run call -- caller uid=$(id -u))"
+                exec sudo -n -E systemd-run --pipe --wait --collect --quiet --uid=0 --same-dir \
+                    --setenv=_MIOS_BUILD_ESCAPED=1 \
+                    /usr/libexec/mios/mios-build-driver "$@"
+            fi
         else
             _log "WARN: in a restricted mount namespace but 'systemd-run' is unavailable --"
             _log "      podman/git operations will likely fail with 'read-only file system'."
-            _log "      Re-run from outside the agent service: 'sudo systemd-run --scope mios build'"
+            _log "      Re-run from outside the agent service: 'sudo systemd-run --pipe --wait mios build'"
         fi
     else
         rm -f /var/lib/containers/storage/.mios-sandbox-probe 2>/dev/null
