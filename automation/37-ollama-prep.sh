@@ -130,6 +130,31 @@ for raw_model in "${MODELS[@]}"; do
     fi
 done
 
+# After the base pulls land, derive any custom-template models we ship.
+# Currently: gpt-oss-tools:20b -- a Modelfile-stripped variant of
+# gpt-oss:20b that removes the harmony "Reasoning:" header so analysis-
+# channel chain-of-thought stops leaking into tool_call.arguments.
+# Without this strip, gpt-oss:20b's natural agent-loop tendency (it's
+# the only model in the catalog that picks delegate_task unprompted)
+# is unusable from Hermes -- the JSON parser dies on prose in the args
+# field. With this strip, gpt-oss-tools:20b becomes the default
+# big_ram_model.
+MODELFILE_DIR=/usr/share/mios/ollama/Modelfiles
+if [ -d "$MODELFILE_DIR" ]; then
+    for mf in "$MODELFILE_DIR"/*.Modelfile; do
+        [ -e "$mf" ] || continue
+        derived="$(basename "$mf" .Modelfile)"
+        case "$derived" in *:*) ;; *) derived="${derived}:20b" ;; esac
+        log "Deriving custom model ${derived} from ${mf}"
+        if OLLAMA_HOST="127.0.0.1:11434" ollama create "$derived" -f "$mf"; then
+            log "  [ok] ${derived}"
+        else
+            log "  [WARN] ${derived} create failed -- base model may not be present"
+            failures=$((failures + 1))
+        fi
+    done
+fi
+
 # Stop the transient serve cleanly.
 kill "$OLLAMA_PID" 2>/dev/null || true
 wait "$OLLAMA_PID" 2>/dev/null || true

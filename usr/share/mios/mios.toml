@@ -449,6 +449,24 @@ endpoint            = "http://localhost:8642/v1"
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
 hermes_agent_ref    = "main"
+
+# opencode (https://opencode.ai) -- code-specialist agent CLI installed
+# directly onto the host by automation/39-opencode.sh. NOT a separate
+# API server; spawned per-task by Hermes via ACP (Agent Coordination
+# Protocol) when a delegate_task entry sets acp_command="opencode".
+# This is the cascade pattern: Hermes-Agent is the planner, opencode
+# is the code specialist, qwen3:1.7b is the general fan-out worker.
+#
+# To enable opencode as a global delegation target, set in
+# /etc/mios/hermes/config.yaml:
+#   delegation:
+#     acp_command: opencode
+#     acp_args: ["--acp", "--stdio"]
+# OR scope per-task by passing acp_command in delegate_task(tasks=[...])
+# entries that match code-tagged goals (recommended; keeps the default
+# delegate path on qwen3:1.7b for non-code work).
+opencode_install_url = "https://opencode.ai/install"
+opencode_version    = "latest"           # or pin to a tag
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
 hermes_backend_url  = "http://localhost:11434/v1"
@@ -497,7 +515,13 @@ prompt_shortcut     = "@"
 # Operators on bandwidth-constrained networks can shrink the bake list
 # in /etc/mios/mios.toml (operator overlay) -- the OCI image rebuilds
 # without the missing models, then runtime pulls them on demand.
-bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,nomic-embed-text"
+# gpt-oss:20b is the BASE for gpt-oss-tools:20b (derived via Modelfile
+# template strip in automation/37-ollama-prep.sh from
+# /usr/share/mios/ollama/Modelfiles/gpt-oss-tools.Modelfile).
+# Listing both: the BASE pull is needed before `ollama create` can
+# derive the tools variant. Operator can skip the base post-derive
+# (they share blob layers under /var/lib/ollama/models).
+bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -524,8 +548,13 @@ label   = "Granite 4.1 3B (IBM, dense, ~3 GB, low-RAM default)"
 ram_gb  = 8
 
 [[ai.catalog]]
+id      = "gpt-oss-tools:20b"
+label   = "GPT-OSS-Tools 20B (MiOS-derived, harmony-stripped for clean tool calls, ~13 GB)"
+ram_gb  = 16
+
+[[ai.catalog]]
 id      = "gpt-oss:20b"
-label   = "GPT-OSS 20B (OpenAI, MoE, agent-tuned, ~13 GB)"
+label   = "GPT-OSS 20B (OpenAI, MoE, agent-tuned, ~13 GB) -- raw base; use gpt-oss-tools for Hermes"
 ram_gb  = 16
 
 [[ai.catalog]]
@@ -576,7 +605,17 @@ ram_gb  = 28
 # the model picks it up. ~19 GB resident on disk.
 big_ram_gb       = 24                            # >= this -> big_ram_model
 mid_ram_gb       = 16                            # >= this -> mid_ram_model
-big_ram_model    = "qwen3-coder:30b"             # tool-calling-tuned MoE, ~19 GB
+# gpt-oss-tools:20b: gpt-oss:20b with the harmony "Reasoning:" template
+# header stripped (see /usr/share/mios/ollama/Modelfiles/gpt-oss-tools.
+# Modelfile). Promoted to big_ram_model 2026-05-15 because it's the
+# only model in the catalog that NATURALLY picks delegate_task on
+# parallelisable work (qwen3-coder:30b never did, even with the
+# parallel-fanout skill + explicit prompts). Without the strip, gpt-
+# oss:20b's analysis-channel chain-of-thought leaked into tool_call.
+# arguments and Hermes's parser died -- the strip makes its tool calls
+# clean. Cascaded delegation pattern (Hermes -> opencode/qwen3:1.7b
+# children) only works with this model.
+big_ram_model    = "gpt-oss-tools:20b"           # agent-tuned + harmony-stripped, ~13 GB
 mid_ram_model    = "qwen3-coder:14b"             # smaller dense Coder, ~9 GB
 small_ram_model  = "granite4.1:3b"               # < mid_ram_gb fallback
 

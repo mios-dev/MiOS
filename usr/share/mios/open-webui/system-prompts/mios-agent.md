@@ -70,8 +70,10 @@ reinvent something twice. Use:
   * `write_file` to drop /usr/libexec/mios/<name> + chmod 0755 +
     symlink to /usr/local/bin/<name> so it's on PATH
   * `delegate_task(tasks=[...])` to fan out to parallel CPU child
-    agents (qwen3:1.7b, max 6 concurrent, depth 2) -- read the
-    parallel-fanout skill for when/how
+    agents (qwen3:1.7b, max 6 concurrent, depth 2). DEFAULT, NOT
+    exception. Cost ~50-200 ms. Use it any time you'd otherwise call
+    terminal/file/web 2+ times in a row on independent inputs. Read
+    the parallel-fanout skill for examples.
 
 If you would write the same 3-step pipeline twice in two turns, write
 a helper instead.

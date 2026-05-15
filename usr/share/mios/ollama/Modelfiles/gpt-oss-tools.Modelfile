@@ -1,0 +1,162 @@
+# /usr/share/mios/ollama/Modelfiles/gpt-oss-tools.Modelfile
+#
+# Custom Ollama model derived from gpt-oss:20b that strips the harmony
+# "Reasoning: <level>" header from the system prompt -- which is what
+# causes gpt-oss's analysis-channel chain-of-thought to leak into
+# tool_call.arguments. Without that header, gpt-oss emits a clean
+# (or empty) analysis channel and the commentary channel (where tool
+# calls live) carries pure JSON.
+#
+# Operator-confirmed regression 2026-05-15: with the stock gpt-oss:20b
+# template, every delegate_task / multi-arg tool call returned:
+#   HTTP 500: error parsing tool call: raw='We can't use delegate_task
+#   because Hermes Agent expects a model with 64k context, but we only
+#   have gpt-oss:20b as main...'
+# The 'W' is from "We can't" -- prose where Hermes's parser expected
+# `{`. Removing the Reasoning header stops that leak at the source.
+#
+# This model becomes the [ai.host_thresholds].big_ram_model so the
+# main agent loop runs on a model that:
+#   (a) naturally picks delegate_task on parallelisable workloads
+#       (verified via parallel-fanout skill push -- gpt-oss:20b was
+#       the only model in the catalog that ever did this unprompted)
+#   (b) emits tool-call JSON cleanly (the harmony fix)
+#
+# Built by automation/37-ollama-prep.sh on every OCI build:
+#   ollama pull gpt-oss:20b
+#   ollama create gpt-oss-tools:20b -f /usr/share/mios/ollama/Modelfiles/gpt-oss-tools.Modelfile
+#
+# Inherits all base parameters (context, system prompt body, tool
+# scaffolding) -- only the Reasoning header is stripped.
+
+FROM gpt-oss:20b
+
+# The TEMPLATE below is identical to gpt-oss:20b's bundled template
+# except for the Reasoning block (deleted). See `ollama show
+# gpt-oss:20b --modelfile` for the upstream form.
+#
+# Why edit the template instead of passing `think:false` per-request:
+#   * Hermes-Agent does NOT pass think parameter to ollama (no support
+#     in its custom-provider transport)
+#   * a Modelfile change is one-time and applies to every Hermes
+#     request without code changes upstream
+#   * future Hermes versions that gain think-disable support remain
+#     compatible (this Modelfile is a no-op vs. think:false)
+TEMPLATE """<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.
+Knowledge cutoff: 2024-06
+Current date: {{ currentDate }}
+
+{{- $hasNonBuiltinTools := false }}
+{{- if .Tools -}}
+{{- $hasBrowserSearch := false }}
+{{- $hasBrowserOpen := false }}
+{{- $hasBrowserFind := false }}
+{{- $hasPython := false }}
+  {{- range .Tools }}
+    {{- if eq .Function.Name "browser.search" -}}{{- $hasBrowserSearch = true -}}
+    {{- else if eq .Function.Name "browser.open" -}}{{- $hasBrowserOpen = true -}}
+    {{- else if eq .Function.Name "browser.find" -}}{{- $hasBrowserFind = true -}}
+    {{- else if eq .Function.Name "python" -}}{{- $hasPython = true -}}
+    {{- else }}{{ $hasNonBuiltinTools = true -}}
+    {{- end }}
+  {{- end }}
+{{- if or $hasBrowserSearch $hasBrowserOpen $hasBrowserFind $hasPython }}
+
+# Tools
+
+{{- if or $hasBrowserSearch $hasBrowserOpen $hasBrowserFind }}
+
+## browser
+
+// Tool for browsing.
+// The `cursor` appears in brackets before each browsing display: `[{cursor}]`.
+// Cite information from the tool using the following format:
+// `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.
+// Do not quote more than 10 words directly from the tool output.
+// sources=web (default: web)
+
+namespace browser {
+{{- if $hasBrowserSearch }}
+
+// Searches for information related to `query` and displays `topn` results.
+type search = (_: {
+query: string,
+topn?: number, // default: 10
+source?: string,
+}) => any;
+{{- end }}
+{{- if $hasBrowserOpen }}
+
+// Opens the link `id` from the page indicated by `cursor` starting at line number `loc`, showing `num_lines` lines.
+// Valid link ids are displayed with the formatting: `【{id}†.*】`.
+// If `cursor` is not provided, the most recent page is implied.
+// If `id` is a string, it is treated as a fully qualified URL associated with `source`.
+// If `loc` is not provided, the viewport will be positioned at the beginning of the document or centered on the most relevant passage, if available.
+// Use this function without `id` to scroll to a new location of an opened page.
+type open = (_: {
+id?: number | string, // default: -1
+cursor?: number, // default: -1
+loc?: number, // default: -1
+num_lines?: number, // default: -1
+view_source?: boolean, // default: false
+source?: string,
+}) => any;
+{{- end }}
+{{- if $hasBrowserFind }}
+
+// Finds exact matches of `pattern` in the current page, or the page given by `cursor`.
+type find = (_: {
+pattern: string,
+cursor?: number, // default: -1
+}) => any;
+{{- end }}
+
+} // namespace browser
+{{- end }}
+{{- if $hasPython }}
+
+## python
+
+Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).
+
+When you send a message containing python code to python, it will be executed in a stateful Jupyter notebook environment. python will respond with the output of the execution or time out after 120.0 seconds. The drive at "/mnt/data" can be used to save and persist user files. Internet access for this session is disabled. Do not make external web requests or API calls as they will fail.
+{{- end }}
+{{- end }}
+{{- if $hasNonBuiltinTools }}
+
+# Tools
+
+## functions
+
+namespace functions {
+
+{{ range .Tools }}
+{{- if and (ne .Function.Name "browser.search") (ne .Function.Name "browser.open") (ne .Function.Name "browser.find") (ne .Function.Name "python") }}
+// {{ .Function.Description }}
+type {{ .Function.Name }} = (_: {{ .Function.Parameters }}) => any;
+
+{{ end -}}
+{{- end -}}
+} // namespace functions
+{{- end -}}
+{{- end }}
+
+# Valid channels: analysis, commentary, final. Channel must be included for every message.
+Calls to these tools must go to the commentary channel: 'functions'.<|end|>
+{{- range $i, $_ := .Messages }}
+{{- if eq .Role "system" }}<|start|>developer<|message|># Instructions
+
+{{ .Content }}<|end|>
+{{- else if eq .Role "user" }}<|start|>user<|message|>{{ .Content }}<|end|>
+{{- else if eq .Role "assistant" }}<|start|>assistant
+{{- if .ToolCalls }}{{- range .ToolCalls }}<|channel|>commentary to=functions.{{ .Function.Name }} <|constrain|>json<|message|>{{ .Function.Arguments }}<|end|>{{- end }}
+{{- else if .Content }}<|channel|>final<|message|>{{ .Content }}<|end|>{{- end }}
+{{- else if eq .Role "tool" }}<|start|>functions.{{ .ToolName }} to=assistant<|channel|>commentary<|message|>{{ .Content }}<|end|>
+{{- end }}
+{{- end }}<|start|>assistant"""
+
+# Inherit base PARAMETER set from gpt-oss:20b. Operators on hosts with
+# unusual context window needs can override per-call via Hermes's
+# context_length config (model.context_length in config.yaml) -- this
+# Modelfile only changes the system-prompt template, not generation
+# params.

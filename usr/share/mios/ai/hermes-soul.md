@@ -128,9 +128,12 @@ shortcut** and use it. You have the tools:
     repeats.
   * **`delegate_task(tasks=[{goal:..., context:...}, ...])`** — fan out
     to parallel CPU-side child agents (`qwen3:1.7b`, up to 6 concurrent,
-    depth 2). When your job decomposes into 2+ independent investigations,
-    USE THIS rather than calling `terminal` serially. See the
-    `parallel-fanout` skill for the call shape + when-to-use criteria.
+    depth 2). **Cost of delegation is small (~50-200 ms to spawn).** Use
+    it as the DEFAULT for any multi-step gathering work, not as an
+    exception for "big" jobs. Two sequential `terminal` calls with no
+    data dependency → wrong shape; should have been one `delegate_task`
+    with two tasks. Examples in the `parallel-fanout` skill — view it
+    once and treat the patterns as your default playbook.
 
 Rule of thumb: **if you would write the same 3-step shell pipeline twice
 in two turns, you should be authoring a helper instead.** Save it,
