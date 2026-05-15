@@ -73,6 +73,35 @@ echo "[mios-build-driver] logging to $LOG_FILE"
 _log() { echo "[mios-build-driver] $*" | tee -a "$LOG_FILE"; }
 _fail() { _log "FATAL: $*"; exit 1; }
 
+# ── Privilege preflight ──────────────────────────────────────────────────────
+# The build pipeline writes /etc, overlays /, sets up accounts, persists
+# /etc/mios/secrets.env, and runs rootful `podman build` -- it MUST run
+# as root or as a user with NON-interactive sudo. Locked-down service
+# users (notably mios-hermes, uid 820 -- the user the MiOS/Hermes agent
+# runs as) have neither: nologin, not in wheel, no sudoers entry.
+#
+# Without this check the driver gets several steps in -- prints a
+# dashboard, clones mios-bootstrap, enters unattended mode -- then dies
+# mid-stream on the first `sudo` with the cryptic "sudo: a password is
+# required". Agents then confabulate a fake success around that partial
+# output (operator-confirmed 2026-05-14). Detect the privilege gap UP
+# FRONT, before any work, and fail with ONE clear, honest, actionable
+# message so the caller (human or agent) knows exactly what to do.
+if [[ "$(id -u)" -ne 0 ]] && ! sudo -n true 2>/dev/null; then
+    _log "FATAL: 'mios build' needs root or passwordless sudo, and has neither."
+    _log "  running as: $(id -un) (uid $(id -u)) -- no non-interactive sudo available"
+    _log "  the build pipeline writes /etc, overlays /, and runs rootful podman build."
+    _log ""
+    _log "  Run it instead as one of:"
+    _log "    * root                       sudo mios build"
+    _log "    * the 'mios' operator        (in the wheel group -- sudo works)"
+    _log "  For the MiOS agent: do NOT build locally as the mios-hermes service"
+    _log "  user -- use the self-replication path: edit /, 'git -C / commit', and"
+    _log "  'git push' to the Forgejo runner, which builds with the right"
+    _log "  privileges. The mios-hermes user is deliberately unprivileged."
+    exit 1
+fi
+
 # ── Pre-flight ───────────────────────────────────────────────────────────────
 # WORKDIR follows the same root-vs-user split the LOG_DIR section above
 # uses: root invocations get the canonical /var/lib/mios/build (FHS),
