@@ -1,0 +1,28 @@
+# /etc/sudoers.d/10-mios-hermes
+#
+# Operator-authorized passwordless sudo for the mios-hermes service user
+# (the local user the MiOS / Hermes-Agent runs as).
+#
+# Operator authorization (2026-05-14): the system owner explicitly chose
+# to grant the local agent sudo, so it can drive the privileged build
+# pipeline (mios build, podman build, bootc, etc.) on their behalf
+# without manual handoff to a wheel-group shell. This is an OPERATOR
+# decision -- the default MiOS posture is the opposite (mios-hermes is
+# deliberately locked down, and `mios build`'s privilege preflight
+# correctly fails when this file is absent).
+#
+# To revoke:
+#     sudo rm /etc/sudoers.d/10-mios-hermes
+#
+# To scope tighter (recommended once the workflow stabilises) -- replace
+# the Cmnd_Alias with the specific binaries the agent needs to invoke,
+# e.g. just the build driver:
+#     mios-hermes ALL=(ALL) NOPASSWD: /usr/bin/mios, \
+#                                     /usr/libexec/mios/mios-build-driver
+#
+# !requiretty is load-bearing: the agent's terminal tool runs commands
+# without a controlling TTY, and sudo's default requiretty would
+# otherwise refuse with "sudo: a password is required" / "sudo: sorry,
+# you must have a tty to run sudo".
+Defaults:mios-hermes !requiretty
+mios-hermes ALL=(ALL) NOPASSWD: ALL

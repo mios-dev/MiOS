@@ -617,3 +617,10 @@ usr/lib/node_modules/
 /artifacts/
 logs/
 *.log
+
+# Operator-authorized passwordless sudo for the mios-hermes agent
+# (the user the local Hermes-Agent runs as). Default MiOS posture
+# is the opposite (mios-hermes locked down) -- this file is the
+# explicit operator authorization. Tracked so it survives builds.
+!/etc/sudoers.d/
+!/etc/sudoers.d/10-mios-hermes
