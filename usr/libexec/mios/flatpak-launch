@@ -56,6 +56,66 @@ set -eu
 APP_ID="${1:?usage: flatpak-launch <flatpak-app-id> [args...]}"
 shift || true
 
+# Step 0 ── Service-user re-exec (operator-confirmed regression 2026-05-15:
+# "launching epiphany from Hermes CLI WORKS, just not from Open WebUI").
+#
+# Hermes-Agent's gateway service runs as `mios-hermes` (uid 820). When OWUI
+# asks the agent to launch a GUI flatpak, the agent's `terminal` tool forks
+# under that service user. mios-hermes is deliberately locked down:
+#
+#   * HOME=/var/empty (root-owned, NOT writable -- flatpak needs a real
+#     home to write app state under ~/.var/app/<id>/, and dies with a
+#     bare "error: Permission denied" without it)
+#   * no `user@820.service` socket -> no DBUS_SESSION_BUS_ADDRESS -> the
+#     entire portal stack (Open File, Notifications, Secrets) refuses to
+#     start, GTK then aborts the window
+#   * no XDG seat / login session -> can't acquire the screen
+#
+# The Hermes CLI works fine because the operator runs `hermes` from their
+# own login shell as the `mios` user (uid 992) -- their session has DISPLAY,
+# WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS, a real HOME, all already set.
+#
+# Fix: when this script is invoked as a service user (uid < 1000 OR HOME
+# unwritable), re-exec via `sudo` to the operator. The mios-hermes sudoers
+# grant (/etc/sudoers.d/10-mios-hermes -> NOPASSWD: ALL) lets this happen
+# without prompting; the operator's session has all the GUI plumbing the
+# flatpak needs. _MIOS_FLATPAK_REEXEC=1 guards against an infinite loop if
+# the sudo escalation ever lands back in a service user (it shouldn't, but
+# belt and suspenders).
+_FL_REEXEC="${_MIOS_FLATPAK_REEXEC:-0}"
+if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
+    # Resolve operator UID/name from mios.toml's identity.username (default
+    # 'mios'); fall back to whatever uid 1000 exists if username lookup fails
+    # (single-tenant dev VM contract).
+    _op_user=""
+    if [ -r /usr/share/mios/mios.toml ]; then
+        _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    fi
+    [ -z "$_op_user" ] && _op_user="mios"
+    if id -u "$_op_user" >/dev/null 2>&1; then
+        _op_uid="$(id -u "$_op_user")"
+        # Carry the bits flatpak needs even if they were missing in our env.
+        # The operator's user@$uid.service publishes XDG_RUNTIME_DIR -> bus
+        # at a stable path; reuse it.
+        _op_xdg="/run/user/${_op_uid}"
+        _op_dbus="unix:path=${_op_xdg}/bus"
+        export _MIOS_FLATPAK_REEXEC=1
+        # `sudo -u <op>` switches uid+gid; -E preserves the env we set on the
+        # cmdline; explicit assignments override anything the operator's PAM
+        # might inject. --preserve-env lets DISPLAY/WAYLAND_DISPLAY survive
+        # the operator's restrictive sudo defaults.
+        exec sudo -n -u "$_op_user" \
+                  --preserve-env=DISPLAY,WAYLAND_DISPLAY,PULSE_SERVER,_MIOS_FLATPAK_REEXEC \
+                  env XDG_RUNTIME_DIR="$_op_xdg" \
+                      DBUS_SESSION_BUS_ADDRESS="$_op_dbus" \
+                      HOME="$(getent passwd "$_op_user" | cut -d: -f6)" \
+                      /usr/libexec/mios/flatpak-launch "$APP_ID" "$@"
+    fi
+    # If we get here the operator user doesn't exist (atypical install) --
+    # fall through and let flatpak fail with whatever its own error is, so
+    # the operator at least sees the real misconfiguration.
+fi
+
 # Step 1 ── WSL detection. /proc/version is namespace-stable.
 IS_WSL=0
 if [ -r /proc/version ]; then
