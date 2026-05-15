@@ -1701,7 +1701,15 @@ rdp                = 3389     # GNOME Remote Desktop / xRDP
 # ----------------------------------------------------------------------------
 [image.sidecars]
 k3s_version        = "v1.32.1-k3s1"
-k3s                = "rancher/k3s:v1.32.1-k3s1"
+# rancher/k3s lives ONLY on docker.io (no quay.io/ghcr.io mirror). The
+# `docker.io/` prefix is mandatory: without it, podman treats the value
+# as a short name and refuses to silently resolve to docker.io inside
+# the OCI bake step (no TTY -> "short-name resolution enforced but cannot
+# prompt without a TTY"), failing the entire `bootc install-to-filesystem`
+# stage downstream (operator-confirmed 2026-05-15: every other sidecar
+# entry in this section was already fully qualified; k3s was the only
+# regression and broke ALL deployment artifacts). Keep the registry prefix.
+k3s                = "docker.io/rancher/k3s:v1.32.1-k3s1"
 ceph_version       = "v19"
 ceph               = "quay.io/ceph/ceph:v19"
 forge_version      = "12"

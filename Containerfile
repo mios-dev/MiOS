@@ -145,6 +145,11 @@ RUN --network=host set -eux; \
         img="$(printf '%s' "$img" | sed -E 's/\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}/\1/g')"; \
         [ -n "$img" ] || continue; \
         case "$img" in *'$'*) echo "SKIP unrendered Image=$img ($q)"; continue ;; esac; \
+        first="${img%%/*}"; \
+        case "$first" in *.*|*:*|localhost) ;; \
+            *) echo "ERROR: bound image '$img' has a short name (no registry in '$first'). Fix the source -- typically /usr/share/mios/mios.toml [image.sidecars] -- to include a registry prefix (docker.io/, quay.io/, ghcr.io/, codeberg.org/, ...). Quadlet: $q"; \
+               failed=$((failed + 1)); continue ;; \
+        esac; \
         echo "bound-image: baking $img"; \
         if podman --root /usr/lib/containers/storage pull "$img"; then \
             baked=$((baked + 1)); \
