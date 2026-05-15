@@ -607,3 +607,79 @@ else
         fi
     fi
 fi
+
+# ─── MiOS-managed Hermes skills ────────────────────────────────────────────
+# Hermes builds a system-prompt skill index from $HERMES_HOME/skills/<name>/
+# SKILL.md (and $HERMES_HOME/skills/<category>/<name>/SKILL.md). The model
+# sees each skill's frontmatter description in the index and decides when
+# to skill_view its body for the full playbook.
+#
+# MiOS ships skills under /usr/share/mios/hermes/skills/<name>/SKILL.md so
+# the OS can teach hermes patterns that the stock model wouldn't pick up
+# on its own (currently: parallel-fanout, which nudges the orchestrator
+# toward delegate_task on parallelizable work -- needed because
+# qwen3-coder:30b naturally serialised via terminal even when prompted).
+#
+# Seed each MiOS-shipped skill into BOTH the gateway service home AND the
+# operator's `hermes` CLI home, mirroring the SOUL.md seeding pattern.
+# Re-seed only when the target either doesn't exist OR is byte-identical-
+# minus-mtime to a previous MiOS shipment (marker check). Operators take
+# ownership by deleting the "MiOS-managed" marker comment in the file --
+# firstboot then leaves it alone forever.
+SKILLS_SRC_DIR=""
+for _c in /usr/share/mios/hermes/skills \
+          "${MIOS_REPO:-}/usr/share/mios/hermes/skills"; do
+    [[ -n "$_c" && -d "$_c" ]] && { SKILLS_SRC_DIR="$_c"; break; }
+done
+_skill_should_seed() {
+    local target="$1" src="$2"
+    [[ ! -f "$target" ]] && return 0
+    grep -q 'MiOS-managed' "$target" 2>/dev/null || return 1   # operator-owned, leave alone
+    cmp -s "$src" "$target" && return 1                        # already current, no-op
+    return 0                                                   # MiOS-managed and stale -> reseed
+}
+_seed_one_skill() {
+    # $1=src SKILL.md, $2=dest dir (e.g., $HERMES_HOME/skills/parallel-fanout),
+    # $3=owner uid:gid string for chown.
+    local src="$1" dest_dir="$2" owner="$3"
+    local target="${dest_dir}/SKILL.md"
+    if _skill_should_seed "$target" "$src"; then
+        mkdir -p "$dest_dir"
+        cp -f "$src" "$target"
+        chown "$owner" "$target" 2>/dev/null || true
+        chmod 0644 "$target" 2>/dev/null || true
+        _log "seeded skill ${target}"
+    else
+        _log "skill ${target} already current (or operator-customised) -- not overwriting"
+    fi
+}
+if [[ -z "$SKILLS_SRC_DIR" ]]; then
+    _log "WARN: hermes skills source dir not found -- skipping skills seed"
+else
+    # Each subdir of SKILLS_SRC_DIR is one skill; its SKILL.md is the entry.
+    for _skill_src in "${SKILLS_SRC_DIR}"/*/SKILL.md; do
+        [[ -e "$_skill_src" ]] || continue
+        _skill_name="$(basename "$(dirname "$_skill_src")")"
+        # Gateway service copy ($HERMES_HOME/skills/<name>/SKILL.md).
+        _seed_one_skill "$_skill_src" \
+                        "${HERMES_DATA}/skills/${_skill_name}" \
+                        "820:820"
+        # Operator `hermes` CLI copy (~/.hermes/skills/<name>/SKILL.md).
+        if [[ -n "${_op_home:-}" && -d "${_op_home:-}" ]]; then
+            _seed_one_skill "$_skill_src" \
+                            "${_op_home}/.hermes/skills/${_skill_name}" \
+                            "${_op_user}:${_op_user}"
+        fi
+    done
+    # Tell hermes to drop its in-process skills-prompt cache so the
+    # newly-seeded skills appear in the next chat turn's system prompt
+    # without a service restart. The cache key is mtime/size of every
+    # SKILL.md in $HERMES_HOME/skills, so touching a marker file in the
+    # skills dir invalidates the disk snapshot. The simpler hammer: if
+    # any skill was actually seeded above, restart the service.
+    if systemctl is-active --quiet hermes-agent.service \
+       && find "${HERMES_DATA}/skills" -newer "${HERMES_DATA}/SOUL.md" -name SKILL.md 2>/dev/null | grep -q .; then
+        _log "skill content changed -- restarting hermes-agent.service to refresh skills index"
+        systemctl restart hermes-agent.service || _log "WARN: hermes-agent restart failed"
+    fi
+fi

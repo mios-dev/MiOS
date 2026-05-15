@@ -537,11 +537,25 @@ ram_gb  = 28
 # the mid-range agent-tuned model; 24+ GB get the big tool-calling
 # model. Switched 2026-05-14 from granite4.1:30b (operator-flagged for
 # weak tool-calling discipline -- fabricated build status, ignored
-# explicit "show real output" rules) to qwen3-coder:30b: Alibaba's
-# Qwen3-Coder family is purpose-trained for agentic tool-use, MoE so
-# only ~3B parameters activate per token (fast on a 24 GB-VRAM GPU
-# while leaving headroom for context), and is what `hermes-agent`'s
-# function-calling surface expects. ~19 GB resident on disk.
+# explicit "show real output" rules) to qwen3-coder:30b. Tested gpt-oss:20b
+# 2026-05-15 (OpenAI's open MoE, explicitly agent-tuned): GOOD news --
+# with the parallel-fanout skill in the index, gpt-oss:20b naturally
+# attempted delegate_task on a fan-out request (qwen3-coder:30b never
+# did, even with explicit prompting). BAD news -- gpt-oss:20b's harmony
+# response format (built-in <analysis>/<final> reasoning channels) leaks
+# the chain-of-thought into the tool-call `arguments` field, and Hermes's
+# tool-call JSON parser chokes ("invalid character 'W' looking for
+# beginning of value" -- the 'W' is from "We can't use delegate_task...").
+# Hermes's reasoning_effort=none knob applies only to Gemini/Kimi/Tokenhub
+# providers, not to the custom Ollama transport. Disabling harmony on
+# Ollama requires either (a) a custom Modelfile that strips the
+# "Reasoning:" header from the template (tested, viable, not yet shipped),
+# or (b) an Ollama upstream fix for harmony tool-call serialization, or
+# (c) a Hermes patch to tolerate harmony channels in tool args. Until
+# one of those lands, qwen3-coder:30b stays the safe default -- its
+# tool-call format is reliable, even if it ignores delegate_task. The
+# parallel-fanout skill (deployed via firstboot) sits ready for the day
+# the model picks it up. ~19 GB resident on disk.
 big_ram_gb       = 24                            # >= this -> big_ram_model
 mid_ram_gb       = 16                            # >= this -> mid_ram_model
 big_ram_model    = "qwen3-coder:30b"             # tool-calling-tuned MoE, ~19 GB
