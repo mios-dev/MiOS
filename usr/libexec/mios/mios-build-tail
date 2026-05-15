@@ -1,0 +1,46 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-build-tail [-f] [N]
+#
+# Stream / tail the most recent build log. With -f, follows live (tail -f).
+# Without -f, prints the last N lines (default 100) and exits.
+#
+# Companion to mios-build-status (which adds metadata + state). Use this
+# when you just want the raw log content.
+
+set -eu
+
+FOLLOW=0
+N=100
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -f|--follow) FOLLOW=1; shift ;;
+        -n) N="$2"; shift 2 ;;
+        -h|--help)
+            echo "usage: mios-build-tail [-f] [-n N]"
+            echo "  -f       follow the log live (tail -f)"
+            echo "  -n N     print last N lines and exit (default 100)"
+            exit 0 ;;
+        *) N="$1"; shift ;;
+    esac
+done
+
+LATEST=""
+for d in /var/log/mios /tmp; do
+    cand="$(ls -1tr "$d"/mios-build-driver-*.log 2>/dev/null | tail -1)"
+    if [ -n "$cand" ]; then
+        if [ -z "$LATEST" ] || [ "$cand" -nt "$LATEST" ]; then
+            LATEST="$cand"
+        fi
+    fi
+done
+if [ -z "$LATEST" ]; then
+    echo "mios-build-tail: no build-driver-*.log found" >&2
+    exit 1
+fi
+
+echo "── tailing: $LATEST ──" >&2
+if [ "$FOLLOW" = "1" ]; then
+    exec tail -F -n "$N" "$LATEST"
+else
+    exec tail -n "$N" "$LATEST"
+fi

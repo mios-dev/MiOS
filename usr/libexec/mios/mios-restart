@@ -1,0 +1,99 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-restart <service-or-quadlet>
+#
+# Smart restart for any MiOS-managed service. Knows the difference between:
+#
+#   * a podman Quadlet (lives at /etc/containers/systemd/<name>.container,
+#     systemd unit name is <name>.service) -- restart MUST go through
+#     `systemctl restart <name>.service`. `podman restart <name>` desyncs
+#     systemd's view and the unit gets ExecStop'd ~1 minute later
+#     (operator-confirmed regression 2026-05-15: podman restart killed
+#     mios-open-webui repeatedly).
+#
+#   * a regular systemd service (hermes-agent, sshd, etc.) -- normal
+#     `systemctl restart`.
+#
+#   * a hermes-agent gateway "soft restart" -- restart the service AND
+#     drop the in-process skills-prompt cache so newly-edited SOUL.md /
+#     SKILL.md takes effect on the very next chat.
+#
+# Accepts either short name (open-webui, hermes, ollama) or full unit
+# name (mios-open-webui.service). Doesn't accept ambiguous matches.
+
+set -eu
+
+usage() {
+    echo "usage: mios-restart <service>"
+    echo
+    echo "shortcuts:"
+    echo "  hermes              -> hermes-agent.service (+ drops skill cache)"
+    echo "  ollama              -> mios-ollama.service"
+    echo "  open-webui          -> mios-open-webui.service"
+    echo "  searxng             -> mios-searxng.service"
+    echo "  forge               -> mios-forge.service"
+    echo "  forge-runner        -> mios-forgejo-runner.service"
+    echo "  code-server         -> mios-code-server.service"
+    echo
+    echo "or pass a full unit name (e.g. mios-k3s.service)"
+}
+
+if [ "$#" -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    exit 0
+fi
+
+SVC="$1"
+
+# Map short names to full unit names. Lowercase + alias-expand.
+case "$SVC" in
+    hermes|hermes-agent)            UNIT="hermes-agent.service" ;;
+    ollama)                         UNIT="mios-ollama.service" ;;
+    open-webui|owui|webui)          UNIT="mios-open-webui.service" ;;
+    searxng|search)                 UNIT="mios-searxng.service" ;;
+    forge|forgejo)                  UNIT="mios-forge.service" ;;
+    forge-runner|forgejo-runner)    UNIT="mios-forgejo-runner.service" ;;
+    code-server|codeserver|code)    UNIT="mios-code-server.service" ;;
+    crowdsec)                       UNIT="mios-crowdsec.service" ;;
+    k3s)                            UNIT="mios-k3s.service" ;;
+    *)
+        # Pass through with .service appended if absent.
+        case "$SVC" in
+            *.service|*.target|*.socket) UNIT="$SVC" ;;
+            *) UNIT="${SVC}.service" ;;
+        esac
+        ;;
+esac
+
+# Privilege check.
+if [ "$(id -u)" -ne 0 ]; then
+    if ! sudo -n true 2>/dev/null; then
+        echo "mios-restart: need root (or non-interactive sudo)" >&2
+        exit 1
+    fi
+    SUDO="sudo -n"
+else
+    SUDO=""
+fi
+
+echo "── restarting $UNIT ──"
+$SUDO systemctl restart "$UNIT"
+sleep 2
+state="$($SUDO systemctl is-active "$UNIT" 2>&1 || true)"
+echo "  state: $state"
+
+# Hermes-specific: drop the in-process skills-prompt cache so
+# SOUL.md / SKILL.md edits take effect immediately.
+if [ "$UNIT" = "hermes-agent.service" ]; then
+    for d in /var/lib/mios/hermes /home/mios/.hermes /var/home/mios/.hermes; do
+        [ -d "$d" ] || continue
+        find "$d" -name '.skills_prompt_snapshot.json' -delete 2>/dev/null || true
+    done
+    echo "  hermes: dropped skills-prompt cache snapshots"
+fi
+
+# Quadlet-aware tail of the unit's recent journal so the operator/agent
+# sees immediate evidence the unit actually came up (vs hung in
+# 'activating' or restart-loop).
+echo
+echo "── last 8 lines of journal ──"
+$SUDO journalctl -u "$UNIT" --no-pager --no-hostname -n 8 2>&1 | tail -8

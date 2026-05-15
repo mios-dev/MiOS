@@ -1,0 +1,153 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-doctor
+#
+# One-shot health check for the MiOS host. Probes the things that have
+# silently broken in operator sessions: privilege grants, mount-namespace
+# escapability, GUI plumbing, podman additionalimagestores perms, hermes
+# session state, OWUI registration, primary services.
+#
+# Designed to be run by the agent at the start of any "something's wrong"
+# investigation -- it's the structured equivalent of all the throwaway
+# diagnostic scripts I keep writing. Output is human-readable + grep-able
+# (each section starts with `── ── ── `).
+
+set -u
+
+# Run subcommands as a specified user without a TTY trap.
+_run_as() { sudo -u "$1" -- "${@:2}"; }
+
+ok()   { printf "  \033[32mok\033[0m    %s\n" "$*"; }
+fail() { printf "  \033[31mFAIL\033[0m  %s\n" "$*"; FAIL_COUNT=$((FAIL_COUNT+1)); }
+warn() { printf "  \033[33mwarn\033[0m  %s\n" "$*"; }
+info() { printf "        %s\n" "$*"; }
+
+FAIL_COUNT=0
+
+echo "════════════════════════════════════════════════════════════════"
+echo "  mios-doctor -- $(date '+%Y-%m-%d %H:%M:%S')"
+echo "════════════════════════════════════════════════════════════════"
+
+echo
+echo "── ── ──  privilege chain"
+if [ "$(id -u)" -eq 0 ] || sudo -n true 2>/dev/null; then
+    ok "current user can sudo non-interactively"
+else
+    fail "current user cannot sudo non-interactively (need root or sudoers grant)"
+fi
+if [ -f /etc/sudoers.d/10-mios-hermes ]; then
+    if grep -q 'mios-hermes ALL=' /etc/sudoers.d/10-mios-hermes; then
+        ok "/etc/sudoers.d/10-mios-hermes grants mios-hermes (agent) NOPASSWD"
+    else
+        warn "/etc/sudoers.d/10-mios-hermes exists but doesn't grant mios-hermes ALL"
+    fi
+else
+    warn "no /etc/sudoers.d/10-mios-hermes (agent has no sudo)"
+fi
+
+echo
+echo "── ── ──  hermes-agent service"
+state=$(systemctl is-active hermes-agent.service 2>&1)
+if [ "$state" = "active" ]; then ok "hermes-agent.service active"
+else fail "hermes-agent.service: $state"; fi
+nnp=$(systemctl show hermes-agent.service -p NoNewPrivileges --value 2>/dev/null)
+if [ "$nnp" = "no" ]; then ok "NoNewPrivileges=no (sudo escalation possible)"
+else warn "NoNewPrivileges=$nnp (sudo from agent will fail)"; fi
+
+echo
+echo "── ── ──  ollama + main model"
+if curl -sf --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1; then
+    ok "ollama API reachable on :11434"
+    models=$(curl -s --max-time 3 http://localhost:11434/api/tags 2>/dev/null | \
+        python3 -c 'import sys,json; print(",".join(m["name"] for m in json.load(sys.stdin).get("models",[])))' 2>/dev/null)
+    info "models: ${models:-(none)}"
+else
+    fail "ollama not reachable on :11434"
+fi
+
+echo
+echo "── ── ──  open webui"
+if podman ps --filter name=mios-open-webui --format '{{.Status}}' 2>/dev/null | grep -q Up; then
+    ok "mios-open-webui container Up"
+else
+    fail "mios-open-webui container not Up"
+fi
+if curl -sf --max-time 3 http://localhost:3030/api/version >/dev/null 2>&1; then
+    ok "owui API on :3030 reachable"
+else
+    warn "owui API on :3030 not reachable"
+fi
+
+echo
+echo "── ── ──  baked-image store (additionalimagestores)"
+if [ -d /usr/lib/containers/storage ]; then
+    ok "/usr/lib/containers/storage exists"
+    perm=$(stat -c '%a' /usr/lib/containers/storage/overlay-images 2>/dev/null)
+    if [ "${perm:0:1}" = "7" ] && [ "${perm:1:1}" -ge 5 ]; then
+        ok "overlay-images mode $perm (world-readable, flatpak/podman-as-user works)"
+    else
+        fail "overlay-images mode $perm (NOT world-readable -- unprivileged podman dies with EACCES)"
+    fi
+    if grep -q '/usr/lib/containers/storage' /etc/containers/storage.conf 2>/dev/null; then
+        ok "/etc/containers/storage.conf lists additionalimagestores"
+    else
+        warn "/etc/containers/storage.conf does NOT list additionalimagestores"
+    fi
+else
+    warn "no /usr/lib/containers/storage (no bound-images bake yet)"
+fi
+
+echo
+echo "── ── ──  WSLg / display"
+if [ -e /tmp/.X11-unix/X0 ]; then ok "WSLg X server socket present (/tmp/.X11-unix/X0)"
+else warn "no /tmp/.X11-unix/X0 (X11 GUIs will fail)"; fi
+if [ -e /mnt/wslg/runtime-dir/wayland-0 ]; then ok "WSLg Wayland socket present"
+else warn "no WSLg Wayland (wayland GUIs may fall back to X11)"; fi
+
+echo
+echo "── ── ──  GUI shims (flatpak shortcuts)"
+shims=0
+for f in /usr/local/bin/*; do
+    [ -f "$f" ] || continue
+    head -3 "$f" 2>/dev/null | grep -q 'MiOS shim for the' && shims=$((shims+1))
+done
+info "$shims flatpak shims under /usr/local/bin/ (chrome, nautilus, epiphany, ...)"
+if [ -x /usr/libexec/mios/flatpak-launch ]; then
+    ok "/usr/libexec/mios/flatpak-launch present"
+else
+    fail "/usr/libexec/mios/flatpak-launch MISSING (shims will skip namespace escape)"
+fi
+
+echo
+echo "── ── ──  build pipeline readiness"
+if [ -x /usr/libexec/mios/mios-build-driver ]; then
+    ok "mios-build-driver installed"
+    if grep -q '_MIOS_BUILD_ESCAPED' /usr/libexec/mios/mios-build-driver; then
+        ok "build-driver has namespace-escape block"
+    else
+        warn "build-driver missing namespace escape (sudo mios build will fail under restricted parent)"
+    fi
+else
+    fail "no /usr/libexec/mios/mios-build-driver"
+fi
+
+echo
+echo "── ── ──  agent config sanity"
+for cfg in /var/lib/mios/hermes/config.yaml /var/home/mios/.hermes/config.yaml /home/mios/.hermes/config.yaml; do
+    [ -f "$cfg" ] || continue
+    if python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' "$cfg" 2>/dev/null; then
+        ks=$(python3 -c 'import yaml,sys; print(",".join(sorted(yaml.safe_load(open(sys.argv[1])).keys())))' "$cfg" 2>/dev/null)
+        ok "$cfg parses as YAML (keys: $ks)"
+    else
+        fail "$cfg has YAML PARSE ERROR"
+    fi
+done
+
+echo
+echo "════════════════════════════════════════════════════════════════"
+if [ "$FAIL_COUNT" -eq 0 ]; then
+    echo "  RESULT: HEALTHY ($FAIL_COUNT failures)"
+else
+    echo "  RESULT: $FAIL_COUNT failures -- see [FAIL] lines above"
+fi
+echo "════════════════════════════════════════════════════════════════"
+exit "$FAIL_COUNT"

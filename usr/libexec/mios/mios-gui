@@ -1,0 +1,60 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-gui <app-short-name> [args...]
+#
+# One-shot GUI launcher for the agent. Maps a short name (chrome, nautilus,
+# epiphany, codium, ptyxis, flatseal, extension-manager) to the installed
+# /usr/local/bin/<short> shim, which itself routes through flatpak-launch
+# (handles namespace escape + operator session attach). Returns ~instantly
+# (the GUI runs detached); the agent's terminal call doesn't block.
+#
+# Designed for the agent to invoke via `mios-gui chrome` instead of having
+# to remember flatpak app IDs, --env flags, or the existence of the shim
+# layer. If the operator types `mios-gui` with no app, it prints the
+# catalogue of what's launchable.
+
+set -eu
+
+usage() {
+    echo "usage: mios-gui <app> [args...]"
+    echo
+    echo "available apps (from /usr/local/bin/* shims that route through flatpak-launch):"
+    for f in /usr/local/bin/*; do
+        [ -f "$f" ] || continue
+        if head -3 "$f" 2>/dev/null | grep -q 'MiOS shim for the' 2>/dev/null; then
+            id="$(grep -oE 'flatpak-launch [a-zA-Z0-9._-]+' "$f" | head -1 | awk '{print $2}')"
+            short="$(basename "$f")"
+            printf "  %-20s -> %s\n" "$short" "$id"
+        fi
+    done | sort -u
+    echo
+    echo "examples:"
+    echo "  mios-gui chrome              # launch Chrome (dark mode + Wayland defaults)"
+    echo "  mios-gui nautilus            # launch Files"
+    echo "  mios-gui epiphany            # launch Web (browser)"
+    echo "  mios-gui codium .            # open VSCodium in current dir"
+}
+
+if [ "$#" -eq 0 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    usage
+    exit 0
+fi
+
+APP="$1"
+shift
+
+# Reject anything that doesn't have a shim. We don't try to launch arbitrary
+# flatpak app-ids -- the operator goes through the shim contract or they
+# call flatpak run directly.
+SHIM="/usr/local/bin/$APP"
+if [ ! -x "$SHIM" ]; then
+    echo "mios-gui: no shim for '$APP' under /usr/local/bin/" >&2
+    echo "available:" >&2
+    for f in /usr/local/bin/*; do
+        [ -f "$f" ] || continue
+        head -3 "$f" 2>/dev/null | grep -q 'MiOS shim for the' && \
+            printf "  %s\n" "$(basename "$f")" >&2
+    done | sort -u
+    exit 1
+fi
+
+exec "$SHIM" "$@"
