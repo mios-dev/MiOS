@@ -430,6 +430,19 @@ display:
   show_reasoning: false              # flip to true if you want the chain-of-thought visible
   show_cost: false
 
+# Web browsing via local com.google.ChromeDev flatpak. The chrome shim at
+# /usr/local/bin/chrome launches Chrome with --remote-debugging-port=9222
+# + --remote-allow-origins=* + --user-data-dir=... so CDP is bound on
+# 127.0.0.1:9222 and accepts callers from outside the sandbox. Hermes's
+# browser_navigate / browser_snapshot / browser_click / browser_press /
+# browser_type / browser_scroll / browser_back / browser_get_images /
+# browser_vision / browser_console / browser_cdp / browser_dialog tools
+# all read this URL via tools/browser_cdp_tool.py. Operator launches
+# chrome via `mios-gui chrome`; CDP is up within ~5s and stays bound
+# until the window closes.
+browser:
+  cdp_url: http://localhost:9222     # local ChromeDev flatpak (mios-gui chrome)
+
 # Multi-agent delegation. Hermes 0.13.x's orchestrator can spawn child
 # agents (delegate_task tool) -- typically used to fan out discrete
 # subtasks (search this file, lint that path, write a test) in parallel
