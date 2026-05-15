@@ -1,0 +1,23 @@
+[Unit]
+# Path-watcher companion to mios-additionalimagestores-perms.service.
+# Re-runs the chmod whenever any of the additional image store's per-
+# driver subdirs change (e.g. podman extracts new layers and resets
+# the perms back to 0700 -- happens on first runtime pull into the
+# additional store, though that's atypical since this store is built
+# at OCI bake time and meant to be read-only at runtime).
+#
+# Together with the .service unit (runs at boot) this makes the
+# go+rX state self-healing: any way the perms get reset, they snap
+# back within seconds.
+Description=MiOS: watch additionalimagestores for perm changes; retrigger chmod
+ConditionPathIsDirectory=/usr/lib/containers/storage
+
+[Path]
+PathChanged=/usr/lib/containers/storage/overlay-images
+PathChanged=/usr/lib/containers/storage/overlay-containers
+PathChanged=/usr/lib/containers/storage/overlay-layers
+PathChanged=/usr/lib/containers/storage/libpod
+Unit=mios-additionalimagestores-perms.service
+
+[Install]
+WantedBy=multi-user.target
