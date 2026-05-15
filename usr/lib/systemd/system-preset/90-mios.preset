@@ -13,6 +13,12 @@ enable mios-wslg-permissions-fix.service
 # the Containerfile bake-step chmod (commit a85925d). No-op when perms
 # are already correct.
 enable mios-additionalimagestores-perms.service
+# Boot-time `firewall-cmd --add-port` for every MiOS service port.
+# Belt-and-suspenders against stale OCI images / failed install-time
+# 25-firewall-ports.sh runs that leave firewalld without the ports
+# open, silently breaking ALL Windows->WSL bridging (3030/8642/8888/
+# 9090). Idempotent.
+enable mios-firewall-ports.service
 enable sshd.service
 enable NetworkManager.service
 enable podman.socket

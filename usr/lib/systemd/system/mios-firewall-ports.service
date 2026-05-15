@@ -1,0 +1,47 @@
+[Unit]
+# Ensure MiOS service ports are open in firewalld at every boot.
+#
+# Why this exists: automation/25-firewall-ports.sh writes the firewalld
+# zone XML at OCI build time via firewall-offline-cmd. On stale OCI
+# images (pre-2026-05) OR when the install-time script didn't run / the
+# XML didn't persist, firewalld comes up with no ports open and ALL
+# Windows->WSL bridging silently times out (operator-confirmed
+# regression 2026-05-15: Open WebUI/Hermes/Cockpit/SearXNG inaccessible
+# post-reinstall; firewall-cmd --list-ports returned empty; adding the
+# ports manually instantly restored all 4 services).
+#
+# This unit runs at every boot and is idempotent: --add-port on a port
+# that's already open is a no-op. No-ops cleanly when firewalld is
+# absent (ConditionPathExists) or inactive.
+Description=MiOS: ensure firewalld has the MiOS service ports open
+After=firewalld.service network-online.target
+Wants=firewalld.service network-online.target
+Before=hermes-agent.service mios-open-webui.service mios-searxng.service
+ConditionPathExists=/usr/bin/firewall-cmd
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
+#        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
+#        11434=Ollama, 19090=Cockpit-link
+ExecStart=/bin/bash -c '\
+    set +e; \
+    for p in 3000 3030 8080 8642 8888 9090 9119 11434 19090; do \
+        /usr/bin/firewall-cmd --add-port=$${p}/tcp --permanent >/dev/null 2>&1; \
+    done; \
+    /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
+    echo "MiOS firewalld ports: $$(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
+    exit 0'
+
+# Hardening: only the firewall-cmd binary needs system privileges; lock
+# everything else down.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
