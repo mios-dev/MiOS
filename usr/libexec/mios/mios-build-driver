@@ -198,6 +198,57 @@ if [[ ! -t 0 || "${MIOS_NONINTERACTIVE:-0}" == "1" || "${MIOS_AUTO:-0}" == "1" ]
     _log "  configurator prompt skipped; password resolves from secrets.env / mios.toml -- ZERO prompts"
 fi
 
+# ── Always-pull-from-origin (default) ────────────────────────────────────────
+# Operator standing rule: the build always pulls the latest source from
+# origin before building. Stale local trees produced repeated
+# "the bound-images bake never ran" / "the cd / fix isn't deployed" /
+# "wrong Containerfile" surprises -- every build now starts from
+# origin/HEAD by default.
+#
+# Mechanism: `git -C "$MIOS_REPO" pull --ff-only origin <branch>` over
+# whatever protocol the remote is configured for (HTTPS uses libcurl
+# under the hood, which is what the operator meant by "via curl").
+# Retries 3 times with backoff on transient failure (network blip,
+# remote unreachable). On a real TTY the operator gets a 30-second
+# countdown with Ctrl+C to abort and use the local tree as-is; in
+# unattended mode the pull just runs (no one to press Ctrl+C anyway).
+# Skipped entirely when MIOS_NO_PULL=1 (CI / offline / dev-iter).
+#
+# If the pull fails after retries: WARN and continue with the local
+# tree (a stale build is better than no build -- the warning is loud).
+if [[ "${MIOS_NO_PULL:-0}" == "1" ]]; then
+    _log "MIOS_NO_PULL=1 -- skipping origin pull, using local $MIOS_REPO as-is"
+elif [[ ! -d "${MIOS_REPO:-/}/.git" ]]; then
+    _log "no .git at $MIOS_REPO -- skipping origin pull (not a git working tree)"
+else
+    _branch="$(git -C "$MIOS_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+    _remote_url="$(git -C "$MIOS_REPO" remote get-url origin 2>/dev/null || echo '<no origin>')"
+    _log "── source pull: $MIOS_REPO  branch=$_branch  origin=$_remote_url ──"
+    if [[ "${MIOS_NONINTERACTIVE:-0}" != "1" ]] && [[ -t 0 ]]; then
+        _log "  About to pull latest from origin in 30s. Ctrl+C now to abort and use local tree."
+        for _i in 30 25 20 15 10 5 4 3 2 1; do
+            printf "[mios-build-driver]   ... %2ds remaining\r" "$_i" >&2
+            sleep $((_i == 30 ? 5 : (_i > 5 ? 5 : 1)))
+        done
+        printf "\033[K\n" >&2
+    fi
+    _pull_ok=0
+    for _attempt in 1 2 3; do
+        if git -C "$MIOS_REPO" pull --ff-only origin "$_branch" 2>&1 | tee -a "$LOG_FILE"; then
+            _log "source pull OK (attempt $_attempt) -- now at $(git -C "$MIOS_REPO" rev-parse --short HEAD)"
+            _pull_ok=1
+            break
+        fi
+        _log "source pull attempt $_attempt failed; retry in $((_attempt * 5))s"
+        sleep $((_attempt * 5))
+    done
+    if [[ "$_pull_ok" -ne 1 ]]; then
+        _log "WARN: origin pull failed after 3 attempts -- continuing with LOCAL tree at $(git -C "$MIOS_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+        _log "WARN: build may use STALE source. Set MIOS_NO_PULL=1 to silence this warning."
+    fi
+    unset _branch _remote_url _pull_ok _attempt _i
+fi
+
 # CRITICAL ORDERING: Configurator FIRST (operator edits the toml in
 # Epiphany), then Resolve (sources the edited toml). Don't reverse;
 # resolving before the operator has edited would lock in stale values.

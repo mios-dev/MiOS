@@ -533,12 +533,19 @@ ram_gb  = 28
 # [[ai.catalog]] above.
 # ----------------------------------------------------------------------------
 [ai.host_thresholds]
-# Auto-pick rolls UP from the small fallback (granite4.1:3b at < 16 GB
-# RAM). Operators with 16+ GB get gpt-oss:20b; 24+ GB get granite4.1:30b.
+# Auto-pick rolls UP from the small fallback. Operators with 16+ GB get
+# the mid-range agent-tuned model; 24+ GB get the big tool-calling
+# model. Switched 2026-05-14 from granite4.1:30b (operator-flagged for
+# weak tool-calling discipline -- fabricated build status, ignored
+# explicit "show real output" rules) to qwen3-coder:30b: Alibaba's
+# Qwen3-Coder family is purpose-trained for agentic tool-use, MoE so
+# only ~3B parameters activate per token (fast on a 24 GB-VRAM GPU
+# while leaving headroom for context), and is what `hermes-agent`'s
+# function-calling surface expects. ~19 GB resident on disk.
 big_ram_gb       = 24                            # >= this -> big_ram_model
 mid_ram_gb       = 16                            # >= this -> mid_ram_model
-big_ram_model    = "granite4.1:30b"
-mid_ram_model    = "gpt-oss:20b"
+big_ram_model    = "qwen3-coder:30b"             # tool-calling-tuned MoE, ~19 GB
+mid_ram_model    = "qwen3-coder:14b"             # smaller dense Coder, ~9 GB
 small_ram_model  = "granite4.1:3b"               # < mid_ram_gb fallback
 
 # ----------------------------------------------------------------------------
