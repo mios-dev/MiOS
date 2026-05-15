@@ -22,6 +22,10 @@ enable mios-additionalimagestores-perms.path
 # open, silently breaking ALL Windows->WSL bridging (3030/8642/8888/
 # 9090). Idempotent.
 enable mios-firewall-ports.service
+# MiOS delegation prefilter -- forces delegate_task on fan-outable user
+# prompts so cascade delegation actually fires, regardless of the
+# main model's serial-tool bias. Sits between OWUI and Hermes on :8641.
+enable mios-delegation-prefilter.service
 enable sshd.service
 enable NetworkManager.service
 enable podman.socket

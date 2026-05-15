@@ -53,7 +53,15 @@ EnvironmentFile=/etc/mios/hermes/api.env
 # injects `host.containers.internal` into every container as the route
 # to the host -- that's how a container reaches a host-side service.
 # (The MiOS-DEV host-network drop-in overrides this to localhost:8642.)
-Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8642/v1
+# Default route OWUI -> Hermes-Agent goes through the MiOS delegation
+# prefilter on :8641 (a thin HTTP forwarder that injects tool_choice=
+# delegate_task on fan-outable user prompts). Hermes itself is on :8642.
+# The prefilter passes through all non-fan-out traffic unchanged.
+# Operators who want raw Hermes (no force-delegation) override this via
+# /etc/containers/systemd/mios-open-webui.container.d/<name>.conf:
+#   Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8642/v1
+# (The MiOS-DEV host-network drop-in overrides the host part to localhost.)
+Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8641/v1
 
 # Disable Open WebUI's direct-Ollama integration -- all inference must
 # route through Hermes-Agent (Law 5). The ollama backend URL is still

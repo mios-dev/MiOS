@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""mios-delegation-prefilter -- HTTP forwarder that sits between Open
+WebUI and Hermes-Agent's /v1/chat/completions, force-routing fan-out
+prompts through delegate_task instead of letting the model pick
+serial terminal calls.
+
+LISTEN  :8641   (the OpenAI-compat surface OWUI / external clients hit)
+FORWARD :8642   (Hermes-Agent gateway)
+
+The model has been demonstrating a strong serial-tool bias even with
+the parallel-fanout skill loaded + delegation-default rules in
+SOUL.md + the OWUI prompt. Skill nudges, prompt edits, model swap,
+and a 92% prompt-bloat reduction all helped a little -- none of them
+made the model bite. This prefilter takes a hammer to the choice:
+when the user prompt looks fan-outable (multiple independent items,
+parallel investigation language), inject `tool_choice={"type":
+"function","function":{"name":"delegate_task"}}` into the request so
+Hermes is REQUIRED to call delegate_task on the first turn. After
+that, the model has committed to the delegation pattern and naturally
+fans out the actual work into the tasks=[] array.
+
+Heuristic-driven (NOT model-driven) so it's deterministic + auditable:
+operator can flip the heuristic, see exactly when delegation fires.
+
+Disable by stopping mios-delegation-prefilter.service and pointing
+OWUI back at :8642. Hermes itself is unmodified.
+"""
+import json
+import os
+import re
+import sys
+import logging
+from aiohttp import web, ClientSession, ClientTimeout
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("delegation-prefilter")
+
+LISTEN_PORT  = int(os.environ.get("MIOS_PREFILTER_LISTEN_PORT", "8641"))
+HERMES_HOST  = os.environ.get("MIOS_PREFILTER_UPSTREAM", "http://127.0.0.1:8642")
+HEADERS_DROP = {"host", "content-length"}
+
+# Regexes that suggest the user wants parallel investigation. Tuned from
+# operator chat history + common multi-target phrasing. Hits = force
+# delegate_task on the first model turn.
+FANOUT_PATTERNS = [
+    re.compile(r"\b(parallel|in parallel|simultaneously|concurrently)\b", re.I),
+    re.compile(r"\b(all of|each of|every|several|multiple)\b", re.I),
+    re.compile(r"\b(\d+ (independent|things|items|files|services|hosts|tasks))", re.I),
+    re.compile(r"\bstatus snapshot\b|\b(check|inspect|audit) (these|those|all|every|N)\b", re.I),
+    # operator's own phrasing seen in this session
+    re.compile(r"\b(four|three|five|six) (independent|things|tasks|reports|investigations)\b", re.I),
+    re.compile(r"\bfan(?:[ -]out)?\b", re.I),
+]
+
+
+def _looks_fanoutable(user_text: str) -> bool:
+    """Return True when the user prompt strongly suggests parallel work."""
+    for pat in FANOUT_PATTERNS:
+        if pat.search(user_text):
+            return True
+    return False
+
+
+def _last_user_message(messages: list) -> str:
+    for m in reversed(messages):
+        if isinstance(m, dict) and m.get("role") == "user":
+            content = m.get("content")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                # OpenAI multi-part content shape
+                return " ".join(p.get("text", "") for p in content if isinstance(p, dict))
+    return ""
+
+
+async def proxy(request: web.Request) -> web.StreamResponse:
+    upstream_url = HERMES_HOST + request.path_qs
+
+    # Read body; we may rewrite it for /v1/chat/completions
+    body_bytes = await request.read()
+    rewritten = False
+
+    # Only inspect chat-completions; everything else passes through.
+    if request.path.endswith("/chat/completions") and body_bytes:
+        try:
+            payload = json.loads(body_bytes)
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            messages = payload.get("messages") or []
+            user_text = _last_user_message(messages)
+            if user_text and _looks_fanoutable(user_text):
+                # Force delegate_task on the first model call.
+                # Hermes / OpenAI-compat honour OpenAI's tool_choice.
+                # Only set if not already set by the caller (respect explicit
+                # operator override).
+                if "tool_choice" not in payload or payload.get("tool_choice") in (None, "auto"):
+                    payload["tool_choice"] = {
+                        "type": "function",
+                        "function": {"name": "delegate_task"},
+                    }
+                    body_bytes = json.dumps(payload).encode("utf-8")
+                    rewritten = True
+                    log.info("FORCE delegate_task: matched fan-out keywords in user prompt (%d chars)",
+                             len(user_text))
+
+    headers = {k: v for (k, v) in request.headers.items() if k.lower() not in HEADERS_DROP}
+    if rewritten:
+        headers["Content-Length"] = str(len(body_bytes))
+
+    timeout = ClientTimeout(total=600)
+    async with ClientSession(timeout=timeout) as session:
+        async with session.request(
+            request.method, upstream_url, headers=headers, data=body_bytes,
+            allow_redirects=False
+        ) as upstream:
+            resp = web.StreamResponse(status=upstream.status, headers={
+                k: v for (k, v) in upstream.headers.items()
+                if k.lower() not in {"content-encoding", "transfer-encoding", "content-length"}
+            })
+            await resp.prepare(request)
+            async for chunk in upstream.content.iter_chunked(65536):
+                await resp.write(chunk)
+            await resp.write_eof()
+            return resp
+
+
+def main():
+    app = web.Application()
+    app.router.add_route("*", "/{tail:.*}", proxy)
+    log.info("MiOS delegation-prefilter listening on :%d -> %s", LISTEN_PORT, HERMES_HOST)
+    web.run_app(app, host="0.0.0.0", port=LISTEN_PORT, access_log=None)
+
+
+if __name__ == "__main__":
+    main()

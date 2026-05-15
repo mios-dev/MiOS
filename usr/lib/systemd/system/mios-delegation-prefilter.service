@@ -1,0 +1,47 @@
+[Unit]
+# MiOS delegation prefilter -- HTTP forwarder that sits between Open
+# WebUI (and any other OpenAI-compat client) and Hermes-Agent's
+# /v1/chat/completions, force-routing fan-outable user prompts through
+# delegate_task by injecting tool_choice on the request.
+#
+# Why a sidecar instead of a Hermes plugin: Hermes's plugin discovery
+# is documented but the hook signatures are async/sync mixed, and an
+# async/sync wrapper mismatch on the wrong handler crashes EVERY tool
+# call ('object of type coroutine has no len()' -- operator-confirmed
+# regression 2026-05-15). A separate-process forwarder is:
+#   * deterministic (heuristic-driven, not model-driven)
+#   * isolated from Hermes upgrades
+#   * trivially disablable (stop the unit, point OWUI back at :8642)
+# Cost: one extra hop per request (~1ms localhost overhead).
+Description=MiOS delegation prefilter -- forces delegate_task on fan-out prompts
+Documentation=file:///usr/libexec/mios/mios-delegation-prefilter
+After=hermes-agent.service network.target
+Wants=hermes-agent.service
+ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/python3
+
+[Service]
+Type=exec
+ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 /usr/libexec/mios/mios-delegation-prefilter
+Restart=on-failure
+RestartSec=3s
+User=mios-hermes
+Group=mios-hermes
+Environment=PYTHONUNBUFFERED=1
+# Heuristic + upstream are operator-tunable via /etc/mios/secrets.env
+# or a drop-in:
+#   Environment=MIOS_PREFILTER_LISTEN_PORT=8641
+#   Environment=MIOS_PREFILTER_UPSTREAM=http://127.0.0.1:8642
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target
