@@ -1,0 +1,65 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-open-url <url> [<browser>]
+#
+# Open a URL in a graphical browser. Operator directive 2026-05-15:
+# agents kept calling `mios-gui <url>` (which expects an APP NAME, not
+# a URL) and then claiming success without verifying. This shim exists
+# so the agent reaches for an obvious URL-opening tool by name.
+#
+# Default browser: ChromeDev (com.google.ChromeDev flatpak), with
+# Epiphany (org.gnome.Epiphany) as fallback.  Override by passing the
+# browser short-name as the second argument:
+#
+#   mios-open-url http://localhost:9090
+#   mios-open-url https://github.com/mios-dev/MiOS epiphany
+#   mios-open-url file:///var/home/mios/Documents/notes.html chromedev
+#
+# All routing goes through mios-gui, which in turn uses flatpak-launch
+# to escape the agent's mount namespace + attach to the operator's
+# WSLg session. The actual GUI window opens on the host's desktop.
+
+set -eu
+
+if [ "$#" -lt 1 ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    cat <<'USAGE'
+usage: mios-open-url <url> [<browser>]
+
+  <url>      Any valid URL (http://, https://, file://, ...).
+  <browser>  Optional. One of: chromedev (default), epiphany.
+
+Opens the URL in a graphical browser via mios-gui (which routes
+through flatpak-launch + the operator-session escape).
+
+Examples:
+  mios-open-url http://localhost:9090
+  mios-open-url https://github.com/mios-dev/MiOS epiphany
+  mios-open-url file:///var/home/mios/Documents/notes.html
+USAGE
+    [ "$#" -lt 1 ] && exit 64 || exit 0
+fi
+
+URL="$1"
+BROWSER="${2:-chromedev}"
+
+# Quick sanity: warn (not error) if it doesn't look like a URL.
+case "$URL" in
+    http://*|https://*|file://*|about:*|chrome://*) : ;;
+    *)
+        echo "[mios-open-url] WARN: '$URL' doesn't look like a URL; passing as-is" >&2
+        ;;
+esac
+
+case "$BROWSER" in
+    chromedev|chrome|chromium)
+        exec mios-gui chromedev "$URL"
+        ;;
+    epiphany|web|gnome-web)
+        exec mios-gui epiphany "$URL"
+        ;;
+    *)
+        # Treat any other value as a flatpak short-name and let mios-gui
+        # resolve it (e.g. firefox if installed). If unresolvable,
+        # mios-gui prints the catalogue.
+        exec mios-gui "$BROWSER" "$URL"
+        ;;
+esac

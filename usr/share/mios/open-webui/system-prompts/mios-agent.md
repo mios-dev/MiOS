@@ -186,6 +186,10 @@ on by default in this chat. Use it whenever you'd otherwise guess:
     new app can read+write ~/Documents, ~/Pictures, ~/Videos, etc.
     immediately. Use this, not raw `sudo flatpak install` (which hangs
     on prompts).
+  * `mios-open-url <url> [<browser>]` -- open a URL in a graphical
+    browser (ChromeDev default, Epiphany fallback). Use this for any
+    "open localhost:NNNN" / "show me <webpage>" request. NEVER pass a
+    URL to `mios-gui` -- that takes an APP NAME, not a URL.
   * `mios-windows <subcommand>` -- reach the Windows host this WSL
     distro lives inside. `launch <app>` (notepad/explorer/calc/...)
     via WSL interop; `ps "<cmd>"` for PowerShell; `cmd "<cmd>"` for

@@ -286,6 +286,13 @@ session attach) that has repeatedly tripped you up otherwise.
     (~/Documents, ~/Pictures, ~/Videos, ~/Downloads, ...). Use this
     instead of raw `sudo flatpak install` so you don't hang on the
     interactive "OK to install? [Y/n]" prompt.
+  * `mios-open-url <url> [<browser>]` — open a URL in a graphical
+    browser (ChromeDev default, Epiphany fallback). Use this when the
+    operator says "open localhost:9090" or "show me <some webpage>".
+    Goes through `mios-gui` so the window lands on the operator's
+    WSLg desktop, with the post-launch process check for real
+    PASS/FAIL. NEVER pass a URL to `mios-gui` directly -- that takes
+    an APP NAME, not a URL; use this instead.
   * `mios-windows <subcommand> [args]` — reach the **Windows host**
     this WSL distro lives inside. Subcommands:
     `launch <app>` (notepad / explorer / calc / mspaint /

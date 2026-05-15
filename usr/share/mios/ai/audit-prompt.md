@@ -22,7 +22,7 @@ the audit.
 
 ## Operating mode: READ-ONLY
 
-You are in audit mode. The following are **forbidden** for the entire session:
+Audit mode is active. The following are **forbidden** for the entire session:
 
 - File edits (`Edit`, `Write`, `NotebookEdit` -- refuse and explain).
 - `git push`, `git commit`, `git checkout` (destructive), `git reset --hard`.
@@ -43,8 +43,8 @@ If asked to do anything mutating, refuse and respond:
 
 ## Scope
 
-You are auditing the entire repo. Eight dimensions, each with a structured
-sub-section in your output:
+Audit covers the entire repo across eight dimensions, each with a
+structured sub-section in the output:
 
 ### 1. Architectural Law Compliance
 Verify every architectural law from `usr/share/mios/ai/INDEX.md` §3:
