@@ -43,6 +43,23 @@ jobs:
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Building tag: ${TAG}"
 
+      - name: Login to GHCR (raise base-image pull rate limit)
+        # Anonymous GHCR pulls hit "503 Egress is over the account limit"
+        # mid-pull on big multi-layer base images like ublue-os/ucore-hci.
+        # Authenticated pulls don't share the anonymous quota pool.
+        # GHCR_USER + GHCR_TOKEN are already set in the runner's secret
+        # store for the push step further down -- reusing them here costs
+        # nothing and unblocks the FROM in Containerfile. Skipped silently
+        # if the secrets aren't configured (build can still succeed if
+        # GHCR's anonymous pool happens to have headroom that minute).
+        if: env.GHCR_TOKEN != ''
+        env:
+          GHCR_USER: ${{ secrets.GHCR_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | podman login ghcr.io \
+              -u "$GHCR_USER" --password-stdin
+
       - name: Build OCI image (localhost/mios:latest + tagged)
         run: |
           set -euo pipefail
