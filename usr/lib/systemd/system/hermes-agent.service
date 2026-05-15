@@ -87,7 +87,18 @@ TimeoutStopSec=240s
 ProtectSystem=strict
 ReadWritePaths=/etc/mios /var/lib/mios
 ProtectHome=false
-NoNewPrivileges=true
+# NoNewPrivileges=false (was true) -- LOAD-BEARING for the operator's
+# explicit sudo authorization. With NoNewPrivileges=true the kernel
+# refuses to honour sudo's SUID bit (or any setuid binary) regardless
+# of /etc/sudoers.d/, so `sudo mios build` from the agent dies with
+# "sudo: The "no new privileges" flag is set, which prevents sudo from
+# running as root" -- the sudoers grant becomes a no-op. The operator
+# explicitly authorized mios-hermes to sudo (see /etc/sudoers.d/
+# 10-mios-hermes); keeping NoNewPrivileges=true would silently
+# undermine that authorization. Revoke either by deleting the sudoers
+# drop-in OR by flipping this back to true; both correctly trip the
+# build driver's privilege preflight (operator-confirmed 2026-05-15).
+NoNewPrivileges=false
 # PrivateTmp=yes is LOAD-BEARING. ProtectSystem=strict makes /tmp and
 # /var/tmp READ-ONLY for this service. Hermes-Agent's `terminal` tool
 # (and Python's tempfile underneath every code_execution / shell call)
