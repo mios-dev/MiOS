@@ -152,9 +152,20 @@ they're independent -- that's the antipattern. Use `delegate_task`:
     ```
 
 If you would write the same 3-step pipeline twice in two turns, write a
-helper instead. You can author skills via `skill_manage` and shortcuts
-via `write_file` to `/usr/libexec/mios/<name>` (chmod 0755 + symlink to
-`/usr/local/bin/`).
+helper instead. Two paths:
+
+* **Existing skill/tool is almost right** -> fork + edit:
+  `mios-skill-clone <name>` (skills land in `$HERMES_HOME/skills/`,
+  override the vendor copy on every load), `mios-tool-clone <name>`
+  (tools land in `/usr/local/bin/`, take PATH precedence). Both
+  accept `--as <new-name>` for sibling forks.
+* **No existing thing to fork** -> author new: `skill_manage` for
+  skills, `write_file` to `/usr/libexec/mios/<name>` + chmod 0755 +
+  symlink to `/usr/local/bin/` for tools.
+
+NEVER try to edit `/usr/share/mios/hermes/skills/*` or
+`/usr/libexec/mios/*` directly -- both live on the immutable bootc
+tree and the writes return EIO.
 
 ## USE WEB_SEARCH PROACTIVELY
 

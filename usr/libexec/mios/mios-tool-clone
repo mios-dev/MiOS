@@ -1,0 +1,110 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-tool-clone <name> [--as <new-name>] [--force]
+#
+# Fork a system-shipped MiOS shim into the operator-writable
+# /usr/local/bin/ so the agent can edit it (the immutable /usr tree
+# rejects writes; /usr/local is mutable on bootc).
+#
+# After the clone, /usr/local/bin/<name> wins over /usr/libexec/mios/
+# <name> on PATH (because /usr/local/bin precedes /usr/libexec/mios
+# in the standard /etc/profile chain). Same-name clones thus override
+# the vendor shim transparently.
+#
+# Operator directive 2026-05-15: "make sure these skills are clone-
+# able and modifiable by the agents themselves too! that way Hermes
+# is properly improving skills and tools for things iteratively".
+#
+#   mios-tool-clone mios-windows                  # fork in place
+#   $EDITOR /usr/local/bin/mios-windows
+#   # next mios-windows call uses the local copy
+#
+#   mios-tool-clone mios-windows --as mios-windows-experimental
+#   # original mios-windows still active; experimental ships alongside
+#
+# Authoring brand-new tools (no existing source to clone) goes through
+# `write_file /usr/libexec/mios/<name>` + chmod + symlink, per the
+# self-improvement section of SOUL.md. mios-tool-clone is for
+# augmenting existing shims.
+
+set -eu
+
+usage() {
+    cat <<'USAGE'
+usage: mios-tool-clone <name> [--as <new-name>] [--force]
+
+  <name>          System tool name to clone (under /usr/libexec/mios/<name>).
+
+  --as <new-name> Land the clone at /usr/local/bin/<new-name> instead of
+                  <name>. Default: same name (overrides the vendor shim
+                  on PATH).
+
+  --force         Overwrite an existing local clone.
+
+Available system tools:
+USAGE
+    if [ -d /usr/libexec/mios ]; then
+        ls -1 /usr/libexec/mios/ 2>/dev/null \
+            | grep -E '^mios-' \
+            | sed 's/^/  /'
+    fi
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    [ "$#" -lt 1 ] && exit 64 || exit 0
+fi
+
+NAME="$1"
+shift
+NEW_NAME="$NAME"
+FORCE=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --as) NEW_NAME="$2"; shift 2 ;;
+        --force) FORCE=1; shift ;;
+        *) echo "mios-tool-clone: unknown arg: $1" >&2; exit 64 ;;
+    esac
+done
+
+SRC="/usr/libexec/mios/$NAME"
+if [ ! -x "$SRC" ]; then
+    echo "mios-tool-clone: no executable system tool at $SRC" >&2
+    echo >&2
+    usage >&2
+    exit 1
+fi
+
+DEST="/usr/local/bin/${NEW_NAME}"
+
+if [ -e "$DEST" ] && [ "$FORCE" != "1" ]; then
+    echo "mios-tool-clone: $DEST already exists -- pass --force to overwrite" >&2
+    exit 1
+fi
+
+# /usr/local/bin is root-owned on most installs; sudo via NOPASSWD if
+# the caller isn't root.
+SUDO=()
+if [ "$(id -u)" -ne 0 ]; then
+    SUDO=(sudo -n)
+fi
+"${SUDO[@]}" install -m 0755 "$SRC" "$DEST"
+
+# Stamp a clone marker as a comment in the second line so future readers
+# can tell at a glance it's a fork. Carefully preserve the shebang.
+TMP="$(mktemp)"
+SHEBANG="$(head -1 "$DEST")"
+{
+    echo "$SHEBANG"
+    echo "# mios-tool-clone: forked from $SRC at $(date -Iseconds). Edit freely; /usr/local/bin precedes /usr/libexec/mios on PATH."
+    tail -n +2 "$DEST"
+} > "$TMP"
+"${SUDO[@]}" install -m 0755 "$TMP" "$DEST"
+rm -f "$TMP"
+
+echo "[mios-tool-clone] forked $SRC -> $DEST"
+if [ "$NEW_NAME" = "$NAME" ]; then
+    echo "[mios-tool-clone] same-name clone: $DEST takes PATH precedence over $SRC."
+else
+    echo "[mios-tool-clone] renamed clone: original '$NAME' still active; new '$NEW_NAME' ships alongside."
+fi
+echo "[mios-tool-clone] edit: $DEST"

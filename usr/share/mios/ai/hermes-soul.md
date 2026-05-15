@@ -200,13 +200,32 @@ shortcut** and use it. You have the tools:
     always-available when those tools are present.
   * **`skill_view`** — read any registered skill (yours or MiOS-shipped)
     in full when you need its body, not just the index entry.
-  * **`write_file`** — author standalone helper scripts under
+  * **`mios-skill-clone <name> [--as <new-name>]`** — fork a system
+    skill into the agent's writable area (`$HERMES_HOME/skills/<name>/`,
+    which loads BEFORE the system skill on every Hermes invocation).
+    Same-name clone overrides the vendor skill; `--as <new-name>`
+    creates a sibling. The whole skill directory is copied (SKILL.md +
+    any support files); a marker comment stamps the fork origin. Use
+    this when an existing skill is *almost* right and you want to
+    edit it instead of writing one from scratch. Example:
+    `mios-skill-clone parallel-fanout` then edit
+    `~/.hermes/skills/parallel-fanout/SKILL.md`.
+  * **`mios-tool-clone <name> [--as <new-name>]`** — fork a system
+    shim from `/usr/libexec/mios/<name>` to `/usr/local/bin/<name>`
+    (writable on bootc; PATH-priority over /usr/libexec/mios). Same-
+    name clone wins on PATH; `--as <new-name>` creates a sibling.
+    Lets you tweak `mios-windows`, `mios-gui`, `mios-flatpak-install`,
+    etc. without touching the immutable image. Example:
+    `mios-tool-clone mios-windows --as mios-windows-extended` then
+    edit `/usr/local/bin/mios-windows-extended`.
+  * **`write_file`** — author brand-new helper scripts under
     `/usr/libexec/mios/<name>` (chmod 0755 + symlink to `/usr/local/bin/`
     so the operator and you both see them on PATH). Pattern: short POSIX
     shell, one verb per intent, `--help` printable, idempotent. Examples
     already shipped: `mios-doctor`, `mios-gui`, `mios-build-status`,
-    `mios-build-tail`, `mios-restart`. Add to that list when a workflow
-    repeats.
+    `mios-build-tail`, `mios-restart`, `mios-windows`, `mios-flatpak-
+    install`, `mios-open-url`. Add to that list when a workflow
+    repeats AND no existing tool is close enough to fork.
   * **`delegate_task(tasks=[{goal:..., context:...}, ...])`** — fan out
     to MiOS-Delegate children (`qwen3:1.7b`, up to 6 concurrent, depth
     2) for parallel inspection / gathering / verification, OR to

@@ -1,0 +1,137 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-skill-clone <name> [--as <new-name>] [--force]
+#
+# Fork a system-shipped skill into the agent's writable skills
+# directory so the agent can edit it (the immutable /usr tree won't
+# accept writes). The Hermes skill resolver loads the local copy at
+# $HERMES_HOME/skills/<name>/ FIRST, so:
+#
+#   * Same-name clone -> the agent's edited version overrides the
+#     vendor skill on every load.
+#   * Renamed clone (--as <new-name>) -> a sibling skill that both
+#     the original and the fork show up in `skill_view`.
+#
+# Operator directive 2026-05-15: "make sure these skills are clone-
+# able and modifiable by the agents themselves too! that way Hermes
+# is properly improving skills and tools for things iteratively".
+#
+# This is the workflow:
+#
+#   mios-skill-clone parallel-fanout              # fork in place
+#   $EDITOR ~/.hermes/skills/parallel-fanout/SKILL.md
+#   # next prompt loads the edited version automatically
+#
+#   mios-skill-clone windows-control --as windows-power
+#   # original windows-control still loaded; new windows-power skill
+#   # ships alongside it
+#
+# Layout under each skill dir:
+#   SKILL.md             (mandatory)
+#   any other support files (templates, sample configs, ...)
+# The clone copies the whole directory tree, not just SKILL.md.
+
+set -eu
+
+usage() {
+    cat <<'USAGE'
+usage: mios-skill-clone <name> [--as <new-name>] [--force]
+
+  <name>              System skill name to clone (under
+                      /usr/share/mios/hermes/skills/<name>/).
+
+  --as <new-name>     Land the clone under <new-name>/ instead of
+                      <name>/. Default: same name (overrides system
+                      skill on every load).
+
+  --force             Overwrite an existing local clone.
+
+Available system skills:
+USAGE
+    if [ -d /usr/share/mios/hermes/skills ]; then
+        ls -1 /usr/share/mios/hermes/skills/ 2>/dev/null | sed 's/^/  /'
+    fi
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    [ "$#" -lt 1 ] && exit 64 || exit 0
+fi
+
+NAME="$1"
+shift
+NEW_NAME="$NAME"
+FORCE=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --as) NEW_NAME="$2"; shift 2 ;;
+        --force) FORCE=1; shift ;;
+        *) echo "mios-skill-clone: unknown arg: $1" >&2; exit 64 ;;
+    esac
+done
+
+SRC="/usr/share/mios/hermes/skills/$NAME"
+if [ ! -d "$SRC" ] || [ ! -f "$SRC/SKILL.md" ]; then
+    echo "mios-skill-clone: no system skill at $SRC (missing SKILL.md)" >&2
+    echo >&2
+    usage >&2
+    exit 1
+fi
+
+# Resolve the agent's writable skills dir.
+# Priority:
+#   1. $HERMES_HOME env (set by hermes-agent.service when the agent
+#      is the caller -- the most authoritative signal)
+#   2. /var/lib/mios/hermes (the gateway service user's actual home;
+#      mios-hermes's passwd entry says /var/empty, but the unit and
+#      `hermes` CLI both treat /var/lib/mios/hermes as $HERMES_HOME --
+#      operator-confirmed convention)
+#   3. $HOME/.hermes (operator running the helper from their own shell)
+if [ -n "${HERMES_HOME:-}" ]; then
+    DEST_ROOT="${HERMES_HOME}/skills"
+elif [ "$(id -u)" = "820" ] || [ "${USER:-}" = "mios-hermes" ]; then
+    DEST_ROOT="/var/lib/mios/hermes/skills"
+elif [ -n "${HOME:-}" ] && [ "$HOME" != "/var/empty" ] && [ -d "$HOME" ] && [ -w "$HOME" ]; then
+    DEST_ROOT="${HOME}/.hermes/skills"
+elif [ -d /var/lib/mios/hermes ] && [ -w /var/lib/mios/hermes ]; then
+    DEST_ROOT="/var/lib/mios/hermes/skills"
+else
+    echo "mios-skill-clone: cannot determine writable skills dir (HERMES_HOME unset, HOME=${HOME:-unset} unwritable)" >&2
+    exit 1
+fi
+DEST="${DEST_ROOT}/${NEW_NAME}"
+
+if [ -e "$DEST" ] && [ "$FORCE" != "1" ]; then
+    echo "mios-skill-clone: $DEST already exists -- pass --force to overwrite" >&2
+    exit 1
+fi
+
+install -d -m 0755 "$DEST_ROOT"
+rm -rf "$DEST" 2>/dev/null || true
+cp -a "$SRC" "$DEST"
+
+# Stamp a clone marker into the SKILL.md so the next reader can tell
+# it's a fork. Inserted after the YAML frontmatter (or at top if no
+# frontmatter).
+SKILL_MD="$DEST/SKILL.md"
+MARKER="<!-- mios-skill-clone: forked from $SRC at $(date -Iseconds). Edit freely; this copy overrides the system skill on the local resolver path. -->"
+if head -1 "$SKILL_MD" 2>/dev/null | grep -q '^---$'; then
+    # has frontmatter: insert after the closing --- on line N
+    awk -v marker="$MARKER" '
+        /^---$/ { print; if (++n == 2) print "\n" marker "\n"; next }
+        { print }
+    ' "$SKILL_MD" > "$SKILL_MD.tmp" && mv "$SKILL_MD.tmp" "$SKILL_MD"
+else
+    {
+        echo "$MARKER"
+        echo
+        cat "$SKILL_MD"
+    } > "$SKILL_MD.tmp" && mv "$SKILL_MD.tmp" "$SKILL_MD"
+fi
+
+echo "[mios-skill-clone] forked $SRC -> $DEST"
+if [ "$NEW_NAME" = "$NAME" ]; then
+    echo "[mios-skill-clone] same-name clone: this copy now overrides the system skill on every Hermes load."
+else
+    echo "[mios-skill-clone] renamed clone: original '$NAME' still active; new '$NEW_NAME' ships alongside."
+fi
+echo "[mios-skill-clone] edit: $SKILL_MD"
