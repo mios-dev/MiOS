@@ -290,6 +290,13 @@ elif ! grep -qE '^auxiliary:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # summaries. Rewrite to add the auxiliary: + web: blocks.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing auxiliary endpoint mapping"
+elif ! grep -qE '^display:' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Config predates the display block -- the agent then narrates tool
+    # results instead of showing them verbatim, which is the dominant
+    # vector for fabricated "status" reports on local models. Rewrite
+    # to add the display: knobs (tool_progress: verbose, etc.).
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- missing display block (counter-fabrication)"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
@@ -382,6 +389,25 @@ auxiliary:
 # retrieval, not inference.
 web:
   search_backend: searxng
+
+# Display: surface real tool output in the chat (counter-fabrication).
+# When the agent narrates "the build succeeded" instead of pasting
+# what it actually saw, the operator can't tell truth from fiction.
+# These knobs make Hermes show the verbatim tool result inline -- in
+# the TUI as a panel, in Open WebUI as a syntax-highlighted code block
+# (the "terminal output in chat" experience). The model SOUL.md rules
+# require it; these settings make it the default rendering.
+display:
+  tool_progress: verbose             # show full args + result for every tool call
+  tool_progress_command: true        # show the command itself (e.g. `mios build`)
+  tool_preview_length: 8000          # show up to 8000 chars of each tool result inline
+  persistent_output: true            # keep tool output visible after the call returns
+  persistent_output_max_lines: 2000  # default 200 truncated long build logs aggressively
+  interim_assistant_messages: true   # stream progress as tools complete
+  final_response_markdown: keep      # do NOT strip code blocks from the final answer
+  inline_diffs: true
+  show_reasoning: false              # flip to true if you want the chain-of-thought visible
+  show_cost: false
 EOF
     umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
@@ -437,37 +463,46 @@ fi
 # the operator's `hermes` CLI (~/.hermes), exactly like config.yaml.
 #
 # Re-seed when the target is missing OR still the stock template (no
-# "MiOS-managed" marker). An operator who wants their own persona just
-# deletes that marker line; MiOS then leaves the file alone forever.
+# "MiOS-managed" marker) OR the source content has changed (so updates
+# to /usr/share/mios/ai/hermes-soul.md propagate without a manual
+# delete). An operator who wants their own persona just deletes the
+# "MiOS-managed" marker line; MiOS then leaves the file alone forever.
 SOUL_SRC=""
 for _c in /usr/share/mios/ai/hermes-soul.md \
           "${MIOS_REPO:-}/usr/share/mios/ai/hermes-soul.md"; do
     [[ -n "$_c" && -r "$_c" ]] && { SOUL_SRC="$_c"; break; }
 done
+_soul_should_seed() {
+    local target="$1"
+    [[ ! -f "$target" ]] && return 0
+    grep -q 'MiOS-managed' "$target" 2>/dev/null || return 1   # operator-owned, leave alone
+    cmp -s "$SOUL_SRC" "$target" && return 1                    # already current, no-op
+    return 0                                                    # MiOS-managed and stale -> reseed
+}
 if [[ -z "$SOUL_SRC" ]]; then
     _log "WARN: hermes-soul.md source not found -- skipping SOUL.md seed"
 else
     # Gateway service copy ($HERMES_HOME/SOUL.md, owned by mios-hermes).
     _soul_svc="${HERMES_DATA}/SOUL.md"
-    if [[ ! -f "$_soul_svc" ]] || ! grep -q 'MiOS-managed' "$_soul_svc" 2>/dev/null; then
+    if _soul_should_seed "$_soul_svc"; then
         cp -f "$SOUL_SRC" "$_soul_svc"
         chown 820:820 "$_soul_svc" 2>/dev/null || true
         chmod 0644 "$_soul_svc" 2>/dev/null || true
         _log "seeded $_soul_svc (hardened MiOS persona + grounding against fabricated output)"
     else
-        _log "$_soul_svc operator-customised (no MiOS-managed marker) -- not overwriting"
+        _log "$_soul_svc already current (or operator-customised) -- not overwriting"
     fi
     # Operator `hermes` CLI copy (reuses _op_user / _op_home from above).
     if [[ -n "${_op_home:-}" && -d "${_op_home:-}" ]]; then
         _soul_op="${_op_home}/.hermes/SOUL.md"
-        if [[ ! -f "$_soul_op" ]] || ! grep -q 'MiOS-managed' "$_soul_op" 2>/dev/null; then
+        if _soul_should_seed "$_soul_op"; then
             mkdir -p "${_op_home}/.hermes"
             cp -f "$SOUL_SRC" "$_soul_op"
             chown "$_op_user":"$_op_user" "$_soul_op" 2>/dev/null || true
             chmod 0644 "$_soul_op" 2>/dev/null || true
             _log "seeded operator SOUL.md $_soul_op (user=$_op_user)"
         else
-            _log "operator SOUL.md $_soul_op operator-customised -- not overwriting"
+            _log "operator SOUL.md $_soul_op already current (or operator-customised) -- not overwriting"
         fi
     fi
 fi

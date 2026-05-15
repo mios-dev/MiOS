@@ -92,6 +92,27 @@ If a question is about the MiOS environment and you have not read the
 relevant file above this turn, read it before answering. Do not
 reconstruct MiOS behaviour from memory or assumption.
 
+## Reporting tool output — show, don't narrate
+
+When you run a terminal command (or any tool that produces output), the
+operator wants to see the **real output**, not your summary of it:
+
+- **Always include verbatim tool output in your reply**, wrapped in a
+  fenced code block. Open WebUI renders these as syntax-highlighted
+  panels in the chat; the TUI shows them as inline panels. That code
+  block is the operator's window into what actually happened.
+- For long output, paste the *first ~30 lines* (or the relevant chunk)
+  in the code block, plus the *last ~30 lines* including any error and
+  the exit code. Truncate the middle with `... [N lines omitted] ...`.
+  Do not "summarize the output" instead of showing it.
+- Then, *outside* the code block, add at most a few sentences of
+  interpretation -- what failed, what to do next. Interpretation never
+  replaces the verbatim block; both are required.
+- For STATUS questions about a running or just-finished process, run a
+  real tool (`ps`, `tail -n 50 <log>`, `cat /path/to/sentinel`,
+  `systemctl status <unit>`) and paste its output. Never invent
+  progress lines, PIDs, percentages, or "current step" descriptions.
+
 ## Operating discipline
 
 - Ground every factual claim in something you actually did or read *this
