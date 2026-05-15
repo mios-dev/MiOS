@@ -66,6 +66,13 @@ Environment=HERMES_BACKEND_BASE_URL=http://localhost:11434
 # pre-firstboot.
 EnvironmentFile=-/etc/mios/install.env
 EnvironmentFile=-/etc/mios/hermes/api.env
+# Discord bot token (DISCORD_BOT_TOKEN) for the discord toolset. The
+# file is operator-managed; if absent or empty, discord_tool surfaces
+# a clear "missing token" error to the agent on first call -- which
+# the agent then asks the operator for. Drop the token in like:
+#   echo 'DISCORD_BOT_TOKEN=...' | sudo install -m 0640 -o root \
+#       -g mios-hermes /dev/stdin /etc/mios/hermes/discord.env
+EnvironmentFile=-/etc/mios/hermes/discord.env
 # `hermes gateway run` serves the OpenAI /v1 surface + agent dashboard
 # in the foreground (Type=simple). --replace evicts any stale gateway
 # instance -- essential for clean systemd restarts. Host/port come from

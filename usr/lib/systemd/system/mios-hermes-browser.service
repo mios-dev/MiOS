@@ -1,0 +1,64 @@
+[Unit]
+# /usr/lib/systemd/system/mios-hermes-browser.service
+#
+# Headless ChromeDev (com.google.ChromeDev flatpak) with Chrome
+# DevTools Protocol on 127.0.0.1:9222 -- the CDP endpoint that
+# Hermes-Agent's browser tool attaches to (see browser.cdp_url in
+# /var/lib/mios/hermes/config.yaml). Operator directive 2026-05-15:
+# "Hermes-Browser isn't enabled!! Should be using the locally
+# installed ChromeDev flatpak install".
+#
+# This is the LOCAL backend for browser_navigate / browser_snapshot /
+# browser_click etc. -- distinct from the cloud-mode backends
+# (Browserbase, Browser Use) the agent's browser_tool.py also
+# supports. Cloud mode kicks in automatically if the corresponding
+# API keys are present in the env; local-via-CDP is the MiOS default
+# (no off-host calls, no API keys, no cost).
+Description='MiOS' Hermes-Browser (ChromeDev w/ CDP for Hermes-Agent)
+Documentation=https://chromedevtools.github.io/devtools-protocol/
+After=hermes-agent.service
+Wants=hermes-agent.service
+# ChromeDev flatpak must be installed (system or user scope). If
+# missing, the unit no-ops cleanly instead of crash-looping; operator
+# fixes by `flatpak install flathub com.google.ChromeDev`.
+ConditionPathExists=|/var/lib/flatpak/app/com.google.ChromeDev
+ConditionPathExists=|%h/.local/share/flatpak/app/com.google.ChromeDev
+
+[Service]
+Type=simple
+# Run as the same user as Hermes itself so the CDP profile, cache,
+# and downloads land in a directory tree the gateway can also poke at
+# (e.g. for clearing on `mios-cache-clear`). uid 820.
+User=mios-hermes
+Group=mios-hermes
+
+# Flatpak needs HOME to bootstrap its per-user state dir. mios-hermes's
+# home is /var/lib/mios/hermes (set on sysuser create); flatpak will
+# create ~/.local/share/flatpak/ there on first run.
+Environment=HOME=/var/lib/mios/hermes
+
+# RuntimeDirectory= gets us a fresh /run/mios-hermes-browser owned by
+# the service user; flatpak's portal helpers + dbus socket discovery
+# expect XDG_RUNTIME_DIR to point at a writable per-user tmpfs.
+RuntimeDirectory=mios-hermes-browser
+RuntimeDirectoryMode=0700
+Environment=XDG_RUNTIME_DIR=/run/mios-hermes-browser
+
+# Make the persistent profile dir on first start (idempotent). chmod
+# 0700 so only mios-hermes can read sensitive cookies / session state.
+StateDirectory=mios/hermes-browser/profile
+StateDirectoryMode=0700
+
+ExecStart=/usr/libexec/mios/mios-hermes-browser
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening that doesn't break flatpak run:
+NoNewPrivileges=true
+# ProtectSystem=strict here would block /var/lib/flatpak read access;
+# leave at default. The flatpak sandbox does its own confinement.
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

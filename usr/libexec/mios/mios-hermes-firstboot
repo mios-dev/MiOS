@@ -215,6 +215,42 @@ EOF
     _log "wrote $ENV_FILE (64-char API_SERVER_KEY)"
 fi
 
+# ─── /etc/mios/hermes/discord.env (Discord bot token, operator-managed) ─
+# Empty stub seeded so that:
+#   * hermes-agent.service's EnvironmentFile=- finds a readable file
+#     (no "file not found" warnings in the journal)
+#   * the operator has a known location to drop a token, with inline
+#     instructions on how to obtain one
+# Discord toolset reads DISCORD_BOT_TOKEN from this file. If unset, the
+# tool surfaces a clear "missing token" error to the agent on first
+# call, which the agent then asks the operator about.
+DISCORD_ENV="/etc/mios/hermes/discord.env"
+if [[ ! -f "$DISCORD_ENV" ]]; then
+    umask 0077
+    cat > "$DISCORD_ENV" <<'DISCORDEOF'
+# /etc/mios/hermes/discord.env -- operator-managed.
+#
+# Drop a Discord bot token here for Hermes-Agent's `discord` toolset:
+#   DISCORD_BOT_TOKEN=<your-bot-token>
+#
+# How to obtain a bot token (one-time):
+#   1. https://discord.com/developers/applications -> New Application
+#   2. Bot tab -> Reset Token -> copy the token (shown once)
+#   3. OAuth2 -> URL Generator -> tick `bot` + `applications.commands`
+#      + the permissions your agent needs (Send Messages, Read Message
+#      History, Manage Threads, ...). Open the resulting URL and
+#      authorise the bot into your guild.
+#   4. Paste the token below as DISCORD_BOT_TOKEN=<token>, save, then:
+#        sudo systemctl restart hermes-agent.service
+#
+# Permissions: 0640 root:mios-hermes (root edits, mios-hermes reads).
+DISCORDEOF
+    umask 0022
+    chown root:mios-hermes "$DISCORD_ENV" 2>/dev/null || true
+    chmod 0640 "$DISCORD_ENV" 2>/dev/null || true
+    _log "seeded empty $DISCORD_ENV (operator drops DISCORD_BOT_TOKEN here)"
+fi
+
 # ─── /var/lib/mios/hermes/config.yaml (Hermes-Agent main config) ────────
 #
 # Hermes-Agent 0.13.x reads $HERMES_HOME/config.yaml. The direct host
@@ -470,13 +506,30 @@ web:
 #
 # Operators can ADD toolsets back here (in the operator overlay
 # /etc/mios/mios.toml or by editing /etc/mios/hermes/config.yaml and
-# clearing the MiOS-managed sentinel) -- e.g. add "browser" if you want
-# the agent to drive the chrome flatpak via CDP.
+# clearing the MiOS-managed sentinel).
+#
+# browser is enabled by default (operator directive 2026-05-15
+# "Hermes-Browser isn't enabled!! Should be using the locally
+# installed ChromeDev flatpak install"). The CDP endpoint at
+# browser.cdp_url (http://localhost:9222) is served by
+# mios-hermes-browser.service, which launches the ChromeDev flatpak
+# headless with --remote-debugging-port=9222 + a dedicated
+# user-data-dir under /var/lib/mios/hermes-browser/profile.
+#
+# discord is enabled by default (operator directive 2026-05-15
+# "hermes-discord-tool too!! must be enabled--agents can ask for
+# credentials"). The discord_tool reads DISCORD_BOT_TOKEN from the
+# environment; it isn't set here. The agent surfaces "missing token"
+# errors back to the operator on first call so they can drop a token
+# into /etc/mios/hermes/discord.env (which the systemd unit picks up
+# via EnvironmentFile=).
 platform_toolsets:
   api_server:
     - terminal       # shell commands
     - file           # read/write/patch
     - web            # web_search + web_extract via SearXNG
+    - browser        # browser_navigate / _snapshot / _click / ... via CDP -> ChromeDev flatpak
+    - discord        # read + participate (fetch messages, search members, create threads)
     - delegation     # delegate_task -- the parallel-fanout target
     - skills         # skill_view / skill_manage / skills_list
     - memory         # persistent memory across sessions

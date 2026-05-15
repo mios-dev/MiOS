@@ -64,18 +64,26 @@ if ! python3 -m venv "${VENV_DIR}" 2>/dev/null; then
     exit 0
 fi
 
-# `pip install git+URL@ref` plus aiohttp -- single step, network
-# best-effort. aiohttp is REQUIRED by hermes-agent's api_server adapter
-# (the OpenAI /v1 surface). The base package doesn't pull it as a hard
-# dep, so the gateway starts but logs "API Server: aiohttp not installed
-# / No adapter available for api_server" and /v1 never comes up
-# (operator-confirmed 2026-05-14). Installing it explicitly alongside.
+# `pip install git+URL@ref` plus the must-have soft-deps -- single
+# step, network best-effort.
+#   * aiohttp -- REQUIRED by hermes-agent's api_server adapter (the
+#     OpenAI /v1 surface). The base package doesn't pull it as a hard
+#     dep, so the gateway starts but logs "API Server: aiohttp not
+#     installed / No adapter available for api_server" and /v1 never
+#     comes up (operator-confirmed 2026-05-14).
+#   * websockets -- REQUIRED by tools/browser_dialog_tool +
+#     tools/browser_supervisor (CDP WebSocket client). Without it,
+#     Hermes prints "Could not import tool module
+#     tools.browser_dialog_tool: No module named 'websockets'" on
+#     every gateway start and the browser tool's dialog detection +
+#     CDP supervisor never wake up (operator-confirmed 2026-05-15
+#     when wiring the ChromeDev flatpak as the local CDP backend).
 # --no-input keeps it non-interactive; failure here is non-fatal.
 if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
-        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp 2>&1 | tail -5; then
+        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp websockets 2>&1 | tail -5; then
     :
 else
-    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + aiohttp failed (network? PyPI?) -- removing partial venv, skipping"
+    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + aiohttp + websockets failed (network? PyPI?) -- removing partial venv, skipping"
     rm -rf "${VENV_DIR}"
     exit 0
 fi

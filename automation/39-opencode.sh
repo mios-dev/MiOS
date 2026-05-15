@@ -99,6 +99,23 @@ if [[ ! -x "${INSTALL_BIN}" ]]; then
     done
 fi
 if [[ ! -x "${INSTALL_BIN}" ]]; then
+    # Some versions of opencode-install.sh ignore OPENCODE_INSTALL_DIR
+    # and unconditionally drop the binary at $HOME/.opencode/bin
+    # (operator-confirmed regression 2026-05-15: live host had
+    # /root/.opencode/bin/opencode but /usr/lib/mios/opencode/bin/
+    # was empty after a previous build). Catch that case explicitly.
+    for fallback_home in "$HOME" /root /var/home/mios; do
+        cand="${fallback_home}/.opencode/bin/opencode"
+        if [[ -x "$cand" ]]; then
+            log "[39-opencode] installer dropped binary at ${cand} despite OPENCODE_INSTALL_DIR override; copying to ${INSTALL_ROOT}/bin"
+            install -d -m 0755 "${INSTALL_ROOT}/bin"
+            install -m 0755 "$cand" "${INSTALL_ROOT}/bin/opencode"
+            INSTALL_BIN="${INSTALL_ROOT}/bin/opencode"
+            break
+        fi
+    done
+fi
+if [[ ! -x "${INSTALL_BIN}" ]]; then
     warn "[39-opencode] post-install: binary not found at ${INSTALL_BIN} or fallback paths -- skipping shim"
     exit 0
 fi

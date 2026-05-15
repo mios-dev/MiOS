@@ -1,0 +1,67 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-hermes-browser
+#
+# Launch the locally-installed ChromeDev flatpak (com.google.ChromeDev)
+# with the Chrome DevTools Protocol port open on 127.0.0.1:9222 so
+# Hermes-Agent's browser tool can attach to it (browser.cdp_url in
+# /var/lib/mios/hermes/config.yaml is http://localhost:9222).
+#
+# Operator directive 2026-05-15: "should be using the locally installed
+# ChromeDev flatpak install" -- NOT agent-browser's bundled Chromium
+# download, NOT a separate Chromium RPM. Use the flatpak that's already
+# on disk for `mios-gui chromedev`.
+#
+# Headless by default (no display needed; headless=new still gives a
+# fully featured Chromium with V8 + DOM + JS, just no window). Operators
+# who want a visible window for debugging set HERMES_BROWSER_HEADLESS=0
+# before running the service.
+#
+# Profile data lives under /var/lib/mios/hermes-browser/profile so the
+# Hermes session is fully isolated from the operator's interactive
+# Chrome session (separate cookies, separate signed-in accounts,
+# separate extensions).
+set -euo pipefail
+
+CDP_PORT="${HERMES_BROWSER_CDP_PORT:-9222}"
+PROFILE_DIR="${HERMES_BROWSER_PROFILE_DIR:-/var/lib/mios/hermes-browser/profile}"
+HEADLESS="${HERMES_BROWSER_HEADLESS:-1}"
+APP_ID="${HERMES_BROWSER_APP_ID:-com.google.ChromeDev}"
+
+mkdir -p "$PROFILE_DIR"
+
+CHROME_ARGS=(
+    --remote-debugging-port="$CDP_PORT"
+    --remote-debugging-address=127.0.0.1
+    --user-data-dir="$PROFILE_DIR"
+    --no-first-run
+    --no-default-browser-check
+    --disable-extensions
+    --disable-gpu
+    --hide-scrollbars
+    --mute-audio
+    # CDP needs to bind on a writable socket; flatpak sandbox redirects
+    # /tmp into a private mount, but 127.0.0.1:$CDP_PORT works because
+    # we don't enable --share=network=disabled.
+    about:blank
+)
+
+if [[ "$HEADLESS" == "1" ]]; then
+    CHROME_ARGS=(--headless=new "${CHROME_ARGS[@]}")
+fi
+
+# --filesystem=$PROFILE_DIR grants the flatpak sandbox write access to
+# the dedicated profile path (it's outside the standard XDG locations
+# the flatpak normally has). --filesystem=$XDG_RUNTIME_DIR keeps
+# wayland/dbus sockets reachable for the headed-mode case.
+#
+# dbus-run-session: flatpak's portal helper insists on a session
+# D-Bus bus even for headless invocations -- without one, the
+# launcher dies with "Cannot autolaunch D-Bus without X11 $DISPLAY"
+# before Chrome ever starts. dbus-run-session spins up a private
+# transient bus for the duration of the flatpak run, which is enough
+# to satisfy the portal init without needing a real desktop session.
+exec dbus-run-session -- flatpak run \
+    --filesystem="$PROFILE_DIR" \
+    --filesystem="${XDG_RUNTIME_DIR:-/tmp}" \
+    "$APP_ID" \
+    "${CHROME_ARGS[@]}"

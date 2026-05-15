@@ -49,6 +49,13 @@ enable pmcd.service
 enable pmlogger.service
 enable pmproxy.service
 enable bootloader-update.service
+# Standard cron + at daemons (cronie + at, ProvideS /etc/cron.* +
+# crontab + atq/atd). Hermes-Agent has its own in-process cronjob
+# tool, but anything operators or agents schedule OUTSIDE the
+# gateway -- shell scripts, system jobs, one-shot 'at' runs --
+# expects these. Operator directive 2026-05-15.
+enable crond.service
+enable atd.service
 enable mios-role.service
 enable mios-gpu-detect.service
 enable mios-selinux-init.service
@@ -84,6 +91,11 @@ enable cockpit.socket
 enable mios-searxng.service
 enable mios-hermes-firstboot.service
 enable hermes-agent.service
+# Headless ChromeDev with CDP on :9222 -- backs Hermes's browser tool
+# (operator directive 2026-05-15). Service ConditionPathExists-gates
+# on the ChromeDev flatpak being present, so it no-ops cleanly on
+# hosts that haven't installed it.
+enable mios-hermes-browser.service
 enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token

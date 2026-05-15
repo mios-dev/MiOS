@@ -15,10 +15,14 @@
 #           Quadlets, /etc/mios/* configs, /etc/sudoers.d/10-mios-hermes
 #
 # WIPED -- conversation/cache state, regenerable on demand:
-#   OWUI: chat, message, message_reaction, knowledge, memory,
+#   OWUI: chat, message, message_reaction, memory,
 #         feedback, prompt_history, automation_run, calendar_event,
 #         shared_chat, pinned_note, channel_*, tag, chat_file
-#   OWUI: cache/, vector_db/, uploads/ directories
+#   OWUI selective: file rows + knowledge rows + knowledge_file links
+#         that are NOT MiOS-managed (meta lacks "mios-owui-apply-
+#         knowledge" marker). MiOS Documentation collection survives.
+#   OWUI: cache/, vector_db/, uploads/ directories (vector chunks
+#         re-built from file.data.content on next read)
 #   Hermes: sessions/, response_store.db, kanban.db, plans/, memories/,
 #           cache/, .cache, processes.json, channel_directory.json,
 #           context_length_cache.yaml, models_dev_cache.json,
@@ -130,7 +134,7 @@ DB = "$OWUI_DB"
 WIPE = (
     "chat", "chat_file", "chat_message", "chatidtag",
     "message", "message_reaction",
-    "knowledge", "knowledge_file", "memory",
+    "memory",
     "feedback", "prompt", "prompt_history",
     "shared_chat", "pinned_note",
     "channel_file", "channel_member", "channel_webhook",
@@ -139,6 +143,27 @@ WIPE = (
 )
 # NEVER touch: user, auth, group, group_member, model, function, tool,
 #              api_key, oauth_session, channel  (these are config/identity)
+# Selective wipe for file/knowledge: keep MiOS-managed (sourced from
+# mios-owui-apply-knowledge -- meta has 'managed_by' set), wipe only
+# operator-uploaded chat attachments + non-MiOS knowledge collections.
+# Operator-confirmed regression 2026-05-15: a blanket wipe of
+# knowledge + knowledge_file + file blew away the MiOS Documentation
+# collection on every cache-clear; the helper had to be re-run from
+# firstboot to restore.
+SELECTIVE_WIPE_SQL = (
+    # Files: drop only those NOT marked MiOS-managed.
+    ("file",
+     "DELETE FROM file WHERE coalesce(meta, '') NOT LIKE '%mios-owui-apply-knowledge%'"),
+    # Knowledge collections: drop only those NOT marked MiOS-managed.
+    ("knowledge",
+     "DELETE FROM knowledge WHERE coalesce(meta, '') NOT LIKE '%mios-owui-apply-knowledge%'"),
+    # knowledge_file links: drop links whose knowledge or file rows were
+    # deleted (cascade FK already does this when ON DELETE CASCADE is
+    # set; explicit cleanup for safety on older OWUI schemas).
+    ("knowledge_file",
+     "DELETE FROM knowledge_file WHERE knowledge_id NOT IN (SELECT id FROM knowledge) "
+     "OR file_id NOT IN (SELECT id FROM file)"),
+)
 conn = sqlite3.connect(DB)
 cur = conn.cursor()
 total = 0
@@ -149,10 +174,17 @@ for t in WIPE:
         total += n
     except sqlite3.OperationalError:
         pass
+for t, sql in SELECTIVE_WIPE_SQL:
+    try:
+        n = cur.execute(sql).rowcount
+        if n > 0: print(f"     - {t}: {n} rows (non-MiOS-managed)")
+        total += n
+    except sqlite3.OperationalError as e:
+        print(f"     - {t}: skipped ({e})")
 conn.commit()
 cur.execute("VACUUM")
 conn.commit(); conn.close()
-print(f"     -- {total} rows deleted; user/auth/model rows preserved")
+print(f"     -- {total} rows deleted; user/auth/model + MiOS-managed knowledge preserved")
 EOF
     fi
     note "$OWUI_DB after:  $(size "$OWUI_DB")"
