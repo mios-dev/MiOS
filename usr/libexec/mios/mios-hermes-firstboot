@@ -428,11 +428,11 @@ fi
 # Hermes-Agent reloads $HERMES_HOME/SOUL.md fresh on EVERY message -- it
 # is the live lever for the agent's persona AND its operating discipline.
 # Stock Hermes ships an EMPTY SOUL.md (just a comment template), which
-# left the local model ungrounded: it confabulated tool output, invented
+# left the local model ungrounded: it made up tool output, invented
 # config flags, and claimed success on commands that errored or returned
 # nothing (operator-confirmed 2026-05-14). MiOS ships a hardened SOUL.md
-# at /usr/share/mios/ai/hermes-soul.md -- strong anti-confabulation
-# rules, full-shell-usage guidance, and pointers to the on-disk MiOS AI
+# at /usr/share/mios/ai/hermes-soul.md -- strong rules against
+# fabricated output, full-shell-usage guidance, and pointers to the MiOS AI
 # reference docs. Seed it for BOTH the gateway service (HERMES_HOME) and
 # the operator's `hermes` CLI (~/.hermes), exactly like config.yaml.
 #
@@ -453,7 +453,7 @@ else
         cp -f "$SOUL_SRC" "$_soul_svc"
         chown 820:820 "$_soul_svc" 2>/dev/null || true
         chmod 0644 "$_soul_svc" 2>/dev/null || true
-        _log "seeded $_soul_svc (hardened MiOS persona + anti-confabulation grounding)"
+        _log "seeded $_soul_svc (hardened MiOS persona + grounding against fabricated output)"
     else
         _log "$_soul_svc operator-customised (no MiOS-managed marker) -- not overwriting"
     fi

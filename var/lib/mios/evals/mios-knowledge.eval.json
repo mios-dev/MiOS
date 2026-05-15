@@ -32,7 +32,7 @@
       "name": "mios_correctness",
       "model": "${MIOS_AI_GRADER:-${MIOS_AI_MODEL:-qwen2.5-coder:7b}}",
       "input": [
-        {"role": "system", "content": "You are grading MiOS engineering answers. Score 1.0 = factually correct AND cites the right MiOS file/upstream doc; 0.5 = correct but missing citation; 0.0 = incorrect or hallucinated. Reply with JSON {\"score\": <float>, \"reason\": \"<terse>\"}."},
+        {"role": "system", "content": "You are grading MiOS engineering answers. Score 1.0 = factually correct AND cites the right MiOS file/upstream doc; 0.5 = correct but missing citation; 0.0 = incorrect or fabricated. Reply with JSON {\"score\": <float>, \"reason\": \"<terse>\"}."},
         {"role": "user", "content": "Question: {{item.question}}\nExpected reference: {{item.reference}}\nMust mention: {{item.must_mention}}\nCandidate answer: {{sample.output_text}}"}
       ],
       "range": [0, 1],

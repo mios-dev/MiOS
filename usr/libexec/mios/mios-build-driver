@@ -83,7 +83,7 @@ _fail() { _log "FATAL: $*"; exit 1; }
 # Without this check the driver gets several steps in -- prints a
 # dashboard, clones mios-bootstrap, enters unattended mode -- then dies
 # mid-stream on the first `sudo` with the cryptic "sudo: a password is
-# required". Agents then confabulate a fake success around that partial
+# required". Agents then invent a fake success around that partial
 # output (operator-confirmed 2026-05-14). Detect the privilege gap UP
 # FRONT, before any work, and fail with ONE clear, honest, actionable
 # message so the caller (human or agent) knows exactly what to do.

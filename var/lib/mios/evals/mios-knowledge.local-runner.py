@@ -72,7 +72,7 @@ def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
                  "content": ("You are grading MiOS engineering answers. "
                              "Score 1.0 = factually correct AND cites the right MiOS "
                              "file/upstream doc; 0.5 = correct but missing citation; "
-                             "0.0 = incorrect or hallucinated. "
+                             "0.0 = incorrect or fabricated. "
                              "Reply with JSON only: {\"score\": <float>, \"reason\": \"<terse>\"}")},
                 {"role": "user",
                  "content": (f"Question: {item['question']}\n"
