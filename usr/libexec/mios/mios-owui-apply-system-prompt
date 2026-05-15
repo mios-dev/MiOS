@@ -52,6 +52,17 @@ def _resolve_source():
 DISPLAY_NAME = os.environ.get("MIOS_OWUI_DISPLAY_NAME", "MiOS-Agent")
 DESCRIPTION = "MiOS Agent -- the local agent stack (Hermes-Agent gateway over Ollama)."
 
+# Toggles in the chat input bar (web search / image gen / code interpreter)
+# default to OFF in upstream OWUI -- the user has to click each one per
+# message. Setting meta.defaultFeatureIds pre-presses them on chat init
+# (the front-end pulls model.info.meta.defaultFeatureIds in
+# Chat.svelte's defaultFeatureIds.includes(...) gate).
+# Operator directive 2026-05-15: web/image/code-interpreter all on by
+# default for MiOS-Agent. The Quadlet ENABLE_WEB_SEARCH /
+# ENABLE_IMAGE_GENERATION / ENABLE_CODE_INTERPRETER env vars open the
+# global gates that have to be on for these toggles to actually fire.
+DEFAULT_FEATURE_IDS = ["web_search", "image_generation", "code_interpreter"]
+
 
 def main():
     src = _resolve_source()
@@ -86,6 +97,7 @@ def main():
                     "code_interpreter": True, "terminal": True, "citations": True,
                     "status_updates": True, "usage": True, "builtin_tools": True
                 },
+                "defaultFeatureIds": list(DEFAULT_FEATURE_IDS),
                 "suggestion_prompts": None, "tags": []
             }
             # Match the OWUI 0.9.x model schema EXACTLY:
@@ -132,17 +144,30 @@ def main():
         meta_desc = meta.get("description") if isinstance(meta, dict) else None
         if meta_desc != DESCRIPTION:
             changes.append("meta.description")
+        existing_default_features = (
+            meta.get("defaultFeatureIds") if isinstance(meta, dict) else None
+        )
+        if list(existing_default_features or []) != list(DEFAULT_FEATURE_IDS):
+            changes.append(
+                f"meta.defaultFeatureIds {existing_default_features!r} -> "
+                f"{list(DEFAULT_FEATURE_IDS)!r}"
+            )
 
         if not changes:
-            _log(f"model {_id!r}: name + system + description all current -- no-op")
+            _log(f"model {_id!r}: name + system + description + defaultFeatureIds all current -- no-op")
             return 0
 
         params["system"] = src_text
         if isinstance(meta, dict):
             meta["description"] = DESCRIPTION
             meta.setdefault("profile_image_url", "/static/favicon.png")
+            meta["defaultFeatureIds"] = list(DEFAULT_FEATURE_IDS)
         else:
-            meta = {"profile_image_url": "/static/favicon.png", "description": DESCRIPTION}
+            meta = {
+                "profile_image_url": "/static/favicon.png",
+                "description": DESCRIPTION,
+                "defaultFeatureIds": list(DEFAULT_FEATURE_IDS),
+            }
 
         conn.execute(
             "UPDATE model SET name = ?, params = ?, meta = ?, updated_at = ? WHERE id = ?",

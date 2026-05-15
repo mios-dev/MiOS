@@ -12,20 +12,27 @@ OCI image. Source: `README.md`, `Containerfile`. Image:
 
 ## 2. API surface (OpenAI-compatible)
 
-All system agents target the local proxy at `http://localhost:8080/v1`,
-served by the `mios-ai.container` Quadlet (LocalAI runtime). The
-endpoints below follow the OpenAI public API spec
+All chat/completion traffic targets the **MiOS-Hermes** gateway at
+`http://localhost:8642/v1` (the `hermes-agent.service` host-direct
+install). OWUI and any LAN client are routed through the
+**MiOS-Prefilter** at `http://localhost:8641/v1` (a thin HTTP
+forwarder that injects `tool_choice=delegate_task` on fan-outable
+prompts then passes through to MiOS-Hermes). Raw embeddings + raw
+model inference live one layer down at **MiOS-Inference**
+(`ollama.service` on `:11434`).
+
+The endpoints below follow the OpenAI public API spec
 (<https://platform.openai.com/docs/api-reference>) verb-for-verb;
-`x-mios.*` rows are MiOS extensions, namespaced so strict
-OpenAI clients can ignore them.
+`x-mios.*` rows are MiOS extensions, namespaced so strict OpenAI
+clients can ignore them.
 
 | Path | Method | Served by | Spec |
 |---|---|---|---|
-| `/v1/chat/completions` | POST | LocalAI runtime | <https://platform.openai.com/docs/api-reference/chat> |
-| `/v1/responses` | POST | LocalAI runtime | <https://platform.openai.com/docs/api-reference/responses> |
-| `/v1/embeddings` | POST | LocalAI runtime | <https://platform.openai.com/docs/api-reference/embeddings> |
-| `/v1/models` | GET | `usr/share/mios/ai/v1/models.json` | <https://platform.openai.com/docs/api-reference/models/list> |
-| `/v1/audio/{transcriptions,speech}` | POST | LocalAI runtime (when configured) | <https://platform.openai.com/docs/api-reference/audio> |
+| `/v1/chat/completions` | POST | MiOS-Hermes (`:8642`) -- via Prefilter (`:8641`) for OWUI/LAN | <https://platform.openai.com/docs/api-reference/chat> |
+| `/v1/responses` | POST | MiOS-Hermes (`:8642`) | <https://platform.openai.com/docs/api-reference/responses> |
+| `/v1/embeddings` | POST | MiOS-Inference (`:11434/v1`) directly | <https://platform.openai.com/docs/api-reference/embeddings> |
+| `/v1/models` | GET | MiOS-Hermes; manifest at `usr/share/mios/ai/v1/models.json` | <https://platform.openai.com/docs/api-reference/models/list> |
+| `/v1/audio/{transcriptions,speech}` | POST | LocalAI (when enabled in `mios.toml`) | <https://platform.openai.com/docs/api-reference/audio> |
 | `x-mios:/v1/mcp` | GET | `usr/share/mios/ai/v1/mcp.json` | <https://modelcontextprotocol.io/specification> |
 
 `/v1/mcp` is a MiOS extension (not part of the OpenAI public API). The
@@ -35,27 +42,42 @@ the manifest at `/v1/mcp` is what MiOS agents read to populate that
 `tools` array. The `x-mios:` prefix is a documentation marker only --
 the served URL is `/v1/mcp`.
 
+LocalAI / vLLM / llama.cpp `llama-server` / Qdrant / LiteLLM are
+supported as drop-in alternates but are NOT started by default --
+flip them on in `[ai]` of `mios.toml`. Default deployment is
+**Ollama-only inference + Hermes-Agent-only gateway**.
+
 ### 2a. Default model set
 
-| Slot | Default | Quant | Disk | Resident | Notes |
-|---|---|---|---|---|---|
-| chat / code | `qwen2.5-coder:7b` | Q4_K_M | ~4.7 GB | ~5-6 GB | Apache 2.0; 128K context; HumanEval ~88%; multi-language including bash, PowerShell, Containerfiles, systemd units, TOML |
-| embeddings | `nomic-embed-text` (v1.5) | Q4 | ~270 MB | <1 GB | Apache 2.0; 768-dim; 8192-token context; OpenAI `/v1/embeddings`-shape via LocalAI |
+The `[ai]` section of `usr/share/mios/mios.toml` is the SSOT for which
+models bake into the OCI image and which one MiOS-Hermes uses by
+default. The set targets **MiOS-Inference** (`ollama.service` on
+`:11434`) and is sized for the canonical 32 GB+ system-RAM workstation
+(GPU-accelerated where present, CPU fallback otherwise).
 
-Sized for the 12 GB system-RAM baseline (CPU-only inference, ~8 GB
-available to the model). Build-baked into
+| Slot | Default | Notes |
+|---|---|---|
+| big chat / code (MiOS-Hermes default) | `qwen3-coder:30b` | 256K context; clean JSON tool-call output; primary reasoning model |
+| CPU children (MiOS-Delegate fanout) | `qwen3:1.7b` | Sub-200 ms spawn; ~4 GB resident; good for grep/inspect/report subtasks |
+| coding sub-agent (MiOS-OpenCoder) | `opencode` (Anthropic-tuned) | Reached via `delegate_task(... acp_command:"opencode")` |
+| embeddings | `nomic-embed-text` (v1.5) | 768-dim; 8192-token context; OpenAI `/v1/embeddings` shape via Ollama |
+
+Build-time: every entry in `[ai].bake_models` (CSV) is baked into
 `/usr/share/ollama/models` (immutable composefs surface) by
-`automation/37-ollama-prep.sh`; first-boot service
-(`mios-ollama-firstboot.service`) hardlink-copies the seed into
-`/var/lib/ollama/models` (the writable `OLLAMA_MODELS` path).
+`automation/37-ollama-prep.sh`. Custom `Modelfile`s under
+`/usr/share/mios/ollama/Modelfiles/*.Modelfile` are derived at the
+same step. First-boot (`mios-ollama-firstboot.service`) hardlink-
+copies the seed into `/var/lib/ollama/models` (the writable
+`OLLAMA_MODELS` path).
 
-Override the build-time set with `MIOS_OLLAMA_BAKE_MODELS=<csv>` (e.g.
-`"qwen2.5-coder:14b,nomic-embed-text"` for 24 GB+ profiles). Override
-the runtime selection by editing `[ai].model` / `[ai].embed_model` in
-`/etc/mios/mios.toml` (host) or `~/.config/mios/mios.toml` (per-user)
-and restarting `mios-ollama.service`. The `[ai]` section in
-`usr/share/mios/mios.toml` documents the alternates considered and
-their resource cost.
+Override the build-time set with the `bake_models` CSV in
+`mios.toml` (most operators do this in `/etc/mios/mios.toml`). The
+runtime "which model does Hermes use by default" knob is `[ai].
+big_ram_model`. After editing, restart `ollama.service` and
+`hermes-agent.service`. Hardware-detect-driven user selection
+during install is exposed by the bootstrap installer (operator picks
+profile after hw detect; the picker writes back into
+`/etc/mios/mios.toml`).
 
 ## 3. Architectural laws (enforced; non-negotiable)
 
@@ -134,7 +156,7 @@ Active gating (referenced in `etc/containers/systemd/` and
 | `mios-forge-firstboot` | `ConditionPathExists=/etc/mios/install.env`, `!sentinel`, `!container` | install.env absent, already ran, nested |
 | `mios-cockpit-link` | `ConditionPathExists=/usr/lib/systemd/system/cockpit.socket`, `!container` | Podman Desktop UI shim that publishes :19090 → host :9090 so the Cockpit web console is clickable from the container view; skipped when cockpit isn't installed |
 
-## 4. User-definitions consolidation (single source of truth)
+## 5. User-definitions consolidation (single source of truth)
 
 The user-definitions surface is **two files**:
 
@@ -175,7 +197,7 @@ mios-sync-env --dry-run        # preview
 mios-sync-env --show-source    # print layered TOML before output
 ```
 
-## 4a. Configurator UI (unified-dotfile editor)
+## 5a. Configurator UI (unified-dotfile editor)
 
 The unified user-definitions dotfile (`/etc/mios/mios.toml` host;
 `~/.config/mios/mios.toml` per-user) is TOML 1.0.0
@@ -203,7 +225,7 @@ the updated TOML. No data leaves the browser; no install step. The
 page targets the same schema_version that the build-mios prompts and
 runtime resolvers consume, so edits flow through end-to-end.
 
-## 5b. Service access surface (LAN-reachable by default)
+## 6. Service access surface (LAN-reachable by default)
 
 Every 'MiOS' service binds `0.0.0.0` on its listening port so the same
 deployment is reachable from
@@ -228,23 +250,27 @@ are opened by `automation/25-firewall-ports.sh` (build-time) and
 
 | Port  | Proto | Service | Notes |
 |---|---|---|---|
-| 22    | tcp | sshd          | host service |
-| 2222  | tcp | mios-forge    | git+ssh (non-22 to coexist with sshd) |
-| 3000  | tcp | mios-forge    | Forgejo HTTP web UI |
-| 3389  | tcp | RDP           | GNOME Remote Desktop / xRDP |
-| 6443  | tcp | k3s           | Kubernetes API |
-| 8080  | tcp | mios-ai       | LocalAI /v1 (Architectural Law 5) |
-| 8090  | tcp | mios-guacamole| Browser desktop (mapped from container 8080) |
-| 8443  | tcp | mios-ceph     | Ceph dashboard |
-| 9090  | tcp | cockpit       | host web console |
-| 11434 | tcp | ollama        | alternate local LLM backend |
-| 19090 | tcp | mios-cockpit-link | Podman Desktop discovery shim → 9090 |
+| 22    | tcp | sshd                | host service |
+| 2222  | tcp | mios-forge          | git+ssh (non-22 to coexist with sshd) |
+| 3000  | tcp | mios-forge          | Forgejo HTTP web UI |
+| 3030  | tcp | **MiOS-OWUI**       | Open WebUI (browser front; OWUI Quadlet → :8080 in container) |
+| 3389  | tcp | RDP                 | GNOME Remote Desktop / xRDP |
+| 6443  | tcp | k3s                 | Kubernetes API |
+| 8080  | tcp | mios-ai             | LocalAI `/v1` (only when LocalAI Quadlet enabled in `mios.toml` -- OFF by default) |
+| 8090  | tcp | mios-guacamole      | Browser desktop (mapped from container 8080) |
+| 8443  | tcp | mios-ceph           | Ceph dashboard |
+| 8641  | tcp | **MiOS-Prefilter**  | Delegation prefilter; injects `tool_choice=delegate_task` then forwards to MiOS-Hermes |
+| 8642  | tcp | **MiOS-Hermes**     | OpenAI-compat agent gateway (host-direct, NOT a Quadlet) |
+| 8888  | tcp | **MiOS-Search**     | SearXNG; backs `web_search` tool + OWUI's web augmentation |
+| 9090  | tcp | cockpit             | host web console |
+| 11434 | tcp | **MiOS-Inference**  | Ollama (raw model + embeddings; backs Hermes) |
+| 19090 | tcp | mios-cockpit-link   | Podman Desktop discovery shim → 9090 |
 
 Internal-only services (no `PublishPort`, reachable only from the
 `mios.network` bridge): `guacamole-postgres` (5432), `guacd` (4822),
 `crowdsec-dashboard` (LAPI 8080 sibling-only), `mios-pxe-hub`.
 
-## 6. Global pipeline phases
+## 7. Global pipeline phases
 
 The end-to-end bootstrap → install pipeline is partitioned into five phases
 shared across both repos:
@@ -261,7 +287,7 @@ The user profile card at `etc/mios/profile.toml` (host) and
 `~/.config/mios/profile.toml` (per-user) is read in Phase-0 to seed defaults
 and re-written/staged in Phase-3.
 
-## 7. Cross-references
+## 8. Cross-references
 
 - Build pipeline architecture: `CLAUDE.md`, `automation/build.sh`.
 - Filesystem and hardware layout: `usr/share/doc/mios/concepts/architecture.md`.

@@ -36,6 +36,21 @@ AutoUpdate=registry
 # Persistent state.
 Volume=/var/lib/mios/open-webui:/app/backend/data:Z
 
+# FHS-direct knowledge corpus (operator directive 2026-05-15:
+# "use the files directly from the FHS--and refine the files
+# themselves"). The mios-owui-apply-knowledge helper registers each
+# file in /usr/share/mios/{ai,docs,cookbooks,hermes,prompts} and
+# /etc/mios/system-prompts as an OWUI `file` row with its absolute
+# FHS path.  When OWUI re-vectorises (e.g. after `file.hash` drift
+# detected by the helper), the storage provider returns the path
+# verbatim and the loader reads from /usr/share/mios directly --
+# requires the bind mounts below.  Read-only because /usr is the
+# immutable bootc tree on a real MiOS host (chmod here doesn't
+# survive WSL restart anyway -- see
+# mios-additionalimagestores-perms.path).
+Volume=/usr/share/mios:/usr/share/mios:ro
+Volume=/etc/mios:/etc/mios:ro
+
 # API key + server settings, shared with Hermes-Agent. api.env defines
 # OPENAI_API_KEY=<API_SERVER_KEY> as a plain scalar -- that IS the
 # bearer Open WebUI sends to the Hermes gateway at OPENAI_API_BASE_URL
@@ -87,6 +102,22 @@ Environment=DEFAULT_USER_ROLE=admin
 # via the model registration's `name` field, NOT the underlying
 # "hermes-agent" model id).
 Environment=DEFAULT_MODELS=hermes-agent
+
+# Global feature gates -- ENABLE the rich-chat features that MiOS-Agent
+# advertises in its model.meta.capabilities (web_search,
+# image_generation, code_interpreter). Without these env vars the
+# feature endpoints are 404 and the per-model toggles do nothing even
+# when checked.  Defaults in upstream OWUI:
+#   ENABLE_WEB_SEARCH         -> False (master gate; we flip True)
+#   ENABLE_IMAGE_GENERATION   -> False (master gate; we flip True)
+#   ENABLE_CODE_INTERPRETER   -> True  (already-on; pinned for clarity)
+# The PER-MODEL default-on state of these toggles is set on the model
+# row via meta.defaultFeatureIds (see mios-owui-apply-system-prompt).
+# Operator directive 2026-05-15: web/image/code-interpreter all on by
+# default for MiOS-Agent.
+Environment=ENABLE_WEB_SEARCH=True
+Environment=ENABLE_IMAGE_GENERATION=True
+Environment=ENABLE_CODE_INTERPRETER=True
 
 # Identity. UID 817 (mios-open-webui)
 User=${MIOS_OPEN_WEBUI_UID:-817}

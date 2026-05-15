@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""mios-owui-apply-websearch -- enable Open WebUI's built-in web-search
+augmentation + point it at the local SearXNG (mios-searxng container
+on :8888).
+
+OWUI's web-search feature is OFF by default in upstream. When enabled,
+every chat turn can be augmented by retrieving + injecting web results
+into the model's context (gated by an in-chat toggle the user clicks
+on each message). Pointing it at the local SearXNG keeps everything
+on-box; no external API keys, no rate limits, no telemetry.
+
+Idempotent: only updates keys that aren't already correct. Mirrors the
+mios-owui-apply-system-prompt pattern (operator-managed marker via the
+default values themselves -- if the operator changes a key in OWUI's
+admin UI, this script LEAVES it alone unless that key is one of the
+must-be-true bools we flip).
+"""
+import json
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
+
+# Inside the OWUI container, localhost = the container itself, not the host.
+# host.containers.internal resolves to the WSL host where SearXNG (8888) runs.
+SEARXNG_QUERY = os.environ.get(
+    "MIOS_OWUI_SEARXNG_QUERY",
+    "http://host.containers.internal:8888/search?q=<query>",
+)
+
+DESIRED = {
+    "enable": True,
+    "engine": "searxng",
+    "searxng_query_url": SEARXNG_QUERY,
+    "result_count": 5,
+    "concurrent_requests": 10,
+    "bypass_embedding_and_retrieval": True,
+    "trust_env": True,
+}
+
+
+def _log(msg: str) -> None:
+    print(f"[mios-owui-apply-websearch] {msg}", file=sys.stderr)
+
+
+def main() -> int:
+    if not DB.exists():
+        _log(f"OWUI db {DB} not present yet -- skipping (re-run after OWUI first start)")
+        return 0
+    conn = sqlite3.connect(str(DB))
+    try:
+        rows = conn.execute("SELECT id, data FROM config").fetchall()
+        if not rows:
+            _log("config table empty -- OWUI not initialised yet; skipping")
+            return 0
+        for cid, blob in rows:
+            try:
+                cfg = json.loads(blob) if isinstance(blob, str) else (blob or {})
+            except Exception as e:
+                _log(f"config row id={cid}: not parseable JSON ({e}); skipping")
+                continue
+            search = cfg.setdefault("rag", {}).setdefault("web", {}).setdefault("search", {})
+            applied = []
+            for k, v in DESIRED.items():
+                if search.get(k) != v:
+                    search[k] = v
+                    applied.append(f"{k}={v}")
+            if applied:
+                conn.execute(
+                    "UPDATE config SET data = ? WHERE id = ?",
+                    (json.dumps(cfg), cid),
+                )
+                conn.commit()
+                _log(f"row id={cid}: applied {len(applied)} changes:")
+                for a in applied:
+                    _log(f"  - {a}")
+            else:
+                _log(f"row id={cid}: web search already configured -- no-op")
+        return 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -861,6 +861,31 @@ if [[ -x /usr/libexec/mios/mios-owui-bootstrap-admin ]]; then
     fi
 fi
 
+# ─── Open WebUI: enable built-in web search via local SearXNG ──────────
+# OWUI's built-in web-search augmentation is OFF in upstream defaults.
+# Operator directive 2026-05-15: should be ENABLED + pointed at the
+# local SearXNG (mios-searxng on :8888) so chat turns can be augmented
+# with retrieved web results without leaving the host. Idempotent.
+if [[ -x /usr/libexec/mios/mios-owui-apply-websearch ]]; then
+    /usr/libexec/mios/mios-owui-apply-websearch 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
+
+# ─── Open WebUI: register MiOS docs as a Knowledge collection ──────────
+# Walks /usr/share/mios/{ai,docs,cookbooks,hermes,prompts},
+# /etc/mios/system-prompts, /CLAUDE.md, /AGENTS.md and registers each
+# as an OWUI File row with path = absolute FHS path + a snapshot of
+# content in file.data.content. Idempotent (sha256-keyed). Updates
+# the MiOS-Agent model row's meta.knowledge to attach the collection
+# so it becomes per-chat searchable context. Operator directive
+# 2026-05-15: "OWUI's MiOS-Agent model have knowledge files (use
+# exactly the current MiOS AI Files / Markdown files / Documentation
+# / EVERYTHING ETC)".
+if [[ -x /usr/libexec/mios/mios-owui-apply-knowledge ]]; then
+    /usr/libexec/mios/mios-owui-apply-knowledge 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
+
 # ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
 # When the host is a WSL distro running inside Windows, the Tailscale CLI
 # on the Windows side knows its own tailnet IP. mios-windows (the

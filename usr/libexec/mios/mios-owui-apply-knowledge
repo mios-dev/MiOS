@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+"""mios-owui-apply-knowledge -- attach a MiOS-Documentation Knowledge
+collection to the MiOS-Agent model row in Open WebUI, sourced
+DIRECTLY from the FHS.
+
+Operator directive 2026-05-15: "use the files directly from the FHS--
+and refine the files themselves". The files in /usr/share/mios/ai/,
+/usr/share/mios/docs/, /usr/share/mios/hermes/skills/,
+/usr/share/mios/cookbooks/, /usr/share/mios/prompts/,
+/etc/mios/system-prompts/, /CLAUDE.md, and /AGENTS.md ARE the
+authoritative MiOS knowledge corpus. This helper registers each one
+as an OWUI `file` row with `path = <absolute FHS path>` and links
+them into a Knowledge row that the MiOS-Agent model row's
+`meta.knowledge` references.
+
+Why both `path` AND `data.content`?
+
+  * `file.path` -- so OWUI's `/files/` re-process pipeline reads from
+    the canonical FHS source when re-vectoring (requires the OWUI
+    container to have /usr/share/mios + /etc/mios bind-mounted; see
+    /etc/containers/systemd/mios-open-webui.container).
+  * `file.data['content']` -- the snapshot OWUI uses inside the
+    `/knowledge/{id}/file/add` flow when re-using cached chunks isn't
+    possible (e.g. first index, hash drift). Stays accurate because
+    we re-read at apply time and refresh on hash drift.
+  * `file.hash` -- sha256 of the source content. If the on-disk file
+    changes, the hash drifts, we clear OWUI's per-file vector
+    collection (`file-{id}`), and OWUI re-indexes from the now-fresh
+    `file.data.content`/`file.path` at next attach.
+
+Idempotent. Runs on host (not inside container) -- writes directly to
+the sqlite db at /var/lib/mios/open-webui/webui.db.
+
+Designed to be safe to run from a Quadlet ExecStartPost, a oneshot
+service, or the operator's shell. Returns 0 on success/no-op.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+import time
+import uuid
+from pathlib import Path
+from typing import Iterable
+
+DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
+MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "hermes-agent")
+
+# Knowledge collection identity. The id is a stable v5-uuid derived from
+# a fixed MiOS namespace + name so every host that runs this helper
+# generates the same id (lets operators move their webui.db between
+# hosts without losing the link).
+KNOWLEDGE_NAME = "MiOS Documentation"
+KNOWLEDGE_DESCRIPTION = (
+    "MiOS canonical documentation -- system surface map, architectural "
+    "laws, day-0 / day-n cookbooks, agent skills, and host system prompts. "
+    "Sourced directly from the FHS (/usr/share/mios, /etc/mios, repo root)."
+)
+MIOS_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-4d694f53000d")  # arbitrary stable
+KNOWLEDGE_ID = str(uuid.uuid5(MIOS_NAMESPACE, "mios-documentation/v1"))
+
+# Per-file collection ids (`file-{file_id}`) are what OWUI keys its
+# vector chunks under. We derive each file's id deterministically too,
+# so re-runs reuse the same chunk collection (no re-vectoring noise on
+# every apply).
+def _file_id_for(path: str) -> str:
+    return str(uuid.uuid5(MIOS_NAMESPACE, f"mios-doc-file/{path}"))
+
+
+# Curated corpus. Anything not on disk is silently skipped. Add new
+# entries here when new authoritative docs ship.
+CORPUS: list[str] = [
+    # The agent's own canonical surface
+    "/usr/share/mios/ai/system.md",
+    "/usr/share/mios/ai/INDEX.md",
+    "/usr/share/mios/ai/v1/system.md",
+    "/usr/share/mios/ai/v1/knowledge.md",
+    "/usr/share/mios/ai/audit-prompt.md",
+    "/usr/share/mios/ai/hermes-soul.md",
+    "/usr/share/mios/open-webui/system-prompts/mios-agent.md",
+    # Versioned data surface (machine-readable, also useful as RAG)
+    "/usr/share/mios/ai/v1/models.json",
+    "/usr/share/mios/ai/v1/tools.json",
+    "/usr/share/mios/ai/v1/mcp.json",
+    "/usr/share/mios/ai/v1/surface.json",
+    "/usr/share/mios/ai/v1/context.json",
+    "/usr/share/mios/ai/v1/config.json",
+    "/usr/share/mios/ai/v1/system-prompts.json",
+    # Day-0 / day-n operator docs
+    "/usr/share/mios/docs/day-0/BOOTSTRAP.md",
+    "/usr/share/mios/docs/day-0/FIRST-BOOT.md",
+    "/usr/share/mios/docs/day-n/SELF-REPLICATION.md",
+    "/usr/share/mios/docs/root-origin/DUAL-WHITELIST.md",
+    "/usr/share/mios/docs/root-origin/REPO-IS-ROOT.md",
+    "/usr/share/mios/docs/terminal/INVOCATIONS.md",
+    # Cookbooks (worked examples)
+    "/usr/share/mios/cookbooks/local-rag-day0.md",
+    "/usr/share/mios/cookbooks/ingest-kb.md",
+    "/usr/share/mios/cookbooks/finetune-flow.md",
+    # Hermes skills (the agent's own playbook)
+    "/usr/share/mios/hermes/skills/mios-environment/SKILL.md",
+    "/usr/share/mios/hermes/skills/parallel-fanout/SKILL.md",
+    # Role prompts (host overrides for engineer / reviewer / troubleshoot)
+    "/etc/mios/system-prompts/mios-engineer.md",
+    "/etc/mios/system-prompts/mios-reviewer.md",
+    "/etc/mios/system-prompts/mios-troubleshoot.md",
+    # Architectural laws + agent guidance at repo root
+    "/CLAUDE.md",
+    "/AGENTS.md",
+    # The SSOT
+    "/usr/share/mios/mios.toml",
+    "/usr/share/mios/PACKAGES.md",
+]
+
+
+def _log(msg: str) -> None:
+    print(f"[mios-owui-apply-knowledge] {msg}", file=sys.stderr)
+
+
+def _content_type_for(path: str) -> str:
+    if path.endswith(".md"):
+        return "text/markdown"
+    if path.endswith(".json"):
+        return "application/json"
+    if path.endswith(".toml"):
+        return "application/toml"
+    return "text/plain"
+
+
+def _existing(conn: sqlite3.Connection, table: str, key: str, val: str):
+    return conn.execute(
+        f"SELECT * FROM {table} WHERE {key} = ? LIMIT 1", (val,)
+    ).fetchone()
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    return [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+
+
+def _admin_user_id(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute(
+        "SELECT id FROM user WHERE role = 'admin' ORDER BY created_at LIMIT 1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _vector_collection_dirs(file_id: str) -> Iterable[Path]:
+    """Best-effort: vector_db is on a bind-mount the host can see at
+    /var/lib/mios/open-webui/vector_db.  ChromaDB stores collections
+    under that directory; clearing them is enough to force a re-index
+    on next read.  This is a soft cleanup -- if the directory layout
+    changes upstream, OWUI will just re-vector when it can't find the
+    collection and we'll have wasted no operator-visible work.
+    """
+    base = Path("/var/lib/mios/open-webui/vector_db")
+    if not base.exists():
+        return []
+    coll = f"file-{file_id}"
+    return [p for p in base.glob("*") if coll in p.name]
+
+
+def _clear_vector_collection(file_id: str) -> int:
+    """Delete on-disk vector dirs for a file id. Returns count cleared."""
+    n = 0
+    for p in _vector_collection_dirs(file_id):
+        try:
+            if p.is_dir():
+                import shutil
+
+                shutil.rmtree(p)
+                n += 1
+            elif p.is_file():
+                p.unlink()
+                n += 1
+        except OSError as e:
+            _log(f"  could not clear vector dir {p}: {e}")
+    return n
+
+
+def main() -> int:
+    if not DB.exists():
+        _log(f"OWUI db {DB} not present yet -- skipping (re-run after OWUI first start)")
+        return 0
+
+    sources = []
+    for p in CORPUS:
+        path = Path(p)
+        if not path.is_file():
+            _log(f"skip (missing): {p}")
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            _log(f"skip ({type(e).__name__}): {p}")
+            continue
+        sources.append((str(path), content, hashlib.sha256(content.encode()).hexdigest()))
+
+    if not sources:
+        _log("FATAL: no source files readable")
+        return 2
+
+    conn = sqlite3.connect(str(DB))
+    try:
+        # Schema sanity -- log any unexpected absence so operator can
+        # tell whether OWUI got upgraded out from under us.
+        for tbl in ("file", "knowledge", "knowledge_file", "model"):
+            try:
+                conn.execute(f"SELECT 1 FROM {tbl} LIMIT 1")
+            except sqlite3.OperationalError:
+                _log(f"FATAL: table {tbl!r} missing in {DB}")
+                return 3
+
+        admin = _admin_user_id(conn)
+        if not admin:
+            _log("no admin user yet -- skipping (run mios-owui-bootstrap-admin first)")
+            return 0
+
+        now = int(time.time())
+
+        # Per-file knowledge_file table layout differs slightly across
+        # OWUI 0.9.x patch versions; introspect at runtime.
+        kf_cols = _table_columns(conn, "knowledge_file")
+        file_cols = _table_columns(conn, "file")
+
+        # Ensure knowledge row exists.
+        kn_existing = conn.execute(
+            "SELECT id FROM knowledge WHERE id = ?", (KNOWLEDGE_ID,)
+        ).fetchone()
+        if not kn_existing:
+            conn.execute(
+                "INSERT INTO knowledge "
+                "(id, user_id, name, description, data, meta, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    KNOWLEDGE_ID, admin, KNOWLEDGE_NAME, KNOWLEDGE_DESCRIPTION,
+                    json.dumps({"file_ids": []}),
+                    json.dumps({"managed_by": "mios-owui-apply-knowledge"}),
+                    now, now,
+                ),
+            )
+            _log(f"created knowledge row {KNOWLEDGE_ID!r} ({KNOWLEDGE_NAME!r})")
+        else:
+            _log(f"knowledge row {KNOWLEDGE_ID!r} already present")
+
+        applied_files: list[str] = []
+        rehashed_files: list[str] = []
+        no_op_files: list[str] = []
+
+        # Upsert files.
+        for src_path, content, content_hash in sources:
+            file_id = _file_id_for(src_path)
+            existing = conn.execute(
+                "SELECT id, hash FROM file WHERE id = ?", (file_id,)
+            ).fetchone()
+            data = {"content": content}
+            meta = {
+                "name": os.path.basename(src_path),
+                "content_type": _content_type_for(src_path),
+                "size": len(content.encode()),
+                "managed_by": "mios-owui-apply-knowledge",
+            }
+            if existing is None:
+                conn.execute(
+                    "INSERT INTO file "
+                    "(id, user_id, hash, filename, path, data, meta, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        file_id, admin, content_hash, os.path.basename(src_path),
+                        src_path, json.dumps(data), json.dumps(meta), now, now,
+                    ),
+                )
+                applied_files.append(src_path)
+            else:
+                _, prev_hash = existing
+                if prev_hash != content_hash:
+                    conn.execute(
+                        "UPDATE file SET hash = ?, path = ?, data = ?, meta = ?, updated_at = ? "
+                        "WHERE id = ?",
+                        (content_hash, src_path, json.dumps(data), json.dumps(meta), now, file_id),
+                    )
+                    cleared = _clear_vector_collection(file_id)
+                    rehashed_files.append(src_path + (f" [vec cleared:{cleared}]" if cleared else ""))
+                else:
+                    no_op_files.append(src_path)
+
+            # Link file <-> knowledge if not already linked.
+            link = conn.execute(
+                "SELECT id FROM knowledge_file WHERE knowledge_id = ? AND file_id = ?",
+                (KNOWLEDGE_ID, file_id),
+            ).fetchone()
+            if not link:
+                kf_id = str(uuid.uuid4())
+                cols_have = lambda *ns: all(n in kf_cols for n in ns)
+                if cols_have("id", "knowledge_id", "file_id", "user_id", "created_at", "updated_at"):
+                    conn.execute(
+                        "INSERT INTO knowledge_file "
+                        "(id, knowledge_id, file_id, user_id, created_at, updated_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (kf_id, KNOWLEDGE_ID, file_id, admin, now, now),
+                    )
+
+        # Refresh knowledge.data.file_ids.
+        kn_data = json.loads(
+            conn.execute("SELECT data FROM knowledge WHERE id = ?", (KNOWLEDGE_ID,))
+            .fetchone()[0] or "{}"
+        )
+        all_file_ids = [_file_id_for(s[0]) for s in sources]
+        kn_data["file_ids"] = all_file_ids
+        conn.execute(
+            "UPDATE knowledge SET data = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(kn_data), now, KNOWLEDGE_ID),
+        )
+
+        # Attach knowledge ID to MiOS-Agent model row's meta.knowledge.
+        # Schema: meta.knowledge is a list of {type, id, name, ...} dicts.
+        mrow = conn.execute(
+            "SELECT meta FROM model WHERE id = ?", (MODEL_ID,)
+        ).fetchone()
+        if mrow:
+            meta = json.loads(mrow[0]) if mrow[0] else {}
+            kl = meta.get("knowledge") or []
+            # remove any pre-existing entry with our id (prevents
+            # duplicates if the helper runs after operator-side edits)
+            kl = [e for e in kl if (e.get("id") if isinstance(e, dict) else None) != KNOWLEDGE_ID]
+            kl.append({
+                "type": "collection",
+                "id": KNOWLEDGE_ID,
+                "name": KNOWLEDGE_NAME,
+                "description": KNOWLEDGE_DESCRIPTION,
+            })
+            meta["knowledge"] = kl
+            conn.execute(
+                "UPDATE model SET meta = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(meta), now, MODEL_ID),
+            )
+            _log(f"attached knowledge {KNOWLEDGE_ID!r} to model {MODEL_ID!r}")
+        else:
+            _log(
+                f"model {MODEL_ID!r} not present yet -- run mios-owui-apply-system-prompt first; "
+                "knowledge collection still created"
+            )
+
+        conn.commit()
+
+        _log(f"summary: {len(applied_files)} new, {len(rehashed_files)} updated, "
+             f"{len(no_op_files)} unchanged")
+        for x in applied_files:
+            _log(f"  + {x}")
+        for x in rehashed_files:
+            _log(f"  ~ {x}")
+        return 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

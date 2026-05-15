@@ -52,6 +52,29 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y podman skopeo
 
+      - name: Free disk space on the GHA runner
+        # GitHub-hosted ubuntu-24.04 runners ship with ~14 GB free on
+        # /. The MiOS Containerfile bakes 16+ container images into
+        # /usr/lib/containers/storage at OCI build time
+        # (BOUND-IMAGES law -- runtime pulls are bugs), and the bake
+        # blew through the runner's free space mid-pull at the 16th
+        # image (open-webui's NotoSansSC font blob, ~30 MB) on
+        # 2026-05-15. jlumbroso/free-disk-space reclaims ~30 GB by
+        # removing pre-installed Android SDK, .NET, GHC, Haskell,
+        # CodeQL, large /opt entries, etc. -- none of which the OCI
+        # build needs. Forgejo's self-hosted runner has plenty of
+        # disk and skips this; keeping the steps in parity here
+        # matters less than building successfully.
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
+
       - name: Login to GHCR (raise base-image pull rate limit)
         # Anonymous GHCR pulls hit "503 Egress is over the account limit"
         # mid-pull on big multi-layer images like ublue-os/ucore-hci
@@ -214,6 +237,19 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y podman
+
+      - name: Free disk space on the GHA runner (smoke job)
+        # Same rationale as the main build job -- runner needs ~30 GB
+        # extra room for the 16+ bound-image bakes during smoke build.
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
 
       - name: Login to GHCR (raise base-image pull rate limit, smoke step)
         env:
