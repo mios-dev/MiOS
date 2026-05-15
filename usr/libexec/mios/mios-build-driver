@@ -139,6 +139,36 @@ else
 fi
 _log "mios-bootstrap repo: $BOOT_REPO"
 
+# ── Unattended-mode detection: strictly automated when non-interactive ───────
+# `mios build` MUST run end-to-end with ZERO operator prompts whenever it
+# is invoked without a real terminal -- by the Hermes/MiOS agent, by CI,
+# by the Forgejo runner, or by any `bash -c`. The TOML-first invariant
+# already makes mios.toml the SSOT for every value; historically the
+# only things that blocked were two `read` prompts -- the configurator
+# "press Enter" and the password prompt -- each gated by a SEPARATE
+# env var (MIOS_SKIP_CONFIGURATOR vs MIOS_NONINTERACTIVE). That split is
+# the "confusion": operators/agents could not find one switch, so agents
+# fabricated fake build logs and invented non-existent flags
+# (`interactive_password`, `MIOS_SKIP_PROMPTS`) trying to get past it
+# (operator-confirmed 2026-05-14).
+#
+# Fix: detect a non-TTY stdin -- or an explicit MIOS_NONINTERACTIVE /
+# MIOS_AUTO opt-in -- and force BOTH unattended switches on at once, so
+# the rest of the driver takes its already-existing no-prompt paths:
+#   * MIOS_SKIP_CONFIGURATOR=1 -> skip the Epiphany launch + its Enter prompt
+#   * MIOS_NONINTERACTIVE=1    -> password resolves from /etc/mios/secrets.env
+#                                or the mios.toml [identity].default_password,
+#                                never `read`
+# An interactive operator on a real TTY still gets the full guided flow
+# unless they opt out explicitly.
+if [[ ! -t 0 || "${MIOS_NONINTERACTIVE:-0}" == "1" || "${MIOS_AUTO:-0}" == "1" ]]; then
+    MIOS_NONINTERACTIVE=1
+    MIOS_SKIP_CONFIGURATOR="${MIOS_SKIP_CONFIGURATOR:-1}"
+    export MIOS_NONINTERACTIVE MIOS_SKIP_CONFIGURATOR
+    _log "unattended mode -- non-interactive stdin or MIOS_NONINTERACTIVE/MIOS_AUTO set"
+    _log "  configurator prompt skipped; password resolves from secrets.env / mios.toml -- ZERO prompts"
+fi
+
 # CRITICAL ORDERING: Configurator FIRST (operator edits the toml in
 # Epiphany), then Resolve (sources the edited toml). Don't reverse;
 # resolving before the operator has edited would lock in stale values.
@@ -190,7 +220,15 @@ elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
     echo "  │  invocation (uses whatever mios.toml is already saved).    │"
     echo "  └────────────────────────────────────────────────────────────┘"
     echo
-    read -r -p "  Press Enter when you've saved the configurator (or Ctrl-C to abort)..." _ || true
+    # Defensive: only block on Enter when stdin is a real TTY. The
+    # unattended-mode block above already forces MIOS_SKIP_CONFIGURATOR=1
+    # on a non-TTY so this branch is normally unreachable when automated,
+    # but guard the `read` anyway so a non-TTY caller can never hang here.
+    if [[ -t 0 ]]; then
+        read -r -p "  Press Enter when you've saved the configurator (or Ctrl-C to abort)..." _ || true
+    else
+        _log "non-interactive stdin -- not waiting on configurator Enter prompt"
+    fi
 
     # If the operator saved to ~/Downloads/mios.toml (the FSA portal's
     # default landing point), promote it to BOTH:
@@ -344,8 +382,23 @@ case "${MIOS_PASSWORD_POLICY}" in
             MIOS_USER_PASSWORD_HASH="$_val"
             unset _line _val
         elif [[ "${MIOS_NONINTERACTIVE:-0}" == "1" ]]; then
-            _log "MIOS_NONINTERACTIVE=1 -- defaulting password to 'mios'"
-            MIOS_USER_PASSWORD_HASH=$(_hash_password mios)
+            # Unattended: NEVER prompt. Resolve the password from the
+            # TOML-first SSOT -- [identity].default_password, exported by
+            # userenv.sh as MIOS_DEFAULT_PASSWORD -- falling back to the
+            # vendor default 'mios' only if the toml didn't set one. Then
+            # persist the hash to /etc/mios/secrets.env exactly like the
+            # interactive path does, so re-runs are idempotent and the
+            # built image carries a deterministic credential.
+            _pw_plain="${MIOS_DEFAULT_PASSWORD:-mios}"
+            _log "MIOS_NONINTERACTIVE=1 -- password from mios.toml [identity].default_password (vendor default 'mios' if unset)"
+            MIOS_USER_PASSWORD_HASH=$(_hash_password "$_pw_plain")
+            unset _pw_plain
+            sudo install -d -m 0755 /etc/mios
+            _q_hash=${MIOS_USER_PASSWORD_HASH//\'/\'\\\'\'}
+            printf "MIOS_USER_PASSWORD_HASH='%s'\n" "$_q_hash" |
+                sudo tee /etc/mios/secrets.env >/dev/null
+            sudo chmod 0600 /etc/mios/secrets.env
+            unset _q_hash
         else
             echo
             echo "  password_policy=interactive and no /etc/mios/secrets.env yet."

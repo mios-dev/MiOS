@@ -88,6 +88,20 @@ ProtectSystem=strict
 ReadWritePaths=/etc/mios /var/lib/mios
 ProtectHome=false
 NoNewPrivileges=true
+# PrivateTmp=yes is LOAD-BEARING. ProtectSystem=strict makes /tmp and
+# /var/tmp READ-ONLY for this service. Hermes-Agent's `terminal` tool
+# (and Python's tempfile underneath every code_execution / shell call)
+# needs a writable temp dir to stage execution -- with none, EVERY tool
+# call fails with "[Errno 2] No usable temporary directory found in
+# ['/tmp', '/var/tmp', '/usr/tmp', '/']". The agent, unable to actually
+# run anything, then CONFABULATES plausible-looking output (fake build
+# logs, invented config flags) instead of erroring honestly --
+# operator-confirmed 2026-05-14, the "confused local agent" report.
+# PrivateTmp=yes gives the service its own private, writable /tmp +
+# /var/tmp namespace, which is exactly what tempfile needs and is more
+# secure than adding the shared /tmp to ReadWritePaths. The agent's
+# real work still targets /, /etc, /var/lib/mios -- /tmp is only scratch.
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
