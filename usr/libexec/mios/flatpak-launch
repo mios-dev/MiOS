@@ -114,8 +114,23 @@ if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
         # plain sudo -- works on bare-metal where ProtectSystem isn't a
         # factor, breaks honestly inside the agent.
         if command -v systemd-run >/dev/null 2>&1; then
+            # CRITICAL: do NOT pass --wait/--pipe here. GUI flatpaks are long-
+            # running (the user keeps the window open for minutes/hours);
+            # --wait would block this exec until the GUI exits, which means
+            # the agent's terminal call never returns, OWUI times out the
+            # chat, and the operator sees "couldn't open epiphany" even
+            # though the window IS up (operator-confirmed regression
+            # 2026-05-15: bwrap epiphany running as mios while the agent's
+            # call sat blocked on systemd-run --wait).
+            #
+            # Without --wait, systemd-run registers the transient unit, lets
+            # PID 1 take ownership of it, and returns ~instantly with the
+            # unit name. The GUI then runs DETACHED in the operator's
+            # session, outliving this script and the agent's tool call.
+            # --collect cleans up the transient unit when the GUI exits.
             exec sudo -n systemd-run \
-                --pipe --wait --collect --quiet \
+                --collect --quiet \
+                --unit="mios-flatpak-${APP_ID//./-}-$$" \
                 --uid="$_op_user" \
                 --setenv=HOME="$_op_home" \
                 --setenv=XDG_RUNTIME_DIR="$_op_xdg" \
