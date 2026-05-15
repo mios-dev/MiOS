@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""mios-owui-apply-system-prompt -- seed the MiOS-Agent model registration in
+Open WebUI with the MiOS-managed system prompt.
+
+OWUI stores per-model overrides in its sqlite db at
+/var/lib/mios/open-webui/webui.db, table `model`, column `params` (JSON).
+The `params.system` field is what OWUI prepends to the user's first
+message in every chat that selects this model -- it rides on top of
+Hermes's SOUL.md (the agent's own persona) as belt-and-suspenders
+reinforcement. See /usr/share/mios/open-webui/system-prompts/mios-agent.md
+for the rationale.
+
+Idempotent. Re-seed conditions (mirror SOUL.md re-seed logic):
+  * model row absent: skip with a clear log line
+  * params.system absent OR contains "MiOS-managed" marker AND content
+    differs from source: write source content
+  * params.system has been edited away from the marker: leave alone
+    (operator has taken ownership)
+
+Designed to be safe to run from a Quadlet ExecStartPost, a oneshot
+service, or the operator's shell. Returns 0 on success/no-op.
+"""
+import json
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
+SRC_CANDIDATES = [
+    Path(os.environ.get("MIOS_OWUI_PROMPT_SRC", "")),
+    Path("/usr/share/mios/open-webui/system-prompts/mios-agent.md"),
+    Path(f"{os.environ.get('MIOS_REPO', '')}/usr/share/mios/open-webui/system-prompts/mios-agent.md"),
+]
+MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "hermes-agent")
+MARKER = "MiOS-managed"
+
+
+def _log(msg):
+    print(f"[mios-owui-apply-system-prompt] {msg}", file=sys.stderr)
+
+
+def _resolve_source():
+    for p in SRC_CANDIDATES:
+        if p and p.is_file():
+            return p
+    return None
+
+
+def main():
+    src = _resolve_source()
+    if src is None:
+        _log("FATAL: no system-prompt source found in any candidate path")
+        return 2
+    if not DB.exists():
+        _log(f"OWUI db {DB} not present yet -- skipping (re-run after OWUI first start)")
+        return 0
+    src_text = src.read_text(encoding="utf-8")
+
+    conn = sqlite3.connect(str(DB))
+    try:
+        row = conn.execute(
+            "SELECT id, name, params FROM model WHERE id = ? LIMIT 1", (MODEL_ID,)
+        ).fetchone()
+        if row is None:
+            _log(f"model id={MODEL_ID!r} not registered in OWUI yet -- skipping")
+            return 0
+        _id, name, params_json = row
+        params = json.loads(params_json) if params_json else {}
+        existing = params.get("system", "")
+        if existing == src_text:
+            _log(f"model {_id!r}: system prompt already current -- no-op")
+            return 0
+        if existing and MARKER not in existing:
+            _log(
+                f"model {_id!r}: operator-customised system prompt detected (no '{MARKER}' "
+                "marker) -- leaving alone"
+            )
+            return 0
+        params["system"] = src_text
+        conn.execute(
+            "UPDATE model SET params = ? WHERE id = ?", (json.dumps(params), _id)
+        )
+        conn.commit()
+        _log(
+            f"model {_id!r} ({name!r}): seeded system prompt from {src} "
+            f"({len(src_text)} chars; {'replaced MiOS-managed' if existing else 'was empty'})"
+        )
+        return 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
