@@ -107,11 +107,19 @@ PYEOF
     fi
     case "$_resp" in
         OK*)
-            echo "[mios-as-operator] dispatched via broker: $_line"
+            # Silent success -- the dispatched command runs
+            # detached; no extra noise needed for the agent's chat.
             exit 0
             ;;
+        ERROR:*)
+            echo "[mios-as-operator] broker error: $_resp" >&2
+            # Don't fall through on explicit error; wsl.exe path
+            # would hit the same upstream issue.
+            exit 1
+            ;;
         *)
-            echo "[mios-as-operator] broker rejected: $_resp -- falling back to wsl.exe path" >&2
+            # Empty response = couldn't reach broker (socket gone,
+            # daemon not running). Silently fall through to wsl.exe.
             ;;
     esac
 fi

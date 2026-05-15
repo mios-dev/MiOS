@@ -54,18 +54,34 @@ fi
 # operator's real session so DISPLAY/WAYLAND_DISPLAY/DBUS work.
 _HL_REEXEC="${_MIOS_HOST_LAUNCH_REEXEC:-0}"
 
-# WSLg path: prefer mios-as-operator (wsl.exe --user) over systemd-run
-# for the same reason as flatpak-launch -- only the WSL-login route
-# bootstraps WSL2_GUI_APPS_ENABLED + WSL_INTEROP, without which
-# flatpak portals + some host GUI apps fail to surface.
-if [ "$_HL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ] \
+# Resolve operator UID -- only re-exec for SERVICE users (uid <
+# operator's uid), not the operator themselves. Bug fix 2026-05-15:
+# previous `id < 1000` test mis-fired for operator (uid 992).
+_op_user=""
+if [ -r /usr/share/mios/mios.toml ]; then
+    _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+fi
+[ -z "$_op_user" ] && _op_user="mios"
+_op_uid="$(id -u "$_op_user" 2>/dev/null || echo 1000)"
+_my_uid="$(id -u)"
+
+_NEED_REEXEC=0
+if [ "$_HL_REEXEC" != "1" ] \
+   && [ "$_my_uid" != "$_op_uid" ] \
+   && [ "$_my_uid" -lt "$_op_uid" ]; then
+    _NEED_REEXEC=1
+fi
+
+# WSLg path: prefer mios-as-operator (broker socket -> wsl.exe --user)
+# for service users only.
+if [ "$_NEED_REEXEC" = "1" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ] \
    && [ -x /usr/libexec/mios/mios-as-operator ]; then
     export _MIOS_HOST_LAUNCH_REEXEC=1
     exec /usr/libexec/mios/mios-as-operator "$BIN" "$@"
 fi
 
-if [ "$_HL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
+if [ "$_NEED_REEXEC" = "1" ]; then
     _op_user=""
     if [ -r /usr/share/mios/mios.toml ]; then
         _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"

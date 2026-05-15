@@ -84,23 +84,45 @@ shift || true
 # belt and suspenders).
 _FL_REEXEC="${_MIOS_FLATPAK_REEXEC:-0}"
 
-# WSLg path: when on WSL2, prefer mios-as-operator over systemd-run
-# --uid because systemd-run-launched processes don't get
-# WSL2_GUI_APPS_ENABLED + WSL_INTEROP set, which means the WSLg
-# compositor bridge can't bootstrap the launched flatpak's wayland
-# surface. mios-as-operator re-execs through `wsl.exe --user <op>`
-# which DOES bootstrap WSLg's full env (operator-confirmed
-# regression 2026-05-15: epiphany flatpak crashed with
-# "--env-fd: Not an open file descriptor: 13" via systemd-run path
-# but worked correctly via wsl.exe --user mios path).
-if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ] \
+# Resolve the operator UID from mios.toml [identity].username.
+# Used to decide whether to re-exec through the operator-side
+# launcher path. If we're ALREADY the operator (or any uid >= 1000),
+# no re-exec is needed -- the calling shell already has the right
+# WSLg env and can launch flatpak directly.
+#
+# Bug fix 2026-05-15: previous test was `id -u < 1000` which mis-
+# triggered for the operator (uid 992 on MiOS-DEV; in the system-
+# user range despite being a real interactive user). Operator
+# typed `nautilus` in their own terminal and got "[mios-as-operator]
+# broker rejected: -- falling back to wsl.exe path" because the
+# launch chain ran the re-exec path it shouldn't have entered.
+_op_user=""
+if [ -r /usr/share/mios/mios.toml ]; then
+    _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+fi
+[ -z "$_op_user" ] && _op_user="mios"
+_op_uid="$(id -u "$_op_user" 2>/dev/null || echo 1000)"
+_my_uid="$(id -u)"
+
+# Need re-exec ONLY if we're a system service user (NOT the operator,
+# AND uid < operator's uid -- catches mios-hermes 820 + similar).
+_NEED_REEXEC=0
+if [ "$_FL_REEXEC" != "1" ] \
+   && [ "$_my_uid" != "$_op_uid" ] \
+   && [ "$_my_uid" -lt "$_op_uid" ]; then
+    _NEED_REEXEC=1
+fi
+
+# WSLg path: when on WSL2 + service user, prefer mios-as-operator
+# (which prefers the broker socket → falls back to wsl.exe --user).
+if [ "$_NEED_REEXEC" = "1" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ] \
    && [ -x /usr/libexec/mios/mios-as-operator ]; then
     export _MIOS_FLATPAK_REEXEC=1
     exec /usr/libexec/mios/mios-as-operator flatpak run --system "$APP_ID" "$@"
 fi
 
-if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
+if [ "$_NEED_REEXEC" = "1" ]; then
     # Resolve operator UID/name from mios.toml's identity.username (default
     # 'mios'); fall back to whatever uid 1000 exists if username lookup fails
     # (single-tenant dev VM contract).
