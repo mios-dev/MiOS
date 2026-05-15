@@ -686,6 +686,19 @@ else
     _log "  succeeded: ${BIB_OK[*]:-(none)}"
     _log "  failed:    ${BIB_FAIL[*]:-(none)}"
     _log "  artifacts: $(ls -1 "$BIB_OUT" 2>/dev/null | tr '\n' ' ')"
+    # Any failed deployment format makes the whole build a failure.
+    # Building the OCI image is necessary but NOT sufficient: an
+    # operator who asked for vhd/qcow2/iso/raw and got none of them had
+    # a failed build, and `mios build` must exit non-zero so callers
+    # that chain on it -- the agent, CI, the Forgejo runner, `&&`
+    # chains -- actually see it. The completion banner below still
+    # prints either way (the log stays readable); the non-zero exit is
+    # applied once, at end-of-script, via _BIB_EXIT.
+    if (( ${#BIB_FAIL[@]} > 0 )); then
+        _BIB_EXIT=1
+        _log "FAILURE: ${#BIB_FAIL[@]} deployment format(s) failed: ${BIB_FAIL[*]}"
+        _log "  OCI image built OK, but 'mios build' will exit non-zero -- artifact build failed"
+    fi
 fi
 
 # ── Build complete: artifacts ready for deployment to OTHER substrates ──────
@@ -730,3 +743,11 @@ cat <<EOF | tee -a "$LOG_FILE"
 
 EOF
 _log "build-driver complete"
+
+# Exit status: non-zero if any bootc-image-builder deployment format
+# failed (see the BIB summary above). Building the OCI image alone is
+# not "success" -- callers that chain on `mios build` (the agent, CI,
+# the Forgejo runner) must see a real failure when artifacts didn't
+# build. _BIB_EXIT defaults to 0: BIB skipped (MIOS_SKIP_BIB=1) or
+# every requested format succeeded.
+exit "${_BIB_EXIT:-0}"
