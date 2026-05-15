@@ -615,7 +615,17 @@ mid_ram_gb       = 16                            # >= this -> mid_ram_model
 # arguments and Hermes's parser died -- the strip makes its tool calls
 # clean. Cascaded delegation pattern (Hermes -> opencode/qwen3:1.7b
 # children) only works with this model.
-big_ram_model    = "gpt-oss-tools:20b"           # agent-tuned + harmony-stripped, ~13 GB
+# Switched back from gpt-oss-tools:20b 2026-05-15. Even with the
+# template-stripped Reasoning header, gpt-oss leaks chain-of-thought
+# into tool_call.arguments and breaks Hermes's JSON parser ("error
+# parsing tool call: raw='Epiphany launched but no URL opened. Maybe
+# need --new-window...{json}'"). qwen3-coder:30b emits clean JSON
+# tool calls reliably; mios-delegation-prefilter (commit 4357fe2)
+# forces delegate_task on fan-outable prompts so we don't lose the
+# delegation behaviour gpt-oss was meant to provide.
+big_ram_model    = "qwen3-coder:30b"             # clean JSON tool calls; ~19 GB
+# gpt-oss-tools:20b kept in [[ai.catalog]] for operators who want it,
+# but NOT the auto-pick.
 mid_ram_model    = "qwen3-coder:14b"             # smaller dense Coder, ~9 GB
 small_ram_model  = "granite4.1:3b"               # < mid_ram_gb fallback
 

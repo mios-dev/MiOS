@@ -32,8 +32,19 @@
 FROM gpt-oss:20b
 
 # The TEMPLATE below is identical to gpt-oss:20b's bundled template
-# except for the Reasoning block (deleted). See `ollama show
-# gpt-oss:20b --modelfile` for the upstream form.
+# except for the Reasoning block: instead of the upstream conditional
+# (which defaults to "Reasoning: medium"), we pin it to "Reasoning:
+# low". This keeps the analysis channel ROUTING in place (so the
+# model's chain-of-thought goes to the analysis channel, NOT the final
+# channel) while keeping the analysis volume small.
+#
+# Operator-confirmed regression 2026-05-15: a previous version of this
+# file STRIPPED the Reasoning header entirely. Without that header,
+# gpt-oss has no instruction routing analysis content -- so it dumped
+# all its chain-of-thought into the FINAL channel. The user saw the
+# model literally monologue ("We need to launch epiphany... Let's
+# test...") instead of calling tools. Adding "Reasoning: low" back
+# restores channel routing while keeping volume minimal.
 #
 # Why edit the template instead of passing `think:false` per-request:
 #   * Hermes-Agent does NOT pass think parameter to ollama (no support
@@ -41,10 +52,12 @@ FROM gpt-oss:20b
 #   * a Modelfile change is one-time and applies to every Hermes
 #     request without code changes upstream
 #   * future Hermes versions that gain think-disable support remain
-#     compatible (this Modelfile is a no-op vs. think:false)
+#     compatible (this Modelfile is a no-op vs. think:low)
 TEMPLATE """<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.
 Knowledge cutoff: 2024-06
 Current date: {{ currentDate }}
+
+Reasoning: low
 
 {{- $hasNonBuiltinTools := false }}
 {{- if .Tools -}}

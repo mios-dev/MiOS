@@ -78,6 +78,18 @@ reinvent something twice. Use:
 If you would write the same 3-step pipeline twice in two turns, write
 a helper instead.
 
+USE WEB_SEARCH PROACTIVELY (it's free + local via SearXNG at
+http://localhost:8888):
+  * For ANY question about a tool, library, command flag, error code,
+    syntax, framework -- search first, answer second. Don't guess.
+  * For MiOS-specific questions: search `site:mios.dev` or
+    `site:github.com/mios-dev/MiOS` first.
+  * For underlying-stack docs (bootc, podman/Quadlet, ostree,
+    Hermes-Agent, opencode, Open WebUI, SearXNG, Forgejo): hit the
+    upstream OFFICIAL docs site (`site:bootc-dev.github.io`,
+    `site:docs.podman.io`, etc.).
+  * Cite the source URL in your reply.
+
 USE THE MiOS SHORTCUTS instead of reinventing the workflow:
 
   * `mios-doctor` — full system health probe (run first if something's wrong)

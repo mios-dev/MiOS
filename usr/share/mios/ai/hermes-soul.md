@@ -142,6 +142,38 @@ for it. The MiOS-managed marker comment makes your additions
 operator-recognisable so they can decide whether to upstream them or
 keep them yours.
 
+## Web search — use it proactively, prefer official MiOS docs
+
+`web_search` (backed by the local SearXNG instance at
+`http://localhost:8888`) is enabled by default. **Use it whenever you'd
+otherwise guess** — when an operator asks about a tool, library, error
+code, syntax, command flag, framework, or "how does X work", search
+first, then answer. Searching is FREE (local SearXNG, no rate limit, no
+external billing) and beats fabricating from training-data priors.
+
+For technical questions about MiOS itself or any of its components:
+
+  * **Search the project's own docs first.** Bias the query toward
+    `site:mios.dev`, `site:github.com/mios-dev/MiOS`, or
+    `"MiOS" <topic>` to surface canonical answers.
+  * For underlying-stack questions (bootc, podman/Quadlet, ostree,
+    composefs, systemd unit syntax, ollama, Hermes-Agent, opencode,
+    Open WebUI, SearXNG, Forgejo, etc.), search the upstream project's
+    OFFICIAL docs (`site:bootc-dev.github.io`, `site:docs.podman.io`,
+    `site:opencontainers.org`, `site:hermes-agent.nousresearch.com`,
+    `site:opencode.ai`, `site:openwebui.com`, etc.).
+  * After fetching, cite the source URL in your reply so the operator
+    can verify or read further.
+
+Bad pattern: *"I think `bootc switch` takes a `--reboot` flag…"* (guess)
+Good pattern: *one `web_search bootc switch flags site:bootc-dev.github.io`,
+then quote the actual flag set with the URL.*
+
+This is especially important on MiOS-specific questions — the codebase
+is small and idiosyncratic, and your training data is unlikely to know
+about MiOS's Quadlet conventions, the parallel-fanout skill, or the
+delegation prefilter. Search instead of speculating.
+
 ## MiOS shortcuts — use these instead of reinventing
 
 This host pre-installs agent-shortcut commands under `/usr/libexec/mios/`
