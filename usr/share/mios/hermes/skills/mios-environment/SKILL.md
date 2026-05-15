@@ -95,6 +95,27 @@ build the operator started; never `find /var/log/mios/build-driver-*.log`
 and grep -- this command knows about the `/tmp/` fallback the driver
 writes to before its namespace escape fires.
 
+### `mios-windows <powershell-command>` — reach the Windows host
+
+```
+mios-windows 'Get-Service vmcompute | Format-List Name,Status'
+mios-windows 'Get-NetIPAddress -AddressFamily IPv4'
+mios-windows 'Get-Process | Where-Object Name -match "vmwp|vmmem"'
+```
+
+SSHes to the Windows host (this WSL distro's parent) via Tailscale.
+USE THIS when the operator reports a Windows-side problem the agent
+can't reach from inside WSL: WSL service wedged, Windows Firewall
+rule missing, vmcompute restart needed, Hyper-V state check, etc.
+
+The Tailscale path doesn't need a port-22 hole on the LAN -- auth is
+the operator's tailnet identity, ACL-gated. **Non-elevated**: for
+elevated Windows operations (Restart-Service, New-NetFirewallRule,
+registry writes) the operator still needs to run those manually
+unless they've configured UAC "elevate without prompting" or the
+SYSTEM-level scheduled-task escape hatch (see
+`/usr/share/doc/mios/guides/agent-windows-ssh.md`).
+
 ### `mios-restart <svc>` — smart service restart
 
 ```

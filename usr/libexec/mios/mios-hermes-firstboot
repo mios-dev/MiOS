@@ -748,3 +748,22 @@ if [[ -x /usr/libexec/mios/mios-flatpak-overrides-apply ]]; then
     /usr/libexec/mios/mios-flatpak-overrides-apply 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
+
+# ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
+# When the host is a WSL distro running inside Windows, the Tailscale CLI
+# on the Windows side knows its own tailnet IP. mios-windows (the
+# agent->Windows SSH helper) reads this IP from /etc/mios/windows-host
+# instead of re-deriving it from `ip route` every call (which would just
+# give the Hyper-V vSwitch gateway, not the Tailscale interface). We
+# query the Windows tailscale.exe via wsl interop and write the file
+# once on every firstboot. Idempotent.
+if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
+    _ts_ip="$(/mnt/c/Program\ Files/Tailscale/tailscale.exe ip -4 2>/dev/null | head -1 | tr -d '\r\n ')"
+    if [[ "$_ts_ip" =~ ^100\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$_ts_ip" > /etc/mios/windows-host
+        chmod 0644 /etc/mios/windows-host
+        _log "pinned Windows host tailscale IP to /etc/mios/windows-host: $_ts_ip"
+    else
+        _log "WARN: Tailscale.exe present but didn't return a usable tailnet IP"
+    fi
+fi
