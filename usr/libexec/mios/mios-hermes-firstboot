@@ -457,6 +457,33 @@ web:
   search_backend: searxng
 
 # Display: surface real tool output in the chat (counter-fabrication).
+# Toolset trim. Hermes by default exposes ~30+ tool definitions to the
+# main agent (browser_navigate/click/type/scroll/back/snapshot/...,
+# cronjob, image_generate, video_generate, vision_analyze, text_to_speech,
+# rl tools, ...). Each tool's full JSON schema sits in EVERY prompt --
+# operator-confirmed regression 2026-05-15: the same chat completion
+# went from 163,742 prompt tokens to 13,017 prompt tokens (92% reduction)
+# after trimming to only the toolsets MiOS actually uses. Less context
+# bloat = stronger signal-to-noise for the actual rules in SOUL.md +
+# the parallel-fanout skill nudge -- the model is more likely to pick
+# delegate_task when there's room for it to think about the choice.
+#
+# Operators can ADD toolsets back here (in the operator overlay
+# /etc/mios/mios.toml or by editing /etc/mios/hermes/config.yaml and
+# clearing the MiOS-managed sentinel) -- e.g. add "browser" if you want
+# the agent to drive the chrome flatpak via CDP.
+platform_toolsets:
+  api_server:
+    - terminal       # shell commands
+    - file           # read/write/patch
+    - web            # web_search + web_extract via SearXNG
+    - delegation     # delegate_task -- the parallel-fanout target
+    - skills         # skill_view / skill_manage / skills_list
+    - memory         # persistent memory across sessions
+    - todo           # in-turn task planning
+    - session_search # search past conversations
+    - code_execution # python execute_code
+
 # When the agent narrates "the build succeeded" instead of pasting
 # what it actually saw, the operator can't tell truth from fiction.
 # These knobs make Hermes show the verbatim tool result inline -- in
