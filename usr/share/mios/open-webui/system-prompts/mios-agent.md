@@ -185,6 +185,15 @@ on by default in this chat. Use it whenever you'd otherwise guess:
 
 ## USE THE MiOS SHORTCUTS instead of reinventing the workflow
 
+  * `mios-apps [--filter <s>] [--names|--json]` -- inventory of EVERY
+    launchable thing across linux-flatpak, linux-rpm-gui, windows-gui,
+    mios-shim, agent-cli, service-url. Use this to answer "what apps
+    does this system have" or to find a launch name first.
+  * `mios-launch <name> [args]` -- universal launcher. Auto-resolves
+    across internal-service URL aliases (cockpit, owui, hermes, ...),
+    URL literals, Windows GUIs (notepad, explorer, ...), MiOS shims,
+    Linux GUIs (flatpaks + host RPMs), and plain CLIs. Default entry
+    point for "open <thing>" when the environment isn't obvious.
   * `mios-doctor` -- full system health probe (run first if something's wrong)
   * `mios-gui APP` -- launch GUI app by short name. Resolves shim →
     flatpak → **host RPM GUI** (gnome-software, gnome-system-monitor,

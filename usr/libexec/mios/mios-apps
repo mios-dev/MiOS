@@ -1,0 +1,183 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-apps [--json] [--names] [--filter <substr>] [--category <cat>]
+#
+# Inventory of EVERY launchable thing on this MiOS host. One unified
+# surface across:
+#
+#   linux-flatpak    flatpaks installed system-wide (flatpak list --system)
+#   linux-rpm-gui    host-installed GUI RPMs (.desktop files; not NoDisplay)
+#   windows-gui      Windows host apps reachable via WSL interop
+#   mios-shim        MiOS shell helpers under /usr/libexec/mios/ + /usr/local/bin/
+#   agent-cli        agent toolchain CLIs (hermes, opencode, ollama, ...)
+#   service-url      known internal-service URLs (Cockpit, OWUI, Forgejo, ...)
+#
+# Operator directive 2026-05-15: "MiOS-Agents should be aware of all
+# systems; and be able to launch apps regardless of environment".
+# This helper is the awareness half; mios-launch is the launch half.
+#
+# Default output is a human-readable table grouped by category. For
+# agent-friendly machine reading, use --json. For piping into other
+# helpers, --names prints bare launch names one per line.
+
+set -eu
+
+JSON=0
+NAMES=0
+FILTER=""
+CATEGORY=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --json)               JSON=1; shift ;;
+        --names)              NAMES=1; shift ;;
+        --filter)             FILTER="$2"; shift 2 ;;
+        --category)           CATEGORY="$2"; shift 2 ;;
+        -h|--help)
+            cat <<'USAGE'
+usage: mios-apps [--json] [--names] [--filter <substr>] [--category <cat>]
+
+Inventory of launchable things across every available environment.
+
+Categories (use --category to limit):
+  linux-flatpak    flatpaks installed system-wide
+  linux-rpm-gui    host RPMs with .desktop entries
+  windows-gui      Windows apps (via WSL interop)
+  mios-shim        MiOS helper scripts
+  agent-cli        agent toolchain CLIs (hermes, opencode, ...)
+  service-url      known internal-service URLs
+
+Output:
+  default          human table grouped by category
+  --json           one JSON object per line (jsonl)
+  --names          bare launch names, one per line
+  --filter <s>     case-insensitive substring filter on name
+USAGE
+            exit 0
+            ;;
+        *) echo "mios-apps: unknown arg: $1" >&2; exit 64 ;;
+    esac
+done
+
+# ─── helpers ─────────────────────────────────────────────────────────
+emit() {
+    # emit <category> <name> <description> <launch-hint>
+    local cat="$1" name="$2" desc="$3" launch="$4"
+    if [ -n "$CATEGORY" ] && [ "$cat" != "$CATEGORY" ]; then return; fi
+    if [ -n "$FILTER" ]; then
+        if ! echo "$name $desc" | grep -qiF "$FILTER"; then return; fi
+    fi
+    if [ "$NAMES" = "1" ]; then
+        printf '%s\n' "$name"
+    elif [ "$JSON" = "1" ]; then
+        printf '{"category":"%s","name":"%s","description":"%s","launch":"%s"}\n' \
+            "$cat" "$(_jsonesc "$name")" "$(_jsonesc "$desc")" "$(_jsonesc "$launch")"
+    else
+        printf '  %-26s %s\n' "$name" "$desc"
+    fi
+}
+_jsonesc() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g'
+}
+header() {
+    [ "$JSON" = "1" ] && return
+    [ "$NAMES" = "1" ] && return
+    if [ -n "$CATEGORY" ] && [ "$CATEGORY" != "$1" ]; then return; fi
+    printf '\n== %s ==\n' "$1"
+}
+
+# ─── 1. linux-flatpak ────────────────────────────────────────────────
+header linux-flatpak
+if command -v flatpak >/dev/null 2>&1; then
+    flatpak list --system --columns=application,name 2>/dev/null \
+        | while IFS=$'\t' read -r app_id app_name; do
+            [ -z "$app_id" ] && continue
+            short="${app_id##*.}"
+            short_lc="$(echo "$short" | tr '[:upper:]' '[:lower:]')"
+            emit linux-flatpak "$short_lc" "$app_name ($app_id)" "mios-gui $short_lc"
+        done
+fi
+
+# ─── 2. linux-rpm-gui ────────────────────────────────────────────────
+header linux-rpm-gui
+if [ -d /usr/share/applications ]; then
+    for f in /usr/share/applications/*.desktop; do
+        [ -f "$f" ] || continue
+        # Skip NoDisplay=true (not user-visible) and Hidden=true entries.
+        if grep -qE '^NoDisplay=true|^Hidden=true' "$f"; then continue; fi
+        # Only show entries whose Exec= resolves to an actual binary.
+        exec_line="$(grep -m1 '^Exec=' "$f" | sed 's/^Exec=//' | awk '{print $1}')"
+        [ -z "$exec_line" ] && continue
+        # strip flatpak --command, %F/%U placeholders, env vars
+        exec_bin="$(basename "$exec_line")"
+        if ! command -v "$exec_bin" >/dev/null 2>&1; then continue; fi
+        name_line="$(grep -m1 '^Name=' "$f" | sed 's/^Name=//')"
+        short="$(basename "$f" .desktop)"
+        emit linux-rpm-gui "$short" "${name_line:-$short}" "mios-gui $short"
+    done
+fi
+
+# ─── 3. windows-gui ──────────────────────────────────────────────────
+header windows-gui
+# Cribbed from mios-windows's APPS table; if a Windows host isn't
+# reachable (no /mnt/c), skip silently.
+if [ -d /mnt/c/Windows ]; then
+    cat <<'WIN_APPS' | while IFS=$'\t' read -r short desc; do
+notepad	Windows Notepad
+explorer	Windows Explorer (file manager)
+calc	Calculator
+mspaint	Paint
+snipping-tool	Snipping Tool (screenshots)
+taskmgr	Task Manager
+regedit	Registry Editor
+control	Control Panel
+cmd	Windows cmd.exe shell
+powershell	Windows PowerShell 5.1
+pwsh	PowerShell 7 (if installed)
+WIN_APPS
+        emit windows-gui "$short" "$desc" "mios-windows launch $short"
+    done
+fi
+
+# ─── 4. mios-shim ────────────────────────────────────────────────────
+header mios-shim
+{
+    ls -1 /usr/libexec/mios/ 2>/dev/null | grep -E '^mios-' || true
+    # /usr/local/bin shims that aren't already in /usr/libexec/mios
+    if [ -d /usr/local/bin ]; then
+        for f in /usr/local/bin/mios-*; do
+            [ -e "$f" ] || continue
+            basename "$f"
+        done
+    fi
+} | sort -u | while read -r name; do
+    [ -z "$name" ] && continue
+    bin="/usr/libexec/mios/$name"
+    [ -e "$bin" ] || bin="/usr/local/bin/$name"
+    # Pull the first comment-line description (after the shebang) as the desc
+    desc="$(sed -n '2,5p' "$bin" 2>/dev/null | grep -m1 -E '^# ' | sed 's/^# *//' | head -c 80)"
+    [ -z "$desc" ] && desc="(MiOS helper)"
+    emit mios-shim "$name" "$desc" "$name"
+done
+
+# ─── 5. agent-cli ────────────────────────────────────────────────────
+header agent-cli
+for tool in hermes opencode ollama podman flatpak just bootc skopeo; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        ver="$($tool --version 2>/dev/null | head -1 | tr -d '\r' | head -c 60 || true)"
+        emit agent-cli "$tool" "${ver:-$tool}" "$tool"
+    fi
+done
+
+# ─── 6. service-url ──────────────────────────────────────────────────
+header service-url
+cat <<'SERVICE_URLS' | while IFS=$'\t' read -r name url desc; do
+cockpit	http://localhost:9090	Web system console
+owui	http://localhost:3030	MiOS Open WebUI (browser chat front)
+hermes	http://localhost:8642/v1	Hermes-Agent OpenAI gateway
+prefilter	http://localhost:8641/v1	MiOS-Prefilter (delegate-task forced) -> Hermes
+inference	http://localhost:11434	Ollama (raw model + embeddings)
+searxng	http://localhost:8888	MiOS-Search (SearXNG)
+forgejo	http://localhost:3000	MiOS-Forge (local git host)
+SERVICE_URLS
+    emit service-url "$name" "${desc:-$url}" "mios-open-url $url"
+done

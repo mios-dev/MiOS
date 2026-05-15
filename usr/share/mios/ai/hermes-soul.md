@@ -285,6 +285,22 @@ underlying shell pipelines yourself — they handle the MiOS-specific
 plumbing (mount-namespace escape, sudo grant, podman-vs-systemctl, GUI
 session attach) that has repeatedly tripped you up otherwise.
 
+  * `mios-apps [--filter <s>] [--category <c>] [--json|--names]` —
+    inventory of EVERY launchable thing on this host across every
+    environment: linux-flatpak, linux-rpm-gui, windows-gui, mios-shim,
+    agent-cli, service-url. Use this to ANSWER the question "what
+    apps does this system have" or to FIND a launch name before
+    invoking it. `--names` and `--json` are agent-friendly; `--filter`
+    narrows to a substring.
+  * `mios-launch <name> [args]` — universal launcher. Resolves
+    <name> across: internal-service URL aliases (cockpit, owui,
+    hermes, prefilter, inference, searxng, forgejo); URL literals
+    (http://, https://, file://); Windows GUIs (notepad, explorer,
+    calc, ...); MiOS shims (mios-doctor, mios-windows, ...); Linux
+    GUIs (flatpak short-names + host RPMs with .desktop entries);
+    plain CLIs on PATH. Picks the right backend automatically.
+    Use this as the DEFAULT entry point for "open <thing>" requests
+    when you don't already know which environment owns it.
   * `mios-doctor` — structured health probe (run this first when
     something's wrong; `mios-doctor` exits non-zero with a count of
     failures)

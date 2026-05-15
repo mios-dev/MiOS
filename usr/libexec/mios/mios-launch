@@ -1,0 +1,120 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-launch <name> [args...]
+#
+# Universal launcher. Resolves <name> across every available
+# environment in priority order:
+#
+#   1. Internal-service URL alias (cockpit, owui, hermes, prefilter,
+#      inference, searxng, forgejo) -> mios-open-url <url>
+#   2. URL/IRI literal (http://, https://, file://) -> mios-open-url
+#   3. Windows GUI app (notepad, explorer, calc, mspaint, snipping-
+#      tool, taskmgr, regedit, control, cmd, powershell, pwsh, OR a
+#      /mnt/c/.../*.exe path) -> mios-windows launch
+#   4. MiOS shim (mios-doctor, mios-windows, mios-flatpak-install,
+#      mios-open-url, mios-skill-clone, mios-tool-clone, ...)
+#      -> exec the shim directly
+#   5. Linux GUI (flatpak app id, fuzzy flatpak match, host RPM with a
+#      .desktop entry) -> mios-gui
+#   6. Plain CLI on PATH -> exec
+#
+# If no resolution matches, list candidates from `mios-apps --filter`.
+#
+# Operator directive 2026-05-15: "MiOS-Agents should be aware of all
+# systems; and be able to launch apps regardless of environment
+# (including its own apps and using them too)". mios-apps is the
+# discovery half; this is the launch half.
+
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat <<'USAGE'
+usage: mios-launch <name> [args...]
+
+  <name> can be:
+    * a known internal service alias: cockpit, owui, hermes, prefilter,
+      inference, searxng, forgejo
+    * a URL: http://..., https://..., file://...
+    * a Windows GUI: notepad, explorer, calc, mspaint, snipping-tool,
+      taskmgr, regedit, control, cmd, powershell, pwsh, OR a full
+      /mnt/c/.../*.exe path
+    * a MiOS shim: mios-doctor, mios-windows, mios-flatpak-install,
+      mios-open-url, mios-skill-clone, mios-tool-clone, ...
+    * a Linux GUI: any installed flatpak short-name (chromedev, epiphany,
+      ptyxis, codium, flatseal, calculator, gnome-software, ...)
+    * a plain CLI on PATH
+
+Discovery: `mios-apps` for the full inventory.
+USAGE
+    exit 0
+fi
+
+NAME="$1"
+shift
+
+# ─── 1. Internal-service URL alias ───────────────────────────────────
+case "$NAME" in
+    cockpit)    exec mios-open-url "http://localhost:9090" "$@" ;;
+    owui|open-webui|webui) exec mios-open-url "http://localhost:3030" "$@" ;;
+    hermes)     exec mios-open-url "http://localhost:8642/v1" "$@" ;;
+    prefilter)  exec mios-open-url "http://localhost:8641/v1" "$@" ;;
+    inference|ollama-web) exec mios-open-url "http://localhost:11434" "$@" ;;
+    searxng|search) exec mios-open-url "http://localhost:8888" "$@" ;;
+    forgejo|forge)  exec mios-open-url "http://localhost:3000" "$@" ;;
+esac
+
+# ─── 2. URL literal ──────────────────────────────────────────────────
+case "$NAME" in
+    http://*|https://*|file://*|chrome://*|about:*)
+        exec mios-open-url "$NAME" "$@"
+        ;;
+esac
+
+# ─── 3. Windows GUI ──────────────────────────────────────────────────
+case "$NAME" in
+    notepad|explorer|calc|mspaint|snipping-tool|taskmgr|regedit|control|cmd|powershell|pwsh)
+        exec mios-windows launch "$NAME" "$@"
+        ;;
+    /mnt/c/*.exe|/mnt/c/*.EXE)
+        exec mios-windows launch "$NAME" "$@"
+        ;;
+esac
+
+# ─── 4. MiOS shim ────────────────────────────────────────────────────
+case "$NAME" in
+    mios-*)
+        if command -v "$NAME" >/dev/null 2>&1; then
+            exec "$NAME" "$@"
+        fi
+        ;;
+esac
+
+# ─── 5. Linux GUI (delegate the shim/flatpak/host-RPM resolution to mios-gui) ─
+# mios-gui already does all three steps with .desktop-presence as the
+# host-RPM gating signal. Only call it if we have something it might
+# actually handle.
+if [ -x /usr/local/bin/"$NAME" ] || [ -x /usr/bin/"$NAME" ] \
+   || flatpak list --system --columns=application 2>/dev/null \
+        | awk -v n="$(echo "$NAME" | tr '[:upper:]' '[:lower:]')" \
+            '{ s=$1; sub(/.*\./,"",s); if (tolower(s)==n) found=1 } END {exit !found}'; then
+    if [ -f "/usr/share/applications/${NAME}.desktop" ] \
+       || flatpak list --system --columns=application 2>/dev/null \
+            | awk -v n="$(echo "$NAME" | tr '[:upper:]' '[:lower:]')" \
+                '{ s=$1; sub(/.*\./,"",s); if (tolower(s)==n) found=1 } END {exit !found}' \
+       || [ -x /usr/local/bin/"$NAME" ]; then
+        exec mios-gui "$NAME" "$@"
+    fi
+fi
+
+# ─── 6. Plain CLI ────────────────────────────────────────────────────
+if command -v "$NAME" >/dev/null 2>&1; then
+    exec "$NAME" "$@"
+fi
+
+# ─── No resolution -- show candidates ────────────────────────────────
+echo "mios-launch: no resolution for '$NAME'" >&2
+echo "" >&2
+echo "Closest candidates from mios-apps:" >&2
+mios-apps --names 2>/dev/null | grep -iF "$NAME" | sed 's/^/  /' >&2 || true
+echo >&2
+echo "Full inventory: mios-apps" >&2
+exit 1
