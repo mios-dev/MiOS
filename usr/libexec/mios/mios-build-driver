@@ -102,6 +102,61 @@ if [[ "$(id -u)" -ne 0 ]] && ! sudo -n true 2>/dev/null; then
     exit 1
 fi
 
+# ── Sandbox escape (mount-namespace) ─────────────────────────────────────────
+# Even with root + a sudo grant, the build still fails when invoked from
+# inside a hardened service's mount namespace (e.g., the agent's
+# hermes-agent.service has ProtectSystem=strict, which remounts /usr,
+# /boot, and most of / read-only INSIDE the service's mount namespace).
+# sudo elevates UID/GID and capabilities -- it does NOT call setns(),
+# so the child inherits the parent's mount namespace and sees the same
+# read-only view. The build then dies on the first write outside
+# ReadWritePaths:
+#   "Error: open /var/lib/containers/storage/storage.lock: read-only file system"
+#   "error: cannot open '.git/FETCH_HEAD': Read-only file system"
+# Operators (and agents) blame "WSL" or "permissions" and chase the
+# wrong fix (operator-confirmed 2026-05-15).
+#
+# Fix: detect the read-only-namespace condition (root sees a known
+# root-writable dir as read-only) and re-exec via `systemd-run --scope`,
+# which spawns a transient unit OUTSIDE the calling service's namespace
+# with a fresh, default mount view. This is the only way to escape a
+# parent service's namespace short of explicit setns() with CAP_SYS_ADMIN.
+# Preserves all CLI args; the re-exec inherits stdin/stdout/stderr via --pty.
+_MIOS_BUILD_ESCAPED="${_MIOS_BUILD_ESCAPED:-0}"   # guard against re-exec loop
+if [[ "$_MIOS_BUILD_ESCAPED" != "1" && "$(id -u)" -eq 0 && -d /var/lib/containers/storage ]]; then
+    if ! ( : > /var/lib/containers/storage/.mios-sandbox-probe ) 2>/dev/null; then
+        if command -v systemd-run >/dev/null 2>&1; then
+            _log "detected restricted mount namespace (parent service has ProtectSystem=strict);"
+            _log "re-executing via 'systemd-run --pipe --wait' to escape into a fresh mount namespace"
+            export _MIOS_BUILD_ESCAPED=1
+            # KEY POINT: --service mode (the default; do NOT pass --scope) is
+            # what escapes the mount namespace. --scope only registers the
+            # existing systemd-run process in a new cgroup; the exec happens
+            # in systemd-run's own namespace, which is the caller's restricted
+            # one (verified empirically -- /.git stays read-only with --scope).
+            # --service mode causes PID 1 to FORK the unit fresh, so the new
+            # process inherits PID 1's default mount namespace -- the host
+            # root view, not the agent's sandbox.
+            #
+            # --pipe:    forward stdin/stdout/stderr via anonymous pipes
+            #            (works without a tty; agent invocations are headless)
+            # --wait:    block until the unit exits, propagate exit code
+            # --collect: drop failed transient unit instead of keeping it
+            # --quiet:   no "Running as unit:" preamble in stderr
+            # --uid=0:   run as root explicitly (we already are, but be loud)
+            # --same-dir:keep CWD instead of jumping to /
+            exec systemd-run --pipe --wait --collect --quiet --uid=0 --same-dir \
+                /usr/libexec/mios/mios-build-driver "$@"
+        else
+            _log "WARN: in a restricted mount namespace but 'systemd-run' is unavailable --"
+            _log "      podman/git operations will likely fail with 'read-only file system'."
+            _log "      Re-run from outside the agent service: 'sudo systemd-run --scope mios build'"
+        fi
+    else
+        rm -f /var/lib/containers/storage/.mios-sandbox-probe 2>/dev/null
+    fi
+fi
+
 # ── Pre-flight ───────────────────────────────────────────────────────────────
 # WORKDIR follows the same root-vs-user split the LOG_DIR section above
 # uses: root invocations get the canonical /var/lib/mios/build (FHS),
