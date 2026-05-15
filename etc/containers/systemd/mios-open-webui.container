@@ -61,11 +61,24 @@ Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8642/v1
 Environment=ENABLE_OLLAMA=False
 Environment=OLLAMA_BASE_URL=http://host.containers.internal:11434
 
-# General config
-Environment=WEBUI_NAME="MiOS AI"
+# General config.
+# WEBUI_NAME drives the brand displayed in OWUI's title bar, login
+# screen, and PWA manifest. "MiOS Agent" matches the MiOS-Agent model
+# label in the model picker -- both are the operator-facing name for
+# the agent stack. Operator directive 2026-05-15: "fix name to
+# MiOS-Agent Globally and change the MiOS AI (Open WebUI) to just
+# MiOS AI/Agent". OWUI appends "(Open WebUI)" in some contexts (PWA
+# title) which we can't fully suppress without forking, but the
+# primary brand string is what we control here.
+Environment=WEBUI_NAME="MiOS Agent"
 Environment=WEBUI_SECRET_KEY=mios-stable-secret-change-me
 Environment=ENABLE_SIGNUP=False
 Environment=DEFAULT_USER_ROLE=admin
+# Pre-select the hermes gateway as the chat default + hide raw model
+# IDs from the picker (operator sees friendly "MiOS-Agent" name set
+# via the model registration's `name` field, NOT the underlying
+# "hermes-agent" model id).
+Environment=DEFAULT_MODELS=hermes-agent
 
 # Identity. UID 817 (mios-open-webui)
 User=${MIOS_OPEN_WEBUI_UID:-817}

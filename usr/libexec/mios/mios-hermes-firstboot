@@ -794,6 +794,46 @@ if [[ -x /usr/libexec/mios/mios-flatpak-overrides-apply ]]; then
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
+# ─── Open WebUI: bootstrap first admin user if the user table is empty ──
+# The OWUI Quadlet ships with ENABLE_SIGNUP=False (single-tenant lockdown)
+# AND no built-in flow to seed the first admin. On a fresh install OR
+# after an over-aggressive cache wipe (operator-confirmed regression
+# 2026-05-15: my own mios-cache-clear deleted the user row alongside
+# chats), there's no way for the operator to log in -- the signup form
+# refuses ("You do not have permission to access this resource") and
+# there's no recovery path short of editing the Quadlet by hand.
+#
+# Run mios-owui-bootstrap-admin which writes the admin row directly to
+# webui.db with a bcrypt-hashed password. Idempotent (skips if any user
+# row exists). Reads identity from mios.toml [identity].{username,email}
+# and password from secrets.env's MIOS_OPERATOR_PASSWORD (or generates
+# one and saves to /etc/mios/owui-admin-password mode 0600).
+#
+# Wait briefly for OWUI to have created its tables -- the first start
+# runs alembic migrations.
+if [[ -x /usr/libexec/mios/mios-owui-bootstrap-admin ]]; then
+    for _i in 1 2 3 4 5 6; do
+        [[ -f /var/lib/mios/open-webui/webui.db ]] && break
+        sleep 5
+    done
+    /usr/libexec/mios/mios-owui-bootstrap-admin 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+
+    # Once an admin exists, remove any temporary signup-enable drop-in
+    # (operator-confirmed live recovery 2026-05-15: I dropped a
+    # 99-enable-signup-once.conf during the lockout fix; needs cleanup).
+    _signup_dropin=/etc/containers/systemd/mios-open-webui.container.d/99-enable-signup-once.conf
+    if [[ -f "$_signup_dropin" ]]; then
+        # Only remove if a user actually exists (safety -- don't lock
+        # the operator out a second time).
+        if python3 -c 'import sqlite3,sys; c=sqlite3.connect("/var/lib/mios/open-webui/webui.db"); n=c.execute("SELECT COUNT(*) FROM user").fetchone()[0]; sys.exit(0 if n>0 else 1)' 2>/dev/null; then
+            rm -f "$_signup_dropin"
+            systemctl daemon-reload
+            _log "removed temporary signup-enable drop-in (admin user now exists)"
+        fi
+    fi
+fi
+
 # ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
 # When the host is a WSL distro running inside Windows, the Tailscale CLI
 # on the Windows side knows its own tailnet IP. mios-windows (the

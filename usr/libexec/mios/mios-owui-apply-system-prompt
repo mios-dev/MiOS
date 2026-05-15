@@ -47,6 +47,12 @@ def _resolve_source():
     return None
 
 
+# Friendly name shown in OWUI's model picker (operator directive
+# 2026-05-15: rename "hermes-agent" -> "MiOS-Agent" globally).
+DISPLAY_NAME = os.environ.get("MIOS_OWUI_DISPLAY_NAME", "MiOS-Agent")
+DESCRIPTION = "MiOS Agent -- the local agent stack (Hermes-Agent gateway over Ollama)."
+
+
 def main():
     src = _resolve_source()
     if src is None:
@@ -57,35 +63,93 @@ def main():
         return 0
     src_text = src.read_text(encoding="utf-8")
 
+    import time
     conn = sqlite3.connect(str(DB))
     try:
         row = conn.execute(
-            "SELECT id, name, params FROM model WHERE id = ? LIMIT 1", (MODEL_ID,)
+            "SELECT id, name, params, meta FROM model WHERE id = ? LIMIT 1", (MODEL_ID,)
         ).fetchone()
+        now = int(time.time())
+
         if row is None:
-            _log(f"model id={MODEL_ID!r} not registered in OWUI yet -- skipping")
+            # OWUI auto-discovers models from the upstream API and inserts
+            # rows on first chat -- but if we run before that's happened,
+            # create the row ourselves so the operator's picker shows the
+            # MiOS branding from first launch instead of "hermes-agent".
+            params = {"system": src_text}
+            meta = {
+                "profile_image_url": "/static/favicon.png",
+                "description": DESCRIPTION,
+                "capabilities": {
+                    "file_context": True, "vision": True, "file_upload": True,
+                    "web_search": True, "image_generation": True,
+                    "code_interpreter": True, "terminal": True, "citations": True,
+                    "status_updates": True, "usage": True, "builtin_tools": True
+                },
+                "suggestion_prompts": None, "tags": []
+            }
+            # Match the OWUI 0.9.x model schema EXACTLY:
+            #   id, user_id, base_model_id, name, meta, params,
+            #   created_at, updated_at, is_active
+            # (no access_control column in this version)
+            conn.execute(
+                "INSERT INTO model (id, user_id, base_model_id, name, "
+                "meta, params, created_at, updated_at, is_active) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (MODEL_ID, "", None, DISPLAY_NAME,
+                 json.dumps(meta), json.dumps(params), now, now, 1)
+            )
+            conn.commit()
+            _log(f"created MiOS-Agent model row (id={MODEL_ID!r}, name={DISPLAY_NAME!r}) "
+                 f"with system prompt + capabilities + favicon")
             return 0
-        _id, name, params_json = row
+
+        _id, name, params_json, meta_json = row
         params = json.loads(params_json) if params_json else {}
-        existing = params.get("system", "")
-        if existing == src_text:
-            _log(f"model {_id!r}: system prompt already current -- no-op")
-            return 0
-        if existing and MARKER not in existing:
+        meta = json.loads(meta_json) if meta_json else {}
+        existing_system = params.get("system", "")
+
+        # Detect operator-customised state: if the operator edited the
+        # system prompt OR renamed the model away from MiOS-managed
+        # defaults, leave everything alone (per MiOS-managed marker
+        # convention).
+        if existing_system and MARKER not in existing_system:
             _log(
                 f"model {_id!r}: operator-customised system prompt detected (no '{MARKER}' "
-                "marker) -- leaving alone"
+                "marker) -- leaving the entire row alone"
             )
             return 0
+
+        # We OWN this row -- ensure name + meta + params all reflect the
+        # MiOS defaults. Idempotent: rebuild the dicts from current state +
+        # apply the MiOS-managed values.
+        changes = []
+        if name != DISPLAY_NAME:
+            changes.append(f"name {name!r} -> {DISPLAY_NAME!r}")
+        if existing_system != src_text:
+            changes.append(f"system prompt ({len(src_text)} chars; "
+                          f"{'replaced MiOS-managed' if existing_system else 'was empty'})")
+        meta_desc = meta.get("description") if isinstance(meta, dict) else None
+        if meta_desc != DESCRIPTION:
+            changes.append("meta.description")
+
+        if not changes:
+            _log(f"model {_id!r}: name + system + description all current -- no-op")
+            return 0
+
         params["system"] = src_text
+        if isinstance(meta, dict):
+            meta["description"] = DESCRIPTION
+            meta.setdefault("profile_image_url", "/static/favicon.png")
+        else:
+            meta = {"profile_image_url": "/static/favicon.png", "description": DESCRIPTION}
+
         conn.execute(
-            "UPDATE model SET params = ? WHERE id = ?", (json.dumps(params), _id)
+            "UPDATE model SET name = ?, params = ?, meta = ?, updated_at = ? WHERE id = ?",
+            (DISPLAY_NAME, json.dumps(params), json.dumps(meta), now, _id)
         )
         conn.commit()
-        _log(
-            f"model {_id!r} ({name!r}): seeded system prompt from {src} "
-            f"({len(src_text)} chars; {'replaced MiOS-managed' if existing else 'was empty'})"
-        )
+        _log(f"model {_id!r}: applied {', '.join(changes)}")
         return 0
     finally:
         conn.close()

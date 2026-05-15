@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""mios-owui-bootstrap-admin -- create the first OWUI admin user when
+the `user` table is empty, so a fresh install / reinstall doesn't
+lock the operator out of Open WebUI.
+
+Resolves identity from layered mios.toml ([identity].username,
+[identity].email) and password from /etc/mios/secrets.env's
+MIOS_OPERATOR_PASSWORD, falling back to a generated 24-char password
+which is written to /etc/mios/owui-admin-password (mode 0600 root-only)
+so the operator can read it once.
+
+Idempotent: skips if any user row exists. Logs to stderr so
+mios-hermes-firstboot can capture the output via _log.
+
+Why direct sqlite + bcrypt instead of POST /api/v1/auths/signup:
+  * doesn't depend on OWUI being up + responsive at firstboot time
+  * doesn't need ENABLE_SIGNUP=True dance (toggle env, restart, post,
+    toggle back, restart) which is fragile and slow
+  * uses the same bcrypt scheme OWUI does (passlib bcrypt $2b$)
+
+Returns exit 0 on success, no-op skip, or any expected non-fatal path.
+Returns exit 2 only on hard infrastructure failures (db missing, no
+admin name resolvable). Designed to never block firstboot.
+"""
+import json
+import os
+import secrets
+import sqlite3
+import string
+import sys
+import time
+import uuid
+from pathlib import Path
+
+DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
+PASSWORD_OUT = Path(os.environ.get("MIOS_OWUI_PASSWORD_FILE", "/etc/mios/owui-admin-password"))
+SECRETS_ENV = Path("/etc/mios/secrets.env")
+
+
+def _log(msg: str) -> None:
+    print(f"[mios-owui-bootstrap-admin] {msg}", file=sys.stderr)
+
+
+def _read_mios_toml_identity():
+    """Return (username, email) from layered mios.toml; defaults if missing."""
+    name = "mios"
+    email = "corey.dl.taylor@gmail.com"  # from MEMORY.md user email
+    for p in (
+        Path(os.environ.get("HOME", "/root")) / ".config/mios/mios.toml",
+        Path("/etc/mios/mios.toml"),
+        Path("/usr/share/mios/mios.toml"),
+    ):
+        if not p.is_file():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        in_identity = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                in_identity = stripped == "[identity]"
+                continue
+            if not in_identity or "=" not in stripped or stripped.startswith("#"):
+                continue
+            k, _, v = stripped.partition("=")
+            v = v.strip().strip('"').strip("'")
+            if k.strip() == "username" and v:
+                name = v
+            elif k.strip() == "email" and v:
+                email = v
+        break
+    return name, email
+
+
+def _read_password():
+    """Return (password, source) -- prefer secrets.env, fall back to generated."""
+    if SECRETS_ENV.is_file():
+        try:
+            for line in SECRETS_ENV.read_text(encoding="utf-8").splitlines():
+                stripped = line.strip()
+                if stripped.startswith("MIOS_OPERATOR_PASSWORD="):
+                    pw = stripped.split("=", 1)[1].strip().strip('"').strip("'")
+                    if pw:
+                        return pw, "MIOS_OPERATOR_PASSWORD in /etc/mios/secrets.env"
+        except OSError:
+            pass
+    # generate
+    alphabet = string.ascii_letters + string.digits + "_-"
+    pw = "".join(secrets.choice(alphabet) for _ in range(24))
+    return pw, "generated"
+
+
+def _write_password_file(pw: str, name: str, email: str, source: str) -> None:
+    PASSWORD_OUT.parent.mkdir(parents=True, exist_ok=True)
+    body = (
+        "# MiOS Open WebUI admin credentials\n"
+        f"# Auto-created by mios-owui-bootstrap-admin at {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n"
+        f"# Source: {source}\n"
+        "#\n"
+        "# Use these to log in at http://localhost:3030/. Once you've\n"
+        "# logged in once, set a real password via Settings -> Profile;\n"
+        "# this file can then be deleted.\n"
+        "#\n"
+        f"  username: {name}\n"
+        f"  email:    {email}\n"
+        f"  password: {pw}\n"
+    )
+    PASSWORD_OUT.write_text(body, encoding="utf-8")
+    PASSWORD_OUT.chmod(0o600)
+
+
+def _bcrypt_hash(password: str) -> str:
+    """OWUI uses passlib bcrypt $2b$ -- match it exactly so our row is valid."""
+    try:
+        import bcrypt  # noqa
+    except ImportError:
+        # System Python may not have bcrypt; OWUI's container does. Fall
+        # back to invoking python3 inside the running container if needed.
+        return _bcrypt_hash_via_container(password)
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+
+def _bcrypt_hash_via_container(password: str) -> str:
+    """Fallback: call OWUI's python with bcrypt to hash."""
+    import subprocess
+    code = (
+        "import bcrypt, sys; "
+        "p = sys.stdin.read().rstrip('\\n').encode(); "
+        "print(bcrypt.hashpw(p, bcrypt.gensalt(rounds=12)).decode())"
+    )
+    try:
+        out = subprocess.run(
+            ["podman", "exec", "-i", "mios-open-webui", "python3", "-c", code],
+            input=password, capture_output=True, text=True, timeout=30, check=True
+        )
+        return out.stdout.strip()
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        _log(f"FATAL: bcrypt unavailable on host AND fallback container exec failed: {e}")
+        raise SystemExit(2)
+
+
+def main():
+    if not DB.exists():
+        _log(f"OWUI db {DB} not present yet -- skipping (re-run after first OWUI start)")
+        return 0
+
+    conn = sqlite3.connect(str(DB))
+    try:
+        # Detect existing users -- bail if any.
+        try:
+            existing = conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
+        except sqlite3.OperationalError as e:
+            _log(f"OWUI db schema not ready ({e}) -- skipping")
+            return 0
+        if existing > 0:
+            _log(f"OWUI already has {existing} user(s) -- not creating an admin")
+            return 0
+
+        name, email = _read_mios_toml_identity()
+        password, source = _read_password()
+        _log(f"creating first OWUI admin: name={name!r} email={email!r} (password source: {source})")
+
+        uid = str(uuid.uuid4())
+        now = int(time.time())
+        password_hash = _bcrypt_hash(password)
+
+        # OWUI's user table schema is stable across recent releases;
+        # bare-minimum fields. role=admin per Quadlet's DEFAULT_USER_ROLE.
+        conn.execute(
+            "INSERT INTO user (id, name, email, role, profile_image_url, "
+            "last_active_at, updated_at, created_at, api_key, settings, info, oauth_sub) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, name, email, "admin", "/static/favicon.png", now, now, now, None,
+             json.dumps({}), None, None)
+        )
+        conn.execute(
+            "INSERT INTO auth (id, email, password, active) VALUES (?,?,?,?)",
+            (uid, email, password_hash, 1)
+        )
+        conn.commit()
+        _log(f"admin user created (id={uid[:8]}..., role=admin)")
+        _write_password_file(password, name, email, source)
+        _log(f"credentials written to {PASSWORD_OUT} (mode 0600)")
+        return 0
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

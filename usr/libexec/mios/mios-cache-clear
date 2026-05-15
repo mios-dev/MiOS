@@ -1,0 +1,242 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-cache-clear [--dry-run] [--all]
+#
+# Safe cache wipe across the MiOS agent / AI / GUI stack. Designed to
+# replace the ad-hoc "delete everything" scripts the agent has been
+# running -- which deleted the OWUI admin user along with the chats
+# (operator-confirmed regression 2026-05-15: post-wipe lockout).
+#
+# WHITELIST -- ALWAYS preserved (never delete from these tables):
+#   OWUI: user, auth, group, group_member, model, function, tool,
+#         api_key, oauth_session
+#   Hermes: config.yaml, SOUL.md, .env (operator API keys),
+#           skills/, hooks/, bin/, cron/
+#   System: ollama models (multi-GB pulls), service systemd units,
+#           Quadlets, /etc/mios/* configs, /etc/sudoers.d/10-mios-hermes
+#
+# WIPED -- conversation/cache state, regenerable on demand:
+#   OWUI: chat, message, message_reaction, knowledge, memory,
+#         feedback, prompt_history, automation_run, calendar_event,
+#         shared_chat, pinned_note, channel_*, tag, chat_file
+#   OWUI: cache/, vector_db/, uploads/ directories
+#   Hermes: sessions/, response_store.db, kanban.db, plans/, memories/,
+#           cache/, .cache, processes.json, channel_directory.json,
+#           context_length_cache.yaml, models_dev_cache.json,
+#           .skills_prompt_snapshot.json, logs/
+#   Build: build-context, bib-cache, all but newest build-driver-*.log
+#   Chrome flatpak: cache/, GPUCache/, ShaderCache/, Code Cache/
+#                   (preserves prefs, bookmarks, history)
+#   /var/tmp: entries older than 1 day
+#   /tmp: only MiOS-stamped throwaway files
+#
+# --dry-run: print what would be deleted, don't actually delete
+# --all:     also wipe Chrome history/prefs (NOT default; user data loss)
+
+set -u
+
+DRY_RUN=0
+ALL=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --dry-run|-n) DRY_RUN=1 ;;
+        --all)        ALL=1 ;;
+        -h|--help)
+            sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'
+            exit 0 ;;
+        *) echo "mios-cache-clear: unknown arg: $1" >&2; exit 1 ;;
+    esac
+    shift
+done
+
+ok()    { printf "  ✓  %s\n" "$*"; }
+note()  { printf "     %s\n" "$*"; }
+sec()   { printf "\n── %s ──\n" "$*"; }
+size()  { du -sh "$1" 2>/dev/null | cut -f1 || echo "?"; }
+do_rm() {
+    if [ "$DRY_RUN" = "1" ]; then
+        note "(dry-run) would: rm -rf $*"
+    else
+        rm -rf "$@" 2>/dev/null || true
+    fi
+}
+do_find_delete() {
+    # $1=path; $2=-name pattern; remaining=extra find args
+    local path="$1" pattern="$2"; shift 2
+    if [ "$DRY_RUN" = "1" ]; then
+        find "$path" -mindepth 1 -name "$pattern" "$@" 2>/dev/null | head -5 | \
+            sed 's/^/     (dry-run) would delete: /'
+    else
+        find "$path" -mindepth 1 -name "$pattern" "$@" -delete 2>/dev/null || true
+    fi
+}
+
+[ "$DRY_RUN" = "1" ] && echo "*** DRY RUN: nothing will be deleted ***"
+
+if [ "$(id -u)" -ne 0 ]; then
+    if ! sudo -n true 2>/dev/null; then
+        echo "mios-cache-clear: needs root or non-interactive sudo" >&2
+        exit 1
+    fi
+    exec sudo -n -E "$0" "$@"
+fi
+
+sec "1. stop services holding cache locks"
+for svc in hermes-agent.service mios-open-webui.service; do
+    if systemctl is-active --quiet "$svc" 2>/dev/null; then
+        [ "$DRY_RUN" = "0" ] && systemctl stop "$svc" 2>/dev/null
+        ok "stopped $svc"
+    fi
+done
+
+sec "2. Hermes-Agent state (preserve config.yaml, SOUL.md, .env, skills/, hooks/, bin/, cron/)"
+for h in /var/lib/mios/hermes /var/home/mios/.hermes /home/mios/.hermes; do
+    [ -d "$h" ] || continue
+    note "$h before: $(size "$h")"
+    # contents of these dirs (preserve dir itself):
+    for d in sessions cache .cache memories plans logs; do
+        [ -d "$h/$d" ] && do_find_delete "$h/$d" '*'
+    done
+    # specific files:
+    for f in response_store.db response_store.db-shm response_store.db-wal \
+             kanban.db kanban.db-shm kanban.db-wal \
+             processes.json channel_directory.json \
+             context_length_cache.yaml models_dev_cache.json \
+             .skills_prompt_snapshot.json auth.lock \
+             gateway.lock gateway.pid gateway_state.json; do
+        [ -f "$h/$f" ] && do_rm "$h/$f"
+    done
+    note "$h after:  $(size "$h")"
+    ok "$h cleaned (config.yaml, SOUL.md, skills/, .env, cron/, hooks/, bin/ preserved)"
+done
+
+sec "3. Open WebUI (PRESERVE: user, auth, model, group, function, tool, api_key, oauth_session)"
+OWUI_DB=/var/lib/mios/open-webui/webui.db
+if [ -f "$OWUI_DB" ]; then
+    note "$OWUI_DB before: $(size "$OWUI_DB")"
+    if [ "$DRY_RUN" = "1" ]; then
+        note "(dry-run) would DELETE FROM: chat, chat_file, chat_message, chatidtag,"
+        note "                              message, message_reaction, knowledge,"
+        note "                              knowledge_file, memory, feedback, prompt,"
+        note "                              prompt_history, shared_chat, pinned_note,"
+        note "                              channel_file, channel_member, channel_webhook,"
+        note "                              automation_run, calendar_event, calendar_event_attendee,"
+        note "                              calendar, tag"
+        note "                  PRESERVE: user, auth, group, group_member, model, function,"
+        note "                            tool, api_key, oauth_session, channel"
+    else
+        python3 - <<EOF
+import sqlite3
+DB = "$OWUI_DB"
+WIPE = (
+    "chat", "chat_file", "chat_message", "chatidtag",
+    "message", "message_reaction",
+    "knowledge", "knowledge_file", "memory",
+    "feedback", "prompt", "prompt_history",
+    "shared_chat", "pinned_note",
+    "channel_file", "channel_member", "channel_webhook",
+    "automation_run", "calendar_event", "calendar_event_attendee", "calendar",
+    "tag",
+)
+# NEVER touch: user, auth, group, group_member, model, function, tool,
+#              api_key, oauth_session, channel  (these are config/identity)
+conn = sqlite3.connect(DB)
+cur = conn.cursor()
+total = 0
+for t in WIPE:
+    try:
+        n = cur.execute(f"DELETE FROM {t}").rowcount
+        if n > 0: print(f"     - {t}: {n} rows")
+        total += n
+    except sqlite3.OperationalError:
+        pass
+conn.commit()
+cur.execute("VACUUM")
+conn.commit(); conn.close()
+print(f"     -- {total} rows deleted; user/auth/model rows preserved")
+EOF
+    fi
+    note "$OWUI_DB after:  $(size "$OWUI_DB")"
+fi
+for d in /var/lib/mios/open-webui/cache /var/lib/mios/open-webui/vector_db /var/lib/mios/open-webui/uploads; do
+    [ -d "$d" ] || continue
+    note "$d before: $(size "$d")"
+    do_find_delete "$d" '*'
+    note "$d after:  $(size "$d")"
+done
+
+sec "4. /tmp + /var/tmp (only MiOS-stamped + stale entries)"
+for pat in 'mios-*' 'mios_*' 'cac.sh' 'fa.sh' 'fp.sh' 'nd.sh' 'sa.sh' 'sp.sh' 'rq.sh' 'sm.sh' 'sv.sh'; do
+    do_find_delete /tmp "$pat" -mindepth 1
+done
+do_find_delete /var/tmp '*' -mtime +0
+ok "/tmp + /var/tmp cleared (only MiOS-stamped + >1 day old)"
+
+sec "5. build artifacts (preserve newest build log)"
+[ -d /var/lib/mios/build/build-context ] && { note "build-context: $(size /var/lib/mios/build/build-context)"; do_rm /var/lib/mios/build/build-context; ok "cleared build-context"; }
+[ -d /var/lib/mios/build/bib-cache    ] && { note "bib-cache: $(size /var/lib/mios/build/bib-cache)";       do_rm /var/lib/mios/build/bib-cache; ok "cleared bib-cache"; }
+keep=$(ls -1tr /var/log/mios/build-driver-*.log 2>/dev/null | tail -1)
+deleted=0
+for f in /var/log/mios/build-driver-*.log; do
+    [ -e "$f" ] || continue
+    [ "$f" = "$keep" ] && continue
+    if [ "$DRY_RUN" = "1" ]; then
+        note "(dry-run) would delete: $f"
+    else
+        rm -f "$f"
+    fi
+    deleted=$((deleted + 1))
+done
+[ -n "$keep" ] && ok "kept newest log ($(basename "$keep")), deleted $deleted older"
+
+sec "6. Chrome flatpak caches (preserve prefs/bookmarks/history)"
+CHR=/var/home/mios/.var/app/com.google.ChromeDev
+if [ -d "$CHR" ]; then
+    note "Chrome data before: $(size "$CHR")"
+    for sub in cache "config/google-chrome-mios/Cache" \
+               "config/google-chrome-mios/Code Cache" \
+               "config/google-chrome-mios/GPUCache" \
+               "config/google-chrome-mios/ShaderCache" \
+               "config/google-chrome-unstable/Cache" \
+               "config/google-chrome-unstable/Code Cache" \
+               "config/google-chrome-unstable/GPUCache" \
+               "config/google-chrome-unstable/ShaderCache"; do
+        [ -d "$CHR/$sub" ] && do_find_delete "$CHR/$sub" '*'
+    done
+    if [ "$ALL" = "1" ]; then
+        # --all also wipes history + cookies (operator-explicit data loss)
+        for sub in "config/google-chrome-mios/Default/Cookies"* \
+                   "config/google-chrome-mios/Default/History"*; do
+            [ -e "$CHR/$sub" ] && do_rm "$CHR/$sub"
+        done
+        ok "--all: also cleared history + cookies"
+    fi
+    note "Chrome data after:  $(size "$CHR")"
+fi
+
+sec "7. restart services"
+[ "$DRY_RUN" = "0" ] && systemctl daemon-reload
+for svc in hermes-agent.service mios-open-webui.service; do
+    if [ "$DRY_RUN" = "1" ]; then
+        note "(dry-run) would: systemctl start $svc"
+    else
+        systemctl start "$svc" 2>/dev/null
+    fi
+done
+[ "$DRY_RUN" = "0" ] && sleep 5
+for svc in hermes-agent.service mios-open-webui.service; do
+    if [ "$DRY_RUN" = "0" ]; then
+        ok "$svc: $(systemctl is-active "$svc")"
+    fi
+done
+
+echo
+echo "════════════════════════════════════════════════════════════════"
+if [ "$DRY_RUN" = "1" ]; then
+    echo "  DRY RUN complete. Re-run without --dry-run to actually delete."
+else
+    echo "  Cache + temp wipe complete."
+    echo "  Preserved: configs, SOUL.md, skills, ollama models, OWUI users +"
+    echo "             auth + models + functions + tools, cron jobs, latest"
+    echo "             build log, Chrome bookmarks/prefs."
+fi
+echo "════════════════════════════════════════════════════════════════"
