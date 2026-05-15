@@ -304,6 +304,12 @@ elif ! grep -qE '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # model. Rewrite to add delegation: + swap auxiliary models.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing delegation block (multi-agent parallelism)"
+elif ! grep -qE '^approvals:' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Config predates the autonomy alignment -- without explicit
+    # approvals.mode=auto the agent pauses for per-call approval,
+    # making the broad sudo grant + multi-agent delegation pointless.
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- missing approvals/autonomy block"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
@@ -445,6 +451,56 @@ delegation:
   inherit_mcp_toolsets: true
   orchestrator_enabled: true
   subagent_auto_approve: true       # operator-authorized broad sudo grant covers self-spawned children
+
+# Agent autonomy. Hermes's default approvals.mode = "manual" gates
+# EVERY tool call behind a per-call operator OK -- which makes the
+# whole stack we've built incoherent:
+#   * the operator-authorized broad sudo grant for mios-hermes
+#     (/etc/sudoers.d/10-mios-hermes) is wasted if every sudo call
+#     still pauses for click-to-approve,
+#   * delegation.subagent_auto_approve: true above is meaningless if
+#     the parent's tool calls (which is what spawns delegates) still
+#     need approval,
+#   * Open WebUI chat becomes a per-call clicking grind with no agent.
+# auto = tool calls execute without per-call prompts. Destructive
+# slash commands (/reset, /delete) still confirm, MCP reloads still
+# confirm, cron-triggered runs are denied (the operator must launch
+# cron jobs explicitly). To revoke autonomy: switch to "manual" here,
+# or simply delete /etc/sudoers.d/10-mios-hermes (which then trips
+# the build driver's privilege preflight too -- belt + suspenders).
+approvals:
+  mode: auto
+  timeout: 60
+  cron_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+
+# Tool-loop guardrails. The agent can loop forever on bad tool calls;
+# hard_stop_enabled aborts after N consecutive same-kind failures so
+# a stuck delegate doesn't burn the whole agent budget. Thresholds
+# match the upstream-recommended wizard defaults.
+tool_loop_guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: true
+  warn_after:
+    exact_failure: 2
+    same_tool_failure: 3
+    idempotent_no_progress: 2
+  hard_stop_after:
+    exact_failure: 5
+    same_tool_failure: 8
+    idempotent_no_progress: 5
+
+# Sessions: prune old sessions automatically. Keeps $HERMES_HOME clean
+# without manual `hermes session prune` after every long-running build
+# leaves a fat session file behind. retention_days=30 is a reasonable
+# window; the operator can `mios hermes wipe` (TODO future verb) for
+# a hard reset.
+sessions:
+  auto_prune: true
+  retention_days: 30
+  vacuum_after_prune: true
+  min_interval_hours: 24
 EOF
     umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
