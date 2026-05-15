@@ -649,6 +649,16 @@ else
 
     BIB_OK=()
     BIB_FAIL=()
+    # `cd /` -- LOAD-BEARING. The BIB loop below does `sudo podman run`
+    # for each format. conmon (podman's container monitor) does a
+    # double-fork and then a `getcwd()` of its own; if the inherited CWD
+    # is the build-context dir (which sudo'd-root may not be able to
+    # read in its elevated mount/namespace context), conmon fails with
+    # "[conmon:e]: Failed to get working directory" / "Error: conmon
+    # failed: exit status 1" -- and EVERY BIB format dies instantly
+    # before BIB itself even runs (operator-confirmed 2026-05-14).
+    # `/` is always present and always accessible to root.
+    cd /
     for fmt in $BIB_FORMATS; do
         # toml field names use underscores (target_anaconda_iso); BIB
         # --type uses hyphens (anaconda-iso). Translate.
