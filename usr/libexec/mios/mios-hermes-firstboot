@@ -358,10 +358,18 @@ custom_providers:
 # and silently drops context-compression summaries. Map every one at
 # the same on-box Ollama provider so the agent is fully self-contained.
 auxiliary:
+  # compression EXCEPTION: must have >=64K context window or Hermes
+  # refuses to start chat completions ("Auxiliary compression model X
+  # has a context window of N tokens, which is below the minimum
+  # 64,000 required by Hermes Agent" -- operator-confirmed 2026-05-15).
+  # qwen3:1.7b is 40K so it fails this check; route compression to the
+  # main big model (128K context). Compression fires only when the
+  # context fills up -- infrequent, GPU is fine for it. All OTHER
+  # auxiliary services stay on qwen3:1.7b for CPU parallelism.
   compression:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: ${_AI_MODEL_RESOLVED}
   session_search:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
