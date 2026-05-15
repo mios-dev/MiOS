@@ -158,7 +158,23 @@ RUN --network=host set -eux; \
         fi; \
     done; \
     echo "bound-images: baked=$baked failed=$failed"; \
-    test "$failed" -eq 0
+    test "$failed" -eq 0; \
+    \
+    # additionalimagestores must be world-READABLE (the host shares this \
+    # store with every unprivileged user via /etc/containers/storage.conf's \
+    # additionalimagestores entry). podman pull's defaults leave the per- \
+    # backend subdirs (overlay-images, overlay-containers, overlay-layers, \
+    # libpod) at mode 0700, which makes them root-only -- every unprivileged \
+    # podman invocation (flatpak shim, `mios` operator shell, anything that \
+    # transitively forks podman) then dies with: \
+    #   "configure storage: open .../overlay-images/images.lock: \
+    #    permission denied" \
+    # Operator-confirmed 2026-05-15: this regression killed the epiphany \
+    # flatpak launch ("flatpaks opened fine before!!!"), and any other \
+    # tool that touches podman from a non-root user. chmod -R go+rX after \
+    # the bake so future builds ship a usable additional store. \
+    echo "bound-images: chmod -R go+rX /usr/lib/containers/storage (additionalimagestores must be world-readable)"; \
+    chmod -R go+rX /usr/lib/containers/storage
 
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
