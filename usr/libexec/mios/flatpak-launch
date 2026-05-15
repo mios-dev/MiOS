@@ -94,26 +94,48 @@ if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
     [ -z "$_op_user" ] && _op_user="mios"
     if id -u "$_op_user" >/dev/null 2>&1; then
         _op_uid="$(id -u "$_op_user")"
-        # Carry the bits flatpak needs even if they were missing in our env.
-        # The operator's user@$uid.service publishes XDG_RUNTIME_DIR -> bus
-        # at a stable path; reuse it.
         _op_xdg="/run/user/${_op_uid}"
         _op_dbus="unix:path=${_op_xdg}/bus"
+        _op_home="$(getent passwd "$_op_user" | cut -d: -f6)"
         export _MIOS_FLATPAK_REEXEC=1
-        # `sudo -u <op>` switches uid+gid; -E preserves the env we set on the
-        # cmdline; explicit assignments override anything the operator's PAM
-        # might inject. --preserve-env lets DISPLAY/WAYLAND_DISPLAY survive
-        # the operator's restrictive sudo defaults.
-        exec sudo -n -u "$_op_user" \
-                  --preserve-env=DISPLAY,WAYLAND_DISPLAY,PULSE_SERVER,_MIOS_FLATPAK_REEXEC \
-                  env XDG_RUNTIME_DIR="$_op_xdg" \
-                      DBUS_SESSION_BUS_ADDRESS="$_op_dbus" \
-                      HOME="$(getent passwd "$_op_user" | cut -d: -f6)" \
-                      /usr/libexec/mios/flatpak-launch "$APP_ID" "$@"
+        # KEY POINT: `sudo -u <op>` alone is NOT enough. It changes uid+gid
+        # but INHERITS the parent's mount namespace -- and the parent here
+        # is hermes-agent.service, which has ProtectSystem=strict. That
+        # namespace makes /var/home read-only, so the flatpak's first
+        # `mkdir(/var/home/<op>/.var/app/<id>)` dies with "Read-only file
+        # system" (operator-confirmed 2026-05-15 journal: nautilus failed
+        # 0.24s into the agent's terminal call with that exact errno).
+        # Same fix as mios-build-driver's namespace escape: route through
+        # `systemd-run --pipe --wait` so PID 1 forks the unit FRESH outside
+        # the agent's namespace, with PID 1's default mount view (the host's
+        # writable /var/home). --uid=<op> sets the unit user; --setenv
+        # carries DISPLAY/WAYLAND_DISPLAY/etc. inside the new namespace.
+        # If systemd-run is unavailable (atypical install), fall back to
+        # plain sudo -- works on bare-metal where ProtectSystem isn't a
+        # factor, breaks honestly inside the agent.
+        if command -v systemd-run >/dev/null 2>&1; then
+            exec sudo -n systemd-run \
+                --pipe --wait --collect --quiet \
+                --uid="$_op_user" \
+                --setenv=HOME="$_op_home" \
+                --setenv=XDG_RUNTIME_DIR="$_op_xdg" \
+                --setenv=DBUS_SESSION_BUS_ADDRESS="$_op_dbus" \
+                --setenv=DISPLAY="${DISPLAY:-:0}" \
+                --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
+                --setenv=PULSE_SERVER="${PULSE_SERVER:-}" \
+                --setenv=_MIOS_FLATPAK_REEXEC=1 \
+                /usr/libexec/mios/flatpak-launch "$APP_ID" "$@"
+        else
+            exec sudo -n -u "$_op_user" \
+                --preserve-env=DISPLAY,WAYLAND_DISPLAY,PULSE_SERVER,_MIOS_FLATPAK_REEXEC \
+                env XDG_RUNTIME_DIR="$_op_xdg" \
+                    DBUS_SESSION_BUS_ADDRESS="$_op_dbus" \
+                    HOME="$_op_home" \
+                    /usr/libexec/mios/flatpak-launch "$APP_ID" "$@"
+        fi
     fi
     # If we get here the operator user doesn't exist (atypical install) --
-    # fall through and let flatpak fail with whatever its own error is, so
-    # the operator at least sees the real misconfiguration.
+    # fall through and let flatpak fail with whatever its own error is.
 fi
 
 # Step 1 ── WSL detection. /proc/version is namespace-stable.
