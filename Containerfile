@@ -112,6 +112,49 @@ RUN bootc completion bash > /etc/bash_completion.d/bootc
 #
 # RUN --mount=type=bind,from=ctx,source=/ctx/tools,target=/ctx/tools,ro \
 #     bash /ctx/tools/mios-sysext-pack.sh /usr/lib/extensions/source-*
+
+# ── Bake logically-bound images (ARCHITECTURAL LAW 3 -- BOUND-IMAGES) ────────
+# automation/08 symlinked every Quadlet into /usr/lib/bootc/bound-images.d/,
+# which makes `bootc install` REQUIRE each Quadlet's Image= to already be
+# present in container storage. Nothing was actually pulling them, so
+# BIB/osbuild's bootc.install-to-filesystem stage failed EVERY deployment
+# artifact with: "resolving bound image docker.io/crowdsecurity/crowdsec
+# :latest ...: does not resolve to an image ID" (operator-confirmed
+# 2026-05-14). This RUN is the missing bake step.
+#
+# Pull each bound image into /usr/lib/containers/storage -- an additional
+# image store in IMMUTABLE /usr. It MUST live under /usr, not /var: the
+# big RUN above ends with `find /var ... -exec rm -rf` (bootc treats /var
+# as ephemeral), so /var/lib/containers/storage would be wiped. The
+# storage.conf layers (/etc + /usr/share) list /usr/lib/containers/storage
+# under additionalimagestores, so bootc install AND the running system
+# resolve bound images from it with ZERO runtime pulls.
+#
+# --network=host: podman needs registry egress (same reason the big RUN
+# above and `mios build`'s `podman build` use it on the WSL2 dev VM).
+# Image= values are already rendered by 15-render-quadlets (run inside
+# build.sh, above); the ${VAR:-default} fallback form is resolved here
+# defensively. Any bound image that fails to bake fails the build LOUD --
+# better than shipping an image whose every deployment artifact 404s.
+RUN --network=host set -eux; \
+    install -d -m 0755 /usr/lib/containers/storage; \
+    baked=0; failed=0; \
+    for q in /usr/lib/bootc/bound-images.d/*.container; do \
+        [ -e "$q" ] || continue; \
+        img="$(sed -n 's/^Image=//p' "$q" | head -1 | tr -d ' \r')"; \
+        img="$(printf '%s' "$img" | sed -E 's/\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}/\1/g')"; \
+        [ -n "$img" ] || continue; \
+        case "$img" in *'$'*) echo "SKIP unrendered Image=$img ($q)"; continue ;; esac; \
+        echo "bound-image: baking $img"; \
+        if podman --root /usr/lib/containers/storage pull "$img"; then \
+            baked=$((baked + 1)); \
+        else \
+            echo "ERROR: failed to bake bound image $img"; failed=$((failed + 1)); \
+        fi; \
+    done; \
+    echo "bound-images: baked=$baked failed=$failed"; \
+    test "$failed" -eq 0
+
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
 RUN bootc container lint
