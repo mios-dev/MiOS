@@ -207,7 +207,39 @@ case "$sub" in
         # Windows process alive after this script returns; the wrapper just
         # has to not block on it.
         setsid nohup "$target" "$@" >/dev/null 2>&1 < /dev/null &
-        echo "[mios-windows] launched: $target $* (detached, pid $!)"
+        spawn_pid=$!
+        echo "[mios-windows] launched: $target $* (detached, pid $spawn_pid)"
+
+        # The launch creates the process in the operator's interactive
+        # session (Windows session 1, confirmed via Get-Process | Where
+        # SessionId), but DOES NOT auto-focus the new window: the
+        # launching shell isn't a Windows foreground app, so the new
+        # window opens behind whatever the operator was looking at.
+        # Operator-confirmed regression 2026-05-15: "nothing opened--
+        # tools are useless and do not work at all". Window WAS open,
+        # just buried.
+        #
+        # Fix: invoke the foreground helper via PowerShell, passing the
+        # bare process name. Backgrounded so the launch wrapper still
+        # returns ~immediately. Best-effort; if PowerShell isn't
+        # reachable or the process already exited (notepad-style
+        # single-instance reuse), the foreground call is a no-op.
+        if [ -x "$PWSH" ]; then
+            FOREGROUND_PS1="/usr/share/mios/windows/mios-window-foreground.ps1"
+            if [ -f "$FOREGROUND_PS1" ]; then
+                # Translate the Linux path to the WSL UNC form Windows can read:
+                # /usr/share/... -> \\wsl.localhost\<distro>\usr\share\...
+                # Use wslpath -w to convert (handles the distro-name lookup
+                # automatically; falls back to a hardcoded distro guess if
+                # wslpath isn't available).
+                if win_ps1="$(wslpath -w "$FOREGROUND_PS1" 2>/dev/null)"; then
+                    bare="$(basename "$target" .exe)"
+                    nohup "$PWSH" -NoProfile -NonInteractive \
+                        -ExecutionPolicy Bypass -File "$win_ps1" \
+                        -ProcessName "$bare" >/dev/null 2>&1 < /dev/null &
+                fi
+            fi
+        fi
         ;;
     ps|powershell)
         if [ "$#" -lt 1 ]; then
