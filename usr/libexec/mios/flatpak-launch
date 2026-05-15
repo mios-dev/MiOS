@@ -83,6 +83,23 @@ shift || true
 # the sudo escalation ever lands back in a service user (it shouldn't, but
 # belt and suspenders).
 _FL_REEXEC="${_MIOS_FLATPAK_REEXEC:-0}"
+
+# WSLg path: when on WSL2, prefer mios-as-operator over systemd-run
+# --uid because systemd-run-launched processes don't get
+# WSL2_GUI_APPS_ENABLED + WSL_INTEROP set, which means the WSLg
+# compositor bridge can't bootstrap the launched flatpak's wayland
+# surface. mios-as-operator re-execs through `wsl.exe --user <op>`
+# which DOES bootstrap WSLg's full env (operator-confirmed
+# regression 2026-05-15: epiphany flatpak crashed with
+# "--env-fd: Not an open file descriptor: 13" via systemd-run path
+# but worked correctly via wsl.exe --user mios path).
+if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ] \
+   && [ -e /mnt/c/Windows/System32/wsl.exe ] \
+   && [ -x /usr/libexec/mios/mios-as-operator ]; then
+    export _MIOS_FLATPAK_REEXEC=1
+    exec /usr/libexec/mios/mios-as-operator flatpak run --system "$APP_ID" "$@"
+fi
+
 if [ "$_FL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
     # Resolve operator UID/name from mios.toml's identity.username (default
     # 'mios'); fall back to whatever uid 1000 exists if username lookup fails

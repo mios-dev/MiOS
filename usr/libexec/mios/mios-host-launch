@@ -53,6 +53,18 @@ fi
 # service user (uid < 1000), re-exec via systemd-run into the
 # operator's real session so DISPLAY/WAYLAND_DISPLAY/DBUS work.
 _HL_REEXEC="${_MIOS_HOST_LAUNCH_REEXEC:-0}"
+
+# WSLg path: prefer mios-as-operator (wsl.exe --user) over systemd-run
+# for the same reason as flatpak-launch -- only the WSL-login route
+# bootstraps WSL2_GUI_APPS_ENABLED + WSL_INTEROP, without which
+# flatpak portals + some host GUI apps fail to surface.
+if [ "$_HL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ] \
+   && [ -e /mnt/c/Windows/System32/wsl.exe ] \
+   && [ -x /usr/libexec/mios/mios-as-operator ]; then
+    export _MIOS_HOST_LAUNCH_REEXEC=1
+    exec /usr/libexec/mios/mios-as-operator "$BIN" "$@"
+fi
+
 if [ "$_HL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
     _op_user=""
     if [ -r /usr/share/mios/mios.toml ]; then

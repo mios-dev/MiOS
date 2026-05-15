@@ -1,0 +1,95 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-as-operator <command> [args...]
+#
+# Re-exec a command as the operator user IN A REAL WSL LOGIN SESSION
+# so launched GUI apps inherit WSLg's full env (WAYLAND_DISPLAY,
+# WSL2_GUI_APPS_ENABLED=1, WSL_INTEROP=/run/WSL/<pid>_interop, the
+# operator's user@1000.service bus). This is the missing piece for
+# launching flatpak GUI apps from the agent's restricted service-user
+# context: systemd-run --uid=mios sets the uid but doesn't establish
+# a WSL login session, so WSL2_GUI_APPS_ENABLED + WSL_INTEROP stay
+# unset and the flatpak portal-helper can't bootstrap (epiphany +
+# similar fail with "--env-fd: Not an open file descriptor: 13" and
+# "Connection: failed to receive credentials"; operator-confirmed
+# regression 2026-05-15).
+#
+# Mechanism: wsl.exe is reachable from inside the WSL distro via /init
+# interop. Calling `wsl.exe -d <distro> --user <op> -- <cmd>` spins up
+# a fresh login shell on the operator's behalf with the full WSLg env
+# bootstrapped by the WSL service. The launched command keeps running
+# detached after wsl.exe returns.
+#
+# Usage:
+#   mios-as-operator flatpak run org.gnome.Epiphany https://...
+#   mios-as-operator gnome-software
+#   mios-as-operator <any-command-that-needs-the-operator-WSLg-session>
+#
+# Operator user is read from mios.toml [identity].username (default mios).
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat <<'USAGE'
+usage: mios-as-operator <command> [args...]
+
+Re-exec <command> as the operator user inside a real WSL login session
+so it inherits the full WSLg env (Wayland, interop, user-bus). Use
+this for GUI launches that need the operator's display surface (most
+flatpaks, all native GUI apps).
+
+The launched command runs DETACHED -- this script returns ~immediately
+after dispatching it.
+USAGE
+    exit 0
+fi
+
+# Resolve operator user from mios.toml [identity].username.
+_op_user=""
+if [ -r /usr/share/mios/mios.toml ]; then
+    _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+fi
+[ -z "$_op_user" ] && _op_user="mios"
+
+# Resolve WSL distro name. Priority:
+#   1. $WSL_DISTRO_NAME env (set by WSL itself when present in any
+#      shell that came in through interop -- absent in service-user
+#      contexts that didn't go through wsl.exe entry)
+#   2. /etc/mios/wsl-distro file (operator-managed pin)
+#   3. wsl.exe -l (parsed for the running distro on this host)
+#   4. fallback default for the canonical MiOS-DEV layout
+WSL_DISTRO=""
+if [ -n "${WSL_DISTRO_NAME:-}" ]; then
+    WSL_DISTRO="$WSL_DISTRO_NAME"
+elif [ -r /etc/mios/wsl-distro ]; then
+    WSL_DISTRO="$(tr -d '\r\n' < /etc/mios/wsl-distro)"
+fi
+if [ -z "$WSL_DISTRO" ] && [ -e /mnt/c/Windows/System32/wsl.exe ]; then
+    # wsl.exe -l --quiet (no headers, just distro names; first line == default).
+    # The output is UTF-16; strip nulls + CRs to get a clean ASCII line.
+    WSL_DISTRO="$(/mnt/c/Windows/System32/wsl.exe -l --quiet 2>/dev/null | tr -d '\0\r' | head -1 | sed 's/[[:space:]]*$//')"
+fi
+[ -z "$WSL_DISTRO" ] && WSL_DISTRO="podman-MiOS-DEV"
+WSL_EXE="/mnt/c/Windows/System32/wsl.exe"
+if [ ! -e "$WSL_EXE" ]; then
+    echo "mios-as-operator: $WSL_EXE not found -- not running on WSL2?" >&2
+    exit 1
+fi
+
+# Quote the command + args for transport through wsl.exe -- bash -lc.
+# Each arg gets wrapped in single quotes with embedded single quotes
+# escaped. Defensive: never assume the agent passed safe arg shapes.
+_quote() {
+    printf "'"
+    printf '%s' "$1" | sed "s/'/'\\\\''/g"
+    printf "'"
+}
+quoted=""
+for arg in "$@"; do
+    quoted="${quoted} $(_quote "$arg")"
+done
+
+# Detached invocation: wsl.exe with -- nohup setsid <cmd>. The wsl
+# process itself returns once the inner shell forks; the inner
+# command keeps running with a real WSL session attached.
+exec "$WSL_EXE" -d "$WSL_DISTRO" --user "$_op_user" -- \
+    bash -lc "nohup setsid${quoted} >/tmp/mios-as-operator.log 2>&1 < /dev/null &" \
+    >/dev/null 2>&1
