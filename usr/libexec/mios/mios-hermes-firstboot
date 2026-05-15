@@ -526,18 +526,55 @@ fi
 # Resolve the operator from mios.toml [identity].username; this is a
 # plain copy of the gateway config -- one SSOT, two consumers.
 #
-# Re-seed conditions mirror the gateway: missing, OR carries the
-# broken `hermes setup` wizard value (https://0.0.0.0:11434/v1), OR
-# the gateway config was just (re)written this run (_should_seed=1).
+# Re-seed conditions:
+#   1. file missing
+#   2. carries the broken `hermes setup` wizard placeholder
+#      (0.0.0.0:11434 / 127.0.0.1:11434 / https://localhost without TLS)
+#   3. the gateway config was just (re)written this run (_should_seed=1)
+#   4. fails YAML parse (corrupted / hand-edited badly)
+#   5. missing critical top-level schema keys (model:, auxiliary:, delegation:) --
+#      stock `hermes setup` writes a minimal stub that drops every MiOS
+#      customisation, then Hermes falls back to default config and the
+#      operator's TUI session has no auxiliary lanes, no delegation, no
+#      reasoning_effort, etc. (operator-confirmed 2026-05-15: setup wizard
+#      replaced /var/home/mios/.hermes/config.yaml with a 69-line stub
+#      after a YAML parse error; Hermes then ignored every MiOS override).
+#
 # Operator customisation that must survive belongs in mios.toml, not
-# hand-edits to this generated file.
+# hand-edits to this generated file. To take ownership of the operator
+# CLI config, edit it AND remove the file's "MiOS-managed" marker
+# comment -- firstboot then leaves it alone.
 _op_user="$(_mios_toml_value 'identity' 'username' 'mios')"
 _op_home="$(getent passwd "$_op_user" 2>/dev/null | cut -d: -f6)"
+_op_cfg_should_reseed() {
+    local f="$1"
+    [[ ! -f "$f" ]] && return 0
+    grep -qE '0\.0\.0\.0:11434|127\.0\.0\.1:11434|https://localhost:11434' "$f" 2>/dev/null && return 0
+    [[ "$_should_seed" -eq 1 ]] && return 0
+    # YAML parse + minimum-schema check via python3 (Hermes itself bundles python).
+    python3 - "$f" <<'EOF' 2>/dev/null || return 0
+import sys, yaml
+p = sys.argv[1]
+try:
+    with open(p) as fh:
+        d = yaml.safe_load(fh) or {}
+except Exception:
+    sys.exit(2)
+if not isinstance(d, dict):
+    sys.exit(2)
+# Critical MiOS-managed top-level keys -- if any are missing the file is
+# probably a stock-wizard stub that dropped our customisations.
+for k in ("model", "auxiliary", "delegation", "approvals", "agent"):
+    if k not in d:
+        sys.exit(3)
+sys.exit(0)
+EOF
+    return 1
+}
 if [[ -n "$_op_home" && -d "$_op_home" ]]; then
     _op_cfg_dir="${_op_home}/.hermes"
     _op_cfg="${_op_cfg_dir}/config.yaml"
-    if [[ ! -f "$_op_cfg" ]] || grep -q '0\.0\.0\.0:11434' "$_op_cfg" 2>/dev/null \
-       || [[ "$_should_seed" -eq 1 ]]; then
+    if _op_cfg_should_reseed "$_op_cfg"; then
         mkdir -p "$_op_cfg_dir"
         cp -f "$HERMES_DATA_CFG" "$_op_cfg"
         chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
