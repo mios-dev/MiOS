@@ -242,6 +242,51 @@ fi
 # Architectural Law 5 (UNIFIED-AI-REDIRECTS): the agent loop stays
 # fully local -- custom_providers[local-ollama] points at the on-box
 # Ollama OpenAI surface, no cloud calls.
+# ─── Auto-recover Hermes-Agent venv if missing ───────────────────────
+# automation/38-hermes-agent.sh installs Hermes-Agent directly onto
+# the host (NOT a container) at /usr/lib/mios/hermes-agent/.venv. That
+# script runs at OCI build time. But:
+#   * stale OCI images pre-2026-05 don't have it baked in
+#   * if the build-time install failed silently (network, PyPI hiccup),
+#     the venv won't be there post-install either
+# In both cases hermes-agent.service silently no-ops at boot via:
+#   ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+# and the operator gets a "Hermes won't work" surprise hours later.
+#
+# Detect the missing venv here and re-run the installer if we can find
+# it. The installer is itself idempotent + safe to re-run -- worst case
+# it re-pulls + re-installs the package. Operator-confirmed regression
+# 2026-05-15: fresh MiOS install came up with hermes-agent inactive
+# because the build never installed the venv.
+if [[ ! -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
+    _hermes_installer=""
+    for _c in /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh \
+              /opt/mios-bootstrap/automation/38-hermes-agent.sh \
+              "${MIOS_BOOTSTRAP_REPO:-}/automation/38-hermes-agent.sh" \
+              /mnt/m/automation/38-hermes-agent.sh; do
+        [[ -n "$_c" && -x "$_c" ]] && { _hermes_installer="$_c"; break; }
+    done
+    if [[ -n "$_hermes_installer" ]]; then
+        _log "hermes-agent venv missing -- running $_hermes_installer to recover"
+        bash "$_hermes_installer" 2>&1 | sed 's/^/  /' \
+            | while IFS= read -r _line; do _log "$_line"; done || \
+            _log "WARN: hermes-agent installer exited non-zero"
+        if [[ -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
+            _log "hermes-agent venv installed; daemon-reload + start the service"
+            systemctl daemon-reload || true
+            systemctl restart hermes-agent.service 2>&1 | sed 's/^/  /' \
+                | while IFS= read -r _line; do _log "$_line"; done || true
+        else
+            _log "WARN: installer ran but venv still absent at /usr/lib/mios/hermes-agent/.venv/bin/hermes"
+        fi
+    else
+        _log "WARN: hermes-agent venv missing AND no installer found in any candidate path"
+        _log "  candidates checked: /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh,"
+        _log "                       /opt/mios-bootstrap/..., \$MIOS_BOOTSTRAP_REPO/..., /mnt/m/..."
+        _log "  manual recovery: run that script as root"
+    fi
+fi
+
 HERMES_DATA=/var/lib/mios/hermes
 HERMES_DATA_CFG="${HERMES_DATA}/config.yaml"
 mkdir -p "$HERMES_DATA"

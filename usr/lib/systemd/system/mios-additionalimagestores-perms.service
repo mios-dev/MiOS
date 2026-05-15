@@ -1,0 +1,43 @@
+[Unit]
+# Enforce world-readable perms on /usr/lib/containers/storage so that
+# unprivileged podman / flatpak / etc. callers can read the additional-
+# image-store baked into the OCI image.
+#
+# Why this exists: the bake step in /Containerfile chmod's the store at
+# OCI build time (commit a85925d, May 2026), but operators on stale
+# pre-fix OCI images don't have that fix in their image. The result is
+# the recurring "configure storage: open ...overlay-images/images.lock:
+# permission denied" symptom that breaks flatpak shims, the operator's
+# `podman info`, and any GUI launch chain. Operator-confirmed regression
+# 2026-05-15 (post-fresh-install on a stale image).
+#
+# This unit runs early in boot (Before=podman-restart.service +
+# Before=hermes-agent.service so anything that touches the store sees
+# correct perms) and is idempotent: chmod -R go+rX is a no-op on
+# already-correct dirs.
+Description=MiOS: enforce world-readable perms on /usr/lib/containers/storage
+DefaultDependencies=no
+After=local-fs.target
+Before=podman-restart.service hermes-agent.service multi-user.target
+ConditionPathIsDirectory=/usr/lib/containers/storage
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/chmod -R go+rX /usr/lib/containers/storage
+RemainAfterExit=yes
+
+# Hardening (this unit only chmods one path).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/usr/lib/containers/storage
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

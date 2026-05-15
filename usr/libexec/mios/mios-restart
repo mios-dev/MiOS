@@ -27,7 +27,7 @@ usage() {
     echo
     echo "shortcuts:"
     echo "  hermes              -> hermes-agent.service (+ drops skill cache)"
-    echo "  ollama              -> mios-ollama.service"
+    echo "  ollama              -> ollama.service       (vendor Quadlet, NOT mios-ollama.service)"
     echo "  open-webui          -> mios-open-webui.service"
     echo "  searxng             -> mios-searxng.service"
     echo "  forge               -> mios-forge.service"
@@ -47,7 +47,14 @@ SVC="$1"
 # Map short names to full unit names. Lowercase + alias-expand.
 case "$SVC" in
     hermes|hermes-agent)            UNIT="hermes-agent.service" ;;
-    ollama)                         UNIT="mios-ollama.service" ;;
+    # ollama Quadlet ships at /usr/share/containers/systemd/ollama.container
+    # (vendor path), so the generated unit is `ollama.service` -- NOT
+    # `mios-ollama.service`. The container itself is named mios-ollama
+    # (set via ContainerName= in the Quadlet) which is misleading. Use
+    # the unit name, not the container name. Operator-confirmed regression
+    # 2026-05-15: `mios-restart ollama` failed with "Unit mios-ollama.
+    # service not found" on a fresh install.
+    ollama)                         UNIT="ollama.service" ;;
     open-webui|owui|webui)          UNIT="mios-open-webui.service" ;;
     searxng|search)                 UNIT="mios-searxng.service" ;;
     forge|forgejo)                  UNIT="mios-forge.service" ;;

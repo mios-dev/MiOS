@@ -7,6 +7,12 @@
 # unblocking VAIL (shared-memory) mode. No-ops on non-WSLg
 # substrates via ConditionPathIsDirectory.
 enable mios-wslg-permissions-fix.service
+# Boot-time chmod -R go+rX on the additionalimagestores under
+# /usr/lib/containers/storage so unprivileged podman / flatpak / etc.
+# can read it. Belt-and-suspenders for stale OCI images that pre-date
+# the Containerfile bake-step chmod (commit a85925d). No-op when perms
+# are already correct.
+enable mios-additionalimagestores-perms.service
 enable sshd.service
 enable NetworkManager.service
 enable podman.socket
