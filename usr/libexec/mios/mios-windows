@@ -1,115 +1,257 @@
 #!/bin/bash
-# /usr/libexec/mios/mios-windows [-e] <powershell-command-or-block>
+# /usr/libexec/mios/mios-windows <subcommand> [args...]
 #
-# Run a PowerShell command on the WINDOWS host (the machine this WSL
-# distro runs inside) via Tailscale SSH. The agent uses this when it
-# needs to do something Windows-side that the WSL VM can't reach:
-# Restart-Service vmcompute, New-NetFirewallRule, Restart-Computer,
-# inspect Hyper-V state, query Get-Process for the host, etc.
+# Reach the Windows host from inside this WSL2 distro. The agent uses
+# this when it needs to launch a Windows app, run a PowerShell command,
+# or otherwise touch the host the WSL VM lives inside.
 #
-# Topology:
-#   agent (WSL) ---> Tailscale (loopback to Windows tailscale IP)
-#               ---> Windows host's Tailscale SSH ---> powershell.exe
+# TWO BACKENDS, ONE FRONTEND
+# ──────────────────────────
 #
-# Auth: handled by Tailscale (your tailnet ACL); no SSH keys to manage,
-# no port-22 hole on the LAN. The Windows node must have Tailscale SSH
-# enabled with `tailscale set --ssh` (one-time, elevated) -- see
-# /usr/share/doc/mios/guides/agent-windows-ssh.md.
+# WSL interop (default; no setup, no SSH, no Tailscale required):
+#   /init -- the program PID 1 inside this WSL2 distro -- transparently
+#   exec's any /mnt/c/.../*.exe directly on the Windows host, with
+#   stdout/stderr piped back into the Linux side. Works for every
+#   GUI app + any non-elevated cmd.exe / powershell.exe one-liner.
 #
-# Elevation: by default, Tailscale SSH runs commands with the Windows
-# user's filtered (non-elevated) token, even when the user is in the
-# Administrators group, because of UAC. For commands that need
-# elevation (Restart-Service, New-NetFirewallRule, registry writes),
-# pass -e / --elevated -- this wraps the command in a Task Scheduler
-# trigger that runs as SYSTEM. NOT YET WIRED -- placeholder.
+# Tailscale SSH (subcommand: `ssh-ps`; opt-in for remote / elevated):
+#   For commands that need to run AS the host's interactive operator
+#   account (not the SYSTEM-context interop spawns), or that need to
+#   reach a different machine on the tailnet, the legacy Tailscale-SSH
+#   path is preserved. Requires Tailscale SSH enabled host-side
+#   (`tailscale set --ssh`); see /etc/mios/windows-host (pinned
+#   tailnet IP) and the [identity] block in mios.toml.
+#
+# OPERATOR DIRECTIVE 2026-05-15
+# ─────────────────────────────
+# "didn't create a skill or tool to use--should be able to ssh in to
+# the hosts' shell environment via loopback (or similar)". The "or
+# similar" turned out to be plain WSL interop -- no SSH needed for
+# the common case (launching notepad, running ipconfig, querying a
+# service status). The Tailscale-SSH path stays for the cases where
+# interop's SYSTEM-spawned context isn't what's wanted.
+#
+# SUBCOMMANDS
+#   launch <app>      Launch a Windows GUI app by short name (notepad,
+#                     explorer, calc, mspaint, snipping-tool, taskmgr,
+#                     regedit, control, cmd, powershell, pwsh) or by
+#                     full /mnt/c/.../*.exe path. Detached; returns
+#                     immediately.
+#
+#   ps "<cmd>"        Run a Windows PowerShell command via interop.
+#                     Output captured + returned. Default PowerShell
+#                     5.1 (System32\WindowsPowerShell\v1.0). Override
+#                     via MIOS_WINDOWS_PWSH=<absolute path> for pwsh 7.
+#
+#   cmd "<cmd>"       Run a Windows cmd.exe command via interop.
+#
+#   ssh-ps [-e] "<cmd>"   Run a PowerShell command via Tailscale SSH
+#                          (preserves the legacy logic for elevated /
+#                          remote-tailnet cases). -e wraps in a
+#                          SYSTEM-level Task Scheduler trigger
+#                          (placeholder; not yet wired).
+#
+#   list              Print known short-name -> .exe mappings.
+#
+#   help              Print this help.
 
 set -eu
 
-# Resolve Windows tailscale IP. Single-tenant dev VM contract: there's
-# exactly one Windows host on the tailnet that this distro runs inside.
-# The IP is stored once in /etc/mios/windows-host (created by
-# mios-hermes-firstboot if Tailscale is detected) so we don't have to
-# re-derive it from /etc/resolv.conf or `ip route` every call.
-WIN_HOST_FILE=/etc/mios/windows-host
-if [ -r "$WIN_HOST_FILE" ]; then
-    WIN_HOST="$(cat "$WIN_HOST_FILE")"
-else
-    # Fallback: use the WSL default gateway (the Windows-side IP from
-    # WSL's perspective). NOT routed via Tailscale, so will skip the
-    # Tailscale ACL/SSH path.
-    WIN_HOST="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
-    if [ -z "$WIN_HOST" ]; then
-        echo "mios-windows: cannot determine Windows host (no $WIN_HOST_FILE, no default gateway)" >&2
-        exit 1
+# Known short-name -> exe mappings (extend as workflow expands).
+declare -A APPS=(
+    [notepad]="/mnt/c/Windows/System32/notepad.exe"
+    [explorer]="/mnt/c/Windows/explorer.exe"
+    [calc]="/mnt/c/Windows/System32/calc.exe"
+    [mspaint]="/mnt/c/Windows/System32/mspaint.exe"
+    [snipping-tool]="/mnt/c/Windows/System32/SnippingTool.exe"
+    [taskmgr]="/mnt/c/Windows/System32/Taskmgr.exe"
+    [regedit]="/mnt/c/Windows/regedit.exe"
+    [control]="/mnt/c/Windows/System32/control.exe"
+    [cmd]="/mnt/c/Windows/System32/cmd.exe"
+    [powershell]="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    [pwsh]="/mnt/c/Program Files/PowerShell/7/pwsh.exe"
+)
+
+PWSH="${MIOS_WINDOWS_PWSH:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+CMD="/mnt/c/Windows/System32/cmd.exe"
+
+usage() {
+    cat <<'USAGE'
+usage: mios-windows <subcommand> [args...]
+
+  launch <app>          Launch a Windows GUI app (interop, detached).
+                        Known: notepad, explorer, calc, mspaint,
+                        snipping-tool, taskmgr, regedit, control, cmd,
+                        powershell, pwsh; or pass a full .exe path.
+
+  ps "<command>"        Run a Windows PowerShell command (interop).
+                        e.g. mios-windows ps 'Get-Service Tailscale | fl'
+                             mios-windows ps 'ipconfig /all | Select-String IPv4'
+
+  cmd "<command>"       Run a Windows cmd.exe command (interop).
+                        e.g. mios-windows cmd 'tasklist /FI "IMAGENAME eq notepad.exe"'
+
+  ssh-ps [-e] "<cmd>"   Run a PowerShell command via Tailscale SSH on the
+                        host (legacy path, for elevated / remote-tailnet).
+                        -e wraps in a SYSTEM Task Scheduler trigger
+                        (placeholder; not yet wired).
+
+  list                  Print short-name -> .exe mappings.
+  help                  This message.
+
+WSL interop is the default backend (no setup; /init handles the cross-
+environment exec). Tailscale SSH stays available as `ssh-ps` for
+elevated commands and reaching other tailnet hosts.
+USAGE
+}
+
+# ─── Tailscale SSH path (legacy; preserved verbatim from prior version) ──
+do_ssh_ps() {
+    local elevated=0
+    if [ "${1:-}" = "-e" ] || [ "${1:-}" = "--elevated" ]; then
+        elevated=1
+        shift
     fi
-fi
+    if [ "$#" -eq 0 ]; then
+        echo "mios-windows ssh-ps: missing <command>" >&2
+        return 64
+    fi
+    local cmd="$*"
 
-# Resolve operator username -- the agent's identity for the SSH session.
-# Tailscale SSH maps from your tailnet identity to a local Windows user
-# per ACL; we just need the Windows username to pass to ssh.
-WIN_USER=""
-if [ -r /usr/share/mios/mios.toml ]; then
-    WIN_USER="$(awk -F\" '/^\s*windows_user\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
-fi
-[ -z "$WIN_USER" ] && WIN_USER="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
-[ -z "$WIN_USER" ] && WIN_USER="$USER"
+    # Resolve Windows tailscale IP. Single-tenant dev VM contract: there's
+    # exactly one Windows host on the tailnet that this distro runs inside.
+    # IP is stored once in /etc/mios/windows-host (created by
+    # mios-hermes-firstboot if Tailscale is detected).
+    local win_host_file=/etc/mios/windows-host
+    local win_host=""
+    if [ -r "$win_host_file" ]; then
+        win_host="$(cat "$win_host_file")"
+    else
+        win_host="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
+        if [ -z "$win_host" ]; then
+            echo "mios-windows ssh-ps: cannot determine Windows host (no $win_host_file, no default gateway)" >&2
+            return 1
+        fi
+    fi
 
-ELEVATED=0
-if [ "${1:-}" = "-e" ] || [ "${1:-}" = "--elevated" ]; then
-    ELEVATED=1
-    shift
-fi
+    # Resolve operator username -- the agent's identity for the SSH session.
+    local win_user=""
+    if [ -r /usr/share/mios/mios.toml ]; then
+        win_user="$(awk -F\" '/^\s*windows_user\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    fi
+    [ -z "$win_user" ] && win_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    [ -z "$win_user" ] && win_user="$USER"
 
-if [ "$#" -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    cat <<EOF
-usage: mios-windows [-e|--elevated] <powershell-command>
-
-  Run a PowerShell command on the Windows host (this WSL distro's
-  parent) via Tailscale SSH.
-
-  -e, --elevated    Wrap in a SYSTEM-level Task Scheduler trigger
-                    (REQUIRED for: Restart-Service, New-NetFirewallRule,
-                     registry writes, Restart-Computer).
-
-  examples:
-    mios-windows 'Get-Service vmcompute | Format-List'
-    mios-windows 'Get-NetIPAddress -AddressFamily IPv4 | Where-Object {\$_.PrefixOrigin -eq "Dhcp"}'
-    mios-windows -e 'Restart-Service vmcompute -Force'
-    mios-windows -e 'New-NetFirewallRule -DisplayName "MiOS test" -LocalPort 1234 ...'
-
-  config (resolved at call time):
-    WIN_HOST  = $WIN_HOST   (from $WIN_HOST_FILE or default gateway)
-    WIN_USER  = $WIN_USER   (from mios.toml [identity].windows_user OR .username)
-EOF
-    exit 0
-fi
-
-CMD="$*"
-
-if [ "$ELEVATED" = "1" ]; then
-    cat >&2 <<EOF
-mios-windows: -e/--elevated not yet wired.
-
+    if [ "$elevated" = "1" ]; then
+        cat >&2 <<EOF
+mios-windows ssh-ps: -e/--elevated not yet wired.
 For elevated commands, the operator needs to either:
   (a) Run the equivalent in elevated PowerShell on the host themselves
   (b) Set up a SYSTEM-level scheduled task that watches a queue dir
       (see /usr/share/doc/mios/guides/agent-windows-ssh.md for the
        trigger-file pattern; not yet shipped)
-
 Falling back to non-elevated SSH; command may fail with 'Access denied'
 if it needs admin. Original command:
-  $CMD
+  $cmd
 EOF
+    fi
+
+    exec ssh \
+        -o StrictHostKeyChecking=accept-new \
+        -o ConnectTimeout=10 \
+        -o ServerAliveInterval=15 \
+        -l "$win_user" \
+        "$win_host" \
+        -- "powershell.exe -NoProfile -NonInteractive -Command \"$cmd\""
+}
+
+if [ "$#" -lt 1 ]; then
+    usage
+    exit 64
 fi
 
-# SSH via Tailscale to the Windows host. Tailscale's bundled sshd
-# handles the connection (no Windows OpenSSH Server needed). The
-# command is invoked through Windows' powershell.exe directly; output
-# is forwarded back over the SSH stdout.
-exec ssh \
-    -o StrictHostKeyChecking=accept-new \
-    -o ConnectTimeout=10 \
-    -o ServerAliveInterval=15 \
-    -l "$WIN_USER" \
-    "$WIN_HOST" \
-    -- "powershell.exe -NoProfile -NonInteractive -Command \"$CMD\""
+sub="$1"
+shift
+
+case "$sub" in
+    list)
+        printf '%-16s %s\n' "SHORT" "EXE"
+        for k in "${!APPS[@]}"; do
+            printf '%-16s %s\n' "$k" "${APPS[$k]}"
+        done | sort
+        ;;
+    launch)
+        if [ "$#" -lt 1 ]; then
+            echo "mios-windows launch: missing <app>" >&2
+            exit 64
+        fi
+        app="$1"
+        shift
+        if [ -n "${APPS[$app]:-}" ]; then
+            target="${APPS[$app]}"
+        elif [ -e "$app" ]; then
+            target="$app"
+        elif [ -e "/mnt/c/Windows/System32/${app}" ]; then
+            target="/mnt/c/Windows/System32/${app}"
+        elif [ -e "/mnt/c/Windows/System32/${app}.exe" ]; then
+            target="/mnt/c/Windows/System32/${app}.exe"
+        else
+            echo "mios-windows launch: unknown app '$app' -- run 'mios-windows list' or pass a full .exe path" >&2
+            exit 1
+        fi
+        if [ ! -e "$target" ]; then
+            echo "mios-windows launch: $target not found on disk -- is the Windows side missing the app?" >&2
+            exit 1
+        fi
+        # Detach: setsid + nohup + background + redirect. /init keeps the
+        # Windows process alive after this script returns; the wrapper just
+        # has to not block on it.
+        setsid nohup "$target" "$@" >/dev/null 2>&1 < /dev/null &
+        echo "[mios-windows] launched: $target $* (detached, pid $!)"
+        ;;
+    ps|powershell)
+        if [ "$#" -lt 1 ]; then
+            echo "mios-windows ps: missing <command>" >&2
+            exit 64
+        fi
+        if [ ! -x "$PWSH" ]; then
+            echo "mios-windows ps: PowerShell not at $PWSH -- set MIOS_WINDOWS_PWSH=<path>" >&2
+            exit 1
+        fi
+        exec "$PWSH" -NoProfile -NonInteractive -Command "$*"
+        ;;
+    cmd)
+        if [ "$#" -lt 1 ]; then
+            echo "mios-windows cmd: missing <command>" >&2
+            exit 64
+        fi
+        if [ ! -x "$CMD" ]; then
+            echo "mios-windows cmd: cmd.exe not at $CMD" >&2
+            exit 1
+        fi
+        exec "$CMD" /c "$*"
+        ;;
+    ssh-ps)
+        do_ssh_ps "$@"
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        # Backwards-compat: if the first arg looks like a PowerShell
+        # command (starts with a verb like Get-/Set-/New-/Restart-),
+        # treat the whole call as the legacy "ssh-ps <cmd>" form to
+        # keep operator muscle memory working.
+        case "$sub" in
+            Get-*|Set-*|New-*|Remove-*|Start-*|Stop-*|Restart-*|Test-*|Invoke-*|*'-'*)
+                echo "[mios-windows] legacy form -- routing to ssh-ps; use 'mios-windows ps' for non-Tailscale interop" >&2
+                do_ssh_ps "$sub" "$@"
+                ;;
+            *)
+                echo "mios-windows: unknown subcommand: $sub" >&2
+                usage >&2
+                exit 64
+                ;;
+        esac
+        ;;
+esac

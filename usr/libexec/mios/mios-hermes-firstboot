@@ -527,9 +527,11 @@ platform_toolsets:
   api_server:
     - terminal       # shell commands
     - file           # read/write/patch
-    - web            # web_search + web_extract via SearXNG
+    - web            # web_search + web_extract via SearXNG (FREE, local; backend at :8888)
     - browser        # browser_navigate / _snapshot / _click / ... via CDP -> ChromeDev flatpak
     - discord        # read + participate (fetch messages, search members, create threads)
+    - cronjob        # create/list/update/pause/resume/remove/trigger scheduled prompts (in-process, croniter-backed)
+    - clarify        # ask the operator clarifying questions instead of hallucinating an answer
     - delegation     # delegate_task -- the parallel-fanout target
     - skills         # skill_view / skill_manage / skills_list
     - memory         # persistent memory across sessions

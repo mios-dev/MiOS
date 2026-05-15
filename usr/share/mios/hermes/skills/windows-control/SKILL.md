@@ -1,0 +1,90 @@
+---
+name: windows-control
+description: Use whenever the operator asks to launch a Windows app (notepad, explorer, calc, taskmgr...) or run a Windows-side command (PowerShell, cmd.exe, query a Windows service, inspect Windows networking). NEVER claim "I cannot launch Windows applications from WSL" -- mios-windows uses WSL interop and works without SSH or extra setup.
+metadata:
+  hermes:
+    requires_tools: [terminal]
+---
+
+# windows-control -- reach the Windows host from inside this WSL2 distro
+
+The MiOS-DEV WSL distro runs *inside* Windows. The `mios-windows`
+shim gives the agent first-class access to that Windows host without
+the agent having to know about WSL interop, SSH, Tailscale, or PATH
+manipulation.
+
+## When to reach for this skill
+
+* The operator says **"open notepad"**, **"open explorer"**, **"open
+  calc / mspaint / paint / snipping tool / task manager"**, or names
+  any Windows GUI app -- any built-in Windows app you'd find in the
+  Start menu.
+* The operator says **"run \<PowerShell command\>"** or **"check the
+  Windows service \<name\>"** or **"query the Windows network
+  config / IP / DHCP / firewall"**.
+* The operator says **"launch \<app\> on Windows"** / **"on the host"**
+  / **"on the Windows side"**.
+* You're about to write "I cannot launch native Windows applications
+  from WSL". Stop. Use `mios-windows launch <app>` instead.
+
+## How
+
+```
+mios-windows launch notepad                    # GUI, detached, returns immediately
+mios-windows launch explorer "C:\\Users\\mios\\Documents"   # GUI with a starting path
+mios-windows launch calc                       # any known short name
+
+mios-windows ps 'Get-Service vmcompute | fl'   # PowerShell, output captured
+mios-windows ps 'ipconfig /all | Select-String IPv4'
+
+mios-windows cmd 'tasklist /FI "IMAGENAME eq notepad.exe"'
+
+mios-windows list                              # known short-name -> .exe mappings
+mios-windows --help                            # full surface
+```
+
+Three backends, one frontend:
+
+| Subcommand | Backend | When to use |
+|---|---|---|
+| `launch` / `ps` / `cmd` | WSL interop via `/init` -- direct .exe exec | DEFAULT for everything (works without setup) |
+| `ssh-ps [-e] "<cmd>"` | Tailscale SSH to the Windows host's PowerShell | Elevated commands (Restart-Service, New-NetFirewallRule), or commands that must run as the operator's interactive Windows user (interop spawns get a SYSTEM-context-ish token) |
+
+Don't use `ssh-ps` unless you have a specific reason -- WSL interop
+is faster (no SSH handshake, no Tailscale dependency) and works on
+hosts that haven't enabled Tailscale SSH.
+
+## Patterns the agent gets wrong
+
+**Bad**: *"I cannot launch native Windows applications from WSL.
+Windows applications require a Windows desktop environment."*
+**Why bad**: WSL2 + WSLg + /init *is* that path; you're already on
+it; the launch is one shell call away.
+**Good**: `mios-windows launch notepad` followed by reporting the
+detached PID.
+
+**Bad**: *"I'd need to SSH into another Windows machine."*
+**Why bad**: There IS no other machine in the common case -- this
+WSL distro lives inside the operator's Windows host. /init handles
+the cross-environment exec on the SAME box.
+**Good**: `mios-windows launch <app>` (interop, same box) or
+`mios-windows ssh-ps "<cmd>"` (Tailscale SSH, only when needed).
+
+**Bad**: *"I'd need a special mechanism."* / *"This requires
+interactive shell access I don't have."*
+**Why bad**: Both are false. `mios-windows` has the special
+mechanism baked in, and your terminal tool has all the access it
+needs.
+**Good**: Run the call.
+
+## What this isn't
+
+* NOT a way to install Windows software -- for that, the operator uses
+  Windows Settings or a package manager (winget, choco) on the
+  Windows side; an agent on the Linux side has nothing useful to add.
+* NOT a way to run elevated/admin commands transparently -- the
+  Windows UAC token of the interop-spawned process is filtered. For
+  `Restart-Service`, `New-NetFirewallRule`, registry writes:
+  `mios-windows ssh-ps -e "<cmd>"` (placeholder; not yet wired) OR
+  ask the operator to run the elevated command in their PowerShell
+  themselves.
