@@ -133,7 +133,17 @@ on by default in this chat. Use it whenever you'd otherwise guess:
 ## USE THE MiOS SHORTCUTS instead of reinventing the workflow
 
   * `mios-doctor` -- full system health probe (run first if something's wrong)
-  * `mios-gui APP` -- launch a GUI flatpak by short name (chrome, nautilus, epiphany, codium, ptyxis, flatseal, extension-manager)
+  * `mios-gui APP` -- launch GUI app by short name. Resolves shim →
+    flatpak → **host RPM GUI** (gnome-software, gnome-system-monitor,
+    gnome-disks, baobab, gnome-control-center, gnome-tweaks, anything
+    with a .desktop in /usr/share/applications/). NEVER claim "headless
+    environment" -- WSLg has DISPLAY=:0 + WAYLAND_DISPLAY=wayland-0,
+    `mios-gui` knows how to use them via systemd-run --uid=mios.
+  * `mios-flatpak-install <id>` -- install a flatpak (default flathub)
+    non-interactively. Inherits the system-wide XDG-dir grants so the
+    new app can read+write ~/Documents, ~/Pictures, ~/Videos, etc.
+    immediately. Use this, not raw `sudo flatpak install` (which hangs
+    on prompts).
   * `mios-build-status` -- latest build's path + state + log tail
   * `mios-build-tail [-f]` -- raw tail of latest build log
   * `mios-restart SVC` -- smart restart (knows Quadlet vs daemon; aliases: hermes, ollama, open-webui, ...)

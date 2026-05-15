@@ -1,0 +1,26 @@
+[Unit]
+# /usr/lib/systemd/system/mios-flatpak-init.service
+#
+# Apply MiOS's system-wide flatpak override policy at first boot
+# (XDG dir grants so every flatpak can read+write the operator's
+# Documents / Pictures / Videos / Downloads / Music / Desktop /
+# Public). One-shot; idempotent on re-runs.
+#
+# Operator directive 2026-05-15: agent-installable flatpaks should
+# Just Work against /var/home/mios/* userspace folders by default,
+# without per-app override gymnastics. /var/lib/flatpak/overrides/
+# global is the right surface (mutable on bootc, survives image
+# upgrades, operator-editable via sudo flatpak override --system).
+Description='MiOS' flatpak override policy (system-wide XDG grants)
+Documentation=https://docs.flatpak.org/en/latest/sandbox-permissions.html
+After=local-fs.target
+Wants=local-fs.target
+ConditionPathExists=/usr/bin/flatpak
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/libexec/mios/mios-flatpak-init
+
+[Install]
+WantedBy=multi-user.target

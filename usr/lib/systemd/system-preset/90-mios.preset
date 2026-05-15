@@ -96,6 +96,12 @@ enable hermes-agent.service
 # on the ChromeDev flatpak being present, so it no-ops cleanly on
 # hosts that haven't installed it.
 enable mios-hermes-browser.service
+# System-wide flatpak override policy: every installed flatpak
+# inherits read+write access to the operator's XDG user dirs
+# (~/Documents, ~/Pictures, ~/Videos, ~/Downloads, ...). Operator
+# directive 2026-05-15: agent-installable flatpaks should Just Work
+# against /var/home/mios/* by default. One-shot, idempotent.
+enable mios-flatpak-init.service
 enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token

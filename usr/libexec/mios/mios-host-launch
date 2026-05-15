@@ -1,0 +1,139 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-host-launch <binary> [args...]
+#
+# Operator-session escape + GUI-env injector for HOST-installed GUI
+# RPMs (gnome-software, gnome-system-monitor, gnome-disks, baobab,
+# gnome-control-center, ...). Mirrors the design of flatpak-launch
+# but exec's the host binary directly instead of `flatpak run`.
+#
+# WHY THIS EXISTS
+# ───────────────
+# Operator directive 2026-05-15: agents kept failing to open
+# gnome-software with messages like "we're likely in a headless
+# environment" / "needs a graphical display" / "let me suggest dnf
+# instead". WSLg DOES provide DISPLAY=:0 + WAYLAND_DISPLAY=wayland-0
+# automatically, but ONLY in a real login session -- the moment a
+# call comes in via Hermes-Agent's terminal tool (running as
+# mios-hermes uid 820, no login session, no $HOME, no DBUS_SESSION_
+# BUS_ADDRESS), GUI launches die with "Cannot autolaunch D-Bus
+# without X11 $DISPLAY" and the agent then HALLUCINATES a
+# "headless environment" diagnosis instead of fixing the env.
+#
+# This wrapper does what the agent should: re-exec into the
+# operator's real session via systemd-run --uid=<operator>,
+# carrying the right env. Identical operator-escape logic to
+# flatpak-launch (intentional: same shape so future env additions
+# only need to change one mental model).
+
+set -eu
+
+if [ "$#" -lt 1 ]; then
+    echo "usage: mios-host-launch <binary> [args...]" >&2
+    exit 64
+fi
+
+BIN="$1"
+shift
+
+# Resolve to absolute path so the operator-session re-exec doesn't
+# get bitten by a $PATH difference under sudo / systemd-run.
+if [ -x "$BIN" ]; then
+    :  # already absolute
+elif command -v "$BIN" >/dev/null 2>&1; then
+    BIN="$(command -v "$BIN")"
+else
+    echo "mios-host-launch: binary not found: $BIN" >&2
+    exit 127
+fi
+
+# Step 0 ── Service-user re-exec.
+#
+# Identical pattern to flatpak-launch (see that file's header for the
+# full rationale + ProtectSystem=strict caveat). When invoked under a
+# service user (uid < 1000), re-exec via systemd-run into the
+# operator's real session so DISPLAY/WAYLAND_DISPLAY/DBUS work.
+_HL_REEXEC="${_MIOS_HOST_LAUNCH_REEXEC:-0}"
+if [ "$_HL_REEXEC" != "1" ] && [ "$(id -u)" -lt 1000 ]; then
+    _op_user=""
+    if [ -r /usr/share/mios/mios.toml ]; then
+        _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    fi
+    [ -z "$_op_user" ] && _op_user="mios"
+    if id -u "$_op_user" >/dev/null 2>&1; then
+        _op_uid="$(id -u "$_op_user")"
+        _op_xdg="/run/user/${_op_uid}"
+        _op_dbus="unix:path=${_op_xdg}/bus"
+        _op_home="$(getent passwd "$_op_user" | cut -d: -f6)"
+        export _MIOS_HOST_LAUNCH_REEXEC=1
+        if command -v systemd-run >/dev/null 2>&1; then
+            # Same as flatpak-launch: NOT --wait. GUI apps run for minutes
+            # to hours; --wait would block the caller (and time out OWUI).
+            # systemd-run returns instantly after the transient unit is
+            # registered; --collect cleans it up when the GUI exits.
+            _unit_name="mios-hostgui-$(basename "$BIN" | tr ./ --)-$$"
+            exec sudo -n systemd-run \
+                --collect --quiet \
+                --unit="${_unit_name}" \
+                --uid="$_op_user" \
+                --setenv=HOME="$_op_home" \
+                --setenv=XDG_RUNTIME_DIR="$_op_xdg" \
+                --setenv=DBUS_SESSION_BUS_ADDRESS="$_op_dbus" \
+                --setenv=DISPLAY="${DISPLAY:-:0}" \
+                --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
+                --setenv=PULSE_SERVER="${PULSE_SERVER:-}" \
+                --setenv=_MIOS_HOST_LAUNCH_REEXEC=1 \
+                /usr/libexec/mios/mios-host-launch "$BIN" "$@"
+        else
+            exec sudo -n -u "$_op_user" \
+                --preserve-env=DISPLAY,WAYLAND_DISPLAY,PULSE_SERVER,_MIOS_HOST_LAUNCH_REEXEC \
+                env XDG_RUNTIME_DIR="$_op_xdg" \
+                    DBUS_SESSION_BUS_ADDRESS="$_op_dbus" \
+                    HOME="$_op_home" \
+                    /usr/libexec/mios/mios-host-launch "$BIN" "$@"
+        fi
+    fi
+fi
+
+# Step 1 ── WSL detection (namespace-stable via /proc/version).
+IS_WSL=0
+if [ -r /proc/version ]; then
+    case "$(cat /proc/version 2>/dev/null)" in
+        *Microsoft*|*microsoft*|*WSL*) IS_WSL=1 ;;
+    esac
+fi
+
+# Step 2 ── XDG_RUNTIME_DIR.
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    uid="$(id -u)"
+    if [ -d "/run/user/$uid" ]; then
+        XDG_RUNTIME_DIR="/run/user/$uid"
+    elif [ "$IS_WSL" = "1" ] && [ -d /mnt/wslg/runtime-dir ]; then
+        XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir"
+    fi
+    [ -n "${XDG_RUNTIME_DIR:-}" ] && export XDG_RUNTIME_DIR
+fi
+
+# Step 3 ── Wayland / X11 / Pulse defaults (WSL).
+if [ "$IS_WSL" = "1" ]; then
+    : "${WAYLAND_DISPLAY:=wayland-0}"
+    : "${DISPLAY:=:0}"
+    if [ -z "${PULSE_SERVER:-}" ]; then
+        if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then
+            PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
+        elif [ -S /mnt/wslg/PulseServer ]; then
+            PULSE_SERVER="unix:/mnt/wslg/PulseServer"
+        fi
+    fi
+    export WAYLAND_DISPLAY DISPLAY
+    [ -n "${PULSE_SERVER:-}" ] && export PULSE_SERVER
+fi
+
+# Step 4 ── D-Bus session bus.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
+   && [ -n "${XDG_RUNTIME_DIR:-}" ] \
+   && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    export DBUS_SESSION_BUS_ADDRESS
+fi
+
+exec "$BIN" "$@"

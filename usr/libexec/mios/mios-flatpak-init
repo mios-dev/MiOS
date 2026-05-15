@@ -1,0 +1,109 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-flatpak-init
+#
+# Apply MiOS's system-wide flatpak override policy at first boot.
+# Operator directive 2026-05-15: "make sure agents can install new
+# flatpaks ... be sure it's bootc immutable compatible and uses
+# mutable/persistent userspace folders (var/home/mios/* where
+# documents, pictures, videos, downloads, etc) at this mutable
+# location(s) for flatpaks".
+#
+# WHAT IT DOES
+# ────────────
+# Writes a system-wide override (via `flatpak override --system`) that
+# grants every installed flatpak read+write access to the operator's
+# XDG user directories:
+#
+#   xdg-documents  ($HOME/Documents)
+#   xdg-download   ($HOME/Downloads)
+#   xdg-pictures   ($HOME/Pictures)
+#   xdg-videos     ($HOME/Videos)
+#   xdg-music      ($HOME/Music)
+#   xdg-desktop    ($HOME/Desktop)
+#   xdg-public-share  ($HOME/Public)
+#
+# Plus the existing icon/theme grants (xdg-data/icons:ro, xdg-data/
+# themes:ro) so apps inherit themes from the host.
+#
+# WHY OPERATOR-VISIBLE FILES, NOT SANDBOXED PRIVATE FOLDERS
+# ─────────────────────────────────────────────────────────
+# Default flatpak sandboxes give apps access to nothing in $HOME except
+# their own ~/.var/app/<id>/ tree. That's secure but useless when the
+# operator wants Save File dialogs in epiphany / chrome / gedit /
+# image-viewer to land in the same Documents/Pictures/Downloads they
+# use from native apps. The MiOS contract is "the operator owns their
+# data; flatpaks borrow it" -- not "every app has its own data island".
+#
+# WHERE OVERRIDES PERSIST
+# ───────────────────────
+# /var/lib/flatpak/overrides/global. /var is mutable on bootc, so the
+# overrides survive image upgrades; operators can also edit them via
+# `sudo flatpak override --system <flags>` after the fact (this script
+# only WRITES the MiOS-managed overrides at first boot, doesn't
+# overwrite operator-customised ones -- detected by a marker comment).
+#
+# IDEMPOTENT
+# ──────────
+# Re-runs check the existing override file for the MiOS marker; if
+# present + the policy already applied, this is a no-op. If the
+# operator removed the marker, this script LEAVES the override alone.
+
+set -eu
+
+OVERRIDE_FILE=/var/lib/flatpak/overrides/global
+MARKER='# MiOS-managed: applied by /usr/libexec/mios/mios-flatpak-init'
+
+_log() {
+    logger -t mios-flatpak-init "$*" 2>/dev/null || true
+    echo "[mios-flatpak-init] $*" >&2
+}
+
+if ! command -v flatpak >/dev/null 2>&1; then
+    _log "flatpak binary not present -- skipping (was the package installed?)"
+    exit 0
+fi
+
+# Marker present + already applied -> nothing to do.
+if [ -f "$OVERRIDE_FILE" ] && grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; then
+    _log "MiOS XDG-grant override already applied (marker present) -- no-op"
+    exit 0
+fi
+
+# Apply each XDG dir + the existing icons/themes grants ADDITIVELY.
+# `flatpak override --system --filesystem=X` only appends to the
+# [Context]filesystems= line; existing entries (icons:ro, themes:ro
+# from the prior Bibata cursor setup) are preserved. Safe to run
+# alongside other system-wide overrides without losing them.
+flatpak override --system \
+    --filesystem=xdg-documents \
+    --filesystem=xdg-download \
+    --filesystem=xdg-pictures \
+    --filesystem=xdg-videos \
+    --filesystem=xdg-music \
+    --filesystem=xdg-desktop \
+    --filesystem=xdg-public-share \
+    --filesystem=xdg-data/icons:ro \
+    --filesystem=xdg-data/themes:ro \
+    --env=XCURSOR_PATH='~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps'
+
+# Stamp the marker so the next run knows this is MiOS-managed (and
+# any operator edit that REMOVES the marker will be honoured as
+# "operator took ownership").
+if [ ! -f "$OVERRIDE_FILE" ]; then
+    _log "WARN: flatpak override apply succeeded but $OVERRIDE_FILE not present -- skipping marker write"
+    exit 0
+fi
+if ! grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; then
+    # Prepend the marker as a comment block at the top.
+    {
+        echo "$MARKER"
+        echo "# Edit via: sudo flatpak override --system <flags>"
+        echo "# Delete this marker line to take operator ownership of this file."
+        echo "#"
+        cat "$OVERRIDE_FILE"
+    } > "${OVERRIDE_FILE}.new"
+    mv "${OVERRIDE_FILE}.new" "$OVERRIDE_FILE"
+    _log "applied MiOS XDG-grant override + stamped marker"
+else
+    _log "MiOS XDG-grant override already applied (marker present) -- no-op"
+fi

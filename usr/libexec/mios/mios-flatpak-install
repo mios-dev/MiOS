@@ -1,0 +1,85 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-flatpak-install <flatpak-id> [<flatpak-id> ...]
+#
+# Agent-friendly wrapper around `sudo flatpak install --system`. Lets
+# Hermes (or any operator) install new flatpaks from flathub
+# non-interactively, without dragging the agent through the standard
+# install prompts ("This application is not signed by ... Continue?
+# [y/n]").
+#
+# Operator directive 2026-05-15: "make sure agents can install new
+# flatpaks ... and ALL works".
+#
+# WHY A WRAPPER (vs. just telling the agent "run sudo flatpak install ...")
+# ────────────────────────────────────────────────────────────────────────
+# Three sharp edges the wrapper hides:
+#   1. `flatpak install` is INTERACTIVE by default. Without --noninteractive,
+#      it stalls on the "OK to install? [Y/n]" prompt forever -- the agent
+#      sees a hung tool call.
+#   2. `flatpak install <id>` ambiguously matches multiple remotes when the
+#      same id exists on flathub + flathub-beta + gnome-nightly; it prompts
+#      "Which one? [1-3]" -- another silent hang. Force the remote with
+#      `--from <remote>` (default: flathub).
+#   3. After a fresh install, the new app inherits MiOS's system-wide
+#      override policy (XDG dirs etc.) automatically -- but the
+#      MiOS-managed override file at /var/lib/flatpak/overrides/global
+#      MUST exist first; if it doesn't (atypical install where mios-
+#      flatpak-init didn't run), this wrapper kicks it off so the new
+#      app comes up with the right grants from the very first launch.
+#
+# USAGE
+#   mios-flatpak-install org.gnome.gedit
+#   mios-flatpak-install org.gnome.Calendar org.gnome.Calculator
+#   MIOS_FLATPAK_REMOTE=flathub-beta mios-flatpak-install com.example.App
+set -eu
+
+if [ "$#" -lt 1 ]; then
+    cat <<'USAGE' >&2
+usage: mios-flatpak-install <flatpak-id> [<flatpak-id> ...]
+       MIOS_FLATPAK_REMOTE=<remote> mios-flatpak-install <id>
+
+Installs system-wide from the named remote (default flathub),
+non-interactively. Inherits MiOS's XDG-grant override policy.
+
+Examples:
+  mios-flatpak-install org.gnome.gedit
+  mios-flatpak-install org.gnome.Calendar org.gnome.Calculator
+USAGE
+    exit 64
+fi
+
+REMOTE="${MIOS_FLATPAK_REMOTE:-flathub}"
+
+# Make sure the override policy is in place before we install -- a
+# new flatpak picks up overrides at first launch, so applying them
+# AFTER the install would still work, but doing it first is cleaner
+# (and prevents a transient "first launch with no XDG access" window
+# when the operator clicks the new app immediately).
+if [ -x /usr/libexec/mios/mios-flatpak-init ]; then
+    /usr/libexec/mios/mios-flatpak-init >/dev/null 2>&1 || true
+fi
+
+# Resolve to sudo if we're not already root.
+SUDO=()
+if [ "$(id -u)" -ne 0 ]; then
+    SUDO=(sudo -n)
+fi
+
+failed=0
+for id in "$@"; do
+    echo "[mios-flatpak-install] installing $id from $REMOTE..."
+    if "${SUDO[@]}" flatpak install \
+            --system --noninteractive --assumeyes \
+            "$REMOTE" "$id"; then
+        echo "[mios-flatpak-install] ✓ $id installed"
+    else
+        echo "[mios-flatpak-install] ✗ $id failed"
+        failed=$((failed + 1))
+    fi
+done
+
+if [ "$failed" -ne 0 ]; then
+    echo "[mios-flatpak-install] ${failed}/$# install(s) failed" >&2
+    exit 1
+fi
+exit 0

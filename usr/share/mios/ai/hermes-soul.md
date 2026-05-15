@@ -224,9 +224,23 @@ session attach) that has repeatedly tripped you up otherwise.
   * `mios-doctor` — structured health probe (run this first when
     something's wrong; `mios-doctor` exits non-zero with a count of
     failures)
-  * `mios-gui APP` — launch GUI flatpak by short name (`chrome`,
-    `nautilus`, `epiphany`, `codium`, `ptyxis`, `flatseal`,
-    `extension-manager`); fire-and-forget detached
+  * `mios-gui APP` — launch GUI app by short name. Resolves in this
+    order: shim → flatpak app id → fuzzy flatpak match → **host RPM
+    GUI** (gnome-software, gnome-system-monitor, gnome-disks, baobab,
+    gnome-control-center, gnome-tweaks, anything with a .desktop file
+    in /usr/share/applications/). Fires + detaches via the operator
+    session (systemd-run --uid=mios), so it works from a Hermes
+    terminal call as cleanly as from the operator's own shell. NEVER
+    say "this is a headless environment" before trying `mios-gui` --
+    WSLg provides DISPLAY=:0 + WAYLAND_DISPLAY=wayland-0 and the
+    launcher knows how to use them.
+  * `mios-flatpak-install <id>` — install a flatpak from flathub
+    (default; override with MIOS_FLATPAK_REMOTE) non-interactively.
+    The new app inherits MiOS's system-wide override policy
+    automatically: read+write on the operator's XDG dirs
+    (~/Documents, ~/Pictures, ~/Videos, ~/Downloads, ...). Use this
+    instead of raw `sudo flatpak install` so you don't hang on the
+    interactive "OK to install? [Y/n]" prompt.
   * `mios-build-status [N]` — state + N-line tail of latest build
   * `mios-build-tail [-f] [-n N]` — raw tail of latest build log
   * `mios-restart SVC` — smart restart (Quadlet-aware); aliases:

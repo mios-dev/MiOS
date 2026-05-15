@@ -87,15 +87,44 @@ else
                 }' | head -1)
     fi
 
+    # ─── Step 4: host-RPM GUI fallback (gnome-software, gnome-system-monitor,
+    #           gnome-disks, baobab, gnome-control-center, gnome-tweaks, ...) ──
+    # When no flatpak matches, look for a host-installed binary AND a
+    # corresponding .desktop file in /usr/share/applications/. The .desktop
+    # presence is the canonical "this is a GUI app" signal -- distinguishes
+    # `gnome-software` (GUI -> safe to launch via mios-host-launch) from
+    # things like `bash` (CLI -> would freeze). Operator directive
+    # 2026-05-15: agents kept hallucinating "headless environment" when
+    # they should have just been launching the host RPM through the same
+    # operator-session escape flatpak-launch uses.
+    HOST_BIN=""
     if [ -z "$APP_ID" ]; then
-        echo "mios-gui: no shim or flatpak app id matching '$APP'" >&2
+        if cand="$(command -v "$APP" 2>/dev/null)" && [ -x "$cand" ]; then
+            # find any matching .desktop (case-insensitive on the Exec= line
+            # OR a bare $APP.desktop)
+            if [ -f "/usr/share/applications/${APP}.desktop" ] \
+               || grep -lqE "^Exec=${APP}( |$)" /usr/share/applications/*.desktop 2>/dev/null; then
+                HOST_BIN="$cand"
+            fi
+        fi
+    fi
+
+    if [ -z "$APP_ID" ] && [ -z "$HOST_BIN" ]; then
+        echo "mios-gui: no shim, flatpak, or host GUI matching '$APP'" >&2
         echo "" >&2
         echo "Try one of:" >&2
-        flatpak list --system --columns=application 2>/dev/null | sed 's/^/  /' >&2
+        flatpak list --system --columns=application 2>/dev/null | sed 's/^/  flatpak: /' >&2
+        ls /usr/share/applications/*.desktop 2>/dev/null | \
+            sed 's|.*/||;s|\.desktop$||;s|^|  host-gui: |' | head -20 >&2
         exit 1
     fi
 
-    LAUNCH=(/usr/libexec/mios/flatpak-launch "$APP_ID")
+    if [ -n "$HOST_BIN" ]; then
+        LAUNCH=(/usr/libexec/mios/mios-host-launch "$HOST_BIN")
+        APP_ID="$(basename "$HOST_BIN") (host-rpm)"
+    else
+        LAUNCH=(/usr/libexec/mios/flatpak-launch "$APP_ID")
+    fi
 fi
 
 echo "mios-gui: launching $APP_ID" >&2
@@ -108,15 +137,23 @@ if [ "$launch_rc" -ne 0 ]; then
     exit "$launch_rc"
 fi
 
-# ─── Verify the flatpak actually started (NOT just that the launch returned) ──
-# bwrap is the flatpak sandbox runner; pgrep -fa for the app id catches the
-# wrapper process under any user. Sleep 3s for slow first-launches; the
-# agent gets a real PASS/FAIL instead of "exit 0 but nothing happened".
+# ─── Verify the app actually started (NOT just that the launch returned) ─────
+# For flatpaks: bwrap wraps + the app id appears in argv. For host RPMs: the
+# binary itself is in argv. Sleep 3s for slow first-launches.
 sleep 3
-if pgrep -fa "bwrap.*$APP_ID|/app/.*$(echo "$APP_ID" | awk -F. '{print $NF}')" >/dev/null 2>&1; then
+case "$APP_ID" in
+    *"(host-rpm)")
+        # Match the basename of the host binary in argv.
+        match_pat="$(basename "$HOST_BIN")"
+        ;;
+    *)
+        match_pat="bwrap.*$APP_ID|/app/.*$(echo "$APP_ID" | awk -F. '{print $NF}')"
+        ;;
+esac
+if pgrep -fa "$match_pat" >/dev/null 2>&1; then
     echo "mios-gui: ✓ $APP_ID is running" >&2
     exit 0
 else
-    echo "mios-gui: ✗ $APP_ID launched but no process is alive 3s later -- check 'journalctl --user-unit=mios-flatpak-*' or run the flatpak directly to see the error" >&2
+    echo "mios-gui: ✗ $APP_ID launched but no process is alive 3s later -- check 'journalctl --user-unit=mios-flatpak-* --user-unit=mios-hostgui-*' or run the binary directly to see the error" >&2
     exit 2
 fi
