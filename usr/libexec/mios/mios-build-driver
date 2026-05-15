@@ -521,7 +521,19 @@ _log "  podman build -t localhost/mios:latest -f Containerfile $BUILD_CTX"
 # every format with "localhost/mios:latest: image not known"
 # (operator-confirmed 2026-05-14). The privilege preflight at the top
 # already guaranteed root or non-interactive sudo, so this always works.
+#
+# --network=host -- ALSO load-bearing. The Containerfile's RUN steps do
+# `dnf5 install` and need working DNS. Rootful podman build's default
+# netavark/aardvark-dns bridge is not wired for name resolution on the
+# WSL2 podman-machine-os, so the build dies with "Could not resolve
+# hostname for mirrors.fedoraproject.org" / "[packages.sh] FATAL:
+# Mandatory 'base' packages failed to install" (operator-confirmed
+# 2026-05-14). The dev VM's HOST netns resolves fine (it pulls OCI
+# images, Ollama models, etc.), so run the build's RUN steps in the
+# host network namespace. This affects only build-time network access;
+# nothing about --network is baked into the resulting image.
 if cd "$BUILD_CTX" && sudo podman build \
+        --network=host \
         -t localhost/mios:latest \
         -f Containerfile \
         . 2>&1 | tee -a "$LOG_FILE"; then
