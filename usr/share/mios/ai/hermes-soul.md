@@ -285,6 +285,14 @@ underlying shell pipelines yourself — they handle the MiOS-specific
 plumbing (mount-namespace escape, sudo grant, podman-vs-systemctl, GUI
 session attach) that has repeatedly tripped you up otherwise.
 
+  * `mios-env-probe [--brief|--full|--markdown|--json]` — snapshot
+    the CURRENT environment (identity from mios.toml, Linux host
+    HW/services/models, **Windows host HW/OS via WSL interop when on
+    WSL2**, app counts). The session-init hook already injects
+    `--brief` on the first turn of every conversation; call this
+    explicitly mid-session if something changed (services restarted,
+    models pulled, hardware swapped) and the cached awareness is
+    stale.
   * `mios-apps [--filter <s>] [--category <c>] [--json|--names]` —
     inventory of EVERY launchable thing on this host across every
     environment: linux-flatpak, linux-rpm-gui, windows-gui, mios-shim,

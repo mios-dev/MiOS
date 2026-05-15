@@ -1,0 +1,249 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-env-probe [--brief|--full|--markdown|--json]
+#
+# Snapshot the agent's CURRENT environment as deterministic facts.
+# Designed to be injected into a Hermes session's first turn via the
+# pre_llm_call hook (see mios-hermes-init-hook), AND callable
+# explicitly when an agent realises mid-conversation that it doesn't
+# know what's around it.
+#
+# Operator directive 2026-05-15: "make sure the AI stack has an
+# understanding of its environment when initialized -- MiOS AI's
+# should have an understanding of the MiOS codebase/stack -- the
+# Agents dispatched Globally Should be informed of the environment
+# via an agent init/probe pass on first query".
+#
+# Modes:
+#   --brief      ~10-line summary (used as init context; cheap to inject)
+#   --full       all sections; longer
+#   --markdown   markdown formatting (default for --full)
+#   --json       machine-readable
+set -eu
+
+MODE="${1:-brief}"
+case "$MODE" in
+    --brief|brief|-b) MODE=brief ;;
+    --full|full|-f)   MODE=full ;;
+    --markdown|markdown|-m) MODE=markdown ;;
+    --json|json|-j)   MODE=json ;;
+    -h|--help)
+        cat <<'USAGE'
+usage: mios-env-probe [--brief|--full|--markdown|--json]
+
+Snapshot the current environment as deterministic facts (identity,
+hardware, services up, models loaded, app counts, stack endpoints).
+
+  --brief      ~10-line summary; default; safe to inject every turn
+  --full       all sections; longer
+  --markdown   markdown formatting
+  --json       machine-readable
+USAGE
+        exit 0
+        ;;
+esac
+
+# ─── facts gathering ─────────────────────────────────────────────────
+_toml_get() {
+    # _toml_get <section> <key> -- read mios.toml [section].key (vendor)
+    awk -v sec="[$1]" -v key="$2" '
+        $0==sec { in_sec=1; next }
+        /^\[/ { in_sec=0 }
+        in_sec && $0 ~ "^[[:space:]]*"key"[[:space:]]*=" {
+            sub(/^[^=]+=[[:space:]]*"?/, "")
+            sub(/"?[[:space:]]*$/, "")
+            print
+            exit
+        }
+    ' /usr/share/mios/mios.toml 2>/dev/null
+}
+
+OPERATOR_NAME="$(_toml_get identity username)"
+OPERATOR_FULL="$(_toml_get identity fullname)"
+HOSTNAME_TOML="$(_toml_get identity hostname)"
+HOSTNAME_LIVE="$(hostname 2>/dev/null || echo unknown)"
+
+# WSL detection
+IS_WSL=false
+WSL_DISTRO=""
+if [ -r /proc/version ]; then
+    case "$(cat /proc/version)" in
+        *Microsoft*|*microsoft*|*WSL*)
+            IS_WSL=true
+            WSL_DISTRO="$(cat /etc/wsl.conf 2>/dev/null | awk -F= '/^hostname/{print $2; exit}' | tr -d ' ' )"
+            [ -z "$WSL_DISTRO" ] && WSL_DISTRO="$(grep -oP '(?<=Microsoft|WSL).*' /proc/version | head -1)"
+            ;;
+    esac
+fi
+
+# Hardware
+CPU_MODEL="$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | sed 's/^.*: //' | head -c 60)"
+CPU_CORES="$(nproc 2>/dev/null || echo ?)"
+RAM_GB="$(awk '/MemTotal/ {printf "%.1f", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo ?)"
+GPU_LINE="$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | head -1 | sed 's/.*: //' | head -c 70)"
+[ -z "$GPU_LINE" ] && GPU_LINE="(no GPU detected via lspci; on WSL2 GPU goes through /dev/dxg)"
+
+# OS
+OS_PRETTY="$(grep -m1 PRETTY_NAME= /etc/os-release 2>/dev/null | sed 's/^.*=//; s/"//g')"
+
+# Services
+_svc_active() {
+    if systemctl is-active --quiet "$1"; then echo up; else echo down; fi
+}
+SVC_HERMES=$(_svc_active hermes-agent.service)
+SVC_PREFILTER=$(_svc_active mios-delegation-prefilter.service)
+SVC_OWUI=$(_svc_active mios-open-webui.service)
+SVC_OLLAMA=$(_svc_active ollama.service)
+SVC_SEARXNG=$(_svc_active mios-searxng.service)
+SVC_BROWSER=$(_svc_active mios-hermes-browser.service)
+SVC_CROND=$(_svc_active crond.service)
+SVC_ATD=$(_svc_active atd.service)
+
+# Models loaded in Ollama
+OLLAMA_MODELS="$(curl -sS --max-time 2 http://127.0.0.1:11434/api/tags 2>/dev/null \
+    | python3 -c 'import sys, json
+try:
+  d = json.load(sys.stdin)
+  print(",".join(m["name"] for m in d.get("models", [])[:8]))
+except Exception:
+  print("?")' 2>/dev/null)"
+[ -z "$OLLAMA_MODELS" ] && OLLAMA_MODELS="(unreachable)"
+
+# App counts via mios-apps (cheap; just --names | wc -l per category)
+_count() {
+    /usr/libexec/mios/mios-apps --names --category "$1" 2>/dev/null | wc -l
+}
+N_FLATPAK=$(_count linux-flatpak)
+N_HOST_GUI=$(_count linux-rpm-gui)
+N_WIN_GUI=$(_count windows-gui)
+N_WIN_APP=$(_count windows-app)
+N_SHIM=$(_count mios-shim)
+N_CLI=$(_count agent-cli)
+N_URL=$(_count service-url)
+
+# ─── render ─────────────────────────────────────────────────────────
+case "$MODE" in
+brief)
+    # Windows-host facts ONLY when on WSL2 (best-effort; never blocks).
+    # Single-quoted PS expression so bash leaves the $vars alone; the
+    # PowerShell child receives literal $os / $cpu / $mem.
+    WIN_LINE=""
+    if [ "$IS_WSL" = true ] && command -v mios-windows >/dev/null 2>&1; then
+        WIN_LINE="$(timeout 4 mios-windows ps 'try { $o=Get-CimInstance Win32_OperatingSystem; $c=Get-CimInstance Win32_Processor | Select-Object -First 1; $m=[math]::Round($o.TotalVisibleMemorySize/1024/1024,1); "$($o.Caption) on $($o.CSName), $($c.Name), $($c.NumberOfLogicalProcessors) cores, $m GB RAM" } catch { "?" }' 2>/dev/null | tr -d '\r' | head -1)"
+        [ -z "$WIN_LINE" ] && WIN_LINE="(probe failed; mios-windows ps unreachable)"
+    fi
+    cat <<EOF
+**MiOS environment** ($(date -Iseconds))
+- Linux host: $OS_PRETTY on $HOSTNAME_LIVE ($(if [ "$IS_WSL" = true ]; then echo "WSL2 distro"; else echo "bare/VM"; fi))
+- Linux HW: $CPU_CORES cores / ${RAM_GB} GB RAM / GPU: $GPU_LINE${WIN_LINE:+
+- Windows host (via WSL interop): $WIN_LINE}
+- Operator (mios.toml [identity]): $OPERATOR_FULL ($OPERATOR_NAME) on $HOSTNAME_TOML
+- Stack services: hermes=$SVC_HERMES prefilter=$SVC_PREFILTER owui=$SVC_OWUI ollama=$SVC_OLLAMA searxng=$SVC_SEARXNG browser=$SVC_BROWSER crond=$SVC_CROND atd=$SVC_ATD
+- Models loaded (ollama): $OLLAMA_MODELS
+- Launchable: $N_FLATPAK flatpaks, $N_HOST_GUI host GUIs, $N_WIN_GUI windows shortcuts, $N_WIN_APP **all-windows apps** (Get-StartApps), $N_SHIM MiOS shims, $N_CLI CLIs, $N_URL service URLs
+- Discovery + launch: \`mios-apps\` (inventory) and \`mios-launch <name>\` (universal launcher)
+EOF
+    ;;
+full|markdown)
+    # Full Windows-host probe (computer info + GPU) when on WSL2.
+    # Single-quoted PS expression so bash leaves $vars alone.
+    WIN_BLOCK=""
+    if [ "$IS_WSL" = true ] && command -v mios-windows >/dev/null 2>&1; then
+        WIN_BLOCK="$(timeout 6 mios-windows ps 'try { $o=Get-CimInstance Win32_OperatingSystem; $c=Get-CimInstance Win32_Processor | Select-Object -First 1; $m=[math]::Round($o.TotalVisibleMemorySize/1024/1024,2); $g=(Get-CimInstance Win32_VideoController | Select-Object -First 1 -ExpandProperty Name); "- Hostname (Windows): $($o.CSName)`n- OS: $($o.Caption) $($o.Version)`n- CPU: $($c.Name) ($($c.NumberOfLogicalProcessors) logical cores)`n- RAM: $m GB`n- GPU: $g" } catch { "(Windows probe error: $_)" }' 2>/dev/null | tr -d '\r')"
+        [ -z "$WIN_BLOCK" ] && WIN_BLOCK="(Windows-host probe failed; mios-windows ps unreachable)"
+    fi
+    cat <<EOF
+# MiOS environment probe ($(date -Iseconds))
+
+## Identity
+- Operator (mios.toml [identity]): **$OPERATOR_FULL** (\`$OPERATOR_NAME\`)
+- Hostname (toml / live): \`$HOSTNAME_TOML\` / \`$HOSTNAME_LIVE\`
+
+## Linux host (the MiOS distro)
+- OS: $OS_PRETTY
+- WSL2: $IS_WSL${WSL_DISTRO:+ (distro: $WSL_DISTRO)}
+- CPU: $CPU_MODEL ($CPU_CORES cores)
+- RAM: ${RAM_GB} GB
+- GPU: $GPU_LINE
+$(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives inside)\n%s\n' "$WIN_BLOCK"; fi)
+
+## MiOS stack services
+| service                              | state |
+|--------------------------------------|-------|
+| hermes-agent.service                 | $SVC_HERMES |
+| mios-delegation-prefilter.service    | $SVC_PREFILTER |
+| mios-open-webui.service              | $SVC_OWUI |
+| ollama.service                       | $SVC_OLLAMA |
+| mios-searxng.service                 | $SVC_SEARXNG |
+| mios-hermes-browser.service          | $SVC_BROWSER |
+| crond.service                        | $SVC_CROND |
+| atd.service                          | $SVC_ATD |
+
+## AI inference
+- Ollama models loaded: \`$OLLAMA_MODELS\`
+- Hermes gateway: http://localhost:8642/v1
+- Prefilter (force delegate_task on fan-out): http://localhost:8641/v1
+- Backend Ollama: http://localhost:11434
+
+## Launchable inventory
+- $N_FLATPAK flatpaks
+- $N_HOST_GUI host RPM GUIs
+- $N_WIN_GUI Windows shortcut shorts (notepad, explorer, calc, ...)
+- $N_WIN_APP **all-Windows apps** (every Start-menu entry; Win32 + UWP/MSIX) via \`Get-StartApps\`
+- $N_SHIM MiOS shims (under /usr/libexec/mios/ and /usr/local/bin/)
+- $N_CLI agent-CLI tools
+- $N_URL known internal-service URLs
+
+Full inventory: \`mios-apps\`. Launch by name: \`mios-launch <name>\`.
+
+## Pointers (for any deeper question)
+- /usr/share/mios/ai/system.md         -- canonical agent system prompt
+- /usr/share/mios/ai/INDEX.md          -- system interface reference
+- /usr/share/mios/mios.toml            -- vendor SSOT for configuration
+- /usr/share/mios/PACKAGES.md          -- RPM package manifest
+- /usr/share/mios/hermes/skills/       -- shipped skills (windows-control, parallel-fanout, mios-environment, self-improvement)
+- /CLAUDE.md, /AGENTS.md               -- repo-root architectural laws
+EOF
+    ;;
+json)
+    python3 - <<PYEOF
+import json
+print(json.dumps({
+    "ts": "$(date -Iseconds)",
+    "identity": {
+        "operator_username": "$OPERATOR_NAME",
+        "operator_fullname": "$OPERATOR_FULL",
+        "hostname_toml": "$HOSTNAME_TOML",
+        "hostname_live": "$HOSTNAME_LIVE",
+    },
+    "host": {
+        "os": "$OS_PRETTY",
+        "is_wsl": $IS_WSL,
+        "wsl_distro": "$WSL_DISTRO",
+        "cpu": "$CPU_MODEL",
+        "cpu_cores": "$CPU_CORES",
+        "ram_gb": "$RAM_GB",
+        "gpu": "$GPU_LINE",
+    },
+    "services": {
+        "hermes_agent":       "$SVC_HERMES",
+        "delegation_prefilter": "$SVC_PREFILTER",
+        "open_webui":         "$SVC_OWUI",
+        "ollama":             "$SVC_OLLAMA",
+        "searxng":            "$SVC_SEARXNG",
+        "hermes_browser":     "$SVC_BROWSER",
+        "crond":              "$SVC_CROND",
+        "atd":                "$SVC_ATD",
+    },
+    "ollama_models": "$OLLAMA_MODELS",
+    "launchable_counts": {
+        "linux_flatpak": $N_FLATPAK,
+        "linux_rpm_gui": $N_HOST_GUI,
+        "windows_gui":   $N_WIN_GUI,
+        "mios_shim":     $N_SHIM,
+        "agent_cli":     $N_CLI,
+        "service_url":   $N_URL,
+    },
+}, indent=2))
+PYEOF
+    ;;
+esac

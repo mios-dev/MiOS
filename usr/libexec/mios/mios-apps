@@ -78,6 +78,14 @@ emit() {
 _jsonesc() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g'
 }
+_is_wsl() {
+    if [ -r /proc/version ]; then
+        case "$(cat /proc/version 2>/dev/null)" in
+            *Microsoft*|*microsoft*|*WSL*) echo 1; return ;;
+        esac
+    fi
+    echo 0
+}
 header() {
     [ "$JSON" = "1" ] && return
     [ "$NAMES" = "1" ] && return
@@ -116,10 +124,8 @@ if [ -d /usr/share/applications ]; then
     done
 fi
 
-# ─── 3. windows-gui ──────────────────────────────────────────────────
+# ─── 3. windows-gui (canonical short-name shortcuts from mios-windows) ──
 header windows-gui
-# Cribbed from mios-windows's APPS table; if a Windows host isn't
-# reachable (no /mnt/c), skip silently.
 if [ -d /mnt/c/Windows ]; then
     cat <<'WIN_APPS' | while IFS=$'\t' read -r short desc; do
 notepad	Windows Notepad
@@ -136,6 +142,38 @@ pwsh	PowerShell 7 (if installed)
 WIN_APPS
         emit windows-gui "$short" "$desc" "mios-windows launch $short"
     done
+fi
+
+# ─── 3a. windows-app (every Start-menu app on the Windows host) ──────
+# Operator directive 2026-05-15: "should automatically detect installed
+# hardware, services and especially; applications GLOBALLY (ALL
+# SYSTEMS, ex: Windows, Linux, etc)". Get-StartApps returns ~every
+# user-launchable app on the Windows side -- Win32 + UWP/MSIX --
+# without the slow Win32_Product WMI walk. Cached for 5 minutes
+# under /tmp/mios-windows-apps.cache to avoid the ~1s round-trip cost
+# on every mios-apps call.
+header windows-app
+if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
+    CACHE=/tmp/mios-windows-apps.cache
+    if [ -f "$CACHE" ] && [ "$(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0) ))" -lt 300 ]; then
+        :  # fresh cache; use as-is
+    else
+        # Get-StartApps -> CSV-style "Name|AppID" lines, one per app.
+        timeout 6 mios-windows ps 'Get-StartApps | ForEach-Object { $_.Name + "|" + $_.AppID }' \
+            2>/dev/null > "$CACHE.tmp" \
+            && mv "$CACHE.tmp" "$CACHE" || rm -f "$CACHE.tmp"
+    fi
+    if [ -f "$CACHE" ]; then
+        while IFS='|' read -r win_name win_id; do
+            [ -z "$win_name" ] && continue
+            # Strip CR + trim
+            win_name="$(echo "$win_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
+            win_id="$(echo "$win_id" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
+            # short = first word lowercased; not unique but useful for filtering
+            short="$(echo "$win_name" | awk '{print tolower($1)}')"
+            emit windows-app "$short" "$win_name ($win_id)" "mios-windows ps \"Start-Process -FilePath 'shell:AppsFolder\\$win_id'\""
+        done < "$CACHE"
+    fi
 fi
 
 # ─── 4. mios-shim ────────────────────────────────────────────────────

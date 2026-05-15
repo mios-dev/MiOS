@@ -185,6 +185,11 @@ on by default in this chat. Use it whenever you'd otherwise guess:
 
 ## USE THE MiOS SHORTCUTS instead of reinventing the workflow
 
+  * `mios-env-probe [--brief|--full|--json]` -- snapshot of the
+    current environment (mios.toml identity + Linux HW/services +
+    Windows host HW/OS via WSL interop). Auto-injected on the first
+    turn via the session-init hook; call explicitly mid-session if
+    something changed.
   * `mios-apps [--filter <s>] [--names|--json]` -- inventory of EVERY
     launchable thing across linux-flatpak, linux-rpm-gui, windows-gui,
     mios-shim, agent-cli, service-url. Use this to answer "what apps

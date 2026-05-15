@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""mios-hermes-init-hook -- Hermes pre_llm_call hook that injects a
+fresh environment-probe snapshot on the first turn of every session.
+
+Operator directive 2026-05-15: "MiOS-Agents should be aware of all
+systems; and be able to launch apps regardless of environment ...
+the Agents dispatched Globally Should be informed of the environment
+via an agent init/probe pass on first query".
+
+WIRE PROTOCOL (from agent/shell_hooks.py)
+-----------------------------------------
+stdin: JSON. For pre_llm_call:
+    {"hook_event_name": "pre_llm_call",
+     "session_id": "...", "user_message": "...",
+     "conversation_history": [...], "is_first_turn": true|false,
+     "model": "...", "platform": "..."}
+
+stdout: JSON. To inject context for pre_llm_call:
+    {"context": "<text>"}
+Anything else (incl. empty / non-JSON) is treated as no-op.
+
+BEHAVIOUR
+---------
+- is_first_turn != true -> silent no-op (hook fires every turn but
+  only injects on the first one).
+- is_first_turn == true -> shell out to `mios-env-probe --brief`,
+  wrap the output as the injected context.
+- mios-env-probe missing or errors -> silent no-op (NEVER block the
+  conversation; the hook is best-effort awareness).
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+
+PROBE = "/usr/libexec/mios/mios-env-probe"
+PROBE_TIMEOUT_S = 5
+
+
+def _emit(obj: dict) -> None:
+    print(json.dumps(obj), flush=True)
+
+
+def main() -> int:
+    try:
+        payload = json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError):
+        return 0  # malformed stdin -> silent no-op
+
+    event = payload.get("hook_event_name") or ""
+    if event != "pre_llm_call":
+        return 0
+    if not payload.get("is_first_turn", False):
+        return 0
+
+    try:
+        result = subprocess.run(
+            [PROBE, "--brief"],
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT_S,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return 0  # probe unavailable -> silent no-op
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+
+    context = (
+        "## Environment snapshot (auto-injected by mios-hermes-init-hook)\n\n"
+        + result.stdout.strip()
+        + "\n\nThis is the agent's deterministic view of the host at session "
+        "start. Run `mios-env-probe --full` for the full version, or "
+        "`mios-apps` for a complete inventory of launchable things, or "
+        "`mios-launch <name>` to open anything across linux/windows/MiOS-shim "
+        "environments without guessing which backend to use."
+    )
+    _emit({"context": context})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

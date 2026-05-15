@@ -539,6 +539,18 @@ platform_toolsets:
     - session_search # search past conversations
     - code_execution # python execute_code
 
+# Hooks: pre_llm_call wired to mios-hermes-init-hook, which injects a
+# fresh `mios-env-probe --brief` snapshot ONLY on the first turn of
+# every session. Operator directive 2026-05-15: "MiOS-Agents should be
+# aware of all systems; ... informed of the environment via an agent
+# init/probe pass on first query". hooks_auto_accept: true skips the
+# TTY consent prompt because the gateway has no TTY.
+hooks:
+  pre_llm_call:
+    - command: /usr/libexec/mios/mios-hermes-init-hook
+      timeout: 10
+hooks_auto_accept: true
+
 # When the agent narrates "the build succeeded" instead of pasting
 # what it actually saw, the operator can't tell truth from fiction.
 # These knobs make Hermes show the verbatim tool result inline -- in
