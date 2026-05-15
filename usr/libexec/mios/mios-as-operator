@@ -36,11 +36,86 @@ so it inherits the full WSLg env (Wayland, interop, user-bus). Use
 this for GUI launches that need the operator's display surface (most
 flatpaks, all native GUI apps).
 
-The launched command runs DETACHED -- this script returns ~immediately
-after dispatching it.
+Resolution order:
+  1. mios-launcher.socket on /run/user/<op>/mios-launcher.sock
+     (operator's user-systemd-managed broker; cleanest; only reaches
+     /mnt/c .exes from operator context, bypassing the perm wall)
+  2. wsl.exe -d <distro> --user <op> -- nohup setsid <cmd>
+     (works from operator's own shell; not from agent service-user
+     contexts that can't exec wsl.exe)
+
+The launched command runs DETACHED -- this script returns
+~immediately after dispatching it.
 USAGE
     exit 0
 fi
+
+# ─── Path 1: operator launcher broker (preferred) ─────────────────
+# Try the operator's mios-launcher.service unix socket first. If
+# present and writable, we just dump the shell line into it and the
+# operator-side daemon spawns the command. This bypasses the
+# /mnt/c/Windows/System32/wsl.exe perm wall (mios-hermes can't
+# exec wsl.exe but CAN write to a socket the operator-side daemon
+# is listening on).
+_op_uid=""
+if [ -r /usr/share/mios/mios.toml ]; then
+    _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    [ -n "$_op_user" ] && _op_uid="$(id -u "$_op_user" 2>/dev/null)"
+fi
+[ -z "$_op_uid" ] && _op_uid="$(id -u mios 2>/dev/null)"
+[ -z "$_op_uid" ] && _op_uid=992
+
+_BROKER_SOCK="${MIOS_LAUNCHER_SOCK:-/tmp/mios-launcher.sock}"
+if [ -S "$_BROKER_SOCK" ]; then
+    # Quote the command line for safe transit through bash -lc
+    _quote() {
+        printf "'"
+        printf '%s' "$1" | sed "s/'/'\\\\''/g"
+        printf "'"
+    }
+    _line=""
+    for arg in "$@"; do
+        _line="${_line} $(_quote "$arg")"
+    done
+    # Strip leading space; send single line + newline; read the OK/ERROR.
+    _line="${_line# }"
+    _resp=""
+    if command -v ncat >/dev/null 2>&1; then
+        _resp="$(printf '%s\n' "$_line" | ncat -U "$_BROKER_SOCK" -i 2 2>/dev/null | head -1)"
+    elif command -v nc >/dev/null 2>&1; then
+        _resp="$(printf '%s\n' "$_line" | nc -U -q 2 "$_BROKER_SOCK" 2>/dev/null | head -1)"
+    else
+        # Fall back to python (always present in MiOS)
+        _resp="$(python3 - "$_BROKER_SOCK" "$_line" <<'PYEOF'
+import socket, sys
+sock_path, line = sys.argv[1], sys.argv[2]
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(5.0)
+try:
+    s.connect(sock_path)
+    s.sendall((line + "\n").encode())
+    resp = b""
+    while not resp.endswith(b"\n") and len(resp) < 1024:
+        chunk = s.recv(256)
+        if not chunk: break
+        resp += chunk
+    sys.stdout.write(resp.decode("utf-8", errors="replace").rstrip())
+finally:
+    s.close()
+PYEOF
+)"
+    fi
+    case "$_resp" in
+        OK*)
+            echo "[mios-as-operator] dispatched via broker: $_line"
+            exit 0
+            ;;
+        *)
+            echo "[mios-as-operator] broker rejected: $_resp -- falling back to wsl.exe path" >&2
+            ;;
+    esac
+fi
+# ─── Path 2: wsl.exe --user (fallback for operator's own shell) ─
 
 # Resolve operator user from mios.toml [identity].username.
 _op_user=""

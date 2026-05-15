@@ -1,0 +1,32 @@
+[Unit]
+# /usr/lib/systemd/user/mios-launcher.service
+#
+# Operator-side launcher broker. Runs in user@<uid>.service so it
+# inherits the operator's WSLg env (WAYLAND_DISPLAY,
+# WSL2_GUI_APPS_ENABLED=1, WSL_INTEROP, DBUS_SESSION_BUS_ADDRESS,
+# the live wayland socket on /run/user/<uid>/wayland-0). Listens on
+# a unix socket the agent (mios-hermes) can write launch requests
+# to, dispatching them as the operator with the right environment.
+#
+# Why this exists: mios-hermes (uid 820) cannot exec
+# /mnt/c/Windows/System32/*.exe (mode 0544 owned by mios:mios via
+# WSL metadata; even root chmod fails because Windows ACL blocks
+# the xattr write). The broker is the operator's standing service
+# that DOES have exec access; the agent posts launch requests to
+# its socket from any context.
+#
+# Operator directive 2026-05-15: "MiOS-Agents should be able to do
+# this all again!! FIX!!! JUST CREATE universal Launching tools/
+# skills for launching applications anywhere in any environment(s)
+# (cross-platform)".
+Description='MiOS' launcher broker (operator-side)
+Documentation=man:mios-launcher-daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-launcher-daemon
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=default.target

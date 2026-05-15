@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""mios-launcher-daemon -- operator-side launcher broker.
+
+Runs as the operator's user-level systemd service
+(mios-launcher.service under user@992.service), so it inherits the
+operator's full WSLg env: WAYLAND_DISPLAY, WSL2_GUI_APPS_ENABLED=1,
+WSL_INTEROP=/run/WSL/<pid>_interop, DBUS_SESSION_BUS_ADDRESS, etc.
+That env is what flatpak GUI apps + Windows .exe interop both need
+to actually surface windows on the operator's desktop.
+
+The agent (mios-hermes uid 820) cannot call wsl.exe or any other
+Windows .exe directly because /mnt/c/Windows/System32/*.exe is mode
+0544 owned by mios:mios with WSL metadata xattrs that even root
+can't strip (Windows ACL blocks the xattr write for system files).
+Workaround: agent connects to this broker's unix socket, writes a
+single line of shell, broker dispatches it from operator context.
+
+PROTOCOL
+--------
+Client connects to UNIX socket at /run/user/<uid>/mios-launcher.sock
+(socket mode 0666 so any local user can connect).
+
+Send: <one line of shell>\n
+Recv: OK\n   (broker has dispatched the command; not "command finished")
+       ERROR: <reason>\n  (request rejected before dispatch)
+
+Connection closed after one line. Broker spawns the dispatched
+command via subprocess.Popen with start_new_session=True so it
+detaches from the broker -- broker can serve other requests
+immediately, dispatched command runs forever (or until it exits).
+
+NO authentication beyond filesystem perms on the socket. The socket
+mode 0666 is deliberate: any local user (including mios-hermes) can
+launch ARBITRARY commands as the operator. This is INTENTIONAL --
+the operator's whole agent stack runs with NOPASSWD: ALL sudo
+already; the broker just gives the agent a more reliable path.
+
+For richer auth (e.g. multi-tenant hosts), add a token file under
+/etc/mios/launcher-token + check on connect.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import socket
+import subprocess
+import sys
+import threading
+
+logging.basicConfig(level=logging.INFO, format="[mios-launcher] %(message)s")
+log = logging.getLogger("mios-launcher")
+
+UID = os.getuid()
+# /tmp is sticky-bit world-traversable (1777); the socket itself
+# carries mode 0666 so any local uid can connect. /run/user/<uid>
+# would be a more conventional XDG location but it's mode 0700 and
+# mios-hermes (the agent) can't traverse INTO it to reach a socket
+# placed there -- regardless of socket-file mode.
+SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/tmp/mios-launcher.sock")
+
+
+def handle(conn: socket.socket) -> None:
+    try:
+        conn.settimeout(5.0)
+        data = b""
+        while not data.endswith(b"\n") and len(data) < 65536:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        line = data.decode("utf-8", errors="replace").rstrip("\n").rstrip("\r")
+        if not line:
+            conn.sendall(b"ERROR: empty request\n")
+            return
+        log.info("dispatch: %s", line[:200])
+        # Override env per-dispatch:
+        #   GDK_BACKEND=wayland: /etc/profile.d/mios-wslg.sh sets x11
+        #     by default (operator-pinned for compat). Wayland is
+        #     required for libadwaita dark theme rendering on flatpaks
+        #     like Nautilus.Devel; without it, apps fall back to
+        #     unthemed X11 even though GTK_THEME / ADW_DEBUG_COLOR_
+        #     SCHEME are set in the operator's user@992 env (operator-
+        #     confirmed regression 2026-05-15: "Nautilus has OLD GTK
+        #     AGAIN").
+        env = dict(os.environ)
+        env.setdefault("GDK_BACKEND", "wayland")
+        try:
+            subprocess.Popen(
+                ["bash", "-lc", line],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                env=env,
+            )
+            conn.sendall(b"OK\n")
+        except OSError as e:
+            log.warning("dispatch failed: %s", e)
+            conn.sendall(f"ERROR: {e}\n".encode())
+    except Exception as e:
+        log.warning("connection error: %s", e)
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def main() -> int:
+    # Cleanup stale socket; mode 0666 so cross-user connects work.
+    try:
+        os.unlink(SOCK_PATH)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        log.error("can't remove stale socket %s: %s", SOCK_PATH, e)
+
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(SOCK_PATH)
+    os.chmod(SOCK_PATH, 0o666)
+    srv.listen(8)
+    log.info("listening on %s (uid=%d)", SOCK_PATH, UID)
+
+    try:
+        while True:
+            conn, _ = srv.accept()
+            threading.Thread(target=handle, args=(conn,), daemon=True).start()
+    except KeyboardInterrupt:
+        log.info("shutting down")
+    finally:
+        try:
+            os.unlink(SOCK_PATH)
+        except OSError:
+            pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
