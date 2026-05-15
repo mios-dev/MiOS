@@ -202,7 +202,31 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
     export DBUS_SESSION_BUS_ADDRESS
 fi
 
-# Step 5 ── exec the flatpak. `flatpak run --system` resolves the app
+# Step 5 ── per-app extra flags (read from a static file so MiOS source
+# can ship app-specific launch defaults without having to regenerate
+# the bootstrap shim layer). Lookup order:
+#   1. /etc/mios/flatpak-flags/<app-id>.flags         (operator override)
+#   2. /usr/share/mios/flatpak-flags/<app-id>.flags   (vendor default)
+# Each file is plain text, one flag per line (or all on one line, shell-
+# tokenised). Lines starting with `#` are comments. Operator file wins.
+#
+# This is how Chrome gets its CDP port + dark-mode + Wayland decorations
+# without the bootstrap shim having to special-case com.google.ChromeDev
+# (operator-confirmed 2026-05-15: putting the flags in the bootstrap
+# shim heredoc is fragile to re-overlay, and inline-shim flag arrays
+# are unreadable; static .flags file = tracked in git, easy to extend).
+EXTRA_FLAGS=""
+for _flagfile in /etc/mios/flatpak-flags/"$APP_ID".flags \
+                 /usr/share/mios/flatpak-flags/"$APP_ID".flags; do
+    if [ -r "$_flagfile" ]; then
+        # Strip comment lines + blank lines, fold to one space-separated string
+        EXTRA_FLAGS=$(grep -vE '^\s*(#|$)' "$_flagfile" | tr '\n' ' ')
+        break
+    fi
+done
+
+# Step 6 ── exec the flatpak. `flatpak run --system` resolves the app
 # from the system installation (/var/lib/flatpak); --user installs are
 # not used by MiOS because the dev VM is single-tenant.
-exec flatpak run --system "$APP_ID" "$@"
+# shellcheck disable=SC2086 -- intentional word-splitting on EXTRA_FLAGS
+exec flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@"

@@ -1,0 +1,43 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-flatpak-overrides-apply
+#
+# Apply the MiOS-managed global flatpak override (theming + portal +
+# theme filesystem mounts) so every installed flatpak respects the
+# operator's color-scheme + theme + cursor choices via xdg-portal-desktop.
+#
+# Idempotent: safe to run on every boot. Drops nothing operator-set
+# (uses --reset to clear OUR override only and re-apply our keys).
+#
+# Why a script vs a tracked /var/lib/flatpak/overrides/global file:
+#   * `flatpak override` is the supported API; writing the file directly
+#     bypasses validation and is brittle across flatpak versions.
+#   * Operators expect to be able to add their own overrides via
+#     `flatpak override --system <appid> --env=...` -- those land in
+#     <appid> files, not in `global`, so we only own `global`.
+#   * The override survives flatpak upgrades AND OS upgrades cleanly.
+#
+# Called by mios-hermes-firstboot at first boot, and re-runnable by the
+# operator (or agent) whenever they want to reset to MiOS defaults.
+
+set -eu
+
+if ! command -v flatpak >/dev/null 2>&1; then
+    echo "mios-flatpak-overrides-apply: flatpak not installed -- skipping" >&2
+    exit 0
+fi
+
+# --reset clears the global override file completely; then we re-create
+# the MiOS-managed keys. This is safer than --unset of individual keys
+# (which can fail silently if the key doesn't exist).
+flatpak override --system --reset 2>/dev/null || true
+
+flatpak override --system \
+    --env=GTK_USE_PORTAL=1 \
+    --filesystem=xdg-config/gtk-3.0:ro \
+    --filesystem=xdg-config/gtk-4.0:ro \
+    --filesystem=xdg-data/themes:ro \
+    --filesystem=xdg-data/icons:ro
+
+echo "mios-flatpak-overrides-apply: global flatpak override seeded"
+echo "  GTK_USE_PORTAL=1 (libadwaita reads operator color-scheme via xdg-portal)"
+echo "  + xdg-config/gtk-3.0 + gtk-4.0 + xdg-data/themes + xdg-data/icons mounts"

@@ -1,0 +1,29 @@
+# /usr/share/mios/flatpak-flags/com.google.ChromeDev.flags
+#
+# Vendor default flags appended by /usr/libexec/mios/flatpak-launch
+# whenever com.google.ChromeDev is launched (via the chrome shim,
+# `mios-gui chrome`, or any direct flatpak run via the wrapper).
+#
+# To override per-host, copy this file to
+# /etc/mios/flatpak-flags/com.google.ChromeDev.flags and edit there --
+# the operator path takes precedence.
+#
+# Empty lines and `#` comments are ignored; remaining lines are
+# tokenised on whitespace and appended to `flatpak run --system <id>`.
+
+# Wayland window decorations (modern title bar instead of legacy X11 silver)
+--ozone-platform=wayland
+--enable-features=UseOzonePlatform,WaylandWindowDecorations,WebUIDarkMode
+--gtk-version=4
+
+# Force dark UI (Chrome's own Aura, not GTK theming)
+--force-dark-mode
+
+# CDP for Hermes-Agent's browser_* tools.
+# --user-data-dir is MANDATORY for Chrome 134+ to enable CDP (security default).
+# --remote-allow-origins=* lets the local Hermes process at localhost:9222
+# connect from outside the flatpak sandbox without CORS rejection.
+--user-data-dir=/var/home/mios/.var/app/com.google.ChromeDev/config/google-chrome-mios
+--remote-debugging-port=9222
+--remote-debugging-address=127.0.0.1
+--remote-allow-origins=*

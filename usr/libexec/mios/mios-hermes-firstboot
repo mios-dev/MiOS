@@ -733,3 +733,18 @@ else
         systemctl restart hermes-agent.service || _log "WARN: hermes-agent restart failed"
     fi
 fi
+
+# ─── Global flatpak override (theming + portal) ─────────────────────────
+# Seed the GTK_USE_PORTAL=1 + xdg-config/data/themes/icons filesystem
+# mounts so libadwaita / GTK4 flatpaks (Epiphany, Nautilus, Files,
+# Calendar, Extensions Manager) pick up the operator's color-scheme
+# (prefer-dark) and theme (adw-gtk3-dark) via xdg-portal-desktop. Without
+# this, every flatpak boots with a generic white-mode GTK3 default.
+# Operator-confirmed regression 2026-05-15: "epiphany has older GTK now"
+# was because the global override was missing the xdg-data/themes mount.
+#
+# Idempotent + harmless if flatpak isn't installed (the helper exits 0).
+if [[ -x /usr/libexec/mios/mios-flatpak-overrides-apply ]]; then
+    /usr/libexec/mios/mios-flatpak-overrides-apply 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
