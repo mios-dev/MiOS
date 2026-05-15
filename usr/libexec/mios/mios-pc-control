@@ -1,0 +1,77 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-pc-control <subcommand> [args...]
+#
+# Windows-host computer-use surface for MiOS-Agent. Hermes ships a
+# `computer_use` toolset but it's macOS-only (cua-driver). This
+# helper provides the equivalent for MiOS-on-WSL2 by driving Win32
+# SendInput / GDI screen capture / Win32 window enumeration via
+# PowerShell scripts that run on the Windows side (through
+# mios-windows ps which goes through the broker for the agent's
+# context).
+#
+# Operator directive 2026-05-15: "Hermes-Agent supports PC control,
+# NO?!" -- yes, but only on macOS. This shim is the MiOS-Windows
+# equivalent so agents can screenshot, click, type, move windows,
+# focus, list desktops on the Windows host.
+#
+# SUBCOMMANDS
+#
+#   screenshot <out-path>        Capture the primary monitor; saves
+#                                PNG to <out-path> (Windows-side
+#                                path or /mnt/c/... -- converted
+#                                via wslpath).
+#   click <x> <y> [button]       Move cursor to (x,y) + click. button
+#                                = left (default) | right | middle.
+#   double-click <x> <y>         Double-click at (x,y).
+#   mouse-move <x> <y>           Move cursor only (no click).
+#   type "<text>"                Type the literal text (no special
+#                                key sequence handling).
+#   key <name>                   Press a single key: Enter | Tab |
+#                                Escape | Backspace | Delete | Up |
+#                                Down | Left | Right | F1..F12 |
+#                                <letter> | <digit>.
+#   key-combo "Ctrl+C" | ...     Modifier-key combo (Ctrl/Alt/Shift
+#                                /Win + key).
+#   window-list                  List visible top-level windows
+#                                (title, PID, hwnd, x, y, w, h).
+#   window-focus <hwnd-or-pid>   Bring window to foreground.
+#   window-move <hwnd> <x> <y>   Move window to (x,y).
+#   window-resize <hwnd> <w> <h> Resize window to <w>x<h>.
+#   help                         This message.
+set -eu
+
+PS1_DIR=/usr/share/mios/windows
+PS1_HELPER="$PS1_DIR/mios-pc-control.ps1"
+
+usage() {
+    sed -n '2,/^set -eu$/p' "$0" | sed 's/^# \?//'
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ "$1" = "help" ]; then
+    usage
+    exit 0
+fi
+
+if ! command -v mios-windows >/dev/null 2>&1; then
+    echo "mios-pc-control: mios-windows not on PATH (need WSL2 interop)" >&2
+    exit 1
+fi
+if [ ! -f "$PS1_HELPER" ]; then
+    echo "mios-pc-control: $PS1_HELPER not present" >&2
+    exit 1
+fi
+
+sub="$1"
+shift
+
+# Translate the helper's Linux path to a UNC path Windows can read,
+# then invoke via mios-windows ps -File. wslpath -w converts.
+WIN_PS1="$(wslpath -w "$PS1_HELPER" 2>/dev/null)"
+if [ -z "$WIN_PS1" ]; then
+    echo "mios-pc-control: wslpath failed for $PS1_HELPER" >&2
+    exit 1
+fi
+
+# Forward to PowerShell helper with subcommand as -Action <name>
+# and remaining args as -Args <arg1> <arg2> ...
+mios-windows ps "& '$WIN_PS1' -Action '$sub' $*"

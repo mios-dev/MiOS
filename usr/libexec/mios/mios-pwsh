@@ -1,0 +1,58 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-pwsh "<powershell-command>" [args...]
+#
+# Direct PowerShell access for MiOS-Agent. Routes through the
+# operator-side broker (since mios-hermes can't exec /mnt/c .exes
+# directly) and prefers PowerShell 7 (pwsh.exe) over the legacy
+# 5.1 (powershell.exe) when present.
+#
+# Operator directive 2026-05-15: "hermes agents--and by proxy;
+# MiOS-Agent(s) should have access to Powershell directly".
+# mios-windows ps already provides this through interop, but
+# explicit `mios-pwsh` is more obvious in tool catalogues + agent
+# decision trees.
+#
+# Usage:
+#   mios-pwsh 'Get-Process notepad | Format-List'
+#   MIOS_PWSH_VERSION=5 mios-pwsh '<command>'   # force PS5.1
+#
+# Output: PowerShell stdout + stderr inline (NOT detached, unlike
+# mios-windows launch). Synchronous; returns when PowerShell exits.
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat <<'USAGE'
+usage: mios-pwsh '<powershell-command>'
+
+Direct PowerShell on the Windows host. Defaults to PowerShell 7
+(pwsh.exe) if installed; falls back to PowerShell 5.1
+(powershell.exe). Override via MIOS_PWSH_VERSION=5 to force 5.1.
+
+Examples:
+  mios-pwsh 'Get-Process notepad | Format-List'
+  mios-pwsh 'Get-CimInstance Win32_OperatingSystem | Select Caption,Version'
+  mios-pwsh 'New-Item -ItemType Directory C:\Temp\mios-test'
+USAGE
+    exit 0
+fi
+
+# Pick PowerShell binary path.
+PWSH7="/mnt/c/Program Files/PowerShell/7/pwsh.exe"
+PWSH5="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+TARGET=""
+if [ "${MIOS_PWSH_VERSION:-}" = "5" ]; then
+    TARGET="$PWSH5"
+elif [ -f "$PWSH7" ]; then
+    TARGET="$PWSH7"
+elif [ -f "$PWSH5" ]; then
+    TARGET="$PWSH5"
+else
+    echo "mios-pwsh: no PowerShell found (checked $PWSH7 and $PWSH5)" >&2
+    exit 1
+fi
+
+# Delegate to mios-windows ps which already handles the interop +
+# broker routing. mios-windows ps respects MIOS_WINDOWS_PWSH for
+# the 5.1-vs-7 choice; pass our resolved TARGET through.
+export MIOS_WINDOWS_PWSH="$TARGET"
+exec mios-windows ps "$@"
