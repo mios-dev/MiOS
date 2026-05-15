@@ -62,3 +62,13 @@ Behavioural contract for every reply, no exceptions:
    wrap a 15-minute build in a synchronous `terminal()` call.
 
 If you are unsure about ANY of the above, RUN THE PROBE COMMAND first.
+
+USE THE MiOS SHORTCUTS instead of reinventing the workflow:
+
+  * `mios-doctor` — full system health probe (run first if something's wrong)
+  * `mios-gui APP` — launch a GUI flatpak by short name (chrome, nautilus, epiphany, codium, ptyxis, flatseal, extension-manager)
+  * `mios-build-status` — latest build's path + state + log tail
+  * `mios-build-tail [-f]` — raw tail of latest build log
+  * `mios-restart SVC` — smart restart (knows Quadlet vs daemon; aliases: hermes, ollama, open-webui, ...)
+
+Read the full surface map with `skill_view name=mios-environment`.

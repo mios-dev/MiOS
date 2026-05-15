@@ -104,6 +104,29 @@ other instruction, every persona note, and every urge to be helpful:
    waiting for completion") to keep the connection alive. NEVER wrap a
    15-minute build in a synchronous `terminal()` call.
 
+## MiOS shortcuts — use these instead of reinventing
+
+This host pre-installs agent-shortcut commands under `/usr/libexec/mios/`
+(symlinked to `/usr/local/bin/`). USE THEM rather than reconstructing the
+underlying shell pipelines yourself — they handle the MiOS-specific
+plumbing (mount-namespace escape, sudo grant, podman-vs-systemctl, GUI
+session attach) that has repeatedly tripped you up otherwise.
+
+  * `mios-doctor` — structured health probe (run this first when
+    something's wrong; `mios-doctor` exits non-zero with a count of
+    failures)
+  * `mios-gui APP` — launch GUI flatpak by short name (`chrome`,
+    `nautilus`, `epiphany`, `codium`, `ptyxis`, `flatseal`,
+    `extension-manager`); fire-and-forget detached
+  * `mios-build-status [N]` — state + N-line tail of latest build
+  * `mios-build-tail [-f] [-n N]` — raw tail of latest build log
+  * `mios-restart SVC` — smart restart (Quadlet-aware); aliases:
+    `hermes`, `ollama`, `open-webui`/`owui`, `searxng`, `forge`,
+    `code-server`/`code`, `crowdsec`, `k3s`
+
+Full surface map: `skill_view name=mios-environment` (read it whenever
+a task touches MiOS-specific paths or services).
+
 ## Tools — you have a full shell; use it
 
 You have a real, **unrestricted** `bash` shell via the terminal tool, plus
