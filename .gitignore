@@ -316,6 +316,11 @@ usr/share/mios/ai/*
 !/usr/share/mios/ai/v1/
 !/usr/share/mios/ai/v1/**
 !/usr/share/mios/ai/system.md
+# hermes-soul.md -- the MiOS-managed hardened Hermes-Agent persona /
+# anti-confabulation grounding. Seeded to $HERMES_HOME/SOUL.md + the
+# operator's ~/.hermes/SOUL.md by mios-hermes-firstboot. Vendor-shipped
+# (like system.md), so it must be tracked.
+!/usr/share/mios/ai/hermes-soul.md
 usr/share/mios/knowledge/
 usr/share/mios/memory/
 usr/share/mios/user-preferences.md

@@ -423,3 +423,51 @@ if [[ -n "$_op_home" && -d "$_op_home" ]]; then
 else
     _log "operator home for '$_op_user' not found -- skipping CLI config seed"
 fi
+
+# ── Hermes persona / grounding (SOUL.md) ────────────────────────────────
+# Hermes-Agent reloads $HERMES_HOME/SOUL.md fresh on EVERY message -- it
+# is the live lever for the agent's persona AND its operating discipline.
+# Stock Hermes ships an EMPTY SOUL.md (just a comment template), which
+# left the local model ungrounded: it confabulated tool output, invented
+# config flags, and claimed success on commands that errored or returned
+# nothing (operator-confirmed 2026-05-14). MiOS ships a hardened SOUL.md
+# at /usr/share/mios/ai/hermes-soul.md -- strong anti-confabulation
+# rules, full-shell-usage guidance, and pointers to the on-disk MiOS AI
+# reference docs. Seed it for BOTH the gateway service (HERMES_HOME) and
+# the operator's `hermes` CLI (~/.hermes), exactly like config.yaml.
+#
+# Re-seed when the target is missing OR still the stock template (no
+# "MiOS-managed" marker). An operator who wants their own persona just
+# deletes that marker line; MiOS then leaves the file alone forever.
+SOUL_SRC=""
+for _c in /usr/share/mios/ai/hermes-soul.md \
+          "${MIOS_REPO:-}/usr/share/mios/ai/hermes-soul.md"; do
+    [[ -n "$_c" && -r "$_c" ]] && { SOUL_SRC="$_c"; break; }
+done
+if [[ -z "$SOUL_SRC" ]]; then
+    _log "WARN: hermes-soul.md source not found -- skipping SOUL.md seed"
+else
+    # Gateway service copy ($HERMES_HOME/SOUL.md, owned by mios-hermes).
+    _soul_svc="${HERMES_DATA}/SOUL.md"
+    if [[ ! -f "$_soul_svc" ]] || ! grep -q 'MiOS-managed' "$_soul_svc" 2>/dev/null; then
+        cp -f "$SOUL_SRC" "$_soul_svc"
+        chown 820:820 "$_soul_svc" 2>/dev/null || true
+        chmod 0644 "$_soul_svc" 2>/dev/null || true
+        _log "seeded $_soul_svc (hardened MiOS persona + anti-confabulation grounding)"
+    else
+        _log "$_soul_svc operator-customised (no MiOS-managed marker) -- not overwriting"
+    fi
+    # Operator `hermes` CLI copy (reuses _op_user / _op_home from above).
+    if [[ -n "${_op_home:-}" && -d "${_op_home:-}" ]]; then
+        _soul_op="${_op_home}/.hermes/SOUL.md"
+        if [[ ! -f "$_soul_op" ]] || ! grep -q 'MiOS-managed' "$_soul_op" 2>/dev/null; then
+            mkdir -p "${_op_home}/.hermes"
+            cp -f "$SOUL_SRC" "$_soul_op"
+            chown "$_op_user":"$_op_user" "$_soul_op" 2>/dev/null || true
+            chmod 0644 "$_soul_op" 2>/dev/null || true
+            _log "seeded operator SOUL.md $_soul_op (user=$_op_user)"
+        else
+            _log "operator SOUL.md $_soul_op operator-customised -- not overwriting"
+        fi
+    fi
+fi
