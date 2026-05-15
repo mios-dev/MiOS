@@ -164,17 +164,28 @@ RUN --network=host set -eux; \
     # store with every unprivileged user via /etc/containers/storage.conf's \
     # additionalimagestores entry). podman pull's defaults leave the per- \
     # backend subdirs (overlay-images, overlay-containers, overlay-layers, \
-    # libpod) at mode 0700, which makes them root-only -- every unprivileged \
-    # podman invocation (flatpak shim, `mios` operator shell, anything that \
-    # transitively forks podman) then dies with: \
-    #   "configure storage: open .../overlay-images/images.lock: \
-    #    permission denied" \
-    # Operator-confirmed 2026-05-15: this regression killed the epiphany \
-    # flatpak launch ("flatpaks opened fine before!!!"), and any other \
-    # tool that touches podman from a non-root user. chmod -R go+rX after \
-    # the bake so future builds ship a usable additional store. \
-    echo "bound-images: chmod -R go+rX /usr/lib/containers/storage (additionalimagestores must be world-readable)"; \
-    chmod -R go+rX /usr/lib/containers/storage
+    # libpod) at mode 0700 -- root-only. Unprivileged podman invocations \
+    # (flatpak shim, `mios` operator shell, anything forking podman) then \
+    # die with: "configure storage: open .../overlay-images/images.lock: \
+    # permission denied". \
+    # \
+    # Only chmod the per-driver TOPLEVEL DIRS here -- not chmod -R, which \
+    # caused buildah commit failures on >15-image bakes (operator- \
+    # confirmed CI failure 2026-05-15: chmod -R produced a layer buildah \
+    # couldn't commit, exit 1 mid-build). The deep recursion happens at \
+    # boot via mios-additionalimagestores-perms.service (preset-enabled, \
+    # commit f5a1ac9). That service uses chmod -R go+rX on the running \
+    # host where layer sizes don't matter. Containerfile only needs the \
+    # toplevel dirs world-traversable for boot to find them. \
+    echo "bound-images: chmod 0755 the per-driver toplevel dirs (deep recursion at boot via mios-additionalimagestores-perms.service)"; \
+    for d in /usr/lib/containers/storage \
+             /usr/lib/containers/storage/overlay \
+             /usr/lib/containers/storage/overlay-images \
+             /usr/lib/containers/storage/overlay-containers \
+             /usr/lib/containers/storage/overlay-layers \
+             /usr/lib/containers/storage/libpod; do \
+        [ -d "$d" ] && chmod 0755 "$d"; \
+    done
 
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
