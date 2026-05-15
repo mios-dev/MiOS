@@ -64,7 +64,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "$GH_TOKEN" | podman login ghcr.io \
+          echo "$GH_TOKEN" | sudo podman login ghcr.io \
               -u "${{ github.actor }}" --password-stdin
 
       - name: Build OCI image (parity with Forgejo Runner)
@@ -84,7 +84,19 @@ jobs:
               [[ -n "${MIOS_AI_EMBED_MODEL:-}"    ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
               [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_OLLAMA_BAKE_MODELS=${MIOS_OLLAMA_BAKE_MODELS}")
           fi
-          podman build \
+          # sudo: rootful podman avoids the user-namespace UID exhaustion
+          # that breaks the bound-images bake step. The bake's inner
+          # `podman --root /usr/lib/containers/storage pull` unpacks
+          # images that contain files owned by high-numbered system
+          # GIDs (e.g. /etc/gshadow gid=42); rootless podman remaps via
+          # /etc/subuid + /etc/subgid which the GHA runner user has only
+          # 65k entries for, and the chown then fails with "lchown
+          # /etc/gshadow: invalid argument" -- "potentially insufficient
+          # UIDs or GIDs available in user namespace". Rootful podman
+          # has full UID range and skips the remap. Operator-confirmed
+          # CI failure 2026-05-15 (qdrant + 13 other bound images failed
+          # with this exact error mid-bake).
+          sudo podman build \
               "${BUILD_ARGS[@]}" \
               -f Containerfile \
               -t "localhost/mios:latest" \
@@ -97,13 +109,14 @@ jobs:
           # final build step. Belt-and-suspenders check: confirm the
           # freshly-built image still carries the required bootc labels.
           # Identical check to .forgejo/workflows/build-mios.yml.
-          podman image inspect localhost/mios:latest \
+          # sudo: read from rootful storage where the build placed the image
+          sudo podman image inspect localhost/mios:latest \
               --format '{{ index .Config.Labels "containers.bootc" }}' \
               | grep -qx '1' || {
                   echo "ERROR: built image missing containers.bootc=1 label" >&2
                   exit 1
               }
-          podman image inspect localhost/mios:latest \
+          sudo podman image inspect localhost/mios:latest \
               --format '{{ index .Config.Labels "ostree.bootable" }}' \
               | grep -qx '1' || {
                   echo "ERROR: built image missing ostree.bootable=1 label" >&2
@@ -120,7 +133,8 @@ jobs:
           # match self-hosted images bit-for-bit.
           IMAGE_TAG="localhost/mios:${{ steps.tag.outputs.image_tag }}"
           MAX_LAYERS="${MIOS_RECHUNK_MAX_LAYERS:-67}"
-          podman run --rm \
+          # sudo: rechunk reads from + writes to rootful storage
+          sudo podman run --rm \
               --security-opt label=type:unconfined_t \
               -v /var/lib/containers/storage:/var/lib/containers/storage \
               "${IMAGE_TAG}" \
@@ -131,8 +145,8 @@ jobs:
               echo "WARN: rechunk failed; pushing un-rechunked image" >&2
               exit 0
           }
-          podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
-          podman tag "${IMAGE_TAG}" "localhost/mios:latest"
+          sudo podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+          sudo podman tag "${IMAGE_TAG}" "localhost/mios:latest"
 
       - name: Compute registry tags
         id: meta
@@ -156,11 +170,11 @@ jobs:
               echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Log in to GHCR
+      - name: Log in to GHCR (push step)
         if: github.event_name != 'pull_request'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | \
-              podman login -u "${{ github.actor }}" --password-stdin "${REGISTRY}"
+              sudo podman login -u "${{ github.actor }}" --password-stdin "${REGISTRY}"
 
       - name: Push to GHCR
         if: github.event_name != 'pull_request'
@@ -168,8 +182,8 @@ jobs:
           set -euo pipefail
           while IFS= read -r tag; do
               [[ -z "$tag" ]] && continue
-              podman tag localhost/mios:latest "$tag"
-              podman push "$tag"
+              sudo podman tag localhost/mios:latest "$tag"
+              sudo podman push "$tag"
               echo "Pushed: $tag"
           done <<< "${{ steps.meta.outputs.tags }}"
 
@@ -201,6 +215,15 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y podman
 
+      - name: Login to GHCR (raise base-image pull rate limit, smoke step)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | sudo podman login ghcr.io \
+              -u "${{ github.actor }}" --password-stdin
+
       - name: Smoke build (lint via Containerfile final RUN)
         run: |
-          podman build -t mios:smoke -f Containerfile .
+          # sudo: rootful podman avoids user-namespace UID exhaustion in
+          # the bake step (same fix as the main build step above).
+          sudo podman build -t mios:smoke -f Containerfile .
