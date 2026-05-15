@@ -297,6 +297,13 @@ elif ! grep -qE '^display:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # to add the display: knobs (tool_progress: verbose, etc.).
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing display block (counter-fabrication)"
+elif ! grep -qE '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Config predates the delegation block -- the orchestrator can't
+    # spawn parallel child agents, and auxiliary services still serialize
+    # through the big GPU model instead of fanning out to a small CPU
+    # model. Rewrite to add delegation: + swap auxiliary models.
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- missing delegation block (multi-agent parallelism)"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
@@ -348,39 +355,39 @@ auxiliary:
   compression:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   session_search:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   title_generation:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   triage_specifier:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   curator:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   mcp:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   web_extract:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   approval:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
   skills_hub:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: ${_AI_MODEL_RESOLVED}
+    model: qwen3:1.7b
 
 # Web search/extract -> the on-box SearXNG (mios-searxng). The
 # concrete URL is exported as SEARXNG_URL by hermes-agent.service
@@ -408,6 +415,36 @@ display:
   inline_diffs: true
   show_reasoning: false              # flip to true if you want the chain-of-thought visible
   show_cost: false
+
+# Multi-agent delegation. Hermes 0.13.x's orchestrator can spawn child
+# agents (delegate_task tool) -- typically used to fan out discrete
+# subtasks (search this file, lint that path, write a test) in parallel
+# while the main agent stays focused on the high-level plan.
+#
+# Architecture for this host (9950X3D 16-core / 40 GB RAM / RTX 4090
+# 24 GB VRAM): the MAIN agent runs the big tool-calling model on the
+# GPU (model.default = qwen3-coder:30b, MoE, ~19 GB), while DELEGATES
+# and the AUXILIARY services (compression, title-gen, session_search,
+# triage, curator, mcp, web_extract, approval, skills_hub) run on the
+# small fast qwen3:1.7b model -- ollama keeps it warm alongside the
+# big one (OLLAMA_MAX_LOADED_MODELS=4) and serves up to 4 concurrent
+# requests per model (OLLAMA_NUM_PARALLEL=4, set in ollama.container).
+# Result: the orchestrator's children + auxiliary lanes actually run
+# in parallel instead of serializing through one slot.
+#
+# subagent_auto_approve: true -- consistent with the operator's broad
+# sudo grant for mios-hermes (10-mios-hermes); the agent is
+# operator-authorized to act, including spawning its own children.
+delegation:
+  provider: custom:local-ollama
+  base_url: http://localhost:11434/v1
+  model: qwen3:1.7b                 # small, fast, tool-capable -- runs on CPU alongside GPU main
+  max_concurrent_children: 6        # 16 cores -> ~2.5 cores per child even at full fan-out
+  max_spawn_depth: 2                # allow one level of sub-delegation (children can spawn grandchildren)
+  child_timeout_seconds: 600
+  inherit_mcp_toolsets: true
+  orchestrator_enabled: true
+  subagent_auto_approve: true       # operator-authorized broad sudo grant covers self-spawned children
 EOF
     umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true

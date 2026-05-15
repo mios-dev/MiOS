@@ -73,6 +73,18 @@ Environment=OLLAMA_MODELS=/var/lib/ollama/models
 # (operator-confirmed 2026-05-14 crash-loop, status=1/FAILURE).
 # /var/lib/ollama is owned by mios-ollama (uid 815) -- point HOME there.
 Environment=HOME=/var/lib/ollama
+# Multi-agent parallelism. Hermes-Agent's delegation/auxiliary pipeline
+# fans out concurrent requests (orchestrator + N delegates + auxiliary
+# services like compression/title-gen/etc.) to one ollama daemon. The
+# default OLLAMA_NUM_PARALLEL=1 SERIALIZES every request through a
+# single slot per model, which collapses the multi-agent design back
+# into a sequential pipeline. NUM_PARALLEL=4 gives every model up to
+# 4 concurrent slots; combined with MAX_LOADED_MODELS=4 (keep the big
+# GPU model and 1-2 small CPU models warm at the same time) the
+# orchestrator's children + auxiliary lanes actually run in parallel.
+# 9950X3D + 40 GB RAM + 24 GB VRAM has the headroom for this.
+Environment=OLLAMA_NUM_PARALLEL=4
+Environment=OLLAMA_MAX_LOADED_MODELS=4
 
 # Volumes (Architectural Law 2 -- /var paths declared via tmpfiles.d):
 #   /var/lib/ollama   writable runtime model store
