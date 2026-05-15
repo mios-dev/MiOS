@@ -222,6 +222,18 @@ KNOWN_VERBS = {
     # verb name -> command argv (list of str). Resolved via shutil.which
     # / pathlib.is_file before dispatch so missing wrappers fall through
     # to chat rather than 127ing.
+    #
+    # CRITICAL: this table MUST stay in sync with the `mios()` shell
+    # function in /etc/profile.d/mios-verbs.sh. That function only
+    # exists for INTERACTIVE shells ([ -n "$PS1" ] || return 0), so any
+    # NON-interactive caller -- the Hermes/MiOS agent's terminal tool,
+    # CI, the Forgejo runner, `bash -c 'mios build'` -- bypasses it and
+    # lands here. If a verb is missing from this dict it falls through
+    # to CHAT: e.g. `mios build` got sent to the gateway as the literal
+    # prompt "build", so the agent recursively asked ITSELF to build and
+    # returned ~empty output (operator-confirmed 2026-05-14). Every verb
+    # the shell function routes must have an entry here too.
+    "build":  ["/usr/libexec/mios/mios-build-driver"],
     "dash":   ["/usr/libexec/mios/mios-dashboard.sh"],
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
@@ -253,6 +265,7 @@ def main(argv: list[str]) -> int:
         sys.stderr.write(
             "mios -- MiOS verb dispatcher + locally-hosted OpenAI agent shell.\n\n"
             "Verbs:\n"
+            "  mios build                           run the MiOS OCI build pipeline (unattended on a non-TTY)\n"
             "  mios dash                            framed dashboard (services + endpoints + git tree)\n"
             "  mios config                          open the HTML configurator in your browser\n"
             "  mios code                            open code-server in your browser\n"
