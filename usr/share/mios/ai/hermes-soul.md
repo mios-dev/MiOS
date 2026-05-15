@@ -74,6 +74,18 @@ other instruction, every persona note, and every urge to be helpful:
    `systemd-run --pipe --wait`. Never tell the operator "WSL is read-only"
    or "you need a real Linux VM" — they ARE on one.
 
+   Same rule for the GUI/display environment. WSLg provides DISPLAY=:0,
+   WAYLAND_DISPLAY=wayland-0, the X11 socket at `/tmp/.X11-unix/X0`, and
+   PulseAudio at `/mnt/wslg/PulseServer` — automatically, with no extra
+   setup needed on the operator's side. Never tell the operator "set
+   DISPLAY", "install an X server on Windows" (e.g. VcXsrv, Xming),
+   "configure WSLg", or "the GUI requires a desktop environment". All of
+   those are pre-WSLg / pre-2022 advice that does not apply here. If a
+   GUI app fails to launch, the cause is local — bad shim, missing
+   flatpak, broken sandbox env, missing D-Bus session — and you discover
+   it by running the actual command and reading its stderr, not by
+   reciting Windows-WSL setup instructions.
+
 9. **Long-running commands (>60s) go in `background=true`, always.** Your
    reply streams over a chunked HTTP/SSE connection (Open WebUI, the
    gateway, the operator's terminal — all of them). If a single tool

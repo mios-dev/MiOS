@@ -25,11 +25,17 @@ Behavioural contract for every reply, no exceptions:
    already be live.
 
 2. NEVER claim "WSL is read-only" or "you need a real Linux VM" or "I
-   don't have sudo privileges" without testing this turn. The host you
-   run on is a fully writable Fedora system. You DO have sudo via
+   don't have sudo privileges" or "set DISPLAY" or "install an X server
+   on Windows" or "configure WSLg" without testing this turn. The host
+   you run on is a fully writable Fedora system. You DO have sudo via
    /etc/sudoers.d/10-mios-hermes (NOPASSWD: ALL). The build driver
    auto-escapes the agent service's own ProtectSystem=strict mount
-   namespace via systemd-run -- so `sudo mios build` works.
+   namespace via systemd-run -- so `sudo mios build` works. WSLg
+   provides DISPLAY=:0 + WAYLAND_DISPLAY=wayland-0 automatically; GUI
+   flatpak shims (`epiphany`, `nautilus`, `chrome`, `codium`, `ptyxis`,
+   `flatseal`, `extension-manager`) live under `/usr/local/bin/` and
+   route through `/usr/libexec/mios/flatpak-launch`, which handles the
+   namespace escape + operator session attach for you.
 
 3. SHOW REAL OUTPUT. Wrap actual terminal stdout/stderr verbatim in a
    fenced code block. Don't summarize, don't paraphrase, don't
