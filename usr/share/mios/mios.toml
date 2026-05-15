@@ -476,10 +476,28 @@ prompt_shortcut     = "@"
 # Build-time model bake list. Comma-separated; consumed by
 # automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
-# Default keeps the embed model + the small Granite so a fresh image
-# is usable offline; the heavier default (granite4.1:30b, ~17.5 GB)
-# pulls at first-boot to avoid bloating the OCI layer.
-bake_models         = "granite4.1:3b,nomic-embed-text"
+#
+# Operator directive 2026-05-15: "models should be embedded in MiOS
+# images and be present on Live MiOS deployments via quadlets and
+# build pipelines". So we bake the FULL working set into the OCI
+# image -- a fresh boot is immediately usable without runtime pulls,
+# and bound-images.d picks them up via the additionalimagestores
+# under /usr/lib/containers/storage:
+#   * granite4.1:3b      -- low-RAM fallback (~2.5 GB)
+#   * qwen3:1.7b         -- delegate + auxiliary lanes (~1 GB)
+#   * qwen3.5:2b         -- mid-tier chat fallback (~2.6 GB)
+#   * qwen3-coder:30b    -- the big tool-calling MoE (~17 GB)
+#   * nomic-embed-text   -- embeddings (~0.3 GB)
+# Total: ~23 GB baked. Big OCI image, but the OS is "instant-on" --
+# fresh deployments don't have to wait for a 17 GB pull on first chat
+# (operator-confirmed regression: post-reinstall, only granite4.1:3b +
+# nomic-embed-text were present, and the auto-pick fell back to a
+# tiny qwen3.5:2b that was barely useful for the agent surface).
+#
+# Operators on bandwidth-constrained networks can shrink the bake list
+# in /etc/mios/mios.toml (operator overlay) -- the OCI image rebuilds
+# without the missing models, then runtime pulls them on demand.
+bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,nomic-embed-text"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
