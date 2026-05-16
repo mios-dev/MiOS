@@ -39,11 +39,15 @@ the launch command for the best match, or lists candidates if the
 query is ambiguous. Use as the FIRST step before any Get-ChildItem
 when the operator asks to launch something.
 
-Examples:
-  mios-find chrome              -> mios-gui chromedev
-  mios-find "the crew"          -> mios-windows ps "Start-Process ..."
-  mios-find beamng              -> mios-windows ps "Start-Process ..."
-  mios-find ptyxis              -> mios-gui ptyxis
+Forms (every token in <ANGLES> is operator-substituted; do not
+interpret as a specific app name):
+  mios-find <query>             -> ONE runnable launch line on stdout
+  mios-find <multi word query>  -> quote it: "<multi word query>"
+  mios-find <alias>             -> resolved via mios.toml [mios-find.aliases]
+
+The output line is ready-to-execute (mios-gui <id>, mios-windows
+launch <path>, mios-windows ps "Start-Process '<uri>'", etc.). Run
+it AS-IS; don't re-shape into a different subcommand.
 USAGE
     exit 0
 fi

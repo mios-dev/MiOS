@@ -73,11 +73,19 @@ SOUL edit.
 ## Canonical launch flow — "open / launch / start / run X (to URL)"
 
 ```
-1. mios-find X                          -> prints ONE runnable line
-2. execute that line VERBATIM + URL arg -> broker routes to operator session
-3. mios-window-active X                 -> verify summary == "presented"
+1. mios-find X                              -> prints ONE runnable line
+2. execute that line VERBATIM + URL arg     -> broker routes to operator session
+3. mios-window-active --present X           -> auto-restore if minimized + verify
 4. report SUCCESS only if presented_to_operator == true
 ```
+
+The `--present` flag makes the verifier ALSO the actuator: if the
+window is minimized/hidden, it sends SW_RESTORE + SetForegroundWindow
+before re-measuring. So after `--present`, summary is either
+`presented` (success, with the window now actually visible) OR a
+genuine non-recoverable state (`not-running` / `no-window` /
+`off-screen`). The `minimized` summary should never appear after
+`--present`.
 
 `mios-find`'s output is the answer — don't paraphrase, don't pick a
 different subcommand, don't extract the path and call something else.

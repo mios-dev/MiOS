@@ -54,9 +54,15 @@
 
 set -eu
 
+PRESENT=0
+if [ "$#" -ge 1 ] && [ "$1" = "--present" ]; then
+    PRESENT=1
+    shift
+fi
+
 if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat <<'USAGE'
-usage: mios-window-active <name-pattern>
+usage: mios-window-active [--present] <name-pattern>
 
 Reports JSON describing whether the named app's window is presented
 to the operator (visible + not minimized + on-screen). Process-alive
@@ -67,10 +73,18 @@ The pattern is a substring match (case-insensitive) against either
 the process name OR the main window title. First match wins,
 preferring processes that have a non-zero MainWindowHandle.
 
-Examples:
-  mios-window-active epiphany       -> {"presented_to_operator": true, ...}
-  mios-window-active "the crew"     -> {"summary": "minimized", ...}
-  mios-window-active spotify        -> {"summary": "not-running", ...}
+  --present   If the window is minimized/hidden, RESTORE it +
+              SetForegroundWindow before re-checking. This makes the
+              verifier also the actuator: after `--present`, summary
+              is either "presented" (success) or one of "not-running"
+              / "no-window" / "off-screen" (genuine failure, not
+              minimized).
+
+Forms (every token in <ANGLES> is operator-substituted; do not
+interpret as a specific app name):
+  mios-window-active <pattern>              -> JSON snapshot
+  mios-window-active --present <pattern>    -> auto-restore + foreground, then snapshot
+  mios-window-active <multi word pattern>   -> quote it: "<multi word pattern>"
 USAGE
     exit 0
 fi
@@ -78,12 +92,15 @@ fi
 QUERY="$*"
 # PowerShell single-quote escape: ' becomes ''
 PS_QUERY=$(printf '%s' "$QUERY" | sed "s/'/''/g")
+# Stringify the --present flag for embedding in the PowerShell literal.
+if [ "$PRESENT" = "1" ]; then PS_PRESENT='$true'; else PS_PRESENT='$false'; fi
 
 # PowerShell snippet -- the query is embedded as a single-quoted
 # literal so it survives broker dispatch (no env var inheritance
 # needed).
 PS_SNIPPET=$(cat <<PWSHEOF
 \$query = '$PS_QUERY'
+\$present = $PS_PRESENT
 \$query_lower = \$query.ToLowerInvariant()
 Add-Type @"
 using System;
@@ -93,6 +110,9 @@ public class W {
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
 }
 "@ -ErrorAction SilentlyContinue
@@ -114,6 +134,18 @@ if (-not \$p) { \$p = \$procs | Select-Object -First 1 }
 if (\$h -eq [IntPtr]::Zero) {
     @{ query = \$query; process_alive = \$true; process_id = \$p.Id; process_name = \$p.ProcessName; window_handle = 0; presented_to_operator = \$false; summary = 'no-window' } | ConvertTo-Json -Compress
     return
+}
+
+# --present mode: actuate before re-measuring. SW_RESTORE = 9
+# (restores a minimized window); SW_SHOWNORMAL = 1 (shows + activates
+# regardless of prior state). Then bring-to-top + foreground for
+# z-order. Wait briefly for Win32 to settle.
+if (\$present) {
+    [W]::ShowWindow(\$h, 9) | Out-Null   # SW_RESTORE
+    [W]::ShowWindow(\$h, 1) | Out-Null   # SW_SHOWNORMAL
+    [W]::BringWindowToTop(\$h) | Out-Null
+    [W]::SetForegroundWindow(\$h) | Out-Null
+    Start-Sleep -Milliseconds 250
 }
 
 \$visible = [W]::IsWindowVisible(\$h)

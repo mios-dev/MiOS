@@ -152,3 +152,15 @@ Let me know if you need to navigate to a specific
 let me know if you need to navigate to a specific (?:video|page|url)
 epiphany was started successfully\.\s+It should be running
 .+ was started successfully\.\s+It should be running in a new window
+
+# ── 2026-05-16 night again: "minimized! need to see the window"
+# regression. Agent fabricated "in WSL the Linux X-server can't
+# directly control the window state (no wmctrl or xdotool)". FALSE:
+# mios-pc-control window-focus exists; mios-window-active --present
+# restores+foregrounds. WSLg-hosted Linux windows ARE Win32 top-levels.
+in WSL the Linux X.server can.?t directly control the window state
+.no wmctrl or xdotool.
+you.?ll need to switch frames manually on Windows
+run a Windows.based browser instead
+[Ll]et me know if you.?d like me to open a Windows web browser for you
+window state \(no wmctrl or xdotool\)
