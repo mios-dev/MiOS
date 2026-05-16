@@ -20,6 +20,14 @@ PIPE_NAME="MiOS-Agent"
 FILTER_SRC=/usr/share/mios/owui/pipes/mios_antimeta_filter.py
 FILTER_ID="mios_antimeta"
 FILTER_NAME="MiOS Anti-Meta Filter"
+# Sidecar filter that surfaces sibling-agent activity (nudger,
+# log-watcher, cron-director, sys-agent) into the OWUI chat stream
+# via __event_emitter__. Operator directive 2026-05-16: "OWUI
+# doesn't emit anything from ANY GLOBAL AGENTS as it should".
+SIDECAR_SRC=/usr/share/mios/owui/pipes/mios_sidecar_filter.py
+SIDECAR_ID="mios_sidecar"
+SIDECAR_NAME="MiOS Agents Sidecar"
+SIDECAR_DESC="Surfaces sibling-agent activity (nudger, log-watcher, cron, sys-agent) in chat."
 OWUI_URL="${MIOS_OWUI_URL:-http://localhost:3030}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 
@@ -195,8 +203,6 @@ case "$RESP3" in
         ;;
 esac
 
-fi  # end of disabled pipe+Model block
-
 # ─── Register the anti-meta Filter Function (post-hoc scrubber) ───────
 # Operator directive 2026-05-16: research-driven approach -- replace
 # rigid "DO NOT say X" SOUL.md text-blocks with an OWUI Filter that
@@ -241,6 +247,48 @@ PYEOF
             esac
             ;;
         *) echo "[mios-owui-install-pipe] ✗ Filter create $RESPF" >&2 ;;
+    esac
+fi
+
+
+# ─── Register the MiOS Agents Sidecar Filter (emits sibling-agent
+#     activity via __event_emitter__) ────────────────────────────────
+if [ -f "$SIDECAR_SRC" ]; then
+    SIDECAR_PAYLOAD=$(python3 - "$SIDECAR_ID" "$SIDECAR_NAME" "$SIDECAR_SRC" "$SIDECAR_DESC" <<'PYEOF'
+import json, sys
+fid, fname, src, desc = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(src) as f:
+    content = f.read()
+print(json.dumps({
+    "id": fid,
+    "name": fname,
+    "content": content,
+    "meta": {"description": desc, "manifest": {}},
+    "type": "filter",
+    "is_active": True,
+    "is_global": True,
+}))
+PYEOF
+)
+    RESPS=$(curl -s -X POST "$OWUI_URL/api/v1/functions/create" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$SIDECAR_PAYLOAD" \
+        -o /tmp/mios-owui-install-pipe.resp \
+        -w "%{http_code}")
+    case "$RESPS" in
+        200|201) echo "[mios-owui-install-pipe] ✓ created Filter $SIDECAR_ID" ;;
+        400|409)
+            RESPS2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$SIDECAR_ID/update" \
+                -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+                -d "$SIDECAR_PAYLOAD" \
+                -o /tmp/mios-owui-install-pipe.resp -w "%{http_code}")
+            case "$RESPS2" in
+                200|201) echo "[mios-owui-install-pipe] ✓ updated Filter $SIDECAR_ID" ;;
+                *)       echo "[mios-owui-install-pipe] ✗ Sidecar update $RESPS2" >&2 ;;
+            esac
+            ;;
+        *) echo "[mios-owui-install-pipe] ✗ Sidecar create $RESPS" >&2 ;;
     esac
 fi
 
