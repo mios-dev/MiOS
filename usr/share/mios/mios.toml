@@ -653,7 +653,16 @@ mid_ram_gb       = 16                            # >= this -> mid_ram_model
 # tool calls reliably; mios-delegation-prefilter (commit 4357fe2)
 # forces delegate_task on fan-outable prompts so we don't lose the
 # delegation behaviour gpt-oss was meant to provide.
-big_ram_model    = "qwen3-coder:30b"             # clean JSON tool calls; ~19 GB
+# Swapped 2026-05-16 from qwen3-coder:30b. Two operator-confirmed
+# regressions drove the change:
+#   1. qwen3-coder:30b emits Qwen-native <function=X> XML markup;
+#      hermes parser doesnt recognize it -> tool calls silently fail +
+#      raw XML reaches operators chat.
+#   2. 17 GB qwen3-coder + 4 GB mios-sys-agent > 20.5 GB GPU -> VRAM
+#      eviction every turn (operator: "spills out of VRAM too often").
+# gpt-oss-tools:20b (vendored Modelfile) emits clean OpenAI tool_calls
+# JSON + 12.8 GB fits alongside sys-agent with headroom for KV cache.
+big_ram_model    = "gpt-oss-tools:20b"           # clean tool_calls; ~12.8 GB; co-resident w/ sys-agent
 # gpt-oss-tools:20b kept in [[ai.catalog]] for operators who want it,
 # but NOT the auto-pick.
 mid_ram_model    = "qwen3-coder:14b"             # smaller dense Coder, ~9 GB
