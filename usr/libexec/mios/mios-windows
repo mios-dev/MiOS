@@ -255,11 +255,42 @@ case "$sub" in
 import socket, sys, shlex
 target = sys.argv[1]
 extra_args = sys.argv[2:]
-# Build the PowerShell Start-Process call. ArgumentList is optional.
-ps = f"Start-Process -FilePath {shlex.quote(target)}"
+# Build the PowerShell Start-Process call + auto-center post-launch.
+# Operator directive 2026-05-16: "MiOS apps STILL don't center launch
+# and don't self center". Default Win32 placement is top-left or
+# last-position; centering here means every launched window appears
+# in the middle of the operator's primary monitor working area.
+# -PassThru returns the Process object so we can read MainWindowHandle.
+start = f"$p = Start-Process -FilePath {shlex.quote(target)} -PassThru"
 if extra_args:
     arglist = ", ".join(shlex.quote(a) for a in extra_args)
-    ps += f" -ArgumentList {arglist}"
+    start = f"$p = Start-Process -FilePath {shlex.quote(target)} -ArgumentList {arglist} -PassThru"
+center = (
+    "; "
+    "for ($i = 0; $i -lt 50; $i++) { "
+    "  $p = Get-Process -Id $p.Id -ErrorAction SilentlyContinue; "
+    "  if ($p -and $p.MainWindowHandle -ne 0) { break }; "
+    "  Start-Sleep -Milliseconds 100 "
+    "}; "
+    "if ($p -and $p.MainWindowHandle -ne 0) { "
+    "  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
+    "  Add-Type -Name W32M -Namespace MX -MemberDefinition @'\n"
+    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
+    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
+    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
+    "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
+    "'@ -ErrorAction SilentlyContinue; "
+    "$r = New-Object MX.W32M+RECT; "
+    "[MX.W32M]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
+    "$w = $r.R - $r.L; $h = $r.B - $r.T; "
+    "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
+    "$x = $s.X + [int](($s.Width - $w) / 2); "
+    "$y = $s.Y + [int](($s.Height - $h) / 2); "
+    "[MX.W32M]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
+    "[MX.W32M]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
+    "}"
+)
+ps = start + center
 # Full path to powershell.exe -- systemd user services have a stripped
 # PATH that excludes /mnt/c/Windows/System32 (operator-confirmed
 # regression 2026-05-16: broker returned "bash: line 1: powershell.exe:

@@ -224,7 +224,44 @@ switch ($Action) {
         Write-Output "[mios-pc-control] window-resize hwnd=$hwnd to ${w}x${h}"
     }
 
+    'window-center' {
+        # Center the window on the primary monitor's work area.
+        # Usage: window-center <hwnd-or-pid>
+        # Operator directive 2026-05-16: "MiOS apps STILL don't center
+        # launch and don't self center" -- Windows apps launched via
+        # Start-Process appear at default Win32 placement (often top-
+        # left or last-position). This puts them in the screen center.
+        $arg = $Args[0]
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        # Try treating $arg as hwnd first; if it's a small int (PID),
+        # resolve to the process's main window handle.
+        $hwnd = [IntPtr]::Zero
+        if ($arg -match '^\d+$' -and [int64]$arg -lt 1000000) {
+            try {
+                $proc = Get-Process -Id ([int]$arg) -ErrorAction Stop
+                $hwnd = $proc.MainWindowHandle
+            } catch {}
+        }
+        if ($hwnd -eq [IntPtr]::Zero) {
+            $hwnd = [IntPtr]([int64]$arg)
+        }
+        if ($hwnd -eq [IntPtr]::Zero) {
+            throw "window-center: could not resolve '$arg' to a window handle"
+        }
+        $rect = New-Object W32+RECT
+        [W32]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+        $w = $rect.Right - $rect.Left
+        $h = $rect.Bottom - $rect.Top
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+        $x = $screen.X + [int](($screen.Width - $w) / 2)
+        $y = $screen.Y + [int](($screen.Height - $h) / 2)
+        [W32]::MoveWindow($hwnd, $x, $y, $w, $h, $true) | Out-Null
+        [W32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
+        [W32]::SetForegroundWindow($hwnd) | Out-Null
+        Write-Output "[mios-pc-control] window-center hwnd=$hwnd to ($x,$y) ${w}x${h}"
+    }
+
     default {
-        throw "mios-pc-control.ps1: unknown action '$Action' (try: screenshot, click, double-click, mouse-move, type, key, key-combo, window-list, window-focus, window-move, window-resize)"
+        throw "mios-pc-control.ps1: unknown action '$Action' (try: screenshot, click, double-click, mouse-move, type, key, key-combo, window-list, window-focus, window-move, window-resize, window-center)"
     }
 }
