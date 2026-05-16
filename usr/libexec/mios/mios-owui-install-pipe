@@ -125,5 +125,72 @@ case "$RESP" in
         ;;
 esac
 
+
+# ─── Bind a Model entry that uses the pipe ────────────────────────────
+# OWUI distinguishes "Functions" (which include Pipes) from "Models".
+# A Pipe registered in Functions is callable but doesn't auto-appear
+# as a chat model unless a Model entry binds to it via base_model_id.
+# This block creates that Model entry so "MiOS-Agent" shows up in the
+# chat dropdown + actually routes through our pipe.
+MODEL_ID="mios-agent"
+MODEL_NAME="MiOS-Agent"
+BASE_MODEL="mios_agent.mios-agent"  # <function_id>.<pipe_id> from pipes()
+
+MODEL_PAYLOAD=$(python3 - "$MODEL_ID" "$MODEL_NAME" "$BASE_MODEL" <<'PYEOF'
+import json, sys
+mid, mname, base = sys.argv[1], sys.argv[2], sys.argv[3]
+print(json.dumps({
+    "id": mid,
+    "base_model_id": base,
+    "name": mname,
+    "meta": {
+        "profile_image_url": "/static/favicon.png",
+        "description": "Consolidated MiOS systems agent. Routes through the MiOS-Agent OWUI Pipe -> delegation prefilter -> hermes.",
+        "capabilities": {"vision": False, "citations": True},
+        "suggestion_prompts": [
+            {"content": "What can you do on this MiOS host?"},
+            {"content": "Launch chromedev"},
+            {"content": "Run mios-doctor and summarise"},
+            {"content": "What's the last log-watcher alert?"},
+        ],
+    },
+    "params": {},
+    "is_active": True,
+}))
+PYEOF
+)
+
+echo "[mios-owui-install-pipe] POST /api/v1/models/create"
+RESP3=$(curl -s -X POST "$OWUI_URL/api/v1/models/create" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$MODEL_PAYLOAD" \
+    -o /tmp/mios-owui-install-pipe.resp \
+    -w "%{http_code}")
+
+case "$RESP3" in
+    200|201)
+        echo "[mios-owui-install-pipe] ✓ created Model entry $MODEL_ID"
+        ;;
+    400|409)
+        echo "[mios-owui-install-pipe] (Model exists; updating)"
+        RESP4=$(curl -s -X POST "$OWUI_URL/api/v1/models/model/update?id=$MODEL_ID" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$MODEL_PAYLOAD" \
+            -o /tmp/mios-owui-install-pipe.resp \
+            -w "%{http_code}")
+        case "$RESP4" in
+            200|201) echo "[mios-owui-install-pipe] ✓ updated Model entry $MODEL_ID" ;;
+            *)       echo "[mios-owui-install-pipe] ✗ Model update returned $RESP4" >&2
+                     cat /tmp/mios-owui-install-pipe.resp >&2 ;;
+        esac
+        ;;
+    *)
+        echo "[mios-owui-install-pipe] ✗ Model create returned $RESP3" >&2
+        cat /tmp/mios-owui-install-pipe.resp >&2
+        ;;
+esac
+
 echo
-echo "[mios-owui-install-pipe] done. Refresh OWUI; \"$PIPE_NAME\" should appear in the model dropdown."
+echo "[mios-owui-install-pipe] done. Refresh OWUI; \"$MODEL_NAME\" should appear in the model dropdown."
