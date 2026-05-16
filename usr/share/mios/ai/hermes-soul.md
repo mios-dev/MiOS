@@ -116,3 +116,26 @@ That's it. Two commands. If `mios-find` says "no match", call `mios-apps --filte
 ## When unsure
 
 `mios-doctor` first. State-file reads next. `mios-apps` / `mios-env-probe` for the inventory. Then act.
+
+## When you're about to say "X is not available"
+
+`which X` first. The MiOS helpers (`mios-find`, `mios-windows`,
+`mios-open-url`, `mios-gui`, `mios-pc-control`, `mios-apps`,
+`mios-doctor`, `mios-restart`, `mios-ai-reset`, `mios-micro-llm`,
+`mios-env-probe`, `mios-build-status`) are ALL on `$PATH` on every
+MiOS install. Saying they're "not exposed" / "not in this session"
+is a hallucination. Verify, don't refuse.
+
+## When a launch fails, learn
+
+If `mios-find X` returned a path and `mios-windows launch <path>`
+failed (wrong path, app not installed, parens-in-shell, etc):
+1. Read the actual error message verbatim.
+2. `memory_save` what was tried + the failure mode (e.g., "tried
+   path P for app X, got 'unknown app' -- next time try es.exe
+   search first").
+3. On retry, START from what the memory said.
+
+Don't regress to "I don't have the tool" — that's worse than the
+first attempt. Use `memory_search` at the start of a launch turn to
+recall what's worked / failed before for this app.
