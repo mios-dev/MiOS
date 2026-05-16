@@ -1,6 +1,18 @@
 ---
 name: windows-control
-description: Use whenever the operator asks to launch a Windows app (notepad, explorer, calc, taskmgr...) or run a Windows-side command (PowerShell, cmd.exe, query a Windows service, inspect Windows networking). NEVER claim "I cannot launch Windows applications from WSL" -- mios-windows uses WSL interop and works without SSH or extra setup.
+description: |
+  Use whenever the operator asks to (a) launch a Windows app -- notepad,
+  explorer, calc, taskmgr, paint, snipping, regedit, ANY installed Windows
+  game/program; (b) launch a BROWSER or open a URL ("open chrome", "open
+  YouTube", "open Wikipedia in my browser") -- this routes through
+  mios-open-url or mios-windows launch chrome <url>; (c) run a Windows-
+  side command (PowerShell, cmd.exe, query a Windows service, inspect
+  Windows networking). NEVER reply "the mios-windows tool doesn't exist
+  in the toolset" or "there isn't a direct command to launch a Windows
+  application" or "tools available don't include..." -- mios-windows IS
+  on /usr/local/bin/, uses WSL interop via /init, works without SSH or
+  extra setup. The /usr/local/bin/mios-windows binary is shipped with
+  MiOS, present on every install, and verified active by mios-doctor.
 metadata:
   hermes:
     requires_tools: [terminal]
@@ -19,13 +31,68 @@ manipulation.
   calc / mspaint / paint / snipping tool / task manager"**, or names
   any Windows GUI app -- any built-in Windows app you'd find in the
   Start menu.
-* The operator says **"run \<PowerShell command\>"** or **"check the
-  Windows service \<name\>"** or **"query the Windows network
+* The operator says **"open a browser to <URL>"**, **"open YouTube /
+  Wikipedia / GitHub / anything.com"**, **"open Chrome / Firefox /
+  Edge"** -- this is a URL/browser request. Use `mios-open-url <URL>`
+  for "open <URL>" prompts, or `mios-windows launch chrome <URL>` to
+  explicitly route via Chrome.
+* The operator says **"launch <game> / <app>"** -- a game (The Crew
+  Motorfest, Steam, Battle.net, etc.) or third-party Windows app
+  (Discord, Spotify, Notepad++, ...) installed on the Windows host.
+  Use `mios-windows launch "<exact-display-name-or-exe-name>"`.
+  If the app isn't in `mios-windows list`'s known shortnames,
+  `mios-windows launch "C:\\Users\\...\\path\\to\\App.exe"` works too;
+  any full Windows path is accepted.
+* The operator says **"run <PowerShell command>"** or **"check the
+  Windows service <name>"** or **"query the Windows network
   config / IP / DHCP / firewall"**.
-* The operator says **"launch \<app\> on Windows"** / **"on the host"**
+* The operator says **"launch <app> on Windows"** / **"on the host"**
   / **"on the Windows side"**.
 * You're about to write "I cannot launch native Windows applications
   from WSL". Stop. Use `mios-windows launch <app>` instead.
+* You're about to write **"the mios-windows tool doesn't exist in the
+  current toolset"** or **"tools available to me don't include a direct
+  way to launch Windows applications"** or **"isn't a direct command
+  to launch a Windows application"**. STOP. Both are FALSE on this
+  host. `mios-windows` is at `/usr/local/bin/mios-windows`, symlinked
+  from `/usr/libexec/mios/mios-windows`, available on every MiOS install,
+  reachable via the `terminal` tool with no extra setup. Verify with
+  `terminal: which mios-windows` if you doubt it -- DO NOT guess.
+
+## Browser + URL recipes (the operator's most common ask)
+
+```
+mios-open-url https://www.youtube.com         # OPEN any URL in op's browser
+mios-open-url https://en.wikipedia.org        # ANY URL, no app-name resolution
+
+mios-windows launch chrome https://github.com # launch Chrome with a starting URL
+mios-windows launch chrome                    # launch Chrome to its home page
+```
+
+`mios-launch` is for APPLICATION NAMES (chrome, nautilus, etc.). It
+does NOT resolve URLs as args -- if the operator says "open Wikipedia"
+do NOT run `mios-launch wikipedia` (it will fail with "no resolution
+for 'wikipedia'"). Use `mios-open-url https://en.wikipedia.org`
+instead. This is the exact failure that bit the operator 2026-05-15.
+
+## Game / third-party app recipes
+
+```
+mios-windows launch steam                     # if "steam" is in list
+mios-windows launch "Battle.net Launcher"
+mios-windows launch "C:\\Program Files\\Ubisoft\\Ubisoft Game Launcher\\upc.exe"
+
+# When the exact name is unknown, ASK the operator OR find the .exe
+# via the broker:
+mios-windows ps 'Get-ChildItem "C:\\Program Files*" -Recurse -Filter "*motorfest*.exe" -ErrorAction SilentlyContinue | Select-Object FullName | Format-List'
+
+# Then launch with the discovered path:
+mios-windows launch "C:\\Program Files\\Ubisoft Game Launcher\\games\\The Crew Motorfest\\TheCrewMotorfest.exe"
+```
+
+NEVER tell the operator "I'd recommend you navigate to the Start Menu
+manually" or "Look for <app> in your installed applications". You have
+the tools. Use them.
 
 ## How
 
