@@ -1,0 +1,203 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-find <query>
+#
+# Fast fuzzy lookup against the cached environment inventory. Use this
+# as the FIRST step whenever the operator says "launch <app>" --
+# returns a ready-to-execute launch command in <100 ms, without any
+# Get-ChildItem -Recurse over the Windows drive.
+#
+# Output (single line on stdout when match is unambiguous):
+#   <launch-command>
+#
+# Output (multiple matches, top 5 to stderr + nothing to stdout):
+#   N matches for "<query>" (top 5):
+#     1. [<category>] <name>  ->  <launch>
+#     ...
+#
+# Output (no match, exit 1):
+#   no match for "<query>" in inventory; try `mios-apps --filter <substr>`
+#
+# Operator directive 2026-05-16: "MiOS-Hermes should be given the
+# opportunity to map out it's environment for faster follow-up
+# questions like ex; 'launch this app for me' should be snappy
+# because MiOS-Agent(s) initialize and understand the environment
+# and where everything already is".
+#
+# Implementation: shells out to `mios-apps --json` which returns
+# JSONL of every known launchable thing across Linux + Windows. The
+# Windows side is pre-cached for 5 minutes inside mios-apps (via
+# Get-StartApps), so mios-find inherits that speed.
+
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat <<'USAGE'
+usage: mios-find <query>
+
+Fast fuzzy lookup against the MiOS environment inventory. Returns
+the launch command for the best match, or lists candidates if the
+query is ambiguous. Use as the FIRST step before any Get-ChildItem
+when the operator asks to launch something.
+
+Examples:
+  mios-find chrome              -> mios-gui chromedev
+  mios-find "the crew"          -> mios-windows ps "Start-Process ..."
+  mios-find beamng              -> mios-windows ps "Start-Process ..."
+  mios-find ptyxis              -> mios-gui ptyxis
+USAGE
+    exit 0
+fi
+
+QUERY="$*"
+QUERY="${QUERY#\"}"
+QUERY="${QUERY%\"}"
+
+# ─── Fast path A: Voidtools Everything (es.exe) if installed ──────────
+# Operator directive 2026-05-16: "windows entries and installations
+# should install everything search on windows and the agent should
+# use that for windows searching". Everything indexes the entire NTFS
+# tree + has a CLI (es.exe) that returns matches in <100 ms.
+#
+# es.exe lives on the Windows side but /mnt/c is bind-mounted into
+# WSL, so we can invoke it DIRECTLY via the WSL interop layer (no
+# mios-windows / PowerShell wrapper needed -- saves ~500 ms).
+# Probed here at runtime so this script no-ops cleanly when absent.
+# Probe order matches the install precedence:
+#   1. M:\Programs\Everything   (canonical MiOS install location;
+#                                survives Windows reinstalls because
+#                                M: is the operator's persistent data
+#                                partition; installed by mios-bootstrap)
+#   2. Program Files            (winget / admin install)
+#   3. Program Files (x86)      (winget 32-bit fallback)
+#   4. Tools\Everything         (operator-managed alt location)
+#   5. LocalAppData             (user-scope install when no admin)
+for ES_PATH in \
+    '/mnt/m/Programs/Everything/es.exe' \
+    '/mnt/c/Program Files/Everything/es.exe' \
+    '/mnt/c/Program Files (x86)/Everything/es.exe' \
+    '/mnt/c/Tools/Everything/es.exe' \
+    '/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe'; do
+    if [ -x "$ES_PATH" ] || [ -f "$ES_PATH" ]; then
+        # Find <query>*.exe across all indexed drives, top 5 results.
+        # 2 sec timeout for safety; es.exe normally returns in <100ms.
+        ES_OUT="$(timeout 2 "$ES_PATH" -n 5 "${QUERY}*.exe" 2>/dev/null | tr -d '\r')"
+        if [ -n "$ES_OUT" ]; then
+            FIRST_EXE="$(printf '%s\n' "$ES_OUT" | head -1)"
+            if [ -n "$FIRST_EXE" ]; then
+                # Escape backslashes for shell-safe inclusion in the command line
+                ESCAPED="$(printf '%s' "$FIRST_EXE" | sed 's/\\/\\\\/g')"
+                echo "mios-windows launch \"$ESCAPED\""
+                n_alt="$(printf '%s\n' "$ES_OUT" | wc -l)"
+                if [ "$n_alt" -gt 1 ]; then
+                    echo "(found via Everything; $((n_alt - 1)) other .exe matches:)" >&2
+                    printf '%s\n' "$ES_OUT" | tail -n +2 | sed 's/^/  /' >&2
+                fi
+                exit 0
+            fi
+        fi
+        break  # don't probe multiple es.exe locations
+    fi
+done
+
+# ─── Fast path B: mios-apps inventory (Linux + Windows Start Menu + games) ─
+python3 - "$QUERY" <<'PYEOF'
+import json
+import re
+import subprocess
+import sys
+
+query = sys.argv[1].strip().lower()
+if not query:
+    print("mios-find: empty query", file=sys.stderr)
+    sys.exit(2)
+
+try:
+    out = subprocess.check_output(
+        ["mios-apps", "--json"], text=True, timeout=15
+    )
+except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+    print(f"mios-find: mios-apps failed: {e}", file=sys.stderr)
+    sys.exit(3)
+
+CAT_PRIORITY = {
+    "windows-app":     1,
+    "linux-flatpak":   2,
+    "linux-rpm-gui":   3,
+    "mios-shim":       4,
+    "windows-gui":     5,
+    "agent-cli":       6,
+    "service-url":     7,
+}
+
+entries = []
+for line in out.splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        e = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    name = (e.get("name") or "").lower()
+    desc = (e.get("description") or "").lower()
+    cat = e.get("category") or ""
+    launch = e.get("launch") or e.get("command") or ""
+    if not name or not launch:
+        continue
+    entries.append({
+        "name": e.get("name"),
+        "desc": e.get("description") or "",
+        "cat": cat,
+        "launch": launch,
+        "lname": name,
+        "ldesc": desc,
+    })
+
+def rank(e):
+    n = e["lname"]
+    d = e["ldesc"]
+    if n == query:
+        return (0, CAT_PRIORITY.get(e["cat"], 99), len(n))
+    if n.startswith(query):
+        return (1, CAT_PRIORITY.get(e["cat"], 99), len(n))
+    if re.search(rf"\b{re.escape(query)}", n):
+        return (2, CAT_PRIORITY.get(e["cat"], 99), len(n))
+    if query in n:
+        return (3, CAT_PRIORITY.get(e["cat"], 99), len(n))
+    if re.search(rf"\b{re.escape(query)}", d):
+        return (4, CAT_PRIORITY.get(e["cat"], 99), len(d))
+    if query in d:
+        return (5, CAT_PRIORITY.get(e["cat"], 99), len(d))
+    return None
+
+scored = []
+for e in entries:
+    r = rank(e)
+    if r is not None:
+        scored.append((r, e))
+scored.sort(key=lambda x: x[0])
+
+if not scored:
+    print(f'no match for "{query}" in inventory; '
+          f'try `mios-apps --filter {query}` or list with `mios-apps`',
+          file=sys.stderr)
+    sys.exit(1)
+
+# Auto-resolve ambiguity by picking the highest-priority CATEGORY
+# match at the best tier. The sort already orders by
+# (tier, category-priority, length), so scored[0] is always the
+# "best" by our rules. Print it. If there are >1 matches, also
+# emit a brief "n other candidates" note to stderr for transparency
+# -- but DO NOT bounce back to the operator demanding re-query
+# (operator directive 2026-05-16: "should be snappy").
+best = scored[0][1]
+print(best["launch"])
+if len(scored) > 1:
+    n_alt = min(4, len(scored) - 1)
+    print(f'(picked best of {len(scored)}; {n_alt} alternatives:)',
+          file=sys.stderr)
+    for i, (_, e) in enumerate(scored[1:1+n_alt], 1):
+        print(f'  {i}. [{e["cat"]:<14}] {e["name"]:<30} -> {e["launch"]}',
+              file=sys.stderr)
+sys.exit(0)
+PYEOF

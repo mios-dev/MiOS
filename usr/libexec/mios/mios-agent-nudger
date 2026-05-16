@@ -128,10 +128,19 @@ def _toml_layered(section: str, key: str) -> str | None:
 
 
 def _resolve_micro() -> tuple[str, str]:
-    model = os.environ.get("MIOS_MICRO_MODEL") or _toml_layered("ai", "micro_model") or "qwen3:0.6b"
+    # See mios-log-watcher _resolve_micro -- micro_model lives in
+    # [ai.host_thresholds] per the vendored mios.toml layout. Two-
+    # section probe so we work whether operator restructures or not.
+    model = (
+        os.environ.get("MIOS_MICRO_MODEL")
+        or _toml_layered("ai", "micro_model")
+        or _toml_layered("ai.host_thresholds", "micro_model")
+        or "qwen3:0.6b-cpu"
+    )
     endpoint = (
         os.environ.get("MIOS_MICRO_ENDPOINT")
         or _toml_layered("ai", "micro_endpoint")
+        or _toml_layered("ai.host_thresholds", "micro_endpoint")
         or "http://localhost:11434/v1"
     ).rstrip("/")
     return model, endpoint

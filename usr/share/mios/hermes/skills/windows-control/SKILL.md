@@ -75,7 +75,54 @@ do NOT run `mios-launch wikipedia` (it will fail with "no resolution
 for 'wikipedia'"). Use `mios-open-url https://en.wikipedia.org`
 instead. This is the exact failure that bit the operator 2026-05-15.
 
-## Game / third-party app recipes
+## Game / third-party app recipes -- USE `mios-find` FIRST
+
+```
+# THE ONE-STOP SHOP for "launch X". Returns a ready-to-execute
+# launch command in <5 s for ANYTHING in the inventory:
+#   * Linux flatpaks (chromedev, ptyxis, nautilus, ...)
+#   * Windows Start Menu apps (every UWP + Win32 reachable via
+#     Get-StartApps)
+#   * Steam games (every appmanifest_*.acf -> steam://rungameid/<id>)
+#   * Epic games (every .item manifest -> com.epicgames.launcher://)
+#   * GOG games (every Games/<title>/<exe>)
+#   * MiOS shims, agent CLIs, internal service URLs
+mios-find beamng      # -> mios-windows ps "Start-Process 'steam://rungameid/284160'"
+mios-find chrome      # -> mios-gui chromedev  (or windows-app ChromeDev)
+mios-find "the crew"  # -> Ubisoft launcher path
+mios-find ptyxis      # -> mios-gui ptyxis
+
+# Then just execute the returned command via terminal tool. ONE
+# terminal call to discover, ONE to launch. Total ~5 s.
+```
+
+This is the SNAPPY path. The operator's directive 2026-05-16:
+"MiOS-Hermes should be given the opportunity to map out it's
+environment for faster follow-up questions like ex; 'launch this
+app for me' should be snappy". `mios-find` IS that map.
+
+## WSL <-> Windows path translation (NEVER fail at this)
+
+When you've located an executable at a `/mnt/c/...` or `/mnt/d/...`
+path inside WSL, translate to Windows format BEFORE passing to
+`mios-windows launch`. Two tools:
+
+```
+# Canonical: wslpath -w converts /mnt/<drv>/... -> <DRV>:\...
+wslpath -w /mnt/d/SteamLibrary/steamapps/common/BeamNG.drive/BeamNG.drive.exe
+# -> D:\SteamLibrary\steamapps\common\BeamNG.drive\BeamNG.drive.exe
+
+# Then launch with the translated path:
+mios-windows launch "$(wslpath -w /mnt/d/SteamLibrary/steamapps/common/BeamNG.drive/BeamNG.drive.exe)"
+```
+
+NEVER reply "I don't have the exact Windows path format that works
+with the WSL interop system" -- you have wslpath. Operator-confirmed
+2026-05-16: agent found BeamNG.drive.exe at /mnt/d/SteamLibrary/...
+then GAVE UP on launching it because it didn't translate the path.
+The translation is one command.
+
+## Fallback recipes (only when mios-find returns "no match")
 
 ```
 mios-windows launch steam                     # if "steam" is in list

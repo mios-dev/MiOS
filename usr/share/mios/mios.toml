@@ -551,7 +551,7 @@ prompt_shortcut     = "@"
 # auxiliary lanes that benefit from conciseness; not the default
 # delegation.model -- qwen3:1.7b's throughput is decisive for the
 # fan-out workload at depth 2 with up to 6 children.
-bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,gemma4:e4b"
+bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,qwen3:0.6b-cpu,gemma4:e4b"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -677,7 +677,7 @@ vision_grounding_endpoint = "http://localhost:11434/v1"
 # Operator directive 2026-05-15: "we could have a micro-LLM be running
 # in the background on 1 core(2 threads) ... daemon for logs and log
 # collection and presenting ... could even be a cron director".
-micro_model              = "qwen3:0.6b"
+micro_model              = "qwen3:0.6b-cpu"
 micro_endpoint           = "http://localhost:11434/v1"
 micro_keep_alive_seconds = -1
 

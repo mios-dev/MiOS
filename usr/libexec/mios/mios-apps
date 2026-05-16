@@ -176,6 +176,103 @@ if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     fi
 fi
 
+# ─── 3b. windows-game (Steam + Epic + GOG library scan) ──────────────
+# Get-StartApps misses many installed games -- Steam games typically
+# don't get individual Start Menu shortcuts (Steam itself does, but
+# not each title). Operator-flagged 2026-05-16: "launch beamng on my
+# pc" returned no match. Steam's library has appmanifest_<APPID>.acf
+# files containing the "installdir" key -- scanning those gives us
+# every installed Steam game.
+#
+# Same for Epic (.item manifests under ProgramData\Epic\
+# EpicGamesLauncher\Data\Manifests) and GOG (Games subdirs under
+# C:\Program Files (x86)\GOG Galaxy\Games\).
+header windows-game
+if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
+    GAME_CACHE=/var/lib/mios/agent-env/windows-games.cache
+    mkdir -p /var/lib/mios/agent-env 2>/dev/null
+    if [ -f "$GAME_CACHE" ] && [ "$(( $(date +%s) - $(stat -c %Y "$GAME_CACHE" 2>/dev/null || echo 0) ))" -lt 600 ]; then
+        :  # fresh enough; reuse
+    else
+        # Single PowerShell pass over Steam + Epic + GOG library locations.
+        # Output format: "<name>|<exe-path>" one per line.
+        timeout 12 mios-windows ps '
+$out = @()
+# Steam: every .acf manifest in steamapps. Try common drives.
+$steamRoots = @(
+    "C:\Program Files (x86)\Steam\steamapps",
+    "D:\SteamLibrary\steamapps",
+    "E:\SteamLibrary\steamapps"
+)
+foreach ($root in $steamRoots) {
+    if (-not (Test-Path $root)) { continue }
+    Get-ChildItem $root -Filter "appmanifest_*.acf" -ErrorAction SilentlyContinue | ForEach-Object {
+        $content = Get-Content $_.FullName -Raw
+        if ($content -match "`"name`"\s+`"([^`"]+)`"" ) { $name = $matches[1] }
+        if ($content -match "`"installdir`"\s+`"([^`"]+)`"" ) { $installdir = $matches[1] }
+        if ($content -match "`"appid`"\s+`"([0-9]+)`"" ) { $appid = $matches[1] }
+        if ($name -and $appid) {
+            # Steam launch URL bypasses .exe discovery entirely
+            $out += "$name|steam://rungameid/$appid"
+        }
+    }
+}
+# Epic: .item manifests
+$epicRoot = "C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests"
+if (Test-Path $epicRoot) {
+    Get-ChildItem $epicRoot -Filter "*.item" -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            $j = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $name = $j.DisplayName
+            $ns = $j.MainGameCatalogNamespace
+            $catid = $j.MainGameCatalogItemId
+            $app = $j.MainGameAppName
+            if ($name -and $ns -and $catid -and $app) {
+                $out += "$name|com.epicgames.launcher://apps/${ns}%3A${catid}%3A${app}?action=launch&silent=true"
+            }
+        } catch {}
+    }
+}
+# GOG Galaxy
+$gogRoots = @(
+    "C:\Program Files (x86)\GOG Galaxy\Games",
+    "D:\GOG Games"
+)
+foreach ($root in $gogRoots) {
+    if (-not (Test-Path $root)) { continue }
+    Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $exe = Get-ChildItem $_.FullName -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "uninstall|unins|setup|crash|launch|setup" } |
+            Sort-Object Length -Descending | Select-Object -First 1
+        if ($exe) { $out += "$($_.Name)|$($exe.FullName)" }
+    }
+}
+$out | ForEach-Object { Write-Output $_ }
+' 2>/dev/null > "$GAME_CACHE.tmp" \
+            && mv "$GAME_CACHE.tmp" "$GAME_CACHE" || rm -f "$GAME_CACHE.tmp"
+    fi
+    if [ -f "$GAME_CACHE" ]; then
+        while IFS='|' read -r g_name g_path; do
+            [ -z "$g_name" ] && continue
+            g_name="$(echo "$g_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
+            g_path="$(echo "$g_path" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
+            short="$(echo "$g_name" | awk '{print tolower($1)}')"
+            # For Steam: launch via steam:// URI handler (cleaner than .exe path)
+            # For Epic: launch via com.epicgames.launcher URI handler
+            # For GOG: direct .exe launch
+            case "$g_path" in
+                steam://*|com.epicgames.launcher://*)
+                    cmd="mios-windows ps \"Start-Process '$g_path'\""
+                    ;;
+                *)
+                    cmd="mios-windows launch \"$g_path\""
+                    ;;
+            esac
+            emit windows-game "$short" "$g_name" "$cmd"
+        done < "$GAME_CACHE"
+    fi
+fi
+
 # ─── 4. mios-shim ────────────────────────────────────────────────────
 header mios-shim
 {

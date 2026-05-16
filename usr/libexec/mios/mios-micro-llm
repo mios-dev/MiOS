@@ -69,19 +69,25 @@ def _toml_layered(section: str, key: str) -> str | None:
 
 
 def _resolve() -> tuple[str, str, str]:
+    # micro_* lives in [ai.host_thresholds] per the vendored mios.toml.
+    # Probe [ai] first (operator restructure), fall back to
+    # [ai.host_thresholds] (vendor default).
     model = (
         os.environ.get("MIOS_MICRO_MODEL")
         or _toml_layered("ai", "micro_model")
+        or _toml_layered("ai.host_thresholds", "micro_model")
         or DEFAULT_MODEL
     )
     endpoint = (
         os.environ.get("MIOS_MICRO_ENDPOINT")
         or _toml_layered("ai", "micro_endpoint")
+        or _toml_layered("ai.host_thresholds", "micro_endpoint")
         or DEFAULT_ENDPOINT
     ).rstrip("/")
     keep_alive = (
         os.environ.get("MIOS_MICRO_KEEP_ALIVE")
         or _toml_layered("ai", "micro_keep_alive_seconds")
+        or _toml_layered("ai.host_thresholds", "micro_keep_alive_seconds")
         or DEFAULT_KEEP_ALIVE
     )
     return model, endpoint, keep_alive

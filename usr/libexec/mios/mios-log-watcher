@@ -92,14 +92,22 @@ def _toml_layered(section: str, key: str) -> str | None:
 
 
 def _resolve_micro() -> tuple[str, str]:
+    # micro_model + micro_endpoint LIVE inside [ai.host_thresholds] in
+    # the vendored mios.toml (historical: they were inlined there
+    # when first added). _toml_layered("ai", ...) misses them because
+    # it does literal section-header match. Try [ai] first (in case
+    # an operator restructured); fall back to [ai.host_thresholds]
+    # which is where the vendor put them.
     model = (
         os.environ.get("MIOS_MICRO_MODEL")
         or _toml_layered("ai", "micro_model")
-        or "qwen3:0.6b"
+        or _toml_layered("ai.host_thresholds", "micro_model")
+        or "qwen3:0.6b-cpu"
     )
     endpoint = (
         os.environ.get("MIOS_MICRO_ENDPOINT")
         or _toml_layered("ai", "micro_endpoint")
+        or _toml_layered("ai.host_thresholds", "micro_endpoint")
         or "http://localhost:11434/v1"
     ).rstrip("/")
     return model, endpoint

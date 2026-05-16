@@ -1,0 +1,40 @@
+# /usr/share/mios/ollama/Modelfiles/qwen3-0.6b-cpu.Modelfile
+#
+# CPU-pinned variant of qwen3:0.6b for the MiOS always-on micro-LLM.
+# Operator directive 2026-05-16: "make sure the micro-llm can use the
+# local AMD iGPU and/or CPU core/thread(s) using CDI/GPU-PV/Podman-
+# WSL2/g" -- the underlying intent is "don't hog the discrete GPU with
+# the tiny always-on model when the big model needs every byte of VRAM".
+#
+# This host's reality (per ollama runtime detection 2026-05-16):
+#   * NVIDIA GPU at 20.5 GiB VRAM, CUDA-active, library=CUDA
+#   * Big model (qwen3-coder:30b) consumes 17.3 GB on GPU
+#   * AMD iGPU exists but not enumerated to WSL2 (Microsoft Basic
+#     Render Driver is the only DRM shown; no /dev/kfd, no /dev/dri)
+#
+# So instead of routing the micro-LLM through a not-yet-plumbed
+# ROCm/iGPU stack, we pin it to CPU with `num_gpu 0`. The model is
+# 600 MB / ~30 layers; modern CPUs handle this comfortably (1-2 s
+# per classification call on 4 threads). Frees the GPU's 500 MB
+# headroom for the big model's context.
+#
+# Built by automation/37-ollama-prep.sh on every OCI build:
+#   ollama pull qwen3:0.6b
+#   ollama create qwen3:0.6b-cpu -f /usr/share/mios/ollama/Modelfiles/qwen3-0.6b-cpu.Modelfile
+#
+# Future: if + when the AMD iGPU lands in WSL2 (via GPU-PV ROCm
+# branch or CDI), swap `num_gpu 0` for `num_gpu N` + appropriate
+# device-routing params. Until then, CPU is the right move.
+
+FROM qwen3:0.6b
+
+# Pin to CPU: zero GPU layers. ollama interprets this as "don't
+# touch the GPU at all for this model" -- the big model keeps the
+# whole VRAM to itself.
+PARAMETER num_gpu 0
+
+# Generous CPU thread count. Most operator hosts have >=8 cores;
+# 4 threads is a polite middle ground that doesn't starve other
+# work but keeps classification latency under ~2s for the typical
+# 30-event log-watcher batch.
+PARAMETER num_thread 4
