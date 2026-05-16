@@ -1,0 +1,77 @@
+# /usr/share/mios/ai/refusal-patterns.txt
+#
+# Canonical list of regex patterns that indicate the agent is refusing
+# / fabricating / hedging instead of doing the work. Single source of
+# truth -- read by:
+#   * mios-agent-nudger          (journal-side detection)
+#   * mios-delegation-prefilter  (response-text-side detection)
+#   * mios-agent-pipe (OWUI)     (chat-stream-side detection)
+#   * SOUL.md                    (model is told these phrases are
+#                                 forbidden in its responses)
+#
+# Format:
+#   * Lines starting with `#` are comments
+#   * Blank lines ignored
+#   * Each non-comment line is one regex (Python re syntax, IGNORECASE)
+#   * `.?` matches optional apostrophe (handles both `doesn't` + `doesn t`)
+#   * Keep patterns SPECIFIC -- false positives spam alerts
+#
+# When the agent emits one of these in a chat response, the watchers
+# fire. SOUL.md text-blocks reinforce them on the model-prompt side.
+#
+# Operator-flagged regressions appended over time (date in comment).
+
+# ── 2026-05-15: "the X tool doesn't exist" + lazy-recovery suggestions
+the mios-windows tool doesn.?t exist
+tools available to me don.?t include
+isn.?t a direct command to launch
+I.?d recommend you navigate to the Start Menu manually
+look for .* in your installed applications
+system has limited Windows application launching
+
+# ── 2026-05-15: narrative-scaffolding (talking instead of acting)
+I see the issue now
+let me try a different approach
+due to the WSL2 container environment
+this environment is designed to be headless
+you might need to manually locate it
+we don.?t have traditional web browsers
+this is an immutable system, we cannot install
+GUI applications cannot be launched
+this is a headless environment
+we cannot run GUI applications directly
+manual intervention on your part
+no Firefox or Chrome installed in the Windows
+
+# ── 2026-05-16: post-success fabrications (launch worked, agent denies)
+system couldn.?t execute it due to path or permission issues
+couldn.?t execute it due to path
+requires their launcher to be running before launching
+needs to be started through the .* launcher interface
+you.?ll need to: Start the .* Launcher first
+there might be missing dependencies
+verify if the application is actually installed
+check if it.?s in a non-standard location
+you.?ll need to install it first
+
+# ── 2026-05-16: notepad pre-hedge variations + clarify confusion
+failed to launch due to WSL2 display server issues
+required Windows display drivers and services could not be loaded
+we cannot launch [A-Za-z ]+ directly through WSL
+cannot launch .{1,40} directly through WSL
+Opening the Windows Start menu and launching .{1,30} manually
+Using the Windows version of [A-Za-z ]+ via WSL.?s Windows interop
+the clarify tool isn.?t available in this context
+clarify tool isn.?t available
+
+# ── 2026-05-16: Steam launch hedge after success
+in WSL environments,? launching Windows GUI applications can sometimes be tricky
+can sometimes be tricky due to the different session contexts
+in WSL environments? .{1,40} can sometimes be tricky
+sometimes be tricky due to .{1,40} session
+
+# ── 2026-05-16: Qwen function-call XML leaking as response TEXT
+# (the model uses its native template instead of OpenAI tool_calls)
+<function=[a-zA-Z_-]+>\s*<parameter=
+<function=[a-zA-Z_-]+>
+</tool_call>
