@@ -54,7 +54,15 @@ Output:
 USAGE
             exit 0
             ;;
-        *) echo "mios-apps: unknown arg: $1" >&2; exit 64 ;;
+        *)
+            # Agents repeatedly call `mios-apps <query>` positionally
+            # instead of `mios-apps --filter <query>` and then conclude
+            # the tool is broken. Substitute the operator-typed value
+            # into the hint so the next-turn invocation is obvious.
+            echo "mios-apps: unknown positional arg: $1" >&2
+            echo "  did you mean: mios-apps --filter $(printf '%q' "$1")" >&2
+            exit 64
+            ;;
     esac
 done
 

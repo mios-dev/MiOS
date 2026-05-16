@@ -201,6 +201,22 @@ case "$sub" in
             app="$1"
             shift
         fi
+        # URI passthrough: `mios-windows launch uplay://launch/16732/0`
+        # (or steam://, epic://, http://, etc.) re-dispatches to the
+        # ps subcommand with Start-Process -- Windows registers
+        # protocol handlers per scheme. Without this, the existence
+        # check below rejects URIs as "unknown app" and the agent
+        # spirals into refusal. Operator-confirmed regression
+        # 2026-05-16: agent saw `mios-find "the crew motorfest"`
+        # return `mios-windows ps "Start-Process uplay://..."` but
+        # then called `mios-windows launch uplay://...` (wrong
+        # subcommand) and got "unknown app", concluding the URL was
+        # invalid. Now both subcommands accept URIs.
+        case "$app" in
+            *://*)
+                exec "$0" ps "Start-Process '$app'"
+                ;;
+        esac
         # Translate Windows-style paths (C:\... or D:\...) to WSL paths
         # before the existence check. Operator-confirmed regression
         # 2026-05-16: mios-find returns Windows-style paths (intended

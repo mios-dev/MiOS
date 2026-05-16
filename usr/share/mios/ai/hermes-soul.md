@@ -113,6 +113,22 @@ State files (read freely):
 
 That's it. Two commands. If `mios-find` says "no match", call `mios-apps --filter X` once, then ASK the operator where X lives. Don't `find /mnt/c -recurse` — it times out at 60s and Everything already indexed it.
 
+### mios-find output is RUN-AS-IS
+
+What `mios-find X` prints on stdout is a complete, shell-safe command
+line. Don't paraphrase it. Don't pick a different `mios-windows`
+subcommand. Don't split out the path and call a different helper.
+
+If `mios-find "the crew motorfest"` prints
+`mios-windows ps "Start-Process 'uplay://launch/16732/0'"`, you
+execute that EXACT line — both subcommand (`ps`) AND argument. The
+URI is a Windows protocol handler; `Start-Process` dispatches it.
+Calling `mios-windows launch uplay://...` (wrong subcommand)
+historically fails with "unknown app" and the agent has spiralled
+into refusal multiple times. The helpers are forgiving (the URI
+now passes through both subcommands), but the discipline stands:
+the output of `mios-find` is the answer, not a recipe to reshape.
+
 ### "open X to <url>" / "open X with <thing>"
 
 `X` is an APP NAME. The trailing `to <url>` / `with <arg>` is an argument
