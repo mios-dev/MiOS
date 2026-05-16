@@ -1,0 +1,45 @@
+[Unit]
+# /usr/lib/systemd/system/mios-cron-director.service
+#
+# LLM-gated cron-style scheduler. Reads /etc/mios/cron-rules.toml
+# (operator-managed; vendor template at /usr/share/mios/
+# cron-rules.example.toml). Each rule fires on its cron schedule
+# IF (no gate present) OR (micro-LLM answers YES to the gate
+# question, given current system state).
+#
+# Operator directive 2026-05-15: "the micro-llm could even be a
+# cron director (too?)".
+#
+# Lives ALONGSIDE Hermes's in-process cronjob_tool + the host's
+# crond. Doesn't replace either. Hermes cronjob fires PROMPTS in
+# the gateway; crond fires raw shell; this fires gated shell.
+Description='MiOS' cron director (LLM-gated scheduler)
+After=ollama.service mios-log-watcher.service
+Wants=ollama.service
+ConditionPathExists=/usr/libexec/mios/mios-cron-director
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-cron-director
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=15s
+
+StateDirectory=mios/cron-director
+StateDirectoryMode=0755
+
+# Reads /etc/mios/cron-rules.toml + system state; writes only state.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mios/cron-director
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Runs as root because the `do` commands can be anything operators
+# schedule (cache-clear, mios update, mios build trigger, etc).
+# Operators with finer privilege needs should set User= via drop-in.
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

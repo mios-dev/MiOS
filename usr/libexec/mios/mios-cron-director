@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""mios-cron-director -- LLM-gated cron-style scheduler.
+
+Operator directive 2026-05-15: "the micro-llm could even be a cron
+director (too?)".
+
+Reads /etc/mios/cron-rules.toml (operator-managed; vendor example
+at /usr/share/mios/cron-rules.example.toml). Each rule has:
+
+  name = "morning-briefing"
+  cron = "0 8 * * *"            # standard 5-field cron (m h dom mon dow)
+  gate = "Is now a good time?  # OPTIONAL natural-language gate;
+          Consider load + ..."  #   asked of the micro-LLM each tick.
+                                #   YES -> fire `do`; NO -> skip.
+  do   = "shell command"        # Required. Bash -c <do>.
+
+Daemon wakes every 60s. For each rule whose cron expression matches
+the current minute, evaluates the gate (if any) by asking the
+micro-LLM with CURRENT system state context (uptime, load, latest
+log-watcher summary). If gate is omitted OR LLM answers YES, runs
+`do` via subprocess.run (captured into journal).
+
+State persisted to /var/lib/mios/cron-director/state.json so a
+restart doesn't double-fire a job that already ran in the current
+minute.
+
+NOTE: this lives ALONGSIDE Hermes's in-process cronjob_tool and the
+host's crond; doesn't replace either. Hermes cronjob_tool fires
+prompts inside the gateway (in-process); crond fires raw shell
+commands; mios-cron-director adds LLM-gated firing for cases where
+"should this even fire right now" needs runtime judgement.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+# croniter ships with Hermes's venv (used by the gateway's own
+# cronjob tool). Try the system path first, then Hermes's venv.
+try:
+    from croniter import croniter
+except ImportError:
+    sys.path.insert(0, "/usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages")
+    from croniter import croniter
+
+logging.basicConfig(level=logging.INFO, format="[mios-cron-director] %(message)s")
+log = logging.getLogger("mios-cron-director")
+
+RULES_FILE = Path(os.environ.get("MIOS_CRON_RULES", "/etc/mios/cron-rules.toml"))
+STATE_FILE = Path("/var/lib/mios/cron-director/state.json")
+LOG_WATCHER_LATEST = Path("/var/lib/mios/log-watcher/latest.json")
+TICK_S = 60.0
+
+
+def _toml_layered(section: str, key: str) -> str | None:
+    paths = [
+        Path("/etc/mios/mios.toml"),
+        Path("/usr/share/mios/mios.toml"),
+    ]
+    sect_re = re.compile(rf"^\[{re.escape(section)}\]\s*$")
+    key_re = re.compile(rf"^\s*{re.escape(key)}\s*=\s*\"?(?P<v>[^\"#\s]+)\"?\s*(#.*)?$")
+    for p in paths:
+        if not p.is_file():
+            continue
+        in_section = False
+        for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("["):
+                in_section = bool(sect_re.match(line))
+                continue
+            if in_section:
+                m = key_re.match(line)
+                if m:
+                    return m.group("v")
+    return None
+
+
+def _resolve_micro() -> tuple[str, str]:
+    model = os.environ.get("MIOS_MICRO_MODEL") or _toml_layered("ai", "micro_model") or "qwen3:0.6b"
+    endpoint = (
+        os.environ.get("MIOS_MICRO_ENDPOINT")
+        or _toml_layered("ai", "micro_endpoint")
+        or "http://localhost:11434/v1"
+    ).rstrip("/")
+    return model, endpoint
+
+
+def parse_rules() -> list[dict]:
+    """Parse the rules TOML. Pure-stdlib (no tomllib for older targets)."""
+    if not RULES_FILE.is_file():
+        return []
+    try:
+        # Python 3.11+ has tomllib in stdlib.
+        import tomllib
+        data = tomllib.loads(RULES_FILE.read_text())
+    except (ImportError, ModuleNotFoundError):
+        # Fallback: extremely simple TOML parser for our limited schema.
+        # Operators with non-trivial TOML should ensure tomllib is available.
+        log.warning("tomllib not available; using minimal TOML parser")
+        data = _minimal_toml(RULES_FILE.read_text())
+    rules = data.get("rule") or []
+    if not isinstance(rules, list):
+        log.warning("rules file: expected [[rule]] array, got %r", type(rules))
+        return []
+    valid = []
+    for r in rules:
+        if not isinstance(r, dict):
+            continue
+        if not r.get("cron") or not r.get("do") or not r.get("name"):
+            log.warning("skipping malformed rule: %r", r)
+            continue
+        valid.append(r)
+    return valid
+
+
+def _minimal_toml(text: str) -> dict:
+    """Parse just enough TOML for our schema -- [[rule]] tables with
+    simple key = "string" assignments. Comments + blank lines skipped.
+    """
+    result = {"rule": []}
+    cur = None
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        if s == "[[rule]]":
+            cur = {}
+            result["rule"].append(cur)
+            continue
+        if cur is None:
+            continue
+        m = re.match(r'^\s*([a-zA-Z_]+)\s*=\s*"(.*)"\s*$', s)
+        if m:
+            cur[m.group(1)] = m.group(2)
+    return result
+
+
+def system_state_snippet() -> str:
+    """Compact state probe text for the LLM gate."""
+    lines = []
+    try:
+        with Path("/proc/loadavg").open() as f:
+            la = f.read().split()
+            lines.append(f"loadavg(1m,5m,15m): {la[0]} {la[1]} {la[2]}")
+    except OSError:
+        pass
+    try:
+        with Path("/proc/uptime").open() as f:
+            up = float(f.read().split()[0])
+            lines.append(f"uptime: {int(up // 3600)}h {int((up % 3600) // 60)}m")
+    except OSError:
+        pass
+    if LOG_WATCHER_LATEST.is_file():
+        try:
+            j = json.loads(LOG_WATCHER_LATEST.read_text())
+            lines.append(
+                f"log-watcher latest [{j.get('severity', '?')}]: {j.get('summary', '')[:200]}"
+            )
+        except (json.JSONDecodeError, OSError):
+            pass
+    lines.append(f"now (local): {time.strftime('%Y-%m-%d %H:%M %A %Z')}")
+    return "\n".join(lines)
+
+
+def ask_gate(gate_text: str, *, model: str, endpoint: str) -> tuple[bool, str]:
+    """Ask the micro-LLM the YES/NO gate question. Return (verdict, reasoning)."""
+    state = system_state_snippet()
+    prompt = (
+        f"Current state:\n{state}\n\n"
+        f"Question: {gate_text}\n\n"
+        "Reply with a single line of JSON: "
+        '{"answer":"YES"|"NO","reasoning":"<one sentence>"}'
+    )
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a fast YES/NO gate evaluator. Reply ONLY with the requested JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        "max_tokens": 100,
+        "temperature": 0.1,
+        "stream": False,
+        "keep_alive": "-1",
+    }
+    try:
+        req = urllib.request.Request(
+            f"{endpoint}/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            body = json.loads(r.read())
+        content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    except urllib.error.URLError as e:
+        log.warning("gate LLM unreachable: %s -- defaulting to NO", e)
+        return False, f"micro-LLM unreachable: {e}"
+    m = re.search(r"\{[\s\S]*?\}", content)
+    if not m:
+        return False, f"unparseable gate reply: {content[:120]}"
+    try:
+        result = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return False, f"bad JSON: {content[:120]}"
+    answer = str(result.get("answer", "NO")).strip().upper()
+    reasoning = str(result.get("reasoning", ""))[:200]
+    return answer == "YES", reasoning
+
+
+def load_state() -> dict:
+    if not STATE_FILE.is_file():
+        return {}
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_state(state: dict) -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def fire(rule: dict) -> None:
+    cmd = rule["do"]
+    log.info("fire: %s -> %s", rule["name"], cmd[:200])
+    try:
+        result = subprocess.run(
+            ["bash", "-lc", cmd],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=300,
+        )
+        out = (result.stdout + result.stderr).decode("utf-8", errors="replace").strip()
+        if out:
+            for line in out.splitlines()[:10]:
+                log.info("  | %s", line[:200])
+        if result.returncode != 0:
+            log.warning("rule %s exited %d", rule["name"], result.returncode)
+    except subprocess.TimeoutExpired:
+        log.warning("rule %s timed out (>5min)", rule["name"])
+
+
+def main() -> int:
+    log.info("starting; rules=%s tick=%ds", RULES_FILE, int(TICK_S))
+    model, endpoint = _resolve_micro()
+    log.info("micro-LLM: %s @ %s", model, endpoint)
+
+    rules = parse_rules()
+    log.info("loaded %d rule(s)", len(rules))
+
+    state = load_state()
+
+    def reload_rules(_sig=None, _frame=None):
+        nonlocal rules
+        rules = parse_rules()
+        log.info("reloaded %d rule(s) (SIGHUP)", len(rules))
+
+    signal.signal(signal.SIGHUP, reload_rules)
+
+    def shutdown(_sig=None, _frame=None):
+        log.info("shutting down")
+        save_state(state)
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+
+    while True:
+        now = time.time()
+        bucket = int(now // 60) * 60   # minute bucket
+        for rule in rules:
+            cron_expr = rule["cron"]
+            try:
+                # Did this minute match the rule?
+                ci = croniter(cron_expr, bucket - 1)
+                next_match = int(ci.get_next())
+                if next_match != bucket:
+                    continue   # not our minute
+            except Exception as e:
+                log.warning("rule %s: bad cron %r (%s)", rule["name"], cron_expr, e)
+                continue
+            # Already fired in this minute?
+            key = f"{rule['name']}@{bucket}"
+            if state.get(key):
+                continue
+            # Optional gate
+            gate = rule.get("gate")
+            if gate:
+                verdict, reason = ask_gate(gate, model=model, endpoint=endpoint)
+                log.info("gate %s -> %s (%s)", rule["name"], "YES" if verdict else "NO", reason)
+                if not verdict:
+                    state[key] = "skipped"
+                    save_state(state)
+                    continue
+            fire(rule)
+            state[key] = "fired"
+            # GC old state entries (>1 day)
+            cutoff = bucket - 86400
+            state = {k: v for k, v in state.items() if int(k.split("@")[-1]) >= cutoff}
+            save_state(state)
+
+        # sleep until top of next minute (with small jitter avoidance)
+        time.sleep(max(1.0, 60.0 - (time.time() - bucket)))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,49 @@
+# /usr/share/mios/cron-rules.example.toml
+#
+# Vendor template for the mios-cron-director (LLM-gated cron). Copy
+# to /etc/mios/cron-rules.toml + customise. Operator's
+# /etc/mios/cron-rules.toml is the authoritative file the daemon
+# reads; this vendor copy is for reference + as a starting point.
+#
+# Schema (per [[rule]]):
+#   name = "<short-id>"          REQUIRED -- used in journal + dedup state
+#   cron = "<5-field cron>"      REQUIRED -- "min hour dom mon dow"
+#   do   = "<shell command>"     REQUIRED -- bash -lc <do>
+#   gate = "<NL question>"       OPTIONAL -- if present, asked of the
+#                                            micro-LLM with current state
+#                                            context; YES -> fire, NO -> skip
+#
+# When a rule's cron expression matches the current minute:
+#   - No gate present  -> fire `do` immediately
+#   - Gate present     -> evaluate gate via micro-LLM (qwen3:0.6b),
+#                         fire if YES, log+skip if NO
+#
+# State file at /var/lib/mios/cron-director/state.json prevents
+# double-firing within a minute. Reload rules on SIGHUP without
+# restarting the daemon: `systemctl kill -s HUP mios-cron-director`.
+
+# Hourly checkpoint -- always fires.
+[[rule]]
+name = "hourly-checkpoint"
+cron = "0 * * * *"
+do   = "logger -t mios-cron 'hourly checkpoint'"
+
+# Off-hours cache cleanup -- LLM gate evaluates load + active builds.
+[[rule]]
+name = "off-hours-cache-clear"
+cron = "*/30 0-6 * * *"
+gate = "Is now a good time to run a cache cleanup? YES if: 1-min load avg < 1.0 AND latest log-watcher severity is not high. NO if a build seems active."
+do   = "/usr/local/bin/mios-cache-clear"
+
+# Daily morning briefing -- gated on operator-likely-awake.
+[[rule]]
+name = "morning-briefing"
+cron = "0 8 * * *"
+gate = "Is the operator likely awake and ready for a morning briefing? Hint: it is currently 08:00 local time. YES unless system has been idle <30 min (suggesting fresh boot)."
+do   = "@<prompt>:'Generate a 3-bullet morning briefing of any high-severity log-watcher events from the last 24h, plus the next 3 scheduled jobs.'"
+
+# Weekly mios update probe -- always fires.
+[[rule]]
+name = "weekly-update-check"
+cron = "0 7 * * 1"
+do   = "mios update --check 2>&1 | logger -t mios-cron-update"

@@ -79,14 +79,12 @@ if [ -S "$_BROKER_SOCK" ]; then
     done
     # Strip leading space; send single line + newline; read the OK/ERROR.
     _line="${_line# }"
-    _resp=""
-    if command -v ncat >/dev/null 2>&1; then
-        _resp="$(printf '%s\n' "$_line" | ncat -U "$_BROKER_SOCK" -i 2 2>/dev/null | head -1)"
-    elif command -v nc >/dev/null 2>&1; then
-        _resp="$(printf '%s\n' "$_line" | nc -U -q 2 "$_BROKER_SOCK" 2>/dev/null | head -1)"
-    else
-        # Fall back to python (always present in MiOS)
-        _resp="$(python3 - "$_BROKER_SOCK" "$_line" <<'PYEOF'
+    # Always python -- the nc / ncat fallbacks were unreliable across
+    # distro nc variants (operator-debug 2026-05-15: /usr/sbin/nc on
+    # MiOS doesn't accept -q so the dispatch returned empty + fell
+    # through to the wsl.exe path which mios-hermes can't exec).
+    # Python is always present.
+    _resp="$(python3 - "$_BROKER_SOCK" "$_line" <<'PYEOF'
 import socket, sys
 sock_path, line = sys.argv[1], sys.argv[2]
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -104,7 +102,6 @@ finally:
     s.close()
 PYEOF
 )"
-    fi
     case "$_resp" in
         OK*)
             # Silent success -- the dispatched command runs

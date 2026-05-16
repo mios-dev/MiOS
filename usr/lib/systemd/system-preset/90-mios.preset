@@ -107,6 +107,10 @@ enable mios-flatpak-init.service
 # 2026-05-15: "background micro-llm could be a daemon for logs and
 # log collection and presenting".
 enable mios-log-watcher.service
+# LLM-gated scheduler: reads /etc/mios/cron-rules.toml, asks the
+# micro-LLM "should this fire now given current state?" for any
+# rule with a gate. Operator directive 2026-05-15.
+enable mios-cron-director.service
 enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token
