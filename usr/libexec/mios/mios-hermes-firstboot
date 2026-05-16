@@ -987,38 +987,32 @@ if [[ -x /usr/libexec/mios/mios-owui-install-pipe ]]; then
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Pre-warm hermes + sys-agent so the first operator chat is snappy ─
+# ─── Pre-warm model WEIGHTS only (NO chat completion, NO prompt) ──────
 # Operator directive 2026-05-16: "the system prompt should run in the
-# background upon installation/MiOS images deployments". Both models
-# load + parse their massive system prompts BEFORE the operator types
-# anything. Without this, the first "hello" pays a ~20-30s GPU-load +
-# context-parse cost; with the pre-warm, the first turn is sub-2s.
+# background upon installation/MiOS images deployments". CRITICAL
+# clarification from operator: "MiOS-Agent Init has poisoned data and
+# is opening apps/flatpaks during init--should be initializing and
+# understanding its environment--user THEN dictates what it does".
 #
-# Fires fire-and-forget; if hermes / ollama isn't ready yet, the call
-# just times out + we move on. The next call to either model still
-# pays its load cost; pre-warming a model that isn't loaded yet just
-# means we tried.
+# The previous "warmup" chat prompt was being INTERPRETED by hermes
+# as a real request -- the agent then took unprompted actions
+# (launched apps, ran tools, fabricated). Switched to /api/generate
+# with prompt="" + num_predict=0: loads the model weights into VRAM,
+# parses the SYSTEM prompt template, exits WITHOUT producing a single
+# token of output OR receiving a real user message.
+#
+# Skip hermes warmup entirely -- it goes through the OpenAI-compat
+# gateway which always runs a full chat turn. Only warm the bare
+# Ollama models via /api/generate (load-only path).
 if command -v curl >/dev/null 2>&1; then
-    _log "pre-warming hermes + mios-sys-agent (background)..."
-    # Pre-warm sys-agent (smaller, ~4 GB qwen3.5:2b) -- used by OWUI Pipe
-    (curl -sf --max-time 60 \
-        http://localhost:11434/api/chat \
-        -d '"'"'{"model":"mios-sys-agent","messages":[{"role":"user","content":"warmup"}],"stream":false,"keep_alive":"-1","options":{"num_predict":1}}'"'"' \
-        >/dev/null 2>&1 &) || true
-    # Pre-warm hermes (heavier, ~17 GB qwen3-coder:30b) -- the executor.
-    # _AGENT_KEY resolved from /etc/mios/hermes/api.env earlier.
-    if [[ -r /etc/mios/hermes/api.env ]]; then
-        _wkey=$(grep "^API_SERVER_KEY=" /etc/mios/hermes/api.env | head -1 | sed "s/^API_SERVER_KEY=//")
-        if [[ -n "$_wkey" ]]; then
-            (curl -sf --max-time 120 \
-                -H "Authorization: Bearer $_wkey" \
-                -H "Content-Type: application/json" \
-                http://localhost:8642/v1/chat/completions \
-                -d '"'"'{"model":"hermes-agent","messages":[{"role":"user","content":"warmup"}],"stream":false,"max_tokens":1}'"'"' \
-                >/dev/null 2>&1 &) || true
-        fi
-    fi
-    _log "  pre-warm dispatched (background)"
+    _log "pre-warming model weights into VRAM (load-only, NO prompts)..."
+    for _wmodel in mios-sys-agent qwen3-coder:30b qwen3:0.6b-cpu; do
+        (curl -sf --max-time 180 \
+            http://localhost:11434/api/generate \
+            -d "{\"model\":\"$_wmodel\",\"prompt\":\"\",\"stream\":false,\"keep_alive\":\"-1\",\"options\":{\"num_predict\":0}}" \
+            >/dev/null 2>&1 &) || true
+    done
+    _log "  pre-warm dispatched (3 models; load-only path)"
 fi
 
 # ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
