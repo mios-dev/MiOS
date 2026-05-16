@@ -120,6 +120,36 @@ if [ "$UNIT" = "hermes-agent.service" ]; then
         done
         echo "  hermes: re-synced vendor skills into HERMES_HOME"
     fi
+
+    # SOUL.md follows the SAME pattern: vendor edit at
+    # /usr/share/mios/ai/hermes-soul.md, gateway-side firstboot stamps
+    # to $HERMES_HOME/SOUL.md once, operator-CLI ~/.hermes/SOUL.md once.
+    # Between firstboots, edits don't propagate -- and operator's CLI
+    # gets a stale prompt with old refusal-fix language. Mirror the
+    # skills behaviour: re-sync if the MiOS-managed marker is still
+    # present (operator took ownership iff they removed it).
+    SOUL_SRC=/usr/share/mios/ai/hermes-soul.md
+    if [ -f "$SOUL_SRC" ]; then
+        for _entry in \
+            "/var/lib/mios/hermes/SOUL.md:mios-hermes:mios-hermes" \
+            "/var/home/mios/.hermes/SOUL.md:mios:mios" \
+            "/home/mios/.hermes/SOUL.md:mios:mios"
+        do
+            _dest="${_entry%%:*}"
+            _rest="${_entry#*:}"
+            _own="${_rest%%:*}"
+            _grp="${_rest#*:}"
+            _parent_dir=$(dirname "$_dest")
+            [ -d "$_parent_dir" ] || continue
+            # If existing file doesn't carry the MiOS-managed marker,
+            # operator has taken ownership -- leave it alone.
+            if [ -f "$_dest" ] && ! grep -q "MiOS-managed:" "$_dest" 2>/dev/null; then
+                continue
+            fi
+            $SUDO install -m 0644 -o "$_own" -g "$_grp" "$SOUL_SRC" "$_dest" 2>/dev/null || true
+        done
+        echo "  hermes: re-synced vendor SOUL.md into HERMES_HOME + operator CLI"
+    fi
 fi
 
 echo "── restarting $UNIT ──"
