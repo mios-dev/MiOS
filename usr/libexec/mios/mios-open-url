@@ -12,8 +12,12 @@
 #   1. <browser-override>  if passed as $2 (operator-tunable per-call)
 #   2. mios.toml [[desktop.apps]] entry with role="browser" + default=true
 #   3. mios.toml [mios-find.aliases].web
-#   4. mios-find web    (alias resolution; same SoT)
-#   5. compiled fallback: "epiphany"
+#
+# Operator directive 2026-05-16: "Should be understood from the
+# source that defines all global settings(mios.toml/html)" -- NO
+# compiled fallback to a specific app name. If mios.toml defines
+# no default browser, this script ERRORS so the operator knows to
+# pick one via mios.html. Silent-default-to-some-name is a bug.
 #
 # The URL is passed through to mios-gui <resolved-default> "$URL"
 # which dispatches via flatpak-launch into the operator's WSLg
@@ -79,8 +83,7 @@ for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     if isinstance(web, str) and web:
         print(web)
         raise SystemExit(0)
-# Compiled fallback (last resort)
-print("epiphany")
+# No source defines a default browser; print nothing -> caller errors.
 PYEOF
 }
 
@@ -88,7 +91,29 @@ if [ -n "$OVERRIDE" ]; then
     TARGET="$OVERRIDE"
 else
     TARGET="$(_resolve_default_browser)"
-    TARGET="${TARGET:-epiphany}"
+    if [ -z "$TARGET" ]; then
+        cat >&2 <<ERR
+mios-open-url: no default browser defined in mios.toml.
+
+Set one by editing mios.html (or directly):
+  /usr/share/mios/mios.toml      (vendor; immutable on bootc hosts)
+  /etc/mios/mios.toml            (host override)
+  ~/.config/mios/mios.toml       (per-user override)
+
+Either of:
+  [[desktop.apps]]
+  id      = "<your-browser-app-id>"
+  role    = "browser"
+  default = true
+
+OR:
+  [mios-find.aliases]
+  web = "<your-browser-app-id>"
+
+After editing, re-run mios-open-url.
+ERR
+        exit 78    # EX_CONFIG -- configuration error
+    fi
 fi
 
 # Dispatch via mios-gui (which handles flatpak / RPM / shim
