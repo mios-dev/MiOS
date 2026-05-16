@@ -195,6 +195,44 @@ else
 fi
 
 echo
+echo "── ── ──  skill sync (vendor vs HERMES_HOME)"
+# Compare /usr/share/mios/hermes/skills (vendor truth) against
+# /var/lib/mios/hermes/skills (gateway HERMES_HOME). Surfaces:
+#   * MISSING -- vendor has it but HERMES_HOME doesn't; will appear on
+#                next `mios-restart hermes` (the rsync step we added)
+#   * STALE   -- HERMES_HOME has it but vendor doesn't. Could be operator-
+#                customised (no marker) OR genuinely abandoned (had a
+#                marker once but vendor removed). NOT auto-removed --
+#                an operator-customised skill should NEVER be silently
+#                deleted. Doctor just reports.
+if [ -d /usr/share/mios/hermes/skills ] && [ -d /var/lib/mios/hermes/skills ]; then
+    vendor_names=$(ls /usr/share/mios/hermes/skills/ 2>/dev/null | sort -u)
+    home_names=$(ls /var/lib/mios/hermes/skills/ 2>/dev/null | sort -u)
+    missing=$(comm -23 <(echo "$vendor_names") <(echo "$home_names"))
+    stale=$(comm -13 <(echo "$vendor_names") <(echo "$home_names"))
+    if [ -z "$missing" ] && [ -z "$stale" ]; then
+        ok "HERMES_HOME skills set matches vendor"
+    fi
+    if [ -n "$missing" ]; then
+        for n in $missing; do
+            warn "skill MISSING in HERMES_HOME: $n -- run \`mios-restart hermes\` to sync"
+        done
+    fi
+    if [ -n "$stale" ]; then
+        for n in $stale; do
+            marker_path=/var/lib/mios/hermes/skills/$n/SKILL.md
+            if [ -f "$marker_path" ] && grep -q "MiOS-managed:" "$marker_path" 2>/dev/null; then
+                warn "skill STALE (MiOS-managed marker, vendor dropped): $n -- safe to \`rm -rf /var/lib/mios/hermes/skills/$n\`"
+            else
+                info "skill in HERMES_HOME but not in vendor: $n -- operator-customised, leaving alone"
+            fi
+        done
+    fi
+else
+    warn "skill dirs missing (vendor or HERMES_HOME) -- check firstboot completed"
+fi
+
+echo
 echo "── ── ──  agent config sanity"
 for cfg in /var/lib/mios/hermes/config.yaml /var/home/mios/.hermes/config.yaml /home/mios/.hermes/config.yaml; do
     [ -f "$cfg" ] || continue

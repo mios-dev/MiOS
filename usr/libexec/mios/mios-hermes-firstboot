@@ -669,6 +669,19 @@ sessions:
   retention_days: 30
   vacuum_after_prune: true
   min_interval_hours: 24
+
+# Agent: per-agent runtime tuning. reasoning_effort=xhigh is set
+# elsewhere (the model-side reasoning depth). restart_drain_timeout
+# matters at SIGTERM time -- how long the gateway gives in-flight
+# requests to finish before tearing down sessions. Default 180s is
+# right for prod but punishes a dev VM where the operator restarts
+# hermes every few minutes (skill edits, mios-ai-reset). 20s pairs
+# with the 30s TimeoutStopSec systemd drop-in
+# (hermes-agent.service.d/30-quick-stop.conf): drain for 20s, OS
+# kills at 30s if the gateway hasn't already exited cleanly. Net:
+# ~2-3s typical restart, 30s worst case. Operator directive 2026-05-15.
+agent:
+  restart_drain_timeout: 20
 EOF
     umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
