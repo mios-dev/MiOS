@@ -150,26 +150,32 @@ class Pipe:
         __tools__: Optional[list] = None,
         __files__: Optional[list] = None,
     ) -> AsyncGenerator[str, None]:
-        """Main streaming entry point. Forwards to backend + emits events."""
+        """Main streaming entry point. Forwards to backend + emits events.
+
+        V1.1 (2026-05-16): simplified to plain text passthrough after a
+        TransferEncodingError was observed in OWUI on the V1 streaming
+        path. The XML interception + cross-chunk accumulator were the
+        likely source of empty yields confusing OWUIs response framing.
+        This version just yields each non-empty content delta as-is and
+        emits status events at the start + on completion.
+        """
         await self._emit(__event_emitter__, "📡 MiOS-Agent: receiving prompt...")
 
         # Rewrite model name to backend's expected value
         body = dict(body)
         body["model"] = self.valves.BACKEND_MODEL
-
-        # Force streaming so we can emit events as chunks arrive
         body["stream"] = True
 
         headers = {"Content-Type": "application/json"}
         if self.valves.BACKEND_KEY:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
-        await self._emit(__event_emitter__, "🧠 MiOS-Agent: dispatching to hermes...")
+        await self._emit(__event_emitter__, "🧠 MiOS-Agent: dispatching to hermes (xhigh reasoning)...")
 
         timeout = aiohttp.ClientTimeout(total=self.valves.TIMEOUT_S)
         url = self.valves.BACKEND_URL.rstrip("/") + "/chat/completions"
 
-        accumulated = ""  # for cross-chunk XML detection
+        any_text = False
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(url, headers=headers,
@@ -198,22 +204,15 @@ class Pipe:
                             continue
                         delta = (choices[0].get("delta") or {})
                         text_piece = delta.get("content") or ""
-                        if not text_piece:
-                            continue
-                        accumulated += text_piece
-                        # Stream-friendly XML detection: if a complete <function=...>
-                        # block has closed, strip it from the visible text + emit
-                        if "</function>" in accumulated:
-                            cleaned, _tasks = self._strip_and_emit_xml(
-                                accumulated, __event_emitter__
-                            )
-                            # Yield only the NEW portion (cleaned) since last emit
-                            # (simple approach: replace accumulated entirely)
-                            new_text = cleaned[-len(text_piece):] if len(cleaned) >= len(text_piece) else cleaned
-                            yield text_piece if "<function=" not in text_piece else ""
-                            accumulated = cleaned
-                        else:
+                        if text_piece:
+                            any_text = True
                             yield text_piece
+
+            if not any_text:
+                # Backend returned no text -- surface that explicitly
+                # instead of leaving the chat empty.
+                yield "_(MiOS-Agent: backend returned no content)_"
+
             await self._emit(__event_emitter__, "✅ MiOS-Agent: done", done=True)
         except asyncio.TimeoutError:
             await self._emit(__event_emitter__,

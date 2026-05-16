@@ -111,67 +111,30 @@ def _looks_fanoutable(user_text: str) -> bool:
     return False
 
 
-# Response-side refusal patterns. Mirror of REFUSAL_PATTERNS in
-# /usr/libexec/mios/mios-agent-nudger. Duplicated here so the prefilter
-# can scan the streamed RESPONSE text (which journalctl on hermes never
-# sees -- only tool calls go to the journal there). Two complementary
-# watchers: nudger watches journal events, prefilter watches response
-# stream. Hits are logged at log.warning() level so the nudger picks
-# them up via the prefilter's own journal (provided nudger tails
-# mios-delegation-prefilter.service too).
-RESPONSE_REFUSAL_RES = [re.compile(p, re.IGNORECASE) for p in [
-    r"the mios-windows tool doesn.?t exist",
-    r"tools available to me don.?t include",
-    r"isn.?t a direct command to launch",
-    r"I.?d recommend you navigate to the Start Menu manually",
-    r"look for .* in your installed applications",
-    r"system has limited Windows application launching",
-    r"I see the issue now",
-    r"let me try a different approach",
-    r"due to the WSL2 container environment",
-    r"this environment is designed to be headless",
-    r"you might need to manually locate it",
-    r"we don.?t have traditional web browsers",
-    r"this is an immutable system, we cannot install",
-    r"GUI applications cannot be launched",
-    r"this is a headless environment",
-    r"we cannot run GUI applications directly",
-    r"manual intervention on your part",
-    r"no Firefox or Chrome installed in the Windows",
-    r"system couldn.?t execute it due to path or permission issues",
-    r"couldn.?t execute it due to path",
-    r"requires their launcher to be running before launching",
-    r"needs to be started through the .* launcher interface",
-    r"you.?ll need to: Start the .* Launcher first",
-    r"there might be missing dependencies",
-    r"verify if the application is actually installed",
-    r"check if it.?s in a non-standard location",
-    r"you.?ll need to install it first",
-    # 2026-05-16: new variations from a Steam-launch transcript (after
-    # the launch succeeded, agent hedged):
-    r"in WSL environments,? launching Windows GUI applications can sometimes be tricky",
-    r"can sometimes be tricky due to the different session contexts",
-    r"in WSL environments? .{1,40} can sometimes be tricky",
-    r"sometimes be tricky due to .{1,40} session",
-    # 2026-05-16: new variations from a notepad-launch transcript (agent
-    # pre-hedged BEFORE attempting + WHILE the tool actually worked):
-    r"failed to launch due to WSL2 display server issues",
-    r"required Windows display drivers and services could not be loaded",
-    r"we cannot launch [A-Za-z ]+ directly through WSL",
-    r"cannot launch .{1,40} directly through WSL",
-    r"Opening the Windows Start menu and launching .{1,30} manually",
-    r"Using the Windows version of [A-Za-z ]+ via WSL.?s Windows interop",
-    # The clarify-confusion pattern -- agent shouldnt mention clarify
-    # in OWUI context at all; if it does its prefacing an answer it
-    # shouldnt:
-    r"the clarify tool isn.?t available in this context",
-    r"clarify tool isn.?t available",
-    # 2026-05-16: model emitting Qwen-style function-call XML as TEXT
-    # instead of using OpenAI tool_calls -- the tool never fires
-    r"<function=[a-zA-Z_-]+>\s*<parameter=",
-    r"<function=[a-zA-Z_-]+>",
-    r"</tool_call>",
-]]
+# Response-side refusal patterns load from the SHARED canonical file
+# at /usr/share/mios/ai/refusal-patterns.txt (consolidation pass
+# 2026-05-16 -- previously duplicated in 3 places). The prefilter
+# scans the streamed response text (the operator-facing chat); the
+# nudger scans the journal (tool-call errors). Both read the same
+# patterns; SOUL.md text-blocks tell the model these phrases are
+# forbidden. Single edit point.
+PATTERNS_FILE = "/usr/share/mios/ai/refusal-patterns.txt"
+
+
+def _load_response_patterns() -> list:
+    out = []
+    try:
+        for line in open(PATTERNS_FILE, encoding="utf-8"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            out.append(re.compile(stripped, re.IGNORECASE))
+    except OSError as e:
+        log.warning("could not read %s: %s -- response scanner disabled", PATTERNS_FILE, e)
+    return out
+
+
+RESPONSE_REFUSAL_RES = _load_response_patterns()
 
 
 def _extract_response_text(body: bytes) -> str:

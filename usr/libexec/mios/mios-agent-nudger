@@ -56,61 +56,32 @@ TARGET_UNITS = ["hermes-agent.service", "mios-delegation-prefilter.service"]
 # Suppress duplicate alerts for the SAME pattern within this window.
 REFUSAL_DEDUP_S = 60
 
-# Refusal patterns mirroring SOUL.md's forbidden-phrase list. Case-
-# insensitive substring match. Keep this list in sync with
-# /usr/share/mios/ai/hermes-soul.md whenever new patterns are added.
-REFUSAL_PATTERNS = [
-    r"the mios-windows tool doesn.?t exist",
-    r"tools available to me don.?t include",
-    r"isn.?t a direct command to launch",
-    r"I.?d recommend you navigate to the Start Menu manually",
-    r"look for .* in your installed applications",
-    r"system has limited Windows application launching",
-    r"I see the issue now",
-    r"let me try a different approach",
-    r"due to the WSL2 container environment",
-    r"this environment is designed to be headless",
-    r"you might need to manually locate it",
-    r"we don.?t have traditional web browsers",
-    r"this is an immutable system, we cannot install",
-    r"GUI applications cannot be launched",
-    r"this is a headless environment",
-    r"we cannot run GUI applications directly",
-    r"manual intervention on your part",
-    r"no Firefox or Chrome installed in the Windows",
-    # 2026-05-16 additions: agent fabricated failure AFTER a
-    # mios-windows launch that actually succeeded (game launched
-    # several minutes before agent finished narrating). Watch for
-    # post-success fabrications.
-    r"system couldn.?t execute it due to path or permission issues",
-    r"couldn.?t execute it due to path",
-    r"requires their launcher to be running before launching",
-    r"needs to be started through the .* launcher interface",
-    r"you.?ll need to: Start the .* Launcher first",
-    r"there might be missing dependencies",
-    # Generic "verify if the application is actually installed" --
-    # agent should have run the discovery search instead of asking
-    # the operator to verify.
-    r"verify if the application is actually installed",
-    # Manual-recovery push-offs:
-    r"check if it.?s in a non-standard location",
-    r"you.?ll need to install it first",
-    # 2026-05-16: notepad pre-hedge variations + clarify confusion
-    r"failed to launch due to WSL2 display server issues",
-    r"required Windows display drivers and services could not be loaded",
-    r"we cannot launch [A-Za-z ]+ directly through WSL",
-    r"cannot launch .{1,40} directly through WSL",
-    r"Opening the Windows Start menu and launching .{1,30} manually",
-    r"Using the Windows version of [A-Za-z ]+ via WSL.?s Windows interop",
-    r"the clarify tool isn.?t available in this context",
-    r"clarify tool isn.?t available",
-    # 2026-05-16: model emitting Qwen-style function-call XML as TEXT
-    # instead of using OpenAI tool_calls -- the tool never fires
-    r"<function=[a-zA-Z_-]+>\s*<parameter=",
-    r"<function=[a-zA-Z_-]+>",
-    r"</tool_call>",
-]
-PATTERN_RES = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
+# Refusal patterns are loaded from the canonical shared file at
+# /usr/share/mios/ai/refusal-patterns.txt -- single source of truth
+# for nudger + prefilter + OWUI Pipe + SOUL. Consolidation pass
+# 2026-05-16: previously this list was duplicated in 3 places
+# (nudger + prefilter + the SOUL forbidden-phrase block); each edit
+# needed 3 changes. Now: edit the .txt file, restart consumers.
+PATTERNS_FILE = "/usr/share/mios/ai/refusal-patterns.txt"
+
+
+def _load_patterns() -> tuple[list[str], list[re.Pattern]]:
+    raw = []
+    try:
+        for line in open(PATTERNS_FILE, encoding="utf-8"):
+            line = line.rstrip("\n")
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            raw.append(line)
+    except OSError as e:
+        log.warning("could not read %s: %s -- nudger will have NO patterns", PATTERNS_FILE, e)
+        return [], []
+    compiled = [re.compile(p, re.IGNORECASE) for p in raw]
+    return raw, compiled
+
+
+REFUSAL_PATTERNS, PATTERN_RES = _load_patterns()
 
 
 def _toml_layered(section: str, key: str) -> str | None:
