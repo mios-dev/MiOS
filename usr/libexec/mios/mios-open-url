@@ -127,6 +127,10 @@ fi
 # nothing visible appeared. Tooling-side verification + auto-retry
 # makes the success/failure signal land in the AGENT'S TOOL OUTPUT,
 # not in its self-reported text.
+set +e   # the verification path catches its own rcs; set -e here
+         # would propagate python json-parse failures as exit-1 and
+         # mask the real "summary=X" failure signal.
+
 mios-gui "$TARGET" "$URL"
 _launch_rc=$?
 
@@ -135,14 +139,22 @@ _launch_rc=$?
 # the Linux process name AND the window title prefix.
 _verify_pattern="$(printf '%s' "$TARGET" | awk -F. "{print tolower(\$NF)}")"
 
+_parse_summary() {
+    printf '%s' "$1" | python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get('summary', ''))
+except Exception:
+    print('')
+" 2>/dev/null || true
+}
+
 # First-pass verification: --present mode also restores/foregrounds
 # a minimized window before re-measuring, so summary is either
 # "presented" or a genuine non-recoverable state.
 _verify1=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
-_summary1=$(printf "%s" "$_verify1" | python3 -c "import sys, json
-try: d=json.loads(sys.stdin.read())
-except: d={}
-print(d.get('summary',''))" 2>/dev/null)
+_summary1=$(_parse_summary "$_verify1")
 
 if [ "$_summary1" = "presented" ]; then
     echo "$_verify1"
@@ -151,17 +163,16 @@ fi
 
 # Not presented after launch+present. ONE auto-retry: launch again
 # (some flatpaks race-condition on first call after long idle).
-echo "[mios-open-url] first attempt summary=$_summary1; retrying once..." >&2
+echo "[mios-open-url] first attempt summary=${_summary1:-<empty>}; retrying once..." >&2
 sleep 1
 mios-gui "$TARGET" "$URL" >/dev/null 2>&1 || true
-sleep 1
+sleep 2
 _verify2=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
-_summary2=$(printf "%s" "$_verify2" | python3 -c "import sys, json
-try: d=json.loads(sys.stdin.read())
-except: d={}
-print(d.get('summary',''))" 2>/dev/null)
+_summary2=$(_parse_summary "$_verify2")
 
 echo "$_verify2"
+echo "[mios-open-url] FINAL summary=${_summary2:-<empty>} launch_rc=$_launch_rc target=$TARGET pattern=$_verify_pattern" >&2
+
 if [ "$_summary2" = "presented" ]; then
     exit 0
 fi

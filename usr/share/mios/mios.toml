@@ -782,17 +782,27 @@ id          = "org.gnome.Epiphany"
 remote      = "fedora"
 role        = "browser"
 default     = true
-description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native dark, WSLg-compatible with GPU compositing override below)."
+description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native dark, WSLg-compatible with the split-renderer override below)."
 [desktop.apps.overrides]
-# WebKit requires GPU compositing or it self-exits within seconds.
-# The system-wide WSLg defaults (cairo SW + X11) kill it -- this
-# flips Epiphany to wayland + gl + GPU. See [flatpak.app_overrides]
-# rationale block for the full why.
+# Split-renderer strategy for Epiphany under WSLg:
+#   * GTK4 chrome stays on the SAME stable cairo + SW-GL combo the
+#     rest of the WSLg fleet uses (Nautilus, Ptyxis, etc.) -- the
+#     wslg-gpu.sh empirical comment is that ANY hardware GTK4 path
+#     crashes the main process within seconds.
+#   * WebKit (the engine inside Epiphany) gets its OWN GPU compositing
+#     enabled, decoupled from GTK4's renderer. WEBKIT_DISABLE_
+#     COMPOSITING_MODE=0 + WEBKIT_USE_DMABUF_RENDERER=1 allow
+#     WebKit's WebProcess to talk to the GPU directly without
+#     dragging GTK4 onto the unstable hardware path.
+# Operator-observed 2026-05-16: flipping the whole stack to gl+GPU
+# made Epiphany flash-and-die in ~327ms scopes (confirmed in
+# journal). Split-renderer is the third attempt -- if WebKit still
+# fails, the next move is wayland-without-compositing.
 GDK_BACKEND                     = "wayland"
-GSK_RENDERER                    = "gl"
-LIBGL_ALWAYS_SOFTWARE           = 0
 WEBKIT_DISABLE_COMPOSITING_MODE = 0
 WEBKIT_USE_DMABUF_RENDERER      = 1
+# Note: GSK_RENDERER + LIBGL_ALWAYS_SOFTWARE inherited from
+# the global override (cairo + SW). Do NOT set them here.
 
 [[desktop.apps]]
 id          = "org.gnome.Nautilus.Devel"

@@ -95,6 +95,21 @@ PS_QUERY=$(printf '%s' "$QUERY" | sed "s/'/''/g")
 # Stringify the --present flag for embedding in the PowerShell literal.
 if [ "$PRESENT" = "1" ]; then PS_PRESENT='$true'; else PS_PRESENT='$false'; fi
 
+# ─── Linux-side pre-check: pgrep for the pattern ──────────────────────
+# Operator directive 2026-05-16: WSLg-hosted Linux flatpaks (Epiphany,
+# Nautilus, Ptyxis, etc.) are wrapped in msrdc.exe on the Windows side
+# -- the Win32 Get-Process loop sees "msrdc.exe", not "epiphany". So a
+# Win32-only check reports "not-running" even when the Linux process
+# IS alive. Run pgrep first; if the Linux process exists, surface
+# process_alive=true in the JSON even if no Win32 window is found yet
+# (the window may still be in creation race).
+_lin_pid=""
+if command -v pgrep >/dev/null 2>&1; then
+    # Match process name OR cmdline (so a flatpak named org.gnome.Epiphany
+    # shows up via its bwrap'd argv).
+    _lin_pid=$(pgrep -if "$QUERY" 2>/dev/null | head -1 || true)
+fi
+
 # PowerShell snippet -- the query is embedded as a single-quoted
 # literal so it survives broker dispatch (no env var inheritance
 # needed).
@@ -123,7 +138,15 @@ public class W {
 }
 
 if (\$procs.Count -eq 0) {
-    @{ query = \$query; process_alive = \$false; presented_to_operator = \$false; summary = 'not-running' } | ConvertTo-Json -Compress
+    # If pgrep on the Linux side found the process, report that fact
+    # so the caller can distinguish "process exists but no Win32 window
+    # yet" from "process not even running".
+    \$lin_pid = '$_lin_pid'
+    if (\$lin_pid -ne '') {
+        @{ query = \$query; process_alive = \$true; process_id = [int]\$lin_pid; process_name = \$query; window_handle = 0; presented_to_operator = \$false; summary = 'no-window'; via = 'linux-pgrep' } | ConvertTo-Json -Compress
+    } else {
+        @{ query = \$query; process_alive = \$false; presented_to_operator = \$false; summary = 'not-running' } | ConvertTo-Json -Compress
+    }
     return
 }
 
