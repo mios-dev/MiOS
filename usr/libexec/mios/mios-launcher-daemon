@@ -51,12 +51,20 @@ logging.basicConfig(level=logging.INFO, format="[mios-launcher] %(message)s")
 log = logging.getLogger("mios-launcher")
 
 UID = os.getuid()
-# /tmp is sticky-bit world-traversable (1777); the socket itself
-# carries mode 0666 so any local uid can connect. /run/user/<uid>
-# would be a more conventional XDG location but it's mode 0700 and
-# mios-hermes (the agent) can't traverse INTO it to reach a socket
-# placed there -- regardless of socket-file mode.
-SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/tmp/mios-launcher.sock")
+# /run/mios/launcher.sock is the canonical path. Why not /tmp:
+# hermes-agent.service has PrivateTmp=true -> the agent's terminal
+# tool sees its own private /tmp namespace and can't reach a
+# socket placed in the host's /tmp at all (operator-confirmed
+# regression 2026-05-15: agent saw "PowerShell not at..." even
+# after broker socket was bind-confirmed at /tmp because its
+# PrivateTmp namespace had no such file). /run is NOT affected
+# by PrivateTmp; both the operator's broker AND the agent's
+# private-tmp shell see the same /run/mios/launcher.sock.
+#
+# /run/mios/ is created at boot by /usr/lib/tmpfiles.d/
+# mios-launcher.conf (mode 0755 root:root so all uids can
+# traverse); the socket file itself carries mode 0666.
+SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios/launcher.sock")
 
 
 def handle(conn: socket.socket) -> None:

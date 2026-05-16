@@ -162,7 +162,7 @@ EOF
         -o ServerAliveInterval=15 \
         -l "$win_user" \
         "$win_host" \
-        -- "powershell.exe -NoProfile -NonInteractive -Command \"$cmd\""
+        -- "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"$cmd\""
 }
 
 if [ "$#" -lt 1 ]; then
@@ -254,25 +254,40 @@ case "$sub" in
         # can read.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
-        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /tmp/mios-launcher.sock ]; then
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios/launcher.sock ]; then
             # Broker dispatches detached + redirects to /dev/null by
             # default. For ps/cmd we need the OUTPUT. Route to a
             # per-call tempfile, dispatch, then poll briefly + cat.
-            _outfile="$(mktemp /tmp/mios-windows-ps-XXXXXX.out)"
+            _outfile="$(mktemp /run/mios/windows-ps-XXXXXX.out)"
             chmod 0666 "$_outfile"
             # Quote the inner PS command for safe transport.
             _ps_cmd="$*"
             _ps_cmd_q="${_ps_cmd//\\/\\\\}"
             _ps_cmd_q="${_ps_cmd_q//\"/\\\"}"
-            # Dispatch: PowerShell.exe >outfile 2>&1
-            python3 - "$_outfile" "$PWSH" "$_ps_cmd" <<'PYEOF'
+            # PowerShell's `> path` interprets the path through the
+            # Windows file API. A Linux path like /run/mios/X gets
+            # treated as relative or as C:\run\mios\X. Translate to
+            # the WSL UNC form (\\wsl.localhost\<distro>\run\mios\X)
+            # via wslpath -w so PowerShell writes to the correct
+            # underlying file (operator-confirmed via debug session
+            # 2026-05-15: broker dispatch was succeeding but output
+            # never appeared in the Linux-side tempfile until this
+            # path translation was added).
+            _outfile_win="$(wslpath -w "$_outfile" 2>/dev/null)"
+            if [ -z "$_outfile_win" ]; then _outfile_win="$_outfile"; fi
+            # Dispatch: PowerShell.exe >outfile_win 2>&1; chmod outfile (Linux side)
+            python3 - "$_outfile" "$_outfile_win" "$PWSH" "$_ps_cmd" <<'PYEOF'
 import socket, sys, shlex
-outfile, pwsh, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
-# Build a shell command that exec's PowerShell with output redirected.
-line = f'{shlex.quote(pwsh)} -NoProfile -NonInteractive -Command {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
+outfile, outfile_win, pwsh, cmd = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+# PowerShell's > redirect uses Windows-side path; bash chmod uses Linux side.
+line = (
+    f'{shlex.quote(pwsh)} -NoProfile -NonInteractive -ExecutionPolicy Bypass '
+    f'-Command {shlex.quote(cmd)} > {shlex.quote(outfile_win)} 2>&1; '
+    f'chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
+)
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(5.0)
-s.connect("/tmp/mios-launcher.sock")
+s.connect("/run/mios/launcher.sock")
 s.sendall((line + "\n").encode())
 s.recv(64)
 s.close()
@@ -291,7 +306,7 @@ PYEOF
             echo "mios-windows ps: PowerShell not at $PWSH -- set MIOS_WINDOWS_PWSH=<path>" >&2
             exit 1
         fi
-        exec "$PWSH" -NoProfile -NonInteractive -Command "$*"
+        exec "$PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$*"
         ;;
     cmd)
         if [ "$#" -lt 1 ]; then
@@ -301,8 +316,8 @@ PYEOF
         # Same broker route for service users.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
-        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /tmp/mios-launcher.sock ]; then
-            _outfile="$(mktemp /tmp/mios-windows-cmd-XXXXXX.out)"
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios/launcher.sock ]; then
+            _outfile="$(mktemp /run/mios/windows-cmd-XXXXXX.out)"
             chmod 0666 "$_outfile"
             python3 - "$_outfile" "$CMD" "$*" <<'PYEOF'
 import socket, sys, shlex
@@ -310,7 +325,7 @@ outfile, cmd_exe, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
 line = f'{shlex.quote(cmd_exe)} /c {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(5.0)
-s.connect("/tmp/mios-launcher.sock")
+s.connect("/run/mios/launcher.sock")
 s.sendall((line + "\n").encode())
 s.recv(64)
 s.close()

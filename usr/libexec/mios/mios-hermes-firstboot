@@ -539,17 +539,15 @@ platform_toolsets:
     - session_search # search past conversations
     - code_execution # python execute_code
 
-# Hooks: pre_llm_call wired to mios-hermes-init-hook, which injects a
-# fresh `mios-env-probe --brief` snapshot ONLY on the first turn of
-# every session. Operator directive 2026-05-15: "MiOS-Agents should be
-# aware of all systems; ... informed of the environment via an agent
-# init/probe pass on first query". hooks_auto_accept: true skips the
-# TTY consent prompt because the gateway has no TTY.
-hooks:
-  pre_llm_call:
-    - command: /usr/libexec/mios/mios-hermes-init-hook
-      timeout: 10
-hooks_auto_accept: true
+# Hooks: NONE. Operator directive 2026-05-15: "no context injection
+# for environment detection!!!! it WILL ONLY do it in code". The
+# agent learns its environment by CALLING `mios-env-probe`,
+# `mios-apps`, `skill_view name=mios-environment`, etc. as TOOL
+# calls when it needs the data -- not by having text auto-prepended
+# to every turn. The earlier pre_llm_call injection was disabled.
+#
+# Re-enable per-host by adding a hooks: block to /etc/mios/hermes/
+# config.local.yaml (operator-overlay; vendor stays clean).
 
 # When the agent narrates "the build succeeded" instead of pasting
 # what it actually saw, the operator can't tell truth from fiction.

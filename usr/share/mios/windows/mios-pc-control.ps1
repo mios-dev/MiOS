@@ -164,11 +164,11 @@ switch ($Action) {
                     [W32]::GetWindowText($h, $sb, $sb.Capacity) | Out-Null
                     $rect = New-Object W32+RECT
                     [W32]::GetWindowRect($h, [ref]$rect) | Out-Null
-                    $pid = 0
-                    [W32]::GetWindowThreadProcessId($h, [ref]$pid) | Out-Null
+                    $proc_pid = 0
+                    [W32]::GetWindowThreadProcessId($h, [ref]$proc_pid) | Out-Null
                     $script:rows += [pscustomobject]@{
                         hwnd  = [int64]$h
-                        pid   = [int]$pid
+                        pid   = [int]$proc_pid
                         title = $sb.ToString()
                         x     = $rect.Left
                         y     = $rect.Top

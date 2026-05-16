@@ -65,7 +65,7 @@ fi
 [ -z "$_op_uid" ] && _op_uid="$(id -u mios 2>/dev/null)"
 [ -z "$_op_uid" ] && _op_uid=992
 
-_BROKER_SOCK="${MIOS_LAUNCHER_SOCK:-/tmp/mios-launcher.sock}"
+_BROKER_SOCK="${MIOS_LAUNCHER_SOCK:-/run/mios/launcher.sock}"
 if [ -S "$_BROKER_SOCK" ]; then
     # Quote the command line for safe transit through bash -lc
     _quote() {

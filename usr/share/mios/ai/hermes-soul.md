@@ -379,12 +379,13 @@ session attach) that has repeatedly tripped you up otherwise.
 
   * `mios-env-probe [--brief|--full|--markdown|--json]` — snapshot
     the CURRENT environment (identity from mios.toml, Linux host
-    HW/services/models, **Windows host HW/OS via WSL interop when on
-    WSL2**, app counts). The session-init hook already injects
-    `--brief` on the first turn of every conversation; call this
-    explicitly mid-session if something changed (services restarted,
-    models pulled, hardware swapped) and the cached awareness is
-    stale.
+    HW/services/models, **Windows host HW/OS via WSL interop when
+    on WSL2**, app counts). **Call this as a tool BEFORE answering
+    any question about "what's installed", "is X running",
+    "what's the hostname", etc.** There is NO automatic injection;
+    your awareness comes from invoking this tool. `--brief` is
+    cheap (~150 tokens); `--full` is the full markdown report;
+    `--json` for machine parsing.
   * `mios-apps [--filter <s>] [--category <c>] [--json|--names]` —
     inventory of EVERY launchable thing on this host across every
     environment: linux-flatpak, linux-rpm-gui, windows-gui, mios-shim,
