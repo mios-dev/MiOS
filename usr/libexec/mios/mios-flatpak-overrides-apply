@@ -26,18 +26,67 @@ if ! command -v flatpak >/dev/null 2>&1; then
     exit 0
 fi
 
+# Read appearance keys from layered mios.toml [appearance] (operator's
+# /etc/mios overrides /usr/share/mios). This SSOT is the same one
+# mios-flatpak-init reads; sourcing here ensures the firstboot --reset
+# doesn't drop theme env that operators expect to be applied globally.
+# Operator directive 2026-05-16: "should be the GLOBAL overrides so
+# that newly installed apps/flatpaks take hold of the configurations
+# as well".
+_toml_get() {
+    local key="$1" default="$2" val=""
+    for f in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        [ -r "$f" ] || continue
+        val=$(python3 - "$f" "$key" 2>/dev/null <<'PYEOF'
+import sys, tomllib
+path, dotted = sys.argv[1], sys.argv[2]
+with open(path, "rb") as fh: data = tomllib.load(fh)
+node = data
+for k in dotted.split("."):
+    if isinstance(node, dict) and k in node:
+        node = node[k]
+    else:
+        sys.exit(0)
+print(node)
+PYEOF
+)
+        [ -n "$val" ] && { echo "$val"; return; }
+    done
+    echo "$default"
+}
+_gtk_theme=$(_toml_get appearance.gtk_theme "adw-gtk3-dark")
+_adw_color=$(_toml_get appearance.adw_color_scheme "prefer-dark")
+_curs_theme=$(_toml_get appearance.cursor_theme "Bibata-Modern-Classic")
+_curs_size=$(_toml_get appearance.cursor_size "24")
+_xcurs_path=$(_toml_get appearance.xcursor_path '~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps')
+
 # --reset clears the global override file completely; then we re-create
 # the MiOS-managed keys. This is safer than --unset of individual keys
 # (which can fail silently if the key doesn't exist).
 flatpak override --system --reset 2>/dev/null || true
 
+# Mount the theme/icon dirs the runtime extensions need. /usr/share/* is
+# REJECTED by flatpak (-> F: warnings); use xdg-data + xdg-config only.
 flatpak override --system \
     --env=GTK_USE_PORTAL=1 \
+    --env=GTK_THEME="$_gtk_theme" \
+    --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color" \
+    --env=XCURSOR_THEME="$_curs_theme" \
+    --env=XCURSOR_SIZE="$_curs_size" \
+    --env=XCURSOR_PATH="$_xcurs_path" \
     --filesystem=xdg-config/gtk-3.0:ro \
     --filesystem=xdg-config/gtk-4.0:ro \
     --filesystem=xdg-data/themes:ro \
     --filesystem=xdg-data/icons:ro
 
+# Defensive: negate any prior add of /usr/share/{themes,icons,fonts} so
+# flatpak stops printing "Path /usr is reserved" warnings on every
+# app launch.
+flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true
+flatpak override --system --nofilesystem=/usr/share/icons  2>/dev/null || true
+flatpak override --system --nofilesystem=/usr/share/fonts  2>/dev/null || true
+
 echo "mios-flatpak-overrides-apply: global flatpak override seeded"
-echo "  GTK_USE_PORTAL=1 (libadwaita reads operator color-scheme via xdg-portal)"
-echo "  + xdg-config/gtk-3.0 + gtk-4.0 + xdg-data/themes + xdg-data/icons mounts"
+echo "  theme: GTK_THEME=$_gtk_theme  color=$_adw_color  cursor=$_curs_theme/$_curs_size"
+echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons}"
+echo "  GTK_USE_PORTAL=1 (libadwaita color-scheme via xdg-portal)"

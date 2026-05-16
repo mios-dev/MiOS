@@ -278,6 +278,7 @@ center = (
     "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
     "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
     "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
+    "[System.Runtime.InteropServices.DllImport(\"dwmapi.dll\")] public static extern int DwmSetWindowAttribute(System.IntPtr h,int a,ref int v,int s);\n"
     "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
     "'@ -ErrorAction SilentlyContinue; "
     "$r = New-Object MX.W32M+RECT; "
@@ -287,6 +288,13 @@ center = (
     "$x = $s.X + [int](($s.Width - $w) / 2); "
     "$y = $s.Y + [int](($s.Height - $h) / 2); "
     "[MX.W32M]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
+    # Win11 DWMWA_WINDOW_CORNER_PREFERENCE = 33; DWMCSP_ROUND = 2.
+    # Forces rounded corners on the launched window even when the
+    # window class would normally render square (common for WSLg
+    # / Xwayland / Electron / non-Adwaita Win32 apps). Silently no-ops
+    # on Win10. Operator directive 2026-05-16: "the application
+    # windows should be rounded globally again TOO".
+    "$cp = 2; [MX.W32M]::DwmSetWindowAttribute($p.MainWindowHandle, 33, [ref]$cp, 4) | Out-Null; "
     "[MX.W32M]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
     "}"
 )

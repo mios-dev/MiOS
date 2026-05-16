@@ -1,6 +1,9 @@
 [Context]
-# MiOS flatpak override for Google Chrome Dev. Adds the filesystems +
-# network exposure Hermes-Agent needs to drive Chrome over CDP.
+# MiOS per-app override for Google Chrome Dev -- only the things that
+# MUST be per-app live here. Theme/cursor/render env all come from
+# the GLOBAL override (set by mios-flatpak-overrides-apply), so this
+# file stays minimal and new flatpaks installed later inherit the
+# same theming from global without needing their own per-app file.
 #
 # Hermes runs in mios-hermes (port 8642 host net) and connects to Chrome's
 # DevTools Protocol when an agent tool calls browser_use / playwright with
@@ -13,11 +16,9 @@
 #   * Hermes's container shares the host network namespace (Network=host
 #     in mios-hermes.container.d/10-mios-dev-host-network.conf), so
 #     127.0.0.1:9222 is reachable from inside Hermes.
-filesystems=xdg-config/dconf:ro;xdg-config/gtk-3.0:ro;xdg-config/gtk-4.0:ro;xdg-download;
+filesystems=xdg-download;
 
 [Environment]
-# Cursor / theme env -- the cursor SSOT keys (XCURSOR_THEME / XCURSOR_SIZE /
-# XCURSOR_PATH) come from the global override.
 # Hint to Chrome to use Wayland natively (WSLg compositor) instead of
 # launching XWayland which has no GPU acceleration on this host.
 GDK_BACKEND=wayland

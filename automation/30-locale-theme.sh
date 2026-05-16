@@ -35,17 +35,33 @@ echo "[30-locale-theme] Using GTK4 theme from overlay..."
 echo "[30-locale-theme] Using environment.d from overlay..."
 
 # ═══ Flatpak overrides -- dark theme + cursor + fonts ═══
-echo "[30-locale-theme] Applying Flatpak dark theme + filesystem overrides..."
+# Bake-time seed of the GLOBAL flatpak override. Runtime
+# mios-flatpak-init re-applies the same envs from mios.toml
+# [appearance] every boot so operator changes propagate without a
+# re-bake. Keep this list IN SYNC with mios-flatpak-init.
+# Operator directive 2026-05-16: "should be the GLOBAL overrides so
+# that newly installed apps/flatpaks take hold of the configurations
+# as well" -- everything here goes to system-wide (no --app=ID),
+# making every present + future flatpak inherit it.
+echo "[30-locale-theme] Applying Flatpak GLOBAL dark theme + cursor overrides..."
 flatpak override --system --env=ADW_DEBUG_COLOR_SCHEME=prefer-dark 2>/dev/null || true
 flatpak override --system --env=XCURSOR_THEME=Bibata-Modern-Classic 2>/dev/null || true
 flatpak override --system --env=XCURSOR_SIZE=24 2>/dev/null || true
 flatpak override --system --env=GTK_THEME=adw-gtk3-dark 2>/dev/null || true
 flatpak override --system --filesystem=xdg-config/gtk-3.0:ro 2>/dev/null || true
 flatpak override --system --filesystem=xdg-config/gtk-4.0:ro 2>/dev/null || true
-flatpak override --system --filesystem=/usr/share/icons:ro 2>/dev/null || true
-flatpak override --system --filesystem=/usr/share/fonts:ro 2>/dev/null || true
+flatpak override --system --filesystem=xdg-data/icons:ro 2>/dev/null || true
+flatpak override --system --filesystem=xdg-data/themes:ro 2>/dev/null || true
 flatpak override --system --filesystem=/etc/gtk-3.0:ro 2>/dev/null || true
 flatpak override --system --filesystem=/etc/gtk-4.0:ro 2>/dev/null || true
+# Explicitly REJECT /usr/share/{themes,icons,fonts} -- flatpak refuses
+# with "Path /usr is reserved by Flatpak" + emits F: warnings on every
+# launch (operator-flagged 2026-05-16: ptyxis launch noise). adw-gtk3
+# + Bibata reach the sandbox via the Flathub runtime extension
+# (org.gtk.Gtk3theme.adw-gtk3-dark) + the xdg-data mounts above.
+flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true
+flatpak override --system --nofilesystem=/usr/share/icons 2>/dev/null || true
+flatpak override --system --nofilesystem=/usr/share/fonts 2>/dev/null || true
 
 # ═══ Skeleton autostart (Bottles from flathub-beta on first login) ═══
 # v0.2.0: Delivered via etc/skel/.config/autostart/ overlay.
