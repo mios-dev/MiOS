@@ -1,45 +1,49 @@
 #!/bin/bash
-# /usr/libexec/mios/mios-open-url <url> [<browser>]
+# /usr/libexec/mios/mios-open-url <url> [<browser-override>]
 #
-# Open a URL in a graphical browser. Operator directive 2026-05-15:
-# agents kept calling `mios-gui <url>` (which expects an APP NAME, not
-# a URL) and then claiming success without verifying. This shim exists
-# so the agent reaches for an obvious URL-opening tool by name.
+# Open a URL in the MiOS-defined default browser. Operator directive
+# 2026-05-16: "WRONG BROWSER!!!! NOT THE GLOBALLY DEFINED LINUX
+# DEFAULTS FROM THE USER SPECIFIED mios.toml/html" -- this used to
+# hardcode chromedev as the default, which routed URLs through the
+# operator's Windows-side default browser via WSL interop instead
+# of the MiOS-defined Linux default.
 #
-# Default browser: ChromeDev (com.google.ChromeDev flatpak), with
-# Epiphany (org.gnome.Epiphany) as fallback.  Override by passing the
-# browser short-name as the second argument:
+# Resolution order for the default browser (high precedence first):
+#   1. <browser-override>  if passed as $2 (operator-tunable per-call)
+#   2. mios.toml [[desktop.apps]] entry with role="browser" + default=true
+#   3. mios.toml [mios-find.aliases].web
+#   4. mios-find web    (alias resolution; same SoT)
+#   5. compiled fallback: "epiphany"
 #
-#   mios-open-url http://localhost:9090
-#   mios-open-url https://github.com/mios-dev/MiOS epiphany
-#   mios-open-url file:///var/home/mios/Documents/notes.html chromedev
-#
-# All routing goes through mios-gui, which in turn uses flatpak-launch
-# to escape the agent's mount namespace + attach to the operator's
-# WSLg session. The actual GUI window opens on the host's desktop.
+# The URL is passed through to mios-gui <resolved-default> "$URL"
+# which dispatches via flatpak-launch into the operator's WSLg
+# session. Window appears on the operator's desktop, NOT in the
+# headless Hermes-Agent CDP browser.
 
 set -eu
 
 if [ "$#" -lt 1 ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
     cat <<'USAGE'
-usage: mios-open-url <url> [<browser>]
+usage: mios-open-url <url> [<browser-override>]
 
-  <url>      Any valid URL (http://, https://, file://, ...).
-  <browser>  Optional. One of: chromedev (default), epiphany.
+  <url>               http:// https:// file:// chrome:// about: ...
+  <browser-override>  optional: any [[desktop.apps]] entry id OR alias.
+                      Without this, the MiOS-defined default browser
+                      from mios.toml is used.
 
-Opens the URL in a graphical browser via mios-gui (which routes
-through flatpak-launch + the operator-session escape).
+Opens the URL in the MiOS-defined default browser. The actual app
+is resolved at run time from mios.toml -- operators rename their
+default by editing one entry in mios.html / mios.toml.
 
-Examples:
-  mios-open-url http://localhost:9090
-  mios-open-url https://github.com/mios-dev/MiOS epiphany
-  mios-open-url file:///var/home/mios/Documents/notes.html
+Forms (every token in <ANGLES> is operator-substituted):
+  mios-open-url <url>                   open in MiOS default browser
+  mios-open-url <url> <browser-id>      open in a specific browser
 USAGE
     [ "$#" -lt 1 ] && exit 64 || exit 0
 fi
 
 URL="$1"
-BROWSER="${2:-chromedev}"
+OVERRIDE="${2:-}"
 
 # Quick sanity: warn (not error) if it doesn't look like a URL.
 case "$URL" in
@@ -49,17 +53,44 @@ case "$URL" in
         ;;
 esac
 
-case "$BROWSER" in
-    chromedev|chrome|chromium)
-        exec mios-gui chromedev "$URL"
-        ;;
-    epiphany|web|gnome-web)
-        exec mios-gui epiphany "$URL"
-        ;;
-    *)
-        # Treat any other value as a flatpak short-name and let mios-gui
-        # resolve it (e.g. firefox if installed). If unresolvable,
-        # mios-gui prints the catalogue.
-        exec mios-gui "$BROWSER" "$URL"
-        ;;
-esac
+# ─── Resolve the default browser from mios.toml ─────────────────────
+# Operator directive: the SoT is mios.toml. Read it.
+_resolve_default_browser() {
+    python3 - <<'PYEOF' 2>/dev/null
+import tomllib
+for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(path, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    # Source 1: [[desktop.apps]] entry with role="browser" + default=true
+    apps = d.get("desktop", {}).get("apps", [])
+    if isinstance(apps, list):
+        for entry in apps:
+            if isinstance(entry, dict) and entry.get("role") == "browser" and entry.get("default"):
+                aid = entry.get("id")
+                if aid:
+                    print(aid)
+                    raise SystemExit(0)
+    # Source 2: [mios-find.aliases].web
+    aliases = d.get("mios-find", {}).get("aliases", {})
+    web = aliases.get("web") if isinstance(aliases, dict) else None
+    if isinstance(web, str) and web:
+        print(web)
+        raise SystemExit(0)
+# Compiled fallback (last resort)
+print("epiphany")
+PYEOF
+}
+
+if [ -n "$OVERRIDE" ]; then
+    TARGET="$OVERRIDE"
+else
+    TARGET="$(_resolve_default_browser)"
+    TARGET="${TARGET:-epiphany}"
+fi
+
+# Dispatch via mios-gui (which handles flatpak / RPM / shim
+# resolution + operator-session escape).
+exec mios-gui "$TARGET" "$URL"
