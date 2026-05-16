@@ -52,6 +52,41 @@ QUERY="$*"
 QUERY="${QUERY#\"}"
 QUERY="${QUERY%\"}"
 
+# ─── Alias resolution: generic queries -> specific apps ───────────────
+# Operator directive 2026-05-16: "open a browser to URL" returns
+# mios-hermes-browser (headless agent CDP) instead of chromedev
+# (visible operator browser) because "browser" is in the agent
+# binary's name. Add a TOML-first alias table so operators can
+# remap generic words ("browser", "web browser", "the browser") to
+# their preferred concrete app. Read from mios.toml [mios-find.aliases].
+ALIAS_TARGET=""
+ALIAS_TARGET="$(python3 - "$QUERY" <<'PYEOF' 2>/dev/null
+import sys, tomllib
+q = sys.argv[1].strip().lower()
+if not q:
+    sys.exit(0)
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+        aliases = d.get("mios-find", {}).get("aliases", {})
+        if not isinstance(aliases, dict):
+            continue
+        for k, v in aliases.items():
+            if isinstance(k, str) and isinstance(v, str) and k.strip().lower() == q:
+                print(v)
+                sys.exit(0)
+    except (OSError, tomllib.TOMLDecodeError, AttributeError):
+        continue
+PYEOF
+)"
+if [ -n "$ALIAS_TARGET" ]; then
+    # Re-run mios-find with the alias target as the query (single-level;
+    # an alias value is a concrete app name, not another alias).
+    echo "(alias: '$QUERY' -> '$ALIAS_TARGET')" >&2
+    QUERY="$ALIAS_TARGET"
+fi
+
 # ─── Fast path A: Voidtools Everything (es.exe) if installed ──────────
 # Operator directive 2026-05-16: "windows entries and installations
 # should install everything search on windows and the agent should

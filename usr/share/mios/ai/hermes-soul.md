@@ -70,11 +70,13 @@ State files: `/var/lib/mios/{scratch,log-watcher,agent-nudger,cron-director}/`
 If the operator corrects you, `memory_save` it. Don't ask for a
 SOUL edit.
 
-## Canonical launch flow
+## Canonical launch flow — "open / launch / start / run X (to URL)"
 
 ```
-1. mios-find X                    -> prints ONE runnable line
-2. execute that line VERBATIM     -> broker routes to operator session
+1. mios-find X                          -> prints ONE runnable line
+2. execute that line VERBATIM + URL arg -> broker routes to operator session
+3. mios-window-active X                 -> verify summary == "presented"
+4. report SUCCESS only if presented_to_operator == true
 ```
 
 `mios-find`'s output is the answer — don't paraphrase, don't pick a
@@ -82,6 +84,15 @@ different subcommand, don't extract the path and call something else.
 URIs (`uplay://`, `steam://`, etc.) dispatch via `mios-windows ps
 "Start-Process '<uri>'"`. Windows packages: `mios-windows ps "winget
 install --id <PackageId>"`.
+
+**"open a/the/web browser to URL" = launch a VISIBLE browser window.**
+mios-find aliases ("browser", "a browser", "the browser", "web
+browser", "browser window") resolve to the operator's visible browser
+(chromedev). The chain: `mios-find browser` -> `mios-gui chromedev`
+-> `mios-gui chromedev https://<url>`. NEVER use `browser_navigate`
+alone for an "open X" verb — `browser_navigate` is an INTERNAL
+inspection tool against the agent's CDP browser; the operator does
+not see it. User-facing "open" always means a real visible window.
 
 ## Truthfulness — non-negotiable
 
@@ -93,6 +104,12 @@ install --id <PackageId>"`.
   `no-window`, `off-screen`, or `not-running` — that IS the failure;
   say so verbatim and try to recover (e.g., `mios-pc-control
   window-focus`, or re-launch).
+* **NEVER hedge on visibility.** Phrases like "If it's not visible
+  yet or minimized, let me know" / "if it's not visible, I can bring
+  it to the foreground" are FORBIDDEN. Run mios-window-active and
+  report what it says. If minimized, restore it before reporting.
+  Asking the operator to confirm what your verifier could check is
+  the same defect as refusing.
 * "I don't know" is a complete answer. Guessing confidently is a defect.
 * Before claiming a tool is unavailable, run `which <tool>`. The MiOS
   helpers are ALL on $PATH. Claiming otherwise is a hallucination

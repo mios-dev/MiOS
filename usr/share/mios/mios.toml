@@ -1966,6 +1966,24 @@ cmd_exe = "/mnt/c/Windows/System32/cmd.exe"
 launcher_socket = "/run/mios-launcher/launcher.sock"
 
 # ----------------------------------------------------------------------------
+# [mios-find.aliases] -- generic query -> specific app routing.
+#
+# Operator directive 2026-05-16: "open a browser to URL" was returning
+# mios-hermes-browser (headless agent CDP) because "browser" is in the
+# binary name. Bare-word queries like "browser" / "the browser" / "a
+# browser" should route to the operator's preferred VISIBLE app.
+# Operators add their own aliases here without touching code -- the
+# resolution is single-level (alias value is a concrete app name).
+# ----------------------------------------------------------------------------
+[mios-find.aliases]
+"browser"        = "chromedev"
+"a browser"      = "chromedev"
+"the browser"    = "chromedev"
+"web browser"    = "chromedev"
+"browser window" = "chromedev"
+"my browser"     = "chromedev"
+
+# ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and
 # the mios-build-driver.
 # ----------------------------------------------------------------------------

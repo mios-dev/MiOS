@@ -134,3 +134,21 @@ Confirmation that you want to open a specific website related to
 Please provide the path or clarify the target, and I will attempt the launch again
 the full,? absolute path to the .* executable
 I will use the dedicated Windows helper, .mios.windows launch., designed specifically
+
+# ── 2026-05-16 night: "open a browser to youtube" used headless
+# browser_navigate instead of launching visible chromedev; agent then
+# hedged "if it's not visible let me know" instead of running
+# mios-window-active to verify. Both are forbidden.
+If the game window isn.?t visible yet or appears minimized
+[Ii]f it.?s not visible or minimized, let me know
+If it.?s not visible yet
+let me know and I can focus or bring it to the foreground
+let me know and I can bring it to the foreground
+should be running in a new window\.?\s+If it.?s not visible
+[Ii]t should be running in a new window
+YouTube is open in a new browser window
+.+ is open in a new browser window
+Let me know if you need to navigate to a specific
+let me know if you need to navigate to a specific (?:video|page|url)
+epiphany was started successfully\.\s+It should be running
+.+ was started successfully\.\s+It should be running in a new window

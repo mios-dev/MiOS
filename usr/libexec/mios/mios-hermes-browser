@@ -11,10 +11,12 @@
 # download, NOT a separate Chromium RPM. Use the flatpak that's already
 # on disk for `mios-gui chromedev`.
 #
-# Headless by default (no display needed; headless=new still gives a
-# fully featured Chromium with V8 + DOM + JS, just no window). Operators
-# who want a visible window for debugging set HERMES_BROWSER_HEADLESS=0
-# before running the service.
+# Operator directive 2026-05-16: "can we have Hermes-Chrome open a
+# non-headless window for browser control??" -- yes. Default flipped
+# from HEADLESS=1 to HEADLESS=0 so the operator SEES the agent's
+# browser activity (navigations, clicks, screenshots). Headless mode
+# is still available for cron / scripted use by setting
+# HERMES_BROWSER_HEADLESS=1 in the calling environment.
 #
 # Profile data lives under /var/lib/mios/hermes-browser/profile so the
 # Hermes session is fully isolated from the operator's interactive
@@ -24,7 +26,9 @@ set -euo pipefail
 
 CDP_PORT="${HERMES_BROWSER_CDP_PORT:-9222}"
 PROFILE_DIR="${HERMES_BROWSER_PROFILE_DIR:-/var/lib/mios/hermes-browser/profile}"
-HEADLESS="${HERMES_BROWSER_HEADLESS:-1}"
+# Default 0 (visible) per operator directive 2026-05-16. Operators
+# wanting headless set HERMES_BROWSER_HEADLESS=1.
+HEADLESS="${HERMES_BROWSER_HEADLESS:-0}"
 APP_ID="${HERMES_BROWSER_APP_ID:-com.google.ChromeDev}"
 
 mkdir -p "$PROFILE_DIR"
