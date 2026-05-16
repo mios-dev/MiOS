@@ -91,67 +91,29 @@ if [ -n "$ALIAS_TARGET" ]; then
     QUERY="$ALIAS_TARGET"
 fi
 
-# ─── Fast path A: Voidtools Everything (es.exe) if installed ──────────
-# Operator directive 2026-05-16: "windows entries and installations
-# should install everything search on windows and the agent should
-# use that for windows searching". Everything indexes the entire NTFS
-# tree + has a CLI (es.exe) that returns matches in <100 ms.
-#
-# es.exe lives on the Windows side but /mnt/c is bind-mounted into
-# WSL, so we can invoke it DIRECTLY via the WSL interop layer (no
-# mios-windows / PowerShell wrapper needed -- saves ~500 ms).
-# Probed here at runtime so this script no-ops cleanly when absent.
-# Probe list resolution order (operator directive 2026-05-16:
-# "NO HARDCODED PATHS!!! JUST ENVIRONMENT ARGS"):
-#   1. $EVERYTHING_CLI env (colon-separated) -- from
-#      /usr/lib/systemd/system/hermes-agent.service.d/20-mios-paths-env.conf
-#      or /etc/mios/install.env
-#   2. mios.toml [paths].everything_cli  (operator-edited)
-#   3. compiled-in fallback
-if [ -n "${EVERYTHING_CLI:-}" ]; then
-    ES_PROBE_LIST="$(printf '%s\n' "$EVERYTHING_CLI" | tr ':' '\n')"
-else
-    ES_PROBE_LIST="$(python3 - <<'PYEOF' 2>/dev/null
-import tomllib, sys
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-        paths = d.get("paths", {}).get("everything_cli")
-        if paths:
-            print("\n".join(paths))
-            sys.exit(0)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-# Fallback (last resort): canonical install location
-print("/mnt/m/Programs/Everything/es.exe")
-PYEOF
-)"
-fi
-
-while IFS= read -r ES_PATH; do
-    [ -z "$ES_PATH" ] && continue
-    if [ -x "$ES_PATH" ] || [ -f "$ES_PATH" ]; then
-        # Find <query>*.exe across all indexed drives, top 5 results.
-        # 2 sec timeout for safety; es.exe normally returns in <100ms.
-        ES_OUT="$(timeout 2 "$ES_PATH" -n 5 "${QUERY}*.exe" 2>/dev/null | tr -d '\r')"
-        if [ -n "$ES_OUT" ]; then
-            FIRST_EXE="$(printf '%s\n' "$ES_OUT" | head -1)"
-            if [ -n "$FIRST_EXE" ]; then
-                # Escape backslashes for shell-safe inclusion in the command line
-                ESCAPED="$(printf '%s' "$FIRST_EXE" | sed 's/\\/\\\\/g')"
-                echo "mios-windows launch \"$ESCAPED\""
-                n_alt="$(printf '%s\n' "$ES_OUT" | wc -l)"
-                if [ "$n_alt" -gt 1 ]; then
-                    echo "(found via Everything; $((n_alt - 1)) other .exe matches:)" >&2
-                    printf '%s\n' "$ES_OUT" | tail -n +2 | sed 's/^/  /' >&2
-                fi
-                exit 0
+# ─── Fast path A: delegate to mios-everything ─────────────────────────
+# Operator directive 2026-05-16: "WE HAVE EVERYTHING CLI STILL DOING
+# NOTHING AS A TOOL FOR THE ENTIRE MIOS AGENTIC STACKS" -- promoted
+# the es.exe probe + invocation out of this script into the
+# first-class mios-everything helper. Any agent can now use
+# mios-everything directly; mios-find just calls it as one of its
+# resolution sources.
+if command -v mios-everything >/dev/null 2>&1; then
+    ES_OUT="$(mios-everything -n 5 -ext exe "$QUERY" 2>/dev/null)"
+    if [ -n "$ES_OUT" ]; then
+        FIRST_EXE="$(printf '%s\n' "$ES_OUT" | head -1)"
+        if [ -n "$FIRST_EXE" ]; then
+            ESCAPED="$(printf '%s' "$FIRST_EXE" | sed 's/\\/\\\\/g')"
+            echo "mios-windows launch \"$ESCAPED\""
+            n_alt="$(printf '%s\n' "$ES_OUT" | wc -l)"
+            if [ "$n_alt" -gt 1 ]; then
+                echo "(found via mios-everything; $((n_alt - 1)) other .exe matches:)" >&2
+                printf '%s\n' "$ES_OUT" | tail -n +2 | sed 's/^/  /' >&2
             fi
+            exit 0
         fi
-        break  # don't probe multiple es.exe locations
     fi
-done <<< "$ES_PROBE_LIST"
+fi
 
 # ─── Fast path B: mios-apps inventory (Linux + Windows Start Menu + games) ─
 python3 - "$QUERY" <<'PYEOF'

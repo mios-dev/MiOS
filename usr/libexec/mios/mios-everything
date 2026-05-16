@@ -1,0 +1,124 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-everything <query> [-n <max>] [-ext <csv>]
+#
+# First-class wrapper around Voidtools Everything CLI (es.exe) for
+# the entire MiOS agentic stack. Operator directive 2026-05-16:
+# "WE HAVE EVERYTHING CLI STILL DOING NOTHING AS A TOOL FOR THE
+# ENTIRE MIOS AGENTIC STACKS" -- previously the es.exe probe was
+# siloed inside mios-find; promoting to its own helper so any
+# agent (Hermes, sys-agent, opencode, micro-LLMs) can search the
+# Windows NTFS index in <100 ms without going through mios-find.
+#
+# Returns matching paths (one per line) sorted by Everything's
+# default relevance ranking. Empty stdout + exit 1 on no-match.
+#
+# Env-args-first path resolution (no hardcoded paths):
+#   1. $EVERYTHING_CLI env (colon-separated probe list -- set by
+#      hermes-agent.service.d drop-in or /etc/mios/install.env)
+#   2. mios.toml [paths].everything_cli  (operator-edited)
+#   3. compiled-in /mnt/m/Programs/Everything/es.exe fallback
+
+set -eu
+
+usage() {
+    cat <<'USAGE'
+usage: mios-everything <query> [-n <max>] [-ext <csv>]
+
+  <query>      Everything query syntax. Examples (placeholders only):
+                 <name>                 substring on filename
+                 <name>*.exe            wildcard
+                 path:<dir>             filter by path
+                 size:>1mb              filter by size
+                 dm:today               filter by modify-date
+  -n <max>     limit results (default 10)
+  -ext <csv>   filter to these extensions (e.g. -ext exe,bat,lnk)
+
+Returns one Windows path per line. Exit 0 with match(es); exit 1
+on no-match or es.exe unavailable. Sub-100 ms typical.
+
+Underlying: Voidtools Everything CLI on the Windows side, invoked
+via WSL interop. The index covers EVERY mounted NTFS drive.
+USAGE
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    exit 0
+fi
+
+# ─── Parse args ───────────────────────────────────────────────────
+MAX=10
+EXT=""
+QUERY=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -n)    MAX="$2"; shift 2 ;;
+        -ext)  EXT="$2"; shift 2 ;;
+        --)    shift; QUERY="$*"; break ;;
+        *)     QUERY="$1"; shift ;;
+    esac
+done
+[ -z "$QUERY" ] && { echo "mios-everything: missing <query>" >&2; usage >&2; exit 64; }
+
+# ─── Resolve es.exe path (env-args-first) ─────────────────────────
+ES_PROBE_LIST=""
+if [ -n "${EVERYTHING_CLI:-}" ]; then
+    ES_PROBE_LIST="$(printf '%s\n' "$EVERYTHING_CLI" | tr ':' '\n')"
+else
+    ES_PROBE_LIST="$(python3 - <<'PYEOF' 2>/dev/null
+import tomllib, sys
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+        paths = d.get("paths", {}).get("everything_cli")
+        if paths:
+            print("\n".join(paths))
+            sys.exit(0)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+print("/mnt/m/Programs/Everything/es.exe")
+PYEOF
+)"
+fi
+
+ES_BIN=""
+while IFS= read -r p; do
+    [ -z "$p" ] && continue
+    if [ -x "$p" ] || [ -f "$p" ]; then
+        ES_BIN="$p"; break
+    fi
+done <<< "$ES_PROBE_LIST"
+
+if [ -z "$ES_BIN" ]; then
+    echo "mios-everything: es.exe not found in probe list" >&2
+    echo "  set EVERYTHING_CLI=<path> OR mios.toml [paths].everything_cli" >&2
+    exit 1
+fi
+
+# ─── Build the es.exe invocation ──────────────────────────────────
+# Extension filter via OR-of-wildcards (Everything's native syntax).
+if [ -n "$EXT" ]; then
+    EXT_FILTER=""
+    IFS=',' read -ra EXT_ARR <<< "$EXT"
+    for e in "${EXT_ARR[@]}"; do
+        e_clean=$(echo "$e" | sed -e 's/^\.//' -e 's/[[:space:]]//g')
+        [ -z "$e_clean" ] && continue
+        if [ -z "$EXT_FILTER" ]; then
+            EXT_FILTER="ext:$e_clean"
+        else
+            EXT_FILTER="$EXT_FILTER|ext:$e_clean"
+        fi
+    done
+    [ -n "$EXT_FILTER" ] && QUERY="$QUERY $EXT_FILTER"
+fi
+
+# 2 sec hard timeout; es.exe normally returns in <100ms.
+RAW=$(timeout 2 "$ES_BIN" -n "$MAX" "$QUERY" 2>/dev/null | tr -d '\r')
+
+if [ -z "$RAW" ]; then
+    echo "mios-everything: no match for '$QUERY'" >&2
+    exit 1
+fi
+
+printf '%s\n' "$RAW"

@@ -128,7 +128,8 @@ overrides each app needs.
 
 | Helper | Purpose |
 |---|---|
-| `mios-find <X>` | Fast launch lookup. Returns ONE runnable line. ~60 ms. |
+| `mios-find <X>` | Fast launch lookup. Returns ONE runnable line. ~60 ms. Aggregates the sources below. |
+| `mios-everything <query>` | Direct Voidtools NTFS-index search. Returns matching paths (one per line). Sub-100 ms. Use for path probes when you need raw results without launch wrapping. |
 | `mios-windows {launch\|ps\|cmd} <X>` | Windows dispatch (broker-routed). |
 | `mios-gui <flatpak-or-shim>` | Linux GUI app launcher. |
 | `mios-open-url <url>` | URL in operator's browser. |
