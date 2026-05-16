@@ -1968,20 +1968,152 @@ launcher_socket = "/run/mios-launcher/launcher.sock"
 # ----------------------------------------------------------------------------
 # [mios-find.aliases] -- generic query -> specific app routing.
 #
-# Operator directive 2026-05-16: "open a browser to URL" was returning
-# mios-hermes-browser (headless agent CDP) because "browser" is in the
-# binary name. Bare-word queries like "browser" / "the browser" / "a
-# browser" should route to the operator's preferred VISIBLE app.
-# Operators add their own aliases here without touching code -- the
-# resolution is single-level (alias value is a concrete app name).
+# Operator directive 2026-05-16: "mios.toml/html dictates the default
+# Linux Apps with their Linux/Fedora shortcuts mechanisms -- ex;
+# Epiphany is web, nautilus is files, gnome-software is -- etc-etc;
+# ALL MiOS Agents should know all this information".
+#
+# This table IS the canonical default-app map. mios-find reads it
+# first on every query; if the operator-typed word matches a key
+# (case-insensitive), mios-find resolves to the value and runs the
+# lookup against THAT instead. Operators add or change aliases by
+# editing /etc/mios/mios.toml (per-host) or ~/.config/mios/mios.toml
+# (per-user) -- both layers override this vendor default.
+#
+# Resolution is single-level: alias value is a concrete app name (a
+# flatpak id, a host binary, or a MiOS shim). No alias-of-alias.
 # ----------------------------------------------------------------------------
 [mios-find.aliases]
+
+# ── Web / browser ─────────────────────────────────────────────────
 "browser"        = "chromedev"
 "a browser"      = "chromedev"
 "the browser"    = "chromedev"
 "web browser"    = "chromedev"
 "browser window" = "chromedev"
 "my browser"     = "chromedev"
+"web"            = "epiphany"
+"the web"        = "epiphany"
+"gnome web"      = "epiphany"
+
+# ── Files / file manager ──────────────────────────────────────────
+"files"          = "nautilus"
+"file manager"   = "nautilus"
+"my files"       = "nautilus"
+"file browser"   = "nautilus"
+"explorer"       = "nautilus"
+"finder"         = "nautilus"
+
+# ── Terminal / shell ──────────────────────────────────────────────
+"terminal"       = "ptyxis"
+"the terminal"   = "ptyxis"
+"a terminal"     = "ptyxis"
+"console"        = "ptyxis"
+"shell"          = "ptyxis"
+"command prompt" = "ptyxis"
+
+# ── Text editor / code editor ─────────────────────────────────────
+"text editor"    = "gedit"
+"editor"         = "gedit"
+"notepad"        = "gedit"
+"code editor"    = "codium"
+"vscode"         = "codium"
+"code"           = "codium"
+"ide"            = "codium"
+
+# ── Software / app store ──────────────────────────────────────────
+"software"       = "gnome-software"
+"app store"      = "gnome-software"
+"apps"           = "gnome-software"
+"package manager"= "gnome-software"
+
+# ── Settings / preferences ────────────────────────────────────────
+"settings"       = "gnome-control-center"
+"preferences"    = "gnome-control-center"
+"system settings"= "gnome-control-center"
+"control panel"  = "gnome-control-center"
+"control center" = "gnome-control-center"
+
+# ── Calculator ────────────────────────────────────────────────────
+"calculator"     = "gnome-calculator"
+"calc"           = "gnome-calculator"
+
+# ── Calendar ──────────────────────────────────────────────────────
+"calendar"       = "gnome-calendar"
+"my calendar"    = "gnome-calendar"
+
+# ── Mail / email ──────────────────────────────────────────────────
+"mail"           = "evolution"
+"email"          = "evolution"
+"my mail"        = "evolution"
+"my email"       = "evolution"
+"mail client"    = "evolution"
+"email client"   = "evolution"
+
+# ── Image viewer / photos ─────────────────────────────────────────
+"image viewer"   = "loupe"
+"photo viewer"   = "loupe"
+"picture viewer" = "loupe"
+"photos"         = "loupe"
+
+# ── Document viewer / pdf ─────────────────────────────────────────
+"pdf viewer"     = "papers"
+"document viewer"= "papers"
+"pdf"            = "papers"
+
+# ── Music / audio player ──────────────────────────────────────────
+"music"          = "decibels"
+"music player"   = "decibels"
+"audio player"   = "decibels"
+
+# ── Video player ──────────────────────────────────────────────────
+"video"          = "showtime"
+"video player"   = "showtime"
+"movie player"   = "showtime"
+"media player"   = "showtime"
+
+# ── Maps ──────────────────────────────────────────────────────────
+"maps"           = "gnome-maps"
+
+# ── Clock / weather ───────────────────────────────────────────────
+"clock"          = "gnome-clocks"
+"clocks"         = "gnome-clocks"
+"weather"        = "gnome-weather"
+
+# ── System monitor / task manager ─────────────────────────────────
+"system monitor" = "gnome-system-monitor"
+"task manager"   = "gnome-system-monitor"
+"processes"      = "gnome-system-monitor"
+"resources"      = "resources"
+
+# ── Disks / disk usage ────────────────────────────────────────────
+"disks"          = "gnome-disks"
+"partitions"     = "gnome-disks"
+"disk usage"     = "baobab"
+"disk usage analyzer" = "baobab"
+"baobab"         = "baobab"
+
+# ── Sandbox / flatpak management ──────────────────────────────────
+"flatseal"       = "flatseal"
+"sandbox manager"= "flatseal"
+"flatpak permissions" = "flatseal"
+
+# ── Extensions ────────────────────────────────────────────────────
+"extensions"     = "extension-manager"
+"gnome extensions" = "extension-manager"
+
+# ── Help / docs ───────────────────────────────────────────────────
+"help"           = "yelp"
+"documentation"  = "yelp"
+"manual"         = "yelp"
+
+# ── Game / launchers ──────────────────────────────────────────────
+"games"          = "lutris"
+"game launcher"  = "lutris"
+
+# Operators add app-specific aliases here. Per-host overrides win:
+#   /etc/mios/mios.toml         -> host-wide
+#   ~/.config/mios/mios.toml    -> per-user
 
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and

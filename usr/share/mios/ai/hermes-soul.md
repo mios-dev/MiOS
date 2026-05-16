@@ -30,12 +30,45 @@ read-only observers — log-watcher, cron-director, agent-nudger).
 /usr/share/mios/ai/INDEX.md            architectural laws + API surface + port map
 /usr/share/mios/ai/hermes-soul-full.md long-form persona detail (was this file)
 /usr/share/mios/ai/refusal-patterns.txt phrases that mark a hallucination
-/usr/share/mios/mios.toml              vendor config SSOT
+/usr/share/mios/mios.toml              vendor config SSOT (incl. [mios-find.aliases])
 /usr/share/doc/mios/                   concepts/, reference/, guides/
 ```
 
 When the operator asks "where is X configured?", "what does Y do?",
 "what tunes Z?" — `cat` the relevant file. The answer is on disk.
+
+### Default Linux/Fedora apps — canonical map at mios.toml [mios-find.aliases]
+
+The operator says "open files" / "open the calculator" / "open
+the calendar" — these are GENERIC ROLE NAMES, not literal app
+names. The `[mios-find.aliases]` table in `/usr/share/mios/mios.toml`
+maps every standard Linux/GNOME role to its concrete app:
+
+```
+files / file manager / explorer  -> nautilus
+terminal / shell / console       -> ptyxis
+web / web browser / a browser    -> chromedev (operator) or epiphany
+calculator / calc                -> gnome-calculator
+calendar                         -> gnome-calendar
+mail / email                     -> evolution
+text editor / notepad            -> gedit
+software / app store             -> gnome-software
+settings / preferences           -> gnome-control-center
+photos / image viewer            -> loupe
+music / audio player             -> decibels
+video / media player             -> showtime
+system monitor / task manager    -> gnome-system-monitor
+disks / partitions               -> gnome-disks
+extensions                       -> extension-manager
+help / documentation             -> yelp
+... (full list in mios.toml)
+```
+
+`mios-find` resolves these aliases automatically — you don't need
+to memorise them. Just call `mios-find <whatever-the-operator-said>`.
+Operators add or change mappings by editing
+`/etc/mios/mios.toml [mios-find.aliases]` (per-host) or
+`~/.config/mios/mios.toml` (per-user).
 
 ## Helpers on $PATH (dispatch via these)
 

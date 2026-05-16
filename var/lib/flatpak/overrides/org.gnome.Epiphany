@@ -29,10 +29,12 @@
 # utilities, not WebKit.
 GDK_BACKEND=wayland
 
-# NextGen GL renderer (GTK4's default since 4.14). Required for
-# libadwaita's rounded corners + drop shadows to render through to
-# the Wayland surface.
-GSK_RENDERER=ngl
+# GL renderer (renamed from "ngl" in current GTK4 -- operator-flagged
+# 2026-05-16 night: "Gsk-WARNING: The new GL renderer has been
+# renamed to gl. Try GSK_RENDERER=help"). Required for libadwaita's
+# rounded corners + drop shadows to render through to the Wayland
+# surface.
+GSK_RENDERER=gl
 
 # Allow hardware path -- the global SW=1 default is overridden here.
 # WSLg's libd3d12.so + /dev/dxg back this via the dzn / d3d12 Gallium
