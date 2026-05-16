@@ -1,0 +1,99 @@
+[Unit]
+# /etc/containers/systemd/mios-agent-sandbox@.container
+#
+# Per-session MiOS agent exec sandbox (Quadlet, templated). Per the
+# FS+OS Control guide §15. Start a session sandbox with:
+#
+#   systemctl --user start mios-agent-sandbox@<session-id>.service
+#
+# The agent (Hermes, opencode, etc.) then dispatches commands into
+# the sandbox via:
+#
+#   podman exec -i mios-agent-sandbox-<session-id> /usr/local/bin/exec-init <cmd>
+#
+# The exec-init wrapper applies the per-process Landlock domain;
+# the Quadlet provides namespace + seccomp + cgroup + network deny.
+# Defense in depth: even if any single layer fails, the others hold.
+
+Description=MiOS per-session agent exec sandbox (%i)
+After=network-online.target
+
+[Container]
+Image=localhost/mios-agent-sandbox:latest
+ContainerName=mios-agent-sandbox-%i
+
+# UserNS=keep-id: container "root" is the host UID running this unit.
+# Files written to bind-mounted /work appear as the operator's UID
+# on the host -- no chown dance after the agent edits a file.
+UserNS=keep-id
+
+# Network=none -- HARD network deny at the namespace level. Combined
+# with the seccomp socket(AF_INET) ERRNO rule, the sandbox cannot
+# reach the network even if it wanted to.
+Network=none
+
+# ReadOnly=true -- the container root filesystem is RO. Writes only
+# allowed to the tmpfs mounts + the bind-mounted /work below.
+ReadOnly=true
+
+# VolatileTmp=true -- /tmp is its own tmpfs, wiped on container stop.
+VolatileTmp=true
+
+# Tmpfs mounts. /tmp for general scratch; /work-upper for overlayfs
+# upperdir if the agent wants per-session COW on top of read-only
+# bind. Both noexec on /work-upper just for paranoia (agent can move
+# binaries to /tmp to exec).
+Tmpfs=/tmp:rw,size=1G,mode=1777,nosuid,nodev
+Tmpfs=/work-upper:rw,size=2G,mode=0755,nosuid,nodev,noexec
+
+# No new privileges -- prctl(PR_SET_NO_NEW_PRIVS). Required for
+# seccomp + Landlock from within an unprivileged container, and
+# also a hard barrier against setuid escalation.
+NoNewPrivileges=true
+
+# Drop ALL capabilities. The agent does NOT need CAP_NET_BIND_SERVICE
+# (use unprivileged ports), CAP_SYS_PTRACE (no debugger inside the
+# sandbox), CAP_SYS_ADMIN (no mount/umount), etc.
+DropCapability=ALL
+
+# SELinux container_t with per-instance MCS category -- only this
+# container can read the :Z-labeled bind mount.
+SecurityLabelType=container_t
+
+# Hardened seccomp profile (allowlist; AF_UNIX-only sockets;
+# clone3 -> ENOSYS; escalation syscalls -> ENOSYS).
+SeccompProfile=/etc/mios/containers/agent-seccomp.json
+
+# Project workspace bind mount, with per-instance SELinux label
+# (:Z). The path is template-substituted: %i is the systemd
+# instance specifier, used as both the session id AND the project
+# directory name under /var/home/mios/projects/.
+#
+# Operators wanting a different layout: edit this Volume= line.
+# Per the operator's TOML-first invariant, future iteration will
+# read the project root from mios.toml [paths.projects] instead
+# of hardcoding /var/home/mios/projects/.
+Volume=/var/home/mios/projects/%i:/work:Z
+
+# Unix socket for agent <-> sandbox RPC (if the operator runs
+# exec-server inside the container instead of `podman exec` from
+# outside). %t is XDG_RUNTIME_DIR.
+Volume=%t/mios-agent-%i.sock:/run/agent.sock
+
+# Resource caps. Per the FS+OS Control guide §5 cgroups v2 section.
+PodmanArgs=--cpus=4 \
+           --memory=8g \
+           --memory-swap=8g \
+           --pids-limit=1024 \
+           --ulimit nofile=4096 \
+           --ulimit nproc=512 \
+           --ulimit fsize=2147483648
+
+[Service]
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

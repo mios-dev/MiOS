@@ -253,6 +253,11 @@ etc/mios/*
 # deploys to each user home that runs opencode.
 !/etc/mios/opencode/
 !/etc/mios/opencode/opencode.json
+# Agent exec sandbox -- seccomp profile + Dockerfile + exec-init.c
+# (per FS+OS Control guide §15 deliverable). Vendor-tracked SoT;
+# operator overlays in /etc/mios/containers/ override these defaults.
+!/etc/mios/containers/
+!/etc/mios/containers/**
 
 # /etc/sysusers.d/ -- admin overrides for upstream-RPM sysusers entries
 # (e.g. cephadm.conf pins UID >= 1000 so the postcheck #8 invariant passes).
