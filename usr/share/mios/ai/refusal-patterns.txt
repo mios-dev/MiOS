@@ -88,3 +88,21 @@ mios.find (?:failed,? )?reports tool does not exist
 there is no dedicated command for it in mios.(?:find|windows)
 I recommend you manually try
 Would you like me to perform a web search
+
+# ── 2026-05-16 evening: "open epiphany to youtube" regression.
+# Agent treated the app name as a search query and reached for
+# web search; on retry, lied that mios-find had failed and
+# demanded a file path the operator had no reason to know.
+mios.find tool failed (?:when|while)
+the mios.find tool failed
+suggests the app may not be globally indexed
+suggests the app may not be (?:globally )?indexed
+I need its exact path
+A local application requires a file path
+Do you know the full directory or file path
+unable to locate ".+" using the system.?s application index
+I have opened the YouTube search results for
+I have opened the .+ search results for
+the top video seems to be
+Which video would you like to watch
+e\.g\.,? /opt/.+/.+\.exe

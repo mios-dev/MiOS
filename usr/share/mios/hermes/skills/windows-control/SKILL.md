@@ -1,127 +1,86 @@
 ---
 name: windows-control
 description: |
-  Launch + control Windows apps from the MiOS-Agent (WSL → Windows
-  interop). Use whenever the operator says: launch / open / start /
-  run any Windows app or game; open a URL; query a Windows service;
-  manipulate a Windows window (focus, move, center, resize). The
-  helpers translate paths, route through the operator broker, and
-  auto-center launched windows — you don't need to memorise the
-  WSL ↔ Windows path mechanics.
+  Launch + control Windows apps from the MiOS-Agent. The host provides
+  helpers that handle WSL ↔ Windows interop, broker dispatch to the
+  operator session, path translation, and window auto-centering — you
+  invoke them by name, not by remembering paths or syntax. Use when
+  the operator asks to launch / open / start / run any Windows app or
+  game, open a URL, query a Windows service, or manipulate a Windows
+  window.
 metadata:
   hermes:
     requires_tools: [terminal]
 ---
 
-# windows-control — reach Windows from WSL
+# windows-control — host-specific helpers
 
-<!-- MiOS-managed: seeded from /usr/share/mios/hermes/skills/
-     windows-control/SKILL.md. Delete this marker to take ownership. -->
+<!-- MiOS-managed: vendor surface map. Hermes's NATIVE skill_manage
+     can append learned-by-experience specifics to a separate skill
+     (e.g. `learned-windows-launches`) without editing this file.
+     Delete this marker to take ownership. -->
 
-The MiOS-DEV WSL distro runs inside Windows. `mios-windows` is the
-single shim for Windows-host control; it handles WSL interop, the
-operator-session broker, path translation (WSL `/mnt/c/...` ↔ Windows
-`C:\...`), and auto-centering launched windows.
+The MiOS host provides a small set of helpers on `$PATH`. They
+resolve all paths from environment vars (set by
+`hermes-agent.service.d` drop-ins) or `mios.toml [paths]` — you
+never hardcode a path.
 
-## The two-step launch — canonical
+## Helpers
 
-```
-mios-find <name-or-keyword>
-# → prints ONE line: a ready-to-execute launch command
-<that line>
-# → window opens on operator's desktop, centered + foregrounded
-```
+| Helper | Purpose |
+|---|---|
+| `mios-find <query>` | App / file lookup. Returns ONE ready-to-execute line on stdout. The line is shell-safe. |
+| `mios-windows launch <name-or-path>` | Launch a Windows app. Accepts short name, Windows path, or stdin (`echo PATH \| mios-windows launch -`). |
+| `mios-windows ps <powershell>` | Run a PowerShell command on Windows. |
+| `mios-windows cmd <cmd-line>` | Run a cmd.exe command on Windows. |
+| `mios-open-url <url>` | Open URL in operator's browser. |
+| `mios-pc-control <subcmd>` | Win32 input + window enumeration + screenshot. Subcommands listed in `mios-pc-control --help`. |
+| `mios-apps` / `mios-apps --filter <q>` | Full launchable inventory. |
+| `mios-doctor` | Health probe. |
 
-`mios-find` queries Voidtools Everything's NTFS index (via
-`mios.toml [paths].everything_cli`), Steam/Epic/GOG library scans,
-Windows Get-StartApps, and the Linux flatpak inventory. ~60 ms.
+## The canonical chain
 
-## Direct `mios-windows launch` invocations
+When the operator asks to launch X:
 
-```
-mios-windows launch notepad                     # known short name
-mios-windows launch "C:\Program Files\App\App.exe"  # full path (quoted)
-echo 'C:\Program Files (x86)\Steam\steam.exe' \
-    | mios-windows launch -                     # stdin -- SAFE for any
-                                                  path with spaces/parens
-                                                  /amps
-mios-windows launch chrome https://example.com   # known shortname + args
-```
+1. `mios-find X` → prints a line.
+2. Execute that line.
 
-`mios-windows launch` accepts (a) a known short name, (b) a Windows-
-style full path, or (c) a path via stdin (`-`). It always:
-* translates the path via `wslpath -u` if Windows-style
-* routes through the operator-session broker if you're in a service
-  user context (so the window appears on the operator's desktop)
-* auto-centers + foregrounds the new window post-launch
+The helpers route service-user calls through the operator broker
+automatically, translate paths automatically, and auto-center the
+new window automatically. You don't reconstruct any of that.
 
-## `mios-windows ps` and `mios-windows cmd`
+## When mios-find returns a URI (uplay://, steam://, epic://, http://)
 
-```
-mios-windows ps 'Get-Service vmcompute | fl'
-mios-windows ps 'Get-StartApps | ConvertTo-Json'
-mios-windows ps '& '"'"'M:\Programs\Everything\es.exe'"'"' -n 5 motorfest'
-mios-windows cmd 'tasklist /FI "IMAGENAME eq notepad.exe"'
-```
+The output line will already be `mios-windows ps "Start-Process
+'<uri>'"`. Just execute it. Windows dispatches URIs to the registered
+handler (Ubisoft Connect, Steam, browser, etc).
 
-Both broker-route. PowerShell + cmd full paths come from `mios.toml
-[paths].powershell_exe` and `[paths].cmd_exe`.
+## When the operator's app isn't in mios-find's output
 
-## URL launching
-
-```
-mios-open-url https://github.com/mios-dev/MiOS
-```
-
-Routes through the broker, opens in the operator's default browser
-(ChromeDev on this host per `mios.toml`).
-
-## Window control
-
-```
-mios-pc-control window-list
-mios-pc-control window-focus  <hwnd-or-pid>
-mios-pc-control window-move   <hwnd> <x> <y>
-mios-pc-control window-resize <hwnd> <w> <h>
-mios-pc-control window-center <hwnd-or-pid>
-mios-pc-control screenshot    /tmp/screen.png
-mios-pc-control click         <x> <y>
-mios-pc-control type          'hello world'
-mios-pc-control key-combo     ctrl+shift+t
-```
-
-For coordinate-driven clicks when you don't know the position:
-
-```
-mios-pc-control screenshot /tmp/s.png
-mios-pc-vision /tmp/s.png "the Start button"
-# → {"x":18,"y":1058,"confidence":0.92,...}
-mios-pc-control click 18 1058
-```
-
-## URI handlers (Steam / Epic / Uplay / Ubisoft Connect / etc)
-
-When `mios-find` / `mios-apps` returns a URI (e.g.
-`uplay://launch/16732/0`, `steam://rungameid/284160`,
-`com.epicgames.launcher://apps/...`), launch via:
-
-```
-mios-windows ps "Start-Process 'uplay://launch/16732/0'"
-```
-
-This goes through the broker → Windows-side Start-Process →
-Windows URI-handler dispatches to the right launcher app (Ubisoft
-Connect, Steam, Epic, etc). DO NOT try `xdg-open` (Linux-side; no
-Windows URI handler), `mios-launch <uri>` (app-name lookup, not
-URIs), or wrapping the URI in `shell:AppsFolder\` (UWP-only).
+1. `mios-apps --filter <q>` to confirm.
+2. ASK the operator where it lives — don't guess paths.
+3. If you learn the path, `memory_save` it + (optionally) `skill_manage`
+   a session-specific entry so future turns recall.
 
 ## What NOT to do
 
-* `Get-ChildItem -Recurse` on a Windows drive — never. 60s timeout.
-  Voidtools (via `mios-find` or `mios-windows ps "& '...es.exe' ..."`)
-  already indexed it.
-* Direct invocation of `/mnt/c/...exe` from this agent's WSL context
-  — perm-denied by WSL DrvFs metadata. Helpers route through the
-  broker for you.
-* Tell the operator to "open Start menu manually" — you have the
-  tools. Use them.
+* `Get-ChildItem -Recurse` across a Windows drive — 60s timeout; the
+  Voidtools index already has it (via `mios-find`).
+* Invoke `/mnt/c/...exe` directly from this service-user context —
+  WSL DrvFs strips exec; helpers route through the broker for you.
+* `xdg-open` for a Windows URI — Linux-side; no Windows handler.
+* Claim a helper "doesn't exist" — `which <helper>` first. All
+  documented helpers are on `$PATH`.
+* Push manual recovery on the operator — you have the tools.
+
+## Learning
+
+When a launch attempt fails (wrong path, missing app, parens-in-
+shell, etc):
+1. Read the actual error verbatim.
+2. `memory_save` what was tried + the failure mode.
+3. On retry, `memory_search` first.
+
+Don't regress to refusal — that's worse than the first attempt. The
+native memory loop is how you improve across turns; SKILL.md is just
+the static surface map.

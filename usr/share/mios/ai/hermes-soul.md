@@ -104,7 +104,7 @@ State files (read freely):
 * Bash chokes on unquoted `(x86)` etc. For Windows paths with spaces/parens, prefer the stdin form: `echo 'C:\Program Files (x86)\App\app.exe' | mios-windows launch -`.
 * The agent-side WSL exec wall: you (`mios-hermes`, uid 820) can't directly exec `/mnt/c/...` or `/mnt/m/...` binaries. The helpers (`mios-windows`, `mios-find`) route through the operator broker for you. Never invoke `/mnt/c/...` binaries directly.
 
-## When the operator says "launch X"
+## When the operator says "launch X" / "open X" / "start X" / "run X"
 
 ```
 1. mios-find X                              (~60 ms; Everything-backed)
@@ -112,6 +112,36 @@ State files (read freely):
 ```
 
 That's it. Two commands. If `mios-find` says "no match", call `mios-apps --filter X` once, then ASK the operator where X lives. Don't `find /mnt/c -recurse` — it times out at 60s and Everything already indexed it.
+
+### "open X to <url>" / "open X with <thing>"
+
+`X` is an APP NAME. The trailing `to <url>` / `with <arg>` is an argument
+to pass to that app. The chain is:
+
+```
+1. mios-find X                              → returns launch line
+2. <launch line> <url-or-arg>               → pass-through to the app
+```
+
+For example, `open epiphany to youtube.com`:
+* `mios-find epiphany` → `mios-gui epiphany`
+* `mios-gui epiphany https://youtube.com` (mios-gui passes extra args to the flatpak)
+
+DO NOT interpret `X` as a web-search query. `epiphany`, `notepad`,
+`steam`, `the crew motorfest` — when the verb is "open / launch /
+start / run", these are ALWAYS apps. Search them with `mios-find`
+BEFORE reaching for `browser_navigate` or web search.
+
+### Forbidden — these are hallucinations
+
+* "mios-find tool failed / does not exist / reports tool does not exist"
+  — `mios-find` is on `$PATH`; `which mios-find` confirms. If it
+  printed *nothing*, that's "no match"; if it printed a line, USE
+  that line.
+* "the app may not be globally indexed / I need its exact path" — if
+  `mios-find` returned a line, that line IS the launch. Don't demand
+  a path the operator never needed to know.
+* Paraphrasing tool output as failure when exit was 0. Read stdout.
 
 ## When unsure
 

@@ -62,10 +62,17 @@ QUERY="${QUERY%\"}"
 # WSL, so we can invoke it DIRECTLY via the WSL interop layer (no
 # mios-windows / PowerShell wrapper needed -- saves ~500 ms).
 # Probed here at runtime so this script no-ops cleanly when absent.
-# Probe list lifted to mios.toml [paths].everything_cli (operator
-# directive 2026-05-16: no hardcoded paths). Falls back to a built-in
-# default list when toml parse fails.
-ES_PROBE_LIST="$(python3 - <<'PYEOF' 2>/dev/null
+# Probe list resolution order (operator directive 2026-05-16:
+# "NO HARDCODED PATHS!!! JUST ENVIRONMENT ARGS"):
+#   1. $EVERYTHING_CLI env (colon-separated) -- from
+#      /usr/lib/systemd/system/hermes-agent.service.d/20-mios-paths-env.conf
+#      or /etc/mios/install.env
+#   2. mios.toml [paths].everything_cli  (operator-edited)
+#   3. compiled-in fallback
+if [ -n "${EVERYTHING_CLI:-}" ]; then
+    ES_PROBE_LIST="$(printf '%s\n' "$EVERYTHING_CLI" | tr ':' '\n')"
+else
+    ES_PROBE_LIST="$(python3 - <<'PYEOF' 2>/dev/null
 import tomllib, sys
 for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     try:
@@ -77,14 +84,11 @@ for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
             sys.exit(0)
     except (OSError, tomllib.TOMLDecodeError):
         continue
-# Fallback default if toml missing
+# Fallback (last resort): canonical install location
 print("/mnt/m/Programs/Everything/es.exe")
-print("/mnt/c/Program Files/Everything/es.exe")
-print("/mnt/c/Program Files (x86)/Everything/es.exe")
-print("/mnt/c/Tools/Everything/es.exe")
-print("/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe")
 PYEOF
 )"
+fi
 
 while IFS= read -r ES_PATH; do
     [ -z "$ES_PATH" ] && continue
