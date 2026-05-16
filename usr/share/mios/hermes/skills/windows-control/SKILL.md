@@ -75,43 +75,80 @@ do NOT run `mios-launch wikipedia` (it will fail with "no resolution
 for 'wikipedia'"). Use `mios-open-url https://en.wikipedia.org`
 instead. This is the exact failure that bit the operator 2026-05-15.
 
-## **EVERYTHING SEARCH IS THE FIRST METHOD** -- non-negotiable
+## ⚡ ES.EXE (VOIDTOOLS EVERYTHING SEARCH CLI) IS THE PRIMARY METHOD ⚡
 
-Operator directive 2026-05-16: "everything search is used for
-shortcuts to files, apps, locations, executable, etc-etc -- MiOS-
-Agent should use this method first when trying to do things on the
-local Windows host machine(s)".
+Operator directive (repeated 2026-05-16): "they should be using
+everything search cli!!! ... MiOS-Agent should use this method first
+when trying to do things on the local Windows host machine(s)".
 
-`mios-find` is the cached wrapper around Voidtools Everything's
-`es.exe` (at `M:\Programs\Everything\es.exe`, also probed at
-`C:\Program Files\Everything\es.exe`). It indexes the entire NTFS
-tree + returns matches in <100 ms. ANY time you need a path on the
-Windows host -- file, application, executable, install location,
-log directory, config file -- this is the FIRST tool you reach
-for. Always.
+es.exe queries Voidtools Everything's NTFS index in <100 ms. Use it
+FIRST for any Windows-side path lookup (file, app, exe, install
+dir, game, config, log, anything).
 
-When the operator says "launch X", "open X", "run X", "start X",
-"find X on my pc", "where is X":
+### Two ways to invoke from the agent (BOTH go to es.exe)
 
-**STEP 1**: `mios-find X`    (~60ms; Everything-backed for paths)
-
-**STEP 2**: Execute the command mios-find printed (1 line on stdout).
-
-That's it. Two commands. ~150 ms total. NEVER reach for Get-ChildItem
--Recurse, NEVER recurse the C: / D: drives, NEVER try paths blindly
--- Everything (via mios-find) already indexed everything.
-
-If you need a raw .exe path lookup that mios-find doesn't surface
-(rare -- it covers Steam / Epic / GOG / Get-StartApps + Linux
-inventory natively), call es.exe directly via WSL interop:
+**A) `mios-find <query>` (recommended -- agent-context-safe)**
 
 ```
-/mnt/c/Program\ Files/Everything/es.exe -n 5 "<query>"
-/mnt/m/Programs/Everything/es.exe -n 5 "<query>"
+mios-find steam            # -> mios-windows launch "C:\Program Files (x86)\Steam\steam.exe"
+mios-find beamng           # -> mios-windows launch "D:\...\BeamNG.drive.exe"
+mios-find "the crew"       # -> Ubisoft launcher URI
 ```
 
-Returns paths instantly. NEVER use `Get-ChildItem -Recurse` over
-the whole drive when Everything is right there.
+mios-find wraps es.exe + Steam/Epic/GOG library scans + flatpak
+inventory + Get-StartApps. ALWAYS works from the agent's service-user
+context (uid 820); ~60 ms first call, cached after. Returns ONE line
+on stdout: the ready-to-execute launch command. Pipe it or just run
+the printed line.
+
+**B) `mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 5 <query>"` (broker route, the canonical es.exe path)**
+
+```
+mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 5 'steam.exe'"
+mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 10 'motorfest'"
+mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 5 'config.json'"
+```
+
+Goes through `mios-windows ps` -> mios-as-operator -> the launcher
+broker -> PowerShell on the Windows side. This gets you direct es.exe
+access for custom queries (specific extension, multi-word phrase,
+operator-driven exploration). Output: bare Windows paths, one per
+line. Verified live 2026-05-16:
+  -> C:\Program Files (x86)\Steam\steam.exe
+  -> D:\SteamLibrary\steamapps\common\BeamNG.drive\BeamNG.drive.exe
+  -> ... etc.
+
+Canonical es.exe location: `M:\Programs\Everything\es.exe` (installed
+by mios-bootstrap on every MiOS host). Fallback if M: is unavailable:
+`C:\Users\mios\AppData\Local\Programs\Everything\es.exe`. Note:
+`C:\Program Files\Everything\es.exe` is the GUI default for the
+admin-install of Everything (via winget) which DOES NOT include es.exe
+-- the CLI is a separate Voidtools download. Use the M:\ path.
+
+### Forbidden anti-patterns
+
+* `Get-ChildItem -Recurse` over a Windows drive -- never. 60s timeout
+  + spams the operator + es.exe already indexed it.
+* Guessing paths from memory -- always confirm with es.exe.
+* "I'll check common locations..." -- always es.exe FIRST.
+* "It's installed at <imagined path>" -- always es.exe to verify.
+* Calling `/mnt/m/Programs/Everything/es.exe` DIRECTLY from inside
+  WSL -- DOES NOT WORK from the agent's service-user context (perm
+  denied via WSL DrvFs exec wall). Always go through `mios-find` OR
+  `mios-windows ps "& '<path>' ..."` (broker-routed).
+
+### After finding, LAUNCH via mios-windows launch
+
+mios-windows launch accepts ANY Windows-style path -- it translates
+via wslpath internally:
+
+```
+mios-windows launch "C:\Program Files (x86)\Steam\steam.exe"
+mios-windows launch "D:\SteamLibrary\steamapps\common\BeamNG.drive\BeamNG.drive.exe"
+mios-windows launch "%LOCALAPPDATA%\Programs\<App>\<app>.exe"
+```
+
+es.exe finds, mios-windows launches. Two commands. ~150 ms total.
 
 If mios-find returns "no match", THEN escalate to:
   * `mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 5 <pattern>"`
