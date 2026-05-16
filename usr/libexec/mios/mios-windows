@@ -246,6 +246,47 @@ case "$sub" in
             echo "mios-windows ps: missing <command>" >&2
             exit 64
         fi
+        # Service-user routing: mios-hermes (uid 820) cannot exec
+        # /mnt/c/.../powershell.exe directly because of the WSL
+        # metadata-perm wall. Route through the operator-side
+        # launcher broker so PowerShell runs in the operator
+        # context AND captures stdout/stderr back to a tempfile we
+        # can read.
+        _my_uid="$(id -u)"
+        _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /tmp/mios-launcher.sock ]; then
+            # Broker dispatches detached + redirects to /dev/null by
+            # default. For ps/cmd we need the OUTPUT. Route to a
+            # per-call tempfile, dispatch, then poll briefly + cat.
+            _outfile="$(mktemp /tmp/mios-windows-ps-XXXXXX.out)"
+            chmod 0666 "$_outfile"
+            # Quote the inner PS command for safe transport.
+            _ps_cmd="$*"
+            _ps_cmd_q="${_ps_cmd//\\/\\\\}"
+            _ps_cmd_q="${_ps_cmd_q//\"/\\\"}"
+            # Dispatch: PowerShell.exe >outfile 2>&1
+            python3 - "$_outfile" "$PWSH" "$_ps_cmd" <<'PYEOF'
+import socket, sys, shlex
+outfile, pwsh, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
+# Build a shell command that exec's PowerShell with output redirected.
+line = f'{shlex.quote(pwsh)} -NoProfile -NonInteractive -Command {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(5.0)
+s.connect("/tmp/mios-launcher.sock")
+s.sendall((line + "\n").encode())
+s.recv(64)
+s.close()
+PYEOF
+            # Poll for output ready (PowerShell write completion).
+            for _ in $(seq 1 30); do
+                if [ -s "$_outfile" ]; then break; fi
+                sleep 0.3
+            done
+            sleep 0.5
+            cat "$_outfile" 2>/dev/null
+            rm -f "$_outfile"
+            exit 0
+        fi
         if [ ! -x "$PWSH" ]; then
             echo "mios-windows ps: PowerShell not at $PWSH -- set MIOS_WINDOWS_PWSH=<path>" >&2
             exit 1
@@ -256,6 +297,32 @@ case "$sub" in
         if [ "$#" -lt 1 ]; then
             echo "mios-windows cmd: missing <command>" >&2
             exit 64
+        fi
+        # Same broker route for service users.
+        _my_uid="$(id -u)"
+        _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /tmp/mios-launcher.sock ]; then
+            _outfile="$(mktemp /tmp/mios-windows-cmd-XXXXXX.out)"
+            chmod 0666 "$_outfile"
+            python3 - "$_outfile" "$CMD" "$*" <<'PYEOF'
+import socket, sys, shlex
+outfile, cmd_exe, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
+line = f'{shlex.quote(cmd_exe)} /c {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(5.0)
+s.connect("/tmp/mios-launcher.sock")
+s.sendall((line + "\n").encode())
+s.recv(64)
+s.close()
+PYEOF
+            for _ in $(seq 1 30); do
+                if [ -s "$_outfile" ]; then break; fi
+                sleep 0.3
+            done
+            sleep 0.5
+            cat "$_outfile" 2>/dev/null
+            rm -f "$_outfile"
+            exit 0
         fi
         if [ ! -x "$CMD" ]; then
             echo "mios-windows cmd: cmd.exe not at $CMD" >&2
