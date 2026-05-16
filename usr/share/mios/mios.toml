@@ -544,7 +544,7 @@ prompt_shortcut     = "@"
 # Listing both: the BASE pull is needed before `ollama create` can
 # derive the tools variant. Operator can skip the base post-derive
 # (they share blob layers under /var/lib/ollama/models).
-bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b"
+bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,gemma4:e4b"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
