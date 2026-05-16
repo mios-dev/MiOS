@@ -260,7 +260,11 @@ ps = f"Start-Process -FilePath {shlex.quote(target)}"
 if extra_args:
     arglist = ", ".join(shlex.quote(a) for a in extra_args)
     ps += f" -ArgumentList {arglist}"
-line = "CAPTURE: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
+# Full path to powershell.exe -- systemd user services have a stripped
+# PATH that excludes /mnt/c/Windows/System32 (operator-confirmed
+# regression 2026-05-16: broker returned "bash: line 1: powershell.exe:
+# command not found" for every launch).
+line = "CAPTURE: /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(30.0)
 s.connect("/run/mios-launcher/launcher.sock")
