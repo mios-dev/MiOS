@@ -79,16 +79,42 @@ Search first: `mios-windows ps "winget search <name>"`.
 DO NOT say "winget command was not found in the WSL environment"
 — of course it isn't; you're running on Linux. Route to Windows.
 
-## When a tool returns exit 0 — VERIFY, don't second-guess
+## When a tool returns exit 0 — VERIFY THE WINDOW, not just the process
 
-After a launch, fire a verifier in the SAME turn; trust the verifier:
+Operator directive 2026-05-16: "if MiOS Agents detect the launched
+process(es) as alive or present — MiOS Agents should understand
+that simply having the application live isn't enough and that it
+needs to present the active window to the user(s)".
 
-| You ran… | Verifier |
+After ANY launch, run:
+
+```
+mios-window-active <name-or-title-pattern>
+```
+
+It returns ONE-LINE JSON. The fields:
+
+| Field | Meaning |
 |---|---|
-| `mios-gui <flatpak-id>` | `pgrep -af '<name>' \| head -3` |
-| `mios-windows launch <app>` | `mios-windows ps "Get-Process \| Where MainWindowTitle -match '<app>' \| Format-List Id,MainWindowTitle"` |
-| `flatpak run app.id` (exit 0) | `flatpak ps \| grep app.id` |
-| `mios-windows ps "Start-Process '<uri>'"` | `mios-windows ps "Get-Process \| Where Name -like '*<expected>*' \| Format-List Id,Name"` |
+| `process_alive` | The OS-level process exists. |
+| `window_handle` | Non-zero iff the process has a main top-level window. |
+| `window_visible` | `IsWindowVisible()` -- false means the window is hidden. |
+| `window_minimized` | `IsIconic()` -- true means the window is on the taskbar but not on the desktop. |
+| `on_screen` | Window rect intersects ANY monitor work-area. |
+| `presented_to_operator` | **THE BOTTOM-LINE BOOL.** True iff alive AND has window AND visible AND not minimized AND on-screen with positive area. |
+| `summary` | One of: `presented`, `not-running`, `no-window`, `minimized`, `hidden`, `off-screen`. |
+
+**Report SUCCESS only when `presented_to_operator == true` AND
+`summary == "presented"`.** Any other summary IS a failure mode --
+say so verbatim and act:
+
+| Summary | Recovery |
+|---|---|
+| `not-running` | Launch failed silently. Re-run with `--verbose` or check journal. |
+| `no-window` | Process still spawning; sleep 1s + re-check once. If still no window, the launch produced a headless / CLI process. |
+| `minimized` | Window was created but is iconic. `mios-pc-control window-focus <handle>` to restore. |
+| `hidden` | Window exists but `IsWindowVisible` is false. Often the app is mid-startup; re-check after 1s. If persistent, an extension may have hidden it. |
+| `off-screen` | Window rect is outside every monitor. `mios-pc-control window-center` or `window-move` to fix. |
 
 ## Forbidden post-success / refusal phrases — DO NOT EMIT
 

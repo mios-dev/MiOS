@@ -1,0 +1,161 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-window-active <name-pattern>
+#
+# Reports whether the named app's window is actually PRESENTED to
+# the operator -- not just whether the process is alive. Operator
+# directive 2026-05-16: "if MiOS Agents detect the launched
+# process(es) as alive or present -- MiOS Agents should understand
+# that simply having the application live isn't enough and that it
+# needs to present the active window to the user(s)".
+#
+# A process can be alive but its window:
+#   * never created (MainWindowHandle == 0)
+#   * minimized to the taskbar (IsIconic == true)
+#   * hidden (IsWindowVisible false)
+#   * sized off-screen
+# Any of these means the operator does NOT see the app, even
+# though `pgrep` / `Get-Process` would say "running".
+#
+# Output: ONE-LINE JSON to stdout. Single source of truth -- agents
+# parse this instead of running their own ad-hoc Get-Process check.
+#
+# {
+#   "query": "epiphany",
+#   "process_alive": true,
+#   "process_id": 12345,
+#   "process_name": "epiphany",
+#   "window_handle": 1248892,
+#   "window_title": "Welcome to Web - Epiphany",
+#   "window_visible": true,
+#   "window_minimized": false,
+#   "window_foreground": true,
+#   "window_rect": {"x": 720, "y": 232, "w": 1280, "h": 720},
+#   "on_screen": true,
+#   "presented_to_operator": true,
+#   "summary": "presented"
+# }
+#
+# `presented_to_operator` is the bottom-line bool the agent should
+# trust: TRUE iff process_alive AND window_handle != 0 AND
+# window_visible AND NOT window_minimized AND window rect is
+# on-screen with positive area.
+#
+# `summary` is one of:
+#   presented        -- visible + not minimized + on-screen (success)
+#   not-running      -- process_alive false
+#   no-window        -- process alive but MainWindowHandle == 0 (still spawning OR pure CLI)
+#   minimized        -- process + window exist but iconic
+#   hidden           -- process + window exist but IsWindowVisible false
+#   off-screen       -- window rect outside every monitor work area
+#
+# Works for both Windows apps and WSLg-hosted Linux apps -- WSLg
+# wraps each Linux Wayland surface in a Win32 top-level owned by
+# msrdc.exe / mstsc.exe, so the Win32 API sees them identically.
+
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat <<'USAGE'
+usage: mios-window-active <name-pattern>
+
+Reports JSON describing whether the named app's window is presented
+to the operator (visible + not minimized + on-screen). Process-alive
+alone is INSUFFICIENT -- use this to verify the operator actually
+sees the launched app.
+
+The pattern is a substring match (case-insensitive) against either
+the process name OR the main window title. First match wins,
+preferring processes that have a non-zero MainWindowHandle.
+
+Examples:
+  mios-window-active epiphany       -> {"presented_to_operator": true, ...}
+  mios-window-active "the crew"     -> {"summary": "minimized", ...}
+  mios-window-active spotify        -> {"summary": "not-running", ...}
+USAGE
+    exit 0
+fi
+
+QUERY="$*"
+# PowerShell single-quote escape: ' becomes ''
+PS_QUERY=$(printf '%s' "$QUERY" | sed "s/'/''/g")
+
+# PowerShell snippet -- the query is embedded as a single-quoted
+# literal so it survives broker dispatch (no env var inheritance
+# needed).
+PS_SNIPPET=$(cat <<PWSHEOF
+\$query = '$PS_QUERY'
+\$query_lower = \$query.ToLowerInvariant()
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class W {
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
+}
+"@ -ErrorAction SilentlyContinue
+
+\$procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    (\$_.ProcessName.ToLowerInvariant().Contains(\$query_lower)) -or
+    (\$_.MainWindowTitle -and \$_.MainWindowTitle.ToLowerInvariant().Contains(\$query_lower))
+}
+
+if (\$procs.Count -eq 0) {
+    @{ query = \$query; process_alive = \$false; presented_to_operator = \$false; summary = 'not-running' } | ConvertTo-Json -Compress
+    return
+}
+
+\$p = \$procs | Where-Object { \$_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+if (-not \$p) { \$p = \$procs | Select-Object -First 1 }
+
+\$h = \$p.MainWindowHandle
+if (\$h -eq [IntPtr]::Zero) {
+    @{ query = \$query; process_alive = \$true; process_id = \$p.Id; process_name = \$p.ProcessName; window_handle = 0; presented_to_operator = \$false; summary = 'no-window' } | ConvertTo-Json -Compress
+    return
+}
+
+\$visible = [W]::IsWindowVisible(\$h)
+\$iconic = [W]::IsIconic(\$h)
+\$fg_h = [W]::GetForegroundWindow()
+\$is_fg = (\$fg_h -eq \$h)
+\$r = New-Object W+RECT
+[W]::GetWindowRect(\$h, [ref]\$r) | Out-Null
+\$rx = \$r.L; \$ry = \$r.T; \$rw = \$r.R - \$r.L; \$rh = \$r.B - \$r.T
+
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+\$on_screen = \$false
+foreach (\$s in [System.Windows.Forms.Screen]::AllScreens) {
+    \$wa = \$s.WorkingArea
+    if ((\$rx + \$rw) -gt \$wa.X -and \$rx -lt (\$wa.X + \$wa.Width) -and
+        (\$ry + \$rh) -gt \$wa.Y -and \$ry -lt (\$wa.Y + \$wa.Height)) {
+        \$on_screen = \$true; break
+    }
+}
+
+if (-not \$visible) { \$summary = 'hidden' }
+elseif (\$iconic) { \$summary = 'minimized' }
+elseif (-not \$on_screen) { \$summary = 'off-screen' }
+else { \$summary = 'presented' }
+\$presented = \$visible -and (-not \$iconic) -and \$on_screen -and (\$rw -gt 0) -and (\$rh -gt 0)
+
+@{
+    query = \$query
+    process_alive = \$true
+    process_id = \$p.Id
+    process_name = \$p.ProcessName
+    window_handle = [int64]\$h
+    window_title = \$p.MainWindowTitle
+    window_visible = \$visible
+    window_minimized = \$iconic
+    window_foreground = \$is_fg
+    window_rect = @{ x = \$rx; y = \$ry; w = \$rw; h = \$rh }
+    on_screen = \$on_screen
+    presented_to_operator = \$presented
+    summary = \$summary
+} | ConvertTo-Json -Compress
+PWSHEOF
+)
+
+exec mios-windows ps "$PS_SNIPPET"

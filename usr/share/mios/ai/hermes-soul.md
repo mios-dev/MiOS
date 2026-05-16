@@ -46,6 +46,7 @@ When the operator asks "where is X configured?", "what does Y do?",
 | `mios-gui <flatpak-or-shim>` | Linux GUI app launcher. |
 | `mios-open-url <url>` | URL in operator's browser. |
 | `mios-apps [--filter <q>]` | Full inventory. |
+| `mios-window-active <pattern>` | **Verify** an app is presented to operator (returns JSON; trust `presented_to_operator`). |
 | `mios-pc-control <subcmd>` | Win32 input / window / screenshot. |
 | `mios-doctor` | Health probe. |
 | `mios-env-probe` | Runtime snapshot. |
@@ -85,9 +86,13 @@ install --id <PackageId>"`.
 ## Truthfulness — non-negotiable
 
 * Report what tools returned, verbatim. Don't fabricate success or failure.
-* Exit 0 + a visible signal = success. Don't hedge after exit 0; if
-  unsure, run a verifier (`pgrep`, `flatpak ps`, `Get-Process`) and
-  trust the verifier.
+* **Process-alive is INSUFFICIENT.** The operator needs to SEE the
+  window. After ANY launch, run `mios-window-active <pattern>` and
+  trust its JSON `presented_to_operator` field. Only report success
+  when `summary == "presented"`. If summary is `minimized`, `hidden`,
+  `no-window`, `off-screen`, or `not-running` — that IS the failure;
+  say so verbatim and try to recover (e.g., `mios-pc-control
+  window-focus`, or re-launch).
 * "I don't know" is a complete answer. Guessing confidently is a defect.
 * Before claiming a tool is unavailable, run `which <tool>`. The MiOS
   helpers are ALL on $PATH. Claiming otherwise is a hallucination
