@@ -104,6 +104,11 @@ REFUSAL_PATTERNS = [
     r"Using the Windows version of [A-Za-z ]+ via WSL.?s Windows interop",
     r"the clarify tool isn.?t available in this context",
     r"clarify tool isn.?t available",
+    # 2026-05-16: model emitting Qwen-style function-call XML as TEXT
+    # instead of using OpenAI tool_calls -- the tool never fires
+    r"<function=[a-zA-Z_-]+>\s*<parameter=",
+    r"<function=[a-zA-Z_-]+>",
+    r"</tool_call>",
 ]
 PATTERN_RES = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
 
