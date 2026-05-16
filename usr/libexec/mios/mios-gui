@@ -147,13 +147,25 @@ case "$APP_ID" in
         match_pat="$(basename "$HOST_BIN")"
         ;;
     *)
-        match_pat="bwrap.*$APP_ID|/app/.*$(echo "$APP_ID" | awk -F. '{print $NF}')"
+        # Flatpak processes appear as: `bwrap ... -- <binary> ...args`
+        # where <binary> is the LOWERCASE app shortname (e.g. "epiphany"
+        # for org.gnome.Epiphany). The app_id (uppercase) doesnt appear
+        # in argv at all. Match the lowercase shortname; -i in the pgrep
+        # below also catches mixed-case variants.
+        # Operator-flagged 2026-05-16: agent reported "process not
+        # alive after 3 seconds" while Epiphany WAS visibly open on the
+        # operator desktop -- the case-sensitive pattern was missing
+        # the lowercase process name.
+        _shortname=$(echo "$APP_ID" | awk -F. "{print tolower(\$NF)}")
+        match_pat="bwrap.*$APP_ID|/app/.*$_shortname| $_shortname( |\$)"
         ;;
 esac
-if pgrep -fa "$match_pat" >/dev/null 2>&1; then
+# -i: case-insensitive (catches lower/Mixed/UPPER variants).
+# -f: match full command line (flatpaks live under bwrap argv).
+if pgrep -ifa "$match_pat" >/dev/null 2>&1; then
     echo "mios-gui: ✓ $APP_ID is running" >&2
     exit 0
 else
-    echo "mios-gui: ✗ $APP_ID launched but no process is alive 3s later -- check 'journalctl --user-unit=mios-flatpak-* --user-unit=mios-hostgui-*' or run the binary directly to see the error" >&2
+    echo "mios-gui: ✗ $APP_ID launched but no process matched pgrep -ifa \"$match_pat\" 3s later -- check 'journalctl --user-unit=mios-flatpak-* --user-unit=mios-hostgui-*' or run the binary directly to see the error" >&2
     exit 2
 fi
