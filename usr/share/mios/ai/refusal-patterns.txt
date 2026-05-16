@@ -122,3 +122,15 @@ The MiOS tools do not recognize "
 the launch URL is invalid or unrecognized
 I recommend you check for other possible launch arguments
 if it.?s installed through Steam/Uplay, try opening the associated client
+
+# ── 2026-05-16 late night: "open in epiphany" + "open spotify on
+# windows" regressions, broader wordings.
+I encountered an execution failure when attempting to use
+the MiOS index tool .* reported that it does not exist
+The tool reported that it does not exist in the current execution environment
+The mios.find tool call failed and returned a list of available system tools
+This indicates that the index search failed for
+Confirmation that you want to open a specific website related to
+Please provide the path or clarify the target, and I will attempt the launch again
+the full,? absolute path to the .* executable
+I will use the dedicated Windows helper, .mios.windows launch., designed specifically
