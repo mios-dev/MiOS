@@ -290,6 +290,22 @@ PYEOF
             ;;
         *) echo "[mios-owui-install-pipe] ✗ Sidecar create $RESPS" >&2 ;;
     esac
+
+    # Operator-flagged 2026-05-16: OWUI silently registered the sidecar
+    # as is_active=0 is_global=0 despite the payload setting both true.
+    # Force-enable via direct SQL (the API path apparently bypasses
+    # is_active/is_global on create for Filter type). Confirmed: the
+    # mios_antimeta filter was active=1 global=1 only because it was
+    # later enabled in the UI; new Filter creates default to disabled.
+    python3 - "$OWUI_DB" "$SIDECAR_ID" <<'PYEOF'
+import sqlite3, sys
+db, fid = sys.argv[1], sys.argv[2]
+c = sqlite3.connect(db)
+c.execute("UPDATE function SET is_active=1, is_global=1 WHERE id=?", (fid,))
+c.commit()
+print(f"[mios-owui-install-pipe] ✓ enabled Filter {fid} (active=1 global=1)")
+c.close()
+PYEOF
 fi
 
 echo
