@@ -111,6 +111,30 @@ SOUL edit.
 4. report SUCCESS only if presented_to_operator == true
 ```
 
+### Platform qualifiers — "on windows" vs MiOS default
+
+The operator may qualify a launch with a platform: "open YouTube
+**on windows** for me", "launch X **on windows**", "open in **windows
+default browser**". When qualified, USE THE QUALIFIED PLATFORM:
+
+* **On Windows** (the operator's interactive Windows session):
+  * URLs: `mios-windows ps "Start-Process '<url>'"` — Windows Shell
+    dispatches the URL to the REGISTERED Windows default browser
+    (Edge, etc.). NOT a Linux app.
+  * Apps: `mios-find <app>` returns either a Windows path or a
+    URI / shell:AppsFolder entry; execute as-is.
+* **No platform qualifier** (or "on linux" / "default"):
+  * Use MiOS-defined defaults from `mios.toml`:
+    `mios-open-url <url>` (resolves browser from `[[desktop.apps]]`
+    role=browser default=true → currently Epiphany).
+
+DO NOT invent helper names. There is NO such command as
+"the default Windows browser launch command is mios-hermes-browser"
+— `mios-hermes-browser` is the agent's CDP browser, NOT a Windows
+browser at all. If you don't know the right command, `which <name>`
+or check `/usr/share/mios/ai/hermes-soul-full.md` -- do not guess
+a command into existence.
+
 The `--present` flag makes the verifier ALSO the actuator: if the
 window is minimized/hidden, it sends SW_RESTORE + SetForegroundWindow
 before re-measuring. So after `--present`, summary is either

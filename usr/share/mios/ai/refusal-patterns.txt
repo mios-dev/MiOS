@@ -198,3 +198,16 @@ If .+ is already on the system but not registered
 Once registered, the launch will work
 not in the launch list
 You.?ll need to register the executable
+
+# ── 2026-05-16 deeper night: "open in windows default browser" turned
+# into a Linux flatpak launch + a hallucinated helper name
+# ("The default Windows browser launch command is mios-hermes-browser").
+# mios-hermes-browser is the Linux CDP browser, NOT a Windows browser.
+# Right call for "on windows" URL: mios-windows ps "Start-Process '<url>'".
+The default Windows browser launch command is mios-hermes-browser
+default Windows browser launch command is mios-hermes-browser
+Opened YouTube in your default Windows browser
+Opened .+ in your default Windows browser
+Running mios-hermes-browser now
+Opened .+ in your default browser\.\s*$
+Opened YouTube in your default browser\.\s*$
