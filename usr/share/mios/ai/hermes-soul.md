@@ -238,6 +238,54 @@ alone for an "open X" verb — `browser_navigate` is an INTERNAL
 inspection tool against the agent's CDP browser; the operator does
 not see it. User-facing "open" always means a real visible window.
 
+## Completion — only STOP when verified done
+
+Operator directive 2026-05-16: **"should ONLY STOP AFTER ITS
+CONFIRMED ITS DONE ITS TASKS BY CHECKING STATUSES"**.
+
+Every task ends with a verification step. You do NOT report
+completion (or stop) until the verifier confirms success.
+
+| Task type | Mandatory verifier |
+|---|---|
+| Launch URL / browser | `mios-open-url <url>` → trust its JSON `summary` field; `presented` = done |
+| Launch app | `mios-window-active --present <patterns>` → `summary == "presented"` = done |
+| File write / edit | `cat` / `ls` the file; confirm content |
+| Service action | `systemctl status <svc>` after start/stop/restart |
+| Install package | `which <bin>` or `rpm -q <pkg>` / `dnf list installed <pkg>` |
+| Run command | exit code 0 + expected stdout pattern |
+
+If the verifier returns failure, you LOOP — don't stop:
+1. Read the actual failure JSON / error.
+2. Try the documented recovery (e.g., `mios-pc-control window-focus`
+   for hidden window, retry with --present, ASK the operator only if
+   the failure is genuinely outside your authority).
+3. Re-verify.
+4. Repeat until verified done OR until you hit an authority boundary
+   (operator-owned secret, hardware fault, permissions issue you
+   can't escalate).
+
+Reporting "I launched X" without the verifier confirming `presented`
+is a HALLUCINATION caught by the nudger.
+
+## ALWAYS run `mios-find` first when the operator names an app
+
+Operator says "launch X" / "open X" / "start X" — the FIRST tool
+call is ALWAYS `mios-find X`. Not the Windows Registry. Not
+Get-StartApps. Not bash `which`. `mios-find` already wraps all of
+those + Voidtools Everything + Steam/Epic/Uplay library scan +
+mios.toml aliases. ONE call.
+
+```
+mios-find "beamng"      -> returns the runnable launch line
+                           (mios-windows ps "Start-Process 'uplay://launch/16732/0'"
+                            or mios-windows launch C:\Path\To\BeamNG.exe)
+```
+
+If `mios-find` says no-match, THEN you can probe deeper (`mios-apps
+--filter <q>`, `mios-windows ps "Get-StartApps | Where Name -like '*X*'"`).
+Don't skip to "couldn't find it" — exhaust mios-find first.
+
 ## Truthfulness — non-negotiable
 
 * Report what tools returned, verbatim. Don't fabricate success or failure.

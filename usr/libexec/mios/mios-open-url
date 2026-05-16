@@ -134,10 +134,30 @@ set +e   # the verification path catches its own rcs; set -e here
 mios-gui "$TARGET" "$URL"
 _launch_rc=$?
 
-# Derive a verifier pattern from the app id (last dot segment,
-# lowercase). e.g. "org.gnome.Epiphany" -> "epiphany" matches both
-# the Linux process name AND the window title prefix.
-_verify_pattern="$(printf '%s' "$TARGET" | awk -F. "{print tolower(\$NF)}")"
+# Derive MULTIPLE verifier patterns from the app id + its .desktop
+# Name= field. WSLg-hosted Linux app windows show the .desktop Name=
+# in MainWindowTitle (Epiphany's Name= is "Web", not "Epiphany"), so
+# a single-word pattern misses the window every time. Pass a CSV of
+# patterns; mios-window-active tries each.
+# Operator-flagged 2026-05-16: mios-window-active returned no-window
+# for Epiphany even when window was visibly open; root cause = title
+# match miss because pattern was "epiphany" but title was "Welcome to Web".
+_pattern_last="$(printf '%s' "$TARGET" | awk -F. "{print tolower(\$NF)}")"
+_pattern_desktop_name=""
+for _df in "/var/lib/flatpak/exports/share/applications/$TARGET.desktop" \
+           "/var/lib/flatpak/app/$TARGET/current/active/files/share/applications/$TARGET.desktop" \
+           "/usr/share/applications/$TARGET.desktop"; do
+    if [ -r "$_df" ]; then
+        _pattern_desktop_name=$(awk -F= '/^Name=/{print tolower($2); exit}' "$_df" 2>/dev/null)
+        [ -n "$_pattern_desktop_name" ] && break
+    fi
+done
+# CSV pattern list (mios-window-active iterates them, first match wins).
+if [ -n "$_pattern_desktop_name" ] && [ "$_pattern_desktop_name" != "$_pattern_last" ]; then
+    _verify_pattern="$_pattern_last,$_pattern_desktop_name"
+else
+    _verify_pattern="$_pattern_last"
+fi
 
 _parse_summary() {
     printf '%s' "$1" | python3 -c "

@@ -90,24 +90,48 @@ USAGE
 fi
 
 QUERY="$*"
-# PowerShell single-quote escape: ' becomes ''
-PS_QUERY=$(printf '%s' "$QUERY" | sed "s/'/''/g")
+# Multi-pattern support: caller may pass a comma-separated list of
+# patterns ("epiphany,web,gnome web"). We try each in order against
+# both process name AND window title. First match wins.
+# Operator-flagged 2026-05-16: Win32 windows hosted by WSLg msrdc.exe
+# show the LINUX-app display name in MainWindowTitle (e.g., Epiphanys
+# .desktop Name= is "Web", not "Epiphany"), so a single-pattern
+# "epiphany" search misses the window.
+IFS=',' read -ra PATTERNS_ARR <<< "$QUERY"
+# Build the PowerShell pattern list as a quoted comma-joined string.
+PS_PATTERNS=""
+for p in "${PATTERNS_ARR[@]}"; do
+    p_trim=$(echo "$p" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    [ -z "$p_trim" ] && continue
+    p_escaped=$(printf '%s' "$p_trim" | sed "s/'/''/g")
+    if [ -z "$PS_PATTERNS" ]; then
+        PS_PATTERNS="'$p_escaped'"
+    else
+        PS_PATTERNS="$PS_PATTERNS, '$p_escaped'"
+    fi
+done
+# First pattern is the canonical query (for output JSON + pgrep).
+PS_QUERY=$(printf '%s' "${PATTERNS_ARR[0]:-$QUERY}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed "s/'/''/g")
+
 # Stringify the --present flag for embedding in the PowerShell literal.
 if [ "$PRESENT" = "1" ]; then PS_PRESENT='$true'; else PS_PRESENT='$false'; fi
 
-# ─── Linux-side pre-check: pgrep for the pattern ──────────────────────
-# Operator directive 2026-05-16: WSLg-hosted Linux flatpaks (Epiphany,
-# Nautilus, Ptyxis, etc.) are wrapped in msrdc.exe on the Windows side
-# -- the Win32 Get-Process loop sees "msrdc.exe", not "epiphany". So a
-# Win32-only check reports "not-running" even when the Linux process
-# IS alive. Run pgrep first; if the Linux process exists, surface
-# process_alive=true in the JSON even if no Win32 window is found yet
-# (the window may still be in creation race).
+# ─── Linux-side pre-check: pgrep across all patterns ──────────────────
+# WSLg-hosted Linux flatpaks (Epiphany, Nautilus, Ptyxis, etc.) are
+# wrapped in msrdc.exe on the Windows side -- the Win32 Get-Process
+# loop sees "msrdc.exe", not "epiphany". So a Win32-only check reports
+# "not-running" even when the Linux process IS alive. Run pgrep
+# (against ANY of the patterns) first; if the Linux process exists,
+# surface process_alive=true in the JSON even if no Win32 window is
+# found yet.
 _lin_pid=""
 if command -v pgrep >/dev/null 2>&1; then
-    # Match process name OR cmdline (so a flatpak named org.gnome.Epiphany
-    # shows up via its bwrap'd argv).
-    _lin_pid=$(pgrep -if "$QUERY" 2>/dev/null | head -1 || true)
+    for p in "${PATTERNS_ARR[@]}"; do
+        p_trim=$(echo "$p" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        [ -z "$p_trim" ] && continue
+        _lin_pid=$(pgrep -if "$p_trim" 2>/dev/null | head -1 || true)
+        [ -n "$_lin_pid" ] && break
+    done
 fi
 
 # PowerShell snippet -- the query is embedded as a single-quoted
@@ -132,9 +156,20 @@ public class W {
 }
 "@ -ErrorAction SilentlyContinue
 
+\$patterns = @($PS_PATTERNS)
+\$patterns_lower = @()
+foreach (\$p in \$patterns) { \$patterns_lower += \$p.ToLowerInvariant() }
 \$procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
-    (\$_.ProcessName.ToLowerInvariant().Contains(\$query_lower)) -or
-    (\$_.MainWindowTitle -and \$_.MainWindowTitle.ToLowerInvariant().Contains(\$query_lower))
+    \$proc_name_lower = \$_.ProcessName.ToLowerInvariant()
+    \$title_lower = if (\$_.MainWindowTitle) { \$_.MainWindowTitle.ToLowerInvariant() } else { '' }
+    \$matched = \$false
+    foreach (\$pat in \$patterns_lower) {
+        if (\$proc_name_lower.Contains(\$pat) -or \$title_lower.Contains(\$pat)) {
+            \$matched = \$true
+            break
+        }
+    }
+    \$matched
 }
 
 if (\$procs.Count -eq 0) {

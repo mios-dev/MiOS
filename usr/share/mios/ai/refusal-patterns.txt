@@ -199,6 +199,25 @@ Once registered, the launch will work
 not in the launch list
 You.?ll need to register the executable
 
+# ── 2026-05-16 even later: agent failures across browser + BeamNG
+# launches. Common shape: skipped mios-find, claimed not installed,
+# asked operator for path, OR retried/launched FOUR times instead
+# of trusting the verifier.
+through the Windows application launcher
+through the Windows Registry to find its executable
+I couldn.?t find .+ installed on your Windows system
+It.?s either not installed yet, or installed in a different location
+Tell me how you installed it
+If you installed it via a shortcut on your desktop
+If you know the executable path
+Once installed, I can launch it for you
+the WSL Linux browser .+ needs to be launched in a context
+Linux-to-WSL window forwarding isn.?t working
+WSL doesn.?t directly control your graphical desktop
+the current Linux-to-WSL window forwarding
+Would you like me to try launching .+ through your Windows default browser instead\?
+launched but not visible\. Let me bring it to the foreground
+
 # ── 2026-05-16 deeper night: "open in windows default browser" turned
 # into a Linux flatpak launch + a hallucinated helper name
 # ("The default Windows browser launch command is mios-hermes-browser").
