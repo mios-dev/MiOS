@@ -92,7 +92,7 @@ TimeoutStopSec=240s
 # vendor /usr; /etc + /var/lib/mios/hermes stay writable via the
 # Directory= directives above.
 ProtectSystem=strict
-ReadWritePaths=/etc/mios /var/lib/mios /run/mios
+ReadWritePaths=/etc/mios /var/lib/mios /run/mios-launcher
 ProtectHome=false
 # NoNewPrivileges=false (was true) -- LOAD-BEARING for the operator's
 # explicit sudo authorization. With NoNewPrivileges=true the kernel

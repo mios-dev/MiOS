@@ -254,11 +254,11 @@ case "$sub" in
         # can read.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
-        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios/launcher.sock ]; then
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
             # Broker dispatches detached + redirects to /dev/null by
             # default. For ps/cmd we need the OUTPUT. Route to a
             # per-call tempfile, dispatch, then poll briefly + cat.
-            _outfile="$(mktemp /run/mios/windows-ps-XXXXXX.out)"
+            _outfile="$(mktemp /run/mios-launcher/windows-ps-XXXXXX.out)"
             chmod 0666 "$_outfile"
             # Quote the inner PS command for safe transport.
             _ps_cmd="$*"
@@ -283,7 +283,7 @@ line = (
 )
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(5.0)
-s.connect("/run/mios/launcher.sock")
+s.connect("/run/mios-launcher/launcher.sock")
 s.sendall((line + "\n").encode())
 s.recv(64)
 s.close()
@@ -312,8 +312,8 @@ PYEOF
         # Same broker route for service users.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
-        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios/launcher.sock ]; then
-            _outfile="$(mktemp /run/mios/windows-cmd-XXXXXX.out)"
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
+            _outfile="$(mktemp /run/mios-launcher/windows-cmd-XXXXXX.out)"
             chmod 0666 "$_outfile"
             python3 - "$_outfile" "$CMD" "$*" <<'PYEOF'
 import socket, sys, shlex
@@ -321,7 +321,7 @@ outfile, cmd_exe, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
 line = f'{shlex.quote(cmd_exe)} /c {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(5.0)
-s.connect("/run/mios/launcher.sock")
+s.connect("/run/mios-launcher/launcher.sock")
 s.sendall((line + "\n").encode())
 s.recv(64)
 s.close()

@@ -51,7 +51,7 @@ logging.basicConfig(level=logging.INFO, format="[mios-launcher] %(message)s")
 log = logging.getLogger("mios-launcher")
 
 UID = os.getuid()
-# /run/mios/launcher.sock is the canonical path. Why not /tmp:
+# /run/mios-launcher/launcher.sock is the canonical path. Why not /tmp:
 # hermes-agent.service has PrivateTmp=true -> the agent's terminal
 # tool sees its own private /tmp namespace and can't reach a
 # socket placed in the host's /tmp at all (operator-confirmed
@@ -59,12 +59,12 @@ UID = os.getuid()
 # after broker socket was bind-confirmed at /tmp because its
 # PrivateTmp namespace had no such file). /run is NOT affected
 # by PrivateTmp; both the operator's broker AND the agent's
-# private-tmp shell see the same /run/mios/launcher.sock.
+# private-tmp shell see the same /run/mios-launcher/launcher.sock.
 #
 # /run/mios/ is created at boot by /usr/lib/tmpfiles.d/
 # mios-launcher.conf (mode 0755 root:root so all uids can
 # traverse); the socket file itself carries mode 0666.
-SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios/launcher.sock")
+SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock")
 
 
 def handle(conn: socket.socket) -> None:
@@ -92,15 +92,25 @@ def handle(conn: socket.socket) -> None:
         #     AGAIN").
         env = dict(os.environ)
         env.setdefault("GDK_BACKEND", "wayland")
+        # Stream stdout/stderr to a per-dispatch log under /var/log/
+        # mios-launcher/ so debug-able. Service has StateDirectory= so
+        # the dir is auto-created + writable.
+        log_dir = "/var/log/mios-launcher"
+        os.makedirs(log_dir, mode=0o755, exist_ok=True)
+        ts_id = subprocess.check_output(["date", "+%Y%m%d-%H%M%S-%N"]).decode().strip()
+        log_path = os.path.join(log_dir, f"dispatch-{ts_id}.log")
         try:
-            subprocess.Popen(
+            log_fp = open(log_path, "w")
+            os.chmod(log_path, 0o644)
+            proc = subprocess.Popen(
                 ["bash", "-lc", line],
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_fp,
+                stderr=subprocess.STDOUT,
                 start_new_session=True,
                 env=env,
             )
+            log.info("dispatched pid=%d log=%s", proc.pid, log_path)
             conn.sendall(b"OK\n")
         except OSError as e:
             log.warning("dispatch failed: %s", e)
