@@ -544,6 +544,13 @@ prompt_shortcut     = "@"
 # Listing both: the BASE pull is needed before `ollama create` can
 # derive the tools variant. Operator can skip the base post-derive
 # (they share blob layers under /var/lib/ollama/models).
+# gemma4:e4b (8.9 GB) baked for the delegate-model eval (operator
+# directive 2026-05-15). Verdict: ~4x slower per-token + 7x larger
+# than qwen3:1.7b, but ~22x more concise on structured-JSON output
+# (11 vs 250 tokens emitted). Kept in bake for opt-in use in
+# auxiliary lanes that benefit from conciseness; not the default
+# delegation.model -- qwen3:1.7b's throughput is decisive for the
+# fan-out workload at depth 2 with up to 6 children.
 bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,gemma4:e4b"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
