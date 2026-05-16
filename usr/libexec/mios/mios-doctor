@@ -131,6 +131,70 @@ else
 fi
 
 echo
+echo "── ── ──  observability layer (micro-LLM daemons)"
+# Micro-LLM model name from the layered mios.toml [ai].micro_model.
+micro_model=$(grep -hE '^\s*micro_model\s*=' \
+    /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null | \
+    head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+[ -z "$micro_model" ] && micro_model="qwen3:0.6b"
+if curl -sf --max-time 3 "http://localhost:11434/api/tags" 2>/dev/null | \
+   grep -qF "\"$micro_model\""; then
+    # Is it resident (loaded)? /api/ps shows currently-loaded models.
+    if curl -sf --max-time 3 http://localhost:11434/api/ps 2>/dev/null | \
+       grep -qF "\"$micro_model\""; then
+        ok "micro-LLM ($micro_model) loaded (always-on; observability+gating ready)"
+    else
+        warn "micro-LLM ($micro_model) pulled but not resident -- mios-micro-llm warm will load it"
+    fi
+else
+    warn "micro-LLM ($micro_model) NOT pulled -- mios-log-watcher + mios-cron-director will idle until present"
+fi
+
+for svc in mios-log-watcher mios-cron-director; do
+    state=$(systemctl is-active "$svc.service" 2>&1)
+    if [ "$state" = "active" ]; then
+        ok "$svc.service active"
+    elif [ "$state" = "inactive" ]; then
+        warn "$svc.service inactive"
+    else
+        warn "$svc.service: $state"
+    fi
+done
+
+# Log-watcher freshness: latest.json should be <120s old when active.
+if [ -f /var/lib/mios/log-watcher/latest.json ]; then
+    age=$(( $(date +%s) - $(stat -c %Y /var/lib/mios/log-watcher/latest.json) ))
+    # 600 s threshold: the daemon writes on EVENT batches (PRIORITY=4+),
+    # not on a fixed cadence. A quiet system with no warnings legitimately
+    # has a >5 min old latest.json. Only flag if it's been so long we
+    # suspect a hung daemon (>10 min on a host that's been running).
+    if [ "$age" -lt 600 ]; then
+        ok "log-watcher latest.json fresh (${age}s old)"
+    else
+        warn "log-watcher latest.json stale (${age}s old; daemon may have wedged)"
+    fi
+fi
+
+# Cron-director rules: /etc/mios/cron-rules.toml exists + parses?
+if [ -f /etc/mios/cron-rules.toml ]; then
+    rules=$(grep -c '^\[\[rule\]\]' /etc/mios/cron-rules.toml 2>/dev/null || echo 0)
+    info "cron-director: $rules rule(s) configured at /etc/mios/cron-rules.toml"
+fi
+
+# Broker socket: agent-side cross-context dispatch (window-list,
+# windows launch, mios-open-url) all route through this.
+if [ -S /run/mios-launcher/launcher.sock ]; then
+    sock_perm=$(stat -c '%a' /run/mios-launcher/launcher.sock 2>/dev/null)
+    if [ "$sock_perm" = "666" ] || [ "$sock_perm" = "777" ]; then
+        ok "mios-launcher broker socket present + world-writable ($sock_perm)"
+    else
+        warn "mios-launcher broker socket present but mode $sock_perm (cross-user dispatch may fail)"
+    fi
+else
+    warn "no mios-launcher broker socket (/run/mios-launcher/launcher.sock) -- agent cross-context flows blocked"
+fi
+
+echo
 echo "── ── ──  agent config sanity"
 for cfg in /var/lib/mios/hermes/config.yaml /var/home/mios/.hermes/config.yaml /home/mios/.hermes/config.yaml; do
     [ -f "$cfg" ] || continue
