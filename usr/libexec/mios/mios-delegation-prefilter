@@ -358,36 +358,16 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                 if k.lower() not in {"content-encoding", "transfer-encoding", "content-length"}
             })
             await resp.prepare(request)
-            # Buffer the assistant response text so we can pattern-match
-            # for refusal phrases AFTER it lands. Caps at 200 KB to avoid
-            # memory pressure on long chains.
-            captured = bytearray()
-            cap_limit = 200_000
+            # STRIP: response-side buffer + scanner removed 2026-05-16.
+            # The buffering was causing intermittent TransferEncodingError
+            # in OWUI (the cap_limit + chunk-slicing logic was producing
+            # framing OWUI rejected on certain stream shapes). The OWUI
+            # Filter Function (mios_antimeta) now does the pattern-strip
+            # natively post-hoc, without touching the in-flight stream.
+            # Clean passthrough = no framing drama.
             async for chunk in upstream.content.iter_chunked(65536):
                 await resp.write(chunk)
-                if len(captured) < cap_limit:
-                    captured.extend(chunk[: cap_limit - len(captured)])
             await resp.write_eof()
-            # Pattern-detect on chat-completions responses only -- the
-            # signal is the agent's emitted text (response-side), which
-            # journalctl on hermes-agent.service never sees (only tool
-            # calls are journaled there). Operator-confirmed 2026-05-16:
-            # agent emitted "in WSL environments... can be tricky due to
-            # different session contexts" -- nudger's journal-side
-            # watcher missed it entirely. This is the response-side
-            # complement: see + flag the actual assistant prose before
-            # it lands in the operator's chat.
-            #
-            # Defensive try/except: the scanner is OBSERVABILITY, not
-            # critical path. It MUST NEVER crash the prefilter +
-            # break the operator's chat. Any exception (malformed SSE,
-            # unicode decode failure, regex pathological input, OOM
-            # on cap-limit boundary) gets logged + swallowed.
-            if request.path.endswith("/chat/completions") and captured:
-                try:
-                    _scan_response_for_refusals(bytes(captured))
-                except Exception as e:
-                    log.warning("response scanner failed (non-fatal): %s", e)
             return resp
 
 

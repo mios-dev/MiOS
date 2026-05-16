@@ -17,6 +17,9 @@ set -eu
 PIPE_SRC=/usr/share/mios/owui/pipes/mios_agent_pipe.py
 PIPE_ID="mios_agent"
 PIPE_NAME="MiOS-Agent"
+FILTER_SRC=/usr/share/mios/owui/pipes/mios_antimeta_filter.py
+FILTER_ID="mios_antimeta"
+FILTER_NAME="MiOS Anti-Meta Filter"
 OWUI_URL="${MIOS_OWUI_URL:-http://localhost:3030}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 
@@ -191,6 +194,55 @@ case "$RESP3" in
         cat /tmp/mios-owui-install-pipe.resp >&2
         ;;
 esac
+
+fi  # end of disabled pipe+Model block
+
+# ─── Register the anti-meta Filter Function (post-hoc scrubber) ───────
+# Operator directive 2026-05-16: research-driven approach -- replace
+# rigid "DO NOT say X" SOUL.md text-blocks with an OWUI Filter that
+# strips meta-speak from the stream. The filter reads the same shared
+# refusal-patterns.txt the nudger + prefilter use; one source of truth.
+if [ -f "$FILTER_SRC" ]; then
+    FILTER_PAYLOAD=$(python3 - "$FILTER_ID" "$FILTER_NAME" "$FILTER_SRC" <<'PYEOF'
+import json, sys
+fid, fname, src = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(src) as f:
+    content = f.read()
+print(json.dumps({
+    "id": fid,
+    "name": fname,
+    "content": content,
+    "meta": {
+        "description": "Post-hoc scrubber for meta-speak + refusal phrases + Qwen XML markup.",
+        "manifest": {},
+    },
+    "type": "filter",
+    "is_active": True,
+    "is_global": True,
+}))
+PYEOF
+)
+    RESPF=$(curl -s -X POST "$OWUI_URL/api/v1/functions/create" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$FILTER_PAYLOAD" \
+        -o /tmp/mios-owui-install-pipe.resp \
+        -w "%{http_code}")
+    case "$RESPF" in
+        200|201) echo "[mios-owui-install-pipe] ✓ created Filter $FILTER_ID" ;;
+        400|409)
+            RESPF2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$FILTER_ID/update" \
+                -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+                -d "$FILTER_PAYLOAD" \
+                -o /tmp/mios-owui-install-pipe.resp -w "%{http_code}")
+            case "$RESPF2" in
+                200|201) echo "[mios-owui-install-pipe] ✓ updated Filter $FILTER_ID" ;;
+                *)       echo "[mios-owui-install-pipe] ✗ Filter update $RESPF2" >&2 ;;
+            esac
+            ;;
+        *) echo "[mios-owui-install-pipe] ✗ Filter create $RESPF" >&2 ;;
+    esac
+fi
 
 echo
 echo "[mios-owui-install-pipe] done. Refresh OWUI; \"$MODEL_NAME\" should appear in the model dropdown."

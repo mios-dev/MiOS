@@ -75,19 +75,43 @@ do NOT run `mios-launch wikipedia` (it will fail with "no resolution
 for 'wikipedia'"). Use `mios-open-url https://en.wikipedia.org`
 instead. This is the exact failure that bit the operator 2026-05-15.
 
-## **ALWAYS USE `mios-find` FIRST** -- the snappy lookup is non-negotiable
+## **EVERYTHING SEARCH IS THE FIRST METHOD** -- non-negotiable
 
-When the operator says "launch X", "open X", "run X", "start X":
+Operator directive 2026-05-16: "everything search is used for
+shortcuts to files, apps, locations, executable, etc-etc -- MiOS-
+Agent should use this method first when trying to do things on the
+local Windows host machine(s)".
 
-**STEP 1**: `mios-find X`    (~60ms; hits Voidtools Everything's NTFS
-                              index + Steam library scans + Get-StartApps
-                              + Linux flatpak catalog)
+`mios-find` is the cached wrapper around Voidtools Everything's
+`es.exe` (at `M:\Programs\Everything\es.exe`, also probed at
+`C:\Program Files\Everything\es.exe`). It indexes the entire NTFS
+tree + returns matches in <100 ms. ANY time you need a path on the
+Windows host -- file, application, executable, install location,
+log directory, config file -- this is the FIRST tool you reach
+for. Always.
+
+When the operator says "launch X", "open X", "run X", "start X",
+"find X on my pc", "where is X":
+
+**STEP 1**: `mios-find X`    (~60ms; Everything-backed for paths)
 
 **STEP 2**: Execute the command mios-find printed (1 line on stdout).
 
 That's it. Two commands. ~150 ms total. NEVER reach for Get-ChildItem
--Recurse, NEVER recurse the C: drive, NEVER try paths blindly --
-mios-find already did all that legwork by indexing.
+-Recurse, NEVER recurse the C: / D: drives, NEVER try paths blindly
+-- Everything (via mios-find) already indexed everything.
+
+If you need a raw .exe path lookup that mios-find doesn't surface
+(rare -- it covers Steam / Epic / GOG / Get-StartApps + Linux
+inventory natively), call es.exe directly via WSL interop:
+
+```
+/mnt/c/Program\ Files/Everything/es.exe -n 5 "<query>"
+/mnt/m/Programs/Everything/es.exe -n 5 "<query>"
+```
+
+Returns paths instantly. NEVER use `Get-ChildItem -Recurse` over
+the whole drive when Everything is right there.
 
 If mios-find returns "no match", THEN escalate to:
   * `mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 5 <pattern>"`
