@@ -54,6 +54,11 @@ ExecStart=/usr/libexec/mios/mios-hermes-browser
 Restart=on-failure
 RestartSec=5s
 
+# Drain timeout: ChromeDev with CDP has no graceful in-flight protocol
+# (CDP clients can reconnect transparently). 30 s SIGTERM is plenty to
+# flush the on-disk profile + cookies. Consolidation 2026-05-15.
+TimeoutStopSec=30s
+
 # Hardening that doesn't break flatpak run:
 NoNewPrivileges=true
 # ProtectSystem=strict here would block /var/lib/flatpak read access;

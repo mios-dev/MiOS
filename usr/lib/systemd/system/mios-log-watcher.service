@@ -23,6 +23,12 @@ ExecStart=/usr/libexec/mios/mios-log-watcher
 Restart=on-failure
 RestartSec=10s
 
+# Drain timeout: daemon's 30 s batch loop means worst-case shutdown
+# waits one batch interval; 30 s cap suffices. Consolidation pass
+# 2026-05-15: all mios-* daemons use 30-60 s, no inherited 4-min
+# default.
+TimeoutStopSec=30s
+
 # State dir: /var/lib/mios/log-watcher/
 StateDirectory=mios/log-watcher
 StateDirectoryMode=0755

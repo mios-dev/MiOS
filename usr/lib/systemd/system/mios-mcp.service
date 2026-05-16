@@ -21,6 +21,14 @@ RestartSec=5
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/var/lib/mios/mcp /var/log/mios/mcp
+# Hardening parity with sibling mios-* daemons (log-watcher, cron-
+# director, hermes-browser) -- consolidation pass 2026-05-15.
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Drain timeout: MCP serves a long-lived TCP socket but in-flight
+# context requests are sub-second; 30 s is generous.
+TimeoutStopSec=30s
 
 [Install]
 WantedBy=multi-user.target

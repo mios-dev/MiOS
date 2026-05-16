@@ -25,6 +25,12 @@ ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=15s
 
+# Drain timeout: daemon's 60 s tick loop; 30 s cap means SIGTERM
+# during a tick still completes the current rule eval before exit
+# in most cases. Consolidation pass 2026-05-15: uniform 30 s for
+# mios-* leaf daemons.
+TimeoutStopSec=30s
+
 StateDirectory=mios/cron-director
 StateDirectoryMode=0755
 
