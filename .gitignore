@@ -155,6 +155,12 @@ etc/fapolicyd/*
 !/etc/gtk-4.0/
 !/etc/gtk-4.0/gtk.css
 
+# /etc/mios/opencode/ -- opencode config (Ollama provider pinning).
+# Canonical SoT for "which models opencode uses"; deployed into each
+# user home that runs opencode by mios-hermes-firstboot.
+!/etc/mios/opencode/
+!/etc/mios/opencode/opencode.json
+
 # /etc/profile.d/ -- login-shell environment resolver (INDEX.md sec 4).
 # mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +
 # identity vars system-wide. Bash sources /etc/profile.d/*.sh from
