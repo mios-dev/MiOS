@@ -102,6 +102,11 @@ enable mios-hermes-browser.service
 # directive 2026-05-15: agent-installable flatpaks should Just Work
 # against /var/home/mios/* by default. One-shot, idempotent.
 enable mios-flatpak-init.service
+# Background log triage: micro-LLM (qwen3:0.6b) classifies journal
+# events in 30s batches. Cheap (<30s CPU/hour). Operator directive
+# 2026-05-15: "background micro-llm could be a daemon for logs and
+# log collection and presenting".
+enable mios-log-watcher.service
 enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token

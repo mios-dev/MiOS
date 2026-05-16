@@ -1,0 +1,44 @@
+[Unit]
+# /usr/lib/systemd/system/mios-log-watcher.service
+#
+# Background daemon that streams journalctl, batches priority events
+# (default warning+) every 30s, and asks the always-on micro-LLM
+# (mios.toml [ai].micro_model, default qwen3:0.6b) to classify the
+# batch into a single-line {summary, tags, severity}. Results land
+# in /var/lib/mios/log-watcher/{summary.jsonl, latest.json}.
+#
+# Operator directive 2026-05-15: "background micro-llm could be a
+# daemon for logs and log collection and presenting".
+#
+# Cheap by design: ~120 micro-LLM calls per hour at <200 ms each
+# (<30 s of CPU per hour) for an always-on observability layer.
+Description='MiOS' log watcher (micro-LLM journal classifier)
+After=ollama.service
+Wants=ollama.service
+ConditionPathExists=/usr/libexec/mios/mios-log-watcher
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-log-watcher
+Restart=on-failure
+RestartSec=10s
+
+# State dir: /var/lib/mios/log-watcher/
+StateDirectory=mios/log-watcher
+StateDirectoryMode=0755
+
+# Read-only across the system; writes only to the state dir.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mios/log-watcher
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Read journal as the journal-reading group (wheel + adm have RO
+# journal access by default on systemd). Run as root so we can read
+# everything including system slice + auth events.
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

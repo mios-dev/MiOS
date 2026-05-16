@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""mios-micro-llm -- thin client + persistent-loaded helper for the
+always-on tiny model.
+
+Used by:
+  * mios-log-watcher.service -- classifies journal events
+  * mios-cron-director.service -- gates scheduled tasks on system state
+  * any agent / shim that wants <500 ms classification
+
+The "micro" model is configured via mios.toml [ai].micro_model
+(default qwen3:0.6b -- ~600 MB resident, ~50 ms first-token,
+~100 ms full short-completion on 1 CPU core). Loaded continuously
+in Ollama via OLLAMA_KEEP_ALIVE so it stays warm.
+
+USAGE
+    mios-micro-llm classify <prompt>            -> single-line answer
+    mios-micro-llm classify --json <prompt>     -> JSON wrapper
+    mios-micro-llm warm                         -> issue a 1-token gen to load
+    mios-micro-llm status                       -> is it loaded? latency probe
+
+CONFIG (per layered mios.toml [ai] priority):
+    [ai]
+    micro_model    = "qwen3:0.6b"
+    micro_endpoint = "http://localhost:11434/v1"
+    micro_keep_alive_seconds = -1   # -1 = never unload
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+DEFAULT_MODEL = "qwen3:0.6b"
+DEFAULT_ENDPOINT = "http://localhost:11434/v1"
+DEFAULT_KEEP_ALIVE = "-1"  # never unload
+DEFAULT_TIMEOUT_S = 30
+
+
+def _toml_layered(section: str, key: str) -> str | None:
+    paths = []
+    home = os.environ.get("HOME", "")
+    if home:
+        paths.append(Path(home) / ".config/mios/mios.toml")
+    paths.append(Path("/etc/mios/mios.toml"))
+    paths.append(Path("/usr/share/mios/mios.toml"))
+    sect_re = re.compile(rf"^\[{re.escape(section)}\]\s*$")
+    key_re = re.compile(
+        rf"^\s*{re.escape(key)}\s*=\s*\"?(?P<v>[^\"#\s]+)\"?\s*(#.*)?$"
+    )
+    for p in paths:
+        if not p.is_file():
+            continue
+        in_section = False
+        for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("["):
+                in_section = bool(sect_re.match(line))
+                continue
+            if in_section:
+                m = key_re.match(line)
+                if m:
+                    return m.group("v")
+    return None
+
+
+def _resolve() -> tuple[str, str, str]:
+    model = (
+        os.environ.get("MIOS_MICRO_MODEL")
+        or _toml_layered("ai", "micro_model")
+        or DEFAULT_MODEL
+    )
+    endpoint = (
+        os.environ.get("MIOS_MICRO_ENDPOINT")
+        or _toml_layered("ai", "micro_endpoint")
+        or DEFAULT_ENDPOINT
+    ).rstrip("/")
+    keep_alive = (
+        os.environ.get("MIOS_MICRO_KEEP_ALIVE")
+        or _toml_layered("ai", "micro_keep_alive_seconds")
+        or DEFAULT_KEEP_ALIVE
+    )
+    return model, endpoint, keep_alive
+
+
+def _post_chat(endpoint: str, model: str, system: str, user: str,
+               *, max_tokens: int = 200, keep_alive: str = "-1") -> str:
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.1,
+        "stream": False,
+        # Ollama-specific: keep_alive in chat-completions extension
+        "keep_alive": keep_alive,
+    }
+    req = urllib.request.Request(
+        f"{endpoint}/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT_S) as r:
+        body = json.loads(r.read())
+    return ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+
+
+CLASSIFY_SYSTEM = (
+    "You are a fast micro-classifier. Reply with a SINGLE LINE -- no "
+    "preamble, no explanation, no markdown. Match the user's request "
+    "format precisely."
+)
+
+
+def cmd_classify(args, *, model, endpoint, keep_alive) -> int:
+    started = time.monotonic()
+    try:
+        out = _post_chat(endpoint, model, CLASSIFY_SYSTEM, args.prompt,
+                         max_tokens=args.max_tokens, keep_alive=keep_alive)
+    except urllib.error.URLError as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        return 1
+    elapsed = time.monotonic() - started
+    out = out.strip()
+    if args.json:
+        print(json.dumps({
+            "answer": out,
+            "model": model,
+            "elapsed_ms": int(elapsed * 1000),
+        }))
+    else:
+        print(out)
+    return 0
+
+
+def cmd_warm(args, *, model, endpoint, keep_alive) -> int:
+    started = time.monotonic()
+    try:
+        _post_chat(endpoint, model, "", "warm", max_tokens=1, keep_alive=keep_alive)
+    except urllib.error.URLError as e:
+        print(f"warm failed: {e}", file=sys.stderr)
+        return 1
+    elapsed = time.monotonic() - started
+    print(f"[mios-micro-llm] warmed {model} in {int(elapsed*1000)} ms (keep_alive={keep_alive})")
+    return 0
+
+
+def cmd_status(args, *, model, endpoint, keep_alive) -> int:
+    # Probe: is the model resident? Use /api/ps on Ollama.
+    try:
+        with urllib.request.urlopen(
+            re.sub(r"/v1/?$", "/api/ps", endpoint), timeout=5
+        ) as r:
+            body = json.loads(r.read())
+    except urllib.error.URLError as e:
+        print(json.dumps({"loaded": False, "error": str(e), "model": model}))
+        return 1
+    loaded = [m.get("name") for m in body.get("models") or []]
+    is_loaded = model in loaded or any(model in n for n in loaded)
+    # Quick latency probe
+    started = time.monotonic()
+    try:
+        _post_chat(endpoint, model, "", "ok", max_tokens=1, keep_alive=keep_alive)
+        latency_ms = int((time.monotonic() - started) * 1000)
+    except urllib.error.URLError:
+        latency_ms = -1
+    print(json.dumps({
+        "model": model,
+        "endpoint": endpoint,
+        "keep_alive": keep_alive,
+        "loaded": is_loaded,
+        "all_loaded": loaded,
+        "latency_ms": latency_ms,
+    }, indent=2))
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="MiOS micro-LLM thin client")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    c = sub.add_parser("classify", help="One-shot classify; prints single-line answer")
+    c.add_argument("prompt", help="The classification prompt")
+    c.add_argument("--json", action="store_true", help="Wrap output in JSON")
+    c.add_argument("--max-tokens", type=int, default=200)
+
+    sub.add_parser("warm", help="Issue a 1-token gen to keep the model loaded")
+    sub.add_parser("status", help="Report whether the micro model is loaded")
+
+    args = ap.parse_args()
+    model, endpoint, keep_alive = _resolve()
+    fn = {"classify": cmd_classify, "warm": cmd_warm, "status": cmd_status}[args.cmd]
+    return fn(args, model=model, endpoint=endpoint, keep_alive=keep_alive)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

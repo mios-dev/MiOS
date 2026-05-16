@@ -521,7 +521,7 @@ prompt_shortcut     = "@"
 # Listing both: the BASE pull is needed before `ollama create` can
 # derive the tools variant. Operator can skip the base post-derive
 # (they share blob layers under /var/lib/ollama/models).
-bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b"
+bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -638,6 +638,18 @@ small_ram_model  = "granite4.1:3b"               # < mid_ram_gb fallback
 # training; tracked in /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md).
 vision_grounding_model    = "qwen3-vl:4b"
 vision_grounding_endpoint = "http://localhost:11434/v1"
+
+# Always-on micro-LLM. ~600 MB resident; sub-second classification.
+# Used by mios-log-watcher.service (journal triage), the cron-director
+# (gating scheduled tasks on system state), and any agent / shim
+# wanting <500 ms classification without round-tripping the big text
+# model. Loaded continuously via OLLAMA_KEEP_ALIVE=-1.
+# Operator directive 2026-05-15: "we could have a micro-LLM be running
+# in the background on 1 core(2 threads) ... daemon for logs and log
+# collection and presenting ... could even be a cron director".
+micro_model              = "qwen3:0.6b"
+micro_endpoint           = "http://localhost:11434/v1"
+micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.

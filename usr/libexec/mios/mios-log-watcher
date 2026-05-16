@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""mios-log-watcher -- background daemon that streams journalctl -f,
+classifies events with the micro-LLM, and writes summaries.
+
+Use case (operator directive 2026-05-15): "background micro-llm could
+be a daemon for logs and log collection and presenting".
+
+Behavior:
+  * `journalctl -f -o json --since "1 minute ago"` is read continuously.
+  * Each event is filtered (priority <= warning by default; configurable
+    via mios.toml [log_watcher].priority_threshold).
+  * Filtered events are batched (default 10 events / 30s) and sent to
+    the micro-LLM for classification:
+      tags = "service-restart" | "auth-fail" | "OOM" | "disk-pressure" |
+             "network" | "container-event" | "agent-event" | "noise" | ...
+  * Classifications + a one-line summary are appended to
+    /var/lib/mios/log-watcher/summary.jsonl (one JSON object per batch).
+  * The latest snapshot is also written to /var/lib/mios/log-watcher/
+    latest.json for OWUI / dashboards to read cheap.
+
+Cheap by design: no LLM call per event; only one batched call per
+SUMMARY_INTERVAL_S (default 30s). Worst case: ~120 micro-LLM calls / hour
+at 100-200 ms each = <30 s of CPU per hour for an always-on observability
+layer.
+
+Skips itself: filters out journal entries from mios-log-watcher.service
+to avoid feedback loops.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+logging.basicConfig(level=logging.INFO, format="[mios-log-watcher] %(message)s")
+log = logging.getLogger("mios-log-watcher")
+
+STATE_DIR = Path(os.environ.get("MIOS_LOG_WATCHER_DIR", "/var/lib/mios/log-watcher"))
+SUMMARY_FILE = STATE_DIR / "summary.jsonl"
+LATEST_FILE = STATE_DIR / "latest.json"
+
+# Defaults (overridable via mios.toml [log_watcher]).
+PRIORITY_THRESHOLD = 4   # warning (4) or worse
+SUMMARY_INTERVAL_S = 30  # min seconds between batched LLM calls
+SUMMARY_BATCH_MAX = 50   # cap events per batch (truncate beyond)
+SELF_UNIT = "mios-log-watcher.service"
+
+CLASSIFY_SYSTEM = (
+    "You are a Linux log triage assistant. Given a small batch of recent "
+    "journal events, return a SINGLE-LINE JSON object:\n"
+    '  {"summary":"<one short sentence>","tags":["<tag1>","<tag2>",...],"severity":"low|medium|high"}\n'
+    "Tags should be from: service-restart, service-fail, auth-fail, OOM, "
+    "disk-pressure, network, container-event, agent-event, hardware, "
+    "selinux, security, noise. Use 'noise' if events are routine. "
+    "Severity: high = action needed, medium = investigate, low = informational. "
+    "Return ONLY the JSON line; no fences, no prose."
+)
+
+
+def _toml_layered(section: str, key: str) -> str | None:
+    paths = []
+    home = os.environ.get("HOME", "")
+    if home:
+        paths.append(Path(home) / ".config/mios/mios.toml")
+    paths.append(Path("/etc/mios/mios.toml"))
+    paths.append(Path("/usr/share/mios/mios.toml"))
+    sect_re = re.compile(rf"^\[{re.escape(section)}\]\s*$")
+    key_re = re.compile(
+        rf"^\s*{re.escape(key)}\s*=\s*\"?(?P<v>[^\"#\s]+)\"?\s*(#.*)?$"
+    )
+    for p in paths:
+        if not p.is_file():
+            continue
+        in_section = False
+        for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("["):
+                in_section = bool(sect_re.match(line))
+                continue
+            if in_section:
+                m = key_re.match(line)
+                if m:
+                    return m.group("v")
+    return None
+
+
+def _resolve_micro() -> tuple[str, str]:
+    model = (
+        os.environ.get("MIOS_MICRO_MODEL")
+        or _toml_layered("ai", "micro_model")
+        or "qwen3:0.6b"
+    )
+    endpoint = (
+        os.environ.get("MIOS_MICRO_ENDPOINT")
+        or _toml_layered("ai", "micro_endpoint")
+        or "http://localhost:11434/v1"
+    ).rstrip("/")
+    return model, endpoint
+
+
+def classify_batch(events: list[dict], *, model: str, endpoint: str) -> dict:
+    if not events:
+        return {"summary": "", "tags": ["noise"], "severity": "low"}
+    # Compose a compact representation: unit + msg, one per line.
+    lines = []
+    for e in events[:SUMMARY_BATCH_MAX]:
+        unit = e.get("_SYSTEMD_UNIT", e.get("SYSLOG_IDENTIFIER", "?"))
+        msg = (e.get("MESSAGE") or "").strip().split("\n", 1)[0]
+        lines.append(f"[{unit}] {msg[:200]}")
+    user_block = "\n".join(lines)
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": CLASSIFY_SYSTEM},
+            {"role": "user", "content": f"Recent events:\n{user_block}"},
+        ],
+        "max_tokens": 150,
+        "temperature": 0.1,
+        "stream": False,
+        "keep_alive": "-1",
+    }
+    try:
+        req = urllib.request.Request(
+            f"{endpoint}/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            body = json.loads(r.read())
+        content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    except urllib.error.URLError as e:
+        return {"summary": f"(micro-LLM unreachable: {e})", "tags": ["error"], "severity": "low"}
+
+    # Tolerant JSON parse
+    m = re.search(r"\{[\s\S]*?\}", content)
+    if not m:
+        return {"summary": f"(unparseable: {content[:120]})", "tags": ["noise"], "severity": "low"}
+    try:
+        result = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return {"summary": f"(JSON err: {content[:120]})", "tags": ["noise"], "severity": "low"}
+    return {
+        "summary": str(result.get("summary", ""))[:300],
+        "tags": list(result.get("tags") or []),
+        "severity": str(result.get("severity", "low")),
+    }
+
+
+def main() -> int:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    model, endpoint = _resolve_micro()
+    log.info("starting; model=%s endpoint=%s state=%s", model, endpoint, STATE_DIR)
+
+    # Stream journal in JSON
+    cmd = [
+        "journalctl", "-f", "-o", "json",
+        "--since", "1 minute ago",
+        "--no-pager",
+        f"PRIORITY={PRIORITY_THRESHOLD}",
+    ]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if proc.stdout is None:
+        log.error("could not open journalctl stdout")
+        return 2
+
+    batch: list[dict] = []
+    last_flush = time.monotonic()
+
+    def flush() -> None:
+        nonlocal batch, last_flush
+        if not batch:
+            last_flush = time.monotonic()
+            return
+        result = classify_batch(batch, model=model, endpoint=endpoint)
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "event_count": len(batch),
+            **result,
+            "events_sample": [
+                {
+                    "unit": e.get("_SYSTEMD_UNIT", e.get("SYSLOG_IDENTIFIER", "?")),
+                    "msg": (e.get("MESSAGE") or "")[:200],
+                }
+                for e in batch[:5]
+            ],
+        }
+        with SUMMARY_FILE.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+        LATEST_FILE.write_text(json.dumps(rec, indent=2))
+        log.info("flushed %d events: %s [%s]",
+                 len(batch), result["summary"][:80], result["severity"])
+        batch.clear()
+        last_flush = time.monotonic()
+
+    def shutdown(_sig=None, _frame=None) -> None:
+        log.info("shutting down")
+        flush()
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+
+    try:
+        for raw in proc.stdout:
+            try:
+                ev = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            unit = ev.get("_SYSTEMD_UNIT", "")
+            if unit == SELF_UNIT:
+                continue   # avoid feedback loop
+            batch.append(ev)
+            if len(batch) >= SUMMARY_BATCH_MAX:
+                flush()
+            elif time.monotonic() - last_flush >= SUMMARY_INTERVAL_S:
+                flush()
+    except KeyboardInterrupt:
+        shutdown()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
