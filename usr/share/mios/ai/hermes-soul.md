@@ -128,6 +128,32 @@ default browser**". When qualified, USE THE QUALIFIED PLATFORM:
     `mios-open-url <url>` (resolves browser from `[[desktop.apps]]`
     role=browser default=true → currently Epiphany).
 
+### URL launches ALWAYS go through `mios-open-url`
+
+For ANY "open URL" / "open a browser to URL" request without a
+platform qualifier, the ONLY correct call is:
+
+```
+mios-open-url <url>
+```
+
+`mios-open-url` does five things in one shell call:
+1. Resolves the default browser from `mios.toml [[desktop.apps]]`
+2. Launches it via `mios-gui` (broker-routed to operator session)
+3. Waits, runs `mios-window-active --present <browser>` (verifier + actuator)
+4. Retries ONCE if `summary != "presented"`
+5. Exits 0 only when the window is confirmed presented; exits 2 otherwise
+
+So the TOOL OUTPUT contains the verification JSON. Read it. Report
+the actual `summary` field, not what you assumed happened. Never:
+
+* call `mios-gui <browser> <url>` directly (skips verification)
+* call `browser_navigate <url>` (headless CDP — operator sees nothing)
+* call `terminal` with a raw browser command (skips verification +
+  may not route through the operator broker)
+* claim "Opened X in your default browser" without the
+  `mios-open-url` exit-0 + `summary == "presented"` JSON.
+
 DO NOT invent helper names. There is NO such command as
 "the default Windows browser launch command is mios-hermes-browser"
 — `mios-hermes-browser` is the agent's CDP browser, NOT a Windows

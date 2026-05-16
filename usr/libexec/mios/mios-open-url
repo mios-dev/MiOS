@@ -117,5 +117,58 @@ ERR
 fi
 
 # Dispatch via mios-gui (which handles flatpak / RPM / shim
-# resolution + operator-session escape).
-exec mios-gui "$TARGET" "$URL"
+# resolution + operator-session escape). Capture the launch result
+# instead of exec'ing so we can VERIFY the window appeared.
+#
+# Operator directive 2026-05-16: "MiOS-Hermes should reason
+# natively until it's confirmed it's provided the solutions/end
+# result". Process-alive (mios-gui's pgrep check) is insufficient
+# -- the agent has repeatedly claimed "Browser opened to URL" when
+# nothing visible appeared. Tooling-side verification + auto-retry
+# makes the success/failure signal land in the AGENT'S TOOL OUTPUT,
+# not in its self-reported text.
+mios-gui "$TARGET" "$URL"
+_launch_rc=$?
+
+# Derive a verifier pattern from the app id (last dot segment,
+# lowercase). e.g. "org.gnome.Epiphany" -> "epiphany" matches both
+# the Linux process name AND the window title prefix.
+_verify_pattern="$(printf '%s' "$TARGET" | awk -F. "{print tolower(\$NF)}")"
+
+# First-pass verification: --present mode also restores/foregrounds
+# a minimized window before re-measuring, so summary is either
+# "presented" or a genuine non-recoverable state.
+_verify1=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
+_summary1=$(printf "%s" "$_verify1" | python3 -c "import sys, json
+try: d=json.loads(sys.stdin.read())
+except: d={}
+print(d.get('summary',''))" 2>/dev/null)
+
+if [ "$_summary1" = "presented" ]; then
+    echo "$_verify1"
+    exit 0
+fi
+
+# Not presented after launch+present. ONE auto-retry: launch again
+# (some flatpaks race-condition on first call after long idle).
+echo "[mios-open-url] first attempt summary=$_summary1; retrying once..." >&2
+sleep 1
+mios-gui "$TARGET" "$URL" >/dev/null 2>&1 || true
+sleep 1
+_verify2=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
+_summary2=$(printf "%s" "$_verify2" | python3 -c "import sys, json
+try: d=json.loads(sys.stdin.read())
+except: d={}
+print(d.get('summary',''))" 2>/dev/null)
+
+echo "$_verify2"
+if [ "$_summary2" = "presented" ]; then
+    exit 0
+fi
+
+# Still not presented -> exit non-zero so the agent's terminal tool
+# sees a failure signal it can't paraphrase as success. Operator
+# directive ("reason natively until confirmed") -- the agent now
+# has to act on the actual failure mode (summary tells it which:
+# not-running / no-window / hidden / off-screen).
+exit 2
