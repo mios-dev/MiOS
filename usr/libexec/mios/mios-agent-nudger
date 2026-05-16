@@ -78,6 +78,23 @@ REFUSAL_PATTERNS = [
     r"we cannot run GUI applications directly",
     r"manual intervention on your part",
     r"no Firefox or Chrome installed in the Windows",
+    # 2026-05-16 additions: agent fabricated failure AFTER a
+    # mios-windows launch that actually succeeded (game launched
+    # several minutes before agent finished narrating). Watch for
+    # post-success fabrications.
+    r"system couldn.?t execute it due to path or permission issues",
+    r"couldn.?t execute it due to path",
+    r"requires their launcher to be running before launching",
+    r"needs to be started through the .* launcher interface",
+    r"you.?ll need to: Start the .* Launcher first",
+    r"there might be missing dependencies",
+    # Generic "verify if the application is actually installed" --
+    # agent should have run the discovery search instead of asking
+    # the operator to verify.
+    r"verify if the application is actually installed",
+    # Manual-recovery push-offs:
+    r"check if it.?s in a non-standard location",
+    r"you.?ll need to install it first",
 ]
 PATTERN_RES = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
 
