@@ -974,6 +974,53 @@ if [[ -x /usr/libexec/mios/mios-owui-apply-knowledge ]]; then
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
+# ─── Auto-install MiOS-Agent OWUI Pipe ────────────────────────────────
+# Operator directive 2026-05-16: "OWUIs MiOS-Agent is the model that
+# users speak to ... should be using OWUIs emitter function". The
+# pipe at /usr/share/mios/owui/pipes/mios_agent_pipe.py is the
+# canonical user-facing entry. mios-owui-install-pipe (vendored at
+# /usr/libexec/mios) idempotently registers/updates it in OWUIs
+# functions table. Runs after mios-owui-apply-knowledge so the pipe
+# inherits the knowledge bindings on first chat.
+if [[ -x /usr/libexec/mios/mios-owui-install-pipe ]]; then
+    /usr/libexec/mios/mios-owui-install-pipe 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
+
+# ─── Pre-warm hermes + sys-agent so the first operator chat is snappy ─
+# Operator directive 2026-05-16: "the system prompt should run in the
+# background upon installation/MiOS images deployments". Both models
+# load + parse their massive system prompts BEFORE the operator types
+# anything. Without this, the first "hello" pays a ~20-30s GPU-load +
+# context-parse cost; with the pre-warm, the first turn is sub-2s.
+#
+# Fires fire-and-forget; if hermes / ollama isn't ready yet, the call
+# just times out + we move on. The next call to either model still
+# pays its load cost; pre-warming a model that isn't loaded yet just
+# means we tried.
+if command -v curl >/dev/null 2>&1; then
+    _log "pre-warming hermes + mios-sys-agent (background)..."
+    # Pre-warm sys-agent (smaller, ~4 GB qwen3.5:2b) -- used by OWUI Pipe
+    (curl -sf --max-time 60 \
+        http://localhost:11434/api/chat \
+        -d '"'"'{"model":"mios-sys-agent","messages":[{"role":"user","content":"warmup"}],"stream":false,"keep_alive":"-1","options":{"num_predict":1}}'"'"' \
+        >/dev/null 2>&1 &) || true
+    # Pre-warm hermes (heavier, ~17 GB qwen3-coder:30b) -- the executor.
+    # _AGENT_KEY resolved from /etc/mios/hermes/api.env earlier.
+    if [[ -r /etc/mios/hermes/api.env ]]; then
+        _wkey=$(grep "^API_SERVER_KEY=" /etc/mios/hermes/api.env | head -1 | sed "s/^API_SERVER_KEY=//")
+        if [[ -n "$_wkey" ]]; then
+            (curl -sf --max-time 120 \
+                -H "Authorization: Bearer $_wkey" \
+                -H "Content-Type: application/json" \
+                http://localhost:8642/v1/chat/completions \
+                -d '"'"'{"model":"hermes-agent","messages":[{"role":"user","content":"warmup"}],"stream":false,"max_tokens":1}'"'"' \
+                >/dev/null 2>&1 &) || true
+        fi
+    fi
+    _log "  pre-warm dispatched (background)"
+fi
+
 # ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
 # When the host is a WSL distro running inside Windows, the Tailscale CLI
 # on the Windows side knows its own tailnet IP. mios-windows (the
