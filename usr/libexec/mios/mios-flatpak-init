@@ -117,6 +117,17 @@ if [ "$SKIP_OVERRIDE_APPLY" = 0 ]; then
 # theme env, but firstboot was re-applying a subset that didn't
 # include GTK_THEME / XCURSOR_THEME / ADW_DEBUG_COLOR_SCHEME, so the
 # global override drifted off them after the first boot.
+# Explicitly REJECT /usr/share/{themes,icons} -- prior versions of
+# this script tried to add those (commit 8f38451) but flatpak refuses
+# with "Path /usr is reserved by Flatpak" on every app launch
+# (operator-confirmed regression 2026-05-16). adw-gtk3-dark + Bibata
+# theme/icons are available to flatpaks via the FLATHUB RUNTIME
+# EXTENSIONS (org.gtk.Gtk3theme.adw-gtk3-dark already installed) +
+# the xdg-data/themes mount -- no /usr access needed. nofilesystem
+# negates any earlier add of these paths.
+flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true
+flatpak override --system --nofilesystem=/usr/share/icons 2>/dev/null || true
+
 flatpak override --system \
     --filesystem=xdg-documents \
     --filesystem=xdg-download \
@@ -127,8 +138,6 @@ flatpak override --system \
     --filesystem=xdg-public-share \
     --filesystem=xdg-data/icons:ro \
     --filesystem=xdg-data/themes:ro \
-    --filesystem=/usr/share/themes:ro \
-    --filesystem=/usr/share/icons:ro \
     --filesystem=xdg-config/dconf:ro \
     --filesystem=xdg-config/gtk-3.0:ro \
     --filesystem=xdg-config/gtk-4.0:ro \
