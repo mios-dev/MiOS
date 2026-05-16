@@ -185,8 +185,22 @@ case "$sub" in
             echo "mios-windows launch: missing <app>" >&2
             exit 64
         fi
-        app="$1"
-        shift
+        # Stdin mode: `mios-windows launch -` reads the path from
+        # stdin. Sidesteps bash paren-parsing on paths like
+        # C:\Program Files (x86)\Steam\steam.exe where the unquoted
+        # `(x86)` triggers a subshell-syntax error before the script
+        # is even invoked. Operator-confirmed regression 2026-05-16:
+        # agent emitted `mios-windows launch C:\Program Files
+        # (x86)\Steam\steam.exe` without quoting -- bash errored
+        # "syntax error near unexpected token `('".
+        if [ "$1" = "-" ]; then
+            shift
+            app="$(cat)"
+            app="${app%$'\n'}"   # strip trailing newline
+        else
+            app="$1"
+            shift
+        fi
         # Translate Windows-style paths (C:\... or D:\...) to WSL paths
         # before the existence check. Operator-confirmed regression
         # 2026-05-16: mios-find returns Windows-style paths (intended

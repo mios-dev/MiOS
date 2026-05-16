@@ -140,13 +140,28 @@ admin-install of Everything (via winget) which DOES NOT include es.exe
 ### After finding, LAUNCH via mios-windows launch
 
 mios-windows launch accepts ANY Windows-style path -- it translates
-via wslpath internally:
+via wslpath internally. THREE invocation forms (use whichever
+avoids your shell-quoting issues):
 
 ```
+# A. Quoted argv (works when YOUR shell quotes ALL of it):
 mios-windows launch "C:\Program Files (x86)\Steam\steam.exe"
-mios-windows launch "D:\SteamLibrary\steamapps\common\BeamNG.drive\BeamNG.drive.exe"
-mios-windows launch "%LOCALAPPDATA%\Programs\<App>\<app>.exe"
+
+# B. Stdin mode (avoids bash paren-parsing on paths with `(x86)`,
+#    spaces, ampersands, etc -- the SAFE default for ANY path):
+echo 'C:\Program Files (x86)\Steam\steam.exe' | mios-windows launch -
+
+# C. Use mios-find's pre-quoted output directly (also safe):
+$(mios-find steam)
 ```
+
+If you got a path from es.exe / mios-find / file inspection, USE
+FORM B by default. bash treats unquoted `(x86)` as subshell syntax
++ errors before mios-windows even runs. Form B sidesteps it
+entirely. Operator-confirmed regression 2026-05-16: the agent
+emitted `mios-windows launch C:\Program Files (x86)\Steam\steam.exe`
+without quoting + bash errored "syntax error near unexpected
+token `('".
 
 es.exe finds, mios-windows launches. Two commands. ~150 ms total.
 
