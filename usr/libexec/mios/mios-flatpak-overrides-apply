@@ -67,7 +67,13 @@ flatpak override --system --reset 2>/dev/null || true
 
 # Mount the theme/icon dirs the runtime extensions need. /usr/share/* is
 # REJECTED by flatpak (-> F: warnings); use xdg-data + xdg-config only.
+# --device=all + /dev/dxg + /dev/dri are needed for WSLg GPU access from
+# inside flatpak sandboxes -- without them, libEGL fails with
+# "MESA: error: ZINK: failed to choose pdev" and WebKit silently
+# self-exits within seconds (operator-flagged 2026-05-16: Epiphany
+# launches but no window appears).
 flatpak override --system \
+    --device=all \
     --env=GTK_USE_PORTAL=1 \
     --env=GTK_THEME="$_gtk_theme" \
     --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color" \
@@ -77,7 +83,9 @@ flatpak override --system \
     --filesystem=xdg-config/gtk-3.0:ro \
     --filesystem=xdg-config/gtk-4.0:ro \
     --filesystem=xdg-data/themes:ro \
-    --filesystem=xdg-data/icons:ro
+    --filesystem=xdg-data/icons:ro \
+    --filesystem=/dev/dxg \
+    --filesystem=/dev/dri
 
 # Defensive: negate any prior add of /usr/share/{themes,icons,fonts} so
 # flatpak stops printing "Path /usr is reserved" warnings on every
