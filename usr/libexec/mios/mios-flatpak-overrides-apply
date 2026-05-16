@@ -90,3 +90,49 @@ echo "mios-flatpak-overrides-apply: global flatpak override seeded"
 echo "  theme: GTK_THEME=$_gtk_theme  color=$_adw_color  cursor=$_curs_theme/$_curs_size"
 echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons}"
 echo "  GTK_USE_PORTAL=1 (libadwaita color-scheme via xdg-portal)"
+
+# ─── Per-app overrides from mios.toml [flatpak.app_overrides] ────────
+# Operator directive 2026-05-16: "EVERYTHING IS DICTATED AND
+# UNDERSTOOD FROM THE mios.toml/html file(s)". Per-app env overrides
+# (Epiphany GPU compositing, Chrome CDP port, etc.) live in mios.toml
+# as nested tables under [flatpak.app_overrides."<app-id>"]. Iterate
+# the table and emit one /var/lib/flatpak/overrides/<id> file per
+# entry. Idempotent: each rewrite is full, no merge.
+python3 - <<'PYEOF'
+import os, tomllib
+
+# Layered read: later file wins per key. /etc/mios overrides /usr/share/mios.
+merged = {}
+for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
+    try:
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    overrides = data.get("flatpak", {}).get("app_overrides", {})
+    if isinstance(overrides, dict):
+        for app_id, env_map in overrides.items():
+            if isinstance(env_map, dict):
+                cur = merged.setdefault(app_id, {})
+                cur.update(env_map)
+
+if not merged:
+    print("mios-flatpak-overrides-apply: no [flatpak.app_overrides.*] entries -- skipping per-app emit")
+    raise SystemExit(0)
+
+OVERRIDE_DIR = "/var/lib/flatpak/overrides"
+os.makedirs(OVERRIDE_DIR, exist_ok=True)
+for app_id, env_map in merged.items():
+    out_path = os.path.join(OVERRIDE_DIR, app_id)
+    lines = ["[Context]", "", "[Environment]"]
+    for k, v in env_map.items():
+        # TOML bools/ints render as Python; flatpak override files
+        # are plain text so str() everything.
+        if isinstance(v, bool):
+            v = 1 if v else 0
+        lines.append(f"{k}={v}")
+    lines.append("")  # trailing newline
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"mios-flatpak-overrides-apply:   {app_id} -> {len(env_map)} env keys")
+PYEOF

@@ -1966,6 +1966,40 @@ cmd_exe = "/mnt/c/Windows/System32/cmd.exe"
 launcher_socket = "/run/mios-launcher/launcher.sock"
 
 # ----------------------------------------------------------------------------
+# [flatpak.app_overrides."<app-id>"] -- per-app flatpak env overrides.
+#
+# Operator directive 2026-05-16: "EVERYTHING IS DICTATED AND UNDERSTOOD
+# FROM THE mios.toml/html file(s)". Per-app render / GPU / WebKit envs
+# previously lived as standalone files at var/lib/flatpak/overrides/<id>;
+# now they live HERE in the SSOT, and mios-flatpak-overrides-apply
+# materializes the per-app override files at boot. Operators add or
+# tune by editing this section in mios.html or directly in TOML.
+#
+# Each [flatpak.app_overrides."<app-id>"] sub-table is a flat key=value
+# map of environment variables. The apply script writes
+#   /var/lib/flatpak/overrides/<app-id>
+# with an [Environment] section containing every key in the table.
+#
+# Add a per-app override ONLY when global flatpak defaults (set by
+# mios-flatpak-overrides-apply from [appearance] + WSLg defaults)
+# don't work for a specific app. Most apps need no entry here.
+# ----------------------------------------------------------------------------
+
+[flatpak.app_overrides."org.gnome.Epiphany"]
+# WebKit (Epiphany's engine) requires GPU compositing or its
+# WebProcess gracefully self-exits within ~4 seconds. The system-wide
+# /etc/profile.d/mios-wslg-gpu.sh forces cairo + SW-GL + X11 for
+# stability of most GTK4 apps on WSLg, but that combo kills Epiphany
+# specifically. This override flips it to the working stack:
+#   wayland surface + gl renderer + GPU + WebKit compositing on
+# Operator-flagged 2026-05-16: "epiphany flashed and died" -> resolved.
+GDK_BACKEND                    = "wayland"
+GSK_RENDERER                   = "gl"
+LIBGL_ALWAYS_SOFTWARE          = 0
+WEBKIT_DISABLE_COMPOSITING_MODE = 0
+WEBKIT_USE_DMABUF_RENDERER     = 1
+
+# ----------------------------------------------------------------------------
 # [mios-find.aliases] -- generic query -> specific app routing.
 #
 # Operator directive 2026-05-16: "mios.toml/html dictates the default
