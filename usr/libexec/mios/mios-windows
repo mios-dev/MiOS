@@ -249,53 +249,34 @@ case "$sub" in
         # Service-user routing: mios-hermes (uid 820) cannot exec
         # /mnt/c/.../powershell.exe directly because of the WSL
         # metadata-perm wall. Route through the operator-side
-        # launcher broker so PowerShell runs in the operator
-        # context AND captures stdout/stderr back to a tempfile we
-        # can read.
+        # launcher broker's CAPTURE protocol -- broker runs the
+        # PS command in its own (operator) context, captures
+        # stdout+stderr via subprocess.PIPE, sends bytes back to
+        # us inline. No tempfile; no cross-user write.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
         if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
-            # Broker dispatches detached + redirects to /dev/null by
-            # default. For ps/cmd we need the OUTPUT. Route to a
-            # per-call tempfile, dispatch, then poll briefly + cat.
-            _outfile="$(mktemp /run/mios-launcher/windows-ps-XXXXXX.out)"
-            chmod 0666 "$_outfile"
-            # Quote the inner PS command for safe transport.
-            _ps_cmd="$*"
-            _ps_cmd_q="${_ps_cmd//\\/\\\\}"
-            _ps_cmd_q="${_ps_cmd_q//\"/\\\"}"
-            # The redirect is on the BASH side (broker spawns
-            # `bash -lc` which performs the > redirect, capturing
-            # /init's stdout from PowerShell.exe into the file).
-            # PowerShell never sees the redirect target -- so use
-            # the Linux path directly. Operator-debug 2026-05-15:
-            # an earlier wslpath -w translation made things WORSE
-            # (PS got the redirect handed to it as `\\wsl.localhost\
-            # ...`, lost the file silently). Linux path + bash
-            # redirect = the simple, working path.
-            python3 - "$_outfile" "$PWSH" "$_ps_cmd" <<'PYEOF'
+            python3 - "$PWSH" "$*" <<'PYEOF'
 import socket, sys, shlex
-outfile, pwsh, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
+pwsh, cmd = sys.argv[1], sys.argv[2]
 line = (
-    f'{shlex.quote(pwsh)} -NoProfile -NonInteractive -ExecutionPolicy Bypass '
-    f'-Command {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; '
-    f'chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
+    "CAPTURE: " +
+    f"{shlex.quote(pwsh)} -NoProfile -NonInteractive -ExecutionPolicy Bypass "
+    f"-Command {shlex.quote(cmd)}"
 )
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.settimeout(5.0)
+s.settimeout(60.0)
 s.connect("/run/mios-launcher/launcher.sock")
 s.sendall((line + "\n").encode())
-s.recv(64)
-s.close()
+# Read until EOF (broker closes after capture done).
+buf = b""
+while True:
+    chunk = s.recv(8192)
+    if not chunk:
+        break
+    buf += chunk
+sys.stdout.buffer.write(buf)
 PYEOF
-            # Poll for output ready (PowerShell write completion).
-            for _ in $(seq 1 30); do
-                if [ -s "$_outfile" ]; then break; fi
-                sleep 0.3
-            done
-            sleep 0.5
-            cat "$_outfile" 2>/dev/null
-            rm -f "$_outfile"
             exit 0
         fi
         if [ ! -x "$PWSH" ]; then
@@ -309,30 +290,26 @@ PYEOF
             echo "mios-windows cmd: missing <command>" >&2
             exit 64
         fi
-        # Same broker route for service users.
+        # Same CAPTURE route for service users (no tempfile dance).
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
         if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
-            _outfile="$(mktemp /run/mios-launcher/windows-cmd-XXXXXX.out)"
-            chmod 0666 "$_outfile"
-            python3 - "$_outfile" "$CMD" "$*" <<'PYEOF'
+            python3 - "$CMD" "$*" <<'PYEOF'
 import socket, sys, shlex
-outfile, cmd_exe, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
-line = f'{shlex.quote(cmd_exe)} /c {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
+cmd_exe, cmd = sys.argv[1], sys.argv[2]
+line = "CAPTURE: " + f"{shlex.quote(cmd_exe)} /c {shlex.quote(cmd)}"
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.settimeout(5.0)
+s.settimeout(60.0)
 s.connect("/run/mios-launcher/launcher.sock")
 s.sendall((line + "\n").encode())
-s.recv(64)
-s.close()
+buf = b""
+while True:
+    chunk = s.recv(8192)
+    if not chunk:
+        break
+    buf += chunk
+sys.stdout.buffer.write(buf)
 PYEOF
-            for _ in $(seq 1 30); do
-                if [ -s "$_outfile" ]; then break; fi
-                sleep 0.3
-            done
-            sleep 0.5
-            cat "$_outfile" 2>/dev/null
-            rm -f "$_outfile"
             exit 0
         fi
         if [ ! -x "$CMD" ]; then

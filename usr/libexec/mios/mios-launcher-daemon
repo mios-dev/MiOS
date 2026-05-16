@@ -69,7 +69,7 @@ SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.so
 
 def handle(conn: socket.socket) -> None:
     try:
-        conn.settimeout(5.0)
+        conn.settimeout(60.0)
         data = b""
         while not data.endswith(b"\n") and len(data) < 65536:
             chunk = conn.recv(4096)
@@ -80,6 +80,41 @@ def handle(conn: socket.socket) -> None:
         if not line:
             conn.sendall(b"ERROR: empty request\n")
             return
+
+        # Protocol:
+        #   <command>             -> fire-and-forget; reply "OK\n"
+        #   CAPTURE: <command>    -> run synchronously; capture stdout+stderr;
+        #                            reply with raw output (no OK prefix); close
+        # CAPTURE removes the cross-user tempfile dance: broker runs the
+        # command in its own context, captures via subprocess.PIPE, sends
+        # the bytes back to the caller. No file in /tmp or /run/mios-
+        # launcher/ that another user has to write to. Operator-debug
+        # 2026-05-15 found that mios cross-user-write to a mios-hermes-
+        # owned mode 0666 file fails -- root cause unknown, fix unneeded
+        # via this protocol.
+        if line.startswith("CAPTURE: "):
+            cmd = line[len("CAPTURE: "):]
+            log.info("capture: %s", cmd[:200])
+            env = dict(os.environ)
+            env.setdefault("GDK_BACKEND", "wayland")
+            try:
+                result = subprocess.run(
+                    ["bash", "-lc", cmd],
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=45,
+                    env=env,
+                )
+                # stderr concatenated after stdout (single capture stream).
+                conn.sendall(result.stdout)
+                if result.stderr:
+                    conn.sendall(result.stderr)
+            except subprocess.TimeoutExpired:
+                conn.sendall(b"ERROR: capture timeout (>45s)\n")
+            except OSError as e:
+                conn.sendall(f"ERROR: {e}\n".encode())
+            return
+
         log.info("dispatch: %s", line[:200])
         # Override env per-dispatch:
         #   GDK_BACKEND=wayland: /etc/profile.d/mios-wslg.sh sets x11
