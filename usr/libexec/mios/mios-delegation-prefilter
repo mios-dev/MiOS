@@ -185,6 +185,16 @@ def _last_user_message(messages: list) -> str:
 
 
 async def proxy(request: web.Request) -> web.StreamResponse:
+    try:
+        return await _proxy_inner(request)
+    except Exception:
+        import traceback
+        log.error("proxy handler crashed for %s: %s",
+                  request.path, traceback.format_exc())
+        raise
+
+
+async def _proxy_inner(request: web.Request) -> web.StreamResponse:
     upstream_url = HERMES_HOST + request.path_qs
 
     # Read body; we may rewrite it for /v1/chat/completions
@@ -249,8 +259,17 @@ async def proxy(request: web.Request) -> web.StreamResponse:
             # watcher missed it entirely. This is the response-side
             # complement: see + flag the actual assistant prose before
             # it lands in the operator's chat.
+            #
+            # Defensive try/except: the scanner is OBSERVABILITY, not
+            # critical path. It MUST NEVER crash the prefilter +
+            # break the operator's chat. Any exception (malformed SSE,
+            # unicode decode failure, regex pathological input, OOM
+            # on cap-limit boundary) gets logged + swallowed.
             if request.path.endswith("/chat/completions") and captured:
-                _scan_response_for_refusals(bytes(captured))
+                try:
+                    _scan_response_for_refusals(bytes(captured))
+                except Exception as e:
+                    log.warning("response scanner failed (non-fatal): %s", e)
             return resp
 
 

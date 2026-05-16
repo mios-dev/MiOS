@@ -82,13 +82,39 @@ mios-windows launch steam                     # if "steam" is in list
 mios-windows launch "Battle.net Launcher"
 mios-windows launch "C:\\Program Files\\Ubisoft\\Ubisoft Game Launcher\\upc.exe"
 
-# When the exact name is unknown, ASK the operator OR find the .exe
-# via the broker:
-mios-windows ps 'Get-ChildItem "C:\\Program Files*" -Recurse -Filter "*motorfest*.exe" -ErrorAction SilentlyContinue | Select-Object FullName | Format-List'
+# Game install locations -- CHECK THESE FIRST before doing a deep
+# Get-ChildItem -Recurse, which times out at 60s on a large C: drive:
+#
+#   Steam:        C:\Program Files (x86)\Steam\steamapps\common\<GameName>\
+#   Steam D:      D:\SteamLibrary\steamapps\common\<GameName>\
+#   Epic:         C:\Program Files\Epic Games\<GameName>\
+#   Ubisoft:      C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games\<GameName>\
+#   GOG:          C:\Program Files (x86)\GOG Galaxy\Games\<GameName>\
+#   EA / Origin:  C:\Program Files\EA Games\<GameName>\
+#   Battle.net:   C:\Program Files (x86)\<GameName>\
+#   Xbox/MS Store: C:\XboxGames\<GameName>\  (or under %ProgramFiles%\WindowsApps\)
+#   Riot:         C:\Riot Games\<GameName>\
+#   Standalone:   C:\Games\<GameName>\  or  D:\Games\<GameName>\
+
+# Try the LIKELY launcher path FIRST -- one short Test-Path probe per
+# launcher is cheap (~50ms each). Only fall back to recursive scan
+# if all the obvious locations miss.
+mios-windows ps 'Test-Path "C:\\Program Files (x86)\\Steam\\steamapps\\common\\BeamNG.drive\\BeamNG.drive.exe"'
+mios-windows ps 'Test-Path "D:\\SteamLibrary\\steamapps\\common\\BeamNG.drive\\BeamNG.drive.exe"'
+
+# When name discovery is needed, CAP THE RECURSION DEPTH to avoid
+# hitting the 60s tool timeout:
+mios-windows ps 'Get-ChildItem "C:\\Program Files (x86)" -Depth 3 -Filter "*motorfest*" -ErrorAction SilentlyContinue | Select-Object FullName | Format-List'
 
 # Then launch with the discovered path:
-mios-windows launch "C:\\Program Files\\Ubisoft Game Launcher\\games\\The Crew Motorfest\\TheCrewMotorfest.exe"
+mios-windows launch "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\The Crew Motorfest\\TheCrewMotorfest.exe"
 ```
+
+**3-fail rule**: if after 3 launch-locator attempts the .exe still
+isn't found, STOP + ASK the operator in your reply text: "I checked
+Steam / Epic / Ubisoft / GOG common paths -- where is <GameName>
+installed on your system?". Do NOT keep running `-Recurse` over
+the whole C: drive; each one is a 60s timeout.
 
 NEVER tell the operator "I'd recommend you navigate to the Start Menu
 manually" or "Look for <app> in your installed applications". You have
