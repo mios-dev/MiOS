@@ -436,6 +436,29 @@ port       = 13389
 user       = ""                    # empty = inherits [identity].username
 resolution = "auto"                # "auto" lets mstsc pick from Windows display; otherwise WxH (e.g. "1920x1080")
 
+# ----------------------------------------------------------------------------
+# [appearance] -- system-wide visual identity. Applied to:
+#   * Operator's GNOME session (gsettings)
+#   * Flatpak runtime overrides (via /usr/libexec/mios/mios-flatpak-init)
+#   * Per-user gtk-3.0 + gtk-4.0 settings.ini (via /etc/skel/.config/...)
+#   * Bibata cursor + dark Adwaita variants
+#
+# Lifted out of automation/30-locale-theme.sh + mios-flatpak-init so the
+# operator can override in /etc/mios/mios.toml [appearance] without
+# patching scripts. Operator directive 2026-05-15: theme drift between
+# bake-time and firstboot was leaving Nautilus + others rendered in
+# default light Adwaita instead of the operator's preferred dark
+# variant.
+# ----------------------------------------------------------------------------
+[appearance]
+gtk_theme        = "adw-gtk3-dark"              # GTK3 + libadwaita color-scheme target
+adw_color_scheme = "prefer-dark"                # ADW_DEBUG_COLOR_SCHEME for libadwaita apps
+cursor_theme     = "Bibata-Modern-Classic"      # XCURSOR_THEME (matches /usr/share/icons/)
+cursor_size      = 24                           # XCURSOR_SIZE
+# Search path for cursor + icon themes (preserves host overrides while
+# letting flatpaks see Bibata + the operator's user-installed sets).
+xcursor_path = "~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps"
+
 [ai]
 # Canonical agent surface. Hermes-Agent (the live MiOS agent at /) is a
 # DIRECT host install as of 2026-05-13 (automation/38-hermes-agent.sh +

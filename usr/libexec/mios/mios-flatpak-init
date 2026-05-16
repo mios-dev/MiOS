@@ -69,11 +69,50 @@ if [ -f "$OVERRIDE_FILE" ] && grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; th
     exit 0
 fi
 
-# Apply each XDG dir + the existing icons/themes grants ADDITIVELY.
-# `flatpak override --system --filesystem=X` only appends to the
-# [Context]filesystems= line; existing entries (icons:ro, themes:ro
-# from the prior Bibata cursor setup) are preserved. Safe to run
-# alongside other system-wide overrides without losing them.
+# Read appearance from layered mios.toml [appearance]. Operator edits
+# in /etc/mios/mios.toml override the vendor defaults in
+# /usr/share/mios/mios.toml. Falls back to hard-coded defaults if the
+# parser path is missing (defensive only -- mios.toml ships with
+# [appearance] populated).
+_toml_get() {
+    # _toml_get <key> <default>
+    local key="$1" default="$2" val=""
+    for f in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        [ -r "$f" ] || continue
+        val=$(python3 - "$f" "$key" <<'PYEOF' 2>/dev/null
+import sys, tomllib
+path, dotted = sys.argv[1], sys.argv[2]
+with open(path, "rb") as fh: data = tomllib.load(fh)
+node = data
+for k in dotted.split("."):
+    if isinstance(node, dict) and k in node:
+        node = node[k]
+    else:
+        sys.exit(0)
+print(node)
+PYEOF
+)
+        [ -n "$val" ] && { echo "$val"; return; }
+    done
+    echo "$default"
+}
+
+_gtk_theme=$(_toml_get appearance.gtk_theme "adw-gtk3-dark")
+_adw_color=$(_toml_get appearance.adw_color_scheme "prefer-dark")
+_curs_theme=$(_toml_get appearance.cursor_theme "Bibata-Modern-Classic")
+_curs_size=$(_toml_get appearance.cursor_size "24")
+_xcurs_path=$(_toml_get appearance.xcursor_path '~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps')
+_log "appearance: GTK_THEME=$_gtk_theme ADW=$_adw_color XCURSOR_THEME=$_curs_theme size=$_curs_size"
+
+# Apply each XDG dir + the existing icons/themes grants + theme env
+# ADDITIVELY. `flatpak override --system --filesystem=X` only appends
+# to the [Context]filesystems= line; existing entries are preserved.
+# Same for --env=X -- each is its own [Environment] line, safe to
+# re-apply on every boot. This is what fixes the "Nautilus rendered in
+# default light Adwaita" drift seen 2026-05-15: bake-time set the
+# theme env, but firstboot was re-applying a subset that didn't
+# include GTK_THEME / XCURSOR_THEME / ADW_DEBUG_COLOR_SCHEME, so the
+# global override drifted off them after the first boot.
 flatpak override --system \
     --filesystem=xdg-documents \
     --filesystem=xdg-download \
@@ -84,7 +123,11 @@ flatpak override --system \
     --filesystem=xdg-public-share \
     --filesystem=xdg-data/icons:ro \
     --filesystem=xdg-data/themes:ro \
-    --env=XCURSOR_PATH='~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps'
+    --env=GTK_THEME="$_gtk_theme" \
+    --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color" \
+    --env=XCURSOR_THEME="$_curs_theme" \
+    --env=XCURSOR_SIZE="$_curs_size" \
+    --env=XCURSOR_PATH="$_xcurs_path"
 
 # Stamp the marker so the next run knows this is MiOS-managed (and
 # any operator edit that REMOVES the marker will be honoured as
