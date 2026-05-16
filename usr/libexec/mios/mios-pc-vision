@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""mios-pc-vision -- screenshot + UI-element query -> click coordinates.
+
+Local-only PC-Control vision grounding. Takes a screenshot path + a
+natural-language description of a UI target, calls a local vision
+LLM (default qwen3-vl:4b on Ollama at :11434), returns JSON:
+
+    {"x": <int>, "y": <int>, "confidence": <0..1>, "reasoning": "..."}
+
+Architecture per /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md:
+  Plan: Hermes (qwen3-coder:30b)
+  Ground: this tool (qwen3-vl:4b auxiliary lane)
+  Act: mios-pc-control (Win32 SendInput)
+  Verify: re-screenshot + ground
+
+USAGE
+    mios-pc-vision <screenshot.png> "<element-query>"
+
+EXAMPLE
+    mios-pc-control screenshot /tmp/screen.png
+    mios-pc-vision /tmp/screen.png "the OK button"
+        -> {"x": 814, "y": 562, "confidence": 0.92, "reasoning": "..."}
+    mios-pc-control click 814 562
+
+CONFIG (resolved per layered mios.toml [ai] priority):
+    [ai]
+    vision_grounding_model = "qwen3-vl:4b"
+    vision_grounding_endpoint = "http://localhost:11434/v1"
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import re
+import sys
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+DEFAULT_MODEL = "qwen3-vl:4b"
+DEFAULT_ENDPOINT = "http://localhost:11434/v1"
+DEFAULT_TIMEOUT_S = 60
+
+
+def _toml_layered(section: str, key: str) -> str | None:
+    """Read [section].key from layered mios.toml (per-user > host > vendor)."""
+    paths = []
+    home = os.environ.get("HOME", "")
+    if home:
+        paths.append(Path(home) / ".config/mios/mios.toml")
+    paths.append(Path("/etc/mios/mios.toml"))
+    paths.append(Path("/usr/share/mios/mios.toml"))
+    sect_re = re.compile(rf"^\[{re.escape(section)}\]\s*$")
+    key_re = re.compile(
+        rf"^\s*{re.escape(key)}\s*=\s*\"(?P<v>.*?)\"\s*(#.*)?$"
+    )
+    for p in paths:
+        if not p.is_file():
+            continue
+        in_section = False
+        for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("["):
+                in_section = bool(sect_re.match(line))
+                continue
+            if in_section:
+                m = key_re.match(line)
+                if m:
+                    return m.group("v")
+    return None
+
+
+def _resolve_config() -> tuple[str, str]:
+    model = (
+        os.environ.get("MIOS_VISION_MODEL")
+        or _toml_layered("ai", "vision_grounding_model")
+        or DEFAULT_MODEL
+    )
+    endpoint = (
+        os.environ.get("MIOS_VISION_ENDPOINT")
+        or _toml_layered("ai", "vision_grounding_endpoint")
+        or DEFAULT_ENDPOINT
+    )
+    return model, endpoint.rstrip("/")
+
+
+SYSTEM_PROMPT = """You are a UI grounding model. Given a screenshot and a
+natural-language description of a UI element, return ONLY a single-line
+JSON object with the click coordinates of the matching element:
+
+{"x": <integer pixel x>, "y": <integer pixel y>, "confidence": <0.0..1.0>, "reasoning": "<one short sentence>"}
+
+Rules:
+- Coordinates are pixel offsets from the top-left of the image (0,0 is top-left).
+- Click coordinates should be in the visual centre of the matched element.
+- If you cannot find the element, return {"x": -1, "y": -1, "confidence": 0.0, "reasoning": "not found"}.
+- Return ONLY the JSON object, no markdown fences, no extra prose.
+"""
+
+
+def ground(image_path: Path, query: str, *, model: str, endpoint: str) -> dict:
+    """Send image + query to the vision model, parse the JSON reply."""
+    if not image_path.is_file():
+        raise FileNotFoundError(f"screenshot not found: {image_path}")
+    image_bytes = image_path.read_bytes()
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+    suffix = image_path.suffix.lower().lstrip(".")
+    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(
+        suffix, "image/png"
+    )
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Element to find: {query}"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime};base64,{image_b64}"},
+                    },
+                ],
+            },
+        ],
+        "max_tokens": 200,
+        "temperature": 0.1,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        f"{endpoint}/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT_S) as r:
+            body = json.loads(r.read())
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"vision endpoint {endpoint} unreachable: {e}") from e
+
+    content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    if not content:
+        raise RuntimeError(f"vision model returned no content: {body!r}")
+
+    # Model SHOULD return a single-line JSON. Be tolerant of code-fence
+    # wrapping or trailing prose.
+    m = re.search(r"\{[^{}]*\}", content)
+    if not m:
+        raise RuntimeError(f"could not parse JSON from model reply:\n{content}")
+    try:
+        result = json.loads(m.group(0))
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"bad JSON in model reply: {e}\n{content}") from e
+
+    # Normalise / validate
+    out = {
+        "x": int(result.get("x", -1)),
+        "y": int(result.get("y", -1)),
+        "confidence": float(result.get("confidence", 0.0)),
+        "reasoning": str(result.get("reasoning", "")),
+    }
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Screenshot + element query -> click coordinates (local vision LLM)",
+    )
+    ap.add_argument("screenshot", type=Path, help="Path to PNG / JPEG screenshot")
+    ap.add_argument("query", help="Natural-language description of the UI element")
+    ap.add_argument("--model", default=None, help="Override vision model (else mios.toml [ai].vision_grounding_model)")
+    ap.add_argument("--endpoint", default=None, help="Override vision endpoint (else mios.toml [ai].vision_grounding_endpoint)")
+    ap.add_argument("--pretty", action="store_true", help="Pretty-print JSON")
+    args = ap.parse_args()
+
+    model, endpoint = _resolve_config()
+    if args.model:
+        model = args.model
+    if args.endpoint:
+        endpoint = args.endpoint.rstrip("/")
+
+    try:
+        result = ground(args.screenshot, args.query, model=model, endpoint=endpoint)
+    except (FileNotFoundError, RuntimeError) as e:
+        print(json.dumps({"error": str(e), "model": model, "endpoint": endpoint}), file=sys.stderr)
+        return 1
+
+    if args.pretty:
+        print(json.dumps(result, indent=2))
+    else:
+        print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

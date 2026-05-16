@@ -483,6 +483,16 @@ auxiliary:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3:1.7b
+  # Vision-grounding lane for screenshot -> click-coordinate
+  # translation. Used by /usr/libexec/mios/mios-pc-vision (the
+  # PC-Control vision-grounded loop, Path B in the pc-control
+  # skill). qwen3-vl:4b has native 2D coordinate grounding;
+  # UI-TARS-1.5-7B is the upgrade-path candidate (PC-specific).
+  # Architecture: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md.
+  vision_grounding:
+    provider: custom:local-ollama
+    base_url: http://localhost:11434/v1
+    model: qwen3-vl:4b
 
 # Web search/extract -> the on-box SearXNG (mios-searxng). The
 # concrete URL is exported as SEARXNG_URL by hermes-agent.service

@@ -521,7 +521,7 @@ prompt_shortcut     = "@"
 # Listing both: the BASE pull is needed before `ollama create` can
 # derive the tools variant. Operator can skip the base post-derive
 # (they share blob layers under /var/lib/ollama/models).
-bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text"
+bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -628,6 +628,16 @@ big_ram_model    = "qwen3-coder:30b"             # clean JSON tool calls; ~19 GB
 # but NOT the auto-pick.
 mid_ram_model    = "qwen3-coder:14b"             # smaller dense Coder, ~9 GB
 small_ram_model  = "granite4.1:3b"               # < mid_ram_gb fallback
+
+# Vision-grounding model -- read by /usr/libexec/mios/mios-pc-vision
+# for screenshot -> click-coordinate translation. Hermes's main
+# qwen3-coder:30b is text-only; the vision lane is a separate
+# Ollama tag. qwen3-vl:4b (~3 GB) has native 2D coordinate
+# grounding + fits alongside the big text model on a single 4090.
+# UI-TARS-1.5-7B is the upgrade-path candidate (PC-specific
+# training; tracked in /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md).
+vision_grounding_model    = "qwen3-vl:4b"
+vision_grounding_endpoint = "http://localhost:11434/v1"
 
 # ----------------------------------------------------------------------------
 # [desktop] -- session preferences and Flatpak picks.

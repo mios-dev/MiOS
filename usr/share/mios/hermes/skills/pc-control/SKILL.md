@@ -37,27 +37,31 @@ inference involved -- it's pure tool use.
 
 ## Path B: VISION-GROUNDED (only when target isn't named)
 
-Use this ONLY when the operator describes a target you can't reach
-by name (a button on a webpage where DOM grounding doesn't help, a
-dialog you don't have the hwnd for, an icon you can see but don't
-have a programmatic reference to).
+Use this ONLY when the target can't be reached by name (a button
+on a webpage where DOM grounding doesn't help, a dialog without an
+hwnd, an icon visible but without a programmatic reference).
 
 ```
-mios-pc-control screenshot /tmp/screen.png
-mios-pc-vision /tmp/screen.png "the OK button"   # NOT YET WIRED
-  -> {"x": 814, "y": 562, "confidence": 0.92}
+mios-pc-control screenshot 'C:\Users\mios\AppData\Local\Temp\screen.png'
+# (the screenshot lands on the Windows side; mios-pc-vision
+#  reads from /mnt/c/.../screen.png)
+mios-pc-vision /mnt/c/Users/mios/AppData/Local/Temp/screen.png "the OK button"
+  -> {"x": 814, "y": 562, "confidence": 0.92, "reasoning": "..."}
 mios-pc-control click 814 562
-mios-pc-control screenshot /tmp/screen.png      # verify
+mios-pc-control screenshot 'C:\Users\mios\AppData\Local\Temp\after.png'
+mios-pc-vision /mnt/c/.../after.png "did the OK button disappear?"
+  -> {"x": -1, "y": -1, "confidence": 0.95, "reasoning": "OK button no longer visible (success)"}
 ```
 
-NOTE: `mios-pc-vision` is NOT YET shipped on this host. When it is,
-it will use a local vision LLM (qwen3-vl:4b or UI-TARS-1.5-7B) via
-the existing Ollama at :11434. Architecture in
-/usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md.
+The vision model defaults to `qwen3-vl:4b` (read from
+`mios.toml [ai].vision_grounding_model`; configured in Hermes's
+`auxiliary.vision_grounding` lane). Endpoint is the existing local
+Ollama on `:11434`. ~3 GB resident; native 2D coordinate grounding.
 
-Until vision is wired, use Path A (commands) for anything you can.
-For browser tasks specifically, use Hermes's `browser_*` toolset
-(DOM/aria-grounded; deterministic; needs no vision).
+For BROWSER tasks specifically, prefer Hermes's `browser_*` toolset
+-- DOM/aria-grounded, deterministic, no vision LLM needed. The
+vision loop is for canvas apps + Win32 GUIs where DOM grounding
+doesn't apply.
 
 ## Decision tree
 
