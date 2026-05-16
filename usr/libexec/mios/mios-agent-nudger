@@ -51,7 +51,7 @@ log = logging.getLogger("mios-agent-nudger")
 STATE_DIR = Path(os.environ.get("MIOS_AGENT_NUDGER_DIR", "/var/lib/mios/agent-nudger"))
 ALERTS_FILE = STATE_DIR / "alerts.jsonl"
 LATEST_FILE = STATE_DIR / "latest.json"
-TARGET_UNIT = "hermes-agent.service"
+TARGET_UNITS = ["hermes-agent.service", "mios-delegation-prefilter.service"]
 
 # Suppress duplicate alerts for the SAME pattern within this window.
 REFUSAL_DEDUP_S = 60
@@ -170,14 +170,11 @@ def is_refusal(message: str, *, model: str, endpoint: str) -> bool:
 def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     model, endpoint = _resolve_micro()
-    log.info("starting; watching %s; micro-LLM=%s @ %s", TARGET_UNIT, model, endpoint)
+    log.info("starting; watching %s; micro-LLM=%s @ %s", ",".join(TARGET_UNITS), model, endpoint)
 
-    cmd = [
-        "journalctl", "-f", "-o", "json",
-        "--since", "30 seconds ago",
-        "--no-pager",
-        "-u", TARGET_UNIT,
-    ]
+    cmd = ["journalctl", "-f", "-o", "json", "--since", "30 seconds ago", "--no-pager"]
+    for u in TARGET_UNITS:
+        cmd.extend(["-u", u])
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     if proc.stdout is None:
         log.error("could not open journalctl stdout")

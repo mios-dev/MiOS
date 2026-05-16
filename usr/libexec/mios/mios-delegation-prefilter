@@ -61,6 +61,104 @@ def _looks_fanoutable(user_text: str) -> bool:
     return False
 
 
+# Response-side refusal patterns. Mirror of REFUSAL_PATTERNS in
+# /usr/libexec/mios/mios-agent-nudger. Duplicated here so the prefilter
+# can scan the streamed RESPONSE text (which journalctl on hermes never
+# sees -- only tool calls go to the journal there). Two complementary
+# watchers: nudger watches journal events, prefilter watches response
+# stream. Hits are logged at log.warning() level so the nudger picks
+# them up via the prefilter's own journal (provided nudger tails
+# mios-delegation-prefilter.service too).
+RESPONSE_REFUSAL_RES = [re.compile(p, re.IGNORECASE) for p in [
+    r"the mios-windows tool doesn.?t exist",
+    r"tools available to me don.?t include",
+    r"isn.?t a direct command to launch",
+    r"I.?d recommend you navigate to the Start Menu manually",
+    r"look for .* in your installed applications",
+    r"system has limited Windows application launching",
+    r"I see the issue now",
+    r"let me try a different approach",
+    r"due to the WSL2 container environment",
+    r"this environment is designed to be headless",
+    r"you might need to manually locate it",
+    r"we don.?t have traditional web browsers",
+    r"this is an immutable system, we cannot install",
+    r"GUI applications cannot be launched",
+    r"this is a headless environment",
+    r"we cannot run GUI applications directly",
+    r"manual intervention on your part",
+    r"no Firefox or Chrome installed in the Windows",
+    r"system couldn.?t execute it due to path or permission issues",
+    r"couldn.?t execute it due to path",
+    r"requires their launcher to be running before launching",
+    r"needs to be started through the .* launcher interface",
+    r"you.?ll need to: Start the .* Launcher first",
+    r"there might be missing dependencies",
+    r"verify if the application is actually installed",
+    r"check if it.?s in a non-standard location",
+    r"you.?ll need to install it first",
+    # 2026-05-16: new variations from a Steam-launch transcript (after
+    # the launch succeeded, agent hedged):
+    r"in WSL environments,? launching Windows GUI applications can sometimes be tricky",
+    r"can sometimes be tricky due to the different session contexts",
+    r"in WSL environments? .{1,40} can sometimes be tricky",
+    r"sometimes be tricky due to .{1,40} session",
+]]
+
+
+def _extract_response_text(body: bytes) -> str:
+    """Extract the assistant text from either a streamed SSE body or a
+    single JSON chat-completion. Returns concatenated content (best-
+    effort; missing/malformed segments are silently skipped)."""
+    # SSE: lines like `data: {...}\n\n`. Look for chunks containing
+    # choices[0].delta.content or choices[0].message.content.
+    s = body.decode("utf-8", errors="ignore")
+    out: list[str] = []
+    # Streaming path
+    for line in s.splitlines():
+        if not line.startswith("data:"):
+            continue
+        payload_str = line[5:].strip()
+        if not payload_str or payload_str == "[DONE]":
+            continue
+        try:
+            obj = json.loads(payload_str)
+        except json.JSONDecodeError:
+            continue
+        choices = obj.get("choices") or []
+        if not choices:
+            continue
+        c0 = choices[0]
+        delta = c0.get("delta") or {}
+        message = c0.get("message") or {}
+        text = delta.get("content") or message.get("content") or ""
+        if isinstance(text, str) and text:
+            out.append(text)
+    if out:
+        return "".join(out)
+    # Non-streaming path: parse full body as single JSON
+    try:
+        obj = json.loads(s)
+    except json.JSONDecodeError:
+        return ""
+    choices = obj.get("choices") or []
+    if not choices:
+        return ""
+    return ((choices[0].get("message") or {}).get("content") or "")
+
+
+def _scan_response_for_refusals(body: bytes) -> None:
+    text = _extract_response_text(body)
+    if not text or len(text) < 30:
+        return
+    for regex in RESPONSE_REFUSAL_RES:
+        m = regex.search(text)
+        if m:
+            log.warning("[NUDGER] REFUSAL pattern matched in agent response: %r excerpt=%r",
+                        regex.pattern[:60], m.group(0)[:160])
+            break  # one match per response is enough
+
+
 def _last_user_message(messages: list) -> str:
     for m in reversed(messages):
         if isinstance(m, dict) and m.get("role") == "user":
@@ -119,9 +217,27 @@ async def proxy(request: web.Request) -> web.StreamResponse:
                 if k.lower() not in {"content-encoding", "transfer-encoding", "content-length"}
             })
             await resp.prepare(request)
+            # Buffer the assistant response text so we can pattern-match
+            # for refusal phrases AFTER it lands. Caps at 200 KB to avoid
+            # memory pressure on long chains.
+            captured = bytearray()
+            cap_limit = 200_000
             async for chunk in upstream.content.iter_chunked(65536):
                 await resp.write(chunk)
+                if len(captured) < cap_limit:
+                    captured.extend(chunk[: cap_limit - len(captured)])
             await resp.write_eof()
+            # Pattern-detect on chat-completions responses only -- the
+            # signal is the agent's emitted text (response-side), which
+            # journalctl on hermes-agent.service never sees (only tool
+            # calls are journaled there). Operator-confirmed 2026-05-16:
+            # agent emitted "in WSL environments... can be tricky due to
+            # different session contexts" -- nudger's journal-side
+            # watcher missed it entirely. This is the response-side
+            # complement: see + flag the actual assistant prose before
+            # it lands in the operator's chat.
+            if request.path.endswith("/chat/completions") and captured:
+                _scan_response_for_refusals(bytes(captured))
             return resp
 
 
