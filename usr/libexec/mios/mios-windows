@@ -294,8 +294,22 @@ ps = start + center
 # Full path to powershell.exe -- systemd user services have a stripped
 # PATH that excludes /mnt/c/Windows/System32 (operator-confirmed
 # regression 2026-05-16: broker returned "bash: line 1: powershell.exe:
-# command not found" for every launch).
-line = "CAPTURE: /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
+# command not found"). Path lifted to mios.toml [paths].powershell_exe
+# (operator directive 2026-05-16: no hardcoded paths in tools/skills).
+def _toml_powershell():
+    import tomllib
+    for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+            v = d.get("paths", {}).get("powershell_exe")
+            if v:
+                return v
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+    return "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+PWSH_PATH = _toml_powershell()
+line = "CAPTURE: " + PWSH_PATH + " -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(30.0)
 s.connect("/run/mios-launcher/launcher.sock")

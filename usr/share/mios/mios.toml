@@ -450,6 +450,7 @@ resolution = "auto"                # "auto" lets mstsc pick from Windows display
 # default light Adwaita instead of the operator's preferred dark
 # variant.
 # ----------------------------------------------------------------------------
+
 [appearance]
 gtk_theme        = "adw-gtk3-dark"              # GTK3 + libadwaita color-scheme target
 adw_color_scheme = "prefer-dark"                # ADW_DEBUG_COLOR_SCHEME for libadwaita apps
@@ -1934,6 +1935,35 @@ ollama_firstboot_done = "/var/lib/mios/.ollama-firstboot-done"
 ollama_seed_dir     = "/usr/share/ollama/models"   # immutable, build-baked
 ollama_runtime_dir  = "/var/lib/ollama/models"      # writable, first-boot-seeded
 mios_toml           = "/usr/share/mios/mios.toml"   # this file's vendor path
+
+# ──── Windows-side paths consumed by mios-find / mios-windows ────────
+# Operator directive 2026-05-16: "I DON'T WANT ANY HARDCODED PATHS OR
+# WORDS!!! SKILLS AND TOOLS ARE TEMPLATES FOR ANY VARIABLES!!!". Lifted
+# out of mios-find (es.exe probe list) + mios-windows (powershell.exe
+# full path). Operators override in /etc/mios/mios.toml [paths] = ...
+
+# Voidtools Everything CLI -- probed in order; first match wins. WSL
+# paths so MiOS helpers can exec via interop.
+everything_cli = [
+    "/mnt/m/Programs/Everything/es.exe",
+    "/mnt/c/Program Files/Everything/es.exe",
+    "/mnt/c/Program Files (x86)/Everything/es.exe",
+    "/mnt/c/Tools/Everything/es.exe",
+    "/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe",
+]
+
+# Windows PowerShell full path -- systemd user services have stripped
+# PATH that excludes /mnt/c/Windows/System32 (operator-confirmed
+# regression 2026-05-16: bash: line 1: powershell.exe: command not
+# found from broker).
+powershell_exe = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+
+# CMD prompt full path (same PATH-strip rationale).
+cmd_exe = "/mnt/c/Windows/System32/cmd.exe"
+
+# Operator-side launcher broker socket. Cross-user dispatch from agent
+# context -> operator's interactive Windows session.
+launcher_socket = "/run/mios-launcher/launcher.sock"
 
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and

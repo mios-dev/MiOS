@@ -151,6 +151,52 @@ lanes).
 - /usr/share/mios/ai/refusal-patterns.txt = shared patterns
 - /usr/share/mios/hermes/skills/*/SKILL.md = capability index
 
+## Principles (operator-directed)
+
+### No hardcoded paths or words
+
+Operator directive 2026-05-16: "I DON'T WANT ANY HARDCODED PATHS OR
+WORDS!!! SKILLS AND TOOLS ARE TEMPLATES FOR ANY VARIABLES!!!".
+
+Every path / executable name / threshold / pattern that MiOS helpers
+consume reads from `mios.toml` (layered: `/etc/mios/mios.toml` overrides
+`/usr/share/mios/mios.toml`). Operators tune via TOML, not script edits.
+
+Currently TOML-driven:
+* `[paths].everything_cli` (es.exe probe list)
+* `[paths].powershell_exe` + `[paths].cmd_exe` (Windows tools)
+* `[paths].launcher_socket` (broker)
+* `[appearance].gtk_theme` + `[appearance].cursor_*` + `[appearance].adw_color_scheme`
+* `[ai].endpoint` + `[ai.host_thresholds].micro_model` etc
+* `/usr/share/mios/ai/refusal-patterns.txt` (operator-extensible regex list)
+
+Still hardcoded (pending lift):
+* SKILL.md mentions of specific paths -> change to "the configured X"
+* Service unit `ExecStart=` paths (intentional -- systemd unit syntax)
+* Modelfile `FROM` lines (intentional -- Ollama derivation)
+
+### Use Hermes's NATIVE tools + skills, don't shadow
+
+Operator directive 2026-05-16: "Hermes-Agent NATIVE TOOLS AND SKILLS".
+
+Hermes ships a rich native toolset: `skill_view`, `skill_manage`,
+`memory_save`, `memory_search`, `delegate_task`, `clarify`, `terminal`,
+etc. MiOS-overlay SKILL.md files should be MINIMAL -- they exist to
+inform the agent about the host's MiOS-specific surface (helpers like
+`mios-find` / `mios-windows`), NOT to substitute for native behavior.
+
+Stop GROWING SOUL.md with "lesson learned" text-blocks each time the
+agent fails. Instead:
+* Let the agent `memory_save` corrections itself (native self-learning loop)
+* Reserve SOUL.md for the truthfulness principles + the MiOS-specific
+  surface map
+* Keep SKILL.md content scoped to "here is the MiOS environment;
+  here are the helpers" -- not "here are the 47 phrases you mustn't say"
+* Use OWUI Filter Functions for post-hoc cleanup, not model-prompt rules
+
+The MiOS-Agent's role is to GIVE the operator's MiOS environment to
+Hermes; Hermes's native learning + skill mechanisms then do the work.
+
 ## Open questions
 
 1. Operator's "Gemma 4" -- which exact ollama tag? gemma3:12b?

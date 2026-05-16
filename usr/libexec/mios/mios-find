@@ -62,21 +62,32 @@ QUERY="${QUERY%\"}"
 # WSL, so we can invoke it DIRECTLY via the WSL interop layer (no
 # mios-windows / PowerShell wrapper needed -- saves ~500 ms).
 # Probed here at runtime so this script no-ops cleanly when absent.
-# Probe order matches the install precedence:
-#   1. M:\Programs\Everything   (canonical MiOS install location;
-#                                survives Windows reinstalls because
-#                                M: is the operator's persistent data
-#                                partition; installed by mios-bootstrap)
-#   2. Program Files            (winget / admin install)
-#   3. Program Files (x86)      (winget 32-bit fallback)
-#   4. Tools\Everything         (operator-managed alt location)
-#   5. LocalAppData             (user-scope install when no admin)
-for ES_PATH in \
-    '/mnt/m/Programs/Everything/es.exe' \
-    '/mnt/c/Program Files/Everything/es.exe' \
-    '/mnt/c/Program Files (x86)/Everything/es.exe' \
-    '/mnt/c/Tools/Everything/es.exe' \
-    '/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe'; do
+# Probe list lifted to mios.toml [paths].everything_cli (operator
+# directive 2026-05-16: no hardcoded paths). Falls back to a built-in
+# default list when toml parse fails.
+ES_PROBE_LIST="$(python3 - <<'PYEOF' 2>/dev/null
+import tomllib, sys
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+        paths = d.get("paths", {}).get("everything_cli")
+        if paths:
+            print("\n".join(paths))
+            sys.exit(0)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+# Fallback default if toml missing
+print("/mnt/m/Programs/Everything/es.exe")
+print("/mnt/c/Program Files/Everything/es.exe")
+print("/mnt/c/Program Files (x86)/Everything/es.exe")
+print("/mnt/c/Tools/Everything/es.exe")
+print("/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe")
+PYEOF
+)"
+
+while IFS= read -r ES_PATH; do
+    [ -z "$ES_PATH" ] && continue
     if [ -x "$ES_PATH" ] || [ -f "$ES_PATH" ]; then
         # Find <query>*.exe across all indexed drives, top 5 results.
         # 2 sec timeout for safety; es.exe normally returns in <100ms.
@@ -97,7 +108,7 @@ for ES_PATH in \
         fi
         break  # don't probe multiple es.exe locations
     fi
-done
+done <<< "$ES_PROBE_LIST"
 
 # ─── Fast path B: mios-apps inventory (Linux + Windows Start Menu + games) ─
 python3 - "$QUERY" <<'PYEOF'
