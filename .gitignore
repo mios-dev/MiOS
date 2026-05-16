@@ -330,6 +330,11 @@ usr/share/mios/ai/*
 # operator's ~/.hermes/SOUL.md by mios-hermes-firstboot. Vendor-shipped
 # (like system.md), so it must be tracked.
 !/usr/share/mios/ai/hermes-soul.md
+# hermes-soul-full.md -- long-form companion (when-X tables, verifier
+# recipes, full forbidden-phrase list). NOT prepended to every prompt
+# (slim hermes-soul.md is); the agent reads this on demand via
+# `cat /usr/share/mios/ai/hermes-soul-full.md`. Vendor-tracked.
+!/usr/share/mios/ai/hermes-soul-full.md
 usr/share/mios/knowledge/
 usr/share/mios/memory/
 usr/share/mios/user-preferences.md
