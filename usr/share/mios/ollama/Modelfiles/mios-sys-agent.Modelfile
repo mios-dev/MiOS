@@ -23,13 +23,24 @@
 #   ollama create qwen3:0.6b-cpu  -f .../qwen3-0.6b-cpu.Modelfile
 #   ollama create mios-sys-agent  -f .../mios-sys-agent.Modelfile
 
-FROM qwen3:0.6b-cpu
+# Operator directive 2026-05-16: "mios-sys-agent should use a good
+# 2-6Gb+ modern model for enhancing prompts and leave the micro-llms
+# to use the small models for its background/daemon tasks". qwen3.5:2b
+# fits the 2-6 GB band (~2.6 GB resident), modern (late-2025 release),
+# capable enough for the prompt-refinement + reasoning-template job.
+#
+# Stays on GPU for snappy chat refinement (~200 ms typical). The big
+# hermes model + this sys-agent BOTH co-resident is fine on hosts
+# with >=24 GB VRAM. Operators with tighter GPU should override via
+# mios.toml [ai.host_thresholds].sys_agent_model -> qwen3:1.7b
+# (1.3 GB) or similar.
+FROM qwen3.5:2b
 
-# CPU-pinned via the FROM chain (inherited from qwen3:0.6b-cpu).
-# Frees the discrete GPU for the big hermes model.
-PARAMETER num_gpu 0
-PARAMETER num_thread 4
+# Default to GPU residency; PARAMETER num_gpu unset = auto-pick all
+# available layers on GPU. Operators can pin to CPU via a derived
+# Modelfile if they need the VRAM for the big model exclusively.
 PARAMETER temperature 0.1
+PARAMETER num_ctx 8192
 
 SYSTEM """You are MiOS-Sys-Agent, the always-on system-aware micro-agent for a MiOS host. You understand the MiOS environment, classify events for the log-watcher daemon, gate scheduled jobs for the cron-director, confirm refusal patterns for the agent-nudger, AND answer operator questions in OWUI. ONE agent, four jobs.
 

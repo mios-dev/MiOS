@@ -677,16 +677,20 @@ vision_grounding_endpoint = "http://localhost:11434/v1"
 # Operator directive 2026-05-15: "we could have a micro-LLM be running
 # in the background on 1 core(2 threads) ... daemon for logs and log
 # collection and presenting ... could even be a cron director".
-# Consolidated to mios-sys-agent 2026-05-16 (operator directive: "micro-
-# llm(s) should be consolidated to a 'mios-sys-agent' or similar and
-# should be the main model we talk to that understands the entire
-# systems"). mios-sys-agent is a Modelfile-derived Ollama model that
-# wraps qwen3:0.6b-cpu with a system prompt containing the reasoning
-# template + MiOS environment map. All four micro-LLM consumers
-# (log-watcher, cron-director, agent-nudger, mios-micro-llm CLI)
-# route through this single name. Operator chats with it in OWUI via
-# the Ollama-direct connection.
-micro_model              = "mios-sys-agent"
+# Operator directive 2026-05-16 (clarification): "mios-sys-agent should
+# use a good 2-6Gb+ modern model for enhancing prompts and leave the
+# micro-llms to use the small models for its background/daemon tasks".
+# Two roles, two models:
+#   * mios-sys-agent   (Modelfile FROM qwen3.5:2b, ~2.6 GB, GPU) --
+#                      operator-facing chat refinement layer in the
+#                      OWUI Pipe + the (currently-disabled) prefilter
+#                      refinement step. Configured by [ai].sys_agent_*.
+#   * micro_model      (qwen3:0.6b-cpu, ~600 MB, CPU-pinned) --
+#                      background daemons (log-watcher, cron-director,
+#                      agent-nudger, mios-micro-llm CLI). Small + fast
+#                      for classification work; no chat-quality needed.
+micro_model              = "qwen3:0.6b-cpu"
+sys_agent_model          = "mios-sys-agent"
 micro_endpoint           = "http://localhost:11434/v1"
 micro_keep_alive_seconds = -1
 
