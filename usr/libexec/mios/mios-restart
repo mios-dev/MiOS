@@ -82,14 +82,55 @@ else
     SUDO=""
 fi
 
+# Hermes-specific PRE-restart: rsync vendor skill set from
+# /usr/share/mios/hermes/skills/ into HERMES_HOME/skills so newly
+# vendored skills appear without requiring a full mios-hermes-firstboot
+# re-run. firstboot owns the initial seed; this re-syncs on demand for
+# the operator's `mios-restart hermes` flow. Idempotent (rsync skips
+# unchanged files). Operator directive 2026-05-15: skill staleness
+# bit us when pc-control + windows-control + mios-environment were
+# added vendor-side but never appeared in HERMES_HOME because
+# firstboot only runs once.
+if [ "$UNIT" = "hermes-agent.service" ]; then
+    if [ -d /usr/share/mios/hermes/skills ]; then
+        # Try every plausible HERMES_HOME -- the service one is canonical
+        # but operator CLI homes also benefit. Owner per-target.
+        for _target in \
+            "/var/lib/mios/hermes/skills:mios-hermes:mios-hermes" \
+            "/var/home/mios/.hermes/skills:mios:mios" \
+            "/home/mios/.hermes/skills:mios:mios"
+        do
+            _dest="${_target%%:*}"
+            _rest="${_target#*:}"
+            _own="${_rest%%:*}"
+            _grp="${_rest#*:}"
+            _parent="${_dest%/skills}"
+            [ -d "$_parent" ] || continue
+            $SUDO mkdir -p "$_dest"
+            $SUDO chown "$_own:$_grp" "$_dest" 2>/dev/null || true
+            # rsync if available; cp -a fallback. -u keeps newer dest
+            # files (operator's local edits) untouched.
+            if command -v rsync >/dev/null 2>&1; then
+                $SUDO rsync -au --chown="$_own:$_grp" \
+                    /usr/share/mios/hermes/skills/ "$_dest/" 2>/dev/null || true
+            else
+                $SUDO cp -au /usr/share/mios/hermes/skills/. "$_dest/" 2>/dev/null || true
+                $SUDO chown -R "$_own:$_grp" "$_dest" 2>/dev/null || true
+            fi
+        done
+        echo "  hermes: re-synced vendor skills into HERMES_HOME"
+    fi
+fi
+
 echo "── restarting $UNIT ──"
 $SUDO systemctl restart "$UNIT"
 sleep 2
 state="$($SUDO systemctl is-active "$UNIT" 2>&1 || true)"
 echo "  state: $state"
 
-# Hermes-specific: drop the in-process skills-prompt cache so
-# SOUL.md / SKILL.md edits take effect immediately.
+# Hermes-specific POST-restart: drop the in-process skills-prompt cache
+# so SOUL.md / SKILL.md edits take effect immediately on the very next
+# chat (without a second restart).
 if [ "$UNIT" = "hermes-agent.service" ]; then
     for d in /var/lib/mios/hermes /home/mios/.hermes /var/home/mios/.hermes; do
         [ -d "$d" ] || continue

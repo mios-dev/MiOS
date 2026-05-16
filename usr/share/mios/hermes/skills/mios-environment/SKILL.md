@@ -116,6 +116,109 @@ unless they've configured UAC "elevate without prompting" or the
 SYSTEM-level scheduled-task escape hatch (see
 `/usr/share/doc/mios/guides/agent-windows-ssh.md`).
 
+### `mios-open-url <url>` — open a URL in the operator's browser
+
+```
+mios-open-url https://github.com/mios-dev/MiOS
+mios-open-url https://localhost:8080
+```
+
+Resolves through the broker (`/run/mios-launcher/launcher.sock`) so it
+works from BOTH the operator's shell AND the agent's service-user
+context. Lands the URL in ChromeDev (the operator's preferred browser,
+set in `mios.toml [browser]`). Don't `xdg-open` -- xdg-open inside the
+agent's PrivateTmp + service-user context can't reach the operator's
+display surface.
+
+### `mios-windows launch <app>` / `mios-pc-control <subcmd>` — control the Windows host
+
+```
+mios-windows launch notepad
+mios-windows launch chrome https://example.com
+mios-windows ps 'Get-Date'                  # one-shot PowerShell on Windows
+mios-windows list                            # what's installed
+
+mios-pc-control window-list                 # Win32 EnumWindows -> table
+mios-pc-control window-focus 'Visual Studio Code'
+mios-pc-control window-move 'Notepad' 100 100 800 600
+mios-pc-control screenshot /tmp/screen.png
+mios-pc-control click 540 300                # Win32 SendInput at (x,y)
+mios-pc-control type 'hello world'           # types into focused window
+mios-pc-control key-combo ctrl+shift+t
+```
+
+These are the Path-A (command-driven) and Path-B (Win32 input)
+surfaces for native Windows control from inside WSL/the agent.
+`mios-windows` covers launch/enumerate/PS-one-shot; `mios-pc-control`
+covers Win32 input + GDI capture + EnumWindows. **No vision needed
+for any of the above** -- they all use direct Win32 APIs through a
+bundled PowerShell sidecar (`mios-pc-control.ps1`).
+
+### `mios-pc-vision <image> <description>` — screenshot → click coords
+
+```
+mios-pc-control screenshot /tmp/s.png
+mios-pc-vision /tmp/s.png "the start button"
+# -> {"x": 18, "y": 1058, "confidence": 0.92, "reasoning": "..."}
+mios-pc-control click 18 1058
+```
+
+Vision-grounded UI control via `qwen3-vl:4b` (configurable at
+`mios.toml [ai].vision_grounding_model`). Use this when there is no
+window-title / hot-key shortcut and you need to point at something on
+the screen. Three steps: capture, ground, click. Don't try to use a
+non-vision LLM for this -- pixel-accurate 2D coordinates need a vision
+model with native grounding.
+
+## Observability layer (always-on micro-LLM)
+
+A persistent ~600 MB micro-LLM (`qwen3:0.6b`) lives in VRAM via
+`keep_alive=-1`. Two daemons consume it:
+
+### `mios-log-watcher` — journal triage
+
+```
+cat /var/lib/mios/log-watcher/latest.json
+# -> {"timestamp": "...", "events_count": 7, "summary": "...",
+#     "tags": ["service-restart", "noise"], "severity": "low"}
+tail /var/lib/mios/log-watcher/summary.jsonl
+```
+
+Streams `journalctl -f` (PRIORITY=4 / warning+), batches every 30s,
+asks the micro-LLM for `{summary, tags, severity}`. Cheap (~30 s of
+CPU per hour). Read `latest.json` when the operator asks "what's
+been going on" or you want a system-state snippet to inform a
+decision. Tags: `service-restart`, `service-fail`, `auth-fail`, `OOM`,
+`disk-pressure`, `network`, `container-event`, `agent-event`,
+`hardware`, `selinux`, `security`, `noise`.
+
+### `mios-cron-director` — LLM-gated scheduler
+
+```
+cat /etc/mios/cron-rules.toml
+systemctl status mios-cron-director           # daemon status
+journalctl -u mios-cron-director -n 30        # what fired / what was gated off
+systemctl kill -s HUP mios-cron-director      # reload rules without restart
+```
+
+Reads `/etc/mios/cron-rules.toml`. Each `[[rule]]` is `cron + do +
+optional gate`. When the cron matches, the gate (if present) is
+evaluated by the micro-LLM with current system state -- YES fires
+the `do` command, NO skips. Lives ALONGSIDE Hermes's in-process
+cronjob_tool (which fires PROMPTS in the gateway) + the host's
+`crond` (raw shell). Operators add rules by editing the toml + SIGHUP.
+
+### `mios-micro-llm` — direct micro-LLM access
+
+```
+mios-micro-llm classify "Is the load high? loadavg=0.8"
+mios-micro-llm warm                           # ensure it's loaded
+mios-micro-llm status                         # endpoint + model + keep-alive
+```
+
+If you need a cheap one-shot classification yourself, route through
+this -- don't pull the heavy chat model into a binary decision.
+
 ### `mios-restart <svc>` — smart service restart
 
 ```
