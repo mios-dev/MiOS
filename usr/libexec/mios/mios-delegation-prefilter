@@ -103,6 +103,19 @@ RESPONSE_REFUSAL_RES = [re.compile(p, re.IGNORECASE) for p in [
     r"can sometimes be tricky due to the different session contexts",
     r"in WSL environments? .{1,40} can sometimes be tricky",
     r"sometimes be tricky due to .{1,40} session",
+    # 2026-05-16: new variations from a notepad-launch transcript (agent
+    # pre-hedged BEFORE attempting + WHILE the tool actually worked):
+    r"failed to launch due to WSL2 display server issues",
+    r"required Windows display drivers and services could not be loaded",
+    r"we cannot launch [A-Za-z ]+ directly through WSL",
+    r"cannot launch .{1,40} directly through WSL",
+    r"Opening the Windows Start menu and launching .{1,30} manually",
+    r"Using the Windows version of [A-Za-z ]+ via WSL.?s Windows interop",
+    # The clarify-confusion pattern -- agent shouldnt mention clarify
+    # in OWUI context at all; if it does its prefacing an answer it
+    # shouldnt:
+    r"the clarify tool isn.?t available in this context",
+    r"clarify tool isn.?t available",
 ]]
 
 

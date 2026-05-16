@@ -95,6 +95,15 @@ REFUSAL_PATTERNS = [
     # Manual-recovery push-offs:
     r"check if it.?s in a non-standard location",
     r"you.?ll need to install it first",
+    # 2026-05-16: notepad pre-hedge variations + clarify confusion
+    r"failed to launch due to WSL2 display server issues",
+    r"required Windows display drivers and services could not be loaded",
+    r"we cannot launch [A-Za-z ]+ directly through WSL",
+    r"cannot launch .{1,40} directly through WSL",
+    r"Opening the Windows Start menu and launching .{1,30} manually",
+    r"Using the Windows version of [A-Za-z ]+ via WSL.?s Windows interop",
+    r"the clarify tool isn.?t available in this context",
+    r"clarify tool isn.?t available",
 ]
 PATTERN_RES = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
 
