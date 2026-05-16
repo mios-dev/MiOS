@@ -155,11 +155,6 @@ etc/fapolicyd/*
 !/etc/gtk-4.0/
 !/etc/gtk-4.0/gtk.css
 
-# /etc/mios/opencode/ -- opencode config (Ollama provider pinning).
-# Canonical SoT for "which models opencode uses"; deployed into each
-# user home that runs opencode by mios-hermes-firstboot.
-!/etc/mios/opencode/
-!/etc/mios/opencode/opencode.json
 
 # /etc/profile.d/ -- login-shell environment resolver (INDEX.md sec 4).
 # mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +
@@ -254,6 +249,10 @@ etc/mios/*
 !/etc/mios/system-prompts/**
 !/etc/mios/ai/
 !/etc/mios/ai/system-prompt.md
+# opencode Ollama-provider config (canonical SoT). mios-hermes-firstboot
+# deploys to each user home that runs opencode.
+!/etc/mios/opencode/
+!/etc/mios/opencode/opencode.json
 
 # /etc/sysusers.d/ -- admin overrides for upstream-RPM sysusers entries
 # (e.g. cephadm.conf pins UID >= 1000 so the postcheck #8 invariant passes).
