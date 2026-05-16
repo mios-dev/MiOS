@@ -264,25 +264,21 @@ case "$sub" in
             _ps_cmd="$*"
             _ps_cmd_q="${_ps_cmd//\\/\\\\}"
             _ps_cmd_q="${_ps_cmd_q//\"/\\\"}"
-            # PowerShell's `> path` interprets the path through the
-            # Windows file API. A Linux path like /run/mios/X gets
-            # treated as relative or as C:\run\mios\X. Translate to
-            # the WSL UNC form (\\wsl.localhost\<distro>\run\mios\X)
-            # via wslpath -w so PowerShell writes to the correct
-            # underlying file (operator-confirmed via debug session
-            # 2026-05-15: broker dispatch was succeeding but output
-            # never appeared in the Linux-side tempfile until this
-            # path translation was added).
-            _outfile_win="$(wslpath -w "$_outfile" 2>/dev/null)"
-            if [ -z "$_outfile_win" ]; then _outfile_win="$_outfile"; fi
-            # Dispatch: PowerShell.exe >outfile_win 2>&1; chmod outfile (Linux side)
-            python3 - "$_outfile" "$_outfile_win" "$PWSH" "$_ps_cmd" <<'PYEOF'
+            # The redirect is on the BASH side (broker spawns
+            # `bash -lc` which performs the > redirect, capturing
+            # /init's stdout from PowerShell.exe into the file).
+            # PowerShell never sees the redirect target -- so use
+            # the Linux path directly. Operator-debug 2026-05-15:
+            # an earlier wslpath -w translation made things WORSE
+            # (PS got the redirect handed to it as `\\wsl.localhost\
+            # ...`, lost the file silently). Linux path + bash
+            # redirect = the simple, working path.
+            python3 - "$_outfile" "$PWSH" "$_ps_cmd" <<'PYEOF'
 import socket, sys, shlex
-outfile, outfile_win, pwsh, cmd = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-# PowerShell's > redirect uses Windows-side path; bash chmod uses Linux side.
+outfile, pwsh, cmd = sys.argv[1], sys.argv[2], sys.argv[3]
 line = (
     f'{shlex.quote(pwsh)} -NoProfile -NonInteractive -ExecutionPolicy Bypass '
-    f'-Command {shlex.quote(cmd)} > {shlex.quote(outfile_win)} 2>&1; '
+    f'-Command {shlex.quote(cmd)} > {shlex.quote(outfile)} 2>&1; '
     f'chmod 0666 {shlex.quote(outfile)} 2>/dev/null'
 )
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
