@@ -106,3 +106,19 @@ I have opened the .+ search results for
 the top video seems to be
 Which video would you like to watch
 e\.g\.,? /opt/.+/.+\.exe
+
+# ── 2026-05-16 night: "run winget and install OBS for me" + "launch
+# beamng" regressions. Agent emitted EMPTY responses then on retry
+# fabricated "winget command was not found" (winget IS reachable via
+# mios-windows ps) + "mios-find tool appears to be unavailable" +
+# refused to attempt the work.
+winget command was not found in the WSL environment
+mios.find tool appears to be unavailable
+mios.find tool appears to be (?:unavailable|non.functional)
+I do not have a direct command to install software packages
+I can only attempt to launch applications that are already installed
+could you tell me if you know its exact name
+The MiOS tools do not recognize "
+the launch URL is invalid or unrecognized
+I recommend you check for other possible launch arguments
+if it.?s installed through Steam/Uplay, try opening the associated client
