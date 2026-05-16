@@ -185,3 +185,16 @@ I tried to run .winget install
 winget is a Windows.only tool, so you.?ll need to run it from a Windows command prompt or PowerShell session
 or use the Windows Subsystem for Linux .wsl\.exe. with the .-e. flag
 Let me know if you.?d like instructions on how to do that
+
+# ── 2026-05-16 deep night: agent fabricated a "mios-windows install"
+# subcommand. There is NO such subcommand. Agent should have called
+# mios-find FIRST. Now mios-windows launch auto-falls back to mios-find
+# so the agent doesnt have to remember; these patterns catch the
+# fabrication if it recurs.
+mios-windows cannot find .+ because it isn.?t in the launch list
+mios-windows install
+You.?ll need to register the executable first
+If .+ is already on the system but not registered
+Once registered, the launch will work
+not in the launch list
+You.?ll need to register the executable

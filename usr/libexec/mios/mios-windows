@@ -240,7 +240,21 @@ case "$sub" in
         elif [ -e "/mnt/c/Windows/System32/${app}.exe" ]; then
             target="/mnt/c/Windows/System32/${app}.exe"
         else
-            echo "mios-windows launch: unknown app '$app' -- run 'mios-windows list' or pass a full .exe path" >&2
+            # Last-resort: ask mios-find. Operator-confirmed regression
+            # 2026-05-16 night: agent called `mios-windows launch beamng`
+            # (just the name) and got "unknown app", then FABRICATED a
+            # nonexistent "mios-windows install" subcommand to suggest.
+            # If mios-find returns ONE runnable line, exec it -- this
+            # is the canonical chain anyway (mios-find -> launch), now
+            # done implicitly so the helper is forgiving.
+            if command -v mios-find >/dev/null 2>&1; then
+                _resolved="$(mios-find "$app" 2>/dev/null | head -1)"
+                if [ -n "$_resolved" ]; then
+                    echo "mios-windows launch: '$app' resolved via mios-find -> $_resolved" >&2
+                    exec sh -c "$_resolved"
+                fi
+            fi
+            echo "mios-windows launch: unknown app '$app' -- run 'mios-find $app' or pass a full .exe path" >&2
             exit 1
         fi
         if [ ! -e "$target" ]; then
