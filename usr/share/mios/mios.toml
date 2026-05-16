@@ -552,7 +552,18 @@ prompt_shortcut     = "@"
 # auxiliary lanes that benefit from conciseness; not the default
 # delegation.model -- qwen3:1.7b's throughput is decisive for the
 # fan-out workload at depth 2 with up to 6 children.
-bake_models         = "granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,qwen3:0.6b-cpu,mios-sys-agent,gemma4:e4b"
+# Operator-approved expansion 2026-05-16 (SOTA model survey):
+# ADDED:
+#   qwen3.5:4b           -- new Hermes small (small_ram_model)
+#   qwen3.5:9b           -- new Hermes mid (mid_ram_model)
+#   qwen2.5-coder:7b     -- new opencode small (delegate_task acp_command="opencode")
+#   qwen2.5-coder:14b    -- new opencode mid
+#   llama3.2-vision:11b  -- new vision_grounding_model (was qwen3-vl:4b)
+# KEPT (operator directive "add new + keep old" for fallback compat):
+#   granite4.1:3b, gemma4:e4b, qwen3-vl:4b -- previous tier picks remain
+#   in the catalog so existing fallback chains + per-host overrides
+#   still work and operators can swap back via mios.html.
+bake_models         = "qwen3.5:4b,qwen3.5:9b,qwen2.5-coder:7b,qwen2.5-coder:14b,llama3.2-vision:11b,granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,qwen3:0.6b-cpu,mios-sys-agent,gemma4:e4b"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -573,6 +584,33 @@ runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-see
 # thumb RAM floor (informational; surfaces under each <option>).
 # Keep ordered small -> large; first entry is the no-RAM-info fallback.
 # ----------------------------------------------------------------------------
+# ── 2026-05-16 SOTA additions (operator-approved) ─────────────────────
+[[ai.catalog]]
+id      = "qwen3.5:4b"
+label   = "Qwen 3.5 4B (Alibaba, dense, ~3.4 GB, MiOS small/CPU default)"
+ram_gb  = 6
+
+[[ai.catalog]]
+id      = "qwen3.5:9b"
+label   = "Qwen 3.5 9B (Alibaba, dense, ~6 GB, MiOS mid/dGPU default)"
+ram_gb  = 12
+
+[[ai.catalog]]
+id      = "qwen2.5-coder:7b"
+label   = "Qwen 2.5 Coder 7B (Alibaba, code-focused, ~4.5 GB, opencode small)"
+ram_gb  = 8
+
+[[ai.catalog]]
+id      = "qwen2.5-coder:14b"
+label   = "Qwen 2.5 Coder 14B (Alibaba, code-focused, ~9 GB, opencode mid)"
+ram_gb  = 16
+
+[[ai.catalog]]
+id      = "llama3.2-vision:11b"
+label   = "Llama 3.2 Vision 11B (Meta, multimodal, ~8 GB, vision grounding)"
+ram_gb  = 12
+
+# ── pre-existing catalog entries ──────────────────────────────────────
 [[ai.catalog]]
 id      = "granite4.1:3b"
 label   = "Granite 4.1 3B (IBM, dense, ~3 GB, low-RAM default)"
@@ -651,38 +689,47 @@ big_vram_gb       = 16                            # >= this -> big_ram_model AVA
 big_ram_gb        = 16                            # alias -> big_vram_gb
 mid_ram_gb        = 8                             # alias -> mid_vram_gb
 
-# Model picks per tier:
+# Model picks per tier (research-driven swap 2026-05-16, operator-approved):
+# Consolidated around the qwen3.5 family for Hermes -- consistent
+# tokenizer + style across tiers means cleaner fallback escalation +
+# native OpenAI tool_calls JSON with NO harmony chain-of-thought leak
+# (the issue that killed gpt-oss-tools:20b). The big-tier qwen-coder
+# stays because coder models tested cleaner on multi-step tool flows.
 #
 #   small_ram_model -- DEFAULT for every fresh install + every global
-#     agent. Fits in 8GB CPU budget; runs reasonably on a 12GB host's
-#     8GB available; runs FAST on any dGPU. Operator-flagged
-#     2026-05-16 ("ALL AGENTS DEFAULTS TO CPU models"). granite4.1:3b
-#     is the chosen CPU-fit; alternates in [[ai.catalog]] are
-#     qwen3:1.7b (even smaller, weaker reasoning) and qwen3.5:2b.
-small_ram_model  = "granite4.1:3b"
+#     agent. Fits in 8GB CPU budget; ~3.4GB resident. Native OpenAI
+#     tool_calls JSON; sub-second first inference on dGPU; reasonable
+#     speed on a 12GB CPU-only host. Operator-flagged 2026-05-16
+#     ("ALL AGENTS DEFAULTS TO CPU models"). Was granite4.1:3b;
+#     swapped 2026-05-16 to qwen3.5:4b per Hermes-orchestrator
+#     SOTA survey (better tool-call discipline + family-consistent).
+small_ram_model  = "qwen3.5:4b"
 #
 #   mid_ram_model -- 8-16GB class. Auto-deploys only when build /
-#     install detects VRAM >= mid_vram_gb. Operator can also pick
-#     this manually in mios.html for any host. gemma4:e4b (9.6GB) is
-#     the chosen mid; gpt-oss-tools:20b (12.8GB) is an alternate but
-#     leaks reasoning into tool_call.arguments under harmony format,
-#     so kept out of the auto path.
-mid_ram_model    = "gemma4:e4b"
+#     install detects VRAM >= mid_vram_gb. ~6GB resident.
+#     Was gemma4:e4b (chronic empty-response on multi-tool flows);
+#     swapped 2026-05-16 to qwen3.5:9b. Avoids the qwen3.5:35B
+#     tool-calling bugs (Ollama #14493) by staying at the 9B size.
+mid_ram_model    = "qwen3.5:9b"
 #
 #   big_ram_model -- 16GB+ class. NEVER auto-deployed. Only used when
 #     the operator EXPLICITLY sets [ai].model in mios.html to a 16GB+
-#     entry from [[ai.catalog]]. qwen3-coder:30b is the chosen big
-#     option (most reliable tool-call format among the big tier).
+#     entry from [[ai.catalog]]. qwen3-coder:30b retained from prior
+#     research: most reliable tool-call format among the 16GB+ tier
+#     even though it ignores delegate_task (the prefilter forces
+#     fanout when needed).
 big_ram_model    = "qwen3-coder:30b"
 
 # Vision-grounding model -- read by /usr/libexec/mios/mios-pc-vision
-# for screenshot -> click-coordinate translation. Hermes's main
-# qwen3-coder:30b is text-only; the vision lane is a separate
-# Ollama tag. qwen3-vl:4b (~3 GB) has native 2D coordinate
-# grounding + fits alongside the big text model on a single 4090.
-# UI-TARS-1.5-7B is the upgrade-path candidate (PC-specific
-# training; tracked in /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md).
-vision_grounding_model    = "qwen3-vl:4b"
+# for screenshot -> click-coordinate translation. Hermes's main text
+# model is separate; vision lane runs on its own Ollama tag.
+# Was qwen3-vl:4b (~3GB); swapped 2026-05-16 to llama3.2-vision:11b
+# per the SOTA survey (better ScreenSpot click accuracy at the cost
+# of ~5GB more VRAM). Operator-approved given the dGPU headroom.
+# UI-TARS-1.5-7B is the upgrade-path candidate but not yet in the
+# Ollama library; GUI-Actor 7B beats it on ScreenSpot-Pro but also
+# not in Ollama yet -- llama3.2-vision:11b is the safe Ollama pick.
+vision_grounding_model    = "llama3.2-vision:11b"
 vision_grounding_endpoint = "http://localhost:11434/v1"
 
 # Always-on micro-LLM. ~600 MB resident; sub-second classification.
