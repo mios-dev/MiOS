@@ -118,6 +118,18 @@ Environment=DEFAULT_MODELS=hermes-agent
 Environment=ENABLE_WEB_SEARCH=True
 Environment=ENABLE_IMAGE_GENERATION=True
 Environment=ENABLE_CODE_INTERPRETER=True
+# API key auth: required so /usr/libexec/mios/mios-owui-install-pipe
+# (and other admin scripts) can POST functions / models / tools to
+# OWUI's /api/v1/* endpoints with a Bearer token. The token lives in
+# webui.db's api_key table (one row per admin); the installer
+# auto-generates one on first run. Operator directive 2026-05-16:
+# vendor the MiOS-Agent pipe so OWUI's model dropdown shows it
+# without manual paste.
+Environment=ENABLE_API_KEY=True
+# JWT-style ENABLE_API_KEY needs the SECRET_KEY env too -- OWUI uses
+# it to sign user sessions. The installer writes one to webui.db's
+# config table on first run if absent.
+Environment=ENABLE_API_KEY_ENDPOINT_RESTRICTIONS=False
 
 # Identity. UID 817 (mios-open-webui)
 User=${MIOS_OPEN_WEBUI_UID:-817}

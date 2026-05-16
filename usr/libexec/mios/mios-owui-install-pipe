@@ -1,0 +1,129 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-owui-install-pipe
+#
+# Install the MiOS-Agent OWUI Pipe Function into the running OWUI.
+# Auto-generates an admin API key (stashed in webui.db's api_key
+# table) if none exists, then POSTs the pipe to the functions API.
+# Idempotent: re-running updates the function content if changed.
+#
+# Operator directive 2026-05-16: "OWUI's MiOS-Agent is the 'model'
+# that users speak to" / "OWUI should emit all global agents
+# printing/answers/etc". This script makes the vendored pipe at
+# /usr/share/mios/owui/pipes/mios_agent_pipe.py available in OWUIs
+# model dropdown without the operator having to paste it manually.
+
+set -eu
+
+PIPE_SRC=/usr/share/mios/owui/pipes/mios_agent_pipe.py
+PIPE_ID="mios_agent"
+PIPE_NAME="MiOS-Agent"
+OWUI_URL="${MIOS_OWUI_URL:-http://localhost:3030}"
+OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
+
+[ -f "$PIPE_SRC" ] || { echo "mios-owui-install-pipe: $PIPE_SRC missing" >&2; exit 2; }
+[ -f "$OWUI_DB" ] || { echo "mios-owui-install-pipe: $OWUI_DB missing" >&2; exit 3; }
+
+# ─── Find / generate an admin API key ────────────────────────────────
+TOKEN=$(python3 - "$OWUI_DB" <<'PYEOF'
+import sqlite3, sys, secrets, time
+path = sys.argv[1]
+c = sqlite3.connect(path)
+cur = c.cursor()
+# Find an admin user
+row = cur.execute("SELECT id FROM user WHERE role='admin' LIMIT 1").fetchone()
+if not row:
+    print("", end="")
+    sys.exit(0)
+user_id = row[0]
+# Check for existing API key
+existing = cur.execute(
+    "SELECT key FROM api_key WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+    (user_id,)
+).fetchone()
+if existing and existing[0]:
+    print(existing[0], end="")
+    sys.exit(0)
+# Generate new API key + insert (OWUI's format: sk-<32 hex chars>)
+new_key = "sk-" + secrets.token_hex(24)
+now_ms = int(time.time() * 1000)
+api_id = secrets.token_hex(16)
+cur.execute(
+    "INSERT INTO api_key (id, user_id, key, data, expires_at, last_used_at, "
+    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    (api_id, user_id, new_key, "{}", None, None, now_ms, now_ms),
+)
+c.commit()
+print(new_key, end="")
+PYEOF
+)
+
+if [ -z "$TOKEN" ]; then
+    echo "mios-owui-install-pipe: could not find or create admin API key" >&2
+    echo "  (does webui.db have an admin user?)" >&2
+    exit 4
+fi
+
+echo "[mios-owui-install-pipe] using admin api_key: ${TOKEN:0:12}..."
+
+# ─── Build the pipe payload ───────────────────────────────────────────
+PAYLOAD=$(python3 - "$PIPE_ID" "$PIPE_NAME" "$PIPE_SRC" <<'PYEOF'
+import json, sys
+pid, pname, src = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(src) as f:
+    content = f.read()
+print(json.dumps({
+    "id": pid,
+    "name": pname,
+    "content": content,
+    "meta": {
+        "description": "Consolidated MiOS systems agent (vendored pipe).",
+        "manifest": {},
+    },
+    "type": "pipe",
+    "is_active": True,
+    "is_global": True,
+}))
+PYEOF
+)
+
+# ─── POST to OWUI's functions API ────────────────────────────────────
+RESP=$(curl -s -X POST "$OWUI_URL/api/v1/functions/create" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$PAYLOAD" \
+    -o /tmp/mios-owui-install-pipe.resp \
+    -w "%{http_code}")
+
+case "$RESP" in
+    200|201)
+        echo "[mios-owui-install-pipe] ✓ created pipe $PIPE_ID"
+        ;;
+    400|409)
+        # Already exists; try update
+        echo "[mios-owui-install-pipe] (exists; updating)"
+        RESP2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$PIPE_ID/update" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            -o /tmp/mios-owui-install-pipe.resp \
+            -w "%{http_code}")
+        case "$RESP2" in
+            200|201)
+                echo "[mios-owui-install-pipe] ✓ updated pipe $PIPE_ID"
+                ;;
+            *)
+                echo "[mios-owui-install-pipe] ✗ update returned $RESP2" >&2
+                cat /tmp/mios-owui-install-pipe.resp >&2
+                exit 5
+                ;;
+        esac
+        ;;
+    *)
+        echo "[mios-owui-install-pipe] ✗ create returned $RESP" >&2
+        cat /tmp/mios-owui-install-pipe.resp >&2
+        exit 6
+        ;;
+esac
+
+echo
+echo "[mios-owui-install-pipe] done. Refresh OWUI; \"$PIPE_NAME\" should appear in the model dropdown."
