@@ -129,6 +129,12 @@ flatpak override --system \
     --filesystem=xdg-data/themes:ro \
     --filesystem=/usr/share/themes:ro \
     --filesystem=/usr/share/icons:ro \
+    --filesystem=xdg-config/dconf:ro \
+    --filesystem=xdg-config/gtk-3.0:ro \
+    --filesystem=xdg-config/gtk-4.0:ro \
+    --talk-name=org.freedesktop.secrets \
+    --talk-name=org.gnome.keyring \
+    --talk-name=org.freedesktop.portal.Secret \
     --env=GTK_THEME="$_gtk_theme" \
     --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color" \
     --env=XCURSOR_THEME="$_curs_theme" \
