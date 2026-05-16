@@ -150,7 +150,7 @@ else
     warn "micro-LLM ($micro_model) NOT pulled -- mios-log-watcher + mios-cron-director will idle until present"
 fi
 
-for svc in mios-log-watcher mios-cron-director; do
+for svc in mios-log-watcher mios-cron-director mios-agent-nudger; do
     state=$(systemctl is-active "$svc.service" 2>&1)
     if [ "$state" = "active" ]; then
         ok "$svc.service active"
@@ -179,6 +179,20 @@ fi
 if [ -f /etc/mios/cron-rules.toml ]; then
     rules=$(grep -c '^\[\[rule\]\]' /etc/mios/cron-rules.toml 2>/dev/null || echo 0)
     info "cron-director: $rules rule(s) configured at /etc/mios/cron-rules.toml"
+fi
+
+# Agent-nudger alert count: high count means the model is hitting
+# refusal patterns -- iterate SOUL.md / skills until the count
+# trends down between sessions.
+if [ -f /var/lib/mios/agent-nudger/latest.json ]; then
+    n_alerts=$(python3 -c 'import json; print(json.load(open("/var/lib/mios/agent-nudger/latest.json")).get("total_alerts", 0))' 2>/dev/null)
+    if [ -z "$n_alerts" ] || [ "$n_alerts" = "0" ]; then
+        ok "agent-nudger: 0 refusal alerts so far (clean)"
+    else
+        warn "agent-nudger: $n_alerts refusal alert(s) recorded -- see /var/lib/mios/agent-nudger/alerts.jsonl"
+    fi
+else
+    info "agent-nudger: no alerts file yet (daemon hasn't seen a refusal)"
 fi
 
 # Broker socket: agent-side cross-context dispatch (window-list,

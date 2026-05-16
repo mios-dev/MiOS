@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""mios-agent-nudger -- intercepts hermes-agent refusal patterns in the
+journal + nudges via the micro-LLM.
+
+Operator directive 2026-05-15: "the micro-llm should be intercepting
+these failure logs and nudging". Pairs with mios-log-watcher (which
+classifies journal events at PRIORITY=4+); this daemon watches the
+hermes-agent.service unit specifically AT ANY PRIORITY for the refusal
+phrases enumerated in SOUL.md + windows-control skill -- patterns the
+operator has flagged as "the agent emitted X when it shouldn't".
+
+Behavior:
+  * `journalctl -f -u hermes-agent.service -o json` streamed
+    continuously.
+  * Each MESSAGE checked against REFUSAL_PATTERNS (default: the
+    explicit forbidden-phrase list from SOUL.md, ~20 regexes).
+  * On regex match, micro-LLM is asked: "Is this hermes refusing the
+    user, or just discussing/citing the phrase? YES/NO."
+  * On confirmed refusal (LLM says YES):
+      - Append to /var/lib/mios/agent-nudger/alerts.jsonl
+      - Write /var/lib/mios/agent-nudger/latest.json (count + last)
+      - Log at PRIORITY=3 (error) so log-watcher + operator both see
+  * Rate-limited: max 1 micro-LLM call per UNIQUE pattern per
+    REFUSAL_DEDUP_S seconds.
+
+V1 is detection + alerting. V2 (future): write a NUDGE marker that
+hermes reads on the next chat turn ("you just emitted phrase X; the
+correct tool is Y -- try again"). That needs hermes-side cooperation
++ is a separate commit.
+
+Cheap: zero LLM calls when no refusal-patterns match; max ~1 per
+second under sustained refusal storm (which is itself the alert).
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+
+logging.basicConfig(level=logging.INFO, format="[mios-agent-nudger] %(message)s")
+log = logging.getLogger("mios-agent-nudger")
+
+STATE_DIR = Path(os.environ.get("MIOS_AGENT_NUDGER_DIR", "/var/lib/mios/agent-nudger"))
+ALERTS_FILE = STATE_DIR / "alerts.jsonl"
+LATEST_FILE = STATE_DIR / "latest.json"
+TARGET_UNIT = "hermes-agent.service"
+
+# Suppress duplicate alerts for the SAME pattern within this window.
+REFUSAL_DEDUP_S = 60
+
+# Refusal patterns mirroring SOUL.md's forbidden-phrase list. Case-
+# insensitive substring match. Keep this list in sync with
+# /usr/share/mios/ai/hermes-soul.md whenever new patterns are added.
+REFUSAL_PATTERNS = [
+    r"the mios-windows tool doesn.?t exist",
+    r"tools available to me don.?t include",
+    r"isn.?t a direct command to launch",
+    r"I.?d recommend you navigate to the Start Menu manually",
+    r"look for .* in your installed applications",
+    r"system has limited Windows application launching",
+    r"I see the issue now",
+    r"let me try a different approach",
+    r"due to the WSL2 container environment",
+    r"this environment is designed to be headless",
+    r"you might need to manually locate it",
+    r"we don.?t have traditional web browsers",
+    r"this is an immutable system, we cannot install",
+    r"GUI applications cannot be launched",
+    r"this is a headless environment",
+    r"we cannot run GUI applications directly",
+    r"manual intervention on your part",
+    r"no Firefox or Chrome installed in the Windows",
+]
+PATTERN_RES = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
+
+
+def _toml_layered(section: str, key: str) -> str | None:
+    paths = [Path("/etc/mios/mios.toml"), Path("/usr/share/mios/mios.toml")]
+    sect_re = re.compile(rf"^\[{re.escape(section)}\]\s*$")
+    key_re = re.compile(rf"^\s*{re.escape(key)}\s*=\s*\"?(?P<v>[^\"#\s]+)\"?\s*(#.*)?$")
+    for p in paths:
+        if not p.is_file():
+            continue
+        in_section = False
+        for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("["):
+                in_section = bool(sect_re.match(line))
+                continue
+            if in_section:
+                m = key_re.match(line)
+                if m:
+                    return m.group("v")
+    return None
+
+
+def _resolve_micro() -> tuple[str, str]:
+    model = os.environ.get("MIOS_MICRO_MODEL") or _toml_layered("ai", "micro_model") or "qwen3:0.6b"
+    endpoint = (
+        os.environ.get("MIOS_MICRO_ENDPOINT")
+        or _toml_layered("ai", "micro_endpoint")
+        or "http://localhost:11434/v1"
+    ).rstrip("/")
+    return model, endpoint
+
+
+CLASSIFY_SYSTEM = (
+    "You are a Linux log filter. Decide if the following hermes-agent "
+    "log message is the agent ACTIVELY REFUSING the user, vs just "
+    "quoting/discussing such a phrase (e.g. in a SOUL.md edit or a "
+    "log-classification call). "
+    "Refusal = the agent telling the user it cannot do something, when "
+    "the relevant tool is available. "
+    'Reply with a single token: "YES" or "NO". Nothing else.'
+)
+
+
+def is_refusal(message: str, *, model: str, endpoint: str) -> bool:
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": CLASSIFY_SYSTEM},
+            {"role": "user", "content": message[:2000]},
+        ],
+        "max_tokens": 4,
+        "temperature": 0.0,
+        "stream": False,
+        "keep_alive": "-1",
+    }
+    try:
+        req = urllib.request.Request(
+            f"{endpoint}/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            body = json.loads(r.read())
+        content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        return content.strip().upper().startswith("YES")
+    except urllib.error.URLError as e:
+        log.warning("micro-LLM unreachable: %s -- treating as refusal (conservative)", e)
+        return True
+
+
+def main() -> int:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    model, endpoint = _resolve_micro()
+    log.info("starting; watching %s; micro-LLM=%s @ %s", TARGET_UNIT, model, endpoint)
+
+    cmd = [
+        "journalctl", "-f", "-o", "json",
+        "--since", "30 seconds ago",
+        "--no-pager",
+        "-u", TARGET_UNIT,
+    ]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if proc.stdout is None:
+        log.error("could not open journalctl stdout")
+        return 2
+
+    # Per-pattern last-fired timestamp for dedup
+    last_fired: dict[str, float] = {}
+    total_alerts = 0
+
+    def record_alert(pattern: str, message: str) -> None:
+        nonlocal total_alerts
+        total_alerts += 1
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "pattern": pattern,
+            "message_excerpt": message[:300],
+            "alert_id": total_alerts,
+        }
+        with ALERTS_FILE.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+        latest = {"total_alerts": total_alerts, "last": rec}
+        LATEST_FILE.write_text(json.dumps(latest, indent=2))
+        # Log at warn level -- shows up in journalctl + log-watcher
+        log.warning("REFUSAL DETECTED #%d pattern=%r excerpt=%r",
+                    total_alerts, pattern[:50], message[:120])
+
+    def shutdown(_sig=None, _frame=None) -> None:
+        log.info("shutting down (total alerts: %d)", total_alerts)
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+
+    try:
+        for raw in proc.stdout:
+            try:
+                ev = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            msg = (ev.get("MESSAGE") or "").strip()
+            if not msg or len(msg) < 30:
+                continue
+
+            for pat, regex in zip(REFUSAL_PATTERNS, PATTERN_RES):
+                if not regex.search(msg):
+                    continue
+                now = time.monotonic()
+                if now - last_fired.get(pat, 0) < REFUSAL_DEDUP_S:
+                    break  # dedup'd; don't double-fire
+                # Ask micro-LLM to confirm it's actual refusal
+                if is_refusal(msg, model=model, endpoint=endpoint):
+                    record_alert(pat, msg)
+                    last_fired[pat] = now
+                break  # one pattern hit is enough per message
+    except KeyboardInterrupt:
+        shutdown()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

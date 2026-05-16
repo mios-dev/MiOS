@@ -111,6 +111,12 @@ enable mios-log-watcher.service
 # micro-LLM "should this fire now given current state?" for any
 # rule with a gate. Operator directive 2026-05-15.
 enable mios-cron-director.service
+# Tails hermes-agent.service journal, regex-matches the SOUL.md
+# forbidden-phrase list, micro-LLM confirms YES/NO, logs alerts to
+# /var/lib/mios/agent-nudger/. Operator directive 2026-05-15:
+# "the micro-llm should be intercepting these failure logs and
+# nudging".
+enable mios-agent-nudger.service
 enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token

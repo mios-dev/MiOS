@@ -1,0 +1,46 @@
+[Unit]
+# /usr/lib/systemd/system/mios-agent-nudger.service
+#
+# Operator directive 2026-05-15: "the micro-llm should be intercepting
+# these failure logs and nudging". Companion to mios-log-watcher --
+# log-watcher classifies PRIORITY=4+ events systemwide; this daemon
+# tails hermes-agent.service specifically at ALL priorities + flags
+# refusal-pattern emissions for operator visibility + (future)
+# self-correction.
+#
+# Cheap: zero LLM calls when no refusal patterns match; max one
+# micro-LLM call per ~60 s window under sustained-refusal conditions
+# (deduped per pattern).
+Description='MiOS' agent nudger (micro-LLM refusal-pattern detector)
+After=ollama.service hermes-agent.service mios-log-watcher.service
+Wants=ollama.service
+ConditionPathExists=/usr/libexec/mios/mios-agent-nudger
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-agent-nudger
+Restart=on-failure
+RestartSec=10s
+
+# State dir: /var/lib/mios/agent-nudger/
+StateDirectory=mios/agent-nudger
+StateDirectoryMode=0755
+
+# Read-only across system; writes only to state dir.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mios/agent-nudger
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Run as root so we can read the systemwide journal (mios-hermes
+# group membership added 2026-05-15 grants journal RO too, but root
+# is simpler + matches log-watcher).
+User=root
+Group=root
+
+# Uniform with sibling mios-* daemons (consolidation 2026-05-15).
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target
