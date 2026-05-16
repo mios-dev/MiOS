@@ -233,6 +233,37 @@ else
 fi
 
 echo
+echo "── ── ──  SOUL.md sync (vendor vs HERMES_HOMEs)"
+# Vendor prompt at /usr/share/mios/ai/hermes-soul.md drives the
+# gateway's per-message system prompt. Like skills, it's stamped to
+# each HERMES_HOME once at firstboot + needs re-sync on vendor edits.
+# Surfaces drift if the operator-CLI ~/.hermes/SOUL.md (different home
+# than the gateway) is stale -- caused real refusal-pattern divergence
+# 2026-05-15 where the operator-side prompt was missing the latest
+# narrative-scaffolding guardrails. Fix: `mios-restart hermes`.
+SOUL_SRC=/usr/share/mios/ai/hermes-soul.md
+if [ -f "$SOUL_SRC" ]; then
+    src_size=$(stat -c %s "$SOUL_SRC")
+    for dst in /var/lib/mios/hermes/SOUL.md \
+               /var/home/mios/.hermes/SOUL.md \
+               /home/mios/.hermes/SOUL.md; do
+        [ -f "$dst" ] || continue
+        dst_size=$(stat -c %s "$dst")
+        if [ "$src_size" = "$dst_size" ]; then
+            ok "SOUL.md matches vendor: $dst"
+        else
+            if grep -q "MiOS-managed:" "$dst" 2>/dev/null; then
+                warn "SOUL.md DRIFT (MiOS-managed): $dst ($dst_size != $src_size) -- run \`mios-restart hermes\` to re-sync"
+            else
+                info "SOUL.md operator-customised (marker stripped): $dst -- leaving alone"
+            fi
+        fi
+    done
+else
+    warn "no vendor SOUL.md at $SOUL_SRC -- check OCI build"
+fi
+
+echo
 echo "── ── ──  agent config sanity"
 for cfg in /var/lib/mios/hermes/config.yaml /var/home/mios/.hermes/config.yaml /home/mios/.hermes/config.yaml; do
     [ -f "$cfg" ] || continue
