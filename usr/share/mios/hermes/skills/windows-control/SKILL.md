@@ -75,7 +75,33 @@ do NOT run `mios-launch wikipedia` (it will fail with "no resolution
 for 'wikipedia'"). Use `mios-open-url https://en.wikipedia.org`
 instead. This is the exact failure that bit the operator 2026-05-15.
 
-## Game / third-party app recipes -- USE `mios-find` FIRST
+## **ALWAYS USE `mios-find` FIRST** -- the snappy lookup is non-negotiable
+
+When the operator says "launch X", "open X", "run X", "start X":
+
+**STEP 1**: `mios-find X`    (~60ms; hits Voidtools Everything's NTFS
+                              index + Steam library scans + Get-StartApps
+                              + Linux flatpak catalog)
+
+**STEP 2**: Execute the command mios-find printed (1 line on stdout).
+
+That's it. Two commands. ~150 ms total. NEVER reach for Get-ChildItem
+-Recurse, NEVER recurse the C: drive, NEVER try paths blindly --
+mios-find already did all that legwork by indexing.
+
+If mios-find returns "no match", THEN escalate to:
+  * `mios-windows ps "& 'M:\Programs\Everything\es.exe' -n 5 <pattern>"`
+    (Voidtools direct query if mios-find's heuristics missed)
+  * `mios-windows ps Get-StartApps` (raw Start Menu enumeration)
+  * Operator clarification ("Where is X installed?" -- the 3-fail rule)
+
+NEVER reply "I don't have access to the Windows filesystem" -- you have
+mios-find, mios-windows, mios-pc-control, AND can call `/mnt/c/Program
+Files/Everything/es.exe` directly via WSL interop. Operator-confirmed
+2026-05-16 that ALL of these work; refusal phrases are false on this
+host (the agent-nudger watches for them + alerts).
+
+## Game / third-party app recipes -- use `mios-find` FIRST (above)
 
 ```
 # THE ONE-STOP SHOP for "launch X". Returns a ready-to-execute

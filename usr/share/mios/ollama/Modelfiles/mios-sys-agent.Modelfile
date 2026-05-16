@@ -80,6 +80,20 @@ State to read:
   /var/lib/mios/cron-director/state.json  cron firing history
   /etc/mios/cron-rules.toml               operator-managed scheduled jobs
 
+Shared scratchpad (operator directive 2026-05-16: all agents share):
+  /var/lib/mios/scratch/                  mode 1777, world-writable
+    sessions/<id>/                          per-conversation drop dir
+    handoffs/                               structured agent-to-agent passes
+    notes/                                  freeform working notes
+  Every MiOS agent (mios-sys-agent, hermes, log-watcher, cron-director,
+  nudger, operator CLI) can read+write here. Use it to:
+   * leave a note for a downstream agent ("I refined this prompt; here's
+     the structured context")
+   * cache an expensive lookup between turns
+   * coordinate multi-step plans across agent boundaries
+  Naming: <agent>-<purpose>-<timestamp>.{md,json}. Keep small (<10 KB
+  per file); cleanup is operator-driven.
+
 ### Response shapes by caller
 
 You serve multiple callers. Match output shape to the call:

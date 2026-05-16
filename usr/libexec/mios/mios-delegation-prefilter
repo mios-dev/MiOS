@@ -39,6 +39,56 @@ LISTEN_PORT  = int(os.environ.get("MIOS_PREFILTER_LISTEN_PORT", "8641"))
 HERMES_HOST  = os.environ.get("MIOS_PREFILTER_UPSTREAM", "http://127.0.0.1:8642")
 HEADERS_DROP = {"host", "content-length"}
 
+# ─── mios-sys-agent refinement layer (stage 2 of the consolidation) ───
+# Operator directive 2026-05-16: "mios-sys-agent should dispatch to
+# the current MiOS-Hermes with the tasks to delegate -- mios-sys-agent
+# simply refines the prompt with the provided template key points to
+# other MiOS-Agent(s) (mios-hermes can further delegate from there if
+# need be)".
+#
+# Architecture: operator types in OWUI; OWUI POSTs to :8641 (this
+# service); prefilter calls mios-sys-agent (Ollama on :11434) to
+# refine the user's prompt via the reasoning template; refined
+# prompt forwarded to hermes :8642; hermes does the actual work;
+# response streams back.
+SYS_AGENT_ENDPOINT = os.environ.get("MIOS_SYS_AGENT_ENDPOINT", "http://127.0.0.1:11434")
+SYS_AGENT_MODEL    = os.environ.get("MIOS_SYS_AGENT_MODEL", "mios-sys-agent")
+# Refinement is OPT-IN via env var; default OFF so a hung sys-agent
+# can't break the operator's chat. Operator enables once stage-2 is
+# verified. Toggle: Environment=MIOS_PREFILTER_REFINE=1 in the unit
+# drop-in.
+REFINE_ENABLED     = os.environ.get("MIOS_PREFILTER_REFINE", "0") == "1"
+REFINE_TIMEOUT_S   = float(os.environ.get("MIOS_PREFILTER_REFINE_TIMEOUT", "8"))
+
+# What name should /v1/models report back? OWUI shows this in the
+# model dropdown. Default to "MiOS-Agent" (operator-preferred
+# friendly name 2026-05-16: "a friendly name 'MiOS-Agent' or 'MiOS
+# AI'"). Underlying gateway is still hermes-agent.
+DISPLAY_MODEL_NAME = os.environ.get("MIOS_PREFILTER_DISPLAY_MODEL", "MiOS-Agent")
+# The prefilter accepts BOTH the friendly name + the historical
+# "mios-sys-agent" as valid request model fields (all rewrite to
+# "hermes-agent" upstream). Operators can rebind via env.
+ACCEPTED_MODEL_NAMES = {DISPLAY_MODEL_NAME, "mios-sys-agent", "MiOS-Agent", "mios-agent"}
+
+REFINE_SYSTEM = (
+    "You are MiOS-Sys-Agent. The user types to you in OWUI; you provide "
+    "FULL context to the downstream agent (hermes-agent) for "
+    "execution. Apply your reasoning template SILENTLY, then produce a "
+    "CONTEXTUALIZED HANDOFF that hermes-agent can act on directly. "
+    "Format:\n"
+    "\n"
+    "USER REQUEST: <verbatim or lightly-cleaned user prompt>\n"
+    "INTENT: <one sentence on what the user actually wants>\n"
+    "CONSTRAINTS: <any format/tool/path constraints>\n"
+    "MIOS CONTEXT: <pertinent helpers + state files + paths the agent "
+    "should reach for>\n"
+    "PLAN: <2-3 step plan hermes can execute>\n"
+    "\n"
+    "DO NOT include template HEADERS like '[1. INPUT ANALYSIS]' in "
+    "the output. DO NOT add commentary OR pleasantries. Output ONLY "
+    "the labeled handoff."
+)
+
 # Regexes that suggest the user wants parallel investigation. Tuned from
 # operator chat history + common multi-target phrasing. Hits = force
 # delegate_task on the first model turn.
@@ -172,6 +222,45 @@ def _scan_response_for_refusals(body: bytes) -> None:
             break  # one match per response is enough
 
 
+async def _refine_via_sys_agent(user_text: str) -> str | None:
+    """Ask mios-sys-agent to enrich the user prompt with full MiOS
+    context before forwarding to hermes. Returns the refined string,
+    or None if refinement failed / timed out (caller passes through
+    the original text on None)."""
+    if not user_text or not REFINE_ENABLED:
+        return None
+    body = json.dumps({
+        "model": SYS_AGENT_MODEL,
+        "messages": [
+            {"role": "system", "content": REFINE_SYSTEM},
+            {"role": "user", "content": user_text},
+        ],
+        "stream": False,
+        "keep_alive": "-1",
+        "max_tokens": 400,
+        "temperature": 0.1,
+    }).encode()
+    try:
+        timeout = ClientTimeout(total=REFINE_TIMEOUT_S)
+        async with ClientSession(timeout=timeout) as s:
+            async with s.post(f"{SYS_AGENT_ENDPOINT}/v1/chat/completions",
+                              data=body,
+                              headers={"Content-Type": "application/json"}) as r:
+                if r.status != 200:
+                    log.warning("refine: non-200 from sys-agent: %d", r.status)
+                    return None
+                resp = await r.json()
+        refined = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        refined = refined.strip()
+        if not refined:
+            return None
+        log.info("refine: %d-char prompt -> %d-char handoff", len(user_text), len(refined))
+        return refined
+    except Exception as e:
+        log.warning("refine failed (non-fatal, passthrough): %s (%s)", type(e).__name__, e or "<no message>")
+        return None
+
+
 def _last_user_message(messages: list) -> str:
     for m in reversed(messages):
         if isinstance(m, dict) and m.get("role") == "user":
@@ -197,6 +286,29 @@ async def proxy(request: web.Request) -> web.StreamResponse:
 async def _proxy_inner(request: web.Request) -> web.StreamResponse:
     upstream_url = HERMES_HOST + request.path_qs
 
+    # ── /v1/models intercept: rewrite name to mios-sys-agent ──
+    # Operator directive 2026-05-16: "OWUIs MiOS-Agent is the model
+    # that users speak to (mios-sys-agent)". Hermes exposes itself
+    # as id="hermes-agent" -- rewrite to id="mios-sys-agent" so
+    # OWUIs model dropdown shows the consolidated agent name.
+    if request.method == "GET" and request.path.endswith("/models"):
+        timeout = ClientTimeout(total=10)
+        async with ClientSession(timeout=timeout) as session:
+            headers = {k: v for (k, v) in request.headers.items() if k.lower() not in HEADERS_DROP}
+            async with session.get(upstream_url, headers=headers) as upstream:
+                upstream_body = await upstream.read()
+        try:
+            j = json.loads(upstream_body)
+            for m in j.get("data", []):
+                if m.get("id") == "hermes-agent":
+                    m["id"] = DISPLAY_MODEL_NAME
+                    m["root"] = DISPLAY_MODEL_NAME
+            return web.json_response(j, status=upstream.status)
+        except Exception as e:
+            log.warning("/v1/models rewrite failed (passthrough): %s", e)
+            return web.Response(body=upstream_body, status=upstream.status,
+                                content_type=upstream.headers.get("Content-Type", "application/json"))
+
     # Read body; we may rewrite it for /v1/chat/completions
     body_bytes = await request.read()
     rewritten = False
@@ -210,11 +322,37 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
         if isinstance(payload, dict):
             messages = payload.get("messages") or []
             user_text = _last_user_message(messages)
+
+            # ── Stage 2: mios-sys-agent refinement ────────────────
+            # Operator types "launch beamng" -- mios-sys-agent expands
+            # it to a full context handoff (intent + plan + MiOS env)
+            # that hermes-agent can execute directly. Refinement is
+            # transparent to OWUI; the OWUI dropdown still shows the
+            # model name we rewrite to (mios-sys-agent), even though
+            # the real worker behind the scenes is hermes.
+            if user_text and REFINE_ENABLED:
+                refined = await _refine_via_sys_agent(user_text)
+                if refined:
+                    # Replace the last user message's content with the
+                    # refined handoff. Preserve message structure.
+                    for m in reversed(messages):
+                        if isinstance(m, dict) and m.get("role") == "user":
+                            content = m.get("content")
+                            if isinstance(content, str):
+                                m["content"] = refined
+                            elif isinstance(content, list):
+                                # OpenAI multi-part content: replace
+                                # the first text segment
+                                for part in content:
+                                    if isinstance(part, dict) and part.get("type") == "text":
+                                        part["text"] = refined
+                                        break
+                            break
+                    body_bytes = json.dumps(payload).encode("utf-8")
+                    rewritten = True
+
+            # ── Stage 1 (existing): force delegate_task on fan-out ──
             if user_text and _looks_fanoutable(user_text):
-                # Force delegate_task on the first model call.
-                # Hermes / OpenAI-compat honour OpenAI's tool_choice.
-                # Only set if not already set by the caller (respect explicit
-                # operator override).
                 if "tool_choice" not in payload or payload.get("tool_choice") in (None, "auto"):
                     payload["tool_choice"] = {
                         "type": "function",
@@ -224,6 +362,18 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                     rewritten = True
                     log.info("FORCE delegate_task: matched fan-out keywords in user prompt (%d chars)",
                              len(user_text))
+
+            # ── Stage 2b: rewrite friendly name -> "hermes-agent" ──
+            # OWUI uses the model name from /v1/models in its requests.
+            # We expose the friendly DISPLAY_MODEL_NAME in /v1/models
+            # so the operator sees it; hermes only knows hermes-agent
+            # as the model id -- rewrite on the way in. Multiple
+            # accepted aliases for forward-compat (mios-sys-agent,
+            # MiOS-Agent, mios-agent).
+            if payload.get("model") in ACCEPTED_MODEL_NAMES:
+                payload["model"] = "hermes-agent"
+                body_bytes = json.dumps(payload).encode("utf-8")
+                rewritten = True
 
     headers = {k: v for (k, v) in request.headers.items() if k.lower() not in HEADERS_DROP}
     if rewritten:
