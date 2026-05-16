@@ -1,0 +1,237 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-ai-reset [--dry-run]
+#
+# Clean-slate the MiOS AI stack: wipe all chat sessions, kanban state,
+# scratch/memory, observability batches, browser sidecar profiles, and
+# /tmp AI artifacts. PRESERVES: user accounts, configs, models, vendor
+# skills, installed deps, sudoers grants.
+#
+# Use case (operator directive 2026-05-15): before a focused live test,
+# nuke conversational state so the agent starts with a fresh kanban and
+# no carry-over from prior runs.
+#
+# What gets wiped:
+#   * Hermes:  state.db, kanban.db, response_store.db, sessions/,
+#              logs/, memories/, channel_directory.json, gateway_state.json,
+#              .skills_prompt_snapshot.json (gateway + operator-side CLI)
+#   * OWUI:    chat / message / chatidtag / tag / feedback / file / folder
+#              / memory tables (preserves user, auth, config, models,
+#              functions, tools, prompts, groups)
+#   * Observ:  /var/lib/mios/log-watcher/*.json{,l},
+#              /var/lib/mios/cron-director/*.json
+#   * Browser: /var/lib/mios/hermes-browser/* (ChromeDev profile),
+#              /run/mios-hermes-browser/*
+#   * /tmp:    agent-debug recordings, hermes-* tempfiles
+#   * Caches:  opencode .local/share + .cache trees
+#
+# What is PRESERVED:
+#   * /usr/share/mios/* (vendor, read-only)
+#   * /etc/mios/* (operator config + overrides)
+#   * /var/lib/mios/hermes/{config.yaml,SOUL.md,skills/,bin/,.local/,
+#     .config/,.npm/,.var/,platforms/,sandboxes/} (installed deps)
+#   * /var/lib/mios/open-webui/webui.db user/auth/config tables
+#   * /var/lib/ollama (models -- separate, large, expensive to re-pull)
+#
+# Restarts: hermes-agent, mios-open-webui, mios-log-watcher,
+#           mios-cron-director, mios-hermes-browser
+#
+# Idempotent. Safe to re-run. --dry-run prints what would be wiped.
+
+set -u
+
+DRY_RUN=0
+[ "${1:-}" = "--dry-run" ] && DRY_RUN=1
+
+# ─── Denylist guardrail ───────────────────────────────────────────────
+# Operator-confirmed incident 2026-05-15: during a clean-slate run,
+# /mnt/c/MiOS (the Windows-side source checkout) was found wiped down
+# to a single file. Cause never traced to this script's rm patterns,
+# BUT the consequences of an accidental targeting are catastrophic
+# enough that we treat it as a hard guardrail: every rm/find -delete
+# below is constrained by these denylist roots. If any expansion
+# would touch one, mios-ai-reset bails before doing anything.
+DENY_ROOTS=(
+    /              # never
+    /mnt           # Windows mounts via DrvFs
+    /mnt/c         # explicit -- the incident target
+    /mnt/c/MiOS    # explicit -- the source checkout
+    /usr           # vendor read-only
+    /etc           # operator config
+    /var/lib/ollama  # models (large, expensive to re-pull)
+    /home          # operator home tree
+    /var/home      # bootc-style operator home
+    /root          # root's home (we wipe .hermes/* INSIDE it, not the home itself)
+)
+_check_safe() {
+    # _check_safe <path>  -- exits 99 if path matches a deny root EXACTLY.
+    # Sub-paths under a deny root are fine (we DO wipe sub-paths like
+    # /root/.hermes/sessions/* and /var/home/mios/.hermes/sessions/*);
+    # the guard is on the root itself plus any /mnt traversal.
+    local p="$1"
+    case "$p" in
+        /mnt|/mnt/*|/usr|/usr/*|/etc|/etc/*|/var/lib/ollama|/var/lib/ollama/*)
+            echo "mios-ai-reset: REFUSING to touch $p (denylist guardrail)" >&2
+            exit 99 ;;
+    esac
+    for root in "${DENY_ROOTS[@]}"; do
+        if [ "$p" = "$root" ] || [ "$p" = "/" ]; then
+            echo "mios-ai-reset: REFUSING to touch $p (denylist guardrail)" >&2
+            exit 99
+        fi
+    done
+}
+
+_do() {
+    if [ "$DRY_RUN" = 1 ]; then
+        printf "  [dry-run] %s\n" "$*"
+    else
+        eval "$@"
+    fi
+}
+
+# Privilege check.
+if [ "$(id -u)" -ne 0 ]; then
+    if ! sudo -n true 2>/dev/null; then
+        echo "mios-ai-reset: need root (or non-interactive sudo)" >&2
+        exit 1
+    fi
+    exec sudo "$0" "$@"
+fi
+
+echo "════════════════════════════════════════════════════════════════"
+if [ "$DRY_RUN" = 1 ]; then
+    echo "  mios-ai-reset  (DRY-RUN -- nothing will be changed)"
+else
+    echo "  mios-ai-reset  (CLEAN-SLATE -- AI state will be wiped)"
+fi
+echo "════════════════════════════════════════════════════════════════"
+
+echo
+echo "── stop services ──"
+_do "systemctl stop hermes-agent.service mios-open-webui.service \
+    mios-log-watcher.service mios-cron-director.service \
+    mios-hermes-browser.service 2>/dev/null"
+[ "$DRY_RUN" = 0 ] && sleep 2
+
+echo
+echo "── /var/lib/mios/hermes wipe ──"
+H=/var/lib/mios/hermes
+_check_safe "$H"
+[ -n "$H" ] || { echo "mios-ai-reset: H empty -- aborting" >&2; exit 99; }
+for f in state.db state.db-shm state.db-wal \
+         kanban.db kanban.db-shm kanban.db-wal \
+         response_store.db response_store.db-shm response_store.db-wal \
+         channel_directory.json gateway_state.json \
+         .skills_prompt_snapshot.json; do
+    [ -e "$H/$f" ] || continue
+    _do "rm -f \"$H/$f\""
+done
+for d in sessions logs memories; do
+    [ -d "$H/$d" ] || continue
+    _do "rm -rf \"$H/$d\""
+    _do "install -d -o mios-hermes -g mios-hermes -m 0700 \"$H/$d\""
+done
+
+echo
+echo "── operator-side Hermes CLI ──"
+for d in /var/home/mios/.hermes /home/mios/.hermes /root/.hermes; do
+    [ -d "$d" ] || continue
+    _check_safe "$d"
+    [ -n "$d" ] || continue
+    # Must look like a .hermes dir -- never .hermes==/ or similar.
+    case "$d" in */.hermes) ;; *) continue ;; esac
+    _do "rm -f \"$d\"/state.db* \"$d\"/kanban.db* \"$d\"/response_store.db* \
+        \"$d\"/channel_directory.json \"$d\"/gateway_state.json \
+        \"$d\"/.skills_prompt_snapshot.json"
+    for sub in sessions logs memories; do
+        [ -d "$d/$sub" ] && _do "rm -rf \"$d/$sub\"/* \"$d/$sub\"/.[!.]* 2>/dev/null"
+    done
+    echo "  $d"
+done
+
+echo
+echo "── OWUI chats (preserve user/auth/config/models/tools) ──"
+DB=/var/lib/mios/open-webui/webui.db
+if [ -f "$DB" ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+        echo "  [dry-run] would clear: chat,chatidtag,tag,message,memory,feedback,file,folder"
+    else
+        python3 - "$DB" <<'PYEOF'
+import sqlite3, sys
+p = sys.argv[1]
+c = sqlite3.connect(p); cur = c.cursor()
+cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+tables = sorted(r[0] for r in cur.fetchall())
+to_clear = [t for t in tables if t in (
+    'chat','chats','message','messages','chatidtag','tag','tags',
+    'memory','feedback','file','files','folder','folders',
+)]
+keep = [t for t in tables if t in (
+    'user','users','auth','config','model','models',
+    'function','functions','tool','tools','prompt','prompts',
+    'group','groups',
+)]
+print(f"  OWUI: clearing {to_clear}; keeping {keep}")
+for t in to_clear:
+    try:
+        n = cur.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+        cur.execute(f'DELETE FROM "{t}"')
+        if n: print(f"    cleared {t} ({n} rows)")
+    except Exception as e:
+        print(f"    skip {t}: {e}")
+c.commit(); cur.execute('VACUUM'); c.commit(); c.close()
+PYEOF
+    fi
+else
+    echo "  (no webui.db at $DB -- skipped)"
+fi
+
+echo
+echo "── observability state ──"
+_do "rm -f /var/lib/mios/log-watcher/*.jsonl /var/lib/mios/log-watcher/*.json 2>/dev/null"
+_do "rm -f /var/lib/mios/cron-director/*.json 2>/dev/null"
+echo "  log-watcher + cron-director cleared"
+
+echo
+echo "── /tmp AI temp ──"
+_do "rm -f /tmp/agent-debug-recording.jsonl /tmp/agent-debug*.jsonl 2>/dev/null"
+_do "rm -rf /tmp/hermes-* /tmp/mios-agent-* /tmp/owui-* /tmp/.hermes* 2>/dev/null"
+
+echo
+echo "── browser sidecar profile ──"
+for d in /var/lib/mios/hermes-browser /run/mios-hermes-browser; do
+    [ -d "$d" ] || continue
+    _check_safe "$d"
+    [ -n "$d" ] || continue
+    case "$d" in */hermes-browser|*/mios-hermes-browser) ;; *) continue ;; esac
+    _do "find \"$d\" -mindepth 1 -delete 2>/dev/null"
+    echo "  $d"
+done
+
+echo
+echo "── opencode subagent caches ──"
+for base in /var/lib/mios/hermes /var/home/mios /home/mios; do
+    _do "rm -rf \"$base/.local/share/opencode\" \"$base/.cache/opencode\" 2>/dev/null"
+done
+
+if [ "$DRY_RUN" = 0 ]; then
+    echo
+    echo "── restart services ──"
+    systemctl reset-failed hermes-agent.service 2>/dev/null
+    systemctl start hermes-agent.service mios-open-webui.service \
+        mios-log-watcher.service mios-cron-director.service \
+        mios-hermes-browser.service 2>&1
+    sleep 8
+
+    echo
+    echo "── final state ──"
+    for s in hermes-agent mios-open-webui mios-log-watcher mios-cron-director mios-hermes-browser; do
+        state=$(systemctl is-active "$s.service" 2>&1)
+        printf "  %-26s %s\n" "$s.service" "$state"
+    done
+fi
+
+echo
+echo "════════════════════════════════════════════════════════════════"
+echo "  done"
+echo "════════════════════════════════════════════════════════════════"

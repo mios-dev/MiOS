@@ -219,6 +219,27 @@ mios-micro-llm status                         # endpoint + model + keep-alive
 If you need a cheap one-shot classification yourself, route through
 this -- don't pull the heavy chat model into a binary decision.
 
+### `mios-ai-reset` — clean-slate the AI stack
+
+```
+mios-ai-reset --dry-run           # show what would be wiped
+mios-ai-reset                     # wipe + restart all 5 services
+```
+
+Wipes chat sessions, kanban, scratch/memory, OWUI chats, observability
+state, browser sidecar profile, /tmp artifacts, opencode caches.
+PRESERVES: user accounts, configs, vendor skills, models, installed
+deps. Use this when the operator says "clean slate" / "fresh start"
+before a focused test -- it's faster + safer than ad-hoc rm patterns.
+Restarts hermes-agent, mios-open-webui, mios-log-watcher,
+mios-cron-director, mios-hermes-browser at the end.
+
+Defensive: a hardcoded denylist refuses to touch /, /usr, /etc, /mnt,
+/mnt/c, /mnt/c/MiOS, /var/lib/ollama, /home, /var/home, /root.
+Operator-confirmed incident 2026-05-15: a clean-slate run coincided
+with the source checkout being wiped; cause never traced, guardrail
+added so the failure cannot recur regardless of root cause.
+
 ### `mios-restart <svc>` — smart service restart
 
 ```
