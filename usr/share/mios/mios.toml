@@ -746,6 +746,115 @@ flatpaks      = [
 ]
 
 # ----------------------------------------------------------------------------
+# [[desktop.apps]] -- UNIFIED app metadata.
+#
+# Operator directive 2026-05-16: "toml/html packages sections are
+# BOTH the installation references for MiOS builds and deployments
+# globally -- AS WELL as AI agents references for defaults...
+# mios.html; user edits and adds a flatpak like zen browser >> this
+# is changed in the default browser fields and is picked up by the
+# code for building MiOS, deploying and running -- AS WELL as being
+# the reference material for AI agents GLOBALLY".
+#
+# This array of tables is the SSOT for every desktop app on MiOS.
+# Each entry carries:
+#   id          (string, required)  flatpak app-id OR host binary
+#   remote      (string, optional)  flathub | fedora | gnome-nightly (default: flathub)
+#   role        (string, optional)  semantic role: browser/file-manager/terminal/...
+#   default     (bool, optional)    is this the default for its role? (default: false)
+#   description (string, optional)  one-line operator-visible blurb
+#   overrides   (table, optional)   per-app env overrides (same shape as
+#                                   [flatpak.app_overrides.*])
+#
+# Code that consumes this:
+#   * mios-flatpak-overrides-apply       -> emits per-app override files from .overrides
+#   * mios-find (via [mios-find.aliases]) -> alias values reference these ids
+#   * (future) automation/40-flatpak-bake.sh -> install list from id+remote
+#   * (future) mios.html configurator UI    -> renders array with role-picker
+#
+# Operators add an app: append a [[desktop.apps]] entry. To make it
+# the default for a role, set role + default=true and that role's
+# aliases route to it. To change render envs, add overrides = {...}.
+# ----------------------------------------------------------------------------
+
+[[desktop.apps]]
+id          = "org.gnome.Epiphany"
+remote      = "fedora"
+role        = "browser"
+default     = true
+description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native dark, WSLg-compatible with GPU compositing override below)."
+[desktop.apps.overrides]
+# WebKit requires GPU compositing or it self-exits within seconds.
+# The system-wide WSLg defaults (cairo SW + X11) kill it -- this
+# flips Epiphany to wayland + gl + GPU. See [flatpak.app_overrides]
+# rationale block for the full why.
+GDK_BACKEND                     = "wayland"
+GSK_RENDERER                    = "gl"
+LIBGL_ALWAYS_SOFTWARE           = 0
+WEBKIT_DISABLE_COMPOSITING_MODE = 0
+WEBKIT_USE_DMABUF_RENDERER      = 1
+
+[[desktop.apps]]
+id          = "org.gnome.Nautilus.Devel"
+remote      = "gnome-nightly"
+role        = "file-manager"
+default     = true
+description = "GNOME Files (Nautilus). Devel build because Flathub stable is EOL on GNOME 3.28 runtime."
+
+[[desktop.apps]]
+id          = "app.devsuite.Ptyxis"
+remote      = "flathub"
+role        = "terminal"
+default     = true
+description = "Ptyxis -- GNOME 47-era libadwaita terminal (the rename of org.gnome.Ptyxis)."
+
+[[desktop.apps]]
+id          = "com.google.ChromeDev"
+remote      = "flathub"
+role        = "browser"
+default     = false
+description = "Google Chrome Dev channel. Operator-facing alt browser + Hermes-Agent CDP target."
+[desktop.apps.com.google.ChromeDev.overrides]
+# Hint Chrome to use Wayland natively (WSLg compositor) instead of
+# launching XWayland which has no GPU acceleration on this host.
+GDK_BACKEND        = "wayland"
+# Ozone-Wayland + WaylandWindowDecorations so Chrome draws its own
+# libadwaita-aware decorations and gets rounded corners on WSLg.
+CHROME_DEFAULT_ARGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1"
+
+[[desktop.apps]]
+id          = "com.vscodium.codium"
+remote      = "flathub"
+role        = "code-editor"
+default     = true
+description = "VSCodium -- VS Code without the Microsoft telemetry."
+
+[[desktop.apps]]
+id          = "com.mattjakeman.ExtensionManager"
+remote      = "flathub"
+role        = "extensions"
+default     = true
+description = "GNOME shell extensions manager."
+
+[[desktop.apps]]
+id          = "com.github.tchx84.Flatseal"
+remote      = "flathub"
+role        = "flatpak-permissions"
+default     = true
+description = "Flatseal -- per-flatpak permissions UI."
+
+# GTK theme extensions -- runtime infrastructure, no role.
+[[desktop.apps]]
+id          = "org.gtk.Gtk3theme.adw-gtk3-dark"
+remote      = "flathub"
+description = "adw-gtk3-dark theme extension (consumed by GTK3 apps inside flatpak sandboxes)."
+
+[[desktop.apps]]
+id          = "org.gtk.Gtk3theme.adw-gtk3"
+remote      = "flathub"
+description = "adw-gtk3 theme extension (light variant, kept for apps that auto-switch)."
+
+# ----------------------------------------------------------------------------
 # [image] -- image references used at every layer of the pipeline.
 #   ref / branch  : Day-2 'bootc switch' target on the deployed host.
 #   base          : OCI base image used by Containerfile FROM.
@@ -1985,169 +2094,65 @@ launcher_socket = "/run/mios-launcher/launcher.sock"
 # don't work for a specific app. Most apps need no entry here.
 # ----------------------------------------------------------------------------
 
-[flatpak.app_overrides."org.gnome.Epiphany"]
-# WebKit (Epiphany's engine) requires GPU compositing or its
-# WebProcess gracefully self-exits within ~4 seconds. The system-wide
-# /etc/profile.d/mios-wslg-gpu.sh forces cairo + SW-GL + X11 for
-# stability of most GTK4 apps on WSLg, but that combo kills Epiphany
-# specifically. This override flips it to the working stack:
-#   wayland surface + gl renderer + GPU + WebKit compositing on
-# Operator-flagged 2026-05-16: "epiphany flashed and died" -> resolved.
-GDK_BACKEND                    = "wayland"
-GSK_RENDERER                   = "gl"
-LIBGL_ALWAYS_SOFTWARE          = 0
-WEBKIT_DISABLE_COMPOSITING_MODE = 0
-WEBKIT_USE_DMABUF_RENDERER     = 1
+# NOTE: per-app overrides for desktop apps now live in [[desktop.apps]]
+# entries (overrides = {...}). The [flatpak.app_overrides."<id>"]
+# table below is the legacy / non-desktop-app fallback (services,
+# infrastructure flatpaks, anything not in [[desktop.apps]]). The
+# apply script reads BOTH sources; [[desktop.apps]] shadows on
+# conflict so operator-overlay app entries win cleanly.
+#
+# (no current entries -- Epiphany overrides moved to [[desktop.apps]])
 
 # ----------------------------------------------------------------------------
-# [mios-find.aliases] -- generic query -> specific app routing.
+# [mios-find.aliases] -- CANONICAL Linux/freedesktop role -> app map.
 #
-# Operator directive 2026-05-16: "mios.toml/html dictates the default
-# Linux Apps with their Linux/Fedora shortcuts mechanisms -- ex;
-# Epiphany is web, nautilus is files, gnome-software is -- etc-etc;
-# ALL MiOS Agents should know all this information".
+# Operator directive 2026-05-16: "DONT USE HARDCODED KEY WORDS AT
+# ALL ANYWHERE!!!! Linux natively tags applications to its
+# environments defaults -- linux defaults things to global verbs
+# like; web, files, email, documents, etc-etc and are all mapped
+# to local applications in Linux environments. THAT is what the
+# toml/html dictates and changes -- AGENTS SEE THAT WEB = EPIPHANY
+# FLATPAK, FILES = NAUTILUS -- ETC-ETC".
 #
-# This table IS the canonical default-app map. mios-find reads it
-# first on every query; if the operator-typed word matches a key
-# (case-insensitive), mios-find resolves to the value and runs the
-# lookup against THAT instead. Operators add or change aliases by
-# editing /etc/mios/mios.toml (per-host) or ~/.config/mios/mios.toml
-# (per-user) -- both layers override this vendor default.
+# So: ONE entry per Linux global verb (no synonyms, no "a browser"
+# / "the browser" / "my browser" bloat). The AGENT is responsible
+# for mapping natural language ("open my browser", "fire up chrome",
+# "the web app") to the canonical verb ("web") -- that's freedesktop
+# / xdg knowledge every LLM already has.
 #
-# Resolution is single-level: alias value is a concrete app name (a
-# flatpak id, a host binary, or a MiOS shim). No alias-of-alias.
+# Future: this table will be AUTO-DERIVED from [[desktop.apps]]
+# entries where role is set and default = true. For now it's a
+# small manually-maintained map of the freedesktop standard roles.
+# Operators add per-host overrides at /etc/mios/mios.toml or
+# per-user at ~/.config/mios/mios.toml.
+#
+# Future-future: mios-find itself will query Linux-native default-app
+# infrastructure (xdg-settings, xdg-mime, gio mime) at lookup time
+# so the SoT is the actual system state, not a duplicate table.
 # ----------------------------------------------------------------------------
 [mios-find.aliases]
-
-# ── Web / browser ─────────────────────────────────────────────────
-"browser"        = "chromedev"
-"a browser"      = "chromedev"
-"the browser"    = "chromedev"
-"web browser"    = "chromedev"
-"browser window" = "chromedev"
-"my browser"     = "chromedev"
-"web"            = "epiphany"
-"the web"        = "epiphany"
-"gnome web"      = "epiphany"
-
-# ── Files / file manager ──────────────────────────────────────────
-"files"          = "nautilus"
-"file manager"   = "nautilus"
-"my files"       = "nautilus"
-"file browser"   = "nautilus"
-"explorer"       = "nautilus"
-"finder"         = "nautilus"
-
-# ── Terminal / shell ──────────────────────────────────────────────
-"terminal"       = "ptyxis"
-"the terminal"   = "ptyxis"
-"a terminal"     = "ptyxis"
-"console"        = "ptyxis"
-"shell"          = "ptyxis"
-"command prompt" = "ptyxis"
-
-# ── Text editor / code editor ─────────────────────────────────────
-"text editor"    = "gedit"
-"editor"         = "gedit"
-"notepad"        = "gedit"
-"code editor"    = "codium"
-"vscode"         = "codium"
-"code"           = "codium"
-"ide"            = "codium"
-
-# ── Software / app store ──────────────────────────────────────────
-"software"       = "gnome-software"
-"app store"      = "gnome-software"
-"apps"           = "gnome-software"
-"package manager"= "gnome-software"
-
-# ── Settings / preferences ────────────────────────────────────────
-"settings"       = "gnome-control-center"
-"preferences"    = "gnome-control-center"
-"system settings"= "gnome-control-center"
-"control panel"  = "gnome-control-center"
-"control center" = "gnome-control-center"
-
-# ── Calculator ────────────────────────────────────────────────────
-"calculator"     = "gnome-calculator"
-"calc"           = "gnome-calculator"
-
-# ── Calendar ──────────────────────────────────────────────────────
-"calendar"       = "gnome-calendar"
-"my calendar"    = "gnome-calendar"
-
-# ── Mail / email ──────────────────────────────────────────────────
-"mail"           = "evolution"
-"email"          = "evolution"
-"my mail"        = "evolution"
-"my email"       = "evolution"
-"mail client"    = "evolution"
-"email client"   = "evolution"
-
-# ── Image viewer / photos ─────────────────────────────────────────
-"image viewer"   = "loupe"
-"photo viewer"   = "loupe"
-"picture viewer" = "loupe"
-"photos"         = "loupe"
-
-# ── Document viewer / pdf ─────────────────────────────────────────
-"pdf viewer"     = "papers"
-"document viewer"= "papers"
-"pdf"            = "papers"
-
-# ── Music / audio player ──────────────────────────────────────────
-"music"          = "decibels"
-"music player"   = "decibels"
-"audio player"   = "decibels"
-
-# ── Video player ──────────────────────────────────────────────────
-"video"          = "showtime"
-"video player"   = "showtime"
-"movie player"   = "showtime"
-"media player"   = "showtime"
-
-# ── Maps ──────────────────────────────────────────────────────────
-"maps"           = "gnome-maps"
-
-# ── Clock / weather ───────────────────────────────────────────────
-"clock"          = "gnome-clocks"
-"clocks"         = "gnome-clocks"
-"weather"        = "gnome-weather"
-
-# ── System monitor / task manager ─────────────────────────────────
-"system monitor" = "gnome-system-monitor"
-"task manager"   = "gnome-system-monitor"
-"processes"      = "gnome-system-monitor"
-"resources"      = "resources"
-
-# ── Disks / disk usage ────────────────────────────────────────────
-"disks"          = "gnome-disks"
-"partitions"     = "gnome-disks"
-"disk usage"     = "baobab"
-"disk usage analyzer" = "baobab"
-"baobab"         = "baobab"
-
-# ── Sandbox / flatpak management ──────────────────────────────────
-"flatseal"       = "flatseal"
-"sandbox manager"= "flatseal"
-"flatpak permissions" = "flatseal"
-
-# ── Extensions ────────────────────────────────────────────────────
-"extensions"     = "extension-manager"
-"gnome extensions" = "extension-manager"
-
-# ── Help / docs ───────────────────────────────────────────────────
-"help"           = "yelp"
-"documentation"  = "yelp"
-"manual"         = "yelp"
-
-# ── Game / launchers ──────────────────────────────────────────────
-"games"          = "lutris"
-"game launcher"  = "lutris"
-
-# Operators add app-specific aliases here. Per-host overrides win:
-#   /etc/mios/mios.toml         -> host-wide
-#   ~/.config/mios/mios.toml    -> per-user
+# Canonical Linux/freedesktop role -> app id. ONE word per role.
+web        = "epiphany"
+files      = "nautilus"
+terminal   = "ptyxis"
+editor     = "gedit"
+code       = "codium"
+software   = "gnome-software"
+settings   = "gnome-control-center"
+calculator = "gnome-calculator"
+calendar   = "gnome-calendar"
+mail       = "evolution"
+photos     = "loupe"
+documents  = "papers"
+music      = "decibels"
+video      = "showtime"
+maps       = "gnome-maps"
+clock      = "gnome-clocks"
+weather    = "gnome-weather"
+disks      = "gnome-disks"
+extensions = "extension-manager"
+help       = "yelp"
+games      = "lutris"
 
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and

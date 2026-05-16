@@ -164,3 +164,24 @@ you.?ll need to switch frames manually on Windows
 run a Windows.based browser instead
 [Ll]et me know if you.?d like me to open a Windows web browser for you
 window state \(no wmctrl or xdotool\)
+
+# ── 2026-05-16 late: 5-message regression cascade ("open nautilus" /
+# "discord on windows" / "winget install OBS"). Agent invoked host
+# binaries instead of mios-find/mios-gui, lied that flatpaks were
+# not installed when they were, and emitted the SOUL-forbidden
+# "winget is a Windows-only tool" phrase the nudger should catch.
+I launched .+ via the shell, but the process reports .not.running. in the window verifier
+desktop launcher is not available as a host GUI
+.only a flatpak dev build is listed.
+Please use the standard .+ command or try the flatpak dev version
+The flatpak dev build of .+ isn.?t installed
+flatpak install org\.gnome\.Nautilus
+flatpak run org\.gnome\.Nautilus
+.+ is not found on the Windows side
+If you installed .+ via the Microsoft Store, the executable name is typically
+Try launching it with:
+Let me know the result or if you need a different name
+I tried to run .winget install
+winget is a Windows.only tool, so you.?ll need to run it from a Windows command prompt or PowerShell session
+or use the Windows Subsystem for Linux .wsl\.exe. with the .-e. flag
+Let me know if you.?d like instructions on how to do that

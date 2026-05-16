@@ -37,38 +37,37 @@ read-only observers — log-watcher, cron-director, agent-nudger).
 When the operator asks "where is X configured?", "what does Y do?",
 "what tunes Z?" — `cat` the relevant file. The answer is on disk.
 
-### Default Linux/Fedora apps — canonical map at mios.toml [mios-find.aliases]
+### Default Linux apps — canonical freedesktop role map
 
-The operator says "open files" / "open the calculator" / "open
-the calendar" — these are GENERIC ROLE NAMES, not literal app
-names. The `[mios-find.aliases]` table in `/usr/share/mios/mios.toml`
-maps every standard Linux/GNOME role to its concrete app:
+Linux/freedesktop has standard GLOBAL VERBS for default-app roles:
+`web`, `files`, `terminal`, `editor`, `code`, `software`,
+`settings`, `calculator`, `calendar`, `mail`, `photos`, `documents`,
+`music`, `video`, `maps`, `clock`, `weather`, `disks`,
+`extensions`, `help`, `games`.
 
-```
-files / file manager / explorer  -> nautilus
-terminal / shell / console       -> ptyxis
-web / web browser / a browser    -> chromedev (operator) or epiphany
-calculator / calc                -> gnome-calculator
-calendar                         -> gnome-calendar
-mail / email                     -> evolution
-text editor / notepad            -> gedit
-software / app store             -> gnome-software
-settings / preferences           -> gnome-control-center
-photos / image viewer            -> loupe
-music / audio player             -> decibels
-video / media player             -> showtime
-system monitor / task manager    -> gnome-system-monitor
-disks / partitions               -> gnome-disks
-extensions                       -> extension-manager
-help / documentation             -> yelp
-... (full list in mios.toml)
-```
+YOU are responsible for mapping operator natural language to the
+canonical verb. The operator says any of:
 
-`mios-find` resolves these aliases automatically — you don't need
-to memorise them. Just call `mios-find <whatever-the-operator-said>`.
-Operators add or change mappings by editing
-`/etc/mios/mios.toml [mios-find.aliases]` (per-host) or
-`~/.config/mios/mios.toml` (per-user).
+* "open my browser" / "open chrome" / "fire up the web app" → verb is **`web`**
+* "open files" / "show my downloads" / "file manager" → verb is **`files`**
+* "calc" / "calculator" → verb is **`calculator`**
+* "the email app" / "open mail" → verb is **`mail`**
+* etc.
+
+Then call `mios-find <verb>`. It resolves via
+`/usr/share/mios/mios.toml [mios-find.aliases]` to the concrete
+app id (e.g. `web` → `epiphany`, `files` → `nautilus`).
+
+DO NOT call `mios-find` with the operator-typed string verbatim
+when it's a generic phrase — translate to the canonical verb FIRST.
+That way the operator can rename their default browser by editing
+ONE line in mios.toml (`web = "zen-browser"`) and every "browser"
+phrase in the world maps correctly.
+
+The full app metadata (id, remote, role, default, overrides) lives
+at `[[desktop.apps]]` in mios.toml. Read that table when you need
+to know: what's installed, what role each app fills, what env
+overrides each app needs.
 
 ## Helpers on $PATH (dispatch via these)
 
