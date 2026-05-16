@@ -267,5 +267,17 @@ done
 # Step 6 ── exec the flatpak. `flatpak run --system` resolves the app
 # from the system installation (/var/lib/flatpak); --user installs are
 # not used by MiOS because the dev VM is single-tenant.
+#
+# Stderr is filtered to drop flatpak 1.17.x debug noise:
+#   "F: Not replacing /usr/share/* with tmpfs: Path /usr is reserved"
+# These are informational warnings hardcoded into flatpak 1.17 -- not
+# silenceable via FLATPAK_LOG_LEVEL or G_MESSAGES_DEBUG. They print on
+# EVERY app launch and the operator flagged the noise 2026-05-16:
+# ptyxis launch transcript "F: Not replacing /usr/share/icons ...".
+# /usr/share/{themes,icons,fonts} are already negated in the global
+# override (mios-flatpak-overrides-apply); flatpak still tries the
+# mount internally and logs the rejection. Drop those lines, keep
+# everything else.
 # shellcheck disable=SC2086 -- intentional word-splitting on EXTRA_FLAGS
+exec 2> >(grep -v '^F: Not replacing "/usr/' >&2)
 exec flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@"
