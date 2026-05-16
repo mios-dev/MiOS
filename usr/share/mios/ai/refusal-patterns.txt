@@ -84,3 +84,7 @@ no other helper that can start a Windows binary from WSL
 I (?:don.?t|do not) have a direct Windows.launch interface
 I (?:can.?t|cannot) launch .* automatically right now
 the application launcher (?:must be|needs to be|is not) logged in
+mios.find (?:failed,? )?reports tool does not exist
+there is no dedicated command for it in mios.(?:find|windows)
+I recommend you manually try
+Would you like me to perform a web search

@@ -99,6 +99,22 @@ mios-pc-vision /tmp/s.png "the Start button"
 mios-pc-control click 18 1058
 ```
 
+## URI handlers (Steam / Epic / Uplay / Ubisoft Connect / etc)
+
+When `mios-find` / `mios-apps` returns a URI (e.g.
+`uplay://launch/16732/0`, `steam://rungameid/284160`,
+`com.epicgames.launcher://apps/...`), launch via:
+
+```
+mios-windows ps "Start-Process 'uplay://launch/16732/0'"
+```
+
+This goes through the broker → Windows-side Start-Process →
+Windows URI-handler dispatches to the right launcher app (Ubisoft
+Connect, Steam, Epic, etc). DO NOT try `xdg-open` (Linux-side; no
+Windows URI handler), `mios-launch <uri>` (app-name lookup, not
+URIs), or wrapping the URI in `shell:AppsFolder\` (UWP-only).
+
 ## What NOT to do
 
 * `Get-ChildItem -Recurse` on a Windows drive — never. 60s timeout.

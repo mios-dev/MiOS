@@ -171,7 +171,22 @@ if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
             win_id="$(echo "$win_id" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             # short = first word lowercased; not unique but useful for filtering
             short="$(echo "$win_name" | awk '{print tolower($1)}')"
-            emit windows-app "$short" "$win_name ($win_id)" "mios-windows ps \"Start-Process -FilePath 'shell:AppsFolder\\$win_id'\""
+            # If win_id is a URI handler (uplay://, steam://, epic://,
+            # http://, etc.), pass it DIRECTLY to Start-Process -- the
+            # `shell:AppsFolder\` prefix only works for UWP App-User-Model-
+            # IDs (curly-brace GUIDs + executable path), not URI schemes.
+            # Operator-confirmed regression 2026-05-16: "The Crew Motorfest
+            # (uplay://launch/16732/0)" emitted shell:AppsFolder\uplay://...
+            # which Windows rejects.
+            case "$win_id" in
+                *://*)
+                    cmd="mios-windows ps \"Start-Process '$win_id'\""
+                    ;;
+                *)
+                    cmd="mios-windows ps \"Start-Process -FilePath 'shell:AppsFolder\\$win_id'\""
+                    ;;
+            esac
+            emit windows-app "$short" "$win_name ($win_id)" "$cmd"
         done < "$CACHE"
     fi
 fi
