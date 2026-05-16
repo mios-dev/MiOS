@@ -63,10 +63,13 @@ if ! command -v flatpak >/dev/null 2>&1; then
     exit 0
 fi
 
-# Marker present + already applied -> nothing to do.
+# Marker present + already applied -> skip the override-apply block
+# (the WSLg .desktop bridge below still runs -- new flatpaks installed
+# after firstboot need fresh symlinks even when the override is set).
+SKIP_OVERRIDE_APPLY=0
 if [ -f "$OVERRIDE_FILE" ] && grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; then
-    _log "MiOS XDG-grant override already applied (marker present) -- no-op"
-    exit 0
+    _log "MiOS XDG-grant override already applied (marker present) -- skipping override-apply, continuing to .desktop bridge"
+    SKIP_OVERRIDE_APPLY=1
 fi
 
 # Read appearance from layered mios.toml [appearance]. Operator edits
@@ -104,6 +107,7 @@ _curs_size=$(_toml_get appearance.cursor_size "24")
 _xcurs_path=$(_toml_get appearance.xcursor_path '~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps')
 _log "appearance: GTK_THEME=$_gtk_theme ADW=$_adw_color XCURSOR_THEME=$_curs_theme size=$_curs_size"
 
+if [ "$SKIP_OVERRIDE_APPLY" = 0 ]; then
 # Apply each XDG dir + the existing icons/themes grants + theme env
 # ADDITIVELY. `flatpak override --system --filesystem=X` only appends
 # to the [Context]filesystems= line; existing entries are preserved.
@@ -149,4 +153,61 @@ if ! grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; then
     _log "applied MiOS XDG-grant override + stamped marker"
 else
     _log "MiOS XDG-grant override already applied (marker present) -- no-op"
+fi
+fi   # end SKIP_OVERRIDE_APPLY guard
+
+# ── Flatpak .desktop -> WSLg Start Menu bridge ─────────────────────────
+# Operator directive 2026-05-15: "FIX windows host itself not showing
+# WSL applications and flatpaks apps as native windows applications
+# with Icons (Natively for WSL/Windows)".
+#
+# Root cause: WSLg's .desktop scanner only looks at
+# /usr/share/applications/ (well-known XDG path). Flatpak exports its
+# .desktop files to /var/lib/flatpak/exports/share/applications/ which
+# WSLg never sees. Net effect: ChromeDev / Nautilus.Devel / Epiphany /
+# Ptyxis / Codium / gedit / ExtensionManager / Flatseal are installed
+# + launchable from the operator's session, but DO NOT show as Windows
+# Start Menu entries.
+#
+# Fix: symlink each flatpak .desktop into /usr/share/applications/
+# with a "_flatpak.desktop" suffix to avoid collision with same-named
+# host packages. The icons are auto-found by WSLg via Icon= -> the
+# /var/lib/flatpak/exports/share/icons/hicolor/ tree (WSLg already
+# scans the standard XDG icon paths under /var/lib + /usr/share).
+#
+# Idempotent. Newly-installed flatpaks NOT automatically picked up by
+# this one-shot service -- but mios-flatpak-install (operator's
+# flatpak install wrapper) re-runs this script post-install, AND
+# operators can `sudo systemctl start mios-flatpak-init.service`
+# manually after a flatpak install to refresh.
+FP_EXPORTS=/var/lib/flatpak/exports/share/applications
+SYS_APPS=/usr/share/applications
+if [ -d "$FP_EXPORTS" ] && [ -d "$SYS_APPS" ]; then
+    bridged=0
+    for desktop in "$FP_EXPORTS"/*.desktop; do
+        [ -f "$desktop" ] || continue
+        base=$(basename "$desktop" .desktop)
+        # Skip the URL-handler companion files (they have main-app
+        # counterparts already + appear as confusing extras in Start Menu).
+        case "$base" in *-url-handler) continue ;; esac
+        link="$SYS_APPS/${base}_flatpak.desktop"
+        # Skip if symlink already correct.
+        if [ -L "$link" ] && [ "$(readlink "$link")" = "$desktop" ]; then
+            continue
+        fi
+        # If a non-symlink file exists with the same name, leave it
+        # alone (host package owns that .desktop name).
+        if [ -e "$link" ] && [ ! -L "$link" ]; then
+            _log "skip $base (host .desktop owns the name)"
+            continue
+        fi
+        ln -sf "$desktop" "$link"
+        bridged=$((bridged + 1))
+    done
+    _log "WSLg bridge: $bridged flatpak .desktop file(s) symlinked into $SYS_APPS"
+    # Kick the WSLg desktop scanner via systemd's path-units if any
+    # are watching the apps dir. systemd-tmpfiles / update-desktop-
+    # database are no-ops on bootc if absent.
+    command -v update-desktop-database >/dev/null 2>&1 && \
+        update-desktop-database "$SYS_APPS" 2>/dev/null || true
 fi
