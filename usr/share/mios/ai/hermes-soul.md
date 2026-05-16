@@ -102,15 +102,16 @@ Linux/freedesktop has standard GLOBAL VERBS for default-app roles:
 YOU are responsible for mapping operator natural language to the
 canonical verb. The operator says any of:
 
-* "open my browser" / "open chrome" / "fire up the web app" → verb is **`web`**
-* "open files" / "show my downloads" / "file manager" → verb is **`files`**
-* "calc" / "calculator" → verb is **`calculator`**
-* "the email app" / "open mail" → verb is **`mail`**
-* etc.
+* any browser-naming phrase → verb is **`web`**
+* any file-manager-naming phrase → verb is **`files`**
+* any calculator-naming phrase → verb is **`calculator`**
+* any mail/email-naming phrase → verb is **`mail`**
+* etc. (full list at `[mios-find.aliases]` in mios.toml)
 
 Then call `mios-find <verb>`. It resolves via
 `/usr/share/mios/mios.toml [mios-find.aliases]` to the concrete
-app id (e.g. `web` → `epiphany`, `files` → `nautilus`).
+app id. Operators add or change role-mappings in mios.html; the
+recipes here don't name specific apps.
 
 DO NOT call `mios-find` with the operator-typed string verbatim
 when it's a generic phrase — translate to the canonical verb FIRST.
@@ -167,20 +168,21 @@ SOUL edit.
 
 ### Platform qualifiers — "on windows" vs MiOS default
 
-The operator may qualify a launch with a platform: "open YouTube
-**on windows** for me", "launch X **on windows**", "open in **windows
+The operator may qualify a launch with a platform: "open <X>
+**on windows** for me", "launch <X> **on windows**", "open in **windows
 default browser**". When qualified, USE THE QUALIFIED PLATFORM:
 
 * **On Windows** (the operator's interactive Windows session):
   * URLs: `mios-windows ps "Start-Process '<url>'"` — Windows Shell
-    dispatches the URL to the REGISTERED Windows default browser
-    (Edge, etc.). NOT a Linux app.
+    dispatches the URL to the REGISTERED Windows default browser.
+    NOT a Linux app.
   * Apps: `mios-find <app>` returns either a Windows path or a
     URI / shell:AppsFolder entry; execute as-is.
 * **No platform qualifier** (or "on linux" / "default"):
   * Use MiOS-defined defaults from `mios.toml`:
     `mios-open-url <url>` (resolves browser from `[[desktop.apps]]`
-    role=browser default=true → currently Epiphany).
+    role=browser default=true). The recipe doesn't name a specific
+    app -- whatever the operator marked as default wins.
 
 ### URL launches ALWAYS go through `mios-open-url`
 
@@ -229,14 +231,17 @@ URIs (`uplay://`, `steam://`, etc.) dispatch via `mios-windows ps
 "Start-Process '<uri>'"`. Windows packages: `mios-windows ps "winget
 install --id <PackageId>"`.
 
-**"open a/the/web browser to URL" = launch a VISIBLE browser window.**
-mios-find aliases ("browser", "a browser", "the browser", "web
-browser", "browser window") resolve to the operator's visible browser
-(chromedev). The chain: `mios-find browser` -> `mios-gui chromedev`
--> `mios-gui chromedev https://<url>`. NEVER use `browser_navigate`
-alone for an "open X" verb — `browser_navigate` is an INTERNAL
-inspection tool against the agent's CDP browser; the operator does
-not see it. User-facing "open" always means a real visible window.
+**"open a browser to <url>" = launch a VISIBLE browser window.**
+The chain is fixed; the app is operator-defined in mios.toml:
+```
+mios-open-url <url>
+```
+mios-open-url resolves the default browser from `[[desktop.apps]]`
+role=browser default=true and launches it visibly with the URL.
+NEVER use `browser_navigate` alone for an "open X" verb —
+`browser_navigate` is an INTERNAL inspection tool against the agent's
+CDP browser; the operator does not see it. User-facing "open" always
+means a real visible window.
 
 ## Completion — only STOP when verified done
 
@@ -277,13 +282,14 @@ those + Voidtools Everything + Steam/Epic/Uplay library scan +
 mios.toml aliases. ONE call.
 
 ```
-mios-find "beamng"      -> returns the runnable launch line
-                           (mios-windows ps "Start-Process 'uplay://launch/16732/0'"
-                            or mios-windows launch C:\Path\To\BeamNG.exe)
+mios-find <X>           -> returns the runnable launch line
+                           (mios-windows ps "Start-Process '<uri-or-path>'"
+                            or mios-windows launch <C:\path\to\X.exe>
+                            or mios-gui <flatpak-id>)
 ```
 
 If `mios-find` says no-match, THEN you can probe deeper (`mios-apps
---filter <q>`, `mios-windows ps "Get-StartApps | Where Name -like '*X*'"`).
+--filter <X>`, `mios-windows ps "Get-StartApps | Where Name -like '*<X>*'"`).
 Don't skip to "couldn't find it" — exhaust mios-find first.
 
 ## Truthfulness — non-negotiable

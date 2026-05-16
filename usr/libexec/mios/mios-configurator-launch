@@ -79,11 +79,14 @@ fi
 URL="file://$DL_DIR/mios-configurator.html"
 [[ ! -f "$DL_DIR/mios-configurator.html" ]] && URL="file://$HTML"
 
-# Try Epiphany flatpak first.
-if flatpak list --app --columns=application 2>/dev/null | grep -qx org.gnome.Epiphany; then
-    exec flatpak run --system org.gnome.Epiphany "$URL" >/dev/null 2>&1 &
+# Route via mios-open-url which resolves the default browser from
+# mios.toml [[desktop.apps]] role=browser default=true. No hardcoded
+# Epiphany / chromedev / etc -- operator-defined.
+# Operator directive 2026-05-16: "NO HARDCODED ANYTHING ANYWHERE!!!".
+if command -v mios-open-url >/dev/null 2>&1; then
+    mios-open-url "$URL" >/dev/null 2>&1 &
     disown
-    echo "MiOS Configurator opened in Epiphany: $URL"
+    echo "MiOS Configurator opened via mios-open-url: $URL"
     exit 0
 fi
 
