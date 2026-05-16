@@ -1,0 +1,35 @@
+/* /etc/gtk-3.0/gtk.css
+ *
+ * MiOS system-wide GTK3 CSS override. Loaded by GTK3 AFTER the
+ * active theme (adw-gtk3-dark) so these rules win. Sister of
+ * /etc/gtk-4.0/gtk.css.
+ *
+ * Operator directive 2026-05-16: rounded window corners
+ * "NATIVELY!!! CSS" across every toolkit, not just libadwaita.
+ *
+ * The xdg-config/gtk-3.0:ro flatpak filesystem mount (set in the
+ * global override by mios-flatpak-overrides-apply) makes this
+ * file readable from inside every flatpak sandbox, so older GTK3
+ * apps (Flatseal, some legacy GNOME utilities) get the same
+ * rounded look.
+ */
+
+/* GTK3 client-side decorations -- rounded corners + shadow. */
+window.background.csd,
+window.csd {
+  border-radius: 15px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 2px 6px 2px rgba(0, 0, 0, 0.20),
+    0 1px 3px rgba(0, 0, 0, 0.30);
+}
+
+/* Clip header / content so chrome doesn't bleed past the rounded edge. */
+window.csd > decoration {
+  border-radius: 15px;
+}
+
+headerbar:not(.default-decoration) {
+  border-top-left-radius: 15px;
+  border-top-right-radius: 15px;
+}

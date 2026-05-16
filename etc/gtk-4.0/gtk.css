@@ -1,0 +1,51 @@
+/* /etc/gtk-4.0/gtk.css
+ *
+ * MiOS system-wide GTK4 / libadwaita CSS override. Loaded BY GTK4
+ * AFTER the active theme (adw-gtk3-dark) so these rules win.
+ *
+ * Operator directive 2026-05-16: rounded window corners "NATIVELY!!
+ * CSS". libadwaita defines --window-radius: 15px but the upstream
+ * theme never applies it to `window.csd` -- this override does.
+ * The xdg-config/gtk-4.0:ro flatpak filesystem mount (set in the
+ * global override by mios-flatpak-overrides-apply) makes this
+ * file readable from inside every flatpak sandbox, so the same
+ * rules apply to Epiphany, Nautilus, Ptyxis, Software, ...
+ *
+ * GTK4 applies border-radius to the toplevel's drawn surface. With
+ * libadwaita's RGBA visual + Wayland CSD, the corners outside the
+ * radius are transparent -- the WSLg compositor preserves that
+ * alpha, so the Win11 desktop shows through.
+ */
+
+/* All client-side-decorated toplevel windows get rounded corners. */
+window.background,
+window.csd,
+window.solid-csd {
+  border-radius: 15px;
+}
+
+/* Drop shadow on CSD windows -- matches GNOME/libadwaita default. */
+window.csd {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 2px 6px 2px rgba(0, 0, 0, 0.20),
+    0 1px 3px rgba(0, 0, 0, 0.30);
+}
+
+/* libadwaita header bar / toolbar top-of-window: clip to the same
+ * radius so the dark chrome doesn't bleed past the rounded edge. */
+headerbar:not(.default-decoration),
+.toolbar-view > .top-bar > windowhandle,
+toolbar.osd {
+  border-top-left-radius: 15px;
+  border-top-right-radius: 15px;
+}
+
+/* Bottom-of-window content area: same treatment so the dark view
+ * doesn't square off the bottom corners. */
+window.csd > .background:last-child,
+window.csd > scrolledwindow:last-child,
+window.csd > viewport:last-child {
+  border-bottom-left-radius: 15px;
+  border-bottom-right-radius: 15px;
+}

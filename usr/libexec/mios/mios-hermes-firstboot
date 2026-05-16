@@ -427,6 +427,22 @@ model:
   base_url: http://localhost:11434/v1
   api_key: ""
 
+# Fallback chain (Hermes-Agent 0.13.x: model.fallback_model accepts
+# a list of {provider, model} dicts and walks left-to-right when the
+# primary returns invalid tool calls, empty bodies, or 3xx retries
+# exceeded -- preserving conversation history across the swap).
+# Ordered: tool-call-disciplined first, capable second, low-RAM safe-net last.
+# Operator directive 2026-05-16: "MiOS-Hermes should be natively reason
+# and achieve!!!" -- the native Hermes mechanism is provider fallback;
+# OpenCode's per-turn feedback loop comes via verification in SOUL.
+  fallback_model:
+    - provider: custom:local-ollama
+      model: gpt-oss-tools:20b
+    - provider: custom:local-ollama
+      model: qwen3-coder:30b
+    - provider: custom:local-ollama
+      model: granite4.1:3b
+
 custom_providers:
   - name: local-ollama
     base_url: http://localhost:11434/v1

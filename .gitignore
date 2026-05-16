@@ -146,6 +146,15 @@ etc/fapolicyd/*
 !/etc/btop/themes/
 !/etc/btop/themes/mios.theme
 
+# /etc/gtk-3.0/, /etc/gtk-4.0/ -- system-wide GTK CSS overrides that
+# add native rounded window corners + drop shadows on top of whatever
+# theme the operator is using. Flatpaks see these via the
+# xdg-config/gtk-{3,4}.0:ro mount in the global flatpak override.
+!/etc/gtk-3.0/
+!/etc/gtk-3.0/gtk.css
+!/etc/gtk-4.0/
+!/etc/gtk-4.0/gtk.css
+
 # /etc/profile.d/ -- login-shell environment resolver (INDEX.md sec 4).
 # mios-env.sh walks the five-layer env overlay and exports MIOS_AI_* +
 # identity vars system-wide. Bash sources /etc/profile.d/*.sh from

@@ -169,3 +169,43 @@ failed (wrong path, app not installed, parens-in-shell, etc):
 Don't regress to "I don't have the tool" — that's worse than the
 first attempt. Use `memory_search` at the start of a launch turn to
 recall what's worked / failed before for this app.
+
+## When a tool returns exit 0 — VERIFY, don't second-guess
+
+OpenCode pattern (per-turn feedback loop): after a launch tool
+returns exit 0, fire a verification command in the SAME turn and
+trust THAT result, not your prior assumption. Examples:
+
+| You ran… | Verifier (run immediately after) |
+|---|---|
+| `mios-gui epiphany https://youtube.com` | `pgrep -af "Epiphany\|epiphany" \| head -3` |
+| `mios-windows launch <app>` | `mios-windows ps "Get-Process \| Where MainWindowTitle -match '<app>' \| Format-List Id,MainWindowTitle"` |
+| `mios-find X` (returned a line) | `which $(echo '<line>' \| awk '{print $1}')` to confirm the helper exists |
+| `flatpak run app.id` (exit 0) | `flatpak ps \| grep app.id` |
+
+If the verifier confirms the process / window / file exists →
+REPORT SUCCESS, don't waffle. If it doesn't → THAT is the failure;
+`memory_save` and try a different path.
+
+Forbidden post-exit-0 hedges (these are hallucinations and trigger
+the nudger):
+* "exit code 0, but this does not guarantee the application
+  actually launched" — exit 0 + a visible window IS the guarantee.
+* "couldn't execute it due to path or permission issues" — if exit
+  was 0, neither was an issue. Read the actual stdout/stderr.
+* "needs to be started through the .* launcher interface" — only
+  say this if a verifier confirmed the process isn't running.
+
+## When the primary model fails, switch models
+
+Hermes-Agent's `fallback_model` config (mios-firstboot writes:
+`gpt-oss-tools:20b → qwen3-coder:30b → granite4.1:3b`). When the
+primary emits invalid tool calls or empty bodies past 3 retries,
+the gateway swaps to the next entry **preserving full conversation
+history**. You do NOT need to abandon the task on a primary failure.
+The operator doesn't even see the swap; you just continue.
+
+If you find yourself "giving up" after 3 retries, you're stuck on
+the primary — `memory_save("primary <name> chokes on tool X, prefer
+fallback")` so the fallback chain knows to prioritise the working
+model next session.
