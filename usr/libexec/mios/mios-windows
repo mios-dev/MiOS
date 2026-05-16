@@ -217,9 +217,53 @@ case "$sub" in
             echo "mios-windows launch: $target not found on disk -- is the Windows side missing the app?" >&2
             exit 1
         fi
-        # Detach: setsid + nohup + background + redirect. /init keeps the
-        # Windows process alive after this script returns; the wrapper just
-        # has to not block on it.
+
+        # ── Service-user broker route ─────────────────────────────────
+        # Operator-confirmed regression 2026-05-16: agent ran
+        # `mios-windows launch ...` -> process succeeded, returned PID,
+        # but operator saw NOTHING on screen. Cause: direct setsid+nohup
+        # from mios-hermes (uid 820) launches the .exe in the WSL
+        # SERVICE session, not the operator's interactive Windows
+        # session. The window opens in session-0 (invisible) instead
+        # of session-1 (operator's desktop).
+        #
+        # Fix: route through the operator-side launcher broker. The
+        # broker runs as the operator (uid 992) inside their WSLg
+        # session; Start-Process there pops the window in the
+        # operator's interactive desktop where it's actually visible.
+        _my_uid="$(id -u)"
+        _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
+        if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
+            # Translate /mnt/c/... back to C:\... for Start-Process
+            _target_win="$(wslpath -w "$target" 2>/dev/null)"
+            [ -z "$_target_win" ] && _target_win="$target"
+            python3 - "$_target_win" "$@" <<'PYEOF'
+import socket, sys, shlex
+target = sys.argv[1]
+extra_args = sys.argv[2:]
+# Build the PowerShell Start-Process call. ArgumentList is optional.
+ps = f"Start-Process -FilePath {shlex.quote(target)}"
+if extra_args:
+    arglist = ", ".join(shlex.quote(a) for a in extra_args)
+    ps += f" -ArgumentList {arglist}"
+line = "CAPTURE: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(30.0)
+s.connect("/run/mios-launcher/launcher.sock")
+s.sendall((line + "\n").encode())
+buf = b""
+while True:
+    chunk = s.recv(8192)
+    if not chunk: break
+    buf += chunk
+print(f"[mios-windows] launched via broker: {target} (operator session)")
+PYEOF
+            exit 0
+        fi
+
+        # Operator-context fallback: direct setsid+nohup (works fine
+        # when this script runs AS the operator -- they're already in
+        # the interactive Windows session).
         setsid nohup "$target" "$@" >/dev/null 2>&1 < /dev/null &
         spawn_pid=$!
         echo "[mios-windows] launched: $target $* (detached, pid $spawn_pid)"
