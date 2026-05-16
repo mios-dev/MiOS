@@ -187,6 +187,20 @@ case "$sub" in
         fi
         app="$1"
         shift
+        # Translate Windows-style paths (C:\... or D:\...) to WSL paths
+        # before the existence check. Operator-confirmed regression
+        # 2026-05-16: mios-find returns Windows-style paths (intended
+        # for Start-Process on the Windows side) -- mios-windows
+        # launch was rejecting them with "unknown app" because the
+        # bash `[ -e <C:\...> ]` test cant resolve a literal backslash
+        # path from WSL. wslpath -u handles the translation.
+        case "$app" in
+            [A-Za-z]:\\*|[A-Za-z]:/*)
+                if _wsl="$(wslpath -u "$app" 2>/dev/null)" && [ -n "$_wsl" ]; then
+                    app="$_wsl"
+                fi
+                ;;
+        esac
         if [ -n "${APPS[$app]:-}" ]; then
             target="${APPS[$app]}"
         elif [ -e "$app" ]; then

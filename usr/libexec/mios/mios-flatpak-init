@@ -127,6 +127,8 @@ flatpak override --system \
     --filesystem=xdg-public-share \
     --filesystem=xdg-data/icons:ro \
     --filesystem=xdg-data/themes:ro \
+    --filesystem=/usr/share/themes:ro \
+    --filesystem=/usr/share/icons:ro \
     --env=GTK_THEME="$_gtk_theme" \
     --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color" \
     --env=XCURSOR_THEME="$_curs_theme" \
