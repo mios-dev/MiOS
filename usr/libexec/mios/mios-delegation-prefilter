@@ -29,6 +29,7 @@ import json
 import os
 import re
 import sys
+import time
 import logging
 from aiohttp import web, ClientSession, ClientTimeout
 
@@ -218,6 +219,35 @@ def _scan_response_for_refusals(body: bytes) -> None:
             break  # one match per response is enough
 
 
+# Sidecar state file the OWUI mios_sidecar Filter polls. Writing here
+# is what makes the refiner step VISIBLE to the operator as a
+# "🧠 mios-sys-agent: refined prompt (<intent>)" status event in chat.
+# Without this write, refinement happens silently and the operator
+# (correctly) thinks the small-CPU-model layer doesn't exist.
+SIDECAR_STATE_DIR  = "/var/lib/mios/delegation-prefilter"
+SIDECAR_STATE_FILE = SIDECAR_STATE_DIR + "/latest.json"
+
+
+def _write_refine_sidecar(original: str, refined: str) -> None:
+    try:
+        os.makedirs(SIDECAR_STATE_DIR, mode=0o755, exist_ok=True)
+        # intent = first sentence / short snippet for the emitter chip
+        intent = refined.split(". ")[0][:120]
+        payload = {
+            "ts": time.time(),
+            "original": original[:240],
+            "refined":  refined[:480],
+            "intent":   intent,
+        }
+        tmp = SIDECAR_STATE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, separators=(",", ":"))
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, SIDECAR_STATE_FILE)
+    except OSError as e:
+        log.warning("refine: could not write sidecar state %s: %s", SIDECAR_STATE_FILE, e)
+
+
 async def _refine_via_sys_agent(user_text: str) -> str | None:
     """Ask mios-sys-agent to enrich the user prompt with full MiOS
     context before forwarding to hermes. Returns the refined string,
@@ -225,6 +255,11 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
     the original text on None)."""
     if not user_text or not REFINE_ENABLED:
         return None
+    # max_tokens=1200: thinking-mode models (qwen3.5 family) burn 300-800
+    # tokens on the reasoning chain before producing the final clean
+    # rewrite in `content`. Cap at 1200 to allow a short final answer.
+    # temperature=0.0 for deterministic refinement (operator pastes
+    # the same prompt twice, gets the same refined handoff).
     body = json.dumps({
         "model": SYS_AGENT_MODEL,
         "messages": [
@@ -233,8 +268,8 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
         ],
         "stream": False,
         "keep_alive": "-1",
-        "max_tokens": 400,
-        "temperature": 0.1,
+        "max_tokens": 1200,
+        "temperature": 0.0,
     }).encode()
     try:
         timeout = ClientTimeout(total=REFINE_TIMEOUT_S)
@@ -246,11 +281,27 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
                     log.warning("refine: non-200 from sys-agent: %d", r.status)
                     return None
                 resp = await r.json()
-        refined = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content", "")
-        refined = refined.strip()
+        # We need a CLEAN refined prompt -- NOT the model's raw chain-of-
+        # thought. qwen3.5-family models emit thinking into `reasoning`
+        # and the final clean answer into `content`. If `content` is
+        # empty (model ran out of tokens during thinking), passthrough
+        # the operator's original text rather than dump 4 KB of confused
+        # thinking-trace at hermes (which makes hermes return empty --
+        # the trace doesn't read as a coherent user message). Refinement
+        # is OPTIONAL: passthrough is safer than corruption.
+        msg = (resp.get("choices") or [{}])[0].get("message") or {}
+        refined = (msg.get("content") or "").strip()
+        reasoning_snippet = (msg.get("reasoning") or "").strip()[:200]
         if not refined:
+            log.info("refine: sys-agent emitted empty content (reasoning=%r) -- passthrough original",
+                     reasoning_snippet[:80])
+            # Still record the attempt to the sidecar so the operator
+            # sees that the refiner FIRED, even if it didn't produce a
+            # usable rewrite.
+            _write_refine_sidecar(user_text, f"(no rewrite; thinking: {reasoning_snippet[:120]}...)")
             return None
         log.info("refine: %d-char prompt -> %d-char handoff", len(user_text), len(refined))
+        _write_refine_sidecar(user_text, refined)
         return refined
     except Exception as e:
         log.warning("refine failed (non-fatal, passthrough): %s (%s)", type(e).__name__, e or "<no message>")

@@ -27,6 +27,22 @@ RestartSec=3s
 User=mios-hermes
 Group=mios-hermes
 Environment=PYTHONUNBUFFERED=1
+# Operator architecture 2026-05-16: MiOS-Agent (the OWUI face) is a
+# small CPU model that REFINES the user prompt with full MiOS context
+# BEFORE the heavier hermes orchestrator sees it. The refiner is
+# mios-sys-agent (~2.7 GB, runs on CPU). Enabling MIOS_PREFILTER_REFINE
+# here means every prompt OWUI sends actually gets the small-CPU-model
+# rewrite before hermes -- not a dumb proxy. The refined prompt + the
+# original both end up at hermes; the refiner output is also written
+# to /var/lib/mios/delegation-prefilter/latest.json so the OWUI sidecar
+# filter can surface it as a "🧠 refined: ..." status event.
+Environment=MIOS_PREFILTER_REFINE=1
+Environment=MIOS_SYS_AGENT_MODEL=mios-sys-agent
+Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11434/v1
+Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11434
+# Cold-load of the 2.7 GB CPU refiner can take 15-20s on a busy host.
+# 8s default times out before the model has even loaded.
+Environment=MIOS_PREFILTER_REFINE_TIMEOUT=45
 # Heuristic + upstream are operator-tunable via /etc/mios/secrets.env
 # or a drop-in:
 #   Environment=MIOS_PREFILTER_LISTEN_PORT=8641
@@ -35,6 +51,11 @@ Environment=PYTHONUNBUFFERED=1
 # Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
+# Refiner writes the sidecar state file here so the OWUI mios_sidecar
+# Filter can emit "🧠 mios-sys-agent refined prompt" status events.
+# Without this RW exception ProtectSystem=strict blocks the write
+# silently and the operator never sees the refinement happen.
+ReadWritePaths=/var/lib/mios/delegation-prefilter
 ProtectHome=true
 PrivateTmp=true
 ProtectKernelTunables=true
