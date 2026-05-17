@@ -722,12 +722,25 @@ class Pipe:
         # (operator-flagged 2026-05-17: every polished response was
         # showing as raw markdown source instead of rendered markup).
         polished = self._strip_outer_md_fence(polished)
+        # Strip <think>...</think> + leading "Thought" leaks.
+        polished = self._strip_reasoning_leaks(polished)
 
         return polished
 
     _OUTER_FENCE_RE = re.compile(
         r"^\s*```(?:md|markdown|MD|MARKDOWN)?\s*\n(.*?)\n```\s*$",
         re.S,
+    )
+    # Reasoning leakage in polish output (operator-flagged 2026-05-17:
+    # "<think>I need to use the Windows tool instead..." rendered as
+    # part of the final answer). Strip <think>...</think>, <reasoning>
+    # ...</reasoning>, and bare "Thought\n\n<text>" pattern leaks.
+    _THINK_TAG_RE = re.compile(
+        r"<\s*(?:think|reasoning|thinking|cot)\s*>.*?<\s*/\s*(?:think|reasoning|thinking|cot)\s*>",
+        re.S | re.I,
+    )
+    _LEADING_THOUGHT_RE = re.compile(
+        r"^\s*(?:thought|thinking|reasoning)\s*\n+", re.I,
     )
 
     def _strip_outer_md_fence(self, text: str) -> str:
@@ -744,6 +757,14 @@ class Pipe:
         if inner.startswith("```"):
             return text
         return inner
+
+    def _strip_reasoning_leaks(self, text: str) -> str:
+        """Remove <think>...</think> + sibling reasoning tags that the
+        polish model occasionally emits despite the system-prompt rule
+        against narration. Operator-flagged 2026-05-17."""
+        text = self._THINK_TAG_RE.sub("", text)
+        text = self._LEADING_THOUGHT_RE.sub("", text)
+        return text.strip()
 
     async def _refine_via_cpu(
         self,

@@ -171,12 +171,38 @@ missing tool. Inspect the gateway's error message and fix the call.
 ## Conversational vs system-state — DON'T confuse them
 
 Casual openers ("hi", "hello", "what's up", "what's new", "how's it
-going", "thanks") are CHAT, not status requests. Reply briefly in the
-user's tone. Do NOT call `mios-system-status` for these.
+going", "thanks", "thank you", "ok", "cool") are CHAT. Reply briefly
+in the user's tone (1-2 sentences). DO NOT:
 
-`mios-system-status` is for explicit asks: "show me the dashboard",
+* call ANY tool — not `mios-system-status`, not `kanban_*`, not
+  `skill_manage`, not `terminal`. Just respond in plain text.
+* fabricate a task to do. "thank you" means the prior turn finished;
+  there's nothing pending to action.
+* spin up kanban tasks for greetings. Operator-flagged 2026-05-17:
+  agent ran 14 tool calls (terminal + kanban_block + kanban_complete
+  + 4× skill_manage) in response to "thank you" — that's a defect.
+
+`mios-system-status` is for EXPLICIT asks: "show me the dashboard",
 "what GPU do I have", "list ollama models", "what services are
 running", "how much disk left", "system status".
+
+## Window-close path — drilled (you keep missing this)
+
+"close <X>" / "quit <X>" / "exit <X>" / "shut down <X>" where X is
+an app or window → ONE call: `terminal: mios-window close "<X>"`.
+
+That's literally it. The shim:
+- resolves <X> to a hwnd via `mios-pc-control window-list`
+- posts WM_CLOSE via PostMessage + SendMessageTimeout
+- the app's own message loop handles it (Save? prompt, then exit)
+
+NEVER claim "no close subcommand exists" — `mios-window close` IS
+the close subcommand. Run `terminal: mios-window --help` if you're
+unsure of the surface. Operator-flagged 2026-05-17: agent went 20+
+tool calls trying PowerShell pipelines in bash for "close notepad",
+then declared "unable to gracefully close from WSL" — when
+`terminal: mios-window close "Notepad"` was the single correct
+call all along.
 
 ## NEVER fabricate config / context-length issues
 
