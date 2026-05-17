@@ -134,28 +134,37 @@ CLASSIFY_SYSTEM = (
 
 
 def is_refusal(message: str, *, model: str, endpoint: str) -> bool:
+    # Native /api/chat -- see mios-log-watcher header comment for why.
+    api_root = endpoint.rsplit("/v1", 1)[0] if "/v1" in endpoint else endpoint
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": CLASSIFY_SYSTEM},
             {"role": "user", "content": message[:2000]},
         ],
-        "max_tokens": 4,
-        "temperature": 0.0,
+        "options": {
+            "num_gpu": 0,           # Law 7 OFFLINE-FIRST + CPU-first
+            "num_thread": 4,
+            "num_predict": 4,       # YES / NO only
+            "temperature": 0.0,
+        },
         "stream": False,
-        "keep_alive": "-1",
+        "keep_alive": -1,
     }
     try:
         req = urllib.request.Request(
-            f"{endpoint}/chat/completions",
+            f"{api_root}/api/chat",
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=15) as r:
             body = json.loads(r.read())
-        content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
-        return content.strip().upper().startswith("YES")
+        msg = body.get("message") or {}
+        content = (msg.get("content") or "").strip()
+        if not content:
+            content = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        return content.upper().startswith("YES")
     except urllib.error.URLError as e:
         log.warning("micro-LLM unreachable: %s -- treating as refusal (conservative)", e)
         return True

@@ -1,7 +1,7 @@
 # /etc/containers/systemd/mios-open-webui.container
 # 'MiOS' Open WebUI - rich LLM interface.
 #
-# Open WebUI provides a ChatGPT-like browser UI fronting the MiOS AI
+# Open WebUI provides an OpenAI-API-style browser chat UI fronting the MiOS AI
 # stack. AI chain (2026-05-13 architecture):
 #   ollama container (:11434)  -- raw inference + embeddings
 #     -> Hermes-Agent (:8642/v1) -- DIRECT host install (NOT a

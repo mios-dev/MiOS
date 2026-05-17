@@ -413,13 +413,17 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             messages = payload.get("messages") or []
             user_text = _last_user_message(messages)
 
-            # ── Stage 2: mios-sys-agent refinement ────────────────
-            # Operator types "launch beamng" -- mios-sys-agent expands
-            # it to a full context handoff (intent + plan + MiOS env)
-            # that hermes-agent can execute directly. Refinement is
-            # transparent to OWUI; the OWUI dropdown still shows the
-            # model name we rewrite to (mios-sys-agent), even though
-            # the real worker behind the scenes is hermes.
+            # ── Stage 2: mios-sys-agent refinement (HARD-GATE) ────
+            # Operator architecture 2026-05-17: "the message should
+            # have NEVER BEEN SENT TO HERMES THEN!!!" -- if the CPU
+            # refiner fails, the prompt does NOT pass through to
+            # hermes. We return a 503 to OWUI so the operator sees
+            # the failure plainly + we don't burn a GPU turn on
+            # un-enriched input. The refiner pre-warm at firstboot
+            # (mios-sys-agent on CPU, keep_alive=-1) makes runtime
+            # cold-load misses rare; if one DOES happen the operator
+            # gets a clear "refiner unavailable" instead of a
+            # silently-degraded answer.
             if user_text and REFINE_ENABLED:
                 refined = await _refine_via_sys_agent(user_text)
                 if refined:
@@ -440,6 +444,27 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                             break
                     body_bytes = json.dumps(payload).encode("utf-8")
                     rewritten = True
+                else:
+                    # HARD-GATE: refiner failed and refinement is
+                    # required. Don't forward to hermes. Return an
+                    # OpenAI-shaped error so OWUI surfaces it cleanly.
+                    log.warning("refine HARD-GATE: refiner failed; rejecting forward to hermes for prompt=%r",
+                                user_text[:80])
+                    return web.json_response(
+                        {"error": {
+                            "type": "service_unavailable",
+                            "code": "refiner_unavailable",
+                            "message": (
+                                "MiOS CPU prompt refiner (mios-sys-agent) failed to produce a "
+                                "refined handoff. Hermes was NOT invoked. Common cause: cold-load "
+                                "of the 4 GB CPU model exceeded the refine timeout. The refiner "
+                                "is normally pre-warmed at boot (keep_alive=-1); wait ~30s and "
+                                "retry, or check `journalctl -u mios-delegation-prefilter.service` "
+                                "+ `ollama ps`."
+                            ),
+                        }},
+                        status=503,
+                    )
 
             # ── Stage 1: ALWAYS force delegate_task on user-initiated turns ──
             # Operator architecture 2026-05-16: "MiOS-Hermes dispatches multiple

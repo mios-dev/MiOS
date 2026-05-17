@@ -1251,14 +1251,36 @@ fi
 # gateway which always runs a full chat turn. Only warm the bare
 # Ollama models via /api/generate (load-only path).
 if command -v curl >/dev/null 2>&1; then
-    _log "pre-warming model weights into VRAM (load-only, NO prompts)..."
-    for _wmodel in mios-sys-agent qwen3-coder:30b qwen3:0.6b-cpu; do
+    _log "pre-warming model weights (load-only, NO prompts)..."
+
+    # CPU pre-warm: mios-sys-agent IS the prompt refiner the
+    # mios-delegation-prefilter calls before forwarding to hermes.
+    # Operator architecture 2026-05-17: "the message should have
+    # NEVER BEEN SENT TO HERMES" if the refiner fails -- so the
+    # prefilter HARD-GATES on refine success. Cold-loading a 4 GB
+    # CPU model from disk takes 60-90s; if the FIRST chat after
+    # boot pays that, it times out and gets a 503 refiner_unavail
+    # back. Pre-warming with the SAME options (/api/chat + num_gpu=0
+    # + num_thread=8 + keep_alive=-1) the refiner uses guarantees
+    # the model is already resident in CPU memory + the right runner
+    # is bound when the first chat hits. ALL backgrounded -- firstboot
+    # doesn't block on it.
+    (curl -sf --max-time 240 \
+        http://localhost:11434/api/chat \
+        -d '{"model":"mios-sys-agent","messages":[{"role":"user","content":"ok"}],"stream":false,"keep_alive":-1,"options":{"num_gpu":0,"num_thread":8,"num_predict":1}}' \
+        >/dev/null 2>&1 &) || true
+
+    # GPU pre-warm: every model the chat path or fallback chain
+    # might land on, loaded into VRAM via /api/generate's load-only
+    # path (num_predict=0 short-circuits before token generation).
+    # Stays warm via keep_alive=-1; first chat skips the cold load.
+    for _wmodel in qwen3.5:9b qwen3.5:4b qwen3-coder:30b qwen3:0.6b-cpu; do
         (curl -sf --max-time 180 \
             http://localhost:11434/api/generate \
             -d "{\"model\":\"$_wmodel\",\"prompt\":\"\",\"stream\":false,\"keep_alive\":\"-1\",\"options\":{\"num_predict\":0}}" \
             >/dev/null 2>&1 &) || true
     done
-    _log "  pre-warm dispatched (3 models; load-only path)"
+    _log "  pre-warm dispatched: mios-sys-agent (CPU) + 4 chat-path models (GPU/load-only)"
 fi
 
 # ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
