@@ -574,8 +574,8 @@ platform_toolsets:
 
 # Hooks: NONE. Operator directive 2026-05-15: "no context injection
 # for environment detection!!!! it WILL ONLY do it in code". The
-# agent learns its environment by CALLING `mios-env-probe`,
-# `mios-apps`, `skill_view name=mios-environment`, etc. as TOOL
+# agent learns its environment by CALLING \`mios-env-probe\`,
+# \`mios-apps\`, \`skill_view name=mios-environment\`, etc. as TOOL
 # calls when it needs the data -- not by having text auto-prepended
 # to every turn. The earlier pre_llm_call injection was disabled.
 #
@@ -590,7 +590,7 @@ platform_toolsets:
 # require it; these settings make it the default rendering.
 display:
   tool_progress: verbose             # show full args + result for every tool call
-  tool_progress_command: true        # show the command itself (e.g. `mios build`)
+  tool_progress_command: true        # show the command itself (e.g. \`mios build\`)
   tool_preview_length: 8000          # show up to 8000 chars of each tool result inline
   persistent_output: true            # keep tool output visible after the call returns
   persistent_output_max_lines: 2000  # default 200 truncated long build logs aggressively
@@ -608,7 +608,7 @@ display:
 # browser_type / browser_scroll / browser_back / browser_get_images /
 # browser_vision / browser_console / browser_cdp / browser_dialog tools
 # all read this URL via tools/browser_cdp_tool.py. Operator launches
-# chrome via `mios-gui chrome`; CDP is up within ~5s and stays bound
+# chrome via \`mios-gui chrome\`; CDP is up within ~5s and stays bound
 # until the window closes.
 browser:
   cdp_url: http://localhost:9222     # local ChromeDev flatpak (mios-gui chrome)
@@ -683,9 +683,9 @@ tool_loop_guardrails:
     idempotent_no_progress: 5
 
 # Sessions: prune old sessions automatically. Keeps $HERMES_HOME clean
-# without manual `hermes session prune` after every long-running build
+# without manual \`hermes session prune\` after every long-running build
 # leaves a fat session file behind. retention_days=30 is a reasonable
-# window; the operator can `mios hermes wipe` (TODO future verb) for
+# window; the operator can \`mios hermes wipe\` (TODO future verb) for
 # a hard reset.
 sessions:
   auto_prune: true

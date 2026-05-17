@@ -111,6 +111,34 @@ def _looks_fanoutable(user_text: str) -> bool:
     return False
 
 
+# Conversational openers that have NO task surface -- forcing
+# delegate_task on these makes the model return zero tokens (it has
+# nothing to delegate, but tool_choice=required means it can't reply
+# in plain text either). OWUI shows a blank reply. Bypass the
+# force-gate for these; the refiner + model can chat normally.
+_CONVERSATIONAL_RES = [
+    re.compile(r"^\s*(hi|hello|hey|yo|hiya|sup|howdy|greetings|gm|gn|good (morning|afternoon|evening|night))[!.\s]*$", re.I),
+    re.compile(r"^\s*(ok|okay|k|kk|thanks|thx|ty|cool|nice|great|got it|understood|sure|yes|no|nope|yep)[!.\s]*$", re.I),
+    re.compile(r"^\s*(bye|cya|goodbye|see ya|later|peace)[!.\s]*$", re.I),
+    re.compile(r"^\s*(what'?s up|how are you|how'?s it going|wyd)[?!.\s]*$", re.I),
+]
+
+
+def _looks_conversational(user_text: str) -> bool:
+    """Return True for greetings / acknowledgments with no task surface.
+
+    Forcing delegate_task on these collapses the response to zero
+    tokens. Detected ones bypass Stage-1 force so the model can
+    answer in plain text.
+    """
+    if len(user_text.strip()) > 60:
+        return False
+    for pat in _CONVERSATIONAL_RES:
+        if pat.search(user_text):
+            return True
+    return False
+
+
 # Response-side refusal patterns load from the SHARED canonical file
 # at /usr/share/mios/ai/refusal-patterns.txt (consolidation pass
 # 2026-05-16 -- previously duplicated in 3 places). The prefilter
@@ -341,7 +369,14 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                 payload["messages"][-1].get("role") == "user"
             )
             _existing_choice = payload.get("tool_choice")
-            if _is_user_turn and _existing_choice in (None, "auto", "", {}):
+            # Conversational openers (hi / thanks / bye / etc.) have no
+            # task surface. Forcing delegate_task on them yields a
+            # zero-token reply -- OWUI shows blank chat. Detected here
+            # and excluded from the force-gate so the model answers in
+            # plain text. Operator regression observed 2026-05-16:
+            # "hello" returned content="", tokens=0/0/0.
+            _is_conversational = _is_user_turn and _looks_conversational(user_text)
+            if _is_user_turn and not _is_conversational and _existing_choice in (None, "auto", "", {}):
                 payload["tool_choice"] = {
                     "type": "function",
                     "function": {"name": "delegate_task"},
@@ -351,6 +386,8 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                 _was_fanout = _looks_fanoutable(user_text)
                 log.info("FORCE delegate_task on every user turn (fanout_keywords=%s, prompt_chars=%d)",
                          _was_fanout, len(user_text))
+            elif _is_conversational:
+                log.info("BYPASS delegate_task -- conversational opener (prompt=%r)", user_text[:60])
 
             # ── Stage 2b: rewrite friendly name -> "hermes-agent" ──
             # OWUI uses the model name from /v1/models in its requests.
