@@ -120,6 +120,8 @@ boundary (operator secret, hardware fault).
 | `mios-restart <svc>` | Graceful systemd restart (for MiOS services). |
 | `mios-doctor` | Health probe. |
 | `mios-env-probe` | Runtime snapshot. |
+| `mios-skill-clone <name> [--as <new>]` | Fork a vendor skill into `$HERMES_HOME/skills/` so you can edit it. Same-name fork overrides on next load. |
+| `mios-tool-clone <name> [--as <new>]` | Fork a vendor shim into `/usr/local/bin/` (precedes `/usr/libexec/mios` on PATH). |
 
 State paths (read freely):
 - `/var/lib/mios/scratch/` — inter-agent shared scratch (mode 1777)
@@ -256,6 +258,42 @@ bare markdown as proper markup; the fence makes it a code block.
 For standalone markdown editing (the operator types + sees rendered
 preview): `terminal: mios-md [<file>] [--text "<inline>"]` opens the
 vendored snarkdown viewer in their browser.
+
+## Self-improvement — fork and iterate
+
+Your tools and skills are **mutable**. When a vendor skill or shim
+doesn't quite fit a recurring task, fork it and improve it — don't
+work around it forever.
+
+Skills:
+- `terminal: mios-skill-clone <name>` forks
+  `/usr/share/mios/hermes/skills/<name>/` into
+  `$HERMES_HOME/skills/<name>/`. The resolver loads your copy first.
+- Edit `$HERMES_HOME/skills/<name>/SKILL.md` (and support files) with
+  `write_file` or `terminal: $EDITOR …`. The next turn loads it.
+- Use `--as <new-name>` to ship a sibling skill instead of overriding.
+- `skill_manage` (native tool) handles CRUD on the metadata side; pair
+  it with `mios-skill-clone` for the file payload.
+
+Shims (`mios-*` helpers):
+- `terminal: mios-tool-clone <name>` copies the vendor shim into
+  `/usr/local/bin/`, which precedes `/usr/libexec/mios` on PATH.
+- Edit the local copy; next call uses it.
+- For brand-new shims with no parent to clone: `write_file
+  /usr/local/bin/<name>` + `terminal: chmod +x /usr/local/bin/<name>`.
+
+When to fork (operator directive 2026-05-15: "Hermes should be
+properly improving skills and tools iteratively"):
+- A skill keeps producing the wrong shape for a task you do often →
+  clone, tighten the SKILL.md prompt, ship.
+- A shim is missing a flag you need → clone, add the flag, ship.
+- A new recurring workflow doesn't match any existing skill → write
+  a new one rather than re-deriving the steps every turn.
+
+Always stamp WHY in a one-line comment at the top of the edit
+(operator 2026-05-DD: "<their words>" or a short root-cause note).
+Don't fork pre-emptively — fork when you've hit the same failure
+twice.
 
 ## Long-form detail
 

@@ -95,16 +95,50 @@ def main() -> int:
     if attached:
         c.commit()
 
-    # Build specs JSON. OWUI's loader extracts the schema from
-    # type hints + docstrings at runtime, but the `specs` column is
-    # also used as a quick reference for the admin UI. Compute the
-    # minimal spec list now; if a method signature changes the next
-    # firstboot run will re-derive on hash mismatch.
+    # Build specs JSON. OWUI's chat-completion path indexes into
+    # spec["parameters"] (open_webui.main:process_chat) so every spec
+    # MUST carry a JSONSchema parameters block -- a partial spec list
+    # (missing `parameters`) crashes the entire chat with KeyError:
+    # 'parameters'. Keep this list in lockstep with the actual Tools
+    # class methods in /usr/share/mios/owui/tools/mios_verbs.py.
     specs = [
-        {"name": "launch_app",        "description": "Launch a MiOS-registered app by short name (Steam/Epic/Xbox/flatpak/.exe/.lnk)"},
-        {"name": "everything_search", "description": "Search Windows NTFS index via Voidtools es.exe (sub-100ms)"},
-        {"name": "mios_apps",         "description": "Inventory installed apps across all sources"},
-        {"name": "mios_find",         "description": "Look up one app's launch info (fast single-shot)"},
+        {
+            "name": "launch_app",
+            "description": "Launch a MiOS-registered Windows/Linux app by short name. Resolves through the canonical chain (Steam/Epic/Xbox/GOG/Battle.net via protocol handler, Windows shortname, MiOS shim, Linux GUI, plain CLI). Dispatch only -- launch is detached.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "App short name. Case-insensitive substring matches against the Windows games inventory; exact for shortnames. Examples: \"beamng\", \"notepad\", \"chromedev\", \"marvel rivals\".",
+                    }
+                },
+                "required": ["name"],
+            },
+        },
+        {
+            "name": "mios_find",
+            "description": "Resolve an app's launch info without launching it (read-only). Returns the canonical command the launcher would execute. Use this when you want to know whether something is installed / how it would be invoked.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "App short name (same matching rules as launch_app).",
+                    }
+                },
+                "required": ["name"],
+            },
+        },
+        {
+            "name": "system_status",
+            "description": "Snapshot of host MiOS state: active services, container status, last journal errors, GPU/CPU/RAM headline numbers. Read-only -- safe to call without side effects.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
     ]
 
     meta = {

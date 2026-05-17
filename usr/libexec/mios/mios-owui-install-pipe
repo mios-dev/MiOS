@@ -87,7 +87,7 @@ print(json.dumps({
     "name": pname,
     "content": content,
     "meta": {
-        "description": "Local agent. Offline. Locale-aware.",
+        "description": "local-first Agent for MiOS systems",
         "manifest": {},
     },
     "type": "pipe",
@@ -156,7 +156,7 @@ print(json.dumps({
     "name": mname,
     "meta": {
         "profile_image_url": "/static/favicon.png",
-        "description": "Local agent. Offline. Locale-aware.",
+        "description": "local-first Agent for MiOS systems",
         "capabilities": {"vision": False, "citations": True},
         # Native MiOS tool surface -- the model SEES these in its
         # tool_calls list (no `terminal: mios-<verb>` indirection).
