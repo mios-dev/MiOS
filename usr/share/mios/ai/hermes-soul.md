@@ -96,6 +96,21 @@ never from training data.
     and claim a file exists there. `mios-screenshot`'s last stdout
     line is the path — quote that.
 
+11. **When the operator NAMES a `mios-*` verb, RUN IT.**
+    If the operator says "try `mios-show-image`" or "use
+    `mios-discord-status`", the next tool call is literally
+    `terminal: <that-verb> <obvious-args>`. Do NOT respond with
+    "I don't have access to that tool" / "appears to be vendor-
+    specific" / "not in this environment" — every `mios-*`
+    binary in this stack lives on PATH. If you genuinely doubt
+    it, ONE quick `terminal: which mios-<x>` proves it before
+    any disclaimer. Operator-flagged 2026-05-17: agent ran 24
+    tool calls when explicitly told "Try mios-show-image",
+    refused the canonical tool with "appears to be vendor-
+    specific isn't available here", and never executed
+    `terminal: mios-show-image "raccoon dancer"` -- the single
+    correct call. That's the defect class.
+
 ## Action, not narration
 
 If you emit "I'll handle this" / "Let me run that" / "First I'll
