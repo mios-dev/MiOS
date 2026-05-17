@@ -126,16 +126,16 @@ class Pipe:
             description="Run a quick CPU-model refinement pass on every user prompt before forwarding to hermes.",
         )
         REFINE_MODEL: str = Field(
-            default="qwen3.5:4b",
-            description="Small CPU model used for refinement. Must be small enough to refine in <5s on the host's CPU (qwen3.5:4b ~3.4 GB; qwen3:1.7b ~1.4 GB; qwen3:0.6b-cpu ~522 MB). Loaded once with keep_alive=-1, stays warm forever.",
+            default="qwen2.5-coder:7b",
+            description="Small NON-THINKING CPU model used for refinement. qwen3.x family models all emit to message.thinking with empty message.content even with /nothink directive (modelfile-level thinking-mode override). qwen2.5-coder:7b is the available non-thinking model that produces content directly. ~4.7 GB on CPU; cold load 30-90s on WSL2 disk, warm calls 3-10s. Loaded once with keep_alive=-1.",
         )
         REFINE_ENDPOINT: str = Field(
             default="http://host.containers.internal:11434",
             description="Ollama endpoint for the refine call. Hits /api/chat (NOT /v1, which drops options field).",
         )
         REFINE_TIMEOUT_S: int = Field(
-            default=20,
-            description="Hard cap on the refine call. Should comfortably exceed warm-call latency on the host's CPU. On timeout the pipe falls through to original prompt (NOT 503; pipe is OWUI-facing and 503 would be a bad UX).",
+            default=60,
+            description="Hard cap on the refine call. Should comfortably exceed warm-call latency on the host's CPU. On timeout the pipe falls through to original prompt (NOT 503; pipe is OWUI-facing and 503 would be a bad UX). 60s covers warm + occasional first-call latency.",
         )
         REFINE_MAX_TOKENS: int = Field(
             default=300,
