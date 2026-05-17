@@ -87,7 +87,7 @@ print(json.dumps({
     "name": pname,
     "content": content,
     "meta": {
-        "description": "Consolidated MiOS systems agent (vendored pipe).",
+        "description": "Local agent. Offline. Locale-aware.",
         "manifest": {},
     },
     "type": "pipe",
@@ -156,20 +156,18 @@ print(json.dumps({
     "name": mname,
     "meta": {
         "profile_image_url": "/static/favicon.png",
-        "description": "Consolidated MiOS systems agent. Routes through the MiOS-Agent OWUI Pipe -> delegation prefilter -> hermes.",
+        "description": "Local agent. Offline. Locale-aware.",
         "capabilities": {"vision": False, "citations": True},
         # Native MiOS tool surface -- the model SEES these in its
         # tool_calls list (no `terminal: mios-<verb>` indirection).
-        # Registered separately by mios-owui-install-tools; this just
-        # binds them to the model. Each entry must match a tool row
-        # id in the OWUI `tool` table.
-        "toolIds": ["mios_verbs"],
-        "suggestion_prompts": [
-            {"content": "What can you do on this MiOS host?"},
-            {"content": "Launch chromedev"},
-            {"content": "Run mios-doctor and summarise"},
-            {"content": "What's the last log-watcher alert?"},
-        ],
+        # Registered separately by mios-owui-install-tools + the
+        # OpenUI installer; this just binds them to the model. Each
+        # entry must match a tool row id in OWUI's `tool` table.
+        "toolIds": ["mios_verbs", "openui"],
+        # NO hardcoded suggestion_prompts: mios-daemon.suggestions_loop
+        # populates the blank-chat panel dynamically every 20 min from
+        # recent state + chat language (operator directive 2026-05-17:
+        # "no hardcoded answers or anything hardcoded for english").
     },
     "params": {},
     "is_active": True,
