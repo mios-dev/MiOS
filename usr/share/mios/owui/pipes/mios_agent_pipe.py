@@ -101,16 +101,16 @@ _TAIL_ICONS = {
 class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
-            default="http://127.0.0.1:8641/v1",
-            description="OpenAI-compat backend (default: MiOS delegation prefilter on the host).",
+            default="http://host.containers.internal:8641/v1",
+            description="OpenAI-compat backend. OWUI runs in a podman Quadlet, so the prefilter at :8641 on the host is reached via host.containers.internal. If you ever move OWUI to a host process, flip this to http://127.0.0.1:8641/v1.",
         )
         BACKEND_MODEL: str = Field(
             default="MiOS-Agent",
             description="Model name to pass upstream (prefilter rewrites to hermes-agent).",
         )
         BACKEND_KEY: str = Field(
-            default="",
-            description="Bearer key for the backend (leave empty to pass through caller's key).",
+            default_factory=lambda: os.environ.get("API_SERVER_KEY") or os.environ.get("OPENAI_API_KEY") or "",
+            description="Bearer key for the backend. Defaults to API_SERVER_KEY / OPENAI_API_KEY from the container env (the OWUI Quadlet's EnvironmentFile=/etc/mios/hermes/api.env). Without this, the pipe hits prefilter -> hermes -> 401.",
         )
         DISPLAY_NAME: str = Field(
             default="MiOS-Agent",

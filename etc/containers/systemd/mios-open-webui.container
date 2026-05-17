@@ -51,6 +51,18 @@ Volume=/var/lib/mios/open-webui:/app/backend/data:Z
 Volume=/usr/share/mios:/usr/share/mios:ro
 Volume=/etc/mios:/etc/mios:ro
 
+# Sidecar agent state files. The mios_sidecar Filter + mios_agent
+# Pipe both poll these to emit live "🛠️ tool: terminal" / "🧠 refined
+# prompt" status events into the OWUI chat stream. Without these RO
+# mounts the filter/pipe silently see no events and the operator
+# (correctly) reports "no emits" -- the files exist on the host but
+# don't exist inside the container.
+Volume=/var/lib/mios/hermes-tail:/var/lib/mios/hermes-tail:ro
+Volume=/var/lib/mios/delegation-prefilter:/var/lib/mios/delegation-prefilter:ro
+Volume=/var/lib/mios/agent-nudger:/var/lib/mios/agent-nudger:ro
+Volume=/var/lib/mios/log-watcher:/var/lib/mios/log-watcher:ro
+Volume=/var/lib/mios/cron-director:/var/lib/mios/cron-director:ro
+
 # API key + server settings, shared with Hermes-Agent. api.env defines
 # OPENAI_API_KEY=<API_SERVER_KEY> as a plain scalar -- that IS the
 # bearer Open WebUI sends to the Hermes gateway at OPENAI_API_BASE_URL
