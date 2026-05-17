@@ -45,6 +45,20 @@ groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "
 # ~/.config/mios/mios.toml [identity].default_password.
 default_password = "mios"
 
+# Discord integration -- the channel + guild MiOS-Agent posts to when
+# the operator says "send to discord" / "post a status to discord" /
+# "let me know on discord" without naming a channel. EMPTY by default
+# in vendor; operator sets per-host in /etc/mios/mios.toml overlay
+# (or ~/.config/mios/mios.toml). Used in two places:
+#   1. mios-hermes-firstboot bakes the value into the seeded SOUL.md
+#      so the chat model has it as authoritative context when calling
+#      discord_send_message without an explicit channel_id.
+#   2. mios-hermes-firstboot writes MIOS_DISCORD_DEFAULT_CHANNEL into
+#      /etc/mios/hermes/discord.env so any future tool can read it
+#      from os.environ alongside DISCORD_BOT_TOKEN.
+discord_channel_default = ""
+discord_guild_default   = ""
+
 # ----------------------------------------------------------------------------
 # [locale] -- system-wide defaults applied via systemd-localed at first boot.
 # Maps to MIOS_TIMEZONE, MIOS_KEYBOARD, MIOS_LOCALE.
