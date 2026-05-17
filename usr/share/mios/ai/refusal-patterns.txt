@@ -218,6 +218,23 @@ the current Linux-to-WSL window forwarding
 Would you like me to try launching .+ through your Windows default browser instead\?
 launched but not visible\. Let me bring it to the foreground
 
+# ── 2026-05-16 night-er: agent fabricated a "launch-app skill" that
+# does NOT exist (no /usr/share/mios/hermes/skills/launch-app/ + no
+# skill body referencing launch-app/launch_app). Agent then made up
+# a hypothetical .desktop -> /usr/bin/X resolution chain. The correct
+# launch path is the canonical mios-find -> execute -> verify chain
+# documented in SOUL.md / hermes-soul-full.md. There is no separate
+# "launch-app skill".
+the .launch.app. skill
+the launch.app skill
+the launch.?app skill resolves application paths
+launch.app skill was working correctly
+nautilus is a Flatpak app .+ identifier
+quirk of how Flatpak applications are structured on Linux systems
+Flatpak apps are accessed through the portal mechanism
+launched .+\.desktop as if it were a normal executable file
+The correct resolution should have been something like
+
 # ── 2026-05-16 deeper night: "open in windows default browser" turned
 # into a Linux flatpak launch + a hallucinated helper name
 # ("The default Windows browser launch command is mios-hermes-browser").
