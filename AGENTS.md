@@ -129,6 +129,7 @@ Enforced by build-time lint and `automation/99-postcheck.sh`:
 | 4 | **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`. | `Containerfile` (last `RUN`) |
 | 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (default `http://localhost:8642/v1`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. **No vendor-cloud URLs. No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`. | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
+| 7 | **OFFLINE-FIRST** — every MiOS feature deploys and operates without internet. AI agents, tools, scripts, models, knowledge, skills, browser, search, code-run sandboxes — all run from the local MiOS stack. Internet-using features (Discord, Tailscale, GitHub PRs, web_search-against-cloud) are OPTIONAL and gracefully degrade when offline; nothing CORE is gated on a network reachability. Operator-restated 2026-05-17: "Everything can deploy COMPLETELY OFFLINE and LOCAL MIOS AI AGENTS CAN USE LOCAL TOOLS AND SCRIPT AND FILES IN THE MIOS STACK/CODE BASE TO OPERATE FULLY". | `automation/08-system-files-overlay.sh` (bound-images), `automation/37-ollama-prep.sh` (model bake), `usr/share/mios/owui/`, `web.search_backend: searxng` in seeded hermes config |
 
 ## 6. Endpoint contract (OpenAI-compatible)
 
