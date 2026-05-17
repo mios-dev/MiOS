@@ -39,11 +39,14 @@ set -u
 
 OPEN=0
 CLIPBOARD=0
+WINDOW=""
 OUT=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --open)       OPEN=1; shift ;;
         --clipboard)  CLIPBOARD=1; shift ;;
+        --window)     WINDOW="${2:-}"; shift 2 ;;
+        --window=*)   WINDOW="${1#--window=}"; shift ;;
         -h|--help)
             sed -n '2,40p' "$0" | grep -E '^#' | sed 's/^# \?//'
             exit 0
@@ -59,6 +62,23 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# --window: focus the matched window first so it's on top + visible,
+# then capture the full primary monitor. Operator-flagged 2026-05-17:
+# "take screenshot of notepad" -> agent went down a 6-min flail. The
+# fix is to make a window-targeted capture a 1-call verb. mios-window
+# focus handles the un-minimize + foreground; the resulting capture
+# shows the target window front-and-center.
+if [[ -n "$WINDOW" ]]; then
+    if ! command -v mios-window >/dev/null 2>&1; then
+        echo "mios-screenshot --window: mios-window not on PATH" >&2
+        exit 1
+    fi
+    echo "[mios-screenshot] focusing window matching '$WINDOW' before capture..." >&2
+    mios-window focus "$WINDOW" 2>&1 | head -3 >&2 || true
+    # Give the WM a tick to bring it to top
+    sleep 1
+fi
 
 # Default output path: operator's Windows Pictures/Screenshots folder
 if [[ -z "$OUT" ]]; then
