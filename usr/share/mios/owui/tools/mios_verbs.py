@@ -247,3 +247,47 @@ class Tools:
             "output": (result.get("stdout") or "")[:4000],
             "stderr": result.get("stderr", ""),
         })
+
+    # ─── system_status ──────────────────────────────────────────────
+    async def system_status(self, __user__: Optional[dict] = None) -> str:
+        """Return a structured snapshot of the live MiOS host: GPU(s) +
+        VRAM, RAM, disk, failed/active service count, MiOS service
+        health roll-up (hermes / OWUI / prefilter / hermes-tail /
+        ollama), and the full ollama model list. ONE tool call,
+        deterministic JSON, no fabrication.
+
+        Use this when the operator asks "system status", "dashboard",
+        "what's running", "what GPU do I have", "how much disk left",
+        "list ollama models", or any system-overview question. Beats
+        running df / nvidia-smi / systemctl / ollama list separately
+        and assembling them in prose -- the model has been observed
+        fabricating GPU fields ("No NVIDIA driver detected") when
+        forced to do the assembly itself.
+
+        :return: JSON string with {ts, uptime_s, gpu[], memory{},
+            disk[], services{failed[], active_count, mios{}},
+            ollama[]}. Missing probes come back as null or empty
+            list -- never fabricated.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        # mios-system-status is a self-contained JSON-emitting helper.
+        # Broker dispatch so we hit it from the operator-side context
+        # (nvidia-smi + ollama list + systemctl all behave the same in
+        # the broker context, but going through the broker keeps the
+        # tool stateless and consistent with the other verbs).
+        result = _broker_send("mios-system-status",
+                              timeout=self.valves.INVENTORY_TIMEOUT_S,
+                              capture=True)
+        raw = result.get("stdout") or ""
+        # If the helper emitted JSON, pass it through; else surface the
+        # error so the model knows it can't trust the answer.
+        try:
+            parsed = json.loads(raw)
+            parsed["success"] = True
+            return json.dumps(parsed)
+        except (json.JSONDecodeError, ValueError):
+            return json.dumps({
+                "success": False,
+                "stderr": result.get("stderr", "") or f"non-JSON from mios-system-status: {raw[:300]}",
+            })

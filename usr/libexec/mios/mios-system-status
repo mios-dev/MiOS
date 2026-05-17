@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""mios-system-status -- emit a single JSON blob with the live MiOS
+host dashboard data the chat model needs to answer "system status?"
+questions WITHOUT fabricating fields.
+
+Backs the `system_status` native MiOS Verb. The model calls one
+tool, gets one structured object, and reports verbatim -- no more
+"No NVIDIA driver detected" hallucinations from a model assembling
+the dashboard out of 4 separate shell-tool outputs.
+
+All probes are best-effort. A missing field comes back as null
+(NOT a fabricated default), so the model can correctly say
+"GPU info unavailable" instead of inventing one.
+
+Fields:
+  gpu         list of {name, vram_mib, driver}   (nvidia-smi / rocm-smi)
+  memory      {total_mib, used_mib, available_mib, swap_total_mib}
+  disk        list of {mount, total, used, available, pct}
+  services    {failed: [...], active_count, mios: {<name>: <state>}}
+  ollama      list of {model, size, modified}
+  uptime_s    int
+  ts          float (unix-epoch)
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from typing import Any, Optional
+
+
+def _run(argv: list[str], timeout: float = 8.0) -> tuple[int, str, str]:
+    try:
+        cp = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        return cp.returncode, (cp.stdout or "").strip(), (cp.stderr or "").strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        return -1, "", f"{type(e).__name__}: {e}"
+
+
+def _resolve_bin(name: str, extra_paths: list[str]) -> Optional[str]:
+    """which() with explicit absolute-path fallbacks. On WSL2 the
+    GPU passthrough lives at /usr/lib/wsl/lib (NOT on the default
+    user PATH); checking PATH first then walking the explicit list
+    catches that case + lets us add other tier-specific paths."""
+    found = shutil.which(name)
+    if found:
+        return found
+    for d in extra_paths:
+        p = os.path.join(d, name)
+        if os.access(p, os.X_OK):
+            return p
+    return None
+
+
+def _probe_gpu() -> list[dict]:
+    out: list[dict] = []
+    # WSL2 GPU passthrough installs nvidia-smi to /usr/lib/wsl/lib --
+    # that directory isn't on the default user PATH so shutil.which()
+    # alone misses it. Operator-flagged 2026-05-17: broker-side probe
+    # returned gpu=[] even though nvidia-smi works for root.
+    nvsmi = _resolve_bin("nvidia-smi", ["/usr/lib/wsl/lib", "/usr/bin", "/usr/local/bin"])
+    if nvsmi:
+        rc, stdout, _ = _run([
+            nvsmi,
+            "--query-gpu=name,memory.total,driver_version",
+            "--format=csv,noheader,nounits",
+        ])
+        if rc == 0:
+            for line in stdout.splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 3:
+                    try:
+                        out.append({
+                            "name": parts[0],
+                            "vram_mib": int(parts[1]),
+                            "driver": parts[2],
+                            "vendor": "nvidia",
+                        })
+                    except ValueError:
+                        pass
+    rocm = _resolve_bin("rocm-smi", ["/opt/rocm/bin", "/usr/bin"])
+    if rocm and not out:
+        rc, stdout, _ = _run([rocm, "--showmeminfo", "vram", "--csv"])
+        if rc == 0:
+            for line in stdout.splitlines()[1:]:
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 2 and parts[1].isdigit():
+                    out.append({
+                        "name": parts[0],
+                        "vram_mib": int(parts[1]) // (1024 * 1024),
+                        "driver": "amdgpu",
+                        "vendor": "amd",
+                    })
+    return out
+
+
+def _probe_memory() -> dict:
+    info: dict[str, Optional[int]] = {
+        "total_mib": None, "used_mib": None,
+        "available_mib": None, "swap_total_mib": None,
+    }
+    try:
+        kv: dict[str, int] = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                parts = line.split(":")
+                if len(parts) != 2:
+                    continue
+                v = parts[1].strip().split()
+                if v and v[0].isdigit():
+                    kv[parts[0].strip()] = int(v[0]) // 1024  # kB -> MiB
+        total = kv.get("MemTotal", 0)
+        avail = kv.get("MemAvailable", 0)
+        info["total_mib"] = total
+        info["available_mib"] = avail
+        info["used_mib"] = (total - avail) if (total and avail) else None
+        info["swap_total_mib"] = kv.get("SwapTotal", 0)
+    except OSError:
+        pass
+    return info
+
+
+def _probe_disk() -> list[dict]:
+    out: list[dict] = []
+    rc, stdout, _ = _run(["df", "-h", "--output=target,size,used,avail,pcent",
+                           "-x", "tmpfs", "-x", "devtmpfs", "-x", "overlay"])
+    if rc == 0:
+        for line in stdout.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) >= 5:
+                out.append({
+                    "mount": parts[0],
+                    "total": parts[1],
+                    "used": parts[2],
+                    "available": parts[3],
+                    "pct": parts[4],
+                })
+    return out
+
+
+def _probe_services() -> dict:
+    info: dict[str, Any] = {"failed": [], "active_count": 0, "mios": {}}
+    rc, stdout, _ = _run(["systemctl", "--failed", "--no-legend", "--plain"])
+    if rc == 0 and stdout:
+        for line in stdout.splitlines():
+            unit = line.split()[0] if line.split() else ""
+            if unit:
+                info["failed"].append(unit)
+    rc, stdout, _ = _run(["systemctl", "list-units", "--type=service",
+                          "--state=active", "--no-legend", "--plain"])
+    if rc == 0:
+        info["active_count"] = len([l for l in stdout.splitlines() if l.strip()])
+    # MiOS-specific health roll-up. is-active returns the state string
+    # (active / inactive / failed) for each unit, one per line.
+    mios_units = [
+        "hermes-agent.service",
+        "mios-open-webui.service",
+        "mios-delegation-prefilter.service",
+        "mios-hermes-tail.service",
+        "ollama.service",
+    ]
+    rc, stdout, _ = _run(["systemctl", "is-active", *mios_units])
+    states = stdout.splitlines() if stdout else []
+    for unit, state in zip(mios_units, states + [""] * (len(mios_units) - len(states))):
+        info["mios"][unit.replace(".service", "")] = state or "unknown"
+    return info
+
+
+def _probe_ollama() -> list[dict]:
+    out: list[dict] = []
+    rc, stdout, _ = _run(["ollama", "list"], timeout=10.0)
+    if rc != 0:
+        return out
+    # First line is header; "NAME ID SIZE MODIFIED"
+    for line in stdout.splitlines()[1:]:
+        parts = line.split(None, 4)
+        if len(parts) < 4:
+            continue
+        # The last column ("MODIFIED") may contain a space ("3 hours ago")
+        out.append({
+            "model": parts[0],
+            "id": parts[1],
+            "size": parts[2] + " " + parts[3],
+            "modified": parts[4] if len(parts) > 4 else "",
+        })
+    return out
+
+
+def _probe_uptime() -> Optional[int]:
+    try:
+        with open("/proc/uptime") as f:
+            return int(float(f.read().split()[0]))
+    except OSError:
+        return None
+
+
+def main() -> int:
+    payload = {
+        "ts": time.time(),
+        "uptime_s": _probe_uptime(),
+        "gpu": _probe_gpu(),
+        "memory": _probe_memory(),
+        "disk": _probe_disk(),
+        "services": _probe_services(),
+        "ollama": _probe_ollama(),
+    }
+    json.dump(payload, sys.stdout, separators=(",", ":"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
