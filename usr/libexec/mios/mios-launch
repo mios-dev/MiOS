@@ -62,10 +62,20 @@ case "$NAME" in
     forgejo|forge)  exec mios-open-url "http://localhost:3000" "$@" ;;
 esac
 
-# ─── 2. URL literal ──────────────────────────────────────────────────
+# ─── 2. URL / URI literal ────────────────────────────────────────────
+# http / https / file / chrome / about -> open in the default browser
+# via mios-open-url (the canonical opener). Any OTHER scheme (steam://,
+# epicgames://, uplay://, ms-xbox-game://, vscode://, slack://, etc.)
+# is delegated to mios-windows launch -- it already dispatches ANY URI
+# through Windows Start-Process which invokes the registered protocol
+# handler. Don't maintain a hardcoded list of game-launcher schemes
+# here; mios-windows is the universal URI dispatcher.
 case "$NAME" in
     http://*|https://*|file://*|chrome://*|about:*)
         exec mios-open-url "$NAME" "$@"
+        ;;
+    *://*)
+        exec mios-windows launch "$NAME"
         ;;
 esac
 
@@ -78,6 +88,44 @@ case "$NAME" in
         exec mios-windows launch "$NAME" "$@"
         ;;
 esac
+
+# ─── 3b. Windows games inventory (Steam/Epic/Xbox/Microsoft Store) ───
+# mios-apps writes /var/lib/mios/agent-env/windows-games.cache with
+# one line per detected installed game: "Display Name|launch-cmd".
+# Resolves fuzzy substrings -- "beamng" matches "BeamNG.drive";
+# "marvel" matches "Marvel Rivals". Single hit -> launch.
+# Multiple hits -> list and exit so the model can disambiguate.
+_GAMES_CACHE=/var/lib/mios/agent-env/windows-games.cache
+if [ -r "$_GAMES_CACHE" ]; then
+    _matches="$(awk -F'|' -v q="$(printf %s "$NAME" | tr '[:upper:]' '[:lower:]')" '
+        { lname = tolower($1); if (index(lname, q) > 0) print $1 "|" $2 }
+    ' "$_GAMES_CACHE")"
+    _hit_count="$(printf %s "$_matches" | grep -c '|' || true)"
+    if [ "$_hit_count" = "1" ]; then
+        _hit_name="${_matches%%|*}"
+        _hit_cmd="${_matches#*|}"
+        printf 'mios-launch: %s -> %s\n' "$_hit_name" "$_hit_cmd" >&2
+        # All three shapes converge through mios-windows launch:
+        #   * URI (steam://, epicgames://, etc.) -- Start-Process dispatch
+        #   * /mnt/c/.../*.exe or *.lnk -- direct exec via interop
+        #   * full `mios-windows launch ...` command line -- already shaped
+        case "$_hit_cmd" in
+            mios-windows*)
+                # shellcheck disable=SC2086
+                eval exec "$_hit_cmd"
+                ;;
+            *)
+                exec mios-windows launch "$_hit_cmd"
+                ;;
+        esac
+    elif [ "$_hit_count" -gt 1 ] 2>/dev/null; then
+        printf 'mios-launch: ambiguous "%s" -- %d matches in games cache:\n' "$NAME" "$_hit_count" >&2
+        printf '%s\n' "$_matches" | sed 's/|.*$//' | sed 's/^/  /' >&2
+        echo >&2
+        echo "Re-run with the exact display name (or a more specific substring)." >&2
+        exit 2
+    fi
+fi
 
 # ─── 4. MiOS shim ────────────────────────────────────────────────────
 case "$NAME" in
