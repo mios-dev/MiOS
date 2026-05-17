@@ -22,8 +22,8 @@ metadata:
 
 # Launching apps on MiOS
 
-<!-- MiOS-managed: seeded from
-     /usr/share/mios/hermes/skills/app-launch/SKILL.md. -->
+> _MiOS-managed: seeded from
+> /usr/share/mios/hermes/skills/app-launch/SKILL.md._
 
 ## ONE rule
 

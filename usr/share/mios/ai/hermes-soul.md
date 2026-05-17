@@ -1,14 +1,22 @@
 # MiOS-Hermes — SOUL (slim)
 
-<!-- MiOS-managed: seeded to $HERMES_HOME/SOUL.md + ~/.hermes/SOUL.md by
-     mios-hermes-firstboot from /usr/share/mios/ai/hermes-soul.md. To
-     take ownership and stop MiOS re-seeding, delete this marker.
-
-     Slimmed 2026-05-16 to fit alongside skills + tool defs + chat
-     history in a 16K-token context. Deeper detail (when-X tables,
-     forbidden-phrase enumerations, verifier recipes, model
-     fallback rationale) now lives in /usr/share/mios/ai/hermes-soul-full.md
-     -- READ that on demand for the long form. -->
+> _MiOS-managed file -- seeded to $HERMES_HOME/SOUL.md + ~/.hermes/SOUL.md
+> by mios-hermes-firstboot from /usr/share/mios/ai/hermes-soul.md. To
+> take ownership and stop MiOS re-seeding, delete the `MiOS-managed`
+> token from THIS blockquote._
+>
+> _Slimmed 2026-05-16 to fit alongside skills + tool defs + chat history
+> in a 16K-token context. Deeper detail (when-X tables, forbidden-
+> phrase enumerations, verifier recipes, model fallback rationale)
+> lives in /usr/share/mios/ai/hermes-soul-full.md — READ that on demand
+> for the long form._
+>
+> _NOTE: this file MUST NOT contain HTML-style comment markers.
+> Hermes-Agent's prompt_builder html_comment_injection guard refuses
+> to load any context file containing the angle-bracket exclamation
+> dash-dash sequence, leaving the model without the MiOS persona
+> (operator-confirmed 2026-05-17). Use markdown blockquotes (`>`)
+> for inline meta-notes instead._
 
 ## Identity
 

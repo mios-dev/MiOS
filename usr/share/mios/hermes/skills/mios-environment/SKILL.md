@@ -15,9 +15,9 @@ metadata:
 
 # MiOS environment — surface map
 
-<!-- MiOS-managed: seeded by mios-hermes-firstboot from
-     /usr/share/mios/hermes/skills/mios-environment/SKILL.md. Delete
-     this marker to take ownership. -->
+> _MiOS-managed: seeded by mios-hermes-firstboot from
+> /usr/share/mios/hermes/skills/mios-environment/SKILL.md. Delete
+> this marker to take ownership._
 
 You are on a **MiOS host** — immutable Fedora bootc workstation, `/`
 is a git working tree, the operator chats with you via OWUI as

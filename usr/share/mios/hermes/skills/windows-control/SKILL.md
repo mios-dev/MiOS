@@ -15,10 +15,10 @@ metadata:
 
 # windows-control — host-specific helpers
 
-<!-- MiOS-managed: vendor surface map. Hermes's NATIVE skill_manage
-     can append learned-by-experience specifics to a separate skill
-     (e.g. `learned-windows-launches`) without editing this file.
-     Delete this marker to take ownership. -->
+> _MiOS-managed: vendor surface map. Hermes's NATIVE skill_manage
+> can append learned-by-experience specifics to a separate skill
+> (e.g. `learned-windows-launches`) without editing this file.
+> Delete this marker to take ownership._
 
 The MiOS host provides a small set of helpers on `$PATH`. They
 resolve all paths from environment vars (set by

@@ -13,8 +13,8 @@ metadata:
 
 # opencode-delegation — when to dispatch to the specialist coder
 
-<!-- MiOS-managed: pointer to Hermes's NATIVE delegate_task mechanism.
-     Delete the marker to take ownership. -->
+> _MiOS-managed: pointer to Hermes's NATIVE delegate_task mechanism.
+> Delete the marker to take ownership._
 
 OpenCoder (the SST/anomalyco opencode 1.15+ binary at
 `/usr/lib/mios/opencode/bin/opencode`) is your specialist for tasks

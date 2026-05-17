@@ -16,8 +16,8 @@ metadata:
 
 # Everything Search — authoritative Windows-side file finder
 
-<!-- MiOS-managed: seeded from
-     /usr/share/mios/hermes/skills/everything-search/SKILL.md. -->
+> _MiOS-managed: seeded from
+> /usr/share/mios/hermes/skills/everything-search/SKILL.md._
 
 ## When to use this skill
 

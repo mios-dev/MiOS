@@ -15,11 +15,11 @@ metadata:
 
 # Parallel fan-out via `delegate_task`
 
-<!-- MiOS-managed: seeded into $HERMES_HOME/skills/parallel-fanout/SKILL.md
-     and ~/.hermes/skills/parallel-fanout/SKILL.md by mios-hermes-firstboot
-     from /usr/share/mios/hermes/skills/parallel-fanout/SKILL.md. To take
-     ownership of this skill, delete the "MiOS-managed" marker in this
-     comment — firstboot will then leave the file alone forever. -->
+> _MiOS-managed: seeded into $HERMES_HOME/skills/parallel-fanout/SKILL.md
+> and ~/.hermes/skills/parallel-fanout/SKILL.md by mios-hermes-firstboot
+> from /usr/share/mios/hermes/skills/parallel-fanout/SKILL.md. To take
+> ownership of this skill, delete the "MiOS-managed" marker in this
+> comment — firstboot will then leave the file alone forever._
 
 You are an orchestrator over a pool of cheap, fast CPU-side child agents
 (`qwen3:1.7b`, ~6 concurrent, depth 2). The `delegate_task` tool is how you

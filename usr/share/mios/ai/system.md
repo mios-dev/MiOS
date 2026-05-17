@@ -1,9 +1,7 @@
-<!--
-FHS: /usr/share/mios/ai/system.md
-Canonical AI grounding for Hermes and any future MiOS agent.
-Compatible with: OpenAI, Azure OpenAI, Ollama, vLLM, LocalAI, LM Studio,
-                 llama.cpp llama-server, LiteLLM, OpenRouter.
--->
+> _FHS: /usr/share/mios/ai/system.md
+> Canonical AI grounding for Hermes and any future MiOS agent.
+> Compatible with: OpenAI, Azure OpenAI, Ollama, vLLM, LocalAI, LM Studio,
+> llama.cpp llama-server, LiteLLM, OpenRouter._
 
 # MiOS System Prompt / Knowledge Base
 

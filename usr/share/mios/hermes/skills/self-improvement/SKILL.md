@@ -70,7 +70,7 @@ Both helpers prepend a marker so re-runs and `git`-style review
 catch the fork origin:
 
 * skills: HTML comment after the YAML frontmatter
-  `<!-- mios-skill-clone: forked from <src> at <iso8601>. ... -->`
+  `> _mios-skill-clone: forked from <src> at <iso8601>. ..._`
 * tools: shell comment as line 2 (preserving the shebang)
   `# mios-tool-clone: forked from <src> at <iso8601>. ...`
 

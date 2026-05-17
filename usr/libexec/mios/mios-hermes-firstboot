@@ -951,17 +951,25 @@ _soul_should_seed() {
 # Build a runtime-context block we append to SOUL.md so the model has
 # operator-specific defaults (Discord channel/guild, etc.) as
 # authoritative context without us having to wedge them into the
-# vendor SOUL source. Empty values are simply omitted. The
-# SOUL_CTX_MARKER delimiter lets us strip + re-append the block on
-# every firstboot run -- so a mios.toml change propagates without
-# touching the vendor SOUL body or requiring a full re-seed.
-SOUL_CTX_MARKER="<!-- mios-runtime-context-begin -- managed by mios-hermes-firstboot -->"
+# vendor SOUL source. Empty values are simply omitted.
+#
+# CRITICAL: Hermes-Agent's prompt_builder has an `html_comment_
+# injection` guard that REFUSES to load ANY context file containing
+# HTML comments (<!-- ... -->). The earlier version of this block
+# used <!-- markers --> and broke SOUL.md loading entirely
+# ("WARNING agent.prompt_builder: Context file SOUL.md blocked:
+# html_comment_injection") -- the model then ran with NO MiOS
+# persona at all. The delimiter is plain ASCII text inside a fenced
+# code-block so it's still grep-able for the strip+re-append cycle
+# but the `<!--` token never appears in the rendered SOUL.
+SOUL_CTX_MARKER="### MIOS-RUNTIME-CONTEXT-BEGIN (managed by mios-hermes-firstboot; do not edit between markers)"
+SOUL_CTX_END="### MIOS-RUNTIME-CONTEXT-END"
 _build_soul_runtime_ctx() {
     local out=""
     if [[ -n "${_discord_channel:-}" || -n "${_discord_guild:-}" ]]; then
         out+=$'\n\n'"${SOUL_CTX_MARKER}"$'\n\n## MiOS host runtime context (operator-managed)\n\n'
-        out+="<!-- Auto-appended by mios-hermes-firstboot from [identity] keys in mios.toml. "
-        out+="To override, edit /etc/mios/mios.toml or ~/.config/mios/mios.toml. -->"$'\n\n'
+        out+="_Auto-appended by mios-hermes-firstboot from [identity] keys in mios.toml. "
+        out+="To override, edit /etc/mios/mios.toml or ~/.config/mios/mios.toml._"$'\n\n'
         if [[ -n "${_discord_channel:-}" ]]; then
             out+="- Default Discord channel: \`${_discord_channel}\`"
             [[ -n "${_discord_guild:-}" ]] && out+=" (guild \`${_discord_guild}\`)"
@@ -971,6 +979,7 @@ _build_soul_runtime_ctx() {
             out+="call \`discord_send_message\` with channel_id=\`${_discord_channel}\`. "
             out+="Only use a different channel if the operator names one explicitly."$'\n'
         fi
+        out+=$'\n'"${SOUL_CTX_END}"$'\n'
     fi
     printf '%s' "$out"
 }

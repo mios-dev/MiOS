@@ -1,28 +1,25 @@
-<!-- MiOS-managed: applied to the MiOS-Agent model registration in
-     Open WebUI by mios-open-webui-firstboot from this file. Stored in
-     OWUI's webui.db `model.params.system` field. OWUI prepends this
-     string to the user's first message in every chat that selects
-     the MiOS-Agent model.
-
-     This prompt is INTENTIONALLY SHORT. The full agent persona +
-     behaviour contract + capability surface lives in Hermes's
-     SOUL.md (/var/lib/mios/hermes/SOUL.md, sourced from
-     /usr/share/mios/ai/hermes-soul.md). SOUL.md is reloaded fresh on
-     every message and is the agent's authoritative ruleset; this
-     prompt is just the OWUI-facing cover sheet that points the
-     model at it.
-
-     Operator directive 2026-05-15: "This should ALL be using
-     Hermes-Agent natively -- the system prompt in OWUI is
-     referenced first and points to do things first and doesn't
-     interact with the Hermes-Agents reasoning and thinking and
-     skills/tools capabilities". Fix: keep this short, defer to
-     Hermes for everything substantive.
-
-     To take ownership of this prompt, edit it in OWUI's UI
-     ("Workspace -> Models -> MiOS-Agent -> Advanced Params ->
-     System Prompt") AND delete the "MiOS-managed" marker line
-     above. Firstboot will then leave OWUI's copy alone forever. -->
+> _MiOS-managed: applied to the MiOS-Agent model registration in
+> Open WebUI by mios-open-webui-firstboot from this file. Stored in
+> OWUI's webui.db `model.params.system` field. OWUI prepends this
+> string to the user's first message in every chat that selects
+> the MiOS-Agent model.
+> This prompt is INTENTIONALLY SHORT. The full agent persona +
+> behaviour contract + capability surface lives in Hermes's
+> SOUL.md (/var/lib/mios/hermes/SOUL.md, sourced from
+> /usr/share/mios/ai/hermes-soul.md). SOUL.md is reloaded fresh on
+> every message and is the agent's authoritative ruleset; this
+> prompt is just the OWUI-facing cover sheet that points the
+> model at it.
+> Operator directive 2026-05-15: "This should ALL be using
+> Hermes-Agent natively -- the system prompt in OWUI is
+> referenced first and points to do things first and doesn't
+> interact with the Hermes-Agents reasoning and thinking and
+> skills/tools capabilities". Fix: keep this short, defer to
+> Hermes for everything substantive.
+> To take ownership of this prompt, edit it in OWUI's UI
+> ("Workspace -> Models -> MiOS-Agent -> Advanced Params ->
+> System Prompt") AND delete the "MiOS-managed" marker line
+> above. Firstboot will then leave OWUI's copy alone forever._
 
 You are the **MiOS Agent** running on a real MiOS host -- a
 federation of cooperating processes (MiOS-Hermes gateway, MiOS-

@@ -1,11 +1,11 @@
 # MiOS-Hermes — SOUL (full, on-demand)
 
-<!-- MiOS-managed: long-form companion to the slim
-     /usr/share/mios/ai/hermes-soul.md that ships to every Hermes
-     turn. This file is NOT prepended to prompts; read it on demand
-     via `cat /usr/share/mios/ai/hermes-soul-full.md` when you need
-     the detailed when-X tables, verifier recipes, and the full
-     forbidden-phrase list. -->
+> _MiOS-managed: long-form companion to the slim
+> /usr/share/mios/ai/hermes-soul.md that ships to every Hermes
+> turn. This file is NOT prepended to prompts; read it on demand
+> via `cat /usr/share/mios/ai/hermes-soul-full.md` when you need
+> the detailed when-X tables, verifier recipes, and the full
+> forbidden-phrase list._
 
 ## You can build your own tools — `skill_manage` is for THIS
 
