@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""mios-owui-apply-suggestions -- idempotent seed of MiOS-specific
+default prompt suggestions into Open WebUI's config table.
+
+The cards shown on a blank chat ("Suggested" section) come from
+ui.prompt_suggestions in the OWUI config blob. Upstream OWUI ships
+chatbot-generic defaults that don't reflect what a MiOS host can
+actually do. This helper replaces them with MiOS-relevant cards
+(launch, find, system status, etc.) so the operator's first
+landing on a new chat surfaces verbs the agent stack handles.
+
+Idempotent: re-running with the same content is a no-op; the helper
+detects unchanged JSON and skips the write. Re-runs with NEW content
+do a single UPDATE.
+
+Invoked by mios-hermes-firstboot.service after OWUI is up, on every
+boot -- safe to run repeatedly.
+
+Operator directive 2026-05-17: "suggested is not generated and
+relevant and also updating via refinement" -- this helper provides
+the relevant defaults; the TASK_MODEL_EXTERNAL + ENABLE_FOLLOW_UP_
+GENERATION env vars in the OWUI Quadlet wire the *generated* follow-
+up suggestions through the same prefilter -> refiner chain.
+"""
+from __future__ import annotations
+
+import datetime
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+DB_PATH = Path("/var/lib/mios/open-webui/webui.db")
+
+# Each entry: {title: [primary, secondary], content: prompt-text}.
+# The primary line is the card heading; the secondary is the small
+# subtitle below it. content is what gets placed in the chat input
+# when the operator clicks the card.
+MIOS_SUGGESTIONS = [
+    {
+        "title": ["Launch an app", "by name (Steam, Epic, flatpak, .exe, .lnk)"],
+        "content": "launch {{app}} for me",
+    },
+    {
+        "title": ["Find a file", "via the Voidtools Everything NTFS index"],
+        "content": "find {{filename}} -- search the NTFS index for the full path",
+    },
+    {
+        "title": ["System status", "services, GPU/VRAM, disk, models"],
+        "content": "show me the MiOS dashboard -- services, GPU/VRAM, disk, ollama models",
+    },
+    {
+        "title": ["Inventory apps", "every installed app across all sources"],
+        "content": "list every installed app on this MiOS host (windows-game, linux-flatpak, linux-rpm-gui, mios-shim)",
+    },
+    {
+        "title": ["Open a website", "in the default browser"],
+        "content": "open {{url}} in the browser",
+    },
+    {
+        "title": ["Service diagnose", "any failed unit on the host"],
+        "content": "what MiOS services are failing right now? show the journal for each",
+    },
+    {
+        "title": ["Edit mios.toml", "operator-tunable system config"],
+        "content": "what's in /etc/mios/mios.toml -- and what would I change to {{intent}}?",
+    },
+    {
+        "title": ["Schedule work", "cron / systemd timer"],
+        "content": "schedule {{task}} to run {{when}} and persist across reboots",
+    },
+]
+
+
+def _log(msg: str) -> None:
+    print(f"  [mios-owui-apply-suggestions] {msg}", flush=True)
+
+
+def main() -> int:
+    if not DB_PATH.is_file():
+        _log(f"{DB_PATH} not present yet -- skipping (OWUI hasn't bootstrapped)")
+        return 0
+    try:
+        c = sqlite3.connect(str(DB_PATH))
+    except sqlite3.Error as e:
+        _log(f"could not open DB: {e}")
+        return 1
+
+    row = c.execute("SELECT data FROM config WHERE id=1").fetchone()
+    now_iso = datetime.datetime.utcnow().isoformat()
+
+    if row is None:
+        data = {"version": 0}
+        existing = None
+    else:
+        try:
+            data = json.loads(row[0])
+        except json.JSONDecodeError as e:
+            _log(f"existing config JSON is corrupt -- aborting: {e}")
+            return 1
+        existing = data.get("ui", {}).get("prompt_suggestions")
+
+    if existing == MIOS_SUGGESTIONS:
+        _log(f"{len(MIOS_SUGGESTIONS)} MiOS suggestions already present -- no change")
+        return 0
+
+    data.setdefault("ui", {})["prompt_suggestions"] = MIOS_SUGGESTIONS
+    payload = json.dumps(data)
+
+    if row is None:
+        c.execute(
+            "INSERT INTO config (id, data, version, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (1, payload, 0, now_iso, now_iso),
+        )
+        _log(f"created config row + seeded {len(MIOS_SUGGESTIONS)} MiOS suggestions")
+    else:
+        c.execute(
+            "UPDATE config SET data=?, updated_at=? WHERE id=1",
+            (payload, now_iso),
+        )
+        _log(f"replaced {len(existing or [])} existing -> {len(MIOS_SUGGESTIONS)} MiOS suggestions")
+    c.commit()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
