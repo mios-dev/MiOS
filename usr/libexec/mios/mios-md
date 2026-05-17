@@ -1,0 +1,107 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-md [<file.md>] [--text "<inline markdown>"]
+#
+# Open the MiOS markdown editor + live preview in the operator's
+# default browser. The viewer is a single self-contained HTML file
+# at /usr/share/mios/markdown/index.html with vendored snarkdown
+# (MIT, ~1 KB) -- zero CDN, zero telemetry, runs entirely in the
+# browser.
+#
+# OWUI already renders markdown emitted by the agent inline; this
+# shim covers the OTHER direction: a dedicated window where the
+# operator types / pastes markdown and sees rendered markup live.
+#
+# Operator directive 2026-05-17: "in OWUI also react windows for
+# markdown to markup text". OWUI-side: polish pass now emits bare
+# markdown (no ```markdown fence) so chat renders properly. THIS
+# shim is the standalone surface for ad-hoc editing.
+#
+# USAGE
+#   mios-md                           open with empty buffer
+#   mios-md ~/notes/meeting.md        open with file pre-loaded
+#   mios-md --text "# Hello\n\nworld" open with inline text
+#
+# The viewer's URL accepts `?path=...` (display label) and
+# `?text=...` (urlencoded markdown). For path-based loads we
+# pre-read the file contents and pass them via ?text= so the
+# viewer never needs filesystem access.
+
+set -u
+
+VIEWER_PATH="${MIOS_MD_VIEWER:-/usr/share/mios/markdown/index.html}"
+TEXT=""
+FILE=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --text)   TEXT="${2:-}"; shift 2 ;;
+        --text=*) TEXT="${1#--text=}"; shift ;;
+        -h|--help)
+            grep -E '^#' "$0" | sed 's/^# \?//' | head -40
+            exit 0
+            ;;
+        --) shift; FILE="${1:-}"; shift ;;
+        -*)
+            echo "mios-md: unknown flag: $1" >&2
+            exit 64
+            ;;
+        *)
+            [[ -z "$FILE" ]] && FILE="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ ! -f "$VIEWER_PATH" ]]; then
+    cat >&2 <<EOF
+mios-md: viewer not installed at $VIEWER_PATH
+
+Re-run automation/08-system-files-overlay.sh in your next image build,
+or for a quick local fix:
+  sudo install -D -m 0644 \\
+    /mnt/c/MiOS/usr/share/mios/markdown/index.html \\
+    /usr/share/mios/markdown/index.html
+EOF
+    exit 1
+fi
+
+# If a file was given, read it and pass as ?text= so the viewer doesn't
+# need to fetch (works for any FS the operator can read).
+LABEL=""
+if [[ -n "$FILE" ]]; then
+    if [[ ! -f "$FILE" ]]; then
+        echo "mios-md: $FILE not found" >&2
+        exit 1
+    fi
+    LABEL="$(basename "$FILE")"
+    TEXT="$(cat "$FILE")"
+fi
+
+# URL-encode helper (POSIX-only)
+_urlenc() {
+    python3 -c "import urllib.parse,sys; sys.stdout.write(urllib.parse.quote(sys.stdin.read()))" 2>/dev/null
+}
+
+QS=""
+[[ -n "$TEXT"  ]] && QS="${QS}&text=$(printf '%s' "$TEXT"  | _urlenc)"
+[[ -n "$LABEL" ]] && QS="${QS}&path=$(printf '%s' "$LABEL" | _urlenc)"
+[[ -n "$QS" ]] && QS="?${QS#&}"
+
+# Resolve WSL distro for the UNC path (same pattern as mios-html)
+DISTRO="${WSL_DISTRO_NAME:-}"
+if [[ -z "$DISTRO" ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    DISTRO="$(awk -F= '/^name *=/{print $2; exit}' /etc/wsl.conf 2>/dev/null | tr -d ' "')"
+fi
+DISTRO="${DISTRO:-podman-MiOS-DEV}"
+
+# Dispatch via Windows Start-Process so the operator's default browser
+# (Zen / Chrome / Edge / Firefox) opens it. UNC path serves the file
+# directly from WSL; the ?text= query carries the markdown payload.
+UNC="\\\\wsl.localhost\\${DISTRO}\\usr\\share\\mios\\markdown\\index.html${QS}"
+
+if ! command -v mios-windows >/dev/null 2>&1; then
+    echo "mios-md: mios-windows not on PATH (cannot dispatch to browser)" >&2
+    exit 1
+fi
+
+exec mios-windows ps "Start-Process '${UNC}'"

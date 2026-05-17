@@ -2300,6 +2300,20 @@ games      = "lutris"
 "steam-game"    = "mios-steamcmd"
 "steam-install" = "mios-steamcmd"
 
+# Markdown editor + live preview window. Self-hosted viewer at
+# /usr/share/mios/markdown/index.html (vendored snarkdown, no CDN);
+# mios-md opens it via Start-Process in the operator's default
+# browser, optionally pre-loaded with a file or inline text.
+# Complements OWUI's inline markdown rendering -- this is the
+# standalone surface for ad-hoc note editing + previewing.
+# Operator directive 2026-05-17: "react windows for markdown to
+# markup text in OWUI also".
+"md"          = "mios-md"
+"markdown"    = "mios-md"
+"preview-md"  = "mios-md"
+"render-md"   = "mios-md"
+"notes"       = "mios-md"
+
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and
 # the mios-build-driver.

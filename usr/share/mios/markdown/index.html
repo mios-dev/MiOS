@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MiOS Markdown</title>
+<style>
+  :root {
+    --bg: #0f1115; --fg: #e6e6e6; --muted: #8b95a7;
+    --accent: #5fb3f8; --pane-border: #1b2030; --pane-bg: #181c25;
+    --code-bg: #0a0d12;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; background: var(--bg); color: var(--fg);
+         font-family: ui-sans-serif, system-ui, sans-serif; }
+  header { padding: 8px 14px; background: var(--pane-bg);
+           border-bottom: 1px solid var(--pane-border);
+           display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  header .title { font-weight: 600; color: var(--accent); }
+  header .path  { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  header .actions { margin-left: auto; display: flex; gap: 8px; }
+  header button {
+    background: var(--pane-bg); color: var(--fg); border: 1px solid var(--pane-border);
+    border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  header button:hover { border-color: var(--accent); }
+  main { display: grid; grid-template-columns: 1fr 1fr;
+         height: calc(100vh - 41px); }
+  .pane { overflow: auto; padding: 16px 18px; }
+  .pane.source { background: var(--code-bg); border-right: 1px solid var(--pane-border); }
+  textarea {
+    width: 100%; height: 100%; resize: none;
+    background: transparent; color: var(--fg);
+    border: 0; outline: 0; font-family: ui-monospace, Menlo, monospace;
+    font-size: 13px; line-height: 1.5;
+  }
+  .pane.preview { background: var(--bg); line-height: 1.55; }
+  .pane.preview h1, h2, h3 { margin: 0.8em 0 0.4em; }
+  .pane.preview code { background: var(--code-bg); padding: 1px 5px;
+                       border-radius: 3px; font-size: 0.9em; }
+  .pane.preview pre  { background: var(--code-bg); padding: 12px; border-radius: 6px;
+                       overflow-x: auto; }
+  .pane.preview blockquote {
+    border-left: 3px solid var(--accent); margin: 0.6em 0; padding: 4px 12px;
+    background: var(--pane-bg); border-radius: 0 4px 4px 0;
+  }
+  .pane.preview table { border-collapse: collapse; }
+  .pane.preview th, td { border: 1px solid var(--pane-border); padding: 4px 8px; }
+  .pane.preview a { color: var(--accent); }
+  .status { padding: 6px 14px; background: var(--pane-bg);
+            border-top: 1px solid var(--pane-border);
+            font-size: 11px; color: var(--muted); display: flex; gap: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="title">MiOS Markdown</span>
+  <span class="path" id="path">(scratch buffer)</span>
+  <div class="actions">
+    <button id="copy">Copy Markdown</button>
+    <button id="copy-html">Copy HTML</button>
+    <button id="download">Download .md</button>
+    <button id="clear">Clear</button>
+  </div>
+</header>
+<main>
+  <div class="pane source">
+    <textarea id="src" spellcheck="false" placeholder="# Type or paste markdown here
+
+Live preview on the right. Anything you write here stays in your
+browser; nothing leaves the machine.
+
+## Features
+- GitHub-flavored basics: **bold**, *italic*, `inline code`
+- Fenced code blocks, headings, lists, links, tables, blockquotes
+- Copy rendered HTML to clipboard for pasting elsewhere
+- Save the buffer back to disk via `mios-md --save <path>` (server-side)
+
+> Vendored snarkdown (~1KB, MIT). No CDN, no telemetry, no external requests."></textarea>
+  </div>
+  <div class="pane preview" id="preview"></div>
+</main>
+<div class="status">
+  <span id="char-count">0 chars</span>
+  <span id="line-count">1 line</span>
+  <span id="word-count">0 words</span>
+  <span style="margin-left:auto">vendored snarkdown · self-hosted · MIT</span>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────────
+     Snarkdown (https://github.com/developit/snarkdown) — MIT.
+     Vendored inline so the page has zero external requests.
+     ~1KB minified. Handles GFM basics: headers, lists, emphasis,
+     fences, links, images, blockquotes. Tables added by us below.
+     ───────────────────────────────────────────────────────────── -->
+<script>
+// Snarkdown v2.0.0 — MIT — Jason Miller (developit) — vendored verbatim
+var TAGS={'':['<em>','</em>'],_:['<strong>','</strong>'],'*':['<strong>','</strong>'],'~':['<s>','</s>'],'\n':['<br />'],' ':['<br />'],'-':['<hr />']};
+function outdent(t){return t.replace(RegExp('^'+(t.match(/^(\t| )+/)||'')[0],'gm'),'');}
+function encodeAttr(t){return(t+'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function parse(md,prevLinks){
+  var tokenizer=/((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
+    context=[],out='',links=prevLinks||{},last=0,chunk,prev,token,inner,t;
+  function tag(token){
+    var desc=TAGS[token[1]||''],end=context[context.length-1]==token;
+    if(!desc)return token;
+    if(!desc[1])return desc[0];
+    if(end)context.pop();else context.push(token);
+    return desc[end|0];
+  }
+  function flush(){var str='';while(context.length)str+=tag(context[context.length-1]);return str;}
+  md=md.replace(/^\[(.+?)\]:\s*(.+)$/gm,function(s,name,url){links[name.toLowerCase()]=url;return'';}).replace(/^\n+|\n+$/g,'');
+  while((token=tokenizer.exec(md))){
+    prev=md.substring(last,token.index);
+    last=tokenizer.lastIndex;
+    chunk=token[0];
+    if(prev.match(/[^\\](\\\\)*\\$/)){/*escaped*/}
+    else if(t=(token[3]||token[4])){
+      chunk='<pre class="code '+(token[4]?'poetry':token[2].toLowerCase())+'"><code'+(token[2]?' class="language-'+token[2].toLowerCase()+'"':'')+'>'+outdent(encodeAttr(t).replace(/^\n+|\n+$/g,''))+'</code></pre>';
+    }else if(t=token[6]){
+      if(t.match(/\./))token[5]=token[5].replace(/^\d+/gm,'');
+      inner=parse(outdent(token[5].replace(/^\s*[>*+.-]/gm,'')));
+      if(t=='>')t='blockquote';
+      else{t=t.match(/\./)?'ol':'ul';inner=inner.replace(/^(.*)(\n|$)/gm,'<li>$1</li>');}
+      chunk='<'+t+'>'+inner+'</'+t+'>';
+    }else if(token[8]){
+      chunk='<img src="'+encodeAttr(token[8])+'" alt="'+encodeAttr(token[7])+'">';
+    }else if(token[10]){
+      out=out.replace('<a>',('<a href="'+encodeAttr(token[11]||links[prev.toLowerCase()])+'">'));
+      chunk=flush()+'</a>';
+    }else if(token[9]){chunk='<a>';
+    }else if(token[12]||token[14]){chunk='<'+(t='h'+(token[14]?token[14].length:(token[13]>'='?1:2)))+'>'+parse(token[12]||token[15],links)+'</'+t+'>';
+    }else if(token[16]){chunk='<code>'+encodeAttr(token[16])+'</code>';
+    }else if(token[17]||token[1]){chunk=tag(token[17]||'--');}
+    out+=prev;out+=chunk;
+  }
+  return(out+md.substring(last)+flush()).replace(/^\n+|\n+$/g,'');
+}
+
+// ─── tiny GFM-table post-processor (snarkdown doesn't do tables) ─────
+function renderTables(html){
+  return html.replace(/(?:^|\n)((?:\|[^\n]+\|\n)(?:\|[-:|\s]+\|\n)(?:\|[^\n]+\|\n?)+)/g, function(m){
+    var rows = m.trim().split(/\n/).filter(r => r.indexOf('|') >= 0);
+    if (rows.length < 2) return m;
+    function cells(r){ return r.replace(/^\||\|$/g, '').split('|').map(c=>c.trim()); }
+    var header = cells(rows[0]);
+    var body   = rows.slice(2).map(cells);
+    var th = '<tr>' + header.map(c=>'<th>'+c+'</th>').join('') + '</tr>';
+    var tb = body.map(r=>'<tr>'+r.map(c=>'<td>'+parse(c)+'</td>').join('')+'</tr>').join('');
+    return '\n<table><thead>'+th+'</thead><tbody>'+tb+'</tbody></table>\n';
+  });
+}
+
+var src = document.getElementById('src');
+var preview = document.getElementById('preview');
+var charCount = document.getElementById('char-count');
+var lineCount = document.getElementById('line-count');
+var wordCount = document.getElementById('word-count');
+
+function refresh(){
+  var md = src.value;
+  var withTables = md.replace(/\n/g, '\n');
+  preview.innerHTML = renderTables(parse(withTables));
+  charCount.textContent = md.length + ' chars';
+  lineCount.textContent = (md.split('\n').length) + ' line' + (md.split('\n').length===1?'':'s');
+  wordCount.textContent = (md.trim() ? md.trim().split(/\s+/).length : 0) + ' words';
+}
+
+src.addEventListener('input', refresh);
+
+// Load query-param `?src=<path-relative-to-/usr/share/mios/markdown/scratch>`
+// or `?text=<urlencoded>` for preload. mios-md uses this to drop you
+// into a file via `?src=` (file fetched server-side then re-served).
+(function loadFromUrl(){
+  var p = new URLSearchParams(location.search);
+  if (p.has('text'))    src.value = p.get('text');
+  if (p.has('path'))    document.getElementById('path').textContent = p.get('path');
+  refresh();
+})();
+
+// Buttons
+document.getElementById('copy').onclick = function(){
+  navigator.clipboard.writeText(src.value).then(()=>{
+    this.textContent = 'Copied!'; setTimeout(()=>this.textContent='Copy Markdown', 1500);
+  });
+};
+document.getElementById('copy-html').onclick = function(){
+  navigator.clipboard.writeText(preview.innerHTML).then(()=>{
+    this.textContent = 'Copied!'; setTimeout(()=>this.textContent='Copy HTML', 1500);
+  });
+};
+document.getElementById('download').onclick = function(){
+  var blob = new Blob([src.value], {type:'text/markdown'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mios-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.md';
+  a.click();
+};
+document.getElementById('clear').onclick = function(){
+  if (confirm('Clear the buffer?')) { src.value=''; refresh(); }
+};
+
+// Tab key inserts 2 spaces (don't lose focus)
+src.addEventListener('keydown', function(e){
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    var s = this.selectionStart, e2 = this.selectionEnd;
+    this.value = this.value.substring(0,s) + '  ' + this.value.substring(e2);
+    this.selectionStart = this.selectionEnd = s + 2;
+    refresh();
+  }
+});
+</script>
+</body>
+</html>
