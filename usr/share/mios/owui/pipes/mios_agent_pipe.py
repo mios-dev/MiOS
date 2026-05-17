@@ -715,7 +715,35 @@ class Pipe:
             await self._emit(emitter, "⚠️ polish too short -- using raw")
             return raw_output
 
+        # Strip the outer ```markdown ... ``` wrapper if the model
+        # ignored the no-fence rule. The system prompt explicitly
+        # forbids this but qwen2.5-coder:7b sometimes does it anyway,
+        # and OWUI then renders the WHOLE answer as a code block
+        # (operator-flagged 2026-05-17: every polished response was
+        # showing as raw markdown source instead of rendered markup).
+        polished = self._strip_outer_md_fence(polished)
+
         return polished
+
+    _OUTER_FENCE_RE = re.compile(
+        r"^\s*```(?:md|markdown|MD|MARKDOWN)?\s*\n(.*?)\n```\s*$",
+        re.S,
+    )
+
+    def _strip_outer_md_fence(self, text: str) -> str:
+        """If the entire response is wrapped in a ```markdown ... ```
+        (or bare ```) fence, unwrap so OWUI renders the inner markdown
+        as proper markup instead of as a code block."""
+        m = self._OUTER_FENCE_RE.match(text)
+        if not m:
+            return text
+        inner = m.group(1).strip()
+        # Only unwrap if the inner content itself doesn't START with
+        # a fence (preserves answers that genuinely lead with a code
+        # block as their first element).
+        if inner.startswith("```"):
+            return text
+        return inner
 
     async def _refine_via_cpu(
         self,
