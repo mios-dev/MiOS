@@ -40,10 +40,15 @@ Environment=MIOS_PREFILTER_REFINE=1
 Environment=MIOS_SYS_AGENT_MODEL=mios-sys-agent
 Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11434/v1
 Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11434
-# Cold-load of the ~4 GB CPU refiner can take 30-60s. Once loaded
-# (keep_alive=-1) subsequent refines are sub-second to a few seconds.
-# 120s gives cold-load headroom; warm calls return well under this.
-Environment=MIOS_PREFILTER_REFINE_TIMEOUT=120
+# Cold-load of the ~4 GB CPU refiner takes 60-180s on WSL2 disks
+# (3+ min observed on the operator's slow-disk testbed); on bare-
+# metal NVMe it's 10-30s. After cold load, mios-sys-agent generates
+# ~50 tok/s on a 12-core CPU, so a 600-token refine completes in
+# ~12s warm. 300s total covers cold + warm + the elaborate
+# modelfile SYSTEM prompt (~1500 tokens of reasoning template).
+# Combined with the OLLAMA_KEEP_ALIVE=-1 drop-in the cold load
+# happens ONCE per boot and never again.
+Environment=MIOS_PREFILTER_REFINE_TIMEOUT=300
 # Heuristic + upstream are operator-tunable via /etc/mios/secrets.env
 # or a drop-in:
 #   Environment=MIOS_PREFILTER_LISTEN_PORT=8641

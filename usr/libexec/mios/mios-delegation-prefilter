@@ -72,11 +72,19 @@ DISPLAY_MODEL_NAME = os.environ.get("MIOS_PREFILTER_DISPLAY_MODEL", "MiOS-Agent"
 ACCEPTED_MODEL_NAMES = {DISPLAY_MODEL_NAME, "mios-sys-agent", "MiOS-Agent", "mios-agent"}
 
 REFINE_SYSTEM = (
+    # /nothink: qwen3.5-family directive that disables thinking-mode
+    # generation. Without it, the model emits its entire chain-of-
+    # thought to message.thinking and leaves message.content EMPTY
+    # (operator-flagged 2026-05-17 reboot test: "refine: sys-agent
+    # emitted empty content (reasoning='Thinking Process: ...')").
+    # With /nothink the model writes directly to content -- exactly
+    # what the prefilter forwards to hermes.
+    "/nothink\n"
     "You are MiOS-Sys-Agent. The user types to you in OWUI; you provide "
     "FULL context to the downstream agent (hermes-agent) for "
-    "execution. Apply your reasoning template SILENTLY, then produce a "
-    "CONTEXTUALIZED HANDOFF that hermes-agent can act on directly. "
-    "Format:\n"
+    "execution. Produce a CONTEXTUALIZED HANDOFF that hermes-agent can "
+    "act on directly. Skip the reasoning template entirely -- the "
+    "output IS the answer. Format:\n"
     "\n"
     "USER REQUEST: <verbatim or lightly-cleaned user prompt>\n"
     "INTENT: <one sentence on what the user actually wants>\n"
@@ -86,8 +94,8 @@ REFINE_SYSTEM = (
     "PLAN: <2-3 step plan hermes can execute>\n"
     "\n"
     "DO NOT include template HEADERS like '[1. INPUT ANALYSIS]' in "
-    "the output. DO NOT add commentary OR pleasantries. Output ONLY "
-    "the labeled handoff."
+    "the output. DO NOT add commentary OR pleasantries. DO NOT emit "
+    "thinking traces. Output ONLY the labeled handoff."
 )
 
 # Regexes that suggest the user wants parallel investigation. Tuned from
@@ -288,7 +296,14 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
         "options": {
             "num_gpu": 0,
             "num_thread": 8,
-            "num_predict": 1200,
+            # 600 tokens is the sweet spot: enough room for mios-sys-
+            # agent's reasoning template (it burns ~300 tokens on the
+            # template alone) plus a meaningful refined handoff
+            # (~200-300 tokens). 1200 was tipping over the 120s
+            # timeout on this slow WSL2 disk; 600 halves CPU time
+            # while still giving the refiner enough output room to
+            # produce a non-truncated answer.
+            "num_predict": 600,
             "temperature": 0.0,
         },
         "stream": False,
@@ -324,24 +339,41 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
             "content": _m.get("content", ""),
             "reasoning": _m.get("thinking") or _m.get("reasoning", ""),
         }}]}
-        # We need a CLEAN refined prompt -- NOT the model's raw chain-of-
-        # thought. qwen3.5-family models emit thinking into `reasoning`
-        # and the final clean answer into `content`. If `content` is
-        # empty (model ran out of tokens during thinking), passthrough
-        # the operator's original text rather than dump 4 KB of confused
-        # thinking-trace at hermes (which makes hermes return empty --
-        # the trace doesn't read as a coherent user message). Refinement
-        # is OPTIONAL: passthrough is safer than corruption.
+        # Refined prompt resolution -- qwen3.5-family thinking models
+        # split output between message.content (the final answer)
+        # and message.thinking (the chain-of-thought). mios-sys-agent's
+        # modelfile SYSTEM forces thinking mode regardless of /nothink,
+        # so message.content is often empty. Strategy:
+        #   1. content non-empty   -> use as-is (best case)
+        #   2. content empty, thinking has the "USER REQUEST:" /
+        #      "INTENT:" / "PLAN:" labeled tail -> extract the
+        #      labeled section (the conclusion of the reasoning trace
+        #      IS the answer for our REFINE_SYSTEM template)
+        #   3. content empty, no labeled tail -> take the LAST
+        #      meaningful paragraph of thinking (model's wrap-up)
+        #   4. nothing usable -> return None, HARD-GATE rejects
         msg = (resp.get("choices") or [{}])[0].get("message") or {}
         refined = (msg.get("content") or "").strip()
-        reasoning_snippet = (msg.get("reasoning") or "").strip()[:200]
+        thinking = (msg.get("reasoning") or "").strip()
+        if not refined and thinking:
+            # Look for the labeled handoff template in the thinking trace
+            m = re.search(r"USER REQUEST:[\s\S]+?(?=\n\n|$)", thinking)
+            if m:
+                refined = m.group(0).strip()
+                log.info("refine: extracted labeled handoff from thinking trace (%d chars)",
+                         len(refined))
+            else:
+                # Tail extraction: last 6 non-empty lines of thinking
+                lines = [l for l in thinking.splitlines() if l.strip()]
+                if lines:
+                    tail = "\n".join(lines[-6:])
+                    if len(tail) > 50:  # avoid degenerate "1.\n2." tails
+                        refined = tail
+                        log.info("refine: thinking-tail fallback (%d chars from %d-line trace)",
+                                 len(tail), len(lines))
         if not refined:
-            log.info("refine: sys-agent emitted empty content (reasoning=%r) -- passthrough original",
-                     reasoning_snippet[:80])
-            # Still record the attempt to the sidecar so the operator
-            # sees that the refiner FIRED, even if it didn't produce a
-            # usable rewrite.
-            _write_refine_sidecar(user_text, f"(no rewrite; thinking: {reasoning_snippet[:120]}...)")
+            log.info("refine: sys-agent emitted no usable output -- HARD-GATE will reject")
+            _write_refine_sidecar(user_text, f"(no rewrite; thinking: {thinking[:120]}...)")
             return None
         log.info("refine: %d-char prompt -> %d-char handoff", len(user_text), len(refined))
         _write_refine_sidecar(user_text, refined)
@@ -424,7 +456,16 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             # cold-load misses rare; if one DOES happen the operator
             # gets a clear "refiner unavailable" instead of a
             # silently-degraded answer.
-            if user_text and REFINE_ENABLED:
+            #
+            # EXCEPTION: conversational openers (hi / thanks / bye /
+            # short ack) get NO refinement at all -- pass straight to
+            # hermes. A 4 GB CPU refiner that returns "USER REQUEST:
+            # hello\nINTENT: greeting\n..." is wasted CPU + adds 15s
+            # latency to what should be a sub-second pleasantry. The
+            # _looks_conversational check below already bypasses
+            # delegate-force on these; do the same for refinement.
+            _skip_refine_short = _looks_conversational(user_text)
+            if user_text and REFINE_ENABLED and not _skip_refine_short:
                 refined = await _refine_via_sys_agent(user_text)
                 if refined:
                     # Replace the last user message's content with the
