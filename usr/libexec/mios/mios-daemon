@@ -1,0 +1,442 @@
+#!/usr/bin/env python3
+"""mios-daemon -- consolidated MiOS micro-LLM daemon.
+
+Operator directive 2026-05-17: "ALL to be consolidated to one mios
+daemon/agent". Replaces three separate journal-subscribing /
+periodic-evaluating services (mios-log-watcher + mios-agent-nudger
++ mios-cron-director) with ONE process that:
+
+  * Subscribes to journald ONCE (not three times)
+  * Holds a SINGLE Ollama client (keep_alive=-1 forever, num_gpu=0
+    CPU-only per Law 7 + the operator's "always-on agentic OS"
+    directive)
+  * Dispatches three handlers off a single event stream:
+      - classify: every Nseconds-batch of journal lines summarized
+                  via qwen3:0.6b-cpu (was: mios-log-watcher)
+      - refusal:  hermes-agent.service / mios-delegation-prefilter
+                  lines checked for refusal-pattern hits (was:
+                  mios-agent-nudger; pattern list = refusal-
+                  patterns.txt + LLM yes/no confirmation)
+      - cron:     /etc/mios/daemon/cron.toml gates evaluated on a
+                  cadence; YES gates fire their action (was:
+                  mios-cron-director)
+  * Writes a UNIFIED state file at /var/lib/mios/daemon/state.json
+    with all three handler outputs. mios_sidecar_filter.py polls
+    this single file (replaces the three SIBLING_AGENTS entries).
+
+Architecture per Law 7 OFFLINE-FIRST: all LLM calls go to local
+Ollama at http://127.0.0.1:11434/api/chat with options.num_gpu=0,
+options.num_thread=4, keep_alive=-1. No /v1 surface (drops
+options field). Thinking-mode models' output is read from
+message.content first, then message.thinking / message.reasoning
+fallback (qwen3.5-family puts CoT in those fields).
+
+For the OWUI sidecar filter: state.json keys map 1:1 to the prior
+SIBLING_AGENTS labels so the filter just reads ONE file instead
+of three. Per-section sub-objects let the filter format each
+category exactly as before. Schema:
+
+    {
+      "ts": <epoch>,
+      "classify":    {"summary":..., "tags":[...], "severity":...,
+                      "event_count":..., "events_sample":[...]},
+      "refusal":     {"trigger":..., "phrase":..., "model":...,
+                      "ts":..., "service":...},
+      "cron":        {"last_fire": {"rule":..., "ts":...},
+                      "decisions":[...]}
+    }
+"""
+from __future__ import annotations
+
+import datetime
+import json
+import logging
+import os
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Optional
+
+logging.basicConfig(level=logging.INFO, format="[mios-daemon] %(message)s")
+log = logging.getLogger("mios-daemon")
+
+# ── Config (env-overridable) ────────────────────────────────────────
+MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:0.6b-cpu")
+ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", "http://127.0.0.1:11434")
+STATE_DIR = Path(os.environ.get("MIOS_DAEMON_STATE_DIR", "/var/lib/mios/daemon"))
+STATE_FILE = STATE_DIR / "state.json"
+CLASSIFY_BATCH_S = float(os.environ.get("MIOS_DAEMON_CLASSIFY_S", "30"))
+CLASSIFY_BATCH_MAX = int(os.environ.get("MIOS_DAEMON_CLASSIFY_MAX", "8"))
+REFUSAL_PATTERNS_FILE = Path(os.environ.get(
+    "MIOS_REFUSAL_PATTERNS",
+    "/usr/share/mios/ai/refusal-patterns.txt",
+))
+CRON_TOML = Path(os.environ.get("MIOS_DAEMON_CRON_TOML",
+                                 "/etc/mios/daemon/cron.toml"))
+CRON_TICK_S = float(os.environ.get("MIOS_DAEMON_CRON_TICK_S", "60"))
+REQUEST_TIMEOUT_S = float(os.environ.get("MIOS_DAEMON_REQUEST_TIMEOUT_S", "30"))
+
+# Units to watch for journal subscription
+WATCHED_UNITS = os.environ.get(
+    "MIOS_DAEMON_WATCH_UNITS",
+    "hermes-agent.service,mios-delegation-prefilter.service,mios-open-webui.service",
+).split(",")
+
+
+# ── Shared state (handlers write here; flusher persists) ─────────────
+_state_lock = threading.Lock()
+_state: dict = {
+    "ts": time.time(),
+    "classify": None,
+    "refusal":  None,
+    "cron":     {"last_fire": None, "decisions": []},
+}
+_stop_event = threading.Event()
+
+
+def _atomic_write_state() -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with _state_lock:
+        snapshot = dict(_state)
+        snapshot["ts"] = time.time()
+    tmp = STATE_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(snapshot, separators=(",", ":")))
+    os.chmod(tmp, 0o644)
+    tmp.replace(STATE_FILE)
+
+
+def _update_state(section: str, value) -> None:
+    with _state_lock:
+        _state[section] = value
+    _atomic_write_state()
+
+
+# ── Single shared Ollama client ──────────────────────────────────────
+def llm_chat(system: str, user: str, *, max_tokens: int = 150,
+             temperature: float = 0.1) -> str:
+    """Call qwen3:0.6b-cpu (or whatever MODEL is) via Ollama /api/chat.
+    Returns the model's text output (content with thinking fallback).
+    Returns empty string on any error. Always uses CPU + keep_alive=-1.
+    """
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "options": {
+            "num_gpu": 0,           # Law 7 OFFLINE-FIRST + CPU-first
+            "num_thread": 4,
+            "num_predict": max_tokens,
+            "temperature": temperature,
+        },
+        "stream": False,
+        "keep_alive": -1,           # always-on agentic OS
+    }
+    try:
+        req = urllib.request.Request(
+            f"{ENDPOINT}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as r:
+            body = json.loads(r.read())
+        msg = body.get("message") or {}
+        out = (msg.get("content") or "").strip()
+        if not out:
+            out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        return out
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        log.warning("LLM call failed (non-fatal): %s", e)
+        return ""
+
+
+# ── Journal subscriber ───────────────────────────────────────────────
+_event_buffer: list[dict] = []
+_buffer_lock = threading.Lock()
+
+
+def journal_subscriber() -> None:
+    """Run `journalctl -f -o json` and push parsed events into the
+    shared buffer. Classify + refusal-detect handlers drain it."""
+    units_args: list[str] = []
+    for u in WATCHED_UNITS:
+        u = u.strip()
+        if u:
+            units_args += ["-u", u]
+    cmd = ["journalctl", "-f", "-n", "0", "-o", "json", "--no-pager", *units_args]
+    log.info("journal subscriber: %s", " ".join(cmd))
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True, bufsize=1,
+    )
+    try:
+        for line in proc.stdout:
+            if _stop_event.is_set():
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            with _buffer_lock:
+                _event_buffer.append(ev)
+                # Cap to avoid runaway memory
+                if len(_event_buffer) > 500:
+                    _event_buffer[:] = _event_buffer[-200:]
+    finally:
+        proc.terminate()
+
+
+# ── Classify handler (was: mios-log-watcher) ─────────────────────────
+CLASSIFY_SYSTEM = (
+    "You are a Linux log classifier. Read the events below and reply "
+    "with ONE LINE of JSON: {\"summary\":\"<one sentence>\","
+    "\"tags\":[\"<one|two|three>\"],\"severity\":\"low|med|high\"}. "
+    "Nothing else."
+)
+
+
+def classify_loop() -> None:
+    while not _stop_event.is_set():
+        time.sleep(CLASSIFY_BATCH_S)
+        with _buffer_lock:
+            batch = _event_buffer[-CLASSIFY_BATCH_MAX:][:]
+        if not batch:
+            continue
+        # Compose compact prompt
+        lines = []
+        for e in batch:
+            unit = e.get("_SYSTEMD_UNIT", e.get("SYSLOG_IDENTIFIER", "?"))
+            msg = (e.get("MESSAGE") or "").strip().split("\n", 1)[0]
+            lines.append(f"[{unit}] {msg[:200]}")
+        content = llm_chat(CLASSIFY_SYSTEM,
+                           "Recent events:\n" + "\n".join(lines),
+                           max_tokens=120)
+        m = re.search(r"\{[\s\S]*?\}", content) if content else None
+        if m:
+            try:
+                result = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                result = {"summary": f"(JSON err: {content[:80]})",
+                          "tags": ["noise"], "severity": "low"}
+        else:
+            result = {"summary": f"(unparseable: {content[:80]})",
+                      "tags": ["noise"], "severity": "low"}
+        result["event_count"] = len(batch)
+        result["events_sample"] = lines[:3]
+        result["ts"] = datetime.datetime.now().isoformat(timespec="seconds")
+        _update_state("classify", result)
+        log.info("classify: %d events -> %s (%s)",
+                 len(batch), result.get("summary", "")[:80],
+                 result.get("severity", "?"))
+
+
+# ── Refusal handler (was: mios-agent-nudger) ─────────────────────────
+REFUSAL_SYSTEM = (
+    "You are a Linux log filter. Decide if the following hermes-agent "
+    "log message is the agent ACTIVELY REFUSING the user (vs quoting / "
+    "discussing such a phrase). Refusal = the agent telling the user "
+    "it cannot do something when the relevant tool IS available. "
+    "Reply with a single token: \"YES\" or \"NO\". Nothing else."
+)
+
+
+def _load_refusal_patterns() -> list[re.Pattern]:
+    out: list[re.Pattern] = []
+    try:
+        for line in REFUSAL_PATTERNS_FILE.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            try:
+                out.append(re.compile(s, re.IGNORECASE))
+            except re.error:
+                pass
+    except OSError:
+        pass
+    return out
+
+
+_refusal_res = _load_refusal_patterns()
+
+
+def refusal_loop() -> None:
+    """Walk the same buffer, look for hermes-agent.service messages
+    that match a refusal pattern, then confirm with the LLM."""
+    last_index = 0
+    while not _stop_event.is_set():
+        time.sleep(5.0)
+        with _buffer_lock:
+            new = _event_buffer[last_index:]
+            last_index = len(_event_buffer)
+        for ev in new:
+            unit = ev.get("_SYSTEMD_UNIT", "")
+            if unit != "hermes-agent.service":
+                continue
+            msg = (ev.get("MESSAGE") or "")
+            if not msg:
+                continue
+            # Pattern pre-filter
+            hit = None
+            for pat in _refusal_res:
+                if pat.search(msg):
+                    hit = pat.pattern
+                    break
+            if not hit:
+                continue
+            # LLM confirm
+            verdict = llm_chat(REFUSAL_SYSTEM, msg[:2000],
+                               max_tokens=4, temperature=0.0)
+            is_refusal = verdict.upper().startswith("YES")
+            log.info("refusal? pattern=%r verdict=%s msg=%r",
+                     hit[:60], verdict[:8], msg[:120])
+            if is_refusal:
+                _update_state("refusal", {
+                    "trigger": hit,
+                    "phrase": msg[:200],
+                    "model": MODEL,
+                    "service": unit,
+                    "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                })
+
+
+# ── Cron handler (was: mios-cron-director) ──────────────────────────
+def _load_cron_gates() -> list[dict]:
+    """Read /etc/mios/daemon/cron.toml. Each [gates.<name>] block is
+    one rule: { question, action, min_interval_s }."""
+    if not CRON_TOML.is_file():
+        return []
+    try:
+        try:
+            import tomllib   # py 3.11+
+        except ImportError:
+            import tomli as tomllib   # type: ignore
+        data = tomllib.loads(CRON_TOML.read_text(encoding="utf-8"))
+    except Exception as e:
+        log.warning("cron.toml parse failed: %s", e)
+        return []
+    out: list[dict] = []
+    gates = (data.get("gates") or {})
+    for name, block in gates.items():
+        if not isinstance(block, dict):
+            continue
+        out.append({
+            "name": name,
+            "question": block.get("question", ""),
+            "action":   block.get("action", ""),
+            "min_interval_s": float(block.get("min_interval_s", 3600)),
+        })
+    return out
+
+
+_last_fire: dict[str, float] = {}
+
+
+def cron_loop() -> None:
+    while not _stop_event.is_set():
+        gates = _load_cron_gates()
+        decisions: list[dict] = []
+        for gate in gates:
+            name = gate["name"]
+            last = _last_fire.get(name, 0.0)
+            if (time.time() - last) < gate["min_interval_s"]:
+                continue
+            verdict = llm_chat(
+                "You are a fast YES/NO gate evaluator. Reply ONLY with "
+                "the requested JSON: {\"answer\":\"YES\"|\"NO\","
+                "\"reasoning\":\"<one sentence>\"}",
+                f"Question: {gate['question']}",
+                max_tokens=80,
+                temperature=0.0,
+            )
+            m = re.search(r"\{[\s\S]*?\}", verdict) if verdict else None
+            ok = False
+            reasoning = ""
+            if m:
+                try:
+                    j = json.loads(m.group(0))
+                    ok = str(j.get("answer", "")).upper().startswith("YES")
+                    reasoning = str(j.get("reasoning", ""))[:200]
+                except json.JSONDecodeError:
+                    reasoning = f"unparseable: {verdict[:80]}"
+            d = {
+                "name": name,
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "verdict": "YES" if ok else "NO",
+                "reasoning": reasoning,
+            }
+            decisions.append(d)
+            if ok and gate["action"]:
+                _last_fire[name] = time.time()
+                d["fired"] = True
+                log.info("cron FIRE %s: %s", name, gate["action"][:120])
+                try:
+                    subprocess.Popen(
+                        ["bash", "-lc", gate["action"]],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
+                    with _state_lock:
+                        _state["cron"]["last_fire"] = {
+                            "rule": name,
+                            "ts": d["ts"],
+                            "action": gate["action"][:200],
+                        }
+                except OSError as e:
+                    log.warning("cron action failed: %s", e)
+        with _state_lock:
+            # Keep last 20 decisions
+            existing = _state["cron"].get("decisions") or []
+            existing = existing + decisions
+            _state["cron"]["decisions"] = existing[-20:]
+        if decisions:
+            _atomic_write_state()
+        # Wait for next tick or stop
+        _stop_event.wait(CRON_TICK_S)
+
+
+# ── Main ─────────────────────────────────────────────────────────────
+def _on_signal(signum, _frame):
+    log.info("signal %s -- stopping", signum)
+    _stop_event.set()
+
+
+def main() -> int:
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(STATE_DIR, 0o755)
+    _atomic_write_state()
+
+    log.info("starting: model=%s endpoint=%s state=%s",
+             MODEL, ENDPOINT, STATE_FILE)
+    log.info("watching units: %s", ",".join(WATCHED_UNITS))
+    log.info("refusal patterns loaded: %d", len(_refusal_res))
+
+    threads = [
+        threading.Thread(target=journal_subscriber, daemon=True, name="journal"),
+        threading.Thread(target=classify_loop, daemon=True, name="classify"),
+        threading.Thread(target=refusal_loop, daemon=True, name="refusal"),
+        threading.Thread(target=cron_loop, daemon=True, name="cron"),
+    ]
+    for t in threads:
+        t.start()
+    while not _stop_event.is_set():
+        time.sleep(2)
+    log.info("stopped")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

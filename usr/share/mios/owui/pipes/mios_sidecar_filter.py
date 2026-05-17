@@ -43,15 +43,30 @@ from pydantic import BaseModel, Field
 
 
 # ─── Where each sibling agent writes its state ────────────────────────
-# Keep IN SYNC with the source scripts (mios-agent-nudger,
-# mios-log-watcher, mios-cron-director, mios-delegation-prefilter,
-# mios-hermes-tail). Each entry: (label, path, formatter_fn-name).
+# Two writers feed this filter:
+#   * mios-hermes-tail        -> hermes-tail/latest.json (in-flight tools)
+#   * mios-delegation-prefilter -> delegation-prefilter/latest.json (refiner)
+#   * mios-daemon (consolidated micro-LLM) -> daemon/state.json with
+#        three sub-objects (classify/refusal/cron) that mirror the old
+#        per-service files. ONE poll -> three categories of events.
+#
+# The unified mios-daemon state file replaces the three predecessor
+# files (nudger / log-watcher / cron-director) -- the daemon writes
+# them under a single roof. Old per-service paths are kept in the
+# fallback table below ONLY for compatibility with hosts that haven't
+# rebooted into the consolidated daemon yet; they'll be removed in a
+# future commit once the migration window closes.
 SIBLING_AGENTS = [
-    ("hermes-tail",     "/var/lib/mios/hermes-tail/latest.json",        "_format_hermes_tail"),
-    ("nudger",          "/var/lib/mios/agent-nudger/latest.json",       "_format_nudger"),
-    ("log-watcher",     "/var/lib/mios/log-watcher/latest.json",        "_format_log_watcher"),
-    ("cron-director",   "/var/lib/mios/cron-director/state.json",       "_format_cron"),
+    ("hermes-tail",     "/var/lib/mios/hermes-tail/latest.json",         "_format_hermes_tail"),
     ("sys-agent",       "/var/lib/mios/delegation-prefilter/latest.json","_format_sys_agent"),
+    # NEW unified daemon
+    ("daemon-classify", "/var/lib/mios/daemon/state.json",               "_format_daemon_classify"),
+    ("daemon-refusal",  "/var/lib/mios/daemon/state.json",               "_format_daemon_refusal"),
+    ("daemon-cron",     "/var/lib/mios/daemon/state.json",               "_format_daemon_cron"),
+    # Legacy fallbacks (pre-mios-daemon hosts -- deprecated)
+    ("nudger",          "/var/lib/mios/agent-nudger/latest.json",        "_format_nudger"),
+    ("log-watcher",     "/var/lib/mios/log-watcher/latest.json",         "_format_log_watcher"),
+    ("cron-director",   "/var/lib/mios/cron-director/state.json",        "_format_cron"),
 ]
 
 CACHE_DIR = Path("/var/lib/mios/owui-sidecar")
@@ -158,6 +173,38 @@ class Filter:
             rule = last.get("rule") or last.get("name") or "rule"
             return f"⏱️ mios-cron-director: fired '{rule}'"
         return None
+
+    # ─── Formatters for the unified mios-daemon state file ─────────
+    # Sub-objects under daemon/state.json: {classify, refusal, cron}.
+    # Each formatter reads its OWN sub-key from the same blob; the
+    # three SIBLING_AGENTS entries for "daemon-*" all point at the
+    # same file but render different categories.
+
+    def _format_daemon_classify(self, payload: dict) -> Optional[str]:
+        c = payload.get("classify") or {}
+        if not c:
+            return None
+        summary = c.get("summary") or ""
+        if summary.startswith("(unparseable") or summary.startswith("(JSON err"):
+            return None  # don't emit noise
+        sev = c.get("severity", "?")
+        n = c.get("event_count", "?")
+        return f"📊 mios-daemon classify: {summary[:140]} ({n} events, sev={sev})"
+
+    def _format_daemon_refusal(self, payload: dict) -> Optional[str]:
+        r = payload.get("refusal") or {}
+        trig = r.get("trigger") or r.get("phrase")
+        if not trig:
+            return None
+        return f"⚠️ mios-daemon refusal: '{trig[:80]}'"
+
+    def _format_daemon_cron(self, payload: dict) -> Optional[str]:
+        c = payload.get("cron") or {}
+        last = c.get("last_fire")
+        if not isinstance(last, dict):
+            return None
+        rule = last.get("rule") or "rule"
+        return f"⏱️ mios-daemon cron: fired '{rule}'"
 
     def _format_sys_agent(self, payload: dict) -> Optional[str]:
         # Expected: {"original": "...", "refined": "...", "ts": ...}

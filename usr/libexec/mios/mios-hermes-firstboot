@@ -1283,6 +1283,35 @@ if command -v curl >/dev/null 2>&1; then
     _log "  pre-warm dispatched: mios-sys-agent (CPU) + 4 chat-path models (GPU/load-only)"
 fi
 
+# ─── Consolidated mios-daemon (replaces log-watcher + nudger + cron-director) ─
+# Operator directive 2026-05-17: "ALL to be consolidated to one
+# mios daemon/agent". The new mios-daemon.service holds a single
+# qwen3:0.6b-cpu client + dispatches log-classify / refusal-detect /
+# cron-gate handlers off a unified journal subscription. The three
+# predecessor services are stopped + disabled here so we don't double-
+# emit + double-load the micro-LLM. The mios_sidecar Filter has been
+# updated to poll the unified /var/lib/mios/daemon/state.json
+# (legacy paths still in SIBLING_AGENTS as a migration fallback).
+for _legacy in mios-log-watcher mios-agent-nudger mios-cron-director; do
+    if systemctl is-active --quiet "${_legacy}.service" 2>/dev/null; then
+        systemctl stop "${_legacy}.service" 2>/dev/null || true
+        _log "  stopped legacy ${_legacy}.service (superseded by mios-daemon)"
+    fi
+    if systemctl is-enabled --quiet "${_legacy}.service" 2>/dev/null; then
+        systemctl disable "${_legacy}.service" 2>/dev/null || true
+        _log "  disabled legacy ${_legacy}.service"
+    fi
+done
+# Start the consolidated daemon (idempotent -- systemctl restart on a
+# running unit is a no-op when ExecStart hasn't changed).
+if [[ -x /usr/libexec/mios/mios-daemon ]]; then
+    install -d -o root -g root -m 0755 /var/lib/mios/daemon /etc/mios/daemon
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable --now mios-daemon.service 2>/dev/null \
+        && _log "  enabled+started mios-daemon.service (single micro-LLM client, keep_alive=-1)" \
+        || _log "  WARN: mios-daemon.service failed to start; legacy services left disabled"
+fi
+
 # ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
 # When the host is a WSL distro running inside Windows, the Tailscale CLI
 # on the Windows side knows its own tailnet IP. mios-windows (the

@@ -1,0 +1,54 @@
+[Unit]
+# /usr/lib/systemd/system/mios-daemon.service
+#
+# MiOS consolidated micro-LLM daemon. Replaces three predecessors
+# (mios-log-watcher + mios-cron-director + mios-agent-nudger) with
+# ONE process that subscribes to journald once, holds a single
+# qwen3:0.6b-cpu client (keep_alive=-1 forever, num_gpu=0 CPU-only
+# per Law 7 OFFLINE-FIRST + "always-on agentic OS"), and dispatches
+# the three handlers off a single event stream. Writes a unified
+# /var/lib/mios/daemon/state.json the OWUI mios_sidecar Filter polls.
+#
+# Operator directive 2026-05-17: "ALL to be consolidated to one
+# mios daemon/agent" + "keep_alive should be TRUE for a TRULY
+# Agentic OS--MiOS!"
+
+Description='MiOS' consolidated micro-LLM daemon (log classify + refusal detect + cron gate)
+Documentation=file:///usr/libexec/mios/mios-daemon
+After=ollama.service network.target
+Wants=ollama.service
+ConditionPathExists=/usr/libexec/mios/mios-daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-daemon
+Restart=on-failure
+RestartSec=5s
+User=root
+Group=root
+Environment=PYTHONUNBUFFERED=1
+
+# Operator-tunable knobs (override via drop-in or /etc/mios/secrets.env):
+#   Environment=MIOS_DAEMON_MODEL=qwen3:0.6b-cpu
+#   Environment=MIOS_DAEMON_ENDPOINT=http://127.0.0.1:11434
+#   Environment=MIOS_DAEMON_STATE_DIR=/var/lib/mios/daemon
+#   Environment=MIOS_DAEMON_CRON_TOML=/etc/mios/daemon/cron.toml
+#   Environment=MIOS_DAEMON_CLASSIFY_S=30
+#   Environment=MIOS_DAEMON_CRON_TICK_S=60
+#   Environment=MIOS_DAEMON_WATCH_UNITS=hermes-agent.service,mios-delegation-prefilter.service,mios-open-webui.service
+
+# Hardening (kept loose enough to allow journalctl subscription +
+# subprocess.Popen for cron actions).
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mios/daemon
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target
