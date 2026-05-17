@@ -119,7 +119,7 @@ def _update_state(section: str, value) -> None:
 
 # ── Single shared Ollama client ──────────────────────────────────────
 def llm_chat(system: str, user: str, *, max_tokens: int = 150,
-             temperature: float = 0.1) -> str:
+             temperature: float = 0.1, want_json: bool = False) -> str:
     """Call qwen3:0.6b-cpu (or whatever MODEL is) via Ollama /api/chat.
     Returns the model's text output (content with thinking fallback).
     Returns empty string on any error. Always uses CPU + keep_alive=-1.
@@ -139,6 +139,14 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
         "stream": False,
         "keep_alive": -1,           # always-on agentic OS
     }
+    if want_json:
+        # Ollama's structured-output mode: the runtime constrains
+        # token sampling so the response is parseable JSON. Critical
+        # for sub-2B models that would otherwise prose-prefix the
+        # JSON ("Okay, let me break this down...") and trip the
+        # parser. Operator-flagged post-reboot: classify output was
+        # "(unparseable: Okay, let's break down...)".
+        payload["format"] = "json"
     try:
         req = urllib.request.Request(
             f"{ENDPOINT}/api/chat",
@@ -221,7 +229,7 @@ def classify_loop() -> None:
             lines.append(f"[{unit}] {msg[:200]}")
         content = llm_chat(CLASSIFY_SYSTEM,
                            "Recent events:\n" + "\n".join(lines),
-                           max_tokens=120)
+                           max_tokens=120, want_json=True)
         m = re.search(r"\{[\s\S]*?\}", content) if content else None
         if m:
             try:
@@ -358,6 +366,7 @@ def cron_loop() -> None:
                 f"Question: {gate['question']}",
                 max_tokens=80,
                 temperature=0.0,
+                want_json=True,
             )
             m = re.search(r"\{[\s\S]*?\}", verdict) if verdict else None
             ok = False

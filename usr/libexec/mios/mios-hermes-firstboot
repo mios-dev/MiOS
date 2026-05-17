@@ -1207,9 +1207,39 @@ fi
 # /usr/libexec/mios) idempotently registers/updates it in OWUIs
 # functions table. Runs after mios-owui-apply-knowledge so the pipe
 # inherits the knowledge bindings on first chat.
+# Wait for OWUI's HTTP backend to be reachable. On a fresh boot OWUI
+# Quadlet says "active" the moment podman launches the container, but
+# the python uvicorn server inside takes ~5-15s to bind :8080. If
+# install-pipe runs before then it gets connection-refused and the
+# WHOLE firstboot script exits 7/NOTRUNNING (set -e + subprocess
+# failure), which strands the SUBSEQUENT steps (install-tools,
+# apply-suggestions, pre-warm, mios-daemon start) un-run. Wait up to
+# 90s with 2s polls. Operator-flagged 2026-05-17 regression after the
+# full reboot test.
+_wait_for_owui() {
+    local i
+    for i in $(seq 1 45); do
+        if curl -fsS --max-time 2 http://host.containers.internal:3030/health \
+                >/dev/null 2>&1 \
+           || curl -fsS --max-time 2 http://127.0.0.1:3030/api/version \
+                >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
 if [[ -x /usr/libexec/mios/mios-owui-install-pipe ]]; then
-    /usr/libexec/mios/mios-owui-install-pipe 2>&1 | sed 's/^/  /' \
-        | while IFS= read -r _line; do _log "$_line"; done
+    if _wait_for_owui; then
+        # Each helper's failure is wrapped so a single misfire doesn't
+        # strand the rest of firstboot. The helpers are themselves
+        # idempotent; next firstboot run will pick up anything skipped.
+        /usr/libexec/mios/mios-owui-install-pipe 2>&1 | sed 's/^/  /' \
+            | while IFS= read -r _line; do _log "$_line"; done \
+            || _log "WARN: mios-owui-install-pipe failed (non-fatal, continuing)"
+    else
+        _log "WARN: OWUI not reachable on :3030 after 90s -- skipping install-pipe"
+    fi
 fi
 
 # ─── Seed MiOS-specific default prompt suggestions ────────────────────
