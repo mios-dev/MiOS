@@ -783,7 +783,7 @@ browser:
 delegation:
   provider: custom:local-ollama
   base_url: http://localhost:11434/v1
-  model: qwen3:1.7b                 # small, fast, tool-capable -- runs on CPU alongside GPU main
+  model: qwen3.5:4b                  # CPU-friendly, 262K context (above 64K floor), tool-capable -- runs on CPU alongside GPU main
   max_concurrent_children: 6        # 16 cores -> ~2.5 cores per child even at full fan-out
   max_spawn_depth: 2                # allow one level of sub-delegation (children can spawn grandchildren)
   child_timeout_seconds: 600
