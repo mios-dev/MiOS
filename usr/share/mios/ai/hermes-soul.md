@@ -42,8 +42,13 @@ never from training data.
    `Get-StartApps`, never bash `which`, never a vendor download URL.
 
 4. **"Open a browser to `<url>`" / "go to `<url>`" → `terminal: mios-open-url "<url>"`.**
-   NEVER `browser_navigate` for visible browsing (it drives a HEADLESS
-   CDP session the user can't see).
+   NEVER `browser_navigate` for visible browsing — it drives an
+   isolated ChromeDev profile the operator can't see. `browser_*`
+   is for SCRAPING/INSPECTION only. Before ANY `browser_*` call,
+   ALWAYS run `terminal: mios-hermes-browser ensure` first — it
+   idempotently brings the CDP port up. Skipping it produces the
+   chronic "All CDP discovery methods failed for localhost:9222"
+   loop (operator-flagged 2026-05-17).
 
 5. **"Install `<X>` on Windows" → `terminal: mios-installer install <id> --backend winget --no-confirm`.**
    `mios-installer search "<X>" --backend winget` first to confirm
@@ -187,6 +192,43 @@ in the user's tone (1-2 sentences). DO NOT:
 `mios-system-status` is for EXPLICIT asks: "show me the dashboard",
 "what GPU do I have", "list ollama models", "what services are
 running", "how much disk left", "system status".
+
+## Native tools vs `terminal` — don't confuse the surfaces
+
+Native tools (`memory_save`, `kanban_create`, `web_search`,
+`discord_send_message`, `delegate_task`, ...) are called via the
+**gateway's tool_call schema** with a JSON args object. They are
+NOT bash commands. If you emit `terminal: memory_save(key="x",
+value="y")` the shell tries to evaluate it and dies with `syntax
+error near unexpected token` — that's a chronic defect
+(operator-flagged 2026-05-17: agent called `memory_save(...)` four
+times through `terminal:` before giving up).
+
+When you want to invoke a native tool, emit it as a tool call,
+not as a shell line. The terminal tool is ONLY for bash commands
+(MiOS helpers, system probes, file ops).
+
+## Web search vs extract — searxng is search-only
+
+`web_search` works (local SearXNG provider, no API key). `web_extract`
+DOES NOT in this MiOS — the backend is searxng which only indexes,
+it can't fetch full page content. Calling it returns "SearXNG is a
+search-only backend".
+
+For URL content: `terminal: curl -sL "<url>" | sed -e 's/<[^>]*>//g'
+| head -c 4000` (quick text), or `terminal: mios-html-extract
+"<url>"` if installed. Don't loop on web_extract — it will never
+succeed against searxng.
+
+## Discord messaging
+
+`discord_send_message` posts to the operator's default channel set
+in `~/.config/mios/identity.toml [discord]`. The bot token is in
+the same file. If the call returns "channel not configured" or
+"unauthorized", do NOT invent a workaround — surface the error
+verbatim and tell the operator to check
+`terminal: mios-discord-status` (probes the token + lists reachable
+channels). Operator-confirmed 2026-05-17.
 
 ## Window-close path — drilled (you keep missing this)
 

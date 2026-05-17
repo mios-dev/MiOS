@@ -18,11 +18,27 @@
 # is still available for cron / scripted use by setting
 # HERMES_BROWSER_HEADLESS=1 in the calling environment.
 #
+# Operator directive 2026-05-17: "fix CDP control". Browser_navigate
+# from inside Hermes was hitting "All CDP discovery methods failed"
+# because nothing was listening on :9222 and the agent had no way to
+# bring it up. This script now supports an idempotent subcommand
+# surface so the agent can ensure the port is up before any
+# browser_* call:
+#
+#   mios-hermes-browser ensure    # idempotent: noop if up, else launch in bg
+#   mios-hermes-browser status    # exit 0 if CDP responding, 1 otherwise
+#   mios-hermes-browser stop      # kill the ChromeDev process tree
+#   mios-hermes-browser start     # explicit foreground launch (the legacy path)
+#   mios-hermes-browser           # default = ensure (safest for the agent)
+#
+# `ensure` waits up to 8s for CDP to respond; SOUL.md tells the agent
+# to call it before any browser_navigate / browser_screenshot / etc.
+#
 # Profile data lives under /var/lib/mios/hermes-browser/profile so the
 # Hermes session is fully isolated from the operator's interactive
 # Chrome session (separate cookies, separate signed-in accounts,
 # separate extensions).
-set -euo pipefail
+set -uo pipefail
 
 CDP_PORT="${HERMES_BROWSER_CDP_PORT:-9222}"
 PROFILE_DIR="${HERMES_BROWSER_PROFILE_DIR:-/var/lib/mios/hermes-browser/profile}"
@@ -30,8 +46,87 @@ PROFILE_DIR="${HERMES_BROWSER_PROFILE_DIR:-/var/lib/mios/hermes-browser/profile}
 # wanting headless set HERMES_BROWSER_HEADLESS=1.
 HEADLESS="${HERMES_BROWSER_HEADLESS:-0}"
 APP_ID="${HERMES_BROWSER_APP_ID:-com.google.ChromeDev}"
+LOG_FILE="${HERMES_BROWSER_LOG:-/var/lib/mios/hermes-browser/launch.log}"
 
-mkdir -p "$PROFILE_DIR"
+mkdir -p "$PROFILE_DIR" "$(dirname "$LOG_FILE")"
+
+# --- helpers -------------------------------------------------------
+
+cdp_responding() {
+    # Hit the CDP discovery endpoint with a short timeout. 200 = up.
+    local code
+    code=$(curl -sS --max-time 2 -o /dev/null -w "%{http_code}" \
+        "http://127.0.0.1:${CDP_PORT}/json/version" 2>/dev/null || echo "000")
+    [ "$code" = "200" ]
+}
+
+wait_for_cdp() {
+    local deadline=$(( $(date +%s) + ${1:-8} ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        cdp_responding && return 0
+        sleep 0.25
+    done
+    return 1
+}
+
+kill_existing() {
+    # ChromeDev flatpak processes that bound 9222; scoped to our profile
+    # so we don't clobber the operator's interactive Chrome.
+    pkill -f "user-data-dir=${PROFILE_DIR}" >/dev/null 2>&1 || true
+}
+
+# --- subcommand dispatch -------------------------------------------
+
+SUBCMD="${1:-ensure}"
+
+case "$SUBCMD" in
+    status)
+        if cdp_responding; then
+            echo "CDP up on 127.0.0.1:${CDP_PORT}"
+            exit 0
+        fi
+        echo "CDP not responding on 127.0.0.1:${CDP_PORT}"
+        exit 1
+        ;;
+    stop)
+        kill_existing
+        echo "stopped (any process bound to profile ${PROFILE_DIR})"
+        exit 0
+        ;;
+    ensure|"")
+        if cdp_responding; then
+            echo "CDP already up on 127.0.0.1:${CDP_PORT}"
+            exit 0
+        fi
+        echo "CDP not responding -- launching ChromeDev in background..."
+        # Self-launch via `start` subcommand, backgrounded + detached.
+        nohup "$0" start >>"$LOG_FILE" 2>&1 &
+        disown || true
+        if wait_for_cdp 8; then
+            echo "CDP up on 127.0.0.1:${CDP_PORT} (log: $LOG_FILE)"
+            exit 0
+        fi
+        echo "ERROR: CDP did not come up within 8s -- check $LOG_FILE"
+        echo "  hint: flatpak run $APP_ID may need a display / dbus session"
+        tail -n 20 "$LOG_FILE" 2>/dev/null | sed 's/^/  /' || true
+        exit 1
+        ;;
+    start)
+        # Legacy foreground launch path -- exec'd by `ensure` and also
+        # callable directly when operator wants to see the launch
+        # output live.
+        ;;
+    *)
+        echo "usage: $0 {ensure|status|stop|start}" >&2
+        exit 64
+        ;;
+esac
+
+# --- foreground launch (start subcommand) --------------------------
+
+# Strict mode for the actual launch. The dispatch above used -uo
+# pipefail (no -e) so subcommand checks could fail gracefully.
+set -e
 
 CHROME_ARGS=(
     --remote-debugging-port="$CDP_PORT"

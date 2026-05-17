@@ -1,0 +1,126 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-discord-status
+#
+# Self-check for the Hermes-Agent Discord integration. The agent's
+# `discord_send_message` tool quietly returns "channel not configured"
+# or "unauthorized" when something is wrong; this helper exposes the
+# actual state so the operator (and the agent, via terminal:) can
+# diagnose without re-deriving the curl pipeline each time.
+#
+# Checks:
+#   1. /etc/mios/hermes/discord.env present + readable
+#   2. DISCORD_BOT_TOKEN parses, length is sane
+#   3. GET /users/@me -> bot username + id (proves token live)
+#   4. GET /users/@me/guilds -> guild count (proves bot is in a guild)
+#   5. MIOS_DISCORD_DEFAULT_CHANNEL + _GUILD env values reported
+#   6. /var/lib/mios/hermes/channel_directory.json mtime (last refresh)
+#
+# Operator directive 2026-05-17: "Fix discord too" -- the chat above
+# showed the agent couldn't tell whether discord was up. SOUL.md now
+# routes diagnostic questions here.
+#
+# Exit codes:
+#   0 = token works, bot in >=1 guild, default channel/guild set
+#   1 = soft failure (token works but config incomplete)
+#   2 = hard failure (token missing, invalid, or API unreachable)
+
+set -uo pipefail
+
+ENV_FILE="${MIOS_DISCORD_ENV:-/etc/mios/hermes/discord.env}"
+DIRECTORY="${MIOS_HERMES_HOME:-/var/lib/mios/hermes}/channel_directory.json"
+API="https://discord.com/api/v10"
+
+red()    { printf '\033[31m%s\033[0m\n' "$*"; }
+green()  { printf '\033[32m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
+hdr()    { printf '\n=== %s ===\n' "$*"; }
+
+# --- 1. env file ---------------------------------------------------
+hdr "discord.env"
+if [ ! -r "$ENV_FILE" ]; then
+    red "  $ENV_FILE not readable by uid $(id -u)"
+    exit 2
+fi
+echo "  $(ls -la "$ENV_FILE")"
+
+# Parse via grep (NOT `source`) so comment backticks don't trip bash.
+TOKEN=$(grep -E '^DISCORD_BOT_TOKEN=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+DEFAULT_CHANNEL=$(grep -E '^MIOS_DISCORD_DEFAULT_CHANNEL=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+DEFAULT_GUILD=$(grep -E '^MIOS_DISCORD_DEFAULT_GUILD=' "$ENV_FILE" | head -1 | cut -d= -f2-)
+
+if [ -z "$TOKEN" ]; then
+    red "  DISCORD_BOT_TOKEN not set in $ENV_FILE"
+    exit 2
+fi
+echo "  DISCORD_BOT_TOKEN: present (${#TOKEN} chars)"
+echo "  MIOS_DISCORD_DEFAULT_CHANNEL: ${DEFAULT_CHANNEL:-<unset>}"
+echo "  MIOS_DISCORD_DEFAULT_GUILD:   ${DEFAULT_GUILD:-<unset>}"
+
+# --- 2. token live? ------------------------------------------------
+hdr "GET $API/users/@me"
+TMP=$(mktemp)
+HTTP=$(curl -sS --max-time 8 -o "$TMP" -w '%{http_code}' \
+    -H "Authorization: Bot $TOKEN" "$API/users/@me" 2>/dev/null || echo "000")
+case "$HTTP" in
+    200)
+        USERNAME=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('username',''))" "$TMP")
+        USERID=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('id',''))" "$TMP")
+        green "  OK $HTTP -- bot username='$USERNAME' id='$USERID'"
+        ;;
+    401)
+        red   "  $HTTP -- token rejected (rotate via Discord Developer Portal -> Bot tab -> Reset Token, paste into $ENV_FILE)"
+        rm -f "$TMP"; exit 2 ;;
+    000|"")
+        red   "  $HTTP -- no response (DNS failure? network down? proxy?)"
+        rm -f "$TMP"; exit 2 ;;
+    *)
+        red   "  $HTTP -- $(head -c 200 "$TMP")"
+        rm -f "$TMP"; exit 2 ;;
+esac
+rm -f "$TMP"
+
+# --- 3. guild membership ------------------------------------------
+hdr "GET $API/users/@me/guilds"
+TMP=$(mktemp)
+HTTP=$(curl -sS --max-time 8 -o "$TMP" -w '%{http_code}' \
+    -H "Authorization: Bot $TOKEN" "$API/users/@me/guilds" 2>/dev/null || echo "000")
+if [ "$HTTP" = "200" ]; then
+    COUNT=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$TMP")
+    green "  OK $HTTP -- bot is in $COUNT guild(s):"
+    python3 -c "
+import json,sys
+for g in json.load(open(sys.argv[1])):
+    print('   -', g.get('name'), '(id=' + g.get('id','?') + ')')
+" "$TMP"
+else
+    yellow "  $HTTP -- $(head -c 200 "$TMP")"
+fi
+rm -f "$TMP"
+
+# --- 4. channel_directory.json freshness ---------------------------
+hdr "channel_directory.json"
+if [ -r "$DIRECTORY" ]; then
+    echo "  $(ls -la "$DIRECTORY")"
+    AGE_S=$(( $(date +%s) - $(stat -c %Y "$DIRECTORY") ))
+    AGE_MIN=$(( AGE_S / 60 ))
+    if [ "$AGE_MIN" -gt 1440 ]; then
+        yellow "  age: ${AGE_MIN}min -- stale (>24h). Restart hermes-agent.service to refresh."
+    else
+        echo "  age: ${AGE_MIN}min"
+    fi
+    DCOUNT=$(python3 -c "import json; print(len(json.load(open('$DIRECTORY')).get('platforms',{}).get('discord',[])))" 2>/dev/null || echo "?")
+    echo "  discord entries cached: $DCOUNT"
+else
+    yellow "  $DIRECTORY not present yet (hermes hasn't fetched the directory yet)"
+fi
+
+# --- 5. default channel/guild consistency --------------------------
+hdr "default channel/guild check"
+if [ -z "$DEFAULT_CHANNEL" ] || [ -z "$DEFAULT_GUILD" ]; then
+    yellow "  Default channel/guild not set in $ENV_FILE -- discord_send_message"
+    yellow "  will require an explicit 'channel' arg every call."
+    exit 1
+fi
+green "  default channel=$DEFAULT_CHANNEL guild=$DEFAULT_GUILD"
+echo
+green "All checks passed."

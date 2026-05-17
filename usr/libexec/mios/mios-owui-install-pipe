@@ -150,6 +150,43 @@ BASE_MODEL="mios_agent.mios-agent"  # <function_id>.<pipe_id> from pipes()
 MODEL_PAYLOAD=$(python3 - "$MODEL_ID" "$MODEL_NAME" "$BASE_MODEL" <<'PYEOF'
 import json, sys
 mid, mname, base = sys.argv[1], sys.argv[2], sys.argv[3]
+
+# Operator directive 2026-05-17: "could use a system prompt for
+# MiOS-Agent in OWUI and configure the settings too as well".
+#
+# This is the OWUI-side system prompt operators see + can edit
+# under Settings -> Models -> MiOS-Agent -> Advanced. It's
+# prepended by OWUI before the pipe receives the messages, so:
+#   - the CPU refine step sees it (helps refine route phrasing)
+#   - hermes sees it (reinforces SOUL.md from the user-prompt side)
+#   - OWUI's task generators (title, tags, follow-ups) see it
+#
+# Kept short -- the full operating manual lives in SOUL.md inside
+# hermes. This is the "what is this agent" intro. NO env values
+# baked in (operator: "no context injection for environment
+# detection") -- only canonical verb names.
+SYSTEM_PROMPT = (
+    "You are MiOS-Agent, a local-first agent running on the operator's "
+    "MiOS host. You speak the user's language and mirror their tone. "
+    "For any visible-to-operator action (launch app, open URL, install "
+    "software, take screenshot, control window) you ALWAYS go through "
+    "the canonical MiOS verb -- never bare PowerShell, never browser "
+    "automation for visible browsing, never vendor download pages. "
+    "Canonical verbs: mios-find (launch resolver), mios-open-url "
+    "(visible browser), mios-installer (cross-platform install), "
+    "mios-windows (Windows dispatch), mios-window (focus/close/move), "
+    "mios-screenshot, mios-steamcmd, mios-system-status (single source "
+    "of truth for hardware/services/models), mios-hermes-browser ensure "
+    "(bring CDP up before any browser_* tool call). Use web_search not "
+    "web_extract (the extract backend is search-only in this MiOS). "
+    "Native tools (memory_save, kanban_*, discord_send_message, "
+    "delegate_task, etc.) are tool_calls -- never call them as bash "
+    "lines through terminal. You can fork and improve your own tools "
+    "(mios-tool-clone) and skills (mios-skill-clone) when a recurring "
+    "task hits the same friction twice. Report tool stdout verbatim; "
+    "guessing confidently is a defect."
+)
+
 print(json.dumps({
     "id": mid,
     "base_model_id": base,
@@ -169,7 +206,25 @@ print(json.dumps({
         # recent state + chat language (operator directive 2026-05-17:
         # "no hardcoded answers or anything hardcoded for english").
     },
-    "params": {},
+    "params": {
+        # The system prompt OWUI prepends to every chat. Edit in
+        # the OWUI admin UI (Settings -> Models -> MiOS-Agent) or
+        # re-run this installer.
+        "system": SYSTEM_PROMPT,
+        # Sampling defaults tuned for the refine -> hermes -> polish
+        # chain. Low temperature: agent should be predictable about
+        # which canonical verb to call, not "creative". top_p left
+        # at OWUI default. Hermes internally overrides these on its
+        # delegate spawns -- this is just the outer chat-completion
+        # default.
+        "temperature": 0.2,
+        "top_p": 0.9,
+        # Stop tokens: hermes occasionally emits these as text inside
+        # delegate-spawn tool args; cut them so they don't leak into
+        # the polished answer.
+        "stop": ["<|im_end|>", "<|endoftext|>"],
+        # OWUI streams tokens incrementally; no need to override.
+    },
     "is_active": True,
 }))
 PYEOF
@@ -187,7 +242,10 @@ case "$RESP3" in
     200|201)
         echo "[mios-owui-install-pipe] ✓ created Model entry $MODEL_ID"
         ;;
-    400|409)
+    400|401|409)
+        # OWUI returns 401 (not 409) for "model id already registered"
+        # -- detail body "Uh-oh! This model id is already registered."
+        # Treat all three as "exists -- need to update".
         echo "[mios-owui-install-pipe] (Model exists; updating)"
         RESP4=$(curl -s -X POST "$OWUI_URL/api/v1/models/model/update?id=$MODEL_ID" \
             -H "Authorization: Bearer $TOKEN" \
