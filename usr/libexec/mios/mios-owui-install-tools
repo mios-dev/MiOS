@@ -30,6 +30,12 @@ SRC_PATH = Path("/usr/share/mios/owui/tools/mios_verbs.py")
 TOOL_ID = "mios_verbs"
 TOOL_NAME = "MiOS Verbs"
 
+# Models that should auto-attach this tool. id matches the OWUI model
+# row id from mios-owui-install-pipe (both the canonical id "mios-agent"
+# and the pipe-derived id "MiOS-Agent" / "mios_agent.mios-agent" can
+# exist on a single host depending on registration order).
+ATTACH_TO_MODEL_IDS = ["mios-agent", "MiOS-Agent", "mios_agent.mios-agent"]
+
 
 def _log(msg: str) -> None:
     print(f"  [mios-owui-install-tools] {msg}", flush=True)
@@ -62,6 +68,32 @@ def main() -> int:
     if not cols or "content" not in cols or "specs" not in cols:
         _log(f"tool table schema unexpected ({cols!r}) -- aborting")
         return 1
+
+    # Auto-attach the tool to the MiOS-Agent model rows so the chat
+    # model actually SEES it in its tool_calls list. Without this the
+    # tool sits in the tool table unbound and OWUI never passes it to
+    # the upstream chat-completions call. Self-healing: re-runs that
+    # find the tool already in meta.toolIds are no-ops.
+    attached = 0
+    for mid in ATTACH_TO_MODEL_IDS:
+        row = c.execute("SELECT meta FROM model WHERE id=?", (mid,)).fetchone()
+        if row is None:
+            continue
+        try:
+            meta = json.loads(row[0]) if row[0] else {}
+        except json.JSONDecodeError:
+            meta = {}
+        current = meta.get("toolIds") or meta.get("tool_ids") or []
+        if TOOL_ID in current:
+            continue
+        meta["toolIds"] = list(dict.fromkeys([*current, TOOL_ID]))
+        c.execute("UPDATE model SET meta=?, updated_at=? WHERE id=?",
+                  (json.dumps(meta),
+                   int(datetime.datetime.utcnow().timestamp()), mid))
+        attached += 1
+        _log(f"attached {TOOL_ID} to model row {mid!r}")
+    if attached:
+        c.commit()
 
     # Build specs JSON. OWUI's loader extracts the schema from
     # type hints + docstrings at runtime, but the `specs` column is

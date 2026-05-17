@@ -158,6 +158,12 @@ print(json.dumps({
         "profile_image_url": "/static/favicon.png",
         "description": "Consolidated MiOS systems agent. Routes through the MiOS-Agent OWUI Pipe -> delegation prefilter -> hermes.",
         "capabilities": {"vision": False, "citations": True},
+        # Native MiOS tool surface -- the model SEES these in its
+        # tool_calls list (no `terminal: mios-<verb>` indirection).
+        # Registered separately by mios-owui-install-tools; this just
+        # binds them to the model. Each entry must match a tool row
+        # id in the OWUI `tool` table.
+        "toolIds": ["mios_verbs"],
         "suggestion_prompts": [
             {"content": "What can you do on this MiOS host?"},
             {"content": "Launch chromedev"},
