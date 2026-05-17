@@ -78,12 +78,20 @@ fi
 #     every gateway start and the browser tool's dialog detection +
 #     CDP supervisor never wake up (operator-confirmed 2026-05-15
 #     when wiring the ChromeDev flatpak as the local CDP backend).
+#   * discord.py -- REQUIRED by hermes-agent's discord adapter +
+#     tools/discord_tool. Without it the gateway logs "Discord:
+#     discord.py not installed / No adapter available for discord"
+#     and `discord_send_message` returns ENOENT even with a valid
+#     DISCORD_BOT_TOKEN (operator-confirmed 2026-05-17). audioop-lts
+#     comes in transitively (Python 3.13+ dropped stdlib audioop).
+#     Pinned <3 because discord.py 3.x is a partial rewrite still
+#     in pre-release.
 # --no-input keeps it non-interactive; failure here is non-fatal.
 if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
-        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp websockets 2>&1 | tail -5; then
+        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp websockets "discord.py>=2.4,<3" 2>&1 | tail -5; then
     :
 else
-    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + aiohttp + websockets failed (network? PyPI?) -- removing partial venv, skipping"
+    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + soft-deps failed (network? PyPI?) -- removing partial venv, skipping"
     rm -rf "${VENV_DIR}"
     exit 0
 fi
