@@ -1,0 +1,164 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-show-image <query> [--position left|right|center|top|bottom] [--engine images|videos]
+#
+# Operator directive 2026-05-17: "should just open the image directly
+# in a browser window then!! (localhost browser on windows or Local
+# MiOS linux browser(s)(if multiple present))". The agent was running
+# 13 tool calls trying to download + save + screenshot images, hitting
+# WSL filesystem read-only errors, when the operator's actual ask was:
+# search -> open URL in browser. Done.
+#
+# Flow:
+#   1. SearXNG image search via the local mios-searxng service
+#      (NO cloud APIs, NO file downloads, NO image saves)
+#   2. Pick the top result's img_src
+#   3. Open that URL via mios-open-url (resolves the MiOS-defined
+#      default browser per mios.toml -- could be Windows-side Chrome
+#      or a Linux flatpak; operator's choice)
+#   4. (optional) After 1.2s, mios-window move "<title-pattern>" to
+#      the requested screen-half via mios-window
+#
+# Exit codes:
+#   0 = found + opened (+ optional position applied)
+#   1 = searxng returned no images
+#   2 = searxng unreachable / parse failure
+#   3 = mios-open-url failed
+#
+# Env-overridable:
+#   MIOS_SEARXNG_URL   probe-list, comma-separated. Defaults:
+#                      "http://127.0.0.1:8888,http://mios-searxng:8888,
+#                       http://mios-searxng:8080,http://localhost:8888"
+#   MIOS_IMAGE_TIMEOUT seconds per searxng call (default 8)
+
+set -uo pipefail
+
+usage() {
+    cat <<'USAGE'
+usage: mios-show-image <query> [options]
+
+  <query>             Image search query (quote multi-word).
+
+Options:
+  --position <pos>    Move the browser window after open. One of:
+                      left | right | center | top | bottom | maximize.
+                      Default: no positioning.
+  --engine <engine>   SearXNG category. Default: images.
+                      Also: videos (some engines support).
+  --browser <name>    Override the default browser (passed to
+                      mios-open-url). Useful when multiple browsers
+                      exist (e.g. windows-chrome vs chromedev).
+  -h, --help          Show this help.
+
+Examples:
+  mios-show-image "cute dog"
+  mios-show-image "cute dog" --position left
+  mios-show-image "neon city" --position right --browser chromedev
+USAGE
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    [ "$#" -lt 1 ] && exit 64 || exit 0
+fi
+
+QUERY="$1"
+shift
+POSITION=""
+ENGINE="images"
+BROWSER=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --position) POSITION="${2:-}"; shift 2 ;;
+        --engine)   ENGINE="${2:-images}"; shift 2 ;;
+        --browser)  BROWSER="${2:-}"; shift 2 ;;
+        *) echo "mios-show-image: unknown arg: $1" >&2; exit 64 ;;
+    esac
+done
+
+TIMEOUT="${MIOS_IMAGE_TIMEOUT:-8}"
+PROBE_LIST="${MIOS_SEARXNG_URL:-http://127.0.0.1:8888,http://mios-searxng:8888,http://mios-searxng:8080,http://localhost:8888}"
+
+# --- 1. SearXNG image search -------------------------------------
+
+pick_img_src() {
+    # Parse JSON, surface the first usable image URL. Prefers
+    # img_src (full-res) over thumbnail_src; falls back to url.
+    python3 - <<'PY'
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception as e:
+    print("", file=sys.stderr); sys.exit(2)
+for r in (d.get("results") or []):
+    for k in ("img_src", "thumbnail_src", "url"):
+        v = (r.get(k) or "").strip()
+        if v.startswith(("http://", "https://")):
+            print(v); sys.exit(0)
+sys.exit(1)
+PY
+}
+
+IMG_URL=""
+for url in ${PROBE_LIST//,/ }; do
+    body=$(curl -sS --max-time "$TIMEOUT" -G "$url/search" \
+        --data-urlencode "q=$QUERY" \
+        --data-urlencode "format=json" \
+        --data-urlencode "categories=$ENGINE" \
+        --data-urlencode "safesearch=1" 2>/dev/null) || continue
+    [ -z "$body" ] && continue
+    candidate=$(printf '%s' "$body" | pick_img_src 2>/dev/null) || continue
+    if [ -n "$candidate" ]; then
+        IMG_URL="$candidate"
+        echo "[mios-show-image] using searxng=$url"
+        break
+    fi
+done
+
+if [ -z "$IMG_URL" ]; then
+    echo "mios-show-image: no image results from any SearXNG endpoint" >&2
+    echo "  probed: $PROBE_LIST" >&2
+    echo "  hint:   curl '$PROBE_LIST/search?q=test&format=json&categories=images' to debug" >&2
+    exit 2
+fi
+
+echo "[mios-show-image] query=$QUERY -> $IMG_URL"
+
+# --- 2. Open in default browser ----------------------------------
+
+OPEN_ARGS=("$IMG_URL")
+[ -n "$BROWSER" ] && OPEN_ARGS+=("$BROWSER")
+if ! mios-open-url "${OPEN_ARGS[@]}"; then
+    echo "mios-show-image: mios-open-url failed for $IMG_URL" >&2
+    exit 3
+fi
+echo "[mios-show-image] opened in default browser"
+
+# --- 3. Optional positioning -------------------------------------
+
+if [ -n "$POSITION" ]; then
+    # Browser takes a moment to render the window. mios-window-active
+    # --present waits for the window to actually surface before
+    # mios-window can target it.
+    sleep 1.2
+    # Pull the browser window by host title (image hostname or "image")
+    HOST=$(printf '%s' "$IMG_URL" | sed -nE 's|^https?://([^/]+).*|\1|p')
+    TITLE_PAT="${HOST:-image}"
+    case "$POSITION" in
+        left|right|top|bottom|center|maximize)
+            if mios-window "$POSITION" "$TITLE_PAT" 2>/dev/null; then
+                echo "[mios-show-image] positioned: $POSITION"
+            else
+                # Fallback: try by short title fragments most browsers use
+                for pat in "$QUERY" "image" "search"; do
+                    mios-window "$POSITION" "$pat" 2>/dev/null && break
+                done
+            fi
+            ;;
+        *)
+            echo "mios-show-image: unknown --position '$POSITION' (left|right|top|bottom|center|maximize)" >&2
+            ;;
+    esac
+fi
+
+exit 0

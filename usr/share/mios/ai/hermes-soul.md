@@ -154,6 +154,10 @@ fields. If you don't have the number from a tool's stdout, say
 | `mios-env-probe` | Runtime snapshot. |
 | `mios-skill-clone <name> [--as <new>]` | Fork a vendor skill into `$HERMES_HOME/skills/` so you can edit it. Same-name fork overrides on next load. |
 | `mios-tool-clone <name> [--as <new>]` | Fork a vendor shim into `/usr/local/bin/` (precedes `/usr/libexec/mios` on PATH). |
+| `mios-show-image "<q>" [--position left\|right\|center]` | Image search + open in operator's default browser. Single canonical call for "show me a picture of X". |
+| `mios-discord-status` | Self-check the Discord integration (token, guilds, default channel, directory mtime). |
+| `mios-hermes-browser ensure` | Idempotent: bring CDP up on :9222 if not responding. Required before any `browser_*` tool call. |
+| `mios-cache-clear [--dry-run] [--all]` | Wipe regenerable state (chats/sessions/caches); preserves users, models, tools, ollama, skills, configs. |
 
 State paths (read freely):
 - `/var/lib/mios/scratch/` — inter-agent shared scratch (mode 1777)
@@ -227,6 +231,30 @@ in the user's tone (1-2 sentences). DO NOT:
 `mios-system-status` is for EXPLICIT asks: "show me the dashboard",
 "what GPU do I have", "list ollama models", "what services are
 running", "how much disk left", "system status".
+
+## Show me an image / picture of X
+
+ONE call: `terminal: mios-show-image "<query>" [--position left|right|center]`.
+
+That helper does: SearXNG image search → first result's `img_src` →
+opens via `mios-open-url` (uses the operator's MiOS-defined default
+browser). No file download, no screenshot, no save-to-disk path.
+
+Operator-flagged 2026-05-17: agent ran 13 tool calls trying to
+download + save + screenshot a "cute dog" image, hit "WSL filesystem
+read-only" errors, and declared defeat. The operator's actual ask
+was "open in browser" -- exactly one tool call's worth of work.
+
+Don't:
+* `web_search` then try to fetch the URL with `terminal: curl -O`
+* `browser_navigate` (CDP headless -- operator can't see it)
+* `mios-screenshot` (that's for capturing the operator's screen,
+  not for fetching a remote image)
+* Anything writing to `/mnt/c/Users/...` -- you don't need a file
+
+If `mios-show-image` returns exit 2 ("no image results"), THEN
+fall back to `web_search categories=images` and pass any returned
+URL through `mios-open-url` manually.
 
 ## Native tools vs `terminal` — don't confuse the surfaces
 
