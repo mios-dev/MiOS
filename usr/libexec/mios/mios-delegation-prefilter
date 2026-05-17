@@ -319,17 +319,38 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                     body_bytes = json.dumps(payload).encode("utf-8")
                     rewritten = True
 
-            # ── Stage 1 (existing): force delegate_task on fan-out ──
-            if user_text and _looks_fanoutable(user_text):
-                if "tool_choice" not in payload or payload.get("tool_choice") in (None, "auto"):
-                    payload["tool_choice"] = {
-                        "type": "function",
-                        "function": {"name": "delegate_task"},
-                    }
-                    body_bytes = json.dumps(payload).encode("utf-8")
-                    rewritten = True
-                    log.info("FORCE delegate_task: matched fan-out keywords in user prompt (%d chars)",
-                             len(user_text))
+            # ── Stage 1: ALWAYS force delegate_task on user-initiated turns ──
+            # Operator architecture 2026-05-16: "MiOS-Hermes dispatches multiple
+            # different sub-agents using delegate and GPU runs concurrently to
+            # the parallel delegated CPU sub-agents". Previously this only
+            # fired on fan-out keyword matches; the model would default to
+            # serial terminal calls + emit invalid tool calls (e.g.,
+            # "Error: Model generated invalid tool call: mios-find"). Forcing
+            # delegate_task on every user-initiated turn makes the model
+            # commit to the parallel pattern -- it MUST emit a delegate_task
+            # tool call to make progress. After that first turn, the model
+            # may pick freely (subsequent_tool_choice="auto" injection
+            # below resets the gate so synthesis turns aren't forced).
+            #
+            # Skip when:
+            #  * the request already has tool_choice set (caller knows better)
+            #  * the last message is a tool result (synthesis turn, not user turn)
+            #  * user_text is empty (model retry / nudge)
+            _is_user_turn = bool(user_text) and (
+                not payload.get("messages") or
+                payload["messages"][-1].get("role") == "user"
+            )
+            _existing_choice = payload.get("tool_choice")
+            if _is_user_turn and _existing_choice in (None, "auto", "", {}):
+                payload["tool_choice"] = {
+                    "type": "function",
+                    "function": {"name": "delegate_task"},
+                }
+                body_bytes = json.dumps(payload).encode("utf-8")
+                rewritten = True
+                _was_fanout = _looks_fanoutable(user_text)
+                log.info("FORCE delegate_task on every user turn (fanout_keywords=%s, prompt_chars=%d)",
+                         _was_fanout, len(user_text))
 
             # ── Stage 2b: rewrite friendly name -> "hermes-agent" ──
             # OWUI uses the model name from /v1/models in its requests.
