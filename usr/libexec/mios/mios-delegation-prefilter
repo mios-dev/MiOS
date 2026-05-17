@@ -405,7 +405,17 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
     if rewritten:
         headers["Content-Length"] = str(len(body_bytes))
 
-    timeout = ClientTimeout(total=600)
+    # SSE streams to OWUI can idle for >60s between chunks while the
+    # backend model thinks (especially the 30B coder model running on
+    # CPU here -- single tool call -> hundreds of MB swap -> tens of
+    # seconds of silence). aiohttp's default sock_read is 5min and
+    # `total` only bounds wall-clock end-to-end. Bump both, and disable
+    # sock_read entirely so an idle SSE stream doesn't get killed
+    # mid-response (chronic operator-observed
+    # "TransferEncodingError: Not enough data to satisfy transfer
+    # length header" -- prefilter cancelled the stream while hermes
+    # was still computing).
+    timeout = ClientTimeout(total=None, sock_connect=15, sock_read=None)
     async with ClientSession(timeout=timeout) as session:
         async with session.request(
             request.method, upstream_url, headers=headers, data=body_bytes,

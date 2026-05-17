@@ -1,24 +1,26 @@
 """
 title: MiOS Anti-Meta Filter
 author: MiOS
-version: 1.0.0
+version: 1.1.0
 description: |
-  Post-hoc stream filter that strips meta-speak + Qwen XML markup
-  + refusal-pattern phrases from the assistant's response BEFORE
-  the operator sees them. Replaces the previously inline SOUL.md
-  text-blocks (rigid "DO NOT say X" rules that bloated the system
-  prompt). Operator directive 2026-05-16: "too rigid!! Hermes and
-  other agents should be self learning with their respective
-  capabilities".
+  Per-line stream filter that DETECTS narration/meta-speak lines
+  ("Let me check X", "I need to Y", "I'll try Z") and WRAPS them
+  in <think>...</think> tags so OWUI renders them inside its
+  native collapsible "Thinking" block, OUT of the final answer
+  body. Final-answer content passes through untouched.
 
-  Architecture per research:
-    * SOUL.md keeps SHORT, principle-level guidance only
-    * This Filter strips offending phrases post-hoc (operator
-      never sees them)
-    * Each strip is logged so Hermes can self-learn via memory
-      (memory_save on the trigger phrasing)
+  Operator directive 2026-05-16: "ALL THESE MIOS-HERMES AGENTS
+  THINKING PRINTS COULD BE EMMITED AND/OR COLLAPSABLE AS THINKING
+  IN OWUI". Previously this filter just stripped meta-speak; now
+  it preserves the lines as collapsible thinking so the operator
+  can audit what the agent was reasoning about without it bloating
+  the visible reply.
 
-  Reads the canonical pattern list from /usr/share/mios/ai/
+  Also retains the original refusal-pattern strip (rigid "DO NOT
+  say X" phrases stay removed entirely, not collapsed -- those are
+  failures, not thinking).
+
+  Reads the canonical refusal pattern list from /usr/share/mios/ai/
   refusal-patterns.txt (shared with mios-agent-nudger +
   mios-delegation-prefilter). Single source of truth.
 """
@@ -28,92 +30,156 @@ import re
 from typing import Optional
 
 
+# Lines that match any of these REGEXEN are wrapped in <think>...</think>
+# instead of being passed through verbatim. Each is intentionally
+# anchored to the START of a stripped line (text.strip()) so we only
+# catch lines whose lead phrase is meta-narration -- prose that
+# happens to contain "let me check" mid-sentence is left alone.
+NARRATION_LEADERS = [
+    r"^let me\b",
+    r"^let.s\b",
+    r"^i.ll\b",
+    r"^i.m going to\b",
+    r"^i.m about to\b",
+    r"^i need to\b",
+    r"^i.ll need to\b",
+    r"^first,?\s*i\b",
+    r"^next,?\s*i\b",
+    r"^now,?\s*i\b",
+    r"^i.ve (loaded|updated|checked|verified|noted)\b",
+    r"^i.?ll try (a different|another) approach\b",
+    r"^i.?ll take a (simpler|different) approach\b",
+    r"^i.?ll approach this (differently|another way)\b",
+    r"^based on the available tools\b",
+    r"^i need to analyze\b",
+    r"^let me analyze\b",
+    r"^i should\b",
+    r"^i will now\b",
+    r"^(thinking|reasoning):\s",
+]
+NARRATION_RES = [re.compile(p, re.IGNORECASE) for p in NARRATION_LEADERS]
+
+
+def _is_narration_line(line: str) -> bool:
+    s = line.strip()
+    if not s:
+        return False
+    for pat in NARRATION_RES:
+        if pat.search(s):
+            return True
+    return False
+
+
 class Filter:
     class Valves(BaseModel):
+        ENABLED: bool = Field(default=True, description="Master on/off.")
+        COLLAPSE_NARRATION: bool = Field(
+            default=True,
+            description="Wrap meta-speak lines in <think>...</think> so OWUI shows them in a collapsible block instead of the final answer body.",
+        )
+        STRIP_REFUSALS: bool = Field(
+            default=True,
+            description="Silently remove canonical refusal phrases (loaded from PATTERNS_FILE) -- these are failure modes, not reasoning.",
+        )
         PATTERNS_FILE: str = Field(
             default="/usr/share/mios/ai/refusal-patterns.txt",
-            description="Canonical pattern list (one regex per non-comment line).",
-        )
-        REPLACEMENT: str = Field(
-            default="",
-            description="What to replace matched phrases with (default: silent strip).",
-        )
-        # Extra meta-speak patterns NOT in the shared refusal file --
-        # these are softer "play-by-play" phrases the operator
-        # specifically flagged 2026-05-16 ("meta-speak + hallucinations --
-        # sanitize") but are not full refusals so they don't belong
-        # in the shared nudger/prefilter list.
-        EXTRA_META_PATTERNS: list[str] = Field(
-            default=[
-                r"\bLet me check\b[\.\,]?\s*",
-                r"\bI will now\b\s*",
-                r"\bBased on the available tools\b[\.\,]?\s*",
-                r"\bI.?m going to think about this\b[\.\,]?\s*",
-                r"\bFirst,? I need to understand\b[\.\,]?\s*",
-                r"\bI.?ve loaded the MiOS environment documentation\b\.?",
-                r"\bI.?ve updated my memory with key details\b\.?",
-                r"\bLet me analyze\b[\.\,]?\s*",
-            ],
-            description="Extra meta-speak patterns specific to this filter.",
+            description="Canonical refusal-pattern list (one regex per non-comment line). Matches are removed entirely.",
         )
 
     def __init__(self):
         self.valves = self.Valves()
-        self._compiled: list[re.Pattern] = []
+        self._refusal_res: list[re.Pattern] = []
+        self._buffer = ""  # per-instance line buffer for stream()
+        self._think_open = False
         self._reload()
 
     def _reload(self) -> None:
-        """Compile patterns from the shared file + extras."""
         out: list[re.Pattern] = []
         try:
             for line in open(self.valves.PATTERNS_FILE, encoding="utf-8"):
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#"):
                     continue
-                out.append(re.compile(stripped, re.IGNORECASE))
+                try:
+                    out.append(re.compile(stripped, re.IGNORECASE))
+                except re.error:
+                    pass
         except OSError:
-            # File missing -- filter degrades gracefully to extras only
             pass
-        for p in self.valves.EXTRA_META_PATTERNS:
-            try:
-                out.append(re.compile(p, re.IGNORECASE))
-            except re.error:
-                pass
-        self._compiled = out
+        self._refusal_res = out
 
-    def _scrub(self, text: str) -> str:
-        if not text:
+    def _strip_refusals(self, text: str) -> str:
+        if not (text and self.valves.STRIP_REFUSALS):
             return text
-        scrubbed = text
-        for pat in self._compiled:
-            scrubbed = pat.sub(self.valves.REPLACEMENT, scrubbed)
-        # Collapse double spaces / blank-line spam created by removals
-        scrubbed = re.sub(r"  +", " ", scrubbed)
-        scrubbed = re.sub(r"\n\n\n+", "\n\n", scrubbed)
-        return scrubbed
+        for pat in self._refusal_res:
+            text = pat.sub("", text)
+        text = re.sub(r"  +", " ", text)
+        text = re.sub(r"\n\n\n+", "\n\n", text)
+        return text
+
+    def _transform_lines(self, text: str) -> str:
+        """Walk text line-by-line. Narration lines get wrapped in
+        <think>...</think>; final-answer lines pass through. Adjacent
+        narration lines collapse into a single <think> block to avoid
+        UI noise."""
+        if not (text and self.valves.COLLAPSE_NARRATION):
+            return text
+        out: list[str] = []
+        narration_buf: list[str] = []
+
+        def _flush_narration():
+            if narration_buf:
+                joined = "\n".join(narration_buf).rstrip()
+                out.append(f"<think>{joined}</think>")
+                narration_buf.clear()
+
+        for line in text.splitlines():
+            if _is_narration_line(line):
+                narration_buf.append(line)
+            else:
+                _flush_narration()
+                out.append(line)
+        _flush_narration()
+        # splitlines drops trailing newline; preserve it if original had one
+        result = "\n".join(out)
+        if text.endswith("\n") and not result.endswith("\n"):
+            result += "\n"
+        return result
+
+    def _process(self, text: str) -> str:
+        text = self._strip_refusals(text)
+        text = self._transform_lines(text)
+        return text
 
     async def stream(self, event: dict) -> dict:
-        """OWUI Filter hook: per-chunk SSE event. Scrub content + return."""
+        """Per-chunk SSE event. We can't safely classify partial lines
+        mid-token, so we ONLY apply the cheap refusal-strip to chunks.
+        The full line-collapse pass runs in outlet() once the response
+        is complete and we have whole lines to work with."""
+        if not self.valves.ENABLED:
+            return event
         try:
             choices = event.get("choices") or []
             if choices:
                 delta = choices[0].get("delta") or {}
                 if "content" in delta and isinstance(delta["content"], str):
-                    delta["content"] = self._scrub(delta["content"])
+                    delta["content"] = self._strip_refusals(delta["content"])
             return event
         except Exception:
-            # Never break the stream; pass through on any error.
             return event
 
     async def outlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
-        """OWUI Filter hook: post-stream final body. Scrub any residual
-        assistant text in messages[]."""
+        """Post-stream rewrite: refusal-strip + narration-collapse the
+        final assistant message so the operator sees a clean answer
+        with collapsible <think> for the reasoning."""
+        if not self.valves.ENABLED:
+            return body
         try:
             for msg in body.get("messages") or []:
                 if msg.get("role") == "assistant":
                     content = msg.get("content")
                     if isinstance(content, str):
-                        msg["content"] = self._scrub(content)
+                        msg["content"] = self._process(content)
             return body
         except Exception:
             return body
