@@ -293,6 +293,20 @@ _BUILD_SPA() {
 # web_dist_stub explainer page + the kanban API.
 _BUILD_SPA || warn "[38-hermes-agent] dashboard SPA not built; hermes-dashboard.service will fall back to the web_dist_stub"
 
+# ─── OpenUI generative-UI bundle (vendor offline) ────────────────────
+# OWUI's OpenUI Tool (operator-supplied 2026-05-17) renders interactive
+# UI (charts/forms/tables/cards/follow-ups) from a DSL. The upstream
+# tool fetches its JS bundle from jsDelivr at render time -- VIOLATES
+# Law 7. MiOS ships a patched copy that INLINES the bundle from
+# /usr/share/mios/openui/ so iframes need zero external requests.
+# This step downloads the bundle ONCE at image-build time.
+_VENDOR_OPENUI="${BASH_SOURCE[0]%/*}/support/mios-vendor-openui.sh"
+if [[ -x "$_VENDOR_OPENUI" || -f "$_VENDOR_OPENUI" ]]; then
+    bash "$_VENDOR_OPENUI" || warn "[38-hermes-agent] OpenUI bundle download failed; render panel will report 'bundle missing' until re-run"
+else
+    warn "[38-hermes-agent] mios-vendor-openui.sh missing at $_VENDOR_OPENUI"
+fi
+
 # ─── /api/pty HERMES_PTY_SHELL patch (bash in the dashboard /chat tab) ───
 # Upstream hardcodes the PTY child to `hermes --tui` (the Node-built
 # TUI chat). MiOS-DEV ships a bash terminal in the dashboard instead:

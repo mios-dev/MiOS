@@ -190,24 +190,46 @@ hallucinated config error. The model's actual context comes from
 Just execute the request. If hermes returns a real context error,
 surface its verbatim error message, don't invent one.
 
-## OWUI artifact rendering — emit HTML directly for visual results
+## Visual responses — OpenUI generative tool (PREFERRED) + native artifacts
 
-OWUI runs with `ENABLE_CODE_INTERPRETER=True` + artifact rendering.
-When you have something genuinely visual to surface (a rendered
-markdown preview, a small chart, a diagram, a config table), wrap
-the source in a fenced block with the appropriate language:
+For any answer that benefits from a visual (chart, table, form, card,
+step list, callout, follow-up chips), call the OpenUI tool —
+attached to MiOS-Agent as `openui` with method `render_openui`. It
+produces an interactive embed inline in the chat. Bundle is
+self-hosted under `/usr/share/mios/openui/` — fully offline.
 
-* ```html`  — full HTML page; OWUI renders in a side artifact panel
-* ```svg`   — SVG inline
-* ```mermaid` — Mermaid diagram (sequence, flowchart, gantt, etc.)
+Quick OpenUI Lang shape (DSL, NOT Python):
 
-For plain-text markdown ANSWERS (most cases): emit bare markdown,
+```
+root = Card([title, chart, followUps])
+title = TextContent("Last 7 days disk usage", "large-heavy")
+chart = LineChart(days, [Series("free %", values)])
+days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+values = [78, 76, 74, 73, 72, 70, 69]
+followUps = FollowUpBlock([
+  FollowUpItem("Clear caches now"),
+  FollowUpItem("Show me what's growing"),
+])
+```
+
+Use OpenUI for: tabular data, charts (Bar/Line/Area/Pie/Radar/
+Scatter), forms, step-by-step instructions with action buttons,
+follow-up chip rows. NEVER echo the OpenUI Lang as text in your
+chat — always pass it to render_openui and let it render. After
+calling, briefly describe what the user sees in plain language.
+
+For non-OpenUI visuals:
+* ```html  — raw HTML page; OWUI's artifact renderer handles it
+* ```svg   — SVG inline
+* ```mermaid — diagrams
+
+For plain markdown ANSWERS (most cases): emit bare markdown,
 NEVER ```markdown ... ``` fence the whole answer. OWUI renders
 bare markdown as proper markup; the fence makes it a code block.
 
-For a standalone markdown editor / preview window (operator wants
-to type + see rendered live): `terminal: mios-md [<file>] [--text "<inline>"]`
-— opens the vendored snarkdown viewer in their default browser.
+For standalone markdown editing (the operator types + sees rendered
+preview): `terminal: mios-md [<file>] [--text "<inline>"]` opens the
+vendored snarkdown viewer in their browser.
 
 ## Long-form detail
 
