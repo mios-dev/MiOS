@@ -270,6 +270,24 @@ foreach ($root in $gogRoots) {
         if ($exe) { $out += "$($_.Name)|$($exe.FullName)" }
     }
 }
+# Microsoft Store / Xbox / UWP / Game Pass titles. These don'\''t
+# expose an .exe at a predictable filesystem path -- Get-StartApps
+# returns them as Name + AppID, where AppID is the canonical
+# `<PackageFamilyName>!<Entry>` format. Launching = `cmd /c start ""
+# shell:appsFolder\<AppID>` (handled by mios-windows shell: branch).
+# Pattern-filter to games-y entries: anything whose Name contains
+# common game-store hint words OR whose PFN matches known game
+# publishers. Avoids dumping every Calculator / Notepad / system
+# UWP app into the games cache (those already appear via mios-apps'\''
+# windows-app section from Get-StartApps).
+Get-StartApps -ErrorAction SilentlyContinue | Where-Object {
+    $_.AppID -match "^[A-Za-z0-9._-]+_[a-z0-9]{12,14}!" -and (
+        $_.Name -match "(?i)(flight|sim|simulator|game|forza|halo|gears|fortnite|minecraft|sea of thieves|xbox|steam|origin|epic|gog|microsoft\s+flight)" -or
+        $_.AppID -match "(?i)(microsoft\.limitless|microsoft\.flight|microsoft\.forza|microsoft\.halo|microsoft\.gears|xbox|epicgames|valvecorp|gog\.galaxy)"
+    )
+} | ForEach-Object {
+    $out += "$($_.Name)|shell:appsFolder\$($_.AppID)"
+}
 $out | ForEach-Object { Write-Output $_ }
 ' 2>/dev/null > "$GAME_CACHE.tmp" \
             && mv "$GAME_CACHE.tmp" "$GAME_CACHE" || rm -f "$GAME_CACHE.tmp"
@@ -286,6 +304,13 @@ $out | ForEach-Object { Write-Output $_ }
             case "$g_path" in
                 steam://*|com.epicgames.launcher://*)
                     cmd="mios-windows ps \"Start-Process '$g_path'\""
+                    ;;
+                shell:*)
+                    # UWP / Microsoft Store / Xbox -- shell: URIs are
+                    # handled by explorer.exe (Start-Process alone tries
+                    # filesystem resolution + 404s). Dispatch via mios-
+                    # windows launch which has the explorer.exe wrap.
+                    cmd="mios-windows launch \"$g_path\""
                     ;;
                 *)
                     cmd="mios-windows launch \"$g_path\""

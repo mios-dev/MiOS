@@ -216,6 +216,34 @@ case "$sub" in
             *://*)
                 exec "$0" ps "Start-Process '$app'"
                 ;;
+            # UWP / Microsoft Store / Xbox / Game Pass apps. AppIDs come
+            # in two shapes:
+            #   1. shell:appsFolder\<PackageFamilyName>!<Entry>
+            #      -- canonical full URI (what mios-apps writes to the
+            #         windows-games cache for UWP entries)
+            #   2. <PackageFamilyName>!<Entry>
+            #      -- bare AppID as Get-StartApps returns
+            #         (e.g. "Microsoft.Limitless_8wekyb3d8bbwe!App")
+            # Both dispatch via explorer's shell:appsFolder URI handler
+            # -- the standard Windows mechanism to launch a UWP package
+            # by its package-family-name. Operator-flagged 2026-05-17:
+            # "Microsoft Flight Simulator 2024 ... launching it directly
+            # hasn'\''t been working" because the .exe doesn'\''t exist
+            # at a predictable filesystem path for UWP packages.
+            shell:appsFolder\\*|shell:AppsFolder\\*)
+                # PowerShell's Start-Process doesn't grok shell: URIs
+                # natively (it tries to resolve them as filesystem
+                # paths and 404s). explorer.exe DOES grok them -- it's
+                # the canonical Windows handler for shell: URIs. Wrap
+                # via explorer.exe + the path as its arg.
+                exec "$0" ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'"
+                ;;
+            *_[0-9a-z]*\!*)
+                # Bare AppID (PackageFamilyName!Entry) from Get-StartApps
+                # -- prepend shell:appsFolder\ then dispatch the same
+                # explorer.exe way.
+                exec "$0" ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'"
+                ;;
         esac
         # Translate Windows-style paths (C:\... or D:\...) to WSL paths
         # before the existence check. Operator-confirmed regression
