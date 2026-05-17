@@ -1,18 +1,18 @@
 #!/bin/bash
-# /usr/libexec/mios/mios-agent-session {start|stop|snap|revert|status} <session-id>
+# /usr/libexec/mios/mios-coderun-session {start|stop|snap|revert|status} <session-id>
 #
 # Per-session orchestrator for the MiOS agent sandbox per the FS+OS
 # Control guide §15. Wraps:
 #
-#   * systemctl --user start/stop mios-agent-sandbox@<id>.service
+#   * systemctl --user start/stop mios-coderun-sandbox@<id>.service
 #   * btrfs subvolume snapshot (when project root is on btrfs)
 #   * git stash --keep-index fallback (when not)
 #   * revert from snapshot or git stash
 #
 # Sessions are identified by an opaque <session-id> (sha256 prefix,
 # uuid, or whatever the agent uses for its session). The same id
-# threads through the Quadlet template (%i in mios-agent-sandbox@.container),
-# the project subdir (/var/home/mios/projects/<id>/), and the
+# threads through the Quadlet template (%i in mios-coderun-sandbox@.container),
+# the project subdir (/var/home/mios/coderuns/<id>/), and the
 # snapshot path.
 #
 # Operator directive 2026-05-16: "no hardcoded anything anywhere".
@@ -23,10 +23,10 @@ set -eu
 
 usage() {
     cat <<'USAGE'
-usage: mios-agent-session <action> <session-id>
+usage: mios-coderun-session <action> <session-id>
 
-  start    <id>   systemctl --user start mios-agent-sandbox@<id>; snapshot project root
-  stop     <id>   systemctl --user stop mios-agent-sandbox@<id>; GC snapshot
+  start    <id>   systemctl --user start mios-coderun-sandbox@<id>; snapshot project root
+  stop     <id>   systemctl --user stop mios-coderun-sandbox@<id>; GC snapshot
   snap     <id>   take a snapshot WITHOUT touching the sandbox unit
   revert   <id>   restore project root from the latest snapshot
   status   <id>   show systemctl status + recent snapshot list
@@ -48,8 +48,8 @@ SESSION="${2:-}"
 
 # Resolve the projects root (env -> mios.toml [paths] -> default).
 _resolve_projects_root() {
-    if [ -n "${MIOS_AGENT_PROJECTS_ROOT:-}" ]; then
-        printf '%s' "$MIOS_AGENT_PROJECTS_ROOT"
+    if [ -n "${MIOS_CODERUN_WORKSPACE_ROOT:-}" ]; then
+        printf '%s' "$MIOS_CODERUN_WORKSPACE_ROOT"
         return
     fi
     local val
@@ -59,7 +59,7 @@ for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     try:
         with open(p, "rb") as f:
             d = tomllib.load(f)
-        v = d.get("paths", {}).get("agent_projects_root")
+        v = d.get("paths", {}).get("coderun_workspace_root")
         if v:
             print(v)
             raise SystemExit(0)
@@ -70,13 +70,13 @@ PYEOF
     if [ -n "$val" ]; then
         printf '%s' "$val"
     else
-        printf '%s' "/var/home/mios/projects"
+        printf '%s' "/var/home/mios/coderuns"
     fi
 }
 
 _resolve_snapshots_root() {
-    if [ -n "${MIOS_AGENT_SNAPSHOTS_ROOT:-}" ]; then
-        printf '%s' "$MIOS_AGENT_SNAPSHOTS_ROOT"
+    if [ -n "${MIOS_CODERUN_SNAPSHOTS_ROOT:-}" ]; then
+        printf '%s' "$MIOS_CODERUN_SNAPSHOTS_ROOT"
         return
     fi
     local val
@@ -86,7 +86,7 @@ for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     try:
         with open(p, "rb") as f:
             d = tomllib.load(f)
-        v = d.get("paths", {}).get("agent_snapshots_root")
+        v = d.get("paths", {}).get("coderun_snapshots_root")
         if v:
             print(v)
             raise SystemExit(0)
@@ -97,7 +97,7 @@ PYEOF
     if [ -n "$val" ]; then
         printf '%s' "$val"
     else
-        printf '%s' "/var/home/mios/.agent-snapshots"
+        printf '%s' "/var/home/mios/.coderun-snapshots"
     fi
 }
 
@@ -105,7 +105,7 @@ PROJECTS_ROOT="$(_resolve_projects_root)"
 SNAPSHOTS_ROOT="$(_resolve_snapshots_root)"
 
 _require_session() {
-    [ -z "$SESSION" ] && { echo "mios-agent-session: missing <session-id>" >&2; usage >&2; exit 64; }
+    [ -z "$SESSION" ] && { echo "mios-coderun-session: missing <session-id>" >&2; usage >&2; exit 64; }
 }
 
 # Detect whether the project root is on btrfs (enables snapshot path).
@@ -131,11 +131,11 @@ _snap_git_stash() {
         return 1
     fi
     if [ ! -d "$project/.git" ]; then
-        ( cd "$project" && git init -q && git add -A && git commit -q --allow-empty -m "mios-agent-session: initial snapshot" )
+        ( cd "$project" && git init -q && git add -A && git commit -q --allow-empty -m "mios-coderun-session: initial snapshot" )
     fi
-    ( cd "$project" && git stash push --include-untracked -m "mios-agent-session:$tag" >/dev/null 2>&1 \
+    ( cd "$project" && git stash push --include-untracked -m "mios-coderun-session:$tag" >/dev/null 2>&1 \
         && git stash apply --quiet >/dev/null 2>&1 || true )
-    echo "  ✓ git stash snapshot tagged: mios-agent-session:$tag"
+    echo "  ✓ git stash snapshot tagged: mios-coderun-session:$tag"
 }
 
 do_start() {
@@ -143,21 +143,21 @@ do_start() {
     local project="$PROJECTS_ROOT/$SESSION"
     local snap="$SNAPSHOTS_ROOT/$SESSION/start-$(date +%s)"
     mkdir -p "$project" "$SNAPSHOTS_ROOT/$SESSION"
-    echo "[mios-agent-session] starting sandbox for session '$SESSION'"
+    echo "[mios-coderun-session] starting sandbox for session '$SESSION'"
     echo "  project root: $project"
     if _is_btrfs "$project"; then
         _snap_btrfs "$project" "$snap"
     else
         _snap_git_stash "$project" "start-$(date +%s)"
     fi
-    systemctl --user start "mios-agent-sandbox@${SESSION}.service"
-    echo "  ✓ sandbox unit started: mios-agent-sandbox@${SESSION}.service"
+    systemctl --user start "mios-coderun-sandbox@${SESSION}.service"
+    echo "  ✓ sandbox unit started: mios-coderun-sandbox@${SESSION}.service"
 }
 
 do_stop() {
     _require_session
-    echo "[mios-agent-session] stopping sandbox for session '$SESSION'"
-    systemctl --user stop "mios-agent-sandbox@${SESSION}.service" || true
+    echo "[mios-coderun-session] stopping sandbox for session '$SESSION'"
+    systemctl --user stop "mios-coderun-sandbox@${SESSION}.service" || true
     echo "  ✓ sandbox unit stopped"
     # Snapshot GC -- bound retention per the guide's pitfall list.
     local sdir="$SNAPSHOTS_ROOT/$SESSION"
@@ -197,8 +197,8 @@ do_revert() {
     local sdir="$SNAPSHOTS_ROOT/$SESSION"
     local latest
     latest=$(ls -1t "$sdir" 2>/dev/null | head -1)
-    [ -z "$latest" ] && { echo "mios-agent-session: no snapshot for session '$SESSION'" >&2; exit 1; }
-    echo "[mios-agent-session] reverting '$SESSION' from $sdir/$latest"
+    [ -z "$latest" ] && { echo "mios-coderun-session: no snapshot for session '$SESSION'" >&2; exit 1; }
+    echo "[mios-coderun-session] reverting '$SESSION' from $sdir/$latest"
     if _is_btrfs "$project"; then
         btrfs subvolume delete "$project" >/dev/null
         btrfs subvolume snapshot "$sdir/$latest" "$project" >/dev/null
@@ -217,15 +217,15 @@ do_revert() {
 
 do_status() {
     _require_session
-    systemctl --user status "mios-agent-sandbox@${SESSION}.service" --no-pager || true
+    systemctl --user status "mios-coderun-sandbox@${SESSION}.service" --no-pager || true
     echo
     echo "── recent snapshots ──"
     ls -1t "$SNAPSHOTS_ROOT/$SESSION" 2>/dev/null | head -10 || echo "  (none)"
 }
 
 do_list() {
-    echo "── active mios-agent-sandbox sessions ──"
-    systemctl --user list-units 'mios-agent-sandbox@*.service' --no-pager --no-legend 2>/dev/null \
+    echo "── active mios-coderun-sandbox sessions ──"
+    systemctl --user list-units 'mios-coderun-sandbox@*.service' --no-pager --no-legend 2>/dev/null \
         | awk '{print "  " $1 " " $4}'
     echo
     echo "── projects roots with snapshots ──"
