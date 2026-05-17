@@ -1,0 +1,38 @@
+[Unit]
+# /usr/lib/systemd/system/mios-hermes-tail.service
+#
+# Background tail of hermes-agent.service journal -- extracts in-flight
+# delegate_task + tool-call + retry + invalid-tool-call events, writes
+# /var/lib/mios/hermes-tail/latest.json which the OWUI mios_sidecar
+# Filter polls. This is the bridge that surfaces "what Hermes is
+# doing right now" into the OWUI chat stream via __event_emitter__,
+# per operator directive 2026-05-16 ("MiOS-Agent prints using OWUIs
+# emitters functions the current global statuses from
+# Hermes-Agent(s)/Sub-Agents").
+#
+# Runs as root so it has unrestricted journal read access; writes a
+# world-readable state file so mios-open-webui (uid 817, no
+# systemd-journal group) can poll without permission gymnastics.
+
+Description='MiOS' Hermes journal tail (in-flight status -> OWUI emitter)
+After=hermes-agent.service
+Wants=hermes-agent.service
+ConditionPathExists=/usr/libexec/mios/mios-hermes-tail
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-hermes-tail
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# Read-only filesystem access except the state dir + journal.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mios/hermes-tail
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

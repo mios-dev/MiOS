@@ -10,6 +10,13 @@
 # resolved mios.toml [ai].model.
 set -euo pipefail
 
+# Defined here (not just inside the seeded config.yaml) so unquoted
+# heredocs that reference ${HERMES_HOME} in their commentary expand
+# cleanly under `set -u`. Hermes-Agent 0.13.x reads
+# ${HERMES_HOME}/config.yaml; the gateway service sets the same value
+# via Environment= in hermes-agent.service.
+HERMES_HOME="/var/lib/mios/hermes"
+
 ENV_FILE="/etc/mios/hermes/api.env"
 
 _log() { logger -t mios-hermes-firstboot "$*" 2>/dev/null || true; echo "[hermes-firstboot] $*" >&2; }

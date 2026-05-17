@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""mios-hermes-tail -- background tail of hermes-agent.service journal,
+extracts in-flight delegate_task + tool-call activity, writes state
+file the OWUI mios_sidecar Filter polls for real-time chat emission.
+
+Operator directive 2026-05-16: "MiOS-Agent (the OWUI CPU
+Agent/refinement Agent) waits for answers from anywhere, prints using
+OWUIs emitters functions the current global statuses from
+Hermes-Agent(s)/Sub-Agents" -- this is the bridge.
+
+Flow:
+  hermes-agent.service journal
+    -> mios-hermes-tail (this script, runs as root w/ journal access)
+       -> writes /var/lib/mios/hermes-tail/latest.json
+          -> mios_sidecar Filter (runs as mios-open-webui inside OWUI)
+             polls the JSON, emits status events via __event_emitter__
+             -> operator sees real-time "what hermes is doing" in chat
+
+State file shape (atomic write):
+  {
+    "ts": <unix-epoch-of-last-update>,
+    "events": [
+      {"ts": ..., "kind": "delegate_spawn", "detail": "3 subagents (find, probe, windep)"},
+      {"ts": ..., "kind": "tool_call",      "detail": "terminal: mios-find beamng"},
+      {"ts": ..., "kind": "subagent_done",  "detail": "find (qwen3:1.7b) returned"},
+      {"ts": ..., "kind": "synthesis",      "detail": "aggregating 3 results"},
+      ...
+    ],
+    "active_session_count": <int>,
+    "inflight_subagents": <int>
+  }
+
+Rolling buffer: last 20 events OR 5 minutes, whichever is smaller.
+Cheap: pure journal tail + regex, no LLM call.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from collections import deque
+from pathlib import Path
+from threading import Lock
+
+STATE_DIR = Path("/var/lib/mios/hermes-tail")
+STATE_FILE = STATE_DIR / "latest.json"
+EVENT_BUFFER_SIZE = 20
+EVENT_MAX_AGE_S = 300
+WRITE_DEBOUNCE_S = 0.5    # never write more than 2x/sec
+
+# ─── Patterns the script extracts from hermes-agent journal ───────────
+# Hermes-Agent 0.13.x logs format varies; these patterns are tuned to
+# match the most visible activity markers. Add more as the hermes
+# logging evolves (or as the operator wants surfaced).
+PATTERNS = [
+    # delegate_task spawning N subagents
+    (re.compile(r"delegate_task.*tasks=\[(.+?)\]", re.I),
+     "delegate_spawn",
+     lambda m: f"delegate_task fanout"),
+    # tool invocation lines (Hermes logs "Tool X invoked" or similar)
+    (re.compile(r"Tool (\w+) (?:returned|invoked|called)", re.I),
+     "tool_call",
+     lambda m: f"tool: {m.group(1)}"),
+    # subagent completion
+    (re.compile(r"(?:subagent|child).+(?:completed|finished|done)", re.I),
+     "subagent_done",
+     lambda m: "subagent returned"),
+    # synthesis / final response generation
+    (re.compile(r"(?:synth|aggregat|final answer|orchestrat)", re.I),
+     "synthesis",
+     lambda m: "synthesizing"),
+    # empty-response retry loop (the operator's chronic frustration)
+    (re.compile(r"Empty response.*retry (\d+)/(\d+)", re.I),
+     "retry",
+     lambda m: f"empty-response retry {m.group(1)}/{m.group(2)}"),
+    # max-retries exceeded (the give-up signal)
+    (re.compile(r"Max retries \((\d+)\) for invalid tool calls exceeded", re.I),
+     "max_retries",
+     lambda m: f"max retries hit ({m.group(1)})"),
+    # invalid tool call (the chronic SOUL-violation signal)
+    (re.compile(r"invalid tool call:\s*(\S+)", re.I),
+     "invalid_tool",
+     lambda m: f"invalid tool call: {m.group(1)}"),
+]
+
+
+class Tail:
+    def __init__(self):
+        self.events = deque(maxlen=EVENT_BUFFER_SIZE)
+        self.lock = Lock()
+        self.last_write = 0.0
+        self.write_pending = False
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        # World-readable so mios-open-webui (the OWUI service user) can
+        # read it without group membership shenanigans.
+        os.chmod(STATE_DIR, 0o755)
+
+    def _push(self, kind: str, detail: str) -> None:
+        with self.lock:
+            self.events.append({
+                "ts": time.time(),
+                "kind": kind,
+                "detail": detail,
+            })
+        self._schedule_write()
+
+    def _gc(self) -> None:
+        cutoff = time.time() - EVENT_MAX_AGE_S
+        with self.lock:
+            while self.events and self.events[0]["ts"] < cutoff:
+                self.events.popleft()
+
+    def _schedule_write(self) -> None:
+        now = time.time()
+        if now - self.last_write >= WRITE_DEBOUNCE_S:
+            self._write_now()
+
+    def _write_now(self) -> None:
+        self._gc()
+        with self.lock:
+            payload = {
+                "ts": time.time(),
+                "events": list(self.events),
+                "active_session_count": _count_recent("synthesis", self.events),
+                "inflight_subagents": _count_recent("delegate_spawn", self.events) -
+                                       _count_recent("subagent_done", self.events),
+            }
+        # Atomic write: tmp + rename.
+        tmp = STATE_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, separators=(",", ":")))
+        os.chmod(tmp, 0o644)
+        tmp.replace(STATE_FILE)
+        self.last_write = time.time()
+
+    def process_line(self, raw: str) -> None:
+        for pat, kind, fmt in PATTERNS:
+            m = pat.search(raw)
+            if m:
+                self._push(kind, fmt(m))
+                break  # one match per line
+
+    def stream(self) -> None:
+        proc = subprocess.Popen(
+            ["journalctl", "-u", "hermes-agent.service",
+             "-f", "-n", "0", "--no-pager", "-o", "cat"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
+        # Periodic flush even if no new events (so stale state ages out).
+        signal.signal(signal.SIGALRM, lambda *_: self._write_now())
+        signal.setitimer(signal.ITIMER_REAL, 5.0, 5.0)
+        try:
+            for line in proc.stdout:
+                self.process_line(line.rstrip("\n"))
+        finally:
+            proc.terminate()
+
+
+def _count_recent(kind: str, events) -> int:
+    return sum(1 for e in events if e.get("kind") == kind)
+
+
+def main() -> int:
+    tail = Tail()
+    try:
+        tail.stream()
+    except KeyboardInterrupt:
+        return 0
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

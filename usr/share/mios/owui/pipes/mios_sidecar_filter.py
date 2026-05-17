@@ -44,9 +44,10 @@ from pydantic import BaseModel, Field
 
 # ─── Where each sibling agent writes its state ────────────────────────
 # Keep IN SYNC with the source scripts (mios-agent-nudger,
-# mios-log-watcher, mios-cron-director, mios-delegation-prefilter).
-# Each entry: (label, path, formatter_fn-name-on-self)
+# mios-log-watcher, mios-cron-director, mios-delegation-prefilter,
+# mios-hermes-tail). Each entry: (label, path, formatter_fn-name).
 SIBLING_AGENTS = [
+    ("hermes-tail",     "/var/lib/mios/hermes-tail/latest.json",        "_format_hermes_tail"),
     ("nudger",          "/var/lib/mios/agent-nudger/latest.json",       "_format_nudger"),
     ("log-watcher",     "/var/lib/mios/log-watcher/latest.json",        "_format_log_watcher"),
     ("cron-director",   "/var/lib/mios/cron-director/state.json",       "_format_cron"),
@@ -96,6 +97,45 @@ class Filter:
             pass
 
     # ─── Per-agent formatters: each returns a short status string ────
+    def _format_hermes_tail(self, payload: dict) -> Optional[str]:
+        # Expected shape: {"ts", "events": [...], "active_session_count",
+        #                  "inflight_subagents"}. Surfaces the MOST RECENT
+        # event with priority weighting -- chronic failure modes
+        # (invalid_tool, max_retries) are highlighted; routine tool
+        # calls only emit if no failure is in the recent window.
+        events = payload.get("events", [])
+        if not events:
+            return None
+        # Priority sort: failures first, then synthesis/spawn, then routine.
+        priority = {
+            "max_retries":    0,
+            "invalid_tool":   1,
+            "retry":          2,
+            "delegate_spawn": 3,
+            "synthesis":      4,
+            "subagent_done":  5,
+            "tool_call":      6,
+        }
+        events_sorted = sorted(events, key=lambda e: priority.get(e.get("kind"), 99))
+        top = events_sorted[0]
+        kind = top.get("kind", "")
+        detail = top.get("detail", "")
+        icons = {
+            "max_retries":    "❌",
+            "invalid_tool":   "⚠️",
+            "retry":          "↻",
+            "delegate_spawn": "🚀",
+            "synthesis":      "🔀",
+            "subagent_done":  "✓",
+            "tool_call":      "⚙️",
+        }
+        icon = icons.get(kind, "·")
+        suffix = ""
+        inflight = payload.get("inflight_subagents", 0)
+        if inflight > 0 and kind in ("delegate_spawn", "tool_call"):
+            suffix = f" ({inflight} inflight)"
+        return f"{icon} hermes: {detail}{suffix}"
+
     def _format_nudger(self, payload: dict) -> Optional[str]:
         # Expected shape: {"trigger": "<phrase>", "model": "...", "ts": ...}
         trigger = payload.get("trigger") or payload.get("phrase") or payload.get("pattern")

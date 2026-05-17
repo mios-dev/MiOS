@@ -43,12 +43,32 @@ if [[ ! -x "$DASHBOARD" ]]; then
 fi
 
 # Render in plain ASCII to a temp file, then atomic-rename so partial
-# writes never reach getty.
-TERM=linux "$DASHBOARD" --no-color --services-only > "$ISSUE_FILE.new" 2>/dev/null || {
+# writes never reach getty. Invoked through explicit `env -i bash` to
+# break the SHELLOPTS chain -- without it, mios-dashboard.sh inherits
+# `nounset:pipefail` from this wrapper's exported SHELLOPTS and exits
+# silently with rc=1 during one of its early `tput cols` / `((...))`
+# paths when stdin is not a TTY (systemd context). With the clean env,
+# the dashboard runs as if from a login shell.
+#
+# Render is best-effort: a getty without a banner is a cosmetic glitch,
+# but a FAILED unit clutters every cockpit dashboard refresh and
+# triggers needless restart-loops via the timer. So on render failure,
+# we drop a minimal banner instead of exiting non-zero.
+if TERM=linux env -i PATH="$PATH" TERM=linux bash "$DASHBOARD" \
+        --no-color --services-only > "$ISSUE_FILE.new" 2>/dev/null \
+   && [[ -s "$ISSUE_FILE.new" ]]; then
+    chmod 0644 "$ISSUE_FILE.new"
+    mv -f "$ISSUE_FILE.new" "$ISSUE_FILE"
+else
     rm -f "$ISSUE_FILE.new"
-    exit 1
-}
-chmod 0644 "$ISSUE_FILE.new"
-mv -f "$ISSUE_FILE.new" "$ISSUE_FILE"
+    {
+        echo ""
+        echo "  MiOS  --  console banner (dashboard render skipped this tick)"
+        echo "  Login for live system state -- /etc/profile.d/zz-mios-motd.sh"
+        echo ""
+    } > "$ISSUE_FILE.tmp"
+    chmod 0644 "$ISSUE_FILE.tmp"
+    mv -f "$ISSUE_FILE.tmp" "$ISSUE_FILE"
+fi
 
 exit 0
