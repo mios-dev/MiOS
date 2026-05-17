@@ -132,28 +132,48 @@ for _layer in "${HOME:-/root}/.config/mios/mios.toml" "/etc/mios/mios.toml"; do
     fi
 done
 
+# Resolve tier model lookups from mios.toml [ai.host_thresholds].
+_big_m="$(_mios_toml_value 'ai.host_thresholds' 'big_ram_model' 'granite4.1:30b')"
+_mid_m="$(_mios_toml_value 'ai.host_thresholds' 'mid_ram_model' 'qwen3.5:9b')"
+_small_m="$(_mios_toml_value 'ai.host_thresholds' 'small_ram_model' "$_AI_MODEL_DEFAULT")"
+
+# Detect actual GPU VRAM. Operator directive 2026-05-16 (mios.toml
+# [ai.host_thresholds] comment, line ~651): "if detected GPU has more
+# than 8GB of VRAM it deploys with medium sized models ... ALL AGENTS
+# DEFAULTS TO CPU models -- across all hardware". So promotion is
+# driven by VRAM, NOT system RAM. nvidia-smi (NVIDIA, incl. WSL2
+# passthrough) and rocm-smi (AMD) are the canonical probes; if
+# neither exists or returns 0, the host is CPU-only and we stay
+# on small_ram_model.
+_vram_gb=0
+if command -v nvidia-smi >/dev/null 2>&1; then
+    _vram_mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null \
+        | awk 'BEGIN{m=0} {if ($1+0 > m) m=$1+0} END{print m}')"
+    _vram_gb=$(( ${_vram_mib:-0} / 1024 ))
+elif command -v rocm-smi >/dev/null 2>&1; then
+    _vram_mib="$(rocm-smi --showmeminfo vram --csv 2>/dev/null \
+        | awk -F, 'NR>1 {gsub(/[^0-9]/,"",$2); if ($2+0 > m) m=$2+0} END{print m+0}')"
+    # rocm-smi reports bytes; convert
+    _vram_gb=$(( ${_vram_mib:-0} / 1024 / 1024 / 1024 ))
+fi
+
 _AI_MODEL_RESOLVED="$_AI_MODEL_DEFAULT"
-if [[ "$_overlaid" -eq 0 ]]; then
-    # Auto-pick from host RAM (MemTotal in /proc/meminfo, kB -> GB).
-    _ram_kb="$(awk '/^MemTotal:/ {print $2; exit}' /proc/meminfo 2>/dev/null || echo 0)"
-    _ram_gb=$(( _ram_kb / 1024 / 1024 ))
-    _big_gb="$(_mios_toml_value 'ai.host_thresholds' 'big_ram_gb' '24')"
-    _mid_gb="$(_mios_toml_value 'ai.host_thresholds' 'mid_ram_gb' '16')"
-    _big_m="$(_mios_toml_value 'ai.host_thresholds' 'big_ram_model' 'granite4.1:30b')"
-    _mid_m="$(_mios_toml_value 'ai.host_thresholds' 'mid_ram_model'  'gpt-oss:20b')"
-    _small_m="$(_mios_toml_value 'ai.host_thresholds' 'small_ram_model' "$_AI_MODEL_DEFAULT")"
-    if (( _ram_gb >= _big_gb )); then
-        _AI_MODEL_RESOLVED="$_big_m"
-        _log "auto-pick: host RAM ${_ram_gb} GB >= ${_big_gb} -> ${_AI_MODEL_RESOLVED}"
-    elif (( _ram_gb >= _mid_gb )); then
+if [[ "$_overlaid" -eq 1 ]]; then
+    _log "operator overlay sets [ai].model=${_AI_MODEL_RESOLVED} -- skipping auto-pick"
+else
+    _mid_vram="$(_mios_toml_value 'ai.host_thresholds' 'mid_vram_gb' '8')"
+    # Auto-pick only EVER picks small or mid. big_ram_model requires
+    # explicit operator opt-in via mios.html (sets [ai].model in
+    # /etc/mios/mios.toml, triggering the _overlaid=1 branch above).
+    # Per operator directive, even a 24GB+ VRAM host stays on small
+    # unless mios.html promotes -- VRAM-promote stops at mid.
+    if (( _vram_gb >= _mid_vram )); then
         _AI_MODEL_RESOLVED="$_mid_m"
-        _log "auto-pick: host RAM ${_ram_gb} GB >= ${_mid_gb} -> ${_AI_MODEL_RESOLVED}"
+        _log "auto-pick: detected GPU VRAM ${_vram_gb} GB >= ${_mid_vram} -> mid tier ${_AI_MODEL_RESOLVED}"
     else
         _AI_MODEL_RESOLVED="$_small_m"
-        _log "auto-pick: host RAM ${_ram_gb} GB < ${_mid_gb} -> ${_AI_MODEL_RESOLVED}"
+        _log "auto-pick: detected GPU VRAM ${_vram_gb} GB < ${_mid_vram} -> small tier ${_AI_MODEL_RESOLVED}"
     fi
-else
-    _log "operator overlay sets [ai].model=${_AI_MODEL_RESOLVED} -- skipping auto-pick"
 fi
 
 # Make sure the directory exists with the right ownership. tmpfiles.d
@@ -346,24 +366,74 @@ chown -R 820:820 "$HERMES_DATA" 2>/dev/null || true
 chmod 0750 "$HERMES_DATA" 2>/dev/null || true
 
 # Validate the resolved model against what Ollama actually serves. The
-# [ai.host_thresholds] auto-pick can resolve to a model (e.g.
-# granite4.1:30b) that was never baked or pulled on this host --
-# pointing Hermes at a missing model breaks chat just as hard as a
-# stale schema. Query Ollama's tag list; if the resolved model isn't
-# present, fall back to the first available non-embedding model.
+# [ai.host_thresholds] auto-pick can resolve to a model that was never
+# baked or pulled on this host -- pointing Hermes at a missing model
+# breaks chat just as hard as a stale schema.
+#
+# Fallback policy walks the TIER chain (small -> mid -> big), NOT
+# whatever happens to be first in the ollama tag list. Operator
+# directive 2026-05-16: never silently upgrade past the operator's
+# tier choice (the old `head -1` behaviour landed CPU-only hosts on
+# qwen3-coder:30b -- 18 GB, glacial on CPU, drove the tool-call
+# retry loop). If the chosen tier is missing, prefer the SMALLER
+# safer option first so the host remains responsive; only escalate
+# if nothing smaller is available.
 _ollama_tags="$(curl -fsS --max-time 5 http://localhost:11434/api/tags 2>/dev/null \
     | grep -oE '"name":"[^"]+"' | sed 's/"name":"//;s/"$//')"
 if [[ -n "$_ollama_tags" ]]; then
     if ! grep -qxF "$_AI_MODEL_RESOLVED" <<< "$_ollama_tags"; then
-        _fallback="$(grep -viE 'embed' <<< "$_ollama_tags" | head -1)"
-        if [[ -n "$_fallback" ]]; then
-            _log "resolved model '${_AI_MODEL_RESOLVED}' not present in Ollama -- falling back to '${_fallback}'"
-            _AI_MODEL_RESOLVED="$_fallback"
+        _picked=""
+        for _candidate in "$_small_m" "$_mid_m" "$_big_m"; do
+            [[ -z "$_candidate" ]] && continue
+            if grep -qxF "$_candidate" <<< "$_ollama_tags"; then
+                _picked="$_candidate"
+                break
+            fi
+        done
+        if [[ -z "$_picked" ]]; then
+            # Last-resort: any non-embed model. Better than a 401 loop,
+            # but flag it loudly so the operator catches the gap.
+            _picked="$(grep -viE 'embed' <<< "$_ollama_tags" | head -1)"
+            [[ -n "$_picked" ]] && _log "WARN: no tier model present in Ollama -- using arbitrary '${_picked}'"
+        fi
+        if [[ -n "$_picked" ]]; then
+            _log "resolved model '${_AI_MODEL_RESOLVED}' not present in Ollama -- tier-walked to '${_picked}'"
+            _AI_MODEL_RESOLVED="$_picked"
         else
             _log "WARN: '${_AI_MODEL_RESOLVED}' not in Ollama and no non-embed fallback found"
         fi
     fi
 fi
+
+# Build the fallback chain Hermes walks if the primary model emits
+# invalid tool calls / empty bodies. Policy: never escalate ABOVE the
+# resolved primary tier (the operator's tier ceiling is binding).
+# Emit only candidates that are actually pulled into Ollama; skip
+# duplicates of the primary. Always end with the universal
+# qwen3:0.6b-cpu safety net if present -- guaranteed CPU-fit so the
+# chat NEVER silently fails over to an unreachable cloud provider.
+_FALLBACK_CHAIN=()
+_seen=" $_AI_MODEL_RESOLVED "
+for _cand in "$_small_m" "qwen3:1.7b" "qwen3:0.6b-cpu" "qwen3:0.6b"; do
+    [[ -z "$_cand" ]] && continue
+    [[ "$_seen" == *" $_cand "* ]] && continue
+    if [[ -z "$_ollama_tags" ]] || grep -qxF "$_cand" <<< "$_ollama_tags"; then
+        _FALLBACK_CHAIN+=("$_cand")
+        _seen+="$_cand "
+    fi
+done
+_FALLBACK_YAML=""
+for _m in "${_FALLBACK_CHAIN[@]}"; do
+    _FALLBACK_YAML+="    - provider: custom:local-ollama
+      model: ${_m}
+"
+done
+# Trim trailing newline so heredoc doesn't get a blank line at the end
+_FALLBACK_YAML="${_FALLBACK_YAML%$'\n'}"
+if [[ -z "$_FALLBACK_YAML" ]]; then
+    _FALLBACK_YAML="    # (no tier-safe fallback models installed in Ollama)"
+fi
+_log "fallback chain (tier-safe): ${_FALLBACK_CHAIN[*]:-<none>}"
 
 _should_seed=0
 if [[ ! -f "$HERMES_DATA_CFG" ]]; then
@@ -438,17 +508,12 @@ model:
 # a list of {provider, model} dicts and walks left-to-right when the
 # primary returns invalid tool calls, empty bodies, or 3xx retries
 # exceeded -- preserving conversation history across the swap).
-# Ordered: tool-call-disciplined first, capable second, low-RAM safe-net last.
-# Operator directive 2026-05-16: "MiOS-Hermes should be natively reason
-# and achieve!!!" -- the native Hermes mechanism is provider fallback;
-# OpenCode's per-turn feedback loop comes via verification in SOUL.
+# Walks DOWN the tier, never UP -- operator directive 2026-05-16:
+# auto-selection must never escalate past the operator's chosen tier
+# (e.g. a CPU-only host stuck with primary=4B should fall back to
+# 1.7B / 0.6B safety nets, not climb to 30B and freeze).
   fallback_model:
-    - provider: custom:local-ollama
-      model: gpt-oss-tools:20b
-    - provider: custom:local-ollama
-      model: qwen3-coder:30b
-    - provider: custom:local-ollama
-      model: granite4.1:3b
+${_FALLBACK_YAML}
 
 custom_providers:
   - name: local-ollama
