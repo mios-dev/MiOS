@@ -415,6 +415,130 @@ def cron_loop() -> None:
         _stop_event.wait(CRON_TICK_S)
 
 
+# ── Suggestions handler ──────────────────────────────────────────────
+# Operator-flagged 2026-05-17: "OWUI doesn't show or generate any
+# suggested chats on new chat windows" + "should have access to all
+# local systems logs and can serve them; maybe this helps inform the
+# suggestion/followups in OWUI chats".
+#
+# OWUI's blank-chat panel reads ui.prompt_suggestions (a static list
+# in webui.db), not an LLM endpoint. Populate it here every N min
+# from RECENT MiOS state -- classify_loop's summary, refusal_loop's
+# alerts, recent operator chat language -- so the panel evolves with
+# the operator's work. Pure LLM generation, no hardcoded English
+# (operator directive: "no hardcoded answers" 2026-05-17).
+
+SUGG_TICK_S = float(os.environ.get("MIOS_DAEMON_SUGG_TICK_S", "1200"))
+SUGG_COUNT  = int(os.environ.get("MIOS_DAEMON_SUGG_COUNT", "6"))
+SUGG_OWUI_DB = Path(os.environ.get(
+    "MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
+SUGG_SYSTEM = (
+    "You generate short prompts a MiOS operator could click on a "
+    "blank chat to start a useful turn. The MiOS host exposes: "
+    "launch apps (mios-find), open URLs (mios-open-url), install "
+    "packages (mios-installer), screenshot (mios-screenshot), window "
+    "control (mios-window), system status (mios-system-status), "
+    "kanban tasks, web search, Discord posting, cron scheduling, "
+    "Steam (mios-steamcmd). Mirror the operator's recent chat "
+    "language; never assume English."
+)
+
+def _recent_owui_user_messages(limit: int = 5) -> list[str]:
+    """Pull last N user-message snippets from OWUI for locale hint."""
+    if not SUGG_OWUI_DB.is_file(): return []
+    try:
+        import sqlite3
+        c = sqlite3.connect(str(SUGG_OWUI_DB))
+        rows = c.execute(
+            "SELECT chat FROM chat ORDER BY updated_at DESC LIMIT ?",
+            (limit,)).fetchall()
+        out = []
+        for (raw,) in rows:
+            try:
+                d = json.loads(raw or "{}")
+                for m in (d.get("messages") or [])[-4:]:
+                    if isinstance(m, dict) and m.get("role") == "user":
+                        s = str(m.get("content") or "").strip()
+                        if s: out.append(s[:120])
+            except Exception:
+                continue
+        return out[-limit:]
+    except Exception as e:
+        log.debug("suggestions: chat-scan: %s", e)
+        return []
+
+def suggestions_loop() -> None:
+    # Boot delay so OWUI + ollama warm before first generation
+    time.sleep(45)
+    while not _stop_event.is_set():
+        try:
+            recent = _recent_owui_user_messages()
+            classify_summary = ""
+            with _state_lock:
+                cls = (_state.get("classify") or {})
+            if cls.get("summary"):
+                classify_summary = f"Recent log summary: {cls['summary'][:200]}."
+
+            locale_hint = " | ".join(recent) if recent else "(no recent chats)"
+            user_prompt = (
+                f"Generate {SUGG_COUNT} short prompts (3 to 12 words each) "
+                "the operator could click to start a useful turn. Mix "
+                "categories: launch/open, find/search, install, status, "
+                "kanban, research, configure. "
+                f"{classify_summary} "
+                f"Locale + recent context: {locale_hint}. "
+                "\n\nOutput JSON ONLY: {\"suggestions\":[\"...\", ...]}"
+            )
+            content = llm_chat(SUGG_SYSTEM, user_prompt,
+                               max_tokens=400, want_json=True)
+            m = re.search(r"\{[\s\S]*\}", content) if content else None
+            cards: list[dict] = []
+            if m:
+                try:
+                    parsed = json.loads(m.group(0))
+                    for s in (parsed.get("suggestions") or [])[:SUGG_COUNT]:
+                        if not isinstance(s, str): continue
+                        s = s.strip()[:160]
+                        if s: cards.append({"title": [s, ""], "content": s})
+                except json.JSONDecodeError:
+                    pass
+
+            if cards and SUGG_OWUI_DB.is_file():
+                import sqlite3
+                c = sqlite3.connect(str(SUGG_OWUI_DB))
+                row = c.execute(
+                    "SELECT data FROM config WHERE id=1").fetchone()
+                if row is not None:
+                    try:
+                        cfg = json.loads(row[0])
+                    except json.JSONDecodeError:
+                        cfg = {}
+                    cfg.setdefault("ui", {})["prompt_suggestions"] = cards
+                    c.execute(
+                        "UPDATE config SET data=?, updated_at=? WHERE id=1",
+                        (json.dumps(cfg),
+                         datetime.datetime.utcnow().isoformat()))
+                    c.commit()
+                    log.info("suggestions: wrote %d LLM cards "
+                             "(classify-summary=%s, recent-msgs=%d)",
+                             len(cards),
+                             "yes" if classify_summary else "no",
+                             len(recent))
+            _update_state("suggestions", {
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "count": len(cards),
+                "preview": [c["content"][:60] for c in cards[:3]],
+                "used_classify": bool(classify_summary),
+                "used_recent_chats": len(recent),
+            })
+        except Exception as e:
+            log.warning("suggestions: %s: %s", type(e).__name__, e)
+        # Interruptible sleep
+        for _ in range(int(SUGG_TICK_S)):
+            if _stop_event.is_set(): return
+            time.sleep(1)
+
+
 # ── Main ─────────────────────────────────────────────────────────────
 def _on_signal(signum, _frame):
     log.info("signal %s -- stopping", signum)
@@ -438,6 +562,7 @@ def main() -> int:
         threading.Thread(target=classify_loop, daemon=True, name="classify"),
         threading.Thread(target=refusal_loop, daemon=True, name="refusal"),
         threading.Thread(target=cron_loop, daemon=True, name="cron"),
+        threading.Thread(target=suggestions_loop, daemon=True, name="suggestions"),
     ]
     for t in threads:
         t.start()

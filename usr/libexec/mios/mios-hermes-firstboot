@@ -466,7 +466,7 @@ fi
 # chat NEVER silently fails over to an unreachable cloud provider.
 _FALLBACK_CHAIN=()
 _seen=" $_AI_MODEL_RESOLVED "
-for _cand in "$_small_m" "qwen3:1.7b" "qwen3:0.6b-cpu" "qwen3:0.6b"; do
+for _cand in "$_small_m" "qwen3.5:4b" "qwen3:0.6b-cpu" "qwen3:0.6b"; do
     [[ -z "$_cand" ]] && continue
     [[ "$_seen" == *" $_cand "* ]] && continue
     if [[ -z "$_ollama_tags" ]] || grep -qxF "$_cand" <<< "$_ollama_tags"; then
@@ -579,14 +579,15 @@ custom_providers:
 # and silently drops context-compression summaries. Map every one at
 # the same on-box Ollama provider so the agent is fully self-contained.
 auxiliary:
-  # compression EXCEPTION: must have >=64K context window or Hermes
-  # refuses to start chat completions ("Auxiliary compression model X
-  # has a context window of N tokens, which is below the minimum
-  # 64,000 required by Hermes Agent" -- operator-confirmed 2026-05-15).
-  # qwen3:1.7b is 40K so it fails this check; route compression to the
-  # main big model (128K context). Compression fires only when the
-  # context fills up -- infrequent, GPU is fine for it. All OTHER
-  # auxiliary services stay on qwen3:1.7b for CPU parallelism.
+  # ALL auxiliary lanes need >= 64K context window or Hermes refuses
+  # to start chat completions ("Auxiliary <lane> model X has a context
+  # window of N tokens, which is below the minimum 64,000 required by
+  # Hermes Agent" -- operator-confirmed 2026-05-15 & re-confirmed
+  # 2026-05-17 when qwen3:1.7b @ 40,960 tokens was wired here and
+  # every delegate spawn 503'd). qwen3.5:4b @ 262,144 tokens is the
+  # safe default: small (~3GB), CPU-friendly, comfortably above the
+  # floor. Compression stays on the main model for context-fill
+  # events (infrequent).
   compression:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
@@ -594,35 +595,35 @@ auxiliary:
   session_search:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   title_generation:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   triage_specifier:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   curator:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   mcp:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   web_extract:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   approval:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   skills_hub:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
-    model: qwen3:1.7b
+    model: qwen3.5:4b
   # Vision-grounding lane for screenshot -> click-coordinate
   # translation. Used by /usr/libexec/mios/mios-pc-vision (the
   # PC-Control vision-grounded loop, Path B in the pc-control
