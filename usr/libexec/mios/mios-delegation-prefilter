@@ -445,25 +445,22 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             messages = payload.get("messages") or []
             user_text = _last_user_message(messages)
 
-            # ── Stage 2: mios-sys-agent refinement (HARD-GATE) ────
-            # Operator architecture 2026-05-17: "the message should
-            # have NEVER BEEN SENT TO HERMES THEN!!!" -- if the CPU
-            # refiner fails, the prompt does NOT pass through to
-            # hermes. We return a 503 to OWUI so the operator sees
-            # the failure plainly + we don't burn a GPU turn on
-            # un-enriched input. The refiner pre-warm at firstboot
-            # (mios-sys-agent on CPU, keep_alive=-1) makes runtime
-            # cold-load misses rare; if one DOES happen the operator
-            # gets a clear "refiner unavailable" instead of a
-            # silently-degraded answer.
+            # ── Stage 2: refinement (DELEGATED TO THE OWUI PIPE) ──
+            # Operator architecture 2026-05-17: the OWUI MiOS-Agent
+            # pipe itself owns CPU refinement. The pipe calls
+            # qwen3.5:4b on Ollama BEFORE handing the request to this
+            # prefilter, so by the time we see it the user message is
+            # ALREADY the refined version. Doing refinement a second
+            # time here would double-burn CPU + the prefilter would
+            # have no UI surface to emit progress on (the pipe has
+            # the __event_emitter__).
             #
-            # EXCEPTION: conversational openers (hi / thanks / bye /
-            # short ack) get NO refinement at all -- pass straight to
-            # hermes. A 4 GB CPU refiner that returns "USER REQUEST:
-            # hello\nINTENT: greeting\n..." is wasted CPU + adds 15s
-            # latency to what should be a sub-second pleasantry. The
-            # _looks_conversational check below already bypasses
-            # delegate-force on these; do the same for refinement.
+            # REFINE_ENABLED env stays for back-compat with non-OWUI
+            # callers (raw curl, scripts, future MCP clients) that
+            # hit :8641 directly without going through the pipe. The
+            # path is preserved below but defaults to disabled --
+            # set MIOS_PREFILTER_REFINE=1 on operator-tuned hosts
+            # that need server-side refinement for non-OWUI clients.
             _skip_refine_short = _looks_conversational(user_text)
             if user_text and REFINE_ENABLED and not _skip_refine_short:
                 refined = await _refine_via_sys_agent(user_text)

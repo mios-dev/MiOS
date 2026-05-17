@@ -102,7 +102,7 @@ class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
             default="http://host.containers.internal:8641/v1",
-            description="OpenAI-compat backend. OWUI runs in a podman Quadlet, so the prefilter at :8641 on the host is reached via host.containers.internal. If you ever move OWUI to a host process, flip this to http://127.0.0.1:8641/v1.",
+            description="OpenAI-compat backend (prefilter @ :8641, which forces delegate_task + forwards to hermes @ :8642). OWUI runs in a podman Quadlet so the host is reached via host.containers.internal.",
         )
         BACKEND_MODEL: str = Field(
             default="MiOS-Agent",
@@ -110,15 +110,49 @@ class Pipe:
         )
         BACKEND_KEY: str = Field(
             default_factory=lambda: os.environ.get("API_SERVER_KEY") or os.environ.get("OPENAI_API_KEY") or "",
-            description="Bearer key for the backend. Defaults to API_SERVER_KEY / OPENAI_API_KEY from the container env (the OWUI Quadlet's EnvironmentFile=/etc/mios/hermes/api.env). Without this, the pipe hits prefilter -> hermes -> 401.",
+            description="Bearer key for the backend. Defaults to API_SERVER_KEY / OPENAI_API_KEY from the OWUI container env.",
         )
+
+        # ── In-pipe CPU refinement (operator-architecture 2026-05-17) ──
+        # MiOS-Agent IS the CPU refiner -- it sits in front of hermes,
+        # takes the user's raw prompt, calls a small CPU model on
+        # Ollama, and forwards a refined / contextualized prompt to
+        # the heavy GPU orchestrator. Sub-second target. Operator:
+        # "OWUI's MIOS_AGENT OPERATES ON THE CPU MODEL ... QUICKLY
+        # REFINING THE USERS PROMPTS WITH MORE CONTEXT AND CLEARER
+        # DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
+        REFINE_ENABLED: bool = Field(
+            default=True,
+            description="Run a quick CPU-model refinement pass on every user prompt before forwarding to hermes.",
+        )
+        REFINE_MODEL: str = Field(
+            default="qwen3.5:4b",
+            description="Small CPU model used for refinement. Must be small enough to refine in <5s on the host's CPU (qwen3.5:4b ~3.4 GB; qwen3:1.7b ~1.4 GB; qwen3:0.6b-cpu ~522 MB). Loaded once with keep_alive=-1, stays warm forever.",
+        )
+        REFINE_ENDPOINT: str = Field(
+            default="http://host.containers.internal:11434",
+            description="Ollama endpoint for the refine call. Hits /api/chat (NOT /v1, which drops options field).",
+        )
+        REFINE_TIMEOUT_S: int = Field(
+            default=20,
+            description="Hard cap on the refine call. Should comfortably exceed warm-call latency on the host's CPU. On timeout the pipe falls through to original prompt (NOT 503; pipe is OWUI-facing and 503 would be a bad UX).",
+        )
+        REFINE_MAX_TOKENS: int = Field(
+            default=300,
+            description="Cap refine output. Smaller = faster turn. 300 tokens is enough for INTENT + 2-3 step PLAN.",
+        )
+        REFINE_SKIP_SHORT: bool = Field(
+            default=True,
+            description="Skip refinement on greetings/acks (hi/hello/thanks/bye) -- no value added, just adds latency.",
+        )
+
         DISPLAY_NAME: str = Field(
             default="",
-            description="Suffix appended to the FUNCTION row name in OWUI's model dropdown. OWUI renders the dropdown as `<function.name><pipe.name>` (no separator); leave empty so the operator sees just 'MiOS-Agent' from the function row, not 'MiOS-AgentMiOS-Agent' duplicated. Set this to e.g. 'live' or 'fast' if you ever register multiple pipes under one function.",
+            description="Suffix appended to the FUNCTION row name in OWUI's model dropdown. Leave empty so dropdown shows just 'MiOS-Agent'.",
         )
         EMIT_STATUS: bool = Field(
             default=True,
-            description="Emit status events ('thinking...', 'calling tool X...').",
+            description="Emit status events ('refining...', 'dispatching to hermes...', tool calls).",
         )
         EMIT_HERMES_TAIL: bool = Field(
             default=True,
@@ -191,6 +225,119 @@ class Pipe:
             except asyncio.TimeoutError:
                 continue
 
+    # ─── CPU REFINEMENT (in-pipe, sub-second target) ─────────────
+    # Architecture: MiOS-Agent (this pipe) IS the prompt enhancer.
+    # Operator: "OWUI's MIOS_AGENT OPERATES ON THE CPU MODEL ...
+    # IS QUICKLY REFINING THE USERS PROMPTS WITH MORE CONTEXT AND
+    # CLEARER DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
+    # The pipe owns this step end-to-end:
+    #   1. Receive raw user text
+    #   2. Call a small CPU model on Ollama (default qwen3.5:4b)
+    #      with a tight system prompt -- num_predict capped low,
+    #      keep_alive=-1, num_gpu=0, native /api/chat endpoint
+    #   3. Return the refined text -- forwarded as the user message
+    #      to the prefilter -> hermes chain
+    #
+    # The refiner runs INLINE in the pipe so the operator sees it
+    # as a discrete OWUI status emit ("🧠 refining via qwen3.5:4b
+    # on CPU...") rather than as an invisible sidecar pre-step.
+
+    _CONVERSATIONAL_RE = re.compile(
+        r"^\s*(hi|hello|hey|yo|howdy|sup|gm|gn|"
+        r"good (morning|afternoon|evening|night)|"
+        r"ok|okay|kk|thanks|thx|ty|cool|nice|great|got it|sure|yes|no|yep|nope|"
+        r"bye|cya|goodbye|later|peace|"
+        r"what'?s up|how are you|how'?s it going)[!?.\s]*$",
+        re.IGNORECASE,
+    )
+
+    _REFINE_SYSTEM = (
+        "/nothink\n"
+        "You are MiOS-Agent on a MiOS host. The user typed a short request "
+        "in OWUI. Rewrite it as a clearer, more contextualized prompt for "
+        "the downstream MiOS-Hermes orchestrator (and its delegated "
+        "sub-agents). Add: explicit intent, any plausible MiOS helpers "
+        "to consider (mios-launch / mios-everything / mios-apps / "
+        "launch_app / everything_search / system_status / discord_send_"
+        "message / browser_navigate), and a brief 2-3 step plan. Keep it "
+        "TIGHT -- under 200 tokens. Output ONLY the rewritten prompt, "
+        "no preamble, no template headers, no commentary."
+    )
+
+    def _looks_conversational(self, text: str) -> bool:
+        if not text:
+            return True
+        if len(text.strip()) > 80:
+            return False
+        return bool(self._CONVERSATIONAL_RE.match(text.strip()))
+
+    async def _refine_via_cpu(
+        self,
+        user_text: str,
+        emitter: Optional[Callable[..., Awaitable[None]]],
+    ) -> str:
+        """Call the small CPU refiner on Ollama. Returns refined text
+        on success, or the ORIGINAL on failure / timeout / empty
+        (best-effort -- the pipe is OWUI-facing so we never 503 here;
+        worst case the unrefined prompt goes through)."""
+        if not self.valves.REFINE_ENABLED or not user_text:
+            return user_text
+        if self.valves.REFINE_SKIP_SHORT and self._looks_conversational(user_text):
+            await self._emit(emitter,
+                f"💬 MiOS-Agent: conversational opener -- skipping refine")
+            return user_text
+
+        model = self.valves.REFINE_MODEL
+        await self._emit(emitter,
+            f"🧠 MiOS-Agent: refining via {model} (CPU)...")
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": self._REFINE_SYSTEM},
+                {"role": "user", "content": user_text},
+            ],
+            "options": {
+                "num_gpu": 0,           # CPU per operator architecture
+                "num_thread": 8,
+                "num_predict": int(self.valves.REFINE_MAX_TOKENS),
+                "temperature": 0.0,
+            },
+            "stream": False,
+            "keep_alive": -1,           # always-on
+        }
+        url = self.valves.REFINE_ENDPOINT.rstrip("/") + "/api/chat"
+        try:
+            timeout = aiohttp.ClientTimeout(total=int(self.valves.REFINE_TIMEOUT_S))
+            async with aiohttp.ClientSession(timeout=timeout) as s:
+                async with s.post(url, data=json.dumps(payload).encode(),
+                                  headers={"Content-Type": "application/json"}) as r:
+                    if r.status != 200:
+                        await self._emit(emitter,
+                            f"⚠️ refine: ollama {r.status} -- passing original")
+                        return user_text
+                    body = await r.json()
+            msg = body.get("message") or {}
+            refined = (msg.get("content") or "").strip()
+            if not refined:
+                # qwen3.5-family thinking-mode -- final answer empty,
+                # thinking field has the trace. Use it but mark.
+                refined = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+            if not refined:
+                await self._emit(emitter,
+                    "⚠️ refine: empty output -- passing original")
+                return user_text
+            await self._emit(emitter,
+                f"✓ refined {len(user_text)}c -> {len(refined)}c (CPU)")
+            return refined
+        except asyncio.TimeoutError:
+            await self._emit(emitter,
+                f"⏱️  refine: timeout after {self.valves.REFINE_TIMEOUT_S}s -- passing original")
+            return user_text
+        except Exception as e:
+            await self._emit(emitter,
+                f"⚠️ refine: {type(e).__name__} -- passing original")
+            return user_text
+
     def _process_buffer(self, buffer: str) -> tuple[str, str]:
         """Pop COMPLETED lines from buffer, transform, return (yieldable, leftover).
         Narration lines get <think>...</think> wrapping; final-answer lines pass through.
@@ -235,6 +382,34 @@ class Pipe:
         body = dict(body)
         body["model"] = self.valves.BACKEND_MODEL
         body["stream"] = True
+
+        # ── CPU REFINEMENT (in-pipe) ─────────────────────────────────
+        # Extract the last user message, refine via the small CPU model,
+        # replace the user message in-place with the refined text. The
+        # downstream chain (prefilter -> hermes) sees the enriched
+        # prompt, not the raw input.
+        messages = body.get("messages") or []
+        last_user_idx = -1
+        for i in range(len(messages) - 1, -1, -1):
+            if isinstance(messages[i], dict) and messages[i].get("role") == "user":
+                last_user_idx = i
+                break
+        if last_user_idx >= 0:
+            raw = messages[last_user_idx].get("content") or ""
+            # OpenAI multi-part content shape: pick the first text segment
+            if isinstance(raw, list):
+                for part in raw:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        raw = part.get("text", "")
+                        break
+                else:
+                    raw = ""
+            if isinstance(raw, str) and raw.strip():
+                refined = await self._refine_via_cpu(raw, __event_emitter__)
+                if refined and refined != raw:
+                    # Write back as a plain string (downstream tolerates both)
+                    messages[last_user_idx]["content"] = refined
+                    body["messages"] = messages
 
         headers = {"Content-Type": "application/json"}
         if self.valves.BACKEND_KEY:

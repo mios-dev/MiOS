@@ -36,7 +36,13 @@ Environment=PYTHONUNBUFFERED=1
 # original both end up at hermes; the refiner output is also written
 # to /var/lib/mios/delegation-prefilter/latest.json so the OWUI sidecar
 # filter can surface it as a "🧠 refined: ..." status event.
-Environment=MIOS_PREFILTER_REFINE=1
+# Refinement is the OWUI MiOS-Agent PIPE's job (it owns the CPU
+# refine step inline so OWUI sees the progress emits). The prefilter
+# only needs to force delegate_task + auth-passthrough now. Keep the
+# env-var schema for back-compat; set =0 by default. Operators with
+# non-OWUI clients (curl scripts, MCP) that need server-side refine
+# can flip this to =1 via a drop-in.
+Environment=MIOS_PREFILTER_REFINE=0
 Environment=MIOS_SYS_AGENT_MODEL=mios-sys-agent
 Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11434/v1
 Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11434
