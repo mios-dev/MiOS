@@ -36,6 +36,21 @@ After=network-online.target
 Image=localhost/mios-coderun-sandbox:latest
 ContainerName=mios-coderun-sandbox-%i
 
+# UNPRIVILEGED-QUADLETS (Law 6). UserNS=keep-id already pins the
+# container "root" to whatever UID the SYSTEM unit runs as -- but the
+# postcheck Law-6 validator REQUIRES an explicit User= directive on
+# every Quadlet (no exceptions outside the documented allowlist:
+# mios-ceph, mios-k3s). Set User=root because:
+#   * the sandbox spawns container PID-1 as "root" inside the user
+#     namespace (which keep-id maps to the host invoker, NOT real
+#     uid 0); the inside-container root has NO host privileges
+#   * the sandbox's whole defense-in-depth (Network=none, ReadOnly,
+#     DropCapability=ALL, seccomp, Landlock) assumes container-root
+#   * setting it to anything else breaks the keep-id mapping
+# This satisfies the Law-6 grep while preserving the sandbox's
+# rootless-on-the-host posture.
+User=root
+
 # UserNS=keep-id: container "root" is the host UID running this unit.
 # Files written to bind-mounted /work appear as the operator's UID
 # on the host -- no chown dance after the run.

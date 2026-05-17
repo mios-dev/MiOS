@@ -38,36 +38,36 @@ DB_PATH = Path("/var/lib/mios/open-webui/webui.db")
 # when the operator clicks the card.
 MIOS_SUGGESTIONS = [
     {
-        "title": ["Launch an app", "by name (Steam, Epic, flatpak, .exe, .lnk)"],
-        "content": "launch {{app}} for me",
+        "title": ["Launch an app", "Steam / Epic / Xbox / flatpak / .exe"],
+        "content": "Launch ",
     },
     {
-        "title": ["Find a file", "via the Voidtools Everything NTFS index"],
-        "content": "find {{filename}} -- search the NTFS index for the full path",
+        "title": ["Find a file", "Voidtools Everything NTFS index, sub-100ms"],
+        "content": "Find ",
     },
     {
-        "title": ["System status", "services, GPU/VRAM, disk, models"],
-        "content": "show me the MiOS dashboard -- services, GPU/VRAM, disk, ollama models",
+        "title": ["System status", "GPU, VRAM, disk, services, ollama models"],
+        "content": "Show me the MiOS dashboard -- services, GPU/VRAM, disk, ollama models",
     },
     {
         "title": ["Inventory apps", "every installed app across all sources"],
-        "content": "list every installed app on this MiOS host (windows-game, linux-flatpak, linux-rpm-gui, mios-shim)",
+        "content": "List every installed app on this MiOS host (windows-game, linux-flatpak, linux-rpm-gui, mios-shim)",
     },
     {
-        "title": ["Open a website", "in the default browser"],
-        "content": "open {{url}} in the browser",
+        "title": ["Open Chrome", "ChromeDev with CDP, shared session with Hermes"],
+        "content": "Launch chrome",
     },
     {
         "title": ["Service diagnose", "any failed unit on the host"],
-        "content": "what MiOS services are failing right now? show the journal for each",
+        "content": "What MiOS services are failing right now? Show the journal for each.",
     },
     {
-        "title": ["Edit mios.toml", "operator-tunable system config"],
-        "content": "what's in /etc/mios/mios.toml -- and what would I change to {{intent}}?",
+        "title": ["Send to Discord", "default channel from mios.toml [identity]"],
+        "content": "Post a status update to my discord channel: ",
     },
     {
-        "title": ["Schedule work", "cron / systemd timer"],
-        "content": "schedule {{task}} to run {{when}} and persist across reboots",
+        "title": ["Schedule work", "via Hermes cronjob / systemd timer"],
+        "content": "Schedule a daily 09:00 task to ",
     },
 ]
 

@@ -40,9 +40,10 @@ Environment=MIOS_PREFILTER_REFINE=1
 Environment=MIOS_SYS_AGENT_MODEL=mios-sys-agent
 Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11434/v1
 Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11434
-# Cold-load of the 2.7 GB CPU refiner can take 15-20s on a busy host.
-# 8s default times out before the model has even loaded.
-Environment=MIOS_PREFILTER_REFINE_TIMEOUT=45
+# Cold-load of the ~4 GB CPU refiner can take 30-60s. Once loaded
+# (keep_alive=-1) subsequent refines are sub-second to a few seconds.
+# 120s gives cold-load headroom; warm calls return well under this.
+Environment=MIOS_PREFILTER_REFINE_TIMEOUT=120
 # Heuristic + upstream are operator-tunable via /etc/mios/secrets.env
 # or a drop-in:
 #   Environment=MIOS_PREFILTER_LISTEN_PORT=8641

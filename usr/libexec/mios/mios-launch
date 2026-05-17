@@ -89,6 +89,45 @@ case "$NAME" in
         ;;
 esac
 
+# ─── 3a. Browser (chromedev with CDP) ────────────────────────────────
+# Hermes's browser_* tools all connect to a Chrome instance with
+# --remote-debugging-port=9222. The bare `flatpak run com.google.
+# ChromeDev` path leaves CDP unexposed -- mios-chrome wraps the
+# flatpak launch with the right Wayland args + --remote-debugging-
+# port=9222 + a persistent --user-data-dir so the operator AND Hermes
+# drive the SAME browser instance (shared cookies, shared logged-in
+# state). Dispatched through the launcher broker because the agent
+# uid (mios-hermes) has NO WAYLAND_DISPLAY -- the broker runs in
+# user@<uid>.service with the operator's full WSLg env so the window
+# actually surfaces. Operator-flagged 2026-05-17: "make sure it
+# opens the actual chromedev instance graphically for the user to
+# watch".
+_LAUNCHER_SOCK=/run/mios-launcher/launcher.sock
+_broker_dispatch() {
+    # Fire-and-forget single-line dispatch; broker replies OK + detaches.
+    if command -v python3 >/dev/null 2>&1 && [ -S "$_LAUNCHER_SOCK" ]; then
+        printf '%s\n' "$1" | python3 -c '
+import socket, sys
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect("'"$_LAUNCHER_SOCK"'")
+s.sendall(sys.stdin.buffer.read())
+print(s.recv(64).decode("utf-8", errors="replace").rstrip())
+s.close()
+'
+        return $?
+    fi
+    return 1
+}
+case "$NAME" in
+    chrome|chromedev|google-chrome|browser)
+        _broker_dispatch "mios-chrome $*" && exit 0
+        # Broker unavailable -- fall back to in-process exec (will
+        # likely fail to display on a non-operator uid, but better
+        # than nothing on bare-metal hosts without the broker).
+        exec mios-chrome "$@"
+        ;;
+esac
+
 # ─── 3b. Windows games inventory (Steam/Epic/Xbox/Microsoft Store) ───
 # mios-apps writes /var/lib/mios/agent-env/windows-games.cache with
 # one line per detected installed game: "Display Name|launch-cmd".

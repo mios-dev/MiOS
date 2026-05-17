@@ -278,6 +278,29 @@ DISCORDEOF
     _log "seeded empty $DISCORD_ENV (operator drops DISCORD_BOT_TOKEN here)"
 fi
 
+# ─── /usr/local/bin/chrome -- shim so mios-gui chrome / launch_app chrome ──
+# routes through mios-chrome (CDP on :9222 + Wayland + persistent profile)
+# instead of the bare flatpak-launch path the generic shim generator
+# would produce. mios-gui detects this shim by the "MiOS shim for the"
+# string in its first 3 lines. Idempotent: rewritten every boot so a
+# stale generator-output gets superseded. Required for Hermes'
+# browser_navigate / browser_snapshot / etc. to attach to the
+# operator's actual visible Chrome instance (operator-flagged
+# 2026-05-17).
+install -d -m 0755 /usr/local/bin
+cat > /usr/local/bin/chrome <<'CHROMEEOF'
+#!/bin/sh
+# /usr/local/bin/chrome -- MiOS shim for the com.google.ChromeDev flatpak.
+# Routes through /usr/bin/mios-chrome which wraps the flatpak launch
+# with --remote-debugging-port=9222 + Wayland args + persistent
+# --user-data-dir so Hermes' browser_navigate connects to the SAME
+# browser instance the operator drives (shared cookies, logged-in
+# state). mios-gui detects this shim via the "MiOS shim for the"
+# string in its first 3 lines and exec's it.
+exec /usr/bin/mios-chrome "$@"
+CHROMEEOF
+chmod 0755 /usr/local/bin/chrome
+
 # ─── Reconcile MIOS_DISCORD_DEFAULT_* env from mios.toml [identity] ─────
 # Operator sets [identity].discord_channel_default + .discord_guild_default
 # in the layered mios.toml overlay (vendor < /etc < ~/.config). We sync
@@ -706,6 +729,18 @@ display:
 # until the window closes.
 browser:
   cdp_url: http://localhost:9222     # local ChromeDev flatpak (mios-gui chrome)
+
+# Web search + extract backends. Hermes 0.13.x walks a registered
+# provider chain at runtime (firecrawl > tavily > searxng > brave-free
+# > ddgs); pinning web.search_backend keeps the choice deterministic
+# + skips the "No web search provider configured" error the model hits
+# when the registry resolves to a paid backend with no key. SearXNG
+# is the operator-local stack (mios-searxng.container, :8888) -- zero
+# external keys, no rate limits, results are MiOS-fresh.
+# web.extract_backend stays unset so Firecrawl/Tavily can take over
+# IF the operator sets their key; SearxNG itself does not extract.
+web:
+  search_backend: searxng
 
 # Multi-agent delegation. Hermes 0.13.x's orchestrator can spawn child
 # agents (delegate_task tool) -- typically used to fan out discrete
