@@ -838,19 +838,38 @@ class Pipe:
         body: dict,
         emitter: Optional[Callable[..., Awaitable[None]]],
     ) -> AsyncGenerator[str, None]:
-        """Stream the request straight through to hermes WITHOUT
-        refinement, thinking-wrap, or polish. Used for OWUI's internal
-        task-generation calls (title/tags/follow-up/autocomplete/etc.)
-        that expect raw JSON or short labels back."""
+        """Stream the request straight through WITHOUT refinement,
+        thinking-wrap, or polish. Used for OWUI's internal task-
+        generation calls (title/tags/follow-up/autocomplete/etc.) that
+        expect raw JSON or short labels back.
+
+        Operator architecture 2026-05-17: "using hermes immediately
+        and not using the MiOS-Agent CPU model(s) ... MiOS-Agent is
+        the agents driving the operations and retrying the sub-agents
+        (MiOS-Hermes, MiOS-OpenCode, etc-etc)". Routes task-gen to
+        the CPU model directly (Ollama /v1/chat/completions, which is
+        OpenAI-compat), not to Hermes. Hermes is the heavy
+        orchestrator -- spinning it up for trivial title/tag
+        generation wastes 30-90s of CPU + delegate-spawn overhead per
+        call and was the source of the "hermes immediately" behavior
+        the operator flagged."""
         body = dict(body)
-        body["model"] = self.valves.BACKEND_MODEL
+        # Route to the CPU refine/polish model, not to Hermes.
+        body["model"] = self.valves.REFINE_MODEL
         body["stream"] = True
+        # Strip any sampling overrides that would slow the small model
+        # down on trivial gen tasks.
+        body.pop("tools", None)
+        body.pop("tool_choice", None)
+        # Cap token budget on task-gen so a runaway generation doesn't
+        # eat a full polish-sized output for a title.
+        body.setdefault("max_tokens", 220)
 
+        # Ollama exposes /v1/chat/completions as an OpenAI-compatible
+        # endpoint -- same request + streaming shape as the BACKEND_URL
+        # OWUI was hitting before. No client-side transform needed.
         headers = {"Content-Type": "application/json"}
-        if self.valves.BACKEND_KEY:
-            headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
-
-        url = self.valves.BACKEND_URL.rstrip("/") + "/chat/completions"
+        url = self.valves.REFINE_ENDPOINT.rstrip("/") + "/v1/chat/completions"
         # Task-gen calls are short -- bound the timeout tighter than user chats.
         timeout = aiohttp.ClientTimeout(total=90, sock_connect=15, sock_read=None)
 
@@ -949,7 +968,8 @@ class Pipe:
 
         if is_task_gen:
             await self._emit(__event_emitter__,
-                f"⚙️  task-gen ({task_kind}): bypassing refine + polish")
+                f"⚙️  task-gen ({task_kind}) -> CPU {self.valves.REFINE_MODEL} "
+                f"(NOT hermes)")
             async for chunk in self._raw_passthrough(body, __event_emitter__):
                 yield chunk
             return
