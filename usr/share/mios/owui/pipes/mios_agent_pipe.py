@@ -113,8 +113,8 @@ class Pipe:
             description="Bearer key for the backend. Defaults to API_SERVER_KEY / OPENAI_API_KEY from the container env (the OWUI Quadlet's EnvironmentFile=/etc/mios/hermes/api.env). Without this, the pipe hits prefilter -> hermes -> 401.",
         )
         DISPLAY_NAME: str = Field(
-            default="MiOS-Agent",
-            description="Name shown in OWUI's model dropdown.",
+            default="",
+            description="Suffix appended to the FUNCTION row name in OWUI's model dropdown. OWUI renders the dropdown as `<function.name><pipe.name>` (no separator); leave empty so the operator sees just 'MiOS-Agent' from the function row, not 'MiOS-AgentMiOS-Agent' duplicated. Set this to e.g. 'live' or 'fast' if you ever register multiple pipes under one function.",
         )
         EMIT_STATUS: bool = Field(
             default=True,
@@ -138,6 +138,10 @@ class Pipe:
         self.name = "MiOS-Agent"
 
     def pipes(self):
+        # OWUI dropdown shows `<function.name><pipe.name>` with no
+        # separator. The function row's name is already "MiOS-Agent",
+        # so we leave the pipe.name EMPTY -- otherwise the dropdown
+        # reads "MiOS-AgentMiOS-Agent" (operator-flagged 2026-05-17).
         return [{"id": "mios-agent", "name": self.valves.DISPLAY_NAME}]
 
     async def _emit(
