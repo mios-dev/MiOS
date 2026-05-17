@@ -1085,6 +1085,17 @@ if [[ -x /usr/libexec/mios/mios-owui-apply-suggestions ]]; then
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
+# ─── Install native MiOS verbs OWUI Tools class ──────────────────────
+# Exposes launch_app / everything_search / mios_apps / mios_find as
+# typed native tool_calls so the chat model invokes them with a
+# proper JSON schema instead of going through `terminal: mios-<verb>`
+# indirection. Idempotent (sha256 content compare). Operator
+# directive 2026-05-17: "AI-stack native (Hermes tools???!!)".
+if [[ -x /usr/libexec/mios/mios-owui-install-tools ]]; then
+    /usr/libexec/mios/mios-owui-install-tools 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
+
 # ─── Pre-warm model WEIGHTS only (NO chat completion, NO prompt) ──────
 # Operator directive 2026-05-16: "the system prompt should run in the
 # background upon installation/MiOS images deployments". CRITICAL

@@ -63,6 +63,36 @@ Volume=/var/lib/mios/agent-nudger:/var/lib/mios/agent-nudger:ro
 Volume=/var/lib/mios/log-watcher:/var/lib/mios/log-watcher:ro
 Volume=/var/lib/mios/cron-director:/var/lib/mios/cron-director:ro
 
+# MiOS verb shims (mios-launch, mios-everything, mios-apps, mios-find)
+# and their cache state. Required by the mios_verbs OWUI Tools class
+# which subprocess-calls these directly inside the container so the
+# chat model can invoke them as native tool_calls instead of going
+# through the generic `terminal` tool. Mounting /usr/local/sbin +
+# /usr/libexec/mios covers both the shim and its implementation.
+# Read-only -- the tools only read state; mutation goes through the
+# host launcher broker socket.
+Volume=/usr/local/sbin:/usr/local/sbin:ro
+Volume=/usr/libexec/mios:/usr/libexec/mios:ro
+Volume=/var/lib/mios/agent-env:/var/lib/mios/agent-env:ro
+# Launcher broker socket -- mios-launch dispatches /mnt/c/*.exe
+# launches through this (the mios-hermes / mios-open-webui uids
+# cannot exec DrvFs binaries directly; the broker runs as the
+# operator user and has exec access).
+Volume=/run/mios-launcher:/run/mios-launcher
+
+# WSL DrvFs mounts -- mios-everything resolves to
+# /mnt/m/Programs/Everything/es.exe (Voidtools CLI on the Windows
+# side), invoked via WSL interop. mios-windows similarly reaches
+# /mnt/c/Windows/System32/cmd.exe + powershell.exe. Without these
+# the verbs subprocess in the OWUI tool just sees "es.exe not
+# found in probe list". Read-only because the agent only ever
+# READS Windows-side state; mutation goes through the broker.
+# WSL automounts /mnt/c + /mnt/m at the host kernel; podman just
+# needs explicit bind mounts to expose them in the container's
+# namespace.
+Volume=/mnt/c:/mnt/c:ro
+Volume=/mnt/m:/mnt/m:ro
+
 # API key + server settings, shared with Hermes-Agent. api.env defines
 # OPENAI_API_KEY=<API_SERVER_KEY> as a plain scalar -- that IS the
 # bearer Open WebUI sends to the Hermes gateway at OPENAI_API_BASE_URL

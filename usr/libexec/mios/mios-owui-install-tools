@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""mios-owui-install-tools -- idempotent registration of the MiOS
+verbs OWUI Tools class (launch_app / everything_search / mios_apps /
+mios_find) so the chat model gets them as native typed tool_calls
+instead of having to indirect through `terminal: mios-<verb>`.
+
+Matches the install pattern of mios-owui-install-pipe: writes
+directly into webui.db's `tool` table. Idempotent -- re-runs check
+the existing row and only UPDATE on content change.
+
+Invoked by mios-hermes-firstboot.service alongside the existing
+install-pipe / apply-knowledge / apply-suggestions helpers.
+
+Operator directive 2026-05-17: "AI-stack native (Hermes
+tools???!!)" -- this is the OWUI-native answer; the same verbs
+could also be wrapped as a stdio MCP server in a follow-up for
+clients that consume MCP rather than OWUI's tool surface.
+"""
+from __future__ import annotations
+
+import datetime
+import hashlib
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+DB_PATH = Path("/var/lib/mios/open-webui/webui.db")
+SRC_PATH = Path("/usr/share/mios/owui/tools/mios_verbs.py")
+TOOL_ID = "mios_verbs"
+TOOL_NAME = "MiOS Verbs"
+
+
+def _log(msg: str) -> None:
+    print(f"  [mios-owui-install-tools] {msg}", flush=True)
+
+
+def _admin_user_id(c: sqlite3.Connection) -> str | None:
+    """Pick a stable admin user_id to attribute the tool to (matches
+    the install-pipe convention)."""
+    row = c.execute(
+        "SELECT id FROM user WHERE role='admin' ORDER BY created_at LIMIT 1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+def main() -> int:
+    if not DB_PATH.is_file():
+        _log(f"{DB_PATH} not present -- skipping (OWUI hasn't bootstrapped)")
+        return 0
+    if not SRC_PATH.is_file():
+        _log(f"{SRC_PATH} not present -- nothing to install")
+        return 0
+
+    content = SRC_PATH.read_text(encoding="utf-8")
+
+    c = sqlite3.connect(str(DB_PATH))
+
+    # Confirm tool table schema (matches what we probed: id user_id name
+    # content specs meta created_at updated_at valves).
+    cols = [r[1] for r in c.execute("PRAGMA table_info(tool)")]
+    if not cols or "content" not in cols or "specs" not in cols:
+        _log(f"tool table schema unexpected ({cols!r}) -- aborting")
+        return 1
+
+    # Build specs JSON. OWUI's loader extracts the schema from
+    # type hints + docstrings at runtime, but the `specs` column is
+    # also used as a quick reference for the admin UI. Compute the
+    # minimal spec list now; if a method signature changes the next
+    # firstboot run will re-derive on hash mismatch.
+    specs = [
+        {"name": "launch_app",        "description": "Launch a MiOS-registered app by short name (Steam/Epic/Xbox/flatpak/.exe/.lnk)"},
+        {"name": "everything_search", "description": "Search Windows NTFS index via Voidtools es.exe (sub-100ms)"},
+        {"name": "mios_apps",         "description": "Inventory installed apps across all sources"},
+        {"name": "mios_find",         "description": "Look up one app's launch info (fast single-shot)"},
+    ]
+
+    meta = {
+        "description": "MiOS shell verbs exposed as native tool_calls.",
+        "manifest": {
+            "title": "MiOS Verbs",
+            "author": "MiOS",
+            "version": "1.0.0",
+        },
+    }
+
+    # Hash for change detection. If the row exists with the same
+    # content hash, no-op. If different, UPDATE in place.
+    new_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    row = c.execute(
+        "SELECT id, content FROM tool WHERE id=?", (TOOL_ID,)
+    ).fetchone()
+
+    if row is not None:
+        existing_hash = hashlib.sha256(row[1].encode("utf-8")).hexdigest()
+        if existing_hash == new_hash:
+            _log(f"{TOOL_ID} already current ({len(content)} chars) -- no change")
+            return 0
+        c.execute(
+            "UPDATE tool SET content=?, specs=?, meta=?, updated_at=? WHERE id=?",
+            (content, json.dumps(specs), json.dumps(meta),
+             int(datetime.datetime.utcnow().timestamp()), TOOL_ID),
+        )
+        c.commit()
+        _log(f"updated {TOOL_ID} ({len(content)} chars)")
+        return 0
+
+    user_id = _admin_user_id(c)
+    if not user_id:
+        _log("no admin user found yet -- run mios-owui-bootstrap-admin first")
+        return 0
+
+    now = int(datetime.datetime.utcnow().timestamp())
+    c.execute(
+        "INSERT INTO tool (id, user_id, name, content, specs, meta, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (TOOL_ID, user_id, TOOL_NAME, content,
+         json.dumps(specs), json.dumps(meta), now, now),
+    )
+    c.commit()
+    _log(f"created {TOOL_ID} ({len(content)} chars, attributed to admin {user_id[:8]}...)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
