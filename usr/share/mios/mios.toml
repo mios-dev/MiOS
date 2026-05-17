@@ -2231,6 +2231,75 @@ extensions = "extension-manager"
 help       = "yelp"
 games      = "lutris"
 
+# MiOS configurator UI (mios.html). The agent's natural phrasings
+# ("open mios.html", "open the configurator", "customize MiOS",
+# "open MiOS settings") all need to reach the same launcher:
+# /usr/libexec/mios/mios-html -- a shim that resolves the WSL UNC
+# path and dispatches Start-Process through mios-windows to the
+# operator's default Windows browser. Operator-flagged 2026-05-17:
+# agent claimed mios.html "isn't installed" and suggested a fake
+# `dnf install MiosGUI` package; the aliases below remove the
+# lookup ambiguity so mios-find resolves them to a launch line.
+"mios.html"     = "mios-html"
+"configurator"  = "mios-html"
+"customize"     = "mios-html"
+"mios-settings" = "mios-html"
+"miosconfig"    = "mios-html"
+
+# Cross-platform installer. Single entry point that fronts winget
+# (Windows) + dnf (Fedora RPM) + flatpak (Flathub). Auto-detects the
+# right backend from the package-id shape: "Microsoft.PowerToys" ->
+# winget, "org.mozilla.firefox" -> flatpak, "vim" -> dnf. Operator
+# directive 2026-05-17: "mios-installer should be able to use windows
+# CMD and Linux BASH for installing applications on their respective
+# platforms (using winget install, winget search, etc-etc)".
+"install"      = "mios-installer"
+"installer"    = "mios-installer"
+"package"      = "mios-installer"
+"winget"       = "mios-installer"
+
+# Screenshot — every "take a screenshot" / "snap a window" / "screen
+# capture" / "save the screen" intent flows through mios-screenshot.
+# That shim writes a PNG to the operator's Windows Pictures/Screenshots
+# folder via mios-pc-control screenshot (System.Drawing.Bitmap +
+# CopyFromScreen on the Windows side). Operator-flagged 2026-05-17:
+# agent burned 6 minutes trying `screencapture.exe`, `Invoke-
+# Screenshot`, broken PowerShell pipelines and gave up with "Windows
+# screenshot tools aren't available in this WSL environment". The
+# tools WERE available; mios-screenshot makes the surface obvious.
+"screenshot"    = "mios-screenshot"
+"screencap"     = "mios-screenshot"
+"screen-capture" = "mios-screenshot"
+"snap"          = "mios-screenshot"
+"prtscr"        = "mios-screenshot"
+
+# Window-manipulation verbs. mios-window resolves a title-pattern to a
+# hwnd via window-list, then dispatches mios-pc-control window-*.
+# Launches already auto-center via mios-windows launch's URI/.exe
+# branches; post-launch move/center/focus/resize/min/max/restore flow
+# through this shim. Operator directive 2026-05-17: "make sure window
+# moving is active/functional and can launch things centered by
+# default and that it can be told to move the windows".
+"window"        = "mios-window"
+"windows-mgr"   = "mios-window"
+"move-window"   = "mios-window"
+"center-window" = "mios-window"
+"focus-window"  = "mios-window"
+
+# SteamCMD wrapper. ONE verb for any Steam-side operation: install /
+# uninstall / update / validate / status / info / login / list /
+# search / path. Two install routes: `uri` (operator-friendly,
+# steam://install/<appid> -> Steam GUI prompt -- works for any owned
+# game), and `cmd` (headless SteamCMD, auto-installs Valve.SteamCMD
+# via winget if missing, works for free + dedicated-server content
+# under anonymous login). Operator directive 2026-05-17: "make a
+# steamCMD a native tool for handling steam CMD commands GLOBALLY".
+"steam"         = "mios-steamcmd"
+"steamcmd"      = "mios-steamcmd"
+"steam-cmd"     = "mios-steamcmd"
+"steam-game"    = "mios-steamcmd"
+"steam-install" = "mios-steamcmd"
+
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and
 # the mios-build-driver.

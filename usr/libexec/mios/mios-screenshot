@@ -1,0 +1,133 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-screenshot [output-path] [--open] [--clipboard]
+#
+# Capture a screenshot of the operator's primary Windows monitor and
+# save it to a PNG. Sensible defaults: filename like
+# `MiOS-YYYY-MM-DD_HHMMSS.png` under the operator's Windows Pictures/
+# Screenshots folder (the same place Win+PrtScr writes to).
+#
+# Implementation: thin wrapper around `mios-pc-control screenshot
+# <path>`, which dispatches mios-pc-control.ps1 on the Windows side via
+# the launcher broker. The PS helper uses System.Drawing.Bitmap +
+# CopyFromScreen, which works in any operator-session PowerShell
+# (no fancy desktop / no AppExecutionAlias / no UAC needed).
+#
+# Operator directive 2026-05-17: chat showed agent flailing for 6 min
+# trying `screencapture.exe` (macOS tool), `Invoke-Screenshot` (not a
+# real cmdlet), and dozens of broken PowerShell pipelines. Concluded
+# "Windows screenshot tools aren't available in this WSL environment".
+# WRONG -- mios-pc-control screenshot has worked since day one. This
+# shim makes the surface obvious: ANY "screenshot" intent maps to
+# `mios-screenshot` (via the mios-find alias) and gets one tool call.
+#
+# OPTIONS
+#   <output-path>   Optional explicit path. Linux-style (/mnt/c/...)
+#                   or Windows-style (C:\Users\...). Default:
+#                     /mnt/c/Users/<operator>/Pictures/Screenshots/
+#                     MiOS-YYYY-MM-DD_HHMMSS.png
+#   --open          After capture, open the PNG in the operator'\''s
+#                   default image viewer (via mios-open-url).
+#   --clipboard     After capture, also copy the image bytes to the
+#                   Windows clipboard so the operator can paste into
+#                   Discord/email/etc.
+#
+# OUTPUT
+#   Prints the absolute path (Linux style) to the captured PNG on
+#   stdout. Prints capture dimensions to stderr.
+
+set -u
+
+OPEN=0
+CLIPBOARD=0
+OUT=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --open)       OPEN=1; shift ;;
+        --clipboard)  CLIPBOARD=1; shift ;;
+        -h|--help)
+            sed -n '2,40p' "$0" | grep -E '^#' | sed 's/^# \?//'
+            exit 0
+            ;;
+        --) shift; OUT="${1:-}"; shift ;;
+        -*)
+            echo "mios-screenshot: unknown flag: $1" >&2
+            exit 64
+            ;;
+        *)
+            [[ -z "$OUT" ]] && OUT="$1" || true
+            shift
+            ;;
+    esac
+done
+
+# Default output path: operator's Windows Pictures/Screenshots folder
+if [[ -z "$OUT" ]]; then
+    # WSL operator name = the windows username (mios.toml [identity].windows_user
+    # is the canonical source; fall back to $USER if unreadable).
+    WUSER=""
+    if [ -r /etc/mios/mios.toml ]; then
+        WUSER="$(awk -F\" '/^\s*windows_user\s*=\s*"/{print $2; exit}' /etc/mios/mios.toml 2>/dev/null)"
+    fi
+    [[ -z "$WUSER" ]] && [ -r /usr/share/mios/mios.toml ] && \
+        WUSER="$(awk -F\" '/^\s*windows_user\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    [[ -z "$WUSER" ]] && WUSER="${USER:-mios}"
+
+    SCREEN_DIR="/mnt/c/Users/$WUSER/Pictures/Screenshots"
+    mkdir -p "$SCREEN_DIR" 2>/dev/null || true
+    TS="$(date +%Y-%m-%d_%H%M%S)"
+    OUT="$SCREEN_DIR/MiOS-$TS.png"
+fi
+
+# Translate Linux path -> Windows path for mios-pc-control (which
+# dispatches to PowerShell on the Windows side).
+WIN_PATH=""
+case "$OUT" in
+    /mnt/[a-zA-Z]/*)
+        WIN_PATH="$(wslpath -w "$OUT" 2>/dev/null)"
+        ;;
+    [a-zA-Z]:[/\\]*)
+        WIN_PATH="$OUT"
+        OUT="$(wslpath -u "$OUT" 2>/dev/null || echo "$OUT")"
+        ;;
+    *)
+        # Linux-side path -- save under the venv user but mios-pc-control
+        # needs a Windows-reachable path. Reject + tell operator.
+        echo "mios-screenshot: output path '$OUT' isn't reachable from Windows." >&2
+        echo "  Use /mnt/c/... or C:\\..., not a pure Linux path." >&2
+        exit 64
+        ;;
+esac
+
+# Capture. mios-pc-control screenshot prints its own success/dimensions line.
+if ! mios-pc-control screenshot "$WIN_PATH" 2>&1; then
+    echo "mios-screenshot: mios-pc-control failed" >&2
+    exit 1
+fi
+
+# Verify the file landed
+if [[ ! -f "$OUT" ]]; then
+    # mios-pc-control might have buffered output; give it a moment
+    sleep 0.5
+    if [[ ! -f "$OUT" ]]; then
+        echo "mios-screenshot: capture reported success but $OUT is missing" >&2
+        exit 1
+    fi
+fi
+
+SIZE="$(stat -c %s "$OUT" 2>/dev/null || echo ?)"
+echo "[mios-screenshot] saved $OUT ($SIZE bytes)" >&2
+
+# Optional: copy to clipboard via Set-Clipboard -Path (Windows)
+if [[ "$CLIPBOARD" == "1" ]]; then
+    mios-windows ps "Set-Clipboard -Path '$WIN_PATH'" 2>/dev/null && \
+        echo "[mios-screenshot] copied to clipboard" >&2
+fi
+
+# Optional: open in operator's default image viewer
+if [[ "$OPEN" == "1" ]]; then
+    mios-open-url "file://$WIN_PATH" 2>/dev/null || \
+        mios-windows ps "Start-Process '$WIN_PATH'" 2>/dev/null
+fi
+
+# Print the path on stdout (single line; agents parse this)
+echo "$OUT"

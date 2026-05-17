@@ -40,8 +40,12 @@ public class W32 {
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc p, IntPtr l);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll")] public static extern IntPtr PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
     public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    public const uint WM_CLOSE = 0x0010;
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
     public const uint MOUSEEVENTF_LEFTDOWN  = 0x0002;
     public const uint MOUSEEVENTF_LEFTUP    = 0x0004;
     public const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
@@ -261,7 +265,50 @@ switch ($Action) {
         Write-Output "[mios-pc-control] window-center hwnd=$hwnd to ($x,$y) ${w}x${h}"
     }
 
+    'window-close' {
+        # Graceful close of a window via WM_CLOSE.
+        #
+        # Usage: window-close <hwnd-or-pid>
+        #
+        # Posts WM_CLOSE to the target window so the app's own message
+        # loop handles it (same as the operator clicking the X / Alt+F4).
+        # Most apps prompt to save unsaved work, then exit cleanly.
+        #
+        # NOT a kill: never use Stop-Process / taskkill /f for "close
+        # this window" -- that loses unsaved state and may not even
+        # close the right process when the target hosts multiple
+        # windows (Chrome, Discord, browsers in general). Operator
+        # directive 2026-05-17: chat showed agent running
+        # `pkill -f hermes-agent` thinking "close the crew" meant
+        # "close the agent crew" -- self-terminated. WM_CLOSE on the
+        # right window is the correct verb every time.
+        $arg = $Args[0]
+        $hwnd = $null
+        if ($arg -match '^\d+$') {
+            $proc = Get-Process -Id ([int]$arg) -ErrorAction SilentlyContinue
+            if ($proc -and $proc.MainWindowHandle -ne 0) {
+                $hwnd = $proc.MainWindowHandle
+            } else {
+                $hwnd = [IntPtr]([int64]$arg)
+            }
+        } else {
+            throw "window-close: <hwnd-or-pid> must be numeric"
+        }
+        # SendMessageTimeout with SMTO_ABORTIFHUNG so a hung window
+        # doesn't block this helper indefinitely. 5s timeout is plenty
+        # for apps that show a "save changes?" dialog.
+        $result = [IntPtr]::Zero
+        $rc = [W32]::SendMessageTimeout($hwnd, [W32]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero, [W32]::SMTO_ABORTIFHUNG, 5000, [ref]$result)
+        if ($rc -eq [IntPtr]::Zero) {
+            # Fall back to async PostMessage so we don't block at all
+            [W32]::PostMessage($hwnd, [W32]::WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+            Write-Output "[mios-pc-control] window-close (PostMessage) hwnd=$hwnd"
+        } else {
+            Write-Output "[mios-pc-control] window-close hwnd=$hwnd (graceful)"
+        }
+    }
+
     default {
-        throw "mios-pc-control.ps1: unknown action '$Action' (try: screenshot, click, double-click, mouse-move, type, key, key-combo, window-list, window-focus, window-move, window-resize, window-center)"
+        throw "mios-pc-control.ps1: unknown action '$Action' (try: screenshot, click, double-click, mouse-move, type, key, key-combo, window-list, window-focus, window-move, window-resize, window-center, window-close)"
     }
 }

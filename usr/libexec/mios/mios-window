@@ -1,0 +1,183 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-window <subcommand> [args...]
+#
+# Title-pattern-driven wrapper around mios-pc-control's window-* verbs.
+# Lets agents + operators say "center Notepad" or "move Discord to
+# (100,100)" instead of having to first call window-list, parse hwnds,
+# then dispatch a second verb with the numeric handle.
+#
+# SUBCOMMANDS
+#
+#   list
+#       Print all visible top-level windows (delegates to
+#       `mios-pc-control window-list`).
+#
+#   center  <title-pattern>
+#   focus   <title-pattern>
+#   move    <title-pattern> <x> <y>
+#   resize  <title-pattern> <w> <h>
+#   minimize <title-pattern>
+#   maximize <title-pattern>
+#   restore <title-pattern>
+#       Each resolves the pattern to a window handle (case-insensitive
+#       substring match against MainWindowTitle from window-list) and
+#       forwards to `mios-pc-control window-<verb> <hwnd> [args...]`.
+#       Ambiguous matches: takes the first match and lists alternatives
+#       to stderr.
+#
+# Operator directive 2026-05-17: "make sure window moving is active/
+# functional and can launch things centered by default and that it can
+# be told to move the windows". Launch-time centering is in mios-windows
+# launch (URI + .exe branches). Post-launch move/center/focus/resize
+# now flow through this single ergonomic shim.
+
+set -u
+
+# ─── helpers ─────────────────────────────────────────────────────────
+_resolve_hwnd() {
+    local pat="$1"
+    [[ -z "$pat" ]] && { echo "(empty pattern)" >&2; return 1; }
+    # Use python to parse mios-pc-control window-list output (column-aligned).
+    mios-pc-control window-list 2>/dev/null | python3 - "$pat" <<'PYEOF'
+import re, sys
+
+pat = sys.argv[1].lower()
+hits = []
+for line in sys.stdin:
+    line = line.rstrip()
+    # Header / divider / blank
+    if not line.strip(): continue
+    if re.match(r"^\s*hwnd\s+pid\b", line): continue
+    if re.match(r"^\s*-+\s+-+", line): continue
+    # 7 columns: hwnd pid x y w h title (title may contain spaces)
+    m = re.match(r"^\s*(\d+)\s+(\d+)\s+(-?\d+)\s+(-?\d+)\s+(\d+)\s+(\d+)\s+(.*)$", line)
+    if not m: continue
+    hwnd, pid, x, y, w, h, title = m.groups()
+    if pat in title.lower():
+        hits.append((hwnd, title.strip()))
+
+if not hits:
+    print(f"mios-window: no window title matches {sys.argv[1]!r}", file=sys.stderr)
+    sys.exit(1)
+
+# Print primary hwnd to stdout; alternatives to stderr
+print(hits[0][0])
+if len(hits) > 1:
+    print(f"mios-window: {len(hits)} matches; picked '{hits[0][1]}'. Others:", file=sys.stderr)
+    for hwnd, t in hits[1:5]:
+        print(f"  hwnd={hwnd}  {t}", file=sys.stderr)
+PYEOF
+}
+
+# ─── show/restore/minimize/maximize via ShowWindow ───────────────────
+# mios-pc-control doesn't have these natively, so we shell out to
+# PowerShell directly. SW_NORMAL=1, SW_MINIMIZE=6, SW_MAXIMIZE=3,
+# SW_RESTORE=9.
+_show_window() {
+    local hwnd="$1" cmd="$2"
+    mios-windows ps "
+        Add-Type -Name W -Namespace MW -MemberDefinition '[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool ShowWindow(System.IntPtr h, int n);' -ErrorAction SilentlyContinue
+        [MW.W]::ShowWindow([System.IntPtr]$hwnd, $cmd) | Out-Null
+        Write-Output ('[mios-window] ShowWindow hwnd=' + '$hwnd' + ' cmd=' + '$cmd')
+    "
+}
+
+usage() {
+    cat <<'USAGE'
+usage: mios-window <subcommand> [args...]
+
+  list
+  center   <title-pattern>
+  focus    <title-pattern>
+  move     <title-pattern> <x> <y>
+  resize   <title-pattern> <w> <h>
+  minimize <title-pattern>
+  maximize <title-pattern>
+  restore  <title-pattern>
+  close    <title-pattern>           (graceful WM_CLOSE; not a kill)
+
+Title pattern is a case-insensitive substring match against window
+titles. Ambiguous matches pick the first one and list alternatives
+to stderr.
+
+Examples:
+  mios-window list
+  mios-window center "Notepad"
+  mios-window move "Discord" 100 100
+  mios-window resize "VSCodium" 1600 1000
+  mios-window minimize "Task Manager"
+  mios-window close "TheCrewMotorfest"
+USAGE
+}
+
+# Source guard: lets tests `source mios-window; _resolve_hwnd discord`
+# without firing the dispatch + usage exit.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    return 0 2>/dev/null || true
+fi
+
+sub="${1:-}"
+[[ -z "$sub" ]] && { usage; exit 64; }
+shift
+
+case "$sub" in
+    help|-h|--help)
+        usage
+        ;;
+    list|ls)
+        mios-pc-control window-list
+        ;;
+    center)
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window center: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        mios-pc-control window-center "$hwnd"
+        ;;
+    focus)
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window focus: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        mios-pc-control window-focus "$hwnd"
+        ;;
+    move)
+        pat="${1:-}"; x="${2:-}"; y="${3:-}"
+        [[ -z "$pat" || -z "$x" || -z "$y" ]] && { echo "mios-window move: usage: mios-window move <title-pattern> <x> <y>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        mios-pc-control window-move "$hwnd" "$x" "$y"
+        ;;
+    resize)
+        pat="${1:-}"; w="${2:-}"; h="${3:-}"
+        [[ -z "$pat" || -z "$w" || -z "$h" ]] && { echo "mios-window resize: usage: mios-window resize <title-pattern> <w> <h>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        mios-pc-control window-resize "$hwnd" "$w" "$h"
+        ;;
+    minimize|min)
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window minimize: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        _show_window "$hwnd" 6
+        ;;
+    maximize|max)
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window maximize: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        _show_window "$hwnd" 3
+        ;;
+    restore)
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window restore: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        _show_window "$hwnd" 9
+        ;;
+    close|quit|x)
+        # Graceful close via WM_CLOSE -- the same as the operator
+        # clicking the X. NOT a kill; apps with unsaved state get to
+        # prompt. Operator-flagged 2026-05-17: agent ran
+        # `pkill -f hermes-agent` thinking "close the crew" meant
+        # "close the agent crew" and self-terminated. window-close on
+        # the matched window is the correct verb every time.
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window close: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        mios-pc-control window-close "$hwnd"
+        ;;
+    *)
+        echo "mios-window: unknown subcommand: $sub" >&2
+        usage
+        exit 64
+        ;;
+esac

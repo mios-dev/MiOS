@@ -1,0 +1,74 @@
+[Unit]
+Description='MiOS' Hermes-Agent Dashboard (kanban board + chat + skills UI)
+Documentation=https://github.com/NousResearch/hermes-agent
+After=network-online.target hermes-agent.service
+Wants=network-online.target
+# Soft-dep on the gateway; we share its HERMES_HOME, kanban.db, memories,
+# etc. but the dashboard is independent (uses its own FastAPI app on :9119).
+After=hermes-agent.service
+
+# Without the [web] extras (fastapi + uvicorn) installed into the venv,
+# `hermes dashboard` aborts. mios-hermes-firstboot installs them; if the
+# venv isn't there yet, skip rather than crash-loop.
+ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages/fastapi
+
+[Service]
+Type=simple
+User=mios-hermes
+Group=mios-hermes
+
+# HERMES_HOME points at the dashboard's data root (kanban.db lives here)
+Environment=HERMES_HOME=/var/lib/mios/hermes
+# Image-build (automation/38-hermes-agent.sh) installs the patched,
+# self-hosted React SPA into the venv's hermes_cli/web_dist. That's
+# where `hermes dashboard` looks by default, so no HERMES_WEB_DIST
+# override is needed in the happy path. If the SPA build was skipped
+# (no node/npm, network blocked, etc.), the dashboard exits early --
+# /usr/share/mios/hermes-agent/web_dist_stub holds the curl-recipes
+# fallback page; set the env var below to switch to backend-only mode:
+#   Environment=HERMES_WEB_DIST=/usr/share/mios/hermes-agent/web_dist_stub
+# Don't try to launch a browser in a headless service context.
+Environment=HERMES_DASHBOARD_NO_OPEN=1
+
+# Enable the /chat tab (xterm.js + /api/pty WebSocket). Upstream
+# default is OFF for security. Here we enable + override the spawned
+# child via HERMES_PTY_SHELL (a MiOS-side patch in
+# hermes_cli/web_server.py, installed by automation/38-hermes-agent.sh).
+# Result: dashboard /chat shows a real bash login prompt rendered by
+# xterm.js in the browser. Loopback bind + per-session-token still
+# gate the endpoint -- anyone who can read the dashboard URL+token
+# gets a shell as the mios-hermes uid (the service's User=).
+Environment=HERMES_DASHBOARD_TUI=1
+Environment=HERMES_PTY_SHELL=/bin/bash
+
+ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes dashboard \
+    --skip-build \
+    --no-open \
+    --host 127.0.0.1 \
+    --port 9119 \
+    --tui
+
+# Localhost bind by default. The operator's browser (Windows side) hits
+# this via WSL2 portproxy; LAN exposure would require --insecure +
+# firewall opening, not enabled here.
+
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/mios/hermes /tmp
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

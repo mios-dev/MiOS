@@ -212,9 +212,89 @@ case "$sub" in
         # then called `mios-windows launch uplay://...` (wrong
         # subcommand) and got "unknown app", concluding the URL was
         # invalid. Now both subcommands accept URIs.
+        # ─── URI / UWP launches: center+focus the resulting window ───
+        # Direct .exe launches center via Start-Process -PassThru +
+        # MainWindowHandle polling on $p (the launched process). URI
+        # launches (steam://, com.epicgames.launcher://, http://, ...) and
+        # UWP shell:appsFolder\ launches DON'T return the game's process
+        # -- they return the protocol handler (steam.exe, explorer.exe).
+        # Without explicit post-launch window discovery, these never get
+        # centered. Operator directive 2026-05-17: "launching apps should
+        # launch centered too!! MiOS Agents must have launch param/args
+        # tools for launching applications(should always launch centered
+        # and focused)".
+        #
+        # Strategy for URI/UWP: snapshot the current top-level window
+        # handles, run Start-Process, poll for new top-level windows for
+        # up to MIOS_LAUNCH_CENTER_TIMEOUT seconds (default 15), then
+        # center+focus the first new window matching MIOS_LAUNCH_TITLE_HINT
+        # (case-insensitive substring) -- or the first new window if no
+        # hint. mios-find sets the hint to the app name from the
+        # inventory so multi-window protocol handlers (Steam launches
+        # both the storefront AND the game) center the right one.
+        _build_uri_center_ps() {
+            # $1 = Start-Process invocation, e.g. "Start-Process 'steam://...'"
+            #      OR "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\...'"
+            # $2 = title hint (may be empty)
+            local sp="$1"
+            local hint="${2:-}"
+            local timeout="${MIOS_LAUNCH_CENTER_TIMEOUT:-15}"
+            # PowerShell here-doc: snapshot -> launch -> poll new windows.
+            # Single-line for the broker's "CAPTURE: <cmdline>\n" wire.
+            cat <<PSEOF
+\$pre = (Get-Process | Where-Object { \$_.MainWindowHandle -ne 0 } | ForEach-Object { \$_.MainWindowHandle.ToInt64() })
+${sp}
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+Add-Type -Name W32M2 -Namespace MX -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int n);
+[System.Runtime.InteropServices.DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(System.IntPtr h,int a,ref int v,int s);
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
+'@ -ErrorAction SilentlyContinue
+\$hint = '${hint}'
+\$deadline = (Get-Date).AddSeconds(${timeout})
+\$target = \$null
+while ((Get-Date) -lt \$deadline) {
+    \$candidates = Get-Process | Where-Object {
+        \$_.MainWindowHandle -ne 0 -and (\$_.MainWindowHandle.ToInt64() -notin \$pre)
+    }
+    if (\$hint -ne '') {
+        \$target = \$candidates | Where-Object { \$_.MainWindowTitle -match [regex]::Escape(\$hint) } | Select-Object -First 1
+    } else {
+        \$target = \$candidates | Select-Object -First 1
+    }
+    if (\$target) { break }
+    Start-Sleep -Milliseconds 250
+}
+if (\$target) {
+    # Un-minimize if needed (SW_RESTORE = 9), then center + focus.
+    [MX.W32M2]::ShowWindow(\$target.MainWindowHandle, 9) | Out-Null
+    \$r = New-Object MX.W32M2+RECT
+    [MX.W32M2]::GetWindowRect(\$target.MainWindowHandle, [ref]\$r) | Out-Null
+    \$w = \$r.R - \$r.L
+    \$h = \$r.B - \$r.T
+    \$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    \$x = \$s.X + [int]((\$s.Width  - \$w) / 2)
+    \$y = \$s.Y + [int]((\$s.Height - \$h) / 2)
+    [MX.W32M2]::MoveWindow(\$target.MainWindowHandle, \$x, \$y, \$w, \$h, \$true) | Out-Null
+    \$cp = 2; [MX.W32M2]::DwmSetWindowAttribute(\$target.MainWindowHandle, 33, [ref]\$cp, 4) | Out-Null
+    [MX.W32M2]::SetForegroundWindow(\$target.MainWindowHandle) | Out-Null
+    Write-Output ("[centered] " + \$target.ProcessName + " '" + \$target.MainWindowTitle + "' at (" + \$x + "," + \$y + ") size " + \$w + "x" + \$h)
+} else {
+    \$msg = "[no new top-level window appeared within ${timeout}s"
+    if (\$hint -ne '') { \$msg = \$msg + " matching '" + \$hint + "'" }
+    \$msg = \$msg + "]"
+    Write-Output \$msg
+}
+PSEOF
+        }
+
         case "$app" in
             *://*)
-                exec "$0" ps "Start-Process '$app'"
+                _PS="$(_build_uri_center_ps "Start-Process '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
+                exec "$0" ps "$_PS"
                 ;;
             # UWP / Microsoft Store / Xbox / Game Pass apps. AppIDs come
             # in two shapes:
@@ -236,13 +316,15 @@ case "$sub" in
                 # paths and 404s). explorer.exe DOES grok them -- it's
                 # the canonical Windows handler for shell: URIs. Wrap
                 # via explorer.exe + the path as its arg.
-                exec "$0" ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'"
+                _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
+                exec "$0" ps "$_PS"
                 ;;
             *_[0-9a-z]*\!*)
                 # Bare AppID (PackageFamilyName!Entry) from Get-StartApps
                 # -- prepend shell:appsFolder\ then dispatch the same
                 # explorer.exe way.
-                exec "$0" ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'"
+                _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
+                exec "$0" ps "$_PS"
                 ;;
         esac
         # Translate Windows-style paths (C:\... or D:\...) to WSL paths

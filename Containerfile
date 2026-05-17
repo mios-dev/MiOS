@@ -146,7 +146,23 @@ RUN --network=host set -eux; \
         [ -n "$img" ] || continue; \
         case "$img" in *'$'*) echo "SKIP unrendered Image=$img ($q)"; continue ;; esac; \
         first="${img%%/*}"; \
-        case "$first" in *.*|*:*|localhost) ;; \
+        case "$first" in *.*|*:*) ;; \
+            localhost) \
+                # localhost/<name> is podman's prefix for un-pushed \
+                # locally-built images. There is no actual registry at \
+                # `localhost` -- `podman pull localhost/foo` ALWAYS \
+                # fails with "pinging container registry localhost". \
+                # Quadlets reference localhost/ images because their \
+                # consumers expect to find them in the OCI store at \
+                # runtime; they're produced by a DIFFERENT MiOS build \
+                # phase (e.g. automation/45-coderun-sandbox-build.sh \
+                # builds mios-coderun-sandbox). Skip the bake here; \
+                # the producer phase is the SoT. Operator-flagged \
+                # 2026-05-17: bound-images bake exited 1 with \
+                # failed=1; culprit was localhost/mios-coderun-sandbox \
+                # :latest pulled from a non-existent localhost registry. \
+                echo "SKIP localhost/ bound image $img (built by a different phase, not pulled from a registry)"; \
+                continue ;; \
             *) echo "ERROR: bound image '$img' has a short name (no registry in '$first'). Fix the source -- typically /usr/share/mios/mios.toml [image.sidecars] -- to include a registry prefix (docker.io/, quay.io/, ghcr.io/, codeberg.org/, ...). Quadlet: $q"; \
                failed=$((failed + 1)); continue ;; \
         esac; \

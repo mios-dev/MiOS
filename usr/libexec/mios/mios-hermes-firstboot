@@ -688,6 +688,30 @@ platform_toolsets:
     - todo           # in-turn task planning
     - session_search # search past conversations
     - code_execution # python execute_code
+    - kanban         # kanban_create / _show / _list / _complete / _block / _comment / _link / _heartbeat (SQLite board at \$HERMES_HOME/kanban.db, surfaced in TUI via \`hermes kanban\` and in dashboard plugin at /api/plugins/kanban/)
+
+# Top-level toolsets list = orchestrator-mode gating read by
+# tool check_fn (e.g. tools.kanban_tools._profile_has_kanban_toolset).
+# Without "kanban" present here, kanban_* tools register against the
+# global registry but their check_fn returns False -- the gateway hides
+# them from the agent's tool surface and the LLM never sees them, even
+# with platform_toolsets.api_server listing "kanban" above. Mirror the
+# api_server list verbatim so gating + surfacing stay in lockstep.
+toolsets:
+  - terminal
+  - file
+  - web
+  - browser
+  - discord
+  - cronjob
+  - clarify
+  - delegation
+  - skills
+  - memory
+  - todo
+  - session_search
+  - code_execution
+  - kanban
 
 # Hooks: NONE. Operator directive 2026-05-15: "no context injection
 # for environment detection!!!! it WILL ONLY do it in code". The
@@ -730,17 +754,11 @@ display:
 browser:
   cdp_url: http://localhost:9222     # local ChromeDev flatpak (mios-gui chrome)
 
-# Web search + extract backends. Hermes 0.13.x walks a registered
-# provider chain at runtime (firecrawl > tavily > searxng > brave-free
-# > ddgs); pinning web.search_backend keeps the choice deterministic
-# + skips the "No web search provider configured" error the model hits
-# when the registry resolves to a paid backend with no key. SearXNG
-# is the operator-local stack (mios-searxng.container, :8888) -- zero
-# external keys, no rate limits, results are MiOS-fresh.
-# web.extract_backend stays unset so Firecrawl/Tavily can take over
-# IF the operator sets their key; SearxNG itself does not extract.
-web:
-  search_backend: searxng
+# NOTE: web.search_backend is already declared above (the on-box
+# SearXNG block). YAML mapping merge would silently drop the earlier
+# entry; ruamel-yaml strict loaders (hermes_cli.config.load_config)
+# raise DuplicateKeyError outright. Keep this section as documentation
+# only -- the operative `web:` block is the earlier one.
 
 # Multi-agent delegation. Hermes 0.13.x's orchestrator can spawn child
 # agents (delegate_task tool) -- typically used to fan out discrete

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MiOS Hermes Dashboard - API only</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; max-width: 760px; margin: 4em auto; padding: 0 1em; color: #222; }
+    code { background: #f3f3f3; padding: 0.15em 0.4em; border-radius: 4px; }
+    pre { background: #f3f3f3; padding: 1em; border-radius: 6px; overflow-x: auto; }
+    h1 { font-size: 1.4em; }
+    .note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 0.8em 1em; margin: 1em 0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>MiOS Hermes Dashboard - backend-only mode</h1>
+
+  <p>
+    The React SPA isn't installed in this image. The dashboard service is
+    still up and serving its JSON API under <code>/api/</code>. Use the
+    OWUI chat surface or curl the API directly.
+  </p>
+
+  <div class="note">
+    Session-token middleware protects <code>/api/*</code>. The token is
+    injected as <code>window.__HERMES_SESSION_TOKEN__</code> below; copy
+    it and send as a <code>Bearer</code> header.
+  </div>
+
+  <h2>Kanban API quick examples</h2>
+  <pre>TOKEN=$(curl -s http://localhost:9119/ | grep -oP '__HERMES_SESSION_TOKEN__="\K[^"]+')
+curl -s http://localhost:9119/api/plugins/kanban/boards \
+  -H "authorization: Bearer $TOKEN" | jq
+curl -s http://localhost:9119/api/plugins/kanban/tasks \
+  -H "authorization: Bearer $TOKEN" | jq</pre>
+
+  <h2>To install the SPA</h2>
+  <pre>cd /tmp &amp;&amp; git clone --depth 1 https://github.com/NousResearch/hermes-agent.git
+cd hermes-agent/web &amp;&amp; npm install &amp;&amp; npm run build
+sudo cp -r ../hermes_cli/web_dist/* /usr/share/mios/hermes-agent/web_dist_stub/
+sudo systemctl restart hermes-dashboard</pre>
+
+  <p>
+    CLI access is always available regardless:
+    <code>hermes kanban list</code> /
+    <code>hermes kanban create --title ...</code>.
+  </p>
+
+  <!-- token script gets injected by web_server.py before this point -->
+</body>
+</html>

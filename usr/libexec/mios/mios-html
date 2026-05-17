@@ -1,0 +1,72 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-html [section]
+#
+# Open the MiOS configurator (`/usr/share/mios/configurator/mios.html`) in
+# the operator's default browser. The configurator is the operator-facing
+# UI for editing mios.toml — package selection, AI catalog, identity,
+# locale, theme, network knobs, etc.
+#
+# Implementation: WSL hosts the file under /usr/share/mios/configurator/.
+# Windows Explorer + browsers can reach it via the WSL UNC path
+# (\\wsl.localhost\<distro>\usr\share\mios\configurator\mios.html).
+# `mios-windows ps "Start-Process '<unc>'"` launches the file in the
+# operator's default browser through their visible Windows session.
+#
+# Operator directive 2026-05-17: chat showed agent claiming mios.html
+# was "not installed" + suggesting a fake `dnf install MiosGUI` package.
+# This shim makes "open mios.html" / "open the configurator" /
+# "customize MiOS" all resolve through a single helper that mios-find
+# can route to. mios.toml [mios-find.aliases] maps "configurator" /
+# "settings" / "mios.html" to this shim.
+
+set -u
+
+HTML_PATH="${MIOS_HTML_PATH:-/usr/share/mios/configurator/mios.html}"
+SECTION="${1:-}"
+
+if [[ ! -f "$HTML_PATH" ]]; then
+    cat >&2 <<EOF
+mios-html: $HTML_PATH does not exist.
+
+The system overlay should have installed it from
+/mnt/c/MiOS/usr/share/mios/configurator/mios.html (or
+/mnt/m/usr/share/mios/configurator/mios.html on the bootstrap volume).
+Re-run automation/08-system-files-overlay.sh in your next image build,
+or for a quick local fix:
+  sudo install -D -m 0644 \\
+    /mnt/c/MiOS/usr/share/mios/configurator/mios.html \\
+    /usr/share/mios/configurator/mios.html
+EOF
+    exit 1
+fi
+
+# Resolve the operator-visible Windows path. WSL distros are reachable
+# via the \\wsl.localhost\<distro-name>\... UNC. WSL_DISTRO_NAME is set
+# inside WSL; fall back to a generic prefix the operator can hand-edit
+# if not present.
+DISTRO="${WSL_DISTRO_NAME:-}"
+if [[ -z "$DISTRO" ]]; then
+    # Derive from /proc/version or /etc/wsl.conf if WSL_DISTRO_NAME is unset
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        DISTRO="$(awk -F= '/^name *=/{print $2; exit}' /etc/wsl.conf 2>/dev/null | tr -d ' "')"
+    fi
+fi
+DISTRO="${DISTRO:-podman-MiOS-DEV}"
+
+UNC="\\\\wsl.localhost\\${DISTRO}\\usr\\share\\mios\\configurator\\mios.html"
+if [[ -n "$SECTION" ]]; then
+    # Append URL fragment for section deep-linking
+    UNC="${UNC}#${SECTION}"
+fi
+
+# Dispatch via mios-windows ps so the launch happens in the operator's
+# visible Windows session (through the launcher broker). Start-Process
+# with a file:// or UNC path lets Windows pick the registered handler
+# (default browser).
+if ! command -v mios-windows >/dev/null 2>&1; then
+    echo "mios-html: mios-windows not on PATH" >&2
+    exit 1
+fi
+
+# Quote the UNC for PowerShell — single quotes preserve backslashes
+exec mios-windows ps "Start-Process '${UNC}'"

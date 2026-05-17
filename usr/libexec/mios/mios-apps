@@ -297,23 +297,35 @@ $out | ForEach-Object { Write-Output $_ }
             [ -z "$g_name" ] && continue
             g_name="$(echo "$g_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             g_path="$(echo "$g_path" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
-            short="$(echo "$g_name" | awk '{print tolower($1)}')"
+            # Full lowercased name as the lookup key so multi-word queries
+            # (e.g. "wallpaper engine", "microsoft flight simulator") match
+            # via mios-find. Previously this was awk '{print tolower($1)}'
+            # which only kept the first word -- "Wallpaper Engine" became
+            # name="wallpaper" and the agent couldn't match the operator's
+            # natural-language "open wallpaper engine for me" against any
+            # inventory entry (operator-flagged 2026-05-17: "open
+            # wallpaper engine for me" -> "isn'\''t installed on your
+            # system" loop, agent never reached mios-find -> launch).
+            short="$(echo "$g_name" | tr '[:upper:]' '[:lower:]')"
             # For Steam: launch via steam:// URI handler (cleaner than .exe path)
             # For Epic: launch via com.epicgames.launcher URI handler
             # For GOG: direct .exe launch
+            # All paths funnel through `mios-windows launch <X>` -- its URI
+            # branch (steam://, com.epicgames.launcher://, shell:appsFolder\)
+            # wraps Start-Process with a snapshot + poll-for-new-window +
+            # center+focus pass so the operator never gets a top-left or
+            # off-screen launch. The MIOS_LAUNCH_TITLE_HINT env var tells
+            # the centerer which new window to pick when the protocol
+            # handler spawns multiple (e.g. Steam: storefront AND game).
+            # Operator directive 2026-05-17: "launching apps should launch
+            # centered too!! ... should always launch centered and focused".
+            esc_name="$(printf '%s' "$g_name" | sed "s/'/'\\\\''/g")"
             case "$g_path" in
-                steam://*|com.epicgames.launcher://*)
-                    cmd="mios-windows ps \"Start-Process '$g_path'\""
-                    ;;
-                shell:*)
-                    # UWP / Microsoft Store / Xbox -- shell: URIs are
-                    # handled by explorer.exe (Start-Process alone tries
-                    # filesystem resolution + 404s). Dispatch via mios-
-                    # windows launch which has the explorer.exe wrap.
-                    cmd="mios-windows launch \"$g_path\""
+                steam://*|com.epicgames.launcher://*|shell:*)
+                    cmd="MIOS_LAUNCH_TITLE_HINT='$esc_name' mios-windows launch \"$g_path\""
                     ;;
                 *)
-                    cmd="mios-windows launch \"$g_path\""
+                    cmd="MIOS_LAUNCH_TITLE_HINT='$esc_name' mios-windows launch \"$g_path\""
                     ;;
             esac
             emit windows-game "$short" "$g_name" "$cmd"

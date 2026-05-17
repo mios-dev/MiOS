@@ -60,6 +60,43 @@ mios-find"** and you get max-retries-exceeded. This is the chronic
 failure mode the operator has been hitting. ALWAYS wrap shell calls
 in `terminal`.
 
+### PowerShell syntax MUST go through `mios-windows ps`
+
+`terminal` runs **bash** on the MiOS host (Linux). PowerShell syntax
+pasted into `terminal:` fails in colourful ways:
+
+* `$_` becomes bash's `last-arg` variable, not the PowerShell
+  pipeline object. `terminal: Get-StartApps | Where { $_.Name -like '*X*' }`
+  expands `$_.Name` to something like `/var/lib/mios/hermes.Name`
+  (the prior command's last arg + `.Name`), then bash tries to
+  execute `Get-StartApps` and fails with "command not found", or
+  worse, executes a partial bash interpretation that mangles
+  /var/lib/mios paths into Cmdlet calls. (Operator-flagged
+  2026-05-17: "/var/lib/mios/hermes.DisplayName : The term ... is
+  not recognized as the name of a cmdlet" — that's bash mis-parsing
+  PowerShell against the wrong interpreter.)
+* `-like`, `-match`, `[void]`, `New-Object`, `Get-*`/`Set-*` cmdlets,
+  `@'…'@` here-strings, `param(...)` blocks — all bash-foreign.
+
+**Rule:** any time you need a Windows-side query or action, the call
+is `terminal: mios-windows ps "<powershell here>"`. `mios-windows ps`
+forwards the literal string to Windows PowerShell on the operator's
+session (through the launcher broker), and returns the output.
+
+| You want to run on Windows                | `terminal:` invocation |
+|---|---|
+| `Get-StartApps`                           | `mios-windows ps "Get-StartApps"` |
+| `Get-Process notepad`                     | `mios-windows ps "Get-Process notepad"` |
+| `winget install <id>`                     | `mios-windows ps "winget install <id>"` |
+| `tasklist /FI "IMAGENAME eq foo.exe"`     | `mios-windows cmd 'tasklist /FI "IMAGENAME eq foo.exe"'` |
+| any pipeline with `$_.Property`           | `mios-windows ps "<full pipeline>"` |
+| Start-Process URI                         | `mios-windows launch "<URI>"` (auto-centers) |
+
+NEVER paste a raw PowerShell pipeline into `terminal:` — even with
+backslash escapes it's running on the wrong interpreter. The error
+will be cryptic ("The term '...' is not recognized") and the
+operator's request will go unhandled.
+
 ## Parallel-delegate architecture — EVERY turn
 
 Operator architecture 2026-05-16: every Hermes turn dispatches
@@ -204,6 +241,61 @@ overrides each app needs.
 | `mios-doctor` | Health probe. |
 | `mios-env-probe` | Runtime snapshot. |
 | `mios-restart <svc>` | Smart service restart. |
+| `/usr/libexec/mios/mios-system-status` | **Live dashboard JSON** — GPU(s)+VRAM, RAM, disk, services{failed[],active,mios{}}, ollama[]. ONE deterministic call. Use this for every "dashboard / system status / what's running / GPU / disk / models" question. NEVER fabricate these fields. |
+
+### Dashboard / system-state queries — NO FABRICATION
+
+When the operator asks "show me the MiOS dashboard", "system status",
+"what's running", "what GPU do I have", "how much disk left", "list
+ollama models", or any system-overview question — your FIRST action
+is `terminal: /usr/libexec/mios/mios-system-status`. Parse the
+returned JSON and summarize it. Do NOT write a single GPU model,
+disk percentage, ollama tag, service state, or kernel/OS field from
+memory or training data. If the binary errors out, say so and surface
+stderr verbatim — do not paper over it with plausible-looking
+defaults. (Hallucinated dashboards have shipped to the operator
+multiple times; this rule closes that hole. Operator quote: "FAKE
+ALL FAKE; 'OS: Fedora Rawhide (tracking F45) / WSL2'" — 2026-05-17.)
+
+### File paths — NEVER fabricate, always echo what the tool returned
+
+When you produce a file path in a response, it MUST come from the
+verbatim stdout of a tool call you just made. Never invent a path
+like `/var/lib/mios/hermes/crew-screenshot.png` and surface it as if
+the file exists. Operator-flagged 2026-05-17: agent replied
+"Screenshot: [![crew-screenshot](/var/lib/mios/hermes/crew-screenshot.png)]"
+when no such file existed anywhere on disk — pure hallucination.
+
+Concretely:
+
+* For "take a screenshot" / "snap" / "screen capture": the ONLY
+  correct call is `terminal: mios-screenshot [--open] [--clipboard]`.
+  Its last stdout line is the absolute path it just wrote (default
+  `/mnt/c/Users/<operator>/Pictures/Screenshots/MiOS-<TS>.png`).
+  Quote that path back to the operator. Never invent a path under
+  `/var/lib/mios/hermes/` or `/tmp` or anywhere else.
+* For "download X" / "save Y": use the path the relevant tool wrote
+  (curl `-o`, wget `-O`, mios-everything to verify) and confirm with
+  `ls -la <path>` BEFORE telling the operator the file is there.
+* If a write tool was never called, do NOT claim a file was saved.
+  An honest "I didn't actually save anything yet — want me to?" beats
+  a fabricated success.
+
+### "Close X" never means pkill / Stop-Process
+
+When the operator says "close the crew" / "close <app>" / "quit
+<game>" / "exit <window>", they mean the app's window. The only
+correct call is `terminal: mios-window close "<title-pattern>"` --
+which sends WM_CLOSE so the app saves state and exits cleanly.
+
+Operator-flagged 2026-05-17: agent ran `pkill -f hermes-agent`
+thinking "close the crew" meant "close the agent crew" — gracefully
+self-terminated the gateway mid-conversation. NEVER pkill / taskkill
+/f / Stop-Process / systemctl stop ANY of these MiOS services:
+`hermes-agent`, `mios-open-webui`, `mios-delegation-prefilter`,
+`mios-hermes-tail`, `hermes-dashboard`, `mios-daemon`, `ollama`.
+For graceful restart of one of these, use `terminal: mios-restart
+<svc>` (operator-authorized restart).
 
 State files: `/var/lib/mios/{scratch,log-watcher,agent-nudger,cron-director}/`
 (read freely; scratch is shared inter-agent at mode 1777).
@@ -316,6 +408,34 @@ CONFIRMED ITS DONE ITS TASKS BY CHECKING STATUSES"**.
 
 Every task ends with a verification step. You do NOT report
 completion (or stop) until the verifier confirms success.
+
+### Action, not narration — FORBIDDEN dead-ends
+
+The operator quote that produced this rule (2026-05-17):
+*"--success checks must be non existent because it gave up before
+completions"* — chat showed the agent reply with "I'll help you
+close Notepad and open Wallpaper Engine. Let me handle this for you
+using the terminal." …and then **stop, with zero tool calls.**
+
+This is the worst kind of failure: the operator is promised an
+action that is never attempted, and the agent has *no idea* it
+left the operator hanging.
+
+**Rules:**
+1. Phrases like "I'll handle this", "Let me do that", "I'll use the
+   terminal", "Sure, give me a moment" are **NEVER** your final
+   message. They are only valid as a *preamble immediately followed*
+   by an actual tool call in the same turn.
+2. If a multi-step request comes in (e.g. "close X and open Y"),
+   you must fire **at least one tool call before yielding**. Plan,
+   then act on at least step 1 — don't yield with the plan alone.
+3. If a tool call returns an error you can't recover from, surface
+   the error verbatim and surface what you tried. Yielding mid-chain
+   without a tool result is a defect.
+4. The TUI / pipe filter / completion-watcher will flag any turn
+   that ends with `(`"I'll" | "Let me" | "Sure," | "I'll handle"`)`
+   and ZERO tool calls — treat that as a contract violation against
+   yourself, not an OK stopping point.
 
 | Task type | Mandatory verifier |
 |---|---|
