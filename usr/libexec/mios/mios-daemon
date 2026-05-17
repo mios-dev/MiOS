@@ -467,6 +467,193 @@ def _recent_owui_user_messages(limit: int = 5) -> list[str]:
         log.debug("suggestions: chat-scan: %s", e)
         return []
 
+# ── Launch verifier (operator directive 2026-05-17) ───────────────────
+#
+# "THIS is why we have a mios-deamon to checks logs and open apps to
+#  double check things were launched successfully!!!"
+#
+# Watches recent OWUI assistant messages for launch-success claims
+# ("Steam GUI is now open", "X is now launched", "installation in
+# progress", etc.). For each unverified claim:
+#   1. Pull the app name + claim sentence from the message
+#   2. Run mios-window-active --present "<app>"
+#   3. If presented_to_operator==false AND process_alive==false,
+#      record a launch_failure to /var/lib/mios/daemon/launch_failures.json
+# The agent's SOUL.md tells it to `cat` that file before retrying
+# any launch operation -- closing the loop without prompt injection.
+LAUNCH_VERIFY_TICK_S = float(os.environ.get(
+    "MIOS_DAEMON_LAUNCH_VERIFY_TICK_S", "60"))
+LAUNCH_VERIFY_LOOKBACK_MIN = float(os.environ.get(
+    "MIOS_DAEMON_LAUNCH_VERIFY_LOOKBACK_MIN", "10"))
+LAUNCH_FAILURES_FILE = STATE_DIR / "launch_failures.json"
+
+# Regexes that flag an assistant message as claiming a launch.
+# Each capture group 1 should hold the app name where reasonable;
+# the verifier falls back to the user's request if not.
+_LAUNCH_CLAIM_RES = [
+    re.compile(r"\b(?:Steam|Epic|Ubisoft|Uplay) (?:GUI )?is now open(?:ing)?(?: with (?:the )?(.{3,40}?) (?:install|launch))?",
+               re.IGNORECASE),
+    re.compile(r"\b(?:launched|opened|started|running) (?:the )?(.{3,40}?)(?:\.|,|$|\n)",
+               re.IGNORECASE),
+    re.compile(r"\binstallation in progress\b.{0,80}?\b(.{3,40}?)(?:\)|$|\n)",
+               re.IGNORECASE),
+    re.compile(r"\b(.{3,40}?) (?:is|has been|was) (?:successfully )?(?:launched|installed|started)\b",
+               re.IGNORECASE),
+]
+
+
+def _scan_chat_for_launch_claims(lookback_min: float) -> list[dict]:
+    """Walk recent OWUI chats, return list of {chat_id, ts, app, claim,
+    user_prompt} for assistant messages that look like launch claims."""
+    if not SUGG_OWUI_DB.is_file():
+        return []
+    cutoff = time.time() - lookback_min * 60
+    claims: list[dict] = []
+    try:
+        import sqlite3
+        c = sqlite3.connect(str(SUGG_OWUI_DB))
+        # OWUI stores chats as JSON blobs; updated_at is epoch seconds.
+        rows = c.execute(
+            "SELECT id, chat, updated_at FROM chat "
+            "WHERE updated_at > ? ORDER BY updated_at DESC LIMIT 30",
+            (int(cutoff),)
+        ).fetchall()
+    except Exception as e:
+        log.debug("launch_verifier: chat-scan: %s", e)
+        return []
+
+    for chat_id, raw, updated_at in rows:
+        try:
+            d = json.loads(raw or "{}")
+        except json.JSONDecodeError:
+            continue
+        messages = (d.get("messages") or [])[-6:]
+        # Pair each assistant message with the preceding user prompt.
+        last_user = ""
+        for m in messages:
+            if not isinstance(m, dict): continue
+            role = m.get("role")
+            content = m.get("content") or ""
+            if not isinstance(content, str): continue
+            if role == "user":
+                last_user = content.strip()[:240]
+                continue
+            if role != "assistant" or not content.strip():
+                continue
+            for pat in _LAUNCH_CLAIM_RES:
+                mm = pat.search(content)
+                if not mm:
+                    continue
+                app = (mm.group(1) if mm.lastindex and mm.group(1) else "").strip(" \"'`.,*-:;()[]{}")
+                # Filter junk captures
+                if app and 2 <= len(app) <= 60:
+                    claims.append({
+                        "chat_id": chat_id,
+                        "ts": updated_at,
+                        "app": app,
+                        "user_prompt": last_user,
+                        "claim_match": mm.group(0)[:180],
+                    })
+                    break  # one claim per assistant message is enough
+    return claims
+
+
+def _verify_one_launch(app: str) -> dict:
+    """Run mios-window-active --present <app>; return parsed JSON dict
+    or an error stub. Times out at 6s -- the verifier itself is
+    sub-second normally."""
+    try:
+        proc = subprocess.run(
+            ["mios-window-active", "--present", app],
+            capture_output=True, text=True, timeout=6,
+        )
+        out = (proc.stdout or "").strip()
+        try:
+            return json.loads(out)
+        except json.JSONDecodeError:
+            return {"presented_to_operator": False, "process_alive": False,
+                    "summary": "verifier-non-json", "raw": out[:200]}
+    except subprocess.TimeoutExpired:
+        return {"presented_to_operator": False, "process_alive": False,
+                "summary": "verifier-timeout"}
+    except FileNotFoundError:
+        return {"presented_to_operator": False, "process_alive": False,
+                "summary": "verifier-missing"}
+
+
+def _atomic_write_launch_failures(failures: list[dict]) -> None:
+    LAUNCH_FAILURES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LAUNCH_FAILURES_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(failures, separators=(",", ":"), indent=2))
+    os.chmod(tmp, 0o644)
+    tmp.replace(LAUNCH_FAILURES_FILE)
+
+
+def launch_verifier_loop() -> None:
+    """Every LAUNCH_VERIFY_TICK_S seconds, scan recent OWUI chats for
+    assistant launch-success claims and verify each via
+    mios-window-active. Persist mismatches so the agent (and operator)
+    can see which launches were false-success.
+
+    Already-verified claims are deduped by (chat_id, app, claim_ts)
+    via the persisted failures file (kept compact at <= 50 entries)."""
+    # Boot delay: let OWUI come up + mios-window-active be present
+    time.sleep(60)
+    seen: set[tuple] = set()
+    while not _stop_event.is_set():
+        try:
+            claims = _scan_chat_for_launch_claims(LAUNCH_VERIFY_LOOKBACK_MIN)
+            failures: list[dict] = []
+            # Load existing failures so we keep history across ticks
+            if LAUNCH_FAILURES_FILE.is_file():
+                try:
+                    failures = json.loads(LAUNCH_FAILURES_FILE.read_text())
+                except Exception:
+                    failures = []
+            for cl in claims:
+                key = (cl["chat_id"], cl["app"].lower(), cl["ts"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                verdict = _verify_one_launch(cl["app"])
+                ok = bool(verdict.get("presented_to_operator")
+                          or verdict.get("process_alive"))
+                if not ok:
+                    failures.append({
+                        "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                        "chat_id": cl["chat_id"],
+                        "app": cl["app"],
+                        "user_prompt": cl["user_prompt"],
+                        "claim_match": cl["claim_match"],
+                        "verifier_summary": verdict.get("summary"),
+                        "verifier_raw": verdict,
+                    })
+                    log.warning("launch_verifier: FALSE-SUCCESS app=%r chat=%s "
+                                "summary=%s",
+                                cl["app"], cl["chat_id"][:8],
+                                verdict.get("summary"))
+            # Cap to the most recent 50 entries
+            failures = failures[-50:]
+            _atomic_write_launch_failures(failures)
+            _update_state("launch_verifier", {
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "claims_scanned": len(claims),
+                "false_success_count": sum(
+                    1 for f in failures
+                    if (time.time() - time.mktime(time.strptime(
+                        f["ts"][:19], "%Y-%m-%dT%H:%M:%S"))) < 3600),
+                "failures_file": str(LAUNCH_FAILURES_FILE),
+            })
+            # Cap memory usage on the dedup set
+            if len(seen) > 1000:
+                seen = set(list(seen)[-500:])
+        except Exception as e:
+            log.warning("launch_verifier: %s: %s", type(e).__name__, e)
+        for _ in range(int(LAUNCH_VERIFY_TICK_S)):
+            if _stop_event.is_set(): return
+            time.sleep(1)
+
+
 def suggestions_loop() -> None:
     # Boot delay so OWUI + ollama warm before first generation
     time.sleep(45)
@@ -563,6 +750,7 @@ def main() -> int:
         threading.Thread(target=refusal_loop, daemon=True, name="refusal"),
         threading.Thread(target=cron_loop, daemon=True, name="cron"),
         threading.Thread(target=suggestions_loop, daemon=True, name="suggestions"),
+        threading.Thread(target=launch_verifier_loop, daemon=True, name="launch_verifier"),
     ]
     for t in threads:
         t.start()

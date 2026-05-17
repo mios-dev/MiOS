@@ -101,16 +101,48 @@ def main() -> int:
     # (missing `parameters`) crashes the entire chat with KeyError:
     # 'parameters'. Keep this list in lockstep with the actual Tools
     # class methods in /usr/share/mios/owui/tools/mios_verbs.py.
+    # Operator directive 2026-05-17: "FIX EVERYTHING-CLI SEARCHING FOR
+    # WINDOWS SIDE OPERATIONS AND LAUNCHING ... should be the default
+    # windows launching assist tool/skill(s)". The Tools class exposes
+    # 5 methods; specs MUST be in lockstep with the source AND every
+    # spec MUST carry a JSONSchema parameters block (process_chat
+    # KeyError otherwise -- operator-flagged 2026-05-17). everything_
+    # search is THE first call for any Windows-launch ambiguity: it
+    # hits Voidtools NTFS index sub-100ms across every mounted drive.
     specs = [
         {
+            "name": "everything_search",
+            "description": "Search Windows NTFS index via Voidtools Everything CLI (es.exe). Sub-100ms, covers every mounted NTFS drive. THE default first call for any Windows file/launcher lookup -- ALWAYS prefer over recursive find / dir /s / Get-ChildItem -Recurse, and use BEFORE inventing a Steam/Epic URL when launch_app fails to resolve.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Everything query string. Supports substring (\"crew motorfest\"), wildcards (\"BeamNG*.exe\"), path filters (\"path:steamapps\"), size (\"size:>1gb\"), modify-date (\"dm:today\"). Quote multi-word substrings.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default 10).",
+                        "default": 10,
+                    },
+                    "ext": {
+                        "type": "string",
+                        "description": "Optional comma-separated extension filter, e.g. \"exe,lnk,url\". Empty = no filter.",
+                        "default": "",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+        {
             "name": "launch_app",
-            "description": "Launch a MiOS-registered Windows/Linux app by short name. Resolves through the canonical chain (Steam/Epic/Xbox/GOG/Battle.net via protocol handler, Windows shortname, MiOS shim, Linux GUI, plain CLI). Dispatch only -- launch is detached.",
+            "description": "Launch a MiOS-registered Windows/Linux app by short name. Resolves through the canonical chain (Steam/Epic/Xbox/GOG/Battle.net via protocol handler, Windows Start Menu .url shortcuts via Everything, MiOS shim, Linux GUI, plain CLI). EXECUTE the launcher's returned target verbatim -- NEVER substitute your own choice (e.g. don't call Steam install when launch_app returned a uplay:// URI).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "App short name. Case-insensitive substring matches against the Windows games inventory; exact for shortnames. Examples: \"beamng\", \"notepad\", \"chromedev\", \"marvel rivals\".",
+                        "description": "App short name. Case-insensitive substring matches against the Windows games inventory; exact for shortnames. Examples: \"beamng\", \"notepad\", \"chromedev\", \"crew motorfest\".",
                     }
                 },
                 "required": ["name"],
@@ -118,7 +150,7 @@ def main() -> int:
         },
         {
             "name": "mios_find",
-            "description": "Resolve an app's launch info without launching it (read-only). Returns the canonical command the launcher would execute. Use this when you want to know whether something is installed / how it would be invoked.",
+            "description": "Resolve an app's launch info WITHOUT launching it (read-only). Returns the canonical command the launcher would execute. Use this when you want to know whether something is installed / how it would be invoked, before deciding whether to call launch_app.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -128,6 +160,21 @@ def main() -> int:
                     }
                 },
                 "required": ["name"],
+            },
+        },
+        {
+            "name": "mios_apps",
+            "description": "Inventory every installed app across all sources (Steam/Epic/Xbox/MS Store/flatpak/RPM/Windows shortcuts/MiOS shims/CLIs). Cached 5 minutes. Use to disambiguate when the operator's name is vague; check this BEFORE assuming an app is on a specific platform.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "description": "Optional case-insensitive substring filter on display name. Empty = full inventory.",
+                        "default": "",
+                    }
+                },
+                "required": [],
             },
         },
         {
