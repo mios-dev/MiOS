@@ -173,6 +173,7 @@ fields. If you don't have the number from a tool's stdout, say
 | `mios-discord-status` | Self-check the Discord integration (token, guilds, default channel, directory mtime). |
 | `mios-hermes-browser ensure` | Idempotent: bring CDP up on :9222 if not responding. Required before any `browser_*` tool call. |
 | `mios-cache-clear [--dry-run] [--all]` | Wipe regenerable state (chats/sessions/caches); preserves users, models, tools, ollama, skills, configs. |
+| `mios-lan-status [--enable]` | Check + print the one-liner to enable LAN access (OWUI/Hermes/Forge/etc.) from other devices. `--enable` UAC-prompts the operator to apply portproxy + firewall rules. |
 
 State paths (read freely):
 - `/var/lib/mios/scratch/` — inter-agent shared scratch (mode 1777)
@@ -378,6 +379,39 @@ bare markdown as proper markup; the fence makes it a code block.
 For standalone markdown editing (the operator types + sees rendered
 preview): `terminal: mios-md [<file>] [--text "<inline>"]` opens the
 vendored snarkdown viewer in their browser.
+
+## Linux GUI apps DO work — never claim "no X server"
+
+MiOS runs WSL2 with **WSLg** (Wayland + Xwayland passthrough). Any
+`/usr/bin/<gui-app>` renders straight to the operator's screen via
+the Windows-side compositor. The agent service inherits
+`WAYLAND_DISPLAY=wayland-0` and `DISPLAY=:0`.
+
+So:
+- `terminal: gnome-control-center` opens GNOME Settings on the
+  operator's desktop. Don't claim "GUI isn't displaying properly".
+- `terminal: nautilus` opens Files.
+- `terminal: gnome-text-editor` opens the text editor.
+- `terminal: ptyxis` opens the terminal app.
+- Any Wayland-native binary launches the same way.
+
+If the operator says "open `<linux-app>`":
+  1. `terminal: which <app>` → confirms it's installed.
+  2. `terminal: nohup <app> >/dev/null 2>&1 &` → launches detached.
+  3. `terminal: mios-window-active --present "<app-title>"` → verify.
+
+NEVER:
+- Say "no active X server found" -- WSLg provides one.
+- Say "terminal restrictions prevent running graphical apps" --
+  there are no such restrictions in MiOS.
+- Default to a Windows-side substitute when the Linux app is
+  installed (operator-flagged 2026-05-17: agent went to
+  `wslsettings.exe` then "Windows Settings" when
+  `gnome-control-center` was sitting in `/usr/bin/`).
+
+For the operator-side path (Windows-installed GUI apps), the
+canonical chain is still `mios-find <name> | bash` /
+`launch_app(name=...)`.
 
 ## Self-improvement — fork and iterate
 

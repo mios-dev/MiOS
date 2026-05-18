@@ -339,6 +339,8 @@ class Pipe:
         "  was app actually presented to operator?  ->  mios-window-active --present \"<name>\"\n"
         "  check discord integration / bot status   ->  mios-discord-status\n"
         "  clear caches globally                    ->  mios-cache-clear [--dry-run]\n"
+        "  reach OWUI/Hermes/etc. from LAN          ->  mios-lan-status [--enable]   (prints the elevated-PS1 one-liner; --enable UAC-prompts on operator screen)\n"
+        "  open a Linux GUI app (gnome-control-center, nautilus, gedit, ...) ->  terminal: nohup <bin> >/dev/null 2>&1 &   (WSLg renders to the operator's screen; NEVER claim 'no X server')\n"
         "  arbitrary windows command                ->  mios-windows ps \"<powershell>\"\n"
         "  arbitrary windows .exe                   ->  mios-windows launch \"<C:\\path\\or\\URI>\"\n"
         "  install package (any backend)            ->  mios-installer install <id> [--backend winget|dnf|flatpak] [--no-confirm]\n"
@@ -656,6 +658,23 @@ class Pipe:
         r"\b(let me|i.?ll|i'?ll|first,?\s*i|now,?\s*i|let.?s|i need to|i.?m going to|i.?ve|i.?m about to)\b",
         re.IGNORECASE,
     )
+    # "Looks like structured markdown" -- a heading line OR a markdown
+    # table separator (`|---|`). When raw output starts with one of
+    # these, hermes is already shaping the answer; polish has nothing
+    # to add and a non-trivial chance of mangling it.
+    _STRUCTURED_MD_RE = re.compile(
+        r"^\s*(?:#{1,6}\s+\S|\|[\s\-:|]+\|)",
+        re.M,
+    )
+    # Known agent-error signatures: if the raw output contains these,
+    # ALWAYS polish (so the "KNOWN AGENT ERRORS" rewrites in the polish
+    # prompt have a chance to clean them up).
+    _KNOWN_AGENT_ERROR_RE = re.compile(
+        r"(?:not recognized|cmdlet|cannot parse|screencapture\.exe|"
+        r"Invoke-Screenshot|GDI\+|Get-StartApps not found|pwsh not found|"
+        r"vendor-specific|I don.t have|not in (?:my toolset|this environment))",
+        re.IGNORECASE,
+    )
 
     def _looks_conversational(self, text: str) -> bool:
         if not text:
@@ -665,14 +684,32 @@ class Pipe:
         return bool(self._CONVERSATIONAL_RE.match(text.strip()))
 
     def _polish_can_skip(self, raw: str) -> bool:
-        """Skip polish when raw is already short + clean."""
+        """Skip polish when raw is already a clean operator-facing answer.
+
+        Skip if EITHER:
+          a) Short + no narration markers (the original heuristic), OR
+          b) Looks like structured markdown (heading or table block) +
+             no narration markers + no known agent-error patterns.
+
+        Case (b) was added 2026-05-17 after the MiOS System Dashboard
+        chat: hermes emitted clean markdown tables (~3300 chars), polish
+        ran on it, the CPU model wrapped the whole thing in ```markdown
+        and hit POLISH_MAX_TOKENS mid-table -- producing a truncated
+        code-fenced answer. The raw was already correct; polish made it
+        worse. Now we trust raw markdown when it looks structured."""
         if not raw:
             return True
-        if len(raw) > int(self.valves.POLISH_SKIP_SHORT_CHARS):
-            return False
         if self._NARRATION_MARKERS.search(raw):
             return False
-        return True
+        if self._KNOWN_AGENT_ERROR_RE.search(raw):
+            return False
+        # Short + clean -> skip (original case)
+        if len(raw) <= int(self.valves.POLISH_SKIP_SHORT_CHARS):
+            return True
+        # Long but structured markdown -> skip (new case)
+        if self._STRUCTURED_MD_RE.search(raw):
+            return True
+        return False
 
     async def _polish_via_cpu(
         self,
@@ -756,8 +793,16 @@ class Pipe:
 
         return polished
 
+    # Match a leading ```markdown / ``` fence. The closing ``` is
+    # OPTIONAL because polish sometimes truncates mid-output (token
+    # cap hit on a long table) -- in that case there's an open fence
+    # with no close, and OWUI renders the WHOLE answer as a code
+    # block. We strip the open fence either way; if a close exists
+    # at end-of-text we also drop that. Operator-flagged 2026-05-17:
+    # MiOS System Dashboard table came back wrapped in ```markdown
+    # because polish ran out of tokens before closing the fence.
     _OUTER_FENCE_RE = re.compile(
-        r"^\s*```(?:md|markdown|MD|MARKDOWN)?\s*\n(.*?)\n```\s*$",
+        r"^\s*```(?:md|markdown|MD|MARKDOWN)?\s*\n(.*?)(?:\n```\s*)?$",
         re.S,
     )
     # Reasoning leakage in polish output (operator-flagged 2026-05-17:

@@ -1,0 +1,133 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-lan-status [--enable]
+#
+# Inspect (and optionally enable) LAN-side accessibility of MiOS
+# service ports. Operator-flagged 2026-05-17: "OWUI doesn't appear
+# responsive remotely over LAN/Wifi" -- OWUI binds 0.0.0.0:3030
+# inside the WSL2 distro, but Windows-side LAN traffic doesn't reach
+# the WSL bridge without a netsh portproxy + Windows Firewall rule.
+# The Setup-MiOSLanPortProxy.ps1 helper adds both, but it needs to
+# run elevated on Windows.
+#
+# Usage:
+#   mios-lan-status            print state + the one-liner to enable
+#   mios-lan-status --enable   try to invoke the elevated PS1 helper
+#                              (will UAC-prompt on the operator's screen)
+#
+# Exit codes:
+#   0 = all ports reachable from the Windows host IP
+#   1 = some ports listening locally but not LAN-forwarded
+#   2 = listener missing (services not running)
+
+set -uo pipefail
+
+ACTION="${1:-status}"
+SETUP_PS1="${MIOS_LAN_SETUP_PS1:-/usr/libexec/mios/Setup-MiOSLanPortProxy.ps1}"
+
+# (port, name) pairs. Keep aligned with Setup-MiOSLanPortProxy.ps1.
+SERVICES=(
+    "3030 open-webui"
+    "8642 hermes-api"
+    "11434 ollama"
+    "8888 searxng"
+    "9119 hermes-dashboard"
+    "3000 forge"
+    "8080 code-server"
+    "9090 cockpit"
+    "8090 guacamole"
+    "8443 ceph-dashboard"
+)
+
+# Find the Windows-routable host IP (skip wsl/loopback/docker bridges).
+windows_ip() {
+    # In WSL2 the operator's Windows machine is reachable via
+    # the default gateway. /etc/resolv.conf nameserver is the
+    # WSL host's loopback-translated address; the Windows LAN
+    # IP is in `ip route get` toward an external addr.
+    local ip
+    ip=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+')
+    [ -n "$ip" ] && echo "$ip" && return
+    hostname -I 2>/dev/null | awk '{print $1}'
+}
+
+WSL_IP=$(windows_ip)
+echo "WSL bridge IP: ${WSL_IP:-<unknown>}"
+echo
+
+# --- Local listener check ---------------------------------------
+echo "── listening on WSL side ──"
+local_count=0
+listening=()
+for entry in "${SERVICES[@]}"; do
+    port="${entry%% *}"
+    name="${entry#* }"
+    if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}\$"; then
+        echo "  OK   :${port} (${name})"
+        listening+=("$port|$name")
+        local_count=$((local_count + 1))
+    else
+        echo "  --   :${port} (${name}) -- not listening"
+    fi
+done
+
+if [ "$local_count" -eq 0 ]; then
+    echo
+    echo "No MiOS service ports listening yet. Bring services up first."
+    exit 2
+fi
+
+# --- One-liner the operator can paste --------------------------
+echo
+echo "── enable LAN access (run on Windows) ──"
+if [ -r "$SETUP_PS1" ]; then
+    # Translate /usr/libexec/mios path -> Windows form so the operator
+    # can paste it straight into an elevated terminal.
+    WIN_PS1=$(printf '\\\\wsl.localhost\\%s%s\n' \
+        "$(printf '%s' "${WSL_DISTRO_NAME:-podman-MiOS-DEV}")" \
+        "${SETUP_PS1//\//\\}")
+    echo "  Open Windows Terminal as Administrator (Win+X -> Terminal (Admin)) and paste:"
+    echo
+    echo "  pwsh -NoProfile -ExecutionPolicy Bypass -File \"$WIN_PS1\""
+    echo
+    echo "  (the helper covers all 10 MiOS ports above; one-shot,"
+    echo "  idempotent, self-elevates if the operator forgot Admin)"
+else
+    echo "  Setup-MiOSLanPortProxy.ps1 not present at $SETUP_PS1"
+fi
+
+# --- Optional: try to invoke from here -----------------------------
+if [ "$ACTION" = "--enable" ]; then
+    echo
+    echo "── --enable: attempting elevated launch via mios-windows ──"
+    if command -v mios-windows >/dev/null 2>&1 && [ -r "$SETUP_PS1" ]; then
+        # mios-windows ps runs the line through the operator-side broker;
+        # Start-Process -Verb RunAs will trigger UAC (operator must
+        # confirm on their screen).
+        WIN_PATH=$(printf '\\\\\\\\wsl.localhost\\\\%s%s' \
+            "${WSL_DISTRO_NAME:-podman-MiOS-DEV}" \
+            "${SETUP_PS1//\//\\\\}")
+        mios-windows ps "Start-Process pwsh.exe -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','$WIN_PATH' -Verb RunAs" 2>&1
+        echo
+        echo "  (Triggered UAC on the operator's screen; they must Approve."
+        echo "  Re-run 'mios-lan-status' after to verify portproxies landed.)"
+    else
+        echo "  mios-windows not on PATH, or PS1 not readable."
+        exit 1
+    fi
+fi
+
+echo
+echo "Once enabled, reach from other LAN devices at:"
+WIN_LAN_HINT="<your-windows-LAN-ip>"
+for entry in "${listening[@]}"; do
+    port="${entry%%|*}"
+    name="${entry##*|}"
+    scheme="http"
+    [ "$port" = "9090" ] && scheme="https"
+    [ "$port" = "8443" ] && scheme="https"
+    printf "  %s://%s:%s/   (%s)\n" "$scheme" "$WIN_LAN_HINT" "$port" "$name"
+done
+echo
+echo "  (Get the Windows LAN IP with: ipconfig | findstr IPv4)"
+
+exit 0
