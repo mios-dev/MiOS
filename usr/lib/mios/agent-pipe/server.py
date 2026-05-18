@@ -83,8 +83,32 @@ ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", "qwen3:1.7b")
 ROUTER_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", "http://localhost:11435"
 ).rstrip("/")
-ROUTER_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_TIMEOUT_S", "12"))
+ROUTER_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_TIMEOUT_S", "30"))
 ROUTER_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_MAX_TOKENS", "200"))
+
+# Planner (Phase A.1 -- DAG query decomposition) config. The planner is
+# function-calling-tuned + larger than the router; it emits a DAG of
+# dispatch verbs when the router classifies a multi-step intent.
+# Defaults to qwen2.5-coder:7b on the dGPU/CUDA lane (:11434) -- it
+# needs the bigger context + reasoning headroom. Operator can disable
+# planner via env (DAG-mode falls back to backend proxy).
+PLANNER_ENABLED = os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_ENABLED", "true",
+).lower() not in {"false", "0", "no"}
+PLANNER_MODEL = os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_MODEL", "qwen2.5-coder:7b",
+)
+PLANNER_ENDPOINT = os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11434",
+).rstrip("/")
+PLANNER_TIMEOUT_S = int(os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_TIMEOUT_S", "30"))
+PLANNER_MAX_TOKENS = int(os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_MAX_TOKENS", "800"))
+PLANNER_MAX_NODES = int(os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_MAX_NODES", "8"))
+PLANNER_REFLEXION_CAP = int(os.environ.get(
+    "MIOS_AGENT_PIPE_PLANNER_REFLEXION_CAP", "2"))
 
 # Launcher broker (unix socket) -- where dispatch verbs run.
 LAUNCHER_SOCK = os.environ.get(
@@ -322,6 +346,212 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     return parsed
 
 
+# ── Planner system prompt (Phase A.1 DAG decomposition) ───────────
+# Function-calling-shaped prompt for qwen2.5-coder:7b. Emits a DAG
+# of dispatch verbs WHEN the user's intent is multi-step. Returns
+# {"action": "decompose", "nodes": [...]}. Each node has a unique
+# id, a tool, args, and a list of node-id deps (parents). Empty
+# nodes list = "I can't decompose this; fall through to backend".
+#
+# IMPORTANT: this prompt MUST stay in lockstep with the dispatch
+# verb table in _build_dispatch_cmd. A planner emitting a verb the
+# dispatcher doesn't know causes silent failures.
+
+_PLANNER_SYSTEM = (
+    "You are the MiOS planner (Agentic-OS DAG decomposition layer).\n"
+    "The user's prompt has been classified as multi-step. Your job is\n"
+    "to emit a DAG of MiOS dispatch verbs that, executed in topological\n"
+    "order, fulfills the user's intent. Emit JSON ONLY.\n"
+    "\n"
+    "Output shape (EXACT):\n"
+    '{"action":"decompose",\n'
+    ' "summary": "<one-line plan in user\'s language>",\n'
+    ' "nodes": [\n'
+    '   {"id":"n1","tool":"<verb>","args":{...},"deps":[]},\n'
+    '   {"id":"n2","tool":"<verb>","args":{...},"deps":["n1"]},\n'
+    '   ...\n'
+    ' ]}\n'
+    "\n"
+    "If you cannot decompose into AT LEAST 2 dispatchable verbs, emit\n"
+    '{"action":"decompose","summary":"","nodes":[]} so the chain falls\n'
+    "through to the backend agent (which has tool-calling itself).\n"
+    "\n"
+    "Available verbs (use EXACT name + args shape -- the dispatcher\n"
+    "rejects unknown verbs):\n"
+    '  open_app(name, position="default"?)        -- LAUNCH an app\n'
+    '  launch_app(name)                          -- simpler launch\n'
+    '  focus_window(title, position="default"?)  -- raise + reposition\n'
+    '  move_window(title, position)              -- move existing\n'
+    '  close_window(title, mode="graceful"?)     -- close\n'
+    '  open_url(url, browser?)                   -- open in browser\n'
+    '  list_windows()                            -- enumerate windows\n'
+    '  screen_layout()                           -- monitor geometry\n'
+    '  mios_find(name)                           -- resolve, no launch\n'
+    '  mios_apps(filter?)                        -- inventory\n'
+    '  everything_search(query, limit=10?, ext?) -- Windows FS search\n'
+    '  fs_search(query, limit=20?, ext?, path?, type?)  -- Linux FS\n'
+    '  system_status()                           -- host snapshot\n'
+    '  service_status(name)                      -- systemctl status\n'
+    '  service_restart(name)                     -- systemctl restart\n'
+    '  process_list(filter?, sort="rss"?, limit=20?)\n'
+    '  container_status(name?)                   -- podman ps\n'
+    '  container_restart(name)                   -- podman restart\n'
+    '  pc_type(text)                             -- type into focused window\n'
+    '  pc_key(key)                               -- press key OR "Ctrl+S" combo\n'
+    '  pc_click(x, y, button="left"?)            -- mouse click at coords\n'
+    "\n"
+    "Rules:\n"
+    "- Linearize when possible: each node depends only on its predecessor.\n"
+    "- For 'open X and do Y' chains: open_app -> focus_window -> action.\n"
+    "- The focus_window step is OFTEN needed before pc_type / pc_key so\n"
+    "  the input reaches the right window.\n"
+    "- Use pc_key with 'Ctrl+S', 'Alt+F4', 'Enter', 'Tab' as appropriate.\n"
+    "- Cap your DAG at " + str(PLANNER_MAX_NODES) + " nodes.\n"
+    "- If the user asked for something AMBIGUOUS or requiring web/agent\n"
+    "  reasoning, return empty nodes -- the backend agent handles it.\n"
+    "- Output JSON ONLY -- no preamble, no markdown, no commentary."
+)
+
+
+async def decompose_intent(user_text: str) -> Optional[dict]:
+    """Call the planner LLM to emit a DAG of dispatch verbs for a
+    multi-step user intent. Returns the parsed dict, or None on
+    error / unparseable response."""
+    if not PLANNER_ENABLED or not user_text or not user_text.strip():
+        return None
+    payload = {
+        "model": PLANNER_MODEL,
+        "messages": [
+            {"role": "system", "content": _PLANNER_SYSTEM},
+            {"role": "user",   "content": user_text[:4000]},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.0,
+        "max_tokens": PLANNER_MAX_TOKENS,
+        "stream": False,
+    }
+    url = f"{PLANNER_ENDPOINT}/v1/chat/completions"
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(url, json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return None
+            body = r.json()
+    except (httpx.HTTPError, asyncio.TimeoutError):
+        return None
+    except Exception as e:
+        log.warning("planner unexpected error: %s", e)
+        return None
+    choices = body.get("choices") or []
+    if not choices:
+        return None
+    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        return None
+    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict) or "nodes" not in parsed:
+        return None
+    nodes = parsed.get("nodes") or []
+    if not isinstance(nodes, list) or len(nodes) < 2:
+        return None
+    if len(nodes) > PLANNER_MAX_NODES:
+        nodes = nodes[:PLANNER_MAX_NODES]
+        parsed["nodes"] = nodes
+    # Validate each node has the required fields + a known verb.
+    for n in nodes:
+        if not isinstance(n, dict):
+            return None
+        if "id" not in n or "tool" not in n:
+            return None
+        if _build_dispatch_cmd(str(n["tool"]), n.get("args") or {}) is None:
+            log.info("planner emitted unknown verb %r; discarding DAG",
+                     n.get("tool"))
+            return None
+    return parsed
+
+
+def _topological_order(nodes: list[dict]) -> list[dict]:
+    """Return nodes in dependency order. Unknown / cyclic deps fall
+    back to declaration order so we never hang."""
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict)}
+    visited: set = set()
+    out: list = []
+    def visit(nid):
+        if nid in visited or nid not in by_id:
+            return
+        visited.add(nid)
+        for d in (by_id[nid].get("deps") or []):
+            visit(d)
+        out.append(by_id[nid])
+    for n in nodes:
+        visit(n.get("id"))
+    return out
+
+
+async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
+    """Topologically execute the DAG nodes via the broker. Reflexion
+    cap (default 2) retries failed nodes before marking dag-fail.
+    Returns aggregate {success, node_results[], summary}. Each node
+    result is the standard tool_call shape from dispatch_mios_verb."""
+    nodes = _topological_order(dag.get("nodes") or [])
+    results: list[dict] = []
+    all_ok = True
+    for node in nodes:
+        nid = str(node.get("id", "?"))
+        tool = str(node.get("tool", "")).strip()
+        args = node.get("args") or {}
+        attempt = 0
+        last_result: dict = {}
+        while attempt <= PLANNER_REFLEXION_CAP:
+            last_result = await dispatch_mios_verb(tool, args)
+            if last_result.get("success"):
+                break
+            attempt += 1
+            if attempt <= PLANNER_REFLEXION_CAP:
+                # Brief backoff before retry; gives transient WSL/
+                # broker/Win32 racing windows time to settle.
+                await asyncio.sleep(0.5)
+        node_result = dict(last_result)
+        node_result["node_id"] = nid
+        node_result["attempts"] = attempt + (1 if last_result.get("success") and attempt == 0 else 0)
+        results.append(node_result)
+        # SurrealDB tool_call row per node, linked to session.
+        _row = {
+            "tool": tool,
+            "args": args if isinstance(args, dict) else {},
+            "result_preview": (last_result.get("output") or "")[:500],
+            "success": bool(last_result.get("success")),
+            "latency_ms": int(last_result.get("latency_ms", 0)),
+        }
+        if session_id:
+            _db_fire(_db_post(
+                _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
+                + f", session = {session_id};"
+            ))
+        else:
+            _db_fire(_db_post(_db_create("tool_call", _row,
+                                         now_fields=("ts",))))
+        if not last_result.get("success"):
+            all_ok = False
+            # Stop on first hard failure (deps not satisfied, etc.).
+            # Future enhancement: prune ONLY the failed branch and
+            # continue independent siblings; for now fail-fast.
+            break
+    return {
+        "success": all_ok,
+        "summary": dag.get("summary", ""),
+        "nodes_total": len(nodes),
+        "nodes_executed": len(results),
+        "node_results": results,
+    }
+
+
 # ── Dispatch (broker socket bridge) ────────────────────────────────
 def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     """Map verb name + args -> the bash command line the launcher
@@ -431,6 +661,24 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             f"podman ps --filter name={name} "
             f"--format '{{.Names}}\\t{{.Status}}'"
         )
+    # ── PC-input verbs (Phase A.1 -- needed for DAG chains like
+    # open_app -> focus_window -> pc_type -> pc_key Ctrl+S) ──
+    if tool == "pc_type":
+        text = shlex.quote(str(args.get("text", "")))
+        return f"mios-pc-control type {text}"
+    if tool == "pc_key":
+        key = str(args.get("key", "")).strip()
+        # Modifier combos -> key-combo; single keys -> key.
+        if "+" in key:
+            return f"mios-pc-control key-combo {shlex.quote(key)}"
+        return f"mios-pc-control key {shlex.quote(key)}"
+    if tool == "pc_click":
+        x = int(args.get("x", 0))
+        y = int(args.get("y", 0))
+        button = str(args.get("button", "left")).lower()
+        if button not in ("left", "right", "middle"):
+            button = "left"
+        return f"mios-pc-control click {x} {y} {button}"
     return None
 
 
@@ -586,6 +834,13 @@ async def health() -> dict[str, Any]:
             "enabled": ROUTER_ENABLED,
             "model": ROUTER_MODEL,
             "endpoint": ROUTER_ENDPOINT,
+        },
+        "planner": {
+            "enabled": PLANNER_ENABLED,
+            "model": PLANNER_MODEL,
+            "endpoint": PLANNER_ENDPOINT,
+            "max_nodes": PLANNER_MAX_NODES,
+            "reflexion_cap": PLANNER_REFLEXION_CAP,
         },
         "broker_sock": LAUNCHER_SOCK,
         "broker_present": os.path.exists(LAUNCHER_SOCK),
@@ -804,7 +1059,222 @@ async def chat_completions(request: Request) -> Any:
                     }],
                 })
 
-        # action == "agent" or unrecognized -> fall through to backend.
+        # action == "agent" -> planner gets a chance to decompose
+        # into a DAG of dispatch verbs (Phase A.1). If the planner
+        # returns >=2 actionable nodes, run the DAG locally; if it
+        # returns empty or fails, fall through to the backend proxy
+        # which has Hermes's full tool-calling agent loop available.
+        if action == "agent" and PLANNER_ENABLED:
+            dag = await decompose_intent(last_user_text)
+            if dag and (dag.get("nodes") or []):
+                if streaming:
+                    async def _stream_dag() -> AsyncGenerator[bytes, None]:
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="📡", label="prompt")
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="🧭", label="route")
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="📋", label="plan")
+                        yield _sse_chunk("", chat_id=chat_id, model=model,
+                                         role="assistant")
+                        # Emit per-node markers + execute.
+                        nodes = _topological_order(dag.get("nodes") or [])
+                        results: list[dict] = []
+                        all_ok = True
+                        for node in nodes:
+                            nid = str(node.get("id", "?"))
+                            tool = str(node.get("tool", "")).strip()
+                            args = node.get("args") or {}
+                            yield _sse_status(
+                                chat_id=chat_id, model=model,
+                                emoji="🛠️", label=f"{nid}:{tool}",
+                            )
+                            attempt = 0
+                            last_result: dict = {}
+                            while attempt <= PLANNER_REFLEXION_CAP:
+                                last_result = await dispatch_mios_verb(tool, args)
+                                if last_result.get("success"):
+                                    break
+                                attempt += 1
+                                if attempt <= PLANNER_REFLEXION_CAP:
+                                    await asyncio.sleep(0.5)
+                            nres = dict(last_result)
+                            nres["node_id"] = nid
+                            results.append(nres)
+                            _row = {
+                                "tool": tool,
+                                "args": args if isinstance(args, dict) else {},
+                                "result_preview": (last_result.get("output") or "")[:500],
+                                "success": bool(last_result.get("success")),
+                                "latency_ms": int(last_result.get("latency_ms", 0)),
+                            }
+                            if session_id:
+                                _db_fire(_db_post(
+                                    _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
+                                    + f", session = {session_id};"
+                                ))
+                            else:
+                                _db_fire(_db_post(_db_create(
+                                    "tool_call", _row, now_fields=("ts",))))
+                            if not last_result.get("success"):
+                                all_ok = False
+                                break
+                        # Render the DAG envelope as collapsible.
+                        env = {
+                            "dag": {
+                                "summary": dag.get("summary", ""),
+                                "nodes_total": len(nodes),
+                                "nodes_executed": len(results),
+                                "success": all_ok,
+                            },
+                            "nodes": results,
+                        }
+                        symbol = "✅" if all_ok else "⚠️"
+                        rendered = (
+                            f"<details type=\"tool_calls\" done=\"true\">\n"
+                            f"<summary>{symbol} dag · {len(nodes)} steps</summary>\n\n"
+                            f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
+                            f"</details>"
+                        )
+                        yield _sse_chunk(rendered, chat_id=chat_id, model=model)
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji=symbol, label="dag", done=True)
+                        yield _sse_chunk("", chat_id=chat_id, model=model,
+                                         finish_reason="stop")
+                        yield _sse_done()
+                    return StreamingResponse(_stream_dag(),
+                                             media_type="text/event-stream")
+                # Non-streaming DAG execution.
+                dag_result = await execute_dag(dag, session_id=session_id)
+                env = {
+                    "dag": {
+                        "summary": dag.get("summary", ""),
+                        "nodes_total": dag_result.get("nodes_total", 0),
+                        "nodes_executed": dag_result.get("nodes_executed", 0),
+                        "success": dag_result.get("success", False),
+                    },
+                    "nodes": dag_result.get("node_results", []),
+                }
+                symbol = "✅" if dag_result.get("success") else "⚠️"
+                rendered = (
+                    f"<details type=\"tool_calls\" done=\"true\">\n"
+                    f"<summary>{symbol} dag · {env['dag']['nodes_total']} steps</summary>\n\n"
+                    f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
+                    f"</details>"
+                )
+                return JSONResponse(content={
+                    "id": chat_id,
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {"role": "assistant", "content": rendered},
+                        "finish_reason": "stop",
+                    }],
+                })
+            # Planner returned empty / unparseable -> fall through.
+
+        # action == "agent" (planner declined) or unrecognized -> backend.
+
+    # ── No router verdict (router timed out / unparseable) ─────
+    # Phase A.1 graceful-degrade: even with no router verdict, give
+    # the planner a chance to decompose multi-step intents. If the
+    # planner returns a usable DAG, run it; otherwise proceed to the
+    # backend proxy. This avoids losing tool dispatch entirely when
+    # the router (qwen3:1.7b on the CPU-fallback iGPU lane) takes
+    # longer than its timeout budget under cold-load.
+    if not verdict and PLANNER_ENABLED:
+        dag = await decompose_intent(last_user_text)
+        if dag and (dag.get("nodes") or []):
+            # Re-enter the streaming DAG path by simulating
+            # action=agent. Build inline so we don't duplicate logic.
+            nodes = _topological_order(dag.get("nodes") or [])
+            if streaming:
+                async def _stream_dag2() -> AsyncGenerator[bytes, None]:
+                    yield _sse_status(chat_id=chat_id, model=model,
+                                      emoji="📡", label="prompt")
+                    yield _sse_status(chat_id=chat_id, model=model,
+                                      emoji="📋", label="plan")
+                    yield _sse_chunk("", chat_id=chat_id, model=model,
+                                     role="assistant")
+                    results: list[dict] = []
+                    all_ok = True
+                    for node in nodes:
+                        nid = str(node.get("id", "?"))
+                        tool = str(node.get("tool", "")).strip()
+                        args = node.get("args") or {}
+                        yield _sse_status(
+                            chat_id=chat_id, model=model,
+                            emoji="🛠️", label=f"{nid}:{tool}",
+                        )
+                        attempt = 0
+                        last_result: dict = {}
+                        while attempt <= PLANNER_REFLEXION_CAP:
+                            last_result = await dispatch_mios_verb(tool, args)
+                            if last_result.get("success"):
+                                break
+                            attempt += 1
+                            if attempt <= PLANNER_REFLEXION_CAP:
+                                await asyncio.sleep(0.5)
+                        nres = dict(last_result)
+                        nres["node_id"] = nid
+                        results.append(nres)
+                        if not last_result.get("success"):
+                            all_ok = False
+                            break
+                    env = {
+                        "dag": {
+                            "summary": dag.get("summary", ""),
+                            "nodes_total": len(nodes),
+                            "nodes_executed": len(results),
+                            "success": all_ok,
+                        },
+                        "nodes": results,
+                    }
+                    symbol = "✅" if all_ok else "⚠️"
+                    rendered = (
+                        f"<details type=\"tool_calls\" done=\"true\">\n"
+                        f"<summary>{symbol} dag · {len(nodes)} steps</summary>\n\n"
+                        f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
+                        f"</details>"
+                    )
+                    yield _sse_chunk(rendered, chat_id=chat_id, model=model)
+                    yield _sse_status(chat_id=chat_id, model=model,
+                                      emoji=symbol, label="dag", done=True)
+                    yield _sse_chunk("", chat_id=chat_id, model=model,
+                                     finish_reason="stop")
+                    yield _sse_done()
+                return StreamingResponse(_stream_dag2(),
+                                         media_type="text/event-stream")
+            dag_result = await execute_dag(dag, session_id=session_id)
+            env = {
+                "dag": {
+                    "summary": dag.get("summary", ""),
+                    "nodes_total": dag_result.get("nodes_total", 0),
+                    "nodes_executed": dag_result.get("nodes_executed", 0),
+                    "success": dag_result.get("success", False),
+                },
+                "nodes": dag_result.get("node_results", []),
+            }
+            symbol = "✅" if dag_result.get("success") else "⚠️"
+            rendered = (
+                f"<details type=\"tool_calls\" done=\"true\">\n"
+                f"<summary>{symbol} dag · {env['dag']['nodes_total']} steps</summary>\n\n"
+                f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
+                f"</details>"
+            )
+            return JSONResponse(content={
+                "id": chat_id,
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model,
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": rendered},
+                    "finish_reason": "stop",
+                }],
+            })
 
     # ── AGENT path / fallback -> proxy to backend ──────────────
     headers = {k: v for k, v in request.headers.items()

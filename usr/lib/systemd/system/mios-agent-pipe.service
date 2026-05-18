@@ -24,6 +24,11 @@ Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=hermes-agent
 # doesn't have mios-ollama-igpu standing up (e.g., bare-metal with
 # only NVIDIA dGPU).
 Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11435
+# Phase A.1 -- planner (qwen2.5-coder:7b, function-calling-tuned)
+# runs on the dGPU/CUDA lane :11434 since it needs more headroom +
+# multi-hop reasoning than the iGPU lane's micro-models can supply.
+# Falls back to whatever lane is reachable if :11434 is down.
+Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11434
 Environment=MIOS_DB_URL=http://localhost:8000
 Environment=MIOS_DB_USER=root
 Environment=MIOS_DB_PASS=root
