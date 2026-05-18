@@ -83,8 +83,18 @@ def handle(conn: socket.socket) -> None:
 
         # Protocol:
         #   <command>             -> fire-and-forget; reply "OK\n"
-        #   CAPTURE: <command>    -> run synchronously; capture stdout+stderr;
-        #                            reply with raw output (no OK prefix); close
+        #   CAPTURE: <command>    -> run synchronously; capture stdout+stderr
+        #                            CONCATENATED as bytes (legacy form;
+        #                            kept for backward compat).
+        #   CAPTURE_JSON: <command> -> run synchronously; reply with a
+        #                            single-line JSON object:
+        #                            {"stdout":"...","stderr":"...","exit_code":N}
+        #                            Lets the agent envelope split stdout
+        #                            from stderr cleanly -- English narrative
+        #                            from downstream tools (mios-find, mios-
+        #                            launch, ...) buckets into the stderr
+        #                            field instead of mixing with the
+        #                            tool_result.output structured data.
         # CAPTURE removes the cross-user tempfile dance: broker runs the
         # command in its own context, captures via subprocess.PIPE, sends
         # the bytes back to the caller. No file in /tmp or /run/mios-
@@ -92,6 +102,32 @@ def handle(conn: socket.socket) -> None:
         # 2026-05-15 found that mios cross-user-write to a mios-hermes-
         # owned mode 0666 file fails -- root cause unknown, fix unneeded
         # via this protocol.
+        if line.startswith("CAPTURE_JSON: "):
+            cmd = line[len("CAPTURE_JSON: "):]
+            log.info("capture_json: %s", cmd[:200])
+            env = dict(os.environ)
+            env.setdefault("GDK_BACKEND", "wayland")
+            payload = {"stdout": "", "stderr": "", "exit_code": -1}
+            try:
+                result = subprocess.run(
+                    ["bash", "-lc", cmd],
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=45,
+                    env=env,
+                )
+                payload["stdout"] = result.stdout.decode("utf-8", errors="replace")
+                payload["stderr"] = result.stderr.decode("utf-8", errors="replace")
+                payload["exit_code"] = int(result.returncode)
+            except subprocess.TimeoutExpired:
+                payload["stderr"] = "ERROR: capture timeout (>45s)"
+            except OSError as e:
+                payload["stderr"] = f"ERROR: {e}"
+            # Send as a single JSON line for unambiguous parsing.
+            import json as _json
+            conn.sendall((_json.dumps(payload) + "\n").encode("utf-8"))
+            return
+
         if line.startswith("CAPTURE: "):
             cmd = line[len("CAPTURE: "):]
             log.info("capture: %s", cmd[:200])

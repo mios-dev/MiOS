@@ -1179,11 +1179,12 @@ class Pipe:
                 # actual operator-installed Steam client. mios-launch is
                 # the environment-generative path: games-cache is populated
                 # by mios-apps at runtime, not from a baked priority list.
-                # 2>/dev/null suppresses any stderr narrative (e.g.
-                # "mios-launch: <name> -> <cmd>" diagnostic line); the
-                # tool_result.stderr field will be a future broker-protocol
-                # enhancement so stderr isn't lost on failures.
-                cmd = f"{env_prefix}mios-launch {shlex.quote(name)} 2>/dev/null"
+                # No 2>/dev/null filter -- the broker's CAPTURE_JSON
+                # protocol (used below) now returns stdout / stderr / exit
+                # SEPARATELY, so English narrative on stderr lands in
+                # tool_result.stderr (labeled-as-stderr in the envelope)
+                # instead of polluting tool_result.output.
+                cmd = f"{env_prefix}mios-launch {shlex.quote(name)}"
         elif tool == "launch_app":
             cmd = f"mios-launch {shlex.quote(str(args.get('name', '')))}"
         elif tool == "focus_window":
@@ -1322,7 +1323,13 @@ class Pipe:
                 s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
                 s.settimeout(15.0)
                 s.connect(sock_path)
-                s.sendall(("CAPTURE: " + cmd + "\n").encode())
+                # CAPTURE_JSON: protocol -- broker returns a single
+                # JSON line with {stdout, stderr, exit_code} so we can
+                # bucket English narrative on stderr into its own
+                # envelope field (instead of mixing with structured
+                # tool_result.output). Backward-compat CAPTURE: stays
+                # available on the broker for older callers.
+                s.sendall(("CAPTURE_JSON: " + cmd + "\n").encode())
                 chunks: list[bytes] = []
                 try:
                     while True:
@@ -1334,14 +1341,26 @@ class Pipe:
                 finally:
                     s.close()
                 raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
-                if raw.startswith("ERROR:"):
-                    _result_payload = {"success": False, "stderr": raw}
-                else:
-                    _result_payload = {"success": True,
+                try:
+                    j = json.loads(raw) if raw else {}
+                except json.JSONDecodeError:
+                    j = {}
+                if not j:
+                    _result_payload = {"success": False,
                                        "tool": tool, "args": args,
-                                       "output": raw[:6000]}
+                                       "output": "", "stderr": raw or "broker: empty response"}
+                else:
+                    exit_code = int(j.get("exit_code", -1))
+                    _result_payload = {
+                        "success": exit_code == 0,
+                        "tool": tool, "args": args,
+                        "output": (j.get("stdout") or "")[:6000],
+                        "stderr": (j.get("stderr") or "")[:2000],
+                        "exit_code": exit_code,
+                    }
             except OSError as e:
-                _result_payload = {"success": False, "stderr": f"broker: {e}"}
+                _result_payload = {"success": False, "stderr": f"broker: {e}",
+                                   "output": "", "tool": tool, "args": args}
         # Best-effort SurrealDB write: tool_call row. Carries session id
         # if pipe() opened one this turn (self._session_id). Output is
         # truncated to keep the row compact.

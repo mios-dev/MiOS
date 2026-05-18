@@ -89,7 +89,15 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
         return {"success": False, "exit_code": -1, "stdout": "",
                 "stderr": f"launcher broker socket not present at {LAUNCHER_SOCKET} "
                           "(mios-launcher.service down? container missing the mount?)"}
-    payload = (f"CAPTURE: {line}" if capture else line).encode("utf-8") + b"\n"
+    # CAPTURE_JSON: returns a single JSON line {stdout, stderr, exit_code}
+    # so we get clean per-stream output for the agent envelope (English
+    # narratives from downstream tools land in stderr, structured data
+    # in stdout). Fire-and-forget calls (capture=False) keep the legacy
+    # plain-text protocol ("OK" / "ERROR: ...").
+    if capture:
+        payload = (f"CAPTURE_JSON: {line}").encode("utf-8") + b"\n"
+    else:
+        payload = line.encode("utf-8") + b"\n"
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(timeout)
@@ -109,21 +117,35 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
     except OSError as e:
         return {"success": False, "exit_code": -1,
                 "stdout": "", "stderr": f"broker connect: {e}"}
-    raw = b"".join(chunks).decode("utf-8", errors="replace")
+    raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
     if capture:
-        # CAPTURE mode: raw output (no OK/ERROR framing). Empty reply =
-        # command produced no output (still a success if no error).
-        if raw.startswith("ERROR:"):
-            return {"success": False, "exit_code": -1,
-                    "stdout": "", "stderr": raw.strip()}
-        return {"success": True, "exit_code": 0,
-                "stdout": raw.strip()[:12000], "stderr": ""}
+        # Parse the JSON line. If parsing fails (e.g. broker pre-dates
+        # CAPTURE_JSON support and replied with raw bytes), fall back to
+        # treating the whole reply as stdout.
+        try:
+            j = json.loads(raw) if raw else {}
+        except (json.JSONDecodeError, ValueError):
+            j = {}
+        if not j:
+            # Pre-CAPTURE_JSON fallback path: raw text reply.
+            if raw.startswith("ERROR:"):
+                return {"success": False, "exit_code": -1,
+                        "stdout": "", "stderr": raw}
+            return {"success": True, "exit_code": 0,
+                    "stdout": raw[:12000], "stderr": ""}
+        exit_code = int(j.get("exit_code", -1))
+        return {
+            "success": exit_code == 0,
+            "exit_code": exit_code,
+            "stdout": (j.get("stdout") or "")[:12000],
+            "stderr": (j.get("stderr") or "")[:4000],
+        }
     # Fire-and-forget: "OK\n" or "ERROR: ..."
-    if raw.strip().startswith("OK"):
+    if raw.startswith("OK"):
         return {"success": True, "exit_code": 0,
                 "stdout": "", "stderr": ""}
     return {"success": False, "exit_code": -1,
-            "stdout": "", "stderr": raw.strip() or "broker returned no reply"}
+            "stdout": "", "stderr": raw or "broker returned no reply"}
 
 
 class Tools:
