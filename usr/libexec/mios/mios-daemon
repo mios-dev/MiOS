@@ -165,6 +165,97 @@ def _db_create(table: str, fields: dict, *,
     return sql + ";"
 
 
+# ── inotify wrapper (stdlib ctypes; no pip deps for offline / Day-0) ──
+# Phase A.2 of the AgentOS roadmap: replace the daemon's poll loops
+# with kernel-event-driven mutations. Watches the /var/lib/mios/*
+# scratchpads + state dirs; emits SurrealDB event rows (source=
+# fs-watcher, kind=fs_change) on every change so other agents
+# (agent-pipe critic, future DCI deliberation, ...) can subscribe
+# via `SELECT FROM event WHERE source = 'fs-watcher' AND ts > <last>`
+# instead of polling individual JSON files.
+#
+# Implementation: minimal ctypes wrapper around inotify_init1 +
+# inotify_add_watch + raw read. No pip packages needed -- Day-0 bake
+# carries no extra Python deps for this feature.
+
+import ctypes as _ctypes
+import struct as _struct
+import select as _select
+
+_libc = _ctypes.CDLL("libc.so.6", use_errno=True)
+_libc.inotify_init1.argtypes = [_ctypes.c_int]
+_libc.inotify_init1.restype = _ctypes.c_int
+_libc.inotify_add_watch.argtypes = [_ctypes.c_int, _ctypes.c_char_p, _ctypes.c_uint32]
+_libc.inotify_add_watch.restype = _ctypes.c_int
+
+# /usr/include/sys/inotify.h flags + event mask bits.
+_IN_NONBLOCK = 0x800
+_IN_CLOEXEC = 0x80000
+_IN_CLOSE_WRITE = 0x00000008
+_IN_MOVED_TO    = 0x00000080
+_IN_CREATE      = 0x00000100
+_IN_DELETE      = 0x00000200
+_IN_MOVED_FROM  = 0x00000040
+# Watch every change that could carry agent-relevant state.
+_WATCH_MASK = (_IN_CLOSE_WRITE | _IN_MOVED_TO
+               | _IN_CREATE | _IN_DELETE | _IN_MOVED_FROM)
+_EVENT_HEADER = _struct.Struct("iIII")  # wd, mask, cookie, name_len
+
+# Dirs the daemon (and other agents) write or expect mutations on.
+# Each subdir is treated as a stream. Missing dirs are created so
+# the watch survives Day-0 boot before any agent has populated them.
+_FS_WATCHER_DIRS = [
+    "/var/lib/mios/hermes-tail",
+    "/var/lib/mios/delegation-prefilter",
+    "/var/lib/mios/log-watcher",
+    "/var/lib/mios/daemon",
+    "/var/lib/mios/scratch",
+    "/var/lib/mios/agent-nudger",
+    "/var/lib/mios/cron-director",
+    "/var/lib/mios/ai/scratch",
+]
+
+# Map of mask-bit -> short op name for the SurrealDB event row.
+_OP_NAMES = {
+    _IN_CLOSE_WRITE: "write",
+    _IN_MOVED_TO:    "moved_in",
+    _IN_CREATE:      "create",
+    _IN_DELETE:      "delete",
+    _IN_MOVED_FROM:  "moved_out",
+}
+
+
+def _inotify_init() -> int:
+    fd = _libc.inotify_init1(_IN_NONBLOCK | _IN_CLOEXEC)
+    if fd < 0:
+        raise OSError(_ctypes.get_errno(), "inotify_init1")
+    return fd
+
+
+def _inotify_add(fd: int, path: str, mask: int = _WATCH_MASK) -> int:
+    wd = _libc.inotify_add_watch(fd, path.encode("utf-8"), mask)
+    if wd < 0:
+        raise OSError(_ctypes.get_errno(), f"inotify_add_watch({path})")
+    return wd
+
+
+def _inotify_read(fd: int) -> list[tuple[int, int, int, str]]:
+    """Return list of (wd, mask, cookie, name)."""
+    try:
+        buf = os.read(fd, 8192)
+    except BlockingIOError:
+        return []
+    out: list[tuple[int, int, int, str]] = []
+    i = 0
+    while i < len(buf):
+        wd, mask, cookie, name_len = _EVENT_HEADER.unpack_from(buf, i)
+        i += 16
+        name = buf[i:i + name_len].rstrip(b"\x00").decode("utf-8", errors="replace")
+        i += name_len
+        out.append((wd, mask, cookie, name))
+    return out
+
+
 # ── Shared state (handlers write here; flusher persists) ─────────────
 _state_lock = threading.Lock()
 _state: dict = {
@@ -1015,6 +1106,107 @@ def _render_nudges_md(payload: dict) -> str:
     return "\n".join(out) + "\n"
 
 
+def fs_watcher_loop() -> None:
+    """Phase A.2: kernel-event-driven mutation bus.
+
+    Watches /var/lib/mios/* scratchpads + state dirs via inotify.
+    Each mutation -> one SurrealDB event row with source=fs-watcher,
+    kind=fs_change, payload={path, op, size, preview}. Other agents
+    subscribe via `SELECT FROM event WHERE source = 'fs-watcher'
+    AND ts > <last_seen>` instead of polling individual files.
+
+    Debounces per (path, op) at 1Hz so a noisy write loop doesn't
+    flood the event table. Tolerates missing/added dirs: creates the
+    watched dirs at startup; warnings on add-watch failure don't kill
+    the thread.
+    """
+    # Boot delay: let the rest of the daemon initialize so the
+    # SurrealDB writer is warm before we start firing events.
+    for _ in range(15):
+        if _stop_event.is_set(): return
+        time.sleep(1)
+    try:
+        fd = _inotify_init()
+    except OSError as e:
+        log.warning("inotify_init1 failed (%s); fs-watcher disabled", e)
+        return
+    wd_to_dir: dict[int, str] = {}
+    for d in _FS_WATCHER_DIRS:
+        # Best-effort create. If the parent dir is owned by another
+        # service (e.g. /var/lib/mios/ai owned by mios-hermes) and
+        # root's mkdir lands in a perms-conflict, skip silently --
+        # the dir will be created by its owner agent later, at which
+        # point we can re-add the watch on the next daemon restart.
+        if not os.path.isdir(d):
+            try:
+                Path(d).mkdir(parents=True, exist_ok=True)
+            except OSError:
+                log.info("fs-watcher: skip %s (not present + parent "
+                         "owned by another agent)", d)
+                continue
+        try:
+            wd = _inotify_add(fd, d)
+            wd_to_dir[wd] = d
+            log.info("fs-watcher: watching %s (wd=%d)", d, wd)
+        except OSError as e:
+            log.warning("fs-watcher: %s -> %s", d, e)
+    if not wd_to_dir:
+        log.warning("fs-watcher: no dirs registered; thread exiting")
+        return
+    last_emit: dict[str, float] = {}
+    DEBOUNCE_S = 1.0
+    while not _stop_event.is_set():
+        try:
+            r, _, _ = _select.select([fd], [], [], 1.0)
+            if not r:
+                continue
+            for wd, mask, _cookie, name in _inotify_read(fd):
+                dir_path = wd_to_dir.get(wd)
+                if not dir_path:
+                    continue
+                full = os.path.join(dir_path, name) if name else dir_path
+                # Pick the most informative op-name for the mask.
+                op = next(
+                    (n for bit, n in _OP_NAMES.items() if mask & bit),
+                    f"mask={mask:#x}",
+                )
+                key = f"{full}|{op}"
+                now = time.time()
+                if last_emit.get(key, 0.0) > now - DEBOUNCE_S:
+                    continue
+                last_emit[key] = now
+                size = 0
+                preview = ""
+                if op in ("write", "moved_in", "create"):
+                    try:
+                        st = os.stat(full)
+                        size = int(st.st_size)
+                        if size > 0 and st.st_mode & 0o4444:
+                            with open(full, "rb") as f:
+                                preview = f.read(500).decode(
+                                    "utf-8", errors="replace")
+                    except OSError:
+                        pass
+                row = {
+                    "source": "fs-watcher",
+                    "kind": "fs_change",
+                    "severity": "info",
+                    "summary": f"{op}: {full}",
+                    "payload": {
+                        "path": full,
+                        "op": op,
+                        "mask": int(mask),
+                        "size": size,
+                        "preview": preview[:500],
+                    },
+                }
+                _db_post(_db_create("event", row, now_fields=("ts",)))
+        except Exception as e:
+            log.warning("fs-watcher iter: %s", e)
+            # Brief backoff so a persistent OS error doesn't spin.
+            time.sleep(2)
+
+
 def task_collector_loop() -> None:
     """5-min cadence aggregator + nudger. See module docstring above."""
     # Boot delay -- let mios-daemon settle, sessions populate.
@@ -1219,6 +1411,7 @@ def main() -> int:
         threading.Thread(target=suggestions_loop, daemon=True, name="suggestions"),
         threading.Thread(target=launch_verifier_loop, daemon=True, name="launch_verifier"),
         threading.Thread(target=task_collector_loop, daemon=True, name="task_collector"),
+        threading.Thread(target=fs_watcher_loop, daemon=True, name="fs_watcher"),
     ]
     for t in threads:
         t.start()
