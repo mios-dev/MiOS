@@ -1,0 +1,30 @@
+# /usr/lib/systemd/user/mios-wsl-flatpak-heal.service
+#
+# Phase E.2 of the AgentOS roadmap: keep WSL2g flatpak portal
+# stack warm so flatpak launches don't die at sandbox-credential
+# bootstrap. Operator-flagged 2026-05-18 root cause: flatpak-
+# portal.service idle-times out (~10-18min) without dbus auto-
+# activation re-firing it; every subsequent flatpak fails.
+#
+# Runs as a USER systemd unit (the portals are per-user). Paired
+# with mios-wsl-flatpak-heal.timer for a 5-min cadence, and can
+# also be triggered explicitly via `systemctl --user start
+# mios-wsl-flatpak-heal.service`.
+#
+# Idempotent: the heal script no-ops when services are already
+# active.
+
+[Unit]
+Description='MiOS' WSL2g flatpak portal heal -- restart inactive portals
+Documentation=file:///usr/libexec/mios/mios-wsl-flatpak-heal
+ConditionPathExists=/usr/libexec/mios/mios-wsl-flatpak-heal
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-wsl-flatpak-heal
+# Heal failures are not session-fatal -- log + continue, the next
+# tick or the agent's pre-launch heal will try again.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=graphical-session.target

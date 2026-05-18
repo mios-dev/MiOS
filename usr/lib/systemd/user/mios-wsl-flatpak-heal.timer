@@ -1,0 +1,24 @@
+# /usr/lib/systemd/user/mios-wsl-flatpak-heal.timer
+#
+# Cadence: every 5 minutes. Tight enough that the heal fires
+# before flatpak-portal's typical idle timeout (~10 min) lets it
+# go dormant; loose enough that the heal itself doesn't churn
+# the portal stack.
+#
+# Activated on graphical-session.target so headless WSL distros
+# (CI runners, etc.) don't try to keep portals warm they never
+# use.
+
+[Unit]
+Description='MiOS' WSL2g flatpak portal heal cadence
+Documentation=file:///usr/libexec/mios/mios-wsl-flatpak-heal
+
+[Timer]
+OnActiveSec=30s
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=mios-wsl-flatpak-heal.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
