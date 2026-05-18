@@ -42,9 +42,26 @@ import json
 import os
 import shlex
 import socket
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+# Phase-3 migration (operator directive 2026-05-18: "What's ALL NATIVE
+# to OpenAI API and industry standards"): typed Literal[...] enums
+# replace SOUL.md prose rules. OWUI's introspector emits these as
+# JSONSchema `enum: [...]` constraints; strict-mode function calling
+# enforces them client-side -- the model CANNOT emit an invalid
+# position value, so the schema teaches the surface instead of a
+# 700-line rule book.
+PositionLiteral = Literal[
+    "as-is",
+    "center", "left", "right", "top", "bottom",
+    "top-left", "top-right", "bottom-left", "bottom-right",
+    "maximize",
+]
+CloseModeLiteral = Literal["graceful", "force"]
+ScreenshotTargetLiteral = Literal["primary", "active-window", "all-monitors"]
+ScreenshotActionLiteral = Literal["save", "clipboard", "open"]
 
 
 LAUNCHER_SOCKET = os.environ.get(
@@ -291,3 +308,229 @@ class Tools:
                 "success": False,
                 "stderr": result.get("stderr", "") or f"non-JSON from mios-system-status: {raw[:300]}",
             })
+
+    # ─── PHASE-3 typed window/launch surface (operator directive
+    # 2026-05-18: native OpenAI strict function-calling with enum
+    # positions; replaces SOUL.md prose rules + env-var preludes
+    # like `MIOS_LAUNCH_POSITION=top-right mios-find ... | bash`). ──
+
+    async def open_app(
+        self,
+        name: str,
+        position: PositionLiteral = "as-is",
+        args: Optional[list[str]] = None,
+        monitor: int = 0,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Open a desktop app on the operator's screen, optionally
+        placing the window. Works for Windows apps (Steam/Epic/Xbox/
+        protocol-handlers/.exe) and Linux GUI apps (any /usr/bin/<bin>
+        via WSLg). Use this instead of `launch_app` when you ALSO
+        want to control the window position; use `launch_app` when
+        the operator only asked to launch (no placement).
+
+        :param name: App name or substring (case-insensitive). Resolved
+            through the canonical launch chain (Windows games inventory
+            / start menu / MiOS shim / Linux PATH).
+        :param position: Where to place the new window on the chosen
+            monitor. 'as-is' = leave wherever the OS spawned it
+            (no MoveWindow call). 'maximize' = full WorkingArea.
+        :param args: Extra positional arguments (e.g. file path for
+            `notepad`). Empty list / None = no extra args.
+        :param monitor: 0-indexed monitor to target (0 = primary).
+            Out-of-range values fall back to primary.
+        :return: JSON {success, target, broker_output, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        # Build the broker invocation: MIOS_LAUNCH_POSITION env +
+        # extra args after the name.
+        env_prefix = ""
+        if position and position != "as-is":
+            env_prefix = f"MIOS_LAUNCH_POSITION={shlex.quote(position)} "
+        # mios-find returns a shell-line for the named app; pipe to
+        # bash so it executes. Extra args concat after the resolved
+        # command would need a different path -- for now, when args
+        # are present, dispatch via mios-windows launch directly.
+        if args:
+            extra = " ".join(shlex.quote(a) for a in args)
+            cmd = f"{env_prefix}mios-windows launch {shlex.quote(name)} {extra}"
+        else:
+            cmd = f"{env_prefix}mios-find {shlex.quote(name)} | bash"
+        result = _broker_send(cmd, timeout=self.valves.LAUNCH_TIMEOUT_S, capture=True)
+        target = ""
+        for line in (result.get("stdout") or "").splitlines():
+            if "launched" in line.lower() or " -> " in line:
+                target = line.strip()[:300]
+                break
+        return json.dumps({
+            "success": result["success"],
+            "target": target,
+            "broker_output": (result.get("stdout") or "")[:600],
+            "stderr": result.get("stderr", ""),
+        })
+
+    async def focus_window(
+        self,
+        title: str,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Bring an existing window to the foreground by title pattern.
+        Substring + case-insensitive match.
+
+        :param title: Title pattern. First match wins.
+        :return: JSON {success, hwnd, title, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        cmd = f"mios-window focus {shlex.quote(title)}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "output": (result.get("stdout") or "")[:500],
+            "stderr": result.get("stderr", ""),
+        })
+
+    async def move_window(
+        self,
+        title: str,
+        position: PositionLiteral,
+        monitor: int = 0,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Move an existing window to a canonical position on the
+        chosen monitor. Substring + case-insensitive title match.
+
+        :param title: Title pattern of the window to move.
+        :param position: Canonical position enum (center/left/right/
+            top/bottom/top-left/top-right/bottom-left/bottom-right/
+            maximize). 'as-is' is a noop for this verb.
+        :param monitor: 0-indexed monitor (0 = primary).
+        :return: JSON {success, hwnd, applied_position, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        if position == "as-is":
+            return json.dumps({"success": True, "applied_position": "as-is",
+                               "stderr": "noop"})
+        # mios-window has subcommands matching the enum names.
+        cmd = f"mios-window {shlex.quote(position)} {shlex.quote(title)}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "applied_position": position,
+            "output": (result.get("stdout") or "")[:500],
+            "stderr": result.get("stderr", ""),
+        })
+
+    async def close_window(
+        self,
+        title: str,
+        mode: CloseModeLiteral = "graceful",
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Close a window by title pattern. Graceful (WM_CLOSE) lets
+        the app save state; force (TerminateProcess) drops unsaved
+        work and bypasses any save-prompt. NEVER use this on MiOS
+        infrastructure (hermes-agent / mios-open-webui / ollama /
+        mios-daemon / mios-launcher) -- those drop the conversation.
+        Use `mios-restart <svc>` for graceful service restarts.
+
+        :param title: Window title pattern. First match wins.
+        :param mode: 'graceful' (WM_CLOSE; default) or 'force'
+            (TerminateProcess; only when graceful failed).
+        :return: JSON {success, mode, output, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        subcmd = "close" if mode == "graceful" else "kill"
+        cmd = f"mios-window {subcmd} {shlex.quote(title)}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "mode": mode,
+            "output": (result.get("stdout") or "")[:500],
+            "stderr": result.get("stderr", ""),
+        })
+
+    async def list_windows(
+        self,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Enumerate visible top-level windows on the operator's
+        desktop. Use this to disambiguate when the operator's title
+        pattern matches multiple windows, or to verify a window is
+        actually presented.
+
+        :return: JSON {success, windows: [{hwnd, title, pid,
+            monitor, visible}], stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        result = _broker_send("mios-pc-control window-list",
+                              timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        raw = (result.get("stdout") or "").strip()
+        try:
+            parsed = json.loads(raw)
+            return json.dumps({"success": True, "windows": parsed})
+        except (json.JSONDecodeError, ValueError):
+            return json.dumps({
+                "success": result["success"],
+                "output": raw[:2000],
+                "stderr": result.get("stderr", ""),
+            })
+
+    async def screen_layout(
+        self,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Report the operator's monitor layout so the model can
+        reason about which monitor is which when positioning windows.
+
+        :return: JSON {success, monitors: [{index, width, height,
+            primary, scale}], primary_index, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        result = _broker_send("mios-pc-control screen-layout",
+                              timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        raw = (result.get("stdout") or "").strip()
+        try:
+            parsed = json.loads(raw)
+            return json.dumps({"success": True, **parsed})
+        except (json.JSONDecodeError, ValueError):
+            return json.dumps({
+                "success": result["success"],
+                "output": raw[:1000],
+                "stderr": result.get("stderr", ""),
+            })
+
+    async def open_url(
+        self,
+        url: str,
+        browser: Optional[str] = None,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Open a URL in the operator's MiOS-defined default browser
+        (visible). NEVER use `browser_navigate` for operator-visible
+        browsing -- that drives a headless CDP session the operator
+        can't see.
+
+        :param url: Absolute URL to open (http/https/file/etc).
+        :param browser: Override the default browser name (e.g.
+            'chromedev'). None = use mios.toml [[desktop.apps]]
+            role=browser default=true.
+        :return: JSON {success, url, browser, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        cmd = f"mios-open-url {shlex.quote(url)}"
+        if browser:
+            cmd += f" {shlex.quote(browser)}"
+        result = _broker_send(cmd, timeout=self.valves.LAUNCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "url": url,
+            "browser": browser or "(default)",
+            "stderr": result.get("stderr", ""),
+        })

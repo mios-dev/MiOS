@@ -186,6 +186,118 @@ def main() -> int:
                 "required": [],
             },
         },
+        # ── PHASE-3 typed window/launch surface ────────────────────
+        # Operator directive 2026-05-18 (native OpenAI strict
+        # function-calling with enum positions; replaces SOUL.md
+        # prose + env-var preludes). The `position` enum is the
+        # SAME shape as the PositionLiteral in mios_verbs.py source
+        # -- the model's tool_call surface becomes the rule book.
+        {
+            "name": "open_app",
+            "description": "Open a desktop app on the operator's screen, optionally placing the window. Use this instead of launch_app when ALSO controlling position. Works for Windows apps (Steam/Epic/Xbox/protocol-handlers/.exe) and Linux GUI apps via WSLg.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string",
+                             "description": "App name or substring (case-insensitive)."},
+                    "position": {
+                        "type": "string",
+                        "enum": ["as-is", "center", "left", "right", "top", "bottom",
+                                 "top-left", "top-right", "bottom-left", "bottom-right",
+                                 "maximize"],
+                        "default": "as-is",
+                        "description": "Where to place the new window. 'as-is' = no MoveWindow; 'maximize' = full WorkingArea.",
+                    },
+                    "args": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Extra positional arguments (e.g. a file path for notepad).",
+                    },
+                    "monitor": {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "0-indexed monitor (0=primary).",
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+        {
+            "name": "focus_window",
+            "description": "Bring an existing window to the foreground by title pattern. Case-insensitive substring match; first match wins.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Title pattern."},
+                },
+                "required": ["title"],
+            },
+        },
+        {
+            "name": "move_window",
+            "description": "Move an existing window to a canonical position. Substring + case-insensitive title match.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Title pattern."},
+                    "position": {
+                        "type": "string",
+                        "enum": ["as-is", "center", "left", "right", "top", "bottom",
+                                 "top-left", "top-right", "bottom-left", "bottom-right",
+                                 "maximize"],
+                        "description": "Canonical position. 'as-is' is a noop.",
+                    },
+                    "monitor": {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "0-indexed monitor (0=primary).",
+                    },
+                },
+                "required": ["title", "position"],
+            },
+        },
+        {
+            "name": "close_window",
+            "description": "Close a window by title pattern. Graceful (WM_CLOSE) lets the app save state; force (TerminateProcess) drops unsaved work. NEVER on MiOS infrastructure (hermes-agent / mios-open-webui / ollama / mios-daemon / mios-launcher) -- use `mios-restart <svc>` instead.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Title pattern."},
+                    "mode": {
+                        "type": "string",
+                        "enum": ["graceful", "force"],
+                        "default": "graceful",
+                        "description": "graceful = WM_CLOSE; force = TerminateProcess.",
+                    },
+                },
+                "required": ["title"],
+            },
+        },
+        {
+            "name": "list_windows",
+            "description": "Enumerate visible top-level windows. Use to disambiguate when a title pattern matches multiple, or to verify a window is presented.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+        {
+            "name": "screen_layout",
+            "description": "Report monitor layout (count + dims + primary index). Use to reason about which monitor is which when positioning windows.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+        {
+            "name": "open_url",
+            "description": "Open a URL in the operator's MiOS-defined default browser (visible). NEVER use browser_navigate for operator-visible browsing -- that's headless CDP.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Absolute URL (http/https/file/etc)."},
+                    "browser": {
+                        "type": "string",
+                        "description": "Override the default browser (e.g. 'chromedev'). Empty = mios.toml default.",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
     ]
 
     meta = {
