@@ -152,7 +152,7 @@ class Pipe:
         )
         EMIT_STATUS: bool = Field(
             default=True,
-            description="Emit status events ('refining...', 'dispatching to hermes...', tool calls).",
+            description="Emit status events (🧠 refine, 🧠 → hermes, 🛠️ tool, 🎨 polish, ✅). Symbol+term form, locale-neutral.",
         )
         EMIT_HERMES_TAIL: bool = Field(
             default=True,
@@ -200,8 +200,8 @@ class Pipe:
             description="If the raw agent output is shorter than this and contains no narration markers, pass through unpolished -- no value in spinning up the CPU model for a one-liner result.",
         )
         AGENT_THINKING_LABEL: str = Field(
-            default="🧠 MiOS-Hermes thinking + tools (click to expand)",
-            description="The <summary> rendered above the collapsed reasoning block. Per-agent label so the operator can tell which agent (hermes / opencode / etc.) produced the thinking.",
+            default="🧠 MiOS-Hermes",
+            description="The <summary> rendered above the collapsed reasoning block. Per-agent label so the operator can tell which agent (hermes / opencode / etc.) produced the thinking. Kept short + symbol-led so it reads the same across operator locales (operator directive 2026-05-17 GLOBAL SWEEP for hardcoded English).",
         )
 
     def __init__(self):
@@ -284,19 +284,58 @@ class Pipe:
     # gate -> triggered the dashboard rule and the agent dumped
     # mios-system-status as the answer to a greeting. Both ' (U+0027)
     # and ' (U+2019) now match the optional apostrophe slot.
+    # Operator directive 2026-05-17: GLOBAL SWEEP to remove hardcoded
+    # English. The conversational gate now matches greetings/acks/
+    # farewells across the languages the operator's chats commonly
+    # use. New languages can be added without code review by editing
+    # the alternation. The bare-name list (hi, hola, etc.) covers
+    # standalone tokens; the phrase list covers multi-word openers.
     _CONVERSATIONAL_RE = re.compile(
-        r"^\s*(hi|hello|hey|yo|howdy|sup|gm|gn|"
-        r"good (morning|afternoon|evening|night)|"
-        r"ok|okay|kk|alright|"
-        r"thanks|thx|ty|thank you|"
-        r"cool|nice|great|got it|sounds good|sgtm|"
-        r"sure|yes|no|yep|nope|yeah|nah|"
+        # English / generic
+        r"^\s*(hi|hello|hey|yo|howdy|sup|gm|gn|ok|okay|kk|alright|"
+        r"thanks|thx|ty|thank you|cool|nice|great|got it|"
+        r"sounds good|sgtm|sure|yes|no|yep|nope|yeah|nah|"
         r"bye|cya|goodbye|later|peace|seeya|"
-        r"what[’']?s (up|new|good|happening)|"
+        r"good (morning|afternoon|evening|night)|"
+        r"what[’']?s (up|new|good|happening|going on)|"
         r"how['’]?s (it going|things|things today|things going|life|stuff)|"
-        r"how (are|have|you been|are things|are you|are ya|you doing|you been|is it going|is everything)|"
-        r"what'?s (going on|happening)|"
-        r"what do you (want|wanna|got|need))[!?.,\s]*$",
+        r"how (are|have|you been|are things|are you|are ya|"
+        r"you doing|you been|is it going|is everything)|"
+        r"what do you (want|wanna|got|need)|"
+        # Spanish / Portuguese
+        r"hola|holi|holaaa+|buenas|buenos d[ií]as|buenas (tardes|noches)|"
+        r"gracias|de nada|adi[óo]s|chao|chau|hasta luego|qu[eé] tal|"
+        r"c[óo]mo (est[áa]s|va|andas)|todo bien|vale|s[íi]|"
+        r"ol[áa]|bom dia|boa (tarde|noite)|obrigad[oa]|tudo bem|tchau|"
+        # French
+        r"salut|bonjour|bonsoir|bonne nuit|merci|merci beaucoup|"
+        r"de rien|au revoir|[àa] bient[oô]t|[çc]a va|comment [çc]a va|d[’']accord|oui|non|"
+        # Italian
+        r"ciao|salve|buongiorno|buonasera|buonanotte|"
+        r"grazie|prego|arrivederci|come stai|come va|s[íi]|"
+        # German / Dutch / Nordics
+        r"hallo|hi+|moin|servus|gr[üu][sß] (dich|gott)|guten (morgen|tag|abend)|"
+        r"danke|bitte|tsch[üu]ss|auf wiedersehen|wie geht.?s|"
+        r"hej|hej hej|hejs[åa]|tack|farv[ée]l|"
+        r"hallo|hoi|dag|dankjewel|doei|"
+        # Slavic (Latin transliteration tolerated; native scripts below)
+        r"czesc|cze[śs][ćc]|dzi[ęe]kuj[ęe]|do widzenia|"
+        r"ahoj|d[ěe]kuji|d[ěe]k|nashledanou|"
+        # Asian (Latin)
+        r"ohayou?|konnichiwa|konbanwa|sayounara|arigatou?|"
+        r"annyeong(haseyo)?|kamsahamnida|"
+        r"ni hao|xie ?xie|zai ?jian|"
+        # Other / multilingual
+        r"namaste|namaskar|shukriya|dhanyavaad|"
+        r"shalom|toda|"
+        r"mahalo|aloha)[!?.,\s]*$"
+        # Native-script openers (single-line)
+        r"|^\s*(?:привет|здравствуй(те)?|спасибо|пока|до свидания)[!?.,\s]*$"
+        r"|^\s*(?:你好|您好|嗨|哈罗|谢谢|再见)[!?.,\s]*$"
+        r"|^\s*(?:こんにちは|こんばんは|おはよう(ございます)?|ありがとう(ございます)?|さようなら|またね)[!?.,\s]*$"
+        r"|^\s*(?:안녕(하세요)?|반갑습니다|감사합니다|고마워(요)?|잘 ?가)[!?.,\s]*$"
+        r"|^\s*(?:مرحبا|أهلا|السلام عليكم|شكرا|وداعا)[!?.,\s]*$"
+        r"|^\s*(?:שלום|תודה|להתראות)[!?.,\s]*$",
         re.IGNORECASE,
     )
 
@@ -743,10 +782,10 @@ class Pipe:
         if not raw_output or not raw_output.strip():
             return raw_output
         if self._polish_can_skip(raw_output):
-            await self._emit(emitter, "✓ short clean output -- skipping polish")
+            await self._emit(emitter, "✓ clean → skip polish")
             return raw_output
 
-        await self._emit(emitter, f"🎨 MiOS-Agent: polishing final answer via {self.valves.POLISH_MODEL} (CPU)...")
+        await self._emit(emitter, f"🎨 polish ← {self.valves.POLISH_MODEL} (CPU)")
 
         body = {
             "model": self.valves.POLISH_MODEL,
@@ -777,26 +816,26 @@ class Pipe:
                     headers={"Content-Type": "application/json"},
                 ) as resp:
                     if resp.status != 200:
-                        await self._emit(emitter, f"⚠️ polish HTTP {resp.status} -- using raw")
+                        await self._emit(emitter, f"⚠️ polish HTTP {resp.status} → raw")
                         return raw_output
                     data = await resp.json()
         except asyncio.TimeoutError:
-            await self._emit(emitter, "⏱️  polish timeout -- using raw")
+            await self._emit(emitter, "⏱️ polish timeout → raw")
             return raw_output
         except Exception as e:
-            await self._emit(emitter, f"⚠️ polish {type(e).__name__} -- using raw")
+            await self._emit(emitter, f"⚠️ polish {type(e).__name__} → raw")
             return raw_output
 
         msg = (data.get("message") or {})
         polished = (msg.get("content") or msg.get("thinking") or "").strip()
         if not polished:
-            await self._emit(emitter, "⚠️ polish returned empty -- using raw")
+            await self._emit(emitter, "⚠️ polish=∅ → raw")
             return raw_output
 
         # Sanity check: if polish is suspiciously short vs raw, suspect
         # truncation; pass raw through with a one-line summary header.
         if len(polished) < min(40, len(raw_output) // 10):
-            await self._emit(emitter, "⚠️ polish too short -- using raw")
+            await self._emit(emitter, "⚠️ polish too short → raw")
             return raw_output
 
         # Strip the outer ```markdown ... ``` wrapper if the model
@@ -870,13 +909,11 @@ class Pipe:
         if not self.valves.REFINE_ENABLED or not user_text:
             return user_text
         if self.valves.REFINE_SKIP_SHORT and self._looks_conversational(user_text):
-            await self._emit(emitter,
-                f"💬 MiOS-Agent: conversational opener -- skipping refine")
+            await self._emit(emitter, "💬 → skip refine")
             return user_text
 
         model = self.valves.REFINE_MODEL
-        await self._emit(emitter,
-            f"🧠 MiOS-Agent: refining via {model} (CPU)...")
+        await self._emit(emitter, f"🧠 refine ← {model} (CPU)")
         payload = {
             "model": model,
             "messages": [
@@ -900,7 +937,7 @@ class Pipe:
                                   headers={"Content-Type": "application/json"}) as r:
                     if r.status != 200:
                         await self._emit(emitter,
-                            f"⚠️ refine: ollama {r.status} -- passing original")
+                            f"⚠️ refine ollama {r.status} → original")
                         return user_text
                     body = await r.json()
             msg = body.get("message") or {}
@@ -910,19 +947,18 @@ class Pipe:
                 # thinking field has the trace. Use it but mark.
                 refined = (msg.get("thinking") or msg.get("reasoning") or "").strip()
             if not refined:
-                await self._emit(emitter,
-                    "⚠️ refine: empty output -- passing original")
+                await self._emit(emitter, "⚠️ refine=∅ → original")
                 return user_text
             await self._emit(emitter,
-                f"✓ refined {len(user_text)}c -> {len(refined)}c (CPU)")
+                f"✓ refine {len(user_text)}c → {len(refined)}c (CPU)")
             return refined
         except asyncio.TimeoutError:
             await self._emit(emitter,
-                f"⏱️  refine: timeout after {self.valves.REFINE_TIMEOUT_S}s -- passing original")
+                f"⏱️ refine timeout {self.valves.REFINE_TIMEOUT_S}s → original")
             return user_text
         except Exception as e:
             await self._emit(emitter,
-                f"⚠️ refine: {type(e).__name__} -- passing original")
+                f"⚠️ refine {type(e).__name__} → original")
             return user_text
 
     async def _raw_passthrough(
@@ -991,9 +1027,9 @@ class Pipe:
                         piece = delta.get("content") or ""
                         if piece:
                             yield piece
-            await self._emit(emitter, "✅ task-gen done", done=True)
+            await self._emit(emitter, "✅ task-gen", done=True)
         except asyncio.TimeoutError:
-            await self._emit(emitter, "⏱️  task-gen timeout", done=True)
+            await self._emit(emitter, "⏱️ task-gen timeout", done=True)
             yield ""
         except Exception as e:
             await self._emit(emitter,
@@ -1060,13 +1096,17 @@ class Pipe:
 
         if is_task_gen:
             await self._emit(__event_emitter__,
-                f"⚙️  task-gen ({task_kind}) -> CPU {self.valves.REFINE_MODEL} "
-                f"(NOT hermes)")
+                f"⚙️ task-gen ({task_kind}) → CPU {self.valves.REFINE_MODEL}")
             async for chunk in self._raw_passthrough(body, __event_emitter__):
                 yield chunk
             return
 
-        await self._emit(__event_emitter__, "📡 MiOS-Agent: receiving prompt...")
+        # Status emits use short symbol+term form, no English narrative
+        # (operator directive 2026-05-17: GLOBAL SWEEP -- "remove any
+        # hardcoded english (other than generic technically accurate
+        # terminologies)"). Tool/model names stay since they're
+        # cross-locale identifiers; verbs like "receiving" -> emoji.
+        await self._emit(__event_emitter__, "📡 prompt")
 
         body = dict(body)
         body["model"] = self.valves.BACKEND_MODEL
@@ -1104,7 +1144,7 @@ class Pipe:
         if self.valves.BACKEND_KEY:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
-        await self._emit(__event_emitter__, "🧠 MiOS-Agent: dispatching to hermes...")
+        await self._emit(__event_emitter__, "🧠 → hermes")
 
         # Unbounded sock_read (LLM stream can idle 10s+ between chunks on
         # CPU); only sock_connect bounded so we don't hang if the backend
@@ -1182,14 +1222,14 @@ class Pipe:
             raw_text = raw_buffer.strip()
 
             if not any_text or not raw_text:
-                yield "_(MiOS-Agent: backend returned no content)_"
-                await self._emit(__event_emitter__, "✅ MiOS-Agent: done", done=True)
+                yield "_⚠️ ∅_"
+                await self._emit(__event_emitter__, "✅", done=True)
                 return
 
             # If polish is OFF, the legacy flow already emitted text
             # via yield above; nothing more to do.
             if not self.valves.POLISH_ENABLED:
-                await self._emit(__event_emitter__, "✅ MiOS-Agent: done", done=True)
+                await self._emit(__event_emitter__, "✅", done=True)
                 return
 
             # Polish: CPU pass to clean narration + surface concrete
@@ -1209,23 +1249,23 @@ class Pipe:
             )
             yield polished
 
-            await self._emit(__event_emitter__, "✅ MiOS-Agent: done", done=True)
+            await self._emit(__event_emitter__, "✅", done=True)
         except asyncio.TimeoutError:
             # Close the <details> if we opened one, otherwise OWUI
             # renders the rest of the message as collapsed-reasoning.
             if self.valves.POLISH_ENABLED:
                 yield "\n</details>\n\n"
             await self._emit(__event_emitter__,
-                             f"⏱️  timeout after {self.valves.TIMEOUT_S}s",
+                             f"⏱️ {self.valves.TIMEOUT_S}s",
                              done=True)
-            yield f"\n\n_(MiOS-Agent: backend timed out)_"
+            yield f"\n\n_⏱️ {self.valves.TIMEOUT_S}s_"
         except Exception as e:
             if self.valves.POLISH_ENABLED:
                 yield "\n</details>\n\n"
             await self._emit(__event_emitter__,
-                             f"❌ pipe error: {type(e).__name__}: {e}",
+                             f"❌ {type(e).__name__}: {e}",
                              done=True)
-            yield f"\n\n_(MiOS-Agent: pipe error: {type(e).__name__}: {e})_"
+            yield f"\n\n_❌ {type(e).__name__}: {e}_"
         finally:
             stop_tail.set()
             try:
