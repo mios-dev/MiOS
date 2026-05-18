@@ -1397,6 +1397,192 @@ def _on_signal(signum, _frame):
     _stop_event.set()
 
 
+# ── Satisfaction monitor (Phase E.1 -- daemon-side goal tracking) ───
+# Operator directive 2026-05-18: "mios-daemon/agent should be
+# monitoring successes and stopping work if ALL criteria is met and
+# goals set are completed/tasks/user queries are satisfied".
+#
+# Polls SurrealDB.event for kind=refine rows (each user query goes
+# through agent-pipe's refine pass which writes one of these). For
+# every refine that doesn't yet have a corresponding satisfaction
+# verdict, AND-fold the post-refine tool_call.success values from
+# the same session. Emit:
+#
+#   event kind=user_query_satisfied   severity=info
+#     payload={refine_id, intended_outcome, tool_calls_checked,
+#              all_succeeded: true}
+#
+#   event kind=user_query_unsatisfied severity=warn
+#     payload={refine_id, intended_outcome, tool_calls_checked,
+#              failed_tools: [...], stderr_preview: ...}
+#
+# agent-pipe + Hermes can SUBSCRIBE to these (poll the event table
+# or pick up via the Phase A.2 inotify event bus) and halt-on-
+# satisfied OR surface-failure-explicitly. The audit row also lets
+# the operator query post-hoc: "show me all unsatisfied goals from
+# the last day".
+SATISFACTION_TICK_S = float(os.environ.get(
+    "MIOS_DAEMON_SATISFACTION_TICK_S", "30"))
+SATISFACTION_LOOKBACK_MIN = int(os.environ.get(
+    "MIOS_DAEMON_SATISFACTION_LOOKBACK_MIN", "10"))
+
+
+def _ok_result(db_response) -> list:
+    """Extract the result rows from a _db_post response, returning
+    [] when the response is None / errored / status != OK / result is
+    not a list. Defensive: SurrealDB returns the error string in the
+    `result` field when status=ERR, which would crash iteration
+    expecting dicts."""
+    if not db_response:
+        return []
+    last = db_response[-1] or {}
+    if last.get("status") != "OK":
+        return []
+    rows = last.get("result")
+    return rows if isinstance(rows, list) else []
+
+
+def _scan_unverified_refines(lookback_min: int) -> list[dict]:
+    """Pull refine events that haven't yet been satisfaction-checked.
+    Returns oldest-first so the loop processes a fresh deploy in
+    chronological order."""
+    sql = (
+        f"SELECT id, ts, payload FROM event "
+        f"WHERE kind = 'refine' "
+        f"  AND ts > time::now() - {int(lookback_min)}m "
+        f"ORDER BY ts ASC LIMIT 50;"
+    )
+    refines = _ok_result(_db_post(sql))
+    # Filter out refines that already have a satisfaction event
+    # referencing their id. SurrealDB doesn't have a JOIN; do it in
+    # a second query against the recent satisfaction events.
+    sat_sql = (
+        f"SELECT payload FROM event "
+        f"WHERE kind IN ['user_query_satisfied','user_query_unsatisfied'] "
+        f"  AND ts > time::now() - {int(lookback_min)}m "
+        f"LIMIT 200;"
+    )
+    seen_refine_ids: set = set()
+    for sr in _ok_result(_db_post(sat_sql)):
+        if not isinstance(sr, dict):
+            continue
+        rid = ((sr.get("payload") or {}).get("refine_id"))
+        if rid:
+            seen_refine_ids.add(str(rid))
+    return [
+        r for r in refines
+        if isinstance(r, dict)
+        and str(r.get("id")) not in seen_refine_ids
+    ]
+
+
+def _tool_calls_for_refine(refine_ts: str,
+                           lookback_after_min: int = 5) -> list[dict]:
+    """Pull tool_call rows that landed AFTER a refine event in the
+    same session. The refine event's payload doesn't directly link
+    to a session_id (refine runs on the prompt, session is opened
+    separately), so we fall back to a ts-window match: tool_calls
+    within `lookback_after_min` minutes after the refine.
+    Best-effort -- if the linkage misses, the satisfaction verdict
+    is "no_tools_seen" rather than wrong."""
+    sql = (
+        f"SELECT id, ts, tool, args, success, exit_code, "
+        f"result_preview FROM tool_call "
+        f"WHERE ts > '{refine_ts}' "
+        f"  AND ts < '{refine_ts}' + {int(lookback_after_min)}m "
+        f"ORDER BY ts ASC LIMIT 20;"
+    )
+    return [r for r in _ok_result(_db_post(sql)) if isinstance(r, dict)]
+
+
+def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
+    """AND-fold tool_call outcomes against the refined plan + emit
+    the appropriate satisfaction event. Returns the emitted kind
+    so the caller can log the verdict count."""
+    refine_id = refine_row.get("id")
+    payload = refine_row.get("payload") or {}
+    intended = payload.get("intended_outcome", "") or ""
+    intent = payload.get("intent", "") or ""
+
+    # No tools after refine: can't AND-fold. For intent=chat this is
+    # EXPECTED (no tool dispatch needed); for intent=agent/dispatch
+    # it's a missing-signal case.
+    if not tool_calls:
+        if intent == "chat":
+            kind = "user_query_satisfied"
+            severity = "info"
+            extra = {"reason": "chat_no_tools_expected"}
+        else:
+            kind = "user_query_unsatisfied"
+            severity = "warn"
+            extra = {"reason": "no_tools_seen",
+                     "lookback_min": SATISFACTION_LOOKBACK_MIN}
+    else:
+        failed = [
+            {"tool": tc.get("tool"),
+             "exit_code": tc.get("exit_code"),
+             "stderr_preview": (tc.get("result_preview") or "")[:200]}
+            for tc in tool_calls
+            if tc.get("success") is False
+        ]
+        if not failed:
+            kind = "user_query_satisfied"
+            severity = "info"
+            extra = {"tools_checked": len(tool_calls),
+                     "all_succeeded": True}
+        else:
+            kind = "user_query_unsatisfied"
+            severity = "warn"
+            extra = {"tools_checked": len(tool_calls),
+                     "failed_tools": failed}
+
+    body = {
+        "refine_id": str(refine_id) if refine_id else None,
+        "refine_intent": intent,
+        "intended_outcome": intended[:200],
+        **extra,
+    }
+    _db_post(_db_create("event", {
+        "source": "mios-daemon",
+        "kind": kind,
+        "severity": severity,
+        "summary": f"{kind}: {intent} ({intended[:60]})",
+        "payload": body,
+    }, now_fields=("ts",)))
+    return kind
+
+
+def satisfaction_loop() -> None:
+    """Tick the satisfaction monitor. Best-effort -- DB hiccups
+    swallow + the next tick retries; no infinite-error loops."""
+    time.sleep(45)  # boot delay; let agent-pipe + surrealdb settle
+    while not _stop_event.is_set():
+        try:
+            unverified = _scan_unverified_refines(SATISFACTION_LOOKBACK_MIN)
+            sat = unsat = 0
+            for refine in unverified:
+                ts = refine.get("ts")
+                if not ts:
+                    continue
+                tool_calls = _tool_calls_for_refine(ts)
+                kind = _emit_satisfaction(refine, tool_calls)
+                if kind == "user_query_satisfied":
+                    sat += 1
+                else:
+                    unsat += 1
+            if sat or unsat:
+                log.info("satisfaction: %d satisfied, %d unsatisfied",
+                         sat, unsat)
+            _update_state("satisfaction", {
+                "last_tick": datetime.datetime.now().isoformat(timespec="seconds"),
+                "satisfied": sat,
+                "unsatisfied": unsat,
+            })
+        except Exception as e:
+            log.warning("satisfaction_loop error: %s", e)
+        _stop_event.wait(SATISFACTION_TICK_S)
+
+
 def main() -> int:
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
@@ -1418,6 +1604,7 @@ def main() -> int:
         threading.Thread(target=launch_verifier_loop, daemon=True, name="launch_verifier"),
         threading.Thread(target=task_collector_loop, daemon=True, name="task_collector"),
         threading.Thread(target=fs_watcher_loop, daemon=True, name="fs_watcher"),
+        threading.Thread(target=satisfaction_loop, daemon=True, name="satisfaction"),
     ]
     for t in threads:
         t.start()
