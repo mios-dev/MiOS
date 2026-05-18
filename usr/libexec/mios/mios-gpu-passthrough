@@ -22,8 +22,22 @@
 #
 # AI Quadlet list (extend by editing MIOS_AI_QUADLETS below or
 # overriding via /etc/mios/gpu-passthrough.conf):
-#   ollama, mios-open-webui (RAG vectoring may use GPU),
-#   mios-searxng (no AI; left out).
+#
+# Operator directive 2026-05-17 (two-step clarification):
+#   first: "iGPU's are ONLY micro-llms"
+#   then:  "wire to ollama!! JUST ONLY USES Micro-llms in MiOS stack"
+#
+# Resolution: ollama IS in the list. MiOS-stack consumers of
+# Ollama only ask for small models (mios-daemon -> qwen3:0.6b-cpu,
+# pipe refine/polish -> qwen2.5-coder:7b, prefilter -> small).
+# The big-model tags on disk (qwen3-coder:30b, gpt-oss:20b) are
+# parked for ad-hoc operator use; Ollama's auto-scheduling lands
+# the small MiOS-stack models on whichever device has room. With
+# NVIDIA dGPU + AMD iGPU both registered as CDI devices, Ollama
+# spreads load across them; small models fit on the iGPU's WSL
+# DXG path (no VRAM contention with the dGPU), bigger ad-hoc
+# loads keep the dGPU free.
+#
 # Add a new Quadlet -> one line in the list; helper writes the
 # correct drop-in on next boot. Per operator directive
 # 2026-05-17: "make sure ALL is in code and can deploy Day-0 from
@@ -75,13 +89,25 @@ log() { logger -t mios-gpu-passthrough "$*" 2>/dev/null || true; echo "[gpu-pass
 NVIDIA_PRESENT=0
 AMD_PRESENT=0
 INTEL_PRESENT=0
+# Match every spec layout mios-cdi-detect can emit:
+#   * <vendor>.yaml / .json  -- bare-metal vendor toolkit output
+#   * wsl2-<vendor>.yaml      -- WSL2 hand-rolled (/dev/dxg + WSL libs)
+#   * nvidia-wsl.yaml         -- legacy nvidia-ctk WSL output naming
 for spec in "$CDI_DIR"/nvidia.yaml \
             "$CDI_DIR"/nvidia-wsl.yaml \
             "$CDI_DIR"/wsl2-nvidia.yaml; do
     [ -f "$spec" ] && { NVIDIA_PRESENT=1; break; }
 done
-[ -f "$CDI_DIR/amd.json"  ] || [ -f "$CDI_DIR/amd.yaml"   ] && AMD_PRESENT=1
-[ -f "$CDI_DIR/intel.yaml" ] || [ -f "$CDI_DIR/intel.json" ] && INTEL_PRESENT=1
+for spec in "$CDI_DIR"/amd.json \
+            "$CDI_DIR"/amd.yaml \
+            "$CDI_DIR"/wsl2-amd.yaml; do
+    [ -f "$spec" ] && { AMD_PRESENT=1; break; }
+done
+for spec in "$CDI_DIR"/intel.yaml \
+            "$CDI_DIR"/intel.json \
+            "$CDI_DIR"/wsl2-intel.yaml; do
+    [ -f "$spec" ] && { INTEL_PRESENT=1; break; }
+done
 
 log "CDI present: nvidia=$NVIDIA_PRESENT amd=$AMD_PRESENT intel=$INTEL_PRESENT"
 

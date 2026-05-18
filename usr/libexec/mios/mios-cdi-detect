@@ -31,6 +31,13 @@ VIRT=$(systemd-detect-virt 2>/dev/null || echo none)
 HAS_NVIDIA=0
 HAS_AMD=0
 HAS_INTEL=0
+# WSL-detected flags: AMD/Intel iGPU on WSL is exposed via /dev/dxg
+# (not /dev/kfd or renderD*). When set, the iGPU branch writes a
+# hand-rolled wsl2-<vendor>.yaml CDI spec instead of relying on the
+# Linux-side vendor toolkit.
+HAS_AMD_WSL=0
+HAS_INTEL_WSL=0
+
 [[ -e /dev/nvidia0 || -e /dev/dxg ]] && HAS_NVIDIA=1
 [[ -e /dev/kfd ]]                    && HAS_AMD=1
 # Intel iGPU/Arc detection: a renderD* node whose vendor reads 0x8086.
@@ -46,7 +53,41 @@ for r in /dev/dri/renderD*; do
     fi
 done
 
-_log "virt=$VIRT nvidia=$HAS_NVIDIA amd=$HAS_AMD intel=$HAS_INTEL"
+# ── WSL2 AMD/Intel iGPU detection via Windows interop ──────────────
+# Under WSL2, AMD APUs (Ryzen with Radeon Graphics) and Intel iGPUs
+# do NOT surface as /dev/kfd or /dev/dri/renderD* -- they share the
+# /dev/dxg paravirt interface with NVIDIA. So the Linux-side probes
+# above can't tell which Windows GPU(s) are present; we have to ask
+# Windows via WMI. Operator-flagged 2026-05-17: Ryzen iGPU on the
+# Windows host was undetected because /dev/kfd doesn't exist in WSL,
+# so the AMD branch never ran and the iGPU never reached any
+# container.
+if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
+    PSH=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+    if [[ -x "$PSH" ]]; then
+        # Capped 5s; never fails the boot. The first
+        # "Microsoft Remote Display Adapter" is the WDDM paravirt
+        # one; real GPUs follow.
+        WIN_GPU_NAMES=$(timeout 5 "$PSH" -NoProfile -Command \
+            "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" \
+            2>/dev/null | tr -d '\r' | tr '\n' '|')
+        if [[ -n "$WIN_GPU_NAMES" ]]; then
+            shopt -s nocasematch
+            if [[ "$WIN_GPU_NAMES" =~ (AMD|Radeon) ]]; then
+                HAS_AMD=1; HAS_AMD_WSL=1
+            fi
+            if [[ "$WIN_GPU_NAMES" =~ Intel ]]; then
+                HAS_INTEL=1; HAS_INTEL_WSL=1
+            fi
+            shopt -u nocasematch
+            _log "windows GPUs: ${WIN_GPU_NAMES//|/, }"
+        else
+            _log "wsl: powershell GPU query returned empty (skipping iGPU detection)"
+        fi
+    fi
+fi
+
+_log "virt=$VIRT nvidia=$HAS_NVIDIA amd=$HAS_AMD (wsl=$HAS_AMD_WSL) intel=$HAS_INTEL (wsl=$HAS_INTEL_WSL)"
 
 # ── NVIDIA ───────────────────────────────────────────────────────────
 # Prefer upstream nvidia-cdi-refresh.service when its unit is installed
@@ -118,11 +159,10 @@ fi
 # by default; podman accepts both .yaml and .json under /etc/cdi or
 # /run/cdi. Spec naming follows the CNCF CDI convention:
 # vendor.com/class=identifier -> amd.com/gpu=all.
-if [[ "$HAS_AMD" == 1 ]] && command -v amd-ctk >/dev/null 2>&1; then
+if [[ "$HAS_AMD" == 1 ]] && command -v amd-ctk >/dev/null 2>&1 && [[ "$HAS_AMD_WSL" == 0 ]]; then
+    # Bare-metal / true-VM path: amd-ctk reads /dev/kfd + /dev/dri.
     if amd-ctk cdi generate --output=/run/cdi/amd.json 2>&1 | logger -t mios-cdi-detect; then
         _log "amd: wrote /run/cdi/amd.json"
-        # Validate the spec with the toolkit's own checker; mark the
-        # spec stale if it fails so podman doesn't pick up a broken file.
         if amd-ctk cdi validate --path=/run/cdi/amd.json >/dev/null 2>&1; then
             _log "amd: spec validated"
         else
@@ -132,6 +172,35 @@ if [[ "$HAS_AMD" == 1 ]] && command -v amd-ctk >/dev/null 2>&1; then
     else
         _log "amd: amd-ctk cdi generate failed (non-fatal)"
     fi
+elif [[ "$HAS_AMD_WSL" == 1 ]]; then
+    # WSL2 path: AMD iGPU is exposed via /dev/dxg + /usr/lib/wsl libs
+    # (DirectX paravirt). amd-ctk doesn't know how to generate this
+    # shape, so we hand-roll the CDI spec the same way the WSL2
+    # NVIDIA fallback does. Container can then use Vulkan (mesa3d)
+    # or DirectML against the Windows-side AMD driver.
+    #
+    # Operator directive 2026-05-17: "iGPU's are ONLY micro-llms" --
+    # this spec REGISTERS the device with podman so containers that
+    # explicitly request AddDevice=amd.com/gpu=all get it. The base
+    # mios-ollama (big-model, NVIDIA-lane) Quadlet does NOT request
+    # this; only micro-LLM container(s) do.
+    out=/run/cdi/wsl2-amd.yaml
+    cat > "$out" <<'WSLAMDCDI'
+cdiVersion: "0.6.0"
+kind: amd.com/gpu
+devices:
+  - name: all
+    containerEdits:
+      deviceNodes:
+        - path: /dev/dxg
+      mounts:
+        - hostPath: /usr/lib/wsl
+          containerPath: /usr/lib/wsl
+          options: ["ro", "nosuid", "nodev", "rbind"]
+      env:
+        - LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/amd/lib
+WSLAMDCDI
+    _log "amd: wrote $out (WSL2 hand-rolled CDI; AMD iGPU via /dev/dxg + DirectX)"
 elif [[ "$HAS_AMD" == 1 ]]; then
     _log "amd: /dev/kfd present but amd-ctk missing -- run automation/41-gpu-cdi-toolkits.sh"
 fi
@@ -142,7 +211,7 @@ fi
 # produce a /etc/cdi/intel.yaml. Best-effort: this binary is at v0.x
 # upstream and lacks the polish of nvidia-ctk / amd-ctk -- failures
 # here are logged but never break the boot.
-if [[ "$HAS_INTEL" == 1 ]]; then
+if [[ "$HAS_INTEL" == 1 && "$HAS_INTEL_WSL" == 0 ]]; then
     INTEL_GEN=""
     for cand in /usr/libexec/mios/intel-cdi-specs-generator \
                 /usr/local/bin/intel-cdi-specs-generator \
@@ -158,6 +227,28 @@ if [[ "$HAS_INTEL" == 1 ]]; then
     else
         _log "intel: GPU present but intel-cdi-specs-generator missing -- run automation/41-gpu-cdi-toolkits.sh"
     fi
+elif [[ "$HAS_INTEL_WSL" == 1 ]]; then
+    # WSL2 path mirrors the AMD WSL branch above: hand-rolled CDI
+    # spec keyed as intel.com/gpu using the same /dev/dxg + WSL libs.
+    # Per operator directive 2026-05-17: "iGPU's are ONLY micro-llms"
+    # -- only micro-LLM Quadlets should request this device.
+    out=/run/cdi/wsl2-intel.yaml
+    cat > "$out" <<'WSLINTELCDI'
+cdiVersion: "0.6.0"
+kind: intel.com/gpu
+devices:
+  - name: all
+    containerEdits:
+      deviceNodes:
+        - path: /dev/dxg
+      mounts:
+        - hostPath: /usr/lib/wsl
+          containerPath: /usr/lib/wsl
+          options: ["ro", "nosuid", "nodev", "rbind"]
+      env:
+        - LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/intel/lib
+WSLINTELCDI
+    _log "intel: wrote $out (WSL2 hand-rolled CDI; Intel iGPU via /dev/dxg + DirectX)"
 fi
 
 # ── Status snapshot for the dashboard / mios-boot-diag ───────────────
