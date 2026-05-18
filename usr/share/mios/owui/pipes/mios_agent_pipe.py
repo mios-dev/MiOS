@@ -199,6 +199,32 @@ class Pipe:
             default=240,
             description="If the raw agent output is shorter than this and contains no narration markers, pass through unpolished -- no value in spinning up the CPU model for a one-liner result.",
         )
+        # ── Phase-2 Critic loop (see docs/multi-agent-architecture.md)
+        # The Critic Agent reviews the compose draft against the
+        # structured tool history. If the draft claims success on a
+        # tool that failed, claims a step ran when no tool_call for
+        # it exists, or otherwise mismatches the structured truth,
+        # critic returns issues; compose revises once. Bounded loop.
+        CRITIC_ENABLED: bool = Field(
+            default=True,
+            description="After compose drafts an answer, run a small Critic Agent that reviews against the structured tool history. Catches false-success claims, missing steps, fabrications -- replaces the hardcoded KNOWN_AGENT_ERROR_RE rewrite path with a natural multi-agent reflexion loop.",
+        )
+        CRITIC_MODEL: str = Field(
+            default="qwen3:1.7b",
+            description="Small model for the critic pass. Per operator directive 2026-05-17 'iGPU's are ONLY micro-llms' -- micro-LLMs land on the AMD/Intel iGPU CDI lane when present, leaving the dGPU free for big-model work. qwen3:1.7b ~1.4 GB.",
+        )
+        CRITIC_TIMEOUT_S: int = Field(
+            default=45,
+            description="Cap the critic call. Small model + structured input + JSON-only output = sub-10s typical; 45s is the safety ceiling.",
+        )
+        CRITIC_MAX_TOKENS: int = Field(
+            default=300,
+            description="Cap critic output. JSON verdict + issue list fits comfortably.",
+        )
+        CRITIC_MAX_ITERATIONS: int = Field(
+            default=1,
+            description="Max revise cycles. 0 = run critic but never revise (audit-only). 1 = one revision pass (compose, critique, revise, done). Bounded reflexion -- never infinite loop.",
+        )
         AGENT_THINKING_LABEL: str = Field(
             default="🧠 MiOS-Hermes",
             description="The <summary> rendered above the collapsed reasoning block. Per-agent label so the operator can tell which agent (hermes / opencode / etc.) produced the thinking. Kept short + symbol-led so it reads the same across operator locales (operator directive 2026-05-17 GLOBAL SWEEP for hardcoded English).",
@@ -1017,7 +1043,182 @@ class Pipe:
         # Strip <think>...</think> + leading "Thought" leaks.
         polished = self._strip_reasoning_leaks(polished)
 
+        # ── Phase-2 Critic reflexion loop ──────────────────────────
+        # Only runs when we HAVE structured tool history to reason
+        # over (the critic's whole value-add is checking the draft
+        # against ground truth); skipped on the text-blob fallback
+        # path. Bounded by CRITIC_MAX_ITERATIONS.
+        if (self.valves.CRITIC_ENABLED and tool_history_json
+                and int(self.valves.CRITIC_MAX_ITERATIONS) > 0):
+            for attempt in range(int(self.valves.CRITIC_MAX_ITERATIONS)):
+                verdict = await self._critic_via_cpu(
+                    user_text, polished, tool_history_json, emitter,
+                )
+                if verdict.get("verdict") == "approve":
+                    await self._emit(emitter, "🧑‍⚖️ ✓ critic approve")
+                    break
+                issues = verdict.get("issues") or []
+                if not issues:
+                    break
+                await self._emit(emitter,
+                    f"🧑‍⚖️ ✎ critic: {len(issues)} issue(s) → revise")
+                # Re-compose with the critic's issues fed back.
+                polished = await self._recompose_with_critic_feedback(
+                    user_text, raw_output, tool_history_json, polished,
+                    issues, emitter,
+                ) or polished
+                polished = self._strip_outer_md_fence(polished)
+                polished = self._strip_reasoning_leaks(polished)
         return polished
+
+    _CRITIC_SYSTEM = (
+        "You are a Critic Agent. The Compose Agent drafted the answer\n"
+        "below. Your job: check the draft against the structured tool\n"
+        "history (authoritative ground truth). Spot:\n"
+        "  1. Claims of success on tools whose tool_result had success=false\n"
+        "  2. Claims of completion for steps NOT present in the history\n"
+        "  3. Fabricated specifics (paths/ids/numbers not in any result)\n"
+        "  4. Wrong tool attribution (saying tool X was used when Y ran)\n"
+        "  5. Missing critical info that IS in the history\n"
+        "\n"
+        "Output JSON ONLY:\n"
+        "  {\"verdict\": \"approve\" | \"revise\",\n"
+        "   \"issues\": [\"<one-line issue>\", ...]}\n"
+        "\n"
+        "If draft accurately reflects the history, verdict=\"approve\",\n"
+        "issues=[]. Otherwise verdict=\"revise\", issues=[ specific\n"
+        "actionable items the Compose Agent should fix ].\n"
+        "Be terse. NO prose preamble.\n"
+    )
+
+    async def _critic_via_cpu(
+        self,
+        user_text: str,
+        draft: str,
+        tool_history_json: str,
+        emitter: Optional[Callable[..., Awaitable[None]]],
+    ) -> dict:
+        """Critic pass over compose draft. Returns the parsed JSON
+        verdict; returns {} on any error (fail-open: skip revision,
+        ship the draft)."""
+        await self._emit(emitter, "🧑‍⚖️ critic")
+        user_msg = (
+            f"## OPERATOR ASK\n{user_text[:1500]}\n\n"
+            f"## STRUCTURED TOOL HISTORY (authoritative)\n"
+            f"{tool_history_json[:6000]}\n\n"
+            f"## DRAFT ANSWER (from Compose Agent)\n"
+            f"{draft[:4000]}\n\n"
+            "## VERDICT (JSON only):"
+        )
+        body = {
+            "model": self.valves.CRITIC_MODEL,
+            "messages": [
+                {"role": "system", "content": self._CRITIC_SYSTEM},
+                {"role": "user",   "content": user_msg},
+            ],
+            "options": {
+                "num_gpu": 0,
+                "num_predict": int(self.valves.CRITIC_MAX_TOKENS),
+                "temperature": 0.0,
+            },
+            "format": "json",
+            "keep_alive": -1,
+            "stream": False,
+        }
+        try:
+            timeout = aiohttp.ClientTimeout(total=int(self.valves.CRITIC_TIMEOUT_S))
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    self.valves.REFINE_ENDPOINT.rstrip("/") + "/api/chat",
+                    data=json.dumps(body).encode(),
+                    headers={"Content-Type": "application/json"},
+                ) as resp:
+                    if resp.status != 200:
+                        return {}
+                    data = await resp.json()
+        except (asyncio.TimeoutError, aiohttp.ClientError):
+            await self._emit(emitter, "🧑‍⚖️ ⚠ critic err → ship draft")
+            return {}
+        except Exception:
+            return {}
+        msg = (data.get("message") or {})
+        content = (msg.get("content") or "").strip()
+        if not content:
+            return {}
+        # Strip code fences a chatty model might add.
+        content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+        content = re.sub(r"\n?```\s*$", "", content)
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return {}
+
+    async def _recompose_with_critic_feedback(
+        self,
+        user_text: str,
+        raw_output: str,
+        tool_history_json: str,
+        prev_draft: str,
+        issues: list,
+        emitter: Optional[Callable[..., Awaitable[None]]],
+    ) -> str:
+        """Re-run compose with the critic's specific issue list fed
+        back in. The compose model sees:
+          * Original system prompt + structured history
+          * The previous draft
+          * The critic's list of issues to fix
+        Returns the revised answer; empty string on any failure (the
+        caller keeps the prev_draft in that case)."""
+        sys_content = self._POLISH_SYSTEM.format(
+            user_prompt=user_text[:2000],
+            raw_output=raw_output[:12000],
+        )
+        sys_content += (
+            "\n\n## STRUCTURED TOOL HISTORY (authoritative)\n"
+            f"{tool_history_json[:6000]}\n"
+            "\n## CRITIC FEEDBACK on your previous draft\n"
+            "Your previous draft had these issues -- FIX each one in\n"
+            "the revised answer. Use the structured history above to\n"
+            "ground every claim. Output the revised final answer only;\n"
+            "no preamble, no 'here is the revised version'.\n\n"
+        )
+        for i, issue in enumerate(issues, 1):
+            sys_content += f"  {i}. {str(issue)[:300]}\n"
+        sys_content += f"\n## PREVIOUS DRAFT\n{prev_draft[:6000]}\n"
+        body = {
+            "model": self.valves.POLISH_MODEL,
+            "messages": [
+                {"role": "system", "content": sys_content},
+                {"role": "user", "content": "Emit the revised final answer."},
+            ],
+            "options": {
+                "num_gpu": 0,
+                "num_predict": int(self.valves.POLISH_MAX_TOKENS),
+                "temperature": 0.0,
+            },
+            "keep_alive": -1,
+            "stream": False,
+        }
+        try:
+            timeout = aiohttp.ClientTimeout(total=int(self.valves.POLISH_TIMEOUT_S))
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(
+                    self.valves.REFINE_ENDPOINT.rstrip("/") + "/api/chat",
+                    data=json.dumps(body).encode(),
+                    headers={"Content-Type": "application/json"},
+                ) as resp:
+                    if resp.status != 200:
+                        return ""
+                    data = await resp.json()
+        except (asyncio.TimeoutError, aiohttp.ClientError):
+            return ""
+        except Exception:
+            return ""
+        msg = (data.get("message") or {})
+        return (msg.get("content") or msg.get("thinking") or "").strip()
 
     # Match a leading ```markdown / ``` fence. The closing ``` is
     # OPTIONAL because polish sometimes truncates mid-output (token
