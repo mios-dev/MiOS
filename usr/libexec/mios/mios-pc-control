@@ -64,6 +64,14 @@ fi
 sub="$1"
 shift
 
+# --json flag (task #148): emit machine-mode JSON for the
+# subcommands whose PS1 backing supports it (currently
+# window-list; others fall through to plain prose).
+JSON_FLAG=""
+case "${1:-}" in
+    --json) JSON_FLAG="-Json"; shift ;;
+esac
+
 # Translate the helper's Linux path to a UNC path Windows can read,
 # then invoke via mios-windows ps -File. wslpath -w converts.
 WIN_PS1="$(wslpath -w "$PS1_HELPER" 2>/dev/null)"
@@ -74,4 +82,4 @@ fi
 
 # Forward to PowerShell helper with subcommand as -Action <name>
 # and remaining args as -Args <arg1> <arg2> ...
-mios-windows ps "& '$WIN_PS1' -Action '$sub' $*"
+mios-windows ps "& '$WIN_PS1' -Action '$sub' $JSON_FLAG $*"

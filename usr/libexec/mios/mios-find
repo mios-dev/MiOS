@@ -39,29 +39,87 @@ set -u
 
 if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     cat <<'USAGE'
-usage: mios-find <query>
+usage: mios-find [--json] <query>
 
 Fast fuzzy lookup against the MiOS environment inventory. Returns
 the launch command for the best match, or lists candidates if the
 query is ambiguous. Use as the FIRST step before any Get-ChildItem
 when the operator asks to launch something.
 
-Forms (every token in <ANGLES> is operator-substituted; do not
-interpret as a specific app name):
+Forms:
   mios-find <query>             -> ONE runnable launch line on stdout
+  mios-find --json <query>      -> structured envelope:
+                                   {ok, query, resolved:{launch,
+                                    source, alias?}, alternates[]}
   mios-find <multi word query>  -> quote it: "<multi word query>"
   mios-find <alias>             -> resolved via mios.toml [mios-find.aliases]
 
-The output line is ready-to-execute (mios-gui <id>, mios-windows
-launch <path>, mios-windows ps "Start-Process '<uri>'", etc.). Run
-it AS-IS; don't re-shape into a different subcommand.
+The plain (no --json) output line is ready-to-execute (mios-gui
+<id>, mios-windows launch <path>, etc.). Run it AS-IS; don't re-
+shape into a different subcommand.
 USAGE
     exit 0
+fi
+
+# --json flag flips emit mode. Operator directive 2026-05-18 (task
+# #148): shims that the planner / polish-grounding consume should
+# emit structured envelopes so the agent reads typed fields, not
+# prose. The existing dual-emit paths (fast-path A es.exe / fast-
+# path B inventory-rank) are preserved; this flag wraps their
+# output post-hoc.
+JSON_OUT=0
+if [ "$1" = "--json" ]; then
+    JSON_OUT=1
+    shift
 fi
 
 QUERY="$*"
 QUERY="${QUERY#\"}"
 QUERY="${QUERY%\"}"
+
+# If --json was passed, re-exec ourselves WITHOUT the flag, capture
+# stdout+stderr+exit, then emit a structured envelope. Cleanest way
+# to wrap the dual-emit fast-paths below without duplicating their
+# logic.
+if [ "$JSON_OUT" -eq 1 ]; then
+    _OUT="$("$0" "$QUERY" 2>/tmp/.mios-find-err.$$)"
+    _RC=$?
+    _ERR="$(cat /tmp/.mios-find-err.$$ 2>/dev/null)"
+    rm -f /tmp/.mios-find-err.$$ 2>/dev/null
+    _OUT="$_OUT" _ERR="$_ERR" _RC="$_RC" _QUERY="$QUERY" python3 - <<'PYEOF'
+import json, os
+out = os.environ.get("_OUT", "").strip()
+err = os.environ.get("_ERR", "")
+rc = int(os.environ.get("_RC", "0"))
+query = os.environ.get("_QUERY", "")
+envelope = {
+    "ok": rc == 0,
+    "verb": "mios_find",
+    "query": query,
+    "exit_code": rc,
+}
+if rc == 0 and out:
+    envelope["resolved"] = {"launch": out}
+    # The fast-path A path prints '(found via mios-everything; ...'
+    # to stderr; the fast-path B path leaves stderr empty. Use that
+    # to attribute the source so polish knows where the launch came
+    # from.
+    if "via mios-everything" in err:
+        envelope["resolved"]["source"] = "mios-everything"
+    elif "alias:" in err:
+        envelope["resolved"]["source"] = "alias"
+    else:
+        envelope["resolved"]["source"] = "mios-apps"
+    if err.strip():
+        envelope["stderr_preview"] = err.strip()[:600]
+else:
+    envelope["error"] = "no_match"
+    if err.strip():
+        envelope["stderr_preview"] = err.strip()[:600]
+print(json.dumps(envelope))
+PYEOF
+    exit "$_RC"
+fi
 
 # ─── Alias resolution: generic queries -> specific apps ───────────────
 # Operator directive 2026-05-16: "open a browser to URL" returns

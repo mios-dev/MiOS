@@ -56,6 +56,7 @@ while [ "$#" -gt 0 ]; do
         -ext)   EXT="$2"; shift 2 ;;
         -path)  PATHS+=("$2"); shift 2 ;;
         -type)  TYPE="$2"; shift 2 ;;
+        --json) JSON_OUT=1; shift ;;
         --)     shift; QUERY="$*"; break ;;
         *)      QUERY="$1"; shift ;;
     esac
@@ -65,6 +66,50 @@ if [ -z "$QUERY" ]; then
     echo "mios-locate: missing <query>" >&2
     usage >&2
     exit 64
+fi
+
+# --json flag (task #148): emit a structured envelope so the agent
+# reads typed fields. Re-exec ourselves without the flag, capture
+# stdout+stderr+exit, then wrap.
+if [ "${JSON_OUT:-0}" -eq 1 ]; then
+    # Rebuild the non-json args list. PATHS array becomes -path args.
+    _ARGS=("-n" "$MAX")
+    [ -n "$EXT" ] && _ARGS+=("-ext" "$EXT")
+    [ -n "$TYPE" ] && _ARGS+=("-type" "$TYPE")
+    for p in "${PATHS[@]}"; do _ARGS+=("-path" "$p"); done
+    _ARGS+=("$QUERY")
+    _OUT="$("$0" "${_ARGS[@]}" 2>/tmp/.mios-locate-err.$$)"
+    _RC=$?
+    _ERR="$(cat /tmp/.mios-locate-err.$$ 2>/dev/null)"
+    rm -f /tmp/.mios-locate-err.$$ 2>/dev/null
+    _OUT="$_OUT" _ERR="$_ERR" _RC="$_RC" _QUERY="$QUERY" \
+        python3 - <<'PYEOF'
+import json, os, re
+out = os.environ.get("_OUT", "")
+err = os.environ.get("_ERR", "")
+rc = int(os.environ.get("_RC", "0"))
+query = os.environ.get("_QUERY", "")
+results = []
+for line in out.splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    base = line.rsplit("/", 1)[-1]
+    name, ext = (base.rsplit(".", 1) + [""])[:2] if "." in base else (base, "")
+    results.append({"path": line, "name": name, "ext": ext})
+envelope = {
+    "ok": rc == 0,
+    "verb": "fs_search",
+    "query": query,
+    "count": len(results),
+    "results": results,
+    "exit_code": rc,
+}
+if rc != 0 and err.strip():
+    envelope["stderr_preview"] = err.strip()[:400]
+print(json.dumps(envelope))
+PYEOF
+    exit "$_RC"
 fi
 
 # Default search scope. Operator-tunable later via mios.toml [paths].locate_roots.

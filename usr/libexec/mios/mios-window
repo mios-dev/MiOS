@@ -125,7 +125,12 @@ case "$sub" in
         usage
         ;;
     list|ls)
-        mios-pc-control window-list
+        # Pass through --json if present so agents get structured output.
+        if [ "${1:-}" = "--json" ]; then
+            mios-pc-control window-list --json
+        else
+            mios-pc-control window-list
+        fi
         ;;
     center)
         pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window center: missing <title-pattern>" >&2; exit 64; }

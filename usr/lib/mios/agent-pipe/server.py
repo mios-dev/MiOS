@@ -2716,7 +2716,7 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         mode = "kill" if str(args.get("mode", "graceful")) == "force" else "close"
         return f"mios-window {mode} {title}"
     if tool == "list_windows":
-        return "mios-pc-control window-list"
+        return "mios-pc-control window-list --json"
     # ── Window-state verbs (Phase D.3 -- PC-control template) ──
     # All five wrap `mios-window <subcmd>` which resolves the title
     # pattern to an hwnd internally; the agent only needs to supply
@@ -2841,7 +2841,8 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         ext = args.get("ext") or ""
         path = args.get("path") or ""
         type_filter = args.get("type") or ""
-        cmd = f"mios-locate -n {n} {q}"
+        # --json -> structured {ok, count, results:[{path,name,ext}]}
+        cmd = f"mios-locate --json -n {n} {q}"
         if ext:
             cmd += f" -ext {shlex.quote(str(ext))}"
         if path:

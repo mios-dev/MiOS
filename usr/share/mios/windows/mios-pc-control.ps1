@@ -19,6 +19,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true, Position=0)][string]$Action,
+    [switch]$Json,
     [Parameter(ValueFromRemainingArguments=$true)][string[]]$Args
 )
 
@@ -185,7 +186,20 @@ switch ($Action) {
         }
         $script:rows = @()
         [W32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
-        $script:rows | Format-Table hwnd, pid, x, y, w, h, title -AutoSize
+        if ($Json) {
+            # Machine-mode envelope so the agent reads typed fields,
+            # not Format-Table prose. Operator directive 2026-05-18
+            # task #148 (shim JSON sweep).
+            $env = [pscustomobject]@{
+                ok      = $true
+                verb    = 'window_list'
+                count   = $script:rows.Count
+                windows = $script:rows
+            }
+            $env | ConvertTo-Json -Depth 4 -Compress
+        } else {
+            $script:rows | Format-Table hwnd, pid, x, y, w, h, title -AutoSize
+        }
     }
 
     'window-focus' {
