@@ -750,7 +750,9 @@ async def run_dci_flow(
         if a.get("confidence", 0.0) >= 0.7
     ]
     for d in dissents:
-        _db_fire(_db_post(_db_create("event", {
+        # Awaited (not fire-and-forget) so downstream consumers
+        # querying right after run_dci_flow returns see the rows.
+        await _db_post(_db_create("event", {
             "source": "mios-agent-pipe",
             "kind": "dissent",
             "severity": "warn",
@@ -760,7 +762,7 @@ async def run_dci_flow(
                 "content": (d.get("content") or "")[:500],
                 "session": session_id,
             },
-        }, now_fields=("ts",))))
+        }, now_fields=("ts",)))
     # Final decision packet -- always returned, even on
     # convergence failure (fallback uses the most-recent synthesis
     # if Integrator couldn't be coerced into a recommend).
@@ -780,6 +782,92 @@ async def run_dci_flow(
             "syntheses":  len(workspace["syntheses"]),
         },
     }
+
+
+# Phase B.3 -- conditional B.2 trigger.
+# When the cheap B.1 Challenger emits a HIGH-CONFIDENCE
+# `challenge` or `ask` (>= DCI_FLOW_TRIGGER_CONF), automatically
+# fire the heavy B.2 4-persona convergent flow. If the flow then
+# surfaces unresolved dissent, write a tainted tool_call row so
+# the operator's NEXT dispatch in the same session gets refused by
+# the Semantic Firewall. The whole chain runs fire-and-forget so
+# the operator's reply isn't delayed.
+#
+# Operator-tunable threshold (default 0.7 -- matches the dissent
+# extraction threshold used in run_dci_flow).
+DCI_FLOW_TRIGGER_CONF = float(os.environ.get(
+    "MIOS_AGENT_PIPE_DCI_FLOW_TRIGGER_CONF", "0.7"))
+
+
+async def critic_then_maybe_flow(
+    user_text: str,
+    envelope: dict,
+    *,
+    session_id: Optional[str] = None,
+) -> None:
+    """Chain B.1 critic -> conditional B.2 flow. Fire-and-forget
+    via _db_fire so the dispatch reply isn't delayed.
+
+    Phase B.3 flow:
+      1. Run dci_critic_pass (single-persona Challenger).
+      2. If the act is in (challenge, ask) AND confidence is high,
+         escalate to run_dci_flow (4 personas, bounded loop).
+      3. If the flow surfaces unresolved dissent, write a tainted
+         tool_call row keyed to the session so any subsequent
+         high-privilege verb in this session gets firewalled.
+    """
+    if not (DCI_ENABLED or DCI_FLOW_ENABLED):
+        return
+    # Stage 1: B.1 critic.
+    act = await dci_critic_pass(user_text, envelope, session_id=session_id)
+    if not act:
+        return
+    # Conditional escalation to B.2.
+    if (act.get("act") in ("challenge", "ask")
+            and act.get("confidence", 0.0) >= DCI_FLOW_TRIGGER_CONF):
+        # Sentinel raised; fire the B.2 jury. Cap rounds at 2 for
+        # the auto-trigger path (operator can still hit /dci/
+        # deliberate manually for the full R_max=3 budget).
+        result = await run_dci_flow(
+            user_text, envelope,
+            session_id=session_id, r_max=2,
+        )
+        # If the flow surfaced unresolved dissent, write a tainted
+        # tool_call row so the Semantic Firewall blocks subsequent
+        # high-privilege verbs in this session.
+        #
+        # NB: this write is AWAITED (not fire-and-forget). The
+        # firewall pre-check on the operator's NEXT dispatch needs
+        # to see this row -- if we fire-and-forget it, a sub-second
+        # follow-up dispatch from the operator could land BEFORE
+        # the write completes and slip past the firewall (operator-
+        # observed race 2026-05-18: the dissent row didn't show up
+        # in the SurrealDB readback because the loop returned before
+        # the pending writes settled).
+        if result.get("dissents") and session_id:
+            taint_row = {
+                "tool": "dci_dissent",
+                "args": {
+                    "dissent_count": len(result["dissents"]),
+                    "trigger_act": act["act"],
+                    "trigger_conf": act["confidence"],
+                },
+                "result_preview": (
+                    f"DCI flow surfaced {len(result['dissents'])} "
+                    f"unresolved dissent(s) -- session tainted"
+                ),
+                "success": False,
+                "latency_ms": 0,
+                "tainted": True,
+                "taint_reason": (
+                    f"dci_dissent:{len(result['dissents'])}_"
+                    f"unresolved_after_r{result.get('rounds_used',0)}"
+                ),
+            }
+            await _db_post(
+                _db_create("tool_call", taint_row, now_fields=("ts",)).rstrip(";")
+                + f", session = {session_id};"
+            )
 
 
 # Pydantic-free request shape for /dci/deliberate -- accept raw
@@ -919,12 +1007,25 @@ _HIGH_PRIVILEGE_VERBS = {
 # event and the tool_call gets tainted=true (the URL itself didn't
 # return content, but the operator's screen now shows external
 # content the agent might subsequently react to).
-_ALLOWLIST_HOSTS = {
+#
+# Phase B.3 -- list now sources from mios.toml [security].allowlist_hosts
+# via the userenv.sh slot map (MIOS_SECURITY_ALLOWLIST_HOSTS, CSV).
+# Compiled-in defaults are the fallback when the env isn't set --
+# they MUST match the mios.toml seed so a fresh deployment with no
+# overrides still allows the canonical local-MiOS hosts.
+_DEFAULT_ALLOWLIST_HOSTS = {
     "localhost", "127.0.0.1", "::1",
     "host.containers.internal",
     "mios-ollama", "mios-open-webui", "mios-hermes", "mios-surrealdb",
     "mios-forge", "mios-searxng", "mios-code-server",
 }
+_env_allowlist = os.environ.get("MIOS_SECURITY_ALLOWLIST_HOSTS", "").strip()
+if _env_allowlist:
+    _ALLOWLIST_HOSTS = {
+        h.strip().lower() for h in _env_allowlist.split(",") if h.strip()
+    }
+else:
+    _ALLOWLIST_HOSTS = set(_DEFAULT_ALLOWLIST_HOSTS)
 
 
 def _is_external_url(url: str) -> bool:
@@ -1543,7 +1644,12 @@ async def health() -> dict[str, Any]:
                 "enabled": DCI_FLOW_ENABLED,
                 "r_max": DCI_FLOW_R_MAX,
                 "personas": [name for name, _ in _DCI_PERSONAS],
+                "auto_trigger_conf": DCI_FLOW_TRIGGER_CONF,
             },
+        },
+        "security": {
+            "allowlist_hosts": sorted(_ALLOWLIST_HOSTS),
+            "high_privilege_verbs": sorted(_HIGH_PRIVILEGE_VERBS),
         },
         "broker_sock": LAUNCHER_SOCK,
         "broker_present": os.path.exists(LAUNCHER_SOCK),
@@ -1746,15 +1852,15 @@ async def chat_completions(request: Request) -> Any:
                         "exit_code": int(result.get("exit_code", -1)),
                     },
                 }
-                # Phase B.1: fire the DCI Challenger critic post-
-                # dispatch. Fire-and-forget so the chat reply isn't
-                # delayed; the act is written to SurrealDB event
-                # (kind=dci_act) for the audit log. Phase B.2 will
-                # consume these to drive the 4-persona convergent
-                # flow + bring high-confidence challenges back into
-                # the operator-facing response.
+                # Phase B.1 + B.3 chained critic: Challenger runs
+                # post-dispatch (audit trail); on a high-confidence
+                # challenge / ask, the chain auto-escalates to the
+                # B.2 4-persona flow; if THAT flow surfaces dissent,
+                # the session gets tainted so the firewall refuses
+                # the next high-privilege dispatch. Fire-and-forget
+                # so the operator's reply isn't delayed.
                 if DCI_ENABLED:
-                    _db_fire(dci_critic_pass(
+                    _db_fire(critic_then_maybe_flow(
                         last_user_text, envelope,
                         session_id=session_id,
                     ))

@@ -443,6 +443,32 @@ enable   = true
 # /etc/mios/mios.toml or via /etc/containers/systemd/
 # mios-surrealdb.container.d/<name>.conf if exposing beyond loopback.
 # ----------------------------------------------------------------------------
+[security]
+# Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
+# allowlist. Hosts in this list are TRUSTED -- open_url to one of
+# these does NOT taint the session. Anything outside this list +
+# the compiled-in *.local / *.lan / single-label heuristic is
+# treated as external and contributes session taint, which gates
+# subsequent high-privilege verbs (service_restart, container_
+# restart, pc_type, pc_key, pc_click).
+#
+# Operator can extend per deployment (LAN hosts, internal SaaS,
+# etc.) without touching code. CSV-form in the env (the userenv.sh
+# slot map flattens this list -> MIOS_SECURITY_ALLOWLIST_HOSTS).
+allowlist_hosts = [
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "host.containers.internal",
+    "mios-ollama",
+    "mios-open-webui",
+    "mios-hermes",
+    "mios-surrealdb",
+    "mios-forge",
+    "mios-searxng",
+    "mios-code-server",
+]
+
 [agent_pipe]
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
 # extracted out of the OWUI pipe class into a gateway-agnostic FastAPI

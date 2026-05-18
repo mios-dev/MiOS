@@ -323,6 +323,8 @@ slots = [
     ("services.ollama_igpu.gid",       "MIOS_OLLAMA_IGPU_GID"),
     ("image.sidecars.ollama_igpu_version", "MIOS_OLLAMA_IGPU_VERSION"),
     ("image.sidecars.ollama_igpu",     "MIOS_OLLAMA_IGPU_IMAGE"),
+    # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────
+    ("security.allowlist_hosts",       "MIOS_SECURITY_ALLOWLIST_HOSTS"),
     # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
     ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),
