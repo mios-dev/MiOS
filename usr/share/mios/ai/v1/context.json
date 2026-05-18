@@ -1,38 +1,62 @@
 {
   "object": "mios.context",
-  "version": "v0.2.2",
+  "version": "v1",
   "image": "ghcr.io/mios-dev/mios:latest",
-  "description": "Immutable bootc-native Fedora workstation OS distributed as an OCI image.",
+  "description": "Immutable bootc-native Fedora workstation OS distributed as an OCI image, with a multi-agent OpenAI-compatible /v1 surface at :8640.",
   "ai": {
-    "endpoint": "http://localhost:8080/v1",
+    "endpoint": "http://localhost:8640/v1",
     "model_env": "MIOS_AI_MODEL",
     "embed_model_env": "MIOS_AI_EMBED_MODEL",
     "key_env": "MIOS_AI_KEY",
-    "backend": "docker.io/localai/localai:v2.20.0",
-    "models": "/usr/share/mios/ai/v1/models.json",
-    "mcp": "/usr/share/mios/ai/v1/mcp.json"
+    "ssot": "[ai] in /usr/share/mios/mios.toml (vendor) layered with /etc/mios/mios.toml (host) and ~/.config/mios/mios.toml (user)",
+    "served_by": "mios-agent-pipe.service",
+    "sub_agents_registry": "/usr/share/mios/ai/v1/agents.json",
+    "models_manifest": "/usr/share/mios/ai/v1/models.json",
+    "mcp_manifest": "/usr/share/mios/ai/v1/mcp.json",
+    "surface_manifest": "/usr/share/mios/ai/v1/surface.json"
   },
   "prompts": {
     "system": "/usr/share/mios/ai/system.md",
+    "hermes_soul_seed": "/usr/share/mios/ai/hermes-soul.md",
+    "hermes_soul_full": "/usr/share/mios/ai/hermes-soul-full.md",
     "host_override": "/etc/mios/ai/system-prompt.md",
     "user_override": "~/.config/mios/system-prompt.md"
   },
   "paths": {
     "ai_dir": "/usr/share/mios/ai",
-    "models": "/srv/ai/models",
-    "mcp_data": "/srv/ai/mcp",
     "memory": "/var/lib/mios/ai/memory",
     "scratch": "/var/lib/mios/ai/scratch",
-    "journal": "/var/lib/mios/ai/journal.md",
-    "packages": "/usr/share/mios/PACKAGES.md",
-    "env_defaults": "/usr/share/mios/env.defaults"
+    "shared_scratch": "/var/lib/mios/scratch",
+    "sessions": "/var/lib/mios/ai/sessions",
+    "audit": "/var/log/mios/ai/audit",
+    "daemon_state": "/var/lib/mios/daemon/state.json",
+    "launch_failures": "/var/lib/mios/daemon/launch_failures.json",
+    "agent_nudges": "/var/lib/mios/scratch/agent-nudges.md",
+    "passports": "/var/lib/mios/passports",
+    "skills_catalog": "/var/lib/mios/skills/catalog.json",
+    "packages": "/usr/share/mios/PACKAGES.md"
+  },
+  "stack": {
+    "agent_pipe":      {"port": 8640, "service": "mios-agent-pipe.service",       "role": "canonical /v1 entry; refine + route + polish"},
+    "hermes":          {"port": 8642, "service": "hermes-agent.service",          "role": "default sub-agent (general orchestration)"},
+    "ollama_dgpu":     {"port": 11434, "service": "ollama.service",               "role": "dGPU inference + embeddings"},
+    "ollama_igpu":     {"port": 11435, "service": "mios-ollama-igpu.service",     "role": "iGPU lane (rocm); planner + refine on AMD iGPU"},
+    "surrealdb":       {"port": 8000,  "service": "mios-surrealdb.service",       "role": "shared agent state"},
+    "open_webui":      {"port": 3030,  "service": "mios-open-webui.service",      "role": "browser front-end -> :8640"},
+    "searxng":         {"port": 8888,  "service": "mios-searxng.service",         "role": "web_search backend"},
+    "ttyd_bash":       {"port": 7681,  "service": "mios-ttyd-bash.service",       "role": "browser pty -- Linux bash"},
+    "ttyd_powershell": {"port": 7682,  "service": "mios-ttyd-powershell.service", "role": "browser pty -- Windows PowerShell"},
+    "mios_daemon":     {"port": null,  "service": "mios-daemon.service",          "role": "mios-daemon-agent (log/journal tail; satisfaction monitor; 2 CPU-pinned cores)"}
   },
   "laws": [
     "USR-OVER-ETC: static config in /usr/lib/<component>.d/; /etc/ for admin overrides only",
     "NO-MKDIR-IN-VAR: every /var/ path declared via usr/lib/tmpfiles.d/*.conf",
     "BOUND-IMAGES: every Quadlet image symlinked in /usr/lib/bootc/bound-images.d/",
     "BOOTC-CONTAINER-LINT: RUN bootc container lint is the final Containerfile instruction",
-    "UNIFIED-AI-REDIRECTS: MIOS_AI_ENDPOINT/MODEL/KEY target http://localhost:8080/v1; zero vendor URLs",
-    "UNPRIVILEGED-QUADLETS: every Quadlet defines User=, Group=, Delegate=yes"
+    "UNIFIED-AI-REDIRECTS: MIOS_AI_ENDPOINT/MODEL/KEY target http://localhost:8640/v1; zero vendor URLs",
+    "UNPRIVILEGED-QUADLETS: every Quadlet defines User=, Group=, Delegate=yes",
+    "TOML-FIRST: every operator-tunable value lives in mios.toml; no hardcoded constants in scripts/Quadlets",
+    "REFINED-QUERY-CARRY: every MiOS-Agent -> sub-agent hop injects the refined plan as a system-message prefix; no sub-agent runs on raw user text",
+    "OWUI-THINKING-BLOCKS: sub-agent raw output is wrapped in <details type=\"reasoning\"> for OWUI dropdowns; polished answer is the main content"
   ]
 }

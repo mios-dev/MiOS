@@ -3,14 +3,33 @@
   "version": "v1",
   "spec_ref": "https://platform.openai.com/docs/api-reference",
   "manifest_path": "/usr/share/mios/ai/v1/surface.json",
-  "base_url": "http://localhost:8642/v1",
-  "served_by": "mios-hermes.container",
-  "backed_by": "ollama.container",
+  "base_url": "http://localhost:8640/v1",
+  "served_by": "mios-agent-pipe.service",
+  "served_by_note": "MiOS-Agent (agent-pipe) is the canonical entry. It refines the user prompt on a CPU micro-LLM, routes to the registered sub-agent (Hermes for general orchestration, opencode for coding, mios-daemon-agent for log/journal followups, ...), and polishes the reply. Sub-agent raw output is wrapped in <details type=\"reasoning\"> for OWUI dropdowns.",
+  "backed_by": "mios-hermes.service (default sub-agent)",
   "auth": {
     "scheme": "Bearer",
     "header": "Authorization",
     "env": "MIOS_AI_KEY",
-    "source": "/etc/mios/hermes/api.env"
+    "source": "/etc/mios/hermes/api.env",
+    "passport_signing": {
+      "enabled": true,
+      "scheme": "Ed25519",
+      "key_root": "/var/lib/mios/passports",
+      "manifest_path": "/usr/share/mios/ai/v1/agents.json"
+    }
+  },
+  "ports": {
+    "agent_pipe": {"port": 8640, "service": "mios-agent-pipe.service",          "role": "canonical /v1 entry"},
+    "hermes":     {"port": 8642, "service": "hermes-agent.service",             "role": "default sub-agent (general orchestration)"},
+    "hermes_dashboard": {"port": 9119, "service": "hermes-dashboard.service",   "role": "sessions/skills/stats web UI"},
+    "ollama":     {"port": 11434, "service": "ollama.service",                  "role": "dGPU inference + embeddings"},
+    "ollama_igpu":{"port": 11435, "service": "mios-ollama-igpu.service",        "role": "iGPU lane (ollama:rocm); planner + refine on AMD iGPU"},
+    "surrealdb":  {"port": 8000,  "service": "mios-surrealdb.service",          "role": "shared agent state (sessions, tool_call, event, kanban_shadow, scratch, agent_metric)"},
+    "open_webui": {"port": 3030,  "service": "mios-open-webui.service",         "role": "browser front-end; pipes prompts to :8640"},
+    "searxng":    {"port": 8888,  "service": "mios-searxng.service",            "role": "local SearXNG; web_search backend"},
+    "ttyd_bash":      {"port": 7681, "service": "mios-ttyd-bash.service",       "role": "browser pty -- Linux bash"},
+    "ttyd_powershell":{"port": 7682, "service": "mios-ttyd-powershell.service", "role": "browser pty -- Windows PowerShell"}
   },
   "groups": [
     {
@@ -27,12 +46,6 @@
       ]
     },
     {
-      "name": "Completions (legacy)",
-      "endpoints": [
-        {"method": "POST", "path": "/v1/completions", "spec_ref": "https://platform.openai.com/docs/api-reference/completions/create", "deprecated": true, "successor": "/v1/chat/completions or /v1/responses"}
-      ]
-    },
-    {
       "name": "Responses",
       "endpoints": [
         {"method": "POST",   "path": "/v1/responses",                           "spec_ref": "https://platform.openai.com/docs/api-reference/responses/create", "streaming": true, "stateful": true, "tools": true, "mcp": true},
@@ -46,6 +59,12 @@
       "name": "Embeddings",
       "endpoints": [
         {"method": "POST", "path": "/v1/embeddings", "spec_ref": "https://platform.openai.com/docs/api-reference/embeddings/create"}
+      ]
+    },
+    {
+      "name": "Health",
+      "endpoints": [
+        {"method": "GET", "path": "/health", "manifest_note": "agent-pipe health: agents loaded, refine model, polish model, satisfaction loop state"}
       ]
     },
     {

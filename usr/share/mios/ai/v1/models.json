@@ -2,21 +2,54 @@
   "object": "list",
   "data": [
     {
-      "id": "qwen3.5:2b",
+      "id": "granite4.1:3b",
       "object": "model",
       "created": 1747000000,
       "owned_by": "mios-ollama",
       "permission": [],
-      "root": "qwen3.5:2b",
+      "root": "granite4.1:3b",
       "parent": null,
       "x-mios": {
         "role": "default-chat",
+        "context_window": 16384,
+        "ssot": "[ai].model in /usr/share/mios/mios.toml",
+        "served_by": "ollama.service (dGPU lane)",
+        "endpoint": "http://localhost:11434/v1",
+        "openai_api_compat": ["chat/completions", "completions"]
+      }
+    },
+    {
+      "id": "qwen3:1.7b",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-ollama",
+      "permission": [],
+      "root": "qwen3:1.7b",
+      "parent": null,
+      "x-mios": {
+        "role": "refine-and-polish",
         "context_window": 32768,
-        "endpoint": "http://localhost:8642/v1",
-        "served_by": "mios-hermes.container",
-        "backed_by": "ollama.container",
-        "openai_api_compat": ["chat/completions", "completions"],
-        "law": "Law 5 -- UNIFIED-AI-REDIRECTS"
+        "ssot": "[refine].model + [polish].model in /usr/share/mios/mios.toml",
+        "served_by": "mios-ollama-igpu.service (iGPU lane) when present; falls back to ollama.service (dGPU)",
+        "endpoint_primary": "http://localhost:11435/v1",
+        "endpoint_fallback": "http://localhost:11434/v1",
+        "openai_api_compat": ["chat/completions"]
+      }
+    },
+    {
+      "id": "qwen3-coder:30b",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-ollama",
+      "permission": [],
+      "root": "qwen3-coder:30b",
+      "parent": null,
+      "x-mios": {
+        "role": "tool-calling-mixture-of-experts",
+        "context_window": 32768,
+        "served_by": "ollama.service (dGPU lane)",
+        "endpoint": "http://localhost:11434/v1",
+        "openai_api_compat": ["chat/completions"]
       }
     },
     {
@@ -30,9 +63,62 @@
       "x-mios": {
         "role": "default-embed",
         "dimensions": 768,
+        "ssot": "[ai].embed_model in /usr/share/mios/mios.toml",
+        "served_by": "ollama.service",
         "endpoint": "http://localhost:11434/v1",
-        "served_by": "ollama.container",
         "openai_api_compat": ["embeddings"]
+      }
+    },
+    {
+      "id": "hermes-agent",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-agents",
+      "permission": [],
+      "root": "hermes-agent",
+      "parent": null,
+      "x-mios": {
+        "role": "general-orchestration-sub-agent",
+        "served_by": "hermes-agent.service",
+        "endpoint": "http://localhost:8642/v1",
+        "registered_as_sub_agent_of": "mios-agent-pipe",
+        "registry": "/usr/share/mios/ai/v1/agents.json"
+      }
+    },
+    {
+      "id": "opencode",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-agents",
+      "permission": [],
+      "root": "opencode",
+      "parent": null,
+      "x-mios": {
+        "role": "code-specialist-sub-agent",
+        "transport": "ACP over stdio",
+        "registered_as_sub_agent_of": "mios-agent-pipe",
+        "registry": "/usr/share/mios/ai/v1/agents.json"
+      }
+    },
+    {
+      "id": "mios-daemon-agent",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-agents",
+      "permission": [],
+      "root": "mios-daemon-agent",
+      "parent": null,
+      "x-mios": {
+        "role": "log-and-journal-follow-up-sub-agent",
+        "served_by": "mios-daemon.service",
+        "cpu_pinned_cores": 2,
+        "registered_as_sub_agent_of": "mios-agent-pipe",
+        "registry": "/usr/share/mios/ai/v1/agents.json",
+        "produces": [
+          "/var/lib/mios/daemon/launch_failures.json",
+          "/var/lib/mios/scratch/agent-nudges.md",
+          "satisfaction verdicts (event.type=user_query_satisfied)"
+        ]
       }
     }
   ],
@@ -40,9 +126,8 @@
     "schema": "OpenAI /v1/models response shape",
     "schema_ref": "https://platform.openai.com/docs/api-reference/models/list",
     "manifest_path": "/usr/share/mios/ai/v1/models.json",
-    "endpoint": "http://localhost:8642/v1/models",
-    "served_by": "mios-hermes.container",
-    "law": "Law 5 -- UNIFIED-AI-REDIRECTS",
-    "note": "Hermes-Agent serves the canonical /v1 surface on :8642 and proxies inference + embeddings to Ollama on :11434. Strict OpenAI clients should ignore x-mios extensions."
+    "endpoint": "http://localhost:8640/v1/models",
+    "served_by": "mios-agent-pipe.service",
+    "note": "agent-pipe (:8640) is the canonical /v1 entry. It refines the user prompt, routes to a sub-agent (default: hermes-agent), wraps the sub-agent's raw output in <details type=\"reasoning\">, and polishes the final reply. Strict OpenAI clients should ignore x-mios extensions."
   }
 }

@@ -1,33 +1,17 @@
 {
   "object": "mios.mcp.registry",
   "version": "v1",
-  "endpoint": "http://localhost:8642/v1",
+  "endpoint": "http://localhost:8640/v1",
   "schema_ref": "https://modelcontextprotocol.io/specification",
   "manifest_path": "/usr/share/mios/ai/v1/mcp.json",
-  "note": "MCP servers consumed by the OpenAI Responses API as tools=[{type:'mcp', server_url:...}]. Remote servers must be opted-in via /etc/mios/ai/v1/mcp.json overlay.",
-  "servers": [
-    {
-      "name": "mios-fs",
-      "transport": "stdio",
-      "command": "/usr/libexec/mios/mcp/fs-server",
-      "args": [],
-      "scope": "host",
-      "description": "Read-only filesystem browser scoped to /var/lib/mios and /usr/share/mios."
-    },
-    {
-      "name": "mios-kb",
-      "transport": "stdio",
-      "command": "/usr/libexec/mios/mcp/kb-server",
-      "args": ["--manifest", "/usr/share/mios/kb/manifest.json"],
-      "scope": "host",
-      "description": "Local knowledge-base retrieval over the OpenAI-API-shaped kb manifest."
-    },
-    {
-      "name": "mios-forge",
-      "transport": "http",
-      "url": "http://localhost:3000/api/v1",
-      "scope": "host",
-      "description": "Self-hosted Forgejo instance (mios-forge.container). Forgejo exposes a Gitea-compatible REST API at /api/v1; this entry lets agents browse repos, issues, and pull requests on the local forge."
-    }
-  ]
+  "note": "MCP servers consumed by /v1/responses as tools=[{type:'mcp', server_url:...}]. The base image ships ZERO baked MCP servers -- they are opt-in via /etc/mios/ai/v1/mcp.json overlay or by writing entries into a host-specific overlay. Operators add MCP servers at their own discretion; nothing here connects out without explicit configuration.",
+  "servers": [],
+  "x-mios": {
+    "vendor_default": "empty",
+    "overlay_paths": [
+      "/etc/mios/ai/v1/mcp.json",
+      "/var/home/$MIOS_USER/.config/mios/ai/v1/mcp.json"
+    ],
+    "tools_native_to_hermes": "MiOS-Hermes (default sub-agent at :8642) ships its OWN tool catalog (terminal, web_search, browser_*, kanban_*, skill_*, memory_*, delegate_task, discord_send_message, ...) which is documented at /usr/share/mios/ai/v1/tools.json. MCP is the second surface, layered ON TOP for cross-agent / cross-host tool sharing."
+  }
 }

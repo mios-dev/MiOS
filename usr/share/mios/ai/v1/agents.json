@@ -1,0 +1,60 @@
+{
+  "object": "mios.agents.registry",
+  "version": "v1",
+  "manifest_path": "/usr/share/mios/ai/v1/agents.json",
+  "ssot": "[agents.*] in /usr/share/mios/mios.toml",
+  "served_by": "mios-agent-pipe.service",
+  "note": "Sub-agents registered with the MiOS-Agent pipe at :8640. The pipe refines the user prompt, picks a sub-agent by role match (refine intent -> agent.role, falling back to default), dispatches with the refined plan injected as a system-message prefix, wraps the sub-agent's raw output in <details type=\"reasoning\"> for OWUI dropdowns, and polishes the final reply.",
+  "agents": [
+    {
+      "name": "hermes",
+      "endpoint": "http://localhost:8642/v1",
+      "model": "hermes-agent",
+      "role": "general",
+      "default": true,
+      "strengths": [
+        "kanban", "web_search", "skill_invocation",
+        "multi_step_reasoning", "tool_use"
+      ]
+    },
+    {
+      "name": "opencode",
+      "endpoint": "http://localhost:8633/v1",
+      "model": "opencode",
+      "role": "coding",
+      "default": false,
+      "strengths": [
+        "file_edit", "code_review", "git", "test_running", "refactor"
+      ]
+    },
+    {
+      "name": "mios-daemon-agent",
+      "endpoint": "http://localhost:8644/v1",
+      "model": "mios-daemon-agent",
+      "role": "telemetry",
+      "default": false,
+      "strengths": [
+        "journalctl_tail", "log_search", "event_query",
+        "system_followup", "what_just_happened"
+      ],
+      "x-mios": {
+        "always_on": true,
+        "cpu_pinned_cores": 2,
+        "hosted_by": "mios-daemon.service",
+        "emits": [
+          "event.type=user_query_satisfied",
+          "/var/lib/mios/scratch/agent-nudges.md",
+          "/var/lib/mios/daemon/launch_failures.json"
+        ]
+      }
+    }
+  ],
+  "x-mios": {
+    "passport_signing": {
+      "scheme": "Ed25519",
+      "key_root": "/var/lib/mios/passports",
+      "provisioned_by": "mios-passport-provision.service"
+    },
+    "refined_query_carry_rule": "Every dispatch from MiOS-Agent -> sub-agent MUST inject the refined plan as a system-message prefix. No sub-agent runs on raw user text."
+  }
+}

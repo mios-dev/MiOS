@@ -2,8 +2,8 @@
   "object": "mios.system-prompts.registry",
   "version": "v1",
   "manifest_path": "/usr/share/mios/ai/v1/system-prompts.json",
-  "endpoint": "http://localhost:8642/v1",
-  "served_by": "mios-hermes.container",
+  "endpoint": "http://localhost:8640/v1",
+  "served_by": "mios-agent-pipe.service",
   "resolution_order": [
     "${MIOS_AI_SYSTEM_PROMPT}",
     "~/.config/mios/system-prompt.md",

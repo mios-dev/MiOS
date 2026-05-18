@@ -584,16 +584,26 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 
 ## §11. AI/Agent surface
 
-- **Endpoint:** `http://localhost:8080/v1` (LAW 5: UNIFIED-AI-REDIRECTS).
-- **Sidecar:** `etc/containers/systemd/mios-ai.container` (LocalAI v2.20.0 by default).
+- **Canonical endpoint:** `http://localhost:8640/v1` (LAW 5:
+  UNIFIED-AI-REDIRECTS). Served by `mios-agent-pipe.service` --
+  refines the prompt, routes to a registered sub-agent, polishes
+  the reply.
+- **Sub-agent registry:** `[agents.*]` in `/usr/share/mios/mios.toml`
+  (SSOT); manifest mirror at `/usr/share/mios/ai/v1/agents.json`.
+  Default sub-agent: `hermes-agent.service` at `:8642/v1`.
+- **Inference backends:** `ollama.service` on `:11434` (dGPU lane);
+  `mios-ollama-igpu.service` on `:11435` (iGPU lane, ollama:rocm).
 - **Vendor system prompt:** `/usr/share/mios/ai/system.md`.
+- **Hermes seed persona:** `/usr/share/mios/ai/hermes-soul.md`
+  (slim, per-turn) + `/usr/share/mios/ai/hermes-soul-full.md`
+  (on-demand examples + recipes).
 - **Host override:** `/etc/mios/ai/system-prompt.md`.
 - **Per-user override:** `~/.config/mios/system-prompt.md`.
-- **MCP discovery:** `/usr/share/mios/ai/v1/mcp.json`.
+- **MCP discovery:** `/usr/share/mios/ai/v1/mcp.json` (empty by
+  default; opt-in via `/etc/mios/ai/v1/mcp.json` overlay).
 - **Model metadata:** `/usr/share/mios/ai/v1/models.json`.
-- **CLI:** `/usr/bin/mios` (Python; reads `MIOS_AI_ENDPOINT` env var,
-  falls back to `http://localhost:8080/v1`; reads system prompt from
-  `MIOS_SHARE_DIR/ai/v1/system.md`).
+- **CLI:** `/usr/bin/mios` (Python; reads `MIOS_AI_ENDPOINT` env
+  var, falls back to `http://localhost:8640/v1`).
 - **Memory:** `/var/lib/mios/ai/memory/<agent-id>/` (sqlite WAL).
 - **Scratch:** `/var/lib/mios/ai/scratch/`.
 - **Journal:** `/var/lib/mios/ai/journal.md` (append-only).

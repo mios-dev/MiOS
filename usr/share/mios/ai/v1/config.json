@@ -1,6 +1,16 @@
 {
-  "base_url": "http://localhost:8080/v1",
-  "default_model": "qwen2.5-coder:7b",
+  "base_url": "http://localhost:8640/v1",
+  "default_model": "granite4.1:3b",
   "embed_model": "nomic-embed-text",
-  "api_key": ""
+  "api_key": "",
+  "x-mios": {
+    "ssot": "[ai] in /usr/share/mios/mios.toml",
+    "served_by": "mios-agent-pipe.service",
+    "auth": {
+      "scheme": "Bearer",
+      "env": "MIOS_AI_KEY",
+      "source": "/etc/mios/hermes/api.env"
+    },
+    "note": "Minimal connection config for OpenAI-API-compatible clients. The agent surface refines the prompt, routes to a sub-agent, then polishes the reply -- clients see a single /v1 surface."
+  }
 }

@@ -73,16 +73,17 @@ def _file_id_for(path: str) -> str:
 # Curated corpus. Anything not on disk is silently skipped. Add new
 # entries here when new authoritative docs ship.
 CORPUS: list[str] = [
-    # The agent's own canonical surface
+    # The agent's own canonical surface (prose docs)
     "/usr/share/mios/ai/system.md",
     "/usr/share/mios/ai/INDEX.md",
-    "/usr/share/mios/ai/v1/system.md",
-    "/usr/share/mios/ai/v1/knowledge.md",
     "/usr/share/mios/ai/audit-prompt.md",
     "/usr/share/mios/ai/hermes-soul.md",
+    "/usr/share/mios/ai/hermes-soul-full.md",
     "/usr/share/mios/open-webui/system-prompts/mios-agent.md",
-    # Versioned data surface (machine-readable, also useful as RAG)
+    # Versioned data surface (machine-readable manifests; ALSO useful
+    # as RAG so the agent can introspect its own /v1 surface).
     "/usr/share/mios/ai/v1/models.json",
+    "/usr/share/mios/ai/v1/agents.json",
     "/usr/share/mios/ai/v1/tools.json",
     "/usr/share/mios/ai/v1/mcp.json",
     "/usr/share/mios/ai/v1/surface.json",

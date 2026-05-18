@@ -28,11 +28,11 @@ clients can ignore them.
 
 | Path | Method | Served by | Spec |
 |---|---|---|---|
-| `/v1/chat/completions` | POST | MiOS-Hermes (`:8642`) -- via Prefilter (`:8641`) for OWUI/LAN | <https://platform.openai.com/docs/api-reference/chat> |
-| `/v1/responses` | POST | MiOS-Hermes (`:8642`) | <https://platform.openai.com/docs/api-reference/responses> |
+| `/v1/chat/completions` | POST | MiOS-Agent pipe (`:8640`) -- refines, routes to sub-agent, polishes | <https://platform.openai.com/docs/api-reference/chat> |
+| `/v1/responses` | POST | MiOS-Agent pipe (`:8640`) -- backed by Hermes (`:8642`) by default | <https://platform.openai.com/docs/api-reference/responses> |
 | `/v1/embeddings` | POST | MiOS-Inference (`:11434/v1`) directly | <https://platform.openai.com/docs/api-reference/embeddings> |
-| `/v1/models` | GET | MiOS-Hermes; manifest at `usr/share/mios/ai/v1/models.json` | <https://platform.openai.com/docs/api-reference/models/list> |
-| `/v1/audio/{transcriptions,speech}` | POST | LocalAI (when enabled in `mios.toml`) | <https://platform.openai.com/docs/api-reference/audio> |
+| `/v1/models` | GET | MiOS-Agent pipe; manifest at `usr/share/mios/ai/v1/models.json` | <https://platform.openai.com/docs/api-reference/models/list> |
+| `/v1/agents` (manifest) | GET | `usr/share/mios/ai/v1/agents.json` -- mirror of `[agents.*]` in mios.toml | -- |
 | `x-mios:/v1/mcp` | GET | `usr/share/mios/ai/v1/mcp.json` | <https://modelcontextprotocol.io/specification> |
 
 `/v1/mcp` is a MiOS extension (not part of the OpenAI public API). The
