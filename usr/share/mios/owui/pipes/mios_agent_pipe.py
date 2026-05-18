@@ -724,6 +724,147 @@ class Pipe:
         re.IGNORECASE,
     )
 
+    # Native multi-agent compose -- structured handoff from Hermes
+    # session JSON (operator directive 2026-05-18: "HOW WOULD THIS
+    # MULTI_AGENTIC_REASONING WORK NATIVELY!??? RESEARCH!" + "make
+    # sure this is ALL ALSO OpenAI API COMPLIANT and COMPLETELY
+    # FUnctional on a Bootc Bootable OCI MiOS image").
+    #
+    # Architecture (see /usr/share/mios/docs/multi-agent-architecture.md
+    # for the full research + migration plan):
+    #   Phase 1 (this code): Compose reads Hermes session JSON for
+    #     the OpenAI-format tool_calls + tool_result message history,
+    #     reasons over STRUCTURE instead of text-mangled stream.
+    #   Phase 2 (future):    Add explicit Critic Agent loop on
+    #     iGPU micro-LLM (qwen3:1.7b).
+    #   Phase 3 (future):    Refine emits JSON {intent, plan} rather
+    #     than INTENT/TOOLS/DELEGATE/PLAN labels.
+    #   Phase 4 (future):    Drop regex post-processors (think /
+    #     details strip, KNOWN_AGENT_ERROR_RE, etc.).
+    #
+    # OpenAI compliance: the tool_call + tool_result shape is the
+    # standard OpenAI Chat Completions message format. Hermes
+    # records exactly this in session JSON; we surface it untouched
+    # to the compose model. Any OpenAI-API-compatible model
+    # (Claude, GPT-*, local Ollama) can consume the structured
+    # input identically.
+    HERMES_SESSIONS_DIR = "/var/lib/mios/hermes/sessions"
+
+    def _load_session_tool_history(self, after_ts: float,
+                                    max_age_s: float = 600
+                                    ) -> Optional[list[dict]]:
+        """Find the newest Hermes session JSON whose mtime is later
+        than `after_ts` (the moment the pipe dispatched to hermes)
+        and within `max_age_s` of now. Return the OpenAI-format
+        message list (user/assistant/tool) for the compose layer.
+        Returns None when no session found or unreadable -- compose
+        falls back to the legacy text-blob path.
+
+        Day-0 / bootc note: HERMES_SESSIONS_DIR lives under
+        /var/lib/mios/hermes (created by mios-hermes-firstboot at
+        first boot; bootc-bootable). No /etc writes required."""
+        import glob, os, json as _json
+        try:
+            sessions = sorted(
+                glob.glob(f"{self.HERMES_SESSIONS_DIR}/session_*.json"),
+                key=os.path.getmtime, reverse=True,
+            )
+        except OSError:
+            return None
+        now = time.time()
+        for path in sessions[:5]:
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                continue
+            if mtime < after_ts:
+                # Older than the dispatch -- not this turn's session.
+                break
+            if (now - mtime) > max_age_s:
+                continue
+            try:
+                d = _json.loads(open(path, "r", encoding="utf-8").read())
+            except (OSError, _json.JSONDecodeError):
+                continue
+            msgs = d.get("messages") or []
+            if not msgs:
+                continue
+            # Keep only the operator-relevant slice: the LAST
+            # user-message and every message after it.
+            last_user_idx = -1
+            for i in range(len(msgs) - 1, -1, -1):
+                m = msgs[i]
+                if isinstance(m, dict) and m.get("role") == "user":
+                    last_user_idx = i; break
+            slice_msgs = msgs[last_user_idx:] if last_user_idx >= 0 else msgs
+            return slice_msgs
+        return None
+
+    def _render_tool_history_for_compose(self, msgs: list[dict]) -> str:
+        """Render the OpenAI-format message list as a compact JSON
+        the compose model can reason over. Pairs each assistant
+        tool_call with its matching tool_result message and adds a
+        derived `success` field (parsed from the tool result content
+        when the upstream tool returned JSON with `success` -- the
+        MiOS verb convention)."""
+        import json as _json
+        # Build call-id -> result-content index
+        results: dict[str, dict] = {}
+        for m in msgs:
+            if not isinstance(m, dict) or m.get("role") != "tool":
+                continue
+            tcid = m.get("tool_call_id") or ""
+            content = m.get("content") or ""
+            success: Optional[bool] = None
+            try:
+                parsed = _json.loads(content) if isinstance(content, str) else None
+                if isinstance(parsed, dict) and "success" in parsed:
+                    success = bool(parsed["success"])
+            except (_json.JSONDecodeError, ValueError):
+                pass
+            # Trim noisy content for the compose prompt.
+            preview = content if isinstance(content, str) else str(content)
+            results[tcid] = {
+                "tool_call_id": tcid,
+                "content_preview": preview[:1200],
+                "success": success,
+            }
+        events: list[dict] = []
+        for m in msgs:
+            if not isinstance(m, dict):
+                continue
+            role = m.get("role")
+            if role == "user":
+                events.append({
+                    "role": "user",
+                    "content": (m.get("content") or "")[:1200],
+                })
+            elif role == "assistant":
+                tc = m.get("tool_calls") or []
+                if tc:
+                    for t in tc:
+                        fn = (t.get("function") or {}) if isinstance(t, dict) else {}
+                        name = fn.get("name", "?")
+                        args = fn.get("arguments", "")
+                        tcid = t.get("id", "") if isinstance(t, dict) else ""
+                        r = results.get(tcid, {})
+                        events.append({
+                            "role": "assistant.tool_call",
+                            "tool_call_id": tcid,
+                            "tool": name,
+                            "arguments": args[:600] if isinstance(args, str)
+                                         else _json.dumps(args)[:600],
+                            "success": r.get("success"),
+                            "result_preview": r.get("content_preview", ""),
+                        })
+                text = m.get("content")
+                if text:
+                    events.append({
+                        "role": "assistant.text",
+                        "content": str(text)[:1200],
+                    })
+        return _json.dumps({"history": events}, indent=2)
+
     def _looks_conversational(self, text: str) -> bool:
         if not text:
             return True
@@ -764,10 +905,12 @@ class Pipe:
         user_text: str,
         raw_output: str,
         emitter: Optional[Callable[..., Awaitable[None]]],
+        dispatch_ts: Optional[float] = None,
     ) -> str:
-        """Output polish: takes raw agent output + original user prompt,
-        returns the operator-facing answer. Falls back to raw on any
-        failure (better than empty)."""
+        """Output polish/compose: prefers STRUCTURED tool history from
+        the Hermes session JSON over the text-blob raw_output (phase-1
+        native multi-agent path; see /usr/share/mios/docs/multi-agent-
+        architecture.md). Falls back to raw on any failure."""
         if not self.valves.POLISH_ENABLED:
             return raw_output
         if not raw_output or not raw_output.strip():
@@ -776,22 +919,53 @@ class Pipe:
             await self._emit(emitter, "✓ clean → skip polish")
             return raw_output
 
-        # Emit form: pure symbol, no model name. Operator directive
-        # 2026-05-18: "Sanitize the emitters to not show models but
-        # emit something natively (no hard-coding)". Model identity
-        # lives in valves; status line stays universal.
+        # Try to load the structured tool history from Hermes session
+        # JSON (OpenAI-format messages with tool_calls + tool_result).
+        # When available, compose reasons over STRUCTURE; when not,
+        # falls back to the legacy text-blob path. Operator directive
+        # 2026-05-18 to keep this OpenAI-API-compliant + Day-0-bootc.
+        tool_history_json: Optional[str] = None
+        if dispatch_ts is not None:
+            try:
+                msgs = self._load_session_tool_history(dispatch_ts)
+                if msgs:
+                    tool_history_json = self._render_tool_history_for_compose(msgs)
+            except Exception:
+                tool_history_json = None
         await self._emit(emitter, "🎨 polish")
 
+        # Append the structured tool history at the bottom of the
+        # system prompt when available. The model sees the legacy
+        # text-blob raw_output AND the structured tool_history; the
+        # structured part is authoritative for success/fail reasoning.
+        sys_content = self._POLISH_SYSTEM.format(
+            user_prompt=user_text[:2000],
+            raw_output=raw_output[:12000],
+        )
+        if tool_history_json:
+            sys_content += (
+                "\n\n## STRUCTURED TOOL HISTORY (OpenAI-format; authoritative for success/fail)\n"
+                "Below is the tool_call + tool_result message history from\n"
+                "the Hermes session for this turn. EACH event includes the\n"
+                "tool name, arguments, and (when the tool returned JSON\n"
+                "with a `success` field per the MiOS verb convention) a\n"
+                "boolean `success`. ALSO reflected here: kanban_* tool\n"
+                "calls (task state), memory_save/memory_search (durable\n"
+                "context), skill_view/skill_manage (agent self-iteration),\n"
+                "and any knowledge_search hits (OWUI RAG corpus).\n"
+                "\n"
+                "PREFER this structured history over the raw text above\n"
+                "when reasoning about which steps ran and what they\n"
+                "produced. Cite events by tool name + success state in\n"
+                "your answer. Steps NOT present in this history did NOT\n"
+                "run -- say so explicitly rather than fabricating.\n"
+                "\n"
+                f"{tool_history_json[:6000]}\n"
+            )
         body = {
             "model": self.valves.POLISH_MODEL,
             "messages": [
-                {
-                    "role": "system",
-                    "content": self._POLISH_SYSTEM.format(
-                        user_prompt=user_text[:2000],
-                        raw_output=raw_output[:12000],
-                    ),
-                },
+                {"role": "system", "content": sys_content},
                 {"role": "user", "content": "Emit the polished answer now."},
             ],
             "options": {
@@ -1158,6 +1332,12 @@ class Pipe:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
         await self._emit(__event_emitter__, "🧠 → hermes")
+        # Mark the dispatch moment so compose (after hermes finishes
+        # streaming) can find the matching Hermes session JSON by
+        # mtime > _dispatch_ts. Shared mutable scratch location:
+        # /var/lib/mios/hermes/sessions/ (operator directive 2026-05-18
+        # "shared global scratpad(s) in mutable locations").
+        _dispatch_ts = time.time()
 
         # Unbounded sock_read (LLM stream can idle 10s+ between chunks on
         # CPU); only sock_connect bounded so we don't hang if the backend
@@ -1259,6 +1439,7 @@ class Pipe:
 
             polished = await self._polish_via_cpu(
                 user_text_for_polish, raw_text, __event_emitter__,
+                dispatch_ts=_dispatch_ts,
             )
             yield polished
 
