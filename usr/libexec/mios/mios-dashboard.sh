@@ -359,70 +359,83 @@ print_endpoints() {
     _fpw="$(cat /etc/mios/forge/admin-password 2>/dev/null)"
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
 
-    local _p_forge _p_cockpit _p_ollama _p_searxng _p_hermes _p_dash _p_code _p_webui
+    # Port resolution -- two tiers:
+    #   AI surface: agent-pipe, hermes, surrealdb, hermes-dashboard,
+    #               ollama (dGPU/CUDA), ollama-igpu (iGPU/ROCm).
+    #   User surface: webui, cockpit, code, forge, search, ttyd-bash,
+    #               ttyd-powershell.
+    # 2026-05-18 refresh: added agent-pipe, surrealdb, ollama-igpu,
+    # ttyd-bash, ttyd-powershell -- they were live but invisible on
+    # the dashboard.
+    local _p_forge _p_cockpit _p_ollama _p_ollama_igpu _p_searxng
+    local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_surrealdb
+    local _p_ttyd_bash _p_ttyd_ps
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
+    _p_ollama_igpu=$(_mios_port ollama_igpu 11435)
     _p_searxng=$(_mios_port searxng 8888)
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)
     _p_code=$(_mios_port code_server 8080)
     _p_webui=$(_mios_port open_webui 3030)
+    _p_agent_pipe=$(_mios_port agent_pipe 8640)
+    _p_surrealdb=$(_mios_port surrealdb 8000)
+    _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
+    _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
 
-    local d_forge d_ollama d_cockpit d_searxng d_hermes d_dash d_code d_webui
-    d_forge=$(ep_dot     "http://localhost:${_p_forge}/api/v1/version")
-    d_ollama=$(ep_dot    "http://localhost:${_p_ollama}/")
-    d_cockpit=$(ep_dot   "https://localhost:${_p_cockpit}/")
-    d_searxng=$(ep_dot   "http://localhost:${_p_searxng}/")
-    d_hermes=$(ep_dot    "http://localhost:${_p_hermes}/health")
-    d_dash=$(ep_dot      "http://localhost:${_p_dash}/")
-    d_code=$(ep_dot      "http://localhost:${_p_code}/")
-    d_webui=$(ep_dot     "http://localhost:${_p_webui}/")
+    local d_forge d_ollama d_ollama_igpu d_cockpit d_searxng
+    local d_hermes d_dash d_code d_webui d_agent_pipe d_surrealdb
+    local d_ttyd_bash d_ttyd_ps
+    d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
+    d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
+    d_ollama_igpu=$(ep_dot "http://localhost:${_p_ollama_igpu}/")
+    d_cockpit=$(ep_dot    "https://localhost:${_p_cockpit}/")
+    d_searxng=$(ep_dot    "http://localhost:${_p_searxng}/")
+    d_hermes=$(ep_dot     "http://localhost:${_p_hermes}/health")
+    d_dash=$(ep_dot       "http://localhost:${_p_dash}/")
+    d_code=$(ep_dot       "http://localhost:${_p_code}/")
+    d_webui=$(ep_dot      "http://localhost:${_p_webui}/")
+    d_agent_pipe=$(ep_dot "http://localhost:${_p_agent_pipe}/health")
+    d_surrealdb=$(ep_dot  "http://localhost:${_p_surrealdb}/health")
+    d_ttyd_bash=$(ep_dot  "http://localhost:${_p_ttyd_bash}/")
+    d_ttyd_ps=$(ep_dot    "http://localhost:${_p_ttyd_ps}/")
 
-    # Mini: count recap + 4 clickable hyperlink rows (Cockpit, Code,
-    # Workspace, Search) per operator spec 2026-05-11 ("you STILL have
-    # 4 rows available... can include some links to Cockpit, Code,
-    # hermes workspace, search"). Modern terminals (WT, Ptyxis, Konsole)
-    # auto-detect bare http(s):// URLs as OSC 8 hyperlinks even without
-    # explicit escape sequences, so each row's URL is click-to-launch.
+    # Mini: count recap + 4 clickable hyperlink rows. Refresh 2026-05-18:
+    # the count includes the new AI-surface services (agent-pipe,
+    # surrealdb, ollama-igpu, ttyd) and the 4 link rows lead with the
+    # agent surface (Agent-Pipe + WebUI) since that's now the operator's
+    # primary entry point, with Cockpit + ttyd-PowerShell rounding out
+    # the row budget.
     if [[ "$MODE" == "mini" ]]; then
         local n_up=0 n_down=0
-        for _d in "$d_forge" "$d_ollama" "$d_cockpit" "$d_searxng" \
-                  "$d_hermes" "$d_webui" "$d_code"; do
+        for _d in "$d_agent_pipe" "$d_hermes" "$d_surrealdb" \
+                  "$d_ollama" "$d_ollama_igpu" "$d_webui" \
+                  "$d_cockpit" "$d_forge" "$d_searxng" \
+                  "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
             case "$_d" in
                 *"$DOT_UP"*) n_up=$((n_up + 1)) ;;
                 *)           n_down=$((n_down + 1)) ;;
             esac
         done
-        printf '  %s%s%s %s%d up%s    %s%s%s %s%d down%s    %sforge:%s  hermes:%s  ollama:%s%s\n' \
+        printf '  %s%s%s %s%d up%s    %s%s%s %s%d down%s    %sagent:%s  hermes:%s  ollama:%s%s\n' \
             "$C_GRN" "$DOT_UP" "$C_R"   "$C_B"   "$n_up"   "$C_R" \
             "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$n_down" "$C_R" \
-            "$C_GRY" "$_p_forge" "$_p_hermes" "$_p_ollama" "$C_R"
+            "$C_GRY" "$_p_agent_pipe" "$_p_hermes" "$_p_ollama" "$C_R"
         local link_fmt='  %s %-10s %s%s%s\n'
-        printf "$link_fmt" "$d_cockpit"   "Cockpit"   "$C_D" "https://localhost:${_p_cockpit}/"  "$C_R"
-        printf "$link_fmt" "$d_code"      "Code"      "$C_D" "http://localhost:${_p_code}/"      "$C_R"
-        printf "$link_fmt" "$d_webui"     "WebUI"     "$C_D" "http://localhost:${_p_webui}/"     "$C_R"
-        printf "$link_fmt" "$d_searxng"   "Search"    "$C_D" "http://localhost:${_p_searxng}/"   "$C_R"
+        printf "$link_fmt" "$d_agent_pipe" "Agent-Pipe" "$C_D" "http://localhost:${_p_agent_pipe}/v1"  "$C_R"
+        printf "$link_fmt" "$d_webui"      "WebUI"      "$C_D" "http://localhost:${_p_webui}/"        "$C_R"
+        printf "$link_fmt" "$d_cockpit"    "Cockpit"    "$C_D" "https://localhost:${_p_cockpit}/"     "$C_R"
+        printf "$link_fmt" "$d_ttyd_ps"    "PS-Term"    "$C_D" "http://localhost:${_p_ttyd_ps}/"      "$C_R"
         return
     fi
 
     # Full dash: every service as "<dot> <Name> <full URL>" in a
-    # 2-column grid -- the operator's "hyperlinks" requirement.
-    # Modern terminals (WT, Ptyxis, Konsole) auto-detect bare URLs as
-    # OSC 8 hyperlinks even without explicit escape sequences, so a
-    # plain `http://localhost:PORT/` is clickable.
-    section_header "Services"
-    # Compact "name :port" cell -- name is an OSC 8 hyperlink, click
-    # opens the service URL in the operator's default browser. The
-    # frame_filter at the top of this script strips OSC 8 sequences
-    # before counting visible width, so the multi-row 2-column layout
-    # survives the framing pass cleanly (operator-confirmed 2026-05-13:
-    # without OSC stripping in the framer, the ESC bytes inflated cell
-    # widths past the row budget and the wrapper collapsed everything
-    # to one line).
+    # 2-column grid grouped into two named tiers per the 2026-05-18
+    # refresh.
     #
-    # Cell budget: dot(1)+sp(1)+name(9)+sp(1)+:port(6) = 18 cols
-    # visible. Two cells + 2-space indent + 2-space row sep = 40 cols,
+    # Cell budget: dot(1)+sp(1)+name(11)+sp(1)+:port(6) = 20 cols
+    # visible. Two cells + 2-space indent + 2-space row sep = 44 cols,
     # ~36 cols of slack inside the canonical 80-col frame.
     #
     # OSC 8 escape: \e]8;;URL\e\\TEXT\e]8;;\e\\ -- bash $'...' ANSI-C
@@ -431,39 +444,66 @@ print_endpoints() {
     # Ptyxis, Konsole, kitty, WezTerm, Alacritty, GNOME Terminal)
     # render the anchor text as a clickable link.
     local _esc=$'\e'
-    local osc_lnk="${_esc}]8;;%s${_esc}\\%-9s${_esc}]8;;${_esc}\\"
+    local osc_lnk="${_esc}]8;;%s${_esc}\\%-11s${_esc}]8;;${_esc}\\"
     local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
     local row_fmt='  %b  %b\n'
-    local c_forge c_ollama c_cock c_srch c_herm c_dash c_code c_webui
-    c_forge=$( printf  "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"     "$C_D" "$_p_forge"     "$C_R")
-    c_ollama=$(printf  "$cell_fmt" "$d_ollama"    "http://localhost:${_p_ollama}/"    "Ollama"    "$C_D" "$_p_ollama"    "$C_R")
-    c_cock=$(  printf  "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"   "$C_D" "$_p_cockpit"   "$C_R")
-    c_srch=$(  printf  "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"    "$C_D" "$_p_searxng"   "$C_R")
-    c_herm=$(  printf  "$cell_fmt" "$d_hermes"    "http://localhost:${_p_hermes}/v1"  "Hermes"    "$C_D" "$_p_hermes"    "$C_R")
-    c_dash=$(  printf  "$cell_fmt" "$d_dash"      "http://localhost:${_p_dash}/"      "Dash-AI"   "$C_D" "$_p_dash"      "$C_R")
-    c_code=$(  printf  "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"      "$C_D" "$_p_code"      "$C_R")
-    c_webui=$( printf  "$cell_fmt" "$d_webui"     "http://localhost:${_p_webui}/"     "WebUI"     "$C_D" "$_p_webui"     "$C_R")
-    printf "$row_fmt" "$c_forge" "$c_ollama"
-    printf "$row_fmt" "$c_cock"  "$c_srch"
-    printf "$row_fmt" "$c_herm"  "$c_dash"
-    printf "$row_fmt" "$c_code"  "$c_webui"
+
+    # AI surface -- agent stack the operator interacts with through
+    # OWUI / Discord / programmatic clients.
+    section_header "AI surface"
+    local c_agent c_herm c_sdb c_dash c_oll c_olli
+    c_agent=$(printf "$cell_fmt" "$d_agent_pipe" "http://localhost:${_p_agent_pipe}/v1"  "Agent-Pipe" "$C_D" "$_p_agent_pipe" "$C_R")
+    c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
+    c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
+    c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
+    c_oll=$(  printf "$cell_fmt" "$d_ollama"     "http://localhost:${_p_ollama}/"        "Ollama"     "$C_D" "$_p_ollama"     "$C_R")
+    c_olli=$( printf "$cell_fmt" "$d_ollama_igpu" "http://localhost:${_p_ollama_igpu}/"   "Ollama-iGPU" "$C_D" "$_p_ollama_igpu" "$C_R")
+    printf "$row_fmt" "$c_agent" "$c_herm"
+    printf "$row_fmt" "$c_sdb"   "$c_dash"
+    printf "$row_fmt" "$c_oll"   "$c_olli"
+
+    # User surface -- browser/desktop tools the operator uses directly.
+    section_header "User surface"
+    local c_webui c_cock c_code c_forge c_srch c_ttyb c_ttyp
+    c_webui=$(printf "$cell_fmt" "$d_webui"     "http://localhost:${_p_webui}/"     "WebUI"      "$C_D" "$_p_webui"     "$C_R")
+    c_cock=$( printf "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"    "$C_D" "$_p_cockpit"   "$C_R")
+    c_code=$( printf "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"       "$C_D" "$_p_code"      "$C_R")
+    c_forge=$(printf "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"      "$C_D" "$_p_forge"     "$C_R")
+    c_srch=$( printf "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"     "$C_D" "$_p_searxng"   "$C_R")
+    c_ttyb=$( printf "$cell_fmt" "$d_ttyd_bash" "http://localhost:${_p_ttyd_bash}/" "ttyd-bash"  "$C_D" "$_p_ttyd_bash" "$C_R")
+    c_ttyp=$( printf "$cell_fmt" "$d_ttyd_ps"   "http://localhost:${_p_ttyd_ps}/"   "ttyd-PS"    "$C_D" "$_p_ttyd_ps"   "$C_R")
+    printf "$row_fmt" "$c_webui" "$c_cock"
+    printf "$row_fmt" "$c_code"  "$c_forge"
+    printf "$row_fmt" "$c_srch"  "$c_ttyb"
+    printf "$row_fmt" "$c_ttyp"  ""
 
     # Backing services -- no exposed URL but stack-critical (CI runner,
-    # network bridge, cluster). Dot-only indicators so the operator sees
-    # the full stack at a glance in `mios dash`. Operator 2026-05-11:
-    # "mios dash(FULL) should show ALL services!!"
-    local d_runner d_ceph d_k3s
-    local s_runner s_ceph s_k3s
+    # cluster, daemon, miner, passport provisioning). Dot-only
+    # indicators so the operator sees the full stack at a glance in
+    # `mios dash`. 2026-05-18 refresh: added the C.2 / C.3 / A.2
+    # backgrounders + the AI-bucket sysuser-keyed agent surface.
+    local d_runner d_ceph d_k3s d_daemon d_miner d_pass
+    local s_runner s_ceph s_k3s s_daemon s_miner s_pass
     s_runner=$(service_status mios-forgejo-runner.service); IFS='|' read -r _ d_runner _ <<< "$s_runner"
     s_ceph=$(  service_status mios-ceph.service);            IFS='|' read -r _ d_ceph   _ <<< "$s_ceph"
     s_k3s=$(   service_status mios-k3s.service);             IFS='|' read -r _ d_k3s    _ <<< "$s_k3s"
+    s_daemon=$(service_status mios-daemon.service);          IFS='|' read -r _ d_daemon _ <<< "$s_daemon"
+    s_miner=$( service_status mios-skills-miner.timer);      IFS='|' read -r _ d_miner  _ <<< "$s_miner"
+    s_pass=$(  service_status mios-passport-provision.service); IFS='|' read -r _ d_pass _ <<< "$s_pass"
     [[ -z "$d_runner" ]] && d_runner="$DOT_DOWN"
     [[ -z "$d_ceph"   ]] && d_ceph="$DOT_DOWN"
     [[ -z "$d_k3s"    ]] && d_k3s="$DOT_DOWN"
-    printf '  %s%s %s Runner%s    %s%s %s Ceph%s    %s%s %s K3s%s\n' \
+    [[ -z "$d_daemon" ]] && d_daemon="$DOT_DOWN"
+    [[ -z "$d_miner"  ]] && d_miner="$DOT_DOWN"
+    [[ -z "$d_pass"   ]] && d_pass="$DOT_DOWN"
+    printf '  %s%s %s Runner%s   %s%s %s Ceph%s   %s%s %s K3s%s   %s%s %s Daemon%s\n' \
         "$C_R" "$d_runner" "$C_D" "$C_R" \
         "$C_R" "$d_ceph"   "$C_D" "$C_R" \
-        "$C_R" "$d_k3s"    "$C_D" "$C_R"
+        "$C_R" "$d_k3s"    "$C_D" "$C_R" \
+        "$C_R" "$d_daemon" "$C_D" "$C_R"
+    printf '  %s%s %s Skills-Miner%s   %s%s %s Passport%s\n' \
+        "$C_R" "$d_miner" "$C_D" "$C_R" \
+        "$C_R" "$d_pass"  "$C_D" "$C_R"
     # Credentials row (global MiOS password unless per-service override).
     printf '  %slogin %s/%s   forge %s/%s%s\n' \
         "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$C_R"
@@ -474,10 +514,18 @@ print_quadlets() {
     # `systemctl --no-pager list-units 'mios-*' ollama.service`.
     local svc info name dot color
     local n_active=0 n_starting=0 n_inactive=0 n_failed=0
+    # 2026-05-18 refresh: include Phase 2 / C.x / D.x services that
+    # have shipped since the previous service list -- surrealdb,
+    # agent-pipe, ollama-igpu, daemon, ttyd, skills-miner,
+    # passport-provision -- so the stack count actually reflects the
+    # full deployed surface.
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
-               mios-ceph mios-k3s ollama mios-searxng \
+               mios-ceph mios-k3s ollama mios-ollama-igpu mios-searxng \
                mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
-               mios-guacamole guacd guacamole-postgres; do
+               mios-guacamole guacd guacamole-postgres \
+               mios-surrealdb mios-agent-pipe mios-daemon \
+               mios-ttyd-bash mios-ttyd-powershell \
+               mios-skills-miner mios-passport-provision; do
 
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"
