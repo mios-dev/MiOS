@@ -153,6 +153,11 @@ canonical_verbs:
     example: 'mios-knowledge-add /var/lib/mios/compacted/ --collection "MiOS Session Memory"'
     tags: [memory, knowledge]
 
+  - name: mios-gpu-passthrough
+    intent: reconcile AddDevice= drop-ins on AI Quadlets against /run/cdi/* (AMD/Intel iGPU)
+    example: 'mios-gpu-passthrough     # called automatically by mios-cdi-detect.service'
+    tags: [gpu, cdi, infra]
+
   - name: mios-lan-status
     intent: check + enable LAN-accessibility for OWUI/Hermes/etc. (Win UAC for --enable)
     example: 'mios-lan-status [--enable]'
