@@ -1385,13 +1385,69 @@ fi
 # give the Hyper-V vSwitch gateway, not the Tailscale interface). We
 # query the Windows tailscale.exe via wsl interop and write the file
 # once on every firstboot. Idempotent.
-if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
-    _ts_ip="$(/mnt/c/Program\ Files/Tailscale/tailscale.exe ip -4 2>/dev/null | head -1 | tr -d '\r\n ')"
-    if [[ "$_ts_ip" =~ ^100\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "$_ts_ip" > /etc/mios/windows-host
-        chmod 0644 /etc/mios/windows-host
-        _log "pinned Windows host tailscale IP to /etc/mios/windows-host: $_ts_ip"
+# ─── Enable opt-in units per mios.toml [ttyd].enable + mining timer ───
+# These are listed-but-not-installed-enabled by the bootc image (so
+# operators on minimal hosts aren't paying for them), but mios.toml's
+# vendor default opts in. Firstboot reads the toml SSOT and enables.
+# Idempotent: systemctl enable on an already-enabled unit is a no-op.
+_ttyd_enabled="$(python3 -c '
+import sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+try:
+    with open("/usr/share/mios/mios.toml","rb") as f:
+        d = tomllib.load(f)
+    print(str(bool((d.get("ttyd") or {}).get("enable", False))).lower())
+except Exception:
+    print("false")
+' 2>/dev/null || echo false)"
+if [[ "$_ttyd_enabled" == "true" ]]; then
+    for _ttyd_unit in mios-ttyd-bash.service mios-ttyd-powershell.service; do
+        if systemctl enable --now "$_ttyd_unit" 2>/dev/null; then
+            _log "  enabled+started $_ttyd_unit"
+        else
+            _log "  WARN: $_ttyd_unit failed to enable/start"
+        fi
+    done
+fi
+# Skills miner: catalogs + mines tool-call patterns. Vendor default
+# is enable -- the timer fires every [skills.mine_interval_minutes].
+if [[ -f /usr/lib/systemd/system/mios-skills-miner.timer ]]; then
+    if systemctl enable --now mios-skills-miner.timer 2>/dev/null; then
+        _log "  enabled+started mios-skills-miner.timer"
     else
-        _log "WARN: Tailscale.exe present but didn't return a usable tailnet IP"
+        _log "  WARN: mios-skills-miner.timer failed to enable/start"
     fi
 fi
+
+if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
+    # Best-effort: tailscale.exe can fail transiently at firstboot
+    # time (just-booted Windows + tailscaled not yet responsive),
+    # and the WHOLE firstboot script would exit 1 because of set
+    # -euo pipefail. Wrap in a subshell with the strict flags
+    # locally relaxed so a probe failure doesn't kill firstboot.
+    # The cached file at /etc/mios/windows-host from any previous
+    # successful firstboot remains usable in the meantime.
+    (
+        set +e +o pipefail
+        _ts_ip="$(/mnt/c/Program\ Files/Tailscale/tailscale.exe ip -4 2>/dev/null \
+            | head -1 | tr -d '\r\n ')"
+        if [[ "$_ts_ip" =~ ^100\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "$_ts_ip" > /etc/mios/windows-host
+            chmod 0644 /etc/mios/windows-host
+            _log "pinned Windows host tailscale IP to /etc/mios/windows-host: $_ts_ip"
+        elif [[ -s /etc/mios/windows-host ]]; then
+            _log "Tailscale probe transient-failed; keeping cached $(cat /etc/mios/windows-host)"
+        else
+            _log "WARN: Tailscale.exe present but didn't return a usable tailnet IP, and no cached value"
+        fi
+    ) || true
+fi
+# Explicit exit 0 so the script's exit status doesn't depend on the
+# last sub-block's truthiness under set -e (the Tailscale block
+# always reaches here non-failing now, but a future maintainer
+# adding a new tail block shouldn't have to think about set -e
+# arithmetic).
+exit 0
