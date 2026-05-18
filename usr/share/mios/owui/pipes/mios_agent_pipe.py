@@ -372,8 +372,14 @@ class Pipe:
     # the alternation. The bare-name list (hi, hola, etc.) covers
     # standalone tokens; the phrase list covers multi-word openers.
     _CONVERSATIONAL_RE = re.compile(
-        # English / generic
-        r"^\s*(hi|hello|hey|yo|howdy|sup|gm|gn|ok|okay|kk|alright|"
+        # English / generic. The "X there"/"X y'all"/"X everyone"
+        # forms (Hey there!, Hi y'all, Hello everyone) are bundled
+        # in the leading-word alternation so they also short-circuit
+        # to skip-refine. Operator-flagged 2026-05-18: "Hey there!"
+        # was inflating from 10c to 111c via refine because the
+        # 1-word gate failed to match.
+        r"^\s*((?:hi|hello|hey|yo|howdy)(?:\s+(?:there|y[’']?all|everyone|all|guys|friend|friends|bot))?|"
+        r"sup|gm|gn|ok|okay|kk|alright|"
         r"thanks|thx|ty|thank you|cool|nice|great|got it|"
         r"sounds good|sgtm|sure|yes|no|yep|nope|yeah|nah|"
         r"bye|cya|goodbye|later|peace|seeya|"
@@ -1559,13 +1565,19 @@ class Pipe:
         # appropriate final answer normally in OWUI chats".
         raw_buffer = ""
         any_text = False
+        # Operator-flagged 2026-05-18: open `<details>` was being
+        # yielded EAGERLY before hermes responded -- if hermes was
+        # cold-loading a model (30-90s) the operator saw the open tag
+        # alone, and if hermes returned empty, the close was missed
+        # and OWUI rendered the rest of the message as
+        # collapsed-reasoning. Fix: lazy-open. We only emit the open
+        # tag the first time a real chunk arrives. _details_opened
+        # tracks state so the close path knows whether to emit a
+        # matching close.
+        _details_opened = False
 
-        # Open the collapsible thinking block. OWUI renders
-        # <details type="reasoning"> as a click-to-expand row above the
-        # assistant message. The streaming chunks land INSIDE so the
-        # operator can watch it tick in real time if they expand it.
-        if self.valves.POLISH_ENABLED:
-            yield (
+        def _open_details_chunk() -> str:
+            return (
                 f"<details type=\"reasoning\" data-mios-agent=\"hermes\">\n"
                 f"<summary>{self.valves.AGENT_THINKING_LABEL}</summary>\n\n"
             )
@@ -1576,8 +1588,7 @@ class Pipe:
                                         data=json.dumps(body).encode()) as resp:
                     if resp.status != 200:
                         err = (await resp.text())[:300]
-                        if self.valves.POLISH_ENABLED:
-                            yield "</details>\n\n"
+                        # Nothing to close yet -- we never opened.
                         await self._emit(__event_emitter__,
                                          f"❌ backend {resp.status}: {err}",
                                          done=True)
@@ -1604,13 +1615,18 @@ class Pipe:
                             continue
                         any_text = True
                         raw_buffer += text_piece
-                        # Stream into the details block AS IT ARRIVES so
-                        # the expand-while-streaming UX still works.
+                        # Lazy-open: emit the <details> opener only
+                        # when the FIRST chunk arrives.
+                        if self.valves.POLISH_ENABLED and not _details_opened:
+                            yield _open_details_chunk()
+                            _details_opened = True
                         yield text_piece
 
-            # Close the thinking block before polish so the polished
-            # answer renders below it as the visible assistant message.
-            if self.valves.POLISH_ENABLED:
+            # Close the thinking block before polish, BUT only if we
+            # actually opened it. An empty-output turn (hermes never
+            # streamed) never opens, so never closes -- the operator
+            # sees the empty marker below without any orphaned tag.
+            if _details_opened:
                 yield "\n</details>\n\n"
 
             raw_text = raw_buffer.strip()
@@ -1646,16 +1662,17 @@ class Pipe:
 
             await self._emit(__event_emitter__, "✅", done=True)
         except asyncio.TimeoutError:
-            # Close the <details> if we opened one, otherwise OWUI
-            # renders the rest of the message as collapsed-reasoning.
-            if self.valves.POLISH_ENABLED:
+            # Close the <details> ONLY if lazy-open actually fired.
+            # No tag was emitted on empty-stream / cold-load timeouts
+            # so we don't orphan a close either.
+            if _details_opened:
                 yield "\n</details>\n\n"
             await self._emit(__event_emitter__,
                              f"⏱️ {self.valves.TIMEOUT_S}s",
                              done=True)
             yield f"\n\n_⏱️ {self.valves.TIMEOUT_S}s_"
         except Exception as e:
-            if self.valves.POLISH_ENABLED:
+            if _details_opened:
                 yield "\n</details>\n\n"
             await self._emit(__event_emitter__,
                              f"❌ {type(e).__name__}: {e}",
