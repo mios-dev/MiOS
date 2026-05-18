@@ -42,14 +42,17 @@ on a webpage where DOM grounding doesn't help, a dialog without an
 hwnd, an icon visible but without a programmatic reference).
 
 ```
-mios-pc-control screenshot 'C:\Users\mios\AppData\Local\Temp\screen.png'
-# (the screenshot lands on the Windows side; mios-pc-vision
-#  reads from /mnt/c/.../screen.png)
-mios-pc-vision /mnt/c/Users/mios/AppData/Local/Temp/screen.png "the OK button"
+# OUT path is Windows-side; mios-pc-vision reads via the
+# /mnt/c/... mount. Resolve the user's TEMP via mios-windows or
+# mios-env-probe; do not assume a specific user name.
+OUT="$(mios-windows ps 'Write-Output $env:TEMP')\\screen.png"
+LIN="$(wslpath -u "$OUT")"
+mios-pc-control screenshot "$OUT"
+mios-pc-vision "$LIN" "the OK button"
   -> {"x": 814, "y": 562, "confidence": 0.92, "reasoning": "..."}
 mios-pc-control click 814 562
-mios-pc-control screenshot 'C:\Users\mios\AppData\Local\Temp\after.png'
-mios-pc-vision /mnt/c/.../after.png "did the OK button disappear?"
+mios-pc-control screenshot "${OUT/screen/after}"
+mios-pc-vision "${LIN/screen/after}" "did the OK button disappear?"
   -> {"x": -1, "y": -1, "confidence": 0.95, "reasoning": "OK button no longer visible (success)"}
 ```
 
@@ -91,13 +94,15 @@ mios-pc-control window-resize "$HWND" 800 600
 ### Open File Explorer at a specific path
 
 ```bash
-mios-windows launch explorer 'C:\Users\mios\Documents'
+DOCS="$(mios-windows ps 'Write-Output $env:USERPROFILE')\\Documents"
+mios-windows launch explorer "$DOCS"
 ```
 
-### Capture the screen and save to operator's Pictures dir
+### Capture the screen and save to the operator's Pictures dir
 
 ```bash
-mios-pc-control screenshot 'C:\Users\mios\Pictures\screen.png'
+PICS="$(mios-windows ps 'Write-Output $env:USERPROFILE')\\Pictures\\screen.png"
+mios-pc-control screenshot "$PICS"
 ```
 
 ### Send Ctrl+Alt+Del (NOT supported -- security-protected combo)

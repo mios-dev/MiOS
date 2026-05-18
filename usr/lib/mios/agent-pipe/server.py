@@ -2816,10 +2816,10 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         return f"mios-open-url {url}" + (
             f" {shlex.quote(str(browser))}" if browser else "")
     if tool == "mios_find":
-        # mios-find's --json mode lands in a follow-up commit; for
-        # now the prose output is what the agent gets. Polish-grounding
-        # (E.1a) reads the result_preview directly so this is OK.
-        return f"mios-find {shlex.quote(str(args.get('name', '')))}"
+        # --json -> {ok, query, resolved:{launch, source}, error?,
+        # stderr_preview?}. Polish-grounding consumes typed fields
+        # instead of grepping the prose `launch` line.
+        return f"mios-find --json {shlex.quote(str(args.get('name', '')))}"
     if tool == "mios_apps":
         # --json -> NDJSON inventory (one app per line: short_name /
         # app_id / source / label / launch_hint). Same shape mios-pkg
