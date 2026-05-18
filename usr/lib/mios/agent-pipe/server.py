@@ -2692,6 +2692,15 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     if tool == "flatpak_uninstall":
         pid = shlex.quote(str(args.get("id", "")))
         return f"mios-flatpak uninstall {pid}"
+    if tool == "flatpak_preflight":
+        # Cheap sandbox probe -- exits 0 if the flatpak's bubblewrap
+        # sandbox bootstraps cleanly, exit 1 + structured error_kind
+        # otherwise. Agents call BEFORE open_app/open_url for a
+        # flatpak target so they fail-fast on broken environments
+        # (WSL portal-helper credential issues, /dev/dxg sandbox
+        # rejection, etc.) instead of looping on doomed launches.
+        pid = shlex.quote(str(args.get("id", "")))
+        return f"mios-flatpak-preflight {pid}"
     if tool == "screen_layout":
         return "mios-pc-control screen-layout"
     if tool == "open_url":

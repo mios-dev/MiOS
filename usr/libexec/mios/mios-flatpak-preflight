@@ -1,0 +1,112 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-flatpak-preflight <app-id>
+#
+# Cheap probe to determine whether a flatpak app will successfully
+# bootstrap its sandbox in the current runtime context BEFORE the
+# operator-visible launch attempt. Runs `flatpak run --command=true
+# <app-id>` (which boots the sandbox + execs `true` + exits) and
+# captures stderr signatures known to indicate environmental
+# breakage:
+#
+#   * "/dev/dxg" + "unsupported type"  -> WSL GPU passthrough
+#                                         vs bubblewrap mismatch
+#   * "--env-fd: Not an open file descriptor"
+#                                       -> flatpak portal-helper
+#                                          got FDs not in this
+#                                          process namespace
+#   * "Connection: failed to receive credentials"
+#                                       -> session-bus SCM_CREDENTIALS
+#                                          handshake failed (broken
+#                                          user@<uid>.service /
+#                                          dbus-broker)
+#   * "Permission denied: '/'"          -> bwrap can't pivot_root
+#                                          (rare; usually fs.protected_*
+#                                          sysctls in WSL2)
+#
+# Output: JSON envelope on stdout, exit 0 on sandbox-ok, exit 1
+# on sandbox-broken. Operators / agents call this BEFORE any
+# flatpak open_app / open_url so they fail fast with a clear
+# error instead of looping on a doomed launch.
+#
+# Operator directive 2026-05-18: agent shouldn't loop on
+# failures; pre-flight gives the agent a synchronous yes/no
+# answer before committing to the launch.
+set -u
+
+APP_ID="${1:-}"
+if [[ -z "$APP_ID" ]] || [[ "$APP_ID" == "-h" ]] || [[ "$APP_ID" == "--help" ]]; then
+    cat >&2 <<'USAGE'
+usage: mios-flatpak-preflight <app-id>
+
+Probe whether a flatpak app's sandbox bootstraps cleanly in the
+current runtime context. Returns JSON {ok, app, error_kind?,
+stderr_preview?} and exit 0 (sandbox ok) / 1 (sandbox broken).
+USAGE
+    exit 64
+fi
+
+if ! command -v flatpak >/dev/null 2>&1; then
+    printf '{"ok":false,"verb":"flatpak_preflight","app":"%s","error_kind":"flatpak_missing"}\n' "$APP_ID"
+    exit 1
+fi
+
+# Hard cap so a hung sandbox bootstrap can't block the agent.
+TIMEOUT_S="${MIOS_FLATPAK_PREFLIGHT_TIMEOUT_S:-8}"
+ERR_FILE="$(mktemp -t mios-fp-pre-XXXXXX)"
+trap 'rm -f "$ERR_FILE"' EXIT
+
+rc=0
+timeout --preserve-status "$TIMEOUT_S" flatpak run --command=true "$APP_ID" \
+    >/dev/null 2>"$ERR_FILE" || rc=$?
+stderr_raw="$(head -c 1024 "$ERR_FILE" 2>/dev/null)"
+
+# Classify the failure when rc != 0. Operator-binding: structural
+# tokens, NOT English narration. The agent reads `error_kind` to
+# decide what to do (surface to operator with a remediation
+# hint, switch to a non-flatpak target, etc.).
+error_kind=""
+if [[ "$rc" -ne 0 ]]; then
+    case "$stderr_raw" in
+        *"dev/dxg"*"unsupported type"*) error_kind="wsl_dxg_sandbox_reject" ;;
+        *"--env-fd"*"not an open file descriptor"*|*"--env-fd: Not an open file descriptor"*)
+            error_kind="portal_helper_env_fd" ;;
+        *"failed to receive credentials"*) error_kind="user_bus_credentials" ;;
+        *"Permission denied: '/'"*) error_kind="bwrap_pivot_root" ;;
+        *"No such application"*|*"is not installed"*|*"not installed"*)
+            # Specialise: "runtime ... not installed" is a runtime-
+            # missing failure (the app is installed but its sandbox
+            # runtime isn't); plain "<app> not installed" is the
+            # app itself missing.
+            case "$stderr_raw" in
+                *"runtime"*"not installed"*) error_kind="runtime_missing" ;;
+                *) error_kind="app_not_installed" ;;
+            esac ;;
+        *) error_kind="unknown_sandbox_error" ;;
+    esac
+fi
+
+python3 - "$rc" "$APP_ID" "$error_kind" "$ERR_FILE" <<'PYEOF'
+import json, sys
+rc = int(sys.argv[1])
+app = sys.argv[2]
+ek = sys.argv[3]
+err_path = sys.argv[4]
+# Re-read stderr inside python so the JSON encoding is clean.
+try:
+    with open(err_path, "r", errors="replace") as f:
+        stderr_raw = f.read()[:512]
+except OSError:
+    stderr_raw = ""
+envelope = {
+    "ok": rc == 0,
+    "verb": "flatpak_preflight",
+    "app": app,
+    "exit_code": rc,
+}
+if rc != 0:
+    envelope["error_kind"] = ek
+    envelope["stderr_preview"] = stderr_raw.strip()
+print(json.dumps(envelope))
+PYEOF
+
+exit $rc
