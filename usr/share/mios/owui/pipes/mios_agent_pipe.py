@@ -340,7 +340,7 @@ class Pipe:
         "  check discord integration / bot status   ->  mios-discord-status\n"
         "  clear caches globally                    ->  mios-cache-clear [--dry-run]\n"
         "  reach OWUI/Hermes/etc. from LAN          ->  mios-lan-status [--enable]   (prints the elevated-PS1 one-liner; --enable UAC-prompts on operator screen)\n"
-        "  open a Linux GUI app (gnome-control-center, nautilus, gedit, ...) ->  terminal: nohup <bin> >/dev/null 2>&1 &   (WSLg renders to the operator's screen; NEVER claim 'no X server')\n"
+        "  open a Linux GUI app (gnome-control-center, nautilus, gedit, ...) ->  terminal: mios-gui-launch <bin> [args]   (WSLg-aware: sets DISPLAY/WAYLAND_DISPLAY/XDG_CURRENT_DESKTOP/nohup/disown. NEVER claim 'no X server' or 'no display server' -- the agent service has WAYLAND_DISPLAY=wayland-0 and /mnt/wslg/)\n"
         "  arbitrary windows command                ->  mios-windows ps \"<powershell>\"\n"
         "  arbitrary windows .exe                   ->  mios-windows launch \"<C:\\path\\or\\URI>\"\n"
         "  install package (any backend)            ->  mios-installer install <id> [--backend winget|dnf|flatpak] [--no-confirm]\n"
@@ -642,6 +642,18 @@ class Pipe:
         "       it lives on $PATH. Native gateway tools live in the\n"
         "       MiOS api_server toolset. Retry the request.'\n"
         "\n"
+        "  * `no display server` / `no active X server` / `no X server\n"
+        "    or Wayland` / `terminal restrictions prevent running\n"
+        "    graphical apps` / `display infrastructure issue` / `pure\n"
+        "    terminal service` / `browser can't launch in this\n"
+        "    environment` -> ALL LIES. MiOS WSL2 has WSLg (DISPLAY=:0,\n"
+        "    WAYLAND_DISPLAY=wayland-0, /mnt/wslg/ mounted). The agent\n"
+        "    forgot to use the canonical shim. Polished line:\n"
+        "      'Agent skipped the canonical WSLg launcher. Retry with\n"
+        "       `terminal: mios-gui-launch <app>` for Linux GUI apps\n"
+        "       or `terminal: mios-open-url <url>` for browser opens\n"
+        "       -- both work in this MiOS environment.'\n"
+        "\n"
         "## ORIGINAL OPERATOR ASK\n"
         "{user_prompt}\n"
         "\n"
@@ -672,7 +684,13 @@ class Pipe:
     _KNOWN_AGENT_ERROR_RE = re.compile(
         r"(?:not recognized|cmdlet|cannot parse|screencapture\.exe|"
         r"Invoke-Screenshot|GDI\+|Get-StartApps not found|pwsh not found|"
-        r"vendor-specific|I don.t have|not in (?:my toolset|this environment))",
+        r"vendor-specific|I don.t have|not in (?:my toolset|this environment)|"
+        # WSLg gaslighting (operator-flagged 2026-05-17 after agent ran 6 calls
+        # then claimed all three of these to refuse opening gnome-control-center)
+        r"no (?:active )?(?:X server|display server|X server or Wayland)|"
+        r"terminal restrictions prevent|display infrastructure issue|"
+        r"pure terminal service|browser can.t launch in this environment|"
+        r"can.t open a map for you in this WSL environment)",
         re.IGNORECASE,
     )
 

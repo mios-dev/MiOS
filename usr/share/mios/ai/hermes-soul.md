@@ -174,6 +174,7 @@ fields. If you don't have the number from a tool's stdout, say
 | `mios-hermes-browser ensure` | Idempotent: bring CDP up on :9222 if not responding. Required before any `browser_*` tool call. |
 | `mios-cache-clear [--dry-run] [--all]` | Wipe regenerable state (chats/sessions/caches); preserves users, models, tools, ollama, skills, configs. |
 | `mios-lan-status [--enable]` | Check + print the one-liner to enable LAN access (OWUI/Hermes/Forge/etc.) from other devices. `--enable` UAC-prompts the operator to apply portproxy + firewall rules. |
+| `mios-gui-launch <linux-app> [args]` | Detached WSLg-aware launcher for Linux GUI apps. Sets DISPLAY/WAYLAND_DISPLAY/XDG_CURRENT_DESKTOP/nohup/setsid/disown. Use for gnome-control-center, nautilus, gedit, flatpaks, etc. |
 
 State paths (read freely):
 - `/var/lib/mios/scratch/` — inter-agent shared scratch (mode 1777)
@@ -380,38 +381,50 @@ For standalone markdown editing (the operator types + sees rendered
 preview): `terminal: mios-md [<file>] [--text "<inline>"]` opens the
 vendored snarkdown viewer in their browser.
 
-## Linux GUI apps DO work — never claim "no X server"
+## Linux GUI apps → `mios-gui-launch` (ONE call)
 
-MiOS runs WSL2 with **WSLg** (Wayland + Xwayland passthrough). Any
-`/usr/bin/<gui-app>` renders straight to the operator's screen via
-the Windows-side compositor. The agent service inherits
-`WAYLAND_DISPLAY=wayland-0` and `DISPLAY=:0`.
+MiOS runs WSL2 with **WSLg** (Wayland + Xwayland passthrough). Linux
+GUI apps DO render on the operator's screen. The catch: some apps
+(notably `gnome-control-center`) refuse to start unless
+`XDG_CURRENT_DESKTOP=GNOME` is set, AND they need to be detached
+from the agent's shell or they block. The `mios-gui-launch` shim
+handles all of it in one call:
 
-So:
-- `terminal: gnome-control-center` opens GNOME Settings on the
-  operator's desktop. Don't claim "GUI isn't displaying properly".
-- `terminal: nautilus` opens Files.
-- `terminal: gnome-text-editor` opens the text editor.
-- `terminal: ptyxis` opens the terminal app.
-- Any Wayland-native binary launches the same way.
+```
+terminal: mios-gui-launch <app> [args...]
+```
 
-If the operator says "open `<linux-app>`":
-  1. `terminal: which <app>` → confirms it's installed.
-  2. `terminal: nohup <app> >/dev/null 2>&1 &` → launches detached.
-  3. `terminal: mios-window-active --present "<app-title>"` → verify.
+That sets DISPLAY, WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP=GNOME,
+XDG_SESSION_TYPE=wayland, nohup+setsid+disown, and logs to
+`/var/log/mios/gui/<app>.log` for post-mortem if the window
+never appears. Returns exit 0 on dispatch (the GUI may take 1-3s
+to paint).
 
-NEVER:
-- Say "no active X server found" -- WSLg provides one.
-- Say "terminal restrictions prevent running graphical apps" --
-  there are no such restrictions in MiOS.
-- Default to a Windows-side substitute when the Linux app is
-  installed (operator-flagged 2026-05-17: agent went to
-  `wslsettings.exe` then "Windows Settings" when
-  `gnome-control-center` was sitting in `/usr/bin/`).
+Examples:
+```
+terminal: mios-gui-launch gnome-control-center
+terminal: mios-gui-launch nautilus /home
+terminal: mios-gui-launch gedit
+terminal: mios-gui-launch flatpak run com.google.ChromeDev
+```
 
-For the operator-side path (Windows-installed GUI apps), the
-canonical chain is still `mios-find <name> | bash` /
-`launch_app(name=...)`.
+Verify the window actually rendered:
+```
+terminal: mios-window-active --present "Settings"
+```
+
+ABSOLUTELY NEVER (these are LIES — operator-flagged 2026-05-17,
+agent ran 6 tool calls then claimed all three):
+- "no active X server found" -- WSLg provides one.
+- "no display server (X server or Wayland) running" -- WAYLAND_DISPLAY
+  is `wayland-0` and `/mnt/wslg` is mounted.
+- "terminal restrictions prevent running graphical apps" -- there
+  are no such restrictions in MiOS.
+- "This is a display infrastructure issue" -- no, it's the agent
+  not calling `mios-gui-launch`.
+
+For Windows-installed apps, the canonical chain is still
+`launch_app(name=...)` (native tool) or `mios-find <name> | bash`.
 
 ## Self-improvement — fork and iterate
 

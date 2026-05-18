@@ -1,0 +1,99 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-gui-launch <linux-gui-app> [args...]
+#
+# Operator directive 2026-05-17: agent failed to launch
+# gnome-control-center because (a) it claimed "no display server"
+# (false -- WSLg is up) and (b) gnome-control-center specifically
+# refuses to start without XDG_CURRENT_DESKTOP=GNOME ("Running
+# gnome-control-center is only supported under GNOME and Unity,
+# exiting"). One canonical shim that handles every Linux GUI app
+# launch under WSLg:
+#
+#   * Ensures WAYLAND_DISPLAY + DISPLAY are set (inherited from
+#     WSLg if available; sensible default of wayland-0 / :0).
+#   * Sets XDG_CURRENT_DESKTOP=GNOME so gnome-* tools cooperate.
+#   * Sets XDG_SESSION_TYPE=wayland so wayland-aware apps prefer
+#     the native protocol over Xwayland fallback.
+#   * nohup + & + disown so the GUI app survives the agent's shell
+#     exit and doesn't block the broker call.
+#   * Routes stderr to a per-app log under /var/log/mios/gui/ for
+#     post-mortem if the window never appears.
+#   * Exits 0 immediately on dispatch; the GUI may take 1-3s to
+#     paint. Verify with `mios-window-active --present "<title>"`.
+#
+# Examples:
+#   mios-gui-launch gnome-control-center
+#   mios-gui-launch nautilus /home
+#   mios-gui-launch gedit
+#   mios-gui-launch flatpak run com.google.ChromeDev https://example.com
+#
+# Use this for ANY /usr/bin/<gui-app> launch from the agent. For
+# Windows-side apps use mios-find / launch_app.
+
+set -uo pipefail
+
+usage() {
+    cat <<'USAGE'
+usage: mios-gui-launch <linux-gui-app> [args...]
+
+Detached WSLg-aware launcher for Linux GUI apps. Sets the env
+WSLg + GNOME/Unity tools need, nohups + disowns, returns 0 on
+dispatch.
+
+  <linux-gui-app>   Binary on PATH (e.g. gnome-control-center,
+                    nautilus, gedit) OR absolute path.
+  [args...]         Extra args passed to the GUI app.
+
+Verify the window actually rendered:
+  mios-window-active --present "<title-substring>"
+
+USAGE
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    [ "$#" -lt 1 ] && exit 64 || exit 0
+fi
+
+APP="$1"
+shift
+
+# Resolve the binary (allow absolute or PATH).
+if [ "${APP:0:1}" != "/" ]; then
+    RESOLVED=$(command -v "$APP" 2>/dev/null || true)
+    if [ -z "$RESOLVED" ]; then
+        echo "mios-gui-launch: '$APP' not found on PATH" >&2
+        exit 1
+    fi
+    APP="$RESOLVED"
+fi
+[ -x "$APP" ] || { echo "mios-gui-launch: '$APP' not executable" >&2; exit 1; }
+
+# Per-app log (no path traversal -- use basename only).
+LOG_DIR="${MIOS_GUI_LOG_DIR:-/var/log/mios/gui}"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+LOG_FILE="$LOG_DIR/$(basename "$APP").log"
+
+# WSLg env: prefer existing values (the user's session may have set
+# specific values); fall back to known WSLg defaults.
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+export DISPLAY="${DISPLAY:-:0}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+# gnome-control-center + most Gtk-Adwaita apps gate on these.
+export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-GNOME}"
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+# Some apps (Files / gedit / VSCode flatpak) read GTK theme from this.
+export GTK_THEME="${GTK_THEME:-Adwaita}"
+
+# Dispatch -- detached, stdout+stderr to per-app log.
+echo "[mios-gui-launch] dispatch: $APP $*" >> "$LOG_FILE"
+echo "[mios-gui-launch] env: DISPLAY=$DISPLAY WAYLAND_DISPLAY=$WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=$XDG_CURRENT_DESKTOP" >> "$LOG_FILE"
+
+nohup setsid -- "$APP" "$@" >> "$LOG_FILE" 2>&1 &
+PID=$!
+disown "$PID" 2>/dev/null || true
+
+echo "[mios-gui-launch] dispatched pid=$PID log=$LOG_FILE"
+echo "[mios-gui-launch] verify: mios-window-active --present \"$(basename "$APP")\""
+
+exit 0
