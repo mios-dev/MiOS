@@ -516,6 +516,22 @@ _ROUTER_SYSTEM = (
     '          -- Execute a PowerShell script on the Windows side. Returns\n'
     "             stdout/stderr/exit_code. High-privilege -- tainted sessions\n"
     "             are refused. Default timeout 30s; script cap 64 KiB.\n"
+    '  [READ ] winget_search(query, limit=10)\n'
+    '  [READ ] winget_list()\n'
+    '  [READ ] winget_show(id)\n'
+    '  [WRITE] winget_install(id)\n'
+    '  [WRITE] winget_upgrade(id?)         -- id = package id OR --all\n'
+    '  [WRITE] winget_uninstall(id)\n'
+    '          -- Windows-side package management via winget.exe through\n'
+    "             WSL interop. Install/upgrade/uninstall are high-priv.\n"
+    '  [READ ] flatpak_search(query, limit=10)\n'
+    '  [READ ] flatpak_list()\n'
+    '  [READ ] flatpak_show(id)\n'
+    '  [WRITE] flatpak_install(id, scope?) -- scope: system|user (default system)\n'
+    '  [WRITE] flatpak_upgrade(id?)        -- id = flatpak ref OR --all\n'
+    '  [WRITE] flatpak_uninstall(id)\n'
+    '          -- Linux-side package management via flatpak CLI. Install/\n'
+    "             upgrade/uninstall are high-priv.\n"
     "\n"
     "Verb-pick priority (most common cases first):\n"
     '  "open X" / "launch X" / "start X" / "run X"  -> open_app(name=X)\n'
@@ -527,6 +543,14 @@ _ROUTER_SYSTEM = (
     '  "minimize X" / "hide X"                      -> minimize_window(title=X)\n'
     '  "maximize X" / "fullscreen X"                -> maximize_window(title=X)\n'
     '  "restore X" / "un-minimize X" / "un-maximize X" -> restore_window(title=X)\n'
+    '  "find X in winget" / "winget search X"       -> winget_search(query=X)\n'
+    '  "install X via winget"                       -> winget_install(id=X)\n'
+    '  "what Windows apps are installed"            -> winget_list()\n'
+    '  "find X in flathub" / "flatpak search X"     -> flatpak_search(query=X)\n'
+    '  "install X via flatpak"                      -> flatpak_install(id=X)\n'
+    '  "what flatpaks are installed"                -> flatpak_list()\n'
+    "  Platform hint: WIN-only apps (Office, Notepad++, ...) -> winget;\n"
+    "  Linux GUI / cross-platform via Flathub      -> flatpak.\n"
     '  "what apps are installed" / "list apps"      -> mios_apps()\n'
     '  "what windows are open"                      -> list_windows()\n'
     '  "go to <url>" / "visit <url>"                -> open_url(url=<url>)\n'
@@ -1664,6 +1688,15 @@ _HIGH_PRIVILEGE_VERBS = {
     "restore_window",
     "resize_window",
     "position_window",
+    # Package management WRITE verbs (D.4). install / upgrade /
+    # uninstall on either platform can land arbitrary code on the
+    # operator's machine -- tainted sessions are refused.
+    "winget_install",
+    "winget_upgrade",
+    "winget_uninstall",
+    "flatpak_install",
+    "flatpak_upgrade",
+    "flatpak_uninstall",
 }
 
 # Domains that are part of the operator's own infrastructure -- a
@@ -2058,6 +2091,56 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         x = int(args.get("x", 0))
         y = int(args.get("y", 0))
         return f"mios-window move {title} {x} {y}"
+    # ── Package management (Phase D.4 -- winget + flatpak surfaces) ──
+    # Both shims emit JSON envelopes by default; agent-pipe surfaces
+    # the JSON straight back to the gateway. WRITE verbs (install /
+    # upgrade / uninstall) are firewall-gated.
+    if tool == "winget_search":
+        q = shlex.quote(str(args.get("query", "")))
+        n = int(args.get("limit", 10))
+        return f"mios-winget search {q} -n {n}"
+    if tool == "winget_list":
+        return "mios-winget list"
+    if tool == "winget_show":
+        pid = shlex.quote(str(args.get("id", "")))
+        return f"mios-winget show {pid}"
+    if tool == "winget_install":
+        pid = shlex.quote(str(args.get("id", "")))
+        return f"mios-winget install {pid}"
+    if tool == "winget_upgrade":
+        pid = str(args.get("id", "")).strip()
+        if not pid or pid.lower() == "all" or pid == "--all":
+            return "mios-winget upgrade --all"
+        return f"mios-winget upgrade {shlex.quote(pid)}"
+    if tool == "winget_uninstall":
+        pid = shlex.quote(str(args.get("id", "")))
+        return f"mios-winget uninstall {pid}"
+    if tool == "flatpak_search":
+        q = shlex.quote(str(args.get("query", "")))
+        n = int(args.get("limit", 10))
+        return f"mios-flatpak search {q} -n {n}"
+    if tool == "flatpak_list":
+        return "mios-flatpak list"
+    if tool == "flatpak_show":
+        pid = shlex.quote(str(args.get("id", "")))
+        return f"mios-flatpak show {pid}"
+    if tool == "flatpak_install":
+        pid = shlex.quote(str(args.get("id", "")))
+        scope = str(args.get("scope", "")).lower()
+        scope_arg = ""
+        if scope in ("system", "--system"):
+            scope_arg = " --system"
+        elif scope in ("user", "--user"):
+            scope_arg = " --user"
+        return f"mios-flatpak install {pid}{scope_arg}"
+    if tool == "flatpak_upgrade":
+        pid = str(args.get("id", "")).strip()
+        if not pid or pid.lower() == "all" or pid == "--all":
+            return "mios-flatpak upgrade --all"
+        return f"mios-flatpak upgrade {shlex.quote(pid)}"
+    if tool == "flatpak_uninstall":
+        pid = shlex.quote(str(args.get("id", "")))
+        return f"mios-flatpak uninstall {pid}"
     if tool == "screen_layout":
         return "mios-pc-control screen-layout"
     if tool == "open_url":

@@ -1,0 +1,245 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-flatpak <subcommand> [args...]
+#
+# Phase D.4 of the AgentOS roadmap: Linux-side package management
+# surface for the MiOS agent stack. Singular `mios-flatpak` is
+# the agent-facing JSON-envelope wrapper -- the existing
+# `flatpaks-manage.sh` (alias `mios-flatpaks`) remains the
+# operator-facing pretty-print version.
+#
+# Output is structured JSON by default. Pass --plain for the raw
+# flatpak stdout for interactive use.
+#
+# SUBCOMMANDS
+#
+#   search <query> [-n LIMIT]    Search the configured remotes.
+#                                Returns {results:[{Application,
+#                                Name, Description, Origin}]}.
+#   list  [--filter F]           Installed flatpaks.
+#   show  <id>                   Detailed flatpak info.
+#   install <id> [--system|--user]
+#                                Install. Default scope follows
+#                                MIOS_FLATPAK_DEFAULT_SCOPE env
+#                                (default "system"). High-priv
+#                                verb; tainted sessions refused.
+#   upgrade [<id>|--all]         Update one flatpak or all.
+#   uninstall <id>               Uninstall.
+#   remotes                      List configured flatpak remotes.
+#   run <id>                     Launch a flatpak (forks detached).
+#                                Same path mios-launch uses; the
+#                                explicit verb is exposed for
+#                                agents that prefer it over the
+#                                semantic open_app launcher.
+#   help                         This message.
+#
+# Hardening:
+#   * Install/upgrade go through `flatpak install --noninteractive
+#     --assumeyes` so they can't prompt + hang the broker.
+#   * Output truncated to MIOS_FLATPAK_MAX_OUTPUT_BYTES (default
+#     256 KiB).
+#   * Auto-sudo when EUID != 0 for system-scope writes.
+set -u
+
+MAX_OUTPUT_BYTES="${MIOS_FLATPAK_MAX_OUTPUT_BYTES:-262144}"
+DEFAULT_SCOPE="${MIOS_FLATPAK_DEFAULT_SCOPE:-system}"
+
+usage() {
+    sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'
+}
+
+if ! command -v flatpak >/dev/null 2>&1; then
+    printf '{"ok":false,"verb":"%s","error":"flatpak not on PATH"}\n' \
+        "${1:-help}"
+    exit 1
+fi
+
+if [[ "$#" -lt 1 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] \
+        || [[ "$1" == "help" ]]; then
+    usage
+    exit 0
+fi
+
+sub="$1"; shift
+
+# ─── output capture + truncation ──────────────────────────────────
+_run_flatpak() {
+    local out_file err_file size rc=0
+    out_file="$(mktemp -t mios-fp-out-XXXXXX)"
+    err_file="$(mktemp -t mios-fp-err-XXXXXX)"
+    trap 'rm -f "$out_file" "$err_file"' RETURN
+    flatpak "$@" >"$out_file" 2>"$err_file" || rc=$?
+    for f in "$out_file" "$err_file"; do
+        size="$(wc -c <"$f")"
+        if (( size > MAX_OUTPUT_BYTES )); then
+            head -c "$MAX_OUTPUT_BYTES" "$f" > "${f}.tr"
+            printf '\n... [truncated %d bytes; cap %d]\n' \
+                $((size - MAX_OUTPUT_BYTES)) "$MAX_OUTPUT_BYTES" >> "${f}.tr"
+            mv "${f}.tr" "$f"
+        fi
+    done
+    _FP_OUT="$(cat "$out_file")"
+    _FP_ERR="$(cat "$err_file")"
+    _FP_RC=$rc
+    return 0
+}
+
+_emit_envelope() {
+    local verb="$1" id="${2:-}"
+    python3 - "$verb" "$id" "$_FP_RC" <<'PYEOF'
+import json, os, sys
+verb, ident, rc = sys.argv[1], sys.argv[2], int(sys.argv[3])
+print(json.dumps({
+    "ok": rc == 0,
+    "verb": verb,
+    "id": ident or None,
+    "exit_code": rc,
+    "stdout": os.environ.get("_FP_OUT", ""),
+    "stderr": os.environ.get("_FP_ERR", ""),
+}))
+PYEOF
+}
+
+_emit_json_error() {
+    python3 -c "
+import json, sys
+print(json.dumps({'ok': False, 'verb': sys.argv[1], 'error': sys.argv[2]}))
+" "$1" "$2"
+}
+
+# ─── scope resolver ───────────────────────────────────────────────
+_resolve_scope() {
+    case "${1:-}" in
+        --system|system) echo "--system" ;;
+        --user|user)     echo "--user" ;;
+        *)
+            case "$DEFAULT_SCOPE" in
+                user) echo "--user" ;;
+                *)    echo "--system" ;;
+            esac
+            ;;
+    esac
+}
+
+case "$sub" in
+    search)
+        query="${1:-}"
+        [[ -z "$query" ]] && { _emit_json_error "search" "query required"; exit 2; }
+        shift
+        limit=10
+        while [[ "$#" -gt 0 ]]; do
+            case "$1" in
+                -n) limit="$2"; shift 2 ;;
+                --plain) PLAIN=1; shift ;;
+                *) shift ;;
+            esac
+        done
+        # Use --columns so the column order is deterministic for parsing.
+        _run_flatpak search --columns=application,name,description,version,branches,remotes "$query"
+        if [[ "${PLAIN:-0}" -eq 1 ]]; then
+            printf '%s\n' "$_FP_OUT"
+            [[ -n "$_FP_ERR" ]] && printf '%s\n' "$_FP_ERR" >&2
+            exit "$_FP_RC"
+        fi
+        export _FP_OUT
+        python3 - "$query" "$_FP_RC" "$limit" <<'PYEOF'
+import json, os, sys
+query, rc, limit = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+out = os.environ.get("_FP_OUT", "")
+rows = []
+for line in out.splitlines():
+    parts = line.split("\t")
+    if len(parts) < 6: continue
+    if parts[0] in ("Application", "application"):  # header
+        continue
+    rows.append({
+        "Application": parts[0],
+        "Name":        parts[1],
+        "Description": parts[2],
+        "Version":     parts[3],
+        "Branches":    parts[4],
+        "Remotes":     parts[5],
+    })
+    if len(rows) >= limit: break
+print(json.dumps({
+    "ok": rc == 0,
+    "verb": "search",
+    "query": query,
+    "count": len(rows),
+    "results": rows,
+}))
+PYEOF
+        ;;
+    list|ls)
+        scope=""
+        if [[ "${1:-}" == "--system" ]] || [[ "${1:-}" == "--user" ]]; then
+            scope="$1"; shift
+        fi
+        _run_flatpak list $scope --columns=application,version,branch,origin,installation
+        _emit_envelope "list"
+        ;;
+    show|info)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "show" "id required"; exit 2; }
+        _run_flatpak info "$id"
+        _emit_envelope "show" "$id"
+        ;;
+    install)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "install" "id required"; exit 2; }
+        shift
+        scope="$(_resolve_scope "${1:-}")"
+        # Auto-sudo for system scope when not root.
+        if [[ "$scope" == "--system" ]] && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+            exec sudo -E "$0" install "$id" "$scope"
+        fi
+        _run_flatpak install $scope --noninteractive --assumeyes "$id"
+        _emit_envelope "install" "$id"
+        ;;
+    upgrade|update)
+        id="${1:-}"
+        if [[ -z "$id" ]] || [[ "$id" == "--all" ]]; then
+            if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+                exec sudo -E "$0" upgrade --all
+            fi
+            _run_flatpak update --noninteractive --assumeyes
+            _emit_envelope "upgrade" "ALL"
+        else
+            shift
+            scope="$(_resolve_scope "${1:-}")"
+            if [[ "$scope" == "--system" ]] && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+                exec sudo -E "$0" upgrade "$id" "$scope"
+            fi
+            _run_flatpak update $scope --noninteractive --assumeyes "$id"
+            _emit_envelope "upgrade" "$id"
+        fi
+        ;;
+    uninstall|remove|rm)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "uninstall" "id required"; exit 2; }
+        shift
+        scope="$(_resolve_scope "${1:-}")"
+        if [[ "$scope" == "--system" ]] && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+            exec sudo -E "$0" uninstall "$id" "$scope"
+        fi
+        _run_flatpak uninstall $scope --noninteractive --assumeyes "$id"
+        _emit_envelope "uninstall" "$id"
+        ;;
+    remotes|remote)
+        _run_flatpak remotes --columns=name,url,filter
+        _emit_envelope "remotes"
+        ;;
+    run|launch)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "run" "id required"; exit 2; }
+        # Run flatpak in foreground (the broker captures stdout/stderr).
+        # For GUI apps the operator typically uses open_app -> mios-launch
+        # which forks detached; explicit run is for CLI flatpaks the
+        # agent invokes synchronously.
+        _run_flatpak run "$id"
+        _emit_envelope "run" "$id"
+        ;;
+    *)
+        _emit_json_error "$sub" "unknown subcommand"
+        exit 64
+        ;;
+esac

@@ -1,0 +1,14 @@
+{
+  "name": "install-flatpak-app",
+  "description": "Search Flathub for a query then install + immediately launch the matched flatpak id. Demonstrates the install-and-open chain the Phase A.1 planner emits for 'install X and open it' intents.",
+  "source": "import",
+  "status": "promoted",
+  "body": {
+    "steps": [
+      {"verb": "flatpak_search",  "args": {"query": "$query", "limit": 5}},
+      {"verb": "flatpak_install", "args": {"id": "$id", "scope": "system"}},
+      {"verb": "open_app",        "args": {"name": "$id"}}
+    ],
+    "params": ["query", "id"]
+  }
+}

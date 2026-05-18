@@ -1,0 +1,275 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-winget <subcommand> [args...]
+#
+# Phase D.4 of the AgentOS roadmap: Windows-side package
+# management surface for the MiOS agent stack. Wraps winget.exe
+# (Windows Package Manager) through WSL interop so MiOS agents
+# can search / install / upgrade / uninstall Windows apps via
+# the same dispatch path they use for Linux-side verbs.
+#
+# Output is structured JSON by default (broker + agent-pipe
+# tool_call rows stay parsable). Pass --plain for the raw winget
+# stdout for interactive use.
+#
+# SUBCOMMANDS
+#
+#   search <query> [-n LIMIT]    Search the winget catalog.
+#                                Returns {results:[{Name, Id,
+#                                Version, Source}]}.
+#   list  [--filter F]           Installed packages on this host.
+#   show  <id>                   Detailed package info.
+#   install <id> [--silent]      Install (DEFAULT silent --no-banner
+#                                so no interactive prompts hang the
+#                                broker). High-privilege verb;
+#                                tainted sessions refused.
+#   upgrade [<id>|--all]         Upgrade one package or every
+#                                installed package with an update
+#                                available.
+#   uninstall <id>               Uninstall.
+#   sources                      List configured winget sources.
+#   help                         This message.
+#
+# Resolution: looks for winget.exe at
+#   /mnt/c/Users/<operator>/AppData/Local/Microsoft/WindowsApps/winget.exe
+# (per-user install location), then PATH (WSL interop registration).
+# Returns a JSON error envelope when winget.exe is unreachable
+# rather than crashing -- callers parse {ok:false,error:...}.
+#
+# Hardening:
+#   * Output truncated to MIOS_WINGET_MAX_OUTPUT_BYTES (default 256 KiB)
+#     so pathological winget output (huge `list` on a large host)
+#     can't fill the agent's context window.
+#   * --silent + --disable-interactivity flags forced on install/
+#     upgrade/uninstall so prompts can't hang.
+#   * Install/upgrade/uninstall write a structured outcome envelope
+#     {ok, verb, id, exit_code, stdout, stderr}.
+set -u
+
+MAX_OUTPUT_BYTES="${MIOS_WINGET_MAX_OUTPUT_BYTES:-262144}"
+
+usage() {
+    sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'
+}
+
+# ─── locate winget.exe ────────────────────────────────────────────
+_find_winget() {
+    # 1) Per-user install location (most common). Resolution
+    # order: MIOS_USER env -> USER (when != root) -> mios.toml
+    # [identity].username -> scan /mnt/c/Users/ for any user
+    # who has the WindowsApps dir. Root sessions (sudo, services)
+    # don't have MIOS_USER + USER=root won't hit a Windows
+    # profile, so the scan is the resilient path.
+    local op="${MIOS_USER:-}"
+    if [[ -z "$op" ]] && [[ "${USER:-root}" != "root" ]]; then
+        op="$USER"
+    fi
+    if [[ -z "$op" ]] && [[ -r /usr/share/mios/mios.toml ]]; then
+        op="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' \
+            /usr/share/mios/mios.toml 2>/dev/null)"
+    fi
+    local cand
+    if [[ -n "$op" ]]; then
+        cand="/mnt/c/Users/${op}/AppData/Local/Microsoft/WindowsApps/winget.exe"
+        if [[ -x "$cand" ]]; then printf '%s' "$cand"; return; fi
+    fi
+    # Scan /mnt/c/Users/ as a last resort. Skips Default / Public
+    # which never have user winget installs.
+    for d in /mnt/c/Users/*/; do
+        local user
+        user="$(basename "$d")"
+        case "$user" in
+            Default*|Public|All\ Users) continue ;;
+        esac
+        cand="${d}AppData/Local/Microsoft/WindowsApps/winget.exe"
+        if [[ -x "$cand" ]]; then printf '%s' "$cand"; return; fi
+    done
+    # 2) System-wide (rare but possible on managed hosts).
+    for sys in "/mnt/c/Program Files/WindowsApps"/Microsoft.DesktopAppInstaller_*/winget.exe; do
+        [[ -x "$sys" ]] && { printf '%s' "$sys"; return; }
+    done
+    # 3) PATH (WSL interop registration -- works when winget.exe is
+    # registered as a Windows interop binary).
+    if command -v winget.exe >/dev/null 2>&1; then
+        command -v winget.exe; return
+    fi
+    return 1
+}
+
+_emit_json_error() {
+    local verb="$1" reason="$2"
+    printf '{"ok":false,"verb":%s,"error":%s}\n' \
+        "$(printf '%s' "$verb" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" \
+        "$(printf '%s' "$reason" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+}
+
+WINGET="$(_find_winget)" || {
+    _emit_json_error "${1:-help}" "winget.exe not found on this host"
+    exit 1
+}
+
+if [[ "$#" -lt 1 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] \
+        || [[ "$1" == "help" ]]; then
+    usage
+    exit 0
+fi
+
+sub="$1"; shift
+
+# ─── output capture + truncation helper ───────────────────────────
+_run_winget() {
+    local out_file err_file size
+    out_file="$(mktemp -t mios-wg-out-XXXXXX)"
+    err_file="$(mktemp -t mios-wg-err-XXXXXX)"
+    trap 'rm -f "$out_file" "$err_file"' RETURN
+    local rc=0
+    "$WINGET" "$@" >"$out_file" 2>"$err_file" || rc=$?
+    # Strip CRLF (Windows defaults) so JSON-encoded blobs don't
+    # carry literal \r in every line.
+    sed -i 's/\r$//' "$out_file" "$err_file" 2>/dev/null || true
+    # Cap per stream.
+    for f in "$out_file" "$err_file"; do
+        size="$(wc -c <"$f")"
+        if (( size > MAX_OUTPUT_BYTES )); then
+            head -c "$MAX_OUTPUT_BYTES" "$f" > "${f}.tr"
+            printf '\n... [truncated %d bytes; cap %d]\n' \
+                $((size - MAX_OUTPUT_BYTES)) "$MAX_OUTPUT_BYTES" >> "${f}.tr"
+            mv "${f}.tr" "$f"
+        fi
+    done
+    _WG_OUT="$(cat "$out_file")"
+    _WG_ERR="$(cat "$err_file")"
+    _WG_RC=$rc
+    return 0
+}
+
+_emit_envelope() {
+    local verb="$1" id="${2:-}"
+    python3 - "$verb" "$id" "$_WG_RC" <<'PYEOF'
+import json, os, sys
+verb, ident, rc = sys.argv[1], sys.argv[2], int(sys.argv[3])
+print(json.dumps({
+    "ok": rc == 0,
+    "verb": verb,
+    "id": ident or None,
+    "exit_code": rc,
+    "stdout": os.environ.get("_WG_OUT", ""),
+    "stderr": os.environ.get("_WG_ERR", ""),
+}))
+PYEOF
+}
+
+case "$sub" in
+    search)
+        query="${1:-}"
+        shift || true
+        limit=10
+        while [[ "$#" -gt 0 ]]; do
+            case "$1" in
+                -n) limit="$2"; shift 2 ;;
+                --plain) PLAIN=1; shift ;;
+                *) shift ;;
+            esac
+        done
+        if [[ -z "$query" ]]; then
+            _emit_json_error "search" "query required"; exit 2
+        fi
+        _run_winget search "$query" --disable-interactivity \
+            --accept-source-agreements -n "$limit"
+        if [[ "${PLAIN:-0}" -eq 1 ]]; then
+            printf '%s\n' "$_WG_OUT"
+            [[ -n "$_WG_ERR" ]] && printf '%s\n' "$_WG_ERR" >&2
+            exit "$_WG_RC"
+        fi
+        # Parse winget's column output into structured results.
+        # winget headers: Name  Id  Version  Match  Source.
+        export _WG_OUT
+        python3 - "$query" "$_WG_RC" <<'PYEOF'
+import json, os, re, sys
+query, rc = sys.argv[1], int(sys.argv[2])
+out = os.environ.get("_WG_OUT", "")
+lines = out.splitlines()
+# Find the header row (first line containing "Name" and "Id").
+hdr_idx = None
+for i, line in enumerate(lines):
+    if re.search(r"\bName\b", line) and re.search(r"\bId\b", line):
+        hdr_idx = i; break
+results = []
+if hdr_idx is not None:
+    header = lines[hdr_idx]
+    # Column starts -- find each header position.
+    cols = []
+    for col in ("Name", "Id", "Version", "Match", "Source"):
+        m = re.search(rf"\b{col}\b", header)
+        if m: cols.append((col, m.start()))
+    cols.sort(key=lambda x: x[1])
+    for line in lines[hdr_idx + 2:]:   # skip header + separator
+        if not line.strip(): continue
+        # winget appends "<additional entries truncated due to
+        # result limit>" as the last line when -n caps the
+        # output. Skip any line whose first non-space char is
+        # `<` -- those are winget chrome, not real packages.
+        if line.lstrip().startswith("<"): continue
+        row = {}
+        for i, (col, start) in enumerate(cols):
+            end = cols[i + 1][1] if i + 1 < len(cols) else len(line)
+            row[col] = line[start:end].strip()
+        if row.get("Id"):
+            results.append(row)
+print(json.dumps({
+    "ok": rc == 0,
+    "verb": "search",
+    "query": query,
+    "count": len(results),
+    "results": results,
+}))
+PYEOF
+        ;;
+    list|ls)
+        _run_winget list --disable-interactivity \
+            --accept-source-agreements
+        _emit_envelope "list"
+        ;;
+    show)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "show" "id required"; exit 2; }
+        _run_winget show "$id" --disable-interactivity \
+            --accept-source-agreements
+        _emit_envelope "show" "$id"
+        ;;
+    install)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "install" "id required"; exit 2; }
+        _run_winget install --id "$id" --exact --silent \
+            --disable-interactivity --accept-source-agreements \
+            --accept-package-agreements
+        _emit_envelope "install" "$id"
+        ;;
+    upgrade)
+        id="${1:-}"
+        if [[ -z "$id" ]] || [[ "$id" == "--all" ]]; then
+            _run_winget upgrade --all --silent --disable-interactivity \
+                --accept-source-agreements --accept-package-agreements
+            _emit_envelope "upgrade" "ALL"
+        else
+            _run_winget upgrade --id "$id" --exact --silent \
+                --disable-interactivity --accept-source-agreements \
+                --accept-package-agreements
+            _emit_envelope "upgrade" "$id"
+        fi
+        ;;
+    uninstall|remove|rm)
+        id="${1:-}"
+        [[ -z "$id" ]] && { _emit_json_error "uninstall" "id required"; exit 2; }
+        _run_winget uninstall --id "$id" --exact --silent \
+            --disable-interactivity
+        _emit_envelope "uninstall" "$id"
+        ;;
+    sources)
+        _run_winget source list
+        _emit_envelope "sources"
+        ;;
+    *)
+        _emit_json_error "$sub" "unknown subcommand"
+        exit 64
+        ;;
+esac

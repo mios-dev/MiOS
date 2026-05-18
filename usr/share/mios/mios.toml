@@ -496,6 +496,15 @@ firewall_high_privilege_verbs = [
     "restore_window",
     "resize_window",
     "position_window",
+    # Package management WRITE verbs (D.4). Either platform's
+    # install path can land arbitrary code on the operator's
+    # machine -- tainted sessions are refused.
+    "winget_install",
+    "winget_upgrade",
+    "winget_uninstall",
+    "flatpak_install",
+    "flatpak_upgrade",
+    "flatpak_uninstall",
 ]
 
 [fs_watcher]
