@@ -346,6 +346,222 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     return parsed
 
 
+# ── Phase B.1 -- Deliberative Collective Intelligence (DCI) vocab ─
+# 14 typed epistemic acts (Habermas-rooted, DCI paper arxiv
+# 2603.11781). Replaces unstructured agent debate -- which the
+# paper showed degrades vs isolated reasoning -- with grammatical
+# typed acts grouped into 6 functional families. Each act is a
+# first-class object the agent emits as structured JSON; the
+# orchestrator (Phase B.2) deliberates by passing acts between
+# personas, preserving tensions, and converging via DCI-CF.
+#
+# Phase B.1 scope (this commit): vocabulary + schema + a single-
+# persona post-dispatch critic helper that writes an event row
+# tagged kind=dci_act. NOT yet the 4-persona convergent flow --
+# that's B.2. This gives Phase B.1 immediate operator-visible
+# value (post-dispatch critic verdicts in the audit log) without
+# the latency of running the full deliberation loop on every
+# chat turn.
+
+DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
+                              "true").lower() not in {"false", "0", "no"}
+DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", "qwen2.5-coder:7b")
+DCI_ENDPOINT = os.environ.get(
+    "MIOS_AGENT_PIPE_DCI_ENDPOINT", "http://localhost:11434",
+).rstrip("/")
+DCI_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_DCI_TIMEOUT_S", "20"))
+DCI_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_DCI_MAX_TOKENS", "400"))
+
+# The 14 acts organized by family. Each family corresponds to a
+# distinct cognitive function in collective deliberation; missing
+# a family in a multi-round flow is what the DCI paper identifies
+# as the failure mode for unstructured debate ("sycophantic
+# convergence", "groupthink", "fragmentation"). Kept identical to
+# the paper so future B.2 / B.3 references stay grounded.
+DCI_ACTS: dict[str, dict] = {
+    # Orienting: problem framing + scope.
+    "frame":         {"family": "orienting",   "intent": "establish the problem definition"},
+    "clarify":       {"family": "orienting",   "intent": "request or supply clarification"},
+    "reframe":       {"family": "orienting",   "intent": "restate the problem with a shifted lens"},
+    # Generative: expanding the option space.
+    "propose":       {"family": "generative",  "intent": "offer a candidate solution / hypothesis"},
+    "extend":        {"family": "generative",  "intent": "build on an existing proposal"},
+    "spawn":         {"family": "generative",  "intent": "open a new line of inquiry"},
+    # Critical: assumption testing + risk.
+    "ask":           {"family": "critical",    "intent": "request evidence / probe an assumption"},
+    "challenge":     {"family": "critical",    "intent": "contest a claim with a counter-argument"},
+    # Integrative: synthesis + memory.
+    "bridge":        {"family": "integrative", "intent": "connect two distinct ideas"},
+    "synthesize":    {"family": "integrative", "intent": "merge disparate views into a coherent whole"},
+    "recall":        {"family": "integrative", "intent": "surface prior context / decisions"},
+    # Epistemic: belief state + confidence.
+    "ground":        {"family": "epistemic",   "intent": "anchor a claim to verifiable evidence"},
+    "update":        {"family": "epistemic",   "intent": "revise a prior belief in light of new info"},
+    # Decisional: closure.
+    "recommend":     {"family": "decisional",  "intent": "advance a specific action / decision"},
+}
+
+DCI_ACT_NAMES = sorted(DCI_ACTS.keys())
+
+# JSON Schema for OpenAI structured-output constraint. The model
+# MUST emit exactly this shape; anything else is a parse error.
+# `confidence` is a 0.0-1.0 scalar so downstream can sort by it
+# (e.g. Phase B.2's tension tracker promotes high-confidence
+# CHALLENGE acts over low-confidence ones).
+DCI_ACT_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "act":        {"type": "string", "enum": DCI_ACT_NAMES,
+                       "description": "Which of the 14 DCI epistemic acts you are emitting."},
+        "content":    {"type": "string",
+                       "description": "Free-form payload, 1-3 sentences. Mirror the chat language."},
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0,
+                       "description": "0.0 = highly uncertain; 1.0 = certain."},
+        "targets":    {"type": "array", "items": {"type": "string"},
+                       "description": "Optional list of prior act-ids this act addresses (Phase B.2 tension tracking)."},
+    },
+    "required": ["act", "content", "confidence"],
+}
+
+
+# Single-persona critic prompt for Phase B.1. The "Challenger"
+# archetype focuses on the critical family (ask / challenge) +
+# epistemic family (ground / update). Phase B.2 swaps in the
+# full Framer / Explorer / Challenger / Integrator quartet.
+_DCI_CRITIC_SYSTEM = (
+    "You are a DCI Challenger agent (Deliberative Collective\n"
+    "Intelligence, arxiv 2603.11781). Examine the operator's prompt\n"
+    "and the agent's tool_result envelope. Emit ONE typed epistemic\n"
+    "act as structured JSON. No free-form prose.\n"
+    "\n"
+    "Available acts (pick ONE):\n"
+    + "\n".join(f"  - {a}: {info['intent']} (family: {info['family']})"
+                for a, info in sorted(DCI_ACTS.items())) +
+    "\n\n"
+    "Output schema (JSON ONLY):\n"
+    '  {"act":"<one of the 14>",\n'
+    '   "content":"<1-3 sentences in the chat language>",\n'
+    '   "confidence":<0.0-1.0>,\n'
+    '   "targets":[<optional act-ids you address>]}\n'
+    "\n"
+    "Heuristic for picking an act (Challenger persona):\n"
+    "- If the agent's result looks WRONG / unjustified -> challenge\n"
+    "  with a specific counter-argument.\n"
+    "- If a step seems UNJUSTIFIED -> ask for evidence.\n"
+    "- If the result is well-grounded -> ground (acknowledge +\n"
+    "  cite the evidence).\n"
+    "- If the result OBSOLETES a prior decision -> update.\n"
+    "- If unsure -> ask (low confidence is fine; emit it as a\n"
+    "  number).\n"
+    "\n"
+    "Mirror the user's language. Output JSON ONLY -- no preamble,\n"
+    "no markdown."
+)
+
+
+async def dci_critic_pass(
+    user_text: str,
+    envelope: dict,
+    *,
+    session_id: Optional[str] = None,
+) -> Optional[dict]:
+    """Post-dispatch critic: invokes the DCI Challenger persona on
+    the (user_text, envelope) pair and emits ONE typed epistemic
+    act. Returns the parsed act dict, or None on any error.
+
+    Fire-and-forget at the caller's discretion -- the chat reply is
+    already rendered by the time this runs. SurrealDB event row
+    written automatically (kind=dci_act, source=mios-agent-pipe).
+    """
+    if not DCI_ENABLED or not user_text:
+        return None
+    # Compact envelope for the critic prompt -- keep latency low
+    # by passing just the structured tool_call + tool_result, not
+    # the full rendered <details> block.
+    compact = {
+        "tool":       (envelope.get("tool_call") or {}).get("function", {}).get("name"),
+        "args":       (envelope.get("tool_call") or {}).get("function", {}).get("arguments"),
+        "success":    (envelope.get("tool_result") or {}).get("success"),
+        "output":    ((envelope.get("tool_result") or {}).get("output") or "")[:600],
+        "stderr":    ((envelope.get("tool_result") or {}).get("stderr") or "")[:200],
+        "exit_code":  (envelope.get("tool_result") or {}).get("exit_code"),
+    }
+    user_msg = (
+        f"OPERATOR PROMPT:\n{user_text[:1500]}\n\n"
+        f"AGENT ENVELOPE:\n{json.dumps(compact, indent=2, default=str)}\n\n"
+        "Emit ONE typed epistemic act now:"
+    )
+    payload = {
+        "model": DCI_MODEL,
+        "messages": [
+            {"role": "system", "content": _DCI_CRITIC_SYSTEM},
+            {"role": "user",   "content": user_msg},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.0,
+        "max_tokens": DCI_MAX_TOKENS,
+        "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=DCI_TIMEOUT_S) as s:
+            r = await s.post(
+                f"{DCI_ENDPOINT}/v1/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            if r.status_code != 200:
+                return None
+            body = r.json()
+    except (httpx.HTTPError, asyncio.TimeoutError):
+        return None
+    except Exception as e:
+        log.warning("dci_critic unexpected error: %s", e)
+        return None
+    choices = body.get("choices") or []
+    if not choices:
+        return None
+    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        return None
+    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    act = parsed.get("act")
+    if act not in DCI_ACTS:
+        return None
+    # Normalize + cap confidence.
+    try:
+        parsed["confidence"] = max(0.0, min(1.0, float(parsed.get("confidence", 0.5))))
+    except (TypeError, ValueError):
+        parsed["confidence"] = 0.5
+    family = DCI_ACTS[act]["family"]
+    # SurrealDB event row -- tag with the act + family for later
+    # analytics (e.g. SELECT * FROM event WHERE kind='dci_act' AND
+    # payload.act='challenge' to find what the critic challenged).
+    severity = "warn" if act in ("challenge", "ask") and parsed["confidence"] >= 0.7 else "info"
+    row = {
+        "source":  "mios-agent-pipe",
+        "kind":    "dci_act",
+        "severity": severity,
+        "summary": f"{family}/{act} ({parsed['confidence']:.2f})",
+        "payload": {
+            "act":         act,
+            "family":      family,
+            "confidence":  parsed.get("confidence"),
+            "content":     (parsed.get("content") or "")[:600],
+            "targets":     parsed.get("targets") or [],
+            "session":     session_id,
+        },
+    }
+    _db_fire(_db_post(_db_create("event", row, now_fields=("ts",))))
+    return parsed
+
+
 # ── Phase A.3 -- taint-aware memory + Semantic Firewall stub ─────
 # When a verb fetches or exposes the agent to untrusted external
 # content (current scope: open_url to a non-allowlisted domain;
@@ -991,11 +1207,32 @@ async def health() -> dict[str, Any]:
             "max_nodes": PLANNER_MAX_NODES,
             "reflexion_cap": PLANNER_REFLEXION_CAP,
         },
+        "dci": {
+            "enabled": DCI_ENABLED,
+            "model": DCI_MODEL,
+            "endpoint": DCI_ENDPOINT,
+            "act_count": len(DCI_ACTS),
+        },
         "broker_sock": LAUNCHER_SOCK,
         "broker_present": os.path.exists(LAUNCHER_SOCK),
         "db_url": DB_URL,
         "port": PORT,
     }
+
+
+# ── /dci/schema (Phase B.1 introspection) ──────────────────────────
+# Exposes the 14-act vocabulary + JSON schema so external gateways
+# (Discord, Slack, future MCP clients) can introspect what a DCI
+# act looks like without hardcoding. The operator can also hit
+# this endpoint to verify a deployment has the expected act set.
+@app.get("/dci/schema")
+async def dci_schema() -> JSONResponse:
+    return JSONResponse(content={
+        "acts": DCI_ACTS,
+        "act_names": DCI_ACT_NAMES,
+        "response_schema": DCI_ACT_SCHEMA,
+        "enabled": DCI_ENABLED,
+    })
 
 
 # ── /v1/models (passthrough) ───────────────────────────────────────
@@ -1137,6 +1374,18 @@ async def chat_completions(request: Request) -> Any:
                         "exit_code": int(result.get("exit_code", -1)),
                     },
                 }
+                # Phase B.1: fire the DCI Challenger critic post-
+                # dispatch. Fire-and-forget so the chat reply isn't
+                # delayed; the act is written to SurrealDB event
+                # (kind=dci_act) for the audit log. Phase B.2 will
+                # consume these to drive the 4-persona convergent
+                # flow + bring high-confidence challenges back into
+                # the operator-facing response.
+                if DCI_ENABLED:
+                    _db_fire(dci_critic_pass(
+                        last_user_text, envelope,
+                        session_id=session_id,
+                    ))
                 symbol = "✅" if ok else "⚠️"
                 rendered = (
                     f"<details type=\"tool_calls\" done=\"true\">\n"
