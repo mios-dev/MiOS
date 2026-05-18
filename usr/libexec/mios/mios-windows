@@ -524,7 +524,13 @@ start_args = [cmd_exe, "/c", "start", "", target] + extra_args
 #   MIOS_LAUNCH_PLACE      <X>,<Y>  (absolute top-left, takes
 #                          precedence over MIOS_LAUNCH_POSITION)
 import os
-position = os.environ.get("MIOS_LAUNCH_POSITION", "center").lower()
+# Operator directive 2026-05-18: "always default launched perfectly
+# centered as a 16:10 window centered at the screens current
+# resolutions bounds--centered and sized centered and ratioed at the
+# golden ratio + centered per 3x3 screen grid". Default position is
+# now "default": 16:10 window sized at W = screen_W / phi, centered
+# on the primary monitor's WorkingArea.
+position = os.environ.get("MIOS_LAUNCH_POSITION", "default").lower()
 size_env = os.environ.get("MIOS_LAUNCH_SIZE", "")
 place_env = os.environ.get("MIOS_LAUNCH_PLACE", "")
 # Compute the placement PowerShell snippet from those knobs.
@@ -553,7 +559,21 @@ if "," in place_env:
     except (ValueError, TypeError):
         pass
 # Otherwise apply named position relative to PrimaryScreen WorkingArea.
-if position == "center":
+if position == "default":
+    # 16:10 window sized at W = screen_W / golden_ratio,
+    # H = W * 10/16, centered both axes. The PowerShell-side
+    # [Math]::Round + integer cast keeps the numbers clean.
+    place_block += (
+        "$phi = 1.6180339887; "
+        "$w = [int]([Math]::Round($s.Width / $phi)); "
+        "$wh = [int]([Math]::Round($w * 10.0 / 16.0)); "
+        # Don't exceed working area
+        "if ($w  -gt $s.Width)  { $w = $s.Width }; "
+        "if ($wh -gt $s.Height) { $wh = $s.Height }; "
+        "$x = $s.X + [int](($s.Width  - $w)  / 2); "
+        "$y = $s.Y + [int](($s.Height - $wh) / 2); "
+    )
+elif position == "center":
     place_block += (
         "$x = $s.X + [int](($s.Width - $w) / 2); "
         "$y = $s.Y + [int](($s.Height - $wh) / 2); ")
@@ -614,6 +634,9 @@ if pwsh:
     proc_name = target.rsplit("\\", 1)[-1]
     if proc_name.lower().endswith(".exe"):
         proc_name = proc_name[:-4]
+    # Move only when position changes geometry. "as-is" and "none"
+    # leave the window where the OS put it; "default" applies the
+    # golden-16:10 centered geometry (the new MiOS global default).
     do_move = position not in ("none", "as-is")
     move_block = ""
     if do_move:

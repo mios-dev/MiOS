@@ -53,7 +53,17 @@ from pydantic import BaseModel, Field
 # enforces them client-side -- the model CANNOT emit an invalid
 # position value, so the schema teaches the surface instead of a
 # 700-line rule book.
+# Position enum: "default" is the MiOS global launch geometry
+# (operator directive 2026-05-18) -- a 16:10 window sized at
+# screen_width / phi (golden ratio ~0.618) and centered on the
+# primary monitor's WorkingArea. Concretely on 1920x1080:
+#   W = 1920 / 1.618 ~= 1186
+#   H = W * 10/16    ~= 741
+#   centered at      (367, 169)
+# Use "as-is" to OPT OUT (leave wherever the OS placed it).
+# "center" = native-size centered (no resize).
 PositionLiteral = Literal[
+    "default",
     "as-is",
     "center", "left", "right", "top", "bottom",
     "top-left", "top-right", "bottom-left", "bottom-right",
@@ -317,7 +327,7 @@ class Tools:
     async def open_app(
         self,
         name: str,
-        position: PositionLiteral = "as-is",
+        position: PositionLiteral = "default",
         args: Optional[list[str]] = None,
         monitor: int = 0,
         __user__: Optional[dict] = None,
