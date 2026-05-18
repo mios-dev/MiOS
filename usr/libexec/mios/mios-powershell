@@ -1,0 +1,244 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-powershell <script>
+#
+# First-class Windows-side PowerShell execution surface for the
+# MiOS agent stack. The analogue of bash -c on the Windows side --
+# the agent passes a PowerShell script and gets stdout + stderr +
+# exit code back through the broker.
+#
+# Mirrors Anthropic's bash_* tool schema shape but for the Windows
+# subsystem, closing the gap the operator flagged 2026-05-18:
+# `powershell_run` belongs as a first-class verb so agents that
+# need to call Windows-side cmdlets (Get-Process, Get-Service,
+# Get-WmiObject, Get-AppxPackage, registry reads, COM, ...) don't
+# fall back to fragile pc_type+pc_key paths.
+#
+# SECURITY: this verb is in [security].firewall_high_privilege_verbs
+# -- any tool_call in a tainted session refuses dispatch. Standalone
+# `mios-powershell` (operator running it directly) is unaffected.
+#
+# Usage:
+#   mios-powershell '<script>'            # script via argv
+#   mios-powershell -c '<script>'         # explicit -c form
+#   echo '<script>' | mios-powershell -   # stdin
+#
+# Flags:
+#   --timeout N    seconds (default 30)
+#   --work-dir P   working directory passed to powershell.exe
+#                  (default: PWD on the WSL side)
+#   --json         wrap stdout/stderr/exit_code in a JSON envelope
+#                  (matches the agent-pipe CAPTURE_JSON shape so
+#                  external integrators get a stable response)
+#
+# Resolution: tries pwsh.exe first (PowerShell 7+, modern surface),
+# falls back to Windows-builtin powershell.exe (PowerShell 5.1).
+# Both invoked with -NoProfile -NonInteractive so script behaviour
+# is deterministic + the agent's call doesn't pick up the operator's
+# $PROFILE side effects.
+
+set -u
+
+# Hardening caps (SSOT-overridable). Defaults match agent-pipe's
+# CAPTURE_JSON stdout truncation so the broker's response shape
+# stays stable.
+MAX_SCRIPT_BYTES="${MIOS_POWERSHELL_MAX_SCRIPT_BYTES:-65536}"   # 64 KiB
+MAX_OUTPUT_BYTES="${MIOS_POWERSHELL_MAX_OUTPUT_BYTES:-262144}"  # 256 KiB
+
+usage() {
+    cat <<'USAGE'
+usage: mios-powershell [--timeout N] [--work-dir PATH] [--json] <script>
+       mios-powershell [...] -c <script>
+       echo '<script>' | mios-powershell [...] -
+
+First-class Windows-side PowerShell execution. The script runs
+under pwsh.exe (preferred) or powershell.exe with -NoProfile
+-NonInteractive. stdout / stderr / exit code are returned to
+the caller (or wrapped in a JSON envelope with --json).
+USAGE
+}
+
+if [[ "$#" -eq 0 ]]; then
+    usage
+    exit 2
+fi
+
+TIMEOUT=30
+WORK_DIR=""
+EMIT_JSON=0
+SCRIPT=""
+
+# Parse leading flags. Positional script can come as bare arg, -c
+# <script>, or '-' meaning stdin.
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -h|--help) usage; exit 0 ;;
+        --timeout) TIMEOUT="$2"; shift 2 ;;
+        --work-dir) WORK_DIR="$2"; shift 2 ;;
+        --json) EMIT_JSON=1; shift ;;
+        -c)
+            SCRIPT="$2"
+            shift 2
+            ;;
+        -)
+            SCRIPT="$(cat)"
+            shift
+            ;;
+        *)
+            SCRIPT="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$SCRIPT" ]]; then
+    echo "mios-powershell: empty script" >&2
+    exit 2
+fi
+
+# Hardening: script size cap. A pathological multi-MB script would
+# slow the broker, trip podman socket buffers, and balloon the
+# tool_call args column.
+SCRIPT_BYTES="$(printf '%s' "$SCRIPT" | wc -c)"
+if [[ "$SCRIPT_BYTES" -gt "$MAX_SCRIPT_BYTES" ]]; then
+    if [[ "$EMIT_JSON" -eq 1 ]]; then
+        printf '{"ok":false,"verb":"powershell_run","error":"script_too_large","bytes":%s,"limit":%s}\n' \
+            "$SCRIPT_BYTES" "$MAX_SCRIPT_BYTES"
+    else
+        echo "mios-powershell: script $SCRIPT_BYTES bytes > limit $MAX_SCRIPT_BYTES" >&2
+    fi
+    exit 2
+fi
+
+# Resolve a PowerShell binary the agent's PATH can reach. The
+# Windows-side binaries live under /mnt/c/Windows/System32/ +
+# /mnt/c/Program Files/PowerShell/7/. We probe pwsh.exe first
+# (modern) then powershell.exe (5.1 ships everywhere).
+PWSH=""
+for cand in \
+    "/mnt/c/Program Files/PowerShell/7/pwsh.exe" \
+    "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
+    if [[ -x "$cand" ]]; then
+        PWSH="$cand"
+        break
+    fi
+done
+# Last-chance fallback: hope it's on PATH (interop scenarios where
+# /mnt/c paths aren't visible but `pwsh.exe` / `powershell.exe`
+# resolve via WSL interop registration).
+if [[ -z "$PWSH" ]] && command -v pwsh.exe >/dev/null 2>&1; then
+    PWSH="$(command -v pwsh.exe)"
+elif [[ -z "$PWSH" ]] && command -v powershell.exe >/dev/null 2>&1; then
+    PWSH="$(command -v powershell.exe)"
+fi
+
+if [[ -z "$PWSH" ]]; then
+    if [[ "$EMIT_JSON" -eq 1 ]]; then
+        printf '{"ok":false,"verb":"powershell_run","error":"no_powershell_found"}\n'
+    else
+        echo "mios-powershell: no pwsh.exe / powershell.exe found" >&2
+    fi
+    exit 1
+fi
+
+# Stage script in a temp file. PowerShell's -EncodedCommand path
+# avoids quote-mangling but adds base64 overhead; passing a file
+# via -File is cleaner + lets large scripts work without hitting
+# the argv length limit.
+TMPFILE="$(mktemp -t mios-ps-XXXXXX.ps1)"
+trap 'rm -f "$TMPFILE"' EXIT
+printf '%s\n' "$SCRIPT" > "$TMPFILE"
+
+# Determine where the script file is from PowerShell's perspective.
+# /tmp on WSL is reachable from Windows as \\wsl.localhost\<distro>\tmp
+# but invoking that path can be slow + flaky; mounting /tmp under
+# /mnt/wsl/.../tmp is the modern path. Easiest: stage the file under
+# /mnt/c/Users/Public/Documents/mios-ps/ which Windows reads natively.
+# Fallback to the WSL UNC if the public dir isn't writable.
+WIN_STAGE_DIR="/mnt/c/Users/Public/Documents/mios-ps"
+WIN_PATH=""
+if mkdir -p "$WIN_STAGE_DIR" 2>/dev/null && [[ -w "$WIN_STAGE_DIR" ]]; then
+    cp "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"
+    WIN_PATH="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$TMPFILE")"
+    trap 'rm -f "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"' EXIT
+fi
+
+OUT_FILE="$(mktemp -t mios-ps-out-XXXXXX)"
+ERR_FILE="$(mktemp -t mios-ps-err-XXXXXX)"
+trap 'rm -f "$TMPFILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" 2>/dev/null' EXIT
+
+# Build the powershell.exe argv. -NoProfile makes invocation
+# deterministic; -NonInteractive prevents prompts from hanging.
+PWSH_ARGS=(-NoProfile -NonInteractive -ExecutionPolicy Bypass)
+if [[ -n "$WIN_PATH" ]]; then
+    PWSH_ARGS+=(-File "$WIN_PATH")
+else
+    # Stdin path: PowerShell reads the script from stdin via -Command -.
+    PWSH_ARGS+=(-Command "-")
+fi
+
+# Optional working dir: prepended as `Set-Location` in the script.
+# Simpler than passing via -WorkingDirectory which not all PS
+# versions support.
+if [[ -n "$WORK_DIR" ]]; then
+    {
+        printf 'Set-Location -LiteralPath %s\n' "$(printf "'%s'" "${WORK_DIR//\'/\'\'}" )"
+        cat "$TMPFILE"
+    } > "${TMPFILE}.cd"
+    mv "${TMPFILE}.cd" "$TMPFILE"
+    if [[ -n "$WIN_PATH" ]]; then
+        cp "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"
+    fi
+fi
+
+EXIT_CODE=0
+if [[ -n "$WIN_PATH" ]]; then
+    timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
+        >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+else
+    timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
+        <"$TMPFILE" >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+fi
+
+# Strip trailing CRLF so the consumer doesn't see literal \r in
+# every line (Windows PowerShell defaults to crlf line endings).
+sed -i 's/\r$//' "$OUT_FILE" "$ERR_FILE" 2>/dev/null || true
+
+# Hardening: truncate per stream to the output cap so a runaway
+# script (`Get-EventLog -Newest 10000000`) can't fill the agent's
+# context window. The marker line lets the agent see explicit
+# truncation rather than silently mis-counting.
+_truncate() {
+    local file="$1" cap="$2"
+    local size
+    size="$(wc -c <"$file")"
+    if [[ "$size" -gt "$cap" ]]; then
+        head -c "$cap" "$file" > "${file}.trunc"
+        printf '\n... [truncated %d bytes; output cap %d bytes]\n' \
+            "$((size - cap))" "$cap" >> "${file}.trunc"
+        mv "${file}.trunc" "$file"
+    fi
+}
+_truncate "$OUT_FILE" "$MAX_OUTPUT_BYTES"
+_truncate "$ERR_FILE" "$MAX_OUTPUT_BYTES"
+
+if [[ "$EMIT_JSON" -eq 1 ]]; then
+    python3 -c "
+import json
+with open('$OUT_FILE') as f: out = f.read()
+with open('$ERR_FILE') as f: err = f.read()
+print(json.dumps({
+    'ok': $EXIT_CODE == 0,
+    'verb': 'powershell_run',
+    'exit_code': $EXIT_CODE,
+    'stdout': out,
+    'stderr': err,
+}))
+"
+else
+    cat "$OUT_FILE"
+    if [[ -s "$ERR_FILE" ]]; then
+        cat "$ERR_FILE" >&2
+    fi
+fi
+
+exit "$EXIT_CODE"

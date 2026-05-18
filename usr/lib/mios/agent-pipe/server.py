@@ -485,6 +485,23 @@ _ROUTER_SYSTEM = (
     '  [READ ] process_list(filter?, sort="rss", limit=20)\n'
     '  [READ ] container_status(name?)\n'
     '  [WRITE] container_restart(name)\n'
+    '  [READ ] text_view(path, start?, end?)\n'
+    '          -- Read a file (with 1-indexed line numbers) or list a directory.\n'
+    '             For Windows-side paths, hit everything_search FIRST to resolve\n'
+    "             the exact path -- text_view on a missing path is fast but the\n"
+    "             planner shouldn't depend on Everything fallback for the happy path.\n"
+    '  [WRITE] text_create(path, content)\n'
+    '          -- Create a new file. Refuses /etc, /usr, /boot, /sys, /proc, /dev,\n'
+    "             /mnt/c/Windows, /mnt/c/Program Files -- write-protected system paths.\n"
+    '  [WRITE] text_str_replace(path, old, new)\n'
+    "          -- Exact-match replace. `old` must occur EXACTLY once -- supply\n"
+    "             a larger old block if the substring is ambiguous.\n"
+    '  [WRITE] text_insert(path, line, content)\n'
+    '          -- Insert content AFTER 1-indexed line N (0 = prepend).\n'
+    '  [WRITE] powershell_run(script, timeout=30, work_dir?)\n'
+    '          -- Execute a PowerShell script on the Windows side. Returns\n'
+    "             stdout/stderr/exit_code. High-privilege -- tainted sessions\n"
+    "             are refused. Default timeout 30s; script cap 64 KiB.\n"
     "\n"
     "Verb-pick priority (most common cases first):\n"
     '  "open X" / "launch X" / "start X" / "run X"  -> open_app(name=X)\n'
@@ -494,6 +511,12 @@ _ROUTER_SYSTEM = (
     '  "what apps are installed" / "list apps"      -> mios_apps()\n'
     '  "what windows are open"                      -> list_windows()\n'
     '  "go to <url>" / "visit <url>"                -> open_url(url=<url>)\n'
+    '  "read X" / "show me X" / "cat X"             -> text_view(path=X)\n'
+    '  "write X to <path>" / "save X to <path>"     -> text_create(path=<path>, content=X)\n'
+    '  "in <file> replace A with B"                 -> text_str_replace(path=<file>, old=A, new=B)\n'
+    '  "run powershell: <script>" / "ps: <script>"  -> powershell_run(script=<script>)\n'
+    "  For ANY file/folder reference on the Windows side, use everything_search\n"
+    "  FIRST to resolve the exact path -- it's faster than recursing directories.\n"
     "\n"
     "Rules:\n"
     "- `dispatch` only when ONE verb solves it.\n"
@@ -1603,6 +1626,16 @@ _HIGH_PRIVILEGE_VERBS = {
     "pc_type",
     "pc_key",
     "pc_click",
+    # text_create / str_replace / insert are WRITE class -- a
+    # tainted session could craft them to drop a payload anywhere
+    # the agent has write access to.
+    "text_create",
+    "text_str_replace",
+    "text_insert",
+    # powershell_run executes arbitrary Windows-side script with
+    # the operator's interop context. Single most dangerous verb
+    # in the catalog -- always firewall-gated.
+    "powershell_run",
 }
 
 # Domains that are part of the operator's own infrastructure -- a
@@ -1657,12 +1690,31 @@ def _is_external_url(url: str) -> bool:
 
 def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
     """Decide whether a verb's OWN execution introduces taint.
-    Returns (tainted, reason). Currently scoped to open_url; future
-    web/RAG verbs add their own cases."""
+    Returns (tainted, reason)."""
     if tool == "open_url":
         url = str((args or {}).get("url", ""))
         if _is_external_url(url):
             return True, f"external_open_url:{url[:80]}"
+    # powershell_run output reflects Windows-side execution state
+    # the agent didn't author -- treat as taint so subsequent high-
+    # privilege verbs in the same session get firewall-checked.
+    if tool == "powershell_run":
+        return True, "powershell_output"
+    # text_view of a system path (or any path under the write-
+    # denied prefixes) reads content the agent didn't author, so
+    # downstream high-priv verbs should be firewall-gated. The
+    # denied-prefix list is the same one mios-text-edit uses for
+    # write protection, mirrored here so the agent-pipe doesn't
+    # need to shell out to look it up.
+    if tool == "text_view":
+        path = str((args or {}).get("path", ""))
+        for prefix in (
+            "/etc/", "/usr/", "/boot/", "/sys/", "/proc/", "/dev/",
+            "/mnt/c/Windows/", "/mnt/c/Program Files/",
+            "/mnt/c/Program Files (x86)/",
+        ):
+            if path.startswith(prefix):
+                return True, f"text_view_system:{prefix}"
     return False, ""
 
 
@@ -2035,6 +2087,71 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if button not in ("left", "right", "middle"):
             button = "left"
         return f"mios-pc-control click {x} {y} {button}"
+    # ── Native text-editor verbs (replaces pc_type+pc_key save chain) ──
+    # Bodies may contain shell metacharacters + multiline content;
+    # stage them in /tmp via the broker-side mktemp + base64 so the
+    # bash command line stays sane and broker output parsing isn't
+    # tripped by literal newlines in the args.
+    if tool == "text_view":
+        path = shlex.quote(str(args.get("path", "")))
+        cmd = f"mios-text-edit view {path}"
+        start = args.get("start")
+        end = args.get("end")
+        if start is not None:
+            cmd += f" --start {int(start)}"
+        if end is not None:
+            cmd += f" --end {int(end)}"
+        return cmd
+    if tool == "text_create":
+        path = shlex.quote(str(args.get("path", "")))
+        body_b64 = base64.b64encode(
+            str(args.get("content", "")).encode("utf-8")).decode()
+        # Pipe content via stdin (-) -- avoids the argv length limit
+        # and any quoting weirdness with newlines / embedded quotes.
+        return (
+            f"echo {shlex.quote(body_b64)} | base64 -d "
+            f"| mios-text-edit create {path} --content -"
+        )
+    if tool == "text_str_replace":
+        path = shlex.quote(str(args.get("path", "")))
+        old_b64 = base64.b64encode(
+            str(args.get("old", "")).encode("utf-8")).decode()
+        new_b64 = base64.b64encode(
+            str(args.get("new", "")).encode("utf-8")).decode()
+        # Stage both blocks as files via two echo+base64 hops so
+        # mios-text-edit's @-file args read them cleanly.
+        return (
+            "_old=$(mktemp); _new=$(mktemp); "
+            f"echo {shlex.quote(old_b64)} | base64 -d > $_old; "
+            f"echo {shlex.quote(new_b64)} | base64 -d > $_new; "
+            f"mios-text-edit str_replace {path} --old @$_old --new @$_new; "
+            "_rc=$?; rm -f $_old $_new; exit $_rc"
+        )
+    if tool == "text_insert":
+        path = shlex.quote(str(args.get("path", "")))
+        line = int(args.get("line", 0))
+        body_b64 = base64.b64encode(
+            str(args.get("content", "")).encode("utf-8")).decode()
+        return (
+            f"echo {shlex.quote(body_b64)} | base64 -d "
+            f"| mios-text-edit insert {path} --line {line} --content -"
+        )
+    # ── Native PowerShell execution (Windows-side bash analogue) ──
+    if tool == "powershell_run":
+        script = str(args.get("script", ""))
+        if not script.strip():
+            return None
+        timeout = int(args.get("timeout", 30))
+        work_dir = str(args.get("work_dir", "")).strip()
+        script_b64 = base64.b64encode(script.encode("utf-8")).decode()
+        cmd = (
+            f"echo {shlex.quote(script_b64)} | base64 -d "
+            f"| mios-powershell --timeout {timeout} --json"
+        )
+        if work_dir:
+            cmd += f" --work-dir {shlex.quote(work_dir)}"
+        cmd += " -"
+        return cmd
     return None
 
 

@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""mios-text-edit -- native text-editor primitive.
+
+Replaces the fragile `pc_type` + `pc_key ctrl+s` chain the
+Phase A.1 planner used to emit for "open notepad and type X
+then save". Synthetic keystroke editing fails for many reasons
+the operator has hit in production:
+
+  * The focused window may not be the editor (race on
+    focus_window).
+  * Special characters in the body get re-interpreted by the
+    target's IME / autocomplete.
+  * `ctrl+s` triggers different dialogs depending on app state
+    (Save As on a never-saved doc).
+  * No way to verify the write landed.
+
+Native file ops bypass all of that: read / write / replace /
+insert against the filesystem directly. The agent gets an
+exit_code + structured result instead of "did the keypress
+sequence work or not". Mirrors Anthropic's text_editor_*
+schema shape (view / create / str_replace / insert) so prompt
+patterns developed against that ecosystem transfer cleanly.
+
+Subcommands:
+
+  view PATH [--start N] [--end M]
+                       If PATH is a directory: list non-hidden
+                       entries up to 2 levels deep. If a file:
+                       print the file with 1-indexed line
+                       numbers; optional --start / --end to
+                       restrict the range (inclusive bounds).
+                       Defaults to first 200 lines on huge
+                       files so the agent doesn't blow its
+                       context window.
+
+  create PATH --content @file
+                       Create a new file. Fails (exit 1) if
+                       PATH already exists -- use str_replace
+                       or insert to mutate an existing file.
+                       Creates parent directories implicitly.
+
+  str_replace PATH --old @file --new @file
+                       Exact-match replace. The old string must
+                       occur EXACTLY once in the file; multiple
+                       matches or zero matches both fail. This
+                       is the "atomic edit" primitive -- pair
+                       with `view` to verify the target string
+                       exists before the replace.
+
+  insert PATH --line N --content @file
+                       Insert content AFTER line N (1-indexed).
+                       --line 0 prepends to the file. Idempotent
+                       w.r.t. the agent's ability to verify via
+                       `view` after the call.
+
+`--content @file` / `--old @file` / `--new @file` arguments
+support three forms (same shape as mios-passport / mios-skills):
+
+  @PATH      read from a path
+  -          read from stdin (one arg only)
+  literal    the raw string
+
+Output is structured JSON with a fixed shape:
+
+  {"ok": true,  "verb": "view",   "path": "...", "result": "...", "bytes": N}
+  {"ok": false, "verb": "create", "path": "...", "error": "exists"}
+
+so the agent / dispatch layer parses a stable envelope instead
+of free-text. The CAPTURE_JSON: broker protocol picks the
+stdout up verbatim.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from typing import Optional
+
+
+MAX_LIST_DEPTH = 2
+MAX_LIST_ENTRIES = 500
+DEFAULT_HEAD_LINES = 200
+# Hardening: read + write size caps. Operator override via env so
+# legitimate large-doc edits still work but the default refuses
+# pathological inputs that would balloon agent context.
+MAX_READ_BYTES = int(os.environ.get(
+    "MIOS_TEXT_EDIT_MAX_READ_BYTES", "1048576"))   # 1 MiB
+MAX_WRITE_BYTES = int(os.environ.get(
+    "MIOS_TEXT_EDIT_MAX_WRITE_BYTES", "1048576"))  # 1 MiB
+
+# Path hardening: WRITE-class operations refuse these prefixes so
+# a confused agent can't overwrite system files. Operator override
+# via env (CSV of forbidden write prefixes). READS are unrestricted
+# -- they only contribute to taint, not damage.
+_DEFAULT_WRITE_DENIED_PREFIXES = [
+    "/etc/", "/usr/", "/boot/", "/sys/", "/proc/", "/dev/",
+    "/run/", "/lib/", "/lib64/", "/sbin/", "/bin/",
+    # Windows-side: the OS dirs + Program Files are out of bounds.
+    "/mnt/c/Windows/", "/mnt/c/Program Files/",
+    "/mnt/c/Program Files (x86)/",
+]
+_env_denied = os.environ.get(
+    "MIOS_TEXT_EDIT_WRITE_DENIED_PREFIXES", "").strip()
+if _env_denied:
+    WRITE_DENIED_PREFIXES = [
+        p.strip() for p in _env_denied.split(",") if p.strip()
+    ]
+else:
+    WRITE_DENIED_PREFIXES = list(_DEFAULT_WRITE_DENIED_PREFIXES)
+
+
+def _validate_write_path(path: str) -> Optional[str]:
+    """Reject path-traversal + writes to system paths. Returns None
+    when path is acceptable; an error string otherwise.
+
+    Resolves the path with os.path.realpath so symlink escapes hit
+    the same guard as direct prefix matches. The agent can't smuggle
+    `/var/lib/mios/foo` -> `/etc/passwd` via a pre-staged symlink."""
+    if not path or not isinstance(path, str):
+        return "empty_path"
+    if "\x00" in path:
+        return "null_byte_in_path"
+    # Resolve symlinks. If the path doesn't exist yet (create case),
+    # realpath returns the would-be path with intermediate symlinks
+    # resolved -- still useful for the prefix check.
+    try:
+        resolved = os.path.realpath(path)
+    except OSError as e:
+        return f"realpath_failed:{e}"
+    for prefix in WRITE_DENIED_PREFIXES:
+        if resolved.startswith(prefix):
+            return f"write_denied_prefix:{prefix}"
+    return None
+
+
+def _resolve_arg(spec: str) -> str:
+    """Read a --content / --old / --new arg. '@path' reads a file;
+    '-' reads stdin; anything else is the literal string."""
+    if spec == "-":
+        return sys.stdin.read()
+    if spec.startswith("@"):
+        with open(spec[1:], "r", encoding="utf-8") as f:
+            return f.read()
+    return spec
+
+
+def _emit(payload: dict) -> int:
+    """Write the JSON envelope. Exit code mirrors `ok`."""
+    print(json.dumps(payload, default=str))
+    return 0 if payload.get("ok", False) else 1
+
+
+def _suggest_candidates(path: str) -> list[str]:
+    """Resilience helper: when a view target doesn't exist, try
+    mios-everything for the basename to surface plausible matches.
+    Fast (sub-100ms via the Everything CLI) so it doesn't slow the
+    error path materially. Best-effort -- returns [] when
+    everything isn't available or the lookup times out."""
+    import shutil
+    import subprocess
+    base = os.path.basename(path.rstrip("/"))
+    if not base or len(base) < 3:
+        return []
+    binary = shutil.which("mios-everything")
+    if not binary:
+        return []
+    try:
+        out = subprocess.run(
+            [binary, "-n", "5", base],
+            capture_output=True, text=True, timeout=2,
+        )
+        if out.returncode != 0:
+            return []
+        return [
+            line.strip() for line in out.stdout.splitlines()
+            if line.strip()
+        ][:5]
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+
+
+def cmd_view(args: argparse.Namespace) -> int:
+    path = args.path
+    if "\x00" in path:
+        return _emit({"ok": False, "verb": "view", "path": path,
+                      "error": "null_byte_in_path"})
+    if not os.path.exists(path):
+        # Resilience: surface Everything-suggested matches so the
+        # planner can retry with the real path instead of giving up.
+        candidates = _suggest_candidates(path)
+        payload = {"ok": False, "verb": "view", "path": path,
+                   "error": "not_found"}
+        if candidates:
+            payload["candidates"] = candidates
+            payload["note"] = (
+                "path missing; mios-everything matched these -- "
+                "retry text_view on one of them")
+        return _emit(payload)
+    # Hardening: enforce a max read size BEFORE pulling the file
+    # into memory -- agents asking to view /var/log/giant.log
+    # should fail fast rather than OOM the process.
+    if os.path.isfile(path):
+        size = os.path.getsize(path)
+        if size > MAX_READ_BYTES:
+            return _emit({"ok": False, "verb": "view", "path": path,
+                          "error": f"file_too_large:{size}>{MAX_READ_BYTES}",
+                          "note": "raise MIOS_TEXT_EDIT_MAX_READ_BYTES or "
+                                  "use --start/--end to slice"})
+    if os.path.isdir(path):
+        entries: list[str] = []
+        for root, dirs, files in os.walk(path):
+            depth = root[len(path):].count(os.sep)
+            if depth >= MAX_LIST_DEPTH:
+                dirs[:] = []
+            # Skip hidden dirs in-place so the walk doesn't recurse.
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            rel = os.path.relpath(root, path)
+            if rel == ".":
+                rel = ""
+            for d in dirs:
+                entries.append(os.path.join(rel, d) + "/")
+            for f in files:
+                if f.startswith("."):
+                    continue
+                entries.append(os.path.join(rel, f))
+            if len(entries) > MAX_LIST_ENTRIES:
+                entries = entries[:MAX_LIST_ENTRIES]
+                entries.append(f"... truncated at {MAX_LIST_ENTRIES} entries")
+                break
+        return _emit({"ok": True, "verb": "view", "path": path,
+                      "kind": "dir", "entries": sorted(entries)})
+    # File path.
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        return _emit({"ok": False, "verb": "view", "path": path,
+                      "error": "binary_file_not_supported"})
+    start = max(1, int(args.start)) if args.start else 1
+    end = int(args.end) if args.end else None
+    if end is None:
+        end = min(len(lines), start + DEFAULT_HEAD_LINES - 1)
+    end = min(end, len(lines))
+    if start > len(lines):
+        return _emit({"ok": True, "verb": "view", "path": path,
+                      "kind": "file", "total_lines": len(lines),
+                      "result": "",
+                      "note": f"start={start} > total_lines={len(lines)}"})
+    body_lines = lines[start - 1:end]
+    rendered = "".join(
+        f"{i + start:>5}\t{line}" for i, line in enumerate(body_lines)
+    )
+    return _emit({"ok": True, "verb": "view", "path": path,
+                  "kind": "file", "total_lines": len(lines),
+                  "shown_range": [start, end],
+                  "result": rendered,
+                  "bytes": sum(len(line.encode("utf-8")) for line in body_lines)})
+
+
+def cmd_create(args: argparse.Namespace) -> int:
+    path = args.path
+    err = _validate_write_path(path)
+    if err:
+        return _emit({"ok": False, "verb": "create", "path": path,
+                      "error": err})
+    if os.path.exists(path):
+        return _emit({"ok": False, "verb": "create", "path": path,
+                      "error": "exists"})
+    content = _resolve_arg(args.content)
+    if len(content.encode("utf-8")) > MAX_WRITE_BYTES:
+        return _emit({"ok": False, "verb": "create", "path": path,
+                      "error": f"content_too_large:{len(content)}>{MAX_WRITE_BYTES}"})
+    parent = os.path.dirname(path)
+    if parent and not os.path.isdir(parent):
+        try:
+            os.makedirs(parent, exist_ok=True)
+        except OSError as e:
+            return _emit({"ok": False, "verb": "create", "path": path,
+                          "error": f"mkdir_failed:{e}"})
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    except OSError as e:
+        return _emit({"ok": False, "verb": "create", "path": path,
+                      "error": f"write_failed:{e}"})
+    return _emit({"ok": True, "verb": "create", "path": path,
+                  "bytes": len(content.encode("utf-8")),
+                  "lines": content.count("\n") + (0 if content.endswith("\n") else 1)})
+
+
+def cmd_str_replace(args: argparse.Namespace) -> int:
+    path = args.path
+    err = _validate_write_path(path)
+    if err:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": err})
+    if not os.path.isfile(path):
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": "not_found"})
+    if os.path.getsize(path) > MAX_WRITE_BYTES:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": f"file_too_large:{os.path.getsize(path)}>{MAX_WRITE_BYTES}"})
+    old = _resolve_arg(args.old)
+    new = _resolve_arg(args.new)
+    if not old:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": "old_empty"})
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            body = f.read()
+    except UnicodeDecodeError:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": "binary_file_not_supported"})
+    occurrences = body.count(old)
+    if occurrences == 0:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": "old_not_found"})
+    if occurrences > 1:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": f"old_ambiguous:{occurrences}_matches",
+                      "note": "supply a larger old block to make it unique"})
+    new_body = body.replace(old, new, 1)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(new_body)
+    except OSError as e:
+        return _emit({"ok": False, "verb": "str_replace", "path": path,
+                      "error": f"write_failed:{e}"})
+    return _emit({"ok": True, "verb": "str_replace", "path": path,
+                  "delta": len(new.encode("utf-8")) - len(old.encode("utf-8")),
+                  "new_bytes": len(new_body.encode("utf-8"))})
+
+
+def cmd_insert(args: argparse.Namespace) -> int:
+    path = args.path
+    err = _validate_write_path(path)
+    if err:
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": err})
+    if not os.path.isfile(path):
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": "not_found"})
+    if os.path.getsize(path) > MAX_WRITE_BYTES:
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": f"file_too_large:{os.path.getsize(path)}>{MAX_WRITE_BYTES}"})
+    line = int(args.line)
+    if line < 0:
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": "line_negative"})
+    content = _resolve_arg(args.content)
+    if not content.endswith("\n"):
+        content += "\n"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": "binary_file_not_supported"})
+    if line > len(lines):
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": f"line_past_eof:{line}>{len(lines)}"})
+    lines.insert(line, content)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+    except OSError as e:
+        return _emit({"ok": False, "verb": "insert", "path": path,
+                      "error": f"write_failed:{e}"})
+    return _emit({"ok": True, "verb": "insert", "path": path,
+                  "inserted_after_line": line,
+                  "new_total_lines": len(lines)})
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="mios-text-edit",
+        description="Native text-editor primitive -- replaces "
+                    "pc_type+pc_key save chains.",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pv = sub.add_parser("view", help="read a file or list a directory")
+    pv.add_argument("path")
+    pv.add_argument("--start", help="1-indexed first line")
+    pv.add_argument("--end", help="1-indexed last line (inclusive)")
+    pv.set_defaults(func=cmd_view)
+
+    pc = sub.add_parser("create", help="create a new file (fails if exists)")
+    pc.add_argument("path")
+    pc.add_argument("--content", required=True,
+                    help="@path / - for stdin / literal")
+    pc.set_defaults(func=cmd_create)
+
+    pr = sub.add_parser("str_replace",
+                        help="exact-match replace; old must occur once")
+    pr.add_argument("path")
+    pr.add_argument("--old", required=True,
+                    help="@path / - for stdin / literal")
+    pr.add_argument("--new", required=True,
+                    help="@path / - for stdin / literal")
+    pr.set_defaults(func=cmd_str_replace)
+
+    pi = sub.add_parser("insert",
+                        help="insert content after a 1-indexed line")
+    pi.add_argument("path")
+    pi.add_argument("--line", required=True,
+                    help="1-indexed line to insert AFTER (0 = prepend)")
+    pi.add_argument("--content", required=True,
+                    help="@path / - for stdin / literal")
+    pi.set_defaults(func=cmd_insert)
+
+    return p
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    p = build_parser()
+    args = p.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

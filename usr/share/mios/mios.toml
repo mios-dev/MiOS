@@ -480,6 +480,14 @@ firewall_high_privilege_verbs = [
     "pc_type",
     "pc_key",
     "pc_click",
+    # Native text-editor write verbs -- tainted sessions can't
+    # craft them to drop payloads onto operator paths.
+    "text_create",
+    "text_str_replace",
+    "text_insert",
+    # Single most dangerous verb in the catalog: arbitrary
+    # Windows-side script execution. Always firewall-gated.
+    "powershell_run",
 ]
 
 [fs_watcher]

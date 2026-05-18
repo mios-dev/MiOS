@@ -200,6 +200,69 @@ Implemented as:
   `sha256(table:canonical-json(fields-minus-passport))`,
   binding the signature to the exact data.
 
+## Phase D -- post-Phase-C additive surface (commit 10+)
+
+### D.1 -- Native text-editor + powershell_run verbs  *(landed)*
+
+Closes the two FS-navigation gaps the 2026-05-18 research note
+flagged.
+
+* `usr/libexec/mios/mios-text-edit` -- stdlib Python CLI.
+  Subcommands: `view / create / str_replace / insert`. Mirrors
+  Anthropic's text_editor_* schema shape (view returns
+  1-indexed line numbers; str_replace requires the old block
+  to occur exactly once). Replaces the fragile
+  `pc_type` + `pc_key ctrl+s` save chain.
+* `usr/libexec/mios/mios-powershell` -- bash shim wrapping
+  `pwsh.exe` / `powershell.exe` with `-NoProfile
+  -NonInteractive -ExecutionPolicy Bypass`. Optional
+  `--json` envelope, `--timeout N`, `--work-dir PATH`.
+  Stages the script through /mnt/c/Users/Public/Documents/
+  for native Windows file access (faster than the \\wsl
+  UNC path).
+* Five new dispatch verbs in agent-pipe `_build_dispatch_cmd`:
+  `text_view`, `text_create`, `text_str_replace`,
+  `text_insert`, `powershell_run`. Bodies pass through stdin
+  + base64 so multiline / special-char content survives the
+  broker socket round-trip.
+* Router prompt advertises all five with verb-pick priority
+  rules ("read X" -> text_view, "save X to Y" -> text_create,
+  "run powershell: X" -> powershell_run).
+
+### D.1a -- Hardening + Everything-Search resilience
+
+Folded into D.1 per operator directive 2026-05-18 (harden the
+Linux + Windows FS navigation + use Everything Search for
+Windows paths).
+
+* `mios-text-edit` path validation: `_validate_write_path()`
+  refuses writes to /etc, /usr, /boot, /sys, /proc, /dev,
+  /run, /lib, /lib64, /sbin, /bin, /mnt/c/Windows,
+  /mnt/c/Program Files. `realpath` resolves symlinks first --
+  no symlink escape. Operator override via
+  `MIOS_TEXT_EDIT_WRITE_DENIED_PREFIXES` (CSV).
+* Size caps: read 1 MiB, write 1 MiB, PowerShell script
+  64 KiB, PowerShell output 256 KiB. All env-overridable.
+* `text_view` resilience: on `not_found`, runs
+  `mios-everything` for the basename and includes up to 5
+  candidate paths in the error envelope so the planner can
+  retry with the resolved path instead of giving up.
+* `powershell_run` output truncation with explicit marker
+  lines (`... [truncated N bytes; output cap M bytes]`) so
+  the agent sees the elision instead of mis-counting.
+* `_classify_verb_taint`: powershell_run output is always
+  tainted (Windows-side execution = external state);
+  text_view of any write-denied prefix is also tainted.
+* `_HIGH_PRIVILEGE_VERBS` + `[security].
+  firewall_high_privilege_verbs` extended to include the four
+  WRITE-class verbs (text_create, text_str_replace,
+  text_insert, powershell_run). Tainted sessions REFUSE
+  dispatch.
+
+`usr/share/mios/skills/write-text-file.json` -- new seed
+template demonstrating text_create -> text_view as the native
+replacement for save-document's pc_type chain.
+
 ## What stays put
 
 The MCP-style execution layer (mios-launcher broker, mios-pc-

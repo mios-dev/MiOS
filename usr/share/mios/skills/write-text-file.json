@@ -1,0 +1,13 @@
+{
+  "name": "write-text-file",
+  "description": "Native text-editor analogue of save-document: create a file via text_create, then text_view to confirm. Demonstrates the Phase D resilient text-editor verbs replacing the old pc_type + pc_key ctrl+s chain.",
+  "source": "import",
+  "status": "promoted",
+  "body": {
+    "steps": [
+      {"verb": "text_create", "args": {"path": "$path", "content": "$body"}},
+      {"verb": "text_view",   "args": {"path": "$path"}}
+    ],
+    "params": ["path", "body"]
+  }
+}
