@@ -346,6 +346,106 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     return parsed
 
 
+# ── Phase A.3 -- taint-aware memory + Semantic Firewall stub ─────
+# When a verb fetches or exposes the agent to untrusted external
+# content (current scope: open_url to a non-allowlisted domain;
+# future: web_extract, knowledge_search hitting a third-party RAG
+# doc, etc.), tag the tool_call row with tainted=true. Taint
+# propagates within a session: any subsequent tool_call inherits
+# tainted=true if ANY prior tool_call in the same session was
+# tainted. High-privilege verbs are refused while taint is set --
+# the Semantic Firewall stub. Refusals emit an event row
+# {source=agent-pipe, kind=firewall_block, severity=high}.
+
+# Verbs that perform a SYSTEM-AFFECTING action and must NOT run
+# when the session is tainted. service_restart / container_restart
+# touch the operator's host services; pc_type / pc_key / pc_click
+# inject input into Win32 windows (could enter credentials if
+# tainted content prompted it).
+_HIGH_PRIVILEGE_VERBS = {
+    "service_restart",
+    "container_restart",
+    "pc_type",
+    "pc_key",
+    "pc_click",
+}
+
+# Domains that are part of the operator's own infrastructure -- a
+# verb opening these is NOT a taint source. Anything else
+# constitutes a "we exposed the agent to untrusted external state"
+# event and the tool_call gets tainted=true (the URL itself didn't
+# return content, but the operator's screen now shows external
+# content the agent might subsequently react to).
+_ALLOWLIST_HOSTS = {
+    "localhost", "127.0.0.1", "::1",
+    "host.containers.internal",
+    "mios-ollama", "mios-open-webui", "mios-hermes", "mios-surrealdb",
+    "mios-forge", "mios-searxng", "mios-code-server",
+}
+
+
+def _is_external_url(url: str) -> bool:
+    """Return True if the URL points OUTSIDE the operator's own
+    infrastructure (i.e. a taint source). Best-effort host parse;
+    anything ambiguous defaults to External (fail-safe)."""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(url).hostname or "").lower()
+        if not host:
+            return False
+        if host in _ALLOWLIST_HOSTS:
+            return False
+        # Treat *.local + *.lan + plain hostnames (no dots) as internal.
+        if host.endswith((".local", ".lan", ".internal")):
+            return False
+        if "." not in host:
+            return False
+        return True
+    except Exception:
+        return True  # fail-safe: ambiguous = treat as external
+
+
+def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
+    """Decide whether a verb's OWN execution introduces taint.
+    Returns (tainted, reason). Currently scoped to open_url; future
+    web/RAG verbs add their own cases."""
+    if tool == "open_url":
+        url = str((args or {}).get("url", ""))
+        if _is_external_url(url):
+            return True, f"external_open_url:{url[:80]}"
+    return False, ""
+
+
+async def _session_is_tainted(session_id: Optional[str]) -> tuple[bool, str]:
+    """Look up whether the session has ANY prior tainted tool_call.
+    Returns (tainted, reason_chain) where reason_chain summarises
+    the upstream taint sources for the firewall event."""
+    if not session_id:
+        return False, ""
+    # SurrealDB 3.0+ requires ORDER BY fields to be in the SELECT
+    # projection -- include `ts` even though we don't use it past the
+    # ordering (parse error otherwise: "Missing order idiom `ts` in
+    # statement selection").
+    sql = (
+        f"SELECT ts, tool, taint_reason FROM tool_call "
+        f"WHERE session = {session_id} AND tainted = true "
+        f"ORDER BY ts ASC LIMIT 5;"
+    )
+    r = await _db_post(sql)
+    if not r:
+        return False, ""
+    rows = (r[-1] or {}).get("result") or []
+    if not rows:
+        return False, ""
+    chain = "; ".join(
+        f"{row.get('tool','?')}:{row.get('taint_reason','')}"
+        for row in rows
+    )
+    return True, chain[:300]
+
+
 # ── Planner system prompt (Phase A.1 DAG decomposition) ───────────
 # Function-calling-shaped prompt for qwen2.5-coder:7b. Emits a DAG
 # of dispatch verbs WHEN the user's intent is multi-step. Returns
@@ -509,7 +609,11 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         attempt = 0
         last_result: dict = {}
         while attempt <= PLANNER_REFLEXION_CAP:
-            last_result = await dispatch_mios_verb(tool, args)
+            # Phase A.3: forward session_id so the firewall pre-check
+            # can see upstream taint.
+            last_result = await dispatch_mios_verb(
+                tool, args, session_id=session_id,
+            )
             if last_result.get("success"):
                 break
             attempt += 1
@@ -522,12 +626,16 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         node_result["attempts"] = attempt + (1 if last_result.get("success") and attempt == 0 else 0)
         results.append(node_result)
         # SurrealDB tool_call row per node, linked to session.
+        # Phase A.3: include taint state so the firewall + downstream
+        # critics see the propagation chain.
         _row = {
             "tool": tool,
             "args": args if isinstance(args, dict) else {},
             "result_preview": (last_result.get("output") or "")[:500],
             "success": bool(last_result.get("success")),
             "latency_ms": int(last_result.get("latency_ms", 0)),
+            "tainted": bool(last_result.get("tainted")),
+            "taint_reason": (last_result.get("taint_reason") or "") or None,
         }
         if session_id:
             _db_fire(_db_post(
@@ -682,12 +790,46 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     return None
 
 
-async def dispatch_mios_verb(tool: str, args: dict) -> dict:
+async def dispatch_mios_verb(
+    tool: str, args: dict, *,
+    session_id: Optional[str] = None,
+) -> dict:
     """Run a single MiOS verb via the launcher broker (unix socket
     /run/mios-launcher/launcher.sock). Returns a structured dict:
-    {success, tool, args, output, stderr, exit_code, latency_ms}.
-    Uses the broker's CAPTURE_JSON: protocol so stdout/stderr split
-    cleanly (operator's "no English in tool_result.output" rule)."""
+    {success, tool, args, output, stderr, exit_code, latency_ms,
+     tainted, taint_reason}. Uses the broker's CAPTURE_JSON: protocol
+    so stdout/stderr split cleanly.
+
+    Phase A.3: Semantic Firewall stub -- when a high-privilege verb
+    is dispatched and the session has ANY upstream tainted tool_call,
+    the dispatch is REFUSED (not even sent to the broker) and an
+    event row is emitted (kind=firewall_block, severity=high).
+    Taint of the dispatched verb itself is computed from
+    _classify_verb_taint AND inherited from session state."""
+    # ── Firewall pre-check for high-privilege verbs ──
+    if tool in _HIGH_PRIVILEGE_VERBS and session_id:
+        is_tainted, chain = await _session_is_tainted(session_id)
+        if is_tainted:
+            _db_fire(_db_post(_db_create("event", {
+                "source": "agent-pipe",
+                "kind": "firewall_block",
+                "severity": "high",
+                "summary": f"refused {tool} (tainted session)",
+                "payload": {
+                    "tool": tool, "args": args,
+                    "taint_chain": chain,
+                },
+            }, now_fields=("ts",))))
+            return {
+                "success": False, "tool": tool, "args": args,
+                "output": "",
+                "stderr": f"firewall_block: {tool} refused -- "
+                          f"upstream taint: {chain}",
+                "exit_code": -1, "latency_ms": 0,
+                "tainted": True,
+                "taint_reason": f"firewall_block:{chain[:200]}",
+            }
+
     cmd = _build_dispatch_cmd(tool, args)
     if cmd is None:
         return {
@@ -731,6 +873,9 @@ async def dispatch_mios_verb(tool: str, args: dict) -> dict:
                 "exit_code": -1, "latency_ms": latency_ms,
             }
         exit_code = int(j.get("exit_code", -1))
+        # Compute taint for this verb's OWN execution (e.g. open_url
+        # to an external host marks the result as tainted).
+        v_tainted, v_reason = _classify_verb_taint(tool, args)
         return {
             "success": exit_code == 0,
             "tool": tool, "args": args,
@@ -738,6 +883,8 @@ async def dispatch_mios_verb(tool: str, args: dict) -> dict:
             "stderr": (j.get("stderr") or "")[:2000],
             "exit_code": exit_code,
             "latency_ms": latency_ms,
+            "tainted": v_tainted,
+            "taint_reason": v_reason,
         }
     except OSError as e:
         return {
@@ -745,6 +892,8 @@ async def dispatch_mios_verb(tool: str, args: dict) -> dict:
             "output": "", "stderr": f"broker: {e}",
             "exit_code": -1,
             "latency_ms": int((time.time() - t0) * 1000),
+            "tainted": False,
+            "taint_reason": "",
         }
 
 
@@ -944,15 +1093,19 @@ async def chat_completions(request: Request) -> Any:
             if tool:
                 result = await dispatch_mios_verb(
                     tool, args if isinstance(args, dict) else {},
+                    session_id=session_id,
                 )
                 ok = bool(result.get("success"))
                 # SurrealDB tool_call row -- write fire-and-forget.
+                # Phase A.3: include taint state for the firewall.
                 _row = {
                     "tool": tool,
                     "args": args if isinstance(args, dict) else {},
                     "result_preview": (result.get("output") or "")[:500],
                     "success": ok,
                     "latency_ms": int(result.get("latency_ms", 0)),
+                    "tainted": bool(result.get("tainted")),
+                    "taint_reason": (result.get("taint_reason") or "") or None,
                 }
                 if session_id:
                     _db_fire(_db_post(
@@ -1092,7 +1245,9 @@ async def chat_completions(request: Request) -> Any:
                             attempt = 0
                             last_result: dict = {}
                             while attempt <= PLANNER_REFLEXION_CAP:
-                                last_result = await dispatch_mios_verb(tool, args)
+                                last_result = await dispatch_mios_verb(
+                                    tool, args, session_id=session_id,
+                                )
                                 if last_result.get("success"):
                                     break
                                 attempt += 1
@@ -1107,6 +1262,8 @@ async def chat_completions(request: Request) -> Any:
                                 "result_preview": (last_result.get("output") or "")[:500],
                                 "success": bool(last_result.get("success")),
                                 "latency_ms": int(last_result.get("latency_ms", 0)),
+                                "tainted": bool(last_result.get("tainted")),
+                                "taint_reason": (last_result.get("taint_reason") or "") or None,
                             }
                             if session_id:
                                 _db_fire(_db_post(
@@ -1211,7 +1368,9 @@ async def chat_completions(request: Request) -> Any:
                         attempt = 0
                         last_result: dict = {}
                         while attempt <= PLANNER_REFLEXION_CAP:
-                            last_result = await dispatch_mios_verb(tool, args)
+                            last_result = await dispatch_mios_verb(
+                                tool, args, session_id=session_id,
+                            )
                             if last_result.get("success"):
                                 break
                             attempt += 1
@@ -1220,6 +1379,26 @@ async def chat_completions(request: Request) -> Any:
                         nres = dict(last_result)
                         nres["node_id"] = nid
                         results.append(nres)
+                        # Phase A.3: also write the tool_call row in
+                        # this no-verdict streaming path so the firewall
+                        # can see taint chains on planner-only runs.
+                        _row = {
+                            "tool": tool,
+                            "args": args if isinstance(args, dict) else {},
+                            "result_preview": (last_result.get("output") or "")[:500],
+                            "success": bool(last_result.get("success")),
+                            "latency_ms": int(last_result.get("latency_ms", 0)),
+                            "tainted": bool(last_result.get("tainted")),
+                            "taint_reason": (last_result.get("taint_reason") or "") or None,
+                        }
+                        if session_id:
+                            _db_fire(_db_post(
+                                _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
+                                + f", session = {session_id};"
+                            ))
+                        else:
+                            _db_fire(_db_post(_db_create(
+                                "tool_call", _row, now_fields=("ts",))))
                         if not last_result.get("success"):
                             all_ok = False
                             break

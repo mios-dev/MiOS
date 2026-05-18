@@ -64,8 +64,21 @@ DEFINE FIELD result_preview   ON tool_call TYPE option<string>;
 DEFINE FIELD success          ON tool_call TYPE option<bool>;
 DEFINE FIELD latency_ms       ON tool_call TYPE option<int>;
 DEFINE FIELD dispatched_by    ON tool_call TYPE option<record<agent>>;
+-- Phase A.3 of the AgentOS roadmap: taint-aware memory tagging. The
+-- `tainted` flag is set when the tool produced output from an
+-- untrusted source (web fetch, non-allowlisted open_url destination,
+-- RAG content sourced from a third-party doc, etc.) or when an
+-- earlier tool_call in the same session was tainted (propagation).
+-- The Semantic Firewall (Phase B.3 / partial A.3) refuses high-
+-- privilege follow-up verbs when ANY upstream tool_call in the
+-- session is tainted.
+DEFINE FIELD tainted          ON tool_call TYPE bool DEFAULT false;
+-- Optional reason string: "web_fetch", "external_open_url",
+-- "inherited:n2", etc. Operator-readable when the firewall blocks.
+DEFINE FIELD taint_reason     ON tool_call TYPE option<string>;
 DEFINE INDEX tool_call_ts     ON tool_call COLUMNS ts;
 DEFINE INDEX tool_call_tool   ON tool_call COLUMNS tool;
+DEFINE INDEX tool_call_tainted ON tool_call COLUMNS tainted;
 
 -- event: append-only observability stream (launch verifier hits,
 -- refusal-pattern matches, classify summaries, critic verdicts,
