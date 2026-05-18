@@ -805,28 +805,47 @@ _REFINE_SYSTEM = (
     "\n"
     "Schema:\n"
     '  {\n'
-    '    "intent": "<one of: chat | dispatch | agent | dag>",\n'
+    '    "intent": "<one of: chat | dispatch | agent | dag | multi_task>",\n'
     '    "refined_text": "<rewritten user query in clear, actionable form>",\n'
     '    "intended_outcome": "<one short line: what the user expects back>",\n'
     '    "target_agent": "<one of the registered sub-agents -- pick by role>",\n'
     '    "hint_tools":  ["<verb-name-1>", "<verb-name-2>", ...],\n'
     '    "hint_skills": ["<skill-name-1>", ...],\n'
-    '    "reply": "<for intent=chat: your reply directly; omit otherwise>"\n'
+    '    "reply": "<for intent=chat: your reply directly; omit otherwise>",\n'
+    '    "tasks": [   // ONLY for intent=multi_task. One entry per\n'
+    '                 //   discrete goal the user crammed into one prompt.\n'
+    '      {\n'
+    '        "title":            "<short imperative -- one line>",\n'
+    '        "refined_text":     "<rewritten subtask, agent-ready>",\n'
+    '        "intended_outcome": "<what success looks like for THIS task>",\n'
+    '        "target_agent":     "<role-matched sub-agent>",\n'
+    '        "hint_tools":       ["..."],\n'
+    '        "hint_skills":      ["..."],\n'
+    '        "priority":         1   // lower runs first; 1..N\n'
+    '      }, ...\n'
+    '    ]\n'
     '  }\n'
     "\n"
     "Intent classification:\n"
-    "  chat      -- greeting, thanks, single-turn conversation; no system\n"
-    "               effect needed; emit `reply` and no agent is called.\n"
-    "  dispatch  -- maps to ONE MiOS verb; tool + args populated by the\n"
-    "               existing router. Refine just rewrites refined_text.\n"
-    "  agent     -- needs a sub-agent. Pick target_agent by role:\n"
-    "               * general    (Hermes)        -- broad reasoning + tools\n"
-    "               * coding     (OpenCode)      -- file edits / refactor / git\n"
-    "               * telemetry  (mios-daemon-agent) -- 'what just happened?',\n"
-    "                            log/journal tail, recent system activity\n"
-    "                            follow-ups. Pinned to 2 cores; always-on.\n"
-    "  dag       -- multi-step; planner will decompose. target_agent\n"
-    "               can be empty.\n"
+    "  chat        -- greeting, thanks, single-turn conversation; no system\n"
+    "                 effect needed; emit `reply` and no agent is called.\n"
+    "  dispatch    -- maps to ONE MiOS verb; tool + args populated by the\n"
+    "                 existing router. Refine just rewrites refined_text.\n"
+    "  agent       -- needs a sub-agent for ONE coherent goal. Pick\n"
+    "                 target_agent by role:\n"
+    "                 * general    (Hermes)        -- broad reasoning + tools\n"
+    "                 * coding     (OpenCode)      -- file edits / refactor / git\n"
+    "                 * telemetry  (mios-daemon-agent) -- 'what just happened?',\n"
+    "                              log/journal tail, recent system activity\n"
+    "                              follow-ups. Pinned to 2 cores; always-on.\n"
+    "  dag         -- ONE goal broken into multiple dependent steps; the\n"
+    "                 planner will decompose. target_agent can be empty.\n"
+    "  multi_task  -- the user crammed SEVERAL INDEPENDENT goals into one\n"
+    "                 prompt (e.g. 'open chrome AND install vscode AND\n"
+    "                 summarize my journal'). Emit a `tasks` array with one\n"
+    "                 entry per discrete goal, ordered by priority. The\n"
+    "                 dispatcher runs task #1 immediately, queues the rest\n"
+    "                 in kanban for sequential execution.\n"
     "\n"
     "RULES:\n"
     "- ALWAYS emit valid JSON. No prose around it.\n"
@@ -842,6 +861,13 @@ _REFINE_SYSTEM = (
     "  'how's it going', 'how are you', 'good morning', 'bye'.\n"
     "  When in doubt about conversational vs. agent: if the user is\n"
     "  not asking for a system action / file / data / code, chat.\n"
+    "- multi_task vs dag: dag = ONE goal, dependent steps (e.g. 'install\n"
+    "  vscode and open it'). multi_task = SEVERAL goals, independent\n"
+    "  (e.g. 'install vscode AND THEN ALSO summarize my journal AND\n"
+    "  THEN ALSO post a status to discord'). Three+ unrelated\n"
+    "  imperatives joined by `and`/`also`/`then` is the multi_task tell.\n"
+    "- multi_task MUST emit `tasks` with >= 2 entries. If you only\n"
+    "  find one goal, use intent=agent or intent=dag instead.\n"
 )
 
 
@@ -942,6 +968,18 @@ async def refine_intent(user_text: str,
         return None
     log.info("refine: %.1fs intent=%s target=%s",
              elapsed, parsed.get("intent"), parsed.get("target_agent"))
+    # multi_task sanity: collapse to `agent` if the model produced
+    # the multi_task intent with <2 tasks. Avoids surfacing an empty
+    # kanban queue when the model was over-eager.
+    if parsed.get("intent") == "multi_task":
+        tasks = parsed.get("tasks") or []
+        if not isinstance(tasks, list) or len(tasks) < 2:
+            log.info(
+                "refine: multi_task degraded to agent (tasks=%s)",
+                len(tasks) if isinstance(tasks, list) else "non-list",
+            )
+            parsed["intent"] = "agent"
+            parsed.pop("tasks", None)
     # Best-effort event row.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
@@ -951,6 +989,81 @@ async def refine_intent(user_text: str,
         "payload": parsed,
     }, now_fields=("ts",))))
     return parsed
+
+
+def _shadow_queue_tasks(tasks: list[dict],
+                        session_id: Optional[str]) -> list[dict]:
+    """Write one kanban_shadow row per refined multi-task entry.
+    Returns the same list augmented with `hermes_task_id` so the
+    dispatcher + polish can refer to each row by id.
+
+    The shadow rows give every agent in the stack a single
+    SurrealDB-visible queue without coupling to Hermes's SQLite
+    schema. Hermes (or whichever sub-agent picks up a task) syncs
+    its native kanban entry back via the existing sync path."""
+    if not isinstance(tasks, list) or not tasks:
+        return []
+    out: list[dict] = []
+    for i, t in enumerate(tasks):
+        if not isinstance(t, dict):
+            continue
+        # Stable id so the same task in a retried request collapses
+        # onto the same shadow row (UNIQUE INDEX on hermes_task_id).
+        tid = (
+            "mt-"
+            + (session_id or "anon")[:12].replace(":", "")
+            + "-"
+            + f"{i:02d}"
+        )
+        title = str(t.get("title") or t.get("refined_text") or "")[:200]
+        # First task -> in_progress; rest -> todo. The dispatcher
+        # immediately runs index 0, so its status reflects that.
+        status = "in_progress" if i == 0 else "todo"
+        prio = t.get("priority")
+        prio_str = str(prio) if prio is not None else None
+        row = {
+            "hermes_task_id": tid,
+            "title": title,
+            "status": status,
+            "priority": prio_str,
+            "tags": ["multi_task", "agent-pipe-refined"],
+        }
+        _db_fire(_db_post(
+            _db_create("kanban_shadow", row, now_fields=("synced_at",))
+        ))
+        out.append({**t, "hermes_task_id": tid, "status": status})
+    _db_fire(_db_post(_db_create("event", {
+        "source": "mios-agent-pipe",
+        "kind": "multi_task_queued",
+        "severity": "info",
+        "summary": f"queued {len(out)} tasks from refine",
+        "payload": {"task_ids": [t["hermes_task_id"] for t in out],
+                    "titles": [t.get("title", "") for t in out]},
+    }, now_fields=("ts",))))
+    return out
+
+
+def _multi_task_preamble(queued: list[dict],
+                         active_idx: int = 0) -> str:
+    """Render a short user-facing preamble surfacing what's in the
+    queue. Goes at the TOP of the polished reply so the operator
+    sees the queue state up front (and the polished response for
+    the active task comes immediately below)."""
+    if not queued or len(queued) < 2:
+        return ""
+    active = queued[active_idx]
+    others = [t for i, t in enumerate(queued) if i != active_idx]
+    lines = [
+        f"**Queued {len(queued)} tasks from your message.**",
+        f"Starting now: _{active.get('title','(untitled)')}_",
+        "",
+        "Queued for follow-up (run `mios continue` or just say "
+        "'next task'):",
+    ]
+    for t in others:
+        lines.append(f"  - {t.get('title','(untitled)')}")
+    lines.append("")
+    return "\n".join(lines)
 
 
 _POLISH_SYSTEM = (
@@ -3573,6 +3686,41 @@ async def chat_completions(request: Request) -> Any:
             }],
         })
 
+    # MULTI-TASK SHORT-CIRCUIT: refine detected several independent
+    # goals (>=2 tasks in the array). Write them to kanban_shadow,
+    # promote task #1 as the active dispatch, and stash the queue on
+    # the refined envelope so polish can prepend a "queued N tasks"
+    # preamble to the final reply.
+    if (refined and refined.get("intent") == "multi_task"
+            and isinstance(refined.get("tasks"), list)
+            and len(refined["tasks"]) >= 2):
+        queued = _shadow_queue_tasks(refined["tasks"], session_id)
+        if queued:
+            log.info(
+                "multi_task: queued=%d active=%r others=%r",
+                len(queued),
+                queued[0].get("title", ""),
+                [t.get("title", "") for t in queued[1:]],
+            )
+            # Promote task #0 to the active turn. Replace
+            # last_user_text + the refined envelope's top-level
+            # fields with task #0's, so all downstream branches
+            # (router, agent dispatch, polish) operate on the
+            # active task. Keep the original `tasks` array +
+            # active index on the envelope so polish can render
+            # the preamble.
+            active = queued[0]
+            last_user_text = str(active.get("refined_text")
+                                 or active.get("title", "")
+                                 or last_user_text)
+            for k in ("refined_text", "intended_outcome",
+                      "target_agent", "hint_tools", "hint_skills"):
+                if active.get(k) is not None:
+                    refined[k] = active[k]
+            refined["intent"] = "agent"
+            refined["_multi_task_queue"] = queued
+            refined["_multi_task_active_idx"] = 0
+
     # Run the layer-1 router. Verdict possibilities:
     #   {"action":"dispatch","tool":"<name>","args":{...}}
     #   {"action":"chat","reply":"<text>"}
@@ -4089,6 +4237,17 @@ async def chat_completions(request: Request) -> Any:
                     polished = await polish_response(
                         raw, refined, session_id=session_id)
                     if polished and polished.strip() != raw.strip():
+                        # Multi-task: prepend the queue preamble so the
+                        # operator sees "started X; queued Y, Z" before
+                        # the polished answer for task #1.
+                        preamble = ""
+                        if (isinstance(refined, dict)
+                                and refined.get("_multi_task_queue")):
+                            preamble = _multi_task_preamble(
+                                refined["_multi_task_queue"],
+                                int(refined.get(
+                                    "_multi_task_active_idx", 0)),
+                            )
                         # Render: collapsible "thoughts" with the raw
                         # sub-agent output, then the polished answer
                         # as the main visible content.
@@ -4097,7 +4256,7 @@ async def chat_completions(request: Request) -> Any:
                             f"<summary>🤖 {target_name}</summary>\n\n"
                             f"{raw}\n"
                             f"</details>\n\n"
-                            f"{polished}"
+                            f"{preamble}{polished}"
                         )
                         msg["content"] = wrapped
                         choices[0]["message"] = msg
