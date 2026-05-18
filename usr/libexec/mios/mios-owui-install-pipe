@@ -20,14 +20,12 @@ PIPE_NAME="MiOS-Agent"
 FILTER_SRC=/usr/share/mios/owui/pipes/mios_antimeta_filter.py
 FILTER_ID="mios_antimeta"
 FILTER_NAME="MiOS Anti-Meta Filter"
-# Sidecar filter that surfaces sibling-agent activity (nudger,
-# log-watcher, cron-director, sys-agent) into the OWUI chat stream
-# via __event_emitter__. Operator directive 2026-05-16: "OWUI
-# doesn't emit anything from ANY GLOBAL AGENTS as it should".
-SIDECAR_SRC=/usr/share/mios/owui/pipes/mios_sidecar_filter.py
+# Sidecar filter id, retained ONLY so the disable block below can
+# target the row in webui.db when a previous install enabled it.
+# agent-pipe is the canonical orchestrator now; it surfaces its own
+# SSE status events and the sidecar's hermes-tail polling + post-
+# call response-replacement was actively destructive on chat turns.
 SIDECAR_ID="mios_sidecar"
-SIDECAR_NAME="MiOS Agents Sidecar"
-SIDECAR_DESC="Surfaces sibling-agent activity (nudger, log-watcher, cron, sys-agent) in chat."
 OWUI_URL="${MIOS_OWUI_URL:-http://localhost:3030}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 
@@ -313,59 +311,32 @@ PYEOF
 fi
 
 
-# ─── Register the MiOS Agents Sidecar Filter (emits sibling-agent
-#     activity via __event_emitter__) ────────────────────────────────
-if [ -f "$SIDECAR_SRC" ]; then
-    SIDECAR_PAYLOAD=$(python3 - "$SIDECAR_ID" "$SIDECAR_NAME" "$SIDECAR_SRC" "$SIDECAR_DESC" <<'PYEOF'
-import json, sys
-fid, fname, src, desc = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-with open(src) as f:
-    content = f.read()
-print(json.dumps({
-    "id": fid,
-    "name": fname,
-    "content": content,
-    "meta": {"description": desc, "manifest": {}},
-    "type": "filter",
-    "is_active": True,
-    "is_global": True,
-}))
-PYEOF
-)
-    RESPS=$(curl -s -X POST "$OWUI_URL/api/v1/functions/create" \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$SIDECAR_PAYLOAD" \
-        -o /tmp/mios-owui-install-pipe.resp \
-        -w "%{http_code}")
-    case "$RESPS" in
-        200|201) echo "[mios-owui-install-pipe] ✓ created Filter $SIDECAR_ID" ;;
-        400|409)
-            RESPS2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$SIDECAR_ID/update" \
-                -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-                -d "$SIDECAR_PAYLOAD" \
-                -o /tmp/mios-owui-install-pipe.resp -w "%{http_code}")
-            case "$RESPS2" in
-                200|201) echo "[mios-owui-install-pipe] ✓ updated Filter $SIDECAR_ID" ;;
-                *)       echo "[mios-owui-install-pipe] ✗ Sidecar update $RESPS2" >&2 ;;
-            esac
-            ;;
-        *) echo "[mios-owui-install-pipe] ✗ Sidecar create $RESPS" >&2 ;;
-    esac
-
-    # Operator-flagged 2026-05-16: OWUI silently registered the sidecar
-    # as is_active=0 is_global=0 despite the payload setting both true.
-    # Force-enable via direct SQL (the API path apparently bypasses
-    # is_active/is_global on create for Filter type). Confirmed: the
-    # mios_antimeta filter was active=1 global=1 only because it was
-    # later enabled in the UI; new Filter creates default to disabled.
+# ─── MiOS Agents Sidecar Filter -- RETIRED ────────────────────────
+# agent-pipe is the canonical orchestrator now and emits its own
+# SSE status events (📡 prompt / 🧭 route / 📋 plan / 💬 chat / ...).
+# The sidecar tailed /var/lib/mios/hermes-tail/latest.json and would
+# surface stale Hermes events as if current on every chat -- and its
+# post-call response sometimes REPLACED the legitimate polished
+# reply ("launch steam" succeeded internally but the operator saw
+# "I cannot launch Steam" because the sidecar's post-emit overwrote
+# the agent-pipe reply). Forcing it disabled here is the safety net;
+# the install path no longer creates+enables it.
+#
+# A previous run may have installed + enabled the sidecar; force-
+# disable both flags in webui.db so a re-run leaves the row in the
+# correct disabled state.
+if [ -f "$OWUI_DB" ]; then
     python3 - "$OWUI_DB" "$SIDECAR_ID" <<'PYEOF'
 import sqlite3, sys
 db, fid = sys.argv[1], sys.argv[2]
 c = sqlite3.connect(db)
-c.execute("UPDATE function SET is_active=1, is_global=1 WHERE id=?", (fid,))
+n = c.execute(
+    "UPDATE function SET is_active=0, is_global=0 WHERE id=?", (fid,)
+).rowcount
 c.commit()
-print(f"[mios-owui-install-pipe] ✓ enabled Filter {fid} (active=1 global=1)")
+if n:
+    print(f"[mios-owui-install-pipe] ✓ retired (disabled) Filter {fid} "
+          f"(rows={n})")
 c.close()
 PYEOF
 fi

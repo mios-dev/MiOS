@@ -968,6 +968,27 @@ async def refine_intent(user_text: str,
         return None
     log.info("refine: %.1fs intent=%s target=%s",
              elapsed, parsed.get("intent"), parsed.get("target_agent"))
+    # Chat-classify guard: a small refine model occasionally picks
+    # intent=chat for an input that's CLEARLY actionable (literal
+    # CLI verb, fully-qualified URL, `mios-*` shim invocation) and
+    # fabricates a confirmation `reply` text. Force-promote to
+    # dispatch when the user text is shaped like a command or URL.
+    # Language-agnostic: keyed off path / scheme prefixes, NOT on
+    # any natural-language tokens (operator binding).
+    if parsed.get("intent") == "chat":
+        _ut = (user_text or "").strip()
+        _looks_actionable = (
+            _ut.startswith(("mios-", "/", "./", "sudo ", "systemctl ",
+                            "podman ", "docker ", "git ", "curl ",
+                            "wsl.exe", "powershell.exe", "cmd.exe"))
+            or "://" in _ut
+        )
+        if _looks_actionable:
+            log.info(
+                "refine: chat promoted to dispatch "
+                "(text starts with verb/URL token)")
+            parsed["intent"] = "dispatch"
+            parsed.pop("reply", None)
     # multi_task sanity: collapse to `agent` if the model produced
     # the multi_task intent with <2 tasks. Avoids surfacing an empty
     # kanban queue when the model was over-eager.
