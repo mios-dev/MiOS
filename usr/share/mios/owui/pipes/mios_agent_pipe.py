@@ -195,8 +195,8 @@ def _db_fire(coro: Awaitable) -> None:
 class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
-            default="http://host.containers.internal:8642/v1",
-            description="OpenAI-compat backend = hermes-agent gateway on :8642 (direct). The prefilter @ :8641 sat in front for delegate_task forcing but the pipe now does refinement directly, so prefilter is bypassed -- removes a moving part and fixes the ClientConnectorError when prefilter is down (operator-flagged 2026-05-17). OWUI runs in a podman Quadlet so the host is reached via host.containers.internal.",
+            default="http://host.containers.internal:8640/v1",
+            description="OpenAI-compat backend = the standalone MiOS Agent Pipe service at :8640 (NOT hermes directly). Operator directive 2026-05-18: extract the router/dispatch/SurrealDB-writes chain out of this OWUI pipe class into a gateway-agnostic FastAPI service so Hermes Discord + future Slack/Telegram/MCP gateways get the same tool-understanding parity as OWUI. The agent-pipe service forwards to hermes-agent (:8642) itself. OWUI runs in a podman Quadlet so the host is reached via host.containers.internal.",
         )
         BACKEND_MODEL: str = Field(
             default="hermes-agent",
@@ -2064,71 +2064,28 @@ class Pipe:
                     _last_user_text = raw
                 break
 
-        # ── Layer-1 ROUTER ─────────────────────────────────────────
-        # Micro-LLM classifies into dispatch / chat / agent. Single-
-        # intent dispatch runs the broker tool directly (skip refine
-        # + hermes); chat returns a one-liner; agent falls through
-        # to the existing refine -> hermes -> compose -> critic chain.
-        verdict = await self._classify_intent(_last_user_text, __event_emitter__)
-        if verdict:
-            action = verdict.get("action")
-            if action == "dispatch":
-                tool = str(verdict.get("tool", "")).strip()
-                args = verdict.get("args") or {}
-                if tool:
-                    result_json = await self._dispatch_mios_verb(
-                        tool, args if isinstance(args, dict) else {},
-                        __event_emitter__,
-                    )
-                    try:
-                        result = json.loads(result_json)
-                    except json.JSONDecodeError:
-                        result = {"output": result_json}
-                    ok = bool(result.get("success"))
-                    await self._emit(__event_emitter__,
-                                     "✅" if ok else "⚠️", done=True)
-                    # OpenAI-tool-result-native propagation: emit the
-                    # structured tool_call + tool_result envelope inside
-                    # a <details type="tool_calls"> block OWUI renders
-                    # natively. The only literal characters at this layer
-                    # are cross-locale identifiers (the tool name) +
-                    # universal symbols (✅ / ⚠️). The structured JSON
-                    # matches the OpenAI tool_calls / role:tool shape,
-                    # so any downstream agent reading chat history sees
-                    # the canonical tool_result content (not a prose
-                    # render) and the operator gets a collapsible block
-                    # with the raw data inside (zero English narrative).
-                    envelope = {
-                        "tool_call": {
-                            "id": f"call_{int(time.time()*1000)}",
-                            "type": "function",
-                            "function": {
-                                "name": tool,
-                                "arguments": args if isinstance(args, dict) else {},
-                            },
-                        },
-                        "tool_result": {
-                            "success": ok,
-                            "output": (result.get("output") or "")[:2000],
-                            "stderr": (result.get("stderr") or "")[:2000],
-                        },
-                    }
-                    symbol = "✅" if ok else "⚠️"
-                    yield (
-                        f"<details type=\"tool_calls\" done=\"true\">\n"
-                        f"<summary>{symbol} `{tool}`</summary>\n\n"
-                        f"```json\n{json.dumps(envelope, indent=2, default=str)}\n```\n"
-                        f"</details>"
-                    )
-                    return
-            elif action == "chat":
-                reply = str(verdict.get("reply", "")).strip()
-                if reply:
-                    await self._emit(__event_emitter__, "✅", done=True)
-                    yield reply
-                    return
-            # action == "agent" (or any unrecognized) -> fall through
-            await self._emit(__event_emitter__, "🧭 → agent")
+        # ── Layer-1 ROUTER -- DELEGATED to mios-agent-pipe service ──
+        # The router + dispatch + chat-fast-path + SurrealDB writes
+        # are owned by the standalone agent-pipe service at :8640 now
+        # (operator directive 2026-05-18: "discord chats not going
+        # through MiOS-Agent paths" -- extracted the chain into a
+        # gateway-agnostic service so Hermes Discord + future
+        # Slack/Telegram get the same tool surface). The OWUI pipe
+        # POSTs to agent-pipe (BACKEND_URL = :8640) which runs the
+        # router and either returns a tool_calls envelope (dispatch),
+        # a short reply (chat), or streams hermes content (agent path).
+        #
+        # OWUI-specific behaviors RETAINED in this shim:
+        #   - task-gen bypass (above)
+        #   - tail_watcher (Hermes-internal tool_call emits via the
+        #     /var/lib/mios/hermes-tail/latest.json sideband)
+        #   - mios_status SSE field translation (below) -- agent-pipe
+        #     emits {emoji, label, done} markers on each phase; the
+        #     translator below calls _emit() so the OWUI status pill
+        #     stays lit during dispatch/chat/agent paths
+        #   - CPU REFINE / CRITIC / POLISH (kept below; these add
+        #     OWUI-specific quality but aren't ported to agent-pipe
+        #     yet -- Step 2b if Discord needs them too)
 
         # ── CPU REFINEMENT (in-pipe) ─────────────────────────────────
         # Extract the last user message, refine via the small CPU model,
@@ -2229,6 +2186,25 @@ class Pipe:
                             chunk = json.loads(payload_str)
                         except json.JSONDecodeError:
                             continue
+                        # mios-agent-pipe (the standalone service at
+                        # :8640) injects a `mios_status` field on
+                        # content-empty SSE chunks to carry pipe-phase
+                        # markers (📡 prompt, 🧭 route, 🛠️ {tool}, ✅).
+                        # Translate it into the OWUI status pill via
+                        # __event_emitter__ -- stock OpenAI clients
+                        # would just ignore the unknown field.
+                        _mios_status = chunk.get("mios_status")
+                        if isinstance(_mios_status, dict):
+                            emoji = str(_mios_status.get("emoji", ""))
+                            label = str(_mios_status.get("label", ""))
+                            done  = bool(_mios_status.get("done", False))
+                            description = (
+                                f"{emoji} {label}".strip() if (emoji or label)
+                                else ""
+                            )
+                            if description:
+                                await self._emit(__event_emitter__,
+                                                 description, done=done)
                         choices = chunk.get("choices") or []
                         if not choices:
                             continue

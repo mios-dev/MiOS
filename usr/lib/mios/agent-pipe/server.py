@@ -505,7 +505,14 @@ async def dispatch_mios_verb(tool: str, args: dict) -> dict:
 
 def _sse_chunk(content: str, *, chat_id: str, model: str,
                role: Optional[str] = None,
-               finish_reason: Optional[str] = None) -> bytes:
+               finish_reason: Optional[str] = None,
+               mios_status: Optional[dict] = None) -> bytes:
+    """Build an OpenAI-streaming SSE chunk. Optional `mios_status`
+    field carries pipe-internal phase emits (📡 prompt, 🧭 route,
+    🛠️ {tool}, ✅) that translator gateways (OWUI shim, Hermes
+    Discord) lift into their native status surfaces. Stock OpenAI
+    clients see this as an unknown field and ignore it -- graceful
+    degradation."""
     delta: dict[str, Any] = {}
     if role:
         delta["role"] = role
@@ -522,7 +529,22 @@ def _sse_chunk(content: str, *, chat_id: str, model: str,
             "finish_reason": finish_reason,
         }],
     }
+    if mios_status:
+        chunk["mios_status"] = mios_status
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
+
+
+def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
+                done: bool = False) -> bytes:
+    """Emit a content-empty SSE chunk whose only purpose is the
+    `mios_status` field. Standard OpenAI clients see a no-op delta
+    + ignore the extra field. Translator gateways pull the phase
+    info from `mios_status` and surface it natively (OWUI's
+    event_emitter status, Hermes Discord's reactions, etc.)."""
+    return _sse_chunk(
+        "", chat_id=chat_id, model=model,
+        mios_status={"emoji": emoji, "label": label, "done": done},
+    )
 
 
 def _sse_done() -> bytes:
@@ -711,9 +733,22 @@ async def chat_completions(request: Request) -> Any:
                 )
                 if streaming:
                     async def _stream_dispatch() -> AsyncGenerator[bytes, None]:
+                        # Phase markers: prompt -> route -> tool -> done.
+                        # Translator gateways pull the emoji/label from
+                        # `mios_status` and surface natively (OWUI status
+                        # event_emitter, Discord reactions, etc.).
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="📡", label="prompt")
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="🧭", label="route")
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="🛠️", label=tool)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         yield _sse_chunk(rendered, chat_id=chat_id, model=model)
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="✅" if ok else "⚠️",
+                                          label=tool, done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -738,9 +773,15 @@ async def chat_completions(request: Request) -> Any:
             if reply:
                 if streaming:
                     async def _stream_chat() -> AsyncGenerator[bytes, None]:
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="📡", label="prompt")
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="🧭", label="route")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         yield _sse_chunk(reply, chat_id=chat_id, model=model)
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji="✅", label="chat", done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -766,6 +807,18 @@ async def chat_completions(request: Request) -> Any:
     headers.setdefault("Content-Type", "application/json")
     if streaming:
         async def _stream_backend() -> AsyncGenerator[bytes, None]:
+            # Phase markers BEFORE the backend stream so the OWUI shim
+            # / Discord reactions know the pipe handed off to hermes.
+            # The backend's own content chunks pass through unchanged
+            # (no mios_status injected mid-stream -- the backend may
+            # emit its own tool-call status via tail_watcher or its
+            # internal mechanism).
+            yield _sse_status(chat_id=chat_id, model=model,
+                              emoji="📡", label="prompt")
+            yield _sse_status(chat_id=chat_id, model=model,
+                              emoji="🧭", label="route")
+            yield _sse_status(chat_id=chat_id, model=model,
+                              emoji="🧠", label="→ hermes")
             client = await _get_client()
             async with client.stream(
                 "POST", f"{BACKEND}/chat/completions",
