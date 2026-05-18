@@ -766,7 +766,13 @@ def launch_verifier_loop() -> None:
 TASK_COLLECT_TICK_S = float(os.environ.get(
     "MIOS_DAEMON_TASK_COLLECT_TICK_S", "300"))   # 5 min
 KANBAN_DB = Path(os.environ.get(
-    "MIOS_HERMES_KANBAN_DB", "/var/lib/mios/hermes/kanban.db"))
+    # The Hermes CLI writes kanban.db under HERMES_HOME (operator-
+    # confirmed 2026-05-18: hermes config show -> Config:
+    # /var/lib/mios/hermes/.hermes/config.yaml). The stale path
+    # /var/lib/mios/hermes/kanban.db is from a pre-.hermes-subdir
+    # layout and is no longer written -- but kept readable to
+    # support legacy deployments.
+    "MIOS_HERMES_KANBAN_DB", "/var/lib/mios/hermes/.hermes/kanban.db"))
 HERMES_SESSIONS_DIR_DAEMON = Path(os.environ.get(
     "MIOS_HERMES_SESSIONS_DIR", "/var/lib/mios/hermes/sessions"))
 SCRATCH_DIRS = [
