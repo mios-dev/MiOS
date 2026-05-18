@@ -1495,10 +1495,95 @@ def _tool_calls_for_refine(refine_ts: str,
     return [r for r in _ok_result(_db_post(sql)) if isinstance(r, dict)]
 
 
+def _verb_post_check(tool: str, args: dict) -> dict:
+    """Per-verb visible-outcome verification beyond tool_call.success.
+    Operator-flagged 2026-05-18: mios-open-url returned exit 0 from
+    the broker but Epiphany's window never appeared (sandbox died at
+    credential bootstrap AFTER the broker had already collected its
+    exit code). Raw success column alone misses these cases; this
+    helper cross-checks the OS-side reality.
+
+    Returns dict {checked: <bool>, passed: <bool>, signal: <name>,
+    detail?: <str>}. checked=False means we have no post-check for
+    this verb -- caller uses tool_call.success alone."""
+    import subprocess
+    if tool in ("open_app", "open_url", "focus_window", "launch_app"):
+        # Window-visible check. Pattern derived from the verb's
+        # most-likely-titled arg.
+        pat = ""
+        for key in ("name", "title", "url"):
+            v = (args or {}).get(key)
+            if v:
+                pat = str(v); break
+        if not pat:
+            return {"checked": False}
+        # Take the last URL path segment OR the bare name; mios-window-
+        # active accepts a comma-separated pattern list.
+        if pat.startswith(("http://", "https://", "file://")):
+            try:
+                from urllib.parse import urlparse
+                pat = urlparse(pat).netloc or pat
+            except Exception:
+                pass
+        pat = pat.split("/")[-1].split(".")[0]
+        try:
+            r = subprocess.run(
+                ["mios-window-active", pat],
+                capture_output=True, text=True, timeout=4,
+            )
+            out = r.stdout.strip()
+            if out:
+                try:
+                    j = json.loads(out)
+                    presented = bool(j.get("presented_to_operator")
+                                    or j.get("window_visible"))
+                    return {"checked": True, "passed": presented,
+                            "signal": "window_visible",
+                            "detail": j.get("summary", "")}
+                except json.JSONDecodeError:
+                    pass
+            return {"checked": True, "passed": False,
+                    "signal": "window_visible",
+                    "detail": "no_window_for_pattern:" + pat[:60]}
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return {"checked": False}
+    if tool == "text_create":
+        path = (args or {}).get("path")
+        if not path:
+            return {"checked": False}
+        exists = os.path.exists(str(path))
+        return {"checked": True, "passed": exists,
+                "signal": "file_exists",
+                "detail": str(path)}
+    if tool == "text_str_replace":
+        path = (args or {}).get("path")
+        if not path:
+            return {"checked": False}
+        exists = os.path.exists(str(path)) and os.path.getsize(str(path)) > 0
+        return {"checked": True, "passed": exists,
+                "signal": "file_nonempty",
+                "detail": str(path)}
+    if tool == "flatpak_install":
+        ident = (args or {}).get("id")
+        if not ident:
+            return {"checked": False}
+        try:
+            r = subprocess.run(
+                ["flatpak", "info", str(ident)],
+                capture_output=True, text=True, timeout=4,
+            )
+            return {"checked": True, "passed": r.returncode == 0,
+                    "signal": "flatpak_installed",
+                    "detail": str(ident)}
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return {"checked": False}
+    return {"checked": False}
+
+
 def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
-    """AND-fold tool_call outcomes against the refined plan + emit
-    the appropriate satisfaction event. Returns the emitted kind
-    so the caller can log the verdict count."""
+    """AND-fold tool_call outcomes + per-verb visible-outcome checks
+    against the refined plan + emit the satisfaction event. Returns
+    the emitted kind so the caller can log the verdict count."""
     refine_id = refine_row.get("id")
     payload = refine_row.get("payload") or {}
     intended = payload.get("intended_outcome", "") or ""
@@ -1518,22 +1603,52 @@ def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
             extra = {"reason": "no_tools_seen",
                      "lookback_min": SATISFACTION_LOOKBACK_MIN}
     else:
-        failed = [
-            {"tool": tc.get("tool"),
-             "exit_code": tc.get("exit_code"),
-             "stderr_preview": (tc.get("result_preview") or "")[:200]}
-            for tc in tool_calls
-            if tc.get("success") is False
-        ]
+        failed: list[dict] = []
+        post_check_results: list[dict] = []
+        for tc in tool_calls:
+            tool = tc.get("tool", "")
+            args = tc.get("args") or {}
+            tool_ok = bool(tc.get("success"))
+            check = _verb_post_check(tool, args)
+            # Per-verb check overrides bare tool_call.success when it
+            # ran -- the visible-outcome signal is more authoritative
+            # than the broker's exit code (which can be 0 even when
+            # the launch sandbox died after the broker collected it).
+            if check.get("checked"):
+                visible_ok = check.get("passed", False)
+                post_check_results.append({
+                    "tool": tool,
+                    "signal": check.get("signal"),
+                    "passed": visible_ok,
+                    "detail": (check.get("detail") or "")[:120],
+                })
+                if not (tool_ok and visible_ok):
+                    failed.append({
+                        "tool": tool,
+                        "exit_code": tc.get("exit_code"),
+                        "visible": visible_ok,
+                        "stderr_preview": (tc.get("result_preview") or "")[:200],
+                    })
+            else:
+                # No verb-specific check; fall back to bare success.
+                if not tool_ok:
+                    failed.append({
+                        "tool": tool,
+                        "exit_code": tc.get("exit_code"),
+                        "stderr_preview": (tc.get("result_preview") or "")[:200],
+                    })
+
         if not failed:
             kind = "user_query_satisfied"
             severity = "info"
             extra = {"tools_checked": len(tool_calls),
+                     "post_checks": post_check_results,
                      "all_succeeded": True}
         else:
             kind = "user_query_unsatisfied"
             severity = "warn"
             extra = {"tools_checked": len(tool_calls),
+                     "post_checks": post_check_results,
                      "failed_tools": failed}
 
     body = {
