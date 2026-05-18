@@ -1,0 +1,14 @@
+{
+  "name": "save-document",
+  "description": "Focus an editor, type body text, and save via Ctrl+S. Operator-promoted skill -- the canonical Notepad save chain the Phase A.1 planner emits.",
+  "source": "import",
+  "status": "promoted",
+  "body": {
+    "steps": [
+      {"verb": "focus_window", "args": {"title": "$editor"}},
+      {"verb": "pc_type",      "args": {"text": "$body"}},
+      {"verb": "pc_key",       "args": {"key": "ctrl+s"}}
+    ],
+    "params": ["editor", "body"]
+  }
+}

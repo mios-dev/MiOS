@@ -1,0 +1,786 @@
+#!/usr/bin/env python3
+"""mios-skills -- Sequential Pattern Mining + cross-agent skill catalog CLI.
+
+Phase C.2 of the AgentOS roadmap. Mines the SurrealDB `tool_call`
+table for repeating verb sequences and codifies them as `skill`
+rows that EVERY agent in the MiOS stack reads from a single source:
+
+  * mios-agent-pipe (:8640) -- reads via /skills/* REST endpoints
+                               AND directly from SurrealDB.
+  * MiOS-Hermes (:8642)     -- pulls /skills/openai-tools at startup
+                               so Hermes' OpenAI-compat tool surface
+                               advertises promoted skills as callable
+                               tools (no Hermes-side hardcoding).
+  * MiOS-OpenCode           -- same /skills/openai-tools dump (or
+                               direct SurrealDB read for offline-only
+                               OpenCode runs that can't reach
+                               agent-pipe).
+
+Skills are typed-verb DAGs -- no English narrative, no per-agent
+behaviour, fully parameterized. A skill body looks like:
+
+    {"steps": [
+       {"verb": "open_app",     "args": {"name": "$app"}},
+       {"verb": "focus_window", "args": {"title": "$app"}},
+       {"verb": "pc_type",      "args": {"text": "$body"}},
+       {"verb": "pc_key",       "args": {"key": "ctrl+s"}}
+     ],
+     "params": ["app", "body"]}
+
+That body is the same shape the Phase A.1 planner emits as a DAG --
+so a skill is "a DAG the operator has decided to keep". The
+parameters are substituted via simple $name token replacement at
+run time.
+
+Subcommands:
+
+  mine [--window <hours>] [--min-support <N>] [--min-length <N>]
+                            Run the SPM miner against tool_call
+                            history. Emits skill rows with
+                            source=mined, status=candidate. Prints
+                            a per-candidate summary.
+
+  list  [--status candidate|promoted|retired|all]
+        [--source mined|operator|import|all]
+                            List skill rows.
+
+  show <name>               Print skill body JSON.
+
+  run  <name> [--param key=value ...] [--session <session-id>]
+                            Execute a skill against agent-pipe's
+                            /skills/run endpoint (so the dispatch
+                            goes through the same firewall + taint
+                            + audit chain every verb does). Prints
+                            per-step result.
+
+  promote <name>            Mark a skill as runnable (status=promoted).
+  retire  <name>            Hide a skill (status=retired).
+  delete  <name>            Hard-remove the row (auditable rare).
+
+  import [--source <dir>]   Load JSON skill templates from the seed
+                            catalog directory (or operator-supplied
+                            dir / stdin '-'). Same template shape
+                            as a mined skill body; status=operator,
+                            source=import.
+
+  export [--name <name>]    Dump skills as NDJSON to stdout. With
+                            no --name, dumps everything; with
+                            --name, dumps a single skill.
+
+  openai-tools              Print the OpenAI tool-schema dump for
+                            all promoted skills (the same JSON
+                            /skills/openai-tools serves). Use this
+                            to wire Hermes / OpenCode to the
+                            catalog from offline scripts.
+
+Fully local: stdlib only (urllib + json + argparse + getpass +
+re + os + sys). Hits the SurrealDB instance at MIOS_DB_URL for
+direct reads, and agent-pipe at MIOS_AGENT_PIPE_ENDPOINT for
+skill runs (so the firewall / taint chain stays uniform).
+
+SSOT: every knob (min_length, min_support, window_hours,
+auto_promote_threshold, ...) reads from MIOS_SKILLS_* env, which
+the userenv.sh slot map sources from mios.toml [skills].
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Optional
+
+# ─── SSOT env knobs ───────────────────────────────────────────────
+DB_URL = os.environ.get("MIOS_DB_URL",
+                        "http://localhost:" + os.environ.get(
+                            "MIOS_PORT_SURREALDB", "8000"))
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = os.environ.get("MIOS_DB_DB", "mios")
+DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+
+AGENT_PIPE_ENDPOINT = os.environ.get(
+    "MIOS_AGENT_PIPE_ENDPOINT", "http://localhost:8640/v1",
+).rstrip("/")
+# Strip the /v1 suffix when calling /skills/* (which lives at the
+# service root, not under /v1).
+AGENT_PIPE_ROOT = AGENT_PIPE_ENDPOINT[:-3] if AGENT_PIPE_ENDPOINT.endswith("/v1") else AGENT_PIPE_ENDPOINT
+
+# Phase C.2 mining knobs (all SSOT-routed -- see mios.toml [skills]).
+MIN_LENGTH = int(os.environ.get("MIOS_SKILLS_MIN_LENGTH", "2"))
+MAX_LENGTH = int(os.environ.get("MIOS_SKILLS_MAX_LENGTH", "8"))
+MIN_SUPPORT = int(os.environ.get("MIOS_SKILLS_MIN_SUPPORT", "3"))
+WINDOW_HOURS = int(os.environ.get("MIOS_SKILLS_WINDOW_HOURS", "168"))
+AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
+    "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD", "0.85"))
+SEED_CATALOG_DIR = os.environ.get(
+    "MIOS_SKILLS_SEED_CATALOG_DIR", "/usr/share/mios/skills")
+LOCAL_CATALOG_DIR = os.environ.get(
+    "MIOS_SKILLS_LOCAL_CATALOG_DIR", "/var/lib/mios/skills")
+
+
+# ─── SurrealDB helpers (stdlib urllib, same shape as mios-pkg) ────
+def post_sql(sql: str, *, timeout: float = 10.0) -> list:
+    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
+    req = urllib.request.Request(
+        f"{DB_URL}/sql", data=body, method="POST",
+        headers={"Authorization": DB_AUTH, "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(
+            f"mios-skills: SurrealDB {e.code}: "
+            f"{e.read().decode()[:300]}\n")
+        return []
+    except Exception as e:
+        sys.stderr.write(f"mios-skills: SurrealDB unreachable: {e}\n")
+        return []
+
+
+def last_ok(results: list) -> Optional[list]:
+    if not results:
+        return None
+    last = results[-1] or {}
+    if last.get("status") != "OK":
+        return None
+    return last.get("result")
+
+
+def sq(s: str) -> str:
+    """Quote a string for SurrealQL via json.dumps (same trick as
+    mios-pkg uses to avoid '' escape edge cases on labels with
+    embedded apostrophes)."""
+    return json.dumps(s)
+
+
+# ─── miner: sequence extraction over tool_call ────────────────────
+def _args_shape(args: dict) -> dict:
+    """Normalize verb args to a shape signature -- keys + arg types
+    matter for grouping, but specific values become $-tokens so the
+    mined skill becomes a template the operator can re-use across
+    targets. Returns the deduplicated shape dict + a value map for
+    later parameterization."""
+    shape = {}
+    for k, v in sorted((args or {}).items()):
+        if isinstance(v, (str, int, float, bool)):
+            shape[k] = type(v).__name__
+        elif isinstance(v, list):
+            shape[k] = "list"
+        else:
+            shape[k] = "object"
+    return shape
+
+
+def _fetch_recent_tool_calls(hours: int, limit: int = 5000) -> list[dict]:
+    """Pull recent tool_call rows. Excludes rows already attributed
+    to a skill_invocation (via the emitted edge) so codified
+    patterns don't keep re-surfacing in candidate mining.
+
+    SurrealDB returns an empty array (not NONE) for `<-edge`
+    traversal on rows with no reverse edges, so the exclusion uses
+    `count(<-emitted) = 0` which works for both shapes."""
+    sql = (
+        f"SELECT id, session, ts, tool, args, success "
+        f"FROM tool_call "
+        f"WHERE ts > time::now() - {hours}h "
+        f"   AND (success = true OR success = NONE) "
+        f"   AND count(<-emitted) = 0 "
+        f"ORDER BY ts ASC LIMIT {limit};"
+    )
+    r = post_sql(sql)
+    rows = last_ok(r) or []
+    return rows
+
+
+def _group_by_session(rows: list[dict]) -> list[list[dict]]:
+    """Bucket tool_call rows by session -- preserves temporal order
+    within each session (the rows came back ORDER BY ts ASC)."""
+    by_session: dict[str, list[dict]] = {}
+    no_session: list[dict] = []
+    for row in rows:
+        sid = row.get("session")
+        if not sid:
+            no_session.append(row)
+            continue
+        key = str(sid)
+        by_session.setdefault(key, []).append(row)
+    sessions = list(by_session.values())
+    # Bucket session-less rows into time-windowed groups of 10 min so
+    # they still contribute to mining (rare path; agents that don't
+    # tag sessions still produce useful sequences).
+    if no_session:
+        bucket: list[dict] = []
+        last_ts = 0.0
+        for row in no_session:
+            ts_str = str(row.get("ts", ""))
+            try:
+                # SurrealDB returns datetimes as ISO strings.
+                t = time.mktime(time.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S"))
+            except Exception:
+                t = last_ts
+            if bucket and (t - last_ts) > 600:
+                sessions.append(bucket)
+                bucket = []
+            bucket.append(row)
+            last_ts = t
+        if bucket:
+            sessions.append(bucket)
+    return sessions
+
+
+def _enumerate_ngrams(session: list[dict],
+                      n_min: int, n_max: int) -> list[tuple]:
+    """Yield contiguous N-grams of (verb, shape-key) pairs across a
+    single session. The shape key is JSON of the args-shape so two
+    sequences sharing the same verb chain with different concrete
+    args still group together (template-level mining)."""
+    out: list[tuple] = []
+    keys = []
+    for row in session:
+        verb = row.get("tool") or ""
+        shape = _args_shape(row.get("args") or {})
+        keys.append((verb, json.dumps(shape, sort_keys=True)))
+    for i in range(len(keys)):
+        for n in range(n_min, n_max + 1):
+            if i + n > len(keys):
+                break
+            out.append(tuple(keys[i:i + n]))
+    return out
+
+
+def _candidate_summary(rows: list[dict]) -> dict:
+    """Build a per-tool example arg-set so the mined skill body has
+    actual sample values (the planner uses these as defaults when
+    the skill is re-run with no overrides)."""
+    examples: dict[str, dict] = {}
+    for row in rows:
+        verb = row.get("tool") or ""
+        args = row.get("args") or {}
+        if verb and verb not in examples:
+            examples[verb] = args
+    return examples
+
+
+def cmd_mine(args: argparse.Namespace) -> int:
+    """Run SPM over tool_call history. Emits candidate skill rows."""
+    window = int(args.window) if args.window else WINDOW_HOURS
+    min_len = int(args.min_length) if args.min_length else MIN_LENGTH
+    max_len = int(args.max_length) if args.max_length else MAX_LENGTH
+    min_sup = int(args.min_support) if args.min_support else MIN_SUPPORT
+
+    rows = _fetch_recent_tool_calls(window)
+    if not rows:
+        sys.stderr.write(
+            f"mios-skills: no tool_call rows in last {window}h\n")
+        return 0
+    sessions = _group_by_session(rows)
+    sys.stderr.write(
+        f"mios-skills: mining {len(rows)} tool_calls "
+        f"across {len(sessions)} session-buckets "
+        f"(N in [{min_len},{max_len}], min_support={min_sup})\n")
+
+    # Count N-grams across sessions; track which sessions contributed.
+    counts: dict[tuple, int] = {}
+    session_witness: dict[tuple, set] = {}
+    examples: dict[tuple, dict] = {}
+    for sidx, session in enumerate(sessions):
+        ngrams = _enumerate_ngrams(session, min_len, max_len)
+        seen_in_session: set[tuple] = set()
+        for ng in ngrams:
+            counts[ng] = counts.get(ng, 0) + 1
+            seen_in_session.add(ng)
+            if ng not in examples:
+                # Find the row run that produced this ngram to lift
+                # the concrete arg values as defaults.
+                examples[ng] = _candidate_summary(session)
+        for ng in seen_in_session:
+            session_witness.setdefault(ng, set()).add(sidx)
+
+    # Filter by support + subsume shorter ngrams that always appear
+    # as a prefix of a longer one (avoid mining 1-grams when a 4-gram
+    # always wraps them).
+    survivors: list[tuple] = [
+        ng for ng, c in counts.items() if c >= min_sup
+    ]
+    survivors.sort(key=lambda ng: (-counts[ng], -len(ng)))
+
+    promoted = 0
+    skipped_existing = 0
+    auto_promoted = 0
+    for ng in survivors:
+        verbs = [v for v, _ in ng]
+        support = counts[ng]
+        witness = len(session_witness.get(ng, ()))
+        confidence = round(witness / max(1, len(sessions)), 3)
+        name = _propose_name(verbs)
+        if _skill_exists(name):
+            skipped_existing += 1
+            continue
+        body = _build_body(verbs, examples[ng])
+        status = "candidate"
+        if (AUTO_PROMOTE_THRESHOLD > 0.0
+                and confidence >= AUTO_PROMOTE_THRESHOLD):
+            status = "promoted"
+            auto_promoted += 1
+        ok = _insert_skill(
+            name=name, body=body, support=support,
+            confidence=confidence, status=status,
+            description=f"mined: {' -> '.join(verbs)}",
+        )
+        if ok:
+            promoted += 1
+            sys.stderr.write(
+                f"  [+] {name}  support={support}  "
+                f"confidence={confidence}  status={status}\n")
+
+    sys.stderr.write(
+        f"mios-skills: mined {promoted} new candidate(s); "
+        f"{auto_promoted} auto-promoted; "
+        f"{skipped_existing} duplicate(s) skipped\n")
+    return 0
+
+
+def _propose_name(verbs: list[str]) -> str:
+    """Derive a stable, sluggable name from a verb chain. Pure -- same
+    verb list always yields the same name so re-mining is idempotent."""
+    return "mined-" + "-".join(v.replace("_", "") for v in verbs)
+
+
+def _build_body(verbs: list[str], examples: dict) -> dict:
+    """Assemble the skill body. Each step gets the sample args lifted
+    from the mined session, but string values become $-tokens the
+    operator can override at run time."""
+    steps = []
+    used_params: list[str] = []
+    for i, verb in enumerate(verbs):
+        ex = examples.get(verb) or {}
+        step_args: dict = {}
+        for k, v in ex.items():
+            if isinstance(v, str) and v:
+                token = f"{verb}_{k}"
+                # First occurrence of a verb's arg becomes the param;
+                # later occurrences re-use the same param name so a
+                # repeating verb chain like focus_window -> pc_type ->
+                # pc_key -> focus_window gets two "focus_window_title"
+                # params unified.
+                step_args[k] = f"${token}"
+                if token not in used_params:
+                    used_params.append(token)
+            else:
+                step_args[k] = v
+        steps.append({"verb": verb, "args": step_args})
+    return {"steps": steps, "params": used_params}
+
+
+def _skill_exists(name: str) -> bool:
+    sql = f"SELECT id FROM skill WHERE name = {sq(name)} LIMIT 1;"
+    r = post_sql(sql)
+    rows = last_ok(r) or []
+    return bool(rows)
+
+
+def _insert_skill(*, name: str, body: dict, support: int,
+                  confidence: float, status: str,
+                  description: str = "",
+                  source: str = "mined") -> bool:
+    sql = (
+        f"CREATE skill SET "
+        f"name = {sq(name)}, "
+        f"description = {sq(description)}, "
+        f"body = {json.dumps(body)}, "
+        f"source = {sq(source)}, "
+        f"status = {sq(status)}, "
+        f"support = {support}, "
+        f"confidence = {confidence}, "
+        f"version = 1, "
+        f"created_at = time::now();"
+    )
+    r = post_sql(sql)
+    return last_ok(r) is not None
+
+
+# ─── list / show / promote / retire / delete ──────────────────────
+def cmd_list(args: argparse.Namespace) -> int:
+    where = []
+    if args.status and args.status != "all":
+        where.append(f"status = {sq(args.status)}")
+    if args.source and args.source != "all":
+        where.append(f"source = {sq(args.source)}")
+    clause = " AND ".join(where) if where else "true"
+    sql = (
+        f"SELECT name, description, source, status, support, "
+        f"confidence, version, created_at, last_used_at "
+        f"FROM skill WHERE {clause} ORDER BY name;"
+    )
+    rows = last_ok(post_sql(sql)) or []
+    if args.json:
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
+    if not rows:
+        sys.stderr.write("mios-skills: no skills match\n")
+        return 0
+    # Plain-tabular for grep/awk.
+    for row in rows:
+        print(
+            f"{row.get('name',''):<40}  "
+            f"{row.get('status',''):<10}  "
+            f"{row.get('source',''):<8}  "
+            f"sup={row.get('support',0):<3}  "
+            f"conf={row.get('confidence',0.0):<5}  "
+            f"v{row.get('version',1)}"
+        )
+    return 0
+
+
+def cmd_show(args: argparse.Namespace) -> int:
+    sql = (
+        f"SELECT name, description, body, params, source, status, "
+        f"support, confidence, version "
+        f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
+    )
+    rows = last_ok(post_sql(sql)) or []
+    if not rows:
+        sys.stderr.write(f"mios-skills: no skill named {args.name!r}\n")
+        return 1
+    print(json.dumps(rows[0], indent=2, default=str))
+    return 0
+
+
+def _update_status(name: str, status: str) -> int:
+    sql = (
+        f"UPDATE skill SET status = {sq(status)}, "
+        f"updated_at = time::now() "
+        f"WHERE name = {sq(name)} RETURN AFTER;"
+    )
+    rows = last_ok(post_sql(sql)) or []
+    if not rows:
+        sys.stderr.write(
+            f"mios-skills: no skill named {name!r} to update\n")
+        return 1
+    sys.stderr.write(f"mios-skills: {name} -> {status}\n")
+    return 0
+
+
+def cmd_promote(args: argparse.Namespace) -> int:
+    return _update_status(args.name, "promoted")
+
+
+def cmd_retire(args: argparse.Namespace) -> int:
+    return _update_status(args.name, "retired")
+
+
+def cmd_delete(args: argparse.Namespace) -> int:
+    sql = f"DELETE skill WHERE name = {sq(args.name)};"
+    r = post_sql(sql)
+    if last_ok(r) is None:
+        return 1
+    sys.stderr.write(f"mios-skills: deleted {args.name}\n")
+    return 0
+
+
+# ─── run: dispatch a skill via agent-pipe ─────────────────────────
+def cmd_run(args: argparse.Namespace) -> int:
+    """Run a skill by name via agent-pipe's /skills/run endpoint.
+    Going through agent-pipe ensures the firewall + taint chain +
+    skill_invocation audit row + tool_call rows all happen the same
+    way they do for direct verb dispatch."""
+    params: dict = {}
+    for kv in args.param or []:
+        if "=" not in kv:
+            sys.stderr.write(
+                f"mios-skills: skipping malformed --param {kv!r} "
+                f"(expected key=value)\n")
+            continue
+        k, v = kv.split("=", 1)
+        params[k.strip()] = v
+    payload = {
+        "name": args.name,
+        "params": params,
+    }
+    if args.session:
+        payload["session_id"] = args.session
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{AGENT_PIPE_ROOT}/skills/run",
+        data=data, method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(
+            f"mios-skills: agent-pipe {e.code}: "
+            f"{e.read().decode()[:300]}\n")
+        return 1
+    except Exception as e:
+        sys.stderr.write(f"mios-skills: agent-pipe unreachable: {e}\n")
+        return 1
+    print(json.dumps(body, indent=2, default=str))
+    return 0 if body.get("success", False) else 2
+
+
+# ─── import: load JSON template skills from disk ──────────────────
+def cmd_import(args: argparse.Namespace) -> int:
+    """Load *.json skill templates. Default source is the seed
+    catalog dir + the local catalog dir; --source overrides both."""
+    sources: list[str] = []
+    if args.source == "-":
+        # stdin: one skill JSON per line (NDJSON) or a single JSON
+        # object/array.
+        raw = sys.stdin.read().strip()
+        try:
+            parsed = json.loads(raw)
+            objs = parsed if isinstance(parsed, list) else [parsed]
+        except json.JSONDecodeError:
+            objs = []
+            for line in raw.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    objs.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        n = 0
+        for obj in objs:
+            if _import_one(obj):
+                n += 1
+        sys.stderr.write(f"mios-skills: imported {n} from stdin\n")
+        return 0
+    if args.source:
+        sources.append(args.source)
+    else:
+        for d in (SEED_CATALOG_DIR, LOCAL_CATALOG_DIR):
+            if os.path.isdir(d):
+                sources.append(d)
+    n = 0
+    for src in sources:
+        if not os.path.isdir(src):
+            continue
+        for name in sorted(os.listdir(src)):
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(src, name)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    obj = json.load(f)
+            except Exception as e:
+                sys.stderr.write(
+                    f"mios-skills: skipping {path}: {e}\n")
+                continue
+            if _import_one(obj):
+                n += 1
+    sys.stderr.write(f"mios-skills: imported {n} template(s)\n")
+    return 0
+
+
+def _import_one(obj: dict) -> bool:
+    name = (obj or {}).get("name")
+    body = (obj or {}).get("body")
+    if not name or not isinstance(body, dict):
+        sys.stderr.write(
+            f"mios-skills: import skipped (missing name/body): "
+            f"{str(obj)[:120]}\n")
+        return False
+    if _skill_exists(name):
+        sys.stderr.write(
+            f"mios-skills: import skipped (exists): {name}\n")
+        return False
+    return _insert_skill(
+        name=name,
+        description=obj.get("description") or "",
+        body=body,
+        support=int(obj.get("support") or 0),
+        confidence=float(obj.get("confidence") or 0.0),
+        status=obj.get("status") or "promoted",
+        source=obj.get("source") or "import",
+    )
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    if args.name:
+        sql = (
+            f"SELECT name, description, body, source, status, "
+            f"support, confidence, version "
+            f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
+        )
+    else:
+        sql = (
+            "SELECT name, description, body, source, status, "
+            "support, confidence, version FROM skill ORDER BY name;"
+        )
+    rows = last_ok(post_sql(sql)) or []
+    for row in rows:
+        print(json.dumps(row, default=str))
+    return 0
+
+
+def _promoted_tools_payload() -> dict:
+    """Build the OpenAI tool-schema dump for all promoted skills.
+    Shared between cmd_openai_tools (prints to stdout) and
+    cmd_export_catalog (writes to the static file every external
+    agent reads when agent-pipe HTTP isn't reachable)."""
+    sql = (
+        "SELECT name, description, body "
+        "FROM skill WHERE status = 'promoted' ORDER BY name;"
+    )
+    rows = last_ok(post_sql(sql)) or []
+    tools = []
+    for row in rows:
+        name = row.get("name") or ""
+        description = row.get("description") or ""
+        body = row.get("body") or {}
+        params = body.get("params") or []
+        properties = {
+            p: {"type": "string",
+                "description": f"value for ${p}"} for p in params
+        }
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": f"mios_skill__{re.sub(r'[^A-Za-z0-9_]', '_', name)}",
+                "description": (
+                    description or f"MiOS skill {name}"
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": params,
+                },
+            },
+            "x-mios-skill": name,
+        })
+    return {"tools": tools, "count": len(tools),
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                          time.gmtime())}
+
+
+def cmd_openai_tools(args: argparse.Namespace) -> int:
+    """Print the OpenAI tool-schema dump for all promoted skills.
+    Same shape as /skills/openai-tools serves. Use this to wire
+    Hermes / OpenCode to the catalog without depending on the
+    agent-pipe HTTP service being reachable at the same moment."""
+    print(json.dumps(_promoted_tools_payload(), indent=2))
+    return 0
+
+
+def cmd_export_catalog(args: argparse.Namespace) -> int:
+    """Materialise the cross-agent catalog file at
+    /var/lib/mios/skills/catalog.json. Hermes + OpenCode read this
+    in offline / agent-pipe-down deployments where the HTTP surface
+    isn't reachable -- the file is the SAME JSON shape /skills/
+    openai-tools serves, so client code is identical."""
+    target = args.path or os.path.join(LOCAL_CATALOG_DIR, "catalog.json")
+    payload = _promoted_tools_payload()
+    target_dir = os.path.dirname(target)
+    if target_dir:
+        try:
+            os.makedirs(target_dir, exist_ok=True)
+        except PermissionError as e:
+            sys.stderr.write(
+                f"mios-skills: cannot mkdir {target_dir}: {e}\n")
+            return 1
+    try:
+        # Atomic-write: stage to .new, rename. Avoids partial reads
+        # by Hermes mid-write.
+        tmp = target + ".new"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, default=str)
+        os.replace(tmp, target)
+    except PermissionError as e:
+        sys.stderr.write(
+            f"mios-skills: cannot write {target}: {e}\n")
+        return 1
+    sys.stderr.write(
+        f"mios-skills: exported {payload['count']} promoted skill(s) "
+        f"to {target}\n")
+    return 0
+
+
+# ─── argparse wiring ──────────────────────────────────────────────
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="mios-skills",
+        description="MiOS Sequential Pattern Mining + skill catalog CLI",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pm = sub.add_parser("mine", help="run SPM over tool_call history")
+    pm.add_argument("--window", help="lookback hours (default from mios.toml)")
+    pm.add_argument("--min-length", help="N-gram floor")
+    pm.add_argument("--max-length", help="N-gram ceiling")
+    pm.add_argument("--min-support", help="frequency floor")
+    pm.set_defaults(func=cmd_mine)
+
+    pl = sub.add_parser("list", help="list skill rows")
+    pl.add_argument("--status", default="all",
+                    choices=["candidate", "promoted", "retired", "all"])
+    pl.add_argument("--source", default="all",
+                    choices=["mined", "operator", "import", "all"])
+    pl.add_argument("--json", action="store_true")
+    pl.set_defaults(func=cmd_list)
+
+    ps = sub.add_parser("show", help="print skill body JSON")
+    ps.add_argument("name")
+    ps.set_defaults(func=cmd_show)
+
+    pp = sub.add_parser("promote", help="mark skill runnable")
+    pp.add_argument("name")
+    pp.set_defaults(func=cmd_promote)
+
+    pr = sub.add_parser("retire", help="hide skill from runners")
+    pr.add_argument("name")
+    pr.set_defaults(func=cmd_retire)
+
+    pd = sub.add_parser("delete", help="hard-remove skill row")
+    pd.add_argument("name")
+    pd.set_defaults(func=cmd_delete)
+
+    pn = sub.add_parser("run", help="dispatch a skill via agent-pipe")
+    pn.add_argument("name")
+    pn.add_argument("--param", action="append",
+                    help="key=value (repeatable)")
+    pn.add_argument("--session", help="session_id for taint chain")
+    pn.set_defaults(func=cmd_run)
+
+    pi = sub.add_parser("import", help="load JSON template skills")
+    pi.add_argument("--source",
+                    help="directory or '-' for stdin NDJSON")
+    pi.set_defaults(func=cmd_import)
+
+    pe = sub.add_parser("export", help="dump skill rows as NDJSON")
+    pe.add_argument("--name", help="restrict to one skill")
+    pe.set_defaults(func=cmd_export)
+
+    po = sub.add_parser("openai-tools",
+                        help="dump OpenAI tool schemas for promoted skills")
+    po.set_defaults(func=cmd_openai_tools)
+
+    pc = sub.add_parser("export-catalog",
+                        help="materialise catalog.json for offline agents")
+    pc.add_argument("--path",
+                    help="override target (default: "
+                         "<local_catalog_dir>/catalog.json)")
+    pc.set_defaults(func=cmd_export_catalog)
+
+    return p
+
+
+def main(argv: list[str] = None) -> int:
+    p = build_parser()
+    args = p.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

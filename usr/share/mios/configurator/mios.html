@@ -1012,6 +1012,49 @@
 </details>
 
 <details class="section">
+  <summary>Skills · Sequential Pattern Mining + cross-agent catalog <span class="phase-badge">Phase 10 · Runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Phase C.2 -- the miner scans SurrealDB tool_call history for
+      repeating verb sequences and codifies them as runnable
+      skills. Every agent in the stack (mios-agent-pipe,
+      MiOS-Hermes, MiOS-OpenCode) reads from the same catalog via
+      <code>/skills/*</code> on :8640 or the static
+      <code>/var/lib/mios/skills/catalog.json</code> snapshot.
+      Lower thresholds = more candidates + more operator review;
+      raise <code>auto_promote_threshold</code> for stricter
+      auto-promotion (0.0 = manual-only).
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>skills -- miner thresholds</legend>
+        <label for="f-skills-enable">enable (master toggle)</label>
+        <input type="text" id="f-skills-enable" data-key="skills.enable" data-type="bool" placeholder="true">
+        <label for="f-skills-min-len">min_length (N-gram floor)</label>
+        <input type="text" id="f-skills-min-len" data-key="skills.min_length" data-type="int" placeholder="2">
+        <label for="f-skills-max-len">max_length (N-gram ceiling)</label>
+        <input type="text" id="f-skills-max-len" data-key="skills.max_length" data-type="int" placeholder="8">
+        <label for="f-skills-min-sup">min_support (frequency floor)</label>
+        <input type="text" id="f-skills-min-sup" data-key="skills.min_support" data-type="int" placeholder="3">
+        <label for="f-skills-window">window_hours (lookback)</label>
+        <input type="text" id="f-skills-window" data-key="skills.window_hours" data-type="int" placeholder="168">
+      </fieldset>
+      <fieldset>
+        <legend>skills -- promotion + cadence + catalog dirs</legend>
+        <label for="f-skills-auto">auto_promote_threshold (0.0..1.0)</label>
+        <input type="text" id="f-skills-auto" data-key="skills.auto_promote_threshold" data-type="float" placeholder="0.85">
+        <label for="f-skills-cadence">mine_interval_minutes</label>
+        <input type="text" id="f-skills-cadence" data-key="skills.mine_interval_minutes" data-type="int" placeholder="60">
+        <label for="f-skills-seed">seed_catalog_dir (read-only templates)</label>
+        <input type="text" id="f-skills-seed" data-key="skills.seed_catalog_dir" placeholder="/usr/share/mios/skills">
+        <label for="f-skills-local">local_catalog_dir (mutable operator skills)</label>
+        <input type="text" id="f-skills-local" data-key="skills.local_catalog_dir" placeholder="/var/lib/mios/skills">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
   <summary>SurrealDB · shared cross-cutting agent state <span class="phase-badge">Phase 10 · Boot</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">

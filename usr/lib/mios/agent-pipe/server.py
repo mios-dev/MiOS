@@ -346,6 +346,22 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     return parsed
 
 
+# ── Phase C.2 -- Skill catalog SSOT knobs ─────────────────────────
+# Mirror of the mios-skills CLI's env reads. Centralised here so a
+# single source-of-truth deploys to BOTH the CLI miner AND the
+# agent-pipe /skills/* execution surface every other agent in the
+# stack consumes.
+SKILLS_ENABLED = os.environ.get(
+    "MIOS_SKILLS_ENABLE", "true",
+).lower() not in {"false", "0", "no"}
+SKILLS_MIN_LENGTH = int(os.environ.get("MIOS_SKILLS_MIN_LENGTH", "2"))
+SKILLS_MAX_LENGTH = int(os.environ.get("MIOS_SKILLS_MAX_LENGTH", "8"))
+SKILLS_MIN_SUPPORT = int(os.environ.get("MIOS_SKILLS_MIN_SUPPORT", "3"))
+SKILLS_WINDOW_HOURS = int(os.environ.get("MIOS_SKILLS_WINDOW_HOURS", "168"))
+SKILLS_AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
+    "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD", "0.85"))
+
+
 # ── Phase C.1 -- Personal Knowledge Graph lookup ──────────────────
 # Resolves operator-set noun phrases ("my browser", "the dev VM")
 # to concrete app_install rows via the SurrealDB graph (alias ->
@@ -416,6 +432,287 @@ async def pkg_lookup(phrase: str) -> Optional[dict]:
                 "app": rows[0],
             }
     return None
+
+
+# ── Phase C.2 -- skill catalog helpers ────────────────────────────
+# Cross-agent skill execution surface. Every other agent in the
+# MiOS stack (MiOS-Hermes, MiOS-OpenCode, future MCP clients) reads
+# skills via the SurrealDB skill table directly OR via this
+# service's /skills/* endpoints -- they MUST converge on the same
+# dispatch path so a skill run produces the same firewall checks,
+# taint propagation, and tool_call audit rows regardless of which
+# agent initiated it. No agent-specific behaviour anywhere.
+
+_PARAM_TOKEN_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _skill_render_args(args: dict, params: dict) -> dict:
+    """Substitute $-tokens in skill step args using the params map.
+    Pure helper -- the skill body holds the template, the params
+    dict holds the concrete operator-supplied values.
+
+    Operator-supplied params override mined defaults. Missing
+    params leave the $-token literal (so the dispatch errors
+    visibly instead of silently swallowing the gap)."""
+    out: dict = {}
+    for k, v in (args or {}).items():
+        if isinstance(v, str):
+            def _sub(m: re.Match) -> str:
+                key = m.group(1)
+                if key in params and params[key] is not None:
+                    return str(params[key])
+                return m.group(0)
+            out[k] = _PARAM_TOKEN_RE.sub(_sub, v)
+        else:
+            out[k] = v
+    return out
+
+
+async def _skill_fetch(name: str) -> Optional[dict]:
+    """Read one skill row by name. Returns the row dict (with body
+    + status fields) or None if not found."""
+    if not name:
+        return None
+    sql = (
+        f"SELECT id, name, body, status, source, version, "
+        f"description, support, confidence "
+        f"FROM skill WHERE name = {json.dumps(name)} LIMIT 1;"
+    )
+    r = await _db_post(sql)
+    if not r:
+        return None
+    rows = (r[-1] or {}).get("result") or []
+    return rows[0] if rows else None
+
+
+async def _skill_list(*, status: str = "promoted",
+                      source: Optional[str] = None,
+                      limit: int = 200) -> list[dict]:
+    where = []
+    if status and status != "all":
+        where.append(f"status = {json.dumps(status)}")
+    if source and source != "all":
+        where.append(f"source = {json.dumps(source)}")
+    clause = " AND ".join(where) if where else "true"
+    sql = (
+        f"SELECT name, description, body, source, status, "
+        f"support, confidence, version "
+        f"FROM skill WHERE {clause} "
+        f"ORDER BY name LIMIT {int(limit)};"
+    )
+    r = await _db_post(sql)
+    if not r:
+        return []
+    return (r[-1] or {}).get("result") or []
+
+
+async def _skill_invocation_open(skill_id: str,
+                                 params: dict,
+                                 session_id: Optional[str]) -> Optional[str]:
+    """Open a skill_invocation row; returns the new row id (or
+    None if the DB write failed). The caller closes the row via
+    _skill_invocation_close with ended_at + success.
+
+    Hand-built CREATE -- _db_create json.dumps-quotes every value,
+    but SurrealDB 3.0+ requires record<...> references UNQUOTED
+    (`skill = skill:abc123`, not `skill = "skill:abc123"`). The
+    quoted form produces a coerce error response that the caller
+    can't interpret as success."""
+    parts = [
+        "started_at = time::now()",
+        f"skill = {skill_id}",
+        f"params = {json.dumps(params or {})}",
+    ]
+    if session_id:
+        parts.append(f"session = {session_id}")
+    sql = "CREATE skill_invocation SET " + ", ".join(parts) + " RETURN AFTER;"
+    r = await _db_post(sql)
+    if not r:
+        return None
+    last = r[-1] or {}
+    if last.get("status") != "OK":
+        return None
+    rows = last.get("result") or []
+    if not isinstance(rows, list) or not rows:
+        return None
+    first = rows[0]
+    if not isinstance(first, dict):
+        return None
+    return first.get("id")
+
+
+async def _skill_invocation_close(inv_id: Optional[str],
+                                  success: bool) -> None:
+    if not inv_id:
+        return
+    sql = (
+        f"UPDATE {inv_id} SET ended_at = time::now(), "
+        f"success = {str(bool(success)).lower()};"
+    )
+    await _db_post(sql)
+
+
+async def _skill_attribute_tool_call(inv_id: Optional[str],
+                                     tool_call_id: Optional[str],
+                                     step_index: int) -> None:
+    """RELATE the tool_call back to the skill_invocation so the
+    miner subtracts skill-emitted runs from future candidate
+    populations (Phase C.2 closes the loop on its own output)."""
+    if not inv_id or not tool_call_id:
+        return
+    sql = (
+        f"RELATE {inv_id}->emitted->{tool_call_id} "
+        f"SET step_index = {int(step_index)};"
+    )
+    await _db_post(sql)
+
+
+async def execute_skill(name: str, params: dict, *,
+                        session_id: Optional[str] = None) -> dict:
+    """Run a skill by name. Returns the same envelope shape an
+    execute_dag run returns -- success, steps[], failures[],
+    aborted -- so every gateway in the stack consumes skill output
+    with identical code.
+
+    The skill body steps are mapped 1:1 to dispatch_mios_verb calls;
+    each tool_call row produced is attributed to the skill via
+    RELATE skill_invocation->emitted->tool_call. The Phase B.3
+    firewall, Phase A.3 taint chain, and Phase A.1 reflexion cap
+    all apply unchanged because we route through the same
+    dispatch_mios_verb the planner uses."""
+    if not SKILLS_ENABLED:
+        return {"success": False,
+                "skill": name,
+                "error": "skills_disabled",
+                "steps": [],
+                "failures": ["skills disabled via MIOS_SKILLS_ENABLE"]}
+    row = await _skill_fetch(name)
+    if not row:
+        return {"success": False, "skill": name,
+                "error": "not_found", "steps": [], "failures": []}
+    if row.get("status") != "promoted":
+        return {"success": False, "skill": name,
+                "error": "not_promoted",
+                "status": row.get("status"),
+                "steps": [], "failures": []}
+    body = row.get("body") or {}
+    steps = body.get("steps") or []
+    if not steps:
+        return {"success": False, "skill": name,
+                "error": "empty_body", "steps": [], "failures": []}
+    inv_id = await _skill_invocation_open(
+        row.get("id"), params or {}, session_id)
+    results: list[dict] = []
+    failures: list[str] = []
+    for idx, step in enumerate(steps):
+        verb = (step or {}).get("verb") or ""
+        raw_args = (step or {}).get("args") or {}
+        rendered = _skill_render_args(raw_args, params or {})
+        # Detect un-substituted $-tokens (operator forgot a param).
+        leftover = [
+            v for v in rendered.values()
+            if isinstance(v, str) and _PARAM_TOKEN_RE.search(v)
+        ]
+        if leftover:
+            failures.append(
+                f"step {idx} ({verb}): missing params {leftover}")
+            results.append({"step": idx, "verb": verb,
+                            "success": False,
+                            "error": "missing_params",
+                            "leftover": leftover})
+            # Halt -- can't dispatch with un-bound tokens.
+            await _skill_invocation_close(inv_id, success=False)
+            return {"success": False, "skill": name, "steps": results,
+                    "failures": failures, "aborted": True}
+        r = await dispatch_mios_verb(
+            verb, rendered, session_id=session_id)
+        results.append({
+            "step": idx, "verb": verb, "args": rendered,
+            "success": bool(r.get("success", False)),
+            "exit_code": r.get("exit_code"),
+            "output": r.get("output", "")[:400],
+            "stderr": r.get("stderr", "")[:400],
+            "tainted": r.get("tainted", False),
+            "taint_reason": r.get("taint_reason", ""),
+        })
+        # Attribute the tool_call to this invocation. The
+        # dispatch_mios_verb path emits the tool_call row itself;
+        # we re-query to find the most recent matching row and
+        # RELATE it. Best-effort; the audit chain isn't load-bearing
+        # for skill correctness, just for miner-side dedup.
+        if session_id:
+            q = (
+                f"SELECT id FROM tool_call "
+                f"WHERE session = {session_id} "
+                f"  AND tool = {json.dumps(verb)} "
+                f"ORDER BY ts DESC LIMIT 1;"
+            )
+            qr = await _db_post(q)
+            if qr:
+                tc_rows = (qr[-1] or {}).get("result") or []
+                if tc_rows:
+                    await _skill_attribute_tool_call(
+                        inv_id, tc_rows[0].get("id"), idx)
+        if not r.get("success", False):
+            failures.append(
+                f"step {idx} ({verb}): "
+                f"exit={r.get('exit_code')} "
+                f"stderr={r.get('stderr','')[:200]}")
+            # Stop on first failure -- operator can re-run with
+            # corrected params instead of cascading half-state.
+            await _skill_invocation_close(inv_id, success=False)
+            await _db_post(_db_create("event", {
+                "source": "agent-pipe",
+                "kind": "skill_run",
+                "severity": "warn",
+                "summary": f"{name} failed at step {idx}",
+                "payload": {"skill": name, "step": idx,
+                            "verb": verb,
+                            "stderr": r.get("stderr", "")[:300]},
+            }, now_fields=("ts",)))
+            return {"success": False, "skill": name, "steps": results,
+                    "failures": failures, "aborted": True}
+    await _skill_invocation_close(inv_id, success=True)
+    # Update last_used_at on the skill row for the configurator UI.
+    await _db_post(
+        f"UPDATE {row.get('id')} SET last_used_at = time::now();")
+    await _db_post(_db_create("event", {
+        "source": "agent-pipe",
+        "kind": "skill_run",
+        "severity": "info",
+        "summary": f"{name} ok ({len(steps)} steps)",
+        "payload": {"skill": name, "steps_run": len(steps)},
+    }, now_fields=("ts",)))
+    return {"success": True, "skill": name, "steps": results,
+            "failures": [], "aborted": False}
+
+
+def _skill_to_openai_tool(row: dict) -> dict:
+    """Render one skill row as an OpenAI function-tool schema.
+    Hermes + OpenCode consume this dump verbatim so their tool
+    surface auto-extends every time the operator promotes a skill --
+    no code changes per skill on either client."""
+    name = row.get("name") or ""
+    description = row.get("description") or f"MiOS skill {name}"
+    body = row.get("body") or {}
+    params = body.get("params") or []
+    properties = {
+        p: {"type": "string",
+            "description": f"value for ${p}"} for p in params
+    }
+    return {
+        "type": "function",
+        "function": {
+            "name": f"mios_skill__{re.sub(r'[^A-Za-z0-9_]', '_', name)}",
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": params,
+            },
+        },
+        "x-mios-skill": name,
+    }
 
 
 # ── Phase B.1 -- Deliberative Collective Intelligence (DCI) vocab ─
@@ -1723,6 +2020,14 @@ async def health() -> dict[str, Any]:
             "allowlist_hosts": sorted(_ALLOWLIST_HOSTS),
             "high_privilege_verbs": sorted(_HIGH_PRIVILEGE_VERBS),
         },
+        "skills": {
+            "enabled": SKILLS_ENABLED,
+            "min_length": SKILLS_MIN_LENGTH,
+            "max_length": SKILLS_MAX_LENGTH,
+            "min_support": SKILLS_MIN_SUPPORT,
+            "window_hours": SKILLS_WINDOW_HOURS,
+            "auto_promote_threshold": SKILLS_AUTO_PROMOTE_THRESHOLD,
+        },
         "broker_sock": LAUNCHER_SOCK,
         "broker_present": os.path.exists(LAUNCHER_SOCK),
         "db_url": DB_URL,
@@ -1749,6 +2054,74 @@ async def pkg_lookup_endpoint(phrase: str = "") -> JSONResponse:
             status_code=404,
         )
     return JSONResponse(content={"match": result, "phrase": phrase})
+
+
+# ── /skills/* (Phase C.2 cross-agent skill catalog) ────────────────
+# Shared surface for every agent in the MiOS stack. MiOS-Hermes
+# pulls /skills/openai-tools at startup so its OpenAI-compat tool
+# schema auto-includes every promoted skill -- no Hermes-side
+# hardcoding. MiOS-OpenCode does the same (or reads SurrealDB
+# directly for offline-only runs). Skill execution always goes
+# through /skills/run so the firewall + taint chain + audit rows
+# are identical regardless of which agent initiated the call.
+
+@app.get("/skills/list")
+async def skills_list(status: str = "promoted",
+                      source: str = "",
+                      limit: int = 200) -> JSONResponse:
+    rows = await _skill_list(
+        status=status or "all",
+        source=source or None,
+        limit=max(1, min(int(limit or 200), 1000)),
+    )
+    return JSONResponse(content={"skills": rows, "count": len(rows)})
+
+
+@app.get("/skills/show")
+async def skills_show(name: str = "") -> JSONResponse:
+    if not name:
+        return JSONResponse(
+            content={"error": "name query param required"},
+            status_code=400)
+    row = await _skill_fetch(name)
+    if not row:
+        return JSONResponse(content={"skill": None, "name": name},
+                            status_code=404)
+    return JSONResponse(content={"skill": row})
+
+
+@app.post("/skills/run")
+async def skills_run(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse(
+            content={"error": "invalid JSON body"}, status_code=400)
+    name = str(body.get("name", "")).strip()
+    if not name:
+        return JSONResponse(
+            content={"error": "name required"}, status_code=400)
+    params = body.get("params") or {}
+    if not isinstance(params, dict):
+        return JSONResponse(
+            content={"error": "params must be an object"},
+            status_code=400)
+    session_id = body.get("session_id")
+    result = await execute_skill(
+        name, params, session_id=session_id)
+    status_code = 200 if result.get("success") else 422
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@app.get("/skills/openai-tools")
+async def skills_openai_tools() -> JSONResponse:
+    """Dump the OpenAI tool-schema array for every promoted skill.
+    Hermes + OpenCode fetch this and append it to their static tool
+    surface so promoted skills become first-class callable tools
+    on every external gateway -- no client-side edits per skill."""
+    rows = await _skill_list(status="promoted")
+    tools = [_skill_to_openai_tool(r) for r in rows]
+    return JSONResponse(content={"tools": tools, "count": len(tools)})
 
 
 # ── /dci/deliberate (Phase B.2 on-demand convergent flow) ──────────

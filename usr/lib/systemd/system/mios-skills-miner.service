@@ -1,0 +1,43 @@
+# /usr/lib/systemd/system/mios-skills-miner.service
+# Phase C.2 of the AgentOS roadmap: scheduled Sequential Pattern
+# Mining over SurrealDB tool_call history. Runs `mios-skills mine`
+# at the cadence set by mios-skills-miner.timer (default 60min;
+# operator overrides via [skills].mine_interval_minutes -> the
+# OnUnitActiveSec line in the .timer file).
+#
+# Idempotent: re-running on the same tool_call population that
+# already has fully-attributed skill_invocation edges is a no-op
+# because the miner subtracts skill-emitted tool_calls from the
+# candidate population.
+
+[Unit]
+Description='MiOS' Phase C.2 Sequential Pattern Mining over tool_call history
+Documentation=file:///usr/libexec/mios/mios-skills
+After=mios-surrealdb.service mios-agent-pipe.service
+Requires=mios-surrealdb.service
+ConditionPathExists=/usr/libexec/mios/mios-skills
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/mios/userenv.sh
+ExecStart=/usr/libexec/mios/mios-skills mine
+# Refresh the cross-agent static catalog after every mine so
+# offline Hermes / OpenCode deployments see new promoted skills
+# without polling agent-pipe HTTP.
+ExecStartPost=/usr/libexec/mios/mios-skills export-catalog
+# The miner is a pure SurrealDB consumer; keep its privileges low.
+# DynamicUser would be ideal but we need read access to
+# /etc/mios/userenv.sh for the SSOT env -- so plain nogroup nobody
+# isn't enough. Run as the agent-pipe sysuser instead (uid 822).
+User=mios-agent-pipe
+Group=mios-agent-pipe
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# export-catalog writes /var/lib/mios/skills/catalog.json -- without
+# this line ProtectSystem=strict refuses the open() call.
+ReadWritePaths=/var/lib/mios/skills
+
+[Install]
+WantedBy=multi-user.target

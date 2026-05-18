@@ -53,7 +53,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/mios/agent-pipe /var/log
+ReadWritePaths=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log
 
 [Install]
 WantedBy=multi-user.target

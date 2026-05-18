@@ -119,13 +119,44 @@ SurrealDB is multi-model -- native graph support. New tables:
 operator graph queried by router/refine to ground ambiguous terms
 ("my browser" -> RELATE preference -> chromedev).
 
-### C.2 -- Sequential Pattern Mining over tool_call history
+### C.2 -- Sequential Pattern Mining over tool_call history  *(landed)*
 
-SurrealDB.tool_call is already populated (since Phase-2 SurrealDB
-writes). SPM job runs on schedule (mios-daemon? new mios-pattern
-service?), finds repeating N-grams in (tool, args) tuples, codifies
-as a Hermes skill or agent-pipe verb. Operator gets a "you did X
-3 times in 2 days; want me to make it a skill?" nudge.
+Implemented as:
+
+* `usr/share/mios/surrealdb/schema-init.surql` -- new tables:
+  `skill` (catalog row, param-templated body), `skill_invocation`
+  (per-run audit), `emitted` (RELATE skill_invocation -> tool_call,
+  used by the miner to subtract codified runs), `includes`
+  (RELATE skill -> skill, sub-skill composition).
+* `usr/libexec/mios/mios-skills` -- stdlib-only CLI:
+  `mine / list / show / run / promote / retire / delete /
+  import / export / openai-tools / export-catalog`. The miner
+  enumerates contiguous N-grams of (verb, args-shape) over
+  session-bucketed tool_calls, counts support + unique-session
+  witness, auto-promotes when confidence crosses the SSOT-driven
+  `auto_promote_threshold`.
+* `usr/lib/mios/agent-pipe/server.py` -- new endpoints:
+  `GET /skills/list`, `GET /skills/show`, `POST /skills/run`,
+  `GET /skills/openai-tools`. `execute_skill()` routes every step
+  through `dispatch_mios_verb()` so the Phase B.3 firewall +
+  Phase A.3 taint chain + audit-row writes apply identically to
+  direct verb dispatch.
+* `usr/lib/systemd/system/mios-skills-miner.{service,timer}` --
+  cadence-driven background miner; ExecStartPost also runs
+  `mios-skills export-catalog` so offline agents see fresh
+  catalog.json without polling agent-pipe HTTP.
+* Cross-agent surfaces (every external agent reads from at least
+  one of these):
+    1. `GET /skills/openai-tools` on :8640 (live HTTP).
+    2. `/var/lib/mios/skills/catalog.json` (static file the miner
+       atomically refreshes; offline-safe).
+    3. Direct SurrealDB read on the `skill` table (any agent that
+       can talk to :8000).
+* SSOT: `[skills]` in mios.toml -- `enable`, `min_length`,
+  `max_length`, `min_support`, `window_hours`,
+  `auto_promote_threshold`, `mine_interval_minutes`,
+  `seed_catalog_dir`, `local_catalog_dir`. All routed through
+  userenv.sh + the configurator HTML "Skills" section.
 
 ### C.3 -- Agent Passports (signed identity tokens)
 

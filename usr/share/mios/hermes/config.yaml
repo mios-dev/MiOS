@@ -78,6 +78,23 @@ logging:
   level: info
   format: json
 
+# Phase C.2 of the AgentOS roadmap: cross-agent skill catalog.
+# Hermes' OpenAI tool surface auto-extends with every promoted MiOS
+# skill exposed by the agent-pipe /skills/openai-tools endpoint or
+# the static /var/lib/mios/skills/catalog.json file (the same JSON
+# shape; the static file is the offline fallback). Operator points
+# Hermes at one OR both -- the static path wins on a fresh boot
+# when the agent-pipe HTTP service hasn't come up yet; HTTP refresh
+# overrides on later reloads to pick up newly-promoted skills.
+mios_skill_catalog:
+  enable: true
+  http_url: http://localhost:8640/skills/openai-tools
+  static_path: /var/lib/mios/skills/catalog.json
+  # Refresh cadence (seconds). Hermes re-pulls the catalog at this
+  # interval so a configurator-driven promote becomes visible
+  # without restarting the agent.
+  refresh_seconds: 300
+
 # Operator overrides: drop a /etc/mios/hermes/config.local.yaml file
 # alongside this one to override any of the above. The local file is
 # merged on top, so partial overrides (e.g. just `backend.model`) work.

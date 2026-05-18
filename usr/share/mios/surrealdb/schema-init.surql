@@ -192,3 +192,88 @@ DEFINE TABLE resolves_to TYPE RELATION FROM alias
     SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD weight         ON resolves_to TYPE option<float>;
 DEFINE FIELD reason         ON resolves_to TYPE option<string>;
+
+-- ════════════════════════════════════════════════════════════════
+-- Phase C.2 -- Sequential Pattern Mining + cross-agent skill catalog
+-- ════════════════════════════════════════════════════════════════
+-- Skills are the cross-agent codified abstraction over repeating
+-- (tool, args) sequences. The miner (mios-skills mine) finds frequent
+-- N-grams in tool_call history and proposes them as skill rows;
+-- once an operator promotes a candidate (or auto-promotion crosses
+-- the configured confidence threshold), every agent in the stack
+-- (agent-pipe, MiOS-Hermes, MiOS-OpenCode) reads the same row by
+-- name via SurrealDB AND via agent-pipe's /skills/* REST surface.
+--
+-- The skill body is normalized to typed verbs (same dispatch verbs
+-- agent-pipe already knows), so a skill is just a parameterized
+-- DAG -- no English narrative, no hardcoded behaviour, fully
+-- self-improving (skills mutate by version bumps).
+
+-- skill: the catalog row. One per distinct codified procedure.
+-- `body` is FLEXIBLE so steps can carry verb-specific args without
+-- the schema needing to know every verb. `source` distinguishes
+-- mined (auto-discovered) from operator (hand-authored) from import
+-- (loaded from /usr/share/mios/skills/*.json templates) -- the same
+-- shape regardless of origin so promotion is just a status bump.
+DEFINE TABLE skill SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD name           ON skill TYPE string;
+DEFINE FIELD description    ON skill TYPE option<string>;
+DEFINE FIELD OVERWRITE body ON skill TYPE object FLEXIBLE;
+    -- {"steps":[{"verb":"open_app","args":{"name":"$app"}}, ...],
+    --  "params":["app"]} -- parameters substituted via simple
+    -- $name token replacement at run time.
+DEFINE FIELD source         ON skill TYPE string DEFAULT 'mined';
+    -- mined | operator | import
+DEFINE FIELD status         ON skill TYPE string DEFAULT 'candidate';
+    -- candidate | promoted | retired -- agents only RUN promoted.
+DEFINE FIELD support        ON skill TYPE int DEFAULT 0;
+    -- raw frequency count from the miner.
+DEFINE FIELD confidence     ON skill TYPE float DEFAULT 0.0;
+    -- 0.0..1.0 -- miner sets this from support / unique-session count.
+DEFINE FIELD version        ON skill TYPE int DEFAULT 1;
+    -- bumps on body edit; the catalog never deletes versions on
+    -- update, it appends a new row + retires the old (self-
+    -- improving template lineage).
+DEFINE FIELD lineage_root   ON skill TYPE option<record<skill>>;
+    -- points at v1 of the lineage; null for v1 itself.
+DEFINE FIELD created_at     ON skill TYPE datetime;
+DEFINE FIELD updated_at     ON skill TYPE option<datetime>;
+DEFINE FIELD last_used_at   ON skill TYPE option<datetime>;
+DEFINE FIELD created_by     ON skill TYPE option<record<agent>>;
+DEFINE INDEX skill_name     ON skill COLUMNS name UNIQUE;
+DEFINE INDEX skill_status   ON skill COLUMNS status;
+DEFINE INDEX skill_source   ON skill COLUMNS source;
+
+-- skill_invocation: per-run audit row. Lets the miner avoid re-
+-- promoting patterns the operator already codified -- if a tool_call
+-- sequence was emitted BY a skill_invocation, the miner doesn't
+-- recount it as a fresh pattern.
+DEFINE TABLE skill_invocation SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD skill          ON skill_invocation TYPE record<skill>;
+DEFINE FIELD session        ON skill_invocation TYPE option<record<session>>;
+DEFINE FIELD started_at     ON skill_invocation TYPE datetime;
+DEFINE FIELD ended_at       ON skill_invocation TYPE option<datetime>;
+DEFINE FIELD success        ON skill_invocation TYPE option<bool>;
+DEFINE FIELD OVERWRITE params ON skill_invocation TYPE option<object> FLEXIBLE;
+DEFINE FIELD invoked_by     ON skill_invocation TYPE option<record<agent>>;
+DEFINE INDEX skill_inv_ts   ON skill_invocation COLUMNS started_at;
+DEFINE INDEX skill_inv_sk   ON skill_invocation COLUMNS skill;
+
+-- ── RELATE edges (graph layer) ───────────────────────────────────
+-- skill_invocation -> emitted -> tool_call
+--   joins a skill_invocation to the tool_call rows it produced.
+--   The miner uses this edge to subtract skill-emitted tool_calls
+--   from the candidate-pattern population (so codified patterns
+--   don't keep re-surfacing forever).
+DEFINE TABLE emitted TYPE RELATION FROM skill_invocation TO tool_call
+    SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD step_index     ON emitted TYPE option<int>;
+
+-- skill -> includes -> skill
+--   composition: a higher-level skill body can reference a sub-
+--   skill by name and the miner / orchestrator follow the edge to
+--   inline the sub-skill at run time. Optional v1 surface; the
+--   bare body.steps[].verb path is the simple case.
+DEFINE TABLE includes TYPE RELATION FROM skill TO skill
+    SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD step_index     ON includes TYPE option<int>;

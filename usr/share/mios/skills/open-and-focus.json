@@ -1,0 +1,13 @@
+{
+  "name": "open-and-focus",
+  "description": "Open an app and immediately focus its window. Default starter skill demonstrating the param-templated DAG shape.",
+  "source": "import",
+  "status": "promoted",
+  "body": {
+    "steps": [
+      {"verb": "open_app",     "args": {"name": "$app"}},
+      {"verb": "focus_window", "args": {"title": "$app"}}
+    ],
+    "params": ["app"]
+  }
+}

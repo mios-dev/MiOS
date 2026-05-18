@@ -509,6 +509,51 @@ watch_dirs = [
 bootstrap_per_source_cap   = 200
 lookup_max_alias_results   = 3
 
+[skills]
+# Phase C.2 of the AgentOS roadmap: Sequential Pattern Mining + the
+# cross-agent skill catalog. The miner (mios-skills mine) scans
+# SurrealDB.tool_call history for repeating (tool, args-shape)
+# N-grams and emits skill rows tagged status=candidate. Promoted
+# skills become first-class verbs every agent in the stack (agent-
+# pipe, MiOS-Hermes, MiOS-OpenCode) can invoke by name via the
+# shared SurrealDB row + agent-pipe's /skills/* REST surface.
+#
+# All knobs SSOT-routed through userenv.sh + the configurator HTML.
+# Operator can tighten or loosen mining behaviour without touching
+# Python -- tools/skills are "global templates that can be self-
+# improved upon".
+enable                  = true
+# Minimum sequence length the miner considers (N-gram length floor).
+# 2 = the smallest pair worth codifying (open_app -> focus_window).
+min_length              = 2
+# Maximum sequence length the miner emits as a candidate skill.
+# Past ~8 verbs the pattern is usually a unique session, not a
+# repeatable skill.
+max_length              = 8
+# Minimum number of times a sequence must appear in the lookback
+# window before the miner promotes it to a candidate row. Lower =
+# more candidates + more noise; raise for high-traffic deployments.
+min_support             = 3
+# Lookback window (hours) for the miner. Skills age out of the
+# candidate pool when their last occurrence falls outside this
+# window. 168h = 1 week of operator behaviour.
+window_hours            = 168
+# Auto-promote a candidate when confidence (support / unique-session
+# count) crosses this threshold. Below the threshold, candidates
+# wait for explicit `mios-skills promote <name>` from the operator
+# OR via the configurator HTML. 0.0 = manual-only.
+auto_promote_threshold  = 0.85
+# How often the background miner runs (minutes). The mios-skills-
+# miner systemd timer reads this. 0 = disabled (operator runs miner
+# on-demand via `mios-skills mine`).
+mine_interval_minutes   = 60
+# Where /usr/share/mios/skills/ template skills live -- the seed
+# library the configurator HTML lists in the "Import" picker.
+# These are shipped with the bootc image (read-only); operator-
+# authored skills land in /var/lib/mios/skills/ (mutable).
+seed_catalog_dir        = "/usr/share/mios/skills"
+local_catalog_dir       = "/var/lib/mios/skills"
+
 [agent_pipe]
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
 # extracted out of the OWUI pipe class into a gateway-agnostic FastAPI

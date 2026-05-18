@@ -332,6 +332,16 @@ slots = [
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
     ("pkg.bootstrap_per_source_cap",   "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP"),
     ("pkg.lookup_max_alias_results",   "MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS"),
+    # ── skills (Phase C.2 -- Sequential Pattern Mining + catalog) ────────
+    ("skills.enable",                  "MIOS_SKILLS_ENABLE"),
+    ("skills.min_length",              "MIOS_SKILLS_MIN_LENGTH"),
+    ("skills.max_length",              "MIOS_SKILLS_MAX_LENGTH"),
+    ("skills.min_support",             "MIOS_SKILLS_MIN_SUPPORT"),
+    ("skills.window_hours",            "MIOS_SKILLS_WINDOW_HOURS"),
+    ("skills.auto_promote_threshold",  "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD"),
+    ("skills.mine_interval_minutes",   "MIOS_SKILLS_MINE_INTERVAL_MINUTES"),
+    ("skills.seed_catalog_dir",        "MIOS_SKILLS_SEED_CATALOG_DIR"),
+    ("skills.local_catalog_dir",       "MIOS_SKILLS_LOCAL_CATALOG_DIR"),
     # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
     ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),
