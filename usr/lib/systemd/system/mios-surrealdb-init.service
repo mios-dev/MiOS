@@ -1,0 +1,23 @@
+# /usr/lib/systemd/system/mios-surrealdb-init.service
+# Apply the unified MiOS schemas to the SurrealDB instance after
+# it comes up. Idempotent (the .surql uses DEFINE TABLE / DEFINE
+# FIELD which are safe to re-run). Fires once per boot, only after
+# the DB container reports active.
+
+[Unit]
+Description='MiOS' SurrealDB schema init (unified AI surfaces)
+After=mios-surrealdb.service
+Requires=mios-surrealdb.service
+ConditionPathExists=/usr/share/mios/surrealdb/schema-init.surql
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Wait up to 30s for the DB to accept connections after the
+# container starts (cold first-launch can take a moment).
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do curl -sSf --max-time 2 http://localhost:8000/status >/dev/null 2>&1 && exit 0; sleep 1; done; exit 0'
+ExecStart=/usr/libexec/mios/mios-db -f /usr/share/mios/surrealdb/schema-init.surql
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target

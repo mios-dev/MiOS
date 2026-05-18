@@ -1,0 +1,108 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-db [<surrealql>] [-f <file.surql>] [--ns <ns>] [--db <db>] [--json]
+#
+# Unified MiOS shared-state DB client. Operator directive 2026-05-18:
+# "unify all AI Surfaces!!" + "dont we need a true db services to
+# host local DBs(!!?)" + "wouldn't all this just be AI fabrications
+# and hallucinations otherwise??!" -- exactly. Every MiOS AI
+# surface (OWUI pipe, hermes, mios-daemon, future OpenCode, MCP
+# clients) targets ONE inference endpoint (http://localhost:8080/v1
+# per README MIOS_AI_ENDPOINT) AND now ONE state DB at
+# http://localhost:8000. Shared ground truth = no fabrication.
+#
+# Default namespace + db = `mios` / `mios`. Each AI surface uses
+# the same NS/DB; tables namespaced by purpose (agent / session /
+# memory / event / kanban_shadow / tool_call / ...).
+#
+# Usage:
+#   mios-db                                    open REPL (surreal sql)
+#   mios-db 'SELECT * FROM agent;'             one-off query
+#   mios-db -f /var/lib/mios/scratch/q.surql   run a file
+#   mios-db --ns mios --db logs 'INFO ...'    override namespace/db
+#   mios-db --json '...'                       force --pretty=json
+#
+# Env (with defaults):
+#   MIOS_DB_URL    http://localhost:8000
+#   MIOS_DB_USER   root
+#   MIOS_DB_PASS   root
+#   MIOS_DB_NS     mios
+#   MIOS_DB_DB     mios
+#
+# Exits 0 on success, 1 on DB unreachable, 2 on surreal-binary
+# missing (operator should `dnf install surreal` or use the
+# container exec fallback).
+
+set -uo pipefail
+
+DB_URL="${MIOS_DB_URL:-http://localhost:8000}"
+DB_USER="${MIOS_DB_USER:-root}"
+DB_PASS="${MIOS_DB_PASS:-root}"
+DB_NS="${MIOS_DB_NS:-mios}"
+DB_DB="${MIOS_DB_DB:-mios}"
+JSON=0
+FILE=""
+QUERY=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --ns)   DB_NS="$2"; shift 2 ;;
+        --db)   DB_DB="$2"; shift 2 ;;
+        --json) JSON=1; shift ;;
+        -f)     FILE="$2"; shift 2 ;;
+        -h|--help)
+            sed -n '2,28p' "$0" | sed 's/^# \?//'
+            exit 0 ;;
+        --) shift; QUERY="$*"; break ;;
+        *)  QUERY="$1"; shift; if [ -n "${1:-}" ]; then QUERY="$QUERY $*"; fi
+            break ;;
+    esac
+done
+
+# 1. Prefer the local surreal CLI if installed (faster, REPL-friendly).
+if command -v surreal >/dev/null 2>&1; then
+    args=(sql --conn "$DB_URL" --user "$DB_USER" --pass "$DB_PASS"
+          --ns "$DB_NS" --db "$DB_DB")
+    [ "$JSON" = "1" ] && args+=(--pretty)
+    if [ -n "$FILE" ]; then
+        exec surreal "${args[@]}" < "$FILE"
+    elif [ -n "$QUERY" ]; then
+        printf '%s\n' "$QUERY" | exec surreal "${args[@]}"
+    else
+        exec surreal "${args[@]}"
+    fi
+fi
+
+# 2. Container-exec fallback: surreal binary inside the container.
+if command -v podman >/dev/null 2>&1 \
+   && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-surrealdb$'; then
+    args=(exec -i mios-surrealdb surreal sql
+          --conn "$DB_URL" --user "$DB_USER" --pass "$DB_PASS"
+          --ns "$DB_NS" --db "$DB_DB")
+    [ "$JSON" = "1" ] && args+=(--pretty)
+    if [ -n "$FILE" ]; then
+        exec podman "${args[@]}" < "$FILE"
+    elif [ -n "$QUERY" ]; then
+        printf '%s\n' "$QUERY" | exec podman "${args[@]}"
+    else
+        # Without stdin the exec hangs; redirect /dev/null.
+        echo "mios-db: no query + no -f; pass a query string or run with -f" >&2
+        exit 64
+    fi
+fi
+
+# 3. Pure HTTP fallback: SurrealDB REST API via curl. Limited (no
+# REPL) but works on a stripped image with no surreal CLI.
+if [ -n "$QUERY" ] && command -v curl >/dev/null 2>&1; then
+    AUTH="$DB_USER:$DB_PASS"
+    exec curl -sS -X POST "$DB_URL/sql" \
+        -u "$AUTH" \
+        -H "NS: $DB_NS" -H "DB: $DB_DB" \
+        -H "Accept: application/json" \
+        --data-binary "$QUERY"
+fi
+
+echo "mios-db: no surreal CLI, no mios-surrealdb container, no curl fallback usable" >&2
+echo "  install:  bootc image already includes mios-surrealdb.container; run:" >&2
+echo "    systemctl --user start mios-surrealdb.service" >&2
+echo "  or check: podman ps | grep mios-surrealdb" >&2
+exit 2

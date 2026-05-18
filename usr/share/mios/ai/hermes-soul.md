@@ -233,6 +233,15 @@ State paths (read freely):
 `terminal: mios-docs-index` — unified index of every `.md` on disk
 (skills / system prompts / cookbooks / scratchpads / session
 digests). `--grep <pattern>` filters. Then `terminal: cat <path>`.
+
+## Shared DB (unified AI surfaces)
+
+`terminal: mios-db '<SurrealQL>'` — single shared state for every
+MiOS AI surface (this agent, the OWUI pipe, mios-daemon, future
+OpenCode). Tables: `agent` / `session` / `tool_call` / `memory` /
+`event` / `kanban_shadow` / `scratch` / `doc`. Endpoint:
+`http://localhost:8000`, ns=`mios`, db=`mios`. Read here for
+ground truth instead of fabricating from context.
 - `/var/lib/mios/daemon/state.json` — unified daemon state
   (classify, refusal, cron, suggestions, launch_verifier sections)
 

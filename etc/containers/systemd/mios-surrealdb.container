@@ -1,0 +1,75 @@
+# /etc/containers/systemd/mios-surrealdb.container
+# 'MiOS' shared agent state DB. Operator directive 2026-05-18:
+# "dont we need a true db services(container) to host local DBs(!!?)"
+# + "wouldn't all this just be AI fabrications and hallucinations
+# otherwise??!" -- yes. Cross-agent state was scattered across
+# isolated SQLite files (owui/webui.db, hermes/state.db,
+# hermes/kanban.db, hermes/response_store.db) + JSON scratchpads;
+# nothing the agents could query in lockstep for ground truth.
+#
+# SurrealDB 3.0 picked over pgvector/Qdrant/SQLite-per-component for:
+#   * multi-model: doc + graph + KV + vector + time-series in ONE
+#     ACID engine (no separate Neo4j / Redis / Postgres / Chroma to
+#     run alongside)
+#   * single Rust binary, sub-100MB image, sub-second cold start
+#   * explicit "context layer for AI agents" upstream framing
+#   * production refs (Samsung / Verizon / Tencent per 2026 docs)
+#   * OpenAI-friendly: SurrealQL + REST + WebSocket; tool_call
+#     args map to record IDs cleanly
+#
+# Day-0 / bootc: data persists under /var/lib/mios/surrealdb/
+# (created by usr/lib/tmpfiles.d/mios-surrealdb.conf at boot);
+# image is OCI-published surrealdb/surrealdb:latest; no /etc writes
+# required for the default config.
+
+[Unit]
+Description='MiOS' SurrealDB (shared agent state -- context layer for AI agents)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/surrealdb/surrealdb:latest
+ContainerName=mios-surrealdb
+Network=mios.network
+Network=ai-net.network
+# Canonical MiOS DB port. Standard SurrealDB default = 8000.
+PublishPort=8000:8000
+
+# Persistent data dir. SurrealDB writes the file:// store here;
+# durability survives container restarts + image upgrades.
+Volume=/var/lib/mios/surrealdb:/var/lib/mios/surrealdb:Z
+
+# UID 819 (next free in mios.toml [services.surrealdb] convention --
+# pinned in usr/lib/sysusers.d/50-mios-services.conf alongside
+# searxng 818 / ollama 815 / mios-hermes 820). Matches the chown of
+# /var/lib/mios/surrealdb done by tmpfiles.d.
+User=819
+Group=819
+
+# Default root credentials -- LOCAL-ONLY. The PublishPort above
+# already binds host-side; the operator can lock down by adding an
+# override drop-in with --pass <secret> or by running entirely on
+# the ai-net.network bridge (no host port). For Day-0 self-host
+# the local-only defaults match every other MiOS service.
+Environment=SURREAL_USER=root
+Environment=SURREAL_PASS=root
+Environment=SURREAL_LOG=info
+
+# Bind 0.0.0.0 so both host (operator + pipe + mios-daemon) AND
+# the ai-net bridge (hermes, future agents) reach the same endpoint.
+Exec=start --bind 0.0.0.0:8000 --user root --pass root file://var/lib/mios/surrealdb/mios.surql
+
+# OCI labels for Podman Desktop browse-in-browser.
+Label=org.opencontainers.image.title=mios-surrealdb
+Label=org.opencontainers.image.url=http://localhost:8000/
+Label=org.opencontainers.image.documentation=https://surrealdb.com/docs
+Label=io.podman_desktop.openInBrowser=http://localhost:8000/
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=120s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target
