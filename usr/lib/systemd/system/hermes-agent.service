@@ -79,6 +79,17 @@ EnvironmentFile=-/etc/mios/hermes/discord.env
 # the env above (API_SERVER_HOST + PORT), NOT CLI flags: `hermes gateway`
 # itself is a service-manager subcommand whose only positional is
 # {run,start,stop,...} -- passing --host/--port to it is an arg error.
+# ExecStartPre: idempotently apply the MiOS Discord progressive-
+# reactions patch to the gateway's site-packages discord.py. The
+# script is a no-op when the marker comment is already present, so
+# every restart re-asserts the patch -- survives venv refreshes
+# (pip install -e .) that would otherwise drop the modification.
+# Exit codes: 0 = applied or already-applied; 1 = file missing
+# (skipped, service still starts); 2 = upstream refactored (warn,
+# service still starts). The `-` prefix makes systemd ignore the
+# exit code so a Discord-gateway-only failure can't block the
+# whole agent from booting.
+ExecStartPre=-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py
 ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes gateway run --replace
 Restart=on-failure
 RestartSec=10s
