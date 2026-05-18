@@ -1,0 +1,117 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-hermes-soul-sync
+#
+# Idempotent SOUL.md propagation. The hardened vendor SOUL.md lives at
+# /usr/share/mios/ai/hermes-soul.md and is updated by code changes
+# (commit/rebuild). The agent reads $HERMES_HOME/SOUL.md fresh on every
+# message, but only after firstboot has SEEDED that path. Without this
+# shim, SOUL.md updates between firstboot runs require a manual
+# touch+restart on every operator host (operator-flagged 2026-05-17:
+# WSLg rule didn't propagate after my deploy because cp preserved
+# mtime).
+#
+# What this does:
+#   1. Resolve $HERMES_HOME (defaults to /var/lib/mios/hermes).
+#   2. If target SOUL.md exists AND lacks 'MiOS-managed' marker, leave
+#      it alone -- the operator has taken ownership.
+#   3. If source body (BEFORE any appended runtime-context block) is
+#      byte-identical to target body, noop (preserves operator's
+#      appended Discord context, etc.).
+#   4. Otherwise: cp source over target, restore ownership +
+#      permissions, log.
+#
+# Wired as ExecStartPre to hermes-agent.service via a drop-in so SOUL.md
+# is always fresh when hermes boots. Also runnable from firstboot, the
+# operator console, or an "update SOUL.md" automation.
+#
+# Exit codes:
+#   0 = noop or successful sync
+#   1 = source missing (logged, non-fatal -- hermes still starts)
+#   2 = target ownership/permission failure (rare)
+
+set -uo pipefail
+
+SRC="${MIOS_HERMES_SOUL_SRC:-/usr/share/mios/ai/hermes-soul.md}"
+HERMES_HOME="${HERMES_HOME:-/var/lib/mios/hermes}"
+TARGET="${HERMES_HOME}/SOUL.md"
+SOUL_USER="${MIOS_HERMES_USER:-mios-hermes}"
+SOUL_GROUP="${MIOS_HERMES_GROUP:-mios-hermes}"
+# Match the marker firstboot uses; preserve appended context across syncs.
+SOUL_CTX_MARKER="### MIOS-RUNTIME-CONTEXT-BEGIN"
+
+log() { echo "[mios-hermes-soul-sync] $*"; }
+
+if [ ! -r "$SRC" ]; then
+    log "source missing: $SRC -- nothing to sync"
+    exit 1
+fi
+
+# If target absent or shorter than source, just copy.
+if [ ! -f "$TARGET" ]; then
+    install -d -m 0755 -o "$SOUL_USER" -g "$SOUL_GROUP" "$HERMES_HOME" 2>/dev/null || \
+    install -d -m 0755 "$HERMES_HOME"
+    cp -f "$SRC" "$TARGET"
+    chown "$SOUL_USER:$SOUL_GROUP" "$TARGET" 2>/dev/null || true
+    chmod 0644 "$TARGET"
+    log "seeded $TARGET (target absent)"
+    exit 0
+fi
+
+# Operator-owned? Don't touch.
+if ! grep -q 'MiOS-managed' "$TARGET" 2>/dev/null; then
+    log "target lacks 'MiOS-managed' marker -- operator-owned, leaving alone"
+    exit 0
+fi
+
+# Compare body-only. Body is everything BEFORE the runtime-context
+# marker in the TARGET; everything in SOURCE is body (source has no
+# runtime-context, firstboot appends it after copy).
+SRC_BYTES=$(wc -c < "$SRC")
+# Extract the matching prefix of the target (up to the marker line).
+TARGET_BODY_TMP=$(mktemp)
+awk -v m="$SOUL_CTX_MARKER" '
+    { if (index($0, m) > 0) { exit } else { print } }
+' "$TARGET" > "$TARGET_BODY_TMP"
+TARGET_BODY_BYTES=$(wc -c < "$TARGET_BODY_TMP")
+
+# Strip trailing whitespace from target body so the comparison ignores
+# the blank-line padding firstboot adds before the marker.
+sed -i -e '$ { /^$/d; }' "$TARGET_BODY_TMP" 2>/dev/null || true
+# Re-measure after the trim.
+TARGET_BODY_BYTES=$(wc -c < "$TARGET_BODY_TMP")
+
+# If sizes match within a small tolerance AND cmp matches on the
+# source byte length, the body is current.
+if [ "$TARGET_BODY_BYTES" -ge "$SRC_BYTES" ] && \
+   cmp -s -n "$SRC_BYTES" "$SRC" "$TARGET"; then
+    log "body current ($SRC_BYTES bytes) -- noop"
+    rm -f "$TARGET_BODY_TMP"
+    exit 0
+fi
+
+# Body differs -- preserve any appended runtime-context block, then
+# rewrite the body from source.
+RUNTIME_CTX_TMP=$(mktemp)
+# Lines from marker onwards (inclusive of marker). awk '/marker/,EOF'
+# would include the marker; cleaner: print from marker hit onwards.
+awk -v m="$SOUL_CTX_MARKER" '
+    BEGIN { keep = 0 }
+    { if (index($0, m) > 0) keep = 1; if (keep) print }
+' "$TARGET" > "$RUNTIME_CTX_TMP"
+
+NEW_TMP=$(mktemp)
+cat "$SRC" > "$NEW_TMP"
+if [ -s "$RUNTIME_CTX_TMP" ]; then
+    printf '\n\n' >> "$NEW_TMP"
+    cat "$RUNTIME_CTX_TMP" >> "$NEW_TMP"
+fi
+
+# Atomic write, preserving target ownership.
+cp -f "$NEW_TMP" "$TARGET"
+chown "$SOUL_USER:$SOUL_GROUP" "$TARGET" 2>/dev/null || true
+chmod 0644 "$TARGET"
+rm -f "$TARGET_BODY_TMP" "$RUNTIME_CTX_TMP" "$NEW_TMP"
+
+NEW_BYTES=$(wc -c < "$TARGET")
+log "synced $TARGET (body=$SRC_BYTES bytes, total=$NEW_BYTES bytes with runtime-context)"
+exit 0

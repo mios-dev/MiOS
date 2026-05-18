@@ -816,19 +816,28 @@ approvals:
 
 # Tool-loop guardrails. The agent can loop forever on bad tool calls;
 # hard_stop_enabled aborts after N consecutive same-kind failures so
-# a stuck delegate doesn't burn the whole agent budget. Thresholds
-# match the upstream-recommended wizard defaults.
+# a stuck delegate doesn't burn the whole agent budget.
+#
+# Operator-flagged 2026-05-17: chats hitting 19-24 tool calls were
+# below upstream's 5/8/5 thresholds (because each call was a
+# DIFFERENT tool -- agent thrashing across browser/web_extract/
+# skill_view rather than failing the same one repeatedly). The
+# total-call cap (agent.max_turns: 20 above) handles thrashing
+# across different tools; the per-failure thresholds below are now
+# tightened so the agent backs off SOONER on a single tool that
+# keeps erroring (web_extract returning "searxng is search-only"
+# four times before the agent gives up was the original incident).
 tool_loop_guardrails:
   warnings_enabled: true
   hard_stop_enabled: true
   warn_after:
-    exact_failure: 2
-    same_tool_failure: 3
-    idempotent_no_progress: 2
+    exact_failure: 1
+    same_tool_failure: 2
+    idempotent_no_progress: 1
   hard_stop_after:
-    exact_failure: 5
-    same_tool_failure: 8
-    idempotent_no_progress: 5
+    exact_failure: 3
+    same_tool_failure: 4
+    idempotent_no_progress: 3
 
 # Sessions: prune old sessions automatically. Keeps $HERMES_HOME clean
 # without manual \`hermes session prune\` after every long-running build
@@ -853,6 +862,13 @@ sessions:
 # ~2-3s typical restart, 30s worst case. Operator directive 2026-05-15.
 agent:
   restart_drain_timeout: 20
+  # Hard cap on tool-call iterations per chat. Upstream default is 90;
+  # operator-flagged 2026-05-17 had chats running 19-24 tool calls
+  # before giving up. For an OWUI conversational agent 20 is plenty
+  # (most asks resolve in 1-3 calls; multi-step in ~10). Sub-agents
+  # spawned via delegate_task still get their own 90-turn budget --
+  # this cap is for the OPERATOR-facing turn, not the children.
+  max_turns: 20
 EOF
     umask 0022
     chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
