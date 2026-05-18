@@ -1329,6 +1329,14 @@ async def execute_skill(name: str, params: dict, *,
     if not steps:
         return {"success": False, "skill": name,
                 "error": "empty_body", "steps": [], "failures": []}
+    # Execution mode -- "sequence" (default) halts on first FAILURE;
+    # "try-each" halts on first SUCCESS. The latter is the generic
+    # primitive resilience skills need (try variant A, then B, then
+    # C, ... succeed when any one lands). Operator directive 2026-
+    # 05-18 "no hardcoded fallbacks -- ALL TOOLS AND SKILLS to solve
+    # for this": the engine extension is generic infrastructure;
+    # specific fallback orderings live in individual skill bodies.
+    mode = str(body.get("mode") or "sequence").lower()
     inv_id = await _skill_invocation_open(
         row.get("id"), params or {}, session_id)
     results: list[dict] = []
@@ -1382,7 +1390,36 @@ async def execute_skill(name: str, params: dict, *,
                 if tc_rows:
                     await _skill_attribute_tool_call(
                         inv_id, tc_rows[0].get("id"), idx)
-        if not r.get("success", False):
+        step_ok = bool(r.get("success", False))
+        if mode == "try-each":
+            # try-each: halt on first SUCCESS. A failed step records
+            # the failure and continues; a successful step closes the
+            # skill as a win (any-of-N semantics).
+            if step_ok:
+                await _skill_invocation_close(inv_id, success=True)
+                await _db_post(
+                    f"UPDATE {row.get('id')} SET last_used_at = time::now();")
+                await _db_post(_db_create("event", {
+                    "source": "agent-pipe",
+                    "kind": "skill_run",
+                    "severity": "info",
+                    "summary": f"{name} ok at step {idx} (try-each)",
+                    "payload": {"skill": name, "winning_step": idx,
+                                "mode": "try-each",
+                                "steps_attempted": idx + 1},
+                }, now_fields=("ts",)))
+                return {"success": True, "skill": name, "steps": results,
+                        "failures": failures, "aborted": False,
+                        "winning_step": idx, "mode": "try-each"}
+            # Failure under try-each: record + keep going. Only halt
+            # when we run out of steps below (the for-loop falls out).
+            failures.append(
+                f"step {idx} ({verb}): "
+                f"exit={r.get('exit_code')} "
+                f"stderr={r.get('stderr','')[:200]}")
+            continue
+        # mode == "sequence" (default).
+        if not step_ok:
             failures.append(
                 f"step {idx} ({verb}): "
                 f"exit={r.get('exit_code')} "
@@ -1401,6 +1438,21 @@ async def execute_skill(name: str, params: dict, *,
             }, now_fields=("ts",)))
             return {"success": False, "skill": name, "steps": results,
                     "failures": failures, "aborted": True}
+    # Loop fell off the end. For try-each that means every step
+    # failed (no win); for sequence that means every step succeeded.
+    if mode == "try-each":
+        await _skill_invocation_close(inv_id, success=False)
+        await _db_post(_db_create("event", {
+            "source": "agent-pipe",
+            "kind": "skill_run",
+            "severity": "warn",
+            "summary": f"{name} exhausted (try-each)",
+            "payload": {"skill": name, "mode": "try-each",
+                        "steps_attempted": len(steps)},
+        }, now_fields=("ts",)))
+        return {"success": False, "skill": name, "steps": results,
+                "failures": failures, "aborted": True,
+                "mode": "try-each"}
     await _skill_invocation_close(inv_id, success=True)
     # Update last_used_at on the skill row for the configurator UI.
     await _db_post(
