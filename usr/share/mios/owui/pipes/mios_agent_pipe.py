@@ -216,8 +216,8 @@ class Pipe:
         # REFINING THE USERS PROMPTS WITH MORE CONTEXT AND CLEARER
         # DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
         REFINE_ENABLED: bool = Field(
-            default=True,
-            description="Run a quick CPU-model refinement pass on every user prompt before forwarding to hermes.",
+            default=False,
+            description="In-pipe CPU refinement pass. Operator directive 2026-05-18: MiOS-Agent (agent-pipe :8640) handles refine centrally as of Phase D.5a -- having this ENABLED here causes a DOUBLE refine (OWUI pipe rewrites the prompt, then agent-pipe rewrites it again). Default flipped to False; agent-pipe's iGPU-lane qwen3:1.7b refine is faster than the dGPU qwen2.5-coder:7b path this valve used. Set to true ONLY when running OWUI without agent-pipe in front.",
         )
         REFINE_MODEL: str = Field(
             default="qwen2.5-coder:7b",
@@ -274,8 +274,8 @@ class Pipe:
         # outputs as thinking and providing an appropriate final
         # answer normally in OWUI chats".
         POLISH_ENABLED: bool = Field(
-            default=True,
-            description="After the agent stream ends, run a CPU pass to produce the operator-facing final answer. The raw agent output is preserved as a collapsed <details type='reasoning'> block above. Disable to passthrough hermes raw (legacy behavior).",
+            default=False,
+            description="In-pipe polish pass. Operator directive 2026-05-18: agent-pipe :8640 (Phase D.5b) handles polish centrally and wraps the raw sub-agent output in a <details type='reasoning'> dropdown ITSELF. Having this ENABLED here causes a DOUBLE polish + double-wrap. Default flipped to False; the OWUI pipe trusts agent-pipe's centralised pass. Set to true ONLY when running OWUI without agent-pipe in front.",
         )
         POLISH_MODEL: str = Field(
             default="qwen2.5-coder:7b",
@@ -300,8 +300,8 @@ class Pipe:
         # it exists, or otherwise mismatches the structured truth,
         # critic returns issues; compose revises once. Bounded loop.
         CRITIC_ENABLED: bool = Field(
-            default=True,
-            description="After compose drafts an answer, run a small Critic Agent that reviews against the structured tool history. Catches false-success claims, missing steps, fabrications -- replaces the hardcoded KNOWN_AGENT_ERROR_RE rewrite path with a natural multi-agent reflexion loop.",
+            default=False,
+            description="In-pipe critic pass over the polished draft. Operator directive 2026-05-18: agent-pipe's Phase B.1 / B.2 DCI critic + Phase D.5b polish stack handle review centrally. The in-pipe critic was paired with the in-pipe polish (both default-off now); running it standalone over a thin-passthrough body adds latency without complementary review. Set to true ONLY when running OWUI without agent-pipe in front + in-pipe POLISH_ENABLED is also true.",
         )
         CRITIC_MODEL: str = Field(
             default="qwen3:1.7b",
@@ -2118,7 +2118,13 @@ class Pipe:
         if self.valves.BACKEND_KEY:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
-        await self._emit(__event_emitter__, "🧠 → hermes")
+        # Generic "→ agent-pipe" label -- agent-pipe handles the
+        # actual sub-agent routing (Hermes/OpenCode/mios-daemon-agent
+        # /etc) via its [agents.*] registry, so this pipe doesn't
+        # know upstream which sub-agent will be picked. The pipe's
+        # _translate_mios_status() below renders agent-pipe's own
+        # 🤖 <target_agent> SSE markers as they arrive.
+        await self._emit(__event_emitter__, "🧠 → agent-pipe")
         # Mark the dispatch moment so compose (after hermes finishes
         # streaming) can find the matching Hermes session JSON by
         # mtime > _dispatch_ts. Shared mutable scratch location:
