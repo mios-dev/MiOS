@@ -115,6 +115,30 @@ LAUNCHER_SOCK = os.environ.get(
     "MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock",
 )
 
+# Backend bearer key. Hermes (and other sub-agents) usually require
+# Authorization: Bearer <key>. The OWUI gateway sends the operator's
+# session token; direct callers (curl, MCP clients, future Slack/
+# Telegram) won't. Loaded from MIOS_AGENT_PIPE_BACKEND_KEY env first,
+# then /etc/mios/hermes/api.env's API_SERVER_KEY as the canonical
+# fallback. Empty when neither is set -- the proxy still works for
+# backends that don't enforce auth.
+def _load_backend_key() -> str:
+    env_key = os.environ.get("MIOS_AGENT_PIPE_BACKEND_KEY", "").strip()
+    if env_key:
+        return env_key
+    try:
+        with open("/etc/mios/hermes/api.env", "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("API_SERVER_KEY="):
+                    return line.split("=", 1)[1].strip().strip('"')
+    except (OSError, PermissionError):
+        pass
+    return ""
+
+
+_BACKEND_KEY = _load_backend_key()
+
 # ── SurrealDB (cross-cutting agent state) ──────────────────────────
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
@@ -837,7 +861,14 @@ async def refine_intent(user_text: str,
         f"strengths={','.join(c.get('strengths') or [])[:80]}"
         for n, c in _AGENT_REGISTRY.items()
     )
-    system = _REFINE_SYSTEM + "\nRegistered sub-agents:\n" + agents_summary
+    # qwen3 family applies the `/no_think` token to suppress chain-
+    # of-thought emission when it appears in EITHER the system or
+    # the latest user turn. The model still reasons internally but
+    # emits the answer directly without a <think> block. ~3x faster
+    # on CPU + reliably fits the JSON answer in the token budget.
+    system = (_REFINE_SYSTEM
+              + "\nRegistered sub-agents:\n" + agents_summary
+              + "\n\n/no_think")
     msgs = [{"role": "system", "content": system}]
     # Last 4 turns of history for context (small to stay fast).
     if history:
@@ -845,7 +876,12 @@ async def refine_intent(user_text: str,
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
                              "content": str(h.get("content", ""))[:600]})
-    msgs.append({"role": "user", "content": user_text[:2000]})
+    # qwen3 family is a reasoning model -- by default it produces a
+    # long <think>...</think> chain-of-thought BEFORE the JSON
+    # answer. For refine we want the JSON only; the `/no_think` user-
+    # message suffix disables reasoning per-request. Drops latency
+    # ~3x on CPU + reliably fits answer in REFINE_MAX_TOKENS.
+    msgs.append({"role": "user", "content": user_text[:2000] + " /no_think"})
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
@@ -855,32 +891,51 @@ async def refine_intent(user_text: str,
         "stream": False,
     }
     url = f"{REFINE_ENDPOINT}/v1/chat/completions"
+    t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
             r = await s.post(url, json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
+                log.warning("refine: backend %s in %.1fs",
+                            r.status_code, time.time() - t0)
                 return None
             body = r.json()
-    except (httpx.HTTPError, asyncio.TimeoutError):
+    except (httpx.HTTPError, asyncio.TimeoutError) as e:
+        log.warning("refine: timeout/http error after %.1fs: %s",
+                    time.time() - t0, e)
         return None
     except Exception as e:
         log.warning("refine unexpected error: %s", e)
         return None
+    elapsed = time.time() - t0
     choices = body.get("choices") or []
     if not choices:
+        log.warning("refine: %.1fs no_choices", elapsed)
         return None
     content = ((choices[0].get("message") or {}).get("content") or "").strip()
     if not content:
+        log.warning("refine: %.1fs empty_content", elapsed)
         return None
+    # qwen3-style reasoning models sometimes wrap output in
+    # <think>...</think> blocks before the JSON. Strip them so
+    # the JSON parser sees just the structured plan.
+    content = re.sub(r"<think>.*?</think>\s*", "", content,
+                     flags=re.DOTALL | re.IGNORECASE)
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
         parsed = json.loads(content)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        log.warning("refine: %.1fs parse_fail: %s; preview=%r",
+                    elapsed, e, content[:200])
         return None
     if not isinstance(parsed, dict):
+        log.warning("refine: %.1fs not_dict type=%s",
+                    elapsed, type(parsed).__name__)
         return None
+    log.info("refine: %.1fs intent=%s target=%s",
+             elapsed, parsed.get("intent"), parsed.get("target_agent"))
     # Best-effort event row.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
@@ -919,13 +974,15 @@ async def polish_response(raw_text: str,
     user_q = (refined or {}).get("refined_text", "") or ""
     # Skip when intended is empty + raw is short -- no polish needed.
     if not intended and len(raw_text) < 200:
+        log.info("polish: skipped (no intended_outcome + raw<200 chars)")
         return None
     system = _POLISH_SYSTEM + (
         f"\nIntended outcome: {intended}\n" if intended else ""
     )
+    # `/no_think` to disable qwen3 reasoning (same rationale as refine).
     user_msg = (
         f"User's question:\n{user_q}\n\n"
-        f"Raw answer from sub-agent:\n{raw_text[:8000]}\n"
+        f"Raw answer from sub-agent:\n{raw_text[:8000]}\n\n/no_think"
     )
     payload = {
         "model": POLISH_MODEL,
@@ -938,18 +995,24 @@ async def polish_response(raw_text: str,
         "stream": False,
     }
     url = f"{POLISH_ENDPOINT}/v1/chat/completions"
+    t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=POLISH_TIMEOUT_S) as s:
             r = await s.post(url, json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
+                log.warning("polish: backend %s in %.1fs",
+                            r.status_code, time.time() - t0)
                 return None
             body = r.json()
-    except (httpx.HTTPError, asyncio.TimeoutError):
+    except (httpx.HTTPError, asyncio.TimeoutError) as e:
+        log.warning("polish: timeout/http error after %.1fs: %s",
+                    time.time() - t0, e)
         return None
     except Exception as e:
         log.warning("polish unexpected error: %s", e)
         return None
+    log.info("polish: %.1fs", time.time() - t0)
     choices = body.get("choices") or []
     if not choices:
         return None
@@ -957,6 +1020,39 @@ async def polish_response(raw_text: str,
     if not polished:
         return None
     return polished
+
+
+def _build_agent_hint(refined: dict, target_name: str) -> str:
+    """Render a compact system-message prefix from a refined plan.
+    Injected at the head of `messages` when proxying to a sub-
+    agent so the agent receives MiOS-Agent's intent + suggested
+    tools/skills/outcome -- NOT as free-form prose, but as a
+    structured marker block the agent's own system prompt can
+    parse.
+
+    Format kept tight (~150-250 tokens) so even a 4K-context
+    micro-model has plenty of room for the conversation itself.
+    """
+    intent = str(refined.get("intent") or "").strip()
+    outcome = str(refined.get("intended_outcome") or "").strip()
+    refined_text = str(refined.get("refined_text") or "").strip()
+    tools = refined.get("hint_tools") or []
+    skills = refined.get("hint_skills") or []
+    lines = [
+        "# MiOS-Agent refined plan (consume + act; do NOT echo to user)",
+        f"target_agent: {target_name}",
+    ]
+    if intent:
+        lines.append(f"intent: {intent}")
+    if outcome:
+        lines.append(f"intended_outcome: {outcome}")
+    if refined_text:
+        lines.append(f"refined_query: {refined_text[:400]}")
+    if tools:
+        lines.append("hint_tools: " + ", ".join(str(t) for t in tools[:8]))
+    if skills:
+        lines.append("hint_skills: " + ", ".join(str(s) for s in skills[:8]))
+    return "\n".join(lines)
 
 
 # ── Phase C.2 -- Skill catalog SSOT knobs ─────────────────────────
@@ -3579,28 +3675,65 @@ async def chat_completions(request: Request) -> Any:
                 }],
             })
 
-    # ── AGENT path / fallback -> proxy to backend ──────────────
-    headers = {k: v for k, v in request.headers.items()
-               if k.lower() in ("authorization", "content-type", "accept")}
-    headers.setdefault("Content-Type", "application/json")
+    # ── AGENT path / fallback -> proxy to a sub-agent ──────────
+    # Phase D.5b: multi-agent routing + hint injection + polish.
+    #   1. Pick target_agent from refined hints, fall back to
+    #      registry default (Hermes).
+    #   2. Build a hint-injected system message ("MiOS-Agent
+    #      refined plan: ...") so the sub-agent gets the
+    #      operator's intent + suggested tools/skills as context.
+    #   3. Forward to the sub-agent's endpoint.
+    #   4. Non-streaming: polish the response before returning.
+    #      Streaming: emit raw stream + a final polished delta if
+    #      polish succeeded (heavy on token re-emission; gated on
+    #      response shape so we don't re-stream small chat replies).
+    target_role = ""
+    if refined:
+        target_role = str(refined.get("target_agent") or "").lower()
+    target_name, target_cfg = _pick_agent(target_role)
+    target_endpoint = target_cfg.get("endpoint") or BACKEND
+    target_label = f"→ {target_name}"
+
+    # Build the proxy body: original messages + hint-injected
+    # system prefix (only when refine emitted hints; trivial inputs
+    # skip refine + skip the prefix).
+    proxy_body = dict(body)
+    if refined and (refined.get("hint_tools") or refined.get("hint_skills")
+                    or refined.get("intended_outcome")):
+        hint_msg = _build_agent_hint(refined, target_name)
+        proxy_body["messages"] = [{"role": "system", "content": hint_msg}] + list(messages)
+    proxy_bytes = json.dumps(proxy_body).encode("utf-8")
+    # Normalise header keys to lowercase so the Content-Type set
+    # below replaces (not duplicates) whatever the incoming request
+    # supplied. Operator-flagged 2026-05-18 trace: Hermes :8642
+    # returned 400 "Duplicate 'Content-Type' header found" because
+    # request.headers preserved case ("Content-Type") + setdefault
+    # added a second copy ("content-type").
+    headers = {k.lower(): v for k, v in request.headers.items()
+               if k.lower() in ("authorization", "accept")}
+    headers["content-type"] = "application/json"
+    # Self-inject bearer when caller didn't supply one + we have a
+    # key from /etc/mios/hermes/api.env (or env override). Lets
+    # direct callers (curl, MCP clients, future Discord) reach
+    # Hermes without each gateway re-implementing the auth flow.
+    if "authorization" not in headers and _BACKEND_KEY:
+        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+
     if streaming:
         async def _stream_backend() -> AsyncGenerator[bytes, None]:
-            # Phase markers BEFORE the backend stream so the OWUI shim
-            # / Discord reactions know the pipe handed off to hermes.
-            # The backend's own content chunks pass through unchanged
-            # (no mios_status injected mid-stream -- the backend may
-            # emit its own tool-call status via tail_watcher or its
-            # internal mechanism).
             yield _sse_status(chat_id=chat_id, model=model,
                               emoji="📡", label="prompt")
+            if refined:
+                yield _sse_status(chat_id=chat_id, model=model,
+                                  emoji="✨", label="refine")
             yield _sse_status(chat_id=chat_id, model=model,
                               emoji="🧭", label="route")
             yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="🧠", label="→ hermes")
+                              emoji="🤖", label=target_label)
             client = await _get_client()
             async with client.stream(
-                "POST", f"{BACKEND}/chat/completions",
-                content=body_bytes, headers=headers,
+                "POST", f"{target_endpoint}/chat/completions",
+                content=proxy_bytes, headers=headers,
             ) as r:
                 async for chunk in r.aiter_bytes():
                     if chunk:
@@ -3610,11 +3743,11 @@ async def chat_completions(request: Request) -> Any:
     client = await _get_client()
     try:
         r = await client.post(
-            f"{BACKEND}/chat/completions",
-            content=body_bytes, headers=headers,
+            f"{target_endpoint}/chat/completions",
+            content=proxy_bytes, headers=headers,
         )
         try:
-            return JSONResponse(content=r.json(), status_code=r.status_code)
+            backend_json = r.json()
         except (json.JSONDecodeError, ValueError):
             return JSONResponse(
                 content={
@@ -3627,6 +3760,57 @@ async def chat_completions(request: Request) -> Any:
                 },
                 status_code=502,
             )
+        # Polish the assistant content when refine produced an
+        # intended_outcome. Skip on streaming, on empty responses,
+        # and on backend errors. The raw sub-agent output is
+        # preserved as a collapsed <details type="reasoning">
+        # block ABOVE the polished answer -- operator directive
+        # 2026-05-18: "all sub-agents tasked by MiOS-Agent have
+        # their printing and patterns/responses they end up
+        # printing to the user -- is all written to the OWUI
+        # thinking blocks/OWUI dropdown for thoughts".
+        log.info(
+            "polish-gate: enabled=%s refined=%s status=%s json=%s",
+            POLISH_ENABLED, bool(refined), r.status_code,
+            isinstance(backend_json, dict),
+        )
+        if (POLISH_ENABLED and refined and r.status_code == 200
+                and isinstance(backend_json, dict)):
+            choices = backend_json.get("choices") or []
+            if choices:
+                msg = choices[0].get("message") or {}
+                raw = str(msg.get("content") or "")
+                log.info("polish-gate: raw_len=%d refined_outcome=%s",
+                         len(raw),
+                         (refined.get("intended_outcome") or "")[:60])
+                if raw.strip():
+                    polished = await polish_response(raw, refined)
+                    if polished and polished.strip() != raw.strip():
+                        # Render: collapsible "thoughts" with the raw
+                        # sub-agent output, then the polished answer
+                        # as the main visible content.
+                        wrapped = (
+                            f"<details type=\"reasoning\">"
+                            f"<summary>🤖 {target_name}</summary>\n\n"
+                            f"{raw}\n"
+                            f"</details>\n\n"
+                            f"{polished}"
+                        )
+                        msg["content"] = wrapped
+                        choices[0]["message"] = msg
+                        backend_json["choices"] = choices
+                        _db_fire(_db_post(_db_create("event", {
+                            "source": "mios-agent-pipe",
+                            "kind": "polish",
+                            "severity": "info",
+                            "summary": f"{target_name} polished",
+                            "payload": {
+                                "target_agent": target_name,
+                                "raw_len": len(raw),
+                                "polished_len": len(polished),
+                            },
+                        }, now_fields=("ts",))))
+        return JSONResponse(content=backend_json, status_code=r.status_code)
     except httpx.HTTPError as e:
         log.warning("chat/completions backend proxy failed: %s", e)
         return JSONResponse(

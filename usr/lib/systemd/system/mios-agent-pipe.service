@@ -36,6 +36,12 @@ Environment=MIOS_DB_NS=mios
 Environment=MIOS_DB_DB=mios
 # Phase C.3 -- this service signs SurrealDB writes as agent-pipe.
 Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
+# Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
+# Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s
+# for the same prompt. Generous timeout works on both.
+Environment=MIOS_REFINE_TIMEOUT_S=45
+Environment=MIOS_POLISH_TIMEOUT_S=45
+Environment=MIOS_REFINE_MAX_TOKENS=1200
 
 # Reuse hermes-agent's venv interpreter for fastapi/uvicorn/httpx/
 # starlette -- they're already installed there. Cleaner option for a

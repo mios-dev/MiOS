@@ -652,8 +652,17 @@ enable           = true
 # a different micro-model when one ships.
 model            = "qwen3:1.7b"
 endpoint         = "http://localhost:11435"
-timeout_seconds  = 12
-max_tokens       = 400
+# Timeout headroom: on bare-metal Fedora-bootc with real ROCm/
+# CUDA, qwen3:1.7b emits a 400-token JSON in <1s. On WSL2 dev
+# (CPU only -- /dev/kfd isn't exposed for ROCm) it takes 15-30s
+# for the same call. 45s is generous for either deployment;
+# the bypass path still keeps trivial input fast.
+timeout_seconds  = 45
+# Token budget for the refine JSON answer. qwen3 reasoning models
+# can consume ~200 tokens on chain-of-thought even with /no_think
+# in the prompt; 1200 leaves plenty of room for both. On a non-
+# reasoning model this could drop to ~300.
+max_tokens       = 1200
 # Trivial-input shortcut: when the user message is shorter than
 # this many chars AND matches one of the bypass patterns
 # (greetings, single-word commands), skip refine and emit a
@@ -669,7 +678,8 @@ bypass_chars     = 24
 enable           = true
 model            = "qwen3:1.7b"
 endpoint         = "http://localhost:11435"
-timeout_seconds  = 15
+# Same CPU-vs-GPU headroom rationale as [refine].timeout_seconds.
+timeout_seconds  = 45
 max_tokens       = 800
 
 [passport]
