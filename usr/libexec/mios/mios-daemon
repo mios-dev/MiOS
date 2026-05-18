@@ -67,7 +67,11 @@ logging.basicConfig(level=logging.INFO, format="[mios-daemon] %(message)s")
 log = logging.getLogger("mios-daemon")
 
 # ── Config (env-overridable) ────────────────────────────────────────
-MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:0.6b-cpu")
+# Operator directive 2026-05-18: "iGPU micro-llm agent is mios-daemon"
+# Default model is qwen3:1.7b -- micro size, lands on the AMD/Intel
+# iGPU CDI lane (wsl2-amd.yaml / wsl2-intel.yaml) when present, freeing
+# the dGPU for big-model work. Override via MIOS_DAEMON_MODEL.
+MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b")
 ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", "http://127.0.0.1:11434")
 STATE_DIR = Path(os.environ.get("MIOS_DAEMON_STATE_DIR", "/var/lib/mios/daemon"))
 STATE_FILE = STATE_DIR / "state.json"
@@ -654,6 +658,327 @@ def launch_verifier_loop() -> None:
             time.sleep(1)
 
 
+# ── Task collector + nudger (operator directive 2026-05-18) ─────────
+#
+# "iGPU micro-llm agent is mios-daemon collects Linux logs, Journals,
+#  Agent(s) task(s), scratchpad(s), and success and failures and acts
+#  as a nudger/confirmation" + "DO WHATEVERS' NATIVE FOR OPENAI API
+#  STANDARDS AND PATTERNS FOR MODERN MULTIAGENTIC OS-NATIVE AI's".
+#
+# Every TASK_COLLECT_TICK_S the loop:
+#   1. Aggregates state from the canonical shared mutable scratchpads:
+#        * /var/lib/mios/hermes/kanban.db          (active agent tasks)
+#        * /var/lib/mios/hermes/sessions/*.json    (recent tool calls)
+#        * /var/lib/mios/scratch/                  (shared agent scratch)
+#        * /var/lib/mios/ai/scratch/               (assistant-side scratch)
+#        * /var/lib/mios/daemon/launch_failures.json
+#        * classify_loop's recent summary in state.json
+#   2. Sends the aggregate to the local Ollama via the OpenAI-compat
+#      /v1/chat/completions endpoint with response_format=json_object
+#      (Ollama supports OpenAI structured-output as of 0.4; same shape
+#      any OpenAI-API-compatible backend uses).
+#   3. Parses JSON {nudges: [{type, severity, summary, action}],
+#                   digest: "..."}.
+#   4. Writes /var/lib/mios/scratch/agent-nudges.md (operator-facing
+#      digest) + agent-nudges.json (structured for agent consumption).
+#      The agent reads these at start of each turn (SOUL.md rule)
+#      for ground-truth status without re-walking the logs itself.
+
+TASK_COLLECT_TICK_S = float(os.environ.get(
+    "MIOS_DAEMON_TASK_COLLECT_TICK_S", "300"))   # 5 min
+KANBAN_DB = Path(os.environ.get(
+    "MIOS_HERMES_KANBAN_DB", "/var/lib/mios/hermes/kanban.db"))
+HERMES_SESSIONS_DIR_DAEMON = Path(os.environ.get(
+    "MIOS_HERMES_SESSIONS_DIR", "/var/lib/mios/hermes/sessions"))
+SCRATCH_DIRS = [
+    Path(p) for p in os.environ.get(
+        "MIOS_SCRATCH_DIRS",
+        "/var/lib/mios/scratch:/var/lib/mios/ai/scratch"
+    ).split(":") if p
+]
+NUDGES_MD  = Path("/var/lib/mios/scratch/agent-nudges.md")
+NUDGES_JSON = Path("/var/lib/mios/scratch/agent-nudges.json")
+
+TASK_SYSTEM = (
+    "You are the MiOS Nudger: a micro-LLM watcher inside mios-daemon. "
+    "Read the aggregate state below (active kanban tasks, recent agent "
+    "sessions, scratchpad files, launch failures, log summary). Produce "
+    "JSON ONLY in this shape:\n"
+    '{"nudges":[{"type":"<short kebab>","severity":"low|med|high",'
+    '"summary":"<one sentence>","action":"<single concrete step>"},...],'
+    '"digest":"<2-4 sentence ground-truth status the next chat turn '
+    'should know>"}\n'
+    "Rules:\n"
+    "- Nudges only when actionable: an in-progress task that\'s stalled, "
+    "a recent launch_failures entry the agent hasn\'t verified, a "
+    "scratchpad note the agent flagged. NO chatter.\n"
+    "- digest mirrors the operator\'s locale if visible in the scratch "
+    "files; otherwise English.\n"
+    "- Cite SOURCE PATHS in summaries when relevant (e.g. "
+    "/var/lib/mios/daemon/launch_failures.json).\n"
+    "- NEVER fabricate a task or failure. Empty list is the right "
+    "answer when nothing is open."
+)
+
+
+def _collect_kanban_state() -> list[dict]:
+    """Read open kanban tasks from the hermes kanban.db. Schema is
+    hermes's own; we pluck the most-recent rows from the `tasks`
+    table (or 'cards' depending on version). Returns [] on any
+    error (fail-open: the digest just won't include kanban context)."""
+    if not KANBAN_DB.is_file():
+        return []
+    try:
+        import sqlite3
+        c = sqlite3.connect(str(KANBAN_DB))
+        # Discover the right table name (hermes has gone through a few)
+        tables = [
+            r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        ]
+        for cand in ("tasks", "cards", "kanban_tasks", "items"):
+            if cand in tables:
+                # Pick the column shape gracefully
+                cols = [r[1] for r in c.execute(
+                    f"PRAGMA table_info({cand})").fetchall()]
+                wanted = [col for col in
+                          ("id", "title", "status", "priority",
+                           "updated_at", "tags", "description")
+                          if col in cols]
+                if not wanted:
+                    continue
+                rows = c.execute(
+                    f"SELECT {','.join(wanted)} FROM {cand} "
+                    f"ORDER BY rowid DESC LIMIT 12"
+                ).fetchall()
+                return [
+                    dict(zip(wanted, r)) for r in rows
+                ]
+        return []
+    except Exception as e:
+        log.debug("kanban scan: %s: %s", type(e).__name__, e)
+        return []
+
+
+def _collect_recent_sessions(within_s: float = 1800) -> list[dict]:
+    """Skim the most-recent hermes session JSONs for tool_call/result
+    summary (count + success rate)."""
+    if not HERMES_SESSIONS_DIR_DAEMON.is_dir():
+        return []
+    now = time.time()
+    out: list[dict] = []
+    try:
+        paths = sorted(
+            HERMES_SESSIONS_DIR_DAEMON.glob("session_*.json"),
+            key=lambda p: p.stat().st_mtime, reverse=True,
+        )[:6]
+    except OSError:
+        return []
+    for path in paths:
+        try:
+            mtime = path.stat().st_mtime
+            if (now - mtime) > within_s:
+                continue
+            d = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        msgs = d.get("messages") or []
+        tool_calls = sum(1 for m in msgs if isinstance(m, dict)
+                         and (m.get("tool_calls") or []))
+        results = []
+        for m in msgs:
+            if isinstance(m, dict) and m.get("role") == "tool":
+                c = m.get("content") or ""
+                try:
+                    j = json.loads(c) if isinstance(c, str) else None
+                    if isinstance(j, dict) and "success" in j:
+                        results.append(bool(j["success"]))
+                except (json.JSONDecodeError, ValueError):
+                    results.append(None)
+        succ = sum(1 for r in results if r is True)
+        fail = sum(1 for r in results if r is False)
+        out.append({
+            "session_id": d.get("session_id", path.stem),
+            "mtime": datetime.datetime.fromtimestamp(mtime).isoformat(timespec="seconds"),
+            "model": d.get("model"),
+            "platform": d.get("platform"),
+            "tool_calls": tool_calls,
+            "tool_success": succ,
+            "tool_fail": fail,
+        })
+    return out
+
+
+def _collect_scratch() -> list[dict]:
+    """Index scratchpad files (small markdown / json) the agents wrote."""
+    out: list[dict] = []
+    for root in SCRATCH_DIRS:
+        if not root.is_dir():
+            continue
+        try:
+            for p in root.glob("*"):
+                if not p.is_file():
+                    continue
+                if p.name in (NUDGES_MD.name, NUDGES_JSON.name):
+                    continue  # don't recurse into our own output
+                try:
+                    size = p.stat().st_size
+                except OSError:
+                    continue
+                if size > 8192:   # skip big files
+                    continue
+                try:
+                    head = p.read_text(encoding="utf-8", errors="replace")[:600]
+                except OSError:
+                    continue
+                out.append({
+                    "path": str(p),
+                    "size": size,
+                    "head": head,
+                })
+        except OSError:
+            continue
+    return out[:12]
+
+
+def _collect_launch_failures() -> list[dict]:
+    if not LAUNCH_FAILURES_FILE.is_file():
+        return []
+    try:
+        data = json.loads(LAUNCH_FAILURES_FILE.read_text())
+        return data[-5:] if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _openai_compat_llm_json(system: str, user: str,
+                            timeout: int = 30) -> dict:
+    """Call Ollama via its OpenAI-compatible /v1/chat/completions
+    endpoint with response_format=json_object (operator directive:
+    'native for OpenAI API standards'). Returns parsed dict; {} on
+    any failure (fail-open -- the loop just skips a tick)."""
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user",   "content": user},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1,
+        "max_tokens": 700,
+        "stream": False,
+    }
+    try:
+        req = urllib.request.Request(
+            f"{ENDPOINT}/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = json.loads(r.read())
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        log.debug("nudger LLM call failed: %s", e)
+        return {}
+    choices = body.get("choices") or []
+    if not choices:
+        return {}
+    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        return {}
+    try:
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _render_nudges_md(payload: dict) -> str:
+    """Render the structured nudge payload as a markdown digest the
+    agent can `cat` for ground-truth status."""
+    nudges = payload.get("nudges") or []
+    digest = payload.get("digest") or ""
+    out = [
+        f"# MiOS agent nudges",
+        f"_updated: {datetime.datetime.now().isoformat(timespec='seconds')}_",
+        "",
+        f"## Digest",
+        digest or "_no notable state_",
+        "",
+        f"## Open nudges ({len(nudges)})",
+    ]
+    if not nudges:
+        out.append("_none -- proceed_")
+    for n in nudges:
+        if not isinstance(n, dict):
+            continue
+        sev = n.get("severity", "low")
+        nt = n.get("type", "?")
+        summ = n.get("summary", "")
+        act = n.get("action", "")
+        icon = {"high": "🔴", "med": "🟡", "low": "🟢"}.get(sev, "·")
+        out.append(f"- {icon} **{nt}** ({sev}): {summ}")
+        if act:
+            out.append(f"  - **action:** `{act}`")
+    return "\n".join(out) + "\n"
+
+
+def task_collector_loop() -> None:
+    """5-min cadence aggregator + nudger. See module docstring above."""
+    # Boot delay -- let mios-daemon settle, sessions populate.
+    time.sleep(75)
+    NUDGES_MD.parent.mkdir(parents=True, exist_ok=True)
+    while not _stop_event.is_set():
+        try:
+            agg = {
+                "kanban": _collect_kanban_state(),
+                "recent_sessions": _collect_recent_sessions(),
+                "scratch": _collect_scratch(),
+                "launch_failures": _collect_launch_failures(),
+            }
+            with _state_lock:
+                cls = (_state.get("classify") or {})
+            if cls.get("summary"):
+                agg["recent_log_summary"] = cls["summary"][:300]
+            # Compose the user message: terse JSON dump of the aggregate.
+            user_msg = (
+                "Aggregate MiOS state (last ~30 min):\n\n"
+                f"```json\n{json.dumps(agg, indent=2, default=str)[:6000]}\n```\n"
+                "\nProduce the nudges JSON now."
+            )
+            parsed = _openai_compat_llm_json(
+                TASK_SYSTEM, user_msg,
+                timeout=int(REQUEST_TIMEOUT_S),
+            )
+            if not parsed:
+                parsed = {"nudges": [], "digest": "(nudger LLM unreachable)"}
+            # Atomic write of both the markdown digest + structured JSON
+            md = _render_nudges_md(parsed)
+            for target, content in ((NUDGES_MD, md),
+                                    (NUDGES_JSON, json.dumps(parsed, indent=2))):
+                tmp = target.with_suffix(target.suffix + ".tmp")
+                tmp.write_text(content, encoding="utf-8")
+                os.chmod(tmp, 0o644)
+                tmp.replace(target)
+            _update_state("nudges", {
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "count": len(parsed.get("nudges") or []),
+                "digest_preview": (parsed.get("digest") or "")[:160],
+                "sources": {
+                    "kanban": len(agg["kanban"]),
+                    "sessions": len(agg["recent_sessions"]),
+                    "scratch": len(agg["scratch"]),
+                    "launch_failures": len(agg["launch_failures"]),
+                },
+            })
+        except Exception as e:
+            log.warning("task_collector: %s: %s", type(e).__name__, e)
+        for _ in range(int(TASK_COLLECT_TICK_S)):
+            if _stop_event.is_set(): return
+            time.sleep(1)
+
+
 def suggestions_loop() -> None:
     # Boot delay so OWUI + ollama warm before first generation
     time.sleep(45)
@@ -751,6 +1076,7 @@ def main() -> int:
         threading.Thread(target=cron_loop, daemon=True, name="cron"),
         threading.Thread(target=suggestions_loop, daemon=True, name="suggestions"),
         threading.Thread(target=launch_verifier_loop, daemon=True, name="launch_verifier"),
+        threading.Thread(target=task_collector_loop, daemon=True, name="task_collector"),
     ]
     for t in threads:
         t.start()

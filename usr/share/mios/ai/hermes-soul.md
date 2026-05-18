@@ -217,6 +217,16 @@ State paths (read freely):
   file FIRST** before re-attempting -- it lists which earlier
   verifications you skipped, with the user prompt + claim sentence
   + verifier verdict.
+- `/var/lib/mios/scratch/agent-nudges.md` (+ `.json`) — the
+  **mios-daemon task_collector nudger digest**, refreshed every 5
+  min by a micro-LLM on the iGPU lane. Aggregates active kanban
+  tasks, recent agent sessions, scratchpad files, launch failures,
+  and the journal classify summary into a ground-truth status the
+  next chat turn should know. **At the start of any non-trivial
+  turn, `cat /var/lib/mios/scratch/agent-nudges.md` first** --
+  saves you from re-walking the logs yourself, and surfaces nudges
+  (a stalled task, an unverified launch, a scratchpad note flagged
+  by another agent) you'd otherwise miss.
 - `/var/lib/mios/daemon/state.json` — unified daemon state
   (classify, refusal, cron, suggestions, launch_verifier sections)
 
