@@ -332,6 +332,13 @@ slots = [
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
     ("pkg.bootstrap_per_source_cap",   "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP"),
     ("pkg.lookup_max_alias_results",   "MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS"),
+    # ── passport (Phase C.3 -- Ed25519 agent identity tokens) ────────────
+    ("passport.enable",                "MIOS_PASSPORT_ENABLE"),
+    ("passport.algo",                  "MIOS_PASSPORT_ALGO"),
+    ("passport.key_dir",               "MIOS_PASSPORT_KEY_DIR"),
+    ("passport.rotate_days",           "MIOS_PASSPORT_ROTATE_DAYS"),
+    ("passport.verify_on_read",        "MIOS_PASSPORT_VERIFY_ON_READ"),
+    ("passport.agents",                "MIOS_PASSPORT_AGENTS"),
     # ── skills (Phase C.2 -- Sequential Pattern Mining + catalog) ────────
     ("skills.enable",                  "MIOS_SKILLS_ENABLE"),
     ("skills.min_length",              "MIOS_SKILLS_MIN_LENGTH"),

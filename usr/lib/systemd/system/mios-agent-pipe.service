@@ -1,8 +1,8 @@
 [Unit]
 Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
 Documentation=file:///usr/lib/mios/agent-pipe/server.py
-After=network-online.target hermes-agent.service mios-surrealdb.service
-Wants=network-online.target hermes-agent.service
+After=network-online.target hermes-agent.service mios-surrealdb.service mios-passport-provision.service
+Wants=network-online.target hermes-agent.service mios-passport-provision.service
 
 [Service]
 Type=simple
@@ -34,6 +34,8 @@ Environment=MIOS_DB_USER=root
 Environment=MIOS_DB_PASS=root
 Environment=MIOS_DB_NS=mios
 Environment=MIOS_DB_DB=mios
+# Phase C.3 -- this service signs SurrealDB writes as agent-pipe.
+Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
 
 # Reuse hermes-agent's venv interpreter for fastapi/uvicorn/httpx/
 # starlette -- they're already installed there. Cleaner option for a
@@ -54,6 +56,10 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
 ReadWritePaths=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log
+# Read-only mount of the agent-passport tree so this service can
+# load its own private key + every other agent's public key for
+# /passport/verify.
+ReadOnlyPaths=/var/lib/mios/agent-passports
 
 [Install]
 WantedBy=multi-user.target

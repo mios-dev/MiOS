@@ -1012,6 +1012,43 @@
 </details>
 
 <details class="section">
+  <summary>Passport · Ed25519 agent identity tokens <span class="phase-badge">Phase 10 · Runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Phase C.3 -- every agent in the stack gets an Ed25519
+      keypair under <code>key_dir/&lt;agent&gt;/</code>. Security-
+      relevant SurrealDB writes (tool_call, skill_invocation,
+      event) carry a passport envelope that binds the signature to
+      the exact data. Verification is OFFLINE: public keys are
+      world-readable. Operator can rotate via
+      <code>mios-passport rotate &lt;agent&gt;</code> -- the old
+      <code>kid</code> stays in the <code>agent_keypair</code>
+      table for verifying historical writes.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>passport -- crypto + rotation</legend>
+        <label for="f-passport-enable">enable (master toggle)</label>
+        <input type="text" id="f-passport-enable" data-key="passport.enable" data-type="bool" placeholder="true">
+        <label for="f-passport-algo">algo (v1: ed25519 only)</label>
+        <input type="text" id="f-passport-algo" data-key="passport.algo" placeholder="ed25519">
+        <label for="f-passport-rotate">rotate_days (0 = manual only)</label>
+        <input type="text" id="f-passport-rotate" data-key="passport.rotate_days" data-type="int" placeholder="365">
+        <label for="f-passport-verify">verify_on_read (slow path)</label>
+        <input type="text" id="f-passport-verify" data-key="passport.verify_on_read" data-type="bool" placeholder="false">
+      </fieldset>
+      <fieldset>
+        <legend>passport -- key dir + agent enrollment</legend>
+        <label for="f-passport-keydir">key_dir (where keypairs live)</label>
+        <input type="text" id="f-passport-keydir" data-key="passport.key_dir" placeholder="/var/lib/mios/agent-passports">
+        <label for="f-passport-agents">agents (CSV; provision enrolls these)</label>
+        <input type="text" id="f-passport-agents" data-key="passport.agents" placeholder="agent-pipe,hermes,mios-daemon,opencode,cron-director">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
   <summary>Skills · Sequential Pattern Mining + cross-agent catalog <span class="phase-badge">Phase 10 · Runtime</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">

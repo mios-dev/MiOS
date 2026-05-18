@@ -1,0 +1,577 @@
+#!/usr/bin/env python3
+"""mios-passport -- Phase C.3 Agent Passport (Ed25519 signing) CLI.
+
+Per-agent identity tokens. Every agent in the MiOS stack
+(agent-pipe, MiOS-Hermes, MiOS-OpenCode, mios-daemon, cron-
+director, future MCP clients) gets an Ed25519 keypair under
+/var/lib/mios/agent-passports/<agent>/{private.key,public.key}.
+
+Security-relevant SurrealDB writes (tool_call, skill_invocation,
+firewall_block events) carry a passport envelope of the shape:
+
+  {agent, ts, nonce, op_hash, alg, kid, sig}
+
+where op_hash binds the signature to the canonical-JSON of the
+record's other fields. Any verifier with read access to the
+agent's public key (which is world-readable) can validate the
+envelope without contacting an external KMS, online CA, or other
+agent.
+
+Subcommands:
+
+  provision [--agent NAME] [--force]
+                       Generate an Ed25519 keypair for an agent.
+                       Defaults to every agent in
+                       [passport].agents. Writes
+                       <key_dir>/<agent>/private.key (0600 owner
+                       sysuser) + public.key (0644 world-readable)
+                       + registers the public key in SurrealDB
+                       (agent_keypair table). Idempotent unless
+                       --force (which rotates).
+
+  list                 Print the registered keypairs (agent / kid
+                       / provisioned_at / retired).
+
+  show <agent>         Print the agent's current public key + kid.
+
+  sign --agent NAME --payload @file
+                       Read a JSON payload from --payload (or '-'
+                       for stdin), sign it as <agent>, print the
+                       envelope as JSON. Operator-callable
+                       primitive for non-Python integrations.
+
+  verify --envelope @file [--payload @file]
+                       Parse a passport envelope. Resolve the
+                       public key for envelope.agent (filesystem
+                       first; falls back to SurrealDB agent_keypair
+                       row). Verify the Ed25519 signature. Exits
+                       0 on valid + 2 on invalid + 3 on missing
+                       key.
+
+  rotate <agent>       Mark the current key retired, generate a
+                       new one (kid increments). Old kid stays in
+                       agent_keypair for verifying historical
+                       writes.
+
+  hash --table T --payload @file
+                       Print sha256(table:canonical-json) of the
+                       payload as the op_hash used inside passport
+                       envelopes. Same algorithm agent-pipe uses
+                       so external integrators can pre-compute.
+
+  public-key <agent>   Print the raw PEM-encoded public key. Use
+                       this to ship a key to an external verifier
+                       without parsing SurrealDB.
+
+Fully local + offline. Uses python3-cryptography (in the Fedora
+base image) -- NOT a pip install.
+
+SSOT: every knob (enable, algo, key_dir, rotate_days,
+verify_on_read, agents) routes through MIOS_PASSPORT_* env
+which userenv.sh sources from mios.toml [passport].
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+from typing import Optional, Tuple
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.exceptions import InvalidSignature
+
+# ─── SSOT env knobs ───────────────────────────────────────────────
+ENABLE = os.environ.get("MIOS_PASSPORT_ENABLE", "true").lower() \
+    not in {"false", "0", "no"}
+ALGO = os.environ.get("MIOS_PASSPORT_ALGO", "ed25519")
+KEY_DIR = os.environ.get(
+    "MIOS_PASSPORT_KEY_DIR", "/var/lib/mios/agent-passports")
+ROTATE_DAYS = int(os.environ.get("MIOS_PASSPORT_ROTATE_DAYS", "365"))
+
+DEFAULT_AGENTS = [
+    "agent-pipe", "hermes", "mios-daemon", "opencode", "cron-director",
+]
+_env_agents = os.environ.get("MIOS_PASSPORT_AGENTS", "").strip()
+if _env_agents:
+    AGENTS = [a.strip() for a in _env_agents.split(",") if a.strip()]
+else:
+    AGENTS = list(DEFAULT_AGENTS)
+
+# SurrealDB env (same as mios-db / mios-skills / mios-pkg).
+DB_URL = os.environ.get(
+    "MIOS_DB_URL",
+    "http://localhost:" + os.environ.get("MIOS_PORT_SURREALDB", "8000"))
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = os.environ.get("MIOS_DB_DB", "mios")
+DB_AUTH = "Basic " + base64.b64encode(
+    f"{DB_USER}:{DB_PASS}".encode()).decode()
+
+_AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
+
+
+# ─── SurrealDB helpers (stdlib urllib) ────────────────────────────
+def post_sql(sql: str, *, timeout: float = 10.0) -> list:
+    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
+    req = urllib.request.Request(
+        f"{DB_URL}/sql", data=body, method="POST",
+        headers={"Authorization": DB_AUTH, "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(
+            f"mios-passport: SurrealDB {e.code}: "
+            f"{e.read().decode()[:300]}\n")
+        return []
+    except Exception as e:
+        sys.stderr.write(
+            f"mios-passport: SurrealDB unreachable: {e}\n")
+        return []
+
+
+def last_ok(results: list) -> Optional[list]:
+    if not results:
+        return None
+    last = results[-1] or {}
+    if last.get("status") != "OK":
+        return None
+    return last.get("result")
+
+
+def sq(s: str) -> str:
+    return json.dumps(s)
+
+
+# ─── canonical-JSON op_hash (same algorithm as agent-pipe) ────────
+def canonical_json(obj) -> str:
+    """Deterministic JSON for hashing. Sorts object keys + uses
+    compact separators so the same logical record always hashes to
+    the same bytes regardless of insertion order."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+                      default=str)
+
+
+def op_hash(table: str, fields: dict) -> str:
+    """Hash the (table, fields) pair to bind a passport signature
+    to the exact data. Strips the passport field itself (would be
+    circular) + any field-name in `excluded` the caller knows is
+    server-side computed (e.g. surrealdb's `id`)."""
+    payload = dict(fields or {})
+    payload.pop("passport", None)
+    canon = f"{table}:{canonical_json(payload)}"
+    return "sha256:" + hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+
+# ─── key material ──────────────────────────────────────────────────
+def _agent_dir(agent: str) -> str:
+    if not _AGENT_NAME_RE.match(agent):
+        raise ValueError(f"invalid agent name: {agent!r}")
+    return os.path.join(KEY_DIR, agent)
+
+
+def _load_private(agent: str) -> ed25519.Ed25519PrivateKey:
+    path = os.path.join(_agent_dir(agent), "private.key")
+    with open(path, "rb") as f:
+        return serialization.load_pem_private_key(f.read(), password=None)
+
+
+def _load_public(agent: str) -> ed25519.Ed25519PublicKey:
+    """Load the agent's public key. Tries the filesystem first
+    (offline / fast path) then falls back to the SurrealDB
+    agent_keypair row so a verifier without filesystem access to
+    /var/lib/mios/agent-passports/ can still validate."""
+    fs_path = os.path.join(_agent_dir(agent), "public.key")
+    if os.path.exists(fs_path):
+        with open(fs_path, "rb") as f:
+            return serialization.load_pem_public_key(f.read())
+    # DB fallback.
+    sql = (
+        f"SELECT public_key_pem FROM agent_keypair "
+        f"WHERE agent = {sq(agent)} AND retired = false "
+        f"ORDER BY provisioned_at DESC LIMIT 1;"
+    )
+    rows = last_ok(post_sql(sql)) or []
+    if not rows:
+        raise FileNotFoundError(
+            f"no public key for agent {agent!r} "
+            f"(neither {fs_path} nor agent_keypair row)")
+    pem = rows[0].get("public_key_pem")
+    if not pem:
+        raise ValueError(f"agent_keypair row for {agent} has empty PEM")
+    return serialization.load_pem_public_key(pem.encode("utf-8"))
+
+
+def _kid_for(agent: str) -> str:
+    """Read the current kid from disk. Defaults to <agent>-v1 if
+    no kid file is present (lets a freshly-provisioned key skip
+    the kid bookkeeping until rotation happens)."""
+    kid_path = os.path.join(_agent_dir(agent), "kid")
+    if os.path.exists(kid_path):
+        with open(kid_path) as f:
+            return f.read().strip() or f"{agent}-v1"
+    return f"{agent}-v1"
+
+
+# ─── signing + verification ────────────────────────────────────────
+def _sign_bytes(agent: str, ts: str, nonce_b64: str,
+                op_hash_str: str) -> bytes:
+    """The canonical payload-to-sign. Newline-separated 4-tuple --
+    deterministic + simple to re-derive from external languages.
+
+    NOTE: any change here breaks every existing passport's
+    signature. Add new fields by extending the envelope + bumping
+    a `v` field, NOT by mutating this signing payload."""
+    msg = f"{agent}\n{ts}\n{nonce_b64}\n{op_hash_str}".encode("utf-8")
+    return msg
+
+
+def sign_envelope(agent: str, op_hash_str: str) -> dict:
+    if not ENABLE:
+        return {"disabled": True, "agent": agent}
+    priv = _load_private(agent)
+    nonce = os.urandom(16)
+    nonce_b64 = base64.b64encode(nonce).decode("ascii")
+    ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    sig = priv.sign(_sign_bytes(agent, ts, nonce_b64, op_hash_str))
+    return {
+        "agent": agent,
+        "ts": ts,
+        "nonce": nonce_b64,
+        "op_hash": op_hash_str,
+        "alg": ALGO,
+        "kid": _kid_for(agent),
+        "sig": base64.b64encode(sig).decode("ascii"),
+    }
+
+
+def verify_envelope(envelope: dict,
+                    payload_for_hash: Optional[Tuple[str, dict]] = None
+                    ) -> Tuple[bool, str]:
+    """Verify a passport envelope. Returns (ok, reason).
+
+    If `payload_for_hash` is supplied as (table, fields), the
+    function additionally re-computes the op_hash and compares it
+    to the envelope -- the strongest check (signature + data
+    integrity). Without payload_for_hash, only the signature is
+    verified (still proves attribution but doesn't bind to data)."""
+    if not isinstance(envelope, dict):
+        return False, "envelope_not_dict"
+    agent = envelope.get("agent")
+    ts = envelope.get("ts")
+    nonce = envelope.get("nonce")
+    declared_hash = envelope.get("op_hash")
+    sig_b64 = envelope.get("sig")
+    alg = envelope.get("alg", "ed25519")
+    if not all([agent, ts, nonce, declared_hash, sig_b64]):
+        return False, "envelope_missing_field"
+    if alg != "ed25519":
+        return False, f"unsupported_alg:{alg}"
+    if payload_for_hash is not None:
+        table, fields = payload_for_hash
+        recomputed = op_hash(table, fields)
+        if recomputed != declared_hash:
+            return False, f"op_hash_mismatch:got_{declared_hash}_want_{recomputed}"
+    try:
+        pub = _load_public(agent)
+    except FileNotFoundError as e:
+        return False, f"no_public_key:{e}"
+    try:
+        pub.verify(
+            base64.b64decode(sig_b64),
+            _sign_bytes(agent, ts, nonce, declared_hash),
+        )
+    except InvalidSignature:
+        return False, "invalid_signature"
+    except Exception as e:
+        return False, f"verify_error:{e}"
+    return True, "ok"
+
+
+# ─── provisioning ─────────────────────────────────────────────────
+def _write_keypair(agent: str, *, force: bool) -> Tuple[str, bool]:
+    """Create the agent's keypair on disk if absent (or always when
+    `force`). Returns (kid, rotated_flag)."""
+    d = _agent_dir(agent)
+    os.makedirs(d, mode=0o755, exist_ok=True)
+    priv_path = os.path.join(d, "private.key")
+    pub_path = os.path.join(d, "public.key")
+    kid_path = os.path.join(d, "kid")
+    if os.path.exists(priv_path) and not force:
+        kid = _kid_for(agent)
+        return kid, False
+    # Determine the new kid. v1 on first provision; on --force we
+    # increment past the existing kid.
+    if os.path.exists(kid_path):
+        with open(kid_path) as f:
+            current = f.read().strip()
+        m = re.match(rf"^{re.escape(agent)}-v(\d+)$", current)
+        next_n = int(m.group(1)) + 1 if m else 2
+        new_kid = f"{agent}-v{next_n}"
+    else:
+        new_kid = f"{agent}-v1"
+    priv = ed25519.Ed25519PrivateKey.generate()
+    priv_pem = priv.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    pub_pem = priv.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    # Write atomically. Private key 0600; public key world-readable
+    # so any agent can verify without ACL coordination.
+    tmp_priv = priv_path + ".new"
+    with open(tmp_priv, "wb") as f:
+        f.write(priv_pem)
+    os.chmod(tmp_priv, 0o600)
+    os.replace(tmp_priv, priv_path)
+    tmp_pub = pub_path + ".new"
+    with open(tmp_pub, "wb") as f:
+        f.write(pub_pem)
+    os.chmod(tmp_pub, 0o644)
+    os.replace(tmp_pub, pub_path)
+    with open(kid_path, "w") as f:
+        f.write(new_kid)
+    # Register in SurrealDB (agent_keypair). Retire any prior live
+    # row first.
+    post_sql(
+        f"UPDATE agent_keypair SET retired = true, "
+        f"rotated_at = time::now() "
+        f"WHERE agent = {sq(agent)} AND retired = false;")
+    post_sql(
+        f"CREATE agent_keypair SET "
+        f"agent = {sq(agent)}, "
+        f"kid = {sq(new_kid)}, "
+        f"alg = {sq(ALGO)}, "
+        f"public_key_pem = {sq(pub_pem.decode())}, "
+        f"provisioned_at = time::now(), "
+        f"retired = false;")
+    return new_kid, True
+
+
+def cmd_provision(args: argparse.Namespace) -> int:
+    if args.agent:
+        agents = [args.agent]
+    else:
+        agents = AGENTS
+    n_new = 0
+    n_kept = 0
+    for agent in agents:
+        if not _AGENT_NAME_RE.match(agent):
+            sys.stderr.write(
+                f"mios-passport: skip invalid agent name {agent!r}\n")
+            continue
+        try:
+            kid, rotated = _write_keypair(agent, force=args.force)
+        except OSError as e:
+            sys.stderr.write(
+                f"mios-passport: provision {agent} failed: {e}\n")
+            continue
+        if rotated:
+            n_new += 1
+            sys.stderr.write(
+                f"  [+] {agent}  kid={kid}  "
+                f"({'force-rotated' if args.force else 'first-provision'})\n")
+        else:
+            n_kept += 1
+            sys.stderr.write(f"  [=] {agent}  kid={kid}  (kept)\n")
+    sys.stderr.write(
+        f"mios-passport: provisioned {n_new} new keypair(s); "
+        f"{n_kept} kept\n")
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    rows = last_ok(post_sql(
+        "SELECT agent, kid, alg, provisioned_at, rotated_at, retired "
+        "FROM agent_keypair ORDER BY agent, provisioned_at;")) or []
+    if args.json:
+        print(json.dumps(rows, indent=2, default=str))
+        return 0
+    if not rows:
+        sys.stderr.write("mios-passport: no agent_keypair rows\n")
+        return 0
+    for row in rows:
+        flag = "retired" if row.get("retired") else "live"
+        print(
+            f"{row.get('agent',''):<20}  "
+            f"{row.get('kid',''):<24}  "
+            f"{row.get('alg',''):<8}  {flag:<7}  "
+            f"{row.get('provisioned_at','')}"
+        )
+    return 0
+
+
+def cmd_show(args: argparse.Namespace) -> int:
+    try:
+        pub = _load_public(args.agent)
+    except (FileNotFoundError, ValueError) as e:
+        sys.stderr.write(f"mios-passport: {e}\n")
+        return 1
+    pem = pub.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+    print(json.dumps({
+        "agent": args.agent,
+        "kid": _kid_for(args.agent),
+        "alg": ALGO,
+        "public_key_pem": pem,
+    }, indent=2))
+    return 0
+
+
+def cmd_public_key(args: argparse.Namespace) -> int:
+    try:
+        pub = _load_public(args.agent)
+    except (FileNotFoundError, ValueError) as e:
+        sys.stderr.write(f"mios-passport: {e}\n")
+        return 1
+    sys.stdout.write(pub.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode())
+    return 0
+
+
+def _read_json_arg(spec: str):
+    """Resolve a --payload / --envelope argument. '@file' reads
+    from a path; '-' reads stdin; anything else is parsed as the
+    raw JSON literal."""
+    if spec == "-":
+        return json.load(sys.stdin)
+    if spec.startswith("@"):
+        with open(spec[1:], "r", encoding="utf-8") as f:
+            return json.load(f)
+    return json.loads(spec)
+
+
+def cmd_sign(args: argparse.Namespace) -> int:
+    payload = _read_json_arg(args.payload)
+    table = args.table or "external"
+    h = op_hash(table, payload)
+    try:
+        envelope = sign_envelope(args.agent, h)
+    except FileNotFoundError as e:
+        sys.stderr.write(f"mios-passport: sign failed: {e}\n")
+        return 1
+    print(json.dumps(envelope, indent=2))
+    return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    envelope = _read_json_arg(args.envelope)
+    payload_for_hash = None
+    if args.payload:
+        payload = _read_json_arg(args.payload)
+        payload_for_hash = (args.table or "external", payload)
+    ok, reason = verify_envelope(envelope, payload_for_hash)
+    out = {"ok": ok, "reason": reason,
+           "agent": envelope.get("agent"),
+           "kid": envelope.get("kid")}
+    print(json.dumps(out, indent=2))
+    if ok:
+        return 0
+    if reason.startswith("no_public_key"):
+        return 3
+    return 2
+
+
+def cmd_rotate(args: argparse.Namespace) -> int:
+    try:
+        kid, _ = _write_keypair(args.agent, force=True)
+    except OSError as e:
+        sys.stderr.write(f"mios-passport: rotate failed: {e}\n")
+        return 1
+    sys.stderr.write(f"mios-passport: rotated {args.agent} -> {kid}\n")
+    return 0
+
+
+def cmd_hash(args: argparse.Namespace) -> int:
+    payload = _read_json_arg(args.payload)
+    print(op_hash(args.table, payload))
+    return 0
+
+
+# ─── argparse wiring ──────────────────────────────────────────────
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="mios-passport",
+        description="MiOS Phase C.3 agent passport (Ed25519) CLI",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pp = sub.add_parser("provision",
+                        help="generate keypair(s) -- all agents by default")
+    pp.add_argument("--agent",
+                    help="single agent name; default = all in "
+                         "[passport].agents")
+    pp.add_argument("--force", action="store_true",
+                    help="force rotation even if keypair exists")
+    pp.set_defaults(func=cmd_provision)
+
+    pl = sub.add_parser("list", help="list agent_keypair rows")
+    pl.add_argument("--json", action="store_true")
+    pl.set_defaults(func=cmd_list)
+
+    ps = sub.add_parser("show", help="print public key + kid as JSON")
+    ps.add_argument("agent")
+    ps.set_defaults(func=cmd_show)
+
+    pk = sub.add_parser("public-key",
+                        help="print raw PEM public key (no JSON wrap)")
+    pk.add_argument("agent")
+    pk.set_defaults(func=cmd_public_key)
+
+    pn = sub.add_parser("sign",
+                        help="sign a JSON payload as <agent>")
+    pn.add_argument("--agent", required=True)
+    pn.add_argument("--payload", required=True,
+                    help="@path / - for stdin / literal JSON")
+    pn.add_argument("--table", default="external",
+                    help="table name for op_hash binding (default: external)")
+    pn.set_defaults(func=cmd_sign)
+
+    pv = sub.add_parser("verify",
+                        help="verify a passport envelope")
+    pv.add_argument("--envelope", required=True,
+                    help="@path / - for stdin / literal JSON")
+    pv.add_argument("--payload",
+                    help="optional: also bind op_hash check to this payload")
+    pv.add_argument("--table", default="external")
+    pv.set_defaults(func=cmd_verify)
+
+    pr = sub.add_parser("rotate",
+                        help="rotate an agent's key (retires the old kid)")
+    pr.add_argument("agent")
+    pr.set_defaults(func=cmd_rotate)
+
+    ph = sub.add_parser("hash",
+                        help="print op_hash of a payload (no signing)")
+    ph.add_argument("--payload", required=True)
+    ph.add_argument("--table", default="external")
+    ph.set_defaults(func=cmd_hash)
+
+    return p
+
+
+def main(argv: list[str] = None) -> int:
+    p = build_parser()
+    args = p.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

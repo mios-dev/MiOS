@@ -158,12 +158,47 @@ Implemented as:
   `seed_catalog_dir`, `local_catalog_dir`. All routed through
   userenv.sh + the configurator HTML "Skills" section.
 
-### C.3 -- Agent Passports (signed identity tokens)
+### C.3 -- Agent Passports (signed identity tokens)  *(landed)*
 
-Each agent gets a private key at sysuser provisioning. Every
-SurrealDB write signs (agent_id, ts, op_hash). Cryptographic chain
-of action attribution. Useful when delegation goes deep (operator
--> Hermes -> sub-agent -> tool).
+Implemented as:
+
+* `usr/share/mios/surrealdb/schema-init.surql` -- new
+  `agent_keypair` registry table + `passport` (option<object>
+  FLEXIBLE) field on tool_call / skill_invocation / event /
+  agent_metric. Optional + FLEXIBLE so legacy rows stay readable
+  and v2-envelope additions (delegation chain headers) don't
+  break the schema.
+* `usr/libexec/mios/mios-passport` -- stdlib + python3-
+  cryptography CLI: `provision / list / show / public-key /
+  sign / verify / rotate / hash`. Idempotent provision generates
+  Ed25519 keypairs at `/var/lib/mios/agent-passports/<agent>/`
+  (private.key 0600 sysuser-owned, public.key 0644 world-
+  readable). Registers public PEM in `agent_keypair` so a
+  verifier without filesystem access still works.
+* `usr/lib/mios/agent-pipe/server.py` -- `_passport_sign(table,
+  fields)` + `_passport_verify(envelope, payload?)` helpers
+  using the same canonical-JSON op_hash algorithm as the CLI.
+  `_db_create` now defaults to `passport_sign=True`; every write
+  through it carries an Ed25519 envelope. `_skill_invocation_
+  open` builds its CREATE manually and explicitly attaches the
+  passport.
+  * `GET /passport/public-key?agent=` -- ship a public PEM to
+    external integrators without filesystem access.
+  * `POST /passport/verify` -- `{envelope, table?, fields?}` ->
+    `{ok, reason, agent, kid, alg}`. Cross-agent verification
+    over HTTP for clients that prefer the network surface.
+* `usr/lib/systemd/system/mios-passport-provision.service` --
+  one-shot firstboot keypair generator. Ordered Before=
+  mios-agent-pipe / hermes-agent / mios-daemon so every signing
+  service has its private key before it tries to write.
+* SSOT: `[passport]` in mios.toml -- `enable`, `algo`,
+  `key_dir`, `rotate_days`, `verify_on_read`, `agents` (CSV).
+  All routed via userenv.sh + the configurator HTML "Passport"
+  section.
+* Signed bytes: `agent\nts\nnonce\nop_hash` -- deterministic +
+  re-derivable from any language. `op_hash` is
+  `sha256(table:canonical-json(fields-minus-passport))`,
+  binding the signature to the exact data.
 
 ## What stays put
 

@@ -509,6 +509,45 @@ watch_dirs = [
 bootstrap_per_source_cap   = 200
 lookup_max_alias_results   = 3
 
+[passport]
+# Phase C.3 of the AgentOS roadmap: Agent Passports (signed
+# identity tokens). Every agent in the stack gets an Ed25519
+# keypair at provisioning -- agent-pipe, MiOS-Hermes, MiOS-
+# OpenCode, future MCP clients. Security-relevant SurrealDB
+# writes (tool_call, skill_invocation, firewall_block events)
+# carry a passport envelope that binds the signature to the
+# exact data via SHA-256(table || canonical-json(fields-minus-
+# passport)). Verification is OFFLINE: any agent reads the
+# public key from /var/lib/mios/agent-passports/<agent>/
+# public.key (world-readable) and validates without an external
+# KMS or CA. Private keys are 0600 owned by the agent's sysuser.
+#
+# Agents the operator can register out-of-the-box (provisioning
+# is idempotent -- re-running just keeps existing keys). Add to
+# this list to enroll a new agent without code edits.
+enable           = true
+algo             = "ed25519"
+key_dir          = "/var/lib/mios/agent-passports"
+# How many days before a key is auto-flagged for rotation by the
+# next provisioning run. 0 = never (operator triggers rotation
+# manually via `mios-passport rotate <agent>`).
+rotate_days      = 365
+# Whether agent-pipe's read paths VERIFY passports when surfacing
+# data to operators (slows reads but catches tamper attempts).
+# Default false in v1 -- writes are signed but reads are trust-
+# the-DB. Operator can flip to true for a hardened deployment.
+verify_on_read   = false
+# The agent identities mios-passport-provision.service enrolls at
+# firstboot. Order matters only for log readability; the actual
+# enrollment is parallel-idempotent.
+agents = [
+    "agent-pipe",
+    "hermes",
+    "mios-daemon",
+    "opencode",
+    "cron-director",
+]
+
 [skills]
 # Phase C.2 of the AgentOS roadmap: Sequential Pattern Mining + the
 # cross-agent skill catalog. The miner (mios-skills mine) scans

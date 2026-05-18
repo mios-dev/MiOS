@@ -277,3 +277,57 @@ DEFINE FIELD step_index     ON emitted TYPE option<int>;
 DEFINE TABLE includes TYPE RELATION FROM skill TO skill
     SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD step_index     ON includes TYPE option<int>;
+
+-- ════════════════════════════════════════════════════════════════
+-- Phase C.3 -- Agent Passports (signed identity tokens per agent)
+-- ════════════════════════════════════════════════════════════════
+-- Every agent in the MiOS stack gets an Ed25519 keypair at
+-- provisioning. Security-relevant SurrealDB writes (tool_call,
+-- skill_invocation, firewall_block events, agent_metric)
+-- carry a passport envelope:
+--
+--   {agent, ts, nonce, op_hash, alg, kid, sig}
+--
+-- where:
+--   agent     = agent name (e.g. "agent-pipe", "hermes", "opencode")
+--   ts        = ISO datetime of the sign
+--   nonce     = 16-byte base64 replay-protection nonce
+--   op_hash   = "sha256:..." of canonical table:fields-minus-
+--               passport (binds the signature to the exact data)
+--   alg       = "ed25519" (only one supported algorithm in v1)
+--   kid       = key id (rotated by version suffix)
+--   sig       = base64 Ed25519 signature over
+--               "agent\nts\nnonce\nop_hash"
+--
+-- Verification is offline: any agent reads the public key from
+-- /var/lib/mios/agent-passports/<agent>/public.key (world-
+-- readable) and validates without an external KMS. Private keys
+-- are 0600 owned by each agent's sysuser -- agent-pipe cannot
+-- sign as hermes and vice versa.
+
+-- agent_keypair: registry row per provisioned agent. Public key
+-- material lives here for cross-agent verification (any verifier
+-- with SurrealDB read access can pull the key without filesystem
+-- access). Private keys NEVER appear in this table -- they stay
+-- on disk under the agent's sysuser ownership.
+DEFINE TABLE agent_keypair SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD agent          ON agent_keypair TYPE string;
+DEFINE FIELD kid            ON agent_keypair TYPE string;
+    -- key id: "<agent>-v<N>" (rotation increments N).
+DEFINE FIELD alg            ON agent_keypair TYPE string DEFAULT 'ed25519';
+DEFINE FIELD public_key_pem ON agent_keypair TYPE string;
+    -- PEM-encoded SubjectPublicKeyInfo. ~100 bytes for Ed25519.
+DEFINE FIELD provisioned_at ON agent_keypair TYPE datetime;
+DEFINE FIELD rotated_at     ON agent_keypair TYPE option<datetime>;
+DEFINE FIELD retired        ON agent_keypair TYPE bool DEFAULT false;
+DEFINE INDEX agent_keypair_kid ON agent_keypair COLUMNS kid UNIQUE;
+DEFINE INDEX agent_keypair_agent ON agent_keypair COLUMNS agent;
+
+-- passport field on the security-relevant write tables. FLEXIBLE
+-- because v1 has a fixed envelope but future revisions may add
+-- delegation chain headers (passport-over-passport for sub-agent
+-- attribution). Optional -- legacy rows pre-C.3 stay readable.
+DEFINE FIELD OVERWRITE passport ON tool_call         TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE passport ON skill_invocation  TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE passport ON event             TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE passport ON agent_metric      TYPE option<object> FLEXIBLE;

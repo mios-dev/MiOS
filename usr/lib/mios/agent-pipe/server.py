@@ -122,6 +122,199 @@ DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
 DB_NS = os.environ.get("MIOS_DB_NS", "mios")
 DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 _DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+
+# ── Phase C.3 -- Agent Passport (Ed25519 signing) ─────────────────
+# Each agent in the stack signs security-relevant SurrealDB writes
+# with its Ed25519 private key so every tool_call / firewall_block
+# event / skill_invocation row carries a tamper-evident attribution
+# header. Verification is OFFLINE: any agent reads the signer's
+# public key from /var/lib/mios/agent-passports/<agent>/public.key
+# (world-readable) or the SurrealDB agent_keypair table -- no
+# external KMS, no online CA.
+#
+# We import the mios-passport library helpers lazily so a fresh
+# deployment without keypairs provisioned yet doesn't crash agent-
+# pipe at import time. When ENABLE is true but the agent's private
+# key isn't on disk, individual sign calls return None + log a
+# warning -- the write still lands but unsigned (operator sees the
+# missing-passport state in the configurator HTML "Passport"
+# section).
+PASSPORT_ENABLE = os.environ.get(
+    "MIOS_PASSPORT_ENABLE", "true",
+).lower() not in {"false", "0", "no"}
+PASSPORT_ALGO = os.environ.get("MIOS_PASSPORT_ALGO", "ed25519")
+PASSPORT_KEY_DIR = os.environ.get(
+    "MIOS_PASSPORT_KEY_DIR", "/var/lib/mios/agent-passports")
+PASSPORT_AGENT_NAME = os.environ.get(
+    "MIOS_PASSPORT_AGENT_NAME", "agent-pipe")
+PASSPORT_VERIFY_ON_READ = os.environ.get(
+    "MIOS_PASSPORT_VERIFY_ON_READ", "false",
+).lower() in {"true", "1", "yes"}
+
+# Imported only when the helper is actually exercised so a host
+# without python3-cryptography can still run agent-pipe with
+# PASSPORT_ENABLE=false.
+_passport_priv = None  # cached private key object
+_passport_pub_cache: dict[str, Any] = {}
+_passport_load_attempted = False
+
+
+def _passport_canonical_json(obj) -> str:
+    """Deterministic JSON encoding -- matches the mios-passport CLI
+    exactly so a signature emitted by one path is verifiable by
+    the other."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+                      default=str)
+
+
+def _passport_op_hash(table: str, fields: dict) -> str:
+    """SHA-256 of `table:canonical-json(fields-minus-passport)`.
+    Identical algorithm to mios-passport CLI's op_hash so the two
+    sides agree on what's being signed."""
+    import hashlib
+    payload = dict(fields or {})
+    payload.pop("passport", None)
+    canon = f"{table}:{_passport_canonical_json(payload)}"
+    return "sha256:" + hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+
+def _passport_load_priv():
+    """Best-effort load of this service's Ed25519 private key.
+    Returns the key object on success; sets _passport_priv to a
+    sentinel False on failure so we don't retry repeatedly."""
+    global _passport_priv, _passport_load_attempted
+    if _passport_load_attempted:
+        return _passport_priv if _passport_priv else None
+    _passport_load_attempted = True
+    if not PASSPORT_ENABLE:
+        _passport_priv = False
+        return None
+    try:
+        from cryptography.hazmat.primitives import serialization
+        path = os.path.join(
+            PASSPORT_KEY_DIR, PASSPORT_AGENT_NAME, "private.key")
+        with open(path, "rb") as f:
+            _passport_priv = serialization.load_pem_private_key(
+                f.read(), password=None)
+        log.info(
+            "passport: loaded private key for %s from %s",
+            PASSPORT_AGENT_NAME, path)
+        return _passport_priv
+    except FileNotFoundError:
+        log.warning(
+            "passport: no private key at %s for agent %s -- "
+            "writes will be unsigned until "
+            "`mios-passport provision` runs",
+            os.path.join(PASSPORT_KEY_DIR, PASSPORT_AGENT_NAME,
+                         "private.key"),
+            PASSPORT_AGENT_NAME)
+        _passport_priv = False
+        return None
+    except Exception as e:
+        log.warning("passport: failed to load private key: %s", e)
+        _passport_priv = False
+        return None
+
+
+def _passport_kid() -> str:
+    """Read this service's current kid. Defaults to <agent>-v1."""
+    path = os.path.join(PASSPORT_KEY_DIR, PASSPORT_AGENT_NAME, "kid")
+    try:
+        with open(path) as f:
+            kid = f.read().strip()
+        return kid or f"{PASSPORT_AGENT_NAME}-v1"
+    except Exception:
+        return f"{PASSPORT_AGENT_NAME}-v1"
+
+
+def _passport_load_public(agent: str):
+    """Resolve an agent's public key. Filesystem first; SurrealDB
+    agent_keypair row as the offline fallback so a verifier
+    without filesystem access can still validate."""
+    if agent in _passport_pub_cache:
+        return _passport_pub_cache[agent]
+    try:
+        from cryptography.hazmat.primitives import serialization
+        path = os.path.join(PASSPORT_KEY_DIR, agent, "public.key")
+        with open(path, "rb") as f:
+            key = serialization.load_pem_public_key(f.read())
+        _passport_pub_cache[agent] = key
+        return key
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("passport: pub key load failed for %s: %s", agent, e)
+    return None
+
+
+def _passport_sign(table: str, fields: dict) -> Optional[dict]:
+    """Return a passport envelope for a (table, fields) write, or
+    None if signing is disabled / no key available. The envelope is
+    safe to attach as `fields["passport"]` -- the op_hash is
+    computed over `fields` WITHOUT the passport key (which would be
+    circular), so the recipient re-derives the same hash."""
+    if not PASSPORT_ENABLE:
+        return None
+    priv = _passport_load_priv()
+    if not priv:
+        return None
+    try:
+        h = _passport_op_hash(table, fields)
+        nonce = base64.b64encode(os.urandom(16)).decode("ascii")
+        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        msg = f"{PASSPORT_AGENT_NAME}\n{ts}\n{nonce}\n{h}".encode("utf-8")
+        sig = priv.sign(msg)
+        return {
+            "agent": PASSPORT_AGENT_NAME,
+            "ts": ts,
+            "nonce": nonce,
+            "op_hash": h,
+            "alg": PASSPORT_ALGO,
+            "kid": _passport_kid(),
+            "sig": base64.b64encode(sig).decode("ascii"),
+        }
+    except Exception as e:
+        log.warning("passport: sign failed for %s: %s", table, e)
+        return None
+
+
+def _passport_verify(envelope: dict,
+                     payload_for_hash: Optional[tuple] = None
+                     ) -> tuple[bool, str]:
+    """Verify a passport envelope. (table, fields) tuple in
+    payload_for_hash binds the op_hash check. Same algorithm as
+    mios-passport's verify_envelope."""
+    if not isinstance(envelope, dict):
+        return False, "envelope_not_dict"
+    agent = envelope.get("agent")
+    ts = envelope.get("ts")
+    nonce = envelope.get("nonce")
+    declared_hash = envelope.get("op_hash")
+    sig_b64 = envelope.get("sig")
+    alg = envelope.get("alg", "ed25519")
+    if not all([agent, ts, nonce, declared_hash, sig_b64]):
+        return False, "envelope_missing_field"
+    if alg != "ed25519":
+        return False, f"unsupported_alg:{alg}"
+    if payload_for_hash is not None:
+        table, fields = payload_for_hash
+        recomputed = _passport_op_hash(table, fields)
+        if recomputed != declared_hash:
+            return False, "op_hash_mismatch"
+    pub = _passport_load_public(agent)
+    if pub is None:
+        return False, f"no_public_key:{agent}"
+    try:
+        from cryptography.exceptions import InvalidSignature
+        pub.verify(
+            base64.b64decode(sig_b64),
+            f"{agent}\n{ts}\n{nonce}\n{declared_hash}".encode("utf-8"),
+        )
+    except InvalidSignature:
+        return False, "invalid_signature"
+    except Exception as e:
+        return False, f"verify_error:{e}"
+    return True, "ok"
 _DB_DOWN_UNTIL: float = 0.0
 
 # ── Logging ────────────────────────────────────────────────────────
@@ -188,10 +381,38 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
 
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
-               extra: str = "") -> str:
+               extra: str = "",
+               passport_sign: bool = True) -> str:
     """Build `CREATE <table> SET ...` with time::now() for datetime
     fields. SurrealDB 3.0+ rejects plain ISO-Z strings for TYPE
-    datetime; canonical pattern is `field = time::now()` literal."""
+    datetime; canonical pattern is `field = time::now()` literal.
+
+    Phase C.3 -- when passport_sign=True (the default), attach an
+    Ed25519 passport envelope to the record. The passport is
+    computed over the canonical-JSON of `fields` (with the
+    eventual time::now() values represented as the literal
+    "time::now()" sentinel) so a verifier seeing the persisted
+    row can re-derive the same op_hash. Failure to sign (key not
+    provisioned, crypto error) drops the field silently -- the
+    write still lands so security logging never blocks
+    observability.
+
+    Pass passport_sign=False to opt out for non-attribution writes
+    where the envelope overhead isn't justified (currently: none
+    -- every audit-relevant write benefits from attribution)."""
+    if passport_sign:
+        # Snapshot the fields the verifier will see (the time::now()
+        # values get the literal sentinel because that's what the
+        # CREATE statement encodes). Keep the order stable.
+        hash_fields = {k: "time::now()" for k in now_fields}
+        for k, v in fields.items():
+            if k in now_fields or v is None:
+                continue
+            hash_fields[k] = v
+        envelope = _passport_sign(table, hash_fields)
+        if envelope is not None:
+            fields = dict(fields)
+            fields["passport"] = envelope
     parts = [f"{k} = time::now()" for k in now_fields]
     for k, v in fields.items():
         if k in now_fields or v is None:
@@ -525,6 +746,20 @@ async def _skill_invocation_open(skill_id: str,
     ]
     if session_id:
         parts.append(f"session = {session_id}")
+    # Phase C.3: passport. Same algorithm as _db_create -- include
+    # the record-ref strings (skill_id, session_id) in the hash so
+    # tampering with the attribution links re-derives a different
+    # op_hash on verify.
+    hash_fields = {
+        "started_at": "time::now()",
+        "skill": skill_id,
+        "params": params or {},
+    }
+    if session_id:
+        hash_fields["session"] = session_id
+    envelope = _passport_sign("skill_invocation", hash_fields)
+    if envelope is not None:
+        parts.append(f"passport = {json.dumps(envelope)}")
     sql = "CREATE skill_invocation SET " + ", ".join(parts) + " RETURN AFTER;"
     r = await _db_post(sql)
     if not r:
@@ -2028,6 +2263,17 @@ async def health() -> dict[str, Any]:
             "window_hours": SKILLS_WINDOW_HOURS,
             "auto_promote_threshold": SKILLS_AUTO_PROMOTE_THRESHOLD,
         },
+        "passport": {
+            "enabled": PASSPORT_ENABLE,
+            "algo": PASSPORT_ALGO,
+            "agent_name": PASSPORT_AGENT_NAME,
+            "key_dir": PASSPORT_KEY_DIR,
+            "private_key_present": (
+                _passport_load_priv() is not None
+            ),
+            "kid": _passport_kid() if PASSPORT_ENABLE else None,
+            "verify_on_read": PASSPORT_VERIFY_ON_READ,
+        },
         "broker_sock": LAUNCHER_SOCK,
         "broker_present": os.path.exists(LAUNCHER_SOCK),
         "db_url": DB_URL,
@@ -2122,6 +2368,63 @@ async def skills_openai_tools() -> JSONResponse:
     rows = await _skill_list(status="promoted")
     tools = [_skill_to_openai_tool(r) for r in rows]
     return JSONResponse(content={"tools": tools, "count": len(tools)})
+
+
+# ── /passport/* (Phase C.3 -- Ed25519 attribution chain) ───────────
+# Cross-agent verification surface. Any agent in the stack can POST
+# {envelope, payload?} to /passport/verify and get a structured
+# (ok, reason) response without holding the signer's private key.
+# Public keys are filesystem-cached (world-readable) and SurrealDB-
+# backed as a fallback.
+
+@app.post("/passport/verify")
+async def passport_verify(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse(
+            content={"error": "invalid JSON body"}, status_code=400)
+    envelope = body.get("envelope")
+    if not isinstance(envelope, dict):
+        return JSONResponse(
+            content={"error": "envelope object required"},
+            status_code=400)
+    payload_for_hash = None
+    table = body.get("table")
+    fields = body.get("fields")
+    if table and isinstance(fields, dict):
+        payload_for_hash = (str(table), fields)
+    ok, reason = _passport_verify(envelope, payload_for_hash)
+    return JSONResponse(content={
+        "ok": ok,
+        "reason": reason,
+        "agent": envelope.get("agent"),
+        "kid": envelope.get("kid"),
+        "alg": envelope.get("alg"),
+    })
+
+
+@app.get("/passport/public-key")
+async def passport_public_key(agent: str = "") -> JSONResponse:
+    """Return the requested agent's public PEM. Defaults to this
+    service's own agent identity. Lets external integrators
+    bootstrap verification without filesystem access."""
+    target = (agent or PASSPORT_AGENT_NAME).strip()
+    pub = _passport_load_public(target)
+    if pub is None:
+        return JSONResponse(
+            content={"error": f"no public key for {target}"},
+            status_code=404)
+    from cryptography.hazmat.primitives import serialization
+    pem = pub.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+    return JSONResponse(content={
+        "agent": target,
+        "alg": PASSPORT_ALGO,
+        "public_key_pem": pem,
+    })
 
 
 # ── /dci/deliberate (Phase B.2 on-demand convergent flow) ──────────

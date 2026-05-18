@@ -1,0 +1,40 @@
+# /usr/lib/systemd/system/mios-passport-provision.service
+# Phase C.3 of the AgentOS roadmap: keypair generator. Runs at
+# firstboot (and on every subsequent boot, idempotent) so every
+# agent in [passport].agents has an Ed25519 private key on disk
+# before agent-pipe / hermes-agent / mios-daemon / opencode start.
+#
+# Each agent gets its own keypair at
+#   /var/lib/mios/agent-passports/<agent>/{private.key,public.key}
+# Private key 0600 owned by root (sysuser-owned permission flip
+# happens in the ExecStartPost so the agent's own service can
+# read its private key without an extra ACL).
+
+[Unit]
+Description='MiOS' Phase C.3 agent passport provisioning (Ed25519 keypairs)
+Documentation=file:///usr/libexec/mios/mios-passport
+ConditionPathExists=/usr/libexec/mios/mios-passport
+After=mios-surrealdb.service
+Wants=mios-surrealdb.service
+Before=mios-agent-pipe.service hermes-agent.service mios-daemon.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/mios/userenv.sh
+ExecStart=/usr/libexec/mios/mios-passport provision
+# Tighten ownership for the agents we know map to sysusers. The
+# CLI itself runs as root (so it can chown after writing); these
+# post-steps narrow the private-key permission to the agent's
+# sysuser. We do NOT fail the unit if an agent's sysuser doesn't
+# exist yet (newer agents enrolled before their service ships) --
+# the `-` prefix swallows errors.
+ExecStartPost=-/usr/bin/chown -R mios-agent-pipe:mios-agent-pipe /var/lib/mios/agent-passports/agent-pipe
+ExecStartPost=-/usr/bin/chown -R mios-hermes:mios-hermes /var/lib/mios/agent-passports/hermes
+ExecStartPost=-/usr/bin/chown -R mios:mios /var/lib/mios/agent-passports/mios-daemon
+# Keep private.key 0600 + public.key 0644 even after the chown.
+ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name private.key -exec chmod 0600 {} \;
+ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name public.key  -exec chmod 0644 {} \;
+
+[Install]
+WantedBy=multi-user.target
