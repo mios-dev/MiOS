@@ -225,6 +225,54 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
+    # ─── fs_search ──────────────────────────────────────────────────
+    # Linux-side peer to everything_search. Operator directive 2026-05-18:
+    # "MiOS-Agent(s) can navigate, search, exec--all the same in the Linux
+    # Environments as well". everything_search covers Windows NTFS via
+    # Voidtools; fs_search covers the Linux FHS (the OS this agent runs
+    # ON) via plocate -> locate -> find. Both verbs exposed so the agent
+    # picks based on intent (Windows .exe / install -> everything_search;
+    # Linux config / shim / log -> fs_search).
+    async def fs_search(
+        self,
+        query: str,
+        limit: int = 20,
+        ext: str = "",
+        path: str = "",
+        type: str = "",
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Search the Linux filesystem inside the MiOS-DEV / host environment.
+        Returns one absolute Linux path per stdout line. Backend prefers
+        plocate (sub-100ms) -> locate -> find (POSIX fallback). Default
+        scope: /usr /etc /var/lib /opt /home /root /var/log /usr/share/mios
+        /var/lib/mios. Skips /proc /sys /run /dev /tmp /mnt /var/cache.
+
+        :param query: substring (case-insensitive) on basename or full path.
+        :param limit: max results (default 20).
+        :param ext: comma-separated extension filter (e.g. "py,toml").
+        :param path: optional subtree to restrict the search to.
+        :param type: "f" files only, "d" directories only; empty = both.
+        :return: JSON string with {success, paths[], count, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        cmd = f"mios-locate {shlex.quote(query)} -n {int(limit)}"
+        if ext.strip():
+            cmd += f" -ext {shlex.quote(ext.strip())}"
+        if path.strip():
+            cmd += f" -path {shlex.quote(path.strip())}"
+        if type.strip() in ("f", "d"):
+            cmd += f" -type {type.strip()}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        paths = [p for p in (result.get("stdout") or "").splitlines() if p.strip()]
+        return json.dumps({
+            "success": result["success"] and bool(paths),
+            "paths": paths,
+            "count": len(paths),
+            "stderr": result.get("stderr", ""),
+        })
+
     # ─── mios_apps ──────────────────────────────────────────────────
     async def mios_apps(
         self,

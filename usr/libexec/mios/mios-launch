@@ -128,6 +128,59 @@ case "$NAME" in
         ;;
 esac
 
+# ─── 3aa. Exact .exe lookup via Everything CLI ───────────────────────
+# For launcher / client names that don't live in the Windows-GUI
+# builtin allowlist (notepad/calc/etc.) but DO ship as a single
+# canonical .exe on Windows -- steam.exe, discord.exe, spotify.exe,
+# epicgameslauncher.exe, slack.exe, etc. -- query the live filesystem
+# (via Everything CLI: mios-everything -ext exe <name>) and prefer an
+# EXACT basename match. This is generative-of-environment: the path
+# comes from the operator's actual install, not a hardcoded mapping.
+#
+# Operator directive 2026-05-18: "Detected hardcoded variable!!! NOT
+# GENERATIVE OF THE ACTUAL ENVIRONMENT/OFFLINE FIRST" -- this step
+# fixes the case where `launch steam` previously fell through to
+# the MiOS shim `mios-steamcmd` instead of resolving the actual
+# operator-installed Steam client.
+#
+# Only acts on UNAMBIGUOUS matches (exactly one path whose basename
+# equals "<name>.exe" case-insensitively). Multiple matches +
+# multiple drives = ambiguity -> fall through to games-cache, which
+# has display-name priority + can prompt the operator.
+if command -v mios-everything >/dev/null 2>&1; then
+    # Query "<name>.exe" as a substring -- mios-everything's `-ext exe`
+    # filter relies on Everything's `ext:exe` colon-syntax which returns
+    # empty on some Everything CLI versions (operator-confirmed 2026-05-18
+    # on Everything 1.5+: `steam ext:exe` returned 0 hits while bare
+    # `steam.exe` returned the canonical C:\Program Files (x86)\Steam\
+    # steam.exe path). Falling through to the bare substring is more
+    # portable + gives us all candidates whose path contains "<name>.exe"
+    # which the awk filter below narrows to basename-exact matches.
+    _ES_HITS="$(mios-everything -n 24 "${NAME}.exe" 2>/dev/null || true)"
+    if [ -n "$_ES_HITS" ]; then
+        _NAME_LC="$(printf %s "$NAME" | tr '[:upper:]' '[:lower:]')"
+        # Filter to paths whose basename (lowercased, sans .exe) == NAME.
+        # Drops noise like <name>.exe.old, STEAM.EXE-XXX.pf (Windows
+        # prefetch), etc. -- those have a trailing suffix that survives
+        # the .exe$ sub() and so don't match $n.
+        _EXACT="$(printf '%s\n' "$_ES_HITS" | awk -v n="$_NAME_LC" '
+            { b = $0; sub(/.*\\/,"",b); sub(/.*\//,"",b); blc = tolower(b);
+              sub(/\.exe$/,"",blc); if (blc == n) print $0 }
+        ')"
+        # Count non-empty lines (a path is just a non-empty string at
+        # this point; previous heuristic used `grep -c '/\|\\\\'` to
+        # require either a forward-slash or backslash anchor but the
+        # bash double-quoting + grep BRE-alternation collapsed
+        # silently to "0 matches" on real Windows-only-backslash paths,
+        # which is the operator-observed bug).
+        _EXACT_COUNT="$(printf '%s' "$_EXACT" | grep -c . || true)"
+        if [ "$_EXACT_COUNT" = "1" ]; then
+            _EXACT_PATH="$(printf '%s' "$_EXACT" | head -1)"
+            exec mios-windows launch "$_EXACT_PATH" "$@"
+        fi
+    fi
+fi
+
 # ─── 3b. Windows games inventory (Steam/Epic/Xbox/Microsoft Store) ───
 # mios-apps writes /var/lib/mios/agent-env/windows-games.cache with
 # one line per detected installed game: "Display Name|launch-cmd".

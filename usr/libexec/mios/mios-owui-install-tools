@@ -135,6 +135,41 @@ def main() -> int:
             },
         },
         {
+            "name": "fs_search",
+            "description": "Search the LINUX filesystem inside the MiOS-DEV / host environment -- the agentic peer to everything_search (which is Windows-only). Use for /usr /etc /var/lib /opt /home /root /var/log /usr/share/mios files. Backend: plocate -> locate -> find. Returns absolute Linux paths.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Substring (case-insensitive) on basename or full path. Examples: \"mios.toml\", \"hermes\", \"systemd/system\".",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results (default 20).",
+                        "default": 20,
+                    },
+                    "ext": {
+                        "type": "string",
+                        "description": "Comma-separated extension filter (e.g. \"py,toml,conf\"). Empty = no filter.",
+                        "default": "",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Optional subtree to restrict the search (e.g. \"/usr/share/mios\").",
+                        "default": "",
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": ["", "f", "d"],
+                        "description": "\"f\" files only, \"d\" directories only, empty = both.",
+                        "default": "",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+        {
             "name": "launch_app",
             "description": "Launch a MiOS-registered Windows/Linux app by short name. Resolves through the canonical chain (Steam/Epic/Xbox/GOG/Battle.net via protocol handler, Windows Start Menu .url shortcuts via Everything, MiOS shim, Linux GUI, plain CLI). EXECUTE the launcher's returned target verbatim -- NEVER substitute your own choice (e.g. don't call Steam install when launch_app returned a uplay:// URI).",
             "parameters": {

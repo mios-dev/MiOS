@@ -1,0 +1,177 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-locate <query> [-n <max>] [-ext <csv>] [-path <subtree>] [-type f|d]
+#
+# Linux-side filesystem search shim -- the agentic peer to mios-everything
+# (which is Windows-only via Voidtools Everything CLI). Operator directive
+# 2026-05-18: "MiOS-Agent(s) can navigate, search, exec--all the same in
+# the Linux Environments as well".
+#
+# Backend resolution (fastest first):
+#   1. plocate (the modern locate; sub-100ms on indexed trees)
+#   2. locate  (mlocate compat)
+#   3. find    (universal POSIX fallback; slower but always present)
+#
+# Default search scope (when -path is not given) is the operator-facing
+# Linux FHS surface: /usr /etc /var/lib /opt /home /root /var/log
+# /var/lib/mios /usr/share/mios. Skips /proc /sys /run /dev /tmp
+# /mnt /var/cache /var/tmp by default to avoid noise + WSL DrvFs.
+#
+# Returns one absolute path per line on stdout. Exit 0 with match(es);
+# exit 1 on no-match. English narratives go to stderr (suppressed by
+# the OWUI dispatch via 2>/dev/null) so tool_result.output stays clean.
+
+set -u
+
+usage() {
+    cat <<'USAGE'
+usage: mios-locate <query> [-n <max>] [-ext <csv>] [-path <subtree>] [-type f|d]
+
+  <query>      substring (case-insensitive) on basename OR full path
+  -n <max>     limit results (default 20)
+  -ext <csv>   filter to these extensions (e.g. -ext py,toml)
+  -path <p>    restrict to a subtree (repeatable; default scope: /usr
+                 /etc /var/lib /opt /home /root /var/log /usr/share/mios
+                 with /proc /sys /run /dev /tmp /mnt /var/cache pruned)
+  -type f|d    files only (f) or directories only (d); default both
+
+Returns one Linux path per line. Sub-100ms with plocate; slower under find.
+
+Underlying: plocate -> locate -> find.  POSIX fallback always works.
+USAGE
+}
+
+if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+    exit 0
+fi
+
+MAX=20
+EXT=""
+TYPE=""
+QUERY=""
+PATHS=()
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -n)     MAX="$2"; shift 2 ;;
+        -ext)   EXT="$2"; shift 2 ;;
+        -path)  PATHS+=("$2"); shift 2 ;;
+        -type)  TYPE="$2"; shift 2 ;;
+        --)     shift; QUERY="$*"; break ;;
+        *)      QUERY="$1"; shift ;;
+    esac
+done
+
+if [ -z "$QUERY" ]; then
+    echo "mios-locate: missing <query>" >&2
+    usage >&2
+    exit 64
+fi
+
+# Default search scope. Operator-tunable later via mios.toml [paths].locate_roots.
+if [ "${#PATHS[@]}" -eq 0 ]; then
+    PATHS=(
+        /usr
+        /etc
+        /var/lib
+        /opt
+        /home
+        /root
+        /var/log
+        /usr/share/mios
+        /var/lib/mios
+    )
+fi
+
+# Filter the path list to those that actually exist (skip silently).
+EXISTING_PATHS=()
+for p in "${PATHS[@]}"; do
+    [ -d "$p" ] && EXISTING_PATHS+=("$p")
+done
+if [ "${#EXISTING_PATHS[@]}" -eq 0 ]; then
+    echo "mios-locate: no readable search roots" >&2
+    exit 1
+fi
+
+# ─── Backend selection ────────────────────────────────────────────────
+# plocate / locate query the whole indexed FS; we filter by path-prefix
+# in awk afterward. find walks the tree directly.
+
+_filter_results() {
+    # Stdin: one path per line from the upstream backend (plocate / locate
+    # / find). Apply: path-prefix include, ext filter, type filter, query
+    # substring (case-insensitive). Then head -n MAX.
+    #
+    # NB: must use `python3 -c "<script>"` and NOT `python3 - <<PYEOF`.
+    # The heredoc-as-script form redirects python's stdin to the
+    # heredoc content, so the piped upstream output never reaches
+    # sys.stdin (operator-debug 2026-05-18 -- queries returned
+    # "no match" because the find output was lost to the heredoc).
+    local q_lc
+    q_lc=$(printf '%s' "$QUERY" | tr '[:upper:]' '[:lower:]')
+    local exts_re=""
+    if [ -n "$EXT" ]; then
+        exts_re=$(printf '%s' "$EXT" | tr ',' '|' | sed 's/[.]//g')
+    fi
+    python3 -c '
+import sys, os
+q_lc, exts_re, type_filter, max_n = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+roots = sys.argv[5:]
+out = 0
+for line in sys.stdin:
+    p = line.rstrip("\n")
+    if not p:
+        continue
+    if not any(p == r or p.startswith(r.rstrip("/") + "/") for r in roots):
+        continue
+    if type_filter in ("f", "d"):
+        try:
+            is_dir = os.path.isdir(p)
+        except OSError:
+            continue
+        if type_filter == "f" and is_dir: continue
+        if type_filter == "d" and not is_dir: continue
+    if exts_re:
+        b = os.path.basename(p).lower()
+        if not any(b.endswith("." + e) for e in exts_re.split("|")):
+            continue
+    if q_lc not in os.path.basename(p).lower() and q_lc not in p.lower():
+        continue
+    print(p)
+    out += 1
+    if out >= max_n:
+        break
+' "$q_lc" "$exts_re" "$TYPE" "$MAX" "${EXISTING_PATHS[@]}"
+}
+
+# Try plocate first.
+if command -v plocate >/dev/null 2>&1; then
+    plocate -i -- "$QUERY" 2>/dev/null | _filter_results && exit 0
+fi
+# Try locate (mlocate).
+if command -v locate >/dev/null 2>&1; then
+    locate -i -- "$QUERY" 2>/dev/null | _filter_results && exit 0
+fi
+
+# Find fallback. Universal but slower. Run across the EXISTING_PATHS
+# with prune for noise dirs. -iname matches case-insensitively on
+# basename. Type filter applied here for efficiency.
+PRUNE_DIRS=(/proc /sys /run /dev /tmp /mnt /var/cache /var/tmp \
+            /var/lib/containers/storage /var/lib/podman)
+FIND_ARGS=("${EXISTING_PATHS[@]}")
+for pd in "${PRUNE_DIRS[@]}"; do
+    FIND_ARGS+=( -path "$pd" -prune -o )
+done
+case "$TYPE" in
+    f) FIND_ARGS+=( -type f ) ;;
+    d) FIND_ARGS+=( -type d ) ;;
+esac
+FIND_ARGS+=( -iname "*${QUERY}*" -print )
+
+# Pipe find output through the same filter for consistent ext/limit semantics.
+RAW=$(timeout 30 find "${FIND_ARGS[@]}" 2>/dev/null | _filter_results)
+
+if [ -z "$RAW" ]; then
+    echo "mios-locate: no match for '$QUERY'" >&2
+    exit 1
+fi
+printf '%s\n' "$RAW"

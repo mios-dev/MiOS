@@ -1025,7 +1025,10 @@ class Pipe:
         '             bottom / top-left / top-right / bottom-left /\n'
         '             bottom-right / maximize\n'
         '  [WRITE] launch_app(name)                -- simpler launch, no position arg\n'
-        '  [WRITE] focus_window(title)             -- bring an OPEN window to front\n'
+        '  [WRITE] focus_window(title, position="default")\n'
+        '          -- bring an OPEN window to front + apply default golden+\n'
+        '             16:10-centered geometry (same position enum as open_app).\n'
+        '             pass position="as-is" to focus WITHOUT resizing.\n'
         '  [WRITE] move_window(title, position, monitor=0)\n'
         '  [WRITE] close_window(title, mode="graceful")   -- mode: graceful|force\n'
         '  [WRITE] open_url(url, browser?)         -- open a URL in a browser\n'
@@ -1034,6 +1037,15 @@ class Pipe:
         '  [READ ] mios_find(name)                 -- resolve name -> path, no launch\n'
         '  [READ ] mios_apps(filter?)              -- INVENTORY of installed apps, no launch\n'
         '  [READ ] everything_search(query, limit=10, ext?)\n'
+        '          -- Windows-side filesystem search via Voidtools Everything CLI.\n'
+        '             Use for finding files / .exe / paths on the operator s\n'
+        '             Windows drives (C:, D:, M:, etc.).\n'
+        '  [READ ] fs_search(query, limit=20, ext?, path?, type?)\n'
+        '          -- Linux-side filesystem search inside the MiOS-DEV/host\n'
+        '             environment (plocate -> locate -> find fallback).\n'
+        '             Use for finding files in /usr /etc /var/lib /opt /home\n'
+        '             /root /var/log /usr/share/mios. type: "f" files only,\n'
+        '             "d" directories only, omit for both.\n'
         '  [READ ] system_status()\n'
         "\n"
         "Verb-pick priority (most common cases first):\n"
@@ -1145,18 +1157,47 @@ class Pipe:
                 ea = " ".join(shlex.quote(str(a)) for a in extra_args)
                 cmd = f"{env_prefix}mios-windows launch {shlex.quote(name)} {ea}"
             else:
-                # 2>/dev/null suppresses mios-find's interactive narrative
-                # ("(picked best of N; M alternatives:)" + "  1. [...] ..."),
-                # which is English noise written to stderr for human
-                # operators. Agent-side dispatch only needs the stdout
-                # resolution line (which is piped to bash). Without this
-                # filter the broker's combined stdout+stderr capture leaks
-                # the narrative into the user-facing tool_result.
-                cmd = f"{env_prefix}mios-find {shlex.quote(name)} 2>/dev/null | bash"
+                # Use mios-launch, NOT mios-find: mios-launch scans the
+                # live environment in the operator-expected priority order
+                # (internal-service alias -> URL -> Windows GUI builtin ->
+                # browser CDP -> Windows games-cache -> MiOS shim -> Linux
+                # GUI -> plain CLI). mios-find's "best match" scoring puts
+                # MiOS shims ahead of real apps which caused "launch steam"
+                # to resolve to mios-steamcmd (a CLI shim) instead of the
+                # actual operator-installed Steam client. mios-launch is
+                # the environment-generative path: games-cache is populated
+                # by mios-apps at runtime, not from a baked priority list.
+                # 2>/dev/null suppresses any stderr narrative (e.g.
+                # "mios-launch: <name> -> <cmd>" diagnostic line); the
+                # tool_result.stderr field will be a future broker-protocol
+                # enhancement so stderr isn't lost on failures.
+                cmd = f"{env_prefix}mios-launch {shlex.quote(name)} 2>/dev/null"
         elif tool == "launch_app":
             cmd = f"mios-launch {shlex.quote(str(args.get('name', '')))}"
         elif tool == "focus_window":
-            cmd = f"mios-window focus {shlex.quote(str(args.get('title', '')))}"
+            # Operator directive 2026-05-18: "all focused/re-focused apps
+            # that are opened/focused are resized and launch as per default
+            # params". A bare focus that leaves the window at whatever
+            # geometry it last had violates this -- re-focused windows
+            # must also re-apply the default golden+16:10-centered
+            # placement unless the operator named another position OR
+            # explicitly opted out via position="as-is".
+            title = shlex.quote(str(args.get("title", "")))
+            pos = str(args.get("position", "default")).lower()
+            if pos in ("as-is",):
+                cmd = f"mios-window focus {title}"
+            else:
+                # mios-window <pos> implies a raise -- but chain focus
+                # explicitly so the geometry change happens AFTER the
+                # window is foregrounded (some WMs ignore size requests
+                # on hidden/minimized windows). MIOS_LAUNCH_POSITION
+                # is exported so the place_block reads the same enum
+                # mios-windows launch consumes.
+                cmd = (
+                    f"mios-window focus {title} && "
+                    f"MIOS_LAUNCH_POSITION={shlex.quote(pos)} "
+                    f"mios-window {shlex.quote(pos)} {title}"
+                )
         elif tool == "move_window":
             title = shlex.quote(str(args.get("title", "")))
             pos   = shlex.quote(str(args.get("position", "center")))
@@ -1185,6 +1226,21 @@ class Pipe:
             ext = args.get("ext") or ""
             cmd = f"mios-everything -n {n} {q}"
             if ext: cmd += f" -ext {shlex.quote(str(ext))}"
+        elif tool == "fs_search":
+            # Linux-side filesystem search -- the agentic peer to
+            # everything_search (which is Windows-only via Voidtools).
+            # Operator directive 2026-05-18: "MiOS-Agent(s) can navigate,
+            # search, exec--all the same in the Linux Environments as well".
+            q = shlex.quote(str(args.get("query", "")))
+            n = int(args.get("limit", 20))
+            ext = args.get("ext") or ""
+            path = args.get("path") or ""
+            type_filter = args.get("type") or ""
+            cmd = f"mios-locate -n {n} {q}"
+            if ext:  cmd += f" -ext {shlex.quote(str(ext))}"
+            if path: cmd += f" -path {shlex.quote(str(path))}"
+            if type_filter in ("f", "d"):
+                cmd += f" -type {type_filter}"
         elif tool == "system_status":
             cmd = "mios-system-status"
         else:
