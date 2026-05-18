@@ -416,11 +416,26 @@ class Pipe:
         emitter: Optional[Callable[..., Awaitable[None]]],
         stop: asyncio.Event,
     ) -> None:
-        """Background task: poll hermes-tail JSON, emit new events as they arrive.
-        Tracks last-seen event ts per-task so we never re-emit."""
+        """Background task: poll hermes-tail JSON, emit new events as
+        they arrive. Tracks last-seen event ts per-task so we never
+        re-emit.
+
+        Operator-flagged 2026-05-18: the trace showed `⚙️ hermes:
+        tool: terminal` events BEFORE the pipe's `📡 prompt` marker,
+        making it look like Hermes was running first. Root cause was
+        last_ts=0.0 -- the first tick on every new chat turn replayed
+        EVERY historical event in the rolling latest.json buffer
+        (which carries the last several minutes of hermes activity).
+
+        Fix: initialise last_ts to NOW so the watcher only emits
+        events that land AFTER this chat turn dispatched. The
+        historical buffer is preserved for satisfaction_loop /
+        post-hoc audit, just not replayed in the user-facing
+        status pill.
+        """
         if not (self.valves.EMIT_HERMES_TAIL and emitter):
             return
-        last_ts = 0.0
+        last_ts = time.time()
         while not stop.is_set():
             try:
                 st = os.stat(HERMES_TAIL_PATH)
