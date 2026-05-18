@@ -980,6 +980,53 @@ _POLISH_SYSTEM = (
 )
 
 
+async def _recent_satisfaction_verdicts(limit: int = 3) -> list[dict]:
+    """Pull recent mios-daemon satisfaction verdicts (Phase E.1).
+    These are post-hoc audit rows the daemon emits every ~30s based
+    on AND-folding tool_call outcomes against refine intent. Polish
+    uses them to ground the response in CROSS-TURN truth -- if the
+    operator's previous query was flagged unsatisfied, the next
+    response shouldn't paraphrase it as having worked."""
+    sql = (
+        "SELECT ts, kind, summary, payload FROM event "
+        "WHERE kind = 'user_query_satisfied' "
+        "   OR kind = 'user_query_unsatisfied' "
+        "ORDER BY ts DESC LIMIT " + str(int(limit)) + ";"
+    )
+    r = await _db_post(sql)
+    if not r:
+        return []
+    rows = (r[-1] or {}).get("result") or []
+    return rows if isinstance(rows, list) else []
+
+
+def _format_satisfaction_block(rows: list[dict]) -> str:
+    if not rows:
+        return ""
+    parts = [
+        "Recent satisfaction verdicts from mios-daemon "
+        "(MOST AUTHORITATIVE ground truth -- daemon AND-folds raw "
+        "signals across multiple sources):"
+    ]
+    for row in rows:
+        kind = row.get("kind", "")
+        summary = (row.get("summary") or "")[:120]
+        marker = "✓ satisfied" if kind == "user_query_satisfied" else "✗ UNSATISFIED"
+        parts.append(f"  {marker}: {summary}")
+        payload = row.get("payload") or {}
+        if kind == "user_query_unsatisfied":
+            reason = payload.get("reason")
+            failed = payload.get("failed_tools") or []
+            if reason:
+                parts.append(f"    reason: {reason}")
+            for f in failed[:3]:
+                parts.append(
+                    f"    failed: {f.get('tool')} exit={f.get('exit_code')} "
+                    f"err={(f.get('stderr_preview') or '')[:80]}"
+                )
+    return "\n".join(parts)
+
+
 async def _recent_tool_history(session_id: Optional[str],
                                limit: int = 6) -> list[dict]:
     """Pull the most recent tool_call rows for this session so polish
@@ -1054,8 +1101,17 @@ async def polish_response(raw_text: str,
         f"\nIntended outcome: {intended}\n" if intended else ""
     )
     hist_block = _format_tool_history(tool_history)
+    # Phase E.1d: also fold in mios-daemon's satisfaction verdicts so
+    # polish has the daemon's AND-folded ground truth available
+    # alongside the raw tool_call rows. The daemon verdict is the
+    # MOST AUTHORITATIVE signal (it cross-checks multiple sources);
+    # raw tool_calls are still useful for the per-step detail.
+    sat_verdicts = await _recent_satisfaction_verdicts(limit=3)
+    sat_block = _format_satisfaction_block(sat_verdicts)
     # `/no_think` to disable qwen3 reasoning (same rationale as refine).
     user_msg_parts = [f"User's question:\n{user_q}"]
+    if sat_block:
+        user_msg_parts.append(sat_block)
     if hist_block:
         user_msg_parts.append(hist_block)
     user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
