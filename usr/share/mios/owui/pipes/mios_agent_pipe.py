@@ -566,6 +566,19 @@ class Pipe:
         "  numbers, statuses, app names, registry coords, ports, sizes,\n"
         "  timestamps, package names. If a field isn't in RAW OUTPUT,\n"
         "  don't write it.\n"
+        "- NEVER report an action as 'successful' / 'completed' / 'opened' /\n"
+        "  'launched' / 'posted' / 'sent' unless RAW OUTPUT contains the\n"
+        "  matching tool_result with success:true. Operator-flagged\n"
+        "  2026-05-18: polish claimed 'Open YouTube: Successfully opened\n"
+        "  YouTube' + 'Web Search: Proceeded with the web search' when\n"
+        "  only one (failing) web_extract call had actually run. Reporting\n"
+        "  steps that did NOT execute is a defect. If a planned step did\n"
+        "  not run or did not succeed, SAY SO -- 'Step 2 (web_search) did\n"
+        "  not run' or 'Step 1 (mios-open-url) returned exit 1: <err>'.\n"
+        "- NEVER emit <details> in your output. The pipe wraps agent\n"
+        "  thinking in its own <details type=\"reasoning\"> block above\n"
+        "  your answer. Adding another one stacks them and the operator\n"
+        "  sees two expand-arrows. Plain markdown only.\n"
         "- Strip narration. Phrases like \"Let me\", \"I'll\", \"First\n"
         "  I...\", \"Now I'll\", \"Let me check\" are FORBIDDEN in your\n"
         "  output. The operator wants the result, not the reasoning.\n"
@@ -855,6 +868,16 @@ class Pipe:
     _LEADING_THOUGHT_RE = re.compile(
         r"^\s*(?:thought|thinking|reasoning)\s*\n+", re.I,
     )
+    # Polish sometimes emits an additional <details type="reasoning">
+    # block in its output, on top of the agent-thinking <details> the
+    # pipe already wrapped. Operator-flagged 2026-05-18: chat showed
+    # two stacked <details> blocks. The polished answer must NEVER
+    # contain a <details>; that wrapper is the pipe's job, not the
+    # polish model's.
+    _DETAILS_BLOCK_RE = re.compile(
+        r"<\s*details[^>]*>.*?<\s*/\s*details\s*>",
+        re.S | re.I,
+    )
 
     def _strip_outer_md_fence(self, text: str) -> str:
         """If the entire response is wrapped in a ```markdown ... ```
@@ -872,9 +895,13 @@ class Pipe:
         return inner
 
     def _strip_reasoning_leaks(self, text: str) -> str:
-        """Remove <think>...</think> + sibling reasoning tags that the
-        polish model occasionally emits despite the system-prompt rule
-        against narration. Operator-flagged 2026-05-17."""
+        """Remove <think>/<reasoning>/<details type="reasoning"> tags
+        the polish model occasionally emits despite the system prompt
+        rule against narration. Operator-flagged 2026-05-17 (think)
+        + 2026-05-18 (details). The pipe wraps the AGENT thinking in
+        its own <details> block above the polished answer; the polish
+        model must NEVER emit its own."""
+        text = self._DETAILS_BLOCK_RE.sub("", text)
         text = self._THINK_TAG_RE.sub("", text)
         text = self._LEADING_THOUGHT_RE.sub("", text)
         return text.strip()
