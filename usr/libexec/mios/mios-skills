@@ -701,6 +701,17 @@ def cmd_export_catalog(args: argparse.Namespace) -> int:
         sys.stderr.write(
             f"mios-skills: cannot write {target}: {e}\n")
         return 1
+    # USER/SYSTEM/AI separation: chgrp to mios-ai + chmod 0640 so
+    # every AI agent in the bucket group reads without world-ro.
+    # Best-effort -- fails silently when the group doesn't exist
+    # (a deployment that doesn't enroll mios-ai yet).
+    try:
+        import grp
+        gid = grp.getgrnam("mios-ai").gr_gid
+        os.chown(target, -1, gid)
+        os.chmod(target, 0o640)
+    except (KeyError, PermissionError, OSError):
+        pass
     sys.stderr.write(
         f"mios-skills: exported {payload['count']} promoted skill(s) "
         f"to {target}\n")

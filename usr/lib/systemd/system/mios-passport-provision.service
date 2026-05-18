@@ -34,7 +34,11 @@ ExecStartPost=-/usr/bin/chown -R mios-hermes:mios-hermes /var/lib/mios/agent-pas
 ExecStartPost=-/usr/bin/chown -R mios:mios /var/lib/mios/agent-passports/mios-daemon
 # Keep private.key 0600 + public.key 0644 even after the chown.
 ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name private.key -exec chmod 0600 {} \;
-ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name public.key  -exec chmod 0644 {} \;
+# Public keys: 0640 group=mios-ai (group-read only by the AI bucket
+# group). USER/SYSTEM/AI separation -- the operator (`mios`) is in
+# mios-ai so still reads; non-AI sysusers no longer get world-read.
+ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name public.key -exec chmod 0640 {} \;
+ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name public.key -exec chgrp mios-ai {} \;
 
 [Install]
 WantedBy=multi-user.target
