@@ -227,6 +227,12 @@ State paths (read freely):
   saves you from re-walking the logs yourself, and surfaces nudges
   (a stalled task, an unverified launch, a scratchpad note flagged
   by another agent) you'd otherwise miss.
+
+## Docs
+
+`terminal: mios-docs-index` — unified index of every `.md` on disk
+(skills / system prompts / cookbooks / scratchpads / session
+digests). `--grep <pattern>` filters. Then `terminal: cat <path>`.
 - `/var/lib/mios/daemon/state.json` — unified daemon state
   (classify, refusal, cron, suggestions, launch_verifier sections)
 
