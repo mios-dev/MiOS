@@ -92,6 +92,72 @@ WATCHED_UNITS = os.environ.get(
     "hermes-agent.service,mios-delegation-prefilter.service,mios-open-webui.service",
 ).split(",")
 
+# ── SurrealDB best-effort writer ─────────────────────────────────────
+# Mirrors the helper in usr/share/mios/owui/pipes/mios_agent_pipe.py.
+# Daemon-side is sync (urllib) since the loops run on threads; pipe
+# side is async (aiohttp). Both target the same /sql endpoint with the
+# SurrealDB 3.0+ "USE NS ... DB ...;" body prefix (NS:/DB: HTTP
+# headers dropped in 3.0). Phase-2 directive 2026-05-18: the daemon
+# writes kanban_shadow + scratch + event + agent_metric rows on its
+# 5-minute task_collector tick so other agents (mios-agent-pipe,
+# hermes) can query a single source of truth instead of polling N
+# JSON files.
+
+import base64 as _base64
+DB_URL  = os.environ.get("MIOS_DB_URL",  "http://localhost:8000")
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS   = os.environ.get("MIOS_DB_NS",   "mios")
+DB_DB   = os.environ.get("MIOS_DB_DB",   "mios")
+_DB_AUTH = "Basic " + _base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+_DB_DOWN_UNTIL: float = 0.0
+
+
+def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
+    """Best-effort SurrealDB write/query. Returns the parsed list of
+    per-statement results, or None on any error. A 30s backoff after
+    each failure prevents retry storms when the DB is down."""
+    global _DB_DOWN_UNTIL
+    if not sql or not sql.strip():
+        return None
+    if time.time() < _DB_DOWN_UNTIL:
+        return None
+    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            f"{DB_URL}/sql",
+            data=body,
+            headers={
+                "Authorization": _DB_AUTH,
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except Exception:
+        _DB_DOWN_UNTIL = time.time() + 30
+        return None
+
+
+def _db_create(table: str, fields: dict, *,
+               now_fields: tuple = (),
+               extra: str = "") -> str:
+    """Build `CREATE <table> SET ...` -- SurrealDB 3.0+ rejects plain
+    ISO-Z strings for TYPE datetime fields, so the canonical pattern
+    is `field = time::now()` literal for datetimes + JSON-encoded
+    values for everything else (JSON-object syntax IS SurrealQL-object
+    syntax, so nested payload dicts pass through unchanged)."""
+    parts = [f"{k} = time::now()" for k in now_fields]
+    for k, v in fields.items():
+        if k in now_fields or v is None:
+            continue
+        parts.append(f"{k} = {json.dumps(v, default=str)}")
+    sql = f"CREATE {table} SET " + ", ".join(parts)
+    if extra:
+        sql += " " + extra
+    return sql + ";"
+
 
 # ── Shared state (handlers write here; flusher persists) ─────────────
 _state_lock = threading.Lock()
@@ -636,6 +702,19 @@ def launch_verifier_loop() -> None:
                                 "summary=%s",
                                 cl["app"], cl["chat_id"][:8],
                                 verdict.get("summary"))
+                    # SurrealDB event: high-severity launch failure so
+                    # other agents (pipe critic, hermes) can react.
+                    _db_post(_db_create("event", {
+                        "source": "mios-daemon",
+                        "kind": "launch_failure",
+                        "severity": "high",
+                        "summary": f"{cl['app']} -> {verdict.get('summary', '?')}",
+                        "payload": {
+                            "chat_id": cl["chat_id"],
+                            "app": cl["app"],
+                            "verifier": verdict,
+                        },
+                    }, now_fields=("ts",)))
             # Cap to the most recent 50 entries
             failures = failures[-50:]
             _atomic_write_launch_failures(failures)
@@ -972,6 +1051,57 @@ def task_collector_loop() -> None:
                     "launch_failures": len(agg["launch_failures"]),
                 },
             })
+            # Best-effort SurrealDB sync: kanban_shadow (UPSERT per
+            # hermes_task_id), scratch (the digest itself), and a
+            # per-tick event row. fail-quiet via _db_post backoff.
+            for k in agg["kanban"]:
+                _tid = str(k.get("id") or "").strip()
+                if not _tid:
+                    continue
+                _row = {
+                    "hermes_task_id": _tid,
+                    "title": str(k.get("title") or "")[:240],
+                    "status": str(k.get("status") or "unknown")[:40],
+                    "priority": str(k.get("priority") or "") or None,
+                    "tags": (k.get("tags").split(",")
+                             if isinstance(k.get("tags"), str) else []),
+                }
+                # UPSERT pattern: DELETE-then-CREATE keyed on the unique
+                # hermes_task_id index defined in schema-init.surql.
+                _db_post(
+                    "DELETE kanban_shadow WHERE hermes_task_id = "
+                    f"{json.dumps(_tid)}; "
+                    + _db_create("kanban_shadow", _row,
+                                 now_fields=("synced_at",))
+                )
+            # Scratch row carrying the digest text (so other agents can
+            # see what the nudger concluded without re-parsing the .md).
+            _digest = (parsed.get("digest") or "").strip()
+            if _digest:
+                _db_post(_db_create("scratch", {
+                    "source": "mios-daemon",
+                    "topic": "nudges",
+                    "body": _digest[:4000],
+                }, now_fields=("ts",)))
+            # Per-tick event row -- audit trail of when the nudger ran.
+            _db_post(_db_create("event", {
+                "source": "mios-daemon",
+                "kind": "nudge",
+                "severity": "warn" if (parsed.get("nudges") or []) else "info",
+                "summary": (
+                    f"nudges={len(parsed.get('nudges') or [])} "
+                    f"kanban={len(agg['kanban'])} "
+                    f"sessions={len(agg['recent_sessions'])}"
+                ),
+                "payload": {
+                    "sources": {
+                        "kanban": len(agg["kanban"]),
+                        "sessions": len(agg["recent_sessions"]),
+                        "scratch": len(agg["scratch"]),
+                        "launch_failures": len(agg["launch_failures"]),
+                    },
+                },
+            }, now_fields=("ts",)))
         except Exception as e:
             log.warning("task_collector: %s: %s", type(e).__name__, e)
         for _ in range(int(TASK_COLLECT_TICK_S)):

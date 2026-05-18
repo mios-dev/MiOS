@@ -98,6 +98,99 @@ _TAIL_ICONS = {
 }
 
 
+# ── SurrealDB best-effort writer ─────────────────────────────────────
+# Cross-agent state goes into SurrealDB (the schema-init.surql tables:
+# agent, session, tool_call, event, kanban_shadow, scratch,
+# agent_metric). OWUI native tables (chat/message/memory/knowledge/
+# file/tool/function/model) are NOT mirrored here -- mios-db --owui
+# fronts them directly. Phase-2 directive 2026-05-18: the pipe writes
+# tool_call + event + session rows on every turn so other agents
+# (mios-daemon, hermes, future OpenCode) can query a single source
+# of truth instead of polling N JSON files.
+#
+# Resilience: writes are FIRE-AND-FORGET via asyncio.create_task so the
+# streaming response is never delayed. A 30s "DB down" backoff prevents
+# hammering a downed endpoint on every chat turn.
+
+import base64 as _base64
+import urllib.parse as _urlparse  # noqa: F401  (reserved for record-id quoting)
+
+_DB_URL  = os.environ.get("MIOS_DB_URL",  "http://localhost:8000")
+_DB_USER = os.environ.get("MIOS_DB_USER", "root")
+_DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+_DB_NS   = os.environ.get("MIOS_DB_NS",   "mios")
+_DB_DB   = os.environ.get("MIOS_DB_DB",   "mios")
+_DB_AUTH = "Basic " + _base64.b64encode(f"{_DB_USER}:{_DB_PASS}".encode()).decode()
+_DB_DOWN_UNTIL: float = 0.0
+
+
+async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
+    """Best-effort SurrealDB write/query. Returns the parsed list of
+    per-statement results, or None on any error. A 30s backoff after
+    each failure prevents per-turn retry storms when the DB is down."""
+    global _DB_DOWN_UNTIL
+    if not sql or not sql.strip():
+        return None
+    if time.time() < _DB_DOWN_UNTIL:
+        return None
+    body = (f"USE NS {_DB_NS} DB {_DB_DB}; " + sql).encode()
+    try:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as s:
+            async with s.post(
+                f"{_DB_URL}/sql",
+                data=body,
+                headers={
+                    "Authorization": _DB_AUTH,
+                    "Accept": "application/json",
+                },
+            ) as r:
+                if r.status != 200:
+                    _DB_DOWN_UNTIL = time.time() + 30
+                    return None
+                return await r.json()
+    except Exception:
+        _DB_DOWN_UNTIL = time.time() + 30
+        return None
+
+
+def _db_create(table: str, fields: dict, *,
+               now_fields: tuple = (),
+               extra: str = "") -> str:
+    """Build a `CREATE <table> SET ... [<extra>];` statement.
+
+    SurrealDB 3.0+ rejects plain ISO-Z strings for fields with TYPE
+    datetime ("Expected datetime but found '...'"). The canonical
+    pattern is `field = time::now()` literal. now_fields lists the
+    keys to assign via time::now(); all OTHER keys go through
+    json.dumps which yields valid SurrealQL for strings, numbers,
+    bools, arrays, and nested objects (JSON-object syntax IS
+    SurrealQL-object syntax).
+
+    extra is appended verbatim after the SET list (e.g. "RETURN id")."""
+    parts = [f"{k} = time::now()" for k in now_fields]
+    for k, v in fields.items():
+        if k in now_fields or v is None:
+            continue
+        parts.append(f"{k} = {json.dumps(v, default=str)}")
+    sql = f"CREATE {table} SET " + ", ".join(parts)
+    if extra:
+        sql += " " + extra
+    return sql + ";"
+
+
+def _db_fire(coro: Awaitable) -> None:
+    """Schedule a DB coroutine without blocking the caller. Silently
+    no-ops outside an active event loop (callers may invoke from sync
+    helpers; in those cases the write is simply dropped)."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    loop.create_task(coro)
+
+
 class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
@@ -1001,6 +1094,15 @@ class Pipe:
             return None
         if not isinstance(parsed, dict) or "action" not in parsed:
             return None
+        # Best-effort SurrealDB event: layer-1 router verdict.
+        _row = {
+            "source": "mios-agent-pipe",
+            "kind": "classify",
+            "severity": "info",
+            "summary": str(parsed.get("action", "?"))[:120],
+            "payload": parsed,
+        }
+        _db_fire(_db_post(_db_create("event", _row, now_fields=("ts",))))
         return parsed
 
     async def _dispatch_mios_verb(
@@ -1069,32 +1171,64 @@ class Pipe:
         # Broker dispatch (same socket Tools.* uses).
         sock_path = os.environ.get("MIOS_LAUNCHER_SOCK",
                                     "/run/mios-launcher/launcher.sock")
+        # Capture call start for SurrealDB tool_call.latency_ms.
+        _t0 = time.time()
+        _result_payload: Optional[dict] = None
         if not os.path.exists(sock_path):
-            return json.dumps({"success": False,
-                               "stderr": f"broker socket missing at {sock_path}"})
-        try:
-            s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-            s.settimeout(15.0)
-            s.connect(sock_path)
-            s.sendall(("CAPTURE: " + cmd + "\n").encode())
-            chunks: list[bytes] = []
+            _result_payload = {"success": False,
+                               "stderr": f"broker socket missing at {sock_path}"}
+        else:
             try:
-                while True:
-                    buf = s.recv(65536)
-                    if not buf: break
-                    chunks.append(buf)
-            except _socket.timeout:
-                pass
-            finally:
-                s.close()
-            raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
-            if raw.startswith("ERROR:"):
-                return json.dumps({"success": False, "stderr": raw})
-            return json.dumps({"success": True,
-                               "tool": tool, "args": args,
-                               "output": raw[:6000]})
-        except OSError as e:
-            return json.dumps({"success": False, "stderr": f"broker: {e}"})
+                s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+                s.settimeout(15.0)
+                s.connect(sock_path)
+                s.sendall(("CAPTURE: " + cmd + "\n").encode())
+                chunks: list[bytes] = []
+                try:
+                    while True:
+                        buf = s.recv(65536)
+                        if not buf: break
+                        chunks.append(buf)
+                except _socket.timeout:
+                    pass
+                finally:
+                    s.close()
+                raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
+                if raw.startswith("ERROR:"):
+                    _result_payload = {"success": False, "stderr": raw}
+                else:
+                    _result_payload = {"success": True,
+                                       "tool": tool, "args": args,
+                                       "output": raw[:6000]}
+            except OSError as e:
+                _result_payload = {"success": False, "stderr": f"broker: {e}"}
+        # Best-effort SurrealDB write: tool_call row. Carries session id
+        # if pipe() opened one this turn (self._session_id). Output is
+        # truncated to keep the row compact.
+        _latency_ms = int((time.time() - _t0) * 1000)
+        _success = bool(_result_payload.get("success"))
+        _out_preview = (_result_payload.get("output")
+                        or _result_payload.get("stderr") or "")
+        _row = {
+            "tool": tool,
+            "args": args if isinstance(args, dict) else {},
+            "result_preview": _out_preview[:500],
+            "success": _success,
+            "latency_ms": _latency_ms,
+        }
+        _sid = getattr(self, "_session_id", None)
+        if _sid:
+            # session is a record link; assign as a raw expression
+            # (record-id literals in SurrealQL aren't JSON-quoted).
+            _db_fire(_db_post(
+                _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
+                + f", session = {_sid};"
+            ))
+        else:
+            _db_fire(_db_post(
+                _db_create("tool_call", _row, now_fields=("ts",))
+            ))
+        return json.dumps(_result_payload)
 
     def _looks_conversational(self, text: str) -> bool:
         if not text:
@@ -1365,6 +1499,15 @@ class Pipe:
         try:
             parsed = json.loads(content)
             if isinstance(parsed, dict):
+                # Best-effort SurrealDB event: critic verdict.
+                _row = {
+                    "source": "mios-agent-pipe",
+                    "kind": "critic_verdict",
+                    "severity": "warn" if parsed.get("issues") else "info",
+                    "summary": str(parsed.get("verdict", "?"))[:120],
+                    "payload": parsed,
+                }
+                _db_fire(_db_post(_db_create("event", _row, now_fields=("ts",))))
                 return parsed
         except json.JSONDecodeError:
             pass
@@ -1709,6 +1852,39 @@ class Pipe:
         # terminologies)"). Tool/model names stay since they're
         # cross-locale identifiers; verbs like "receiving" -> emoji.
         await self._emit(__event_emitter__, "📡 prompt")
+
+        # ── SurrealDB session open ──────────────────────────────────
+        # Open a session row for this OWUI turn; subsequent tool_call /
+        # event writes link back via SET session = <record_id>. Fire-
+        # and-forget so the DB write never delays streaming. Per-turn
+        # session (not per-chat) -- aligns with OWUI's pipe lifecycle
+        # where each turn is a fresh pipe() invocation.
+        _chat_id = ""
+        if isinstance(__metadata__, dict):
+            _chat_id = str(__metadata__.get("chat_id") or "")
+        self._session_id = None
+        _sess_row = {
+            "platform": "owui",
+            "owui_chat_id": _chat_id or None,
+            "model": self.valves.BACKEND_MODEL,
+        }
+        try:
+            _resp = await _db_post(_db_create(
+                "session", _sess_row,
+                now_fields=("started_at",),
+                extra="RETURN id",
+            ))
+            if isinstance(_resp, list) and _resp:
+                last = _resp[-1] or {}
+                rows = last.get("result") or []
+                if isinstance(rows, list) and rows:
+                    rid = rows[0].get("id")
+                    if rid:
+                        # SurrealDB returns record-id as "table:hashid"
+                        # already in unquoted SurrealQL form.
+                        self._session_id = str(rid)
+        except Exception:
+            self._session_id = None
 
         body = dict(body)
         body["model"] = self.valves.BACKEND_MODEL

@@ -59,7 +59,7 @@ DEFINE TABLE tool_call SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD session          ON tool_call TYPE option<record<session>>;
 DEFINE FIELD ts               ON tool_call TYPE datetime;
 DEFINE FIELD tool             ON tool_call TYPE string;
-DEFINE FIELD args             ON tool_call TYPE object;
+DEFINE FIELD OVERWRITE args   ON tool_call TYPE object FLEXIBLE;
 DEFINE FIELD result_preview   ON tool_call TYPE option<string>;
 DEFINE FIELD success          ON tool_call TYPE option<bool>;
 DEFINE FIELD latency_ms       ON tool_call TYPE option<int>;
@@ -77,7 +77,7 @@ DEFINE FIELD source           ON event TYPE string;          -- agent name
 DEFINE FIELD kind             ON event TYPE string;          -- launch_failure / classify / nudge / refusal / critic_verdict / cdi_change / ...
 DEFINE FIELD severity         ON event TYPE string DEFAULT 'info'; -- info / warn / high
 DEFINE FIELD summary          ON event TYPE string;
-DEFINE FIELD payload          ON event TYPE option<object>;
+DEFINE FIELD OVERWRITE payload ON event TYPE option<object> FLEXIBLE;
 DEFINE INDEX event_ts         ON event COLUMNS ts;
 DEFINE INDEX event_source     ON event COLUMNS source;
 DEFINE INDEX event_kind       ON event COLUMNS kind;
@@ -113,7 +113,7 @@ DEFINE FIELD ts               ON agent_metric TYPE datetime;
 DEFINE FIELD agent            ON agent_metric TYPE record<agent>;
 DEFINE FIELD metric           ON agent_metric TYPE string;   -- tool_latency_ms / dispatch_success_rate / turns_per_chat / ...
 DEFINE FIELD value             ON agent_metric TYPE float;
-DEFINE FIELD labels            ON agent_metric TYPE option<object>;
+DEFINE FIELD OVERWRITE labels ON agent_metric TYPE option<object> FLEXIBLE;
 DEFINE INDEX agent_metric_ts  ON agent_metric COLUMNS ts;
 
 -- DROPPED on operator directive (these belong in OWUI native):
