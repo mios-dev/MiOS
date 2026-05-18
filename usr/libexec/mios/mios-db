@@ -1,36 +1,46 @@
 #!/bin/bash
 # /usr/libexec/mios/mios-db [<surrealql>] [-f <file.surql>] [--ns <ns>] [--db <db>] [--json]
+#                            [--owui '<sql>']
+#                            [--embed '<text>'] [--embed-model <m>]
 #
-# Unified MiOS shared-state DB client. Operator directive 2026-05-18:
-# "unify all AI Surfaces!!" + "dont we need a true db services to
-# host local DBs(!!?)" + "wouldn't all this just be AI fabrications
-# and hallucinations otherwise??!" -- exactly. Every MiOS AI
-# surface (OWUI pipe, hermes, mios-daemon, future OpenCode, MCP
-# clients) targets ONE inference endpoint (http://localhost:8080/v1
-# per README MIOS_AI_ENDPOINT) AND now ONE state DB at
-# http://localhost:8000. Shared ground truth = no fabrication.
+# Unified MiOS shared-state CLI -- one tool that fronts every
+# local backend agents need to query.
 #
-# Default namespace + db = `mios` / `mios`. Each AI surface uses
-# the same NS/DB; tables namespaced by purpose (agent / session /
-# memory / event / kanban_shadow / tool_call / ...).
+# Operator directives 2026-05-18 stacked:
+#   * "make sure this is all Ollama (and other OpenSource Alternatives /
+#      Local Endpoints / Self-Hosted Endpoints) and Open WebUI Native
+#      DB(s) for knowledge/memory/context/scratch/skills/functions/
+#      tools/etc-etc"
+#   * "unify all AI Surfaces!!"
 #
-# Usage:
-#   mios-db                                    open REPL (surreal sql)
-#   mios-db 'SELECT * FROM agent;'             one-off query
-#   mios-db -f /var/lib/mios/scratch/q.surql   run a file
-#   mios-db --ns mios --db logs 'INFO ...'    override namespace/db
-#   mios-db --json '...'                       force --pretty=json
+# The three backends + which data lives where:
+#
+#   --owui <sql>      Read/write Open WebUI's webui.db (SQLite).
+#                     SOURCE OF TRUTH for: chat / message / memory /
+#                     knowledge / file / tool / function / model /
+#                     user / group / channel.
+#
+#   --embed <text>    Ollama /v1/embeddings via the canonical
+#                     MiOS embedding model (nomic-embed-text).
+#                     Returns the float[] vector. SOURCE OF TRUTH
+#                     for: embeddings. Switch model via --embed-model.
+#
+#   (no flag)         SurrealDB at MIOS_DB_URL. SOURCE OF TRUTH for:
+#                     agent / session / tool_call / event /
+#                     kanban_shadow / scratch / agent_metric.
+#                     Cross-cutting state OWUI doesn't natively have.
 #
 # Env (with defaults):
-#   MIOS_DB_URL    http://localhost:8000
-#   MIOS_DB_USER   root
-#   MIOS_DB_PASS   root
-#   MIOS_DB_NS     mios
-#   MIOS_DB_DB     mios
+#   MIOS_DB_URL          http://localhost:8000
+#   MIOS_DB_USER         root
+#   MIOS_DB_PASS         root
+#   MIOS_DB_NS           mios
+#   MIOS_DB_DB           mios
+#   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
+#   MIOS_OLLAMA_URL      http://localhost:11434
+#   MIOS_EMBED_MODEL     nomic-embed-text
 #
-# Exits 0 on success, 1 on DB unreachable, 2 on surreal-binary
-# missing (operator should `dnf install surreal` or use the
-# container exec fallback).
+# Exits 0 on success, 1 on backend unreachable, 2 on missing binary.
 
 set -uo pipefail
 
@@ -39,24 +49,88 @@ DB_USER="${MIOS_DB_USER:-root}"
 DB_PASS="${MIOS_DB_PASS:-root}"
 DB_NS="${MIOS_DB_NS:-mios}"
 DB_DB="${MIOS_DB_DB:-mios}"
+OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
+OLLAMA_URL="${MIOS_OLLAMA_URL:-http://localhost:11434}"
+EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
+
 JSON=0
 FILE=""
 QUERY=""
+MODE="surreal"
+OWUI_SQL=""
+EMBED_TEXT=""
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --ns)   DB_NS="$2"; shift 2 ;;
-        --db)   DB_DB="$2"; shift 2 ;;
-        --json) JSON=1; shift ;;
-        -f)     FILE="$2"; shift 2 ;;
+        --ns)          DB_NS="$2"; shift 2 ;;
+        --db)          DB_DB="$2"; shift 2 ;;
+        --json)        JSON=1; shift ;;
+        -f)            FILE="$2"; shift 2 ;;
+        --owui)        MODE="owui"; OWUI_SQL="$2"; shift 2 ;;
+        --embed)       MODE="embed"; EMBED_TEXT="$2"; shift 2 ;;
+        --embed-model) EMBED_MODEL="$2"; shift 2 ;;
         -h|--help)
-            sed -n '2,28p' "$0" | sed 's/^# \?//'
+            sed -n '2,46p' "$0" | sed 's/^# \?//'
             exit 0 ;;
-        --) shift; QUERY="$*"; break ;;
-        *)  QUERY="$1"; shift; if [ -n "${1:-}" ]; then QUERY="$QUERY $*"; fi
-            break ;;
+        --)            shift; QUERY="$*"; break ;;
+        *)             QUERY="$1"; shift
+                       [ "$#" -gt 0 ] && QUERY="$QUERY $*"
+                       break ;;
     esac
 done
+
+# ── MODE: --owui  (OWUI webui.db via sqlite3 over the bind-mount) ──
+if [ "$MODE" = "owui" ]; then
+    if [ ! -r "$OWUI_DB" ]; then
+        echo "mios-db: OWUI webui.db not readable at $OWUI_DB" >&2
+        exit 1
+    fi
+    if command -v sqlite3 >/dev/null 2>&1; then
+        if [ "$JSON" = "1" ]; then
+            exec sqlite3 -json "$OWUI_DB" "$OWUI_SQL"
+        else
+            exec sqlite3 -header -column "$OWUI_DB" "$OWUI_SQL"
+        fi
+    fi
+    # Container-exec fallback: OWUI image ships python3 + sqlite.
+    # Pass SQL via stdin (sys.argv[1] = SQL); use a CURSOR for
+    # .description (Connection.execute returns a cursor but the
+    # description attr lives on the cursor, not the connection).
+    if command -v podman >/dev/null 2>&1 \
+       && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-open-webui$'; then
+        exec podman exec -i mios-open-webui python3 -c '
+import sqlite3, json, sys
+sql = sys.stdin.read()
+c = sqlite3.connect("/app/backend/data/webui.db")
+cur = c.execute(sql)
+cols = [d[0] for d in cur.description] if cur.description else []
+rows = cur.fetchall()
+out = [dict(zip(cols, r)) for r in rows]
+print(json.dumps(out, default=str, indent=2))
+' <<<"$OWUI_SQL"
+    fi
+    echo "mios-db: no sqlite3 + no mios-open-webui container" >&2
+    exit 2
+fi
+
+# ── MODE: --embed  (Ollama /v1/embeddings via OpenAI-compat) ──
+if [ "$MODE" = "embed" ]; then
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "mios-db: curl required for --embed" >&2
+        exit 2
+    fi
+    # OpenAI-compat shape -- Ollama implements identical schema.
+    PAYLOAD=$(python3 -c "
+import json, sys
+print(json.dumps({'model': '$EMBED_MODEL', 'input': sys.argv[1]}))
+" "$EMBED_TEXT")
+    exec curl -sS --max-time 15 \
+        -X POST "$OLLAMA_URL/v1/embeddings" \
+        -H "Content-Type: application/json" \
+        --data "$PAYLOAD"
+fi
+
+# ── MODE: surreal  (cross-cutting state) ──
 
 # 1. Prefer the local surreal CLI if installed (faster, REPL-friendly).
 if command -v surreal >/dev/null 2>&1; then
@@ -84,25 +158,24 @@ if command -v podman >/dev/null 2>&1 \
     elif [ -n "$QUERY" ]; then
         printf '%s\n' "$QUERY" | exec podman "${args[@]}"
     else
-        # Without stdin the exec hangs; redirect /dev/null.
         echo "mios-db: no query + no -f; pass a query string or run with -f" >&2
         exit 64
     fi
 fi
 
-# 3. Pure HTTP fallback: SurrealDB REST API via curl. Limited (no
-# REPL) but works on a stripped image with no surreal CLI.
+# 3. Pure HTTP fallback: SurrealDB REST API via curl.
 if [ -n "$QUERY" ] && command -v curl >/dev/null 2>&1; then
-    AUTH="$DB_USER:$DB_PASS"
     exec curl -sS -X POST "$DB_URL/sql" \
-        -u "$AUTH" \
+        -u "$DB_USER:$DB_PASS" \
         -H "NS: $DB_NS" -H "DB: $DB_DB" \
         -H "Accept: application/json" \
         --data-binary "$QUERY"
 fi
 
-echo "mios-db: no surreal CLI, no mios-surrealdb container, no curl fallback usable" >&2
-echo "  install:  bootc image already includes mios-surrealdb.container; run:" >&2
-echo "    systemctl --user start mios-surrealdb.service" >&2
-echo "  or check: podman ps | grep mios-surrealdb" >&2
+echo "mios-db: no SurrealDB backend reachable + no --owui/--embed flag set" >&2
+echo "  options:" >&2
+echo "    mios-db '<surrealql>'                 -- cross-cutting state" >&2
+echo "    mios-db --owui '<sql>'                -- OWUI webui.db" >&2
+echo "    mios-db --embed '<text>'              -- Ollama embeddings" >&2
+echo "  check: systemctl start mios-surrealdb.service" >&2
 exit 2

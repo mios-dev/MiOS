@@ -1,20 +1,32 @@
 -- /usr/share/mios/surrealdb/schema-init.surql
 --
--- Unified AI-surface schemas. Operator directive 2026-05-18:
--- "unify all AI Surfaces!!" -- every MiOS agent (OWUI pipe,
--- hermes, mios-daemon, future OpenCode) reads/writes the same
--- tables. The DB is the SHARED GROUND TRUTH; agents don't
--- fabricate state from context window.
+-- Cross-agent state only. Operator directive 2026-05-18: "make
+-- sure this is all Ollama (and other OpenSource Alternatives /
+-- Local Endpoints / Self-Hosted Endpoints) and Open WebUI Native
+-- DB(s) for knowledge/memory/context/scratch/skills/functions/
+-- tools/etc-etc". So:
 --
--- Idempotent (DEFINE ... if not exists). Re-running is safe.
+--   OWUI native (read via mios-db --owui '<sql>' over webui.db):
+--     chat / message / memory / knowledge / file / tool /
+--     function / model / user / group
+--   Ollama native (read via mios-db --embed '<text>' or
+--     curl http://localhost:11434/v1/embeddings):
+--     models, embeddings, completions
+--   SurrealDB (this schema -- ONLY for what's NOT in OWUI native):
+--     agent / session / tool_call / event / kanban_shadow /
+--     scratch / agent_metric
+--
+-- Idempotent (DEFINE TABLE / DEFINE FIELD safe to re-run).
 
 USE NS mios;
 USE DB mios;
 
--- agent: registry row per AI surface in the stack.
+-- agent: registry row per AI surface in the stack. NOT in OWUI
+-- (OWUI tracks `model` rows, not the running agents downstream
+-- of those models).
 DEFINE TABLE agent SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD name             ON agent TYPE string;
-DEFINE FIELD role             ON agent TYPE string;          -- router / refine / orchestrator / micro / critic / nudger / ...
+DEFINE FIELD role             ON agent TYPE string;      -- router / refine / orchestrator / micro / critic / nudger / ...
 DEFINE FIELD model            ON agent TYPE option<string>;
 DEFINE FIELD endpoint         ON agent TYPE option<string>;
 DEFINE FIELD device           ON agent TYPE option<string>;  -- cpu / nvidia / amd-igpu / intel-igpu
@@ -24,23 +36,27 @@ DEFINE FIELD last_seen        ON agent TYPE option<datetime>;
 DEFINE FIELD enabled          ON agent TYPE bool DEFAULT true;
 DEFINE INDEX agent_name_unique ON agent COLUMNS name UNIQUE;
 
--- session: one row per chat / cron run / delegate spawn.
+-- session: agent-side session (Hermes + cron + delegate + future
+-- OpenCode). OWUI's chat table covers OWUI chats; this covers
+-- everything else + carries the OWUI chat_id when applicable.
 DEFINE TABLE session SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD started_at       ON session TYPE datetime;
 DEFINE FIELD ended_at         ON session TYPE option<datetime>;
-DEFINE FIELD platform         ON session TYPE string;        -- owui / cron / cli / mcp
-DEFINE FIELD chat_id          ON session TYPE option<string>;
+DEFINE FIELD platform         ON session TYPE string;    -- owui / cron / cli / mcp / delegate
+DEFINE FIELD owui_chat_id     ON session TYPE option<string>;  -- joins to OWUI chat.id
+DEFINE FIELD agent            ON session TYPE option<record<agent>>;
 DEFINE FIELD model            ON session TYPE option<string>;
-DEFINE FIELD operator         ON session TYPE option<string>;
 DEFINE FIELD turn_count       ON session TYPE int DEFAULT 0;
-DEFINE FIELD outcome          ON session TYPE option<string>;-- success / partial / error / abandoned
-DEFINE INDEX session_chat     ON session COLUMNS chat_id;
+DEFINE FIELD outcome          ON session TYPE option<string>;
+DEFINE INDEX session_owui     ON session COLUMNS owui_chat_id;
 
--- tool_call: one row per dispatched verb. Source of truth for
--- "did the agent actually run X?" -- replaces text-parsing the
--- raw hermes stream.
+-- tool_call: every dispatched verb across every agent (including
+-- the OWUI pipe's router-dispatch, hermes's tool_use, mios-daemon
+-- background calls). Source of truth for "did the agent actually
+-- run X?". OWUI's chat table has streamed-text status emits but
+-- NOT structured tool_result; this fills that gap.
 DEFINE TABLE tool_call SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD session          ON tool_call TYPE record<session>;
+DEFINE FIELD session          ON tool_call TYPE option<record<session>>;
 DEFINE FIELD ts               ON tool_call TYPE datetime;
 DEFINE FIELD tool             ON tool_call TYPE string;
 DEFINE FIELD args             ON tool_call TYPE object;
@@ -51,28 +67,14 @@ DEFINE FIELD dispatched_by    ON tool_call TYPE option<record<agent>>;
 DEFINE INDEX tool_call_ts     ON tool_call COLUMNS ts;
 DEFINE INDEX tool_call_tool   ON tool_call COLUMNS tool;
 
--- memory: durable cross-session memory. Operator + agents both
--- write here; agents query before fabricating.
-DEFINE TABLE memory SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD ts               ON memory TYPE datetime;
-DEFINE FIELD kind             ON memory TYPE string;         -- user / feedback / project / reference
-DEFINE FIELD subject          ON memory TYPE string;         -- short topic key
-DEFINE FIELD body             ON memory TYPE string;
-DEFINE FIELD source           ON memory TYPE option<record<agent>>;
-DEFINE FIELD tags             ON memory TYPE array<string> DEFAULT [];
--- Optional vector embedding for semantic recall. Dim = nomic-embed
--- size 768; agents that don't embed can leave it null.
-DEFINE FIELD embedding        ON memory TYPE option<array<float>>;
-DEFINE INDEX memory_subject   ON memory COLUMNS subject;
-DEFINE INDEX memory_kind      ON memory COLUMNS kind;
-
 -- event: append-only observability stream (launch verifier hits,
--- refusal pattern matches, classify summaries, critic verdicts,
--- ...). Per-thread streams instead of polling state.json.
+-- refusal-pattern matches, classify summaries, critic verdicts,
+-- nudger output, gpu CDI changes, ...). Per-thread streams
+-- instead of polling state.json files.
 DEFINE TABLE event SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD ts               ON event TYPE datetime;
 DEFINE FIELD source           ON event TYPE string;          -- agent name
-DEFINE FIELD kind             ON event TYPE string;          -- launch_failure / classify / nudge / refusal / critic_verdict / ...
+DEFINE FIELD kind             ON event TYPE string;          -- launch_failure / classify / nudge / refusal / critic_verdict / cdi_change / ...
 DEFINE FIELD severity         ON event TYPE string DEFAULT 'info'; -- info / warn / high
 DEFINE FIELD summary          ON event TYPE string;
 DEFINE FIELD payload          ON event TYPE option<object>;
@@ -80,36 +82,42 @@ DEFINE INDEX event_ts         ON event COLUMNS ts;
 DEFINE INDEX event_source     ON event COLUMNS source;
 DEFINE INDEX event_kind       ON event COLUMNS kind;
 
--- kanban_shadow: live mirror of hermes-side kanban.db (operator
--- + non-hermes agents can read without opening the SQLite file).
--- mios-daemon task_collector_loop populates on its 5-min cadence.
+-- kanban_shadow: live mirror of hermes-side kanban.db so the
+-- OWUI pipe + mios-daemon + future OpenCode can read the task
+-- queue without opening the SQLite file directly. Hermes
+-- remains the authoritative WRITE side via kanban_* tools.
 DEFINE TABLE kanban_shadow SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD hermes_task_id   ON kanban_shadow TYPE string;
-DEFINE FIELD title             ON kanban_shadow TYPE string;
-DEFINE FIELD status            ON kanban_shadow TYPE string;
-DEFINE FIELD priority          ON kanban_shadow TYPE option<string>;
-DEFINE FIELD tags              ON kanban_shadow TYPE array<string> DEFAULT [];
-DEFINE FIELD synced_at         ON kanban_shadow TYPE datetime;
+DEFINE FIELD title            ON kanban_shadow TYPE string;
+DEFINE FIELD status           ON kanban_shadow TYPE string;
+DEFINE FIELD priority         ON kanban_shadow TYPE option<string>;
+DEFINE FIELD tags             ON kanban_shadow TYPE array<string> DEFAULT [];
+DEFINE FIELD synced_at        ON kanban_shadow TYPE datetime;
 DEFINE INDEX kanban_shadow_task ON kanban_shadow COLUMNS hermes_task_id UNIQUE;
 
--- scratch: shared-mutable note surface (operator + agents both
--- write). Free-form; agents can leave one-line context notes for
--- their successors.
+-- scratch: cross-agent transient note surface. Filesystem
+-- /var/lib/mios/scratch/ remains the bulk store for .md files;
+-- this DB layer is for typed scratch items agents share by topic.
 DEFINE TABLE scratch SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD ts               ON scratch TYPE datetime;
 DEFINE FIELD source           ON scratch TYPE string;
 DEFINE FIELD topic            ON scratch TYPE string;
 DEFINE FIELD body             ON scratch TYPE string;
-DEFINE FIELD ttl_at           ON scratch TYPE option<datetime>;  -- agent-defined expiry
+DEFINE FIELD ttl_at           ON scratch TYPE option<datetime>;
 DEFINE INDEX scratch_topic    ON scratch COLUMNS topic;
 
--- doc: index entry per .md doc surface (mios-docs-index output
--- shadow). Lets agents semantic-search docs without re-walking
--- the filesystem on every turn.
-DEFINE TABLE doc SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD path             ON doc TYPE string;
-DEFINE FIELD description      ON doc TYPE option<string>;
-DEFINE FIELD size             ON doc TYPE int;
-DEFINE FIELD updated_at       ON doc TYPE datetime;
-DEFINE FIELD embedding        ON doc TYPE option<array<float>>;
-DEFINE INDEX doc_path_unique  ON doc COLUMNS path UNIQUE;
+-- agent_metric: time-series for tool latencies, success rates,
+-- per-agent throughput. mios-daemon writes; the nudger reads.
+DEFINE TABLE agent_metric SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD ts               ON agent_metric TYPE datetime;
+DEFINE FIELD agent            ON agent_metric TYPE record<agent>;
+DEFINE FIELD metric           ON agent_metric TYPE string;   -- tool_latency_ms / dispatch_success_rate / turns_per_chat / ...
+DEFINE FIELD value             ON agent_metric TYPE float;
+DEFINE FIELD labels            ON agent_metric TYPE option<object>;
+DEFINE INDEX agent_metric_ts  ON agent_metric COLUMNS ts;
+
+-- DROPPED on operator directive (these belong in OWUI native):
+--   memory      -> OWUI memory table (chat-bound recall)
+--   doc         -> OWUI knowledge + file tables (RAG corpus)
+--   knowledge   -> OWUI knowledge collection (mios-owui-apply-knowledge)
+-- Use mios-db --owui '<sql>' to query those instead.

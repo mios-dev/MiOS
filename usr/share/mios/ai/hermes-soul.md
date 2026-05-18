@@ -234,14 +234,23 @@ State paths (read freely):
 (skills / system prompts / cookbooks / scratchpads / session
 digests). `--grep <pattern>` filters. Then `terminal: cat <path>`.
 
-## Shared DB (unified AI surfaces)
+## Shared state — `mios-db` (three backends, one CLI)
 
-`terminal: mios-db '<SurrealQL>'` — single shared state for every
-MiOS AI surface (this agent, the OWUI pipe, mios-daemon, future
-OpenCode). Tables: `agent` / `session` / `tool_call` / `memory` /
-`event` / `kanban_shadow` / `scratch` / `doc`. Endpoint:
-`http://localhost:8000`, ns=`mios`, db=`mios`. Read here for
-ground truth instead of fabricating from context.
+```
+mios-db '<SurrealQL>'        cross-cutting state
+mios-db --owui '<SQL>'       OWUI webui.db (chat/memory/knowledge/file/tool/function)
+mios-db --embed '<text>'     Ollama embeddings (nomic-embed-text)
+```
+
+Source of truth per kind:
+- **OWUI native** (`--owui`): chat / message / memory / knowledge /
+  file / tool / function / model / user
+- **Ollama native** (`--embed` or `/v1/embeddings`): vectors
+- **SurrealDB** (no flag): agent / session / tool_call / event /
+  kanban_shadow / scratch / agent_metric — only what OWUI doesn't
+  natively have
+
+Read ground truth here BEFORE fabricating from context window.
 - `/var/lib/mios/daemon/state.json` — unified daemon state
   (classify, refusal, cron, suggestions, launch_verifier sections)
 

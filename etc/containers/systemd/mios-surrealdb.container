@@ -57,7 +57,7 @@ Environment=SURREAL_LOG=info
 
 # Bind 0.0.0.0 so both host (operator + pipe + mios-daemon) AND
 # the ai-net bridge (hermes, future agents) reach the same endpoint.
-Exec=start --bind 0.0.0.0:8000 --user root --pass root file://var/lib/mios/surrealdb/mios.surql
+Exec=start --bind 0.0.0.0:8000 --user root --pass root file:///var/lib/mios/surrealdb/mios.db
 
 # OCI labels for Podman Desktop browse-in-browser.
 Label=org.opencontainers.image.title=mios-surrealdb
