@@ -528,8 +528,10 @@ position = os.environ.get("MIOS_LAUNCH_POSITION", "center").lower()
 size_env = os.environ.get("MIOS_LAUNCH_SIZE", "")
 place_env = os.environ.get("MIOS_LAUNCH_PLACE", "")
 # Compute the placement PowerShell snippet from those knobs.
+# NOTE: place_block uses $wh for window-HEIGHT to avoid colliding
+# with $h which is the hwnd in the post-launch script below.
 place_block = (
-    "$x = $r.L; $y = $r.T; $w = $r.R - $r.L; $h = $r.B - $r.T; "
+    "$x = $r.L; $y = $r.T; $w = $r.R - $r.L; $wh = $r.B - $r.T; "
     "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
 )
 # Size override (parse "WxH"); applied before position so position
@@ -538,7 +540,7 @@ if "x" in size_env.lower():
     try:
         sw, sh = size_env.lower().split("x", 1)
         sw = int(sw.strip()); sh = int(sh.strip())
-        place_block += f"$w = {sw}; $h = {sh}; "
+        place_block += f"$w = {sw}; $wh = {sh}; "
     except (ValueError, TypeError):
         pass
 # Absolute placement override.
@@ -554,19 +556,32 @@ if "," in place_env:
 if position == "center":
     place_block += (
         "$x = $s.X + [int](($s.Width - $w) / 2); "
-        "$y = $s.Y + [int](($s.Height - $h) / 2); ")
+        "$y = $s.Y + [int](($s.Height - $wh) / 2); ")
 elif position == "left":
-    place_block += "$x = $s.X; $y = $s.Y; $w = [int]($s.Width / 2); $h = $s.Height; "
+    place_block += "$x = $s.X; $y = $s.Y; $w = [int]($s.Width / 2); $wh = $s.Height; "
 elif position == "right":
-    place_block += ("$w = [int]($s.Width / 2); $h = $s.Height; "
+    place_block += ("$w = [int]($s.Width / 2); $wh = $s.Height; "
                     "$x = $s.X + [int]($s.Width / 2); $y = $s.Y; ")
 elif position == "top":
-    place_block += "$x = $s.X; $y = $s.Y; $w = $s.Width; $h = [int]($s.Height / 2); "
+    place_block += "$x = $s.X; $y = $s.Y; $w = $s.Width; $wh = [int]($s.Height / 2); "
 elif position == "bottom":
-    place_block += ("$w = $s.Width; $h = [int]($s.Height / 2); "
+    place_block += ("$w = $s.Width; $wh = [int]($s.Height / 2); "
                     "$x = $s.X; $y = $s.Y + [int]($s.Height / 2); ")
-elif position in ("none", "_explicit"):
-    pass  # keep existing $x/$y (no reposition for "none";
+elif position == "top-left":
+    place_block += "$x = $s.X; $y = $s.Y; $w = [int]($s.Width / 2); $wh = [int]($s.Height / 2); "
+elif position == "top-right":
+    place_block += ("$w = [int]($s.Width / 2); $wh = [int]($s.Height / 2); "
+                    "$x = $s.X + [int]($s.Width / 2); $y = $s.Y; ")
+elif position == "bottom-left":
+    place_block += ("$w = [int]($s.Width / 2); $wh = [int]($s.Height / 2); "
+                    "$x = $s.X; $y = $s.Y + [int]($s.Height / 2); ")
+elif position == "bottom-right":
+    place_block += ("$w = [int]($s.Width / 2); $wh = [int]($s.Height / 2); "
+                    "$x = $s.X + [int]($s.Width / 2); $y = $s.Y + [int]($s.Height / 2); ")
+elif position == "maximize":
+    place_block += "$x = $s.X; $y = $s.Y; $w = $s.Width; $wh = $s.Height; "
+elif position in ("none", "as-is", "_explicit"):
+    pass  # keep existing $x/$y (no reposition for as-is/none;
           # explicit values already in place for "_explicit")
 
 # 1. Spawn via cmd.exe /c start "" -- session-1 attach via WSL
@@ -579,14 +594,37 @@ subprocess.Popen(
 )
 print(f"[mios-windows] launched via cmd /c start: {target}")
 
-# 2. Optional post-launch placement: PowerShell finds the new
-#    window by process basename + applies MoveWindow/Foreground.
-#    Skipped when MIOS_LAUNCH_POSITION=none (or no PowerShell).
-if pwsh and position != "none":
-    import time
+# 2. Post-launch FOCUS (always) + optional placement (if not as-is).
+#    Operator-flagged 2026-05-18: open_app(name="notepad") with
+#    position="as-is" (the new typed-tool default) succeeded -- but
+#    notepad opened BEHIND Windows Xbox Fullscreen Experience and
+#    was never brought to the foreground because the placement
+#    script was gated on `position != "none"` and skipped focus too.
+#    Fix: split focus from placement. ALWAYS bring the new window to
+#    the foreground (works around XFSE / Game Bar / any active full-
+#    screen overlay); only call MoveWindow when position changes.
+#
+#    Bulletproof Win32 focus pattern: AttachThreadInput (attach our
+#    thread to the target's; SetForegroundWindow always succeeds
+#    once attached) + ShowWindow SW_RESTORE (handles minimized) +
+#    BringWindowToTop + SetForegroundWindow + a SendKeys nudge to
+#    grant the foreground-window permission Windows otherwise
+#    restricts.
+if pwsh:
     proc_name = target.rsplit("\\", 1)[-1]
     if proc_name.lower().endswith(".exe"):
         proc_name = proc_name[:-4]
+    do_move = position not in ("none", "as-is")
+    move_block = ""
+    if do_move:
+        # place_block already uses $wh for window-height (clean
+        # naming -- no $h shadowing of the hwnd variable).
+        move_block = (
+            "$r = New-Object MX.W32D+RECT; "
+            "[MX.W32D]::GetWindowRect($h, [ref]$r) | Out-Null; "
+            + place_block +
+            "[MX.W32D]::MoveWindow($h, $x, $y, $w, $wh, $true) | Out-Null; "
+        )
     place_ps = (
         f"$pn = '{proc_name}'; "
         "$p = $null; "
@@ -602,14 +640,38 @@ if pwsh and position != "none":
         "  Add-Type -Name W32D -Namespace MX -MemberDefinition @'\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool BringWindowToTop(System.IntPtr h);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool ShowWindow(System.IntPtr h, int n);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int pid);\n"
+        "[System.Runtime.InteropServices.DllImport(\"kernel32.dll\")] public static extern int GetCurrentThreadId();\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool AttachThreadInput(int idAttach, int idAttachTo, bool fAttach);\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SwitchToThisWindow(System.IntPtr h, bool fAltTab);\n"
         "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
         "'@ -ErrorAction SilentlyContinue; "
-        "$r = New-Object MX.W32D+RECT; "
-        "[MX.W32D]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
-        + place_block +
-        "[MX.W32D]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
-        "[MX.W32D]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
+        "$h = $p.MainWindowHandle; "
+        # ── optional move (only when position changed) ──
+        + move_block +
+        # ── ALWAYS focus (regardless of position) ──
+        # SW_RESTORE = 9; brings a minimized/hidden window back.
+        "[MX.W32D]::ShowWindow($h, 9) | Out-Null; "
+        # Alt-key SendKeys grants AllowSetForegroundWindow permission
+        # to this PowerShell process so SetForegroundWindow isn't
+        # silently demoted to flash-only. (`%` = Alt in SendKeys.)
+        "try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {}; "
+        # AttachThreadInput: attach our input queue to the target's
+        # foreground thread; SetForegroundWindow succeeds for both
+        # threads in that input group.
+        "$tpid = 0; $tt = [MX.W32D]::GetWindowThreadProcessId($h, [ref]$tpid); "
+        "$ct = [MX.W32D]::GetCurrentThreadId(); "
+        "[MX.W32D]::AttachThreadInput($ct, $tt, $true) | Out-Null; "
+        "[MX.W32D]::BringWindowToTop($h) | Out-Null; "
+        "[MX.W32D]::SetForegroundWindow($h) | Out-Null; "
+        # SwitchToThisWindow is undocumented but works through XFSE
+        # / Game Bar / fullscreen overlays where SetForegroundWindow
+        # alone gets demoted. fAltTab=true mimics Alt+Tab semantics.
+        "[MX.W32D]::SwitchToThisWindow($h, $true) | Out-Null; "
+        "[MX.W32D]::AttachThreadInput($ct, $tt, $false) | Out-Null "
         "}"
     )
     subprocess.Popen(
