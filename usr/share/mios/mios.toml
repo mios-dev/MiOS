@@ -2064,7 +2064,8 @@ forge_http         = 3000     # Forgejo HTTP web UI
 forge_ssh          = 2222     # Forgejo git+ssh (non-22 to coexist with sshd)
 cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
-ollama             = 11434    # alternate local LLM backend
+ollama             = 11434    # alternate local LLM backend (CUDA / dGPU lane)
+ollama_igpu        = 11435    # iGPU micro-LLM lane (ollama:rocm, AMD iGPU via wsl2-amd.yaml CDI)
 searxng            = 8888     # local privacy-respecting metasearch
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
@@ -2111,6 +2112,8 @@ code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
 ollama_version     = "latest"
 ollama             = "docker.io/ollama/ollama:latest"
+ollama_igpu_version = "rocm"
+ollama_igpu        = "docker.io/ollama/ollama:rocm"
 guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner_version = "7"
@@ -2169,6 +2172,11 @@ gid  = 821
 user = "mios-agent-pipe"
 uid  = 822
 gid  = 822
+
+[services.ollama_igpu]
+user = "mios-ollama-igpu"
+uid  = 823
+gid  = 823
 
 # ----------------------------------------------------------------------------
 # [paths] -- canonical FHS paths for runtime artifacts. Consumed by

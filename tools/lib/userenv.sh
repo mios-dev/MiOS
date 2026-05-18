@@ -216,6 +216,7 @@ slots = [
     ("ports.rdp",                      "MIOS_RDP_PORT"),
     ("ports.surrealdb",                "MIOS_PORT_SURREALDB"),
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
+    ("ports.ollama_igpu",              "MIOS_PORT_OLLAMA_IGPU"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
@@ -317,6 +318,11 @@ slots = [
     ("services.agent_pipe.user",       "MIOS_AGENT_PIPE_USER"),
     ("services.agent_pipe.uid",        "MIOS_AGENT_PIPE_UID"),
     ("services.agent_pipe.gid",        "MIOS_AGENT_PIPE_GID"),
+    ("services.ollama_igpu.user",      "MIOS_OLLAMA_IGPU_USER"),
+    ("services.ollama_igpu.uid",       "MIOS_OLLAMA_IGPU_UID"),
+    ("services.ollama_igpu.gid",       "MIOS_OLLAMA_IGPU_GID"),
+    ("image.sidecars.ollama_igpu_version", "MIOS_OLLAMA_IGPU_VERSION"),
+    ("image.sidecars.ollama_igpu",     "MIOS_OLLAMA_IGPU_IMAGE"),
     # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
     ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),
