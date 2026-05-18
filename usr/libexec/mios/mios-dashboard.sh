@@ -446,7 +446,16 @@ print_endpoints() {
     local _esc=$'\e'
     local osc_lnk="${_esc}]8;;%s${_esc}\\%-11s${_esc}]8;;${_esc}\\"
     local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
-    local row_fmt='  %b  %b\n'
+    # %s (not %b) for the row format -- the cell content already
+    # contains literal ESC + literal backslash for the OSC 8 string
+    # terminator. printf %b interprets backslash escapes in the
+    # argument; with a cell whose visible text starts with t/n/a/b/
+    # c/e/f/r/v, the `<ESC>\<letter>` sequence would be parsed as
+    # \t (tab) / \n (newline) / ..., mangling the cell.
+    # Operator-flagged 2026-05-18 when the ttyd-bash + ttyd-PS cells
+    # rendered as "    yd-bash" -- the leading "t" got consumed by
+    # %b's \t TAB interpretation.
+    local row_fmt='  %s  %s\n'
 
     # AI surface -- agent stack the operator interacts with through
     # OWUI / Discord / programmatic clients.
@@ -964,7 +973,10 @@ case "$MODE" in
                 # leave room for the prompt. Reads [dashboard].verb_hint
                 # from mios.toml so operators rebrand the hint line.
                 if [[ "$MODE" != "mini" ]]; then
-                    _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  dev  pull  update  help')"
+                    # Default verb list refreshed 2026-05-18 to match the
+                    # current /usr/bin/mios KNOWN_VERBS surface. Operator
+                    # override via mios.toml [dashboard].verb_hint.
+                    _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  mini  ai  code  dev  summary  user  pull  update  help')"
                     if [[ -n "$_verb_hint" ]]; then
                         frame_divide
                         printf '  %s mios %s%s\n' "$C_GRY" "$_verb_hint" "$C_R" | frame_filter

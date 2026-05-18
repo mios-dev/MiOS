@@ -468,6 +468,20 @@ _ROUTER_SYSTEM = (
     '             16:10-centered geometry (same position enum as open_app).\n'
     '             pass position="as-is" to focus WITHOUT resizing.\n'
     '  [WRITE] move_window(title, position, monitor=0)\n'
+    '          -- SEMANTIC position: center / left / right / top-left etc.\n'
+    '             For literal pixel coords use position_window(title, x, y).\n'
+    '  [WRITE] position_window(title, x, y)\n'
+    '          -- Move window to LITERAL (x,y) pixel coords. Use after\n'
+    '             screen_layout when the agent has computed exact target.\n'
+    '  [WRITE] resize_window(title, width, height)\n'
+    '          -- Resize to literal pixel WxH (does NOT move).\n'
+    '  [WRITE] minimize_window(title)\n'
+    '          -- Hide to taskbar.\n'
+    '  [WRITE] maximize_window(title)\n'
+    '          -- Maximize to full screen of containing monitor.\n'
+    '  [WRITE] restore_window(title)\n'
+    '          -- Undo minimize/maximize: return to last normal-state\n'
+    '             geometry.\n'
     '  [WRITE] close_window(title, mode="graceful")   -- mode: graceful|force\n'
     '  [WRITE] open_url(url, browser?)         -- open a URL in a browser\n'
     '  [READ ] list_windows()                  -- list currently OPEN windows\n'
@@ -508,6 +522,11 @@ _ROUTER_SYSTEM = (
     '  "close X"                                    -> close_window(title=X)\n'
     '  "focus X" / "bring X to front" / "switch to X" -> focus_window(title=X)\n'
     '  "move X to <pos>"                            -> move_window(title=X, position=<pos>)\n'
+    '  "move X to (a,b)" / "X to position (a,b)"    -> position_window(title=X, x=a, y=b)\n'
+    '  "resize X to WxH" / "make X WxH"             -> resize_window(title=X, width=W, height=H)\n'
+    '  "minimize X" / "hide X"                      -> minimize_window(title=X)\n'
+    '  "maximize X" / "fullscreen X"                -> maximize_window(title=X)\n'
+    '  "restore X" / "un-minimize X" / "un-maximize X" -> restore_window(title=X)\n'
     '  "what apps are installed" / "list apps"      -> mios_apps()\n'
     '  "what windows are open"                      -> list_windows()\n'
     '  "go to <url>" / "visit <url>"                -> open_url(url=<url>)\n'
@@ -1636,6 +1655,15 @@ _HIGH_PRIVILEGE_VERBS = {
     # the operator's interop context. Single most dangerous verb
     # in the catalog -- always firewall-gated.
     "powershell_run",
+    # Window-state verbs (D.3 PC-control template). All cause a
+    # visible system effect -- a tainted session moving operator
+    # windows or hiding them counts as the kind of thing the
+    # firewall should refuse until the operator clears the chain.
+    "minimize_window",
+    "maximize_window",
+    "restore_window",
+    "resize_window",
+    "position_window",
 }
 
 # Domains that are part of the operator's own infrastructure -- a
@@ -1998,6 +2026,38 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         return f"mios-window {mode} {title}"
     if tool == "list_windows":
         return "mios-pc-control window-list"
+    # ── Window-state verbs (Phase D.3 -- PC-control template) ──
+    # All five wrap `mios-window <subcmd>` which resolves the title
+    # pattern to an hwnd internally; the agent only needs to supply
+    # a substring match. Title patterns are quoted via shlex so
+    # spaces / special chars in window titles ("Task Manager",
+    # "VS Code - foo.py") survive the broker round-trip.
+    if tool == "minimize_window":
+        title = shlex.quote(str(args.get("title", "")))
+        return f"mios-window minimize {title}"
+    if tool == "maximize_window":
+        title = shlex.quote(str(args.get("title", "")))
+        return f"mios-window maximize {title}"
+    if tool == "restore_window":
+        title = shlex.quote(str(args.get("title", "")))
+        return f"mios-window restore {title}"
+    if tool == "resize_window":
+        title = shlex.quote(str(args.get("title", "")))
+        w = int(args.get("width", 0))
+        h = int(args.get("height", 0))
+        if w <= 0 or h <= 0:
+            return None
+        return f"mios-window resize {title} {w} {h}"
+    if tool == "position_window":
+        # Distinct from move_window: this takes LITERAL pixel coords
+        # (x, y) instead of a semantic position name ("center" /
+        # "top-right" / ...). Use when the agent has already done
+        # screen_layout reasoning and knows where the window should
+        # land precisely.
+        title = shlex.quote(str(args.get("title", "")))
+        x = int(args.get("x", 0))
+        y = int(args.get("y", 0))
+        return f"mios-window move {title} {x} {y}"
     if tool == "screen_layout":
         return "mios-pc-control screen-layout"
     if tool == "open_url":

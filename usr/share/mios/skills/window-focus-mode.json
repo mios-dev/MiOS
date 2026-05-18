@@ -1,0 +1,13 @@
+{
+  "name": "window-focus-mode",
+  "description": "Focus-mode: maximize one named window, minimize a list of distractors. Demonstrates the maximize+minimize chain. Distractor list is a single positional title pattern -- the planner emits one skill call per distractor when multiple need hiding.",
+  "source": "import",
+  "status": "promoted",
+  "body": {
+    "steps": [
+      {"verb": "maximize_window", "args": {"title": "$focus"}},
+      {"verb": "minimize_window", "args": {"title": "$distractor"}}
+    ],
+    "params": ["focus", "distractor"]
+  }
+}

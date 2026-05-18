@@ -488,6 +488,14 @@ firewall_high_privilege_verbs = [
     # Single most dangerous verb in the catalog: arbitrary
     # Windows-side script execution. Always firewall-gated.
     "powershell_run",
+    # Window-state verbs (D.3 PC-control template) -- tainted
+    # sessions moving / hiding operator windows is the kind of
+    # thing the firewall should refuse pre-clear.
+    "minimize_window",
+    "maximize_window",
+    "restore_window",
+    "resize_window",
+    "position_window",
 ]
 
 [fs_watcher]
@@ -3204,7 +3212,12 @@ title           = "MiOS  --  My Personal Operating System"
 show_title      = true
 show_logo       = false           # 80x20 doesn't fit the 11-row ASCII logo. Set true once rows >= 30.
 show_verb_hints = true
-verb_hint       = "build  config  dash  dev  pull  update  help"
+# Verb-hint refresh 2026-05-18: surface the current /usr/bin/mios
+# KNOWN_VERBS surface (was stuck on the 7-verb subset from before
+# mini / ai / code / summary / user were added). The hint line is
+# the operator's quick reference at the bottom of `mios dash` --
+# keep it accurate as new verbs ship.
+verb_hint       = "build  config  dash  mini  ai  code  dev  summary  user  pull  update  help"
 
 # show_services -- Linux-only.  When true (or MIOS_DASH_SERVICES=1),
 # mios-dashboard.sh appends the icon-driven Services / Stack / Tree
