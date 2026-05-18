@@ -332,6 +332,20 @@ slots = [
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
     ("pkg.bootstrap_per_source_cap",   "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP"),
     ("pkg.lookup_max_alias_results",   "MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS"),
+    # ── ttyd (Phase D.2 -- browser pty bridge for bash + powershell) ─────
+    ("ttyd.enable",                    "MIOS_TTYD_ENABLE"),
+    ("ttyd.bind",                      "MIOS_TTYD_BIND"),
+    ("ttyd.require_auth",              "MIOS_TTYD_REQUIRE_AUTH"),
+    ("ttyd.auth_user",                 "MIOS_TTYD_AUTH_USER"),
+    ("ttyd.auth_pass",                 "MIOS_TTYD_AUTH_PASS"),
+    ("ttyd.ssl_cert",                  "MIOS_TTYD_SSL_CERT"),
+    ("ttyd.ssl_key",                   "MIOS_TTYD_SSL_KEY"),
+    ("ttyd.bash_shell",                "MIOS_TTYD_BASH_SHELL"),
+    ("ttyd.powershell_shell",          "MIOS_TTYD_POWERSHELL_SHELL"),
+    ("ttyd.writable",                  "MIOS_TTYD_WRITABLE"),
+    ("ttyd.max_clients",               "MIOS_TTYD_MAX_CLIENTS"),
+    ("ports.ttyd_bash",                "MIOS_PORT_TTYD_BASH"),
+    ("ports.ttyd_powershell",          "MIOS_PORT_TTYD_POWERSHELL"),
     # ── passport (Phase C.3 -- Ed25519 agent identity tokens) ────────────
     ("passport.enable",                "MIOS_PASSPORT_ENABLE"),
     ("passport.algo",                  "MIOS_PASSPORT_ALGO"),

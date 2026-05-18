@@ -1,0 +1,47 @@
+# /usr/lib/systemd/system/mios-ttyd-bash.service
+# Phase D.2 of the AgentOS roadmap: browser-accessible Linux
+# terminal. Operator hits http://localhost:7681 in any browser
+# and gets a bash session over a WebSocket pty.
+#
+# Bound to 127.0.0.1 by default -- flip via [ttyd].bind in
+# mios.toml for LAN access (auth credentials enforced by
+# mios-ttyd-launch when bind != loopback).
+
+[Unit]
+Description='MiOS' ttyd -- browser pty bridge (Linux bash session)
+Documentation=file:///usr/libexec/mios/mios-ttyd-launch
+After=network-online.target
+Wants=network-online.target
+# Fedora's ttyd RPM installs to /usr/sbin/ttyd; on other distros
+# (or after a future Fedora reshuffle) it may land in /usr/bin/.
+# Either path satisfies the condition.
+ConditionPathExistsGlob=/usr/?bin/ttyd
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/mios/userenv.sh
+# Run as the operator login user so the session inherits the
+# operator's $HOME, environment, and shell rc files. Connecting
+# from a browser gives the SAME shell experience as the operator's
+# WSL terminal.
+User=mios
+Group=mios
+ExecStart=/usr/libexec/mios/mios-ttyd-launch bash
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+
+# Hardening: ttyd doesn't need elevated privs. Lock down what the
+# pty subprocess can touch beyond the user's own files.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+# Operator's home + /var/home (where the actual home lives on
+# bootc deployments) MUST be writable so bash works normally.
+ReadWritePaths=/var/home /home /tmp /var/tmp
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,94 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-ttyd-launch <bash|powershell>
+#
+# Builds the ttyd argv from the MIOS_TTYD_* env (sourced via
+# /etc/mios/userenv.sh, which the systemd unit EnvironmentFile=s)
+# and execs ttyd. Splitting the assembly out of the .service file
+# keeps the unit declarative + lets the operator override pieces
+# via mios.toml [ttyd] without editing the unit.
+#
+# Variant arg picks WHICH ttyd instance to start:
+#   bash       -> port MIOS_PORT_TTYD_BASH (default 7681), runs
+#                 MIOS_TTYD_BASH_SHELL or /bin/bash.
+#   powershell -> port MIOS_PORT_TTYD_POWERSHELL (default 7682),
+#                 runs MIOS_TTYD_POWERSHELL_SHELL or
+#                 /usr/libexec/mios/mios-powershell --shell.
+#
+# Common knobs (both variants):
+#   MIOS_TTYD_BIND               default 127.0.0.1
+#   MIOS_TTYD_REQUIRE_AUTH       default true; refuses exposed bind
+#                                without auth creds.
+#   MIOS_TTYD_AUTH_USER / _PASS  basic-auth credentials.
+#   MIOS_TTYD_SSL_CERT / _KEY    optional TLS termination.
+#   MIOS_TTYD_WRITABLE           default true.
+#   MIOS_TTYD_MAX_CLIENTS        default 0 (ttyd default).
+set -eu
+
+VARIANT="${1:-bash}"
+case "$VARIANT" in
+    bash|powershell) ;;
+    *)
+        echo "mios-ttyd-launch: variant must be bash|powershell (got $VARIANT)" >&2
+        exit 2
+        ;;
+esac
+
+# Resolve port + shell defaults.
+if [[ "$VARIANT" == "bash" ]]; then
+    PORT="${MIOS_PORT_TTYD_BASH:-7681}"
+    SHELL_CMD="${MIOS_TTYD_BASH_SHELL:-/bin/bash}"
+else
+    PORT="${MIOS_PORT_TTYD_POWERSHELL:-7682}"
+    SHELL_CMD="${MIOS_TTYD_POWERSHELL_SHELL:-/usr/libexec/mios/mios-powershell --shell}"
+fi
+
+BIND="${MIOS_TTYD_BIND:-127.0.0.1}"
+REQUIRE_AUTH="${MIOS_TTYD_REQUIRE_AUTH:-true}"
+AUTH_USER="${MIOS_TTYD_AUTH_USER:-}"
+AUTH_PASS="${MIOS_TTYD_AUTH_PASS:-}"
+SSL_CERT="${MIOS_TTYD_SSL_CERT:-}"
+SSL_KEY="${MIOS_TTYD_SSL_KEY:-}"
+WRITABLE="${MIOS_TTYD_WRITABLE:-true}"
+MAX_CLIENTS="${MIOS_TTYD_MAX_CLIENTS:-0}"
+
+# Safety: refuse to bind beyond loopback without credentials. ttyd
+# itself happily exposes an unauthenticated shell; this guard is
+# the difference between a casual local convenience and a remote
+# code execution surface.
+if [[ "$BIND" != "127.0.0.1" ]] && [[ "$BIND" != "localhost" ]] && [[ "$BIND" != "::1" ]]; then
+    if [[ "$REQUIRE_AUTH" == "true" || "$REQUIRE_AUTH" == "1" ]]; then
+        if [[ -z "$AUTH_USER" || -z "$AUTH_PASS" ]]; then
+            echo "mios-ttyd-launch: refusing to bind $BIND:$PORT without auth creds" >&2
+            echo "  set [ttyd].auth_user + .auth_pass in mios.toml, OR" >&2
+            echo "  flip [ttyd].require_auth = false (NOT RECOMMENDED)" >&2
+            exit 2
+        fi
+    fi
+fi
+
+ARGS=("-p" "$PORT" "-i" "$BIND")
+if [[ "$WRITABLE" == "true" || "$WRITABLE" == "1" ]]; then
+    ARGS+=("-W")
+fi
+if [[ "$MAX_CLIENTS" -gt 0 ]]; then
+    ARGS+=("-m" "$MAX_CLIENTS")
+fi
+if [[ -n "$AUTH_USER" && -n "$AUTH_PASS" ]]; then
+    ARGS+=("-c" "${AUTH_USER}:${AUTH_PASS}")
+fi
+if [[ -n "$SSL_CERT" && -n "$SSL_KEY" ]] \
+        && [[ -f "$SSL_CERT" && -f "$SSL_KEY" ]]; then
+    ARGS+=("-S" "-C" "$SSL_CERT" "-K" "$SSL_KEY")
+fi
+
+# Window title in the browser tab.
+ARGS+=("-T" "xterm-256color")
+ARGS+=("-t" "titleFixed=MiOS ttyd [$VARIANT @ $BIND:$PORT]")
+
+# Final argv: ttyd <flags> <shell-cmd> [shell-args]
+# Split SHELL_CMD on whitespace so "mios-powershell --shell" becomes
+# argv[0]=mios-powershell + argv[1]=--shell.
+# shellcheck disable=SC2206
+SHELL_ARGV=( $SHELL_CMD )
+
+exec ttyd "${ARGS[@]}" "${SHELL_ARGV[@]}"

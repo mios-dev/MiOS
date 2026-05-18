@@ -517,6 +517,47 @@ watch_dirs = [
 bootstrap_per_source_cap   = 200
 lookup_max_alias_results   = 3
 
+[ttyd]
+# Phase D.2 of the AgentOS roadmap: browser-accessible terminals.
+# ttyd is a C/libuv pty-over-WebSocket bridge -- the operator's
+# 2026-05-18 research note flagged it as the lightest option for
+# accessing local shells from a browser. MiOS ships TWO instances:
+#
+#   mios-ttyd-bash       :7681  -> ttyd bash       (Linux side)
+#   mios-ttyd-powershell :7682  -> ttyd <pwsh.exe> (Windows side)
+#
+# Both bind 127.0.0.1 by default; the operator hits them from a
+# local browser at http://localhost:7681 / :7682. For LAN access,
+# flip `bind` to "0.0.0.0" AND set `auth_user`/`auth_pass` (ttyd
+# refuses to start exposed without auth credentials if `require_auth`
+# is true). SSL cert + key paths optional for HTTPS termination.
+enable             = true
+bind               = "127.0.0.1"
+# Master auth toggle: when bind != "127.0.0.1" + require_auth = true
+# + auth_user/pass empty, the service refuses to start (prevents
+# accidental open-network exposure).
+require_auth       = true
+auth_user          = ""
+auth_pass          = ""
+# Optional TLS termination -- when both paths exist, ttyd serves
+# https + wss instead of http + ws. /etc/ssl/mios/ is the canonical
+# MiOS cert dir; operator drops a wildcard cert there or generates
+# a self-signed pair via mios-doctor.
+ssl_cert           = ""
+ssl_key            = ""
+# Per-instance shell overrides. Empty = use the per-service default
+# (mios-ttyd-bash -> /bin/bash; mios-ttyd-powershell ->
+# /usr/libexec/mios/mios-powershell --shell which resolves pwsh.exe).
+bash_shell         = ""
+powershell_shell   = ""
+# Read-write terminal (operator can type). Set to false for a
+# view-only session shared with a collaborator -- handy for paired
+# debugging without granting input.
+writable           = true
+# Max active client sessions per instance (ttyd defaults to 1 +
+# rejects further). Raise for collaborative read-only sessions.
+max_clients        = 0
+
 [passport]
 # Phase C.3 of the AgentOS roadmap: Agent Passports (signed
 # identity tokens). Every agent in the stack gets an Ed25519
@@ -2237,6 +2278,8 @@ ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting context layer)
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
+ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
+ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every

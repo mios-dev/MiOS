@@ -66,15 +66,18 @@ TIMEOUT=30
 WORK_DIR=""
 EMIT_JSON=0
 SCRIPT=""
+SHELL_MODE=0
 
 # Parse leading flags. Positional script can come as bare arg, -c
-# <script>, or '-' meaning stdin.
+# <script>, '-' meaning stdin, or --shell for an interactive
+# PowerShell session (used by mios-ttyd-powershell.service).
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
         --timeout) TIMEOUT="$2"; shift 2 ;;
         --work-dir) WORK_DIR="$2"; shift 2 ;;
         --json) EMIT_JSON=1; shift ;;
+        --shell) SHELL_MODE=1; shift ;;
         -c)
             SCRIPT="$2"
             shift 2
@@ -89,6 +92,28 @@ while [[ "$#" -gt 0 ]]; do
             ;;
     esac
 done
+
+# Interactive shell mode -- exec pwsh.exe with no -NonInteractive
+# and no script body, inheriting the controlling terminal. ttyd's
+# pty layer + WSL interop give the agent a full Win32 PowerShell
+# session that survives client reconnects (ttyd buffers stdout).
+if [[ "$SHELL_MODE" -eq 1 ]]; then
+    for cand in \
+        "/mnt/c/Program Files/PowerShell/7/pwsh.exe" \
+        "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
+        if [[ -x "$cand" ]]; then
+            exec "$cand" -NoProfile
+        fi
+    done
+    if command -v pwsh.exe >/dev/null 2>&1; then
+        exec pwsh.exe -NoProfile
+    fi
+    if command -v powershell.exe >/dev/null 2>&1; then
+        exec powershell.exe -NoProfile
+    fi
+    echo "mios-powershell --shell: no pwsh.exe / powershell.exe found" >&2
+    exit 1
+fi
 
 if [[ -z "$SCRIPT" ]]; then
     echo "mios-powershell: empty script" >&2

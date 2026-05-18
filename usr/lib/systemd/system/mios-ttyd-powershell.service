@@ -1,0 +1,56 @@
+# /usr/lib/systemd/system/mios-ttyd-powershell.service
+# Phase D.2 of the AgentOS roadmap: browser-accessible Windows-
+# side PowerShell terminal. Operator hits http://localhost:7682
+# and gets an interactive pwsh.exe session through WSL interop.
+#
+# Operator directive 2026-05-18: "add ttyd to the stack so we can
+# access PowerShell from a local browser(s)".
+#
+# How it works:
+#   mios-ttyd-launch powershell  ->  ttyd <flags> mios-powershell --shell
+#   mios-powershell --shell      ->  exec pwsh.exe -NoProfile
+#                                    (falls back to powershell.exe 5.1)
+# WSL interop bridges the pty so the agent's pty + the Windows-
+# side stdout/stderr/stdin pipes round-trip cleanly. From the
+# browser it feels exactly like a Windows Terminal pwsh tab,
+# minus tab completion that requires real-time keystrokes the
+# WebSocket layer occasionally hiccups on. Operator-confirmed
+# trade-off accepted in the directive.
+
+[Unit]
+Description='MiOS' ttyd -- browser pty bridge (Windows PowerShell session)
+Documentation=file:///usr/libexec/mios/mios-ttyd-launch
+After=network-online.target
+Wants=network-online.target
+# Fedora's ttyd RPM installs to /usr/sbin/ttyd; either path is OK.
+ConditionPathExistsGlob=/usr/?bin/ttyd
+# Defer to mios-ttyd-bash.service ordering only for log clarity;
+# the two are independent.
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/mios/userenv.sh
+# Run as the operator -- WSL interop's /init creates per-user
+# Windows interop sockets, so the agent service-user contexts
+# CAN'T exec /mnt/c/Windows/System32/powershell.exe (operator-
+# confirmed 2026-05-15 in mios-as-operator.sh's perm wall note).
+# The browser session is the operator's anyway -- single tenant.
+User=mios
+Group=mios
+ExecStart=/usr/libexec/mios/mios-ttyd-launch powershell
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+# Needs to reach /mnt/c via WSL's mount tree -- can't ProtectHome=
+# without breaking the interop.
+ReadWritePaths=/var/home /home /tmp /var/tmp /mnt
+
+[Install]
+WantedBy=multi-user.target

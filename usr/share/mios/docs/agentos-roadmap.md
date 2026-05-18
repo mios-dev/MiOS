@@ -263,6 +263,33 @@ Windows paths).
 template demonstrating text_create -> text_view as the native
 replacement for save-document's pc_type chain.
 
+### D.2 -- ttyd browser pty bridge  *(landed)*
+
+Operator directive 2026-05-18: "add ttyd to the stack so we can
+access PowerShell from a local browser(s)". Two systemd-managed
+ttyd instances expose pty-over-WebSocket bridges:
+
+  * `mios-ttyd-bash.service`         :7681  ->  `ttyd ... /bin/bash`
+  * `mios-ttyd-powershell.service`   :7682  ->  `ttyd ... mios-powershell --shell`
+
+`mios-powershell --shell` (new mode in the existing shim) execs
+`pwsh.exe` (preferred) / `powershell.exe` interactively via WSL
+interop, inheriting the ttyd pty. The browser tab sees a real
+Windows PowerShell prompt over WebSocket.
+
+Hardening:
+  * Both bound to 127.0.0.1 by default.
+  * `mios-ttyd-launch` refuses to bind beyond loopback without
+    `auth_user` + `auth_pass` when `require_auth` is true.
+  * Optional TLS termination via `ssl_cert` + `ssl_key`.
+
+SSOT: `[ttyd]` in mios.toml + `[ports].ttyd_bash` /
+`.ttyd_powershell` + the userenv.sh slot map +
+configurator HTML "ttyd" section.
+
+Package: `ttyd` in `packages-ttyd` of usr/share/mios/PACKAGES.md
+(Fedora 44 ships v1.7.7).
+
 ## What stays put
 
 The MCP-style execution layer (mios-launcher broker, mios-pc-

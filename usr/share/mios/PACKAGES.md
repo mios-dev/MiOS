@@ -70,6 +70,21 @@ fish
 tmux
 ```
 
+```packages-ttyd
+# Operator directive 2026-05-18: "add ttyd to the stack so we can
+# access PowerShell from a local browser(s)". ttyd is a C/libuv
+# WebSocket-backed pty bridge -- fastest light-weight option per
+# the operator's research note (faster than xterm.js wrappers
+# because it ships its own WebGL renderer + minimizes round-trips).
+#
+# Wiring:
+#   * mios-ttyd-bash.service       :7681  ttyd bash       (Linux shell)
+#   * mios-ttyd-powershell.service :7682  ttyd <pwsh.exe> (Windows PS)
+# Both bind 127.0.0.1 by default; operator flips to 0.0.0.0 +
+# auth in mios.toml [ttyd] for LAN access.
+ttyd
+```
+
 ```packages-python
 # Host python deps that MiOS scripts use (NOT inside the Hermes venv;
 # those are pip-installed by automation/38-hermes-agent.sh).

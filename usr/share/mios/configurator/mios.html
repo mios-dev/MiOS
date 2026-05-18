@@ -1012,6 +1012,56 @@
 </details>
 
 <details class="section">
+  <summary>ttyd · browser-accessible terminals <span class="phase-badge">Phase 10 · Runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Phase D.2 -- ttyd exposes two pty-over-WebSocket bridges:
+      <code>:7681</code> (Linux bash) and <code>:7682</code>
+      (Windows-side PowerShell via interop). Both bind
+      <code>127.0.0.1</code> by default. Flip <code>bind</code> to
+      <code>0.0.0.0</code> for LAN access AND set
+      <code>auth_user</code>/<code>auth_pass</code> -- the launcher
+      refuses to bind beyond loopback without credentials when
+      <code>require_auth</code> is true (the default).
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>ttyd -- bind + auth</legend>
+        <label for="f-ttyd-enable">enable (master toggle)</label>
+        <input type="text" id="f-ttyd-enable" data-key="ttyd.enable" data-type="bool" placeholder="true">
+        <label for="f-ttyd-bind">bind (127.0.0.1 = local-only)</label>
+        <input type="text" id="f-ttyd-bind" data-key="ttyd.bind" placeholder="127.0.0.1">
+        <label for="f-ttyd-require">require_auth (when bind != loopback)</label>
+        <input type="text" id="f-ttyd-require" data-key="ttyd.require_auth" data-type="bool" placeholder="true">
+        <label for="f-ttyd-user">auth_user (basic-auth username)</label>
+        <input type="text" id="f-ttyd-user" data-key="ttyd.auth_user" placeholder="">
+        <label for="f-ttyd-pass">auth_pass (basic-auth password)</label>
+        <input type="text" id="f-ttyd-pass" data-key="ttyd.auth_pass" placeholder="">
+      </fieldset>
+      <fieldset>
+        <legend>ttyd -- TLS + shells + ports</legend>
+        <label for="f-ttyd-cert">ssl_cert (PEM path; empty = http)</label>
+        <input type="text" id="f-ttyd-cert" data-key="ttyd.ssl_cert" placeholder="">
+        <label for="f-ttyd-key">ssl_key (PEM path; empty = http)</label>
+        <input type="text" id="f-ttyd-key" data-key="ttyd.ssl_key" placeholder="">
+        <label for="f-ttyd-bash">bash_shell (override)</label>
+        <input type="text" id="f-ttyd-bash" data-key="ttyd.bash_shell" placeholder="/bin/bash">
+        <label for="f-ttyd-ps">powershell_shell (override)</label>
+        <input type="text" id="f-ttyd-ps" data-key="ttyd.powershell_shell" placeholder="/usr/libexec/mios/mios-powershell --shell">
+        <label for="f-ttyd-write">writable (false = view-only pairing)</label>
+        <input type="text" id="f-ttyd-write" data-key="ttyd.writable" data-type="bool" placeholder="true">
+        <label for="f-ttyd-max">max_clients (0 = ttyd default)</label>
+        <input type="text" id="f-ttyd-max" data-key="ttyd.max_clients" data-type="int" placeholder="0">
+        <label for="f-ttyd-port-bash">port_bash</label>
+        <input type="text" id="f-ttyd-port-bash" data-key="ports.ttyd_bash" data-type="int" placeholder="7681">
+        <label for="f-ttyd-port-ps">port_powershell</label>
+        <input type="text" id="f-ttyd-port-ps" data-key="ports.ttyd_powershell" data-type="int" placeholder="7682">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
   <summary>Passport · Ed25519 agent identity tokens <span class="phase-badge">Phase 10 · Runtime</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
