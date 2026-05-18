@@ -2816,15 +2816,22 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         return f"mios-open-url {url}" + (
             f" {shlex.quote(str(browser))}" if browser else "")
     if tool == "mios_find":
+        # mios-find's --json mode lands in a follow-up commit; for
+        # now the prose output is what the agent gets. Polish-grounding
+        # (E.1a) reads the result_preview directly so this is OK.
         return f"mios-find {shlex.quote(str(args.get('name', '')))}"
     if tool == "mios_apps":
+        # --json -> NDJSON inventory (one app per line: short_name /
+        # app_id / source / label / launch_hint). Same shape mios-pkg
+        # bootstrap consumes; the polish pass + the games-research
+        # path read app_id directly instead of grepping prose.
         f = args.get("filter") or ""
-        return "mios-apps" + (f" --filter {shlex.quote(str(f))}" if f else "")
+        return "mios-apps --json" + (f" --filter {shlex.quote(str(f))}" if f else "")
     if tool == "everything_search":
         q = shlex.quote(str(args.get("query", "")))
         n = int(args.get("limit", 10))
         ext = args.get("ext") or ""
-        cmd = f"mios-everything -n {n} {q}"
+        cmd = f"mios-everything --json -n {n} {q}"
         if ext:
             cmd += f" -ext {shlex.quote(str(ext))}"
         return cmd
@@ -2843,6 +2850,8 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             cmd += f" -type {type_filter}"
         return cmd
     if tool == "system_status":
+        # Already emits a JSON blob by default (see mios-system-status
+        # docstring -- single structured object the agent reads verbatim).
         return "mios-system-status"
     if tool == "service_status":
         name = shlex.quote(str(args.get("name", "")))

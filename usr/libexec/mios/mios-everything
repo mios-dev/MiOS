@@ -50,12 +50,14 @@ fi
 MAX=10
 EXT=""
 QUERY=""
+JSON=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        -n)    MAX="$2"; shift 2 ;;
-        -ext)  EXT="$2"; shift 2 ;;
-        --)    shift; QUERY="$*"; break ;;
-        *)     QUERY="$1"; shift ;;
+        -n)     MAX="$2"; shift 2 ;;
+        -ext)   EXT="$2"; shift 2 ;;
+        --json) JSON=1; shift ;;
+        --)     shift; QUERY="$*"; break ;;
+        *)      QUERY="$1"; shift ;;
     esac
 done
 [ -z "$QUERY" ] && { echo "mios-everything: missing <query>" >&2; usage >&2; exit 64; }
@@ -117,8 +119,51 @@ fi
 RAW=$(timeout 2 "$ES_BIN" -n "$MAX" "$QUERY" 2>/dev/null | tr -d '\r')
 
 if [ -z "$RAW" ]; then
-    echo "mios-everything: no match for '$QUERY'" >&2
+    if [ "$JSON" -eq 1 ]; then
+        printf '{"ok":false,"verb":"everything_search","query":%s,"error":"no_match","results":[]}\n' \
+            "$(printf '%s' "$QUERY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+    else
+        echo "mios-everything: no match for '$QUERY'" >&2
+    fi
     exit 1
+fi
+
+if [ "$JSON" -eq 1 ]; then
+    # Machine-mode JSON: array of {path, name, ext, drive} so the
+    # agent can filter/sort without re-parsing prose. Operator
+    # directive 2026-05-18 'shim machine-mode JSON sweep' (task #148).
+    # Pass RAW via env (RAW_LINES) -- heredoc + pipe stdin conflict
+    # made `printf '$RAW' | python3 - <<PYEOF` deliver the heredoc
+    # text to python's stdin, dropping the RAW data.
+    RAW_LINES="$RAW" python3 - "$QUERY" <<'PYEOF'
+import json, os, sys, re
+query = sys.argv[1]
+raw = os.environ.get("RAW_LINES", "")
+results = []
+for line in raw.splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    # Windows paths use backslash separator; posix os.path doesn't
+    # split on it. Split on both / and \ for basename extraction.
+    base = line.replace("\\", "/").rsplit("/", 1)[-1]
+    name, ext = os.path.splitext(base)
+    drive = re.match(r'^[A-Za-z]:', line)
+    results.append({
+        "path":  line,
+        "name":  name,
+        "ext":   ext.lstrip("."),
+        "drive": drive.group(0) if drive else "",
+    })
+print(json.dumps({
+    "ok":      True,
+    "verb":    "everything_search",
+    "query":   query,
+    "count":   len(results),
+    "results": results,
+}))
+PYEOF
+    exit 0
 fi
 
 printf '%s\n' "$RAW"
