@@ -1,6 +1,6 @@
 {
   "name": "window-restore-and-focus",
-  "description": "Restore a minimized window and immediately focus it. Common operator pattern after an exit-focus-mode -- the C.2 miner picks this up as a frequent 2-gram and auto-codifies it.",
+  "description": "Restore a minimized/maximized window matching `title`, then focus it.",
   "source": "import",
   "status": "promoted",
   "body": {

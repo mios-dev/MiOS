@@ -1,6 +1,6 @@
 {
   "name": "install-windows-app",
-  "description": "Search winget for a query, then install the matched package id. The agent typically resolves the id via winget_search first; this skill is the install-after-confirm path.",
+  "description": "Search winget for `query`, then install the matched package by `id`.",
   "source": "import",
   "status": "promoted",
   "body": {

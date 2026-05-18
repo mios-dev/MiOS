@@ -1,6 +1,6 @@
 {
   "name": "open-and-focus",
-  "description": "Open an app and immediately focus its window. Default starter skill demonstrating the param-templated DAG shape.",
+  "description": "Launch the app named `app`, then focus its window.",
   "source": "import",
   "status": "promoted",
   "body": {
