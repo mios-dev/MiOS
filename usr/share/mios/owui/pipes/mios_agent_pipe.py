@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 import json
 import os
 import re
+import shlex
 import asyncio
 import time
 from typing import AsyncGenerator, Awaitable, Callable, Optional
@@ -1015,31 +1016,46 @@ class Pipe:
         '              several tools. Emit\n'
         '              {"action":"agent","reason":"<short>"}\n'
         "\n"
-        "MiOS verbs available for dispatch (use EXACT name + args shape):\n"
-        '  open_app(name:str, position:str="default", args:list[str]?, monitor:int=0)\n'
-        '    position enum: default / as-is / center / left / right /\n'
-        '    top / bottom / top-left / top-right / bottom-left /\n'
-        '    bottom-right / maximize\n'
-        '  focus_window(title:str)\n'
-        '  move_window(title:str, position:str, monitor:int=0)\n'
-        '  close_window(title:str, mode:str="graceful")    # mode: graceful|force\n'
-        '  list_windows()\n'
-        '  screen_layout()\n'
-        '  open_url(url:str, browser:str?)\n'
-        '  launch_app(name:str)            # simple, no position\n'
-        '  mios_find(name:str)             # READ-ONLY resolve\n'
-        '  mios_apps(filter:str?)          # inventory\n'
-        '  everything_search(query:str, limit:int=10, ext:str?)\n'
-        '  system_status()\n'
+        "MiOS verbs available for dispatch. Each verb is tagged WRITE\n"
+        "(causes a visible system effect) or READ (returns info only):\n"
+        '  [WRITE] open_app(name, position="default", args?, monitor=0)\n'
+        '          -- LAUNCH an app/program. Use for "open X" / "launch X" /\n'
+        '             "start X" / "run X". position enum:\n'
+        '             default / as-is / center / left / right / top /\n'
+        '             bottom / top-left / top-right / bottom-left /\n'
+        '             bottom-right / maximize\n'
+        '  [WRITE] launch_app(name)                -- simpler launch, no position arg\n'
+        '  [WRITE] focus_window(title)             -- bring an OPEN window to front\n'
+        '  [WRITE] move_window(title, position, monitor=0)\n'
+        '  [WRITE] close_window(title, mode="graceful")   -- mode: graceful|force\n'
+        '  [WRITE] open_url(url, browser?)         -- open a URL in a browser\n'
+        '  [READ ] list_windows()                  -- list currently OPEN windows\n'
+        '  [READ ] screen_layout()                 -- monitor geometry\n'
+        '  [READ ] mios_find(name)                 -- resolve name -> path, no launch\n'
+        '  [READ ] mios_apps(filter?)              -- INVENTORY of installed apps, no launch\n'
+        '  [READ ] everything_search(query, limit=10, ext?)\n'
+        '  [READ ] system_status()\n'
+        "\n"
+        "Verb-pick priority (most common cases first):\n"
+        '  "open X" / "launch X" / "start X" / "run X"  -> open_app(name=X)\n'
+        '  "close X"                                    -> close_window(title=X)\n'
+        '  "focus X" / "bring X to front" / "switch to X" -> focus_window(title=X)\n'
+        '  "move X to <pos>"                            -> move_window(title=X, position=<pos>)\n'
+        '  "what apps are installed" / "list apps"      -> mios_apps()\n'
+        '  "what windows are open"                      -> list_windows()\n'
+        '  "go to <url>" / "visit <url>"                -> open_url(url=<url>)\n'
         "\n"
         "Rules:\n"
-        "- Pick `dispatch` ONLY when ONE call solves it. Position\n"
-        "  defaults to \"default\" (golden+16:10 centered); set\n"
+        "- `dispatch` only when ONE verb solves it.\n"
+        "- A WRITE verb is the right pick whenever the user asks for a\n"
+        "  system effect (open/close/focus/move). NEVER pick a READ verb\n"
+        "  when the user clearly wants an effect.\n"
+        "- Position defaults to \"default\" (golden+16:10 centered); set\n"
         "  explicitly only when the user named a side.\n"
-        "- Pick `chat` for greetings, thanks, follow-up clarification\n"
-        "  the agent can answer in one sentence.\n"
-        "- Pick `agent` for anything that needs N>1 tools, web\n"
-        "  research, install, file editing, multi-step plans.\n"
+        "- `chat` for greetings, thanks, one-sentence clarification.\n"
+        "- `agent` for N>1 tools, web research, install, file editing,\n"
+        "  general knowledge questions, conversational follow-through.\n"
+        "  MiOS-Agent is both an Agentic-OS AND a generalized AI agent.\n"
         "- Mirror the user's language in `reply` fields.\n"
         "- Output JSON ONLY -- no preamble, no markdown, no commentary."
     )
@@ -1129,7 +1145,14 @@ class Pipe:
                 ea = " ".join(shlex.quote(str(a)) for a in extra_args)
                 cmd = f"{env_prefix}mios-windows launch {shlex.quote(name)} {ea}"
             else:
-                cmd = f"{env_prefix}mios-find {shlex.quote(name)} | bash"
+                # 2>/dev/null suppresses mios-find's interactive narrative
+                # ("(picked best of N; M alternatives:)" + "  1. [...] ..."),
+                # which is English noise written to stderr for human
+                # operators. Agent-side dispatch only needs the stdout
+                # resolution line (which is piped to bash). Without this
+                # filter the broker's combined stdout+stderr capture leaks
+                # the narrative into the user-facing tool_result.
+                cmd = f"{env_prefix}mios-find {shlex.quote(name)} 2>/dev/null | bash"
         elif tool == "launch_app":
             cmd = f"mios-launch {shlex.quote(str(args.get('name', '')))}"
         elif tool == "focus_window":
@@ -1925,20 +1948,42 @@ class Pipe:
                         result = json.loads(result_json)
                     except json.JSONDecodeError:
                         result = {"output": result_json}
-                    out = result.get("output") or result.get("stderr") or ""
-                    # Thin operator-facing reply: just confirm the
-                    # action + cite the broker output one-liner. No
-                    # polish (the verb already ran; nothing to polish).
-                    if result.get("success") is False:
-                        await self._emit(__event_emitter__, "✅", done=True)
-                        yield f"_⚠️ `{tool}` → {(out or 'failed')[:240]}_"
-                        return
-                    await self._emit(__event_emitter__, "✅", done=True)
-                    # Surface the first non-empty line of output for context.
-                    first_line = next((ln for ln in out.splitlines()
-                                       if ln.strip()), "")
-                    yield f"✅ `{tool}` · {first_line[:240]}" if first_line \
-                          else f"✅ `{tool}`"
+                    ok = bool(result.get("success"))
+                    await self._emit(__event_emitter__,
+                                     "✅" if ok else "⚠️", done=True)
+                    # OpenAI-tool-result-native propagation: emit the
+                    # structured tool_call + tool_result envelope inside
+                    # a <details type="tool_calls"> block OWUI renders
+                    # natively. The only literal characters at this layer
+                    # are cross-locale identifiers (the tool name) +
+                    # universal symbols (✅ / ⚠️). The structured JSON
+                    # matches the OpenAI tool_calls / role:tool shape,
+                    # so any downstream agent reading chat history sees
+                    # the canonical tool_result content (not a prose
+                    # render) and the operator gets a collapsible block
+                    # with the raw data inside (zero English narrative).
+                    envelope = {
+                        "tool_call": {
+                            "id": f"call_{int(time.time()*1000)}",
+                            "type": "function",
+                            "function": {
+                                "name": tool,
+                                "arguments": args if isinstance(args, dict) else {},
+                            },
+                        },
+                        "tool_result": {
+                            "success": ok,
+                            "output": (result.get("output") or "")[:2000],
+                            "stderr": (result.get("stderr") or "")[:2000],
+                        },
+                    }
+                    symbol = "✅" if ok else "⚠️"
+                    yield (
+                        f"<details type=\"tool_calls\" done=\"true\">\n"
+                        f"<summary>{symbol} `{tool}`</summary>\n\n"
+                        f"```json\n{json.dumps(envelope, indent=2, default=str)}\n```\n"
+                        f"</details>"
+                    )
                     return
             elif action == "chat":
                 reply = str(verdict.get("reply", "")).strip()
