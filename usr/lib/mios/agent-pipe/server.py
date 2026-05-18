@@ -1579,12 +1579,50 @@ async def execute_skill(name: str, params: dict, *,
     mode = str(body.get("mode") or "sequence").lower()
     inv_id = await _skill_invocation_open(
         row.get("id"), params or {}, session_id)
+    # expand_from: a step annotated with {"expand_from": "<param>",
+    # "bind_as": "<token>"} fans out into one step per element of
+    # the named array param, binding `$<token>` to each value. Used
+    # by try-each skills to walk an arbitrary list (e.g. browser
+    # fallback chain) without hardcoding the list in the skill. The
+    # expansion happens here so the rest of the engine (logging,
+    # event emission, invocation_close) sees a flat step list.
+    expanded: list[dict] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        ef = step.get("expand_from")
+        if not ef:
+            expanded.append(step)
+            continue
+        ba = step.get("bind_as") or "item"
+        seq = (params or {}).get(ef)
+        if not isinstance(seq, list) or not seq:
+            # No values to expand -> skip the step. Counts as a
+            # silent no-op rather than a missing-params failure;
+            # try-each callers can still resolve on a later step.
+            continue
+        for v in seq:
+            inst = {k: w for k, w in step.items()
+                    if k not in ("expand_from", "bind_as")}
+            inst_params = {**(params or {}), ba: v}
+            inst["args"] = _skill_render_args(
+                inst.get("args") or {}, inst_params)
+            inst["_expanded_from"] = ef
+            inst["_bound_value"] = v
+            expanded.append(inst)
+    steps = expanded
     results: list[dict] = []
     failures: list[str] = []
     for idx, step in enumerate(steps):
         verb = (step or {}).get("verb") or ""
         raw_args = (step or {}).get("args") or {}
-        rendered = _skill_render_args(raw_args, params or {})
+        # Already-rendered args from expand_from pass through; raw
+        # args (literal step) still need rendering. Detect by
+        # presence of the _expanded_from marker.
+        if step.get("_expanded_from"):
+            rendered = raw_args
+        else:
+            rendered = _skill_render_args(raw_args, params or {})
         # Detect un-substituted $-tokens (operator forgot a param).
         leftover = [
             v for v in rendered.values()

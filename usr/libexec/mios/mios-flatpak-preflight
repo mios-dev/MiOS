@@ -55,10 +55,44 @@ TIMEOUT_S="${MIOS_FLATPAK_PREFLIGHT_TIMEOUT_S:-8}"
 ERR_FILE="$(mktemp -t mios-fp-pre-XXXXXX)"
 trap 'rm -f "$ERR_FILE"' EXIT
 
+_probe() {
+    local rc=0
+    timeout --preserve-status "$TIMEOUT_S" \
+        flatpak run --command=true "$APP_ID" \
+        >/dev/null 2>"$ERR_FILE" || rc=$?
+    return $rc
+}
+
+# First probe. If it fails AND the failure pattern is one the heal
+# verb knows how to fix (portal_helper_env_fd / user_bus_credentials
+# / unknown_sandbox_error), invoke mios-wsl-flatpak-heal once and
+# retry. Generic across any flatpak id -- no app-name knowledge in
+# this script.
 rc=0
-timeout --preserve-status "$TIMEOUT_S" flatpak run --command=true "$APP_ID" \
-    >/dev/null 2>"$ERR_FILE" || rc=$?
+_probe || rc=$?
 stderr_raw="$(head -c 1024 "$ERR_FILE" 2>/dev/null)"
+
+if [[ "$rc" -ne 0 ]] && command -v mios-wsl-flatpak-heal >/dev/null 2>&1; then
+    case "$stderr_raw" in
+        *"--env-fd"*|*"failed to receive credentials"*|\
+        *"dbus"*"timeout"*|*"portal"*"timed out"*)
+            # Run heal as the operator user (the timer's natural
+            # context); falls back to a direct invocation if su
+            # isn't viable.
+            if [[ -n "${SUDO_USER:-}" ]]; then
+                su - "$SUDO_USER" -c \
+                    "mios-wsl-flatpak-heal" \
+                    >/dev/null 2>&1 || true
+            else
+                mios-wsl-flatpak-heal >/dev/null 2>&1 || true
+            fi
+            : >"$ERR_FILE"
+            rc=0
+            _probe || rc=$?
+            stderr_raw="$(head -c 1024 "$ERR_FILE" 2>/dev/null)"
+            ;;
+    esac
+fi
 
 # Classify the failure when rc != 0. Operator-binding: structural
 # tokens, NOT English narration. The agent reads `error_kind` to
