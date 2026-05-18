@@ -1047,6 +1047,18 @@ class Pipe:
         '             /root /var/log /usr/share/mios. type: "f" files only,\n'
         '             "d" directories only, omit for both.\n'
         '  [READ ] system_status()\n'
+        '  [READ ] service_status(name)\n'
+        '          -- systemctl is-active + status snapshot for a Linux\n'
+        '             service (hermes-agent, mios-daemon, mios-open-webui, ...).\n'
+        '  [WRITE] service_restart(name)\n'
+        '          -- systemctl restart <name>. Use for live patches.\n'
+        '  [READ ] process_list(filter?, sort=\"rss\", limit=20)\n'
+        '          -- ps snapshot sorted by rss (default) or cpu.\n'
+        '             filter = case-insensitive substring on command name.\n'
+        '  [READ ] container_status(name?)\n'
+        '          -- podman ps -a snapshot. name = optional substring filter.\n'
+        '  [WRITE] container_restart(name)\n'
+        '          -- podman restart <name> (or substring of a container name).\n'
         "\n"
         "Verb-pick priority (most common cases first):\n"
         '  "open X" / "launch X" / "start X" / "run X"  -> open_app(name=X)\n'
@@ -1243,6 +1255,55 @@ class Pipe:
                 cmd += f" -type {type_filter}"
         elif tool == "system_status":
             cmd = "mios-system-status"
+        elif tool == "service_status":
+            # systemctl is-active + status snapshot for a Linux service.
+            # Read-only. Picks system bus by default; passes through
+            # whatever the operator named.
+            name = shlex.quote(str(args.get("name", "")))
+            cmd = (
+                f"echo \"=== is-active ===\"; systemctl is-active {name}; "
+                f"echo; echo \"=== status ===\"; "
+                f"systemctl --no-pager status {name} | head -20"
+            )
+        elif tool == "service_restart":
+            # systemctl restart <name>. WRITE verb -- visible side
+            # effect on the operator's system. Returns the post-restart
+            # is-active line so the agent can confirm.
+            name = shlex.quote(str(args.get("name", "")))
+            cmd = (
+                f"systemctl restart {name} && "
+                f"echo \"restarted; is-active=$(systemctl is-active {name})\""
+            )
+        elif tool == "process_list":
+            # ps snapshot sorted by RSS (default) or CPU. limit caps lines.
+            # filter is a case-insensitive substring on the command name.
+            limit = int(args.get("limit", 20))
+            sort = str(args.get("sort", "rss")).lower()
+            sort_arg = "--sort=-pcpu" if sort == "cpu" else "--sort=-rss"
+            filt = str(args.get("filter", "")).strip()
+            base = (
+                f"ps -eo pid,user,rss,pcpu,comm,args {sort_arg} --no-headers"
+            )
+            if filt:
+                base += f" | grep -i -- {shlex.quote(filt)}"
+            cmd = f"{base} | head -{limit}"
+        elif tool == "container_status":
+            # podman ps -a snapshot (all containers, including stopped).
+            # No filter = all; filter = case-insensitive substring on name.
+            filt = str(args.get("name", "")).strip()
+            base = "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}'"
+            if filt:
+                base += f" | grep -i -- {shlex.quote(filt)}"
+            cmd = base
+        elif tool == "container_restart":
+            # podman restart <name>. WRITE verb. Confirms by showing the
+            # post-restart status line.
+            name = shlex.quote(str(args.get("name", "")))
+            cmd = (
+                f"podman restart {name} && "
+                f"podman ps --filter name={name} "
+                f"--format '{{.Names}}\\t{{.Status}}'"
+            )
         else:
             return json.dumps({"success": False,
                                "stderr": f"router emitted unknown tool {tool!r}"})

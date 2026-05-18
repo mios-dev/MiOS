@@ -592,3 +592,113 @@ class Tools:
             "browser": browser or "(default)",
             "stderr": result.get("stderr", ""),
         })
+
+    # ─── service_status ─────────────────────────────────────────────
+    async def service_status(self, name: str, __user__: Optional[dict] = None) -> str:
+        """systemctl status snapshot for a Linux service. Read-only.
+        Returns is-active + first 20 lines of status output.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        q = shlex.quote(name)
+        cmd = (
+            f"echo '=== is-active ==='; systemctl is-active {q}; "
+            f"echo; echo '=== status ==='; "
+            f"systemctl --no-pager status {q} | head -20"
+        )
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "name": name,
+            "output": (result.get("stdout") or "")[:4000],
+            "stderr": result.get("stderr", ""),
+        })
+
+    # ─── service_restart ────────────────────────────────────────────
+    async def service_restart(self, name: str, __user__: Optional[dict] = None) -> str:
+        """systemctl restart <name>. WRITE verb -- visible side effect.
+        Confirms via post-restart is-active line.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        q = shlex.quote(name)
+        cmd = (
+            f"systemctl restart {q} && "
+            f"echo \"restarted; is-active=$(systemctl is-active {q})\""
+        )
+        result = _broker_send(cmd, timeout=self.valves.LAUNCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "name": name,
+            "output": (result.get("stdout") or "")[:1000],
+            "stderr": result.get("stderr", ""),
+        })
+
+    # ─── process_list ───────────────────────────────────────────────
+    async def process_list(
+        self,
+        filter: str = "",
+        sort: str = "rss",
+        limit: int = 20,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """ps snapshot, sorted by rss (default) or cpu. Read-only.
+
+        :param filter: case-insensitive substring on command name.
+        :param sort: "rss" (memory, default) or "cpu".
+        :param limit: max lines (default 20).
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        sort_arg = "--sort=-pcpu" if sort.lower() == "cpu" else "--sort=-rss"
+        base = f"ps -eo pid,user,rss,pcpu,comm,args {sort_arg} --no-headers"
+        if filter.strip():
+            base += f" | grep -i -- {shlex.quote(filter.strip())}"
+        cmd = f"{base} | head -{int(limit)}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        lines = [ln for ln in (result.get("stdout") or "").splitlines() if ln.strip()]
+        return json.dumps({
+            "success": result["success"],
+            "lines": lines,
+            "count": len(lines),
+            "stderr": result.get("stderr", ""),
+        })
+
+    # ─── container_status ───────────────────────────────────────────
+    async def container_status(self, name: str = "", __user__: Optional[dict] = None) -> str:
+        """podman ps -a snapshot. Read-only.
+
+        :param name: optional case-insensitive substring filter on container name.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        base = "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}'"
+        if name.strip():
+            base += f" | grep -i -- {shlex.quote(name.strip())}"
+        result = _broker_send(base, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "output": (result.get("stdout") or "")[:4000],
+            "stderr": result.get("stderr", ""),
+        })
+
+    # ─── container_restart ──────────────────────────────────────────
+    async def container_restart(self, name: str, __user__: Optional[dict] = None) -> str:
+        """podman restart <name>. WRITE verb.
+
+        :param name: container name (exact or substring -- podman resolves).
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "disabled"})
+        q = shlex.quote(name)
+        cmd = (
+            f"podman restart {q} && "
+            f"podman ps --filter name={q} --format '{{{{.Names}}}}\\t{{{{.Status}}}}'"
+        )
+        result = _broker_send(cmd, timeout=self.valves.LAUNCH_TIMEOUT_S, capture=True)
+        return json.dumps({
+            "success": result["success"],
+            "name": name,
+            "output": (result.get("stdout") or "")[:1000],
+            "stderr": result.get("stderr", ""),
+        })

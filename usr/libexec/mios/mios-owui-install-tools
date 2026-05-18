@@ -221,6 +221,89 @@ def main() -> int:
                 "required": [],
             },
         },
+        {
+            "name": "service_status",
+            "description": "systemctl status snapshot for a single Linux service (read-only). Returns is-active line + first 20 lines of status. Use this when the operator asks 'is X running' / 'why did X fail' / 'what's the status of <service>'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Service unit name. Examples: hermes-agent, mios-daemon, mios-open-webui, mios-surrealdb, ollama, mios-forge.",
+                    }
+                },
+                "required": ["name"],
+            },
+        },
+        {
+            "name": "service_restart",
+            "description": "systemctl restart <name>. WRITE verb -- visibly restarts a Linux service. Use when the operator asks to restart / reload / kick a service. Confirms with the post-restart is-active state.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Service unit name (same names as service_status).",
+                    }
+                },
+                "required": ["name"],
+            },
+        },
+        {
+            "name": "process_list",
+            "description": "ps snapshot of running Linux processes, sorted by RSS (memory) or CPU. Read-only. Use when the operator asks 'what's using memory' / 'what's eating CPU' / 'is <process> running'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "description": "Case-insensitive substring on command name. Empty = top processes overall.",
+                        "default": "",
+                    },
+                    "sort": {
+                        "type": "string",
+                        "enum": ["rss", "cpu"],
+                        "default": "rss",
+                        "description": "Sort key: rss (memory) or cpu.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Max rows.",
+                    },
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "container_status",
+            "description": "podman ps -a snapshot. Read-only. Returns one line per container with name, status, image. Use when the operator asks 'is <container> running' / 'list containers' / 'show podman status'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Optional case-insensitive substring filter on container name. Empty = all containers (including stopped).",
+                        "default": "",
+                    }
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "container_restart",
+            "description": "podman restart <name>. WRITE verb. Use when the operator asks to restart a MiOS-DEV container (mios-open-webui, mios-ollama, mios-surrealdb, mios-forge, etc.).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Container name (exact). Examples: mios-open-webui, mios-ollama, mios-surrealdb, mios-forge, mios-searxng.",
+                    }
+                },
+                "required": ["name"],
+            },
+        },
         # ── PHASE-3 typed window/launch surface ────────────────────
         # Operator directive 2026-05-18 (native OpenAI strict
         # function-calling with enum positions; replaces SOUL.md
