@@ -479,42 +479,70 @@ PYEOF
             exit 0
         fi
 
-        # Operator-context fallback: direct setsid+nohup (works fine
-        # when this script runs AS the operator -- they're already in
-        # the interactive Windows session).
-        setsid nohup "$target" "$@" >/dev/null 2>&1 < /dev/null &
-        spawn_pid=$!
-        echo "[mios-windows] launched: $target $* (detached, pid $spawn_pid)"
-
-        # The launch creates the process in the operator's interactive
-        # session (Windows session 1, confirmed via Get-Process | Where
-        # SessionId), but DOES NOT auto-focus the new window: the
-        # launching shell isn't a Windows foreground app, so the new
-        # window opens behind whatever the operator was looking at.
-        # Operator-confirmed regression 2026-05-15: "nothing opened--
-        # tools are useless and do not work at all". Window WAS open,
-        # just buried.
-        #
-        # Fix: invoke the foreground helper via PowerShell, passing the
-        # bare process name. Backgrounded so the launch wrapper still
-        # returns ~immediately. Best-effort; if PowerShell isn't
-        # reachable or the process already exited (notepad-style
-        # single-instance reuse), the foreground call is a no-op.
+        # Same-uid-as-broker / no-broker fallback: invoke
+        # Start-Process via PowerShell DIRECTLY (no setsid+nohup).
+        # Operator-flagged 2026-05-18: "NOTHING OPENED AT ALL" --
+        # notepad.exe was exec'd via setsid+nohup, the process ran
+        # (pid 499978) but MainWindowHandle=0 because
+        # mios-launcher.service runs under user@992.service (the
+        # USER MANAGER slice), not the operator's interactive
+        # Windows session. Direct .exe exec from the manager slice
+        # spawns a process with no desktop; Start-Process via
+        # PowerShell always opens in the operator's foreground
+        # session where a window can render.
+        _target_win="$(wslpath -w "$target" 2>/dev/null)"
+        [ -z "$_target_win" ] && _target_win="$target"
         if [ -x "$PWSH" ]; then
-            FOREGROUND_PS1="/usr/share/mios/windows/mios-window-foreground.ps1"
-            if [ -f "$FOREGROUND_PS1" ]; then
-                # Translate the Linux path to the WSL UNC form Windows can read:
-                # /usr/share/... -> \\wsl.localhost\<distro>\usr\share\...
-                # Use wslpath -w to convert (handles the distro-name lookup
-                # automatically; falls back to a hardcoded distro guess if
-                # wslpath isn't available).
-                if win_ps1="$(wslpath -w "$FOREGROUND_PS1" 2>/dev/null)"; then
-                    bare="$(basename "$target" .exe)"
-                    nohup "$PWSH" -NoProfile -NonInteractive \
-                        -ExecutionPolicy Bypass -File "$win_ps1" \
-                        -ProcessName "$bare" >/dev/null 2>&1 < /dev/null &
-                fi
-            fi
+            python3 - "$_target_win" "$PWSH" "$@" <<'PYEOF'
+import shlex, subprocess, sys
+target = sys.argv[1]
+pwsh = sys.argv[2]
+extra_args = sys.argv[3:]
+start = f"$p = Start-Process -FilePath {shlex.quote(target)} -PassThru"
+if extra_args:
+    arglist = ", ".join(shlex.quote(a) for a in extra_args)
+    start = (f"$p = Start-Process -FilePath {shlex.quote(target)} "
+             f"-ArgumentList {arglist} -PassThru")
+center = (
+    "; for ($i = 0; $i -lt 50; $i++) { "
+    "  $p = Get-Process -Id $p.Id -ErrorAction SilentlyContinue; "
+    "  if ($p -and $p.MainWindowHandle -ne 0) { break }; "
+    "  Start-Sleep -Milliseconds 100 "
+    "}; "
+    "if ($p -and $p.MainWindowHandle -ne 0) { "
+    "  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
+    "  Add-Type -Name W32D -Namespace MX -MemberDefinition @'\n"
+    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
+    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
+    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
+    "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
+    "'@ -ErrorAction SilentlyContinue; "
+    "$r = New-Object MX.W32D+RECT; "
+    "[MX.W32D]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
+    "$w = $r.R - $r.L; $h = $r.B - $r.T; "
+    "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
+    "$x = $s.X + [int](($s.Width - $w) / 2); "
+    "$y = $s.Y + [int](($s.Height - $h) / 2); "
+    "[MX.W32D]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
+    "[MX.W32D]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
+    "}"
+)
+ps = start + center
+subprocess.Popen(
+    [pwsh, "-NoProfile", "-NonInteractive",
+     "-ExecutionPolicy", "Bypass", "-Command", ps],
+    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    stdin=subprocess.DEVNULL, start_new_session=True,
+)
+print(f"[mios-windows] launched via Start-Process: {target}")
+PYEOF
+        else
+            # Last-resort fallback if PowerShell is unreachable.
+            # Operator should never hit this path on a healthy MiOS;
+            # window will almost certainly be invisible. Logged so
+            # post-mortem can identify the missing-PWSH cause.
+            setsid nohup "$target" "$@" >/dev/null 2>&1 < /dev/null &
+            echo "[mios-windows] WARN: PowerShell unreachable; setsid fallback used (window likely invisible)" >&2
         fi
         ;;
     ps|powershell)
