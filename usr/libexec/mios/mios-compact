@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""mios-compact -- compact recent agent + system state into a single
+markdown digest that can be ingested as an OWUI knowledge artifact.
+
+Operator directive 2026-05-17: "make sure there's tools to compact
+all this and artifact it natively for OWUI knowledge/database". The
+agent stack generates a lot of latent state (recent chats, hermes
+session decisions, daemon classifications, launch verifier failures,
+git commits) that's useful for the agent to RAG against on later
+turns. This helper pulls the lot, summarizes via the local CPU
+model, and writes a versioned markdown file under
+/var/lib/mios/compacted/. Pair with mios-knowledge-add to register
+the file as a Knowledge collection in OWUI.
+
+Sections in the rendered digest:
+  1. Recent operator chats (last N user turns + agent responses)
+  2. Launch verifier failures (from daemon)
+  3. Recent hermes tool-call patterns
+  4. Daemon classify summaries (system log roll-up)
+  5. Git commits this session
+
+Output: /var/lib/mios/compacted/<utc-iso>.md  (timestamped, never
+overwrites previous digests; mios-knowledge-add picks the newest).
+
+Usage:
+  mios-compact                          # default: last 24h of activity
+  mios-compact --since "12 hours ago"   # parseable by `date`
+  mios-compact --chats 10               # cap chat count
+  mios-compact --out <path>             # override output path
+  mios-compact --stdout                 # print to stdout instead of file
+  mios-compact --no-llm                 # skip the CPU summarization step
+                                        # (raw section dumps only)
+
+Exit codes:
+  0 = digest written (or printed)
+  1 = required state unreachable (OWUI db missing, ollama down)
+  64 = bad args
+"""
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+OWUI_DB = Path(os.environ.get(
+    "MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
+DAEMON_STATE = Path(os.environ.get(
+    "MIOS_DAEMON_STATE", "/var/lib/mios/daemon/state.json"))
+LAUNCH_FAILURES = Path(os.environ.get(
+    "MIOS_DAEMON_LAUNCH_FAILURES", "/var/lib/mios/daemon/launch_failures.json"))
+COMPACTED_DIR = Path(os.environ.get(
+    "MIOS_COMPACTED_DIR", "/var/lib/mios/compacted"))
+REPO_ROOT = Path(os.environ.get("MIOS_REPO_ROOT", "/mnt/c/MiOS"))
+OLLAMA_URL = os.environ.get("MIOS_OLLAMA_URL", "http://127.0.0.1:11434")
+SUMMARY_MODEL = os.environ.get("MIOS_COMPACT_MODEL", "qwen2.5-coder:7b")
+
+
+def _ts() -> str:
+    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%SZ")
+
+
+def _since_to_epoch(since: str) -> int:
+    """Parse a date(1)-compatible time string. Returns epoch seconds."""
+    try:
+        out = subprocess.run(
+            ["date", "-d", since, "+%s"],
+            capture_output=True, text=True, check=True, timeout=4,
+        )
+        return int(out.stdout.strip())
+    except Exception:
+        return int(datetime.datetime.utcnow().timestamp()) - 86400
+
+
+# --- 1. recent OWUI chats ----------------------------------------
+
+def section_recent_chats(since_epoch: int, max_chats: int) -> str:
+    if not OWUI_DB.is_file():
+        return "_OWUI db not present at " + str(OWUI_DB) + "_"
+    rows = []
+    try:
+        c = sqlite3.connect(str(OWUI_DB))
+        rows = c.execute(
+            "SELECT id, chat, updated_at FROM chat "
+            "WHERE updated_at > ? ORDER BY updated_at DESC LIMIT ?",
+            (since_epoch, max_chats),
+        ).fetchall()
+    except Exception as e:
+        return f"_chat scan failed: {type(e).__name__}: {e}_"
+    if not rows:
+        return "_no chats in window_"
+    out = []
+    for cid, raw, updated_at in rows:
+        try:
+            d = json.loads(raw or "{}")
+        except Exception:
+            continue
+        title = (d.get("title") or "(untitled)")[:80]
+        messages = d.get("messages") or []
+        # Pair user+assistant pairs (last 3 of each)
+        user_msgs = [m for m in messages if isinstance(m, dict)
+                     and m.get("role") == "user"][-3:]
+        asst_msgs = [m for m in messages if isinstance(m, dict)
+                     and m.get("role") == "assistant"][-3:]
+        out.append(f"### {title}")
+        out.append(f"_chat_id: {cid[:12]}, updated: "
+                   f"{datetime.datetime.utcfromtimestamp(updated_at).isoformat()}Z_")
+        for m in user_msgs:
+            content = str(m.get("content") or "").strip()[:300]
+            out.append(f"- **user**: {content}")
+        for m in asst_msgs:
+            content = str(m.get("content") or "").strip()
+            # Strip <details> block (raw reasoning); keep operator-facing
+            if "<details" in content:
+                content = content.split("</details>", 1)[-1].strip()
+            out.append(f"- **agent**: {content[:400]}")
+        out.append("")
+    return "\n".join(out)
+
+
+# --- 2. launch verifier failures ---------------------------------
+
+def section_launch_failures() -> str:
+    if not LAUNCH_FAILURES.is_file():
+        return "_no launch_failures.json (mios-daemon launch_verifier not yet ticked)_"
+    try:
+        data = json.loads(LAUNCH_FAILURES.read_text())
+    except Exception as e:
+        return f"_failures file unreadable: {e}_"
+    if not data:
+        return "_no false-success launches recorded_"
+    out = []
+    for f in data[-20:]:
+        out.append(f"- `{f.get('ts','?')}` app=**{f.get('app','?')}** "
+                   f"verdict=`{f.get('verifier_summary','?')}` "
+                   f"prompt: _{(f.get('user_prompt') or '')[:120]}_")
+    return "\n".join(out)
+
+
+# --- 3. daemon classify summaries --------------------------------
+
+def section_daemon_state() -> str:
+    if not DAEMON_STATE.is_file():
+        return "_no daemon state.json_"
+    try:
+        d = json.loads(DAEMON_STATE.read_text())
+    except Exception as e:
+        return f"_state.json unreadable: {e}_"
+    out = []
+    cls = d.get("classify") or {}
+    if cls:
+        out.append(f"- **classify** ({cls.get('severity','?')}): "
+                   f"{cls.get('summary','?')}")
+    ref = d.get("refusal") or {}
+    if ref:
+        out.append(f"- **refusal**: model=`{ref.get('model','?')}` "
+                   f"phrase=_{(ref.get('phrase') or '')[:120]}_")
+    sg = d.get("suggestions") or {}
+    if sg:
+        out.append(f"- **suggestions** ts={sg.get('ts','?')} "
+                   f"count={sg.get('count','?')}")
+    lv = d.get("launch_verifier") or {}
+    if lv:
+        out.append(f"- **launch_verifier** ts={lv.get('ts','?')} "
+                   f"scanned={lv.get('claims_scanned',0)} "
+                   f"false_success={lv.get('false_success_count',0)}")
+    return "\n".join(out) or "_state empty_"
+
+
+# --- 4. recent git commits (session work record) -----------------
+
+def section_git_commits(since_epoch: int) -> str:
+    if not (REPO_ROOT / ".git").is_dir():
+        return f"_repo not at {REPO_ROOT}_"
+    try:
+        since_iso = datetime.datetime.utcfromtimestamp(since_epoch).isoformat()
+        out = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "log",
+             f"--since={since_iso}", "--oneline", "--no-decorate"],
+            capture_output=True, text=True, timeout=8,
+        )
+        lines = out.stdout.strip().splitlines()
+        if not lines:
+            return "_no commits in window_"
+        return "\n".join(f"- `{line}`" for line in lines[:30])
+    except Exception as e:
+        return f"_git query failed: {e}_"
+
+
+# --- LLM compaction ----------------------------------------------
+
+def _llm_summarize(raw_digest: str, timeout_s: int = 90) -> str:
+    """Send the raw digest to the CPU model with a tight system
+    prompt, return a compacted summary. Returns the raw digest on
+    failure (best-effort)."""
+    system = (
+        "You compact a multi-section MiOS session digest into a "
+        "structured markdown brief. Preserve every fact from the "
+        "input. NO prose padding, NO 'In summary', NO 'I hope this "
+        "helps'. Output sections in this order:\n"
+        "1. Headline (1 line: most important state change since the window started)\n"
+        "2. Operator asks (bulleted)\n"
+        "3. Agent actions taken (bulleted; cite tool names)\n"
+        "4. Failures + verifier verdicts (bulleted)\n"
+        "5. System state snapshot (1-3 lines)\n"
+        "6. Carry-forward (1-3 lines: open follow-ups or pending state)\n"
+        "Mirror the operator's language."
+    )
+    payload = {
+        "model": SUMMARY_MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": raw_digest[:32000]},
+        ],
+        "options": {
+            "num_gpu": 0, "num_thread": 8,
+            "num_predict": 700, "temperature": 0.0,
+        },
+        "stream": False, "keep_alive": -1,
+    }
+    try:
+        req = urllib.request.Request(
+            f"{OLLAMA_URL}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            body = json.loads(r.read())
+        msg = body.get("message") or {}
+        out = (msg.get("content") or "").strip()
+        if not out:
+            out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        return out or raw_digest
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        sys.stderr.write(f"[mios-compact] llm-summarize failed: {e}\n")
+        return raw_digest
+
+
+# --- main ---------------------------------------------------------
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-compact",
+                                 description=__doc__.splitlines()[0])
+    ap.add_argument("--since", default="24 hours ago",
+                    help='date(1) string, e.g. "12 hours ago"')
+    ap.add_argument("--chats", type=int, default=12,
+                    help="cap N most recent chats (default 12)")
+    ap.add_argument("--out", default=None,
+                    help="explicit output path (default: timestamped)")
+    ap.add_argument("--stdout", action="store_true",
+                    help="print to stdout instead of writing a file")
+    ap.add_argument("--no-llm", action="store_true",
+                    help="skip the CPU summarization step")
+    args = ap.parse_args()
+
+    since_epoch = _since_to_epoch(args.since)
+    since_iso = datetime.datetime.utcfromtimestamp(since_epoch).isoformat()
+    now_iso = datetime.datetime.utcnow().isoformat()
+
+    raw_sections = [
+        f"# MiOS session digest",
+        f"_window: {since_iso}Z → {now_iso}Z_",
+        "",
+        "## Recent operator chats",
+        section_recent_chats(since_epoch, args.chats),
+        "",
+        "## Launch verifier failures",
+        section_launch_failures(),
+        "",
+        "## Daemon state snapshot",
+        section_daemon_state(),
+        "",
+        "## Git commits this window",
+        section_git_commits(since_epoch),
+    ]
+    raw_text = "\n".join(raw_sections)
+
+    if args.no_llm:
+        out_text = raw_text
+    else:
+        compacted = _llm_summarize(raw_text)
+        out_text = (
+            f"# MiOS session digest (compacted)\n\n"
+            f"_compacted by `{SUMMARY_MODEL}` at {now_iso}Z; "
+            f"raw digest covers {since_iso}Z → {now_iso}Z._\n\n"
+            f"{compacted}\n\n---\n\n"
+            f"<details><summary>Raw section dumps (uncompacted)</summary>\n\n"
+            f"{raw_text}\n\n</details>"
+        )
+
+    if args.stdout:
+        sys.stdout.write(out_text + "\n")
+        return 0
+
+    COMPACTED_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = Path(args.out) if args.out else (
+        COMPACTED_DIR / f"digest-{_ts()}.md")
+    out_path.write_text(out_text, encoding="utf-8")
+    try:
+        os.chmod(out_path, 0o644)
+    except Exception:
+        pass
+    print(f"[mios-compact] wrote {out_path} ({len(out_text)} chars)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

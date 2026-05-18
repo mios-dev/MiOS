@@ -143,6 +143,16 @@ canonical_verbs:
     example: 'mios-cache-clear [--dry-run] [--all]'
     tags: [maintenance]
 
+  - name: mios-compact
+    intent: compact recent chats + daemon state + git into one markdown digest
+    example: 'mios-compact --since "12 hours ago"'
+    tags: [memory, knowledge]
+
+  - name: mios-knowledge-add
+    intent: register a markdown file/dir into an OWUI Knowledge collection (RAG corpus)
+    example: 'mios-knowledge-add /var/lib/mios/compacted/ --collection "MiOS Session Memory"'
+    tags: [memory, knowledge]
+
   - name: mios-lan-status
     intent: check + enable LAN-accessibility for OWUI/Hermes/etc. (Win UAC for --enable)
     example: 'mios-lan-status [--enable]'

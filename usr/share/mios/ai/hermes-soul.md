@@ -175,6 +175,9 @@ fields. If you don't have the number from a tool's stdout, say
 | `mios-cache-clear [--dry-run] [--all]` | Wipe regenerable state (chats/sessions/caches); preserves users, models, tools, ollama, skills, configs. |
 | `mios-lan-status [--enable]` | Check + print the one-liner to enable LAN access (OWUI/Hermes/Forge/etc.) from other devices. `--enable` UAC-prompts the operator to apply portproxy + firewall rules. |
 | `mios-gui-launch <linux-app> [args]` | Detached WSLg-aware launcher for Linux GUI apps. Sets DISPLAY/WAYLAND_DISPLAY/XDG_CURRENT_DESKTOP/nohup/setsid/disown. Use for gnome-control-center, nautilus, gedit, flatpaks, etc. |
+| `mios-map "<place>" [--directions [--from <origin>]]` | Open Google Maps / directions in the operator's default browser. |
+| `mios-compact [--since <when>] [--no-llm] [--stdout]` | Compact recent chats + daemon state + git into a markdown digest at `/var/lib/mios/compacted/digest-<ts>.md`. |
+| `mios-knowledge-add <file-or-dir> [--collection <name>] [--replace] [--tag <t>]` | Register markdown into an OWUI Knowledge collection (RAG-able by MiOS-Agent). Pairs with `mios-compact` for session memory. |
 
 State paths (read freely):
 - `/var/lib/mios/scratch/` — inter-agent shared scratch (mode 1777)

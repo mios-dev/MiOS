@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""mios-knowledge-add -- register a markdown file (or directory of
+markdown files) as files in OWUI's `file` table and link them into a
+named Knowledge collection. The collection becomes RAG-able by the
+MiOS-Agent model row's meta.knowledge binding.
+
+Operator directive 2026-05-17: "make sure there's tools to compact
+all this and artifact it natively for OWUI knowledge/database".
+Pairs with `mios-compact` (which produces digests at
+/var/lib/mios/compacted/digest-*.md) -- this helper drops them
+into a "MiOS Session Memory" collection so the agent can RAG over
+prior sessions.
+
+Distinct from `mios-owui-apply-knowledge` which is specifically for
+the FHS-sourced canonical docs (refreshes on hash drift). This one
+takes ARBITRARY operator-supplied or daemon-produced files.
+
+Usage:
+  mios-knowledge-add <file-or-dir> [options]
+
+Options:
+  --collection <name>     Target collection name. Default:
+                          "MiOS Session Memory".
+  --description <text>    Used when creating the collection (first
+                          add). Ignored if collection already exists.
+  --replace               If the same filename already exists in the
+                          collection, replace its content (default:
+                          add a new entry with timestamped suffix).
+  --tag <tag>             Add a tag to the file's meta. Repeatable.
+  --dry-run               Print what would be done, exit 0.
+  --db <path>             Override the OWUI db path (default:
+                          /var/lib/mios/open-webui/webui.db).
+  --attach-to <model_id>  Also bind the collection to the named
+                          OWUI model row's meta.knowledge so the
+                          model RAGs over it automatically. Default
+                          target: 'mios-agent' (also tries
+                          'mios_agent.mios-agent'). Pass empty
+                          ('--attach-to ""') to skip binding.
+
+Examples:
+  mios-knowledge-add /var/lib/mios/compacted/digest-2026-05-17T21-40Z.md
+  mios-knowledge-add /var/lib/mios/compacted/ --collection "MiOS Session Memory"
+  mios-knowledge-add /tmp/incident-notes.md --tag incident --tag 2026-05-17
+
+Files are stored with meta.managed_by = "mios-knowledge-add" so
+mios-cache-clear preserves them (it spares non-MiOS-managed entries
+based on this marker).
+
+Exit codes:
+  0 = files registered + linked (or no-op if --dry-run)
+  1 = db unreachable / write failure
+  2 = no files matched the given path
+  64 = bad usage
+"""
+from __future__ import annotations
+
+import argparse
+import datetime
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+import uuid
+from pathlib import Path
+
+DEFAULT_DB = "/var/lib/mios/open-webui/webui.db"
+DEFAULT_COLLECTION = "MiOS Session Memory"
+DEFAULT_DESCRIPTION = (
+    "Daemon-produced session digests + operator-curated incident "
+    "notes. RAG corpus the MiOS-Agent uses to remember prior "
+    "turns. Refreshed on every mios-compact run."
+)
+MANAGED_MARKER = "mios-knowledge-add"
+
+
+def _admin_user_id(c: sqlite3.Connection) -> str | None:
+    row = c.execute(
+        "SELECT id FROM user WHERE role='admin' ORDER BY created_at LIMIT 1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _sha256(b: bytes) -> str:
+    return hashlib.sha256(b).hexdigest()
+
+
+def _collect_files(path: Path) -> list[Path]:
+    if path.is_file():
+        return [path]
+    if path.is_dir():
+        return sorted(p for p in path.glob("**/*.md")
+                      if p.is_file() and not p.name.startswith("."))
+    return []
+
+
+def _get_or_create_collection(c: sqlite3.Connection, name: str,
+                              description: str, user_id: str) -> str:
+    # Look up by exact name match. Pre-existing knowledge rows from
+    # mios-owui-apply-knowledge use a deterministic id; this helper
+    # uses a fresh uuid for separate collections to avoid colliding.
+    row = c.execute(
+        "SELECT id FROM knowledge WHERE name=? LIMIT 1", (name,)
+    ).fetchone()
+    if row:
+        return row[0]
+    kid = str(uuid.uuid4())
+    now = int(datetime.datetime.utcnow().timestamp())
+    meta = json.dumps({"managed_by": MANAGED_MARKER})
+    data = json.dumps({"file_ids": []})
+    c.execute(
+        "INSERT INTO knowledge "
+        "(id, user_id, name, description, meta, created_at, updated_at, data) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (kid, user_id, name, description, meta, now, now, data),
+    )
+    return kid
+
+
+def _register_file(c: sqlite3.Connection, src: Path, user_id: str,
+                   tags: list[str], replace: bool) -> str:
+    content = src.read_text(encoding="utf-8", errors="replace")
+    h = _sha256(content.encode("utf-8"))
+    now = int(datetime.datetime.utcnow().timestamp())
+    filename = src.name
+
+    meta = {
+        "managed_by": MANAGED_MARKER,
+        "source_path": str(src.resolve()),
+        "tags": tags,
+        "content_type": "text/markdown",
+    }
+    data = {"content": content}
+
+    if replace:
+        row = c.execute(
+            "SELECT id, hash FROM file WHERE filename=? "
+            "AND coalesce(meta, '') LIKE ? LIMIT 1",
+            (filename, f"%{MANAGED_MARKER}%"),
+        ).fetchone()
+        if row:
+            fid, existing_hash = row
+            if existing_hash == h:
+                return fid  # noop
+            c.execute(
+                "UPDATE file SET hash=?, data=?, meta=?, "
+                "updated_at=?, path=? WHERE id=?",
+                (h, json.dumps(data), json.dumps(meta), now,
+                 str(src.resolve()), fid),
+            )
+            return fid
+
+    fid = str(uuid.uuid4())
+    c.execute(
+        "INSERT INTO file "
+        "(id, user_id, filename, meta, created_at, hash, data, updated_at, path) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (fid, user_id, filename, json.dumps(meta), now, h,
+         json.dumps(data), now, str(src.resolve())),
+    )
+    return fid
+
+
+def _link_file(c: sqlite3.Connection, knowledge_id: str,
+               file_id: str, user_id: str) -> bool:
+    existing = c.execute(
+        "SELECT 1 FROM knowledge_file "
+        "WHERE knowledge_id=? AND file_id=? LIMIT 1",
+        (knowledge_id, file_id),
+    ).fetchone()
+    if existing:
+        return False
+    now = int(datetime.datetime.utcnow().timestamp())
+    c.execute(
+        "INSERT INTO knowledge_file "
+        "(id, user_id, knowledge_id, file_id, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (str(uuid.uuid4()), user_id, knowledge_id, file_id, now, now),
+    )
+    # Also append to knowledge.data.file_ids so OWUI's UI reflects it.
+    row = c.execute(
+        "SELECT data FROM knowledge WHERE id=?", (knowledge_id,)
+    ).fetchone()
+    data = json.loads(row[0]) if row and row[0] else {}
+    ids = data.get("file_ids") or []
+    if file_id not in ids:
+        ids.append(file_id)
+        data["file_ids"] = ids
+        c.execute("UPDATE knowledge SET data=?, updated_at=? WHERE id=?",
+                  (json.dumps(data), now, knowledge_id))
+    return True
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-knowledge-add",
+                                 description=__doc__.splitlines()[0])
+    ap.add_argument("source", help="file or directory of .md files")
+    ap.add_argument("--collection", default=DEFAULT_COLLECTION)
+    ap.add_argument("--description", default=DEFAULT_DESCRIPTION)
+    ap.add_argument("--replace", action="store_true",
+                    help="replace existing same-named file content (default: add new)")
+    ap.add_argument("--tag", action="append", default=[],
+                    help="tag (repeatable)")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--db", default=DEFAULT_DB)
+    ap.add_argument("--attach-to", default="mios-agent",
+                    help="model id to bind the collection to "
+                         "(empty string skips binding)")
+    args = ap.parse_args()
+
+    src = Path(args.source)
+    files = _collect_files(src)
+    if not files:
+        sys.stderr.write(f"mios-knowledge-add: no .md files at {src}\n")
+        return 2
+
+    db = Path(args.db)
+    if not db.is_file():
+        sys.stderr.write(f"mios-knowledge-add: db not found at {db}\n")
+        return 1
+
+    if args.dry_run:
+        print(f"[dry-run] would register {len(files)} file(s) into "
+              f"collection '{args.collection}':")
+        for f in files:
+            print(f"  - {f}  ({f.stat().st_size} bytes)")
+        return 0
+
+    c = sqlite3.connect(str(db))
+    user_id = _admin_user_id(c)
+    if not user_id:
+        sys.stderr.write("mios-knowledge-add: no admin user found "
+                         "(run mios-owui-bootstrap-admin first)\n")
+        return 1
+
+    knowledge_id = _get_or_create_collection(
+        c, args.collection, args.description, user_id)
+    added = relinked = 0
+    for f in files:
+        fid = _register_file(c, f, user_id, args.tag, args.replace)
+        if _link_file(c, knowledge_id, fid, user_id):
+            added += 1
+        else:
+            relinked += 1
+    c.commit()
+
+    print(f"[mios-knowledge-add] collection='{args.collection}' "
+          f"id={knowledge_id[:8]}...")
+    print(f"  files seen: {len(files)}, newly linked: {added}, "
+          f"already-present: {relinked}")
+    print(f"  marker: meta.managed_by='{MANAGED_MARKER}' "
+          f"(mios-cache-clear will preserve these)")
+
+    # --- optional: bind to a model row so the model RAGs over it ---
+    if args.attach_to:
+        # Pre-existing model rows the operator might have on this host:
+        candidates = [args.attach_to]
+        # Auto-include the pipe-derived id too if operator used the
+        # default. (mios-agent vs mios_agent.mios-agent both ship.)
+        if args.attach_to == "mios-agent":
+            candidates.append("mios_agent.mios-agent")
+        attached_to: list[str] = []
+        for mid in candidates:
+            row = c.execute(
+                "SELECT meta FROM model WHERE id=?", (mid,)
+            ).fetchone()
+            if not row:
+                continue
+            meta = json.loads(row[0]) if row[0] else {}
+            kn = meta.get("knowledge") or []
+            # OWUI shape: list of {id, name, description} OR list of ids.
+            already = any(
+                (isinstance(k, dict) and k.get("id") == knowledge_id)
+                or (isinstance(k, str) and k == knowledge_id)
+                for k in kn
+            )
+            if not already:
+                kn.append({
+                    "id": knowledge_id,
+                    "name": args.collection,
+                    "description": args.description[:200],
+                })
+                meta["knowledge"] = kn
+                now = int(datetime.datetime.utcnow().timestamp())
+                c.execute(
+                    "UPDATE model SET meta=?, updated_at=? WHERE id=?",
+                    (json.dumps(meta), now, mid),
+                )
+                attached_to.append(mid)
+        c.commit()
+        if attached_to:
+            print(f"  attached to model(s): {', '.join(attached_to)}")
+        else:
+            print(f"  attach skipped (model(s) {candidates} either "
+                  f"absent or already linked)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
