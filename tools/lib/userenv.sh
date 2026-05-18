@@ -332,6 +332,18 @@ slots = [
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
     ("pkg.bootstrap_per_source_cap",   "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP"),
     ("pkg.lookup_max_alias_results",   "MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS"),
+    # ── refine + polish (Phase D.5 -- agent-pipe orchestration) ─────────
+    ("refine.enable",                  "MIOS_REFINE_ENABLE"),
+    ("refine.model",                   "MIOS_REFINE_MODEL"),
+    ("refine.endpoint",                "MIOS_REFINE_ENDPOINT"),
+    ("refine.timeout_seconds",         "MIOS_REFINE_TIMEOUT_S"),
+    ("refine.max_tokens",              "MIOS_REFINE_MAX_TOKENS"),
+    ("refine.bypass_chars",            "MIOS_REFINE_BYPASS_CHARS"),
+    ("polish.enable",                  "MIOS_POLISH_ENABLE"),
+    ("polish.model",                   "MIOS_POLISH_MODEL"),
+    ("polish.endpoint",                "MIOS_POLISH_ENDPOINT"),
+    ("polish.timeout_seconds",         "MIOS_POLISH_TIMEOUT_S"),
+    ("polish.max_tokens",              "MIOS_POLISH_MAX_TOKENS"),
     # ── ttyd (Phase D.2 -- browser pty bridge for bash + powershell) ─────
     ("ttyd.enable",                    "MIOS_TTYD_ENABLE"),
     ("ttyd.bind",                      "MIOS_TTYD_BIND"),

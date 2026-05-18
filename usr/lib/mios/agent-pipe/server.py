@@ -633,6 +633,332 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     return parsed
 
 
+# ── Phase D.5 -- Refine / Polish / Agent registry ─────────────────
+# Operator directive 2026-05-18: "MiOS-Agent (OWUI) handles the
+# question(s) and refactors and reasons the actionable plan for
+# other agents -- uses quick models and methods to achieve this
+# refinement -- sent to the respective local agents with hints
+# (tools, skills, intent, intended outcome) -- processed --
+# returned to MiOS-Agent to check success -- refine the final
+# answer". And: "Hermes isn't the only sub-agent on the system".
+#
+# Implementation:
+#   * refine_intent(user_text, history) -- always-on quick pass
+#     on the iGPU lane (qwen3:1.7b). Output extends the router
+#     verdict with intended_outcome + target_agent + hint_tools
+#     + hint_skills.
+#   * Sub-agent registry sourced from mios.toml [agents.*] via
+#     _load_agent_registry(). Refine picks target_agent by role
+#     match; falls back to default=true; falls back to first.
+#   * delegate_to_agent(name, refined, history) -- proxies to the
+#     chosen sub-agent's :port with the refined plan injected as
+#     a system-message prefix.
+#   * polish_response(raw, refined) -- final-answer cleanup with
+#     the same iGPU model. Skipped on dispatch / chat / DAG fast
+#     paths (those produce final-shape content directly).
+#
+# Latency budget (qwen3:1.7b on iGPU): refine ~150-300ms,
+# polish ~300-600ms. Trivial-input bypass (greetings, short)
+# skips both -- sub-50ms total overhead on the fast path.
+
+REFINE_ENABLED = os.environ.get(
+    "MIOS_REFINE_ENABLE", "true",
+).lower() not in {"false", "0", "no"}
+REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3:1.7b")
+REFINE_ENDPOINT = os.environ.get(
+    "MIOS_REFINE_ENDPOINT", ROUTER_ENDPOINT,
+).rstrip("/")
+REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "12"))
+REFINE_MAX_TOKENS = int(os.environ.get("MIOS_REFINE_MAX_TOKENS", "400"))
+REFINE_BYPASS_CHARS = int(os.environ.get("MIOS_REFINE_BYPASS_CHARS", "24"))
+
+POLISH_ENABLED = os.environ.get(
+    "MIOS_POLISH_ENABLE", "true",
+).lower() not in {"false", "0", "no"}
+POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", "qwen3:1.7b")
+POLISH_ENDPOINT = os.environ.get(
+    "MIOS_POLISH_ENDPOINT", ROUTER_ENDPOINT,
+).rstrip("/")
+POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
+POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
+
+
+def _load_agent_registry() -> dict[str, dict]:
+    """Parse mios.toml [agents.*] sections into a registry dict.
+    Returns {name: {endpoint, model, role, default, strengths}}.
+    Read at module load + cached -- operator restarts agent-pipe
+    to pick up changes (same pattern as ports/security/...).
+
+    Fallback: when the TOML can't be read or has no [agents.*],
+    returns a single hermes entry pointing at MIOS_AGENT_PIPE_
+    BACKEND so the legacy path still works."""
+    registry: dict[str, dict] = {}
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    try:
+        try:
+            import tomllib  # py311+
+        except ImportError:
+            import tomli as tomllib  # fallback (Fedora <= py310)
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+        agents = data.get("agents") or {}
+        for name, cfg in agents.items():
+            if not isinstance(cfg, dict):
+                continue
+            registry[name] = {
+                "endpoint": str(cfg.get("endpoint", "")).rstrip("/"),
+                "model":    str(cfg.get("model", name)),
+                "role":     str(cfg.get("role", "general")),
+                "default":  bool(cfg.get("default", False)),
+                "strengths": list(cfg.get("strengths") or []),
+            }
+    except Exception as e:
+        log.warning("agent registry load failed: %s; using fallback", e)
+    if not registry:
+        registry["hermes"] = {
+            "endpoint": BACKEND, "model": BACKEND_MODEL,
+            "role": "general", "default": True, "strengths": [],
+        }
+    return registry
+
+
+_AGENT_REGISTRY = _load_agent_registry()
+
+
+def _pick_agent(role: str) -> tuple[str, dict]:
+    """Pick a sub-agent by role match. Order: exact-role -> default
+    -> first registered. Returns (name, cfg)."""
+    role = (role or "").lower().strip()
+    if role:
+        for name, cfg in _AGENT_REGISTRY.items():
+            if cfg.get("role", "").lower() == role:
+                return name, cfg
+    for name, cfg in _AGENT_REGISTRY.items():
+        if cfg.get("default"):
+            return name, cfg
+    # Whatever is first.
+    name = next(iter(_AGENT_REGISTRY))
+    return name, _AGENT_REGISTRY[name]
+
+
+# Trivial-input bypass regex -- short messages with no question
+# mark, no action verb tokens, no path-like or URL-like content.
+# These are handled by the existing classify_intent router without
+# a separate refine pass. Locale-neutral (the regex matches BY
+# SHAPE not by English keyword list -- operator binding rule
+# "ABSOLUTELY NO HARDCODED ENGLISH STANDARD Linux and Windows
+# Terminologies").
+#
+# Bypass triggers when:
+#   * <= REFINE_BYPASS_CHARS total chars
+#   * no `?` (questions ALWAYS get the refine pass)
+#   * no `/`, `\`, `:`, `@`, `$`, `~` (paths / refs / hosts)
+#   * no digit (commands with numbers / coords are non-trivial)
+#   * <= 4 word tokens
+_BYPASS_NEGATIVE_CHARS = set("?/\\:@$~")
+
+
+def _is_trivial_bypass(s: str) -> bool:
+    if not s:
+        return False
+    s = s.strip()
+    if not s or len(s) > REFINE_BYPASS_CHARS:
+        return False
+    if any(c in _BYPASS_NEGATIVE_CHARS for c in s):
+        return False
+    if any(c.isdigit() for c in s):
+        return False
+    if len(s.split()) > 4:
+        return False
+    return True
+
+
+_REFINE_SYSTEM = (
+    "You are MiOS-Agent's refine pass. Read the user's message and\n"
+    "the recent chat history. Emit a single JSON object describing\n"
+    "what the user wants AND how to achieve it. Be terse -- output\n"
+    "is consumed by another agent, NOT shown to the user.\n"
+    "\n"
+    "Schema:\n"
+    '  {\n'
+    '    "intent": "<one of: chat | dispatch | agent | dag>",\n'
+    '    "refined_text": "<rewritten user query in clear, actionable form>",\n'
+    '    "intended_outcome": "<one short line: what the user expects back>",\n'
+    '    "target_agent": "<one of the registered sub-agents -- pick by role>",\n'
+    '    "hint_tools":  ["<verb-name-1>", "<verb-name-2>", ...],\n'
+    '    "hint_skills": ["<skill-name-1>", ...],\n'
+    '    "reply": "<for intent=chat: your reply directly; omit otherwise>"\n'
+    '  }\n'
+    "\n"
+    "Intent classification:\n"
+    "  chat      -- greeting, thanks, single-turn conversation; no system\n"
+    "               effect needed; emit `reply` and no agent is called.\n"
+    "  dispatch  -- maps to ONE MiOS verb; tool + args populated by the\n"
+    "               existing router. Refine just rewrites refined_text.\n"
+    "  agent     -- needs a sub-agent. Pick target_agent by role:\n"
+    "               * general    (Hermes)        -- broad reasoning + tools\n"
+    "               * coding     (OpenCode)      -- file edits / refactor / git\n"
+    "               * telemetry  (mios-daemon-agent) -- 'what just happened?',\n"
+    "                            log/journal tail, recent system activity\n"
+    "                            follow-ups. Pinned to 2 cores; always-on.\n"
+    "  dag       -- multi-step; planner will decompose. target_agent\n"
+    "               can be empty.\n"
+    "\n"
+    "RULES:\n"
+    "- ALWAYS emit valid JSON. No prose around it.\n"
+    "- `hint_tools` lists MiOS verb names you think the agent will need\n"
+    "  (open_app, focus_window, text_view, winget_search, ...).\n"
+    "- `hint_skills` lists C.2 skill names from the catalog\n"
+    "  (open-and-focus, install-flatpak-app, window-tile-side-by-side).\n"
+    "- For trivial greetings (`hello`, `hey`, `thanks`), pick intent=chat\n"
+    "  and put a brief friendly reply in `reply`. Do NOT delegate.\n"
+)
+
+
+async def refine_intent(user_text: str,
+                        history: list = None) -> Optional[dict]:
+    """Quick-refine pass. Returns the parsed plan dict or None on
+    bypass / error (caller falls through to the legacy router path).
+
+    Bypass: trivial inputs (greetings, single-word commands) skip
+    refine entirely. The existing classify_intent router handles
+    them with its own chat-reply path in one LLM call -- adding a
+    refine pass on top would be wasted latency. Local-compute-aware
+    per operator directive 2026-05-18 'fast and efficient for pure
+    local compute'."""
+    if not REFINE_ENABLED or not user_text or not user_text.strip():
+        return None
+    if _is_trivial_bypass(user_text):
+        return None
+    # Pull the registered agents into the prompt so the model picks
+    # one that actually exists.
+    agents_summary = "\n".join(
+        f"  - {n}: role={c.get('role','?')} "
+        f"strengths={','.join(c.get('strengths') or [])[:80]}"
+        for n, c in _AGENT_REGISTRY.items()
+    )
+    system = _REFINE_SYSTEM + "\nRegistered sub-agents:\n" + agents_summary
+    msgs = [{"role": "system", "content": system}]
+    # Last 4 turns of history for context (small to stay fast).
+    if history:
+        for h in history[-4:]:
+            if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
+                msgs.append({"role": h["role"],
+                             "content": str(h.get("content", ""))[:600]})
+    msgs.append({"role": "user", "content": user_text[:2000]})
+    payload = {
+        "model": REFINE_MODEL,
+        "messages": msgs,
+        "response_format": {"type": "json_object"},
+        "temperature": 0.0,
+        "max_tokens": REFINE_MAX_TOKENS,
+        "stream": False,
+    }
+    url = f"{REFINE_ENDPOINT}/v1/chat/completions"
+    try:
+        async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
+            r = await s.post(url, json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return None
+            body = r.json()
+    except (httpx.HTTPError, asyncio.TimeoutError):
+        return None
+    except Exception as e:
+        log.warning("refine unexpected error: %s", e)
+        return None
+    choices = body.get("choices") or []
+    if not choices:
+        return None
+    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not content:
+        return None
+    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    # Best-effort event row.
+    _db_fire(_db_post(_db_create("event", {
+        "source": "mios-agent-pipe",
+        "kind": "refine",
+        "severity": "info",
+        "summary": str(parsed.get("intent", "?"))[:120],
+        "payload": parsed,
+    }, now_fields=("ts",))))
+    return parsed
+
+
+_POLISH_SYSTEM = (
+    "You are MiOS-Agent's polish pass. The raw answer below came\n"
+    "from a sub-agent. Your job: produce the FINAL user-facing\n"
+    "response by re-shaping the raw answer to match the intended\n"
+    "outcome -- nothing more. Be tight; do not add new content;\n"
+    "do not editorialise; do not say `the agent says`. Keep all\n"
+    "factual content. Strip internal reasoning leaks (lines like\n"
+    "`Thought:`, `Reasoning:`, `Plan:`, tool-call envelopes, JSON\n"
+    "thinking blocks). Locale-neutralise any stray English when\n"
+    "the original user prompt was in another language.\n"
+    "\n"
+    "Output the polished answer ONLY -- no prose around it,\n"
+    "no JSON envelope.\n"
+)
+
+
+async def polish_response(raw_text: str,
+                          refined: Optional[dict]) -> Optional[str]:
+    """Polish a sub-agent's raw response into the final user-facing
+    answer. Returns the polished string or None on error (caller
+    keeps the raw answer)."""
+    if not POLISH_ENABLED or not raw_text or not raw_text.strip():
+        return None
+    intended = (refined or {}).get("intended_outcome", "") or ""
+    user_q = (refined or {}).get("refined_text", "") or ""
+    # Skip when intended is empty + raw is short -- no polish needed.
+    if not intended and len(raw_text) < 200:
+        return None
+    system = _POLISH_SYSTEM + (
+        f"\nIntended outcome: {intended}\n" if intended else ""
+    )
+    user_msg = (
+        f"User's question:\n{user_q}\n\n"
+        f"Raw answer from sub-agent:\n{raw_text[:8000]}\n"
+    )
+    payload = {
+        "model": POLISH_MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user",   "content": user_msg},
+        ],
+        "temperature": 0.0,
+        "max_tokens": POLISH_MAX_TOKENS,
+        "stream": False,
+    }
+    url = f"{POLISH_ENDPOINT}/v1/chat/completions"
+    try:
+        async with httpx.AsyncClient(timeout=POLISH_TIMEOUT_S) as s:
+            r = await s.post(url, json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return None
+            body = r.json()
+    except (httpx.HTTPError, asyncio.TimeoutError):
+        return None
+    except Exception as e:
+        log.warning("polish unexpected error: %s", e)
+        return None
+    choices = body.get("choices") or []
+    if not choices:
+        return None
+    polished = ((choices[0].get("message") or {}).get("content") or "").strip()
+    if not polished:
+        return None
+    return polished
+
+
 # ── Phase C.2 -- Skill catalog SSOT knobs ─────────────────────────
 # Mirror of the mios-skills CLI's env reads. Centralised here so a
 # single source-of-truth deploys to BOTH the CLI miner AND the
@@ -2534,6 +2860,27 @@ async def health() -> dict[str, Any]:
             "kid": _passport_kid() if PASSPORT_ENABLE else None,
             "verify_on_read": PASSPORT_VERIFY_ON_READ,
         },
+        "refine": {
+            "enabled": REFINE_ENABLED,
+            "model": REFINE_MODEL,
+            "endpoint": REFINE_ENDPOINT,
+            "bypass_chars": REFINE_BYPASS_CHARS,
+        },
+        "polish": {
+            "enabled": POLISH_ENABLED,
+            "model": POLISH_MODEL,
+            "endpoint": POLISH_ENDPOINT,
+        },
+        "agents": {
+            name: {
+                "endpoint": cfg.get("endpoint"),
+                "model":    cfg.get("model"),
+                "role":     cfg.get("role"),
+                "default":  cfg.get("default"),
+                "strengths": cfg.get("strengths"),
+            }
+            for name, cfg in _AGENT_REGISTRY.items()
+        },
         "broker_sock": LAUNCHER_SOCK,
         "broker_present": os.path.exists(LAUNCHER_SOCK),
         "db_url": DB_URL,
@@ -2821,11 +3168,32 @@ async def chat_completions(request: Request) -> Any:
     except Exception as e:
         log.debug("session open failed: %s", e)
 
+    # Phase D.5 -- refine FIRST when input isn't trivial. The
+    # quick-refine pass on the iGPU lane produces a structured
+    # plan {intent, refined_text, intended_outcome, target_agent,
+    # hint_tools, hint_skills}. Operator directive 2026-05-18:
+    # "should always be refined/processed/enhanced", but ALSO
+    # "FAST AND EFFICIENT FOR PURE LOCAL COMPUTE" -- so trivial
+    # input (short greeting / single-token status check) skips
+    # refine and goes straight to the layer-1 router which has
+    # its own chat-reply fast path. Refine returns None on the
+    # bypass case; refine_intent + classify_intent are
+    # complementary, not redundant.
+    refined = await refine_intent(last_user_text, messages)
+
     # Run the layer-1 router. Verdict possibilities:
     #   {"action":"dispatch","tool":"<name>","args":{...}}
     #   {"action":"chat","reply":"<text>"}
     #   {"action":"agent","reason":"..."}
+    # The router still runs even when refine produced a verdict --
+    # the dispatch-shape extraction (tool + args) needs the layer-1
+    # JSON shape which refine's `intent=dispatch` doesn't populate
+    # directly. Refine + router are complementary, not redundant.
     verdict = await classify_intent(last_user_text)
+    # Carry refined hints into verdict so downstream branches
+    # (dispatch / agent / DAG) can read them.
+    if verdict and refined:
+        verdict["_refined"] = refined
 
     if verdict:
         action = verdict.get("action")

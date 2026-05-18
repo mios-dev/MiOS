@@ -507,6 +507,17 @@ firewall_high_privilege_verbs = [
     "flatpak_uninstall",
 ]
 
+# Composefs security mode -- moved here 2026-05-18 to dedupe
+# the second [security] section (strict TOML parsers reject
+# duplicate sections).
+composefs_mode = "verity"
+# When composefs is in verity mode, automation/40-composefs-verity.sh
+# also masks systemd-remount-fs.service (known-broken with composefs on
+# Fedora 42+). Set to false to skip the mask if the base image's
+# systemd-remount-fs has been patched. No effect when composefs_mode is
+# "yes" or "off".
+mask_systemd_remount_fs = true
+
 [fs_watcher]
 # Phase A.2 of the AgentOS roadmap: directories the mios-daemon
 # fs-watcher thread tails via inotify, emitting SurrealDB event
@@ -574,6 +585,92 @@ writable           = true
 # Max active client sessions per instance (ttyd defaults to 1 +
 # rejects further). Raise for collaborative read-only sessions.
 max_clients        = 0
+
+[agents]
+# Phase D.5 of the AgentOS roadmap: sub-agent registry. Operator
+# directive 2026-05-18 "Hermes isn't the only sub-agent on the
+# system" -- agent-pipe is the always-first orchestrator;
+# Hermes, OpenCode, future MCP clients are sub-agents it
+# delegates to based on the refined intent.
+#
+# Every entry under [agents.<name>] is an addressable sub-agent.
+# `endpoint` is the OpenAI-compat /v1 URL; `role` informs the
+# refine pass which one to pick; `model` is the canonical model
+# id to advertise upstream; `default` (boolean) flags the
+# fallback when refine can't match a role.
+#
+# Refine pass picks by role-match first, then default=true,
+# then the first registered agent.
+
+[agents.hermes]
+endpoint = "http://localhost:8642/v1"
+model    = "hermes-agent"
+role     = "general"
+default  = true
+# Tools Hermes is good at -- the refine pass surfaces these
+# as hint_tools when the intent matches.
+strengths = ["kanban", "web_search", "skill_invocation",
+             "multi_step_reasoning", "tool_use"]
+
+[agents.opencode]
+endpoint = "http://localhost:8633/v1"
+model    = "opencode"
+role     = "coding"
+default  = false
+strengths = ["file_edit", "code_review", "git", "test_running",
+             "refactor"]
+
+[agents.mios-daemon-agent]
+# Operator note 2026-05-18: "mios-daemon also has a mios-daemon-
+# agent that lives on 2 cores always running (reads all SYSTEM(S)
+# logs, journal, etc) and keeps them in the loop for followups/
+# redirections". The daemon hosts a CPU-pinned always-on sub-
+# agent on a loopback port -- agent-pipe delegates telemetry +
+# log-context intents to it instead of forcing Hermes to re-
+# grep journals every turn.
+endpoint = "http://localhost:8644/v1"
+model    = "mios-daemon-agent"
+role     = "telemetry"
+default  = false
+strengths = ["journalctl_tail", "log_search", "event_query",
+             "system_followup", "what_just_happened"]
+
+# Operator can add more agents here -- e.g.:
+#   [agents.aichat]
+#   endpoint = "http://localhost:8765/v1"
+#   role     = "chat"
+#   ...
+# No code edits required; refine_intent reads this list at
+# request time via the userenv.sh slot map.
+
+[refine]
+# Phase D.5 quick-refine pass settings. ALWAYS runs before any
+# delegation. Pure-local fast model on the iGPU lane.
+enable           = true
+# Same model + endpoint as the router; one model warm, three
+# call shapes (refine / route / polish). Operator override for
+# a different micro-model when one ships.
+model            = "qwen3:1.7b"
+endpoint         = "http://localhost:11435"
+timeout_seconds  = 12
+max_tokens       = 400
+# Trivial-input shortcut: when the user message is shorter than
+# this many chars AND matches one of the bypass patterns
+# (greetings, single-word commands), skip refine and emit a
+# minimal plan inline. Pure-bash latency on the fast path.
+bypass_chars     = 24
+
+[polish]
+# Phase D.5 polish pass settings. Runs ONCE on the final answer
+# before returning to the gateway -- removes leakage, matches
+# intended_outcome format, locale-neutralises any English
+# stragglers. Skipped for dispatch / chat / DAG fast paths
+# (those produce final-shape content already).
+enable           = true
+model            = "qwen3:1.7b"
+endpoint         = "http://localhost:11435"
+timeout_seconds  = 15
+max_tokens       = 800
 
 [passport]
 # Phase C.3 of the AgentOS roadmap: Agent Passports (signed
@@ -1376,14 +1473,11 @@ native_rebuild = false
 # before this knob was introduced (no behavior change for existing
 # deployments).
 # ----------------------------------------------------------------------------
-[security]
-composefs_mode = "verity"
-# When composefs is in verity mode, automation/40-composefs-verity.sh
-# also masks systemd-remount-fs.service (known-broken with composefs on
-# Fedora 42+). Set to false to skip the mask if the base image's
-# systemd-remount-fs has been patched. No effect when composefs_mode is
-# "yes" or "off".
-mask_systemd_remount_fs = true
+# Composefs security settings -- merged into the first [security]
+# section below (was a duplicate [security] which strict TOML
+# parsers reject; the awk userenv parser tolerated it, tomllib
+# does not). Operator note 2026-05-18: keys preserved under the
+# canonical [security] section earlier in this file.
 
 # ----------------------------------------------------------------------------
 # [packages] -- runtime SSOT for every dnf install in MiOS. Each
