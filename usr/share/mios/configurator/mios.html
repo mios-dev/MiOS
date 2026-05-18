@@ -840,6 +840,8 @@
         <input type="text" id="f-port-rdp" data-key="ports.rdp" data-type="int" placeholder="3389">
         <label for="f-port-surrealdb">surrealdb (shared agent state -- context layer)</label>
         <input type="text" id="f-port-surrealdb" data-key="ports.surrealdb" data-type="int" placeholder="8000">
+        <label for="f-port-agent-pipe">agent_pipe (standalone router + refine + critic; fronts hermes)</label>
+        <input type="text" id="f-port-agent-pipe" data-key="ports.agent_pipe" data-type="int" placeholder="8640">
       </fieldset>
       <fieldset>
         <legend>network.quadlet — internal podman bridge</legend>
@@ -915,6 +917,33 @@
         <input type="text" id="f-svc-hermes-uid" data-key="services.hermes.uid" data-type="int" placeholder="820">
         <label for="f-svc-surrealdb-uid">surrealdb.uid / .gid</label>
         <input type="text" id="f-svc-surrealdb-uid" data-key="services.surrealdb.uid" data-type="int" placeholder="821">
+        <label for="f-svc-agent-pipe-uid">agent_pipe.uid / .gid</label>
+        <input type="text" id="f-svc-agent-pipe-uid" data-key="services.agent_pipe.uid" data-type="int" placeholder="822">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Agent Pipe · standalone router + refine + critic <span class="phase-badge">Phase 10 · Boot</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Gateway-agnostic chain that fronts hermes-agent for every
+      frontend (OWUI, Hermes Discord, future Slack/Telegram/MCP). One
+      pipe, many gateways -- every chat path gets the same router,
+      tool-call envelope, critic verdicts, and SurrealDB state writes.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>agent_pipe -- endpoint + backend</legend>
+        <label for="f-ap-endpoint">endpoint (where gateways POST chats)</label>
+        <input type="text" id="f-ap-endpoint" data-key="agent_pipe.endpoint" placeholder="http://localhost:8640/v1">
+        <label for="f-ap-backend">backend (where the pipe forwards to)</label>
+        <input type="text" id="f-ap-backend" data-key="agent_pipe.backend" placeholder="http://localhost:8642/v1">
+        <label for="f-ap-backend-model">backend_model (model id to forward as)</label>
+        <input type="text" id="f-ap-backend-model" data-key="agent_pipe.backend_model" placeholder="hermes-agent">
+        <label for="f-ap-enable">enable (master toggle)</label>
+        <input type="text" id="f-ap-enable" data-key="agent_pipe.enable" data-type="bool" placeholder="true">
       </fieldset>
     </div>
   </div>

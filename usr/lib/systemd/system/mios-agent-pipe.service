@@ -1,0 +1,48 @@
+[Unit]
+Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
+Documentation=file:///usr/lib/mios/agent-pipe/server.py
+After=network-online.target hermes-agent.service mios-surrealdb.service
+Wants=network-online.target hermes-agent.service
+
+[Service]
+Type=simple
+User=mios-agent-pipe
+Group=mios-agent-pipe
+WorkingDirectory=/var/lib/mios/agent-pipe
+
+# SSOT chain: every operator-tunable knob sources from mios.toml via
+# /etc/profile.d/mios-env.sh, which exports MIOS_* into the service
+# environment. The service code reads MIOS_PORT_AGENT_PIPE +
+# MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
+EnvironmentFile=-/etc/mios/agent-pipe.env
+Environment=MIOS_PORT_AGENT_PIPE=8640
+Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:8642/v1
+Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=hermes-agent
+Environment=MIOS_DB_URL=http://localhost:8000
+Environment=MIOS_DB_USER=root
+Environment=MIOS_DB_PASS=root
+Environment=MIOS_DB_NS=mios
+Environment=MIOS_DB_DB=mios
+
+# Reuse hermes-agent's venv interpreter for fastapi/uvicorn/httpx/
+# starlette -- they're already installed there. Cleaner option for a
+# bootc deploy is `dnf install python3-fastapi python3-uvicorn` +
+# /usr/bin/python3 (operator-confirmed 2026-05-18: python3-fastapi is
+# in updates/, python3-httpx already installed). Switching to dnf
+# packages is the v1 follow-up; for the scaffold commit we ride the
+# hermes-agent venv to skip a package-list bump in the same change.
+ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 -u /usr/lib/mios/agent-pipe/server.py
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=60s
+
+# Hardening: no-new-privs, private tmp, read-only system surfaces.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/mios/agent-pipe /var/log
+
+[Install]
+WantedBy=multi-user.target

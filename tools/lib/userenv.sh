@@ -215,6 +215,7 @@ slots = [
     ("ports.ceph_dashboard",           "MIOS_CEPH_DASHBOARD_PORT"),
     ("ports.rdp",                      "MIOS_RDP_PORT"),
     ("ports.surrealdb",                "MIOS_PORT_SURREALDB"),
+    ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
@@ -313,6 +314,14 @@ slots = [
     ("services.surrealdb.user",        "MIOS_SURREALDB_USER"),
     ("services.surrealdb.uid",         "MIOS_SURREALDB_UID"),
     ("services.surrealdb.gid",         "MIOS_SURREALDB_GID"),
+    ("services.agent_pipe.user",       "MIOS_AGENT_PIPE_USER"),
+    ("services.agent_pipe.uid",        "MIOS_AGENT_PIPE_UID"),
+    ("services.agent_pipe.gid",        "MIOS_AGENT_PIPE_GID"),
+    # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
+    ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
+    ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),
+    ("agent_pipe.backend_model",       "MIOS_AGENT_PIPE_BACKEND_MODEL"),
+    ("agent_pipe.enable",              "MIOS_AGENT_PIPE_ENABLE"),
     # ── surrealdb (shared cross-cutting agent state) ──────────────────────
     ("surrealdb.url",                  "MIOS_DB_URL"),
     ("surrealdb.user",                 "MIOS_DB_USER"),

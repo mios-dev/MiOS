@@ -443,6 +443,25 @@ enable   = true
 # /etc/mios/mios.toml or via /etc/containers/systemd/
 # mios-surrealdb.container.d/<name>.conf if exposing beyond loopback.
 # ----------------------------------------------------------------------------
+[agent_pipe]
+# 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
+# extracted out of the OWUI pipe class into a gateway-agnostic FastAPI
+# service. Every gateway (OWUI, Hermes Discord, future Slack/Telegram/
+# MCP) points at this service for chat completions; it routes the
+# request through the full agentic chain and forwards the heavy
+# inference to Hermes-Agent at [hermes].endpoint.
+#
+# Architecture per operator directive 2026-05-18: "mios discord chats
+# not going through MiOS-Agent(OWUI) paths when contacting through
+# discord (uses only MiOS-Hermes and doesn't have the same tool
+# understanding and environments details now!!!!)" -- centralizing the
+# pipe so all gateways get the same tool surface + critic + SurrealDB
+# state writes.
+endpoint       = "http://localhost:8640/v1"
+backend        = "http://localhost:8642/v1"   # hermes-agent OpenAI gateway
+backend_model  = "hermes-agent"               # the model id hermes-agent advertises
+enable         = true
+
 [surrealdb]
 url            = "http://localhost:8000"
 user           = "root"
@@ -2058,6 +2077,7 @@ guacamole_web      = 8090     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting context layer)
+agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -2144,6 +2164,11 @@ gid  = 820
 user = "mios-surrealdb"
 uid  = 821
 gid  = 821
+
+[services.agent_pipe]
+user = "mios-agent-pipe"
+uid  = 822
+gid  = 822
 
 # ----------------------------------------------------------------------------
 # [paths] -- canonical FHS paths for runtime artifacts. Consumed by
