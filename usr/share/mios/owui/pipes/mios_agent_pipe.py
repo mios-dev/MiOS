@@ -229,6 +229,11 @@ class Pipe:
             default="🧠 MiOS-Hermes",
             description="The <summary> rendered above the collapsed reasoning block. Per-agent label so the operator can tell which agent (hermes / opencode / etc.) produced the thinking. Kept short + symbol-led so it reads the same across operator locales (operator directive 2026-05-17 GLOBAL SWEEP for hardcoded English).",
         )
+        # Router (layer-1 classifier): dispatch | chat | agent.
+        ROUTER_ENABLED: bool = Field(default=True, description="layer-1 router (micro-LLM)")
+        ROUTER_MODEL: str    = Field(default="qwen3:1.7b", description="micro-LLM")
+        ROUTER_TIMEOUT_S: int = Field(default=12, description="s")
+        ROUTER_MAX_TOKENS: int = Field(default=200, description="tokens")
 
     # Operator directive 2026-05-17: "prompt refining should be tool
     # aware to be able to hint". The refine system prompt has a
@@ -897,6 +902,200 @@ class Pipe:
                     })
         return _json.dumps({"history": events}, indent=2)
 
+    # ── Router classifier system prompt + dispatch ─────────────────
+    # Micro-LLM gets a terse tool list + the user's prompt; emits
+    # JSON {action, tool?, args?, reply?}. JSON Mode (Ollama
+    # /v1/chat/completions response_format) constrains the output --
+    # no parsing tax.
+    _ROUTER_SYSTEM = (
+        "You are the MiOS router (Agentic-OS layer 1). Classify the "
+        "user prompt into ONE of three actions and emit JSON ONLY.\n"
+        "\n"
+        "Actions:\n"
+        '  "dispatch": the prompt maps to ONE MiOS verb call. Emit\n'
+        '              {"action":"dispatch","tool":"<name>",'
+        '"args":{...},"reason":"<short>"}\n'
+        '  "chat":     conversational (greeting/thanks/question with\n'
+        '              no system effect). Emit\n'
+        '              {"action":"chat","reply":"<your reply>"}\n'
+        '  "agent":    multi-step / research / unclear / needs\n'
+        '              several tools. Emit\n'
+        '              {"action":"agent","reason":"<short>"}\n'
+        "\n"
+        "MiOS verbs available for dispatch (use EXACT name + args shape):\n"
+        '  open_app(name:str, position:str="default", args:list[str]?, monitor:int=0)\n'
+        '    position enum: default / as-is / center / left / right /\n'
+        '    top / bottom / top-left / top-right / bottom-left /\n'
+        '    bottom-right / maximize\n'
+        '  focus_window(title:str)\n'
+        '  move_window(title:str, position:str, monitor:int=0)\n'
+        '  close_window(title:str, mode:str="graceful")    # mode: graceful|force\n'
+        '  list_windows()\n'
+        '  screen_layout()\n'
+        '  open_url(url:str, browser:str?)\n'
+        '  launch_app(name:str)            # simple, no position\n'
+        '  mios_find(name:str)             # READ-ONLY resolve\n'
+        '  mios_apps(filter:str?)          # inventory\n'
+        '  everything_search(query:str, limit:int=10, ext:str?)\n'
+        '  system_status()\n'
+        "\n"
+        "Rules:\n"
+        "- Pick `dispatch` ONLY when ONE call solves it. Position\n"
+        "  defaults to \"default\" (golden+16:10 centered); set\n"
+        "  explicitly only when the user named a side.\n"
+        "- Pick `chat` for greetings, thanks, follow-up clarification\n"
+        "  the agent can answer in one sentence.\n"
+        "- Pick `agent` for anything that needs N>1 tools, web\n"
+        "  research, install, file editing, multi-step plans.\n"
+        "- Mirror the user's language in `reply` fields.\n"
+        "- Output JSON ONLY -- no preamble, no markdown, no commentary."
+    )
+
+    async def _classify_intent(
+        self,
+        user_text: str,
+        emitter: Optional[Callable[..., Awaitable[None]]],
+    ) -> Optional[dict]:
+        """Layer-1 router call. Returns the parsed verdict dict, or
+        None to fall through to the legacy refine+hermes path."""
+        if not self.valves.ROUTER_ENABLED or not user_text.strip():
+            return None
+        await self._emit(emitter, "🧭 route")
+        payload = {
+            "model": self.valves.ROUTER_MODEL,
+            "messages": [
+                {"role": "system", "content": self._ROUTER_SYSTEM},
+                {"role": "user",   "content": user_text[:2000]},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+            "max_tokens": int(self.valves.ROUTER_MAX_TOKENS),
+            "stream": False,
+        }
+        url = self.valves.REFINE_ENDPOINT.rstrip("/") + "/v1/chat/completions"
+        try:
+            timeout = aiohttp.ClientTimeout(total=int(self.valves.ROUTER_TIMEOUT_S))
+            async with aiohttp.ClientSession(timeout=timeout) as s:
+                async with s.post(url,
+                                  data=json.dumps(payload).encode(),
+                                  headers={"Content-Type": "application/json"}) as r:
+                    if r.status != 200:
+                        return None
+                    body = await r.json()
+        except (asyncio.TimeoutError, aiohttp.ClientError):
+            await self._emit(emitter, "🧭 ⚠ router timeout → agent")
+            return None
+        except Exception:
+            return None
+        choices = body.get("choices") or []
+        if not choices:
+            return None
+        content = ((choices[0].get("message") or {}).get("content") or "").strip()
+        if not content:
+            return None
+        content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+        content = re.sub(r"\n?```\s*$", "", content)
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(parsed, dict) or "action" not in parsed:
+            return None
+        return parsed
+
+    async def _dispatch_mios_verb(
+        self,
+        tool: str,
+        args: dict,
+        emitter: Optional[Callable[..., Awaitable[None]]],
+    ) -> str:
+        """Execute one MiOS verb via the launcher broker (the same
+        broker mios_verbs.Tools uses). Returns the broker output as
+        a single string. Fail-open: returns the error JSON on any
+        failure so compose can surface it."""
+        import socket as _socket
+        # Map verb name -> shell command. Keep this in lockstep with
+        # mios_verbs.Tools method bodies.
+        env_prefix = ""
+        if tool == "open_app":
+            name = str(args.get("name", "")).strip()
+            position = str(args.get("position", "default")).lower()
+            extra_args = args.get("args") or []
+            if position and position != "as-is":
+                env_prefix = f"MIOS_LAUNCH_POSITION={shlex.quote(position)} "
+            if extra_args:
+                ea = " ".join(shlex.quote(str(a)) for a in extra_args)
+                cmd = f"{env_prefix}mios-windows launch {shlex.quote(name)} {ea}"
+            else:
+                cmd = f"{env_prefix}mios-find {shlex.quote(name)} | bash"
+        elif tool == "launch_app":
+            cmd = f"mios-launch {shlex.quote(str(args.get('name', '')))}"
+        elif tool == "focus_window":
+            cmd = f"mios-window focus {shlex.quote(str(args.get('title', '')))}"
+        elif tool == "move_window":
+            title = shlex.quote(str(args.get("title", "")))
+            pos   = shlex.quote(str(args.get("position", "center")))
+            cmd = f"mios-window {pos} {title}"
+        elif tool == "close_window":
+            title = shlex.quote(str(args.get("title", "")))
+            mode  = "kill" if str(args.get("mode", "graceful")) == "force" else "close"
+            cmd = f"mios-window {mode} {title}"
+        elif tool == "list_windows":
+            cmd = "mios-pc-control window-list"
+        elif tool == "screen_layout":
+            cmd = "mios-pc-control screen-layout"
+        elif tool == "open_url":
+            url = shlex.quote(str(args.get("url", "")))
+            browser = args.get("browser") or ""
+            cmd = f"mios-open-url {url}" + (
+                f" {shlex.quote(str(browser))}" if browser else "")
+        elif tool == "mios_find":
+            cmd = f"mios-find {shlex.quote(str(args.get('name', '')))}"
+        elif tool == "mios_apps":
+            f = args.get("filter") or ""
+            cmd = "mios-apps" + (f" --filter {shlex.quote(str(f))}" if f else "")
+        elif tool == "everything_search":
+            q = shlex.quote(str(args.get("query", "")))
+            n = int(args.get("limit", 10))
+            ext = args.get("ext") or ""
+            cmd = f"mios-everything -n {n} {q}"
+            if ext: cmd += f" -ext {shlex.quote(str(ext))}"
+        elif tool == "system_status":
+            cmd = "mios-system-status"
+        else:
+            return json.dumps({"success": False,
+                               "stderr": f"router emitted unknown tool {tool!r}"})
+        await self._emit(emitter, f"🛠️  {tool}")
+        # Broker dispatch (same socket Tools.* uses).
+        sock_path = os.environ.get("MIOS_LAUNCHER_SOCK",
+                                    "/run/mios-launcher/launcher.sock")
+        if not os.path.exists(sock_path):
+            return json.dumps({"success": False,
+                               "stderr": f"broker socket missing at {sock_path}"})
+        try:
+            s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            s.settimeout(15.0)
+            s.connect(sock_path)
+            s.sendall(("CAPTURE: " + cmd + "\n").encode())
+            chunks: list[bytes] = []
+            try:
+                while True:
+                    buf = s.recv(65536)
+                    if not buf: break
+                    chunks.append(buf)
+            except _socket.timeout:
+                pass
+            finally:
+                s.close()
+            raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
+            if raw.startswith("ERROR:"):
+                return json.dumps({"success": False, "stderr": raw})
+            return json.dumps({"success": True,
+                               "tool": tool, "args": args,
+                               "output": raw[:6000]})
+        except OSError as e:
+            return json.dumps({"success": False, "stderr": f"broker: {e}"})
+
     def _looks_conversational(self, text: str) -> bool:
         if not text:
             return True
@@ -1515,12 +1714,70 @@ class Pipe:
         body["model"] = self.valves.BACKEND_MODEL
         body["stream"] = True
 
+        # Extract the last user message text (used by router + refine).
+        messages = body.get("messages") or []
+        _last_user_text = ""
+        for i in range(len(messages) - 1, -1, -1):
+            if isinstance(messages[i], dict) and messages[i].get("role") == "user":
+                raw = messages[i].get("content") or ""
+                if isinstance(raw, list):
+                    for part in raw:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            raw = part.get("text", "")
+                            break
+                if isinstance(raw, str):
+                    _last_user_text = raw
+                break
+
+        # ── Layer-1 ROUTER ─────────────────────────────────────────
+        # Micro-LLM classifies into dispatch / chat / agent. Single-
+        # intent dispatch runs the broker tool directly (skip refine
+        # + hermes); chat returns a one-liner; agent falls through
+        # to the existing refine -> hermes -> compose -> critic chain.
+        verdict = await self._classify_intent(_last_user_text, __event_emitter__)
+        if verdict:
+            action = verdict.get("action")
+            if action == "dispatch":
+                tool = str(verdict.get("tool", "")).strip()
+                args = verdict.get("args") or {}
+                if tool:
+                    result_json = await self._dispatch_mios_verb(
+                        tool, args if isinstance(args, dict) else {},
+                        __event_emitter__,
+                    )
+                    try:
+                        result = json.loads(result_json)
+                    except json.JSONDecodeError:
+                        result = {"output": result_json}
+                    out = result.get("output") or result.get("stderr") or ""
+                    # Thin operator-facing reply: just confirm the
+                    # action + cite the broker output one-liner. No
+                    # polish (the verb already ran; nothing to polish).
+                    if result.get("success") is False:
+                        await self._emit(__event_emitter__, "✅", done=True)
+                        yield f"_⚠️ `{tool}` → {(out or 'failed')[:240]}_"
+                        return
+                    await self._emit(__event_emitter__, "✅", done=True)
+                    # Surface the first non-empty line of output for context.
+                    first_line = next((ln for ln in out.splitlines()
+                                       if ln.strip()), "")
+                    yield f"✅ `{tool}` · {first_line[:240]}" if first_line \
+                          else f"✅ `{tool}`"
+                    return
+            elif action == "chat":
+                reply = str(verdict.get("reply", "")).strip()
+                if reply:
+                    await self._emit(__event_emitter__, "✅", done=True)
+                    yield reply
+                    return
+            # action == "agent" (or any unrecognized) -> fall through
+            await self._emit(__event_emitter__, "🧭 → agent")
+
         # ── CPU REFINEMENT (in-pipe) ─────────────────────────────────
         # Extract the last user message, refine via the small CPU model,
         # replace the user message in-place with the refined text. The
         # downstream chain (prefilter -> hermes) sees the enriched
         # prompt, not the raw input.
-        messages = body.get("messages") or []
         last_user_idx = -1
         for i in range(len(messages) - 1, -1, -1):
             if isinstance(messages[i], dict) and messages[i].get("role") == "user":
