@@ -949,7 +949,16 @@ class Pipe:
             return raw_output
         if self._polish_can_skip(raw_output):
             await self._emit(emitter, "✓ clean → skip polish")
-            return raw_output
+            # Even on skip-polish, strip reasoning leaks ("Thought\n\n",
+            # <think>...</think>, <details>...</details>) from the
+            # raw text. Hermes uses reasoning-mode models that emit
+            # these prefixes; the operator should never see them.
+            # Operator-flagged 2026-05-18: "Hey there!" returned
+            # "Thought\n\nHello! How can I assist you today?" because
+            # polish skipped and the leading "Thought" passed through.
+            cleaned = self._strip_outer_md_fence(raw_output)
+            cleaned = self._strip_reasoning_leaks(cleaned)
+            return cleaned or raw_output
 
         # Try to load the structured tool history from Hermes session
         # JSON (OpenAI-format messages with tool_calls + tool_result).
