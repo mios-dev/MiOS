@@ -2442,41 +2442,92 @@ _PLANNER_SYSTEM = (
     "\n"
     "If you cannot decompose into AT LEAST 2 dispatchable verbs, emit\n"
     '{"action":"decompose","summary":"","nodes":[]} so the chain falls\n'
-    "through to the backend agent (which has tool-calling itself).\n"
+    "through to the backend sub-agent (Hermes / OpenCode / etc.) which\n"
+    "has tool-calling + web access itself.\n"
     "\n"
     "Available verbs (use EXACT name + args shape -- the dispatcher\n"
     "rejects unknown verbs):\n"
+    "\n"
+    "  ── Window / app launch ──\n"
     '  open_app(name, position="default"?)        -- LAUNCH an app\n'
     '  launch_app(name)                          -- simpler launch\n'
     '  focus_window(title, position="default"?)  -- raise + reposition\n'
-    '  move_window(title, position)              -- move existing\n'
+    '  move_window(title, position)              -- semantic move (left/right/center/...)\n'
+    '  position_window(title, x, y)              -- literal pixel coords\n'
+    '  resize_window(title, width, height)       -- pixel WxH\n'
+    '  minimize_window(title) / maximize_window(title) / restore_window(title)\n'
     '  close_window(title, mode="graceful"?)     -- close\n'
     '  open_url(url, browser?)                   -- open in browser\n'
     '  list_windows()                            -- enumerate windows\n'
     '  screen_layout()                           -- monitor geometry\n'
+    "\n"
+    "  ── Discovery / resolution ──\n"
     '  mios_find(name)                           -- resolve, no launch\n'
-    '  mios_apps(filter?)                        -- inventory\n'
+    '  mios_apps(filter?)                        -- INVENTORY all installed apps\n'
     '  everything_search(query, limit=10?, ext?) -- Windows FS search\n'
     '  fs_search(query, limit=20?, ext?, path?, type?)  -- Linux FS\n'
-    '  system_status()                           -- host snapshot\n'
-    '  service_status(name)                      -- systemctl status\n'
-    '  service_restart(name)                     -- systemctl restart\n'
+    '  pkg_lookup(phrase)                        -- Personal KG alias -> app\n'
+    "\n"
+    "  ── PC input ──\n"
+    '  pc_type(text) / pc_key(key) / pc_click(x, y, button="left"?)\n'
+    "\n"
+    "  ── Text editor (native; replaces pc_type+pc_key save chain) ──\n"
+    '  text_view(path, start?, end?)             -- read file / list dir\n'
+    '  text_create(path, content)                -- new file\n'
+    '  text_str_replace(path, old, new)          -- exact replace\n'
+    '  text_insert(path, line, content)          -- insert after line\n'
+    "\n"
+    "  ── Package management ──\n"
+    '  winget_search(query, limit?) / winget_list() / winget_show(id)\n'
+    '  winget_install(id) / winget_upgrade(id?) / winget_uninstall(id)\n'
+    '  flatpak_search(query, limit?) / flatpak_list() / flatpak_show(id)\n'
+    '  flatpak_install(id, scope?) / flatpak_upgrade(id?) / flatpak_uninstall(id)\n'
+    '  flatpak_preflight(id)                     -- probe sandbox BEFORE launch\n'
+    "\n"
+    "  ── System ──\n"
+    '  system_status() / service_status(name) / service_restart(name)\n'
     '  process_list(filter?, sort="rss"?, limit=20?)\n'
-    '  container_status(name?)                   -- podman ps\n'
-    '  container_restart(name)                   -- podman restart\n'
-    '  pc_type(text)                             -- type into focused window\n'
-    '  pc_key(key)                               -- press key OR "Ctrl+S" combo\n'
-    '  pc_click(x, y, button="left"?)            -- mouse click at coords\n'
+    '  container_status(name?) / container_restart(name)\n'
+    "\n"
+    "  ── Windows-side shell ──\n"
+    '  powershell_run(script, timeout=30?, work_dir?)  -- arbitrary PS\n'
+    "\n"
+    "Common patterns (study these before emitting):\n"
+    "\n"
+    "  open + position:\n"
+    "    n1 open_app(name=X) -> n2 focus_window(title=X) -> n3 position_window(title=X, x=A, y=B)\n"
+    "\n"
+    "  open + write file (NO more pc_type+pc_key; use text_create):\n"
+    "    n1 text_create(path=P, content=C) -> n2 text_view(path=P)\n"
+    "\n"
+    "  flatpak launch with health check:\n"
+    "    n1 flatpak_preflight(id=X) -> n2 open_app(name=X)\n"
+    "    (preflight halts on broken sandbox; agent surfaces real error)\n"
+    "\n"
+    "  inventory + filter (e.g. 'show me my browsers'):\n"
+    "    n1 mios_apps(filter='browser') -> n2 (chain only when narrowing further)\n"
+    "\n"
+    "  install + launch:\n"
+    "    n1 winget_search(query=X) -> n2 winget_install(id=X) -> n3 open_app(name=X)\n"
+    "    n1 flatpak_search(query=X) -> n2 flatpak_install(id=X) -> n3 open_app(name=X)\n"
+    "\n"
+    "  tile two windows:\n"
+    "    n1 position_window(title=L, x=0, y=0) -> n2 resize_window(title=L, ...)\n"
+    "    n3 position_window(title=R, x=HW, y=0) -> n4 resize_window(title=R, ...)\n"
+    "\n"
+    "When NOT to decompose (return empty nodes):\n"
+    "- Web research / 'find reviews of X' / 'what's the best Y' -- the backend\n"
+    "  sub-agent owns web_search/web_extract; no broker verb covers it.\n"
+    "- Pure conversational / explanation requests -- those are chat, not DAG.\n"
+    "- Multi-source synthesis where the planner can't fix the source list\n"
+    "  upfront -- delegate to the backend sub-agent.\n"
+    "- BUT for inventory + research + action like 'find my games, look up\n"
+    "  reviews, launch the best': emit the INVENTORY step (n1 mios_apps())\n"
+    "  + leave the research+launch to follow-up turns guided by the backend.\n"
     "\n"
     "Rules:\n"
     "- Linearize when possible: each node depends only on its predecessor.\n"
-    "- For 'open X and do Y' chains: open_app -> focus_window -> action.\n"
-    "- The focus_window step is OFTEN needed before pc_type / pc_key so\n"
-    "  the input reaches the right window.\n"
-    "- Use pc_key with 'Ctrl+S', 'Alt+F4', 'Enter', 'Tab' as appropriate.\n"
     "- Cap your DAG at " + str(PLANNER_MAX_NODES) + " nodes.\n"
-    "- If the user asked for something AMBIGUOUS or requiring web/agent\n"
-    "  reasoning, return empty nodes -- the backend agent handles it.\n"
     "- Output JSON ONLY -- no preamble, no markdown, no commentary."
 )
 
