@@ -838,6 +838,8 @@
         <input type="text" id="f-port-ceph" data-key="ports.ceph_dashboard" data-type="int" placeholder="8443">
         <label for="f-port-rdp">rdp (GNOME Remote Desktop / xRDP)</label>
         <input type="text" id="f-port-rdp" data-key="ports.rdp" data-type="int" placeholder="3389">
+        <label for="f-port-surrealdb">surrealdb (shared agent state -- context layer)</label>
+        <input type="text" id="f-port-surrealdb" data-key="ports.surrealdb" data-type="int" placeholder="8000">
       </fieldset>
       <fieldset>
         <legend>network.quadlet — internal podman bridge</legend>
@@ -894,6 +896,8 @@
         <input type="text" id="f-img-pxe-hub" data-key="image.sidecars.pxe_hub" placeholder="quay.io/poseidon/matchbox:latest">
         <label for="f-img-bib-alpine">bib_alpine (build helper)</label>
         <input type="text" id="f-img-bib-alpine" data-key="image.sidecars.bib_alpine" placeholder="docker.io/library/alpine:latest">
+        <label for="f-img-surrealdb">surrealdb (shared agent state)</label>
+        <input type="text" id="f-img-surrealdb" data-key="image.sidecars.surrealdb" placeholder="docker.io/surrealdb/surrealdb:latest">
       </fieldset>
       <fieldset>
         <legend>services — per-Quadlet identity (UID 800–829)</legend>
@@ -909,6 +913,49 @@
         <input type="text" id="f-svc-ceph-uid" data-key="services.ceph.uid" data-type="int" placeholder="819">
         <label for="f-svc-hermes-uid">hermes.uid / .gid</label>
         <input type="text" id="f-svc-hermes-uid" data-key="services.hermes.uid" data-type="int" placeholder="820">
+        <label for="f-svc-surrealdb-uid">surrealdb.uid / .gid</label>
+        <input type="text" id="f-svc-surrealdb-uid" data-key="services.surrealdb.uid" data-type="int" placeholder="821">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>SurrealDB · shared cross-cutting agent state <span class="phase-badge">Phase 10 · Boot</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Cross-agent context layer (mios-agent-pipe + hermes + mios-daemon
+      query in lockstep). Hosts tables OWUI doesn't natively own:
+      agent, session, tool_call, event, kanban_shadow, scratch,
+      agent_metric. OWUI's webui.db remains source of truth for
+      memory / knowledge / files / tools / functions / models.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>surrealdb — endpoint + auth</legend>
+        <label for="f-sdb-url">url (loopback endpoint)</label>
+        <input type="text" id="f-sdb-url" data-key="surrealdb.url" placeholder="http://localhost:8000">
+        <label for="f-sdb-user">user</label>
+        <input type="text" id="f-sdb-user" data-key="surrealdb.user" placeholder="root">
+        <label for="f-sdb-pass">pass</label>
+        <input type="text" id="f-sdb-pass" data-key="surrealdb.pass" placeholder="root">
+        <label for="f-sdb-ns">namespace</label>
+        <input type="text" id="f-sdb-ns" data-key="surrealdb.namespace" placeholder="mios">
+        <label for="f-sdb-db">database</label>
+        <input type="text" id="f-sdb-db" data-key="surrealdb.database" placeholder="mios">
+        <label for="f-sdb-enable">enable (master toggle)</label>
+        <input type="text" id="f-sdb-enable" data-key="surrealdb.enable" data-type="bool" placeholder="true">
+      </fieldset>
+      <fieldset>
+        <legend>surrealdb — storage + schema</legend>
+        <label for="f-sdb-data-dir">data_dir (persistent volume)</label>
+        <input type="text" id="f-sdb-data-dir" data-key="surrealdb.data_dir" placeholder="/var/lib/mios/surrealdb">
+        <label for="f-sdb-backend">backend (3.0+ surrealkv:// uri)</label>
+        <input type="text" id="f-sdb-backend" data-key="surrealdb.backend" placeholder="surrealkv:///var/lib/mios/surrealdb/mios.skv">
+        <label for="f-sdb-schema">schema_init (applied on first boot)</label>
+        <input type="text" id="f-sdb-schema" data-key="surrealdb.schema_init" placeholder="/usr/share/mios/surrealdb/schema-init.surql">
+        <label for="f-sdb-embed">embed_model (OpenAI-compat /v1/embeddings via Ollama)</label>
+        <input type="text" id="f-sdb-embed" data-key="surrealdb.embed_model" placeholder="nomic-embed-text">
       </fieldset>
     </div>
   </div>

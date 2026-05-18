@@ -30,27 +30,47 @@
 #                     kanban_shadow / scratch / agent_metric.
 #                     Cross-cutting state OWUI doesn't natively have.
 #
-# Env (with defaults):
-#   MIOS_DB_URL          http://localhost:8000
-#   MIOS_DB_USER         root
-#   MIOS_DB_PASS         root
-#   MIOS_DB_NS           mios
-#   MIOS_DB_DB           mios
+# Env (with defaults). All envs source from the layered mios.toml chain
+# via tools/lib/userenv.sh -- vendor (/usr/share/mios/mios.toml) <
+# host (/etc/mios/mios.toml) < user (~/.config/mios/mios.toml). A shell
+# `export` always wins (`:=` form). To change the defaults globally,
+# edit [surrealdb] / [ports].ollama / paths in mios.toml -- DO NOT
+# hardcode values here. See the SSOT directive in
+# automation/15-render-quadlets.sh.
+#
+#   MIOS_DB_URL          http://localhost:${MIOS_PORT_SURREALDB:-8000}
+#   MIOS_DB_USER         root             [surrealdb].user
+#   MIOS_DB_PASS         root             [surrealdb].pass
+#   MIOS_DB_NS           mios             [surrealdb].namespace
+#   MIOS_DB_DB           mios             [surrealdb].database
 #   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
-#   MIOS_OLLAMA_URL      http://localhost:11434
-#   MIOS_EMBED_MODEL     nomic-embed-text
+#   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_OLLAMA:-11434}
+#   MIOS_EMBED_MODEL     nomic-embed-text [surrealdb].embed_model
 #
 # Exits 0 on success, 1 on backend unreachable, 2 on missing binary.
 
 set -uo pipefail
 
-DB_URL="${MIOS_DB_URL:-http://localhost:8000}"
+# Source the SSOT-layered env first so MIOS_* envs reflect the operator's
+# mios.toml overrides without callers having to source userenv.sh themselves.
+# Canonical deployed paths mirror /etc/profile.d/mios-env.sh; silent no-op
+# if the helper isn't present (e.g. a fresh host pre-image-rebuild). The
+# script still works with raw env-var exports either way.
+for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
+    if [ -r "$_ue" ]; then
+        # shellcheck disable=SC1090
+        . "$_ue"
+        break
+    fi
+done
+
+DB_URL="${MIOS_DB_URL:-http://localhost:${MIOS_PORT_SURREALDB:-8000}}"
 DB_USER="${MIOS_DB_USER:-root}"
 DB_PASS="${MIOS_DB_PASS:-root}"
 DB_NS="${MIOS_DB_NS:-mios}"
 DB_DB="${MIOS_DB_DB:-mios}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
-OLLAMA_URL="${MIOS_OLLAMA_URL:-http://localhost:11434}"
+OLLAMA_URL="${MIOS_OLLAMA_URL:-http://localhost:${MIOS_PORT_OLLAMA:-11434}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
 
 JSON=0
@@ -132,44 +152,66 @@ fi
 
 # ── MODE: surreal  (cross-cutting state) ──
 
+# SurrealDB 3.0 CLI args (renamed from 2.x): --conn → --endpoint,
+# --user/--pass kept as aliases. WebSocket endpoint preferred over
+# http:// for the `sql` REPL (3.0 default is ws://localhost:8000).
+WS_URL="${DB_URL/http:/ws:}"
+WS_URL="${WS_URL/https:/wss:}"
+
 # 1. Prefer the local surreal CLI if installed (faster, REPL-friendly).
+# NB: stdin must be the QUERY without an intervening pipeline -- a
+# `printf | exec surreal` puts `exec` on the right side of a pipe,
+# which only replaces the SUBSHELL, not the script; the script then
+# falls through to step 2/3 and prints duplicate output. Use a
+# here-string so `exec` actually replaces the calling process.
 if command -v surreal >/dev/null 2>&1; then
-    args=(sql --conn "$DB_URL" --user "$DB_USER" --pass "$DB_PASS"
-          --ns "$DB_NS" --db "$DB_DB")
+    args=(sql --endpoint "$WS_URL" --username "$DB_USER" --password "$DB_PASS"
+          --namespace "$DB_NS" --database "$DB_DB")
     [ "$JSON" = "1" ] && args+=(--pretty)
     if [ -n "$FILE" ]; then
         exec surreal "${args[@]}" < "$FILE"
     elif [ -n "$QUERY" ]; then
-        printf '%s\n' "$QUERY" | exec surreal "${args[@]}"
+        exec surreal "${args[@]}" <<<"$QUERY"
     else
         exec surreal "${args[@]}"
     fi
 fi
 
 # 2. Container-exec fallback: surreal binary inside the container.
+# The official surrealdb/surrealdb image is distroless -- no /bin/sh,
+# no PATH lookup; the binary lives at /surreal. Use the full path.
+# Same here-string discipline as step 1: no pipelines around `exec`.
 if command -v podman >/dev/null 2>&1 \
    && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-surrealdb$'; then
-    args=(exec -i mios-surrealdb surreal sql
-          --conn "$DB_URL" --user "$DB_USER" --pass "$DB_PASS"
-          --ns "$DB_NS" --db "$DB_DB")
+    args=(exec -i mios-surrealdb /surreal sql
+          --endpoint "$WS_URL" --username "$DB_USER" --password "$DB_PASS"
+          --namespace "$DB_NS" --database "$DB_DB")
     [ "$JSON" = "1" ] && args+=(--pretty)
     if [ -n "$FILE" ]; then
         exec podman "${args[@]}" < "$FILE"
     elif [ -n "$QUERY" ]; then
-        printf '%s\n' "$QUERY" | exec podman "${args[@]}"
-    else
-        echo "mios-db: no query + no -f; pass a query string or run with -f" >&2
-        exit 64
+        exec podman "${args[@]}" <<<"$QUERY"
     fi
+    # No QUERY + no FILE -> fall through to curl (which prints usage).
 fi
 
 # 3. Pure HTTP fallback: SurrealDB REST API via curl.
+# 3.0 dropped the NS:/DB: HTTP header form; the canonical 3.0+
+# pattern is to prepend `USE NS <ns> DB <db>;` to the query body.
 if [ -n "$QUERY" ] && command -v curl >/dev/null 2>&1; then
+    body=$(printf 'USE NS %s DB %s; %s' "$DB_NS" "$DB_DB" "$QUERY")
     exec curl -sS -X POST "$DB_URL/sql" \
         -u "$DB_USER:$DB_PASS" \
-        -H "NS: $DB_NS" -H "DB: $DB_DB" \
         -H "Accept: application/json" \
-        --data-binary "$QUERY"
+        --data-binary "$body"
+fi
+# Also support -f file form via curl.
+if [ -n "$FILE" ] && command -v curl >/dev/null 2>&1 && [ -r "$FILE" ]; then
+    body=$(printf 'USE NS %s DB %s;\n' "$DB_NS" "$DB_DB"; cat "$FILE")
+    exec curl -sS -X POST "$DB_URL/sql" \
+        -u "$DB_USER:$DB_PASS" \
+        -H "Accept: application/json" \
+        --data-binary "$body"
 fi
 
 echo "mios-db: no SurrealDB backend reachable + no --owui/--embed flag set" >&2

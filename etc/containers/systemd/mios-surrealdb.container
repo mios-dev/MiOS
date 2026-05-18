@@ -28,36 +28,46 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=docker.io/surrealdb/surrealdb:latest
+# Image / Port / Network / User placeholders rendered by automation/15-render-quadlets.sh.
+# The SSOT is mios.toml: [image.sidecars].surrealdb, [ports].surrealdb,
+# [services.surrealdb].{uid,gid}, [surrealdb].{user,pass,backend,data_dir}.
+Image=${MIOS_SURREALDB_IMAGE:-docker.io/surrealdb/surrealdb:latest}
 ContainerName=mios-surrealdb
-Network=mios.network
-Network=ai-net.network
-# Canonical MiOS DB port. Standard SurrealDB default = 8000.
-PublishPort=8000:8000
+# Host networking, matching ollama's pattern. Bridge networks +
+# PublishPort hit a podman-WSL port-forwarder quirk where host:8000
+# wasn't binding even though `podman port` reported the mapping.
+# Host-net is fine for an infrastructure service (no isolation
+# loss that matters at the loopback layer) and gives every MiOS
+# AI surface a reliable http://localhost:8000 -- mirroring the
+# README rule for the inference endpoint at localhost:8080/v1.
+Network=host
 
-# Persistent data dir. SurrealDB writes the file:// store here;
-# durability survives container restarts + image upgrades.
-Volume=/var/lib/mios/surrealdb:/var/lib/mios/surrealdb:Z
+# Persistent data dir. SurrealDB writes the surrealkv:// store here;
+# durability survives container restarts + image upgrades. Path
+# resolved from [surrealdb].data_dir in mios.toml.
+Volume=${MIOS_DB_DATA_DIR:-/var/lib/mios/surrealdb}:${MIOS_DB_DATA_DIR:-/var/lib/mios/surrealdb}:Z
 
-# UID 819 (next free in mios.toml [services.surrealdb] convention --
-# pinned in usr/lib/sysusers.d/50-mios-services.conf alongside
-# searxng 818 / ollama 815 / mios-hermes 820). Matches the chown of
-# /var/lib/mios/surrealdb done by tmpfiles.d.
-User=819
-Group=819
+# Identity from mios.toml [services.surrealdb] (uid 821 -- 819
+# reserved for mios-ceph; pinned in usr/lib/sysusers.d/50-mios-services.conf
+# alongside the rest of the 810-829 service-account range). Matches
+# the chown of the data dir done by usr/lib/tmpfiles.d/mios-surrealdb.conf.
+User=${MIOS_SURREALDB_UID:-821}
+Group=${MIOS_SURREALDB_GID:-821}
 
-# Default root credentials -- LOCAL-ONLY. The PublishPort above
-# already binds host-side; the operator can lock down by adding an
-# override drop-in with --pass <secret> or by running entirely on
-# the ai-net.network bridge (no host port). For Day-0 self-host
-# the local-only defaults match every other MiOS service.
-Environment=SURREAL_USER=root
-Environment=SURREAL_PASS=root
+# Default root credentials -- LOCAL-ONLY. Loopback-bound via PublishPort
+# (or host-net here); operator overrides creds via [surrealdb].user/pass
+# in /etc/mios/mios.toml or a Quadlet drop-in. For Day-0 self-host the
+# local-only defaults match every other MiOS service.
+Environment=SURREAL_USER=${MIOS_DB_USER:-root}
+Environment=SURREAL_PASS=${MIOS_DB_PASS:-root}
 Environment=SURREAL_LOG=info
 
-# Bind 0.0.0.0 so both host (operator + pipe + mios-daemon) AND
+# Bind 0.0.0.0:<port> so both host (operator + pipe + mios-daemon) AND
 # the ai-net bridge (hermes, future agents) reach the same endpoint.
-Exec=start --bind 0.0.0.0:8000 --user root --pass root file:///var/lib/mios/surrealdb/mios.db
+# Port from [ports].surrealdb; backend uri from [surrealdb].backend
+# (SurrealDB 3.0+ uses `surrealkv:` -- the legacy `file:` scheme was
+# dropped; single-file on-disk durability under data_dir/mios.skv).
+Exec=start --bind 0.0.0.0:${MIOS_PORT_SURREALDB:-8000} --user ${MIOS_DB_USER:-root} --pass ${MIOS_DB_PASS:-root} ${MIOS_DB_BACKEND:-surrealkv:///var/lib/mios/surrealdb/mios.skv}
 
 # OCI labels for Podman Desktop browse-in-browser.
 Label=org.opencontainers.image.title=mios-surrealdb

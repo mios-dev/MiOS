@@ -420,6 +420,42 @@ enable   = true
 # authenticate from the in-page JS without external token wiring.
 
 # ----------------------------------------------------------------------------
+# [surrealdb] -- shared cross-cutting agent state (the "context layer
+# for AI agents" per upstream framing). Hosts tables that OWUI doesn't
+# natively own: agent, session, tool_call, event, kanban_shadow,
+# scratch, agent_metric. OWUI's webui.db remains source of truth for
+# memory/knowledge/files/tools/functions/models; SurrealDB stores the
+# cross-agent state that needs to be queried in lockstep across
+# mios-agent-pipe + hermes + mios-daemon.
+#
+# Engine: SurrealDB 3.0+ with the embedded `surrealkv://` KV store
+# (the legacy `file://` scheme was dropped in 3.0; on-disk durability
+# in a single file under data_dir/mios.skv).
+#
+# Bind: 0.0.0.0:<port> so host (operator + pipe + mios-daemon) AND
+# the ai-net.network bridge (hermes, future agents) reach the same
+# endpoint. Host networking is configured in the Quadlet itself
+# (matching ollama's pattern; bridge + PublishPort hit a podman-WSL
+# port-forwarder quirk).
+#
+# Credentials default to root:root because this is a LOCAL service on
+# loopback; lock down by overriding `user`/`pass` in
+# /etc/mios/mios.toml or via /etc/containers/systemd/
+# mios-surrealdb.container.d/<name>.conf if exposing beyond loopback.
+# ----------------------------------------------------------------------------
+[surrealdb]
+url            = "http://localhost:8000"
+user           = "root"
+pass           = "root"
+namespace      = "mios"
+database       = "mios"
+data_dir       = "/var/lib/mios/surrealdb"
+backend        = "surrealkv:///var/lib/mios/surrealdb/mios.skv"
+schema_init    = "/usr/share/mios/surrealdb/schema-init.surql"
+embed_model    = "nomic-embed-text"   # OWUI/Ollama-compat embeddings (768-dim)
+enable         = true
+
+# ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
 # the dev VM, exposed via xrdp on `port`, connected to from Windows via
 # mstsc.exe (the same Hyper-V Enhanced Session client). Complements the
@@ -2021,6 +2057,7 @@ k3s_api            = 6443     # K3s Kubernetes API
 guacamole_web      = 8090     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
+surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting context layer)
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -2067,6 +2104,8 @@ guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub_version    = "latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
+surrealdb_version  = "latest"
+surrealdb          = "docker.io/surrealdb/surrealdb:latest"
 
 # ----------------------------------------------------------------------------
 # [services.<svc>] -- per-service identity (UID / GID / username) baked
@@ -2100,6 +2139,11 @@ gid  = 819
 user = "mios-hermes"
 uid  = 820
 gid  = 820
+
+[services.surrealdb]
+user = "mios-surrealdb"
+uid  = 821
+gid  = 821
 
 # ----------------------------------------------------------------------------
 # [paths] -- canonical FHS paths for runtime artifacts. Consumed by

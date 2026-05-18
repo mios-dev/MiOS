@@ -214,6 +214,7 @@ slots = [
     ("ports.guacamole_web",            "MIOS_GUACAMOLE_PORT"),
     ("ports.ceph_dashboard",           "MIOS_CEPH_DASHBOARD_PORT"),
     ("ports.rdp",                      "MIOS_RDP_PORT"),
+    ("ports.surrealdb",                "MIOS_PORT_SURREALDB"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
@@ -291,6 +292,8 @@ slots = [
     ("image.sidecars.pxe_hub_version", "MIOS_PXE_HUB_VERSION"),
     ("image.sidecars.pxe_hub",         "MIOS_PXE_HUB_IMAGE"),
     ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
+    ("image.sidecars.surrealdb_version","MIOS_SURREALDB_VERSION"),
+    ("image.sidecars.surrealdb",       "MIOS_SURREALDB_IMAGE"),
     # ── services (per-service identity: user / uid / gid) ─────────────────
     ("services.forge.user",            "MIOS_FORGE_USER"),
     ("services.forge.uid",             "MIOS_FORGE_UID"),
@@ -307,6 +310,20 @@ slots = [
     ("services.open_webui.user",       "MIOS_OPEN_WEBUI_USER"),
     ("services.open_webui.uid",        "MIOS_OPEN_WEBUI_UID"),
     ("services.open_webui.gid",        "MIOS_OPEN_WEBUI_GID"),
+    ("services.surrealdb.user",        "MIOS_SURREALDB_USER"),
+    ("services.surrealdb.uid",         "MIOS_SURREALDB_UID"),
+    ("services.surrealdb.gid",         "MIOS_SURREALDB_GID"),
+    # ── surrealdb (shared cross-cutting agent state) ──────────────────────
+    ("surrealdb.url",                  "MIOS_DB_URL"),
+    ("surrealdb.user",                 "MIOS_DB_USER"),
+    ("surrealdb.pass",                 "MIOS_DB_PASS"),
+    ("surrealdb.namespace",            "MIOS_DB_NS"),
+    ("surrealdb.database",             "MIOS_DB_DB"),
+    ("surrealdb.data_dir",             "MIOS_DB_DATA_DIR"),
+    ("surrealdb.backend",              "MIOS_DB_BACKEND"),
+    ("surrealdb.schema_init",          "MIOS_DB_SCHEMA_INIT"),
+    ("surrealdb.embed_model",          "MIOS_EMBED_MODEL"),
+    ("surrealdb.enable",               "MIOS_DB_ENABLE"),
     # ── paths (FHS canonical runtime artifacts) ────────────────────────────
     ("paths.ai_dir",                   "MIOS_AI_DIR"),
     ("paths.ai_models_dir",            "MIOS_AI_MODELS_DIR"),
