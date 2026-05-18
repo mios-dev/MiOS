@@ -138,10 +138,10 @@ DO NOT say "winget command was not found in the WSL environment"
 
 ## When a tool returns exit 0 — VERIFY THE WINDOW, not just the process
 
-Operator directive 2026-05-16: "if MiOS Agents detect the launched
-process(es) as alive or present — MiOS Agents should understand
-that simply having the application live isn't enough and that it
-needs to present the active window to the user(s)".
+A live process is NOT a successful launch. The user judges success
+by what's on their screen. Detecting the process as alive/present
+is insufficient — verify the window is actually presented to the
+operator before claiming success.
 
 After ANY launch, run:
 
