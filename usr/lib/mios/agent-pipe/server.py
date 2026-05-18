@@ -958,38 +958,109 @@ _POLISH_SYSTEM = (
     "from a sub-agent. Your job: produce the FINAL user-facing\n"
     "response by re-shaping the raw answer to match the intended\n"
     "outcome -- nothing more. Be tight; do not add new content;\n"
-    "do not editorialise; do not say `the agent says`. Keep all\n"
-    "factual content. Strip internal reasoning leaks (lines like\n"
-    "`Thought:`, `Reasoning:`, `Plan:`, tool-call envelopes, JSON\n"
-    "thinking blocks). Locale-neutralise any stray English when\n"
-    "the original user prompt was in another language.\n"
+    "do not editorialise; do not say `the agent says`. Strip\n"
+    "internal reasoning leaks (lines like `Thought:`, `Reasoning:`,\n"
+    "`Plan:`, tool-call envelopes, JSON thinking blocks). Locale-\n"
+    "neutralise any stray English when the original user prompt\n"
+    "was in another language.\n"
+    "\n"
+    "CRITICAL ground-truth rule: the TOOL HISTORY below records\n"
+    "what actually happened in the agent's execution environment.\n"
+    "When a tool call has success=false, the user-facing answer\n"
+    "MUST acknowledge the failure -- do NOT paraphrase as success.\n"
+    "When the sub-agent's draft contradicts the tool history\n"
+    "(claims a launch succeeded when the tool returned failure,\n"
+    "invents an unrelated error not present in any tool stderr,\n"
+    "fabricates a `move command failed` explanation when the\n"
+    "intent was `open app`), REWRITE the answer to surface the\n"
+    "ACTUAL failure mode from the tool stderr.\n"
     "\n"
     "Output the polished answer ONLY -- no prose around it,\n"
     "no JSON envelope.\n"
 )
 
 
+async def _recent_tool_history(session_id: Optional[str],
+                               limit: int = 6) -> list[dict]:
+    """Pull the most recent tool_call rows for this session so polish
+    has ground-truth on what actually happened. Returns oldest-first
+    so the prompt reads chronologically."""
+    if not session_id:
+        return []
+    sql = (
+        f"SELECT ts, tool, args, success, "
+        f"result_preview, exit_code "
+        f"FROM tool_call WHERE session = {session_id} "
+        f"ORDER BY ts DESC LIMIT {int(limit)};"
+    )
+    r = await _db_post(sql)
+    if not r:
+        return []
+    rows = (r[-1] or {}).get("result") or []
+    # Reverse for chronological order in the prompt.
+    return list(reversed(rows))
+
+
+def _format_tool_history(rows: list[dict]) -> str:
+    if not rows:
+        return ""
+    parts = ["Tool history (chronological; CHECK THIS BEFORE WRITING):"]
+    for i, row in enumerate(rows, 1):
+        tool = row.get("tool", "?")
+        args = row.get("args") or {}
+        ok = row.get("success")
+        exit_code = row.get("exit_code")
+        preview = (row.get("result_preview") or "")[:300]
+        ok_label = "ok" if ok else (
+            f"FAILED (exit={exit_code})" if ok is False else "?")
+        parts.append(
+            f"  [{i}] {tool}({json.dumps(args, default=str)[:120]}) "
+            f"-> {ok_label}"
+        )
+        if preview.strip():
+            parts.append(f"      result: {preview}")
+    return "\n".join(parts)
+
+
 async def polish_response(raw_text: str,
-                          refined: Optional[dict]) -> Optional[str]:
+                          refined: Optional[dict],
+                          session_id: Optional[str] = None) -> Optional[str]:
     """Polish a sub-agent's raw response into the final user-facing
     answer. Returns the polished string or None on error (caller
-    keeps the raw answer)."""
+    keeps the raw answer).
+
+    When session_id is supplied, the polish prompt receives the
+    recent tool_call history as ground truth. The CRITICAL rule in
+    _POLISH_SYSTEM tells the model to REWRITE the response when it
+    contradicts the tool history (Operator-flagged 2026-05-18:
+    'open nautilus' -> assistant claimed 'The move command failed
+    because the destination directory wasn't writable' -- a
+    completely fabricated unrelated error)."""
     if not POLISH_ENABLED or not raw_text or not raw_text.strip():
         return None
     intended = (refined or {}).get("intended_outcome", "") or ""
     user_q = (refined or {}).get("refined_text", "") or ""
-    # Skip when intended is empty + raw is short -- no polish needed.
-    if not intended and len(raw_text) < 200:
-        log.info("polish: skipped (no intended_outcome + raw<200 chars)")
+    tool_history = await _recent_tool_history(session_id)
+    has_failed_tool = any(
+        r.get("success") is False for r in tool_history
+    )
+    # Skip when intended is empty + raw is short + no failed tools.
+    # If a tool FAILED, we ALWAYS polish so the response gets
+    # ground-truth-checked even on short answers.
+    if not intended and len(raw_text) < 200 and not has_failed_tool:
+        log.info("polish: skipped (no intended_outcome + raw<200 chars + no failed tools)")
         return None
     system = _POLISH_SYSTEM + (
         f"\nIntended outcome: {intended}\n" if intended else ""
     )
+    hist_block = _format_tool_history(tool_history)
     # `/no_think` to disable qwen3 reasoning (same rationale as refine).
-    user_msg = (
-        f"User's question:\n{user_q}\n\n"
-        f"Raw answer from sub-agent:\n{raw_text[:8000]}\n\n/no_think"
-    )
+    user_msg_parts = [f"User's question:\n{user_q}"]
+    if hist_block:
+        user_msg_parts.append(hist_block)
+    user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
+    user_msg_parts.append("/no_think")
+    user_msg = "\n\n".join(user_msg_parts)
     payload = {
         "model": POLISH_MODEL,
         "messages": [
@@ -3889,7 +3960,8 @@ async def chat_completions(request: Request) -> Any:
                          len(raw),
                          (refined.get("intended_outcome") or "")[:60])
                 if raw.strip():
-                    polished = await polish_response(raw, refined)
+                    polished = await polish_response(
+                        raw, refined, session_id=session_id)
                     if polished and polished.strip() != raw.strip():
                         # Render: collapsible "thoughts" with the raw
                         # sub-agent output, then the polished answer
