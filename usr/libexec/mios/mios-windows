@@ -479,30 +479,39 @@ PYEOF
             exit 0
         fi
 
-        # Same-uid-as-broker / no-broker fallback: invoke
-        # Start-Process via PowerShell DIRECTLY (no setsid+nohup).
-        # Operator-flagged 2026-05-18: "NOTHING OPENED AT ALL" --
-        # notepad.exe was exec'd via setsid+nohup, the process ran
-        # (pid 499978) but MainWindowHandle=0 because
-        # mios-launcher.service runs under user@992.service (the
-        # USER MANAGER slice), not the operator's interactive
-        # Windows session. Direct .exe exec from the manager slice
-        # spawns a process with no desktop; Start-Process via
-        # PowerShell always opens in the operator's foreground
-        # session where a window can render.
+        # Operator-flagged 2026-05-18 (round 2): Start-Process still
+        # produced no window. Root cause: mios-launcher.service runs
+        # under user@992.service (systemd user manager = session c2
+        # `manager-early`), NOT the operator's interactive desktop
+        # session c11 (`user`). When PowerShell.exe is exec'd via
+        # WSL interop from c2, its Start-Process inherits the user-
+        # manager session context -- new process has no window
+        # station/desktop, MainWindowHandle stays 0.
+        #
+        # Bulletproof Win32-from-WSL pattern: cmd.exe /c start "" ...
+        # `start` uses ShellExecute, which goes through HKEY_CURRENT_
+        # USER associations + uses the interactive shell's window
+        # station regardless of the launching session. cmd.exe runs
+        # via the WSL interop bridge and attaches to session 1 (the
+        # operator's interactive). Resulting process surfaces on the
+        # operator's desktop.
+        #
+        # PowerShell is still used for the post-launch place/center
+        # step -- that's pure Win32 API (MoveWindow / SetForeground
+        # Window) on an existing hwnd, not a process spawn, so the
+        # session-context issue doesn't apply.
         _target_win="$(wslpath -w "$target" 2>/dev/null)"
         [ -z "$_target_win" ] && _target_win="$target"
-        if [ -x "$PWSH" ]; then
-            python3 - "$_target_win" "$PWSH" "$@" <<'PYEOF'
+        if [ -x "$CMD" ] || [ -x /mnt/c/Windows/System32/cmd.exe ]; then
+            python3 - "$_target_win" "${PWSH:-}" "${CMD:-/mnt/c/Windows/System32/cmd.exe}" "$@" <<'PYEOF'
 import shlex, subprocess, sys
 target = sys.argv[1]
 pwsh = sys.argv[2]
-extra_args = sys.argv[3:]
-start = f"$p = Start-Process -FilePath {shlex.quote(target)} -PassThru"
-if extra_args:
-    arglist = ", ".join(shlex.quote(a) for a in extra_args)
-    start = (f"$p = Start-Process -FilePath {shlex.quote(target)} "
-             f"-ArgumentList {arglist} -PassThru")
+cmd_exe = sys.argv[3] or "/mnt/c/Windows/System32/cmd.exe"
+extra_args = sys.argv[4:]
+# cmd.exe /c start "" "<target>" [args...] is the canonical
+# session-1 spawn for any Windows program from WSL.
+start_args = [cmd_exe, "/c", "start", "", target] + extra_args
 # Operator directive 2026-05-18: "MiOS-Agent(s) MUST also KNOW
 # window launch params/args to be able to launch and move
 # precisely!!!". Three env-driven knobs the caller can set BEFORE
@@ -559,35 +568,56 @@ elif position == "bottom":
 elif position in ("none", "_explicit"):
     pass  # keep existing $x/$y (no reposition for "none";
           # explicit values already in place for "_explicit")
-center = (
-    "; for ($i = 0; $i -lt 50; $i++) { "
-    "  $p = Get-Process -Id $p.Id -ErrorAction SilentlyContinue; "
-    "  if ($p -and $p.MainWindowHandle -ne 0) { break }; "
-    "  Start-Sleep -Milliseconds 100 "
-    "}; "
-    "if ($p -and $p.MainWindowHandle -ne 0) { "
-    "  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
-    "  Add-Type -Name W32D -Namespace MX -MemberDefinition @'\n"
-    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
-    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
-    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
-    "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
-    "'@ -ErrorAction SilentlyContinue; "
-    "$r = New-Object MX.W32D+RECT; "
-    "[MX.W32D]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
-    + place_block +
-    "[MX.W32D]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
-    "[MX.W32D]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
-    "}"
-)
-ps = start + center
+
+# 1. Spawn via cmd.exe /c start "" -- session-1 attach via WSL
+#    interop + ShellExecute. The "" empty title slot is required
+#    so `start` doesn't treat the next arg as a window title.
 subprocess.Popen(
-    [pwsh, "-NoProfile", "-NonInteractive",
-     "-ExecutionPolicy", "Bypass", "-Command", ps],
+    start_args,
     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     stdin=subprocess.DEVNULL, start_new_session=True,
 )
-print(f"[mios-windows] launched via Start-Process: {target}")
+print(f"[mios-windows] launched via cmd /c start: {target}")
+
+# 2. Optional post-launch placement: PowerShell finds the new
+#    window by process basename + applies MoveWindow/Foreground.
+#    Skipped when MIOS_LAUNCH_POSITION=none (or no PowerShell).
+if pwsh and position != "none":
+    import time
+    proc_name = target.rsplit("\\", 1)[-1]
+    if proc_name.lower().endswith(".exe"):
+        proc_name = proc_name[:-4]
+    place_ps = (
+        f"$pn = '{proc_name}'; "
+        "$p = $null; "
+        "for ($i = 0; $i -lt 50; $i++) { "
+        "  $p = Get-Process -Name $pn -ErrorAction SilentlyContinue | "
+        "       Where-Object MainWindowHandle -ne 0 | "
+        "       Sort-Object StartTime -Descending | Select-Object -First 1; "
+        "  if ($p) { break }; "
+        "  Start-Sleep -Milliseconds 150 "
+        "}; "
+        "if ($p) { "
+        "  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
+        "  Add-Type -Name W32D -Namespace MX -MemberDefinition @'\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
+        "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
+        "'@ -ErrorAction SilentlyContinue; "
+        "$r = New-Object MX.W32D+RECT; "
+        "[MX.W32D]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
+        + place_block +
+        "[MX.W32D]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
+        "[MX.W32D]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
+        "}"
+    )
+    subprocess.Popen(
+        [pwsh, "-NoProfile", "-NonInteractive",
+         "-ExecutionPolicy", "Bypass", "-Command", place_ps],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL, start_new_session=True,
+    )
 PYEOF
         else
             # Last-resort fallback if PowerShell is unreachable.
