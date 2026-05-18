@@ -75,8 +75,13 @@ BACKEND_MODEL = os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL",
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}
 ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", "qwen3:1.7b")
+# Router runs the micro-LLM classifier (qwen3:1.7b) on the iGPU lane
+# (mios-ollama-igpu at :11435) -- isolates micro-LLM workload from the
+# dGPU/CUDA queue so router latency stays sub-second even when big-model
+# inference is saturating :11434. Falls back to the CUDA-ollama lane
+# if the iGPU instance is down (operator override via the env).
 ROUTER_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", "http://localhost:11434"
+    "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", "http://localhost:11435"
 ).rstrip("/")
 ROUTER_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_TIMEOUT_S", "12"))
 ROUTER_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_MAX_TOKENS", "200"))
