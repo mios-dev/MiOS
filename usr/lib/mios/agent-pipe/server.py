@@ -834,8 +834,14 @@ _REFINE_SYSTEM = (
     "  (open_app, focus_window, text_view, winget_search, ...).\n"
     "- `hint_skills` lists C.2 skill names from the catalog\n"
     "  (open-and-focus, install-flatpak-app, window-tile-side-by-side).\n"
-    "- For trivial greetings (`hello`, `hey`, `thanks`), pick intent=chat\n"
-    "  and put a brief friendly reply in `reply`. Do NOT delegate.\n"
+    "- For conversational input (greetings, small talk, single-turn\n"
+    "  questions like 'how are you', acknowledgements, thanks):\n"
+    "  pick intent=chat AND populate `reply` with a brief, natural\n"
+    "  response. Do NOT delegate to a sub-agent. Examples that should\n"
+    "  ALWAYS be chat: 'hey', 'hi', 'hello', 'thanks', 'thank you',\n"
+    "  'how's it going', 'how are you', 'good morning', 'bye'.\n"
+    "  When in doubt about conversational vs. agent: if the user is\n"
+    "  not asking for a system action / file / data / code, chat.\n"
 )
 
 
@@ -3277,6 +3283,47 @@ async def chat_completions(request: Request) -> Any:
     # complementary, not redundant.
     refined = await refine_intent(last_user_text, messages)
 
+    # SHORT-CIRCUIT: when refine emitted intent=chat with a reply,
+    # we already have the final answer. No router + no sub-agent
+    # delegation needed. Operator-flagged 2026-05-18 trace: short
+    # greetings like "hey! How's it going?" were ending up at
+    # Hermes (which then ran tool cascades) because the router
+    # was independently re-classifying them as `agent`. Refine
+    # already nailed the chat-classification at 25s; using its
+    # verdict directly saves the 30-90s Hermes roundtrip on every
+    # conversational message.
+    if (refined and refined.get("intent") == "chat"
+            and str(refined.get("reply") or "").strip()):
+        reply = str(refined["reply"]).strip()
+        log.info("refine short-circuit: chat reply (no router/backend)")
+        if streaming:
+            async def _stream_refine_chat() -> AsyncGenerator[bytes, None]:
+                yield _sse_status(chat_id=chat_id, model=model,
+                                  emoji="📡", label="prompt")
+                yield _sse_status(chat_id=chat_id, model=model,
+                                  emoji="✨", label="refine")
+                yield _sse_chunk("", chat_id=chat_id, model=model,
+                                 role="assistant")
+                yield _sse_chunk(reply, chat_id=chat_id, model=model)
+                yield _sse_status(chat_id=chat_id, model=model,
+                                  emoji="💬", label="chat", done=True)
+                yield _sse_chunk("", chat_id=chat_id, model=model,
+                                 finish_reason="stop")
+                yield _sse_done()
+            return StreamingResponse(_stream_refine_chat(),
+                                     media_type="text/event-stream")
+        return JSONResponse(content={
+            "id": chat_id,
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": reply},
+                "finish_reason": "stop",
+            }],
+        })
+
     # Run the layer-1 router. Verdict possibilities:
     #   {"action":"dispatch","tool":"<name>","args":{...}}
     #   {"action":"chat","reply":"<text>"}
@@ -3290,6 +3337,12 @@ async def chat_completions(request: Request) -> Any:
     # (dispatch / agent / DAG) can read them.
     if verdict and refined:
         verdict["_refined"] = refined
+    # When refine classified as `agent` but the router missed,
+    # promote refine's verdict so we proxy to the right sub-agent
+    # instead of falling through to default-Hermes blindly.
+    if not verdict and refined and refined.get("intent") in ("agent", "dag"):
+        verdict = {"action": "agent", "reason": "refine-classified",
+                   "_refined": refined}
 
     if verdict:
         action = verdict.get("action")
