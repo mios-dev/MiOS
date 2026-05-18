@@ -503,6 +503,62 @@ if extra_args:
     arglist = ", ".join(shlex.quote(a) for a in extra_args)
     start = (f"$p = Start-Process -FilePath {shlex.quote(target)} "
              f"-ArgumentList {arglist} -PassThru")
+# Operator directive 2026-05-18: "MiOS-Agent(s) MUST also KNOW
+# window launch params/args to be able to launch and move
+# precisely!!!". Three env-driven knobs the caller can set BEFORE
+# invoking mios-windows launch:
+#   MIOS_LAUNCH_POSITION   left|right|top|bottom|center|none
+#                          (default: center; "none" leaves WHERE the
+#                          OS placed the window)
+#   MIOS_LAUNCH_SIZE       <W>x<H>  (e.g. 1280x720; default: keep
+#                          the size Start-Process gave the window)
+#   MIOS_LAUNCH_PLACE      <X>,<Y>  (absolute top-left, takes
+#                          precedence over MIOS_LAUNCH_POSITION)
+import os
+position = os.environ.get("MIOS_LAUNCH_POSITION", "center").lower()
+size_env = os.environ.get("MIOS_LAUNCH_SIZE", "")
+place_env = os.environ.get("MIOS_LAUNCH_PLACE", "")
+# Compute the placement PowerShell snippet from those knobs.
+place_block = (
+    "$x = $r.L; $y = $r.T; $w = $r.R - $r.L; $h = $r.B - $r.T; "
+    "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
+)
+# Size override (parse "WxH"); applied before position so position
+# uses the NEW geometry.
+if "x" in size_env.lower():
+    try:
+        sw, sh = size_env.lower().split("x", 1)
+        sw = int(sw.strip()); sh = int(sh.strip())
+        place_block += f"$w = {sw}; $h = {sh}; "
+    except (ValueError, TypeError):
+        pass
+# Absolute placement override.
+if "," in place_env:
+    try:
+        px, py = place_env.split(",", 1)
+        px = int(px.strip()); py = int(py.strip())
+        place_block += f"$x = {px}; $y = {py}; "
+        position = "_explicit"
+    except (ValueError, TypeError):
+        pass
+# Otherwise apply named position relative to PrimaryScreen WorkingArea.
+if position == "center":
+    place_block += (
+        "$x = $s.X + [int](($s.Width - $w) / 2); "
+        "$y = $s.Y + [int](($s.Height - $h) / 2); ")
+elif position == "left":
+    place_block += "$x = $s.X; $y = $s.Y; $w = [int]($s.Width / 2); $h = $s.Height; "
+elif position == "right":
+    place_block += ("$w = [int]($s.Width / 2); $h = $s.Height; "
+                    "$x = $s.X + [int]($s.Width / 2); $y = $s.Y; ")
+elif position == "top":
+    place_block += "$x = $s.X; $y = $s.Y; $w = $s.Width; $h = [int]($s.Height / 2); "
+elif position == "bottom":
+    place_block += ("$w = $s.Width; $h = [int]($s.Height / 2); "
+                    "$x = $s.X; $y = $s.Y + [int]($s.Height / 2); ")
+elif position in ("none", "_explicit"):
+    pass  # keep existing $x/$y (no reposition for "none";
+          # explicit values already in place for "_explicit")
 center = (
     "; for ($i = 0; $i -lt 50; $i++) { "
     "  $p = Get-Process -Id $p.Id -ErrorAction SilentlyContinue; "
@@ -519,10 +575,7 @@ center = (
     "'@ -ErrorAction SilentlyContinue; "
     "$r = New-Object MX.W32D+RECT; "
     "[MX.W32D]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
-    "$w = $r.R - $r.L; $h = $r.B - $r.T; "
-    "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
-    "$x = $s.X + [int](($s.Width - $w) / 2); "
-    "$y = $s.Y + [int](($s.Height - $h) / 2); "
+    + place_block +
     "[MX.W32D]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
     "[MX.W32D]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
     "}"

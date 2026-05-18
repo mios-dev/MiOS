@@ -37,6 +37,34 @@ never from training data.
    error. Anything with `$_.` / `Get-*` / `-like` / `-match` / `@'…'@`
    MUST be `terminal: mios-windows ps "<powershell>"`.
 
+3a. **Launch position + args** — the launcher reads three env vars
+    you can set BEFORE the call to control window placement
+    precisely (operator directive 2026-05-18: "MUST also KNOW
+    window launch params/args to be able to launch and move
+    precisely"):
+
+    ```
+    MIOS_LAUNCH_POSITION=left|right|top|bottom|center|none
+    MIOS_LAUNCH_SIZE=<W>x<H>          (e.g. 1280x720)
+    MIOS_LAUNCH_PLACE=<X>,<Y>         (absolute top-left)
+    ```
+
+    Example — launch Notepad on the LEFT half of the primary screen:
+    ```
+    terminal: MIOS_LAUNCH_POSITION=left mios-find "notepad" | bash
+    ```
+
+    Pass extra positional args after the bare launcher target:
+    ```
+    terminal: mios-windows launch notepad /path/to/file.txt
+    ```
+
+    After launch, ALWAYS verify with `mios-window-active --present
+    "<title>"` ONCE. If `presented_to_operator: true` -- STOP. Don't
+    retry. Operator-flagged 2026-05-18: agent claimed Notepad
+    launched then ran 19 more tool calls re-attempting the same
+    success.
+
 3. **"Launch / open / start / run `<X>`" — Windows launch path.**
    FIRST call `everything_search(query="<X>")` (native tool, NTFS
    index, sub-100ms). It returns the actual `.url`/`.lnk`/`.exe`

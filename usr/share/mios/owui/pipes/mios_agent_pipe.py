@@ -607,10 +607,26 @@ class Pipe:
         "\n"
         "## KNOWN AGENT ERRORS in RAW OUTPUT -- recognize + rewrite cleanly\n"
         "\n"
-        "If RAW OUTPUT contains any of these signatures, DO NOT echo the\n"
-        "raw error verbatim -- the operator already saw it once. Instead\n"
-        "emit a single line explaining what the agent did wrong + what\n"
-        "the operator should try next:\n"
+        "IMPORTANT: only apply the rewrites below when the raw output\n"
+        "does NOT also contain a confirmed-success signal -- specifically\n"
+        "a tool_result with `success: true`, a `pid: <N>` in broker\n"
+        "output, a `presented_to_operator: true` from mios-window-active,\n"
+        "or a `wrote <path>` line from a file/CDI helper. If the agent\n"
+        "errored during exploration but ultimately succeeded, polish\n"
+        "the SUCCESS not the error -- operator-flagged 2026-05-18:\n"
+        "polish rewrote a successful Notepad launch (pid 499978) into\n"
+        "'Agent attempted PowerShell in bash by mistake' because an\n"
+        "earlier exploratory bash call in the same turn errored. The\n"
+        "operator saw a misleading failure message for what was\n"
+        "actually a working launch (the broker had a separate\n"
+        "invisible-window bug fixed in mios-windows; the polish\n"
+        "false-positive compounded it).\n"
+        "\n"
+        "If RAW OUTPUT contains any of these signatures AND no\n"
+        "confirmed-success signal, DO NOT echo the raw error verbatim --\n"
+        "the operator already saw it once. Instead emit a single line\n"
+        "explaining what the agent did wrong + what the operator\n"
+        "should try next:\n"
         "\n"
         "  * `/var/lib/mios/hermes.<Word>` or `/var/lib/mios/hermes.<Prop>`\n"
         "    in any line that mentions 'not recognized' / 'cmdlet' / 'cannot\n"
@@ -747,7 +763,11 @@ class Pipe:
             await self._emit(emitter, "✓ clean → skip polish")
             return raw_output
 
-        await self._emit(emitter, f"🎨 polish ← {self.valves.POLISH_MODEL} (CPU)")
+        # Emit form: pure symbol, no model name. Operator directive
+        # 2026-05-18: "Sanitize the emitters to not show models but
+        # emit something natively (no hard-coding)". Model identity
+        # lives in valves; status line stays universal.
+        await self._emit(emitter, "🎨 polish")
 
         body = {
             "model": self.valves.POLISH_MODEL,
@@ -875,7 +895,8 @@ class Pipe:
             return user_text
 
         model = self.valves.REFINE_MODEL
-        await self._emit(emitter, f"🧠 refine ← {model} (CPU)")
+        # Sanitized emit (no model name); see polish emit comment above.
+        await self._emit(emitter, "🧠 refine")
         payload = {
             "model": model,
             "messages": [
@@ -912,7 +933,7 @@ class Pipe:
                 await self._emit(emitter, "⚠️ refine=∅ → original")
                 return user_text
             await self._emit(emitter,
-                f"✓ refine {len(user_text)}c → {len(refined)}c (CPU)")
+                f"✓ refine {len(user_text)}c → {len(refined)}c")
             return refined
         except asyncio.TimeoutError:
             await self._emit(emitter,
@@ -1057,8 +1078,11 @@ class Pipe:
         }
 
         if is_task_gen:
+            # Sanitized: no model name in the emit; task_kind is the
+            # OWUI-defined identifier (title_generation, etc.) and
+            # stays cross-locale.
             await self._emit(__event_emitter__,
-                f"⚙️ task-gen ({task_kind}) → CPU {self.valves.REFINE_MODEL}")
+                f"⚙️ task-gen ({task_kind})")
             async for chunk in self._raw_passthrough(body, __event_emitter__):
                 yield chunk
             return
