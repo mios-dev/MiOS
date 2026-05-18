@@ -1,0 +1,400 @@
+#!/usr/bin/env python3
+"""mios-pkg -- Personal Knowledge Graph CLI for the MiOS agent stack.
+
+Phase C.1 of the AgentOS roadmap. Manages the operator-preference
+graph in SurrealDB (person / app_install / alias + RELATE edges).
+The agent-pipe's pkg_lookup() helper queries this graph to resolve
+ambiguous noun phrases ("my browser") to concrete launch targets
+("com.google.ChromeDev").
+
+Subcommands:
+  bootstrap                Create the person row (from $USER /
+                           $MIOS_USER) + ingest mios-apps inventory
+                           into app_install rows + person->owns->
+                           app_install edges. Idempotent.
+  alias add <phrase> <target>
+                           Add an alias. <target> can be:
+                             app:<short_name>   (resolves to app_install)
+                             "<short_name>"     (bare = app:<short_name>)
+  alias rm <phrase>        Remove an alias.
+  alias list               List all aliases + their resolves_to.
+  lookup <phrase>          Print the lookup result for <phrase>.
+  apps                     Print known app_install rows.
+  who                      Print the person row.
+
+Fully local: hits the SurrealDB instance at MIOS_DB_URL via stdlib
+urllib (no pip deps). Uses the same auth + namespace conventions
+as mios-db.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import re
+import socket as _socket
+import subprocess
+import sys
+import urllib.request
+from typing import Optional
+
+# Same SSOT env knobs as mios-db.
+DB_URL = os.environ.get("MIOS_DB_URL",
+                        "http://localhost:" + os.environ.get(
+                            "MIOS_PORT_SURREALDB", "8000"))
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = os.environ.get("MIOS_DB_DB", "mios")
+DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+
+# Phase C.1 SSOT knobs from mios.toml [pkg].* (via userenv.sh slot
+# map). Defaults match the mios.toml seed so a Day-0 deploy with
+# no overrides still ingests sensibly.
+PER_SOURCE_CAP = int(os.environ.get(
+    "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP", "200"))
+
+
+def post_sql(sql: str, *, timeout: float = 10.0) -> list:
+    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
+    req = urllib.request.Request(
+        f"{DB_URL}/sql", data=body, method="POST",
+        headers={"Authorization": DB_AUTH, "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(f"mios-pkg: SurrealDB {e.code}: {e.read().decode()[:300]}\n")
+        return []
+    except Exception as e:
+        sys.stderr.write(f"mios-pkg: SurrealDB unreachable: {e}\n")
+        return []
+
+
+def last_ok(results: list) -> Optional[list]:
+    if not results:
+        return None
+    last = results[-1] or {}
+    if last.get("status") != "OK":
+        return None
+    return last.get("result")
+
+
+# ─── bootstrap ─────────────────────────────────────────────────────
+def cmd_bootstrap(args: argparse.Namespace) -> int:
+    """Create / update the singleton person row + ingest mios-apps
+    catalog into app_install rows + person->owns edges. Idempotent
+    -- re-running on an already-bootstrapped host is a no-op for
+    unchanged rows."""
+    username = (os.environ.get("MIOS_USER")
+                or os.environ.get("USER")
+                or os.environ.get("LOGNAME")
+                or "operator")
+    hostname = os.environ.get("MIOS_HOSTNAME") or _socket.gethostname()
+    # Upsert the person via DELETE + CREATE (cheaper than UPDATE for
+    # the singleton case + survives schema changes).
+    r = post_sql(
+        f"DELETE person WHERE username = '{username}'; "
+        f"CREATE person SET username = '{username}', "
+        f"hostname = '{hostname}', created_at = time::now() RETURN id;"
+    )
+    rows = last_ok(r) if r else None
+    if not rows:
+        sys.stderr.write("bootstrap: failed to create person row\n")
+        return 1
+    person_id = rows[0]["id"] if isinstance(rows, list) else rows.get("id")
+    print(f"person: {person_id} (username={username}, hostname={hostname})")
+
+    # Ingest the inventory. Default source is `mios-apps --json`
+    # (NDJSON of {category, name, description, launch} objects).
+    # Operator can pass --source <path> or `-` for stdin so this
+    # CLI is a template -- any tool that emits the same NDJSON shape
+    # can re-bootstrap the graph (operator directive 2026-05-18:
+    # "tools/skills are global templates that can be self improved
+    # upon").
+    src = getattr(args, "source", None) or ""
+    text = ""
+    if src == "-":
+        text = sys.stdin.read()
+    elif src:
+        try:
+            text = open(src, "r", encoding="utf-8").read()
+        except OSError as e:
+            sys.stderr.write(f"bootstrap: cannot read {src}: {e}\n")
+            return 2
+    else:
+        try:
+            raw = subprocess.run(
+                ["mios-apps", "--json"], capture_output=True, timeout=60,
+            )
+            text = raw.stdout.decode("utf-8", errors="replace")
+        except (OSError, subprocess.TimeoutExpired) as e:
+            sys.stderr.write(f"bootstrap: mios-apps --json failed: {e}\n")
+            return 2
+
+    # Parse NDJSON. Aggregate by category so we keep the
+    # per-source cap.
+    catalog: dict = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        cat = obj.get("category") or "unknown"
+        catalog.setdefault(cat, []).append(obj)
+    inserted = 0
+    for source, entries in catalog.items():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries[:PER_SOURCE_CAP]:  # SSOT cap (mios.toml [pkg])
+            if not isinstance(entry, dict):
+                continue
+            short_name = (entry.get("name") or entry.get("short_name") or "").strip()
+            if not short_name:
+                continue
+            # Extract app_id from "Display (com.foo.Bar)" suffix in description.
+            description = entry.get("description") or ""
+            app_id = entry.get("app_id") or entry.get("id") or ""
+            if not app_id:
+                # Pull the parenthesised id from the description tail.
+                m = re.search(r"\(([^()]+)\)\s*$", description)
+                if m:
+                    app_id = m.group(1)
+            label = description or short_name
+            launch_hint = entry.get("launch") or entry.get("launch_cmd") or ""
+            # Idempotent insert. Use json.dumps for ALL string
+            # fields so SurrealQL gets a valid string literal even
+            # when the label contains embedded apostrophes ("'MiOS'
+            # CDI spec detection ..." was hitting "Unexpected token
+            # `a strand`" with naive '' escaping).
+            sn_lit = json.dumps(short_name)
+            src_lit = json.dumps(source)
+            ap_lit = json.dumps(app_id)
+            lb_lit = json.dumps(label or "")
+            lh_lit = json.dumps(launch_hint or "")
+            r = post_sql(
+                f"DELETE app_install WHERE short_name = {sn_lit} "
+                f"AND source = {src_lit}; "
+                f"CREATE app_install SET "
+                f"short_name = {sn_lit}, "
+                f"app_id = {ap_lit}, "
+                f"source = {src_lit}, "
+                f"label = {lb_lit}, "
+                f"launch_hint = {lh_lit}, "
+                f"created_at = time::now() "
+                f"RETURN id;"
+            )
+            rows = last_ok(r) if r else None
+            if not rows:
+                continue
+            app_install_id = (rows[0]["id"] if isinstance(rows, list)
+                              else rows.get("id"))
+            # RELATE the person -> app_install. SurrealDB upsert via
+            # delete-then-relate.
+            post_sql(
+                f"DELETE owns WHERE in = {person_id} "
+                f"AND out = {app_install_id}; "
+                f"RELATE {person_id}->owns->{app_install_id} "
+                f"SET since = time::now();"
+            )
+            inserted += 1
+
+    print(f"bootstrap: ingested {inserted} app_install rows")
+    return 0
+
+
+# ─── alias ─────────────────────────────────────────────────────────
+def cmd_alias_add(args: argparse.Namespace) -> int:
+    phrase = args.phrase.strip().lower()
+    target = args.target.strip()
+    if not phrase or not target:
+        sys.stderr.write("alias add: <phrase> and <target> required\n")
+        return 64
+    # Resolve target: app:<short_name> or bare short_name.
+    if target.startswith("app:"):
+        target = target[4:]
+    # Find the app_install record_id by short_name.
+    sn = target.replace("'", "''")
+    r = post_sql(
+        f"SELECT id, short_name FROM app_install "
+        f"WHERE short_name = '{sn}' LIMIT 1;"
+    )
+    rows = last_ok(r)
+    if not rows:
+        sys.stderr.write(
+            f"alias add: no app_install with short_name = {target!r}. "
+            f"Try `mios-pkg apps` to see the list.\n"
+        )
+        return 1
+    app_install_id = rows[0]["id"]
+    # Upsert the alias.
+    ph = phrase.replace("'", "''")
+    r = post_sql(
+        f"DELETE alias WHERE phrase = '{ph}'; "
+        f"CREATE alias SET phrase = '{ph}', "
+        f"created_at = time::now() RETURN id;"
+    )
+    rows = last_ok(r)
+    if not rows:
+        sys.stderr.write("alias add: failed to create alias row\n")
+        return 1
+    alias_id = rows[0]["id"]
+    post_sql(
+        f"RELATE {alias_id}->resolves_to->{app_install_id} "
+        f"SET weight = 1.0, reason = 'operator_set';"
+    )
+    print(f"alias: {phrase!r} -> app:{target} ({app_install_id})")
+    return 0
+
+
+def cmd_alias_rm(args: argparse.Namespace) -> int:
+    phrase = args.phrase.strip().lower().replace("'", "''")
+    post_sql(
+        f"DELETE resolves_to WHERE in.phrase = '{phrase}'; "
+        f"DELETE alias WHERE phrase = '{phrase}';"
+    )
+    print(f"alias: removed {phrase!r}")
+    return 0
+
+
+def cmd_alias_list(args: argparse.Namespace) -> int:
+    r = post_sql(
+        "SELECT phrase, ->resolves_to->app_install AS targets "
+        "FROM alias ORDER BY phrase;"
+    )
+    rows = last_ok(r) or []
+    if not rows:
+        print("(no aliases configured)")
+        return 0
+    for row in rows:
+        phrase = row.get("phrase", "?")
+        targets = row.get("targets") or []
+        tlist = ", ".join(str(t) for t in targets) if targets else "(unresolved)"
+        print(f"  {phrase!r} -> {tlist}")
+    return 0
+
+
+# ─── lookup ────────────────────────────────────────────────────────
+def cmd_lookup(args: argparse.Namespace) -> int:
+    phrase = args.phrase.strip().lower().replace("'", "''")
+    # Exact first; fall back to contains. SurrealDB doesn't accept
+    # boolean expressions in ORDER BY, so we run the queries in
+    # priority order and pick the first non-empty.
+    r = post_sql(
+        f"SELECT phrase, "
+        f"->resolves_to->app_install.{{id, short_name, app_id, source, label, launch_hint}} AS app "
+        f"FROM alias WHERE phrase = '{phrase}' LIMIT 1;"
+    )
+    rows = last_ok(r) or []
+    if not rows:
+        r = post_sql(
+            f"SELECT phrase, "
+            f"->resolves_to->app_install.{{id, short_name, app_id, source, label, launch_hint}} AS app "
+            f"FROM alias "
+            f"WHERE string::contains(phrase, '{phrase}') "
+            f"   OR string::contains('{phrase}', phrase) "
+            f"LIMIT 3;"
+        )
+        rows = last_ok(r) or []
+    if not rows:
+        # Fallback: direct app_install lookup by short_name substring.
+        r = post_sql(
+            f"SELECT id, short_name, app_id, source, label, launch_hint "
+            f"FROM app_install "
+            f"WHERE string::contains(short_name, '{phrase}') "
+            f"   OR string::contains('{phrase}', short_name) "
+            f"LIMIT 5;"
+        )
+        rows = last_ok(r) or []
+        if not rows:
+            print(f"(no match for {args.phrase!r})")
+            return 1
+        print(f"── direct app_install match for {args.phrase!r}")
+        for row in rows:
+            print(f"  {row.get('short_name')}  [{row.get('source')}] "
+                  f"{row.get('app_id') or ''} -- {row.get('label') or ''}")
+        return 0
+    print(f"── alias match for {args.phrase!r}")
+    for row in rows:
+        apps = row.get("app") or []
+        for app in apps:
+            print(f"  {row.get('phrase')!r} -> {app.get('short_name')}  "
+                  f"[{app.get('source')}] {app.get('app_id') or ''} "
+                  f"-- {app.get('label') or ''}")
+    return 0
+
+
+# ─── apps ──────────────────────────────────────────────────────────
+def cmd_apps(args: argparse.Namespace) -> int:
+    filt = (args.filter or "").strip().lower().replace("'", "''")
+    where = (f"WHERE string::contains(string::lowercase(short_name), '{filt}') "
+             if filt else "")
+    r = post_sql(
+        f"SELECT short_name, source, label FROM app_install "
+        f"{where}ORDER BY short_name LIMIT 50;"
+    )
+    rows = last_ok(r) or []
+    if not rows:
+        print("(no apps)")
+        return 0
+    for row in rows:
+        print(f"  {row.get('short_name'):30}  [{row.get('source'):14}]  "
+              f"{row.get('label') or ''}")
+    return 0
+
+
+# ─── who ───────────────────────────────────────────────────────────
+def cmd_who(args: argparse.Namespace) -> int:
+    r = post_sql("SELECT id, username, hostname, created_at FROM person;")
+    rows = last_ok(r) or []
+    if not rows:
+        print("(no person row -- run `mios-pkg bootstrap`)")
+        return 1
+    for row in rows:
+        print(f"  {row.get('id')}  {row.get('username')}@{row.get('hostname')}  "
+              f"(since {(row.get('created_at') or '?')[:19]})")
+    return 0
+
+
+# ─── main ──────────────────────────────────────────────────────────
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-pkg")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    p_bs = sub.add_parser("bootstrap",
+                          help="Create person + ingest inventory")
+    p_bs.add_argument(
+        "--source", default="",
+        help="Path to NDJSON inventory (default: run mios-apps --json). "
+             "Pass `-` to read from stdin. Lets operators pipe in custom "
+             "inventories without code edits.",
+    )
+    sub.add_parser("who",       help="Print person row").set_defaults(func=cmd_who)
+    p_apps = sub.add_parser("apps", help="List app_install rows")
+    p_apps.add_argument("--filter", default="", help="substring filter")
+    p_apps.set_defaults(func=cmd_apps)
+    p_lookup = sub.add_parser("lookup", help="Resolve a phrase via the graph")
+    p_lookup.add_argument("phrase", help="The phrase to resolve")
+    p_lookup.set_defaults(func=cmd_lookup)
+    p_alias = sub.add_parser("alias", help="Manage operator aliases")
+    asub = p_alias.add_subparsers(dest="alias_cmd", required=True)
+    p_add = asub.add_parser("add", help="Add an alias")
+    p_add.add_argument("phrase", help="e.g. 'my browser'")
+    p_add.add_argument("target", help="e.g. app:chromedev")
+    p_add.set_defaults(func=cmd_alias_add)
+    p_rm = asub.add_parser("rm", help="Remove an alias")
+    p_rm.add_argument("phrase")
+    p_rm.set_defaults(func=cmd_alias_rm)
+    asub.add_parser("list", help="List all aliases").set_defaults(func=cmd_alias_list)
+    args = p.parse_args()
+    if args.cmd == "bootstrap":
+        return cmd_bootstrap(args)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

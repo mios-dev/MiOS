@@ -449,12 +449,10 @@ enable   = true
 # these does NOT taint the session. Anything outside this list +
 # the compiled-in *.local / *.lan / single-label heuristic is
 # treated as external and contributes session taint, which gates
-# subsequent high-privilege verbs (service_restart, container_
-# restart, pc_type, pc_key, pc_click).
-#
-# Operator can extend per deployment (LAN hosts, internal SaaS,
-# etc.) without touching code. CSV-form in the env (the userenv.sh
-# slot map flattens this list -> MIOS_SECURITY_ALLOWLIST_HOSTS).
+# subsequent high-privilege verbs (in `firewall_high_privilege_verbs`
+# below). Operator can extend per deployment (LAN hosts, internal
+# SaaS, etc.) without touching code. CSV-form in the env (the
+# userenv.sh slot map flattens these lists).
 allowlist_hosts = [
     "localhost",
     "127.0.0.1",
@@ -468,6 +466,48 @@ allowlist_hosts = [
     "mios-searxng",
     "mios-code-server",
 ]
+
+# Verbs whose dispatch is REFUSED when the session is tainted
+# (Phase A.3 / B.3 Semantic Firewall). These cause visible system
+# effects -- restarting services, injecting input into Win32 GUI
+# windows, restarting containers -- so the firewall blocks them
+# when an upstream tool_call in the same session was tainted.
+# Operator can add custom verbs to this list (e.g. when shipping
+# a new privileged shim) without touching agent-pipe code.
+firewall_high_privilege_verbs = [
+    "service_restart",
+    "container_restart",
+    "pc_type",
+    "pc_key",
+    "pc_click",
+]
+
+[fs_watcher]
+# Phase A.2 of the AgentOS roadmap: directories the mios-daemon
+# fs-watcher thread tails via inotify, emitting SurrealDB event
+# rows (source=fs-watcher, kind=fs_change) on every mutation.
+# Other agents subscribe via SQL instead of polling these dirs
+# individually. Operator can add per-deployment watch points
+# (e.g. /var/lib/mios/<custom-agent>/) without code edits.
+watch_dirs = [
+    "/var/lib/mios/hermes-tail",
+    "/var/lib/mios/delegation-prefilter",
+    "/var/lib/mios/log-watcher",
+    "/var/lib/mios/daemon",
+    "/var/lib/mios/scratch",
+    "/var/lib/mios/agent-nudger",
+    "/var/lib/mios/cron-director",
+    "/var/lib/mios/ai/scratch",
+]
+
+[pkg]
+# Phase C.1 of the AgentOS roadmap: Personal Knowledge Graph
+# tunables. `bootstrap_per_source_cap` caps app_install rows per
+# inventory source so a pathological catalog can't flood the
+# graph. `lookup_max_alias_results` caps the alias fuzzy-match
+# step in pkg_lookup. Operator can raise both per-deployment.
+bootstrap_per_source_cap   = 200
+lookup_max_alias_results   = 3
 
 [agent_pipe]
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain

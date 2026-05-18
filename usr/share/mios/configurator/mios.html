@@ -950,6 +950,68 @@
 </details>
 
 <details class="section">
+  <summary>Security · Semantic Firewall allowlist + high-priv verb gate <span class="phase-badge">Phase 10 · Runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Phase A.3 / B.3 Semantic Firewall. Hosts in the allowlist
+      don't taint the session when opened; verbs in the
+      high-privilege list get refused when the session is
+      already tainted (defense-in-depth before the broker
+      receives the dispatch).
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>security -- firewall config</legend>
+        <label for="f-sec-allowlist">allowlist_hosts (CSV)</label>
+        <input type="text" id="f-sec-allowlist" data-key="security.allowlist_hosts" placeholder="localhost,127.0.0.1,mios-ollama,...">
+        <label for="f-sec-hpv">firewall_high_privilege_verbs (CSV)</label>
+        <input type="text" id="f-sec-hpv" data-key="security.firewall_high_privilege_verbs" placeholder="service_restart,container_restart,pc_type,pc_key,pc_click">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>FS Watcher · inotify event-bus dirs <span class="phase-badge">Phase 10 · Runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Phase A.2 -- mios-daemon's fs-watcher thread tails these
+      dirs via inotify and emits SurrealDB event(kind=fs_change)
+      rows on every mutation. Operator can add per-deployment
+      watch points without code edits.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>fs_watcher -- watch dirs (CSV)</legend>
+        <label for="f-fsw-dirs">watch_dirs</label>
+        <input type="text" id="f-fsw-dirs" data-key="fs_watcher.watch_dirs" placeholder="/var/lib/mios/hermes-tail,/var/lib/mios/scratch,...">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
+  <summary>PKG · Personal Knowledge Graph tunables <span class="phase-badge">Phase 10 · Runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Phase C.1 -- the per-operator SurrealDB graph (person /
+      app_install / alias). These caps prevent pathological
+      inventories from flooding the graph; operators can raise
+      them on hosts with large catalogs.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>pkg -- bootstrap + lookup caps</legend>
+        <label for="f-pkg-cap">bootstrap_per_source_cap</label>
+        <input type="text" id="f-pkg-cap" data-key="pkg.bootstrap_per_source_cap" data-type="int" placeholder="200">
+        <label for="f-pkg-lookup">lookup_max_alias_results</label>
+        <input type="text" id="f-pkg-lookup" data-key="pkg.lookup_max_alias_results" data-type="int" placeholder="3">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section">
   <summary>SurrealDB · shared cross-cutting agent state <span class="phase-badge">Phase 10 · Boot</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">

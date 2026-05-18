@@ -325,6 +325,13 @@ slots = [
     ("image.sidecars.ollama_igpu",     "MIOS_OLLAMA_IGPU_IMAGE"),
     # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────
     ("security.allowlist_hosts",       "MIOS_SECURITY_ALLOWLIST_HOSTS"),
+    ("security.firewall_high_privilege_verbs",
+                                       "MIOS_SECURITY_FIREWALL_HIGH_PRIVILEGE_VERBS"),
+    # ── fs_watcher (Phase A.2 -- inotify event bus) ──────────────────────
+    ("fs_watcher.watch_dirs",          "MIOS_FS_WATCHER_DIRS"),
+    # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
+    ("pkg.bootstrap_per_source_cap",   "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP"),
+    ("pkg.lookup_max_alias_results",   "MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS"),
     # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
     ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),

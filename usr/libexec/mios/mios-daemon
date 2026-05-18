@@ -202,9 +202,10 @@ _WATCH_MASK = (_IN_CLOSE_WRITE | _IN_MOVED_TO
 _EVENT_HEADER = _struct.Struct("iIII")  # wd, mask, cookie, name_len
 
 # Dirs the daemon (and other agents) write or expect mutations on.
-# Each subdir is treated as a stream. Missing dirs are created so
-# the watch survives Day-0 boot before any agent has populated them.
-_FS_WATCHER_DIRS = [
+# Sourced from mios.toml [fs_watcher].watch_dirs via the userenv.sh
+# slot (MIOS_FS_WATCHER_DIRS, CSV). Falls back to the compiled-in
+# defaults that match the mios.toml seed when env is unset.
+_DEFAULT_FS_WATCHER_DIRS = [
     "/var/lib/mios/hermes-tail",
     "/var/lib/mios/delegation-prefilter",
     "/var/lib/mios/log-watcher",
@@ -214,6 +215,11 @@ _FS_WATCHER_DIRS = [
     "/var/lib/mios/cron-director",
     "/var/lib/mios/ai/scratch",
 ]
+_env_fs_dirs = os.environ.get("MIOS_FS_WATCHER_DIRS", "").strip()
+if _env_fs_dirs:
+    _FS_WATCHER_DIRS = [d.strip() for d in _env_fs_dirs.split(",") if d.strip()]
+else:
+    _FS_WATCHER_DIRS = list(_DEFAULT_FS_WATCHER_DIRS)
 
 # Map of mask-bit -> short op name for the SurrealDB event row.
 _OP_NAMES = {

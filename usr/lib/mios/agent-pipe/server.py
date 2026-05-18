@@ -346,6 +346,78 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     return parsed
 
 
+# ── Phase C.1 -- Personal Knowledge Graph lookup ──────────────────
+# Resolves operator-set noun phrases ("my browser", "the dev VM")
+# to concrete app_install rows via the SurrealDB graph (alias ->
+# resolves_to -> app_install). Used by the planner + dispatch to
+# disambiguate phrases that would otherwise force the LLM to guess.
+
+async def pkg_lookup(phrase: str) -> Optional[dict]:
+    """Look up a phrase in the operator's PKG. Returns the first
+    matching app_install record as a dict, or None if no match.
+    Tries alias first (operator-defined shortcuts), then a fuzzy
+    short_name match on app_install."""
+    if not phrase:
+        return None
+    p = phrase.strip().lower().replace("'", "''")
+    if not p:
+        return None
+    # Stage 1a: alias EXACT-match (highest precedence). Operator
+    # configured "my browser" -> X, this returns X directly.
+    sql = (
+        f"SELECT phrase, "
+        f"->resolves_to->app_install.{{id, short_name, app_id, "
+        f"source, label, launch_hint}} AS apps "
+        f"FROM alias WHERE phrase = '{p}' LIMIT 1;"
+    )
+    r = await _db_post(sql)
+    if r:
+        rows = (r[-1] or {}).get("result") or []
+        for row in rows:
+            apps = row.get("apps") or []
+            if apps:
+                return {"source": "alias",
+                        "phrase": row.get("phrase"),
+                        "app": apps[0]}
+    # Stage 1b: alias contains match (fuzzy fallback).
+    sql = (
+        f"SELECT phrase, "
+        f"->resolves_to->app_install.{{id, short_name, app_id, "
+        f"source, label, launch_hint}} AS apps "
+        f"FROM alias "
+        f"WHERE string::contains(phrase, '{p}') "
+        f"   OR string::contains('{p}', phrase) "
+        f"LIMIT 3;"
+    )
+    r = await _db_post(sql)
+    if r:
+        rows = (r[-1] or {}).get("result") or []
+        for row in rows:
+            apps = row.get("apps") or []
+            if apps:
+                return {"source": "alias",
+                        "phrase": row.get("phrase"),
+                        "app": apps[0]}
+    # Stage 2: direct app_install short_name fuzzy match.
+    sql = (
+        f"SELECT id, short_name, app_id, source, label, launch_hint "
+        f"FROM app_install "
+        f"WHERE string::contains(short_name, '{p}') "
+        f"   OR string::contains('{p}', short_name) "
+        f"LIMIT 1;"
+    )
+    r = await _db_post(sql)
+    if r:
+        rows = (r[-1] or {}).get("result") or []
+        if rows:
+            return {
+                "source": "app_install",
+                "phrase": phrase,
+                "app": rows[0],
+            }
+    return None
+
+
 # ── Phase B.1 -- Deliberative Collective Intelligence (DCI) vocab ─
 # 14 typed epistemic acts (Habermas-rooted, DCI paper arxiv
 # 2603.11781). Replaces unstructured agent debate -- which the
@@ -1656,6 +1728,27 @@ async def health() -> dict[str, Any]:
         "db_url": DB_URL,
         "port": PORT,
     }
+
+
+# ── /pkg/lookup (Phase C.1 Personal Knowledge Graph) ───────────────
+# Resolve a phrase via the operator's preference graph. Returns
+# the matched app_install record (alias-resolved or direct).
+# Operator-callable curl-test endpoint; the planner can also hit
+# it pre-decomposition to ground noun phrases.
+@app.get("/pkg/lookup")
+async def pkg_lookup_endpoint(phrase: str = "") -> JSONResponse:
+    if not phrase:
+        return JSONResponse(
+            content={"error": "phrase query param required"},
+            status_code=400,
+        )
+    result = await pkg_lookup(phrase)
+    if result is None:
+        return JSONResponse(
+            content={"match": None, "phrase": phrase},
+            status_code=404,
+        )
+    return JSONResponse(content={"match": result, "phrase": phrase})
 
 
 # ── /dci/deliberate (Phase B.2 on-demand convergent flow) ──────────

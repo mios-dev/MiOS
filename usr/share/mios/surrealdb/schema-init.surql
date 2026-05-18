@@ -134,3 +134,61 @@ DEFINE INDEX agent_metric_ts  ON agent_metric COLUMNS ts;
 --   doc         -> OWUI knowledge + file tables (RAG corpus)
 --   knowledge   -> OWUI knowledge collection (mios-owui-apply-knowledge)
 -- Use mios-db --owui '<sql>' to query those instead.
+
+-- ════════════════════════════════════════════════════════════════
+-- Phase C.1 -- Personal Knowledge Graph (operator-preference store)
+-- ════════════════════════════════════════════════════════════════
+-- SurrealDB is multi-model -- the same engine that runs the
+-- doc/event tables above natively supports RELATE-edge graph
+-- queries (->edge->target syntax in SELECT). This section adds the
+-- operator-preference graph so the agent-pipe can resolve
+-- ambiguous noun phrases ("my browser", "the dev VM") to concrete
+-- targets at dispatch time instead of inferring per-turn.
+
+-- person: one row per operator on this host. Singleton in single-
+-- user MiOS, multi-row when a deployment has multiple registered
+-- users (FreeIPA / multi-tenant future).
+DEFINE TABLE person SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD username       ON person TYPE string;
+DEFINE FIELD fullname       ON person TYPE option<string>;
+DEFINE FIELD hostname       ON person TYPE option<string>;
+DEFINE FIELD created_at     ON person TYPE datetime;
+DEFINE INDEX person_user    ON person COLUMNS username UNIQUE;
+
+-- app_install: every app the operator has on this machine, across
+-- all sources (flatpak / RPM / Windows EXE / steam / epic / shim).
+-- Populated by `mios-pkg-bootstrap` from mios-apps' inventory.
+DEFINE TABLE app_install SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD short_name     ON app_install TYPE string;
+DEFINE FIELD app_id         ON app_install TYPE option<string>;
+DEFINE FIELD source         ON app_install TYPE string;
+DEFINE FIELD label          ON app_install TYPE option<string>;
+DEFINE FIELD launch_hint    ON app_install TYPE option<string>;
+DEFINE FIELD created_at     ON app_install TYPE datetime;
+DEFINE INDEX app_install_short ON app_install COLUMNS short_name;
+
+-- alias: operator-defined shorthand phrases. `phrase` is the
+-- exact match key ("my browser"); the resolves_to edge points to
+-- the concrete app_install / pref / device record.
+DEFINE TABLE alias SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD phrase         ON alias TYPE string;
+DEFINE FIELD created_at     ON alias TYPE datetime;
+DEFINE FIELD created_by     ON alias TYPE option<record<person>>;
+DEFINE INDEX alias_phrase   ON alias COLUMNS phrase UNIQUE;
+
+-- ── RELATE edges (graph layer) ───────────────────────────────────
+-- person -> owns -> app_install
+--   one operator can own many apps; same app could be owned by
+--   multiple operators on a multi-tenant host.
+DEFINE TABLE owns TYPE RELATION FROM person TO app_install
+    SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD since          ON owns TYPE datetime;
+
+-- alias -> resolves_to -> app_install
+--   bare-minimum target set for v1. Future: pref / device / other.
+--   FLEXIBLE since the target table isn't pinned to app_install
+--   forever (preference rows + device rows arrive in later C.x).
+DEFINE TABLE resolves_to TYPE RELATION FROM alias
+    SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD weight         ON resolves_to TYPE option<float>;
+DEFINE FIELD reason         ON resolves_to TYPE option<string>;
