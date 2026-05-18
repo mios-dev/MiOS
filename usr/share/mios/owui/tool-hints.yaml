@@ -1,0 +1,186 @@
+# /usr/share/mios/owui/tool-hints.yaml
+#
+# Canonical-verb manifest -- the source of truth the MiOS-Agent pipe
+# loads at init to make its refine step TOOL-AWARE. Operator
+# directive 2026-05-17: "prompt refining should be tool aware to be
+# able to hint". The refine system prompt was previously hardcoding
+# an intent table that had to be edited every time a shim was added
+# or removed; now the table is rendered from this YAML so:
+#   * Adding a new shim = one entry here + one shim binary
+#   * Refine starts hinting it on the next pipe reload (OWUI restart)
+#   * SOUL.md + Hermes still discover the shim via PATH, but the
+#     refine layer already steered the model toward it
+#
+# Schema:
+#   canonical_verbs:
+#     - name:      <shim name, no path>
+#       intent:    <one-line description of the intent it fulfils>
+#       example:   <single example command the model should emit>
+#       tags:      [tag, tag, ...]   # optional, for grouping
+#
+# Conventions:
+#   * Keep `intent` <90 chars: it becomes a single row in the refine
+#     prompt's markdown table.
+#   * Use placeholder angle-bracket tokens (<NAME>, <URL>, etc.) --
+#     the refine model substitutes the operator's actual nouns.
+#   * Order matters: refine sees the table top-down, so put the
+#     highest-value shims first (the ones the model otherwise
+#     hallucinates around: launchers, image, map, GUI, browser).
+
+canonical_verbs:
+  # --- launchers + lookup --------------------------------------
+  - name: mios-find
+    intent: launch / resolve any app (Windows protocol-handler / Linux GUI / CLI)
+    example: 'mios-find "<APP-OR-GAME>" | bash'
+    tags: [launch, windows, linux]
+
+  - name: mios-everything
+    intent: NTFS file/launcher index (sub-100ms; PRIMARY for Windows lookups)
+    example: 'mios-everything -n 10 "<query>"'
+    tags: [search, windows]
+
+  - name: mios-apps
+    intent: inventory every installed app (Steam/Epic/Xbox/flatpak/RPM/shims)
+    example: 'mios-apps --filter <substr>'
+    tags: [inventory]
+
+  # --- GUI / display --------------------------------------------
+  - name: mios-gui-launch
+    intent: detached WSLg-aware Linux GUI launcher (handles XDG_CURRENT_DESKTOP)
+    example: 'mios-gui-launch <gnome-control-center|nautilus|gedit|...>'
+    tags: [linux, gui, wslg]
+
+  - name: mios-open-url
+    intent: open a URL in the operator's MiOS-defined default browser (visible)
+    example: 'mios-open-url "<URL>"'
+    tags: [url, browser]
+
+  - name: mios-show-image
+    intent: image search → opens top result in browser (no download/save/screenshot)
+    example: 'mios-show-image "<query>" [--position left|right|center]'
+    tags: [image, browser]
+
+  - name: mios-map
+    intent: open Google Maps / directions to a place in the default browser
+    example: 'mios-map "<place>" [--directions [--from "<origin>"]]'
+    tags: [map, browser]
+
+  - name: mios-html
+    intent: open /usr/share/mios/configurator/mios.html (the MiOS settings UI)
+    example: 'mios-html'
+    tags: [browser, settings]
+
+  - name: mios-md
+    intent: open a markdown file (or inline text) in the snarkdown viewer
+    example: 'mios-md [<file.md>]   # or  mios-md --text "<inline>"'
+    tags: [markdown, browser]
+
+  - name: mios-hermes-browser
+    intent: idempotently bring CDP up on :9222 before ANY browser_* tool call
+    example: 'mios-hermes-browser ensure'
+    tags: [browser, cdp]
+
+  # --- windows interop -----------------------------------------
+  - name: mios-windows
+    intent: Windows dispatch (launch / PowerShell / cmd) via the operator broker
+    example: 'mios-windows {launch|ps|cmd} "<...>"'
+    tags: [windows]
+
+  - name: mios-window
+    intent: title-pattern window manipulation (center / move / resize / close / focus)
+    example: 'mios-window {center|move|resize|focus|close|maximize} "<title>"'
+    tags: [windows, window]
+
+  - name: mios-window-active
+    intent: verify a window is actually presented on the operator screen
+    example: 'mios-window-active --present "<title>"'
+    tags: [windows, verifier]
+
+  - name: mios-pc-control
+    intent: Win32 input + window enumeration + screenshot primitives
+    example: 'mios-pc-control window-list'
+    tags: [windows]
+
+  - name: mios-screenshot
+    intent: PNG to operator's Pictures/Screenshots/; --window for specific title
+    example: 'mios-screenshot [--open] [--clipboard] [--window "<title>"]'
+    tags: [screenshot]
+
+  # --- install / steam -----------------------------------------
+  - name: mios-installer
+    intent: cross-platform install (winget / dnf / flatpak)
+    example: 'mios-installer install <id> [--backend winget|dnf|flatpak] [--no-confirm]'
+    tags: [install]
+
+  - name: mios-steamcmd
+    intent: Steam install/search/info/list (URI route -> Steam GUI; --route cmd headless)
+    example: 'mios-steamcmd {install|search|info|status|list} <APPID|"name">'
+    tags: [steam]
+
+  # --- system + diagnostics ------------------------------------
+  - name: mios-system-status
+    intent: snapshot host MiOS state (GPU/CPU/RAM/services/ollama models) — JSON
+    example: 'mios-system-status'
+    tags: [diag]
+
+  - name: mios-doctor
+    intent: health probe (services up, sockets reachable, env sane)
+    example: 'mios-doctor'
+    tags: [diag]
+
+  - name: mios-env-probe
+    intent: runtime environment snapshot (hostname / display / paths)
+    example: 'mios-env-probe'
+    tags: [diag]
+
+  - name: mios-restart
+    intent: graceful systemd restart for a MiOS service
+    example: 'mios-restart <svc>'
+    tags: [service]
+
+  - name: mios-cache-clear
+    intent: wipe chat / cache / session state (preserves users / tools / models / ollama)
+    example: 'mios-cache-clear [--dry-run] [--all]'
+    tags: [maintenance]
+
+  - name: mios-lan-status
+    intent: check + enable LAN-accessibility for OWUI/Hermes/etc. (Win UAC for --enable)
+    example: 'mios-lan-status [--enable]'
+    tags: [network]
+
+  - name: mios-discord-status
+    intent: self-check Discord bot (token / guilds / default channel / directory mtime)
+    example: 'mios-discord-status'
+    tags: [discord, diag]
+
+  # --- self-improvement ----------------------------------------
+  - name: mios-skill-clone
+    intent: fork a vendor skill into $HERMES_HOME/skills/ for editing
+    example: 'mios-skill-clone <name> [--as <new>]'
+    tags: [self-improvement]
+
+  - name: mios-tool-clone
+    intent: fork a vendor shim into /usr/local/bin/ for editing
+    example: 'mios-tool-clone <name> [--as <new>]'
+    tags: [self-improvement]
+
+# Special-intent hints. These aren't shims — they're patterns the
+# refine should ALWAYS match before falling back to a generic
+# web_search. Each entry maps an operator-asking-pattern to a
+# canonical first call.
+intent_patterns:
+  - match: 'launch|open|start|run <APP-OR-GAME>'
+    first_call: 'terminal: mios-find "<APP-OR-GAME>" | bash'
+    note: 'EXECUTE the resolved target verbatim; never substitute a different launcher'
+
+  - match: '(near|around|by) <PLACE>'
+    first_call: 'terminal: mios-everything "<PLACE>"   # OR  web_search "<query> near <PLACE-ADDRESS>"'
+    note: 'For restaurants/parking/etc. near a venue, resolve the venue ADDRESS first, then anchor the search on coordinates'
+
+  - match: 'show|display|bring up (a|an) (image|picture|photo) of <THING>'
+    first_call: 'terminal: mios-show-image "<THING>" [--position left|right|center]'
+    note: 'No download, no screenshot, no /mnt/c writes'
+
+  - match: 'open (a|the)? map|directions to|maps? for <PLACE>'
+    first_call: 'terminal: mios-map "<PLACE>" [--directions [--from "<origin>"]]'
+    note: 'NEVER reach for browser_navigate -- that is headless CDP the operator cannot see'
