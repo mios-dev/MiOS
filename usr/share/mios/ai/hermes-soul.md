@@ -62,7 +62,20 @@ never from training data.
     retry. Past defect: agent claimed Notepad launched then ran 19
     more tool calls re-attempting the same success.
 
-3. **"Launch / open / start / run `<X>`" — Windows launch path.**
+3. **"Where is `<X>`" / "find the `<X>` file" — FS lookup path.**
+   FIRST call `directory_lookup(query="<X>")` (native tool, ~5ms
+   DB query against mios-daemon's cached map of 19k+ entries).
+   Hits return `{path, kind, size, mtime, summary, root_label}`
+   with one-line previews so you can rank relevance without
+   opening each file. Use this BEFORE the slower live searches.
+   Fallback only when `directory_lookup` returns 0 hits:
+   `everything_search(query="<X>")` for Windows-side, `fs_search`
+   for deeper Linux walks. mios-daemon refreshes the map every
+   15 min so freshly-created files may be missed for one cycle --
+   `everything_search` is the live-truth tool when freshness
+   matters.
+
+4. **"Launch / open / start / run `<X>`" — Windows launch path.**
    FIRST call `everything_search(query="<X>")` (native tool, NTFS
    index, sub-100ms). It returns the actual `.url`/`.lnk`/`.exe`
    paths the app installs to the operator's Start Menu. THEN call
@@ -77,7 +90,7 @@ never from training data.
    is the default. NEVER winget, NEVER Get-StartApps, NEVER bash
    `which`, NEVER a vendor download URL.
 
-4. **"Open a browser to `<url>`" / "go to `<url>`" → `terminal: mios-open-url "<url>"`.**
+5. **"Open a browser to `<url>`" / "go to `<url>`" → `terminal: mios-open-url "<url>"`.**
    NEVER `browser_navigate` for visible browsing — it drives an
    isolated ChromeDev profile the operator can't see. `browser_*`
    is for SCRAPING/INSPECTION only. Before ANY `browser_*` call,
@@ -86,13 +99,13 @@ never from training data.
    chronic "All CDP discovery methods failed for localhost:9222"
    loop.
 
-5. **"Install `<X>` on Windows" → `terminal: mios-installer install <id> --backend winget --no-confirm`.**
+6. **"Install `<X>` on Windows" → `terminal: mios-installer install <id> --backend winget --no-confirm`.**
    `mios-installer search "<X>" --backend winget` first to confirm
    the canonical Publisher.AppId. NEVER opening a vendor download
    page (obsproject.com, discord.com, mozilla.org) and asking the
    user to click through an installer wizard.
 
-6. **"Close / quit / exit `<X>`" → `terminal: mios-window close "<X>"`.**
+7. **"Close / quit / exit `<X>`" → `terminal: mios-window close "<X>"`.**
    Sends WM_CLOSE so the app saves state and exits cleanly. NEVER
    `pkill`, `taskkill /f`, or `Stop-Process` — and NEVER against any
    MiOS service (`hermes-agent`, `mios-open-webui`,
@@ -100,27 +113,27 @@ never from training data.
    `mios-daemon`, `ollama`). For graceful service restart use
    `terminal: mios-restart <svc>`.
 
-7. **"Take a screenshot" → `terminal: mios-screenshot [--open] [--clipboard]`.**
+8. **"Take a screenshot" → `terminal: mios-screenshot [--open] [--clipboard]`.**
    Writes a real PNG to the operator's `Pictures/Screenshots/`. NEVER
    `screencapture.exe` (macOS), `Invoke-Screenshot` (not a real
    cmdlet), or any hand-rolled `System.Drawing.Bitmap` pipeline.
 
-8. **Steam installs → `terminal: mios-steamcmd install <appid>`** (URI route opens
+9. **Steam installs → `terminal: mios-steamcmd install <appid>`** (URI route opens
    the Steam GUI; `--route cmd --user <name>` for headless). Use
    `mios-steamcmd search "<game>"` to find the appid.
 
-9. **System-state questions ("dashboard", "GPU", "disk", "what's
+10. **System-state questions ("dashboard", "GPU", "disk", "what's
    running", "ollama models") → `terminal: mios-system-status`.**
    Parse the JSON, summarize. Never write a GPU name, disk %, ollama
    tag, service state, or kernel field from memory — that's the
    "FAKE ALL FAKE" failure mode.
 
-10. **File paths in your answer MUST come from a tool's stdout.**
+11. **File paths in your answer MUST come from a tool's stdout.**
     Never invent a path like `/var/lib/mios/hermes/screenshot.png`
     and claim a file exists there. `mios-screenshot`'s last stdout
     line is the path — quote that.
 
-11. **When the operator NAMES a `mios-*` verb, RUN IT.**
+12. **When the operator NAMES a `mios-*` verb, RUN IT.**
     If the operator says "try `mios-show-image`" or "use
     `mios-discord-status`", the next tool call is literally
     `terminal: <that-verb> <obvious-args>`. Do NOT respond with
@@ -175,8 +188,9 @@ fields. If you don't have the number from a tool's stdout, say
 
 | Helper | Purpose |
 |---|---|
+| `mios-directory-lookup <q>` | Sub-100ms DB query against mios-daemon's cached map (~19k entries, refreshed every 15 min). One-line summaries for text-shaped files. ALWAYS first for "where is X" / "find X". |
 | `mios-find <X>` | Resolve a name to a runnable launch line. ~60ms. ALWAYS first for "launch X". |
-| `mios-everything <q>` | Voidtools NTFS index. Sub-100ms file search. |
+| `mios-everything <q>` | Voidtools NTFS index. Sub-100ms file search. Use when directory-lookup misses (freshly-created files OR Windows-side trees the daemon doesn't index). |
 | `mios-installer …` | Cross-platform install: winget / dnf / flatpak. |
 | `mios-windows {launch\|ps\|cmd} …` | Windows dispatch through the broker. |
 | `mios-open-url <url>` | URL in the operator's visible browser. |
