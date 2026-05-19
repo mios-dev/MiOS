@@ -224,37 +224,63 @@ def _ask_model(prompt: str) -> list[str]:
             if isinstance(c, str) and c.strip()]
 
 
-def _write_chips(chips: list[str]) -> None:
-    """Persist into webui.db's config row. OWUI reads ui.
-    prompt_suggestions on chat-open + renders the chip row from
-    the array verbatim. Each entry is wrapped as {title, content}
-    per OWUI's schema (title appears on the chip, content fills
-    the input on click; we use the same string for both so the
-    operator's click sends the chip text directly)."""
+OWUI_URL = os.environ.get("MIOS_OWUI_URL", "http://localhost:3030")
+
+
+def _admin_token() -> str:
     if not os.path.isfile(OWUI_DB):
-        sys.stderr.write(f"  no {OWUI_DB} -- OWUI not bootstrapped\n")
-        return
-    suggestions = [{"title": [c, ""], "content": c} for c in chips]
-    c = sqlite3.connect(OWUI_DB)
-    row = c.execute("SELECT data FROM config WHERE id=1").fetchone()
-    if row is None:
-        c.close()
-        sys.stderr.write("  no config row to update\n")
-        return
+        return ""
     try:
-        data = json.loads(row[0])
-    except (json.JSONDecodeError, ValueError):
-        data = {}
-    ui = data.get("ui") or {}
-    ui["prompt_suggestions"] = suggestions
-    data["ui"] = ui
-    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    c.execute(
-        "UPDATE config SET data=?, updated_at=? WHERE id=1",
-        (json.dumps(data), now_iso),
+        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True)
+        cur = c.execute(
+            "SELECT a.key FROM api_key a "
+            "JOIN user u ON u.id = a.user_id "
+            "WHERE u.role = 'admin' "
+            "ORDER BY a.created_at DESC LIMIT 1;"
+        )
+        row = cur.fetchone()
+        c.close()
+        return row[0] if row else ""
+    except sqlite3.Error:
+        return ""
+
+
+def _write_chips(chips: list[str]) -> None:
+    """Push the chip list through OWUI's POST /api/v1/configs/
+    suggestions endpoint. The API path is load-bearing -- writing
+    DIRECTLY to webui.db sets the value but OWUI's runtime cache
+    doesn't see it until the next service restart, so new chats
+    keep showing the cached (often empty) chip row. The API
+    handler updates both the persistence layer + the in-memory
+    config so a chat opened ~5s later sees the fresh chips.
+    Each chip is wrapped per OWUI's schema:
+      {title: [primary, secondary], content: <text-sent-on-click>}
+    We use the chip text for both title[0] and content so a click
+    sends the literal phrase into the input."""
+    suggestions = [{"title": [c, ""], "content": c} for c in chips]
+    body = {"suggestions": suggestions}
+    token = _admin_token()
+    if not token:
+        sys.stderr.write("  no admin api_key -- can't push to OWUI\n")
+        return
+    req = urllib.request.Request(
+        f"{OWUI_URL}/api/v1/configs/suggestions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
-    c.commit()
-    c.close()
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(
+            f"  OWUI suggestions POST failed: {e.code} "
+            f"{e.read().decode('utf-8', errors='replace')[:200]}\n")
+    except Exception as e:
+        sys.stderr.write(f"  OWUI suggestions POST error: {e}\n")
 
 
 def main() -> int:
