@@ -71,15 +71,76 @@ def _agent_nudges() -> str:
 
 
 def _system_status() -> dict:
-    """Cheap snapshot of the running stack -- pulls from the daemon's
-    last state.json (fresh as of its last loop tick). Avoids invoking
-    the broker just for context-gathering."""
+    """Cheap snapshot of the running stack. Pulls from the daemon's
+    last state.json (fresh as of its last loop tick).
+
+    Excludes `classify` deliberately -- the daemon's journal-tail
+    classifier picks up ANY recent error chatter (curl probes, dev
+    activity, transient HTTP 4xx) and the suggestion model latches
+    onto those, producing debug-flavored chips that don't match the
+    operator's actual daily-use needs. Keep launch_failures (real
+    operator-visible failures) + satisfaction (real verdicts)."""
     state = _daemon_state()
     return {
-        "classify": state.get("classify") or {},
         "launch_failures": state.get("launch_failures") or [],
         "satisfaction": state.get("satisfaction") or {},
     }
+
+
+def _mios_verbs_sample() -> list[str]:
+    """Concrete operator-useful actions the model can pull from when
+    seeding chips. These are FULLY-RESOLVED PHRASES (no <placeholder>
+    tokens) so a small refine model doesn't latch onto the template
+    syntax and emit chips like 'Open <app>'.
+
+    The model rotates / paraphrases / mixes-with-context, but the
+    BASELINE concreteness is here so worst-case chips are still
+    operator-clickable verbatim."""
+    return [
+        "Show me the dashboard",
+        "What's running on my system",
+        "Take a screenshot",
+        "Open my browser",
+        "List my installed apps",
+        "Check my kanban board",
+        "Compact recent chats",
+        "What can MiOS do",
+        "Find the highest-rated game I have installed",
+        "Open the configurator",
+        "Summarize what happened today",
+        "Search my files for project notes",
+    ]
+
+
+def _recent_kanban(limit: int = 4) -> list[str]:
+    """Read recent operator-relevant kanban entries from the
+    SurrealDB shadow table. These are real queued tasks the
+    operator opened; ideal chip seeds."""
+    sql = (
+        f"SELECT title FROM kanban_shadow "
+        f"WHERE status != 'completed' "
+        f"ORDER BY synced_at DESC LIMIT {int(limit)};"
+    )
+    try:
+        req = urllib.request.Request(
+            f"{SURREAL_URL}/sql",
+            data=sql.encode("utf-8"),
+            headers={
+                "Authorization": "Basic cm9vdDpyb290",
+                "NS": "mios", "DB": "agent",
+                "Accept": "application/json",
+                "Content-Type": "text/plain",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=4) as r:
+            body = json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception:
+        return []
+    if not isinstance(body, list) or not body:
+        return []
+    rows = (body[-1] or {}).get("result") or []
+    return [str(r.get("title", "")) for r in rows if isinstance(r, dict)]
 
 
 def _recent_refine_intents(limit: int = 5) -> list[str]:
@@ -122,48 +183,73 @@ def _safe_json(text: str) -> dict:
 
 
 def _build_prompt(num: int, status: dict, nudges: str,
-                  recent_intents: list[str]) -> str:
-    """Compose the prompt the refine model sees. Structure instructs
-    the SHAPE (count, JSON envelope, single-imperative-per-chip).
-    Content + locale come from the gathered context, so chips
-    revolve naturally as the context drifts."""
+                  recent_intents: list[str],
+                  kanban_titles: list[str],
+                  verbs_sample: list[str]) -> str:
+    """Compose the prompt the refine model sees. The chip space is
+    biased toward operator-useful daily actions; transient debug
+    chatter is intentionally excluded from the context."""
+    kanban_block = (
+        "Operator's currently-open kanban tasks (good chip seeds):"
+        "\n  - " + "\n  - ".join(kanban_titles[:5])
+        if kanban_titles else "(no open kanban tasks)"
+    )
     intents_block = (
-        "Recent operator queries (avoid repeating these verbatim, "
+        "Operator's recent chat themes (avoid repeating verbatim, "
         "but suggest natural follow-ups):\n  - "
         + "\n  - ".join(recent_intents[:5])
-        if recent_intents else "No recent operator queries on record."
+        if recent_intents else "(no recent chat themes)"
     )
     nudges_block = (
         "Recent system nudges from mios-daemon:\n" + nudges
-        if nudges.strip() else "(no daemon nudges recorded)"
+        if nudges.strip() else "(no daemon nudges)"
     )
+    verbs_block = "\n  - ".join(verbs_sample)
     return (
         "You generate starter-prompt chips for the operator's MiOS "
-        "chat interface. The operator just opened a new chat -- "
-        "produce SHORT, ACTIONABLE chips they might want to click.\n"
+        "chat interface. The operator just opened a NEW empty chat "
+        "and is choosing what to do.\n"
         "\n"
         "RULES:\n"
         f"- Emit exactly {num} chips.\n"
-        "- Each chip is a single imperative phrase (4-10 words) "
-        "in the operator's language. Match the language of the "
-        "context blocks below.\n"
-        "- Ground in the CURRENT MiOS state below -- reference real "
-        "running services, real recent activity, real unfinished "
-        "tasks. NO generic 'help me write a poem' fluff.\n"
-        "- Avoid repeating the operator's recent queries verbatim; "
-        "suggest natural extensions or complements.\n"
-        "- Output JSON only: "
-        '{"chips":["chip 1","chip 2", ..., "chip N"]}\n'
+        "- Each chip is a SHORT imperative phrase (3-8 words) the "
+        "operator could click to populate the chat input. Match the "
+        "language of the context blocks below (locale-neutral).\n"
+        "- Bias toward DAILY-USE actions the operator would actually "
+        "click: launch apps, open URLs, take screenshots, query "
+        "system state, manage installed software, check kanban, "
+        "summarise recent activity. NOT diagnostic / debug chips "
+        "(no 'debug logs', 'check HTTP codes', 'review errors' -- "
+        "those are noise from the daemon's journal scanner, not "
+        "what the operator opens a new chat to do).\n"
+        "- Mix sources: about HALF the chips should reference the "
+        "operator's CURRENT context below (open kanban tasks, "
+        "recent chat themes). The OTHER half should be evergreen "
+        "MiOS actions from the example-actions list -- you can use "
+        "them VERBATIM or paraphrase to vary them across refreshes.\n"
+        "- Chips MUST be concrete, fully-resolved phrases. NEVER "
+        "emit placeholder syntax like 'Open <app>' or 'Search for "
+        "<files>'. Pick a real app name (a real one the operator "
+        "uses, OR a common one like 'Chrome' or 'VSCode') and a "
+        "real query.\n"
+        "- Output JSON only:\n"
+        '  {"chips":["chip 1","chip 2", ..., "chip N"]}\n'
         "- No prose around the JSON.\n"
         "\n"
-        "── Current MiOS state ──\n"
-        f"{json.dumps(status, indent=2)[:1500]}\n"
+        "── Example MiOS actions (rewrite, don't copy) ──\n"
+        f"  - {verbs_block}\n"
         "\n"
-        "── Recent operator activity ──\n"
+        "── Operator's open kanban tasks ──\n"
+        f"{kanban_block}\n"
+        "\n"
+        "── Operator's recent chat themes ──\n"
         f"{intents_block}\n"
         "\n"
-        "── Daemon nudges ──\n"
-        f"{nudges_block[:1500]}\n"
+        "── Real launch failures (only mention if non-empty) ──\n"
+        f"{json.dumps(status.get('launch_failures') or [], indent=2)[:600]}\n"
+        "\n"
+        "── Daemon nudges (only mention if non-empty) ──\n"
+        f"{nudges_block[:800]}\n"
         "\n"
         "/no_think"
     )
@@ -294,7 +380,10 @@ def main() -> int:
     status = _system_status()
     nudges = _agent_nudges()
     recent_intents = _recent_refine_intents(limit=5)
-    prompt = _build_prompt(args.num, status, nudges, recent_intents)
+    kanban_titles = _recent_kanban(limit=5)
+    verbs_sample = _mios_verbs_sample()
+    prompt = _build_prompt(args.num, status, nudges, recent_intents,
+                           kanban_titles, verbs_sample)
     chips = _ask_model(prompt)
     if not chips:
         print(json.dumps({
@@ -313,6 +402,7 @@ def main() -> int:
             "status_keys": sorted(status.keys()),
             "nudges_chars": len(nudges),
             "recent_intents": recent_intents,
+            "kanban_titles": kanban_titles,
         },
     }))
     return 0
