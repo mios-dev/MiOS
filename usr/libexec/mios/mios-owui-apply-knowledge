@@ -352,9 +352,98 @@ def main() -> int:
             _log(f"  + {x}")
         for x in rehashed_files:
             _log(f"  ~ {x}")
+
+        # Post-commit: verify vector_db actually has chunks for the
+        # collection. The day-0 wipe (mios-cache-clear --all) drops
+        # chroma.sqlite3 contents but the knowledge_file links here
+        # see hash-unchanged and skip the vector-clear branch, so
+        # vectors stay missing + knowledge_search returns 0 hits.
+        # Detect-and-heal: count chroma rows; if zero but file
+        # content is present, force re-add of every file via OWUI's
+        # /api/v1/knowledge/{kid}/file/add (the only endpoint that
+        # actually triggers chunk + embed).
+        try:
+            _heal_missing_vectors(KNOWLEDGE_ID)
+        except Exception as e:
+            _log(f"vector-heal probe failed (non-fatal): {e}")
+
         return 0
     finally:
         conn.close()
+
+
+def _heal_missing_vectors(knowledge_id: str) -> None:
+    """If chroma has zero embeddings but the collection has file
+    rows with content, force-add each file via OWUI's API so the
+    chunk + embed pipeline runs. Idempotent: when vectors exist,
+    the count check skips the heal call."""
+    import sqlite3 as _sql
+    import urllib.error as _ue
+    import urllib.request as _ur
+
+    chroma_path = "/var/lib/mios/open-webui/vector_db/chroma.sqlite3"
+    if not os.path.isfile(chroma_path):
+        return
+    try:
+        cc = _sql.connect(f"file:{chroma_path}?mode=ro", uri=True)
+        n_emb = cc.execute(
+            "SELECT COUNT(*) FROM embeddings").fetchone()[0]
+        cc.close()
+    except _sql.Error:
+        n_emb = 0
+    if n_emb > 0:
+        return  # vectors present, nothing to heal
+
+    # Re-open the operator-side webui.db to enumerate file_ids and
+    # mint a request token. Read-only handle so we don't race the
+    # main mutation path above.
+    wc = _sql.connect(
+        "file:/var/lib/mios/open-webui/webui.db?mode=ro", uri=True)
+    row = wc.execute(
+        "SELECT a.key FROM api_key a "
+        "JOIN user u ON u.id = a.user_id "
+        "WHERE u.role = 'admin' "
+        "ORDER BY a.created_at DESC LIMIT 1;"
+    ).fetchone()
+    token = row[0] if row else ""
+    if not token:
+        return
+
+    kdata_row = wc.execute(
+        "SELECT data FROM knowledge WHERE id = ?",
+        (knowledge_id,)).fetchone()
+    wc.close()
+    if not kdata_row or not kdata_row[0]:
+        return
+    try:
+        kdata = json.loads(kdata_row[0])
+    except (json.JSONDecodeError, ValueError):
+        return
+    file_ids = kdata.get("file_ids") or []
+    if not file_ids:
+        return
+
+    _log(f"vector-heal: chroma empty + {len(file_ids)} files registered;"
+         " triggering /file/add on each (rebuilds chunks + embeddings)")
+    ok = 0
+    for fid in file_ids:
+        body = json.dumps({"file_id": fid}).encode("utf-8")
+        req = _ur.Request(
+            f"http://localhost:3030/api/v1/knowledge/{knowledge_id}/file/add",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with _ur.urlopen(req, timeout=60) as r:
+                if r.status == 200:
+                    ok += 1
+        except (_ue.HTTPError, Exception):
+            pass
+    _log(f"vector-heal: re-added {ok}/{len(file_ids)} files")
 
 
 if __name__ == "__main__":

@@ -4418,12 +4418,47 @@ async def chat_completions(request: Request) -> Any:
                         session_id=session_id,
                     ))
                 symbol = "✅" if ok else "⚠️"
-                rendered = (
+                envelope_block = (
                     f"<details type=\"tool_calls\" done=\"true\">\n"
                     f"<summary>{symbol} `{tool}`</summary>\n\n"
                     f"```json\n{json.dumps(envelope, indent=2, default=str)}\n```\n"
                     f"</details>"
                 )
+                # Polish the tool output into a human-facing summary
+                # so the operator sees "Here are your 32 installed
+                # apps: ..." above the collapsible envelope, NOT just
+                # the raw JSON. Synthesise a minimal refined dict for
+                # the polish call when refine didn't run (dispatch
+                # path can fire without a full refine envelope when
+                # the trivial-bypass kicked in).
+                _refined_for_polish = refined or {
+                    "intent": "dispatch",
+                    "intended_outcome": f"answer the question by running {tool}",
+                    "refined_text": last_user_text,
+                }
+                tool_output = (result.get("output") or "")[:6000]
+                # Inline satisfaction check writes the user_query_
+                # (un)satisfied event before polish queries verdicts.
+                await _inline_satisfaction_check(
+                    session_id, _refined_for_polish)
+                polished = ""
+                if tool_output.strip():
+                    polished_raw = await polish_response(
+                        f"Tool `{tool}` ran successfully and returned:\n"
+                        f"{tool_output}\n\n"
+                        f"Write a friendly natural-language answer to the "
+                        f"operator's question using this tool output.",
+                        _refined_for_polish, session_id=session_id,
+                    )
+                    polished = (_strip_think_tags(polished_raw)
+                                if polished_raw else "")
+                # Compose: polished answer ABOVE the collapsible
+                # envelope (envelope is the audit trail, polished is
+                # the operator-visible reply).
+                if polished.strip():
+                    rendered = f"{polished}\n\n{envelope_block}"
+                else:
+                    rendered = envelope_block
                 if streaming:
                     async def _stream_dispatch() -> AsyncGenerator[bytes, None]:
                         # Phase markers: listening -> picking -> doing -> done.
