@@ -2896,6 +2896,154 @@ def _topological_order(nodes: list[dict]) -> list[dict]:
     return out
 
 
+_REFLECT_SYSTEM = (
+    "You are MiOS-Agent's single-step reflection pass. A planner\n"
+    "emitted a multi-step plan; one step's dispatch FAILED. Read the\n"
+    "failed step + the captured error + the surrounding plan, and\n"
+    "emit ONE corrected step as JSON. Do NOT re-plan the whole\n"
+    "chain. Do NOT add commentary. Just the correction.\n"
+    "\n"
+    "Output shape (EXACT):\n"
+    '{"tool": "<verb>", "args": {...}, "rationale": "<one line>"}\n'
+    "\n"
+    "Rules:\n"
+    "- Keep the same node id if possible; downstream nodes may have\n"
+    "  #E<id> refs to it.\n"
+    "- If the failure was 'unknown verb', pick a different verb that\n"
+    "  does the same thing (open_app vs launch_app, etc.).\n"
+    "- If the failure was 'missing arg', add the arg.\n"
+    "- If the failure was 'tool returned exit 2 with stderr X', look\n"
+    "  at stderr for the actual cause + adjust args (a path that\n"
+    "  doesn't exist, a flag the tool doesn't accept, a query that\n"
+    "  needs quoting differently).\n"
+    "- If the failure looks irrecoverable from a single-step swap,\n"
+    "  emit {\"tool\":\"\",\"args\":{},\"rationale\":\"unfixable\"} and\n"
+    "  the dispatcher will abort the chain.\n"
+)
+
+
+async def reflect_on_step_failure(
+    failed_node: dict,
+    failed_result: dict,
+    plan_context: dict,
+) -> Optional[dict]:
+    """ReWOO-style reflection: route a failed DAG step back to the
+    SAME small refine model with the failure context and ask for a
+    single corrected step. Returns {tool, args, rationale} dict
+    or None on timeout/empty.
+
+    Distinct from the retry-same-args loop (PLANNER_REFLEXION_CAP):
+    that retries transient errors; this REPLACES the args/tool when
+    the failure is structural (wrong verb, missing arg, wrong path).
+    Three-stage Reflect/Call/Final pipeline -- caller bounds the
+    number of reflection turns to 1, so a stubborn failure surfaces
+    as a real error instead of looping (per the published
+    Structured Reflection termination contract)."""
+    if not REFINE_ENABLED:
+        return None
+    failed_tool = failed_node.get("tool", "?")
+    failed_args = failed_node.get("args") or {}
+    error_preview = (
+        (failed_result.get("stderr") or "")[:400]
+        or (failed_result.get("error") or "")[:400]
+        or (failed_result.get("output") or "")[:400]
+        or "(empty)"
+    )
+    exit_code = failed_result.get("exit_code", "?")
+    plan_summary = str(plan_context.get("summary") or "")[:200]
+    user_msg = (
+        f"Plan summary: {plan_summary}\n"
+        f"Failed step: tool={failed_tool} "
+        f"args={json.dumps(failed_args, separators=(',', ':'))[:300]}\n"
+        f"Exit code: {exit_code}\n"
+        f"Stderr/error: {error_preview}\n"
+        "/no_think"
+    )
+    payload = {
+        "model": REFINE_MODEL,
+        "messages": [
+            {"role": "system", "content": _REFLECT_SYSTEM},
+            {"role": "user", "content": user_msg},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.0,
+        "max_tokens": 400,
+        "stream": False,
+    }
+    url = f"{REFINE_ENDPOINT}/v1/chat/completions"
+    t0 = time.time()
+    try:
+        async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
+            r = await s.post(url, json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                log.warning("reflect: backend %s in %.1fs",
+                            r.status_code, time.time() - t0)
+                return None
+            body = r.json()
+    except (httpx.HTTPError, asyncio.TimeoutError) as e:
+        log.warning("reflect: timeout/http after %.1fs: %s",
+                    time.time() - t0, e)
+        return None
+    except Exception as e:
+        log.warning("reflect unexpected error: %s", e)
+        return None
+    elapsed = time.time() - t0
+    choices = body.get("choices") or []
+    if not choices:
+        log.warning("reflect: %.1fs no_choices", elapsed)
+        return None
+    content = (
+        (choices[0].get("message") or {}).get("content") or ""
+    ).strip()
+    if not content:
+        log.warning("reflect: %.1fs empty_content", elapsed)
+        return None
+    content = re.sub(r"<think>.*?</think>\s*", "", content,
+                     flags=re.DOTALL | re.IGNORECASE)
+    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError as e:
+        log.warning("reflect: %.1fs parse_fail: %s preview=%r",
+                    elapsed, e, content[:200])
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    new_tool = str(parsed.get("tool") or "").strip()
+    if not new_tool:
+        log.info("reflect: %.1fs marked unfixable", elapsed)
+        _db_fire(_db_post(_db_create("event", {
+            "source": "mios-agent-pipe",
+            "kind": "reflect_unfixable",
+            "severity": "warn",
+            "summary": f"reflection declined: {failed_tool}",
+            "payload": {
+                "failed_node": failed_node,
+                "failed_result_preview": error_preview,
+                "rationale": parsed.get("rationale", "")[:200],
+                "elapsed_s": round(elapsed, 1),
+            },
+        }, now_fields=("ts",))))
+        return None
+    log.info("reflect: %.1fs corrected tool=%s -> %s",
+             elapsed, failed_tool, new_tool)
+    _db_fire(_db_post(_db_create("event", {
+        "source": "mios-agent-pipe",
+        "kind": "reflect_corrected",
+        "severity": "info",
+        "summary": f"{failed_tool} -> {new_tool}",
+        "payload": {
+            "failed_node": failed_node,
+            "failed_result_preview": error_preview,
+            "corrected": parsed,
+            "elapsed_s": round(elapsed, 1),
+        },
+    }, now_fields=("ts",))))
+    return parsed
+
+
 _EK_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)")
 
 
@@ -2957,19 +3105,40 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         args = _substitute_ek_refs(raw_args, results_by_id)
         attempt = 0
         last_result: dict = {}
-        while attempt <= PLANNER_REFLEXION_CAP:
-            # Phase A.3: forward session_id so the firewall pre-check
-            # can see upstream taint.
+        # Phase A.3: forward session_id so the firewall pre-check
+        # can see upstream taint.
+        last_result = await dispatch_mios_verb(
+            tool, args, session_id=session_id,
+        )
+        if not last_result.get("success"):
+            # ReWOO single-step reflection: route the failure back
+            # to the small refine model + retry with corrected args
+            # (or corrected verb). Bounded to ONE reflection per
+            # node so a stubborn failure surfaces as a real error
+            # instead of looping. The transient-retry path below
+            # still fires after this, for genuinely-transient errors
+            # (network glitch, broker race) where reflection would
+            # incorrectly mutate the plan.
+            correction = await reflect_on_step_failure(
+                {"id": nid, "tool": tool, "args": args},
+                last_result,
+                {"summary": dag.get("summary", "")},
+            )
+            if correction and correction.get("tool"):
+                tool = str(correction.get("tool", tool))
+                args = _substitute_ek_refs(
+                    correction.get("args") or {}, results_by_id)
+                last_result = await dispatch_mios_verb(
+                    tool, args, session_id=session_id,
+                )
+        # Transient-retry fallback: SAME args, brief backoff. Only
+        # fires if the reflection above didn't recover.
+        while not last_result.get("success") and attempt < PLANNER_REFLEXION_CAP:
+            attempt += 1
+            await asyncio.sleep(0.5)
             last_result = await dispatch_mios_verb(
                 tool, args, session_id=session_id,
             )
-            if last_result.get("success"):
-                break
-            attempt += 1
-            if attempt <= PLANNER_REFLEXION_CAP:
-                # Brief backoff before retry; gives transient WSL/
-                # broker/Win32 racing windows time to settle.
-                await asyncio.sleep(0.5)
         node_result = dict(last_result)
         node_result["node_id"] = nid
         node_result["attempts"] = attempt + (1 if last_result.get("success") and attempt == 0 else 0)
@@ -4189,15 +4358,33 @@ async def chat_completions(request: Request) -> Any:
                             )
                             attempt = 0
                             last_result: dict = {}
-                            while attempt <= PLANNER_REFLEXION_CAP:
+                            last_result = await dispatch_mios_verb(
+                                tool, args, session_id=session_id,
+                            )
+                            if not last_result.get("success"):
+                                # Single-step reflection before
+                                # transient retry (same shape as
+                                # execute_dag).
+                                correction = await reflect_on_step_failure(
+                                    {"id": nid, "tool": tool, "args": args},
+                                    last_result,
+                                    {"summary": dag.get("summary", "")},
+                                )
+                                if correction and correction.get("tool"):
+                                    tool = str(correction.get("tool", tool))
+                                    args = _substitute_ek_refs(
+                                        correction.get("args") or {},
+                                        results_by_id)
+                                    last_result = await dispatch_mios_verb(
+                                        tool, args, session_id=session_id,
+                                    )
+                            while (not last_result.get("success")
+                                    and attempt < PLANNER_REFLEXION_CAP):
+                                attempt += 1
+                                await asyncio.sleep(0.5)
                                 last_result = await dispatch_mios_verb(
                                     tool, args, session_id=session_id,
                                 )
-                                if last_result.get("success"):
-                                    break
-                                attempt += 1
-                                if attempt <= PLANNER_REFLEXION_CAP:
-                                    await asyncio.sleep(0.5)
                             # Capture for ReWOO downstream refs.
                             if last_result.get("success"):
                                 results_by_id[nid] = dict(last_result)
