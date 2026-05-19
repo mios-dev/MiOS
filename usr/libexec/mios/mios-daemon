@@ -1667,6 +1667,318 @@ def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
     return kind
 
 
+# ─── Directory indexer ────────────────────────────────────────────
+# Walks the configured [daemon.index] roots on a cadence, upserts
+# directory_entry rows into SurrealDB. Agents query via the
+# `directory_lookup` verb -- DB hit ~5ms vs the 60ms+ live
+# mios-find / fs_search. Summaries extracted for text-shaped files
+# so the agent can rank relevance without re-reading each file.
+INDEX_DEFAULT_TICK_S = 15 * 60
+
+
+def _read_daemon_index_config() -> dict:
+    """Read [daemon.index] from the layered mios.toml. Returns
+    the merged config dict or {} when unreadable."""
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+    except ImportError:
+        return {}
+    merged: dict = {}
+    for p in ("/usr/share/mios/mios.toml",
+              "/etc/mios/mios.toml",
+              f"/var/home/{os.environ.get('MIOS_USER', 'mios')}/.config/mios/mios.toml"):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+        except (OSError, Exception):
+            continue
+        idx = (d.get("daemon", {}) or {}).get("index", {}) or {}
+        # Shallow merge -- later layer wins on scalar keys; roots
+        # list is REPLACED (not concatenated) so per-host overlay
+        # can fully customize the walk targets.
+        if idx:
+            merged.update(idx)
+    return merged
+
+
+_TEXT_EXTS = {".md", ".markdown", ".toml", ".yaml", ".yml",
+              ".json", ".txt", ".rst", ".conf", ".cfg", ".ini",
+              ".sh", ".py", ".desktop", ".service"}
+
+
+def _file_summary(path: str, max_bytes: int) -> str:
+    """First non-empty trimmed line of a text-shaped file, capped.
+    Returns empty for non-text or unreadable files."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in _TEXT_EXTS:
+        return ""
+    try:
+        with open(path, "r", errors="replace") as f:
+            raw = f.read(max_bytes * 4)  # read a bit extra for header skip
+    except OSError:
+        return ""
+    for line in raw.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        # Skip shebangs + obvious header noise; the next non-empty
+        # line is usually the real one-liner identifier.
+        if s.startswith("#!") or s == "---":
+            continue
+        return s[:max_bytes]
+    return ""
+
+
+def _match_excludes(name: str, excludes: list) -> bool:
+    """Check a basename against the excludes glob list."""
+    import fnmatch
+    for pat in excludes or []:
+        if fnmatch.fnmatch(name, pat):
+            return True
+    return False
+
+
+def _walk_root(root_label: str, root_path: str, max_depth: int,
+               excludes: list, summary_max_bytes: int,
+               cap_remaining: int) -> list[dict]:
+    """Walk a single root, return a list of entry dicts for batch
+    upsert. cap_remaining is the global remaining entry budget --
+    we stop early when it's exhausted to honor [daemon.index]
+    .max_entries."""
+    if not os.path.isdir(root_path):
+        return []
+    entries: list[dict] = []
+    root_path = os.path.abspath(root_path)
+    root_components = root_path.count(os.sep)
+    for dirpath, dirnames, filenames in os.walk(root_path):
+        # Depth check.
+        depth = dirpath.count(os.sep) - root_components
+        if depth > max_depth:
+            dirnames[:] = []
+            continue
+        # Prune excluded dirs IN PLACE (os.walk respects the
+        # mutation of dirnames during top-down traversal).
+        dirnames[:] = [d for d in dirnames
+                       if not _match_excludes(d, excludes)]
+        for d in dirnames:
+            if cap_remaining <= 0:
+                return entries
+            p = os.path.join(dirpath, d)
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            entries.append({
+                "path": p,
+                "parent": dirpath,
+                "basename": d,
+                "kind": "dir",
+                "size": 0,
+                "mtime": datetime.datetime.fromtimestamp(
+                    st.st_mtime,
+                    tz=datetime.timezone.utc).isoformat(),
+                "ext": None,
+                "summary": None,
+                "root_label": root_label,
+            })
+            cap_remaining -= 1
+        for f in filenames:
+            if _match_excludes(f, excludes):
+                continue
+            if cap_remaining <= 0:
+                return entries
+            p = os.path.join(dirpath, f)
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            ext = os.path.splitext(f)[1].lower() or None
+            entries.append({
+                "path": p,
+                "parent": dirpath,
+                "basename": f,
+                "kind": "file",
+                "size": int(st.st_size),
+                "mtime": datetime.datetime.fromtimestamp(
+                    st.st_mtime,
+                    tz=datetime.timezone.utc).isoformat(),
+                "ext": ext,
+                "summary": _file_summary(p, summary_max_bytes)
+                            if ext else "",
+                "root_label": root_label,
+            })
+            cap_remaining -= 1
+    return entries
+
+
+def _upsert_directory_entries(entries: list[dict]) -> tuple[int, int]:
+    """Batch-upsert directory_entry rows via SurrealDB.
+
+    Datetime handling: SurrealDB 3.x rejects bare ISO strings for
+    TYPE datetime fields -- the canonical literal is
+    `<datetime>"2026-05-19T..."`. We bypass _db_create for this
+    batch path and format CREATE statements directly with the
+    right literal shape. _db_create's now_fields mechanism works
+    for indexed_at (= "now") but not for mtime (which needs to
+    preserve the file's actual mtime).
+
+    Counts: per-statement ERRs come back inside the 200-OK
+    response. We walk the response list to count actual successes
+    vs the previous bug where wrote == sent regardless."""
+    if not entries:
+        return (0, 0)
+    written = errors = 0
+    now_iso = datetime.datetime.now(
+        datetime.timezone.utc).isoformat()
+    CHUNK = 200
+    for i in range(0, len(entries), CHUNK):
+        batch = entries[i:i + CHUNK]
+        statements = []
+        for e in batch:
+            # Field-by-field SurrealQL with proper literal shapes.
+            parts = []
+            for k, v in e.items():
+                if v is None:
+                    continue
+                if k in ("mtime", "indexed_at"):
+                    parts.append(
+                        f'{k} = <datetime>{json.dumps(v)}')
+                else:
+                    parts.append(
+                        f"{k} = {json.dumps(v, default=str)}")
+            if "indexed_at" not in e:
+                parts.append(
+                    f'indexed_at = <datetime>{json.dumps(now_iso)}')
+            statements.append(
+                "CREATE directory_entry SET "
+                + ", ".join(parts) + ";")
+        sql = "\n".join(statements)
+        try:
+            r = _db_post_sync(sql)
+            # Count per-statement ERRs inside the 200-OK response.
+            # First statement is the USE prefix; data statements
+            # start at index 1.
+            ok = err_in_batch = 0
+            if isinstance(r, list):
+                for s in r[1:]:
+                    if isinstance(s, dict) and s.get("status") == "OK":
+                        ok += 1
+                    else:
+                        err_in_batch += 1
+            written += ok
+            errors += err_in_batch
+        except Exception as ex:
+            errors += len(batch)
+            log.debug("dir_entry upsert chunk failed: %s", ex)
+    return (written, errors)
+
+
+def _atomic_replace_for_root(root_label: str,
+                             entries: list[dict]) -> tuple[int, int]:
+    """Delete all directory_entry rows for this root_label, then
+    insert the fresh entries. Safer than UPDATE-by-path because
+    deleted files actually disappear from the index instead of
+    persisting as stale rows."""
+    # Delete by root_label first.
+    try:
+        _db_post_sync(
+            f"DELETE directory_entry "
+            f"WHERE root_label = {json.dumps(root_label)};"
+        )
+    except Exception as e:
+        log.debug("dir_entry root delete failed: %s", e)
+    return _upsert_directory_entries(entries)
+
+
+def _db_post_sync(sql: str) -> list:
+    """Synchronous SurrealDB POST -- mios-daemon doesn't run an
+    asyncio loop, so we use urllib for the index loop's DB writes.
+
+    Like agent-pipe's _db_post we PREFIX every query with
+    `USE NS mios DB agent;` because the NS:/DB: HTTP headers are
+    not honored on this SurrealDB version (returns
+    "NamespaceEmpty: Specify a namespace to use"). The USE
+    statement lands as the first statement; subsequent statements
+    run in that namespace. Returns the parsed response list or
+    raises on HTTP error. Errors-per-statement come back as
+    {"status":"ERR","result":"..."} entries; caller inspects."""
+    import urllib.request as _ur
+    body = f"USE NS mios DB agent; {sql}".encode("utf-8")
+    req = _ur.Request(
+        f"{os.environ.get('MIOS_DB_URL', 'http://localhost:8000')}/sql",
+        data=body,
+        headers={
+            # root:root base64 = "cm9vdDpyb290"
+            "Authorization": "Basic cm9vdDpyb290",
+            "Accept": "application/json",
+            "Content-Type": "text/plain",
+        },
+        method="POST",
+    )
+    with _ur.urlopen(req, timeout=15) as r:
+        return json.loads(r.read().decode("utf-8", errors="replace"))
+
+
+def index_loop() -> None:
+    """Tick the directory-map indexer. Reads [daemon.index] config
+    each tick so operators can re-tune cadence / roots without
+    restarting the daemon."""
+    time.sleep(60)  # boot delay; let surrealdb settle
+    while not _stop_event.is_set():
+        try:
+            cfg = _read_daemon_index_config()
+            if not cfg.get("enable", True):
+                _stop_event.wait(60)
+                continue
+            interval_s = int(cfg.get("interval_min", 15)) * 60
+            max_depth = int(cfg.get("max_depth", 6))
+            max_entries = int(cfg.get("max_entries", 50000))
+            summary_max_bytes = int(cfg.get("summary_max_bytes", 240))
+            roots = cfg.get("roots") or []
+            total_w = total_e = 0
+            cap = max_entries
+            for r in roots:
+                if not isinstance(r, dict):
+                    continue
+                label = str(r.get("label") or "")
+                path = str(r.get("path") or "")
+                if not label or not path:
+                    continue
+                rdepth = int(r.get("max_depth", max_depth))
+                excludes = r.get("excludes") or []
+                if cap <= 0:
+                    log.info("index: cap exhausted at root=%s", label)
+                    break
+                t0 = time.time()
+                entries = _walk_root(
+                    label, path, rdepth, excludes,
+                    summary_max_bytes, cap)
+                cap -= len(entries)
+                if not entries:
+                    log.info(
+                        "index: root=%s path=%s -> 0 entries "
+                        "(missing or empty)", label, path)
+                    continue
+                w, err = _atomic_replace_for_root(label, entries)
+                total_w += w
+                total_e += err
+                log.info(
+                    "index: root=%s wrote=%d err=%d in %.1fs",
+                    label, w, err, time.time() - t0)
+            _update_state("directory_index", {
+                "last_tick": datetime.datetime.now().isoformat(timespec="seconds"),
+                "written": total_w,
+                "errors": total_e,
+                "cap_remaining": cap,
+            })
+        except Exception as e:
+            log.warning("index_loop error: %s", e)
+        _stop_event.wait(interval_s if 'interval_s' in dir() else INDEX_DEFAULT_TICK_S)
+
+
 def satisfaction_loop() -> None:
     """Tick the satisfaction monitor. Best-effort -- DB hiccups
     swallow + the next tick retries; no infinite-error loops."""
@@ -1720,6 +2032,7 @@ def main() -> int:
         threading.Thread(target=task_collector_loop, daemon=True, name="task_collector"),
         threading.Thread(target=fs_watcher_loop, daemon=True, name="fs_watcher"),
         threading.Thread(target=satisfaction_loop, daemon=True, name="satisfaction"),
+        threading.Thread(target=index_loop, daemon=True, name="directory_index"),
     ]
     for t in threads:
         t.start()

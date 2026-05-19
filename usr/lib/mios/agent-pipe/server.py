@@ -520,6 +520,11 @@ _ROUTER_SYSTEM = (
     '          -- Query OWUI knowledge collections (RAG). Hits return\n'
     '             {score, source, snippet} for citation in the reply.\n'
     '             `collection` is a name or id; empty = search all.\n'
+    '  [READ ] directory_lookup(query, root?, ext?, kind?, limit=20)\n'
+    '          -- Sub-100ms filesystem search via mios-daemon\'s cached\n'
+    '             map. Hits return {path, kind, size, mtime, summary,\n'
+    '             root_label}. Use this FIRST for "where is foo" -\n'
+    '             cheaper than mios-find / everything_search.\n'
     '  [READ ] system_status()\n'
     '  [READ ] service_status(name)\n'
     '          -- systemctl is-active + status snapshot for a Linux service.\n'
@@ -2928,6 +2933,8 @@ _PLANNER_SYSTEM = (
     '  pkg_lookup(phrase)                        -- Personal KG alias -> app\n'
     '  knowledge_search(query, collection?, top_k=5)  -- OWUI RAG\n'
     '                                            -- hits: {score, source, snippet}\n'
+    '  directory_lookup(query, root?, ext?, kind?, limit=20)\n'
+    '                                            -- cached FS index via mios-daemon\n'
     "\n"
     "  ── PC input ──\n"
     '  pc_type(text) / pc_key(key) / pc_click(x, y, button="left"?)\n'
@@ -3631,6 +3638,24 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         cmd = f"mios-knowledge-search --json --top-k {top_k} {q}"
         if coll:
             cmd += f" --collection {shlex.quote(str(coll))}"
+        return cmd
+    if tool == "directory_lookup":
+        # Query the cached filesystem map mios-daemon maintains in
+        # SurrealDB's directory_entry table. Sub-100ms vs live
+        # mios-find / fs_search. Returns ranked hits with summary
+        # previews so polish can cite paths + content snippets.
+        q = shlex.quote(str(args.get("query", "")))
+        root = args.get("root") or ""
+        ext = args.get("ext") or ""
+        kind = args.get("kind") or ""
+        limit = int(args.get("limit", 20))
+        cmd = f"mios-directory-lookup --json --limit {limit} {q}"
+        if root:
+            cmd += f" --root {shlex.quote(str(root))}"
+        if ext:
+            cmd += f" --ext {shlex.quote(str(ext))}"
+        if kind:
+            cmd += f" --kind {shlex.quote(str(kind))}"
         return cmd
     if tool == "fs_search":
         q = shlex.quote(str(args.get("query", "")))

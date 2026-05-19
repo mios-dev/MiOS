@@ -721,6 +721,56 @@ agents = [
     "cron-director",
 ]
 
+# ----------------------------------------------------------------------------
+# [daemon.index] -- directory-map indexer in mios-daemon.
+# Walks the configured roots on `interval_min` cadence, upserts entries
+# into SurrealDB's directory_entry table. Agents query via the
+# `directory_lookup` verb (sub-100ms DB hit vs ~60ms+ live mios-find).
+# Each root has a label + filesystem path + optional include/exclude
+# globs. Summaries are extracted for text-shaped files (.md/.toml/
+# .yaml/.json/.txt) up to `summary_max_bytes`.
+# ----------------------------------------------------------------------------
+[daemon.index]
+enable           = true
+interval_min     = 15
+max_depth        = 6      # how deep to descend per root
+max_entries      = 50000  # safety cap across all roots
+summary_max_bytes = 240   # first N bytes of text files = summary
+
+# Each entry: label (operator-friendly tag), path (filesystem),
+# optional excludes (glob list -- skips matching basenames).
+[[daemon.index.roots]]
+label    = "mios-vendor"
+path     = "/usr/share/mios"
+excludes = ["__pycache__", "*.pyc"]
+
+[[daemon.index.roots]]
+label    = "mios-vendor-bin"
+path     = "/usr/libexec/mios"
+
+[[daemon.index.roots]]
+label    = "mios-config"
+path     = "/etc/mios"
+
+[[daemon.index.roots]]
+label    = "mios-state"
+path     = "/var/lib/mios"
+excludes = ["sessions", "vector_db", "models", "*.db", "*.db-*",
+            "__pycache__", "cache"]
+
+[[daemon.index.roots]]
+label    = "operator-home"
+path     = "/var/home"     # walks /var/home/$MIOS_USER and below
+excludes = [".cache", ".local/share/Trash", "node_modules",
+            ".git", "__pycache__"]
+
+[[daemon.index.roots]]
+label    = "windows-home"
+path     = "/mnt/c/Users"   # walks Windows user homes
+max_depth = 4               # shallow on Windows side
+excludes = ["AppData", ".cache", "node_modules", ".git",
+            "OneDrive*", "Cookies"]
+
 [skills]
 # Phase C.2 of the AgentOS roadmap: Sequential Pattern Mining + the
 # cross-agent skill catalog. The miner (mios-skills mine) scans

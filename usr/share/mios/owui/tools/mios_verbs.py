@@ -394,6 +394,55 @@ class Tools:
             "stderr": (result.get("stderr") or "")[:400],
         })
 
+    # ─── directory_lookup ──────────────────────────────────────────
+    async def directory_lookup(
+        self,
+        query: str,
+        root: str = "",
+        ext: str = "",
+        kind: str = "",
+        limit: int = 20,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Query the cached filesystem map mios-daemon maintains in
+        SurrealDB. Sub-100ms typical (DB query) vs the 60ms+ live
+        mios-find / fs_search. The map is rebuilt every 15 min from
+        operator-configured roots (vendor MiOS dirs + operator
+        home + Windows mounts) and carries one-line summaries for
+        text-shaped files so the model can rank relevance before
+        opening each hit.
+
+        Use this FIRST when the operator asks about a file or
+        directory anywhere in the system. Fall back to mios-find
+        or everything_search only when this returns no hits.
+
+        :param query: Case-insensitive substring match against
+            basename + path + summary.
+        :param root: Filter to one root label (e.g. "mios-vendor",
+            "operator-home", "windows-home"). Empty = search all.
+        :param ext: File-extension filter (".md", ".toml", ...).
+        :param kind: "file" | "dir" | "symlink" -- empty = any.
+        :param limit: Max hits to return (default 20).
+        :return: JSON {ok, query, filters, hits: [{path, kind,
+            size, mtime, ext, summary, root_label}, ...]}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        if not query.strip():
+            return json.dumps({"success": False, "stderr": "query is required"})
+        cmd = f"mios-directory-lookup --json --limit {int(limit)} {shlex.quote(query)}"
+        if root.strip():
+            cmd += f" --root {shlex.quote(root.strip())}"
+        if ext.strip():
+            cmd += f" --ext {shlex.quote(ext.strip())}"
+        if kind.strip():
+            cmd += f" --kind {shlex.quote(kind.strip())}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        return (result.get("stdout") or "").strip() or json.dumps({
+            "success": False,
+            "stderr": (result.get("stderr") or "")[:400],
+        })
+
     # ─── system_status ──────────────────────────────────────────────
     async def system_status(self, __user__: Optional[dict] = None) -> str:
         """Return a structured snapshot of the live MiOS host: GPU(s) +

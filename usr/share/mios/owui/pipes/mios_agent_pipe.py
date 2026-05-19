@@ -338,7 +338,7 @@ class Pipe:
 
     def __init__(self):
         self.valves = self.Valves()
-        self.name = "MiOS-Agent"
+        self.name = "MiOS AI"
         # Build the tool table once at init; pipe restart picks up
         # YAML edits.
         self._refine_system_rendered = self._render_refine_system()

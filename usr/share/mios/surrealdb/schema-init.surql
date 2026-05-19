@@ -129,6 +129,31 @@ DEFINE FIELD value             ON agent_metric TYPE float;
 DEFINE FIELD OVERWRITE labels ON agent_metric TYPE option<object> FLEXIBLE;
 DEFINE INDEX agent_metric_ts  ON agent_metric COLUMNS ts;
 
+-- directory_entry: cached map of filesystem trees the operator
+-- (or agents) navigate frequently. mios-daemon's index_loop walks
+-- the configured roots ([daemon].index_roots in mios.toml) on a
+-- 15-min cadence and upserts entries here. Agents query via the
+-- `directory_lookup` verb -- DB hit ~5ms vs the 60ms+ live
+-- mios-find / fs_search. The summary field carries a one-line
+-- preview for .md/.toml/.yaml/.json files so the agent can rank
+-- relevance without opening each file.
+DEFINE TABLE directory_entry SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD path             ON directory_entry TYPE string;
+DEFINE FIELD parent           ON directory_entry TYPE string;
+DEFINE FIELD basename         ON directory_entry TYPE string;
+DEFINE FIELD kind             ON directory_entry TYPE string;   -- file / dir / symlink
+DEFINE FIELD size             ON directory_entry TYPE int DEFAULT 0;
+DEFINE FIELD mtime            ON directory_entry TYPE datetime;
+DEFINE FIELD ext              ON directory_entry TYPE option<string>;
+DEFINE FIELD summary          ON directory_entry TYPE option<string>;
+DEFINE FIELD root_label       ON directory_entry TYPE string;   -- which [daemon].index_roots entry this came from
+DEFINE FIELD indexed_at       ON directory_entry TYPE datetime;
+DEFINE INDEX dir_entry_path   ON directory_entry COLUMNS path UNIQUE;
+DEFINE INDEX dir_entry_parent ON directory_entry COLUMNS parent;
+DEFINE INDEX dir_entry_base   ON directory_entry COLUMNS basename;
+DEFINE INDEX dir_entry_root   ON directory_entry COLUMNS root_label;
+DEFINE INDEX dir_entry_ext    ON directory_entry COLUMNS ext;
+
 -- DROPPED on operator directive (these belong in OWUI native):
 --   memory      -> OWUI memory table (chat-bound recall)
 --   doc         -> OWUI knowledge + file tables (RAG corpus)

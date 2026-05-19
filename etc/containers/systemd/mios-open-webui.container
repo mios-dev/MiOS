@@ -135,7 +135,7 @@ Environment=OLLAMA_BASE_URL=http://host.containers.internal:11434
 # MiOS AI/Agent". OWUI appends "(Open WebUI)" in some contexts (PWA
 # title) which we can't fully suppress without forking, but the
 # primary brand string is what we control here.
-Environment=WEBUI_NAME="MiOS Agent"
+Environment=WEBUI_NAME="MiOS AI"
 Environment=WEBUI_SECRET_KEY=mios-stable-secret-change-me
 Environment=ENABLE_SIGNUP=False
 Environment=DEFAULT_USER_ROLE=admin

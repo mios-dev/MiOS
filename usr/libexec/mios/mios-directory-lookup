@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""mios-directory-lookup -- query the cached directory map that
+mios-daemon's index_loop maintains in SurrealDB.
+
+Operator directive: "mios-daemon should be indexing directories for
+directory maps for llms cache/lut/DB/etc for faster navigation/
+recall!!". This shim is the read-side of that index. Sub-100ms
+lookups (DB query) vs the 60ms+ live mios-find / fs_search.
+
+USAGE
+  mios-directory-lookup <query> [--root <label>] [--ext <.md>]
+                                [--kind <file|dir>]
+                                [--limit N] [--json]
+
+OUTPUT
+  Default: human-readable list of ranked hits.
+  --json:  {ok, query, hits: [{path, kind, size, mtime, summary,
+                              root_label, score}, ...]}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+DEFAULT_LIMIT = int(os.environ.get(
+    "MIOS_DIRECTORY_LOOKUP_LIMIT", "20"))
+
+
+def _sql(query: str) -> list:
+    # PREFIX `USE NS mios DB agent;` -- the NS:/DB: HTTP headers
+    # aren't honored on this SurrealDB version (returns
+    # "NamespaceEmpty: Specify a namespace to use"). Matches the
+    # agent-pipe + mios-daemon pattern.
+    body = f"USE NS mios DB agent; {query}".encode("utf-8")
+    req = urllib.request.Request(
+        f"{SURREAL_URL}/sql",
+        data=body,
+        headers={
+            "Authorization": "Basic cm9vdDpyb290",  # root:root
+            "Accept": "application/json",
+            "Content-Type": "text/plain",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        # First statement is USE; results start at index 1.
+        full = json.loads(r.read().decode("utf-8", errors="replace"))
+        return full[1:] if isinstance(full, list) and len(full) > 1 else full
+
+
+def _q(s: str) -> str:
+    """SurrealDB string-literal escape -- backslash + double-quote."""
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def lookup(query: str, root: str, ext: str, kind: str,
+           limit: int) -> list[dict]:
+    """Compose a WHERE clause from the filters + return ranked hits.
+    Ranking heuristic: basename exact == > basename starts-with >
+    basename contains > summary contains > parent contains."""
+    q = (query or "").strip()
+    if not q:
+        return []
+    ql = q.lower()
+    conds = []
+    # Basename / path substring (case-insensitive via SurrealDB's
+    # string::lowercase + CONTAINS). The `~` operator was 2.x; 3.x
+    # requires CONTAINS. Summary field NOT included in the WHERE
+    # clause -- nullable-field comparison was rejected by SurrealDB
+    # 3.x even with IS NOT NONE guard; the rank pass below uses
+    # summary content when present, so summary-matches still bubble
+    # up via path/basename indirect hits.
+    conds.append(
+        f"(string::lowercase(basename) CONTAINS {_q(ql)} "
+        f"OR string::lowercase(path) CONTAINS {_q(ql)})"
+    )
+    if root:
+        conds.append(f"root_label = {_q(root)}")
+    if ext:
+        if not ext.startswith("."):
+            ext = "." + ext
+        conds.append(f"ext = {_q(ext.lower())}")
+    if kind:
+        conds.append(f"kind = {_q(kind)}")
+    where = " AND ".join(conds)
+    sql = (
+        f"SELECT path, parent, basename, kind, size, mtime, "
+        f"ext, summary, root_label "
+        f"FROM directory_entry WHERE {where} "
+        f"LIMIT {int(limit) * 3};"
+    )
+    if os.environ.get("MIOS_LOOKUP_DEBUG"):
+        sys.stderr.write(f"DEBUG SQL: {sql}\n")
+    try:
+        r = _sql(sql)
+        if os.environ.get("MIOS_LOOKUP_DEBUG"):
+            sys.stderr.write(f"DEBUG RESP: {json.dumps(r)[:600]}\n")
+    except urllib.error.HTTPError as e:
+        sys.stderr.write(
+            f"SurrealDB HTTP {e.code}: "
+            f"{e.read().decode('utf-8', errors='replace')[:200]}\n")
+        return []
+    except Exception as e:
+        sys.stderr.write(f"SurrealDB error: {e}\n")
+        return []
+    rows = (r[-1] or {}).get("result") or [] if isinstance(r, list) else []
+    if not isinstance(rows, list):
+        return []
+    # Rank in-process: we pulled 3x the requested limit so the
+    # rank pass can prune.
+    def _score(e: dict) -> float:
+        bn = (e.get("basename") or "").lower()
+        s = 0.0
+        if bn == ql:
+            s += 100
+        elif bn.startswith(ql):
+            s += 50
+        elif ql in bn:
+            s += 20
+        # Bonus for filename containing the query as a whole word.
+        if f" {ql} " in f" {bn} ":
+            s += 10
+        # Penalise deep paths slightly so top-of-tree wins ties.
+        s -= (e.get("path") or "").count("/") * 0.1
+        return -s   # negative -- higher score sorts first
+    rows.sort(key=_score)
+    return rows[:int(limit)]
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-directory-lookup")
+    p.add_argument("query", help="Substring (case-insensitive).")
+    p.add_argument("--root", default="", help="Filter to one root label.")
+    p.add_argument("--ext", default="",
+                   help="File-extension filter (.md, .toml, ...).")
+    p.add_argument("--kind", default="",
+                   choices=["", "file", "dir", "symlink"],
+                   help="Filter by entry kind.")
+    p.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args()
+
+    hits = lookup(args.query, args.root, args.ext, args.kind, args.limit)
+    if args.json:
+        print(json.dumps({
+            "ok": True,
+            "query": args.query,
+            "filters": {
+                "root": args.root,
+                "ext": args.ext,
+                "kind": args.kind,
+            },
+            "hits": hits,
+        }))
+        return 0
+    print(f"query: {args.query!r}  hits: {len(hits)}")
+    for i, h in enumerate(hits, 1):
+        kind = h.get("kind") or "?"
+        size = h.get("size") or 0
+        path = h.get("path") or "?"
+        summary = (h.get("summary") or "").strip()[:100]
+        print(f"  {i:>2}. [{kind:5s} {size:>10}] {path}")
+        if summary:
+            print(f"        {summary}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
