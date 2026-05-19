@@ -2697,6 +2697,17 @@ _PLANNER_SYSTEM = (
     "through to the backend sub-agent (Hermes / OpenCode / etc.) which\n"
     "has tool-calling + web access itself.\n"
     "\n"
+    "ReWOO-style forward refs: an arg can reference an upstream node's\n"
+    "stdout via `#E<node-id>`. The dispatcher substitutes the actual\n"
+    "output at execute time, so you don't have to know the runtime\n"
+    "value when planning. Example -- list games, pick winner, launch:\n"
+    '  {"id":"n1","tool":"mios_apps","args":{"filter":"games"},"deps":[]},\n'
+    '  {"id":"n2","tool":"web_search","args":{"query":"highest rated of: #En1"},"deps":["n1"]},\n'
+    '  {"id":"n3","tool":"open_app","args":{"name":"#En2"},"deps":["n2"]}\n'
+    "When emitting #E<id>, the id is the LITERAL id string of the\n"
+    "upstream node (e.g. #En1, #Ngames). Substitution is string-level;\n"
+    "the downstream verb's args see the upstream output inline.\n"
+    "\n"
     "Available verbs (use EXACT name + args shape -- the dispatcher\n"
     "rejects unknown verbs):\n"
     "\n"
@@ -2865,6 +2876,45 @@ def _topological_order(nodes: list[dict]) -> list[dict]:
     return out
 
 
+_EK_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)")
+
+
+def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
+    """ReWOO-style substitution: replace `#E<node-id>` tokens in arg
+    values with the captured stdout of the upstream node. Lets the
+    planner emit a forward-referencing arg ("launch this game: #En2")
+    that doesn't require knowing the runtime value at plan time.
+
+    Per the ReWOO paper (Xu et al. 2023): the planner emits #E1 / #E2
+    placeholders and the worker substitutes them with actual outputs
+    at execute time. Removes the per-step LLM re-plan that other
+    frameworks need.
+
+    Only handles string args (the common case for shell verbs).
+    Object / list args pass through unchanged."""
+    if not args:
+        return args
+    out: dict = {}
+    for k, v in args.items():
+        if isinstance(v, str) and "#E" in v:
+            def _sub(m: re.Match) -> str:
+                ref = m.group(1)
+                r = results_by_id.get(ref)
+                if not r:
+                    # Leave the token literal so the dispatch errors
+                    # visibly instead of silently substituting empty.
+                    return m.group(0)
+                # Prefer parsed output; fall back to raw stdout. Cap
+                # at 1024 chars so an upstream tool dumping a huge
+                # listing doesn't blow the downstream arg.
+                payload = r.get("output") or ""
+                return str(payload)[:1024]
+            out[k] = _EK_REF_RE.sub(_sub, v)
+        else:
+            out[k] = v
+    return out
+
+
 async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
     """Topologically execute the DAG nodes via the broker. Reflexion
     cap (default 2) retries failed nodes before marking dag-fail.
@@ -2872,11 +2922,19 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
     result is the standard tool_call shape from dispatch_mios_verb."""
     nodes = _topological_order(dag.get("nodes") or [])
     results: list[dict] = []
+    # ReWOO result map: node id -> result dict. Populated after each
+    # successful node dispatch + consumed by _substitute_ek_refs for
+    # downstream nodes that reference its output via #E<id>.
+    results_by_id: dict[str, dict] = {}
     all_ok = True
     for node in nodes:
         nid = str(node.get("id", "?"))
         tool = str(node.get("tool", "")).strip()
-        args = node.get("args") or {}
+        raw_args = node.get("args") or {}
+        # ReWOO substitution -- replace #E<id> tokens in args with
+        # upstream node outputs BEFORE the dispatch. No-op for nodes
+        # without forward refs.
+        args = _substitute_ek_refs(raw_args, results_by_id)
         attempt = 0
         last_result: dict = {}
         while attempt <= PLANNER_REFLEXION_CAP:
@@ -2895,6 +2953,10 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         node_result = dict(last_result)
         node_result["node_id"] = nid
         node_result["attempts"] = attempt + (1 if last_result.get("success") and attempt == 0 else 0)
+        # Capture for ReWOO: downstream nodes can reference #E<nid>
+        # in their args + this result's output gets substituted.
+        if last_result.get("success"):
+            results_by_id[nid] = node_result
         results.append(node_result)
         # SurrealDB tool_call row per node, linked to session.
         # Phase A.3: include taint state so the firewall + downstream
