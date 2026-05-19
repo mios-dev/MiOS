@@ -347,6 +347,81 @@ c.close()
 PYEOF
 fi
 
+# ─── Rename any stale duplicate model rows ──────────────────────
+# OWUI's pipe-function registration creates an auto-managed model
+# row under `<function_id>.<model_id>` (e.g. mios_agent.mios-agent)
+# alongside our explicit `mios-agent` model row. Both surface in
+# the model dropdown. When we rename one (PIPE_NAME / MODEL_NAME
+# above), we must rename the auto-managed twin OR the operator
+# sees both "MiOS-Agent" (old auto-row) AND "MiOS AI" (new
+# explicit row) in the dropdown.
+if [ -f "$OWUI_DB" ]; then
+    python3 - "$OWUI_DB" "$MODEL_NAME" "$MODEL_ID" "$PIPE_ID" <<'PYEOF'
+import sqlite3, sys
+db, target_name, model_id, pipe_id = sys.argv[1:5]
+c = sqlite3.connect(db)
+twin_id = f"{pipe_id}.{model_id}"
+n = c.execute(
+    "UPDATE model SET name = ? WHERE id = ? OR id = ?",
+    (target_name, model_id, twin_id),
+).rowcount
+c.commit()
+c.close()
+print(f"[mios-owui-install-pipe] ✓ aligned {n} model row(s) "
+      f"name -> {target_name!r}")
+PYEOF
+fi
+
+# ─── Force WEBUI_NAME into config.data.webui.name ────────────────
+# OWUI seeds the browser-tab title + top-left banner from
+# WEBUI_NAME env at first boot, but persists it into
+# config.data.webui.name where it then OVERRIDES the env on
+# subsequent boots. If the operator-visible banner still shows
+# the old name despite the Quadlet update, this is the DB row
+# we need to force.
+if [ -f "$OWUI_DB" ]; then
+    python3 - "$OWUI_DB" "$MODEL_NAME" <<'PYEOF'
+import json, sqlite3, sys
+db, target_name = sys.argv[1:3]
+c = sqlite3.connect(db)
+row = c.execute("SELECT data FROM config WHERE id=1").fetchone()
+if not row:
+    print("[mios-owui-install-pipe] no config row to update")
+    sys.exit(0)
+try:
+    d = json.loads(row[0])
+except Exception:
+    d = {}
+if not isinstance(d, dict):
+    d = {}
+ui = d.get("ui") or {}
+if not isinstance(ui, dict):
+    ui = {}
+webui = d.get("webui") or {}
+if not isinstance(webui, dict):
+    webui = {}
+changed = False
+# OWUI stores the banner / browser-title under different keys
+# depending on version; set all three so the right one lands.
+for cfg, key in ((ui, "name"), (webui, "name"), (d, "name")):
+    if cfg.get(key) != target_name:
+        cfg[key] = target_name
+        changed = True
+d["ui"] = ui
+d["webui"] = webui
+if changed:
+    c.execute("UPDATE config SET data = ? WHERE id = 1",
+              (json.dumps(d),))
+    c.commit()
+    print(f"[mios-owui-install-pipe] ✓ forced display name "
+          f"-> {target_name!r}")
+else:
+    print(f"[mios-owui-install-pipe] display name already "
+          f"{target_name!r}")
+c.close()
+PYEOF
+fi
+
 # ─── Memory feature ON by default for every user ─────────────────
 # OWUI's memory feature is per-user via settings.ui.memory = true.
 # Operator confirmed they want it ON by default for the MiOS-Agent

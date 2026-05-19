@@ -173,6 +173,29 @@ Environment=ENABLE_API_KEY=True
 # config table on first run if absent.
 Environment=ENABLE_API_KEY_ENDPOINT_RESTRICTIONS=False
 
+# ── RAG / Knowledge tuning ──────────────────────────────────────────
+# OWUI fires "Searching Knowledge for X / Querying / No sources
+# found" status events on EVERY chat turn when a model has an
+# attached knowledge collection -- pure noise when the prompt has
+# nothing to do with the indexed corpus. The events emit from core
+# middleware before any Filter can intercept; the only knobs are:
+#
+#   RAG_TOP_K (default 3)      -- how many chunks to retrieve
+#   RAG_RELEVANCE_THRESHOLD    -- min cosine score; below this,
+#                                 chunks are dropped from results
+#   ENABLE_RAG_HYBRID_SEARCH   -- BM25+embedding rerank vs embed-only
+#   ENABLE_RAG_WEB_LOADER      -- secondary URL-fetch pipeline
+#
+# Setting RELEVANCE_THRESHOLD=0.5 means a query has to be at least
+# moderately related to the indexed docs before any chunks return.
+# Doesn't remove the status events themselves (those fire pre-
+# embed), but a query that's clearly unrelated to MiOS docs will
+# at least produce "No sources found" cleanly + the agent won't
+# get noisy chunks injected into its context.
+Environment=RAG_TOP_K=5
+Environment=RAG_RELEVANCE_THRESHOLD=0.5
+Environment=ENABLE_RAG_HYBRID_SEARCH=True
+
 # ── Task / suggestion generation ────────────────────────────────────
 # Operator directive 2026-05-17: "suggested is not generated and
 # relevant and also updating via refinement". OWUI's task model
