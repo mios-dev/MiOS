@@ -2025,7 +2025,7 @@ class Pipe:
         # hardcoded english (other than generic technically accurate
         # terminologies)"). Tool/model names stay since they're
         # cross-locale identifiers; verbs like "receiving" -> emoji.
-        await self._emit(__event_emitter__, "📡 prompt")
+        await self._emit(__event_emitter__, "👂 listening")
 
         # ── SurrealDB session open ──────────────────────────────────
         # Open a session row for this OWUI turn; subsequent tool_call /

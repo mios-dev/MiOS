@@ -4828,12 +4828,30 @@ async def chat_completions(request: Request) -> Any:
             buf_body = dict(proxy_body)
             buf_body["stream"] = False
             raw = ""
+            # Long-wait keep-alive: Hermes can take 30-60s to fully
+            # resolve its tool loop. OWUI's aiohttp client sees the
+            # SSE stream go silent during that wait and aborts with
+            # ClientPayloadError / TransferEncodingError. Spawn the
+            # upstream call as a task + yield heartbeat status
+            # events every 8s while we wait, so the chunked encoding
+            # keeps receiving bytes.
+            upstream_task = asyncio.create_task(client.post(
+                f"{target_endpoint}/chat/completions",
+                content=json.dumps(buf_body).encode("utf-8"),
+                headers=headers,
+            ))
+            while not upstream_task.done():
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(upstream_task), timeout=8.0)
+                except asyncio.TimeoutError:
+                    yield _sse_status_phase(
+                        chat_id=chat_id, model=model,
+                        phase="agent_target")
+                except Exception:
+                    break
             try:
-                resp = await client.post(
-                    f"{target_endpoint}/chat/completions",
-                    content=json.dumps(buf_body).encode("utf-8"),
-                    headers=headers,
-                )
+                resp = upstream_task.result()
                 if resp.status_code == 200:
                     try:
                         backend_json = resp.json()
@@ -4852,8 +4870,25 @@ async def chat_completions(request: Request) -> Any:
             # prior turns from mios-daemon's 30s loop).
             await _inline_satisfaction_check(session_id, refined)
             if raw.strip():
-                polished = await polish_response(
-                    raw, refined, session_id=session_id)
+                # Same heartbeat wrap as the upstream call -- polish
+                # on the iGPU lane can take 5-15s; without keep-alive
+                # the SSE stream goes silent and OWUI aborts.
+                polish_task = asyncio.create_task(polish_response(
+                    raw, refined, session_id=session_id))
+                while not polish_task.done():
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(polish_task), timeout=8.0)
+                    except asyncio.TimeoutError:
+                        yield _sse_status_phase(
+                            chat_id=chat_id, model=model,
+                            phase="refine")
+                    except Exception:
+                        break
+                try:
+                    polished = polish_task.result()
+                except Exception:
+                    polished = None
                 raw_clean = _strip_think_tags(raw)
                 polished_clean = (
                     _strip_think_tags(polished) if polished else ""
@@ -4895,7 +4930,11 @@ async def chat_completions(request: Request) -> Any:
                 else:
                     wrapped = f"{preamble}{raw_clean}"
             else:
-                wrapped = ""
+                # Upstream returned nothing usable (HTTP error,
+                # truncated, etc.). Emit a brief warning marker so
+                # the operator gets visible feedback instead of an
+                # empty turn. Localised by glyph alone.
+                wrapped = "⚠️"
             yield _sse_chunk("", chat_id=chat_id, model=model,
                              role="assistant")
             yield _sse_chunk(wrapped, chat_id=chat_id, model=model)
