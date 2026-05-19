@@ -249,12 +249,12 @@ class Pipe:
             description="Emit status events (🧠 refine, 🧠 → hermes, 🛠️ tool, 🎨 polish, ✅). Symbol+term form, locale-neutral.",
         )
         EMIT_HERMES_TAIL: bool = Field(
-            default=True,
-            description="Live-poll /var/lib/mios/hermes-tail/latest.json and emit each new event during the stream.",
+            default=False,
+            description="Live-poll /var/lib/mios/hermes-tail/latest.json and emit each new event during the stream. DEFAULT FALSE: agent-pipe is the canonical orchestrator now and forwards Hermes's own mios_status events via SSE (with humanistic labels). Setting true ALSO emits literal 'tool: terminal' / 'tool: kanban_block' labels from the hermes-tail file, which clutters the strip + duplicates events. Set true ONLY when running OWUI without agent-pipe in front.",
         )
         COLLAPSE_NARRATION: bool = Field(
-            default=True,
-            description="Buffer per-line, wrap meta-speak in <think>...</think> (OWUI collapsible).",
+            default=False,
+            description="Buffer per-line, wrap meta-speak in <think>...</think> tags. DEFAULT FALSE: OWUI renders <think> as literal visible text (not a collapsible block); the actual collapsible the operator wants is <details type='reasoning'> which agent-pipe now emits centrally. Leaving this true ADDS visible <think>...</think> to the content. Set true ONLY when running OWUI without agent-pipe in front.",
         )
         TIMEOUT_S: int = Field(
             default=0,
@@ -2133,13 +2133,13 @@ class Pipe:
         if self.valves.BACKEND_KEY:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
-        # Generic "→ agent-pipe" label -- agent-pipe handles the
-        # actual sub-agent routing (Hermes/OpenCode/mios-daemon-agent
-        # /etc) via its [agents.*] registry, so this pipe doesn't
-        # know upstream which sub-agent will be picked. The pipe's
-        # _translate_mios_status() below renders agent-pipe's own
-        # 🤖 <target_agent> SSE markers as they arrive.
-        await self._emit(__event_emitter__, "🧠 → agent-pipe")
+        # Humanistic "got it" emission while we hand the prompt
+        # over to agent-pipe. agent-pipe will emit its own casual
+        # phase strip (📡 listening / ✨ thinking / 🧭 picking the
+        # right helper / 🤖 working on it) once it picks up the
+        # request -- this pipe just acknowledges receipt so the
+        # operator sees activity during the handoff latency.
+        await self._emit(__event_emitter__, "📨 got it")
         # Mark the dispatch moment so compose (after hermes finishes
         # streaming) can find the matching Hermes session JSON by
         # mtime > _dispatch_ts. Shared mutable scratch location:

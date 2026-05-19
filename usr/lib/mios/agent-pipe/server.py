@@ -4649,6 +4649,26 @@ async def chat_completions(request: Request) -> Any:
     # able to read the strip and tell exactly which sub-agent got
     # what plan.
     if streaming:
+        # OPERATOR-BINDING: ALL sub-agent output goes inside the
+        # <details type="reasoning"> dropdown; polished answer is
+        # main content; <think> tags are stripped. Pre-fix the
+        # backend stream pass-through forwarded Hermes's chunks
+        # verbatim, leaking raw stream-of-consciousness +
+        # <think>...</think> blocks as the visible reply.
+        #
+        # Strategy: keep upstream backend STREAMING (so we still
+        # see Hermes's real-time tool-call status events like
+        # "🛠️ tool: terminal"), but parse the SSE line-by-line:
+        #   - Forward any chunk that carries an `mios_status`
+        #     field (these are Hermes's own status events, the
+        #     OWUI strip should still show them in real time).
+        #   - BUFFER any chunk that carries `delta.content` --
+        #     don't forward; we'll re-emit the buffered text
+        #     wrapped + polished after the stream ends.
+        #   - Drop role: deltas (we'll emit our own at the end).
+        # When upstream emits `data: [DONE]` or the stream ends,
+        # run polish + strip + wrap on the buffered content + emit
+        # the wrapped form as ONE assistant content delta.
         async def _stream_backend() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="prompt")
@@ -4660,13 +4680,89 @@ async def chat_completions(request: Request) -> Any:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
             client = await _get_client()
-            async with client.stream(
-                "POST", f"{target_endpoint}/chat/completions",
-                content=proxy_bytes, headers=headers,
-            ) as r:
-                async for chunk in r.aiter_bytes():
-                    if chunk:
-                        yield chunk
+            buf_content: list[str] = []
+            try:
+                async with client.stream(
+                    "POST", f"{target_endpoint}/chat/completions",
+                    content=proxy_bytes, headers=headers,
+                ) as r:
+                    async for raw_line in r.aiter_lines():
+                        if not raw_line or not raw_line.startswith("data:"):
+                            continue
+                        data = raw_line[5:].lstrip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+                        # Forward status events untouched (Hermes's
+                        # own tool: terminal / etc. surface).
+                        if (isinstance(chunk, dict)
+                                and chunk.get("mios_status")):
+                            yield _sse_chunk(
+                                "", chat_id=chat_id, model=model,
+                                mios_status=chunk["mios_status"])
+                            continue
+                        # Buffer content deltas; drop role: deltas
+                        # (we emit our own role + finish_reason at
+                        # the end).
+                        choices = (chunk.get("choices") or []
+                                   if isinstance(chunk, dict) else [])
+                        for ch in choices:
+                            delta = ch.get("delta") or {}
+                            content_piece = delta.get("content")
+                            if content_piece:
+                                buf_content.append(str(content_piece))
+            except Exception as e:
+                log.warning("stream backend parse failed: %s", e)
+            raw = "".join(buf_content)
+            # Polish + wrap + strip discipline (same shape as the
+            # non-streaming branch below).
+            if raw.strip():
+                polished = await polish_response(
+                    raw, refined, session_id=session_id)
+                raw_clean = _strip_think_tags(raw)
+                polished_clean = (
+                    _strip_think_tags(polished) if polished else ""
+                )
+                preamble = ""
+                if (isinstance(refined, dict)
+                        and refined.get("_multi_task_queue")):
+                    preamble = _multi_task_preamble(
+                        refined["_multi_task_queue"],
+                        int(refined.get(
+                            "_multi_task_active_idx", 0)),
+                    )
+                if (polished_clean
+                        and polished_clean.strip()
+                        and polished_clean.strip()
+                        != raw_clean.strip()):
+                    main_content = polished_clean
+                else:
+                    # Polish no-op / failed -- main content is a
+                    # single emoji marker so the operator sees a
+                    # visible chip + can expand the dropdown for
+                    # the raw sub-agent text.
+                    main_content = "📋"
+                _dropdown_label = _casual_agent_label(target_name)
+                wrapped = (
+                    f"<details type=\"reasoning\">"
+                    f"<summary>🤖 {_dropdown_label}</summary>\n\n"
+                    f"{raw_clean}\n"
+                    f"</details>\n\n"
+                    f"{preamble}{main_content}"
+                )
+            else:
+                wrapped = "📋"
+            yield _sse_chunk("", chat_id=chat_id, model=model,
+                             role="assistant")
+            yield _sse_chunk(wrapped, chat_id=chat_id, model=model)
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="subagent_done", done=True)
+            yield _sse_chunk("", chat_id=chat_id, model=model,
+                             finish_reason="stop")
+            yield _sse_done()
         return StreamingResponse(_stream_backend(),
                                  media_type="text/event-stream")
     client = await _get_client()
