@@ -2878,15 +2878,31 @@ _PLANNER_SYSTEM = (
     "has tool-calling + web access itself.\n"
     "\n"
     "ReWOO-style forward refs: an arg can reference an upstream node's\n"
-    "stdout via `#E<node-id>`. The dispatcher substitutes the actual\n"
-    "output at execute time, so you don't have to know the runtime\n"
-    "value when planning. Example -- list games, pick winner, launch:\n"
+    "stdout via `#E<node-id>` or `#E<node-id>.<field>`. The dispatcher\n"
+    "substitutes the actual output at execute time, so you don't have\n"
+    "to know the runtime value when planning. Two ref forms:\n"
+    "\n"
+    "  #E<id>          smart-extract a single useful field from the\n"
+    "                  upstream output (handles JSON / NDJSON / plain\n"
+    "                  text; picks `name` / `launch` / `title` / `id`\n"
+    "                  / `path` in that order). Use when you don't\n"
+    "                  care which field, just want THE useful value.\n"
+    "\n"
+    "  #E<id>.<field>  extract a NAMED field from the upstream's JSON\n"
+    "                  output. PREFERRED when you know which field you\n"
+    "                  need -- avoids ambiguity if the model picks the\n"
+    "                  wrong default field.\n"
+    "\n"
+    "Example -- list games, pick winner, launch:\n"
     '  {"id":"n1","tool":"mios_apps","args":{"filter":"games"},"deps":[]},\n'
-    '  {"id":"n2","tool":"web_search","args":{"query":"highest rated of: #En1"},"deps":["n1"]},\n'
-    '  {"id":"n3","tool":"open_app","args":{"name":"#En2"},"deps":["n2"]}\n'
-    "When emitting #E<id>, the id is the LITERAL id string of the\n"
-    "upstream node (e.g. #En1, #Ngames). Substitution is string-level;\n"
-    "the downstream verb's args see the upstream output inline.\n"
+    '  {"id":"n2","tool":"web_search","args":{"query":"highest rated of: #En1.description"},"deps":["n1"]},\n'
+    '  {"id":"n3","tool":"open_app","args":{"name":"#En1.name"},"deps":["n1","n2"]}\n'
+    "\n"
+    "NEVER paste the raw `#E<id>` value into a launcher arg without\n"
+    "thought -- mios_apps returns NDJSON (one app per line), so a bare\n"
+    "#En1 in open_app(name=#En1) would substitute only the FIRST app's\n"
+    "`name` field. If you want a specific app, filter mios_apps tighter\n"
+    "first OR use #En1.<field> to pull the exact field you mean.\n"
     "\n"
     "Available verbs (use EXACT name + args shape -- the dispatcher\n"
     "rejects unknown verbs):\n"
@@ -3209,16 +3225,85 @@ async def reflect_on_step_failure(
 _EK_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)")
 
 
+_EK_FIELD_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)")
+
+
+def _smart_extract_from_jsonish(payload: str) -> str:
+    """Pull the most-useful single field out of a JSON-ish blob so a
+    ReWOO bare `#E<id>` ref doesn't paste the whole multi-line dump
+    into a downstream arg. Trace failure: mios_apps returns NDJSON
+    (one app per line). #En1 substituted the FULL stdout into
+    open_app(name=...), producing args like
+    `{"category":"linux-flatpak","name":"devel",...}\\n{"...":"..."}\\n`
+    which mios-launch can't resolve to anything.
+
+    Resolution order:
+      1. Single JSON object -> prefer `name`, then `launch`, then
+         `title`, then `id`, then `path`, then first string field.
+      2. NDJSON (one object per line) -> use the FIRST object's
+         best field via the same rule.
+      3. Not JSON -> return the first line, capped at 1024 chars
+         (matches the prior naive behavior for plain-text upstream)."""
+    s = (payload or "").strip()
+    if not s:
+        return ""
+    # Try a single JSON object first.
+    try:
+        obj = json.loads(s)
+        if isinstance(obj, dict):
+            for k in ("name", "launch", "title", "id", "path"):
+                v = obj.get(k)
+                if isinstance(v, str) and v.strip():
+                    return v.strip()[:1024]
+            for v in obj.values():
+                if isinstance(v, str) and v.strip():
+                    return v.strip()[:1024]
+        elif isinstance(obj, list) and obj:
+            first = obj[0]
+            if isinstance(first, str):
+                return first.strip()[:1024]
+            if isinstance(first, dict):
+                for k in ("name", "launch", "title", "id", "path"):
+                    v = first.get(k)
+                    if isinstance(v, str) and v.strip():
+                        return v.strip()[:1024]
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # NDJSON: try the first line.
+    first_line = s.splitlines()[0].strip()
+    if first_line.startswith("{") and first_line.endswith("}"):
+        try:
+            obj = json.loads(first_line)
+            if isinstance(obj, dict):
+                for k in ("name", "launch", "title", "id", "path"):
+                    v = obj.get(k)
+                    if isinstance(v, str) and v.strip():
+                        return v.strip()[:1024]
+        except (json.JSONDecodeError, ValueError):
+            pass
+    # Plain text fallback: first non-empty line, capped.
+    return first_line[:1024]
+
+
 def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
     """ReWOO-style substitution: replace `#E<node-id>` tokens in arg
-    values with the captured stdout of the upstream node. Lets the
-    planner emit a forward-referencing arg ("launch this game: #En2")
-    that doesn't require knowing the runtime value at plan time.
+    values with the captured stdout of the upstream node. Two forms
+    supported:
 
-    Per the ReWOO paper (Xu et al. 2023): the planner emits #E1 / #E2
-    placeholders and the worker substitutes them with actual outputs
-    at execute time. Removes the per-step LLM re-plan that other
-    frameworks need.
+      #E<id>            -> smart-extract a single useful field from
+                           the upstream output (handles JSON objects
+                           + NDJSON streams; falls back to first line
+                           for plain text). Caps at 1024 chars.
+      #E<id>.<field>    -> extract a NAMED field from the upstream
+                           JSON output. Use this when the planner
+                           knows which field it needs (e.g.,
+                           open_app(name='#En1.launch') to use the
+                           launch line from a mios_apps row).
+
+    Per ReWOO (Xu et al. 2023): the planner emits #E<id> placeholders
+    and the worker substitutes them with actual outputs at execute
+    time. Removes the per-step LLM re-plan that other frameworks
+    need.
 
     Only handles string args (the common case for shell verbs).
     Object / list args pass through unchanged."""
@@ -3227,19 +3312,41 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
     out: dict = {}
     for k, v in args.items():
         if isinstance(v, str) and "#E" in v:
-            def _sub(m: re.Match) -> str:
+            # Field-ref form #E<id>.<field> -- replace first since
+            # the bare-ref regex also matches.
+            def _sub_field(m: re.Match) -> str:
+                ref, field = m.group(1), m.group(2)
+                r = results_by_id.get(ref)
+                if not r:
+                    return m.group(0)
+                payload = r.get("output") or ""
+                try:
+                    obj = json.loads(payload)
+                except (json.JSONDecodeError, ValueError):
+                    # Try first line as JSON.
+                    first = (payload.strip().splitlines() or [""])[0]
+                    try:
+                        obj = json.loads(first)
+                    except (json.JSONDecodeError, ValueError):
+                        return m.group(0)
+                if isinstance(obj, list) and obj:
+                    obj = obj[0]
+                if isinstance(obj, dict):
+                    val = obj.get(field)
+                    if isinstance(val, str):
+                        return val[:1024]
+                return m.group(0)
+            v = _EK_FIELD_REF_RE.sub(_sub_field, v)
+            # Bare-ref form #E<id> -- now smart-extract instead of
+            # pasting the whole blob.
+            def _sub_bare(m: re.Match) -> str:
                 ref = m.group(1)
                 r = results_by_id.get(ref)
                 if not r:
-                    # Leave the token literal so the dispatch errors
-                    # visibly instead of silently substituting empty.
                     return m.group(0)
-                # Prefer parsed output; fall back to raw stdout. Cap
-                # at 1024 chars so an upstream tool dumping a huge
-                # listing doesn't blow the downstream arg.
                 payload = r.get("output") or ""
-                return str(payload)[:1024]
-            out[k] = _EK_REF_RE.sub(_sub, v)
+                return _smart_extract_from_jsonish(payload)
+            out[k] = _EK_REF_RE.sub(_sub_bare, v)
         else:
             out[k] = v
     return out

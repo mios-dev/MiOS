@@ -51,6 +51,41 @@ fi
 NAME="$1"
 shift
 
+# ─── 0. mios.toml [mios-find.aliases] role -> concrete app ───────────
+# Operator-binding SSOT: when the operator types a freedesktop role
+# name ("files", "web", "terminal", "editor"), translate it to the
+# concrete app id BEFORE the rest of the resolution chain runs.
+# mios-find consults this same table; mios-launch was missing it,
+# which is why launch_app("files") returned "no resolution for
+# 'files'" even though [mios-find.aliases].files="nautilus" was set.
+_alias_resolve() {
+    python3 - "$1" <<'PYEOF' 2>/dev/null
+import sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit(0)
+q = sys.argv[1].lower()
+for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(path, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    aliases = d.get("mios-find", {}).get("aliases", {})
+    if isinstance(aliases, dict):
+        v = aliases.get(q)
+        if isinstance(v, str) and v:
+            print(v)
+            sys.exit(0)
+PYEOF
+}
+_alias="$(_alias_resolve "$NAME")"
+if [ -n "$_alias" ] && [ "$_alias" != "$NAME" ]; then
+    echo "mios-launch: alias '$NAME' -> '$_alias'" >&2
+    NAME="$_alias"
+fi
+
 # ─── 1. Internal-service URL alias ───────────────────────────────────
 case "$NAME" in
     cockpit)    exec mios-open-url "http://localhost:9090" "$@" ;;
@@ -248,6 +283,73 @@ fi
 # ─── 6. Plain CLI ────────────────────────────────────────────────────
 if command -v "$NAME" >/dev/null 2>&1; then
     exec "$NAME" "$@"
+fi
+
+# ─── 7. Description-fallback via mios-apps inventory ─────────────────
+# Walk the full app inventory (mios-apps --json) and match against
+# the description / display-name (not just the app-id short). This
+# catches cases like "files" -> Nautilus.Devel (whose .desktop Name=
+# is "Files" but app-id-last-segment is "Devel"). Rank candidates
+# by category priority: linux-flatpak > linux-rpm-gui > linux-cli >
+# windows-app > windows-gui (Linux-native wins over WSL-interop).
+# The top match's `launch` field is exec'd via eval (the launch line
+# is a verb call like `mios-gui devel` or `mios-windows ps "..."`).
+_DESC_HIT="$(python3 - "$NAME" <<'PYEOF' 2>/dev/null
+import json, subprocess, sys
+q = sys.argv[1].lower().strip()
+if not q:
+    sys.exit(0)
+try:
+    raw = subprocess.run(["mios-apps", "--json"],
+                         capture_output=True, text=True,
+                         timeout=10).stdout
+except Exception:
+    sys.exit(0)
+# Lower priority = better. linux-flatpak first, then linux-rpm-gui,
+# then linux-cli, then windows-app, then windows-gui (interop is
+# the last-resort). Operator can rebind via mios.toml in a future
+# pass; for now this matches the operator's stated preference for
+# Linux-native apps.
+PRIORITY = {
+    "linux-flatpak": 0, "linux-rpm-gui": 1, "linux-cli": 2,
+    "windows-app": 3, "windows-gui": 4,
+}
+candidates = []
+for line in raw.splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        e = json.loads(line)
+    except (json.JSONDecodeError, ValueError):
+        continue
+    name = (e.get("name") or "").lower()
+    desc = (e.get("description") or "").lower()
+    cat = e.get("category") or ""
+    launch = e.get("launch") or ""
+    if not launch:
+        continue
+    # Match quality: 0=exact name, 1=name substring, 2=description substring.
+    # We sort by (category_priority, match_quality) so Linux-native
+    # wins over Windows even on exact-name matches. Operator-stated
+    # preference: prefer Linux flatpak / RPM > Windows app/gui.
+    if name == q:
+        candidates.append((PRIORITY.get(cat, 9), 0, e))
+    elif q in name:
+        candidates.append((PRIORITY.get(cat, 9), 1, e))
+    elif q in desc:
+        candidates.append((PRIORITY.get(cat, 9), 2, e))
+if not candidates:
+    sys.exit(0)
+candidates.sort(key=lambda t: (t[0], t[1]))
+print(candidates[0][2].get("launch", ""))
+PYEOF
+)"
+
+if [ -n "$_DESC_HIT" ]; then
+    echo "mios-launch: description-fallback -> $_DESC_HIT" >&2
+    # shellcheck disable=SC2086
+    eval exec $_DESC_HIT "$@"
 fi
 
 # ─── No resolution -- show candidates ────────────────────────────────
