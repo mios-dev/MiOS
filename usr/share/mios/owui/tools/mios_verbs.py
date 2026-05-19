@@ -345,6 +345,55 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
+    # ─── knowledge_search ──────────────────────────────────────────
+    async def knowledge_search(
+        self,
+        query: str,
+        collection: str = "",
+        top_k: int = 5,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Search OWUI's RAG knowledge collections for chunks
+        relevant to `query`. Use this when the operator references
+        prior conversations, the MiOS documentation, project notes,
+        or any context that lives in a knowledge collection. Hits
+        come back with {score, source, snippet} so the model can
+        cite the source in its reply.
+
+        Unlike OWUI's automatic pre-LLM RAG (which fires once per
+        turn against the user prompt verbatim), this verb lets the
+        agent issue ADDITIONAL queries with refined wording mid-
+        tool-loop -- so a multi-step reasoning chain can pull
+        targeted context after running other tools first (e.g.
+        list installed games via mios_apps, then knowledge_search
+        for the operator's prior notes about those games).
+
+        :param query: The natural-language query string. Embedded
+            via OWUI's configured embedding model.
+        :param collection: Collection name OR id to scope the
+            search. Empty = search all known collections.
+        :param top_k: Number of chunks to return (1-20, default 5).
+        :return: JSON string with {ok, query, collection,
+            collection_id, hits:[{score, source, snippet}, ...]}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        if not query.strip():
+            return json.dumps({"success": False, "stderr": "query is required"})
+        top_k = max(1, min(20, int(top_k)))
+        cmd = (f"mios-knowledge-search --json "
+               f"--top-k {top_k} "
+               f"{shlex.quote(query)}")
+        if collection.strip():
+            cmd += f" --collection {shlex.quote(collection.strip())}"
+        result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
+        # The shim already returns JSON on stdout; surface it
+        # verbatim so the model sees the typed hits array.
+        return (result.get("stdout") or "").strip() or json.dumps({
+            "success": False,
+            "stderr": (result.get("stderr") or "")[:400],
+        })
+
     # ─── system_status ──────────────────────────────────────────────
     async def system_status(self, __user__: Optional[dict] = None) -> str:
         """Return a structured snapshot of the live MiOS host: GPU(s) +

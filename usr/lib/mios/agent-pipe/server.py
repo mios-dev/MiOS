@@ -516,6 +516,10 @@ _ROUTER_SYSTEM = (
     '          -- Windows-side filesystem search via Voidtools Everything CLI.\n'
     '  [READ ] fs_search(query, limit=20, ext?, path?, type?)\n'
     '          -- Linux-side filesystem search (plocate -> locate -> find).\n'
+    '  [READ ] knowledge_search(query, collection?, top_k=5)\n'
+    '          -- Query OWUI knowledge collections (RAG). Hits return\n'
+    '             {score, source, snippet} for citation in the reply.\n'
+    '             `collection` is a name or id; empty = search all.\n'
     '  [READ ] system_status()\n'
     '  [READ ] service_status(name)\n'
     '          -- systemctl is-active + status snapshot for a Linux service.\n'
@@ -2899,6 +2903,8 @@ _PLANNER_SYSTEM = (
     '  everything_search(query, limit=10?, ext?) -- Windows FS search\n'
     '  fs_search(query, limit=20?, ext?, path?, type?)  -- Linux FS\n'
     '  pkg_lookup(phrase)                        -- Personal KG alias -> app\n'
+    '  knowledge_search(query, collection?, top_k=5)  -- OWUI RAG\n'
+    '                                            -- hits: {score, source, snippet}\n'
     "\n"
     "  ── PC input ──\n"
     '  pc_type(text) / pc_key(key) / pc_click(x, y, button="left"?)\n'
@@ -3486,6 +3492,18 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         cmd = f"mios-everything --json -n {n} {q}"
         if ext:
             cmd += f" -ext {shlex.quote(str(ext))}"
+        return cmd
+    if tool == "knowledge_search":
+        # Query OWUI's RAG knowledge collections from a sub-agent
+        # tool loop. --json returns {ok, query, collection,
+        # collection_id, hits:[{score, source, snippet}, ...]} so
+        # polish can surface source citations in the wrapped reply.
+        q = shlex.quote(str(args.get("query", "")))
+        coll = args.get("collection") or ""
+        top_k = int(args.get("top_k", 5))
+        cmd = f"mios-knowledge-search --json --top-k {top_k} {q}"
+        if coll:
+            cmd += f" --collection {shlex.quote(str(coll))}"
         return cmd
     if tool == "fs_search":
         q = shlex.quote(str(args.get("query", "")))

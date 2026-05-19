@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""mios-knowledge-search -- query OWUI's RAG knowledge collections
+from outside OWUI.
+
+Operator directive: "OWUI's RAG databases are in-the-loop for all
+agents globally and indexable for references". OWUI's pre-LLM
+call hits its knowledge collections automatically when a model
+has knowledge attached, but sub-agents (Hermes, opencode,
+mios-daemon-agent, ...) running INSIDE the agent-pipe -> sub-agent
+dispatch chain had no way to issue their own RAG queries -- so
+they couldn't fetch context mid-tool-loop.
+
+This shim wraps OWUI's /api/v1/retrieval/process/query endpoint
+(the same engine OWUI's own pre-LLM call uses) so any agent can:
+
+  - Search across all known collections (default).
+  - Scope to a specific collection by name or id.
+  - Receive ranked chunks WITH source metadata for citation in
+    the polished reply.
+
+USAGE
+  mios-knowledge-search <query> [--collection NAME_OR_ID]
+                                [--top-k N] [--threshold F]
+                                [--json]
+
+OUTPUT
+  Default: human-readable bullet list of top hits.
+  --json:  {ok, query, collection, hits: [{score, source, snippet}, ...]}
+
+EXIT CODES
+  0  query ran (any hits >= 0)
+  1  no collections matched / OWUI unreachable / auth missing
+  2  bad arguments
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sqlite3
+import sys
+import urllib.error
+import urllib.request
+
+OWUI_URL = os.environ.get("MIOS_OWUI_URL", "http://localhost:3030")
+OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
+DEFAULT_TOP_K = int(os.environ.get("MIOS_KNOWLEDGE_SEARCH_TOP_K", "5"))
+DEFAULT_THRESHOLD = float(
+    os.environ.get("MIOS_KNOWLEDGE_SEARCH_THRESHOLD", "0.0"))
+
+
+def _admin_token() -> str:
+    """Look up the admin api_key the install-pipe minted. Read-only
+    SQLite query; never mutates webui.db."""
+    if not os.path.isfile(OWUI_DB):
+        return ""
+    try:
+        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True)
+        cur = c.execute(
+            "SELECT a.key FROM api_key a "
+            "JOIN user u ON u.id = a.user_id "
+            "WHERE u.role = 'admin' "
+            "ORDER BY a.created_at DESC LIMIT 1;"
+        )
+        row = cur.fetchone()
+        c.close()
+        return row[0] if row else ""
+    except sqlite3.Error:
+        return ""
+
+
+def _list_collections() -> list[dict]:
+    """Read all knowledge collection rows from webui.db. Used to
+    resolve --collection by name to its id."""
+    if not os.path.isfile(OWUI_DB):
+        return []
+    try:
+        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True)
+        cur = c.execute(
+            "SELECT id, name, description FROM knowledge "
+            "ORDER BY created_at DESC;"
+        )
+        out = [
+            {"id": r[0], "name": r[1], "description": r[2] or ""}
+            for r in cur.fetchall()
+        ]
+        c.close()
+        return out
+    except sqlite3.Error:
+        return []
+
+
+def _resolve_collection(name_or_id: str) -> str:
+    """Resolve a user-provided collection name OR id to the canonical
+    id. Exact-id match wins; otherwise case-insensitive name match.
+    Empty input -> '' (caller iterates all collections)."""
+    name_or_id = (name_or_id or "").strip()
+    if not name_or_id:
+        return ""
+    cols = _list_collections()
+    for c in cols:
+        if c["id"] == name_or_id:
+            return c["id"]
+    for c in cols:
+        if c["name"].lower() == name_or_id.lower():
+            return c["id"]
+    # No match: return verbatim so the OWUI endpoint produces a
+    # clear "collection not found" error instead of silently using
+    # the wrong one.
+    return name_or_id
+
+
+def _query(token: str, collection_id: str, query: str,
+           top_k: int, threshold: float) -> dict:
+    """POST /api/v1/retrieval/query/collection. Returns the parsed
+    response dict or {"error": "..."}.
+
+    Endpoint shape verified by probe-owui-knowledge-api2.sh against
+    the running OWUI; earlier `/api/v1/retrieval/process/query`
+    returned 405 (path moved or never accepted POST on this version)."""
+    body = {
+        "collection_names": [collection_id] if collection_id else [],
+        "query": query,
+        "k": top_k,
+        "r": threshold,
+    }
+    req = urllib.request.Request(
+        f"{OWUI_URL}/api/v1/retrieval/query/collection",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read().decode("utf-8", errors="replace")
+            return json.loads(raw)
+    except urllib.error.HTTPError as e:
+        return {"error": f"http {e.code}",
+                "body": e.read().decode("utf-8", errors="replace")[:400]}
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _format_hits(resp: dict, limit: int) -> list[dict]:
+    """Normalise OWUI's response shape (different versions return
+    slightly different fields) into a flat list of {score, source,
+    snippet}. Best-effort -- unknown shapes return empty."""
+    hits: list[dict] = []
+    docs = resp.get("documents") or []
+    metas = resp.get("metadatas") or []
+    dists = resp.get("distances") or []
+    # OWUI nests one level deep when querying multiple collections.
+    if docs and isinstance(docs[0], list):
+        docs = docs[0]
+    if metas and isinstance(metas[0], list):
+        metas = metas[0]
+    if dists and isinstance(dists[0], list):
+        dists = dists[0]
+    for i, snippet in enumerate(docs[:limit]):
+        meta = metas[i] if i < len(metas) else {}
+        score = (1.0 - dists[i]) if i < len(dists) else None
+        hits.append({
+            "score": round(score, 3) if score is not None else None,
+            "source": (meta.get("source")
+                       or meta.get("name")
+                       or meta.get("file_id")
+                       or "(unknown)"),
+            "snippet": str(snippet).strip()[:400],
+        })
+    return hits
+
+
+def _print_human(query: str, collection: str, hits: list[dict]) -> None:
+    print(f"query: {query}")
+    print(f"collection: {collection or '(all)'}")
+    print(f"hits: {len(hits)}")
+    print()
+    if not hits:
+        print("(no matching chunks above threshold)")
+        return
+    for i, h in enumerate(hits, 1):
+        score = h.get("score")
+        src = h.get("source")
+        print(f"  {i}. [{score}] {src}")
+        for line in str(h.get("snippet", "")).splitlines()[:4]:
+            print(f"     {line}")
+        print()
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-knowledge-search")
+    p.add_argument("query", nargs="?", help="Search query string.")
+    p.add_argument("--collection", default="",
+                   help="Collection name or id to scope the search. "
+                        "Empty = search across all collections.")
+    p.add_argument("--top-k", type=int, default=DEFAULT_TOP_K,
+                   help=f"Number of chunks to return (default {DEFAULT_TOP_K}).")
+    p.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
+                   help="Min relevance score (default 0.0).")
+    p.add_argument("--json", action="store_true",
+                   help="Emit JSON instead of human-readable text.")
+    p.add_argument("--list-collections", action="store_true",
+                   help="List known knowledge collections + exit.")
+    args = p.parse_args()
+
+    if args.list_collections:
+        cols = _list_collections()
+        if args.json:
+            print(json.dumps({"collections": cols}, indent=2))
+        else:
+            if not cols:
+                print("(no collections)")
+            for c in cols:
+                print(f"  {c['id']}  {c['name']}")
+        return 0
+
+    if not args.query:
+        p.error("query is required (or --list-collections)")
+        return 2
+
+    token = _admin_token()
+    if not token:
+        envelope = {
+            "ok": False,
+            "error": "no_admin_api_key",
+            "hint": "run mios-owui-install-pipe to mint one",
+        }
+        if args.json:
+            print(json.dumps(envelope))
+        else:
+            print("ERROR: no admin api_key in webui.db", file=sys.stderr)
+        return 1
+
+    collection_id = _resolve_collection(args.collection)
+    resp = _query(token, collection_id, args.query,
+                  args.top_k, args.threshold)
+    if isinstance(resp, dict) and resp.get("error"):
+        envelope = {
+            "ok": False,
+            "query": args.query,
+            "collection": args.collection,
+            "error": resp["error"],
+            "detail": resp.get("body", "")[:400],
+        }
+        if args.json:
+            print(json.dumps(envelope))
+        else:
+            print(f"ERROR: {resp['error']}", file=sys.stderr)
+            if resp.get("body"):
+                print(resp["body"][:400], file=sys.stderr)
+        return 1
+    hits = _format_hits(resp, args.top_k)
+    if args.json:
+        print(json.dumps({
+            "ok": True,
+            "query": args.query,
+            "collection": args.collection,
+            "collection_id": collection_id,
+            "hits": hits,
+        }))
+    else:
+        _print_human(args.query, args.collection, hits)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
