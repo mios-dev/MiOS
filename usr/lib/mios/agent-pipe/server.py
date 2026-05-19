@@ -821,7 +821,23 @@ _REFINE_SYSTEM = (
     '        "target_agent":     "<role-matched sub-agent>",\n'
     '        "hint_tools":       ["..."],\n'
     '        "hint_skills":      ["..."],\n'
-    '        "priority":         1   // lower runs first; 1..N\n'
+    '        "priority":         1,  // lower runs first; 1..N\n'
+    '        "depends_on":       []  // task indices this one waits for;\n'
+    '                                //   empty = runs first / in parallel\n'
+    '      }, ...\n'
+    '    ],\n'
+    '    "tool_cards": [   // OPTIONAL but PREFERRED for intent in\n'
+    '                      //   {agent, dag, multi_task}. Per-step\n'
+    '                      //   guidance carried INTO the sub-agent\n'
+    '                      //   dispatch so it knows WHY each tool is\n'
+    '                      //   hinted + what success looks like. Lifts\n'
+    '                      //   the planning burden off the worker.\n'
+    '      {\n'
+    '        "tool":              "<verb-name or skill-name>",\n'
+    '        "args_hint":         {"key": "value", ...},\n'
+    '        "why":               "<one line: why THIS tool for THIS step>",\n'
+    '        "success_predicate": "<short check: how to know it worked>",\n'
+    '        "output_used_by":    [<idx-of-step-that-consumes-this>]\n'
     '      }, ...\n'
     '    ]\n'
     '  }\n'
@@ -868,6 +884,21 @@ _REFINE_SYSTEM = (
     "  imperatives joined by `and`/`also`/`then` is the multi_task tell.\n"
     "- multi_task MUST emit `tasks` with >= 2 entries. If you only\n"
     "  find one goal, use intent=agent or intent=dag instead.\n"
+    "- `tool_cards` rationale (ReWOO + MCP-style annotations): the\n"
+    "  worker agent (Hermes / OpenCode / daemon-agent) sees ONLY what\n"
+    "  you emit. If you list tools in hint_tools but the worker has\n"
+    "  no idea WHY each one was hinted, it'll re-derive the plan\n"
+    "  itself (slow + error-prone). Per-step `tool_cards` carry the\n"
+    "  WHY + the success predicate, so the worker just executes. For\n"
+    "  multi-step goals (3+ tool calls), emit tool_cards even when\n"
+    "  intent stays `agent` -- they're additive guidance, not a new\n"
+    "  intent class. Skip tool_cards for intent=chat or single-step\n"
+    "  dispatch (no value vs. cost).\n"
+    "- For dag: tool_cards' `output_used_by` lets the worker chain\n"
+    "  step outputs (e.g. step 0 lists games -> step 1 web_search\n"
+    "  ratings -> step 2 launches winner). Worker substitutes #E0,\n"
+    "  #E1 placeholders into args at execute time -- you don't have\n"
+    "  to know the runtime values.\n"
 )
 
 
@@ -1203,6 +1234,26 @@ def _format_tool_history(rows: list[dict]) -> str:
     return "\n".join(parts)
 
 
+_THINK_BLOCK_RE = re.compile(
+    r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+_THINK_UNCLOSED_RE = re.compile(
+    r"<think>.*$", re.DOTALL | re.IGNORECASE)
+
+
+def _strip_think_tags(text: str) -> str:
+    """Remove qwen3-style <think>...</think> reasoning blocks from
+    a string. Handles both well-formed pairs and the unclosed-tail
+    case (model ran out of token budget mid-think). qwen3 emits
+    these even with /no_think when the prompt context is too rich
+    for the suppressor; the model's internal reasoning is real but
+    we never want to surface it to the operator."""
+    if not text or "<think>" not in text.lower():
+        return text
+    cleaned = _THINK_BLOCK_RE.sub("", text)
+    cleaned = _THINK_UNCLOSED_RE.sub("", cleaned)
+    return cleaned.strip()
+
+
 async def polish_response(raw_text: str,
                           refined: Optional[dict],
                           session_id: Optional[str] = None) -> Optional[str]:
@@ -1319,6 +1370,35 @@ def _build_agent_hint(refined: dict, target_name: str) -> str:
         lines.append("hint_tools: " + ", ".join(str(t) for t in tools[:8]))
     if skills:
         lines.append("hint_skills: " + ", ".join(str(s) for s in skills[:8]))
+    # Per-step tool cards (ReWOO + MCP-style annotations). Carries
+    # the WHY + the success predicate INTO the sub-agent so it
+    # doesn't have to re-derive the plan. Cap at 8 cards so we
+    # stay under ~250 tokens total even for rich plans.
+    cards = refined.get("tool_cards") or []
+    if isinstance(cards, list) and cards:
+        lines.append("tool_cards:")
+        for i, c in enumerate(cards[:8]):
+            if not isinstance(c, dict):
+                continue
+            tool = str(c.get("tool") or "").strip()
+            why = str(c.get("why") or "").strip()[:160]
+            succ = str(c.get("success_predicate") or "").strip()[:160]
+            consumed = c.get("output_used_by") or []
+            args_hint = c.get("args_hint")
+            line = f"  - [{i}] tool={tool}"
+            if args_hint:
+                # Render compactly; sub-agent re-parses as JSON.
+                try:
+                    line += f" args={json.dumps(args_hint, separators=(',', ':'))[:200]}"
+                except (TypeError, ValueError):
+                    pass
+            if why:
+                line += f" why={why}"
+            if succ:
+                line += f" success={succ}"
+            if consumed:
+                line += f" output_used_by={consumed}"
+            lines.append(line)
     return "\n".join(lines)
 
 
@@ -4295,42 +4375,68 @@ async def chat_completions(request: Request) -> Any:
                 if raw.strip():
                     polished = await polish_response(
                         raw, refined, session_id=session_id)
-                    if polished and polished.strip() != raw.strip():
-                        # Multi-task: prepend the queue preamble so the
-                        # operator sees "started X; queued Y, Z" before
-                        # the polished answer for task #1.
-                        preamble = ""
-                        if (isinstance(refined, dict)
-                                and refined.get("_multi_task_queue")):
-                            preamble = _multi_task_preamble(
-                                refined["_multi_task_queue"],
-                                int(refined.get(
-                                    "_multi_task_active_idx", 0)),
-                            )
-                        # Render: collapsible "thoughts" with the raw
-                        # sub-agent output, then the polished answer
-                        # as the main visible content.
-                        wrapped = (
-                            f"<details type=\"reasoning\">"
-                            f"<summary>🤖 {target_name}</summary>\n\n"
-                            f"{raw}\n"
-                            f"</details>\n\n"
-                            f"{preamble}{polished}"
+                    # qwen3 reasoning models occasionally leak
+                    # <think>...</think> blocks past /no_think; strip
+                    # them from BOTH the dropdown content and the
+                    # polished main content so neither carries the
+                    # internal CoT through to the operator.
+                    raw_clean = _strip_think_tags(raw)
+                    polished_clean = (
+                        _strip_think_tags(polished) if polished else ""
+                    )
+                    # Multi-task: prepend the queue preamble so the
+                    # operator sees "started X; queued Y, Z" before
+                    # the polished answer for task #1.
+                    preamble = ""
+                    if (isinstance(refined, dict)
+                            and refined.get("_multi_task_queue")):
+                        preamble = _multi_task_preamble(
+                            refined["_multi_task_queue"],
+                            int(refined.get(
+                                "_multi_task_active_idx", 0)),
                         )
-                        msg["content"] = wrapped
-                        choices[0]["message"] = msg
-                        backend_json["choices"] = choices
-                        _db_fire(_db_post(_db_create("event", {
-                            "source": "mios-agent-pipe",
-                            "kind": "polish",
-                            "severity": "info",
-                            "summary": f"{target_name} polished",
-                            "payload": {
-                                "target_agent": target_name,
-                                "raw_len": len(raw),
-                                "polished_len": len(polished),
-                            },
-                        }, now_fields=("ts",))))
+                    # ALWAYS wrap raw sub-agent output in the
+                    # reasoning dropdown -- operator-binding:
+                    # "ALL chat returns from sub agents are in the
+                    # thinking drop downs and emits". If polish
+                    # produced a usable polished string, it becomes
+                    # the main visible content; otherwise we emit
+                    # JUST the wrapper + preamble so the raw never
+                    # bleeds through as the main answer.
+                    if (polished_clean
+                            and polished_clean.strip()
+                            and polished_clean.strip() != raw_clean.strip()):
+                        main_content = polished_clean
+                        polish_ok = True
+                    else:
+                        # Non-English fallback marker: single emoji
+                        # so the operator sees a visible chip and
+                        # can expand the dropdown for the raw text.
+                        main_content = "📋"
+                        polish_ok = False
+                    wrapped = (
+                        f"<details type=\"reasoning\">"
+                        f"<summary>🤖 {target_name}</summary>\n\n"
+                        f"{raw_clean}\n"
+                        f"</details>\n\n"
+                        f"{preamble}{main_content}"
+                    )
+                    msg["content"] = wrapped
+                    choices[0]["message"] = msg
+                    backend_json["choices"] = choices
+                    _db_fire(_db_post(_db_create("event", {
+                        "source": "mios-agent-pipe",
+                        "kind": "polish",
+                        "severity": "info" if polish_ok else "warn",
+                        "summary": f"{target_name} "
+                                   f"{'polished' if polish_ok else 'wrapped (polish no-op)'}",
+                        "payload": {
+                            "target_agent": target_name,
+                            "raw_len": len(raw),
+                            "polished_len": len(polished_clean),
+                            "polish_ok": polish_ok,
+                        },
+                    }, now_fields=("ts",))))
         return JSONResponse(content=backend_json, status_code=r.status_code)
     except httpx.HTTPError as e:
         log.warning("chat/completions backend proxy failed: %s", e)
