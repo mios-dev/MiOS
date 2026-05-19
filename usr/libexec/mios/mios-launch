@@ -294,7 +294,11 @@ fi
 # windows-app > windows-gui (Linux-native wins over WSL-interop).
 # The top match's `launch` field is exec'd via eval (the launch line
 # is a verb call like `mios-gui devel` or `mios-windows ps "..."`).
-_DESC_HIT="$(python3 - "$NAME" <<'PYEOF' 2>/dev/null
+# Returns one launch line per stdout line, ranked from best to
+# worst. Caller iterates: try each in order, fall through to the
+# next when one fails. Generalizes the browser fallback chain
+# (already in mios-open-url) to ALL launches.
+_DESC_CHAIN="$(python3 - "$NAME" <<'PYEOF' 2>/dev/null
 import json, subprocess, sys
 q = sys.argv[1].lower().strip()
 if not q:
@@ -305,11 +309,9 @@ try:
                          timeout=10).stdout
 except Exception:
     sys.exit(0)
-# Lower priority = better. linux-flatpak first, then linux-rpm-gui,
-# then linux-cli, then windows-app, then windows-gui (interop is
-# the last-resort). Operator can rebind via mios.toml in a future
-# pass; for now this matches the operator's stated preference for
-# Linux-native apps.
+# Lower priority = better. Linux-native wins over Windows interop
+# per operator binding. Operators rebind via mios.toml in a future
+# pass; for now this matches the stated preference order.
 PRIORITY = {
     "linux-flatpak": 0, "linux-rpm-gui": 1, "linux-cli": 2,
     "windows-app": 3, "windows-gui": 4,
@@ -330,26 +332,51 @@ for line in raw.splitlines():
     if not launch:
         continue
     # Match quality: 0=exact name, 1=name substring, 2=description substring.
-    # We sort by (category_priority, match_quality) so Linux-native
-    # wins over Windows even on exact-name matches. Operator-stated
-    # preference: prefer Linux flatpak / RPM > Windows app/gui.
+    # Sort by (category_priority, match_quality) so Linux-native
+    # wins over Windows even on exact-name matches.
     if name == q:
-        candidates.append((PRIORITY.get(cat, 9), 0, e))
+        candidates.append((PRIORITY.get(cat, 9), 0, launch))
     elif q in name:
-        candidates.append((PRIORITY.get(cat, 9), 1, e))
+        candidates.append((PRIORITY.get(cat, 9), 1, launch))
     elif q in desc:
-        candidates.append((PRIORITY.get(cat, 9), 2, e))
+        candidates.append((PRIORITY.get(cat, 9), 2, launch))
 if not candidates:
     sys.exit(0)
 candidates.sort(key=lambda t: (t[0], t[1]))
-print(candidates[0][2].get("launch", ""))
+# De-duplicate launch lines while preserving order.
+seen = set()
+for _, _, launch in candidates:
+    if launch in seen:
+        continue
+    seen.add(launch)
+    print(launch)
 PYEOF
 )"
 
-if [ -n "$_DESC_HIT" ]; then
-    echo "mios-launch: description-fallback -> $_DESC_HIT" >&2
-    # shellcheck disable=SC2086
-    eval exec $_DESC_HIT "$@"
+if [ -n "$_DESC_CHAIN" ]; then
+    # Iterate the chain: try each launch line; on failure, fall
+    # through to the next. WSL flatpak portal env-fd bug for the
+    # primary linux-flatpak entry (e.g. Nautilus.Devel) cascades
+    # to the next fallback (rpm-gui or windows-app) without the
+    # operator having to retry. Same pattern as mios-open-url's
+    # browser chain.
+    _i=0
+    while IFS= read -r _LAUNCH; do
+        [ -z "$_LAUNCH" ] && continue
+        _i=$((_i + 1))
+        echo "mios-launch: try $_i -> $_LAUNCH" >&2
+        # shellcheck disable=SC2086
+        eval $_LAUNCH "$@"
+        _rc=$?
+        if [ "$_rc" = "0" ]; then
+            exit 0
+        fi
+        echo "mios-launch: try $_i failed (rc=$_rc); next" >&2
+    done <<EOF
+$_DESC_CHAIN
+EOF
+    echo "mios-launch: all $_i candidates failed for '$NAME'" >&2
+    exit "${_rc:-1}"
 fi
 
 # ─── No resolution -- show candidates ────────────────────────────────
