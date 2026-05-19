@@ -1205,6 +1205,101 @@ _POLISH_SYSTEM = (
 )
 
 
+async def _inline_satisfaction_check(
+    session_id: Optional[str], refined: Optional[dict]
+) -> Optional[dict]:
+    """Run a synchronous AND-fold of THIS turn's tool_call outcomes
+    against the refine intent and emit a user_query_(un)satisfied
+    event for the current session. mios-daemon's async loop ticks
+    every 30s and only sees PRIOR turns; without this inline check,
+    polish never knows whether the current turn actually succeeded
+    and can't ground-truth the wrapped reply against it.
+
+    Returns the emitted verdict dict {kind, payload} or None when
+    the session has no tool_calls (intent=chat / refine bypass).
+    Best-effort: any DB hiccup returns None instead of failing
+    the turn."""
+    if not session_id or not isinstance(refined, dict):
+        return None
+    intent = str(refined.get("intent") or "").strip()
+    intended = str(refined.get("intended_outcome") or "")[:200]
+    # Fetch this turn's tool_calls (since the refine row was
+    # written). Use a generous 5-min lookback that comfortably
+    # covers a slow refine + sub-agent loop.
+    sql = (
+        f"SELECT tool, args, result_preview, success, "
+        f"exit_code, latency_ms FROM tool_call "
+        f"WHERE session = {session_id} "
+        f"  AND ts > time::now() - 5m "
+        f"ORDER BY ts ASC;"
+    )
+    try:
+        r = await _db_post(sql)
+    except Exception:
+        return None
+    if not r:
+        return None
+    rows = (r[-1] or {}).get("result") or []
+    if not isinstance(rows, list):
+        return None
+    # AND-fold (same logic shape as mios-daemon._emit_satisfaction
+    # but inline). For intent=chat no tools is expected = satisfied.
+    if not rows:
+        if intent == "chat":
+            verdict = {
+                "kind": "user_query_satisfied",
+                "reason": "chat_no_tools_expected",
+            }
+        else:
+            verdict = {
+                "kind": "user_query_unsatisfied",
+                "reason": "no_tools_seen",
+            }
+    else:
+        failed: list[dict] = []
+        for tc in rows:
+            if not bool(tc.get("success")):
+                failed.append({
+                    "tool": tc.get("tool"),
+                    "exit_code": tc.get("exit_code"),
+                    "stderr_preview": (
+                        tc.get("result_preview") or "")[:200],
+                })
+        if not failed:
+            verdict = {
+                "kind": "user_query_satisfied",
+                "tools_checked": len(rows),
+                "all_succeeded": True,
+            }
+        else:
+            verdict = {
+                "kind": "user_query_unsatisfied",
+                "tools_checked": len(rows),
+                "failed_tools": failed,
+            }
+    kind = verdict["kind"]
+    summary = f"{kind}: {intent or '?'} ({intended[:60]})"
+    body = {
+        "refine_intent": intent,
+        "intended_outcome": intended,
+        "source": "mios-agent-pipe-inline",
+        **verdict,
+    }
+    # Write synchronously so polish's subsequent query picks it
+    # up as the most-recent verdict for this session.
+    try:
+        await _db_post(_db_create("event", {
+            "source": "mios-agent-pipe",
+            "kind": kind,
+            "severity": "info" if kind == "user_query_satisfied" else "warn",
+            "summary": summary,
+            "payload": body,
+        }, now_fields=("ts",)))
+    except Exception:
+        pass
+    return {"kind": kind, "payload": body}
+
+
 async def _recent_satisfaction_verdicts(limit: int = 3) -> list[dict]:
     """Pull recent mios-daemon satisfaction verdicts (Phase E.1).
     These are post-hoc audit rows the daemon emits every ~30s based
@@ -4751,6 +4846,11 @@ async def chat_completions(request: Request) -> Any:
                         pass
             except Exception as e:
                 log.warning("buffered backend call failed: %s", e)
+            # Inline satisfaction check BEFORE polish so the polish
+            # prompt's recent-verdicts block sees THIS turn's
+            # verdict as authoritative (otherwise it only sees
+            # prior turns from mios-daemon's 30s loop).
+            await _inline_satisfaction_check(session_id, refined)
             if raw.strip():
                 polished = await polish_response(
                     raw, refined, session_id=session_id)
@@ -4849,6 +4949,9 @@ async def chat_completions(request: Request) -> Any:
                 log.info("polish-gate: raw_len=%d refined_outcome=%s",
                          len(raw),
                          (refined.get("intended_outcome") or "")[:60])
+                # Inline satisfaction check (same as the streaming
+                # branch above).
+                await _inline_satisfaction_check(session_id, refined)
                 if raw.strip():
                     polished = await polish_response(
                         raw, refined, session_id=session_id)
