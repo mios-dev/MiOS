@@ -65,13 +65,26 @@ _xcurs_path=$(_toml_get appearance.xcursor_path '~/.icons:~/.local/share/icons:/
 # (which can fail silently if the key doesn't exist).
 flatpak override --system --reset 2>/dev/null || true
 
-# Mount the theme/icon dirs the runtime extensions need. /usr/share/* is
-# REJECTED by flatpak (-> F: warnings); use xdg-data + xdg-config only.
-# --device=all + /dev/dxg + /dev/dri are needed for WSLg GPU access from
-# inside flatpak sandboxes -- without them, libEGL fails with
+# Mount the theme/icon dirs the runtime extensions need.
+#
+# IMPORTANT: the adw-gtk3-theme RPM installs adw-gtk3 + adw-gtk3-dark
+# into /usr/share/themes/. The flatpak runtime extensions (org.gtk.
+# Gtk3theme.adw-gtk3*) only provide the GTK3-side overlay; GTK4 +
+# libadwaita apps still read theme CSS from system /usr/share/themes
+# via their xdg-data lookup path. xdg-data/themes alone (which maps
+# to ~/.local/share/themes on the host) is EMPTY on a fresh deploy
+# and the operator never seeds it, so flatpaks fall back to the
+# Adwaita default + the operator sees the wrong theme.
+#
+# Previously we --nofilesystem=/usr/share/themes to silence "Path
+# /usr is reserved" warnings -- the cost was no theme access at all.
+# Better trade: include /usr/share/themes + /usr/share/icons +
+# /usr/share/fonts as ro mounts; live with the cosmetic warning.
+#
+# --device=all + /dev/dxg + /dev/dri are needed for WSLg GPU access
+# from inside flatpak sandboxes -- without them, libEGL fails with
 # "MESA: error: ZINK: failed to choose pdev" and WebKit silently
-# self-exits within seconds (operator-flagged 2026-05-16: Epiphany
-# launches but no window appears).
+# self-exits within seconds.
 flatpak override --system \
     --device=all \
     --env=GTK_USE_PORTAL=1 \
@@ -84,19 +97,15 @@ flatpak override --system \
     --filesystem=xdg-config/gtk-4.0:ro \
     --filesystem=xdg-data/themes:ro \
     --filesystem=xdg-data/icons:ro \
+    --filesystem=/usr/share/themes:ro \
+    --filesystem=/usr/share/icons:ro \
+    --filesystem=/usr/share/fonts:ro \
     --filesystem=/dev/dxg \
     --filesystem=/dev/dri
 
-# Defensive: negate any prior add of /usr/share/{themes,icons,fonts} so
-# flatpak stops printing "Path /usr is reserved" warnings on every
-# app launch.
-flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true
-flatpak override --system --nofilesystem=/usr/share/icons  2>/dev/null || true
-flatpak override --system --nofilesystem=/usr/share/fonts  2>/dev/null || true
-
 echo "mios-flatpak-overrides-apply: global flatpak override seeded"
 echo "  theme: GTK_THEME=$_gtk_theme  color=$_adw_color  cursor=$_curs_theme/$_curs_size"
-echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons}"
+echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons} + /usr/share/{themes,icons,fonts}"
 echo "  GTK_USE_PORTAL=1 (libadwaita color-scheme via xdg-portal)"
 
 # ─── Per-app overrides from mios.toml [flatpak.app_overrides] ────────
