@@ -899,6 +899,25 @@ _REFINE_SYSTEM = (
     "  ratings -> step 2 launches winner). Worker substitutes #E0,\n"
     "  #E1 placeholders into args at execute time -- you don't have\n"
     "  to know the runtime values.\n"
+    "\n"
+    "Length cue (CRITICAL): intent=chat is for SHORT conversational\n"
+    "inputs (~ <40 chars: 'hi', 'how are you', 'thanks'). intent=\n"
+    "dispatch is for SHORT verb invocations (~ <60 chars: 'open\n"
+    "chrome', 'launch steam', 'screenshot'). If the user_text is\n"
+    "LONG (>100 chars) it almost certainly describes a multi-step\n"
+    "goal -- pick intent=dag (or multi_task for unrelated parallel\n"
+    "goals) and decompose. A long-text intent=dispatch is almost\n"
+    "always wrong -- the args would have to carry a semantic\n"
+    "descriptor (e.g. 'the highest reviewed game I have installed')\n"
+    "which the launcher can't resolve to a real app.\n"
+    "\n"
+    "Arg-concreteness rule: when emitting intent=dispatch, every\n"
+    "args value MUST be a concrete identifier (app name, file\n"
+    "path, URL, fully-qualified id). NEVER a semantic phrase\n"
+    "('highest', 'best', 'the one with X', 'whichever is fastest').\n"
+    "If the right value can't be known without first running other\n"
+    "tools, pick intent=dag with the lookup as step 0 and the\n"
+    "dispatch as a downstream node using #E0 substitution.\n"
 )
 
 
@@ -1038,6 +1057,41 @@ async def refine_intent(user_text: str,
             )
             parsed["intent"] = "agent"
             parsed.pop("tasks", None)
+    # Long-prompt guard (language-agnostic): a real intent=chat /
+    # intent=dispatch input is short (greeting, single verb).
+    # When the user_text is >100 chars but the refine model still
+    # picked one of those shallow intents, it almost always missed
+    # multi-step structure. Promote to `agent` so the worker (or
+    # the planner DAG) decomposes properly. Operator-flagged trace:
+    # 134-char "find all games; research ratings; launch highest"
+    # was classified intent=dispatch with args="highest reviewed
+    # game" and the launcher picked Ubisoft as nearest substring.
+    _ut = (user_text or "").strip()
+    if (parsed.get("intent") in ("chat", "dispatch")
+            and len(_ut) > 100):
+        log.info(
+            "refine: %s promoted to agent (user_text=%d chars > 100)",
+            parsed["intent"], len(_ut))
+        parsed["intent"] = "agent"
+        parsed.pop("reply", None)
+    # Arg-shape guard: a dispatch arg value of >3 words is almost
+    # certainly a semantic descriptor (e.g. "highest reviewed
+    # game", "any browser will do"), not a concrete identifier the
+    # launcher can resolve. Promote to agent so the worker
+    # disambiguates with tool calls. Language-agnostic: counts
+    # whitespace-separated tokens.
+    if parsed.get("intent") == "dispatch":
+        _args = parsed.get("args") if isinstance(parsed.get("args"), dict) else {}
+        _wordy = False
+        for v in _args.values():
+            if isinstance(v, str) and len(v.strip().split()) > 3:
+                _wordy = True
+                break
+        if _wordy:
+            log.info(
+                "refine: dispatch promoted to agent "
+                "(arg value contained a multi-word semantic phrase)")
+            parsed["intent"] = "agent"
     # Best-effort event row.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
@@ -4651,24 +4705,20 @@ async def chat_completions(request: Request) -> Any:
     if streaming:
         # OPERATOR-BINDING: ALL sub-agent output goes inside the
         # <details type="reasoning"> dropdown; polished answer is
-        # main content; <think> tags are stripped. Pre-fix the
-        # backend stream pass-through forwarded Hermes's chunks
-        # verbatim, leaking raw stream-of-consciousness +
-        # <think>...</think> blocks as the visible reply.
+        # main content; <think> tags are stripped.
         #
-        # Strategy: keep upstream backend STREAMING (so we still
-        # see Hermes's real-time tool-call status events like
-        # "🛠️ tool: terminal"), but parse the SSE line-by-line:
-        #   - Forward any chunk that carries an `mios_status`
-        #     field (these are Hermes's own status events, the
-        #     OWUI strip should still show them in real time).
-        #   - BUFFER any chunk that carries `delta.content` --
-        #     don't forward; we'll re-emit the buffered text
-        #     wrapped + polished after the stream ends.
-        #   - Drop role: deltas (we'll emit our own at the end).
-        # When upstream emits `data: [DONE]` or the stream ends,
-        # run polish + strip + wrap on the buffered content + emit
-        # the wrapped form as ONE assistant content delta.
+        # Strategy: force upstream stream=false so we get the
+        # COMPLETE final message (Hermes's tool-loop fully resolved,
+        # tool_calls invoked + their results folded in, final
+        # message.content assembled). Then run polish/wrap/strip on
+        # that and emit ONE assistant content delta. We lose
+        # mid-tool-call streaming visibility but gain a COMPLETE
+        # final content -- the previous SSE-line parser dropped
+        # tool_call envelope deltas, leaving the content cut off
+        # mid-sentence ("using the standard Windows screenshot
+        # command:" with nothing after). Real-time status strip
+        # still streams (agent-pipe's own _sse_status_phase events
+        # below).
         async def _stream_backend() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="prompt")
@@ -4680,45 +4730,27 @@ async def chat_completions(request: Request) -> Any:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
             client = await _get_client()
-            buf_content: list[str] = []
+            buf_body = dict(proxy_body)
+            buf_body["stream"] = False
+            raw = ""
             try:
-                async with client.stream(
-                    "POST", f"{target_endpoint}/chat/completions",
-                    content=proxy_bytes, headers=headers,
-                ) as r:
-                    async for raw_line in r.aiter_lines():
-                        if not raw_line or not raw_line.startswith("data:"):
-                            continue
-                        data = raw_line[5:].lstrip()
-                        if data == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data)
-                        except (json.JSONDecodeError, ValueError):
-                            continue
-                        # Forward status events untouched (Hermes's
-                        # own tool: terminal / etc. surface).
-                        if (isinstance(chunk, dict)
-                                and chunk.get("mios_status")):
-                            yield _sse_chunk(
-                                "", chat_id=chat_id, model=model,
-                                mios_status=chunk["mios_status"])
-                            continue
-                        # Buffer content deltas; drop role: deltas
-                        # (we emit our own role + finish_reason at
-                        # the end).
-                        choices = (chunk.get("choices") or []
-                                   if isinstance(chunk, dict) else [])
-                        for ch in choices:
-                            delta = ch.get("delta") or {}
-                            content_piece = delta.get("content")
-                            if content_piece:
-                                buf_content.append(str(content_piece))
+                resp = await client.post(
+                    f"{target_endpoint}/chat/completions",
+                    content=json.dumps(buf_body).encode("utf-8"),
+                    headers=headers,
+                )
+                if resp.status_code == 200:
+                    try:
+                        backend_json = resp.json()
+                        ch = backend_json.get("choices") or []
+                        if ch:
+                            raw = str(
+                                (ch[0].get("message") or {}).get(
+                                    "content") or "")
+                    except (json.JSONDecodeError, ValueError):
+                        pass
             except Exception as e:
-                log.warning("stream backend parse failed: %s", e)
-            raw = "".join(buf_content)
-            # Polish + wrap + strip discipline (same shape as the
-            # non-streaming branch below).
+                log.warning("buffered backend call failed: %s", e)
             if raw.strip():
                 polished = await polish_response(
                     raw, refined, session_id=session_id)
@@ -4734,27 +4766,36 @@ async def chat_completions(request: Request) -> Any:
                         int(refined.get(
                             "_multi_task_active_idx", 0)),
                     )
+                # Polish fallback semantics:
+                #   * polish produced substantive output AND it
+                #     differs from raw  -> use polished as main;
+                #     keep dropdown for the raw "thinking".
+                #   * polish produced output that's basically the
+                #     raw (Hermes already terse, polish concluded
+                #     nothing to add) -> use the raw as main, SKIP
+                #     the dropdown (no double-rendering).
+                #   * polish returned empty / unusable -> use the
+                #     raw as main, no dropdown (same reasoning).
+                # The previous "📋" emoji fallback fired any time
+                # polish == raw and left the operator with a
+                # cryptic clipboard icon when the raw IS the right
+                # answer ("the screenshot tool hit a GDI+ error").
                 if (polished_clean
                         and polished_clean.strip()
                         and polished_clean.strip()
                         != raw_clean.strip()):
-                    main_content = polished_clean
+                    _dropdown_label = _casual_agent_label(target_name)
+                    wrapped = (
+                        f"<details type=\"reasoning\">"
+                        f"<summary>🤖 {_dropdown_label}</summary>\n\n"
+                        f"{raw_clean}\n"
+                        f"</details>\n\n"
+                        f"{preamble}{polished_clean}"
+                    )
                 else:
-                    # Polish no-op / failed -- main content is a
-                    # single emoji marker so the operator sees a
-                    # visible chip + can expand the dropdown for
-                    # the raw sub-agent text.
-                    main_content = "📋"
-                _dropdown_label = _casual_agent_label(target_name)
-                wrapped = (
-                    f"<details type=\"reasoning\">"
-                    f"<summary>🤖 {_dropdown_label}</summary>\n\n"
-                    f"{raw_clean}\n"
-                    f"</details>\n\n"
-                    f"{preamble}{main_content}"
-                )
+                    wrapped = f"{preamble}{raw_clean}"
             else:
-                wrapped = "📋"
+                wrapped = ""
             yield _sse_chunk("", chat_id=chat_id, model=model,
                              role="assistant")
             yield _sse_chunk(wrapped, chat_id=chat_id, model=model)
@@ -4831,33 +4872,29 @@ async def chat_completions(request: Request) -> Any:
                             int(refined.get(
                                 "_multi_task_active_idx", 0)),
                         )
-                    # ALWAYS wrap raw sub-agent output in the
-                    # reasoning dropdown -- operator-binding:
-                    # "ALL chat returns from sub agents are in the
-                    # thinking drop downs and emits". If polish
-                    # produced a usable polished string, it becomes
-                    # the main visible content; otherwise we emit
-                    # JUST the wrapper + preamble so the raw never
-                    # bleeds through as the main answer.
+                    # Polish fallback semantics (must match the
+                    # streaming branch above):
+                    #   * polish substantive AND differs from raw
+                    #     -> wrap raw in dropdown, polished as main
+                    #   * polish == raw / polish empty / no-op
+                    #     -> use raw as main, NO dropdown (the raw
+                    #     IS the user-facing answer; no value in
+                    #     rendering it twice or showing a 📋 chip).
                     if (polished_clean
                             and polished_clean.strip()
                             and polished_clean.strip() != raw_clean.strip()):
-                        main_content = polished_clean
+                        _dropdown_label = _casual_agent_label(target_name)
+                        wrapped = (
+                            f"<details type=\"reasoning\">"
+                            f"<summary>🤖 {_dropdown_label}</summary>\n\n"
+                            f"{raw_clean}\n"
+                            f"</details>\n\n"
+                            f"{preamble}{polished_clean}"
+                        )
                         polish_ok = True
                     else:
-                        # Non-English fallback marker: single emoji
-                        # so the operator sees a visible chip and
-                        # can expand the dropdown for the raw text.
-                        main_content = "📋"
+                        wrapped = f"{preamble}{raw_clean}"
                         polish_ok = False
-                    _dropdown_label = _casual_agent_label(target_name)
-                    wrapped = (
-                        f"<details type=\"reasoning\">"
-                        f"<summary>🤖 {_dropdown_label}</summary>\n\n"
-                        f"{raw_clean}\n"
-                        f"</details>\n\n"
-                        f"{preamble}{main_content}"
-                    )
                     msg["content"] = wrapped
                     choices[0]["message"] = msg
                     backend_json["choices"] = choices
