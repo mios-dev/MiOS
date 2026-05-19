@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+"""mios-suggestion-refresh -- generate MiOS-aware starter chips +
+write them into OWUI's ui.prompt_suggestions.
+
+OPERATOR DIRECTIVE
+  "I WANT MIOS STARTER QUERIES THAT REVOLVE/EVOLVE/ITERATE"
+
+OWUI's built-in ENABLE_SUGGESTION_GENERATION path produces generic
+chatbot prompts (and on this stack it wasn't producing them at all).
+This shim takes over: gathers MiOS state (system snapshot, recent
+kanban, daemon nudges, recent refine intents) and calls the small
+refine model with a tight prompt asking for 5 starter chips. The
+chips:
+
+  - Reflect what the operator just did / has queued
+  - Surface unfinished work (recent unsatisfied verdicts)
+  - Rotate over time as the source signals change
+  - Are localised by the model based on the input context
+    (no hardcoded English here)
+
+RUN AT
+  Periodic (every N min, default 10) via mios-daemon's loop, OR
+  manually after a state change. Idempotent: writes the new chip
+  list verbatim, no diff merge.
+
+OUTPUT
+  Updates webui.db's config row -> data.ui.prompt_suggestions
+  with the new chip array. Stdout = JSON envelope with the
+  chips + the metadata used to generate them (for debug).
+
+EXIT CODES
+  0  refreshed
+  1  refine model unavailable / OWUI DB missing / parse fail
+  2  bad arguments
+"""
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import sqlite3
+import sys
+import urllib.error
+import urllib.request
+
+OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
+REFINE_ENDPOINT = os.environ.get(
+    "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", "http://localhost:11435")
+REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3:1.7b")
+REFINE_TIMEOUT_S = int(os.environ.get(
+    "MIOS_SUGGESTION_TIMEOUT_S", "60"))
+NUM_CHIPS = int(os.environ.get("MIOS_SUGGESTION_COUNT", "5"))
+SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+
+
+def _read_file(path: str, cap: int = 4000) -> str:
+    try:
+        with open(path, "r", errors="replace") as f:
+            return f.read()[:cap]
+    except OSError:
+        return ""
+
+
+def _daemon_state() -> dict:
+    return _safe_json(_read_file("/var/lib/mios/daemon/state.json"))
+
+
+def _agent_nudges() -> str:
+    return _read_file("/var/lib/mios/scratch/agent-nudges.md", cap=2000)
+
+
+def _system_status() -> dict:
+    """Cheap snapshot of the running stack -- pulls from the daemon's
+    last state.json (fresh as of its last loop tick). Avoids invoking
+    the broker just for context-gathering."""
+    state = _daemon_state()
+    return {
+        "classify": state.get("classify") or {},
+        "launch_failures": state.get("launch_failures") or [],
+        "satisfaction": state.get("satisfaction") or {},
+    }
+
+
+def _recent_refine_intents(limit: int = 5) -> list[str]:
+    """Pull the last few refine summaries from SurrealDB. Used to
+    bias suggestions away from what the operator JUST asked (avoid
+    repetition) and toward complementary follow-ups."""
+    sql = (
+        f"SELECT summary FROM event "
+        f"WHERE kind = 'refine' "
+        f"ORDER BY ts DESC LIMIT {int(limit)};"
+    )
+    try:
+        req = urllib.request.Request(
+            f"{SURREAL_URL}/sql",
+            data=sql.encode("utf-8"),
+            headers={
+                "Authorization": "Basic cm9vdDpyb290",  # root:root b64
+                "NS": "mios", "DB": "agent",
+                "Accept": "application/json",
+                "Content-Type": "text/plain",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=4) as r:
+            body = json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception:
+        return []
+    if not isinstance(body, list) or not body:
+        return []
+    rows = (body[-1] or {}).get("result") or []
+    return [str(r.get("summary", "")) for r in rows if isinstance(r, dict)]
+
+
+def _safe_json(text: str) -> dict:
+    try:
+        d = json.loads(text)
+        return d if isinstance(d, dict) else {}
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def _build_prompt(num: int, status: dict, nudges: str,
+                  recent_intents: list[str]) -> str:
+    """Compose the prompt the refine model sees. Structure instructs
+    the SHAPE (count, JSON envelope, single-imperative-per-chip).
+    Content + locale come from the gathered context, so chips
+    revolve naturally as the context drifts."""
+    intents_block = (
+        "Recent operator queries (avoid repeating these verbatim, "
+        "but suggest natural follow-ups):\n  - "
+        + "\n  - ".join(recent_intents[:5])
+        if recent_intents else "No recent operator queries on record."
+    )
+    nudges_block = (
+        "Recent system nudges from mios-daemon:\n" + nudges
+        if nudges.strip() else "(no daemon nudges recorded)"
+    )
+    return (
+        "You generate starter-prompt chips for the operator's MiOS "
+        "chat interface. The operator just opened a new chat -- "
+        "produce SHORT, ACTIONABLE chips they might want to click.\n"
+        "\n"
+        "RULES:\n"
+        f"- Emit exactly {num} chips.\n"
+        "- Each chip is a single imperative phrase (4-10 words) "
+        "in the operator's language. Match the language of the "
+        "context blocks below.\n"
+        "- Ground in the CURRENT MiOS state below -- reference real "
+        "running services, real recent activity, real unfinished "
+        "tasks. NO generic 'help me write a poem' fluff.\n"
+        "- Avoid repeating the operator's recent queries verbatim; "
+        "suggest natural extensions or complements.\n"
+        "- Output JSON only: "
+        '{"chips":["chip 1","chip 2", ..., "chip N"]}\n'
+        "- No prose around the JSON.\n"
+        "\n"
+        "── Current MiOS state ──\n"
+        f"{json.dumps(status, indent=2)[:1500]}\n"
+        "\n"
+        "── Recent operator activity ──\n"
+        f"{intents_block}\n"
+        "\n"
+        "── Daemon nudges ──\n"
+        f"{nudges_block[:1500]}\n"
+        "\n"
+        "/no_think"
+    )
+
+
+def _ask_model(prompt: str) -> list[str]:
+    """Send the assembled prompt to the refine model + parse the
+    chip array out. Returns [] on any failure (caller keeps the
+    previous suggestions, so a transient model issue doesn't blank
+    the chip row)."""
+    payload = {
+        "model": REFINE_MODEL,
+        "messages": [
+            {"role": "system",
+             "content": "You emit JSON only. No prose around it."},
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.4,
+        "max_tokens": 800,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        f"{REFINE_ENDPOINT}/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=REFINE_TIMEOUT_S) as r:
+            body = json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception as e:
+        sys.stderr.write(f"  refine call failed: {e}\n")
+        return []
+    choices = body.get("choices") or []
+    if not choices:
+        return []
+    content = (
+        (choices[0].get("message") or {}).get("content") or ""
+    ).strip()
+    # Strip qwen3 <think> tails + code fences.
+    import re
+    content = re.sub(r"<think>.*?</think>\s*", "", content,
+                     flags=re.DOTALL | re.IGNORECASE)
+    content = re.sub(r"<think>.*$", "", content,
+                     flags=re.DOTALL | re.IGNORECASE)
+    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    try:
+        parsed = json.loads(content)
+    except (json.JSONDecodeError, ValueError):
+        sys.stderr.write(f"  unparseable model output: {content[:200]!r}\n")
+        return []
+    chips = parsed.get("chips") if isinstance(parsed, dict) else None
+    if not isinstance(chips, list):
+        return []
+    return [str(c).strip() for c in chips
+            if isinstance(c, str) and c.strip()]
+
+
+def _write_chips(chips: list[str]) -> None:
+    """Persist into webui.db's config row. OWUI reads ui.
+    prompt_suggestions on chat-open + renders the chip row from
+    the array verbatim. Each entry is wrapped as {title, content}
+    per OWUI's schema (title appears on the chip, content fills
+    the input on click; we use the same string for both so the
+    operator's click sends the chip text directly)."""
+    if not os.path.isfile(OWUI_DB):
+        sys.stderr.write(f"  no {OWUI_DB} -- OWUI not bootstrapped\n")
+        return
+    suggestions = [{"title": [c, ""], "content": c} for c in chips]
+    c = sqlite3.connect(OWUI_DB)
+    row = c.execute("SELECT data FROM config WHERE id=1").fetchone()
+    if row is None:
+        c.close()
+        sys.stderr.write("  no config row to update\n")
+        return
+    try:
+        data = json.loads(row[0])
+    except (json.JSONDecodeError, ValueError):
+        data = {}
+    ui = data.get("ui") or {}
+    ui["prompt_suggestions"] = suggestions
+    data["ui"] = ui
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    c.execute(
+        "UPDATE config SET data=?, updated_at=? WHERE id=1",
+        (json.dumps(data), now_iso),
+    )
+    c.commit()
+    c.close()
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-suggestion-refresh")
+    p.add_argument("--num", type=int, default=NUM_CHIPS,
+                   help=f"Number of chips to generate (default {NUM_CHIPS}).")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Print envelope but don't write to webui.db.")
+    args = p.parse_args()
+
+    status = _system_status()
+    nudges = _agent_nudges()
+    recent_intents = _recent_refine_intents(limit=5)
+    prompt = _build_prompt(args.num, status, nudges, recent_intents)
+    chips = _ask_model(prompt)
+    if not chips:
+        print(json.dumps({
+            "ok": False,
+            "error": "no_chips_from_model",
+            "recent_intents": recent_intents,
+        }))
+        return 1
+    if not args.dry_run:
+        _write_chips(chips)
+    print(json.dumps({
+        "ok": True,
+        "wrote": not args.dry_run,
+        "chips": chips,
+        "context_signals": {
+            "status_keys": sorted(status.keys()),
+            "nudges_chars": len(nudges),
+            "recent_intents": recent_intents,
+        },
+    }))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

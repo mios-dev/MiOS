@@ -1,0 +1,24 @@
+# /usr/lib/systemd/system/mios-suggestion-refresh.timer
+# Fires mios-suggestion-refresh.service every 10 minutes so the
+# OWUI starter chips revolve based on current MiOS state (recent
+# kanban, daemon nudges, recent refine intents). Operators tune
+# the cadence with:
+#   sudo systemctl edit mios-suggestion-refresh.timer
+#   [Timer]
+#   OnUnitActiveSec=30min
+
+[Unit]
+Description='MiOS' starter-chip refresh cadence
+Documentation=file:///usr/libexec/mios/mios-suggestion-refresh
+
+[Timer]
+# First refresh 2 min after boot so the chain has warmed up.
+OnBootSec=2min
+# Then every 10 min while running.
+OnUnitActiveSec=10min
+AccuracySec=1min
+Unit=mios-suggestion-refresh.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

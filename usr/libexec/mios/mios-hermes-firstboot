@@ -1458,6 +1458,16 @@ if [[ -f /usr/lib/systemd/system/mios-skills-miner.timer ]]; then
         _log "  WARN: mios-skills-miner.timer failed to enable/start"
     fi
 fi
+# Starter-chip refresh: generates MiOS-aware revolving chips for
+# OWUI's new-chat starter row, driven off recent operator state.
+# Fires on a 10-min cadence (operator-tunable via the timer drop-in).
+if [[ -f /usr/lib/systemd/system/mios-suggestion-refresh.timer ]]; then
+    if systemctl enable --now mios-suggestion-refresh.timer 2>/dev/null; then
+        _log "  enabled+started mios-suggestion-refresh.timer"
+    else
+        _log "  WARN: mios-suggestion-refresh.timer failed to enable/start"
+    fi
+fi
 
 if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
     # Best-effort: tailscale.exe can fail transiently at firstboot

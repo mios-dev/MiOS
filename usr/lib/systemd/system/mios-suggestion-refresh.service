@@ -1,0 +1,27 @@
+# /usr/lib/systemd/system/mios-suggestion-refresh.service
+# One-shot wrapper around /usr/libexec/mios/mios-suggestion-refresh.
+# Generates fresh MiOS-aware starter chips + writes them into
+# webui.db ui.prompt_suggestions. Fired by the matching .timer
+# on a 10-min cadence (operator-tunable). Safe to run any time;
+# on failure the previous chips remain in place.
+
+[Unit]
+Description='MiOS' starter-chip refresh (revolving suggestions)
+Documentation=file:///usr/libexec/mios/mios-suggestion-refresh
+# Don't run before agent-pipe / surrealdb / ollama are up -- the
+# shim queries SurrealDB for recent intents + hits the refine
+# endpoint, so depend on the chain being warm.
+After=mios-agent-pipe.service mios-surrealdb.service ollama.service
+Wants=mios-agent-pipe.service
+ConditionPathExists=/usr/libexec/mios/mios-suggestion-refresh
+ConditionPathExists=/var/lib/mios/open-webui/webui.db
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-suggestion-refresh
+# Soft-fail: a transient refine timeout shouldn't surface as a
+# failed unit on the dashboard.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
