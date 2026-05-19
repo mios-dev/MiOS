@@ -2996,8 +2996,24 @@ _PLANNER_SYSTEM = (
 async def decompose_intent(user_text: str) -> Optional[dict]:
     """Call the planner LLM to emit a DAG of dispatch verbs for a
     multi-step user intent. Returns the parsed dict, or None on
-    error / unparseable response."""
+    error / unparseable response.
+
+    Short-prompt skip: when the user text is short enough that it
+    almost certainly maps to a SINGLE dispatch verb ("open files",
+    "launch chrome", "screenshot", "system status"), refuse to
+    decompose -- return None so the chain falls through to the
+    backend single-dispatch path. The planner used to emit
+    over-engineered 2-step DAGs for these inputs (operator-flagged
+    trace: "files app—sorry—open it for me" became a mios_apps
+    then open_app pair, with #En1 substituting the whole NDJSON
+    blob into the launch arg). Cheap heuristic: <60 chars and
+    <=10 words is single-verb territory."""
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
+        return None
+    _ut = user_text.strip()
+    if len(_ut) < 60 and len(_ut.split()) <= 10:
+        log.info("planner: short-prompt skip (%d chars, %d words)",
+                 len(_ut), len(_ut.split()))
         return None
     payload = {
         "model": PLANNER_MODEL,

@@ -269,7 +269,11 @@ def _ask_model(prompt: str) -> list[str]:
         ],
         "response_format": {"type": "json_object"},
         "temperature": 0.4,
-        "max_tokens": 800,
+        # 1600 = comfortable room for qwen3's reasoning preamble
+        # (~600 tokens of CoT even with /no_think suppression) + the
+        # actual chips JSON (~200 tokens). Cold-start probe was
+        # truncating at 800 tokens with empty content.
+        "max_tokens": 1600,
         "stream": False,
     }
     req = urllib.request.Request(
@@ -287,9 +291,15 @@ def _ask_model(prompt: str) -> list[str]:
     choices = body.get("choices") or []
     if not choices:
         return []
-    content = (
-        (choices[0].get("message") or {}).get("content") or ""
-    ).strip()
+    msg = choices[0].get("message") or {}
+    content = str(msg.get("content") or "").strip()
+    # qwen3-family reasoning models sometimes burn the entire token
+    # budget in the `reasoning` field with empty `content` (operator-
+    # observed on a cold-restart probe). Fall back to reasoning when
+    # content is empty -- the chip extractor below strips <think>
+    # tags + code fences so either field's payload works.
+    if not content:
+        content = str(msg.get("reasoning") or "").strip()
     # Strip qwen3 <think> tails + code fences.
     import re
     content = re.sub(r"<think>.*?</think>\s*", "", content,
