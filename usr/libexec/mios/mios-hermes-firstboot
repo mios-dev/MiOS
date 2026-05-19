@@ -1404,9 +1404,46 @@ except Exception:
     print("false")
 ' 2>/dev/null || echo false)"
 if [[ "$_ttyd_enabled" == "true" ]]; then
+    # Read [identity].username from the SSOT mios.toml. The vendor
+    # ttyd unit ships `User=mios` as a convention placeholder, but
+    # on hosts where the operator chose a different username during
+    # install, the vendor value would target a non-existent account
+    # + ttyd would fail with "user does not exist". The drop-in
+    # below replaces single-value User=/Group= without modifying
+    # the vendor file. Read directly from toml so firstboot doesn't
+    # need EnvironmentFile= for userenv.sh.
+    _ttyd_user="$(python3 -c '
+import sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+try:
+    with open("/usr/share/mios/mios.toml","rb") as f:
+        d = tomllib.load(f)
+    u = (d.get("identity") or {}).get("username") or "mios"
+    print(u)
+except Exception:
+    print("mios")
+' 2>/dev/null || echo mios)"
+    _ttyd_group="$_ttyd_user"
+    for _ttyd_unit in mios-ttyd-bash mios-ttyd-powershell; do
+        _ttyd_dropdir="/etc/systemd/system/${_ttyd_unit}.service.d"
+        mkdir -p "$_ttyd_dropdir"
+        cat > "$_ttyd_dropdir/10-mios-user.conf" <<EOF
+# /etc/systemd/system/${_ttyd_unit}.service.d/10-mios-user.conf
+# Render-time override of the vendor User=/Group=. Source of truth:
+# [identity].username in /usr/share/mios/mios.toml (read by
+# mios-hermes-firstboot through userenv.sh \$MIOS_USER).
+[Service]
+User=${_ttyd_user}
+Group=${_ttyd_group}
+EOF
+    done
+    systemctl daemon-reload
     for _ttyd_unit in mios-ttyd-bash.service mios-ttyd-powershell.service; do
         if systemctl enable --now "$_ttyd_unit" 2>/dev/null; then
-            _log "  enabled+started $_ttyd_unit"
+            _log "  enabled+started $_ttyd_unit (User=$_ttyd_user)"
         else
             _log "  WARN: $_ttyd_unit failed to enable/start"
         fi
