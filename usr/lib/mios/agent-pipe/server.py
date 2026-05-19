@@ -3624,6 +3624,47 @@ def _sse_chunk(content: str, *, chat_id: str, model: str,
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
 
 
+# Phase keys -> humanistic casual labels for the SSE status strip.
+# MiOS is for non-technical users; the strip should read like the
+# system is THINKING and DOING, not like a debugger output. Model
+# names, timings, arg JSONs, intent labels stay in the SurrealDB
+# event payloads for debug -- they NEVER reach the visible strip.
+#
+# Add a phase key here when wiring a new emit site instead of
+# inlining label strings -- keeps the operator-visible voice
+# consistent across every dispatch path.
+_HUMAN_LABELS = {
+    "prompt":         ("📡", "listening"),
+    "refine":         ("✨", "thinking"),
+    "route":          ("🧭", "picking the right helper"),
+    "plan":           ("📋", "making a plan"),
+    "agent_target":   ("🤖", "working on it"),
+    "tool":           ("🛠️", "doing something"),
+    "tool_done":      ("✅", "done"),
+    "tool_done_warn": ("⚠️", "hit a snag"),
+    "chat":           ("💬", "replying"),
+    "chat_done":      ("✅", "ready"),
+    "dag_done":       ("✅", "done"),
+    "dag_done_warn":  ("⚠️", "finished with a hiccup"),
+    "reflect":        ("🤔", "rethinking that step"),
+    "subagent_done":  ("✅", "wrapped up"),
+}
+
+
+def _sse_status_phase(*, chat_id: str, model: str, phase: str,
+                      done: bool = False,
+                      detail: Optional[str] = None) -> bytes:
+    """Humanistic-label variant of _sse_status. Looks up the phase
+    in _HUMAN_LABELS, emits the casual label + emoji. `detail` is
+    optional and should ALSO be human-facing prose (e.g. "for 22
+    seconds", "almost there") -- NOT a model id / args JSON /
+    intent token. If you find yourself wanting to thread technical
+    info through here, log it to the event table instead."""
+    emoji, label = _HUMAN_LABELS.get(phase, ("·", phase))
+    return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
+                       label=label, done=done, detail=detail)
+
+
 def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
                 done: bool = False, detail: Optional[str] = None) -> bytes:
     """Emit a content-empty SSE chunk whose only purpose is the
@@ -3632,10 +3673,10 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
     info from `mios_status` and surface it natively (OWUI's
     event_emitter status, Hermes Discord's reactions, etc.).
 
-    `detail` rides alongside `label` so the operator can see WHAT
-    happened, not just THAT a phase fired. OWUI renders this as a
-    monospace suffix; capped at ~80 chars so the status line stays
-    one row."""
+    Prefer _sse_status_phase() for new emit sites -- it picks the
+    canonical humanistic label from _HUMAN_LABELS. This raw form
+    stays available for one-off cases where the phase mapping
+    doesn't fit."""
     payload = {"emoji": emoji, "label": label, "done": done}
     if detail:
         d = str(detail).strip()
@@ -4060,25 +4101,17 @@ async def chat_completions(request: Request) -> Any:
             and str(refined.get("reply") or "").strip()):
         reply = str(refined["reply"]).strip()
         log.info("refine short-circuit: chat reply (no router/backend)")
-        # Build detail strings so the operator sees what fired.
-        _ref_model = refined.get("_model", REFINE_MODEL)
-        _ref_elapsed = refined.get("_elapsed_s", "?")
-        _ref_detail = f"{_ref_model} {_ref_elapsed}s → intent=chat"
-        _reply_detail = f"{len(reply)} chars"
         if streaming:
             async def _stream_refine_chat() -> AsyncGenerator[bytes, None]:
-                yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="📡", label="prompt",
-                                  detail=f"{len(last_user_text)} chars")
-                yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="✨", label="refine",
-                                  detail=_ref_detail)
+                yield _sse_status_phase(chat_id=chat_id, model=model,
+                                        phase="prompt")
+                yield _sse_status_phase(chat_id=chat_id, model=model,
+                                        phase="refine")
                 yield _sse_chunk("", chat_id=chat_id, model=model,
                                  role="assistant")
                 yield _sse_chunk(reply, chat_id=chat_id, model=model)
-                yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="💬", label="chat",
-                                  detail=_reply_detail, done=True)
+                yield _sse_status_phase(chat_id=chat_id, model=model,
+                                        phase="chat_done", done=True)
                 yield _sse_chunk("", chat_id=chat_id, model=model,
                                  finish_reason="stop")
                 yield _sse_done()
@@ -4224,43 +4257,25 @@ async def chat_completions(request: Request) -> Any:
                     f"```json\n{json.dumps(envelope, indent=2, default=str)}\n```\n"
                     f"</details>"
                 )
-                # Detail strings: latency + tool args summary so the
-                # operator can read the strip and know exactly what
-                # ran. Args summary truncated to 60 chars to fit.
-                _route_detail = "dispatch (verb)"
-                try:
-                    _args_brief = json.dumps(
-                        args if isinstance(args, dict) else {},
-                        separators=(",", ":"))[:60]
-                except (TypeError, ValueError):
-                    _args_brief = "{...}"
-                _tool_detail = _args_brief
-                _result_detail = (
-                    f"{int(result.get('latency_ms', 0))}ms "
-                    f"exit={result.get('exit_code', '?')}"
-                )
                 if streaming:
                     async def _stream_dispatch() -> AsyncGenerator[bytes, None]:
-                        # Phase markers: prompt -> route -> tool -> done.
-                        # Translator gateways pull the emoji/label from
-                        # `mios_status` and surface natively (OWUI status
-                        # event_emitter, Discord reactions, etc.).
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="📡", label="prompt",
-                                          detail=f"{len(last_user_text)} chars")
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🧭", label="route",
-                                          detail=_route_detail)
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🛠️", label=tool,
-                                          detail=_tool_detail)
+                        # Phase markers: listening -> picking -> doing -> done.
+                        # Technical detail (tool args, exit codes, latencies)
+                        # lives in the SurrealDB event_log; the strip stays
+                        # readable for non-technical operators.
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="prompt")
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="route")
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="tool")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         yield _sse_chunk(rendered, chat_id=chat_id, model=model)
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="✅" if ok else "⚠️",
-                                          label=tool, detail=_result_detail,
-                                          done=True)
+                        yield _sse_status_phase(
+                            chat_id=chat_id, model=model,
+                            phase="tool_done" if ok else "tool_done_warn",
+                            done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -4283,22 +4298,17 @@ async def chat_completions(request: Request) -> Any:
         if action == "chat":
             reply = str(verdict.get("reply", "")).strip()
             if reply:
-                _chat_detail = f"router ({ROUTER_MODEL}) → chat"
-                _reply_detail = f"{len(reply)} chars"
                 if streaming:
                     async def _stream_chat() -> AsyncGenerator[bytes, None]:
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="📡", label="prompt",
-                                          detail=f"{len(last_user_text)} chars")
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🧭", label="route",
-                                          detail=_chat_detail)
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="prompt")
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="route")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         yield _sse_chunk(reply, chat_id=chat_id, model=model)
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="✅", label="chat",
-                                          detail=_reply_detail, done=True)
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="chat_done", done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -4326,12 +4336,12 @@ async def chat_completions(request: Request) -> Any:
             if dag and (dag.get("nodes") or []):
                 if streaming:
                     async def _stream_dag() -> AsyncGenerator[bytes, None]:
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="📡", label="prompt")
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🧭", label="route")
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="📋", label="plan")
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="prompt")
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="route")
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="plan")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         # Emit per-node markers + execute.
@@ -4346,15 +4356,9 @@ async def chat_completions(request: Request) -> Any:
                             raw_args = node.get("args") or {}
                             args = _substitute_ek_refs(
                                 raw_args, results_by_id)
-                            try:
-                                _args_brief = json.dumps(
-                                    args, separators=(",", ":"))[:60]
-                            except (TypeError, ValueError):
-                                _args_brief = "{...}"
-                            yield _sse_status(
+                            yield _sse_status_phase(
                                 chat_id=chat_id, model=model,
-                                emoji="🛠️", label=f"{nid}:{tool}",
-                                detail=_args_brief,
+                                phase="tool",
                             )
                             attempt = 0
                             last_result: dict = {}
@@ -4429,8 +4433,10 @@ async def chat_completions(request: Request) -> Any:
                             f"</details>"
                         )
                         yield _sse_chunk(rendered, chat_id=chat_id, model=model)
-                        yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji=symbol, label="dag", done=True)
+                        yield _sse_status_phase(
+                            chat_id=chat_id, model=model,
+                            phase="dag_done" if all_ok else "dag_done_warn",
+                            done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -4484,10 +4490,10 @@ async def chat_completions(request: Request) -> Any:
             nodes = _topological_order(dag.get("nodes") or [])
             if streaming:
                 async def _stream_dag2() -> AsyncGenerator[bytes, None]:
-                    yield _sse_status(chat_id=chat_id, model=model,
-                                      emoji="📡", label="prompt")
-                    yield _sse_status(chat_id=chat_id, model=model,
-                                      emoji="📋", label="plan")
+                    yield _sse_status_phase(chat_id=chat_id, model=model,
+                                            phase="prompt")
+                    yield _sse_status_phase(chat_id=chat_id, model=model,
+                                            phase="plan")
                     yield _sse_chunk("", chat_id=chat_id, model=model,
                                      role="assistant")
                     results: list[dict] = []
@@ -4496,9 +4502,9 @@ async def chat_completions(request: Request) -> Any:
                         nid = str(node.get("id", "?"))
                         tool = str(node.get("tool", "")).strip()
                         args = node.get("args") or {}
-                        yield _sse_status(
+                        yield _sse_status_phase(
                             chat_id=chat_id, model=model,
-                            emoji="🛠️", label=f"{nid}:{tool}",
+                            phase="tool",
                         )
                         attempt = 0
                         last_result: dict = {}
@@ -4554,8 +4560,10 @@ async def chat_completions(request: Request) -> Any:
                         f"</details>"
                     )
                     yield _sse_chunk(rendered, chat_id=chat_id, model=model)
-                    yield _sse_status(chat_id=chat_id, model=model,
-                                      emoji=symbol, label="dag", done=True)
+                    yield _sse_status_phase(
+                        chat_id=chat_id, model=model,
+                        phase="dag_done" if all_ok else "dag_done_warn",
+                        done=True)
                     yield _sse_chunk("", chat_id=chat_id, model=model,
                                      finish_reason="stop")
                     yield _sse_done()
@@ -4640,47 +4648,17 @@ async def chat_completions(request: Request) -> Any:
     # tool_cards count, multi_task queue length. Operator should be
     # able to read the strip and tell exactly which sub-agent got
     # what plan.
-    _prompt_detail = f"{len(last_user_text)} chars"
-    _ref_detail = ""
-    _route_detail = ""
-    _tgt_detail = ""
-    if refined:
-        _ref_model = refined.get("_model", REFINE_MODEL)
-        _ref_elapsed = refined.get("_elapsed_s", "?")
-        _ref_intent = refined.get("intent", "?")
-        _ref_detail = f"{_ref_model} {_ref_elapsed}s → intent={_ref_intent}"
-        _cards = refined.get("tool_cards") or []
-        _tasks = refined.get("_multi_task_queue") or []
-        _route_parts = [f"agent (intent={_ref_intent})"]
-        if _cards:
-            _route_parts.append(f"{len(_cards)} tool_card(s)")
-        if _tasks:
-            _route_parts.append(f"{len(_tasks)} task(s) queued")
-        _route_detail = " · ".join(_route_parts)
-    # Casual detail: role + endpoint (no literal sub-agent name in
-    # the UI strip; lives in the event payload).
-    _tgt_role = (target_cfg.get("role") or "general").lower()
-    _tgt_detail = (
-        f"role={_tgt_role} "
-        f"{target_endpoint}".replace("http://", "")
-                            .replace("https://", "")
-    )
-
     if streaming:
         async def _stream_backend() -> AsyncGenerator[bytes, None]:
-            yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="📡", label="prompt",
-                              detail=_prompt_detail)
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="prompt")
             if refined:
-                yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="✨", label="refine",
-                                  detail=_ref_detail)
-            yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="🧭", label="route",
-                              detail=_route_detail)
-            yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="🤖", label=target_label,
-                              detail=_tgt_detail)
+                yield _sse_status_phase(chat_id=chat_id, model=model,
+                                        phase="refine")
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="route")
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="agent_target")
             client = await _get_client()
             async with client.stream(
                 "POST", f"{target_endpoint}/chat/completions",
