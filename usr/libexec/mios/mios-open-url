@@ -57,58 +57,80 @@ case "$URL" in
         ;;
 esac
 
-# ─── Resolve the default browser from mios.toml ─────────────────────
-# Operator directive: the SoT is mios.toml. Read it.
-_resolve_default_browser() {
+# ─── Resolve the browser FALLBACK CHAIN from mios.toml ──────────────
+# SSOT: mios.toml [[desktop.apps]] entries with role="browser". The
+# default=true entry leads; the rest follow in declaration order.
+# Caller iterates the chain on launch failure -- when Epiphany hits
+# the WSLg portal env-fd error (operator-flagged trace 2026-05-18),
+# the next browser (ChromeDev, then Windows-side host) gets a shot.
+_resolve_browser_chain() {
     python3 - <<'PYEOF' 2>/dev/null
 import tomllib
+chain: list[str] = []
+seen: set[str] = set()
 for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     try:
         with open(path, "rb") as f:
             d = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
         continue
-    # Source 1: [[desktop.apps]] entry with role="browser" + default=true
+    # Pass 1: defaults first (preserve declaration order across files)
     apps = d.get("desktop", {}).get("apps", [])
     if isinstance(apps, list):
         for entry in apps:
-            if isinstance(entry, dict) and entry.get("role") == "browser" and entry.get("default"):
-                aid = entry.get("id")
-                if aid:
-                    print(aid)
-                    raise SystemExit(0)
-    # Source 2: [mios-find.aliases].web
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("role") != "browser":
+                continue
+            aid = entry.get("id")
+            if not aid or aid in seen:
+                continue
+            if entry.get("default"):
+                chain.append(aid)
+                seen.add(aid)
+        # Pass 2: non-defaults
+        for entry in apps:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("role") != "browser":
+                continue
+            aid = entry.get("id")
+            if not aid or aid in seen:
+                continue
+            chain.append(aid)
+            seen.add(aid)
+    # mios-find.aliases.web as tail fallback (legacy operator config)
     aliases = d.get("mios-find", {}).get("aliases", {})
     web = aliases.get("web") if isinstance(aliases, dict) else None
-    if isinstance(web, str) and web:
-        print(web)
-        raise SystemExit(0)
-# No source defines a default browser; print nothing -> caller errors.
+    if isinstance(web, str) and web and web not in seen:
+        chain.append(web)
+        seen.add(web)
+    if chain:
+        break  # earlier overlay wins (etc > usr/share)
+print("\n".join(chain))
 PYEOF
 }
 
 if [ -n "$OVERRIDE" ]; then
-    TARGET="$OVERRIDE"
+    CHAIN="$OVERRIDE"
 else
-    TARGET="$(_resolve_default_browser)"
-    if [ -z "$TARGET" ]; then
+    CHAIN="$(_resolve_browser_chain)"
+    if [ -z "$CHAIN" ]; then
         cat >&2 <<ERR
-mios-open-url: no default browser defined in mios.toml.
+mios-open-url: no browser defined in mios.toml.
 
 Set one by editing mios.html (or directly):
   /usr/share/mios/mios.toml      (vendor; immutable on bootc hosts)
   /etc/mios/mios.toml            (host override)
   ~/.config/mios/mios.toml       (per-user override)
 
-Either of:
+Add at least one:
   [[desktop.apps]]
   id      = "<your-browser-app-id>"
   role    = "browser"
-  default = true
-
-OR:
-  [mios-find.aliases]
-  web = "<your-browser-app-id>"
+  default = true     # leads the chain
+  # Additional role="browser" entries form the fallback chain
+  # in declaration order.
 
 After editing, re-run mios-open-url.
 ERR
@@ -116,48 +138,8 @@ ERR
     fi
 fi
 
-# Dispatch via mios-gui (which handles flatpak / RPM / shim
-# resolution + operator-session escape). Capture the launch result
-# instead of exec'ing so we can VERIFY the window appeared.
-#
-# Operator directive 2026-05-16: "MiOS-Hermes should reason
-# natively until it's confirmed it's provided the solutions/end
-# result". Process-alive (mios-gui's pgrep check) is insufficient
-# -- the agent has repeatedly claimed "Browser opened to URL" when
-# nothing visible appeared. Tooling-side verification + auto-retry
-# makes the success/failure signal land in the AGENT'S TOOL OUTPUT,
-# not in its self-reported text.
 set +e   # the verification path catches its own rcs; set -e here
-         # would propagate python json-parse failures as exit-1 and
-         # mask the real "summary=X" failure signal.
-
-mios-gui "$TARGET" "$URL"
-_launch_rc=$?
-
-# Derive MULTIPLE verifier patterns from the app id + its .desktop
-# Name= field. WSLg-hosted Linux app windows show the .desktop Name=
-# in MainWindowTitle (Epiphany's Name= is "Web", not "Epiphany"), so
-# a single-word pattern misses the window every time. Pass a CSV of
-# patterns; mios-window-active tries each.
-# Operator-flagged 2026-05-16: mios-window-active returned no-window
-# for Epiphany even when window was visibly open; root cause = title
-# match miss because pattern was "epiphany" but title was "Welcome to Web".
-_pattern_last="$(printf '%s' "$TARGET" | awk -F. "{print tolower(\$NF)}")"
-_pattern_desktop_name=""
-for _df in "/var/lib/flatpak/exports/share/applications/$TARGET.desktop" \
-           "/var/lib/flatpak/app/$TARGET/current/active/files/share/applications/$TARGET.desktop" \
-           "/usr/share/applications/$TARGET.desktop"; do
-    if [ -r "$_df" ]; then
-        _pattern_desktop_name=$(awk -F= '/^Name=/{print tolower($2); exit}' "$_df" 2>/dev/null)
-        [ -n "$_pattern_desktop_name" ] && break
-    fi
-done
-# CSV pattern list (mios-window-active iterates them, first match wins).
-if [ -n "$_pattern_desktop_name" ] && [ "$_pattern_desktop_name" != "$_pattern_last" ]; then
-    _verify_pattern="$_pattern_last,$_pattern_desktop_name"
-else
-    _verify_pattern="$_pattern_last"
-fi
+         # would propagate python json-parse failures as exit-1.
 
 _parse_summary() {
     printf '%s' "$1" | python3 -c "
@@ -170,53 +152,91 @@ except Exception:
 " 2>/dev/null || true
 }
 
-# First-pass verification: --present mode also restores/foregrounds
-# a minimized window before re-measuring, so summary is either
-# "presented" or a genuine non-recoverable state.
-_verify1=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
-_summary1=$(_parse_summary "$_verify1")
-
-if [ "$_summary1" = "presented" ]; then
-    echo "$_verify1"
-    exit 0
-fi
-
-# Not presented after launch+present. ONE auto-retry: launch again
-# (some flatpaks race-condition on first call after long idle).
-# When the first launch returned a non-zero rc (sandbox bootstrap
-# failed -- env-fd / dbus credentials / dxg sandbox-reject), heal
-# the user-side portal stack BEFORE the second attempt. mios-wsl-
-# flatpak-heal restarts dbus-broker, xdg-desktop-portal, xdg-
-# document-portal, and flatpak-portal in the operator's user
-# session, which clears the stale FDs that caused the first call's
-# "--env-fd: Not an open file descriptor" failure.
-echo "[mios-open-url] first attempt summary=${_summary1:-<empty>}; retrying once..." >&2
-if [ "$_launch_rc" -ne 0 ] && command -v mios-wsl-flatpak-heal >/dev/null 2>&1; then
-    echo "[mios-open-url] launch_rc=$_launch_rc; running wsl-flatpak-heal pre-retry" >&2
-    # Run heal in the operator's user-systemd context. mios-gui
-    # already runs as the operator; reuse the same dispatch path.
-    if [ -n "${SUDO_USER:-}" ] && [ "$(id -un)" != "$SUDO_USER" ]; then
-        su - "$SUDO_USER" -c "mios-wsl-flatpak-heal" >/dev/null 2>&1 || true
+_derive_verify_pattern() {
+    local target="$1"
+    local _pattern_last="$(printf '%s' "$target" | awk -F. "{print tolower(\$NF)}")"
+    local _pattern_desktop_name=""
+    for _df in "/var/lib/flatpak/exports/share/applications/$target.desktop" \
+               "/var/lib/flatpak/app/$target/current/active/files/share/applications/$target.desktop" \
+               "/usr/share/applications/$target.desktop"; do
+        if [ -r "$_df" ]; then
+            _pattern_desktop_name=$(awk -F= '/^Name=/{print tolower($2); exit}' "$_df" 2>/dev/null)
+            [ -n "$_pattern_desktop_name" ] && break
+        fi
+    done
+    if [ -n "$_pattern_desktop_name" ] && [ "$_pattern_desktop_name" != "$_pattern_last" ]; then
+        printf '%s,%s' "$_pattern_last" "$_pattern_desktop_name"
     else
-        mios-wsl-flatpak-heal >/dev/null 2>&1 || true
+        printf '%s' "$_pattern_last"
     fi
-fi
-sleep 1
-mios-gui "$TARGET" "$URL" >/dev/null 2>&1 || true
-sleep 2
-_verify2=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
-_summary2=$(_parse_summary "$_verify2")
+}
 
-echo "$_verify2"
-echo "[mios-open-url] FINAL summary=${_summary2:-<empty>} launch_rc=$_launch_rc target=$TARGET pattern=$_verify_pattern" >&2
+# Iterate the fallback chain. First browser that lands a presented
+# window wins. Each attempt: launch -> wait -> verify presented.
+# Heal-on-failure once after the FIRST flatpak failure (covers the
+# stale portal env-fd / dbus credentials case); subsequent chain
+# entries get their own launch attempt without re-healing.
+_HEAL_ATTEMPTED=0
+_LAST_VERIFY=""
+_LAST_SUMMARY=""
+_LAST_TARGET=""
+_LAST_RC=0
+while IFS= read -r TARGET; do
+    [ -z "$TARGET" ] && continue
+    echo "[mios-open-url] trying browser: $TARGET" >&2
+    _verify_pattern="$(_derive_verify_pattern "$TARGET")"
 
-if [ "$_summary2" = "presented" ]; then
-    exit 0
-fi
+    mios-gui "$TARGET" "$URL"
+    _launch_rc=$?
 
-# Still not presented -> exit non-zero so the agent's terminal tool
-# sees a failure signal it can't paraphrase as success. Operator
-# directive ("reason natively until confirmed") -- the agent now
-# has to act on the actual failure mode (summary tells it which:
-# not-running / no-window / hidden / off-screen).
+    _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
+    _summary=$(_parse_summary "$_verify")
+    _LAST_VERIFY="$_verify"
+    _LAST_SUMMARY="$_summary"
+    _LAST_TARGET="$TARGET"
+    _LAST_RC="$_launch_rc"
+
+    if [ "$_summary" = "presented" ]; then
+        echo "$_verify"
+        echo "[mios-open-url] OK target=$TARGET pattern=$_verify_pattern" >&2
+        exit 0
+    fi
+
+    echo "[mios-open-url] $TARGET summary=${_summary:-<empty>} launch_rc=$_launch_rc" >&2
+
+    # First-failure heal: when launch_rc != 0 (sandbox bootstrap
+    # broke), restart the user-side portal stack ONCE before
+    # continuing the chain. Subsequent attempts on different
+    # browsers don't re-heal (one heal per turn).
+    if [ "$_HEAL_ATTEMPTED" = "0" ] \
+       && [ "$_launch_rc" -ne 0 ] \
+       && command -v mios-wsl-flatpak-heal >/dev/null 2>&1; then
+        echo "[mios-open-url] launch_rc=$_launch_rc; running wsl-flatpak-heal" >&2
+        if [ -n "${SUDO_USER:-}" ] && [ "$(id -un)" != "$SUDO_USER" ]; then
+            su - "$SUDO_USER" -c "mios-wsl-flatpak-heal" >/dev/null 2>&1 || true
+        else
+            mios-wsl-flatpak-heal >/dev/null 2>&1 || true
+        fi
+        _HEAL_ATTEMPTED=1
+        # Re-try the SAME browser one more time after heal before
+        # moving down the chain (give the heal a chance on the
+        # operator's preferred default).
+        mios-gui "$TARGET" "$URL" >/dev/null 2>&1
+        _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
+        _summary=$(_parse_summary "$_verify")
+        if [ "$_summary" = "presented" ]; then
+            echo "$_verify"
+            echo "[mios-open-url] OK after heal target=$TARGET" >&2
+            exit 0
+        fi
+        _LAST_VERIFY="$_verify"
+        _LAST_SUMMARY="$_summary"
+    fi
+done <<EOF
+$CHAIN
+EOF
+
+# Chain exhausted with no winner.
+echo "$_LAST_VERIFY"
+echo "[mios-open-url] EXHAUSTED chain; last=$_LAST_TARGET summary=${_LAST_SUMMARY:-<empty>} launch_rc=$_LAST_RC" >&2
 exit 2

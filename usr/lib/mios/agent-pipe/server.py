@@ -1189,9 +1189,16 @@ _POLISH_SYSTEM = (
     "outcome -- nothing more. Be tight; do not add new content;\n"
     "do not editorialise; do not say `the agent says`. Strip\n"
     "internal reasoning leaks (lines like `Thought:`, `Reasoning:`,\n"
-    "`Plan:`, tool-call envelopes, JSON thinking blocks). Locale-\n"
-    "neutralise any stray English when the original user prompt\n"
-    "was in another language.\n"
+    "`Plan:`, tool-call envelopes, JSON thinking blocks).\n"
+    "\n"
+    "LOCALE LOCK: match the language of the operator's question.\n"
+    "If the user wrote in English, reply in English. If they wrote\n"
+    "in Spanish, reply in Spanish. NEVER switch languages mid-\n"
+    "reply, NEVER translate the sub-agent's draft into a different\n"
+    "language than the user used. The qwen3 reasoning models leak\n"
+    "Mandarin / Korean / other locales when their internal CoT\n"
+    "spills past the /no_think suppressor -- you MUST clean that\n"
+    "to the user's locale, not pass it through.\n"
     "\n"
     "CRITICAL ground-truth rule: the TOOL HISTORY below records\n"
     "what actually happened in the agent's execution environment.\n"
@@ -4898,9 +4905,14 @@ async def chat_completions(request: Request) -> Any:
                     await asyncio.wait_for(
                         asyncio.shield(upstream_task), timeout=8.0)
                 except asyncio.TimeoutError:
-                    yield _sse_status_phase(
-                        chat_id=chat_id, model=model,
-                        phase="agent_target")
+                    # SSE comment-line keepalive. Carries no data,
+                    # doesn't render as a chip in OWUI -- just
+                    # enough bytes to keep aiohttp's chunked-
+                    # encoding reader from timing out. Replaces the
+                    # previous re-emit of `agent_target` status
+                    # which surfaced as "🤖 working on it" chips
+                    # stacked 20+ deep during a long Hermes wait.
+                    yield b": keepalive\n\n"
                 except Exception:
                     break
             try:
@@ -4933,9 +4945,8 @@ async def chat_completions(request: Request) -> Any:
                         await asyncio.wait_for(
                             asyncio.shield(polish_task), timeout=8.0)
                     except asyncio.TimeoutError:
-                        yield _sse_status_phase(
-                            chat_id=chat_id, model=model,
-                            phase="refine")
+                        # Same comment-line keepalive as above.
+                        yield b": keepalive\n\n"
                     except Exception:
                         break
                 try:
