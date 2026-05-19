@@ -999,6 +999,12 @@ async def refine_intent(user_text: str,
         return None
     log.info("refine: %.1fs intent=%s target=%s",
              elapsed, parsed.get("intent"), parsed.get("target_agent"))
+    # Stash routing-metadata onto the envelope so downstream SSE
+    # emit sites can surface "refine: 17.7s qwen3:1.7b intent=agent"
+    # instead of the bare "refine" label.
+    parsed["_elapsed_s"] = round(elapsed, 1)
+    parsed["_model"] = REFINE_MODEL
+    parsed["_endpoint"] = REFINE_ENDPOINT
     # Chat-classify guard: a small refine model occasionally picks
     # intent=chat for an input that's CLEARLY actionable (literal
     # CLI verb, fully-qualified URL, `mios-*` shim invocation) and
@@ -1338,6 +1344,20 @@ async def polish_response(raw_text: str,
     if not polished:
         return None
     return polished
+
+
+def _casual_agent_label(target_name: str) -> str:
+    """Map registered sub-agent name -> casual MiOS-convention label
+    for SSE status emission + dropdown summaries. Operator binding:
+    surface labels stay generic ('sub-agent' / role), the specific
+    daemon name lives in event payloads + journal, not in the chat
+    UI. Same agent can be renamed via mios.toml [agents.*] without
+    leaking the old name to the operator's screen."""
+    cfg = _AGENT_REGISTRY.get(target_name) or {}
+    role = str(cfg.get("role") or "").strip().lower()
+    if role:
+        return f"{role}-agent"
+    return "sub-agent"
 
 
 def _build_agent_hint(refined: dict, target_name: str) -> str:
@@ -3436,15 +3456,27 @@ def _sse_chunk(content: str, *, chat_id: str, model: str,
 
 
 def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
-                done: bool = False) -> bytes:
+                done: bool = False, detail: Optional[str] = None) -> bytes:
     """Emit a content-empty SSE chunk whose only purpose is the
     `mios_status` field. Standard OpenAI clients see a no-op delta
     + ignore the extra field. Translator gateways pull the phase
     info from `mios_status` and surface it natively (OWUI's
-    event_emitter status, Hermes Discord's reactions, etc.)."""
+    event_emitter status, Hermes Discord's reactions, etc.).
+
+    `detail` rides alongside `label` so the operator can see WHAT
+    happened, not just THAT a phase fired. OWUI renders this as a
+    monospace suffix; capped at ~80 chars so the status line stays
+    one row."""
+    payload = {"emoji": emoji, "label": label, "done": done}
+    if detail:
+        d = str(detail).strip()
+        if d:
+            payload["detail"] = d[:80]
+            # Append to label for clients that only render `label`.
+            payload["label"] = f"{label}  {d[:80]}"
     return _sse_chunk(
         "", chat_id=chat_id, model=model,
-        mios_status={"emoji": emoji, "label": label, "done": done},
+        mios_status=payload,
     )
 
 
@@ -3859,17 +3891,25 @@ async def chat_completions(request: Request) -> Any:
             and str(refined.get("reply") or "").strip()):
         reply = str(refined["reply"]).strip()
         log.info("refine short-circuit: chat reply (no router/backend)")
+        # Build detail strings so the operator sees what fired.
+        _ref_model = refined.get("_model", REFINE_MODEL)
+        _ref_elapsed = refined.get("_elapsed_s", "?")
+        _ref_detail = f"{_ref_model} {_ref_elapsed}s → intent=chat"
+        _reply_detail = f"{len(reply)} chars"
         if streaming:
             async def _stream_refine_chat() -> AsyncGenerator[bytes, None]:
                 yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="📡", label="prompt")
+                                  emoji="📡", label="prompt",
+                                  detail=f"{len(last_user_text)} chars")
                 yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="✨", label="refine")
+                                  emoji="✨", label="refine",
+                                  detail=_ref_detail)
                 yield _sse_chunk("", chat_id=chat_id, model=model,
                                  role="assistant")
                 yield _sse_chunk(reply, chat_id=chat_id, model=model)
                 yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="💬", label="chat", done=True)
+                                  emoji="💬", label="chat",
+                                  detail=_reply_detail, done=True)
                 yield _sse_chunk("", chat_id=chat_id, model=model,
                                  finish_reason="stop")
                 yield _sse_done()
@@ -4015,6 +4055,21 @@ async def chat_completions(request: Request) -> Any:
                     f"```json\n{json.dumps(envelope, indent=2, default=str)}\n```\n"
                     f"</details>"
                 )
+                # Detail strings: latency + tool args summary so the
+                # operator can read the strip and know exactly what
+                # ran. Args summary truncated to 60 chars to fit.
+                _route_detail = "dispatch (verb)"
+                try:
+                    _args_brief = json.dumps(
+                        args if isinstance(args, dict) else {},
+                        separators=(",", ":"))[:60]
+                except (TypeError, ValueError):
+                    _args_brief = "{...}"
+                _tool_detail = _args_brief
+                _result_detail = (
+                    f"{int(result.get('latency_ms', 0))}ms "
+                    f"exit={result.get('exit_code', '?')}"
+                )
                 if streaming:
                     async def _stream_dispatch() -> AsyncGenerator[bytes, None]:
                         # Phase markers: prompt -> route -> tool -> done.
@@ -4022,17 +4077,21 @@ async def chat_completions(request: Request) -> Any:
                         # `mios_status` and surface natively (OWUI status
                         # event_emitter, Discord reactions, etc.).
                         yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="📡", label="prompt")
+                                          emoji="📡", label="prompt",
+                                          detail=f"{len(last_user_text)} chars")
                         yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🧭", label="route")
+                                          emoji="🧭", label="route",
+                                          detail=_route_detail)
                         yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🛠️", label=tool)
+                                          emoji="🛠️", label=tool,
+                                          detail=_tool_detail)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         yield _sse_chunk(rendered, chat_id=chat_id, model=model)
                         yield _sse_status(chat_id=chat_id, model=model,
                                           emoji="✅" if ok else "⚠️",
-                                          label=tool, done=True)
+                                          label=tool, detail=_result_detail,
+                                          done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -4055,17 +4114,22 @@ async def chat_completions(request: Request) -> Any:
         if action == "chat":
             reply = str(verdict.get("reply", "")).strip()
             if reply:
+                _chat_detail = f"router ({ROUTER_MODEL}) → chat"
+                _reply_detail = f"{len(reply)} chars"
                 if streaming:
                     async def _stream_chat() -> AsyncGenerator[bytes, None]:
                         yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="📡", label="prompt")
+                                          emoji="📡", label="prompt",
+                                          detail=f"{len(last_user_text)} chars")
                         yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="🧭", label="route")
+                                          emoji="🧭", label="route",
+                                          detail=_chat_detail)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
                         yield _sse_chunk(reply, chat_id=chat_id, model=model)
                         yield _sse_status(chat_id=chat_id, model=model,
-                                          emoji="✅", label="chat", done=True)
+                                          emoji="✅", label="chat",
+                                          detail=_reply_detail, done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          finish_reason="stop")
                         yield _sse_done()
@@ -4104,14 +4168,24 @@ async def chat_completions(request: Request) -> Any:
                         # Emit per-node markers + execute.
                         nodes = _topological_order(dag.get("nodes") or [])
                         results: list[dict] = []
+                        # ReWOO substitution context for inline DAG path.
+                        results_by_id: dict[str, dict] = {}
                         all_ok = True
                         for node in nodes:
                             nid = str(node.get("id", "?"))
                             tool = str(node.get("tool", "")).strip()
-                            args = node.get("args") or {}
+                            raw_args = node.get("args") or {}
+                            args = _substitute_ek_refs(
+                                raw_args, results_by_id)
+                            try:
+                                _args_brief = json.dumps(
+                                    args, separators=(",", ":"))[:60]
+                            except (TypeError, ValueError):
+                                _args_brief = "{...}"
                             yield _sse_status(
                                 chat_id=chat_id, model=model,
                                 emoji="🛠️", label=f"{nid}:{tool}",
+                                detail=_args_brief,
                             )
                             attempt = 0
                             last_result: dict = {}
@@ -4124,6 +4198,9 @@ async def chat_completions(request: Request) -> Any:
                                 attempt += 1
                                 if attempt <= PLANNER_REFLEXION_CAP:
                                     await asyncio.sleep(0.5)
+                            # Capture for ReWOO downstream refs.
+                            if last_result.get("success"):
+                                results_by_id[nid] = dict(last_result)
                             nres = dict(last_result)
                             nres["node_id"] = nid
                             results.append(nres)
@@ -4343,7 +4420,9 @@ async def chat_completions(request: Request) -> Any:
         target_role = str(refined.get("target_agent") or "").lower()
     target_name, target_cfg = _pick_agent(target_role)
     target_endpoint = target_cfg.get("endpoint") or BACKEND
-    target_label = f"→ {target_name}"
+    # Casual MiOS-convention label for SSE strip; the literal name
+    # stays in the event payload + journal for debuggability.
+    target_label = f"→ {_casual_agent_label(target_name)}"
 
     # Build the proxy body: original messages + hint-injected
     # system prefix (only when refine emitted hints; trivial inputs
@@ -4370,17 +4449,51 @@ async def chat_completions(request: Request) -> Any:
     if "authorization" not in headers and _BACKEND_KEY:
         headers["authorization"] = f"Bearer {_BACKEND_KEY}"
 
+    # Detail strings: refine elapsed/intent/model, target endpoint,
+    # tool_cards count, multi_task queue length. Operator should be
+    # able to read the strip and tell exactly which sub-agent got
+    # what plan.
+    _prompt_detail = f"{len(last_user_text)} chars"
+    _ref_detail = ""
+    _route_detail = ""
+    _tgt_detail = ""
+    if refined:
+        _ref_model = refined.get("_model", REFINE_MODEL)
+        _ref_elapsed = refined.get("_elapsed_s", "?")
+        _ref_intent = refined.get("intent", "?")
+        _ref_detail = f"{_ref_model} {_ref_elapsed}s → intent={_ref_intent}"
+        _cards = refined.get("tool_cards") or []
+        _tasks = refined.get("_multi_task_queue") or []
+        _route_parts = [f"agent (intent={_ref_intent})"]
+        if _cards:
+            _route_parts.append(f"{len(_cards)} tool_card(s)")
+        if _tasks:
+            _route_parts.append(f"{len(_tasks)} task(s) queued")
+        _route_detail = " · ".join(_route_parts)
+    # Casual detail: role + endpoint (no literal sub-agent name in
+    # the UI strip; lives in the event payload).
+    _tgt_role = (target_cfg.get("role") or "general").lower()
+    _tgt_detail = (
+        f"role={_tgt_role} "
+        f"{target_endpoint}".replace("http://", "")
+                            .replace("https://", "")
+    )
+
     if streaming:
         async def _stream_backend() -> AsyncGenerator[bytes, None]:
             yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="📡", label="prompt")
+                              emoji="📡", label="prompt",
+                              detail=_prompt_detail)
             if refined:
                 yield _sse_status(chat_id=chat_id, model=model,
-                                  emoji="✨", label="refine")
+                                  emoji="✨", label="refine",
+                                  detail=_ref_detail)
             yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="🧭", label="route")
+                              emoji="🧭", label="route",
+                              detail=_route_detail)
             yield _sse_status(chat_id=chat_id, model=model,
-                              emoji="🤖", label=target_label)
+                              emoji="🤖", label=target_label,
+                              detail=_tgt_detail)
             client = await _get_client()
             async with client.stream(
                 "POST", f"{target_endpoint}/chat/completions",
@@ -4476,9 +4589,10 @@ async def chat_completions(request: Request) -> Any:
                         # can expand the dropdown for the raw text.
                         main_content = "📋"
                         polish_ok = False
+                    _dropdown_label = _casual_agent_label(target_name)
                     wrapped = (
                         f"<details type=\"reasoning\">"
-                        f"<summary>🤖 {target_name}</summary>\n\n"
+                        f"<summary>🤖 {_dropdown_label}</summary>\n\n"
                         f"{raw_clean}\n"
                         f"</details>\n\n"
                         f"{preamble}{main_content}"
