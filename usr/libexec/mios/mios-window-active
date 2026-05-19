@@ -164,7 +164,17 @@ foreach (\$p in \$patterns) { \$patterns_lower += \$p.ToLowerInvariant() }
     \$title_lower = if (\$_.MainWindowTitle) { \$_.MainWindowTitle.ToLowerInvariant() } else { '' }
     \$matched = \$false
     foreach (\$pat in \$patterns_lower) {
-        if (\$proc_name_lower.Contains(\$pat) -or \$title_lower.Contains(\$pat)) {
+        # Word-boundary regex match instead of bare substring.
+        # Substring matching gave false positives: e.g. pattern
+        # "web" hit "WebUI" in an unrelated browser's title bar,
+        # causing the launch verifier to report "presented" for
+        # Epiphany when Epiphany never actually opened (the verifier
+        # latched onto the operator's Zen window with title
+        # "MiOS Agent (Open WebUI) - Zen Twilight"). Word-boundary
+        # \b<pat>\b requires non-word chars on both sides, so "web"
+        # matches "open web" or "the web" but NOT "WebUI".
+        \$pat_re = "\b" + [regex]::Escape(\$pat) + "\b"
+        if (\$proc_name_lower -match \$pat_re -or \$title_lower -match \$pat_re) {
             \$matched = \$true
             break
         }

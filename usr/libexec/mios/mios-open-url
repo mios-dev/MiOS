@@ -183,7 +183,24 @@ fi
 
 # Not presented after launch+present. ONE auto-retry: launch again
 # (some flatpaks race-condition on first call after long idle).
+# When the first launch returned a non-zero rc (sandbox bootstrap
+# failed -- env-fd / dbus credentials / dxg sandbox-reject), heal
+# the user-side portal stack BEFORE the second attempt. mios-wsl-
+# flatpak-heal restarts dbus-broker, xdg-desktop-portal, xdg-
+# document-portal, and flatpak-portal in the operator's user
+# session, which clears the stale FDs that caused the first call's
+# "--env-fd: Not an open file descriptor" failure.
 echo "[mios-open-url] first attempt summary=${_summary1:-<empty>}; retrying once..." >&2
+if [ "$_launch_rc" -ne 0 ] && command -v mios-wsl-flatpak-heal >/dev/null 2>&1; then
+    echo "[mios-open-url] launch_rc=$_launch_rc; running wsl-flatpak-heal pre-retry" >&2
+    # Run heal in the operator's user-systemd context. mios-gui
+    # already runs as the operator; reuse the same dispatch path.
+    if [ -n "${SUDO_USER:-}" ] && [ "$(id -un)" != "$SUDO_USER" ]; then
+        su - "$SUDO_USER" -c "mios-wsl-flatpak-heal" >/dev/null 2>&1 || true
+    else
+        mios-wsl-flatpak-heal >/dev/null 2>&1 || true
+    fi
+fi
 sleep 1
 mios-gui "$TARGET" "$URL" >/dev/null 2>&1 || true
 sleep 2
