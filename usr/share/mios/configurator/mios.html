@@ -1772,8 +1772,9 @@ const FLATPAKS = [
   { id: "org.gnome.Software",                          cat: "appmgmt",  label: "GNOME Software",      note: "Native GNOME app store (Flatpak frontend)",       def: true },
   { id: "com.github.tchx84.Flatseal",                  cat: "appmgmt",  label: "Flatseal",            note: "Flatpak permissions UI",                         def: true },
   { id: "com.mattjakeman.ExtensionManager",            cat: "appmgmt",  label: "Extension Manager",   note: "GNOME Shell extensions (replaces gnome-tweaks)", def: true },
-  // ── Developer (pre-selected; the only IDE MiOS ships globally) ──
-  { id: "com.vscodium.codium",                         cat: "dev",      label: "VSCodium",            note: "FOSS rebuild of VS Code (replaces VSCodium RPM)", def: true },
+  // ── Developer: code-server (mios-code-server.container, http://localhost:8080)
+  //    edits the live root FHS at /mnt/mios-root -- the self-hosting dev loop.
+  //    No desktop IDE flatpak shipped. ──
   // ── Virtualization GUIs (pre-selected; libvirt/qemu daemons stay as RPM) ──
   { id: "org.virt_manager.Manager",                    cat: "virt",     label: "virt-manager",        note: "VM manager GUI (replaces RPM)",                  def: true },
   { id: "org.remmina.Remmina",                         cat: "virt",     label: "Remmina",             note: "RDP/SPICE/VNC viewer (replaces virt-viewer RPM)", def: true },

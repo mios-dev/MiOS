@@ -2189,7 +2189,10 @@ flatpaks      = [
     "fedora:org.gnome.Epiphany",                       # 50.x current (vs. potentially-stale Flathub)
     "com.github.tchx84.Flatseal",                      # Flatpak permissions UI
     "com.mattjakeman.ExtensionManager",                # GNOME shell extensions
-    "com.vscodium.codium",                             # VSCodium IDE
+    # VSCodium removed 2026-05-20: the MiOS dev surface is code-server
+    # (mios-code-server.container, http://localhost:8080) editing the live
+    # root FHS at /mnt/mios-root -- the self-hosting dev loop. No separate
+    # desktop IDE flatpak.
     # Google Chrome Dev channel -- closest flathub-available analog to
     # the Windows "Canary" channel (true Canary doesn't ship for Linux;
     # Dev releases ~weekly, one channel ahead of Beta). Operator-requested
@@ -2311,12 +2314,9 @@ GDK_BACKEND        = "wayland"
 # libadwaita-aware decorations and gets rounded corners on WSLg.
 CHROME_DEFAULT_ARGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --gtk-version=4 --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1"
 
-[[desktop.apps]]
-id          = "com.vscodium.codium"
-remote      = "flathub"
-role        = "code-editor"
-default     = true
-description = "VSCodium -- VS Code without the Microsoft telemetry."
+# code-editor role is served by code-server (mios-code-server.container,
+# http://localhost:8080, editing the live root at /mnt/mios-root) -- the
+# MiOS self-hosting dev loop -- not a desktop IDE flatpak.
 
 [[desktop.apps]]
 id          = "com.mattjakeman.ExtensionManager"
