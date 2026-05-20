@@ -2628,6 +2628,28 @@ verify_probes = [
     "oh-my-posh"
 ]
 
+# ─── Browser AI: Zen Twilight wired to the MiOS OWUI pipeline ─────────────────
+# Installs Zen Browser (Twilight channel, Firefox-based) on the Windows host and
+# points Firefox/Zen's built-in AI chatbot SIDEBAR at the local OWUI / MiOS-Agent
+# pipeline -- MiOS AI, natively in the browser. Applied by mios-bootstrap
+# (install-host-tools.ps1 Configure-MiosBrowserAI): installs `package` via winget,
+# then writes a managed distribution/policies.json built from these values so
+# every Zen profile inherits the config. All operator-tunable here (SSOT); the
+# installer hardcodes nothing.
+[browser_ai]
+enable       = true
+package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
+provider_url = "http://localhost:3030"            # OWUI front door = the MiOS AI pipeline
+# Firefox/Zen prefs as "name|type|value" (type = bool|string|int) so the bootstrap
+# can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
+# flags here as they stabilise -- they flow through unchanged.
+prefs = [
+    "browser.ml.chat.enabled|bool|true",         # enable the built-in AI chatbot
+    "browser.ml.chat.hideLocalhost|bool|false",  # REQUIRED so a localhost (OWUI) provider is allowed
+    "browser.ml.chat.sidebar|bool|true",          # surface the AI in the sidebar
+    "browser.ml.chat.menu|bool|true",             # AI entries in the context menu
+]
+
 [packages.dev_vm_essentials]
 # Minimum DNF package set installed into podman-MiOS-DEV at Phase-3
 # provisioning so the build pipeline can RUN -- mkpasswd / openssl /
@@ -4212,7 +4234,7 @@ base_size           = 24
 #   * gsettings org.gnome.desktop.interface.cursor-{theme,size} (mios-firstboot)
 #   * /var/lib/flatpak/overrides/global -> XCURSOR_THEME / XCURSOR_SIZE
 #     so flatpak sandboxes (Flatseal, Extension Manager, Nautilus,
-#     Epiphany, VSCodium, Ptyxis, ChromeDev) inherit the same cursor
+#     Epiphany, Ptyxis, ChromeDev) inherit the same cursor
 #   * /etc/profile.d/mios-cursor.sh -> XCURSOR_THEME / XCURSOR_SIZE
 #     for raw X/Wayland clients launched outside flatpak
 # Bibata-Modern-Classic ships at /usr/share/icons/Bibata-Modern-Classic
