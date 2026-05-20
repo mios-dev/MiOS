@@ -2633,9 +2633,9 @@ verify_probes = [
 # points Firefox/Zen's built-in AI chatbot SIDEBAR at the local OWUI / MiOS-Agent
 # pipeline -- MiOS AI, natively in the browser. Applied by mios-bootstrap
 # (install-host-tools.ps1 Configure-MiosBrowserAI): installs `package` via winget,
-# then writes a managed distribution/policies.json built from these values so
-# every Zen profile inherits the config. All operator-tunable here (SSOT); the
-# installer hardcodes nothing.
+# then writes these as a per-profile user.js (the reliable method) plus a
+# best-effort distribution/policies.json, so Zen's AI sidebar drives the MiOS
+# pipeline. All operator-tunable here (SSOT); the installer hardcodes nothing.
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
@@ -2644,11 +2644,15 @@ provider_url = "http://localhost:3030"            # OWUI front door = the MiOS A
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.
 prefs = [
-    "browser.ml.chat.enabled|bool|true",         # enable the built-in AI chatbot
+    "browser.ml.chat.enabled|bool|true",         # enable the built-in AI chatbot sidebar
     "browser.ml.chat.hideLocalhost|bool|false",  # REQUIRED so a localhost (OWUI) provider is allowed
-    "browser.ml.chat.sidebar|bool|true",          # surface the AI in the sidebar
+    "browser.ml.chat.shortcuts|bool|true",        # AI prompts on text selection
     "browser.ml.chat.menu|bool|true",             # AI entries in the context menu
 ]
+# provider_url above is emitted as browser.ml.chat.provider. The bootstrap
+# applies these as a per-profile user.js (the reliable method -- some
+# browser.ml.chat.* prefs do not apply via policies.json) plus a best-effort
+# distribution/policies.json for profiles created on first launch.
 
 [packages.dev_vm_essentials]
 # Minimum DNF package set installed into podman-MiOS-DEV at Phase-3
