@@ -1951,13 +1951,13 @@ async def polish_response(raw_text: str,
         user_msg_parts.append(sat_block)
     if hist_block:
         user_msg_parts.append(hist_block)
-    # Cap tight for the CPU polish lane: 8000 chars of raw sub-agent
-    # output (e.g. a full system_status dump) blew the polish timeout on
-    # the 1.7b CPU model -> the clean-but-unpolished raw was used as
-    # fallback after wasting the wait (operator 2026-05-20 "slight
-    # refactor"). 3500 chars summarises fast on pure CPU; longer raw
-    # output is already clean enough to pass through.
-    user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:3500]}")
+    # Feed the FULL sub-agent draft (capped generously) so polish
+    # synthesises the complete answer instead of a truncated/mis-focused
+    # slice -- the 3500 cap made polish produce partial answers + "no
+    # data" contradictions of a summary it couldn't fully see (operator
+    # 2026-05-20). The polish now runs on the fast 4b dGPU lane, so 8000
+    # chars is cheap.
+    user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
     user_msg = "\n\n".join(user_msg_parts)
     payload = {
         "model": POLISH_MODEL,
@@ -6387,14 +6387,36 @@ async def chat_completions(request: Request) -> Any:
             _block_buf = ""
             _last_flush = time.time()
             _ckpt_s = float(os.environ.get("MIOS_AGENT_CKPT_S", "2.0"))
+            _reasoning_open = False
+            _summary = _HUMAN_LABELS.get("agent_target", ("🤖", ""))[0]
 
             def _flush_reasoning(buf: str) -> bytes:
-                body_txt = _sanitize_tool_text(buf).strip()
-                summary = _HUMAN_LABELS.get("agent_target", ("🤖", ""))[0]
-                blk = (f"<details type=\"reasoning\" done=\"true\">\n"
-                       f"<summary>{summary}</summary>\n\n{body_txt}\n"
-                       f"</details>\n")
-                return _sse_chunk(blk, chat_id=chat_id, model=model)
+                # Stream into ONE reasoning dropdown with the prints inline
+                # (operator 2026-05-20: "thoughts ... should be in one main
+                # drop down and prints inline" -- not a new <details> per
+                # checkpoint). Open it on the first flush (no done="true",
+                # so OWUI streams it live), append raw content thereafter,
+                # close it after the stream ends (below).
+                nonlocal _reasoning_open
+                prefix = ""
+                if not _reasoning_open:
+                    prefix = (f"<details type=\"reasoning\">\n"
+                              f"<summary>{_summary}</summary>\n\n")
+                    _reasoning_open = True
+                return _sse_chunk(prefix + _sanitize_tool_text(buf),
+                                  chat_id=chat_id, model=model)
+
+            # Open the ONE reasoning dropdown up-front with the
+            # orchestration emits AS CONTENT. OWUI streams content live but
+            # batches the __event_emitter__ status pills into statusHistory
+            # (operator 2026-05-20: "NO EMITS" despite the pills being sent)
+            # -- so the visible-live activity must ride the content channel.
+            # Emoji-only, locale-neutral; the tool steps append inline below.
+            yield _sse_chunk(
+                f"<details type=\"reasoning\">\n<summary>{_summary}</summary>"
+                f"\n\n👂 ✨ 🧭 🤖\n\n",
+                chat_id=chat_id, model=model)
+            _reasoning_open = True
 
             try:
                 async with client.stream(
@@ -6440,9 +6462,12 @@ async def chat_completions(request: Request) -> Any:
                                 _last_flush = time.time()
             except Exception as e:
                 log.warning("streamed backend call failed: %s", e)
-            # Flush the tail of the reasoning buffer (last partial block).
+            # Flush the tail of the reasoning buffer, then CLOSE the single
+            # reasoning dropdown (operator 2026-05-20: "one main drop down").
             if _block_buf.strip():
                 yield _flush_reasoning(_block_buf)
+            if _reasoning_open:
+                yield _sse_chunk("\n</details>\n", chat_id=chat_id, model=model)
             # Critic->refiner (heavy agent path; fires as needed): if the
             # DCI critic challenges this answer, revise it ONCE before
             # polish. No-op for short answers + when the critic is happy,
