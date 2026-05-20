@@ -685,18 +685,22 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     falls through cleanly."""
     if not ROUTER_ENABLED or not user_text or not user_text.strip():
         return None
+    # ollama /api/chat with think=False: ROUTER_MODEL is a qwen3 micro
+    # that ignores /no_think and otherwise dumps its answer into
+    # message.reasoning with EMPTY content (operator test 2026-05-20) --
+    # which made the router slow (full think pass) and unreliable.
     payload = {
         "model": ROUTER_MODEL,
         "messages": [
             {"role": "system", "content": _ROUTER_SYSTEM},
             {"role": "user",   "content": user_text[:2000]},
         ],
-        "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "max_tokens": ROUTER_MAX_TOKENS,
+        "think": False,
+        "format": "json",
         "stream": False,
+        "options": {"temperature": 0.0, "num_predict": ROUTER_MAX_TOKENS},
     }
-    url = f"{ROUTER_ENDPOINT}/v1/chat/completions"
+    url = f"{ROUTER_ENDPOINT}/api/chat"
     try:
         async with httpx.AsyncClient(timeout=ROUTER_TIMEOUT_S) as s:
             r = await s.post(url, json=payload,
@@ -709,10 +713,12 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     except Exception as e:
         log.warning("router unexpected error: %s", e)
         return None
-    choices = body.get("choices") or []
-    if not choices:
-        return None
-    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    # /api/chat shape {"message":{"content"}}; /v1 choices[] fallback.
+    msg = body.get("message")
+    if not isinstance(msg, dict):
+        choices = body.get("choices") or []
+        msg = (choices[0].get("message") if choices else {}) or {}
+    content = (msg.get("content") or "").strip()
     if not content:
         return None
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
@@ -1850,14 +1856,16 @@ async def polish_response(raw_text: str,
     # raw tool_calls are still useful for the per-step detail.
     sat_verdicts = await _recent_satisfaction_verdicts(limit=3)
     sat_block = _format_satisfaction_block(sat_verdicts)
-    # `/no_think` to disable qwen3 reasoning (same rationale as refine).
+    # Thinking is disabled via think=False on /api/chat below -- qwen3
+    # ignores /no_think and would otherwise emit empty content after a
+    # long think pass (same fix + failure mode as refine; was the source
+    # of the 45s polish timeout, operator test 2026-05-20).
     user_msg_parts = [f"User's question:\n{user_q}"]
     if sat_block:
         user_msg_parts.append(sat_block)
     if hist_block:
         user_msg_parts.append(hist_block)
     user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
-    user_msg_parts.append("/no_think")
     user_msg = "\n\n".join(user_msg_parts)
     payload = {
         "model": POLISH_MODEL,
@@ -1865,11 +1873,12 @@ async def polish_response(raw_text: str,
             {"role": "system", "content": system},
             {"role": "user",   "content": user_msg},
         ],
-        "temperature": 0.0,
-        "max_tokens": POLISH_MAX_TOKENS,
+        "think": False,
         "stream": False,
+        "options": {"temperature": 0.0,
+                    "num_predict": POLISH_MAX_TOKENS},
     }
-    url = f"{POLISH_ENDPOINT}/v1/chat/completions"
+    url = f"{POLISH_ENDPOINT}/api/chat"
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=POLISH_TIMEOUT_S) as s:
@@ -1888,10 +1897,12 @@ async def polish_response(raw_text: str,
         log.warning("polish unexpected error: %s", e)
         return None
     log.info("polish: %.1fs", time.time() - t0)
-    choices = body.get("choices") or []
-    if not choices:
-        return None
-    polished = ((choices[0].get("message") or {}).get("content") or "").strip()
+    # /api/chat shape {"message":{"content"}}; /v1 choices[] fallback.
+    msg = body.get("message")
+    if not isinstance(msg, dict):
+        choices = body.get("choices") or []
+        msg = (choices[0].get("message") if choices else {}) or {}
+    polished = (msg.get("content") or "").strip()
     if not polished:
         return None
     return polished
@@ -3679,12 +3690,12 @@ async def reflect_on_step_failure(
             {"role": "system", "content": _REFLECT_SYSTEM},
             {"role": "user", "content": user_msg},
         ],
-        "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "max_tokens": 400,
+        "think": False,
+        "format": "json",
         "stream": False,
+        "options": {"temperature": 0.0, "num_predict": 400},
     }
-    url = f"{REFINE_ENDPOINT}/v1/chat/completions"
+    url = f"{REFINE_ENDPOINT}/api/chat"
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
@@ -3703,13 +3714,12 @@ async def reflect_on_step_failure(
         log.warning("reflect unexpected error: %s", e)
         return None
     elapsed = time.time() - t0
-    choices = body.get("choices") or []
-    if not choices:
-        log.warning("reflect: %.1fs no_choices", elapsed)
-        return None
-    content = (
-        (choices[0].get("message") or {}).get("content") or ""
-    ).strip()
+    # /api/chat shape {"message":{"content"}}; /v1 choices[] fallback.
+    msg = body.get("message")
+    if not isinstance(msg, dict):
+        choices = body.get("choices") or []
+        msg = (choices[0].get("message") if choices else {}) or {}
+    content = (msg.get("content") or "").strip()
     if not content:
         log.warning("reflect: %.1fs empty_content", elapsed)
         return None
