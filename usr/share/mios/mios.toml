@@ -2653,10 +2653,17 @@ prefs = [
     "browser.ml.pageAssist.enabled|bool|true",    # page-assist AI
     "browser.ml.linkPreview.enabled|bool|true",   # AI link previews
 ]
-# The AI Window (Smart Window) CUSTOM model endpoint (point it at the MiOS
-# pipeline) is configured UI-side: Settings > AI Controls > Smart Window
-# Settings > Assistant model > Custom: Use your own LLM. provider_url below
-# still wires the older sidebar-chatbot path.
+# The AI Window (Smart Window) CUSTOM model endpoint is configured UI-side
+# (Settings > AI Controls > Smart Window Settings > Assistant model > Custom:
+# Use your own LLM). Point it at the MiOS agent-pipe -- a clean keyless
+# OpenAI-compatible /v1 that runs the full refine->Hermes->polish chain:
+#     Model endpoint : http://localhost:8640/v1
+#     Model name     : MiOS-Agent
+#     API key        : (leave blank -- not required)
+# NB: OWUI's own /api path 500s on plain OpenAI API calls (a known OWUI-core
+# 'NoneType.startswith' bug in process_chat), so the agent-pipe is the correct
+# BYOM target. provider_url below still wires the older sidebar-chatbot path
+# (which loads OWUI's web UI in the sidebar, not via the API).
 # provider_url above is emitted as browser.ml.chat.provider. The bootstrap
 # applies these as a per-profile user.js (the reliable method -- some
 # browser.ml.chat.* prefs do not apply via policies.json) plus a best-effort

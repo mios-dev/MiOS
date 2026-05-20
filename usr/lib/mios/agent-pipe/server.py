@@ -5599,18 +5599,29 @@ async def dci_schema() -> JSONResponse:
 # ── /v1/models (passthrough) ───────────────────────────────────────
 @app.get("/v1/models")
 async def list_models(request: Request) -> JSONResponse:
-    client = await _get_client()
-    headers = {k: v for k, v in request.headers.items()
-               if k.lower() in ("authorization",)}
-    try:
-        r = await client.get(f"{BACKEND}/models", headers=headers)
-        return JSONResponse(content=r.json(), status_code=r.status_code)
-    except httpx.HTTPError as e:
-        log.warning("models proxy failed: %s", e)
-        return JSONResponse(
-            content={"error": {"message": str(e), "type": "backend_error"}},
-            status_code=502,
-        )
+    # Always advertise the MiOS-Agent chain model so ANY OpenAI-compatible
+    # client (Firefox Smart Window "bring your own model", etc.) can list +
+    # select it WITHOUT a backend key -- /v1/chat/completions runs the chain
+    # locally and needs no auth. If the caller DID pass an Authorization
+    # header, augment with the backend's own model list (best-effort).
+    created = int(time.time())
+    models: list = [{
+        "id": "MiOS-Agent", "object": "model",
+        "created": created, "owned_by": "mios",
+    }]
+    auth = request.headers.get("authorization")
+    if auth:
+        try:
+            client = await _get_client()
+            r = await client.get(f"{BACKEND}/models", headers={"authorization": auth})
+            if r.status_code == 200:
+                have = {m.get("id") for m in models}
+                for m in ((r.json() or {}).get("data") or []):
+                    if isinstance(m, dict) and m.get("id") not in have:
+                        models.append(m)
+        except httpx.HTTPError as e:
+            log.warning("models proxy (augment) failed: %s", e)
+    return JSONResponse(content={"object": "list", "data": models})
 
 
 # ── /v1/embeddings (passthrough) ───────────────────────────────────
