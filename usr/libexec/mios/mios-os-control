@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""/usr/libexec/mios/mios-os-control [subcommand] [flags]
+
+The unifying entrypoint for MiOS's OS-control surface: VERBS (atomic
+OpenAI-callable operations), RECIPES (OS-shell templates) and SKILLS
+(composed verb sequences). Everything is sourced from SSOT -- mios.toml
+[verbs.*] / [recipes.*] and /usr/share/mios/skills/*.json -- so there
+are ZERO hardcoded operation lists anywhere: add a verb in TOML and it
+appears here (and in every consumer) automatically. Self-iterating.
+
+Operator binding 2026-05-20: "mios-os-control is an entire OS-related
+recipes, tools and skills that are ALL Day-0 ready and self iterating --
+Absolutely NO hardcodes for anything variable ... OpenAI compliant for
+all llms/models use GLOBALLY ... has defaults for window launching
+positions". This tool is that single source: any LLM/model -- not just
+OWUI -- consumes `mios-os-control schema` to learn the full tool surface.
+
+Subcommands:
+  schema [--openai|--owui|--names] [--tier core|common|rare|all]
+                       Emit the tool schema for every verb, generated
+                       from mios.toml [verbs.*].
+                         --openai (default) -> OpenAI tools array:
+                              [{type:function, function:{name,
+                               description, parameters}}]
+                         --owui   -> Open WebUI specs list:
+                              [{name, description, parameters}]
+                         --names  -> bare verb names, one per line
+                       --tier filters by verb tier (default: all).
+  verbs [--tier ...]   Human-readable verb catalog (name / sig / desc).
+  recipes              Delegate to `mios-os-recipe list`.
+  skills               List composed skills in /usr/share/mios/skills.
+  window-defaults      Emit the [os_control] window-placement defaults
+                       (JSON) -- the SSOT for where launches land.
+  doctor               Self-check: verify every verb has a description +
+                       valid params block + every enum default is in its
+                       enum; report drift. Exit non-zero on any problem.
+
+SSOT: mios.toml is the only source of verbs/recipes; skills/*.json the
+only source of skills. No code change needed to add capabilities.
+"""
+from __future__ import annotations
+
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+
+_TOML_PATHS = (
+    os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+    "/etc/mios/mios.toml",
+)
+_SKILLS_DIR = os.environ.get("MIOS_SKILLS_DIR", "/usr/share/mios/skills")
+
+# Window-placement fallbacks. These are the LAST resort only -- the
+# real values live in mios.toml [os_control] (SSOT). Kept here purely so
+# `window-defaults` still answers on a host whose TOML predates the
+# section; they are not authoritative and never override TOML.
+_WINDOW_DEFAULT_FALLBACK = {
+    "default_position": "center",
+    "default_monitor": 0,
+    "tile_gap_px": 8,
+    "edge_margin_px": 0,
+    "restore_if_running": True,
+    "focus_after_launch": True,
+}
+
+
+def _toml():
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            sys.stderr.write("mios-os-control: tomllib unavailable\n")
+            sys.exit(3)
+    return tomllib
+
+
+def _load_section(section: str) -> dict:
+    """Merge [<section>.*] across vendor + /etc override (etc wins)."""
+    tomllib = _toml()
+    merged: dict = {}
+    for path in _TOML_PATHS:
+        try:
+            with open(path, "rb") as f:
+                d = tomllib.load(f)
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        block = d.get(section) or {}
+        if isinstance(block, dict):
+            merged.update(block)
+    return merged
+
+
+def _load_verbs() -> dict:
+    # A verb is any [verbs.<name>] dict carrying a description -- mirrors
+    # agent-pipe _load_verb_catalog (which also keys on the metadata
+    # block) so this export and the dispatcher never disagree.
+    raw = _load_section("verbs")
+    return {k: v for k, v in raw.items()
+            if isinstance(v, dict) and (v.get("desc") or v.get("description"))}
+
+
+def _required_from_sig(sig: str) -> list[str]:
+    """A param is REQUIRED iff its sig token has no trailing '?'. The sig
+    is the SSOT for optionality: `name, position="default"?, args?` ->
+    only `name` is required. Defaults/optionals carry '?' or '='."""
+    req: list[str] = []
+    for tok in str(sig or "").split(","):
+        tok = tok.strip()
+        if not tok or tok.endswith("?"):
+            continue
+        name = tok.split("=", 1)[0].strip()
+        if name:
+            req.append(name)
+    return req
+
+
+_TIER_RANK = {"core": 0, "common": 1, "rare": 2}
+
+
+def _tier_ok(spec: dict, tier: str) -> bool:
+    if tier == "all":
+        return True
+    want = _TIER_RANK.get(tier, 99)
+    have = _TIER_RANK.get(str(spec.get("tier", "common")).lower(), 1)
+    return have <= want
+
+
+def _params_schema(spec: dict) -> dict:
+    """Build a JSONSchema `parameters` object from [verbs.<v>.params.*]."""
+    props: dict = {}
+    params = spec.get("params") or {}
+    if isinstance(params, dict):
+        for pname, pcfg in params.items():
+            if not isinstance(pcfg, dict):
+                continue
+            ptype = pcfg.get("type", "string")
+            prop: dict = {"type": ptype}
+            desc = pcfg.get("desc") or pcfg.get("description")
+            if desc:
+                prop["description"] = desc
+            if "enum" in pcfg:
+                prop["enum"] = pcfg["enum"]
+            if "default" in pcfg:
+                prop["default"] = pcfg["default"]
+            if ptype == "array":
+                # OpenAI requires `items` for array params; default to
+                # string items unless the verb declares otherwise.
+                prop["items"] = pcfg.get("items") or {"type": "string"}
+            props[pname] = prop
+    return {
+        "type": "object",
+        "properties": props,
+        "required": _required_from_sig(spec.get("sig", "")),
+    }
+
+
+def _verb_specs(tier: str) -> list[dict]:
+    """[{name, description, parameters}] -- the inner function spec, the
+    shape Open WebUI's process_chat indexes into."""
+    out: list[dict] = []
+    for name, spec in sorted(_load_verbs().items()):
+        if not _tier_ok(spec, tier):
+            continue
+        out.append({
+            "name": name,
+            "description": spec.get("desc") or spec.get("description") or name,
+            "parameters": _params_schema(spec),
+        })
+    return out
+
+
+def cmd_schema(args: list[str]) -> int:
+    fmt = "openai"
+    tier = "all"
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--openai", "--owui", "--names"):
+            fmt = a.lstrip("-")
+        elif a == "--tier" and i + 1 < len(args):
+            tier = args[i + 1]
+            i += 1
+        i += 1
+
+    specs = _verb_specs(tier)
+    if fmt == "names":
+        for s in specs:
+            print(s["name"])
+        return 0
+    if fmt == "owui":
+        print(json.dumps(specs, indent=2))
+        return 0
+    # Standard OpenAI tools array.
+    tools = [{"type": "function", "function": s} for s in specs]
+    print(json.dumps(tools, indent=2))
+    return 0
+
+
+def cmd_verbs(args: list[str]) -> int:
+    tier = "all"
+    if "--tier" in args:
+        j = args.index("--tier")
+        if j + 1 < len(args):
+            tier = args[j + 1]
+    for name, spec in sorted(_load_verbs().items()):
+        if not _tier_ok(spec, tier):
+            continue
+        sig = spec.get("sig", "")
+        perm = spec.get("permission", "read")
+        desc = spec.get("desc") or spec.get("description") or ""
+        print(f"  {name:<20} ({sig})  [{perm}]  {desc}")
+    return 0
+
+
+def cmd_recipes(_args: list[str]) -> int:
+    try:
+        return subprocess.call(["mios-os-recipe", "list"])
+    except FileNotFoundError:
+        sys.stderr.write("mios-os-control: mios-os-recipe not on PATH\n")
+        return 1
+
+
+def cmd_skills(_args: list[str]) -> int:
+    paths = sorted(glob.glob(os.path.join(_SKILLS_DIR, "*.json")))
+    if not paths:
+        sys.stderr.write(f"mios-os-control: no skills in {_SKILLS_DIR}\n")
+        return 1
+    for p in paths:
+        try:
+            d = json.load(open(p))
+        except (OSError, ValueError):
+            continue
+        nm = d.get("name") or os.path.basename(p)[:-5]
+        steps = (d.get("body") or {}).get("steps") or []
+        params = (d.get("body") or {}).get("params") or []
+        print(f"  {nm:<28} steps={len(steps):<2} params=({','.join(params)})  "
+              f"{d.get('description', '')}")
+    return 0
+
+
+def cmd_window_defaults(_args: list[str]) -> int:
+    block = _load_section("os_control") or {}
+    out = dict(_WINDOW_DEFAULT_FALLBACK)
+    # Only the scalar window keys belong here; ignore any nested tables.
+    for k, v in block.items():
+        if not isinstance(v, dict):
+            out[k] = v
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def cmd_doctor(_args: list[str]) -> int:
+    """Self-check the verb catalog: every verb needs a description, a
+    params block, and every param `default` must satisfy its `enum`.
+    Mirrors agent-pipe _validate_enum_args so dispatch never trips on a
+    spec the catalog quietly accepted."""
+    problems: list[str] = []
+    verbs = _load_verbs()
+    if not verbs:
+        problems.append("no [verbs.*] found in mios.toml")
+    for name, spec in sorted(verbs.items()):
+        if not (spec.get("desc") or spec.get("description")):
+            problems.append(f"{name}: missing desc")
+        params = spec.get("params") or {}
+        # A zero-arg verb (ai, dash, help, ...) legitimately has no sig and
+        # no params. Only a verb that HAS params but NO sig is a problem:
+        # without the sig, required-arg detection silently treats every
+        # param as optional.
+        if isinstance(params, dict) and params and "sig" not in spec:
+            problems.append(f"{name}: has params but no sig (required args undeterminable)")
+        for pname, pcfg in (params.items() if isinstance(params, dict) else []):
+            if not isinstance(pcfg, dict):
+                continue
+            enum = pcfg.get("enum")
+            dflt = pcfg.get("default")
+            if enum is not None and dflt is not None and dflt not in enum:
+                problems.append(
+                    f"{name}.{pname}: default {dflt!r} not in enum {enum}")
+        # Required params (from sig) must each have a params entry.
+        for r in _required_from_sig(spec.get("sig", "")):
+            if isinstance(params, dict) and r not in params:
+                problems.append(f"{name}: required arg {r!r} has no params block")
+    if problems:
+        sys.stderr.write("mios-os-control doctor: FAIL\n")
+        for p in problems:
+            sys.stderr.write(f"  - {p}\n")
+        return 1
+    print(json.dumps({"ok": True, "verbs": len(verbs),
+                      "recipes": len(_load_section('recipes')),
+                      "skills": len(glob.glob(os.path.join(_SKILLS_DIR, '*.json')))}))
+    return 0
+
+
+_CMDS = {
+    "schema": cmd_schema,
+    "verbs": cmd_verbs,
+    "list": cmd_verbs,
+    "recipes": cmd_recipes,
+    "skills": cmd_skills,
+    "window-defaults": cmd_window_defaults,
+    "doctor": cmd_doctor,
+}
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        return 0
+    cmd = argv[0]
+    fn = _CMDS.get(cmd)
+    if not fn:
+        sys.stderr.write(f"mios-os-control: unknown subcommand {cmd!r}\n")
+        sys.stderr.write(f"  try: {', '.join(_CMDS)}\n")
+        return 2
+    return fn(argv[1:])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

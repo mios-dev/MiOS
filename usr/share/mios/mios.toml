@@ -799,6 +799,20 @@ excludes = ["AppData", ".cache", "node_modules", ".git",
 # block owns the LLM-facing surface).
 # ============================================================================
 
+# ─── OS-control window-placement defaults (SSOT) ──────────────────────
+# Where freshly-launched windows land + how mios-os-control / mios-launch
+# behave when a verb's `position` arg is "default". Every value is operator-
+# tunable here (and via the mios.toml -> userenv.sh slot); NOTHING in code
+# hardcodes a placement. Consumed by `mios-os-control window-defaults`, the
+# open_app/focus_window position resolver, and the launch preflight.
+[os_control]
+default_position    = "center"   # placement for position="default" launches
+default_monitor     = 0          # 0 = primary monitor
+tile_gap_px         = 8          # gap between tiled / side-by-side windows
+edge_margin_px      = 0          # inset from screen edges for edge placements
+restore_if_running  = true       # preflight: focus an existing instance instead of relaunching
+focus_after_launch  = true       # raise + foreground a window after a successful launch
+
 # ─── Section: Window / app launch ─────────────────────────────────────
 [verbs.open_app]
 section    = "Window / app launch"
