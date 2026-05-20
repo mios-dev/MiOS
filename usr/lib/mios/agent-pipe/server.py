@@ -771,9 +771,16 @@ async def classify_intent(user_text: str) -> Optional[dict]:
 REFINE_ENABLED = os.environ.get(
     "MIOS_REFINE_ENABLE", "true",
 ).lower() not in {"false", "0", "no"}
-REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", _MICRO_MODEL)
+# Refine CLASSIFIES intent (chat vs agent) -- the decisive routing call.
+# The 0.6b/1.7b micros repeatedly mis-called action + web queries as
+# chat (operator 2026-05-20: "Check system status" -> fake chat reply;
+# "what's trending" -> chat). A more capable general model is worth the
+# latency for correct routing; think=False (in refine_intent) stops it
+# burning tokens on a reasoning preamble, and the LITE prompt is small
+# so the call stays a few seconds even on the shared dGPU lane.
+REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3.5:4b")
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_REFINE_ENDPOINT", ROUTER_ENDPOINT,
+    "MIOS_REFINE_ENDPOINT", "http://localhost:11434",
 ).rstrip("/")
 REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "12"))
 REFINE_MAX_TOKENS = int(os.environ.get("MIOS_REFINE_MAX_TOKENS", "400"))
@@ -1271,13 +1278,12 @@ async def refine_intent(user_text: str,
     local compute'."""
     if not REFINE_ENABLED or not user_text or not user_text.strip():
         return None
-    if _is_trivial_bypass(user_text):
-        # Trivial conversational input is chat by construction. Skip the
-        # classifier LLM call and hand it to the chat short-circuit, which
-        # generates the reply via _quick_chat_reply. Previously this
-        # returned None -> the turn fell through to the router -> Hermes,
-        # which tried a nonexistent 'chat' verb (operator 2026-05-20).
-        return {"intent": "chat"}
+    # No length-based trivial bypass: it mis-classed short ACTION
+    # commands ("Check system status", "Take screenshot", "Open chrome")
+    # as chat -> the chat short-circuit then faked a reply without
+    # running the tool (operator 2026-05-20). The capable refine model
+    # below classifies every non-empty query instead -- greetings still
+    # land as intent=chat, real actions as intent=agent.
     # Pull the registered agents into the prompt so the model picks
     # one that actually exists.
     agents_summary = "\n".join(
@@ -5756,11 +5762,20 @@ async def chat_completions(request: Request) -> Any:
         verdict = {"action": "agent", "reason": "refine-classified",
                    "_refined": refined}
 
+    # Unify on the streaming agent path. The dispatch + DAG fast-paths
+    # return a NON-streamed raw tool_calls block and only summarise via a
+    # best-effort polish that fails on large outputs (operator 2026-05-20:
+    # "Check system status" -> raw system_status JSON, no clean answer, no
+    # live streaming/thinking). Routing non-chat through Hermes gives a
+    # polished clean answer + the streamed reasoning blocks. Chat replies
+    # still short-circuit. Env-gated so the fast-paths can be restored.
+    _unify_agent = os.environ.get(
+        "MIOS_AGENT_PIPE_UNIFY_AGENT", "1") not in {"0", "false", "no"}
     if verdict:
         action = verdict.get("action")
 
-        # ── DISPATCH fast-path ──────────────────────────────────
-        if action == "dispatch":
+        # ── DISPATCH fast-path (skipped when unified onto agent) ──
+        if action == "dispatch" and not _unify_agent:
             tool = str(verdict.get("tool", "")).strip()
             args = verdict.get("args") or {}
             if tool:
@@ -5938,7 +5953,7 @@ async def chat_completions(request: Request) -> Any:
         # returns >=2 actionable nodes, run the DAG locally; if it
         # returns empty or fails, fall through to the backend proxy
         # which has Hermes's full tool-calling agent loop available.
-        if action == "agent" and PLANNER_ENABLED:
+        if action == "agent" and PLANNER_ENABLED and not _unify_agent:
             dag = await decompose_intent(last_user_text)
             if dag and (dag.get("nodes") or []):
                 if streaming:
@@ -6089,7 +6104,7 @@ async def chat_completions(request: Request) -> Any:
     # backend proxy. This avoids losing tool dispatch entirely when
     # the router (qwen3:1.7b on the CPU-fallback iGPU lane) takes
     # longer than its timeout budget under cold-load.
-    if not verdict and PLANNER_ENABLED:
+    if not verdict and PLANNER_ENABLED and not _unify_agent:
         dag = await decompose_intent(last_user_text)
         if dag and (dag.get("nodes") or []):
             # Re-enter the streaming DAG path by simulating
