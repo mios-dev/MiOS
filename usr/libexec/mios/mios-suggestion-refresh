@@ -39,15 +39,21 @@ import argparse
 import datetime
 import json
 import os
+import random
 import sqlite3
 import sys
 import urllib.error
 import urllib.request
 
 OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
+# Suggestion generation needs a MORE capable model than the micro
+# refiner -- a 1.7b produced repetitive, id-leaking chips ("Open
+# directory lookup", operator 2026-05-20). qwen2.5-coder:7b is
+# non-thinking + instruction-capable + warm on the dGPU lane; this is a
+# periodic BACKGROUND task so its latency doesn't touch chat turns.
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", "http://localhost:11435")
-REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3:1.7b")
+    "MIOS_SUGGESTION_ENDPOINT", "http://localhost:11434")
+REFINE_MODEL = os.environ.get("MIOS_SUGGESTION_MODEL", "qwen2.5-coder:7b")
 REFINE_TIMEOUT_S = int(os.environ.get(
     "MIOS_SUGGESTION_TIMEOUT_S", "60"))
 # Vast out-of-the-box set (operator 2026-05-20: "a vast set of defaults
@@ -267,11 +273,20 @@ def _build_prompt(num: int, status: dict, nudges: str,
         "operator's CURRENT context below (open kanban tasks, recent "
         "themes) so the set iterates with use. Paraphrase to vary "
         "phrasing across refreshes.\n"
-        "- Chips MUST be concrete, fully-resolved phrases. NEVER "
-        "emit placeholder syntax like 'Open <app>' or 'Search for "
-        "<files>'. Pick a real app name (a real one the operator "
-        "uses, OR a common one like 'Chrome' or 'VSCode') and a "
-        "real query.\n"
+        "- VARIETY (critical): draw each chip from a DIFFERENT "
+        "capability in the list below -- the list already spans many "
+        "real areas, so let the spread of actual capabilities drive "
+        "the variety. No two chips may share the same action or be "
+        "near-duplicates, and never emit a run of the same opening "
+        "verb.\n"
+        "- Each capability below is '<internal-id>: <plain-language "
+        "description>'. Phrase the chip from the DESCRIPTION as the "
+        "user-facing ACTION it performs -- what it does FOR the "
+        "operator. NEVER emit the internal id, and never the raw "
+        "files, paths, commands, or flags a description happens to "
+        "mention; refer to anything internal by what it IS to the "
+        "user. Chips are concrete (never 'Open <app>' placeholders) "
+        "but read like natural, plain language.\n"
         "- Output JSON only:\n"
         '  {"chips":["chip 1","chip 2", ..., "chip N"]}\n'
         "- No prose around the JSON.\n"
@@ -441,6 +456,10 @@ def main() -> int:
     recent_intents = _recent_refine_intents(limit=5)
     kanban_titles = _recent_kanban(limit=5)
     verbs_sample = _mios_verbs_sample()
+    # Shuffle so a different slice of the real capability library leads
+    # each refresh -> the set genuinely rotates/iterates over time
+    # (variety sourced from real capabilities, never a hardcoded pool).
+    random.shuffle(verbs_sample)
     prompt = _build_prompt(args.num, status, nudges, recent_intents,
                            kanban_titles, verbs_sample)
     chips = _ask_model(prompt)
