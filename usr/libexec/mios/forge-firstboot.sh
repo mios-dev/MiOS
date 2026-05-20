@@ -156,7 +156,13 @@ rm -f /tmp/forge-repo-create.json
 # stages that curated tree cleanly; it is not a defensive filter against the
 # kernel's runtime mounts. We wire config only -- the operator (or code-server)
 # drives the first commit + push. Idempotent; never fatal to firstboot.
-_forge_remote_url="http://${admin_user}@localhost:${http_port}/${admin_user}/${INITIAL_REPO_NAME}.git"
+# Forgejo is the loop HUB: point `origin` at the local Forgejo repo so a push
+# from code-server (or `git -C / push`) triggers .forgejo/workflows/build-mios.yml
+# on the Runner. The chain the operator wants is: .git=/ -> Forgejo -> code-server
+# edits /mnt/mios-root. Password is embedded so the push is frictionless on this
+# single-user self-host box; /.git/config is never committed (git ignores .git/).
+# Any pre-existing non-Forgejo origin is preserved as 'local-bare'.
+_forge_remote_url="http://${admin_user}:${admin_password}@localhost:${http_port}/${admin_user}/${INITIAL_REPO_NAME}.git"
 if command -v git >/dev/null 2>&1; then
     git config --global --add safe.directory / 2>/dev/null || true
     if [[ ! -d /.git ]]; then
@@ -167,13 +173,17 @@ if command -v git >/dev/null 2>&1; then
         fi
     fi
     if [[ -d /.git ]]; then
-        if git -C / remote get-url forge >/dev/null 2>&1; then
-            git -C / remote set-url forge "$_forge_remote_url"
-        else
-            git -C / remote add forge "$_forge_remote_url" 2>/dev/null || true
+        _cur_origin=$(git -C / remote get-url origin 2>/dev/null || true)
+        if [[ -n "$_cur_origin" && "$_cur_origin" != *"localhost:${http_port}"* ]]; then
+            git -C / remote rename origin local-bare 2>/dev/null || true
         fi
-        _log "root '/' wired to forge remote 'forge' -> ${_forge_remote_url}"
-        _log "self-host loop: edit in code-server (/mnt/mios-root) -> 'git -C / add -A && git -C / commit -m ... && git -C / push -u forge main' -> Runner builds /Containerfile -> bootc-switch stages next boot"
+        if git -C / remote get-url origin >/dev/null 2>&1; then
+            git -C / remote set-url origin "$_forge_remote_url"
+        else
+            git -C / remote add origin "$_forge_remote_url" 2>/dev/null || true
+        fi
+        _log "root '/' origin -> Forgejo (${admin_user}/${INITIAL_REPO_NAME}); a push triggers the Runner"
+        _log "self-host loop: edit in code-server (/mnt/mios-root) -> 'git -C / add -A && git -C / commit -m ... && git -C / push -u origin main' -> Runner builds /Containerfile -> bootc-switch stages next boot"
     fi
 else
     _log "WARN: git not found in image -- cannot wire root '/' to forge"
