@@ -50,7 +50,10 @@ REFINE_ENDPOINT = os.environ.get(
 REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3:1.7b")
 REFINE_TIMEOUT_S = int(os.environ.get(
     "MIOS_SUGGESTION_TIMEOUT_S", "60"))
-NUM_CHIPS = int(os.environ.get("MIOS_SUGGESTION_COUNT", "5"))
+# Vast out-of-the-box set (operator 2026-05-20: "a vast set of defaults
+# out of the box" covering MiOS functionality, that also iterates per
+# use-case). Tunable via env.
+NUM_CHIPS = int(os.environ.get("MIOS_SUGGESTION_COUNT", "28"))
 SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 
 
@@ -87,15 +90,10 @@ def _system_status() -> dict:
     }
 
 
-def _mios_verbs_sample() -> list[str]:
-    """Concrete operator-useful actions the model can pull from when
-    seeding chips. These are FULLY-RESOLVED PHRASES (no <placeholder>
-    tokens) so a small refine model doesn't latch onto the template
-    syntax and emit chips like 'Open <app>'.
-
-    The model rotates / paraphrases / mixes-with-context, but the
-    BASELINE concreteness is here so worst-case chips are still
-    operator-clickable verbatim."""
+def _baseline_actions() -> list[str]:
+    """Concrete worst-case seeds (used only if the SSOT catalog read
+    yields nothing) so the model still gets fully-resolved example
+    phrases, never <placeholder> templates."""
     return [
         "Show me the dashboard",
         "What's running on my system",
@@ -103,13 +101,50 @@ def _mios_verbs_sample() -> list[str]:
         "Open my browser",
         "List my installed apps",
         "Check my kanban board",
-        "Compact recent chats",
-        "What can MiOS do",
-        "Find the highest-rated game I have installed",
-        "Open the configurator",
         "Summarize what happened today",
         "Search my files for project notes",
     ]
+
+
+def _mios_verbs_sample() -> list[str]:
+    """Read MiOS's REAL capability surface from the SSOT -- mios.toml
+    [verbs.*] + [recipes.*] (+ /etc overlay) -- so generated chips
+    cover the BREADTH of what MiOS can actually do, derived from the
+    catalog rather than a hardcoded English list (operator directive:
+    no hardcoded English; vast functionality coverage). Returns short
+    "<name>: <desc>" descriptors the model turns into natural, localised
+    starter chips. Falls back to concrete baseline seeds if the catalog
+    can't be read."""
+    try:
+        import tomllib
+    except ImportError:  # pragma: no cover
+        tomllib = None
+    caps: list[str] = []
+    if tomllib is not None:
+        for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
+            try:
+                with open(path, "rb") as f:
+                    doc = tomllib.load(f)
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            for section in ("verbs", "recipes"):
+                table = doc.get(section, {}) or {}
+                if not isinstance(table, dict):
+                    continue
+                for name, cfg in table.items():
+                    if not isinstance(cfg, dict):
+                        continue
+                    desc = str(cfg.get("desc")
+                               or cfg.get("description") or "").strip()
+                    caps.append(f"{name}: {desc[:90]}" if desc else str(name))
+    # De-dupe, keep order, cap so the prompt stays bounded.
+    seen: set[str] = set()
+    out: list[str] = []
+    for c in caps:
+        if c and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out[:60] or _baseline_actions()
 
 
 def _recent_kanban(limit: int = 4) -> list[str]:
@@ -222,11 +257,16 @@ def _build_prompt(num: int, status: dict, nudges: str,
         "(no 'debug logs', 'check HTTP codes', 'review errors' -- "
         "those are noise from the daemon's journal scanner, not "
         "what the operator opens a new chat to do).\n"
-        "- Mix sources: about HALF the chips should reference the "
-        "operator's CURRENT context below (open kanban tasks, "
-        "recent chat themes). The OTHER half should be evergreen "
-        "MiOS actions from the example-actions list -- you can use "
-        "them VERBATIM or paraphrase to vary them across refreshes.\n"
+        "- COVERAGE: most chips should span the BREADTH of MiOS "
+        "capabilities in the actions list -- vary across different "
+        "areas (launching apps, finding + opening files, querying + "
+        "controlling the system, web search, media, settings, "
+        "automation/recipes) so the operator sees a vast, "
+        "representative set of what MiOS can do out of the box. A "
+        "smaller portion (about a quarter) should reflect the "
+        "operator's CURRENT context below (open kanban tasks, recent "
+        "themes) so the set iterates with use. Paraphrase to vary "
+        "phrasing across refreshes.\n"
         "- Chips MUST be concrete, fully-resolved phrases. NEVER "
         "emit placeholder syntax like 'Open <app>' or 'Search for "
         "<files>'. Pick a real app name (a real one the operator "
@@ -250,8 +290,6 @@ def _build_prompt(num: int, status: dict, nudges: str,
         "\n"
         "── Daemon nudges (only mention if non-empty) ──\n"
         f"{nudges_block[:800]}\n"
-        "\n"
-        "/no_think"
     )
 
 
@@ -260,6 +298,11 @@ def _ask_model(prompt: str) -> list[str]:
     chip array out. Returns [] on any failure (caller keeps the
     previous suggestions, so a transient model issue doesn't blank
     the chip row)."""
+    # ollama native /api/chat with think=False: qwen3 (incl. 1.7b)
+    # ignores /no_think and otherwise dumps the JSON into message.reasoning
+    # with EMPTY content (operator test 2026-05-20). think=False makes it
+    # emit the chips JSON straight to message.content. num_predict has room
+    # for ~28 chips of JSON.
     payload = {
         "model": REFINE_MODEL,
         "messages": [
@@ -267,17 +310,13 @@ def _ask_model(prompt: str) -> list[str]:
              "content": "You emit JSON only. No prose around it."},
             {"role": "user", "content": prompt},
         ],
-        "response_format": {"type": "json_object"},
-        "temperature": 0.4,
-        # 1600 = comfortable room for qwen3's reasoning preamble
-        # (~600 tokens of CoT even with /no_think suppression) + the
-        # actual chips JSON (~200 tokens). Cold-start probe was
-        # truncating at 800 tokens with empty content.
-        "max_tokens": 1600,
+        "think": False,
+        "format": "json",
         "stream": False,
+        "options": {"temperature": 0.4, "num_predict": 1600},
     }
     req = urllib.request.Request(
-        f"{REFINE_ENDPOINT}/v1/chat/completions",
+        f"{REFINE_ENDPOINT}/api/chat",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -288,10 +327,11 @@ def _ask_model(prompt: str) -> list[str]:
     except Exception as e:
         sys.stderr.write(f"  refine call failed: {e}\n")
         return []
-    choices = body.get("choices") or []
-    if not choices:
-        return []
-    msg = choices[0].get("message") or {}
+    # /api/chat shape {"message":{"content"}}; tolerate /v1 choices[] too.
+    msg = body.get("message")
+    if not isinstance(msg, dict):
+        choices = body.get("choices") or []
+        msg = (choices[0].get("message") if choices else {}) or {}
     content = str(msg.get("content") or "").strip()
     # qwen3-family reasoning models sometimes burn the entire token
     # budget in the `reasoning` field with empty `content` (operator-
@@ -316,8 +356,17 @@ def _ask_model(prompt: str) -> list[str]:
     chips = parsed.get("chips") if isinstance(parsed, dict) else None
     if not isinstance(chips, list):
         return []
-    return [str(c).strip() for c in chips
-            if isinstance(c, str) and c.strip()]
+    # De-dupe case-insensitively, preserve order -- small models repeat
+    # (operator test 2026-05-20 saw "Query system state" x3 in one batch).
+    out: list[str] = []
+    seen: set[str] = set()
+    for c in chips:
+        if isinstance(c, str) and c.strip():
+            cs = c.strip()
+            if cs.lower() not in seen:
+                seen.add(cs.lower())
+                out.append(cs)
+    return out
 
 
 OWUI_URL = os.environ.get("MIOS_OWUI_URL", "http://localhost:3030")
