@@ -2275,6 +2275,20 @@ class Pipe:
                         if not choices:
                             continue
                         delta = (choices[0].get("delta") or {})
+                        # Agent-pipe now streams the live thinking on the
+                        # STANDARD delta.reasoning_content channel (2026-05-20
+                        # keystone refactor). Re-wrap it as OWUI's
+                        # <details type="reasoning"> dropdown so OWUI shows a
+                        # live Thinking block, while strict clients hitting the
+                        # agent-pipe directly (Firefox Smart Window) ignore
+                        # reasoning_content and get only the clean answer.
+                        _rc = delta.get("reasoning_content") or ""
+                        if _rc and not _answer_started:
+                            if not _reasoning_open:
+                                yield "<details type=\"reasoning\">\n<summary>🤖</summary>\n\n"
+                                _reasoning_open = True
+                            yield _rc
+                            continue
                         text_piece = delta.get("content") or ""
                         if not text_piece:
                             continue

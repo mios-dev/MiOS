@@ -4775,19 +4775,23 @@ async def dispatch_mios_verb(
 # envelope as content (rendered as a <details type="tool_calls">
 # block markdown can collapse natively).
 
-def _sse_chunk(content: str, *, chat_id: str, model: str,
+def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
                role: Optional[str] = None,
                finish_reason: Optional[str] = None,
-               mios_status: Optional[dict] = None) -> bytes:
-    """Build an OpenAI-streaming SSE chunk. Optional `mios_status`
-    field carries pipe-internal phase emits (📡 prompt, 🧭 route,
-    🛠️ {tool}, ✅) that translator gateways (OWUI shim, Hermes
-    Discord) lift into their native status surfaces. Stock OpenAI
-    clients see this as an unknown field and ignore it -- graceful
-    degradation."""
+               mios_status: Optional[dict] = None,
+               reasoning: Optional[str] = None) -> bytes:
+    """Build an OpenAI-streaming SSE chunk. `reasoning` populates the
+    standard `delta.reasoning_content` field (OpenAI/OpenRouter/DeepSeek
+    convention) -- OWUI renders it as a native Thinking dropdown and
+    strict clients (Firefox Smart Window) ignore it, showing only the
+    clean `content` answer. Optional `mios_status` carries pipe-internal
+    phase emits (👂 prompt, 🧭 route, 🛠️ tool, ✅) that translator gateways
+    lift into their native status surfaces; stock clients ignore it."""
     delta: dict[str, Any] = {}
     if role:
         delta["role"] = role
+    if reasoning is not None:
+        delta["reasoning_content"] = reasoning
     if content is not None:
         delta["content"] = content
     chunk = {
@@ -4804,6 +4808,15 @@ def _sse_chunk(content: str, *, chat_id: str, model: str,
     if mios_status:
         chunk["mios_status"] = mios_status
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
+
+
+def _sse_reasoning(text: str, *, chat_id: str, model: str) -> bytes:
+    """Stream a reasoning delta via the standard delta.reasoning_content
+    field (no `<details>`-in-content hack). OWUI shows it as a native
+    Thinking dropdown; strict OpenAI clients (Firefox Smart Window) ignore
+    it and render only the final `content` answer -- which is what makes
+    the visible reply clean + generative and kills <think> leaks."""
+    return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
 
 
 # Phase keys -> humanistic casual labels for the SSE status strip.
@@ -6380,32 +6393,21 @@ async def chat_completions(request: Request) -> Any:
             _summary = _HUMAN_LABELS.get("agent_target", ("🤖", ""))[0]
 
             def _flush_reasoning(buf: str) -> bytes:
-                # Stream into ONE reasoning dropdown with the prints inline
-                # (operator 2026-05-20: "thoughts ... should be in one main
-                # drop down and prints inline" -- not a new <details> per
-                # checkpoint). Open it on the first flush (no done="true",
-                # so OWUI streams it live), append raw content thereafter,
-                # close it after the stream ends (below).
-                nonlocal _reasoning_open
-                prefix = ""
-                if not _reasoning_open:
-                    prefix = (f"<details type=\"reasoning\">\n"
-                              f"<summary>{_summary}</summary>\n\n")
-                    _reasoning_open = True
-                return _sse_chunk(prefix + _sanitize_tool_text(buf),
-                                  chat_id=chat_id, model=model)
+                # KEYSTONE (operator 2026-05-20): stream the agent's live
+                # thinking on the STANDARD delta.reasoning_content channel --
+                # NOT as a <details> block inside content. OWUI renders
+                # reasoning_content as its native Thinking dropdown; strict
+                # OpenAI clients (Firefox Smart Window) ignore it and show
+                # only the clean `content` answer. This is what stops the
+                # <think> leaks, the reasoning masquerading as the answer, and
+                # the empty-answer / no-emit behaviour.
+                return _sse_reasoning(_sanitize_tool_text(buf),
+                                      chat_id=chat_id, model=model)
 
-            # Open the ONE reasoning dropdown up-front with the
-            # orchestration emits AS CONTENT. OWUI streams content live but
-            # batches the __event_emitter__ status pills into statusHistory
-            # (operator 2026-05-20: "NO EMITS" despite the pills being sent)
-            # -- so the visible-live activity must ride the content channel.
-            # Emoji-only, locale-neutral; the tool steps append inline below.
-            yield _sse_chunk(
-                f"<details type=\"reasoning\">\n<summary>{_summary}</summary>"
-                f"\n\n👂 ✨ 🧭 🤖\n\n",
-                chat_id=chat_id, model=model)
-            _reasoning_open = True
+            # Open the live thinking up-front on the reasoning_content channel
+            # with the orchestration emits. Emoji-only, locale-neutral; the
+            # tool steps append inline below via _flush_reasoning.
+            yield _sse_reasoning("👂 ✨ 🧭 🤖\n\n", chat_id=chat_id, model=model)
 
             try:
                 async with client.stream(
@@ -6451,12 +6453,10 @@ async def chat_completions(request: Request) -> Any:
                                 _last_flush = time.time()
             except Exception as e:
                 log.warning("streamed backend call failed: %s", e)
-            # Flush the tail of the reasoning buffer, then CLOSE the single
-            # reasoning dropdown (operator 2026-05-20: "one main drop down").
+            # Flush the tail of the reasoning buffer. No </details> to close --
+            # reasoning_content is a separate delta channel, not inline markup.
             if _block_buf.strip():
                 yield _flush_reasoning(_block_buf)
-            if _reasoning_open:
-                yield _sse_chunk("\n</details>\n", chat_id=chat_id, model=model)
             # Critic->refiner (heavy agent path; fires as needed): if the
             # DCI critic challenges this answer, revise it ONCE before
             # polish. No-op for short answers + when the critic is happy,
