@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""mios-rag -- agent-pipe RAG over MiOS knowledge, on infra MiOS already
+runs: nomic-embed-text (ollama) for embeddings + SurrealDB for the vector
+store. Keeps RAG in-loop for every agent/sub-agent turn WITHOUT OWUI's
+blocking pre-pipe knowledge_search (operator 2026-05-20: "move RAG into
+the agent-pipe enrich stage ... SurrealDB vector + nomic-embed-text").
+
+Subcommands:
+  ingest [--dir D ...]   Chunk + embed the MiOS docs (and any extra dirs)
+                         into SurrealDB table `mios_rag`. Idempotent:
+                         clears + rebuilds. Run on docs change.
+  query  <text> [--k N]  Embed the text, vector-search the store, print
+                         the top-N {source, text, score} as JSON.
+
+Config (SSOT-overridable via env):
+  MIOS_RAG_EMBED_ENDPOINT  default http://localhost:11434
+  MIOS_RAG_EMBED_MODEL     default nomic-embed-text
+  MIOS_DB_URL              default http://localhost:8000  (SurrealDB)
+  MIOS_DB_USER/PASS/NS     default root/root/mios ; DB fixed to `agent`
+  MIOS_RAG_DOCS_DIR        default /usr/share/mios/docs
+  MIOS_RAG_CHUNK_CHARS     default 700
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import glob
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
+                                "http://localhost:11434").rstrip("/")
+EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
+DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000").rstrip("/")
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = "agent"
+DOCS_DIR = os.environ.get("MIOS_RAG_DOCS_DIR", "/usr/share/mios/docs")
+CHUNK_CHARS = int(os.environ.get("MIOS_RAG_CHUNK_CHARS", "700"))
+TABLE = "mios_rag"
+
+
+def _embed(text: str) -> list[float]:
+    req = urllib.request.Request(
+        f"{EMBED_ENDPOINT}/api/embeddings",
+        data=json.dumps({"model": EMBED_MODEL, "prompt": text[:4000]}).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    r = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    return r.get("embedding") or []
+
+
+def _sql(query: str) -> list:
+    auth = base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+    # Prepend USE NS/DB in-query: urllib title-cases custom headers
+    # (NS -> Ns) so SurrealDB never sees the namespace headers and returns
+    # NamespaceEmpty. The USE statement is immune to header mangling.
+    full = f"USE NS {DB_NS} DB {DB_DB}; {query}"
+    req = urllib.request.Request(
+        f"{DB_URL}/sql", data=full.encode("utf-8"),
+        headers={"Authorization": f"Basic {auth}",
+                 "Accept": "application/json", "Content-Type": "text/plain"},
+        method="POST",
+    )
+    try:
+        return json.loads(urllib.request.urlopen(req, timeout=30).read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:200]
+        sys.stderr.write(f"  surql {e.code}: {body}  (q={query[:80]})\n")
+        return []
+
+
+def _chunks(text: str, src: str):
+    # Paragraph-aware chunking capped at CHUNK_CHARS.
+    buf = ""
+    for para in text.split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        if len(buf) + len(para) + 2 > CHUNK_CHARS and buf:
+            yield buf.strip(), src
+            buf = ""
+        buf += para + "\n\n"
+    if buf.strip():
+        yield buf.strip(), src
+
+
+def cmd_ingest(dirs: list[str]) -> int:
+    paths: list[str] = []
+    for d in [DOCS_DIR] + (dirs or []):
+        paths += glob.glob(os.path.join(d, "**", "*.md"), recursive=True)
+        paths += glob.glob(os.path.join(d, "**", "*.txt"), recursive=True)
+    paths = sorted(set(paths))
+    if not paths:
+        print("mios-rag: no source files found", file=sys.stderr)
+        return 1
+    # Clear existing rows (safe if the table doesn't exist yet). No MTREE
+    # index DDL -- a brute-force cosine scan is fast enough for the docs-
+    # sized corpus and avoids version-specific index syntax (an MTREE
+    # DEFINE INDEX 400'd on this SurrealDB build).
+    _sql(f"DELETE {TABLE};")
+    n = 0
+    for p in paths:
+        try:
+            text = open(p, "r", errors="replace").read()
+        except OSError:
+            continue
+        src = os.path.relpath(p, "/")
+        for chunk, _ in _chunks(text, src):
+            emb = _embed(chunk)
+            if not emb:
+                continue
+            payload = json.dumps({"text": chunk, "source": src,
+                                  "embedding": emb})
+            _sql(f"CREATE {TABLE} CONTENT {payload};")
+            n += 1
+    print(json.dumps({"ok": True, "files": len(paths), "chunks": n}))
+    return 0
+
+
+def cmd_query(text: str, k: int) -> int:
+    emb = _embed(text)
+    if not emb:
+        print(json.dumps({"ok": False, "error": "embed_failed", "hits": []}))
+        return 1
+    vec = json.dumps(emb)
+    # KNN via the MTREE index; fall back to brute-force cosine if the
+    # index isn't built yet.
+    q = (f"SELECT source, text, "
+         f"vector::similarity::cosine(embedding, {vec}) AS score "
+         f"FROM {TABLE} ORDER BY score DESC LIMIT {int(k)};")
+    try:
+        res = _sql(q)
+        rows = (res[-1] or {}).get("result") or [] if res else []
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e), "hits": []}))
+        return 1
+    hits = [{"source": r.get("source"), "score": round(r.get("score", 0), 3),
+             "text": r.get("text", "")} for r in rows if isinstance(r, dict)]
+    print(json.dumps({"ok": True, "hits": hits}))
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-rag")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    pi = sub.add_parser("ingest")
+    pi.add_argument("--dir", action="append", default=[])
+    pq = sub.add_parser("query")
+    pq.add_argument("text")
+    pq.add_argument("--k", type=int, default=4)
+    a = ap.parse_args()
+    if a.cmd == "ingest":
+        return cmd_ingest(a.dir)
+    return cmd_query(a.text, a.k)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
