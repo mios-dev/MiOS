@@ -2235,21 +2235,15 @@ class Pipe:
                         return
 
                     async for raw_line in resp.content:
-                        # Stream the AI's LIVE work into the reasoning
-                        # dropdown until the answer begins. Polled every
-                        # iteration -- agent-pipe keepalives keep this
-                        # ticking through Hermes's tool loop, so the
-                        # operator watches the agent think in real time.
-                        if not _answer_started:
-                            _tlines = _poll_tail_lines()
-                            if _tlines:
-                                if not _reasoning_open:
-                                    yield _open_details_chunk()
-                                    _reasoning_open = True
-                                yield _tlines + "\n"
-                                # Generative status = the latest work line.
-                                await self._emit(__event_emitter__,
-                                                 _tlines.splitlines()[-1])
+                        # The agent-pipe now STREAMS Hermes's inline output
+                        # as self-contained <details type="reasoning">
+                        # blocks directly in the content channel (operator
+                        # 2026-05-20: "stream all of Hermes's inline output
+                        # into checkpointed reasoning blocks"). The pipe no
+                        # longer polls the hermes-tail to build its own
+                        # dropdown -- that duplicated the streamed blocks.
+                        # It just forwards content + the agent-pipe's
+                        # mios_status pills below.
                         line = raw_line.decode("utf-8", errors="ignore").strip()
                         if not line or not line.startswith("data:"):
                             continue

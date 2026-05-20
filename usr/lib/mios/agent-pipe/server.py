@@ -6283,54 +6283,79 @@ async def chat_completions(request: Request) -> Any:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
             client = await _get_client()
-            buf_body = dict(proxy_body)
-            buf_body["stream"] = False
+            stream_body = dict(proxy_body)
+            stream_body["stream"] = True
             raw = ""
-            # Long-wait keep-alive: Hermes can take 30-60s to fully
-            # resolve its tool loop. OWUI's aiohttp client sees the
-            # SSE stream go silent during that wait and aborts with
-            # ClientPayloadError / TransferEncodingError. Spawn the
-            # upstream call as a task + yield heartbeat status
-            # events every 8s while we wait, so the chunked encoding
-            # keeps receiving bytes.
-            upstream_task = asyncio.create_task(client.post(
-                f"{target_endpoint}/chat/completions",
-                content=json.dumps(buf_body).encode("utf-8"),
-                headers=headers,
-            ))
-            # Start the checkpoint clock now so we only stream THIS turn's
-            # tool steps, never replay the historical tail buffer.
-            _tail_seen = time.time()
-            while not upstream_task.done():
-                try:
-                    await asyncio.wait_for(
-                        asyncio.shield(upstream_task), timeout=1.0)
-                except asyncio.TimeoutError:
-                    # Checkpoint interrupt (operator 2026-05-20): emit a
-                    # REAL mios_status data chunk for the AI's latest tool
-                    # step so the emitter streams live in OWUI. When the
-                    # tail has nothing new, fall back to a comment-line
-                    # keepalive (keeps aiohttp's chunked reader alive
-                    # without stacking duplicate chips).
-                    _st, _tail_seen = _tail_latest_status(
-                        _tail_seen, chat_id=chat_id, model=model)
-                    yield _st if _st else b": keepalive\n\n"
-                except Exception:
-                    break
+            # Stream Hermes's INLINE output (reasoning + tool steps + answer
+            # are one interleaved stream -- "Hermes prints everything
+            # inline", operator 2026-05-20) and forward it into the dropdown
+            # as CHECKPOINTED, self-contained <details done="true"> reasoning
+            # blocks. Each block renders the instant it closes (a single
+            # growing <details> only renders once closed -> "everything
+            # dumps at the end"). The full content is accumulated for the
+            # polish pass. CRITICAL: accumulate EVERY content delta and
+            # REPRESENT tool_calls inline -- the previous parser dropped
+            # tool_call deltas and cut content off mid-sentence, which is
+            # why this path used to buffer.
+            _block_buf = ""
+            _last_flush = time.time()
+            _ckpt_s = float(os.environ.get("MIOS_AGENT_CKPT_S", "2.0"))
+
+            def _flush_reasoning(buf: str) -> bytes:
+                body_txt = _sanitize_tool_text(buf).strip()
+                summary = _HUMAN_LABELS.get("agent_target", ("🤖", ""))[0]
+                blk = (f"<details type=\"reasoning\" done=\"true\">\n"
+                       f"<summary>{summary}</summary>\n\n{body_txt}\n"
+                       f"</details>\n")
+                return _sse_chunk(blk, chat_id=chat_id, model=model)
+
             try:
-                resp = upstream_task.result()
-                if resp.status_code == 200:
-                    try:
-                        backend_json = resp.json()
-                        ch = backend_json.get("choices") or []
-                        if ch:
-                            raw = str(
-                                (ch[0].get("message") or {}).get(
-                                    "content") or "")
-                    except (json.JSONDecodeError, ValueError):
-                        pass
+                async with client.stream(
+                        "POST",
+                        f"{target_endpoint}/chat/completions",
+                        content=json.dumps(stream_body).encode("utf-8"),
+                        headers=headers) as resp:
+                    if resp.status_code != 200:
+                        await resp.aread()
+                        log.warning("streamed backend %s", resp.status_code)
+                    else:
+                        async for line in resp.aiter_lines():
+                            if not line or not line.startswith("data:"):
+                                continue
+                            data = line[5:].strip()
+                            if data == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data)
+                            except (json.JSONDecodeError, ValueError):
+                                continue
+                            ch = chunk.get("choices") or []
+                            if not ch:
+                                continue
+                            delta = ch[0].get("delta") or {}
+                            piece = delta.get("content") or ""
+                            if piece:
+                                raw += piece
+                                _block_buf += piece
+                            for _tc in (delta.get("tool_calls") or []):
+                                _fn = (_tc.get("function") or {}).get("name")
+                                if _fn:
+                                    _block_buf += f"\n🛠️ {_fn}\n"
+                                    # Live emitter pill for the tool step.
+                                    yield _sse_status(
+                                        chat_id=chat_id, model=model,
+                                        emoji="🛠️", label="", detail=_fn)
+                            # Checkpoint flush -> an instantly-rendered block.
+                            if (_block_buf.strip()
+                                    and time.time() - _last_flush >= _ckpt_s):
+                                yield _flush_reasoning(_block_buf)
+                                _block_buf = ""
+                                _last_flush = time.time()
             except Exception as e:
-                log.warning("buffered backend call failed: %s", e)
+                log.warning("streamed backend call failed: %s", e)
+            # Flush the tail of the reasoning buffer (last partial block).
+            if _block_buf.strip():
+                yield _flush_reasoning(_block_buf)
             # Critic->refiner (heavy agent path; fires as needed): if the
             # DCI critic challenges this answer, revise it ONCE before
             # polish. No-op for short answers + when the critic is happy,
