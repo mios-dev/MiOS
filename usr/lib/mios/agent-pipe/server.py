@@ -789,9 +789,15 @@ REFINE_BYPASS_CHARS = int(os.environ.get("MIOS_REFINE_BYPASS_CHARS", "24"))
 POLISH_ENABLED = os.environ.get(
     "MIOS_POLISH_ENABLE", "true",
 ).lower() not in {"false", "0", "no"}
-POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", "qwen3:1.7b")
+# Polish PREPARES the final answer (operator 2026-05-20: "Hermes doesn't
+# create the final answer EVER -- sub-agent output is only think blocks +
+# emits; the final answer is prepared/consolidated/extrapolated, user-
+# matched"). So it's the key output step, not a cosmetic pass -- it needs
+# a capable + fast model, not the slow 1.7b CPU lane that timed out 45s.
+# qwen3.5:4b on the dGPU lane (think=False) consolidates in a few seconds.
+POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", "qwen3.5:4b")
 POLISH_ENDPOINT = os.environ.get(
-    "MIOS_POLISH_ENDPOINT", ROUTER_ENDPOINT,
+    "MIOS_POLISH_ENDPOINT", "http://localhost:11434",
 ).rstrip("/")
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
@@ -1904,7 +1910,13 @@ async def polish_response(raw_text: str,
         user_msg_parts.append(sat_block)
     if hist_block:
         user_msg_parts.append(hist_block)
-    user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
+    # Cap tight for the CPU polish lane: 8000 chars of raw sub-agent
+    # output (e.g. a full system_status dump) blew the polish timeout on
+    # the 1.7b CPU model -> the clean-but-unpolished raw was used as
+    # fallback after wasting the wait (operator 2026-05-20 "slight
+    # refactor"). 3500 chars summarises fast on pure CPU; longer raw
+    # output is already clean enough to pass through.
+    user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:3500]}")
     user_msg = "\n\n".join(user_msg_parts)
     payload = {
         "model": POLISH_MODEL,
@@ -4606,6 +4618,12 @@ async def dispatch_mios_verb(
     event row is emitted (kind=firewall_block, severity=high).
     Taint of the dispatched verb itself is computed from
     _classify_verb_taint AND inherited from session state."""
+    # Normalise the verb name: capable models (qwen3.5:4b) format tool
+    # names as function calls -> "system_status()", which then misses
+    # the catalog (operator 2026-05-20). Strip a trailing "(...)" and
+    # surrounding whitespace/quotes so the catalog lookup is robust to
+    # however a model phrased the name.
+    tool = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
     # ── Firewall pre-check for high-privilege verbs ──
     if tool in _HIGH_PRIVILEGE_VERBS and session_id:
         is_tainted, chain = await _session_is_tainted(session_id)
@@ -5762,13 +5780,14 @@ async def chat_completions(request: Request) -> Any:
         verdict = {"action": "agent", "reason": "refine-classified",
                    "_refined": refined}
 
-    # Unify on the streaming agent path. The dispatch + DAG fast-paths
-    # return a NON-streamed raw tool_calls block and only summarise via a
-    # best-effort polish that fails on large outputs (operator 2026-05-20:
-    # "Check system status" -> raw system_status JSON, no clean answer, no
-    # live streaming/thinking). Routing non-chat through Hermes gives a
-    # polished clean answer + the streamed reasoning blocks. Chat replies
-    # still short-circuit. Env-gated so the fast-paths can be restored.
+    # Default ON (operator 2026-05-20: "Unify should be on by default --
+    # we just need a slight refactor"). Non-chat routes through the agent
+    # path (refine -> Hermes streamed -> critic -> polish) for a clean
+    # answer + streaming, instead of the dispatch/DAG fast-paths that
+    # dumped raw tool JSON. The "slight refactor" is the polish hardening
+    # below (it was timing out on long output). The dispatch/DAG paths
+    # stay hardened (verb-name normalisation, capped CPU polish) for when
+    # MIOS_AGENT_PIPE_UNIFY_AGENT=0.
     _unify_agent = os.environ.get(
         "MIOS_AGENT_PIPE_UNIFY_AGENT", "1") not in {"0", "false", "no"}
     if verdict:
@@ -5856,7 +5875,12 @@ async def chat_completions(request: Request) -> Any:
                     "intended_outcome": f"answer the question by running {tool}",
                     "refined_text": last_user_text,
                 }
-                tool_output = (result.get("output") or "")[:6000]
+                # Cap tight for the CPU polish lane: 6000 chars of (e.g.)
+                # system_status JSON made the 1.7b CPU polish blow its
+                # timeout -> raw JSON fallback (operator 2026-05-20). 1800
+                # chars summarises fast on pure CPU while keeping the
+                # salient fields. mios-os-control stays CPU-capable.
+                tool_output = (result.get("output") or "")[:1800]
                 # Inline satisfaction check writes the user_query_
                 # (un)satisfied event before polish queries verdicts.
                 await _inline_satisfaction_check(
@@ -6404,9 +6428,17 @@ async def chat_completions(request: Request) -> Any:
             # prior turns from mios-daemon's 30s loop).
             await _inline_satisfaction_check(session_id, refined)
             if raw.strip():
-                # Same heartbeat wrap as the upstream call -- polish
-                # on the iGPU lane can take 5-15s; without keep-alive
-                # the SSE stream goes silent and OWUI aborts.
+                # Skip the (slow CPU) polish when the sub-agent's answer
+                # is ALREADY clean -- no <think>-tag leakage and not
+                # absurdly long. Hermes usually formats its answer well,
+                # so re-writing it just burns the CPU polish lane, which
+                # was timing out 45s on an already-clean answer (operator
+                # 2026-05-20 "slight refactor"). Polish only messy raw.
+                # Polish PREPARES the final user-facing answer from the
+                # sub-agent's think blocks -- "Hermes doesn't create the
+                # final answer EVER" (operator 2026-05-20). So it ALWAYS
+                # runs; it's fast now on the 4b dGPU lane. Heartbeat-
+                # wrapped so the SSE stream stays alive during it.
                 polish_task = asyncio.create_task(polish_response(
                     raw, refined, session_id=session_id))
                 while not polish_task.done():
@@ -6414,7 +6446,6 @@ async def chat_completions(request: Request) -> Any:
                         await asyncio.wait_for(
                             asyncio.shield(polish_task), timeout=8.0)
                     except asyncio.TimeoutError:
-                        # Same comment-line keepalive as above.
                         yield b": keepalive\n\n"
                     except Exception:
                         break
