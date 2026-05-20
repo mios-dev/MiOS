@@ -1175,6 +1175,53 @@ _REFINE_SYSTEM = (
 )
 
 
+# Compact "light refine" prompt (operator architecture 2026-05-20: the
+# micro just classifies + lightly refines/contextualizes; heavy step
+# planning belongs to the planner downstream). The full _REFINE_SYSTEM
+# above is ~1500 tokens -> 14-26s prefill on the 0.6b CPU micro AND
+# confused its classification (called a web query "chat"). This tight
+# version is ~450 tokens -> a few seconds, and the 0.6b classifies the
+# same web query correctly (operator test 2026-05-20).
+_REFINE_SYSTEM_LITE = (
+    "You are MiOS-Agent's refine pass. Read the user's message + recent\n"
+    "history, output ONE compact JSON object (no prose) saying what the\n"
+    "user wants and how to get it.\n"
+    "\n"
+    "Fields:\n"
+    '  "intent": chat | dispatch | agent | dag | multi_task\n'
+    '  "refined_text": the request rewritten clearly + actionably\n'
+    '  "intended_outcome": one line -- what the user expects back\n'
+    '  "target_agent": a registered sub-agent by role -- general (Hermes:\n'
+    "    broad reasoning + web + tools), coding (OpenCode: files/git),\n"
+    "    telemetry (mios-daemon-agent: log/journal 'what just happened')\n"
+    '  "hint_tools": [MiOS verb names the agent will likely need]\n'
+    '  "reply": ONLY when intent=chat -- your short direct reply\n'
+    '  "tasks": ONLY when intent=multi_task -- one entry per independent\n'
+    '    goal: [{"title","refined_text","intended_outcome","target_agent",\n'
+    '    "priority","depends_on"}]\n'
+    "\n"
+    "Routing -- decide by what the request NEEDS:\n"
+    "  chat = ONLY greetings/thanks/small-talk needing no data, tool,\n"
+    "         file, system action, or web. Emit reply; run no agent.\n"
+    "  dispatch = ONE concrete MiOS verb; args concrete (never 'best').\n"
+    "  agent = ONE goal needing tools/reasoning.\n"
+    "  dag = ONE goal, several dependent steps.\n"
+    "  multi_task = SEVERAL independent goals in one prompt (>=2 tasks).\n"
+    "\n"
+    "Hard rules:\n"
+    "  - ANY request that acts on the system (open/find/install/launch/\n"
+    "    run/show/use X) OR needs CURRENT/EXTERNAL info (search the web,\n"
+    "    look up, latest, today, news, prices, trends, any fact not\n"
+    "    already in this chat) -> agent or dag, NEVER chat. The agent has\n"
+    "    web_search/web_extract + file search and MUST try them rather\n"
+    "    than refuse or guess.\n"
+    "  - A file/app on THIS computer -> hint directory_lookup /\n"
+    "    everything_search / fs_search. Current world info -> web_search /\n"
+    "    web_extract.\n"
+    "  - Output valid JSON only.\n"
+)
+
+
 async def refine_intent(user_text: str,
                         history: list = None) -> Optional[dict]:
     """Quick-refine pass. Returns the parsed plan dict or None on
@@ -1197,14 +1244,13 @@ async def refine_intent(user_text: str,
         f"strengths={','.join(c.get('strengths') or [])[:80]}"
         for n, c in _AGENT_REGISTRY.items()
     )
-    # qwen3 family applies the `/no_think` token to suppress chain-
-    # of-thought emission when it appears in EITHER the system or
-    # the latest user turn. The model still reasons internally but
-    # emits the answer directly without a <think> block. ~3x faster
-    # on CPU + reliably fits the JSON answer in the token budget.
-    system = (_REFINE_SYSTEM
-              + "\nRegistered sub-agents:\n" + agents_summary
-              + "\n\n/no_think")
+    # Thinking is disabled at the API level (think=False on /api/chat
+    # below) rather than via the `/no_think` token -- operator test
+    # 2026-05-20 proved the qwen3 micros ignore /no_think (modelfile
+    # thinking-mode override) and dump the answer into message.reasoning,
+    # leaving message.content EMPTY.
+    system = (_REFINE_SYSTEM_LITE
+              + "\nRegistered sub-agents:\n" + agents_summary)
     msgs = [{"role": "system", "content": system}]
     # Last 2 turns of history, tightly capped -- the OWUI pipe already
     # enhances the prompt before it reaches us, so re-feeding long
@@ -1215,28 +1261,27 @@ async def refine_intent(user_text: str,
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
                              "content": str(h.get("content", ""))[:200]})
-    # qwen3 family is a reasoning model -- by default it produces a
-    # long <think>...</think> chain-of-thought BEFORE the JSON
-    # answer. For refine we want the JSON only; the `/no_think` user-
-    # message suffix disables reasoning per-request. Drops latency
-    # ~3x on CPU + reliably fits answer in REFINE_MAX_TOKENS.
     # Cap the refine input to the TAIL. OWUI's RAG ("Searching Knowledge")
     # rewrites the user turn as "<context...>\n\nQuery: <actual question>"
     # -- the real question is at the END (operator test 2026-05-20 showed a
     # 6207-char user_text for a one-line question; CPU refine scales with
-    # length: ~16s @ 6k chars vs ~4s @ 1.6k). Keep the last 1500 chars so
-    # the question + nearby context survive while latency stays bounded.
-    msgs.append({"role": "user",
-                 "content": user_text[-1500:] + " /no_think"})
+    # length). Keep the last 1500 chars so the question + nearby context
+    # survive while latency stays bounded.
+    msgs.append({"role": "user", "content": user_text[-1500:]})
+    # ollama native /api/chat with think=False: the qwen3 micro then emits
+    # the JSON straight to message.content (~0.4s warm) instead of dumping
+    # it into message.reasoning with an empty content (the /v1 + /no_think
+    # failure mode that made refine default to chat + an empty reply).
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
-        "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "max_tokens": REFINE_MAX_TOKENS,
+        "think": False,
+        "format": "json",
         "stream": False,
+        "options": {"temperature": 0.0,
+                    "num_predict": REFINE_MAX_TOKENS},
     }
-    url = f"{REFINE_ENDPOINT}/v1/chat/completions"
+    url = f"{REFINE_ENDPOINT}/api/chat"
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
@@ -1255,11 +1300,13 @@ async def refine_intent(user_text: str,
         log.warning("refine unexpected error: %s", e)
         return None
     elapsed = time.time() - t0
-    choices = body.get("choices") or []
-    if not choices:
-        log.warning("refine: %.1fs no_choices", elapsed)
-        return None
-    content = ((choices[0].get("message") or {}).get("content") or "").strip()
+    # /api/chat shape is {"message": {"content": ...}}; fall back to the
+    # /v1 choices[] shape so an endpoint override still parses.
+    msg = body.get("message")
+    if not isinstance(msg, dict):
+        choices = body.get("choices") or []
+        msg = (choices[0].get("message") if choices else {}) or {}
+    content = (msg.get("content") or "").strip()
     if not content:
         log.warning("refine: %.1fs empty_content", elapsed)
         return None
