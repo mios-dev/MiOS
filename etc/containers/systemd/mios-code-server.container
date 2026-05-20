@@ -34,13 +34,17 @@ ContainerName=mios-code-server
 # below lines up regardless of which uid the base distro auto-allocated
 # for the mios sysuser (podman-machine-os 6.0 happens to land mios at
 # 992, not the 1000 the MiOS overlay assumes elsewhere).
-# Run as the in-container 'coder' user (uid 1000 in the upstream image).
-# The Volume= mount below points at a dedicated host dir chown'd
-# 1000:1000 by tmpfiles.d so the perms line up regardless of which uid
-# the dev VM's base distro auto-allocated for mios (podman-machine-os
-# 6.0 lands mios at 992, breaking the host-home-mount pattern).
-User=1000
-Group=1000
+# Run as ROOT (uid 0). The editor's whole purpose is editing the LIVE root
+# FS bound at /mnt/mios-root, and that tree contains root-owned, root-only
+# files (etc/sudoers.d/, etc/shadow, root/, ...). As uid 1000 the editor's
+# `git status` / `git add -A` over the root working tree hit "Permission
+# denied" on those paths, so the root was never a usable git working
+# directory (operator 2026-05-20). Rootful podman runs uid 0 in the host
+# user namespace, so container-root == host-root and the /mnt/mios-root
+# bind is fully read/write -- exactly what self-dev on the live root needs.
+# code-server's own state dir (Volume below) is root-writable regardless.
+User=0
+Group=0
 # Network=host: bind on the dev VM netns directly so localhost:<port>
 # hits the editor without netavark's port-forwarder (which intermittently
 # times out on WSL2/podman-machine-os 6.0). Forge is reachable as
@@ -89,12 +93,10 @@ Environment=DEFAULT_WORKSPACE=/mnt/mios-root
 # arg wins.
 Environment=BIND_ADDR=0.0.0.0:8080
 
-# git "dubious ownership" guard: the FHS-root bind /mnt/mios-root is
-# owned by root, code-server runs as uid 1000 -- without an explicit
-# safe.directory every git command in the editor terminal aborts
-# ("detected dubious ownership"). GIT_CONFIG_COUNT/KEY_n/VALUE_n inject
-# an ad-hoc global config entry, so this works without a writable
-# ~/.gitconfig in the container.
+# git "dubious ownership" guard, kept belt-and-suspenders: code-server now
+# runs as root (matching /.git's owner) so the check won't normally trip,
+# but GIT_CONFIG_COUNT/KEY_n/VALUE_n inject an ad-hoc safe.directory entry
+# without needing a writable ~/.gitconfig in the container -- harmless.
 Environment=GIT_CONFIG_COUNT=1
 Environment=GIT_CONFIG_KEY_0=safe.directory
 Environment=GIT_CONFIG_VALUE_0=/mnt/mios-root
