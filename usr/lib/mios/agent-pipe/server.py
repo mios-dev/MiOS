@@ -5801,36 +5801,33 @@ async def chat_completions(request: Request) -> Any:
             refined["_multi_task_queue"] = queued
             refined["_multi_task_active_idx"] = 0
 
-    # Run the layer-1 router. Verdict possibilities:
-    #   {"action":"dispatch","tool":"<name>","args":{...}}
-    #   {"action":"chat","reply":"<text>"}
-    #   {"action":"agent","reason":"..."}
-    # The router still runs even when refine produced a verdict --
-    # the dispatch-shape extraction (tool + args) needs the layer-1
-    # JSON shape which refine's `intent=dispatch` doesn't populate
-    # directly. Refine + router are complementary, not redundant.
-    verdict = await classify_intent(last_user_text)
-    # Carry refined hints into verdict so downstream branches
-    # (dispatch / agent / DAG) can read them.
+    # Unify-on default (operator 2026-05-20: "Unify should be on by
+    # default"). Non-chat routes through the agent path (refine -> Hermes
+    # streamed -> critic -> polish) for a clean answer + streaming; the
+    # dispatch/DAG fast-paths stay hardened (verb-name normalisation,
+    # capped CPU polish) for when MIOS_AGENT_PIPE_UNIFY_AGENT=0.
+    _unify_agent = os.environ.get(
+        "MIOS_AGENT_PIPE_UNIFY_AGENT", "1") not in {"0", "false", "no"}
+    # TWO CLASSIFIERS -> ONE (operator 2026-05-20 refactor): under
+    # unify-on, refine already classified and chat + multi_task have
+    # short-circuited above, so all that remains is intent=agent -> the
+    # agent path. The layer-1 router only added dispatch-shape (tool+args)
+    # extraction, which unify-on bypasses -- so skip the redundant second
+    # classifier LLM call. (Unify-off still runs it for dispatch/DAG.)
+    if _unify_agent and refined and refined.get("intent"):
+        verdict = None
+    else:
+        # Layer-1 router: {"action": "dispatch"|"chat"|"agent", ...}.
+        verdict = await classify_intent(last_user_text)
+    # Carry refined hints into the verdict for downstream branches.
     if verdict and refined:
         verdict["_refined"] = refined
-    # When refine classified as `agent` but the router missed,
-    # promote refine's verdict so we proxy to the right sub-agent
-    # instead of falling through to default-Hermes blindly.
+    # No router verdict but refine classified agent/dag -> promote
+    # refine's verdict so we proxy to the right sub-agent.
     if not verdict and refined and refined.get("intent") in ("agent", "dag"):
         verdict = {"action": "agent", "reason": "refine-classified",
                    "_refined": refined}
 
-    # Default ON (operator 2026-05-20: "Unify should be on by default --
-    # we just need a slight refactor"). Non-chat routes through the agent
-    # path (refine -> Hermes streamed -> critic -> polish) for a clean
-    # answer + streaming, instead of the dispatch/DAG fast-paths that
-    # dumped raw tool JSON. The "slight refactor" is the polish hardening
-    # below (it was timing out on long output). The dispatch/DAG paths
-    # stay hardened (verb-name normalisation, capped CPU polish) for when
-    # MIOS_AGENT_PIPE_UNIFY_AGENT=0.
-    _unify_agent = os.environ.get(
-        "MIOS_AGENT_PIPE_UNIFY_AGENT", "1") not in {"0", "false", "no"}
     if verdict:
         action = verdict.get("action")
 
