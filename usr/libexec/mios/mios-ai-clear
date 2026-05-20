@@ -1,0 +1,134 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-ai-clear [--dry-run] [--yes]
+#
+# DAY-0 GLOBAL CLEAN SLATE for the MiOS AI stack. Wipes ALL accumulated
+# runtime state and rebuilds the databases to Day-0 values:
+#   * Hermes scheduled jobs (cron/jobs.json + output)  <- stops Discord spam
+#   * Hermes state: sessions, kanban, response_store, memories, logs
+#   * OWUI: chat / message / memory / feedback / tags  (via mios-ai-reset)
+#   * Observability: log-watcher + cron-director batches
+#   * Browser sidecar profile, opencode subagent caches
+#   * SurrealDB agent state: events, sessions, tool_call, metrics, skill
+#     index, directory cache, AND the doc RAG (mios_rag) -- re-ingested
+#   * agent-env inventory caches (windows-apps, suggestions)
+#
+# PRESERVED (identity / config / models -- NOT regenerable):
+#   * OWUI: user, auth, group, model, function, tool, api_key
+#   * Hermes: config.yaml, SOUL.md, .env, skills/, bin/, hooks/
+#   * SurrealDB: agent_keypair, agent, person  (crypto identity + registry)
+#   * ollama models, /etc/mios/* configs, vendor /usr/share/mios/*
+#
+# Operator directive 2026-05-20: "clear ... EVERYTHING to Day-0 ... constant
+# discord reports daily and want a completely clean slate". Root cause of the
+# Discord spam: scheduled posters in Hermes cron/jobs.json (AMD stock +
+# trending-topic posts every 15 min) -- this clears them.
+#
+# Run as `mios ai clear` from any MiOS shell, or `mios-ai-clear` directly.
+# --dry-run shows what would be cleared. --yes skips the confirm prompt.
+
+set -u
+
+DRY_RUN=0; ASSUME_YES=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --dry-run|-n) DRY_RUN=1 ;;
+        --yes|-y|--force) ASSUME_YES=1 ;;
+        -h|--help) sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
+        *) echo "mios-ai-clear: unknown arg: $1" >&2; exit 1 ;;
+    esac
+    shift
+done
+
+# Root (re-exec via non-interactive sudo if available).
+if [ "$(id -u)" -ne 0 ]; then
+    if ! sudo -n true 2>/dev/null; then
+        echo "mios-ai-clear: need root (or non-interactive sudo)" >&2
+        exit 1
+    fi
+    exec sudo -n -E "$0" "$@"
+fi
+
+DB_URL="${MIOS_DB_URL:-http://localhost:8000}"
+DB_USER="${MIOS_DB_USER:-root}"
+DB_PASS="${MIOS_DB_PASS:-root}"
+HCRON=/var/lib/mios/hermes/cron
+
+sec()  { printf "\n── %s ──\n" "$*"; }
+ok()   { printf "  ✓  %s\n" "$*"; }
+note() { printf "     %s\n" "$*"; }
+run()  { if [ "$DRY_RUN" = 1 ]; then printf "  [dry-run] %s\n" "$*"; else eval "$@"; fi; }
+
+echo "════════════════════════════════════════════════════════════════"
+printf "  mios ai clear -- DAY-0 GLOBAL CLEAN SLATE%s\n" "$([ "$DRY_RUN" = 1 ] && echo '  (DRY RUN)')"
+echo "  Wipes chats, history, kanban, tasks, Hermes jobs, SurrealDB"
+echo "  state + RAG to Day-0. Preserves identity/config/models."
+echo "  NOT reversible."
+echo "════════════════════════════════════════════════════════════════"
+if [ "$DRY_RUN" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
+    printf "  Type 'clear' to proceed: "
+    read -r _ans
+    [ "$_ans" = "clear" ] || { echo "  aborted."; exit 0; }
+fi
+
+sec "1. stop AI writers (SurrealDB stays up so we can clear it)"
+run "systemctl stop hermes-agent.service mios-agent-pipe.service mios-daemon.service \
+     mios-log-watcher.service mios-cron-director.service mios-hermes-browser.service \
+     mios-open-webui.service 2>/dev/null"
+[ "$DRY_RUN" = 0 ] && sleep 2
+ok "writers stopped"
+
+sec "2. Hermes scheduled jobs (the daily Discord report source)"
+if [ -f "$HCRON/jobs.json" ]; then
+    run "printf '[]' > '$HCRON/jobs.json'"
+    run "chown mios-hermes:mios-hermes '$HCRON/jobs.json' 2>/dev/null || true"
+    ok "cron/jobs.json emptied -- AMD-stock + trending-topic posters stopped"
+fi
+[ -d "$HCRON/output" ] && { run "find '$HCRON/output' -mindepth 1 -delete 2>/dev/null"; ok "cron/output cleared"; }
+
+sec "3. SurrealDB agent state -> Day-0 (preserve agent_keypair, agent, person)"
+# DELETE rows only -- the SCHEMAFULL table definitions stay so the agents
+# don't error on a missing table. Every other table is runtime/event/cache.
+_CLEAR="agent_metric alias app_install directory_entry emitted event includes \
+        kanban_shadow owns resolves_to scratch session skill skill_invocation tool_call"
+_sql=""
+for t in $_CLEAR; do _sql="$_sql DELETE ${t};"; done
+run "curl -sS -m 60 -u '${DB_USER}:${DB_PASS}' --data \"USE NS mios DB mios;${_sql}\" '${DB_URL}/sql' >/dev/null 2>&1 || true"
+run "curl -sS -m 60 -u '${DB_USER}:${DB_PASS}' --data 'USE NS mios DB agent; DELETE mios_rag; DELETE directory_entry;' '${DB_URL}/sql' >/dev/null 2>&1 || true"
+ok "SurrealDB runtime tables + RAG cleared (identity/registry preserved)"
+
+sec "4. agent-env inventory + suggestion caches"
+run "find /var/lib/mios/agent-env -mindepth 1 -delete 2>/dev/null || true"
+ok "agent-env caches cleared (windows-apps / suggestions regenerate on demand)"
+
+sec "5. conversational clean-slate (Hermes state / OWUI chats / observ / browser / opencode)"
+# Delegate to the existing guardrailed clean-slate -- it re-stops (no-op),
+# wipes the conversational state, and RESTARTS hermes/owui/log-watcher/
+# cron-director/hermes-browser.
+if command -v mios-ai-reset >/dev/null 2>&1; then
+    if [ "$DRY_RUN" = 1 ]; then mios-ai-reset --dry-run; else mios-ai-reset; fi
+else
+    note "WARN: mios-ai-reset not found -- conversational tables not cleared"
+fi
+
+sec "6. re-seed Day-0 RAG + restart remaining services"
+run "systemctl start mios-agent-pipe.service mios-daemon.service 2>/dev/null"
+if [ "$DRY_RUN" = 0 ]; then
+    _rag=/usr/libexec/mios/mios-rag
+    [ -x "$_rag" ] || _rag="$(command -v mios-rag 2>/dev/null)"
+    if [ -n "$_rag" ] && [ -x "$_rag" ]; then
+        "$_rag" ingest >/dev/null 2>&1 && ok "RAG re-ingested (Day-0 docs)" \
+            || note "RAG ingest deferred (will populate on next ingest/use)"
+    fi
+else
+    note "[dry-run] would: mios-rag ingest"
+fi
+
+echo
+echo "════════════════════════════════════════════════════════════════"
+if [ "$DRY_RUN" = 1 ]; then
+    echo "  DRY RUN complete. Re-run without --dry-run (or: mios ai clear) to apply."
+else
+    echo "  Day-0 clean slate complete. Scheduled Discord posters cleared;"
+    echo "  chats/kanban/tasks/SurrealDB state wiped; identity + config kept."
+fi
+echo "════════════════════════════════════════════════════════════════"

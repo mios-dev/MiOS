@@ -270,6 +270,7 @@ def main(argv: list[str]) -> int:
             "  mios config                          open the HTML configurator in your browser\n"
             "  mios code                            open code-server in your browser\n"
             "  mios ai                              open Open WebUI in your browser\n"
+            "  mios ai clear                        DAY-0 clean slate: wipe chats/jobs/kanban/DBs/RAG\n"
             "  mios xbox                            Xbox VM Secure Boot / XML repair\n"
             "  mios virt                            apply optimized VM config + CPU pinning\n"
             "  mios vfio                            configure GPU/USB passthrough (Isolation)\n"
@@ -294,6 +295,16 @@ def main(argv: list[str]) -> int:
             "                                       /usr/lib/mios/schemas/ without .schema.json)\n"
         )
         return 0 if len(argv) >= 2 else 1
+
+    # `mios ai clear` -> Day-0 global clean slate. Handled BEFORE the verb
+    # dispatch so the `clear` subcommand isn't swallowed by the `ai` verb
+    # (which opens OWUI). Case-insensitive so `mios AI clear` works too.
+    if len(argv) >= 3 and argv[1].lower() == "ai" and argv[2].lower() == "clear":
+        _clear = "/usr/libexec/mios/mios-ai-clear"
+        if pathlib.Path(_clear).is_file():
+            os.execvp(_clear, [_clear] + argv[3:])
+        sys.stderr.write("mios: mios-ai-clear not found at %s\n" % _clear)
+        return 1
 
     # Verb dispatch -- if the first arg matches a known verb AND the
     # target wrapper is reachable, exec it directly. Falls through to
