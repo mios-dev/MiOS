@@ -6313,10 +6313,17 @@ async def chat_completions(request: Request) -> Any:
     headers = {k.lower(): v for k, v in request.headers.items()
                if k.lower() in ("authorization", "accept")}
     headers["content-type"] = "application/json"
-    # Self-inject bearer when caller didn't supply one + we have a
-    # key from /etc/mios/hermes/api.env (or env override). Lets
-    # direct callers (curl, MCP clients, future Discord) reach
-    # Hermes without each gateway re-implementing the auth flow.
+    # Drop an empty / placeholder client Authorization (a keyless OpenAI
+    # client like Firefox Smart Window may send a blank "Bearer" or omit the
+    # key) so the backend-key fallback below applies instead of forwarding an
+    # unusable header that Hermes 401s on.
+    _ca = headers.get("authorization", "").strip()
+    if _ca.lower() in ("", "bearer", "bearer null", "bearer none", "bearer undefined"):
+        headers.pop("authorization", None)
+    # Self-inject bearer when caller didn't supply a usable one + we have a
+    # key from /etc/mios/hermes/api.env (or env override). Lets direct
+    # callers (curl, MCP clients, Smart Window) reach Hermes without each
+    # gateway re-implementing the auth flow.
     if "authorization" not in headers and _BACKEND_KEY:
         headers["authorization"] = f"Bearer {_BACKEND_KEY}"
 
