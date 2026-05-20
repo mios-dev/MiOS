@@ -2644,11 +2644,19 @@ provider_url = "http://localhost:3030"            # OWUI front door = the MiOS A
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.
 prefs = [
-    "browser.ml.chat.enabled|bool|true",         # enable the built-in AI chatbot sidebar
-    "browser.ml.chat.hideLocalhost|bool|false",  # REQUIRED so a localhost (OWUI) provider is allowed
+    "browser.ml.enable|bool|true",                # master ML/AI toggle
+    "browser.smartwindow.enabled|bool|true",      # the NEW AI Window (Smart Window) mode -- replaces the old sidebar
+    "browser.ml.chat.enabled|bool|true",          # AI chatbot sidebar (fallback path)
+    "browser.ml.chat.hideLocalhost|bool|false",   # REQUIRED so a localhost (OWUI) provider is allowed
     "browser.ml.chat.shortcuts|bool|true",        # AI prompts on text selection
     "browser.ml.chat.menu|bool|true",             # AI entries in the context menu
+    "browser.ml.pageAssist.enabled|bool|true",    # page-assist AI
+    "browser.ml.linkPreview.enabled|bool|true",   # AI link previews
 ]
+# The AI Window (Smart Window) CUSTOM model endpoint (point it at the MiOS
+# pipeline) is configured UI-side: Settings > AI Controls > Smart Window
+# Settings > Assistant model > Custom: Use your own LLM. provider_url below
+# still wires the older sidebar-chatbot path.
 # provider_url above is emitted as browser.ml.chat.provider. The bootstrap
 # applies these as a per-profile user.js (the reliable method -- some
 # browser.ml.chat.* prefs do not apply via policies.json) plus a best-effort
