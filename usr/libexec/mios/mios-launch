@@ -171,6 +171,30 @@ case "$NAME" in
         ;;
 esac
 
+# ─── 2b. PREFLIGHT: already running? -> focus + succeed ──────────────
+# Operator 2026-05-20: launching an ALREADY-RUNNING app (Spotify, a
+# browser, ...) made the launch attempt "fail" while the window was
+# actually focused -> the agent reported a FALSE failure ("did not
+# launch") even though the app was on-screen. Self-check first: if a
+# window for <NAME> is already present, focus it and report success
+# instead of re-launching. Read-only probe; only acts (focus) when the
+# app is already up. Bypass with MIOS_LAUNCH_NO_PREFLIGHT=1 (force a
+# fresh instance). Runs in the broker context (operator uid + WSLg) so
+# the window check + focus actually see the desktop.
+# mios-window-active --present is BOTH the probe AND the actuator: if the
+# window exists it auto-restores + foregrounds it, then reports
+# "presented_to_operator": true. So a single call does the focus; we just
+# read its verdict. Not-running -> verdict false -> fall through to launch.
+if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] \
+   && command -v mios-window-active >/dev/null 2>&1; then
+    _wa=$(mios-window-active --present "$NAME" 2>/dev/null)
+    if printf '%s' "$_wa" | grep -qi 'presented_to_operator"[[:space:]]*:[[:space:]]*true'; then
+        echo "{\"success\": true, \"target\": \"$NAME\", \"already_running\": true, \"action\": \"foregrounded existing window\"}"
+        echo "mios-launch: '$NAME' already running -- foregrounded it (preflight)" >&2
+        exit 0
+    fi
+fi
+
 # ─── 3. Windows GUI ──────────────────────────────────────────────────
 case "$NAME" in
     notepad|explorer|calc|mspaint|snipping-tool|taskmgr|regedit|control|cmd|powershell|pwsh)
