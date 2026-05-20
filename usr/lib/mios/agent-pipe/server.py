@@ -1190,44 +1190,72 @@ _REFINE_SYSTEM = (
 # same web query correctly (operator test 2026-05-20).
 _REFINE_SYSTEM_LITE = (
     "You are MiOS-Agent's refine pass. Read the user's message + recent\n"
-    "history, output ONE compact JSON object (no prose) saying what the\n"
-    "user wants and how to get it.\n"
+    "history and output ONE compact JSON object (no prose).\n"
     "\n"
     "Fields:\n"
     '  "intent": chat | agent | multi_task   (coarse -- the planner\n'
-    "    refines single-verb vs multi-step downstream; never emit dag or\n"
-    "    dispatch here)\n"
+    "    decides single-step vs multi-step downstream)\n"
     '  "refined_text": the request rewritten clearly + actionably\n'
     '  "intended_outcome": one line -- what the user expects back\n'
-    '  "target_agent": a registered sub-agent by role -- general (Hermes:\n'
-    "    broad reasoning + web + tools), coding (OpenCode: files/git),\n"
-    "    telemetry (mios-daemon-agent: log/journal 'what just happened')\n"
-    '  "hint_tools": [MiOS verb names the agent will likely need]\n'
+    '  "target_agent": a registered sub-agent chosen by role\n'
+    '  "hint_tools": [verb names from the catalog the agent will need]\n'
     '  "reply": ONLY when intent=chat -- your short direct reply\n'
-    '  "tasks": ONLY when intent=multi_task -- one entry per independent\n'
-    '    goal: [{"title","refined_text","intended_outcome","target_agent",\n'
-    '    "priority","depends_on"}]\n'
+    '  "tasks": ONLY when intent=multi_task -- one entry per goal\n'
     "\n"
-    "Routing -- decide by what the request NEEDS:\n"
-    "  chat  = ONLY greetings/thanks/small-talk needing no data, tool,\n"
-    "          file, system action, or web. Emit reply; run no agent.\n"
-    "  agent = ANY ONE goal that needs tools, reasoning, the web, files,\n"
-    "          the system, or a current/external fact (the DEFAULT for\n"
-    "          anything that isn't pure chat or several goals).\n"
-    "  multi_task = SEVERAL independent goals in one prompt (>=2 tasks).\n"
-    "\n"
-    "Hard rules:\n"
-    "  - ANY request that acts on the system (open/find/install/launch/\n"
-    "    run/show/use X) OR needs CURRENT/EXTERNAL info (search the web,\n"
-    "    look up, latest, today, news, prices, trends, any fact not\n"
-    "    already in this chat) -> agent or dag, NEVER chat. The agent has\n"
-    "    web_search/web_extract + file search and MUST try them rather\n"
-    "    than refuse or guess.\n"
-    "  - A file/app on THIS computer -> hint directory_lookup /\n"
-    "    everything_search / fs_search. Current world info -> web_search /\n"
-    "    web_extract.\n"
-    "  - Output valid JSON only.\n"
+    "Classify by what the request fundamentally NEEDS, never by keywords:\n"
+    "  chat = the user only wants conversation; the answer is already\n"
+    "    fully contained in ordinary dialogue -- nothing must be looked\n"
+    "    up, fetched, computed, or done on the machine. Emit reply.\n"
+    "  agent = the user wants something DONE on this computer, or KNOWN\n"
+    "    from information not already present in this conversation. The\n"
+    "    agent owns the tools (system control, local file search, web\n"
+    "    search/extract) and must USE them rather than guess or refuse.\n"
+    "  multi_task = the message holds several independent goals; emit a\n"
+    "    tasks array (>=2 entries).\n"
+    "  Default to agent whenever the request is not purely conversation;\n"
+    "  when in doubt between chat and agent, choose agent.\n"
 )
+
+
+async def _quick_chat_reply(user_text: str, history: list = None) -> str:
+    """Generate the conversational reply for an intent=chat turn.
+
+    Separate from refine because the JSON classifier reliably tags chat
+    but does NOT reliably emit a `reply` field (operator test 2026-05-20:
+    greetings classified chat with reply=None -> the turn fell through to
+    Hermes, which then tried a nonexistent 'chat' verb). think=False on
+    the micro lane; plain prose, GENERATED in the user's language (never
+    a canned/hardcoded string)."""
+    if not user_text or not user_text.strip():
+        return ""
+    msgs = [{"role": "system",
+             "content": ("You are MiOS AI. Reply to the user directly and "
+                         "concisely, in their own language. Plain text "
+                         "only -- no tools, no JSON.")}]
+    if history:
+        for h in history[-2:]:
+            if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
+                msgs.append({"role": h["role"],
+                             "content": str(h.get("content", ""))[:200]})
+    msgs.append({"role": "user", "content": user_text[:500]})
+    payload = {
+        "model": REFINE_MODEL,
+        "messages": msgs,
+        "think": False,
+        "stream": False,
+        "options": {"temperature": 0.5, "num_predict": 200},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
+            r = await s.post(f"{REFINE_ENDPOINT}/api/chat", json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return ""
+            body = r.json()
+    except Exception:
+        return ""
+    msg = body.get("message") if isinstance(body.get("message"), dict) else {}
+    return (msg.get("content") or "").strip()
 
 
 async def refine_intent(user_text: str,
@@ -1244,7 +1272,12 @@ async def refine_intent(user_text: str,
     if not REFINE_ENABLED or not user_text or not user_text.strip():
         return None
     if _is_trivial_bypass(user_text):
-        return None
+        # Trivial conversational input is chat by construction. Skip the
+        # classifier LLM call and hand it to the chat short-circuit, which
+        # generates the reply via _quick_chat_reply. Previously this
+        # returned None -> the turn fell through to the router -> Hermes,
+        # which tried a nonexistent 'chat' verb (operator 2026-05-20).
+        return {"intent": "chat"}
     # Pull the registered agents into the prompt so the model picks
     # one that actually exists.
     agents_summary = "\n".join(
@@ -4823,6 +4856,53 @@ def _sse_done() -> bytes:
     return b"data: [DONE]\n\n"
 
 
+# Hermes-tail -> live checkpoint status. During the buffered sub-agent
+# call the agent-pipe would otherwise send bare ': keepalive' COMMENT
+# lines (no data) while it waits -- OWUI then renders nothing until the
+# very end (operator 2026-05-20: "emitters haven't worked once; thinking
+# + emits only mass-print at the end"). Emitting a REAL mios_status data
+# chunk on each checkpoint, sourced from the AI's actual latest tool
+# step, forces the emit to flush + stream live instead of dumping at the
+# end -- the "checkpoint/status interrupt" the operator asked for.
+_TAIL_KIND_EMOJI = {
+    "max_retries":    "❌",
+    "invalid_tool":   "⚠️",
+    "retry":          "↻",
+    "delegate_spawn": "🚀",
+    "synthesis":      "🔀",
+    "subagent_done":  "✅",
+    "tool_call":      "🛠️",
+}
+_HERMES_TAIL_PATH = os.environ.get(
+    "MIOS_HERMES_TAIL_PATH", "/var/lib/mios/hermes-tail/latest.json")
+
+
+def _tail_latest_status(seen_ts: float, *, chat_id: str,
+                        model: str) -> tuple[Optional[bytes], float]:
+    """If the hermes-tail holds an event newer than seen_ts, return its
+    mios_status SSE chunk (emoji + generative detail) and the advanced
+    ts; otherwise (None, seen_ts). Best-effort -- any read/parse error
+    just yields no chunk."""
+    try:
+        with open(_HERMES_TAIL_PATH) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None, seen_ts
+    newest = None
+    new_ts = seen_ts
+    for ev in data.get("events", []):
+        ts = ev.get("ts", 0)
+        if ts > new_ts:
+            new_ts = ts
+            newest = ev
+    if newest is None:
+        return None, seen_ts
+    emoji = _TAIL_KIND_EMOJI.get(str(newest.get("kind", "")), "·")
+    detail = str(newest.get("detail", "")).strip()
+    return (_sse_status(chat_id=chat_id, model=model, emoji=emoji,
+                        label="", done=False, detail=detail), new_ts)
+
+
 # ── Last-user-message extraction ───────────────────────────────────
 def _extract_last_user_text(messages: list) -> str:
     for i in range(len(messages) - 1, -1, -1):
@@ -5581,9 +5661,17 @@ async def chat_completions(request: Request) -> Any:
     # already nailed the chat-classification at 25s; using its
     # verdict directly saves the 30-90s Hermes roundtrip on every
     # conversational message.
-    if (refined and refined.get("intent") == "chat"
-            and str(refined.get("reply") or "").strip()):
-        reply = str(refined["reply"]).strip()
+    _chat_reply = ""
+    if refined and refined.get("intent") == "chat":
+        _chat_reply = str(refined.get("reply") or "").strip()
+        if not _chat_reply:
+            # The JSON classifier reliably tags chat but often omits the
+            # `reply` field -- generate it now so a greeting never falls
+            # through to Hermes (which tried a bogus 'chat' verb, operator
+            # 2026-05-20). Generated, not canned. Empty -> fall through.
+            _chat_reply = await _quick_chat_reply(last_user_text, messages)
+    if _chat_reply:
+        reply = _chat_reply
         log.info("refine short-circuit: chat reply (no router/backend)")
         if streaming:
             async def _stream_refine_chat() -> AsyncGenerator[bytes, None]:
@@ -6210,24 +6298,23 @@ async def chat_completions(request: Request) -> Any:
                 content=json.dumps(buf_body).encode("utf-8"),
                 headers=headers,
             ))
+            # Start the checkpoint clock now so we only stream THIS turn's
+            # tool steps, never replay the historical tail buffer.
+            _tail_seen = time.time()
             while not upstream_task.done():
                 try:
                     await asyncio.wait_for(
                         asyncio.shield(upstream_task), timeout=1.0)
                 except asyncio.TimeoutError:
-                    # 1s keepalive cadence: each keepalive line makes the
-                    # OWUI pipe poll the hermes-tail, so the agent's live
-                    # tool/reasoning steps stream into the thinking dropdown
-                    # ~1s after they happen instead of all dumping at the
-                    # end (operator 2026-05-20: "only propagates when done").
-                    # SSE comment-line keepalive. Carries no data,
-                    # doesn't render as a chip in OWUI -- just
-                    # enough bytes to keep aiohttp's chunked-
-                    # encoding reader from timing out. Replaces the
-                    # previous re-emit of `agent_target` status
-                    # which surfaced as "🤖 working on it" chips
-                    # stacked 20+ deep during a long Hermes wait.
-                    yield b": keepalive\n\n"
+                    # Checkpoint interrupt (operator 2026-05-20): emit a
+                    # REAL mios_status data chunk for the AI's latest tool
+                    # step so the emitter streams live in OWUI. When the
+                    # tail has nothing new, fall back to a comment-line
+                    # keepalive (keeps aiohttp's chunked reader alive
+                    # without stacking duplicate chips).
+                    _st, _tail_seen = _tail_latest_status(
+                        _tail_seen, chat_id=chat_id, model=model)
+                    yield _st if _st else b": keepalive\n\n"
                 except Exception:
                     break
             try:
