@@ -1188,7 +1188,9 @@ _REFINE_SYSTEM_LITE = (
     "user wants and how to get it.\n"
     "\n"
     "Fields:\n"
-    '  "intent": chat | dispatch | agent | dag | multi_task\n'
+    '  "intent": chat | agent | multi_task   (coarse -- the planner\n'
+    "    refines single-verb vs multi-step downstream; never emit dag or\n"
+    "    dispatch here)\n"
     '  "refined_text": the request rewritten clearly + actionably\n'
     '  "intended_outcome": one line -- what the user expects back\n'
     '  "target_agent": a registered sub-agent by role -- general (Hermes:\n'
@@ -1201,11 +1203,11 @@ _REFINE_SYSTEM_LITE = (
     '    "priority","depends_on"}]\n'
     "\n"
     "Routing -- decide by what the request NEEDS:\n"
-    "  chat = ONLY greetings/thanks/small-talk needing no data, tool,\n"
-    "         file, system action, or web. Emit reply; run no agent.\n"
-    "  dispatch = ONE concrete MiOS verb; args concrete (never 'best').\n"
-    "  agent = ONE goal needing tools/reasoning.\n"
-    "  dag = ONE goal, several dependent steps.\n"
+    "  chat  = ONLY greetings/thanks/small-talk needing no data, tool,\n"
+    "          file, system action, or web. Emit reply; run no agent.\n"
+    "  agent = ANY ONE goal that needs tools, reasoning, the web, files,\n"
+    "          the system, or a current/external fact (the DEFAULT for\n"
+    "          anything that isn't pure chat or several goals).\n"
     "  multi_task = SEVERAL independent goals in one prompt (>=2 tasks).\n"
     "\n"
     "Hard rules:\n"
