@@ -2597,6 +2597,7 @@ pkgs = [
     "Microsoft.WindowsTerminal",     # WT (also installed earlier; idempotent)
     "7zip.7zip",                     # archive support
     "Microsoft.VCRedist.2015+.x64",  # VC++ runtime
+    "Python.Python.3.14",            # python 3.14 (matches MiOS-DEV 3.14.x) -- host-side MiOS python tooling
     # ── MiOS terminal CLI surface (mirrors the deployed Linux side) ─
     "sharkdp.bat",                   # syntax-highlighted cat
     "sharkdp.fd",                    # fast find
@@ -2614,6 +2615,7 @@ pkgs = [
 # add a custom package above (or remove the default set) extend / shrink
 # this list to match.
 verify_probes = [
+    "python",
     "fastfetch",
     "btop",
     "rg",
