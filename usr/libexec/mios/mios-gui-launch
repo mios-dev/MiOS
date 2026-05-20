@@ -58,11 +58,49 @@ fi
 APP="$1"
 shift
 
+# ── Flatpak app-id / .desktop-id auto-dispatch ────────────────────────
+# When called with a reverse-DNS-shaped name (com.foo.Bar /
+# mobi.phosh.MobileSettings / org.gnome.Calls / etc.), the caller meant
+# either a FLATPAK or a .desktop-id-installed RPM, not a bare PATH
+# binary. Try BOTH before falling through to the "not found on PATH"
+# error. Operator-flagged 2026-05-19: agent tried
+# `mios-gui-launch mobi.phosh.MobileSettings` -> "not found on PATH",
+# retried 4x, hit same_tool_failure_halt. Detection is purely
+# structural: 2+ dots, alpha-leading segments.
+if [[ "$APP" =~ ^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*){2,}$ ]]; then
+    # 1. Flatpak first (operator binding: Linux native first;
+    #    flatpaks are the user-app surface).
+    if command -v flatpak >/dev/null 2>&1 \
+       && flatpak info "$APP" >/dev/null 2>&1; then
+        exec /usr/libexec/mios/flatpak-launch "$APP" "$@"
+    fi
+    # 2. .desktop file: look up /usr/share/applications/<id>.desktop
+    #    + ~/.local/share/applications/<id>.desktop, extract Exec=,
+    #    strip Desktop-Entry placeholders (%F %U %i %c %k), and exec.
+    for _df in "/usr/share/applications/$APP.desktop" \
+               "/var/lib/flatpak/exports/share/applications/$APP.desktop" \
+               "$HOME/.local/share/applications/$APP.desktop"; do
+        if [ -r "$_df" ]; then
+            _exec=$(awk -F= "/^Exec=/{print substr(\$0, 6); exit}" "$_df" \
+                     | sed -E "s/ ?%[FUufdDnNickvm]//g")
+            if [ -n "$_exec" ]; then
+                # Exec= is a shell-tokenisable command line. Re-exec
+                # this same script with the FIRST token (binary) +
+                # the rest preserved + caller's args appended.
+                # shellcheck disable=SC2086 -- intentional word-split
+                exec /usr/libexec/mios/mios-gui-launch $_exec "$@"
+            fi
+        fi
+    done
+fi
+
 # Resolve the binary (allow absolute or PATH).
 if [ "${APP:0:1}" != "/" ]; then
     RESOLVED=$(command -v "$APP" 2>/dev/null || true)
     if [ -z "$RESOLVED" ]; then
         echo "mios-gui-launch: '$APP' not found on PATH" >&2
+        echo "  (if this is a flatpak, pass the full app-id like 'org.gnome.Calls'" >&2
+        echo "   -- structural detection requires >=2 dots in the name)" >&2
         exit 1
     fi
     APP="$RESOLVED"

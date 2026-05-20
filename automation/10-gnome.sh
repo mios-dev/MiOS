@@ -107,15 +107,18 @@ for attempt in 1 2 3; do
     sleep 5
 done
 
-# VERIFY cursor files actually exist -- log warning if missing but DO NOT fail build
+# VERIFY cursor files actually exist -- FAIL THE BUILD if missing.
+# Operator trace 2026-05-19: this check had been softened to non-fatal
+# and an image shipped with NO Bibata at all -- /usr/share/icons had no
+# Bibata-Modern-Classic, so dconf + environment.d + gtk settings.ini +
+# the flatpak override all pointed XCURSOR_THEME at a theme that did not
+# exist on disk, and EVERY surface fell back to the default cursor
+# ("NOT BIBATA CURSOR ANYWHERE STILL"). A square/default cursor is
+# unacceptable per the original v0.2.0 MANDATORY policy -- restore it.
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
-    echo "  WARNING: Bibata cursor theme download FAILED after 3 attempts"
-    echo "  URL: $BIBATA_URL"
-    echo "  The cursor will show as a SQUARE until the theme is installed."
-    echo "  This failure is non-fatal for the build; users can install later."
-else
-    echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
+    die "Bibata cursor download FAILED after 3 attempts ($BIBATA_URL) -- refusing to ship an image with a broken cursor. (Already-shipped images self-heal at runtime via mios-cursor-ensure into ~/.local/share/icons, but the BUILD must seed /usr/share/icons.)"
 fi
+echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 
 # Cursor default -- covers every layer that reads cursor theme.
 # Managed via usr/share/icons/default/index.theme

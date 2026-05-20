@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""mios-cursor-apply -- set the X11 root-window default cursor to the MiOS
+cursor theme.
+
+Operator trace 2026-05-19: under WSLg, WebKit content + GTK *widgets*
+(links, text) show Bibata because they set NAMED cursors explicitly, but
+the window CHROME (Epiphany frame, Nautilus, gnome-software) shows the
+wrong cursor. Cause: GTK4 leaves a toplevel's ambient/idle cursor unset,
+so it falls back to the X SERVER's default cursor -- and nothing themes
+that under sessionless Xwayland (no gsd-xsettings / XSETTINGS daemon, no
+session to set the root cursor; xsetroot/xrdb/xsettingsd aren't installed).
+
+Fix: XDefineCursor the Bibata `left_ptr` onto the root window. Toplevels
+with no explicit cursor inherit the root cursor (X11 cursor inheritance),
+so the chrome themes correctly. Uses libX11 + libXcursor directly (both
+present -- Xwayland/GTK link them); no package install.
+
+Idempotent + safe: no-op without a DISPLAY. Per-X-session (the root cursor
+resets if Xwayland restarts), so it's invoked on interactive login from
+/etc/profile.d/mios-cursor.sh. Theme + size come from mios.toml
+[theme.cursor_linux] (SSOT)."""
+
+import ctypes
+import ctypes.util
+import os
+import sys
+
+
+def _toml_get(dotted, default):
+    paths = [
+        os.path.expanduser("~/.config/mios/mios.toml"),
+        "/etc/mios/mios.toml",
+        "/usr/share/mios/mios.toml",
+    ]
+    try:
+        import tomllib
+    except ImportError:  # pragma: no cover
+        return default
+    for p in paths:
+        try:
+            with open(p, "rb") as fh:
+                data = tomllib.load(fh)
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        node = data
+        ok = True
+        for k in dotted.split("."):
+            if isinstance(node, dict) and k in node:
+                node = node[k]
+            else:
+                ok = False
+                break
+        if ok and node not in (None, ""):
+            return node
+    return default
+
+
+def main():
+    if not os.environ.get("DISPLAY"):
+        return 0  # no X server to theme (headless / pure-Wayland)
+
+    theme = str(_toml_get("theme.cursor_linux.theme", "Bibata-Modern-Classic"))
+    size = str(_toml_get("theme.cursor_linux.size", "24"))
+    # XcursorLibraryLoadCursor honours these; set them if the caller's env
+    # didn't (so the helper resolves the theme even when run bare).
+    os.environ.setdefault("XCURSOR_THEME", theme)
+    os.environ.setdefault("XCURSOR_SIZE", size)
+
+    x11p = ctypes.util.find_library("X11")
+    xcp = ctypes.util.find_library("Xcursor")
+    if not (x11p and xcp):
+        print("mios-cursor-apply: libX11/libXcursor not found", file=sys.stderr)
+        return 1
+    X = ctypes.CDLL(x11p)
+    Xc = ctypes.CDLL(xcp)
+
+    X.XOpenDisplay.restype = ctypes.c_void_p
+    X.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    d = X.XOpenDisplay(None)
+    if not d:
+        print(f"mios-cursor-apply: cannot open DISPLAY {os.environ.get('DISPLAY')!r}",
+              file=sys.stderr)
+        return 1
+    dpy = ctypes.c_void_p(d)
+
+    Xc.XcursorLibraryLoadCursor.restype = ctypes.c_ulong
+    Xc.XcursorLibraryLoadCursor.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    # left_ptr is the ambient/arrow cursor toplevels inherit; default is the
+    # modern alias. Try left_ptr, fall back to default.
+    cur = Xc.XcursorLibraryLoadCursor(dpy, b"left_ptr") \
+        or Xc.XcursorLibraryLoadCursor(dpy, b"default")
+    if not cur:
+        print(f"mios-cursor-apply: theme {theme!r} left_ptr/default did not "
+              f"load (check XCURSOR_PATH)", file=sys.stderr)
+        return 1
+
+    X.XDefaultRootWindow.restype = ctypes.c_ulong
+    X.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    root = X.XDefaultRootWindow(dpy)
+    X.XDefineCursor.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong]
+    X.XDefineCursor(dpy, ctypes.c_ulong(root), ctypes.c_ulong(cur))
+    X.XFlush.argtypes = [ctypes.c_void_p]
+    X.XFlush(dpy)
+    print(f"mios-cursor-apply: root default cursor set to {theme} (size {size}) "
+          f"on {os.environ.get('DISPLAY')}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

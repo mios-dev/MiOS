@@ -51,6 +51,17 @@ fi
 NAME="$1"
 shift
 
+# Refuse empty query: previously a shlex-quoted '' from a kwarg
+# mismatch upstream fell through to the games-cache substring scan
+# and produced "ambiguous '' -- 10 matches" output that bubbled
+# back to the operator as a misleading "doing something failed"
+# DAG node. Fail fast instead so the caller sees the empty-arg bug.
+# Operator-flagged 2026-05-18.
+if [ -z "${NAME// }" ]; then
+    echo "mios-launch: empty target -- caller passed no name/query" >&2
+    exit 2
+fi
+
 # ─── 0. mios.toml [mios-find.aliases] role -> concrete app ───────────
 # Operator-binding SSOT: when the operator types a freedesktop role
 # name ("files", "web", "terminal", "editor"), translate it to the
@@ -60,12 +71,26 @@ shift
 # 'files'" even though [mios-find.aliases].files="nautilus" was set.
 _alias_resolve() {
     python3 - "$1" <<'PYEOF' 2>/dev/null
-import sys
+import sys, re
 try:
     import tomllib
 except ImportError:
     sys.exit(0)
-q = sys.argv[1].lower()
+raw = sys.argv[1]
+# Normalised lookup key: lowercase, collapse whitespace to single
+# hyphens. Lets "File Explorer", "file_explorer", "FILE-EXPLORER"
+# match the same SSOT row.
+norm = re.sub(r"\s+", "-", raw.strip().lower())
+# Strip "my " / "the " possessives so "my web browser" -> "web-browser"
+# normalised, then drop word "browser" tail to hit role match.
+norm_stripped = re.sub(r"^(my|the)-", "", norm)
+candidates = [raw, raw.lower(), norm, norm_stripped]
+# Also try the LAST word of multi-word input ("my web browser" -> "browser",
+# "the file explorer" -> "explorer") so role-only names hit.
+last = norm.split("-")[-1] if norm else ""
+if last and last not in candidates:
+    candidates.append(last)
+
 for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     try:
         with open(path, "rb") as f:
@@ -74,10 +99,42 @@ for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
         continue
     aliases = d.get("mios-find", {}).get("aliases", {})
     if isinstance(aliases, dict):
-        v = aliases.get(q)
-        if isinstance(v, str) and v:
-            print(v)
-            sys.exit(0)
+        for c in candidates:
+            v = aliases.get(c)
+            if isinstance(v, str) and v:
+                print(v)
+                sys.exit(0)
+    # ── Role-aware fallback: consult [[desktop.apps]] for the
+    # default=true app of a role matching the candidate. Lets
+    # "browser" / "web" / "terminal" resolve to operator's actual
+    # default WITHOUT a per-role line in [mios-find.aliases].
+    # Operator binding 2026-05-19: SSOT = mios.toml; NO hardcoded
+    # English mappings between role names and concrete apps.
+    apps = d.get("desktop", {}).get("apps", [])
+    if isinstance(apps, list):
+        for c in candidates:
+            c_norm = c.rstrip("s")
+            best_id = None
+            best_default = False
+            for app_cfg in apps:
+                if not isinstance(app_cfg, dict):
+                    continue
+                role = str(app_cfg.get("role", "")).lower().rstrip("s")
+                if role != c_norm:
+                    continue
+                aid = str(app_cfg.get("id", ""))
+                if not aid:
+                    continue
+                if app_cfg.get("default") is True:
+                    best_id = aid
+                    best_default = True
+                    break
+                if best_id is None:
+                    best_id = aid
+            if best_id:
+                short = best_id.split(".")[-1].lower()
+                print(short)
+                sys.exit(0)
 PYEOF
 }
 _alias="$(_alias_resolve "$NAME")"
@@ -153,15 +210,53 @@ s.close()
     fi
     return 1
 }
-case "$NAME" in
-    chrome|chromedev|google-chrome|browser)
-        _broker_dispatch "mios-chrome $*" && exit 0
-        # Broker unavailable -- fall back to in-process exec (will
-        # likely fail to display on a non-operator uid, but better
-        # than nothing on bare-metal hosts without the broker).
-        exec mios-chrome "$@"
-        ;;
-esac
+# ─── 3a. App-specific launcher override (SSOT-driven) ────────────────
+# Some flatpak apps need a wrapper launcher (e.g. mios-chrome wraps
+# com.google.ChromeDev with --remote-debugging-port=9222 so Hermes's
+# browser_* tools can connect via CDP). Each [[desktop.apps]] entry
+# can declare `launcher = "<shim>"`; when the resolved app id has one,
+# we dispatch through it instead of bare `flatpak run`. NO hardcoded
+# English mappings in this file -- the override list comes from
+# mios.toml SSOT. Operator binding 2026-05-19.
+_launcher_override() {
+    python3 - "$1" <<'PYEOF' 2>/dev/null
+import sys, re
+try:
+    import tomllib
+except ImportError:
+    sys.exit(0)
+name = sys.argv[1].strip()
+name_lc = name.lower()
+norm = re.sub(r"\s+", "-", name_lc)
+for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(path, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    apps = d.get("desktop", {}).get("apps", [])
+    if not isinstance(apps, list):
+        continue
+    for cfg in apps:
+        if not isinstance(cfg, dict):
+            continue
+        launcher = cfg.get("launcher")
+        if not (isinstance(launcher, str) and launcher):
+            continue
+        app_id = str(cfg.get("id", ""))
+        if not app_id:
+            continue
+        short = app_id.split(".")[-1].lower()
+        if name in (app_id, short) or name_lc == short or norm == short:
+            print(launcher)
+            sys.exit(0)
+PYEOF
+}
+_override_cmd="$(_launcher_override "$NAME")"
+if [ -n "$_override_cmd" ]; then
+    _broker_dispatch "$_override_cmd $*" && exit 0
+    exec $_override_cmd "$@"
+fi
 
 # ─── 3aa. Exact .exe lookup via Everything CLI ───────────────────────
 # For launcher / client names that don't live in the Windows-GUI

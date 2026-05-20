@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""/usr/libexec/mios/mios-os-recipe <name> [key=value ...]
+
+Executes a NAMED, ALLOWLISTED os-shell recipe declared in mios.toml
+under [recipes.<name>]. Picks the OS-appropriate template (linux /
+windows), shell-escapes every parameter, optionally converts Linux
+paths to Windows paths via wslpath, and dispatches.
+
+Hardening:
+  * Only recipes present in mios.toml [recipes.*] are executable --
+    arbitrary command pass-through is impossible.
+  * Only kwargs whose key appears in the recipe's `args` list survive
+    to the template; everything else is dropped.
+  * `permission = "write"` recipes require MIOS_OS_RECIPE_WRITE=1
+    in env (set by the operator via mios.toml -> userenv.sh slot).
+  * Every {placeholder} substitution is shell-quoted before splice
+    -- shlex.quote on Linux, double-quote-escape on Windows.
+  * `wsl_paths` arg names get wslpath -w conversion when the windows
+    template is chosen so File Explorer / Notepad receive a native
+    Windows path.
+
+Output: --json prints {success, exit_code, stdout, stderr, template,
+target_os}; default mode prints stdout/stderr directly + exits with
+the recipe's exit code.
+
+SSOT: mios.toml is the only source of recipes. Add new recipes in
+TOML; no code change required.
+
+Operator binding 2026-05-18: "RECIPES" + "NO HARDCODES ANYWHERE" +
+"mios-os-control should have more OS Specific Shell controls".
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+from typing import Optional
+
+
+def _load_recipes() -> dict:
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            print("mios-os-recipe: tomllib unavailable", file=sys.stderr)
+            sys.exit(3)
+    merged: dict = {}
+    # Layer order: vendor first, host override second (so /etc wins on
+    # key collisions). Walk BOTH -- previous "return first that parses"
+    # logic silently dropped the vendor [recipes.*] block when
+    # /etc/mios/mios.toml existed without its own [recipes.*].
+    for path in (
+        os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+        "/etc/mios/mios.toml",
+    ):
+        try:
+            with open(path, "rb") as f:
+                d = tomllib.load(f)
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        r = d.get("recipes") or {}
+        if isinstance(r, dict):
+            merged.update(r)
+    return merged
+
+
+def _detect_os() -> str:
+    # WSL is a Linux env that can dispatch to Windows -- we treat it as
+    # both, picking the template per-recipe (operator may run a
+    # Linux-only recipe inside WSL fine; a Windows-only recipe inside
+    # WSL is also fine since explorer.exe / powershell.exe are PATH-
+    # accessible via WSL interop). Default to whichever the recipe
+    # declares; this function returns the PREFERRED template family.
+    if os.path.exists("/proc/sys/fs/binfmt_misc/WSLInterop"):
+        return "linux"   # WSL -- can dispatch Windows too, but Linux is default
+    if sys.platform.startswith("win"):
+        return "windows"
+    return "linux"
+
+
+def _wsl_to_windows(path: str) -> str:
+    try:
+        r = subprocess.run(
+            ["wslpath", "-w", path], check=True, capture_output=True, text=True,
+            timeout=4,
+        )
+        return r.stdout.strip() or path
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return path
+
+
+def _winquote(s: str) -> str:
+    # Windows cmd quoting: wrap in double-quotes + escape embedded ".
+    return '"' + s.replace('"', '""') + '"'
+
+
+_PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+
+def _expand(template: str, params: dict, *, windows: bool) -> str:
+    # Substitute every {key} with a shell-quoted value; refuse if any
+    # placeholder lacks a binding (prevents the recipe from running
+    # with a literal "{path}" in the command).
+    missing: list[str] = []
+
+    def _sub(m):
+        key = m.group(1)
+        if key not in params:
+            missing.append(key)
+            return m.group(0)
+        v = str(params[key])
+        return _winquote(v) if windows else shlex.quote(v)
+
+    out = _PLACEHOLDER.sub(_sub, template)
+    if missing:
+        print(
+            f"mios-os-recipe: missing required arg(s): {','.join(missing)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return out
+
+
+def _parse_kv(args: list[str]) -> dict:
+    out: dict = {}
+    for a in args:
+        if "=" not in a:
+            print(f"mios-os-recipe: arg without '=' : {a!r}", file=sys.stderr)
+            sys.exit(2)
+        k, v = a.split("=", 1)
+        out[k.strip()] = v
+    return out
+
+
+def _run(name: str, kv: dict, *, want_json: bool, target_os: Optional[str]) -> int:
+    recipes = _load_recipes()
+    spec = recipes.get(name)
+    if not isinstance(spec, dict):
+        print(
+            f"mios-os-recipe: unknown recipe {name!r} "
+            f"(declare under [recipes.{name}] in mios.toml)",
+            file=sys.stderr,
+        )
+        return 2
+
+    declared_args = list(spec.get("args") or [])
+    # Strip any kwarg not declared (defense in depth -- the agent
+    # shouldn't be able to splice a phantom {key} that exists in the
+    # template but not in `args`).
+    params = {k: v for k, v in kv.items() if k in declared_args}
+
+    permission = str(spec.get("permission", "read")).lower()
+    if permission == "write" and os.environ.get("MIOS_OS_RECIPE_WRITE") != "1":
+        print(
+            f"mios-os-recipe: recipe {name!r} requires permission='write' "
+            f"-- set MIOS_OS_RECIPE_WRITE=1 to authorise",
+            file=sys.stderr,
+        )
+        return 4
+
+    # Resolve target OS: explicit --os flag > detected default. Recipe
+    # must declare a template for the chosen OS.
+    chosen = target_os or _detect_os()
+    template = spec.get(chosen)
+    if not template:
+        # If recipe doesn't have a template for the chosen OS but DOES
+        # have one for the other, surface a clear message.
+        other = "windows" if chosen == "linux" else "linux"
+        if spec.get(other):
+            print(
+                f"mios-os-recipe: recipe {name!r} has no {chosen} template "
+                f"(only {other}); re-run with --os {other}",
+                file=sys.stderr,
+            )
+        else:
+            print(f"mios-os-recipe: recipe {name!r} has no executable template", file=sys.stderr)
+        return 5
+
+    # WSL path conversion: when the recipe declares wsl_paths AND the
+    # windows template was chosen, convert each named arg.
+    if chosen == "windows":
+        for k in (spec.get("wsl_paths") or []):
+            if k in params:
+                params[k] = _wsl_to_windows(str(params[k]))
+
+    cmd = _expand(str(template), params, windows=(chosen == "windows"))
+
+    # Execute. Linux: bash -c. Windows-from-WSL: binfmt_misc handles the
+    # .exe exec when the full path is given. Recipe templates name
+    # /mnt/c/Windows/... binaries directly because the MiOS distro sets
+    # `appendWindowsPath=false` in /etc/wsl.conf -- bare names don't
+    # resolve via PATH lookup. Operator-confirmed 2026-05-19.
+    try:
+        r = subprocess.run(
+            cmd, shell=True, check=False, capture_output=True, text=True,
+            timeout=int(os.environ.get("MIOS_OS_RECIPE_TIMEOUT", "30")),
+        )
+        stdout, stderr, code = r.stdout, r.stderr, r.returncode
+    except subprocess.TimeoutExpired as e:
+        stdout, stderr, code = (e.stdout or ""), (e.stderr or "") + "\n<timeout>", 124
+    except Exception as e:
+        stdout, stderr, code = "", f"mios-os-recipe: {e}", 1
+
+    if want_json:
+        print(json.dumps({
+            "success": code == 0,
+            "recipe": name,
+            "target_os": chosen,
+            "template": cmd,
+            "exit_code": code,
+            "stdout": stdout,
+            "stderr": stderr,
+        }))
+    else:
+        if stdout:
+            sys.stdout.write(stdout)
+        if stderr:
+            sys.stderr.write(stderr)
+    return code
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        return 0
+
+    if argv[0] == "list":
+        recipes = _load_recipes()
+        for name, spec in sorted(recipes.items()):
+            if not isinstance(spec, dict):
+                continue
+            tmpl_oses = [k for k in ("linux", "windows") if spec.get(k)]
+            perm = spec.get("permission", "read")
+            desc = spec.get("description", "")
+            args_s = ",".join(spec.get("args") or [])
+            print(f"  {name:<24} [{','.join(tmpl_oses):<13}] perm={perm:<5} args=({args_s})  {desc}")
+        return 0
+
+    want_json = False
+    target_os = None
+    if argv and argv[0] == "--json":
+        want_json = True
+        argv = argv[1:]
+    while argv and argv[0].startswith("--os="):
+        target_os = argv[0].split("=", 1)[1]
+        argv = argv[1:]
+    if argv and argv[0] == "--os" and len(argv) >= 2:
+        target_os = argv[1]
+        argv = argv[2:]
+
+    if not argv:
+        print("mios-os-recipe: missing <name>", file=sys.stderr)
+        return 2
+
+    name = argv[0]
+    kv = _parse_kv(argv[1:])
+    return _run(name, kv, want_json=want_json, target_os=target_os)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

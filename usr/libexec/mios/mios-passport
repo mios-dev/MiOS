@@ -105,7 +105,7 @@ if _env_agents:
 else:
     AGENTS = list(DEFAULT_AGENTS)
 
-# SurrealDB env (same as mios-db / mios-skills / mios-pkg).
+# SurrealDB env (same as mios-db / mios-skills / mios-kg).
 DB_URL = os.environ.get(
     "MIOS_DB_URL",
     "http://localhost:" + os.environ.get("MIOS_PORT_SURREALDB", "8000"))

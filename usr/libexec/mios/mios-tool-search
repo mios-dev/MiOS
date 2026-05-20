@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""mios-tool-search <query> [--limit N] [--json]
+
+Natural-language search over the agent-pipe verb catalog. Calls
+agent-pipe's /v1/tool-search endpoint, which embeds the query via
+nomic-embed-text + cosine-scores against the cached embeddings of
+every visible verb (tier=core or common; tier=rare hidden).
+
+Returns top-k {name, sig, desc, tier, score}. Used by the planner
+when no listed verb obviously fits an intent -- progressive-disclosure
+pattern from RAG-MCP (arXiv 2505.03275): instead of stuffing the full
+catalog into every planner turn, plan with a small core set + this
+retrieval verb for the rest.
+
+SSOT: mios.toml [verbs.*] is the catalog; this shim is a thin
+client. Operator binding 2026-05-19.
+"""
+from __future__ import annotations
+import argparse
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+
+AGENT_PIPE_URL = os.environ.get(
+    "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
+).rstrip("/")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-tool-search")
+    p.add_argument("query", nargs="+", help="natural-language query")
+    p.add_argument("--limit", type=int, default=5)
+    p.add_argument("--json", action="store_true", help="emit raw JSON")
+    args = p.parse_args()
+    query = " ".join(args.query)
+    url = (f"{AGENT_PIPE_URL}/v1/tool-search?"
+           f"query={urllib.parse.quote(query)}&limit={args.limit}")
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            data = json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception as e:
+        print(f"mios-tool-search: agent-pipe unreachable: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(data))
+        return 0
+    hits = data.get("hits") or []
+    if not hits:
+        print(f"mios-tool-search: no hits for {query!r}", file=sys.stderr)
+        return 2
+    for h in hits:
+        print(f"  {h['name']}({h.get('sig','')})  "
+              f"[score={h.get('score',0):.3f} tier={h.get('tier','')}]  "
+              f"{h.get('desc','')[:80]}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

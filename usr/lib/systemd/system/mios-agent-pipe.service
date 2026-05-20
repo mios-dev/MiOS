@@ -61,7 +61,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log
+ReadWritePaths=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log /var/lib/mios/agent-env
 # Read-only mount of the agent-passport tree so this service can
 # load its own private key + every other agent's public key for
 # /passport/verify.

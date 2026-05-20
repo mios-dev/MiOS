@@ -241,6 +241,21 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
     export DBUS_SESSION_BUS_ADDRESS
 fi
 
+# Step 4b ── Pre-launch portal heal. WSLg consistently lets
+# flatpak-portal idle out (10-18min observed); when an agent or
+# operator launches a flatpak after the idle, the sandbox-credential
+# bootstrap fails ("Connection: failed to receive credentials") and
+# the app dies at startup. mios-wsl-flatpak-heal idempotently
+# re-starts the user-side portal stack + pings flatpak-portal to
+# confirm responsiveness. Cheap (~200ms when portals already up;
+# ~1s on cold heal) -- run it BEFORE every flatpak launch so the
+# operator never sees the idle-out failure mode.
+# Operator binding 2026-05-19: "fix epiphany and ALL Flatpaks
+# anching issues -- FIX GTK GLOBALLY NOW".
+if [ "$IS_WSL" = "1" ] && [ -x /usr/libexec/mios/mios-wsl-flatpak-heal ]; then
+    /usr/libexec/mios/mios-wsl-flatpak-heal >/dev/null 2>&1 || true
+fi
+
 # Step 5 ── per-app extra flags (read from a static file so MiOS source
 # can ship app-specific launch defaults without having to regenerate
 # the bootstrap shim layer). Lookup order:

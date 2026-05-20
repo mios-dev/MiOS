@@ -541,7 +541,7 @@ watch_dirs = [
 # tunables. `bootstrap_per_source_cap` caps app_install rows per
 # inventory source so a pathological catalog can't flood the
 # graph. `lookup_max_alias_results` caps the alias fuzzy-match
-# step in pkg_lookup. Operator can raise both per-deployment.
+# step in kg_lookup. Operator can raise both per-deployment.
 bootstrap_per_source_cap   = 200
 lookup_max_alias_results   = 3
 
@@ -771,6 +771,910 @@ max_depth = 4               # shallow on Windows side
 excludes = ["AppData", ".cache", "node_modules", ".git",
             "OneDrive*", "Cookies"]
 
+# ============================================================================
+# [verbs.<name>] -- AGENT-PIPE VERB CATALOG (SSOT)
+#
+# Every verb the planner can emit lives here. agent-pipe reads this block
+# at boot + RENDERS the planner's "Available verbs" catalog from it (no
+# more hand-typed English in _PLANNER_SYSTEM). Each verb declares:
+#
+#   section     -- group heading in the catalog (string)
+#   sig         -- arg signature shown in catalog ("name, position?")
+#   desc        -- one-line description for the catalog
+#   tier        -- core | common | rare (drives progressive disclosure --
+#                  only `core` is loaded into the planner prompt by default
+#                  once tier-based gating ships)
+#   permission  -- read | write | interactive
+#   [verbs.<name>.params.<argname>]
+#     type     -- string | integer | boolean | array | object
+#     desc     -- argument description
+#     aliases  -- list of synonyms the planner LLM might emit instead of
+#                 the canonical argname. Dispatcher accepts any.
+#     enum     -- (optional) closed set of allowed values
+#     default  -- (optional) default if omitted
+#
+# Operator binding: "EVERYTHING SOURCED FROM THE MIOS.TOML/HTML" +
+# "NO HARDCODES ANYWHERE" -- new verb = one TOML block edit, no Python
+# touched (dispatch wiring in agent-pipe is a separate concern; this
+# block owns the LLM-facing surface).
+# ============================================================================
+
+# ─── Section: Window / app launch ─────────────────────────────────────
+[verbs.open_app]
+section    = "Window / app launch"
+sig        = 'name, position="default"?, args?, monitor=0?'
+desc       = 'LAUNCH an app/program. Use for "open / launch / start / run X". After fan-out probes confirm X exists.'
+tier       = "core"
+permission = "write"
+  [verbs.open_app.params.name]
+  type    = "string"
+  desc    = "App display name OR full path. Paths get basename-extracted before launch."
+  aliases = ["query", "title", "app", "target", "program", "path", "file", "binary", "exe"]
+  [verbs.open_app.params.position]
+  type    = "string"
+  desc    = "Semantic placement after launch."
+  enum    = ["default", "as-is", "center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right", "maximize"]
+  default = "default"
+  [verbs.open_app.params.args]
+  type    = "array"
+  desc    = "Extra positional args passed to the launcher target."
+  [verbs.open_app.params.monitor]
+  type    = "integer"
+  desc    = "Monitor index (0=primary)."
+  default = 0
+
+[verbs.launch_app]
+section    = "Window / app launch"
+sig        = "name"
+desc       = "Simpler launch -- no position arg, no monitor arg. For one-shot opens with no follow-up placement."
+tier       = "core"
+permission = "write"
+  [verbs.launch_app.params.name]
+  type    = "string"
+  desc    = "App display name OR full path. Paths get basename-extracted before launch."
+  aliases = ["query", "title", "app", "target", "program", "path", "file", "binary", "exe"]
+
+[verbs.focus_window]
+section    = "Window / app launch"
+sig        = 'title, position="default"?'
+desc       = "Raise an OPEN window to front + optionally re-position (same enum as open_app)."
+tier       = "common"
+permission = "write"
+  [verbs.focus_window.params.title]
+  type    = "string"
+  desc    = "Window title pattern (substring match)."
+  aliases = ["name", "window", "app"]
+  [verbs.focus_window.params.position]
+  type    = "string"
+  enum    = ["default", "as-is", "center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right", "maximize"]
+  default = "default"
+
+[verbs.move_window]
+section    = "Window / app launch"
+sig        = "title, position, monitor=0?"
+desc       = "SEMANTIC move: center / left / right / top-left etc. Use position_window for literal (x,y)."
+tier       = "common"
+permission = "write"
+  [verbs.move_window.params.title]
+  type = "string"
+  aliases = ["name", "window"]
+  [verbs.move_window.params.position]
+  type = "string"
+  enum = ["center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"]
+  [verbs.move_window.params.monitor]
+  type = "integer"
+  default = 0
+
+[verbs.position_window]
+section    = "Window / app launch"
+sig        = "title, x, y"
+desc       = "Move window to LITERAL pixel (x,y). Use after screen_layout when exact coords are known."
+tier       = "common"
+permission = "write"
+  [verbs.position_window.params.title]
+  type = "string"
+  aliases = ["name", "window"]
+  [verbs.position_window.params.x]
+  type = "integer"
+  [verbs.position_window.params.y]
+  type = "integer"
+
+[verbs.resize_window]
+section    = "Window / app launch"
+sig        = "title, width, height"
+desc       = "Resize to literal pixel WxH (does NOT move)."
+tier       = "common"
+permission = "write"
+  [verbs.resize_window.params.title]
+  type = "string"
+  aliases = ["name", "window"]
+  [verbs.resize_window.params.width]
+  type = "integer"
+  aliases = ["w"]
+  [verbs.resize_window.params.height]
+  type = "integer"
+  aliases = ["h"]
+
+[verbs.minimize_window]
+section    = "Window / app launch"
+sig        = "title"
+desc       = "Hide to taskbar."
+tier       = "common"
+permission = "write"
+  [verbs.minimize_window.params.title]
+  type = "string"
+  aliases = ["name", "window"]
+
+[verbs.maximize_window]
+section    = "Window / app launch"
+sig        = "title"
+desc       = "Maximize to full screen of containing monitor."
+tier       = "common"
+permission = "write"
+  [verbs.maximize_window.params.title]
+  type = "string"
+  aliases = ["name", "window"]
+
+[verbs.restore_window]
+section    = "Window / app launch"
+sig        = "title"
+desc       = "Undo minimize/maximize: return to last normal-state geometry."
+tier       = "common"
+permission = "write"
+  [verbs.restore_window.params.title]
+  type = "string"
+  aliases = ["name", "window"]
+
+[verbs.close_window]
+section    = "Window / app launch"
+sig        = 'title, mode="graceful"?'
+desc       = "Close a window. graceful=WM_CLOSE (saves state); force=TerminateProcess."
+tier       = "common"
+permission = "write"
+  [verbs.close_window.params.title]
+  type = "string"
+  aliases = ["name", "window", "app"]
+  [verbs.close_window.params.mode]
+  type = "string"
+  enum = ["graceful", "force"]
+  default = "graceful"
+
+[verbs.list_windows]
+section    = "Window / app launch"
+sig        = ""
+desc       = "Enumerate currently OPEN windows. Use BEFORE focus/move/close to confirm the target window exists."
+tier       = "core"
+permission = "read"
+
+[verbs.screen_layout]
+section    = "Window / app launch"
+sig        = ""
+desc       = "Monitor geometry (resolution, primary, position). Use BEFORE position_window with literal coords."
+tier       = "common"
+permission = "read"
+
+[verbs.open_url]
+section    = "Window / app launch"
+sig        = "url, browser?"
+desc       = "Open a URL in the operator's VISIBLE browser. NEVER browser_* for visible navigation."
+tier       = "core"
+permission = "write"
+  [verbs.open_url.params.url]
+  type    = "string"
+  aliases = ["link", "address", "uri"]
+  [verbs.open_url.params.browser]
+  type = "string"
+  desc = "Browser shortname (chromedev / firefox / default). Empty = operator default."
+
+# ─── Section: Discovery / resolution ──────────────────────────────────
+[verbs.mios_find]
+section    = "Discovery / resolution"
+sig        = "name"
+desc       = "Resolve a name to a runnable launch line WITHOUT launching. Returns the cmd; agent decides to act."
+tier       = "common"
+permission = "read"
+  [verbs.mios_find.params.name]
+  type    = "string"
+  aliases = ["query", "app", "target"]
+
+[verbs.mios_apps]
+section    = "Discovery / resolution"
+sig        = "filter?"
+desc       = "INVENTORY of installed apps across all surfaces (flatpak/rpm-gui/winget/store/steam/epic/xbox/gog/mios-shim/agent-cli/service-url). Optionally substring-filter."
+tier       = "core"
+permission = "read"
+  [verbs.mios_apps.params.filter]
+  type    = "string"
+  desc    = "Case-insensitive substring filter; empty = all."
+  aliases = ["query", "search", "name"]
+
+[verbs.everything_search]
+section    = "Discovery / resolution"
+sig        = "query, limit=10?, ext?"
+desc       = "Windows-side LOCAL FILE search (Voidtools Everything NTFS index). Finds FILES that already exist ON THIS MACHINE -- it is NOT a web or knowledge search. For current events, facts, products, people, memes, or anything from the internet, use a WEB search instead. Good for 'where is X.exe', not 'what is X'."
+tier       = "core"
+permission = "read"
+  [verbs.everything_search.params.query]
+  type    = "string"
+  aliases = ["name", "filename", "term"]
+  [verbs.everything_search.params.limit]
+  type    = "integer"
+  default = 10
+  [verbs.everything_search.params.ext]
+  type = "string"
+  desc = "Filter to extension (e.g. 'exe')."
+
+[verbs.fs_search]
+section    = "Discovery / resolution"
+sig        = "query, limit=20?, ext?, path?, type?"
+desc       = "Linux-side LOCAL FILE search (plocate -> locate -> find). Finds FILES on this machine -- NOT a web or knowledge search. Use a WEB search for internet/current-info/general-knowledge queries; this only locates files/paths on disk."
+tier       = "common"
+permission = "read"
+  [verbs.fs_search.params.query]
+  type    = "string"
+  aliases = ["name", "filename", "term"]
+  [verbs.fs_search.params.limit]
+  type = "integer"
+  default = 20
+  [verbs.fs_search.params.ext]
+  type = "string"
+  [verbs.fs_search.params.path]
+  type = "string"
+  desc = "Restrict to subtree."
+  [verbs.fs_search.params.type]
+  type = "string"
+  enum = ["f", "d", "l"]
+
+[verbs.knowledge_search]
+section    = "Discovery / resolution"
+sig        = "query, collection?, top_k=5?"
+desc       = "Query OWUI RAG knowledge collections. Hits: {score, source, snippet} for citation."
+tier       = "common"
+permission = "read"
+  [verbs.knowledge_search.params.query]
+  type = "string"
+  aliases = ["q", "text"]
+  [verbs.knowledge_search.params.collection]
+  type = "string"
+  desc = "Collection name OR id; empty = search all."
+  [verbs.knowledge_search.params.top_k]
+  type = "integer"
+  default = 5
+  aliases = ["k", "limit"]
+
+[verbs.directory_lookup]
+section    = "Discovery / resolution"
+sig        = "query, root?, ext?, kind?, limit=20?"
+desc       = "Sub-100ms cached FS map via mios-daemon (~19k entries, refreshed every 15 min). ALWAYS first for 'where is X' / 'find X'."
+tier       = "core"
+permission = "read"
+  [verbs.directory_lookup.params.query]
+  type = "string"
+  aliases = ["name", "filename", "term"]
+  [verbs.directory_lookup.params.root]
+  type = "string"
+  desc = "Filter to root label."
+  [verbs.directory_lookup.params.ext]
+  type = "string"
+  [verbs.directory_lookup.params.kind]
+  type = "string"
+  enum = ["file", "dir", "symlink"]
+  [verbs.directory_lookup.params.limit]
+  type = "integer"
+  default = 20
+
+# ─── Section: PC input (raw send-input) ───────────────────────────────
+[verbs.pc_type]
+section    = "PC input"
+sig        = "text"
+desc       = "Type literal text into focused window. Prefer text_create / text_str_replace for file edits."
+tier       = "rare"
+permission = "write"
+  [verbs.pc_type.params.text]
+  type = "string"
+  aliases = ["content", "input"]
+
+[verbs.pc_key]
+section    = "PC input"
+sig        = "key"
+desc       = "Press a single key (Enter, Tab, F5, Ctrl+S as combo)."
+tier       = "rare"
+permission = "write"
+  [verbs.pc_key.params.key]
+  type = "string"
+
+[verbs.pc_click]
+section    = "PC input"
+sig        = 'x, y, button="left"?'
+desc       = "Move cursor to (x,y) and click."
+tier       = "rare"
+permission = "write"
+  [verbs.pc_click.params.x]
+  type = "integer"
+  [verbs.pc_click.params.y]
+  type = "integer"
+  [verbs.pc_click.params.button]
+  type = "string"
+  enum = ["left", "right", "middle"]
+  default = "left"
+
+# ─── Section: Text editor (native; replaces pc_type save chain) ──────
+[verbs.text_view]
+section    = "Text editor"
+sig        = "path, start?, end?"
+desc       = "Read a file (1-indexed line numbers) or list a directory. For Windows paths, resolve via everything_search FIRST."
+tier       = "core"
+permission = "read"
+  [verbs.text_view.params.path]
+  type = "string"
+  aliases = ["file", "filename"]
+  [verbs.text_view.params.start]
+  type = "integer"
+  desc = "Start line (1-indexed)."
+  [verbs.text_view.params.end]
+  type = "integer"
+  desc = "End line (inclusive)."
+
+[verbs.text_create]
+section    = "Text editor"
+sig        = "path, content"
+desc       = "Create a new file. Refuses write-protected system paths (/etc, /usr, /boot, /mnt/c/Windows, /mnt/c/Program Files)."
+tier       = "common"
+permission = "write"
+  [verbs.text_create.params.path]
+  type = "string"
+  aliases = ["file", "filename"]
+  [verbs.text_create.params.content]
+  type = "string"
+  aliases = ["text", "body", "data"]
+
+[verbs.text_str_replace]
+section    = "Text editor"
+sig        = "path, old, new"
+desc       = "Exact-match replace. `old` must occur EXACTLY once -- supply a larger block if ambiguous."
+tier       = "common"
+permission = "write"
+  [verbs.text_str_replace.params.path]
+  type = "string"
+  aliases = ["file", "filename"]
+  [verbs.text_str_replace.params.old]
+  type = "string"
+  aliases = ["from", "before", "search"]
+  [verbs.text_str_replace.params.new]
+  type = "string"
+  aliases = ["to", "after", "replace"]
+
+[verbs.text_insert]
+section    = "Text editor"
+sig        = "path, line, content"
+desc       = "Insert content AFTER 1-indexed line N (0 = prepend)."
+tier       = "rare"
+permission = "write"
+  [verbs.text_insert.params.path]
+  type = "string"
+  aliases = ["file", "filename"]
+  [verbs.text_insert.params.line]
+  type = "integer"
+  [verbs.text_insert.params.content]
+  type = "string"
+  aliases = ["text", "body"]
+
+# ─── Section: Package management ──────────────────────────────────────
+# Unified verb: dispatcher routes by (action, backend) to the underlying
+# winget / flatpak shim. Backend "auto" picks winget for Windows-installed
+# targets, flatpak for Linux GUI apps. Operator binding 2026-05-19:
+# "compact, minimal, efficient -- consolidate redundant".
+[verbs.pkg]
+section    = "Package management"
+sig        = "action, id?, query?, backend=\"auto\"?, limit=10?, scope?"
+desc       = "Cross-platform package manager. action: search|list|show|install|upgrade|uninstall|preflight. backend: winget|flatpak|auto."
+tier       = "core"
+permission = "write"
+  [verbs.pkg.params.action]
+  type = "string"
+  enum = ["search", "list", "show", "install", "upgrade", "uninstall", "preflight"]
+  [verbs.pkg.params.id]
+  type = "string"
+  desc = "Package id (Publisher.AppId for winget, org.app.Foo for flatpak). Required for show/install/upgrade-one/uninstall/preflight."
+  aliases = ["package", "name", "ref"]
+  [verbs.pkg.params.query]
+  type = "string"
+  desc = "Search term (action=search only)."
+  aliases = ["term", "search"]
+  [verbs.pkg.params.backend]
+  type = "string"
+  enum = ["winget", "flatpak", "auto"]
+  default = "auto"
+  aliases = ["manager", "source"]
+  [verbs.pkg.params.limit]
+  type = "integer"
+  default = 10
+  [verbs.pkg.params.scope]
+  type = "string"
+  enum = ["system", "user"]
+  default = "system"
+  desc = "flatpak install scope; ignored for winget."
+
+# ─── Legacy package verbs (kept tier=rare for backward compat) ────────
+# These will be removed in a future cleanup pass; planner is taught to
+# prefer the unified `pkg` verb above. Dispatcher branches still wire
+# them so any in-flight chains keep working.
+[verbs.winget_search]
+section = "Package management"
+sig = "query, limit=10?"
+desc = "[legacy: use pkg(action='search', backend='winget')]"
+tier = "rare"
+permission = "read"
+  [verbs.winget_search.params.query]
+  type = "string"
+  aliases = ["name", "term"]
+  [verbs.winget_search.params.limit]
+  type = "integer"
+  default = 10
+
+[verbs.winget_list]
+section = "Package management"
+sig = ""
+desc = "[legacy: use pkg(action='list', backend='winget')]"
+tier = "rare"
+permission = "read"
+
+[verbs.winget_show]
+section = "Package management"
+sig = "id"
+desc = "[legacy: use pkg(action='show', backend='winget', id=...)]"
+tier = "rare"
+permission = "read"
+  [verbs.winget_show.params.id]
+  type = "string"
+  aliases = ["package", "name"]
+
+[verbs.winget_install]
+section = "Package management"
+sig = "id"
+desc = "[legacy: use pkg(action='install', backend='winget', id=...)]"
+tier = "rare"
+permission = "write"
+  [verbs.winget_install.params.id]
+  type = "string"
+  aliases = ["package", "name"]
+
+[verbs.winget_upgrade]
+section = "Package management"
+sig = "id?"
+desc = "[legacy: use pkg(action='upgrade', backend='winget')]"
+tier = "rare"
+permission = "write"
+  [verbs.winget_upgrade.params.id]
+  type = "string"
+  aliases = ["package", "name"]
+
+[verbs.winget_uninstall]
+section = "Package management"
+sig = "id"
+desc = "[legacy: use pkg(action='uninstall', backend='winget', id=...)]"
+tier = "rare"
+permission = "write"
+  [verbs.winget_uninstall.params.id]
+  type = "string"
+  aliases = ["package", "name"]
+
+[verbs.flatpak_search]
+section = "Package management"
+sig = "query, limit=10?"
+desc = "[legacy: use pkg(action='search', backend='flatpak')]"
+tier = "rare"
+permission = "read"
+  [verbs.flatpak_search.params.query]
+  type = "string"
+  aliases = ["name", "term"]
+  [verbs.flatpak_search.params.limit]
+  type = "integer"
+  default = 10
+
+[verbs.flatpak_list]
+section = "Package management"
+sig = ""
+desc = "[legacy: use pkg(action='list', backend='flatpak')]"
+tier = "rare"
+permission = "read"
+
+[verbs.flatpak_show]
+section = "Package management"
+sig = "id"
+desc = "[legacy: use pkg(action='show', backend='flatpak', id=...)]"
+tier = "rare"
+permission = "read"
+  [verbs.flatpak_show.params.id]
+  type = "string"
+  aliases = ["ref", "name"]
+
+[verbs.flatpak_install]
+section = "Package management"
+sig = "id, scope?"
+desc = "[legacy: use pkg(action='install', backend='flatpak', id=...)]"
+tier = "rare"
+permission = "write"
+  [verbs.flatpak_install.params.id]
+  type = "string"
+  aliases = ["ref", "name"]
+  [verbs.flatpak_install.params.scope]
+  type = "string"
+  enum = ["system", "user"]
+  default = "system"
+
+[verbs.flatpak_upgrade]
+section = "Package management"
+sig = "id?"
+desc = "[legacy: use pkg(action='upgrade', backend='flatpak')]"
+tier = "rare"
+permission = "write"
+  [verbs.flatpak_upgrade.params.id]
+  type = "string"
+  aliases = ["ref", "name"]
+
+[verbs.flatpak_uninstall]
+section = "Package management"
+sig = "id"
+desc = "[legacy: use pkg(action='uninstall', backend='flatpak', id=...)]"
+tier = "rare"
+permission = "write"
+  [verbs.flatpak_uninstall.params.id]
+  type = "string"
+  aliases = ["ref", "name"]
+
+[verbs.flatpak_preflight]
+section = "Package management"
+sig = "id"
+desc = "[legacy: use pkg(action='preflight', backend='flatpak', id=...)]"
+tier = "rare"
+permission = "read"
+  [verbs.flatpak_preflight.params.id]
+  type = "string"
+  aliases = ["ref", "name"]
+
+# ─── Section: System ──────────────────────────────────────────────────
+[verbs.system_status]
+section    = "System"
+sig        = ""
+desc       = "Live dashboard JSON: GPU/VRAM, RAM, disk, services, ollama models. Single source of truth -- never guess these."
+tier       = "core"
+permission = "read"
+
+[verbs.system_logs]
+section    = "System"
+sig        = 'unit?, since="10m"?, lines=50?, level?'
+desc       = "Recent journal entries. Filter by unit (mios-agent-pipe / hermes-agent / mios-open-webui / ...) or level (err / warning / info). Default: 50 lines from last 10 minutes."
+tier       = "core"
+permission = "read"
+  [verbs.system_logs.params.unit]
+  type = "string"
+  desc = "systemd unit name; empty = all"
+  aliases = ["service", "name"]
+  [verbs.system_logs.params.since]
+  type = "string"
+  desc = "journalctl --since spec ('10m', '1h', '2026-05-19', ...)"
+  default = "10m"
+  aliases = ["from", "window"]
+  [verbs.system_logs.params.lines]
+  type = "integer"
+  default = 50
+  aliases = ["n", "limit"]
+  [verbs.system_logs.params.level]
+  type = "string"
+  enum = ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"]
+  desc = "Minimum severity (journalctl -p)"
+
+[verbs.service_status]
+section    = "System"
+sig        = "name"
+desc       = "systemctl is-active + status snapshot for a Linux service."
+tier       = "common"
+permission = "read"
+  [verbs.service_status.params.name]
+  type = "string"
+  aliases = ["service", "unit"]
+
+[verbs.service_restart]
+section    = "System"
+sig        = "name"
+desc       = "Graceful systemd restart. Use mios-restart for MiOS services (preserves state)."
+tier       = "common"
+permission = "write"
+  [verbs.service_restart.params.name]
+  type = "string"
+  aliases = ["service", "unit"]
+
+[verbs.process_list]
+section    = "System"
+sig        = 'filter?, sort="rss"?, limit=20?'
+desc       = "Process list filtered by name; sorted by rss / cpu / pid."
+tier       = "common"
+permission = "read"
+  [verbs.process_list.params.filter]
+  type = "string"
+  aliases = ["name", "query"]
+  [verbs.process_list.params.sort]
+  type = "string"
+  enum = ["rss", "cpu", "pid"]
+  default = "rss"
+  [verbs.process_list.params.limit]
+  type = "integer"
+  default = 20
+
+[verbs.container_status]
+section    = "System"
+sig        = "name?"
+desc       = "podman/quadlet container status. Empty name = all."
+tier       = "common"
+permission = "read"
+  [verbs.container_status.params.name]
+  type = "string"
+  aliases = ["container", "unit"]
+
+[verbs.container_restart]
+section    = "System"
+sig        = "name"
+desc       = "Restart a podman/quadlet container."
+tier       = "common"
+permission = "write"
+  [verbs.container_restart.params.name]
+  type = "string"
+  aliases = ["container", "unit"]
+
+# ─── Section: OS shell verbs (mios.toml-driven recipes) ───────────────
+# ─── Section: Semantic app discovery ──────────────────────────────────
+[verbs.app_search]
+section    = "Discovery / resolution"
+sig        = "query, limit=5?"
+desc       = "Semantic search over the installed-app inventory (mios-apps). Returns top-k {category, name, description, launch, score}. Use for ambiguous natural-language asks like 'my note-taking app' / 'phone settings' where substring matching against mios_apps(filter=...) wouldn't fire."
+tier       = "core"
+permission = "read"
+  [verbs.app_search.params.query]
+  type = "string"
+  desc = "Natural-language description of what app the user means."
+  aliases = ["q", "search", "term"]
+  [verbs.app_search.params.limit]
+  type = "integer"
+  default = 5
+  aliases = ["top_k", "k", "n"]
+
+# ─── Section: Verb discovery (progressive disclosure) ────────────────
+[verbs.tool_search]
+section    = "Verb discovery"
+sig        = "query, limit=5?"
+desc       = "Find verbs in the catalog by natural-language query. Use when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score}. Embeds via nomic-embed-text; cosine over verb name+description."
+tier       = "core"
+permission = "read"
+  [verbs.tool_search.params.query]
+  type = "string"
+  desc = "Natural-language description of what you want to do."
+  aliases = ["q", "search", "term"]
+  [verbs.tool_search.params.limit]
+  type = "integer"
+  default = 5
+  aliases = ["top_k", "k", "n"]
+
+[verbs.os_recipe]
+section    = "OS shell verbs"
+sig        = "name, params?, os?"
+desc       = "Run a NAMED OS-shell recipe from [recipes.*]. Per-OS templates, shell-escaped, WSL path-converted. Enumerate via `mios-os-recipe list`."
+tier       = "core"
+permission = "interactive"
+  [verbs.os_recipe.params.name]
+  type = "string"
+  desc = "Recipe key from mios.toml [recipes.*]"
+  aliases = ["recipe", "id", "key"]
+  [verbs.os_recipe.params.params]
+  type = "object"
+  desc = "Dict of arg=value matching the recipe's declared args."
+  aliases = ["args", "kwargs", "kv", "values"]
+  [verbs.os_recipe.params.os]
+  type = "string"
+  enum = ["linux", "windows"]
+  desc = "Override OS template selection."
+  aliases = ["target_os", "platform", "shell"]
+
+# ─── Section: Windows-side shell ──────────────────────────────────────
+[verbs.powershell_run]
+section    = "Windows-side shell"
+sig        = "script, timeout=30?, work_dir?"
+desc       = "Execute a PowerShell script on Windows side. High-priv -- tainted sessions refused. Script cap 64 KiB."
+tier       = "rare"
+permission = "write"
+  [verbs.powershell_run.params.script]
+  type = "string"
+  aliases = ["cmd", "command", "ps", "code"]
+  [verbs.powershell_run.params.timeout]
+  type = "integer"
+  default = 30
+  [verbs.powershell_run.params.work_dir]
+  type = "string"
+  aliases = ["cwd", "directory"]
+
+# ----------------------------------------------------------------------------
+# [owui.system_prompt] -- MiOS-Agent (MiOS AI) system prompt.
+# Concise SYSTEM MAP + PURPOSE in `template`; operator-overridable
+# `user_section_path` for personal addenda the installer appends at
+# the bottom. Operator binding 2026-05-19: "OWUI'S MiOS-Agent's SYSTEM
+# PROMPT SHOULD BE A CONCISE SYSTEM MAP/PURPOSE AND A USER DEFINED
+# SECTION TOO--VERY CONCISE AND EFFICIENT".
+#
+# SSOT here -- mios-owui-install-pipe reads this block; no English
+# paragraph is hardcoded in Python anymore.
+# ----------------------------------------------------------------------------
+[owui.system_prompt]
+# Path to an operator-editable markdown file the installer reads + appends
+# under "## OPERATOR PROFILE" if the file exists. Empty / missing file = no
+# user section.
+user_section_path = "~/.config/mios/system-prompt-user.md"
+
+# Concise system map. Token-efficient -- the deeper operating manual lives
+# in /usr/share/mios/ai/hermes-soul.md inside Hermes; OWUI's MiOS-Agent is
+# just the front door. Edit this block in mios.toml + re-run
+# mios-owui-install-pipe to push.
+template = """
+# MiOS AI
+Front door of MiOS, a local-first agentic OS. You refine intent, plan,
+delegate to sub-agents, and polish the answer. Live facts (services,
+GPU, models, paths, what's installed) come from TOOLS at call-time --
+never this prompt. Mirror the operator's language.
+
+LOOP every request: REASON (what's asked + is it one ask or several?)
+-> PLAN (break into steps; for any open/find/install/use X, FAN OUT in
+parallel across the inventory + search verbs first; decide local-file
+vs web by intent) -> DELEGATE (fire parallel, merge, act on the
+highest-confidence result; answer EACH part of a multi-part ask).
+
+RULES: tool stdout is ground truth -- never invent paths/IDs/statuses/
+versions/prices. Never say "X isn't installed" without a zero-hit
+fan-out. Native tools are tool_calls, not bash lines. "Process alive"
+is not "launched" (check the active window). Greetings: 1-2 sentences,
+no tools. Never tail with "would you like me to" / "feel free to" /
+"let me know".
+"""
+
+# ----------------------------------------------------------------------------
+# [recipes.<name>] -- OS-shell RECIPES. Each recipe is a templated
+# command sequence the agent can compose with operator-supplied params,
+# dispatched by `mios-os-recipe <name> key=val key=val...` (or the
+# `os_recipe` verb). The recipe declares per-OS templates (linux /
+# windows) so the SAME named recipe works in both shells -- agent picks
+# OS-aware behaviour without an `if uname...` block in code.
+#
+# HARDENING:
+#   * Only recipes declared in this table are runnable -- the dispatcher
+#     refuses unknown names (no arbitrary shell pass-through).
+#   * Only `args` keys are accepted from the caller; unknown kwargs are
+#     dropped before template expansion.
+#   * Every {placeholder} substitution is shell-quoted (shlex on Linux,
+#     wsh-quote on Windows) -- no command injection via params.
+#   * `permission` = "read" (default, runs as agent) | "write" (needs
+#     MIOS_OS_RECIPE_WRITE=1) | "interactive" (operator confirmation).
+#   * `wsl_paths` lists arg names whose values get converted via
+#     wslpath when the chosen template is `windows` (Linux path ->
+#     Windows path so File Explorer / Notepad / etc. accept them).
+#
+# Operator binding 2026-05-18: "mios-os-control should have more OS
+# Specific Shell controls/Commands for BOTH Linux + Windows + part of
+# launch params tools/skills" + "RECIPES" + "NO HARDCODES ANYWHERE".
+# SSOT here; mios-os-recipe is the generic executor.
+# ----------------------------------------------------------------------------
+# Windows templates use ABSOLUTE PATHS. The MiOS WSL distro sets
+# `appendWindowsPath=false` in /etc/wsl.conf (operator preference: keep
+# the Linux PATH clean of Windows-side binaries), so bare `explorer.exe`
+# / `powershell.exe` don't resolve via PATH lookup. WSL's binfmt_misc
+# still handles .exe execution when the FULL PATH is given -- so
+# templates name the binary explicitly. Operator-confirmed 2026-05-19.
+[recipes.open-folder]
+description = "Open a folder in the OS file manager (Files / Explorer)."
+args        = ["path"]
+permission  = "read"
+wsl_paths   = ["path"]
+linux       = "xdg-open {path}"
+windows     = "/mnt/c/Windows/explorer.exe {path}"
+
+[recipes.open-shell-folder]
+description = "Open a Windows Shell special folder by name (Desktop, Downloads, RecycleBinFolder, AppsFolder, Startup, SendTo, Fonts, ...)."
+args        = ["folder"]
+permission  = "read"
+windows     = "/mnt/c/Windows/explorer.exe shell:{folder}"
+
+[recipes.reveal-in-folder]
+description = "Reveal a single file in its containing folder, selected."
+args        = ["path"]
+permission  = "read"
+wsl_paths   = ["path"]
+linux       = "xdg-open $(dirname {path})"
+windows     = "/mnt/c/Windows/explorer.exe /select,{path}"
+
+[recipes.open-control-panel]
+description = "Open a Windows Control Panel page by canonical name (powercfg.cpl, ncpa.cpl, appwiz.cpl, sysdm.cpl, mmsys.cpl, timedate.cpl, ...)."
+args        = ["panel"]
+permission  = "read"
+windows     = "/mnt/c/Windows/System32/control.exe {panel}"
+
+[recipes.open-settings-uri]
+description = "Open a Windows Settings page by ms-settings: URI (display, sound, network, system, privacy-microphone, gaming-gamebar, ...)."
+args        = ["page"]
+permission  = "read"
+windows     = "/mnt/c/Windows/System32/cmd.exe /c start ms-settings:{page}"
+
+[recipes.run-powershell]
+description = "Run a PowerShell command and return stdout (READ-ONLY by default; the agent should only emit read commands like Get-* / Test-* / Resolve-* / Measure-*)."
+args        = ["cmd"]
+permission  = "read"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -NonInteractive -Command {cmd}"
+
+[recipes.run-bash]
+description = "Run a bash command and return stdout (READ-ONLY)."
+args        = ["cmd"]
+permission  = "read"
+linux       = "bash -lc {cmd}"
+
+[recipes.shutdown]
+description = "Shutdown the host (WRITE -- requires MIOS_OS_RECIPE_WRITE=1)."
+args        = ["delay_sec"]
+permission  = "write"
+linux       = "shutdown -h +{delay_sec}"
+windows     = "/mnt/c/Windows/System32/shutdown.exe /s /t {delay_sec}"
+
+[recipes.reboot]
+description = "Reboot the host (WRITE)."
+args        = ["delay_sec"]
+permission  = "write"
+linux       = "shutdown -r +{delay_sec}"
+windows     = "/mnt/c/Windows/System32/shutdown.exe /r /t {delay_sec}"
+
+[recipes.lock-screen]
+description = "Lock the workstation."
+args        = []
+permission  = "read"
+linux       = "loginctl lock-session"
+windows     = "/mnt/c/Windows/System32/rundll32.exe user32.dll,LockWorkStation"
+
+[recipes.list-drives]
+description = "List mounted drives / volumes."
+args        = []
+permission  = "read"
+linux       = "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE -J"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-Volume | ConvertTo-Json'"
+
+[recipes.show-network]
+description = "Show active network adapters + IPs."
+args        = []
+permission  = "read"
+linux       = "ip -j addr"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-NetIPConfiguration | ConvertTo-Json'"
+
+[recipes.show-process]
+description = "Show top processes by CPU / memory."
+args        = ["sort"]
+permission  = "read"
+linux       = "ps -eo pid,pcpu,pmem,comm --sort=-{sort} | head -20"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-Process | Sort-Object -Descending -Property {sort} | Select-Object -First 20 Id,CPU,WorkingSet64,ProcessName | ConvertTo-Json'"
+
+[recipes.copy-to-clipboard]
+description = "Copy a literal string to the system clipboard."
+args        = ["text"]
+permission  = "read"
+linux       = "printf %s {text} | wl-copy"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command Set-Clipboard -Value {text}"
+
+[recipes.read-clipboard]
+description = "Read the current clipboard contents."
+args        = []
+permission  = "read"
+linux       = "wl-paste"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command Get-Clipboard"
+
+[recipes.toast]
+description = "Show a notification toast."
+args        = ["title", "message"]
+permission  = "read"
+linux       = "notify-send {title} {message}"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command New-BurntToastNotification -Text {title},{message}"
+
 [skills]
 # Phase C.2 of the AgentOS roadmap: Sequential Pattern Mining + the
 # cross-agent skill catalog. The miner (mios-skills mine) scans
@@ -893,14 +1797,56 @@ resolution = "auto"                # "auto" lets mstsc pick from Windows display
 # variant.
 # ----------------------------------------------------------------------------
 
+# ----------------------------------------------------------------------------
+# [flatpak] -- channel + remote preferences for all flatpak operations.
+# Operator binding 2026-05-19: "target betas for all flatpaks" -- prefer
+# the flathub-beta remote where an app publishes there; fall back to
+# stable flathub otherwise. Picks up fresher upstreams (newer GNOME
+# runtime / GTK4 versions etc.) without manually tracking each app.
+# ----------------------------------------------------------------------------
+[flatpak]
+prefer_beta      = true       # check flathub-beta first; fall back to flathub
+default_remote   = "flathub"  # tail-fallback remote when no beta available
+default_scope    = "system"   # system | user
+noninteractive   = true       # all install/update operations are headless
+
 [appearance]
 gtk_theme        = "adw-gtk3-dark"              # GTK3 + libadwaita color-scheme target
 adw_color_scheme = "prefer-dark"                # ADW_DEBUG_COLOR_SCHEME for libadwaita apps
 cursor_theme     = "Bibata-Modern-Classic"      # XCURSOR_THEME (matches /usr/share/icons/)
-cursor_size      = 24                           # XCURSOR_SIZE
-# Search path for cursor + icon themes (preserves host overrides while
-# letting flatpaks see Bibata + the operator's user-installed sets).
-xcursor_path = "~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps"
+cursor_size      = 24                           # XCURSOR_SIZE. 24 matches the Windows-side CursorBaseSize -- operator 2026-05-19: 16px read SMALLER than Windows Bibata under x11/Xwayland. Mirrors [theme.cursor_linux].size.
+
+# ----------------------------------------------------------------------------
+# [graphics] -- WSLg-aware GTK4 render-path overrides applied globally
+# to ALL flatpaks via mios-flatpak-overrides-apply.
+# Operator binding 2026-05-19: "ALL Windowed Linux applications have
+# outdated and broken Windowing... out of date GLOBALLY". Root cause is
+# WSLg's Weston compositor + dxgkrnl GPU passthrough being mismatched
+# with modern GTK4 / libadwaita / Vulkan + dmabuf expectations. The
+# stable render path on WSLg is:
+#   * GTK4 renderer  -> cairo (CPU compositing; no GL path)
+#   * Mesa GL        -> llvmpipe (LIBGL_ALWAYS_SOFTWARE=1)
+#   * Vulkan         -> disabled (no dzn passthrough)
+# Setting all three forces every flatpak GUI through the path that
+# actually works on this compositor -- trades render perf for stability
+# + correct rendering of headerbars, scrolling, decorations.
+# ----------------------------------------------------------------------------
+[graphics]
+gsk_renderer       = "cairo"      # GTK4 software renderer
+force_software_gl  = true         # LIBGL_ALWAYS_SOFTWARE=1
+disable_vulkan     = true         # GDK_VULKAN_DISABLE=1 + DISABLE_LAYERS
+gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
+                                  # WSLg's Weston Wayland trips Gdk Error 71
+                                  # (Protocol error) in WebKit/GTK4 AND lacks
+                                  # xdg_popup reposition. Flatpaks DON'T inherit
+                                  # the shell's GDK_BACKEND across the sandbox
+                                  # boundary, so the override MUST set it here.
+                                  # Mirrors [wsl2.desktop_compat].gdk_backend="x11".
+# Search path for cursor + icon themes. ~/.local/share/icons LEADS because
+# /usr is read-only on bootc (Bibata can't be added there at runtime) and
+# flatpaks already bind-mount ~/.local/share/icons via xdg-data/icons:ro --
+# so installing Bibata there reaches BOTH host shells and every sandbox.
+xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps"
 
 [ai]
 # Canonical agent surface. Hermes-Agent (the live MiOS agent at /) is a
@@ -1274,7 +2220,7 @@ flatpaks      = [
 
 [[desktop.apps]]
 id          = "org.gnome.Epiphany"
-remote      = "fedora"
+remote      = "flathub"
 role        = "browser"
 default     = true
 description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native dark, WSLg-compatible with the split-renderer override below)."
@@ -1290,14 +2236,37 @@ description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native
 #     WebKit's WebProcess to talk to the GPU directly without
 #     dragging GTK4 onto the unstable hardware path.
 # Operator-observed 2026-05-16: flipping the whole stack to gl+GPU
-# made Epiphany flash-and-die in ~327ms scopes (confirmed in
-# journal). Split-renderer is the third attempt -- if WebKit still
-# fails, the next move is wayland-without-compositing.
-GDK_BACKEND                     = "wayland"
-WEBKIT_DISABLE_COMPOSITING_MODE = 0
-WEBKIT_USE_DMABUF_RENDERER      = 1
-# Note: GSK_RENDERER + LIBGL_ALWAYS_SOFTWARE inherited from
-# the global override (cairo + SW). Do NOT set them here.
+# made Epiphany flash-and-die in ~327ms scopes. Split-renderer
+# (compositing-on) was attempt #3; it tripped Wayland Protocol error
+# 71 in WebKit's WebProcess on WSLg (operator trace 2026-05-19).
+# Attempt #4 -- the operator's own next-step note in this file --
+# is "wayland-without-compositing": KEEP wayland for GTK4 chrome,
+# DISABLE WebKit's GPU compositing entirely so the WebProcess stays
+# on its software-cairo path with no dmabuf passthrough. This
+# trades render perf for stability on WSLg's virtual compositor.
+# Attempt #6 (operator trace 2026-05-19): attempts #1-#5 ALL kept GTK4
+# chrome on Wayland and ALL still hit Gdk Error 71. WSLg's Weston
+# Wayland is the common factor. Route Epiphany (GTK4 + WebKit) through
+# XWayland instead -- X11 has no Error-71 path and WSLg implements X11
+# popup semantics correctly. Inherits the global [graphics] x11 now;
+# pinned explicitly so a global flip can't silently re-break it.
+GDK_BACKEND                              = "x11"
+WEBKIT_DISABLE_COMPOSITING_MODE          = 1
+# Attempt #7 (operator trace 2026-05-19): on x11 the WebProcess no
+# longer hits Wayland Error 71, but Epiphany now crashes with
+# `ephy_embed_get_web_view: assertion failed (EPHY_IS_EMBED)` -- the
+# WebKitWebView never constructs (NULL embed). Root cause: the prior
+# override used INVALID env-var names. WEBKIT_USE_DMABUF_RENDERER is
+# NOT a real WebKitGTK var (so the dmabuf renderer stayed ON, and on
+# no-GPU WSLg the GL/dmabuf init hard-fails the WebProcess), and
+# WEBKIT_FORCE_SANDBOX / WEBKIT_DISABLE_HARDWARE_ACCELERATION are not
+# real vars either. Corrected to the TWO vars WebKitGTK actually
+# honours (compositing off + the REAL dmabuf-disable). Combined with
+# moving Epiphany to the flathub remote (coherent org.gnome.Platform
+# runtime, not the broken fedora f44 refs gnome-software reported).
+WEBKIT_DISABLE_DMABUF_RENDERER           = 1
+# Note: GSK_RENDERER=cairo + LIBGL_ALWAYS_SOFTWARE=1 + GDK_VULKAN_DISABLE
+# inherited from the global [graphics] override. Do NOT duplicate here.
 
 [[desktop.apps]]
 id          = "org.gnome.Nautilus.Devel"
@@ -1318,7 +2287,8 @@ id          = "com.google.ChromeDev"
 remote      = "flathub"
 role        = "browser"
 default     = false
-description = "Google Chrome Dev channel. Operator-facing alt browser + Hermes-Agent CDP target."
+launcher    = "mios-chrome"
+description = "Google Chrome Dev channel. Operator-facing alt browser + Hermes-Agent CDP target. `launcher = mios-chrome` so dispatch sets the CDP port + WSLg env BEFORE flatpak-run."
 [desktop.apps.com.google.ChromeDev.overrides]
 # Hint Chrome to use Wayland natively (WSLg compositor) instead of
 # launching XWayland which has no GPU acceleration on this host.
@@ -2663,6 +3633,24 @@ files      = "nautilus"
 terminal   = "ptyxis"
 editor     = "gedit"
 code       = "codium"
+
+# Windows-side role aliases. mios-launch's normaliser lowercases +
+# collapses whitespace-to-hyphen, so "File Explorer", "FILE-EXPLORER",
+# and "file_explorer" all hit the "file-explorer" key. The aliases
+# resolve to the bare Windows shortname that mios-launch's step 3
+# (Windows GUI builtin allowlist) dispatches via mios-windows.
+file-explorer    = "explorer"
+windows-explorer = "explorer"
+notepad-app      = "notepad"
+calculator-win   = "calc"
+paint            = "mspaint"
+snip             = "snipping-tool"
+task-manager     = "taskmgr"
+registry-editor  = "regedit"
+control-panel    = "control"
+command-prompt   = "cmd"
+power-shell      = "powershell"
+pwsh-shell       = "pwsh"
 software   = "gnome-software"
 settings   = "gnome-control-center"
 calculator = "gnome-calculator"
@@ -3221,7 +4209,12 @@ base_size           = 24
 # ----------------------------------------------------------------------------
 [theme.cursor_linux]
 theme               = "Bibata-Modern-Classic"
-size                = 16
+size                = 24   # x11/Xwayland renders cursors at literal px; 16 read SMALLER than the Windows base (24) -- operator 2026-05-19. The pre-x11 "16 lines them up" note above is stale (it was a Wayland-era observation).
+# Upstream source for the cursor theme. Read by automation/10-gnome.sh
+# (build seeds /usr/share/icons) AND mios-cursor-ensure (runtime self-heal
+# into ~/.local/share/icons when /usr lacks it -- /usr is RO on bootc).
+# archive defaults to "<theme>.tar.xz" off the latest GitHub release tag.
+source_repo         = "ful1e5/Bibata_Cursor"
 
 [theme.font]
 family              = "GeistMono Nerd Font Mono"

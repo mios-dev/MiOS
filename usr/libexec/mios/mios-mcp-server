@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""mios-mcp-server -- Model Context Protocol stdio server.
+
+Exposes MiOS's [verbs.*] catalog (SSOT in mios.toml) as MCP tools so
+LOCAL MCP-aware agents can drive MiOS verbs natively.
+
+LOCAL-ONLY by design. Intended consumers:
+  * MiOS-Hermes        (local; primary tool catalog)
+  * MiOS-OpenCode      (local; coding agent)
+  * mios-daemon-agent  (local; background sub-agent)
+  * Any LOCAL MCP client the operator stands up against on-host models
+
+NOT for cloud-LLM clients. The operator's binding rule (2026-05-19)
+is "no cloud dependencies": MCP clients that route through hosted LLM
+providers (Claude Desktop, Cursor, GitHub Copilot, Codex Cloud) MUST
+NOT be in the chain. They CAN consume this server, but the MiOS
+operator does not run them.
+
+Protocol: JSON-RPC 2.0 over stdio. Spec: 2025-06-18.
+  https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
+Implements:
+  initialize          -- handshake; returns serverInfo + capabilities
+  notifications/initialized  -- accepted, no response
+  tools/list          -- renders [verbs.*] as MCP tool specs (calls
+                         agent-pipe /v1/verbs)
+  tools/call          -- dispatches via agent-pipe /v1/dispatch which
+                         routes through the launcher broker
+  ping                -- liveness
+  shutdown            -- (informational; client closes stdio)
+
+Defers to v2:
+  notifications/tools/list_changed (inotify watch on mios.toml)
+  resources/list, prompts/list (no resources/prompts yet)
+  HTTP transport
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import urllib.request
+import urllib.error
+
+AGENT_PIPE_URL = os.environ.get(
+    "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
+).rstrip("/")
+PROTOCOL_VERSION = "2025-06-18"
+SERVER_INFO = {"name": "mios-mcp-server", "version": "0.1.0"}
+TIMEOUT_S = 60
+
+
+def _http_get(path: str) -> dict:
+    req = urllib.request.Request(
+        f"{AGENT_PIPE_URL}{path}",
+        headers={"Accept": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+        return json.loads(r.read().decode("utf-8", errors="replace"))
+
+
+def _http_post(path: str, body: dict) -> dict:
+    req = urllib.request.Request(
+        f"{AGENT_PIPE_URL}{path}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+        return json.loads(r.read().decode("utf-8", errors="replace"))
+
+
+def _ok(mid, result: dict) -> dict:
+    return {"jsonrpc": "2.0", "id": mid, "result": result}
+
+
+def _err(mid, code: int, message: str, data=None) -> dict:
+    e: dict = {"code": code, "message": message}
+    if data is not None:
+        e["data"] = data
+    return {"jsonrpc": "2.0", "id": mid, "error": e}
+
+
+def _handle_initialize(mid, params: dict) -> dict:
+    # Server announces its capabilities. listChanged=False until the
+    # inotify watcher ships in v2.
+    return _ok(mid, {
+        "protocolVersion": PROTOCOL_VERSION,
+        "capabilities": {
+            "tools": {"listChanged": False},
+        },
+        "serverInfo": SERVER_INFO,
+    })
+
+
+def _handle_tools_list(mid, _params: dict) -> dict:
+    try:
+        data = _http_get("/v1/verbs")
+    except urllib.error.URLError as e:
+        return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
+    except Exception as e:
+        return _err(mid, -32000, f"verbs fetch failed: {e}")
+    return _ok(mid, {"tools": data.get("tools") or []})
+
+
+def _handle_tools_call(mid, params: dict) -> dict:
+    name = (params or {}).get("name", "")
+    args = (params or {}).get("arguments") or {}
+    if not name:
+        return _err(mid, -32602, "missing tool name")
+    try:
+        result = _http_post("/v1/dispatch", {
+            "tool": name, "args": args,
+        })
+    except urllib.error.URLError as e:
+        return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
+    except Exception as e:
+        return _err(mid, -32000, f"dispatch failed: {e}")
+    # MCP wraps tool results as content blocks. We surface the JSON
+    # envelope as a single text block; modern clients (Claude Desktop,
+    # Cursor) parse JSON-shaped text content automatically.
+    is_error = not result.get("success", False)
+    return _ok(mid, {
+        "content": [{
+            "type": "text",
+            "text": json.dumps(result, ensure_ascii=False),
+        }],
+        "isError": is_error,
+    })
+
+
+def _handle_ping(mid, _params: dict) -> dict:
+    return _ok(mid, {})
+
+
+def _write(msg: dict) -> None:
+    sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def main() -> int:
+    # Line-delimited JSON-RPC over stdio. Clients send one JSON object
+    # per line; responses are one JSON object per line.
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            _write({
+                "jsonrpc": "2.0", "id": None,
+                "error": {"code": -32700, "message": "parse error"},
+            })
+            continue
+
+        method = msg.get("method", "")
+        mid = msg.get("id")
+        params = msg.get("params") or {}
+
+        # Notifications carry no id and expect no response.
+        if mid is None and method.startswith("notifications/"):
+            continue
+
+        if method == "initialize":
+            _write(_handle_initialize(mid, params))
+        elif method == "tools/list":
+            _write(_handle_tools_list(mid, params))
+        elif method == "tools/call":
+            _write(_handle_tools_call(mid, params))
+        elif method == "ping":
+            _write(_handle_ping(mid, params))
+        elif method == "shutdown":
+            _write(_ok(mid, {}))
+            return 0
+        elif mid is not None:
+            _write(_err(mid, -32601, f"unknown method: {method}"))
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

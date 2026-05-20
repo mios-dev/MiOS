@@ -117,3 +117,14 @@ fi
 if [ -z "${QT_QPA_PLATFORM:-}" ]; then
     export QT_QPA_PLATFORM="${MIOS_WSLG_QT_PLATFORM:-xcb}"
 fi
+
+# Theme the X11 ambient/default cursor on the root window so GTK4 window
+# CHROME inherits Bibata under sessionless Xwayland. WebKit + GTK widgets
+# set NAMED cursors themselves (those already show Bibata), but nothing
+# themes the X-server default cursor here -- no gsd-xsettings / XSETTINGS
+# daemon and no session sets the root cursor (operator trace 2026-05-19:
+# "Bibata in the webpage but not on epiphany's window frame"). DISPLAY is
+# set above; backgrounded so it never blocks the shell.
+if command -v mios-cursor-apply >/dev/null 2>&1; then
+    (mios-cursor-apply >/dev/null 2>&1 &) 2>/dev/null || true
+fi

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""mios-pkg -- Personal Knowledge Graph CLI for the MiOS agent stack.
+"""mios-kg -- Personal Knowledge Graph CLI for the MiOS agent stack.
 
 Phase C.1 of the AgentOS roadmap. Manages the operator-preference
 graph in SurrealDB (person / app_install / alias + RELATE edges).
-The agent-pipe's pkg_lookup() helper queries this graph to resolve
-ambiguous noun phrases ("my browser") to concrete launch targets
-("com.google.ChromeDev").
+The agent-pipe's kg_lookup() helper queries this graph to resolve
+ambiguous noun phrases to concrete launch targets. Mappings are
+PER-OPERATOR data in SurrealDB -- this CLI is the interface, never
+the source. NO hardcoded English aliases in this codebase.
 
 Subcommands:
   bootstrap                Create the person row (from $USER /
@@ -66,10 +67,10 @@ def post_sql(sql: str, *, timeout: float = 10.0) -> list:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
-        sys.stderr.write(f"mios-pkg: SurrealDB {e.code}: {e.read().decode()[:300]}\n")
+        sys.stderr.write(f"mios-kg: SurrealDB {e.code}: {e.read().decode()[:300]}\n")
         return []
     except Exception as e:
-        sys.stderr.write(f"mios-pkg: SurrealDB unreachable: {e}\n")
+        sys.stderr.write(f"mios-kg: SurrealDB unreachable: {e}\n")
         return []
 
 
@@ -228,7 +229,7 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
     if not rows:
         sys.stderr.write(
             f"alias add: no app_install with short_name = {target!r}. "
-            f"Try `mios-pkg apps` to see the list.\n"
+            f"Try `mios-kg apps` to see the list.\n"
         )
         return 1
     app_install_id = rows[0]["id"]
@@ -353,7 +354,7 @@ def cmd_who(args: argparse.Namespace) -> int:
     r = post_sql("SELECT id, username, hostname, created_at FROM person;")
     rows = last_ok(r) or []
     if not rows:
-        print("(no person row -- run `mios-pkg bootstrap`)")
+        print("(no person row -- run `mios-kg bootstrap`)")
         return 1
     for row in rows:
         print(f"  {row.get('id')}  {row.get('username')}@{row.get('hostname')}  "
@@ -363,7 +364,7 @@ def cmd_who(args: argparse.Namespace) -> int:
 
 # ─── main ──────────────────────────────────────────────────────────
 def main() -> int:
-    p = argparse.ArgumentParser(prog="mios-pkg")
+    p = argparse.ArgumentParser(prog="mios-kg")
     sub = p.add_subparsers(dest="cmd", required=True)
     p_bs = sub.add_parser("bootstrap",
                           help="Create person + ingest inventory")

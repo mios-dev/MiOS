@@ -58,54 +58,101 @@ _gtk_theme=$(_toml_get appearance.gtk_theme "adw-gtk3-dark")
 _adw_color=$(_toml_get appearance.adw_color_scheme "prefer-dark")
 _curs_theme=$(_toml_get appearance.cursor_theme "Bibata-Modern-Classic")
 _curs_size=$(_toml_get appearance.cursor_size "24")
-_xcurs_path=$(_toml_get appearance.xcursor_path '~/.icons:~/.local/share/icons:/usr/share/icons:/usr/share/pixmaps')
+
+# WSLg-stable render path (operator-flagged 2026-05-19: "ALL Windowed
+# Linux applications have outdated and broken Windowing GLOBALLY").
+# Without these, every flatpak GTK4 app misrenders because WSLg's
+# compositor + dxgkrnl GPU passthrough don't honour modern GTK4 /
+# libadwaita / Vulkan paths correctly.
+_gsk_renderer=$(_toml_get graphics.gsk_renderer "cairo")
+_force_sw_gl=$(_toml_get graphics.force_software_gl "True")
+_disable_vk=$(_toml_get graphics.disable_vulkan "True")
+_gdk_backend=$(_toml_get graphics.gdk_backend "")
+_xcurs_path=$(_toml_get graphics.xcursor_path '~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps')
 
 # --reset clears the global override file completely; then we re-create
 # the MiOS-managed keys. This is safer than --unset of individual keys
 # (which can fail silently if the key doesn't exist).
 flatpak override --system --reset 2>/dev/null || true
 
-# Mount the theme/icon dirs the runtime extensions need.
+# Theme / icon / cursor reach into the sandbox.
 #
-# IMPORTANT: the adw-gtk3-theme RPM installs adw-gtk3 + adw-gtk3-dark
-# into /usr/share/themes/. The flatpak runtime extensions (org.gtk.
-# Gtk3theme.adw-gtk3*) only provide the GTK3-side overlay; GTK4 +
-# libadwaita apps still read theme CSS from system /usr/share/themes
-# via their xdg-data lookup path. xdg-data/themes alone (which maps
-# to ~/.local/share/themes on the host) is EMPTY on a fresh deploy
-# and the operator never seeds it, so flatpaks fall back to the
-# Adwaita default + the operator sees the wrong theme.
+# CORRECTION 2026-05-19 (operator trace): flatpak FLATLY REFUSES to
+# bind-mount any host path under /usr ("F: Not sharing /usr/share/...:
+# Path /usr is reserved by Flatpak"). The previous
+# --filesystem=/usr/share/{themes,icons,fonts}:ro lines were DROPPED
+# ENTIRELY at runtime -- NOT "a cosmetic warning" -- so flatpaks got
+# ZERO host theme/icon/cursor access. Removed them. Correct reach is:
+#   * GTK3 theme      -> org.gtk.Gtk3theme.adw-gtk3-dark flatpak
+#                        EXTENSION (installed from flathub; no /usr mount).
+#   * GTK4/libadwaita -> Adwaita built into org.gnome.Platform + portal
+#                        color-scheme (GTK_USE_PORTAL=1 + ADW_DEBUG_*).
+#   * Cursor (Bibata) -> installed into ~/.local/share/icons (writable;
+#                        /usr is RO on bootc) and reached via the
+#                        xdg-data/icons:ro mount below + XCURSOR_PATH.
+#                        Seeded by mios-cursor-ensure / firstboot.
+#   * Fonts           -> flatpak auto-shares host fonts (no mount needed).
 #
-# Previously we --nofilesystem=/usr/share/themes to silence "Path
-# /usr is reserved" warnings -- the cost was no theme access at all.
-# Better trade: include /usr/share/themes + /usr/share/icons +
-# /usr/share/fonts as ro mounts; live with the cosmetic warning.
-#
-# --device=all + /dev/dxg + /dev/dri are needed for WSLg GPU access
-# from inside flatpak sandboxes -- without them, libEGL fails with
-# "MESA: error: ZINK: failed to choose pdev" and WebKit silently
-# self-exits within seconds.
+# /dev/dxg was ALSO rejected ("unsupported type 0o20000") and is moot:
+# we force software GL (LIBGL_ALWAYS_SOFTWARE) + cairo + no Vulkan, so
+# no flatpak needs the WSLg GPU paravirt device. Kept --device=all +
+# /dev/dri (allowed) for the rare app that probes dri.
+# Render-path env -- conditional includes so empty strings don't
+# splat to "--env=FOO=" (which would clear the var). Booleans from
+# TOML come through Python repr (True/False); normalise to "1"/"0".
+_render_env_args=(
+    --env=GTK_USE_PORTAL=1
+    # GTK_THEME is DELIBERATELY NOT set. It is a GTK3 theme name;
+    # setting it on a GTK4/libadwaita app (Nautilus, Epiphany, GNOME
+    # Settings) forces the OLD GTK3 adw-gtk3 chrome instead of native
+    # libadwaita -- operator trace 2026-05-19 "old windowing in
+    # Nautilus still". Mirrors /usr/lib/environment.d/50-mios.conf,
+    # which omits GTK_THEME for the same documented reason. GTK3-only
+    # flatpaks still get adw-gtk3-dark via the Gtk3theme extension +
+    # the mounted xdg-config/gtk-3.0 settings.ini; libadwaita apps get
+    # dark via ADW_DEBUG_COLOR_SCHEME below.
+    --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color"
+    --env=XCURSOR_THEME="$_curs_theme"
+    --env=XCURSOR_SIZE="$_curs_size"
+    --env=XCURSOR_PATH="$_xcurs_path"
+)
+if [ -n "$_gsk_renderer" ]; then
+    _render_env_args+=(--env=GSK_RENDERER="$_gsk_renderer")
+fi
+case "$_force_sw_gl" in
+    True|true|1)
+        _render_env_args+=(--env=LIBGL_ALWAYS_SOFTWARE=1)
+        ;;
+esac
+case "$_disable_vk" in
+    True|true|1)
+        _render_env_args+=(--env=GDK_VULKAN_DISABLE=1)
+        _render_env_args+=(--env=DISABLE_VK_LAYER_VALVE_steam_overlay_1=1)
+        ;;
+esac
+if [ -n "$_gdk_backend" ]; then
+    _render_env_args+=(--env=GDK_BACKEND="$_gdk_backend")
+fi
+
+# --socket=x11 is REQUIRED with GDK_BACKEND=x11: WSLg provides Xwayland
+# on DISPLAY=:0, but a flatpak only sees the X socket if it is shared
+# in. Without it, x11-backend apps die with "Failed to open display"
+# (operator trace 2026-05-19, Epiphany). Harmless on bare-metal Wayland
+# -- apps still prefer wayland unless GDK_BACKEND forces x11.
 flatpak override --system \
     --device=all \
-    --env=GTK_USE_PORTAL=1 \
-    --env=GTK_THEME="$_gtk_theme" \
-    --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color" \
-    --env=XCURSOR_THEME="$_curs_theme" \
-    --env=XCURSOR_SIZE="$_curs_size" \
-    --env=XCURSOR_PATH="$_xcurs_path" \
+    --socket=x11 \
+    "${_render_env_args[@]}" \
     --filesystem=xdg-config/gtk-3.0:ro \
     --filesystem=xdg-config/gtk-4.0:ro \
     --filesystem=xdg-data/themes:ro \
     --filesystem=xdg-data/icons:ro \
-    --filesystem=/usr/share/themes:ro \
-    --filesystem=/usr/share/icons:ro \
-    --filesystem=/usr/share/fonts:ro \
-    --filesystem=/dev/dxg \
     --filesystem=/dev/dri
 
 echo "mios-flatpak-overrides-apply: global flatpak override seeded"
-echo "  theme: GTK_THEME=$_gtk_theme  color=$_adw_color  cursor=$_curs_theme/$_curs_size"
-echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons} + /usr/share/{themes,icons,fonts}"
+echo "  theme: GTK_THEME=<unset; libadwaita native>  color=$_adw_color  cursor=$_curs_theme/$_curs_size"
+echo "  render: GSK_RENDERER=$_gsk_renderer  LIBGL_ALWAYS_SOFTWARE=$_force_sw_gl  GDK_VULKAN_DISABLE=$_disable_vk  GDK_BACKEND=${_gdk_backend:-<auto>}  socket=x11"
+echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons} + /dev/dri (host /usr is NOT mountable in flatpak -- theme via Gtk3theme ext, cursor via ~/.local/share/icons)"
 echo "  GTK_USE_PORTAL=1 (libadwaita color-scheme via xdg-portal)"
 
 # ─── Per-app overrides from mios.toml [flatpak.app_overrides] ────────

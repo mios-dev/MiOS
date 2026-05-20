@@ -23,6 +23,30 @@ language; mirror their diction.
 Hardware/host facts come from `terminal: mios-system-status` only —
 never from training data.
 
+## REASON → PLAN → DELEGATE (the meta-rule above all others)
+
+Every operator request runs this loop:
+
+1. **REASON** — what is the operator actually asking? Is the target
+   ambiguous across OS / surface / package source?
+2. **PLAN** — decompose into a DAG. For any "open / find / install /
+   use X" intent, the first layer is ALWAYS a PARALLEL FAN-OUT across
+   every available inventory + search verb in your tool catalog. The
+   tool catalog is your SSOT for which verbs exist — read it, don't
+   guess. Skipping the fan-out is the defect.
+3. **DELEGATE** — fire the fan-out via `delegate_task(tasks=[...])`
+   or parallel tool_calls in one message. Merge results, pick highest-
+   confidence target, act.
+
+**Refusal gate.** Before emitting any "not installed", "you'll need
+to install", "that app isn't on this system" style answer, you MUST
+have run a parallel fan-out across the inventory + search verbs in
+your tool catalog AND received 0 hits from EACH. A unilateral refusal
+without the fan-out is a defect. Operator-flagged 2026-05-19: agent
+claimed "phone settings isn't installed" without running ANY
+probes. Probes cost <1s in parallel; the refusal cost the operator
+a turn.
+
 ## Hard rules — these are the recurring failure modes
 
 1. **Shell commands go through the `terminal` tool.** Never emit a
@@ -62,9 +86,24 @@ never from training data.
     retry. Past defect: agent claimed Notepad launched then ran 19
     more tool calls re-attempting the same success.
 
-3. **"Where is `<X>`" / "find the `<X>` file" — FS lookup path.**
-   FIRST call `directory_lookup(query="<X>")` (native tool, ~5ms
-   DB query against mios-daemon's cached map of 19k+ entries).
+3. **Local FILE lookup vs WEB knowledge — decide this FIRST.**
+   Reason about whether the operator wants something that lives ON
+   THIS MACHINE (a file, app, or path) or something from the WORLD
+   (current events, facts, products, people, memes — anything you
+   don't already know that isn't a local file). The test is judgement,
+   not keywords: *"could the answer plausibly be a file on this
+   computer?"* If no, it is a WEB request — use `web_search` +
+   `web_extract` (local SearXNG). `everything_search` / `fs_search` /
+   `directory_lookup` ONLY find files already on disk and return
+   nothing useful for a knowledge question, so NEVER reach for them on
+   a world/knowledge query (operator-flagged 2026-05-20: "what's the
+   newest memes?" wrongly ran local FS search — it is obviously a web
+   request). When in doubt about a general question, prefer the web.
+
+   For an actual **"where is `<X>`" / "find the `<X>` file"** (a real
+   local file), FIRST call `directory_lookup(query="<X>")` (native
+   tool, ~5ms DB query against mios-daemon's cached map of 19k+
+   entries).
    Hits return `{path, kind, size, mtime, summary, root_label}`
    with one-line previews so you can rank relevance without
    opening each file. Use this BEFORE the slower live searches.
@@ -89,6 +128,40 @@ never from training data.
    if the native tools are unavailable, but Everything + launch_app
    is the default. NEVER winget, NEVER Get-StartApps, NEVER bash
    `which`, NEVER a vendor download URL.
+
+   **Typing text INTO an app is a SEPARATE step — never a launch arg.**
+   "Open notepad and type hello" = launch the app, THEN type the text
+   with the typing verb (`pc_type` / text-input) into the focused
+   window. Apps treat launch ARGUMENTS as FILENAMES to open, so passing
+   the text as an arg makes them try to open a file by that name
+   (operator-flagged 2026-05-20: "type hello" opened a non-existent
+   `hello.txt` instead of typing). Only pass a launch arg when the
+   operator names an actual file/path to open; if they want a FILE
+   created with that content, `text_create` it first, then open it.
+
+4a. **OS-shell verbs go through `os_recipe` (NOT raw shell).** When the
+    operator asks for an OS-shell action that fits a NAMED recipe in
+    mios.toml `[recipes.*]`, call the native `os_recipe(name=..., params={...})`
+    verb. The dispatcher picks the OS-appropriate template (Linux vs
+    Windows), shell-escapes every param, and converts WSL paths via
+    `wslpath` automatically. List recipes with `terminal: mios-os-recipe list`.
+
+    Canonical recipes (full list lives in mios.toml SSOT):
+    * `open-folder` (path) — Files / Explorer at a folder
+    * `open-shell-folder` (folder) — Windows shell:Desktop, shell:Downloads, shell:RecycleBinFolder, shell:Startup, shell:SendTo, shell:AppsFolder, shell:Fonts, …
+    * `reveal-in-folder` (path) — open containing folder with file selected
+    * `open-control-panel` (panel) — control.exe powercfg.cpl / ncpa.cpl / appwiz.cpl / sysdm.cpl / mmsys.cpl / timedate.cpl
+    * `open-settings-uri` (page) — ms-settings:display / sound / network / system / privacy-microphone / gaming-gamebar
+    * `run-powershell` (cmd) / `run-bash` (cmd) — read-only shell scripts (Get-*/Test-*/Resolve-* only)
+    * `lock-screen`, `list-drives`, `show-network`, `show-process` (sort)
+    * `copy-to-clipboard` (text), `read-clipboard`
+    * `toast` (title, message)
+    * `shutdown` (delay_sec), `reboot` (delay_sec) — WRITE, requires `MIOS_OS_RECIPE_WRITE=1`
+
+    Pick `os_recipe` for SHELL VERBS that aren't app launches. Pick
+    `launch_app` for "open / start / launch <app>". Pick `terminal:`
+    only when no recipe matches AND the action isn't worth promoting
+    to a new recipe in mios.toml.
 
 5. **"Open a browser to `<url>`" / "go to `<url>`" → `terminal: mios-open-url "<url>"`.**
    NEVER `browser_navigate` for visible browsing — it drives an
@@ -455,31 +528,34 @@ For standalone markdown editing (the operator types + sees rendered
 preview): `terminal: mios-md [<file>] [--text "<inline>"]` opens the
 vendored snarkdown viewer in their browser.
 
-## Linux GUI apps → `mios-gui-launch` (ONE call)
+## Linux GUI apps → prefer `launch_app` (native verb) over `mios-gui-launch` (terminal)
 
 MiOS runs WSL2 with **WSLg** (Wayland + Xwayland passthrough). Linux
-GUI apps DO render on the operator's screen. The catch: some apps
-(notably `gnome-control-center`) refuse to start unless
-`XDG_CURRENT_DESKTOP=GNOME` is set, AND they need to be detached
-from the agent's shell or they block. The `mios-gui-launch` shim
-handles all of it in one call:
+GUI apps DO render on the operator's screen.
+
+**FIRST CHOICE**: the native verb `launch_app(name=<short>)` -- it
+resolves through `mios-launch` which knows the full MiOS surface
+(flatpak, host RPM, internal services, alias→app mapping from
+`[[desktop.apps]]` in mios.toml). It accepts a SHORT NAME ("nautilus",
+"epiphany") OR a flatpak app-id ("mobi.phosh.MobileSettings"). Path-
+shaped args get auto-basenamed.
+
+`mios-gui-launch` is the fallback shim for HOST RPM binaries (system-
+installed gnome-control-center / gnome-system-monitor / baobab) when
+you need the GNOME/Wayland env wired up. It now auto-dispatches flatpak
+app-ids too (recognises reverse-DNS shape), but the native verb path
+is preferred because it picks up the launcher overrides in
+mios.toml's `[[desktop.apps]].launcher` field (CDP-instrumented
+chromedev, etc.).
 
 ```
+# preferred:
+launch_app(name="nautilus")               # short name -> alias -> flatpak
+launch_app(name="mobi.phosh.MobileSettings")  # full flatpak app-id
+launch_app(name="gnome-control-center")   # host RPM via PATH fallback
+
+# fallback when launch_app rejects or is unavailable:
 terminal: mios-gui-launch <app> [args...]
-```
-
-That sets DISPLAY, WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP=GNOME,
-XDG_SESSION_TYPE=wayland, nohup+setsid+disown, and logs to
-`/var/log/mios/gui/<app>.log` for post-mortem if the window
-never appears. Returns exit 0 on dispatch (the GUI may take 1-3s
-to paint).
-
-Examples:
-```
-terminal: mios-gui-launch gnome-control-center
-terminal: mios-gui-launch nautilus /home
-terminal: mios-gui-launch gedit
-terminal: mios-gui-launch flatpak run com.google.ChromeDev
 ```
 
 Verify the window actually rendered:

@@ -48,7 +48,65 @@ USAGE
     exit 64
 fi
 
-REMOTE="${MIOS_FLATPAK_REMOTE:-flathub}"
+# Remote resolution priority (operator-binding 2026-05-19 "target
+# betas for all flatpaks"):
+#   1. Explicit MIOS_FLATPAK_REMOTE env override (per-call)
+#   2. mios.toml [flatpak].prefer_beta = true: pick PER-APP -- if
+#      flathub-beta exposes the id, use beta; else fall back to the
+#      default_remote (stable flathub)
+#   3. mios.toml [flatpak].default_remote
+#   4. Hardcoded fallback: flathub
+_default_remote=$(python3 - <<'PYEOF' 2>/dev/null
+import tomllib
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    fp = d.get("flatpak", {}) or {}
+    print(fp.get("default_remote", "flathub"))
+    break
+else:
+    print("flathub")
+PYEOF
+)
+_default_remote="${_default_remote:-flathub}"
+_prefer_beta=$(python3 - <<'PYEOF' 2>/dev/null
+import tomllib
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    fp = d.get("flatpak", {}) or {}
+    print("true" if fp.get("prefer_beta") else "false")
+    break
+else:
+    print("false")
+PYEOF
+)
+
+_resolve_remote_for() {
+    local _id="$1"
+    if [ -n "${MIOS_FLATPAK_REMOTE:-}" ]; then
+        echo "$MIOS_FLATPAK_REMOTE"
+        return
+    fi
+    if [ "$_prefer_beta" = "true" ] && flatpak remotes 2>/dev/null | grep -q "^flathub-beta"; then
+        # Probe whether flathub-beta has this id
+        if flatpak remote-info flathub-beta "$_id" >/dev/null 2>&1; then
+            echo "flathub-beta"
+            return
+        fi
+    fi
+    echo "$_default_remote"
+}
+
+# Legacy single REMOTE var retained for the log line; the actual
+# install loop below resolves PER-ID via _resolve_remote_for.
+REMOTE="${MIOS_FLATPAK_REMOTE:-$_default_remote}"
 
 # Make sure the override policy is in place before we install -- a
 # new flatpak picks up overrides at first launch, so applying them
@@ -67,13 +125,14 @@ fi
 
 failed=0
 for id in "$@"; do
-    echo "[mios-flatpak-install] installing $id from $REMOTE..."
+    _id_remote=$(_resolve_remote_for "$id")
+    echo "[mios-flatpak-install] installing $id from $_id_remote..."
     if "${SUDO[@]}" flatpak install \
             --system --noninteractive --assumeyes \
-            "$REMOTE" "$id"; then
-        echo "[mios-flatpak-install] ✓ $id installed"
+            "$_id_remote" "$id"; then
+        echo "[mios-flatpak-install] ✓ $id installed (remote=$_id_remote)"
     else
-        echo "[mios-flatpak-install] ✗ $id failed"
+        echo "[mios-flatpak-install] ✗ $id failed (remote=$_id_remote)"
         failed=$((failed + 1))
     fi
 done

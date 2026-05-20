@@ -182,7 +182,7 @@ DEFINE INDEX person_user    ON person COLUMNS username UNIQUE;
 
 -- app_install: every app the operator has on this machine, across
 -- all sources (flatpak / RPM / Windows EXE / steam / epic / shim).
--- Populated by `mios-pkg-bootstrap` from mios-apps' inventory.
+-- Populated by `mios-kg bootstrap` from mios-apps' inventory.
 DEFINE TABLE app_install SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD short_name     ON app_install TYPE string;
 DEFINE FIELD app_id         ON app_install TYPE option<string>;

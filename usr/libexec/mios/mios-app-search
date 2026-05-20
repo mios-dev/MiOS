@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""mios-app-search <query> [--limit N] [--json]
+
+Semantic search over the installed-app inventory. Calls agent-pipe's
+/v1/app-search endpoint, which embeds the query + cosine-ranks against
+the cached mios-apps inventory.
+
+Use for ambiguous asks like "my note-taking app", "phone settings",
+"the screenshot tool" -- substring against mios-apps misses anything
+the operator phrases differently.
+
+Returns top-k {category, name, description, launch, score}.
+
+SSOT: mios-apps inventory is the source; this is a thin client.
+"""
+from __future__ import annotations
+import argparse
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+
+AGENT_PIPE_URL = os.environ.get(
+    "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
+).rstrip("/")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-app-search")
+    p.add_argument("query", nargs="+", help="natural-language query")
+    p.add_argument("--limit", type=int, default=5)
+    p.add_argument("--json", action="store_true", help="emit raw JSON")
+    args = p.parse_args()
+    query = " ".join(args.query)
+    url = (f"{AGENT_PIPE_URL}/v1/app-search?"
+           f"query={urllib.parse.quote(query)}&limit={args.limit}")
+    try:
+        with urllib.request.urlopen(url, timeout=60) as r:
+            data = json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception as e:
+        print(f"mios-app-search: agent-pipe unreachable: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(data))
+        return 0
+    hits = data.get("hits") or []
+    if not hits:
+        print(f"mios-app-search: no hits for {query!r} "
+              f"(inventory_size={data.get('inventory_size', 0)})",
+              file=sys.stderr)
+        return 2
+    for h in hits:
+        print(f"  [{h.get('category',''):<14}] {h.get('name',''):<28}  "
+              f"score={h.get('score', 0):.3f}  {h.get('description','')[:70]}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

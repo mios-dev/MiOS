@@ -126,7 +126,7 @@ LOCAL_CATALOG_DIR = os.environ.get(
     "MIOS_SKILLS_LOCAL_CATALOG_DIR", "/var/lib/mios/skills")
 
 
-# ─── SurrealDB helpers (stdlib urllib, same shape as mios-pkg) ────
+# ─── SurrealDB helpers (stdlib urllib, same shape as mios-kg) ────
 def post_sql(sql: str, *, timeout: float = 10.0) -> list:
     body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
     req = urllib.request.Request(
@@ -157,7 +157,7 @@ def last_ok(results: list) -> Optional[list]:
 
 def sq(s: str) -> str:
     """Quote a string for SurrealQL via json.dumps (same trick as
-    mios-pkg uses to avoid '' escape edge cases on labels with
+    mios-kg uses to avoid '' escape edge cases on labels with
     embedded apostrophes)."""
     return json.dumps(s)
 

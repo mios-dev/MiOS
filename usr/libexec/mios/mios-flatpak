@@ -192,7 +192,37 @@ PYEOF
         if [[ "$scope" == "--system" ]] && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
             exec sudo -E "$0" install "$id" "$scope"
         fi
-        _run_flatpak install $scope --noninteractive --assumeyes "$id"
+        # SSOT remote resolution: mios.toml [flatpak].prefer_beta=true
+        # routes to flathub-beta when that remote exposes the id, else
+        # falls back to default_remote (flathub). Operator binding
+        # 2026-05-19: "target betas for all flatpaks".
+        _remote=$(python3 - "$id" <<'PYEOF' 2>/dev/null
+import sys, subprocess, tomllib
+app_id = sys.argv[1]
+prefer_beta = False
+default_remote = "flathub"
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    fp = d.get("flatpak", {}) or {}
+    prefer_beta = bool(fp.get("prefer_beta"))
+    default_remote = str(fp.get("default_remote") or "flathub")
+    break
+if prefer_beta:
+    r = subprocess.run(
+        ["flatpak", "remote-info", "flathub-beta", app_id],
+        capture_output=True, text=True, timeout=10)
+    if r.returncode == 0:
+        print("flathub-beta")
+        sys.exit(0)
+print(default_remote)
+PYEOF
+)
+        _remote="${_remote:-flathub}"
+        _run_flatpak install $scope --noninteractive --assumeyes "$_remote" "$id"
         _emit_envelope "install" "$id"
         ;;
     upgrade|update)

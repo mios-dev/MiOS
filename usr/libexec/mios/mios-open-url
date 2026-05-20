@@ -68,6 +68,12 @@ _resolve_browser_chain() {
 import tomllib
 chain: list[str] = []
 seen: set[str] = set()
+# MiOS is Linux-native first. Browser chain reads [[desktop.apps]]
+# role=browser in declaration order (defaults first). Windows-side
+# fallback (cmd.exe /c start) is the LAST resort -- appended only
+# at the tail by mios-open-url's runtime loop, NOT prepended.
+# Operator binding 2026-05-19: "always prefer Linux native apps
+# first as MiOS Linux Native/first".
 for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     try:
         with open(path, "rb") as f:
@@ -189,8 +195,25 @@ while IFS= read -r TARGET; do
     mios-gui "$TARGET" "$URL"
     _launch_rc=$?
 
-    _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
-    _summary=$(_parse_summary "$_verify")
+    # Poll the window verifier up to ~15s with progressive delays.
+    # WSLg flatpak cold-launches register a Win32 window via the
+    # weston RDP rail AFTER bwrap unpack + GTK4 init + Wayland surface
+    # bind + RDP frame -- empirically 5-12s on first launch (faster on
+    # warm). A single immediate check (the prior implementation)
+    # caught only fast launches; slow ones reported "no-window" while
+    # the window actually rendered seconds later. Operator-flagged
+    # 2026-05-19: "in the end it DID actually open it in ChromeDev"
+    # despite mios-open-url declaring EXHAUSTED chain.
+    _summary=""
+    _verify=""
+    for _delay in 1 2 3 4 5; do
+        _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
+        _summary=$(_parse_summary "$_verify")
+        if [ "$_summary" = "presented" ]; then
+            break
+        fi
+        sleep "$_delay"
+    done
     _LAST_VERIFY="$_verify"
     _LAST_SUMMARY="$_summary"
     _LAST_TARGET="$TARGET"

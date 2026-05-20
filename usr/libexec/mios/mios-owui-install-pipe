@@ -151,45 +151,67 @@ MODEL_ID="mios-agent"
 MODEL_NAME="MiOS AI"
 BASE_MODEL="mios_agent.mios-agent"  # <function_id>.<pipe_id> from pipes()
 
-MODEL_PAYLOAD=$(python3 - "$MODEL_ID" "$MODEL_NAME" "$BASE_MODEL" <<'PYEOF'
-import json, sys
-mid, mname, base = sys.argv[1], sys.argv[2], sys.argv[3]
+# Materialise the SSOT-driven system prompt to a tempfile FIRST so both
+# the create-model payload + the post-install sqlite sync can read the
+# same bytes (no risk of the two python invocations rendering different
+# strings if the operator edits mios.toml between them).
+SYSTEM_PROMPT_FILE="$(mktemp -t mios-owui-sys-XXXXXX.md)"
+trap 'rm -f "$SYSTEM_PROMPT_FILE"' EXIT
+python3 - "$SYSTEM_PROMPT_FILE" <<'PYEOF'
+import json, os, sys
+out_path = sys.argv[1]
 
-# Operator directive 2026-05-17: "could use a system prompt for
-# MiOS-Agent in OWUI and configure the settings too as well".
-#
-# This is the OWUI-side system prompt operators see + can edit
-# under Settings -> Models -> MiOS-Agent -> Advanced. It's
-# prepended by OWUI before the pipe receives the messages, so:
-#   - the CPU refine step sees it (helps refine route phrasing)
-#   - hermes sees it (reinforces SOUL.md from the user-prompt side)
-#   - OWUI's task generators (title, tags, follow-ups) see it
-#
-# Kept short -- the full operating manual lives in SOUL.md inside
-# hermes. This is the "what is this agent" intro. NO env values
-# baked in (operator: "no context injection for environment
-# detection") -- only canonical verb names.
-SYSTEM_PROMPT = (
-    "You are MiOS-Agent, a local-first agent running on the operator's "
-    "MiOS host. You speak the user's language and mirror their tone. "
-    "For any visible-to-operator action (launch app, open URL, install "
-    "software, take screenshot, control window) you ALWAYS go through "
-    "the canonical MiOS verb -- never bare PowerShell, never browser "
-    "automation for visible browsing, never vendor download pages. "
-    "Canonical verbs: mios-find (launch resolver), mios-open-url "
-    "(visible browser), mios-installer (cross-platform install), "
-    "mios-windows (Windows dispatch), mios-window (focus/close/move), "
-    "mios-screenshot, mios-steamcmd, mios-system-status (single source "
-    "of truth for hardware/services/models), mios-hermes-browser ensure "
-    "(bring CDP up before any browser_* tool call). Use web_search not "
-    "web_extract (the extract backend is search-only in this MiOS). "
-    "Native tools (memory_save, kanban_*, discord_send_message, "
-    "delegate_task, etc.) are tool_calls -- never call them as bash "
-    "lines through terminal. You can fork and improve your own tools "
-    "(mios-tool-clone) and skills (mios-skill-clone) when a recurring "
-    "task hits the same friction twice. Report tool stdout verbatim; "
-    "guessing confidently is a defect."
-)
+def _load_system_prompt() -> str:
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            return ""
+    merged = {}
+    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        block = (d.get("owui", {}) or {}).get("system_prompt", {}) or {}
+        if isinstance(block, dict):
+            merged.update(block)
+    template = str(merged.get("template", "")).strip()
+    user_path = str(merged.get("user_section_path", "")).strip()
+    if user_path:
+        user_path = os.path.expanduser(os.path.expandvars(user_path))
+        try:
+            with open(user_path, "r", encoding="utf-8") as f:
+                addendum = f.read().strip()
+            if addendum:
+                template = (
+                    template
+                    + "\n\n## OPERATOR PROFILE\n\n"
+                    + addendum
+                )
+        except (OSError, UnicodeDecodeError):
+            pass
+    return template
+
+with open(out_path, "w", encoding="utf-8") as f:
+    f.write(_load_system_prompt() or "You are MiOS AI.")
+PYEOF
+
+MODEL_PAYLOAD=$(python3 - "$MODEL_ID" "$MODEL_NAME" "$BASE_MODEL" "$SYSTEM_PROMPT_FILE" <<'PYEOF'
+import json, os, sys
+
+mid, mname, base, sys_prompt_file = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+
+# SSOT: rendered upstream by the bash-level mktemp + python loader, so
+# both this payload + the post-install sqlite sync see the SAME bytes.
+try:
+    with open(sys_prompt_file, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT = f.read() or "You are MiOS AI."
+except OSError:
+    SYSTEM_PROMPT = "You are MiOS AI."
 
 print(json.dumps({
     "id": mid,
@@ -356,9 +378,15 @@ fi
 # sees both "MiOS-Agent" (old auto-row) AND "MiOS AI" (new
 # explicit row) in the dropdown.
 if [ -f "$OWUI_DB" ]; then
-    python3 - "$OWUI_DB" "$MODEL_NAME" "$MODEL_ID" "$PIPE_ID" <<'PYEOF'
-import sqlite3, sys
-db, target_name, model_id, pipe_id = sys.argv[1:5]
+    python3 - "$OWUI_DB" "$MODEL_NAME" "$MODEL_ID" "$PIPE_ID" "$SYSTEM_PROMPT_FILE" <<'PYEOF'
+import json, sqlite3, sys
+db, target_name, model_id, pipe_id, sys_prompt_file = sys.argv[1:6]
+try:
+    with open(sys_prompt_file, "r", encoding="utf-8") as f:
+        sys_prompt = f.read()
+except OSError:
+    sys_prompt = ""
+
 c = sqlite3.connect(db)
 twin_id = f"{pipe_id}.{model_id}"
 n = c.execute(
@@ -366,9 +394,36 @@ n = c.execute(
     (target_name, model_id, twin_id),
 ).rowcount
 c.commit()
-c.close()
-print(f"[mios-owui-install-pipe] ✓ aligned {n} model row(s) "
+print(f"[mios-owui-install-pipe] aligned {n} model row(s) "
       f"name -> {target_name!r}")
+
+# Force-sync params.system on BOTH the explicit + twin model rows.
+# OWUI auto-creates the twin row on first pipe registration with no
+# params.system, then never refreshes it -- result was the OLD
+# baked-in English prompt persisting on the twin even after the
+# SSOT prompt in mios.toml was updated. Operator-flagged
+# 2026-05-19.
+if sys_prompt:
+    synced = 0
+    for row_id in (model_id, twin_id):
+        cur = c.execute(
+            "SELECT params FROM model WHERE id = ?", (row_id,)).fetchone()
+        if cur is None:
+            continue
+        try:
+            p = json.loads(cur[0] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            p = {}
+        if not isinstance(p, dict):
+            p = {}
+        p["system"] = sys_prompt
+        c.execute("UPDATE model SET params = ? WHERE id = ?",
+                  (json.dumps(p), row_id))
+        synced += 1
+    c.commit()
+    print(f"[mios-owui-install-pipe] synced params.system on "
+          f"{synced} model row(s) (len={len(sys_prompt)})")
+c.close()
 PYEOF
 fi
 

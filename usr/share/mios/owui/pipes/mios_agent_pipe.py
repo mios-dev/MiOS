@@ -325,7 +325,7 @@ class Pipe:
         )
         # Router (layer-1 classifier): dispatch | chat | agent.
         ROUTER_ENABLED: bool = Field(default=True, description="layer-1 router (micro-LLM)")
-        ROUTER_MODEL: str    = Field(default="qwen3:1.7b", description="micro-LLM")
+        ROUTER_MODEL: str    = Field(default="qwen3:0.6b-cpu", description="always-warm micro-LLM (keep_alive=-1); operator 2026-05-20 'micro-llms for fast refinements'")
         ROUTER_TIMEOUT_S: int = Field(default=12, description="s")
         ROUTER_MAX_TOKENS: int = Field(default=200, description="tokens")
 
@@ -2025,7 +2025,9 @@ class Pipe:
         # hardcoded english (other than generic technically accurate
         # terminologies)"). Tool/model names stay since they're
         # cross-locale identifiers; verbs like "receiving" -> emoji.
-        await self._emit(__event_emitter__, "👂 listening")
+        # (No hardcoded status pill here. The live thinking stream + the
+        # tail-derived generative status carry the activity. Operator
+        # 2026-05-20: "nothing hardcoded -- pure streamed + generative".)
 
         # ── SurrealDB session open ──────────────────────────────────
         # Open a session row for this OWUI turn; subsequent tool_call /
@@ -2139,7 +2141,8 @@ class Pipe:
         # right helper / 🤖 working on it) once it picks up the
         # request -- this pipe just acknowledges receipt so the
         # operator sees activity during the handoff latency.
-        await self._emit(__event_emitter__, "📨 got it")
+        # (No hardcoded "got it" pill -- generative status comes from the
+        # live hermes-tail work stream below. Operator 2026-05-20.)
         # Mark the dispatch moment so compose (after hermes finishes
         # streaming) can find the matching Hermes session JSON by
         # mtime > _dispatch_ts. Shared mutable scratch location:
@@ -2178,10 +2181,45 @@ class Pipe:
         _details_opened = False
 
         def _open_details_chunk() -> str:
+            # `done="true"` tells OWUI to render the block as a
+            # complete (collapsed-by-default) reasoning dropdown the
+            # operator can click to expand. Without it OWUI keeps the
+            # block open + spinning forever -- operator-flagged
+            # 2026-05-18 "Thinking doesn't collapse(or stream/emit!)".
             return (
-                f"<details type=\"reasoning\" data-mios-agent=\"hermes\">\n"
+                f"<details type=\"reasoning\" done=\"true\" "
+                f"data-mios-agent=\"hermes\">\n"
                 f"<summary>{self.valves.AGENT_THINKING_LABEL}</summary>\n\n"
             )
+
+        # Live, GENERATIVE thinking: poll the hermes-tail (the AI's actual
+        # tool/reasoning events) and stream them INTO the reasoning dropdown
+        # as they happen; close it when the answer begins. The latest work
+        # line doubles as the status chip -- no hardcoded label map.
+        # Operator 2026-05-20: "pure streamed + generative from the AI
+        # pipeline(s)". last-seen ts starts at dispatch so we never replay
+        # the historical buffer.
+        _tail_seen = _dispatch_ts
+        _reasoning_open = False
+        _answer_started = False
+
+        def _poll_tail_lines() -> str:
+            nonlocal _tail_seen
+            picked: list = []
+            try:
+                with open(HERMES_TAIL_PATH) as _tf:
+                    _tp = json.load(_tf)
+            except (OSError, json.JSONDecodeError):
+                return ""
+            for _ev in _tp.get("events", []):
+                _ets = _ev.get("ts", 0)
+                if _ets > _tail_seen:
+                    _tail_seen = _ets
+                    _detail = str(_ev.get("detail", "")).strip()
+                    if _detail:
+                        _icon = _TAIL_ICONS.get(_ev.get("kind", ""), "·")
+                        picked.append(f"{_icon} {_detail}")
+            return "\n".join(picked)
 
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -2197,6 +2235,21 @@ class Pipe:
                         return
 
                     async for raw_line in resp.content:
+                        # Stream the AI's LIVE work into the reasoning
+                        # dropdown until the answer begins. Polled every
+                        # iteration -- agent-pipe keepalives keep this
+                        # ticking through Hermes's tool loop, so the
+                        # operator watches the agent think in real time.
+                        if not _answer_started:
+                            _tlines = _poll_tail_lines()
+                            if _tlines:
+                                if not _reasoning_open:
+                                    yield _open_details_chunk()
+                                    _reasoning_open = True
+                                yield _tlines + "\n"
+                                # Generative status = the latest work line.
+                                await self._emit(__event_emitter__,
+                                                 _tlines.splitlines()[-1])
                         line = raw_line.decode("utf-8", errors="ignore").strip()
                         if not line or not line.startswith("data:"):
                             continue
@@ -2207,13 +2260,11 @@ class Pipe:
                             chunk = json.loads(payload_str)
                         except json.JSONDecodeError:
                             continue
-                        # mios-agent-pipe (the standalone service at
-                        # :8640) injects a `mios_status` field on
-                        # content-empty SSE chunks to carry pipe-phase
-                        # markers (📡 prompt, 🧭 route, 🛠️ {tool}, ✅).
-                        # Translate it into the OWUI status pill via
-                        # __event_emitter__ -- stock OpenAI clients
-                        # would just ignore the unknown field.
+                        # agent-pipe injects mios_status on content-empty
+                        # chunks for the dispatch FAST PATH + orchestration
+                        # phases (no hermes-tail there). Forward it as the
+                        # status pill so those keep feedback; the agent
+                        # path's live THINKING comes from the tail above.
                         _mios_status = chunk.get("mios_status")
                         if isinstance(_mios_status, dict):
                             emoji = str(_mios_status.get("emoji", ""))
@@ -2233,20 +2284,20 @@ class Pipe:
                         text_piece = delta.get("content") or ""
                         if not text_piece:
                             continue
+                        # First answer content -> close the live thinking
+                        # dropdown, then stream the clean answer as main.
+                        if not _answer_started:
+                            _answer_started = True
+                            if _reasoning_open:
+                                yield "\n</details>\n\n"
+                                _reasoning_open = False
                         any_text = True
                         raw_buffer += text_piece
-                        # Lazy-open: emit the <details> opener only
-                        # when the FIRST chunk arrives.
-                        if self.valves.POLISH_ENABLED and not _details_opened:
-                            yield _open_details_chunk()
-                            _details_opened = True
                         yield text_piece
 
-            # Close the thinking block before polish, BUT only if we
-            # actually opened it. An empty-output turn (hermes never
-            # streamed) never opens, so never closes -- the operator
-            # sees the empty marker below without any orphaned tag.
-            if _details_opened:
+            # Empty/early-exit turn: close the dropdown if the answer never
+            # arrived, so OWUI doesn't render an orphaned open block.
+            if _reasoning_open:
                 yield "\n</details>\n\n"
 
             raw_text = raw_buffer.strip()
@@ -2285,14 +2336,14 @@ class Pipe:
             # Close the <details> ONLY if lazy-open actually fired.
             # No tag was emitted on empty-stream / cold-load timeouts
             # so we don't orphan a close either.
-            if _details_opened:
+            if _reasoning_open:
                 yield "\n</details>\n\n"
             await self._emit(__event_emitter__,
                              f"⏱️ {self.valves.TIMEOUT_S}s",
                              done=True)
             yield f"\n\n_⏱️ {self.valves.TIMEOUT_S}s_"
         except Exception as e:
-            if _details_opened:
+            if _reasoning_open:
                 yield "\n</details>\n\n"
             await self._emit(__event_emitter__,
                              f"❌ {type(e).__name__}: {e}",

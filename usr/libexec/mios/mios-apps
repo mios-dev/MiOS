@@ -162,7 +162,17 @@ fi
 # on every mios-apps call.
 header windows-app
 if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
-    CACHE=/tmp/mios-windows-apps.cache
+    # Cache under /var/lib/mios/agent-env (shared dir already used for
+    # the games cache; world-writable via tmpfiles.d). Previous path
+    # /tmp/<file> stuck to whichever uid wrote it first, leaving the
+    # other (operator vs mios-hermes) forever blocked from `mv`-ing
+    # the tmp file in. Operator-flagged 2026-05-19.
+    CACHE_DIR=/var/lib/mios/agent-env
+    CACHE="${CACHE_DIR}/windows-apps.cache"
+    if [ ! -d "$CACHE_DIR" ]; then
+        mkdir -p "$CACHE_DIR" 2>/dev/null || true
+        chmod 0777 "$CACHE_DIR" 2>/dev/null || true
+    fi
     if [ -f "$CACHE" ] && [ "$(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0) ))" -lt 300 ]; then
         :  # fresh cache; use as-is
     else

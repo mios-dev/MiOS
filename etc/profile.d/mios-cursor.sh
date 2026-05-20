@@ -31,7 +31,23 @@ case "$-" in
 esac
 
 export XCURSOR_THEME="${XCURSOR_THEME:-Bibata-Modern-Classic}"
-export XCURSOR_SIZE="${XCURSOR_SIZE:-16}"
+export XCURSOR_SIZE="${XCURSOR_SIZE:-24}"
+# /usr is read-only on bootc, so when the build's /usr/share/icons fetch
+# is unavailable Bibata is installed into ~/.local/share/icons instead
+# (see mios-cursor-ensure). libXcursor's DEFAULT path does NOT include
+# ~/.local/share/icons, so add it explicitly -- otherwise shell-launched
+# host apps fall back to the default cursor even with XCURSOR_THEME set.
+export XCURSOR_PATH="${XCURSOR_PATH:-$HOME/.local/share/icons:$HOME/.icons:/usr/share/icons:/usr/share/pixmaps}"
+
+# Self-heal: if the cursor theme is absent from every search path, fetch
+# it into ~/.local/share/icons ONCE (marker-guarded, backgrounded so it
+# never blocks the shell). No-op when /usr/share/icons already has it.
+if command -v mios-cursor-ensure >/dev/null 2>&1 \
+   && [ ! -e "${XDG_CACHE_HOME:-$HOME/.cache}/mios/cursor-ensured" ] \
+   && [ ! -d "/usr/share/icons/${XCURSOR_THEME}/cursors" ] \
+   && [ ! -d "$HOME/.local/share/icons/${XCURSOR_THEME}/cursors" ]; then
+    (mios-cursor-ensure >/dev/null 2>&1 &) 2>/dev/null || true
+fi
 
 # wsl.exe-spawned bash sessions bypass pam_systemd, so the user-systemd
 # manager doesn't see XCURSOR_*. Push them in via `systemctl --user

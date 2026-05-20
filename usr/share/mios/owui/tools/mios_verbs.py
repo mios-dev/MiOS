@@ -443,6 +443,62 @@ class Tools:
             "stderr": (result.get("stderr") or "")[:400],
         })
 
+    # ─── os_recipe ──────────────────────────────────────────────────
+    async def os_recipe(
+        self,
+        name: str,
+        params: Optional[dict] = None,
+        os: str = "",
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Run a NAMED, allow-listed OS shell recipe declared in
+        mios.toml [recipes.*]. Picks the OS-appropriate template
+        (linux / windows), shell-escapes every param, optionally
+        converts Linux paths to Windows paths via wslpath, and
+        dispatches via the operator-side broker.
+
+        SSOT: every runnable recipe lives in mios.toml -- adding a
+        new shell verb is a TOML edit, no code change. Hardening:
+            * Only declared recipes execute (no arbitrary shell).
+            * Only declared `args` survive (unknown kwargs dropped).
+            * permission="write" recipes require MIOS_OS_RECIPE_WRITE=1.
+
+        :param name: Recipe key (e.g. "open-folder", "lock-screen",
+            "open-shell-folder", "show-network", "reveal-in-folder",
+            "copy-to-clipboard", "show-process", "toast", "reboot").
+            Use `mios-os-recipe list` from a shell to enumerate.
+        :param params: Dict of {arg: value} matching the recipe's
+            declared `args` list. Unknown keys are dropped.
+        :param os: Override OS template: "linux" | "windows". Empty
+            = WSL-aware detection (Linux by default; explicit
+            "windows" forces explorer.exe / powershell.exe path).
+        :return: JSON {success, recipe, target_os, template,
+            exit_code, stdout, stderr}.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        if not name.strip():
+            return json.dumps({"success": False, "stderr": "recipe name is required"})
+        params = params or {}
+        kv = " ".join(
+            f"{shlex.quote(str(k))}={shlex.quote(str(v))}"
+            for k, v in params.items()
+        )
+        os_flag = ""
+        if os and os.strip().lower() in ("linux", "windows"):
+            os_flag = f"--os {shlex.quote(os.strip().lower())} "
+        cmd = f"mios-os-recipe --json {os_flag}{shlex.quote(name)} {kv}".strip()
+        result = _broker_send(cmd, timeout=self.valves.LAUNCH_TIMEOUT_S, capture=True)
+        raw = (result.get("stdout") or "").strip()
+        try:
+            return json.dumps(json.loads(raw))
+        except (json.JSONDecodeError, ValueError):
+            return json.dumps({
+                "success": result.get("success", False),
+                "recipe": name,
+                "stderr": result.get("stderr", "")[:600] or f"non-JSON: {raw[:300]}",
+            })
+
     # ─── system_status ──────────────────────────────────────────────
     async def system_status(self, __user__: Optional[dict] = None) -> str:
         """Return a structured snapshot of the live MiOS host: GPU(s) +

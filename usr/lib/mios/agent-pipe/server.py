@@ -71,17 +71,41 @@ BACKEND = os.environ.get("MIOS_AGENT_PIPE_BACKEND",
 BACKEND_MODEL = os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL",
                                "hermes-agent")
 
+# Micro-LLM (SSOT: mios.toml [ai].micro_model / micro_endpoint, surfaced
+# as MIOS_MICRO_MODEL / MIOS_MICRO_ENDPOINT by userenv.sh). This is the
+# always-warm (keep_alive=-1) sub-second classifier -- qwen3:0.6b-cpu by
+# default. Operator directive 2026-05-20: "we have access to micro-llms
+# for fast refinements too" -- so the layer-1 classifier passes (router +
+# refine) default to the micro-LLM instead of the heavier qwen3:1.7b that
+# was stalling 13-45s on the CPU lane. The bigger PLANNER + POLISH passes
+# keep their own (larger) models.
+_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:0.6b-cpu")
+_MICRO_ENDPOINT = os.environ.get(
+    "MIOS_MICRO_ENDPOINT", "http://localhost:11434/v1",
+).rstrip("/")
+# Callers below append "/v1/chat/completions"; strip a trailing /v1 so we
+# don't double it.
+_MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
+               if _MICRO_ENDPOINT.endswith("/v1") else _MICRO_ENDPOINT)
+
 # Router (layer-1 micro-LLM classifier) config.
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}
-ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", "qwen3:1.7b")
+ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)
 # Router runs the micro-LLM classifier (qwen3:1.7b) on the iGPU lane
 # (mios-ollama-igpu at :11435) -- isolates micro-LLM workload from the
 # dGPU/CUDA queue so router latency stays sub-second even when big-model
 # inference is saturating :11434. Falls back to the CUDA-ollama lane
 # if the iGPU instance is down (operator override via the env).
+# Light lane (:11435) -- the iGPU/CPU micro-LLM instance, ISOLATED from
+# the :11434 big-model queue. Refine/router/polish MUST run here: putting
+# the micro classifier on :11434 (operator test 2026-05-20) queued it
+# behind big-model inference -> refine 41s, polish 42s. On the light lane
+# the warm qwen3:0.6b-cpu answers in ~1-2s regardless of dGPU load.
+_LIGHT_LANE = os.environ.get("MIOS_OLLAMA_IGPU_ENDPOINT",
+                             "http://localhost:11435").rstrip("/")
 ROUTER_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", "http://localhost:11435"
+    "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", _LIGHT_LANE
 ).rstrip("/")
 ROUTER_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_TIMEOUT_S", "30"))
 ROUTER_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_ROUTER_MAX_TOKENS", "200"))
@@ -359,6 +383,27 @@ app = FastAPI(
     ),
 )
 
+
+@app.on_event("startup")
+async def _warm_embeddings_in_background() -> None:
+    """Build verb + app embeddings as fire-and-forget Tasks at boot.
+    First chat turn does NOT block on a 4-5s embed flood; instead the
+    /v1/tool-search and /v1/app-search endpoints use substring
+    fallback until the warmup completes. Disk-persisted embeddings
+    survive restart -- subsequent boots are no-ops.
+    Operator-flagged 2026-05-19 "double fail" (TransferEncodingError
+    when polish path competed with embed flood on iGPU lane)."""
+    async def _warm():
+        try:
+            await _ensure_verb_embeddings()
+        except Exception as e:
+            log.warning("verb embed warmup failed: %s", e)
+        try:
+            await _refresh_app_inventory()
+        except Exception as e:
+            log.warning("app inventory warmup failed: %s", e)
+    asyncio.create_task(_warm())
+
 # Shared httpx AsyncClient -- reused across requests (connection
 # pooling). Created lazily on first request so module import is cheap.
 _client: httpx.AsyncClient | None = None
@@ -565,6 +610,22 @@ _ROUTER_SYSTEM = (
     '  [WRITE] flatpak_uninstall(id)\n'
     '          -- Linux-side package management via flatpak CLI. Install/\n'
     "             upgrade/uninstall are high-priv.\n"
+    '  [WRITE] os_recipe(name, params?, os?)\n'
+    '          -- Run a NAMED, allow-listed OS shell recipe from mios.toml\n'
+    '             [recipes.*]. Picks the OS-appropriate template (linux /\n'
+    '             windows) and quote-escapes every param before splicing.\n'
+    '             `name` is the recipe key (e.g. open-folder,\n'
+    '             open-shell-folder, reveal-in-folder, open-control-panel,\n'
+    '             open-settings-uri, run-powershell, run-bash, lock-screen,\n'
+    '             list-drives, show-network, show-process,\n'
+    '             copy-to-clipboard, read-clipboard, toast, shutdown,\n'
+    '             reboot). `params` is a dict matching the recipe\'s\n'
+    '             declared `args`. `os` is optional ("linux" | "windows");\n'
+    '             default = WSL-aware detection.\n'
+    '             EXAMPLES:\n'
+    '               os_recipe(name="open-folder", params={"path":"/mnt/c/Users"})\n'
+    '               os_recipe(name="open-shell-folder", params={"folder":"Desktop"})\n'
+    '               os_recipe(name="lock-screen")\n'
     "\n"
     "Verb-pick priority (most common cases first):\n"
     '  "open X" / "launch X" / "start X" / "run X"  -> open_app(name=X)\n'
@@ -602,8 +663,15 @@ _ROUTER_SYSTEM = (
     "- Position defaults to \"default\" (golden+16:10 centered); set\n"
     "  explicitly only when the user named a side.\n"
     "- `chat` for greetings, thanks, one-sentence clarification.\n"
+    "  REASON -> PLAN -> DELEGATE meta-rule: an 'open / find / install /\n"
+    "  launch / use X' intent NEVER routes to `chat`. The downstream\n"
+    "  agent has to fan out across discovery surfaces before deciding\n"
+    "  if X exists -- pick `agent` so it can do that. Operator-flagged\n"
+    "  2026-05-19: router shortcut 'X isn't installed' chat-refusal\n"
+    "  without any probes ran is a defect.\n"
     "- `agent` for N>1 tools, web research, install, file editing,\n"
-    "  general knowledge questions, conversational follow-through.\n"
+    "  general knowledge questions, conversational follow-through,\n"
+    "  ANY 'open / find / install / launch / use' intent.\n"
     "  MiOS-Agent is both an Agentic-OS AND a generalized AI agent.\n"
     "- Mirror the user's language in `reply` fields.\n"
     "- Output JSON ONLY -- no preamble, no markdown, no commentary."
@@ -697,7 +765,7 @@ async def classify_intent(user_text: str) -> Optional[dict]:
 REFINE_ENABLED = os.environ.get(
     "MIOS_REFINE_ENABLE", "true",
 ).lower() not in {"false", "0", "no"}
-REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3:1.7b")
+REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", _MICRO_MODEL)
 REFINE_ENDPOINT = os.environ.get(
     "MIOS_REFINE_ENDPOINT", ROUTER_ENDPOINT,
 ).rstrip("/")
@@ -756,6 +824,157 @@ def _load_agent_registry() -> dict[str, dict]:
 
 
 _AGENT_REGISTRY = _load_agent_registry()
+
+
+def _load_verb_catalog() -> dict:
+    """Parse mios.toml [verbs.*] sections into the canonical verb
+    catalog. Each entry: {section, sig, desc, tier, permission, params:
+    {<arg>: {type, desc, aliases, enum, default}}}. SSOT for the planner
+    prompt + the arg-synonym dispatcher + (future) MCP tools/list."""
+    cat: dict = {}
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+        verbs = data.get("verbs") or {}
+        if isinstance(verbs, dict):
+            for vname, vcfg in verbs.items():
+                if not isinstance(vcfg, dict):
+                    continue
+                # Reject entries lacking `section` -- the [verbs.*]
+                # namespace is shared with the mios-html configurator
+                # (build/config/dash/ai/dev/...) which uses the same
+                # TOML key for UI button definitions. agent-pipe owns
+                # only the entries that carry the agent-verb shape.
+                if "section" not in vcfg:
+                    continue
+                cat[vname] = {
+                    "section":    str(vcfg.get("section", "Misc")),
+                    "sig":        str(vcfg.get("sig", "")),
+                    "desc":       str(vcfg.get("desc", "")),
+                    "tier":       str(vcfg.get("tier", "common")),
+                    "permission": str(vcfg.get("permission", "read")),
+                    "params":     vcfg.get("params") or {},
+                }
+    except Exception as e:
+        log.warning("verb catalog load failed: %s", e)
+    return cat
+
+
+def _verb_arg_synonyms_from_catalog(cat: dict) -> dict:
+    """Project verb catalog's per-arg `aliases` lists into the legacy
+    {verb: {arg: [alias,...]}} shape `_arg_with_synonyms` consumes.
+    Single SSOT (catalog) -- no separate [verbs.<name>.synonyms] block."""
+    syn: dict = {}
+    for vname, vcfg in cat.items():
+        params = vcfg.get("params") or {}
+        if not isinstance(params, dict):
+            continue
+        for argname, argcfg in params.items():
+            if not isinstance(argcfg, dict):
+                continue
+            aliases = argcfg.get("aliases") or []
+            if aliases:
+                syn.setdefault(vname, {})[str(argname)] = [str(a) for a in aliases]
+    return syn
+
+
+def _render_verb_catalog(cat: dict, include_rare: bool = False) -> str:
+    """Render the verb catalog as the prose block the planner consumes.
+    Sections grouped + ordered by first-seen order. Verbs tagged
+    tier='rare' are HIDDEN by default -- they remain dispatchable for
+    in-flight chains but don't burn planner tokens. Set include_rare=
+    True for a full audit."""
+    sections: dict[str, list[str]] = {}
+    order: list[str] = []
+    for vname, vcfg in cat.items():
+        if not include_rare and vcfg.get("tier") == "rare":
+            continue
+        sec = vcfg.get("section", "Misc")
+        if sec not in sections:
+            sections[sec] = []
+            order.append(sec)
+        sig = vcfg.get("sig", "")
+        desc = vcfg.get("desc", "")
+        line = f"  {vname}({sig})".ljust(48) + f"-- {desc}"
+        sections[sec].append(line)
+    parts: list[str] = []
+    for sec in order:
+        parts.append(f"  -- {sec} --")
+        parts.extend(sections[sec])
+        parts.append("")
+    return "\n".join(parts).rstrip()
+
+
+def _load_verb_arg_synonyms() -> dict:
+    """Compat shim -- existing callers still hit this name."""
+    return _verb_arg_synonyms_from_catalog(_VERB_CATALOG)
+
+
+_VERB_CATALOG = _load_verb_catalog()
+_VERB_ARG_SYNONYMS = _load_verb_arg_synonyms()
+_VERB_CATALOG_RENDERED = _render_verb_catalog(_VERB_CATALOG)
+
+
+def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> str:
+    """Resolve an arg by canonical name first, then by mios.toml-
+    declared synonyms for the verb. Returns the first non-empty string
+    value found, or '' if none match. SSOT: mios.toml
+    [verbs.<tool>.synonyms]."""
+    v = args.get(canonical)
+    if v is not None and str(v).strip():
+        return str(v)
+    for alias in (_VERB_ARG_SYNONYMS.get(tool, {}).get(canonical) or []):
+        v = args.get(alias)
+        if v is not None and str(v).strip():
+            return str(v)
+    return ""
+
+
+def _validate_enum_args(tool: str, args: dict) -> Optional[str]:
+    """Tool-Manager parameter validation (ref AIOS kernel C 3.7: "validate
+    parameters before execution to prevent tool crashes"). Reject a verb
+    arg whose value falls outside the enum DECLARED for it in mios.toml
+    [verbs.<tool>.params.<arg>.enum], BEFORE the command reaches the
+    broker -- previously such values passed through as a stray env var and
+    silently misbehaved.
+
+    Conservative + binding-clean: only acts on explicitly-declared enums;
+    every other arg passes untouched. The allowed set comes straight from
+    the SSOT (no hardcoded English/topic content). Returns an error string
+    (which dispatch_mios_verb surfaces in the same shape the planner's
+    reflection pass consumes, so it re-issues with a valid value), or None
+    when every declared enum is satisfied / the verb is unknown (the
+    existing unknown-verb path reports that)."""
+    if not isinstance(args, dict) or not args:
+        return None
+    vcfg = _VERB_CATALOG.get(tool)
+    if not vcfg:
+        return None
+    params = vcfg.get("params")
+    if not isinstance(params, dict):
+        return None
+    for argname, argcfg in params.items():
+        if not isinstance(argcfg, dict):
+            continue
+        enum = argcfg.get("enum")
+        if not isinstance(enum, list) or not enum:
+            continue
+        val = _arg_with_synonyms(tool, str(argname), args)
+        if val == "":
+            continue  # not supplied -> default applies; not our concern
+        allowed = [str(e) for e in enum]
+        if val not in allowed:
+            return (
+                f"verb {tool!r} arg {argname!r}={val!r} is not allowed "
+                f"(mios.toml [verbs.{tool}.params.{argname}].enum). "
+                f"Re-issue with one of: {allowed}."
+            )
+    return None
 
 
 def _pick_agent(role: str) -> tuple[str, dict]:
@@ -851,9 +1070,23 @@ _REFINE_SYSTEM = (
     '    ]\n'
     '  }\n'
     "\n"
+    "REASON -> PLAN -> DELEGATE meta-rule:\n"
+    "  An 'open / find / install / launch / use / run / start / show /\n"
+    "  reveal X' intent NEVER routes to `chat`. The downstream agent\n"
+    "  must fan out across discovery surfaces before deciding if X\n"
+    "  exists -- pick `agent` or `dag` so it can do that. Operator-\n"
+    "  flagged 2026-05-19: 'open mobile settings for me' short-\n"
+    "  circuited to chat-reply 'Opening mobile settings...' with ZERO\n"
+    "  tool calls dispatched. Refine-time `chat` is RESERVED for\n"
+    "  greetings / thanks / single-turn conversational text with no\n"
+    "  imperative action verb against an OS surface.\n"
+    "\n"
     "Intent classification:\n"
     "  chat        -- greeting, thanks, single-turn conversation; no system\n"
     "                 effect needed; emit `reply` and no agent is called.\n"
+    "                 NOT for any 'open / find / launch / install / show /\n"
+    "                 reveal / run / start <X>' intent -- those need\n"
+    "                 tools and must route to `agent` or `dag`.\n"
     "  dispatch    -- maps to ONE MiOS verb; tool + args populated by the\n"
     "                 existing router. Refine just rewrites refined_text.\n"
     "  agent       -- needs a sub-agent for ONE coherent goal. Pick\n"
@@ -966,18 +1199,28 @@ async def refine_intent(user_text: str,
               + "\nRegistered sub-agents:\n" + agents_summary
               + "\n\n/no_think")
     msgs = [{"role": "system", "content": system}]
-    # Last 4 turns of history for context (small to stay fast).
+    # Last 2 turns of history, tightly capped -- the OWUI pipe already
+    # enhances the prompt before it reaches us, so re-feeding long
+    # history here just slows the CPU refine (operator 2026-05-20:
+    # refine hit 13-45s on a ~1646-char input). Keep it lean.
     if history:
-        for h in history[-4:]:
+        for h in history[-2:]:
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
-                             "content": str(h.get("content", ""))[:600]})
+                             "content": str(h.get("content", ""))[:200]})
     # qwen3 family is a reasoning model -- by default it produces a
     # long <think>...</think> chain-of-thought BEFORE the JSON
     # answer. For refine we want the JSON only; the `/no_think` user-
     # message suffix disables reasoning per-request. Drops latency
     # ~3x on CPU + reliably fits answer in REFINE_MAX_TOKENS.
-    msgs.append({"role": "user", "content": user_text[:2000] + " /no_think"})
+    # Cap the refine input to the TAIL. OWUI's RAG ("Searching Knowledge")
+    # rewrites the user turn as "<context...>\n\nQuery: <actual question>"
+    # -- the real question is at the END (operator test 2026-05-20 showed a
+    # 6207-char user_text for a one-line question; CPU refine scales with
+    # length: ~16s @ 6k chars vs ~4s @ 1.6k). Keep the last 1500 chars so
+    # the question + nearby context survive while latency stays bounded.
+    msgs.append({"role": "user",
+                 "content": user_text[-1500:] + " /no_think"})
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
@@ -1201,6 +1444,13 @@ _POLISH_SYSTEM = (
     "internal reasoning leaks (lines like `Thought:`, `Reasoning:`,\n"
     "`Plan:`, tool-call envelopes, JSON thinking blocks).\n"
     "\n"
+    "OUTPUT ONLY THE FINAL ANSWER TEXT -- no preamble ('Sure', 'Here\n"
+    "is', 'Okay, so'), no meta-commentary about polishing/reformatting,\n"
+    "no restating the question, no <think> blocks, no 'Final answer:'\n"
+    "header. The operator sees your output VERBATIM as the reply; a\n"
+    "thinking/preamble line makes it read as if the assistant answered\n"
+    "twice. Start directly with the answer. Operator-flagged 2026-05-19.\n"
+    "\n"
     "LOCALE LOCK: match the language of the operator's question.\n"
     "If the user wrote in English, reply in English. If they wrote\n"
     "in Spanish, reply in Spanish. NEVER switch languages mid-\n"
@@ -1209,6 +1459,46 @@ _POLISH_SYSTEM = (
     "Mandarin / Korean / other locales when their internal CoT\n"
     "spills past the /no_think suppressor -- you MUST clean that\n"
     "to the user's locale, not pass it through.\n"
+    "\n"
+    "SAME-TOOL-FAILURE-HALT RULE: when TOOL HISTORY contains a line\n"
+    "with 'same_tool_failure_halt' / 'tool-call guardrail' / 'count=N'\n"
+    "(Hermes's loop tripped the same-call-repeat circuit-breaker),\n"
+    "you MUST do all three:\n"
+    "  1. Surface the LAST tool's verbatim stderr in a code block --\n"
+    "     not a paraphrase. The stderr explains WHY the call failed.\n"
+    "  2. NAME the verb that failed + its args, so the operator can\n"
+    "     see WHICH call repeated.\n"
+    "  3. State ONE specific change of strategy. Don't say 'agent\n"
+    "     could not see any tools' (that's wrong -- it called tools,\n"
+    "     they failed). Don't say 'change strategy instead of\n"
+    "     repeating the same call' (vague). SAY EXACTLY: 'retry as\n"
+    "     <different_verb>(<correct_args>)' OR 'first run <probe>\n"
+    "     to discover X then chain'. Operator-flagged 2026-05-19.\n"
+    "\n"
+    "FABRICATION GUARD -- workaround claims: when the sub-agent's\n"
+    "draft says 'I ran X via terminal' / 'opening Y via gio' / 'launched\n"
+    "via PowerShell' / 'started through cmd.exe' WITHOUT a matching\n"
+    "tool_result entry in TOOL HISTORY, that's a hallucination.\n"
+    "RE-WRITE: drop the false success claim + surface the verbatim\n"
+    "tool failure that actually happened. Operator-flagged 2026-05-19:\n"
+    "polish let through 'opening Nautilus through the terminal command\n"
+    "worked! gio open file:///home should now launch Nautilus' when\n"
+    "the tool_result for that turn was success=false with broker error.\n"
+    "Only `tool_result.success == true` (or a `presented_to_operator:\n"
+    "true` in stdout) authorises a 'launched / opened / started' claim.\n"
+    "\n"
+    "PATH-PRESERVATION RULE: any filesystem path, URL, ID, port,\n"
+    "or other verbatim token from the RAW answer MUST be copied\n"
+    "character-for-character into your output. NEVER re-tokenise,\n"
+    "spell-correct, or 'fix' a path -- if RAW says\n"
+    "`/usr/lib/wsl/drivers`, your output says EXACTLY\n"
+    "`/usr/lib/wsl/drivers`. NOT `/mnit/lib/wsl/drivers`,\n"
+    "NOT `/mnt/lib/wsl/drivers`. Operator-flagged 2026-05-19:\n"
+    "polish corrupted `/usr/lib/wsl/drivers` to `/mnit/lib/...`.\n"
+    "Same rule for app IDs (com.google.ChromeDev never becomes\n"
+    "com.googel.ChromeDev), tag names, ports, sizes, percentages,\n"
+    "PIDs, model tags. If you can't read a token, omit the bullet,\n"
+    "don't guess.\n"
     "\n"
     "CRITICAL ground-truth rule: the TOOL HISTORY below records\n"
     "what actually happened in the agent's execution environment.\n"
@@ -1410,24 +1700,59 @@ def _format_tool_history(rows: list[dict]) -> str:
     return "\n".join(parts)
 
 
+# Reasoning-tag variants different models leak: qwen3 <think>, plus
+# <thinking>/<thought>/<reasoning>/<reflection>/<scratchpad> seen from
+# other backends. Tag-based stripping only -- STRUCTURAL, no English
+# content matching, so the NO-HARDCODED-ENGLISH binding holds.
+_THINK_TAGS = r"think|thinking|thought|reasoning|reflection|scratchpad"
 _THINK_BLOCK_RE = re.compile(
-    r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+    rf"<({_THINK_TAGS})\b[^>]*>.*?</\1>\s*", re.DOTALL | re.IGNORECASE)
 _THINK_UNCLOSED_RE = re.compile(
-    r"<think>.*$", re.DOTALL | re.IGNORECASE)
+    rf"<({_THINK_TAGS})\b[^>]*>.*$", re.DOTALL | re.IGNORECASE)
+_THINK_ORPHAN_RE = re.compile(
+    rf"</?({_THINK_TAGS})\b[^>]*>\s*", re.IGNORECASE)
+_THINK_OPENERS = ("<think", "<thought", "<reason", "<reflect", "<scratch")
+_THINK_CAP_RE = re.compile(
+    rf"<({_THINK_TAGS})\b[^>]*>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
+_THINK_CAP_UNCLOSED_RE = re.compile(
+    rf"<({_THINK_TAGS})\b[^>]*>(.*)$", re.DOTALL | re.IGNORECASE)
+
+
+def _split_think_tags(text: str) -> tuple[str, str]:
+    """Split model output into (reasoning, answer).
+
+    Operator 2026-05-19: 'there SHOULD be thinking -- as a dropdown' AND
+    'thinking bleeding into the final response makes it look like it
+    answered twice'. The fix is to CAPTURE the <think>-family reasoning
+    (so it can go in a collapsed dropdown) instead of discarding it, and
+    return the answer with the reasoning removed (clean main reply).
+    Handles closed + unclosed + orphan tags across the qwen3 <think> and
+    <thinking>/<thought>/<reasoning>/<reflection>/<scratchpad> variants.
+    Tag-based only -- structural, no English content matching."""
+    if not text:
+        return "", text
+    low = text.lower()
+    if not any(t in low for t in _THINK_OPENERS):
+        return "", text
+    thoughts: list[str] = []
+
+    def _cap(m: "re.Match") -> str:
+        thoughts.append((m.group(2) or "").strip())
+        return ""
+    answer = _THINK_CAP_RE.sub(_cap, text)
+    m = _THINK_CAP_UNCLOSED_RE.search(answer)
+    if m:
+        thoughts.append((m.group(2) or "").strip())
+        answer = _THINK_CAP_UNCLOSED_RE.sub("", answer)
+    answer = _THINK_ORPHAN_RE.sub("", answer).strip()
+    reasoning = "\n\n".join(t for t in thoughts if t).strip()
+    return reasoning, answer
 
 
 def _strip_think_tags(text: str) -> str:
-    """Remove qwen3-style <think>...</think> reasoning blocks from
-    a string. Handles both well-formed pairs and the unclosed-tail
-    case (model ran out of token budget mid-think). qwen3 emits
-    these even with /no_think when the prompt context is too rich
-    for the suppressor; the model's internal reasoning is real but
-    we never want to surface it to the operator."""
-    if not text or "<think>" not in text.lower():
-        return text
-    cleaned = _THINK_BLOCK_RE.sub("", text)
-    cleaned = _THINK_UNCLOSED_RE.sub("", cleaned)
-    return cleaned.strip()
+    """Back-compat: return only the answer (reasoning discarded). Use
+    _split_think_tags when the reasoning should be KEPT for a dropdown."""
+    return _split_think_tags(text)[1]
 
 
 async def polish_response(raw_text: str,
@@ -1614,7 +1939,7 @@ SKILLS_AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
 # resolves_to -> app_install). Used by the planner + dispatch to
 # disambiguate phrases that would otherwise force the LLM to guess.
 
-async def pkg_lookup(phrase: str) -> Optional[dict]:
+async def kg_lookup(phrase: str) -> Optional[dict]:
     """Look up a phrase in the operator's PKG. Returns the first
     matching app_install record as a dict, or None if no match.
     Tries alias first (operator-defined shortcuts), then a fuzzy
@@ -2517,6 +2842,105 @@ async def run_dci_flow(
 DCI_FLOW_TRIGGER_CONF = float(os.environ.get(
     "MIOS_AGENT_PIPE_DCI_FLOW_TRIGGER_CONF", "0.7"))
 
+# Critic->refiner (ref AIOS B.1 / OS-Copilot executor-critic-refiner).
+# ENABLED BY DEFAULT, but fires AS NEEDED: only on the HEAVY agent path,
+# only for substantive answers (>= MIN_CHARS), and only re-invokes when
+# the DCI critic raises a high-confidence challenge/ask (a genuinely
+# contested/complex resolution). Simple/short answers and the entire
+# mios-os-control DISPATCH fast path skip it -> CPU usecases stay fast,
+# GPU/heavy answers earn the quality loop. Bounded; falls back to the
+# original answer on any error. Operator 2026-05-19: "DCI fires as needed
+# for more complex resolutions" -- this is that gate.
+CRITIC_REFINE_ENABLED = os.environ.get(
+    "MIOS_AGENT_PIPE_CRITIC_REFINE", "1") not in ("0", "false", "False", "")
+CRITIC_REFINE_MAX = int(os.environ.get(
+    "MIOS_AGENT_PIPE_CRITIC_REFINE_MAX", "1"))
+CRITIC_REFINE_MIN_CHARS = int(os.environ.get(
+    "MIOS_AGENT_PIPE_CRITIC_REFINE_MIN_CHARS", "500"))
+
+
+async def _critic_refine_agent(
+    raw: str,
+    user_text: str,
+    refined: Optional[dict],
+    session_id: Optional[str],
+    *,
+    client,
+    target_endpoint: str,
+    headers: dict,
+    base_body: dict,
+) -> str:
+    """Critic->refiner for the HEAVY agent path (ref AIOS B.1 / OS-Copilot
+    executor-critic-refiner). Run the DCI critic on the buffered agent
+    answer; if it raises a high-confidence challenge/ask (a genuinely
+    contested/complex resolution), re-invoke the backend ONCE with the
+    critic's concern so the answer is revised, then return the revision.
+
+    Fires AS NEEDED: short/simple answers (< CRITIC_REFINE_MIN_CHARS) and
+    the mios-os-control dispatch fast path never reach here, so CPU
+    usecases stay fast; GPU/heavy answers earn the loop. Bounded by
+    CRITIC_REFINE_MAX; returns the ORIGINAL answer on any error or when
+    the critic is satisfied (the common case)."""
+    if not (CRITIC_REFINE_ENABLED and DCI_ENABLED):
+        return raw
+    if not raw or len(raw) < CRITIC_REFINE_MIN_CHARS:
+        return raw
+    envelope = {
+        "intent": (refined or {}).get("intent", "agent"),
+        "answer": raw[:4000],
+        "user_text": (user_text or "")[:1000],
+    }
+    try:
+        act = await dci_critic_pass(user_text, envelope, session_id=session_id)
+    except Exception as e:
+        log.warning("critic-refine: critic pass failed: %s", e)
+        return raw
+    if not act or not (
+            act.get("act") in ("challenge", "ask")
+            and float(act.get("confidence", 0.0)) >= DCI_FLOW_TRIGGER_CONF):
+        return raw  # critic satisfied -> answer stands (common case)
+    concern = str(act.get("content") or "").strip()[:600]
+    if not concern:
+        return raw
+    refine_body = dict(base_body)
+    refine_body["stream"] = False
+    refine_body["messages"] = list(refine_body.get("messages") or []) + [
+        {"role": "assistant", "content": raw},
+        {"role": "user", "content":
+            f"A reviewer raised this concern about your answer: {concern}\n"
+            f"Revise your answer to fully address it. Be correct and "
+            f"concise; do not mention this review."},
+    ]
+    out = raw
+    for _ in range(max(1, CRITIC_REFINE_MAX)):
+        try:
+            r = await client.post(
+                f"{target_endpoint}/chat/completions",
+                content=json.dumps(refine_body).encode("utf-8"),
+                headers=headers,
+            )
+            if r.status_code != 200:
+                break
+            j = r.json()
+            ch = j.get("choices") or []
+            new = (str((ch[0].get("message") or {}).get("content") or "")
+                   if ch else "")
+            if new.strip():
+                out = new
+                _emit_session_event({
+                    "source": "mios-agent-pipe",
+                    "kind": "critic_refine",
+                    "severity": "info",
+                    "summary": (f"refined on {act.get('act')} "
+                                f"conf={act.get('confidence')}"),
+                    "payload": {"concern": concern[:200]},
+                }, session_id)
+                break
+        except Exception as e:
+            log.warning("critic-refine: re-invoke failed: %s", e)
+            break
+    return out
+
 
 async def critic_then_maybe_flow(
     user_text: str,
@@ -2873,6 +3297,20 @@ _PLANNER_SYSTEM = (
     "to emit a DAG of MiOS dispatch verbs that, executed in topological\n"
     "order, fulfills the user's intent. Emit JSON ONLY.\n"
     "\n"
+    "REASON -> PLAN -> DELEGATE meta-rule:\n"
+    "  For any 'open / find / install / use / launch X' intent, the\n"
+    "  FIRST DAG layer is ALWAYS a PARALLEL FAN-OUT of every relevant\n"
+    "  inventory / search verb from the verb catalog below (deps=[]).\n"
+    "  The action verb depends on ALL of them (deps=[n1,n2,...]) so it\n"
+    "  runs only after probes complete. Never emit a single-node DAG\n"
+    "  that goes straight to the action without the fan-out first --\n"
+    "  the downstream agent has to be able to choose the right target,\n"
+    "  and choosing requires evidence from MULTIPLE surfaces (Windows-\n"
+    "  side index, Linux-side inventory, package managers, cached FS\n"
+    "  map). Operator-flagged 2026-05-19: a single chat-refusal turn\n"
+    "  ('phone settings isn't installed') cost the operator because\n"
+    "  no probes ran.\n"
+    "\n"
     "Output shape (EXACT):\n"
     '{"action":"decompose",\n'
     ' "summary": "<one-line plan in user\'s language>",\n'
@@ -2918,59 +3356,23 @@ _PLANNER_SYSTEM = (
     "(one record per hit), so a bare #En1 in open_app(name=#En1) would\n"
     "substitute only the FIRST hit's smart-extracted field. If you want\n"
     "a specific record's specific field, use #En1.<field> to pull it\n"
-    "explicitly (.name / .path / .launch / .description).\n"
+    "explicitly (.name / .app_id / .path / .launch / .description).\n"
     "\n"
-    "Available verbs (use EXACT name + args shape -- the dispatcher\n"
-    "rejects unknown verbs):\n"
+    "CRITICAL: the action verb's target NAME comes from the PROBE'S\n"
+    "OUTPUT (#En1.app_id / #En1.short_name / #En1.name), NEVER from\n"
+    "the probe verb's OWN name. Operator-flagged 2026-05-19:\n"
+    "  WRONG -- launch_app(name='mios_apps')   <-- emits the probe verb name\n"
+    "  WRONG -- launch_app(name='mios-apps')   <-- same defect with hyphen\n"
+    "  RIGHT -- launch_app(name='#En1.app_id') <-- ref the discovered app\n"
+    "If you cannot decompose 'find X then launch X' into ref-substitution,\n"
+    "emit empty nodes and let the backend sub-agent handle it -- never\n"
+    "fall back to launching the discovery tool itself.\n"
     "\n"
-    "  ── Window / app launch ──\n"
-    '  open_app(name, position="default"?)        -- LAUNCH an app\n'
-    '  launch_app(name)                          -- simpler launch\n'
-    '  focus_window(title, position="default"?)  -- raise + reposition\n'
-    '  move_window(title, position)              -- semantic move (left/right/center/...)\n'
-    '  position_window(title, x, y)              -- literal pixel coords\n'
-    '  resize_window(title, width, height)       -- pixel WxH\n'
-    '  minimize_window(title) / maximize_window(title) / restore_window(title)\n'
-    '  close_window(title, mode="graceful"?)     -- close\n'
-    '  open_url(url, browser?)                   -- open in browser\n'
-    '  list_windows()                            -- enumerate windows\n'
-    '  screen_layout()                           -- monitor geometry\n'
+    "Available verbs (SSOT: mios.toml [verbs.*]; renderer reads it at\n"
+    "boot, no English baked in this file). Use EXACT name + args shape\n"
+    "-- the dispatcher rejects unknown verbs:\n"
     "\n"
-    "  ── Discovery / resolution ──\n"
-    '  mios_find(name)                           -- resolve, no launch\n'
-    '  mios_apps(filter?)                        -- INVENTORY all installed apps\n'
-    '  everything_search(query, limit=10?, ext?) -- Windows FS search\n'
-    '  fs_search(query, limit=20?, ext?, path?, type?)  -- Linux FS\n'
-    '  pkg_lookup(phrase)                        -- Personal KG alias -> app\n'
-    '  knowledge_search(query, collection?, top_k=5)  -- OWUI RAG\n'
-    '                                            -- hits: {score, source, snippet}\n'
-    '  directory_lookup(query, root?, ext?, kind?, limit=20)\n'
-    '                                            -- cached FS index via mios-daemon\n'
-    "\n"
-    "  ── PC input ──\n"
-    '  pc_type(text) / pc_key(key) / pc_click(x, y, button="left"?)\n'
-    "\n"
-    "  ── Text editor (native; replaces pc_type+pc_key save chain) ──\n"
-    '  text_view(path, start?, end?)             -- read file / list dir\n'
-    '  text_create(path, content)                -- new file\n'
-    '  text_str_replace(path, old, new)          -- exact replace\n'
-    '  text_insert(path, line, content)          -- insert after line\n'
-    "\n"
-    "  ── Package management ──\n"
-    '  winget_search(query, limit?) / winget_list() / winget_show(id)\n'
-    '  winget_install(id) / winget_upgrade(id?) / winget_uninstall(id)\n'
-    '  flatpak_search(query, limit?) / flatpak_list() / flatpak_show(id)\n'
-    '  flatpak_install(id, scope?) / flatpak_upgrade(id?) / flatpak_uninstall(id)\n'
-    '  flatpak_preflight(id)                     -- probe sandbox BEFORE launch\n'
-    "\n"
-    "  ── System ──\n"
-    '  system_status() / service_status(name) / service_restart(name)\n'
-    '  process_list(filter?, sort="rss"?, limit=20?)\n'
-    '  container_status(name?) / container_restart(name)\n'
-    "\n"
-    "  ── Windows-side shell ──\n"
-    '  powershell_run(script, timeout=30?, work_dir?)  -- arbitrary PS\n'
-    "\n"
+    + _VERB_CATALOG_RENDERED + "\n\n"
     "Common patterns (study these before emitting):\n"
     "\n"
     "  open + position:\n"
@@ -3131,10 +3533,42 @@ _REFLECT_SYSTEM = (
 )
 
 
+def _emit_session_event(fields: dict, session_id: Optional[str]) -> None:
+    """Write an `event` row, linked to the session when known so the
+    Reflexion buffer (_recent_reflections) can query it back per-session.
+    Mirrors execute_dag's tool_call session-linking convention."""
+    sql = _db_create("event", fields, now_fields=("ts",))
+    if session_id:
+        sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
+    _db_fire(_db_post(sql))
+
+
+async def _recent_reflections(session_id: Optional[str],
+                              limit: int = 4) -> list[dict]:
+    """Reflexion episodic buffer (ref AIOS B.3 / Shinn et al. 2023): pull
+    recent `reflect_corrected` events for THIS session so a fresh
+    reflection can REUSE a prior fix instead of re-deriving it. The audit
+    flagged these rows as write-only -- this is the missing read side.
+    Best-effort: returns [] on any DB miss so reflection never blocks."""
+    if not session_id:
+        return []
+    sql = (
+        f"SELECT summary FROM event "
+        f"WHERE kind = 'reflect_corrected' AND session = {session_id} "
+        f"ORDER BY ts DESC LIMIT {int(limit)};"
+    )
+    r = await _db_post(sql)
+    if not r:
+        return []
+    rows = (r[-1] or {}).get("result") or []
+    return rows if isinstance(rows, list) else []
+
+
 async def reflect_on_step_failure(
     failed_node: dict,
     failed_result: dict,
     plan_context: dict,
+    session_id: Optional[str] = None,
 ) -> Optional[dict]:
     """ReWOO-style reflection: route a failed DAG step back to the
     SAME small refine model with the failure context and ask for a
@@ -3160,12 +3594,27 @@ async def reflect_on_step_failure(
     )
     exit_code = failed_result.get("exit_code", "?")
     plan_summary = str(plan_context.get("summary") or "")[:200]
+    # Reflexion read-back (ref AIOS B.3): prior corrections in this session
+    # inform the new fix instead of re-deriving from scratch. Best-effort;
+    # empty when there are none / no session. Feeds the REFLECTION prompt
+    # (an internal pass), NOT the first-turn user message -- so it stays
+    # clear of the NO-context-injection binding (which targets env auto-
+    # injection into the user prompt).
+    prior_hint = ""
+    _prior = await _recent_reflections(session_id)
+    if _prior:
+        _lines = [f"  - {str(p.get('summary') or '').strip()}"
+                  for p in _prior if str(p.get("summary") or "").strip()]
+        if _lines:
+            prior_hint = ("\nPrior fixes this session (reuse the pattern if "
+                          "it matches this failure):\n" + "\n".join(_lines))
     user_msg = (
         f"Plan summary: {plan_summary}\n"
         f"Failed step: tool={failed_tool} "
         f"args={json.dumps(failed_args, separators=(',', ':'))[:300]}\n"
         f"Exit code: {exit_code}\n"
-        f"Stderr/error: {error_preview}\n"
+        f"Stderr/error: {error_preview}"
+        f"{prior_hint}\n"
         "/no_think"
     )
     payload = {
@@ -3223,7 +3672,7 @@ async def reflect_on_step_failure(
     new_tool = str(parsed.get("tool") or "").strip()
     if not new_tool:
         log.info("reflect: %.1fs marked unfixable", elapsed)
-        _db_fire(_db_post(_db_create("event", {
+        _emit_session_event({
             "source": "mios-agent-pipe",
             "kind": "reflect_unfixable",
             "severity": "warn",
@@ -3234,11 +3683,11 @@ async def reflect_on_step_failure(
                 "rationale": parsed.get("rationale", "")[:200],
                 "elapsed_s": round(elapsed, 1),
             },
-        }, now_fields=("ts",))))
+        }, session_id)
         return None
     log.info("reflect: %.1fs corrected tool=%s -> %s",
              elapsed, failed_tool, new_tool)
-    _db_fire(_db_post(_db_create("event", {
+    _emit_session_event({
         "source": "mios-agent-pipe",
         "kind": "reflect_corrected",
         "severity": "info",
@@ -3249,7 +3698,7 @@ async def reflect_on_step_failure(
             "corrected": parsed,
             "elapsed_s": round(elapsed, 1),
         },
-    }, now_fields=("ts",))))
+    }, session_id)
     return parsed
 
 
@@ -3257,6 +3706,38 @@ _EK_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)")
 
 
 _EK_FIELD_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)")
+
+
+# ── Tool-output sanitizer (structural; binding-compliant) ──────────
+# The reference flags tool-result prompt-injection as the "most
+# underrated risk": tool stdout is untrusted and re-enters BOTH the
+# ReWOO #E<id> arg substitution AND the polish-prompt preview. A
+# content denylist ("ignore previous instructions", ...) would be
+# HARDCODED ENGLISH -- forbidden by operator binding -- so we instead
+# do STRUCTURAL neutralisation that carries no English/topic content:
+#   * ANSI/CSI escape sequences (terminal-control spoofing),
+#   * Unicode bidi overrides + isolates (Trojan-Source CVE-2021-42574,
+#     used to make displayed text differ from logical order),
+#   * C0 control chars except tab/newline/CR.
+# This complements the provenance-taint Semantic Firewall (which blocks
+# the tainted->high-privilege ESCALATION path); together they cover both
+# the escalation and the prompt/arg-spoofing vectors without an English
+# classifier. BOM (U+FEFF) stripped too -- it has no place mid-stream.
+_ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+_BIDI_OVERRIDE_RE = re.compile("[‪-‮⁦-⁩﻿]")
+
+
+def _sanitize_tool_text(s: str) -> str:
+    """Strip terminal-control + bidi-override + C0 control chars from
+    untrusted tool output before it re-enters an arg or a prompt.
+    Structural only -- preserves tab/newline/CR and all printable
+    content -- so it neither classifies by English keyword nor mangles
+    legitimate Unicode (emoji ZWJ sequences are left intact)."""
+    if not s:
+        return s
+    s = _ANSI_CSI_RE.sub("", s)
+    s = _BIDI_OVERRIDE_RE.sub("", s)
+    return "".join(ch for ch in s if ch >= " " or ch in "\t\n\r")
 
 
 def _smart_extract_from_jsonish(payload: str) -> str:
@@ -3275,7 +3756,7 @@ def _smart_extract_from_jsonish(payload: str) -> str:
          best field via the same rule.
       3. Not JSON -> return the first line, capped at 1024 chars
          (matches the prior naive behavior for plain-text upstream)."""
-    s = (payload or "").strip()
+    s = _sanitize_tool_text((payload or "").strip())
     if not s:
         return ""
     # Try a single JSON object first.
@@ -3383,6 +3864,20 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
     return out
 
 
+def _action_hash(tool: str, args: dict) -> str:
+    """Stable identity of a (verb, resolved-args) dispatch for the
+    in-run loop/dedup guard. Structural only -- verb name + sorted
+    args -- so it carries no English/topic content (NO-HARDCODED-
+    ENGLISH binding)."""
+    try:
+        canon = json.dumps(args or {}, sort_keys=True,
+                           separators=(",", ":"), ensure_ascii=False,
+                           default=str)
+    except (TypeError, ValueError):
+        canon = repr(args)
+    return f"{tool}\x00{canon}"
+
+
 async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
     """Topologically execute the DAG nodes via the broker. Reflexion
     cap (default 2) retries failed nodes before marking dag-fail.
@@ -3394,6 +3889,8 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
     # successful node dispatch + consumed by _substitute_ek_refs for
     # downstream nodes that reference its output via #E<id>.
     results_by_id: dict[str, dict] = {}
+    # Action-hash map for the in-run loop/dedup guard: hash -> result.
+    seen_actions: dict[str, dict] = {}
     all_ok = True
     for node in nodes:
         nid = str(node.get("id", "?"))
@@ -3403,6 +3900,37 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         # upstream node outputs BEFORE the dispatch. No-op for nodes
         # without forward refs.
         args = _substitute_ek_refs(raw_args, results_by_id)
+        # Action-hash loop/dedup guard (reference: "hash last-N actions,
+        # abort on collision"). If this exact (verb, resolved-args) was
+        # already dispatched this run, reuse the prior result instead of
+        # re-dispatching -- a duplicate planner step, or a reflection
+        # that loops back to an already-tried action, can't burn a
+        # second broker round-trip. Structural hash only (verb + sorted
+        # args); no English/topic content (NO-HARDCODED-ENGLISH binding).
+        # MiOS's OWN guard, independent of the vendored Hermes loop cap.
+        _act = _action_hash(tool, args)
+        _prior = seen_actions.get(_act)
+        if _prior is not None:
+            _dedup = dict(_prior)
+            _dedup["node_id"] = nid
+            _dedup["repeat_of"] = _prior.get("node_id")
+            results.append(_dedup)
+            log.info("execute_dag: node %s repeats action of node %s -- "
+                     "reusing result (no re-dispatch)",
+                     nid, _prior.get("node_id"))
+            _db_fire(_db_post(_db_create("event", {
+                "source": "mios-agent-pipe",
+                "kind": "action_repeat_dedup",
+                "severity": "info",
+                "summary": f"node {nid} == {_prior.get('node_id')} ({tool})",
+                "payload": {"tool": tool, "node_id": nid,
+                            "repeat_of": _prior.get("node_id")},
+            }, now_fields=("ts",))))
+            if _prior.get("success"):
+                results_by_id[nid] = _dedup
+                continue
+            all_ok = False
+            break
         attempt = 0
         last_result: dict = {}
         # Phase A.3: forward session_id so the firewall pre-check
@@ -3423,6 +3951,7 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
                 {"id": nid, "tool": tool, "args": args},
                 last_result,
                 {"summary": dag.get("summary", "")},
+                session_id=session_id,
             )
             if correction and correction.get("tool"):
                 tool = str(correction.get("tool", tool))
@@ -3442,6 +3971,8 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         node_result = dict(last_result)
         node_result["node_id"] = nid
         node_result["attempts"] = attempt + (1 if last_result.get("success") and attempt == 0 else 0)
+        # Register this dispatch for the in-run loop/dedup guard above.
+        seen_actions[_act] = node_result
         # Capture for ReWOO: downstream nodes can reference #E<nid>
         # in their args + this result's output gets substituted.
         if last_result.get("success"):
@@ -3453,7 +3984,7 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         _row = {
             "tool": tool,
             "args": args if isinstance(args, dict) else {},
-            "result_preview": (last_result.get("output") or "")[:500],
+            "result_preview": _sanitize_tool_text(last_result.get("output") or "")[:500],
             "success": bool(last_result.get("success")),
             "latency_ms": int(last_result.get("latency_ms", 0)),
             "tainted": bool(last_result.get("tainted")),
@@ -3489,7 +4020,34 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     _dispatch_mios_verb. Returns None for unknown verbs."""
     env_prefix = ""
     if tool == "open_app":
-        name = str(args.get("name", "")).strip()
+        name = _arg_with_synonyms(tool, "name", args).strip()
+        # Path-shaped arg: extract basename (planner sometimes emits
+        # `path="/usr/bin/nautilus"` instead of `name="nautilus"`).
+        # Operator-flagged 2026-05-19. The basename extract is purely
+        # structural -- no English keyword list, just FS path semantics.
+        if name and ("/" in name or "\\" in name):
+            base = os.path.basename(name.rstrip("/\\")) or name
+            # Strip .exe / .desktop suffixes so step-5 alias resolver
+            # gets a clean short-name.
+            for suf in (".exe", ".desktop", ".lnk"):
+                if base.lower().endswith(suf):
+                    base = base[: -len(suf)]
+                    break
+            name = base
+        if not name:
+            return None
+        # Defensive: planner sometimes emits `launch_app(name=<verb>)`
+        # where <verb> is the PROBE TOOL NAME (e.g. "mios-apps",
+        # "mios_apps") instead of the discovered target. Reject so
+        # the agent surfaces a clear error + re-plans, instead of
+        # launching the probe tool. Normalised key matches the verb
+        # catalog after underscore/hyphen folding. Operator-flagged
+        # 2026-05-19.
+        norm = name.lower().replace("-", "_").rstrip("s")
+        if norm in _VERB_CATALOG or norm.rstrip("_") in {
+            v.replace("-", "_").rstrip("s") for v in _VERB_CATALOG
+        }:
+            return None
         position = str(args.get("position", "default")).lower()
         extra_args = args.get("args") or []
         if position and position != "as-is":
@@ -3499,7 +4057,23 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             return f"{env_prefix}mios-windows launch {shlex.quote(name)} {ea}"
         return f"{env_prefix}mios-launch {shlex.quote(name)}"
     if tool == "launch_app":
-        return f"mios-launch {shlex.quote(str(args.get('name', '')))}"
+        name = _arg_with_synonyms(tool, "name", args).strip()
+        if name and ("/" in name or "\\" in name):
+            base = os.path.basename(name.rstrip("/\\")) or name
+            for suf in (".exe", ".desktop", ".lnk"):
+                if base.lower().endswith(suf):
+                    base = base[: -len(suf)]
+                    break
+            name = base
+        if not name:
+            return None
+        # Same probe-tool-name defensive check as open_app.
+        norm = name.lower().replace("-", "_").rstrip("s")
+        if norm in _VERB_CATALOG or norm.rstrip("_") in {
+            v.replace("-", "_").rstrip("s") for v in _VERB_CATALOG
+        }:
+            return None
+        return f"mios-launch {shlex.quote(name)}"
     if tool == "focus_window":
         title = shlex.quote(str(args.get("title", "")))
         pos = str(args.get("position", "default")).lower()
@@ -3552,6 +4126,95 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         x = int(args.get("x", 0))
         y = int(args.get("y", 0))
         return f"mios-window move {title} {x} {y}"
+    # ── app_search (semantic over mios-apps inventory) ──
+    # Returns top-k {category, name, description, launch, score} for
+    # ambiguous natural-language asks. Caller (planner or polish) reads
+    # the JSON envelope + picks the highest-scoring `launch` to feed
+    # into launch_app.
+    if tool == "app_search":
+        q = _arg_with_synonyms(tool, "query", args).strip()
+        if not q:
+            return None
+        try:
+            n = int(args.get("limit") or 5)
+        except (TypeError, ValueError):
+            n = 5
+        return f"mios-app-search --json --limit {n} {shlex.quote(q)}"
+    # ── tool_search (progressive disclosure / RAG-MCP) ──
+    # Natural-language search over the visible verb catalog. Returns
+    # top-k {name, sig, desc, score}. Use when no listed verb fits.
+    if tool == "tool_search":
+        q = _arg_with_synonyms(tool, "query", args).strip()
+        if not q:
+            return None
+        try:
+            n = int(args.get("limit") or 5)
+        except (TypeError, ValueError):
+            n = 5
+        return f"mios-tool-search --json --limit {n} {shlex.quote(q)}"
+    # ── os_recipe (SSOT-driven OS shell verb) ──
+    # Generic dispatcher to mios-os-recipe; the recipe NAME + its arg
+    # contract live in mios.toml [recipes.*]. agent-pipe doesn't know
+    # which recipes exist -- it just forwards. Operator binding
+    # 2026-05-18: "RECIPES" + "harden the OS Control tools/skills".
+    if tool == "os_recipe":
+        name = _arg_with_synonyms(tool, "name", args).strip()
+        if not name:
+            return None
+        params = args.get("params") or {}
+        if not isinstance(params, dict):
+            params = {}
+        # Splice key=value pairs after the recipe name; mios-os-recipe
+        # quote-escapes each substituted value before splicing into
+        # the recipe template.
+        kv_args = " ".join(
+            f"{shlex.quote(str(k))}={shlex.quote(str(v))}"
+            for k, v in params.items()
+        )
+        target_os = str(args.get("os") or "").strip().lower()
+        os_flag = f"--os {shlex.quote(target_os)} " if target_os in ("linux", "windows") else ""
+        return f"mios-os-recipe --json {os_flag}{shlex.quote(name)} {kv_args}".strip()
+    # ── pkg (unified package verb -- collapses 13 winget_* / flatpak_*
+    # verbs into one). Routes by (action, backend) to the existing
+    # winget / flatpak shims. backend="auto" picks winget when id looks
+    # like Publisher.AppId, flatpak otherwise -- the LLM is encouraged
+    # to be explicit. Operator-flagged 2026-05-19: "consolidate
+    # redundant" -- legacy winget_*/flatpak_* verbs kept tier='rare'
+    # for in-flight chains; this is the canonical path.
+    if tool == "pkg":
+        action = str(args.get("action") or "").strip().lower()
+        backend = str(args.get("backend") or "auto").strip().lower()
+        pid = _arg_with_synonyms(tool, "id", args).strip()
+        query = _arg_with_synonyms(tool, "query", args).strip()
+        if backend == "auto":
+            # winget if id contains a dot AND no slash (Publisher.AppId
+            # vs flatpak's org.foo.Bar/x86_64/stable). Bias toward
+            # flatpak when only running on the Linux surface (no .exe
+            # context). Default winget for unambiguous installs.
+            ref = pid or query
+            backend = "flatpak" if ("/" in ref or ref.startswith("org.")) else "winget"
+        if backend not in ("winget", "flatpak"):
+            return None
+        # Route to the underlying verb name + delegate to its branch
+        # below (no logic duplication).
+        legacy = {
+            "search":     f"{backend}_search",
+            "list":       f"{backend}_list",
+            "show":       f"{backend}_show",
+            "install":    f"{backend}_install",
+            "upgrade":    f"{backend}_upgrade",
+            "uninstall":  f"{backend}_uninstall",
+            "preflight":  "flatpak_preflight",  # winget has no analog
+        }.get(action)
+        if not legacy:
+            return None
+        # Re-shape args to match the legacy verb's expected keys.
+        forwarded = dict(args)
+        if action == "search" and query:
+            forwarded["query"] = query
+        if pid:
+            forwarded["id"] = pid
+        return _build_dispatch_cmd(legacy, forwarded)
     # ── Package management (Phase D.4 -- winget + flatpak surfaces) ──
     # Both shims emit JSON envelopes by default; agent-pipe surfaces
     # the JSON straight back to the gateway. WRITE verbs (install /
@@ -3625,7 +4288,7 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         return f"mios-find --json {shlex.quote(str(args.get('name', '')))}"
     if tool == "mios_apps":
         # --json -> NDJSON inventory (one app per line: short_name /
-        # app_id / source / label / launch_hint). Same shape mios-pkg
+        # app_id / source / label / launch_hint). Same shape mios-kg
         # bootstrap consumes; the polish pass + the games-research
         # path read app_id directly instead of grepping prose.
         f = args.get("filter") or ""
@@ -3687,6 +4350,20 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # Already emits a JSON blob by default (see mios-system-status
         # docstring -- single structured object the agent reads verbatim).
         return "mios-system-status"
+    if tool == "system_logs":
+        unit = _arg_with_synonyms(tool, "unit", args).strip()
+        since = (_arg_with_synonyms(tool, "since", args).strip() or "10m")
+        try:
+            n = int(args.get("lines") or 50)
+        except (TypeError, ValueError):
+            n = 50
+        level = str(args.get("level") or "").strip().lower()
+        cmd = f"journalctl --no-pager -n {n} --since {shlex.quote(since)}"
+        if unit:
+            cmd += f" -u {shlex.quote(unit)}"
+        if level in ("emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"):
+            cmd += f" -p {level}"
+        return cmd
     if tool == "service_status":
         name = shlex.quote(str(args.get("name", "")))
         return (
@@ -3848,11 +4525,46 @@ async def dispatch_mios_verb(
                 "taint_reason": f"firewall_block:{chain[:200]}",
             }
 
-    cmd = _build_dispatch_cmd(tool, args)
-    if cmd is None:
+    # Tool-Manager enum validation (ref AIOS C 3.7): reject out-of-enum
+    # args BEFORE the broker. The structured error feeds the planner's
+    # reflection pass, which re-issues the step with a valid value.
+    _enum_err = _validate_enum_args(tool, args)
+    if _enum_err is not None:
         return {
             "success": False, "tool": tool, "args": args,
-            "output": "", "stderr": f"unknown verb {tool!r}",
+            "output": "", "stderr": _enum_err,
+            "exit_code": -1, "latency_ms": 0,
+        }
+    cmd = _build_dispatch_cmd(tool, args)
+    if cmd is None:
+        # Distinguish "no such verb" from "verb known but args rejected"
+        # so the planner can see WHICH layer failed + re-plan. Operator-
+        # flagged 2026-05-19: "launch_app(path=...) -> unknown verb"
+        # error was misleading -- the verb existed but the dispatcher
+        # rejected because (a) `name` wasn't populated via any alias
+        # (now also accepts `path`), or (b) the proposed target name
+        # equals a known verb (defensive check).
+        if tool in _VERB_CATALOG:
+            v = _VERB_CATALOG[tool]
+            required = [n for n, c in (v.get("params") or {}).items()
+                        if isinstance(c, dict) and "default" not in c]
+            stderr = (
+                f"verb {tool!r} known but dispatch rejected: "
+                f"args={list(args.keys())} required={required} "
+                f"(check arg names; paths get auto-basenamed; "
+                f"name equal to a known verb is refused as a defensive "
+                f"check against planner emitting the probe tool name as "
+                f"the launch target)"
+            )
+        else:
+            stderr = (
+                f"unknown verb {tool!r} (not in [verbs.*] catalog "
+                f"of mios.toml; visible verbs: "
+                f"{sorted(_VERB_CATALOG.keys())[:10]}...)"
+            )
+        return {
+            "success": False, "tool": tool, "args": args,
+            "output": "", "stderr": stderr,
             "exit_code": -1, "latency_ms": 0,
         }
     if not os.path.exists(LAUNCHER_SOCK):
@@ -3864,7 +4576,12 @@ async def dispatch_mios_verb(
     t0 = time.time()
     try:
         s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-        s.settimeout(20.0)
+        # 60s broker timeout: flatpak cold-launches (epiphany / chromedev
+        # via WSLg compositor + portal handshake) routinely take 25-45s
+        # to first paint. Prior 20s cap fired Broken Pipe on the broker
+        # side, surfaced as "broker: empty response" to the agent.
+        # Operator-flagged 2026-05-19. Tunable via env.
+        s.settimeout(float(os.environ.get("MIOS_BROKER_TIMEOUT_S", "60")))
         s.connect(LAUNCHER_SOCK)
         s.sendall(("CAPTURE_JSON: " + cmd + "\n").encode())
         chunks: list[bytes] = []
@@ -3963,22 +4680,38 @@ def _sse_chunk(content: str, *, chat_id: str, model: str,
 # Add a phase key here when wiring a new emit site instead of
 # inlining label strings -- keeps the operator-visible voice
 # consistent across every dispatch path.
-_HUMAN_LABELS = {
-    "prompt":         ("📡", "listening"),
-    "refine":         ("✨", "thinking"),
-    "route":          ("🧭", "picking the right helper"),
-    "plan":           ("📋", "making a plan"),
-    "agent_target":   ("🤖", "working on it"),
-    "tool":           ("🛠️", "doing something"),
-    "tool_done":      ("✅", "done"),
-    "tool_done_warn": ("⚠️", "hit a snag"),
-    "chat":           ("💬", "replying"),
-    "chat_done":      ("✅", "ready"),
-    "dag_done":       ("✅", "done"),
-    "dag_done_warn":  ("⚠️", "finished with a hiccup"),
-    "reflect":        ("🤔", "rethinking that step"),
-    "subagent_done":  ("✅", "wrapped up"),
-}
+def _load_status_labels() -> dict:
+    """Phase -> (emoji, label) for the SSE status strip. Personable
+    defaults here; each phase is OVERRIDABLE from mios.toml
+    [owui.status_phases.<phase>] = { emoji = "..", label = ".." } so the
+    operator tunes MiOS-Agent's voice without touching code (SSOT; no
+    hardcoded UI strings locked in the hot path). Operator 2026-05-19:
+    'better emitters / more detailed and personable'."""
+    # EMOJI ONLY -- no hardcoded English narrative, no TOML label map.
+    # Operator 2026-05-20: "nothing hardcoded -- pure streamed +
+    # generative". The chip is the emoji plus any GENERATIVE `detail` the
+    # emit site passes (the actual verb / refined intent / plan); the rich
+    # agent-path activity comes from the live hermes-tail stream in the
+    # OWUI pipe. Emojis are locale-neutral glyphs, not English strings.
+    return {
+        "prompt":         ("👂", ""),
+        "refine":         ("✨", ""),
+        "route":          ("🧭", ""),
+        "plan":           ("🗺️", ""),
+        "agent_target":   ("🤖", ""),
+        "tool":           ("🛠️", ""),
+        "tool_done":      ("✅", ""),
+        "tool_done_warn": ("😅", ""),
+        "chat":           ("💬", ""),
+        "chat_done":      ("✅", ""),
+        "dag_done":       ("✅", ""),
+        "dag_done_warn":  ("😅", ""),
+        "reflect":        ("🤔", ""),
+        "subagent_done":  ("✅", ""),
+    }
+
+
+_HUMAN_LABELS = _load_status_labels()
 
 
 def _sse_status_phase(*, chat_id: str, model: str, phase: str,
@@ -4043,6 +4776,361 @@ def _extract_last_user_text(messages: list) -> str:
 
 
 # ── Health ─────────────────────────────────────────────────────────
+@app.get("/v1/verbs")
+async def list_verbs(include_rare: bool = False) -> JSONResponse:
+    """Render [verbs.*] as JSON-Schema tool specs. Same SSOT that
+    drives the planner catalog. Consumed by mios-mcp-server (for
+    MCP `tools/list`) and any external tooling that wants the
+    canonical verb shape."""
+    tools = []
+    for vname, vcfg in _VERB_CATALOG.items():
+        if not include_rare and vcfg.get("tier") == "rare":
+            continue
+        props: dict = {}
+        required: list[str] = []
+        for argname, argcfg in (vcfg.get("params") or {}).items():
+            if not isinstance(argcfg, dict):
+                continue
+            spec: dict = {
+                "type": argcfg.get("type", "string"),
+                "description": argcfg.get("desc", ""),
+            }
+            if argcfg.get("enum"):
+                spec["enum"] = list(argcfg["enum"])
+            if "default" in argcfg:
+                spec["default"] = argcfg["default"]
+            else:
+                required.append(argname)
+            props[argname] = spec
+        tools.append({
+            "name": vname,
+            "description": vcfg.get("desc", ""),
+            "inputSchema": {
+                "type": "object",
+                "properties": props,
+                "required": required,
+                "additionalProperties": False,
+            },
+            "annotations": {
+                "section": vcfg.get("section", ""),
+                "tier": vcfg.get("tier", "common"),
+                "readOnlyHint": vcfg.get("permission") == "read",
+                "permission": vcfg.get("permission", "read"),
+            },
+        })
+    return JSONResponse({"tools": tools})
+
+
+# ── /v1/tool-search (progressive disclosure / RAG-MCP) ────────────────
+# Cosine-over-nomic-embed-text retrieval over the visible verb catalog.
+# Embeddings computed lazily on first request, cached in-memory until
+# agent-pipe restart (catalog is tiny: ~30 verbs at ~768-dim each).
+# Operator binding 2026-05-19: "compact, minimal, efficient" + per
+# RAG-MCP paper (arXiv 2505.03275): top-k retrieval halves prompt
+# tokens + triples selection accuracy for verb counts > 30.
+_VERB_EMBED_MODEL = os.environ.get(
+    "MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
+_VERB_EMBED_URL = os.environ.get(
+    "MIOS_VERB_EMBED_URL", "http://localhost:11435/api/embeddings")
+_VERB_EMBEDDINGS: dict[str, list[float]] = {}
+_VERB_EMBEDDINGS_LOCK = asyncio.Lock()
+
+
+async def _embed_one(text: str) -> Optional[list[float]]:
+    """Single-vector embed via Ollama /api/embeddings. Returns None on
+    failure (caller falls back to substring match)."""
+    if not text or not text.strip():
+        return None
+    client = await _get_client()
+    try:
+        r = await client.post(
+            _VERB_EMBED_URL,
+            content=json.dumps({
+                "model": _VERB_EMBED_MODEL,
+                "prompt": text,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        v = data.get("embedding")
+        if isinstance(v, list) and v:
+            return [float(x) for x in v]
+    except Exception as e:
+        log.warning("embed call failed: %s", e)
+    return None
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = 0.0
+    na = 0.0
+    nb = 0.0
+    for x, y in zip(a, b):
+        dot += x * y
+        na += x * x
+        nb += y * y
+    if na == 0.0 or nb == 0.0:
+        return 0.0
+    import math
+    return dot / (math.sqrt(na) * math.sqrt(nb))
+
+
+async def _ensure_verb_embeddings() -> None:
+    """Compute embeddings for tier=core+common verbs. Persisted to
+    /var/lib/mios/agent-env/verb-embeddings.json -- restart doesn't
+    re-flood the embed lane. Hidden by lock."""
+    async with _VERB_EMBEDDINGS_LOCK:
+        if _VERB_EMBEDDINGS:
+            return
+        # First try disk.
+        cached = _load_persisted_embeddings(_VERB_EMBED_PERSIST)
+        if cached:
+            for vname, vcfg in _VERB_CATALOG.items():
+                if vcfg.get("tier") == "rare":
+                    continue
+                vec = cached.get(vname)
+                if isinstance(vec, list) and vec:
+                    _VERB_EMBEDDINGS[vname] = [float(x) for x in vec]
+        # Fill gaps (new verbs not in cache).
+        rebuilt = False
+        for vname, vcfg in _VERB_CATALOG.items():
+            if vcfg.get("tier") == "rare":
+                continue
+            if vname in _VERB_EMBEDDINGS:
+                continue
+            text = f"{vname}: {vcfg.get('desc','')}".strip()
+            vec = await _embed_one(text)
+            if vec:
+                _VERB_EMBEDDINGS[vname] = vec
+                rebuilt = True
+        if rebuilt:
+            _save_persisted_embeddings(_VERB_EMBED_PERSIST, _VERB_EMBEDDINGS)
+        log.info("verb embeddings ready: %d entries (rebuilt=%s)",
+                 len(_VERB_EMBEDDINGS), rebuilt)
+
+
+@app.get("/v1/tool-search")
+async def tool_search(query: str = "", limit: int = 5) -> JSONResponse:
+    """Find verbs in the catalog by natural-language query.
+    Returns top-k {name, sig, desc, score}. Embeddings cached after
+    first request."""
+    if not query.strip():
+        return JSONResponse({"hits": [], "error": "empty query"})
+    await _ensure_verb_embeddings()
+    qvec = await _embed_one(query)
+    hits: list[dict] = []
+    if qvec and _VERB_EMBEDDINGS:
+        scored = [
+            (_cosine(qvec, vec), vname)
+            for vname, vec in _VERB_EMBEDDINGS.items()
+        ]
+        scored.sort(reverse=True)
+        for score, vname in scored[: max(1, min(20, int(limit or 5)))]:
+            v = _VERB_CATALOG.get(vname) or {}
+            hits.append({
+                "name":  vname,
+                "sig":   v.get("sig", ""),
+                "desc":  v.get("desc", ""),
+                "tier":  v.get("tier", ""),
+                "score": round(float(score), 4),
+            })
+    else:
+        # Embedding unavailable -- substring fallback over name+desc.
+        q = query.lower()
+        for vname, vcfg in _VERB_CATALOG.items():
+            if vcfg.get("tier") == "rare":
+                continue
+            blob = f"{vname} {vcfg.get('desc','')}".lower()
+            if q in blob:
+                hits.append({
+                    "name":  vname,
+                    "sig":   vcfg.get("sig", ""),
+                    "desc":  vcfg.get("desc", ""),
+                    "tier":  vcfg.get("tier", ""),
+                    "score": 1.0,
+                })
+            if len(hits) >= int(limit or 5):
+                break
+    return JSONResponse({"hits": hits, "query": query, "embedded": bool(qvec)})
+
+
+# ── /v1/app-search (semantic over the mios-apps inventory) ───────────
+# Embeds every (name + description) record from `mios-apps --json` once,
+# refreshes when the cache file mtime moves. Cosine-rank queries against
+# the embeddings.
+#
+# PERSISTENCE: embeddings spill to disk under /var/lib/mios/agent-env/
+# so an agent-pipe restart doesn't trigger a 4-5s blocking rebuild of
+# 319 sequential embed calls (which floods the iGPU lane + causes
+# concurrent chat SSE streams to time out with TransferEncodingError).
+# Operator-flagged 2026-05-19 "double fail" trace.
+#
+# WARMUP: build runs as a background Task at startup -- requests during
+# warmup get the substring fallback so they never block on embeddings.
+_APP_EMBEDDINGS: dict[str, dict] = {}   # key -> {vec, record}
+_APP_INV_MTIME: float = 0.0
+_APP_INV_LOCK = asyncio.Lock()
+_APP_INV_CACHE_FILE = os.environ.get(
+    "MIOS_APP_INV_CACHE",
+    "/var/lib/mios/agent-env/apps-inventory.ndjson",
+)
+_APP_EMBED_PERSIST = os.environ.get(
+    "MIOS_APP_EMBED_PERSIST",
+    "/var/lib/mios/agent-env/apps-embeddings.json",
+)
+_VERB_EMBED_PERSIST = os.environ.get(
+    "MIOS_VERB_EMBED_PERSIST",
+    "/var/lib/mios/agent-env/verb-embeddings.json",
+)
+
+
+def _load_persisted_embeddings(path: str) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_persisted_embeddings(path: str, data: dict) -> None:
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    except OSError as e:
+        log.warning("embedding persist failed: %s -> %s", path, e)
+
+
+async def _refresh_app_inventory(force: bool = False) -> None:
+    """Re-run `mios-apps --json` if the cache is stale (>5min) or
+    missing, parse the NDJSON, embed any new records. Existing
+    records reuse persisted embeddings. Persisted to disk so a
+    restart doesn't trigger a 4-5s blocking embed flood."""
+    global _APP_INV_MTIME
+    async with _APP_INV_LOCK:
+        # First load: hydrate from disk if available.
+        if not _APP_EMBEDDINGS:
+            cached = _load_persisted_embeddings(_APP_EMBED_PERSIST)
+            if isinstance(cached, dict):
+                for k, v in cached.items():
+                    if (isinstance(v, dict) and isinstance(v.get("vec"), list)
+                            and isinstance(v.get("record"), dict)):
+                        _APP_EMBEDDINGS[k] = {
+                            "vec": [float(x) for x in v["vec"]],
+                            "record": v["record"],
+                        }
+        try:
+            st = os.stat(_APP_INV_CACHE_FILE)
+            age = time.time() - st.st_mtime
+            need_refresh = force or age > 300
+        except OSError:
+            need_refresh = True
+        if need_refresh:
+            try:
+                os.makedirs(os.path.dirname(_APP_INV_CACHE_FILE), exist_ok=True)
+                proc = await asyncio.create_subprocess_exec(
+                    "/usr/libexec/mios/mios-apps", "--json",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+                with open(_APP_INV_CACHE_FILE, "wb") as f:
+                    f.write(stdout)
+            except Exception as e:
+                log.warning("mios-apps inventory refresh failed: %s", e)
+                return
+        # Parse + embed any new entries.
+        try:
+            with open(_APP_INV_CACHE_FILE, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except OSError:
+            return
+        seen_keys: set[str] = set()
+        added = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            key = f"{rec.get('category','')}::{rec.get('name','')}::{rec.get('launch','')}"
+            seen_keys.add(key)
+            if key in _APP_EMBEDDINGS:
+                continue
+            blob = f"{rec.get('name','')}: {rec.get('description','')}".strip()
+            vec = await _embed_one(blob)
+            if vec:
+                _APP_EMBEDDINGS[key] = {"vec": vec, "record": rec}
+                added += 1
+        # Drop entries whose key disappeared (app uninstalled / inventory shrank).
+        stale = [k for k in _APP_EMBEDDINGS if k not in seen_keys]
+        for k in stale:
+            _APP_EMBEDDINGS.pop(k, None)
+        if added or stale:
+            _save_persisted_embeddings(_APP_EMBED_PERSIST, _APP_EMBEDDINGS)
+            log.info("app inventory: +%d new / -%d stale = %d total",
+                     added, len(stale), len(_APP_EMBEDDINGS))
+        try:
+            _APP_INV_MTIME = os.stat(_APP_INV_CACHE_FILE).st_mtime
+        except OSError:
+            pass
+
+
+@app.get("/v1/app-search")
+async def app_search(query: str = "", limit: int = 5) -> JSONResponse:
+    """Semantic search over the installed-app inventory. Returns top-k
+    {category, name, description, launch, score}."""
+    if not query.strip():
+        return JSONResponse({"hits": [], "error": "empty query"})
+    await _refresh_app_inventory()
+    qvec = await _embed_one(query)
+    hits: list[dict] = []
+    if qvec and _APP_EMBEDDINGS:
+        scored = [
+            (_cosine(qvec, entry["vec"]), entry["record"])
+            for entry in _APP_EMBEDDINGS.values()
+        ]
+        scored.sort(reverse=True, key=lambda x: x[0])
+        for score, rec in scored[: max(1, min(20, int(limit or 5)))]:
+            hits.append({**rec, "score": round(float(score), 4)})
+    else:
+        # Embedding unavailable -- substring fallback over name + desc.
+        q = query.lower()
+        for entry in _APP_EMBEDDINGS.values():
+            rec = entry["record"]
+            blob = f"{rec.get('name','')} {rec.get('description','')}".lower()
+            if q in blob:
+                hits.append({**rec, "score": 1.0})
+            if len(hits) >= int(limit or 5):
+                break
+    return JSONResponse({
+        "hits": hits, "query": query,
+        "embedded": bool(qvec),
+        "inventory_size": len(_APP_EMBEDDINGS),
+    })
+
+
+@app.post("/v1/dispatch")
+async def dispatch_verb(body: dict) -> JSONResponse:
+    """Dispatch a single MiOS verb. Body: {tool, args, session_id?}.
+    Returns the same {success, output, stderr, exit_code, latency_ms,
+    tainted, taint_reason} envelope as the DAG executor. Used by
+    mios-mcp-server for MCP `tools/call`."""
+    tool = str(body.get("tool", "")).strip()
+    args = body.get("args") or {}
+    if not isinstance(args, dict):
+        args = {}
+    session_id = body.get("session_id")
+    result = await dispatch_mios_verb(tool, args, session_id=session_id)
+    return JSONResponse(result)
+
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
     return {
@@ -4125,19 +5213,19 @@ async def health() -> dict[str, Any]:
     }
 
 
-# ── /pkg/lookup (Phase C.1 Personal Knowledge Graph) ───────────────
+# ── /kg/lookup (Phase C.1 Personal Knowledge Graph) ────────────────
 # Resolve a phrase via the operator's preference graph. Returns
 # the matched app_install record (alias-resolved or direct).
 # Operator-callable curl-test endpoint; the planner can also hit
 # it pre-decomposition to ground noun phrases.
-@app.get("/pkg/lookup")
-async def pkg_lookup_endpoint(phrase: str = "") -> JSONResponse:
+@app.get("/kg/lookup")
+async def kg_lookup_endpoint(phrase: str = "") -> JSONResponse:
     if not phrase:
         return JSONResponse(
             content={"error": "phrase query param required"},
             status_code=400,
         )
-    result = await pkg_lookup(phrase)
+    result = await kg_lookup(phrase)
     if result is None:
         return JSONResponse(
             content={"match": None, "phrase": phrase},
@@ -4763,7 +5851,7 @@ async def chat_completions(request: Request) -> Any:
                             _row = {
                                 "tool": tool,
                                 "args": args if isinstance(args, dict) else {},
-                                "result_preview": (last_result.get("output") or "")[:500],
+                                "result_preview": _sanitize_tool_text(last_result.get("output") or "")[:500],
                                 "success": bool(last_result.get("success")),
                                 "latency_ms": int(last_result.get("latency_ms", 0)),
                                 "tainted": bool(last_result.get("tainted")),
@@ -4891,7 +5979,7 @@ async def chat_completions(request: Request) -> Any:
                         _row = {
                             "tool": tool,
                             "args": args if isinstance(args, dict) else {},
-                            "result_preview": (last_result.get("output") or "")[:500],
+                            "result_preview": _sanitize_tool_text(last_result.get("output") or "")[:500],
                             "success": bool(last_result.get("success")),
                             "latency_ms": int(last_result.get("latency_ms", 0)),
                             "tainted": bool(last_result.get("tainted")),
@@ -5059,8 +6147,13 @@ async def chat_completions(request: Request) -> Any:
             while not upstream_task.done():
                 try:
                     await asyncio.wait_for(
-                        asyncio.shield(upstream_task), timeout=8.0)
+                        asyncio.shield(upstream_task), timeout=1.0)
                 except asyncio.TimeoutError:
+                    # 1s keepalive cadence: each keepalive line makes the
+                    # OWUI pipe poll the hermes-tail, so the agent's live
+                    # tool/reasoning steps stream into the thinking dropdown
+                    # ~1s after they happen instead of all dumping at the
+                    # end (operator 2026-05-20: "only propagates when done").
                     # SSE comment-line keepalive. Carries no data,
                     # doesn't render as a chip in OWUI -- just
                     # enough bytes to keep aiohttp's chunked-
@@ -5085,6 +6178,33 @@ async def chat_completions(request: Request) -> Any:
                         pass
             except Exception as e:
                 log.warning("buffered backend call failed: %s", e)
+            # Critic->refiner (heavy agent path; fires as needed): if the
+            # DCI critic challenges this answer, revise it ONCE before
+            # polish. No-op for short answers + when the critic is happy,
+            # so the fast path is unaffected. Keepalives above cover the
+            # extra wait. Robust: returns the original `raw` on any error.
+            # Heartbeat-wrap the critic->refiner: the DCI critic runs on a
+            # possibly-contended lane and may re-invoke Hermes (5-40s). A
+            # bare await here went silent -- operator test 2026-05-20 saw a
+            # long gap with ZERO keepalives before the answer. Same comment-
+            # line cadence as the upstream + polish waits so the OWUI pipe
+            # keeps polling the hermes-tail and the dropdown stays live.
+            critic_task = asyncio.create_task(_critic_refine_agent(
+                raw, last_user_text, refined, session_id,
+                client=client, target_endpoint=target_endpoint,
+                headers=headers, base_body=proxy_body))
+            while not critic_task.done():
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(critic_task), timeout=2.0)
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+                except Exception:
+                    break
+            try:
+                raw = critic_task.result()
+            except Exception:
+                pass  # keep the pre-critic raw on any failure
             # Inline satisfaction check BEFORE polish so the polish
             # prompt's recent-verdicts block sees THIS turn's
             # verdict as authoritative (otherwise it only sees
@@ -5109,10 +6229,20 @@ async def chat_completions(request: Request) -> Any:
                     polished = polish_task.result()
                 except Exception:
                     polished = None
-                raw_clean = _strip_think_tags(raw)
+                # The sub-agent's FULL raw work -- its responses, prints,
+                # AND reasoning -- goes into the collapsed
+                # <details type="reasoning"> dropdown (operator binding:
+                # 'sub-agent responses and prints and thinking is all
+                # printed to thinking'). The POLISHED clean answer is the
+                # main reply. <think>-family tag MARKERS are unwrapped
+                # (content kept, readable) so reasoning shows in the
+                # dropdown instead of bleeding inline or being discarded.
+                dropdown_content = _THINK_ORPHAN_RE.sub("", raw).strip()
+                answer_only = _strip_think_tags(raw)
                 polished_clean = (
                     _strip_think_tags(polished) if polished else ""
                 )
+                main = polished_clean.strip() or answer_only.strip()
                 preamble = ""
                 if (isinstance(refined, dict)
                         and refined.get("_multi_task_queue")):
@@ -5121,34 +6251,17 @@ async def chat_completions(request: Request) -> Any:
                         int(refined.get(
                             "_multi_task_active_idx", 0)),
                     )
-                # Polish fallback semantics:
-                #   * polish produced substantive output AND it
-                #     differs from raw  -> use polished as main;
-                #     keep dropdown for the raw "thinking".
-                #   * polish produced output that's basically the
-                #     raw (Hermes already terse, polish concluded
-                #     nothing to add) -> use the raw as main, SKIP
-                #     the dropdown (no double-rendering).
-                #   * polish returned empty / unusable -> use the
-                #     raw as main, no dropdown (same reasoning).
-                # The previous "📋" emoji fallback fired any time
-                # polish == raw and left the operator with a
-                # cryptic clipboard icon when the raw IS the right
-                # answer ("the screenshot tool hit a GDI+ error").
-                if (polished_clean
-                        and polished_clean.strip()
-                        and polished_clean.strip()
-                        != raw_clean.strip()):
-                    _dropdown_label = _casual_agent_label(target_name)
-                    wrapped = (
-                        f"<details type=\"reasoning\">"
-                        f"<summary>🤖 {_dropdown_label}</summary>\n\n"
-                        f"{raw_clean}\n"
-                        f"</details>\n\n"
-                        f"{preamble}{polished_clean}"
-                    )
-                else:
-                    wrapped = f"{preamble}{raw_clean}"
+                # Show the dropdown whenever the sub-agent's work is more
+                # than the bare answer (reasoning/prints present, or polish
+                # reshaped it). When the raw IS already the clean answer,
+                # skip the dropdown (no double-render).
+                # agent-pipe emits ONLY the clean polished answer. The
+                # live thinking dropdown is owned by the OWUI pipe, which
+                # streams the AI's actual work from the hermes-tail
+                # (generative, live) -- operator 2026-05-20: "pure streamed
+                # + generative, nothing hardcoded". No post-hoc wrap here
+                # (that wrap caused the "answered twice" duplication).
+                wrapped = f"{preamble}{main}"
             else:
                 # Upstream returned nothing usable (HTTP error,
                 # truncated, etc.). Emit a brief warning marker so
@@ -5208,6 +6321,12 @@ async def chat_completions(request: Request) -> Any:
                 log.info("polish-gate: raw_len=%d refined_outcome=%s",
                          len(raw),
                          (refined.get("intended_outcome") or "")[:60])
+                # Critic->refiner (heavy agent path; fires as needed) --
+                # same gate as the streaming branch above.
+                raw = await _critic_refine_agent(
+                    raw, last_user_text, refined, session_id,
+                    client=client, target_endpoint=target_endpoint,
+                    headers=headers, base_body=proxy_body)
                 # Inline satisfaction check (same as the streaming
                 # branch above).
                 await _inline_satisfaction_check(session_id, refined)
@@ -5219,10 +6338,18 @@ async def chat_completions(request: Request) -> Any:
                     # them from BOTH the dropdown content and the
                     # polished main content so neither carries the
                     # internal CoT through to the operator.
-                    raw_clean = _strip_think_tags(raw)
+                    # Sub-agent FULL raw work (responses + prints +
+                    # reasoning) -> collapsed dropdown; polished clean
+                    # answer -> main. Mirrors the streaming branch +
+                    # operator binding: all sub-agent output goes to the
+                    # thinking dropdown. Tag MARKERS unwrapped so the
+                    # reasoning is readable, not bleeding inline.
+                    dropdown_content = _THINK_ORPHAN_RE.sub("", raw).strip()
+                    answer_only = _strip_think_tags(raw)
                     polished_clean = (
                         _strip_think_tags(polished) if polished else ""
                     )
+                    main = polished_clean.strip() or answer_only.strip()
                     # Multi-task: prepend the queue preamble so the
                     # operator sees "started X; queued Y, Z" before
                     # the polished answer for task #1.
@@ -5234,29 +6361,14 @@ async def chat_completions(request: Request) -> Any:
                             int(refined.get(
                                 "_multi_task_active_idx", 0)),
                         )
-                    # Polish fallback semantics (must match the
-                    # streaming branch above):
-                    #   * polish substantive AND differs from raw
-                    #     -> wrap raw in dropdown, polished as main
-                    #   * polish == raw / polish empty / no-op
-                    #     -> use raw as main, NO dropdown (the raw
-                    #     IS the user-facing answer; no value in
-                    #     rendering it twice or showing a 📋 chip).
-                    if (polished_clean
-                            and polished_clean.strip()
-                            and polished_clean.strip() != raw_clean.strip()):
-                        _dropdown_label = _casual_agent_label(target_name)
-                        wrapped = (
-                            f"<details type=\"reasoning\">"
-                            f"<summary>🤖 {_dropdown_label}</summary>\n\n"
-                            f"{raw_clean}\n"
-                            f"</details>\n\n"
-                            f"{preamble}{polished_clean}"
-                        )
-                        polish_ok = True
-                    else:
-                        wrapped = f"{preamble}{raw_clean}"
-                        polish_ok = False
+                    # Show the dropdown whenever the sub-agent's work is
+                    # more than the bare answer; else just the clean main.
+                    # agent-pipe emits ONLY the clean polished answer; the
+                    # OWUI pipe owns the live thinking dropdown (streamed
+                    # from the hermes-tail). No post-hoc wrap (it caused
+                    # the "answered twice" duplication). Operator 2026-05-20.
+                    wrapped = f"{preamble}{main}"
+                    polish_ok = bool(polished_clean.strip())
                     msg["content"] = wrapped
                     choices[0]["message"] = msg
                     backend_json["choices"] = choices
