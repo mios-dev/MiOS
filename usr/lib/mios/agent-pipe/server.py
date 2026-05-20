@@ -1271,6 +1271,39 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
     return (msg.get("content") or "").strip()
 
 
+RAG_ENABLED = os.environ.get(
+    "MIOS_AGENT_PIPE_RAG_ENABLED", "true").lower() not in {"false", "0", "no"}
+RAG_BIN = os.environ.get("MIOS_RAG_BIN", "/usr/libexec/mios/mios-rag")
+RAG_K = int(os.environ.get("MIOS_AGENT_PIPE_RAG_K", "4"))
+
+
+async def _rag_enrich(query: str) -> str:
+    """Enrich stage: pull RAG context from the SurrealDB vector store
+    (mios-rag query, nomic-embed + cosine) so EVERY agent/sub-agent turn
+    sees relevant MiOS knowledge in-loop (operator 2026-05-20: "RAG in
+    the loop for all agents every turn"). Returns a formatted context
+    block, or '' on miss/error -- best-effort, never blocks the turn."""
+    if not RAG_ENABLED or not query or not query.strip():
+        return ""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            RAG_BIN, "query", query[:500], "--k", str(RAG_K),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        d = json.loads((out or b"{}").decode("utf-8", "replace") or "{}")
+    except Exception as e:
+        log.debug("rag enrich skipped: %s", e)
+        return ""
+    hits = d.get("hits") or []
+    lines = [f"- ({h.get('source', '')}) {str(h.get('text', '')).strip()[:320]}"
+             for h in hits if isinstance(h, dict) and h.get("text")]
+    if not lines:
+        return ""
+    return ("MiOS knowledge relevant to this request (retrieved; cite/use "
+            "if helpful, ignore if not):\n" + "\n".join(lines))
+
+
 async def refine_intent(user_text: str,
                         history: list = None) -> Optional[dict]:
     """Quick-refine pass. Returns the parsed plan dict or None on
@@ -6269,10 +6302,20 @@ async def chat_completions(request: Request) -> Any:
     # system prefix (only when refine emitted hints; trivial inputs
     # skip refine + skip the prefix).
     proxy_body = dict(body)
+    # Enrich stage: prepend RAG context (SurrealDB vector store, in-loop
+    # for every agent/sub-agent turn) + the refined plan hints as system
+    # messages before the sub-agent runs (operator 2026-05-20: "RAG in
+    # the loop for all agents/sub-agents every turn").
+    _sys_prefix: list = []
+    _rag_ctx = await _rag_enrich(last_user_text)
+    if _rag_ctx:
+        _sys_prefix.append({"role": "system", "content": _rag_ctx})
     if refined and (refined.get("hint_tools") or refined.get("hint_skills")
                     or refined.get("intended_outcome")):
-        hint_msg = _build_agent_hint(refined, target_name)
-        proxy_body["messages"] = [{"role": "system", "content": hint_msg}] + list(messages)
+        _sys_prefix.append({"role": "system",
+                            "content": _build_agent_hint(refined, target_name)})
+    if _sys_prefix:
+        proxy_body["messages"] = _sys_prefix + list(messages)
     proxy_bytes = json.dumps(proxy_body).encode("utf-8")
     # Normalise header keys to lowercase so the Content-Type set
     # below replaces (not duplicates) whatever the incoming request
