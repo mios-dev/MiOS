@@ -1027,7 +1027,8 @@ def _pick_fanout_agents(primary_name: str,
 
 
 async def _call_agent_complete(name: str, cfg: dict, body: dict,
-                               headers: dict, client) -> tuple:
+                               headers: dict, client,
+                               *, prefer_cpu: bool = True) -> tuple:
     """Best-effort non-streaming /v1 call to a secondary fan-out agent.
     Returns (name, text); text='' -> dropped from the merge. A dead or
     absent endpoint (e.g. opencode :8633 when not served as /v1) just
@@ -1045,10 +1046,15 @@ async def _call_agent_complete(name: str, cfg: dict, body: dict,
     answer into message.reasoning with EMPTY content (operator 2026-05-20),
     so a /v1 secondary folds in nothing. Custom gateways (opencode :8633,
     hermes :8642) are not ollama -> stay on /v1/chat/completions."""
-    ep = (cfg.get("cpu_endpoint") or cfg.get("endpoint") or "").rstrip("/")
+    # prefer_cpu (fan-out secondaries): offload to the agent's CPU twin so
+    # it runs concurrent with the GPU primary. prefer_cpu=False (planner
+    # agent-task nodes): use the agent's PRIMARY endpoint/model -- a coding
+    # sub-task must hit opencode proper, not a small CPU twin.
+    ep = ((cfg.get("cpu_endpoint") if prefer_cpu else "")
+          or cfg.get("endpoint") or "").rstrip("/")
     if not ep:
         return name, ""
-    _mdl = cfg.get("cpu_model") or cfg.get("model")
+    _mdl = (cfg.get("cpu_model") if prefer_cpu else "") or cfg.get("model")
     # ollama lanes speak the native API + honour think=False; the bespoke
     # sub-agent servers do not. Detect by the SSOT lane ports.
     _is_ollama = (":11434" in ep) or (":11435" in ep)
@@ -1229,6 +1235,28 @@ def _render_recipe_catalog(rec: dict) -> str:
 
 _RECIPE_CATALOG = _load_recipe_catalog()
 _RECIPE_CATALOG_RENDERED = _render_recipe_catalog(_RECIPE_CATALOG)
+
+
+def _render_agent_catalog(registry: dict) -> str:
+    """Render the sub-agent roster for the planner so it can route a
+    sub-task to the right AGENT (an `agent` node) -- NOT a hardcoded list:
+    pulled from _AGENT_REGISTRY (mios.toml [agents.*] SSOT) + the same
+    skill tags the A2A card publishes. Lets the planner assign DIFFERENT
+    sub-tasks to DIFFERENT agents that then run concurrently."""
+    if not registry:
+        return ""
+    lines = ["  -- sub-agents (delegate a sub-task via an `agent` node) --"]
+    for name, cfg in sorted(registry.items()):
+        role = str(cfg.get("role", "general"))
+        lane = _agent_lane(cfg)
+        strengths = ", ".join(str(s) for s in (cfg.get("strengths") or []))
+        lines.append(f"  {name}".ljust(24)
+                     + f"-- {role} [{lane}]"
+                     + (f"; {strengths}" if strengths else ""))
+    return "\n".join(lines)
+
+
+_AGENT_CATALOG_RENDERED = _render_agent_catalog(_AGENT_REGISTRY)
 
 
 def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> str:
@@ -3874,10 +3902,27 @@ _PLANNER_SYSTEM = (
     ' "nodes": [\n'
     '   {"id":"n1","tool":"<verb>","args":{...},"deps":[]},\n'
     '   {"id":"n2","tool":"<verb>","args":{...},"deps":["n1"]},\n'
+    '   {"id":"n3","agent":"<sub-agent>","prompt":"<sub-task>","deps":[]},\n'
     '   ...\n'
     ' ]}\n'
     "\n"
-    "If you cannot decompose into AT LEAST 2 dispatchable verbs, emit\n"
+    "TWO node kinds -- pick per sub-task:\n"
+    "  * a `tool` node runs ONE MiOS dispatch verb (direct OS action /\n"
+    "    probe; from the verb catalog below).\n"
+    "  * an `agent` node DELEGATES a self-contained sub-task to a named\n"
+    "    sub-agent (from the sub-agent roster below) -- use it when the\n"
+    "    sub-task needs an agent's own reasoning + tool-loop (code work ->\n"
+    "    the coding agent; open-ended research/synthesis -> a general\n"
+    "    agent; a quick second opinion / summary -> the cpu reasoner).\n"
+    "    `prompt` is the sub-task in the user's language; it MAY contain\n"
+    "    #E<id> refs to upstream outputs (substituted at run time).\n"
+    "ROUTE DIFFERENT sub-tasks to DIFFERENT agents and give independent\n"
+    "ones deps=[] so they run CONCURRENTLY (the executor runs every node\n"
+    "whose deps are satisfied in parallel). Weigh the whole roster -- do\n"
+    "not funnel everything to one agent. Reserve agent nodes for sub-tasks\n"
+    "a single verb cannot cover; do not wrap a plain verb in an agent node.\n"
+    "\n"
+    "If you cannot decompose into AT LEAST 2 dispatchable nodes, emit\n"
     '{"action":"decompose","summary":"","nodes":[]} so the chain falls\n'
     "through to the backend sub-agent (Hermes / OpenCode / etc.) which\n"
     "has tool-calling + web access itself.\n"
@@ -3931,6 +3976,10 @@ _PLANNER_SYSTEM = (
     "\n"
     + _VERB_CATALOG_RENDERED + "\n\n"
     + _RECIPE_CATALOG_RENDERED + "\n\n"
+    "Sub-agent roster for `agent` nodes (SSOT: mios.toml [agents.*]; use\n"
+    "the EXACT name -- the executor rejects unknown agents):\n"
+    "\n"
+    + _AGENT_CATALOG_RENDERED + "\n\n"
     "Common patterns (study these before emitting):\n"
     "\n"
     "  open + position:\n"
@@ -4034,11 +4083,23 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     if len(nodes) > PLANNER_MAX_NODES:
         nodes = nodes[:PLANNER_MAX_NODES]
         parsed["nodes"] = nodes
-    # Validate each node has the required fields + a known verb.
+    # Validate each node: an `agent` node must name a registered sub-agent
+    # + carry a prompt; a `tool` node must resolve to a known verb. A mixed
+    # DAG (some agents, some verbs) is fine.
     for n in nodes:
-        if not isinstance(n, dict):
+        if not isinstance(n, dict) or "id" not in n:
             return None
-        if "id" not in n or "tool" not in n:
+        if n.get("agent"):
+            if str(n["agent"]) not in _AGENT_REGISTRY:
+                log.info("planner emitted unknown agent %r; discarding DAG",
+                         n.get("agent"))
+                return None
+            if not str(n.get("prompt") or "").strip():
+                log.info("planner agent node %r missing prompt; discarding",
+                         n.get("id"))
+                return None
+            continue
+        if "tool" not in n:
             return None
         if _build_dispatch_cmd(str(n["tool"]), n.get("args") or {}) is None:
             log.info("planner emitted unknown verb %r; discarding DAG",
@@ -4063,6 +4124,32 @@ def _topological_order(nodes: list[dict]) -> list[dict]:
     for n in nodes:
         visit(n.get("id"))
     return out
+
+
+def _dag_levels(nodes: list[dict]) -> list[list[dict]]:
+    """Group nodes into concurrent execution LEVELS (Kahn layering): each
+    level is the set of not-yet-run nodes whose deps are ALL already
+    satisfied, so every node in a level can run CONCURRENTLY. A level only
+    starts after all earlier levels finish, preserving topological order
+    (so ReWOO #E<id> refs resolve). Cyclic / dangling deps degrade to one
+    forced node per round (declaration order) so the DAG never hangs --
+    same safety stance as _topological_order."""
+    by_id = {n.get("id"): n for n in nodes
+             if isinstance(n, dict) and "id" in n}
+    remaining = [n for n in nodes if isinstance(n, dict) and "id" in n]
+    done: set = set()
+    levels: list[list[dict]] = []
+    while remaining:
+        ready = [n for n in remaining
+                 if all((d in done) or (d not in by_id)
+                        for d in (n.get("deps") or []))]
+        if not ready:  # cycle / dangling dep -- force progress, no hang
+            ready = [remaining[0]]
+        levels.append(ready)
+        ready_ids = {n.get("id") for n in ready}
+        done |= ready_ids
+        remaining = [n for n in remaining if n.get("id") not in ready_ids]
+    return levels
 
 
 _REFLECT_SYSTEM = (
@@ -4435,136 +4522,176 @@ def _action_hash(tool: str, args: dict) -> str:
     return f"{tool}\x00{canon}"
 
 
-async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
-    """Topologically execute the DAG nodes via the broker. Reflexion
-    cap (default 2) retries failed nodes before marking dag-fail.
-    Returns aggregate {success, node_results[], summary}. Each node
-    result is the standard tool_call shape from dispatch_mios_verb."""
-    nodes = _topological_order(dag.get("nodes") or [])
-    results: list[dict] = []
-    # ReWOO result map: node id -> result dict. Populated after each
-    # successful node dispatch + consumed by _substitute_ek_refs for
-    # downstream nodes that reference its output via #E<id>.
-    results_by_id: dict[str, dict] = {}
-    # Action-hash map for the in-run loop/dedup guard: hash -> result.
-    seen_actions: dict[str, dict] = {}
-    all_ok = True
-    for node in nodes:
-        nid = str(node.get("id", "?"))
-        tool = str(node.get("tool", "")).strip()
-        raw_args = node.get("args") or {}
-        # ReWOO substitution -- replace #E<id> tokens in args with
-        # upstream node outputs BEFORE the dispatch. No-op for nodes
-        # without forward refs.
-        args = _substitute_ek_refs(raw_args, results_by_id)
-        # Action-hash loop/dedup guard (reference: "hash last-N actions,
-        # abort on collision"). If this exact (verb, resolved-args) was
-        # already dispatched this run, reuse the prior result instead of
-        # re-dispatching -- a duplicate planner step, or a reflection
-        # that loops back to an already-tried action, can't burn a
-        # second broker round-trip. Structural hash only (verb + sorted
-        # args); no English/topic content (NO-HARDCODED-ENGLISH binding).
-        # MiOS's OWN guard, independent of the vendored Hermes loop cap.
-        _act = _action_hash(tool, args)
+async def _execute_dag_node(node: dict, results_by_id: dict,
+                            seen_actions: dict, dag_summary: str,
+                            session_id: Optional[str], client) -> dict:
+    """Execute ONE DAG node -- an `agent` delegation OR a `tool` verb --
+    and return its node_result (standard tool_call shape + node_id + _act).
+    READS the shared maps (a snapshot of completed levels) but does NOT
+    mutate them; execute_dag merges results after each level so concurrent
+    same-level nodes never race on writes. ReWOO #E<id> refs in args (verb)
+    or in the prompt (agent) resolve against the completed-level outputs."""
+    nid = str(node.get("id", "?"))
+    # ---- agent-delegation node: route a sub-task to a named sub-agent ----
+    if node.get("agent"):
+        aname = str(node.get("agent"))
+        acfg = _AGENT_REGISTRY.get(aname) or {}
+        prompt = _substitute_ek_refs(
+            {"_p": str(node.get("prompt") or "")}, results_by_id).get("_p", "")
+        _act = _action_hash(f"agent:{aname}", {"prompt": prompt})
         _prior = seen_actions.get(_act)
         if _prior is not None:
-            _dedup = dict(_prior)
-            _dedup["node_id"] = nid
-            _dedup["repeat_of"] = _prior.get("node_id")
-            results.append(_dedup)
-            log.info("execute_dag: node %s repeats action of node %s -- "
-                     "reusing result (no re-dispatch)",
-                     nid, _prior.get("node_id"))
-            _db_fire(_db_post(_db_create("event", {
-                "source": "mios-agent-pipe",
-                "kind": "action_repeat_dedup",
-                "severity": "info",
-                "summary": f"node {nid} == {_prior.get('node_id')} ({tool})",
-                "payload": {"tool": tool, "node_id": nid,
-                            "repeat_of": _prior.get("node_id")},
-            }, now_fields=("ts",))))
-            if _prior.get("success"):
-                results_by_id[nid] = _dedup
-                continue
-            all_ok = False
-            break
-        attempt = 0
-        last_result: dict = {}
-        # Phase A.3: forward session_id so the firewall pre-check
-        # can see upstream taint.
-        last_result = await dispatch_mios_verb(
-            tool, args, session_id=session_id,
-        )
-        if not last_result.get("success"):
-            # ReWOO single-step reflection: route the failure back
-            # to the small refine model + retry with corrected args
-            # (or corrected verb). Bounded to ONE reflection per
-            # node so a stubborn failure surfaces as a real error
-            # instead of looping. The transient-retry path below
-            # still fires after this, for genuinely-transient errors
-            # (network glitch, broker race) where reflection would
-            # incorrectly mutate the plan.
-            correction = await reflect_on_step_failure(
-                {"id": nid, "tool": tool, "args": args},
-                last_result,
-                {"summary": dag.get("summary", "")},
-                session_id=session_id,
-            )
-            if correction and correction.get("tool"):
-                tool = str(correction.get("tool", tool))
-                args = _substitute_ek_refs(
-                    correction.get("args") or {}, results_by_id)
-                last_result = await dispatch_mios_verb(
-                    tool, args, session_id=session_id,
-                )
-        # Transient-retry fallback: SAME args, brief backoff. Only
-        # fires if the reflection above didn't recover.
-        while not last_result.get("success") and attempt < PLANNER_REFLEXION_CAP:
-            attempt += 1
-            await asyncio.sleep(0.5)
-            last_result = await dispatch_mios_verb(
-                tool, args, session_id=session_id,
-            )
-        node_result = dict(last_result)
-        node_result["node_id"] = nid
-        node_result["attempts"] = attempt + (1 if last_result.get("success") and attempt == 0 else 0)
-        # Register this dispatch for the in-run loop/dedup guard above.
-        seen_actions[_act] = node_result
-        # Capture for ReWOO: downstream nodes can reference #E<nid>
-        # in their args + this result's output gets substituted.
-        if last_result.get("success"):
-            results_by_id[nid] = node_result
-        results.append(node_result)
-        # SurrealDB tool_call row per node, linked to session.
-        # Phase A.3: include taint state so the firewall + downstream
-        # critics see the propagation chain.
-        _row = {
-            "tool": tool,
-            "args": args if isinstance(args, dict) else {},
-            "result_preview": _sanitize_tool_text(last_result.get("output") or "")[:500],
-            "success": bool(last_result.get("success")),
-            "latency_ms": int(last_result.get("latency_ms", 0)),
-            "tainted": bool(last_result.get("tainted")),
-            "taint_reason": (last_result.get("taint_reason") or "") or None,
+            d = dict(_prior)
+            d["node_id"] = nid
+            d["repeat_of"] = _prior.get("node_id")
+            return d
+        t0 = time.time()
+        body = {"model": acfg.get("model") or aname,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 800}
+        hdrs = {"Content-Type": "application/json"}
+        # prefer_cpu=False -> the agent's PRIMARY endpoint/model (a coding
+        # sub-task must hit opencode proper, not its CPU twin).
+        _, text = await _call_agent_complete(
+            aname, acfg, body, hdrs, client, prefer_cpu=False)
+        text = (text or "").strip()
+        # Fallback: a stream-only gateway (the Hermes server) returns empty
+        # on a non-streaming call. If the agent has an ollama CPU twin, use
+        # it -- it answers a self-contained sub-task non-streaming cleanly.
+        # opencode has no twin -> keeps hitting its real coder model.
+        if not text and acfg.get("cpu_endpoint") and acfg.get("cpu_model"):
+            _, text = await _call_agent_complete(
+                aname, acfg, body, hdrs, client, prefer_cpu=True)
+            text = (text or "").strip()
+        return {
+            "success": bool(text),
+            "output": text,
+            "latency_ms": int((time.time() - t0) * 1000),
+            "tool": f"agent:{aname}",
+            "args": {},
+            "node_id": nid,
+            "_act": _act,
         }
-        if session_id:
-            _db_fire(_db_post(
-                _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
-                + f", session = {session_id};"
-            ))
-        else:
-            _db_fire(_db_post(_db_create("tool_call", _row,
-                                         now_fields=("ts",))))
-        if not last_result.get("success"):
-            all_ok = False
-            # Stop on first hard failure (deps not satisfied, etc.).
-            # Future enhancement: prune ONLY the failed branch and
-            # continue independent siblings; for now fail-fast.
+    # ---- verb node: ONE MiOS dispatch verb via the broker ----------------
+    tool = str(node.get("tool", "")).strip()
+    args = _substitute_ek_refs(node.get("args") or {}, results_by_id)
+    # Action-hash dedup guard: a duplicate (verb, resolved-args) already run
+    # in an EARLIER level reuses the prior result (structural hash only --
+    # NO-HARDCODED-ENGLISH binding). Same-level dupes may both run (the
+    # snapshot has no in-level writes); that is a rare, harmless extra call.
+    _act = _action_hash(tool, args)
+    _prior = seen_actions.get(_act)
+    if _prior is not None:
+        d = dict(_prior)
+        d["node_id"] = nid
+        d["repeat_of"] = _prior.get("node_id")
+        d["_act"] = _act
+        return d
+    attempt = 0
+    # Phase A.3: forward session_id so the firewall pre-check sees taint.
+    last_result = await dispatch_mios_verb(tool, args, session_id=session_id)
+    if not last_result.get("success"):
+        # ReWOO single-step reflection: one corrected re-dispatch before
+        # the transient-retry loop (bounded, so a stubborn failure surfaces
+        # as a real error instead of looping).
+        correction = await reflect_on_step_failure(
+            {"id": nid, "tool": tool, "args": args}, last_result,
+            {"summary": dag_summary}, session_id=session_id)
+        if correction and correction.get("tool"):
+            tool = str(correction.get("tool", tool))
+            args = _substitute_ek_refs(
+                correction.get("args") or {}, results_by_id)
+            last_result = await dispatch_mios_verb(
+                tool, args, session_id=session_id)
+    while not last_result.get("success") and attempt < PLANNER_REFLEXION_CAP:
+        attempt += 1
+        await asyncio.sleep(0.5)
+        last_result = await dispatch_mios_verb(tool, args, session_id=session_id)
+    res = dict(last_result)
+    res["node_id"] = nid
+    res["tool"] = tool
+    res["args"] = args if isinstance(args, dict) else {}
+    res["attempts"] = attempt
+    res["_act"] = _act
+    return res
+
+
+def _record_dag_node_row(res: dict, session_id: Optional[str]) -> None:
+    """Persist a DAG node's dispatch as a session-linked tool_call row so
+    the confirmation engine + critics see the propagation/taint chain.
+    Logs an action_repeat_dedup event when the node reused a prior result."""
+    if res.get("repeat_of"):
+        _db_fire(_db_post(_db_create("event", {
+            "source": "mios-agent-pipe",
+            "kind": "action_repeat_dedup",
+            "severity": "info",
+            "summary": f"node {res.get('node_id')} == {res.get('repeat_of')} "
+                       f"({res.get('tool')})",
+            "payload": {"tool": res.get("tool"), "node_id": res.get("node_id"),
+                        "repeat_of": res.get("repeat_of")},
+        }, now_fields=("ts",))))
+        return
+    _row = {
+        "tool": res.get("tool", ""),
+        "args": res.get("args") if isinstance(res.get("args"), dict) else {},
+        "result_preview": _sanitize_tool_text(res.get("output") or "")[:500],
+        "success": bool(res.get("success")),
+        "latency_ms": int(res.get("latency_ms", 0)),
+        "tainted": bool(res.get("tainted")),
+        "taint_reason": (res.get("taint_reason") or "") or None,
+    }
+    sql = _db_create("tool_call", _row, now_fields=("ts",))
+    if session_id:
+        sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
+    _db_fire(_db_post(sql))
+
+
+async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
+    """Execute the DAG in concurrent topological LEVELS: every node whose
+    deps are satisfied runs in PARALLEL (asyncio.gather), so independent
+    sub-tasks -- including agent-delegation nodes routed to DIFFERENT sub-
+    agents -- run concurrently across the CPU + GPU lanes (operator
+    2026-05-22: "separate prompts per refinement step -> sub-agents ...
+    concurrent Compute"). A level only starts once all earlier levels
+    finish, so ReWOO #E<id> refs always resolve. Reflexion-retries failed
+    verb nodes; fail-fast when a level has an unrecoverable failure.
+    Returns aggregate {success, node_results[], summary}."""
+    levels = _dag_levels(dag.get("nodes") or [])
+    summary = dag.get("summary", "")
+    results: list[dict] = []
+    results_by_id: dict[str, dict] = {}
+    seen_actions: dict[str, dict] = {}
+    all_ok = True
+    client = await _get_client()
+    for level in levels:
+        level_res = await asyncio.gather(*[
+            _execute_dag_node(n, results_by_id, seen_actions, summary,
+                              session_id, client)
+            for n in level
+        ], return_exceptions=True)
+        for node, res in zip(level, level_res):
+            nid = str(node.get("id", "?"))
+            if isinstance(res, BaseException):
+                res = {"success": False, "node_id": nid,
+                       "tool": str(node.get("tool") or
+                                   (f"agent:{node.get('agent')}"
+                                    if node.get("agent") else "")),
+                       "args": {}, "output": f"node {nid} raised: {res}"}
+            results.append(res)
+            _record_dag_node_row(res, session_id)
+            if res.get("success"):
+                results_by_id[nid] = res
+                if res.get("_act"):
+                    seen_actions[res["_act"]] = res
+            else:
+                all_ok = False
+        # Fail-fast: don't launch a level that depends on a failed one.
+        if not all_ok:
             break
     return {
         "success": all_ok,
-        "summary": dag.get("summary", ""),
-        "nodes_total": len(nodes),
+        "summary": summary,
+        "nodes_total": len(dag.get("nodes") or []),
         "nodes_executed": len(results),
         "node_results": results,
     }
@@ -6760,91 +6887,31 @@ async def chat_completions(request: Request) -> Any:
                                                 phase="plan")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
-                        # Emit per-node markers + execute.
-                        nodes = _topological_order(dag.get("nodes") or [])
-                        results: list[dict] = []
-                        # ReWOO substitution context for inline DAG path.
-                        results_by_id: dict[str, dict] = {}
-                        all_ok = True
-                        for node in nodes:
-                            nid = str(node.get("id", "?"))
-                            tool = str(node.get("tool", "")).strip()
-                            raw_args = node.get("args") or {}
-                            args = _substitute_ek_refs(
-                                raw_args, results_by_id)
-                            yield _sse_status_phase(
-                                chat_id=chat_id, model=model,
-                                phase="tool",
-                            )
-                            attempt = 0
-                            last_result: dict = {}
-                            last_result = await dispatch_mios_verb(
-                                tool, args, session_id=session_id,
-                            )
-                            if not last_result.get("success"):
-                                # Single-step reflection before
-                                # transient retry (same shape as
-                                # execute_dag).
-                                correction = await reflect_on_step_failure(
-                                    {"id": nid, "tool": tool, "args": args},
-                                    last_result,
-                                    {"summary": dag.get("summary", "")},
-                                )
-                                if correction and correction.get("tool"):
-                                    tool = str(correction.get("tool", tool))
-                                    args = _substitute_ek_refs(
-                                        correction.get("args") or {},
-                                        results_by_id)
-                                    last_result = await dispatch_mios_verb(
-                                        tool, args, session_id=session_id,
-                                    )
-                            while (not last_result.get("success")
-                                    and attempt < PLANNER_REFLEXION_CAP):
-                                attempt += 1
-                                await asyncio.sleep(0.5)
-                                last_result = await dispatch_mios_verb(
-                                    tool, args, session_id=session_id,
-                                )
-                            # Capture for ReWOO downstream refs.
-                            if last_result.get("success"):
-                                results_by_id[nid] = dict(last_result)
-                            nres = dict(last_result)
-                            nres["node_id"] = nid
-                            results.append(nres)
-                            _row = {
-                                "tool": tool,
-                                "args": args if isinstance(args, dict) else {},
-                                "result_preview": _sanitize_tool_text(last_result.get("output") or "")[:500],
-                                "success": bool(last_result.get("success")),
-                                "latency_ms": int(last_result.get("latency_ms", 0)),
-                                "tainted": bool(last_result.get("tainted")),
-                                "taint_reason": (last_result.get("taint_reason") or "") or None,
-                            }
-                            if session_id:
-                                _db_fire(_db_post(
-                                    _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
-                                    + f", session = {session_id};"
-                                ))
-                            else:
-                                _db_fire(_db_post(_db_create(
-                                    "tool_call", _row, now_fields=("ts",))))
-                            if not last_result.get("success"):
-                                all_ok = False
-                                break
-                        # Render the DAG envelope as collapsible.
+                        # Run the DAG via the unified CONCURRENT executor
+                        # (topological levels; agent + verb nodes run in
+                        # parallel per level), then render the audit
+                        # envelope. Per-node "tool" pills are dropped --
+                        # independent nodes now run concurrently so a
+                        # per-node stream order is no longer meaningful;
+                        # the collapsible envelope is the audit trail.
+                        yield _sse_status_phase(chat_id=chat_id, model=model,
+                                                phase="tool")
+                        dag_result = await execute_dag(
+                            dag, session_id=session_id)
+                        all_ok = dag_result.get("success", False)
                         env = {
                             "dag": {
                                 "summary": dag.get("summary", ""),
-                                "nodes_total": len(nodes),
-                                "nodes_executed": len(results),
+                                "nodes_total": dag_result.get("nodes_total", 0),
+                                "nodes_executed": dag_result.get("nodes_executed", 0),
                                 "success": all_ok,
                             },
-                            "nodes": results,
+                            "nodes": dag_result.get("node_results", []),
                         }
                         symbol = "✅" if all_ok else "⚠️"
                         rendered = (
                             f"<details type=\"tool_calls\" done=\"true\">\n"
-                            f"<summary>{symbol} dag · {len(nodes)} steps</summary>\n\n"
+                            f"<summary>{symbol} dag · {env['dag']['nodes_total']} steps</summary>\n\n"
                             f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
                             f"</details>"
                         )
@@ -6901,9 +6968,8 @@ async def chat_completions(request: Request) -> Any:
     if not verdict and PLANNER_ENABLED and not _unify_agent:
         dag = await decompose_intent(last_user_text)
         if dag and (dag.get("nodes") or []):
-            # Re-enter the streaming DAG path by simulating
-            # action=agent. Build inline so we don't duplicate logic.
-            nodes = _topological_order(dag.get("nodes") or [])
+            # Same handling as the action=agent path: the unified
+            # execute_dag runs it (concurrent levels, agent + verb nodes).
             if streaming:
                 async def _stream_dag2() -> AsyncGenerator[bytes, None]:
                     yield _sse_status_phase(chat_id=chat_id, model=model,
@@ -6912,66 +6978,27 @@ async def chat_completions(request: Request) -> Any:
                                             phase="plan")
                     yield _sse_chunk("", chat_id=chat_id, model=model,
                                      role="assistant")
-                    results: list[dict] = []
-                    all_ok = True
-                    for node in nodes:
-                        nid = str(node.get("id", "?"))
-                        tool = str(node.get("tool", "")).strip()
-                        args = node.get("args") or {}
-                        yield _sse_status_phase(
-                            chat_id=chat_id, model=model,
-                            phase="tool",
-                        )
-                        attempt = 0
-                        last_result: dict = {}
-                        while attempt <= PLANNER_REFLEXION_CAP:
-                            last_result = await dispatch_mios_verb(
-                                tool, args, session_id=session_id,
-                            )
-                            if last_result.get("success"):
-                                break
-                            attempt += 1
-                            if attempt <= PLANNER_REFLEXION_CAP:
-                                await asyncio.sleep(0.5)
-                        nres = dict(last_result)
-                        nres["node_id"] = nid
-                        results.append(nres)
-                        # Phase A.3: also write the tool_call row in
-                        # this no-verdict streaming path so the firewall
-                        # can see taint chains on planner-only runs.
-                        _row = {
-                            "tool": tool,
-                            "args": args if isinstance(args, dict) else {},
-                            "result_preview": _sanitize_tool_text(last_result.get("output") or "")[:500],
-                            "success": bool(last_result.get("success")),
-                            "latency_ms": int(last_result.get("latency_ms", 0)),
-                            "tainted": bool(last_result.get("tainted")),
-                            "taint_reason": (last_result.get("taint_reason") or "") or None,
-                        }
-                        if session_id:
-                            _db_fire(_db_post(
-                                _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
-                                + f", session = {session_id};"
-                            ))
-                        else:
-                            _db_fire(_db_post(_db_create(
-                                "tool_call", _row, now_fields=("ts",))))
-                        if not last_result.get("success"):
-                            all_ok = False
-                            break
+                    # Unified CONCURRENT executor (agent + verb nodes,
+                    # topological levels in parallel), same as the
+                    # action=agent streaming path -- no per-node loop here.
+                    yield _sse_status_phase(chat_id=chat_id, model=model,
+                                            phase="tool")
+                    dag_result = await execute_dag(
+                        dag, session_id=session_id)
+                    all_ok = dag_result.get("success", False)
                     env = {
                         "dag": {
                             "summary": dag.get("summary", ""),
-                            "nodes_total": len(nodes),
-                            "nodes_executed": len(results),
+                            "nodes_total": dag_result.get("nodes_total", 0),
+                            "nodes_executed": dag_result.get("nodes_executed", 0),
                             "success": all_ok,
                         },
-                        "nodes": results,
+                        "nodes": dag_result.get("node_results", []),
                     }
                     symbol = "✅" if all_ok else "⚠️"
                     rendered = (
                         f"<details type=\"tool_calls\" done=\"true\">\n"
-                        f"<summary>{symbol} dag · {len(nodes)} steps</summary>\n\n"
+                        f"<summary>{symbol} dag · {env['dag']['nodes_total']} steps</summary>\n\n"
                         f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
                         f"</details>"
                     )
