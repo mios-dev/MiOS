@@ -711,6 +711,32 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning"]
 # request time via the userenv.sh slot map.
 
 # ----------------------------------------------------------------------------
+# CLIENT-HOSTED SWARM NODES (operator 2026-05-22 "AI.Local iphone app hosts
+# its own endpoint on Tailscale ... added to the swarm as a node capable of
+# local mobile models"). A client device running an OpenAI-compatible local-
+# model server on the tailnet becomes a swarm agent here. health_gate=true
+# means it only engages when REACHABLE (phone awake + serving) and drops fast
+# when asleep/absent -- auto-join-when-up, auto-drop-when-gone.
+#
+# REACH PATH: agent-pipe runs in the WSL VM, which is NOT on the tailnet
+# (mirrored/"host" WSL networking is disabled -- see .wslconfig: it
+# death-spirals the Quadlet stack). So bridge via a reverse netsh portproxy
+# on the WINDOWS host (which IS on the tailnet):
+#   netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 \
+#     listenport=<PROXYPORT> connectaddress=<CLIENT_TAILSCALE_IP> \
+#     connectport=<CLIENT_LOCAL_MODEL_PORT>
+# then point the agent endpoint at the Windows host from WSL.
+#
+#   [agents.ai-local]
+#   endpoint    = "http://<WINDOWS_GATEWAY_OR_HOST>:<PROXYPORT>/v1"
+#   model       = "<model id the client serves, e.g. llama-3.2-3b>"
+#   role        = "mobile"
+#   default     = false
+#   lane        = "mobile"
+#   health_gate = true     # only in the swarm while the client is reachable
+#   strengths   = ["mobile_local_model", "on_device", "offline_edge"]
+
+# ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
 # MiOS mechanism should dispatch to multiple agents at a time -- not ALL
 # agents, but a couple at least"). agent-pipe picks ONE primary agent

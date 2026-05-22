@@ -843,6 +843,13 @@ def _load_agent_registry() -> dict[str, dict]:
                 # and the dGPU stays free for the primary. Empty = single-lane.
                 "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
                 "cpu_model":    str(cfg.get("cpu_model", "")),
+                # health_gate (operator 2026-05-22 "client endpoints join the
+                # swarm when they join"): a client-hosted node (e.g. a phone
+                # running a local model over Tailscale) that comes and goes.
+                # When set, the secondary call uses a SHORT timeout so a
+                # sleeping/absent node drops from the merge fast instead of
+                # stalling the turn -- auto-join-when-up, auto-drop-when-gone.
+                "health_gate":  bool(cfg.get("health_gate", False)),
             }
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
@@ -1074,6 +1081,9 @@ async def _call_agent_complete(name: str, cfg: dict, body: dict,
     # ollama lanes speak the native API + honour think=False; the bespoke
     # sub-agent servers do not. Detect by the SSOT lane ports.
     _is_ollama = (":11434" in ep) or (":11435" in ep)
+    # health-gated client node (mobile / Tailscale-hosted): SHORT timeout so a
+    # sleeping/absent node drops from the merge fast instead of stalling.
+    _to = 2.5 if cfg.get("health_gate") else None
     try:
         if _is_ollama:
             base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
@@ -1088,7 +1098,7 @@ async def _call_agent_complete(name: str, cfg: dict, body: dict,
             r = await client.post(
                 f"{base}/api/chat",
                 content=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"})
+                headers={"Content-Type": "application/json"}, timeout=_to)
             if r.status_code != 200:
                 return name, ""
             msg = (r.json().get("message") or {})
@@ -1099,7 +1109,8 @@ async def _call_agent_complete(name: str, cfg: dict, body: dict,
             nb["model"] = _mdl
         r = await client.post(
             f"{ep}/chat/completions",
-            content=json.dumps(nb).encode("utf-8"), headers=headers)
+            content=json.dumps(nb).encode("utf-8"), headers=headers,
+            timeout=_to)
         if r.status_code != 200:
             return name, ""
         ch = (r.json().get("choices") or [])
