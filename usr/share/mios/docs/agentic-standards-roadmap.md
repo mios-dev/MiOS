@@ -33,7 +33,7 @@ So the work is WIRING + standardizing, not greenfield.
 
 ## Phases (sequenced; pick a starting point)
 
-### Phase 1 — Complete + verify the MCP tool CONTRACT  ·  effort: M  ·  risk: LOW
+### Phase 1 — Complete + verify the MCP tool CONTRACT  ·  effort: M  ·  risk: LOW  ·  ✅ DONE (committed)
 - Audit `mios-mcp-server`: is `mios-mcp.service` running? are ALL `[verbs.*]`
   rendered as MCP tools with correct JSON input schemas?
 - Fill gaps: ensure `web_search`, `browser_*`, `sysview`, `os-control` verbs
@@ -64,12 +64,22 @@ So the work is WIRING + standardizing, not greenfield.
   verb-arms, the dual tool paths, and any keyword/topic literals. Tools flow
   ONLY through MCP + the loop. One path, no hardcodes.
 
-### Phase 4 — A2A Agent Cards for multi-agent coordination  ·  effort: H  ·  risk: MED
+### Phase 4 — A2A Agent Cards for multi-agent coordination  ·  effort: H  ·  risk: MED  ·  ◑ PUBLISH-SIDE SHIPPED
 - Replace `_pick_fanout_agents` strength-token matching with A2A Agent Cards:
   each sub-agent (Hermes, opencode, daemon, sys) publishes a card
   (capabilities/skills/endpoint); the orchestrator routes + fans out by
   card-advertised capability (semantic match), not hardcoded tokens. opencode
   keeps ACP for delegated execution. Removes the daemon-flood root cause.
+- SHIPPED (publish side): agent-pipe serves the A2A AgentCard at
+  `/.well-known/agent-card.json` (+ `/.well-known/agent.json` legacy +
+  `/v1/agent-card`), generated from mios.toml `[agents.*]` SSOT — each agent
+  becomes an A2A skill (id=name, tags=strengths, description=role+lane). Same
+  data `_pick_fanout_agents` scores, now in the open standard. Additive,
+  zero pipeline risk; `x-mios` block cross-links the OpenAI `/v1` + MCP
+  surfaces so a discovering peer knows how to drive MiOS.
+- REMAINING (consume side): make `_pick_fanout_agents` route by the card's
+  declared skill tags (and, with Phase 2's loop, by structural capability)
+  instead of substring token overlap. Card is the SSOT it reads.
 
 ### Phase 5 — Validation → STRUCTURAL  ·  effort: M  ·  risk: LOW
 - With tool results captured by the MCP loop, the confirmation engine grounds

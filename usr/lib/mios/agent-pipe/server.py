@@ -5371,6 +5371,117 @@ async def list_verbs(include_rare: bool = False) -> JSONResponse:
     return JSONResponse({"tools": tools})
 
 
+# ── A2A Agent Card (Agent2Agent discovery surface) ────────────────────
+# Agentic-standards roadmap Phase 4. A2A (Agent2Agent, now under the
+# Linux Foundation Agentic-AI Foundation) is the peer-discovery standard
+# that complements MCP: MCP advertises TOOLS (mios-mcp-server -> /v1/verbs),
+# A2A advertises AGENTS + their high-level SKILLS. Serving the card from
+# the SAME SSOT (mios.toml [agents.*]) the fan-out router already reads
+# makes the roster a STANDARD, machine-discoverable surface -- the
+# foundation for replacing _pick_fanout_agents' bespoke strength-token
+# scoring with spec capability-matching, and for any external A2A client
+# (or a future MiOS orchestrator) to enumerate the stack's agents.
+#
+# LOCAL-ONLY, same as mios-mcp-server: this describes the on-host MiOS
+# agent stack; it does not register the agent with any cloud directory.
+# Served at the A2A well-known path + a /v1 convenience alias. Generated,
+# never hardcoded -- skills come from the live registry, the verb count
+# from the live catalog, identity from the FastAPI app + PORT.
+A2A_PROTOCOL_VERSION = os.environ.get("MIOS_A2A_PROTOCOL_VERSION", "0.3.0")
+
+
+def _build_agent_card() -> dict:
+    """Render the A2A AgentCard from MiOS SSOT (no hardcoded skills).
+
+    Each mios.toml [agents.*] entry becomes one A2A skill: id=agent name,
+    tags=its strengths, description from role+lane. This is exactly the
+    data _pick_fanout_agents scores, now exposed in the open standard."""
+    base = f"http://localhost:{PORT}"
+    skills = []
+    for name, cfg in _AGENT_REGISTRY.items():
+        role = str(cfg.get("role", "general"))
+        lane = _agent_lane(cfg)
+        tags = sorted({
+            t for t in (
+                [str(s) for s in (cfg.get("strengths") or [])] + [role, lane]
+            ) if t
+        })
+        desc_bits = [f"{role} agent on the {lane} inference lane"]
+        if cfg.get("default"):
+            desc_bits.append("primary/default orchestrator")
+        if cfg.get("strengths"):
+            desc_bits.append(
+                "strengths: " + ", ".join(str(s) for s in cfg["strengths"]))
+        skills.append({
+            "id": name,
+            "name": f"{name} ({role})",
+            "description": "; ".join(desc_bits),
+            "tags": tags,
+            "inputModes": ["text/plain", "application/json"],
+            "outputModes": ["text/plain"],
+        })
+    # The agent speaks the OpenAI Chat Completions API (this server's /v1
+    # surface); tool execution is the co-located MCP server. Advertise both
+    # so a discovering peer knows how to actually drive MiOS.
+    return {
+        "protocolVersion": A2A_PROTOCOL_VERSION,
+        "name": os.environ.get("MIOS_A2A_AGENT_NAME", "MiOS Agent"),
+        "description": app.description,
+        "version": app.version,
+        # Primary service URL: the OpenAI-compatible chat surface.
+        "url": f"{base}/v1",
+        "preferredTransport": "OpenAI",
+        "provider": {
+            "organization": "MiOS",
+            "url": os.environ.get(
+                "MIOS_REPO_URL", "https://github.com/mios-dev/MiOS"),
+        },
+        "capabilities": {
+            # SSE streaming on /v1/chat/completions.
+            "streaming": True,
+            "pushNotifications": False,
+            # SurrealDB-backed session/tool-call history.
+            "stateTransitionHistory": True,
+        },
+        "defaultInputModes": ["text/plain", "application/json", "image/png"],
+        "defaultOutputModes": ["text/plain"],
+        "skills": skills,
+        # Non-spec extension block: where to actually reach the surfaces.
+        # Namespaced under x- so strict A2A validators ignore it.
+        "x-mios": {
+            "openai_chat_completions": f"{base}/v1/chat/completions",
+            "mcp_server": "mios-mcp-server (stdio JSON-RPC 2.0, spec "
+                          "2025-06-18; tool catalog via this server's "
+                          "/v1/verbs)",
+            "verb_catalog_size": len(_VERB_CATALOG),
+            "discovery": {
+                "tools": f"{base}/v1/verbs",
+                "tool_search": f"{base}/v1/tool-search",
+                "health": f"{base}/health",
+            },
+        },
+    }
+
+
+@app.get("/.well-known/agent-card.json")
+async def a2a_agent_card() -> JSONResponse:
+    """A2A AgentCard at the spec well-known path."""
+    return JSONResponse(_build_agent_card())
+
+
+@app.get("/.well-known/agent.json")
+async def a2a_agent_card_legacy() -> JSONResponse:
+    """Legacy A2A well-known path (pre-0.3 clients)."""
+    return JSONResponse(_build_agent_card())
+
+
+@app.get("/v1/agent-card")
+async def a2a_agent_card_alias() -> JSONResponse:
+    """Convenience alias under /v1 for clients that don't probe
+    the well-known path."""
+    return JSONResponse(_build_agent_card())
+
+
 # ── /v1/tool-search (progressive disclosure / RAG-MCP) ────────────────
 # Cosine-over-nomic-embed-text retrieval over the visible verb catalog.
 # Embeddings computed lazily on first request, cached in-memory until
