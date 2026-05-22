@@ -364,6 +364,50 @@ PYEOF
 fi
 
 
+# ─── Register the SWARM toggle Filters (operator 2026-05-22 "AI SWARM") ──
+# Three chat-bar toggle-filters (toggle=True chips): Council / Delegate /
+# Force-tool. Each inlet injects body.mios_flags.<flag>, which the MiOS
+# Agent Pipe (:8640) reads per-request to force the swarm behaviour. Same
+# create-or-update-on-409 pattern + admin TOKEN as the anti-meta filter.
+for _spec in \
+    "mios_swarm_council|MiOS Swarm · Council|/usr/share/mios/owui/pipes/mios_swarm_council_filter.py|Force the full multi-agent swarm (every agent, concurrent) this chat." \
+    "mios_swarm_delegate|MiOS Swarm · Delegate|/usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py|Force per-agent swarm decomposition (different sub-tasks to different agents)." \
+    "mios_swarm_forcetool|MiOS Swarm · Force-tool|/usr/share/mios/owui/pipes/mios_swarm_forcetool_filter.py|Force the executor to act via a real tool_call (tool_choice=required)." ; do
+    IFS='|' read -r _sid _sname _ssrc _sdesc <<< "$_spec"
+    if [ ! -f "$_ssrc" ]; then
+        echo "[mios-owui-install-pipe] ⚠ swarm filter src missing: $_ssrc" >&2
+        continue
+    fi
+    _SPAYLOAD=$(python3 - "$_sid" "$_sname" "$_ssrc" "$_sdesc" <<'PYEOF'
+import json, sys
+fid, fname, src, desc = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(src) as f:
+    content = f.read()
+print(json.dumps({
+    "id": fid, "name": fname, "content": content,
+    "meta": {"description": desc, "manifest": {}},
+    "type": "filter", "is_active": True, "is_global": True,
+}))
+PYEOF
+)
+    _SC=$(curl -s -X POST "$OWUI_URL/api/v1/functions/create" \
+        -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+        -d "$_SPAYLOAD" -o /tmp/mios-owui-install-pipe.resp -w "%{http_code}")
+    case "$_SC" in
+        200|201) echo "[mios-owui-install-pipe] ✓ created Filter $_sid" ;;
+        400|409)
+            _SC2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$_sid/update" \
+                -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+                -d "$_SPAYLOAD" -o /tmp/mios-owui-install-pipe.resp -w "%{http_code}")
+            case "$_SC2" in
+                200|201) echo "[mios-owui-install-pipe] ✓ updated Filter $_sid" ;;
+                *)       echo "[mios-owui-install-pipe] ✗ Filter $_sid update $_SC2" >&2 ;;
+            esac ;;
+        *) echo "[mios-owui-install-pipe] ✗ Filter $_sid create $_SC" >&2 ;;
+    esac
+done
+
+
 # ─── MiOS Agents Sidecar Filter -- RETIRED ────────────────────────
 # agent-pipe is the canonical orchestrator now and emits its own
 # SSE status events (📡 prompt / 🧭 route / 📋 plan / 💬 chat / ...).
