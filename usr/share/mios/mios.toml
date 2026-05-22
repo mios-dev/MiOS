@@ -645,6 +645,15 @@ endpoint = "http://localhost:8644/v1"
 model    = "mios-sys-agent"
 role     = "telemetry"
 default  = false
+# fanout=false: do NOT auto-fan-out into chat answers. Its strengths
+# (event_query/what_just_happened) tokenise to common words (event/what/
+# happened) that coincidentally match almost any prose, so even the
+# score>0-gated CPU bonus kept dumping crowdsec/CDP failure digests into
+# unrelated answers (operator 2026-05-22: "fail across the board" on a
+# workplace-accident query). The daemon keeps doing its global-log
+# monitoring + satisfaction loop regardless; it just no longer pollutes
+# the chat. Re-enable with a precise system-intent gate later.
+fanout   = false
 # CPU lane: the daemon-agent runs light (raw-context assembly) off the dGPU,
 # so the fan-out can self-delegate to it CONCURRENTLY with a GPU primary --
 # supplementing every agent turn with global-log + web context at zero dGPU

@@ -832,6 +832,8 @@ def _load_agent_registry() -> dict[str, dict]:
                 "default":  bool(cfg.get("default", False)),
                 "strengths": list(cfg.get("strengths") or []),
                 "lane":     str(cfg.get("lane", "")).lower().strip(),
+                # fan-out opt-out (default True = eligible as a secondary).
+                "fanout":   bool(cfg.get("fanout", True)),
             }
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
@@ -923,6 +925,14 @@ def _pick_fanout_agents(primary_name: str,
     scored = []
     for name, cfg in _AGENT_REGISTRY.items():
         if name == primary_name:
+            continue
+        # Honour an explicit opt-out: an agent with fanout=false is NEVER a
+        # secondary (operator 2026-05-22 -- the telemetry daemon-agent's
+        # broad strength tokens coincidentally matched almost any query and
+        # flooded answers with system-failure digests). Its own monitoring
+        # loop is unaffected; this only governs chat fan-out.
+        if str(cfg.get("fanout", "")).lower() in {"false", "no", "0"} \
+                or cfg.get("fanout") is False:
             continue
         # Split snake_case strengths into tokens so 'web_search' can match
         # 'search'/'web' in the intent prose, not only the literal string.

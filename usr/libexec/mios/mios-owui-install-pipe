@@ -440,12 +440,22 @@ if sys_prompt:
         "web_search": True, "image_generation": True, "code_interpreter": True,
     }
     want_features = []  # do NOT auto-fire features per message (greeting fix)
-    # ALL registered OWUI tools (operator 2026-05-22: "all owui's tools
-    # enabled by default for MiOS AI"). Query the tool table so EVERY tool
-    # mios-owui-install-tools registered is attached -- not a hardcoded
-    # subset (sub_agent was being dropped). Empty (tools not yet installed
-    # at this firstboot ordering) -> the merge below keeps existing_tools.
-    want_tools = [r[0] for r in c.execute("SELECT id FROM tool").fetchall()]
+    # MiOS-AUTHORED tools only (operator 2026-05-22). "all owui's tools" was
+    # taken literally first and attached third-party marketplace tools
+    # (openui by thesysdev/vishxrad, sub_agent by skyzi000) -- openui then
+    # fired on a "send to Discord" turn and FABRICATED a fake "interactive
+    # OpenUI visualization", claiming success while nothing happened. Those
+    # tools are not MiOS's and misbehave for this agent (Hermes already owns
+    # discord / web / browser / terminal natively via the pipe). So attach
+    # only MiOS-authored tools (mios_verbs + any future mios-* tool); the
+    # query stays dynamic so a new MiOS tool auto-attaches without code edits.
+    # Empty (tools not yet installed at this firstboot ordering) -> the merge
+    # below keeps existing_tools.
+    want_tools = [
+        r[0] for r in c.execute(
+            "SELECT id FROM tool WHERE coalesce(content,'') LIKE '%author: MiOS%' "
+            "OR id LIKE 'mios%'").fetchall()
+    ]
     for row_id in (model_id, twin_id):
         cur = c.execute(
             "SELECT params, meta FROM model WHERE id = ?", (row_id,)).fetchone()
@@ -468,8 +478,13 @@ if sys_prompt:
         caps.update(want_caps)
         m["capabilities"] = caps
         m["defaultFeatureIds"] = want_features
-        existing_tools = m.get("toolIds") or m.get("tool_ids") or []
-        m["toolIds"] = list(dict.fromkeys([*existing_tools, *want_tools]))
+        # AUTHORITATIVE set (not a merge): replace toolIds with the curated
+        # MiOS-authored set so previously-attached third-party tools
+        # (openui / sub_agent) that fabricated output are REMOVED, not kept.
+        # Tool-use then flows only through the MiOS planner + Hermes +
+        # confirmation-engine pipeline, never a raw client tool-loop.
+        m.pop("tool_ids", None)
+        m["toolIds"] = list(dict.fromkeys(want_tools))
         c.execute("UPDATE model SET params = ?, meta = ? WHERE id = ?",
                   (json.dumps(p), json.dumps(m), row_id))
         synced += 1
