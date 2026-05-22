@@ -3245,10 +3245,20 @@ pkgs = [
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 # Full Cockpit suite + PCP stack. cockpit-packagekit is intentionally
 # omitted because PackageKit is in [packages.bloat] (bootc + flatpak
-# handle updates on MiOS). pcp-zeroconf is the package that flips the
-# preset on pmlogger.service / pmproxy.service so the Cockpit Metrics
-# tab populates history out of the box -- without it, pmlogger ships
-# disabled and the Metrics page renders "history could not be loaded".
+# handle updates on MiOS). pcp-zeroconf flips the preset on pmlogger/
+# pmproxy so collection runs out of the box.
+#
+# Cockpit Metrics HISTORY (cockpit 361, Fedora 44) reads time-series via
+# pmproxy -> pmseries, which REQUIRES a redis-compatible key-server -->
+# `keydb` here. Without a key-server the Metrics tab renders "history
+# could not be loaded" / "pmlogger.service is failing to collect data"
+# even though pmlogger IS collecting (the data is fine; the query backend
+# is missing). keydb 6.3 works with PCP 7.1; valkey 9.x is protocol-
+# incompatible (closes the pmproxy connection), so pin keydb. (2026-05-22
+# regression fix: no key-server was in the list, so history broke.)
+# NOTE: there is NO `cockpit-pcp` package in Fedora 44 (retired/merged
+# into cockpit-system) -- do not re-add it; install_packages_strict skips
+# the unknown name but it is dead weight.
 pkgs = [
     "cockpit",
     "cockpit-system",
@@ -3261,7 +3271,6 @@ pkgs = [
     "cockpit-ostree",
     "cockpit-selinux",
     "cockpit-files",
-    "cockpit-pcp",
     "cockpit-sosreport",
     "cockpit-kdump",
     "pcp",
@@ -3269,6 +3278,9 @@ pkgs = [
     "pcp-zeroconf",
     "pcp-pmda-systemd",
     "pcp-pmda-openmetrics",
+    # redis-compatible key-server -- pmproxy/pmseries time-series backend
+    # that Cockpit's Metrics HISTORY queries. Required (see note above).
+    "keydb",
 ]
 
 [packages.wintools]
