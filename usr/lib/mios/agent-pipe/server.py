@@ -1799,6 +1799,10 @@ async def refine_intent(user_text: str,
                 len(tasks) if isinstance(tasks, list) else "non-list",
             )
             parsed["intent"] = "agent"
+            # Keep the MULTI-STEP signal: refine SAW multiple steps but did
+            # not itemise them. The handler hands this to the planner to
+            # decompose into a concurrent per-agent DAG (operator 2026-05-22).
+            parsed["_multi_step"] = True
             parsed.pop("tasks", None)
     # Long-prompt guard (language-agnostic): a real intent=chat /
     # intent=dispatch input is short (greeting, single verb).
@@ -4697,6 +4701,88 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
     }
 
 
+def _agent_dag_from_tasks(tasks: list) -> dict:
+    """Build a CONCURRENT per-agent DAG from refine's multi_task array:
+    one agent node per independent task, routed to the task's target_agent
+    (a registry key as-is, else role-matched via _pick_agent, else the
+    default agent), all deps=[] so they run in PARALLEL. This is refine's
+    OWN decomposition -- each sub-task already carries a target_agent hint
+    -- so no extra planner LLM call is needed. Realises the operator's
+    "separate prompts per refinement step -> sub-agents ... concurrent
+    Compute" directly. Returns {summary, nodes}."""
+    nodes: list = []
+    for i, t in enumerate(tasks):
+        if not isinstance(t, dict):
+            continue
+        prompt = str(t.get("refined_text") or t.get("title") or "").strip()
+        if not prompt:
+            continue
+        tgt = str(t.get("target_agent") or "").strip()
+        aname = tgt if tgt in _AGENT_REGISTRY else _pick_agent(tgt)[0]
+        nodes.append({"id": f"t{i + 1}", "agent": aname,
+                      "prompt": prompt, "deps": []})
+    summary = "; ".join(str(t.get("title") or "")[:60]
+                        for t in tasks if isinstance(t, dict))[:200]
+    return {"summary": summary, "nodes": nodes}
+
+
+async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
+                             streaming: bool, chat_id: str, model: str,
+                             session_id: Optional[str], last_user_text: str,
+                             persona_system: str):
+    """Execute a per-agent DAG concurrently and SYNTHESISE the agents'
+    outputs into ONE polished answer (multi_task -> parallel sub-agents).
+    The per-node audit envelope rides the reasoning channel; the polished
+    synthesis is the operator-facing answer -- same answer/dropdown split
+    as the agent + council paths."""
+    dag_result = await execute_dag(dag, session_id=session_id)
+    merged = "\n\n".join(
+        f"[{n.get('tool', 'agent')}]:\n{(n.get('output') or '').strip()}"
+        for n in dag_result.get("node_results", [])
+        if (n.get("output") or "").strip())
+    env = {"dag": {"summary": dag.get("summary", ""),
+                   "nodes_total": dag_result.get("nodes_total", 0),
+                   "nodes_executed": dag_result.get("nodes_executed", 0),
+                   "success": dag_result.get("success", False)},
+           "nodes": dag_result.get("node_results", [])}
+    symbol = "✅" if dag_result.get("success") else "⚠️"
+    envelope = (f"<details type=\"tool_calls\" done=\"true\">\n"
+                f"<summary>{symbol} agents · {env['dag']['nodes_total']} "
+                f"parallel</summary>\n\n"
+                f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
+                f"</details>")
+    polished = ""
+    if merged.strip():
+        polished_raw = await polish_response(
+            merged, refined, session_id=session_id,
+            original_user_text=last_user_text, persona_system=persona_system)
+        polished = _strip_think_tags(polished_raw) if polished_raw else ""
+    main = polished.strip() or _strip_think_tags(merged)
+    if streaming:
+        async def _gen() -> AsyncGenerator[bytes, None]:
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="prompt")
+            yield _sse_status_phase(chat_id=chat_id, model=model, phase="plan")
+            yield _sse_reasoning(envelope + "\n", chat_id=chat_id, model=model)
+            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+            yield _sse_chunk(main, chat_id=chat_id, model=model)
+            yield _sse_status_phase(
+                chat_id=chat_id, model=model,
+                phase="dag_done" if dag_result.get("success")
+                else "dag_done_warn", done=True)
+            yield _sse_chunk("", chat_id=chat_id, model=model,
+                             finish_reason="stop")
+            yield _sse_done()
+        return StreamingResponse(_gen(), media_type="text/event-stream")
+    return JSONResponse(content={
+        "id": chat_id, "object": "chat.completion",
+        "created": int(time.time()), "model": model,
+        "choices": [{"index": 0,
+                     "message": {"role": "assistant", "content": main},
+                     "finish_reason": "stop"}],
+    })
+
+
 # ── Dispatch (broker socket bridge) ────────────────────────────────
 def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     """Map verb name + args -> the bash command line the launcher
@@ -6639,6 +6725,25 @@ async def chat_completions(request: Request) -> Any:
                 queued[0].get("title", ""),
                 [t.get("title", "") for t in queued[1:]],
             )
+            # Operator 2026-05-22 ("separate prompts per refinement step ->
+            # sub-agents ... concurrent Compute"): run the independent tasks
+            # as a CONCURRENT per-agent DAG THIS turn -- each task routed to
+            # its target_agent, all in parallel -- and synthesise one answer,
+            # instead of promoting task #0 and deferring the rest to follow-up
+            # turns. The kanban_shadow queue above stays (audit/visibility).
+            # Falls through to the legacy promote-and-queue path when fewer
+            # than 2 tasks resolve to agents.
+            if PLANNER_ENABLED:
+                _adag = _agent_dag_from_tasks(queued)
+                if len(_adag.get("nodes") or []) >= 2:
+                    log.info("multi_task -> concurrent agent DAG (%d): %s",
+                             len(_adag["nodes"]),
+                             [n["agent"] for n in _adag["nodes"]])
+                    return await _respond_agent_dag(
+                        _adag, refined, streaming=streaming, chat_id=chat_id,
+                        model=model, session_id=session_id,
+                        last_user_text=last_user_text,
+                        persona_system=_persona_system)
             # Promote task #0 to the active turn. Replace
             # last_user_text + the refined envelope's top-level
             # fields with task #0's, so all downstream branches
@@ -6657,6 +6762,26 @@ async def chat_completions(request: Request) -> Any:
             refined["intent"] = "agent"
             refined["_multi_task_queue"] = queued
             refined["_multi_task_active_idx"] = 0
+
+    # MULTI-STEP -> per-agent DAG bridge (operator 2026-05-22 "separate
+    # prompts per refinement step -> sub-agents ... concurrent Compute").
+    # refine flagged this turn multi-step but didn't itemise a tasks array
+    # (so the multi_task block above didn't fire). Give the planner ONE
+    # chance to decompose it; if it returns a genuine MULTI-AGENT plan
+    # (>=1 agent node), run that DAG concurrently this turn + synthesise.
+    # Otherwise fall through to the unified Hermes + council path unchanged.
+    # This is the unify-on entry point to the per-agent planner DAG.
+    if refined and refined.get("_multi_step") and PLANNER_ENABLED:
+        _mdag = await decompose_intent(last_user_text)
+        if _mdag and any(n.get("agent")
+                         for n in (_mdag.get("nodes") or [])):
+            log.info("multi_step -> planner agent DAG (%d nodes; agents=%s)",
+                     len(_mdag.get("nodes") or []),
+                     [n.get("agent") for n in _mdag["nodes"] if n.get("agent")])
+            return await _respond_agent_dag(
+                _mdag, refined, streaming=streaming, chat_id=chat_id,
+                model=model, session_id=session_id,
+                last_user_text=last_user_text, persona_system=_persona_system)
 
     # Unify-on default (operator 2026-05-20: "Unify should be on by
     # default"). Non-chat routes through the agent path (refine -> Hermes
