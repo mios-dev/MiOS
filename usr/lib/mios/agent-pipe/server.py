@@ -895,6 +895,24 @@ def _agent_lane(cfg: dict) -> str:
     return "gpu"
 
 
+def _agent_skill_tags(cfg: dict) -> list[str]:
+    """Canonical skill tags for an agent: role + inference lane + declared
+    strengths. SINGLE SSOT shared by the A2A AgentCard (publish side ->
+    skill.tags) and _pick_fanout_agents (consume side -> routing key) so an
+    agent's advertised capabilities and the key the orchestrator routes on
+    can never drift. Clean human/agent-facing labels (NOT snake_case-split);
+    the router expands sub-tokens for matching internally."""
+    tags = {
+        str(cfg.get("role", "general")).lower().strip(),
+        _agent_lane(cfg),
+    }
+    for s in (cfg.get("strengths") or []):
+        s = str(s).lower().strip()
+        if s:
+            tags.add(s)
+    return sorted(t for t in tags if t)
+
+
 def _pick_fanout_agents(primary_name: str,
                         refined: Optional[dict]) -> list:
     """Pick SECONDARY (name, cfg) agents to run CONCURRENTLY alongside the
@@ -921,6 +939,11 @@ def _pick_fanout_agents(primary_name: str,
                 corpus += " " + " ".join(str(x) for x in v).lower()
     if not corpus.strip():
         return []
+    # Word-boundary token set of the intent (NOT substring): the old
+    # `tag in corpus` matched 'search' inside 'researching' and similar
+    # accidental substrings. Routing on whole words against the A2A skill
+    # tags is both more precise and the standard's capability surface.
+    corpus_words = set(re.findall(r"[a-z0-9]+", corpus))
     primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
     scored = []
     for name, cfg in _AGENT_REGISTRY.items():
@@ -934,14 +957,16 @@ def _pick_fanout_agents(primary_name: str,
         if str(cfg.get("fanout", "")).lower() in {"false", "no", "0"} \
                 or cfg.get("fanout") is False:
             continue
-        # Split snake_case strengths into tokens so 'web_search' can match
-        # 'search'/'web' in the intent prose, not only the literal string.
-        terms = {str(cfg.get("role", "")).lower()}
-        for s in (cfg.get("strengths") or []):
-            s = str(s).lower()
-            terms.add(s)
-            terms.update(s.split("_"))
-        score = sum(1 for t in terms if t and t in corpus)
+        # Route on the agent's A2A skill tags (the SAME _agent_skill_tags
+        # SSOT the AgentCard publishes), expanding snake_case sub-tokens for
+        # matching so 'web_search' also matches 'web' / 'search'. Match is
+        # WORD-BOUNDARY (tag in corpus_words), not substring -- no accidental
+        # 'search' inside 'researching'. Card capability == routing key.
+        match_tokens: set[str] = set()
+        for t in _agent_skill_tags(cfg):
+            match_tokens.add(t)
+            match_tokens.update(p for p in t.split("_") if p)
+        score = len(match_tokens & corpus_words)
         # CPU-lane concurrency bonus: boost an ALREADY-RELEVANT CPU-lane
         # agent (base score>0) when the primary holds the GPU lane, so a
         # genuinely-relevant secondary parallelises at zero dGPU cost.
@@ -5401,11 +5426,9 @@ def _build_agent_card() -> dict:
     for name, cfg in _AGENT_REGISTRY.items():
         role = str(cfg.get("role", "general"))
         lane = _agent_lane(cfg)
-        tags = sorted({
-            t for t in (
-                [str(s) for s in (cfg.get("strengths") or [])] + [role, lane]
-            ) if t
-        })
+        # Shared SSOT: same tags the fan-out router (_pick_fanout_agents)
+        # keys on, so advertised capability == routing key.
+        tags = _agent_skill_tags(cfg)
         desc_bits = [f"{role} agent on the {lane} inference lane"]
         if cfg.get("default"):
             desc_bits.append("primary/default orchestrator")
