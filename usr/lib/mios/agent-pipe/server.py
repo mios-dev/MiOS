@@ -6479,6 +6479,55 @@ async def portal_service_detail(port: int) -> JSONResponse:
         "image": cinfo.get("image", ""), "logs": logs})
 
 
+@app.get("/portal/swarm")
+async def portal_swarm() -> JSONResponse:
+    """Live SWARM roster (operator 2026-05-22 'emitters for all nodes/
+    endpoints to confirm live the nodes/models/endpoints'): every registered
+    agent/node with live reachability + the model(s) it actually serves
+    (probed, not just configured). health_gate client nodes (mobile/Tailscale)
+    show up/down as they join/leave the swarm."""
+    async def _probe(name: str, cfg: dict, client) -> dict:
+        ep = (cfg.get("endpoint") or "").rstrip("/")
+        t0 = time.time()
+        reachable, live = False, []
+        try:  # OpenAI /v1/models
+            r = await client.get(f"{ep}/models")
+            if r.status_code < 500:
+                reachable = True
+                live = [str(m.get("id")) for m in
+                        ((r.json() or {}).get("data") or [])
+                        if isinstance(m, dict) and m.get("id")]
+        except Exception:
+            pass
+        if not reachable:  # ollama-style /api/tags
+            tb = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
+            try:
+                r = await client.get(f"{tb}/api/tags")
+                if r.status_code < 500:
+                    reachable = True
+                    live = [str(m.get("name")) for m in
+                            ((r.json() or {}).get("models") or [])
+                            if isinstance(m, dict) and m.get("name")]
+            except Exception:
+                pass
+        return {"name": name, "role": cfg.get("role", ""),
+                "lane": _agent_lane(cfg), "endpoint": ep,
+                "model": cfg.get("model", ""), "live_models": live[:8],
+                "reachable": reachable, "ms": int((time.time() - t0) * 1000),
+                "default": bool(cfg.get("default")),
+                "fanout": bool(cfg.get("fanout", True)),
+                "health_gate": bool(cfg.get("health_gate")),
+                "strengths": cfg.get("strengths") or []}
+    async with httpx.AsyncClient(verify=False, timeout=3.0,
+                                 follow_redirects=False) as client:
+        agents = await asyncio.gather(
+            *[_probe(n, c, client) for n, c in _AGENT_REGISTRY.items()])
+    agents.sort(key=lambda a: (not a["reachable"], a["name"]))
+    up = sum(1 for a in agents if a["reachable"])
+    return JSONResponse({"agents": agents, "up": up,
+                         "total": len(agents), "ts": int(time.time())})
+
+
 _PORTAL_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -6577,6 +6626,17 @@ border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15
 .name{font-size:15.5px;font-weight:600}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--mut)}
 .dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+/* swarm node tiles */
+.lane{font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:1px 7px;
+border-radius:20px;border:1px solid var(--line);color:var(--mut)}
+.lane.gpu{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.lane.cpu{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.lane.mobile{color:var(--silver);border-color:color-mix(in srgb,var(--silver) 45%,transparent)}
+.node .m{font-size:11.5px;color:var(--mut);margin-top:7px;font-family:var(--mono);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .ep{font-size:10.5px;color:color-mix(in srgb,var(--mut) 70%,transparent);
+font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.node .tags{font-size:10px;color:var(--earth);margin-top:6px}
 .meta{color:var(--mut);font-size:12px;margin-top:9px;display:flex;justify-content:space-between}
 .port{font-family:ui-monospace,Menlo,monospace}
 .kebab{position:absolute;top:9px;right:9px;z-index:5;background:transparent;border:0;
@@ -6641,6 +6701,11 @@ border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;d
 </div>
 
 <div class="hoststrip" id="host"></div>
+
+<section>
+  <div class="h"><h2>Swarm Nodes</h2><span class="n" id="swarmn"></span></div>
+  <div class="grid" id="swarm"></div>
+</section>
 
 <section>
   <div class="h"><h2>Services</h2><span class="n" id="svcn"></span></div>
@@ -6709,8 +6774,29 @@ function render(j){
   var sx=S.filter(function(s){return s.port==8888;})[0];if(sx)SEARX=sx.url;
   $("foot").textContent="refreshed "+new Date((j.ts||0)*1000).toLocaleTimeString();
 }
+function renderSwarm(j){
+  var a=j.agents||[];
+  $("swarmn").textContent=(j.up||0)+" / "+(j.total||a.length)+" nodes live";
+  $("swarm").innerHTML=a.map(function(n){
+    var ep=(n.endpoint||"").replace(/^https?:\/\//,"");
+    var lm=(n.live_models&&n.live_models.length)?n.live_models.join(", "):(n.model||"?");
+    var tag=n.health_gate?' &middot; <span class="tags">client</span>':
+      (n.default?' &middot; <span class="tags">primary</span>':"");
+    return '<div class="card node '+(n.reachable?"up":"down")+'">'+
+      '<div class="row"><span class="name">'+esc(n.name)+'</span>'+
+        '<span class="dot '+(n.reachable?"ok":"bad")+'"></span></div>'+
+      '<div class="m">'+esc(lm)+'</div>'+
+      '<div class="ep">'+esc(ep||"-")+'</div>'+
+      '<div class="meta"><span class="lane '+esc(n.lane||"")+'">'+
+        esc(n.lane||n.role||"node")+'</span>'+
+        '<span>'+(n.reachable?(n.ms+" ms"):"down")+tag+'</span></div></div>';
+  }).join("");
+}
+function tickSwarm(){fetch("/portal/swarm",{cache:"no-store"})
+  .then(function(r){return r.json();}).then(renderSwarm).catch(function(){});}
 function tick(){fetch("/portal/stats",{cache:"no-store"}).then(function(r){return r.json();})
-  .then(render).catch(function(){$("foot").textContent="stats unavailable";});}
+  .then(render).catch(function(){$("foot").textContent="stats unavailable";});
+  tickSwarm();}
 function arm(){if(timer)clearInterval(timer);if(OPTS.refresh)timer=setInterval(tick,OPTS.refresh);}
 function detail(p){
   fetch("/portal/service/"+p,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
