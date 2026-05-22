@@ -31,6 +31,17 @@ Network=ai-net.network
 # resolved by mios-cdi-detect.service (bare-metal nvidia-ctk spec OR the
 # WSL2 /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds /usr/lib/wsl).
 AddDevice=nvidia.com/gpu=all
+# Unprivileged identity (Architectural Law 6 -- UNPRIVILEGED-QUADLETS).
+# Numeric UID/GID, same as ollama.container: the upstream
+# vllm/vllm-openai image has no `mios-*` entry in its /etc/passwd, so a
+# name-based User= lookup fails with status 126. Reuse the mios-ollama
+# service identity (815, from mios.toml [services.ollama].uid/.gid) --
+# vLLM is the GPU-inference sibling sharing the same CDI device line, and
+# it only READS the immutable RO weights mount below (no writable volume
+# to own), so co-running under one GPU service uid is safe and keeps the
+# unprivileged invariant. Override per-host via a .container.d/ drop-in.
+User=815
+Group=815
 # vLLM serves the baked grounding VLM, OpenAI-compatible, on :11436.
 # --gpu-memory-utilization kept low so it co-resides with ollama's models
 # on a 24GB GPU; raise on a dedicated/large GPU. --model points at the
