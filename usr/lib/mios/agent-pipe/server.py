@@ -6324,7 +6324,11 @@ _PORTAL_SERVICES = _discover_portal_services()
 
 def _host_stats() -> dict:
     """Cheap host telemetry from /proc (no psutil dependency)."""
-    out: dict[str, Any] = {}
+    out: dict[str, Any] = {"cpu": os.cpu_count()}
+    try:
+        out["host"] = open("/proc/sys/kernel/hostname").read().strip()
+    except OSError:
+        pass
     try:
         out["load"] = open("/proc/loadavg").read().split()[:3]
     except OSError:
@@ -6348,10 +6352,39 @@ def _host_stats() -> dict:
     return out
 
 
+async def _podman_ps() -> dict:
+    """Best-effort host-port -> {container,state,image} map from podman.
+    Returns {} on any failure (podman absent / no perms) so the portal
+    degrades to health-only without erroring."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "podman", "ps", "-a", "--format", "json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=4.0)
+        data = json.loads(out or b"[]")
+    except Exception:
+        return {}
+    by_port: dict[int, dict] = {}
+    for c in data if isinstance(data, list) else []:
+        names = c.get("Names") or []
+        info = {"container": (names[0] if names else (c.get("Id") or "")[:12]),
+                "state": str(c.get("State", "")).lower(),
+                "image": c.get("Image", "")}
+        for p in (c.get("Ports") or []):
+            hp = p.get("host_port") if isinstance(p, dict) else None
+            if hp:
+                by_port[int(hp)] = info
+    return by_port
+
+
 @app.get("/portal/stats")
 async def portal_stats() -> JSONResponse:
     """Live server-side health of every discovered MiOS service + host
-    stats. Self-signed backends (Cockpit) are checked insecurely."""
+    stats + best-effort container state. Self-signed backends checked
+    insecurely. The single source the dashboard polls."""
+    pmap = await _podman_ps()
+
     async def _check(svc: dict, client) -> dict:
         t0 = time.time()
         ok = False
@@ -6360,8 +6393,13 @@ async def portal_stats() -> JSONResponse:
             ok = r.status_code < 500
         except Exception:
             ok = False
+        cinfo = pmap.get(svc["port"], {})
         return {"name": svc["name"], "port": svc["port"], "ok": ok,
                 "ms": int((time.time() - t0) * 1000),
+                "internal": svc["local"],
+                "container": cinfo.get("container", ""),
+                "state": cinfo.get("state", ""),
+                "image": cinfo.get("image", ""),
                 "url": f"https://{PORTAL_PUBLIC_HOST}:{svc['port']}"
                        f"{svc.get('path', '/')}"}
     async with httpx.AsyncClient(verify=False, timeout=4.0,
@@ -6372,70 +6410,284 @@ async def portal_stats() -> JSONResponse:
                          "ts": int(time.time())})
 
 
-_PORTAL_HTML = """<!DOCTYPE html>
+@app.get("/portal/service/{port}")
+async def portal_service_detail(port: int) -> JSONResponse:
+    """On-demand detail for one service (clicked in the dashboard): live
+    status + container state/image + recent log lines (best-effort)."""
+    svc = next((s for s in _PORTAL_SERVICES if s["port"] == port), None)
+    if not svc:
+        return JSONResponse({"error": "unknown service"}, status_code=404)
+    pmap = await _podman_ps()
+    cinfo = pmap.get(port, {})
+    logs = ""
+    cname = cinfo.get("container", "")
+    if cname:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "podman", "logs", "--tail", "40", cname,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT)
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            logs = _sanitize_tool_text((out or b"").decode(
+                "utf-8", "replace"))[-4000:]
+        except Exception:
+            logs = ""
+    ok = False
+    async with httpx.AsyncClient(verify=False, timeout=4.0,
+                                 follow_redirects=False) as client:
+        try:
+            r = await client.get(svc["local"])
+            ok = r.status_code < 500
+        except Exception:
+            ok = False
+    return JSONResponse({
+        "name": svc["name"], "port": port, "ok": ok,
+        "internal": svc["local"],
+        "url": f"https://{PORTAL_PUBLIC_HOST}:{port}{svc.get('path', '/')}",
+        "container": cname, "state": cinfo.get("state", ""),
+        "image": cinfo.get("image", ""), "logs": logs})
+
+
+_PORTAL_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiOS</title>
 <style>
 :root{--bg:#0b0f14;--card:#141b24;--card2:#1b2530;--fg:#e6edf3;--mut:#7d8997;
---ok:#3fb950;--bad:#f85149;--accent:#58a6ff;--line:#222c38}
+--ok:#3fb950;--bad:#f85149;--accent:#58a6ff;--line:#222c38;--rad:12px}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
 font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{padding:28px 24px 14px;border-bottom:1px solid var(--line)}
-h1{margin:0;font-size:30px;letter-spacing:.5px}
-h1 b{color:var(--accent)}
-.sub{color:var(--mut);font-size:13px;margin-top:4px}
-.host{display:flex;gap:22px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--mut)}
-.host b{color:var(--fg);font-weight:600}
-.grid{display:grid;gap:14px;padding:22px 24px;
-grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
-a.card{display:block;text-decoration:none;color:inherit;background:var(--card);
-border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;
-transition:.15s border-color,.15s transform}
-a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+a{color:var(--accent);text-decoration:none}
+.bar{display:flex;align-items:center;gap:16px;padding:14px 22px;
+border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:30}
+h1{margin:0;font-size:24px;letter-spacing:.5px}h1 b{color:var(--accent)}
+.host{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin-left:6px}
+.host b{color:var(--fg)}
+.spacer{flex:1}
+.menu{position:relative}
+.btn{background:var(--card2);border:1px solid var(--line);color:var(--fg);
+border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.drop{position:absolute;right:0;top:110%;background:var(--card);border:1px solid var(--line);
+border-radius:10px;padding:8px;min-width:200px;display:none;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.drop.open{display:block}
+.drop label{display:flex;justify-content:space-between;align-items:center;
+padding:7px 8px;font-size:13px;color:var(--mut);gap:10px}
+.drop select,.drop input{background:var(--bg);color:var(--fg);border:1px solid var(--line);
+border-radius:7px;padding:4px 7px;font-size:13px}
+section{padding:18px 22px}
+.h{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+.h h2{font-size:15px;letter-spacing:.4px;text-transform:uppercase;color:var(--mut);margin:0}
+.h .n{color:var(--mut);font-size:12px}
+/* Top column: SearXNG search + MiOS AI chat, centered, same width as the
+   header (operator 2026-05-22). */
+.top{width:min(760px,100%);margin:20px auto 8px;padding:0 18px}
+.websearch{display:flex;gap:8px;margin:0 0 12px}
+.websearch input{flex:1;background:var(--card);border:1px solid var(--line);color:var(--fg);
+border-radius:11px;padding:12px 16px;font-size:15px}
+.websearch input:focus{outline:none;border-color:var(--accent)}
+.hoststrip{width:min(760px,100%);margin:0 auto 2px;padding:8px 18px 0;display:flex;
+gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)}
+.hoststrip b{color:var(--fg)}
+/* miniature 16:10 chat window, inline + drag-resizable */
+#chatwrap{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
+margin:0 auto;width:100%;aspect-ratio:16/10;resize:both;
+min-width:280px;min-height:200px;max-width:100%}
+#chatwrap.min{display:none}
+#chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
+.grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+.card{position:relative;background:var(--card);border:1px solid var(--line);
+border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15s transform}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card .lnk{position:absolute;inset:0;border-radius:var(--rad)}
 .row{display:flex;align-items:center;justify-content:space-between}
-.name{font-size:16px;font-weight:600}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--mut);
-box-shadow:0 0 0 3px rgba(255,255,255,.03)}
+.name{font-size:15.5px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--mut)}
 .dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
-.meta{color:var(--mut);font-size:12px;margin-top:10px;display:flex;
-justify-content:space-between}
-.port{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-footer{color:var(--mut);font-size:12px;text-align:center;padding:14px}
+.meta{color:var(--mut);font-size:12px;margin-top:9px;display:flex;justify-content:space-between}
+.port{font-family:ui-monospace,Menlo,monospace}
+.kebab{position:absolute;top:9px;right:9px;z-index:5;background:transparent;border:0;
+color:var(--mut);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
+.kebab:hover{background:var(--card2);color:var(--fg)}
+.cdrop{position:absolute;top:30px;right:9px;z-index:6;background:var(--card2);
+border:1px solid var(--line);border-radius:9px;padding:5px;display:none;min-width:140px}
+.cdrop.open{display:block}
+.cdrop button{display:block;width:100%;text-align:left;background:transparent;border:0;
+color:var(--fg);font-size:13px;padding:7px 9px;border-radius:6px;cursor:pointer}
+.cdrop button:hover{background:var(--card)}
+.state{font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
+.state.running{color:var(--ok);border-color:#1c3b22}
+.search{display:flex;gap:8px;margin-bottom:14px}
+.search input{flex:1;background:var(--card);border:1px solid var(--line);color:var(--fg);
+border-radius:9px;padding:9px 12px;font-size:14px}
+.app{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 13px}
+.app .c{color:var(--accent);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.app .d{color:var(--mut);font-size:12.5px;margin-top:4px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:50;
+align-items:center;justify-content:center;padding:20px}
+.modal.open{display:flex}
+.sheet{background:var(--card);border:1px solid var(--line);border-radius:14px;
+width:min(720px,100%);max-height:86vh;overflow:auto;padding:20px 22px}
+.sheet h3{margin:0 0 4px;font-size:20px}
+.kv{display:flex;gap:10px;font-size:13px;margin:6px 0;color:var(--mut)}
+.kv b{color:var(--fg);font-weight:600;min-width:90px}
+.kv code{font-family:ui-monospace,Menlo,monospace;color:var(--fg);word-break:break-all}
+pre{background:#06090d;border:1px solid var(--line);border-radius:9px;padding:12px;
+font-size:12px;max-height:340px;overflow:auto;color:#aeb9c4;white-space:pre-wrap}
+.x{float:right;background:transparent;border:0;color:var(--mut);font-size:22px;cursor:pointer}
+footer{color:var(--mut);font-size:12px;text-align:center;padding:16px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--card2);
+border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;display:none;z-index:60}
 </style></head><body>
-<header>
+<div class="bar">
   <h1>Mi<b>OS</b></h1>
-  <div class="sub">local-first agentic OS &middot; service portal</div>
-  <div class="host" id="host"></div>
-</header>
-<div class="grid" id="grid"></div>
+  <div class="spacer"></div>
+  <button class="btn" id="chatToggle">&#128172; Chat</button>
+  <div class="menu">
+    <button class="btn" id="menuBtn">&#9776; Menu</button>
+    <div class="drop" id="menu">
+      <label>Refresh <select id="refresh">
+        <option value="5000">5s</option><option value="15000">15s</option>
+        <option value="30000">30s</option><option value="0">off</option></select></label>
+      <label>Sort <select id="sort">
+        <option value="name">name</option><option value="status">status</option>
+        <option value="port">port</option></select></label>
+      <label>Only down <input type="checkbox" id="onlydown"></label>
+      <label><a href="/portal/stats" target="_blank">raw stats JSON</a></label>
+    </div>
+  </div>
+</div>
+
+<div class="top">
+  <form class="websearch" id="wsform">
+    <input id="wsq" placeholder="Search the web with SearXNG&hellip;" autocomplete="off">
+    <button class="btn" type="submit">&#128269; Search</button>
+  </form>
+  <div id="chatwrap"><iframe id="chat" title="MiOS AI"></iframe></div>
+</div>
+
+<div class="hoststrip" id="host"></div>
+
+<section>
+  <div class="h"><h2>Services</h2><span class="n" id="svcn"></span></div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<section>
+  <div class="h"><h2>MiOS Apps</h2><span class="n">windows &middot; terminal &middot; TUIs</span></div>
+  <div class="search">
+    <input id="appq" placeholder="Search installed apps (e.g. browser, htop, steam)&hellip;">
+    <button class="btn" id="appgo">Search</button>
+  </div>
+  <div class="grid" id="apps"></div>
+</section>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
 <footer id="foot">loading&hellip;</footer>
+
 <script>
+var S=[],OPTS={refresh:5000,sort:"name",onlydown:false},timer=null,chatSet=false,SEARX="";
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function toast(t){var e=$("toast");e.textContent=t;e.style.display="block";
+  setTimeout(function(){e.style.display="none";},1600);}
 function fmtUp(s){if(!s)return"?";var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),
-m=Math.floor(s%3600/60);return(d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
+  m=Math.floor(s%3600/60);return(d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
+function copy(t){navigator.clipboard&&navigator.clipboard.writeText(t);toast("copied "+t);}
+function sorted(){var a=S.slice();
+  if(OPTS.onlydown)a=a.filter(function(s){return !s.ok;});
+  a.sort(function(x,y){return OPTS.sort=="status"?(x.ok-y.ok):
+    OPTS.sort=="port"?(x.port-y.port):x.name.localeCompare(y.name);});return a;}
+function cards(){
+  $("grid").innerHTML=sorted().map(function(s){
+    var st=s.state?'<span class="state '+esc(s.state)+'">'+esc(s.state)+'</span>':'';
+    return '<div class="card" data-p="'+s.port+'">'+
+      '<a class="lnk" href="'+esc(s.url)+'" target="_blank" rel="noopener"></a>'+
+      '<button class="kebab" data-k="'+s.port+'">&#8942;</button>'+
+      '<div class="cdrop" id="cd'+s.port+'">'+
+        '<button data-act="open" data-u="'+esc(s.url)+'">Open</button>'+
+        '<button data-act="copy" data-u="'+esc(s.url)+'">Copy URL</button>'+
+        '<button data-act="detail" data-p="'+s.port+'">Details</button></div>'+
+      '<div class="row"><span class="name">'+esc(s.name)+'</span>'+
+        '<span class="dot '+(s.ok?"ok":"bad")+'"></span></div>'+
+      '<div class="meta"><span class="port">:'+s.port+'</span>'+
+        '<span>'+(s.ok?s.ms+" ms":"down")+st+'</span></div></div>';
+  }).join("");
+  $("svcn").textContent=S.filter(function(s){return s.ok;}).length+" / "+S.length+" up";
+}
 function render(j){
   var h=j.host||{},hs=[];
-  if(h.load)hs.push("load <b>"+h.load.join(" ")+"</b>");
-  if(h.mem_used_pct!=null)hs.push("mem <b>"+h.mem_used_pct+"%</b> of "+(h.mem_total_gb||"?")+"GB");
+  if(h.host)hs.push("<b>"+esc(h.host)+"</b>");
+  if(h.load)hs.push("load <b>"+esc(h.load.join(" "))+"</b>");
+  if(h.cpu)hs.push("<b>"+h.cpu+"</b> cpu");
+  if(h.mem_used_pct!=null)hs.push("mem <b>"+h.mem_used_pct+"%</b>/"+(h.mem_total_gb||"?")+"G");
   if(h.uptime_s)hs.push("up <b>"+fmtUp(h.uptime_s)+"</b>");
-  document.getElementById("host").innerHTML=hs.join("");
-  var up=(j.services||[]).filter(function(s){return s.ok;}).length;
-  var g=(j.services||[]).map(function(s){
-    return '<a class="card" href="'+s.url+'" target="_blank" rel="noopener">'+
-      '<div class="row"><span class="name">'+s.name+'</span>'+
-      '<span class="dot '+(s.ok?"ok":"bad")+'"></span></div>'+
-      '<div class="meta"><span class="port">:'+s.port+'</span>'+
-      '<span>'+(s.ok?s.ms+" ms":"down")+'</span></div></a>';
-  }).join("");
-  document.getElementById("grid").innerHTML=g;
-  document.getElementById("foot").textContent=
-    up+" / "+(j.services||[]).length+" services up · refreshed "+
-    new Date((j.ts||0)*1000).toLocaleTimeString();
+  $("host").innerHTML=hs.join("");
+  S=j.services||[];cards();
+  if(!chatSet){var ow=S.filter(function(s){return s.port==3030;})[0];
+    if(ow){$("chat").src=ow.url;chatSet=true;}}
+  var sx=S.filter(function(s){return s.port==8888;})[0];if(sx)SEARX=sx.url;
+  $("foot").textContent="refreshed "+new Date((j.ts||0)*1000).toLocaleTimeString();
 }
 function tick(){fetch("/portal/stats",{cache:"no-store"}).then(function(r){return r.json();})
-  .then(render).catch(function(){document.getElementById("foot").textContent="stats unavailable";});}
-tick();setInterval(tick,5000);
+  .then(render).catch(function(){$("foot").textContent="stats unavailable";});}
+function arm(){if(timer)clearInterval(timer);if(OPTS.refresh)timer=setInterval(tick,OPTS.refresh);}
+function detail(p){
+  fetch("/portal/service/"+p,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    $("sheet").innerHTML='<button class="x" onclick="closeM()">&times;</button>'+
+      '<h3>'+esc(d.name)+' <span class="dot '+(d.ok?"ok":"bad")+'"></span></h3>'+
+      '<div class="kv"><b>URL</b><code>'+esc(d.url)+'</code></div>'+
+      '<div class="kv"><b>Internal</b><code>'+esc(d.internal)+'</code></div>'+
+      (d.container?'<div class="kv"><b>Container</b><code>'+esc(d.container)+'</code></div>':'')+
+      (d.state?'<div class="kv"><b>State</b><code>'+esc(d.state)+'</code></div>':'')+
+      (d.image?'<div class="kv"><b>Image</b><code>'+esc(d.image)+'</code></div>':'')+
+      '<div class="kv"><b>Open</b><code><a href="'+esc(d.url)+'" target="_blank">'+esc(d.url)+'</a></code></div>'+
+      (d.logs?'<div class="kv"><b>Logs</b></div><pre>'+esc(d.logs)+'</pre>':'<div class="kv">no container logs</div>');
+    $("modal").classList.add("open");
+  });
+}
+function closeM(){$("modal").classList.remove("open");}
+function searchApps(){var q=$("appq").value.trim();if(!q)return;
+  $("apps").innerHTML='<div class="app">searching&hellip;</div>';
+  fetch("/v1/app-search?limit=12&query="+encodeURIComponent(q)).then(function(r){return r.json();})
+    .then(function(j){var hits=j.hits||[];
+      $("apps").innerHTML=hits.length?hits.map(function(a){
+        return '<div class="app"><div class="c">'+esc(a.category||"app")+'</div>'+
+          '<div class="name">'+esc(a.name)+'</div>'+
+          (a.description?'<div class="d">'+esc(a.description)+'</div>':'')+
+          (a.launch?'<div class="d"><code>'+esc(a.launch)+'</code></div>':'')+'</div>';
+      }).join(""):'<div class="app">no matches</div>';
+    }).catch(function(){$("apps").innerHTML='<div class="app">app search unavailable</div>';});}
+// events
+document.addEventListener("click",function(e){
+  var k=e.target.closest("[data-k]");
+  document.querySelectorAll(".cdrop.open").forEach(function(d){
+    if(!k||d.id!="cd"+k.getAttribute("data-k"))d.classList.remove("open");});
+  if(k){var cd=$("cd"+k.getAttribute("data-k"));if(cd)cd.classList.toggle("open");return;}
+  var b=e.target.closest("[data-act]");
+  if(b){var act=b.getAttribute("data-act");
+    if(act=="open")window.open(b.getAttribute("data-u"),"_blank");
+    else if(act=="copy")copy(b.getAttribute("data-u"));
+    else if(act=="detail")detail(b.getAttribute("data-p"));
+    document.querySelectorAll(".cdrop.open").forEach(function(d){d.classList.remove("open");});return;}
+  if(e.target.id=="modal")closeM();
+  if(!e.target.closest("#menu")&&e.target.id!="menuBtn")$("menu").classList.remove("open");
+});
+$("menuBtn").onclick=function(){$("menu").classList.toggle("open");};
+$("chatToggle").onclick=function(){$("chatwrap").classList.toggle("min");};
+$("refresh").onchange=function(){OPTS.refresh=+this.value;arm();};
+$("sort").onchange=function(){OPTS.sort=this.value;cards();};
+$("onlydown").onchange=function(){OPTS.onlydown=this.checked;cards();};
+$("appgo").onclick=searchApps;
+$("appq").addEventListener("keydown",function(e){if(e.key=="Enter")searchApps();});
+$("wsform").addEventListener("submit",function(e){e.preventDefault();
+  var q=$("wsq").value.trim();if(!q)return;
+  var base=(SEARX||("https://"+location.hostname+":8888/")).replace(/\/+$/,"");
+  window.open(base+"/search?q="+encodeURIComponent(q),"_blank");});
+tick();arm();
 </script></body></html>"""
 
 
