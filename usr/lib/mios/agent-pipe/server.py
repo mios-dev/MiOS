@@ -6312,9 +6312,28 @@ def _discover_portal_services() -> list[dict]:
             name = name.replace("mios-", "").replace("-", " ").strip().title()
             svcs.append({"name": name, "port": int(port), "path": path,
                          "local": f"{scheme}://127.0.0.1:{port}{path}"})
-    if "9090" not in seen:  # Cockpit is a host service, not a quadlet
-        svcs.append({"name": "Cockpit", "port": 9090, "path": "/",
-                     "local": "https://127.0.0.1:9090/"})
+    # Host services (not Quadlets, so no openInBrowser label): read their
+    # ports from mios.toml [ports] SSOT. {toml key: (display name, scheme)}.
+    host_svcs = {"cockpit": ("Cockpit", "https"),
+                 "ttyd_bash": ("Terminal · Bash", "http"),
+                 "ttyd_powershell": ("Terminal · PowerShell", "http")}
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        ports = tomllib.load(open(
+            os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+            "rb")).get("ports") or {}
+    except Exception:
+        ports = {}
+    for key, (label, scheme) in host_svcs.items():
+        p = ports.get(key)
+        if not p or str(p) in seen:
+            continue
+        seen.add(str(p))
+        svcs.append({"name": label, "port": int(p), "path": "/",
+                     "local": f"{scheme}://127.0.0.1:{p}/"})
     svcs.sort(key=lambda s: s["name"].lower())
     return svcs
 
@@ -6513,8 +6532,8 @@ gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)
 /* chat window: portrait-ish 4:5 (taller than landscape, not phone-tall),
    inline + drag-resizable (operator 2026-05-22) */
 #chatwrap{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
-margin:0 auto;width:100%;aspect-ratio:3/4;resize:both;
-min-width:280px;min-height:620px;max-width:100%}
+margin:0 auto;width:100%;aspect-ratio:2/3;resize:both;
+min-width:280px;min-height:720px;max-width:100%}
 #chatwrap.min{display:none}
 #chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
