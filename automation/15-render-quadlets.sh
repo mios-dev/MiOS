@@ -34,15 +34,15 @@ fi
 
 echo "[15-render-quadlets] Rendering Quadlet placeholders from mios.toml..."
 
-# Quadlet search paths: every directory systemd-generator-quadlet scans
-# (per `man quadlet`). We walk them all so any .container, .network,
-# .volume, .pod, .image, or .build file with ${MIOS_*} placeholders
-# gets resolved.
+# Quadlet and config search paths: every directory systemd-generator-quadlet
+# scans (per `man quadlet`) plus MiOS-specific config dirs.
 QUADLET_DIRS=(
     /etc/containers/systemd
     /etc/containers/systemd/users
     /usr/share/containers/systemd
     /usr/share/containers/systemd/users
+    /etc/mios
+    /usr/share/mios/kb
 )
 
 # envsubst is part of gettext; available in every Fedora bootc base.
@@ -148,7 +148,7 @@ for dir in "${QUADLET_DIRS[@]}"; do
         else
             rm -f "$local_tmp"
         fi
-    done < <(find "$dir" -maxdepth 2 -type f \( -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.pod' -o -name '*.image' -o -name '*.build' \) -print0 2>/dev/null)
+    done < <(find "$dir" -maxdepth 2 -type f \( -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.pod' -o -name '*.image' -o -name '*.build' -o -name '*.toml' -o -name '*.json' \) -print0 2>/dev/null)
 done
 
 echo "[15-render-quadlets] Done -- rendered $rendered_count, skipped $skipped_count (no placeholders)"

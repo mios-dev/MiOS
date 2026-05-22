@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS: chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR
+Description='MiOS': chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR
 Documentation=https://github.com/mios-dev/MiOS
 Documentation=https://github.com/microsoft/wslg/discussions/312
 

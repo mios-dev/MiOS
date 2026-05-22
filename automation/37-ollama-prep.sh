@@ -143,8 +143,20 @@ MODELFILE_DIR=/usr/share/mios/ollama/Modelfiles
 if [ -d "$MODELFILE_DIR" ]; then
     for mf in "$MODELFILE_DIR"/*.Modelfile; do
         [ -e "$mf" ] || continue
-        derived="$(basename "$mf" .Modelfile)"
-        case "$derived" in *:*) ;; *) derived="${derived}:20b" ;; esac
+        # Canonical target name comes from an explicit '# mios-model: <name:tag>'
+        # header in the Modelfile -- the unambiguous SSOT. The model name is
+        # NOT the file basename: qwen3-0.6b-cpu.Modelfile builds 'qwen3:0.6b-cpu',
+        # mios-sys-agent.Modelfile builds 'mios-sys-agent:latest'. The old
+        # basename+':20b' heuristic mis-tagged every non-20b model (e.g.
+        # 'mios-sys-agent:20b', 'qwen3-0.6b-cpu:20b') -- a latent build bug that
+        # never matched the runtime model names (operator-confirmed 2026-05-21).
+        derived="$(sed -n 's/^#[[:space:]]*mios-model:[[:space:]]*//p' "$mf" | head -1 | tr -d '[:space:]')"
+        if [ -z "$derived" ]; then
+            # Legacy fallback for any header-less Modelfile: keep the historical
+            # basename + default ':20b' tag so older files still build as before.
+            derived="$(basename "$mf" .Modelfile)"
+            case "$derived" in *:*) ;; *) derived="${derived}:20b" ;; esac
+        fi
         log "Deriving custom model ${derived} from ${mf}"
         if OLLAMA_HOST="127.0.0.1:11434" ollama create "$derived" -f "$mf"; then
             log "  [ok] ${derived}"

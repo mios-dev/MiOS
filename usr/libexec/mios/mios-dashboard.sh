@@ -318,7 +318,7 @@ service_status() {
 
 endpoint_up() {
     command -v curl >/dev/null 2>&1 || return 1
-    curl -fsS --max-time 2 -o /dev/null -k "$1" 2>/dev/null
+    curl -fsSL --max-time 2 -o /dev/null -k "$1" 2>/dev/null
 }
 ep_dot() {
     if endpoint_up "$1"; then printf '%s%s%s' "$C_GRN" "$DOT_UP" "$C_R"
@@ -368,7 +368,7 @@ print_endpoints() {
     # ttyd-bash, ttyd-powershell -- they were live but invisible on
     # the dashboard.
     local _p_forge _p_cockpit _p_ollama _p_ollama_igpu _p_searxng
-    local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_surrealdb
+    local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_surrealdb _p_guacamole
     local _p_ttyd_bash _p_ttyd_ps
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
@@ -377,16 +377,17 @@ print_endpoints() {
     _p_searxng=$(_mios_port searxng 8888)
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)
-    _p_code=$(_mios_port code_server 8080)
+    _p_code=$(_mios_port code_server 8800)
     _p_webui=$(_mios_port open_webui 3030)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
     _p_surrealdb=$(_mios_port surrealdb 8000)
+    _p_guacamole=$(_mios_port guacamole_web 8080)
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
 
     local d_forge d_ollama d_ollama_igpu d_cockpit d_searxng
     local d_hermes d_dash d_code d_webui d_agent_pipe d_surrealdb
-    local d_ttyd_bash d_ttyd_ps
+    local d_ttyd_bash d_ttyd_ps d_qdrant d_guacamole
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
     d_ollama_igpu=$(ep_dot "http://localhost:${_p_ollama_igpu}/")
@@ -400,6 +401,9 @@ print_endpoints() {
     d_surrealdb=$(ep_dot  "http://localhost:${_p_surrealdb}/health")
     d_ttyd_bash=$(ep_dot  "http://localhost:${_p_ttyd_bash}/")
     d_ttyd_ps=$(ep_dot    "http://localhost:${_p_ttyd_ps}/")
+    d_qdrant=$(ep_dot     "http://localhost:6333/dashboard")
+    d_guacamole=$(ep_dot  "http://localhost:${_p_guacamole}/guacamole/")
+    d_crowdsec=$(ep_dot   "http://localhost:8080/metrics")
 
     # Mini: count recap + 4 clickable hyperlink rows. Refresh 2026-05-18:
     # the count includes the new AI-surface services (agent-pipe,
@@ -460,20 +464,31 @@ print_endpoints() {
     # AI surface -- agent stack the operator interacts with through
     # OWUI / Discord / programmatic clients.
     section_header "AI surface"
-    local c_agent c_herm c_sdb c_dash c_oll c_olli
+    local c_agent c_herm c_sdb c_dash c_oll c_olli c_qdr
     c_agent=$(printf "$cell_fmt" "$d_agent_pipe" "http://localhost:${_p_agent_pipe}/v1"  "Agent-Pipe" "$C_D" "$_p_agent_pipe" "$C_R")
     c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
     c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
     c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
     c_oll=$(  printf "$cell_fmt" "$d_ollama"     "http://localhost:${_p_ollama}/"        "Ollama"     "$C_D" "$_p_ollama"     "$C_R")
     c_olli=$( printf "$cell_fmt" "$d_ollama_igpu" "http://localhost:${_p_ollama_igpu}/"   "Ollama-iGPU" "$C_D" "$_p_ollama_igpu" "$C_R")
+    c_qdr=$(  printf "$cell_fmt" "$d_qdrant"     "http://localhost:6333/"                "Qdrant"     "$C_D" "6333"           "$C_R")
     printf "$row_fmt" "$c_agent" "$c_herm"
     printf "$row_fmt" "$c_sdb"   "$c_dash"
     printf "$row_fmt" "$c_oll"   "$c_olli"
+    printf "$row_fmt" "$c_qdr"   ""
+
+    # Micro-LLM status row -- observability layer health
+    local micro_info micro_model micro_latency
+    micro_info=$(/usr/local/sbin/mios-micro-llm status 2>/dev/null)
+    if [[ $? -eq 0 ]]; then
+        micro_model=$(echo "$micro_info" | grep '"model"' | cut -d'"' -f4)
+        micro_latency=$(echo "$micro_info" | grep '"latency_ms"' | cut -d: -f2 | tr -d ' ,')
+        printf '  %sMicro-LLM: %s%s%s  (%s ms)%s\n' "$C_GRY" "$C_B$C_CYN" "$micro_model" "$C_R$C_GRY" "$micro_latency" "$C_R"
+    fi
 
     # User surface -- browser/desktop tools the operator uses directly.
     section_header "User surface"
-    local c_webui c_cock c_code c_forge c_srch c_ttyb c_ttyp
+    local c_webui c_cock c_code c_forge c_srch c_ttyb c_ttyp c_guac
     c_webui=$(printf "$cell_fmt" "$d_webui"     "http://localhost:${_p_webui}/"     "WebUI"      "$C_D" "$_p_webui"     "$C_R")
     c_cock=$( printf "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"    "$C_D" "$_p_cockpit"   "$C_R")
     c_code=$( printf "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"       "$C_D" "$_p_code"      "$C_R")
@@ -481,38 +496,42 @@ print_endpoints() {
     c_srch=$( printf "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"     "$C_D" "$_p_searxng"   "$C_R")
     c_ttyb=$( printf "$cell_fmt" "$d_ttyd_bash" "http://localhost:${_p_ttyd_bash}/" "ttyd-bash"  "$C_D" "$_p_ttyd_bash" "$C_R")
     c_ttyp=$( printf "$cell_fmt" "$d_ttyd_ps"   "http://localhost:${_p_ttyd_ps}/"   "ttyd-PS"    "$C_D" "$_p_ttyd_ps"   "$C_R")
+    c_guac=$( printf "$cell_fmt" "$d_guacamole" "http://localhost:${_p_guacamole}/guacamole/"  "Guacamole"  "$C_D" "$_p_guacamole" "$C_R")
     printf "$row_fmt" "$c_webui" "$c_cock"
     printf "$row_fmt" "$c_code"  "$c_forge"
-    printf "$row_fmt" "$c_srch"  "$c_ttyb"
-    printf "$row_fmt" "$c_ttyp"  ""
+    printf "$row_fmt" "$c_srch"  "$c_guac"
+    printf "$row_fmt" "$c_ttyb"  "$c_ttyp"
 
     # Backing services -- no exposed URL but stack-critical (CI runner,
     # cluster, daemon, miner, passport provisioning). Dot-only
     # indicators so the operator sees the full stack at a glance in
     # `mios dash`. 2026-05-18 refresh: added the C.2 / C.3 / A.2
     # backgrounders + the AI-bucket sysuser-keyed agent surface.
-    local d_runner d_ceph d_k3s d_daemon d_miner d_pass
-    local s_runner s_ceph s_k3s s_daemon s_miner s_pass
+    local d_runner d_ceph d_k3s d_daemon d_miner d_pass d_crowd
+    local s_runner s_ceph s_k3s s_daemon s_miner s_pass s_crowd
     s_runner=$(service_status mios-forgejo-runner.service); IFS='|' read -r _ d_runner _ <<< "$s_runner"
     s_ceph=$(  service_status mios-ceph.service);            IFS='|' read -r _ d_ceph   _ <<< "$s_ceph"
     s_k3s=$(   service_status mios-k3s.service);             IFS='|' read -r _ d_k3s    _ <<< "$s_k3s"
     s_daemon=$(service_status mios-daemon.service);          IFS='|' read -r _ d_daemon _ <<< "$s_daemon"
     s_miner=$( service_status mios-skills-miner.timer);      IFS='|' read -r _ d_miner  _ <<< "$s_miner"
     s_pass=$(  service_status mios-passport-provision.service); IFS='|' read -r _ d_pass _ <<< "$s_pass"
+    s_crowd=$( service_status crowdsec-dashboard.service);   IFS='|' read -r _ d_crowd  _ <<< "$s_crowd"
     [[ -z "$d_runner" ]] && d_runner="$DOT_DOWN"
     [[ -z "$d_ceph"   ]] && d_ceph="$DOT_DOWN"
     [[ -z "$d_k3s"    ]] && d_k3s="$DOT_DOWN"
     [[ -z "$d_daemon" ]] && d_daemon="$DOT_DOWN"
     [[ -z "$d_miner"  ]] && d_miner="$DOT_DOWN"
     [[ -z "$d_pass"   ]] && d_pass="$DOT_DOWN"
+    [[ -z "$d_crowd"  ]] && d_crowd="$DOT_DOWN"
     printf '  %s%s %s Runner%s   %s%s %s Ceph%s   %s%s %s K3s%s   %s%s %s Daemon%s\n' \
         "$C_R" "$d_runner" "$C_D" "$C_R" \
         "$C_R" "$d_ceph"   "$C_D" "$C_R" \
         "$C_R" "$d_k3s"    "$C_D" "$C_R" \
         "$C_R" "$d_daemon" "$C_D" "$C_R"
-    printf '  %s%s %s Skills-Miner%s   %s%s %s Passport%s\n' \
+    printf '  %s%s %s Skills-Miner%s   %s%s %s Passport%s   %s%s %s CrowdSec%s\n' \
         "$C_R" "$d_miner" "$C_D" "$C_R" \
-        "$C_R" "$d_pass"  "$C_D" "$C_R"
+        "$C_R" "$d_pass"  "$C_D" "$C_R" \
+        "$C_R" "$d_crowd" "$C_D" "$C_R"
     # Credentials row (global MiOS password unless per-service override).
     printf '  %slogin %s/%s   forge %s/%s%s\n' \
         "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$C_R"
@@ -534,7 +553,7 @@ print_quadlets() {
                mios-guacamole guacd guacamole-postgres \
                mios-surrealdb mios-agent-pipe mios-daemon \
                mios-ttyd-bash mios-ttyd-powershell \
-               mios-skills-miner mios-passport-provision; do
+               mios-skills-miner mios-passport-provision qdrant; do
 
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"

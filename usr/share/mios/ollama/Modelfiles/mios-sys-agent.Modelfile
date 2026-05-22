@@ -1,4 +1,5 @@
 # /usr/share/mios/ollama/Modelfiles/mios-sys-agent.Modelfile
+# mios-model: mios-sys-agent:latest
 #
 # MiOS Systems Agent (MiOS-Sys-Agent) -- the consolidated system-
 # aware micro-agent. Single canonical model name for:

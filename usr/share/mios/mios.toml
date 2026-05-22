@@ -607,6 +607,12 @@ endpoint = "http://localhost:8642/v1"
 model    = "hermes-agent"
 role     = "general"
 default  = true
+# Inference lane (operator 2026-05-21: "self-delegate to CPU concurrently
+# to pending/future GPU operations"). gpu = the heavy dGPU lane (:11434);
+# cpu = the light iGPU/CPU lane. The fan-out pairs a GPU primary with a
+# CPU secondary so both lanes work in parallel -- and so Hermes is never
+# the ONLY dispatched agent.
+lane     = "gpu"
 # Tools Hermes is good at -- the refine pass surfaces these
 # as hint_tools when the intent matches.
 strengths = ["kanban", "web_search", "skill_invocation",
@@ -617,6 +623,7 @@ endpoint = "http://localhost:8633/v1"
 model    = "opencode"
 role     = "coding"
 default  = false
+lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
 
@@ -629,11 +636,28 @@ strengths = ["file_edit", "code_review", "git", "test_running",
 # log-context intents to it instead of forcing Hermes to re-
 # grep journals every turn.
 endpoint = "http://localhost:8644/v1"
-model    = "mios-daemon-agent"
+# Consolidation 2026-05-22: the :8644 server assembles raw global-log
+# telemetry and returns it as context (no local LLM inference -- agent-pipe's
+# final-answer pass synthesises it), so this is a LABEL, not an inference
+# target. Points at the surviving micro (mios-sys-agent) so if the role ever
+# grows an inference step it reuses the one micro instead of a dedicated tag.
+# The retired mios-daemon-agent Modelfile/tag was never inferenced.
+model    = "mios-sys-agent"
 role     = "telemetry"
 default  = false
+# CPU lane: the daemon-agent runs light (raw-context assembly) off the dGPU,
+# so the fan-out can self-delegate to it CONCURRENTLY with a GPU primary --
+# supplementing every agent turn with global-log + web context at zero dGPU
+# cost.
+lane     = "cpu"
 strengths = ["journalctl_tail", "log_search", "event_query",
-             "system_followup", "what_just_happened"]
+             "system_followup", "what_just_happened",
+             # Operator 2026-05-21: the daemon-agent ALSO supplements the
+             # pipeline with the local web tool (web_search -> SearXNG),
+             # concurrently, so it is relevant to current-world queries
+             # (weather/news/events), not only telemetry. These tokens let
+             # the fan-out select it to add web + global-log context.
+             "web_search", "web", "current_events", "weather", "news"]
 
 # Operator can add more agents here -- e.g.:
 #   [agents.aichat]
@@ -643,15 +667,39 @@ strengths = ["journalctl_tail", "log_search", "event_query",
 # No code edits required; refine_intent reads this list at
 # request time via the userenv.sh slot map.
 
+# ----------------------------------------------------------------------------
+# [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
+# MiOS mechanism should dispatch to multiple agents at a time -- not ALL
+# agents, but a couple at least"). agent-pipe picks ONE primary agent
+# (refine target_agent / registry default) AND up to fanout_max-1 relevant
+# SECONDARY agents -- scored by role/strengths overlap with the refined
+# intent (NO hardcoded topic map) -- runs them concurrently, surfaces each
+# in the reasoning dropdown, and merges their answers in the polish step.
+# Dead endpoints (e.g. opencode :8633 when not served as /v1) drop out.
+# fanout_max = 1 restores exact single-agent behaviour.
+# ----------------------------------------------------------------------------
+[dispatch]
+enable     = true
+# Floor on engaged agents when relevant matches exist (1 = primary only
+# unless a secondary scores; raise to lean toward "a couple").
+fanout_min = 1
+# Hard cap on TOTAL concurrent agents (primary + secondaries). 2 = primary
+# + at most one relevant secondary; 3 = a small council. Kept low -- every
+# extra agent is a full concurrent inference on the local lanes.
+fanout_max = 2
+
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
-# delegation. Pure-local fast model on the iGPU lane.
+# delegation. INPUT prompt-enhancement half of the "polish mechanism".
+# Operator 2026-05-22 consolidation: refine + polish + plan all share
+# the ONE light MiOS brain (mios-agent, FROM qwen3.5:4b) instead of a
+# bare base model -- so prompt-enhancement carries the MiOS operating
+# principles + ENGLISH-default language, and the model count stays
+# minimal. dGPU lane (:11434); shares mios-hermes's base blob (no extra
+# resident weights).
 enable           = true
-# Same model + endpoint as the router; one model warm, three
-# call shapes (refine / route / polish). Operator override for
-# a different micro-model when one ships.
-model            = "qwen3:1.7b"
-endpoint         = "http://localhost:11435"
+model            = "mios-agent"
+endpoint         = "http://localhost:11434"
 # Timeout headroom: on bare-metal Fedora-bootc with real ROCm/
 # CUDA, qwen3:1.7b emits a 400-token JSON in <1s. On WSL2 dev
 # (CPU only -- /dev/kfd isn't exposed for ROCm) it takes 15-30s
@@ -670,14 +718,18 @@ max_tokens       = 1200
 bypass_chars     = 24
 
 [polish]
-# Phase D.5 polish pass settings. Runs ONCE on the final answer
-# before returning to the gateway -- removes leakage, matches
-# intended_outcome format, locale-neutralises any English
-# stragglers. Skipped for dispatch / chat / DAG fast paths
-# (those produce final-shape content already).
+# Phase D.5 polish pass settings. Runs ONCE on the final answer before
+# returning to the gateway -- OUTPUT-shaping half of the "polish
+# mechanism": removes leakage, matches intended_outcome format, applies
+# the operator PERSONA + the ENGLISH-default language anchor (operator's
+# original message). Skipped for dispatch / chat / DAG fast paths (those
+# produce final-shape content already). Operator 2026-05-22: shares the
+# ONE light MiOS brain (mios-agent, FROM qwen3.5:4b) with refine + plan
+# on the dGPU lane -- the final answer is shaped by the MiOS brain, not a
+# bare base model.
 enable           = true
-model            = "qwen3:1.7b"
-endpoint         = "http://localhost:11435"
+model            = "mios-agent"
+endpoint         = "http://localhost:11434"
 # Same CPU-vs-GPU headroom rationale as [refine].timeout_seconds.
 timeout_seconds  = 45
 max_tokens       = 800
@@ -1077,6 +1129,20 @@ permission = "read"
   type = "integer"
   default = 20
 
+[verbs.web_search]
+section    = "Discovery / resolution"
+sig        = "query, limit=5?"
+desc       = "WEB search via the LOCAL self-hosted SearXNG (offline-first metasearch, no cloud dependency). USE THIS for anything from the internet or the current world: weather, news, current events, event dates/times/locations, prices, products, people, places, scores, facts, general knowledge -- ANY question whose answer is not a file on this machine. Returns real fetched {title, url, content} plus instant answers/infoboxes for citation. This is NOT file search: everything_search/fs_search/directory_lookup ONLY find files on disk and return nothing useful for a knowledge/current-events question. When a question needs a live fact you don't already have, call THIS and ground on the result -- never invent the answer, never default to remembered facts."
+tier       = "core"
+permission = "read"
+  [verbs.web_search.params.query]
+  type    = "string"
+  aliases = ["q", "term", "text", "search"]
+  [verbs.web_search.params.limit]
+  type    = "integer"
+  default = 5
+  aliases = ["n", "top_k", "count"]
+
 # ─── Section: PC input (raw send-input) ───────────────────────────────
 [verbs.pc_type]
 section    = "PC input"
@@ -1416,6 +1482,12 @@ permission = "read"
   type = "integer"
   default = 20
 
+# disk-usage is NOT a verb -- it's a [recipes.disk-usage] recipe (the
+# df/du command lives in the recipe SSOT below, not hardcoded in
+# agent-pipe's dispatch). Run it via os_recipe(name="disk-usage").
+# Operator binding 2026-05-21: "NO hardcodes ... should all be native
+# OpenAI tools/skills/recipes ... unless baked in the modelfile or docs".
+
 [verbs.container_status]
 section    = "System"
 sig        = "name?"
@@ -1527,12 +1599,51 @@ user_section_path = "~/.config/mios/system-prompt-user.md"
 # in /usr/share/mios/ai/hermes-soul.md inside Hermes; OWUI's MiOS-Agent is
 # just the front door. Edit this block in mios.toml + re-run
 # mios-owui-install-pipe to push.
+# The template may use Open WebUI's system-prompt variables. OWUI
+# substitutes most of them server-side (apply_system_prompt_to_body ->
+# prompt_template) BEFORE the pipe runs: {{USER_NAME}} {{USER_EMAIL}}
+# {{USER_LOCATION}} {{CURRENT_DATE}} {{CURRENT_DATETIME}} {{CURRENT_TIME}}
+# {{CURRENT_WEEKDAY}} {{USER_GROUPS}}. But {{USER_LANGUAGE}} and
+# {{CURRENT_TIMEZONE}} are FRONTEND-only variables -- they resolve ONLY
+# when the browser sends them in form_data['variables'] (verified against
+# OWUI utils/task.py: prompt_template has no case for either). To stop
+# either leaking as a literal token, the pipe (_resolve_env_vars) backfills
+# any unresolved {{...}} from the host clock + __user__ + metadata.variables
+# and then STRIPS whatever it cannot resolve. {{USER_LOCATION}} needs HTTPS
+# + Settings>Interface>"location access"; absent it OWUI renders "None"/
+# "Unknown" -- the wording above treats those as not-provided. CRITICAL
+# (operator 2026-05-22): the browser locale ({{USER_LANGUAGE}}) is NOT the
+# reply-language directive -- pinning replies to it while the operator wrote
+# in another language was the dual-language bug. Reply language now mirrors
+# the operator's own input only; the locale vars drive formatting/units.
+# The PERSONA line is composed per-user by the pipe from its UserValves
+# (operator-set fields in the OWUI UI); empty fields drop out cleanly.
 template = """
 # MiOS AI
 Front door of MiOS, a local-first agentic OS. You refine intent, plan,
-delegate to sub-agents, and polish the answer. Live facts (services,
+delegate to sub-agents, and shape the final answer. Live facts (services,
 GPU, models, paths, what's installed) come from TOOLS at call-time --
-never this prompt. Mirror the operator's language.
+never this prompt.
+
+ENVIRONMENT (authoritative facts -- use them, do not assume; treat
+"Unknown", "None", or blank as NOT PROVIDED): operator name is
+{{USER_NAME}}; now is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}} {{CURRENT_TIME}}
+({{CURRENT_TIMEZONE}}); browser locale is {{USER_LANGUAGE}}; location is
+{{USER_LOCATION}}. Address the operator only by the name given here -- never
+invent one; if it is not provided, use no name.
+
+RESPONSE LANGUAGE (decisive): reply in ENGLISH by default. Use another
+language ONLY when the operator's LAST message is itself clearly written in
+that language, and then reply in that ONE language only -- never add a
+translation, never echo a second language, never switch mid-reply. The
+operator's own wording is the ONLY signal for this; the browser locale above
+is NOT a language instruction (it can differ from how they write to you), so
+never let it pull the reply toward another language.
+
+LOCALE (formatting only): use the timezone, browser locale, and location
+ONLY to render dates, times, numbers, and measurements in the operator's
+regional convention and to localise weather/places/results -- never to choose
+the reply language, and never to silently convert a figure a tool returned.
 
 LOOP every request: REASON (what's asked + is it one ask or several?)
 -> PLAN (break into steps; for any open/find/install/use X, FAN OUT in
@@ -1541,11 +1652,12 @@ vs web by intent) -> DELEGATE (fire parallel, merge, act on the
 highest-confidence result; answer EACH part of a multi-part ask).
 
 RULES: tool stdout is ground truth -- never invent paths/IDs/statuses/
-versions/prices. Never say "X isn't installed" without a zero-hit
-fan-out. Native tools are tool_calls, not bash lines. "Process alive"
-is not "launched" (check the active window). Greetings: 1-2 sentences,
-no tools. Never tail with "would you like me to" / "feel free to" /
-"let me know".
+versions/prices/news/weather. Cite real source links from tool results
+verbatim; never invent a URL. Never say "X isn't installed" without a
+zero-hit fan-out. Native tools are tool_calls, not bash lines. "Process
+alive" is not "launched" (check the active window). Greetings: 1-2
+sentences, no tools. Never tail with "would you like me to" / "feel free
+to" / "let me know".
 """
 
 # ----------------------------------------------------------------------------
@@ -1667,6 +1779,19 @@ args        = ["sort"]
 permission  = "read"
 linux       = "ps -eo pid,pcpu,pmem,comm --sort=-{sort} | head -20"
 windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-Process | Sort-Object -Descending -Property {sort} | Select-Object -First 20 Id,CPU,WorkingSet64,ProcessName | ConvertTo-Json'"
+
+[recipes.disk-usage]
+description = "What's using disk space: filesystem fill (df) plus the largest top-level directories under / (du), ranked. Use for 'what's taking up space / disk full / largest folders'."
+args        = []
+permission  = "read"
+linux       = "df -h -x tmpfs -x devtmpfs -x overlay; echo '== largest dirs under / =='; du -h -x --max-depth=1 / 2>/dev/null | sort -rh | head -20"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-PSDrive -PSProvider FileSystem | Format-Table Name,Used,Free -Auto'"
+
+[recipes.service-status]
+description = "systemctl is-active + status snapshot for a Linux service (READ). Pass the unit name as `service`."
+args        = ["service"]
+permission  = "read"
+linux       = "echo '=== is-active ==='; systemctl is-active {service}; echo; echo '=== status ==='; systemctl --no-pager status {service} | head -20"
 
 [recipes.copy-to-clipboard]
 description = "Copy a literal string to the system clipboard."
@@ -1965,7 +2090,7 @@ prompt_shortcut     = "@"
 #   granite4.1:3b, gemma4:e4b, qwen3-vl:4b -- previous tier picks remain
 #   in the catalog so existing fallback chains + per-host overrides
 #   still work and operators can swap back via mios.html.
-bake_models         = "qwen3.5:4b,qwen3.5:9b,qwen2.5-coder:7b,qwen2.5-coder:14b,llama3.2-vision:11b,granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,qwen3:0.6b-cpu,mios-sys-agent,gemma4:e4b"
+bake_models         = "qwen3.5:4b,qwen3.5:9b,qwen2.5-coder:7b,qwen2.5-coder:14b,llama3.2-vision:11b,granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,qwen3:0.6b-cpu,mios-sys-agent"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -2133,6 +2258,21 @@ big_ram_model    = "qwen3-coder:30b"
 # not in Ollama yet -- llama3.2-vision:11b is the safe Ollama pick.
 vision_grounding_model    = "llama3.2-vision:11b"
 vision_grounding_endpoint = "http://localhost:11434/v1"
+# Chat VLM: agent-pipe routes any OWUI chat turn carrying an image straight
+# to this model (operator 2026-05-22). SSOT for MIOS_AGENT_PIPE_VISION_MODEL.
+# llama3.2-vision:11b verified working through ollama /v1; qwen3-vl:4b crashes
+# its runner on image input in the current ollama build (revisit when fixed).
+chat_vision_model         = "llama3.2-vision:11b"
+
+# GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
+# click coordinates). Served by the mios-vllm Quadlet (OpenAI /v1 on
+# :11436) because Ollama CANNOT run the grounding heads (GUI-Actor /
+# Holo1.5 / UI-TARS / Qwen3-VL). Distinct from vision_grounding_model
+# above (descriptive vision on ollama). Weights baked offline by
+# automation/38-vllm-prep.sh; mios-vllm ships DISABLED (VRAM-heavy) ->
+# enable when the dGPU has headroom. grounding_model = served-model-name.
+grounding_endpoint = "http://localhost:11436/v1"
+grounding_model    = "mios-grounding"
 
 # Always-on micro-LLM. ~600 MB resident; sub-second classification.
 # Used by mios-log-watcher.service (journal triage), the cron-director
@@ -2156,7 +2296,7 @@ vision_grounding_endpoint = "http://localhost:11434/v1"
 #                      for classification work; no chat-quality needed.
 micro_model              = "qwen3:0.6b-cpu"
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:11434/v1"
+micro_endpoint           = "http://localhost:11435/v1"
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -3354,7 +3494,6 @@ pkgs = [
     "chrony",
     "openssh-server",
 ]
-
 [packages.bloat]
 enable = false  # opt-in only; gnome-tour / PackageKit / malcontent — bloat by design, default OFF
 pkgs = [
@@ -3469,9 +3608,9 @@ hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats
 open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
 # hermes_workspace REMOVED 2026-05-13 (port 3030 freed) -- use the
 # hermes-agent dashboard at port 9119 instead.
-code_server        = 8080     # code-server (VS Code in a browser; matches image default)
+code_server        = 8800     # code-server (VS Code in a browser; matches image default)
 k3s_api            = 6443     # K3s Kubernetes API
-guacamole_web      = 8090     # mios-guacamole browser desktop
+guacamole_web      = 8080     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting context layer)

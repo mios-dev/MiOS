@@ -135,6 +135,25 @@ def main() -> int:
             },
         },
         {
+            "name": "web_search",
+            "description": "Search the WEB via the local, self-hosted SearXNG metasearch. USE THIS for ANYTHING from the internet or the current world: weather, news, current events, event dates/times/locations, prices, products, people, places, scores, facts, general knowledge -- any question whose answer is NOT a file on this machine. Returns real fetched results (title/url/content + instant answers) so you cite the source. NEVER invent a live fact (weather, an event schedule, a price) when this tool can fetch it, and NEVER fall back to remembered facts for a current/world question -- that is the stale-data / fabrication defect. This is NOT file search: everything_search / fs_search find files on disk and return nothing for a knowledge or current-events query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language search query. Examples: \"toronto weather today\", \"anime north 2026 dates and location\", \"current price RTX 5090\".",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results to return (default 5).",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+        {
             "name": "fs_search",
             "description": "Search the LINUX filesystem inside the MiOS-DEV / host environment -- the agentic peer to everything_search (which is Windows-only). Use for /usr /etc /var/lib /opt /home /root /var/log /usr/share/mios files. Backend: plocate -> locate -> find. Returns absolute Linux paths.",
             "parameters": {
@@ -431,21 +450,30 @@ def main() -> int:
         },
     }
 
-    # Hash for change detection. If the row exists with the same
-    # content hash, no-op. If different, UPDATE in place.
-    new_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    # Change detection. Cover BOTH the module content AND the generated
+    # specs (the model-visible tool surface). A spec-only change -- e.g.
+    # adding a new function spec without editing the module body -- MUST
+    # still trigger an UPDATE, else the new tool stays invisible to the
+    # chat model (2026-05-21: web_search method shipped in content but the
+    # content hash matched, so the new spec was silently skipped).
+    new_specs_json = json.dumps(specs)
+    new_hash = hashlib.sha256(
+        (content + new_specs_json).encode("utf-8")
+    ).hexdigest()
     row = c.execute(
-        "SELECT id, content FROM tool WHERE id=?", (TOOL_ID,)
+        "SELECT id, content, specs FROM tool WHERE id=?", (TOOL_ID,)
     ).fetchone()
 
     if row is not None:
-        existing_hash = hashlib.sha256(row[1].encode("utf-8")).hexdigest()
+        existing_hash = hashlib.sha256(
+            ((row[1] or "") + (row[2] or "")).encode("utf-8")
+        ).hexdigest()
         if existing_hash == new_hash:
             _log(f"{TOOL_ID} already current ({len(content)} chars) -- no change")
             return 0
         c.execute(
             "UPDATE tool SET content=?, specs=?, meta=?, updated_at=? WHERE id=?",
-            (content, json.dumps(specs), json.dumps(meta),
+            (content, new_specs_json, json.dumps(meta),
              int(datetime.datetime.utcnow().timestamp()), TOOL_ID),
         )
         c.commit()

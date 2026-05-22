@@ -54,14 +54,27 @@ if [ "$nnp" = "no" ]; then ok "NoNewPrivileges=no (sudo escalation possible)"
 else warn "NoNewPrivileges=$nnp (sudo from agent will fail)"; fi
 
 echo
-echo "── ── ──  ollama + main model"
+echo "── ── ──  ollama + main models"
 if curl -sf --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1; then
-    ok "ollama API reachable on :11434"
+    ok "ollama (dGPU/main) API reachable on :11434"
     models=$(curl -s --max-time 3 http://localhost:11434/api/tags 2>/dev/null | \
         python3 -c 'import sys,json; print(",".join(m["name"] for m in json.load(sys.stdin).get("models",[])))' 2>/dev/null)
     info "models: ${models:-(none)}"
 else
-    fail "ollama not reachable on :11434"
+    fail "ollama (dGPU/main) not reachable on :11434"
+fi
+if curl -sf --max-time 3 http://localhost:11435/api/tags >/dev/null 2>&1; then
+    ok "ollama-iGPU (micro-LLM lane) API reachable on :11435"
+else
+    warn "ollama-iGPU (micro-LLM lane) not reachable on :11435"
+fi
+
+echo
+echo "── ── ──  qdrant vector db"
+if curl -sf --max-time 3 http://localhost:6333/dashboard >/dev/null 2>&1; then
+    ok "qdrant API reachable on :6333"
+else
+    fail "qdrant not reachable on :6333"
 fi
 
 echo
@@ -69,7 +82,7 @@ echo "── ── ──  open webui"
 if podman ps --filter name=mios-open-webui --format '{{.Status}}' 2>/dev/null | grep -q Up; then
     ok "mios-open-webui container Up"
 else
-    fail "mios-open-webui container not Up"
+    fail "mios-open-webui container not Up (run as sudo if container is rootful)"
 fi
 if curl -sf --max-time 3 http://localhost:3030/api/version >/dev/null 2>&1; then
     ok "owui API on :3030 reachable"
@@ -81,11 +94,15 @@ echo
 echo "── ── ──  baked-image store (additionalimagestores)"
 if [ -d /usr/lib/containers/storage ]; then
     ok "/usr/lib/containers/storage exists"
-    perm=$(stat -c '%a' /usr/lib/containers/storage/overlay-images 2>/dev/null)
-    if [ "${perm:0:1}" = "7" ] && [ "${perm:1:1}" -ge 5 ]; then
-        ok "overlay-images mode $perm (world-readable, flatpak/podman-as-user works)"
+    if [ -d /usr/lib/containers/storage/overlay-images ]; then
+        perm=$(stat -c '%a' /usr/lib/containers/storage/overlay-images 2>/dev/null)
+        if [ "${perm:0:1}" = "7" ] && [ "${perm:1:1}" -ge 5 ]; then
+            ok "overlay-images mode $perm (world-readable, flatpak/podman-as-user works)"
+        else
+            fail "overlay-images mode $perm (NOT world-readable -- unprivileged podman dies with EACCES)"
+        fi
     else
-        fail "overlay-images mode $perm (NOT world-readable -- unprivileged podman dies with EACCES)"
+        warn "/usr/lib/containers/storage/overlay-images missing (no baked images yet)"
     fi
     if grep -q '/usr/lib/containers/storage' /etc/containers/storage.conf 2>/dev/null; then
         ok "/etc/containers/storage.conf lists additionalimagestores"
@@ -101,15 +118,18 @@ echo "── ── ──  WSLg / display"
 if [ -e /tmp/.X11-unix/X0 ]; then ok "WSLg X server socket present (/tmp/.X11-unix/X0)"
 else warn "no /tmp/.X11-unix/X0 (X11 GUIs will fail)"; fi
 if [ -e /mnt/wslg/runtime-dir/wayland-0 ]; then ok "WSLg Wayland socket present"
+elif [ -e /run/user/$(id -u)/wayland-0 ]; then ok "WSLg Wayland socket present (user path)"
 else warn "no WSLg Wayland (wayland GUIs may fall back to X11)"; fi
 
 echo
 echo "── ── ──  GUI shims (flatpak shortcuts)"
 shims=0
-for f in /usr/local/bin/*; do
-    [ -f "$f" ] || continue
-    head -3 "$f" 2>/dev/null | grep -q 'MiOS shim for the' && shims=$((shims+1))
-done
+if [ -d /usr/local/bin ]; then
+    for f in /usr/local/bin/*; do
+        [ -f "$f" ] || continue
+        head -3 "$f" 2>/dev/null | grep -q 'MiOS shim for the' && shims=$((shims+1))
+    done
+fi
 info "$shims flatpak shims under /usr/local/bin/ (chrome, nautilus, epiphany, ...)"
 if [ -x /usr/libexec/mios/flatpak-launch ]; then
     ok "/usr/libexec/mios/flatpak-launch present"
@@ -131,7 +151,7 @@ else
 fi
 
 echo
-echo "── ── ──  observability layer (micro-LLM daemons)"
+echo "── ── ──  observability layer (micro-LLM daemon)"
 # Micro-LLM model name from the layered mios.toml [ai].micro_model.
 micro_model=$(grep -hE '^\s*micro_model\s*=' \
     /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null | \
@@ -140,59 +160,50 @@ micro_model=$(grep -hE '^\s*micro_model\s*=' \
 if curl -sf --max-time 3 "http://localhost:11434/api/tags" 2>/dev/null | \
    grep -qF "\"$micro_model\""; then
     # Is it resident (loaded)? /api/ps shows currently-loaded models.
-    if curl -sf --max-time 3 http://localhost:11434/api/ps 2>/dev/null | \
+    if curl -sf --max-time 3 http://localhost:11435/api/ps 2>/dev/null | \
        grep -qF "\"$micro_model\""; then
         ok "micro-LLM ($micro_model) loaded (always-on; observability+gating ready)"
     else
         warn "micro-LLM ($micro_model) pulled but not resident -- mios-micro-llm warm will load it"
     fi
 else
-    warn "micro-LLM ($micro_model) NOT pulled -- mios-log-watcher + mios-cron-director will idle until present"
+    warn "micro-LLM ($micro_model) NOT pulled -- mios-daemon will idle until present"
 fi
 
-for svc in mios-log-watcher mios-cron-director mios-agent-nudger; do
-    state=$(systemctl is-active "$svc.service" 2>&1)
+for svc in mios-daemon; do
+    state=$(systemctl is-active "$svc.service" 2>/dev/null || echo "unknown")
     if [ "$state" = "active" ]; then
         ok "$svc.service active"
-    elif [ "$state" = "inactive" ]; then
-        warn "$svc.service inactive"
     else
-        warn "$svc.service: $state"
+        warn "$svc.service $state"
     fi
 done
 
-# Log-watcher freshness: latest.json should be <120s old when active.
-if [ -f /var/lib/mios/log-watcher/latest.json ]; then
-    age=$(( $(date +%s) - $(stat -c %Y /var/lib/mios/log-watcher/latest.json) ))
-    # 600 s threshold: the daemon writes on EVENT batches (PRIORITY=4+),
-    # not on a fixed cadence. A quiet system with no warnings legitimately
-    # has a >5 min old latest.json. Only flag if it's been so long we
-    # suspect a hung daemon (>10 min on a host that's been running).
+# Daemon state freshness: state.json should be <600s old when active.
+if [ -f /var/lib/mios/daemon/state.json ]; then
+    age=$(( $(date +%s) - $(stat -c %Y /var/lib/mios/daemon/state.json) ))
     if [ "$age" -lt 600 ]; then
-        ok "log-watcher latest.json fresh (${age}s old)"
+        ok "daemon state.json fresh (${age}s old)"
     else
-        warn "log-watcher latest.json stale (${age}s old; daemon may have wedged)"
+        warn "daemon state.json stale (${age}s old; daemon may have wedged)"
     fi
 fi
 
 # Cron-director rules: /etc/mios/cron-rules.toml exists + parses?
 if [ -f /etc/mios/cron-rules.toml ]; then
     rules=$(grep -c '^\[\[rule\]\]' /etc/mios/cron-rules.toml 2>/dev/null || echo 0)
-    info "cron-director: $rules rule(s) configured at /etc/mios/cron-rules.toml"
+    info "cron-rules: $rules rule(s) configured at /etc/mios/cron-rules.toml"
 fi
 
 # Agent-nudger alert count: high count means the model is hitting
-# refusal patterns -- iterate SOUL.md / skills until the count
-# trends down between sessions.
-if [ -f /var/lib/mios/agent-nudger/latest.json ]; then
-    n_alerts=$(python3 -c 'import json; print(json.load(open("/var/lib/mios/agent-nudger/latest.json")).get("total_alerts", 0))' 2>/dev/null)
+# refusal patterns.
+if [ -f /var/lib/mios/daemon/state.json ]; then
+    n_alerts=$(python3 -c 'import json; print(json.load(open("/var/lib/mios/daemon/state.json")).get("agent_nudger", {}).get("total_alerts", 0))' 2>/dev/null)
     if [ -z "$n_alerts" ] || [ "$n_alerts" = "0" ]; then
         ok "agent-nudger: 0 refusal alerts so far (clean)"
     else
-        warn "agent-nudger: $n_alerts refusal alert(s) recorded -- see /var/lib/mios/agent-nudger/alerts.jsonl"
+        warn "agent-nudger: $n_alerts refusal alert(s) recorded"
     fi
-else
-    info "agent-nudger: no alerts file yet (daemon hasn't seen a refusal)"
 fi
 
 # Broker socket: agent-side cross-context dispatch (window-list,

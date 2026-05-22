@@ -176,6 +176,23 @@ else
     fi
 fi
 
+# ─── Hermes role model (operator 2026-05-21) ────────────────────────────────
+# "EVERY Agent and Sub-Agent should have an equivalent MiOS Modelfile for each
+# role." Hermes (the general orchestrator) runs its role model
+# mios-hermes:latest -- a Modelfile built FROM the auto-picked base with MiOS
+# params; SOUL.md still drives behaviour at runtime. HERMES-SPECIFIC: the
+# global [ai].model (10+ other consumers -- mios-micro-llm, mios-pc-vision,
+# mios-doctor, ...) stays UNTOUCHED. Safe by construction: the tier-walk below
+# validates this tag against Ollama's tags and falls back to the auto-picked
+# base tier if mios-hermes wasn't built, and the base-model fallback_model
+# chain backs it at runtime. Override with MIOS_HERMES_ROLE_MODEL=none to keep
+# the bare auto-picked base, or =<tag> to pin a different role model.
+_HERMES_ROLE_MODEL="${MIOS_HERMES_ROLE_MODEL:-mios-hermes:latest}"
+if [[ "$_HERMES_ROLE_MODEL" != "none" ]]; then
+    _AI_MODEL_RESOLVED="$_HERMES_ROLE_MODEL"
+    _log "hermes role model: pinning Hermes to ${_AI_MODEL_RESOLVED} (auto-picked base kept as fallback)"
+fi
+
 # Make sure the directory exists with the right ownership. tmpfiles.d
 # should have done this already, but be defensive in case the .service
 # fires before tmpfiles for some reason.

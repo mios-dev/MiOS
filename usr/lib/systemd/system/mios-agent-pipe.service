@@ -31,11 +31,19 @@ Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=hermes-agent
 # doesn't have mios-ollama-igpu standing up (e.g., bare-metal with
 # only NVIDIA dGPU).
 Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11435
-# Phase A.1 -- planner (qwen2.5-coder:7b, function-calling-tuned)
-# runs on the dGPU/CUDA lane :11434 since it needs more headroom +
-# multi-hop reasoning than the iGPU lane's micro-models can supply.
-# Falls back to whatever lane is reachable if :11434 is down.
+# Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to
+# whatever lane is reachable if :11434 is down.
+# Model: mios-agent -- the canonical "MiOS AI" model (Modelfile FROM
+# qwen3.5:4b as of 2026-05-22 consolidation; was gemma4:e4b). ONE light
+# brain now serves plan + refine + polish with the full MiOS agent SYSTEM
+# (act-don't-narrate / right-tool-for-goal / SSOT mios-os-control surface,
+# ENGLISH-default, no hardcodes). The planner emits a single structured
+# verb/recipe DAG; if it ever empties, DAG mode degrades to the backend
+# proxy. Override via /etc/mios/agent-pipe.env.
+# History: qwen2.5-coder:7b -> mios-planner(gemma4) -> mios-agent(gemma4)
+# -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
 Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11434
+Environment=MIOS_AGENT_PIPE_PLANNER_MODEL=mios-agent
 Environment=MIOS_DB_URL=http://localhost:8000
 Environment=MIOS_DB_USER=root
 Environment=MIOS_DB_PASS=root
@@ -43,6 +51,18 @@ Environment=MIOS_DB_NS=mios
 Environment=MIOS_DB_DB=mios
 # Phase C.3 -- this service signs SurrealDB writes as agent-pipe.
 Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
+# Phase D.5 consolidation (operator 2026-05-22): refine (input prompt-
+# enhancement) + polish (final-answer shaping WITH persona) share the ONE
+# light MiOS brain -- mios-agent (FROM qwen3.5:4b, same base blob as
+# mios-hermes -> no extra resident weights) on the dGPU lane :11434. The
+# "polish mechanism" thus runs on a MiOS role model carrying the MiOS
+# operating principles + ENGLISH-default language, not a bare base model.
+# Mirrors mios.toml [refine].model / [polish].model (same pin pattern as
+# MIOS_AGENT_PIPE_PLANNER_MODEL above). Override via /etc/mios/agent-pipe.env.
+Environment=MIOS_REFINE_MODEL=mios-agent
+Environment=MIOS_REFINE_ENDPOINT=http://localhost:11434
+Environment=MIOS_POLISH_MODEL=mios-agent
+Environment=MIOS_POLISH_ENDPOINT=http://localhost:11434
 # Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
 # Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s
 # for the same prompt. Generous timeout works on both.

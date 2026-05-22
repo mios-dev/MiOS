@@ -31,14 +31,14 @@ declare -a SELECTED_DRIVERS=()
 
 # Logging functions
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[âœ"]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[âš ]${NC} $1"; }
-log_error() { echo -e "${RED}[âœ--]${NC} $1"; }
+log_success() { echo -e "${GREEN}[[OK]]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[[WARN]]${NC} $1"; }
+log_error() { echo -e "${RED}[[ERR]]${NC} $1"; }
 log_header() { 
     echo ""
-    echo -e "${CYAN}â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--${NC}"
-    echo -e "${CYAN}â*'${NC} ${BOLD}$1${NC}"
-    echo -e "${CYAN}â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
+    echo -e "${CYAN}+****************************************************************+${NC}"
+    echo -e "${CYAN}|${NC} ${BOLD}$1${NC}"
+    echo -e "${CYAN}+****************************************************************+${NC}"
     echo ""
 }
 
@@ -156,9 +156,9 @@ display_devices() {
     local -n dev_array=$1
     local counter=1
     
-    echo -e "${CYAN}â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--${NC}"
-    echo -e "${CYAN}â*'${NC} ${BOLD}Available PCIe Devices${NC}"
-    echo -e "${CYAN}â* â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*£${NC}"
+    echo -e "${CYAN}+****************************************************************+${NC}"
+    echo -e "${CYAN}|${NC} ${BOLD}Available PCIe Devices${NC}"
+    echo -e "${CYAN}+****************************************************************+${NC}"
     
     for device in "${dev_array[@]}"; do
         local pci_addr=$(echo "$device" | awk '{print $1}')
@@ -185,15 +185,15 @@ display_devices() {
             color=$BLUE
         fi
         
-        echo -e "${CYAN}â*'${NC} ${BOLD}${counter})${NC} ${color}${device_desc}${NC}"
-        echo -e "${CYAN}â*'${NC}    PCI: ${pci_addr} â"' ID: ${device_id} â"' IOMMU: ${iommu_group}"
-        echo -e "${CYAN}â*'${NC}    Driver: ${current_driver}"
-        echo -e "${CYAN}â* â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â*£${NC}"
+        echo -e "${CYAN}|${NC} ${BOLD}${counter})${NC} ${color}${device_desc}${NC}"
+        echo -e "${CYAN}|${NC}    PCI: ${pci_addr} | ID: ${device_id} | IOMMU: ${iommu_group}"
+        echo -e "${CYAN}|${NC}    Driver: ${current_driver}"
+        echo -e "${CYAN}+----------------------------------------------------------------+${NC}"
         
         counter=$((counter + 1))
     done
     
-    echo -e "${CYAN}â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
+    echo -e "${CYAN}+****************************************************************+${NC}"
 }
 
 # Interactive device selection
@@ -206,9 +206,9 @@ select_devices() {
     
     echo ""
     echo -e "${BOLD}Selection Options:${NC}"
-    echo "  â€¢ Enter device numbers separated by spaces (e.g., 1 2 3)"
-    echo "  â€¢ Enter 'a' to select all devices"
-    echo "  â€¢ Enter 'q' to quit"
+    echo "  * Enter device numbers separated by spaces (e.g., 1 2 3)"
+    echo "  * Enter 'a' to select all devices"
+    echo "  * Enter 'q' to quit"
     echo ""
     
     while true; do
@@ -262,7 +262,7 @@ select_devices() {
     echo ""
     log_success "Selected ${#SELECTED_DEVICES[@]} device(s):"
     for i in "${!SELECTED_DEVICES[@]}"; do
-        echo "  â€¢ ${SELECTED_DEVICES[$i]} [${SELECTED_IDS[$i]}] - Driver: ${SELECTED_DRIVERS[$i]}"
+        echo "  * ${SELECTED_DEVICES[$i]} [${SELECTED_IDS[$i]}] - Driver: ${SELECTED_DRIVERS[$i]}"
     done
 }
 
@@ -314,7 +314,7 @@ detect_related_devices() {
         
         for entry in "${additional_devices[@]}"; do
             IFS='|' read -r addr id info <<< "$entry"
-            echo "  â€¢ $info"
+            echo "  * $info"
         done
         
         echo ""
@@ -343,17 +343,17 @@ analyze_iommu_groups() {
             local group=$(basename $(readlink "/sys/bus/pci/devices/0000:$pci_addr/iommu_group"))
             local group_size=$(ls "/sys/kernel/iommu_groups/$group/devices/" 2>/dev/null | wc -l)
             
-            echo -e "${CYAN}â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--${NC}"
-            echo -e "${CYAN}â*'${NC} Device: $pci_addr â"' IOMMU Group: $group â"' Size: $group_size device(s)"
-            echo -e "${CYAN}â* â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*£${NC}"
+            echo -e "${CYAN}+****************************************************************+${NC}"
+            echo -e "${CYAN}|${NC} Device: $pci_addr | IOMMU Group: $group | Size: $group_size device(s)"
+            echo -e "${CYAN}+****************************************************************+${NC}"
             
             for dev in /sys/kernel/iommu_groups/$group/devices/*; do
                 local dev_id=$(basename "$dev")
                 local dev_info=$(lspci -nns "${dev_id}" | sed 's/^[^ ]* //')
-                echo -e "${CYAN}â*'${NC} $dev_info"
+                echo -e "${CYAN}|${NC} $dev_info"
             done
             
-            echo -e "${CYAN}â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
+            echo -e "${CYAN}+****************************************************************+${NC}"
             
             if [[ $group_size -gt 5 ]]; then
                 log_warning "Large IOMMU group detected ($group_size devices)"
@@ -764,9 +764,9 @@ echo "VFIO Configuration Verification"
 echo "Checking VFIO modules..."
 for mod in vfio vfio_pci vfio_iommu_type1; do
     if lsmod | grep -q "^\$mod"; then
-        echo "  âœ" \$mod loaded"
+        echo "  [OK] \$mod loaded"
     else
-        echo "  âœ-- \$mod NOT loaded"
+        echo "  [ERR] \$mod NOT loaded"
     fi
 done
 echo ""
@@ -872,7 +872,7 @@ main() {
     generate_summary
     
     # Prompt for reboot
-    echo -e "${YELLOW}â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*${NC}"
+    echo -e "${YELLOW}****************************************************************${NC}"
     read -p "Reboot now to apply changes? [y/N]: " reboot_now
     
     if [[ "$reboot_now" =~ ^[Yy]$ ]]; then

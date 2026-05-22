@@ -49,7 +49,7 @@ stacks (hadolint, shellcheck SC2038, TOML validation).
      `/usr/lib/bootc/bound-images.d/`.
    - **BOOTC-CONTAINER-LINT** — final RUN of `Containerfile`.
    - **UNIFIED-AI-REDIRECTS** — `MIOS_AI_KEY`/`MODEL`/`ENDPOINT` resolve to
-     `http://localhost:8080/v1`; vendor URLs are forbidden anywhere.
+     `http://localhost:8642/v1`; vendor URLs are forbidden anywhere.
    - **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
      `Delegate=yes` (only documented exceptions: `mios-ceph`, `mios-k3s`).
 6. Kernel hardening uses `lockdown=integrity` (NOT `confidentiality`).

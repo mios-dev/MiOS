@@ -70,18 +70,29 @@ in-image (`automation/53-bake-lookingglass-client.sh`).
 
 ## AI surface
 
-All agents and tooling target `MIOS_AI_ENDPOINT` (`http://localhost:8080/v1`).
+All agents and tooling target `MIOS_AI_ENDPOINT` (`http://localhost:8642/v1`).
 The endpoint implements the OpenAI v1 REST protocol -- core surfaces:
 `GET /v1/models`, `POST /v1/chat/completions` (streaming SSE supported),
 `POST /v1/embeddings`. Auth: `Authorization: Bearer $MIOS_AI_KEY` (empty key
 accepted by the local stack). Tool calling (`tools` array,
 `finish_reason: tool_calls`) is supported for capable models.
 
-| Service | Protocol | Path |
+The MiOS AI stack uses a **multi-lane inference** model to separate direct
+operator interaction from background observability tasks:
+
+| Lane | Endpoint | Hardware | Primary Models |
+|---|---|---|---|
+| **Interative** | `:11434` | dGPU (NVIDIA) | `granite4.1:3b`, `qwen2.5-coder:7b` |
+| **Observability** | `:11435` | iGPU (AMD ROCm) | `qwen3:0.6b-cpu` (always-on classification) |
+| **Gateway** | `:8642` | Host | `hermes-agent` (OpenAI proxy + system toolset) |
+
+| Service | Protocol | Implementation |
 |---|---|---|
-| Inference | OpenAI v1 REST | `MIOS_AI_ENDPOINT` (`http://localhost:8080/v1`) -- Quadlet `etc/containers/systemd/mios-ai.container` |
+| Inference | OpenAI v1 REST | Ollama (dGPU) + Ollama-iGPU (iGPU/CPU lane) |
+| Gateway | OpenAI v1 REST | `hermes-agent.service` (direct host install, port 8642) |
+| State | SQL / Graph | SurrealDB 3.0 (consolidated cross-agent context) |
+| RAG | Vector / REST | Qdrant (Knowledge Base embeddings + search) |
 | Discovery | MCP | `usr/share/mios/ai/v1/mcp.json` |
-| Metadata | JSON | `usr/share/mios/ai/v1/models.json` |
 | System prompt | markdown | `usr/share/mios/ai/system.md` (canonical), `etc/mios/ai/system-prompt.md` (host override) |
 
 References:

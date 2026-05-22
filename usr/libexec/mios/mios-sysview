@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""mios-sysview -- native system-inspection tool: the SSOT for the
+journalctl / ps / podman command construction that agent-pipe's verbs used
+to hardcode INLINE. Operator 2026-05-21: "no hardcodes ... should all be
+native tools/skills/recipes ... unless baked in the modelfile or docs".
+
+These ops build their command from TYPED, OPTIONAL args (conditional flags
+-- e.g. `-u UNIT` only when a unit is given), which static [recipes.*]
+templates can't express. So they live here as a helper TOOL (the same
+pattern as mios-system-status), and agent-pipe's arms just delegate to it
+-- the command literals are gone from the dispatch code.
+
+Subcommands:
+  logs   [--unit U] [--since S] [--lines N] [--level L]   journal (READ)
+  proc   [--filter F] [--sort rss|cpu|pid] [--limit N]    processes (READ)
+  containers [--name N]                                   podman ps (READ)
+  container-restart --name N                              podman restart (WRITE)
+"""
+from __future__ import annotations
+
+import argparse
+import shlex
+import subprocess
+import sys
+
+_LEVELS = ("emerg", "alert", "crit", "err", "warning", "notice", "info", "debug")
+
+
+def _run(cmd: str) -> int:
+    """Run a fully-built shell pipeline (every literal is constructed HERE,
+    from validated/typed args -- no caller string reaches a shell unquoted)."""
+    try:
+        return subprocess.run(["bash", "-lc", cmd], text=True, timeout=30).returncode
+    except (subprocess.TimeoutExpired, OSError) as e:
+        sys.stderr.write(f"mios-sysview: {e}\n")
+        return 1
+
+
+def cmd_logs(a) -> int:
+    parts = ["journalctl", "--no-pager", "-n", str(max(1, a.lines)),
+             "--since", shlex.quote(a.since)]
+    if a.unit.strip():
+        parts += ["-u", shlex.quote(a.unit.strip())]
+    if a.level.strip().lower() in _LEVELS:
+        parts += ["-p", a.level.strip().lower()]
+    return _run(" ".join(parts))
+
+
+def cmd_proc(a) -> int:
+    sort = {"cpu": "-pcpu", "pid": "-pid"}.get(a.sort.lower(), "-rss")
+    base = f"ps -eo pid,user,rss,pcpu,comm,args --sort={sort} --no-headers"
+    if a.filter.strip():
+        base += f" | grep -i -- {shlex.quote(a.filter.strip())}"
+    return _run(f"{base} | head -{max(1, a.limit)}")
+
+
+def cmd_containers(a) -> int:
+    base = "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}'"
+    if a.name.strip():
+        base += f" | grep -i -- {shlex.quote(a.name.strip())}"
+    return _run(base)
+
+
+def cmd_container_restart(a) -> int:
+    name = a.name.strip()
+    if not name:
+        sys.stderr.write("mios-sysview: container-restart needs --name\n")
+        return 64
+    q = shlex.quote(name)
+    return _run(f"podman restart {q} && podman ps --filter name={q}")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-sysview")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pl = sub.add_parser("logs")
+    pl.add_argument("--unit", default="")
+    pl.add_argument("--since", default="10m")
+    pl.add_argument("--lines", type=int, default=50)
+    pl.add_argument("--level", default="")
+    pl.set_defaults(fn=cmd_logs)
+
+    pp = sub.add_parser("proc")
+    pp.add_argument("--filter", default="")
+    pp.add_argument("--sort", default="rss")
+    pp.add_argument("--limit", type=int, default=20)
+    pp.set_defaults(fn=cmd_proc)
+
+    pc = sub.add_parser("containers")
+    pc.add_argument("--name", default="")
+    pc.set_defaults(fn=cmd_containers)
+
+    pr = sub.add_parser("container-restart")
+    pr.add_argument("--name", default="")
+    pr.set_defaults(fn=cmd_container_restart)
+
+    a = p.parse_args()
+    return a.fn(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

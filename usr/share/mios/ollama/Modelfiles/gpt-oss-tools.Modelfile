@@ -1,4 +1,5 @@
 # /usr/share/mios/ollama/Modelfiles/gpt-oss-tools.Modelfile
+# mios-model: gpt-oss-tools:20b
 #
 # Custom Ollama model derived from gpt-oss:20b that strips the harmony
 # "Reasoning: <level>" header from the system prompt -- which is what

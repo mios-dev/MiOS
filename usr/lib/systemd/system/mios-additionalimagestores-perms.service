@@ -15,7 +15,7 @@
 # Before=hermes-agent.service so anything that touches the store sees
 # correct perms) and is idempotent: chmod -R go+rX is a no-op on
 # already-correct dirs.
-Description=MiOS: enforce world-readable perms on /usr/lib/containers/storage
+Description='MiOS': enforce world-readable perms on /usr/lib/containers/storage
 DefaultDependencies=no
 After=local-fs.target
 Before=podman-restart.service hermes-agent.service multi-user.target

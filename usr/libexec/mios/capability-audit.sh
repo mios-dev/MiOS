@@ -175,18 +175,18 @@ check_privileges() {
     isolated_cpus=$(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo "")
     online_cpus=$(cat /sys/devices/system/cpu/online 2>/dev/null || echo "0-$(($(nproc)-1))")
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                           CPU CORE ALLOCATION                              â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
+    echo "+------------------------------------------------------------------------------+"
+    echo "|                           CPU CORE ALLOCATION                              |"
+    echo "+------------------------------------------------------------------------------+"
     
     if [[ -n "$isolated_cpus" && "$isolated_cpus" != "" ]]; then
-        echo "â"' HOST CORES (housekeeping):     $(comm -23 <(echo "$online_cpus" | tr ',' '\n' | sort -n) <(echo "$isolated_cpus" | tr ',' '\n' | sort -n) 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "$online_cpus")"
-        echo "â"' ISOLATED CORES (VM-reserved):  $isolated_cpus"
+        echo "| HOST CORES (housekeeping):     $(comm -23 <(echo "$online_cpus" | tr ',' '\n' | sort -n) <(echo "$isolated_cpus" | tr ',' '\n' | sort -n) 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "$online_cpus")"
+        echo "| ISOLATED CORES (VM-reserved):  $isolated_cpus"
     else
-        echo "â"' HOST CORES:     $online_cpus (no isolation configured)"
-        echo "â"' ISOLATED CORES: [none]"
+        echo "| HOST CORES:     $online_cpus (no isolation configured)"
+        echo "| ISOLATED CORES: [none]"
     fi
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "+------------------------------------------------------------------------------+"
     
     # CCD/Chiplet breakdown for AMD (like 9950X3D)
     echo ""

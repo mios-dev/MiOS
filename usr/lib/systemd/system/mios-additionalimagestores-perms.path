@@ -9,7 +9,7 @@
 # Together with the .service unit (runs at boot) this makes the
 # go+rX state self-healing: any way the perms get reset, they snap
 # back within seconds.
-Description=MiOS: watch additionalimagestores for perm changes; retrigger chmod
+Description='MiOS': watch additionalimagestores for perm changes; retrigger chmod
 ConditionPathIsDirectory=/usr/lib/containers/storage
 
 [Path]

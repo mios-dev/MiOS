@@ -79,7 +79,7 @@ distribution. Every claim cites a real file path.
 │   │   └── selinux/packages/mios/ # Custom SELinux .te modules
 │   └── lib/extensions/source/     # systemd-sysext source materials
 ├── etc/                           # → /etc (3-way merge on bootc upgrade)
-│   ├── containers/systemd/        # Host-level Quadlet definitions (mios-ai/ceph/k3s)
+│   ├── containers/systemd/        # Host-level Quadlet definitions (ceph/k3s; AI is host-native, not a Quadlet)
 │   ├── mios/
 │   │   ├── eval-criteria.json     # OpenAI Evals grader rubric
 │   │   ├── kb.conf.toml           # KB-wide config
@@ -160,7 +160,6 @@ distribution. Every claim cites a real file path.
 ### External OCI images (Quadlet sidecars)
 | Image | Quadlet |
 |---|---|
-| `docker.io/localai/localai:latest` | `etc/containers/systemd/mios-ai.container` |
 | `quay.io/ceph/ceph:latest` | `etc/containers/systemd/mios-ceph.container` |
 | `docker.io/rancher/k3s:latest` | `etc/containers/systemd/mios-k3s.container` |
 | `docker.io/ollama/ollama:latest` | `usr/share/containers/systemd/ollama.container` |
@@ -446,8 +445,10 @@ required by `u mios 1000:mios`). Critical: login users MUST have fixed UIDs
 
 Service users: `50-mios.conf` (mios-virt UID 800), `50-mios-services.conf`
 (guacamole/guacd/postgres/pxe-hub/crowdsec/ollama 810-815),
-`50-mios-gpu.conf` (kvm/video/render GIDs pinned), `50-mios-ai.conf`
-(mios-ai service), `20-podman-machine.conf` (`g core 1001` + `u core 1001:core`).
+`50-mios-gpu.conf` (kvm/video/render GIDs pinned), `20-podman-machine.conf`
+(`g core 1001` + `u core 1001:core`). The AI/SYSTEM tier groups
+(`mios-hermes` 820, `mios-ai` 850, `mios-sys` 860 -- shared-state RBAC) are
+declared in `50-mios-services.conf`.
 
 ### dracut
 - `usr/lib/dracut/dracut.conf.d/*-mios-*.conf` -- the only MiOS-authored
@@ -462,13 +463,12 @@ Service users: `50-mios.conf` (mios-virt UID 800), `50-mios-services.conf`
 
 ## §7. Quadlet sidecars
 
-### `etc/containers/systemd/mios-ai.container`
-- **Image:** `docker.io/localai/localai:latest`
-- **Network:** `mios.network` (default 10.89.0.0/24; see `[network.quadlet]` in `mios.toml`)
-- **Port:** 8080 → `http://localhost:8080/v1` (LAW 5)
-- **Volumes:** `/srv/ai/models`, `/srv/ai/mcp`
-- **Env:** `MIOS_AI_KEY`, `MIOS_AI_MODEL`
-- **User/Group:** `mios-ai`/`mios-ai`
+### AI surface -- Hermes-Agent (host-native)
+The AI surface is the host-native `hermes-agent.service` (direct-install), not a Quadlet sidecar.
+- **Endpoint:** `http://localhost:8642/v1` (OpenAI-compatible; the canonical `MIOS_AI_ENDPOINT`, LAW 5)
+- **Front door:** OWUI `MiOS AI` pipe -> `mios-agent-pipe` (`:8640`) -> Hermes (`:8642`)
+- **Env:** `MIOS_AI_KEY` (from `/etc/mios/hermes/api.env`), `MIOS_AI_MODEL`
+- **User/Group:** `mios-hermes`/`mios-hermes`
 
 ### `etc/containers/systemd/mios-ceph.container`
 - **Image:** `quay.io/ceph/ceph:latest`
@@ -679,7 +679,8 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
 4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`.
    No `--squash-all` (strips OCI metadata bootc needs).
 5. **UNIFIED-AI-REDIRECTS** -- all agents target `MIOS_AI_ENDPOINT`
-   (`http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden.
+   (`http://localhost:8642/v1`, the host-native Hermes-Agent gateway).
+   Vendor-hardcoded URLs are forbidden.
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`.
 
@@ -813,8 +814,7 @@ Canonical vars (see `usr/share/mios/env.defaults`):
 | `MIOS_BASE_IMAGE` | `ghcr.io/ublue-os/ucore-hci:stable-nvidia` | Containerfile base |
 | `MIOS_LOCAL_TAG` | `localhost/mios:latest` | Local build tag |
 | `MIOS_BIB_IMAGE` | `quay.io/centos-bootc/bootc-image-builder:latest` | BIB |
-| `MIOS_LOCALAI_VERSION` | `v2.20.0` | LocalAI sidecar |
-| `MIOS_AI_ENDPOINT` | `http://localhost:8080/v1` | Inference endpoint (LAW 5) |
+| `MIOS_AI_ENDPOINT` | `http://localhost:8642/v1` | Inference endpoint -- host-native Hermes-Agent (LAW 5) |
 | `MIOS_AI_MODEL` | `qwen2.5-coder:7b` | Default chat model |
 | `MIOS_AI_KEY` | `""` | API key (empty for local) |
 | `MIOS_INSTALL_ENV` | `/etc/mios/install.env` | Host install env file |
@@ -893,8 +893,8 @@ cat /var/lib/mios/role.active
 mios "ask the local AI a question"
 
 # AI surface
-curl -s http://localhost:8080/v1/models | jq
-curl -s http://localhost:8080/v1/chat/completions -d @usr/share/mios/api/chat.local.example.json -H 'Content-Type: application/json' | jq
+curl -s http://localhost:8642/v1/models | jq
+curl -s http://localhost:8642/v1/chat/completions -d @usr/share/mios/api/chat.local.example.json -H 'Content-Type: application/json' | jq
 
 # Repo overlay (sanity)
 ls /usr/lib/mios/             # paths.sh, logs/

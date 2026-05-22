@@ -1,0 +1,59 @@
+# /etc/containers/systemd/mios-vllm.container
+# 'MiOS' vLLM server -- OpenAI-compatible /v1 for GUI-grounding VLMs that
+# Ollama CANNOT serve (GUI-Actor / Holo1.5 / UI-TARS / Qwen3-VL grounding
+# heads need transformers/vLLM/SGLang, not ollama). Backs the Phase-2
+# desktop click-control lane (screenshot -> click coordinates).
+#
+# Default model: Qwen3-VL-4B-Instruct -- the smallest open grounder that
+# beats the older specialists on ScreenSpot-Pro and fits the VRAM envelope.
+# Weights are baked OFFLINE at OCI build time by automation/38-vllm-prep.sh
+# (vLLM/HF won't download air-gapped) and served read-only from the
+# immutable /usr/share seed. FOSS: vLLM is Apache-2.0.
+#
+# VRAM-GATED + DISABLED BY DEFAULT: a 4B VLM is ~6-10GB. On a contended
+# GPU (e.g. WSL2 GPU-PV sharing VRAM with the Windows host) this will not
+# fit. Enable explicitly only when the dGPU has headroom:
+#   systemctl enable --now mios-vllm.service
+[Unit]
+Description='MiOS' vLLM grounding server (OpenAI /v1 for GUI-grounding VLMs)
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+# Guard: only start when the baked weights exist (build may have skipped
+# the bake on a no-egress CI). No weights -> no crash-loop.
+ConditionPathExists=/usr/share/mios/vllm/grounding/config.json
+
+[Container]
+Image=docker.io/vllm/vllm-openai:latest
+ContainerName=mios-vllm
+Network=mios.network
+Network=ai-net.network
+# GPU passthrough -- identical CDI device line to ollama.container,
+# resolved by mios-cdi-detect.service (bare-metal nvidia-ctk spec OR the
+# WSL2 /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds /usr/lib/wsl).
+AddDevice=nvidia.com/gpu=all
+# vLLM serves the baked grounding VLM, OpenAI-compatible, on :11436.
+# --gpu-memory-utilization kept low so it co-resides with ollama's models
+# on a 24GB GPU; raise on a dedicated/large GPU. --model points at the
+# immutable offline-baked weights dir mounted below.
+Exec=--model /models/grounding --served-model-name mios-grounding --host 0.0.0.0 --port 11436 --gpu-memory-utilization 0.35 --max-model-len 8192
+# Read-only mount of the build-baked weights (immutable composefs seed).
+# No writable runtime copy needed -- vLLM only reads the weights.
+Volume=/usr/share/mios/vllm/grounding:/models/grounding:ro,Z
+# Air-gapped: never reach out to the HF hub at runtime.
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=VLLM_NO_USAGE_STATS=1
+Environment=DO_NOT_TRACK=1
+PublishPort=0.0.0.0:11436:11436
+Label=org.opencontainers.image.title=mios-vllm
+Label=org.opencontainers.image.url=http://localhost:11436/v1/models
+Label=io.podman_desktop.openInBrowser=http://localhost:11436/v1/models
+
+[Service]
+Restart=on-failure
+RestartSec=15
+# Model load + CUDA graph capture can take a while on first start.
+TimeoutStartSec=600s
+
+[Install]
+WantedBy=multi-user.target default.target

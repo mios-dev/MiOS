@@ -102,10 +102,19 @@ PYEOF
 )
 
 # ─── POST to OWUI's functions API ────────────────────────────────────
+# Send the payload via a TEMP FILE (-d @file), NOT an inline arg: the pipe
+# source is large enough to blow ARG_MAX as a curl command-line argument
+# ("curl: Argument list too long" -- operator-flagged 2026-05-21 after the
+# UserValves persona fields grew the pipe). printf is a shell builtin, so
+# writing the file does not hit the exec arg limit.
+PAYLOAD_FILE="$(mktemp /tmp/mios-owui-pipe-payload.XXXXXX.json)"
+printf '%s' "$PAYLOAD" > "$PAYLOAD_FILE"
+trap 'rm -f "$PAYLOAD_FILE"' EXIT
+
 RESP=$(curl -s -X POST "$OWUI_URL/api/v1/functions/create" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -d "$PAYLOAD" \
+    -d @"$PAYLOAD_FILE" \
     -o /tmp/mios-owui-install-pipe.resp \
     -w "%{http_code}")
 
@@ -119,7 +128,7 @@ case "$RESP" in
         RESP2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$PIPE_ID/update" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
+            -d @"$PAYLOAD_FILE" \
             -o /tmp/mios-owui-install-pipe.resp \
             -w "%{http_code}")
         case "$RESP2" in
@@ -220,7 +229,23 @@ print(json.dumps({
     "meta": {
         "profile_image_url": "/static/favicon.png",
         "description": "local-first Agent for MiOS systems",
-        "capabilities": {"vision": False, "citations": True},
+        # OWUI native tool features ENABLED BY DEFAULT on the USER-FACING
+        # pipe model (operator 2026-05-22: "OWUI tools can't be used if the
+        # actual OWUI tools aren't enabled by default"). Without these the
+        # web_search / code / image features sit behind a per-chat toggle,
+        # so the agent's tool_calls + the daemon-agent fan-out can't reach
+        # them. Mirrors mios-owui-apply-system-prompt's DEFAULT_FEATURE_IDS.
+        "capabilities": {
+            "vision": True, "citations": True, "file_upload": True,
+            "web_search": True, "image_generation": True,
+            "code_interpreter": True,
+        },
+        # defaultFeatureIds is intentionally EMPTY: those toggles AUTO-FIRE
+        # every message (OWUI ran web-search + image-gen on a plain greeting,
+        # erroring on the image). Tools stay USABLE via capabilities (toggle
+        # available) + the mios_verbs tool surface below (model decides when to
+        # call). Operator 2026-05-22: don't auto-fire tools on greetings.
+        "defaultFeatureIds": [],
         # Native MiOS tool surface -- the model SEES these in its
         # tool_calls list (no `terminal: mios-<verb>` indirection).
         # Registered separately by mios-owui-install-tools + the
@@ -405,9 +430,20 @@ print(f"[mios-owui-install-pipe] aligned {n} model row(s) "
 # 2026-05-19.
 if sys_prompt:
     synced = 0
+    # OWUI native tool features the USER-FACING model must have ON by
+    # default (operator 2026-05-22: "OWUI tools can't be used if they
+    # aren't enabled by default"). OWUI never refreshes meta after first
+    # create, so force-sync capabilities + defaultFeatureIds + toolIds onto
+    # BOTH rows here (mirrors the create payload + apply-system-prompt).
+    want_caps = {
+        "vision": True, "citations": True, "file_upload": True,
+        "web_search": True, "image_generation": True, "code_interpreter": True,
+    }
+    want_features = []  # do NOT auto-fire features per message (greeting fix)
+    want_tools = ["mios_verbs", "openui"]
     for row_id in (model_id, twin_id):
         cur = c.execute(
-            "SELECT params FROM model WHERE id = ?", (row_id,)).fetchone()
+            "SELECT params, meta FROM model WHERE id = ?", (row_id,)).fetchone()
         if cur is None:
             continue
         try:
@@ -417,12 +453,24 @@ if sys_prompt:
         if not isinstance(p, dict):
             p = {}
         p["system"] = sys_prompt
-        c.execute("UPDATE model SET params = ? WHERE id = ?",
-                  (json.dumps(p), row_id))
+        try:
+            m = json.loads(cur[1] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            m = {}
+        if not isinstance(m, dict):
+            m = {}
+        caps = m.get("capabilities") if isinstance(m.get("capabilities"), dict) else {}
+        caps.update(want_caps)
+        m["capabilities"] = caps
+        m["defaultFeatureIds"] = want_features
+        existing_tools = m.get("toolIds") or m.get("tool_ids") or []
+        m["toolIds"] = list(dict.fromkeys([*existing_tools, *want_tools]))
+        c.execute("UPDATE model SET params = ?, meta = ? WHERE id = ?",
+                  (json.dumps(p), json.dumps(m), row_id))
         synced += 1
     c.commit()
-    print(f"[mios-owui-install-pipe] synced params.system on "
-          f"{synced} model row(s) (len={len(sys_prompt)})")
+    print(f"[mios-owui-install-pipe] synced params.system + tool capabilities "
+          f"on {synced} model row(s) (len={len(sys_prompt)})")
 c.close()
 PYEOF
 fi

@@ -672,7 +672,8 @@ _ROUTER_SYSTEM = (
     "  general knowledge questions, conversational follow-through,\n"
     "  ANY 'open / find / install / launch / use' intent.\n"
     "  MiOS-Agent is both an Agentic-OS AND a generalized AI agent.\n"
-    "- Mirror the user's language in `reply` fields.\n"
+    "- Write `reply` fields in ENGLISH by default; use another language\n"
+    "  only if the user's own message is clearly written in it.\n"
     "- Output JSON ONLY -- no preamble, no markdown, no commentary."
 )
 
@@ -830,6 +831,7 @@ def _load_agent_registry() -> dict[str, dict]:
                 "role":     str(cfg.get("role", "general")),
                 "default":  bool(cfg.get("default", False)),
                 "strengths": list(cfg.get("strengths") or []),
+                "lane":     str(cfg.get("lane", "")).lower().strip(),
             }
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
@@ -842,6 +844,132 @@ def _load_agent_registry() -> dict[str, dict]:
 
 
 _AGENT_REGISTRY = _load_agent_registry()
+
+
+def _load_dispatch_cfg() -> dict:
+    """[dispatch] -- multi-agent concurrent fan-out config (SSOT in
+    mios.toml; env override). Operator 2026-05-21: 'dispatch to a couple
+    of agents at a time -- not ALL agents, but a couple'. fanout_max<=1
+    restores exact single-agent behaviour (zero behaviour change)."""
+    cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2}
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        with open(toml_path, "rb") as f:
+            dd = (tomllib.load(f).get("dispatch") or {})
+        cfg["enable"] = bool(dd.get("enable", True))
+        cfg["fanout_min"] = max(1, int(dd.get("fanout_min", 1)))
+        cfg["fanout_max"] = max(cfg["fanout_min"], int(dd.get("fanout_max", 2)))
+    except Exception as e:
+        log.warning("dispatch cfg load failed: %s; using defaults", e)
+    try:
+        cfg["fanout_max"] = max(1, int(
+            os.environ.get("MIOS_DISPATCH_FANOUT_MAX", cfg["fanout_max"])))
+    except (TypeError, ValueError):
+        pass
+    return cfg
+
+
+_DISPATCH_CFG = _load_dispatch_cfg()
+
+
+def _agent_lane(cfg: dict) -> str:
+    """Resolve an agent's inference lane: 'cpu' (the light iGPU/CPU lane,
+    incl. the daemon-agent) or 'gpu' (the heavy dGPU lane). Explicit
+    [agents.*].lane wins; otherwise infer from endpoint/model so legacy
+    configs still classify. Used to run CPU work CONCURRENTLY with GPU."""
+    lane = str(cfg.get("lane", "")).lower().strip()
+    if lane in ("cpu", "igpu"):
+        return "cpu"
+    if lane == "gpu":
+        return "gpu"
+    ep = str(cfg.get("endpoint", ""))
+    mdl = str(cfg.get("model", "")).lower()
+    if ":8644" in ep or ":11435" in ep or "cpu" in mdl:
+        return "cpu"
+    return "gpu"
+
+
+def _pick_fanout_agents(primary_name: str,
+                        refined: Optional[dict]) -> list:
+    """Pick SECONDARY (name, cfg) agents to run CONCURRENTLY alongside the
+    chosen primary -- operator 2026-05-21 'a couple at a time' + 'self-
+    delegate to CPU concurrently to pending/future GPU operations' + 'make
+    sure hermes isn't always the only dispatched agent'. Selection is
+    deterministic + language-neutral (NO hardcoded topic map): score each
+    OTHER registered agent by role/strengths-token overlap with the refined
+    plan, PLUS a concurrency bonus for a CPU-lane agent when the primary
+    holds the GPU lane -- that secondary runs in parallel at zero dGPU cost,
+    so the CPU lane is always utilised and the primary is never alone.
+    Returns [] when fan-out is disabled / capped at 1 / nothing relevant."""
+    if not _DISPATCH_CFG.get("enable") or _DISPATCH_CFG.get("fanout_max", 1) <= 1:
+        return []
+    want = _DISPATCH_CFG["fanout_max"] - 1
+    corpus = ""
+    if isinstance(refined, dict):
+        corpus = " ".join(
+            str(refined.get(k, "")) for k in
+            ("intended_outcome", "refined_text", "target_agent")).lower()
+        for k in ("hint_tools", "hint_skills"):
+            v = refined.get(k)
+            if isinstance(v, list):
+                corpus += " " + " ".join(str(x) for x in v).lower()
+    if not corpus.strip():
+        return []
+    primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
+    scored = []
+    for name, cfg in _AGENT_REGISTRY.items():
+        if name == primary_name:
+            continue
+        # Split snake_case strengths into tokens so 'web_search' can match
+        # 'search'/'web' in the intent prose, not only the literal string.
+        terms = {str(cfg.get("role", "")).lower()}
+        for s in (cfg.get("strengths") or []):
+            s = str(s).lower()
+            terms.add(s)
+            terms.update(s.split("_"))
+        score = sum(1 for t in terms if t and t in corpus)
+        # CPU-lane concurrency bonus: when the primary occupies the GPU
+        # lane, engaging a CPU-lane agent costs no dGPU + parallelises the
+        # turn. The +2 lifts a CPU agent above the score>0 floor even on a
+        # weak topic match, so the CPU lane (e.g. the daemon-agent) self-
+        # delegates alongside the GPU primary on every non-trivial turn.
+        if primary_lane == "gpu" and _agent_lane(cfg) == "cpu":
+            score += 2
+        if score > 0:
+            scored.append((score, name, cfg))
+    scored.sort(key=lambda x: -x[0])
+    return [(n, c) for _, n, c in scored[:want]]
+
+
+async def _call_agent_complete(name: str, cfg: dict, body: dict,
+                               headers: dict, client) -> tuple:
+    """Best-effort non-streaming /v1 call to a secondary fan-out agent.
+    Returns (name, text); text='' -> dropped from the merge. A dead or
+    absent endpoint (e.g. opencode :8633 when not served as /v1) just
+    yields '' and is skipped, so fan-out degrades to the live agents."""
+    ep = (cfg.get("endpoint") or "").rstrip("/")
+    if not ep:
+        return name, ""
+    nb = dict(body)
+    nb["stream"] = False
+    if cfg.get("model"):
+        nb["model"] = cfg["model"]
+    try:
+        r = await client.post(
+            f"{ep}/chat/completions",
+            content=json.dumps(nb).encode("utf-8"), headers=headers)
+        if r.status_code != 200:
+            return name, ""
+        ch = (r.json().get("choices") or [])
+        msg = (ch[0].get("message") if ch else {}) or {}
+        return name, _strip_think_tags(str(msg.get("content") or ""))
+    except Exception as e:
+        log.info("fanout secondary %s failed: %s", name, e)
+        return name, ""
 
 
 def _load_verb_catalog() -> dict:
@@ -936,6 +1064,55 @@ def _load_verb_arg_synonyms() -> dict:
 _VERB_CATALOG = _load_verb_catalog()
 _VERB_ARG_SYNONYMS = _load_verb_arg_synonyms()
 _VERB_CATALOG_RENDERED = _render_verb_catalog(_VERB_CATALOG)
+
+
+def _load_recipe_catalog() -> dict:
+    """Parse mios.toml [recipes.*] -> {name: {description, args, permission}}.
+    SSOT for the os_recipe verb. Rendered into the planner prompt so EVERY
+    recipe is natively discoverable by every agent -- no recipe names baked
+    in code (operator 2026-05-21: "ALL agents know to use these functions";
+    "no hardcodes unless modelfile/docs"). Add a [recipes.*] block in TOML
+    and it appears here + in every consumer automatically (self-iterating)."""
+    out: dict = {}
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            return out
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    for p in (toml_path, "/etc/mios/mios.toml"):  # /etc overlay wins
+        try:
+            with open(p, "rb") as f:
+                recs = (tomllib.load(f).get("recipes") or {})
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        for name, cfg in recs.items():
+            if isinstance(cfg, dict):
+                out[name] = {
+                    "description": str(cfg.get("description", "")),
+                    "args": list(cfg.get("args") or []),
+                    "permission": str(cfg.get("permission", "read")),
+                }
+    return out
+
+
+def _render_recipe_catalog(rec: dict) -> str:
+    if not rec:
+        return ""
+    lines = ["  -- OS recipes (run via os_recipe(name=..., params={...})) --"]
+    for name, cfg in rec.items():
+        args = ",".join(cfg.get("args") or [])
+        perm = cfg.get("permission", "read")
+        tag = "" if perm == "read" else f" [{perm}]"
+        lines.append(f"  {name}({args})".ljust(34)
+                     + f"-- {cfg.get('description', '')}{tag}")
+    return "\n".join(lines)
+
+
+_RECIPE_CATALOG = _load_recipe_catalog()
+_RECIPE_CATALOG_RENDERED = _render_recipe_catalog(_RECIPE_CATALOG)
 
 
 def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> str:
@@ -1235,6 +1412,20 @@ _REFINE_SYSTEM_LITE = (
     "    tasks array (>=2 entries).\n"
     "  Default to agent whenever the request is not purely conversation;\n"
     "  when in doubt between chat and agent, choose agent.\n"
+    "\n"
+    "GROUNDING (no fabrication): when answering needs information not\n"
+    "already in this conversation -- anything external or current the agent\n"
+    "would look up rather than already know -- classify it agent so the\n"
+    "agent FETCHES it with the matching tool; such facts are never recalled\n"
+    "from memory or invented. The agent chooses the tool by purpose, not by\n"
+    "keyword. Never address the operator by a personal name they did not\n"
+    "give; use no name rather than a guessed one.\n"
+    "\n"
+    "LANGUAGE: write refined_text, intended_outcome, and reply in ENGLISH\n"
+    "by default. Use another language ONLY when the operator's own message\n"
+    "is clearly written in that language -- then keep every human-readable\n"
+    "value in that ONE language. Never drift to a language the operator did\n"
+    "not use. JSON keys + verb/tool names stay as-is (identifiers).\n"
 )
 
 
@@ -1251,8 +1442,11 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
         return ""
     msgs = [{"role": "system",
              "content": ("You are MiOS AI. Reply to the user directly and "
-                         "concisely, in their own language. Plain text "
-                         "only -- no tools, no JSON.")}]
+                         "concisely, in ENGLISH by default -- switch to "
+                         "another language ONLY if the user's own message "
+                         "is clearly written in it. Never drift to a "
+                         "language the user did not use. Plain text only -- "
+                         "no tools, no JSON.")}]
     if history:
         for h in history[-2:]:
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
@@ -1584,15 +1778,26 @@ def _multi_task_preamble(queued: list[dict],
 
 
 _POLISH_SYSTEM = (
-    "You are MiOS-Agent's polish pass. The raw answer below came from a\n"
-    "sub-agent. Your job: produce the FINAL user-facing response by\n"
+    # LANGUAGE RULE FIRST + the word "polish" is deliberately AVOIDED in this
+    # prompt: a multilingual base (qwen3.5:4b) primes on the homonym
+    # "polish" -> the Polish LANGUAGE and emits Polish for English input
+    # (operator 2026-05-22, reproduced on the bare base). State the
+    # language target up front and never name the task "polish".
+    "Write your answer in ENGLISH. Use another language ONLY if the\n"
+    "operator's ORIGINAL message (in the user turn) is itself clearly\n"
+    "written in that language -- then reply in that ONE language only.\n"
+    "Never add a translation, never switch language mid-reply, and never\n"
+    "drift to a language the operator did not use.\n"
+    "\n"
+    "You are MiOS-Agent's final-answer pass. The raw answer below came\n"
+    "from a sub-agent. Your job: produce the FINAL user-facing response by\n"
     "re-shaping that draft to match the intended outcome -- nothing more.\n"
     "Be tight. Add no new content, do not editorialise, do not attribute\n"
     "the answer to the agent. Strip internal-reasoning leaks (thought /\n"
     "reasoning / plan lines, tool-call envelopes, thinking blocks).\n"
     "\n"
     "OUTPUT ONLY THE ANSWER TEXT. No preamble, no meta-commentary about\n"
-    "polishing or reformatting, no restating the question, no thinking\n"
+    "reformatting, no restating the question, no thinking\n"
     "blocks, no answer-label header. The operator sees your output\n"
     "verbatim, so any preamble reads as if the assistant answered twice.\n"
     "Start directly with the answer.\n"
@@ -1623,9 +1828,21 @@ _POLISH_SYSTEM = (
     "drop any success the history does not back and report what actually\n"
     "happened instead.\n"
     "\n"
-    "LOCALE: answer in the language the operator used; never switch\n"
-    "language mid-reply, and never pass through foreign-locale text\n"
-    "leaked from the draft's reasoning.\n"
+    "LOCALE: language is governed by the rule at the very top (English by\n"
+    "default). Never pass through foreign-locale text leaked from the\n"
+    "draft's reasoning. Keep every measurement in the units the tool\n"
+    "results returned; never silently convert a figure.\n"
+    "\n"
+    "NO FABRICATION: never introduce a fact, name, figure, date, or claim\n"
+    "that is not already in the draft or the tool results. If the draft\n"
+    "addresses the operator by a personal name the request did not supply,\n"
+    "REMOVE the name -- never invent or guess an identity. If the draft\n"
+    "asserts an external/current fact with no tool result behind it, do\n"
+    "not present it as confirmed; keep only what the tools returned.\n"
+    "\n"
+    "SOURCE LINKS: when the tool results carry source URLs, surface them\n"
+    "verbatim so the operator can verify; never invent, alter, or guess a\n"
+    "URL, and never attach one to a claim the results do not support.\n"
     "\n"
     "VERBATIM TOKENS: copy every path, URL, id, port, tag, size, or\n"
     "percentage from the draft character-for-character. Never re-tokenise,\n"
@@ -1637,28 +1854,54 @@ _POLISH_SYSTEM = (
 
 
 async def _inline_satisfaction_check(
-    session_id: Optional[str], refined: Optional[dict]
+    session_id: Optional[str], refined: Optional[dict],
+    *,
+    agent_tools_called: Optional[list] = None,
+    agent_answered: Optional[bool] = None,
 ) -> Optional[dict]:
-    """Run a synchronous AND-fold of THIS turn's tool_call outcomes
-    against the refine intent and emit a user_query_(un)satisfied
-    event for the current session. mios-daemon's async loop ticks
-    every 30s and only sees PRIOR turns; without this inline check,
-    polish never knows whether the current turn actually succeeded
-    and can't ground-truth the wrapped reply against it.
+    """CONFIRMATION ENGINE (operator 2026-05-22). Run a synchronous
+    Definition-of-Done check on THIS turn and emit a
+    user_query_(un)satisfied event for the current session. mios-daemon's
+    async loop ticks every 30s and only sees PRIOR turns; without this
+    inline check, polish never knows whether the current turn actually
+    succeeded and can't ground-truth the wrapped reply against it.
+
+    Two signal sources, in priority order:
+      1. tool_call rows agent-pipe recorded this turn (dispatch / DAG
+         fast-paths write these) -> AND-fold their success fields.
+      2. The agent-path signals `agent_tools_called` (verb names the
+         sub-agent invoked inside its OWN tool-loop, captured from the
+         stream) + `agent_answered` (the sub-agent produced a non-empty
+         final answer). Under unify-on a verb like mios-os-control runs
+         INSIDE Hermes, so agent-pipe records NO tool_call row for it --
+         "no rows" then means the agent handled the turn, NOT that it
+         failed. Treating that as `no_tools_seen -> unsatisfied` was the
+         false-negative that made polish report failure on a succeeded
+         verb and made the critic re-litigate a done answer (the
+         "succeeds early then reports failed" bug). A delivered answer
+         is DoD-met: the turn is DONE. Whether the ACTION inside it
+         succeeded is then carried by the agent's own answer + any
+         recorded rows -- polish relays a failure the agent states, but
+         is no longer told the whole turn failed.
 
     Returns the emitted verdict dict {kind, payload} or None when
-    the session has no tool_calls (intent=chat / refine bypass).
-    Best-effort: any DB hiccup returns None instead of failing
-    the turn."""
+    there is nothing to judge. The agent-path caller uses the returned
+    kind to HALT the chain (skip the critic re-pass) on a confirmed
+    success. Best-effort: any DB hiccup returns None instead of
+    failing the turn."""
     if not session_id or not isinstance(refined, dict):
         return None
     intent = str(refined.get("intent") or "").strip()
     intended = str(refined.get("intended_outcome") or "")[:200]
     # Fetch this turn's tool_calls (since the refine row was
     # written). Use a generous 5-min lookback that comfortably
-    # covers a slow refine + sub-agent loop.
+    # covers a slow refine + sub-agent loop. `ts` MUST be in the
+    # projection: SurrealDB 3.x rejects an ORDER BY on a field that
+    # isn't selected ("Missing order idiom `ts`") with an HTTP 400,
+    # which made _db_post return None (and trip a 30s DB backoff) --
+    # the check then always bailed once a real session_id existed.
     sql = (
-        f"SELECT tool, args, result_preview, success, "
+        f"SELECT ts, tool, args, result_preview, success, "
         f"exit_code, latency_ms FROM tool_call "
         f"WHERE session = {session_id} "
         f"  AND ts > time::now() - 5m "
@@ -1681,7 +1924,19 @@ async def _inline_satisfaction_check(
                 "kind": "user_query_satisfied",
                 "reason": "chat_no_tools_expected",
             }
+        elif agent_answered:
+            # Agent path: the sub-agent ran its own tool-loop (results
+            # internal to it -> no agent-pipe tool_call row) and
+            # delivered an answer. Turn is DONE = DoD-met. Record which
+            # verbs it invoked for the audit trail.
+            verdict = {
+                "kind": "user_query_satisfied",
+                "reason": "agent_answer_delivered",
+                "agent_tools": [str(t) for t in (agent_tools_called or [])],
+            }
         else:
+            # No recorded tools AND no agent answer: a genuine no-op
+            # (empty backend reply / dead endpoint).
             verdict = {
                 "kind": "user_query_unsatisfied",
                 "reason": "no_tools_seen",
@@ -1877,7 +2132,9 @@ def _strip_think_tags(text: str) -> str:
 
 async def polish_response(raw_text: str,
                           refined: Optional[dict],
-                          session_id: Optional[str] = None) -> Optional[str]:
+                          session_id: Optional[str] = None,
+                          original_user_text: str = "",
+                          persona_system: str = "") -> Optional[str]:
     """Polish a sub-agent's raw response into the final user-facing
     answer. Returns the polished string or None on error (caller
     keeps the raw answer).
@@ -1888,11 +2145,21 @@ async def polish_response(raw_text: str,
     contradicts the tool history (Operator-flagged 2026-05-18:
     'open nautilus' -> assistant claimed 'The move command failed
     because the destination directory wasn't writable' -- a
-    completely fabricated unrelated error)."""
+    completely fabricated unrelated error).
+
+    `original_user_text` is the operator's ACTUAL last message and is
+    the authoritative LANGUAGE anchor. refined_text is a rewrite the
+    (all-English) refine prompt can translate to English -- keying
+    polish's reply language off it made a Polish question come back in
+    English / mixed (operator 2026-05-22). Polish answers in the
+    language of the original message; refined_text feeds CONTENT only."""
     if not POLISH_ENABLED or not raw_text or not raw_text.strip():
         return None
     intended = (refined or {}).get("intended_outcome", "") or ""
-    user_q = (refined or {}).get("refined_text", "") or ""
+    refined_q = (refined or {}).get("refined_text", "") or ""
+    orig_q = (original_user_text or "").strip()
+    # Language anchor = operator's own words; fall back to the rewrite.
+    user_q = orig_q or refined_q
     tool_history = await _recent_tool_history(session_id)
     has_failed_tool = any(
         r.get("success") is False for r in tool_history
@@ -1906,6 +2173,18 @@ async def polish_response(raw_text: str,
     system = _POLISH_SYSTEM + (
         f"\nIntended outcome: {intended}\n" if intended else ""
     )
+    # Persona application (operator 2026-05-22: "polish the stack's final
+    # response WITH PERSONA APPLIED"). The OWUI pipe injects the operator's
+    # persona + the SSOT environment/language/locale guidance as system
+    # messages; pass them here so the FINAL answer carries the operator's
+    # voice/tone/verbosity/units + the right language. Framed as STYLE only
+    # so the tight re-shaper never treats it as new tasks/tools.
+    if persona_system and persona_system.strip():
+        system += (
+            "\n\nFINAL-ANSWER STYLE & PERSONA (apply to voice, tone, length, "
+            "units, and language ONLY; never as new tasks, tools, or content "
+            "to add):\n" + persona_system.strip()[:2000]
+        )
     hist_block = _format_tool_history(tool_history)
     # Phase E.1d: also fold in mios-daemon's satisfaction verdicts so
     # polish has the daemon's AND-folded ground truth available
@@ -1918,7 +2197,14 @@ async def polish_response(raw_text: str,
     # ignores /no_think and would otherwise emit empty content after a
     # long think pass (same fix + failure mode as refine; was the source
     # of the 45s polish timeout, operator test 2026-05-20).
-    user_msg_parts = [f"User's question:\n{user_q}"]
+    user_msg_parts = [
+        f"User's ORIGINAL message (reply in THIS exact language, "
+        f"one language only):\n{user_q}"
+    ]
+    if refined_q and refined_q.strip() and refined_q.strip() != user_q:
+        user_msg_parts.append(
+            f"Refined intent (use for CONTENT only, never for language):\n"
+            f"{refined_q}")
     if sat_block:
         user_msg_parts.append(sat_block)
     if hist_block:
@@ -2404,7 +2690,7 @@ async def execute_skill(name: str, params: dict, *,
         # for skill correctness, just for miner-side dedup.
         if session_id:
             q = (
-                f"SELECT id FROM tool_call "
+                f"SELECT id, ts FROM tool_call "
                 f"WHERE session = {session_id} "
                 f"  AND tool = {json.dumps(verb)} "
                 f"ORDER BY ts DESC LIMIT 1;"
@@ -2629,7 +2915,8 @@ _DCI_CRITIC_SYSTEM = (
     "- If unsure -> ask (low confidence is fine; emit it as a\n"
     "  number).\n"
     "\n"
-    "Mirror the user's language. Output JSON ONLY -- no preamble,\n"
+    "Write any text in ENGLISH by default (another language only if the\n"
+    "user's own message is clearly in it). Output JSON ONLY -- no preamble,\n"
     "no markdown."
 )
 
@@ -2703,7 +2990,8 @@ def _persona_prompt(role: str, role_desc: str, allowed_acts: set) -> str:
         "will be lost:\n"
         f"{allowed_lines}\n"
         "\n"
-        "Mirror the operator's language. Output JSON ONLY shaped:\n"
+        "Write the content in ENGLISH by default (another language only if\n"
+        "the operator's own message is clearly in it). Output JSON ONLY shaped:\n"
         '  {"act":"<name>","content":"<1-3 sentences>",'
         '"confidence":<0-1>,"targets":[]}\n'
         "No preamble, no markdown, no commentary."
@@ -3503,6 +3791,7 @@ _PLANNER_SYSTEM = (
     "-- the dispatcher rejects unknown verbs:\n"
     "\n"
     + _VERB_CATALOG_RENDERED + "\n\n"
+    + _RECIPE_CATALOG_RENDERED + "\n\n"
     "Common patterns (study these before emitting):\n"
     "\n"
     "  open + position:\n"
@@ -3683,7 +3972,7 @@ async def _recent_reflections(session_id: Optional[str],
     if not session_id:
         return []
     sql = (
-        f"SELECT summary FROM event "
+        f"SELECT summary, ts FROM event "
         f"WHERE kind = 'reflect_corrected' AND session = {session_id} "
         f"ORDER BY ts DESC LIMIT {int(limit)};"
     )
@@ -4430,6 +4719,13 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if ext:
             cmd += f" -ext {shlex.quote(str(ext))}"
         return cmd
+    if tool == "web_search":
+        # WEB search via local SearXNG (offline-first metasearch). Grounds
+        # current-events / weather / facts on REAL fetched data so the model
+        # never fabricates. Command literal lives in mios-web-search.
+        q = shlex.quote(str(args.get("query", "")))
+        n = int(args.get("limit", 5))
+        return f"mios-web-search -n {n} {q}"
     if tool == "knowledge_search":
         # Query OWUI's RAG knowledge collections from a sub-agent
         # tool loop. --json returns {ok, query, collection,
@@ -4487,47 +4783,55 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         except (TypeError, ValueError):
             n = 50
         level = str(args.get("level") or "").strip().lower()
-        cmd = f"journalctl --no-pager -n {n} --since {shlex.quote(since)}"
+        # Delegate to the mios-sysview helper tool -- the journalctl literal +
+        # its conditional flags live THERE, not inline here (operator
+        # 2026-05-21: no command literals in dispatch). The arm only maps
+        # verb args -> helper flags.
+        cmd = f"mios-sysview logs --since {shlex.quote(since)} --lines {n}"
         if unit:
-            cmd += f" -u {shlex.quote(unit)}"
-        if level in ("emerg", "alert", "crit", "err", "warning", "notice", "info", "debug"):
-            cmd += f" -p {level}"
+            cmd += f" --unit {shlex.quote(unit)}"
+        if level:
+            cmd += f" --level {shlex.quote(level)}"
         return cmd
     if tool == "service_status":
-        name = shlex.quote(str(args.get("name", "")))
-        return (
-            f"echo \"=== is-active ===\"; systemctl is-active {name}; "
-            f"echo; echo \"=== status ===\"; "
-            f"systemctl --no-pager status {name} | head -20"
-        )
+        # Delegate to [recipes.service-status] -- the systemctl command lives
+        # in mios.toml SSOT, not as a literal here (operator 2026-05-21: no
+        # command literals in code). The other 5 system verbs (service_restart
+        # + container_restart = WRITE/permission-gating; system_logs +
+        # process_list + container_status = conditional optional-arg flags)
+        # need the mios-* helper-tool pattern, not static recipes -- see the
+        # audit note. service_status is the one clean static case.
+        name = _arg_with_synonyms(tool, "name", args).strip()
+        return f"mios-os-recipe service-status service={shlex.quote(name)}"
     if tool == "service_restart":
-        name = shlex.quote(str(args.get("name", "")))
-        return (
-            f"systemctl restart {name} && "
-            f"echo \"restarted; is-active=$(systemctl is-active {name})\""
-        )
+        # Delegate to mios-restart (existing smart-restart tool) -- the
+        # systemctl literal lives there, not here.
+        name = _arg_with_synonyms(tool, "name", args).strip()
+        return f"mios-restart {shlex.quote(name)}"
     if tool == "process_list":
+        # Delegate to the mios-sysview helper -- the ps literal lives there.
         limit = int(args.get("limit", 20))
         sort = str(args.get("sort", "rss")).lower()
-        sort_arg = "--sort=-pcpu" if sort == "cpu" else "--sort=-rss"
         filt = str(args.get("filter", "")).strip()
-        base = f"ps -eo pid,user,rss,pcpu,comm,args {sort_arg} --no-headers"
+        cmd = f"mios-sysview proc --sort {shlex.quote(sort)} --limit {limit}"
         if filt:
-            base += f" | grep -i -- {shlex.quote(filt)}"
-        return f"{base} | head -{limit}"
+            cmd += f" --filter {shlex.quote(filt)}"
+        return cmd
+    # NOTE: disk-usage is intentionally NOT a hardcoded arm here -- it is a
+    # [recipes.disk-usage] recipe (command in mios.toml SSOT) reached via
+    # os_recipe(name="disk-usage"). Operator 2026-05-21: no command literals
+    # baked in code; capabilities live as native tools/skills/recipes.
     if tool == "container_status":
+        # Delegate to the mios-sysview helper -- the podman literal lives there.
         filt = str(args.get("name", "")).strip()
-        base = "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}'"
+        cmd = "mios-sysview containers"
         if filt:
-            base += f" | grep -i -- {shlex.quote(filt)}"
-        return base
+            cmd += f" --name {shlex.quote(filt)}"
+        return cmd
     if tool == "container_restart":
-        name = shlex.quote(str(args.get("name", "")))
-        return (
-            f"podman restart {name} && "
-            f"podman ps --filter name={name} "
-            f"--format '{{.Names}}\\t{{.Status}}'"
-        )
+        # Delegate to the mios-sysview helper -- the podman literal lives there.
+        name = _arg_with_synonyms(tool, "name", args).strip()
+        return f"mios-sysview container-restart --name {shlex.quote(name)}"
     # ── PC-input verbs (Phase A.1 -- needed for DAG chains like
     # open_app -> focus_window -> pc_type -> pc_key Ctrl+S) ──
     if tool == "pc_type":
@@ -5658,6 +5962,82 @@ async def embeddings(request: Request) -> JSONResponse:
 
 
 # ── /v1/chat/completions (the chain) ───────────────────────────────
+# ── Vision branch (operator 2026-05-22: "we need a vision model local to
+# MiOS"). The text executor can't see images, so a turn carrying an image
+# is routed DIRECTLY to the local VLM (qwen3-vl on the dGPU lane), bypassing
+# refine/planning/Hermes. SSOT model via MIOS_AGENT_PIPE_VISION_MODEL
+# (rendered from mios.toml [ai].chat_vision_model); no hardcoded literal
+# beyond the env default, matching the REFINE_MODEL/POLISH_MODEL pattern.
+VISION_ENABLE = os.environ.get(
+    "MIOS_AGENT_PIPE_VISION", "true").lower() not in ("0", "false", "no", "")
+# Default = llama3.2-vision:11b: verified working through ollama's /v1 image
+# path (2026-05-22). qwen3-vl:4b was the lighter first choice but its ollama
+# runner crashes on image input in this build ("model runner unexpectedly
+# stopped" / "png: invalid format") -- switch back via this env once fixed.
+VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "llama3.2-vision:11b")
+VISION_ENDPOINT = os.environ.get(
+    "MIOS_AGENT_PIPE_VISION_ENDPOINT", "http://localhost:11434").rstrip("/")
+
+
+def _messages_have_image(messages: list) -> bool:
+    """True if any message carries OpenAI vision content (a content list with
+    an image_url / input_image part) -- the signal to route this turn to the
+    local VLM instead of the text executor (which cannot see images)."""
+    for m in messages or []:
+        if not isinstance(m, dict):
+            continue
+        c = m.get("content")
+        if isinstance(c, list):
+            for part in c:
+                if isinstance(part, dict) and part.get("type") in (
+                        "image_url", "input_image", "image"):
+                    return True
+    return False
+
+
+async def _vision_complete(body: dict, streaming: bool, chat_id: str,
+                           model: str) -> Any:
+    """Proxy an image-bearing turn to the local VLM (OpenAI-compatible, on the
+    dGPU ollama lane). Streams the VLM SSE verbatim; non-stream returns its
+    JSON. Best-effort: a backend error surfaces honestly, never fabricated."""
+    vbody = dict(body)
+    vbody["model"] = VISION_MODEL
+    headers = {"content-type": "application/json"}
+    if _BACKEND_KEY:
+        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+    url = f"{VISION_ENDPOINT}/v1/chat/completions"
+    client = await _get_client()
+    if not streaming:
+        vbody["stream"] = False
+        try:
+            r = await client.post(
+                url, content=json.dumps(vbody).encode("utf-8"), headers=headers)
+            return JSONResponse(content=r.json(), status_code=r.status_code)
+        except Exception as e:
+            log.warning("vision backend failed: %s", e)
+            return JSONResponse(
+                content={"error": {"message": f"vision backend error: {e}",
+                                   "type": "server_error"}}, status_code=502)
+
+    async def _gen() -> AsyncGenerator[bytes, None]:
+        vbody["stream"] = True
+        try:
+            async with client.stream(
+                    "POST", url,
+                    content=json.dumps(vbody).encode("utf-8"),
+                    headers=headers) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+        except Exception as e:
+            log.warning("vision stream failed: %s", e)
+            yield ("data: " + json.dumps(
+                {"choices": [{"delta": {"content": f"[vision error: {e}]"}}]})
+                + "\n\n").encode("utf-8")
+            yield b"data: [DONE]\n\n"
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> Any:
     try:
@@ -5675,11 +6055,40 @@ async def chat_completions(request: Request) -> Any:
     last_user_text = _extract_last_user_text(messages)
     model = body.get("model") or BACKEND_MODEL
     chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    # Operator-facing persona + environment/language/locale guidance the
+    # OWUI pipe injected as system message(s). Captured once so the final
+    # polish can apply the operator's voice + the correct language
+    # (operator 2026-05-22: "polish the final response with persona
+    # applied"). Joined; polish frames it as STYLE-only.
+    _persona_system = "\n\n".join(
+        str(m.get("content") or "").strip()
+        for m in messages
+        if isinstance(m, dict) and m.get("role") == "system"
+        and str(m.get("content") or "").strip()
+    )[:2000]
 
-    # SurrealDB session row -- fire-and-forget; the record id (if
-    # the write completes in time) is captured for downstream
-    # tool_call rows. Misses are tolerable -- the chain still works
-    # if SurrealDB is down (the SurrealDB writer has a 30s backoff).
+    # VISION: an image-bearing turn can't be served by the text executor --
+    # route it DIRECTLY to the local VLM (operator 2026-05-22), bypassing
+    # refine / planning / Hermes. No session or refine overhead.
+    if VISION_ENABLE and _messages_have_image(messages):
+        log.info("vision: image turn -> %s", VISION_MODEL)
+        return await _vision_complete(body, streaming, chat_id, model)
+
+    # SurrealDB session row -- the record id is captured for
+    # downstream tool_call linking + the inline confirmation engine.
+    # passport_sign=False: the `session` table is SCHEMAFULL and has
+    # NO `passport` field, so attaching the default Ed25519 envelope
+    # made SurrealDB reject the CREATE with a per-statement ERR
+    # ("Found field 'passport', but no such field exists for table
+    # 'session'"). That ERR comes back inside an HTTP 200, so _db_post
+    # returned a list whose statement result was an error STRING (not a
+    # row list) -> session_id stayed None on EVERY agent turn. That
+    # silently disabled session-scoped machinery: tool_call session
+    # links, taint propagation, AND the inline satisfaction /
+    # confirmation check (which bails on a None session_id). The
+    # session row is lightweight bookkeeping; the audit-relevant
+    # tool_call / event / firewall_block rows keep their passports
+    # (those tables carry the field). Operator 2026-05-22.
     session_id: Optional[str] = None
     try:
         resp = await _db_post(_db_create(
@@ -5688,6 +6097,7 @@ async def chat_completions(request: Request) -> Any:
              "model": model},
             now_fields=("started_at",),
             extra="RETURN id",
+            passport_sign=False,
         ))
         if isinstance(resp, list) and resp:
             last = resp[-1] or {}
@@ -5926,6 +6336,8 @@ async def chat_completions(request: Request) -> Any:
                         f"Write a friendly natural-language answer to the "
                         f"operator's question using this tool output.",
                         _refined_for_polish, session_id=session_id,
+                        original_user_text=last_user_text,
+                        persona_system=_persona_system,
                     )
                     polished = (_strip_think_tags(polished_raw)
                                 if polished_raw else "")
@@ -6297,6 +6709,14 @@ async def chat_completions(request: Request) -> Any:
     # Casual MiOS-convention label for SSE strip; the literal name
     # stays in the event payload + journal for debuggability.
     target_label = f"→ {_casual_agent_label(target_name)}"
+    # Multi-agent concurrent fan-out (operator 2026-05-21): pick a COUPLE
+    # of relevant secondary agents to run alongside the primary. Empty
+    # unless [dispatch].fanout_max>1 AND a registered agent's role/strengths
+    # match the refined intent -> safe single-agent no-op by default.
+    _fanout = _pick_fanout_agents(target_name, refined)
+    if _fanout:
+        log.info("fanout: primary=%s + %d secondary %s",
+                 target_name, len(_fanout), [n for n, _ in _fanout])
 
     # Build the proxy body: original messages + hint-injected
     # system prefix (only when refine emitted hints; trivial inputs
@@ -6390,6 +6810,12 @@ async def chat_completions(request: Request) -> Any:
             _last_flush = time.time()
             _ckpt_s = float(os.environ.get("MIOS_AGENT_CKPT_S", "2.0"))
             _reasoning_open = False
+            # CONFIRMATION ENGINE: names of verbs the sub-agent invokes
+            # inside its own tool-loop, captured from the stream. Feeds
+            # the Definition-of-Done check below -- agent-pipe records no
+            # tool_call row for a hermes-internal verb, so this is the
+            # only signal that the turn DID act.
+            _tools_called: list = []
             _summary = _HUMAN_LABELS.get("agent_target", ("🤖", ""))[0]
 
             def _flush_reasoning(buf: str) -> bytes:
@@ -6408,6 +6834,20 @@ async def chat_completions(request: Request) -> Any:
             # with the orchestration emits. Emoji-only, locale-neutral; the
             # tool steps append inline below via _flush_reasoning.
             yield _sse_reasoning("👂 ✨ 🧭 🤖\n\n", chat_id=chat_id, model=model)
+            # Kick the secondary fan-out agents CONCURRENTLY with the primary
+            # stream (operator 2026-05-21 'a couple at a time'). They run
+            # non-streaming + best-effort; their answers fold into polish +
+            # the reasoning dropdown once the primary finishes. Dead endpoints
+            # drop out harmlessly (return_exceptions on the gather below).
+            _sec_tasks = [
+                asyncio.create_task(
+                    _call_agent_complete(_n, _c, proxy_body, headers, client))
+                for _n, _c in _fanout
+            ]
+            if _sec_tasks:
+                yield _sse_status(chat_id=chat_id, model=model, emoji="🤝",
+                                  label="",
+                                  detail="+".join(n for n, _ in _fanout))
 
             try:
                 async with client.stream(
@@ -6441,6 +6881,8 @@ async def chat_completions(request: Request) -> Any:
                                 _fn = (_tc.get("function") or {}).get("name")
                                 if _fn:
                                     _block_buf += f"\n🛠️ {_fn}\n"
+                                    if _fn not in _tools_called:
+                                        _tools_called.append(_fn)
                                     # Live emitter pill for the tool step.
                                     yield _sse_status(
                                         chat_id=chat_id, model=model,
@@ -6457,38 +6899,86 @@ async def chat_completions(request: Request) -> Any:
             # reasoning_content is a separate delta channel, not inline markup.
             if _block_buf.strip():
                 yield _flush_reasoning(_block_buf)
-            # Critic->refiner (heavy agent path; fires as needed): if the
-            # DCI critic challenges this answer, revise it ONCE before
-            # polish. No-op for short answers + when the critic is happy,
-            # so the fast path is unaffected. Keepalives above cover the
-            # extra wait. Robust: returns the original `raw` on any error.
-            # Heartbeat-wrap the critic->refiner: the DCI critic runs on a
-            # possibly-contended lane and may re-invoke Hermes (5-40s). A
-            # bare await here went silent -- operator test 2026-05-20 saw a
-            # long gap with ZERO keepalives before the answer. Same comment-
-            # line cadence as the upstream + polish waits so the OWUI pipe
-            # keeps polling the hermes-tail and the dropdown stays live.
-            critic_task = asyncio.create_task(_critic_refine_agent(
-                raw, last_user_text, refined, session_id,
-                client=client, target_endpoint=target_endpoint,
-                headers=headers, base_body=proxy_body))
-            while not critic_task.done():
+            # CONFIRMATION ENGINE (operator 2026-05-22): run the
+            # Definition-of-Done check NOW -- on the agent's just-finished
+            # answer + the verbs it invoked -- BEFORE the heavy critic
+            # re-pass. The check writes the authoritative
+            # user_query_(un)satisfied verdict polish reads downstream.
+            # When the turn is CONFIRMED satisfied (the agent acted and
+            # delivered an answer, no recorded tool failed), the chain
+            # HALTS here: the critic is SKIPPED. The critic re-litigates a
+            # done answer and can flip a confirmed success into a false
+            # failure -- the mios-os-control "succeeds early then reports
+            # failed after a long chain" bug. Only re-critique an
+            # UNCONFIRMED / unsatisfied turn, where a corrective pass is
+            # actually warranted.
+            _verdict = await _inline_satisfaction_check(
+                session_id, refined,
+                agent_tools_called=_tools_called,
+                agent_answered=bool(raw.strip()))
+            _confirmed = bool(
+                _verdict
+                and _verdict.get("kind") == "user_query_satisfied")
+            if _confirmed:
+                # Halt: surface the confirmation in the live dropdown so
+                # the operator sees the chain stopped on success, not on a
+                # timeout. Glyph-only, locale-neutral.
+                yield _flush_reasoning("\n✅\n")
+            else:
+                # Critic->refiner (heavy agent path; fires only when the
+                # turn is NOT confirmed satisfied): if the DCI critic
+                # challenges this answer, revise it ONCE before polish.
+                # No-op for short answers + when the critic is happy.
+                # Heartbeat-wrap it: the DCI critic runs on a possibly-
+                # contended lane and may re-invoke Hermes (5-40s); a bare
+                # await went silent (operator 2026-05-20). Robust: returns
+                # the original `raw` on any error.
+                critic_task = asyncio.create_task(_critic_refine_agent(
+                    raw, last_user_text, refined, session_id,
+                    client=client, target_endpoint=target_endpoint,
+                    headers=headers, base_body=proxy_body))
+                while not critic_task.done():
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(critic_task), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        yield b": keepalive\n\n"
+                    except Exception:
+                        break
                 try:
-                    await asyncio.wait_for(
-                        asyncio.shield(critic_task), timeout=2.0)
-                except asyncio.TimeoutError:
-                    yield b": keepalive\n\n"
+                    raw = critic_task.result()
                 except Exception:
-                    break
-            try:
-                raw = critic_task.result()
-            except Exception:
-                pass  # keep the pre-critic raw on any failure
-            # Inline satisfaction check BEFORE polish so the polish
-            # prompt's recent-verdicts block sees THIS turn's
-            # verdict as authoritative (otherwise it only sees
-            # prior turns from mios-daemon's 30s loop).
-            await _inline_satisfaction_check(session_id, refined)
+                    pass  # keep the pre-critic raw on any failure
+            # Collect the concurrent fan-out agents (operator 2026-05-21):
+            # they ran alongside the primary, so this await adds little. Each
+            # secondary's work surfaces in the reasoning dropdown and merges
+            # into the polish input so the final answer SYNTHESISES all agents.
+            raw_for_polish = raw
+            if _sec_tasks:
+                while not all(t.done() for t in _sec_tasks):
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(asyncio.gather(
+                                *_sec_tasks, return_exceptions=True)),
+                            timeout=3.0)
+                    except asyncio.TimeoutError:
+                        yield b": keepalive\n\n"
+                    except Exception:
+                        break
+                _merge = []
+                for _t in _sec_tasks:
+                    try:
+                        _sn, _stext = _t.result()
+                    except Exception:
+                        continue
+                    if _stext and _stext.strip():
+                        yield _flush_reasoning(f"\n🤝 {_sn}:\n{_stext}\n")
+                        _merge.append(f"[{_sn} agent]:\n{_stext.strip()}")
+                if _merge:
+                    raw_for_polish = (raw + "\n\n" + "\n\n".join(_merge)).strip()
+            # (Satisfaction verdict already written by the confirmation
+            # engine above, BEFORE the critic gate, so polish's recent-
+            # verdicts block sees THIS turn's authoritative verdict.)
             if raw.strip():
                 # Skip the (slow CPU) polish when the sub-agent's answer
                 # is ALREADY clean -- no <think>-tag leakage and not
@@ -6502,7 +6992,9 @@ async def chat_completions(request: Request) -> Any:
                 # runs; it's fast now on the 4b dGPU lane. Heartbeat-
                 # wrapped so the SSE stream stays alive during it.
                 polish_task = asyncio.create_task(polish_response(
-                    raw, refined, session_id=session_id))
+                    raw_for_polish, refined, session_id=session_id,
+                    original_user_text=last_user_text,
+                    persona_system=_persona_system))
                 while not polish_task.done():
                     try:
                         await asyncio.wait_for(
@@ -6607,18 +7099,34 @@ async def chat_completions(request: Request) -> Any:
                 log.info("polish-gate: raw_len=%d refined_outcome=%s",
                          len(raw),
                          (refined.get("intended_outcome") or "")[:60])
-                # Critic->refiner (heavy agent path; fires as needed) --
-                # same gate as the streaming branch above.
-                raw = await _critic_refine_agent(
-                    raw, last_user_text, refined, session_id,
-                    client=client, target_endpoint=target_endpoint,
-                    headers=headers, base_body=proxy_body)
-                # Inline satisfaction check (same as the streaming
-                # branch above).
-                await _inline_satisfaction_check(session_id, refined)
+                # CONFIRMATION ENGINE (operator 2026-05-22) -- same gate
+                # as the streaming branch above. Capture the verbs the
+                # sub-agent invoked (final-message tool_calls), run the
+                # Definition-of-Done check FIRST, and SKIP the critic
+                # re-pass on a confirmed-satisfied turn so a succeeded
+                # verb isn't re-litigated into a false failure.
+                _tools_called = [
+                    (tc.get("function") or {}).get("name")
+                    for tc in (msg.get("tool_calls") or [])
+                    if (tc.get("function") or {}).get("name")
+                ]
+                _verdict = await _inline_satisfaction_check(
+                    session_id, refined,
+                    agent_tools_called=_tools_called,
+                    agent_answered=bool(raw.strip()))
+                _confirmed = bool(
+                    _verdict
+                    and _verdict.get("kind") == "user_query_satisfied")
+                if not _confirmed:
+                    raw = await _critic_refine_agent(
+                        raw, last_user_text, refined, session_id,
+                        client=client, target_endpoint=target_endpoint,
+                        headers=headers, base_body=proxy_body)
                 if raw.strip():
                     polished = await polish_response(
-                        raw, refined, session_id=session_id)
+                        raw, refined, session_id=session_id,
+                        original_user_text=last_user_text,
+                        persona_system=_persona_system)
                     # qwen3 reasoning models occasionally leak
                     # <think>...</think> blocks past /no_think; strip
                     # them from BOTH the dropdown content and the

@@ -295,6 +295,57 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
+    # ─── web_search ─────────────────────────────────────────────────
+    # The MISSING capability behind the 2026-05-21 fabrication failure:
+    # the agent invented a weather/event report (wrong city, °F for a
+    # Canadian user, made-up details) because the OWUI tool surface had
+    # ONLY filesystem search -- no web tool. SearXNG was already up and
+    # advertised as the web_search backend; this exposes it so OWUI's
+    # tool-calling can GROUND current-world answers on real fetched data.
+    async def web_search(
+        self,
+        query: str,
+        limit: int = 5,
+        __user__: Optional[dict] = None,
+    ) -> str:
+        """Search the WEB via the local, self-hosted SearXNG metasearch.
+
+        USE THIS for ANYTHING from the internet or the current world:
+        weather, news, current events, event dates/times/locations,
+        prices, products, people, places, scores, facts, general
+        knowledge -- any question whose answer is not a file on this
+        machine. Returns real fetched results so the model can cite the
+        source. NEVER invent a live fact (weather, an event schedule, a
+        price) when this tool can fetch it; a current/world question
+        answered from memory is the stale-data / fabrication defect.
+
+        This is NOT file search -- everything_search / fs_search /
+        directory_lookup find FILES on disk and return nothing useful
+        for a knowledge or current-events query.
+
+        :param query: the natural-language search query.
+        :param limit: max results to return (default 5).
+        :return: JSON {success, query, count, answers[], infoboxes[],
+            results:[{title,url,content}]}. success=false with an
+            `error` field when the web / SearXNG is unreachable -- in
+            that case say you could not reach the web; do NOT fabricate.
+        """
+        if not self.valves.ENABLED:
+            return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
+        cmd = f"mios-web-search -n {int(limit)} {shlex.quote(query)}"
+        result = _broker_send(cmd, timeout=max(self.valves.SEARCH_TIMEOUT_S, 20), capture=True)
+        out = (result.get("stdout") or "").strip()
+        # mios-web-search prints a single JSON line; pass it through so the
+        # model sees structured, citable hits. Fall back to raw on a miss.
+        try:
+            return json.dumps(json.loads(out))
+        except Exception:
+            return json.dumps({
+                "success": False,
+                "raw": out[:2000],
+                "stderr": result.get("stderr", ""),
+            })
+
     # ─── mios_apps ──────────────────────────────────────────────────
     async def mios_apps(
         self,

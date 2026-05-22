@@ -22,9 +22,9 @@ Environment=QDRANT__SERVICE__API_KEY=
 # at 99-postcheck.sh "missing User= directive" without this.
 User=0
 Group=0
-Delegate=yes
 
 [Service]
+Delegate=yes
 Restart=always
 RestartSec=5
 

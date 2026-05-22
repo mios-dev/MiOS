@@ -12,10 +12,27 @@ ConditionVirtualization=!container
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].pxe_hub and [network.quadlet].network.
 Image=quay.io/poseidon/matchbox:latest
-Network=mios.network
+Network=host
 AutoUpdate=registry
-User=mios-pxe-hub
-Group=mios-pxe-hub
+# Run as root (LAW 6 exception) to manage netboot asset permissions
+# and bind to low host ports if needed (though we use 8081/8082 here).
+User=0
+Group=0
+
+# Data and assets volumes. matchbox expects data/ and assets/ subdirs.
+Volume=/var/lib/mios/pxe/config:/var/lib/matchbox/data:Z
+Volume=/var/lib/mios/pxe/assets:/var/lib/matchbox/assets:Z
+
+# HTTP-only on :8081. The gRPC RPC server (-rpc-address) is DELIBERATELY
+# omitted: matchbox's gRPC API mandates TLS client-cert auth and dies
+# fatal without /etc/matchbox/ca.crt ("Provide a valid TLS certificate
+# authority..."), which was crash-looping this unit (operator-flagged
+# 2026-05-21; a prior audit CLAIMED to disable RPC but left it on). PXE/
+# iPXE only needs matchbox's HTTP endpoints (boot configs + assets); the
+# gRPC API is just for the matchbox CLI to push configs and is not needed
+# to SERVE netboot. Re-enable with a CA + server cert only if you script
+# config pushes over gRPC.
+Exec=/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
 
 [Service]
 Restart=on-failure

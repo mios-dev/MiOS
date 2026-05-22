@@ -1,16 +1,16 @@
 # MiOS KB local config — overrides for downstream consumers
-# Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8080/v1
+# Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8642/v1
 # (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.
 
 [runtime]
 # Default to MiOS's own LocalAI endpoint. Honors $MIOS_AI_ENDPOINT if set.
-base_url    = "${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
+base_url    = "${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
 api_key_env = "MIOS_AI_KEY"   # empty key accepted by LocalAI
 # Examples for other local OpenAI-API-compatible runtimes:
 #   Ollama:          base_url = "http://localhost:11434/v1"
 #   vLLM:            base_url = "http://localhost:8000/v1"
 #   LM Studio:       base_url = "http://localhost:1234/v1"
-#   llama.cpp:       base_url = "http://localhost:8080/v1"
+#   llama.cpp:       base_url = "http://localhost:8642/v1"
 #   LiteLLM proxy:   base_url = "http://localhost:4000/v1"
 
 [models]

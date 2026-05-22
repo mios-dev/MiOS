@@ -39,6 +39,11 @@ canonical_verbs:
     example: 'mios-everything -n 10 "<query>"'
     tags: [search, windows]
 
+  - name: mios-web-search
+    intent: WEB search via local SearXNG -- weather / news / current events / event dates+locations / prices / facts / general knowledge (ANYTHING not a file on disk). GROUND world questions here; NEVER invent a live fact or answer from memory.
+    example: 'mios-web-search -n 5 "<query>"'
+    tags: [search, web, current-events, weather, knowledge]
+
   - name: mios-apps
     intent: inventory every installed app (Steam/Epic/Xbox/flatpak/RPM/shims)
     example: 'mios-apps --filter <substr>'

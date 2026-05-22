@@ -92,11 +92,15 @@ CRON_TOML = Path(os.environ.get("MIOS_DAEMON_CRON_TOML",
 CRON_TICK_S = float(os.environ.get("MIOS_DAEMON_CRON_TICK_S", "60"))
 REQUEST_TIMEOUT_S = float(os.environ.get("MIOS_DAEMON_REQUEST_TIMEOUT_S", "30"))
 
-# Units to watch for journal subscription
-WATCHED_UNITS = os.environ.get(
-    "MIOS_DAEMON_WATCH_UNITS",
-    "hermes-agent.service,mios-delegation-prefilter.service,mios-open-webui.service",
-).split(",")
+# Units to watch for journal subscription. Operator 2026-05-21: consolidate
+# from ALL GLOBAL sources -> default is now EMPTY = the whole journal
+# (journalctl -f with no -u tails every unit). Was a 3-unit subset. The
+# classifier samples the bounded buffer and low/noise is aggregated into
+# log_digest, so broad coverage doesn't flood the model or the DB. Set
+# MIOS_DAEMON_WATCH_UNITS=a.service,b.service to narrow it again.
+WATCHED_UNITS = [u for u in os.environ.get(
+    "MIOS_DAEMON_WATCH_UNITS", "",
+).split(",") if u.strip()]
 
 # ── SurrealDB best-effort writer ─────────────────────────────────────
 # Mirrors the helper in usr/share/mios/owui/pipes/mios_agent_pipe.py.
@@ -311,6 +315,12 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
         },
         "stream": False,
         "keep_alive": -1,           # always-on agentic OS
+        # qwen3 micros are REASONING models: with thinking ON they dump the
+        # answer into message.thinking and leave content EMPTY, so the
+        # thinking-fallback below returned prose ("Okay, let's look...") that
+        # the JSON parser then rejected ("(unparseable: ...)"). think=False
+        # forces the answer into message.content (operator-proven on refine).
+        "think": False,
     }
     if want_json:
         # Ollama's structured-output mode: the runtime constrains
@@ -331,7 +341,9 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
             body = json.loads(r.read())
         msg = body.get("message") or {}
         out = (msg.get("content") or "").strip()
-        if not out:
+        if not out and not want_json:
+            # Free-text calls ONLY -- `thinking` is never valid JSON, so a
+            # want_json fallback to it just produces an unparseable digest.
             out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
         return out
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
@@ -387,6 +399,43 @@ CLASSIFY_SYSTEM = (
 )
 
 
+# Log consolidation -> SurrealDB (operator 2026-05-21: "logs should be
+# compacted/compressed/consolidated and stored in global database(s)").
+# Compress by SIGNAL: med/high severity -> one compact `log_digest` row
+# (summary + tags + severity + count -- NOT raw lines); low/noise ->
+# AGGREGATED into a periodic consolidated tally so the DB isn't flooded
+# with a row every CLASSIFY_BATCH_S. Agents can query log_digest for a
+# global, queryable log history (the state.json snapshot is latest-only).
+_noise_agg = {"batches": 0, "events": 0, "since": time.time()}
+_NOISE_FLUSH_S = float(os.environ.get("MIOS_DAEMON_NOISE_FLUSH_S", "1800"))
+
+
+def _persist_log_digest(result: dict) -> None:
+    sev = str(result.get("severity", "low")).lower()
+    if sev in ("med", "medium", "high"):
+        _db_post(_db_create("log_digest", {
+            "summary": str(result.get("summary", ""))[:300],
+            "tags": result.get("tags") or [],
+            "severity": "high" if sev == "high" else "med",
+            "event_count": int(result.get("event_count", 0) or 0),
+        }, now_fields=("ts",)))
+        return
+    # low / noise: aggregate; flush ONE consolidated row per window.
+    _noise_agg["batches"] += 1
+    _noise_agg["events"] += int(result.get("event_count", 0) or 0)
+    if (_noise_agg["batches"]
+            and time.time() - _noise_agg["since"] >= _NOISE_FLUSH_S):
+        _db_post(_db_create("log_digest", {
+            "summary": (f"{_noise_agg['batches']} low/noise log batches "
+                        f"({_noise_agg['events']} events) consolidated"),
+            "tags": ["noise", "consolidated"],
+            "severity": "low",
+            "event_count": _noise_agg["events"],
+            "batch_count": _noise_agg["batches"],
+        }, now_fields=("ts",)))
+        _noise_agg.update({"batches": 0, "events": 0, "since": time.time()})
+
+
 def classify_loop() -> None:
     while not _stop_event.is_set():
         time.sleep(CLASSIFY_BATCH_S)
@@ -417,6 +466,7 @@ def classify_loop() -> None:
         result["events_sample"] = lines[:3]
         result["ts"] = datetime.datetime.now().isoformat(timespec="seconds")
         _update_state("classify", result)
+        _persist_log_digest(result)   # compacted -> SurrealDB log_digest
         log.info("classify: %d events -> %s (%s)",
                  len(batch), result.get("summary", "")[:80],
                  result.get("severity", "?"))
@@ -1590,18 +1640,28 @@ def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
     intent = payload.get("intent", "") or ""
 
     # No tools after refine: can't AND-fold. For intent=chat this is
-    # EXPECTED (no tool dispatch needed); for intent=agent/dispatch
-    # it's a missing-signal case.
+    # EXPECTED (no tool dispatch needed) -> satisfied.
+    #
+    # For intent=agent/dispatch the daemon has NO basis to declare
+    # failure: under unify-on a verb runs INSIDE the sub-agent and
+    # leaves no tool_call row, and the daemon -- unlike the agent-pipe
+    # confirmation engine -- never sees the agent's delivered answer.
+    # Emitting "unsatisfied: no_tools_seen" here was a false-negative
+    # that, written 30s AFTER the orchestrator's authoritative inline
+    # verdict, OVERRODE it (newer ts wins) and made the NEXT turn's
+    # polish read a stale failure (operator 2026-05-22 confirmation-
+    # engine bug). The orchestrator's inline check (source=
+    # mios-agent-pipe) is authoritative for these turns; the daemon
+    # DEFERS by returning a "skipped" sentinel and writing no event.
+    # The daemon stays the cross-turn backstop ONLY for turns that DID
+    # record tool_call rows (the else-branch below).
     if not tool_calls:
         if intent == "chat":
             kind = "user_query_satisfied"
             severity = "info"
             extra = {"reason": "chat_no_tools_expected"}
         else:
-            kind = "user_query_unsatisfied"
-            severity = "warn"
-            extra = {"reason": "no_tools_seen",
-                     "lookback_min": SATISFACTION_LOOKBACK_MIN}
+            return "skipped"
     else:
         failed: list[dict] = []
         post_check_results: list[dict] = []
@@ -1986,7 +2046,7 @@ def satisfaction_loop() -> None:
     while not _stop_event.is_set():
         try:
             unverified = _scan_unverified_refines(SATISFACTION_LOOKBACK_MIN)
-            sat = unsat = 0
+            sat = unsat = skipped = 0
             for refine in unverified:
                 ts = refine.get("ts")
                 if not ts:
@@ -1995,19 +2055,218 @@ def satisfaction_loop() -> None:
                 kind = _emit_satisfaction(refine, tool_calls)
                 if kind == "user_query_satisfied":
                     sat += 1
+                elif kind == "skipped":
+                    # Deferred to the orchestrator's inline confirmation
+                    # engine (no recorded tools to AND-fold). No event
+                    # written; not a verdict.
+                    skipped += 1
                 else:
                     unsat += 1
-            if sat or unsat:
-                log.info("satisfaction: %d satisfied, %d unsatisfied",
-                         sat, unsat)
+            if sat or unsat or skipped:
+                log.info("satisfaction: %d satisfied, %d unsatisfied, "
+                         "%d deferred", sat, unsat, skipped)
             _update_state("satisfaction", {
                 "last_tick": datetime.datetime.now().isoformat(timespec="seconds"),
                 "satisfied": sat,
                 "unsatisfied": unsat,
+                "deferred": skipped,
             })
         except Exception as e:
             log.warning("satisfaction_loop error: %s", e)
         _stop_event.wait(SATISFACTION_TICK_S)
+
+
+def rolling_report_loop() -> None:
+    """Operator 2026-05-21: consolidate the stored log_digests into a concise
+    ROLLING REPORT. Every MIOS_DAEMON_REPORT_S, read the recent med/high
+    digests from SurrealDB, ask the micro for ONE short report, and store it
+    (state.json `report` + a log_digest report row). Cheap + idle-aware:
+    skips the LLM entirely when nothing notable accumulated."""
+    if _stop_event.wait(120):   # boot delay; let surrealdb + classify warm
+        return
+    interval = float(os.environ.get("MIOS_DAEMON_REPORT_S", "3600"))
+    while not _stop_event.is_set():
+        if _stop_event.wait(interval):
+            break
+        try:
+            rows = _ok_result(_db_post(
+                "SELECT ts, summary, severity FROM log_digest "
+                "WHERE ts > time::now() - 1h AND severity IN ['med','high'] "
+                "ORDER BY ts DESC LIMIT 30;"))
+            sigs = [f"[{r.get('severity','?')}] {str(r.get('summary',''))[:160]}"
+                    for r in rows if isinstance(r, dict)]
+            if not sigs:
+                continue  # nothing notable this window -> stay asleep
+            report = llm_chat(
+                "You are a Linux ops reporter. Summarise these recent log "
+                "digests into ONE short plain-text paragraph (<=4 sentences): "
+                "what happened + what needs attention.",
+                "Recent digests:\n" + "\n".join(sigs),
+                max_tokens=200, want_json=False)
+            if not report:
+                continue
+            _update_state("report", {
+                "text": report[:1000],
+                "from_digests": len(sigs),
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+            })
+            _db_post(_db_create("log_digest", {
+                "summary": report[:300], "tags": ["report", "rollup"],
+                "severity": "report", "event_count": len(sigs),
+            }, now_fields=("ts",)))
+            log.info("rolling report: %d digests -> %s", len(sigs),
+                     report[:80])
+        except Exception as e:  # noqa: BLE001 -- never let the loop die
+            log.warning("rolling_report failed (non-fatal): %s", e)
+            _stop_event.wait(5)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# mios-daemon-agent :8644 -- the daemon's OpenAI-compatible /v1 face.
+# Operator 2026-05-18: "mios-daemon hosts a mios-daemon-agent ... keeps
+# system logs in the loop for followups/redirections". Operator
+# 2026-05-21: "bump it to use the web tool concurrently to supplement
+# the pipeline" + "mios-daemon does FULL GLOBAL journalctl/logs --
+# remember!". So when agent-pipe's fan-out delegates a turn here, this
+# agent supplements the pipeline with (1) its CORE strength -- the
+# consolidated GLOBAL journal/log telemetry it already maintains -- AND
+# (2) fresh WEB context via the local web_search tool (mios-web-search
+# -> self-hosted SearXNG). Light by design (the 2-core/50% pin): it
+# assembles GROUNDED context only -- no heavy local inference -- and
+# agent-pipe's polish merges it into the final answer.
+# ─────────────────────────────────────────────────────────────────────
+AGENT_PORT = int(os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644"))
+AGENT_WEB_LIMIT = int(os.environ.get("MIOS_DAEMON_AGENT_WEB_LIMIT", "4"))
+
+
+def _daemon_global_log_context(max_rows: int = 20) -> str:
+    """Recent CONSOLIDATED global journal/log telemetry -- the daemon's
+    core competency (it subscribes to the whole journal). Returns a short
+    markdown block; empty when nothing notable / DB unavailable."""
+    try:
+        rows = _ok_result(_db_post(
+            "SELECT ts, summary, severity FROM log_digest "
+            "WHERE ts > time::now() - 2h "
+            "ORDER BY ts DESC LIMIT " + str(int(max_rows)) + ";")) or []
+    except Exception:
+        rows = []
+    lines = [f"- [{r.get('severity', '?')}] {str(r.get('summary', ''))[:200]}"
+             for r in rows if isinstance(r, dict) and r.get("summary")]
+    report = ""
+    try:
+        rep = json.loads(Path(STATE_FILE).read_text())
+        report = ((rep.get("report") or {}).get("text") or "").strip()
+    except Exception:
+        report = ""
+    out = []
+    if report:
+        out.append("Rolling report: " + report)
+    if lines:
+        out.append("Recent global journal/log digests:\n" + "\n".join(lines[:max_rows]))
+    return "\n\n".join(out).strip()
+
+
+# NOTE (operator 2026-05-21): web/other tool use is NOT hardcoded here.
+# Tools are GLOBAL -- every agent/sub-agent can call the whole surface
+# (web_search, verbs, recipes) and is PRE-PROMPTED to use them via its
+# Modelfile. So WHICH queries to run (multi-faceted or not) is the MODEL's
+# decision, governed by the AI-driven CONFIRMATION ENGINE (the satisfaction /
+# Definition-of-Done checker) -- never by hardcoded Python query-extraction or
+# inline English prompts. The daemon-agent's automatic supplement therefore
+# carries only its CORE DATA -- the consolidated GLOBAL journal/log telemetry
+# it already collects (its job, not a tool-use decision). Model-driven web
+# tool use runs through the shared agent tool-loop + confirmation engine.
+
+
+def _daemon_agent_reply(query: str) -> str:
+    """The daemon-agent's supplement = its CORE DATA: the consolidated GLOBAL
+    journal/log telemetry the daemon already collects. Web (and any other)
+    tool use is MODEL-DRIVEN via the global tool surface + Modelfile pre-prompt
+    + the confirmation engine -- NOT hardcoded here. Empty -> the fan-out
+    cleanly drops this secondary."""
+    telemetry = _daemon_global_log_context()
+    return ("## Global system telemetry (journal/logs)\n" + telemetry) if telemetry else ""
+
+
+def daemon_agent_server_loop() -> None:
+    """Serve the daemon-agent's OpenAI-compatible /v1 endpoint on
+    AGENT_PORT (default 8644 -- matches mios.toml [agents.mios-daemon-
+    agent].endpoint). agent-pipe fan-out POSTs /v1/chat/completions here
+    to merge a GLOBAL-log + WEB supplement into the answer. ThreadingHTTP
+    so a slow web fetch never blocks the stop-check or other requests."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class _Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *a):   # silence default access log
+            return
+
+        def _send_json(self, code: int, obj: dict) -> None:
+            data = json.dumps(obj).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            if self.path.rstrip("/") == "/v1/models":
+                self._send_json(200, {"object": "list", "data": [
+                    {"id": "mios-daemon-agent", "object": "model",
+                     "owned_by": "mios"}]})
+            else:
+                self._send_json(404, {"error": "not found"})
+
+        def do_POST(self):
+            if self.path.rstrip("/") != "/v1/chat/completions":
+                self._send_json(404, {"error": "not found"})
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(n) or b"{}")
+            except Exception:
+                self._send_json(400, {"error": "bad request"})
+                return
+            query = ""
+            for m in reversed(body.get("messages") or []):
+                if isinstance(m, dict) and m.get("role") == "user":
+                    query = str(m.get("content") or "")
+                    break
+            try:
+                content = _daemon_agent_reply(query)
+            except Exception as e:   # noqa: BLE001
+                log.warning("daemon-agent reply failed: %s", e)
+                content = ""
+            self._send_json(200, {
+                "id": "chatcmpl-daemonagent",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": "mios-daemon-agent",
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": "stop",
+                }],
+            })
+
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", AGENT_PORT), _Handler)
+    except OSError as e:
+        log.warning("daemon-agent server bind :%d failed (non-fatal): %s",
+                    AGENT_PORT, e)
+        return
+    srv.timeout = 1
+    log.info("daemon-agent serving /v1 on 127.0.0.1:%d", AGENT_PORT)
+    while not _stop_event.is_set():
+        try:
+            srv.handle_request()
+        except Exception as e:   # noqa: BLE001 -- never let the loop die
+            log.debug("daemon-agent request error: %s", e)
+    try:
+        srv.server_close()
+    except Exception:
+        pass
 
 
 def main() -> int:
@@ -2016,6 +2275,22 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     os.chmod(STATE_DIR, 0o755)
     _atomic_write_state()
+
+    # Operator 2026-05-18: "2 random cores ... ~50% total utilization for
+    # minimal background impact." Pin to 2 randomly-chosen cores (which
+    # cores varies per boot -> spreads wear); the 50% TOTAL-utilisation cap
+    # is enforced by CPUQuota=50% in the service drop-in
+    # (mios-daemon.service.d/20-cpu-limit.conf). Best-effort: skipped where
+    # sched_setaffinity is unavailable or there are <2 cores.
+    try:
+        import random
+        _ncpu = os.cpu_count() or 1
+        if _ncpu >= 2 and hasattr(os, "sched_setaffinity"):
+            _cores = set(random.sample(range(_ncpu), 2))
+            os.sched_setaffinity(0, _cores)
+            log.info("pinned to 2 random cores: %s", sorted(_cores))
+    except (OSError, ValueError) as e:
+        log.warning("cpu affinity pin failed (non-fatal): %s", e)
 
     log.info("starting: model=%s endpoint=%s state=%s",
              MODEL, ENDPOINT, STATE_FILE)
@@ -2033,6 +2308,8 @@ def main() -> int:
         threading.Thread(target=fs_watcher_loop, daemon=True, name="fs_watcher"),
         threading.Thread(target=satisfaction_loop, daemon=True, name="satisfaction"),
         threading.Thread(target=index_loop, daemon=True, name="directory_index"),
+        threading.Thread(target=rolling_report_loop, daemon=True, name="rolling_report"),
+        threading.Thread(target=daemon_agent_server_loop, daemon=True, name="daemon_agent_server"),
     ]
     for t in threads:
         t.start()

@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""mios-web-search -- native WEB-search verb backend.
+
+Queries the LOCAL, self-hosted SearXNG metasearch (offline-first; NO cloud
+AI dependency -- Architectural Law 5) and returns clean, citable results so
+agents GROUND current-world answers (weather, news, events, prices, facts,
+general knowledge) on REAL fetched data instead of fabricating from model
+memory.
+
+Operator 2026-05-21: the chat agent invented a weather report -- wrong city
+(Port Hope vs. the asked-about Toronto), wrong units (Fahrenheit for a
+Canadian user), and made-up event details -- because NO web_search verb
+existed; only filesystem search (everything_search / fs_search) did, whose
+own descriptions tell the model to "use a WEB search" that was never wired.
+SearXNG was already up (:8888) and advertised as the web_search backend.
+This helper + [verbs.web_search] in mios.toml close that gap.
+
+SSOT: the SearXNG endpoint is $MIOS_SEARXNG_URL (rendered from mios.toml
+[ai]/[ports]); the localhost:8888 fallback is the only literal, matching
+the unit default. The query/format literals live HERE, not inline in
+agent-pipe -- same pattern as mios-sysview.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+
+# SSOT endpoint (env rendered from mios.toml); localhost fallback = the
+# vendor mios-searxng.container publish port.
+SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8888").rstrip("/")
+
+
+def search(query: str, limit: int, timeout: float) -> dict:
+    qs = urllib.parse.urlencode({"q": query, "format": "json"})
+    req = urllib.request.Request(
+        f"{SEARXNG_URL}/search?{qs}",
+        headers={"User-Agent": "mios-web-search/1 (+local SearXNG)"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        data = json.loads(r.read().decode("utf-8", "replace"))
+
+    results = [
+        {
+            "title": it.get("title", ""),
+            "url": it.get("url", ""),
+            "content": (it.get("content") or "")[:500],
+        }
+        for it in (data.get("results") or [])[:limit]
+    ]
+    # SearXNG instant-answers + infoboxes often carry the direct answer
+    # (weather, currency, units) -- surface them so the model cites the
+    # fetched value rather than guessing.
+    answers = list(data.get("answers") or [])
+    infoboxes = [
+        {"title": ib.get("infobox", ""), "content": (ib.get("content") or "")[:500]}
+        for ib in (data.get("infoboxes") or [])[:2]
+    ]
+    return {
+        "success": bool(results or answers or infoboxes),
+        "query": query,
+        "count": len(results),
+        "answers": answers,
+        "infoboxes": infoboxes,
+        "results": results,
+    }
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-web-search")
+    p.add_argument("query", nargs="+", help="search query")
+    p.add_argument("-n", "--limit", type=int, default=5)
+    p.add_argument("--json", action="store_true", default=True)
+    p.add_argument("--timeout", type=float, default=12.0)
+    a = p.parse_args()
+
+    q = " ".join(a.query).strip()
+    if not q:
+        print(json.dumps({"success": False, "error": "empty query", "results": []}))
+        return 64
+    try:
+        out = search(q, max(1, a.limit), a.timeout)
+    except Exception as e:
+        # Offline / SearXNG down: be HONEST -- never fabricate. The caller
+        # surfaces this so the model says it couldn't reach the web instead
+        # of inventing an answer.
+        out = {
+            "success": False,
+            "query": q,
+            "error": f"web search unavailable: {e}",
+            "results": [],
+        }
+    print(json.dumps(out, ensure_ascii=False))
+    return 0 if out.get("success") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

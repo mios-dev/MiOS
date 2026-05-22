@@ -32,7 +32,7 @@ established conventions.
    `/usr/lib/bootc/bound-images.d/` (binder loop in
    `automation/08-system-files-overlay.sh:74-86`).
 8. **LAW 5 (UNIFIED-AI-REDIRECTS)** — no vendor LLM URLs anywhere; all
-   AI redirects go through `MIOS_AI_ENDPOINT` (`http://localhost:8080/v1`).
+   AI redirects go through `MIOS_AI_ENDPOINT` (`http://localhost:8642/v1`).
 9. **LAW 6 (UNPRIVILEGED-QUADLETS)** — new Quadlets declare `User=`,
    `Group=`, `Delegate=yes`; if not, the PR must justify why
    (`mios-ceph`/`mios-k3s` are the only documented exceptions).

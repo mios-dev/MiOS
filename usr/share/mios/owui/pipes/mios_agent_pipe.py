@@ -329,6 +329,37 @@ class Pipe:
         ROUTER_TIMEOUT_S: int = Field(default=12, description="s")
         ROUTER_MAX_TOKENS: int = Field(default=200, description="tokens")
 
+    class UserValves(BaseModel):
+        """PER-USER persona + system-prompt fields, set by the operator in
+        the OWUI UI (chat Controls > Valves / per-user model settings).
+        Operator 2026-05-21: 'make the MiOS AI system prompt a user-defined
+        persona with user-defined fields for ease of input.' These ride
+        ALONGSIDE OWUI's environment variables ({{USER_NAME}}, locale, date)
+        and the vendor system prompt -- they don't replace them. Every field
+        is OPTIONAL; empty ones drop out, so there is NO hardcoded persona --
+        only the operator's own values are ever emitted."""
+        enabled: bool = Field(
+            default=True,
+            description="Apply your persona below. Off = plain MiOS AI with environment grounding only.")
+        persona_name: str = Field(
+            default="",
+            description="What the assistant calls itself. Empty = MiOS AI.")
+        tone: str = Field(
+            default="",
+            description="Voice / tone to adopt (e.g. concise, warm, formal, playful, dry). Empty = neutral.")
+        verbosity: str = Field(
+            default="",
+            description="Preferred answer length: brief | balanced | detailed. Empty = model decides per question.")
+        units: str = Field(
+            default="auto",
+            description="Units in answers: auto (follow your locale) | metric | imperial.")
+        expertise: str = Field(
+            default="",
+            description="Explain at this level (e.g. beginner, intermediate, expert). Empty = adapt to the question.")
+        custom_instructions: str = Field(
+            default="",
+            description="Any standing instructions / preferences for the assistant (plain text). Your words, used verbatim.")
+
     # Operator directive 2026-05-17: "prompt refining should be tool
     # aware to be able to hint". The refine system prompt has a
     # {tool_table} placeholder filled at init from the YAML manifest
@@ -342,6 +373,114 @@ class Pipe:
         # Build the tool table once at init; pipe restart picks up
         # YAML edits.
         self._refine_system_rendered = self._render_refine_system()
+
+    @staticmethod
+    def _compose_persona(__user__: Optional[dict]) -> str:
+        """Build a PER-USER persona system block from the operator's
+        UserValves. Emits ONLY the operator's own field values (no hardcoded
+        persona text); returns '' when nothing is set or the persona is
+        disabled, so the vendor system prompt + OWUI env vars stand alone.
+        Tolerates OWUI handing UserValves as a pydantic model OR a dict."""
+        if not isinstance(__user__, dict):
+            return ""
+        v = __user__.get("valves")
+        if v is None:
+            return ""
+
+        def _g(name, default=""):
+            if isinstance(v, dict):
+                return v.get(name, default)
+            return getattr(v, name, default)
+
+        if not _g("enabled", True):
+            return ""
+        name = str(_g("persona_name") or "").strip()
+        tone = str(_g("tone") or "").strip()
+        verbosity = str(_g("verbosity") or "").strip()
+        units = str(_g("units") or "auto").strip()
+        expertise = str(_g("expertise") or "").strip()
+        custom = str(_g("custom_instructions") or "").strip()
+        lines = []
+        if name:
+            lines.append(f"You are {name}.")
+        if tone:
+            lines.append(f"Tone: {tone}.")
+        if verbosity:
+            lines.append(f"Answer length: {verbosity}.")
+        if units and units.lower() != "auto":
+            lines.append(f"Units: {units}.")
+        if expertise:
+            lines.append(f"Explain at a {expertise} level.")
+        if custom:
+            lines.append(custom)
+        if not lines:
+            return ""
+        return "## OPERATOR PERSONA (user-set)\n" + "\n".join(lines)
+
+    @staticmethod
+    def _resolve_env_vars(text: str,
+                          __user__: Optional[dict],
+                          __metadata__: Optional[dict]) -> str:
+        """Resolve any OWUI {{...}} template token that reached the pipe
+        UNRESOLVED, then STRIP whatever is still unresolved so no literal
+        {{VAR}} ever survives into the model's system prompt.
+
+        OWUI substitutes most system-prompt vars server-side before the
+        pipe runs (functions.apply_system_prompt_to_body). But
+        {{USER_LANGUAGE}} and {{CURRENT_TIMEZONE}} are FRONTEND-only
+        variables (verified in OWUI utils/task.py: prompt_template has no
+        case for either) -- they resolve ONLY when the browser sent them
+        in form_data['variables'], else they leak. Direct-API callers get
+        no substitution at all. So we backfill from metadata.variables
+        (authoritative for locale/timezone the browser captured), the host
+        clock, and __user__, then strip the remainder. Operator 2026-05-22.
+
+        Note: this does NOT touch the reply-language -- that mirrors the
+        operator's own input per the template. These values feed
+        formatting/units + grounding only."""
+        if not text or "{{" not in text:
+            return text
+        import datetime as _dt
+        sub: dict = {}
+        # 1. Frontend-captured variables (browser locale/timezone/etc).
+        #    Keys arrive as the full "{{TOKEN}}" literal. Drop OWUI's
+        #    absent-value sentinels so they don't override a good backfill.
+        if isinstance(__metadata__, dict):
+            for _k, _v in (__metadata__.get("variables") or {}).items():
+                if _v not in (None, "", "None", "Unknown"):
+                    sub[str(_k)] = str(_v)
+        # 2. Host clock -- fills CURRENT_* the frontend/OWUI may have left.
+        _now = _dt.datetime.now().astimezone()
+        sub.setdefault("{{CURRENT_DATE}}", _now.strftime("%Y-%m-%d"))
+        sub.setdefault("{{CURRENT_TIME}}", _now.strftime("%I:%M:%S %p"))
+        sub.setdefault("{{CURRENT_DATETIME}}",
+                       _now.strftime("%Y-%m-%d %I:%M:%S %p"))
+        sub.setdefault("{{CURRENT_WEEKDAY}}", _now.strftime("%A"))
+        _tz = _now.tzname() or ""
+        if _tz:
+            sub.setdefault("{{CURRENT_TIMEZONE}}", _tz)
+        # 3. __user__ fields (name/email/location).
+        if isinstance(__user__, dict):
+            _nm = str(__user__.get("name") or "").strip()
+            if _nm and _nm not in ("None", "Unknown"):
+                sub.setdefault("{{USER_NAME}}", _nm)
+            _em = str(__user__.get("email") or "").strip()
+            if _em and _em not in ("None", "Unknown"):
+                sub.setdefault("{{USER_EMAIL}}", _em)
+            _info = __user__.get("info")
+            _loc = ""
+            if isinstance(_info, dict):
+                _loc = str(_info.get("location") or "").strip()
+            if _loc and _loc not in ("None", "Unknown"):
+                sub.setdefault("{{USER_LOCATION}}", _loc)
+        for _k, _v in sub.items():
+            if _k in text:
+                text = text.replace(_k, _v)
+        # Strip any token we could not resolve so no literal {{...}}
+        # reaches the model (the template wording treats a missing fact
+        # as "not provided").
+        text = re.sub(r"\{\{[^}]+\}\}", "", text)
+        return text
 
     def _render_refine_system(self) -> str:
         """Load tool-hints.yaml, render the canonical-verbs section as
@@ -570,7 +709,7 @@ class Pipe:
         "phrase, (b) scan the canonical-verbs table for the row that\n"
         "matches, (c) decide if the intent is single-step or multi-\n"
         "step, (d) decide if delegate fan-out helps. Keep THINKING\n"
-        "under 80 tokens. Mirror the user's language.\n"
+        "under 80 tokens. Write in ENGLISH by default.\n"
         "\n"
         "## OUTPUT SCHEMA (emit EXACTLY this, nothing else)\n"
         "THINKING: <free-form planning, <=80 tokens>\n"
@@ -701,11 +840,12 @@ class Pipe:
         "see only what you emit.\n"
         "\n"
         "## LOCALE\n"
-        "Respond in the SAME language as the ORIGINAL OPERATOR ASK\n"
-        "below. Mirror the operator's diction (formal vs casual,\n"
-        "abbreviations, emoji usage). Never switch to English if the\n"
-        "operator wrote in another language. Tool output (paths, IDs,\n"
-        "command names, JSON keys) stays in its native form.\n"
+        "Respond in ENGLISH by default. Switch to another language ONLY\n"
+        "when the ORIGINAL OPERATOR ASK below is itself clearly written in\n"
+        "that language -- then reply in that ONE language only, mirroring\n"
+        "the operator's diction. Never drift to a language the operator did\n"
+        "not use. Tool output (paths, IDs, command names, JSON keys) stays\n"
+        "in its native form.\n"
         "\n"
         "## RULES (hard)\n"
         "- RAW OUTPUT is ground truth. NEVER invent paths, IDs,\n"
@@ -1095,7 +1235,8 @@ class Pipe:
         "- `agent` for N>1 tools, web research, install, file editing,\n"
         "  general knowledge questions, conversational follow-through.\n"
         "  MiOS-Agent is both an Agentic-OS AND a generalized AI agent.\n"
-        "- Mirror the user's language in `reply` fields.\n"
+        "- Write `reply` fields in ENGLISH by default; use another language\n"
+        "  only if the user's own message is clearly written in it.\n"
         "- Output JSON ONLY -- no preamble, no markdown, no commentary."
     )
 
@@ -2019,6 +2160,42 @@ class Pipe:
             async for chunk in self._raw_passthrough(body, __event_emitter__):
                 yield chunk
             return
+
+        # Resolve / strip OWUI template tokens on every system message
+        # FIRST: backfill any {{...}} OWUI left unresolved ({{USER_LANGUAGE}}
+        # / {{CURRENT_TIMEZONE}} are frontend-only and leak when the browser
+        # didn't send them; direct-API callers get no substitution at all)
+        # and strip the rest so no literal token reaches the model
+        # (operator 2026-05-22 -- the leaked/locale-pinned language tokens
+        # were behind the wrong-language + dual-language replies).
+        try:
+            _msgs0 = body.get("messages")
+            if isinstance(_msgs0, list):
+                for _m in _msgs0:
+                    if (isinstance(_m, dict) and _m.get("role") == "system"
+                            and isinstance(_m.get("content"), str)):
+                        _m["content"] = self._resolve_env_vars(
+                            _m["content"], __user__, __metadata__)
+        except Exception:
+            pass  # env resolution is best-effort; never break the turn
+
+        # Per-user PERSONA (UserValves) -- inject AFTER OWUI's already-
+        # substituted vendor system prompt (with {{USER_NAME}}/locale vars)
+        # and BEFORE the user turn, so the operator's fields augment the
+        # environment-grounded base. Empty persona -> no-op.
+        try:
+            _persona = self._compose_persona(__user__)
+            if _persona:
+                _msgs = body.get("messages")
+                if isinstance(_msgs, list):
+                    _i = 0
+                    while (_i < len(_msgs) and isinstance(_msgs[_i], dict)
+                           and _msgs[_i].get("role") == "system"):
+                        _i += 1
+                    _msgs.insert(_i, {"role": "system", "content": _persona})
+                    body["messages"] = _msgs
+        except Exception:
+            pass  # persona is best-effort; never break the turn
 
         # Status emits use short symbol+term form, no English narrative
         # (operator directive 2026-05-17: GLOBAL SWEEP -- "remove any

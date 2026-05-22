@@ -79,6 +79,6 @@
     "model_resolution": {
       "score_model.model": "Resolves through MIOS_AI_GRADER env var; falls back to MIOS_AI_MODEL; final fallback is qwen2.5-coder:7b (the locally-baked default chat model). Operators wanting a stronger grader set MIOS_AI_GRADER to a model their endpoint serves (e.g. qwen2.5:32b for a 24GB+ profile)."
     },
-    "notes": "The string_check graders run in pure Python and require no model. The score_model grader requires a /v1/chat/completions endpoint. The text_similarity grader requires /v1/embeddings. All three are supported by MiOS LocalAI at MIOS_AI_ENDPOINT (default http://localhost:8080/v1). Vendor cloud endpoints (api.openai.com, api.anthropic.com, etc.) are forbidden by LAW 5; if you need cloud grading, set MIOS_AI_ENDPOINT to LiteLLM at http://localhost:4000/v1 with provider routing."
+    "notes": "The string_check graders run in pure Python and require no model. The score_model grader requires a /v1/chat/completions endpoint. The text_similarity grader requires /v1/embeddings. All three are supported by MiOS LocalAI at MIOS_AI_ENDPOINT (default http://localhost:8642/v1). Vendor cloud endpoints (api.openai.com, api.anthropic.com, etc.) are forbidden by LAW 5; if you need cloud grading, set MIOS_AI_ENDPOINT to LiteLLM at http://localhost:4000/v1 with provider routing."
   }
 }

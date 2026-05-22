@@ -128,21 +128,21 @@ Enforced by build-time lint and `automation/99-postcheck.sh`:
 | 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. | `usr/lib/bootc/bound-images.d/`, `automation/08-system-files-overlay.sh` |
 | 4 | **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`. | `Containerfile` (last `RUN`) |
 | 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (default `http://localhost:8642/v1`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. **No vendor-cloud URLs. No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
-| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`. | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
+| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`, `qdrant`. | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 | 7 | **OFFLINE-FIRST** — every MiOS lifecycle phase works without internet from EITHER scenario: (1) a pre-built MiOS image, or (2) full repos on a USB drive + a Windows or minimal Fedora live env. Lifecycle phases: **overlay → pull → build → deploy → run → host → re-build → use AI** — all offline-capable. AI agents + tools + scripts + models + knowledge + skills + browser + search + code-run sandboxes all run from the local MiOS stack. Internet-using features (Discord, Tailscale, GitHub PRs, web_search-against-cloud Firecrawl/Tavily/Exa) are OPTIONAL and gracefully degrade when offline; nothing CORE is gated on network reachability. Operator-restated 2026-05-17. **See `docs/concepts/OFFLINE-FIRST.md` for the per-phase capability matrix + remaining build-time gaps.** | runtime: `automation/08-system-files-overlay.sh` (bound-images), `automation/37-ollama-prep.sh` (model bake), `usr/share/mios/owui/`, `web.search_backend: searxng` in seeded hermes config. build: cached wheels + bundled binaries (see OFFLINE-FIRST.md for gap status) |
 
 ## 6. Endpoint contract (OpenAI-compatible)
 
 Local API at `http://localhost:8642/v1`, served by the
-`mios-hermes.container` Quadlet (Hermes-Agent — the live MiOS agent at
-`/`). Hermes fronts Ollama (`http://localhost:11434`) for inference
-and embeddings. Every MiOS AI surface resolves through `MIOS_AI_ENDPOINT`.
+`hermes-agent.service` (host-native systemd service). Hermes fronts
+Ollama (`http://localhost:11434` for dGPU lane, `:11435` for iGPU lane)
+for inference and embeddings. Every MiOS AI surface resolves through
+`MIOS_AI_ENDPOINT`.
 
 | Path | Method | Purpose |
 |---|---|---|
 | `/v1/models` | GET | list available models |
 | `/v1/chat/completions` | POST | streaming chat completions |
-| `/v1/responses` | POST | OpenAI Responses API + MCP tool calls |
 | `/v1/embeddings` | POST | embeddings |
 | `/v1/audio/{transcriptions,speech}` | POST | when configured |
 

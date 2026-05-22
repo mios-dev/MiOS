@@ -13,7 +13,7 @@
 # This unit runs at every boot and is idempotent: --add-port on a port
 # that's already open is a no-op. No-ops cleanly when firewalld is
 # absent (ConditionPathExists) or inactive.
-Description=MiOS: ensure firewalld has the MiOS service ports open
+Description='MiOS': ensure firewalld has the MiOS service ports open
 After=firewalld.service network-online.target
 Wants=firewalld.service network-online.target
 Before=hermes-agent.service mios-open-webui.service mios-searxng.service

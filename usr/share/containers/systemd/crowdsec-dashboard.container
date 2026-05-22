@@ -11,10 +11,14 @@ ConditionPathExists=/etc/crowdsec/config.yaml
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].crowdsec and [network.quadlet].network.
 Image=docker.io/crowdsecurity/crowdsec:latest
-Network=mios.network
+Network=host
 AutoUpdate=registry
-User=mios-crowdsec
-Group=mios-crowdsec
+# Run as root to allow symlink creation and database management
+# in the shared /var/lib/crowdsec volume.
+User=0
+Group=0
+
+Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z
 
 [Service]
 Restart=on-failure

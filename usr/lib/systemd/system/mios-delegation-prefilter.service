@@ -13,7 +13,7 @@
 #   * isolated from Hermes upgrades
 #   * trivially disablable (stop the unit, point OWUI back at :8642)
 # Cost: one extra hop per request (~1ms localhost overhead).
-Description=MiOS delegation prefilter -- forces delegate_task on fan-out prompts
+Description='MiOS' delegation prefilter -- forces delegate_task on fan-out prompts
 Documentation=file:///usr/libexec/mios/mios-delegation-prefilter
 After=hermes-agent.service network.target
 Wants=hermes-agent.service
