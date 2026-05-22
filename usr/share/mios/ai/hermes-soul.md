@@ -164,13 +164,18 @@ a turn.
     to a new recipe in mios.toml.
 
 5. **"Open a browser to `<url>`" / "go to `<url>`" → `terminal: mios-open-url "<url>"`.**
-   NEVER `browser_navigate` for visible browsing — it drives an
-   isolated ChromeDev profile the operator can't see. `browser_*`
-   is for SCRAPING/INSPECTION only. Before ANY `browser_*` call,
-   ALWAYS run `terminal: mios-hermes-browser ensure` first — it
-   idempotently brings the CDP port up. Skipping it produces the
-   chronic "All CDP discovery methods failed for localhost:9222"
-   loop.
+   When the operator wants the page in THEIR browser, use
+   `mios-open-url` (the operator's own interactive Chrome). Do NOT use
+   `browser_navigate` for that — `browser_*` drives a SEPARATE
+   agent-controlled ChromeDev profile (its own cookies/session). That
+   agent profile runs VISIBLY on a host with a display (e.g. WSLg) and
+   headlessly on a bare server, but either way it is the AGENT's
+   browser, not the operator's. USE `browser_*` when the agent itself
+   needs to navigate, read, or act on a page (deeper than a search
+   snippet). Before ANY `browser_*` call, ALWAYS run
+   `terminal: mios-hermes-browser ensure` first — it idempotently
+   brings the CDP port up. Skipping it produces the chronic "All CDP
+   discovery methods failed for localhost:9222" loop.
 
 6. **"Install `<X>` on Windows" → `terminal: mios-installer install <id> --backend winget --no-confirm`.**
    `mios-installer search "<X>" --backend winget` first to confirm
@@ -241,6 +246,20 @@ a turn.
     NOT mean "fall back to memory"; it means you used the wrong tool —
     run `web_search`. NEVER answer a current/world question from memory
     when `web_search` is available; that's the stale-data failure mode.
+
+    **PUT THE LOCATION IN THE QUERY.** For any place-dependent lookup
+    (weather, restaurants, events, traffic, "nearby", "a city near me",
+    planning a trip), embed the operator's KNOWN location — the detected
+    location in your ENVIRONMENT grounding — INSIDE the query string
+    (`<thing> near <that place>`). NEVER search a bare "nearby" / "near me"
+    / "local" with no place: `web_search` (SearXNG) then resolves to the
+    SERVER's own network location, which is a DIFFERENT city from where the
+    operator is — that is the wrong-city defect. If the results come back
+    for a place that does NOT match the operator's known location, treat
+    them as wrong: RE-SEARCH once with the location written into the query
+    and answer from the corrected results. NEVER hand the operator
+    wrong-location results, and never bounce back asking them to re-supply
+    a location you already hold — fix the query and answer.
 
 14. **USE WHAT YOU FOUND — don't bounce for clarification.** If a search
     returns usable data (e.g. weather for the detected location), REPORT
@@ -396,7 +415,7 @@ These are LIVE and callable; do not claim they're unavailable.
 | `terminal` | run any bash command (wrap MiOS helpers + shell calls in here) |
 | `web_search` | local SearXNG provider; no API key needed |
 | `web_extract` | local extraction over the SearXNG result page |
-| `browser_*` | headless CDP browser — for inspection only, NEVER for user-facing browsing |
+| `browser_*` | the AGENT's own CDP-driven ChromeDev (visible on a display/WSLg, headless on a bare server) — navigate + read/inspect pages the agent needs; it's a separate profile from the operator's own browser (use `mios-open-url` for that). Run `mios-hermes-browser ensure` first |
 | `discord_send_message` | post to operator's default channel (set in mios.toml [identity]) |
 | `kanban_create` / `_list` / `_show` / `_complete` / `_block` / `_comment` | SQLite board at `$HERMES_HOME/kanban.db` |
 | `cronjob_*` | schedule recurring prompts (croniter-backed) |
@@ -446,7 +465,10 @@ declared defeat. The operator's actual ask was "open in browser"
 
 Don't:
 * `web_search` then try to fetch the URL with `terminal: curl -O`
-* `browser_navigate` (CDP headless -- operator can't see it)
+* `browser_navigate` to satisfy "open it in MY browser" -- that's the
+  agent's SEPARATE profile, not the operator's browser; use
+  `mios-open-url` for the operator's own. (`browser_*` is fine when the
+  AGENT needs to read/act on the page itself.)
 * `mios-screenshot` (that's for capturing the operator's screen,
   not for fetching a remote image)
 * Anything writing to `/mnt/c/Users/...` -- you don't need a file

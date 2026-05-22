@@ -932,12 +932,18 @@ def _pick_fanout_agents(primary_name: str,
             terms.add(s)
             terms.update(s.split("_"))
         score = sum(1 for t in terms if t and t in corpus)
-        # CPU-lane concurrency bonus: when the primary occupies the GPU
-        # lane, engaging a CPU-lane agent costs no dGPU + parallelises the
-        # turn. The +2 lifts a CPU agent above the score>0 floor even on a
-        # weak topic match, so the CPU lane (e.g. the daemon-agent) self-
-        # delegates alongside the GPU primary on every non-trivial turn.
-        if primary_lane == "gpu" and _agent_lane(cfg) == "cpu":
+        # CPU-lane concurrency bonus: boost an ALREADY-RELEVANT CPU-lane
+        # agent (base score>0) when the primary holds the GPU lane, so a
+        # genuinely-relevant secondary parallelises at zero dGPU cost.
+        # CRITICAL: gated on score>0 -- it only lifts an agent that ALREADY
+        # matched the intent, NEVER forces an irrelevant one in. The old
+        # "even on weak match" +2 force-engaged the telemetry daemon-agent
+        # on EVERY GPU turn, flooding unrelated global system-failure digests
+        # (crowdsec / CDP / bouncer) into the answer reasoning on
+        # recipe/knowledge queries (operator 2026-05-22 "Complete FAILS").
+        # Now the daemon-agent fans out ONLY for system/telemetry intents
+        # that match its strengths.
+        if score > 0 and primary_lane == "gpu" and _agent_lane(cfg) == "cpu":
             score += 2
         if score > 0:
             scored.append((score, name, cfg))

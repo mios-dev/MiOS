@@ -650,14 +650,14 @@ default  = false
 # supplementing every agent turn with global-log + web context at zero dGPU
 # cost.
 lane     = "cpu"
+# Telemetry-ONLY strengths. The :8644 reply is raw global-log telemetry
+# (no web supplement -- that was a hardcode, reverted), so selecting it for
+# world queries (weather/news/events) just floods the answer with unrelated
+# system-failure digests (operator 2026-05-22 chat: a weather/restaurant turn
+# drowned in crowdsec/Chrome-CDP failure lines). It is fanned out ONLY for
+# system/telemetry/log intents now.
 strengths = ["journalctl_tail", "log_search", "event_query",
-             "system_followup", "what_just_happened",
-             # Operator 2026-05-21: the daemon-agent ALSO supplements the
-             # pipeline with the local web tool (web_search -> SearXNG),
-             # concurrently, so it is relevant to current-world queries
-             # (weather/news/events), not only telemetry. These tokens let
-             # the fan-out select it to add web + global-log context.
-             "web_search", "web", "current_events", "weather", "news"]
+             "system_followup", "what_just_happened"]
 
 # Operator can add more agents here -- e.g.:
 #   [agents.aichat]
@@ -1640,10 +1640,19 @@ operator's own wording is the ONLY signal for this; the browser locale above
 is NOT a language instruction (it can differ from how they write to you), so
 never let it pull the reply toward another language.
 
-LOCALE (formatting only): use the timezone, browser locale, and location
-ONLY to render dates, times, numbers, and measurements in the operator's
-regional convention and to localise weather/places/results -- never to choose
-the reply language, and never to silently convert a figure a tool returned.
+ENVIRONMENT USE (apply EVERY detected fact above, on EVERY turn -- they are
+the operator's real session, not optional):
+- TIMEZONE + DATE/TIME -> resolve all temporal references (today, tonight,
+  this weekend, "now") against the current date in the operator's timezone,
+  and render every date/time in that zone.
+- LOCATION -> for ANY place-dependent lookup (weather, places, restaurants,
+  events, traffic, "nearby"), localise to it and put it INTO the search query;
+  never localise to the server's network location or to a default.
+- BROWSER LOCALE -> use it for number, date, and unit conventions (metric vs
+  imperial, date order, decimal mark); never to choose the reply language (see
+  RESPONSE LANGUAGE), and never to silently convert a figure a tool returned.
+- NAME -> address the operator by it; use no name if it is not provided.
+A fact marked Unknown / None / blank is simply NOT PROVIDED -- never guess it.
 
 LOOP every request: REASON (what's asked + is it one ask or several?)
 -> PLAN (break into steps; for any open/find/install/use X, FAN OUT in

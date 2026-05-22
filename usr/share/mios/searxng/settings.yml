@@ -53,6 +53,45 @@ search:
     - html
     - json    # required for the agent web_search tool surface
 
-# Engines: keep upstream defaults; operators tune on a per-instance
-# basis under /etc/mios/searxng/settings.yml. Comment block here so
-# the vendor copy is short and the diff against upstream is auditable.
+# Outgoing-request resilience (operator 2026-05-22). The default Google /
+# DuckDuckGo scrape paths CAPTCHA / 403 / 429 a self-hosted instance
+# (SearxEngineTooManyRequests / AccessDenied / CAPTCHA in the logs), which
+# zeroed result sets and made the agent fall back to geo-IP'd data. More
+# time + one retry keeps a slow engine from emptying the results; the cap
+# stops one dead engine stalling the whole query.
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 12.0
+  pool_connections: 100
+  pool_maxsize: 20
+  retries: 1
+
+# Engine curation. use_default_settings:true means this list PATCHES the
+# upstream defaults by name (it does not replace them). Disable the chronic
+# blockers (Google scrape endpoints -- 403 / IndexError / CAPTCHA from a
+# self-hosted IP) and lean on engines that serve a self-hosted instance
+# reliably WITHOUT an API key. SearXNG auto-suspends any engine that errors,
+# so the remaining set fills in; DuckDuckGo is kept (it recovers from its
+# transient CAPTCHA) but is no longer load-bearing.
+engines:
+  - name: google
+    disabled: true
+  - name: google news
+    disabled: true
+  - name: google scholar
+    disabled: true
+  - name: google images
+    disabled: true
+  - name: brave
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+    timeout: 5.0
+  - name: wikipedia
+    disabled: false
+  - name: wikidata
+    disabled: false

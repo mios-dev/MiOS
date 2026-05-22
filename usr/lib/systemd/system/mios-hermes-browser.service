@@ -44,12 +44,32 @@ RuntimeDirectory=mios-hermes-browser
 RuntimeDirectoryMode=0700
 Environment=XDG_RUNTIME_DIR=/run/mios-hermes-browser
 
+# WSLg display (operator 2026-05-22: "this WSL env DOES have a display,
+# WSL2/g"). Hand the service the X11 display so ChromeDev opens VISIBLY
+# (operator 2026-05-16). On WSLg the X11 socket (/tmp/.X11-unix/X0, via
+# XWayland) is the cross-user-reachable path; PrivateTmp must be OFF (below)
+# so this service user can see it. On a host with no display the launcher
+# auto-falls-back to headless, so this is safe to set unconditionally.
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+
 # Make the persistent profile dir on first start (idempotent). chmod
 # 0700 so only mios-hermes can read sensitive cookies / session state.
 StateDirectory=mios/hermes-browser/profile
 StateDirectoryMode=0700
 
-ExecStart=/usr/libexec/mios/mios-hermes-browser
+# Use the PERSISTENT `start` path, not the default `ensure`: `ensure`
+# backgrounds Chrome and EXITS once CDP responds, but Type=simple then treats
+# that exit as "service stopped" and tears down the cgroup -- killing the very
+# Chrome it just launched (operator 2026-05-22: "DevTools listening" appeared
+# then the service went inactive). `start` exec's ChromeDev in the foreground
+# so it IS the main process and stays up; the agent's pre-flight
+# `mios-hermes-browser ensure` then just sees CDP already up.
+ExecStart=/usr/libexec/mios/mios-hermes-browser start
+# Disable the GTK accessibility D-Bus bridge (org.a11y.Bus) -- it's absent in
+# the transient dbus-run-session and Chrome's attempts to reach it spam the
+# log; harmless to skip for an agent-driven browser.
+Environment=NO_AT_BRIDGE=1
 
 Restart=on-failure
 RestartSec=5s
@@ -63,7 +83,12 @@ TimeoutStopSec=30s
 NoNewPrivileges=true
 # ProtectSystem=strict here would block /var/lib/flatpak read access;
 # leave at default. The flatpak sandbox does its own confinement.
-PrivateTmp=true
+# PrivateTmp was true, but on WSLg the X11 display socket lives at
+# /tmp/.X11-unix/X0 -- a private /tmp hides it, so a VISIBLE ChromeDev
+# launch (DISPLAY=:0) can't reach the display and CDP never binds
+# (operator 2026-05-22). Off so the WSLg socket is reachable; the flatpak
+# sandbox still confines the browser itself.
+PrivateTmp=false
 
 [Install]
 WantedBy=multi-user.target

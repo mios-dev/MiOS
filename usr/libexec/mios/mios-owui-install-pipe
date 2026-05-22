@@ -440,7 +440,12 @@ if sys_prompt:
         "web_search": True, "image_generation": True, "code_interpreter": True,
     }
     want_features = []  # do NOT auto-fire features per message (greeting fix)
-    want_tools = ["mios_verbs", "openui"]
+    # ALL registered OWUI tools (operator 2026-05-22: "all owui's tools
+    # enabled by default for MiOS AI"). Query the tool table so EVERY tool
+    # mios-owui-install-tools registered is attached -- not a hardcoded
+    # subset (sub_agent was being dropped). Empty (tools not yet installed
+    # at this firstboot ordering) -> the merge below keeps existing_tools.
+    want_tools = [r[0] for r in c.execute("SELECT id FROM tool").fetchall()]
     for row_id in (model_id, twin_id):
         cur = c.execute(
             "SELECT params, meta FROM model WHERE id = ?", (row_id,)).fetchone()

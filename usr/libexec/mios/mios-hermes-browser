@@ -42,9 +42,20 @@ set -uo pipefail
 
 CDP_PORT="${HERMES_BROWSER_CDP_PORT:-9222}"
 PROFILE_DIR="${HERMES_BROWSER_PROFILE_DIR:-/var/lib/mios/hermes-browser/profile}"
-# Default 0 (visible) per operator directive 2026-05-16. Operators
-# wanting headless set HERMES_BROWSER_HEADLESS=1.
-HEADLESS="${HERMES_BROWSER_HEADLESS:-0}"
+# Headless mode: AUTO-DETECT the display. Operator 2026-05-16 wanted a
+# VISIBLE window to watch the agent browse on a desktop -- keep that when a
+# display is actually reachable. But on a headless / WSL / remote host with
+# no display (operator 2026-05-22: the visible default crash-looped 500+
+# times -- "CDP did not come up", Chrome can't open a window without a
+# display), fall back to headless so the CDP backend still comes up and the
+# browse tool stays IN THE LOOP. Force either way with HERMES_BROWSER_HEADLESS.
+if [ -n "${HERMES_BROWSER_HEADLESS:-}" ]; then
+    HEADLESS="$HERMES_BROWSER_HEADLESS"
+elif [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+    HEADLESS=0
+else
+    HEADLESS=1
+fi
 APP_ID="${HERMES_BROWSER_APP_ID:-com.google.ChromeDev}"
 LOG_FILE="${HERMES_BROWSER_LOG:-/var/lib/mios/hermes-browser/launch.log}"
 
