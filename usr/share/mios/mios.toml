@@ -689,13 +689,23 @@ strengths = ["journalctl_tail", "log_search", "event_query",
 # ----------------------------------------------------------------------------
 [dispatch]
 enable     = true
-# Floor on engaged agents when relevant matches exist (1 = primary only
-# unless a secondary scores; raise to lean toward "a couple").
+# Selection mode (operator 2026-05-22 "weigh every agent equally + dispatch
+# multiple concurrently"):
+#   council   = EQUAL WEIGHT. Every chat-eligible agent (every [agents.*]
+#               without fanout=false, minus the primary) runs CONCURRENTLY
+#               each turn, up to fanout_max, regardless of tag relevance --
+#               no Hermes monopoly. Lane-diverse so CPU + GPU agents run in
+#               parallel. This is the active policy.
+#   relevance = legacy: engage only OTHER agents whose A2A skill tags match
+#               the refined plan (top matches).
+mode       = "council"
+# Floor on engaged agents when relevant matches exist (relevance mode only).
 fanout_min = 1
-# Hard cap on TOTAL concurrent agents (primary + secondaries). 2 = primary
-# + at most one relevant secondary; 3 = a small council. Kept low -- every
-# extra agent is a full concurrent inference on the local lanes.
-fanout_max = 2
+# Hard cap on TOTAL concurrent agents (primary + secondaries). Each extra
+# agent is a full concurrent inference on the local lanes, so size it to the
+# roster + the box's headroom. 3 = primary + up to 2 council members; raise
+# as more [agents.*] are added (and a tool-capable box can carry them).
+fanout_max = 3
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any

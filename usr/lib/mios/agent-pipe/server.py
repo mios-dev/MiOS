@@ -850,10 +850,20 @@ _AGENT_REGISTRY = _load_agent_registry()
 
 def _load_dispatch_cfg() -> dict:
     """[dispatch] -- multi-agent concurrent fan-out config (SSOT in
-    mios.toml; env override). Operator 2026-05-21: 'dispatch to a couple
-    of agents at a time -- not ALL agents, but a couple'. fanout_max<=1
-    restores exact single-agent behaviour (zero behaviour change)."""
-    cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2}
+    mios.toml; env override).
+
+    mode (operator 2026-05-22, supersedes the earlier 'a couple, not all'):
+      * 'council'   -- EQUAL WEIGHTING: every chat-eligible agent (every
+                       [agents.*] without fanout=false, minus the primary)
+                       is dispatched CONCURRENTLY each turn, up to
+                       fanout_max, regardless of tag relevance. Lane-diverse
+                       ordering runs CPU + GPU agents in parallel. This is
+                       what stops the Hermes monopoly.
+      * 'relevance' -- legacy: score the OTHER agents by skill-tag overlap
+                       with the refined plan, engage only the top matches.
+    fanout_max<=1 restores exact single-agent behaviour (zero fan-out)."""
+    cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2,
+           "mode": "relevance"}
     toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     try:
         try:
@@ -865,6 +875,8 @@ def _load_dispatch_cfg() -> dict:
         cfg["enable"] = bool(dd.get("enable", True))
         cfg["fanout_min"] = max(1, int(dd.get("fanout_min", 1)))
         cfg["fanout_max"] = max(cfg["fanout_min"], int(dd.get("fanout_max", 2)))
+        cfg["mode"] = str(dd.get("mode", "relevance")).lower().strip() \
+            or "relevance"
     except Exception as e:
         log.warning("dispatch cfg load failed: %s; using defaults", e)
     try:
@@ -872,6 +884,8 @@ def _load_dispatch_cfg() -> dict:
             os.environ.get("MIOS_DISPATCH_FANOUT_MAX", cfg["fanout_max"])))
     except (TypeError, ValueError):
         pass
+    cfg["mode"] = os.environ.get("MIOS_DISPATCH_MODE", cfg["mode"]).lower().strip() \
+        or "relevance"
     return cfg
 
 
@@ -928,6 +942,30 @@ def _pick_fanout_agents(primary_name: str,
     if not _DISPATCH_CFG.get("enable") or _DISPATCH_CFG.get("fanout_max", 1) <= 1:
         return []
     want = _DISPATCH_CFG["fanout_max"] - 1
+
+    def _opted_out(c: dict) -> bool:
+        # Explicit fan-out opt-out. The telemetry daemon-agent sets this:
+        # it ignores the prompt and always returns a system digest, so it
+        # would flood chat synthesis. Its own monitoring loop is unaffected.
+        return c.get("fanout") is False or \
+            str(c.get("fanout", "")).lower() in {"false", "no", "0"}
+
+    # COUNCIL mode (operator 2026-05-22 'weigh every agent equally + dispatch
+    # multiple concurrently', supersedes 'a couple, not all'): EQUAL WEIGHT --
+    # every eligible agent (non-primary, not opted out) runs concurrently
+    # each turn, NO relevance gate, so it is never Hermes-only. Order
+    # lane-diverse first (a CPU agent parallelises a GPU primary at zero dGPU
+    # cost), then by name for determinism. Capped at `want` (fanout_max-1).
+    if _DISPATCH_CFG.get("mode") == "council":
+        primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
+        council = [
+            (name, cfg) for name, cfg in _AGENT_REGISTRY.items()
+            if name != primary_name and not _opted_out(cfg)
+        ]
+        council.sort(key=lambda nc: (
+            0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
+        return council[:want]
+
     corpus = ""
     if isinstance(refined, dict):
         corpus = " ".join(
@@ -949,13 +987,8 @@ def _pick_fanout_agents(primary_name: str,
     for name, cfg in _AGENT_REGISTRY.items():
         if name == primary_name:
             continue
-        # Honour an explicit opt-out: an agent with fanout=false is NEVER a
-        # secondary (operator 2026-05-22 -- the telemetry daemon-agent's
-        # broad strength tokens coincidentally matched almost any query and
-        # flooded answers with system-failure digests). Its own monitoring
-        # loop is unaffected; this only governs chat fan-out.
-        if str(cfg.get("fanout", "")).lower() in {"false", "no", "0"} \
-                or cfg.get("fanout") is False:
+        # Honour the explicit fan-out opt-out (see _opted_out above).
+        if _opted_out(cfg):
             continue
         # Route on the agent's A2A skill tags (the SAME _agent_skill_tags
         # SSOT the AgentCard publishes), expanding snake_case sub-tokens for
