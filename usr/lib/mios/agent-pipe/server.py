@@ -935,7 +935,8 @@ def _agent_skill_tags(cfg: dict) -> list[str]:
 
 
 def _pick_fanout_agents(primary_name: str,
-                        refined: Optional[dict]) -> list:
+                        refined: Optional[dict],
+                        *, force_council: bool = False) -> list:
     """Pick SECONDARY (name, cfg) agents to run CONCURRENTLY alongside the
     chosen primary -- operator 2026-05-21 'a couple at a time' + 'self-
     delegate to CPU concurrently to pending/future GPU operations' + 'make
@@ -945,10 +946,11 @@ def _pick_fanout_agents(primary_name: str,
     plan, PLUS a concurrency bonus for a CPU-lane agent when the primary
     holds the GPU lane -- that secondary runs in parallel at zero dGPU cost,
     so the CPU lane is always utilised and the primary is never alone.
-    Returns [] when fan-out is disabled / capped at 1 / nothing relevant."""
-    if not _DISPATCH_CFG.get("enable") or _DISPATCH_CFG.get("fanout_max", 1) <= 1:
-        return []
-    want = _DISPATCH_CFG["fanout_max"] - 1
+    Returns [] when fan-out is disabled / capped at 1 / nothing relevant.
+
+    force_council (operator 2026-05-22 SWARM toggle): engage EVERY eligible
+    agent (non-primary, not opted out) this turn, bypassing the enable /
+    fanout_max / relevance gates entirely -- the manual 'full swarm' override."""
 
     def _opted_out(c: dict) -> bool:
         # Explicit fan-out opt-out. The telemetry daemon-agent sets this:
@@ -956,6 +958,18 @@ def _pick_fanout_agents(primary_name: str,
         # would flood chat synthesis. Its own monitoring loop is unaffected.
         return c.get("fanout") is False or \
             str(c.get("fanout", "")).lower() in {"false", "no", "0"}
+
+    if force_council:
+        primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
+        swarm = [(name, cfg) for name, cfg in _AGENT_REGISTRY.items()
+                 if name != primary_name and not _opted_out(cfg)]
+        swarm.sort(key=lambda nc: (
+            0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
+        return swarm
+
+    if not _DISPATCH_CFG.get("enable") or _DISPATCH_CFG.get("fanout_max", 1) <= 1:
+        return []
+    want = _DISPATCH_CFG["fanout_max"] - 1
 
     # COUNCIL mode (operator 2026-05-22 'weigh every agent equally + dispatch
     # multiple concurrently', supersedes 'a couple, not all'): EQUAL WEIGHT --
@@ -4726,6 +4740,91 @@ def _agent_dag_from_tasks(tasks: list) -> dict:
     return {"summary": summary, "nodes": nodes}
 
 
+_SWARM_SYSTEM = (
+    "You are the MiOS SWARM planner. Split the user's request into INDEPENDENT "
+    "sub-tasks that can run in PARALLEL, and assign each to the best sub-agent "
+    "from the roster below. This is multi-agent delegation -- weigh the whole "
+    "roster, route by each agent's strengths, do not funnel everything to one.\n"
+    "\n"
+    "Emit JSON ONLY (no prose, no markdown):\n"
+    '{"subtasks":[{"agent":"<exact roster name>","task":"<self-contained sub-task '
+    'in the user\'s language>"}, ...]}\n'
+    "\n"
+    "Rules:\n"
+    "- Use EXACT agent names from the roster; the executor rejects unknown ones.\n"
+    "- 2 to 4 sub-tasks. Each must be SELF-CONTAINED -- the assigned agent sees "
+    "ONLY its own task string, not the others.\n"
+    "- Independent only: do NOT emit sub-tasks that depend on each other's output "
+    "(they run concurrently).\n"
+    "- If the request is genuinely single-step / not worth splitting, emit "
+    '{"subtasks":[]} and the caller handles it normally.\n'
+    "\n"
+    "Sub-agent roster:\n"
+    + _AGENT_CATALOG_RENDERED
+)
+
+
+async def _plan_swarm(user_text: str) -> list:
+    """Dedicated SWARM decomposer (operator 2026-05-22 'AI SWARM', Layer B):
+    a narrowly-scoped planner call that splits a request into independent
+    {agent, task} assignments for CONCURRENT dispatch. More reliable at
+    emitting AGENT assignments than the general verb-DAG planner (which
+    skews toward verb nodes). Returns task dicts shaped for
+    _agent_dag_from_tasks ({target_agent, refined_text, title}), or []."""
+    if not PLANNER_ENABLED or not user_text or not user_text.strip():
+        return []
+    payload = {
+        "model": PLANNER_MODEL,
+        "messages": [
+            {"role": "system", "content": _SWARM_SYSTEM},
+            {"role": "user", "content": user_text[:4000]},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.0,
+        "max_tokens": PLANNER_MAX_TOKENS,
+        "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions",
+                             json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return []
+            body = r.json()
+    except (httpx.HTTPError, asyncio.TimeoutError):
+        return []
+    except Exception as e:
+        log.warning("swarm planner error: %s", e)
+        return []
+    content = (((body.get("choices") or [{}])[0].get("message") or {})
+               .get("content") or "").strip()
+    if not content:
+        return []
+    content = re.sub(r"<think>.*?</think>\s*", "", content,
+                     flags=re.DOTALL | re.IGNORECASE)
+    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    try:
+        parsed = json.loads(content)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    subs = parsed.get("subtasks") if isinstance(parsed, dict) else None
+    if not isinstance(subs, list):
+        return []
+    tasks: list = []
+    for s in subs:
+        if not isinstance(s, dict):
+            continue
+        task = str(s.get("task") or "").strip()
+        agent = str(s.get("agent") or "").strip()
+        if not task:
+            continue
+        tasks.append({"target_agent": agent, "refined_text": task,
+                      "title": task[:60]})
+    return tasks
+
+
 async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                              streaming: bool, chat_id: str, model: str,
                              session_id: Optional[str], last_user_text: str,
@@ -6593,6 +6692,22 @@ async def chat_completions(request: Request) -> Any:
     last_user_text = _extract_last_user_text(messages)
     model = body.get("model") or BACKEND_MODEL
     chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    # SWARM toggles (operator 2026-05-22): per-request force flags set by the
+    # OWUI chat-bar toggle-filters, injected into body.mios_flags and
+    # forwarded here verbatim by the pipe. They OVERRIDE the mios.toml SSOT
+    # defaults for THIS turn only (the tool_choice-style 'forced vs natural'
+    # control). Stripped from proxy_body before Hermes sees it.
+    #   force_council  -> engage the FULL swarm (every eligible agent)
+    #   force_delegate -> force per-agent DAG decomposition (swarm planner)
+    #   force_tool     -> tool_choice=required on the executor (anti-narrate)
+    _mflags = body.get("mios_flags")
+    _mflags = _mflags if isinstance(_mflags, dict) else {}
+    _force_council = bool(_mflags.get("force_council"))
+    _force_delegate = bool(_mflags.get("force_delegate"))
+    _force_tool = bool(_mflags.get("force_tool"))
+    if _mflags:
+        log.info("swarm flags: council=%s delegate=%s tool=%s",
+                 _force_council, _force_delegate, _force_tool)
     # Operator-facing persona + environment/language/locale guidance the
     # OWUI pipe injected as system message(s). Captured once so the final
     # polish can apply the operator's voice + the correct language
@@ -6670,7 +6785,8 @@ async def chat_completions(request: Request) -> Any:
     # verdict directly saves the 30-90s Hermes roundtrip on every
     # conversational message.
     _chat_reply = ""
-    if refined and refined.get("intent") == "chat":
+    if (refined and refined.get("intent") == "chat"
+            and not _force_council and not _force_delegate):
         _chat_reply = str(refined.get("reply") or "").strip()
         if not _chat_reply:
             # The JSON classifier reliably tags chat but often omits the
@@ -6771,17 +6887,40 @@ async def chat_completions(request: Request) -> Any:
     # (>=1 agent node), run that DAG concurrently this turn + synthesise.
     # Otherwise fall through to the unified Hermes + council path unchanged.
     # This is the unify-on entry point to the per-agent planner DAG.
-    if refined and refined.get("_multi_step") and PLANNER_ENABLED:
-        _mdag = await decompose_intent(last_user_text)
-        if _mdag and any(n.get("agent")
-                         for n in (_mdag.get("nodes") or [])):
-            log.info("multi_step -> planner agent DAG (%d nodes; agents=%s)",
+    # The 🧩 Delegate SWARM toggle (force_delegate) forces this decomposition
+    # regardless of refine's classification -- the manual override for when
+    # the classifier under-fires (operator 2026-05-22).
+    if PLANNER_ENABLED and (_force_delegate
+                            or (refined and refined.get("_multi_step"))):
+        # Layer B (operator 'AI SWARM'): the DEDICATED swarm decomposer
+        # first (reliable {agent, sub-task} assignments), then fall back to
+        # the general verb-DAG planner if it produced an agent plan. Either
+        # yields a concurrent per-agent DAG; otherwise fall through to the
+        # unified Hermes + council path.
+        _swarm_tasks = await _plan_swarm(last_user_text)
+        log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks",
+                 _force_delegate, len(_swarm_tasks))
+        _mdag = (_agent_dag_from_tasks(_swarm_tasks)
+                 if len(_swarm_tasks) >= 2 else None)
+        if not (_mdag and len(_mdag.get("nodes") or []) >= 2):
+            _gen = await decompose_intent(last_user_text)
+            _mdag = _gen if (_gen and any(
+                n.get("agent") for n in (_gen.get("nodes") or []))) else None
+        if _mdag and any(n.get("agent") for n in (_mdag.get("nodes") or [])):
+            log.info("swarm -> agent DAG (%d nodes; agents=%s)",
                      len(_mdag.get("nodes") or []),
                      [n.get("agent") for n in _mdag["nodes"] if n.get("agent")])
             return await _respond_agent_dag(
                 _mdag, refined, streaming=streaming, chat_id=chat_id,
                 model=model, session_id=session_id,
                 last_user_text=last_user_text, persona_system=_persona_system)
+
+    # 🧩 Delegate GUARANTEES a swarm: when structured decomposition declined
+    # above (the local planner is inconsistent at splitting), escalate to the
+    # FULL council swarm downstream (every agent, same prompt) rather than the
+    # relevance-gated fan-out -- the toggle must never collapse to one agent.
+    if _force_delegate:
+        _force_council = True
 
     # Unify-on default (operator 2026-05-20: "Unify should be on by
     # default"). Non-chat routes through the agent path (refine -> Hermes
@@ -7190,15 +7329,26 @@ async def chat_completions(request: Request) -> Any:
     # of relevant secondary agents to run alongside the primary. Empty
     # unless [dispatch].fanout_max>1 AND a registered agent's role/strengths
     # match the refined intent -> safe single-agent no-op by default.
-    _fanout = _pick_fanout_agents(target_name, refined)
+    _fanout = _pick_fanout_agents(target_name, refined,
+                                  force_council=_force_council)
     if _fanout:
-        log.info("fanout: primary=%s + %d secondary %s",
+        log.info("fanout%s: primary=%s + %d secondary %s",
+                 " (FORCED swarm)" if _force_council else "",
                  target_name, len(_fanout), [n for n, _ in _fanout])
 
     # Build the proxy body: original messages + hint-injected
     # system prefix (only when refine emitted hints; trivial inputs
     # skip refine + skip the prefix).
     proxy_body = dict(body)
+    # Strip the SWARM control flags before the executor sees them (they are
+    # MiOS orchestration metadata, not part of the OpenAI chat request).
+    proxy_body.pop("mios_flags", None)
+    # 🧠 Force-tool toggle: tool_choice=required tells the executor it MUST
+    # emit a real tool_call instead of narrating the action (the standard
+    # anti-"I posted to Discord"-lie guard). Best-effort -- honoured by
+    # tool-calling executors; a model that ignores it just behaves as auto.
+    if _force_tool:
+        proxy_body["tool_choice"] = "required"
     # Enrich stage: prepend RAG context (SurrealDB vector store, in-loop
     # for every agent/sub-agent turn) + the refined plan hints as system
     # messages before the sub-agent runs (operator 2026-05-20: "RAG in
