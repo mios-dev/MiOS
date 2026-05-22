@@ -73,10 +73,18 @@ So the work is WIRING + standardizing, not greenfield.
   external OpenAI / A2A / ACP clients that lack the MiOS plugin; execution via
   the existing `POST /v1/dispatch`. Hermes does not need it.
 
-### Phase 3 — Retire bespoke dispatch + every remaining hardcode  ·  effort: M  ·  risk: MED
-- With the MCP loop proven, delete agent-pipe's bespoke `_build_command`
-  verb-arms, the dual tool paths, and any keyword/topic literals. Tools flow
-  ONLY through MCP + the loop. One path, no hardcodes.
+### Phase 3 — Single execution path, no hardcodes  ·  ✅ ESSENTIALLY SATISFIED
+- CORRECTED FRAMING (2026-05-22): the original "delete `_build_dispatch_cmd`
+  verb-arms" is WRONG. That function is NOT bespoke duplication to remove —
+  it is the SINGLE shared execution backend: `/v1/dispatch` →
+  `dispatch_mios_verb` → `_build_dispatch_cmd`, and MCP `tools/call`, the
+  OpenAI-tools surface, A2A-routed verb calls, AND the planner DAG all execute
+  THROUGH it. Deleting it breaks every standard surface. It stays.
+- What Phase 3 actually wanted is already true: there is ONE execution path
+  (`_build_dispatch_cmd` over the launcher broker), arms are generated from
+  the `[verbs.*]` SSOT, and the rejected keyword/topic detector is gone.
+  Remaining = ordinary hygiene: migrate the last few hardcoded verb arms into
+  `[recipes.*]`/SSOT over time (see the no-hardcode memory). Not blocking.
 
 ### Phase 4 — A2A Agent Cards for multi-agent coordination  ·  effort: H  ·  risk: MED  ·  ◑ PUBLISH-SIDE SHIPPED
 - Replace `_pick_fanout_agents` strength-token matching with A2A Agent Cards:
@@ -98,11 +106,22 @@ So the work is WIRING + standardizing, not greenfield.
   preserved. → Phase 4 effectively complete; further refinement (semantic /
   embedding match over tags) is optional polish.
 
-### Phase 5 — Validation → STRUCTURAL  ·  effort: M  ·  risk: LOW
-- With tool results captured by the MCP loop, the confirmation engine grounds
-  on actual `tool_call` outcomes. Retire the soft INVOKED-TOOL-CHECK prompt
-  rule in favour of structural grounding: an action-claim is valid IFF a
-  matching successful tool_call exists in the loop history. Deterministic.
+### Phase 5 — Validation → STRUCTURAL  ·  ◑ CORE ALREADY PRESENT; do NOT force the rest
+- ALREADY STRUCTURAL: the confirmation engine (`_inline_satisfaction_check`)
+  AND-folds the recorded `tool_call` rows' `success` fields → deterministic
+  satisfied/unsatisfied when agent-pipe recorded the calls.
+- The remaining roadmap idea — "validate an action-CLAIM in the answer prose
+  IFF a matching tool_call exists" — is DELIBERATELY NOT done, for two
+  binding reasons: (1) it requires natural-language claim detection, which
+  needs language-specific patterns → violates the no-hardcoded-language rule;
+  (2) Hermes runs the tool-loop internally, so agent-pipe sees the invoked
+  tool NAMES (`_tools_called`) but not always structured per-call results —
+  treating "no agent-pipe row = unsatisfied" is exactly the
+  "succeeds-early-then-reports-failed" false-negative the engine already fixed
+  (server.py ~1979-1995). Forcing it would regress that fix.
+- Net: the soft INVOKED-TOOL-CHECK polish rule stays as the language-neutral
+  guard for the agent-internal path; the structural row-fold covers the
+  agent-pipe-recorded path. This is the correct split, not a gap.
 
 ## Status / order
 - Phase 1 (MCP contract) — ✅ done.
