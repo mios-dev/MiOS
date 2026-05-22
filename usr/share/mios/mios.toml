@@ -1152,6 +1152,19 @@ permission = "read"
   default = 5
   aliases = ["n", "top_k", "count"]
 
+[verbs.discord_send]
+section    = "Messaging"
+sig        = "content, channel?"
+desc       = "ACTUALLY post a message to the operator's Discord (local bot, default channel). USE THIS to DELIVER a message to Discord when the operator asks to post / send / share / DM / 'let me know on' Discord -- it really posts and returns the message id, so NEVER claim something was sent without calling this. Put the full text to post in `content`. Channel defaults to the operator's configured channel; pass `channel` only to override."
+tier       = "core"
+permission = "write"
+  [verbs.discord_send.params.content]
+  type    = "string"
+  aliases = ["message", "text", "body", "msg"]
+  [verbs.discord_send.params.channel]
+  type    = "string"
+  aliases = ["channel_id", "chan"]
+
 # ─── Section: PC input (raw send-input) ───────────────────────────────
 [verbs.pc_type]
 section    = "PC input"

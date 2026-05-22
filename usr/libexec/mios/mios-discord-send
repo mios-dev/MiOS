@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""mios-discord-send -- DETERMINISTIC Discord post helper.
+
+Posts a message to a Discord channel via the bot token, so "post to discord"
+is an ACTION the MiOS orchestrator performs directly -- NOT something the 4B
+executor narrates and lies about (operator 2026-05-22: the agent claimed
+"posted to Discord" while never invoking any tool). Honest JSON result so the
+caller reports the REAL outcome (posted / why-not), never a fabricated success.
+
+Token:   DISCORD_BOT_TOKEN (from /etc/mios/hermes/discord.env or env).
+Channel: --channel, else MIOS_DISCORD_DEFAULT_CHANNEL (synced from
+         mios.toml [identity].discord_channel_default at firstboot).
+
+Discord is the operator's own external service (a chat sink), not a cloud-AI
+dependency -- consistent with Architectural Law 5 (no vendor-cloud AI URL).
+"""
+from __future__ import annotations
+import argparse, json, os, sys, urllib.request, urllib.error
+
+DISCORD_ENV = os.environ.get("MIOS_DISCORD_ENV", "/etc/mios/hermes/discord.env")
+API = "https://discord.com/api/v10"
+
+
+def _load_env(path: str) -> None:
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+    except OSError:
+        pass
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-discord-send")
+    p.add_argument("content", nargs="+", help="message text")
+    p.add_argument("--channel", default="", help="channel id (else MIOS_DISCORD_DEFAULT_CHANNEL)")
+    p.add_argument("--timeout", type=float, default=10.0)
+    a = p.parse_args()
+
+    _load_env(DISCORD_ENV)
+    tok = (os.environ.get("DISCORD_BOT_TOKEN") or "").strip()
+    ch = (a.channel or os.environ.get("MIOS_DISCORD_DEFAULT_CHANNEL") or "").strip()
+    content = " ".join(a.content).strip()[:2000]  # Discord hard limit
+
+    if not tok:
+        print(json.dumps({"success": False, "error": "no DISCORD_BOT_TOKEN configured"})); return 1
+    if not ch:
+        print(json.dumps({"success": False, "error": "no Discord channel set (mios.toml [identity].discord_channel_default)"})); return 1
+    if not content:
+        print(json.dumps({"success": False, "error": "empty message"})); return 64
+
+    req = urllib.request.Request(
+        f"{API}/channels/{ch}/messages",
+        data=json.dumps({"content": content}).encode("utf-8"),
+        headers={"Authorization": f"Bot {tok}",
+                 "Content-Type": "application/json",
+                 "User-Agent": "mios-discord-send/1 (+local MiOS)"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=a.timeout) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+        print(json.dumps({"success": True, "channel": ch, "message_id": d.get("id")}))
+        return 0
+    except urllib.error.HTTPError as e:
+        body = ""
+        try: body = e.read().decode("utf-8", "replace")[:200]
+        except Exception: pass
+        print(json.dumps({"success": False, "error": f"Discord API HTTP {e.code}", "detail": body}))
+        return 1
+    except Exception as e:
+        print(json.dumps({"success": False, "error": f"send failed: {e}"}))
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

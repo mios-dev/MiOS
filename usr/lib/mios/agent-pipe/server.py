@@ -4765,6 +4765,18 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         q = shlex.quote(str(args.get("query", "")))
         n = int(args.get("limit", 5))
         return f"mios-web-search -n {n} {q}"
+    if tool == "discord_send":
+        # ACTUALLY post to Discord via the local mios-discord-send helper
+        # (bot token + default channel from /etc/mios/hermes/discord.env).
+        # A real dispatched verb -> a real tool_call -> truthful result, so
+        # the model can't narrate a fake "posted to Discord" (operator
+        # 2026-05-22). Command literal lives in the helper, not here.
+        content = shlex.quote(str(_arg_with_synonyms(tool, "content", args)))
+        ch = str(_arg_with_synonyms(tool, "channel", args)).strip()
+        cmd = f"mios-discord-send {content}"
+        if ch:
+            cmd += f" --channel {shlex.quote(ch)}"
+        return cmd
     if tool == "knowledge_search":
         # Query OWUI's RAG knowledge collections from a sub-agent
         # tool loop. --json returns {ok, query, collection,
