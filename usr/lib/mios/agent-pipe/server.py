@@ -62,7 +62,8 @@ from typing import Any, AsyncGenerator, Optional
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (HTMLResponse, JSONResponse, Response,
+                               StreamingResponse)
 import uvicorn
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
@@ -6471,6 +6472,13 @@ _PORTAL_HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiOS</title>
+<link rel="manifest" href="/portal/manifest.webmanifest">
+<meta name="theme-color" content="#282262">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MiOS">
+<link rel="icon" href="/portal/icon.svg">
+<link rel="apple-touch-icon" href="/portal/icon.svg">
 <style>
 /* MiOS unified palette (mios.toml [colors]; Hokusai "Great Wave" + operator
    neutrals). Base tones are SSOT-injected at serve time; derived surfaces
@@ -6737,6 +6745,8 @@ $("wsform").addEventListener("submit",function(e){e.preventDefault();
   var q=$("wsq").value.trim();if(!q)return;
   var base=(SEARX||("https://"+location.hostname+":8888/")).replace(/\/+$/,"");
   window.open(base+"/search?q="+encodeURIComponent(q),"_blank");});
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js").catch(function(){});}
 tick();arm();
 </script></body></html>"""
 
@@ -6766,6 +6776,48 @@ def _portal_theme_css() -> str:
     decl = ";".join(f"{k}:{v}" for k, v in roles.items()
                     if isinstance(v, str) and v.startswith("#"))
     return f"<style>:root{{{decl}}}</style>" if decl else ""
+
+
+# ── PWA assets (operator 2026-05-22: minimal Android web-app wrapper).
+# A manifest + icon + service worker make the portal "Add to Home Screen"
+# installable as a standalone, chrome-less app -- no third-party wrapper
+# needed (and works inside Native Alpha / a TWA too). MiOS-palette themed.
+_PORTAL_ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+                '<rect width="512" height="512" rx="104" fill="#282262"/>'
+                '<path d="M48 372 q68 -86 136 0 t136 0 t144 0" stroke="#F35C15"'
+                ' stroke-width="26" fill="none" stroke-linecap="round"/>'
+                '<text x="256" y="250" font-family="system-ui,Segoe UI,sans-serif"'
+                ' font-size="208" font-weight="700" fill="#E7DFD3"'
+                ' text-anchor="middle">Mi</text></svg>')
+_PORTAL_MANIFEST = json.dumps({
+    "name": "MiOS Portal", "short_name": "MiOS",
+    "start_url": "/", "scope": "/", "display": "standalone",
+    "orientation": "any", "background_color": "#282262",
+    "theme_color": "#282262", "description": "MiOS service portal",
+    "icons": [{"src": "/portal/icon.svg", "sizes": "any",
+               "type": "image/svg+xml", "purpose": "any maskable"}],
+})
+_PORTAL_SW = (
+    "self.addEventListener('install',function(e){self.skipWaiting();});\n"
+    "self.addEventListener('activate',function(e){"
+    "e.waitUntil(self.clients.claim());});\n"
+    "// network passthrough -- no caching; presence makes the app installable\n"
+    "self.addEventListener('fetch',function(e){});\n")
+
+
+@app.get("/portal/icon.svg")
+async def portal_icon() -> Response:
+    return Response(_PORTAL_ICON, media_type="image/svg+xml")
+
+
+@app.get("/portal/manifest.webmanifest")
+async def portal_manifest() -> Response:
+    return Response(_PORTAL_MANIFEST, media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+async def portal_sw() -> Response:
+    return Response(_PORTAL_SW, media_type="application/javascript")
 
 
 @app.get("/", response_class=HTMLResponse)
