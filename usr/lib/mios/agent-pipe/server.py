@@ -7383,6 +7383,17 @@ async def chat_completions(request: Request) -> Any:
         return StreamingResponse(_stream_backend(),
                                  media_type="text/event-stream")
     client = await _get_client()
+    # Council fan-out on the NON-streaming path too (operator 2026-05-22
+    # "every prompt/query/request"): kick the secondaries CONCURRENTLY with
+    # the primary call so a stream:false request (external OpenAI clients)
+    # gets the SAME multi-agent council as the streamed OWUI path instead of
+    # Hermes-only. Their answers merge into the polish input below. Best-
+    # effort; CPU twins offload to :11435, dead endpoints drop to ''.
+    _sec_tasks = [
+        asyncio.create_task(
+            _call_agent_complete(_n, _c, proxy_body, headers, client))
+        for _n, _c in _fanout
+    ]
     try:
         r = await client.post(
             f"{target_endpoint}/chat/completions",
@@ -7391,6 +7402,8 @@ async def chat_completions(request: Request) -> Any:
         try:
             backend_json = r.json()
         except (json.JSONDecodeError, ValueError):
+            for _t in _sec_tasks:
+                _t.cancel()
             return JSONResponse(
                 content={
                     "error": {
@@ -7402,6 +7415,16 @@ async def chat_completions(request: Request) -> Any:
                 },
                 status_code=502,
             )
+        # Drain + collect the concurrent council secondaries; merged into
+        # the polish input below so the final answer SYNTHESISES all agents
+        # (the non-streaming twin of the streamed 🤝 merge).
+        _merge: list = []
+        if _sec_tasks:
+            for _res in await asyncio.gather(*_sec_tasks,
+                                             return_exceptions=True):
+                if (isinstance(_res, tuple) and _res[1]
+                        and str(_res[1]).strip()):
+                    _merge.append(f"[{_res[0]} agent]:\n{str(_res[1]).strip()}")
         # Polish the assistant content when refine produced an
         # intended_outcome. Skip on streaming, on empty responses,
         # and on backend errors. The raw sub-agent output is
@@ -7448,9 +7471,12 @@ async def chat_completions(request: Request) -> Any:
                         raw, last_user_text, refined, session_id,
                         client=client, target_endpoint=target_endpoint,
                         headers=headers, base_body=proxy_body)
-                if raw.strip():
+                raw_for_polish = (
+                    (raw + "\n\n" + "\n\n".join(_merge)).strip()
+                    if _merge else raw)
+                if raw_for_polish.strip():
                     polished = await polish_response(
-                        raw, refined, session_id=session_id,
+                        raw_for_polish, refined, session_id=session_id,
                         original_user_text=last_user_text,
                         persona_system=_persona_system,
                         agent_tools=_tools_called)
