@@ -6453,11 +6453,31 @@ _PORTAL_HTML = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiOS</title>
 <style>
-:root{--bg:#0b0f14;--card:#141b24;--card2:#1b2530;--fg:#e6edf3;--mut:#7d8997;
---ok:#3fb950;--bad:#f85149;--accent:#58a6ff;--line:#222c38;--rad:12px}
+/* MiOS unified palette (mios.toml [colors]; Hokusai "Great Wave" + operator
+   neutrals). Base tones are SSOT-injected at serve time; derived surfaces
+   recompute from them via color-mix. */
+:root{
+--bg:#282262;        /* deep indigo (Hokusai sky) */
+--panel:#1A407F;     /* operator blue (surfaces) */
+--fg:#E7DFD3;        /* foam cream */
+--mut:#B7C9D7;       /* pale blue-grey */
+--accent:#F35C15;    /* sunset orange (interactive) */
+--ok:#3E7765;        /* wave green */
+--bad:#DC271B;       /* coral red */
+--silver:#E0E0E0;--earth:#734F39;
+--card:color-mix(in srgb,var(--panel) 24%,var(--bg));
+--card2:color-mix(in srgb,var(--panel) 42%,var(--bg));
+--line:color-mix(in srgb,var(--mut) 24%,transparent);
+--rad:12px;
+--mono:ui-monospace,"Cascadia Code","Source Code Pro",Consolas,monospace;
+--sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);
-font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{margin:0;color:var(--fg);font:15px/1.5 var(--sans);
+background:radial-gradient(1100px 520px at 12% -12%,
+  color-mix(in srgb,var(--accent) 13%,transparent),transparent 60%),
+  radial-gradient(900px 500px at 100% 0%,
+  color-mix(in srgb,var(--panel) 30%,transparent),transparent 55%),var(--bg);
+background-attachment:fixed}
 a{color:var(--accent);text-decoration:none}
 .bar{display:flex;align-items:center;gap:16px;padding:14px 22px;
 border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:30}
@@ -6691,9 +6711,38 @@ tick();arm();
 </script></body></html>"""
 
 
+def _portal_theme_css() -> str:
+    """Build a :root override from mios.toml [colors] (SSOT) so the portal
+    tracks the operator's palette. Maps the MiOS color ROLES to the portal's
+    CSS vars; derived surfaces (--card/--line) recompute via color-mix in the
+    page CSS. Returns '' on any failure -> the static MiOS-default :root
+    stands. Per the no-hardcode rule: the toml is the source, the static
+    block is just the documented fallback."""
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+        with open(path, "rb") as f:
+            c = tomllib.load(f).get("colors") or {}
+    except Exception:
+        return ""
+    roles = {"--bg": c.get("bg"), "--fg": c.get("fg"),
+             "--panel": c.get("accent"), "--accent": c.get("cursor"),
+             "--ok": c.get("success"), "--bad": c.get("error"),
+             "--mut": c.get("subtle") or c.get("muted"),
+             "--silver": c.get("silver"), "--earth": c.get("earth")}
+    decl = ";".join(f"{k}:{v}" for k, v in roles.items()
+                    if isinstance(v, str) and v.startswith("#"))
+    return f"<style>:root{{{decl}}}</style>" if decl else ""
+
+
 @app.get("/", response_class=HTMLResponse)
 async def portal_page() -> HTMLResponse:
-    return HTMLResponse(_PORTAL_HTML)
+    # Inject the SSOT palette AFTER the static defaults so it wins.
+    return HTMLResponse(
+        _PORTAL_HTML.replace("</head>", _portal_theme_css() + "</head>"))
 
 
 @app.get("/health")
