@@ -916,6 +916,10 @@ def _agent_lane(cfg: dict) -> str:
     lane = str(cfg.get("lane", "")).lower().strip()
     if lane in ("cpu", "igpu"):
         return "cpu"
+    if lane == "mobile":
+        # client-hosted node (phone/tablet on the tailnet) -- a distinct lane
+        # so it's lane-diverse vs the local gpu/cpu agents in council fan-out.
+        return "mobile"
     if lane == "gpu":
         return "gpu"
     ep = str(cfg.get("endpoint", ""))

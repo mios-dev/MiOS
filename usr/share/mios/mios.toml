@@ -718,23 +718,25 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning"]
 # means it only engages when REACHABLE (phone awake + serving) and drops fast
 # when asleep/absent -- auto-join-when-up, auto-drop-when-gone.
 #
-# REACH PATH: agent-pipe runs in the WSL VM, which is NOT on the tailnet
-# (mirrored/"host" WSL networking is disabled -- see .wslconfig: it
-# death-spirals the Quadlet stack). So bridge via a reverse netsh portproxy
-# on the WINDOWS host (which IS on the tailnet):
-#   netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 \
-#     listenport=<PROXYPORT> connectaddress=<CLIENT_TAILSCALE_IP> \
-#     connectport=<CLIENT_LOCAL_MODEL_PORT>
-# then point the agent endpoint at the Windows host from WSL.
-#
-#   [agents.ai-local]
-#   endpoint    = "http://<WINDOWS_GATEWAY_OR_HOST>:<PROXYPORT>/v1"
-#   model       = "<model id the client serves, e.g. llama-3.2-3b>"
-#   role        = "mobile"
-#   default     = false
-#   lane        = "mobile"
-#   health_gate = true     # only in the swarm while the client is reachable
-#   strengths   = ["mobile_local_model", "on_device", "offline_edge"]
+# REACH PATH: Tailscale runs INSIDE the WSL VM (node "mios-dev", installed
+# 2026-05-22), so agent-pipe reaches tailnet peers DIRECTLY by their 100.x
+# IP -- no reverse portproxy. (mirrored/"host" WSL networking stays OFF -- it
+# death-spirals the Quadlet stack per .wslconfig; tailscaled in the VM is the
+# safe alternative. --accept-dns=false so MagicDNS doesn't disturb the VM's
+# resolver, so peers are addressed by tailnet IP, not name.)
+
+[agents.ai-local]
+# Corey's iPhone (kabu-iphone, 100.100.116.103) running AI.Local -- an
+# ollama-compatible local-model server on :11434. Open the AI.Local app to
+# host; closing it drops the node from the swarm (health_gate). Reached
+# directly over the tailnet from the mios-dev WSL node.
+endpoint    = "http://100.100.116.103:11434/v1"
+model       = "qwen2.5-7b-instruct-4bit"
+role        = "mobile"
+default     = false
+lane        = "mobile"
+health_gate = true
+strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
 # ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
