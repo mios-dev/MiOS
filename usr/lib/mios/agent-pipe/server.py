@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import glob
 import json
 import logging
 import os
@@ -61,7 +62,7 @@ from typing import Any, AsyncGenerator, Optional
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import uvicorn
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
@@ -6265,6 +6266,182 @@ async def dispatch_verb(body: dict) -> JSONResponse:
     session_id = body.get("session_id")
     result = await dispatch_mios_verb(tool, args, session_id=session_id)
     return JSONResponse(result)
+
+
+# ── MiOS Portal (operator 2026-05-22: "web portal that hosts links to each
+#    service with stats") ───────────────────────────────────────────────
+# The service catalog is AUTO-DISCOVERED from the Quadlet `openInBrowser`
+# labels (SSOT -- the same URLs Podman Desktop uses) + the host Cockpit
+# service. No hardcoded service list. agent-pipe runs INSIDE the WSL VM
+# alongside the services, so it health-checks them over localhost (no CORS,
+# no portproxy/firewall hop) and reports live up/down + latency. Tiles link
+# to the tailnet host:port so a peer can open them. PUBLIC_HOST is the
+# Tailscale MagicDNS name (override via MIOS_PUBLIC_HOST). Tiles link to
+# https://<name>:<port> -- valid HTTPS provided by `tailscale serve
+# --tls-terminated-tcp=<port>` per service (the cert is bound to this name,
+# so the NAME, not the IP, is used; clients need MagicDNS).
+PORTAL_PUBLIC_HOST = os.environ.get("MIOS_PUBLIC_HOST", "mios.taildd86d0.ts.net")
+
+
+def _discover_portal_services() -> list[dict]:
+    """Scan the Quadlet *.container files for io.podman_desktop.openInBrowser
+    labels -> {name, port, local health URL}. Adds the host Cockpit service.
+    Deduped by port, sorted by name. SSOT: the quadlet labels, not a list."""
+    svcs: list[dict] = []
+    seen: set[str] = set()
+    for d in ("/etc/containers/systemd", "/usr/share/containers/systemd"):
+        for f in sorted(glob.glob(os.path.join(d, "*.container"))):
+            title = url = ""
+            try:
+                for line in open(f, encoding="utf-8", errors="replace"):
+                    s = line.strip()
+                    if "openInBrowser=" in s:
+                        url = s.split("openInBrowser=", 1)[1].strip()
+                    elif "image.title=" in s:
+                        title = s.split("image.title=", 1)[1].strip()
+            except OSError:
+                continue
+            m = re.search(r"(https?)://[^:/]+:(\d+)(/\S*)?", url)
+            if not m:
+                continue
+            scheme, port, path = m.group(1), m.group(2), (m.group(3) or "/")
+            if port in seen:
+                continue
+            seen.add(port)
+            name = (title or os.path.basename(f).replace(".container", ""))
+            name = name.replace("mios-", "").replace("-", " ").strip().title()
+            svcs.append({"name": name, "port": int(port), "path": path,
+                         "local": f"{scheme}://127.0.0.1:{port}{path}"})
+    if "9090" not in seen:  # Cockpit is a host service, not a quadlet
+        svcs.append({"name": "Cockpit", "port": 9090, "path": "/",
+                     "local": "https://127.0.0.1:9090/"})
+    svcs.sort(key=lambda s: s["name"].lower())
+    return svcs
+
+
+_PORTAL_SERVICES = _discover_portal_services()
+
+
+def _host_stats() -> dict:
+    """Cheap host telemetry from /proc (no psutil dependency)."""
+    out: dict[str, Any] = {}
+    try:
+        out["load"] = open("/proc/loadavg").read().split()[:3]
+    except OSError:
+        pass
+    try:
+        mi: dict[str, int] = {}
+        for line in open("/proc/meminfo"):
+            k, _, v = line.partition(":")
+            if v:
+                mi[k.strip()] = int(v.split()[0])
+        tot, avail = mi.get("MemTotal", 0), mi.get("MemAvailable", 0)
+        if tot:
+            out["mem_used_pct"] = round((tot - avail) * 100 / tot)
+            out["mem_total_gb"] = round(tot / 1048576, 1)
+    except (OSError, ValueError):
+        pass
+    try:
+        out["uptime_s"] = int(float(open("/proc/uptime").read().split()[0]))
+    except (OSError, ValueError):
+        pass
+    return out
+
+
+@app.get("/portal/stats")
+async def portal_stats() -> JSONResponse:
+    """Live server-side health of every discovered MiOS service + host
+    stats. Self-signed backends (Cockpit) are checked insecurely."""
+    async def _check(svc: dict, client) -> dict:
+        t0 = time.time()
+        ok = False
+        try:
+            r = await client.get(svc["local"])
+            ok = r.status_code < 500
+        except Exception:
+            ok = False
+        return {"name": svc["name"], "port": svc["port"], "ok": ok,
+                "ms": int((time.time() - t0) * 1000),
+                "url": f"https://{PORTAL_PUBLIC_HOST}:{svc['port']}"
+                       f"{svc.get('path', '/')}"}
+    async with httpx.AsyncClient(verify=False, timeout=4.0,
+                                 follow_redirects=False) as client:
+        services = await asyncio.gather(
+            *[_check(s, client) for s in _PORTAL_SERVICES])
+    return JSONResponse({"host": _host_stats(), "services": services,
+                         "ts": int(time.time())})
+
+
+_PORTAL_HTML = """<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiOS</title>
+<style>
+:root{--bg:#0b0f14;--card:#141b24;--card2:#1b2530;--fg:#e6edf3;--mut:#7d8997;
+--ok:#3fb950;--bad:#f85149;--accent:#58a6ff;--line:#222c38}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:28px 24px 14px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:30px;letter-spacing:.5px}
+h1 b{color:var(--accent)}
+.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.host{display:flex;gap:22px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--mut)}
+.host b{color:var(--fg);font-weight:600}
+.grid{display:grid;gap:14px;padding:22px 24px;
+grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+a.card{display:block;text-decoration:none;color:inherit;background:var(--card);
+border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;
+transition:.15s border-color,.15s transform}
+a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.row{display:flex;align-items:center;justify-content:space-between}
+.name{font-size:16px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--mut);
+box-shadow:0 0 0 3px rgba(255,255,255,.03)}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+.meta{color:var(--mut);font-size:12px;margin-top:10px;display:flex;
+justify-content:space-between}
+.port{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+footer{color:var(--mut);font-size:12px;text-align:center;padding:14px}
+</style></head><body>
+<header>
+  <h1>Mi<b>OS</b></h1>
+  <div class="sub">local-first agentic OS &middot; service portal</div>
+  <div class="host" id="host"></div>
+</header>
+<div class="grid" id="grid"></div>
+<footer id="foot">loading&hellip;</footer>
+<script>
+function fmtUp(s){if(!s)return"?";var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),
+m=Math.floor(s%3600/60);return(d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
+function render(j){
+  var h=j.host||{},hs=[];
+  if(h.load)hs.push("load <b>"+h.load.join(" ")+"</b>");
+  if(h.mem_used_pct!=null)hs.push("mem <b>"+h.mem_used_pct+"%</b> of "+(h.mem_total_gb||"?")+"GB");
+  if(h.uptime_s)hs.push("up <b>"+fmtUp(h.uptime_s)+"</b>");
+  document.getElementById("host").innerHTML=hs.join("");
+  var up=(j.services||[]).filter(function(s){return s.ok;}).length;
+  var g=(j.services||[]).map(function(s){
+    return '<a class="card" href="'+s.url+'" target="_blank" rel="noopener">'+
+      '<div class="row"><span class="name">'+s.name+'</span>'+
+      '<span class="dot '+(s.ok?"ok":"bad")+'"></span></div>'+
+      '<div class="meta"><span class="port">:'+s.port+'</span>'+
+      '<span>'+(s.ok?s.ms+" ms":"down")+'</span></div></a>';
+  }).join("");
+  document.getElementById("grid").innerHTML=g;
+  document.getElementById("foot").textContent=
+    up+" / "+(j.services||[]).length+" services up · refreshed "+
+    new Date((j.ts||0)*1000).toLocaleTimeString();
+}
+function tick(){fetch("/portal/stats",{cache:"no-store"}).then(function(r){return r.json();})
+  .then(render).catch(function(){document.getElementById("foot").textContent="stats unavailable";});}
+tick();setInterval(tick,5000);
+</script></body></html>"""
+
+
+@app.get("/", response_class=HTMLResponse)
+async def portal_page() -> HTMLResponse:
+    return HTMLResponse(_PORTAL_HTML)
 
 
 @app.get("/health")
