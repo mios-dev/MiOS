@@ -1844,6 +1844,17 @@ _POLISH_SYSTEM = (
     "drop any success the history does not back and report what actually\n"
     "happened instead.\n"
     "\n"
+    "INVOKED-TOOL CHECK: the user turn may list 'Tools the agent ACTUALLY\n"
+    "invoked this turn'. A claim that a SIDE-EFFECTING action completed --\n"
+    "sent, posted, delivered, messaged, launched, opened, created, saved,\n"
+    "installed, deleted, scheduled -- is valid ONLY if a tool that plausibly\n"
+    "performs it is in that invoked list. If the draft asserts such an action\n"
+    "but NO matching tool was invoked (or the invoked list is empty), the\n"
+    "action did NOT happen: do NOT repeat the false claim. Instead say plainly\n"
+    "what was actually produced, or that the action could not be completed --\n"
+    "and, if a required detail is missing (e.g. no destination configured),\n"
+    "name it. A fabricated 'done' is a serious defect.\n"
+    "\n"
     "LOCALE: language is governed by the rule at the very top (English by\n"
     "default). Never pass through foreign-locale text leaked from the\n"
     "draft's reasoning. Keep every measurement in the units the tool\n"
@@ -2150,7 +2161,8 @@ async def polish_response(raw_text: str,
                           refined: Optional[dict],
                           session_id: Optional[str] = None,
                           original_user_text: str = "",
-                          persona_system: str = "") -> Optional[str]:
+                          persona_system: str = "",
+                          agent_tools: Optional[list] = None) -> Optional[str]:
     """Polish a sub-agent's raw response into the final user-facing
     answer. Returns the polished string or None on error (caller
     keeps the raw answer).
@@ -2225,6 +2237,17 @@ async def polish_response(raw_text: str,
         user_msg_parts.append(sat_block)
     if hist_block:
         user_msg_parts.append(hist_block)
+    # Evidence for the INVOKED-TOOL CHECK in _POLISH_SYSTEM: the verbs the
+    # sub-agent ACTUALLY invoked this turn (captured from its tool-call
+    # stream). Lets polish refuse a "done"/"sent"/"posted" claim the agent
+    # made WITHOUT a matching tool invocation (operator 2026-05-22: the
+    # agent fabricated "I've sent it to Discord" / a fake OpenUI render with
+    # no tool actually run). Empty list => the agent invoked NO tools, so any
+    # completed-action claim is unbacked.
+    if agent_tools is not None:
+        _inv = ", ".join(str(t) for t in agent_tools) if agent_tools else "(none)"
+        user_msg_parts.append(
+            f"Tools the agent ACTUALLY invoked this turn: {_inv}")
     # Feed the FULL sub-agent draft (capped generously) so polish
     # synthesises the complete answer instead of a truncated/mis-focused
     # slice -- the 3500 cap made polish produce partial answers + "no
@@ -7010,7 +7033,8 @@ async def chat_completions(request: Request) -> Any:
                 polish_task = asyncio.create_task(polish_response(
                     raw_for_polish, refined, session_id=session_id,
                     original_user_text=last_user_text,
-                    persona_system=_persona_system))
+                    persona_system=_persona_system,
+                    agent_tools=_tools_called))
                 while not polish_task.done():
                     try:
                         await asyncio.wait_for(
@@ -7142,7 +7166,8 @@ async def chat_completions(request: Request) -> Any:
                     polished = await polish_response(
                         raw, refined, session_id=session_id,
                         original_user_text=last_user_text,
-                        persona_system=_persona_system)
+                        persona_system=_persona_system,
+                        agent_tools=_tools_called)
                     # qwen3 reasoning models occasionally leak
                     # <think>...</think> blocks past /no_think; strip
                     # them from BOTH the dropdown content and the
