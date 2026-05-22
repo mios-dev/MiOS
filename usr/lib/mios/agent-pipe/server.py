@@ -5396,6 +5396,71 @@ async def list_verbs(include_rare: bool = False) -> JSONResponse:
     return JSONResponse({"tools": tools})
 
 
+def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
+    """Render one [verbs.*] entry as an OpenAI function-tool schema --
+    the SAME `{type:function, function:{name,description,parameters}}`
+    shape Hermes/OpenCode already consume from /skills/openai-tools (see
+    _skill_to_openai_tool). Tool name == the bare verb name, so a returned
+    tool_call executes verbatim via POST /v1/dispatch {tool, args} (the
+    launcher-broker path the MCP server also uses). No name mangling ->
+    discover here, execute there, one contract."""
+    props: dict = {}
+    required: list[str] = []
+    for argname, argcfg in (vcfg.get("params") or {}).items():
+        if not isinstance(argcfg, dict):
+            continue
+        spec: dict = {
+            "type": argcfg.get("type", "string"),
+            "description": argcfg.get("desc", ""),
+        }
+        if argcfg.get("enum"):
+            spec["enum"] = list(argcfg["enum"])
+        if "default" in argcfg:
+            spec["default"] = argcfg["default"]
+        else:
+            required.append(argname)
+        props[argname] = spec
+    return {
+        "type": "function",
+        "function": {
+            "name": vname,
+            "description": vcfg.get("desc", ""),
+            "parameters": {
+                "type": "object",
+                "properties": props,
+                "required": required,
+                "additionalProperties": False,
+            },
+        },
+        # Routing/UX hints (x- namespaced; ignored by strict OpenAI clients).
+        "x-mios-verb": vname,
+        "x-mios-permission": vcfg.get("permission", "read"),
+        "x-mios-section": vcfg.get("section", ""),
+    }
+
+
+@app.get("/v1/verbs/openai-tools")
+async def list_verbs_openai_tools(include_rare: bool = False) -> JSONResponse:
+    """The MiOS verb catalog projected into the OpenAI `tools=` array shape.
+
+    The OpenAI-shape twin of /v1/verbs (which serves the MCP `inputSchema`
+    shape for mios-mcp-server). Hermes already carries the full MiOS verb +
+    skill surface alongside its own built-in tools, so this is NOT how
+    Hermes gets its tools. It exists so any STRICT OpenAI tool-loop client
+    that lacks the MiOS plugin -- an external /v1 caller, OpenCode in a
+    tools= mode, an A2A/ACP peer -- can be handed the verb surface in the
+    standard shape and call it via POST /v1/dispatch {tool,args} (same
+    launcher-broker path the MCP server uses). One SSOT (_VERB_CATALOG),
+    three projections: MCP (/v1/verbs), OpenAI tools (here), A2A skills
+    (the agent card). Discover here, execute at /v1/dispatch."""
+    tools = [
+        _verb_to_openai_tool(vname, vcfg)
+        for vname, vcfg in _VERB_CATALOG.items()
+        if include_rare or vcfg.get("tier") != "rare"
+    ]
+    return JSONResponse({"tools": tools, "count": len(tools)})
+
+
 # ── A2A Agent Card (Agent2Agent discovery surface) ────────────────────
 # Agentic-standards roadmap Phase 4. A2A (Agent2Agent, now under the
 # Linux Foundation Agentic-AI Foundation) is the peer-discovery standard

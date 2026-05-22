@@ -59,6 +59,37 @@ So the work is WIRING + standardizing, not greenfield.
   needed) and `tool_choice` forcing for clear action intents. This phase is
   make-or-break and gates Phases 3 + 5.
 
+- FINDING (2026-05-22): the tool-loop already exists INSIDE Hermes, not
+  agent-pipe. agent-pipe (`/v1/chat/completions`) is the refine/route/polish/
+  critic orchestration layer; it FORWARDS `proxy_body` to Hermes and Hermes
+  runs its own tool-loop (`server.py:6824`). Hermes is NOT bound to a narrow
+  tool set: it carries its FULL tool registry (its own built-ins incl a
+  terminal/shell + web/file tools) PLUS the MiOS verb + skill surface --
+  `discord_send`, os-control, browser etc. are all reachable. So the
+  narrate-instead-of-call LIE is NOT a missing-tool problem; it is an
+  EXECUTOR-BEHAVIOUR problem: the small model (`hermes/config.yaml` default
+  `granite4.1:3b`) emits prose ("I posted to Discord") instead of emitting
+  the `tool_call` it is fully able to. Fixing it is reliability work, not
+  plumbing.
+- SHIPPED (standards surface, NOT the narration fix): `GET /v1/verbs/
+  openai-tools` -- the verb catalog in OpenAI `{type:function,...}` shape, the
+  twin of `/v1/verbs` (MCP shape) + the A2A card skills. One SSOT
+  (`_VERB_CATALOG`), three projections (MCP / OpenAI-tools / A2A). For STRICT
+  OpenAI / A2A / ACP clients that lack the MiOS plugin; execution via the
+  existing `POST /v1/dispatch`. Hermes does NOT need it (already has the
+  surface). Additive + offline-verified.
+- REMAINING = the make-or-break reliability work (live-iteration; operator
+  runs Hermes + tails its log -- cannot be validated offline):
+  1. Pin a reliably tool-calling executor in `hermes/config.yaml` (the 3B
+     default narrates; a tool-tuned / larger model emits tool_calls).
+  2. Force action via `tool_choice` (or required-tool) on clear action
+     intents so the loop MUST call rather than describe.
+  3. SOUL/system-prompt: acting REQUIRES a tool_call; describing an action
+     you did not call is a failure (reinforces, never replaces, 1+2).
+  - VERIFY LIVE: in OWUI, "post X to my Discord" -> tail
+    `journalctl -u hermes-agent` for a real `tool_call` (NOT prose) and
+    confirm the message arrives. Same for os-control / browser.
+
 ### Phase 3 — Retire bespoke dispatch + every remaining hardcode  ·  effort: M  ·  risk: MED
 - With the MCP loop proven, delete agent-pipe's bespoke `_build_command`
   verb-arms, the dual tool paths, and any keyword/topic literals. Tools flow
