@@ -6513,11 +6513,17 @@ gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)
 /* chat window: portrait-ish 4:5 (taller than landscape, not phone-tall),
    inline + drag-resizable (operator 2026-05-22) */
 #chatwrap{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
-margin:0 auto;width:100%;aspect-ratio:4/5;resize:both;
-min-width:280px;min-height:380px;max-width:100%}
+margin:0 auto;width:100%;aspect-ratio:3/4;resize:both;
+min-width:280px;min-height:620px;max-width:100%}
 #chatwrap.min{display:none}
 #chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
+/* Services grid: exactly 2 columns (operator 2026-05-22); 1 on narrow. */
+#grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:600px){#grid{grid-template-columns:1fr}}
+.addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}
 .card{position:relative;background:var(--card);border:1px solid var(--line);
 border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15s transform}
 .card:hover{border-color:var(--accent);transform:translateY(-2px)}
@@ -6624,7 +6630,9 @@ function sorted(){var a=S.slice();
     OPTS.sort=="port"?(x.port-y.port):x.name.localeCompare(y.name);});return a;}
 function cards(){
   $("grid").innerHTML=sorted().map(function(s){
-    var st=s.state?'<span class="state '+esc(s.state)+'">'+esc(s.state)+'</span>':'';
+    var st=s.state?' &middot; <span class="state '+esc(s.state)+'">'+esc(s.state)+'</span>':'';
+    var addr=(s.url||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
+    var loc=(s.internal||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
     return '<div class="card" data-p="'+s.port+'">'+
       '<a class="lnk" href="'+esc(s.url)+'" target="_blank" rel="noopener"></a>'+
       '<button class="kebab" data-k="'+s.port+'">&#8942;</button>'+
@@ -6634,8 +6642,10 @@ function cards(){
         '<button data-act="detail" data-p="'+s.port+'">Details</button></div>'+
       '<div class="row"><span class="name">'+esc(s.name)+'</span>'+
         '<span class="dot '+(s.ok?"ok":"bad")+'"></span></div>'+
+      '<div class="addr">&#128279; '+esc(addr)+'</div>'+
+      (loc?'<div class="addr" style="opacity:.7">&#8627; '+esc(loc)+'</div>':'')+
       '<div class="meta"><span class="port">:'+s.port+'</span>'+
-        '<span>'+(s.ok?s.ms+" ms":"down")+st+'</span></div></div>';
+        '<span>'+(s.ok?(s.ms+" ms"):"down")+st+'</span></div></div>';
   }).join("");
   $("svcn").textContent=S.filter(function(s){return s.ok;}).length+" / "+S.length+" up";
 }
