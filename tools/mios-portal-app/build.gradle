@@ -1,0 +1,4 @@
+// Root build file. AGP 8.5.x pairs with Gradle 8.7+ (see gradle-wrapper.properties).
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}

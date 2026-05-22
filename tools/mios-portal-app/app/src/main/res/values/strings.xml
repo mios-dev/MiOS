@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MiOS</string>
+    <!-- The MiOS Portal URL the app loads. Edit if your tailnet name changes. -->
+    <string name="portal_url">https://mios.taildd86d0.ts.net/</string>
+</resources>

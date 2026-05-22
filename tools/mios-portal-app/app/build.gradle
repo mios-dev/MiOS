@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.mios.portal'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "io.mios.portal"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // signingConfig is set in Android Studio's "Generate Signed APK"
+            // wizard, or add a signingConfigs block + your keystore here.
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// No third-party dependencies: plain android.app.Activity + WebView, so the
+// build stays minimal and version-stable (no AndroidX/Material to resolve).
+dependencies {
+}

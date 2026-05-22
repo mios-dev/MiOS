@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No-action-bar platform theme (no AndroidX/Material dependency), tinted
+         with the MiOS deep-indigo so the status bar + splash match the portal. -->
+    <style name="Theme.MiOS" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#282262</item>
+        <item name="android:navigationBarColor">#282262</item>
+        <item name="android:windowBackground">#282262</item>
+    </style>
+</resources>
