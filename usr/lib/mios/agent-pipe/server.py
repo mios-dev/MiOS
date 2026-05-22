@@ -6597,6 +6597,7 @@ border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;d
 <div class="bar">
   <h1>Mi<b>OS</b></h1>
   <div class="spacer"></div>
+  <button class="btn" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
   <div class="menu">
     <button class="btn" id="menuBtn">&#9776; Menu</button>
@@ -6747,6 +6748,19 @@ $("wsform").addEventListener("submit",function(e){e.preventDefault();
   window.open(base+"/search?q="+encodeURIComponent(q),"_blank");});
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js").catch(function(){});}
+// PWA install option (operator 2026-05-22): capture the install prompt and
+// expose it as an in-portal button; fall back to browser-menu instructions.
+var deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",function(e){
+  e.preventDefault();deferredPrompt=e;});
+window.addEventListener("appinstalled",function(){
+  deferredPrompt=null;$("installBtn").style.display="none";toast("MiOS installed");});
+if(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)
+  $("installBtn").style.display="none";  // already running as the installed app
+$("installBtn").onclick=function(){
+  if(deferredPrompt){deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(){deferredPrompt=null;});}
+  else{toast("Browser menu → Install app / Add to Home Screen");}};
 tick();arm();
 </script></body></html>"""
 
