@@ -6510,10 +6510,11 @@ border-radius:11px;padding:12px 16px;font-size:15px}
 .hoststrip{width:min(760px,100%);margin:0 auto 2px;padding:8px 18px 0;display:flex;
 gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)}
 .hoststrip b{color:var(--fg)}
-/* miniature 16:10 chat window, inline + drag-resizable */
+/* chat window: portrait-ish 4:5 (taller than landscape, not phone-tall),
+   inline + drag-resizable (operator 2026-05-22) */
 #chatwrap{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
-margin:0 auto;width:100%;aspect-ratio:16/10;resize:both;
-min-width:280px;min-height:200px;max-width:100%}
+margin:0 auto;width:100%;aspect-ratio:4/5;resize:both;
+min-width:280px;min-height:380px;max-width:100%}
 #chatwrap.min{display:none}
 #chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
