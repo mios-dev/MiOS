@@ -834,6 +834,13 @@ def _load_agent_registry() -> dict[str, dict]:
                 "lane":     str(cfg.get("lane", "")).lower().strip(),
                 # fan-out opt-out (default True = eligible as a secondary).
                 "fanout":   bool(cfg.get("fanout", True)),
+                # CPU-compute twin (operator 2026-05-22: every agent has a
+                # Modelfile for both CPU + GPU). When this agent runs as a
+                # concurrent fan-out SECONDARY, _call_agent_complete prefers
+                # this lane/model so the secondary offloads to the CPU lane
+                # and the dGPU stays free for the primary. Empty = single-lane.
+                "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
+                "cpu_model":    str(cfg.get("cpu_model", "")),
             }
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
@@ -1024,15 +1031,50 @@ async def _call_agent_complete(name: str, cfg: dict, body: dict,
     """Best-effort non-streaming /v1 call to a secondary fan-out agent.
     Returns (name, text); text='' -> dropped from the merge. A dead or
     absent endpoint (e.g. opencode :8633 when not served as /v1) just
-    yields '' and is skipped, so fan-out degrades to the live agents."""
-    ep = (cfg.get("endpoint") or "").rstrip("/")
+    yields '' and is skipped, so fan-out degrades to the live agents.
+
+    CPU-lane offload (operator 2026-05-22): a secondary always runs
+    CONCURRENTLY with the GPU primary, so if the agent declares a CPU
+    twin (cpu_endpoint/cpu_model -> mios-*-cpu Modelfile on :11435) we
+    dispatch THAT -- the secondary works on the light iGPU/CPU lane while
+    the dGPU stays dedicated to the primary. No twin -> its own endpoint.
+
+    An ollama-lane endpoint (the :11434/:11435 instances, incl. every CPU
+    twin) is called via the NATIVE /api/chat with think=False -- the same
+    fix refine/polish use: a qwen3 model on the /v1 compat path dumps its
+    answer into message.reasoning with EMPTY content (operator 2026-05-20),
+    so a /v1 secondary folds in nothing. Custom gateways (opencode :8633,
+    hermes :8642) are not ollama -> stay on /v1/chat/completions."""
+    ep = (cfg.get("cpu_endpoint") or cfg.get("endpoint") or "").rstrip("/")
     if not ep:
         return name, ""
-    nb = dict(body)
-    nb["stream"] = False
-    if cfg.get("model"):
-        nb["model"] = cfg["model"]
+    _mdl = cfg.get("cpu_model") or cfg.get("model")
+    # ollama lanes speak the native API + honour think=False; the bespoke
+    # sub-agent servers do not. Detect by the SSOT lane ports.
+    _is_ollama = (":11434" in ep) or (":11435" in ep)
     try:
+        if _is_ollama:
+            base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
+            payload = {
+                "model": _mdl or cfg.get("model"),
+                "messages": body.get("messages") or [],
+                "think": False,
+                "stream": False,
+            }
+            if body.get("max_tokens"):
+                payload["options"] = {"num_predict": int(body["max_tokens"])}
+            r = await client.post(
+                f"{base}/api/chat",
+                content=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return name, ""
+            msg = (r.json().get("message") or {})
+            return name, _strip_think_tags(str(msg.get("content") or ""))
+        nb = dict(body)
+        nb["stream"] = False
+        if _mdl:
+            nb["model"] = _mdl
         r = await client.post(
             f"{ep}/chat/completions",
             content=json.dumps(nb).encode("utf-8"), headers=headers)

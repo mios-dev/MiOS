@@ -613,6 +613,16 @@ default  = true
 # CPU secondary so both lanes work in parallel -- and so Hermes is never
 # the ONLY dispatched agent.
 lane     = "gpu"
+# CPU-compute twin (operator 2026-05-22: "all MiOS AI Agents/Sub-Agents
+# have a relevant MiOS Modelfile(s) for both CPU and GPU compute"). When
+# Hermes is dispatched as a concurrent fan-out SECONDARY, agent-pipe runs
+# this twin on the light iGPU/CPU lane (:11435) instead of the dGPU
+# endpoint above -- so the dGPU stays free for whichever agent holds the
+# primary stream. Backed by mios-hermes-cpu.Modelfile (the CPU half of the
+# pair; `model` above -> mios-hermes is the GPU half). Omit cpu_* to keep
+# an agent single-lane.
+cpu_endpoint = "http://localhost:11435/v1"
+cpu_model    = "mios-hermes-cpu"
 # Tools Hermes is good at -- the refine pass surfaces these
 # as hint_tools when the intent matches.
 strengths = ["kanban", "web_search", "skill_invocation",
@@ -667,6 +677,30 @@ lane     = "cpu"
 # system/telemetry/log intents now.
 strengths = ["journalctl_tail", "log_search", "event_query",
              "system_followup", "what_just_happened"]
+
+[agents.mios-reasoner-cpu]
+# CPU-LANE COUNCIL MEMBER (operator 2026-05-22: "add a CPU-lane agent for
+# fuller councils ... concurrent Compute nodes/accelerators/CPUs/GPUs").
+# A fast general reasoner that runs NATIVELY on the light iGPU/CPU lane
+# (mios-ollama-igpu :11435), so in council mode it is dispatched
+# CONCURRENTLY with a GPU primary -- the CPU lane does real work in
+# parallel while the dGPU runs Hermes, instead of every council member
+# queueing on the one 4090. This is the agent that makes a council
+# lane-diverse rather than all-GPU.
+endpoint = "http://localhost:11435/v1"
+# mios-agent-cpu = the CPU twin of the MiOS AI brain (qwen3:1.7b, num_gpu
+# 0), built from mios-agent-cpu.Modelfile. Small + fast so the concurrent
+# turn finishes inside the in-loop fan-out budget.
+model    = "mios-agent-cpu"
+role     = "reasoning"
+default  = false
+# Light lane: the heavy dGPU is never touched, so this self-delegates
+# CONCURRENTLY with a GPU primary at zero VRAM cost.
+lane     = "cpu"
+# General second-opinion strengths. NOT topic-gated (council mode ignores
+# relevance anyway); these inform the A2A skill tags + the relevance-mode
+# fallback only.
+strengths = ["reasoning", "second_opinion", "summarize", "planning"]
 
 # Operator can add more agents here -- e.g.:
 #   [agents.aichat]
