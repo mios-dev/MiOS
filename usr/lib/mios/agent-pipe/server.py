@@ -5927,14 +5927,13 @@ def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
     silent -- so the operator confirms live which nodes/models/endpoints
     actually took part this turn. emit via `yield` in the SSE generator."""
     emoji = {"engage": "🛰️", "ok": "✅", "down": "💤"}.get(state, "🛰️")
-    cfg = cfg or {}
-    lane = str(cfg.get("lane") or cfg.get("role") or "")
-    mdl = str(cfg.get("model") or cfg.get("cpu_model") or "")
-    ep = str(cfg.get("endpoint") or cfg.get("cpu_endpoint") or "")
-    host = ep.split("://")[-1].split("/")[0] if "://" in ep else ep
-    detail = " · ".join(b for b in (lane, mdl, host) if b)
+    # emoji + node NAME only. The lane/model/endpoint internals live in
+    # /portal/swarm; surfacing "cpu · mios-agent-cpu · localhost:11435" in the
+    # chat status read as a LEAK (operator 2026-05-22). cfg kept for call-site
+    # symmetry. The single OWUI status line cycles through these as each node
+    # engages/responds -- live per-node progress without the internals.
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
-                       label=str(name), detail=detail)
+                       label=str(name))
 
 
 def _sse_done() -> bytes:
@@ -8452,10 +8451,11 @@ async def chat_completions(request: Request) -> Any:
                 return _sse_reasoning(_sanitize_tool_text(buf),
                                       chat_id=chat_id, model=model)
 
-            # Open the live thinking up-front on the reasoning_content channel
-            # with the orchestration emits. Emoji-only, locale-neutral; the
-            # tool steps append inline below via _flush_reasoning.
-            yield _sse_reasoning("👂 ✨ 🧭 🤖\n\n", chat_id=chat_id, model=model)
+            # The reasoning dropdown opens on the FIRST real reasoning delta
+            # (tool steps / council merges via _flush_reasoning below). The old
+            # "👂 ✨ 🧭 🤖" preamble was REMOVED 2026-05-22 -- it dumped bare
+            # emojis into the dropdown ("Hermes just prints emojis"); the phase
+            # pills already carry that progress signal as status events.
             # Kick the secondary fan-out agents CONCURRENTLY with the primary
             # stream (operator 2026-05-21 'a couple at a time'). They run
             # non-streaming + best-effort; their answers fold into polish +
@@ -8589,6 +8589,12 @@ async def chat_completions(request: Request) -> Any:
                     except Exception:
                         break
                 _merge = []
+                # Persistent per-node roster (operator 2026-05-22 "every node
+                # visible at once"): the primary reached streaming so it's ok;
+                # secondaries get their collected state. One clean summary line
+                # lands in the reasoning dropdown -- complements the live status
+                # pills (which only cycle on OWUI's single status line).
+                _roster = [(target_name, "ok")]
                 for _t in _sec_tasks:
                     try:
                         _sn, _stext = _t.result()
@@ -8601,9 +8607,15 @@ async def chat_completions(request: Request) -> Any:
                         yield _flush_reasoning(f"\n🤝 {_sn}:\n{_stext}\n")
                         _merge.append(f"[{_sn} agent]:\n{_stext.strip()}")
                         _scratchpad_note(_sn, _stext, phase="council")
+                        _roster.append((_sn, "ok"))
                     else:
                         yield _node_status(chat_id=chat_id, model=model,
                                            name=_sn, cfg=_scfg, state="down")
+                        _roster.append((_sn, "down"))
+                yield _flush_reasoning(
+                    "\n🛰️ swarm: " + " · ".join(
+                        f"{_nm} {'✅' if _st == 'ok' else '💤'}"
+                        for _nm, _st in _roster) + "\n")
                 if _merge:
                     raw_for_polish = (raw + "\n\n" + "\n\n".join(_merge)).strip()
             # (Satisfaction verdict already written by the confirmation
