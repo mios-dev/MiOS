@@ -5778,23 +5778,15 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # Both shims emit JSON envelopes by default; agent-pipe surfaces
     # the JSON straight back to the gateway. WRITE verbs (install /
     # upgrade / uninstall) are firewall-gated.
-    # winget_search/list/show/install/uninstall + winget_upgrade migrated to
-    # SSOT [verbs.*].cmd templates (P3). winget_upgrade took the HELPER-CONTRACT
-    # path: mios-winget now treats a no-arg / "all" / --all `upgrade` as
-    # upgrade-everything, so the dispatch template is a clean `upgrade{id?}` and
-    # the `--all`/empty/"all" conditional lives in the helper, not here.
-    # flatpak_search/list/show/uninstall + flatpak_upgrade likewise migrated
-    # (same helper-contract for mios-flatpak upgrade). flatpak_install (scope
-    # enum -> --system/--user) stays as code.
-    if tool == "flatpak_install":
-        pid = shlex.quote(str(args.get("id", "")))
-        scope = str(args.get("scope", "")).lower()
-        scope_arg = ""
-        if scope in ("system", "--system"):
-            scope_arg = " --system"
-        elif scope in ("user", "--user"):
-            scope_arg = " --user"
-        return f"mios-flatpak install {pid}{scope_arg}"
+    # ALL winget_* + flatpak_* verbs migrated to SSOT [verbs.*].cmd templates
+    # (P3). The two upgrade verbs + flatpak_install took the HELPER-CONTRACT
+    # path: the conditional logic lives in the helper, not dispatch --
+    #   * mios-winget/mios-flatpak `upgrade`: no-arg / "all" / --all = all.
+    #   * mios-flatpak `install <id> [scope]`: the helper's _resolve_scope owns
+    #     the system/user -> --system/--user mapping + default-scope fallback
+    #     (the old dispatch's scope branch + its dead --system/--user matches
+    #     are gone; the scope enum is validated pre-dispatch, so only
+    #     system/user/empty reach the helper, which resolves them).
     # open_url / mios_find / mios_apps / everything_search / flatpak_preflight
     # are migrated to SSOT [verbs.*].cmd templates (P3); they dispatch via the
     # catalog-template check at the top of this function (incl. the {arg?FLAG}

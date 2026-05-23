@@ -1548,6 +1548,7 @@ sig = "id, scope?"
 desc = "[legacy: use pkg(action='install', backend='flatpak', id=...)]"
 tier = "rare"
 permission = "write"
+cmd = "mios-flatpak install {id}{scope?}"
   [verbs.flatpak_install.params.id]
   type = "string"
   aliases = ["ref", "name"]
