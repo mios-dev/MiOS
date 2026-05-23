@@ -143,6 +143,23 @@ PLANNER_MODEL = os.environ.get(
 PLANNER_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11434",
 ).rstrip("/")
+# Decompose substantive single-goal asks into a CONCURRENT multi-agent swarm
+# by DEFAULT (operator 2026-05-22: "decompose into sub-tasks" as the default
+# swarm mode). For an agent-intent query of >= MIN_WORDS, attempt _plan_swarm:
+# if it splits into >=2 independent sub-tasks, they run on DIFFERENT agents /
+# lanes concurrently (real division of labour -- the CPU lane does its OWN
+# sub-task, not a duplicate) and get synthesised. If the ask is not worth
+# splitting, _plan_swarm returns [] and the normal council path handles it, so
+# this never hurts trivial queries. MIN_WORDS keeps short ACTION verbs ("open
+# steam") off the extra planner call.
+SWARM_DECOMPOSE_DEFAULT = os.environ.get(
+    "MIOS_SWARM_DECOMPOSE_DEFAULT", "true").lower() not in {"false", "0", "no"}
+SWARM_DECOMPOSE_MIN_WORDS = int(
+    os.environ.get("MIOS_SWARM_DECOMPOSE_MIN_WORDS", "6"))
+# Swarm DECOMPOSER model (operator 2026-05-22). A general 4b instruct model
+# via /api/chat (think=False) -- NOT the code model on /v1, which returned
+# EMPTY content on the full agent roster. Warm (keep_alive, shared lane).
+SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", "qwen3.5:4b")
 PLANNER_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_TIMEOUT_S", "30"))
 PLANNER_MAX_TOKENS = int(os.environ.get(
@@ -4988,21 +5005,27 @@ async def _plan_swarm(user_text: str) -> list:
     _agent_dag_from_tasks ({target_agent, refined_text, title}), or []."""
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return []
+    # /api/chat with think=False -- the proven-reliable path refine uses. The
+    # /v1 + response_format path returned EMPTY content for the full agent
+    # roster (operator 2026-05-22 trace: "swarm planner raw (len=0)"). Use the
+    # general SWARM_MODEL (not the code model) and read native message.content.
+    _base = (PLANNER_ENDPOINT[:-3].rstrip("/")
+             if PLANNER_ENDPOINT.endswith("/v1") else PLANNER_ENDPOINT)
     payload = {
-        "model": PLANNER_MODEL,
+        "model": SWARM_MODEL,
         "messages": [
             {"role": "system", "content": _SWARM_SYSTEM},
             {"role": "user", "content": user_text[:4000]},
         ],
-        "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "max_tokens": PLANNER_MAX_TOKENS,
+        "think": False,
+        "format": "json",
         "stream": False,
+        "keep_alive": REFINE_KEEP_ALIVE,
+        "options": {"temperature": 0.0, "num_predict": PLANNER_MAX_TOKENS},
     }
     try:
         async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
-            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions",
-                             json=payload,
+            r = await s.post(f"{_base}/api/chat", json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
                 return []
@@ -5012,8 +5035,8 @@ async def _plan_swarm(user_text: str) -> list:
     except Exception as e:
         log.warning("swarm planner error: %s", e)
         return []
-    content = (((body.get("choices") or [{}])[0].get("message") or {})
-               .get("content") or "").strip()
+    content = ((body.get("message") or {}).get("content") or "").strip()
+    log.debug("swarm planner raw (len=%d): %.400s", len(content), content)
     if not content:
         return []
     content = re.sub(r"<think>.*?</think>\s*", "", content,
@@ -7871,8 +7894,17 @@ async def chat_completions(request: Request) -> Any:
     # The 🧩 Delegate SWARM toggle (force_delegate) forces this decomposition
     # regardless of refine's classification -- the manual override for when
     # the classifier under-fires (operator 2026-05-22).
+    # Decompose-by-default: a substantive agent-intent ask attempts the swarm
+    # decomposer even without an explicit delegate toggle / _multi_step flag.
+    # _plan_swarm self-gates (returns [] when not worth splitting), so simple
+    # asks fall through to council unharmed.
+    _decompose_default = bool(
+        SWARM_DECOMPOSE_DEFAULT and refined
+        and refined.get("intent") == "agent"
+        and len((last_user_text or "").split()) >= SWARM_DECOMPOSE_MIN_WORDS)
     if PLANNER_ENABLED and (_force_delegate
-                            or (refined and refined.get("_multi_step"))):
+                            or (refined and refined.get("_multi_step"))
+                            or _decompose_default):
         # Layer B (operator 'AI SWARM'): the DEDICATED swarm decomposer
         # first (reliable {agent, sub-task} assignments), then fall back to
         # the general verb-DAG planner if it produced an agent plan. Either
