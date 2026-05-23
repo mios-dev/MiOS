@@ -5823,51 +5823,18 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # verb -> a real tool_call -> truthful result (the model can't narrate a fake
     # "posted to Discord"); the command literal + token/default-channel handling
     # live in the mios-discord-send helper, not here.
-    if tool == "knowledge_search":
-        # Query OWUI's RAG knowledge collections from a sub-agent
-        # tool loop. --json returns {ok, query, collection,
-        # collection_id, hits:[{score, source, snippet}, ...]} so
-        # polish can surface source citations in the wrapped reply.
-        q = shlex.quote(str(args.get("query", "")))
-        coll = args.get("collection") or ""
-        top_k = int(args.get("top_k", 5))
-        cmd = f"mios-knowledge-search --json --top-k {top_k} {q}"
-        if coll:
-            cmd += f" --collection {shlex.quote(str(coll))}"
-        return cmd
-    if tool == "directory_lookup":
-        # Query the cached filesystem map mios-daemon maintains in
-        # SurrealDB's directory_entry table. Sub-100ms vs live
-        # mios-find / fs_search. Returns ranked hits with summary
-        # previews so polish can cite paths + content snippets.
-        q = shlex.quote(str(args.get("query", "")))
-        root = args.get("root") or ""
-        ext = args.get("ext") or ""
-        kind = args.get("kind") or ""
-        limit = int(args.get("limit", 20))
-        cmd = f"mios-directory-lookup --json --limit {limit} {q}"
-        if root:
-            cmd += f" --root {shlex.quote(str(root))}"
-        if ext:
-            cmd += f" --ext {shlex.quote(str(ext))}"
-        if kind:
-            cmd += f" --kind {shlex.quote(str(kind))}"
-        return cmd
-    if tool == "fs_search":
-        q = shlex.quote(str(args.get("query", "")))
-        n = int(args.get("limit", 20))
-        ext = args.get("ext") or ""
-        path = args.get("path") or ""
-        type_filter = args.get("type") or ""
-        # --json -> structured {ok, count, results:[{path,name,ext}]}
-        cmd = f"mios-locate --json -n {n} {q}"
-        if ext:
-            cmd += f" -ext {shlex.quote(str(ext))}"
-        if path:
-            cmd += f" -path {shlex.quote(str(path))}"
-        if type_filter in ("f", "d"):
-            cmd += f" -type {type_filter}"
-        return cmd
+    # Discovery verbs knowledge_search / directory_lookup / fs_search migrated
+    # to SSOT [verbs.*].cmd templates (P3); they dispatch via the catalog-
+    # template check at the top of this function (optional-flag form for
+    # --collection / --root / --ext / --kind / -ext / -path / -type, with the
+    # int-default {top_k=5}/{limit=20}). The catalog path also resolves the
+    # declared aliases (q/text, name/filename/term) the old raw args.get(...)
+    # ignored. NB: fs_search.type enum is f/d/l but mios-locate only acts on
+    # f/d and ignores any other -type, so the template emitting `-type l`
+    # (which the old branch dropped) is harmless -- identical net behavior.
+    # app_search / tool_search stay as code: their `if not query: return None`
+    # guard is input validation the minimal template syntax can't express
+    # (an empty query would otherwise dispatch a degenerate search).
     # System-category verbs (system_logs, process_list, container_status,
     # container_restart, service_status, service_restart) migrated to SSOT
     # [verbs.*].cmd templates (P3). They delegate to the mios-sysview /

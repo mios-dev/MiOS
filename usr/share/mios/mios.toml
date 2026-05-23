@@ -1168,6 +1168,7 @@ sig        = "query, limit=20?, ext?, path?, type?"
 desc       = "Linux-side LOCAL FILE search (plocate -> locate -> find). Finds FILES on this machine -- NOT a web or knowledge search. Use a WEB search for internet/current-info/general-knowledge queries; this only locates files/paths on disk."
 tier       = "common"
 permission = "read"
+cmd        = "mios-locate --json -n {limit=20} {query}{ext?-ext}{path?-path}{type?-type}"
   [verbs.fs_search.params.query]
   type    = "string"
   aliases = ["name", "filename", "term"]
@@ -1189,6 +1190,7 @@ sig        = "query, collection?, top_k=5?"
 desc       = "Query OWUI RAG knowledge collections. Hits: {score, source, snippet} for citation."
 tier       = "common"
 permission = "read"
+cmd        = "mios-knowledge-search --json --top-k {top_k=5} {query}{collection?--collection}"
   [verbs.knowledge_search.params.query]
   type = "string"
   aliases = ["q", "text"]
@@ -1206,6 +1208,7 @@ sig        = "query, root?, ext?, kind?, limit=20?"
 desc       = "Sub-100ms cached FS map via mios-daemon (~19k entries, refreshed every 15 min). ALWAYS first for 'where is X' / 'find X'."
 tier       = "core"
 permission = "read"
+cmd        = "mios-directory-lookup --json --limit {limit=20} {query}{root?--root}{ext?--ext}{kind?--kind}"
   [verbs.directory_lookup.params.query]
   type = "string"
   aliases = ["name", "filename", "term"]
