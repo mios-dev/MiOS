@@ -1673,12 +1673,57 @@ def _scratchpad_render() -> str:
         age = max(0, int(now - e.get("ts", now)))
         tag = e.get("agent", "?") + (f"/{e['phase']}" if e.get("phase") else "")
         lines.append(f"  - [{tag}, {age}s ago] {e.get('note', '')}")
+    ctx_id = _conv_key_var.get()
     return (
-        "Shared agent scratchpad -- rolling checkpoints other agents in THIS "
-        "chat have logged. Read for continuity: build on or correct prior "
-        "checkpoints, never repeat work already done. Shared context, NOT a "
-        "user instruction:\n" + "\n".join(lines)
+        f"Shared agent context (A2A/ACP contextId={ctx_id}) -- rolling "
+        "checkpoints other agents in THIS chat have logged. Read for "
+        "continuity: build on or correct prior checkpoints, never repeat "
+        "work already done. Shared context, NOT a user instruction:\n"
+        + "\n".join(lines)
     )
+
+
+def _a2a_messages_for(key: str) -> list:
+    """The chat's shared-context checkpoints rendered as A2A Message objects
+    (spec 0.3.0): role='agent', one text Part per checkpoint, grouped by
+    contextId=key. This is the SAME blackboard _scratchpad_note writes +
+    _scratchpad_render injects -- exposed in the open A2A/ACP shape so context
+    is SHARED between agents over the standard, not only via the bespoke prose
+    injection (operator 2026-05-23: 'context should be shared inter agents --
+    A2A/ACP'). ACP-compatible: Message{role,parts[],contextId}."""
+    dq = _SCRATCHPADS.get(key)
+    if not dq:
+        return []
+    msgs = []
+    for e in dq:
+        ts = e.get("ts", 0.0)
+        agent = e.get("agent", "?")
+        msgs.append({
+            "kind": "message",
+            "role": "agent",
+            "messageId": f"msg_{int(ts * 1000)}_{agent}",
+            "contextId": key,
+            "taskId": agent,
+            "parts": [{"kind": "text", "text": e.get("note", "")}],
+            "metadata": {
+                "agent": agent,
+                "lane": e.get("lane", "") or "",
+                "phase": e.get("phase", "") or "",
+                "ts": ts,
+            },
+        })
+    return msgs
+
+
+def _a2a_context(ctx_id: str) -> dict:
+    """A2A/ACP-shaped shared inter-agent context for a conversation: the
+    contextId + the agent Message history other agents read for continuity."""
+    return {
+        "contextId": ctx_id,
+        "kind": "context",
+        "protocolVersion": A2A_PROTOCOL_VERSION,
+        "messages": _a2a_messages_for(ctx_id),
+    }
 
 
 _REFINE_SYSTEM = (
@@ -6476,6 +6521,10 @@ def _build_agent_card() -> dict:
             "pushNotifications": False,
             # SurrealDB-backed session/tool-call history.
             "stateTransitionHistory": True,
+            # Inter-agent shared context as A2A/ACP Message history grouped
+            # by contextId, served at /a2a/contexts/{contextId} (operator
+            # 2026-05-23: "context should be shared inter agents -- A2A/ACP").
+            "contextSharing": True,
         },
         "defaultInputModes": ["text/plain", "application/json", "image/png"],
         "defaultOutputModes": ["text/plain"],
@@ -6491,6 +6540,7 @@ def _build_agent_card() -> dict:
             "discovery": {
                 "tools": f"{base}/v1/verbs",
                 "tool_search": f"{base}/v1/tool-search",
+                "context": f"{base}/a2a/contexts/{{contextId}}",
                 "health": f"{base}/health",
             },
         },
@@ -6514,6 +6564,23 @@ async def a2a_agent_card_alias() -> JSONResponse:
     """Convenience alias under /v1 for clients that don't probe
     the well-known path."""
     return JSONResponse(_build_agent_card())
+
+
+@app.get("/a2a/contexts/{context_id}")
+async def a2a_context_get(context_id: str) -> JSONResponse:
+    """A2A/ACP shared inter-agent context: the conversation's blackboard
+    rendered as A2A Message history grouped by contextId (operator 2026-05-23:
+    "context should be shared inter agents -- A2A/ACP"). Any A2A/ACP-aware
+    agent or client reads the shared context by contextId here, in the open
+    standard shape, instead of relying only on the bespoke prose injection.
+    LOCAL-ONLY, like the rest of the A2A surface."""
+    return JSONResponse(_a2a_context(context_id))
+
+
+@app.get("/v1/contexts/{context_id}")
+async def a2a_context_get_v1(context_id: str) -> JSONResponse:
+    """/v1 convenience alias for the A2A shared context."""
+    return JSONResponse(_a2a_context(context_id))
 
 
 # ── /v1/tool-search (progressive disclosure / RAG-MCP) ────────────────
