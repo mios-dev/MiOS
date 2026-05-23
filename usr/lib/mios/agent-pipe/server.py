@@ -5872,16 +5872,12 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # stage them in /tmp via the broker-side mktemp + base64 so the
     # bash command line stays sane and broker output parsing isn't
     # tripped by literal newlines in the args.
-    if tool == "text_view":
-        path = shlex.quote(str(args.get("path", "")))
-        cmd = f"mios-text-edit view {path}"
-        start = args.get("start")
-        end = args.get("end")
-        if start is not None:
-            cmd += f" --start {int(start)}"
-        if end is not None:
-            cmd += f" --end {int(end)}"
-        return cmd
+    # text_view migrated to SSOT [verbs.text_view].cmd (P3):
+    # "mios-text-edit view {path}{start?--start}{end?--end}". The optional-flag
+    # form maps the old `is not None` checks exactly (start=0 still emits
+    # --start 0) and is safer than the old int(start) -- an empty start string
+    # crashed the old branch, the template emits nothing. Its base64-staging
+    # siblings (text_create / text_insert / text_str_replace) stay as code.
     if tool == "text_create":
         path = shlex.quote(str(args.get("path", "")))
         body_b64 = base64.b64encode(

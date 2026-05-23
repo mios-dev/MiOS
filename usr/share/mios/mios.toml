@@ -1347,6 +1347,7 @@ sig        = "path, start?, end?"
 desc       = "Read a file (1-indexed line numbers) or list a directory. For Windows paths, resolve via everything_search FIRST."
 tier       = "core"
 permission = "read"
+cmd        = "mios-text-edit view {path}{start?--start}{end?--end}"
   [verbs.text_view.params.path]
   type = "string"
   aliases = ["file", "filename"]
