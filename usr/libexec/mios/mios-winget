@@ -22,9 +22,9 @@
 #                                so no interactive prompts hang the
 #                                broker). High-privilege verb;
 #                                tainted sessions refused.
-#   upgrade [<id>|--all]         Upgrade one package or every
-#                                installed package with an update
-#                                available.
+#   upgrade [<id>]               Upgrade one package, or -- with no
+#                                arg / "all" / --all -- every installed
+#                                package with an update available.
 #   uninstall <id>               Uninstall.
 #   sources                      List configured winget sources.
 #   help                         This message.
@@ -245,8 +245,11 @@ PYEOF
         _emit_envelope "install" "$id"
         ;;
     upgrade)
+        # No id, the literal keyword "all" (any case), or --all all mean
+        # "upgrade everything" -- the helper OWNS this contract so the
+        # agent-pipe dispatch template stays a clean `upgrade{id?}` (P3).
         id="${1:-}"
-        if [[ -z "$id" ]] || [[ "$id" == "--all" ]]; then
+        if [[ -z "$id" ]] || [[ "$id" == "--all" ]] || [[ "${id,,}" == "all" ]]; then
             _run_winget upgrade --all --silent --disable-interactivity \
                 --accept-source-agreements --accept-package-agreements
             _emit_envelope "upgrade" "ALL"

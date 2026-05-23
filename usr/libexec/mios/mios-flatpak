@@ -22,7 +22,8 @@
 #                                MIOS_FLATPAK_DEFAULT_SCOPE env
 #                                (default "system"). High-priv
 #                                verb; tainted sessions refused.
-#   upgrade [<id>|--all]         Update one flatpak or all.
+#   upgrade [<id>]               Update one flatpak, or -- with no arg
+#                                / "all" / --all -- all of them.
 #   uninstall <id>               Uninstall.
 #   remotes                      List configured flatpak remotes.
 #   run <id>                     Launch a flatpak (forks detached).
@@ -226,8 +227,11 @@ PYEOF
         _emit_envelope "install" "$id"
         ;;
     upgrade|update)
+        # No id, the literal keyword "all" (any case), or --all all mean
+        # "upgrade everything" -- the helper OWNS this contract so the
+        # agent-pipe dispatch template stays a clean `upgrade{id?}` (P3).
         id="${1:-}"
-        if [[ -z "$id" ]] || [[ "$id" == "--all" ]]; then
+        if [[ -z "$id" ]] || [[ "$id" == "--all" ]] || [[ "${id,,}" == "all" ]]; then
             if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
                 exec sudo -E "$0" upgrade --all
             fi

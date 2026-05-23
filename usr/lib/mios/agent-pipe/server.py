@@ -5778,20 +5778,14 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # Both shims emit JSON envelopes by default; agent-pipe surfaces
     # the JSON straight back to the gateway. WRITE verbs (install /
     # upgrade / uninstall) are firewall-gated.
-    # winget_search/list/show/install/uninstall migrated to SSOT [verbs.*].cmd
-    # templates (P3); they dispatch via the catalog-template check at the top of
-    # this function (the {limit=10} default form + alias resolution through the
-    # catalog -- the old raw args.get(...) form ignored declared aliases).
-    # winget_upgrade stays as code: the `--all`/empty -> "upgrade --all"
-    # conditional isn't expressible in the minimal template syntax.
-    if tool == "winget_upgrade":
-        pid = str(args.get("id", "")).strip()
-        if not pid or pid.lower() == "all" or pid == "--all":
-            return "mios-winget upgrade --all"
-        return f"mios-winget upgrade {shlex.quote(pid)}"
-    # flatpak_search/list/show/uninstall migrated to SSOT [verbs.*].cmd templates
-    # (P3). flatpak_install (scope enum -> --system/--user) + flatpak_upgrade
-    # (`--all` conditional) stay as code.
+    # winget_search/list/show/install/uninstall + winget_upgrade migrated to
+    # SSOT [verbs.*].cmd templates (P3). winget_upgrade took the HELPER-CONTRACT
+    # path: mios-winget now treats a no-arg / "all" / --all `upgrade` as
+    # upgrade-everything, so the dispatch template is a clean `upgrade{id?}` and
+    # the `--all`/empty/"all" conditional lives in the helper, not here.
+    # flatpak_search/list/show/uninstall + flatpak_upgrade likewise migrated
+    # (same helper-contract for mios-flatpak upgrade). flatpak_install (scope
+    # enum -> --system/--user) stays as code.
     if tool == "flatpak_install":
         pid = shlex.quote(str(args.get("id", "")))
         scope = str(args.get("scope", "")).lower()
@@ -5801,11 +5795,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         elif scope in ("user", "--user"):
             scope_arg = " --user"
         return f"mios-flatpak install {pid}{scope_arg}"
-    if tool == "flatpak_upgrade":
-        pid = str(args.get("id", "")).strip()
-        if not pid or pid.lower() == "all" or pid == "--all":
-            return "mios-flatpak upgrade --all"
-        return f"mios-flatpak upgrade {shlex.quote(pid)}"
     # open_url / mios_find / mios_apps / everything_search / flatpak_preflight
     # are migrated to SSOT [verbs.*].cmd templates (P3); they dispatch via the
     # catalog-template check at the top of this function (incl. the {arg?FLAG}

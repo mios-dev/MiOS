@@ -1493,6 +1493,7 @@ sig = "id?"
 desc = "[legacy: use pkg(action='upgrade', backend='winget')]"
 tier = "rare"
 permission = "write"
+cmd = "mios-winget upgrade{id?}"
   [verbs.winget_upgrade.params.id]
   type = "string"
   aliases = ["package", "name"]
@@ -1561,6 +1562,7 @@ sig = "id?"
 desc = "[legacy: use pkg(action='upgrade', backend='flatpak')]"
 tier = "rare"
 permission = "write"
+cmd = "mios-flatpak upgrade{id?}"
   [verbs.flatpak_upgrade.params.id]
   type = "string"
   aliases = ["ref", "name"]
