@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""mios-web-extract -- fetch a URL and return its READABLE TEXT.
+
+The web_search verb returns short engine SNIPPETS, which is why the agent
+fabricated (e.g. invented a "car" etymology + cited the alphabet page) when a
+snippet didn't actually contain the answer (operator 2026-05-23). web_extract
+fetches the ACTUAL page text so an agent can GROUND on real content -- or, when
+the page does not contain the answer, see that it doesn't and say so.
+
+Offline-first: plain stdlib fetch (no cloud AI), crude HTML->text strip. Pairs
+with web_search (search -> pick a URL -> extract its content -> ground).
+SSOT: limit/timeout via flags; no endpoints to configure.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+import urllib.request
+
+_DROP = re.compile(r"(?is)<(script|style|head|nav|footer|aside|svg|noscript)\b[^>]*>.*?</\1>")
+_TAGS = re.compile(r"(?s)<[^>]+>")
+_ENT = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
+        "&#39;": "'", "&apos;": "'", "&nbsp;": " ", "&mdash;": "-",
+        "&ndash;": "-", "&rsquo;": "'", "&lsquo;": "'", "&ldquo;": '"',
+        "&rdquo;": '"', "&hellip;": "..."}
+
+
+def _unent(s: str) -> str:
+    for k, v in _ENT.items():
+        s = s.replace(k, v)
+    return re.sub(r"&#\d+;", " ", s)
+
+
+def extract(url: str, limit: int, timeout: float) -> str:
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "mios-web-extract/1 (+local MiOS)",
+                      "Accept": "text/html,text/plain;q=0.9,*/*;q=0.1"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read(3_000_000)  # cap the download
+    html = raw.decode("utf-8", "replace")
+    html = _DROP.sub(" ", html)
+    text = _unent(_TAGS.sub(" ", html))
+    text = re.sub(r"[ \t\f\v]+", " ", text)
+    text = re.sub(r"\s*\n\s*", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text[:limit]
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-web-extract")
+    p.add_argument("url", help="URL to fetch + extract readable text from")
+    p.add_argument("-n", "--limit", type=int, default=4000,
+                   help="max characters of extracted text")
+    p.add_argument("--timeout", type=float, default=12.0)
+    p.add_argument("--json", action="store_true", default=True)
+    a = p.parse_args()
+    url = a.url.strip()
+    if not re.match(r"^https?://", url):
+        url = "https://" + url
+    try:
+        content = extract(url, max(200, a.limit), a.timeout)
+        out = {"success": bool(content), "url": url,
+               "chars": len(content), "content": content}
+    except Exception as e:
+        # Be HONEST -- never fabricate page content. The caller surfaces this
+        # so the agent says it couldn't read the page instead of inventing.
+        out = {"success": False, "url": url,
+               "error": f"extract failed: {e}", "content": ""}
+    print(json.dumps(out, ensure_ascii=False))
+    return 0 if out.get("success") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

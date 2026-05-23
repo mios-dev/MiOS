@@ -1244,6 +1244,20 @@ permission = "read"
 #   MIOS_WEB_DISPATCH_JITTER_S = 0.15 -- pre-acquire stagger (s) for simul starts
 #   MIOS_WEB_RRF_K             = 60   -- Reciprocal Rank Fusion constant
 
+[verbs.web_extract]
+section    = "Discovery / resolution"
+sig        = "url, limit=4000?"
+desc       = "FETCH a web page's ACTUAL readable text (not just a search snippet) so you GROUND on real content. USE THIS after web_search to read a promising result in full -- open the Wikipedia / etymonline / article page and quote what it actually says. If the fetched page does NOT contain the answer, say so plainly; never invent facts or attach a citation to a page that doesn't support the claim. Returns {success, url, chars, content}."
+tier       = "core"
+permission = "read"
+  [verbs.web_extract.params.url]
+  type    = "string"
+  aliases = ["link", "href", "page", "u"]
+  [verbs.web_extract.params.limit]
+  type    = "integer"
+  default = 4000
+  aliases = ["n", "chars", "max"]
+
 [verbs.discord_send]
 section    = "Messaging"
 sig        = "content, channel?"

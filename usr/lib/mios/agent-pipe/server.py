@@ -2172,6 +2172,20 @@ _POLISH_SYSTEM = (
     "Read the request by its evident intent and answer with what the\n"
     "information supports.\n"
     "\n"
+    "WEB GROUNDING (anti-fabrication): for any factual claim drawn from a\n"
+    "web_search / web_extract result, state ONLY what the fetched results\n"
+    "actually say. If the results do NOT cover part of the question, say so\n"
+    "plainly -- do NOT fill the gap from memory and do NOT invent specifics\n"
+    "(dates, etymologies, origins, names, numbers). Attach a citation [n]\n"
+    "ONLY to the source that actually supports that claim; NEVER reuse one\n"
+    "source's number for an unrelated claim. An honest 'the search didn't\n"
+    "cover X' beats a confident fabrication.\n"
+    "\n"
+    "ONE ANSWER: when several sub-agent drafts are present, MERGE them into a\n"
+    "single clean reply -- dedupe, drop repetition, reconcile conflicts. Do\n"
+    "NOT concatenate the agents' separate takes or repeat a point once per\n"
+    "agent.\n"
+    "\n"
     "GROUND TRUTH: the tool_result.success field in the tool history is\n"
     "authoritative for what actually happened. Decide first whether this\n"
     "turn's tools succeeded. When every relevant result is success=true\n"
@@ -5472,6 +5486,14 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # 3); the helper does the expansion + concurrency + merge.
         fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "2")))
         return f"mios-web-search -n {n} --fanout {fan} {q}"
+    if tool == "web_extract":
+        # Fetch a URL's ACTUAL readable text (not just a snippet) so the agent
+        # GROUNDS on real content -- the anti-fabrication companion to
+        # web_search (operator 2026-05-23). Command literal lives in the helper.
+        url = shlex.quote(str(_arg_with_synonyms(tool, "url", args)
+                              or args.get("query", "")))
+        n = int(args.get("limit", 4000))
+        return f"mios-web-extract -n {n} {url}"
     if tool == "discord_send":
         # ACTUALLY post to Discord via the local mios-discord-send helper
         # (bot token + default channel from /etc/mios/hermes/discord.env).
