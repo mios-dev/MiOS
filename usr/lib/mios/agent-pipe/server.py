@@ -1044,7 +1044,14 @@ def _pick_fanout_agents(primary_name: str,
         ]
         council.sort(key=lambda nc: (
             0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
-        return council[:want]
+        # FIRST PASS = ALL nodes (operator 2026-05-23: "every turn dispatches to
+        # ALL nodes/endpoints for a first pass/understanding"). Previously
+        # capped at fanout_max-1; now every eligible node participates -- the
+        # _agent_sem (MIOS_AGENT_CONCURRENCY) bounds how many run AT ONCE, so
+        # all nodes contribute without re-creating the engine-overrun burst.
+        # MIOS_COUNCIL_MAX caps the roster only as a safety valve (0 = all).
+        _cmax = int(os.environ.get("MIOS_COUNCIL_MAX", "0"))
+        return council if _cmax <= 0 else council[:_cmax]
 
     corpus = ""
     if isinstance(refined, dict):
