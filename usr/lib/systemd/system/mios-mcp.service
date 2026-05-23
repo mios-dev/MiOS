@@ -10,8 +10,8 @@ Wants=redis.service
 
 [Service]
 Type=simple
-User=mios
-Group=mios
+User=mios-ai
+Group=mios-ai
 # Execution wrapper that verifies SQLite vaults exist before starting the MCP listener
 ExecStartPre=/usr/libexec/mios/mcp-init.sh
 ExecStart=/usr/libexec/mios/mcp-server-runner

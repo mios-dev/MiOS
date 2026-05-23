@@ -24,8 +24,8 @@ Type=exec
 ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 /usr/libexec/mios/mios-delegation-prefilter
 Restart=on-failure
 RestartSec=3s
-User=mios-hermes
-Group=mios-hermes
+User=mios-ai
+Group=mios-ai
 Environment=PYTHONUNBUFFERED=1
 # Operator architecture 2026-05-16: MiOS-Agent (the OWUI face) is a
 # small CPU model that REFINES the user prompt with full MiOS context

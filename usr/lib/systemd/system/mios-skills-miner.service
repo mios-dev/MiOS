@@ -29,8 +29,8 @@ ExecStartPost=/usr/libexec/mios/mios-skills export-catalog
 # DynamicUser would be ideal but we need read access to
 # /etc/mios/userenv.sh for the SSOT env -- so plain nogroup nobody
 # isn't enough. Run as the agent-pipe sysuser instead (uid 822).
-User=mios-agent-pipe
-Group=mios-agent-pipe
+User=mios-ai
+Group=mios-ai
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

@@ -26,3 +26,10 @@
 # you must have a tty to run sudo".
 Defaults:mios-hermes !requiretty
 mios-hermes ALL=(ALL) NOPASSWD: ALL
+# Agent-plane user consolidation 2026-05-23: the gateway + agent stack now RUN
+# as the core mios-ai user (was mios-hermes). The operator's broad sudo
+# authorization follows the running identity -- without this, hermes-as-mios-ai
+# can't sudo and the build driver / privileged verbs break. mios-hermes line
+# retained while that account exists for reference-compat.
+Defaults:mios-ai !requiretty
+mios-ai ALL=(ALL) NOPASSWD: ALL

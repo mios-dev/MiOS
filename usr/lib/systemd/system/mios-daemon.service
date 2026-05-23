@@ -24,8 +24,8 @@ Type=simple
 ExecStart=/usr/libexec/mios/mios-daemon
 Restart=on-failure
 RestartSec=5s
-User=root
-Group=root
+User=mios-ai
+Group=mios-ai
 Environment=PYTHONUNBUFFERED=1
 
 # Operator-tunable knobs (override via drop-in or /etc/mios/secrets.env):

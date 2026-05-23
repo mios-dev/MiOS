@@ -6,8 +6,8 @@ Wants=network-online.target hermes-agent.service mios-passport-provision.service
 
 [Service]
 Type=simple
-User=mios-agent-pipe
-Group=mios-agent-pipe
+User=mios-ai
+Group=mios-ai
 # Run with the mios-hermes supplementary group so the service can read
 # /etc/mios/hermes/api.env (mode 0640, group mios-hermes) and load the
 # backend API_SERVER_KEY. Without it, _BACKEND_KEY stays empty and KEYLESS

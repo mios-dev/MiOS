@@ -28,8 +28,8 @@ Type=simple
 # Runtime identity: the mios-hermes sysuser (uid 820) already exists in
 # /usr/lib/sysusers.d/ from the container era -- reuse it so /var/lib
 # ownership stays consistent across the container->direct migration.
-User=mios-hermes
-Group=mios-hermes
+User=mios-ai
+Group=mios-ai
 # Runtime state dir: /var/lib/mios/hermes. StateDirectory= is
 # deliberately NOT used -- systemd re-applies StateDirectoryMode (and
 # silently drops the setgid bit, landing 0700) on EVERY start, which

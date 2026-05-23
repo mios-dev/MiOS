@@ -80,7 +80,7 @@ ok "writers stopped"
 sec "2. Hermes scheduled jobs (the daily Discord report source)"
 if [ -f "$HCRON/jobs.json" ]; then
     run "printf '[]' > '$HCRON/jobs.json'"
-    run "chown mios-hermes:mios-hermes '$HCRON/jobs.json' 2>/dev/null || true"
+    run "chown mios-ai:mios-ai '$HCRON/jobs.json' 2>/dev/null || true"
     ok "cron/jobs.json emptied -- AMD-stock + trending-topic posters stopped"
 fi
 [ -d "$HCRON/output" ] && { run "find '$HCRON/output' -mindepth 1 -delete 2>/dev/null"; ok "cron/output cleared"; }

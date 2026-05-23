@@ -29,8 +29,8 @@ Type=simple
 # Run as the same user as Hermes itself so the CDP profile, cache,
 # and downloads land in a directory tree the gateway can also poke at
 # (e.g. for clearing on `mios-cache-clear`). uid 820.
-User=mios-hermes
-Group=mios-hermes
+User=mios-ai
+Group=mios-ai
 
 # Flatpak needs HOME to bootstrap its per-user state dir. mios-hermes's
 # home is /var/lib/mios/hermes (set on sysuser create); flatpak will

@@ -197,7 +197,7 @@ fi
 # should have done this already, but be defensive in case the .service
 # fires before tmpfiles for some reason.
 mkdir -p /etc/mios/hermes
-chown -h mios-hermes:mios-hermes /etc/mios/hermes 2>/dev/null || true
+chown -h mios-ai:mios-ai /etc/mios/hermes 2>/dev/null || true
 chmod 0750 /etc/mios/hermes 2>/dev/null || true
 
 if [[ -f "$ENV_FILE" ]] && grep -q '^API_SERVER_KEY=' "$ENV_FILE"; then
@@ -253,7 +253,7 @@ HERMES_API_TOKEN=${api_key}
 CLAUDE_DASHBOARD_TOKEN=${api_key}
 EOF
     umask 0022
-    chown root:mios-hermes "$ENV_FILE" 2>/dev/null || true
+    chown root:mios-ai "$ENV_FILE" 2>/dev/null || true
     chmod 0640 "$ENV_FILE" 2>/dev/null || true
 
     _log "wrote $ENV_FILE (64-char API_SERVER_KEY)"
@@ -290,7 +290,7 @@ if [[ ! -f "$DISCORD_ENV" ]]; then
 # Permissions: 0640 root:mios-hermes (root edits, mios-hermes reads).
 DISCORDEOF
     umask 0022
-    chown root:mios-hermes "$DISCORD_ENV" 2>/dev/null || true
+    chown root:mios-ai "$DISCORD_ENV" 2>/dev/null || true
     chmod 0640 "$DISCORD_ENV" 2>/dev/null || true
     _log "seeded empty $DISCORD_ENV (operator drops DISCORD_BOT_TOKEN here)"
 fi
@@ -338,7 +338,7 @@ _sync_discord_env_var() {
     if [[ -n "$_val" ]]; then
         printf '%s=%s\n' "$_key" "$_val" >> "$_tmp"
     fi
-    install -m 0640 -o root -g mios-hermes "$_tmp" "$DISCORD_ENV"
+    install -m 0640 -o root -g mios-ai "$_tmp" "$DISCORD_ENV"
     rm -f "$_tmp"
 }
 if [[ -n "$_discord_channel" || -n "$_discord_guild" ]]; then
@@ -431,7 +431,7 @@ mkdir -p "$HERMES_DATA"
 # die with "Permission denied: /var/lib/mios/hermes/cron". Force the
 # whole tree to 820:820 on every run -- cheap, idempotent, and heals
 # the container -> direct-install migration.
-chown -R 820:820 "$HERMES_DATA" 2>/dev/null || true
+chown -R 850:850 "$HERMES_DATA" 2>/dev/null || true
 chmod 0750 "$HERMES_DATA" 2>/dev/null || true
 
 # Validate the resolved model against what Ollama actually serves. The
@@ -888,7 +888,7 @@ agent:
   max_turns: 20
 EOF
     umask 0022
-    chown 820:820 "$HERMES_DATA_CFG" 2>/dev/null || true
+    chown 850:850 "$HERMES_DATA_CFG" 2>/dev/null || true
     chmod 0640 "$HERMES_DATA_CFG" 2>/dev/null || true
     _log "seeded $HERMES_DATA_CFG (provider=custom:local-ollama default=${_AI_MODEL_RESOLVED})"
 else
@@ -1068,7 +1068,7 @@ else
     _soul_svc="${HERMES_DATA}/SOUL.md"
     if _soul_should_seed "$_soul_svc"; then
         cp -f "$SOUL_SRC" "$_soul_svc"
-        chown 820:820 "$_soul_svc" 2>/dev/null || true
+        chown 850:850 "$_soul_svc" 2>/dev/null || true
         chmod 0644 "$_soul_svc" 2>/dev/null || true
         _log "seeded $_soul_svc (hardened MiOS persona + grounding against fabricated output)"
     else

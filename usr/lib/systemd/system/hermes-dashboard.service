@@ -15,8 +15,8 @@ ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-package
 
 [Service]
 Type=simple
-User=mios-hermes
-Group=mios-hermes
+User=mios-ai
+Group=mios-ai
 
 # HERMES_HOME points at the dashboard's data root (kanban.db lives here)
 Environment=HERMES_HOME=/var/lib/mios/hermes
