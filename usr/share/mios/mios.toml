@@ -1274,6 +1274,14 @@ cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} 
 #   MIOS_KNOWLEDGE_RECALL_K          = 3    -- max prior answers injected
 #   MIOS_KNOWLEDGE_RECALL_CANDIDATES = 60   -- recent rows scored per query
 #   MIOS_KNOWLEDGE_RECALL_MIN_SCORE  = 0.62 -- cosine floor to inject a hit
+# Dispatch dedup (operator 2026-05-23: "dont fire amongst the swarm multiple
+# times"). agent-pipe collapses CONCURRENT identical (verb, resolved-args)
+# dispatches within ONE conversation into a single launcher-broker execution
+# and shares the result -- the agentic-OS single-flight / idempotency pattern,
+# keyed on the structural _action_hash (no hardcoded English) + the conversation
+# contextvar. In-flight ONLY, so legitimate sequential repeats still run. Read
+# from env (same ${MIOS_*:-default} pattern):
+#   MIOS_DISPATCH_DEDUP        = true -- set false to disable single-flight dedup
 
 [verbs.web_extract]
 section    = "Discovery / resolution"
