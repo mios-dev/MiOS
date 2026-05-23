@@ -2503,6 +2503,35 @@ async def _inline_satisfaction_check(
                 "tools_checked": len(rows),
                 "failed_tools": failed,
             }
+    # STRUCTURAL action-claim validation (P5; the operator's "LIE"):
+    # language-agnostic -- NO action-word lists. If the refined PLAN intended a
+    # WRITE-permission action (intent=agent/multi_task + a write-permission verb
+    # in hint_tools) but NOT ONE write-permission verb was actually invoked this
+    # turn (neither in the agent's own tool-loop nor a recorded successful
+    # dispatch), the side-effecting action did NOT happen -> flag it so polish's
+    # INVOKED-TOOL CHECK has an authoritative structural signal and won't let a
+    # fabricated "done" stand. Conservative (fires only on ZERO write verbs) so
+    # it never false-flags a turn that legitimately acted; hint_tools are
+    # suggestions, hence we test the write-PERMISSION class, not the exact verb.
+    try:
+        if intent in ("agent", "multi_task"):
+            def _is_write_verb(v) -> bool:
+                return str((_VERB_CATALOG.get(str(v)) or {})
+                           .get("permission", "")).lower() == "write"
+            _write_hinted = sorted({
+                str(h) for h in ((refined or {}).get("hint_tools") or [])
+                if _is_write_verb(h)})
+            if _write_hinted:
+                _invoked = {str(t) for t in (agent_tools_called or [])}
+                _invoked |= {str(tc.get("tool")) for tc in rows
+                             if tc.get("success")}
+                if not any(_is_write_verb(t) for t in _invoked):
+                    verdict["write_action_unmet"] = {
+                        "hinted": _write_hinted,
+                        "reason": "plan_intended_write_action_none_invoked",
+                    }
+    except Exception:
+        pass
     kind = verdict["kind"]
     summary = f"{kind}: {intent or '?'} ({intended[:60]})"
     body = {
@@ -2570,6 +2599,17 @@ def _format_satisfaction_block(rows: list[dict]) -> str:
                     f"    failed: {f.get('tool')} exit={f.get('exit_code')} "
                     f"err={(f.get('stderr_preview') or '')[:80]}"
                 )
+        # Structural action-claim flag (P5): surfaced for ANY verdict (a turn
+        # can be "satisfied" by an answer yet still have skipped a planned
+        # side-effecting action). Gives polish's INVOKED-TOOL CHECK an explicit,
+        # authoritative signal not to let a fabricated "done" stand.
+        wau = payload.get("write_action_unmet")
+        if isinstance(wau, dict) and wau.get("hinted"):
+            parts.append(
+                "    NOTE: the plan intended a side-effecting action ("
+                + ", ".join(str(h) for h in wau["hinted"][:4])
+                + ") but NO such action actually ran this turn -- do NOT claim "
+                "it was done; state plainly that it was not performed.")
     return "\n".join(parts)
 
 
