@@ -105,6 +105,13 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
+# Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
+# the same time -- reasonable limit/cap"). Council secondaries + DAG-level
+# nodes share this semaphore via _call_agent_complete, so the swarm engages at
+# most N agents at once; the rest queue. Also protects the shared model lanes /
+# search engines from being overrun (the same burst that degraded web search).
+AGENT_CONCURRENCY = int(os.environ.get("MIOS_AGENT_CONCURRENCY", "3"))
+_agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
 # Router (layer-1 micro-LLM classifier) config.
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
@@ -1092,7 +1099,18 @@ def _pick_fanout_agents(primary_name: str,
     return [(n, c) for _, n, c in scored[:want]]
 
 
-async def _call_agent_complete(name: str, cfg: dict, body: dict,
+async def _call_agent_complete(name, cfg, body, headers, client,
+                               *, prefer_cpu: bool = True) -> tuple:
+    """Bounded entry point (operator 2026-05-23): concurrent agent dispatches
+    -- council secondaries AND DAG-level nodes -- share _agent_sem, so the
+    swarm engages at most MIOS_AGENT_CONCURRENCY agents at once; the rest
+    queue. No nested agent calls, so no deadlock."""
+    async with _agent_sem:
+        return await _call_agent_complete_inner(
+            name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
+
+
+async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
                                headers: dict, client,
                                *, prefer_cpu: bool = True) -> tuple:
     """Best-effort non-streaming /v1 call to a secondary fan-out agent.
@@ -7968,12 +7986,17 @@ async def chat_completions(request: Request) -> Any:
                  if len(_swarm_tasks) >= 2 else None)
         if not (_mdag and len(_mdag.get("nodes") or []) >= 2):
             _gen = await decompose_intent(last_user_text)
-            _mdag = _gen if (_gen and any(
-                n.get("agent") for n in (_gen.get("nodes") or []))) else None
-        if _mdag and any(n.get("agent") for n in (_mdag.get("nodes") or [])):
-            log.info("swarm -> agent DAG (%d nodes; agents=%s)",
-                     len(_mdag.get("nodes") or []),
-                     [n.get("agent") for n in _mdag["nodes"] if n.get("agent")])
+            # Accept EXECUTABLE verb-DAGs too, not only agent-prose DAGs
+            # (operator 2026-05-23 "swarm should actually work"). A plan like
+            # winget_search -> winget_install has NO agent nodes, but the broker
+            # EXECUTES its verb nodes -- previously this was discarded, so
+            # "install X" fell through to council and got NARRATED, not run.
+            _mdag = _gen if (_gen and (_gen.get("nodes"))) else None
+        if _mdag and (_mdag.get("nodes") or []):
+            _nd = _mdag["nodes"]
+            log.info("swarm -> DAG (%d nodes; %s)", len(_nd),
+                     [n.get("tool") or ("agent:" + str(n.get("agent")))
+                      for n in _nd])
             return await _respond_agent_dag(
                 _mdag, refined, streaming=streaming, chat_id=chat_id,
                 model=model, session_id=session_id,
