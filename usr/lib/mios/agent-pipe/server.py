@@ -2698,6 +2698,16 @@ def _build_agent_hint(refined: dict, target_name: str) -> str:
         lines.append("hint_tools: " + ", ".join(str(t) for t in tools[:8]))
     if skills:
         lines.append("hint_skills: " + ", ".join(str(s) for s in skills[:8]))
+    # GLOBAL tool access (operator 2026-05-23: "all agents have all access to
+    # all tools/skills/recipes globally"). The hints above are SUGGESTIONS,
+    # not limits -- state it explicitly so an agent never assumes it's scoped
+    # to the hinted subset. Compact (no full-catalog dump -- keeps the micro
+    # context budget) + reinforces act-don't-narrate.
+    lines.append(
+        "tool_access: GLOBAL -- hint_tools/hint_skills are SUGGESTIONS, not "
+        "limits; you may invoke ANY MiOS tool / skill / recipe. Acting "
+        "(install / post / fetch / run / open) REQUIRES a real tool_call, "
+        "never narration.")
     # Per-step tool cards (ReWOO + MCP-style annotations). Carries
     # the WHY + the success predicate INTO the sub-agent so it
     # doesn't have to re-derive the plan. Cap at 8 cards so we
