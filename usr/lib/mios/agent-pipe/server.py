@@ -5106,6 +5106,47 @@ def _action_hash(tool: str, args: dict) -> str:
     return f"{tool}\x00{canon}"
 
 
+# ── Concurrent dispatch single-flight (anti-swarm-duplication) ─────────
+# Agentic-OS idempotency / single-flight pattern: when a fan-out (council /
+# swarm / same-level DAG) has several CONCURRENT nodes that independently
+# decide to run the SAME (verb, resolved-args) -- e.g. two same-level DAG
+# nodes both calling winget_install(VLC), or two agents both web_search-ing
+# the same query -- collapse them to ONE broker execution and share the
+# result, instead of firing the side effect N times. Closes the gap the
+# per-DAG seen_actions guard leaves open (it only dedupes ACROSS levels;
+# same-level concurrent nodes both fire -- see _execute_dag_node).
+#
+# Structural key only (_action_hash -> verb + sorted args; NO hardcoded
+# English) scoped to the conversation (the _conv_key_var contextvar, which
+# concurrent council/DAG tasks inherit at creation). IN-FLIGHT ONLY: the
+# entry is cleared the moment the first call completes, so a legitimate
+# SEQUENTIAL repeat re-runs fresh (no stale cache -> reads stay live, and we
+# never replay an old result for a genuinely later request). MiOS spec:
+# reuses _action_hash + emits the existing `action_repeat_dedup` event.
+# Ref: docs/agentic-standards-roadmap.md (standard tool-loop + idempotency).
+DISPATCH_DEDUP = os.environ.get(
+    "MIOS_DISPATCH_DEDUP", "true").lower() not in {"false", "0", "no"}
+# (conv_key \x00 action_hash) -> in-flight Future holding the shared result.
+_dispatch_inflight: dict[str, "asyncio.Future"] = {}
+
+
+def _emit_dispatch_dedup_event(tool: str, args: dict,
+                               session_id: Optional[str]) -> None:
+    """Audit the single-flight collapse as the same `action_repeat_dedup`
+    event the DAG cross-level guard emits -- one observability shape for both
+    dedup paths (MiOS spec)."""
+    try:
+        _db_fire(_db_post(_db_create("event", {
+            "source": "mios-agent-pipe",
+            "kind": "action_repeat_dedup",
+            "severity": "info",
+            "summary": f"single-flight collapse: {tool}",
+            "payload": {"tool": tool, "mode": "concurrent_single_flight"},
+        }, now_fields=("ts",))))
+    except Exception:
+        pass
+
+
 async def _execute_dag_node(node: dict, results_by_id: dict,
                             seen_actions: dict, dag_summary: str,
                             session_id: Optional[str], client) -> dict:
@@ -5910,16 +5951,15 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     return None
 
 
-async def dispatch_mios_verb(
+async def _dispatch_bounded(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
-    """Bounded entry point. web_search dispatches share a global concurrency
-    semaphore (bulkhead) so a council/DAG fan-out -- each call itself
-    expanding into MIOS_WEB_FANOUT concurrent sub-queries -- can't stampede
-    the local SearXNG; excess calls QUEUE here, with a small pre-acquire
-    jitter to stagger simultaneous starts. All other verbs pass straight
-    through with no added latency."""
+    """Bulkhead layer. web_search dispatches share a global concurrency
+    semaphore so a council/DAG fan-out -- each call itself expanding into
+    MIOS_WEB_FANOUT concurrent sub-queries -- can't stampede the local
+    SearXNG; excess calls QUEUE here, with a small pre-acquire jitter to
+    stagger simultaneous starts. All other verbs pass straight through."""
     _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
     if _t == "web_search":
         if WEB_DISPATCH_JITTER_S > 0:
@@ -5928,6 +5968,58 @@ async def dispatch_mios_verb(
             return await _dispatch_mios_verb_inner(
                 tool, args, session_id=session_id)
     return await _dispatch_mios_verb_inner(tool, args, session_id=session_id)
+
+
+async def dispatch_mios_verb(
+    tool: str, args: dict, *,
+    session_id: Optional[str] = None,
+) -> dict:
+    """Public dispatch entry point, wrapping the bulkhead with a conversation-
+    scoped concurrent SINGLE-FLIGHT guard (anti-swarm-duplication; see
+    _dispatch_inflight). Concurrent identical (verb, resolved-args) dispatches
+    in the same conversation collapse to ONE broker execution + share the
+    result, so a side effect never fires N times across a fan-out. In-flight
+    only -> sequential repeats re-run fresh."""
+    if not DISPATCH_DEDUP:
+        return await _dispatch_bounded(tool, args, session_id=session_id)
+    _a = args if isinstance(args, dict) else {}
+    key = f"{_conv_key_var.get()}\x00{_action_hash(str(tool), _a)}"
+    fut = _dispatch_inflight.get(key)
+    if fut is not None:
+        # An identical dispatch is already in flight in this conversation --
+        # await it and reuse its result instead of firing the verb again.
+        try:
+            shared = await asyncio.shield(fut)
+        except Exception:
+            shared = None
+        if isinstance(shared, dict):
+            _emit_dispatch_dedup_event(str(tool), _a, session_id)
+            dd = dict(shared)
+            dd["deduped"] = True
+            return dd
+        # Shared result unusable -> fall through and run normally.
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    # Synchronous claim (no await between get + set) so a concurrent task
+    # either sees no future and becomes the leader, or sees this one and
+    # follows -- never two leaders for the same key.
+    _dispatch_inflight[key] = fut
+    try:
+        res = await _dispatch_bounded(tool, args, session_id=session_id)
+        if not fut.done():
+            fut.set_result(res)
+        return res
+    except Exception as e:
+        if not fut.done():
+            fut.set_result({
+                "success": False, "tool": tool,
+                "args": _a, "output": "",
+                "stderr": f"dispatch error: {e}", "exit_code": -1,
+                "latency_ms": 0,
+            })
+        raise
+    finally:
+        _dispatch_inflight.pop(key, None)
 
 
 async def _dispatch_mios_verb_inner(
