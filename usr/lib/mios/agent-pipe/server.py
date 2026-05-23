@@ -5543,25 +5543,39 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
 
 # ── Dispatch (broker socket bridge) ────────────────────────────────
-_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:=([^}]*))?\}")
+_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:(=|\?)([^}]*))?\}")
 
 
 def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
     """Render an SSOT verb command template (mios.toml [verbs.*].cmd) into the
     bash line the broker runs (P3: retire hardcoded dispatch branches into the
-    catalog). Placeholders: `{arg}` (resolved via _arg_with_synonyms, then
-    shlex-quoted) and `{arg=default}` (default used when the arg is absent or
-    empty). A template with no placeholders renders to its literal. Deliberately
+    catalog). Placeholder forms (all values resolved via _arg_with_synonyms,
+    then shlex-quoted):
+      {arg}          required -- substituted in place (empty -> '').
+      {arg=default}  default used when the arg is absent/empty.
+      {arg?FLAG}     OPTIONAL -- emits nothing when absent; else a
+                     LEADING-space-prefixed " FLAG <value>" (or just " <value>"
+                     when FLAG is empty). Author places NO literal space before
+                     an optional placeholder, so an absent optional leaves no
+                     double-space (no fragile whitespace-collapsing needed).
+    A template with no placeholders renders to its literal. Deliberately
     MINIMAL -- verbs needing conditional/recursive/base64 logic keep their code
     branch (the builder falls through when no `cmd` is set). Returns the rendered
     command, or None on render error (caller falls back to the hardcoded branch)."""
     try:
         def _sub(m: "re.Match") -> str:
-            name, default = m.group(1), m.group(2)
+            name, op, rest = m.group(1), m.group(2), m.group(3)
             val = _arg_with_synonyms(tool, name, args)
-            if (val is None or str(val).strip() == "") and default is not None:
-                val = default
-            return shlex.quote(str(val if val is not None else ""))
+            sval = "" if val is None else str(val)
+            if op == "?":
+                if not sval.strip():
+                    return ""
+                flag = (rest or "").strip()
+                q = shlex.quote(sval)
+                return f" {flag} {q}" if flag else f" {q}"
+            if op == "=" and not sval.strip():
+                return shlex.quote(str(rest if rest is not None else ""))
+            return shlex.quote(sval)
         rendered = _TEMPLATE_PH_RE.sub(_sub, template).strip()
         return rendered or None
     except Exception as e:
@@ -5826,40 +5840,10 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     if tool == "flatpak_uninstall":
         pid = shlex.quote(str(args.get("id", "")))
         return f"mios-flatpak uninstall {pid}"
-    if tool == "flatpak_preflight":
-        # Cheap sandbox probe -- exits 0 if the flatpak's bubblewrap
-        # sandbox bootstraps cleanly, exit 1 + structured error_kind
-        # otherwise. Agents call BEFORE open_app/open_url for a
-        # flatpak target so they fail-fast on broken environments
-        # (WSL portal-helper credential issues, /dev/dxg sandbox
-        # rejection, etc.) instead of looping on doomed launches.
-        pid = shlex.quote(str(args.get("id", "")))
-        return f"mios-flatpak-preflight {pid}"
-    if tool == "open_url":
-        url = shlex.quote(str(args.get("url", "")))
-        browser = args.get("browser") or ""
-        return f"mios-open-url {url}" + (
-            f" {shlex.quote(str(browser))}" if browser else "")
-    if tool == "mios_find":
-        # --json -> {ok, query, resolved:{launch, source}, error?,
-        # stderr_preview?}. Polish-grounding consumes typed fields
-        # instead of grepping the prose `launch` line.
-        return f"mios-find --json {shlex.quote(str(args.get('name', '')))}"
-    if tool == "mios_apps":
-        # --json -> NDJSON inventory (one app per line: short_name /
-        # app_id / source / label / launch_hint). Same shape mios-kg
-        # bootstrap consumes; the polish pass + the games-research
-        # path read app_id directly instead of grepping prose.
-        f = args.get("filter") or ""
-        return "mios-apps --json" + (f" --filter {shlex.quote(str(f))}" if f else "")
-    if tool == "everything_search":
-        q = shlex.quote(str(args.get("query", "")))
-        n = int(args.get("limit", 10))
-        ext = args.get("ext") or ""
-        cmd = f"mios-everything --json -n {n} {q}"
-        if ext:
-            cmd += f" -ext {shlex.quote(str(ext))}"
-        return cmd
+    # open_url / mios_find / mios_apps / everything_search / flatpak_preflight
+    # are migrated to SSOT [verbs.*].cmd templates (P3); they dispatch via the
+    # catalog-template check at the top of this function (incl. the {arg?FLAG}
+    # optional-flag form for --filter / -ext / the optional browser arg).
     if tool == "web_search":
         # WEB search via local SearXNG (offline-first metasearch). Grounds
         # current-events / weather / facts on REAL fetched data so the model

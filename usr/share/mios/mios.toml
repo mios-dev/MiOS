@@ -1108,6 +1108,7 @@ sig        = "url, browser?"
 desc       = "SHOW a web page to the operator in their VISIBLE browser -- a window they look at. NEVER browser_* for visible navigation. NOT for research: when the goal is to find out / look up / check / gather information from the web and REPORT it back in the answer, use Hermes's NATIVE Chrome browsing (the browser_* / CDP tools) to fetch + read the page content and synthesise the findings -- do NOT pop a visible browser window per topic."
 tier       = "core"
 permission = "write"
+cmd        = "mios-open-url {url}{browser?}"
   [verbs.open_url.params.url]
   type    = "string"
   aliases = ["link", "address", "uri"]
@@ -1122,6 +1123,7 @@ sig        = "name"
 desc       = "Resolve a name to a runnable launch line WITHOUT launching. Returns the cmd; agent decides to act."
 tier       = "common"
 permission = "read"
+cmd        = "mios-find --json {name}"
   [verbs.mios_find.params.name]
   type    = "string"
   aliases = ["query", "app", "target"]
@@ -1132,6 +1134,7 @@ sig        = "filter?"
 desc       = "INVENTORY of installed apps across all surfaces (flatpak/rpm-gui/winget/store/steam/epic/xbox/gog/mios-shim/agent-cli/service-url). Optionally substring-filter."
 tier       = "core"
 permission = "read"
+cmd        = "mios-apps --json{filter?--filter}"
   [verbs.mios_apps.params.filter]
   type    = "string"
   desc    = "Case-insensitive substring filter; empty = all."
@@ -1143,6 +1146,7 @@ sig        = "query, limit=10?, ext?"
 desc       = "Windows-side LOCAL FILE search (Voidtools Everything NTFS index). Finds FILES that already exist ON THIS MACHINE -- it is NOT a web or knowledge search. For current events, facts, products, people, memes, or anything from the internet, use a WEB search instead. Good for 'where is X.exe', not 'what is X'."
 tier       = "core"
 permission = "read"
+cmd        = "mios-everything --json -n {limit=10} {query}{ext?-ext}"
   [verbs.everything_search.params.query]
   type    = "string"
   aliases = ["name", "filename", "term"]
@@ -1557,6 +1561,7 @@ sig = "id"
 desc = "[legacy: use pkg(action='preflight', backend='flatpak', id=...)]"
 tier = "rare"
 permission = "read"
+cmd = "mios-flatpak-preflight {id}"
   [verbs.flatpak_preflight.params.id]
   type = "string"
   aliases = ["ref", "name"]
