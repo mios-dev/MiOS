@@ -1,0 +1,10 @@
+[Unit]
+Description='MiOS' refresh the podman container snapshot for the dashboard
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+AccuracySec=2s
+
+[Install]
+WantedBy=timers.target

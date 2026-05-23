@@ -6608,7 +6608,7 @@ def _discover_portal_services() -> list[dict]:
     seen: set[str] = set()
     for d in ("/etc/containers/systemd", "/usr/share/containers/systemd"):
         for f in sorted(glob.glob(os.path.join(d, "*.container"))):
-            title = url = ""
+            title = url = cname = ""
             try:
                 for line in open(f, encoding="utf-8", errors="replace"):
                     s = line.strip()
@@ -6616,6 +6616,8 @@ def _discover_portal_services() -> list[dict]:
                         url = s.split("openInBrowser=", 1)[1].strip()
                     elif "image.title=" in s:
                         title = s.split("image.title=", 1)[1].strip()
+                    elif s.startswith("ContainerName="):
+                        cname = s.split("=", 1)[1].strip()
             except OSError:
                 continue
             m = re.search(r"(https?)://[^:/]+:(\d+)(/\S*)?", url)
@@ -6627,7 +6629,10 @@ def _discover_portal_services() -> list[dict]:
             seen.add(port)
             name = (title or os.path.basename(f).replace(".container", ""))
             name = name.replace("mios-", "").replace("-", " ").strip().title()
+            if not cname:
+                cname = os.path.basename(f).replace(".container", "")
             svcs.append({"name": name, "port": int(port), "path": path,
+                         "container_name": cname,
                          "local": f"{scheme}://127.0.0.1:{port}{path}"})
     # Host services (not Quadlets, so no openInBrowser label): read their
     # ports from mios.toml [ports] SSOT. {toml key: (display name, scheme)}.
@@ -6650,6 +6655,7 @@ def _discover_portal_services() -> list[dict]:
             continue
         seen.add(str(p))
         svcs.append({"name": label, "port": int(p), "path": "/",
+                     "container_name": "",
                      "local": f"{scheme}://127.0.0.1:{p}/"})
     svcs.sort(key=lambda s: s["name"].lower())
     return svcs
@@ -6688,30 +6694,53 @@ def _host_stats() -> dict:
     return out
 
 
+_PODMAN_PS_SNAPSHOT = os.environ.get(
+    "MIOS_PODMAN_PS_SNAPSHOT", "/var/lib/mios/agent-pipe/podman-ps.json")
+
+
 async def _podman_ps() -> dict:
     """Best-effort host-port -> {container,state,image} map from podman.
     Returns {} on any failure (podman absent / no perms) so the portal
-    degrades to health-only without erroring."""
+    degrades to health-only without erroring.
+
+    PREFERS the root-written snapshot at MIOS_PODMAN_PS_SNAPSHOT: this service
+    runs hardened + non-root and CANNOT reach the rootful /run/podman socket
+    (/run/podman is 0700 root:root), so a direct `podman ps` here sees an empty
+    rootless context -> "podman present but no containers" (operator 2026-05-23).
+    mios-podman-ps.timer refreshes the snapshot every ~15s. Falls back to a
+    direct `podman ps` for unrestricted/rootless-visible deployments."""
+    data = None
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "podman", "ps", "-a", "--format", "json",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL)
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=4.0)
-        data = json.loads(out or b"[]")
+        with open(_PODMAN_PS_SNAPSHOT, "rb") as _f:
+            data = json.loads(_f.read() or b"[]")
     except Exception:
-        return {}
+        data = None
+    if data is None:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "podman", "ps", "-a", "--format", "json",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL)
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=4.0)
+            data = json.loads(out or b"[]")
+        except Exception:
+            return {"port": {}, "name": {}}
     by_port: dict[int, dict] = {}
+    by_name: dict[str, dict] = {}
     for c in data if isinstance(data, list) else []:
         names = c.get("Names") or []
         info = {"container": (names[0] if names else (c.get("Id") or "")[:12]),
                 "state": str(c.get("State", "")).lower(),
                 "image": c.get("Image", "")}
+        # by NAME -- the only match for HOST-NETWORKED containers (most MiOS
+        # services), which report no published Ports in `podman ps`.
+        for nm in names:
+            by_name[str(nm)] = info
         for p in (c.get("Ports") or []):
             hp = p.get("host_port") if isinstance(p, dict) else None
             if hp:
                 by_port[int(hp)] = info
-    return by_port
+    return {"port": by_port, "name": by_name}
 
 
 @app.get("/portal/stats")
@@ -6729,7 +6758,8 @@ async def portal_stats() -> JSONResponse:
             ok = r.status_code < 500
         except Exception:
             ok = False
-        cinfo = pmap.get(svc["port"], {})
+        cinfo = (pmap["port"].get(svc["port"])
+                 or pmap["name"].get(svc.get("container_name", ""), {}))
         return {"name": svc["name"], "port": svc["port"], "ok": ok,
                 "ms": int((time.time() - t0) * 1000),
                 "internal": svc["local"],
@@ -6754,7 +6784,8 @@ async def portal_service_detail(port: int) -> JSONResponse:
     if not svc:
         return JSONResponse({"error": "unknown service"}, status_code=404)
     pmap = await _podman_ps()
-    cinfo = pmap.get(port, {})
+    cinfo = (pmap["port"].get(port)
+             or pmap["name"].get(svc.get("container_name", ""), {}))
     logs = ""
     cname = cinfo.get("container", "")
     if cname:

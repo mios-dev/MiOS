@@ -1,0 +1,19 @@
+[Unit]
+Description='MiOS' rootful podman snapshot for the agent-pipe portal/dashboard
+Documentation=file:///usr/lib/mios/agent-pipe/server.py
+After=podman.socket
+Wants=podman.socket
+
+[Service]
+Type=oneshot
+# The agent-pipe runs hardened + NON-root (User=mios-agent-pipe) and CANNOT
+# reach the rootful podman socket: /run/podman is 0700 root:root, so even a
+# group grant on the 0660 socket can't traverse in. Rather than give a
+# network-facing service rootful container CONTROL, this root oneshot writes a
+# READ-ONLY `podman ps` snapshot the agent-pipe consumes for the portal's
+# container state. operator 2026-05-23: "podman containers aren't showing up
+# in the dashboard -- detected present but none visible".
+ExecStart=/bin/sh -c '/usr/bin/podman ps -a --format json > /var/lib/mios/agent-pipe/podman-ps.json.tmp 2>/dev/null && mv -f /var/lib/mios/agent-pipe/podman-ps.json.tmp /var/lib/mios/agent-pipe/podman-ps.json && chmod 0644 /var/lib/mios/agent-pipe/podman-ps.json'
+
+[Install]
+WantedBy=multi-user.target
