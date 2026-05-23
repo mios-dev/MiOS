@@ -205,43 +205,67 @@ Full inventory: \`mios-apps\`. Launch by name: \`mios-launch <name>\`.
 EOF
     ;;
 json)
-    python3 - <<PYEOF
-import json
+    # Pass every value through the ENVIRONMENT (not source interpolation) so a
+    # quote/special char in a field -- or a bash boolean like $IS_WSL=true,
+    # which is NOT valid Python -- can't break the JSON. The heredoc is
+    # single-quoted so bash leaves the python untouched; python reads os.environ.
+    export EP_TS="$(date -Iseconds)" \
+        EP_OP_USER="$OPERATOR_NAME" EP_OP_FULL="$OPERATOR_FULL" \
+        EP_HOST_TOML="$HOSTNAME_TOML" EP_HOST_LIVE="$HOSTNAME_LIVE" \
+        EP_OS="$OS_PRETTY" EP_IS_WSL="$IS_WSL" EP_WSL_DISTRO="$WSL_DISTRO" \
+        EP_CPU="$CPU_MODEL" EP_CPU_CORES="$CPU_CORES" EP_RAM="$RAM_GB" \
+        EP_GPU="$GPU_LINE" \
+        EP_SVC_HERMES="$SVC_HERMES" EP_SVC_PREFILTER="$SVC_PREFILTER" \
+        EP_SVC_OWUI="$SVC_OWUI" EP_SVC_OLLAMA="$SVC_OLLAMA" \
+        EP_SVC_SEARXNG="$SVC_SEARXNG" EP_SVC_BROWSER="$SVC_BROWSER" \
+        EP_SVC_CROND="$SVC_CROND" EP_SVC_ATD="$SVC_ATD" \
+        EP_OLLAMA_MODELS="$OLLAMA_MODELS" \
+        EP_N_FLATPAK="$N_FLATPAK" EP_N_HOST_GUI="$N_HOST_GUI" \
+        EP_N_WIN_GUI="$N_WIN_GUI" EP_N_WIN_APP="$N_WIN_APP" \
+        EP_N_SHIM="$N_SHIM" EP_N_CLI="$N_CLI" EP_N_URL="$N_URL"
+    python3 - <<'PYEOF'
+import json, os
+def _i(k):
+    try:
+        return int(os.environ.get(k, "") or 0)
+    except ValueError:
+        return 0
 print(json.dumps({
-    "ts": "$(date -Iseconds)",
+    "ts": os.environ.get("EP_TS", ""),
     "identity": {
-        "operator_username": "$OPERATOR_NAME",
-        "operator_fullname": "$OPERATOR_FULL",
-        "hostname_toml": "$HOSTNAME_TOML",
-        "hostname_live": "$HOSTNAME_LIVE",
+        "operator_username": os.environ.get("EP_OP_USER", ""),
+        "operator_fullname": os.environ.get("EP_OP_FULL", ""),
+        "hostname_toml": os.environ.get("EP_HOST_TOML", ""),
+        "hostname_live": os.environ.get("EP_HOST_LIVE", ""),
     },
     "host": {
-        "os": "$OS_PRETTY",
-        "is_wsl": $IS_WSL,
-        "wsl_distro": "$WSL_DISTRO",
-        "cpu": "$CPU_MODEL",
-        "cpu_cores": "$CPU_CORES",
-        "ram_gb": "$RAM_GB",
-        "gpu": "$GPU_LINE",
+        "os": os.environ.get("EP_OS", ""),
+        "is_wsl": os.environ.get("EP_IS_WSL", "") == "true",
+        "wsl_distro": os.environ.get("EP_WSL_DISTRO", ""),
+        "cpu": os.environ.get("EP_CPU", ""),
+        "cpu_cores": os.environ.get("EP_CPU_CORES", ""),
+        "ram_gb": os.environ.get("EP_RAM", ""),
+        "gpu": os.environ.get("EP_GPU", ""),
     },
     "services": {
-        "hermes_agent":       "$SVC_HERMES",
-        "delegation_prefilter": "$SVC_PREFILTER",
-        "open_webui":         "$SVC_OWUI",
-        "ollama":             "$SVC_OLLAMA",
-        "searxng":            "$SVC_SEARXNG",
-        "hermes_browser":     "$SVC_BROWSER",
-        "crond":              "$SVC_CROND",
-        "atd":                "$SVC_ATD",
+        "hermes_agent":         os.environ.get("EP_SVC_HERMES", ""),
+        "delegation_prefilter": os.environ.get("EP_SVC_PREFILTER", ""),
+        "open_webui":           os.environ.get("EP_SVC_OWUI", ""),
+        "ollama":               os.environ.get("EP_SVC_OLLAMA", ""),
+        "searxng":              os.environ.get("EP_SVC_SEARXNG", ""),
+        "hermes_browser":       os.environ.get("EP_SVC_BROWSER", ""),
+        "crond":                os.environ.get("EP_SVC_CROND", ""),
+        "atd":                  os.environ.get("EP_SVC_ATD", ""),
     },
-    "ollama_models": "$OLLAMA_MODELS",
+    "ollama_models": os.environ.get("EP_OLLAMA_MODELS", ""),
     "launchable_counts": {
-        "linux_flatpak": $N_FLATPAK,
-        "linux_rpm_gui": $N_HOST_GUI,
-        "windows_gui":   $N_WIN_GUI,
-        "mios_shim":     $N_SHIM,
-        "agent_cli":     $N_CLI,
-        "service_url":   $N_URL,
+        "linux_flatpak": _i("EP_N_FLATPAK"),
+        "linux_rpm_gui": _i("EP_N_HOST_GUI"),
+        "windows_gui":   _i("EP_N_WIN_GUI"),
+        "windows_app":   _i("EP_N_WIN_APP"),
+        "mios_shim":     _i("EP_N_SHIM"),
+        "agent_cli":     _i("EP_N_CLI"),
+        "service_url":   _i("EP_N_URL"),
     },
 }, indent=2))
 PYEOF

@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""/usr/libexec/mios/mios-sys-env <refresh|get|help> [--json]
+
+Live system/environment probe persisted to SurrealDB so EVERY agent reads a
+fast, always-current snapshot from the shared DB -- the same cache pattern
+mios-daemon uses for directory_entry.
+
+Operator 2026-05-23: "mios-os-control should fetch live system apps from a
+tool/skill for probing systems/environment live and storing+updating a
+mios-sys-env database; ALL agents share global read+write access (via verbs)".
+
+What it stores (single row `sys_env:current`, NS mios DB agent):
+  env   -- the full `mios-env-probe --json` envelope (identity, host HW, stack
+           services up/down, loaded ollama models, launchable-app counts).
+  apps  -- live launchable inventory, names per category (mios-apps --names
+           --category <cat>), capped -- "the live system apps".
+  indexed_at / host / source -- provenance.
+
+Subcommands:
+  refresh [--json]   WRITE: probe live + upsert sys_env:current. Any agent can
+                     call this to UPDATE the shared env DB (sys_env_refresh verb).
+  get [--json]       READ: return sys_env:current. If the row is missing, falls
+                     back to a live (non-persisted) probe so the read is always
+                     useful (sys_env verb).
+  help
+
+SSOT: DB endpoint + creds from MIOS_DB_* env (identical to mios-daemon); the
+app categories come from mios-apps. No hardcoded literals.
+"""
+from __future__ import annotations
+
+import base64
+import datetime
+import json
+import os
+import subprocess
+import sys
+import urllib.request
+
+# ── SurrealDB config (SSOT: same MIOS_DB_* env as mios-daemon) ─────────
+DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000").rstrip("/")
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+# Agent-queryable tables (directory_entry, knowledge, ...) live in DB `agent`
+# under NS `mios` -- sys_env joins them so agents read it the same way.
+DB_DB = os.environ.get("MIOS_SYS_ENV_DB", "agent")
+_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+RECORD = "sys_env:current"
+# Per-category cap so a huge host can't bloat the row / agent context.
+APPS_CAP = int(os.environ.get("MIOS_SYS_ENV_APPS_CAP", "300"))
+# Categories mirror mios-env-probe's launchable inventory (kept in sync with
+# mios-apps' own category set; passed straight through, no semantic hardcode).
+APP_CATEGORIES = (os.environ.get("MIOS_SYS_ENV_APP_CATEGORIES", "")
+                  or "linux-flatpak,linux-rpm-gui,windows-gui,windows-app,"
+                     "mios-shim,agent-cli,service-url").split(",")
+
+
+def _db_sql(sql: str, timeout: float = 8.0):
+    """POST SurrealQL to {DB_URL}/sql with the `USE NS .. DB ..;` prefix the
+    SurrealDB HTTP /sql endpoint needs. Returns the parsed statement-result
+    list, or None on error."""
+    body = f"USE NS {DB_NS} DB {DB_DB}; {sql}".encode("utf-8")
+    req = urllib.request.Request(
+        f"{DB_URL}/sql", data=body, method="POST",
+        headers={"Authorization": _AUTH, "Accept": "application/json",
+                 "Content-Type": "text/plain"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+    except Exception as e:
+        sys.stderr.write(f"mios-sys-env: db error: {e}\n")
+        return None
+
+
+def _run_json(cmd: list[str], timeout: float = 20.0):
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True,
+                             timeout=timeout).stdout
+        return json.loads(out) if out.strip() else None
+    except Exception:
+        return None
+
+
+def _run_lines(cmd: list[str], timeout: float = 20.0) -> list[str]:
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True,
+                             timeout=timeout).stdout
+        return [ln.strip() for ln in out.splitlines() if ln.strip()]
+    except Exception:
+        return []
+
+
+def _probe() -> dict:
+    """Gather the live environment: the env-probe envelope + the launchable
+    app inventory (names per category, capped)."""
+    env = _run_json(["mios-env-probe", "--json"]) or {}
+    apps: dict[str, list[str]] = {}
+    for cat in APP_CATEGORIES:
+        cat = cat.strip()
+        if not cat:
+            continue
+        names = _run_lines(["mios-apps", "--names", "--category", cat])
+        if names:
+            apps[cat] = names[:APPS_CAP]
+    return {"env": env, "apps": apps}
+
+
+def _now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def cmd_refresh(json_out: bool) -> int:
+    payload = _probe()
+    host = (((payload.get("env") or {}).get("identity") or {})
+            .get("hostname_live") or "")
+    now = _now()
+    # Replace the single current row (DELETE+CREATE is universally supported;
+    # the fixed record id keeps it O(1) + bounded -- no history bloat).
+    sql = (
+        f"DELETE {RECORD}; "
+        f"CREATE {RECORD} SET "
+        f"env = {json.dumps(payload['env'], default=str)}, "
+        f"apps = {json.dumps(payload['apps'], default=str)}, "
+        f"host = {json.dumps(host)}, "
+        f"source = \"mios-sys-env\", "
+        f"indexed_at = {json.dumps(now)};"
+    )
+    res = _db_sql(sql)
+    ok = isinstance(res, list) and any(
+        isinstance(s, dict) and s.get("status") == "OK" for s in res[1:])
+    n_apps = sum(len(v) for v in payload["apps"].values())
+    env_keys = list((payload.get("env") or {}).keys())
+    envelope = {
+        "ok": bool(ok),
+        "verb": "sys_env_refresh",
+        "record": RECORD,
+        "indexed_at": now,
+        "host": host,
+        "app_count": n_apps,
+        "app_categories": {k: len(v) for k, v in payload["apps"].items()},
+        "env_sections": env_keys,
+    }
+    if not ok:
+        envelope["error"] = "surrealdb upsert failed (see stderr)"
+    print(json.dumps(envelope, indent=None if json_out else 2))
+    return 0 if ok else 1
+
+
+def _read_current() -> dict | None:
+    res = _db_sql(f"SELECT * FROM {RECORD};")
+    if not isinstance(res, list):
+        return None
+    for s in res[1:]:
+        if isinstance(s, dict) and s.get("status") == "OK":
+            rows = s.get("result") or []
+            if isinstance(rows, list) and rows:
+                return rows[0]
+    return None
+
+
+def cmd_get(json_out: bool) -> int:
+    row = _read_current()
+    if row:
+        out = {"ok": True, "verb": "sys_env", "source": "db", **row}
+        print(json.dumps(out, indent=None if json_out else 2, default=str))
+        return 0
+    # Row missing (e.g. first boot, before the timer/refresh ran): live
+    # fallback so a READ is never empty. NOT persisted -- get stays read-only;
+    # sys_env_refresh / the timer own the write.
+    live = _probe()
+    out = {"ok": True, "verb": "sys_env", "source": "live-fallback",
+           "indexed_at": _now(),
+           "note": "sys_env:current not yet persisted; call sys_env_refresh",
+           **live}
+    print(json.dumps(out, indent=None if json_out else 2, default=str))
+    return 0
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__)
+        return 0
+    sub = argv[0]
+    json_out = "--json" in argv[1:]
+    if sub == "refresh":
+        return cmd_refresh(json_out)
+    if sub == "get":
+        return cmd_get(json_out)
+    sys.stderr.write(f"mios-sys-env: unknown subcommand {sub!r} "
+                     f"(try: refresh, get, help)\n")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

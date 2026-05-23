@@ -1,0 +1,18 @@
+[Unit]
+Description='MiOS' refresh the live system/environment cache (sys_env) in SurrealDB
+Documentation=file:///usr/libexec/mios/mios-sys-env
+After=mios-surrealdb.service
+Wants=mios-surrealdb.service
+
+[Service]
+Type=oneshot
+# Probe the live environment (launchable apps + stack services + loaded models +
+# host HW) and UPSERT the shared `sys_env:current` row so EVERY agent reads a
+# current snapshot from the DB -- the env analogue of mios-podman-ps (dashboard)
+# and the daemon's directory_entry cache. Read-only probe; the only write is the
+# SurrealDB cache row. operator 2026-05-23: "probe systems/environment live +
+# store/update a mios-sys-env database".
+ExecStart=/usr/libexec/mios/mios-sys-env refresh
+
+[Install]
+WantedBy=multi-user.target

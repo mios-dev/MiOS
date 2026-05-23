@@ -1608,6 +1608,22 @@ tier       = "core"
 permission = "read"
 cmd        = "mios-system-status"
 
+[verbs.sys_env]
+section    = "System"
+sig        = ""
+desc       = "Live system/environment snapshot from the shared SurrealDB sys_env cache: identity, host HW, MiOS stack services up/down, loaded ollama models, and the launchable-app inventory (names per category). READ this to know what is installed/running instead of guessing; it is kept current by sys_env_refresh + the refresh timer. Falls back to a live probe if the cache is empty."
+tier       = "core"
+permission = "read"
+cmd        = "mios-sys-env get --json"
+
+[verbs.sys_env_refresh]
+section    = "System"
+sig        = ""
+desc       = "Re-probe the live system/environment (apps + services + models + host) and UPDATE the shared sys_env database. Any agent may call this to refresh the global env cache when it suspects the snapshot is stale (e.g. just installed an app)."
+tier       = "common"
+permission = "write"
+cmd        = "mios-sys-env refresh"
+
 [verbs.system_logs]
 section    = "System"
 sig        = 'unit?, since="10m"?, lines=50?, level?'

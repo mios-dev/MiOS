@@ -1,0 +1,15 @@
+[Unit]
+Description='MiOS' refresh cadence for the sys_env environment cache
+
+[Timer]
+# Mirrors the daemon's directory_entry refresh cadence (~15 min): installed
+# apps / services / loaded models change far slower than container state, so a
+# 15-min refresh keeps the shared snapshot current without churn. The manual
+# sys_env_refresh verb covers the "I just installed X" case immediately.
+OnBootSec=45s
+OnUnitActiveSec=900s
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
