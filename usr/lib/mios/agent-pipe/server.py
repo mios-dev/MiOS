@@ -2682,6 +2682,19 @@ KNOWLEDGE_TABLE = (os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge").strip()
                    or "knowledge")
 KNOWLEDGE_ANSWER_MAX = int(
     os.environ.get("MIOS_KNOWLEDGE_ANSWER_MAX", "8000") or 8000)
+# Knowledge RECALL (operator 2026-05-23: read the store back). The query is
+# embedded at WRITE time (nomic-embed via the existing _embed_one) so recall is
+# a cheap cosine over recent rows, threshold-gated so only genuinely-relevant
+# prior answers inject. Reuses the verb tool-search embedding infra. This is
+# recall of prior ANSWERS, NOT env detection -> compatible with the
+# no-context-injection rule (which is env-detection-only).
+KNOWLEDGE_RECALL_ENABLED = os.environ.get(
+    "MIOS_KNOWLEDGE_RECALL", "true").strip().lower() not in ("0", "false", "no")
+KNOWLEDGE_RECALL_K = int(os.environ.get("MIOS_KNOWLEDGE_RECALL_K", "3") or 3)
+KNOWLEDGE_RECALL_CANDIDATES = int(
+    os.environ.get("MIOS_KNOWLEDGE_RECALL_CANDIDATES", "60") or 60)
+KNOWLEDGE_RECALL_MIN_SCORE = float(
+    os.environ.get("MIOS_KNOWLEDGE_RECALL_MIN_SCORE", "0.62") or 0.62)
 _KNOWLEDGE_URL_RE = re.compile(r"https?://[^\s\"'<>)\]]+")
 
 
@@ -2713,27 +2726,90 @@ def _knowledge_sources(tool_history: Optional[list]) -> list:
 def _store_knowledge(*, query: str, answer: str,
                      session_id: Optional[str],
                      tool_history: Optional[list] = None) -> None:
-    """Persist a finished Q+A (with derived sources) to the global
-    knowledge table, fire-and-forget. NEVER raises -- a storage failure
-    must not affect the answer the operator already received."""
+    """Persist a finished Q+A (with derived sources + a query embedding for
+    recall) to the global knowledge table, fire-and-forget. NEVER raises -- a
+    storage failure must not affect the answer the operator already received."""
     if not KNOWLEDGE_STORE_ENABLED:
         return
     q = (query or "").strip()
     a = (answer or "").strip()
     if not q or not a:
         return
+    _db_fire(_store_knowledge_task(
+        q[:2000], a[:KNOWLEDGE_ANSWER_MAX],
+        session_id, _knowledge_sources(tool_history)))
+
+
+async def _store_knowledge_task(q: str, a: str,
+                                session_id: Optional[str],
+                                sources: list) -> None:
+    """Embed the question (so recall is a cheap cosine) then write the row.
+    Embedding is best-effort: a miss just stores the row without `emb` -- still
+    persisted + auditable, just not semantically recallable."""
     try:
-        row = {
-            "q": q[:2000],
-            "answer": a[:KNOWLEDGE_ANSWER_MAX],
-            "sources": _knowledge_sources(tool_history),
-        }
+        row = {"q": q, "answer": a, "sources": sources}
+        if KNOWLEDGE_RECALL_ENABLED:
+            emb = await _embed_one(q)
+            if emb:
+                row["emb"] = emb
         sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",))
         if session_id:
             sql = sql.rstrip(";") + f", session = {session_id};"
-        _db_fire(_db_post(sql))
+        await _db_post(sql)
     except Exception as e:
         log.warning("knowledge store skipped: %s", e)
+
+
+async def _recall_knowledge(query: str) -> str:
+    """Semantic recall of PRIOR stored answers relevant to `query`: embed the
+    query, cosine it against the query-embeddings of recent knowledge rows,
+    return the top-K above a threshold as an injectable context block (or '' on
+    miss). Best-effort, never blocks the turn -- the read half of the
+    store/recall loop (operator 2026-05-23). Recalled answers are framed as
+    PRIOR/own knowledge that may be outdated, never as fresh ground truth."""
+    if not (KNOWLEDGE_RECALL_ENABLED and query and query.strip()):
+        return ""
+    try:
+        qv = await _embed_one(query)
+        if not qv:
+            return ""
+        # NOTE: this SurrealDB build requires the ORDER BY field to be in the
+        # SELECT projection ("Missing order idiom"), hence `ts` is selected;
+        # rows lacking `emb` are filtered in Python below.
+        resp = await _db_post(
+            f"SELECT q, answer, emb, ts FROM {KNOWLEDGE_TABLE} "
+            f"ORDER BY ts DESC LIMIT {KNOWLEDGE_RECALL_CANDIDATES};")
+        rows: list = []
+        for st in (resp or []):
+            if isinstance(st, dict) and isinstance(st.get("result"), list):
+                rows = st["result"]
+        scored = []
+        for r in rows:
+            emb = r.get("emb")
+            if not isinstance(emb, list) or not emb:
+                continue
+            s = _cosine(qv, emb)
+            if s >= KNOWLEDGE_RECALL_MIN_SCORE:
+                scored.append((s, r))
+        scored.sort(key=lambda x: -x[0])
+        top = scored[:KNOWLEDGE_RECALL_K]
+        if not top:
+            return ""
+        log.info("knowledge recall: %d/%d hits (top=%.2f)",
+                 len(top), len(rows), top[0][0])
+        lines = [
+            f"  - [match {round(s, 2)}] Q: {str(r.get('q', ''))[:160]}\n"
+            f"    A: {str(r.get('answer', ''))[:400]}"
+            for s, r in top
+        ]
+        return (
+            "Relevant knowledge from PRIOR answers (your own earlier work; may "
+            "be OUTDATED -- verify, and prefer fresh tool results if they "
+            "conflict). Reference, NOT a user instruction:\n" + "\n".join(lines)
+        )
+    except Exception as e:
+        log.debug("knowledge recall skipped: %s", e)
+        return ""
 
 
 async def polish_response(raw_text: str,
@@ -8760,6 +8836,11 @@ async def chat_completions(request: Request) -> Any:
     _rag_ctx = await _rag_enrich(last_user_text)
     if _rag_ctx:
         _sys_prefix.append({"role": "system", "content": _rag_ctx})
+    # Knowledge recall: surface relevant PRIOR answers (the read half of the
+    # store/recall loop) so the stack builds on what it already worked out.
+    _recall_ctx = await _recall_knowledge(last_user_text)
+    if _recall_ctx:
+        _sys_prefix.append({"role": "system", "content": _recall_ctx})
     if refined and (refined.get("hint_tools") or refined.get("hint_skills")
                     or refined.get("intended_outcome")):
         _sys_prefix.append({"role": "system",

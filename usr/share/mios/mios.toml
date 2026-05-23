@@ -1251,6 +1251,13 @@ permission = "read"
 #   MIOS_KNOWLEDGE_STORE       = true      -- set false to disable persistence
 #   MIOS_KNOWLEDGE_TABLE       = knowledge -- SurrealDB table for stored answers
 #   MIOS_KNOWLEDGE_ANSWER_MAX  = 8000      -- max chars of the answer persisted
+# RECALL (read the store back): the query is embedded at WRITE time (nomic-embed
+# via the verb tool-search infra), so recall is a cheap cosine over recent rows,
+# threshold-gated so only relevant prior answers inject into the agent context:
+#   MIOS_KNOWLEDGE_RECALL            = true -- set false to disable recall
+#   MIOS_KNOWLEDGE_RECALL_K          = 3    -- max prior answers injected
+#   MIOS_KNOWLEDGE_RECALL_CANDIDATES = 60   -- recent rows scored per query
+#   MIOS_KNOWLEDGE_RECALL_MIN_SCORE  = 0.62 -- cosine floor to inject a hit
 
 [verbs.web_extract]
 section    = "Discovery / resolution"
