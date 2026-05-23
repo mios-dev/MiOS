@@ -1228,7 +1228,10 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
     def _push(frag: str) -> None:
         if frag and q is not None:
             try:
-                q.put_nowait((name, frag))
+                # Tagged event for the orchestrator's MERGED event queue:
+                # ("SF", agent_name, fragment). Distinguishes secondary
+                # fragments from the primary's ("PR"/"PT"/"PD") events.
+                q.put_nowait(("SF", name, frag))
             except Exception:
                 pass
 
@@ -8876,32 +8879,83 @@ async def chat_completions(request: Request) -> Any:
             # and remember its cfg so the collection loop can mark it
             # responded/silent (operator 2026-05-22).
             _fanout_cfg = {_n: _c for _n, _c in _fanout}
-            # Live secondary streaming (operator 2026-05-23): each secondary
-            # streams its work onto _sec_q; the orchestrator interleaves those
-            # fragments into the reasoning dropdown WHILE the primary streams,
-            # per-agent buffered + checkpoint-flushed so N concurrent agents
-            # stay readable -- replacing the old single collect-then-flush at
-            # the very end ("sub-agent thinking pulled to think last-minute").
-            _sec_q: "asyncio.Queue" = asyncio.Queue()
+            # Live MERGED-event-queue streaming (operator 2026-05-23): the
+            # PRIMARY is pumped in the BACKGROUND into the SAME queue the
+            # secondaries stream into, so the generator drains ONE queue and
+            # secondary fragments interleave LIVE even while the primary sits
+            # SILENT in a tool-loop (the prior version only drained on a
+            # primary delta). Per-agent buffered + checkpoint-flushed
+            # (🤝 <agent>: ...) so N concurrent agents stay readable.
+            _ev_q: "asyncio.Queue" = asyncio.Queue()
             _sec_bufs: dict = {}
             _sec_last: dict = {}
 
-            async def _drain_secondaries(force: bool = False):
-                while True:
-                    try:
-                        _nm, _frag = _sec_q.get_nowait()
-                    except asyncio.QueueEmpty:
-                        break
-                    _sec_bufs[_nm] = _sec_bufs.get(_nm, "") + _frag
+            def _flush_sec(force: bool = False) -> list:
+                out: list = []
                 _now = time.time()
                 for _nm in list(_sec_bufs.keys()):
                     _buf = _sec_bufs.get(_nm, "")
                     if not _buf.strip():
                         continue
                     if force or (_now - _sec_last.get(_nm, 0.0) >= _ckpt_s):
-                        yield _flush_reasoning(f"\n🤝 {_nm}: {_buf}")
+                        out.append(_flush_reasoning(f"\n🤝 {_nm}: {_buf}"))
                         _sec_bufs[_nm] = ""
                         _sec_last[_nm] = _now
+                return out
+
+            def _pump_sec(force: bool = False) -> list:
+                # Non-blocking pull of queued secondary fragments into the
+                # per-agent buffers, for the post-primary phases where the
+                # main merged loop is no longer draining the queue.
+                while True:
+                    try:
+                        ev = _ev_q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    if ev and ev[0] == "SF":
+                        _sec_bufs[ev[1]] = _sec_bufs.get(ev[1], "") + ev[2]
+                return _flush_sec(force)
+
+            async def _primary_pump():
+                # Stream the primary (Hermes) in the BACKGROUND, pushing typed
+                # events onto _ev_q; a PD sentinel marks end-of-stream so the
+                # merged drain loop knows the primary is finished.
+                try:
+                    async with client.stream(
+                            "POST",
+                            f"{target_endpoint}/chat/completions",
+                            content=json.dumps(stream_body).encode("utf-8"),
+                            headers=headers) as resp:
+                        if resp.status_code != 200:
+                            await resp.aread()
+                            log.warning("streamed backend %s",
+                                        resp.status_code)
+                        else:
+                            async for line in resp.aiter_lines():
+                                if not line or not line.startswith("data:"):
+                                    continue
+                                data = line[5:].strip()
+                                if data == "[DONE]":
+                                    break
+                                try:
+                                    chunk = json.loads(data)
+                                except (json.JSONDecodeError, ValueError):
+                                    continue
+                                ch = chunk.get("choices") or []
+                                if not ch:
+                                    continue
+                                delta = ch[0].get("delta") or {}
+                                piece = delta.get("content") or ""
+                                if piece:
+                                    _ev_q.put_nowait(("PR", piece))
+                                for _tc in (delta.get("tool_calls") or []):
+                                    _fn = (_tc.get("function") or {}).get("name")
+                                    if _fn:
+                                        _ev_q.put_nowait(("PT", _fn))
+                except Exception as e:
+                    log.warning("streamed backend call failed: %s", e)
+                finally:
+                    _ev_q.put_nowait(("PD", None))
 
             _sec_tasks = []
             for _n, _c in _fanout:
@@ -8909,59 +8963,53 @@ async def chat_completions(request: Request) -> Any:
                                    cfg=_c, state="engage")
                 _sec_tasks.append(asyncio.create_task(
                     _call_agent_stream(_n, _c, proxy_body, headers, client,
-                                       _sec_q)))
+                                       _ev_q)))
+            _prim_task = asyncio.create_task(_primary_pump())
 
-            try:
-                async with client.stream(
-                        "POST",
-                        f"{target_endpoint}/chat/completions",
-                        content=json.dumps(stream_body).encode("utf-8"),
-                        headers=headers) as resp:
-                    if resp.status_code != 200:
-                        await resp.aread()
-                        log.warning("streamed backend %s", resp.status_code)
-                    else:
-                        async for line in resp.aiter_lines():
-                            if not line or not line.startswith("data:"):
-                                continue
-                            data = line[5:].strip()
-                            if data == "[DONE]":
-                                break
-                            try:
-                                chunk = json.loads(data)
-                            except (json.JSONDecodeError, ValueError):
-                                continue
-                            ch = chunk.get("choices") or []
-                            if not ch:
-                                continue
-                            delta = ch[0].get("delta") or {}
-                            piece = delta.get("content") or ""
-                            if piece:
-                                raw += piece
-                                _block_buf += piece
-                            for _tc in (delta.get("tool_calls") or []):
-                                _fn = (_tc.get("function") or {}).get("name")
-                                if _fn:
-                                    _block_buf += f"\n🛠️ {_fn}\n"
-                                    if _fn not in _tools_called:
-                                        _tools_called.append(_fn)
-                                    # Live emitter pill for the tool step.
-                                    yield _sse_status(
-                                        chat_id=chat_id, model=model,
-                                        emoji="🛠️", label="", detail=_fn)
-                            # Checkpoint flush -> an instantly-rendered block.
-                            if (_block_buf.strip()
-                                    and time.time() - _last_flush >= _ckpt_s):
-                                yield _flush_reasoning(_block_buf)
-                                _block_buf = ""
-                                _last_flush = time.time()
-                            # Interleave any secondary fragments LIVE so the
-                            # CPU/secondary swarm streams in alongside the GPU
-                            # primary, not after it.
-                            async for _b in _drain_secondaries():
-                                yield _b
-            except Exception as e:
-                log.warning("streamed backend call failed: %s", e)
+            # Drain the MERGED queue until the primary signals done. Primary
+            # reasoning + tool steps and secondary fragments interleave LIVE,
+            # whichever source is producing. The pending get() is KEPT across
+            # idle timeouts (never cancelled) so no event -- including a piece
+            # of the primary `raw` -- is ever dropped by a wait_for race.
+            _primary_done = False
+            _get_task = None
+            while not _primary_done:
+                if _get_task is None:
+                    _get_task = asyncio.ensure_future(_ev_q.get())
+                _done, _ = await asyncio.wait({_get_task}, timeout=2.0)
+                if not _done:
+                    for _b in _flush_sec():
+                        yield _b
+                    yield b": keepalive\n\n"
+                    continue
+                ev = _get_task.result()
+                _get_task = None
+                _k = ev[0]
+                if _k == "PR":
+                    raw += ev[1]
+                    _block_buf += ev[1]
+                    if (_block_buf.strip()
+                            and time.time() - _last_flush >= _ckpt_s):
+                        yield _flush_reasoning(_block_buf)
+                        _block_buf = ""
+                        _last_flush = time.time()
+                    for _b in _flush_sec():
+                        yield _b
+                elif _k == "PT":
+                    _fn = ev[1]
+                    _block_buf += f"\n🛠️ {_fn}\n"
+                    if _fn not in _tools_called:
+                        _tools_called.append(_fn)
+                    yield _sse_status(chat_id=chat_id, model=model,
+                                      emoji="🛠️", label="", detail=_fn)
+                    for _b in _flush_sec():
+                        yield _b
+                elif _k == "SF":
+                    _sec_bufs[ev[1]] = _sec_bufs.get(ev[1], "") + ev[2]
+                    for _b in _flush_sec():
+                        yield _b
+                elif _k == "PD":
+                    _primary_done = True
             # Flush the tail of the reasoning buffer. No </details> to close --
             # reasoning_content is a separate delta channel, not inline markup.
             if _block_buf.strip():
@@ -9009,7 +9057,7 @@ async def chat_completions(request: Request) -> Any:
                         await asyncio.wait_for(
                             asyncio.shield(critic_task), timeout=2.0)
                     except asyncio.TimeoutError:
-                        async for _b in _drain_secondaries():
+                        for _b in _pump_sec():
                             yield _b
                         yield b": keepalive\n\n"
                     except Exception:
@@ -9035,13 +9083,13 @@ async def chat_completions(request: Request) -> Any:
                                 *_sec_tasks, return_exceptions=True)),
                             timeout=2.0)
                     except asyncio.TimeoutError:
-                        async for _b in _drain_secondaries():
+                        for _b in _pump_sec():
                             yield _b
                         yield b": keepalive\n\n"
                     except Exception:
                         break
                 # Flush any tail fragments that arrived after the last drain.
-                async for _b in _drain_secondaries(force=True):
+                for _b in _pump_sec(force=True):
                     yield _b
                 _merge = []
                 for _t in _sec_tasks:
@@ -9052,8 +9100,8 @@ async def chat_completions(request: Request) -> Any:
                     _scfg = _fanout_cfg.get(_sn, {})
                     if _stext and _stext.strip():
                         # NOTE: the secondary's text already STREAMED live into
-                        # the dropdown via _drain_secondaries; here we only mark
-                        # it responded + fold it into the polish merge (no
+                        # the dropdown via the merged event queue; here we only
+                        # mark it responded + fold it into the polish merge (no
                         # second full-text flush -> no duplicate in the block).
                         yield _node_status(chat_id=chat_id, model=model,
                                            name=_sn, cfg=_scfg, state="ok")
