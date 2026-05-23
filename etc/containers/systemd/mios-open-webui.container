@@ -196,6 +196,20 @@ Environment=RAG_TOP_K=5
 Environment=RAG_RELEVANCE_THRESHOLD=0.5
 Environment=ENABLE_RAG_HYBRID_SEARCH=True
 
+# ── Embeddings (memory + knowledge) ─────────────────────────────────
+# OWUI's memory feature (per-user settings.ui.memory) STORES + RETRIEVES
+# personalization memories by vector similarity, so it needs a working
+# embedding model. Left unset, OWUI's default engine downloads a
+# SentenceTransformers model from HuggingFace on first use -- which fails
+# in this air-gapped environment and SILENTLY breaks memory add/query
+# (operator-flagged 2026-05-22). Point embeddings at the LOCAL ollama
+# nomic-embed-text (baked into the ollama image; mios.toml [ai].embed_model
+# == /etc/mios/install.env MIOS_AI_EMBED_MODEL == nomic-embed-text, 768-dim).
+# VECTOR_DB stays the bundled on-disk Chroma -- also fully offline.
+Environment=RAG_EMBEDDING_ENGINE=ollama
+Environment=RAG_EMBEDDING_MODEL=nomic-embed-text
+Environment=RAG_OLLAMA_BASE_URL=http://host.containers.internal:11434
+
 # ── Task / suggestion generation ────────────────────────────────────
 # Operator directive 2026-05-17: "suggested is not generated and
 # relevant and also updating via refinement". OWUI's task model

@@ -240,18 +240,21 @@ print(json.dumps({
             "web_search": True, "image_generation": True,
             "code_interpreter": True,
         },
-        # defaultFeatureIds is intentionally EMPTY: those toggles AUTO-FIRE
-        # every message (OWUI ran web-search + image-gen on a plain greeting,
-        # erroring on the image). Tools stay USABLE via capabilities (toggle
-        # available) + the mios_verbs tool surface below (model decides when to
-        # call). Operator 2026-05-22: don't auto-fire tools on greetings.
-        "defaultFeatureIds": [],
-        # Native MiOS tool surface -- the model SEES these in its
-        # tool_calls list (no `terminal: mios-<verb>` indirection).
-        # Registered separately by mios-owui-install-tools + the
-        # OpenUI installer; this just binds them to the model. Each
-        # entry must match a tool row id in OWUI's `tool` table.
-        "toolIds": ["mios_verbs", "openui"],
+        # defaultFeatureIds: the native OWUI feature toggles ON by default in a
+        # fresh chat. web_search ONLY -- it auto-fires every message and is the
+        # web tool the operator wants live (resolves via rag.web.search,
+        # engine=searxng). image_generation + code_interpreter were dropped
+        # 2026-05-22 after they auto-fired destructively: code_interpreter ran
+        # an irrelevant os.listdir('/mnt/uploads') on an anime-schedule query
+        # and image_generation errored on a plain greeting. They stay in
+        # capabilities (toggle available, default off) so the user can opt in.
+        "defaultFeatureIds": ["web_search"],
+        # Native tool surface -- the model SEES these in its tool_calls list.
+        # Operator 2026-05-22: ALL registered tools active by default (the
+        # force-sync block below is authoritative and re-derives this from the
+        # `tool` table dynamically, so this literal is just the fresh-install
+        # seed). Each entry must match a tool row id in OWUI's `tool` table.
+        "toolIds": ["mios_verbs", "openui", "sub_agent"],
         # NO hardcoded suggestion_prompts: mios-daemon.suggestions_loop
         # populates the blank-chat panel dynamically every 20 min from
         # recent state + chat language (operator directive 2026-05-17:
@@ -407,6 +410,24 @@ PYEOF
     esac
 done
 
+# OWUI's functions/create API ignores is_active / is_global in the payload --
+# new functions always land inactive. Force-enable + globalize the swarm
+# toggle-filters in webui.db so they render as chat-bar toggles. toggle=True
+# in each filter keeps them defaulting OFF, so global is safe (no auto-fire).
+if [ -f "$OWUI_DB" ]; then
+    python3 - "$OWUI_DB" <<'PYEOF'
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+n = c.execute(
+    "UPDATE function SET is_active=1, is_global=1 WHERE id IN "
+    "('mios_swarm_council','mios_swarm_delegate','mios_swarm_forcetool')"
+).rowcount
+c.commit()
+print(f"[mios-owui-install-pipe] ✓ enabled {n} swarm toggle-filter(s)")
+c.close()
+PYEOF
+fi
+
 
 # ─── MiOS Agents Sidecar Filter -- RETIRED ────────────────────────
 # agent-pipe is the canonical orchestrator now and emits its own
@@ -483,23 +504,21 @@ if sys_prompt:
         "vision": True, "citations": True, "file_upload": True,
         "web_search": True, "image_generation": True, "code_interpreter": True,
     }
-    want_features = []  # do NOT auto-fire features per message (greeting fix)
-    # MiOS-AUTHORED tools only (operator 2026-05-22). "all owui's tools" was
-    # taken literally first and attached third-party marketplace tools
-    # (openui by thesysdev/vishxrad, sub_agent by skyzi000) -- openui then
-    # fired on a "send to Discord" turn and FABRICATED a fake "interactive
-    # OpenUI visualization", claiming success while nothing happened. Those
-    # tools are not MiOS's and misbehave for this agent (Hermes already owns
-    # discord / web / browser / terminal natively via the pipe). So attach
-    # only MiOS-authored tools (mios_verbs + any future mios-* tool); the
-    # query stays dynamic so a new MiOS tool auto-attaches without code edits.
-    # Empty (tools not yet installed at this firstboot ordering) -> the merge
-    # below keeps existing_tools.
-    want_tools = [
-        r[0] for r in c.execute(
-            "SELECT id FROM tool WHERE coalesce(content,'') LIKE '%author: MiOS%' "
-            "OR id LIKE 'mios%'").fetchall()
-    ]
+    # web_search ONLY in the auto-fire set (2026-05-22). image_generation +
+    # code_interpreter were pulled after they auto-fired destructively on
+    # non-matching queries (code_interpreter ran os.listdir('/mnt/uploads') on
+    # an anime-schedule question). Both remain toggle-available via want_caps.
+    want_features = ["web_search"]
+    # ALL registered tools active by default (operator 2026-05-22, reversing
+    # the earlier MiOS-authored-only restriction). The third-party tools
+    # (openui by thesysdev/vishxrad, sub_agent by skyzi000) are re-attached.
+    # HISTORY the operator accepted: openui once FABRICATED a fake "interactive
+    # OpenUI visualization" on a "send to Discord" turn (claimed success while
+    # nothing happened). If that recurs, narrow this query back to MiOS-authored
+    # tools. Query stays dynamic: every row in the `tool` table auto-attaches,
+    # so a newly-installed tool needs no code edit here. Empty result (tools
+    # not yet installed at firstboot ordering) -> rows keep existing toolIds.
+    want_tools = [r[0] for r in c.execute("SELECT id FROM tool").fetchall()]
     for row_id in (model_id, twin_id):
         cur = c.execute(
             "SELECT params, meta FROM model WHERE id = ?", (row_id,)).fetchone()
@@ -522,11 +541,9 @@ if sys_prompt:
         caps.update(want_caps)
         m["capabilities"] = caps
         m["defaultFeatureIds"] = want_features
-        # AUTHORITATIVE set (not a merge): replace toolIds with the curated
-        # MiOS-authored set so previously-attached third-party tools
-        # (openui / sub_agent) that fabricated output are REMOVED, not kept.
-        # Tool-use then flows only through the MiOS planner + Hermes +
-        # confirmation-engine pipeline, never a raw client tool-loop.
+        # AUTHORITATIVE set (not a merge): replace toolIds with the full
+        # `tool`-table set computed above, so the live rows always converge on
+        # exactly the installed tools (no drift from manual UI edits).
         m.pop("tool_ids", None)
         m["toolIds"] = list(dict.fromkeys(want_tools))
         c.execute("UPDATE model SET params = ?, meta = ? WHERE id = ?",

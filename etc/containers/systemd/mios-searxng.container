@@ -67,6 +67,18 @@ Environment=BIND_ADDRESS=0.0.0.0:8888
 Environment=GRANIAN_HOST=0.0.0.0
 Environment=GRANIAN_PORT=8888
 
+# Concurrency (operator 2026-05-22: "SearXNG setup to handle the load").
+# granian defaults to a single worker, which serialises concurrent incoming
+# queries -- a bottleneck once the agent fans web_search out (per-query
+# expansion x multi-agent council/DAG). SearXNG is a Flask WSGI app, so its
+# request handlers run on granian BLOCKING threads. WORKERS x BLOCKING_THREADS
+# is the concurrent-request ceiling; keep it >= MIOS_WEB_CONCURRENCY x
+# MIOS_WEB_FANOUT (agent-pipe defaults 4 x 3 = 12). 2 x 8 = 16 gives headroom.
+# server.limiter stays false (settings.yml) so this self-querying burst is
+# never rate-limited as bot traffic.
+Environment=GRANIAN_WORKERS=2
+Environment=GRANIAN_BLOCKING_THREADS=8
+
 # Limit log volume; SearXNG is chatty per-query.
 Environment=SEARXNG_LOG_LEVEL=WARNING
 

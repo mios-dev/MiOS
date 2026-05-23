@@ -2242,6 +2242,19 @@ class Pipe:
         body = dict(body)
         body["model"] = self.valves.BACKEND_MODEL
         body["stream"] = True
+        # Collect + forward chat identity as the OpenAI-standard `metadata`
+        # object (string values, <=16 pairs) so :8640 keys its per-chat agent
+        # scratchpad off a stable conversation id. operator 2026-05-22.
+        _md = dict(body.get("metadata")) if isinstance(body.get("metadata"), dict) else {}
+        if _chat_id:
+            _md["chat_id"] = str(_chat_id)[:512]
+        if isinstance(__metadata__, dict):
+            for _mk in ("message_id", "session_id"):
+                _mv = __metadata__.get(_mk)
+                if _mv:
+                    _md[_mk] = str(_mv)[:512]
+        if _md:
+            body["metadata"] = _md
 
         # Extract the last user message text (used by router + refine).
         messages = body.get("messages") or []

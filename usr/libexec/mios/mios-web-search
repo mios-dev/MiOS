@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mios-web-search -- native WEB-search verb backend.
+"""mios-web-search -- native WEB-search verb backend (concurrent fan-out).
 
 Queries the LOCAL, self-hosted SearXNG metasearch (offline-first; NO cloud
 AI dependency -- Architectural Law 5) and returns clean, citable results so
@@ -13,58 +13,169 @@ Canadian user), and made-up event details -- because NO web_search verb
 existed; only filesystem search (everything_search / fs_search) did, whose
 own descriptions tell the model to "use a WEB search" that was never wired.
 SearXNG was already up (:8888) and advertised as the web_search backend.
-This helper + [verbs.web_search] in mios.toml close that gap.
 
-SSOT: the SearXNG endpoint is $MIOS_SEARXNG_URL (rendered from mios.toml
-[ai]/[ports]); the localhost:8888 fallback is the only literal, matching
-the unit default. The query/format literals live HERE, not inline in
-agent-pipe -- same pattern as mios-sysview.
+Operator 2026-05-22: "have web tools shoot off more web queries concurrently".
+QUERY FAN-OUT (--fanout K, the industry pattern behind Google AI Mode /
+RAG-Fusion / ParallelSearch): expand one query into K diverse sub-queries via
+the always-warm micro-LLM, fire them at SearXNG CONCURRENTLY, then merge with
+Reciprocal Rank Fusion + URL dedupe. K parallel queries overlap latency (8
+parallel ~= 300-500ms vs ~200ms single) and surface evidence one phrasing
+misses. SearXNG's own limiter is off + granian workers are bumped so the
+local instance absorbs the burst; agent-pipe bounds CROSS-agent concurrency.
+
+SSOT: SearXNG endpoint = $MIOS_SEARXNG_URL; micro-LLM = $MIOS_MICRO_MODEL /
+$MIOS_MICRO_ENDPOINT (same as agent-pipe); fan-out knobs = $MIOS_WEB_FANOUT /
+$MIOS_WEB_FANOUT_WORKERS / $MIOS_WEB_RRF_K (rendered from mios.toml). The
+localhost fallbacks are the only literals, matching the unit defaults.
 """
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import sys
 import urllib.parse
 import urllib.request
 
-# SSOT endpoint (env rendered from mios.toml); localhost fallback = the
-# vendor mios-searxng.container publish port.
+# SSOT endpoints (env rendered from mios.toml); localhost fallbacks = the
+# vendor container publish ports.
 SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8888").rstrip("/")
+# Always-warm CPU micro-LLM for query expansion -- the SAME model/endpoint
+# agent-pipe's router/refine use (mios.toml [ai].micro_model / micro_endpoint).
+_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:0.6b-cpu")
+_MICRO_ENDPOINT = os.environ.get(
+    "MIOS_MICRO_ENDPOINT", "http://localhost:11434/v1").rstrip("/")
+# Native /api/chat lives at the base (strip a trailing /v1 like agent-pipe).
+_MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
+               if _MICRO_ENDPOINT.endswith("/v1") else _MICRO_ENDPOINT)
+# Reciprocal Rank Fusion constant (the standard 60 from the RRF paper).
+_RRF_K = int(os.environ.get("MIOS_WEB_RRF_K", "60"))
 
 
 def search(query: str, limit: int, timeout: float) -> dict:
+    """One SearXNG JSON query. Returns the FULL result list (caller slices)
+    plus instant answers + infoboxes."""
     qs = urllib.parse.urlencode({"q": query, "format": "json"})
     req = urllib.request.Request(
         f"{SEARXNG_URL}/search?{qs}",
-        headers={"User-Agent": "mios-web-search/1 (+local SearXNG)"},
+        headers={"User-Agent": "mios-web-search/2 (+local SearXNG)"},
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read().decode("utf-8", "replace"))
-
     results = [
         {
             "title": it.get("title", ""),
             "url": it.get("url", ""),
             "content": (it.get("content") or "")[:500],
         }
-        for it in (data.get("results") or [])[:limit]
+        for it in (data.get("results") or [])
     ]
-    # SearXNG instant-answers + infoboxes often carry the direct answer
-    # (weather, currency, units) -- surface them so the model cites the
-    # fetched value rather than guessing.
     answers = list(data.get("answers") or [])
     infoboxes = [
         {"title": ib.get("infobox", ""), "content": (ib.get("content") or "")[:500]}
         for ib in (data.get("infoboxes") or [])[:2]
     ]
+    return {"query": query, "results": results,
+            "answers": answers, "infoboxes": infoboxes}
+
+
+def expand_queries(query: str, k: int, timeout: float) -> list:
+    """Micro-LLM query expansion -> up to k diverse sub-queries (the ORIGINAL
+    is always first). Intent diversity / synonyms / entity reformulation. Any
+    error or timeout falls back to just [query] so a cold or busy micro never
+    blocks the search."""
+    if k <= 1:
+        return [query]
+    sys_p = (
+        "You expand a user's question into diverse WEB SEARCH queries for "
+        "parallel retrieval. Vary intent, synonyms, and named entities; each "
+        "is a SHORT keyword query, not a question. Output JSON only: "
+        '{"queries":["...","..."]}.'
+    )
+    payload = {
+        "model": _MICRO_MODEL,
+        "messages": [
+            {"role": "system", "content": sys_p},
+            {"role": "user",
+             "content": f"Make {k - 1} alternative search queries for: {query}"},
+        ],
+        "think": False,
+        "stream": False,
+        "format": "json",
+        # Keep the tiny expansion model resident (it's the always-warm micro;
+        # a COLD load is ~30s and would blow the short expand timeout, silently
+        # degrading fan-out to a single query). -1 = pin; matches the micro's
+        # keep_alive=-1 design so back-to-back web searches expand sub-second.
+        "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+        "options": {"num_predict": 200},
+    }
+    extra: list = []
+    try:
+        req = urllib.request.Request(
+            f"{_MICRO_BASE}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            msg = (json.loads(r.read().decode("utf-8", "replace")).get("message")
+                   or {})
+        obj = json.loads(msg.get("content") or "{}")
+        extra = [str(q).strip() for q in (obj.get("queries") or []) if str(q).strip()]
+    except Exception:
+        extra = []
+    out = [query]
+    for q in extra:
+        if q.lower() != query.lower() and q not in out:
+            out.append(q)
+        if len(out) >= k:
+            break
+    return out
+
+
+def multi_search(query: str, limit: int, k: int, timeout: float,
+                 max_workers: int) -> dict:
+    """Expand -> query SearXNG CONCURRENTLY -> Reciprocal Rank Fusion merge."""
+    queries = expand_queries(query, k, min(timeout, 6.0))
+    per: list = []
+    workers = max(1, min(max_workers, len(queries)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = [ex.submit(search, q, limit, timeout) for q in queries]
+        for f in concurrent.futures.as_completed(futs):
+            try:
+                per.append(f.result())
+            except Exception:
+                pass
+    # RRF: each result earns 1/(RRF_K + rank) per query list it appears in;
+    # appearing high across MULTIPLE phrasings wins. Dedupe by URL.
+    fused: dict = {}
+    answers: list = []
+    infoboxes: list = []
+    for res in per:
+        for rank, it in enumerate(res.get("results") or [], start=1):
+            url = it.get("url") or ""
+            if not url:
+                continue
+            e = fused.setdefault(url, {"item": it, "score": 0.0})
+            e["score"] += 1.0 / (_RRF_K + rank)
+        answers.extend(res.get("answers") or [])
+        infoboxes.extend(res.get("infoboxes") or [])
+    ranked = sorted(fused.values(), key=lambda e: e["score"], reverse=True)
+    results = [e["item"] for e in ranked[:limit]]
+    seen = set()
+    ans = []
+    for a in answers:
+        key = json.dumps(a, sort_keys=True) if isinstance(a, (dict, list)) else str(a)
+        if key not in seen:
+            seen.add(key)
+            ans.append(a)
     return {
-        "success": bool(results or answers or infoboxes),
+        "success": bool(results or ans or infoboxes),
         "query": query,
+        "queries": queries,
         "count": len(results),
-        "answers": answers,
-        "infoboxes": infoboxes,
+        "answers": ans,
+        "infoboxes": infoboxes[:2],
         "results": results,
     }
 
@@ -73,6 +184,11 @@ def main() -> int:
     p = argparse.ArgumentParser(prog="mios-web-search")
     p.add_argument("query", nargs="+", help="search query")
     p.add_argument("-n", "--limit", type=int, default=5)
+    p.add_argument("--fanout", type=int,
+                   default=int(os.environ.get("MIOS_WEB_FANOUT", "1")),
+                   help="expand into N concurrent sub-queries (1 = single)")
+    p.add_argument("--max-workers", type=int,
+                   default=int(os.environ.get("MIOS_WEB_FANOUT_WORKERS", "4")))
     p.add_argument("--json", action="store_true", default=True)
     p.add_argument("--timeout", type=float, default=12.0)
     a = p.parse_args()
@@ -82,7 +198,19 @@ def main() -> int:
         print(json.dumps({"success": False, "error": "empty query", "results": []}))
         return 64
     try:
-        out = search(q, max(1, a.limit), a.timeout)
+        if a.fanout and a.fanout > 1:
+            out = multi_search(q, max(1, a.limit), a.fanout, a.timeout, a.max_workers)
+        else:
+            s = search(q, max(1, a.limit), a.timeout)
+            results = s["results"][:max(1, a.limit)]
+            out = {
+                "success": bool(results or s["answers"] or s["infoboxes"]),
+                "query": q,
+                "count": len(results),
+                "answers": s["answers"],
+                "infoboxes": s["infoboxes"],
+                "results": results,
+            }
     except Exception as e:
         # Offline / SearXNG down: be HONEST -- never fabricate. The caller
         # surfaces this so the model says it couldn't reach the web instead

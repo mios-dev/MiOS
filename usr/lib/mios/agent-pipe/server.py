@@ -48,10 +48,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import collections
+import contextvars
 import glob
 import json
 import logging
 import os
+import random
 import re
 import shlex
 import socket as _socket
@@ -89,6 +92,19 @@ _MICRO_ENDPOINT = os.environ.get(
 # don't double it.
 _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
                if _MICRO_ENDPOINT.endswith("/v1") else _MICRO_ENDPOINT)
+
+# Web-search cross-agent concurrency bound (operator 2026-05-22: "SearXNG
+# setup to handle the load -- buffer/queue or delayed starts for multi-agent
+# dispatches"). When a council/DAG fans out, several agents can call
+# web_search at once, and each expands into MIOS_WEB_FANOUT concurrent
+# sub-queries -- a thundering herd at the local SearXNG. A global semaphore
+# (bulkhead) caps how many web_search dispatches run concurrently; excess
+# ones QUEUE on it (the "buffer"). A tiny pre-acquire jitter desynchronises
+# simultaneous starts (the "delayed starts"). Total concurrent SearXNG
+# queries stay ~= MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT.
+WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "4"))
+WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
+_web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
 
 # Router (layer-1 micro-LLM classifier) config.
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
@@ -1395,6 +1411,114 @@ def _is_trivial_bypass(s: str) -> bool:
     return True
 
 
+def _temporal_grounding() -> str:
+    """One system-message line giving the agents the current date/time.
+
+    The micros have no clock. Without this, relative dates ("tomorrow",
+    "this weekend") were resolved by guessing off whatever dates appeared
+    in retrieved text -- operator-flagged: "what's tomorrow at Anime North"
+    came back as TODAY's date and three other dates across one answer.
+    This grounds the orchestrator's OWN system prompts (refine / polish /
+    dispatch); it is NOT a pre_llm_call env-inject into the user message.
+    Uses process-local time so "tomorrow" matches the operator's day.
+    """
+    now = time.localtime()
+    tomorrow = time.localtime(time.time() + 86400)
+    return (
+        "Temporal grounding (resolve every relative date/time against THIS, "
+        "never against dates found in retrieved text or training data):\n"
+        f"  - Today is {time.strftime('%A, %Y-%m-%d', now)}.\n"
+        f"  - Tomorrow is {time.strftime('%A, %Y-%m-%d', tomorrow)}.\n"
+        f"  - Current local time: {time.strftime('%H:%M %Z', now)}."
+    )
+
+
+# ─── Per-chat agent scratchpad (rolling cross-agent blackboard) ────────
+# operator 2026-05-22: "rolling scratchpad per chat ... an inline log on
+# every agent's scratchpad for them ALL to see and use or refer to during
+# the chain for checkpoints from other agents." One rolling, capped log PER
+# CONVERSATION, keyed by the OpenAI-standard metadata.chat_id the OWUI pipe
+# forwards. The orchestrator injects the recent tail into EVERY dispatched
+# agent's system context (so each sees the others' checkpoints) and appends
+# each agent's contribution back as a checkpoint. In-process + async-safe
+# via a contextvar (concurrent council/DAG tasks inherit the key); no new
+# deps, fully offline.
+SCRATCHPAD_ENABLE = os.environ.get(
+    "MIOS_SCRATCHPAD_ENABLE", "true").lower() not in {"false", "0", "no"}
+SCRATCHPAD_MAX = int(os.environ.get("MIOS_SCRATCHPAD_MAX", "60"))
+SCRATCHPAD_INJECT = int(os.environ.get("MIOS_SCRATCHPAD_INJECT", "12"))
+SCRATCHPAD_TTL_S = int(os.environ.get("MIOS_SCRATCHPAD_TTL_S", "3600"))
+SCRATCHPAD_SUMMARY_CHARS = int(
+    os.environ.get("MIOS_SCRATCHPAD_SUMMARY_CHARS", "280"))
+SCRATCHPAD_MAX_CHATS = int(os.environ.get("MIOS_SCRATCHPAD_MAX_CHATS", "256"))
+# conv_key -> rolling deque of checkpoint dicts. OrderedDict so the least-
+# recently-used conversation evicts when MAX_CHATS is exceeded.
+_SCRATCHPADS: "collections.OrderedDict" = collections.OrderedDict()
+# Set once per request from the conversation id; read by note/render anywhere
+# in the dispatch chain (child asyncio tasks inherit the context at creation).
+_conv_key_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_conv_key", default="default")
+
+
+def _scratchpad_key(body: dict, fallback: str = "default") -> str:
+    """Per-chat scratchpad key: the OpenAI-standard metadata.chat_id the OWUI
+    pipe forwards, with graceful fallbacks so non-OWUI callers (Discord, raw
+    API) still get a stable-per-request blackboard rather than colliding."""
+    meta = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+    return str(meta.get("chat_id") or meta.get("session_id")
+               or body.get("chat_id") or fallback)
+
+
+def _scratchpad_for(key: str) -> "collections.deque":
+    dq = _SCRATCHPADS.get(key)
+    if dq is None:
+        dq = collections.deque(maxlen=max(1, SCRATCHPAD_MAX))
+        _SCRATCHPADS[key] = dq
+        while len(_SCRATCHPADS) > max(1, SCRATCHPAD_MAX_CHATS):
+            _SCRATCHPADS.popitem(last=False)
+    else:
+        _SCRATCHPADS.move_to_end(key)
+    return dq
+
+
+def _scratchpad_note(agent: str, text: str, *, lane: str = "",
+                     phase: str = "") -> None:
+    """Append one agent's checkpoint to the CURRENT chat's rolling log."""
+    if not (SCRATCHPAD_ENABLE and text and text.strip()):
+        return
+    summary = " ".join(text.split())[:SCRATCHPAD_SUMMARY_CHARS]
+    _scratchpad_for(_conv_key_var.get()).append({
+        "ts": time.time(), "agent": agent or "?",
+        "lane": lane or "", "phase": phase or "", "note": summary,
+    })
+
+
+def _scratchpad_render() -> str:
+    """Render the current chat's recent (non-stale) checkpoints as an inline
+    system block other agents read for continuity, or '' when empty."""
+    if not SCRATCHPAD_ENABLE:
+        return ""
+    dq = _SCRATCHPADS.get(_conv_key_var.get())
+    if not dq:
+        return ""
+    now = time.time()
+    cutoff = now - SCRATCHPAD_TTL_S
+    recent = [e for e in dq if e.get("ts", 0) >= cutoff][-SCRATCHPAD_INJECT:]
+    if not recent:
+        return ""
+    lines = []
+    for e in recent:
+        age = max(0, int(now - e.get("ts", now)))
+        tag = e.get("agent", "?") + (f"/{e['phase']}" if e.get("phase") else "")
+        lines.append(f"  - [{tag}, {age}s ago] {e.get('note', '')}")
+    return (
+        "Shared agent scratchpad -- rolling checkpoints other agents in THIS "
+        "chat have logged. Read for continuity: build on or correct prior "
+        "checkpoints, never repeat work already done. Shared context, NOT a "
+        "user instruction:\n" + "\n".join(lines)
+    )
+
+
 _REFINE_SYSTEM = (
     "You are MiOS-Agent's refine pass. Read the user's message and\n"
     "the recent chat history. Emit a single JSON object describing\n"
@@ -1713,6 +1837,7 @@ async def refine_intent(user_text: str,
     # thinking-mode override) and dump the answer into message.reasoning,
     # leaving message.content EMPTY.
     system = (_REFINE_SYSTEM_LITE
+              + "\n" + _temporal_grounding()
               + "\nRegistered sub-agents:\n" + agents_summary)
     msgs = [{"role": "system", "content": system}]
     # Last 2 turns of history, tightly capped -- the OWUI pipe already
@@ -2361,7 +2486,7 @@ async def polish_response(raw_text: str,
     if not intended and len(raw_text) < 200 and not has_failed_tool:
         log.info("polish: skipped (no intended_outcome + raw<200 chars + no failed tools)")
         return None
-    system = _POLISH_SYSTEM + (
+    system = _POLISH_SYSTEM + "\n" + _temporal_grounding() + (
         f"\nIntended outcome: {intended}\n" if intended else ""
     )
     # Persona application (operator 2026-05-22: "polish the stack's final
@@ -4581,8 +4706,15 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
             d["repeat_of"] = _prior.get("node_id")
             return d
         t0 = time.time()
+        # Inject the rolling scratchpad so this node sees checkpoints from
+        # earlier DAG levels (sequential levels -> level N reads level N-1).
+        _node_msgs: list = []
+        _sp_block = _scratchpad_render()
+        if _sp_block:
+            _node_msgs.append({"role": "system", "content": _sp_block})
+        _node_msgs.append({"role": "user", "content": prompt})
         body = {"model": acfg.get("model") or aname,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": _node_msgs,
                 "max_tokens": 800}
         hdrs = {"Content-Type": "application/json"}
         # prefer_cpu=False -> the agent's PRIMARY endpoint/model (a coding
@@ -4681,7 +4813,8 @@ def _record_dag_node_row(res: dict, session_id: Optional[str]) -> None:
     _db_fire(_db_post(sql))
 
 
-async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
+async def execute_dag(dag: dict, *, session_id: Optional[str],
+                      event_q: "Optional[asyncio.Queue]" = None) -> dict:
     """Execute the DAG in concurrent topological LEVELS: every node whose
     deps are satisfied runs in PARALLEL (asyncio.gather), so independent
     sub-tasks -- including agent-delegation nodes routed to DIFFERENT sub-
@@ -4699,6 +4832,13 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
     all_ok = True
     client = await _get_client()
     for level in levels:
+        # Endpoint emitters: announce each node in this level as it ENGAGES
+        # (a level's nodes run concurrently). The streaming wrapper turns
+        # these queue items into live per-node SSE statuses (operator
+        # 2026-05-22). No queue (non-streaming) -> no-op.
+        if event_q is not None:
+            for n in level:
+                event_q.put_nowait(("engage", n, None))
         level_res = await asyncio.gather(*[
             _execute_dag_node(n, results_by_id, seen_actions, summary,
                               session_id, client)
@@ -4714,6 +4854,13 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
                        "args": {}, "output": f"node {nid} raised: {res}"}
             results.append(res)
             _record_dag_node_row(res, session_id)
+            # Post this node's outcome as a checkpoint so the NEXT level's
+            # nodes (and other agents in the chain) read it from the scratchpad.
+            _scratchpad_note(
+                res.get("tool") or f"agent:{node.get('agent') or '?'}",
+                str(res.get("output") or ""), phase="dag")
+            if event_q is not None:
+                event_q.put_nowait(("done", node, res))
             if res.get("success"):
                 results_by_id[nid] = res
                 if res.get("_act"):
@@ -4723,6 +4870,8 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         # Fail-fast: don't launch a level that depends on a failed one.
         if not all_ok:
             break
+    if event_q is not None:
+        event_q.put_nowait(None)  # sentinel: DAG complete, drainer can stop
     return {
         "success": all_ok,
         "summary": summary,
@@ -4730,6 +4879,48 @@ async def execute_dag(dag: dict, *, session_id: Optional[str]) -> dict:
         "nodes_executed": len(results),
         "node_results": results,
     }
+
+
+async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
+                                chat_id: str, model: str):
+    """Run execute_dag while LIVE-yielding per-node endpoint emitter bytes
+    (operator 2026-05-22: "endpoint emitters for each ai endpoint/node").
+    Yields ("event", sse_bytes) as each DAG node ENGAGES + finishes, then a
+    final ("result", dag_result). Agent nodes carry their registry endpoint /
+    lane / model; verb nodes show 'verb · <tool>'. The 0.25s poll lets the
+    drainer notice the DAG finishing even if the sentinel is lost to an
+    unexpected raise -- then `await task` re-raises it (parity with a plain
+    `await execute_dag`)."""
+    q: "asyncio.Queue" = asyncio.Queue()
+    task = asyncio.create_task(
+        execute_dag(dag, session_id=session_id, event_q=q))
+    while True:
+        try:
+            item = await asyncio.wait_for(q.get(), timeout=0.25)
+        except asyncio.TimeoutError:
+            if task.done():
+                break
+            continue
+        if item is None:  # sentinel
+            break
+        kind, node, res = item
+        aname = node.get("agent")
+        if aname:
+            name = str(aname)
+            cfg = _AGENT_REGISTRY.get(aname) or {}
+        else:
+            name = str(node.get("tool") or "node")
+            cfg = {"lane": "verb", "model": str(node.get("tool") or "")}
+        if kind == "engage":
+            yield ("event", _node_status(chat_id=chat_id, model=model,
+                                         name=name, cfg=cfg, state="engage"))
+        else:
+            ok = bool(isinstance(res, dict) and res.get("success"))
+            yield ("event", _node_status(chat_id=chat_id, model=model,
+                                         name=name, cfg=cfg,
+                                         state="ok" if ok else "down"))
+    dag_result = await task
+    yield ("result", dag_result)
 
 
 def _agent_dag_from_tasks(tasks: list) -> dict:
@@ -4850,35 +5041,51 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     outputs into ONE polished answer (multi_task -> parallel sub-agents).
     The per-node audit envelope rides the reasoning channel; the polished
     synthesis is the operator-facing answer -- same answer/dropdown split
-    as the agent + council paths."""
-    dag_result = await execute_dag(dag, session_id=session_id)
-    merged = "\n\n".join(
-        f"[{n.get('tool', 'agent')}]:\n{(n.get('output') or '').strip()}"
-        for n in dag_result.get("node_results", [])
-        if (n.get("output") or "").strip())
-    env = {"dag": {"summary": dag.get("summary", ""),
-                   "nodes_total": dag_result.get("nodes_total", 0),
-                   "nodes_executed": dag_result.get("nodes_executed", 0),
-                   "success": dag_result.get("success", False)},
-           "nodes": dag_result.get("node_results", [])}
-    symbol = "✅" if dag_result.get("success") else "⚠️"
-    envelope = (f"<details type=\"tool_calls\" done=\"true\">\n"
-                f"<summary>{symbol} agents · {env['dag']['nodes_total']} "
-                f"parallel</summary>\n\n"
-                f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
-                f"</details>")
-    polished = ""
-    if merged.strip():
-        polished_raw = await polish_response(
-            merged, refined, session_id=session_id,
-            original_user_text=last_user_text, persona_system=persona_system)
-        polished = _strip_think_tags(polished_raw) if polished_raw else ""
-    main = polished.strip() or _strip_think_tags(merged)
+    as the agent + council paths. Streaming emits LIVE per-node endpoint
+    statuses (operator 2026-05-22) as the DAG runs, before the synthesis."""
+
+    async def _synthesise(dag_result: dict) -> tuple:
+        """Post-DAG: build the audit envelope + the polished synthesis."""
+        merged = "\n\n".join(
+            f"[{n.get('tool', 'agent')}]:\n{(n.get('output') or '').strip()}"
+            for n in dag_result.get("node_results", [])
+            if (n.get("output") or "").strip())
+        env = {"dag": {"summary": dag.get("summary", ""),
+                       "nodes_total": dag_result.get("nodes_total", 0),
+                       "nodes_executed": dag_result.get("nodes_executed", 0),
+                       "success": dag_result.get("success", False)},
+               "nodes": dag_result.get("node_results", [])}
+        symbol = "✅" if dag_result.get("success") else "⚠️"
+        envelope = (f"<details type=\"tool_calls\" done=\"true\">\n"
+                    f"<summary>{symbol} agents · {env['dag']['nodes_total']} "
+                    f"parallel</summary>\n\n"
+                    f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
+                    f"</details>")
+        polished = ""
+        if merged.strip():
+            polished_raw = await polish_response(
+                merged, refined, session_id=session_id,
+                original_user_text=last_user_text,
+                persona_system=persona_system)
+            polished = _strip_think_tags(polished_raw) if polished_raw else ""
+        main = polished.strip() or _strip_think_tags(merged)
+        return envelope, main
+
     if streaming:
         async def _gen() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="prompt")
             yield _sse_status_phase(chat_id=chat_id, model=model, phase="plan")
+            # LIVE per-node endpoint emitters as the synthesis DAG executes
+            # (same 🛰️/✅/💤 vocabulary as the council + primary paths).
+            dag_result: dict = {}
+            async for _k, _p in _execute_dag_emitting(
+                    dag, session_id=session_id, chat_id=chat_id, model=model):
+                if _k == "event":
+                    yield _p
+                else:
+                    dag_result = _p
+            envelope, main = await _synthesise(dag_result)
             yield _sse_reasoning(envelope + "\n", chat_id=chat_id, model=model)
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
             yield _sse_chunk(main, chat_id=chat_id, model=model)
@@ -4890,6 +5097,9 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                              finish_reason="stop")
             yield _sse_done()
         return StreamingResponse(_gen(), media_type="text/event-stream")
+
+    dag_result = await execute_dag(dag, session_id=session_id)
+    _envelope, main = await _synthesise(dag_result)
     return JSONResponse(content={
         "id": chat_id, "object": "chat.completion",
         "created": int(time.time()), "model": model,
@@ -5193,7 +5403,11 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # never fabricates. Command literal lives in mios-web-search.
         q = shlex.quote(str(args.get("query", "")))
         n = int(args.get("limit", 5))
-        return f"mios-web-search -n {n} {q}"
+        # Query fan-out: expand into K concurrent sub-queries + RRF merge
+        # (operator 2026-05-22). K from mios.toml -> MIOS_WEB_FANOUT (default
+        # 3); the helper does the expansion + concurrency + merge.
+        fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "3")))
+        return f"mios-web-search -n {n} --fanout {fan} {q}"
     if tool == "discord_send":
         # ACTUALLY post to Discord via the local mios-discord-send helper
         # (bot token + default channel from /etc/mios/hermes/discord.env).
@@ -5399,6 +5613,26 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
 
 
 async def dispatch_mios_verb(
+    tool: str, args: dict, *,
+    session_id: Optional[str] = None,
+) -> dict:
+    """Bounded entry point. web_search dispatches share a global concurrency
+    semaphore (bulkhead) so a council/DAG fan-out -- each call itself
+    expanding into MIOS_WEB_FANOUT concurrent sub-queries -- can't stampede
+    the local SearXNG; excess calls QUEUE here, with a small pre-acquire
+    jitter to stagger simultaneous starts. All other verbs pass straight
+    through with no added latency."""
+    _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
+    if _t == "web_search":
+        if WEB_DISPATCH_JITTER_S > 0:
+            await asyncio.sleep(random.uniform(0, WEB_DISPATCH_JITTER_S))
+        async with _web_sem:
+            return await _dispatch_mios_verb_inner(
+                tool, args, session_id=session_id)
+    return await _dispatch_mios_verb_inner(tool, args, session_id=session_id)
+
+
+async def _dispatch_mios_verb_inner(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
@@ -5683,6 +5917,24 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
         "", chat_id=chat_id, model=model,
         mios_status=payload,
     )
+
+
+def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
+                 state: str) -> bytes:
+    """Per-endpoint live emitter (operator 2026-05-22: "endpoint emitters for
+    each ai endpoint/node"). One status event naming an AI node + its lane +
+    model + endpoint host as the chain ENGAGES it and as it RESPONDS / goes
+    silent -- so the operator confirms live which nodes/models/endpoints
+    actually took part this turn. emit via `yield` in the SSE generator."""
+    emoji = {"engage": "🛰️", "ok": "✅", "down": "💤"}.get(state, "🛰️")
+    cfg = cfg or {}
+    lane = str(cfg.get("lane") or cfg.get("role") or "")
+    mdl = str(cfg.get("model") or cfg.get("cpu_model") or "")
+    ep = str(cfg.get("endpoint") or cfg.get("cpu_endpoint") or "")
+    host = ep.split("://")[-1].split("/")[0] if "://" in ep else ep
+    detail = " · ".join(b for b in (lane, mdl, host) if b)
+    return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
+                       label=str(name), detail=detail)
 
 
 def _sse_done() -> bytes:
@@ -7411,6 +7663,10 @@ async def chat_completions(request: Request) -> Any:
     last_user_text = _extract_last_user_text(messages)
     model = body.get("model") or BACKEND_MODEL
     chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    # Per-chat scratchpad key from the forwarded OpenAI metadata.chat_id
+    # (stable across this conversation's turns); falls back to a per-request
+    # id for non-OWUI callers. Read by _scratchpad_note/_render downstream.
+    _conv_key_var.set(_scratchpad_key(body, chat_id))
     # SWARM toggles (operator 2026-05-22): per-request force flags set by the
     # OWUI chat-bar toggle-filters, injected into body.mios_flags and
     # forwarded here verbatim by the pipe. They OVERRIDE the mios.toml SSOT
@@ -7879,8 +8135,14 @@ async def chat_completions(request: Request) -> Any:
                         # the collapsible envelope is the audit trail.
                         yield _sse_status_phase(chat_id=chat_id, model=model,
                                                 phase="tool")
-                        dag_result = await execute_dag(
-                            dag, session_id=session_id)
+                        dag_result = {}
+                        async for _k, _p in _execute_dag_emitting(
+                                dag, session_id=session_id,
+                                chat_id=chat_id, model=model):
+                            if _k == "event":
+                                yield _p
+                            else:
+                                dag_result = _p
                         all_ok = dag_result.get("success", False)
                         env = {
                             "dag": {
@@ -7966,8 +8228,14 @@ async def chat_completions(request: Request) -> Any:
                     # action=agent streaming path -- no per-node loop here.
                     yield _sse_status_phase(chat_id=chat_id, model=model,
                                             phase="tool")
-                    dag_result = await execute_dag(
-                        dag, session_id=session_id)
+                    dag_result = {}
+                    async for _k, _p in _execute_dag_emitting(
+                            dag, session_id=session_id,
+                            chat_id=chat_id, model=model):
+                        if _k == "event":
+                            yield _p
+                        else:
+                            dag_result = _p
                     all_ok = dag_result.get("success", False)
                     env = {
                         "dag": {
@@ -8072,7 +8340,10 @@ async def chat_completions(request: Request) -> Any:
     # for every agent/sub-agent turn) + the refined plan hints as system
     # messages before the sub-agent runs (operator 2026-05-20: "RAG in
     # the loop for all agents/sub-agents every turn").
-    _sys_prefix: list = []
+    _sys_prefix: list = [{"role": "system", "content": _temporal_grounding()}]
+    _sp_block = _scratchpad_render()
+    if _sp_block:
+        _sys_prefix.append({"role": "system", "content": _sp_block})
     _rag_ctx = await _rag_enrich(last_user_text)
     if _rag_ctx:
         _sys_prefix.append({"role": "system", "content": _rag_ctx})
@@ -8137,6 +8408,11 @@ async def chat_completions(request: Request) -> Any:
                                     phase="route")
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
+            # Endpoint emitter: announce the PRIMARY node + its endpoint.
+            yield _node_status(
+                chat_id=chat_id, model=model, name=target_name,
+                cfg={**(_AGENT_REGISTRY.get(target_name) or {}),
+                     "endpoint": target_endpoint}, state="engage")
             client = await _get_client()
             stream_body = dict(proxy_body)
             stream_body["stream"] = True
@@ -8185,15 +8461,16 @@ async def chat_completions(request: Request) -> Any:
             # non-streaming + best-effort; their answers fold into polish +
             # the reasoning dropdown once the primary finishes. Dead endpoints
             # drop out harmlessly (return_exceptions on the gather below).
-            _sec_tasks = [
-                asyncio.create_task(
-                    _call_agent_complete(_n, _c, proxy_body, headers, client))
-                for _n, _c in _fanout
-            ]
-            if _sec_tasks:
-                yield _sse_status(chat_id=chat_id, model=model, emoji="🤝",
-                                  label="",
-                                  detail="+".join(n for n, _ in _fanout))
+            # Endpoint emitters: announce EACH secondary node as it's engaged,
+            # and remember its cfg so the collection loop can mark it
+            # responded/silent (operator 2026-05-22).
+            _fanout_cfg = {_n: _c for _n, _c in _fanout}
+            _sec_tasks = []
+            for _n, _c in _fanout:
+                yield _node_status(chat_id=chat_id, model=model, name=_n,
+                                   cfg=_c, state="engage")
+                _sec_tasks.append(asyncio.create_task(
+                    _call_agent_complete(_n, _c, proxy_body, headers, client)))
 
             try:
                 async with client.stream(
@@ -8317,9 +8594,16 @@ async def chat_completions(request: Request) -> Any:
                         _sn, _stext = _t.result()
                     except Exception:
                         continue
+                    _scfg = _fanout_cfg.get(_sn, {})
                     if _stext and _stext.strip():
+                        yield _node_status(chat_id=chat_id, model=model,
+                                           name=_sn, cfg=_scfg, state="ok")
                         yield _flush_reasoning(f"\n🤝 {_sn}:\n{_stext}\n")
                         _merge.append(f"[{_sn} agent]:\n{_stext.strip()}")
+                        _scratchpad_note(_sn, _stext, phase="council")
+                    else:
+                        yield _node_status(chat_id=chat_id, model=model,
+                                           name=_sn, cfg=_scfg, state="down")
                 if _merge:
                     raw_for_polish = (raw + "\n\n" + "\n\n".join(_merge)).strip()
             # (Satisfaction verdict already written by the confirmation
@@ -8446,6 +8730,7 @@ async def chat_completions(request: Request) -> Any:
                 if (isinstance(_res, tuple) and _res[1]
                         and str(_res[1]).strip()):
                     _merge.append(f"[{_res[0]} agent]:\n{str(_res[1]).strip()}")
+                    _scratchpad_note(_res[0], str(_res[1]), phase="council")
         # Polish the assistant content when refine produced an
         # intended_outcome. Skip on streaming, on empty responses,
         # and on backend errors. The raw sub-agent output is
