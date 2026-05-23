@@ -4984,6 +4984,8 @@ _SWARM_SYSTEM = (
     "\n"
     "Rules:\n"
     "- Use EXACT agent names from the roster; the executor rejects unknown ones.\n"
+    "- Spread the work: prefer a DIFFERENT agent for each sub-task. Reuse an "
+    "agent only when no other agent's strengths fit that sub-task.\n"
     "- 2 to 4 sub-tasks. Each must be SELF-CONTAINED -- the assigned agent sees "
     "ONLY its own task string, not the others.\n"
     "- Independent only: do NOT emit sub-tasks that depend on each other's output "
@@ -5118,7 +5120,8 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             envelope, main = await _synthesise(dag_result)
             yield _sse_reasoning(envelope + "\n", chat_id=chat_id, model=model)
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
-            yield _sse_chunk(main, chat_id=chat_id, model=model)
+            async for _ab in _stream_answer(main, chat_id=chat_id, model=model):
+                yield _ab
             yield _sse_status_phase(
                 chat_id=chat_id, model=model,
                 phase="dag_done" if dag_result.get("success")
@@ -5964,6 +5967,23 @@ def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
     # engages/responds -- live per-node progress without the internals.
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
                        label=str(name))
+
+
+async def _stream_answer(text: str, *, chat_id: str, model: str):
+    """Yield the final answer in small character-exact chunks so OWUI renders
+    it progressively (live 'typing') instead of one end-of-turn burst -- the
+    "thinking prints then switches to the refined copy" jolt (operator
+    2026-05-22). Pacing is bounded so long answers stream in ~1.2s, not slower.
+    Char-slicing preserves the text byte-for-byte (markdown/code intact)."""
+    if not text:
+        return
+    size = int(os.environ.get("MIOS_ANSWER_CHUNK_CHARS", "48"))
+    chunks = [text[i:i + size] for i in range(0, len(text), max(1, size))]
+    delay = min(0.03, 1.2 / max(1, len(chunks)))
+    for ch in chunks:
+        yield _sse_chunk(ch, chat_id=chat_id, model=model)
+        if delay:
+            await asyncio.sleep(delay)
 
 
 def _sse_done() -> bytes:
@@ -8735,7 +8755,9 @@ async def chat_completions(request: Request) -> Any:
                 wrapped = "⚠️"
             yield _sse_chunk("", chat_id=chat_id, model=model,
                              role="assistant")
-            yield _sse_chunk(wrapped, chat_id=chat_id, model=model)
+            async for _ab in _stream_answer(wrapped, chat_id=chat_id,
+                                            model=model):
+                yield _ab
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="subagent_done", done=True)
             yield _sse_chunk("", chat_id=chat_id, model=model,
