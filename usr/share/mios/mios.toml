@@ -1002,6 +1002,7 @@ sig        = "title, position, monitor=0?"
 desc       = "SEMANTIC move: center / left / right / top-left etc. Use position_window for literal (x,y)."
 tier       = "common"
 permission = "write"
+cmd        = "mios-window {position=center} {title}"
   [verbs.move_window.params.title]
   type = "string"
   aliases = ["name", "window"]
@@ -1018,6 +1019,7 @@ sig        = "title, x, y"
 desc       = "Move window to LITERAL pixel (x,y). Use after screen_layout when exact coords are known."
 tier       = "common"
 permission = "write"
+cmd        = "mios-window move {title} {x=0} {y=0}"
   [verbs.position_window.params.title]
   type = "string"
   aliases = ["name", "window"]
@@ -1048,6 +1050,7 @@ sig        = "title"
 desc       = "Hide to taskbar."
 tier       = "common"
 permission = "write"
+cmd        = "mios-window minimize {title}"
   [verbs.minimize_window.params.title]
   type = "string"
   aliases = ["name", "window"]
@@ -1058,6 +1061,7 @@ sig        = "title"
 desc       = "Maximize to full screen of containing monitor."
 tier       = "common"
 permission = "write"
+cmd        = "mios-window maximize {title}"
   [verbs.maximize_window.params.title]
   type = "string"
   aliases = ["name", "window"]
@@ -1068,6 +1072,7 @@ sig        = "title"
 desc       = "Undo minimize/maximize: return to last normal-state geometry."
 tier       = "common"
 permission = "write"
+cmd        = "mios-window restore {title}"
   [verbs.restore_window.params.title]
   type = "string"
   aliases = ["name", "window"]

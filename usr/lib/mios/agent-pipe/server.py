@@ -5661,10 +5661,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             f"MIOS_LAUNCH_POSITION={shlex.quote(pos)} "
             f"mios-window {shlex.quote(pos)} {title}"
         )
-    if tool == "move_window":
-        title = shlex.quote(str(args.get("title", "")))
-        pos = shlex.quote(str(args.get("position", "center")))
-        return f"mios-window {pos} {title}"
     if tool == "close_window":
         title = shlex.quote(str(args.get("title", "")))
         mode = "kill" if str(args.get("mode", "graceful")) == "force" else "close"
@@ -5675,15 +5671,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # a substring match. Title patterns are quoted via shlex so
     # spaces / special chars in window titles ("Task Manager",
     # "VS Code - foo.py") survive the broker round-trip.
-    if tool == "minimize_window":
-        title = shlex.quote(str(args.get("title", "")))
-        return f"mios-window minimize {title}"
-    if tool == "maximize_window":
-        title = shlex.quote(str(args.get("title", "")))
-        return f"mios-window maximize {title}"
-    if tool == "restore_window":
-        title = shlex.quote(str(args.get("title", "")))
-        return f"mios-window restore {title}"
     if tool == "resize_window":
         title = shlex.quote(str(args.get("title", "")))
         w = int(args.get("width", 0))
@@ -5691,16 +5678,10 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if w <= 0 or h <= 0:
             return None
         return f"mios-window resize {title} {w} {h}"
-    if tool == "position_window":
-        # Distinct from move_window: this takes LITERAL pixel coords
-        # (x, y) instead of a semantic position name ("center" /
-        # "top-right" / ...). Use when the agent has already done
-        # screen_layout reasoning and knows where the window should
-        # land precisely.
-        title = shlex.quote(str(args.get("title", "")))
-        x = int(args.get("x", 0))
-        y = int(args.get("y", 0))
-        return f"mios-window move {title} {x} {y}"
+    # move_window / position_window / minimize_window / maximize_window /
+    # restore_window migrated to SSOT [verbs.*].cmd templates (P3); they
+    # dispatch via the catalog-template check at the top of this function.
+    # close_window (mode enum) + resize_window (w/h>0 guard) stay as code.
     # ── app_search (semantic over mios-apps inventory) ──
     # Returns top-k {category, name, description, launch, score} for
     # ambiguous natural-language asks. Caller (planner or polish) reads
