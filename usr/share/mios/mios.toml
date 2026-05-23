@@ -1597,6 +1597,7 @@ sig        = 'unit?, since="10m"?, lines=50?, level?'
 desc       = "Recent journal entries. Filter by unit (mios-agent-pipe / hermes-agent / mios-open-webui / ...) or level (err / warning / info). Default: 50 lines from last 10 minutes."
 tier       = "core"
 permission = "read"
+cmd        = "mios-sysview logs --since {since=10m} --lines {lines=50}{unit?--unit}{level?--level}"
   [verbs.system_logs.params.unit]
   type = "string"
   desc = "systemd unit name; empty = all"
@@ -1621,6 +1622,7 @@ sig        = "name"
 desc       = "systemctl is-active + status snapshot for a Linux service."
 tier       = "common"
 permission = "read"
+cmd        = "mios-os-recipe service-status service={name}"
   [verbs.service_status.params.name]
   type = "string"
   aliases = ["service", "unit"]
@@ -1631,6 +1633,7 @@ sig        = "name"
 desc       = "Graceful systemd restart. Use mios-restart for MiOS services (preserves state)."
 tier       = "common"
 permission = "write"
+cmd        = "mios-restart {name}"
   [verbs.service_restart.params.name]
   type = "string"
   aliases = ["service", "unit"]
@@ -1641,6 +1644,7 @@ sig        = 'filter?, sort="rss"?, limit=20?'
 desc       = "Process list filtered by name; sorted by rss / cpu / pid."
 tier       = "common"
 permission = "read"
+cmd        = "mios-sysview proc --sort {sort=rss} --limit {limit=20}{filter?--filter}"
   [verbs.process_list.params.filter]
   type = "string"
   aliases = ["name", "query"]
@@ -1664,6 +1668,7 @@ sig        = "name?"
 desc       = "podman/quadlet container status. Empty name = all."
 tier       = "common"
 permission = "read"
+cmd        = "mios-sysview containers{name?--name}"
   [verbs.container_status.params.name]
   type = "string"
   aliases = ["container", "unit"]
@@ -1674,6 +1679,7 @@ sig        = "name"
 desc       = "Restart a podman/quadlet container."
 tier       = "common"
 permission = "write"
+cmd        = "mios-sysview container-restart --name {name}"
   [verbs.container_restart.params.name]
   type = "string"
   aliases = ["container", "unit"]

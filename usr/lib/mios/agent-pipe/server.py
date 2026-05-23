@@ -5868,63 +5868,19 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if type_filter in ("f", "d"):
             cmd += f" -type {type_filter}"
         return cmd
-    if tool == "system_logs":
-        unit = _arg_with_synonyms(tool, "unit", args).strip()
-        since = (_arg_with_synonyms(tool, "since", args).strip() or "10m")
-        try:
-            n = int(args.get("lines") or 50)
-        except (TypeError, ValueError):
-            n = 50
-        level = str(args.get("level") or "").strip().lower()
-        # Delegate to the mios-sysview helper tool -- the journalctl literal +
-        # its conditional flags live THERE, not inline here (operator
-        # 2026-05-21: no command literals in dispatch). The arm only maps
-        # verb args -> helper flags.
-        cmd = f"mios-sysview logs --since {shlex.quote(since)} --lines {n}"
-        if unit:
-            cmd += f" --unit {shlex.quote(unit)}"
-        if level:
-            cmd += f" --level {shlex.quote(level)}"
-        return cmd
-    if tool == "service_status":
-        # Delegate to [recipes.service-status] -- the systemctl command lives
-        # in mios.toml SSOT, not as a literal here (operator 2026-05-21: no
-        # command literals in code). The other 5 system verbs (service_restart
-        # + container_restart = WRITE/permission-gating; system_logs +
-        # process_list + container_status = conditional optional-arg flags)
-        # need the mios-* helper-tool pattern, not static recipes -- see the
-        # audit note. service_status is the one clean static case.
-        name = _arg_with_synonyms(tool, "name", args).strip()
-        return f"mios-os-recipe service-status service={shlex.quote(name)}"
-    if tool == "service_restart":
-        # Delegate to mios-restart (existing smart-restart tool) -- the
-        # systemctl literal lives there, not here.
-        name = _arg_with_synonyms(tool, "name", args).strip()
-        return f"mios-restart {shlex.quote(name)}"
-    if tool == "process_list":
-        # Delegate to the mios-sysview helper -- the ps literal lives there.
-        limit = int(args.get("limit", 20))
-        sort = str(args.get("sort", "rss")).lower()
-        filt = str(args.get("filter", "")).strip()
-        cmd = f"mios-sysview proc --sort {shlex.quote(sort)} --limit {limit}"
-        if filt:
-            cmd += f" --filter {shlex.quote(filt)}"
-        return cmd
-    # NOTE: disk-usage is intentionally NOT a hardcoded arm here -- it is a
-    # [recipes.disk-usage] recipe (command in mios.toml SSOT) reached via
-    # os_recipe(name="disk-usage"). Operator 2026-05-21: no command literals
-    # baked in code; capabilities live as native tools/skills/recipes.
-    if tool == "container_status":
-        # Delegate to the mios-sysview helper -- the podman literal lives there.
-        filt = str(args.get("name", "")).strip()
-        cmd = "mios-sysview containers"
-        if filt:
-            cmd += f" --name {shlex.quote(filt)}"
-        return cmd
-    if tool == "container_restart":
-        # Delegate to the mios-sysview helper -- the podman literal lives there.
-        name = _arg_with_synonyms(tool, "name", args).strip()
-        return f"mios-sysview container-restart --name {shlex.quote(name)}"
+    # System-category verbs (system_logs, process_list, container_status,
+    # container_restart, service_status, service_restart) migrated to SSOT
+    # [verbs.*].cmd templates (P3). They delegate to the mios-sysview /
+    # mios-restart / mios-os-recipe helpers, which already OWN the journalctl /
+    # ps / podman literals AND arg normalisation -- mios-sysview lowercases
+    # level/sort + defaults lines/limit itself -- so the old dispatch-side
+    # .lower()/int-coercion were redundant; the catalog path also resolves the
+    # declared aliases (service/unit/container/from/window/n) the old raw
+    # args.get(...) ignored.
+    # NOTE: disk-usage is intentionally NOT a verb -- it is a [recipes.disk-usage]
+    # recipe (command in mios.toml SSOT) reached via os_recipe(name="disk-usage").
+    # Operator 2026-05-21: no command literals baked in code; capabilities live
+    # as native tools/skills/recipes.
     # ── PC-input verbs (Phase A.1 -- needed for DAG chains like
     # open_app -> focus_window -> pc_type -> pc_key Ctrl+S) ──
     # pc_type migrated to SSOT [verbs.pc_type].cmd ("mios-pc-control type {text}");
