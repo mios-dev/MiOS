@@ -731,7 +731,7 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning"]
 # host; closing it drops the node from the swarm (health_gate). Reached
 # directly over the tailnet from the mios-dev WSL node.
 endpoint    = "http://100.100.116.103:11434/v1"
-model       = "qwen2.5-7b-instruct-4bit"
+model       = "qwen2.5-3b-instruct-4bit"
 role        = "mobile"
 default     = false
 lane        = "mobile"
