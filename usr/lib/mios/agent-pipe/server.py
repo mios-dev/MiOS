@@ -159,8 +159,14 @@ PLANNER_ENDPOINT = os.environ.get(
 # splitting, _plan_swarm returns [] and the normal council path handles it, so
 # this never hurts trivial queries. MIN_WORDS keeps short ACTION verbs ("open
 # steam") off the extra planner call.
+# DEFAULT FALSE (operator 2026-05-23 "swarm from first operations / not just
+# Hermes"): a plain substantive query should hit the ALL-NODES council first
+# (every node weighs in), NOT get pre-split into a thin decompose DAG that
+# collapses to 1-2 agents. Decompose still fires for EXPLICIT multi-goal asks
+# (refine intent=multi_task), the 🧩 delegate toggle (force_delegate), and
+# refine's _multi_step flag -- just not by default on every substantive turn.
 SWARM_DECOMPOSE_DEFAULT = os.environ.get(
-    "MIOS_SWARM_DECOMPOSE_DEFAULT", "true").lower() not in {"false", "0", "no"}
+    "MIOS_SWARM_DECOMPOSE_DEFAULT", "false").lower() not in {"false", "0", "no"}
 SWARM_DECOMPOSE_MIN_WORDS = int(
     os.environ.get("MIOS_SWARM_DECOMPOSE_MIN_WORDS", "6"))
 # Swarm DECOMPOSER model (operator 2026-05-22). A general 4b instruct model
@@ -7993,12 +7999,20 @@ async def chat_completions(request: Request) -> Any:
                  if len(_swarm_tasks) >= 2 else None)
         if not (_mdag and len(_mdag.get("nodes") or []) >= 2):
             _gen = await decompose_intent(last_user_text)
-            # Accept EXECUTABLE verb-DAGs too, not only agent-prose DAGs
-            # (operator 2026-05-23 "swarm should actually work"). A plan like
-            # winget_search -> winget_install has NO agent nodes, but the broker
-            # EXECUTES its verb nodes -- previously this was discarded, so
-            # "install X" fell through to council and got NARRATED, not run.
-            _mdag = _gen if (_gen and (_gen.get("nodes"))) else None
+            _gn = (_gen.get("nodes") or []) if _gen else []
+            _n_agents = sum(1 for n in _gn if n.get("agent"))
+            _has_action = any(
+                str((_VERB_CATALOG.get(str(n.get("tool"))) or {})
+                    .get("permission", "")).lower() == "write"
+                for n in _gn)
+            # Take the planner DAG ONLY when it's a REAL multi-agent split
+            # (>=2 agents) OR an EXECUTABLE action (a WRITE verb like
+            # winget_install). A thin [web_search, hermes] plan is a single task
+            # with a tool, NOT a swarm -- let it fall through to the ALL-NODES
+            # council so the FIRST PASS is the full swarm (operator 2026-05-23:
+            # "just using only Hermes ... not swarm from first operations").
+            # Actions still execute via the broker; research multi-splits run.
+            _mdag = _gen if (_n_agents >= 2 or _has_action) else None
         if _mdag and (_mdag.get("nodes") or []):
             _nd = _mdag["nodes"]
             log.info("swarm -> DAG (%d nodes; %s)", len(_nd),
