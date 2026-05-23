@@ -803,6 +803,12 @@ REFINE_ENDPOINT = os.environ.get(
 REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "12"))
 REFINE_MAX_TOKENS = int(os.environ.get("MIOS_REFINE_MAX_TOKENS", "400"))
 REFINE_BYPASS_CHARS = int(os.environ.get("MIOS_REFINE_BYPASS_CHARS", "24"))
+# Keep the refine model resident between turns. Cold, qwen3.5:4b takes ~10s to
+# load (the silent gap before the first emit); warm it's ~0.4s. It's the same
+# 4b that does polish + the 4b executor lane, so this just delays its unload
+# during a work session rather than pinning a NEW model. "30m" frees it after
+# idle (VRAM-friendly); set -1 to pin, or a shorter value under VRAM pressure.
+REFINE_KEEP_ALIVE = os.environ.get("MIOS_REFINE_KEEP_ALIVE", "30m")
 
 POLISH_ENABLED = os.environ.get(
     "MIOS_POLISH_ENABLE", "true",
@@ -1866,6 +1872,7 @@ async def refine_intent(user_text: str,
         "think": False,
         "format": "json",
         "stream": False,
+        "keep_alive": REFINE_KEEP_ALIVE,
         "options": {"temperature": 0.0,
                     "num_predict": REFINE_MAX_TOKENS},
     }
@@ -8577,6 +8584,10 @@ async def chat_completions(request: Request) -> Any:
             # secondary's work surfaces in the reasoning dropdown and merges
             # into the polish input so the final answer SYNTHESISES all agents.
             raw_for_polish = raw
+            # Roster of contributing agents (primary + ok secondaries) -- used
+            # by the generative synthesis emit + the dropdown summary. Always
+            # defined (even with no secondaries) so polish-time refs are safe.
+            _roster = [(target_name, "ok")]
             if _sec_tasks:
                 while not all(t.done() for t in _sec_tasks):
                     try:
@@ -8589,12 +8600,6 @@ async def chat_completions(request: Request) -> Any:
                     except Exception:
                         break
                 _merge = []
-                # Persistent per-node roster (operator 2026-05-22 "every node
-                # visible at once"): the primary reached streaming so it's ok;
-                # secondaries get their collected state. One clean summary line
-                # lands in the reasoning dropdown -- complements the live status
-                # pills (which only cycle on OWUI's single status line).
-                _roster = [(target_name, "ok")]
                 for _t in _sec_tasks:
                     try:
                         _sn, _stext = _t.result()
@@ -8633,6 +8638,13 @@ async def chat_completions(request: Request) -> Any:
                 # final answer EVER" (operator 2026-05-20). So it ALWAYS
                 # runs; it's fast now on the 4b dGPU lane. Heartbeat-
                 # wrapped so the SSE stream stays alive during it.
+                # Live status across the otherwise-silent ~8s synthesis pass:
+                # name the agents actually being synthesised (generative, not a
+                # static label) -- operator 2026-05-22 "emits are generative
+                # live to the tasks being done".
+                yield _sse_status(
+                    chat_id=chat_id, model=model, emoji="🧬",
+                    label=" + ".join(_nm for _nm, _st in _roster if _st == "ok"))
                 polish_task = asyncio.create_task(polish_response(
                     raw_for_polish, refined, session_id=session_id,
                     original_user_text=last_user_text,
