@@ -2514,6 +2514,72 @@ def _strip_think_tags(text: str) -> str:
     return _split_think_tags(text)[1]
 
 
+# ── Knowledge storage ─────────────────────────────────────────────
+# Operator pipeline spec 2026-05-23: "...present to user as final answer
+# and STORE all gained knowledge in all relevant global databases".
+# Persisted fire-and-forget so a write NEVER delays or breaks the
+# streamed answer the operator already has. SSOT toggle/table/cap via
+# env (mirrors every other MIOS_* tunable; document in mios.toml).
+KNOWLEDGE_STORE_ENABLED = os.environ.get(
+    "MIOS_KNOWLEDGE_STORE", "true").strip().lower() not in ("0", "false", "no")
+KNOWLEDGE_TABLE = (os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge").strip()
+                   or "knowledge")
+KNOWLEDGE_ANSWER_MAX = int(
+    os.environ.get("MIOS_KNOWLEDGE_ANSWER_MAX", "8000") or 8000)
+_KNOWLEDGE_URL_RE = re.compile(r"https?://[^\s\"'<>)\]]+")
+
+
+def _knowledge_sources(tool_history: Optional[list]) -> list:
+    """Compact, auditable source list for a stored answer: the verbs the
+    turn invoked + any URLs they touched (web_search / web_extract args +
+    result previews). A recalled answer then carries WHERE it came from
+    instead of being an unattributed assertion."""
+    srcs: list = []
+    seen: set = set()
+    for r in tool_history or []:
+        if not isinstance(r, dict):
+            continue
+        tool = str(r.get("tool") or "").strip()
+        if tool and tool not in seen:
+            seen.add(tool)
+            srcs.append({"type": "tool", "ref": tool,
+                         "success": bool(r.get("success"))})
+        blob = (json.dumps(r.get("args") or {}, default=str) + " "
+                + str(r.get("result_preview") or ""))
+        for u in _KNOWLEDGE_URL_RE.findall(blob):
+            u = u.rstrip(".,);")
+            if u and u not in seen:
+                seen.add(u)
+                srcs.append({"type": "url", "ref": u})
+    return srcs[:24]
+
+
+def _store_knowledge(*, query: str, answer: str,
+                     session_id: Optional[str],
+                     tool_history: Optional[list] = None) -> None:
+    """Persist a finished Q+A (with derived sources) to the global
+    knowledge table, fire-and-forget. NEVER raises -- a storage failure
+    must not affect the answer the operator already received."""
+    if not KNOWLEDGE_STORE_ENABLED:
+        return
+    q = (query or "").strip()
+    a = (answer or "").strip()
+    if not q or not a:
+        return
+    try:
+        row = {
+            "q": q[:2000],
+            "answer": a[:KNOWLEDGE_ANSWER_MAX],
+            "sources": _knowledge_sources(tool_history),
+        }
+        sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",))
+        if session_id:
+            sql = sql.rstrip(";") + f", session = {session_id};"
+        _db_fire(_db_post(sql))
+    except Exception as e:
+        log.warning("knowledge store skipped: %s", e)
+
+
 async def polish_response(raw_text: str,
                           refined: Optional[dict],
                           session_id: Optional[str] = None,
@@ -2651,6 +2717,10 @@ async def polish_response(raw_text: str,
     polished = (msg.get("content") or "").strip()
     if not polished:
         return None
+    # Store the finished Q+A (with sources) to the global knowledge table.
+    # Fire-and-forget -- the answer is already returned regardless.
+    _store_knowledge(query=user_q, answer=polished,
+                     session_id=session_id, tool_history=tool_history)
     return polished
 
 

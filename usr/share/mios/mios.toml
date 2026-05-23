@@ -1243,6 +1243,14 @@ permission = "read"
 #   MIOS_WEB_CONCURRENCY       = 3    -- concurrent web_search calls (all agents)
 #   MIOS_WEB_DISPATCH_JITTER_S = 0.15 -- pre-acquire stagger (s) for simul starts
 #   MIOS_WEB_RRF_K             = 60   -- Reciprocal Rank Fusion constant
+# Knowledge storage (operator 2026-05-23: "...present to user as final answer
+# and STORE all gained knowledge in all relevant global databases"). agent-pipe
+# persists each finished Q+A -- with the turn's derived sources (verbs invoked +
+# URLs touched) -- to SurrealDB fire-and-forget AFTER polish, so a write never
+# delays or breaks the streamed answer. Read from env (same ${MIOS_*:-default}):
+#   MIOS_KNOWLEDGE_STORE       = true      -- set false to disable persistence
+#   MIOS_KNOWLEDGE_TABLE       = knowledge -- SurrealDB table for stored answers
+#   MIOS_KNOWLEDGE_ANSWER_MAX  = 8000      -- max chars of the answer persisted
 
 [verbs.web_extract]
 section    = "Discovery / resolution"
