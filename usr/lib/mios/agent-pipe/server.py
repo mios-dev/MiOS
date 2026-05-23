@@ -1195,6 +1195,114 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         return name, ""
 
 
+async def _call_agent_stream(name, cfg, body, headers, client, q,
+                             *, prefer_cpu: bool = True) -> tuple:
+    """Bounded STREAMING sibling of _call_agent_complete (operator
+    2026-05-23: a sub-agent's thinking must STREAM into the think blocks
+    live, not be collected then flushed last-minute). Streams the
+    secondary's output and pushes (name, fragment) onto the shared queue
+    `q` as fragments arrive, so the orchestrator interleaves them into the
+    reasoning dropdown WHILE the primary streams. Returns (name,
+    full_text) -- the SAME contract as _call_agent_complete -- so the
+    polish-merge / scratchpad / roster path downstream is unchanged. Dead
+    endpoints + errors yield '' (dropped from the merge), identical
+    degradation to the non-streaming path. Shares _agent_sem (the swarm
+    concurrency cap)."""
+    async with _agent_sem:
+        return await _call_agent_stream_inner(
+            name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
+
+
+async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
+                                   headers: dict, client, q,
+                                   *, prefer_cpu: bool = True) -> tuple:
+    ep = ((cfg.get("cpu_endpoint") if prefer_cpu else "")
+          or cfg.get("endpoint") or "").rstrip("/")
+    if not ep:
+        return name, ""
+    _mdl = (cfg.get("cpu_model") if prefer_cpu else "") or cfg.get("model")
+    _is_ollama = (":11434" in ep) or (":11435" in ep)
+    _to = 2.5 if cfg.get("health_gate") else None
+    parts: list = []
+
+    def _push(frag: str) -> None:
+        if frag and q is not None:
+            try:
+                q.put_nowait((name, frag))
+            except Exception:
+                pass
+
+    try:
+        if _is_ollama:
+            base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
+            payload = {
+                "model": _mdl or cfg.get("model"),
+                "messages": body.get("messages") or [],
+                "think": False,
+                "stream": True,
+            }
+            if body.get("max_tokens"):
+                payload["options"] = {"num_predict": int(body["max_tokens"])}
+            async with client.stream(
+                    "POST", f"{base}/api/chat",
+                    content=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    timeout=_to) as r:
+                if r.status_code != 200:
+                    return name, ""
+                async for line in r.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    frag = ((obj.get("message") or {}).get("content")) or ""
+                    if frag:
+                        parts.append(frag)
+                        _push(frag)
+                    if obj.get("done"):
+                        break
+            return name, _strip_think_tags("".join(parts))
+        # Bespoke /v1 gateway (opencode :8633, hermes :8642): SSE stream.
+        nb = dict(body)
+        nb["stream"] = True
+        if _mdl:
+            nb["model"] = _mdl
+        async with client.stream(
+                "POST", f"{ep}/chat/completions",
+                content=json.dumps(nb).encode("utf-8"), headers=headers,
+                timeout=_to) as r:
+            if r.status_code != 200:
+                return name, ""
+            async for line in r.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                ch = chunk.get("choices") or []
+                if not ch:
+                    continue
+                delta = ch[0].get("delta") or {}
+                _content = delta.get("content") or ""
+                # Display BOTH the answer + any native reasoning the gateway
+                # streams; only the answer content folds into the merge text.
+                frag = _content or (delta.get("reasoning_content") or "")
+                if _content:
+                    parts.append(_content)
+                if frag:
+                    _push(frag)
+        return name, _strip_think_tags("".join(parts))
+    except Exception as e:
+        log.info("fanout secondary %s (stream) failed: %s", name, e)
+        return name, ""
+
+
 def _load_verb_catalog() -> dict:
     """Parse mios.toml [verbs.*] sections into the canonical verb
     catalog. Each entry: {section, sig, desc, tier, permission, params:
@@ -8701,12 +8809,40 @@ async def chat_completions(request: Request) -> Any:
             # and remember its cfg so the collection loop can mark it
             # responded/silent (operator 2026-05-22).
             _fanout_cfg = {_n: _c for _n, _c in _fanout}
+            # Live secondary streaming (operator 2026-05-23): each secondary
+            # streams its work onto _sec_q; the orchestrator interleaves those
+            # fragments into the reasoning dropdown WHILE the primary streams,
+            # per-agent buffered + checkpoint-flushed so N concurrent agents
+            # stay readable -- replacing the old single collect-then-flush at
+            # the very end ("sub-agent thinking pulled to think last-minute").
+            _sec_q: "asyncio.Queue" = asyncio.Queue()
+            _sec_bufs: dict = {}
+            _sec_last: dict = {}
+
+            async def _drain_secondaries(force: bool = False):
+                while True:
+                    try:
+                        _nm, _frag = _sec_q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    _sec_bufs[_nm] = _sec_bufs.get(_nm, "") + _frag
+                _now = time.time()
+                for _nm in list(_sec_bufs.keys()):
+                    _buf = _sec_bufs.get(_nm, "")
+                    if not _buf.strip():
+                        continue
+                    if force or (_now - _sec_last.get(_nm, 0.0) >= _ckpt_s):
+                        yield _flush_reasoning(f"\n🤝 {_nm}: {_buf}")
+                        _sec_bufs[_nm] = ""
+                        _sec_last[_nm] = _now
+
             _sec_tasks = []
             for _n, _c in _fanout:
                 yield _node_status(chat_id=chat_id, model=model, name=_n,
                                    cfg=_c, state="engage")
                 _sec_tasks.append(asyncio.create_task(
-                    _call_agent_complete(_n, _c, proxy_body, headers, client)))
+                    _call_agent_stream(_n, _c, proxy_body, headers, client,
+                                       _sec_q)))
 
             try:
                 async with client.stream(
@@ -8752,6 +8888,11 @@ async def chat_completions(request: Request) -> Any:
                                 yield _flush_reasoning(_block_buf)
                                 _block_buf = ""
                                 _last_flush = time.time()
+                            # Interleave any secondary fragments LIVE so the
+                            # CPU/secondary swarm streams in alongside the GPU
+                            # primary, not after it.
+                            async for _b in _drain_secondaries():
+                                yield _b
             except Exception as e:
                 log.warning("streamed backend call failed: %s", e)
             # Flush the tail of the reasoning buffer. No </details> to close --
@@ -8801,6 +8942,8 @@ async def chat_completions(request: Request) -> Any:
                         await asyncio.wait_for(
                             asyncio.shield(critic_task), timeout=2.0)
                     except asyncio.TimeoutError:
+                        async for _b in _drain_secondaries():
+                            yield _b
                         yield b": keepalive\n\n"
                     except Exception:
                         break
@@ -8823,11 +8966,16 @@ async def chat_completions(request: Request) -> Any:
                         await asyncio.wait_for(
                             asyncio.shield(asyncio.gather(
                                 *_sec_tasks, return_exceptions=True)),
-                            timeout=3.0)
+                            timeout=2.0)
                     except asyncio.TimeoutError:
+                        async for _b in _drain_secondaries():
+                            yield _b
                         yield b": keepalive\n\n"
                     except Exception:
                         break
+                # Flush any tail fragments that arrived after the last drain.
+                async for _b in _drain_secondaries(force=True):
+                    yield _b
                 _merge = []
                 for _t in _sec_tasks:
                     try:
@@ -8836,9 +8984,12 @@ async def chat_completions(request: Request) -> Any:
                         continue
                     _scfg = _fanout_cfg.get(_sn, {})
                     if _stext and _stext.strip():
+                        # NOTE: the secondary's text already STREAMED live into
+                        # the dropdown via _drain_secondaries; here we only mark
+                        # it responded + fold it into the polish merge (no
+                        # second full-text flush -> no duplicate in the block).
                         yield _node_status(chat_id=chat_id, model=model,
                                            name=_sn, cfg=_scfg, state="ok")
-                        yield _flush_reasoning(f"\n🤝 {_sn}:\n{_stext}\n")
                         _merge.append(f"[{_sn} agent]:\n{_stext.strip()}")
                         _scratchpad_note(_sn, _stext, phase="council")
                         _roster.append((_sn, "ok"))
