@@ -1092,6 +1092,7 @@ sig        = ""
 desc       = "Enumerate currently OPEN windows. Use BEFORE focus/move/close to confirm the target window exists."
 tier       = "core"
 permission = "read"
+cmd        = "mios-pc-control window-list --json"
 
 [verbs.screen_layout]
 section    = "Window / app launch"
@@ -1099,6 +1100,7 @@ sig        = ""
 desc       = "Monitor geometry (resolution, primary, position). Use BEFORE position_window with literal coords."
 tier       = "common"
 permission = "read"
+cmd        = "mios-pc-control screen-layout"
 
 [verbs.open_url]
 section    = "Window / app launch"
@@ -1265,9 +1267,12 @@ sig        = "url, limit=4000?"
 desc       = "FETCH a web page's ACTUAL readable text (not just a search snippet) so you GROUND on real content. USE THIS after web_search to read a promising result in full -- open the Wikipedia / etymonline / article page and quote what it actually says. If the fetched page does NOT contain the answer, say so plainly; never invent facts or attach a citation to a page that doesn't support the claim. Returns {success, url, chars, content}."
 tier       = "core"
 permission = "read"
+cmd        = "mios-web-extract -n {limit=4000} {url}"
   [verbs.web_extract.params.url]
   type    = "string"
-  aliases = ["link", "href", "page", "u"]
+  # "query" kept as an alias so the SSOT template's {url} preserves the old
+  # hardcoded url-or-query fallback.
+  aliases = ["link", "href", "page", "u", "query"]
   [verbs.web_extract.params.limit]
   type    = "integer"
   default = 4000
@@ -1563,6 +1568,7 @@ sig        = ""
 desc       = "Live dashboard JSON: GPU/VRAM, RAM, disk, services, ollama models. Single source of truth -- never guess these."
 tier       = "core"
 permission = "read"
+cmd        = "mios-system-status"
 
 [verbs.system_logs]
 section    = "System"

@@ -1339,6 +1339,9 @@ def _load_verb_catalog() -> dict:
                     "tier":       str(vcfg.get("tier", "common")),
                     "permission": str(vcfg.get("permission", "read")),
                     "params":     vcfg.get("params") or {},
+                    # SSOT command template (P3): when present, the dispatch
+                    # builder renders THIS instead of a hardcoded branch.
+                    "cmd":        str(vcfg.get("cmd", "") or ""),
                 }
     except Exception as e:
         log.warning("verb catalog load failed: %s", e)
@@ -5540,10 +5543,44 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
 
 # ── Dispatch (broker socket bridge) ────────────────────────────────
+_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:=([^}]*))?\}")
+
+
+def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
+    """Render an SSOT verb command template (mios.toml [verbs.*].cmd) into the
+    bash line the broker runs (P3: retire hardcoded dispatch branches into the
+    catalog). Placeholders: `{arg}` (resolved via _arg_with_synonyms, then
+    shlex-quoted) and `{arg=default}` (default used when the arg is absent or
+    empty). A template with no placeholders renders to its literal. Deliberately
+    MINIMAL -- verbs needing conditional/recursive/base64 logic keep their code
+    branch (the builder falls through when no `cmd` is set). Returns the rendered
+    command, or None on render error (caller falls back to the hardcoded branch)."""
+    try:
+        def _sub(m: "re.Match") -> str:
+            name, default = m.group(1), m.group(2)
+            val = _arg_with_synonyms(tool, name, args)
+            if (val is None or str(val).strip() == "") and default is not None:
+                val = default
+            return shlex.quote(str(val if val is not None else ""))
+        rendered = _TEMPLATE_PH_RE.sub(_sub, template).strip()
+        return rendered or None
+    except Exception as e:
+        log.warning("verb template render failed for %s: %s", tool, e)
+        return None
+
+
 def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     """Map verb name + args -> the bash command line the launcher
     broker executes. Kept in lockstep with the OWUI pipe's
     _dispatch_mios_verb. Returns None for unknown verbs."""
+    # SSOT command template takes precedence (P3): a verb with a `cmd` in
+    # mios.toml renders via the catalog; verbs without one fall through to the
+    # hardcoded branches below. Incremental migration -> zero regression.
+    _tmpl = (_VERB_CATALOG.get(tool) or {}).get("cmd")
+    if _tmpl:
+        _rendered = _template_to_cmd(tool, _tmpl, args)
+        if _rendered:
+            return _rendered
     env_prefix = ""
     if tool == "open_app":
         name = _arg_with_synonyms(tool, "name", args).strip()
