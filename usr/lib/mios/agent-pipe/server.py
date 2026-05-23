@@ -5775,35 +5775,20 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # Both shims emit JSON envelopes by default; agent-pipe surfaces
     # the JSON straight back to the gateway. WRITE verbs (install /
     # upgrade / uninstall) are firewall-gated.
-    if tool == "winget_search":
-        q = shlex.quote(str(args.get("query", "")))
-        n = int(args.get("limit", 10))
-        return f"mios-winget search {q} -n {n}"
-    if tool == "winget_list":
-        return "mios-winget list"
-    if tool == "winget_show":
-        pid = shlex.quote(str(args.get("id", "")))
-        return f"mios-winget show {pid}"
-    if tool == "winget_install":
-        pid = shlex.quote(str(args.get("id", "")))
-        return f"mios-winget install {pid}"
+    # winget_search/list/show/install/uninstall migrated to SSOT [verbs.*].cmd
+    # templates (P3); they dispatch via the catalog-template check at the top of
+    # this function (the {limit=10} default form + alias resolution through the
+    # catalog -- the old raw args.get(...) form ignored declared aliases).
+    # winget_upgrade stays as code: the `--all`/empty -> "upgrade --all"
+    # conditional isn't expressible in the minimal template syntax.
     if tool == "winget_upgrade":
         pid = str(args.get("id", "")).strip()
         if not pid or pid.lower() == "all" or pid == "--all":
             return "mios-winget upgrade --all"
         return f"mios-winget upgrade {shlex.quote(pid)}"
-    if tool == "winget_uninstall":
-        pid = shlex.quote(str(args.get("id", "")))
-        return f"mios-winget uninstall {pid}"
-    if tool == "flatpak_search":
-        q = shlex.quote(str(args.get("query", "")))
-        n = int(args.get("limit", 10))
-        return f"mios-flatpak search {q} -n {n}"
-    if tool == "flatpak_list":
-        return "mios-flatpak list"
-    if tool == "flatpak_show":
-        pid = shlex.quote(str(args.get("id", "")))
-        return f"mios-flatpak show {pid}"
+    # flatpak_search/list/show/uninstall migrated to SSOT [verbs.*].cmd templates
+    # (P3). flatpak_install (scope enum -> --system/--user) + flatpak_upgrade
+    # (`--all` conditional) stay as code.
     if tool == "flatpak_install":
         pid = shlex.quote(str(args.get("id", "")))
         scope = str(args.get("scope", "")).lower()
@@ -5818,9 +5803,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if not pid or pid.lower() == "all" or pid == "--all":
             return "mios-flatpak upgrade --all"
         return f"mios-flatpak upgrade {shlex.quote(pid)}"
-    if tool == "flatpak_uninstall":
-        pid = shlex.quote(str(args.get("id", "")))
-        return f"mios-flatpak uninstall {pid}"
     # open_url / mios_find / mios_apps / everything_search / flatpak_preflight
     # are migrated to SSOT [verbs.*].cmd templates (P3); they dispatch via the
     # catalog-template check at the top of this function (incl. the {arg?FLAG}

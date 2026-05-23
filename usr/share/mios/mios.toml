@@ -1442,6 +1442,7 @@ sig = "query, limit=10?"
 desc = "[legacy: use pkg(action='search', backend='winget')]"
 tier = "rare"
 permission = "read"
+cmd = "mios-winget search {query} -n {limit=10}"
   [verbs.winget_search.params.query]
   type = "string"
   aliases = ["name", "term"]
@@ -1455,6 +1456,7 @@ sig = ""
 desc = "[legacy: use pkg(action='list', backend='winget')]"
 tier = "rare"
 permission = "read"
+cmd = "mios-winget list"
 
 [verbs.winget_show]
 section = "Package management"
@@ -1462,6 +1464,7 @@ sig = "id"
 desc = "[legacy: use pkg(action='show', backend='winget', id=...)]"
 tier = "rare"
 permission = "read"
+cmd = "mios-winget show {id}"
   [verbs.winget_show.params.id]
   type = "string"
   aliases = ["package", "name"]
@@ -1472,6 +1475,7 @@ sig = "id"
 desc = "[legacy: use pkg(action='install', backend='winget', id=...)]"
 tier = "rare"
 permission = "write"
+cmd = "mios-winget install {id}"
   [verbs.winget_install.params.id]
   type = "string"
   aliases = ["package", "name"]
@@ -1492,6 +1496,7 @@ sig = "id"
 desc = "[legacy: use pkg(action='uninstall', backend='winget', id=...)]"
 tier = "rare"
 permission = "write"
+cmd = "mios-winget uninstall {id}"
   [verbs.winget_uninstall.params.id]
   type = "string"
   aliases = ["package", "name"]
@@ -1502,6 +1507,7 @@ sig = "query, limit=10?"
 desc = "[legacy: use pkg(action='search', backend='flatpak')]"
 tier = "rare"
 permission = "read"
+cmd = "mios-flatpak search {query} -n {limit=10}"
   [verbs.flatpak_search.params.query]
   type = "string"
   aliases = ["name", "term"]
@@ -1515,6 +1521,7 @@ sig = ""
 desc = "[legacy: use pkg(action='list', backend='flatpak')]"
 tier = "rare"
 permission = "read"
+cmd = "mios-flatpak list"
 
 [verbs.flatpak_show]
 section = "Package management"
@@ -1522,6 +1529,7 @@ sig = "id"
 desc = "[legacy: use pkg(action='show', backend='flatpak', id=...)]"
 tier = "rare"
 permission = "read"
+cmd = "mios-flatpak show {id}"
   [verbs.flatpak_show.params.id]
   type = "string"
   aliases = ["ref", "name"]
@@ -1556,6 +1564,7 @@ sig = "id"
 desc = "[legacy: use pkg(action='uninstall', backend='flatpak', id=...)]"
 tier = "rare"
 permission = "write"
+cmd = "mios-flatpak uninstall {id}"
   [verbs.flatpak_uninstall.params.id]
   type = "string"
   aliases = ["ref", "name"]
