@@ -29,6 +29,25 @@ import urllib.request
 SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 DEFAULT_LIMIT = int(os.environ.get(
     "MIOS_DIRECTORY_LOOKUP_LIMIT", "20"))
+# Per-hit summary cap + a hard envelope cap so the --json output ALWAYS stays
+# parseable under the dispatch broker's ~6 KB stdout truncation (a larger blob
+# would be cut mid-string -> invalid JSON for the calling agent).
+SUMMARY_CHARS = int(os.environ.get("MIOS_DIRECTORY_LOOKUP_SUMMARY_CHARS", "100"))
+OUT_CAP = int(os.environ.get("MIOS_DIRECTORY_LOOKUP_OUT_CAP", "5800"))
+
+
+def _trim_hit(h: dict) -> dict:
+    """Bounded per-hit shape for the --json envelope (drops the redundant
+    `parent` -- path implies it -- and caps the content summary)."""
+    return {
+        "path": h.get("path"),
+        "basename": h.get("basename"),
+        "kind": h.get("kind"),
+        "size": h.get("size"),
+        "ext": h.get("ext"),
+        "root_label": h.get("root_label"),
+        "summary": (h.get("summary") or "").strip()[:SUMMARY_CHARS],
+    }
 
 
 def _sql(query: str) -> list:
@@ -147,7 +166,7 @@ def main() -> int:
 
     hits = lookup(args.query, args.root, args.ext, args.kind, args.limit)
     if args.json:
-        print(json.dumps({
+        env = {
             "ok": True,
             "query": args.query,
             "filters": {
@@ -155,8 +174,16 @@ def main() -> int:
                 "ext": args.ext,
                 "kind": args.kind,
             },
-            "hits": hits,
-        }))
+            "hits": [_trim_hit(h) for h in hits],
+        }
+        # Hard envelope guard: drop lowest-ranked hits until under the cap so
+        # the agent always receives COMPLETE, parseable JSON (top hits kept).
+        s = json.dumps(env)
+        while len(s) > OUT_CAP and env["hits"]:
+            env["hits"].pop()
+            env["truncated"] = True
+            s = json.dumps(env)
+        print(s)
         return 0
     print(f"query: {args.query!r}  hits: {len(hits)}")
     for i, h in enumerate(hits, 1):

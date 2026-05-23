@@ -19,9 +19,13 @@ What it stores (single row `sys_env:current`, NS mios DB agent):
 Subcommands:
   refresh [--json]   WRITE: probe live + upsert sys_env:current. Any agent can
                      call this to UPDATE the shared env DB (sys_env_refresh verb).
-  get [--json]       READ: return sys_env:current. If the row is missing, falls
-                     back to a live (non-persisted) probe so the read is always
-                     useful (sys_env verb).
+  get [--json] [--full]
+                     READ: return sys_env:current. COMPACT by default (env +
+                     per-category app counts + a small sample) so it stays
+                     parseable under the broker's ~6 KB stdout cap; --full emits
+                     the complete inventory (CLI/dashboard). If the row is
+                     missing, falls back to a live (non-persisted) probe so the
+                     read is always useful (sys_env verb).
   help
 
 SSOT: DB endpoint + creds from MIOS_DB_* env (identical to mios-daemon); the
@@ -47,8 +51,14 @@ DB_NS = os.environ.get("MIOS_DB_NS", "mios")
 DB_DB = os.environ.get("MIOS_SYS_ENV_DB", "agent")
 _AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
 RECORD = "sys_env:current"
-# Per-category cap so a huge host can't bloat the row / agent context.
+# Per-category cap so a huge host can't bloat the stored row.
 APPS_CAP = int(os.environ.get("MIOS_SYS_ENV_APPS_CAP", "300"))
+# Per-category sample size for the COMPACT `get` envelope (the agent-facing
+# read). The dispatch broker truncates a verb's stdout at ~6 KB, which would
+# corrupt a larger JSON mid-string; the full inventory lives in the DB row +
+# `get --full`, while agents read counts + a small sample (and use app_search /
+# mios_apps to resolve a specific app). Keeps the read parseable + lean.
+APPS_SAMPLE = int(os.environ.get("MIOS_SYS_ENV_SAMPLE", "15"))
 # Categories mirror mios-env-probe's launchable inventory (kept in sync with
 # mios-apps' own category set; passed straight through, no semantic hardcode).
 APP_CATEGORIES = (os.environ.get("MIOS_SYS_ENV_APP_CATEGORIES", "")
@@ -115,18 +125,18 @@ def cmd_refresh(json_out: bool) -> int:
     host = (((payload.get("env") or {}).get("identity") or {})
             .get("hostname_live") or "")
     now = _now()
-    # Replace the single current row (DELETE+CREATE is universally supported;
-    # the fixed record id keeps it O(1) + bounded -- no history bloat).
-    sql = (
-        f"DELETE {RECORD}; "
-        f"CREATE {RECORD} SET "
-        f"env = {json.dumps(payload['env'], default=str)}, "
-        f"apps = {json.dumps(payload['apps'], default=str)}, "
-        f"host = {json.dumps(host)}, "
-        f"source = \"mios-sys-env\", "
-        f"indexed_at = {json.dumps(now)};"
-    )
-    res = _db_sql(sql)
+    # Single ATOMIC upsert of the fixed record id. UPSERT (vs DELETE+CREATE)
+    # is race-safe when the refresh timer and an agent's sys_env_refresh fire
+    # concurrently -- last-write-wins, no "record already exists" CREATE race
+    # -- while staying O(1) + bounded (one row, no history bloat). The values
+    # are json.dumps'd into the CONTENT object literal (valid JSON == valid
+    # SurrealQL object; escapes quotes/specials -- same shape mios-daemon uses
+    # for directory_entry, so no injection from app names/paths).
+    row = {
+        "env": payload["env"], "apps": payload["apps"],
+        "host": host, "source": "mios-sys-env", "indexed_at": now,
+    }
+    res = _db_sql(f"UPSERT {RECORD} CONTENT {json.dumps(row, default=str)};")
     ok = isinstance(res, list) and any(
         isinstance(s, dict) and s.get("status") == "OK" for s in res[1:])
     n_apps = sum(len(v) for v in payload["apps"].values())
@@ -159,10 +169,28 @@ def _read_current() -> dict | None:
     return None
 
 
-def cmd_get(json_out: bool) -> int:
+def _compact(payload: dict, full: bool) -> dict:
+    """Trim the per-category apps lists to COUNTS + a small sample so the
+    agent-facing envelope stays parseable under the dispatch ~6 KB stdout cap.
+    `full` keeps everything (CLI / dashboard use, where the cap doesn't apply)."""
+    apps = payload.get("apps")
+    if full or not isinstance(apps, dict):
+        return payload
+    out = dict(payload)
+    out["app_counts"] = {k: len(v) for k, v in apps.items()}
+    out["apps"] = {k: v[:APPS_SAMPLE] for k, v in apps.items()}
+    out["apps_note"] = (
+        f"sampled {APPS_SAMPLE}/category (full totals in app_counts); call "
+        f"app_search or mios_apps to resolve a specific app, or "
+        f"`mios-sys-env get --full` for the complete inventory")
+    return out
+
+
+def cmd_get(json_out: bool, full: bool) -> int:
     row = _read_current()
     if row:
-        out = {"ok": True, "verb": "sys_env", "source": "db", **row}
+        out = {"ok": True, "verb": "sys_env", "source": "db",
+               **_compact(row, full)}
         print(json.dumps(out, indent=None if json_out else 2, default=str))
         return 0
     # Row missing (e.g. first boot, before the timer/refresh ran): live
@@ -172,7 +200,7 @@ def cmd_get(json_out: bool) -> int:
     out = {"ok": True, "verb": "sys_env", "source": "live-fallback",
            "indexed_at": _now(),
            "note": "sys_env:current not yet persisted; call sys_env_refresh",
-           **live}
+           **_compact(live, full)}
     print(json.dumps(out, indent=None if json_out else 2, default=str))
     return 0
 
@@ -183,11 +211,13 @@ def main() -> int:
         print(__doc__)
         return 0
     sub = argv[0]
-    json_out = "--json" in argv[1:]
+    flags = argv[1:]
+    json_out = "--json" in flags
+    full = "--full" in flags
     if sub == "refresh":
         return cmd_refresh(json_out)
     if sub == "get":
-        return cmd_get(json_out)
+        return cmd_get(json_out, full)
     sys.stderr.write(f"mios-sys-env: unknown subcommand {sub!r} "
                      f"(try: refresh, get, help)\n")
     return 2

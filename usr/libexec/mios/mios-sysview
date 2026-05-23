@@ -19,11 +19,28 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import re
 import shlex
 import subprocess
 import sys
 
 _LEVELS = ("emerg", "alert", "crit", "err", "warning", "notice", "info", "debug")
+_SINCE_UNIT = {"s": "sec", "m": "min", "h": "hour", "d": "day"}
+
+
+def _journal_since(s: str) -> str:
+    """journalctl --since REJECTS a bare compact span like '10m' ("Failed to
+    parse timestamp: 10m"), which is the verb's default. Translate
+    <N><s|m|h|d> -> 'N <unit> ago' (a form journalctl accepts); pass anything
+    else through untouched (ISO dates, 'yesterday', 'today', '-1h', 'N min
+    ago'). The helper owns the journalctl interface, so the fix lives here."""
+    s = (s or "").strip()
+    m = re.fullmatch(r"(\d+)\s*([smhd])", s)
+    if not m:
+        return s
+    return f"{m.group(1)} {_SINCE_UNIT[m.group(2)]} ago"
 
 
 def _run(cmd: str) -> int:
@@ -38,7 +55,7 @@ def _run(cmd: str) -> int:
 
 def cmd_logs(a) -> int:
     parts = ["journalctl", "--no-pager", "-n", str(max(1, a.lines)),
-             "--since", shlex.quote(a.since)]
+             "--since", shlex.quote(_journal_since(a.since))]
     if a.unit.strip():
         parts += ["-u", shlex.quote(a.unit.strip())]
     if a.level.strip().lower() in _LEVELS:
@@ -54,11 +71,42 @@ def cmd_proc(a) -> int:
     return _run(f"{base} | head -{max(1, a.limit)}")
 
 
+_PODMAN_SNAPSHOT = os.environ.get(
+    "MIOS_PODMAN_PS_SNAPSHOT", "/var/lib/mios/podman-ps.json")
+
+
 def cmd_containers(a) -> int:
-    base = "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}'"
-    if a.name.strip():
-        base += f" | grep -i -- {shlex.quote(a.name.strip())}"
-    return _run(base)
+    name = a.name.strip()
+    fmt = "{{.Names}}\\t{{.Status}}\\t{{.Image}}"
+    try:
+        out = subprocess.run(
+            ["bash", "-lc", f"podman ps -a --format '{fmt}'"],
+            capture_output=True, text=True, timeout=20).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        out = ""
+    lines = [ln for ln in out.splitlines() if ln.strip()]
+    # Rootless fallback: a hardened / non-root caller can't see the ROOTFUL
+    # containers (the dashboard hits the same wall -- /run/podman is 0700
+    # root:root). mios-podman-ps.service writes a root `podman ps -a --format
+    # json` snapshot for exactly this; read it so container_status is never
+    # blind. Same SSOT the portal consumes.
+    if not lines and os.path.exists(_PODMAN_SNAPSHOT):
+        try:
+            with open(_PODMAN_SNAPSHOT) as f:
+                data = json.load(f)
+            for c in (data if isinstance(data, list) else []):
+                nm = c.get("Names")
+                nm = ",".join(nm) if isinstance(nm, list) else (nm or "")
+                status = c.get("Status") or c.get("State") or ""
+                image = c.get("Image") or ""
+                lines.append(f"{nm}\t{status}\t{image}")
+        except Exception:
+            pass
+    if name:
+        lines = [ln for ln in lines if name.lower() in ln.lower()]
+    if lines:
+        sys.stdout.write("\n".join(lines) + "\n")
+    return 0
 
 
 def cmd_container_restart(a) -> int:

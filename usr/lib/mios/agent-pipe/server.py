@@ -7077,7 +7077,11 @@ def _host_stats() -> dict:
 
 
 _PODMAN_PS_SNAPSHOT = os.environ.get(
-    "MIOS_PODMAN_PS_SNAPSHOT", "/var/lib/mios/agent-pipe/podman-ps.json")
+    # World-readable shared path (root:root 755 dir, 0644 file) so every
+    # non-root reader -- portal, container_status verb, operator SSH/Termius
+    # shell -- can read the rootful-container snapshot. Was under the 0750
+    # agent-pipe state dir, invisible to everyone but mios-agent-pipe.
+    "MIOS_PODMAN_PS_SNAPSHOT", "/var/lib/mios/podman-ps.json")
 
 
 async def _podman_ps() -> dict:

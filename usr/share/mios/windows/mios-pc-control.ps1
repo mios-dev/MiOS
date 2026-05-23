@@ -322,7 +322,24 @@ switch ($Action) {
         }
     }
 
+    'screen-layout' {
+        # Monitor geometry for the screen_layout verb (was dispatching a
+        # non-existent action -> "unknown action" error). Emits each display's
+        # bounds + working area + primary flag as JSON the agent reads before
+        # positioning windows by literal coords.
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        $screens = [System.Windows.Forms.Screen]::AllScreens | ForEach-Object {
+            @{
+                device  = $_.DeviceName
+                primary = [bool]$_.Primary
+                bounds  = @{ x = $_.Bounds.X; y = $_.Bounds.Y; width = $_.Bounds.Width; height = $_.Bounds.Height }
+                work    = @{ x = $_.WorkingArea.X; y = $_.WorkingArea.Y; width = $_.WorkingArea.Width; height = $_.WorkingArea.Height }
+            }
+        }
+        @{ ok = $true; verb = "screen_layout"; count = @($screens).Count; screens = @($screens) } | ConvertTo-Json -Depth 5 -Compress
+    }
+
     default {
-        throw "mios-pc-control.ps1: unknown action '$Action' (try: screenshot, click, double-click, mouse-move, type, key, key-combo, window-list, window-focus, window-move, window-resize, window-center, window-close)"
+        throw "mios-pc-control.ps1: unknown action '$Action' (try: screenshot, click, double-click, mouse-move, type, key, key-combo, window-list, window-focus, window-move, window-resize, window-center, window-close, screen-layout)"
     }
 }
