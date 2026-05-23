@@ -5818,18 +5818,11 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # 3); the helper does the expansion + concurrency + merge.
         fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "2")))
         return f"mios-web-search -n {n} --fanout {fan} {q}"
-    if tool == "discord_send":
-        # ACTUALLY post to Discord via the local mios-discord-send helper
-        # (bot token + default channel from /etc/mios/hermes/discord.env).
-        # A real dispatched verb -> a real tool_call -> truthful result, so
-        # the model can't narrate a fake "posted to Discord" (operator
-        # 2026-05-22). Command literal lives in the helper, not here.
-        content = shlex.quote(str(_arg_with_synonyms(tool, "content", args)))
-        ch = str(_arg_with_synonyms(tool, "channel", args)).strip()
-        cmd = f"mios-discord-send {content}"
-        if ch:
-            cmd += f" --channel {shlex.quote(ch)}"
-        return cmd
+    # discord_send migrated to the SSOT [verbs.discord_send].cmd template (P3):
+    # "mios-discord-send {content}{channel?--channel}". It stays a REAL dispatched
+    # verb -> a real tool_call -> truthful result (the model can't narrate a fake
+    # "posted to Discord"); the command literal + token/default-channel handling
+    # live in the mios-discord-send helper, not here.
     if tool == "knowledge_search":
         # Query OWUI's RAG knowledge collections from a sub-agent
         # tool loop. --json returns {ok, query, collection,
@@ -5934,9 +5927,10 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         return f"mios-sysview container-restart --name {shlex.quote(name)}"
     # ── PC-input verbs (Phase A.1 -- needed for DAG chains like
     # open_app -> focus_window -> pc_type -> pc_key Ctrl+S) ──
-    if tool == "pc_type":
-        text = shlex.quote(str(args.get("text", "")))
-        return f"mios-pc-control type {text}"
+    # pc_type migrated to SSOT [verbs.pc_type].cmd ("mios-pc-control type {text}");
+    # the catalog path also resolves its content/input aliases. pc_key (combo
+    # "+" -> key-combo conditional) + pc_click (int coords + button enum-clamp)
+    # stay as code.
     if tool == "pc_key":
         key = str(args.get("key", "")).strip()
         # Modifier combos -> key-combo; single keys -> key.

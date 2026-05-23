@@ -1293,6 +1293,7 @@ sig        = "content, channel?"
 desc       = "ACTUALLY post a message to the operator's Discord (local bot, default channel). USE THIS to DELIVER a message to Discord when the operator asks to post / send / share / DM / 'let me know on' Discord -- it really posts and returns the message id, so NEVER claim something was sent without calling this. Put the full text to post in `content`. Channel defaults to the operator's configured channel; pass `channel` only to override."
 tier       = "core"
 permission = "write"
+cmd        = "mios-discord-send {content}{channel?--channel}"
   [verbs.discord_send.params.content]
   type    = "string"
   aliases = ["message", "text", "body", "msg"]
@@ -1307,6 +1308,7 @@ sig        = "text"
 desc       = "Type literal text into focused window. Prefer text_create / text_str_replace for file edits."
 tier       = "rare"
 permission = "write"
+cmd        = "mios-pc-control type {text}"
   [verbs.pc_type.params.text]
   type = "string"
   aliases = ["content", "input"]
