@@ -5655,8 +5655,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         title = shlex.quote(str(args.get("title", "")))
         mode = "kill" if str(args.get("mode", "graceful")) == "force" else "close"
         return f"mios-window {mode} {title}"
-    if tool == "list_windows":
-        return "mios-pc-control window-list --json"
     # ── Window-state verbs (Phase D.3 -- PC-control template) ──
     # All five wrap `mios-window <subcmd>` which resolves the title
     # pattern to an hwnd internally; the agent only needs to supply
@@ -5837,8 +5835,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # rejection, etc.) instead of looping on doomed launches.
         pid = shlex.quote(str(args.get("id", "")))
         return f"mios-flatpak-preflight {pid}"
-    if tool == "screen_layout":
-        return "mios-pc-control screen-layout"
     if tool == "open_url":
         url = shlex.quote(str(args.get("url", "")))
         browser = args.get("browser") or ""
@@ -5875,14 +5871,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # 3); the helper does the expansion + concurrency + merge.
         fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "2")))
         return f"mios-web-search -n {n} --fanout {fan} {q}"
-    if tool == "web_extract":
-        # Fetch a URL's ACTUAL readable text (not just a snippet) so the agent
-        # GROUNDS on real content -- the anti-fabrication companion to
-        # web_search (operator 2026-05-23). Command literal lives in the helper.
-        url = shlex.quote(str(_arg_with_synonyms(tool, "url", args)
-                              or args.get("query", "")))
-        n = int(args.get("limit", 4000))
-        return f"mios-web-extract -n {n} {url}"
     if tool == "discord_send":
         # ACTUALLY post to Discord via the local mios-discord-send helper
         # (bot token + default channel from /etc/mios/hermes/discord.env).
@@ -5940,10 +5928,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if type_filter in ("f", "d"):
             cmd += f" -type {type_filter}"
         return cmd
-    if tool == "system_status":
-        # Already emits a JSON blob by default (see mios-system-status
-        # docstring -- single structured object the agent reads verbatim).
-        return "mios-system-status"
     if tool == "system_logs":
         unit = _arg_with_synonyms(tool, "unit", args).strip()
         since = (_arg_with_synonyms(tool, "since", args).strip() or "10m")
