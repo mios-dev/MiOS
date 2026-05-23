@@ -1230,6 +1230,7 @@ sig        = "query, limit=5?"
 desc       = "WEB search via the LOCAL self-hosted SearXNG (offline-first metasearch, no cloud dependency). USE THIS for anything from the internet or the current world: weather, news, current events, event dates/times/locations, prices, products, people, places, scores, facts, general knowledge -- ANY question whose answer is not a file on this machine. Returns real fetched {title, url, content} plus instant answers/infoboxes for citation. This is NOT file search: everything_search/fs_search/directory_lookup ONLY find files on disk and return nothing useful for a knowledge/current-events question. When a question needs a live fact you don't already have, call THIS and ground on the result -- never invent the answer, never default to remembered facts."
 tier       = "core"
 permission = "read"
+cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} {query}"
   [verbs.web_search.params.query]
   type    = "string"
   aliases = ["q", "term", "text", "search"]
@@ -1696,6 +1697,7 @@ sig        = "query, limit=5?"
 desc       = "Semantic search over the installed-app inventory (mios-apps). Returns top-k {category, name, description, launch, score}. Use for ambiguous natural-language asks like 'my note-taking app' / 'phone settings' where substring matching against mios_apps(filter=...) wouldn't fire."
 tier       = "core"
 permission = "read"
+cmd        = "mios-app-search --json --limit {limit=5} {query!}"
   [verbs.app_search.params.query]
   type = "string"
   desc = "Natural-language description of what app the user means."
@@ -1712,6 +1714,7 @@ sig        = "query, limit=5?"
 desc       = "Find verbs in the catalog by natural-language query. Use when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score}. Embeds via nomic-embed-text; cosine over verb name+description."
 tier       = "core"
 permission = "read"
+cmd        = "mios-tool-search --json --limit {limit=5} {query!}"
   [verbs.tool_search.params.query]
   type = "string"
   desc = "Natural-language description of what you want to do."

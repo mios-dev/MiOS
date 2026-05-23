@@ -5543,7 +5543,13 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
 
 # ── Dispatch (broker socket bridge) ────────────────────────────────
-_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:(=|\?)([^}]*))?\}")
+_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:(=|\?|!)([^}]*))?\}")
+
+
+class _TemplateAbort(Exception):
+    """Intentional render abort: a REQUIRED {arg!} placeholder was empty, so the
+    whole template renders to None (the caller falls back / surfaces an error).
+    Distinct from a real render error so it isn't logged as a failure."""
 
 
 def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
@@ -5552,7 +5558,12 @@ def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
     catalog). Placeholder forms (all values resolved via _arg_with_synonyms,
     then shlex-quoted):
       {arg}          required -- substituted in place (empty -> '').
-      {arg=default}  default used when the arg is absent/empty.
+      {arg!}         REQUIRED-or-abort -- if empty the WHOLE template renders to
+                     None (replaces a hardcoded `if not arg: return None` guard).
+      {arg=default}  default used when the arg is absent/empty. If `default`
+                     starts with `$`, it is an ENV default `$ENVVAR:fallback`:
+                     the value comes from os.environ[ENVVAR] (or `fallback` when
+                     unset) -- e.g. {fanout=$MIOS_WEB_FANOUT:2}.
       {arg?FLAG}     OPTIONAL -- emits nothing when absent; else a
                      LEADING-space-prefixed " FLAG <value>" (or just " <value>"
                      when FLAG is empty). Author places NO literal space before
@@ -5567,6 +5578,11 @@ def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
             name, op, rest = m.group(1), m.group(2), m.group(3)
             val = _arg_with_synonyms(tool, name, args)
             sval = "" if val is None else str(val)
+            if op == "!":
+                # REQUIRED: empty -> abort the whole render (-> None).
+                if not sval.strip():
+                    raise _TemplateAbort(name)
+                return shlex.quote(sval)
             if op == "?":
                 if not sval.strip():
                     return ""
@@ -5574,10 +5590,18 @@ def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
                 q = shlex.quote(sval)
                 return f" {flag} {q}" if flag else f" {q}"
             if op == "=" and not sval.strip():
-                return shlex.quote(str(rest if rest is not None else ""))
+                dflt = rest if rest is not None else ""
+                # ENV default: `$ENVVAR:fallback` -- the one place a verb default
+                # legitimately comes from the host env (e.g. web_search fanout).
+                if dflt.startswith("$"):
+                    envname, _sep, fallback = dflt[1:].partition(":")
+                    dflt = os.environ.get(envname, fallback)
+                return shlex.quote(str(dflt))
             return shlex.quote(sval)
         rendered = _TEMPLATE_PH_RE.sub(_sub, template).strip()
         return rendered or None
+    except _TemplateAbort:
+        return None
     except Exception as e:
         log.warning("verb template render failed for %s: %s", tool, e)
         return None
@@ -5682,32 +5706,11 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # restore_window migrated to SSOT [verbs.*].cmd templates (P3); they
     # dispatch via the catalog-template check at the top of this function.
     # close_window (mode enum) + resize_window (w/h>0 guard) stay as code.
-    # ── app_search (semantic over mios-apps inventory) ──
-    # Returns top-k {category, name, description, launch, score} for
-    # ambiguous natural-language asks. Caller (planner or polish) reads
-    # the JSON envelope + picks the highest-scoring `launch` to feed
-    # into launch_app.
-    if tool == "app_search":
-        q = _arg_with_synonyms(tool, "query", args).strip()
-        if not q:
-            return None
-        try:
-            n = int(args.get("limit") or 5)
-        except (TypeError, ValueError):
-            n = 5
-        return f"mios-app-search --json --limit {n} {shlex.quote(q)}"
-    # ── tool_search (progressive disclosure / RAG-MCP) ──
-    # Natural-language search over the visible verb catalog. Returns
-    # top-k {name, sig, desc, score}. Use when no listed verb fits.
-    if tool == "tool_search":
-        q = _arg_with_synonyms(tool, "query", args).strip()
-        if not q:
-            return None
-        try:
-            n = int(args.get("limit") or 5)
-        except (TypeError, ValueError):
-            n = 5
-        return f"mios-tool-search --json --limit {n} {shlex.quote(q)}"
+    # app_search + tool_search migrated to SSOT [verbs.*].cmd templates (P3)
+    # using the {query!} required-or-None form -- the template aborts to None
+    # when query is empty, replacing the old `if not q: return None` guard, and
+    # {limit=5} renders the int default. They dispatch via the catalog-template
+    # check at the top of this function.
     # ── os_recipe (SSOT-driven OS shell verb) ──
     # Generic dispatcher to mios-os-recipe; the recipe NAME + its arg
     # contract live in mios.toml [recipes.*]. agent-pipe doesn't know
@@ -5807,17 +5810,12 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # are migrated to SSOT [verbs.*].cmd templates (P3); they dispatch via the
     # catalog-template check at the top of this function (incl. the {arg?FLAG}
     # optional-flag form for --filter / -ext / the optional browser arg).
-    if tool == "web_search":
-        # WEB search via local SearXNG (offline-first metasearch). Grounds
-        # current-events / weather / facts on REAL fetched data so the model
-        # never fabricates. Command literal lives in mios-web-search.
-        q = shlex.quote(str(args.get("query", "")))
-        n = int(args.get("limit", 5))
-        # Query fan-out: expand into K concurrent sub-queries + RRF merge
-        # (operator 2026-05-22). K from mios.toml -> MIOS_WEB_FANOUT (default
-        # 3); the helper does the expansion + concurrency + merge.
-        fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "2")))
-        return f"mios-web-search -n {n} --fanout {fan} {q}"
+    # web_search migrated to the SSOT [verbs.web_search].cmd template (P3):
+    # "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} {query}".
+    # The {fanout=$MIOS_WEB_FANOUT:2} ENV-default form preserves the old
+    # os.environ.get("MIOS_WEB_FANOUT","2") fallback + the per-call `fanout`
+    # override; the helper does the query fan-out (K concurrent sub-queries +
+    # RRF merge) + grounds on REAL fetched data so the model never fabricates.
     # discord_send migrated to the SSOT [verbs.discord_send].cmd template (P3):
     # "mios-discord-send {content}{channel?--channel}". It stays a REAL dispatched
     # verb -> a real tool_call -> truthful result (the model can't narrate a fake
