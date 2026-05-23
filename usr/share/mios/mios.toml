@@ -1236,9 +1236,11 @@ permission = "read"
 # the rest of the file); the SearXNG granian worker pool in
 # etc/containers/systemd/mios-searxng.container is sized to absorb
 # MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT concurrent /search requests:
-#   MIOS_WEB_FANOUT            = 3    -- sub-queries per web_search call
+#   MIOS_WEB_FANOUT            = 2    -- sub-queries per web_search call (was 3:
+#                                       a bigger burst rate-limited the free
+#                                       engines -> junk fallbacks, 2026-05-23)
 #   MIOS_WEB_FANOUT_WORKERS    = 4    -- concurrent sub-queries within one call
-#   MIOS_WEB_CONCURRENCY       = 4    -- concurrent web_search calls (all agents)
+#   MIOS_WEB_CONCURRENCY       = 3    -- concurrent web_search calls (all agents)
 #   MIOS_WEB_DISPATCH_JITTER_S = 0.15 -- pre-acquire stagger (s) for simul starts
 #   MIOS_WEB_RRF_K             = 60   -- Reciprocal Rank Fusion constant
 

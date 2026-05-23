@@ -102,7 +102,7 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 # ones QUEUE on it (the "buffer"). A tiny pre-acquire jitter desynchronises
 # simultaneous starts (the "delayed starts"). Total concurrent SearXNG
 # queries stay ~= MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT.
-WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "4"))
+WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
 
@@ -5439,7 +5439,7 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         # Query fan-out: expand into K concurrent sub-queries + RRF merge
         # (operator 2026-05-22). K from mios.toml -> MIOS_WEB_FANOUT (default
         # 3); the helper does the expansion + concurrency + merge.
-        fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "3")))
+        fan = int(args.get("fanout", os.environ.get("MIOS_WEB_FANOUT", "2")))
         return f"mios-web-search -n {n} --fanout {fan} {q}"
     if tool == "discord_send":
         # ACTUALLY post to Discord via the local mios-discord-send helper

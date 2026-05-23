@@ -82,15 +82,28 @@ engines:
     disabled: true
   - name: google images
     disabled: true
-  - name: brave
-    disabled: false
-  - name: bing
-    disabled: false
+  # Chronic self-hosted blockers (observed 2026-05-23: access-denied / CAPTCHA
+  # on EVERY query). Disable so they neither add failed requests nor surface a
+  # junk fallback when the good engines are momentarily rate-limited (that's
+  # how "Sword Art Online" came back as weapon-swords + "why" as dictionary
+  # definitions -- the only engine that answered was a weak one).
   - name: mojeek
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: karmasearch
+    disabled: true
+  # Reliable no-API-key workhorses for a self-hosted instance.
+  - name: bing
     disabled: false
   - name: duckduckgo
     disabled: false
     timeout: 5.0
+  # brave returns good results but rate-limits ("too many requests") under a
+  # query BURST -- kept, since the fan-out/concurrency is tamed (agent-pipe)
+  # so it stays healthy; SearXNG auto-suspends it briefly if it does trip.
+  - name: brave
+    disabled: false
   - name: wikipedia
     disabled: false
   - name: wikidata
