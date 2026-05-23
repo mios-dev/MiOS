@@ -5726,10 +5726,13 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             f"MIOS_LAUNCH_POSITION={shlex.quote(pos)} "
             f"mios-window {shlex.quote(pos)} {title}"
         )
-    if tool == "close_window":
-        title = shlex.quote(str(args.get("title", "")))
-        mode = "kill" if str(args.get("mode", "graceful")) == "force" else "close"
-        return f"mios-window {mode} {title}"
+    # close_window migrated to SSOT [verbs.close_window].cmd "mios-window close
+    # {title}" (P3). Graceful-only by operator decision 2026-05-23: the old
+    # `mode=force -> mios-window kill` path was BROKEN (no `kill` subcommand)
+    # AND contradicted the 2026-05-17 no-force-kill directive (window-close in
+    # mios-pc-control.ps1: never Stop-Process/taskkill -- a force-kill once
+    # self-terminated hermes-agent). The `mode` enum stays for compatibility
+    # but every mode closes gracefully via WM_CLOSE.
     # ── Window-state verbs (Phase D.3 -- PC-control template) ──
     # All five wrap `mios-window <subcmd>` which resolves the title
     # pattern to an hwnd internally; the agent only needs to supply

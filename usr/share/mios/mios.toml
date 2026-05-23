@@ -1080,9 +1080,10 @@ cmd        = "mios-window restore {title}"
 [verbs.close_window]
 section    = "Window / app launch"
 sig        = 'title, mode="graceful"?'
-desc       = "Close a window. graceful=WM_CLOSE (saves state); force=TerminateProcess."
+desc       = "Close a window (graceful WM_CLOSE; saves state). force-kill is intentionally NOT supported -- `mode` is accepted for compatibility but always closes gracefully (operator 2026-05-17: never Stop-Process/taskkill a window)."
 tier       = "common"
 permission = "write"
+cmd        = "mios-window close {title}"
   [verbs.close_window.params.title]
   type = "string"
   aliases = ["name", "window", "app"]
