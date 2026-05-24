@@ -7448,6 +7448,10 @@ background:radial-gradient(1100px 520px at 12% -12%,
   radial-gradient(820px 520px at 50% 118%,
   color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg);
 background-attachment:fixed}
+/* background-attachment:fixed is an iOS Safari render footgun (forces odd
+   layer repaints during scroll that shove other elements around). Pin it on
+   touch/narrow viewports. */
+@media(max-width:900px){body{background-attachment:scroll}}
 a{color:var(--accent);text-decoration:none}
 .bar{display:flex;align-items:center;gap:16px;padding:14px 22px;
 border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:30}
@@ -7588,32 +7592,26 @@ box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
 color:var(--subtle);font-family:var(--mono);margin-bottom:6px;text-transform:uppercase;
 letter-spacing:.5px}
 .embed-bar a{color:var(--warn)}
-/* Plain IN-FLOW iframe -- NO position:absolute/relative and NO z-index. In an
-   iOS standalone PWA an absolutely-positioned iframe floats over the whole
-   viewport (operator: "floats over everything"). A plain block iframe with an
-   explicit pixel height stays inside the chip, and the chip grows to fit it. */
+/* The embed is a plain in-flow iframe in a FIXED-height box. The box -- not the
+   iframe -- owns the height and clips. On an iOS standalone PWA, Safari sizes an
+   iframe to its full CONTENT height and IGNORES overflow:hidden on the wrapper,
+   so the oversized iframe paints over the chips below it (operator: "expanded
+   chips float over the page"). The documented fix is overflow:auto WITH
+   -webkit-overflow-scrolling:touch -- that forces iOS to give the box a real
+   momentum-scroll region that clips the iframe to the box. (NOT overflow:hidden,
+   NOT contain:layout/paint -- iframes are their own compositing layer and ignore
+   ancestor paint containment on iOS.) */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;overflow:hidden;background:#06090d;position:relative;
-contain:layout paint}
-.embed-box iframe{display:block;width:100%;height:480px;border:0;background:#06090d}
-/* terminal embed renders xterm.js NATIVELY into the box -- NO iframe, so it
-   cannot float over the page in an iOS standalone PWA. Fixed-height box; the
-   FitAddon sizes the grid to ~60x20 at fontSize 13, and the box shrinks to the
-   card width on mobile. */
-/* width capped by VIEWPORT units (vw), not % -- a %-based cap depends on the
-   card width, which the terminal's own content was inflating (circular), so the
-   card grew wider than the screen. calc(100vw-...) is viewport-fixed and breaks
-   the loop; the card can no longer be inflated past the screen. */
-.card.term.exp .embed-box{width:min(calc(100vw - 84px),540px);
-height:340px;margin:0 auto;padding:6px}
-.card.term .embed-box .xterm{height:100%}
-/* The portal's global *{box-sizing:border-box} corrupts xterm's internal cell
-   geometry (its rows/spans assume content-box) -> text renders mis-laid / as
-   vertical strips. Reset box-sizing within the terminal. */
-.xterm,.xterm *{box-sizing:content-box}
+border-radius:9px;background:#06090d;position:relative;height:480px;
+overflow:auto;-webkit-overflow-scrolling:touch}
+.embed-box iframe{display:block;width:100%;height:100%;border:0;background:#06090d}
+/* terminal embed = ttyd's OWN page (operator: "use ttyd's own page") in the same
+   iframe. ttyd auto-fits its terminal to the iframe box, so there is no custom
+   xterm, no FitAddon, no 1-column "rotated" text. Shorter box than a website. */
+.card.term.exp .embed-box{height:360px}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build15</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build16</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7751,69 +7749,21 @@ function cards(){
   $("svcn").textContent=O.filter(function(s){return s.ok;}).length+" / "+O.length+" up";
   if($("termn"))$("termn").textContent=T.filter(function(s){return s.ok;}).length+" / "+T.length+" up";
 }
-// Lazy-load the vendored xterm.js + fit addon on first terminal open.
-var _xtermLoading=null;
-function loadXterm(){
-  if(window.Terminal&&window.FitAddon)return Promise.resolve();
-  if(_xtermLoading)return _xtermLoading;
-  _xtermLoading=new Promise(function(res,rej){
-    var l=document.createElement("link");l.rel="stylesheet";l.href="/portal/xterm.css";
-    document.head.appendChild(l);
-    var s1=document.createElement("script");s1.src="/portal/xterm.js";
-    s1.onload=function(){var s2=document.createElement("script");s2.src="/portal/addon-fit.js";
-      s2.onload=function(){res();};s2.onerror=rej;document.head.appendChild(s2);};
-    s1.onerror=rej;document.head.appendChild(s1);});
-  return _xtermLoading;}
-// Render a ttyd session NATIVELY (xterm.js + WebSocket) -- no iframe, so it
-// cannot float over the page in an iOS standalone PWA. Implements ttyd's wire
-// protocol: init = JSON {AuthToken,columns,rows}; client INPUT = '0'+data,
-// RESIZE = '1'+JSON; server OUTPUT frames start with '0'.
-function openTerm(box,port){
-  loadXterm().then(function(){
-    var enc=new TextEncoder();
-    var term=new Terminal({fontSize:13,cursorBlink:true,scrollback:1500,
-      fontFamily:'Menlo,Monaco,"Cascadia Code","Courier New",monospace',
-      theme:{background:"#06090d",foreground:"#E7DFD3",cursor:"#F35C15",
-             selectionBackground:"#1A407F"}});
-    var fit=new FitAddon.FitAddon();term.loadAddon(fit);
-    term.open(box);box._term=term;box._fit=fit;
-    // Only fit when the box truly has a size; otherwise fall back to a sane
-    // fixed grid so the terminal is NEVER 1 column (1 col wraps every character
-    // vertically -> the "rotated" text). Retry across a few ticks + on resize.
-    function safeFit(){
-      if(box.clientWidth>60&&box.clientHeight>60){try{fit.fit();}catch(e){}}
-      else{try{term.resize(40,20);}catch(e){}}}
-    safeFit();
-    if(window.ResizeObserver){var _ro=new ResizeObserver(safeFit);_ro.observe(box);box._ro=_ro;}
-    [50,200,500,1000].forEach(function(ms){setTimeout(safeFit,ms);});
-    // SAME-ORIGIN bridge (agent-pipe proxies to the loopback ttyd) -> reachable
-    // from any device, no per-port tailscale-serve, no cross-origin.
-    var wsurl=(location.protocol==="https:"?"wss:":"ws:")+"//"+location.host+"/portal/term/"+port;
-    var ws=new WebSocket(wsurl,["tty"]);ws.binaryType="arraybuffer";box._ws=ws;
-    ws.onopen=function(){
-      ws.send(enc.encode(JSON.stringify({AuthToken:"",columns:term.cols,rows:term.rows})));
-      term.onData(function(d){var pl=enc.encode(d),m=new Uint8Array(pl.length+1);
-        m[0]=48;m.set(pl,1);if(ws.readyState===1)ws.send(m);});            // '0' INPUT
-      term.onResize(function(s){if(ws.readyState===1)
-        ws.send(enc.encode("1"+JSON.stringify({columns:s.cols,rows:s.rows})));}); // '1' RESIZE
-      setTimeout(safeFit,60);};
-    ws.onmessage=function(ev){var b=new Uint8Array(ev.data);
-      if(b.length&&b[0]===48)term.write(b.subarray(1));};                  // '0' OUTPUT
-    ws.onclose=function(){try{term.write("\r\n\x1b[31m[disconnected]\x1b[0m\r\n");}catch(e){}};
-    ws.onerror=function(){try{term.write("\r\n\x1b[31m[connection error]\x1b[0m\r\n");}catch(e){}};
-  }).catch(function(){box.textContent="terminal unavailable (xterm load failed)";});
-}
+// Every chip -- service AND ttyd terminal -- expands to the same thing: the
+// target's OWN page in a plain in-flow iframe inside the touch-scroll .embed-box
+// (see CSS). ttyd serves a complete, self-fitting terminal at its own HTTPS URL,
+// so there is no hand-rolled xterm/WebSocket bridge here anymore (it rendered as
+// rotated/floating in the iOS standalone PWA). The iframe is created once and
+// preserved across stat refreshes (place() never re-parents an open card).
 function toggleEmbed(p){
   var el=cardEls[p];if(!el)return;
   var open=el.classList.toggle("exp");
-  if(open){
-    var box=el.querySelector(".embed-box");
-    if(box&&!box._init){box._init=true;
-      var u=el.querySelector(".embed").getAttribute("data-u");
-      if(el.classList.contains("term"))openTerm(box,p);
-      else{var f=document.createElement("iframe");f.setAttribute("loading","lazy");
-        f.title="embed "+p;f.src=u;box.appendChild(f);}}
-    else if(box&&box._fit){setTimeout(function(){try{box._fit.fit();}catch(e){}},60);}}
+  if(!open)return;
+  var box=el.querySelector(".embed-box");
+  if(box&&!box._init){box._init=true;
+    var u=el.querySelector(".embed").getAttribute("data-u");
+    var f=document.createElement("iframe");f.setAttribute("loading","lazy");
+    f.title="embed "+p;f.src=u;box.appendChild(f);}
 }
 function render(j){
   var h=j.host||{},hs=[];
@@ -8018,7 +7968,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v15';\n"
+    "var C='mios-portal-v16';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
