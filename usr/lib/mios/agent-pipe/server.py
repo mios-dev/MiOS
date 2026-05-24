@@ -116,6 +116,30 @@ _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
 AGENT_CONCURRENCY = int(os.environ.get("MIOS_AGENT_CONCURRENCY", "3"))
 _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
+# Per-LANE concurrency (operator 2026-05-24: "iGPU fires WITH CPU cores as well
+# as the rest of the other engines, hardware or nodes"). The single global
+# _agent_sem above serialised DISTINCT hardware -- the iGPU (a separate node)
+# would QUEUE behind CPU/GPU work instead of firing alongside it. Now each
+# compute lane / engine / node gets its OWN semaphore, so they ALL fire
+# CONCURRENTLY; only agents SHARING one lane (e.g. two models on the single
+# 4090) are bounded. Per-lane cap = MIOS_AGENT_LANE_CONCURRENCY (default =
+# MIOS_AGENT_CONCURRENCY); override one lane via MIOS_AGENT_LANE_CONCURRENCY_<LANE>
+# (e.g. _GPU=2 to protect the shared 4090's VRAM while iGPU/CPU/nodes run free).
+_LANE_SEMS: dict = {}
+
+
+def _lane_sem(key: str) -> asyncio.Semaphore:
+    """The concurrency gate for ONE hardware lane / engine / node (lazily
+    created -- safe: no await between the check and the set in the single-
+    threaded event loop)."""
+    key = str(key or "gpu").lower().strip() or "gpu"
+    if key not in _LANE_SEMS:
+        n = max(1, int(os.environ.get(
+            "MIOS_AGENT_LANE_CONCURRENCY_" + key.upper(),
+            os.environ.get("MIOS_AGENT_LANE_CONCURRENCY", str(AGENT_CONCURRENCY)))))
+        _LANE_SEMS[key] = asyncio.Semaphore(n)
+    return _LANE_SEMS[key]
+
 # Router (layer-1 micro-LLM classifier) config.
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}
@@ -1068,21 +1092,21 @@ _DISPATCH_CFG = _load_dispatch_cfg()
 
 
 def _agent_lane(cfg: dict) -> str:
-    """Resolve an agent's inference lane: 'cpu' (the light iGPU/CPU lane,
-    incl. the daemon-agent) or 'gpu' (the heavy dGPU lane). Explicit
-    [agents.*].lane wins; otherwise infer from endpoint/model so legacy
-    configs still classify. Used to run CPU work CONCURRENTLY with GPU."""
+    """Resolve an agent's COMPUTE LANE -- the distinct hardware it runs on:
+    'gpu' (the dGPU/4090), 'cpu' (the in-VM CPU), 'igpu' (an iGPU, e.g. the
+    Windows llama.cpp node :11436), 'accelerator', or 'mobile' (a client node).
+    DISTINCT lanes do NOT contend, so the council fires one agent PER LANE
+    CONCURRENTLY and each gets its own _lane_sem (operator 2026-05-24: "iGPU
+    fires WITH CPU cores as well as the rest of the engines/hardware/nodes").
+    Explicit [agents.*].lane wins; else infer from endpoint/model. iGPU is now
+    its OWN lane (was collapsed into 'cpu', which queued it behind CPU work)."""
     lane = str(cfg.get("lane", "")).lower().strip()
-    if lane in ("cpu", "igpu"):
-        return "cpu"
-    if lane == "mobile":
-        # client-hosted node (phone/tablet on the tailnet) -- a distinct lane
-        # so it's lane-diverse vs the local gpu/cpu agents in council fan-out.
-        return "mobile"
-    if lane == "gpu":
-        return "gpu"
+    if lane in ("cpu", "gpu", "igpu", "accelerator", "mobile"):
+        return lane
     ep = str(cfg.get("endpoint", ""))
     mdl = str(cfg.get("model", "")).lower()
+    if ":11436" in ep or "igpu" in mdl:        # iGPU lane (e.g. Windows llama.cpp)
+        return "igpu"
     if ":8644" in ep or ":11435" in ep or "cpu" in mdl:
         return "cpu"
     return "gpu"
@@ -1211,7 +1235,8 @@ def _pick_fanout_agents(primary_name: str,
         # recipe/knowledge queries (operator 2026-05-22 "Complete FAILS").
         # Now the daemon-agent fans out ONLY for system/telemetry intents
         # that match its strengths.
-        if score > 0 and primary_lane == "gpu" and _agent_lane(cfg) == "cpu":
+        if (score > 0 and primary_lane == "gpu"
+                and _agent_lane(cfg) in ("cpu", "igpu", "accelerator")):
             score += 2
         if score > 0:
             scored.append((score, name, cfg))
@@ -1221,11 +1246,13 @@ def _pick_fanout_agents(primary_name: str,
 
 async def _call_agent_complete(name, cfg, body, headers, client,
                                *, prefer_cpu: bool = True) -> tuple:
-    """Bounded entry point (operator 2026-05-23): concurrent agent dispatches
-    -- council secondaries AND DAG-level nodes -- share _agent_sem, so the
-    swarm engages at most MIOS_AGENT_CONCURRENCY agents at once; the rest
-    queue. No nested agent calls, so no deadlock."""
-    async with _agent_sem:
+    """Bounded entry point (operator 2026-05-23/24): concurrent agent dispatches
+    -- council secondaries AND DAG-level nodes -- acquire the PER-LANE semaphore
+    for the engine/node they actually run on, so distinct hardware (dGPU, CPU,
+    iGPU, accelerator, each remote node) all fire CONCURRENTLY and only same-lane
+    agents queue. No nested agent calls, so no deadlock."""
+    _engine = _agent_offload_engine(cfg) if prefer_cpu else None
+    async with _lane_sem(_engine or _agent_lane(cfg)):
         return await _call_agent_complete_inner(
             name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
 
@@ -1322,9 +1349,10 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     full_text) -- the SAME contract as _call_agent_complete -- so the
     polish-merge / scratchpad / roster path downstream is unchanged. Dead
     endpoints + errors yield '' (dropped from the merge), identical
-    degradation to the non-streaming path. Shares _agent_sem (the swarm
-    concurrency cap)."""
-    async with _agent_sem:
+    degradation to the non-streaming path. Acquires the PER-LANE semaphore (the
+    engine/node it runs on), so it fires concurrently with the other lanes."""
+    _engine = _agent_offload_engine(cfg) if prefer_cpu else None
+    async with _lane_sem(_engine or _agent_lane(cfg)):
         return await _call_agent_stream_inner(
             name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
 
