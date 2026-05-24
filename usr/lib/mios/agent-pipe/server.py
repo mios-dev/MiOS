@@ -66,7 +66,8 @@ import uuid
 from typing import Any, AsyncGenerator, Optional
 
 import httpx
-from fastapi import FastAPI, Request
+import websockets
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
                                Response, StreamingResponse)
 import uvicorn
@@ -7599,7 +7600,7 @@ border-radius:9px;overflow:hidden;background:#06090d}
 .card.term .embed-box .xterm{height:100%}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build6</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build7</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7754,17 +7755,19 @@ function loadXterm(){
 // cannot float over the page in an iOS standalone PWA. Implements ttyd's wire
 // protocol: init = JSON {AuthToken,columns,rows}; client INPUT = '0'+data,
 // RESIZE = '1'+JSON; server OUTPUT frames start with '0'.
-function openTerm(box,url){
+function openTerm(box,port){
   loadXterm().then(function(){
-    var u=new URL(url),enc=new TextEncoder();
+    var enc=new TextEncoder();
     var term=new Terminal({fontSize:13,cursorBlink:true,scrollback:1500,
       theme:{background:"#06090d",foreground:"#E7DFD3",cursor:"#F35C15",
              selectionBackground:"#1A407F"}});
     var fit=new FitAddon.FitAddon();term.loadAddon(fit);
     term.open(box);box._term=term;box._fit=fit;
     try{fit.fit();}catch(e){}
-    var ws=new WebSocket((u.protocol==="https:"?"wss:":"ws:")+"//"+u.host+"/ws",["tty"]);
-    ws.binaryType="arraybuffer";box._ws=ws;
+    // SAME-ORIGIN bridge (agent-pipe proxies to the loopback ttyd) -> reachable
+    // from any device, no per-port tailscale-serve, no cross-origin.
+    var wsurl=(location.protocol==="https:"?"wss:":"ws:")+"//"+location.host+"/portal/term/"+port;
+    var ws=new WebSocket(wsurl,["tty"]);ws.binaryType="arraybuffer";box._ws=ws;
     ws.onopen=function(){
       ws.send(enc.encode(JSON.stringify({AuthToken:"",columns:term.cols,rows:term.rows})));
       term.onData(function(d){var pl=enc.encode(d),m=new Uint8Array(pl.length+1);
@@ -7775,7 +7778,8 @@ function openTerm(box,url){
     ws.onmessage=function(ev){var b=new Uint8Array(ev.data);
       if(b.length&&b[0]===48)term.write(b.subarray(1));};                  // '0' OUTPUT
     ws.onclose=function(){try{term.write("\r\n\x1b[31m[disconnected]\x1b[0m\r\n");}catch(e){}};
-  }).catch(function(){var f=document.createElement("iframe");f.src=url;box.appendChild(f);});
+    ws.onerror=function(){try{term.write("\r\n\x1b[31m[connection error]\x1b[0m\r\n");}catch(e){}};
+  }).catch(function(){box.textContent="terminal unavailable (xterm load failed)";});
 }
 function toggleEmbed(p){
   var el=cardEls[p];if(!el)return;
@@ -7784,7 +7788,7 @@ function toggleEmbed(p){
     var box=el.querySelector(".embed-box");
     if(box&&!box._init){box._init=true;
       var u=el.querySelector(".embed").getAttribute("data-u");
-      if(el.classList.contains("term"))openTerm(box,u);
+      if(el.classList.contains("term"))openTerm(box,p);
       else{var f=document.createElement("iframe");f.setAttribute("loading","lazy");
         f.title="embed "+p;f.src=u;box.appendChild(f);}}
     else if(box&&box._fit){setTimeout(function(){try{box._fit.fit();}catch(e){}},60);}}
@@ -7989,7 +7993,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v6';\n"
+    "var C='mios-portal-v7';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
@@ -8060,6 +8064,72 @@ async def portal_xterm_css() -> Response:
 async def portal_addon_fit() -> Response:
     return Response(_read_portal_asset("addon-fit.js"),
                     media_type="application/javascript")
+
+
+@app.websocket("/portal/term/{port}")
+async def portal_term_ws(ws: WebSocket, port: int):
+    """Same-origin WebSocket bridge to a loopback ttyd. The operator's device
+    reaches the portal but NOT ttyd's 127.0.0.1:<port> directly (loopback-only,
+    not tailscale-served), so the native xterm embed connects here and we proxy
+    to ttyd inside the VM -- works from any device with no per-port serve."""
+    # Same login gate as the rest of the portal (cookie sent on same-origin WS).
+    if PORTAL_REQUIRE_LOGIN and not _portal_token_ok(
+            ws.cookies.get(PORTAL_COOKIE)):
+        await ws.close(code=1008)
+        return
+    # Only ever bridge a KNOWN terminal port, never an arbitrary host port.
+    if port not in {s["port"] for s in _PORTAL_SERVICES
+                    if s.get("kind") == "terminal"}:
+        await ws.close(code=1008)
+        return
+    await ws.accept(subprotocol="tty")
+    try:
+        upstream = await websockets.connect(
+            f"ws://127.0.0.1:{port}/ws", subprotocols=["tty"],
+            max_size=None, open_timeout=10)
+    except Exception as e:
+        log.warning("portal term proxy: ttyd :%s connect failed -- %s", port, e)
+        try:
+            await ws.close(code=1011)
+        except Exception:
+            pass
+        return
+
+    async def client_to_ttyd():
+        try:
+            while True:
+                m = await ws.receive()
+                if m.get("type") == "websocket.disconnect":
+                    break
+                d = m.get("bytes")
+                if d is None and m.get("text") is not None:
+                    d = m["text"].encode("utf-8")
+                if d is not None:
+                    await upstream.send(d)
+        except Exception:
+            pass
+        finally:
+            try:
+                await upstream.close()
+            except Exception:
+                pass
+
+    async def ttyd_to_client():
+        try:
+            async for msg in upstream:
+                if isinstance(msg, (bytes, bytearray)):
+                    await ws.send_bytes(bytes(msg))
+                else:
+                    await ws.send_text(msg)
+        except Exception:
+            pass
+        finally:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+
+    await asyncio.gather(client_to_ttyd(), ttyd_to_client())
 
 
 _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
