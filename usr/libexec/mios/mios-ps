@@ -1,0 +1,33 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-ps -- show ALL MiOS containers from ANY shell or
+# context (interactive or scripted, rootless or not, Termius / ttyd / cron).
+#
+# Containers run ROOTFUL; a non-root `podman ps` sees nothing. This reads the
+# root-written, WORLD-READABLE snapshot (/var/lib/mios/podman-ps.json, refreshed
+# by mios-podman-ps.timer -- the same SSOT the dashboard, the container_status
+# verb, and the interactive `podman ps` augmentation use) so containers are
+# universally visible WITHOUT granting rootful-socket control. Falls back to a
+# live `podman ps` when the snapshot is absent.
+set -u
+SNAP="${MIOS_PODMAN_PS_SNAPSHOT:-/var/lib/mios/podman-ps.json}"
+if [ -r "$SNAP" ]; then
+    python3 - "$SNAP" <<'PY'
+import sys, json
+try:
+    rows = json.load(open(sys.argv[1]))
+except Exception:
+    rows = []
+if not isinstance(rows, list):
+    rows = []
+print(f"{'NAMES':30} {'STATUS':26} IMAGE")
+for c in rows:
+    n = c.get('Names'); n = ','.join(n) if isinstance(n, list) else (n or '')
+    st = c.get('Status') or c.get('State') or ''
+    print(f"{n[:29]:30} {st[:25]:26} {c.get('Image') or ''}")
+sys.stderr.write(f"\n{len(rows)} container(s) -- MiOS rootful snapshot "
+                 f"(refreshed every ~15s by mios-podman-ps.timer)\n")
+PY
+else
+    command -v podman >/dev/null 2>&1 && exec podman ps -a || {
+        echo "mios-ps: no snapshot at $SNAP and podman not on PATH" >&2; exit 1; }
+fi
