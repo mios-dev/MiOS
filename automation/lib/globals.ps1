@@ -77,6 +77,7 @@ $script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:
 $script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:MIOS_PORT_COCKPIT }       else { 9090 }
 $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11434 }
 $script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
+$script:MIOS_PORT_CRAWL4AI      = if ($env:MIOS_PORT_CRAWL4AI)      { [int]$env:MIOS_PORT_CRAWL4AI }      else { 11235 }
 $script:MIOS_PORT_HERMES        = if ($env:MIOS_PORT_HERMES)        { [int]$env:MIOS_PORT_HERMES }        else { 8642 }
 $script:MIOS_PORT_OPEN_WEBUI    = if ($env:MIOS_PORT_OPEN_WEBUI)    { [int]$env:MIOS_PORT_OPEN_WEBUI }    else { 3030 }
 $script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8080 }
@@ -88,6 +89,9 @@ $script:MIOS_FORGE_URL    = if ($env:MIOS_FORGE_URL)    { $env:MIOS_FORGE_URL } 
 $script:MIOS_COCKPIT_URL  = if ($env:MIOS_COCKPIT_URL)  { $env:MIOS_COCKPIT_URL }  else { "https://localhost:$($script:MIOS_PORT_COCKPIT)" }
 $script:MIOS_OLLAMA_URL   = if ($env:MIOS_OLLAMA_URL)   { $env:MIOS_OLLAMA_URL }   else { "http://localhost:$($script:MIOS_PORT_OLLAMA)" }
 $script:MIOS_SEARXNG_URL  = if ($env:MIOS_SEARXNG_URL)  { $env:MIOS_SEARXNG_URL }  else { "http://localhost:$($script:MIOS_PORT_SEARXNG)" }
+# crawl engine = loopback venv service (mios-crawl4ai.service); helper reads
+# MIOS_CRAWL_SERVICE_URL. Renamed 2026-05-24 from MIOS_CRAWL4AI_URL (container scrapped).
+$script:MIOS_CRAWL_SERVICE_URL = if ($env:MIOS_CRAWL_SERVICE_URL) { $env:MIOS_CRAWL_SERVICE_URL } else { "http://127.0.0.1:$($script:MIOS_PORT_CRAWL4AI)" }
 $script:MIOS_HERMES_URL   = if ($env:MIOS_HERMES_URL)   { $env:MIOS_HERMES_URL }   else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_OPEN_WEBUI_URL     = if ($env:MIOS_OPEN_WEBUI_URL)     { $env:MIOS_OPEN_WEBUI_URL }     else { "http://localhost:$($script:MIOS_PORT_OPEN_WEBUI)/" }
 $script:MIOS_CODE_SERVER_URL     = if ($env:MIOS_CODE_SERVER_URL)     { $env:MIOS_CODE_SERVER_URL }     else { "http://localhost:$($script:MIOS_PORT_CODE_SERVER)/" }

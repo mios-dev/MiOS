@@ -89,6 +89,7 @@ enable greenboot-status.service
 enable redboot-auto-reboot.service
 enable cockpit.socket
 enable mios-searxng.service
+enable mios-crawl4ai.service
 enable mios-hermes-firstboot.service
 enable hermes-agent.service
 # Headless ChromeDev with CDP on :9222 -- backs Hermes's browser tool

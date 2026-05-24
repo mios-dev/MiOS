@@ -52,6 +52,14 @@ Environment=HERMES_HOME=/var/lib/mios/hermes
 # dev-VM value; bridge builds get mios-searxng:8080 via a Quadlet-style
 # drop-in or 15-render. Web search is retrieval, not inference (Law 5).
 Environment=SEARXNG_URL=http://localhost:8888
+# crawl-engine endpoint for the agent's `crawl` tool (mios-crawl POSTs here).
+# The crawl engine is the loopback venv service mios-crawl4ai.service
+# (crawl4ai over Chrome CDP + Camoufox fallback); same retrieval-not-inference
+# posture as SearXNG (a local browser is not a vendor cloud model -- Law 5).
+# mios-crawl defaults to this same URL, so this line is for parity +
+# discoverability. (Renamed 2026-05-24: MIOS_CRAWL4AI_URL -> MIOS_CRAWL_SERVICE_URL
+# when the container was scrapped for the venv service.)
+Environment=MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235
 # Gateway bind: PORT is the OpenAI /v1 surface port (mios.toml
 # [ports].hermes, default 8642). API_SERVER_HOST=0.0.0.0 comes from
 # api.env (so the WSL2 portproxy + LAN reach it). HERMES_BACKEND_BASE_URL

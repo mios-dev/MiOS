@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""mios-crawl -- native CRAWL verb backend (fetch a URL -> clean markdown).
+
+Reads ONE web page and returns LLM-ready markdown so agents GROUND on the
+ACTUAL page content instead of a search snippet or a fabrication. Thin HTTP
+client for the local mios-crawl4ai service (loopback FastAPI) -- the slow
+crawl4ai/camoufox import + browser-attach is kept WARM in that service, so
+each `crawl` verb call is just a fast loopback POST (same shape as
+mios-web-search -> SearXNG).
+
+  --- engine flow (operator directive 2026-05-24) ---
+  PRIMARY  : crawl4ai drives the EXISTING local Chrome over the DevTools
+             Protocol (ws://127.0.0.1:9222, the ChromeDev flatpak that
+             mios-hermes-browser.service keeps up). crawl4ai ATTACHES to
+             that browser via BrowserConfig(browser_mode="custom",
+             cdp_url=...) -- NO bundled/downloaded Chromium.
+  FAIL-RETRY: if the CDP crawl errors / is blocked / returns near-empty
+             markdown, the SAME url is retried with Camoufox (stealth
+             anti-detect Firefox). Camoufox ships its own patched Firefox.
+  HONEST-FAIL: if both engines fail, this prints success:false with an
+             error -- it NEVER invents page content.
+
+Companion to mios-web-search: web_search (SearXNG) finds candidate URLs;
+crawl reads the chosen one. Agent flow: search -> pick URL -> crawl ->
+answer from the fetched markdown.
+
+SSOT (env rendered from mios.toml [crawl] via globals/userenv):
+  MIOS_CRAWL_SERVICE_URL  base URL of the local crawl service
+                          (default http://127.0.0.1:${MIOS_PORT_CRAWL4AI:-11235})
+
+Usage:
+  mios-crawl <http(s)-url> [--max-chars N] [--camoufox] [--timeout S] [--json]
+    --camoufox   force the Camoufox stealth path (skip Chrome CDP). Used by
+                 the smoke test to confirm the fail-retry engine works.
+    --max-chars  truncate returned markdown (0 = no limit; default 20000)
+Output: JSON {success, engine, url, title, markdown, links}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.request
+
+# SSOT: the loopback crawl service base URL. Built from the SSOT port so a
+# port override in mios.toml flows through without editing this literal.
+_PORT = os.environ.get("MIOS_PORT_CRAWL4AI", "11235").strip() or "11235"
+SERVICE_URL = os.environ.get(
+    "MIOS_CRAWL_SERVICE_URL", f"http://127.0.0.1:{_PORT}").rstrip("/")
+
+
+def _post_crawl(url: str, timeout: float, force_camoufox: bool) -> dict:
+    payload = {"url": url}
+    if force_camoufox:
+        payload["force_camoufox"] = True
+    req = urllib.request.Request(
+        f"{SERVICE_URL}/crawl",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json",
+                 "User-Agent": "mios-crawl/2 (+local crawl service)"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(
+        prog="mios-crawl",
+        description="Fetch a URL via local Chrome (CDP) with Camoufox fallback "
+                    "-> LLM-ready markdown JSON.")
+    p.add_argument("url", help="absolute http(s) URL to fetch")
+    p.add_argument("--max-chars", type=int,
+                   default=int(os.environ.get("MIOS_CRAWL_MAX_CHARS", "20000")),
+                   help="truncate returned markdown to N chars (0 = no limit)")
+    p.add_argument("--camoufox", action="store_true",
+                   help="force the Camoufox stealth path (skip Chrome CDP)")
+    p.add_argument("--json", action="store_true", default=True,
+                   help="emit JSON (always on)")
+    p.add_argument("--timeout", type=float, default=90.0,
+                   help="HTTP timeout to the crawl service (camoufox is slow)")
+    a = p.parse_args()
+
+    url = a.url.strip()
+    if not url or not url.lower().startswith(("http://", "https://")):
+        print(json.dumps({
+            "success": False, "engine": "none", "url": url,
+            "markdown": "",
+            "error": "crawl needs an absolute http(s) URL, not a query "
+                     "(use web_search to find a URL first)",
+        }))
+        return 64
+
+    try:
+        res = _post_crawl(url, a.timeout, a.camoufox)
+    except Exception as e:
+        # Service down / unreachable: be HONEST -- never fabricate content.
+        print(json.dumps({
+            "success": False, "engine": "none", "url": url, "markdown": "",
+            "error": f"crawl service unavailable: {e} "
+                     f"(is mios-crawl4ai.service up on {SERVICE_URL}?)",
+        }, ensure_ascii=False))
+        return 1
+
+    markdown = (res.get("markdown") or "")
+    if a.max_chars and a.max_chars > 0 and len(markdown) > a.max_chars:
+        markdown = markdown[:a.max_chars] + "\n\n[...truncated...]"
+    out = {
+        "success": bool(res.get("success")),
+        "engine": res.get("engine") or "none",
+        "url": res.get("url") or url,
+        "title": res.get("title") or "",
+        "markdown": markdown,
+        "links": res.get("links", 0),
+    }
+    if not out["success"]:
+        out["error"] = res.get("error") or "page returned no extractable content"
+    print(json.dumps(out, ensure_ascii=False))
+    return 0 if out["success"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

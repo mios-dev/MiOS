@@ -206,6 +206,7 @@ slots = [
     ("ports.cockpit_link",             "MIOS_PORT_COCKPIT_LINK"),
     ("ports.ollama",                   "MIOS_PORT_OLLAMA"),
     ("ports.searxng",                  "MIOS_PORT_SEARXNG"),
+    ("ports.crawl4ai",                 "MIOS_PORT_CRAWL4AI"),
     ("ports.hermes",                   "MIOS_PORT_HERMES"),
     ("ports.hermes_workspace",         "MIOS_PORT_HERMES_WORKSPACE"),
     ("ports.open_webui",               "MIOS_PORT_OPEN_WEBUI"),
@@ -276,6 +277,10 @@ slots = [
     ("image.sidecars.forge",           "MIOS_FORGE_IMAGE"),
     ("image.sidecars.searxng_version", "MIOS_SEARXNG_VERSION"),
     ("image.sidecars.searxng",         "MIOS_SEARXNG_IMAGE"),
+    # crawl4ai image mappings removed 2026-05-24: the container was scrapped;
+    # the crawl engine is now a venv FastAPI service (mios-crawl4ai.service),
+    # so there is no image/version to render. The port + service uid mappings
+    # ([ports].crawl4ai, [services.crawl4ai].*) are RETAINED below.
     ("image.sidecars.hermes_version",  "MIOS_HERMES_VERSION"),
     ("image.sidecars.hermes",          "MIOS_HERMES_IMAGE"),
     ("image.sidecars.hermes_workspace_version", "MIOS_HERMES_WORKSPACE_VERSION"),
@@ -326,6 +331,9 @@ slots = [
     ("services.ollama_cpu.user",       "MIOS_OLLAMA_CPU_USER"),
     ("services.ollama_cpu.uid",        "MIOS_OLLAMA_CPU_UID"),
     ("services.ollama_cpu.gid",        "MIOS_OLLAMA_CPU_GID"),
+    ("services.crawl4ai.user",         "MIOS_CRAWL4AI_USER"),
+    ("services.crawl4ai.uid",          "MIOS_CRAWL4AI_UID"),
+    ("services.crawl4ai.gid",          "MIOS_CRAWL4AI_GID"),
     ("image.sidecars.ollama_cpu_version", "MIOS_OLLAMA_CPU_VERSION"),
     ("image.sidecars.ollama_cpu",      "MIOS_OLLAMA_CPU_IMAGE"),
     # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────

@@ -1,0 +1,46 @@
+# MiOS slim crawl4ai image -- NO bundled Chromium.
+#
+# Why this exists: the dev VM host is Python 3.14, which has no prebuilt
+# wheels for crawl4ai's deps (lxml et al), so a host venv can't build. This
+# image pins Python 3.12 (full wheel coverage) JUST for the crawl engine.
+#
+# Engines (operator directive 2026-05-24):
+#   PRIMARY  : crawl4ai attaches to the EXISTING host Chrome over CDP
+#              (ws://127.0.0.1:9222, the ChromeDev flatpak). The quadlet runs
+#              this image with Network=host so 127.0.0.1:9222 IS the host's
+#              Chrome. NO Chromium is bundled or downloaded here.
+#   FAIL-RETRY: camoufox (stealth Firefox) -- the ONLY browser that lives in
+#              this image (~150MB), the anti-detect fallback. Its Firefox
+#              runtime libs come from `playwright install-deps firefox`.
+FROM docker.io/library/python:3.12-slim
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# crawl4ai CORE (CDP attach -- we never run crawl4ai-setup, so no Chromium)
+# + camoufox (stealth Firefox) + the slim FastAPI service stack. playwright
+# is pulled in for its Firefox dep-installer below.
+RUN pip install --no-cache-dir \
+        crawl4ai \
+        "camoufox[geoip]" \
+        fastapi \
+        "uvicorn[standard]" \
+        pydantic \
+        playwright
+
+# Firefox runtime system libraries for headless camoufox (gtk/x11/alsa/...).
+# playwright ships the canonical dependency installer for the firefox set.
+RUN apt-get update \
+    && playwright install-deps firefox \
+    && rm -rf /var/lib/apt/lists/*
+
+# Bake camoufox's patched stealth Firefox (~150MB) into the image so the
+# fail-retry path is ready offline at runtime.
+RUN python -m camoufox fetch
+
+# The service module is MOUNTED at runtime (quadlet Volume) so it can be
+# iterated without an image rebuild.
+WORKDIR /app
+EXPOSE 11235
+CMD ["python", "/app/mios-crawl4ai-service.py"]

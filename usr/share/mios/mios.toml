@@ -481,6 +481,7 @@ allowlist_hosts = [
     "mios-surrealdb",
     "mios-forge",
     "mios-searxng",
+    "mios-crawl4ai",
     "mios-code-server",
 ]
 
@@ -1281,6 +1282,48 @@ cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} 
   type    = "integer"
   default = 3
   aliases = ["expand", "queries", "k"]
+
+[verbs.crawl]
+section    = "Discovery / resolution"
+sig        = "url, limit=20000?"
+desc       = "FETCH a single web page and return clean, LLM-ready MARKDOWN of its full content via the LOCAL crawl engine (crawl4ai driving the existing local Chrome over CDP, with a Camoufox stealth-Firefox fail-retry; offline-first, no cloud dependency). USE THIS to READ a page you already have the URL for -- the full article/doc/recipe/spec text, not just a snippet. Pairs with web_search: web_search finds candidate URLs, then crawl reads the best one for the actual content to ground on. NOT a search: pass a concrete http(s) URL, not a query. Returns {success, engine, url, title, markdown, links} from a real fetched render -- never invent page content; if the fetch fails, say so."
+tier       = "core"
+permission = "read"
+cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
+  [verbs.crawl.params.url]
+  type    = "string"
+  aliases = ["link", "page", "address", "u"]
+  [verbs.crawl.params.limit]
+  type    = "integer"
+  default = 20000
+  aliases = ["max_chars", "chars", "n"]
+# crawl engine (operator 2026-05-24: the unclecode/crawl4ai CONTAINER was
+# SCRAPPED -- a ~2GB image bundling its own Chromium. The crawl engine now
+# runs as a slim venv FastAPI service, mios-crawl4ai.service, exposed to all
+# agents as the `crawl` broker verb). Flow:
+#   PRIMARY    crawl4ai ATTACHES to the EXISTING local Chrome over the
+#              DevTools Protocol (ws://127.0.0.1:9222, the ChromeDev flatpak
+#              that mios-hermes-browser.service keeps up) via
+#              BrowserConfig(browser_mode="custom", cdp_url=...). No bundled
+#              browser, `crawl4ai-setup` is NEVER run.
+#   FAIL-RETRY when the CDP crawl errors / is blocked / returns near-empty
+#              markdown, the same url is retried with Camoufox (stealth
+#              anti-detect Firefox; ships its own ~150MB patched Firefox).
+# Default markdown generator only -- NO LLM extraction strategy, so no
+# provider key (Architectural Law 5: a local browser is not a vendor cloud
+# AI). The `crawl` verb backend (mios-crawl) POSTs to the loopback service so
+# the slow crawl4ai/camoufox import is paid ONCE at startup, not per call.
+# mios-crawl + the service read these from env (same ${MIOS_*:-default}
+# pattern as the rest of the file):
+#   MIOS_PORT_CRAWL4AI       = 11235                 -- loopback service port
+#   MIOS_CRAWL_SERVICE_URL   = http://127.0.0.1:11235 -- mios-crawl -> service
+#   MIOS_CRAWL_CDP_URL       = ws://127.0.0.1:9222   -- Chrome DevTools endpoint
+#                                                       crawl4ai attaches to
+#   MIOS_CRAWL_CAMOUFOX      = true   -- enable the Camoufox fail-retry engine
+#   MIOS_CRAWL_MIN_CHARS     = 200    -- markdown shorter than this from the
+#                                       CDP path triggers the Camoufox retry
+#   MIOS_CRAWL_BIND          = 127.0.0.1 -- service bind (LOOPBACK only; the
+#                                       crawl engine is never LAN-exposed)
 # Web fan-out + load tunables (operator 2026-05-22: "shoot off more web
 # queries concurrently ... SearXNG setup to handle the load"). web_search
 # expands one query into `fanout` diverse sub-queries via the always-warm
@@ -3873,6 +3916,7 @@ cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend (CUDA / dGPU lane)
 ollama_cpu         = 11435    # in-VM CPU light-lane (router/classifier + verb embeddings + micro-LLMs; real AMD iGPU runs natively on the Windows host)
 searxng            = 8888     # local privacy-respecting metasearch
+crawl4ai           = 11235    # local crawl engine -- mios-crawl4ai.service FastAPI (crawl4ai over Chrome CDP + Camoufox fallback). LOOPBACK only (127.0.0.1), NOT a published/LAN port.
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
 open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
@@ -3910,6 +3954,13 @@ forge_version      = "12"
 forge              = "codeberg.org/forgejo/forgejo:12"
 searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
+# crawl4ai sidecar IMAGE removed 2026-05-24: the container approach (a ~2GB
+# unclecode/crawl4ai image bundling Playwright Chromium) was SCRAPPED. The
+# crawl engine now runs as a venv FastAPI service (mios-crawl4ai.service)
+# that drives the EXISTING local Chrome over CDP (ws://127.0.0.1:9222) with
+# a Camoufox stealth fallback -- no image, no bundled browser. See the
+# [verbs.crawl] block + [services.crawl4ai] (uid 824, retained for the venv
+# service's fs ownership) below.
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui_version = "latest"
@@ -3985,6 +4036,14 @@ gid  = 822
 user = "mios-ollama-cpu"
 uid  = 823
 gid  = 823
+
+# crawl4ai now backs the venv FastAPI service (mios-crawl4ai.service), NOT a
+# container. This uid owns the venv (/usr/lib/mios/crawl4ai/.venv) + cache
+# (/var/cache/mios/crawl4ai: camoufox Firefox + crawl4ai cache).
+[services.crawl4ai]
+user = "mios-crawl4ai"
+uid  = 824
+gid  = 824
 
 # ----------------------------------------------------------------------------
 # [paths] -- canonical FHS paths for runtime artifacts. Consumed by
