@@ -9433,12 +9433,23 @@ async def chat_completions(request: Request) -> Any:
     _recall_ctx = await _recall_knowledge(last_user_text)
     if _recall_ctx:
         _sys_prefix.append({"role": "system", "content": _recall_ctx})
+    # The refined-plan marker block (orchestration: intent / intended_outcome /
+    # tool+skill hints) is for the ACTING PRIMARY. Council SECONDARIES are
+    # reasoning-only, and a generic/non-MiOS secondary model (e.g. the vanilla
+    # qwen on the iGPU lane) PARROTS the marker block verbatim into its answer
+    # despite the "do NOT echo" line (operator 2026-05-24: the reasoner dumped
+    # "_agent / intent / refined_query" into the dropdown). So the hint goes to
+    # the PRIMARY only; secondaries get the shared context + conversation with
+    # nothing to parrot.
+    _hint_msg = None
     if refined and (refined.get("hint_tools") or refined.get("hint_skills")
                     or refined.get("intended_outcome")):
-        _sys_prefix.append({"role": "system",
-                            "content": _build_agent_hint(refined, target_name)})
-    if _sys_prefix:
-        proxy_body["messages"] = _sys_prefix + list(messages)
+        _hint_msg = {"role": "system",
+                     "content": _build_agent_hint(refined, target_name)}
+    proxy_body["messages"] = (
+        _sys_prefix + ([_hint_msg] if _hint_msg else []) + list(messages))
+    # Secondary message set: identical CONTEXT, minus the primary-only block.
+    _sec_messages = _sys_prefix + list(messages)
     proxy_bytes = json.dumps(proxy_body).encode("utf-8")
     # Normalise header keys to lowercase so the Content-Type set
     # below replaces (not duplicates) whatever the incoming request
@@ -9641,6 +9652,11 @@ async def chat_completions(request: Request) -> Any:
                 finally:
                     _ev_q.put_nowait(("PD", None))
 
+            # Secondaries run on the lighter body (shared context, NO primary-
+            # only marker block -- see _sec_messages) so a generic council model
+            # cannot parrot the routing plan into its answer.
+            _sec_body = dict(proxy_body)
+            _sec_body["messages"] = _sec_messages
             _sec_tasks = []
             for _n, _c in _fanout:
                 # context = the secondary's ROLE/specialty (why it's engaged on
@@ -9650,7 +9666,7 @@ async def chat_completions(request: Request) -> Any:
                                    cfg=_c, state="engage",
                                    context=str(_c.get("role", "")))
                 _sec_tasks.append(asyncio.create_task(
-                    _call_agent_stream(_n, _c, proxy_body, headers, client,
+                    _call_agent_stream(_n, _c, _sec_body, headers, client,
                                        _ev_q)))
             _prim_task = asyncio.create_task(_primary_pump())
             # Per-secondary ✅/💤 emitted LIVE as each fan-out task FINISHES
