@@ -51,6 +51,8 @@ import base64
 import collections
 import contextvars
 import glob
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -65,8 +67,8 @@ from typing import Any, AsyncGenerator, Optional
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import (HTMLResponse, JSONResponse, Response,
-                               StreamingResponse)
+from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
+                               Response, StreamingResponse)
 import uvicorn
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
@@ -7032,6 +7034,94 @@ async def dispatch_verb(body: dict) -> JSONResponse:
 PORTAL_PUBLIC_HOST = os.environ.get("MIOS_PUBLIC_HOST", "mios.taildd86d0.ts.net")
 
 
+# ── Portal authentication (operator 2026-05-23: "since this is a webapp and a
+#    MiOS Portal; it should require login") ─────────────────────────────────
+# A signed session-cookie login gating ONLY the portal surface (GET / +
+# /portal/* data endpoints). The /v1 OpenAI API, /a2a, and /health are left as
+# programmatic surfaces (own access model / tailnet-scoped) so OWUI and other
+# clients keep working unchanged. SSOT for the password: the global MiOS
+# password [identity].default_password -> MIOS_DEFAULT_PASSWORD, overridable
+# per-portal via [portal].password / MIOS_PORTAL_PASSWORD (+ user). Disable with
+# [portal].require_login=false / MIOS_PORTAL_REQUIRE_LOGIN=0 (e.g. when a
+# reverse proxy already authenticates). No hardcoded secret -- the cookie HMAC
+# key derives from the password (so rotating it invalidates live sessions)
+# unless an explicit MIOS_PORTAL_SECRET is set.
+def _portal_toml() -> dict:
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        with open(os.environ.get("MIOS_TOML",
+                                 "/usr/share/mios/mios.toml"), "rb") as f:
+            return tomllib.load(f)
+    except Exception:
+        return {}
+
+
+_PORTAL_TOML = _portal_toml()
+
+
+def _pcfg(section: str, key: str, default=None):
+    return (_PORTAL_TOML.get(section) or {}).get(key, default)
+
+
+PORTAL_PASSWORD = (os.environ.get("MIOS_PORTAL_PASSWORD")
+                   or _pcfg("portal", "password")
+                   or os.environ.get("MIOS_DEFAULT_PASSWORD")
+                   or _pcfg("identity", "default_password") or "mios")
+PORTAL_USER = (os.environ.get("MIOS_PORTAL_USER")
+               or _pcfg("portal", "user")
+               or _pcfg("identity", "username") or "mios")
+_portal_rl = os.environ.get("MIOS_PORTAL_REQUIRE_LOGIN")
+if _portal_rl is None:
+    _portal_rl = str(_pcfg("portal", "require_login", True))
+PORTAL_REQUIRE_LOGIN = _portal_rl.strip().lower() not in (
+    "0", "false", "no", "off")
+PORTAL_SESSION_TTL = int(os.environ.get("MIOS_PORTAL_SESSION_TTL")
+                         or _pcfg("portal", "session_ttl") or 604800)
+PORTAL_COOKIE = "mios_portal"
+_portal_secret_cfg = (os.environ.get("MIOS_PORTAL_SECRET")
+                      or _pcfg("portal", "secret") or "")
+_PORTAL_SECRET = (_portal_secret_cfg.encode("utf-8") if _portal_secret_cfg
+                  else hashlib.sha256(b"mios-portal-session|"
+                                      + PORTAL_PASSWORD.encode("utf-8")).digest())
+
+
+def _portal_make_token(user: str) -> str:
+    """Stateless signed session token: b64(user|exp).hmac(secret)."""
+    exp = int(time.time()) + PORTAL_SESSION_TTL
+    body = base64.urlsafe_b64encode(
+        f"{user}|{exp}".encode("utf-8")).decode("ascii").rstrip("=")
+    sig = hmac.new(_PORTAL_SECRET, body.encode("ascii"),
+                   hashlib.sha256).hexdigest()[:32]
+    return f"{body}.{sig}"
+
+
+def _portal_token_ok(tok: Optional[str]) -> bool:
+    if not tok or "." not in tok:
+        return False
+    body, _, sig = tok.partition(".")
+    exp_sig = hmac.new(_PORTAL_SECRET, body.encode("ascii"),
+                       hashlib.sha256).hexdigest()[:32]
+    if not hmac.compare_digest(sig, exp_sig):
+        return False
+    try:
+        pad = "=" * (-len(body) % 4)
+        _, _, exp = base64.urlsafe_b64decode(
+            body + pad).decode("utf-8").partition("|")
+        return int(exp) > int(time.time())
+    except Exception:
+        return False
+
+
+def _portal_authed(request: Request) -> bool:
+    """True when login is disabled or the request carries a valid session."""
+    if not PORTAL_REQUIRE_LOGIN:
+        return True
+    return _portal_token_ok(request.cookies.get(PORTAL_COOKIE))
+
+
 def _discover_portal_services() -> list[dict]:
     """Scan the Quadlet *.container files for io.podman_desktop.openInBrowser
     labels -> {name, port, local health URL}. Adds the host Cockpit service.
@@ -7186,10 +7276,12 @@ async def _podman_ps() -> dict:
 
 
 @app.get("/portal/stats")
-async def portal_stats() -> JSONResponse:
+async def portal_stats(request: Request) -> JSONResponse:
     """Live server-side health of every discovered MiOS service + host
     stats + best-effort container state. Self-signed backends checked
     insecurely. The single source the dashboard polls."""
+    if not _portal_authed(request):
+        return JSONResponse({"error": "auth required"}, status_code=401)
     pmap = await _podman_ps()
 
     async def _check(svc: dict, client) -> dict:
@@ -7219,9 +7311,11 @@ async def portal_stats() -> JSONResponse:
 
 
 @app.get("/portal/service/{port}")
-async def portal_service_detail(port: int) -> JSONResponse:
+async def portal_service_detail(port: int, request: Request) -> JSONResponse:
     """On-demand detail for one service (clicked in the dashboard): live
     status + container state/image + recent log lines (best-effort)."""
+    if not _portal_authed(request):
+        return JSONResponse({"error": "auth required"}, status_code=401)
     svc = next((s for s in _PORTAL_SERVICES if s["port"] == port), None)
     if not svc:
         return JSONResponse({"error": "unknown service"}, status_code=404)
@@ -7258,12 +7352,14 @@ async def portal_service_detail(port: int) -> JSONResponse:
 
 
 @app.get("/portal/swarm")
-async def portal_swarm() -> JSONResponse:
+async def portal_swarm(request: Request) -> JSONResponse:
     """Live SWARM roster (operator 2026-05-22 'emitters for all nodes/
     endpoints to confirm live the nodes/models/endpoints'): every registered
     agent/node with live reachability + the model(s) it actually serves
     (probed, not just configured). health_gate client nodes (mobile/Tailscale)
     show up/down as they join/leave the swarm."""
+    if not _portal_authed(request):
+        return JSONResponse({"error": "auth required"}, status_code=401)
     async def _probe(name: str, cfg: dict, client) -> dict:
         ep = (cfg.get("endpoint") or "").rstrip("/")
         t0 = time.time()
@@ -7503,6 +7599,7 @@ border-radius:9px;overflow:hidden;background:#06090d}
         <option value="port">port</option></select></label>
       <label>Only down <input type="checkbox" id="onlydown"></label>
       <label><a href="/portal/stats" target="_blank">raw stats JSON</a></label>
+      <label><a href="/portal/logout">Log out &#8594;</a></label>
     </div>
   </div>
 </div>
@@ -7662,8 +7759,10 @@ function renderSwarm(j){
 }
 function tickSwarm(){fetch("/portal/swarm",{cache:"no-store"})
   .then(function(r){return r.json();}).then(renderSwarm).catch(function(){});}
-function tick(){fetch("/portal/stats",{cache:"no-store"}).then(function(r){return r.json();})
-  .then(render).catch(function(){$("foot").textContent="stats unavailable";});
+function tick(){fetch("/portal/stats",{cache:"no-store"}).then(function(r){
+    if(r.status==401){location.href="/login";return null;}  // session expired -> re-auth
+    return r.json();})
+  .then(function(j){if(j)render(j);}).catch(function(){$("foot").textContent="stats unavailable";});
   tickSwarm();}
 function arm(){if(timer)clearInterval(timer);if(OPTS.refresh)timer=setInterval(tick,OPTS.refresh);}
 function detail(p){
@@ -7854,8 +7953,94 @@ async def portal_sw() -> Response:
     return Response(_PORTAL_SW, media_type="application/javascript")
 
 
+_PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiOS &middot; Sign in</title>
+<meta name="theme-color" content="#282262">
+<link rel="icon" href="/portal/icon.svg">
+<link rel="apple-touch-icon" href="/portal/icon-192.png">
+<style>
+:root{--bg:#282262;--panel:#1A407F;--fg:#E7DFD3;--mut:#B7C9D7;--accent:#F35C15;
+--ok:#3E7765;--bad:#DC271B;--info:#3D6BA8;--warn:#FF8540;
+--card:color-mix(in srgb,var(--panel) 24%,var(--bg));
+--line:color-mix(in srgb,var(--mut) 24%,transparent);
+--sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+color:var(--fg);font:15px/1.5 var(--sans);padding:20px;
+background:radial-gradient(1000px 500px at 15% -10%,
+  color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),
+  radial-gradient(900px 520px at 100% 0%,
+  color-mix(in srgb,var(--panel) 32%,transparent),transparent 55%),
+  radial-gradient(820px 520px at 50% 118%,
+  color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg)}
+form{background:var(--card);border:1px solid var(--line);border-radius:16px;
+padding:30px 28px;width:min(360px,100%);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.brand{font-size:34px;font-weight:700;letter-spacing:.5px;text-align:center}
+.brand b{color:var(--accent)}
+.sub{text-align:center;color:var(--mut);font-size:12.5px;letter-spacing:2px;
+text-transform:uppercase;margin:2px 0 22px}
+input{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);
+border-radius:10px;padding:12px 14px;font-size:15px;margin-bottom:12px}
+input:focus{outline:none;border-color:var(--accent)}
+button{width:100%;background:var(--accent);border:0;color:#1a1230;font-weight:700;
+font-size:15px;border-radius:10px;padding:12px;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--accent) 85%,#fff)}
+.err{background:color-mix(in srgb,var(--bad) 18%,transparent);
+border:1px solid color-mix(in srgb,var(--bad) 50%,transparent);color:var(--fg);
+border-radius:9px;padding:9px 12px;font-size:13px;margin-bottom:14px}
+.hint{text-align:center;color:var(--mut);font-size:12px;margin-top:14px}
+</style></head><body>
+<form method="POST" action="/portal/login">
+  <div class="brand">Mi<b>OS</b></div>
+  <div class="sub">Portal</div>
+  {ERR}
+  <input type="password" name="password" placeholder="Password" autofocus
+    autocomplete="current-password" required>
+  <button type="submit">Sign in</button>
+  <div class="hint">Sign in with your MiOS password.</div>
+</form>
+</body></html>"""
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def portal_login_page(request: Request, e: int = 0):
+    # Already signed in -> straight to the portal.
+    if _portal_authed(request):
+        return RedirectResponse("/", status_code=303)
+    err = ('<div class="err">Incorrect password &mdash; try again.</div>'
+           if e else "")
+    html = _PORTAL_LOGIN_HTML.replace("{ERR}", err)
+    return HTMLResponse(html.replace("</head>", _portal_theme_css() + "</head>"))
+
+
+@app.post("/portal/login")
+async def portal_login(request: Request):
+    # Parse the urlencoded form body directly (no python-multipart dependency).
+    from urllib.parse import parse_qs
+    body = (await request.body()).decode("utf-8", "replace")
+    pw = (parse_qs(body).get("password") or [""])[0]
+    if PORTAL_REQUIRE_LOGIN and not hmac.compare_digest(pw, PORTAL_PASSWORD):
+        return RedirectResponse("/login?e=1", status_code=303)
+    resp = RedirectResponse("/", status_code=303)
+    resp.set_cookie(PORTAL_COOKIE, _portal_make_token(PORTAL_USER),
+                    max_age=PORTAL_SESSION_TTL, httponly=True,
+                    samesite="lax", path="/")
+    return resp
+
+
+@app.get("/portal/logout")
+async def portal_logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(PORTAL_COOKIE, path="/")
+    return resp
+
+
 @app.get("/", response_class=HTMLResponse)
-async def portal_page() -> HTMLResponse:
+async def portal_page(request: Request):
+    if not _portal_authed(request):
+        return RedirectResponse("/login", status_code=303)
     # Inject the SSOT palette AFTER the static defaults so it wins.
     return HTMLResponse(
         _PORTAL_HTML.replace("</head>", _portal_theme_css() + "</head>"))

@@ -45,6 +45,23 @@ groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "
 # ~/.config/mios/mios.toml [identity].default_password.
 default_password = "mios"
 
+# ----------------------------------------------------------------------------
+# [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
+# MIOS_PORT_AGENT_PIPE). Login gates the portal UI + its /portal/* data
+# endpoints; the /v1 OpenAI API, /a2a and /health stay open programmatic
+# surfaces. Maps to MIOS_PORTAL_* (userenv.sh slot map); the portal also reads
+# these directly from mios.toml so they apply without a userenv re-render.
+# ----------------------------------------------------------------------------
+[portal]
+require_login = true     # false ONLY if a reverse proxy already authenticates
+user          = ""       # empty = inherits [identity].username
+password      = ""       # empty = inherits [identity].default_password
+session_ttl   = 604800   # signed-cookie lifetime in seconds (default 7 days)
+# secret: empty = derive the cookie-HMAC key from the password (so rotating the
+# password invalidates live sessions). Set a stable value to keep sessions
+# alive across password changes.
+secret        = ""
+
 # Discord integration -- the channel + guild MiOS-Agent posts to when
 # the operator says "send to discord" / "post a status to discord" /
 # "let me know on discord" without naming a channel. EMPTY by default
