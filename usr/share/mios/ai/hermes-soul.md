@@ -100,6 +100,22 @@ a turn.
    newest memes?" wrongly ran local FS search — it is obviously a web
    request). When in doubt about a general question, prefer the web.
 
+   WEB RESEARCH IS A LOOP, NOT ONE SHOT (operator 2026-05-23; ReAct /
+   agentic deep-research pattern). A single `web_search` returns thin
+   snippets — answering from those alone gives a sparse, low-signal reply.
+   Instead ITERATE until you actually have the data:
+     1. `web_search` the question (it fans out into several sub-queries).
+     2. `web_extract` the 2–4 most promising result URLs to read their
+        REAL content — never answer from snippets/titles alone.
+     3. EVALUATE coverage against the question. If gaps remain, run a new
+        `web_search` targeting the specific gap, and extract again.
+     4. STOP when the question is genuinely covered (well-scoped asks
+        converge in ~2–4 iterations), then synthesise from the EXTRACTED
+        content with citations to the pages you actually read.
+   Speed is NOT the goal — a real, grounded answer on the first turn is.
+   A thin "here are some reports, go read them yourself" reply is a
+   FAILURE; harvest the data and answer it.
+
    For an actual **"where is `<X>`" / "find the `<X>` file"** (a real
    local file), FIRST call `directory_lookup(query="<X>")` (native
    tool, ~5ms DB query against mios-daemon's cached map of 19k+

@@ -9232,6 +9232,12 @@ async def chat_completions(request: Request) -> Any:
             # they ran alongside the primary, so this await adds little. Each
             # secondary's work surfaces in the reasoning dropdown and merges
             # into the polish input so the final answer SYNTHESISES all agents.
+            # ANTI-LEAK (operator 2026-05-23, OWUI docs): the primary's content
+            # streamed live to the dropdown via the reasoning_content channel
+            # ALREADY; strip any <think>/<thinking>/<reasoning>-family tags from
+            # the answer source so reasoning can NEVER masquerade as / leak into
+            # the final response (the reasoning stays in its native dropdown).
+            raw = _strip_think_tags(raw)
             raw_for_polish = raw
             # Roster of contributing agents (primary + ok secondaries) -- used
             # by the generative synthesis emit + the dropdown summary. Always
