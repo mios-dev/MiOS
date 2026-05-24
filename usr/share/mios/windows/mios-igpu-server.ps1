@@ -38,6 +38,13 @@ param(
     [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
     [int]    $ContextSize = 8192,
     [int]    $GpuLayers   = 99,            # 99 = offload all layers to the iGPU
+    # Pin to a SINGLE Vulkan device so llama.cpp does NOT layer-split onto the
+    # RTX 4090 (Vulkan also enumerates the 4090, and GPU-PV shares it with the
+    # WSL VM where hermes runs -- spilling onto it would steal hermes's VRAM).
+    # On this host the AMD iGPU enumerates as Vulkan0; run with -ShowDevices to
+    # re-check, or override (e.g. -Device Vulkan1) if enumeration ever changes.
+    [string] $Device      = 'Vulkan0',
+    [switch] $ShowDevices,
     [string] $LlamaTag    = 'latest',      # llama.cpp release tag, or 'latest'
     [switch] $Install,
     [switch] $Uninstall
@@ -71,7 +78,7 @@ if ($Install) {
             '-Port',$Port,'-ContextSize',$ContextSize,'-GpuLayers',$GpuLayers)
         return
     }
-    $argline = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers"
+    $argline = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers -Device $Device"
     if ($Model) { $argline += " -Model `"$Model`"" }
     $action  = New-ScheduledTaskAction  -Execute 'pwsh.exe' -Argument $argline
     $trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -114,6 +121,9 @@ if (-not (Test-Path $exe)) {
     Ok "installed llama-server -> $exe ($($rel.tag_name))"
 }
 
+# ---- list Vulkan devices and exit (to pick the right -Device) ---------------
+if ($ShowDevices) { & $exe --list-devices; return }
+
 # ---- ensure a model ---------------------------------------------------------
 if (-not $Model) {
     $existing = Get-ChildItem -Path $modelsDir -Filter '*.gguf' -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -148,5 +158,6 @@ $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
     --model $Model `
     --ctx-size $ContextSize `
     --n-gpu-layers $GpuLayers `
+    --device $Device `
     --alias mios-igpu `
     2>&1 | Tee-Object -FilePath $logFile
