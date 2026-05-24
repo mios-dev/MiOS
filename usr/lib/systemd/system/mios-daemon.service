@@ -41,7 +41,12 @@ Environment=PYTHONUNBUFFERED=1
 # subprocess.Popen for cron actions).
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/mios/daemon
+# /var/lib/mios/daemon = the daemon's own state (state.json, launch_failures).
+# /var/lib/mios/scratch = the SHARED cross-agent blackboard the task_collector
+# drops agent-nudges into for other agents to read (operator 2026-05-24: under
+# ProtectSystem=strict it was read-only, so task_collector EROFS-failed writing
+# agent-nudges.md -- the nudge feature was silently dead).
+ReadWritePaths=/var/lib/mios/daemon /var/lib/mios/scratch
 ProtectHome=true
 PrivateTmp=true
 ProtectKernelTunables=true

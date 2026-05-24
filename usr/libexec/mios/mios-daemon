@@ -298,10 +298,17 @@ def _update_state(section: str, value) -> None:
 
 # ── Single shared Ollama client ──────────────────────────────────────
 def llm_chat(system: str, user: str, *, max_tokens: int = 150,
-             temperature: float = 0.1, want_json: bool = False) -> str:
+             temperature: float = 0.1, want_json: bool = False,
+             num_thread: int = 4) -> str:
     """Call qwen3:0.6b-cpu (or whatever MODEL is) via Ollama /api/chat.
     Returns the model's text output (content with thinking fallback).
     Returns empty string on any error. Always uses CPU + keep_alive=-1.
+
+    num_thread tunes the CPU inference width: the always-on BACKGROUND loop
+    keeps the default 4 (~2c, light), while the FOREGROUND daemon-agent
+    reasoner (the consolidated mios-cpu/reasoner lane) passes a wider count
+    (8c/16t) so a pipeline turn bursts -- operator 2026-05-24 '2c background /
+    8c foreground'. Ollama clamps to the available core count.
     """
     payload = {
         "model": MODEL,
@@ -311,7 +318,7 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
         ],
         "options": {
             "num_gpu": 0,           # Law 7 OFFLINE-FIRST + CPU-first
-            "num_thread": 4,
+            "num_thread": num_thread,
             "num_predict": max_tokens,
             "temperature": temperature,
         },
@@ -2124,21 +2131,31 @@ def rolling_report_loop() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# mios-daemon-agent :8644 -- the daemon's OpenAI-compatible /v1 face.
+# mios-daemon-agent :8644 -- the daemon's OpenAI-compatible /v1 face,
+# now the CONSOLIDATED CPU reasoning lane.
 # Operator 2026-05-18: "mios-daemon hosts a mios-daemon-agent ... keeps
 # system logs in the loop for followups/redirections". Operator
-# 2026-05-21: "bump it to use the web tool concurrently to supplement
-# the pipeline" + "mios-daemon does FULL GLOBAL journalctl/logs --
-# remember!". So when agent-pipe's fan-out delegates a turn here, this
-# agent supplements the pipeline with (1) its CORE strength -- the
-# consolidated GLOBAL journal/log telemetry it already maintains -- AND
-# (2) fresh WEB context via the local web_search tool (mios-web-search
-# -> self-hosted SearXNG). Light by design (the 2-core/50% pin): it
-# assembles GROUNDED context only -- no heavy local inference -- and
-# agent-pipe's polish merges it into the final answer.
+# 2026-05-24: "mios-daemon-agent = mios-cpu/reasoner! CONSOLIDATE" -- so
+# this one always-on CPU process IS both (a) the global journal/log
+# monitor and (b) the council's CPU reasoning lane (the retired
+# mios-reasoner-cpu merged in here). When agent-pipe fans a turn out to
+# :8644, the daemon-agent REASONS on the CPU model (qwen3:1.7b @ the
+# ollama-cpu :11435, num_gpu 0 -- same compute the old mios-reasoner-cpu
+# used) via the proven think=False llm_chat() path, GROUNDED in the live
+# global journal/log telemetry it already maintains, and bursts to 8c/16t
+# for the foreground turn. agent-pipe's polish merges its answer with the
+# dGPU primary's. (Was a telemetry-only context dump -- no inference --
+# which polluted unrelated answers and forced fanout=false; reasoning +
+# grounding fixes that, so the lane is now fanned out concurrently.)
 # ─────────────────────────────────────────────────────────────────────
 AGENT_PORT = int(os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644"))
 AGENT_WEB_LIMIT = int(os.environ.get("MIOS_DAEMON_AGENT_WEB_LIMIT", "4"))
+# Consolidated CPU-reasoner lane (operator 2026-05-24 "mios-daemon-agent =
+# mios-cpu/reasoner! CONSOLIDATE"): when agent-pipe fans a turn out here, the
+# daemon-agent now REASONS on the CPU model (not just a telemetry dump), and a
+# foreground turn bursts to 8c/16t -- vs the background loop's light 4 threads.
+AGENT_MAX_TOKENS = int(os.environ.get("MIOS_DAEMON_AGENT_MAX_TOKENS", "800"))
+AGENT_THREADS = int(os.environ.get("MIOS_DAEMON_AGENT_THREADS", "16"))
 
 
 def _daemon_global_log_context(max_rows: int = 20) -> str:
@@ -2181,13 +2198,36 @@ def _daemon_global_log_context(max_rows: int = 20) -> str:
 
 
 def _daemon_agent_reply(query: str) -> str:
-    """The daemon-agent's supplement = its CORE DATA: the consolidated GLOBAL
-    journal/log telemetry the daemon already collects. Web (and any other)
-    tool use is MODEL-DRIVEN via the global tool surface + Modelfile pre-prompt
-    + the confirmation engine -- NOT hardcoded here. Empty -> the fan-out
-    cleanly drops this secondary."""
+    """The consolidated CPU lane (operator 2026-05-24 "mios-daemon-agent =
+    mios-cpu/reasoner! CONSOLIDATE"): the always-on daemon-agent IS the CPU
+    reasoning lane now. It REASONS on the CPU model (the same model/endpoint the
+    retired mios-reasoner-cpu used -- qwen3:1.7b @ ollama-cpu :11435, num_gpu 0)
+    via the proven think=False llm_chat() path, GROUNDED in the live global
+    journal/log telemetry the daemon already maintains. So it contributes a real
+    second-opinion answer that is system-state-aware -- NOT the raw telemetry
+    dump that forced the old fanout=false (the model folds telemetry in ONLY
+    when the request concerns the system, and ignores it otherwise). Bursts to
+    8c/16t (AGENT_THREADS) for the foreground turn. Empty -> the fan-out cleanly
+    drops this secondary."""
+    if not (query or "").strip():
+        return ""
     telemetry = _daemon_global_log_context()
-    return ("## Global system telemetry (journal/logs)\n" + telemetry) if telemetry else ""
+    system = (
+        "You are the MiOS CPU reasoning lane -- an always-on local agent that "
+        "runs off the dGPU. Give a concise, direct second-opinion answer to the "
+        "request, reasoning from your own knowledge. The live system telemetry "
+        "below is GROUNDING: use it ONLY when the request concerns the system, "
+        "its logs, services or recent events -- otherwise ignore it entirely. "
+        "Never repeat raw telemetry lines into an unrelated answer."
+    )
+    if telemetry:
+        system += "\n\n## Live global system telemetry (journal/logs)\n" + telemetry
+    try:
+        return llm_chat(system, query, max_tokens=AGENT_MAX_TOKENS,
+                        temperature=0.3, num_thread=AGENT_THREADS).strip()
+    except Exception as e:   # noqa: BLE001 -- fail-open: drop this secondary
+        log.warning("daemon-agent CPU reason failed: %s", e)
+        return ""
 
 
 def daemon_agent_server_loop() -> None:
@@ -2275,22 +2315,36 @@ def main() -> int:
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    os.chmod(STATE_DIR, 0o755)
+    # Best-effort chmod: when STATE_DIR was created/owned by ANOTHER user (e.g. a
+    # root- or old-user-owned dir under this unit's User=mios-ai after the user
+    # consolidation), chmod EPERMs. That must NEVER crash the always-on daemon --
+    # mkdir already guaranteed the dir exists, and ownership is fixed by tmpfiles/
+    # chown, not here. (Writes still need ownership; that's the tmpfiles job.)
+    try:
+        os.chmod(STATE_DIR, 0o755)
+    except OSError as e:
+        log.warning("STATE_DIR chmod skipped (non-owner, non-fatal): %s", e)
     _atomic_write_state()
 
-    # Operator 2026-05-18: "2 random cores ... ~50% total utilization for
-    # minimal background impact." Pin to 2 randomly-chosen cores (which
-    # cores varies per boot -> spreads wear); the 50% TOTAL-utilisation cap
-    # is enforced by CPUQuota=50% in the service drop-in
-    # (mios-daemon.service.d/20-cpu-limit.conf). Best-effort: skipped where
-    # sched_setaffinity is unavailable or there are <2 cores.
+    # Operator 2026-05-24: the daemon-agent runs always-on background work at
+    # ~2c/4t but must BURST to 8c/16t when it participates in a foreground AI
+    # pipeline (concurrent with the GPU/iGPU). So pin to UP TO 8 randomly-chosen
+    # cores (which cores varies per boot -> spreads wear); CPUQuota=800% in the
+    # drop-in (mios-daemon.service.d/20-cpu-limit.conf) allows all 8, while
+    # CPUWeight=20 + Nice=10 keep it LIGHT at baseline (the background loop uses
+    # ~2c; the 8 are there for the foreground burst) and make it YIELD to the
+    # GPU agents / interactive turns when contended. Best-effort: skipped where
+    # sched_setaffinity is unavailable or there are <2 cores; pins to all cores
+    # when the box has fewer than 8.
     try:
         import random
         _ncpu = os.cpu_count() or 1
         if _ncpu >= 2 and hasattr(os, "sched_setaffinity"):
-            _cores = set(random.sample(range(_ncpu), 2))
+            _n = min(int(os.environ.get("MIOS_DAEMON_MAX_CORES", "8")), _ncpu)
+            _cores = set(random.sample(range(_ncpu), _n))
             os.sched_setaffinity(0, _cores)
-            log.info("pinned to 2 random cores: %s", sorted(_cores))
+            log.info("pinned to %d cores (foreground burst ceiling): %s",
+                     _n, sorted(_cores))
     except (OSError, ValueError) as e:
         log.warning("cpu affinity pin failed (non-fatal): %s", e)
 

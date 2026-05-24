@@ -660,84 +660,58 @@ strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
 
 [agents.mios-daemon-agent]
-# Operator note 2026-05-18: "mios-daemon also has a mios-daemon-
-# agent that lives on 2 cores always running (reads all SYSTEM(S)
-# logs, journal, etc) and keeps them in the loop for followups/
-# redirections". The daemon hosts a CPU-pinned always-on sub-
-# agent on a loopback port -- agent-pipe delegates telemetry +
-# log-context intents to it instead of forcing Hermes to re-
-# grep journals every turn.
+# Operator 2026-05-18: "mios-daemon also has a mios-daemon-agent that lives on
+# cores always running (reads all SYSTEM(S) logs, journal, etc) and keeps them
+# in the loop for followups/redirections". Operator 2026-05-24: "mios-daemon-
+# agent = mios-cpu/reasoner! CONSOLIDATE" -- so this ONE always-on CPU process
+# on a loopback port is BOTH the global log/journal monitor AND the council's
+# CPU reasoning lane. It runs LIGHT in the background (~2c/4t) and BURSTS to
+# 8c/16t when it joins a foreground pipeline turn.
 endpoint = "http://localhost:8644/v1"
-# Consolidation 2026-05-22: the :8644 server assembles raw global-log
-# telemetry and returns it as context (no local LLM inference -- agent-pipe's
-# final-answer pass synthesises it), so this is a LABEL, not an inference
-# target. Points at the surviving micro (mios-sys-agent) so if the role ever
-# grows an inference step it reuses the one micro instead of a dedicated tag.
-# The retired mios-daemon-agent Modelfile/tag was never inferenced.
-model    = "mios-sys-agent"
-role     = "telemetry"
-default  = false
-# fanout=false: do NOT auto-fan-out into chat answers. Its strengths
-# (event_query/what_just_happened) tokenise to common words (event/what/
-# happened) that coincidentally match almost any prose, so even the
-# score>0-gated CPU bonus kept dumping crowdsec/CDP failure digests into
-# unrelated answers (operator 2026-05-22: "fail across the board" on a
-# workplace-accident query). The daemon keeps doing its global-log
-# monitoring + satisfaction loop regardless; it just no longer pollutes
-# the chat. Re-enable with a precise system-intent gate later.
-fanout   = false
-# CPU lane: the daemon-agent runs light (raw-context assembly) off the dGPU,
-# so the fan-out can self-delegate to it CONCURRENTLY with a GPU primary --
-# supplementing every agent turn with global-log + web context at zero dGPU
-# cost.
-lane     = "cpu"
-# Telemetry-ONLY strengths. The :8644 reply is raw global-log telemetry
-# (no web supplement -- that was a hardcode, reverted), so selecting it for
-# world queries (weather/news/events) just floods the answer with unrelated
-# system-failure digests (operator 2026-05-22 chat: a weather/restaurant turn
-# drowned in crowdsec/Chrome-CDP failure lines). It is fanned out ONLY for
-# system/telemetry/log intents now.
-strengths = ["journalctl_tail", "log_search", "event_query",
-             "system_followup", "what_just_happened"]
-
-[agents.mios-reasoner-cpu]
-# LIGHT-LANE COUNCIL MEMBER (operator 2026-05-22: "add a CPU-lane agent for
-# fuller councils ... concurrent Compute nodes/accelerators/CPUs/GPUs").
-# A fast general reasoner on the light lane, dispatched CONCURRENTLY with the
-# dGPU primary so the council is lane-diverse instead of every member queueing
-# on the one 4090.
-#
-# VENDOR DEFAULT below is the in-VM ollama on :11435 (always-up; runs on CPU --
-# WSL2 cannot expose an AMD/Intel iGPU for Linux compute: no /dev/kfd, no
-# /dev/dri, only /dev/dxg). To run this lane on a REAL iGPU (operator 2026-05-24:
-# "switch the iGPU Ollama server to an OpenAI-compatible server that supports
-# AMD"), run the iGPU server NATIVELY on the Windows host via llama.cpp+Vulkan
-# (usr/share/mios/windows/mios-igpu-server.ps1) and point this node at it over
-# Tailscale. Put the override in /etc/mios/mios.toml so the host's tailnet IP is
-# NOT baked into the public repo (same privacy pattern as [agents.ai-local]):
-#   [agents.mios-reasoner-cpu]
-#   endpoint = "http://<windows-tailnet-ip>:11436/v1"
-#   model    = "mios-igpu"
-endpoint = "http://localhost:11435/v1"
-# mios-agent-cpu = the CPU twin of the MiOS AI brain (qwen3:1.7b, num_gpu
-# 0), built from mios-agent-cpu.Modelfile. Small + fast so the concurrent
-# turn finishes inside the in-loop fan-out budget. (An iGPU overlay sets this
-# to whatever model its llama-server loaded, e.g. mios-igpu.)
-model    = "mios-agent-cpu"
+# Consolidation 2026-05-24: the :8644 server now REASONS on the CPU model
+# (MIOS_DAEMON_MODEL, qwen3:1.7b @ ollama-cpu :11435, num_gpu 0 -- the same
+# compute the retired mios-reasoner-cpu used) GROUNDED in the live global
+# telemetry it maintains; agent-pipe's polish merges its draft with the
+# primary's. The model field is a LABEL ("mios-daemon-agent" matches the id the
+# :8644 /v1/models endpoint returns); the server picks its own inference model.
+model    = "mios-daemon-agent"
+# REASONING now (was "telemetry"): a real CPU second opinion, grounded in --
+# not limited to -- system telemetry.
 role     = "reasoning"
 default  = false
-# health_gate: engage only when the endpoint is REACHABLE, drop fast when not
-# -- so a host-dependent iGPU override (the Windows server being up/down) never
-# blocks the council, while the in-VM default simply always passes. (Same
-# auto-join / auto-drop pattern as [agents.ai-local].)
+# fanout=true (was false): the OLD telemetry-only DUMP flooded unrelated answers
+# with crowdsec/CDP digests ("fail across the board", operator 2026-05-22), so
+# it was muted. Now it REASONS and folds telemetry in ONLY when the request
+# concerns the system (see _daemon_agent_reply's system prompt), so it is safe
+# to fan out CONCURRENTLY on every substantive turn -- exactly the operator's
+# "daemon-agent runs in the pipeline concurrently during GPU + iGPU compute".
+# Foreground turns burst to 8c/16t (MIOS_DAEMON_AGENT_THREADS); the always-on
+# background loop stays light at ~2c/4t.
+fanout   = true
+# health_gate (merged from mios-reasoner-cpu): engage only when :8644 answers,
+# drop fast otherwise -- the always-on daemon normally always passes.
 health_gate = true
-# Light lane: the heavy dGPU is never touched, so this self-delegates
-# CONCURRENTLY with a GPU primary at zero VRAM cost.
+# CPU lane: runs off the dGPU, so the fan-out self-delegates to it CONCURRENTLY
+# with a GPU primary at zero VRAM cost -- lane-diverse councils (CPU+GPU+iGPU).
 lane     = "cpu"
-# General second-opinion strengths. NOT topic-gated (council mode ignores
-# relevance anyway); these inform the A2A skill tags + the relevance-mode
-# fallback only.
-strengths = ["reasoning", "second_opinion", "summarize", "planning"]
+# MERGED strengths: general CPU reasoning (from the consolidated mios-reasoner-
+# cpu) PLUS the telemetry/log specialism (the daemon's core job). NOT topic-
+# gated (council mode ignores relevance); these inform the A2A skill tags + the
+# relevance-mode fallback. _daemon_agent_reply's system prompt -- not a strength
+# deny-list -- keeps telemetry out of unrelated answers.
+strengths = ["reasoning", "second_opinion", "summarize", "planning",
+             "journalctl_tail", "log_search", "event_query",
+             "system_followup", "what_just_happened"]
+
+# [agents.mios-reasoner-cpu] was CONSOLIDATED into [agents.mios-daemon-agent]
+# above (operator 2026-05-24 "mios-daemon-agent = mios-cpu/reasoner!"). It
+# pointed at the SAME CPU ollama (:11435) running the SAME small qwen3:1.7b, so
+# the always-on daemon-agent simply ABSORBED the reasoning role rather than
+# running a duplicate light-lane. To run a CPU/iGPU reasoner on OTHER hardware
+# (e.g. the AMD iGPU served natively on the Windows host via llama.cpp+Vulkan
+# :11436), add a DISTINCTLY-NAMED node in /etc/mios/mios.toml so the tailnet IP
+# stays out of the public repo -- e.g. [agents.mios-igpu], already wired in the
+# host overlay (same auto-join/auto-drop health_gate pattern as ai-local).
 
 # Operator can add more agents here -- e.g.:
 #   [agents.aichat]
