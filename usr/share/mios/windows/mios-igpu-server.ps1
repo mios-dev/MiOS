@@ -1,0 +1,153 @@
+<#
+  mios-igpu-server.ps1  --  MiOS iGPU inference server (Windows host)
+
+  WHY THIS EXISTS
+  ---------------
+  The MiOS dev VM is WSL2. WSL2 only exposes the GPU via /dev/dxg (the
+  DirectX paravirt node). NVIDIA bridges dxg -> CUDA via its WSL driver, so
+  the RTX 4090 works *inside* the VM's ollama container. AMD/Intel have no
+  such dxg->compute bridge in WSL2: there is no /dev/kfd (ROCm) and no
+  /dev/dri (Vulkan) in the VM, so the in-VM "iGPU" ollama (ollama:rocm at
+  :11435) silently runs on CPU ("offloaded 0/29 layers to GPU").
+
+  The only way to actually use the AMD iGPU is to run the inference server
+  NATIVELY on Windows, where the iGPU has a real driver + a Vulkan ICD, and
+  expose it over Tailscale so the in-VM agent-pipe can reach it. This script
+  is that server: llama.cpp's OpenAI-compatible `llama-server` on the VULKAN
+  backend (Vulkan supports AMD + Intel iGPUs; ROCm-on-Windows usually does
+  NOT support integrated Radeon).
+
+  The MiOS swarm node formerly named the in-VM :11435 ollama is repointed at
+  http://<this-host-tailscale-ip>:<Port>/v1 (see mios.toml [agents]).
+
+  USAGE
+  -----
+    pwsh -File mios-igpu-server.ps1                 # run in foreground (see Vulkan detect the iGPU)
+    pwsh -File mios-igpu-server.ps1 -Install        # register a logon scheduled task (persistent, hidden)
+    pwsh -File mios-igpu-server.ps1 -Uninstall      # remove the scheduled task
+    pwsh -File mios-igpu-server.ps1 -Model C:\path\to\model.gguf
+
+  First run needs internet ONCE to fetch the llama.cpp Vulkan binary + a
+  default GGUF; after that it is fully offline.
+#>
+[CmdletBinding()]
+param(
+    [int]    $Port        = 11436,
+    [string] $Model       = '',
+    # Default model: a small instruct GGUF that fits typical iGPU shared VRAM.
+    [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    [int]    $ContextSize = 8192,
+    [int]    $GpuLayers   = 99,            # 99 = offload all layers to the iGPU
+    [string] $LlamaTag    = 'latest',      # llama.cpp release tag, or 'latest'
+    [switch] $Install,
+    [switch] $Uninstall
+)
+
+$ErrorActionPreference = 'Stop'
+$root      = Join-Path $env:LOCALAPPDATA 'mios\igpu'
+$binDir    = Join-Path $root 'bin'
+$modelsDir = Join-Path $root 'models'
+$logDir    = Join-Path $root 'logs'
+$exe       = Join-Path $binDir 'llama-server.exe'
+$taskName  = 'MiOS-iGPU-Server'
+$fwName    = "MiOS - igpu-llm ($Port/tcp)"
+
+function Info($m){ Write-Host "  [*] $m" -ForegroundColor Cyan }
+function Ok($m)  { Write-Host "  [+] $m" -ForegroundColor Green }
+function Warn($m){ Write-Host "  [!] $m" -ForegroundColor Yellow }
+
+# ---- scheduled-task install / uninstall -------------------------------------
+if ($Uninstall) {
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    Ok "removed scheduled task '$taskName'"
+    return
+}
+if ($Install) {
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Warn 'Not elevated -- re-launching via UAC to register the logon task...'
+        Start-Process -FilePath 'pwsh.exe' -Verb RunAs -ArgumentList @(
+            '-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Install',
+            '-Port',$Port,'-ContextSize',$ContextSize,'-GpuLayers',$GpuLayers)
+        return
+    }
+    $argline = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers"
+    if ($Model) { $argline += " -Model `"$Model`"" }
+    $action  = New-ScheduledTaskAction  -Execute 'pwsh.exe' -Argument $argline
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    $prin    = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $set -Principal $prin -Force | Out-Null
+    Ok "registered logon scheduled task '$taskName' (port $Port)"
+    Info "starting it now..."
+    Start-ScheduledTask -TaskName $taskName
+    return
+}
+
+# ---- ensure dirs ------------------------------------------------------------
+foreach ($d in @($root,$binDir,$modelsDir,$logDir)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+
+# ---- ensure llama.cpp Vulkan binary -----------------------------------------
+if (-not (Test-Path $exe)) {
+    Info 'llama-server not found -- fetching llama.cpp Vulkan release...'
+    $headers = @{ 'User-Agent' = 'mios-igpu-server' }
+    $relUrl  = if ($LlamaTag -eq 'latest') {
+        'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest'
+    } else {
+        "https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/$LlamaTag"
+    }
+    $rel   = Invoke-RestMethod -Uri $relUrl -Headers $headers
+    $asset = $rel.assets | Where-Object { $_.name -match 'win-vulkan-x64\.zip$' } | Select-Object -First 1
+    if (-not $asset) { throw "no win-vulkan-x64 asset in llama.cpp release '$($rel.tag_name)'" }
+    $zip = Join-Path $env:TEMP $asset.name
+    Info "downloading $($asset.name) ($([math]::Round($asset.size/1MB)) MB)..."
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -Headers $headers
+    Info 'extracting...'
+    Expand-Archive -Path $zip -DestinationPath $binDir -Force
+    Remove-Item $zip -Force -ErrorAction SilentlyContinue
+    # Some release zips nest the exe in a subfolder -- flatten if needed.
+    if (-not (Test-Path $exe)) {
+        $found = Get-ChildItem -Path $binDir -Recurse -Filter 'llama-server.exe' | Select-Object -First 1
+        if ($found) { Copy-Item $found.FullName $binDir -Force; Get-ChildItem $found.DirectoryName -Filter '*.dll' | Copy-Item -Destination $binDir -Force }
+    }
+    if (-not (Test-Path $exe)) { throw "llama-server.exe not found after extraction in $binDir" }
+    Ok "installed llama-server -> $exe ($($rel.tag_name))"
+}
+
+# ---- ensure a model ---------------------------------------------------------
+if (-not $Model) {
+    $existing = Get-ChildItem -Path $modelsDir -Filter '*.gguf' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existing) {
+        $Model = $existing.FullName
+    } else {
+        $Model = Join-Path $modelsDir (Split-Path $ModelUrl -Leaf)
+        Info "no GGUF present -- downloading default model ($(Split-Path $ModelUrl -Leaf))..."
+        Invoke-WebRequest -Uri $ModelUrl -OutFile $Model
+        Ok "model -> $Model"
+    }
+}
+if (-not (Test-Path $Model)) { throw "model not found: $Model" }
+
+# ---- firewall: allow inbound on $Port, scoped to the Tailscale CGNAT range --
+# 100.64.0.0/10 = the tailnet. Only Tailscale peers (the dev VM) can reach the
+# iGPU server; it is NOT exposed to the wider LAN/Internet.
+if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName $fwName -Direction Inbound -Action Allow -Protocol TCP `
+        -LocalPort $Port -RemoteAddress '100.64.0.0/10' -Profile Any -ErrorAction SilentlyContinue | Out-Null
+    Ok "firewall: allow tailnet -> :$Port"
+}
+
+# ---- run llama-server (Vulkan auto-detects the AMD iGPU) ---------------------
+$tsIp = (Get-NetIPAddress -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -like '100.*' } | Select-Object -First 1).IPAddress
+Info "model:    $Model"
+Info "binding:  0.0.0.0:$Port   (tailnet -> http://$tsIp`:$Port/v1)"
+Info "GPU:      Vulkan, offload $GpuLayers layers (watch the startup log for 'Vulkan0: AMD Radeon ...')"
+$logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
+& $exe `
+    --host 0.0.0.0 --port $Port `
+    --model $Model `
+    --ctx-size $ContextSize `
+    --n-gpu-layers $GpuLayers `
+    --flash-attn auto `
+    --alias mios-igpu `
+    2>&1 | Tee-Object -FilePath $logFile
