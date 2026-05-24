@@ -7491,8 +7491,12 @@ min-width:280px;min-height:720px;max-width:100%}
 #chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
 /* Services grid: exactly 2 columns (operator 2026-05-22); 1 on narrow. */
-#grid,#terms{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
-@media(max-width:600px){#grid,#terms{grid-template-columns:1fr}}
+#grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+/* Terminals stack in a SINGLE column so expanding one is purely vertical: it
+   opens in place, never relocates a neighbour, and the row is wide enough for
+   a real 80x20 embed. */
+#terms{grid-template-columns:1fr;align-items:start}
+@media(max-width:600px){#grid{grid-template-columns:1fr}}
 .addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}
@@ -7580,10 +7584,12 @@ letter-spacing:.5px}
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
 border-radius:9px;overflow:hidden;background:#06090d}
 .embed-box iframe{display:block;border:0;width:100%;height:480px;background:#06090d}
-/* terminal embed: cap to ~80x20 (≈724x344 at the ttyd default cell); never
-   exceed it on wide screens, center it, shrink to fit on narrow ones. */
-.card.term.exp .embed-box{width:min(100%,724px);margin:0 auto}
-.card.term .embed-box iframe{height:344px}
+/* terminal embed: a real 80x20 grid (operator: "80x20 ... big everywhere").
+   Fixed pixel box sized for ttyd's pinned 14px font; horizontal scroll keeps
+   the full 80 columns on viewports narrower than the box. */
+.card.term .embed{overflow-x:auto}
+.card.term.exp .embed-box{width:700px;margin:0 auto}
+.card.term .embed-box iframe{height:352px}
 </style></head><body>
 <div class="bar">
   <h1>Mi<b>OS</b></h1>
@@ -7734,8 +7740,7 @@ function toggleEmbed(p){
       var f=document.createElement("iframe");
       f.setAttribute("loading","lazy");f.title="embed "+p;
       f.src=el.querySelector(".embed").getAttribute("data-u");
-      box.appendChild(f);}
-    el.scrollIntoView({behavior:"smooth",block:"nearest"});}
+      box.appendChild(f);}}
 }
 function render(j){
   var h=j.host||{},hs=[];

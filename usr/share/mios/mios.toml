@@ -602,6 +602,10 @@ writable           = true
 # Max active client sessions per instance (ttyd defaults to 1 +
 # rejects further). Raise for collaborative read-only sessions.
 max_clients        = 0
+# xterm font size (px). The MiOS Portal sizes its inline terminal embed to a
+# fixed 80x20 pixel box assuming this; raising it makes the embed show fewer
+# columns/rows in that box (and vice-versa).
+font_size          = 14
 
 [agents]
 # Phase D.5 of the AgentOS roadmap: sub-agent registry. Operator

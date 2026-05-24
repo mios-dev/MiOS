@@ -84,6 +84,10 @@ fi
 # Window title in the browser tab.
 ARGS+=("-T" "xterm-256color")
 ARGS+=("-t" "titleFixed=MiOS ttyd [$VARIANT @ $BIND:$PORT]")
+# Pin the xterm font size so the portal's inline embed renders a deterministic
+# ~80x20 grid in its fixed pixel box (operator: "80x20 everywhere"). SSOT:
+# [ttyd].font_size -> MIOS_TTYD_FONT_SIZE.
+ARGS+=("-t" "fontSize=${MIOS_TTYD_FONT_SIZE:-14}")
 
 # Final argv: ttyd <flags> <shell-cmd> [shell-args]
 # Split SHELL_CMD on whitespace so "mios-powershell --shell" becomes

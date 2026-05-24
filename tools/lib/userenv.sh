@@ -361,6 +361,7 @@ slots = [
     ("ttyd.powershell_shell",          "MIOS_TTYD_POWERSHELL_SHELL"),
     ("ttyd.writable",                  "MIOS_TTYD_WRITABLE"),
     ("ttyd.max_clients",               "MIOS_TTYD_MAX_CLIENTS"),
+    ("ttyd.font_size",                 "MIOS_TTYD_FONT_SIZE"),
     ("ports.ttyd_bash",                "MIOS_PORT_TTYD_BASH"),
     ("ports.ttyd_powershell",          "MIOS_PORT_TTYD_POWERSHELL"),
     # ── passport (Phase C.3 -- Ed25519 agent identity tokens) ────────────
