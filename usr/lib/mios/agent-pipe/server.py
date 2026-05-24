@@ -7584,19 +7584,19 @@ box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
 color:var(--subtle);font-family:var(--mono);margin-bottom:6px;text-transform:uppercase;
 letter-spacing:.5px}
 .embed-bar a{color:var(--warn)}
-/* Fixed-height box + an absolutely-FILLED iframe. iOS Safari ignores an
-   iframe's CSS height and balloons it to its content height -- which made the
-   embed overflow the card and render on top of the chips below. Pinning the
-   box height and filling it with an inset:0 iframe forces the iframe to the
-   box size on every browser. */
+/* Plain IN-FLOW iframe -- NO position:absolute/relative and NO z-index. In an
+   iOS standalone PWA an absolutely-positioned iframe floats over the whole
+   viewport (operator: "floats over everything"). A plain block iframe with an
+   explicit pixel height stays inside the chip, and the chip grows to fit it. */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;overflow:hidden;background:#06090d;position:relative;height:480px}
-.embed-box iframe{position:absolute;inset:0;width:100%;height:100%;border:0;
-display:block;background:#06090d}
+border-radius:9px;overflow:hidden;background:#06090d}
+.embed-box iframe{display:block;width:100%;height:480px;border:0;background:#06090d;
+-webkit-overflow-scrolling:touch}
 /* terminal embed: ~60x20 at ttyd's 14px font. min(100%,520px) caps it near 60
    columns on desktop but SHRINKS to the card width on mobile so it never
    overflows the screen (operator: 80 was too wide on iPhone 16 Pro Max). */
-.card.term.exp .embed-box{width:min(100%,520px);height:352px;margin:0 auto}
+.card.term.exp .embed-box{width:min(100%,520px);margin:0 auto}
+.card.term .embed-box iframe{height:352px}
 </style></head><body>
 <div class="bar">
   <h1>Mi<b>OS</b></h1>
@@ -7947,7 +7947,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v3';\n"
+    "var C='mios-portal-v4';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
@@ -7957,16 +7957,18 @@ _PORTAL_SW = (
     "caches.keys().then(function(ks){return Promise.all(ks.map(function(k){"
     "return k===C?null:caches.delete(k);}));}).then(function(){"
     "return self.clients.claim();}));});\n"
-    "// network-first, cache fallback -> the app is offline-capable, which is\n"
-    "// what makes Android/Chrome offer 'Install' (a no-op fetch handler does not).\n"
+    "// Navigations are ALWAYS network (never cached) so the portal HTML can\n"
+    "// never go stale in an installed PWA; static assets are cached for\n"
+    "// offline + installability.\n"
     "self.addEventListener('fetch',function(e){var req=e.request;"
     "if(req.method!=='GET')return;"
+    "if(req.mode==='navigate'){"
+    "e.respondWith(fetch(req).catch(function(){return caches.match('/login');}));return;}"
     "e.respondWith(fetch(req).then(function(r){"
     "if(r&&r.status===200&&!r.redirected&&"
     "new URL(req.url).origin===location.origin){var cp=r.clone();"
     "caches.open(C).then(function(c){c.put(req,cp);});}return r;})"
-    ".catch(function(){return caches.match(req).then(function(m){"
-    "return m||caches.match('/login');});}));});\n")
+    ".catch(function(){return caches.match(req);}));});\n")
 
 
 @app.get("/portal/icon.svg")
