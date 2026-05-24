@@ -28,7 +28,6 @@ ConditionPathExists=/etc/mios/hermes/api.env
 # Image / Port / Network placeholders rendered by automation/15-render-quadlets.sh
 Image=${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
 ContainerName=mios-open-webui
-Network=ai-net.network
 Network=mios.network
 PublishPort=${MIOS_PORT_OPEN_WEBUI:-3030}:8080
 AutoUpdate=registry

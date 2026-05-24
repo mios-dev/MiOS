@@ -26,7 +26,6 @@ ConditionPathExists=/usr/share/mios/vllm/grounding/config.json
 Image=docker.io/vllm/vllm-openai:latest
 ContainerName=mios-vllm
 Network=mios.network
-Network=ai-net.network
 # GPU passthrough -- identical CDI device line to ollama.container,
 # resolved by mios-cdi-detect.service (bare-metal nvidia-ctk spec OR the
 # WSL2 /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds /usr/lib/wsl).

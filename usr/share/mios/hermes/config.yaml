@@ -38,9 +38,9 @@ auxiliary:
 # after the firstboot config rewrite; root cause was the placeholder
 # block left behind.
 
-# Tool surface: SearXNG is reachable as mios-searxng:8080 inside the
-# ai-net bridge, so the agent's web_search tool can call it without
-# leaving the network. Architectural Law 5 unaffected -- search is not
+# Tool surface: hermes is a host service and reaches SearXNG via its
+# SEARXNG_URL (host/localhost:<port>), so the agent's web_search tool
+# can call it directly. Architectural Law 5 unaffected -- search is not
 # AI inference.
 tools:
   web_search:

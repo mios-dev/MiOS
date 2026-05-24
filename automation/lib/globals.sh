@@ -202,12 +202,9 @@ export MIOS_OLLAMA_RUNTIME_DIR MIOS_OLLAMA_SEED_DIR
 : "${MIOS_QUADLET_SUBNET:=10.89.0.0/24}"
 : "${MIOS_CORE_NET_SUBNET:=10.89.0.0/24}"
 : "${MIOS_CORE_NET_GATEWAY:=10.89.0.1}"
-: "${MIOS_AI_NET_SUBNET:=10.90.0.0/24}"
-: "${MIOS_AI_NET_GATEWAY:=10.90.0.1}"
 
 export MIOS_QUADLET_NETWORK MIOS_QUADLET_SUBNET
 export MIOS_CORE_NET_SUBNET MIOS_CORE_NET_GATEWAY
-export MIOS_AI_NET_SUBNET MIOS_AI_NET_GATEWAY
 
 # ── FILES ────────────────────────────────────────────────────────────
 # mios.toml chain (vendor < host < user; resolved by tools/lib/userenv.sh)

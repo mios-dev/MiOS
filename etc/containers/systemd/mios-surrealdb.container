@@ -63,7 +63,7 @@ Environment=SURREAL_PASS=${MIOS_DB_PASS:-root}
 Environment=SURREAL_LOG=info
 
 # Bind 0.0.0.0:<port> so both host (operator + pipe + mios-daemon) AND
-# the ai-net bridge (hermes, future agents) reach the same endpoint.
+# the mios.network bridge (containers, future agents) reach the same endpoint.
 # Port from [ports].surrealdb; backend uri from [surrealdb].backend
 # (SurrealDB 3.0+ uses `surrealkv:` -- the legacy `file:` scheme was
 # dropped; single-file on-disk durability under data_dir/mios.skv).

@@ -23,8 +23,8 @@ Wants=network-online.target
 # from mios.toml [image.sidecars].ollama_igpu (rendered at build).
 Image=${MIOS_OLLAMA_IGPU_IMAGE:-docker.io/ollama/ollama:rocm}
 ContainerName=mios-ollama-igpu
-# Host networking -- same workaround as mios-surrealdb. Dual-bridge
-# (mios.network + ai-net.network) + PublishPort hits a podman-WSL
+# Host networking -- same workaround as mios-surrealdb. A bridge
+# (mios.network) + PublishPort hits a podman-WSL
 # port-forwarder quirk where the host listener never binds even
 # though `podman port` reports the mapping. Host-net gives the iGPU
 # instance a reliable http://localhost:11435 for mios-daemon +

@@ -27,11 +27,9 @@ ConditionPathIsDirectory=/etc/mios/searxng
 # at the upstream tag covers amd64 / arm64 / armv7.
 Image=docker.io/searxng/searxng:latest
 ContainerName=mios-searxng
-# Dual-network: mios.network keeps the unit reachable; ai-net.network
-# puts SearXNG on the same bridge as mios-hermes so the agent's
-# `web_search` tool reaches it by container name.
+# The agent reaches SearXNG via SEARXNG_URL (host/localhost), not container
+# DNS -- one network is enough (ai-net consolidated away 2026-05-23).
 Network=mios.network
-Network=ai-net.network
 # Canonical MiOS SearXNG port (mios.toml [ports].searxng = 8888).
 PublishPort=8888:8888
 

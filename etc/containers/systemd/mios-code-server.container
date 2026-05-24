@@ -10,10 +10,10 @@
 #   2. Log in with the global MiOS password (mios.toml [identity].
 #      default_password; default "mios").
 #   3. Inside code-server's terminal:
-#        git clone http://mios-forge:3000/<user>/<repo>.git
-#      The container reaches mios-forge via ai-net.network DNS, so the
-#      bridge alias works without leaking host loopback into the
-#      sandbox. Forgejo HTTP basic auth uses the same mios/mios pair
+#        git clone http://localhost:3000/<user>/<repo>.git
+#      code-server runs on host networking (see Network=host below), so
+#      the forge is reachable at localhost:3000 from its terminal.
+#      Forgejo HTTP basic auth uses the same mios/mios pair
 #      (forge admin password is also MIOS_DEFAULT_PASSWORD).
 
 [Unit]

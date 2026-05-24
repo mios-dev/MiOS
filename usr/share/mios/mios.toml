@@ -433,7 +433,7 @@ enable   = true
 # in a single file under data_dir/mios.skv).
 #
 # Bind: 0.0.0.0:<port> so host (operator + pipe + mios-daemon) AND
-# the ai-net.network bridge (hermes, future agents) reach the same
+# the mios.network bridge (containers, future agents) reach the same
 # endpoint. Host networking is configured in the Quadlet itself
 # (matching ollama's pattern; bridge + PublishPort hit a podman-WSL
 # port-forwarder quirk).
@@ -4199,8 +4199,6 @@ network = "mios.network"
 subnet  = "10.89.0.0/24"
 core_subnet = "10.89.0.0/24"
 core_gateway = "10.89.0.1"
-ai_subnet = "10.90.0.0/24"
-ai_gateway = "10.90.0.1"
 
 [colors]
 # ── Named tokens (the configurator HTML, OSC-aware apps, theming) ─────────
@@ -4341,10 +4339,9 @@ qt_platform     = "xcb"     # Qt apps: "xcb" (X11) | "wayland" | "wayland;xcb"
 # [wsl2.dev_vm] -- Quadlet networking knobs specific to the dev VM
 # (podman-MiOS-DEV). The dev VM ships dropins under
 # /etc/containers/systemd/<unit>.container.d/ that override the parent
-# unit's Network= directive (typically Network=mios.network +
-# Network=ai-net.network) to Network=host. This makes container-side
-# `localhost:N` references reach sibling services directly without
-# relying on the bridge's container-name DNS.
+# unit's Network= directive (Network=mios.network) to Network=host.
+# This makes container-side `localhost:N` references reach sibling
+# services directly without relying on the bridge's container-name DNS.
 #
 # Under WSL2 networking_mode=NAT the dev VM's loopback is isolated from
 # the Windows host's loopback, so Network=host is safe. Under
@@ -4353,7 +4350,7 @@ qt_platform     = "xcb"     # Qt apps: "xcb" (X11) | "wayland" | "wayland;xcb"
 # (operator-confirmed 2026-05-12: ollama/sshd/hermes etc. all looped
 # auto-restart with "address already in use"). Switch to "bridge" when
 # migrating to mirrored mode -- the parent units already declare
-# ai-net.network, so the only change is to NOT install the host-network
+# mios.network, so the only change is to NOT install the host-network
 # dropins. automation/08-system-files-overlay.sh honors this key and
 # removes any *-host-network.conf dropin when bridge is selected.
 # ----------------------------------------------------------------------------

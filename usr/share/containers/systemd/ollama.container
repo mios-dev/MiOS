@@ -17,11 +17,10 @@ Image=docker.io/ollama/ollama:latest
 # canonical handle. Quadlet's default would be `systemd-ollama`,
 # which the firstboot script wouldn't find.
 ContainerName=mios-ollama
-# Dual-network: mios.network = historical core bridge; ai-net.network =
-# AI-stack bridge so mios-hermes can reach mios-ollama:<port> by
-# container name (deploy-aistack.sh's HERMES_BACKEND_BASE_URL target).
+# mios.network = the single rootful core bridge. mios-hermes is a host
+# service and reaches mios-ollama via localhost:<port>, so no second
+# AI-stack bridge is needed (ai-net consolidated into mios.network 2026-05-23).
 Network=mios.network
-Network=ai-net.network
 AutoUpdate=registry
 # GPU passthrough. nvidia.com/gpu=all resolves to the CDI spec written
 # by mios-cdi-detect.service (Before=ollama.service). On bare metal
