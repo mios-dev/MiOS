@@ -860,6 +860,88 @@ POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
 
 
+# ── Per-engine + per-node agent bindings (operator 2026-05-24: "any Agent(s) can
+# be in any AI Engine/Compute Pipeline -- CPU, dGPU, iGPU, Accelerator" + "any
+# Agent/Sub-Agent can run on any node/endpoint -- iPhone, Android, other MiOS
+# nodes/clusters") ───────────────────────────────────────────────────────────
+# An agent is a JOB (a Modelfile); a BINDING is an endpoint+model that serves it
+# -- whether a local compute ENGINE (dGPU ollama, CPU ollama, Windows iGPU
+# llama.cpp, a future accelerator) or a remote NODE (a phone/tablet or another
+# MiOS host/cluster at a tailnet endpoint). They are the SAME thing: an endpoint
+# that runs the model. Decoupling agent from binding lets ANY agent run on ANY
+# engine OR node that has a binding. Bindings come from mios.toml as the legacy
+# single endpoint/model (+ optional cpu_endpoint/cpu_model twin) OR explicit
+# tables (the label is free-form -- an engine OR a node name):
+#   [agents.<name>.engines.igpu]  endpoint = "http://<igpu-host>:11436/v1"     model = "..."
+#   [agents.<name>.nodes.iphone]  endpoint = "http://<phone-tailnet>:11434/v1" model = "..."
+# _build_agent_engines folds them all into ONE {label: {endpoint, model}} map.
+_OFFLOAD_ENGINES = ("cpu", "igpu", "accelerator")  # local light lanes, off the dGPU
+
+
+def _build_agent_engines(raw_cfg: dict, entry: dict) -> dict:
+    """Fold an agent's bindings into an {engine: {endpoint, model}} map.
+    Precedence (low -> high): the primary endpoint/model as the agent's HOME
+    engine (its lane, or 'gpu'); the legacy cpu_endpoint/cpu_model as
+    engines['cpu']; explicit [agents.<name>.engines.<engine>] tables WIN. So
+    legacy 2-lane configs keep working unchanged AND any agent can declare a
+    binding on any engine. iGPU stays DISTINCT from cpu here (the operator lists
+    it as its own engine), though _agent_lane still collapses them for fan-out
+    diversity."""
+    engines: dict = {}
+    home = (str(entry.get("lane") or "").strip() or "gpu")
+    if entry.get("endpoint"):
+        engines[home] = {"endpoint": entry["endpoint"],
+                         "model": entry.get("model", "")}
+    if entry.get("cpu_endpoint"):
+        engines["cpu"] = {"endpoint": entry["cpu_endpoint"],
+                          "model": entry.get("cpu_model") or entry.get("model", "")}
+    # Explicit per-binding tables WIN. BOTH [agents.<name>.engines.<label>] AND
+    # [agents.<name>.nodes.<label>] are read into the same map: an ENGINE
+    # (cpu/gpu/igpu/accelerator) and a NODE (iPhone/Android/another MiOS host or
+    # cluster, by its tailnet endpoint) are both just an endpoint+model the agent
+    # can run on (operator 2026-05-24: "any Agent/Sub-Agent can run on any
+    # node/endpoint"). The label is free-form; the endpoint decides reachability.
+    for _tbl in ("engines", "nodes"):
+        raw = raw_cfg.get(_tbl)
+        if isinstance(raw, dict):
+            for label, b in raw.items():
+                if isinstance(b, dict) and b.get("endpoint"):
+                    engines[str(label).lower().strip()] = {
+                        "endpoint": str(b["endpoint"]).rstrip("/"),
+                        "model": str(b.get("model") or entry.get("model", "")),
+                    }
+    return engines
+
+
+def _agent_engines(cfg: dict) -> list:
+    """The compute engines an agent has a binding for (sorted)."""
+    return sorted((cfg.get("engines") or {}).keys())
+
+
+def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
+    """Resolve (endpoint, model) to run an agent on a SPECIFIC engine. With
+    engine=None, or no binding for that engine, fall back to the agent's default
+    endpoint/model -- so this never strands a dispatch."""
+    if engine:
+        b = (cfg.get("engines") or {}).get(str(engine).lower().strip())
+        if isinstance(b, dict) and b.get("endpoint"):
+            return (str(b["endpoint"]).rstrip("/"),
+                    str(b.get("model") or cfg.get("model", "")))
+    return str(cfg.get("endpoint", "")).rstrip("/"), str(cfg.get("model", ""))
+
+
+def _agent_offload_engine(cfg: dict) -> Optional[str]:
+    """Pick a LIGHT engine (off the dGPU) the agent can run on for concurrent
+    fan-out -- the first of cpu/igpu/accelerator it has a binding for, else None
+    (caller then uses the agent's default endpoint). Generalises the old
+    hardcoded 'cpu twin' offload to ANY light engine the agent declares."""
+    engines = cfg.get("engines") or {}
+    for eng in _OFFLOAD_ENGINES:
+        if eng in engines:
+            return eng
+    return None
+
+
 def _load_agent_registry() -> dict[str, dict]:
     """Parse mios.toml [agents.*] sections into a registry dict.
     Returns {name: {endpoint, model, role, default, strengths}}.
@@ -921,6 +1003,13 @@ def _load_agent_registry() -> dict[str, dict]:
                 # stalling the turn -- auto-join-when-up, auto-drop-when-gone.
                 "health_gate":  bool(cfg.get("health_gate", False)),
             }
+            # Per-engine + per-node binding map (operator 2026-05-24: "any Agent
+            # in any AI engine -- CPU/dGPU/iGPU/accelerator" + "any Agent/Sub-
+            # Agent on any node/endpoint -- iPhone/Android/other MiOS nodes").
+            # Folds the legacy endpoint/model + cpu twin AND any explicit
+            # [agents.<name>.engines.*] / [agents.<name>.nodes.*] tables into one
+            # {label: {endpoint, model}} map -- backward-compatible.
+            registry[name]["engines"] = _build_agent_engines(cfg, registry[name])
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
     if not registry:
@@ -1165,11 +1254,14 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
     # it runs concurrent with the GPU primary. prefer_cpu=False (planner
     # agent-task nodes): use the agent's PRIMARY endpoint/model -- a coding
     # sub-task must hit opencode proper, not a small CPU twin.
-    ep = ((cfg.get("cpu_endpoint") if prefer_cpu else "")
-          or cfg.get("endpoint") or "").rstrip("/")
+    # Resolve (endpoint, model) for THIS dispatch via the agent's engine/node
+    # binding map. prefer_cpu (fan-out secondaries) offloads to a LIGHT engine
+    # the agent declares (cpu/igpu/accelerator) so it runs concurrent with the
+    # GPU primary; prefer_cpu=False (planner agent-task nodes) uses the default
+    # binding. Any agent can now run on any engine OR node it binds (2026-05-24).
+    ep, _mdl = _agent_binding(cfg, _agent_offload_engine(cfg) if prefer_cpu else None)
     if not ep:
         return name, ""
-    _mdl = (cfg.get("cpu_model") if prefer_cpu else "") or cfg.get("model")
     # ollama lanes speak the native API + honour think=False; the bespoke
     # sub-agent servers do not. Detect by the SSOT lane ports.
     _is_ollama = (":11434" in ep) or (":11435" in ep)
@@ -1240,11 +1332,14 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
                                    *, prefer_cpu: bool = True) -> tuple:
-    ep = ((cfg.get("cpu_endpoint") if prefer_cpu else "")
-          or cfg.get("endpoint") or "").rstrip("/")
+    # Resolve (endpoint, model) for THIS dispatch via the agent's engine/node
+    # binding map. prefer_cpu (fan-out secondaries) offloads to a LIGHT engine
+    # the agent declares (cpu/igpu/accelerator) so it runs concurrent with the
+    # GPU primary; prefer_cpu=False (planner agent-task nodes) uses the default
+    # binding. Any agent can now run on any engine OR node it binds (2026-05-24).
+    ep, _mdl = _agent_binding(cfg, _agent_offload_engine(cfg) if prefer_cpu else None)
     if not ep:
         return name, ""
-    _mdl = (cfg.get("cpu_model") if prefer_cpu else "") or cfg.get("model")
     _is_ollama = (":11434" in ep) or (":11435" in ep)
     # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
     # phone asleep) from the merge fast, but a GENEROUS READ timeout lets a

@@ -729,6 +729,27 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning",
 # request time via the userenv.sh slot map.
 
 # ----------------------------------------------------------------------------
+# ANY AGENT ON ANY ENGINE / NODE (operator 2026-05-24: "make sure any Agent(s)
+# can be in any AI Engine/Compute Pipeline -- CPU, dGPU, iGPU, Accelerator" +
+# "any Agent/Sub-Agent can run on any node/endpoint -- iPhone, Android, other
+# MiOS nodes/clusters"). An agent is a JOB (a Modelfile); a BINDING is an
+# endpoint+model that serves it. Beyond the single `endpoint`/`model` (the
+# agent's home lane) + the legacy `cpu_endpoint`/`cpu_model` twin, declare extra
+# bindings under `engines` (local compute lanes) and/or `nodes` (remote devices/
+# hosts) -- the label is free-form; the endpoint decides WHERE it runs. agent-
+# pipe folds them all into one binding map: the fan-out offloads a concurrent
+# secondary to the first light engine it finds (cpu -> igpu -> accelerator), and
+# any binding can be a planner agent-task target. Example (put PERSONAL tailnet
+# endpoints in /etc/mios, NOT this public vendor file):
+#   [agents.hermes.engines.igpu]
+#   endpoint = "http://<igpu-host-tailnet>:11436/v1"    # llama.cpp + Vulkan
+#   model    = "mios-hermes-igpu"
+#   [agents.hermes.nodes.iphone]
+#   endpoint = "http://<iphone-tailnet>:11434/v1"       # AI.Local on the phone
+#   model    = "qwen2.5-3b-instruct-4bit"
+# The target engine/node must actually SERVE that model; health_gate=true makes
+# a come-and-go node (phone/cluster) auto-join when up + drop when gone.
+# ----------------------------------------------------------------------------
 # CLIENT-HOSTED SWARM NODES (operator 2026-05-22 "AI.Local iphone app hosts
 # its own endpoint on Tailscale ... added to the swarm as a node capable of
 # local mobile models"). A client device running an OpenAI-compatible local-
