@@ -20,6 +20,7 @@ OUTPUT
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -27,6 +28,12 @@ import urllib.error
 import urllib.request
 
 SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+# Creds from the MIOS_DB_* SSOT (same as agent-pipe / mios-daemon / mios-sys-env)
+# -- was a hardcoded `Basic cm9vdDpyb290` (root:root) which broke on any host
+# that rotated the SurrealDB password. Operator: no hardcodes.
+_DB_USER = os.environ.get("MIOS_DB_USER", "root")
+_DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+_DB_AUTH = "Basic " + base64.b64encode(f"{_DB_USER}:{_DB_PASS}".encode()).decode()
 DEFAULT_LIMIT = int(os.environ.get(
     "MIOS_DIRECTORY_LOOKUP_LIMIT", "20"))
 # Per-hit summary cap + a hard envelope cap so the --json output ALWAYS stays
@@ -60,7 +67,7 @@ def _sql(query: str) -> list:
         f"{SURREAL_URL}/sql",
         data=body,
         headers={
-            "Authorization": "Basic cm9vdDpyb290",  # root:root
+            "Authorization": _DB_AUTH,  # MIOS_DB_* SSOT, not hardcoded
             "Accept": "application/json",
             "Content-Type": "text/plain",
         },
