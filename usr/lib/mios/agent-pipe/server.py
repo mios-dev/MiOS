@@ -7491,7 +7491,7 @@ min-width:280px;min-height:720px;max-width:100%}
 #chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
 /* Services grid: exactly 2 columns (operator 2026-05-22); 1 on narrow. */
-#grid,#terms{grid-template-columns:repeat(2,minmax(0,1fr))}
+#grid,#terms{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
 @media(max-width:600px){#grid,#terms{grid-template-columns:1fr}}
 .addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -7565,7 +7565,9 @@ border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;d
 color:var(--mut);font-size:15px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
 .exp:hover{background:var(--card2);color:var(--info)}
 .card.term{border-left-color:var(--info)}
-.card.exp{grid-column:1/-1;border-color:var(--accent);
+/* Expand IN PLACE -- the card grows downward inside its own grid cell and
+   stays inline with its neighbours (no full-width span that reflows the grid). */
+.card.exp{border-color:var(--accent);
 box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
 .card.exp .lnk{display:none}
 .card.exp .exp{color:var(--accent)}
@@ -7700,16 +7702,26 @@ function updateCard(el,s){
   el.className="card "+(s.ok?"up":"down")+(term?" term":"")+(exp?" exp":"");
   var dot=el.querySelector(".row .dot");if(dot)dot.className="dot "+(s.ok?"ok":"bad");
   var st=el.querySelector(".st");if(st)st.innerHTML=metaTail(s);}
-function cards(){
-  var grid=$("grid"),tg=$("terms"),order=sorted(),live={};
-  order.forEach(function(s){live[s.port]=1;
+// Reconcile DOM order with MINIMAL moves: only (re)insert a card when it is NOT
+// already at its target slot. Moving an <iframe> (or an ancestor) in the DOM
+// RELOADS it -- re-appending every card each tick is what made an opened
+// terminal "keep refreshing" and the layout churn. Untouched cards keep their
+// live embeds intact.
+function place(list,parent){
+  list.forEach(function(s,i){
     var el=cardEls[s.port];
     if(!el){el=buildCard(s);cardEls[s.port]=el;}else updateCard(el,s);
-    (s.kind=="terminal"?tg:grid).appendChild(el);});  // ttyd -> Terminals section (under chat), rest -> Services; appendChild MOVES existing nodes (keeps embeds alive)
+    if(parent.children[i]!==el)parent.insertBefore(el,parent.children[i]||null);
+  });
+}
+function cards(){
+  var order=sorted(),live={};
+  order.forEach(function(s){live[s.port]=1;});
+  var T=order.filter(function(s){return s.kind=="terminal";});   // -> Terminals section (under chat)
+  var O=order.filter(function(s){return s.kind!="terminal";});   // -> Services
+  place(T,$("terms"));place(O,$("grid"));
   Object.keys(cardEls).forEach(function(p){
     if(!live[p]){cardEls[p].remove();delete cardEls[p];}});
-  var O=S.filter(function(s){return s.kind!="terminal";});
-  var T=S.filter(function(s){return s.kind=="terminal";});
   $("svcn").textContent=O.filter(function(s){return s.ok;}).length+" / "+O.length+" up";
   if($("termn"))$("termn").textContent=T.filter(function(s){return s.ok;}).length+" / "+T.length+" up";
 }
