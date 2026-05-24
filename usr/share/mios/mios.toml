@@ -726,11 +726,13 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning"]
 # resolver, so peers are addressed by tailnet IP, not name.)
 
 [agents.ai-local]
-# Corey's iPhone (kabu-iphone, 100.100.116.103) running AI.Local -- an
-# ollama-compatible local-model server on :11434. Open the AI.Local app to
-# host; closing it drops the node from the swarm (health_gate). Reached
-# directly over the tailnet from the mios-dev WSL node.
-endpoint    = "http://100.100.116.103:11434/v1"
+# A phone / mobile device running AI.Local -- an ollama-compatible local-model
+# server on :11434 -- reached over Tailscale. Open the AI.Local app to host;
+# closing it drops the node from the swarm (health_gate). OPERATOR-SPECIFIC +
+# PRIVACY: vendor ships `endpoint` EMPTY so no personal device name / tailnet
+# IP is baked into the public repo; set it to your own device's tailnet
+# endpoint in your /etc/mios or ~/.config/mios overlay. Empty = inert node.
+endpoint    = ""
 model       = "qwen2.5-3b-instruct-4bit"
 role        = "mobile"
 default     = false

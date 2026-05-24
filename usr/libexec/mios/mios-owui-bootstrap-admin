@@ -44,7 +44,8 @@ def _log(msg: str) -> None:
 def _read_mios_toml_identity():
     """Return (username, email) from layered mios.toml; defaults if missing."""
     name = "mios"
-    email = "corey.dl.taylor@gmail.com"  # from MEMORY.md user email
+    email = "admin@mios.local"  # neutral default; operator sets the real value
+                                 # via mios.toml [identity].email (overlay)
     for p in (
         Path(os.environ.get("HOME", "/root")) / ".config/mios/mios.toml",
         Path("/etc/mios/mios.toml"),

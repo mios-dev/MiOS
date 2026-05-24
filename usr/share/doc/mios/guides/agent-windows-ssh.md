@@ -56,7 +56,7 @@ In `/etc/mios/mios.toml`:
 ```toml
 [identity]
 username = "mios"            # the Linux operator (already set)
-windows_user = "Corey"       # the Windows-side username for SSH
+windows_user = "YourWindowsUser"   # the Windows-side username for SSH
 ```
 
 If `windows_user` is unset, `mios-windows` falls back to `[identity].username`.
