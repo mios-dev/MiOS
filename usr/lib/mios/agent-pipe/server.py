@@ -7064,13 +7064,16 @@ def _discover_portal_services() -> list[dict]:
             if not cname:
                 cname = os.path.basename(f).replace(".container", "")
             svcs.append({"name": name, "port": int(port), "path": path,
-                         "container_name": cname,
+                         "container_name": cname, "kind": "",
                          "local": f"{scheme}://127.0.0.1:{port}{path}"})
     # Host services (not Quadlets, so no openInBrowser label): read their
     # ports from mios.toml [ports] SSOT. {toml key: (display name, scheme)}.
-    host_svcs = {"cockpit": ("Cockpit", "https"),
-                 "ttyd_bash": ("Terminal · Bash", "http"),
-                 "ttyd_powershell": ("Terminal · PowerShell", "http")}
+    # (label, scheme, kind) -- kind="terminal" marks ttyd pty bridges so the
+    # portal pins them to the top + renders an inline ~80x20 terminal embed
+    # (matches the MiOS dashboards; also serves btop/console access).
+    host_svcs = {"cockpit": ("Cockpit", "https", ""),
+                 "ttyd_bash": ("Terminal · Bash", "http", "terminal"),
+                 "ttyd_powershell": ("Terminal · PowerShell", "http", "terminal")}
     try:
         try:
             import tomllib
@@ -7081,15 +7084,18 @@ def _discover_portal_services() -> list[dict]:
             "rb")).get("ports") or {}
     except Exception:
         ports = {}
-    for key, (label, scheme) in host_svcs.items():
+    for key, (label, scheme, kind) in host_svcs.items():
         p = ports.get(key)
         if not p or str(p) in seen:
             continue
         seen.add(str(p))
         svcs.append({"name": label, "port": int(p), "path": "/",
-                     "container_name": "",
+                     "container_name": "", "kind": kind,
                      "local": f"{scheme}://127.0.0.1:{p}/"})
-    svcs.sort(key=lambda s: s["name"].lower())
+    # Terminals first (operator), then alphabetical. The portal JS re-asserts
+    # this ordering client-side, but sorting the catalog keeps non-JS
+    # consumers (e.g. /portal/stats) consistent.
+    svcs.sort(key=lambda s: (s.get("kind") != "terminal", s["name"].lower()))
     return svcs
 
 
@@ -7198,7 +7204,7 @@ async def portal_stats() -> JSONResponse:
                  or pmap["name"].get(svc.get("container_name", ""), {}))
         return {"name": svc["name"], "port": svc["port"], "ok": ok,
                 "ms": int((time.time() - t0) * 1000),
-                "internal": svc["local"],
+                "internal": svc["local"], "kind": svc.get("kind", ""),
                 "container": cinfo.get("container", ""),
                 "state": cinfo.get("state", ""),
                 "image": cinfo.get("image", ""),
@@ -7325,6 +7331,11 @@ _PORTAL_HTML = r"""<!DOCTYPE html>
 --ok:#3E7765;        /* wave green */
 --bad:#DC271B;       /* coral red */
 --silver:#E0E0E0;--earth:#734F39;
+--warn:#FF8540;      /* bright sunset  (ANSI 11) */
+--info:#3D6BA8;      /* bright op-blue (ANSI 12) */
+--ok2:#5FAA8E;       /* bright wave    (ANSI 10) */
+--rust:#9D7660;      /* bright brown   (ANSI 13) */
+--subtle:#B7C9D7;    /* pale blue-grey */
 --card:color-mix(in srgb,var(--panel) 24%,var(--bg));
 --card2:color-mix(in srgb,var(--panel) 42%,var(--bg));
 --line:color-mix(in srgb,var(--mut) 24%,transparent);
@@ -7336,7 +7347,9 @@ body{margin:0;color:var(--fg);font:15px/1.5 var(--sans);
 background:radial-gradient(1100px 520px at 12% -12%,
   color-mix(in srgb,var(--accent) 13%,transparent),transparent 60%),
   radial-gradient(900px 500px at 100% 0%,
-  color-mix(in srgb,var(--panel) 30%,transparent),transparent 55%),var(--bg);
+  color-mix(in srgb,var(--panel) 30%,transparent),transparent 55%),
+  radial-gradient(820px 520px at 50% 118%,
+  color-mix(in srgb,var(--info) 18%,transparent),transparent 60%),var(--bg);
 background-attachment:fixed}
 a{color:var(--accent);text-decoration:none}
 .bar{display:flex;align-items:center;gap:16px;padding:14px 22px;
@@ -7382,8 +7395,8 @@ min-width:280px;min-height:720px;max-width:100%}
 #chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
 /* Services grid: exactly 2 columns (operator 2026-05-22); 1 on narrow. */
-#grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-@media(max-width:600px){#grid{grid-template-columns:1fr}}
+#grid,#terms{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:600px){#grid,#terms{grid-template-columns:1fr}}
 .addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}
@@ -7408,7 +7421,7 @@ border-radius:20px;border:1px solid var(--line);color:var(--mut)}
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .node .ep{font-size:10.5px;color:color-mix(in srgb,var(--mut) 70%,transparent);
 font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-.node .tags{font-size:10px;color:var(--earth);margin-top:6px}
+.node .tags{font-size:10px;color:var(--rust);margin-top:6px}
 .meta{color:var(--mut);font-size:12px;margin-top:9px;display:flex;justify-content:space-between}
 .port{font-family:ui-monospace,Menlo,monospace}
 .kebab{position:absolute;top:9px;right:9px;z-index:5;background:transparent;border:0;
@@ -7421,7 +7434,7 @@ border:1px solid var(--line);border-radius:9px;padding:5px;display:none;min-widt
 color:var(--fg);font-size:13px;padding:7px 9px;border-radius:6px;cursor:pointer}
 .cdrop button:hover{background:var(--card)}
 .state{font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
-.state.running{color:var(--ok);border-color:#1c3b22}
+.state.running{color:var(--ok2);border-color:color-mix(in srgb,var(--ok2) 40%,transparent)}
 .search{display:flex;gap:8px;margin-bottom:14px}
 .search input{flex:1;background:var(--card);border:1px solid var(--line);color:var(--fg);
 border-radius:9px;padding:9px 12px;font-size:14px}
@@ -7443,6 +7456,36 @@ font-size:12px;max-height:340px;overflow:auto;color:#aeb9c4;white-space:pre-wrap
 footer{color:var(--mut);font-size:12px;text-align:center;padding:16px}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--card2);
 border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;display:none;z-index:60}
+/* per-section header accents (more of the MiOS palette) */
+.h h2.ac-info{border-left-color:var(--info)}
+.h h2.ac-ok{border-left-color:var(--ok2)}
+.h h2.ac-warn{border-left-color:var(--warn)}
+/* ── Inline service embeds (operator 2026-05-23): each chip gets an expand
+   toggle that opens the service as an inline iframe portal. ttyd terminals
+   are pinned to the top and capped to an 80x20 char grid (the MiOS dashboard
+   size -- also used for btop/console). The grid re-renders in place (see
+   cards()) so an open terminal session survives the periodic refresh. */
+.exp{position:absolute;top:9px;right:34px;z-index:5;background:transparent;border:0;
+color:var(--mut);font-size:15px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
+.exp:hover{background:var(--card2);color:var(--info)}
+.card.term{border-left-color:var(--info)}
+.card.exp{grid-column:1/-1;border-color:var(--accent);
+box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
+.card.exp .lnk{display:none}
+.card.exp .exp{color:var(--accent)}
+.embed{display:none}
+.card.exp .embed{display:block;position:relative;z-index:8;margin-top:13px}
+.embed-bar{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;
+color:var(--subtle);font-family:var(--mono);margin-bottom:6px;text-transform:uppercase;
+letter-spacing:.5px}
+.embed-bar a{color:var(--warn)}
+.embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
+border-radius:9px;overflow:hidden;background:#06090d}
+.embed-box iframe{display:block;border:0;width:100%;height:480px;background:#06090d}
+/* terminal embed: cap to ~80x20 (≈724x344 at the ttyd default cell); never
+   exceed it on wide screens, center it, shrink to fit on narrow ones. */
+.card.term.exp .embed-box{width:min(100%,724px);margin:0 auto}
+.card.term .embed-box iframe{height:344px}
 </style></head><body>
 <div class="bar">
   <h1>Mi<b>OS</b></h1>
@@ -7475,7 +7518,13 @@ border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;d
 <div class="hoststrip" id="host"></div>
 
 <section>
-  <div class="h"><h2>Swarm Nodes</h2><span class="n" id="swarmn"></span></div>
+  <div class="h"><h2 class="ac-warn">Terminals</h2><span class="n" id="termn"></span>
+    <span class="n" style="color:var(--subtle);font-weight:400">&middot; inline 80&times;20 pty &middot; bash &middot; pwsh &middot; btop</span></div>
+  <div class="grid" id="terms"></div>
+</section>
+
+<section>
+  <div class="h"><h2 class="ac-info">Swarm Nodes</h2><span class="n" id="swarmn"></span></div>
   <div class="grid" id="swarm"></div>
 </section>
 
@@ -7485,7 +7534,7 @@ border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;d
 </section>
 
 <section>
-  <div class="h"><h2>MiOS Apps</h2><span class="n">windows &middot; terminal &middot; TUIs</span></div>
+  <div class="h"><h2 class="ac-ok">MiOS Apps</h2><span class="n">windows &middot; terminal &middot; TUIs</span></div>
   <div class="search">
     <input id="appq" placeholder="Search installed apps (e.g. browser, htop, steam)&hellip;">
     <button class="btn" id="appgo">Search</button>
@@ -7509,28 +7558,75 @@ function fmtUp(s){if(!s)return"?";var d=Math.floor(s/86400),h=Math.floor(s%86400
 function copy(t){navigator.clipboard&&navigator.clipboard.writeText(t);toast("copied "+t);}
 function sorted(){var a=S.slice();
   if(OPTS.onlydown)a=a.filter(function(s){return !s.ok;});
-  a.sort(function(x,y){return OPTS.sort=="status"?(x.ok-y.ok):
-    OPTS.sort=="port"?(x.port-y.port):x.name.localeCompare(y.name);});return a;}
+  a.sort(function(x,y){
+    var tx=x.kind=="terminal"?0:1,ty=y.kind=="terminal"?0:1;
+    if(tx!=ty)return tx-ty;  // ttyd terminals pinned to the top (operator)
+    return OPTS.sort=="status"?(x.ok-y.ok):
+      OPTS.sort=="port"?(x.port-y.port):x.name.localeCompare(y.name);});
+  return a;}
+// Cards are rendered ONCE then updated in place so an expanded inline embed
+// (esp. a live ttyd terminal session) survives the periodic stats refresh --
+// wiping innerHTML every tick would tear down the iframe + drop the pty.
+var cardEls={};
+function metaTail(s){
+  var st=s.state?' &middot; <span class="state '+esc(s.state)+'">'+esc(s.state)+'</span>':'';
+  return (s.ok?(s.ms+" ms"):"down")+st;}
+function buildCard(s){
+  var addr=(s.url||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
+  var loc=(s.internal||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
+  var term=s.kind=="terminal";
+  var el=document.createElement("div");
+  el.className="card "+(s.ok?"up":"down")+(term?" term":"");
+  el.setAttribute("data-p",s.port);
+  el.innerHTML=
+    '<a class="lnk" href="'+esc(s.url)+'" target="_blank" rel="noopener"></a>'+
+    '<button class="exp" data-x="'+s.port+'" title="Toggle inline embed">&#10530;</button>'+
+    '<button class="kebab" data-k="'+s.port+'">&#8942;</button>'+
+    '<div class="cdrop" id="cd'+s.port+'">'+
+      '<button data-act="embed" data-p="'+s.port+'">Embed inline</button>'+
+      '<button data-act="open" data-u="'+esc(s.url)+'">Open</button>'+
+      '<button data-act="copy" data-u="'+esc(s.url)+'">Copy URL</button>'+
+      '<button data-act="detail" data-p="'+s.port+'">Details</button></div>'+
+    '<div class="row"><span class="name">'+esc(s.name)+'</span>'+
+      '<span class="dot '+(s.ok?"ok":"bad")+'"></span></div>'+
+    '<div class="addr">&#128279; '+esc(addr)+'</div>'+
+    (loc?'<div class="addr" style="opacity:.7">&#8627; '+esc(loc)+'</div>':'')+
+    '<div class="meta"><span class="port">:'+s.port+'</span>'+
+      '<span class="st">'+metaTail(s)+'</span></div>'+
+    '<div class="embed" id="emb'+s.port+'" data-u="'+esc(s.url)+'">'+
+      '<div class="embed-bar"><span>'+(term?"&#9000; terminal &middot; 80&times;20":"&#9636; embedded view")+'</span>'+
+        '<a href="'+esc(s.url)+'" target="_blank" rel="noopener">open &#8599;</a></div>'+
+      '<div class="embed-box"></div></div>';
+  return el;}
+function updateCard(el,s){
+  var term=s.kind=="terminal",exp=el.classList.contains("exp");
+  el.className="card "+(s.ok?"up":"down")+(term?" term":"")+(exp?" exp":"");
+  var dot=el.querySelector(".row .dot");if(dot)dot.className="dot "+(s.ok?"ok":"bad");
+  var st=el.querySelector(".st");if(st)st.innerHTML=metaTail(s);}
 function cards(){
-  $("grid").innerHTML=sorted().map(function(s){
-    var st=s.state?' &middot; <span class="state '+esc(s.state)+'">'+esc(s.state)+'</span>':'';
-    var addr=(s.url||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
-    var loc=(s.internal||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
-    return '<div class="card '+(s.ok?"up":"down")+'" data-p="'+s.port+'">'+
-      '<a class="lnk" href="'+esc(s.url)+'" target="_blank" rel="noopener"></a>'+
-      '<button class="kebab" data-k="'+s.port+'">&#8942;</button>'+
-      '<div class="cdrop" id="cd'+s.port+'">'+
-        '<button data-act="open" data-u="'+esc(s.url)+'">Open</button>'+
-        '<button data-act="copy" data-u="'+esc(s.url)+'">Copy URL</button>'+
-        '<button data-act="detail" data-p="'+s.port+'">Details</button></div>'+
-      '<div class="row"><span class="name">'+esc(s.name)+'</span>'+
-        '<span class="dot '+(s.ok?"ok":"bad")+'"></span></div>'+
-      '<div class="addr">&#128279; '+esc(addr)+'</div>'+
-      (loc?'<div class="addr" style="opacity:.7">&#8627; '+esc(loc)+'</div>':'')+
-      '<div class="meta"><span class="port">:'+s.port+'</span>'+
-        '<span>'+(s.ok?(s.ms+" ms"):"down")+st+'</span></div></div>';
-  }).join("");
-  $("svcn").textContent=S.filter(function(s){return s.ok;}).length+" / "+S.length+" up";
+  var grid=$("grid"),tg=$("terms"),order=sorted(),live={};
+  order.forEach(function(s){live[s.port]=1;
+    var el=cardEls[s.port];
+    if(!el){el=buildCard(s);cardEls[s.port]=el;}else updateCard(el,s);
+    (s.kind=="terminal"?tg:grid).appendChild(el);});  // ttyd -> Terminals section (under chat), rest -> Services; appendChild MOVES existing nodes (keeps embeds alive)
+  Object.keys(cardEls).forEach(function(p){
+    if(!live[p]){cardEls[p].remove();delete cardEls[p];}});
+  var O=S.filter(function(s){return s.kind!="terminal";});
+  var T=S.filter(function(s){return s.kind=="terminal";});
+  $("svcn").textContent=O.filter(function(s){return s.ok;}).length+" / "+O.length+" up";
+  if($("termn"))$("termn").textContent=T.filter(function(s){return s.ok;}).length+" / "+T.length+" up";
+}
+function toggleEmbed(p){
+  var el=cardEls[p];if(!el)return;
+  var open=el.classList.toggle("exp");
+  if(open){
+    var box=el.querySelector(".embed-box");
+    if(box&&!box.querySelector("iframe")){   // create the iframe once, then keep it alive
+      var f=document.createElement("iframe");
+      f.setAttribute("loading","lazy");f.title="embed "+p;
+      f.src=el.querySelector(".embed").getAttribute("data-u");
+      box.appendChild(f);}
+    el.scrollIntoView({behavior:"smooth",block:"nearest"});}
 }
 function render(j){
   var h=j.host||{},hs=[];
@@ -7598,6 +7694,8 @@ function searchApps(){var q=$("appq").value.trim();if(!q)return;
     }).catch(function(){$("apps").innerHTML='<div class="app">app search unavailable</div>';});}
 // events
 document.addEventListener("click",function(e){
+  var x=e.target.closest("[data-x]");
+  if(x){toggleEmbed(x.getAttribute("data-x"));return;}
   var k=e.target.closest("[data-k]");
   document.querySelectorAll(".cdrop.open").forEach(function(d){
     if(!k||d.id!="cd"+k.getAttribute("data-k"))d.classList.remove("open");});
@@ -7607,6 +7705,7 @@ document.addEventListener("click",function(e){
     if(act=="open")window.open(b.getAttribute("data-u"),"_blank");
     else if(act=="copy")copy(b.getAttribute("data-u"));
     else if(act=="detail")detail(b.getAttribute("data-p"));
+    else if(act=="embed")toggleEmbed(b.getAttribute("data-p"));
     document.querySelectorAll(".cdrop.open").forEach(function(d){d.classList.remove("open");});return;}
   if(e.target.id=="modal")closeM();
   if(!e.target.closest("#menu")&&e.target.id!="menuBtn")$("menu").classList.remove("open");
@@ -7662,7 +7761,15 @@ def _portal_theme_css() -> str:
              "--panel": c.get("accent"), "--accent": c.get("cursor"),
              "--ok": c.get("success"), "--bad": c.get("error"),
              "--mut": c.get("subtle") or c.get("muted"),
-             "--silver": c.get("silver"), "--earth": c.get("earth")}
+             "--silver": c.get("silver"), "--earth": c.get("earth"),
+             # Richer palette (operator 2026-05-23: "add more colors from the
+             # mios palette"): pull the bright ANSI slots + warning/info roles
+             # so the portal uses more than the 9 base surfaces.
+             "--warn": c.get("warning") or c.get("ansi_11_bright_yellow"),
+             "--info": c.get("info") or c.get("ansi_12_bright_blue"),
+             "--ok2": c.get("ansi_10_bright_green") or c.get("success"),
+             "--rust": c.get("ansi_13_bright_magenta") or c.get("earth"),
+             "--subtle": c.get("subtle") or c.get("muted")}
     decl = ";".join(f"{k}:{v}" for k, v in roles.items()
                     if isinstance(v, str) and v.startswith("#"))
     return f"<style>:root{{{decl}}}</style>" if decl else ""
