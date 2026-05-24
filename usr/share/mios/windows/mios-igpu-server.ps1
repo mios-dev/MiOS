@@ -148,6 +148,5 @@ $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
     --model $Model `
     --ctx-size $ContextSize `
     --n-gpu-layers $GpuLayers `
-    --flash-attn auto `
     --alias mios-igpu `
     2>&1 | Tee-Object -FilePath $logFile
