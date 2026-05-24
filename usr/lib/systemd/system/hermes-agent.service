@@ -89,6 +89,22 @@ EnvironmentFile=-/etc/mios/hermes/discord.env
 # service still starts). The `-` prefix makes systemd ignore the
 # exit code so a Discord-gateway-only failure can't block the
 # whole agent from booting.
+# Guarantee the runtime state dir is OWNED BY the service user (mios-ai)
+# on EVERY start. The decisive fix is the ownership: the `hermes gateway`
+# tightens HERMES_HOME to 0700 itself on startup, so as long as mios-ai
+# owns the dir it can create gateway.pid and manage its own tree. The `+`
+# prefix runs this as root (User=mios-ai cannot chown); `install -d` is
+# idempotent -- on the existing dir it just re-asserts owner/group/mode.
+# 2026-05-24 incident: /var/lib/mios/hermes had drifted to root-era
+# ownership (mios-hermes:mios-hermes, mode 0755) AFTER firstboot (which
+# exits early on later boots once config exists, so it no longer
+# re-corrects the dir). The mios-ai gateway, NOT the owner, could not
+# create gateway.pid -> "PermissionError: [Errno 13]" which the gateway
+# misreports as "PID file race lost to another gateway instance" -> a
+# crash/restart loop with NOTHING listening on :8642 (silently "active
+# (running)" but a dead agent). 0700 here matches what the gateway sets
+# anyway; owner mios-ai retains full access.
+ExecStartPre=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes
 ExecStartPre=-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py
 ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes gateway run --replace
 Restart=on-failure
@@ -99,6 +115,19 @@ TimeoutStartSec=300s
 # SIGKILLs the gateway mid-drain (operator-confirmed 2026-05-14 warning:
 # "TimeoutStopSec=45s but drain_timeout=180s, expected >=210s").
 TimeoutStopSec=240s
+# File-descriptor ceiling. systemd's default soft RLIMIT_NOFILE for a
+# service is 1024 -- far too low for a long-running async gateway that
+# holds many concurrent sockets at once (ollama backend, Discord
+# gateway, the agent dashboard, and the swarm's every-5s health probes).
+# 2026-05-24 incident: the gateway accumulated fds over a 15h uptime
+# until it hit 1024, after which asyncio's accept() failed with EMFILE
+# ("OSError: [Errno 24] Too many open files" / "socket.accept() out of
+# system resource"). The unit stayed "active (running)" but could no
+# longer accept ANY connection on :8642 (95 conns jammed in the listen
+# backlog) so every chat/tool call timed out -- a silent, wedged agent.
+# Raise the soft limit to the system hard cap (1048576) so a slow fd
+# leak can no longer wedge the agent; a restart still resets the count.
+LimitNOFILE=1048576
 # Hardening -- the agent reads `/` but should not be able to rewrite
 # vendor /usr; /etc + /var/lib/mios/hermes stay writable via the
 # Directory= directives above.
