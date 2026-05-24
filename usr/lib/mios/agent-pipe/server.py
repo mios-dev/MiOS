@@ -9073,6 +9073,30 @@ async def chat_completions(request: Request) -> Any:
                     _call_agent_stream(_n, _c, proxy_body, headers, client,
                                        _ev_q)))
             _prim_task = asyncio.create_task(_primary_pump())
+            # Per-secondary ✅/💤 emitted LIVE as each fan-out task FINISHES
+            # (operator 2026-05-23: "emitters per-step compute, not all at
+            # once"). Was a burst after the post-primary gather. Records each
+            # result so the post-loop merge reuses it (no second emit).
+            _sec_meta = list(_fanout)
+            _sec_done_emitted: set = set()
+            _sec_results: dict = {}
+
+            def _finished_sec_status() -> list:
+                _o: list = []
+                for _ti, _t in enumerate(_sec_tasks):
+                    if _t in _sec_done_emitted or not _t.done():
+                        continue
+                    _sec_done_emitted.add(_t)
+                    _mn, _mc = _sec_meta[_ti]
+                    try:
+                        _rn, _rt = _t.result()
+                    except Exception:
+                        _rn, _rt = _mn, ""
+                    _sec_results[_mn] = (_rn, _rt)
+                    _o.append(_node_status(
+                        chat_id=chat_id, model=model, name=_mn, cfg=_mc,
+                        state="ok" if (_rt and _rt.strip()) else "down"))
+                return _o
 
             # Drain the MERGED queue until the primary signals done. Primary
             # reasoning + tool steps and secondary fragments interleave LIVE,
@@ -9085,6 +9109,10 @@ async def chat_completions(request: Request) -> Any:
                 if _get_task is None:
                     _get_task = asyncio.ensure_future(_ev_q.get())
                 _done, _ = await asyncio.wait({_get_task}, timeout=2.0)
+                # Stream ✅/💤 for any secondary that JUST finished -- per-step
+                # live, interleaved with the primary, not a burst at the end.
+                for _b in _finished_sec_status():
+                    yield _b
                 if not _done:
                     for _b in _flush_sec():
                         yield _b
@@ -9196,30 +9224,28 @@ async def chat_completions(request: Request) -> Any:
                         yield b": keepalive\n\n"
                     except Exception:
                         break
-                # Flush any tail fragments that arrived after the last drain.
+                # Flush tail fragments + emit ✅/💤 for any FINAL straggler
+                # secondary (finished after the primary; most already streamed
+                # their status live during the drain loop above).
                 for _b in _pump_sec(force=True):
                     yield _b
+                for _b in _finished_sec_status():
+                    yield _b
+                # Build the polish merge from the per-secondary results that the
+                # live-status helper recorded (status already emitted -> no
+                # duplicate _node_status here; their text already streamed into
+                # the dropdown via the merged queue, so we fold text only).
                 _merge = []
-                for _t in _sec_tasks:
-                    try:
-                        _sn, _stext = _t.result()
-                    except Exception:
-                        continue
-                    _scfg = _fanout_cfg.get(_sn, {})
+                for _mn, _mc in _sec_meta:
+                    _sn, _stext = _sec_results.get(_mn, (_mn, ""))
                     if _stext and _stext.strip():
-                        # NOTE: the secondary's text already STREAMED live into
-                        # the dropdown via the merged event queue; here we only
-                        # mark it responded + fold it into the polish merge (no
-                        # second full-text flush -> no duplicate in the block).
-                        yield _node_status(chat_id=chat_id, model=model,
-                                           name=_sn, cfg=_scfg, state="ok")
                         _merge.append(f"[{_sn} agent]:\n{_stext.strip()}")
                         _scratchpad_note(_sn, _stext, phase="council")
-                        _roster.append((_sn, "ok"))
+                        _roster.append((_mn, "ok"))
                     else:
-                        yield _node_status(chat_id=chat_id, model=model,
-                                           name=_sn, cfg=_scfg, state="down")
-                        _roster.append((_sn, "down"))
+                        _roster.append((_mn, "down"))
+                # Final dropdown summary line (the per-node ✅/💤 already streamed
+                # live, per-step; this is just the at-a-glance recap).
                 yield _flush_reasoning(
                     "\n🛰️ swarm: " + " · ".join(
                         f"{_nm} {'✅' if _st == 'ok' else '💤'}"
