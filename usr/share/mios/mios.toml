@@ -1350,6 +1350,19 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #     to ONE query (fan-out dead, "no multiple passes/queries"). Default now to
 #     the model the mios-daemon pins ALWAYS-WARM on the CPU lane (qwen3:1.7b @
 #     :11435, keep_alive=-1): sub-second, never cold-fails, more capable.
+# PIPELINE-SIDE WEB-RESEARCH LOOP (operator 2026-05-24 "the MiOS pipeline ITSELF
+# loops for web use and web tools" + "multi loops for all web tools" + "use
+# searxng too" + "no use from any agent"): for a web-needing turn agent-pipe runs
+# the chain ITSELF -- SearXNG web_search (fan-out -> multiple queries) THEN
+# web_extract the top pages for REAL article text -- and grounds EVERY agent
+# (primary + reasoning-only secondaries) on it, so the swarm answers from actual
+# stories not homepage snippets. Gated on the refine web-hint (no over-fire):
+#   MIOS_WEB_RESEARCH_ENABLED     = true
+#   MIOS_WEB_RESEARCH_PASSES      = 2     -- fetch-drill passes over the results
+#   MIOS_WEB_RESEARCH_RESULTS     = 6     -- search results considered
+#   MIOS_WEB_RESEARCH_FETCH_N     = 3     -- pages fetched per pass (web_extract)
+#   MIOS_WEB_RESEARCH_FETCH_CHARS = 3000  -- chars pulled per page
+#   MIOS_WEB_RESEARCH_BLOCK_CHARS = 1200  -- chars injected per source
 # Knowledge storage (operator 2026-05-23: "...present to user as final answer
 # and STORE all gained knowledge in all relevant global databases"). agent-pipe
 # persists each finished Q+A -- with the turn's derived sources (verbs invoked +

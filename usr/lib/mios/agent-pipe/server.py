@@ -108,6 +108,29 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
+
+# Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
+# ITSELF loops for web use and web tools" + "multi loops for all web tools" +
+# "use searxng too" + "all these web tools and no use from any agent"). For a
+# web-needing turn the PIPELINE runs the chain itself -- SearXNG web_search with
+# fan-out (multiple diverse queries) THEN web_extract the top results for REAL
+# article text, over WEB_RESEARCH_PASSES loop passes -- and injects the grounded
+# content for EVERY agent (primary + reasoning-only secondaries). So the swarm
+# grounds on actual stories, not shallow homepage snippets, regardless of any
+# single agent's own tool-loop depth (the transcript that listed bare news
+# homepages -- "did NOT elaborate / multiple passes"). Gated on the refine
+# web-hint so it never over-fires on a non-web turn.
+WEB_RESEARCH_ENABLED = os.environ.get(
+    "MIOS_WEB_RESEARCH_ENABLED", "true").lower() not in {"false", "0", "no"}
+WEB_RESEARCH_PASSES = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_PASSES", "2")))
+WEB_RESEARCH_RESULTS = int(os.environ.get("MIOS_WEB_RESEARCH_RESULTS", "6"))
+WEB_RESEARCH_FANOUT = int(os.environ.get(
+    "MIOS_WEB_RESEARCH_FANOUT", os.environ.get("MIOS_WEB_FANOUT", "3")))
+WEB_RESEARCH_FETCH_N = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_N", "3"))
+WEB_RESEARCH_FETCH_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_CHARS", "3000"))
+WEB_RESEARCH_BLOCK_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_BLOCK_CHARS", "1200"))
+WEB_RESEARCH_SEARCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_SEARCH_TIMEOUT_S", "20"))
+WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEOUT_S", "12"))
 # Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
 # the same time -- reasonable limit/cap"). Council secondaries + DAG-level
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
@@ -2180,6 +2203,90 @@ async def _rag_enrich(query: str) -> str:
         return ""
     return ("MiOS knowledge relevant to this request (retrieved; cite/use "
             "if helpful, ignore if not):\n" + "\n".join(lines))
+
+
+async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
+    """Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
+    ITSELF loops for web use and web tools"). For a web-needing turn the PIPELINE
+    runs the web toolchain itself: SearXNG web_search WITH FAN-OUT (multiple
+    diverse sub-queries) then web_extract the top result pages for their REAL
+    text, over WEB_RESEARCH_PASSES drill passes. The fetched content is injected
+    as grounding for EVERY agent (primary + reasoning-only secondaries), so the
+    swarm answers from actual stories instead of shallow homepage snippets,
+    regardless of any single agent's tool-loop depth. Best-effort + bounded;
+    '' when disabled / not a web turn / nothing fetched."""
+    if not WEB_RESEARCH_ENABLED or not query or not query.strip():
+        return ""
+    # GATE: only when refine flagged a web need (hint_tools names a web verb), so
+    # the loop fires on current-world / lookup turns but never on a pure-local or
+    # non-web turn -- avoids the old web over-fire (weather turn drowned in junk).
+    hints = [str(t).lower() for t in ((refined or {}).get("hint_tools") or [])]
+    if not any(("web" in h or "search" in h) for h in hints):
+        return ""
+
+    async def _search(q: str) -> list:
+        try:
+            p = await asyncio.create_subprocess_exec(
+                "mios-web-search", "-n", str(WEB_RESEARCH_RESULTS),
+                "--fanout", str(WEB_RESEARCH_FANOUT), q[:400],
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            o, _ = await asyncio.wait_for(
+                p.communicate(), timeout=WEB_RESEARCH_SEARCH_TIMEOUT)
+            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            return [r for r in (d.get("results") or []) if r.get("url")]
+        except Exception as e:  # noqa: BLE001 -- best-effort
+            log.debug("web-research search failed: %s", e)
+            return []
+
+    async def _fetch(url: str) -> str:
+        try:
+            p = await asyncio.create_subprocess_exec(
+                "mios-web-extract", "-n", str(WEB_RESEARCH_FETCH_CHARS), url,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            o, _ = await asyncio.wait_for(
+                p.communicate(), timeout=WEB_RESEARCH_FETCH_TIMEOUT)
+            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            return (d.get("content") or "").strip()
+        except Exception:  # noqa: BLE001
+            return ""
+
+    results = await _search(query)
+    if not results:
+        return ""
+    seen: set = set()
+    ordered: list = []
+    for r in results:
+        u = r.get("url", "")
+        if u and u not in seen:
+            seen.add(u)
+            ordered.append(r)
+    # DRILL LOOP: each pass fetches the NEXT batch of top results for real text.
+    content: dict = {}
+    per_pass = max(1, WEB_RESEARCH_FETCH_N)
+    for _ in range(WEB_RESEARCH_PASSES):
+        batch = [r for r in ordered if r["url"] not in content][:per_pass]
+        if not batch:
+            break
+        texts = await asyncio.gather(*[_fetch(r["url"]) for r in batch])
+        for r, t in zip(batch, texts):
+            if t:
+                content[r["url"]] = t
+    blocks: list = []
+    for i, r in enumerate(ordered[:WEB_RESEARCH_RESULTS], start=1):
+        u = r.get("url", "")
+        title = str(r.get("title", "")).strip()
+        body = content.get(u) or str(r.get("content", "")).strip()
+        if body:
+            blocks.append(f"[{i}] {title} ({u})\n{body[:WEB_RESEARCH_BLOCK_CHARS]}")
+    if not blocks:
+        return ""
+    log.info("web-research: %d results, %d pages fetched for %.60r",
+             len(ordered), len(content), query)
+    return ("LIVE WEB RESEARCH -- the MiOS pipeline searched SearXNG (multiple "
+            "queries) and FETCHED the top pages below. GROUND your answer on this "
+            "REAL content: synthesise the actual stories/facts across sources, "
+            "cite [n] inline, and do NOT just list the source homepages or tell "
+            "the user to visit them:\n\n" + "\n\n".join(blocks))
 
 
 async def refine_intent(user_text: str,
@@ -9578,6 +9685,14 @@ async def chat_completions(request: Request) -> Any:
     _rag_ctx = await _rag_enrich(last_user_text)
     if _rag_ctx:
         _sys_prefix.append({"role": "system", "content": _rag_ctx})
+    # Pipeline-side WEB-RESEARCH loop (operator 2026-05-24 "the MiOS pipeline
+    # itself loops for web use and web tools"): for a web-needing turn, the
+    # PIPELINE searches SearXNG (fan-out) + fetches the top pages for REAL
+    # content and grounds EVERY agent on it -- so the swarm answers from actual
+    # stories, not homepage snippets, no matter how shallow one agent's own loop.
+    _web_ctx = await _web_research_enrich(last_user_text, refined)
+    if _web_ctx:
+        _sys_prefix.append({"role": "system", "content": _web_ctx})
     # Knowledge recall: surface relevant PRIOR answers (the read half of the
     # store/recall loop) so the stack builds on what it already worked out.
     _recall_ctx = await _recall_knowledge(last_user_text)
