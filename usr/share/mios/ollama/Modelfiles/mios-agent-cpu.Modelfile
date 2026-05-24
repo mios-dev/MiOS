@@ -3,15 +3,19 @@
 #
 # CPU-COMPUTE twin of mios-agent -- the MiOS AI brain on the in-VM
 # CPU light-lane (mios-ollama-cpu :11435) instead of the dGPU/CUDA lane
-# (:11434). Operator directive 2026-05-22: "add a CPU-lane agent for
-# fuller councils -- all MiOS AI Agents/Sub-Agents have a relevant MiOS
-# Modelfile(s) for both CPU and GPU compute." This is the CPU half of
-# that pair for the reasoning brain; mios-agent.Modelfile is the GPU half.
+# (:11434). Operator directive 2026-05-22: "all MiOS AI Agents/Sub-Agents
+# have a relevant MiOS Modelfile(s) for both CPU and GPU compute." This is
+# the CPU half of that pair for the reasoning brain; mios-agent.Modelfile is
+# the GPU half.
 #
-# It backs [agents.mios-reasoner-cpu], the equal-weight COUNCIL member
-# that runs CONCURRENTLY with a GPU primary so the CPU lane is always
-# working in parallel and Hermes is never the only dispatched agent
-# (the dGPU stays free for the primary -- true cross-lane concurrency).
+# The LIVE CPU reasoning lane is now the CONSOLIDATED [agents.mios-daemon-
+# agent] (operator 2026-05-24 "mios-daemon-agent = mios-cpu/reasoner!
+# CONSOLIDATE" -- the old separate [agents.mios-reasoner-cpu] was merged into
+# the always-on daemon-agent, which reasons on the CPU light-lane CONCURRENTLY
+# with a GPU primary so the dGPU stays free for the primary). This Modelfile is
+# that lane's baked MiOS-discipline CPU brain: point MIOS_DAEMON_MODEL here to
+# run the daemon-agent's reasoning on it; the daemon otherwise uses the same
+# qwen3:1.7b base directly (it sends its own per-call system either way).
 #
 # Base: qwen3:1.7b -- a small, modern, fast-on-CPU model (~1.3 GB,
 # ~3-8 s/turn on a handful of threads) so the concurrent council member

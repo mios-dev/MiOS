@@ -16,12 +16,15 @@
 # The 'W' is from "We can't" -- prose where Hermes's parser expected
 # `{`. Removing the Reasoning header stops that leak at the source.
 #
-# This model becomes the [ai.host_thresholds].big_ram_model so the
-# main agent loop runs on a model that:
-#   (a) naturally picks delegate_task on parallelisable workloads
-#       (verified via parallel-fanout skill push -- gpt-oss:20b was
-#       the only model in the catalog that ever did this unprompted)
-#   (b) emits tool-call JSON cleanly (the harmony fix)
+# STATUS 2026-05-24: this is NO LONGER the default big_ram_model -- that is
+# qwen3-coder:30b now (see mios.toml [ai.host_thresholds].big_ram_model). The
+# pipeline consolidation moved off gpt-oss for the hot path. This derived model
+# is RETAINED as an available option for operators who specifically want
+# gpt-oss:20b for the main loop, because it:
+#   (a) naturally picks delegate_task on parallelisable workloads (gpt-oss:20b
+#       was the only catalog model that ever did this unprompted)
+#   (b) emits tool-call JSON cleanly (the harmony fix below) -- which the raw
+#       gpt-oss:20b does NOT, so always prefer gpt-oss-tools over the raw base.
 #
 # Built by automation/37-ollama-prep.sh on every OCI build:
 #   ollama pull gpt-oss:20b
