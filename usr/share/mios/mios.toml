@@ -700,21 +700,36 @@ strengths = ["journalctl_tail", "log_search", "event_query",
              "system_followup", "what_just_happened"]
 
 [agents.mios-reasoner-cpu]
-# CPU-LANE COUNCIL MEMBER (operator 2026-05-22: "add a CPU-lane agent for
+# LIGHT-LANE COUNCIL MEMBER (operator 2026-05-22: "add a CPU-lane agent for
 # fuller councils ... concurrent Compute nodes/accelerators/CPUs/GPUs").
-# A fast general reasoner that runs NATIVELY on the light iGPU/CPU lane
-# (mios-ollama-igpu :11435), so in council mode it is dispatched
-# CONCURRENTLY with a GPU primary -- the CPU lane does real work in
-# parallel while the dGPU runs Hermes, instead of every council member
-# queueing on the one 4090. This is the agent that makes a council
-# lane-diverse rather than all-GPU.
+# A fast general reasoner on the light lane, dispatched CONCURRENTLY with the
+# dGPU primary so the council is lane-diverse instead of every member queueing
+# on the one 4090.
+#
+# VENDOR DEFAULT below is the in-VM ollama on :11435 (always-up; runs on CPU --
+# WSL2 cannot expose an AMD/Intel iGPU for Linux compute: no /dev/kfd, no
+# /dev/dri, only /dev/dxg). To run this lane on a REAL iGPU (operator 2026-05-24:
+# "switch the iGPU Ollama server to an OpenAI-compatible server that supports
+# AMD"), run the iGPU server NATIVELY on the Windows host via llama.cpp+Vulkan
+# (usr/share/mios/windows/mios-igpu-server.ps1) and point this node at it over
+# Tailscale. Put the override in /etc/mios/mios.toml so the host's tailnet IP is
+# NOT baked into the public repo (same privacy pattern as [agents.ai-local]):
+#   [agents.mios-reasoner-cpu]
+#   endpoint = "http://<windows-tailnet-ip>:11436/v1"
+#   model    = "mios-igpu"
 endpoint = "http://localhost:11435/v1"
 # mios-agent-cpu = the CPU twin of the MiOS AI brain (qwen3:1.7b, num_gpu
 # 0), built from mios-agent-cpu.Modelfile. Small + fast so the concurrent
-# turn finishes inside the in-loop fan-out budget.
+# turn finishes inside the in-loop fan-out budget. (An iGPU overlay sets this
+# to whatever model its llama-server loaded, e.g. mios-igpu.)
 model    = "mios-agent-cpu"
 role     = "reasoning"
 default  = false
+# health_gate: engage only when the endpoint is REACHABLE, drop fast when not
+# -- so a host-dependent iGPU override (the Windows server being up/down) never
+# blocks the council, while the in-VM default simply always passes. (Same
+# auto-join / auto-drop pattern as [agents.ai-local].)
+health_gate = true
 # Light lane: the heavy dGPU is never touched, so this self-delegates
 # CONCURRENTLY with a GPU primary at zero VRAM cost.
 lane     = "cpu"
