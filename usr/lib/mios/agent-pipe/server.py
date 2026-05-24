@@ -7589,16 +7589,17 @@ letter-spacing:.5px}
    viewport (operator: "floats over everything"). A plain block iframe with an
    explicit pixel height stays inside the chip, and the chip grows to fit it. */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;overflow:auto;-webkit-overflow-scrolling:touch;background:#06090d}
+border-radius:9px;overflow:hidden;background:#06090d}
 .embed-box iframe{display:block;width:100%;height:480px;border:0;background:#06090d}
-/* terminal embed: ~60x20 at ttyd's 14px font. min(100%,520px) caps it near 60
-   columns on desktop but SHRINKS to the card width on mobile so it never
-   overflows the screen (operator: 80 was too wide on iPhone 16 Pro Max). */
-.card.term.exp .embed-box{width:min(100%,520px);margin:0 auto}
-.card.term .embed-box iframe{height:352px}
+/* terminal embed renders xterm.js NATIVELY into the box -- NO iframe, so it
+   cannot float over the page in an iOS standalone PWA. Fixed-height box; the
+   FitAddon sizes the grid to ~60x20 at fontSize 13, and the box shrinks to the
+   card width on mobile. */
+.card.term.exp .embed-box{width:min(100%,560px);height:340px;margin:0 auto;padding:6px}
+.card.term .embed-box .xterm{height:100%}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build5</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build6</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7736,16 +7737,57 @@ function cards(){
   $("svcn").textContent=O.filter(function(s){return s.ok;}).length+" / "+O.length+" up";
   if($("termn"))$("termn").textContent=T.filter(function(s){return s.ok;}).length+" / "+T.length+" up";
 }
+// Lazy-load the vendored xterm.js + fit addon on first terminal open.
+var _xtermLoading=null;
+function loadXterm(){
+  if(window.Terminal&&window.FitAddon)return Promise.resolve();
+  if(_xtermLoading)return _xtermLoading;
+  _xtermLoading=new Promise(function(res,rej){
+    var l=document.createElement("link");l.rel="stylesheet";l.href="/portal/xterm.css";
+    document.head.appendChild(l);
+    var s1=document.createElement("script");s1.src="/portal/xterm.js";
+    s1.onload=function(){var s2=document.createElement("script");s2.src="/portal/addon-fit.js";
+      s2.onload=function(){res();};s2.onerror=rej;document.head.appendChild(s2);};
+    s1.onerror=rej;document.head.appendChild(s1);});
+  return _xtermLoading;}
+// Render a ttyd session NATIVELY (xterm.js + WebSocket) -- no iframe, so it
+// cannot float over the page in an iOS standalone PWA. Implements ttyd's wire
+// protocol: init = JSON {AuthToken,columns,rows}; client INPUT = '0'+data,
+// RESIZE = '1'+JSON; server OUTPUT frames start with '0'.
+function openTerm(box,url){
+  loadXterm().then(function(){
+    var u=new URL(url),enc=new TextEncoder();
+    var term=new Terminal({fontSize:13,cursorBlink:true,scrollback:1500,
+      theme:{background:"#06090d",foreground:"#E7DFD3",cursor:"#F35C15",
+             selectionBackground:"#1A407F"}});
+    var fit=new FitAddon.FitAddon();term.loadAddon(fit);
+    term.open(box);box._term=term;box._fit=fit;
+    try{fit.fit();}catch(e){}
+    var ws=new WebSocket((u.protocol==="https:"?"wss:":"ws:")+"//"+u.host+"/ws",["tty"]);
+    ws.binaryType="arraybuffer";box._ws=ws;
+    ws.onopen=function(){
+      ws.send(enc.encode(JSON.stringify({AuthToken:"",columns:term.cols,rows:term.rows})));
+      term.onData(function(d){var pl=enc.encode(d),m=new Uint8Array(pl.length+1);
+        m[0]=48;m.set(pl,1);if(ws.readyState===1)ws.send(m);});            // '0' INPUT
+      term.onResize(function(s){if(ws.readyState===1)
+        ws.send(enc.encode("1"+JSON.stringify({columns:s.cols,rows:s.rows})));}); // '1' RESIZE
+      setTimeout(function(){try{fit.fit();}catch(e){}},60);};
+    ws.onmessage=function(ev){var b=new Uint8Array(ev.data);
+      if(b.length&&b[0]===48)term.write(b.subarray(1));};                  // '0' OUTPUT
+    ws.onclose=function(){try{term.write("\r\n\x1b[31m[disconnected]\x1b[0m\r\n");}catch(e){}};
+  }).catch(function(){var f=document.createElement("iframe");f.src=url;box.appendChild(f);});
+}
 function toggleEmbed(p){
   var el=cardEls[p];if(!el)return;
   var open=el.classList.toggle("exp");
   if(open){
     var box=el.querySelector(".embed-box");
-    if(box&&!box.querySelector("iframe")){   // create the iframe once, then keep it alive
-      var f=document.createElement("iframe");
-      f.setAttribute("loading","lazy");f.title="embed "+p;
-      f.src=el.querySelector(".embed").getAttribute("data-u");
-      box.appendChild(f);}}
+    if(box&&!box._init){box._init=true;
+      var u=el.querySelector(".embed").getAttribute("data-u");
+      if(el.classList.contains("term"))openTerm(box,u);
+      else{var f=document.createElement("iframe");f.setAttribute("loading","lazy");
+        f.title="embed "+p;f.src=u;box.appendChild(f);}}
+    else if(box&&box._fit){setTimeout(function(){try{box._fit.fit();}catch(e){}},60);}}
 }
 function render(j){
   var h=j.host||{},hs=[];
@@ -7947,7 +7989,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v5';\n"
+    "var C='mios-portal-v6';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
@@ -7998,6 +8040,26 @@ async def portal_manifest() -> Response:
 @app.get("/sw.js")
 async def portal_sw() -> Response:
     return Response(_PORTAL_SW, media_type="application/javascript")
+
+
+# xterm.js assets (vendored under /usr/share/mios/portal) -- the Terminals
+# embed renders xterm NATIVELY over ttyd's WebSocket instead of an <iframe>,
+# because iframes float over the viewport in an iOS standalone PWA.
+@app.get("/portal/xterm.js")
+async def portal_xterm_js() -> Response:
+    return Response(_read_portal_asset("xterm.js"),
+                    media_type="application/javascript")
+
+
+@app.get("/portal/xterm.css")
+async def portal_xterm_css() -> Response:
+    return Response(_read_portal_asset("xterm.css"), media_type="text/css")
+
+
+@app.get("/portal/addon-fit.js")
+async def portal_addon_fit() -> Response:
+    return Response(_read_portal_asset("addon-fit.js"),
+                    media_type="application/javascript")
 
 
 _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
