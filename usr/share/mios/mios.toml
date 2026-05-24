@@ -1329,11 +1329,11 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #                                       crawl engine is never LAN-exposed)
 # Web fan-out + load tunables (operator 2026-05-22: "shoot off more web
 # queries concurrently ... SearXNG setup to handle the load"). web_search
-# expands one query into `fanout` diverse sub-queries via the always-warm
-# micro-LLM, queries the LOCAL SearXNG CONCURRENTLY, and merges with
-# Reciprocal Rank Fusion + URL dedupe. agent-pipe (server.py) + mios-web-search
-# read these from env (code defaults shown, same ${MIOS_*:-default} pattern as
-# the rest of the file); the SearXNG granian worker pool in
+# expands one query into `fanout` diverse sub-queries via a WARM expansion
+# model, queries the LOCAL SearXNG CONCURRENTLY, and merges with Reciprocal Rank
+# Fusion + URL dedupe. agent-pipe (server.py) + mios-web-search read these from
+# env (code defaults shown, same ${MIOS_*:-default} pattern as the rest of the
+# file); the SearXNG granian worker pool in
 # etc/containers/systemd/mios-searxng.container is sized to absorb
 # MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT concurrent /search requests:
 #   MIOS_WEB_FANOUT            = 2    -- sub-queries per web_search call (was 3:
@@ -1343,6 +1343,13 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #   MIOS_WEB_CONCURRENCY       = 3    -- concurrent web_search calls (all agents)
 #   MIOS_WEB_DISPATCH_JITTER_S = 0.15 -- pre-acquire stagger (s) for simul starts
 #   MIOS_WEB_RRF_K             = 60   -- Reciprocal Rank Fusion constant
+#   MIOS_WEB_EXPAND_MODEL      = qwen3:1.7b              -- the query-expansion
+#   MIOS_WEB_EXPAND_ENDPOINT   = http://localhost:11435    model + endpoint.
+#     Operator 2026-05-24: the old micro (qwen3:0.6b-cpu @ :11434) was loaded
+#     NOWHERE -- cold -- so expansion blew its 6 s budget and SILENTLY fell back
+#     to ONE query (fan-out dead, "no multiple passes/queries"). Default now to
+#     the model the mios-daemon pins ALWAYS-WARM on the CPU lane (qwen3:1.7b @
+#     :11435, keep_alive=-1): sub-second, never cold-fails, more capable.
 # Knowledge storage (operator 2026-05-23: "...present to user as final answer
 # and STORE all gained knowledge in all relevant global databases"). agent-pipe
 # persists each finished Q+A -- with the turn's derived sources (verbs invoked +

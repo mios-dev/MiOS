@@ -41,14 +41,22 @@ import urllib.request
 # SSOT endpoints (env rendered from mios.toml); localhost fallbacks = the
 # vendor container publish ports.
 SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8888").rstrip("/")
-# Always-warm CPU micro-LLM for query expansion -- the SAME model/endpoint
-# agent-pipe's router/refine use (mios.toml [ai].micro_model / micro_endpoint).
-_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:0.6b-cpu")
-_MICRO_ENDPOINT = os.environ.get(
-    "MIOS_MICRO_ENDPOINT", "http://localhost:11434/v1").rstrip("/")
+# Query-EXPANSION model. Operator 2026-05-24 ("did NOT do multiple passes /
+# differing queries"): the old default (qwen3:0.6b-cpu @ :11434) was loaded
+# NOWHERE -- cold -- so every expansion blew the 6 s budget and SILENTLY fell
+# back to a single query, killing the whole fan-out. Default instead to the
+# model the mios-daemon pins ALWAYS-WARM on the CPU lane (qwen3:1.7b @ :11435,
+# keep_alive=-1): expansion is then sub-second, never cold-fails, and is more
+# capable than the weak 0.6b. Override via MIOS_WEB_EXPAND_MODEL / _ENDPOINT.
+_EXPAND_MODEL = os.environ.get(
+    "MIOS_WEB_EXPAND_MODEL",
+    os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
+_EXPAND_ENDPOINT = os.environ.get(
+    "MIOS_WEB_EXPAND_ENDPOINT",
+    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11435")).rstrip("/")
 # Native /api/chat lives at the base (strip a trailing /v1 like agent-pipe).
-_MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
-               if _MICRO_ENDPOINT.endswith("/v1") else _MICRO_ENDPOINT)
+_EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
+                if _EXPAND_ENDPOINT.endswith("/v1") else _EXPAND_ENDPOINT)
 # Reciprocal Rank Fusion constant (the standard 60 from the RRF paper).
 _RRF_K = int(os.environ.get("MIOS_WEB_RRF_K", "60"))
 
@@ -88,13 +96,16 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
     if k <= 1:
         return [query]
     sys_p = (
-        "You expand a user's question into diverse WEB SEARCH queries for "
-        "parallel retrieval. Vary intent, synonyms, and named entities; each "
-        "is a SHORT keyword query, not a question. Output JSON only: "
-        '{"queries":["...","..."]}.'
+        "You expand a user's question into DIVERSE web-search queries for "
+        "parallel retrieval. Each query must target a DIFFERENT facet, angle, "
+        "sub-topic, or named entity of the request -- NOT a synonym or rewording "
+        "of the others. For a broad request, split it into specific sub-topics "
+        "that surface concrete stories/facts (e.g. distinct regions, sectors, or "
+        "events), not generic homepages. Each is a SHORT keyword query, not a "
+        'question. Output JSON only: {"queries":["...","..."]}.'
     )
     payload = {
-        "model": _MICRO_MODEL,
+        "model": _EXPAND_MODEL,
         "messages": [
             {"role": "system", "content": sys_p},
             {"role": "user",
@@ -113,7 +124,7 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
     extra: list = []
     try:
         req = urllib.request.Request(
-            f"{_MICRO_BASE}/api/chat",
+            f"{_EXPAND_BASE}/api/chat",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
@@ -122,7 +133,13 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
                    or {})
         obj = json.loads(msg.get("content") or "{}")
         extra = [str(q).strip() for q in (obj.get("queries") or []) if str(q).strip()]
-    except Exception:
+    except Exception as e:
+        # De-silenced (operator 2026-05-24: a SILENT cold-micro fallback to one
+        # query is exactly what hid the dead fan-out). Log to stderr so a broken
+        # expansion is visible in the journal; still fall back so search runs.
+        print(f"mios-web-search: query expansion failed via {_EXPAND_MODEL} @ "
+              f"{_EXPAND_BASE} ({type(e).__name__}: {e}); using single query",
+              file=sys.stderr)
         extra = []
     out = [query]
     for q in extra:
