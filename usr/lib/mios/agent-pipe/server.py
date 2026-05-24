@@ -7600,7 +7600,7 @@ border-radius:9px;overflow:hidden;background:#06090d}
 .card.term .embed-box .xterm{height:100%}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build7</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build8</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7897,7 +7897,10 @@ $("wsform").addEventListener("submit",function(e){e.preventDefault();
   window.open(base+"/search?q="+encodeURIComponent(q),"_blank");});
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"})
-    .then(function(r){r.update();}).catch(function(){});}
+    .then(function(r){r.update();}).catch(function(){});
+  var _swReloaded=false;
+  navigator.serviceWorker.addEventListener("controllerchange",function(){
+    if(!_swReloaded){_swReloaded=true;location.reload();}});}
 // PWA install option (operator 2026-05-22): capture the install prompt and
 // expose it as an in-portal button; fall back to browser-menu instructions.
 var deferredPrompt=null;
@@ -7993,7 +7996,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v7';\n"
+    "var C='mios-portal-v8';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
@@ -8201,7 +8204,8 @@ async def portal_login_page(request: Request, e: int = 0):
     err = ('<div class="err">Incorrect password &mdash; try again.</div>'
            if e else "")
     html = _PORTAL_LOGIN_HTML.replace("{ERR}", err)
-    return HTMLResponse(html.replace("</head>", _portal_theme_css() + "</head>"))
+    return HTMLResponse(html.replace("</head>", _portal_theme_css() + "</head>"),
+                        headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 @app.post("/portal/login")
@@ -8231,8 +8235,11 @@ async def portal_page(request: Request):
     if not _portal_authed(request):
         return RedirectResponse("/login", status_code=303)
     # Inject the SSOT palette AFTER the static defaults so it wins.
+    # no-store: iOS standalone PWAs cache the start_url HTML indefinitely
+    # without it, which is why old builds kept showing after deploys.
     return HTMLResponse(
-        _PORTAL_HTML.replace("</head>", _portal_theme_css() + "</head>"))
+        _PORTAL_HTML.replace("</head>", _portal_theme_css() + "</head>"),
+        headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 @app.get("/health")
