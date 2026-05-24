@@ -7440,7 +7440,7 @@ _PORTAL_HTML = r"""<!DOCTYPE html>
 --mono:ui-monospace,"Cascadia Code","Source Code Pro",Consolas,monospace;
 --sans:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif}
 *{box-sizing:border-box}
-body{margin:0;color:var(--fg);font:15px/1.5 var(--sans);
+body{margin:0;color:var(--fg);font:15px/1.5 var(--sans);overflow-x:hidden;
 background:radial-gradient(1100px 520px at 12% -12%,
   color-mix(in srgb,var(--accent) 13%,transparent),transparent 60%),
   radial-gradient(900px 500px at 100% 0%,
@@ -7496,13 +7496,16 @@ min-width:280px;min-height:720px;max-width:100%}
 /* Terminals stack in a SINGLE column so expanding one is purely vertical: it
    opens in place, never relocates a neighbour, and the row is wide enough for
    a real 80x20 embed. */
-#terms{grid-template-columns:1fr;align-items:start}
+/* minmax(0,1fr) NOT plain 1fr: a bare 1fr is minmax(auto,1fr), whose auto
+   minimum lets the track expand to the terminal's wide min-content and overflow
+   the viewport (the chip then shifts off-screen / appears to float). */
+#terms{grid-template-columns:minmax(0,1fr);align-items:start}
 @media(max-width:600px){#grid{grid-template-columns:1fr}}
 .addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}
 .card{position:relative;background:var(--card);border:1px solid var(--line);
-border-left:3px solid var(--mut);cursor:pointer;
+border-left:3px solid var(--mut);cursor:pointer;min-width:0;
 border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15s transform}
 .card.exp{cursor:default}
 .card.exp:hover{transform:none}
@@ -7596,11 +7599,20 @@ border-radius:9px;overflow:hidden;background:#06090d}
    cannot float over the page in an iOS standalone PWA. Fixed-height box; the
    FitAddon sizes the grid to ~60x20 at fontSize 13, and the box shrinks to the
    card width on mobile. */
-.card.term.exp .embed-box{width:min(100%,560px);height:340px;margin:0 auto;padding:6px}
+/* width capped by VIEWPORT units (vw), not % -- a %-based cap depends on the
+   card width, which the terminal's own content was inflating (circular), so the
+   card grew wider than the screen. calc(100vw-...) is viewport-fixed and breaks
+   the loop; the card can no longer be inflated past the screen. */
+.card.term.exp .embed-box{width:min(calc(100vw - 84px),540px);
+height:340px;margin:0 auto;padding:6px}
 .card.term .embed-box .xterm{height:100%}
+/* The portal's global *{box-sizing:border-box} corrupts xterm's internal cell
+   geometry (its rows/spans assume content-box) -> text renders mis-laid / as
+   vertical strips. Reset box-sizing within the terminal. */
+.xterm,.xterm *{box-sizing:content-box}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build8</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build14</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7759,11 +7771,17 @@ function openTerm(box,port){
   loadXterm().then(function(){
     var enc=new TextEncoder();
     var term=new Terminal({fontSize:13,cursorBlink:true,scrollback:1500,
+      fontFamily:'Menlo,Monaco,"Cascadia Code","Courier New",monospace',
       theme:{background:"#06090d",foreground:"#E7DFD3",cursor:"#F35C15",
              selectionBackground:"#1A407F"}});
     var fit=new FitAddon.FitAddon();term.loadAddon(fit);
     term.open(box);box._term=term;box._fit=fit;
     try{fit.fit();}catch(e){}
+    // Re-fit whenever the box actually gets/changes size. Without this the
+    // initial fit can run before the box has its real width -> a 1-column
+    // terminal that wraps every character vertically ("rotated" text).
+    if(window.ResizeObserver){var _ro=new ResizeObserver(function(){
+      try{fit.fit();}catch(e){}});_ro.observe(box);box._ro=_ro;}
     // SAME-ORIGIN bridge (agent-pipe proxies to the loopback ttyd) -> reachable
     // from any device, no per-port tailscale-serve, no cross-origin.
     var wsurl=(location.protocol==="https:"?"wss:":"ws:")+"//"+location.host+"/portal/term/"+port;
@@ -7996,7 +8014,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v8';\n"
+    "var C='mios-portal-v14';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
