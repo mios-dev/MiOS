@@ -1175,7 +1175,13 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
     _is_ollama = (":11434" in ep) or (":11435" in ep)
     # health-gated client node (mobile / Tailscale-hosted): SHORT timeout so a
     # sleeping/absent node drops from the merge fast instead of stalling.
-    _to = 2.5 if cfg.get("health_gate") else None
+    # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
+    # phone asleep) from the merge fast, but a GENEROUS READ timeout lets a
+    # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
+    # Windows iGPU (mios-reasoner-cpu, ~13 tok/s: prefill+TTFB > 2.5s) so it was
+    # dispatched but contributed nothing ("fanout secondary ... failed:").
+    _to = (httpx.Timeout(connect=2.5, read=45.0, write=10.0, pool=10.0)
+           if cfg.get("health_gate") else None)
     try:
         if _is_ollama:
             base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
@@ -1240,7 +1246,13 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         return name, ""
     _mdl = (cfg.get("cpu_model") if prefer_cpu else "") or cfg.get("model")
     _is_ollama = (":11434" in ep) or (":11435" in ep)
-    _to = 2.5 if cfg.get("health_gate") else None
+    # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
+    # phone asleep) from the merge fast, but a GENEROUS READ timeout lets a
+    # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
+    # Windows iGPU (mios-reasoner-cpu, ~13 tok/s: prefill+TTFB > 2.5s) so it was
+    # dispatched but contributed nothing ("fanout secondary ... failed:").
+    _to = (httpx.Timeout(connect=2.5, read=45.0, write=10.0, pool=10.0)
+           if cfg.get("health_gate") else None)
     parts: list = []
 
     def _push(frag: str) -> None:
