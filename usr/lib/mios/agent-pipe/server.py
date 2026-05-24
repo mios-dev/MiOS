@@ -120,17 +120,17 @@ _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}
 ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)
-# Router runs the micro-LLM classifier (qwen3:1.7b) on the iGPU lane
-# (mios-ollama-igpu at :11435) -- isolates micro-LLM workload from the
+# Router runs the micro-LLM classifier (qwen3:1.7b) on the CPU light-lane
+# (mios-ollama-cpu at :11435) -- isolates micro-LLM workload from the
 # dGPU/CUDA queue so router latency stays sub-second even when big-model
 # inference is saturating :11434. Falls back to the CUDA-ollama lane
-# if the iGPU instance is down (operator override via the env).
-# Light lane (:11435) -- the iGPU/CPU micro-LLM instance, ISOLATED from
+# if the CPU instance is down (operator override via the env).
+# Light lane (:11435) -- the in-VM CPU micro-LLM instance, ISOLATED from
 # the :11434 big-model queue. Refine/router/polish MUST run here: putting
 # the micro classifier on :11434 (operator test 2026-05-20) queued it
 # behind big-model inference -> refine 41s, polish 42s. On the light lane
 # the warm qwen3:0.6b-cpu answers in ~1-2s regardless of dGPU load.
-_LIGHT_LANE = os.environ.get("MIOS_OLLAMA_IGPU_ENDPOINT",
+_LIGHT_LANE = os.environ.get("MIOS_OLLAMA_CPU_ENDPOINT",
                              "http://localhost:11435").rstrip("/")
 ROUTER_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_ROUTER_ENDPOINT", _LIGHT_LANE

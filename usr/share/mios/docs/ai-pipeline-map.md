@@ -73,7 +73,7 @@ the visible answer is always polish's output.
 |---|---|---|---|
 | Refine (routing) | `qwen3.5:4b` | dGPU | `think:false`; `keep_alive=30m` to kill the cold-start gap |
 | Polish (answer) | `qwen3.5:4b` | dGPU | persona applied; the real output step |
-| Classify / micro | `qwen3:1.7b` / `0.6b` | iGPU (ROCm, `mios-ollama-igpu`) | cheap intent + task-gen |
+| Classify / micro | `qwen3:1.7b` / `0.6b` | CPU light-lane (`mios-ollama-cpu`) | cheap intent + task-gen |
 | Hermes orchestrator | `mios-hermes` | dGPU | `:8642` OpenAI gateway, full tool-loop |
 | Swarm decomposer | `qwen3.5:4b` | dGPU | `_plan_swarm`; `/api/chat think:false` |
 | Vision | `llama3.2-vision:11b` / `qwen3-vl:4b` | dGPU | image turns bypass refine |

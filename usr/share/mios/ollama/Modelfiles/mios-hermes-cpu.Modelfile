@@ -2,7 +2,7 @@
 # mios-model: mios-hermes-cpu:latest
 #
 # CPU-COMPUTE twin of mios-hermes -- the general orchestration agent's
-# role model on the light iGPU/CPU lane (mios-ollama-igpu :11435).
+# role model on the in-VM CPU light-lane (mios-ollama-cpu :11435).
 # Operator directive 2026-05-22: "all MiOS AI Agents/Sub-Agents have a
 # relevant MiOS Modelfile(s) for both CPU and GPU compute." mios-hermes
 # .Modelfile is the GPU half (:11434, qwen3.5:4b); this is the CPU half.

@@ -30,7 +30,7 @@
         "role": "refine-and-polish",
         "context_window": 32768,
         "ssot": "[refine].model + [polish].model in /usr/share/mios/mios.toml",
-        "served_by": "mios-ollama-igpu.service (iGPU lane) when present; falls back to ollama.service (dGPU)",
+        "served_by": "mios-ollama-cpu.service (in-VM CPU light-lane) when present; falls back to ollama.service (dGPU)",
         "endpoint_primary": "http://localhost:11435/v1",
         "endpoint_fallback": "http://localhost:11434/v1",
         "openai_api_compat": ["chat/completions"]

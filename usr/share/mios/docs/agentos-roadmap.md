@@ -13,7 +13,7 @@ operator-impact-per-line-of-code, not by formal completeness.
 | Multi-frontend through one chain | OWUI shipped; Discord/Slack/Telegram pending Step 4/5 | OWUI works; Discord pending |
 | Shared cross-cutting state | SurrealDB: agent / session / tool_call / event / kanban_shadow / scratch / agent_metric | Works |
 | Local memory (per-agent) | hermes/.hermes/*.db, mios-daemon/state.json, OWUI webui.db | Works |
-| iGPU resource lane | mios-ollama-igpu at :11435 for micro-LLMs | Live; WSL falls back to CPU (kernel doesn't expose /dev/kfd) |
+| CPU light-lane | mios-ollama-cpu at :11435 for micro-LLMs | Live on CPU (ROCm never worked in WSL2 -- kernel doesn't expose /dev/kfd); real AMD iGPU runs natively on the Windows host (mios-igpu-server.ps1, served as mios-reasoner-cpu) |
 | Query decomposition into DAG | router emits ONE action; no DAG | **GAP A** |
 | Deliberative Collective Intelligence | single-pass critic loop, informal | **GAP B** |
 | Document-mutation event bus | hermes-tail/*.json + nudges (polled) | **GAP C** (no inotify pub/sub) |

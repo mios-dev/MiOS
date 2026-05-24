@@ -1,8 +1,8 @@
 # /usr/share/mios/ollama/Modelfiles/mios-agent-cpu.Modelfile
 # mios-model: mios-agent-cpu:latest
 #
-# CPU-COMPUTE twin of mios-agent -- the MiOS AI brain on the light
-# iGPU/CPU lane (mios-ollama-igpu :11435) instead of the dGPU/CUDA lane
+# CPU-COMPUTE twin of mios-agent -- the MiOS AI brain on the in-VM
+# CPU light-lane (mios-ollama-cpu :11435) instead of the dGPU/CUDA lane
 # (:11434). Operator directive 2026-05-22: "add a CPU-lane agent for
 # fuller councils -- all MiOS AI Agents/Sub-Agents have a relevant MiOS
 # Modelfile(s) for both CPU and GPU compute." This is the CPU half of

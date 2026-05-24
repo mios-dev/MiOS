@@ -25,10 +25,10 @@ EnvironmentFile=-/etc/mios/agent-pipe.env
 Environment=MIOS_PORT_AGENT_PIPE=8640
 Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:8642/v1
 Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=hermes-agent
-# Router calls qwen3:1.7b on the iGPU micro-LLM lane (:11435), not
+# Router calls qwen3:1.7b on the CPU light-lane (:11435), not
 # the dGPU/CUDA lane (:11434). Keeps router latency sub-second under
 # dGPU load. Override via /etc/mios/agent-pipe.env if a deployment
-# doesn't have mios-ollama-igpu standing up (e.g., bare-metal with
+# doesn't have mios-ollama-cpu standing up (e.g., bare-metal with
 # only NVIDIA dGPU).
 Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11435
 # Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to

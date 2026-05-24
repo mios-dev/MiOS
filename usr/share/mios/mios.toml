@@ -3871,7 +3871,7 @@ forge_ssh          = 2222     # Forgejo git+ssh (non-22 to coexist with sshd)
 cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend (CUDA / dGPU lane)
-ollama_igpu        = 11435    # iGPU micro-LLM lane (ollama:rocm, AMD iGPU via wsl2-amd.yaml CDI)
+ollama_cpu         = 11435    # in-VM CPU light-lane (router/classifier + verb embeddings + micro-LLMs; real AMD iGPU runs natively on the Windows host)
 searxng            = 8888     # local privacy-respecting metasearch
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
@@ -3920,8 +3920,8 @@ code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
 ollama_version     = "latest"
 ollama             = "docker.io/ollama/ollama:latest"
-ollama_igpu_version = "rocm"
-ollama_igpu        = "docker.io/ollama/ollama:rocm"
+ollama_cpu_version = "latest"
+ollama_cpu         = "docker.io/ollama/ollama:latest"
 guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner_version = "7"
@@ -3981,8 +3981,8 @@ user = "mios-agent-pipe"
 uid  = 822
 gid  = 822
 
-[services.ollama_igpu]
-user = "mios-ollama-igpu"
+[services.ollama_cpu]
+user = "mios-ollama-cpu"
 uid  = 823
 gid  = 823
 

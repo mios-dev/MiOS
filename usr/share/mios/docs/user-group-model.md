@@ -20,7 +20,7 @@ two shared bucket groups described below.
 
 | Group     | GID | Members                                                   | What it gates                             |
 |-----------|-----|-----------------------------------------------------------|-------------------------------------------|
-| `mios-ai` | 850 | mios-ollama, mios-open-webui, mios-hermes, mios-surrealdb, mios-agent-pipe, mios-ollama-igpu, mios-searxng | Cross-agent reads: skill catalog, passport public keys, scratch, kanban shadow |
+| `mios-ai` | 850 | mios-ollama, mios-open-webui, mios-hermes, mios-surrealdb, mios-agent-pipe, mios-ollama-cpu, mios-searxng | Cross-agent reads: skill catalog, passport public keys, scratch, kanban shadow |
 | `mios-sys`| 860 | mios-guacamole, mios-guacd, mios-postgres, mios-pxe-hub, mios-crowdsec, mios-forge | Cross-infra reads: shared configs, common state |
 
 The login user `mios` is a member of BOTH groups so the operator

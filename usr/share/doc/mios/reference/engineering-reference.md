@@ -592,7 +592,7 @@ All MiOS-owned Quadlets follow LAW 6: declare `User=`, `Group=`,
   (SSOT); manifest mirror at `/usr/share/mios/ai/v1/agents.json`.
   Default sub-agent: `hermes-agent.service` at `:8642/v1`.
 - **Inference backends:** `ollama.service` on `:11434` (dGPU lane);
-  `mios-ollama-igpu.service` on `:11435` (iGPU lane, ollama:rocm).
+  `mios-ollama-cpu.service` on `:11435` (in-VM CPU light-lane, ollama:latest).
 - **Vendor system prompt:** `/usr/share/mios/ai/system.md`.
 - **Hermes seed persona:** `/usr/share/mios/ai/hermes-soul.md`
   (slim, per-turn) + `/usr/share/mios/ai/hermes-soul-full.md`

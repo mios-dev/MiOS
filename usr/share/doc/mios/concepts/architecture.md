@@ -88,7 +88,7 @@ operator interaction from background observability tasks:
 
 | Service | Protocol | Implementation |
 |---|---|---|
-| Inference | OpenAI v1 REST | Ollama (dGPU) + Ollama-iGPU (iGPU/CPU lane) |
+| Inference | OpenAI v1 REST | Ollama (dGPU) + Ollama-CPU (in-VM CPU light-lane) |
 | Gateway | OpenAI v1 REST | `hermes-agent.service` (direct host install, port 8642) |
 | State | SQL / Graph | SurrealDB 3.0 (consolidated cross-agent context) |
 | RAG | Vector / REST | Qdrant (Knowledge Base embeddings + search) |

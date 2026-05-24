@@ -64,9 +64,9 @@ else
     fail "ollama (dGPU/main) not reachable on :11434"
 fi
 if curl -sf --max-time 3 http://localhost:11435/api/tags >/dev/null 2>&1; then
-    ok "ollama-iGPU (micro-LLM lane) API reachable on :11435"
+    ok "ollama-CPU (micro-LLM light-lane) API reachable on :11435"
 else
-    warn "ollama-iGPU (micro-LLM lane) not reachable on :11435"
+    warn "ollama-CPU (micro-LLM light-lane) not reachable on :11435"
 fi
 
 echo

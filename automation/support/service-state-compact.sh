@@ -2,7 +2,7 @@
 set -u
 echo "=== FINAL service state ==="
 for u in mios-agent-pipe mios-daemon mios-surrealdb hermes-agent \
-         mios-open-webui ollama mios-ollama-igpu mios-searxng \
+         mios-open-webui ollama mios-ollama-cpu mios-searxng \
          mios-forge mios-skills-miner.timer mios-passport-provision \
          mios-hermes-firstboot mios-ttyd-bash mios-ttyd-powershell \
          mios-delegation-prefilter hermes-dashboard mios-code-server; do

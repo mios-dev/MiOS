@@ -361,19 +361,19 @@ print_endpoints() {
 
     # Port resolution -- two tiers:
     #   AI surface: agent-pipe, hermes, surrealdb, hermes-dashboard,
-    #               ollama (dGPU/CUDA), ollama-igpu (iGPU/ROCm).
+    #               ollama (dGPU/CUDA), ollama-cpu (in-VM CPU light-lane).
     #   User surface: webui, cockpit, code, forge, search, ttyd-bash,
     #               ttyd-powershell.
-    # 2026-05-18 refresh: added agent-pipe, surrealdb, ollama-igpu,
+    # 2026-05-18 refresh: added agent-pipe, surrealdb, ollama-cpu,
     # ttyd-bash, ttyd-powershell -- they were live but invisible on
     # the dashboard.
-    local _p_forge _p_cockpit _p_ollama _p_ollama_igpu _p_searxng
+    local _p_forge _p_cockpit _p_ollama _p_ollama_cpu _p_searxng
     local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_surrealdb _p_guacamole
     local _p_ttyd_bash _p_ttyd_ps
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
-    _p_ollama_igpu=$(_mios_port ollama_igpu 11435)
+    _p_ollama_cpu=$(_mios_port ollama_cpu 11435)
     _p_searxng=$(_mios_port searxng 8888)
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)
@@ -385,12 +385,12 @@ print_endpoints() {
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
 
-    local d_forge d_ollama d_ollama_igpu d_cockpit d_searxng
+    local d_forge d_ollama d_ollama_cpu d_cockpit d_searxng
     local d_hermes d_dash d_code d_webui d_agent_pipe d_surrealdb
     local d_ttyd_bash d_ttyd_ps d_qdrant d_guacamole
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
-    d_ollama_igpu=$(ep_dot "http://localhost:${_p_ollama_igpu}/")
+    d_ollama_cpu=$(ep_dot "http://localhost:${_p_ollama_cpu}/")
     d_cockpit=$(ep_dot    "https://localhost:${_p_cockpit}/")
     d_searxng=$(ep_dot    "http://localhost:${_p_searxng}/")
     d_hermes=$(ep_dot     "http://localhost:${_p_hermes}/health")
@@ -407,14 +407,14 @@ print_endpoints() {
 
     # Mini: count recap + 4 clickable hyperlink rows. Refresh 2026-05-18:
     # the count includes the new AI-surface services (agent-pipe,
-    # surrealdb, ollama-igpu, ttyd) and the 4 link rows lead with the
+    # surrealdb, ollama-cpu, ttyd) and the 4 link rows lead with the
     # agent surface (Agent-Pipe + WebUI) since that's now the operator's
     # primary entry point, with Cockpit + ttyd-PowerShell rounding out
     # the row budget.
     if [[ "$MODE" == "mini" ]]; then
         local n_up=0 n_down=0
         for _d in "$d_agent_pipe" "$d_hermes" "$d_surrealdb" \
-                  "$d_ollama" "$d_ollama_igpu" "$d_webui" \
+                  "$d_ollama" "$d_ollama_cpu" "$d_webui" \
                   "$d_cockpit" "$d_forge" "$d_searxng" \
                   "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
             case "$_d" in
@@ -470,7 +470,7 @@ print_endpoints() {
     c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
     c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
     c_oll=$(  printf "$cell_fmt" "$d_ollama"     "http://localhost:${_p_ollama}/"        "Ollama"     "$C_D" "$_p_ollama"     "$C_R")
-    c_olli=$( printf "$cell_fmt" "$d_ollama_igpu" "http://localhost:${_p_ollama_igpu}/"   "Ollama-iGPU" "$C_D" "$_p_ollama_igpu" "$C_R")
+    c_olli=$( printf "$cell_fmt" "$d_ollama_cpu" "http://localhost:${_p_ollama_cpu}/"   "Ollama-CPU" "$C_D" "$_p_ollama_cpu" "$C_R")
     c_qdr=$(  printf "$cell_fmt" "$d_qdrant"     "http://localhost:6333/"                "Qdrant"     "$C_D" "6333"           "$C_R")
     printf "$row_fmt" "$c_agent" "$c_herm"
     printf "$row_fmt" "$c_sdb"   "$c_dash"
@@ -544,11 +544,11 @@ print_quadlets() {
     local n_active=0 n_starting=0 n_inactive=0 n_failed=0
     # 2026-05-18 refresh: include Phase 2 / C.x / D.x services that
     # have shipped since the previous service list -- surrealdb,
-    # agent-pipe, ollama-igpu, daemon, ttyd, skills-miner,
+    # agent-pipe, ollama-cpu, daemon, ttyd, skills-miner,
     # passport-provision -- so the stack count actually reflects the
     # full deployed surface.
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
-               mios-ceph mios-k3s ollama mios-ollama-igpu mios-searxng \
+               mios-ceph mios-k3s ollama mios-ollama-cpu mios-searxng \
                mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
                mios-guacamole guacd guacamole-postgres \
                mios-surrealdb mios-agent-pipe mios-daemon \

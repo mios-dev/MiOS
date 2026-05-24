@@ -72,12 +72,14 @@ log = logging.getLogger("mios-daemon")
 # iGPU CDI lane (wsl2-amd.yaml / wsl2-intel.yaml) when present, freeing
 # the dGPU for big-model work. Override via MIOS_DAEMON_MODEL.
 MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b")
-# mios-ollama-igpu (sibling at :11435) is the canonical micro-LLM lane
+# mios-ollama-cpu (sibling at :11435) is the canonical micro-LLM lane
 # for the daemon. Falls back to the CUDA-ollama lane (:11434) if the
-# iGPU instance isn't running. Operator directive 2026-05-18: "iGPU
+# CPU instance isn't running. Operator directive 2026-05-18: "iGPU
 # micro-llm(s)/mios-daemon agent collects Linux systems logs, journals,
-# relevant AI files" -- the daemon IS the iGPU micro-LLM agent; this
-# default points it at the right lane.
+# relevant AI files" -- the daemon IS that micro-LLM agent; this
+# default points it at the right lane. (The "iGPU" in that quote was
+# aspirational -- ROCm never reached the iGPU in WSL2, so the lane has
+# always been CPU; the real AMD iGPU is the Windows-native server.)
 ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", "http://127.0.0.1:11435")
 STATE_DIR = Path(os.environ.get("MIOS_DAEMON_STATE_DIR", "/var/lib/mios/daemon"))
 STATE_FILE = STATE_DIR / "state.json"
