@@ -6348,8 +6348,9 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
         d = str(detail).strip()
         if d:
             payload["detail"] = d[:80]
-            # Append to label for clients that only render `label`.
-            payload["label"] = f"{label}  {d[:80]}"
+            # Append to label for clients that only render `label`. " · "
+            # separator (was a bare double-space that read as a layout glitch).
+            payload["label"] = f"{label} · {d[:80]}" if label else d[:80]
     return _sse_chunk(
         "", chat_id=chat_id, model=model,
         mios_status=payload,
@@ -9561,6 +9562,7 @@ async def chat_completions(request: Request) -> Any:
             _ev_q: "asyncio.Queue" = asyncio.Queue()
             _sec_bufs: dict = {}
             _sec_last: dict = {}
+            _sec_hdr: set = set()   # nodes whose "🤝 <name>:" header already shown
 
             def _flush_sec(force: bool = False) -> list:
                 out: list = []
@@ -9570,7 +9572,17 @@ async def chat_completions(request: Request) -> Any:
                     if not _buf.strip():
                         continue
                     if force or (_now - _sec_last.get(_nm, 0.0) >= _ckpt_s):
-                        out.append(_flush_reasoning(f"\n🤝 {_nm}: {_buf}"))
+                        # Emit the "🤝 <node>:" header ONCE; later flushes for the
+                        # same node append content WITHOUT re-labelling. The old
+                        # code re-prefixed the label on EVERY checkpoint, so a node
+                        # that streamed across N flushes spammed "🤝 <node>:" N times
+                        # down the reasoning dropdown -- burying the other nodes
+                        # (operator: "didnt show details for ALL nodes").
+                        if _nm in _sec_hdr:
+                            out.append(_flush_reasoning(_buf))
+                        else:
+                            out.append(_flush_reasoning(f"\n🤝 {_nm}: {_buf}"))
+                            _sec_hdr.add(_nm)
                         _sec_bufs[_nm] = ""
                         _sec_last[_nm] = _now
                 return out
