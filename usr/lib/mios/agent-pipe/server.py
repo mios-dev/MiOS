@@ -1483,21 +1483,32 @@ _RECIPE_CATALOG_RENDERED = _render_recipe_catalog(_RECIPE_CATALOG)
 
 
 def _render_agent_catalog(registry: dict) -> str:
-    """Render the sub-agent roster for the planner so it can route a
-    sub-task to the right AGENT (an `agent` node) -- NOT a hardcoded list:
-    pulled from _AGENT_REGISTRY (mios.toml [agents.*] SSOT) + the same
-    skill tags the A2A card publishes. Lets the planner assign DIFFERENT
-    sub-tasks to DIFFERENT agents that then run concurrently."""
+    """Render the sub-agent roster for the planner as JOBS, not fixed roles
+    (operator 2026-05-24: "no fixed roles -- MiOS-Agents are modelfiles for
+    jobs and tools/skills/recipes"). Each agent is described by its `job`
+    (mios.toml [agents.<name>].job, SSOT) -- what its Modelfile is BEST at --
+    falling back to a blurb derived from role + strengths tags when no job is
+    set. Every agent has GLOBAL access to all MiOS verbs/recipes/skills, so the
+    planner routes purely by CAPABILITY + compute LANE (to spread work across
+    CPU/GPU/iGPU concurrently), never by tool availability. Pulled from
+    _AGENT_REGISTRY (mios.toml [agents.*] SSOT)."""
     if not registry:
         return ""
-    lines = ["  -- sub-agents (delegate a sub-task via an `agent` node) --"]
+    lines = [
+        "  -- sub-agents (delegate a sub-task via an `agent` node) --",
+        "  every agent wields ALL MiOS tools/recipes/skills; pick by the JOB it",
+        "  is best at + its compute lane (spread work across lanes), NOT by tools:",
+    ]
     for name, cfg in sorted(registry.items()):
-        role = str(cfg.get("role", "general"))
         lane = _agent_lane(cfg)
-        strengths = ", ".join(str(s) for s in (cfg.get("strengths") or []))
-        lines.append(f"  {name}".ljust(24)
-                     + f"-- {role} [{lane}]"
-                     + (f"; {strengths}" if strengths else ""))
+        job = str(cfg.get("job") or "").strip()
+        if not job:
+            # Fallback: derive a capability blurb from role + strengths tags so
+            # an agent without an explicit `job` still routes sensibly.
+            role = str(cfg.get("role", "general"))
+            strengths = ", ".join(str(s) for s in (cfg.get("strengths") or []))
+            job = role + (f" ({strengths})" if strengths else "")
+        lines.append(f"  {name}".ljust(24) + f"[{lane} lane] -- {job}")
     return "\n".join(lines)
 
 
@@ -5430,9 +5441,13 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
                                          context=_node_context(node)))
         else:
             ok = bool(isinstance(res, dict) and res.get("success"))
+            # Carry the sub-job into the FINISH emit too (operator 2026-05-24
+            # "per-node sub-job in emits") so ✅/💤 still names WHAT the node
+            # did, not just its name -- parity with the engage emit above.
             yield ("event", _node_status(chat_id=chat_id, model=model,
                                          name=name, cfg=cfg,
-                                         state="ok" if ok else "down"))
+                                         state="ok" if ok else "down",
+                                         context=_node_context(node)))
     dag_result = await task
     yield ("result", dag_result)
 

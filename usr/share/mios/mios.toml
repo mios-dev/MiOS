@@ -628,6 +628,11 @@ font_size          = 14
 endpoint = "http://localhost:8642/v1"
 model    = "hermes-agent"
 role     = "general"
+# job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
+# jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
+# routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this
+# describes what the agent is BEST at -- not what it can access.
+job      = "General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise."
 default  = true
 # Inference lane (operator 2026-05-21: "self-delegate to CPU concurrently
 # to pending/future GPU operations"). gpu = the heavy dGPU lane (:11434);
@@ -654,6 +659,7 @@ strengths = ["kanban", "web_search", "skill_invocation",
 endpoint = "http://localhost:8633/v1"
 model    = "opencode"
 role     = "coding"
+job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
 default  = false
 lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
@@ -678,6 +684,7 @@ model    = "mios-daemon-agent"
 # REASONING now (was "telemetry"): a real CPU second opinion, grounded in --
 # not limited to -- system telemetry.
 role     = "reasoning"
+job      = "CPU reasoning grounded in live system state -- second opinions, summaries, planning, and answers grounded in the global journal/log telemetry it continuously collects."
 default  = false
 # fanout=true (was false): the OLD telemetry-only DUMP flooded unrelated answers
 # with crowdsec/CDP digests ("fail across the board", operator 2026-05-22), so
@@ -746,6 +753,7 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning",
 endpoint    = ""
 model       = "qwen2.5-3b-instruct-4bit"
 role        = "mobile"
+job         = "On-device mobile second opinion -- a lightweight local model on the operator's phone (AI.Local over the tailnet) for an extra perspective when it is serving."
 default     = false
 lane        = "mobile"
 health_gate = true
