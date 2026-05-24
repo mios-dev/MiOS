@@ -7902,7 +7902,7 @@ def _read_portal_asset(name: str) -> bytes:
 _PORTAL_ICON_192 = _read_portal_asset("icon-192.png")
 _PORTAL_ICON_512 = _read_portal_asset("icon-512.png")
 _PORTAL_MANIFEST = json.dumps({
-    "name": "MiOS Portal", "short_name": "MiOS",
+    "id": "/", "name": "MiOS Portal", "short_name": "MiOS",
     "start_url": "/", "scope": "/", "display": "standalone",
     "orientation": "any", "background_color": "#282262",
     "theme_color": "#282262", "description": "MiOS service portal",
@@ -7917,11 +7917,26 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "self.addEventListener('install',function(e){self.skipWaiting();});\n"
-    "self.addEventListener('activate',function(e){"
-    "e.waitUntil(self.clients.claim());});\n"
-    "// network passthrough -- no caching; presence makes the app installable\n"
-    "self.addEventListener('fetch',function(e){});\n")
+    "var C='mios-portal-v2';\n"
+    "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
+    "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
+    "self.addEventListener('install',function(e){self.skipWaiting();"
+    "e.waitUntil(caches.open(C).then(function(c){return c.addAll(SHELL);})"
+    ".catch(function(){}));});\n"
+    "self.addEventListener('activate',function(e){e.waitUntil("
+    "caches.keys().then(function(ks){return Promise.all(ks.map(function(k){"
+    "return k===C?null:caches.delete(k);}));}).then(function(){"
+    "return self.clients.claim();}));});\n"
+    "// network-first, cache fallback -> the app is offline-capable, which is\n"
+    "// what makes Android/Chrome offer 'Install' (a no-op fetch handler does not).\n"
+    "self.addEventListener('fetch',function(e){var req=e.request;"
+    "if(req.method!=='GET')return;"
+    "e.respondWith(fetch(req).then(function(r){"
+    "if(r&&r.status===200&&!r.redirected&&"
+    "new URL(req.url).origin===location.origin){var cp=r.clone();"
+    "caches.open(C).then(function(c){c.put(req,cp);});}return r;})"
+    ".catch(function(){return caches.match(req).then(function(m){"
+    "return m||caches.match('/login');});}));});\n")
 
 
 @app.get("/portal/icon.svg")
@@ -7958,7 +7973,12 @@ _PORTAL_LOGIN_HTML = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiOS &middot; Sign in</title>
 <meta name="theme-color" content="#282262">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MiOS">
+<link rel="manifest" href="/portal/manifest.webmanifest">
 <link rel="icon" href="/portal/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="/portal/icon-192.png">
 <link rel="apple-touch-icon" href="/portal/icon-192.png">
 <style>
 :root{--bg:#282262;--panel:#1A407F;--fg:#E7DFD3;--mut:#B7C9D7;--accent:#F35C15;
@@ -8001,6 +8021,11 @@ border-radius:9px;padding:9px 12px;font-size:13px;margin-bottom:14px}
   <button type="submit">Sign in</button>
   <div class="hint">Sign in with your MiOS password.</div>
 </form>
+<script>
+// Register the SW on the login page too so the app is installable BEFORE auth
+// (the login screen is the first thing an unauthenticated visitor sees).
+if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(function(){});}
+</script>
 </body></html>"""
 
 
