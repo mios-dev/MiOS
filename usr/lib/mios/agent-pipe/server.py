@@ -7589,9 +7589,8 @@ letter-spacing:.5px}
    viewport (operator: "floats over everything"). A plain block iframe with an
    explicit pixel height stays inside the chip, and the chip grows to fit it. */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;overflow:hidden;background:#06090d}
-.embed-box iframe{display:block;width:100%;height:480px;border:0;background:#06090d;
--webkit-overflow-scrolling:touch}
+border-radius:9px;overflow:auto;-webkit-overflow-scrolling:touch;background:#06090d}
+.embed-box iframe{display:block;width:100%;height:480px;border:0;background:#06090d}
 /* terminal embed: ~60x20 at ttyd's 14px font. min(100%,520px) caps it near 60
    columns on desktop but SHRINKS to the card width on mobile so it never
    overflows the screen (operator: 80 was too wide on iPhone 16 Pro Max). */
@@ -7599,7 +7598,7 @@ border-radius:9px;overflow:hidden;background:#06090d}
 .card.term .embed-box iframe{height:352px}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build5</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7851,7 +7850,8 @@ $("wsform").addEventListener("submit",function(e){e.preventDefault();
   var base=(SEARX||("https://"+location.hostname+":8888/")).replace(/\/+$/,"");
   window.open(base+"/search?q="+encodeURIComponent(q),"_blank");});
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("/sw.js").catch(function(){});}
+  navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"})
+    .then(function(r){r.update();}).catch(function(){});}
 // PWA install option (operator 2026-05-22): capture the install prompt and
 // expose it as an in-portal button; fall back to browser-menu instructions.
 var deferredPrompt=null;
@@ -7947,7 +7947,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v4';\n"
+    "var C='mios-portal-v5';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
@@ -8056,7 +8056,7 @@ border-radius:9px;padding:9px 12px;font-size:13px;margin-bottom:14px}
 <script>
 // Register the SW on the login page too so the app is installable BEFORE auth
 // (the login screen is the first thing an unauthenticated visitor sees).
-if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(function(){});}
+if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"}).then(function(r){r.update();}).catch(function(){});}
 </script>
 </body></html>"""
 
