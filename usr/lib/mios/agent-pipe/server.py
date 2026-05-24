@@ -7501,8 +7501,10 @@ min-width:280px;min-height:720px;max-width:100%}
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .addr a{color:var(--mut)}.addr a:hover{color:var(--accent)}
 .card{position:relative;background:var(--card);border:1px solid var(--line);
-border-left:3px solid var(--mut);
+border-left:3px solid var(--mut);cursor:pointer;
 border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15s transform}
+.card.exp{cursor:default}
+.card.exp:hover{transform:none}
 .card.up{border-left-color:var(--ok)}
 .card.down{border-left-color:var(--bad)}
 .card:hover{border-color:var(--accent);transform:translateY(-2px)}
@@ -7566,7 +7568,8 @@ border:1px solid var(--line);border-radius:9px;padding:9px 16px;font-size:13px;d
    size -- also used for btop/console). The grid re-renders in place (see
    cards()) so an open terminal session survives the periodic refresh. */
 .exp{position:absolute;top:9px;right:34px;z-index:5;background:transparent;border:0;
-color:var(--mut);font-size:15px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
+color:var(--mut);font-size:13px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:6px;
+transition:transform .15s,color .15s,background .15s;transform:rotate(-90deg)}
 .exp:hover{background:var(--card2);color:var(--info)}
 .card.term{border-left-color:var(--info)}
 /* Expand IN PLACE -- the card grows downward inside its own grid cell and
@@ -7574,7 +7577,7 @@ color:var(--mut);font-size:15px;cursor:pointer;line-height:1;padding:2px 6px;bor
 .card.exp{border-color:var(--accent);
 box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
 .card.exp .lnk{display:none}
-.card.exp .exp{color:var(--accent)}
+.card.exp .exp{transform:rotate(0deg);color:var(--accent)}
 .embed{display:none}
 .card.exp .embed{display:block;position:relative;z-index:8;margin-top:13px}
 .embed-bar{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;
@@ -7584,11 +7587,10 @@ letter-spacing:.5px}
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
 border-radius:9px;overflow:hidden;background:#06090d}
 .embed-box iframe{display:block;border:0;width:100%;height:480px;background:#06090d}
-/* terminal embed: a real 80x20 grid (operator: "80x20 ... big everywhere").
-   Fixed pixel box sized for ttyd's pinned 14px font; horizontal scroll keeps
-   the full 80 columns on viewports narrower than the box. */
-.card.term .embed{overflow-x:auto}
-.card.term.exp .embed-box{width:700px;margin:0 auto}
+/* terminal embed: ~60x20 at ttyd's 14px font. min(100%,520px) caps it near 60
+   columns on desktop but SHRINKS to the card width on mobile so it never
+   overflows the screen (operator: 80 was too wide on iPhone 16 Pro Max). */
+.card.term.exp .embed-box{width:min(100%,520px);margin:0 auto}
 .card.term .embed-box iframe{height:352px}
 </style></head><body>
 <div class="bar">
@@ -7684,8 +7686,7 @@ function buildCard(s){
   el.className="card "+(s.ok?"up":"down")+(term?" term":"");
   el.setAttribute("data-p",s.port);
   el.innerHTML=
-    '<a class="lnk" href="'+esc(s.url)+'" target="_blank" rel="noopener"></a>'+
-    '<button class="exp" data-x="'+s.port+'" title="Toggle inline embed">&#10530;</button>'+
+    '<button class="exp" data-x="'+s.port+'" title="Expand / collapse">&#9662;</button>'+
     '<button class="kebab" data-k="'+s.port+'">&#8942;</button>'+
     '<div class="cdrop" id="cd'+s.port+'">'+
       '<button data-act="embed" data-p="'+s.port+'">Embed inline</button>'+
@@ -7823,6 +7824,13 @@ document.addEventListener("click",function(e){
     else if(act=="detail")detail(b.getAttribute("data-p"));
     else if(act=="embed")toggleEmbed(b.getAttribute("data-p"));
     document.querySelectorAll(".cdrop.open").forEach(function(d){d.classList.remove("open");});return;}
+  // Click anywhere on a chip (not a button, not inside the revealed embed, not
+  // a link) toggles its expansion -- the whole chip is the disclosure control.
+  // .card[data-p] = service/terminal chips only (swarm-node tiles have no data-p).
+  var card=e.target.closest(".card[data-p]");
+  if(card&&!e.target.closest(".embed")&&!e.target.closest("a")){
+    document.querySelectorAll(".cdrop.open").forEach(function(d){d.classList.remove("open");});
+    toggleEmbed(card.getAttribute("data-p"));return;}
   if(e.target.id=="modal")closeM();
   if(!e.target.closest("#menu")&&e.target.id!="menuBtn")$("menu").classList.remove("open");
 });
