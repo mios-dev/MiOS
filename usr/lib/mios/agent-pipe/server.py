@@ -5406,7 +5406,8 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
             cfg = {"lane": "verb", "model": str(node.get("tool") or "")}
         if kind == "engage":
             yield ("event", _node_status(chat_id=chat_id, model=model,
-                                         name=name, cfg=cfg, state="engage"))
+                                         name=name, cfg=cfg, state="engage",
+                                         context=_node_context(node)))
         else:
             ok = bool(isinstance(res, dict) and res.get("success"))
             yield ("event", _node_status(chat_id=chat_id, model=model,
@@ -6340,21 +6341,42 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
     )
 
 
+def _node_context(node: dict) -> str:
+    """SHORT, operator-facing description of what a DAG node is DOING -- the
+    active step's CONTEXT (operator 2026-05-23: "emits should show actual steps
+    relevant to the current active step's context"). Derived from the node's
+    OWN data -- an agent node's sub-task, or a verb node's key arg -- NOT the
+    internal model/endpoint (which read as a leak). No LLM call, no hardcoded
+    topic text: it's the step's literal intent."""
+    if not isinstance(node, dict):
+        return ""
+    if node.get("agent"):
+        return str(node.get("prompt") or node.get("task") or "").strip()[:64]
+    args = node.get("args") or {}
+    if isinstance(args, dict):
+        for _k in ("query", "id", "name", "path", "url", "title", "unit",
+                   "text", "content", "script"):
+            _v = args.get(_k)
+            if _v:
+                return f"{_k}={str(_v)[:48]}"
+        for _v in args.values():
+            if _v:
+                return str(_v)[:48]
+    return ""
+
+
 def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
-                 state: str) -> bytes:
+                 state: str, context: str = "") -> bytes:
     """Per-endpoint live emitter (operator 2026-05-22: "endpoint emitters for
-    each ai endpoint/node"). One status event naming an AI node + its lane +
-    model + endpoint host as the chain ENGAGES it and as it RESPONDS / goes
-    silent -- so the operator confirms live which nodes/models/endpoints
-    actually took part this turn. emit via `yield` in the SSE generator."""
+    each ai endpoint/node"). One status event naming an AI node as the chain
+    ENGAGES it / it RESPONDS / goes silent. `context` (operator 2026-05-23) is
+    a short description of the node's CURRENT STEP -- its sub-task or the verb
+    arg -- so the emit reflects the active step's context, not just a glyph.
+    The lane/model/endpoint internals stay OUT (they read as a leak); context
+    is the WHAT (operator-facing), not the HOW (plumbing)."""
     emoji = {"engage": "🛰️", "ok": "✅", "down": "💤"}.get(state, "🛰️")
-    # emoji + node NAME only. The lane/model/endpoint internals live in
-    # /portal/swarm; surfacing "cpu · mios-agent-cpu · localhost:11435" in the
-    # chat status read as a LEAK (operator 2026-05-22). cfg kept for call-site
-    # symmetry. The single OWUI status line cycles through these as each node
-    # engages/responds -- live per-node progress without the internals.
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
-                       label=str(name))
+                       label=str(name), detail=str(context or "")[:80])
 
 
 async def _stream_answer(text: str, *, chat_id: str, model: str):
@@ -9067,8 +9089,12 @@ async def chat_completions(request: Request) -> Any:
 
             _sec_tasks = []
             for _n, _c in _fanout:
+                # context = the secondary's ROLE/specialty (why it's engaged on
+                # this turn); council members all answer the same prompt, so the
+                # role is the relevant per-node step context.
                 yield _node_status(chat_id=chat_id, model=model, name=_n,
-                                   cfg=_c, state="engage")
+                                   cfg=_c, state="engage",
+                                   context=str(_c.get("role", "")))
                 _sec_tasks.append(asyncio.create_task(
                     _call_agent_stream(_n, _c, proxy_body, headers, client,
                                        _ev_q)))
