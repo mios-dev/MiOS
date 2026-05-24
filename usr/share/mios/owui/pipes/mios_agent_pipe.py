@@ -330,35 +330,50 @@ class Pipe:
         ROUTER_MAX_TOKENS: int = Field(default=200, description="tokens")
 
     class UserValves(BaseModel):
-        """PER-USER persona + system-prompt fields, set by the operator in
-        the OWUI UI (chat Controls > Valves / per-user model settings).
-        Operator 2026-05-21: 'make the MiOS AI system prompt a user-defined
-        persona with user-defined fields for ease of input.' These ride
+        """PER-USER MiOS AI persona -- fully CUSTOMIZABLE IN OWUI (chat
+        Controls > Valves, or per-user model settings). Operator 2026-05-21 +
+        2026-05-23: 'make the MiOS AI system prompt a user-defined persona with
+        user-defined fields' + 'Persona should be customizable in OWUI'. Each
+        field is a USER ENTRY; its `description` is the OPERATOR HINT shown in
+        the OWUI Valves form, with examples of preferred values. These ride
         ALONGSIDE OWUI's environment variables ({{USER_NAME}}, locale, date)
-        and the vendor system prompt -- they don't replace them. Every field
-        is OPTIONAL; empty ones drop out, so there is NO hardcoded persona --
-        only the operator's own values are ever emitted."""
+        and the vendor system prompt -- they don't replace them. Every field is
+        OPTIONAL; empty ones drop out, so there is NO hardcoded persona prose --
+        only the user's own values are ever emitted, as a thin OpenAI-standard
+        system block (see _compose_persona)."""
         enabled: bool = Field(
             default=True,
-            description="Apply your persona below. Off = plain MiOS AI with environment grounding only.")
+            description="Master switch for your persona. OFF = plain MiOS AI with environment grounding only (no persona block added).")
         persona_name: str = Field(
             default="",
-            description="What the assistant calls itself. Empty = MiOS AI.")
+            description="What the assistant calls ITSELF. Empty = 'MiOS AI'. Examples: Atlas, Jeeves, Friday.")
+        address_as: str = Field(
+            default="",
+            description="What the assistant should call YOU. Empty = it uses no name. Put your own preferred first name, nickname, or title here.")
         tone: str = Field(
             default="",
-            description="Voice / tone to adopt (e.g. concise, warm, formal, playful, dry). Empty = neutral.")
+            description="Voice / tone to adopt. Examples: concise, warm, formal, playful, dry, encouraging. Empty = neutral.")
         verbosity: str = Field(
             default="",
-            description="Preferred answer length: brief | balanced | detailed. Empty = model decides per question.")
+            description="Preferred answer length. One of: brief | balanced | detailed. Empty = the model decides per question.")
+        formatting: str = Field(
+            default="",
+            description="Output style. Examples: markdown, plain text, bullet points, code-first, tables-ok. Empty = adapt to the content.")
+        language: str = Field(
+            default="",
+            description="Preferred response language. Examples: English, Espanol, Francais, Nihongo. Empty = match the language you write in.")
         units: str = Field(
             default="auto",
             description="Units in answers: auto (follow your locale) | metric | imperial.")
         expertise: str = Field(
             default="",
-            description="Explain at this level (e.g. beginner, intermediate, expert). Empty = adapt to the question.")
+            description="Explain at this level. One of: beginner | intermediate | expert. Empty = adapt to the question.")
+        boundaries: str = Field(
+            default="",
+            description="Standing do's & don'ts. Examples: 'no emojis; always cite sources; never guess prices; ask before very long answers'. Empty = none.")
         custom_instructions: str = Field(
             default="",
-            description="Any standing instructions / preferences for the assistant (plain text). Your words, used verbatim.")
+            description="Any other standing instructions / preferences (plain text). Your words, used verbatim.")
 
     # Operator directive 2026-05-17: "prompt refining should be tool
     # aware to be able to hint". The refine system prompt has a
@@ -395,27 +410,39 @@ class Pipe:
         if not _g("enabled", True):
             return ""
         name = str(_g("persona_name") or "").strip()
+        address_as = str(_g("address_as") or "").strip()
         tone = str(_g("tone") or "").strip()
         verbosity = str(_g("verbosity") or "").strip()
+        formatting = str(_g("formatting") or "").strip()
+        language = str(_g("language") or "").strip()
         units = str(_g("units") or "auto").strip()
         expertise = str(_g("expertise") or "").strip()
+        boundaries = str(_g("boundaries") or "").strip()
         custom = str(_g("custom_instructions") or "").strip()
         lines = []
         if name:
             lines.append(f"You are {name}.")
+        if address_as:
+            lines.append(f"Address the user as {address_as}.")
         if tone:
             lines.append(f"Tone: {tone}.")
         if verbosity:
             lines.append(f"Answer length: {verbosity}.")
+        if formatting:
+            lines.append(f"Formatting: {formatting}.")
+        if language:
+            lines.append(f"Always respond in {language}.")
         if units and units.lower() != "auto":
             lines.append(f"Units: {units}.")
         if expertise:
             lines.append(f"Explain at a {expertise} level.")
+        if boundaries:
+            lines.append(f"Boundaries: {boundaries}.")
         if custom:
             lines.append(custom)
         if not lines:
             return ""
-        return "## OPERATOR PERSONA (user-set)\n" + "\n".join(lines)
+        return "## OPERATOR PERSONA (user-set in OWUI)\n" + "\n".join(lines)
 
     @staticmethod
     def _resolve_env_vars(text: str,
