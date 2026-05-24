@@ -7611,7 +7611,7 @@ overflow:auto;-webkit-overflow-scrolling:touch}
 .card.term.exp .embed-box{height:360px}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build16</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build17</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7626,6 +7626,7 @@ overflow:auto;-webkit-overflow-scrolling:touch}
         <option value="port">port</option></select></label>
       <label>Only down <input type="checkbox" id="onlydown"></label>
       <label><a href="/portal/stats" target="_blank">raw stats JSON</a></label>
+      <label><a href="/iostest">&#129514; iOS embed test</a></label>
       <label><a href="/portal/logout">Log out &#8594;</a></label>
     </div>
   </div>
@@ -7968,7 +7969,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v16';\n"
+    "var C='mios-portal-v17';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
@@ -8200,6 +8201,76 @@ async def portal_logout():
     resp = RedirectResponse("/login", status_code=303)
     resp.delete_cookie(PORTAL_COOKIE, path="/")
     return resp
+
+
+# iOS standalone-PWA embed DIAGNOSTIC. The operator reports that expanded chip
+# embeds (iframes) render "detached" / float over the page on the installed iOS
+# PWA, and headless WebKit cannot reproduce it -- so this page tests SIX embed
+# techniques side by side, each labelled, so the operator can scroll once and
+# say which ones stay glued inside their card. PUBLIC + no-store (no portal
+# shell, no service-worker caching) so it always loads fresh, even standalone.
+_IOSTEST_HTML = r"""<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>MiOS iOS embed test</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#06090d;color:#E7DFD3;font:15px/1.5 -apple-system,system-ui,sans-serif}
+header{position:sticky;top:0;background:#0d141d;border-bottom:2px solid #F35C15;padding:12px 16px;z-index:50}
+header b{color:#F35C15}
+.note{font-size:13px;color:#9fb0c0;padding:10px 16px}
+.gap{height:280px;display:flex;align-items:center;justify-content:center;color:#3a4756;font-size:13px;letter-spacing:2px}
+.card{margin:0 16px;border:2px solid #1A407F;border-radius:12px;padding:12px;background:#0d141d}
+.lbl{font-weight:700;font-size:14px;margin-bottom:8px;color:#E7DFD3}
+.lbl span{color:#9fb0c0;font-weight:400;font-size:12px}
+/* the "chip frame" the embed must stay inside -- dashed so detachment is obvious */
+.frame{border:2px dashed #F35C15;border-radius:8px;height:160px;background:#02040a;position:relative}
+.frame iframe,.frame object{width:100%;height:100%;border:0;display:block}
+.f-hidden{overflow:hidden}
+.f-touch{overflow:auto;-webkit-overflow-scrolling:touch}
+.f-contain{overflow:hidden;contain:layout paint}
+.tz{transform:translateZ(0)}
+.wrap-tz{transform:translateZ(0);overflow:hidden;height:100%;width:100%}
+.ctrl{height:100%;display:flex;align-items:center;justify-content:center;font:800 30px sans-serif}
+</style></head><body>
+<header><b>MiOS</b> &mdash; iOS embed test &nbsp;<span style="font-size:12px;color:#9fb0c0">build A</span></header>
+<div class="note">Scroll down slowly inside the <b>installed app</b>. Each lettered card has a dashed-orange frame with a bright box inside. Tell me which letters <b>STAY glued inside their frame</b> as you scroll, and which <b>float / stay fixed on screen / cover other cards</b> (detached). Card&nbsp;A is the control &mdash; it should always stay.</div>
+
+<div class="gap">&#8595; scroll &#8595;</div>
+
+<div class="card"><div class="lbl">CARD A <span>&mdash; plain &lt;div&gt; (control, must STAY)</span></div>
+  <div class="frame"><div class="ctrl" style="background:#00e5ff;color:#000">INSIDE A</div></div></div>
+<div class="gap">&#8595;</div>
+
+<div class="card"><div class="lbl">CARD B <span>&mdash; &lt;iframe&gt; in overflow:hidden box</span></div>
+  <div class="frame f-hidden"><iframe srcdoc="<body style='margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#ff4081;color:#000;font:800 30px sans-serif'>INSIDE B</body>"></iframe></div></div>
+<div class="gap">&#8595;</div>
+
+<div class="card"><div class="lbl">CARD C <span>&mdash; &lt;iframe&gt; in -webkit-overflow-scrolling:touch box (build16)</span></div>
+  <div class="frame f-touch"><iframe srcdoc="<body style='margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#76ff03;color:#000;font:800 30px sans-serif'>INSIDE C</body>"></iframe></div></div>
+<div class="gap">&#8595;</div>
+
+<div class="card"><div class="lbl">CARD D <span>&mdash; &lt;iframe&gt; with transform:translateZ(0) (own layer)</span></div>
+  <div class="frame f-hidden"><iframe class="tz" srcdoc="<body style='margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#ffea00;color:#000;font:800 30px sans-serif'>INSIDE D</body>"></iframe></div></div>
+<div class="gap">&#8595;</div>
+
+<div class="card"><div class="lbl">CARD E <span>&mdash; &lt;iframe&gt; inside a translateZ(0) wrapper</span></div>
+  <div class="frame f-hidden"><div class="wrap-tz"><iframe srcdoc="<body style='margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#e040fb;color:#000;font:800 30px sans-serif'>INSIDE E</body>"></iframe></div></div></div>
+<div class="gap">&#8595;</div>
+
+<div class="card"><div class="lbl">CARD F <span>&mdash; &lt;object&gt; instead of &lt;iframe&gt;</span></div>
+  <div class="frame f-hidden"><object data="data:text/html,<body style='margin:0;height:100%25;display:flex;align-items:center;justify-content:center;background:%23ff6e40;color:%23000;font:800 30px sans-serif'>INSIDE F</body>"></object></div></div>
+<div class="gap">&#8595; end &#8595;</div>
+</body></html>"""
+
+
+@app.get("/iostest", response_class=HTMLResponse)
+async def iostest_page():
+    # Public + no-store on purpose: this is a layout probe with no data, and it
+    # must bypass the service-worker cache so it always renders the latest test.
+    return HTMLResponse(_IOSTEST_HTML,
+                        headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 @app.get("/", response_class=HTMLResponse)
