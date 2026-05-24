@@ -1396,7 +1396,7 @@ def _verb_arg_synonyms_from_catalog(cat: dict) -> dict:
     return syn
 
 
-def _render_verb_catalog(cat: dict, include_rare: bool = False) -> str:
+def _render_verb_catalog(cat: dict, include_rare: bool = True) -> str:
     """Render the verb catalog as the prose block the planner consumes.
     Sections grouped + ordered by first-seen order. Verbs tagged
     tier='rare' are HIDDEN by default -- they remain dispatchable for
@@ -6488,7 +6488,7 @@ def _extract_last_user_text(messages: list) -> str:
 
 # ── Health ─────────────────────────────────────────────────────────
 @app.get("/v1/verbs")
-async def list_verbs(include_rare: bool = False) -> JSONResponse:
+async def list_verbs(include_rare: bool = True) -> JSONResponse:
     """Render [verbs.*] as JSON-Schema tool specs. Same SSOT that
     drives the planner catalog. Consumed by mios-mcp-server (for
     MCP `tools/list`) and any external tooling that wants the
@@ -6576,8 +6576,15 @@ def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
 
 
 @app.get("/v1/verbs/openai-tools")
-async def list_verbs_openai_tools(include_rare: bool = False) -> JSONResponse:
+async def list_verbs_openai_tools(include_rare: bool = True) -> JSONResponse:
     """The MiOS verb catalog projected into the OpenAI `tools=` array shape.
+
+    include_rare defaults TRUE (operator 2026-05-24: "ALL global agents and
+    sub-agents able to use ALL the tools"). Broker dispatch access was already
+    global; this makes the PRESENTED surface complete too -- no verb (incl
+    crawl, and other former tier=rare entries) is hidden behind tool_search.
+    Pass include_rare=false for the trimmed set if a context-budget-limited
+    client needs it.
 
     The OpenAI-shape twin of /v1/verbs (which serves the MCP `inputSchema`
     shape for mios-mcp-server). Hermes already carries the full MiOS verb +
