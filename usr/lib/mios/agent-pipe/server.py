@@ -7593,7 +7593,8 @@ letter-spacing:.5px}
    viewport (operator: "floats over everything"). A plain block iframe with an
    explicit pixel height stays inside the chip, and the chip grows to fit it. */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;overflow:hidden;background:#06090d}
+border-radius:9px;overflow:hidden;background:#06090d;position:relative;
+contain:layout paint}
 .embed-box iframe{display:block;width:100%;height:480px;border:0;background:#06090d}
 /* terminal embed renders xterm.js NATIVELY into the box -- NO iframe, so it
    cannot float over the page in an iOS standalone PWA. Fixed-height box; the
@@ -7612,7 +7613,7 @@ height:340px;margin:0 auto;padding:6px}
 .xterm,.xterm *{box-sizing:content-box}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build14</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build15</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7776,12 +7777,15 @@ function openTerm(box,port){
              selectionBackground:"#1A407F"}});
     var fit=new FitAddon.FitAddon();term.loadAddon(fit);
     term.open(box);box._term=term;box._fit=fit;
-    try{fit.fit();}catch(e){}
-    // Re-fit whenever the box actually gets/changes size. Without this the
-    // initial fit can run before the box has its real width -> a 1-column
-    // terminal that wraps every character vertically ("rotated" text).
-    if(window.ResizeObserver){var _ro=new ResizeObserver(function(){
-      try{fit.fit();}catch(e){}});_ro.observe(box);box._ro=_ro;}
+    // Only fit when the box truly has a size; otherwise fall back to a sane
+    // fixed grid so the terminal is NEVER 1 column (1 col wraps every character
+    // vertically -> the "rotated" text). Retry across a few ticks + on resize.
+    function safeFit(){
+      if(box.clientWidth>60&&box.clientHeight>60){try{fit.fit();}catch(e){}}
+      else{try{term.resize(40,20);}catch(e){}}}
+    safeFit();
+    if(window.ResizeObserver){var _ro=new ResizeObserver(safeFit);_ro.observe(box);box._ro=_ro;}
+    [50,200,500,1000].forEach(function(ms){setTimeout(safeFit,ms);});
     // SAME-ORIGIN bridge (agent-pipe proxies to the loopback ttyd) -> reachable
     // from any device, no per-port tailscale-serve, no cross-origin.
     var wsurl=(location.protocol==="https:"?"wss:":"ws:")+"//"+location.host+"/portal/term/"+port;
@@ -7792,7 +7796,7 @@ function openTerm(box,port){
         m[0]=48;m.set(pl,1);if(ws.readyState===1)ws.send(m);});            // '0' INPUT
       term.onResize(function(s){if(ws.readyState===1)
         ws.send(enc.encode("1"+JSON.stringify({columns:s.cols,rows:s.rows})));}); // '1' RESIZE
-      setTimeout(function(){try{fit.fit();}catch(e){}},60);};
+      setTimeout(safeFit,60);};
     ws.onmessage=function(ev){var b=new Uint8Array(ev.data);
       if(b.length&&b[0]===48)term.write(b.subarray(1));};                  // '0' OUTPUT
     ws.onclose=function(){try{term.write("\r\n\x1b[31m[disconnected]\x1b[0m\r\n");}catch(e){}};
@@ -8014,7 +8018,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v14';\n"
+    "var C='mios-portal-v15';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
