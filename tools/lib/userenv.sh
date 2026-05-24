@@ -207,6 +207,7 @@ slots = [
     ("ports.ollama",                   "MIOS_PORT_OLLAMA"),
     ("ports.searxng",                  "MIOS_PORT_SEARXNG"),
     ("ports.crawl4ai",                 "MIOS_PORT_CRAWL4AI"),
+    ("ports.firecrawl",                "MIOS_PORT_FIRECRAWL"),
     ("ports.hermes",                   "MIOS_PORT_HERMES"),
     ("ports.hermes_workspace",         "MIOS_PORT_HERMES_WORKSPACE"),
     ("ports.open_webui",               "MIOS_PORT_OPEN_WEBUI"),
@@ -277,10 +278,17 @@ slots = [
     ("image.sidecars.forge",           "MIOS_FORGE_IMAGE"),
     ("image.sidecars.searxng_version", "MIOS_SEARXNG_VERSION"),
     ("image.sidecars.searxng",         "MIOS_SEARXNG_IMAGE"),
-    # crawl4ai image mappings removed 2026-05-24: the container was scrapped;
-    # the crawl engine is now a venv FastAPI service (mios-crawl4ai.service),
-    # so there is no image/version to render. The port + service uid mappings
-    # ([ports].crawl4ai, [services.crawl4ai].*) are RETAINED below.
+    # web-tools POD (2026-05-24 "make it a pod"): the crawl engine is now a
+    # podman POD (mios-webtools.pod, Network=host) with FOUR members --
+    # redis:7-alpine, firecrawl-api + firecrawl-worker (localhost/
+    # mios-firecrawl:v1.0.0, built from usr/share/mios/webtools/
+    # firecrawl.Containerfile), and crawl4ai (localhost/mios-crawl4ai-slim:latest,
+    # built from usr/share/mios/crawl4ai/Containerfile). Both are LOCALLY built,
+    # so there is no upstream image/version pin to render; the firecrawl quadlets
+    # default to localhost/mios-firecrawl:v1.0.0 via ${MIOS_FIRECRAWL_IMAGE} and
+    # the crawl4ai quadlet to localhost/mios-crawl4ai-slim:latest via
+    # ${MIOS_CRAWL4AI_IMAGE}. The port + service uid mappings ([ports].crawl4ai,
+    # [ports].firecrawl, [services.webtools].*) are RETAINED below.
     ("image.sidecars.hermes_version",  "MIOS_HERMES_VERSION"),
     ("image.sidecars.hermes",          "MIOS_HERMES_IMAGE"),
     ("image.sidecars.hermes_workspace_version", "MIOS_HERMES_WORKSPACE_VERSION"),
@@ -331,9 +339,16 @@ slots = [
     ("services.ollama_cpu.user",       "MIOS_OLLAMA_CPU_USER"),
     ("services.ollama_cpu.uid",        "MIOS_OLLAMA_CPU_UID"),
     ("services.ollama_cpu.gid",        "MIOS_OLLAMA_CPU_GID"),
-    ("services.crawl4ai.user",         "MIOS_CRAWL4AI_USER"),
-    ("services.crawl4ai.uid",          "MIOS_CRAWL4AI_UID"),
-    ("services.crawl4ai.gid",          "MIOS_CRAWL4AI_GID"),
+    # [services.webtools] -- consolidated web-tools container (firecrawl +
+    # crawl4ai + camoufox). Renamed from [services.crawl4ai] 2026-05-24; the
+    # canonical env is now MIOS_WEBTOOLS_* + legacy MIOS_CRAWL4AI_* aliases are
+    # kept (sysusers/tmpfiles still name the user mios-crawl4ai @ uid 824).
+    ("services.webtools.user",         "MIOS_WEBTOOLS_USER"),
+    ("services.webtools.uid",          "MIOS_WEBTOOLS_UID"),
+    ("services.webtools.gid",          "MIOS_WEBTOOLS_GID"),
+    ("services.webtools.user",         "MIOS_CRAWL4AI_USER"),
+    ("services.webtools.uid",          "MIOS_CRAWL4AI_UID"),
+    ("services.webtools.gid",          "MIOS_CRAWL4AI_GID"),
     ("image.sidecars.ollama_cpu_version", "MIOS_OLLAMA_CPU_VERSION"),
     ("image.sidecars.ollama_cpu",      "MIOS_OLLAMA_CPU_IMAGE"),
     # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────

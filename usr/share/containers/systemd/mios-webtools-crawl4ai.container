@@ -1,0 +1,46 @@
+# /usr/share/containers/systemd/mios-webtools-crawl4ai.container
+# 'MiOS' web-tools POD member 4/4 -- crawl4ai slim engine (the `crawl` verb
+# backend; Chrome-CDP primary + camoufox fail-retry).
+#
+# Operator directive 2026-05-24 "make it a pod": REUSES the EXISTING, already-
+# built + working image localhost/mios-crawl4ai-slim:latest (built from
+# usr/share/mios/crawl4ai/Containerfile -- python:3.12 + crawl4ai core +
+# camoufox, NO bundled Chromium). UNCHANGED behaviour from the standalone
+# mios-crawl4ai.container; only the networking now comes from the pod and the
+# ContainerName is namespaced under the pod.
+#
+# Network: inherited from the pod (Network=host) -- inside the container
+# 127.0.0.1:9222 IS the host's ChromeDev CDP (the engine attaches there), and
+# the service binds host loopback :11235 directly. Same WSL host-net rationale
+# as before; avoids the podman-WSL PublishPort quirk.
+[Unit]
+Description='MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camoufox fallback)
+
+[Container]
+Pod=mios-webtools.pod
+# Slim local image -- NO Chromium inside (crawl4ai attaches to the host Chrome).
+# UNCHANGED from the standalone mios-crawl4ai.container.
+Image=${MIOS_CRAWL4AI_IMAGE:-localhost/mios-crawl4ai-slim:latest}
+ContainerName=mios-webtools-crawl4ai
+# Run as root INSIDE the container (isolated namespace): camoufox's patched
+# Firefox is baked under root's cache at image-build time, so the service must
+# read it as root. The container touches nothing host-writable except the RO
+# service module below.
+# The service module, mounted RO so it iterates without an image rebuild.
+Volume=/usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:/app/mios-crawl4ai-service.py:ro
+Environment=MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:9222}
+Environment=MIOS_PORT_CRAWL4AI=${MIOS_PORT_CRAWL4AI:-11235}
+Environment=MIOS_CRAWL_BIND=127.0.0.1
+Environment=MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}
+Environment=MIOS_CRAWL_MIN_CHARS=${MIOS_CRAWL_MIN_CHARS:-200}
+AutoUpdate=local
+Label=org.opencontainers.image.title=mios-webtools-crawl4ai
+Label=io.podman_desktop.openInBrowser=http://localhost:11235/healthz
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

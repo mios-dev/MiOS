@@ -60,6 +60,13 @@ Environment=SEARXNG_URL=http://localhost:8888
 # discoverability. (Renamed 2026-05-24: MIOS_CRAWL4AI_URL -> MIOS_CRAWL_SERVICE_URL
 # when the container was scrapped for the venv service.)
 Environment=MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235
+# Firecrawl backend for Hermes's NATIVE web tools (hermes_cli/tools_config.py
+# reads FIRECRAWL_API_URL). Points at the self-hosted firecrawl api co-located
+# in the mios-webtools container (operator 2026-05-24 consolidation), reached
+# on the host loopback (the container is Network=host, firecrawl binds
+# 127.0.0.1:3002). Self-host firecrawl = retrieval, not inference (Law 5);
+# no vendor cloud key. Port mirrors mios.toml [ports].firecrawl.
+Environment=FIRECRAWL_API_URL=http://127.0.0.1:3002
 # Gateway bind: PORT is the OpenAI /v1 surface port (mios.toml
 # [ports].hermes, default 8642). API_SERVER_HOST=0.0.0.0 comes from
 # api.env (so the WSL2 portproxy + LAN reach it). HERMES_BACKEND_BASE_URL

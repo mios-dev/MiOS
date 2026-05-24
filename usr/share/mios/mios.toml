@@ -3916,7 +3916,8 @@ cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend (CUDA / dGPU lane)
 ollama_cpu         = 11435    # in-VM CPU light-lane (router/classifier + verb embeddings + micro-LLMs; real AMD iGPU runs natively on the Windows host)
 searxng            = 8888     # local privacy-respecting metasearch
-crawl4ai           = 11235    # local crawl engine -- mios-crawl4ai.service FastAPI (crawl4ai over Chrome CDP + Camoufox fallback). LOOPBACK only (127.0.0.1), NOT a published/LAN port.
+crawl4ai           = 11235    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
+firecrawl          = 3002     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3030=open_webui.)
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
 open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
@@ -3954,13 +3955,30 @@ forge_version      = "12"
 forge              = "codeberg.org/forgejo/forgejo:12"
 searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
-# crawl4ai sidecar IMAGE removed 2026-05-24: the container approach (a ~2GB
-# unclecode/crawl4ai image bundling Playwright Chromium) was SCRAPPED. The
-# crawl engine now runs as a venv FastAPI service (mios-crawl4ai.service)
-# that drives the EXISTING local Chrome over CDP (ws://127.0.0.1:9222) with
-# a Camoufox stealth fallback -- no image, no bundled browser. See the
-# [verbs.crawl] block + [services.crawl4ai] (uid 824, retained for the venv
-# service's fs ownership) below.
+# web-tools POD (operator 2026-05-24: "consolidate containers to share similar
+# services together" + "co-locate the real firecrawl stack" + "make it a pod").
+# mios-webtools is now a podman POD (usr/share/containers/systemd/
+# mios-webtools.pod, Network=host) with FOUR member containers instead of one
+# fat supervisord image:
+#   * redis            docker.io/redis:7-alpine            (loopback :6379)
+#   * firecrawl-api    localhost/mios-firecrawl:v1.0.0     (:3002, Hermes's
+#                      native FIRECRAWL_API_URL backend; cmd start:production)
+#   * firecrawl-worker SAME firecrawl image                (cmd: pnpm run workers)
+#   * crawl4ai         localhost/mios-crawl4ai-slim:latest (:11235, the `crawl`
+#                      verb backend, Chrome-CDP primary + camoufox fail-retry)
+# It REPLACES the prior single-purpose mios-crawl4ai image AND the abandoned
+# fat mios-webtools monolith (the supervisord Containerfile + its quadlet were
+# git-rm'd on the pod cutover). Two LOCALLY-BUILT images, no upstream registry
+# pin to render here:
+#   * firecrawl   built from usr/share/mios/webtools/firecrawl.Containerfile,
+#                 which clones + builds firecrawl's OWN apps/api at the PINNED
+#                 tag (ARG FIRECRAWL_REF=v1.0.0); quadlets default to
+#                 localhost/mios-firecrawl:v1.0.0 via ${MIOS_FIRECRAWL_IMAGE}.
+#   * crawl4ai    built from usr/share/mios/crawl4ai/Containerfile; quadlet
+#                 defaults to localhost/mios-crawl4ai-slim:latest via
+#                 ${MIOS_CRAWL4AI_IMAGE}.
+# See [verbs.crawl], [ports].crawl4ai + [ports].firecrawl, and
+# [services.webtools] (uid 824) below.
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui_version = "latest"
@@ -4037,10 +4055,14 @@ user = "mios-ollama-cpu"
 uid  = 823
 gid  = 823
 
-# crawl4ai now backs the venv FastAPI service (mios-crawl4ai.service), NOT a
-# container. This uid owns the venv (/usr/lib/mios/crawl4ai/.venv) + cache
-# (/var/cache/mios/crawl4ai: camoufox Firefox + crawl4ai cache).
-[services.crawl4ai]
+# [services.webtools] -- the consolidated web-tools container (mios-webtools:
+# firecrawl + crawl4ai + camoufox). Renamed from [services.crawl4ai] on the
+# 2026-05-24 consolidation. The user/uid is KEPT as mios-crawl4ai/824 to avoid
+# churning /usr/lib/sysusers.d/50-mios-services.conf + tmpfiles + the live
+# passwd db (the container runs root-in-namespace anyway; this uid owns the
+# host-side cache/state dirs /var/{lib,cache}/mios/crawl4ai). Slot map exports
+# MIOS_WEBTOOLS_USER/UID/GID (userenv.sh).
+[services.webtools]
 user = "mios-crawl4ai"
 uid  = 824
 gid  = 824
