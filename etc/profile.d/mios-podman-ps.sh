@@ -12,6 +12,17 @@
 # Safe + additive: only augments an EMPTY `ps` for a NON-root caller, never hides
 # real output, and only affects INTERACTIVE login shells (scripts / `ssh host
 # podman ...` non-login shells skip profile.d and get the real binary untouched).
+# Point this user's podman at the ROOTFUL socket (where MiOS containers live)
+# when they can reach it -- so `podman ps`, scripts, and SSH managers see the
+# REAL containers, not the empty rootless set. Runs for ALL shells (incl.
+# non-interactive) so it covers `ssh host podman ps`. Gated on readability:
+# only users in the socket's group (operator) get it; the hardened agent user
+# (no access) falls through to the read-only snapshot path. Don't override an
+# endpoint the user already chose.
+if [ -z "${CONTAINER_HOST:-}" ] && [ -S /run/podman/podman.sock ] && [ -r /run/podman/podman.sock ]; then
+    export CONTAINER_HOST="unix:///run/podman/podman.sock"
+fi
+
 case $- in
   *i*) : ;;            # interactive -- install the helper
   *)   return 2>/dev/null || true ;;
