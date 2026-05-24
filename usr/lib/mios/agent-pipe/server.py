@@ -7508,7 +7508,6 @@ border-radius:var(--rad);padding:15px 15px 13px;transition:.15s border-color,.15
 .card.up{border-left-color:var(--ok)}
 .card.down{border-left-color:var(--bad)}
 .card:hover{border-color:var(--accent);transform:translateY(-2px)}
-.card .lnk{position:absolute;inset:0;border-radius:var(--rad)}
 .row{display:flex;align-items:center;justify-content:space-between}
 .name{font-size:15.5px;font-weight:600}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--mut)}
@@ -7576,22 +7575,28 @@ transition:transform .15s,color .15s,background .15s;transform:rotate(-90deg)}
    stays inline with its neighbours (no full-width span that reflows the grid). */
 .card.exp{border-color:var(--accent);
 box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
-.card.exp .lnk{display:none}
 .card.exp .exp{transform:rotate(0deg);color:var(--accent)}
 .embed{display:none}
-.card.exp .embed{display:block;position:relative;z-index:8;margin-top:13px}
+/* Plain in-flow block (no z-index/relative): the chip grows DOWNWARD to
+   contain it, so it can never float over the elements below. */
+.card.exp .embed{display:block;margin-top:13px}
 .embed-bar{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;
 color:var(--subtle);font-family:var(--mono);margin-bottom:6px;text-transform:uppercase;
 letter-spacing:.5px}
 .embed-bar a{color:var(--warn)}
+/* Fixed-height box + an absolutely-FILLED iframe. iOS Safari ignores an
+   iframe's CSS height and balloons it to its content height -- which made the
+   embed overflow the card and render on top of the chips below. Pinning the
+   box height and filling it with an inset:0 iframe forces the iframe to the
+   box size on every browser. */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;overflow:hidden;background:#06090d}
-.embed-box iframe{display:block;border:0;width:100%;height:480px;background:#06090d}
+border-radius:9px;overflow:hidden;background:#06090d;position:relative;height:480px}
+.embed-box iframe{position:absolute;inset:0;width:100%;height:100%;border:0;
+display:block;background:#06090d}
 /* terminal embed: ~60x20 at ttyd's 14px font. min(100%,520px) caps it near 60
    columns on desktop but SHRINKS to the card width on mobile so it never
    overflows the screen (operator: 80 was too wide on iPhone 16 Pro Max). */
-.card.term.exp .embed-box{width:min(100%,520px);margin:0 auto}
-.card.term .embed-box iframe{height:352px}
+.card.term.exp .embed-box{width:min(100%,520px);height:352px;margin:0 auto}
 </style></head><body>
 <div class="bar">
   <h1>Mi<b>OS</b></h1>
@@ -7942,7 +7947,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v2';\n"
+    "var C='mios-portal-v3';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
