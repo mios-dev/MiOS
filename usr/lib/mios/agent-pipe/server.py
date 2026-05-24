@@ -7592,26 +7592,25 @@ box-shadow:0 8px 30px color-mix(in srgb,var(--accent) 22%,transparent)}
 color:var(--subtle);font-family:var(--mono);margin-bottom:6px;text-transform:uppercase;
 letter-spacing:.5px}
 .embed-bar a{color:var(--warn)}
-/* The embed is a plain in-flow iframe in a FIXED-height box. The box -- not the
-   iframe -- owns the height and clips. On an iOS standalone PWA, Safari sizes an
-   iframe to its full CONTENT height and IGNORES overflow:hidden on the wrapper,
-   so the oversized iframe paints over the chips below it (operator: "expanded
-   chips float over the page"). The documented fix is overflow:auto WITH
-   -webkit-overflow-scrolling:touch -- that forces iOS to give the box a real
-   momentum-scroll region that clips the iframe to the box. (NOT overflow:hidden,
-   NOT contain:layout/paint -- iframes are their own compositing layer and ignore
-   ancestor paint containment on iOS.) */
+/* The embed is an iframe in a FIXED-height, overflow:hidden box. On an iOS
+   standalone PWA an iframe is composited into a SEPARATE layer positioned in
+   VIEWPORT space -- it "detaches" and floats over the page as you scroll.
+   /iostest proved the fix empirically (operator 2026-05-24, cards A-F): a plain
+   iframe (B), a -webkit-overflow-scrolling:touch box (C = what build16 used),
+   and <object> (F) ALL detach; promoting the iframe to its OWN compositing
+   layer with transform:translateZ(0) (cards D + E) keeps it GLUED inside its
+   frame. So: overflow:hidden box + translateZ(0) on the iframe. */
 .embed-box{border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
-border-radius:9px;background:#06090d;position:relative;height:480px;
-overflow:auto;-webkit-overflow-scrolling:touch}
-.embed-box iframe{display:block;width:100%;height:100%;border:0;background:#06090d}
+border-radius:9px;background:#06090d;position:relative;height:480px;overflow:hidden}
+.embed-box iframe{display:block;width:100%;height:100%;border:0;background:#06090d;
+transform:translateZ(0)}
 /* terminal embed = ttyd's OWN page (operator: "use ttyd's own page") in the same
    iframe. ttyd auto-fits its terminal to the iframe box, so there is no custom
    xterm, no FitAddon, no 1-column "rotated" text. Shorter box than a website. */
 .card.term.exp .embed-box{height:360px}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build17</sup></h1>
+  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build18</sup></h1>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
@@ -7969,7 +7968,7 @@ _PORTAL_MANIFEST = json.dumps({
     ],
 })
 _PORTAL_SW = (
-    "var C='mios-portal-v17';\n"
+    "var C='mios-portal-v18';\n"
     "var SHELL=['/login','/portal/icon.svg','/portal/icon-192.png',"
     "'/portal/icon-512.png','/portal/manifest.webmanifest'];\n"
     "self.addEventListener('install',function(e){self.skipWaiting();"
