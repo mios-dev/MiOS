@@ -810,6 +810,23 @@ fanout_min = 1
 # roster + the box's headroom. 3 = primary + up to 2 council members; raise
 # as more [agents.*] are added (and a tool-capable box can carry them).
 fanout_max = 3
+# ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
+# defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
+# fires WITH CPU ... any engine/node" + "add per-lane context trimming".
+#   MIOS_AGENT_LANE_CONCURRENCY        = 3   -- concurrent agents PER LANE. Each
+#       compute lane/engine/node (dGPU, CPU, iGPU, accelerator, each remote node)
+#       gets its OWN semaphore, so distinct hardware ALL fires concurrently; only
+#       agents SHARING one lane queue. Per-lane override
+#       MIOS_AGENT_LANE_CONCURRENCY_<LANE> (e.g. _GPU=2 to protect 4090 VRAM).
+#   MIOS_AGENT_HEALTHGATE_CONNECT_S    = 2.5 -- connect timeout for a health-gated
+#       (remote/slow) node -> an ABSENT node (phone asleep) drops fast.
+#   MIOS_AGENT_HEALTHGATE_READ_S       = 120 -- read timeout for a health-gated
+#       node -> a PRESENT-but-SLOW node (the iGPU, ~13 tok/s Vulkan) FINISHES
+#       instead of being abandoned mid-compute (was a flat 45s).
+#   MIOS_SLOW_LANES            = igpu,mobile,accelerator -- lanes that get a
+#       TRIMMED system prefix (slow prefill); gpu + cpu keep the full context.
+#   MIOS_SLOW_LANE_BLOCK_CHARS = 1500 -- per-block cap for a slow lane, so the
+#       ~7K web-research context doesn't blow its prefill (the gist survives).
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
