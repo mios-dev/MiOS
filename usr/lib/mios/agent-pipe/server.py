@@ -303,10 +303,14 @@ SWARM_DECOMPOSE_DEFAULT = os.environ.get(
     "MIOS_SWARM_DECOMPOSE_DEFAULT", "true").lower() not in {"false", "0", "no"}
 SWARM_DECOMPOSE_MIN_WORDS = int(
     os.environ.get("MIOS_SWARM_DECOMPOSE_MIN_WORDS", "6"))
-# Swarm DECOMPOSER model (operator 2026-05-22). A general 4b instruct model
-# via /api/chat (think=False) -- NOT the code model on /v1, which returned
-# EMPTY content on the full agent roster. Warm (keep_alive, shared lane).
-SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", "qwen3.5:4b")
+# Swarm DECOMPOSER model. Bumped 4b -> 9b (operator 2026-05-22 model-research +
+# the "don't use <7B for agentic" guidance): the 4b under-split AND funnelled
+# every facet to one agent; a 9b decomposes + spreads across the roster far more
+# reliably. qwen3.5:9b is already on the box (no pull). Target upgrade: qwen3.6:27b
+# (the May-2026 top dense agentic model) once pulled + validated. Distinct-agent
+# SPREAD is also enforced in code (_agent_dag_from_tasks) so it never depends on
+# the model alone. /api/chat (think=False) -- the /v1 path returned empty content.
+SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", "qwen3.5:9b")
 PLANNER_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_TIMEOUT_S", "30"))
 PLANNER_MAX_TOKENS = int(os.environ.get(
@@ -6218,6 +6222,15 @@ def _agent_dag_from_tasks(tasks: list) -> dict:
     "separate prompts per refinement step -> sub-agents ... concurrent
     Compute" directly. Returns {summary, nodes}."""
     nodes: list = []
+    # SPREAD across DISTINCT hardware nodes (operator 2026-05-22 "all nodes and
+    # endpoints must fire across all hardware nodes on the network"): the
+    # decomposer often funnels every facet to ONE agent, so the DISPATCHER
+    # guarantees distribution -- honour a distinct per-task hint, but when a hint
+    # repeats (or is absent) and unused roster nodes remain, reassign to an unused
+    # node so the facets fan out across ALL the hardware (dGPU/hermes, opencode,
+    # iGPU, phone/ai-local, daemon).
+    pool = list(_AGENT_REGISTRY.keys())
+    used: list = []
     for i, t in enumerate(tasks):
         if not isinstance(t, dict):
             continue
@@ -6225,9 +6238,19 @@ def _agent_dag_from_tasks(tasks: list) -> dict:
         if not prompt:
             continue
         tgt = str(t.get("target_agent") or "").strip()
-        aname = tgt if tgt in _AGENT_REGISTRY else _pick_agent(tgt)[0]
-        nodes.append({"id": f"t{i + 1}", "agent": aname,
-                      "prompt": prompt, "deps": []})
+        aname = (tgt if tgt in _AGENT_REGISTRY
+                 else (_pick_agent(tgt)[0] if tgt else ""))
+        if (not aname) or (aname in used and len(used) < len(pool)):
+            alt = next((a for a in pool if a not in used), None)
+            if alt:
+                aname = alt
+        if not aname:
+            aname = _pick_agent("")[0]
+        used.append(aname)
+        # `title` = the CLEAN facet label for the per-node emit (the grounding
+        # prefix gets prepended to `prompt` later, so emit off `title` not prompt).
+        nodes.append({"id": f"t{i + 1}", "agent": aname, "prompt": prompt,
+                      "title": (str(t.get("title") or prompt)[:72]), "deps": []})
     summary = "; ".join(str(t.get("title") or "")[:60]
                         for t in tasks if isinstance(t, dict))[:200]
     return {"summary": summary, "nodes": nodes}
@@ -7219,7 +7242,11 @@ def _node_context(node: dict) -> str:
     if not isinstance(node, dict):
         return ""
     if node.get("agent"):
-        return str(node.get("prompt") or node.get("task") or "").strip()[:64]
+        # Prefer the CLEAN facet `title` -- `prompt` gets a LIVE-GROUNDING prefix
+        # prepended at dispatch, which would otherwise leak into the emit (operator
+        # 2026-05-22: "DAG emits leak the grounding text instead of clean labels").
+        return str(node.get("title") or node.get("prompt")
+                   or node.get("task") or "").strip()[:64]
     args = node.get("args") or {}
     if isinstance(args, dict):
         for _k in ("query", "id", "name", "path", "url", "title", "unit",
