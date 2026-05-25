@@ -6535,7 +6535,7 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
     yield ("result", dag_result)
 
 
-def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None) -> dict:
+def _agent_dag_from_tasks(tasks: list) -> dict:
     """Build a CONCURRENT per-agent DAG from refine's multi_task array:
     one agent node per independent task, routed to the task's target_agent
     (a registry key as-is, else role-matched via _pick_agent, else the
@@ -6574,24 +6574,11 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None) -> dic
         # prefix gets prepended to `prompt` later, so emit off `title` not prompt).
         nodes.append({"id": f"t{i + 1}", "agent": aname, "prompt": prompt,
                       "title": (str(t.get("title") or prompt)[:72]), "deps": []})
-    # ENGAGE EVERY LIVE ENGINE (operator 2026-05-25 "iGPU is still cold ... iGPU
-    # fires WITH CPU + all engines, true concurrent compute every turn"): any LIVE
-    # fanout-eligible agent still UNUSED (e.g. the iGPU when the planner emitted
-    # fewer facets than there are engines) gets an existing facet as a CONCURRENT
-    # second-opinion node, so all distinct hardware (dGPU/iGPU/CPU/phone) computes
-    # each swarm turn instead of sitting cold. Synthesis folds whatever finishes;
-    # the per-lane semaphore + health-gate read timeout bound the slow ones (the
-    # iGPU is ~7 tok/s, so this trades latency for full-hardware utilisation --
-    # the operator's explicit priority). Skipped when live_agents is unknown.
-    if live_agents and nodes:
-        for a in _AGENT_REGISTRY:
-            if (a in live_agents and a not in used
-                    and _AGENT_REGISTRY[a].get("fanout") is not False):
-                _src = nodes[len(used) % len(nodes)]
-                used.append(a)
-                nodes.append({"id": f"t{len(nodes) + 1}", "agent": a,
-                              "prompt": _src["prompt"],
-                              "title": str(_src["title"])[:72], "deps": []})
+    # NOTE: an earlier change force-engaged every live engine (incl the iGPU) as a
+    # reasoning facet to "keep it warm" -- REVERTED 2026-05-25. The iGPU is ~7
+    # tok/s, far too slow for an 800-token reasoning facet; its correct role is
+    # the always-warm MICRO-LLM (router/refine/judge/expand, hit EVERY turn ->
+    # never cold + offloads the dGPU), not a reasoning agent. See _MICRO_ENDPOINT.
     summary = "; ".join(str(t.get("title") or "")[:60]
                         for t in tasks if isinstance(t, dict))[:200]
     return {"summary": summary, "nodes": nodes}
@@ -10197,8 +10184,7 @@ async def chat_completions(request: Request) -> Any:
             # Falls through to the legacy promote-and-queue path when fewer
             # than 2 tasks resolve to agents.
             if PLANNER_ENABLED:
-                # live set (cached) -> engage every live engine incl the iGPU.
-                _adag = _agent_dag_from_tasks(queued, await _live_agent_names())
+                _adag = _agent_dag_from_tasks(queued)
                 if len(_adag.get("nodes") or []) >= 2:
                     log.info("multi_task -> concurrent agent DAG (%d): %s",
                              len(_adag["nodes"]),
@@ -10262,7 +10248,7 @@ async def chat_completions(request: Request) -> Any:
         _swarm_tasks = await _plan_swarm(last_user_text)
         log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks",
                  _force_delegate, len(_swarm_tasks))
-        _mdag = (_agent_dag_from_tasks(_swarm_tasks, await _live_agent_names())
+        _mdag = (_agent_dag_from_tasks(_swarm_tasks)
                  if len(_swarm_tasks) >= 2 else None)
         if not (_mdag and len(_mdag.get("nodes") or []) >= 2):
             _gen = await decompose_intent(last_user_text)
