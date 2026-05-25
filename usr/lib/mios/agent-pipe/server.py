@@ -2117,6 +2117,13 @@ _REFINE_SYSTEM = (
     "  map a 'check / look up / find out <topic>' goal to open_url or to\n"
     "  opening a visible browser window per topic -- open_url only SHOWS a\n"
     "  page the operator explicitly asked to see.\n"
+    "- BREADTH = FACETS: a BROAD or COMPREHENSIVE ask about a SINGLE topic\n"
+    "  (the user wants 'everything', the 'full picture', 'all the latest', a\n"
+    "  wide/deep overview) is multi_task too -- split the ONE topic into 2-4\n"
+    "  INDEPENDENT FACETS of it (distinct angles / sub-topics / regions /\n"
+    "  sectors) and emit one research task per facet so they dispatch\n"
+    "  CONCURRENTLY, then synthesise. A wide ask deserves a real swarm, not\n"
+    "  one shallow pass. (A narrow single-fact question stays intent=agent.)\n"
     "- `tool_cards` rationale (ReWOO + MCP-style annotations): the\n"
     "  worker agent (Hermes / OpenCode / daemon-agent) sees ONLY what\n"
     "  you emit. If you list tools in hint_tools but the worker has\n"
@@ -2168,7 +2175,13 @@ _REFINE_SYSTEM_LITE = (
     "Fields:\n"
     '  "intent": chat | agent | multi_task   (coarse -- the planner\n'
     "    decides single-step vs multi-step downstream)\n"
-    '  "refined_text": the request rewritten clearly + actionably\n'
+    '  "refined_text": the request rewritten as a clear, ACTIONABLE query.\n'
+    "    For current / recent / live info (news, events, trends, prices,\n"
+    "    scores), make it a CONCRETE search query anchored to NOW (use the\n"
+    "    current date or 'today' / 'latest') and DISAMBIGUATE any vague word a\n"
+    "    search engine would mis-match to a brand / product / unrelated term\n"
+    "    (e.g. a bare 'current' or 'trending' that hits an app or a\n"
+    "    dictionary). This is the string the web search actually runs.\n"
     '  "intended_outcome": one line -- what the user expects back\n'
     '  "target_agent": a registered sub-agent chosen by role\n'
     '  "hint_tools": [verb names from the catalog the agent will need]\n'
@@ -2183,8 +2196,15 @@ _REFINE_SYSTEM_LITE = (
     "    from information not already present in this conversation. The\n"
     "    agent owns the tools (system control, local file search, web\n"
     "    search/extract) and must USE them rather than guess or refuse.\n"
-    "  multi_task = the message holds several independent goals; emit a\n"
-    "    tasks array (>=2 entries).\n"
+    "  multi_task = the request needs SEVERAL independent pieces of work --\n"
+    "    EITHER several distinct goals in one message, OR a SINGLE broad/\n"
+    "    comprehensive topic the user wants covered WIDELY (they want the\n"
+    "    whole picture / a wide overview, not one narrow fact). For that\n"
+    "    broad-single-topic case, split the topic into 2-4 INDEPENDENT FACETS\n"
+    "    (distinct angles / sub-topics / regions) -- one tasks entry each --\n"
+    "    so they research CONCURRENTLY and a synthesis combines them; a real\n"
+    "    swarm, not one shallow pass. A narrow single-fact ask is NOT\n"
+    "    multi_task. Emit a tasks array (>=2 entries).\n"
     "  Default to agent whenever the request is not purely conversation;\n"
     "  when in doubt between chat and agent, choose agent.\n"
     "\n"
@@ -2349,22 +2369,14 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
         except Exception:  # noqa: BLE001
             return ""
 
-    results = await _search(query)
-    # News / trending / current-events intent -> ALSO search a CANONICAL news
-    # query, prepended so it leads. The vague raw query matched 'Current' the
-    # BANKING APP + 'electric current' (Wikipedia) on general search (operator
-    # 2026-05-24 non-answer); a canonical "top world news headlines today" query
-    # reliably surfaces the mainstream homepages (BBC/AP/Reuters/CNN), which then
-    # CRAWL into real current headlines. (SearXNG's --news category here is
-    # Wikinews-only -- low value -- so we use the canonical general query.)
-    _q = (query or "").lower()
-    if any(w in _q for w in (
-            "trend", "news", "headline", "happening", "latest", "breaking",
-            "current event", "what's new", "whats new", "world news", "today",
-            "this week", "right now", "going on")):
-        _news = await _search("top world news headlines today", fanout=1)
-        if _news:
-            results = _news + [r for r in results if r not in _news]
+    # Search the MODEL-SHARPENED query (refine's refined_text), not the raw user
+    # text -- refine disambiguates a vague ask (operator 2026-05-24 "THAT SEEM
+    # AWFULLY HARDCODED": "current global trending" matched the 'Current' BANKING
+    # APP, so the MODEL rewrites it to a concrete query). NO hardcoded keyword
+    # list / canonical query -- the model decides what to search; the fan-out
+    # (also model-driven) diversifies it.
+    search_q = str((refined or {}).get("refined_text") or "").strip() or query
+    results = await _search(search_q)
     if not results:
         return ""
     seen: set = set()
@@ -9372,24 +9384,13 @@ async def chat_completions(request: Request) -> Any:
         SWARM_DECOMPOSE_DEFAULT and refined
         and refined.get("intent") == "agent"
         and len((last_user_text or "").split()) >= SWARM_DECOMPOSE_MIN_WORDS)
-    # COMPREHENSIVE intent -> force the swarm decompose even with
-    # SWARM_DECOMPOSE_DEFAULT off (operator 2026-05-24: "Get me EVERYTHING about
-    # current global trending" went to a council where all agents gave the SAME
-    # shallow answer -- "NOT A TRUE SWARM"). An explicitly broad / "everything" /
-    # "deep dive" ask IS multi-faceted, so split it into DISTINCT concurrent
-    # sub-tasks (facets) across agents + synthesise. _plan_swarm self-gates, so a
-    # mislabelled simple ask still falls back to council.
-    _q_lc = (last_user_text or "").lower()
-    _comprehensive = any(p in _q_lc for p in (
-        "everything about", "everything on", "everything regarding", "all about",
-        "comprehensive", "deep dive", "deep-dive", "full rundown", "rundown",
-        "full picture", "in depth", "in-depth", "get me everything",
-        "tell me everything", "give me everything", "complete overview",
-        "the latest on", "all the latest", "breakdown of", "full breakdown",
-        "everything happening", "everything going on"))
+    # Breadth -> decompose is the MODEL's call, not a hardcoded phrase list
+    # (operator 2026-05-24 "THAT SEEM AWFULLY HARDCODED"): refine classifies a
+    # broad/comprehensive ask as intent=multi_task (handled above via the
+    # multi_task -> _agent_dag_from_tasks path) or sets _multi_step; the refine
+    # prompt -- not Python keywords -- decides what is multi-faceted.
     if PLANNER_ENABLED and (_force_delegate
                             or (refined and refined.get("_multi_step"))
-                            or _comprehensive
                             or _decompose_default):
         # Layer B (operator 'AI SWARM'): the DEDICATED swarm decomposer
         # first (reliable {agent, sub-task} assignments), then fall back to
