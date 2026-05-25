@@ -2623,6 +2623,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
         refined["_web_stats"] = {"sources": len(blocks), "real": len(content),
                                  "crawled": n_crawled, "passes": passes}
         refined["_web_steps"] = _steps
+        # SOURCES survive the handoff (operator 2026-05-22 "this is why all
+        # sources survive handoffs"): keep the [n] blocks (title + URL + text) so
+        # the FINAL verity/answer pass can cite [n] + verify the draft against the
+        # real fetched content -- not just the agents' paraphrase of it.
+        refined["_web_sources"] = "\n\n".join(blocks)
     return ("LIVE WEB RESEARCH -- the MiOS pipeline ran its FULL web toolchain "
             "concurrently (SearXNG metasearch -> readable extract + crawl4ai/"
             "Chrome-CDP & Camoufox deep render) and FETCHED the top pages below. "
@@ -2999,9 +3004,12 @@ _POLISH_SYSTEM = (
     "     grounded answer among them wins -- NEVER the weakest or the punting\n"
     "     one. If one agent answered substantively and another hedged, deliver\n"
     "     the substantive answer.\n"
-    "  3. ANSWER in the USER'S OWN TONE, at MEDIUM verbosity by default -- a few\n"
-    "     tight paragraphs or a short list, enriched with the live data; not a\n"
-    "     one-liner, not an essay. Mirror how the user wrote.\n"
+    "  3. ANSWER in the USER'S OWN TONE, MATCHING the user's own verbosity.\n"
+    "     DEFAULT MEDIUM (a few tight paragraphs or a short list, enriched with\n"
+    "     the live data) -- but a terse question gets a tighter reply and a long/\n"
+    "     elaborate one gets more. If the user EXPLICITLY asks for detail / depth\n"
+    "     / 'explain fully' / 'comprehensive' / 'everything', go to MAXIMUM\n"
+    "     detail. Mirror how the user wrote.\n"
     "If ANY agent or the live data produced a real, grounded answer, the final\n"
     "reply MUST deliver it -- never collapse to a punt because the primary draft\n"
     "hedged. Do not attribute the answer to the agents, do not editorialise, and\n"
@@ -3568,6 +3576,85 @@ async def _recall_knowledge(query: str) -> str:
         return ""
 
 
+# Final-pass VERITY fact-check (operator 2026-05-22: "checks passes for final
+# output can use web tools globally quickly fact check things for uncertainties --
+# should be able to generate queries to investigate the results for verity").
+VERITY_FACTCHECK = os.environ.get(
+    "MIOS_VERITY_FACTCHECK", "true").lower() not in {"false", "0", "no"}
+VERITY_FACTCHECK_MAX_Q = int(os.environ.get("MIOS_VERITY_FACTCHECK_MAX_Q", "2"))
+
+
+async def _verity_factcheck(draft: str, user_q: str,
+                            refined: Optional[dict]) -> str:
+    """Generate up to N search queries for the UNCERTAIN specifics in a draft
+    answer, run a QUICK SearXNG search on each, and return the fresh results so
+    the final pass CONFIRMS or DROPS each claim -- turning the old "distrust
+    embellishment -> punt" into "verify -> answer with what holds up". Gated to
+    web turns (uncertainty = current/external facts); bounded + best-effort."""
+    if not VERITY_FACTCHECK or not draft or not draft.strip():
+        return ""
+    hints = [str(t).lower().strip() for t in ((refined or {}).get("hint_tools") or [])]
+    if not any(h in (_WEB_ENRICH_VERBS | {"open_url"}) for h in hints):
+        return ""
+    sys_p = ("You verify a draft answer. From the draft, pick up to "
+             f"{VERITY_FACTCHECK_MAX_Q} SPECIFIC factual claims (named events / "
+             "dates / numbers / releases) that are UNCERTAIN and worth a quick web "
+             'check. Output JSON {"queries":["concrete search query", ...]} -- each '
+             "a concrete keyword search query, NOT a question. Empty list if "
+             "nothing needs checking.")
+    queries: list = []
+    try:
+        async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
+            r = await s.post(f"{REFINE_ENDPOINT}/api/chat", json={
+                "model": REFINE_MODEL, "think": False, "stream": False,
+                "format": "json", "keep_alive": REFINE_KEEP_ALIVE,
+                "options": {"temperature": 0.0, "num_predict": 200},
+                "messages": [
+                    {"role": "system", "content": sys_p},
+                    {"role": "user",
+                     "content": f"Question: {user_q[:300]}\n\nDraft:\n{draft[:1500]}"}]},
+                headers={"Content-Type": "application/json"})
+            if r.status_code == 200:
+                c = (r.json().get("message") or {}).get("content") or ""
+                c = re.sub(r"<think>.*?</think>\s*", "", c, flags=re.DOTALL | re.I)
+                queries = [str(q).strip() for q in
+                           (json.loads(c or "{}").get("queries") or [])
+                           if str(q).strip()][:VERITY_FACTCHECK_MAX_Q]
+    except Exception as e:  # noqa: BLE001 -- best-effort
+        log.debug("verity query-gen skipped: %s", e)
+        return ""
+    if not queries:
+        return ""
+    if isinstance(refined, dict):  # record steps for the emit log
+        for q in queries:
+            refined.setdefault("_verity_steps", []).append(
+                {"emoji": "🔬", "label": "fact-check", "detail": q[:60]})
+
+    async def _fc(q: str) -> tuple:
+        try:
+            p = await asyncio.create_subprocess_exec(
+                "mios-web-search", "-n", "3", "--fanout", "1", q[:200],
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            o, _ = await asyncio.wait_for(
+                p.communicate(), timeout=WEB_RESEARCH_SEARCH_TIMEOUT)
+            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            hits = [f"  - {(x.get('title','') or '')[:70]} ({x.get('url','')}) "
+                    f"{(x.get('content','') or '')[:160]}"
+                    for x in (d.get("results") or [])[:3]]
+            return q, hits
+        except Exception:  # noqa: BLE001
+            return q, []
+
+    results = await asyncio.gather(*[_fc(q) for q in queries])
+    blocks = [f"CHECK: {q}\n" + "\n".join(hits) for q, hits in results if hits]
+    if not blocks:
+        return ""
+    log.info("verity fact-check: %d quer(ies) for %.50r", len(blocks), user_q)
+    return ("LIVE FACT-CHECK (fresh searches run THIS pass to verify the draft's "
+            "specifics; CONFIRM claims these results support, DROP or soften "
+            "claims they contradict or don't mention):\n\n" + "\n\n".join(blocks))
+
+
 async def polish_response(raw_text: str,
                           refined: Optional[dict],
                           session_id: Optional[str] = None,
@@ -3659,6 +3746,21 @@ async def polish_response(raw_text: str,
         _inv = ", ".join(str(t) for t in agent_tools) if agent_tools else "(none)"
         user_msg_parts.append(
             f"Tools the agent ACTUALLY invoked this turn: {_inv}")
+    # SOURCES survive the handoff (operator 2026-05-22): the live web-research
+    # grounding (with [n] URLs + fetched text) reaches the FINAL pass so it can
+    # cite [n] inline and verify the draft against the REAL sources, not just the
+    # agents' paraphrase.
+    _src = (refined or {}).get("_web_sources") or ""
+    if _src:
+        user_msg_parts.append(
+            "WEB SOURCES used this turn (cite [n] inline; verify the draft's "
+            "specifics against these -- assert only what they support):\n"
+            + _src[:6000])
+    # VERITY fact-check: fresh searches verifying the draft's uncertain specifics
+    # (operator 2026-05-22: the checks pass can use web tools to fact-check).
+    _fc_block = await _verity_factcheck(raw_text, user_q, refined)
+    if _fc_block:
+        user_msg_parts.append(_fc_block)
     # Feed the FULL sub-agent draft (capped generously) so polish
     # synthesises the complete answer instead of a truncated/mis-focused
     # slice -- the 3500 cap made polish produce partial answers + "no
@@ -7089,7 +7191,9 @@ def _enrich_step_emits(refined: Optional[dict], *, chat_id: str, model: str):
     _sse_status. Yields nothing when no steps ran."""
     if not isinstance(refined, dict):
         return
-    steps = (refined.get("_web_steps") or []) + (refined.get("_readtool_steps") or [])
+    steps = ((refined.get("_web_steps") or [])
+             + (refined.get("_readtool_steps") or [])
+             + (refined.get("_verity_steps") or []))
     for s in steps:
         if not isinstance(s, dict):
             continue
