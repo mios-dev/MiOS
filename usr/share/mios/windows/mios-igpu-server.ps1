@@ -80,7 +80,21 @@ if ($Install) {
     }
     $argline = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers -Device $Device"
     if ($Model) { $argline += " -Model `"$Model`"" }
-    $action  = New-ScheduledTaskAction  -Execute 'pwsh.exe' -Argument $argline
+    # Task Scheduler CANNOT run a bare 'pwsh.exe' when PowerShell 7 is the MSIX
+    # (Microsoft Store) build: the bare name is a per-user app-execution ALIAS
+    # (a reparse point under %LOCALAPPDATA%\Microsoft\WindowsApps) that the task
+    # service does not resolve -> the task fails 0x80070002 (ERROR_FILE_NOT_FOUND)
+    # and the iGPU "never fires" (operator 2026-05-25 debug). Resolve a CONCRETE
+    # interpreter path: prefer a real pwsh under Program Files, but NOT the
+    # WindowsApps versioned path (it changes on every pwsh update -> re-breaks);
+    # fall back to Windows PowerShell 5.1 at its FIXED System32 path -- this
+    # launcher is 5.1-compatible (no ternary/??/-Parallel; only an if-expression
+    # assignment), so 5.1 runs it identically.
+    $psExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+    if (-not $psExe -or $psExe -like '*\WindowsApps\*' -or -not (Test-Path $psExe)) {
+        $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    }
+    $action  = New-ScheduledTaskAction  -Execute $psExe -Argument $argline
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
     $prin    = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
