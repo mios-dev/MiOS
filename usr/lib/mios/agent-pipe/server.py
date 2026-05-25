@@ -2726,20 +2726,26 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     async def _judge_satisfied(user_q: str, gathered: str) -> tuple:
         # MODEL-DRIVEN Definition-of-Done (operator "loop until satisfied"): the
         # warm micro judges whether the gathered web content ANSWERS the query;
-        # if not it proposes a sharper search query for the next loop. No
-        # hardcoded topic/keyword check. Degrade OPEN (satisfied) on any error so
-        # a judge hiccup never blocks the answer.
+        # if NOT it returns BOTH a sharper search query AND a concrete source URL
+        # to fetch directly (operator 2026-05-25 chose "model picks the source" --
+        # no hardcoded news list; the MODEL names an authoritative page and the
+        # loop Firecrawl-scrapes it, bypassing junk search results). No hardcoded
+        # topic/keyword check. Returns (answerable, better_query, scrape_url).
+        # Degrade OPEN (satisfied) on any error so a judge hiccup never blocks.
         if not gathered.strip():
-            return False, ""
+            return False, "", ""
         sys_p = (
             "You decide whether the GATHERED web content is enough to ANSWER the "
             "USER QUERY. Reply JSON ONLY: {\"answerable\": true|false, "
-            "\"better_query\": \"<a sharper web-search query if NOT answerable, "
-            "else empty>\"}. answerable=true when the content holds the facts to "
-            "answer the query; false when it is off-topic, junk (dictionary or "
-            "brand/product pages), or missing the key facts. A better_query must "
-            "be concrete and AVOID vague words a search engine mis-matches to a "
-            "brand/product.")
+            "\"better_query\": \"<sharper web-search query if NOT answerable, else "
+            "empty>\", \"scrape_url\": \"<a concrete authoritative http(s) URL "
+            "whose page most likely HAS the answer, to fetch directly -- e.g. a "
+            "major outlet's lite/text news index for a current-events ask -- else "
+            "empty>\"}. answerable=true when the content holds the facts; false "
+            "when it is off-topic, junk (dictionary/brand pages), or missing the "
+            "key facts. better_query + scrape_url must be concrete and AVOID vague "
+            "words a search engine mis-matches to a brand/product. Prefer "
+            "lightweight text/lite endpoints when you know one.")
         payload = {
             "model": _JUDGE_MODEL,
             "messages": [{"role": "system", "content": sys_p},
@@ -2747,19 +2753,21 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                           "content": f"USER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}],
             "think": False, "stream": False, "format": "json",
             "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
-            "options": {"temperature": 0.0, "num_predict": 160},
+            "options": {"temperature": 0.0, "num_predict": 200},
         }
         try:
             async with httpx.AsyncClient(timeout=12.0) as c:
                 r = await c.post(f"{_JUDGE_BASE}/api/chat", json=payload,
                                  headers={"Content-Type": "application/json"})
                 if r.status_code != 200:
-                    return True, ""        # degrade open
+                    return True, "", ""        # degrade open
                 msg = (r.json().get("message") or {}).get("content") or "{}"
             obj = json.loads(msg)
-            return bool(obj.get("answerable")), str(obj.get("better_query") or "")
+            return (bool(obj.get("answerable")),
+                    str(obj.get("better_query") or ""),
+                    str(obj.get("scrape_url") or ""))
         except Exception:  # noqa: BLE001 -- never block the answer on the judge
-            return True, ""
+            return True, "", ""
 
     # Search the MODEL-SHARPENED query (refine's refined_text), not the raw user
     # text -- refine disambiguates a vague ask (operator 2026-05-24 "THAT SEEM
@@ -2891,15 +2899,40 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         _gathered = "\n\n".join(
             ((content.get(r.get("url", "")) or snippets.get(r.get("url", ""))
               or str(r.get("content", "")))[:600]) for r in touched)[:5000]
-        ok, better_q = await _judge_satisfied(query, _gathered)
+        ok, better_q, scrape_url = await _judge_satisfied(query, _gathered)
         if ok:
             break
+        # MODEL-PICKED SOURCE (operator 2026-05-25 "model picks the source"): the
+        # judge names an authoritative page; Firecrawl-scrape it DIRECTLY, bypass-
+        # ing the junk search results (e.g. wikinews) with a clean index/article.
+        # No hardcoded source -- the model chose the URL. Best-effort.
+        su = scrape_url.strip()
+        if su.startswith(("http://", "https://")) and su not in seen:
+            seen.add(su)
+            _rec({"emoji": "🔥", "label": "firecrawl",
+                  "detail": ("judge source -> " + su)[:60]})
+            _md = await _firecrawl(su)
+            if len(_md) >= WEB_RESEARCH_MIN_CHARS:
+                content[su] = _md
+                touched.append({"url": su, "title": "news source (judge-picked)",
+                                "content": ""})
+                n_crawled += 1
         if better_q and better_q.strip() and better_q.strip() != search_q_now:
             search_q_now = better_q.strip()
         _rec({"emoji": "🔁", "label": f"retry {attempt + 1}",
               "detail": ("not answered -> " + search_q_now)[:60]})
+    # ORDER the grounding so the BEST content LEADS (operator 2026-05-25: the
+    # wikinews NAV boilerplate was [1]). Judge-picked authoritative sources first
+    # (clean, requested precisely because the search results were junk), then
+    # pages with REAL article bodies, then thin snippets last. Dedup by URL.
+    def _rank(r: dict) -> tuple:
+        u = r.get("url", "")
+        picked = 0 if "judge-picked" in str(r.get("title", "")) else 1
+        real = 0 if u in content else (1 if u in snippets else 2)
+        return (picked, real)
+    _ranked = sorted({r.get("url", ""): r for r in touched}.values(), key=_rank)
     blocks: list = []
-    for i, r in enumerate(touched, start=1):
+    for i, r in enumerate(_ranked, start=1):
         u = r.get("url", "")
         title = str(r.get("title", "")).strip()
         body = (content.get(u) or snippets.get(u)
@@ -6502,7 +6535,7 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
     yield ("result", dag_result)
 
 
-def _agent_dag_from_tasks(tasks: list) -> dict:
+def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None) -> dict:
     """Build a CONCURRENT per-agent DAG from refine's multi_task array:
     one agent node per independent task, routed to the task's target_agent
     (a registry key as-is, else role-matched via _pick_agent, else the
@@ -6541,6 +6574,24 @@ def _agent_dag_from_tasks(tasks: list) -> dict:
         # prefix gets prepended to `prompt` later, so emit off `title` not prompt).
         nodes.append({"id": f"t{i + 1}", "agent": aname, "prompt": prompt,
                       "title": (str(t.get("title") or prompt)[:72]), "deps": []})
+    # ENGAGE EVERY LIVE ENGINE (operator 2026-05-25 "iGPU is still cold ... iGPU
+    # fires WITH CPU + all engines, true concurrent compute every turn"): any LIVE
+    # fanout-eligible agent still UNUSED (e.g. the iGPU when the planner emitted
+    # fewer facets than there are engines) gets an existing facet as a CONCURRENT
+    # second-opinion node, so all distinct hardware (dGPU/iGPU/CPU/phone) computes
+    # each swarm turn instead of sitting cold. Synthesis folds whatever finishes;
+    # the per-lane semaphore + health-gate read timeout bound the slow ones (the
+    # iGPU is ~7 tok/s, so this trades latency for full-hardware utilisation --
+    # the operator's explicit priority). Skipped when live_agents is unknown.
+    if live_agents and nodes:
+        for a in _AGENT_REGISTRY:
+            if (a in live_agents and a not in used
+                    and _AGENT_REGISTRY[a].get("fanout") is not False):
+                _src = nodes[len(used) % len(nodes)]
+                used.append(a)
+                nodes.append({"id": f"t{len(nodes) + 1}", "agent": a,
+                              "prompt": _src["prompt"],
+                              "title": str(_src["title"])[:72], "deps": []})
     summary = "; ".join(str(t.get("title") or "")[:60]
                         for t in tasks if isinstance(t, dict))[:200]
     return {"summary": summary, "nodes": nodes}
@@ -10146,7 +10197,8 @@ async def chat_completions(request: Request) -> Any:
             # Falls through to the legacy promote-and-queue path when fewer
             # than 2 tasks resolve to agents.
             if PLANNER_ENABLED:
-                _adag = _agent_dag_from_tasks(queued)
+                # live set (cached) -> engage every live engine incl the iGPU.
+                _adag = _agent_dag_from_tasks(queued, await _live_agent_names())
                 if len(_adag.get("nodes") or []) >= 2:
                     log.info("multi_task -> concurrent agent DAG (%d): %s",
                              len(_adag["nodes"]),
@@ -10210,7 +10262,7 @@ async def chat_completions(request: Request) -> Any:
         _swarm_tasks = await _plan_swarm(last_user_text)
         log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks",
                  _force_delegate, len(_swarm_tasks))
-        _mdag = (_agent_dag_from_tasks(_swarm_tasks)
+        _mdag = (_agent_dag_from_tasks(_swarm_tasks, await _live_agent_names())
                  if len(_swarm_tasks) >= 2 else None)
         if not (_mdag and len(_mdag.get("nodes") or []) >= 2):
             _gen = await decompose_intent(last_user_text)
