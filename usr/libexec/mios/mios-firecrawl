@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""mios-firecrawl -- SCRAPE a web page to clean markdown via the LOCAL,
+self-hosted Firecrawl API (the firecrawl-api member of the mios-webtools pod,
+127.0.0.1:3002; offline-first, no cloud dependency -- Architectural Law 5).
+
+WHY a SECOND fetch verb beside `crawl` (crawl4ai): they are DIFFERENT engines
+with different strengths, and the operator wants ALL web tools globally
+available to every agent. crawl4ai drives the local Chrome over CDP (best for
+JS-heavy / login-walled pages that the standing browser already has state for);
+Firecrawl is a dedicated scraper that returns very clean, LLM-ready markdown and
+reliably renders news/article indexes (verified 2026-05-25: a scrape of a live
+news index returned that day's real, dated headlines where SearXNG general
+search returned only dictionary/brand junk). Give the agent both; let it pick.
+
+SSOT: MIOS_FIRECRAWL_URL (rendered from mios.toml [ports].firecrawl). The
+localhost:3002 fallback is the only literal, matching the pod publish.
+
+Returns the SAME shape as mios-crawl so callers/ground-loops are uniform:
+{success, engine, url, title, markdown, links}.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.request
+
+FIRECRAWL_URL = os.environ.get(
+    "MIOS_FIRECRAWL_URL", "http://127.0.0.1:3002").rstrip("/")
+
+
+def scrape(url: str, max_chars: int, timeout: float) -> dict:
+    """POST /v1/scrape -> clean markdown of the page. Firecrawl renders the
+    page (JS) server-side and strips chrome/nav, so the markdown is article
+    text ready to ground on."""
+    payload = {
+        "url": url,
+        "formats": ["markdown"],
+        "onlyMainContent": True,
+    }
+    req = urllib.request.Request(
+        f"{FIRECRAWL_URL}/v1/scrape",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        d = json.loads(r.read().decode("utf-8", "replace"))
+    data = d.get("data") or {}
+    md = (data.get("markdown") or "").strip()
+    if max_chars and len(md) > max_chars:
+        md = md[:max_chars].rstrip() + "\n[...truncated]"
+    meta = data.get("metadata") or {}
+    return {
+        "success": bool(d.get("success") and md),
+        "engine": "firecrawl",
+        "url": url,
+        "title": (meta.get("title") or meta.get("ogTitle") or "").strip(),
+        "markdown": md,
+        "links": (data.get("links") or [])[:50],
+    }
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-firecrawl")
+    p.add_argument("url", help="http(s) URL to scrape")
+    p.add_argument("--json", action="store_true", default=True)
+    p.add_argument("--max-chars", type=int, default=20000)
+    p.add_argument("--timeout", type=float, default=60.0)
+    a = p.parse_args()
+
+    url = a.url.strip()
+    if not url.lower().startswith(("http://", "https://")):
+        print(json.dumps({"success": False, "engine": "firecrawl", "url": url,
+                          "error": "pass a concrete http(s) URL, not a query"}))
+        return 64
+    try:
+        out = scrape(url, max(0, a.max_chars), a.timeout)
+    except Exception as e:  # offline / firecrawl down: be HONEST, never fabricate
+        out = {"success": False, "engine": "firecrawl", "url": url,
+               "error": f"firecrawl scrape unavailable: {e}", "markdown": ""}
+    print(json.dumps(out, ensure_ascii=False))
+    return 0 if out.get("success") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -152,21 +152,25 @@ WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"
 # turn budget -- raised to 4 (operator wants the deep tool firing broadly, not 2).
 WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "45"))
 WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "4"))
-# Route "news" asks through the SearXNG NEWS category? DEFAULT OFF: live debug
-# 2026-05-22 found this instance's news engines (bing/ddg/reuters/yahoo/qwant/
-# brave news) are all IP-blocked -> the news category returns ONLY stale wikinews,
-# which made "latest <X> news" queries PUNT. General search (bing/ddg/brave) works
-# and returns current content. Flip true if/when the news engines are unblocked.
+# Route "news" asks through the SearXNG NEWS category? DEFAULT ON (2026-05-25).
+# The 2026-05-22 note said the news engines (bing/ddg/reuters/yahoo/qwant/brave
+# news) were IP-blocked so the news category returned only stale wikinews -- that
+# is STALE. Re-probed 2026-05-25 (isolated SearXNG test): `categories=news` for
+# "world news today" returns 43 REAL results from reuters(20)/qwant news(10)/
+# bing news(8)/wikinews(5) -- the engines work again. The GENERAL search, by
+# contrast, returns dictionary/brand junk for news queries ("what's new" ->
+# Merriam-Webster "WHAT", WhatsApp; "current events" -> the "Current" banking
+# app). So news asks MUST use the news category. refine's MODEL-DRIVEN `news`
+# flag gates it (no Python keyword list).
 WEB_RESEARCH_USE_NEWS_CATEGORY = os.environ.get(
-    "MIOS_WEB_RESEARCH_USE_NEWS_CATEGORY", "false").lower() not in {"false", "0", "no"}
-# Recency window for a TIME-SENSITIVE turn (operator 2026-05-25: "current global
-# trending" still hit Wikipedia-Economics + a Forbes 2025 listicle + the 'Current'
-# banking app -> non-answer). Since the news ENGINES are IP-blocked (above), we
-# instead pass a SearXNG `time_range` on the GENERAL search so current asks pull
-# RECENT content (CNBC/Reuters/FT/2026 outlooks) and the evergreen/stale junk
-# drops out -- no blocked engines needed. GATED on refine's MODEL-DRIVEN `news`
-# flag (not a Python keyword list). Empty disables it. day|week|month|year.
-WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "month").strip()
+    "MIOS_WEB_RESEARCH_USE_NEWS_CATEGORY", "true").lower() not in {"false", "0", "no"}
+# Recency window (SearXNG `time_range`). DISABLED by default: isolated test
+# 2026-05-25 showed `time_range=week|month` returns ZERO results for news queries
+# on this instance (the recency filter is too aggressive / engine-dependent) --
+# it was an actively HARMFUL "fix" that produced empty grounding -> non-answers.
+# The news category (above) is what actually surfaces current dated stories.
+# Set day|week|month|year to re-enable if a future engine set supports it.
+WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").strip()
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-

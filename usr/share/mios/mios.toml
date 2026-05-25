@@ -1313,6 +1313,21 @@ cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} 
   default = 3
   aliases = ["expand", "queries", "k"]
 
+[verbs.web_scrape]
+section    = "Discovery / resolution"
+sig        = "url, limit=20000?"
+desc       = "SCRAPE a web page to clean, LLM-ready MARKDOWN via the LOCAL self-hosted Firecrawl (offline-first, no cloud dependency). A SECOND fetch engine alongside `crawl`: Firecrawl returns very clean article/news markdown and reliably renders news/article INDEX pages -- verified a live news-index scrape returned that day's REAL dated headlines where web_search returned only dictionary/brand junk. USE THIS to READ a page (especially a news index or article) whose URL you have; pair with web_search (find URL -> scrape it). NOT a search: pass a concrete http(s) URL, not a query. `crawl` (crawl4ai driving the real local Chrome over CDP) is the alternative for JS-heavy / login-walled pages. Returns {success, engine, url, title, markdown, links} from a real fetched render; if the fetch fails, say so -- never invent page content."
+tier       = "core"
+permission = "read"
+cmd        = "mios-firecrawl --max-chars {limit=20000} {url}"
+  [verbs.web_scrape.params.url]
+  type    = "string"
+  aliases = ["link", "page", "address", "u", "firecrawl", "scrape"]
+  [verbs.web_scrape.params.limit]
+  type    = "integer"
+  default = 20000
+  aliases = ["max_chars", "chars", "n"]
+
 [verbs.crawl]
 section    = "Discovery / resolution"
 sig        = "url, limit=20000?"
