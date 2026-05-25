@@ -2308,6 +2308,20 @@ async def _rag_enrich(query: str) -> str:
             "if helpful, ignore if not):\n" + "\n".join(lines))
 
 
+def _url_has_path(u: str) -> bool:
+    """True when a URL points DEEPER than a site front page (has a real path) --
+    a STRUCTURAL article-vs-homepage signal for ranking news results (no topic /
+    English content). 'https://x.com/' and 'https://x.com' -> False; a story URL
+    '.../world/2026/05/25/...' -> True. Import-free (called on the hot path)."""
+    try:
+        after = u.split("://", 1)[-1]
+        path = after.split("/", 1)[1] if "/" in after else ""
+        path = path.split("?", 1)[0].split("#", 1)[0]
+        return bool(path.strip("/"))
+    except Exception:  # noqa: BLE001
+        return True
+
+
 async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     """Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
     ITSELF loops for web use and web tools"). For a web-needing turn the PIPELINE
@@ -2396,42 +2410,72 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
         if u and u not in seen:
             seen.add(u)
             ordered.append(r)
-    top = ordered[:WEB_RESEARCH_RESULTS]
-    # (1) EXTRACT every top result first (fast stdlib, concurrent).
-    content: dict = {}
-    extracts = await asyncio.gather(*[_extract(r["url"]) for r in top])
-    thin: list = []
-    for r, t in zip(top, extracts):
-        if len(t) >= WEB_RESEARCH_MIN_CHARS:
-            content[r["url"]] = t          # good content -- keep
-        else:
-            thin.append((r, t))            # blocked (403) / JS / thin -> maybe crawl
-    # (2) ESCALATE the TOP thin/blocked pages to the deep crawl engine
-    # (crawl4ai+CDP / Camoufox stealth -- rescues the 403s). Bounded to
-    # WEB_RESEARCH_CRAWL_MAX so the slow renderer can't blow the turn; concurrent.
-    if WEB_RESEARCH_CRAWL_FALLBACK and thin:
-        crawl_batch = thin[:WEB_RESEARCH_CRAWL_MAX]
-        crawled = await asyncio.gather(*[_crawl(r["url"]) for r, _ in crawl_batch])
-        for (r, t), c in zip(crawl_batch, crawled):
-            best = c if len(c) > len(t) else t
-            if best:
-                content[r["url"]] = best
-        thin = thin[WEB_RESEARCH_CRAWL_MAX:]
-    # Thin pages we didn't (or couldn't) crawl still contribute their snippet text.
-    for r, t in thin:
-        if t and r["url"] not in content:
-            content[r["url"]] = t
+    # NEWS turns: DEMOTE bare-homepage results (no URL path AND no publishedDate)
+    # to the END so the drill loop extracts real DATED ARTICLES first, not site
+    # front pages -- the "here are the news homepages, go visit them yourself"
+    # failure (operator 2026-05-25). Stable sort; STRUCTURAL only (URL-path depth
+    # + SearXNG's news `publishedDate`); NO topic/English content, nothing dropped.
+    if bool((refined or {}).get("news")):
+        ordered.sort(key=lambda r: 0 if (
+            r.get("publishedDate") or _url_has_path(r.get("url", ""))) else 1)
+    # DRILL LOOP (operator 2026-05-25 "loop until complete"): each pass EXTRACTS
+    # the next batch of results; thin/blocked pages ESCALATE to the deep crawl
+    # engine (crawl4ai+CDP / Camoufox) within a shared budget. Keep drilling until
+    # we hold enough SUBSTANTIVE article content (>= WEB_RESEARCH_FETCH_N good
+    # pages) OR the results run out / the pass cap (WEB_RESEARCH_PASSES) is hit --
+    # so a turn whose first batch was all homepage boilerplate digs DEEPER instead
+    # of surrendering a shallow "visit these sites" answer.
+    content: dict = {}          # url -> REAL article text (>= MIN_CHARS)
+    snippets: dict = {}         # url -> fallback snippet (thin/blocked page)
+    touched: list = []          # results considered, in drill order
+    crawl_budget = WEB_RESEARCH_CRAWL_MAX
+    want = max(1, WEB_RESEARCH_FETCH_N)
+    idx = 0
+    passes = 0
+    for passes in range(1, WEB_RESEARCH_PASSES + 1):
+        batch = ordered[idx:idx + want]
+        if not batch:
+            break
+        idx += len(batch)
+        touched.extend(batch)
+        extracts = await asyncio.gather(*[_extract(r["url"]) for r in batch])
+        thin: list = []
+        for r, t in zip(batch, extracts):
+            if len(t) >= WEB_RESEARCH_MIN_CHARS:
+                content[r["url"]] = t                 # real article body -- keep
+            else:
+                thin.append((r, t))                   # blocked (403) / JS / thin
+        # escalate thin/blocked pages to the deep crawl engine, within budget.
+        if WEB_RESEARCH_CRAWL_FALLBACK and thin and crawl_budget > 0:
+            cb = thin[:crawl_budget]
+            crawl_budget -= len(cb)
+            crawled = await asyncio.gather(*[_crawl(r["url"]) for r, _ in cb])
+            for (r, t), c in zip(cb, crawled):
+                best = c if len(c) > len(t) else t
+                if len(best) >= WEB_RESEARCH_MIN_CHARS:
+                    content[r["url"]] = best
+                elif best:
+                    snippets[r["url"]] = best
+            thin = thin[len(cb):]
+        # un-crawled thin pages still contribute their snippet text.
+        for r, t in thin:
+            if t and r["url"] not in content and r["url"] not in snippets:
+                snippets[r["url"]] = t
+        # STOP once we hold enough REAL article content to ground a rich answer.
+        if len(content) >= want:
+            break
     blocks: list = []
-    for i, r in enumerate(top, start=1):
+    for i, r in enumerate(touched, start=1):
         u = r.get("url", "")
         title = str(r.get("title", "")).strip()
-        body = content.get(u) or str(r.get("content", "")).strip()
+        body = (content.get(u) or snippets.get(u)
+                or str(r.get("content", "")).strip())
         if body:
             blocks.append(f"[{i}] {title} ({u})\n{body[:WEB_RESEARCH_BLOCK_CHARS]}")
     if not blocks:
         return ""
-    log.info("web-research: %d results, %d pages fetched for %.60r",
-             len(ordered), len(content), query)
+    log.info("web-research: %d results, %d real / %d snippet over %d pass(es) for %.60r",
+             len(ordered), len(content), len(snippets), passes, query)
     return ("LIVE WEB RESEARCH -- the MiOS pipeline searched SearXNG (multiple "
             "queries) and FETCHED the top pages below. GROUND your answer on this "
             "REAL content: synthesise the actual stories/facts across sources, "

@@ -83,6 +83,10 @@ def search(query: str, limit: int, timeout: float, category: str = "") -> dict:
             "title": it.get("title", ""),
             "url": it.get("url", ""),
             "content": (it.get("content") or "")[:500],
+            # publishedDate passthrough (operator 2026-05-25): SearXNG NEWS
+            # engines set this on dated stories -- lets the caller PREFER real
+            # articles over bare homepages and cite recency. Empty on general web.
+            "publishedDate": it.get("publishedDate") or "",
         }
         for it in (data.get("results") or [])
     ]
