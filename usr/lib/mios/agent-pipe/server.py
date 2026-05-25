@@ -5901,6 +5901,13 @@ _SWARM_SYSTEM = (
     "ONLY its own task string, not the others.\n"
     "- Independent only: do NOT emit sub-tasks that depend on each other's output "
     "(they run concurrently).\n"
+    "- For a BROAD or 'everything about X' request, split into DISTINCT FACETS of "
+    "the topic -- different sub-topics, angles, regions or sectors that can EACH "
+    "be researched independently in parallel (e.g. for world news: geopolitics, "
+    "economy, technology, climate, sport/culture). Do NOT make one task 'search' "
+    "and another 'summarize what was found' -- that is a dependent pipeline, not "
+    "a parallel swarm; every sub-task must stand alone and produce its own "
+    "answer.\n"
     "- If the request is genuinely single-step / not worth splitting, emit "
     '{"subtasks":[]} and the caller handles it normally.\n'
     "\n"
@@ -9365,8 +9372,24 @@ async def chat_completions(request: Request) -> Any:
         SWARM_DECOMPOSE_DEFAULT and refined
         and refined.get("intent") == "agent"
         and len((last_user_text or "").split()) >= SWARM_DECOMPOSE_MIN_WORDS)
+    # COMPREHENSIVE intent -> force the swarm decompose even with
+    # SWARM_DECOMPOSE_DEFAULT off (operator 2026-05-24: "Get me EVERYTHING about
+    # current global trending" went to a council where all agents gave the SAME
+    # shallow answer -- "NOT A TRUE SWARM"). An explicitly broad / "everything" /
+    # "deep dive" ask IS multi-faceted, so split it into DISTINCT concurrent
+    # sub-tasks (facets) across agents + synthesise. _plan_swarm self-gates, so a
+    # mislabelled simple ask still falls back to council.
+    _q_lc = (last_user_text or "").lower()
+    _comprehensive = any(p in _q_lc for p in (
+        "everything about", "everything on", "everything regarding", "all about",
+        "comprehensive", "deep dive", "deep-dive", "full rundown", "rundown",
+        "full picture", "in depth", "in-depth", "get me everything",
+        "tell me everything", "give me everything", "complete overview",
+        "the latest on", "all the latest", "breakdown of", "full breakdown",
+        "everything happening", "everything going on"))
     if PLANNER_ENABLED and (_force_delegate
                             or (refined and refined.get("_multi_step"))
+                            or _comprehensive
                             or _decompose_default):
         # Layer B (operator 'AI SWARM'): the DEDICATED swarm decomposer
         # first (reliable {agent, sub-task} assignments), then fall back to
