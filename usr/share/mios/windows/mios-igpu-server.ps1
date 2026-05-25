@@ -41,9 +41,13 @@ param(
     # Pin to a SINGLE Vulkan device so llama.cpp does NOT layer-split onto the
     # RTX 4090 (Vulkan also enumerates the 4090, and GPU-PV shares it with the
     # WSL VM where hermes runs -- spilling onto it would steal hermes's VRAM).
-    # On this host the AMD iGPU enumerates as Vulkan0; run with -ShowDevices to
-    # re-check, or override (e.g. -Device Vulkan1) if enumeration ever changes.
-    [string] $Device      = 'Vulkan0',
+    # Vulkan device ENUMERATION ORDER IS NOT STABLE across processes (operator
+    # 2026-05-25: the task-managed server got Vulkan0=RTX 4090 and ran the "iGPU"
+    # model on the dGPU at 138 tok/s, stealing hermes's VRAM; standalone
+    # --list-devices on the same host showed Vulkan0=AMD). So a fixed index is
+    # unreliable. 'auto' (default) resolves the AMD/Radeon device by NAME at
+    # launch (see below). Pass an explicit VulkanN to override.
+    [string] $Device      = 'auto',
     [switch] $ShowDevices,
     [string] $LlamaTag    = 'latest',      # llama.cpp release tag, or 'latest'
     [switch] $Install,
@@ -161,11 +165,35 @@ if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue
     Ok "firewall: allow tailnet -> :$Port"
 }
 
-# ---- run llama-server (Vulkan auto-detects the AMD iGPU) ---------------------
+# ---- resolve the AMD iGPU device by NAME (enumeration order is unstable) -----
+# CRITICAL (operator 2026-05-25): Vulkan device INDICES are not stable across
+# processes, so a fixed --device Vulkan0 sometimes pinned the RTX 4090 and ran
+# the "iGPU" model on the dGPU (138 tok/s, stealing hermes's VRAM). Resolve the
+# index by NAME here, in the SAME process context that will launch the server
+# (so the enumeration it sees matches), picking the AMD/Radeon device and NEVER
+# an NVIDIA one. `--list-devices` prints e.g. "  Vulkan1: AMD Radeon(TM) Graphics
+# (..)". Only runs for -Device auto; an explicit VulkanN is honoured as-is.
+if ($Device -eq 'auto') {
+    $devTxt = (& $exe --list-devices 2>&1 | Out-String)
+    $hit = [regex]::Matches($devTxt, '(?im)^\s*(Vulkan\d+)\s*:\s*(.+?)\s*\(') |
+           Where-Object { $_.Groups[2].Value -match '(?i)AMD|Radeon' -and
+                          $_.Groups[2].Value -notmatch '(?i)NVIDIA|GeForce|RTX' } |
+           Select-Object -First 1
+    if ($hit) {
+        $Device = $hit.Groups[1].Value
+        Ok "auto-selected iGPU by NAME: $Device = $($hit.Groups[2].Value.Trim())"
+    } else {
+        $Device = 'Vulkan0'
+        Warn "no AMD/Radeon Vulkan device found in --list-devices; falling back to $Device"
+        Warn "device list was:`n$devTxt"
+    }
+}
+
+# ---- run llama-server (pinned to the resolved AMD iGPU device) ---------------
 $tsIp = (Get-NetIPAddress -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -like '100.*' } | Select-Object -First 1).IPAddress
 Info "model:    $Model"
 Info "binding:  0.0.0.0:$Port   (tailnet -> http://$tsIp`:$Port/v1)"
-Info "GPU:      Vulkan, offload $GpuLayers layers (watch the startup log for 'Vulkan0: AMD Radeon ...')"
+Info "GPU:      Vulkan device $Device (resolved by name; expect the AMD iGPU, ~9 tok/s -- NOT the 4090)"
 $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
 # llama-server logs to STDERR. Under Windows PowerShell 5.1 (which the scheduled
 # task now uses for a STABLE interpreter path -- the MSIX pwsh alias is
