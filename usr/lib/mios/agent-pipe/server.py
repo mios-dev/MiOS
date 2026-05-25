@@ -200,6 +200,12 @@ _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
 SECONDARY_TOOL_LOOP = os.environ.get(
     "MIOS_SECONDARY_TOOL_LOOP", "true").lower() not in {"false", "0", "no"}
 SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "2"))
+# Mirror every phase emit into the reasoning channel as a PERSISTENT log line
+# (operator 2026-05-22: OWUI status pills are transient, so the activity log
+# never stays visible). reasoning_content persists in OWUI's Thinking block;
+# strict OpenAI clients ignore it. See _sse_status.
+STATUS_AS_REASONING = os.environ.get(
+    "MIOS_STATUS_AS_REASONING", "true").lower() not in {"false", "0", "no"}
 # Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
 # the same time -- reasonable limit/cap"). Council secondaries + DAG-level
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
@@ -7000,6 +7006,7 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
     stays available for one-off cases where the phase mapping
     doesn't fit."""
     payload = {"emoji": emoji, "label": label, "done": done}
+    _desc = f"{emoji} {label}".strip()
     if detail:
         d = str(detail).strip()
         if d:
@@ -7007,9 +7014,18 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
             # Append to label for clients that only render `label`. " · "
             # separator (was a bare double-space that read as a layout glitch).
             payload["label"] = f"{label} · {d[:80]}" if label else d[:80]
+            _desc = f"{_desc} · {d[:80]}".strip(" ·")
+    # ALSO stream the emit as a PERSISTENT reasoning line (operator 2026-05-22:
+    # OWUI status pills are TRANSIENT -- one line, replaced each event, gone on
+    # done -- so the operator never sees the activity LOG). reasoning_content
+    # persists in OWUI's <details> Thinking block (and strict OpenAI clients
+    # ignore it), so the live phase log stays visible WITH context. Skip the
+    # terminal done marker -- it lands after the answer starts, where the OWUI
+    # bridge drops late reasoning.
+    _reason = (_desc + "\n") if (STATUS_AS_REASONING and _desc and not done) else None
     return _sse_chunk(
         "", chat_id=chat_id, model=model,
-        mios_status=payload,
+        mios_status=payload, reasoning=_reason,
     )
 
 
