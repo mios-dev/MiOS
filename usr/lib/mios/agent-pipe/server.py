@@ -1284,7 +1284,8 @@ def _agent_skill_tags(cfg: dict) -> list[str]:
 
 def _pick_fanout_agents(primary_name: str,
                         refined: Optional[dict],
-                        *, force_council: bool = False) -> list:
+                        *, force_council: bool = False,
+                        live_agents: Optional[set] = None) -> list:
     """Pick SECONDARY (name, cfg) agents to run CONCURRENTLY alongside the
     chosen primary -- operator 2026-05-21 'a couple at a time' + 'self-
     delegate to CPU concurrently to pending/future GPU operations' + 'make
@@ -1307,10 +1308,20 @@ def _pick_fanout_agents(primary_name: str,
         return c.get("fanout") is False or \
             str(c.get("fanout", "")).lower() in {"false", "no", "0"}
 
+    def _live(name: str) -> bool:
+        # OUTAGE prune (operator 2026-05-25 debug: a DOWN node 'mios-igpu 💤' was
+        # still dispatched into the council, wasting a slot + surfacing as a
+        # failure). A health_gate node that the liveness probe found unreachable
+        # is excluded so the council = all LIVE nodes, not all CONFIGURED ones.
+        # live_agents=None (no probe supplied) keeps the legacy all-configured
+        # behaviour, so this never strands a turn on a bad/absent probe.
+        return live_agents is None or name in live_agents
+
     if force_council:
         primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
         swarm = [(name, cfg) for name, cfg in _AGENT_REGISTRY.items()
-                 if name != primary_name and not _opted_out(cfg)]
+                 if name != primary_name and not _opted_out(cfg)
+                 and _live(name)]
         swarm.sort(key=lambda nc: (
             0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
         return swarm
@@ -1329,7 +1340,7 @@ def _pick_fanout_agents(primary_name: str,
         primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
         council = [
             (name, cfg) for name, cfg in _AGENT_REGISTRY.items()
-            if name != primary_name and not _opted_out(cfg)
+            if name != primary_name and not _opted_out(cfg) and _live(name)
         ]
         council.sort(key=lambda nc: (
             0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
@@ -1365,6 +1376,8 @@ def _pick_fanout_agents(primary_name: str,
             continue
         # Honour the explicit fan-out opt-out (see _opted_out above).
         if _opted_out(cfg):
+            continue
+        if not _live(name):       # OUTAGE prune (see _live above)
             continue
         # Route on the agent's A2A skill tags (the SAME _agent_skill_tags
         # SSOT the AgentCard publishes), expanding snake_case sub-tokens for
@@ -10530,8 +10543,17 @@ async def chat_completions(request: Request) -> Any:
     # of relevant secondary agents to run alongside the primary. Empty
     # unless [dispatch].fanout_max>1 AND a registered agent's role/strengths
     # match the refined intent -> safe single-agent no-op by default.
+    # Prune DOWN nodes from the council so a dead engine (a down iGPU/phone)
+    # isn't dispatched into every turn (operator 2026-05-25 debug: 'mios-igpu
+    # 💤' kept appearing). Cached liveness -> negligible cost; degrades open
+    # (probe failure -> None -> all-configured, legacy behaviour).
+    try:
+        _live_set = await _live_agent_names()
+    except Exception:  # noqa: BLE001
+        _live_set = None
     _fanout = _pick_fanout_agents(target_name, refined,
-                                  force_council=_force_council)
+                                  force_council=_force_council,
+                                  live_agents=_live_set)
     if _fanout:
         log.info("fanout%s: primary=%s + %d secondary %s",
                  " (FORCED swarm)" if _force_council else "",
