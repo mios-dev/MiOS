@@ -1380,6 +1380,10 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #   MIOS_WEB_RESEARCH_FETCH_N     = 3     -- pages fetched per pass (web_extract)
 #   MIOS_WEB_RESEARCH_FETCH_CHARS = 3000  -- chars pulled per page
 #   MIOS_WEB_RESEARCH_BLOCK_CHARS = 1200  -- chars injected per source
+#   MIOS_WEB_RESEARCH_CRAWL_FALLBACK = true -- escalate a THIN extract (a JS /
+#       protected page) to mios-crawl (crawl4ai+CDP / Camoufox, the web-tools
+#       pod) so the DEEP web tool fires too, not just search+extract.
+#       MIOS_WEB_RESEARCH_MIN_CHARS (300) = thin threshold; _CRAWL_TIMEOUT_S (25).
 # Knowledge storage (operator 2026-05-23: "...present to user as final answer
 # and STORE all gained knowledge in all relevant global databases"). agent-pipe
 # persists each finished Q+A -- with the turn's derived sources (verbs invoked +
