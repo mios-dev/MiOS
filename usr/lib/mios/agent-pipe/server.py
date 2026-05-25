@@ -159,6 +159,14 @@ WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "4"))
 # and returns current content. Flip true if/when the news engines are unblocked.
 WEB_RESEARCH_USE_NEWS_CATEGORY = os.environ.get(
     "MIOS_WEB_RESEARCH_USE_NEWS_CATEGORY", "false").lower() not in {"false", "0", "no"}
+# Recency window for a TIME-SENSITIVE turn (operator 2026-05-25: "current global
+# trending" still hit Wikipedia-Economics + a Forbes 2025 listicle + the 'Current'
+# banking app -> non-answer). Since the news ENGINES are IP-blocked (above), we
+# instead pass a SearXNG `time_range` on the GENERAL search so current asks pull
+# RECENT content (CNBC/Reuters/FT/2026 outlooks) and the evergreen/stale junk
+# drops out -- no blocked engines needed. GATED on refine's MODEL-DRIVEN `news`
+# flag (not a Python keyword list). Empty disables it. day|week|month|year.
+WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "month").strip()
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -2626,17 +2634,21 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     if not any(h in _webverbs for h in hints):
         return ""
 
-    async def _search(q: str, news: bool = False) -> list:
+    async def _search(q: str, news: bool = False, time_range: str = "") -> list:
         # news=True targets SearXNG's NEWS category (dated stories) instead of
         # the general web -- set by refine's MODEL-DRIVEN `news` flag for
         # current-events / breaking / trending asks (operator 2026-05-24: a vague
         # 'current global trending' hit the 'Current' banking app on a general
         # search; the news index returns real dated stories). NOT a Python
-        # keyword check -- the refine model classifies the intent.
+        # keyword check -- the refine model classifies the intent. time_range
+        # recency-filters the GENERAL search (the news ENGINES are IP-blocked, so
+        # this is how a current ask gets CURRENT content -- operator 2026-05-25).
         args = ["mios-web-search", "-n", str(WEB_RESEARCH_RESULTS),
                 "--fanout", str(WEB_RESEARCH_FANOUT)]
         if news:
             args.append("--news")   # SearXNG news category -> real dated stories
+        if time_range:
+            args += ["--time-range", time_range]
         args.append(q[:400])
         try:
             p = await asyncio.create_subprocess_exec(
@@ -2689,6 +2701,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     # General search works, so route news asks through it too until news engines
     # are unblocked. refine's `news` flag still gates IF news is ever re-enabled.
     _use_news = WEB_RESEARCH_USE_NEWS_CATEGORY and bool((refined or {}).get("news"))
+    # TIME-SENSITIVE general search (operator 2026-05-25): when refine flags the
+    # turn `news` (current/recent/trending), recency-filter the general web so it
+    # returns CURRENT content instead of evergreen Wikipedia / stale listicles --
+    # the news ENGINES are blocked, so this (not the news category) is the lever.
+    _time_range = WEB_RESEARCH_TIME_RANGE if bool((refined or {}).get("news")) else ""
     # Per-STEP emit log (operator 2026-05-22 "need emitters for every step
     # end-to-end" -- not one whole-loop summary). Each web step is recorded here;
     # the streaming path replays them as individual emits. Stashed on refined.
@@ -2706,8 +2723,9 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 pass
 
     _rec({"emoji": "🔎", "label": "search",
-          "detail": (("news · " if _use_news else "") + search_q)[:72]})
-    results = await _search(search_q, news=_use_news)
+          "detail": (("news · " if _use_news else
+                      (_time_range + " · " if _time_range else "")) + search_q)[:72]})
+    results = await _search(search_q, news=_use_news, time_range=_time_range)
     if not results:
         return ""
     seen: set = set()
@@ -10535,6 +10553,23 @@ async def chat_completions(request: Request) -> Any:
     if refined:
         target_role = str(refined.get("target_agent") or "").lower()
     target_name, target_cfg = _pick_agent(target_role)
+    # Cached liveness, computed ONCE here and reused for both the primary guard
+    # and the fan-out below. Prune DOWN nodes so a dead engine (a down iGPU/
+    # phone) isn't selected as primary OR dispatched into the council (operator
+    # 2026-05-25 debug: 'mios-igpu 💤' kept appearing). Negligible cost (TTL
+    # cache); degrades open (probe failure -> None -> legacy all-configured).
+    try:
+        _live_set = await _live_agent_names()
+    except Exception:  # noqa: BLE001
+        _live_set = None
+    # OUTAGE: if refine routed the PRIMARY to a node that is currently down, fall
+    # back to a LIVE agent (prefer the registry default, which is never
+    # health_gate) so the turn never proxies to a dead primary endpoint.
+    if _live_set is not None and target_name not in _live_set:
+        _alt_name, _alt_cfg = _pick_agent("")     # default agent (always live)
+        if _alt_name in _live_set:
+            log.info("outage: primary %r down -> live %r", target_name, _alt_name)
+            target_name, target_cfg = _alt_name, _alt_cfg
     target_endpoint = target_cfg.get("endpoint") or BACKEND
     # Casual MiOS-convention label for SSE strip; the literal name
     # stays in the event payload + journal for debuggability.
@@ -10543,14 +10578,6 @@ async def chat_completions(request: Request) -> Any:
     # of relevant secondary agents to run alongside the primary. Empty
     # unless [dispatch].fanout_max>1 AND a registered agent's role/strengths
     # match the refined intent -> safe single-agent no-op by default.
-    # Prune DOWN nodes from the council so a dead engine (a down iGPU/phone)
-    # isn't dispatched into every turn (operator 2026-05-25 debug: 'mios-igpu
-    # 💤' kept appearing). Cached liveness -> negligible cost; degrades open
-    # (probe failure -> None -> all-configured, legacy behaviour).
-    try:
-        _live_set = await _live_agent_names()
-    except Exception:  # noqa: BLE001
-        _live_set = None
     _fanout = _pick_fanout_agents(target_name, refined,
                                   force_council=_force_council,
                                   live_agents=_live_set)
