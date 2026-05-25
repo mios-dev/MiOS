@@ -139,7 +139,12 @@ WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEO
 WEB_RESEARCH_CRAWL_FALLBACK = os.environ.get(
     "MIOS_WEB_RESEARCH_CRAWL_FALLBACK", "true").lower() not in {"false", "0", "no"}
 WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"))
-WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "25"))
+# Camoufox stealth render is SLOW (~20-40s) but RESCUES bot-blocked / JS pages
+# (operator 2026-05-24: a weforum 403 came back EMPTY because the old 25s crawl
+# TIMED OUT -> non-answer). 45s gives Camoufox room; CRAWL_MAX caps how many thin
+# pages escalate (concurrent) so the slow renderer can't blow the turn budget.
+WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "45"))
+WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "2"))
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -2295,12 +2300,21 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     if not any(("web" in h or "search" in h) for h in hints):
         return ""
 
-    async def _search(q: str) -> list:
+    async def _search(q: str, news: bool = False,
+                      fanout: Optional[int] = None) -> list:
+        # fanout=1 (no micro-LLM expansion) for a CANONICAL query: the weak
+        # expander slugified "top world news headlines today" -> "top" ->
+        # dictionary/Topgolf junk, so a literal canonical query must NOT expand.
+        _fo = WEB_RESEARCH_FANOUT if fanout is None else fanout
+        args = ["mios-web-search", "-n", str(WEB_RESEARCH_RESULTS),
+                "--fanout", str(_fo)]
+        if news:
+            args.append("--news")   # SearXNG news category -> real dated stories
+        args.append(q[:400])
         try:
             p = await asyncio.create_subprocess_exec(
-                "mios-web-search", "-n", str(WEB_RESEARCH_RESULTS),
-                "--fanout", str(WEB_RESEARCH_FANOUT), q[:400],
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                *args, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL)
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_SEARCH_TIMEOUT)
             d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
@@ -2335,19 +2349,22 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
         except Exception:  # noqa: BLE001
             return ""
 
-    async def _fetch(url: str) -> str:
-        # Fast path: stdlib extract. ESCALATE a THIN result (JS-rendered /
-        # protected page) to the deep crawl engine so ALL web tools fire
-        # (operator 2026-05-24) -- bounded to thin pages so the heavy renderer
-        # only runs when the cheap fetch fell short.
-        text = await _extract(url)
-        if WEB_RESEARCH_CRAWL_FALLBACK and len(text) < WEB_RESEARCH_MIN_CHARS:
-            crawled = await _crawl(url)
-            if len(crawled) > len(text):
-                return crawled
-        return text
-
     results = await _search(query)
+    # News / trending / current-events intent -> ALSO search a CANONICAL news
+    # query, prepended so it leads. The vague raw query matched 'Current' the
+    # BANKING APP + 'electric current' (Wikipedia) on general search (operator
+    # 2026-05-24 non-answer); a canonical "top world news headlines today" query
+    # reliably surfaces the mainstream homepages (BBC/AP/Reuters/CNN), which then
+    # CRAWL into real current headlines. (SearXNG's --news category here is
+    # Wikinews-only -- low value -- so we use the canonical general query.)
+    _q = (query or "").lower()
+    if any(w in _q for w in (
+            "trend", "news", "headline", "happening", "latest", "breaking",
+            "current event", "what's new", "whats new", "world news", "today",
+            "this week", "right now", "going on")):
+        _news = await _search("top world news headlines today", fanout=1)
+        if _news:
+            results = _news + [r for r in results if r not in _news]
     if not results:
         return ""
     seen: set = set()
@@ -2357,19 +2374,33 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
         if u and u not in seen:
             seen.add(u)
             ordered.append(r)
-    # DRILL LOOP: each pass fetches the NEXT batch of top results for real text.
+    top = ordered[:WEB_RESEARCH_RESULTS]
+    # (1) EXTRACT every top result first (fast stdlib, concurrent).
     content: dict = {}
-    per_pass = max(1, WEB_RESEARCH_FETCH_N)
-    for _ in range(WEB_RESEARCH_PASSES):
-        batch = [r for r in ordered if r["url"] not in content][:per_pass]
-        if not batch:
-            break
-        texts = await asyncio.gather(*[_fetch(r["url"]) for r in batch])
-        for r, t in zip(batch, texts):
-            if t:
-                content[r["url"]] = t
+    extracts = await asyncio.gather(*[_extract(r["url"]) for r in top])
+    thin: list = []
+    for r, t in zip(top, extracts):
+        if len(t) >= WEB_RESEARCH_MIN_CHARS:
+            content[r["url"]] = t          # good content -- keep
+        else:
+            thin.append((r, t))            # blocked (403) / JS / thin -> maybe crawl
+    # (2) ESCALATE the TOP thin/blocked pages to the deep crawl engine
+    # (crawl4ai+CDP / Camoufox stealth -- rescues the 403s). Bounded to
+    # WEB_RESEARCH_CRAWL_MAX so the slow renderer can't blow the turn; concurrent.
+    if WEB_RESEARCH_CRAWL_FALLBACK and thin:
+        crawl_batch = thin[:WEB_RESEARCH_CRAWL_MAX]
+        crawled = await asyncio.gather(*[_crawl(r["url"]) for r, _ in crawl_batch])
+        for (r, t), c in zip(crawl_batch, crawled):
+            best = c if len(c) > len(t) else t
+            if best:
+                content[r["url"]] = best
+        thin = thin[WEB_RESEARCH_CRAWL_MAX:]
+    # Thin pages we didn't (or couldn't) crawl still contribute their snippet text.
+    for r, t in thin:
+        if t and r["url"] not in content:
+            content[r["url"]] = t
     blocks: list = []
-    for i, r in enumerate(ordered[:WEB_RESEARCH_RESULTS], start=1):
+    for i, r in enumerate(top, start=1):
         u = r.get("url", "")
         title = str(r.get("title", "")).strip()
         body = content.get(u) or str(r.get("content", "")).strip()
