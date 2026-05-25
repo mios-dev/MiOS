@@ -6400,37 +6400,50 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         main = polished.strip() or _strip_think_tags(merged)
         return envelope, main
 
-    # Ground the SWARM facets on REAL fetched content (operator 2026-05-24: the
-    # decompose path produced GENERIC training-knowledge facets -- it never ran
-    # the pipeline web-research the council path does, so a "trending" swarm gave
-    # vague categories, not real stories). Run the web-research + read-tool enrich
-    # ONCE on the user ask and prepend it to EVERY agent node's prompt (trimmed
-    # for slow lanes, as the council path does), so each facet reasons from REAL
-    # current content for its angle. Best-effort; never blocks the DAG.
+    # PER-FACET research (operator 2026-05-22 task #4): each facet researches its
+    # OWN sub-query, so it grounds on FACET-SPECIFIC real content. A single shared
+    # whole-ask search left facets like "product launches" ungrounded and they
+    # HALLUCINATED stale items. Now every agent node runs the web-research loop on
+    # ITS OWN facet (concurrently), plus the shared read-tool/system-state once.
+    # Relevance-gated (inherits the parent's web hints), trimmed for slow lanes.
+    # Best-effort; never blocks the DAG.
     try:
-        # web-research + read-tool enrich are independent -> gather them
-        # concurrently (operator 2026-05-24 latency); return_exceptions keeps
-        # grounding best-effort (a failed pass -> "" not a crashed DAG).
-        _wc, _rc = await asyncio.gather(
-            _web_research_enrich(last_user_text, refined),
-            _read_tool_enrich(refined, session_id),
-            return_exceptions=True)
-        _g_parts = [p for p in (_wc, _rc) if isinstance(p, str) and p]
-        if _g_parts:
-            _g_full = "\n\n".join(_g_parts)
-            for _node in dag.get("nodes", []):
-                if not (_node.get("agent") and _node.get("prompt")):
-                    continue
-                _lane = _agent_lane(_AGENT_REGISTRY.get(_node["agent"]) or {})
-                _g = _g_full
-                if _lane in SLOW_LANES and len(_g) > SLOW_LANE_BLOCK_CHARS:
-                    _g = (_g[:SLOW_LANE_BLOCK_CHARS].rstrip()
-                          + "\n[...trimmed for the light lane...]")
-                _node["prompt"] = (
-                    "LIVE GROUNDING for this turn (use it; do not invent):\n"
-                    + _g + "\n\n---\nYour sub-task:\n" + str(_node["prompt"]))
+        _agent_nodes = [n for n in dag.get("nodes", [])
+                        if n.get("agent") and n.get("prompt")]
+        _shared_state = await _read_tool_enrich(refined, session_id)
+
+        async def _facet_research(n: dict) -> str:
+            _fq = str(n.get("title") or n.get("prompt") or "").strip()
+            if not _fq:
+                return ""
+            # The facet IS the query; inherit the parent's web hints so the gate
+            # fires for a web turn (and stays OFF for a pure-local decomposition).
+            _fref = dict(refined or {})
+            _fref["refined_text"] = _fq
+            _fref["hint_tools"] = (refined or {}).get("hint_tools") or []
+            try:
+                return await _web_research_enrich(_fq, _fref)
+            except Exception:  # noqa: BLE001
+                return ""
+
+        _facet_ctx = await asyncio.gather(
+            *[_facet_research(n) for n in _agent_nodes], return_exceptions=True)
+        for _node, _wc in zip(_agent_nodes, _facet_ctx):
+            _parts = [p for p in (_wc if isinstance(_wc, str) else "",
+                                  _shared_state if isinstance(_shared_state, str)
+                                  else "") if p]
+            if not _parts:
+                continue
+            _g = "\n\n".join(_parts)
+            _lane = _agent_lane(_AGENT_REGISTRY.get(_node["agent"]) or {})
+            if _lane in SLOW_LANES and len(_g) > SLOW_LANE_BLOCK_CHARS:
+                _g = (_g[:SLOW_LANE_BLOCK_CHARS].rstrip()
+                      + "\n[...trimmed for the light lane...]")
+            _node["prompt"] = (
+                "LIVE GROUNDING for THIS facet (use it; do not invent):\n"
+                + _g + "\n\n---\nYour sub-task:\n" + str(_node["prompt"]))
     except Exception as e:  # noqa: BLE001 -- grounding is best-effort
-        log.debug("dag swarm grounding skipped: %s", e)
+        log.debug("dag per-facet grounding skipped: %s", e)
 
     if streaming:
         async def _gen() -> AsyncGenerator[bytes, None]:
