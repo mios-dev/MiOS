@@ -34,8 +34,15 @@
 param(
     [int]    $Port        = 11436,
     [string] $Model       = '',
-    # Default model: a small instruct GGUF that fits typical iGPU shared VRAM.
-    [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    # The iGPU's ROLE is the ALWAYS-ON LIGHT-COMPUTE BRAIN (operator 2026-05-25:
+    # "iGPU SHOULD BE THE MICRO LLM ... AND the always-on MiOS daemon background
+    # agent"): it hosts the micro-LLM (router/refine/judge/web-expand, hit every
+    # turn) + the mios-daemon-agent, so it is NEVER cold and the dGPU/CPU are
+    # freed. It is NOT a heavy reasoning agent (it is ~7 tok/s -- too slow for big
+    # facets). So serve a SMALL fast instruct GGUF, not the old 3B. Override with
+    # -Model / -ModelUrl for a different micro/daemon brain (e.g. a Qwen3-1.7B
+    # GGUF to match the daemon model exactly).
+    [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
     [int]    $ContextSize = 8192,
     [int]    $GpuLayers   = 99,            # 99 = offload all layers to the iGPU
     # Pin to a SINGLE Vulkan device so llama.cpp does NOT layer-split onto the
