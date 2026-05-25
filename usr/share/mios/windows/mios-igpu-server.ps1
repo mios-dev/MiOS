@@ -167,6 +167,15 @@ Info "model:    $Model"
 Info "binding:  0.0.0.0:$Port   (tailnet -> http://$tsIp`:$Port/v1)"
 Info "GPU:      Vulkan, offload $GpuLayers layers (watch the startup log for 'Vulkan0: AMD Radeon ...')"
 $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
+# llama-server logs to STDERR. Under Windows PowerShell 5.1 (which the scheduled
+# task now uses for a STABLE interpreter path -- the MSIX pwsh alias is
+# unresolvable by Task Scheduler, see -Install above), a native command writing
+# to stderr with $ErrorActionPreference='Stop' + 2>&1 raises a terminating
+# NativeCommandError and KILLS the server on its FIRST log line (operator
+# 2026-05-25: task exited 1, port never bound). Relax to Continue for the exec
+# so the server's normal logging flows into the Tee'd log instead of aborting.
+# (pwsh 7 does not treat native stderr this way, so this is harmless there.)
+$ErrorActionPreference = 'Continue'
 & $exe `
     --host 0.0.0.0 --port $Port `
     --model $Model `
