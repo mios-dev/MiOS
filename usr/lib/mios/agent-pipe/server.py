@@ -6035,6 +6035,37 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         main = polished.strip() or _strip_think_tags(merged)
         return envelope, main
 
+    # Ground the SWARM facets on REAL fetched content (operator 2026-05-24: the
+    # decompose path produced GENERIC training-knowledge facets -- it never ran
+    # the pipeline web-research the council path does, so a "trending" swarm gave
+    # vague categories, not real stories). Run the web-research + read-tool enrich
+    # ONCE on the user ask and prepend it to EVERY agent node's prompt (trimmed
+    # for slow lanes, as the council path does), so each facet reasons from REAL
+    # current content for its angle. Best-effort; never blocks the DAG.
+    try:
+        _g_parts: list = []
+        _wc = await _web_research_enrich(last_user_text, refined)
+        if _wc:
+            _g_parts.append(_wc)
+        _rc = await _read_tool_enrich(refined, session_id)
+        if _rc:
+            _g_parts.append(_rc)
+        if _g_parts:
+            _g_full = "\n\n".join(_g_parts)
+            for _node in dag.get("nodes", []):
+                if not (_node.get("agent") and _node.get("prompt")):
+                    continue
+                _lane = _agent_lane(_AGENT_REGISTRY.get(_node["agent"]) or {})
+                _g = _g_full
+                if _lane in SLOW_LANES and len(_g) > SLOW_LANE_BLOCK_CHARS:
+                    _g = (_g[:SLOW_LANE_BLOCK_CHARS].rstrip()
+                          + "\n[...trimmed for the light lane...]")
+                _node["prompt"] = (
+                    "LIVE GROUNDING for this turn (use it; do not invent):\n"
+                    + _g + "\n\n---\nYour sub-task:\n" + str(_node["prompt"]))
+    except Exception as e:  # noqa: BLE001 -- grounding is best-effort
+        log.debug("dag swarm grounding skipped: %s", e)
+
     if streaming:
         async def _gen() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model,
