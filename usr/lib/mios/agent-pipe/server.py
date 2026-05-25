@@ -1643,8 +1643,12 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                 timeout=_to) as r:
             if r.status_code != 200:
                 return name, ""
+            _nonsse: list = []
             async for line in r.aiter_lines():
-                if not line or not line.startswith("data:"):
+                if not line:
+                    continue
+                if not line.startswith("data:"):
+                    _nonsse.append(line)        # a non-streaming endpoint's body
                     continue
                 data = line[5:].strip()
                 if data == "[DONE]":
@@ -1665,6 +1669,21 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                     parts.append(_content)
                 if frag:
                     _push(frag)
+            # NON-STREAMING /v1 fallback (operator 2026-05-22 "bring mios daemon
+            # back up"): mios-daemon-agent (:8644) IGNORES stream=true and returns
+            # ONE chat.completion JSON (no `data:` lines), so the SSE parser saw
+            # nothing and the node 💤'd despite being HEALTHY. If nothing streamed,
+            # parse the whole body as a non-streaming completion + push it.
+            if not parts and _nonsse:
+                try:
+                    _obj = json.loads("".join(_nonsse))
+                    _m = ((_obj.get("choices") or [{}])[0].get("message") or {})
+                    _c = (_m.get("content") or "").strip()
+                    if _c:
+                        parts.append(_c)
+                        _push(_c)
+                except Exception:  # noqa: BLE001
+                    pass
         return name, _strip_think_tags("".join(parts))
     except Exception as e:
         log.info("fanout secondary %s (stream) failed: %s", name, e)
