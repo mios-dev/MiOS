@@ -2626,9 +2626,17 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     return ("LIVE WEB RESEARCH -- the MiOS pipeline ran its FULL web toolchain "
             "concurrently (SearXNG metasearch -> readable extract + crawl4ai/"
             "Chrome-CDP & Camoufox deep render) and FETCHED the top pages below. "
-            "GROUND your answer on this REAL content: synthesise the actual "
-            "stories/facts across sources, cite [n] inline, and do NOT just list "
-            "the source homepages or tell the user to visit them:\n\n"
+            "ANSWER THE USER DIRECTLY FROM THIS REAL CONTENT: synthesise the "
+            "actual stories / facts / developments across the sources and cite "
+            "[n] inline. The DATED items below ARE the answer -- a story from the "
+            "last days or weeks fully counts as 'recent' / 'this week' / 'latest' "
+            "/ 'today'; present what you found, with its date. Do NOT PUNT: never "
+            "reply 'no stories were found', 'no specific developments', 'consult "
+            "reliable sources', or tell the user to check elsewhere WHEN the "
+            "content below contains relevant facts -- that is a FAILED answer. "
+            "Lead with the concrete findings; if one specific sub-detail is "
+            "genuinely absent, give everything that IS here and note only that "
+            "one gap. Do NOT just list source homepages:\n\n"
             + "\n\n".join(blocks))
 
 
