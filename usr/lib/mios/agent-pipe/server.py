@@ -2452,7 +2452,8 @@ def _url_has_path(u: str) -> bool:
         return True
 
 
-async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
+async def _web_research_enrich(query: str, refined: Optional[dict],
+                               emit=None) -> str:
     """Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
     ITSELF loops for web use and web tools"). For a web-needing turn the PIPELINE
     runs the web toolchain itself: SearXNG web_search WITH FAN-OUT (multiple
@@ -2543,8 +2544,21 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     # Per-STEP emit log (operator 2026-05-22 "need emitters for every step
     # end-to-end" -- not one whole-loop summary). Each web step is recorded here;
     # the streaming path replays them as individual emits. Stashed on refined.
-    _steps: list = [{"emoji": "🔎", "label": "search",
-                     "detail": (("news · " if _use_news else "") + search_q)[:72]}]
+    _steps: list = []
+
+    def _rec(_s: dict) -> None:
+        # record the step AND emit it LIVE (operator 2026-05-22: stream every step
+        # throughout the pipeline, not a dump at the end). `emit` is a sync sink
+        # (e.g. queue.put_nowait) supplied by a streaming caller; best-effort.
+        _steps.append(_s)
+        if emit:
+            try:
+                emit(_s)
+            except Exception:  # noqa: BLE001
+                pass
+
+    _rec({"emoji": "🔎", "label": "search",
+          "detail": (("news · " if _use_news else "") + search_q)[:72]})
     results = await _search(search_q, news=_use_news)
     if not results:
         return ""
@@ -2618,12 +2632,12 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
                 snippets[r["url"]] = best             # thin/blocked -> snippet
             # one step per page touched (read vs deep-crawl), end-to-end.
             _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
-            _steps.append({"emoji": "🕷️" if used_crawl else "📄",
-                           "label": "deep-crawl" if used_crawl else "read",
-                           "detail": _ttl})
+            _rec({"emoji": "🕷️" if used_crawl else "📄",
+                  "label": "deep-crawl" if used_crawl else "read",
+                  "detail": _ttl})
         if passes < WEB_RESEARCH_PASSES and len(content) < want and idx < len(ordered):
-            _steps.append({"emoji": "🔁", "label": f"pass {passes + 1}",
-                           "detail": "drilling deeper -- thin coverage"})
+            _rec({"emoji": "🔁", "label": f"pass {passes + 1}",
+                  "detail": "drilling deeper -- thin coverage"})
         # STOP once we hold enough REAL article content to ground a rich answer.
         if len(content) >= want:
             break
@@ -6419,56 +6433,89 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         main = polished.strip() or _strip_think_tags(merged)
         return envelope, main
 
-    # PER-FACET research (operator 2026-05-22 task #4): each facet researches its
-    # OWN sub-query, so it grounds on FACET-SPECIFIC real content. A single shared
-    # whole-ask search left facets like "product launches" ungrounded and they
-    # HALLUCINATED stale items. Now every agent node runs the web-research loop on
-    # ITS OWN facet (concurrently), plus the shared read-tool/system-state once.
-    # Relevance-gated (inherits the parent's web hints), trimmed for slow lanes.
-    # Best-effort; never blocks the DAG.
-    try:
-        _agent_nodes = [n for n in dag.get("nodes", [])
-                        if n.get("agent") and n.get("prompt")]
-        _shared_state = await _read_tool_enrich(refined, session_id)
+    # PER-FACET research, run LIVE inside the stream (operator 2026-05-22: stream
+    # EVERY step throughout the pipeline -- do NOT block then dump at the end).
+    # Each facet researches its OWN sub-query concurrently; `emit` (a sync sink,
+    # e.g. queue.put_nowait) receives a step dict per facet-start / each web step /
+    # facet-grounded, so the streaming caller yields them in REAL TIME. Modifies
+    # the dag nodes in place. Best-effort; never blocks the DAG.
+    async def _ground_facets(emit=None) -> None:
+        try:
+            _agent_nodes = [n for n in dag.get("nodes", [])
+                            if n.get("agent") and n.get("prompt")]
+            if not _agent_nodes:
+                return
+            if emit:
+                emit({"emoji": "🧩", "label": "swarm",
+                      "detail": f"{len(_agent_nodes)} facets researching in parallel"})
+            _shared_state = await _read_tool_enrich(refined, session_id)
 
-        async def _facet_research(n: dict) -> str:
-            _fq = str(n.get("title") or n.get("prompt") or "").strip()
-            if not _fq:
-                return ""
-            # The facet IS the query; inherit the parent's web hints so the gate
-            # fires for a web turn (and stays OFF for a pure-local decomposition).
-            _fref = dict(refined or {})
-            _fref["refined_text"] = _fq
-            _fref["hint_tools"] = (refined or {}).get("hint_tools") or []
-            try:
-                return await _web_research_enrich(_fq, _fref)
-            except Exception:  # noqa: BLE001
-                return ""
+            async def _facet(n: dict) -> None:
+                _fq = str(n.get("title") or n.get("prompt") or "").strip()
+                if not _fq:
+                    return
+                _ag = str(n.get("agent") or "")
+                if emit:
+                    emit({"emoji": "🛰️", "label": _ag, "detail": _fq[:52]})
+                # The facet IS the query; inherit parent web hints so the gate
+                # fires for a web turn (and stays OFF for a pure-local split).
+                _fref = dict(refined or {})
+                _fref["refined_text"] = _fq
+                _fref["hint_tools"] = (refined or {}).get("hint_tools") or []
+                _sink = ((lambda s: emit({**s, "label": _ag})) if emit else None)
+                try:
+                    _wc = await _web_research_enrich(_fq, _fref, emit=_sink)
+                except Exception:  # noqa: BLE001
+                    _wc = ""
+                _parts = [p for p in (_wc, _shared_state
+                          if isinstance(_shared_state, str) else "") if p]
+                if _parts:
+                    _g = "\n\n".join(_parts)
+                    _lane = _agent_lane(_AGENT_REGISTRY.get(_ag) or {})
+                    if _lane in SLOW_LANES and len(_g) > SLOW_LANE_BLOCK_CHARS:
+                        _g = (_g[:SLOW_LANE_BLOCK_CHARS].rstrip()
+                              + "\n[...trimmed for the light lane...]")
+                    n["prompt"] = (
+                        "LIVE GROUNDING for THIS facet (use it; do not invent):\n"
+                        + _g + "\n\n---\nYour sub-task:\n" + str(n["prompt"]))
+                if emit:
+                    emit({"emoji": "📚", "label": _ag,
+                          "detail": "grounded · " + _fq[:44]})
 
-        _facet_ctx = await asyncio.gather(
-            *[_facet_research(n) for n in _agent_nodes], return_exceptions=True)
-        for _node, _wc in zip(_agent_nodes, _facet_ctx):
-            _parts = [p for p in (_wc if isinstance(_wc, str) else "",
-                                  _shared_state if isinstance(_shared_state, str)
-                                  else "") if p]
-            if not _parts:
-                continue
-            _g = "\n\n".join(_parts)
-            _lane = _agent_lane(_AGENT_REGISTRY.get(_node["agent"]) or {})
-            if _lane in SLOW_LANES and len(_g) > SLOW_LANE_BLOCK_CHARS:
-                _g = (_g[:SLOW_LANE_BLOCK_CHARS].rstrip()
-                      + "\n[...trimmed for the light lane...]")
-            _node["prompt"] = (
-                "LIVE GROUNDING for THIS facet (use it; do not invent):\n"
-                + _g + "\n\n---\nYour sub-task:\n" + str(_node["prompt"]))
-    except Exception as e:  # noqa: BLE001 -- grounding is best-effort
-        log.debug("dag per-facet grounding skipped: %s", e)
+            await asyncio.gather(*[_facet(n) for n in _agent_nodes],
+                                 return_exceptions=True)
+        except Exception as e:  # noqa: BLE001 -- grounding is best-effort
+            log.debug("dag per-facet grounding skipped: %s", e)
 
     if streaming:
         async def _gen() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="prompt")
             yield _sse_status_phase(chat_id=chat_id, model=model, phase="plan")
+            # LIVE per-facet research emits (operator 2026-05-22: stream every step
+            # from the first query -- do NOT block then dump). Ground the facets in
+            # a background task; drain its emit queue and yield each step in REAL
+            # TIME, with a keepalive during any silent gap.
+            _gq: asyncio.Queue = asyncio.Queue()
+
+            async def _run_ground() -> None:
+                await _ground_facets(emit=_gq.put_nowait)
+                _gq.put_nowait(None)        # sentinel: grounding done
+
+            _gtask = asyncio.create_task(_run_ground())
+            while True:
+                try:
+                    _s = await asyncio.wait_for(_gq.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+                    continue
+                if _s is None:
+                    break
+                yield _sse_status(chat_id=chat_id, model=model,
+                                  emoji=str(_s.get("emoji", "·")),
+                                  label=str(_s.get("label", "")),
+                                  detail=_s.get("detail"))
+            await _gtask
             # LIVE per-node endpoint emitters as the synthesis DAG executes
             # (same 🛰️/✅/💤 vocabulary as the council + primary paths).
             dag_result: dict = {}
@@ -6492,6 +6539,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             yield _sse_done()
         return StreamingResponse(_gen(), media_type="text/event-stream")
 
+    await _ground_facets()        # non-streaming: ground (no live emits)
     dag_result = await execute_dag(dag, session_id=session_id)
     _envelope, main = await _synthesise(dag_result)
     return JSONResponse(content={
