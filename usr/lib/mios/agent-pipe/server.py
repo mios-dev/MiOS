@@ -9814,6 +9814,16 @@ async def chat_completions(request: Request) -> Any:
                                     phase="route")
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
+            # Web-research emitter (operator 2026-05-24: make the pipeline's web
+            # tool-loop VISIBLE -- the original complaint was "did NOT do multiple
+            # passes" + "no use from any agent"). When _web_research_enrich
+            # grounded this turn, show that the PIPELINE searched SearXNG + read
+            # the top pages, with the page count.
+            if _web_ctx:
+                _wn = len(re.findall(r"(?m)^\[\d+\]\s", _web_ctx))
+                yield _sse_status(chat_id=chat_id, model=model, emoji="🔎",
+                                  label="web research",
+                                  detail=f"SearXNG fan-out + read {_wn} page(s)")
             # Endpoint emitter: announce the PRIMARY node + its endpoint.
             yield _node_status(
                 chat_id=chat_id, model=model, name=target_name,
