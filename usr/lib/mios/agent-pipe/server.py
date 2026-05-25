@@ -131,6 +131,16 @@ WEB_RESEARCH_FETCH_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_CHARS", "
 WEB_RESEARCH_BLOCK_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_BLOCK_CHARS", "1200"))
 WEB_RESEARCH_SEARCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_SEARCH_TIMEOUT_S", "20"))
 WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEOUT_S", "12"))
+
+# Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
+# ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
+# SLOW node FINISH. Operator 2026-05-24: the Windows iGPU (~13 tok/s on Vulkan)
+# DID fire (visible in Task Manager) but agent-pipe abandoned it at the old flat
+# 45s read -- the new pipeline web-research context (~7K chars) pushed its prefill
+# past 45s. Raise the read budget so slow lanes actually CONTRIBUTE; connect
+# stays short so an absent node still drops fast. Both env-tunable.
+HEALTHGATE_CONNECT_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_CONNECT_S", "2.5"))
+HEALTHGATE_READ_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_READ_S", "120"))
 # Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
 # the same time -- reasonable limit/cap"). Council secondaries + DAG-level
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
@@ -1322,7 +1332,8 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
     # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
     # Windows iGPU (mios-reasoner-cpu, ~13 tok/s: prefill+TTFB > 2.5s) so it was
     # dispatched but contributed nothing ("fanout secondary ... failed:").
-    _to = (httpx.Timeout(connect=2.5, read=45.0, write=10.0, pool=10.0)
+    _to = (httpx.Timeout(connect=HEALTHGATE_CONNECT_TIMEOUT,
+                         read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
            if cfg.get("health_gate") else None)
     try:
         if _is_ollama:
@@ -1397,7 +1408,8 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
     # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
     # Windows iGPU (mios-reasoner-cpu, ~13 tok/s: prefill+TTFB > 2.5s) so it was
     # dispatched but contributed nothing ("fanout secondary ... failed:").
-    _to = (httpx.Timeout(connect=2.5, read=45.0, write=10.0, pool=10.0)
+    _to = (httpx.Timeout(connect=HEALTHGATE_CONNECT_TIMEOUT,
+                         read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
            if cfg.get("health_gate") else None)
     parts: list = []
 
