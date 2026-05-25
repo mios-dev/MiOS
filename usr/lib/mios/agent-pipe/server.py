@@ -163,6 +163,24 @@ HEALTHGATE_READ_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_READ_S", "
 SLOW_LANES = set(x.strip() for x in os.environ.get(
     "MIOS_SLOW_LANES", "igpu,mobile,accelerator").split(",") if x.strip())
 SLOW_LANE_BLOCK_CHARS = int(os.environ.get("MIOS_SLOW_LANE_BLOCK_CHARS", "1500"))
+
+# Pipeline-side READ-TOOL enrich (operator 2026-05-24: "all ... skills and
+# recipes fire on ALL endpoints"). Like the web-research loop, the PIPELINE runs
+# the refine-hinted READ-only, NO-arg capabilities itself (live system state:
+# system_status, sys_env, process_list, container_status, list_windows, ...) and
+# grounds EVERY agent on the real output -- so a system-state turn is answered
+# from real state on the iGPU/phone too, not only the tool-looping primary.
+# SAFETY (binding NO-LIVE-LAUNCH rule): ONLY permission=read verbs with NO
+# required args run here. WRITE / LAUNCH verbs + recipes (os_recipe opens
+# folders / locks screen / launches apps) are NEVER auto-fired by the pipeline --
+# they go through the agent tool-loop + confirmation engine. Web verbs ->
+# _web_research_enrich; KB search -> _rag_enrich.
+READ_TOOL_ENRICH_ENABLED = os.environ.get(
+    "MIOS_READ_TOOL_ENRICH_ENABLED", "true").lower() not in {"false", "0", "no"}
+READ_TOOL_ENRICH_MAX = int(os.environ.get("MIOS_READ_TOOL_ENRICH_MAX", "3"))
+READ_TOOL_ENRICH_TIMEOUT = float(os.environ.get("MIOS_READ_TOOL_ENRICH_TIMEOUT_S", "12"))
+READ_TOOL_ENRICH_CHARS = int(os.environ.get("MIOS_READ_TOOL_ENRICH_CHARS", "1500"))
+_WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
 # Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
 # the same time -- reasonable limit/cap"). Council secondaries + DAG-level
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
@@ -2366,6 +2384,54 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
             "REAL content: synthesise the actual stories/facts across sources, "
             "cite [n] inline, and do NOT just list the source homepages or tell "
             "the user to visit them:\n\n" + "\n\n".join(blocks))
+
+
+async def _read_tool_enrich(refined: Optional[dict],
+                            session_id: Optional[str]) -> str:
+    """Pipeline-side READ-ONLY capability runner (operator 2026-05-24: "all ...
+    skills and recipes fire on ALL endpoints"). For the refine-hinted verbs that
+    are permission=read AND take NO required args (live system state), the
+    PIPELINE runs them itself + injects the real output for EVERY agent -- so a
+    system-state turn is grounded on the iGPU/phone too, not only the
+    tool-looping primary. SAFETY: write/launch verbs + recipes are NEVER
+    auto-fired here (binding no-live-launch rule); web verbs go to
+    _web_research_enrich, KB search to _rag_enrich. Best-effort + bounded."""
+    if not READ_TOOL_ENRICH_ENABLED or not refined:
+        return ""
+    ran: dict = {}
+    for _t in (refined.get("hint_tools") or []):
+        tool = str(_t).strip()
+        if not tool or tool in ran or tool in _WEB_ENRICH_VERBS:
+            continue
+        v = _VERB_CATALOG.get(tool)
+        # unknown verb OR write/launch -> NEVER auto-fire (no-live-launch rule).
+        if not v or v.get("permission") != "read":
+            continue
+        # required arg = a declared param with no default; we don't infer args
+        # pipeline-side, so leave arg-taking verbs to the agent tool-loop.
+        if any(isinstance(c, dict) and "default" not in c
+               for c in (v.get("params") or {}).values()):
+            continue
+        if len(ran) >= READ_TOOL_ENRICH_MAX:
+            break
+        try:
+            res = await asyncio.wait_for(
+                dispatch_mios_verb(tool, {}, session_id=session_id),
+                timeout=READ_TOOL_ENRICH_TIMEOUT)
+        except Exception as e:  # noqa: BLE001 -- best-effort
+            log.debug("read-tool enrich %s failed: %s", tool, e)
+            continue
+        out = (json.dumps(res, ensure_ascii=False)
+               if isinstance(res, (dict, list)) else str(res)).strip()
+        if out and out not in ("{}", "null", '""', "[]"):
+            ran[tool] = out[:READ_TOOL_ENRICH_CHARS]
+    if not ran:
+        return ""
+    log.info("read-tool enrich: ran %s", list(ran.keys()))
+    blocks = [f"### {t}\n{o}" for t, o in ran.items()]
+    return ("LIVE MiOS STATE -- the pipeline ran these READ-only tools for this "
+            "turn; GROUND your answer on the real output below (cite it; never "
+            "invent system state):\n\n" + "\n\n".join(blocks))
 
 
 async def refine_intent(user_text: str,
@@ -9772,6 +9838,13 @@ async def chat_completions(request: Request) -> Any:
     _web_ctx = await _web_research_enrich(last_user_text, refined)
     if _web_ctx:
         _sys_prefix.append({"role": "system", "content": _web_ctx})
+    # Pipeline-side READ-tool enrich (operator 2026-05-24 "all ... skills and
+    # recipes fire on ALL endpoints"): run the refine-hinted READ-only, no-arg
+    # capabilities (live system state) and ground EVERY agent on the output.
+    # WRITE/launch verbs + recipes are NOT auto-fired here (no-live-launch rule).
+    _readtool_ctx = await _read_tool_enrich(refined, session_id)
+    if _readtool_ctx:
+        _sys_prefix.append({"role": "system", "content": _readtool_ctx})
     # Knowledge recall: surface relevant PRIOR answers (the read half of the
     # store/recall loop) so the stack builds on what it already worked out.
     _recall_ctx = await _recall_knowledge(last_user_text)
