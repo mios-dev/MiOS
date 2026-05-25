@@ -171,6 +171,21 @@ WEB_RESEARCH_USE_NEWS_CATEGORY = os.environ.get(
 # The news category (above) is what actually surfaces current dated stories.
 # Set day|week|month|year to re-enable if a future engine set supports it.
 WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").strip()
+# LOOP-UNTIL-SATISFIED (operator 2026-05-25 "all agents ... use all tools
+# globally AND LOOP UNTIL SATISFIED"; "multi loops for all web tools"). The web
+# research re-searches / re-tools (across SearXNG + Firecrawl + crawl4ai) until a
+# MODEL judge says the gathered content actually answers the query, or the
+# attempt cap is hit -- so a junk first search ("current" -> the banking app) no
+# longer surrenders a non-answer. The judge is the warm CPU-lane micro (same
+# model the web fan-out uses); degrade OPEN (treat as satisfied) on any error so
+# a judge hiccup never blocks the answer. No hardcoded topic/keyword check.
+WEB_RESEARCH_MAX_ATTEMPTS = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "3")))
+_JUDGE_MODEL = os.environ.get(
+    "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
+_JUDGE_EP = os.environ.get(
+    "MIOS_WEB_RESEARCH_JUDGE_ENDPOINT",
+    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11435")).rstrip("/")
+_JUDGE_BASE = (_JUDGE_EP[:-3].rstrip("/") if _JUDGE_EP.endswith("/v1") else _JUDGE_EP)
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -2692,6 +2707,60 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         except Exception:  # noqa: BLE001
             return ""
 
+    async def _firecrawl(url: str) -> str:
+        # Clean article/news markdown via the self-hosted Firecrawl (web_scrape
+        # backend). A THIRD fetch engine raced beside extract + crawl4ai so the
+        # pipeline uses ALL web tools (operator) -- richest wins in _fetch_all.
+        try:
+            p = await asyncio.create_subprocess_exec(
+                "mios-firecrawl", "--max-chars", str(WEB_RESEARCH_FETCH_CHARS),
+                url, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL)
+            o, _ = await asyncio.wait_for(
+                p.communicate(), timeout=WEB_RESEARCH_CRAWL_TIMEOUT)
+            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            return (d.get("markdown") or "").strip() if d.get("success") else ""
+        except Exception:  # noqa: BLE001
+            return ""
+
+    async def _judge_satisfied(user_q: str, gathered: str) -> tuple:
+        # MODEL-DRIVEN Definition-of-Done (operator "loop until satisfied"): the
+        # warm micro judges whether the gathered web content ANSWERS the query;
+        # if not it proposes a sharper search query for the next loop. No
+        # hardcoded topic/keyword check. Degrade OPEN (satisfied) on any error so
+        # a judge hiccup never blocks the answer.
+        if not gathered.strip():
+            return False, ""
+        sys_p = (
+            "You decide whether the GATHERED web content is enough to ANSWER the "
+            "USER QUERY. Reply JSON ONLY: {\"answerable\": true|false, "
+            "\"better_query\": \"<a sharper web-search query if NOT answerable, "
+            "else empty>\"}. answerable=true when the content holds the facts to "
+            "answer the query; false when it is off-topic, junk (dictionary or "
+            "brand/product pages), or missing the key facts. A better_query must "
+            "be concrete and AVOID vague words a search engine mis-matches to a "
+            "brand/product.")
+        payload = {
+            "model": _JUDGE_MODEL,
+            "messages": [{"role": "system", "content": sys_p},
+                         {"role": "user",
+                          "content": f"USER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}],
+            "think": False, "stream": False, "format": "json",
+            "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+            "options": {"temperature": 0.0, "num_predict": 160},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as c:
+                r = await c.post(f"{_JUDGE_BASE}/api/chat", json=payload,
+                                 headers={"Content-Type": "application/json"})
+                if r.status_code != 200:
+                    return True, ""        # degrade open
+                msg = (r.json().get("message") or {}).get("content") or "{}"
+            obj = json.loads(msg)
+            return bool(obj.get("answerable")), str(obj.get("better_query") or "")
+        except Exception:  # noqa: BLE001 -- never block the answer on the judge
+            return True, ""
+
     # Search the MODEL-SHARPENED query (refine's refined_text), not the raw user
     # text -- refine disambiguates a vague ask (operator 2026-05-24 "THAT SEEM
     # AWFULLY HARDCODED": "current global trending" matched the 'Current' BANKING
@@ -2726,91 +2795,109 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             except Exception:  # noqa: BLE001
                 pass
 
-    _rec({"emoji": "🔎", "label": "search",
-          "detail": (("news · " if _use_news else
-                      (_time_range + " · " if _time_range else "")) + search_q)[:72]})
-    results = await _search(search_q, news=_use_news, time_range=_time_range)
-    if not results:
-        return ""
-    seen: set = set()
-    ordered: list = []
-    for r in results:
-        u = r.get("url", "")
-        if u and u not in seen:
-            seen.add(u)
-            ordered.append(r)
-    # NEWS turns: DEMOTE bare-homepage results (no URL path AND no publishedDate)
-    # to the END so the drill loop extracts real DATED ARTICLES first, not site
-    # front pages -- the "here are the news homepages, go visit them yourself"
-    # failure (operator 2026-05-25). Stable sort; STRUCTURAL only (URL-path depth
-    # + SearXNG's news `publishedDate`); NO topic/English content, nothing dropped.
-    if bool((refined or {}).get("news")):
-        ordered.sort(key=lambda r: 0 if (
-            r.get("publishedDate") or _url_has_path(r.get("url", ""))) else 1)
-    # DRILL LOOP (operator 2026-05-25 "loop until complete"): each pass EXTRACTS
-    # the next batch of results; thin/blocked pages ESCALATE to the deep crawl
-    # engine (crawl4ai+CDP / Camoufox) within a shared budget. Keep drilling until
-    # we hold enough SUBSTANTIVE article content (>= WEB_RESEARCH_FETCH_N good
-    # pages) OR the results run out / the pass cap (WEB_RESEARCH_PASSES) is hit --
-    # so a turn whose first batch was all homepage boilerplate digs DEEPER instead
-    # of surrendering a shallow "visit these sites" answer.
+    # SATISFACTION-GATED LOOP (operator 2026-05-25 "loop until satisfied ...
+    # across all nodes"): search -> drill across ALL fetch engines (web_extract +
+    # crawl4ai/real-Chrome + Firecrawl) -> a MODEL judge decides if the gathered
+    # content actually ANSWERS the query; if not, the warm micro hands back a
+    # SHARPER query and we SEARCH AGAIN (different angle), accumulating content,
+    # until satisfied or MIOS_WEB_RESEARCH_MAX_ATTEMPTS. So a junk first search
+    # ("current" -> the banking app) no longer surrenders a non-answer. The
+    # resulting grounding is injected into EVERY agent's prompt (council prefix +
+    # per-facet swarm) -> the loop's payoff reaches agents on ALL nodes (local
+    # dGPU, the Windows iGPU, the phone, any cluster node).
     content: dict = {}          # url -> REAL article text (>= MIN_CHARS)
     snippets: dict = {}         # url -> fallback snippet (thin/blocked page)
     touched: list = []          # results considered, in drill order
+    seen: set = set()           # urls already fetched (dedup ACROSS attempts)
     crawl_budget = WEB_RESEARCH_CRAWL_MAX
     want = max(1, WEB_RESEARCH_FETCH_N)
-    idx = 0
+    n_crawled = 0               # pages whose richest text came from a deep engine
     passes = 0
-    n_crawled = 0               # pages whose richest text came from the deep crawl
+    search_q_now = search_q
 
-    async def _fetch_all(url: str, do_crawl: bool) -> tuple:
-        # Fire the web READ-tools CONCURRENTLY (operator 2026-05-22 "use all web
-        # tools concurrently"): web_extract (fast readable text) AND crawl (the
-        # DEEP crawl4ai/Chrome-CDP + Camoufox stealth render) race together and
-        # the RICHEST result wins. The deep tool fires on EVERY web turn (within
-        # the turn-wide crawl_budget), not just as a thin-page fallback, and in
-        # parallel so the slow renderer adds no latency to the fast path.
-        jobs = [_extract(url)] + ([_crawl(url)] if do_crawl else [])
-        outs = await asyncio.gather(*jobs)
-        ext = outs[0] or ""
-        cr = (outs[1] if len(outs) > 1 else "") or ""
-        used_crawl = len(cr) > len(ext)
-        return (cr if used_crawl else ext), used_crawl
+    async def _fetch_all(url: str) -> tuple:
+        # Race ALL fetch engines CONCURRENTLY (operator "use ALL web tools"):
+        # web_extract (fast readable text) + crawl4ai (real Chrome/CDP + Camoufox)
+        # + Firecrawl (clean article/news markdown). RICHEST result wins; the slow
+        # renders run in parallel so they add no latency to the fast path. The
+        # deep engines are turn-budgeted (crawl_budget) to protect the renderers.
+        nonlocal crawl_budget
+        jobs = [("read", _extract(url))]
+        if WEB_RESEARCH_CRAWL_FALLBACK and crawl_budget > 0:
+            crawl_budget -= 1
+            jobs += [("deep-crawl", _crawl(url)), ("firecrawl", _firecrawl(url))]
+        outs = await asyncio.gather(*[j for _, j in jobs])
+        cand = {label: (text or "") for (label, _), text in zip(jobs, outs)}
+        # PREFER Firecrawl's CLEAN markdown when it's substantial: it strips nav/
+        # chrome (onlyMainContent), whereas crawl4ai often out-LENGTHS it with the
+        # page's NAV MENU, so pure 'longest wins' picked junk -- operator
+        # 2026-05-25 saw wikinews "Main menu / Newsroom / Recent changes"
+        # boilerplate win. Fall back to the longest of the rest when Firecrawl is
+        # thin/blocked. No hardcoded domains; purely engine-quality preference.
+        fc = cand.get("firecrawl", "")
+        if len(fc) >= WEB_RESEARCH_MIN_CHARS:
+            return fc, "firecrawl"
+        best, eng = "", "read"
+        for label, text in cand.items():
+            if len(text) > len(best):
+                best, eng = text, label
+        return best, eng
 
-    for passes in range(1, WEB_RESEARCH_PASSES + 1):
-        batch = ordered[idx:idx + want]
-        if not batch:
+    for attempt in range(1, WEB_RESEARCH_MAX_ATTEMPTS + 1):
+        _rec({"emoji": "🔎", "label": "search",
+              "detail": (("news · " if _use_news else
+                          (_time_range + " · " if _time_range else ""))
+                         + search_q_now)[:72]})
+        results = await _search(search_q_now, news=_use_news, time_range=_time_range)
+        ordered: list = []
+        for r in (results or []):
+            u = r.get("url", "")
+            if u and u not in seen:
+                ordered.append(r)
+        # NEWS turns: DEMOTE bare-homepage results (no path AND no publishedDate)
+        # so the drill extracts real DATED ARTICLES first, not site front pages.
+        if bool((refined or {}).get("news")):
+            ordered.sort(key=lambda r: 0 if (
+                r.get("publishedDate") or _url_has_path(r.get("url", ""))) else 1)
+        idx = 0
+        for _p in range(1, WEB_RESEARCH_PASSES + 1):
+            passes += 1
+            batch = ordered[idx:idx + want]
+            if not batch:
+                break
+            idx += len(batch)
+            touched.extend(batch)
+            for r in batch:
+                seen.add(r.get("url", ""))
+            fetched = await asyncio.gather(*[_fetch_all(r["url"]) for r in batch])
+            for r, (best, eng) in zip(batch, fetched):
+                if eng != "read" and best:
+                    n_crawled += 1
+                if len(best) >= WEB_RESEARCH_MIN_CHARS:
+                    content[r["url"]] = best          # real article body
+                elif best:
+                    snippets[r["url"]] = best          # thin/blocked -> snippet
+                _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
+                _rec({"emoji": ("🕷️" if eng == "deep-crawl"
+                                else "🔥" if eng == "firecrawl" else "📄"),
+                      "label": eng, "detail": _ttl})
+            if len(content) >= want:
+                break
+        # DEFINITION-OF-DONE: does what we hold actually ANSWER the query? If yes
+        # (or attempts exhausted) stop; else re-search with the judge's sharper
+        # query. This is the "loop until satisfied" -- model-driven, no hardcode.
+        if attempt >= WEB_RESEARCH_MAX_ATTEMPTS:
             break
-        idx += len(batch)
-        touched.extend(batch)
-        # crawl ALSO fires per URL while budget remains (turn-wide cap protects
-        # the slow renderer); extract always fires. Both run concurrently below.
-        flags: list = []
-        for _ in batch:
-            dc = WEB_RESEARCH_CRAWL_FALLBACK and crawl_budget > 0
-            if dc:
-                crawl_budget -= 1
-            flags.append(dc)
-        fetched = await asyncio.gather(
-            *[_fetch_all(r["url"], dc) for r, dc in zip(batch, flags)])
-        for r, (best, used_crawl) in zip(batch, fetched):
-            if used_crawl and best:
-                n_crawled += 1
-            if len(best) >= WEB_RESEARCH_MIN_CHARS:
-                content[r["url"]] = best              # real article body
-            elif best:
-                snippets[r["url"]] = best             # thin/blocked -> snippet
-            # one step per page touched (read vs deep-crawl), end-to-end.
-            _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
-            _rec({"emoji": "🕷️" if used_crawl else "📄",
-                  "label": "deep-crawl" if used_crawl else "read",
-                  "detail": _ttl})
-        if passes < WEB_RESEARCH_PASSES and len(content) < want and idx < len(ordered):
-            _rec({"emoji": "🔁", "label": f"pass {passes + 1}",
-                  "detail": "drilling deeper -- thin coverage"})
-        # STOP once we hold enough REAL article content to ground a rich answer.
-        if len(content) >= want:
+        _gathered = "\n\n".join(
+            ((content.get(r.get("url", "")) or snippets.get(r.get("url", ""))
+              or str(r.get("content", "")))[:600]) for r in touched)[:5000]
+        ok, better_q = await _judge_satisfied(query, _gathered)
+        if ok:
             break
+        if better_q and better_q.strip() and better_q.strip() != search_q_now:
+            search_q_now = better_q.strip()
+        _rec({"emoji": "🔁", "label": f"retry {attempt + 1}",
+              "detail": ("not answered -> " + search_q_now)[:60]})
     blocks: list = []
     for i, r in enumerate(touched, start=1):
         u = r.get("url", "")
@@ -2823,7 +2910,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         return ""
     log.info("web-research: %d results, %d real / %d snippet, %d deep-crawled "
              "over %d pass(es) for %.60r",
-             len(ordered), len(content), len(snippets), n_crawled, passes, query)
+             len(touched), len(content), len(snippets), n_crawled, passes, query)
     # Stash stats for the live emitter (operator "fix emits"): name the FULL web
     # toolchain + real counts, not the old "SearXNG fan-out" under-sell.
     if isinstance(refined, dict):
