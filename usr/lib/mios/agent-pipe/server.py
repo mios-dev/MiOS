@@ -188,6 +188,18 @@ READ_TOOL_ENRICH_MAX = int(os.environ.get("MIOS_READ_TOOL_ENRICH_MAX", "3"))
 READ_TOOL_ENRICH_TIMEOUT = float(os.environ.get("MIOS_READ_TOOL_ENRICH_TIMEOUT_S", "12"))
 READ_TOOL_ENRICH_CHARS = int(os.environ.get("MIOS_READ_TOOL_ENRICH_CHARS", "1500"))
 _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
+# Secondary (council/sub-agent) LIVE tool-loop (operator 2026-05-22: "use all web
+# tools concurrently by all agents and sub-agents" + secondaries get their own
+# tool-loops). The /v1 agents (Hermes/opencode) already loop internally; a RAW
+# ollama secondary (iGPU / phone) can't, so the PIPE runs a bounded READ-ONLY
+# tool-loop for it: ollama /api/chat with tools -> execute the permission=read
+# tool_calls (all web tools + system-state reads) via dispatch_mios_verb -> feed
+# results back -> re-call. WRITE/LAUNCH verbs are NEVER executed here (binding
+# no-live-launch rule); the conv-scoped single-flight dedup collapses identical
+# calls across the fan-out; the per-lane semaphore is the concurrency cap.
+SECONDARY_TOOL_LOOP = os.environ.get(
+    "MIOS_SECONDARY_TOOL_LOOP", "true").lower() not in {"false", "0", "no"}
+SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "2"))
 # Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
 # the same time -- reasonable limit/cap"). Council secondaries + DAG-level
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
@@ -1440,6 +1452,76 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         return name, ""
 
 
+async def _ollama_secondary_tool_loop(client, base: str, model: str,
+                                      messages: list, tools: list, timeout,
+                                      push) -> list:
+    """Pipe-side READ-ONLY tool-loop for a RAW ollama secondary (operator
+    2026-05-22: sub-agents run their OWN live tool-loops). The /v1 agents
+    (Hermes/opencode) already loop internally; a raw ollama node can't, so the
+    PIPE runs the loop: ollama /api/chat with `tools` returns message.tool_calls;
+    we EXECUTE the permission=read ones (all web tools + system-state reads) via
+    dispatch_mios_verb, append the results, and re-call -- up to
+    SECONDARY_TOOL_MAX_ITERS. WRITE/LAUNCH verbs are NEVER run here (binding
+    no-live-launch rule). The conv-scoped single-flight dedup collapses identical
+    calls across the fan-out; the per-lane semaphore caps concurrency. Returns
+    `messages` augmented with the assistant tool-call turn(s) + tool results,
+    ready for the final streamed answer; best-effort (returns what it has)."""
+    msgs = list(messages)
+    for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
+        payload = {"model": model, "messages": msgs, "tools": tools,
+                   "think": False, "stream": False}
+        try:
+            r = await client.post(
+                f"{base}/api/chat",
+                content=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}, timeout=timeout)
+            if r.status_code != 200:
+                break
+            msg = (r.json().get("message") or {})
+        except Exception as e:  # noqa: BLE001 -- best-effort
+            log.debug("secondary tool-loop call failed: %s", e)
+            break
+        tcs = msg.get("tool_calls") or []
+        if not tcs:
+            break
+        msgs.append({"role": "assistant",
+                     "content": msg.get("content") or "", "tool_calls": tcs})
+        ran_read = False
+        for tc in tcs:
+            fn = tc.get("function") or {}
+            vname = str(fn.get("name") or "").strip()
+            v = _VERB_CATALOG.get(vname)
+            tmsg = {"role": "tool"}
+            if tc.get("id"):
+                tmsg["tool_call_id"] = tc["id"]   # OpenAI-spec linkage
+            # no-live-launch: only permission=read verbs auto-execute here.
+            if not v or v.get("permission") != "read":
+                tmsg["content"] = f"(skipped {vname or '?'}: not a read-only tool)"
+                msgs.append(tmsg)
+                continue
+            args = fn.get("arguments")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:  # noqa: BLE001
+                    args = {}
+            ran_read = True
+            push(f" 🔧 {vname}")
+            try:
+                res = await asyncio.wait_for(
+                    dispatch_mios_verb(vname, args if isinstance(args, dict) else {}),
+                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+            except Exception as e:  # noqa: BLE001
+                res = {"error": str(e)}
+            out = (json.dumps(res, ensure_ascii=False)
+                   if isinstance(res, (dict, list)) else str(res))
+            tmsg["content"] = out[:READ_TOOL_ENRICH_CHARS]
+            msgs.append(tmsg)
+        if not ran_read:
+            break
+    return msgs
+
+
 async def _call_agent_stream(name, cfg, body, headers, client, q,
                              *, prefer_cpu: bool = True) -> tuple:
     """Bounded STREAMING sibling of _call_agent_complete (operator
@@ -1494,9 +1576,19 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
     try:
         if _is_ollama:
             base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
+            _omdl = _mdl or cfg.get("model")
+            _omsgs = body.get("messages") or []
+            # LIVE tool-loop for this raw ollama secondary (operator 2026-05-22):
+            # resolve its READ-only tool_calls pipe-side first (web tools + state),
+            # then stream the grounded answer. Skipped when disabled or the request
+            # carries no tools. Best-effort -- a model that emits no tool_calls
+            # just falls straight through to the stream below.
+            if SECONDARY_TOOL_LOOP and body.get("tools"):
+                _omsgs = await _ollama_secondary_tool_loop(
+                    client, base, _omdl, _omsgs, body["tools"], _to, _push)
             payload = {
-                "model": _mdl or cfg.get("model"),
-                "messages": body.get("messages") or [],
+                "model": _omdl,
+                "messages": _omsgs,
                 "think": False,
                 "stream": True,
             }
