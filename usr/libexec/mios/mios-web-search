@@ -122,34 +122,41 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
         "events), not generic homepages. Each is a SHORT keyword query, not a "
         'question. Output JSON only: {"queries":["...","..."]}.'
     )
-    payload = {
-        "model": _EXPAND_MODEL,
-        "messages": [
-            {"role": "system", "content": sys_p},
-            {"role": "user",
-             "content": f"Make {k - 1} alternative search queries for: {query}"},
-        ],
-        "think": False,
-        "stream": False,
-        "format": "json",
-        # Keep the tiny expansion model resident (it's the always-warm micro;
-        # a COLD load is ~30s and would blow the short expand timeout, silently
-        # degrading fan-out to a single query). -1 = pin; matches the micro's
-        # keep_alive=-1 design so back-to-back web searches expand sub-second.
-        "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
-        "options": {"num_predict": 200},
-    }
+    _msgs = [
+        {"role": "system", "content": sys_p},
+        {"role": "user",
+         "content": f"Make {k - 1} alternative search queries for: {query}"},
+    ]
+    # ENDPOINT-AWARE (operator 2026-05-25: the expander can run on the iGPU =
+    # llama.cpp OpenAI /v1, NOT Ollama /api/chat). Ollama lanes (:11434/:11435)
+    # use native /api/chat + think:False + keep_alive (the /v1 compat path strands
+    # a qwen3 'think' answer in empty content); a non-ollama /v1 endpoint (the
+    # iGPU's qwen2.5) uses /chat/completions + response_format json_object.
+    _exp_ollama = (":11434" in _EXPAND_ENDPOINT) or (":11435" in _EXPAND_ENDPOINT)
     extra: list = []
     try:
+        if _exp_ollama:
+            payload = {"model": _EXPAND_MODEL, "messages": _msgs, "think": False,
+                       "stream": False, "format": "json",
+                       "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+                       "options": {"num_predict": 200}}
+            url = f"{_EXPAND_BASE}/api/chat"
+        else:
+            payload = {"model": _EXPAND_MODEL, "messages": _msgs, "stream": False,
+                       "max_tokens": 200, "temperature": 0.0,
+                       "response_format": {"type": "json_object"}}
+            url = (f"{_EXPAND_ENDPOINT}/chat/completions"
+                   if _EXPAND_ENDPOINT.endswith("/v1")
+                   else f"{_EXPAND_ENDPOINT}/v1/chat/completions")
         req = urllib.request.Request(
-            f"{_EXPAND_BASE}/api/chat",
-            data=json.dumps(payload).encode("utf-8"),
+            url, data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            msg = (json.loads(r.read().decode("utf-8", "replace")).get("message")
-                   or {})
-        obj = json.loads(msg.get("content") or "{}")
+            _d = json.loads(r.read().decode("utf-8", "replace"))
+        content = (((_d.get("message") or {}).get("content")) if _exp_ollama
+                   else ((_d.get("choices") or [{}])[0].get("message") or {}).get("content")) or "{}"
+        obj = json.loads(content)
         extra = [str(q).strip() for q in (obj.get("queries") or []) if str(q).strip()]
     except Exception as e:
         # De-silenced (operator 2026-05-24: a SILENT cold-micro fallback to one

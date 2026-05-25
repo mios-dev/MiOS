@@ -310,50 +310,50 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
     (8c/16t) so a pipeline turn bursts -- operator 2026-05-24 '2c background /
     8c foreground'. Ollama clamps to the available core count.
     """
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "options": {
-            "num_gpu": 0,           # Law 7 OFFLINE-FIRST + CPU-first
-            "num_thread": num_thread,
-            "num_predict": max_tokens,
-            "temperature": temperature,
-        },
-        "stream": False,
-        "keep_alive": -1,           # always-on agentic OS
-        # qwen3 micros are REASONING models: with thinking ON they dump the
-        # answer into message.thinking and leave content EMPTY, so the
-        # thinking-fallback below returned prose ("Okay, let's look...") that
-        # the JSON parser then rejected ("(unparseable: ...)"). think=False
-        # forces the answer into message.content (operator-proven on refine).
-        "think": False,
-    }
-    if want_json:
-        # Ollama's structured-output mode: the runtime constrains
-        # token sampling so the response is parseable JSON. Critical
-        # for sub-2B models that would otherwise prose-prefix the
-        # JSON ("Okay, let me break this down...") and trip the
-        # parser. Operator-flagged post-reboot: classify output was
-        # "(unparseable: Okay, let's break down...)".
-        payload["format"] = "json"
+    # ENDPOINT-AWARE (operator 2026-05-25: the daemon-agent can run on the iGPU =
+    # llama.cpp OpenAI /v1, NOT Ollama /api/chat). Ollama lanes (:11434/:11435)
+    # use native /api/chat with num_gpu=0 + num_thread + think:False; a non-ollama
+    # /v1 endpoint (the iGPU, which offloads to its own Vulkan device -- the
+    # num_gpu/num_thread CPU knobs do not apply) uses /chat/completions.
+    _msgs = [{"role": "system", "content": system},
+             {"role": "user", "content": user}]
+    _ollama = (":11434" in ENDPOINT) or (":11435" in ENDPOINT)
+    if _ollama:
+        payload = {
+            "model": MODEL, "messages": _msgs,
+            "options": {"num_gpu": 0, "num_thread": num_thread,
+                        "num_predict": max_tokens, "temperature": temperature},
+            "stream": False, "keep_alive": -1, "think": False,
+        }
+        if want_json:
+            payload["format"] = "json"
+        url = f"{ENDPOINT.rstrip('/')}/api/chat"
+    else:
+        payload = {"model": MODEL, "messages": _msgs, "stream": False,
+                   "max_tokens": max_tokens, "temperature": temperature}
+        if want_json:
+            payload["response_format"] = {"type": "json_object"}
+        url = (f"{ENDPOINT}/chat/completions" if ENDPOINT.endswith("/v1")
+               else f"{ENDPOINT.rstrip('/')}/v1/chat/completions")
     try:
         req = urllib.request.Request(
-            f"{ENDPOINT}/api/chat",
+            url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as r:
             body = json.loads(r.read())
-        msg = body.get("message") or {}
-        out = (msg.get("content") or "").strip()
-        if not out and not want_json:
-            # Free-text calls ONLY -- `thinking` is never valid JSON, so a
-            # want_json fallback to it just produces an unparseable digest.
-            out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        if _ollama:
+            msg = body.get("message") or {}
+            out = (msg.get("content") or "").strip()
+            if not out and not want_json:
+                # Free-text calls ONLY -- `thinking` is never valid JSON, so a
+                # want_json fallback to it just produces an unparseable digest.
+                out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        else:
+            msg = ((body.get("choices") or [{}])[0].get("message") or {})
+            out = (msg.get("content") or "").strip()
         return out
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
         log.warning("LLM call failed (non-fatal): %s", e)
