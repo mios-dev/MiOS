@@ -147,6 +147,13 @@ WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"
 # turn budget -- raised to 4 (operator wants the deep tool firing broadly, not 2).
 WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "45"))
 WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "4"))
+# Route "news" asks through the SearXNG NEWS category? DEFAULT OFF: live debug
+# 2026-05-22 found this instance's news engines (bing/ddg/reuters/yahoo/qwant/
+# brave news) are all IP-blocked -> the news category returns ONLY stale wikinews,
+# which made "latest <X> news" queries PUNT. General search (bing/ddg/brave) works
+# and returns current content. Flip true if/when the news engines are unblocked.
+WEB_RESEARCH_USE_NEWS_CATEGORY = os.environ.get(
+    "MIOS_WEB_RESEARCH_USE_NEWS_CATEGORY", "false").lower() not in {"false", "0", "no"}
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -2504,9 +2511,13 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     # list / canonical query -- the model decides what to search; the fan-out
     # (also model-driven) diversifies it.
     search_q = str((refined or {}).get("refined_text") or "").strip() or query
-    # news category is the refine MODEL's call (current-events intent) -> SearXNG
-    # news index; nothing hardcoded pipeline-side.
-    results = await _search(search_q, news=bool((refined or {}).get("news")))
+    # News category is GATED OFF by default (WEB_RESEARCH_USE_NEWS_CATEGORY): the
+    # news engines are IP-blocked on this instance -> news category = stale
+    # wikinews only, which PUNTED "latest <X> news" turns (live debug 2026-05-22).
+    # General search works, so route news asks through it too until news engines
+    # are unblocked. refine's `news` flag still gates IF news is ever re-enabled.
+    _use_news = WEB_RESEARCH_USE_NEWS_CATEGORY and bool((refined or {}).get("news"))
+    results = await _search(search_q, news=_use_news)
     if not results:
         return ""
     seen: set = set()
