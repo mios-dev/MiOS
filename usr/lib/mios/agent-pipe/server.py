@@ -2517,6 +2517,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     # General search works, so route news asks through it too until news engines
     # are unblocked. refine's `news` flag still gates IF news is ever re-enabled.
     _use_news = WEB_RESEARCH_USE_NEWS_CATEGORY and bool((refined or {}).get("news"))
+    # Per-STEP emit log (operator 2026-05-22 "need emitters for every step
+    # end-to-end" -- not one whole-loop summary). Each web step is recorded here;
+    # the streaming path replays them as individual emits. Stashed on refined.
+    _steps: list = [{"emoji": "🔎", "label": "search",
+                     "detail": (("news · " if _use_news else "") + search_q)[:72]}]
     results = await _search(search_q, news=_use_news)
     if not results:
         return ""
@@ -2588,6 +2593,14 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
                 content[r["url"]] = best              # real article body
             elif best:
                 snippets[r["url"]] = best             # thin/blocked -> snippet
+            # one step per page touched (read vs deep-crawl), end-to-end.
+            _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
+            _steps.append({"emoji": "🕷️" if used_crawl else "📄",
+                           "label": "deep-crawl" if used_crawl else "read",
+                           "detail": _ttl})
+        if passes < WEB_RESEARCH_PASSES and len(content) < want and idx < len(ordered):
+            _steps.append({"emoji": "🔁", "label": f"pass {passes + 1}",
+                           "detail": "drilling deeper -- thin coverage"})
         # STOP once we hold enough REAL article content to ground a rich answer.
         if len(content) >= want:
             break
@@ -2609,6 +2622,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     if isinstance(refined, dict):
         refined["_web_stats"] = {"sources": len(blocks), "real": len(content),
                                  "crawled": n_crawled, "passes": passes}
+        refined["_web_steps"] = _steps
     return ("LIVE WEB RESEARCH -- the MiOS pipeline ran its FULL web toolchain "
             "concurrently (SearXNG metasearch -> readable extract + crawl4ai/"
             "Chrome-CDP & Camoufox deep render) and FETCHED the top pages below. "
@@ -2657,6 +2671,9 @@ async def _read_tool_enrich(refined: Optional[dict],
                if isinstance(res, (dict, list)) else str(res)).strip()
         if out and out not in ("{}", "null", '""', "[]"):
             ran[tool] = out[:READ_TOOL_ENRICH_CHARS]
+            if isinstance(refined, dict):  # per-step emit log (end-to-end)
+                refined.setdefault("_readtool_steps", []).append(
+                    {"emoji": "🔧", "label": "tool", "detail": tool})
     if not ran:
         return ""
     log.info("read-tool enrich: ran %s", list(ran.keys()))
@@ -7040,6 +7057,25 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
     )
 
 
+def _enrich_step_emits(refined: Optional[dict], *, chat_id: str, model: str):
+    """Yield ONE _sse_status per recorded enrich STEP (operator 2026-05-22 "need
+    emitters for every step end-to-end" -- not one whole-loop summary). Covers
+    the web steps (search / each page read / each deep-crawl / each drill pass,
+    recorded by _web_research_enrich) and the READ-only tool runs (recorded by
+    _read_tool_enrich). Each emit also persists in the reasoning log via
+    _sse_status. Yields nothing when no steps ran."""
+    if not isinstance(refined, dict):
+        return
+    steps = (refined.get("_web_steps") or []) + (refined.get("_readtool_steps") or [])
+    for s in steps:
+        if not isinstance(s, dict):
+            continue
+        yield _sse_status(
+            chat_id=chat_id, model=model,
+            emoji=str(s.get("emoji", "·")), label=str(s.get("label", "")),
+            detail=(str(s.get("detail", "")) or None))
+
+
 def _node_context(node: dict) -> str:
     """SHORT, operator-facing description of what a DAG node is DOING -- the
     active step's CONTEXT (operator 2026-05-23: "emits should show actual steps
@@ -10214,23 +10250,13 @@ async def chat_completions(request: Request) -> Any:
                                     phase="route")
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
-            # Web-research emitter (operator 2026-05-24: make the pipeline's web
-            # tool-loop VISIBLE -- the original complaint was "did NOT do multiple
-            # passes" + "no use from any agent"). When _web_research_enrich
-            # grounded this turn, show that the PIPELINE searched SearXNG + read
-            # the top pages, with the page count.
-            if _web_ctx:
-                # Name the FULL web toolchain + real counts (operator "fix emits"
-                # -- not just "SearXNG"). _web_stats is set by _web_research_enrich;
-                # fall back to counting block headers if it's absent.
-                _ws = (refined or {}).get("_web_stats") or {}
-                _wn = _ws.get("sources") or len(
-                    re.findall(r"(?m)^\[\d+\]\s.*\(https?://", _web_ctx))
-                _wd = f"SearXNG + extract + crawl4ai/Camoufox · {_wn} source(s)"
-                if _ws.get("crawled"):
-                    _wd += f", {_ws['crawled']} deep-crawled"
-                yield _sse_status(chat_id=chat_id, model=model, emoji="🔎",
-                                  label="web research", detail=_wd)
+            # Per-STEP enrich emits (operator 2026-05-22 "need emitters for every
+            # step end-to-end"): replay each recorded step -- web search, each
+            # page read, each deep-crawl, each drill pass, each READ-only tool --
+            # as its OWN emit + persistent reasoning line, instead of one
+            # whole-loop "web research" summary.
+            for _se in _enrich_step_emits(refined, chat_id=chat_id, model=model):
+                yield _se
             # Endpoint emitter: announce the PRIMARY node + its endpoint.
             yield _node_status(
                 chat_id=chat_id, model=model, name=target_name,
