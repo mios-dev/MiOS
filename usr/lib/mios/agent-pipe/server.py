@@ -131,6 +131,15 @@ WEB_RESEARCH_FETCH_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_CHARS", "
 WEB_RESEARCH_BLOCK_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_BLOCK_CHARS", "1200"))
 WEB_RESEARCH_SEARCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_SEARCH_TIMEOUT_S", "20"))
 WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEOUT_S", "12"))
+# When the stdlib web_extract comes back THIN (a JS-rendered / protected page),
+# ESCALATE to the deep crawl engine (mios-crawl = crawl4ai+CDP / Camoufox, the
+# local web-tools pod) so ALL the web tools fire, not just search + extract
+# (operator 2026-05-24: "all other web tools ... fire on ALL endpoints"). Bounded
+# to thin results -- the heavy renderer runs only when the fast path falls short.
+WEB_RESEARCH_CRAWL_FALLBACK = os.environ.get(
+    "MIOS_WEB_RESEARCH_CRAWL_FALLBACK", "true").lower() not in {"false", "0", "no"}
+WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"))
+WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "25"))
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -2282,7 +2291,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
             log.debug("web-research search failed: %s", e)
             return []
 
-    async def _fetch(url: str) -> str:
+    async def _extract(url: str) -> str:
         try:
             p = await asyncio.create_subprocess_exec(
                 "mios-web-extract", "-n", str(WEB_RESEARCH_FETCH_CHARS), url,
@@ -2293,6 +2302,32 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
             return (d.get("content") or "").strip()
         except Exception:  # noqa: BLE001
             return ""
+
+    async def _crawl(url: str) -> str:
+        # Deep render via the local crawl engine (crawl4ai+CDP / Camoufox).
+        try:
+            p = await asyncio.create_subprocess_exec(
+                "mios-crawl", "--json", "--max-chars", str(WEB_RESEARCH_FETCH_CHARS),
+                url, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL)
+            o, _ = await asyncio.wait_for(
+                p.communicate(), timeout=WEB_RESEARCH_CRAWL_TIMEOUT)
+            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            return (d.get("markdown") or "").strip() if d.get("success") else ""
+        except Exception:  # noqa: BLE001
+            return ""
+
+    async def _fetch(url: str) -> str:
+        # Fast path: stdlib extract. ESCALATE a THIN result (JS-rendered /
+        # protected page) to the deep crawl engine so ALL web tools fire
+        # (operator 2026-05-24) -- bounded to thin pages so the heavy renderer
+        # only runs when the cheap fetch fell short.
+        text = await _extract(url)
+        if WEB_RESEARCH_CRAWL_FALLBACK and len(text) < WEB_RESEARCH_MIN_CHARS:
+            crawled = await _crawl(url)
+            if len(crawled) > len(text):
+                return crawled
+        return text
 
     results = await _search(query)
     if not results:
