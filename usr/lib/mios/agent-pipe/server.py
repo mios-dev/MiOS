@@ -131,20 +131,22 @@ WEB_RESEARCH_FETCH_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_CHARS", "
 WEB_RESEARCH_BLOCK_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_BLOCK_CHARS", "1200"))
 WEB_RESEARCH_SEARCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_SEARCH_TIMEOUT_S", "20"))
 WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEOUT_S", "12"))
-# When the stdlib web_extract comes back THIN (a JS-rendered / protected page),
-# ESCALATE to the deep crawl engine (mios-crawl = crawl4ai+CDP / Camoufox, the
-# local web-tools pod) so ALL the web tools fire, not just search + extract
-# (operator 2026-05-24: "all other web tools ... fire on ALL endpoints"). Bounded
-# to thin results -- the heavy renderer runs only when the fast path falls short.
+# The deep crawl engine (mios-crawl = crawl4ai+CDP / Camoufox, the local
+# web-tools pod) fires CONCURRENTLY with the stdlib web_extract on every web turn
+# -- both web tools race per URL and the richest result wins (operator 2026-05-22
+# "use all web tools concurrently", 2026-05-24 "all other web tools fire on ALL
+# endpoints"). Set MIOS_WEB_RESEARCH_CRAWL_FALLBACK=false to drop back to
+# extract-only (no deep render).
 WEB_RESEARCH_CRAWL_FALLBACK = os.environ.get(
     "MIOS_WEB_RESEARCH_CRAWL_FALLBACK", "true").lower() not in {"false", "0", "no"}
 WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"))
 # Camoufox stealth render is SLOW (~20-40s) but RESCUES bot-blocked / JS pages
 # (operator 2026-05-24: a weforum 403 came back EMPTY because the old 25s crawl
-# TIMED OUT -> non-answer). 45s gives Camoufox room; CRAWL_MAX caps how many thin
-# pages escalate (concurrent) so the slow renderer can't blow the turn budget.
+# TIMED OUT -> non-answer). 45s gives Camoufox room; CRAWL_MAX is the TURN-WIDE cap
+# on how many pages the deep renderer fetches (concurrently) so it can't blow the
+# turn budget -- raised to 4 (operator wants the deep tool firing broadly, not 2).
 WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "45"))
-WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "2"))
+WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "4"))
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -2432,35 +2434,45 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     want = max(1, WEB_RESEARCH_FETCH_N)
     idx = 0
     passes = 0
+    n_crawled = 0               # pages whose richest text came from the deep crawl
+
+    async def _fetch_all(url: str, do_crawl: bool) -> tuple:
+        # Fire the web READ-tools CONCURRENTLY (operator 2026-05-22 "use all web
+        # tools concurrently"): web_extract (fast readable text) AND crawl (the
+        # DEEP crawl4ai/Chrome-CDP + Camoufox stealth render) race together and
+        # the RICHEST result wins. The deep tool fires on EVERY web turn (within
+        # the turn-wide crawl_budget), not just as a thin-page fallback, and in
+        # parallel so the slow renderer adds no latency to the fast path.
+        jobs = [_extract(url)] + ([_crawl(url)] if do_crawl else [])
+        outs = await asyncio.gather(*jobs)
+        ext = outs[0] or ""
+        cr = (outs[1] if len(outs) > 1 else "") or ""
+        used_crawl = len(cr) > len(ext)
+        return (cr if used_crawl else ext), used_crawl
+
     for passes in range(1, WEB_RESEARCH_PASSES + 1):
         batch = ordered[idx:idx + want]
         if not batch:
             break
         idx += len(batch)
         touched.extend(batch)
-        extracts = await asyncio.gather(*[_extract(r["url"]) for r in batch])
-        thin: list = []
-        for r, t in zip(batch, extracts):
-            if len(t) >= WEB_RESEARCH_MIN_CHARS:
-                content[r["url"]] = t                 # real article body -- keep
-            else:
-                thin.append((r, t))                   # blocked (403) / JS / thin
-        # escalate thin/blocked pages to the deep crawl engine, within budget.
-        if WEB_RESEARCH_CRAWL_FALLBACK and thin and crawl_budget > 0:
-            cb = thin[:crawl_budget]
-            crawl_budget -= len(cb)
-            crawled = await asyncio.gather(*[_crawl(r["url"]) for r, _ in cb])
-            for (r, t), c in zip(cb, crawled):
-                best = c if len(c) > len(t) else t
-                if len(best) >= WEB_RESEARCH_MIN_CHARS:
-                    content[r["url"]] = best
-                elif best:
-                    snippets[r["url"]] = best
-            thin = thin[len(cb):]
-        # un-crawled thin pages still contribute their snippet text.
-        for r, t in thin:
-            if t and r["url"] not in content and r["url"] not in snippets:
-                snippets[r["url"]] = t
+        # crawl ALSO fires per URL while budget remains (turn-wide cap protects
+        # the slow renderer); extract always fires. Both run concurrently below.
+        flags: list = []
+        for _ in batch:
+            dc = WEB_RESEARCH_CRAWL_FALLBACK and crawl_budget > 0
+            if dc:
+                crawl_budget -= 1
+            flags.append(dc)
+        fetched = await asyncio.gather(
+            *[_fetch_all(r["url"], dc) for r, dc in zip(batch, flags)])
+        for r, (best, used_crawl) in zip(batch, fetched):
+            if used_crawl and best:
+                n_crawled += 1
+            if len(best) >= WEB_RESEARCH_MIN_CHARS:
+                content[r["url"]] = best              # real article body
+            elif best:
+                snippets[r["url"]] = best             # thin/blocked -> snippet
         # STOP once we hold enough REAL article content to ground a rich answer.
         if len(content) >= want:
             break
@@ -2474,13 +2486,21 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
             blocks.append(f"[{i}] {title} ({u})\n{body[:WEB_RESEARCH_BLOCK_CHARS]}")
     if not blocks:
         return ""
-    log.info("web-research: %d results, %d real / %d snippet over %d pass(es) for %.60r",
-             len(ordered), len(content), len(snippets), passes, query)
-    return ("LIVE WEB RESEARCH -- the MiOS pipeline searched SearXNG (multiple "
-            "queries) and FETCHED the top pages below. GROUND your answer on this "
-            "REAL content: synthesise the actual stories/facts across sources, "
-            "cite [n] inline, and do NOT just list the source homepages or tell "
-            "the user to visit them:\n\n" + "\n\n".join(blocks))
+    log.info("web-research: %d results, %d real / %d snippet, %d deep-crawled "
+             "over %d pass(es) for %.60r",
+             len(ordered), len(content), len(snippets), n_crawled, passes, query)
+    # Stash stats for the live emitter (operator "fix emits"): name the FULL web
+    # toolchain + real counts, not the old "SearXNG fan-out" under-sell.
+    if isinstance(refined, dict):
+        refined["_web_stats"] = {"sources": len(blocks), "real": len(content),
+                                 "crawled": n_crawled, "passes": passes}
+    return ("LIVE WEB RESEARCH -- the MiOS pipeline ran its FULL web toolchain "
+            "concurrently (SearXNG metasearch -> readable extract + crawl4ai/"
+            "Chrome-CDP & Camoufox deep render) and FETCHED the top pages below. "
+            "GROUND your answer on this REAL content: synthesise the actual "
+            "stories/facts across sources, cite [n] inline, and do NOT just list "
+            "the source homepages or tell the user to visit them:\n\n"
+            + "\n\n".join(blocks))
 
 
 async def _read_tool_enrich(refined: Optional[dict],
@@ -9979,7 +9999,8 @@ async def chat_completions(request: Request) -> Any:
     # run them CONCURRENTLY -- turns the worst case from their SUM into their MAX
     # before any agent dispatches:
     #   _rag_enrich           SurrealDB vector recall (in-loop for every agent)
-    #   _web_research_enrich  SearXNG fan-out + page extract + crawl escalation
+    #   _web_research_enrich  full web toolchain CONCURRENT: SearXNG + extract +
+    #                         deep crawl (crawl4ai/Chrome-CDP + Camoufox)
     #   _read_tool_enrich     refine-hinted READ-only no-arg verbs (live state);
     #                         WRITE/launch verbs + recipes are NEVER auto-fired
     #                         here (binding no-live-launch rule)
@@ -10074,13 +10095,17 @@ async def chat_completions(request: Request) -> Any:
             # grounded this turn, show that the PIPELINE searched SearXNG + read
             # the top pages, with the page count.
             if _web_ctx:
-                # Count BLOCK HEADERS ("[n] title (http...)") only -- requiring
-                # the URL on the line avoids over-counting [n]-style citations
-                # that can appear inside fetched page bodies.
-                _wn = len(re.findall(r"(?m)^\[\d+\]\s.*\(https?://", _web_ctx))
+                # Name the FULL web toolchain + real counts (operator "fix emits"
+                # -- not just "SearXNG"). _web_stats is set by _web_research_enrich;
+                # fall back to counting block headers if it's absent.
+                _ws = (refined or {}).get("_web_stats") or {}
+                _wn = _ws.get("sources") or len(
+                    re.findall(r"(?m)^\[\d+\]\s.*\(https?://", _web_ctx))
+                _wd = f"SearXNG + extract + crawl4ai/Camoufox · {_wn} source(s)"
+                if _ws.get("crawled"):
+                    _wd += f", {_ws['crawled']} deep-crawled"
                 yield _sse_status(chat_id=chat_id, model=model, emoji="🔎",
-                                  label="web research",
-                                  detail=f"SearXNG fan-out + read {_wn} page(s)")
+                                  label="web research", detail=_wd)
             # Endpoint emitter: announce the PRIMARY node + its endpoint.
             yield _node_status(
                 chat_id=chat_id, model=model, name=target_name,
