@@ -78,6 +78,11 @@ BACKEND = os.environ.get("MIOS_AGENT_PIPE_BACKEND",
                          "http://localhost:8642/v1").rstrip("/")
 BACKEND_MODEL = os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL",
                                "hermes-agent")
+# host:port of the Hermes backend -- used to scope the bearer key so the
+# fanout/DAG agent path authenticates to Hermes (which enforces it) without
+# leaking the key to other local agents (operator 2026-05-25 swarm non-answer:
+# hermes facets 401'd in the swarm because the key was never attached).
+_BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 
 # Micro-LLM (SSOT: mios.toml [ai].micro_model / micro_endpoint, surfaced
 # as MIOS_MICRO_MODEL / MIOS_MICRO_ENDPOINT by userenv.sh). This is the
@@ -1472,9 +1477,21 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         nb["stream"] = False
         if _mdl:
             nb["model"] = _mdl
+        # The Hermes gateway (:8642) enforces Authorization: Bearer <key>; the
+        # fanout/DAG dispatch path never attached it, so hermes facets 401'd and
+        # silently dropped from the merge -- leaving only the weaker CPU/code
+        # agents (operator 2026-05-25 swarm non-answer). Attach the backend key
+        # when THIS dispatch targets the Hermes backend and no auth was already
+        # supplied; scoped to the backend netloc so the key never reaches a
+        # non-backend node (opencode/daemon/ollama don't enforce it anyway).
+        _hdrs = dict(headers or {})
+        if (_BACKEND_KEY
+                and "authorization" not in {k.lower() for k in _hdrs}
+                and ep.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
+            _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
         r = await client.post(
             f"{ep}/chat/completions",
-            content=json.dumps(nb).encode("utf-8"), headers=headers,
+            content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
             timeout=_to)
         if r.status_code != 200:
             return name, ""
@@ -1654,9 +1671,17 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         nb["stream"] = True
         if _mdl:
             nb["model"] = _mdl
+        # Attach the backend key when streaming from the Hermes backend (it
+        # enforces Bearer auth; see _call_agent_complete_inner). Scoped to the
+        # backend netloc so a non-backend node never receives the key.
+        _hdrs = dict(headers or {})
+        if (_BACKEND_KEY
+                and "authorization" not in {k.lower() for k in _hdrs}
+                and ep.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
+            _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
         async with client.stream(
                 "POST", f"{ep}/chat/completions",
-                content=json.dumps(nb).encode("utf-8"), headers=headers,
+                content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
                 timeout=_to) as r:
             if r.status_code != 200:
                 return name, ""
