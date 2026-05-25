@@ -264,14 +264,16 @@ PLANNER_ENDPOINT = os.environ.get(
 # splitting, _plan_swarm returns [] and the normal council path handles it, so
 # this never hurts trivial queries. MIN_WORDS keeps short ACTION verbs ("open
 # steam") off the extra planner call.
-# DEFAULT FALSE (operator 2026-05-23 "swarm from first operations / not just
-# Hermes"): a plain substantive query should hit the ALL-NODES council first
-# (every node weighs in), NOT get pre-split into a thin decompose DAG that
-# collapses to 1-2 agents. Decompose still fires for EXPLICIT multi-goal asks
-# (refine intent=multi_task), the 🧩 delegate toggle (force_delegate), and
-# refine's _multi_step flag -- just not by default on every substantive turn.
+# DEFAULT TRUE (operator 2026-05-24: "let _plan_swarm self-gate every
+# substantive turn" -- reverses the 2026-05-23 council-first default now that
+# _plan_swarm produces RICH facet splits + reliably self-gates). Every
+# substantive (>= MIN_WORDS) agent-intent query attempts the swarm decomposer;
+# _plan_swarm returns [] when the ask is not worth splitting (-> falls through to
+# the ALL-NODES council unharmed), and a real multi-facet split runs the agents
+# CONCURRENTLY on DISTINCT sub-tasks -> a true swarm. The MODEL (the swarm
+# planner) decides whether/how to split -- NO hardcoded phrase trigger.
 SWARM_DECOMPOSE_DEFAULT = os.environ.get(
-    "MIOS_SWARM_DECOMPOSE_DEFAULT", "false").lower() not in {"false", "0", "no"}
+    "MIOS_SWARM_DECOMPOSE_DEFAULT", "true").lower() not in {"false", "0", "no"}
 SWARM_DECOMPOSE_MIN_WORDS = int(
     os.environ.get("MIOS_SWARM_DECOMPOSE_MIN_WORDS", "6"))
 # Swarm DECOMPOSER model (operator 2026-05-22). A general 4b instruct model
