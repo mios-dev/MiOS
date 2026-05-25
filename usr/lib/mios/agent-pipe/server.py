@@ -7477,7 +7477,19 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
     # ignore it), so the live phase log stays visible WITH context. Skip the
     # terminal done marker -- it lands after the answer starts, where the OWUI
     # bridge drops late reasoning.
-    _reason = (_desc + "\n") if (STATUS_AS_REASONING and _desc and not done) else None
+    # ONLY persist an emit that carries REAL content -- a label or a detail.
+    # A BARE phase marker (👂/✨/🧭/🤖 = prompt/refine/route/agent_target, which
+    # have empty labels + no detail) is noise in the dropdown (operator
+    # 2026-05-25: "the same hardcoded bunch of generic emits that do nothing").
+    # Such contentless markers still emit as a transient mios_status pill (the
+    # progress signal) -- they just no longer clutter the persistent log. The
+    # meaningful emits (🔎 search · query, 🕷️ crawl · url, 🛰️ <node>, ✅) all
+    # carry a label/detail and are unaffected. No hardcoded emoji list -- the
+    # test is purely "does this emit say anything".
+    _has_content = bool((label and str(label).strip())
+                        or (detail and str(detail).strip()))
+    _reason = (_desc + "\n") if (
+        STATUS_AS_REASONING and _has_content and not done) else None
     return _sse_chunk(
         "", chat_id=chat_id, model=model,
         mios_status=payload, reasoning=_reason,
@@ -10586,67 +10598,53 @@ async def chat_completions(request: Request) -> Any:
                  " (FORCED swarm)" if _force_council else "",
                  target_name, len(_fanout), [n for n, _ in _fanout])
 
-    # Build the proxy body: original messages + hint-injected
-    # system prefix (only when refine emitted hints; trivial inputs
-    # skip refine + skip the prefix).
-    proxy_body = dict(body)
-    # Strip the SWARM control flags before the executor sees them (they are
-    # MiOS orchestration metadata, not part of the OpenAI chat request).
-    proxy_body.pop("mios_flags", None)
-    # 🧠 Force-tool toggle: tool_choice=required tells the executor it MUST
-    # emit a real tool_call instead of narrating the action (the standard
-    # anti-"I posted to Discord"-lie guard). Best-effort -- honoured by
-    # tool-calling executors; a model that ignores it just behaves as auto.
-    if _force_tool:
-        proxy_body["tool_choice"] = "required"
-    # Enrich stage: prepend RAG context (SurrealDB vector store, in-loop
-    # for every agent/sub-agent turn) + the refined plan hints as system
-    # messages before the sub-agent runs (operator 2026-05-20: "RAG in
-    # the loop for all agents/sub-agents every turn").
-    _sys_prefix: list = [{"role": "system", "content": _temporal_grounding()}]
-    _sp_block = _scratchpad_render()
-    if _sp_block:
-        _sys_prefix.append({"role": "system", "content": _sp_block})
-    # The FOUR enrich passes are independent (operator 2026-05-24 latency), so
-    # run them CONCURRENTLY -- turns the worst case from their SUM into their MAX
-    # before any agent dispatches:
+    # Build the proxy body + enrich the system prefix. The FOUR enrich passes
+    # are independent (operator 2026-05-24 latency) and run CONCURRENTLY (worst
+    # case = their MAX not SUM):
     #   _rag_enrich           SurrealDB vector recall (in-loop for every agent)
-    #   _web_research_enrich  full web toolchain CONCURRENT: SearXNG + extract +
-    #                         deep crawl (crawl4ai/Chrome-CDP + Camoufox)
+    #   _web_research_enrich  full web toolchain: SearXNG + extract + deep crawl
     #   _read_tool_enrich     refine-hinted READ-only no-arg verbs (live state);
-    #                         WRITE/launch verbs + recipes are NEVER auto-fired
-    #                         here (binding no-live-launch rule)
+    #                         WRITE/launch verbs are NEVER auto-fired (binding)
     #   _recall_knowledge     prior finished Q+A (read half of store/recall)
-    # return_exceptions keeps each pass best-effort (one failure -> "" not a 500);
-    # the resulting system-block order is preserved (RAG, web, read-tool, recall).
-    _rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx = [
-        (c if isinstance(c, str) else "") for c in await asyncio.gather(
-            _rag_enrich(last_user_text),
-            _web_research_enrich(last_user_text, refined),
-            _read_tool_enrich(refined, session_id),
-            _recall_knowledge(last_user_text),
-            return_exceptions=True)]
-    for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx):
-        if _ctx:
-            _sys_prefix.append({"role": "system", "content": _ctx})
-    # The refined-plan marker block (orchestration: intent / intended_outcome /
-    # tool+skill hints) is for the ACTING PRIMARY. Council SECONDARIES are
-    # reasoning-only, and a generic/non-MiOS secondary model (e.g. the vanilla
-    # qwen on the iGPU lane) PARROTS the marker block verbatim into its answer
-    # despite the "do NOT echo" line (operator 2026-05-24: the reasoner dumped
-    # "_agent / intent / refined_query" into the dropdown). So the hint goes to
-    # the PRIMARY only; secondaries get the shared context + conversation with
-    # nothing to parrot.
-    _hint_msg = None
-    if refined and (refined.get("hint_tools") or refined.get("hint_skills")
-                    or refined.get("intended_outcome")):
-        _hint_msg = {"role": "system",
+    # CRITICAL (operator 2026-05-25 "no emitters at all until almost the end"):
+    # this used to be a ~90s BLOCK *before* the streaming generator started, so
+    # the client saw nothing until it finished, then everything dumped. It is now
+    # a COROUTINE: the streaming path runs it INSIDE the generator with a LIVE
+    # emit sink (each web step streams in real time); the non-streaming path just
+    # awaits it. Returns (full system prefix, finalized proxy body).
+    async def _finalize(emit=None):
+        pb = dict(body)
+        # Strip SWARM control flags (MiOS orchestration, not an OpenAI field).
+        pb.pop("mios_flags", None)
+        # 🧠 Force-tool: tool_choice=required -> the executor MUST emit a real
+        # tool_call instead of narrating (anti-"I posted to Discord" guard).
+        if _force_tool:
+            pb["tool_choice"] = "required"
+        sp: list = [{"role": "system", "content": _temporal_grounding()}]
+        _spb = _scratchpad_render()
+        if _spb:
+            sp.append({"role": "system", "content": _spb})
+        _rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx = [
+            (c if isinstance(c, str) else "") for c in await asyncio.gather(
+                _rag_enrich(last_user_text),
+                _web_research_enrich(last_user_text, refined, emit=emit),
+                _read_tool_enrich(refined, session_id),
+                _recall_knowledge(last_user_text),
+                return_exceptions=True)]
+        for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx):
+            if _ctx:
+                sp.append({"role": "system", "content": _ctx})
+        # The refined-plan marker block (intent / intended_outcome / tool+skill
+        # hints) is for the ACTING PRIMARY only -- a generic council secondary
+        # PARROTS it verbatim into its answer (operator 2026-05-24). Secondaries
+        # get the shared context + conversation, nothing to parrot.
+        _hint = None
+        if refined and (refined.get("hint_tools") or refined.get("hint_skills")
+                        or refined.get("intended_outcome")):
+            _hint = {"role": "system",
                      "content": _build_agent_hint(refined, target_name)}
-    proxy_body["messages"] = (
-        _sys_prefix + ([_hint_msg] if _hint_msg else []) + list(messages))
-    # Secondary message set is built PER-LANE in the fan-out loop below
-    # (_trim_sys_prefix trims the prefix for a slow lane); no shared set here.
-    proxy_bytes = json.dumps(proxy_body).encode("utf-8")
+        pb["messages"] = sp + ([_hint] if _hint else []) + list(messages)
+        return sp, pb
     # Normalise header keys to lowercase so the Content-Type set
     # below replaces (not duplicates) whatever the incoming request
     # supplied. Operator-flagged 2026-05-18 trace: Hermes :8642
@@ -10701,13 +10699,39 @@ async def chat_completions(request: Request) -> Any:
                                     phase="route")
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="agent_target")
-            # Per-STEP enrich emits (operator 2026-05-22 "need emitters for every
-            # step end-to-end"): replay each recorded step -- web search, each
-            # page read, each deep-crawl, each drill pass, each READ-only tool --
-            # as its OWN emit + persistent reasoning line, instead of one
-            # whole-loop "web research" summary.
-            for _se in _enrich_step_emits(refined, chat_id=chat_id, model=model):
-                yield _se
+            # Run the enrich passes INSIDE the stream with LIVE web-step emits
+            # (operator 2026-05-25 "no emitters at all until almost the end" --
+            # the enrich was a ~90s BLOCK *before* the generator started, so the
+            # client saw nothing then everything dumped). Drain its emit queue and
+            # yield each step (🔎 search, 🕷️ crawl, 📚 grounded) in REAL TIME, with
+            # a keepalive during any silent gap. _finalize returns the prefix +
+            # body once the toolchain completes.
+            _eq: asyncio.Queue = asyncio.Queue()
+            _fin_holder: dict = {}
+
+            async def _run_enrich() -> None:
+                try:
+                    _fin_holder["v"] = await _finalize(emit=_eq.put_nowait)
+                finally:
+                    _eq.put_nowait(None)        # sentinel: enrich done
+
+            _etask = asyncio.create_task(_run_enrich())
+            while True:
+                try:
+                    _s = await asyncio.wait_for(_eq.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+                    continue
+                if _s is None:
+                    break
+                yield _sse_status(chat_id=chat_id, model=model,
+                                  emoji=str(_s.get("emoji", "·")),
+                                  label=str(_s.get("label", "")),
+                                  detail=_s.get("detail"))
+            await _etask
+            _sys_prefix, proxy_body = _fin_holder.get(
+                "v", ([{"role": "system", "content": _temporal_grounding()}],
+                      {**dict(body), "messages": list(messages)}))
             # Endpoint emitter: announce the PRIMARY node + its endpoint.
             yield _node_status(
                 chat_id=chat_id, model=model, name=target_name,
@@ -11151,6 +11175,10 @@ async def chat_completions(request: Request) -> Any:
             yield _sse_done()
         return StreamingResponse(_stream_backend(),
                                  media_type="text/event-stream")
+    # Non-streaming: run the enrich passes (no live emits on this path) and
+    # build the proxy body -- same _finalize the streaming generator runs live.
+    _sys_prefix, proxy_body = await _finalize()
+    proxy_bytes = json.dumps(proxy_body).encode("utf-8")
     client = await _get_client()
     # Council fan-out on the NON-streaming path too (operator 2026-05-22
     # "every prompt/query/request"): kick the secondaries CONCURRENTLY with
