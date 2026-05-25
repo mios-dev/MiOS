@@ -2746,22 +2746,40 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             "key facts. better_query + scrape_url must be concrete and AVOID vague "
             "words a search engine mis-matches to a brand/product. Prefer "
             "lightweight text/lite endpoints when you know one.")
-        payload = {
-            "model": _JUDGE_MODEL,
-            "messages": [{"role": "system", "content": sys_p},
-                         {"role": "user",
-                          "content": f"USER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}],
-            "think": False, "stream": False, "format": "json",
-            "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
-            "options": {"temperature": 0.0, "num_predict": 200},
-        }
+        _msgs = [{"role": "system", "content": sys_p},
+                 {"role": "user",
+                  "content": f"USER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}]
+        # ENDPOINT-AWARE (operator 2026-05-25: the judge can run on the iGPU,
+        # which is llama.cpp serving OpenAI /v1 -- NOT Ollama /api/chat). Ollama
+        # lanes (:11434/:11435) use native /api/chat + think:False (the /v1 compat
+        # path strands a qwen3 'think' answer in an empty content field); a
+        # non-ollama /v1 endpoint (the iGPU's qwen2.5, no think-split) uses
+        # /chat/completions with response_format json_object.
+        _judge_ollama = (":11434" in _JUDGE_EP) or (":11435" in _JUDGE_EP)
         try:
-            async with httpx.AsyncClient(timeout=12.0) as c:
-                r = await c.post(f"{_JUDGE_BASE}/api/chat", json=payload,
-                                 headers={"Content-Type": "application/json"})
-                if r.status_code != 200:
-                    return True, "", ""        # degrade open
-                msg = (r.json().get("message") or {}).get("content") or "{}"
+            async with httpx.AsyncClient(timeout=20.0) as c:
+                if _judge_ollama:
+                    r = await c.post(f"{_JUDGE_BASE}/api/chat", json={
+                        "model": _JUDGE_MODEL, "messages": _msgs,
+                        "think": False, "stream": False, "format": "json",
+                        "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+                        "options": {"temperature": 0.0, "num_predict": 200}},
+                        headers={"Content-Type": "application/json"})
+                    if r.status_code != 200:
+                        return True, "", ""        # degrade open
+                    msg = (r.json().get("message") or {}).get("content") or "{}"
+                else:
+                    _url = (f"{_JUDGE_EP}/chat/completions" if _JUDGE_EP.endswith("/v1")
+                            else f"{_JUDGE_EP}/v1/chat/completions")
+                    r = await c.post(_url, json={
+                        "model": _JUDGE_MODEL, "messages": _msgs, "stream": False,
+                        "temperature": 0.0, "max_tokens": 200,
+                        "response_format": {"type": "json_object"}},
+                        headers={"Content-Type": "application/json"})
+                    if r.status_code != 200:
+                        return True, "", ""        # degrade open
+                    msg = (((r.json().get("choices") or [{}])[0]
+                            .get("message") or {}).get("content")) or "{}"
             obj = json.loads(msg)
             return (bool(obj.get("answerable")),
                     str(obj.get("better_query") or ""),
