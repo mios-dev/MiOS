@@ -2428,11 +2428,17 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     '' when disabled / not a web turn / nothing fetched."""
     if not WEB_RESEARCH_ENABLED or not query or not query.strip():
         return ""
-    # GATE: only when refine flagged a web need (hint_tools names a web verb), so
-    # the loop fires on current-world / lookup turns but never on a pure-local or
-    # non-web turn -- avoids the old web over-fire (weather turn drowned in junk).
-    hints = [str(t).lower() for t in ((refined or {}).get("hint_tools") or [])]
-    if not any(("web" in h or "search" in h) for h in hints):
+    # GATE: fire ONLY when refine hinted an ACTUAL web verb (relevance-gating,
+    # operator 2026-05-22 "internal MiOS prompt? probably don't need full web
+    # tools"). Match the EXPLICIT web-verb set -- NOT a "search"/"web" substring,
+    # which also matched the LOCAL search verbs (knowledge_search /
+    # everything_search / fs_search / app_search / tool_search) and made an
+    # internal system/file query wastefully run full web research (caught live
+    # 2026-05-22: a "MiOS system status" turn deep-crawled 3 web pages). open_url
+    # counts as a web need too.
+    _webverbs = _WEB_ENRICH_VERBS | {"open_url"}
+    hints = [str(t).lower().strip() for t in ((refined or {}).get("hint_tools") or [])]
+    if not any(h in _webverbs for h in hints):
         return ""
 
     async def _search(q: str, news: bool = False) -> list:
