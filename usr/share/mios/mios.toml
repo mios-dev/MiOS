@@ -827,6 +827,16 @@ fanout_max = 3
 #       TRIMMED system prefix (slow prefill); gpu + cpu keep the full context.
 #   MIOS_SLOW_LANE_BLOCK_CHARS = 1500 -- per-block cap for a slow lane, so the
 #       ~7K web-research context doesn't blow its prefill (the gist survives).
+#   MIOS_NODE_LIVENESS_TTL_S  = 45  -- OUTAGE resilience (operator 2026-05-25
+#       "iGPU is down"): TTL of the cached node-liveness probe. A health_gate
+#       client/Tailscale node (the iGPU :11436, a phone) that is DOWN is pruned
+#       from the swarm roster so the planner never assigns it a facet + any DAG
+#       facet already on a dead node RE-ROUTES to a live engine -- swarm width is
+#       preserved under an outage instead of a facet vanishing into a dead node.
+#       Only health_gate nodes are probed (local lanes are always treated live);
+#       a down node isn't re-probed every turn and rejoins within the TTL once
+#       back up. 0 effectively disables caching (probe every turn).
+#   MIOS_NODE_LIVENESS_CONNECT_S = 1.5 -- connect timeout of that liveness probe.
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any

@@ -165,6 +165,23 @@ WEB_RESEARCH_USE_NEWS_CATEGORY = os.environ.get(
 HEALTHGATE_CONNECT_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_CONNECT_S", "2.5"))
 HEALTHGATE_READ_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_READ_S", "120"))
 
+# Node-liveness gate (operator 2026-05-25 "iGPU is down"). OUTAGE resilience:
+# a health_gate client/Tailscale node (the Windows iGPU :11436, a phone) can be
+# DOWN. Without a pre-flight check the swarm planner / DAG still assigns it a
+# facet, which then fails-connect at HEALTHGATE_CONNECT and contributes NOTHING
+# -- the swarm silently loses a concurrent lane. This TTL-cached liveness set
+# lets the planner PICK only live nodes and the DAG RE-ROUTE a facet off a dead
+# node onto a live engine, so swarm WIDTH is preserved under an outage instead
+# of a facet vanishing. Only health_gate nodes are probed (the ones that
+# legitimately come and go); local lanes (dGPU/CPU/opencode/daemon) are always
+# treated live -- probing them every turn only adds latency, and a local-lane
+# failure is a louder, separate problem the fast-fail dispatch already handles.
+# A down node isn't re-probed every turn (TTL); it rejoins within the TTL once
+# the operator brings it back. All env-tunable; no hardcoded node names.
+NODE_LIVENESS_TTL_S = float(os.environ.get("MIOS_NODE_LIVENESS_TTL_S", "45"))
+NODE_LIVENESS_CONNECT_S = float(os.environ.get("MIOS_NODE_LIVENESS_CONNECT_S", "1.5"))
+_NODE_LIVE: dict = {}  # name -> (probed_ts, reachable)
+
 # Per-lane context trimming (operator 2026-05-24: "add per-lane context
 # trimming"). SLOW lanes (the iGPU on Vulkan, a phone/mobile node, a remote
 # accelerator) prefill far slower than the dGPU, so handing them the FULL system
@@ -1867,6 +1884,99 @@ def _render_agent_catalog(registry: dict) -> str:
 
 
 _AGENT_CATALOG_RENDERED = _render_agent_catalog(_AGENT_REGISTRY)
+
+
+async def _live_agent_names() -> set:
+    """Set of agent names currently USABLE for dispatch (operator 2026-05-25
+    "iGPU is down"). Non-health_gate agents are ALWAYS live -- they are local
+    lanes whose failure is a separate, louder problem and probing them every
+    turn only adds latency. Only health_gate client/Tailscale nodes (the iGPU,
+    a phone) -- the ones that legitimately come and go -- are connect-probed,
+    TTL-cached in _NODE_LIVE so an OUTAGE drops the node from the swarm roster
+    WITHOUT re-probing every turn (it rejoins within the TTL once back up).
+    Used to prune dead nodes before the planner/DAG assigns them a facet, so the
+    freed concurrent lane re-routes to live compute instead of vanishing."""
+    live: set = set()
+    to_probe: list = []
+    now = time.time()
+    for name, cfg in _AGENT_REGISTRY.items():
+        if not cfg.get("health_gate"):
+            live.add(name)
+            continue
+        cached = _NODE_LIVE.get(name)
+        if cached and (now - cached[0]) < NODE_LIVENESS_TTL_S:
+            if cached[1]:
+                live.add(name)
+        else:
+            to_probe.append((name, cfg))
+    if to_probe:
+        _to = httpx.Timeout(connect=NODE_LIVENESS_CONNECT_S,
+                            read=NODE_LIVENESS_CONNECT_S, write=2.0, pool=2.0)
+
+        async def _probe1(client, ep: str) -> bool:
+            ep = (ep or "").rstrip("/")
+            if not ep:
+                return False
+            try:  # OpenAI /v1/models first (llama.cpp + vLLM speak this)
+                r = await client.get(f"{ep}/models")
+                if r.status_code < 500:
+                    return True
+            except Exception:
+                pass
+            tb = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
+            try:  # ollama-style /api/tags fallback
+                r = await client.get(f"{tb}/api/tags")
+                return r.status_code < 500
+            except Exception:
+                return False
+
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=_to,
+                                         follow_redirects=False) as client:
+                results = await asyncio.gather(
+                    *[_probe1(client, c.get("endpoint")) for _n, c in to_probe],
+                    return_exceptions=True)
+        except Exception:  # noqa: BLE001 -- probe is best-effort; degrade open
+            results = [False] * len(to_probe)
+        for (name, _cfg), ok in zip(to_probe, results):
+            ok = bool(ok) and not isinstance(ok, Exception)
+            _NODE_LIVE[name] = (time.time(), ok)
+            if ok:
+                live.add(name)
+    return live
+
+
+def _reroute_dead_nodes(dag: dict, live: set) -> list:
+    """Re-route any DAG `agent` node assigned to a node that is currently DOWN
+    onto a LIVE agent, preserving swarm width under an outage (operator
+    2026-05-25 "iGPU is down"). Universal chokepoint: runs on the FINAL DAG
+    regardless of which planner built it (multi_task / _plan_swarm / the
+    decompose_intent fallback). Spreads like _agent_dag_from_tasks -- prefer an
+    UNUSED live agent so the facets still fan out across DISTINCT engines, only
+    reusing a live agent when none are left. The default agent (Hermes, dGPU) is
+    never health_gate, so a live target always exists. Mutates nodes in place;
+    returns [(node_id, from, to), ...] for the log/emit. No-op when `live` is
+    empty/None (degrade open -- never strand a turn on a bad probe)."""
+    if not live:
+        return []
+    nodes = [n for n in (dag.get("nodes") or []) if n.get("agent")]
+    if not nodes:
+        return []
+    used = [n.get("agent") for n in nodes
+            if n.get("agent") in live]      # live agents already in the plan
+    live_pool = [a for a in _AGENT_REGISTRY.keys() if a in live]
+    moved: list = []
+    for n in nodes:
+        ag = str(n.get("agent") or "")
+        if ag in live:
+            continue
+        alt = next((a for a in live_pool if a not in used), None)
+        if not alt:                          # all live agents already in use
+            alt = next((a for a in live_pool), None) or _pick_agent("")[0]
+        used.append(alt)
+        moved.append((n.get("id"), ag, alt))
+        n["agent"] = alt
+    return moved
 
 
 def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> str:
@@ -6289,7 +6399,7 @@ def _agent_dag_from_tasks(tasks: list) -> dict:
     return {"summary": summary, "nodes": nodes}
 
 
-_SWARM_SYSTEM = (
+_SWARM_SYSTEM_HEAD = (
     "You are the MiOS SWARM planner. Split the user's request into INDEPENDENT "
     "sub-tasks that can run in PARALLEL, and assign each to the best sub-agent "
     "from the roster below. This is multi-agent delegation -- weigh the whole "
@@ -6324,8 +6434,11 @@ _SWARM_SYSTEM = (
     "from several angles is NOT atomic -- SPLIT IT into distinct facets.\n"
     "\n"
     "Sub-agent roster:\n"
-    + _AGENT_CATALOG_RENDERED
 )
+# Full-roster system prompt (back-compat / fallback). _plan_swarm appends a
+# LIVE-only roster at call time so the planner never assigns a facet to a node
+# that is currently down (operator 2026-05-25 "iGPU is down").
+_SWARM_SYSTEM = _SWARM_SYSTEM_HEAD + _AGENT_CATALOG_RENDERED
 
 
 async def _plan_swarm(user_text: str) -> list:
@@ -6343,10 +6456,21 @@ async def _plan_swarm(user_text: str) -> list:
     # general SWARM_MODEL (not the code model) and read native message.content.
     _base = (PLANNER_ENDPOINT[:-3].rstrip("/")
              if PLANNER_ENDPOINT.endswith("/v1") else PLANNER_ENDPOINT)
+    # LIVE-only roster (operator 2026-05-25 "iGPU is down"): show the planner
+    # ONLY currently-reachable agents so it never assigns a facet to a down
+    # node -- the freed work spreads across live engines instead. Falls back to
+    # the full roster if the liveness probe yields nothing (degrade open).
+    try:
+        _live = await _live_agent_names()
+        _reg = {n: c for n, c in _AGENT_REGISTRY.items() if n in _live}
+        _sys = (_SWARM_SYSTEM_HEAD + _render_agent_catalog(_reg)) if _reg \
+            else _SWARM_SYSTEM
+    except Exception:  # noqa: BLE001
+        _sys = _SWARM_SYSTEM
     payload = {
         "model": SWARM_MODEL,
         "messages": [
-            {"role": "system", "content": _SWARM_SYSTEM},
+            {"role": "system", "content": _sys},
             {"role": "user", "content": user_text[:4000]},
         ],
         "think": False,
@@ -6486,6 +6610,19 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                                  return_exceptions=True)
         except Exception as e:  # noqa: BLE001 -- grounding is best-effort
             log.debug("dag per-facet grounding skipped: %s", e)
+
+    # OUTAGE re-route (operator 2026-05-25 "iGPU is down"): before grounding or
+    # dispatch, move any facet assigned to a DOWN health_gate node onto a LIVE
+    # engine so the swarm keeps its full concurrent width instead of losing a
+    # facet to a dead node. Universal -- runs on the final DAG whatever planner
+    # built it. Best-effort: a bad probe returns an empty set -> no-op.
+    try:
+        _moved = _reroute_dead_nodes(dag, await _live_agent_names())
+        if _moved:
+            log.info("outage re-route (down node -> live): %s",
+                     [f"{m[0]}:{m[1]}->{m[2]}" for m in _moved])
+    except Exception as e:  # noqa: BLE001 -- never strand a turn on the gate
+        log.debug("node-liveness re-route skipped: %s", e)
 
     if streaming:
         async def _gen() -> AsyncGenerator[bytes, None]:
