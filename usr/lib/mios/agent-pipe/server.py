@@ -2184,6 +2184,11 @@ _REFINE_SYSTEM_LITE = (
     "    search engine would mis-match to a brand / product / unrelated term\n"
     "    (e.g. a bare 'current' or 'trending' that hits an app or a\n"
     "    dictionary). This is the string the web search actually runs.\n"
+    '  "news": true ONLY when the ask is about CURRENT EVENTS / breaking or\n'
+    "    recent NEWS / what is happening now / trending stories -- dated,\n"
+    "    time-sensitive reporting where a NEWS index beats general web search.\n"
+    "    Omit or false for evergreen lookups (definitions, how-tos, specs).\n"
+    "    Classify by what the ask NEEDS, never by a keyword.\n"
     '  "intended_outcome": one line -- what the user expects back\n'
     '  "target_agent": a registered sub-agent chosen by role\n'
     '  "hint_tools": [verb names from the catalog the agent will need]\n'
@@ -2322,14 +2327,15 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     if not any(("web" in h or "search" in h) for h in hints):
         return ""
 
-    async def _search(q: str, news: bool = False,
-                      fanout: Optional[int] = None) -> list:
-        # fanout=1 (no micro-LLM expansion) for a CANONICAL query: the weak
-        # expander slugified "top world news headlines today" -> "top" ->
-        # dictionary/Topgolf junk, so a literal canonical query must NOT expand.
-        _fo = WEB_RESEARCH_FANOUT if fanout is None else fanout
+    async def _search(q: str, news: bool = False) -> list:
+        # news=True targets SearXNG's NEWS category (dated stories) instead of
+        # the general web -- set by refine's MODEL-DRIVEN `news` flag for
+        # current-events / breaking / trending asks (operator 2026-05-24: a vague
+        # 'current global trending' hit the 'Current' banking app on a general
+        # search; the news index returns real dated stories). NOT a Python
+        # keyword check -- the refine model classifies the intent.
         args = ["mios-web-search", "-n", str(WEB_RESEARCH_RESULTS),
-                "--fanout", str(_fo)]
+                "--fanout", str(WEB_RESEARCH_FANOUT)]
         if news:
             args.append("--news")   # SearXNG news category -> real dated stories
         args.append(q[:400])
@@ -2378,7 +2384,9 @@ async def _web_research_enrich(query: str, refined: Optional[dict]) -> str:
     # list / canonical query -- the model decides what to search; the fan-out
     # (also model-driven) diversifies it.
     search_q = str((refined or {}).get("refined_text") or "").strip() or query
-    results = await _search(search_q)
+    # news category is the refine MODEL's call (current-events intent) -> SearXNG
+    # news index; nothing hardcoded pipeline-side.
+    results = await _search(search_q, news=bool((refined or {}).get("news")))
     if not results:
         return ""
     seen: set = set()
@@ -2598,6 +2606,13 @@ async def refine_intent(user_text: str,
     parsed["_elapsed_s"] = round(elapsed, 1)
     parsed["_model"] = REFINE_MODEL
     parsed["_endpoint"] = REFINE_ENDPOINT
+    # Normalise the model-driven `news` flag to a strict bool (format=json
+    # usually yields a real boolean; coerce common string truthy forms too).
+    # Drives _web_research_enrich -> SearXNG news category. MODEL-classified,
+    # NOT a Python keyword check (operator binding: no hardcoded keyword lists).
+    _news = parsed.get("news")
+    parsed["news"] = (_news is True) or (
+        isinstance(_news, str) and _news.strip().lower() in {"true", "1", "yes"})
     # Chat-classify guard: a small refine model occasionally picks
     # intent=chat for an input that's CLEARLY actionable (literal
     # CLI verb, fully-qualified URL, `mios-*` shim invocation) and
@@ -6043,13 +6058,14 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     # for slow lanes, as the council path does), so each facet reasons from REAL
     # current content for its angle. Best-effort; never blocks the DAG.
     try:
-        _g_parts: list = []
-        _wc = await _web_research_enrich(last_user_text, refined)
-        if _wc:
-            _g_parts.append(_wc)
-        _rc = await _read_tool_enrich(refined, session_id)
-        if _rc:
-            _g_parts.append(_rc)
+        # web-research + read-tool enrich are independent -> gather them
+        # concurrently (operator 2026-05-24 latency); return_exceptions keeps
+        # grounding best-effort (a failed pass -> "" not a crashed DAG).
+        _wc, _rc = await asyncio.gather(
+            _web_research_enrich(last_user_text, refined),
+            _read_tool_enrich(refined, session_id),
+            return_exceptions=True)
+        _g_parts = [p for p in (_wc, _rc) if isinstance(p, str) and p]
         if _g_parts:
             _g_full = "\n\n".join(_g_parts)
             for _node in dag.get("nodes", []):
@@ -9915,29 +9931,27 @@ async def chat_completions(request: Request) -> Any:
     _sp_block = _scratchpad_render()
     if _sp_block:
         _sys_prefix.append({"role": "system", "content": _sp_block})
-    _rag_ctx = await _rag_enrich(last_user_text)
-    if _rag_ctx:
-        _sys_prefix.append({"role": "system", "content": _rag_ctx})
-    # Pipeline-side WEB-RESEARCH loop (operator 2026-05-24 "the MiOS pipeline
-    # itself loops for web use and web tools"): for a web-needing turn, the
-    # PIPELINE searches SearXNG (fan-out) + fetches the top pages for REAL
-    # content and grounds EVERY agent on it -- so the swarm answers from actual
-    # stories, not homepage snippets, no matter how shallow one agent's own loop.
-    _web_ctx = await _web_research_enrich(last_user_text, refined)
-    if _web_ctx:
-        _sys_prefix.append({"role": "system", "content": _web_ctx})
-    # Pipeline-side READ-tool enrich (operator 2026-05-24 "all ... skills and
-    # recipes fire on ALL endpoints"): run the refine-hinted READ-only, no-arg
-    # capabilities (live system state) and ground EVERY agent on the output.
-    # WRITE/launch verbs + recipes are NOT auto-fired here (no-live-launch rule).
-    _readtool_ctx = await _read_tool_enrich(refined, session_id)
-    if _readtool_ctx:
-        _sys_prefix.append({"role": "system", "content": _readtool_ctx})
-    # Knowledge recall: surface relevant PRIOR answers (the read half of the
-    # store/recall loop) so the stack builds on what it already worked out.
-    _recall_ctx = await _recall_knowledge(last_user_text)
-    if _recall_ctx:
-        _sys_prefix.append({"role": "system", "content": _recall_ctx})
+    # The FOUR enrich passes are independent (operator 2026-05-24 latency), so
+    # run them CONCURRENTLY -- turns the worst case from their SUM into their MAX
+    # before any agent dispatches:
+    #   _rag_enrich           SurrealDB vector recall (in-loop for every agent)
+    #   _web_research_enrich  SearXNG fan-out + page extract + crawl escalation
+    #   _read_tool_enrich     refine-hinted READ-only no-arg verbs (live state);
+    #                         WRITE/launch verbs + recipes are NEVER auto-fired
+    #                         here (binding no-live-launch rule)
+    #   _recall_knowledge     prior finished Q+A (read half of store/recall)
+    # return_exceptions keeps each pass best-effort (one failure -> "" not a 500);
+    # the resulting system-block order is preserved (RAG, web, read-tool, recall).
+    _rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx = [
+        (c if isinstance(c, str) else "") for c in await asyncio.gather(
+            _rag_enrich(last_user_text),
+            _web_research_enrich(last_user_text, refined),
+            _read_tool_enrich(refined, session_id),
+            _recall_knowledge(last_user_text),
+            return_exceptions=True)]
+    for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx):
+        if _ctx:
+            _sys_prefix.append({"role": "system", "content": _ctx})
     # The refined-plan marker block (orchestration: intent / intended_outcome /
     # tool+skill hints) is for the ACTING PRIMARY. Council SECONDARIES are
     # reasoning-only, and a generic/non-MiOS secondary model (e.g. the vanilla
@@ -10016,7 +10030,10 @@ async def chat_completions(request: Request) -> Any:
             # grounded this turn, show that the PIPELINE searched SearXNG + read
             # the top pages, with the page count.
             if _web_ctx:
-                _wn = len(re.findall(r"(?m)^\[\d+\]\s", _web_ctx))
+                # Count BLOCK HEADERS ("[n] title (http...)") only -- requiring
+                # the URL on the line avoids over-counting [n]-style citations
+                # that can appear inside fetched page bodies.
+                _wn = len(re.findall(r"(?m)^\[\d+\]\s.*\(https?://", _web_ctx))
                 yield _sse_status(chat_id=chat_id, model=model, emoji="🔎",
                                   label="web research",
                                   detail=f"SearXNG fan-out + read {_wn} page(s)")
