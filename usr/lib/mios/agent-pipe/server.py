@@ -141,6 +141,19 @@ WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEO
 # stays short so an absent node still drops fast. Both env-tunable.
 HEALTHGATE_CONNECT_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_CONNECT_S", "2.5"))
 HEALTHGATE_READ_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_READ_S", "120"))
+
+# Per-lane context trimming (operator 2026-05-24: "add per-lane context
+# trimming"). SLOW lanes (the iGPU on Vulkan, a phone/mobile node, a remote
+# accelerator) prefill far slower than the dGPU, so handing them the FULL system
+# prefix -- especially the ~7K pipeline web-research block -- blows their read
+# budget and they get abandoned mid-compute. For those lanes each system block
+# is capped to SLOW_LANE_BLOCK_CHARS: the gist (top story headlines / top RAG
+# hits lead each block) survives, the long tail drops, so prefill stays fast and
+# the node FINISHES + contributes. gpu + cpu (local, fast enough) keep the full
+# context. So the iGPU contributes WITHOUT needing the long 120s read.
+SLOW_LANES = set(x.strip() for x in os.environ.get(
+    "MIOS_SLOW_LANES", "igpu,mobile,accelerator").split(",") if x.strip())
+SLOW_LANE_BLOCK_CHARS = int(os.environ.get("MIOS_SLOW_LANE_BLOCK_CHARS", "1500"))
 # Cap on CONCURRENTLY-dispatched agents (operator 2026-05-23 "not all agents at
 # the same time -- reasonable limit/cap"). Council secondaries + DAG-level
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
@@ -1143,6 +1156,25 @@ def _agent_lane(cfg: dict) -> str:
     if ":8644" in ep or ":11435" in ep or "cpu" in mdl:
         return "cpu"
     return "gpu"
+
+
+def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
+    """Cap each system-prefix block for a SLOW lane (operator 2026-05-24 "add
+    per-lane context trimming") so a slow-prefill node (iGPU / phone / remote
+    accelerator) finishes within its read budget instead of being abandoned
+    mid-compute by the big ~7K pipeline web-research block. The gist survives
+    (top stories / top RAG hits lead each block); the tail is dropped. gpu + cpu
+    (local) keep the FULL prefix. Returns the list unchanged for a fast lane."""
+    if lane not in SLOW_LANES or SLOW_LANE_BLOCK_CHARS <= 0:
+        return sys_prefix
+    trimmed: list = []
+    for m in sys_prefix:
+        c = str(m.get("content", ""))
+        if len(c) > SLOW_LANE_BLOCK_CHARS:
+            c = (c[:SLOW_LANE_BLOCK_CHARS].rstrip()
+                 + "\n[...trimmed for the light lane...]")
+        trimmed.append({**m, "content": c})
+    return trimmed
 
 
 def _agent_skill_tags(cfg: dict) -> list[str]:
@@ -9725,8 +9757,8 @@ async def chat_completions(request: Request) -> Any:
                      "content": _build_agent_hint(refined, target_name)}
     proxy_body["messages"] = (
         _sys_prefix + ([_hint_msg] if _hint_msg else []) + list(messages))
-    # Secondary message set: identical CONTEXT, minus the primary-only block.
-    _sec_messages = _sys_prefix + list(messages)
+    # Secondary message set is built PER-LANE in the fan-out loop below
+    # (_trim_sys_prefix trims the prefix for a slow lane); no shared set here.
     proxy_bytes = json.dumps(proxy_body).encode("utf-8")
     # Normalise header keys to lowercase so the Content-Type set
     # below replaces (not duplicates) whatever the incoming request
@@ -9930,12 +9962,16 @@ async def chat_completions(request: Request) -> Any:
                     _ev_q.put_nowait(("PD", None))
 
             # Secondaries run on the lighter body (shared context, NO primary-
-            # only marker block -- see _sec_messages) so a generic council model
-            # cannot parrot the routing plan into its answer.
-            _sec_body = dict(proxy_body)
-            _sec_body["messages"] = _sec_messages
+            # only marker block) so a generic council model cannot parrot the
+            # routing plan into its answer. Built PER-LANE: a SLOW lane (iGPU /
+            # phone) gets a TRIMMED prefix (_trim_sys_prefix) so its slow prefill
+            # finishes in budget instead of being abandoned mid-compute.
             _sec_tasks = []
             for _n, _c in _fanout:
+                _node_body = dict(proxy_body)
+                _node_body["messages"] = (
+                    _trim_sys_prefix(_sys_prefix, _agent_lane(_c))
+                    + list(messages))
                 # context = the secondary's ROLE/specialty (why it's engaged on
                 # this turn); council members all answer the same prompt, so the
                 # role is the relevant per-node step context.
@@ -9943,7 +9979,7 @@ async def chat_completions(request: Request) -> Any:
                                    cfg=_c, state="engage",
                                    context=str(_c.get("role", "")))
                 _sec_tasks.append(asyncio.create_task(
-                    _call_agent_stream(_n, _c, _sec_body, headers, client,
+                    _call_agent_stream(_n, _c, _node_body, headers, client,
                                        _ev_q)))
             _prim_task = asyncio.create_task(_primary_pump())
             # Per-secondary ✅/💤 emitted LIVE as each fan-out task FINISHES
