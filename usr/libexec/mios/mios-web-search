@@ -61,16 +61,23 @@ _EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
 _RRF_K = int(os.environ.get("MIOS_WEB_RRF_K", "60"))
 
 
-def search(query: str, limit: int, timeout: float, category: str = "") -> dict:
+def search(query: str, limit: int, timeout: float, category: str = "",
+           time_range: str = "") -> dict:
     """One SearXNG JSON query. Returns the FULL result list (caller slices)
     plus instant answers + infoboxes. category='news' targets SearXNG's NEWS
     engines (dated stories) instead of the general web -- operator 2026-05-24: a
     vague 'current global trending' matched the 'Current' banking app + 'electric
     current' (Wikipedia) on general search; the news category returns real dated
-    news stories."""
+    news stories. time_range (day|week|month|year) recency-filters the GENERAL
+    web -- operator 2026-05-25: this instance's news ENGINES are IP-blocked so the
+    news category returns only stale wikinews; a time_range on GENERAL search
+    pulls CURRENT content (CNBC/Reuters/FT/2026 outlooks) and drops the evergreen
+    Wikipedia / stale-listicle junk WITHOUT needing the blocked news engines."""
     params = {"q": query, "format": "json"}
     if category:
         params["categories"] = category
+    if time_range:
+        params["time_range"] = time_range
     qs = urllib.parse.urlencode(params)
     req = urllib.request.Request(
         f"{SEARXNG_URL}/search?{qs}",
@@ -162,13 +169,14 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
 
 
 def multi_search(query: str, limit: int, k: int, timeout: float,
-                 max_workers: int, category: str = "") -> dict:
+                 max_workers: int, category: str = "", time_range: str = "") -> dict:
     """Expand -> query SearXNG CONCURRENTLY -> Reciprocal Rank Fusion merge."""
     queries = expand_queries(query, k, min(timeout, 6.0))
     per: list = []
     workers = max(1, min(max_workers, len(queries)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = [ex.submit(search, q, limit, timeout, category) for q in queries]
+        futs = [ex.submit(search, q, limit, timeout, category, time_range)
+                for q in queries]
         for f in concurrent.futures.as_completed(futs):
             try:
                 per.append(f.result())
@@ -224,6 +232,9 @@ def main() -> int:
                         "of the general web -- for current-events / trending asks")
     p.add_argument("--category", default="",
                    help="explicit SearXNG category (e.g. news); --news is a shortcut")
+    p.add_argument("--time-range", default="", choices=["", "day", "week", "month", "year"],
+                   help="recency-filter GENERAL search (day|week|month|year) -- pulls "
+                        "current content without the IP-blocked news engines")
     a = p.parse_args()
 
     q = " ".join(a.query).strip()
@@ -231,12 +242,13 @@ def main() -> int:
         print(json.dumps({"success": False, "error": "empty query", "results": []}))
         return 64
     category = "news" if a.news else (a.category or "")
+    time_range = a.time_range or ""
     try:
         if a.fanout and a.fanout > 1:
             out = multi_search(q, max(1, a.limit), a.fanout, a.timeout,
-                               a.max_workers, category)
+                               a.max_workers, category, time_range)
         else:
-            s = search(q, max(1, a.limit), a.timeout, category)
+            s = search(q, max(1, a.limit), a.timeout, category, time_range)
             results = s["results"][:max(1, a.limit)]
             out = {
                 "success": bool(results or s["answers"] or s["infoboxes"]),
