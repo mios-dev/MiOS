@@ -36,6 +36,7 @@ Defers to v2:
 """
 from __future__ import annotations
 
+import http.server
 import json
 import os
 import sys
@@ -141,9 +142,117 @@ def _write(msg: dict) -> None:
     sys.stdout.flush()
 
 
+def _dispatch_rpc(msg: dict):
+    """Route ONE parsed JSON-RPC message to its handler. Returns the response
+    dict, or None for a notification (no reply). Shared by the stdio loop AND
+    the Streamable-HTTP transport so both behave identically."""
+    method = msg.get("method", "")
+    mid = msg.get("id")
+    params = msg.get("params") or {}
+    # Notifications carry no id and expect no response.
+    if mid is None and method.startswith("notifications/"):
+        return None
+    if method == "initialize":
+        return _handle_initialize(mid, params)
+    if method == "tools/list":
+        return _handle_tools_list(mid, params)
+    if method == "tools/call":
+        return _handle_tools_call(mid, params)
+    if method == "ping":
+        return _handle_ping(mid, params)
+    if method == "shutdown":
+        return _ok(mid, {})
+    if mid is not None:
+        return _err(mid, -32601, f"unknown method: {method}")
+    return None
+
+
+# ── Streamable-HTTP transport (MCP spec §transports) ─────────────────────────
+# A stdio server cannot be a standalone daemon -- with no client on stdin it
+# reads EOF and exits. This transport lets mios-mcp.service actually SERVE the
+# verb relay as a persistent service. Bound to 127.0.0.1 ONLY: tools/call
+# dispatches MiOS verbs, so unauthenticated tailnet exposure is deliberately
+# withheld until an auth gate ships (operator no-live-launch rule). Simplest
+# spec-conformant shape: POST a JSON-RPC request -> application/json response;
+# GET /health for liveness. Stdlib only (offline-safe).
+class _MCPHTTP(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def _json(self, obj, code: int = 200) -> None:
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self) -> None:
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        raw = self.rfile.read(n) if n else b""
+        try:
+            msg = json.loads(raw.decode("utf-8", "replace") or "{}")
+        except json.JSONDecodeError:
+            self._json({"jsonrpc": "2.0", "id": None,
+                        "error": {"code": -32700, "message": "parse error"}}, 400)
+            return
+        if isinstance(msg, list):          # JSON-RPC batch
+            out = [r for r in (_dispatch_rpc(m) for m in msg
+                               if isinstance(m, dict)) if r is not None]
+            self._json(out)
+            return
+        if not isinstance(msg, dict):
+            self._json({"jsonrpc": "2.0", "id": None,
+                        "error": {"code": -32600, "message": "invalid request"}}, 400)
+            return
+        resp = _dispatch_rpc(msg)
+        if resp is None:                   # notification -> 202, no body
+            self.send_response(202)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self._json(resp)
+
+    def do_GET(self) -> None:
+        if self.path.rstrip("/") in ("/health", "/healthz"):
+            self._json({"status": "ok", "server": SERVER_INFO,
+                        "protocolVersion": PROTOCOL_VERSION})
+            return
+        # Streamable-HTTP GET opens an SSE stream for server->client messages;
+        # this tools-only server initiates none -> 405 (spec-permitted).
+        self.send_response(405)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, *_a) -> None:    # quiet; the unit journal is the log
+        return
+
+
+def _run_http(port: int) -> None:
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), _MCPHTTP)
+    srv.daemon_threads = True
+    sys.stderr.write(f"[mcp] Streamable-HTTP server on 127.0.0.1:{port} "
+                     f"(verb relay -> {AGENT_PIPE_URL})\n")
+    sys.stderr.flush()
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
 def main() -> int:
-    # Line-delimited JSON-RPC over stdio. Clients send one JSON object
-    # per line; responses are one JSON object per line.
+    # Transport select: HTTP (persistent daemon, via the service) vs stdio
+    # (a client spawns us as a subprocess and talks over our stdin/stdout).
+    if ("--http" in sys.argv[1:]
+            or os.environ.get("MIOS_MCP_HTTP", "").strip().lower()
+            in {"1", "true", "yes"}):
+        port = int(os.environ.get("MIOS_PORT_MCP")
+                   or os.environ.get("MIOS_MCP_PORT") or "8765")
+        _run_http(port)
+        return 0
+    # Line-delimited JSON-RPC over stdio.
     for raw in sys.stdin:
         line = raw.strip()
         if not line:
@@ -151,34 +260,14 @@ def main() -> int:
         try:
             msg = json.loads(line)
         except json.JSONDecodeError:
-            _write({
-                "jsonrpc": "2.0", "id": None,
-                "error": {"code": -32700, "message": "parse error"},
-            })
+            _write({"jsonrpc": "2.0", "id": None,
+                    "error": {"code": -32700, "message": "parse error"}})
             continue
-
-        method = msg.get("method", "")
-        mid = msg.get("id")
-        params = msg.get("params") or {}
-
-        # Notifications carry no id and expect no response.
-        if mid is None and method.startswith("notifications/"):
-            continue
-
-        if method == "initialize":
-            _write(_handle_initialize(mid, params))
-        elif method == "tools/list":
-            _write(_handle_tools_list(mid, params))
-        elif method == "tools/call":
-            _write(_handle_tools_call(mid, params))
-        elif method == "ping":
-            _write(_handle_ping(mid, params))
-        elif method == "shutdown":
-            _write(_ok(mid, {}))
+        resp = _dispatch_rpc(msg)
+        if resp is not None:
+            _write(resp)
+        if msg.get("method") == "shutdown":
             return 0
-        elif mid is not None:
-            _write(_err(mid, -32601, f"unknown method: {method}"))
-
     return 0
 
 

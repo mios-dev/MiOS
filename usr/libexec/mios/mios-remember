@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""mios-remember -- agent-authored durable memory (Letta/MemGPT core tier).
+
+P4.2 (Letta/MemGPT active virtual memory): MiOS already has the PASSIVE tiers
+-- per-conversation scratchpad (working), the SurrealDB knowledge table
+(auto-stored Q+A, recall), and episodic SKILL.md + viking:// (archival). What
+was missing is the ACTIVE / SELF-EDITING tier: the agent (or operator)
+deliberately WRITING a durable fact it wants to keep -- Letta's
+core_memory_append. This shim is that write half.
+
+DESIGN respects the MiOS "NO context injection" rule ([[CLAUDE.md]]): memory is
+TOOL-DRIVEN both ways -- the agent WRITES with this verb and READS with `recall`
+(or viking_ls memory). Nothing is auto-prepended to prompts; the model learns
+its memory by CALLING tools, not via a pre_llm_call inject.
+
+Stored in SurrealDB `agent_memory` table, scope-tagged:
+  global         -- durable facts true across all conversations
+  agent:<name>   -- specific to one agent
+  conversation:<id> -- scoped to one chat thread
+
+USAGE
+  mios-remember add "<fact>" [--scope global] [--key <k>] [--source <s>]
+  mios-remember list [--scope global] [--limit 30]
+  mios-remember forget --key <k>          # delete by key
+  mios-remember update --key <k> "<new>"  # core_memory_replace
+
+Output JSON: {ok, ...}.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import sys
+import urllib.request
+
+DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = os.environ.get("MIOS_DB_DB", "mios")
+TABLE = os.environ.get("MIOS_AGENT_MEMORY_TABLE", "agent_memory")
+
+
+def _sql(sql: str) -> list:
+    req = urllib.request.Request(
+        f"{DB_URL.rstrip('/')}/sql",
+        data=sql.encode("utf-8"),
+        headers={"surreal-ns": DB_NS, "surreal-db": DB_DB,
+                 "Accept": "application/json",
+                 "Authorization": "Basic " +
+                 base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        d = json.loads(r.read().decode("utf-8", errors="replace"))
+    res = []
+    for st in (d or []):
+        if isinstance(st, dict):
+            if st.get("status") == "ERR":
+                raise RuntimeError(st.get("result") or "db error")
+            if isinstance(st.get("result"), list):
+                res = st["result"]
+    return res
+
+
+def _esc(s: str) -> str:
+    return str(s).replace("\\", "\\\\").replace("'", "\\'")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-remember")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    pa = sub.add_parser("add")
+    pa.add_argument("fact")
+    pa.add_argument("--scope", default="global")
+    pa.add_argument("--key", default="")
+    pa.add_argument("--source", default="agent")
+    pl = sub.add_parser("list")
+    pl.add_argument("--scope", default="")
+    pl.add_argument("--limit", type=int, default=30)
+    pf = sub.add_parser("forget")
+    pf.add_argument("--key", required=True)
+    pu = sub.add_parser("update")
+    pu.add_argument("--key", required=True)
+    pu.add_argument("fact")
+    args = p.parse_args()
+
+    try:
+        # Idempotently ensure the table exists (SurrealDB strict mode rejects
+        # CREATE on an undefined table). SCHEMALESS so any field is accepted.
+        _sql(f"DEFINE TABLE IF NOT EXISTS {TABLE} SCHEMALESS;")
+        if args.cmd == "add":
+            fact = args.fact.strip()
+            if not fact:
+                print(json.dumps({"ok": False, "error": "empty fact"}))
+                return 2
+            key = args.key.strip() or f"m{abs(hash(fact)) % (10**10)}"
+            # upsert by key within scope
+            _sql(f"DELETE {TABLE} WHERE key = '{_esc(key)}' "
+                 f"AND scope = '{_esc(args.scope)}';")
+            rows = _sql(
+                f"CREATE {TABLE} SET fact = '{_esc(fact)}', "
+                f"scope = '{_esc(args.scope)}', key = '{_esc(key)}', "
+                f"source = '{_esc(args.source)}', ts = time::now();")
+            print(json.dumps({"ok": True, "op": "add", "key": key,
+                              "scope": args.scope, "stored": bool(rows)}))
+            return 0
+        if args.cmd == "list":
+            where = (f"WHERE scope = '{_esc(args.scope)}' "
+                     if args.scope else "")
+            rows = _sql(f"SELECT fact, scope, key, source, ts FROM {TABLE} "
+                        f"{where}ORDER BY ts DESC LIMIT {int(args.limit)};")
+            print(json.dumps({"ok": True, "count": len(rows),
+                              "memories": [
+                                  {"key": r.get("key"), "scope": r.get("scope"),
+                                   "fact": r.get("fact"),
+                                   "source": r.get("source")} for r in rows]}))
+            return 0
+        if args.cmd == "forget":
+            _sql(f"DELETE {TABLE} WHERE key = '{_esc(args.key)}';")
+            print(json.dumps({"ok": True, "op": "forget", "key": args.key}))
+            return 0
+        if args.cmd == "update":
+            rows = _sql(f"UPDATE {TABLE} SET fact = '{_esc(args.fact)}', "
+                        f"ts = time::now() WHERE key = '{_esc(args.key)}';")
+            print(json.dumps({"ok": bool(rows), "op": "update",
+                              "key": args.key,
+                              "updated": len(rows)}))
+            return 0
+    except Exception as e:  # noqa: BLE001
+        print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

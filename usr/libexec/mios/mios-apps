@@ -228,15 +228,39 @@ if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
         :  # fresh enough; reuse
     else
         # Single PowerShell pass over Steam + Epic + GOG library locations.
-        # Output format: "<name>|<exe-path>" one per line.
-        timeout 12 mios-windows ps '
+        # Output format: "<name>|<exe-path>" one per line. 45s budget: the
+        # COLD pass now also runs Get-AppxPackage + per-title marker Test-Paths
+        # for Game Pass discovery, which exceeds the old 12s on a cold WSL-
+        # interop start -> the && mv chain failed -> cache wiped -> 0 games
+        # (operator 2026-05-27). Result is cached 10 min, so the cost is rare.
+        timeout 45 mios-windows ps '
 $out = @()
-# Steam: every .acf manifest in steamapps. Try common drives.
-$steamRoots = @(
-    "C:\Program Files (x86)\Steam\steamapps",
-    "D:\SteamLibrary\steamapps",
-    "E:\SteamLibrary\steamapps"
-)
+# Steam: discover EVERY library folder from Steam itself -- the registry
+# SteamPath + steamapps\libraryfolders.vdf -- so games on ANY drive/path are
+# found, not just 3 guessed drives (operator 2026-05-27 "all the tools and it
+# found 3 games?!! no hardcodes"). libraryfolders.vdf lists each library as a
+# "path" "<dir>" entry (backslashes doubled). [char]34 = a double-quote, to
+# avoid nesting quotes inside this bash-single-quoted PowerShell block.
+$steamRoots = @()
+try {
+    $sp = (Get-ItemProperty "HKCU:\Software\Valve\Steam" -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
+    if (-not $sp) { $sp = (Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -Name InstallPath -ErrorAction SilentlyContinue).InstallPath }
+    if ($sp) {
+        $sp = $sp -replace "/","\"
+        $main = Join-Path $sp "steamapps"
+        if (Test-Path $main) { $steamRoots += $main }
+        $vdf = Join-Path $main "libraryfolders.vdf"
+        if (Test-Path $vdf) {
+            $pat = [char]34 + "path" + [char]34 + "\s+" + [char]34 + "([^" + [char]34 + "]+)" + [char]34
+            (Select-String -Path $vdf -Pattern $pat -AllMatches).Matches | ForEach-Object {
+                $lib = $_.Groups[1].Value -replace "\\\\","\"
+                $sa = Join-Path $lib "steamapps"
+                if (Test-Path $sa) { $steamRoots += $sa }
+            }
+        }
+    }
+} catch {}
+$steamRoots = @($steamRoots | Select-Object -Unique)
 foreach ($root in $steamRoots) {
     if (-not (Test-Path $root)) { continue }
     Get-ChildItem $root -Filter "appmanifest_*.acf" -ErrorAction SilentlyContinue | ForEach-Object {
@@ -250,8 +274,8 @@ foreach ($root in $steamRoots) {
         }
     }
 }
-# Epic: .item manifests
-$epicRoot = "C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests"
+# Epic: .item manifests (resolve ProgramData from the env, not a hardcoded C:).
+$epicRoot = Join-Path $env:ProgramData "Epic\EpicGamesLauncher\Data\Manifests"
 if (Test-Path $epicRoot) {
     Get-ChildItem $epicRoot -Filter "*.item" -ErrorAction SilentlyContinue | ForEach-Object {
         try {
@@ -266,18 +290,18 @@ if (Test-Path $epicRoot) {
         } catch {}
     }
 }
-# GOG Galaxy
-$gogRoots = @(
-    "C:\Program Files (x86)\GOG Galaxy\Games",
-    "D:\GOG Games"
-)
-foreach ($root in $gogRoots) {
-    if (-not (Test-Path $root)) { continue }
-    Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        $exe = Get-ChildItem $_.FullName -Filter "*.exe" -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notmatch "uninstall|unins|setup|crash|launch|setup" } |
-            Sort-Object Length -Descending | Select-Object -First 1
-        if ($exe) { $out += "$($_.Name)|$($exe.FullName)" }
+# GOG Galaxy: enumerate from the registry -- each installed game has a key
+# carrying its name + install path + exe, so no hardcoded install dirs (works
+# on ANY drive). Both 64- and 32-bit hives.
+foreach ($gogKey in @("HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games",
+                      "HKLM:\SOFTWARE\GOG.com\Games")) {
+    if (-not (Test-Path $gogKey)) { continue }
+    Get-ChildItem $gogKey -ErrorAction SilentlyContinue | ForEach-Object {
+        $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+        if ($p.gameName -and ($p.exe -or $p.path)) {
+            $full = if ($p.path -and $p.exe) { Join-Path $p.path $p.exe } else { $p.exe }
+            $out += "$($p.gameName)|$full"
+        }
     }
 }
 # Microsoft Store / Xbox / UWP / Game Pass titles. These don'\''t
@@ -290,14 +314,25 @@ foreach ($root in $gogRoots) {
 # publishers. Avoids dumping every Calculator / Notepad / system
 # UWP app into the games cache (those already appear via mios-apps'\''
 # windows-app section from Get-StartApps).
-Get-StartApps -ErrorAction SilentlyContinue | Where-Object {
-    $_.AppID -match "^[A-Za-z0-9._-]+_[a-z0-9]{12,14}!" -and (
-        $_.Name -match "(?i)(flight|sim|simulator|game|forza|halo|gears|fortnite|minecraft|sea of thieves|xbox|steam|origin|epic|gog|microsoft\s+flight)" -or
-        $_.AppID -match "(?i)(microsoft\.limitless|microsoft\.flight|microsoft\.forza|microsoft\.halo|microsoft\.gears|xbox|epicgames|valvecorp|gog\.galaxy)"
-    )
-} | ForEach-Object {
-    $out += "$($_.Name)|shell:appsFolder\$($_.AppID)"
+# Detect games by the MicrosoftGame.config marker every PC Store/Game Pass
+# title ships in its install dir -- NO name-list, NO publisher-list, NO
+# hardcoded path (operator 2026-05-27 "no hardcodes globally"). Join
+# Get-StartApps (launchable AppID) with Get-AppxPackage (install location) and
+# test for the marker; launch via shell:appsFolder\<AppID>.
+$pkgLoc = @{}
+Get-AppxPackage -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.InstallLocation -and $_.PackageFamilyName) { $pkgLoc[$_.PackageFamilyName] = $_.InstallLocation }
 }
+Get-StartApps -ErrorAction SilentlyContinue | Where-Object { $_.AppID -match "!" } | ForEach-Object {
+    $pfn = ($_.AppID -split "!")[0]
+    $loc = $pkgLoc[$pfn]
+    if ($loc -and (Test-Path (Join-Path $loc "MicrosoftGame.config"))) {
+        $out += "$($_.Name)|shell:appsFolder\$($_.AppID)"
+    }
+}
+# Dedup: SteamPath (registry) and libraryfolders.vdf can name the SAME library
+# in different letter-case, scanning it twice; collapse identical entries.
+$out = @($out | Select-Object -Unique)
 $out | ForEach-Object { Write-Output $_ }
 ' 2>/dev/null > "$GAME_CACHE.tmp" \
             && mv "$GAME_CACHE.tmp" "$GAME_CACHE" || rm -f "$GAME_CACHE.tmp"

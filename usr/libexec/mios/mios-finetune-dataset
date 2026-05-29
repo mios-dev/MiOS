@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""'MiOS' fine-tune dataset builder -- SELF-DISTILLATION, no hardcoded English.
+
+Builds a supervised fine-tuning (SFT) corpus for a small MiOS role model by
+distilling a STRONG local teacher into it. The pipeline is deliberately grounded
+in the LIVE system surface, so the dataset tracks the real install and carries no
+hand-written topic list (operator rule: no hardcoded English / topics / keywords):
+
+  1. Pull the LIVE verb catalog (name + description) from the running agent-pipe
+     (/v1/verbs/openai-tools) -- the real routing surface, 61 verbs today.
+  2. For each capability, the TEACHER generates N short, diverse, realistic user
+     requests that would route to it (the model writes the English, never this file).
+  3. The TEACHER also generates queries for the non-dispatch intent classes
+     (pure chat, web/world lookup, broad multi_task) seeded by the schema's OWN
+     definitions -- again, the model writes them.
+  4. (optional) Mine REAL operator queries already stored in the knowledge table.
+  5. Each query is LABELLED by the teacher against the live refine schema + catalog
+     -> a refined-intent JSON matching exactly what the pipe parses.
+  6. Emit chat-format JSONL ({"messages":[system,user,assistant]}) ready for TRL
+     SFTTrainer / Unsloth.
+
+Honest by construction: every example is the teacher's real output; nothing is
+fabricated. Run with --limit N for a fast smoke check (a couple of capabilities).
+
+Config: [finetune] in mios.toml (layered: vendor < /etc/mios < ~/.config/mios),
+overridable by MIOS_FINETUNE_* env. Needs only stdlib + the running pipe/ollama.
+"""
+from __future__ import annotations
+import argparse
+import json
+import os
+import re
+import sys
+import time
+import urllib.request
+import urllib.error
+
+try:
+    import tomllib  # py3.11+
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore
+
+VENDOR_TOML = "/usr/share/mios/mios.toml"
+ETC_TOML = "/etc/mios/mios.toml"
+USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
+
+
+# --------------------------------------------------------------------------- #
+# config (layered TOML + MIOS_FINETUNE_* env)
+# --------------------------------------------------------------------------- #
+def _deep_merge(base: dict, over: dict) -> dict:
+    for k, v in (over or {}).items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+def load_cfg() -> dict:
+    cfg: dict = {}
+    for path in (VENDOR_TOML, ETC_TOML, USER_TOML):
+        try:
+            with open(path, "rb") as fh:
+                _deep_merge(cfg, tomllib.load(fh))
+        except FileNotFoundError:
+            continue
+        except Exception as e:  # noqa: BLE001
+            print(f"[finetune-dataset] WARN: bad TOML {path}: {e}", file=sys.stderr)
+    ft = dict(cfg.get("finetune") or {})
+    # MIOS_FINETUNE_<KEY> env overrides (string-typed; we coerce on read).
+    for k in list(ft.keys()):
+        env = os.environ.get("MIOS_FINETUNE_" + k.upper())
+        if env is not None:
+            ft[k] = env
+    return ft
+
+
+def _cint(v, d):  # tolerant int
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return d
+
+
+# --------------------------------------------------------------------------- #
+# HTTP helpers (stdlib only)
+# --------------------------------------------------------------------------- #
+def _post(url: str, payload: dict, timeout: float) -> dict:
+    req = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def _get(url: str, timeout: float) -> dict | list:
+    with urllib.request.urlopen(url, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def ollama_chat(endpoint: str, model: str, system: str, user: str,
+                as_json: bool = True, timeout: float = 120.0) -> str:
+    """Native /api/chat with think:False -- the proven-reliable path for qwen
+    (the /v1 compat path returns empty content after a think pass)."""
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user", "content": user}],
+        "think": False,
+        "stream": False,
+        "options": {"temperature": 0.4 if not as_json else 0.0},
+    }
+    if as_json:
+        payload["format"] = "json"
+        payload["options"]["temperature"] = 0.0
+    body = _post(endpoint.rstrip("/") + "/api/chat", payload, timeout)
+    msg = (body.get("message") or {}).get("content")
+    if msg is None:  # /v1-shaped fallback
+        msg = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    return (msg or "").strip()
+
+
+# --------------------------------------------------------------------------- #
+# live capability surface
+# --------------------------------------------------------------------------- #
+def fetch_catalog(pipe_url: str, timeout: float = 10.0) -> list[dict]:
+    """[{name, description}] from the live OpenAI-tools verb catalog."""
+    data = _get(pipe_url.rstrip("/") + "/v1/verbs/openai-tools", timeout)
+    tools = data if isinstance(data, list) else (
+        data.get("tools") or data.get("data") or [])
+    out = []
+    for t in tools:
+        fn = t.get("function", t) if isinstance(t, dict) else {}
+        name = fn.get("name")
+        if name:
+            out.append({"name": name,
+                        "description": (fn.get("description") or "").strip()})
+    return out
+
+
+def fetch_knowledge_queries(pipe_url: str, limit: int, timeout: float = 10.0) -> list[str]:
+    """Best-effort: REAL operator questions already stored in the knowledge table.
+    The endpoint may not exist on every build -- failure is non-fatal."""
+    for path in ("/v1/knowledge/recent", "/portal/knowledge"):
+        try:
+            data = _get(pipe_url.rstrip("/") + f"{path}?limit={limit}", timeout)
+        except Exception:  # noqa: BLE001
+            continue
+        rows = data.get("rows") if isinstance(data, dict) else data
+        qs = []
+        for r in (rows or []):
+            q = (r.get("question") or r.get("query") or r.get("q") or "").strip()
+            if q:
+                qs.append(q)
+        if qs:
+            return qs[:limit]
+    return []
+
+
+# --------------------------------------------------------------------------- #
+# refine label schema (mirrors agent-pipe _REFINE_SYSTEM_LITE; the CATALOG is
+# fetched live, never hardcoded -- this is the contract the pipe parses)
+# --------------------------------------------------------------------------- #
+def label_system(catalog: list[dict]) -> str:
+    names = ", ".join(c["name"] for c in catalog)
+    return (
+        "You are MiOS-Agent's refine pass. Read the user's message and output ONE\n"
+        "compact JSON object (no prose) with these fields:\n"
+        '  "intent": one of chat | dispatch | agent | multi_task\n'
+        '  "refined_text": the request rewritten as a clear, ACTIONABLE query; for\n'
+        "    current/live info make it a concrete search anchored to now.\n"
+        '  "news": true ONLY for current-events / breaking-news asks.\n'
+        '  "browser_action": true ONLY when the user wants an INTERACTIVE action\n'
+        "    performed ON a site/app (sign up, log in, set up an alert, book,\n"
+        "    submit a form, post) -- not a mere lookup.\n"
+        '  "local_state": true when the answer comes from inspecting THIS computer\n'
+        "    (system/hardware, services, processes, containers, installed apps/games,\n"
+        "    logs, recent activity) -- NOT the web.\n"
+        '  "intended_outcome": one line -- what the user expects back.\n'
+        '  "hint_tools": array of verb names FROM THE CATALOG the agent will need\n'
+        "    (use ONLY exact catalog names; never invent one; empty if none fits).\n"
+        '  "tool" + "args": ONLY for intent=dispatch -- the exact catalog verb +\n'
+        "    its arguments using the concrete target the user named (strip filler).\n"
+        '  "reply": ONLY for intent=chat -- a short direct reply.\n'
+        '  "tasks": ONLY for intent=multi_task -- >=2 entries, one independent facet each.\n'
+        "Classify by what the request fundamentally NEEDS, never by keywords. Default\n"
+        "to agent when it is not pure conversation. A request about THIS machine's own\n"
+        "state is local_state (local tools), never a web search. A repeating 'do X\n"
+        "every N' request is dispatch with the schedule verb.\n"
+        "\nVALID verb names (use ONLY these for hint_tools/tool):\n" + names
+    )
+
+
+def _parse_json_loose(text: str) -> dict | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+def _parse_json_array(text: str) -> list:
+    obj = _parse_json_loose(
+        text if text.strip().startswith("[") else f'{{"a":{text}}}')
+    if isinstance(obj, list):
+        return obj
+    if isinstance(obj, dict):
+        for v in obj.values():
+            if isinstance(v, list):
+                return v
+    return []
+
+
+def validate_repair(lab: dict, names_lc: dict, src) -> dict:
+    """Ground the label in the LIVE catalog: drop hint_tools/tool that aren't real
+    verbs (kills teacher hallucinations like 'news_search'/'docker ps'/'list_containers'),
+    canonicalise the survivors to their exact catalog spelling, and ensure the verb a
+    capability-seeded query was GENERATED FOR is present. names_lc: lower-name -> name."""
+    ht, seen = [], set()
+    for t in (lab.get("hint_tools") or []):
+        canon = names_lc.get(str(t).strip().lower())
+        if canon and canon not in seen:
+            seen.add(canon)
+            ht.append(canon)
+    if src and lab.get("intent") != "chat" and src not in seen:
+        ht.insert(0, src)
+    lab["hint_tools"] = ht
+    tool = lab.get("tool")
+    if tool is not None:
+        canon = names_lc.get(str(tool).strip().lower())
+        if canon:
+            lab["tool"] = canon
+        else:  # invented dispatch verb -> not a real action; fall back to agent
+            lab.pop("tool", None)
+            lab.pop("args", None)
+            if lab.get("intent") == "dispatch":
+                lab["intent"] = "agent"
+    return lab
+
+
+def keep_example(lab: dict) -> bool:
+    """Keep chat turns, or any turn carrying >=1 REAL verb. A non-chat example with no
+    grounded tool teaches nothing useful (the old corpus's failure mode) -> drop it."""
+    return (lab.get("intent") == "chat" or bool(lab.get("hint_tools"))
+            or bool(lab.get("tool")))
+
+
+# --------------------------------------------------------------------------- #
+# query generation (teacher writes ALL the English)
+# --------------------------------------------------------------------------- #
+GEN_SYS = (
+    "You generate TRAINING DATA: realistic first-person user requests someone would\n"
+    "actually type to a local AI operating system. Vary phrasing, length, and\n"
+    "formality. No numbering, no commentary. Output ONLY a JSON array of strings."
+)
+
+
+def gen_for_capability(endpoint, model, cap: dict, n: int) -> list[str]:
+    user = (
+        f"The system capability below lets a user do one thing. Write {n} short,\n"
+        f"DIVERSE, realistic user requests that would trigger THIS capability.\n"
+        f"Capability name: {cap['name']}\nWhat it does: {cap['description'][:400]}"
+    )
+    try:
+        return [str(q).strip() for q in _parse_json_array(
+            ollama_chat(endpoint, model, GEN_SYS, user, as_json=True)) if str(q).strip()][:n]
+    except Exception as e:  # noqa: BLE001
+        print(f"[finetune-dataset] WARN gen {cap['name']}: {e}", file=sys.stderr)
+        return []
+
+
+def gen_for_intent(endpoint, model, label: str, definition: str, n: int) -> list[str]:
+    user = (f"Write {n} DIVERSE, realistic user messages that are {label}. {definition}")
+    try:
+        return [str(q).strip() for q in _parse_json_array(
+            ollama_chat(endpoint, model, GEN_SYS, user, as_json=True)) if str(q).strip()][:n]
+    except Exception as e:  # noqa: BLE001
+        print(f"[finetune-dataset] WARN gen {label}: {e}", file=sys.stderr)
+        return []
+
+
+# intent-class seeds are the SCHEMA's own definitions (not topic lists)
+INTENT_SEEDS = [
+    ("PURE CONVERSATION (no lookup, fetch, computation, or machine action needed)",
+     "Greetings, opinions, explanations of general knowledge, chit-chat."),
+    ("a CURRENT / WORLD lookup that needs a live WEB search",
+     "News, events, prices, scores, weather, or facts about the outside world that "
+     "change over time and are NOT about this computer."),
+    ("a BROAD, COMPREHENSIVE topic the user wants covered widely (multi_task)",
+     "A single subject they want the whole picture on, splittable into several "
+     "independent facets researched concurrently."),
+]
+
+
+# --------------------------------------------------------------------------- #
+def build(cfg: dict, limit: int | None) -> dict:
+    endpoint = str(cfg.get("teacher_endpoint") or "http://localhost:11434")
+    model = str(cfg.get("teacher_model") or "qwen3.5:9b")
+    pipe_url = str(cfg.get("pipe_url") or "http://127.0.0.1:8640")
+    seeds = _cint(cfg.get("seeds_per_capability"), 4)
+    out_path = str(cfg.get("dataset_path") or "/var/lib/mios/finetune/refiner-sft.jsonl")
+
+    print(f"[finetune-dataset] teacher={model} @ {endpoint}  pipe={pipe_url}", flush=True)
+    catalog = fetch_catalog(pipe_url)
+    if not catalog:
+        return {"success": False, "error": "empty verb catalog from pipe"}
+    print(f"[finetune-dataset] live catalog: {len(catalog)} verbs", flush=True)
+    sys_prompt = label_system(catalog)
+
+    caps = catalog if limit is None else catalog[:max(1, limit)]
+    intents = INTENT_SEEDS if limit is None else INTENT_SEEDS[:1]
+    isz = seeds if limit is None else min(seeds, 2)
+
+    names_lc = {c["name"].lower(): c["name"] for c in catalog}
+
+    # 1) collect (query, source_verb) -- teacher writes the English, seeded by the
+    # live surface; source_verb lets us GROUND each label in the real catalog later.
+    seeded: list = []
+    for cap in caps:
+        for q in gen_for_capability(endpoint, model, cap, isz):
+            seeded.append((q, cap["name"]))
+    # intent-class BALANCE: more chat / web / multi_task so the corpus isn't all-agent
+    # (the old run skewed 171/4/5). Source verb is None -> the teacher picks the tools.
+    bal = isz if limit is not None else max(isz, 8)
+    for label, definition in intents:
+        for q in gen_for_intent(endpoint, model, label, definition, bal):
+            seeded.append((q, None))
+    if limit is None and str(cfg.get("include_knowledge")).lower() in ("1", "true", "yes", "on"):
+        kn = fetch_knowledge_queries(pipe_url, limit=80)
+        if kn:
+            print(f"[finetune-dataset] + {len(kn)} real operator queries (knowledge)", flush=True)
+            seeded += [(q, None) for q in kn]
+
+    # dedup by query text, keep order
+    seen_q, uniq = set(), []
+    for q, src in seeded:
+        k = re.sub(r"\s+", " ", q.lower()).strip()
+        if k and k not in seen_q:
+            seen_q.add(k)
+            uniq.append((q, src))
+    print(f"[finetune-dataset] {len(uniq)} unique queries -> label + catalog-validate", flush=True)
+
+    # 2) label (teacher) -> validate/ground against the live catalog -> keep
+    examples, fails, dropped = [], 0, 0
+    for i, (q, src) in enumerate(uniq, 1):
+        try:
+            lab = _parse_json_loose(ollama_chat(endpoint, model, sys_prompt, q, as_json=True))
+        except Exception:  # noqa: BLE001
+            lab = None
+        if not isinstance(lab, dict) or "intent" not in lab:
+            fails += 1
+            continue
+        lab = validate_repair(lab, names_lc, src)
+        if not keep_example(lab):
+            dropped += 1
+            continue
+        examples.append({"messages": [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": q},
+            {"role": "assistant", "content": json.dumps(lab, ensure_ascii=False)},
+        ]})
+        if i % 20 == 0:
+            print(f"[finetune-dataset]   {i}/{len(uniq)} (fails {fails}, dropped {dropped})",
+                  flush=True)
+
+    if not examples:
+        return {"success": False, "error": "no examples produced (teacher unreachable?)"}
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        for ex in examples:
+            fh.write(json.dumps(ex, ensure_ascii=False) + "\n")
+
+    # honest intent histogram
+    hist: dict = {}
+    for ex in examples:
+        try:
+            it = json.loads(ex["messages"][-1]["content"]).get("intent", "?")
+        except Exception:  # noqa: BLE001
+            it = "?"
+        hist[it] = hist.get(it, 0) + 1
+    return {"success": True, "examples": len(examples), "label_fails": fails,
+            "dropped_ungrounded": dropped, "queries": len(uniq),
+            "verbs": len(catalog), "intents": hist,
+            "path": out_path, "smoke": limit is not None}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-finetune-dataset")
+    ap.add_argument("--limit", type=int, default=None,
+                    help="smoke mode: only this many catalog verbs + 1 intent class")
+    ap.add_argument("--out", default=None, help="override dataset_path")
+    a = ap.parse_args()
+    cfg = load_cfg()
+    if a.out:
+        cfg["dataset_path"] = a.out
+    if a.limit is not None and not a.out:
+        cfg["dataset_path"] = "/tmp/mios-finetune-smoke.jsonl"
+    res = build(cfg, a.limit)
+    print(json.dumps(res, indent=2))
+    return 0 if res.get("success") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

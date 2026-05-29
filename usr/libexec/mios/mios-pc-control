@@ -72,6 +72,209 @@ case "${1:-}" in
     --json) JSON_FLAG="-Json"; shift ;;
 esac
 
+# ── OS-control executor routing (operator 2026-05-26) ───────────────────────
+# When an interactive-desktop executor is configured
+# ([os_control].executor_endpoint in mios.toml -- real tailnet URL in the /etc
+# overlay, empty in vendor), route window enumeration + ops THERE. The executor
+# (mios-oscontrol-server.ps1) runs on WinSta0\Default so EnumWindows actually
+# sees the desktop; the WSL-interop PS path below is BLIND (count:0) from a
+# service window station. No endpoint -> fall through to interop unchanged.
+# Endpoint set but unreachable -> HONEST error (never a silent fall-back to the
+# blind path -- that reintroduces the false count:0 reports we just fixed).
+_oscontrol_executor() {
+    python3 - <<'PYEOF' 2>/dev/null || true
+import os
+try:
+    import tomllib
+except Exception:
+    try:
+        import tomli as tomllib
+    except Exception:
+        raise SystemExit(0)
+def _ep(path):
+    try:
+        with open(path, "rb") as f:
+            d = tomllib.load(f)
+        return str(((d.get("os_control") or {}).get("executor_endpoint") or "")).strip()
+    except Exception:
+        return ""
+for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    if not p:
+        continue
+    ep = _ep(p)
+    if ep:
+        print(ep.rstrip("/"))
+        break
+PYEOF
+}
+
+# Build a JSON object body from key value pairs, safely (python json.dumps).
+# All-digit values are coerced to numbers (x/y/width/height); the executor
+# stringifies text/name/combo/button anyway, so blanket coercion is safe.
+_json_body() {
+    python3 - "$@" <<'PYEOF'
+import sys, json
+a = sys.argv[1:]
+d = {}
+for i in range(0, len(a) - 1, 2):
+    k, v = a[i], a[i + 1]
+    try:
+        d[k] = int(v)
+    except ValueError:
+        d[k] = v
+print(json.dumps(d))
+PYEOF
+}
+
+case "$sub" in
+    window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo)
+        EXEC_EP="$(_oscontrol_executor)"
+        # GRACEFUL FALLBACK (operator 2026-05-26): only route to the executor if
+        # it's actually UP (quick /health probe). When it's configured but not
+        # running yet, fall back to the WSL-interop path instead of hard-failing
+        # every window op -- the executor takes over automatically once it's
+        # installed + listening. (Per-op unreachable below is then a rare race.)
+        if [ -n "$EXEC_EP" ] && ! curl -fsS -m 3 "$EXEC_EP/health" >/dev/null 2>&1; then
+            EXEC_EP=""
+        fi
+        if [ -n "$EXEC_EP" ]; then
+            case "$sub" in
+                window-list)
+                    if ! body="$(curl -fsS -m 15 "$EXEC_EP/windows" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /windows)" >&2
+                        exit 1
+                    fi
+                    if [ -n "$JSON_FLAG" ]; then
+                        printf '%s\n' "$body"
+                    else
+                        printf '%s' "$body" | python3 -c 'import sys,json
+d=json.load(sys.stdin); print("hwnd pid x y w h title")
+for w in (d.get("windows") or []):
+    print("%s %s %s %s %s %s %s" % (w.get("hwnd",0),w.get("pid",0),w.get("x",0),w.get("y",0),w.get("w",0),w.get("h",0),w.get("title","")))'
+                    fi
+                    exit 0
+                    ;;
+                window-close|window-focus)
+                    op="${sub#window-}"; hwnd="${1:-}"
+                    [ -z "$hwnd" ] && { echo "mios-pc-control: $sub needs an hwnd" >&2; exit 64; }
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/$op" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd}" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/$op)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                window-move)
+                    hwnd="${1:-}"; x="${2:-0}"; y="${3:-0}"
+                    [ -z "$hwnd" ] && { echo "mios-pc-control: window-move needs <hwnd> <x> <y>" >&2; exit 64; }
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/move" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd, \"x\": $x, \"y\": $y}" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/move)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                window-resize)
+                    hwnd="${1:-}"; w="${2:-0}"; h="${3:-0}"
+                    [ -z "$hwnd" ] && { echo "mios-pc-control: window-resize needs <hwnd> <w> <h>" >&2; exit 64; }
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/resize" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd, \"width\": $w, \"height\": $h}" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/resize)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                window-center)
+                    hwnd="${1:-}"
+                    [ -z "$hwnd" ] && { echo "mios-pc-control: window-center needs an hwnd" >&2; exit 64; }
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/center" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd}" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/center)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                screen-layout)
+                    if ! out="$(curl -fsS -m 15 "$EXEC_EP/screen-layout" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /screen-layout)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                screenshot)
+                    out_path="${1:-}"
+                    [ -z "$out_path" ] && { echo "mios-pc-control: screenshot needs <out-path>" >&2; exit 64; }
+                    if ! resp="$(curl -fsS -m 30 "$EXEC_EP/screenshot" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /screenshot)" >&2
+                        exit 1
+                    fi
+                    printf '%s' "$resp" | python3 -c 'import sys,json,base64
+d=json.load(sys.stdin); b=d.get("image_b64")
+if not b: sys.exit("mios-pc-control: executor returned no image")
+open(sys.argv[1],"wb").write(base64.b64decode(b))
+print("[mios-pc-control] screenshot saved to %s (%sx%s)" % (sys.argv[1], d.get("width"), d.get("height")))' "$out_path"
+                    exit 0
+                    ;;
+                mouse-move)
+                    body="$(_json_body x "${1:-0}" y "${2:-0}")"
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/mouse-move" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/mouse-move)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                click)
+                    body="$(_json_body x "${1:-0}" y "${2:-0}" button "${3:-left}")"
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/click" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/click)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                double-click)
+                    body="$(_json_body x "${1:-0}" y "${2:-0}")"
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/double-click" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/double-click)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                type)
+                    body="$(_json_body text "$*")"
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/type" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/type)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                key)
+                    body="$(_json_body name "${1:-}")"
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/key" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/key)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                key-combo)
+                    body="$(_json_body combo "$*")"
+                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/key-combo" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/key-combo)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+            esac
+        fi
+        ;;
+esac
+
 # Translate the helper's Linux path to a UNC path Windows can read,
 # then invoke via mios-windows ps -File. wslpath -w converts.
 WIN_PS1="$(wslpath -w "$PS1_HELPER" 2>/dev/null)"

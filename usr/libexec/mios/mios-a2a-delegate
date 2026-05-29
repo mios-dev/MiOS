@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""mios-a2a-delegate -- mid-run agent-to-agent delegation over A2A.
+
+P2.2 (operator 2026-05-27 "collaborate not fan-out"): any in-flight
+agent (Hermes, opencode, daemon-agent, ...) can hand a sub-task to a
+registered A2A peer mid-tool-loop and inject the peer's answer back
+into its own reasoning -- the substrate the audit identified as
+missing ("scratchpad becomes a live bus, not read-only-after").
+
+Internally this is a thin HTTP shim over the agent-pipe's
+/v1/a2a/dispatch endpoint (which itself POSTs JSON-RPC
+`message/send` to the chosen peer's /a2a surface).  Keeping the verb
+as a normal broker-routed shim (rather than an in-process Python
+import) preserves: (a) the dedup / single-flight guard in
+dispatch_mios_verb, (b) the same audit + permission posture every
+other verb gets, (c) compatibility with the [verbs.*] catalog the
+planner already sees.
+
+USAGE
+  mios-a2a-delegate --peer <peer_id> --text <prompt>
+  mios-a2a-delegate --skill <skill_name> --text <prompt>
+  mios-a2a-delegate --peer <peer_id> --text <prompt> --context-id <ctxid>
+  mios-a2a-delegate --list-peers
+  mios-a2a-delegate --list-skills
+
+OUTPUT (always JSON):
+  {ok, peer_id, status, response, task_id, context_id}
+  on failure: {ok:false, error}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+PIPE_URL = os.environ.get("MIOS_AGENT_PIPE_URL", "http://127.0.0.1:8640")
+DEFAULT_TIMEOUT = float(os.environ.get("MIOS_A2A_DELEGATE_TIMEOUT", "120"))
+
+
+def _http_get(path: str) -> dict:
+    try:
+        req = urllib.request.Request(
+            PIPE_URL.rstrip("/") + path,
+            headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        return {"error": f"http {e.code}",
+                "body": e.read().decode("utf-8", errors="replace")[:400]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _http_post(path: str, body: dict, timeout_s: float) -> dict:
+    try:
+        req = urllib.request.Request(
+            PIPE_URL.rstrip("/") + path,
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Accept": "application/json",
+                     "Content-Type": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        return {"error": f"http {e.code}",
+                "body": e.read().decode("utf-8", errors="replace")[:400]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _extract_artifact_text(task: dict) -> str:
+    """A2A spec: artifacts[].parts[].text is the peer's final answer.
+    Fallback: agent-role message text if no artifact."""
+    for art in (task.get("artifacts") or []):
+        for part in (art.get("parts") or []):
+            if isinstance(part, dict) and part.get("kind") == "text":
+                t = part.get("text")
+                if t:
+                    return str(t)
+    for msg in reversed(task.get("history") or []):
+        if (isinstance(msg, dict)
+                and str(msg.get("role")) == "agent"):
+            for part in (msg.get("parts") or []):
+                if isinstance(part, dict) and part.get("kind") == "text":
+                    t = part.get("text")
+                    if t:
+                        return str(t)
+    return ""
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-a2a-delegate")
+    p.add_argument("--peer", default="",
+                   help="Target peer id (from /v1/a2a/peers).")
+    p.add_argument("--skill", default="",
+                   help="Route by skill name (first ready peer wins).")
+    p.add_argument("--text", default="",
+                   help="The sub-task prompt to send to the peer.")
+    p.add_argument("--context-id", default="",
+                   help="Optional A2A contextId so the peer joins an "
+                        "existing inter-agent conversation thread.")
+    p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
+                   help=f"Seconds to await peer response (default "
+                        f"{DEFAULT_TIMEOUT}).")
+    p.add_argument("--list-peers", action="store_true",
+                   help="Print the federated peer roster + exit.")
+    p.add_argument("--list-skills", action="store_true",
+                   help="Print the federated skill catalog + exit.")
+    args = p.parse_args()
+
+    if args.list_peers:
+        print(json.dumps(_http_get("/v1/a2a/peers")))
+        return 0
+    if args.list_skills:
+        print(json.dumps(_http_get("/v1/a2a/skills")))
+        return 0
+
+    if not args.text.strip():
+        print(json.dumps({"ok": False,
+                          "error": "missing --text"}), file=sys.stderr)
+        return 2
+    if not (args.peer or args.skill):
+        print(json.dumps({"ok": False,
+                          "error": "missing --peer or --skill"}),
+              file=sys.stderr)
+        return 2
+
+    body: dict = {"text": args.text}
+    if args.peer:
+        body["peer_id"] = args.peer
+    if args.skill:
+        body["skill"] = args.skill
+    if args.context_id:
+        body["contextId"] = args.context_id
+
+    resp = _http_post("/v1/a2a/dispatch", body, args.timeout)
+    if not isinstance(resp, dict) or resp.get("error"):
+        print(json.dumps({"ok": False,
+                          "error": (resp or {}).get("error", "no response"),
+                          "detail": (resp or {}).get("body", "")[:400]}))
+        return 1
+
+    task = resp
+    out = {
+        "ok": (task.get("status") or {}).get("state") == "completed",
+        "peer_id": args.peer or args.skill,
+        "status": (task.get("status") or {}).get("state"),
+        "task_id": task.get("id"),
+        "context_id": task.get("contextId"),
+        "response": _extract_artifact_text(task),
+    }
+    print(json.dumps(out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -34,7 +34,9 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -106,6 +108,37 @@ def search(query: str, limit: int, timeout: float, category: str = "",
             "answers": answers, "infoboxes": infoboxes}
 
 
+# Topical anchor (operator 2026-05-27): a multi-word but OFF-TOPIC invented
+# sub-query ("what is 2026 minus 1978" from a flights ask) passes the degenerate
+# word-count filter yet fetches junk (age calculators), which RRF then surfaces.
+# Require >=1 shared CONTENT token with the ORIGINAL query. Structural -- a small
+# classic function-word + generic-qualifier set + trailing-s plural fold, NOT a
+# topic deny-list. Pure numbers are excluded (a bare year is too weak an anchor).
+_ANCHOR_STOPWORDS = frozenset((
+    "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on", "at",
+    "by", "with", "as", "is", "are", "was", "were", "be", "this", "that", "these",
+    "those", "it", "its", "me", "my", "we", "our", "you", "your", "they", "them",
+    "what", "which", "who", "when", "where", "why", "how", "do", "does", "did",
+    "can", "could", "will", "would", "should", "may", "might", "near", "into",
+    "about", "than", "then", "there", "here", "out", "not", "no", "all", "any",
+    "some", "more", "most", "find", "get", "make", "show", "give", "tell", "list",
+    "need", "want", "like", "use", "using", "best", "cheap", "cheapest",
+))
+_ANCHOR_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]{2,}")
+
+
+def _content_toks(text: str) -> set:
+    out = set()
+    for m in _ANCHOR_TOKEN_RE.finditer(text or ""):
+        t = m.group(0).lower()
+        if t in _ANCHOR_STOPWORDS:
+            continue
+        if len(t) >= 5 and t.endswith("s"):
+            t = t[:-1]
+        out.add(t)
+    return out
+
+
 def expand_queries(query: str, k: int, timeout: float) -> list:
     """Micro-LLM query expansion -> up to k diverse sub-queries (the ORIGINAL
     is always first). Intent diversity / synonyms / entity reformulation. Any
@@ -113,13 +146,20 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
     blocks the search."""
     if k <= 1:
         return [query]
+    # Date-aware (operator 2026-05-26 "use env detect for current values for all
+    # AI functions"): the live system year, so time-sensitive sub-queries anchor
+    # to NOW (2026 this year, 2027 next) instead of a stale year. Never hardcoded.
+    _cur_year = time.localtime().tm_year
     sys_p = (
+        f"The current year is {_cur_year}. "
         "You expand a user's question into DIVERSE web-search queries for "
         "parallel retrieval. Each query must target a DIFFERENT facet, angle, "
         "sub-topic, or named entity of the request -- NOT a synonym or rewording "
         "of the others. For a broad request, split it into specific sub-topics "
         "that surface concrete stories/facts (e.g. distinct regions, sectors, or "
-        "events), not generic homepages. Each is a SHORT keyword query, not a "
+        "events), not generic homepages. For ANYTHING time-sensitive (trending, "
+        f"latest, current, 'this year', best-of), anchor the query to {_cur_year} "
+        "(or 'latest') -- NEVER a past year. Each is a SHORT keyword query, not a "
         'question. Output JSON only: {"queries":["...","..."]}.'
     )
     _msgs = [
@@ -166,8 +206,34 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
               f"{_EXPAND_BASE} ({type(e).__name__}: {e}); using single query",
               file=sys.stderr)
         extra = []
+    # Drop DEGENERATE expansions before they hit SearXNG: a bare single word or
+    # stopword fragment ("last" from "last minute", "set" from "set up", "best",
+    # "many") makes the metasearch return a DICTIONARY / unrelated page (Merriam-
+    # Webster, Last.fm, a card game) that then pollutes the RRF-fused results
+    # (operator 2026-05-26: "last"->dictionary, "set"->card game). Language-
+    # agnostic -- word-count + length only, NO keyword/topic list. The ORIGINAL
+    # query is ALWAYS kept (it is the caller's real, vetted facet); only the
+    # model-invented alternatives are screened. Tunable knobs.
+    _min_words = int(os.environ.get("MIOS_WEB_EXPAND_MIN_WORDS", "2"))
+    _min_chars = int(os.environ.get("MIOS_WEB_EXPAND_MIN_CHARS", "6"))
+    _anchor = _content_toks(query)
     out = [query]
     for q in extra:
+        # Token count over alphanumerics so HYPHENATED / underscored slugs
+        # ("cheapest-flights-toronto-to-tokyo" -> 5 tokens) count as multi-word
+        # and pass, while a bare "last" / "set" (1 token) is dropped.
+        _ntok = len(re.findall(r"[A-Za-z0-9]+", q))
+        if _ntok < _min_words or len(q) < _min_chars:
+            print(f"mios-web-search: dropped degenerate expansion {q!r} "
+                  f"({_ntok} tok / {len(q)} chars)", file=sys.stderr)
+            continue
+        # OFF-TOPIC drop: a multi-word invented sub-query that shares NO content
+        # token with the original has drifted (the "2026 minus 1978" case); skip
+        # it so the fan-out stays on-topic. Skipped when the anchor is too thin.
+        if len(_anchor) >= 2 and not (_content_toks(q) & _anchor):
+            print(f"mios-web-search: dropped off-anchor expansion {q!r}",
+                  file=sys.stderr)
+            continue
         if q.lower() != query.lower() and q not in out:
             out.append(q)
         if len(out) >= k:

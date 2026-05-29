@@ -48,6 +48,15 @@ fi
 
 URL="$1"
 OVERRIDE="${2:-}"
+# A literal "default" / "operator default" / "system" / "none" is NOT a browser
+# id -- it means "use the mios.toml-defined Linux default chain". Treating it as
+# an app id made mios-gui try to launch a bogus flatpak
+# "org.fedoraproject.Platform.CL.default" -> bwrap execvp /bin/sh failure
+# (operator 2026-05-27). Normalise these sentinels to empty so the resolved
+# Linux-native browser chain is used (Linux apps are always the first default).
+case "$(printf '%s' "$OVERRIDE" | tr '[:upper:]' '[:lower:]' | tr -d ' ')" in
+    default|operatordefault|systemdefault|system|none) OVERRIDE="" ;;
+esac
 
 # Quick sanity: warn (not error) if it doesn't look like a URL.
 case "$URL" in

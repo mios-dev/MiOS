@@ -40,6 +40,12 @@ elif [[ -x "$MCP_DIR/server" ]]; then
     _log "starting MCP server binary: $MCP_DIR/server"
     exec "$MCP_DIR/server"
 else
-    _log "no MCP entrypoint at $MCP_DIR/server{.py,.sh,} -- placeholder mode"
-    while :; do sleep 3600; done
+    # No custom /srv/ai/mcp entrypoint -> serve the BUILT-IN MiOS verb relay
+    # (mios-mcp-server) over Streamable-HTTP on 127.0.0.1:$MIOS_MCP_PORT. This
+    # replaces the old placeholder-sleep so MiOS actually SERVES its [verbs.*]
+    # catalog as MCP tools. 127.0.0.1-only by design: tools/call dispatches
+    # verbs, so no unauthenticated tailnet exposure until an auth gate ships.
+    _log "no custom MCP entrypoint -- serving built-in verb relay over Streamable-HTTP on 127.0.0.1:$MIOS_MCP_PORT"
+    export MIOS_MCP_HTTP=1
+    exec /usr/libexec/mios/mios-mcp-server --http
 fi

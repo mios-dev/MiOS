@@ -219,6 +219,8 @@ slots = [
     ("ports.surrealdb",                "MIOS_PORT_SURREALDB"),
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     ("ports.ollama_cpu",               "MIOS_PORT_OLLAMA_CPU"),
+    ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
+    ("ports.adguard_ui",               "MIOS_PORT_ADGUARD_UI"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
@@ -314,6 +316,8 @@ slots = [
     ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
     ("image.sidecars.surrealdb_version","MIOS_SURREALDB_VERSION"),
     ("image.sidecars.surrealdb",       "MIOS_SURREALDB_IMAGE"),
+    ("image.sidecars.adguard_version", "MIOS_ADGUARD_VERSION"),
+    ("image.sidecars.adguard",         "MIOS_ADGUARD_IMAGE"),
     # ── services (per-service identity: user / uid / gid) ─────────────────
     ("services.forge.user",            "MIOS_FORGE_USER"),
     ("services.forge.uid",             "MIOS_FORGE_UID"),
@@ -349,6 +353,9 @@ slots = [
     ("services.webtools.user",         "MIOS_CRAWL4AI_USER"),
     ("services.webtools.uid",          "MIOS_CRAWL4AI_UID"),
     ("services.webtools.gid",          "MIOS_CRAWL4AI_GID"),
+    ("services.adguard.user",          "MIOS_ADGUARD_USER"),
+    ("services.adguard.uid",           "MIOS_ADGUARD_UID"),
+    ("services.adguard.gid",           "MIOS_ADGUARD_GID"),
     ("image.sidecars.ollama_cpu_version", "MIOS_OLLAMA_CPU_VERSION"),
     ("image.sidecars.ollama_cpu",      "MIOS_OLLAMA_CPU_IMAGE"),
     # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────

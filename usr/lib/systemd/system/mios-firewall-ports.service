@@ -24,14 +24,16 @@ Type=oneshot
 RemainAfterExit=yes
 # Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
 #        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
-#        11434=Ollama, 19090=Cockpit-link
+#        11434=Ollama, 19090=Cockpit-link, 3053=AdGuard UI, 53=AdGuard DNS.
 # (crawl4ai :11235 removed 2026-05-24: the crawl engine is now a LOOPBACK-only
 #  venv service -- mios-crawl4ai.service binds 127.0.0.1, never LAN-exposed.)
+# AdGuard DNS needs BOTH 53/tcp and 53/udp (UDP is the normal query path).
 ExecStart=/bin/bash -c '\
     set +e; \
-    for p in 3000 3030 8080 8642 8888 9090 9119 11434 19090; do \
+    for p in 3000 3030 8080 8642 8888 9090 9119 11434 19090 3053 53; do \
         /usr/bin/firewall-cmd --add-port=$${p}/tcp --permanent >/dev/null 2>&1; \
     done; \
+    /usr/bin/firewall-cmd --add-port=53/udp --permanent >/dev/null 2>&1; \
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $$(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0'

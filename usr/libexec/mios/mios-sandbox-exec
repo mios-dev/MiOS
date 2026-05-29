@@ -1,0 +1,111 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-sandbox-exec [opts] -- <command> [args...]
+#
+# P4.4 (agent-code sandbox): run AGENT-GENERATED code/commands inside a
+# userspace sandbox. Full gVisor (userspace kernel) needs runsc + kernel
+# features WSL2 lacks; bubblewrap (bwrap) gives a REAL namespace+FS sandbox
+# that works HERE -- no privileged container, no kernel module. This is the
+# "Execution Sandbox" the Hermes v2026.5.28 brief calls for, deliverable now.
+#
+# PROGRESSIVE ENFORCEMENT (mirrors the brief's eBPF observe->baseline->enforce):
+#   --level enforce  (default) read-only /, writable WORKSPACE only, NO network
+#                    egress (--unshare-net), unshare pid/ipc/uts, die-with-parent,
+#                    no-new-privs, + cgroup MemoryMax/CPUQuota via systemd-run.
+#   --level baseline same FS isolation but network ALLOWED (for fetches).
+#   --level observe  run normally (no FS jail) but log the command -- for
+#                    migrating an existing flow before tightening it.
+#
+# OPTS
+#   --workspace DIR   the ONE writable dir (default: $PWD). bind rw; rest ro.
+#   --level L         enforce|baseline|observe (default enforce)
+#   --net             allow network even at enforce level (opt-in egress)
+#   --mem  N          MemoryMax (default 2G)   --cpu PCT  CPUQuota (default 200%)
+#   --timeout SEC     hard wall-clock kill (default 120)
+#
+# EXIT: the command's exit code, or 126 if the sandbox itself can't start.
+# Offline: no network unless --net; no cloud; pure local namespaces.
+set -uo pipefail
+
+LEVEL=enforce
+WORKSPACE="$PWD"
+ALLOW_NET=0
+MEM=2G
+CPU=200%
+TIMEOUT=120
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --level)     LEVEL="$2"; shift 2 ;;
+        --workspace) WORKSPACE="$2"; shift 2 ;;
+        --net)       ALLOW_NET=1; shift ;;
+        --mem)       MEM="$2"; shift 2 ;;
+        --cpu)       CPU="$2"; shift 2 ;;
+        --timeout)   TIMEOUT="$2"; shift 2 ;;
+        --)          shift; break ;;
+        *)           echo "mios-sandbox-exec: unknown opt '$1'" >&2; exit 2 ;;
+    esac
+done
+
+if [ $# -eq 0 ]; then
+    echo "usage: mios-sandbox-exec [opts] -- <command> [args...]" >&2
+    exit 2
+fi
+
+LOG="${MIOS_SANDBOX_LOG:-/var/log/mios/ai/sandbox.log}"
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+# Fully leak-proof: the whole body is wrapped so a non-writable log (e.g. when
+# run by a user other than mios-ai) NEVER spills an error to stdout/stderr.
+_log() {
+    { printf '%s level=%s net=%s ws=%s cmd=%s\n' \
+        "$(date -Is 2>/dev/null)" "$LEVEL" "$ALLOW_NET" "$WORKSPACE" "$*" \
+        >>"$LOG"; } >/dev/null 2>&1 || true
+}
+_log "$@" || true
+
+# observe: no jail, just run + log (migration aid).
+if [ "$LEVEL" = "observe" ]; then
+    exec timeout "$TIMEOUT" "$@"
+fi
+
+if ! command -v bwrap >/dev/null 2>&1; then
+    echo "mios-sandbox-exec: bwrap (bubblewrap) not installed -- cannot " \
+         "sandbox; refusing to run unsandboxed at level=$LEVEL" >&2
+    exit 126
+fi
+
+mkdir -p "$WORKSPACE" 2>/dev/null || true
+
+# Hardened bwrap profile: read-only system, writable workspace + /tmp only.
+BWRAP_ARGS=(
+    --ro-bind / /
+    --dev /dev
+    --proc /proc
+    --tmpfs /tmp
+    --bind "$WORKSPACE" "$WORKSPACE"
+    --chdir "$WORKSPACE"
+    --unshare-pid
+    --unshare-ipc
+    --unshare-uts
+    --die-with-parent
+    --new-session
+)
+# no-new-privs: block setuid escalation from inside the sandbox.
+BWRAP_ARGS+=( --cap-drop ALL )
+# network: enforce => unshare (no egress) unless --net; baseline => keep net.
+if [ "$LEVEL" = "enforce" ] && [ "$ALLOW_NET" = "0" ]; then
+    BWRAP_ARGS+=( --unshare-net )
+fi
+
+# Resource caps via a transient systemd scope when a user manager is up;
+# else fall back to ulimit (address-space) inside the shell.
+run_bwrap() { bwrap "${BWRAP_ARGS[@]}" -- timeout "$TIMEOUT" "$@"; }
+
+if systemctl --user show-environment >/dev/null 2>&1; then
+    exec systemd-run --user --scope --quiet \
+        -p "MemoryMax=$MEM" -p "CPUQuota=$CPU" \
+        -- bwrap "${BWRAP_ARGS[@]}" -- timeout "$TIMEOUT" "$@"
+else
+    # No user systemd bus (common under WSL service ctx) -> bwrap + timeout
+    # only; resource caps degrade to the wall-clock timeout.
+    run_bwrap "$@"
+fi

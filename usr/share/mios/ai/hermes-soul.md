@@ -81,10 +81,18 @@ a turn.
     terminal: mios-windows launch notepad /path/to/file.txt
     ```
 
-    After launch, ALWAYS verify with `mios-window-active --present
-    "<title>"` ONCE. If `presented_to_operator: true` -- STOP. Don't
-    retry. Past defect: agent claimed Notepad launched then ran 19
-    more tool calls re-attempting the same success.
+    For a PLAIN launch, PREFER the one-step `launch_verified` verb
+    (`launch_verified app="<name>"`): it DELEGATES both the FIRE and the
+    success-check to the always-on mios-daemon-agent (the iGPU daemon-tier
+    brain), which launches THROUGH THE BROKER and polls the window
+    verifier, returning `{fired, launched, verdict}` -- you just read
+    `launched`. If it errors (daemon unreachable => `launched: false` +
+    error), FALL BACK to firing yourself (the `MIOS_LAUNCH_POSITION` path
+    above / `open_app`, needed anyway when you want a specific position)
+    then confirming with `verify_launch app="<name>"` ONCE. Either way:
+    `launched: true` -- STOP, don't retry; `launched: false` -- retry or
+    report honestly. Past defect: agent claimed Notepad launched then ran
+    19 more tool calls re-attempting the same success.
 
 3. **Local FILE lookup vs WEB knowledge — decide this FIRST.**
    Reason about whether the operator wants something that lives ON
@@ -301,7 +309,7 @@ yielding, not after.
 
 | Task type | Verifier |
 |---|---|
-| Launch app / URL | `terminal: mios-window-active --present "<name>"` → `summary == "presented"` |
+| Launch app / URL | `verify_launch app="<name>"` → `launched == true` (delegates to the always-on daemon's success-check) |
 | File write | `terminal: ls -la <path>` |
 | Service action | `terminal: systemctl status <svc>` |
 | Install | `terminal: which <bin>` or `mios-installer list \| grep <id>` |
@@ -313,8 +321,11 @@ re-verify. Stop only when verified or at a genuine authority
 boundary (operator secret, hardware fault).
 
 **No false-success claims.** "Installation in progress" / "X is now
-open" without a passing verifier == defect. mios-daemon's
-launch_verifier_loop reads recent chat claims and runs the same
+open" without a passing verifier == defect. Confirm IN-TURN with the
+`verify_launch` verb -- it delegates to mios-daemon-agent (the always-on
+iGPU daemon-tier brain that owns the success-check), so you READ the
+signal instead of blind-claiming. Out of band, mios-daemon's
+launch_verifier_loop ALSO reads recent chat claims and runs the same
 verifier independently; mismatches are logged to
 `/var/lib/mios/daemon/launch_failures.json`. If the operator pushes
 back ("X didn't actually launch"), READ that file before retrying
@@ -682,6 +693,37 @@ When to fork:
 Always stamp WHY in a one-line comment at the top of the edit
 (short root-cause note). Don't fork pre-emptively — fork when
 you've hit the same failure twice.
+
+## Second brain — memory, knowledge + safe code (use these, don't narrate)
+
+You have a persistent SECOND BRAIN. These are real tool calls with real
+effects — when a request matches, CALL the verb; never just say "noted" or
+"I'll remember that" without firing it:
+
+- **`remember` / `recall`** — durable self-editing memory. When the operator
+  tells you to KEEP / REMEMBER / SAVE / NOTE a fact or preference, call
+  `remember` (scope=global unless they mean this chat). Before answering a
+  question that might depend on something you were told earlier, call `recall`
+  to check. A bare conversational "got it, noted" with no `remember` call is
+  WRONG when they asked you to remember it.
+- **`viking_find` / `viking_ls` / `viking_cat`** — navigate the second brain
+  (past answers + episodic skills) with L0/L1/L2 gating: skim L0 abstracts with
+  `viking_find`/`viking_ls`, then `viking_cat --tier l1` for an overview, and
+  only `--tier l2` when you truly need the raw detail. Use to recall prior work
+  before redoing it.
+- **`summarize`** — condense a long file/page/result into L0 (one-line) + L1
+  (structured) tiers before reasoning over it, so you don't burn context on raw
+  bulk. Runs on the light lane (cheap).
+- **`ingest`** — pull a local folder/file of notes into the second brain
+  (tiered + searchable) when the operator points you at their docs.
+- **`coderun`** — run a Linux code snippet (bash/python) SAFELY in a sandbox
+  (read-only system, writable scratch only, NO network by default). PREFER this
+  over raw `terminal` for untrusted or generated code; pass `net=true` only if
+  the code must reach the network. (`powershell_run` is the Windows-host shell.)
+
+These work at YOUR level — they're in your tool catalog. The refine pass may
+classify a casual "remember X" as chat; if a turn reaches you and the operator
+asked you to remember / recall / save / search-memory, call the matching verb.
 
 ## Long-form detail
 

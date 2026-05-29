@@ -296,6 +296,74 @@ def cmd_doctor(_args: list[str]) -> int:
     return 0
 
 
+def cmd_launch(args: list[str]) -> int:
+    """DELEGATE a launch to the always-on mios-daemon-agent (the iGPU
+    daemon-tier brain): it FIRES the launch THROUGH THE BROKER (the only
+    context with the WSLg display env to surface a window) AND runs the
+    success-check, returning ONE verdict. The agent reads `launched` instead
+    of firing + checking itself (operator 2026-05-25, 4A #2). The daemon is
+    the SOLE firer; if it's unreachable this fires NOTHING and returns an
+    honest error so the agent falls back to plain open_app + verify_launch.
+    Offline-first; NEVER fabricates launched=true.
+
+    Usage: mios-os-control launch "<app name>" [--timeout SECONDS]
+    Output JSON: {success, app, fired, launched, verdict, attempts, checked_by}.
+    """
+    import urllib.request
+    timeout = 90.0
+    node = ""
+    rest: list[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--timeout" and i + 1 < len(args):
+            try:
+                timeout = float(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+            continue
+        if a == "--node" and i + 1 < len(args):
+            node = args[i + 1].strip()
+            i += 2
+            continue
+        rest.append(a)
+        i += 1
+    # Reconstruct multi-word app names whether the dispatcher quoted {app}
+    # (arrives as one token) or not (arrives split).
+    app = " ".join(rest).strip()
+    if not app:
+        print(json.dumps({"success": False, "fired": False, "launched": False,
+                          "error": "usage: mios-os-control launch \"<app>\""}))
+        return 64
+    port = os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644")
+    base = os.environ.get(
+        "MIOS_DAEMON_AGENT_URL", f"http://127.0.0.1:{port}").rstrip("/")
+    payload = json.dumps({"action": "launch", "app": app,
+                          "node": node}).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            f"{base}/os_control", data=payload,
+            headers={"Content-Type": "application/json",
+                     "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            out = json.loads(r.read().decode("utf-8", "replace"))
+        if not isinstance(out, dict):
+            out = {"success": False, "app": app, "fired": False,
+                   "launched": False, "error": "daemon returned non-object"}
+        else:
+            out.setdefault("app", app)
+            out["success"] = True   # request ran; read `launched` for verdict
+    except Exception as e:  # daemon down / offline: HONEST, fire NOTHING
+        out = {"success": False, "app": app, "fired": False, "launched": False,
+               "error": f"daemon-agent os_control unavailable: {e} "
+                        f"(fall back to open_app + verify_launch)",
+               "checked_by": "mios-os-control"}
+    print(json.dumps(out, ensure_ascii=False))
+    # exit 0 only when the launch is CONFIRMED; 1 otherwise.
+    return 0 if out.get("launched") else 1
+
+
 _CMDS = {
     "schema": cmd_schema,
     "verbs": cmd_verbs,
@@ -304,6 +372,7 @@ _CMDS = {
     "skills": cmd_skills,
     "window-defaults": cmd_window_defaults,
     "doctor": cmd_doctor,
+    "launch": cmd_launch,
 }
 
 

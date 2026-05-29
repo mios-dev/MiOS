@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""mios-verify-launch -- ask the always-on mios-daemon-agent (the iGPU
+daemon-tier brain) whether an app ACTUALLY launched, IN-TURN.
+
+Operator 2026-05-25 (4A): "the iGPU's always-on daemon-agent ... runs the
+Definition-of-Done success check; the main agent/sub-agents just delegate and
+read the success signal." The daemon already runs a post-hoc launch_verifier
+loop (it scans recent chats and records false launch-success claims to
+/var/lib/mios/daemon/launch_failures.json). This verb closes the loop
+SYNCHRONOUSLY: after an agent fires an OS-control verb (open_app / window /
+pc_*), it calls `verify_launch {app}` and gets the daemon's consolidated
+verdict -- a live read-only window/process probe (mios-window-active --present,
+which never launches anything) PLUS the daemon's own recorded false-success
+history for that app. The agent then retries or reports honestly instead of
+blind-claiming success.
+
+GLOBAL tool (operator: ALL agents/sub-agents/nodes use ALL tools globally),
+reached through the broker like any other verb. Offline-first: if the daemon is
+down it returns success=false with an honest error -- it NEVER fabricates a
+launched=true.
+
+SSOT: MIOS_DAEMON_AGENT_URL (else built from MIOS_DAEMON_AGENT_PORT, default
+8644 -- matches the daemon's AGENT_PORT / mios.toml [agents.mios-daemon-agent]).
+
+Output JSON: {success, app, launched, verdict, recent_failures, checked_by}.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+
+_PORT = os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644")
+AGENT_URL = os.environ.get(
+    "MIOS_DAEMON_AGENT_URL", f"http://127.0.0.1:{_PORT}").rstrip("/")
+
+
+def verify(app: str, timeout: float) -> dict:
+    """GET /verify_launch?app=<app> off the daemon-agent; return its dict."""
+    url = f"{AGENT_URL}/verify_launch?app=" + urllib.parse.quote(app, safe="")
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        d = json.loads(r.read().decode("utf-8", "replace"))
+    if not isinstance(d, dict):
+        return {"success": False, "app": app, "launched": False,
+                "error": "daemon returned non-object"}
+    d.setdefault("app", app)
+    # success here = "the check ran", not "the app launched"; callers read
+    # `launched` for the actual verdict.
+    d["success"] = True
+    return d
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-verify-launch")
+    p.add_argument("app", help="app/window name that was supposedly launched")
+    p.add_argument("--json", action="store_true", default=True)
+    p.add_argument("--timeout", type=float, default=10.0)
+    a = p.parse_args()
+
+    app = a.app.strip()
+    if not app:
+        print(json.dumps({"success": False, "launched": False,
+                          "error": "pass an app/window name"}))
+        return 64
+    try:
+        out = verify(app, a.timeout)
+    except Exception as e:  # daemon down / offline: be HONEST, never fabricate
+        out = {"success": False, "app": app, "launched": False,
+               "error": f"daemon-agent verify unavailable: {e}",
+               "checked_by": "mios-verify-launch"}
+    print(json.dumps(out, ensure_ascii=False))
+    # exit 0 only when the launch is CONFIRMED; 1 otherwise so a shell
+    # ground-loop can branch on it.
+    return 0 if out.get("launched") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

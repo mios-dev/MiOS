@@ -143,6 +143,13 @@ enable auditd.service
 enable crowdsec.service
 enable crowdsec-firewall-bouncer.service
 enable nftables.service
+# AdGuard Home DNS sinkhole (ad/tracker/malware DOMAIN blocking) + its first-boot
+# config generator. Complements CrowdSec's malicious-IP firewalling above. Binds
+# loopback by default (safe no-op until resolv.conf / the Tailscale global
+# nameserver points at it); the generator adds the tailnet bind when Tailscale
+# is up. See [adguard] in mios.toml.
+enable mios-adguard-firstboot.service
+enable mios-adguard.service
 enable mios-mcp.service
 enable redis.service
 enable cloud-init.service

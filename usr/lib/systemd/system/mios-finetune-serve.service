@@ -1,0 +1,26 @@
+# 'MiOS' fine-tune serve -- serves the trained role adapter (base + LoRA) as an
+# OpenAI- AND ollama-shaped endpoint so the fine-tuned refiner can be adopted/A-B'd
+# in the agent-pipe. OPT-IN: NOT enabled by default (the transformers-served 2B is
+# correct but slower than ollama on the hot path; enable to evaluate, or once ollama
+# gains Qwen3-Next LoRA switch production to the fast adapter-on-GGUF path).
+#   systemctl enable --now mios-finetune-serve.service
+# Pair with a pipe drop-in pointing MIOS_REFINE_ENDPOINT at this server.
+[Unit]
+Description='MiOS' fine-tune serve (base+adapter refiner backend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mios
+Group=mios
+Environment=HF_HOME=/var/home/mios/.cache/huggingface
+Environment=MIOS_FINETUNE_SERVE_PORT=11438
+ExecStart=/var/lib/mios/finetune/venv/bin/python /usr/libexec/mios/mios-finetune-serve
+Restart=on-failure
+RestartSec=5
+# model load + first request can take ~40s on a cold GPU
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

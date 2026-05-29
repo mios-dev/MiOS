@@ -550,6 +550,7 @@ print_quadlets() {
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s ollama mios-ollama-cpu mios-searxng \
                mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
+               mios-adguard \
                mios-guacamole guacd guacamole-postgres \
                mios-surrealdb mios-agent-pipe mios-daemon \
                mios-ttyd-bash mios-ttyd-powershell \

@@ -116,9 +116,9 @@ export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 # tools/lib/userenv.sh — sourced ahead of this file by common.sh) is
 # the SSOT; these `:=` assignments are no-ops when userenv.sh has
 # already exported the same names from the layered TOML.
-: "${MIOS_PORT_SSH:=22}"
+: "${MIOS_PORT_SSH:=2222}"
 : "${MIOS_PORT_FORGE_HTTP:=3000}"
-: "${MIOS_PORT_FORGE_SSH:=2222}"
+: "${MIOS_PORT_FORGE_SSH:=49922}"
 : "${MIOS_PORT_COCKPIT:=9090}"
 : "${MIOS_PORT_OLLAMA:=11434}"
 : "${MIOS_PORT_SEARXNG:=8888}"

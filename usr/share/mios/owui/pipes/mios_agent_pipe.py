@@ -445,31 +445,23 @@ class Pipe:
         return "## OPERATOR PERSONA (user-set in OWUI)\n" + "\n".join(lines)
 
     @staticmethod
-    def _resolve_env_vars(text: str,
-                          __user__: Optional[dict],
-                          __metadata__: Optional[dict]) -> str:
-        """Resolve any OWUI {{...}} template token that reached the pipe
-        UNRESOLVED, then STRIP whatever is still unresolved so no literal
-        {{VAR}} ever survives into the model's system prompt.
+    def _collect_env_vars(__user__: Optional[dict],
+                          __metadata__: Optional[dict]) -> dict:
+        """Resolve THIS request's OWUI environment into a {{TOKEN}}: value map.
 
-        OWUI substitutes most system-prompt vars server-side before the
-        pipe runs (functions.apply_system_prompt_to_body). But
-        {{USER_LANGUAGE}} and {{CURRENT_TIMEZONE}} are FRONTEND-only
-        variables (verified in OWUI utils/task.py: prompt_template has no
-        case for either) -- they resolve ONLY when the browser sent them
-        in form_data['variables'], else they leak. Direct-API callers get
-        no substitution at all. So we backfill from metadata.variables
-        (authoritative for locale/timezone the browser captured), the host
-        clock, and __user__, then strip the remainder. Operator 2026-05-22.
-
-        Note: this does NOT touch the reply-language -- that mirrors the
-        operator's own input per the template. These values feed
-        formatting/units + grounding only."""
-        if not text or "{{" not in text:
-            return text
+        Single source of truth shared by _resolve_env_vars (system-prompt
+        substitution) and pipe() (structural forward to :8640 as
+        metadata.variables). Backfills the gaps OWUI leaves: the
+        frontend-captured browser variables (metadata.variables -- locale /
+        timezone / live geolocation) FIRST, then the host clock for any
+        CURRENT_* the browser omitted, then __user__ (name / email /
+        persisted info.location). OWUI's absent-value sentinels are dropped so
+        a missing fact never overrides a real backfill. Operator 2026-05-27
+        'OWUI provides entire environment details ... USE them in the
+        pipeline'."""
         import datetime as _dt
         sub: dict = {}
-        # 1. Frontend-captured variables (browser locale/timezone/etc).
+        # 1. Frontend-captured variables (browser locale/timezone/geo).
         #    Keys arrive as the full "{{TOKEN}}" literal. Drop OWUI's
         #    absent-value sentinels so they don't override a good backfill.
         if isinstance(__metadata__, dict):
@@ -500,6 +492,32 @@ class Pipe:
                 _loc = str(_info.get("location") or "").strip()
             if _loc and _loc not in ("None", "Unknown"):
                 sub.setdefault("{{USER_LOCATION}}", _loc)
+        return sub
+
+    @staticmethod
+    def _resolve_env_vars(text: str,
+                          __user__: Optional[dict],
+                          __metadata__: Optional[dict]) -> str:
+        """Resolve any OWUI {{...}} template token that reached the pipe
+        UNRESOLVED, then STRIP whatever is still unresolved so no literal
+        {{VAR}} ever survives into the model's system prompt.
+
+        OWUI substitutes most system-prompt vars server-side before the
+        pipe runs (functions.apply_system_prompt_to_body). But
+        {{USER_LANGUAGE}} and {{CURRENT_TIMEZONE}} are FRONTEND-only
+        variables (verified in OWUI utils/task.py: prompt_template has no
+        case for either) -- they resolve ONLY when the browser sent them
+        in form_data['variables'], else they leak. Direct-API callers get
+        no substitution at all. So we backfill from metadata.variables
+        (authoritative for locale/timezone the browser captured), the host
+        clock, and __user__, then strip the remainder. Operator 2026-05-22.
+
+        Note: this does NOT touch the reply-language -- that mirrors the
+        operator's own input per the template. These values feed
+        formatting/units + grounding only."""
+        if not text or "{{" not in text:
+            return text
+        sub = Pipe._collect_env_vars(__user__, __metadata__)
         for _k, _v in sub.items():
             if _k in text:
                 text = text.replace(_k, _v)
@@ -2280,6 +2298,24 @@ class Pipe:
                 _mv = __metadata__.get(_mk)
                 if _mv:
                     _md[_mk] = str(_mv)[:512]
+        # Forward the resolved OWUI ENVIRONMENT (location / timezone / locale /
+        # datetime / weekday / name) to :8640 as metadata.variables -- OWUI's
+        # own braced-key shape. The agent-pipe orchestrator reads it (server.py
+        # _client_env) to resolve 'near me' to the real location, set temporal
+        # grounding to the USER's timezone, and answer in the user's locale.
+        # Before this the env only reached a {{...}} system-prompt placeholder,
+        # so refine/swarm/web-search never saw the location -> 'near me' became
+        # an unfillable '[user location]' placeholder (operator 2026-05-27
+        # 'didnt use detected environments details ... OWUI provides entire
+        # environment details ... USE them in the pipeline'). Values are length-
+        # capped; absent-value sentinels already dropped in _collect_env_vars.
+        try:
+            _env_vars = self._collect_env_vars(__user__, __metadata__)
+            if _env_vars:
+                _md["variables"] = {str(_k)[:64]: str(_v)[:512]
+                                    for _k, _v in _env_vars.items()}
+        except Exception:
+            pass  # env forwarding is best-effort; never break the turn
         if _md:
             body["metadata"] = _md
 
@@ -2419,6 +2455,35 @@ class Pipe:
         _tail_seen = _dispatch_ts
         _reasoning_open = False
         _answer_started = False
+        # BUFFER reasoning deltas and emit ONE complete <details type="reasoning">
+        # block when the answer starts, instead of streaming an OPEN <details>
+        # that OWUI shows INLINE in the chat for the whole (1-2 min) research
+        # phase and only collapses once the answer closes it (operator 2026-05-26
+        # "thinking leaks into chat field before moving to think"). Live progress
+        # still streams via the transient mios_status pills (separate channel).
+        # LIVE thinking: stream the orchestrator's reasoning_content deltas as
+        # <think>...</think> tags in the CONTENT channel. This is OWUI's
+        # canonical, default-on reasoning path (DEFAULT_REASONING_TAGS in
+        # backend utils/middleware.py): OWUI extracts the tag-interior text
+        # into the native Thinking dropdown LIVE, token by token, WITHOUT
+        # leaking it into the chat field, and collapses it when </think>
+        # arrives. Replaces the old buffer-and-dump of a literal
+        # <details type="reasoning"> block -- that is OWUI's STORAGE form, not
+        # an input: emitting it raw bypassed the live-stream state machine and
+        # risked removeAllDetails() stripping, so the dropdown never populated
+        # live (operator 2026-05-27 "thinking doesnt show up still!"; research:
+        # OWUI PR #9241 / issue #23923 / docs reasoning-models). ONE think
+        # block per turn: opened on the first reasoning delta, closed when the
+        # answer begins (or at stream end / timeout / error).
+        _think_open = False
+
+        def _think_close() -> str:
+            """Close the live <think> block exactly once; '' if not open."""
+            nonlocal _think_open
+            if _think_open:
+                _think_open = False
+                return "\n</think>\n\n"
+            return ""
 
         def _poll_tail_lines() -> str:
             nonlocal _tail_seen
@@ -2501,29 +2566,33 @@ class Pipe:
                         # reasoning_content and get only the clean answer.
                         _rc = delta.get("reasoning_content") or ""
                         if _rc and not _answer_started:
-                            if not _reasoning_open:
-                                yield "<details type=\"reasoning\">\n<summary>🤖</summary>\n\n"
-                                _reasoning_open = True
+                            # Stream reasoning LIVE inside a <think> block.
+                            # Open it on the first fragment; OWUI routes the
+                            # interior to the Thinking dropdown as it arrives.
+                            if not _think_open:
+                                _think_open = True
+                                yield "<think>\n"
                             yield _rc
                             continue
                         text_piece = delta.get("content") or ""
                         if not text_piece:
                             continue
-                        # First answer content -> close the live thinking
-                        # dropdown, then stream the clean answer as main.
+                        # First answer content -> CLOSE the live think block so
+                        # OWUI collapses it, then stream the clean answer.
                         if not _answer_started:
                             _answer_started = True
-                            if _reasoning_open:
-                                yield "\n</details>\n\n"
-                                _reasoning_open = False
+                            _close = _think_close()
+                            if _close:
+                                yield _close
                         any_text = True
                         raw_buffer += text_piece
                         yield text_piece
 
-            # Empty/early-exit turn: close the dropdown if the answer never
-            # arrived, so OWUI doesn't render an orphaned open block.
-            if _reasoning_open:
-                yield "\n</details>\n\n"
+            # Empty/early-exit turn: close the live think block if the answer
+            # never arrived, so OWUI doesn't render an orphaned open <think>.
+            _close = _think_close()
+            if _close:
+                yield _close
 
             raw_text = raw_buffer.strip()
 
@@ -2558,18 +2627,19 @@ class Pipe:
 
             await self._emit(__event_emitter__, "✅", done=True)
         except asyncio.TimeoutError:
-            # Close the <details> ONLY if lazy-open actually fired.
-            # No tag was emitted on empty-stream / cold-load timeouts
-            # so we don't orphan a close either.
-            if _reasoning_open:
-                yield "\n</details>\n\n"
+            # Close the live <think> block ONLY if it actually opened, so we
+            # never orphan a tag on empty-stream / cold-load timeouts.
+            _close = _think_close()
+            if _close:
+                yield _close
             await self._emit(__event_emitter__,
                              f"⏱️ {self.valves.TIMEOUT_S}s",
                              done=True)
             yield f"\n\n_⏱️ {self.valves.TIMEOUT_S}s_"
         except Exception as e:
-            if _reasoning_open:
-                yield "\n</details>\n\n"
+            _close = _think_close()
+            if _close:
+                yield _close
             await self._emit(__event_emitter__,
                              f"❌ {type(e).__name__}: {e}",
                              done=True)

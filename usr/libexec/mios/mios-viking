@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""mios-viking -- OpenViking-style viking:// VFS over the local second brain.
+
+P5.2 (OpenViking brief): a virtual filesystem with HIERARCHICAL TOKEN GATING
+(L0 abstract -> L1 overview -> L2 raw) over MiOS's LOCAL knowledge stores --
+NO external ByteDance container, NO cloud, fully offline. The agent skims L0
+abstracts for navigation, targets a node, reads its L1 overview, and only
+fetches the L2 raw detail on strict demand -- so the active context window is
+never flooded with full documents.
+
+NAMESPACES (viking://<ns>/...):
+  skills     -- the episodic SKILL.md files (/var/lib/mios/ai/skills/episodic)
+                written by the self-learn loop (P5.7).
+  knowledge  -- the SurrealDB `knowledge` table (every finished Q+A).
+  memory     -- the operator AI memory dir (/var/lib/mios/ai/memory), if present.
+
+TIERS:
+  l0  -- one-line abstract (cheap nav). For skills/knowledge the stored
+         goal/question IS the L0; otherwise mios-summarize generates it.
+  l1  -- structured overview (mios-summarize, generated on read).
+  l2  -- the raw node content.
+
+USAGE
+  mios-viking ls skills [--limit 20]
+  mios-viking ls knowledge [--query "..."]      # query => semantic-ish filter
+  mios-viking cat skills/<file> [--tier l0|l1|l2]
+  mios-viking cat knowledge/<id> --tier l2
+  mios-viking find "<query>" [--ns skills,knowledge]   # L0 search across NS
+
+All output JSON: {ok, ...}. Read-only over local stores; never mutates.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import urllib.request
+
+SKILLS_DIR = os.environ.get("MIOS_SKILLS_EPISODIC_DIR",
+                            "/var/lib/mios/ai/skills/episodic")
+MEMORY_DIR = os.environ.get("MIOS_AI_MEMORY_DIR", "/var/lib/mios/ai/memory")
+DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = os.environ.get("MIOS_DB_DB", "mios")
+KNOWLEDGE_TABLE = os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge")
+SUMMARIZE = os.environ.get("MIOS_SUMMARIZE_BIN", "mios-summarize")
+
+
+def _db_sql(sql: str) -> list:
+    req = urllib.request.Request(
+        f"{DB_URL.rstrip('/')}/sql",
+        data=sql.encode("utf-8"),
+        headers={"surreal-ns": DB_NS, "surreal-db": DB_DB,
+                 "Accept": "application/json",
+                 "Authorization": "Basic " + _basic()},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        d = json.loads(r.read().decode("utf-8", errors="replace"))
+    for st in (d or []):
+        if isinstance(st, dict) and isinstance(st.get("result"), list):
+            return st["result"]
+    return []
+
+
+def _basic() -> str:
+    import base64
+    return base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
+
+
+def _summarize(text: str, tiers: str) -> dict:
+    try:
+        p = subprocess.run([SUMMARIZE, "--text", text, "--tiers", tiers,
+                            "--json"], capture_output=True, text=True,
+                           timeout=130)
+        return json.loads(p.stdout or "{}")
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"summarize failed: {e}"}
+
+
+def _ls_skills(limit: int) -> list:
+    out = []
+    try:
+        files = sorted(os.listdir(SKILLS_DIR), reverse=True)[:limit]
+    except OSError:
+        return []
+    for fn in files:
+        if not fn.endswith(".md"):
+            continue
+        path = os.path.join(SKILLS_DIR, fn)
+        l0 = ""
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if line.startswith("goal:"):
+                        l0 = line.split("goal:", 1)[1].strip().strip("'\"")
+                        break
+        except OSError:
+            pass
+        out.append({"id": f"skills/{fn}", "l0": l0 or fn})
+    return out
+
+
+def _ls_knowledge(limit: int, query: str) -> list:
+    where = ""
+    if query:
+        q = query.replace("'", "\\'")
+        where = f"WHERE string::contains(string::lowercase(q), '{q.lower()}') "
+    rows = _db_sql(
+        f"SELECT id, q, ts FROM {KNOWLEDGE_TABLE} {where}"
+        f"ORDER BY ts DESC LIMIT {int(limit)};")
+    return [{"id": f"knowledge/{str(r.get('id'))}",
+             "l0": str(r.get("q", ""))[:160]} for r in rows]
+
+
+def _ls_memory(limit: int) -> list:
+    out = []
+    try:
+        files = sorted(os.listdir(MEMORY_DIR))[:limit]
+    except OSError:
+        return []
+    for fn in files:
+        out.append({"id": f"memory/{fn}", "l0": fn})
+    return out
+
+
+def _cat_skill(node: str, tier: str) -> dict:
+    fn = node.split("/", 1)[1] if "/" in node else node
+    path = os.path.join(SKILLS_DIR, fn)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            raw = f.read()
+    except OSError as e:
+        return {"ok": False, "error": f"not found: {e}"}
+    if tier == "l2":
+        return {"ok": True, "id": node, "tier": "l2", "content": raw}
+    s = _summarize(raw, "l0,l1" if tier == "l1" else "l0")
+    return {"ok": True, "id": node, "tier": tier,
+            "content": s.get(tier, s.get("l0", ""))}
+
+
+def _cat_knowledge(node: str, tier: str) -> dict:
+    rid = node.split("/", 1)[1] if "/" in node else node
+    rows = _db_sql(f"SELECT q, answer FROM {rid};")
+    if not rows:
+        return {"ok": False, "error": f"not found: {rid}"}
+    r = rows[0]
+    raw = f"Q: {r.get('q','')}\n\nA: {r.get('answer','')}"
+    if tier == "l2":
+        return {"ok": True, "id": node, "tier": "l2", "content": raw}
+    if tier == "l0":
+        return {"ok": True, "id": node, "tier": "l0",
+                "content": str(r.get("q", ""))[:160]}
+    s = _summarize(raw, "l1")
+    return {"ok": True, "id": node, "tier": "l1", "content": s.get("l1", "")}
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-viking")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    p_ls = sub.add_parser("ls")
+    p_ls.add_argument("ns")
+    p_ls.add_argument("--limit", type=int, default=20)
+    p_ls.add_argument("--query", default="")
+    p_cat = sub.add_parser("cat")
+    p_cat.add_argument("node")
+    p_cat.add_argument("--tier", default="l0", choices=["l0", "l1", "l2"])
+    p_find = sub.add_parser("find")
+    p_find.add_argument("query")
+    p_find.add_argument("--ns", default="skills,knowledge")
+    p_find.add_argument("--limit", type=int, default=20)
+    args = p.parse_args()
+
+    try:
+        if args.cmd == "ls":
+            ns = args.ns.replace("viking://", "").strip("/")
+            if ns == "skills":
+                nodes = _ls_skills(args.limit)
+            elif ns == "knowledge":
+                nodes = _ls_knowledge(args.limit, args.query)
+            elif ns == "memory":
+                nodes = _ls_memory(args.limit)
+            else:
+                print(json.dumps({"ok": False,
+                                  "error": f"unknown namespace '{ns}' "
+                                  "(skills|knowledge|memory)"}))
+                return 2
+            print(json.dumps({"ok": True, "ns": ns,
+                              "count": len(nodes), "nodes": nodes}))
+            return 0
+        if args.cmd == "cat":
+            node = args.node.replace("viking://", "").strip("/")
+            if node.startswith("skills/"):
+                print(json.dumps(_cat_skill(node, args.tier)))
+            elif node.startswith("knowledge/"):
+                print(json.dumps(_cat_knowledge(node, args.tier)))
+            else:
+                print(json.dumps({"ok": False,
+                                  "error": "node must be skills/<f> or "
+                                  "knowledge/<id>"}))
+                return 2
+            return 0
+        if args.cmd == "find":
+            namespaces = [n.strip() for n in args.ns.split(",") if n.strip()]
+            ql = args.query.lower()
+            hits = []
+            if "skills" in namespaces:
+                hits += [n for n in _ls_skills(200)
+                         if ql in n["l0"].lower()][:args.limit]
+            if "knowledge" in namespaces:
+                hits += _ls_knowledge(args.limit, args.query)
+            print(json.dumps({"ok": True, "query": args.query,
+                              "count": len(hits), "hits": hits[:args.limit]}))
+            return 0
+    except Exception as e:  # noqa: BLE001
+        print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

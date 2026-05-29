@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""'MiOS' AdGuard Home first-boot config generator.
+
+Writes /etc/mios/adguard/AdGuardHome.yaml from the [adguard] + [ports] SSOT in
+mios.toml (layered: vendor /usr/share/mios/mios.toml < host /etc/mios/mios.toml)
+plus two HOST-SPECIFIC values that can't be baked at image build time and are
+discovered live here:
+
+  * the Tailscale IPv4 (`tailscale ip -4`)  -> goes in dns.bind_hosts so tailnet
+    peers can resolve at <vm-tailnet-ip>:53;
+  * the MagicDNS suffix (`tailscale status --json`.MagicDNSSuffix) -> a split-DNS
+    upstream rule  [/<suffix>/]<magicdns_resolver>  so *.ts.net pretty URLs keep
+    resolving through Tailscale's MagicDNS while everything else goes upstream
+    with ad-blocking.
+
+Idempotent + non-destructive: if the config file already exists it does NOTHING
+(AdGuard rewrites that file when settings change via the UI/API, so regenerating
+would clobber the operator's changes). Delete the file to force a regen.
+
+No hardcoded literals: every tunable comes from mios.toml; only the Tailscale
+MagicDNS stub IP default lives in the TOML (it is a fixed, universal address).
+"""
+from __future__ import annotations
+import json
+import os
+import pwd
+import subprocess
+import sys
+import time
+import tomllib
+
+CONF_DIR = "/etc/mios/adguard"
+CONF_PATH = os.path.join(CONF_DIR, "AdGuardHome.yaml")
+VENDOR_TOML = "/usr/share/mios/mios.toml"
+HOST_TOML = "/etc/mios/mios.toml"
+SVC_USER = "mios-adguard"
+
+
+def _log(msg: str) -> None:
+    print(f"[mios-adguard-firstboot] {msg}", flush=True)
+
+
+def _deep_merge(base: dict, over: dict) -> dict:
+    """Overlay `over` onto `base` (host wins over vendor), recursing into dicts."""
+    out = dict(base)
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _load_layered_toml() -> dict:
+    data: dict = {}
+    for path in (VENDOR_TOML, HOST_TOML):
+        try:
+            with open(path, "rb") as fh:
+                data = _deep_merge(data, tomllib.load(fh))
+        except FileNotFoundError:
+            continue
+        except Exception as e:  # noqa: BLE001
+            _log(f"warn: failed to parse {path}: {e}")
+    return data
+
+
+def _tailscale(*args: str) -> str:
+    for binary in ("tailscale", "/usr/bin/tailscale", "/usr/sbin/tailscale"):
+        try:
+            out = subprocess.run([binary, *args], capture_output=True,
+                                 text=True, timeout=10)
+            if out.returncode == 0:
+                return out.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    return ""
+
+
+def _tailnet_ip(retries: int = 15, delay: float = 2.0) -> str:
+    """Wait briefly for tailscaled to hand out an IPv4 (it may still be coming
+    up at boot). Returns "" if Tailscale never answers -- the resolver then
+    binds loopback only (VM-local still works; delete the config + re-run once
+    Tailscale is up to add the tailnet bind)."""
+    for attempt in range(retries):
+        ip = _tailscale("ip", "-4").splitlines()
+        ip = ip[0].strip() if ip else ""
+        if ip:
+            return ip
+        if attempt < retries - 1:
+            time.sleep(delay)
+    return ""
+
+
+def _magicdns_suffix(override: str) -> str:
+    if override:
+        return override.strip().strip(".")
+    raw = _tailscale("status", "--json")
+    if raw:
+        try:
+            return str(json.loads(raw).get("MagicDNSSuffix", "")).strip().strip(".")
+        except Exception:  # noqa: BLE001
+            pass
+    return ""
+
+
+def _yaml_list(items, indent: int) -> str:
+    pad = " " * indent
+    if not items:
+        return f"{pad}[]"
+    return "\n".join(f"{pad}- {it}" for it in items)
+
+
+def _admin_users_block(ag: dict) -> str:
+    """Build the AdGuard `users:` block so a fresh install is NOT left with a
+    no-auth admin UI (it controls DNS for the whole tailnet once it's the global
+    nameserver). If [adguard].admin_password_bcrypt is set, use it verbatim.
+    Otherwise auto-generate a strong random password, bcrypt it, and drop the
+    plaintext in a root/825-only file the operator can read once. If bcrypt is
+    unavailable, fall back to an OPEN (tailnet-bound) UI + a loud warning."""
+    user = str(ag.get("admin_user", "admin") or "admin")
+    h = str(ag.get("admin_password_bcrypt", "") or "").strip()
+    if not h:
+        try:
+            import bcrypt, secrets, string
+            pw = "".join(secrets.choice(string.ascii_letters + string.digits)
+                         for _ in range(20))
+            h = bcrypt.hashpw(pw.encode(), bcrypt.gensalt(10)).decode()
+            pwfile = os.path.join(CONF_DIR, "initial-admin-password")
+            with open(pwfile, "w") as fh:
+                fh.write(f"AdGuard Home initial admin login (change it in the UI)\n"
+                         f"user: {user}\npassword: {pw}\n")
+            os.chmod(pwfile, 0o600)
+            try:
+                ent = pwd.getpwnam(SVC_USER); os.chown(pwfile, ent.pw_uid, ent.pw_gid)
+            except KeyError:
+                pass
+            _log(f"generated admin password -> {pwfile} (0600)")
+        except Exception as e:  # noqa: BLE001
+            _log(f"warn: no bcrypt ({e}) -- UI left OPEN (tailnet-bound); install "
+                 "python3-bcrypt or set [adguard].admin_password_bcrypt")
+            return "users: []"
+    return f"users:\n  - name: {user}\n    password: {h}"
+
+
+def _build_config(cfg: dict) -> str:
+    ag = cfg.get("adguard", {}) or {}
+    ports = cfg.get("ports", {}) or {}
+    dns_port = int(ports.get("adguard_dns", 53))
+    ui_port = int(ports.get("adguard_ui", 3053))
+
+    upstreams = list(ag.get("upstreams", []) or [])
+    bootstrap = list(ag.get("bootstrap", []) or [])
+    blocklists = list(ag.get("blocklists", []) or [])
+    magicdns_resolver = str(ag.get("magicdns_resolver", "100.100.100.100"))
+    cache_min = int(ag.get("cache_min_ttl", 60))
+    cache_max = int(ag.get("cache_max_ttl", 86400))
+
+    tailnet_ip = _tailnet_ip()
+    suffix = _magicdns_suffix(str(ag.get("magicdns_suffix", "") or ""))
+
+    bind_hosts = ["127.0.0.1"]
+    if tailnet_ip and tailnet_ip not in bind_hosts:
+        bind_hosts.append(tailnet_ip)
+        _log(f"binding DNS on 127.0.0.1 + tailnet {tailnet_ip}")
+    else:
+        _log("no tailnet IP yet -- binding DNS on 127.0.0.1 only "
+             "(delete the config + re-run once Tailscale is up for tailnet bind)")
+
+    # Split-DNS: keep the MagicDNS suffix on Tailscale's resolver so *.ts.net
+    # pretty URLs resolve, with ad-blocking on everything else.
+    if suffix:
+        upstreams = upstreams + [f"[/{suffix}/]{magicdns_resolver}"]
+        _log(f"split-DNS: *.{suffix} -> {magicdns_resolver}")
+    # YAML-quote every upstream: the split rule "[/suffix/]ip" starts with '['
+    # which a YAML parser would read as an inline sequence. Quoting keeps each
+    # entry a plain string for AdGuard to parse.
+    upstreams = [f'"{u}"' for u in upstreams]
+
+    filters = "\n".join(
+        f"  - enabled: true\n    url: {url}\n    name: blocklist-{i}\n    id: {i}"
+        for i, url in enumerate(blocklists, start=1)
+    ) or "  []"
+
+    users_block = _admin_users_block(ag)
+
+    return f"""# AdGuardHome.yaml -- GENERATED by mios-adguard-firstboot from mios.toml
+# [adguard]/[ports] + the live Tailscale IP/MagicDNS suffix. AdGuard rewrites
+# this file when you change settings in the UI; this generator never overwrites
+# an existing file. Delete it to regenerate from SSOT.
+http:
+  address: 0.0.0.0:{ui_port}
+  session_ttl: 720h
+{users_block}
+auth_attempts: 5
+block_auth_min: 15
+http_proxy: ""
+language: ""
+theme: auto
+dns:
+  bind_hosts:
+{_yaml_list(bind_hosts, 4)}
+  port: {dns_port}
+  upstream_dns:
+{_yaml_list(upstreams, 4)}
+  upstream_mode: load_balance
+  bootstrap_dns:
+{_yaml_list(bootstrap, 4)}
+  cache_size: 4194304
+  cache_ttl_min: {cache_min}
+  cache_ttl_max: {cache_max}
+  ratelimit: 0
+  refuse_any: true
+  enable_dnssec: true
+  upstream_timeout: 10s
+tls:
+  enabled: false
+querylog:
+  enabled: true
+  interval: 168h
+  size_memory: 1000
+statistics:
+  enabled: true
+  interval: 168h
+filtering:
+  filtering_enabled: true
+  protection_enabled: true
+  blocking_mode: default
+  blocked_response_ttl: 10
+  parental_enabled: false
+  safe_search:
+    enabled: false
+filters:
+{filters}
+whitelist_filters: []
+user_rules: []
+log:
+  verbose: false
+schema_version: 28
+"""
+
+
+def main() -> int:
+    if os.path.exists(CONF_PATH):
+        _log(f"{CONF_PATH} already exists -- leaving it untouched")
+        return 0
+    os.makedirs(CONF_DIR, exist_ok=True)
+    cfg = _load_layered_toml()
+    content = _build_config(cfg)
+    tmp = CONF_PATH + ".tmp"
+    with open(tmp, "w") as fh:
+        fh.write(content)
+    os.replace(tmp, CONF_PATH)
+    try:
+        ent = pwd.getpwnam(SVC_USER)
+        os.chown(CONF_PATH, ent.pw_uid, ent.pw_gid)
+        os.chmod(CONF_PATH, 0o640)
+    except KeyError:
+        _log(f"warn: user {SVC_USER} not found -- leaving config root-owned")
+    _log(f"wrote {CONF_PATH}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,25 @@
+# /usr/lib/systemd/system/mios-cron-director.service
+# 'MiOS' cron-director -- LLM-gated recurring-task scheduler. Reads
+# /etc/mios/cron-rules.toml and fires each rule's `do` when its 5-field cron
+# matches (optional micro-LLM gate). Runs as the agent-plane user (mios-ai) so
+# scheduled research/Discord tasks have the right context + network, with less
+# privilege than root. Already enabled in 90-mios.preset.
+[Unit]
+Description='MiOS' cron-director (LLM-gated recurring-task scheduler)
+After=network-online.target mios-agent-pipe.service
+Wants=network-online.target
+ConditionPathExists=/usr/libexec/mios/mios-cron-director
+
+[Service]
+Type=simple
+User=mios-ai
+Group=mios-ai
+ExecStart=/usr/libexec/mios/mios-cron-director
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=15s
+# Read-only journal/log access is inherited from mios-ai's groups; the daemon
+# only needs to read the rules file + write its state dir.
+
+[Install]
+WantedBy=multi-user.target

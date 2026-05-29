@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""mios-coderun -- execute agent code in the bubblewrap sandbox (the `coderun`
+verb backend). Completes the P4.4 sandbox loop: the sandbox (mios-sandbox-exec)
+is now reachable AS A VERB, so an agent can run code SAFELY -- read-only system,
+writable scratch workspace only, NO network egress by default, resource caps.
+
+Distinct from `powershell_run` (Windows host shell) and `mios-coderun-session`
+(the container dry-run/test boundary orchestrator): this runs a SHORT code
+snippet / command in a per-call bwrap jail on the Linux side + returns its
+stdout/stderr/exit, then discards the scratch dir.
+
+USAGE
+  mios-coderun --code '<source>' [--lang bash|python] [--net] [--timeout 60]
+  mios-coderun --code 'print(2**10)' --lang python
+
+OUTPUT (JSON): {ok, lang, exit_code, stdout, stderr, sandboxed, net}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+
+SANDBOX = os.environ.get("MIOS_SANDBOX_BIN", "mios-sandbox-exec")
+SCRATCH_ROOT = os.environ.get("MIOS_CODERUN_SCRATCH",
+                              "/var/lib/mios/ai/coderun")
+MAX_OUT = int(os.environ.get("MIOS_CODERUN_MAX_OUTPUT", "8000"))
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-coderun")
+    p.add_argument("--code", default="")
+    p.add_argument("--lang", default="bash", choices=["bash", "sh", "python"])
+    p.add_argument("--net", action="store_true",
+                   help="Allow network egress (default OFF -- offline).")
+    p.add_argument("--timeout", type=int, default=60)
+    args = p.parse_args()
+
+    code = args.code
+    if not code and not sys.stdin.isatty():
+        code = sys.stdin.read()
+    code = (code or "").strip()
+    if not code:
+        print(json.dumps({"ok": False, "error": "no --code provided"}))
+        return 2
+
+    if not shutil.which(SANDBOX):
+        print(json.dumps({"ok": False,
+                          "error": f"{SANDBOX} not on PATH -- cannot sandbox; "
+                          "refusing to run unsandboxed"}))
+        return 126
+
+    # Per-call scratch workspace (the ONLY writable path in the jail).
+    ws = os.path.join(SCRATCH_ROOT, f"cr-{int(time.time())}-{uuid.uuid4().hex[:8]}")
+    try:
+        os.makedirs(ws, exist_ok=True)
+    except OSError as e:
+        print(json.dumps({"ok": False, "error": f"scratch mkdir failed: {e}"}))
+        return 1
+
+    try:
+        if args.lang == "python":
+            src = os.path.join(ws, "snippet.py")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write(code)
+            inner = ["python3", src]
+        else:
+            src = os.path.join(ws, "snippet.sh")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write(code)
+            inner = ["bash", src]
+
+        cmd = [SANDBOX, "--workspace", ws, "--level", "enforce",
+               "--timeout", str(args.timeout)]
+        if args.net:
+            cmd.append("--net")
+        cmd += ["--"] + inner
+
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=args.timeout + 15)
+        print(json.dumps({
+            "ok": proc.returncode == 0,
+            "lang": args.lang,
+            "exit_code": proc.returncode,
+            "stdout": (proc.stdout or "")[:MAX_OUT],
+            "stderr": (proc.stderr or "")[:MAX_OUT],
+            "sandboxed": True,
+            "net": bool(args.net),
+        }))
+        return 0 if proc.returncode == 0 else 1
+    except subprocess.TimeoutExpired:
+        print(json.dumps({"ok": False, "error": "timeout",
+                          "lang": args.lang, "sandboxed": True}))
+        return 1
+    except Exception as e:  # noqa: BLE001
+        print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+        return 1
+    finally:
+        shutil.rmtree(ws, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

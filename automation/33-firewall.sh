@@ -25,10 +25,13 @@ if ! systemctl is-active --quiet firewalld 2>/dev/null; then
 fi
 # Default zone: drop (deny all inbound by default)
 firewall-cmd --set-default-zone=drop 2>/dev/null || true
-# Essential services
+# Essential services (ssh service = :22, kept open for Forgejo git-ssh squatting
+# the host port -- the host ADMIN sshd is on ${MIOS_PORT_SSH}, opened below)
 for svc in cockpit ssh mdns; do
     firewall-cmd --permanent --add-service="\$svc" 2>/dev/null || true
 done
+# host admin sshd (hardened off :22 -- without this the 49955 sshd is unreachable = total SSH lockout)
+firewall-cmd --permanent --add-port=${MIOS_PORT_SSH}/tcp 2>/dev/null || true
 # RDP (GNOME Remote Desktop + Hyper-V vsock)
 firewall-cmd --permanent --add-port=${MIOS_RDP_PORT}/tcp --add-port=3390/tcp 2>/dev/null || true
 # Samba + NFS

@@ -1,0 +1,71 @@
+#!/bin/bash
+# mios-hermes-dashboard-auth-stub
+#
+# Hermes-Agent v0.15.0 (build 2026.5.28) ships web_server.py with
+#   `from hermes_cli.dashboard_auth.routes import router`
+# but the wheel does NOT include the dashboard_auth package. Result:
+# hermes-dashboard.service crash-loops with ModuleNotFoundError.
+#
+# This shim plants a MINIMAL stub package so the import resolves:
+# an empty APIRouter has zero Nous Portal OAuth routes to register --
+# exactly the same effect as "auth disabled" but lets the dashboard
+# SPA boot. MiOS does not use Nous Portal so an empty router is the
+# right local-first answer; if upstream republishes 0.15.x with the
+# real package included, the install will overwrite this stub and
+# the shim becomes a no-op (idempotent: we only write files that
+# don't already exist).
+#
+# Wired as ExecStartPre on hermes-agent.service so every restart
+# (including post-pip-upgrade restarts) re-asserts the stub.
+#
+# Exit codes:
+#   0 = stub already present / freshly applied / dashboard not vulnerable
+#   2 = venv not found (hermes not installed; treat as no-op)
+set -euo pipefail
+
+VENV_SP="/usr/lib/mios/hermes-agent/.venv/lib64/python3.14/site-packages"
+PKG="$VENV_SP/hermes_cli/dashboard_auth"
+
+if [[ ! -d "$VENV_SP/hermes_cli" ]]; then
+  echo "mios-hermes-dashboard-auth-stub: venv site-packages absent; skipping" >&2
+  exit 2
+fi
+
+# If a routes.py already exists (real upstream fix OR this stub), nothing to do.
+if [[ -f "$PKG/routes.py" ]]; then
+  exit 0
+fi
+
+# Only stub when the broken import is actually present in the installed
+# web_server.py -- if upstream removes the line in a future release we
+# don't need (or want) a vestigial stub on disk.
+WEB="$VENV_SP/hermes_cli/web_server.py"
+if [[ -f "$WEB" ]] && ! grep -q 'hermes_cli.dashboard_auth.routes' "$WEB"; then
+  echo "mios-hermes-dashboard-auth-stub: bad import absent; skipping" >&2
+  exit 0
+fi
+
+mkdir -p "$PKG"
+cat > "$PKG/__init__.py" <<'EOF'
+"""MiOS stub for the missing hermes_cli.dashboard_auth package.
+
+Upstream v0.15.0 (build 2026.5.28) ships web_server.py with
+`from hermes_cli.dashboard_auth.routes import router` but the wheel
+does not include the package. This stub provides the minimum surface
+needed for the dashboard SPA to boot. Replace if upstream republishes
+with the real package."""
+EOF
+
+cat > "$PKG/routes.py" <<'EOF'
+"""MiOS stub: empty APIRouter so v0.15.0's web_server.py import resolves
+without registering any Nous Portal OAuth endpoints. The gate middleware
+in web_server.py already decides whether to enforce auth; a routerless
+module just means no /auth/* routes exist -- correct for the local-first
+MiOS deployment (no Portal integration)."""
+from fastapi import APIRouter
+router = APIRouter()
+EOF
+
+/usr/lib/mios/hermes-agent/.venv/bin/python3 -m py_compile \
+  "$PKG/__init__.py" "$PKG/routes.py" 2>/dev/null || true
+echo "mios-hermes-dashboard-auth-stub: applied at $PKG"
