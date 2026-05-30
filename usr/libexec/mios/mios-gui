@@ -137,10 +137,15 @@ if [ "$launch_rc" -ne 0 ]; then
     exit "$launch_rc"
 fi
 
-# ─── Verify the app actually started (NOT just that the launch returned) ─────
-# For flatpaks: bwrap wraps + the app id appears in argv. For host RPMs: the
-# binary itself is in argv. Sleep 3s for slow first-launches.
-sleep 3
+# ─── Verify (BACKGROUNDED, log-only) ────────────────────────────────────────
+# The launch already fired + detached above. The agent-pipe's _respond_os_control
+# does the AUTHORITATIVE before/after window-diff verification now, so this
+# pgrep check must NOT block the broker dispatch (operator 2026-05-29: a
+# foreground verify here + the detached launch contributed to the 45s
+# launch_app timeout). Run it in a BACKGROUND subshell (log-only) and return
+# success immediately -- "launch dispatched". A genuine launch failure surfaces
+# in the agent-pipe's window-diff (window never appears), not here.
+( sleep 3
 case "$APP_ID" in
     *"(host-rpm)")
         # Match the basename of the host binary in argv.
@@ -164,8 +169,9 @@ esac
 # -f: match full command line (flatpaks live under bwrap argv).
 if pgrep -ifa "$match_pat" >/dev/null 2>&1; then
     echo "mios-gui: ✓ $APP_ID is running" >&2
-    exit 0
 else
-    echo "mios-gui: ✗ $APP_ID launched but no process matched pgrep -ifa \"$match_pat\" 3s later -- check 'journalctl --user-unit=mios-flatpak-* --user-unit=mios-hostgui-*' or run the binary directly to see the error" >&2
-    exit 2
-fi
+    echo "mios-gui: (bg-check) $APP_ID no process matched pgrep -ifa \"$match_pat\" 3s later -- the agent-pipe window-diff is the authoritative check" >&2
+fi ) >/dev/null 2>&1 &
+# Return immediately: the launch fired (+ detached). Success = "dispatched".
+echo "mios-gui: dispatched $APP_ID (verify backgrounded; agent-pipe window-diff is authoritative)" >&2
+exit 0

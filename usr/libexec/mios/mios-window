@@ -120,6 +120,114 @@ sub="${1:-}"
 [[ -z "$sub" ]] && { usage; exit 64; }
 shift
 
+# ─── Cross-desktop executor routing (operator 2026-05-29 OS-control train) ───
+# focus/close/move/center failed with "no window title matches" because this
+# tool enumerates + acts LOCALLY in the WSL session, which is BLIND to the
+# operator's actual windows (WSLg flatpaks + Windows-host apps both appear as
+# top-level windows on the WINDOWS desktop, not the WSL X11 session). The
+# Windows-side executor (mios-oscontrol-server.ps1 @ [os_control].executor_
+# endpoint) SEES them all + has /window/<op> endpoints. When that endpoint is
+# configured, route the window OP there (the same surface _enumerate_windows
+# already reads). Falls through to the local mios-pc-control path when no
+# executor is set (bare-metal Linux desktop). Semantic positions (left/right/
+# top/...) map to the executor's center/move; 'center' has a direct endpoint.
+_OSC_EP="${MIOS_OSCONTROL_EXECUTOR:-}"
+if [ -z "$_OSC_EP" ] && [ -r /etc/mios/mios.toml ]; then
+    _OSC_EP="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /etc/mios/mios.toml 2>/dev/null)"
+fi
+[ -z "$_OSC_EP" ] && [ -r /usr/share/mios/mios.toml ] && \
+    _OSC_EP="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+_OSC_EP="${_OSC_EP%/}"
+
+_exec_post() {  # <path> <json-body>
+    curl -s --max-time 12 -X POST -H 'Content-Type: application/json' \
+        --data "$2" "${_OSC_EP}$1"
+}
+_exec_get() { curl -s --max-time 12 "${_OSC_EP}$1"; }
+_json_str() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
+if [ -n "$_OSC_EP" ]; then
+    _t="$(_json_str "${1:-}")"
+
+    # flatpak instances are PER-USER. The agent dispatches window ops through
+    # the launcher broker, which runs as ROOT -- so a bare `flatpak ps` here
+    # sees NONE of the operator's running apps (operator 2026-05-29 train:
+    # the flatpak-kill close fired fine when run directly as the operator but
+    # the broker/root path saw no instance + fell through). Run flatpak AS the
+    # operator: directly when we already are them, else switch user (runuser
+    # when root, sudo otherwise) WITH the operator's XDG_RUNTIME_DIR so flatpak
+    # finds the per-user instance registry under $XDG_RUNTIME_DIR/.flatpak/.
+    _op_user="$(awk -F\" '/^[[:space:]]*username[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    [ -z "$_op_user" ] && _op_user="mios"
+    _op_uid="$(id -u "$_op_user" 2>/dev/null)"
+    _me_user="$(id -un 2>/dev/null)"
+    _fp() {  # run `flatpak <args...>` in the operator's session
+        if [ "$_me_user" = "$_op_user" ] || [ -z "$_op_uid" ]; then
+            flatpak "$@"
+        elif [ "$(id -u)" = "0" ] && command -v runuser >/dev/null 2>&1; then
+            runuser -u "$_op_user" -- env XDG_RUNTIME_DIR="/run/user/$_op_uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$_op_uid/bus" flatpak "$@"
+        elif command -v sudo >/dev/null 2>&1; then
+            sudo -n -u "$_op_user" env XDG_RUNTIME_DIR="/run/user/$_op_uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$_op_uid/bus" flatpak "$@"
+        else
+            flatpak "$@"
+        fi
+    }
+
+    case "$sub" in
+        list|ls)   _exec_get /windows; exit $? ;;
+        focus)     _exec_post /window/focus "{\"title\": $_t}"; exit $? ;;
+        close|quit|x)
+            # WSLg/flatpak windows are hosted on the Windows side by msrdc
+            # (the RAIL/RDP client); a Windows-side WM_CLOSE does NOT
+            # propagate into the Linux app -- the executor returns ok:true
+            # but the window stays open (operator 2026-05-29 OS-control
+            # train: close_window matched gedit, ok:true, window-diff 18->18,
+            # never closed). MiOS GUI apps are flatpaks, so close them from
+            # the WSL side via `flatpak kill <app-id>` (reliable + offline).
+            # Map the title needle to a RUNNING flatpak instance (substring
+            # either direction vs the app-id last segment OR full id). Fall
+            # through to the executor WM_CLOSE for NATIVE Windows apps
+            # (notepad, taskmgr, ...) which DO honour it.
+            _needle_lc="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+            _fp_id=""
+            if command -v flatpak >/dev/null 2>&1 && [ -n "$_needle_lc" ]; then
+                _fp_id="$(_fp ps --columns=application 2>/dev/null | awk -v n="$_needle_lc" '
+                    { id=$1; seg=id; sub(/.*\./,"",seg); slc=tolower(seg); ilc=tolower(id);
+                      if (index(n, slc)>0 || index(slc, n)>0 || index(ilc, n)>0) { print id; exit } }')"
+            fi
+            if [ -n "$_fp_id" ]; then
+                _fp kill "$_fp_id" >/dev/null 2>&1; _rc=$?
+                echo "{\"ok\": true, \"op\": \"close\", \"method\": \"flatpak-kill\", \"app\": \"$_fp_id\", \"rc\": $_rc}"
+                exit 0
+            fi
+            _exec_post /window/close "{\"title\": $_t}"; exit $? ;;
+        center)    _exec_post /window/center "{\"title\": $_t}"; exit $? ;;
+        minimize|min)  _exec_post /window/state "{\"title\": $_t, \"state\": \"minimize\"}"; exit $? ;;
+        maximize|max)  _exec_post /window/state "{\"title\": $_t, \"state\": \"maximize\"}"; exit $? ;;
+        restore)   _exec_post /window/state "{\"title\": $_t, \"state\": \"restore\"}"; exit $? ;;
+        move)      # numeric x y -> /window/move; semantic (left/right/...) -> center fallback
+            _x="${2:-}"; _y="${3:-}"
+            if [[ "$_x" =~ ^-?[0-9]+$ && "$_y" =~ ^-?[0-9]+$ ]]; then
+                _exec_post /window/move "{\"title\": $_t, \"x\": $_x, \"y\": $_y}"; exit $?
+            else
+                # semantic position came in as $_x (e.g. 'left'); the executor
+                # has no per-edge endpoint yet -> center is the safe placement.
+                _exec_post /window/center "{\"title\": $_t}"; exit $?
+            fi ;;
+        resize)    _exec_post /window/resize "{\"title\": $_t, \"width\": ${2:-0}, \"height\": ${3:-0}}"; exit $? ;;
+        left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
+            # The move_window verb renders the SEMANTIC POSITION as the
+            # subcommand (cmd template `mios-window {position} {title}`). The
+            # executor has no per-edge endpoint yet -> place via /window/center
+            # (visible + non-erroring). Precise edge placement via the executor's
+            # /screen-layout + /window/move is a follow-up. NOTE: $1 here is the
+            # TITLE (the position is $sub), so resolve the title from $1.
+            _exec_post /window/center "{\"title\": $_t}"; exit $? ;;
+    esac
+fi
+
 case "$sub" in
     help|-h|--help)
         usage

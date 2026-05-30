@@ -59,17 +59,19 @@ Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
 # operating principles + ENGLISH-default language, not a bare base model.
 # Mirrors mios.toml [refine].model / [polish].model (same pin pattern as
 # MIOS_AGENT_PIPE_PLANNER_MODEL above). Override via /etc/mios/agent-pipe.env.
-# refine + polish run on EVERY turn -> they use the FAST 4B mios-agent on the
-# dGPU lane :11434, CO-RESIDENT with the 9B reasoning primary (mios-hermes):
-# 9.9 GB + 6.5 GB = 16.4 GB, both warm on the 4090, both fast (~2-5s each). This
-# keeps the per-turn hot path snappy while the primary is a larger 9B model.
-# (Earlier test: 27B-everything = 23.6s refine; CPU-lane 1.7B = 40s refine --
-# both too slow. The 9B-primary + 4B-refine/polish split is the fast balance.)
-# The CONCURRENT swarm secondaries still fire on OTHER endpoints (CPU :11435
-# daemon-agent, iGPU :11436, phone) at the same dispatch step -- a bigger dGPU
-# primary does not serialise them ([[mios_heterogeneous_parallel_dispatch]]).
-# Override via /etc/mios/agent-pipe.env.
-Environment=MIOS_REFINE_MODEL=mios-agent
+# REFINE runs on the LARGE 9B dGPU model (mios-hermes), POLISH on the fast 4B
+# (operator 2026-05-29: "use the large dGPU model to re-write the user's queries
+# with proper reasoning, intent, outcome, plan, hints/tools/skills, then that
+# detailed query drives the rest of the pipeline"). Refine is THE quality lever
+# -- it produces the structured plan every downstream node consumes, so it gets
+# the powerful model (already dGPU-resident + warm => no extra load, just a few
+# more seconds for a far better plan). Polish is output-shaping only -> stays on
+# the fast 4B mios-agent so the final render is snappy. Both co-resident on the
+# 4090 (9.9 + 6.5 GB). The CONCURRENT swarm secondaries still fire on OTHER
+# endpoints (CPU :11435 daemon-agent, iGPU :11436, phone) at the same dispatch
+# step -- the bigger refine model does not serialise them
+# ([[mios_heterogeneous_parallel_dispatch]]). Override via /etc/mios/agent-pipe.env.
+Environment=MIOS_REFINE_MODEL=mios-hermes
 Environment=MIOS_REFINE_ENDPOINT=http://localhost:11434
 Environment=MIOS_POLISH_MODEL=mios-agent
 Environment=MIOS_POLISH_ENDPOINT=http://localhost:11434

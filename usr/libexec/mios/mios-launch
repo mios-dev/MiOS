@@ -171,37 +171,75 @@ case "$NAME" in
         ;;
 esac
 
-# ─── 2b. PREFLIGHT: already running? -> focus + succeed ──────────────
-# Operator 2026-05-20: launching an ALREADY-RUNNING app (Spotify, a
-# browser, ...) made the launch attempt "fail" while the window was
-# actually focused -> the agent reported a FALSE failure ("did not
-# launch") even though the app was on-screen. Self-check first: if a
-# window for <NAME> is already present, focus it and report success
-# instead of re-launching. Read-only probe; only acts (focus) when the
-# app is already up. Bypass with MIOS_LAUNCH_NO_PREFLIGHT=1 (force a
-# fresh instance). Runs in the broker context (operator uid + WSLg) so
-# the window check + focus actually see the desktop.
-# mios-window-active --present is BOTH the probe AND the actuator: if the
-# window exists it auto-restores + foregrounds it, then reports
-# "presented_to_operator": true. So a single call does the focus; we just
-# read its verdict. Not-running -> verdict false -> fall through to launch.
-if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] \
-   && command -v mios-window-active >/dev/null 2>&1; then
-    _wa=$(mios-window-active --present "$NAME" 2>/dev/null)
-    if printf '%s' "$_wa" | grep -qi 'presented_to_operator"[[:space:]]*:[[:space:]]*true'; then
-        echo "{\"success\": true, \"target\": \"$NAME\", \"already_running\": true, \"action\": \"foregrounded existing window\"}"
-        echo "mios-launch: '$NAME' already running -- foregrounded it (preflight)" >&2
+# ─── 2b. PREFLIGHT: already running? -> raise to foreground + succeed ─
+# Operator 2026-05-20 + 2026-05-29: launching an ALREADY-RUNNING app made the
+# attempt "fail" (no NEW window) even though it's on-screen; the operator wants
+# an already-open app FOCUSED + brought to the foreground (+centered) instead.
+#
+# RELIABLE + GENERATIVE detection (research 2026-05-29: flatpak apps are a
+# first-class discovery surface keyed by reverse-DNS app-id via `flatpak ps`/
+# `flatpak list`): query the RUNNING flatpak instances and fuzzy-match NAME to
+# an app-id. The old mios-window-active probe was WSLg-unreliable here. Because
+# flatpak instances are PER-USER and this preflight runs in the broker (root)
+# context, query flatpak AS THE OPERATOR (same escape the close path uses).
+# If a match is running, RAISE it -- `flatpak run <app-id>` on a single-instance
+# GApplication activates/foregrounds the existing window -- and report
+# already_running:true so the verify treats "no new window" as success.
+# Bypass with MIOS_LAUNCH_NO_PREFLIGHT=1 (force a fresh instance).
+if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] && command -v flatpak >/dev/null 2>&1; then
+    _pf_op="$(awk -F\" '/^[[:space:]]*username[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    [ -z "$_pf_op" ] && _pf_op="mios"
+    _pf_uid="$(id -u "$_pf_op" 2>/dev/null)"
+    _pf_flatpak() {  # run flatpak in the OPERATOR's per-user session
+        if [ "$(id -un 2>/dev/null)" = "$_pf_op" ] || [ -z "$_pf_uid" ]; then
+            flatpak "$@"
+        elif [ "$(id -u)" = "0" ] && command -v runuser >/dev/null 2>&1; then
+            runuser -u "$_pf_op" -- env XDG_RUNTIME_DIR="/run/user/$_pf_uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$_pf_uid/bus" flatpak "$@"
+        else
+            flatpak "$@"
+        fi
+    }
+    _pf_id="$(_pf_flatpak ps --columns=application 2>/dev/null | awk -v n="$(printf %s "$NAME" | tr '[:upper:]' '[:lower:]')" '
+        { id=$1; seg=id; sub(/.*\./,"",seg); slc=tolower(seg); ilc=tolower(id);
+          if (index(n,slc)>0 || index(slc,n)>0 || index(ilc,n)>0) { print id; exit } }')"
+    if [ -n "$_pf_id" ]; then
+        # Raise the existing window to the foreground (single-instance activate),
+        # in the operator's WSLg session, then center it (best-effort).
+        if command -v mios-as-operator >/dev/null 2>&1; then
+            mios-as-operator flatpak run "$_pf_id" >/dev/null 2>&1 || true
+        fi
+        command -v mios-window >/dev/null 2>&1 && mios-window center "$NAME" >/dev/null 2>&1 || true
+        echo "{\"success\": true, \"target\": \"$NAME\", \"already_running\": true, \"app\": \"$_pf_id\", \"action\": \"raised existing window to foreground\"}"
+        echo "mios-launch: '$NAME' already running ($_pf_id) -- raised it (preflight)" >&2
         exit 0
     fi
 fi
 
-# ─── 3. Windows GUI ──────────────────────────────────────────────────
+# ─── 3. Windows GUI (GENERATIVE -- NO hardcoded app-name list) ───────
+# operator 2026-05-29: "NO HARDCODES". A baked-in English allowlist of
+# Windows builtins (notepad|calc|taskmgr|...) is exactly the anti-pattern.
+# Route to the Windows side ONLY on GENERATIVE signals, then let WINDOWS
+# (Start-Process resolving via the App Paths registry + System32 -- i.e. the
+# REAL Windows install) resolve the concrete target:
+#   * a /mnt/c/...exe path                    -- an unambiguous Windows binary
+#   * an explicit "windows "/"win " qualifier -- the request named a Win app
+#   * a ".exe" suffix                         -- a Windows executable by name
+# Everything ELSE falls through to LINUX-FIRST resolution below (operator
+# preference). Names only Windows knows (Task Manager, regedit, ...) are still
+# found generatively by the mios-apps desc-chain (step 7), which inventories
+# windows-app / windows-gui entries from the LIVE environment -- no list here.
 case "$NAME" in
-    notepad|explorer|calc|mspaint|snipping-tool|taskmgr|regedit|control|cmd|powershell|pwsh)
-        exec mios-windows launch "$NAME" "$@"
-        ;;
     /mnt/c/*.exe|/mnt/c/*.EXE)
         exec mios-windows launch "$NAME" "$@"
+        ;;
+esac
+_nlc="$(printf '%s' "$NAME" | tr '[:upper:]' '[:lower:]')"
+case "$_nlc" in
+    "windows "*|"win "*|*.exe)
+        # Strip the qualifier/suffix; hand the bare name to Windows to resolve.
+        _wname="$(printf '%s' "$NAME" | sed -E 's/\.[Ee][Xx][Ee]$//; s/^[Ww]indows[ -]+//; s/^[Ww]in[ -]+//')"
+        exec mios-windows launch "$_wname" "$@"
         ;;
 esac
 
@@ -280,6 +318,35 @@ _override_cmd="$(_launcher_override "$NAME")"
 if [ -n "$_override_cmd" ]; then
     _broker_dispatch "$_override_cmd $*" && exit 0
     exec $_override_cmd "$@"
+fi
+
+# ─── 3a2. WINDOWS executor FIRST ─────────────────────────────────────
+# operator 2026-05-29: "make the Windows executor the first launch attempt for
+# any app that resolves on the Windows side." On WSL+Windows, try the in-session
+# executor BEFORE any Linux resolution (Everything / games / .desktop / flatpak
+# desc-chain). `mios-windows launch` POSTs to the OS-control executor running
+# INSIDE the operator's interactive desktop session, which resolves via Start
+# Menu / App Paths / PATH + Start-Process:
+#   * RESOLVES on Windows (fired:true) -> the window appears on the REAL desktop,
+#     verified + centered, and we exit. This is the ONLY reliable GUI launch on
+#     WSL2+Windows -- the broker/interop route leaves multi-process Electron apps
+#     (Discord/Slack/Teams) WINDOWLESS in a non-interactive window station
+#     (proven live: Discord/Notepad open via the executor, not via the chain).
+#   * does NOT resolve on Windows (fired:false -- a Linux-only flatpak like
+#     epiphany/nautilus/ptyxis whose name has no Windows .exe/.lnk) ->
+#     `mios-windows launch` returns non-zero FAST (the executor early-returns on
+#     a resolve miss) and we fall through to the Linux resolution below.
+# Placed AFTER the launcher-override (so CDP/ChromeDev keep their wrapper) but
+# BEFORE Everything/games/desc-chain so "notepad"/"calc"/"discord"/"chrome" open
+# as the real WINDOWS app (centered, verified) instead of a WSLg look-alike.
+# URLs / mios-* shims / explicit paths / "windows X" qualifiers were already
+# handled (exec'd) above. No hardcoded app list -- Windows resolution decides.
+if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 2>&1; then
+    echo "mios-launch: Windows executor first -> mios-windows launch '$NAME'" >&2
+    if mios-windows launch "$NAME" "$@"; then
+        exit 0
+    fi
+    echo "mios-launch: '$NAME' not a Windows app (executor miss) -> Linux resolution" >&2
 fi
 
 # ─── 3aa. Exact .exe lookup via Everything CLI ───────────────────────
@@ -484,18 +551,37 @@ if [ -n "$_DESC_CHAIN" ]; then
         [ -z "$_LAUNCH" ] && continue
         _i=$((_i + 1))
         echo "mios-launch: try $_i -> $_LAUNCH" >&2
+        # set-e-SAFE: run the candidate inside an `if` so a FAILING candidate
+        # (e.g. `mios-gui wine-notepad` exits 1) does NOT abort the whole script
+        # under `set -e` (operator 2026-05-29: "Open Notepad on Windows" died at
+        # try 1 + never tried the next candidate / the Windows fallback -- the
+        # bare `eval` tripped set -e). Now a miss just advances to the next
+        # candidate, and after all Linux candidates fail we reach the Windows
+        # generative fallback below.
         # shellcheck disable=SC2086
-        eval $_LAUNCH "$@"
-        _rc=$?
-        if [ "$_rc" = "0" ]; then
+        if eval $_LAUNCH "$@"; then
             exit 0
         fi
-        echo "mios-launch: try $_i failed (rc=$_rc); next" >&2
+        echo "mios-launch: try $_i failed; next" >&2
     done <<EOF
 $_DESC_CHAIN
 EOF
-    echo "mios-launch: all $_i candidates failed for '$NAME'" >&2
-    exit "${_rc:-1}"
+    echo "mios-launch: all $_i Linux candidates failed for '$NAME' -> trying Windows" >&2
+    # fall through to the Windows generative fallback below (don't exit yet)
+fi
+
+# ─── 7b. Windows generative fallback (App Paths / Start Menu / Everything) ───
+# operator 2026-05-29 ("MULTIPLE FAILURES"): Linux-first resolution + the
+# desc-chain can't always launch a Windows-only app -- e.g. "Notepad" matched
+# only the Linux `wine-notepad` (not installed) and gave up. Before declaring
+# no-resolution, hand the bare name to the Windows side, which resolves it
+# GENERATIVELY via the App Paths registry (HKLM+HKCU), the System32/Windows
+# dirs, the Start Menu .lnk catalog, and the Everything index -- no hardcoded
+# app list. This is what makes "notepad", "taskmgr", "regedit", and any
+# operator-installed Windows app launch. Inert off-WSL (no cmd.exe).
+if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 2>&1; then
+    echo "mios-launch: Windows fallback -> mios-windows launch '$NAME'" >&2
+    exec mios-windows launch "$NAME" "$@"
 fi
 
 # ─── No resolution -- show candidates ────────────────────────────────

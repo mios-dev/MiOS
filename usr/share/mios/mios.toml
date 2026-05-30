@@ -789,6 +789,47 @@ lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
+# ─── RESEARCH-SWARM workers (operator 2026-05-29) ────────────────────────────
+# Broad-pass 2-4GB workers that fan out ONLY on research/web turns
+# (research_only = excluded from the normal council/swarm so trivial asks don't
+# wake them). Replicas on a lane share ONE loaded small model via ollama
+# NUM_PARALLEL -> VRAM-cheap concurrency (up to ~5-6 dGPU + 2 CPU) ALONGSIDE the
+# iGPU + mobile single-workers; Pass B (the 9b+ targeted scrape) is the existing
+# hermes/igpu agents on the normal pass. Endpoints are LOCAL (:11434 dGPU lane /
+# :11435 CPU lane) so this roster is PORTABLE to any MiOS install (day-0) --
+# host-specific nodes (phone, other machines) stay in /etc overlays.
+[agents.research-dgpu-1]
+endpoint      = "http://localhost:11434/v1"
+model         = "qwen3.5:2b"
+role          = "research"
+lane          = "gpu"
+research_only = true
+strengths     = ["web_search", "web_extract", "summarize"]
+[agents.research-dgpu-2]
+endpoint      = "http://localhost:11434/v1"
+model         = "qwen3.5:2b"
+role          = "research"
+lane          = "gpu"
+research_only = true
+[agents.research-dgpu-3]
+endpoint      = "http://localhost:11434/v1"
+model         = "qwen3.5:2b"
+role          = "research"
+lane          = "gpu"
+research_only = true
+[agents.research-cpu-1]
+endpoint      = "http://localhost:11435/v1"
+model         = "qwen3.5:2b"
+role          = "research"
+lane          = "cpu"
+research_only = true
+[agents.research-cpu-2]
+endpoint      = "http://localhost:11435/v1"
+model         = "qwen3:1.7b"
+role          = "research"
+lane          = "cpu"
+research_only = true
+
 # ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
 # MiOS mechanism should dispatch to multiple agents at a time -- not ALL
@@ -2645,10 +2686,18 @@ cursor_size      = 24                           # XCURSOR_SIZE. 24 matches the W
 # actually works on this compositor -- trades render perf for stability
 # + correct rendering of headerbars, scrolling, decorations.
 # ----------------------------------------------------------------------------
+# MODERN GTK4 rendering (operator 2026-05-29 "GTK themes regressed / old not
+# modern / windowing + CSS out of date"). cairo + software-GL was a May WSLg
+# compatibility hammer, but cairo IS the legacy renderer -> flat/old look, no
+# modern libadwaita visuals. WSLg + the 4090 (/dev/dri) have matured: use the
+# modern GTK4 `ngl` (node-GL) renderer + real hardware GL. Vulkan stays OFF
+# (WSLg Vulkan is still flaky; ngl is GL, not Vulkan). gdk_backend stays x11
+# (XWayland) for WebKit/GTK4 WSLg stability. If a GTK4 app misrenders, fall
+# back via /etc/mios overlay [graphics].gsk_renderer="cairo".
 [graphics]
-gsk_renderer       = "cairo"      # GTK4 software renderer
-force_software_gl  = true         # LIBGL_ALWAYS_SOFTWARE=1
-disable_vulkan     = true         # GDK_VULKAN_DISABLE=1 + DISABLE_LAYERS
+gsk_renderer       = "ngl"        # modern GTK4 node-GL renderer (was cairo)
+force_software_gl  = false        # use real hardware GL via /dev/dri (was true)
+disable_vulkan     = true         # GDK_VULKAN_DISABLE=1 (WSLg Vulkan still flaky)
 gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
                                   # WSLg's Weston Wayland trips Gdk Error 71
                                   # (Protocol error) in WebKit/GTK4 AND lacks

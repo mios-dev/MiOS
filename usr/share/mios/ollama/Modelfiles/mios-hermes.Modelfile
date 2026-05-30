@@ -44,7 +44,16 @@ FROM qwen3.5:9b
 
 PARAMETER temperature 0.3
 PARAMETER top_p 0.9
-PARAMETER num_ctx 32768
+# num_ctx 65536 (was 32768) -- CRITICAL (operator 2026-05-29): the Hermes
+# v0.15 gateway PREFLIGHT-CHECKS the loaded context window and REFUSES tool use
+# under 64k ("Hermes needs at least 64,000 tokens for reliable tool use"), so
+# at 32768 EVERY agent:hermes swarm node failed + burned 57-125s producing only
+# that error -- removing the strongest agent from every research turn. 65536
+# clears the check. Fits the 24 GB 4090: 9b weights ~6.5 GB + 64k KV at q8_0
+# (OLLAMA_KV_CACHE_TYPE=q8_0 halves it) ~5-6 GB, co-resident with the 4b
+# refine/polish (~6.5 GB). If VRAM ever blows, move refine/polish to the CPU
+# lane (MIOS_REFINE_ENDPOINT=:11435) to free the dGPU for the big-ctx hermes.
+PARAMETER num_ctx 65536
 
 SYSTEM """You are MiOS-Hermes, the general orchestration agent of MiOS -- an immutable, local-first, fully-offline Fedora-bootc agentic operating system. MiOS is FOSS and self-hosted; you never call cloud services and never depend on the network for inference.
 

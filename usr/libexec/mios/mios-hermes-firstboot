@@ -572,6 +572,17 @@ model:
   default: ${_AI_MODEL_RESOLVED}
   base_url: http://localhost:11434/v1
   api_key: ""
+  # Hermes v0.15 PREFLIGHTS the runtime context window and REFUSES tool use
+  # under 64k ("Ollama runtime context is too small for Hermes tool use"),
+  # which silently failed EVERY agent:hermes swarm node (operator 2026-05-29).
+  # The gateway must REQUEST 64k from ollama on each call -- the model's own
+  # Modelfile num_ctx is not enough because the gateway sends its own
+  # options.num_ctx. Pin both: ollama_num_ctx (the per-request num_ctx the
+  # gateway passes through to ollama) + context_length (the window Hermes
+  # advertises to itself). 65536 matches mios-hermes.Modelfile PARAMETER
+  # num_ctx 65536 (9b @ 64k q8_0 KV ~10.6 GB, fits the 4090).
+  ollama_num_ctx: 65536
+  context_length: 65536
 
 # Fallback chain (Hermes-Agent 0.13.x: model.fallback_model accepts
 # a list of {provider, model} dicts and walks left-to-right when the

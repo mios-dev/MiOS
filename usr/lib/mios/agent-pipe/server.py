@@ -128,11 +128,20 @@ _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
 # web-hint so it never over-fires on a non-web turn.
 WEB_RESEARCH_ENABLED = os.environ.get(
     "MIOS_WEB_RESEARCH_ENABLED", "true").lower() not in {"false", "0", "no"}
-WEB_RESEARCH_PASSES = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_PASSES", "2")))
-WEB_RESEARCH_RESULTS = int(os.environ.get("MIOS_WEB_RESEARCH_RESULTS", "6"))
+# LOOP DEPTH (operator 2026-05-29 "didn't do enough loops for web tools!!"):
+# a "master review" / "what's new" needs MANY sources read + re-searched when
+# the first hits are off-topic (the Forza run pulled in NBA odds / an LG TV /
+# a Zodiac page; the news run pulled India NEET / an auto show). Raised the
+# defaults: 4 search->judge->re-search PASSES (was 2 -> a junk first search now
+# gets 3 more sharpened angles), 5 pages FETCHED per pass (was 3), 8 results
+# considered (was 6). Still env-overridable + bounded by the per-iter web cap +
+# the deepen wall-clock so they can't run away. Self-hosted SearXNG/Firecrawl/
+# crawl4ai -> all offline.
+WEB_RESEARCH_PASSES = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_PASSES", "4")))
+WEB_RESEARCH_RESULTS = int(os.environ.get("MIOS_WEB_RESEARCH_RESULTS", "8"))
 WEB_RESEARCH_FANOUT = int(os.environ.get(
     "MIOS_WEB_RESEARCH_FANOUT", os.environ.get("MIOS_WEB_FANOUT", "3")))
-WEB_RESEARCH_FETCH_N = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_N", "3"))
+WEB_RESEARCH_FETCH_N = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_N", "5"))
 WEB_RESEARCH_FETCH_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_CHARS", "3000"))
 WEB_RESEARCH_BLOCK_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_BLOCK_CHARS", "1200"))
 WEB_RESEARCH_SEARCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_SEARCH_TIMEOUT_S", "20"))
@@ -152,7 +161,11 @@ WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"
 # on how many pages the deep renderer fetches (concurrently) so it can't blow the
 # turn budget -- raised to 4 (operator wants the deep tool firing broadly, not 2).
 WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "45"))
-WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "4"))
+# Raised 4 -> 6 (operator 2026-05-29 "not enough loops"): keep the deep-render
+# budget in step with the larger FETCH_N=5 so the JS-heavy / bot-blocked pages
+# a research query needs still get the Chrome/Camoufox render, not just the
+# fast extract. Turn-wide cap; concurrent; bounded so it can't blow the budget.
+WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "6"))
 # Route "news" asks through the SearXNG NEWS category? DEFAULT ON (2026-05-25).
 # The 2026-05-22 note said the news engines (bing/ddg/reuters/yahoo/qwant/brave
 # news) were IP-blocked so the news category returned only stale wikinews -- that
@@ -180,7 +193,13 @@ WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").str
 # longer surrenders a non-answer. The judge is the warm CPU-lane micro (same
 # model the web fan-out uses); degrade OPEN (treat as satisfied) on any error so
 # a judge hiccup never blocks the answer. No hardcoded topic/keyword check.
-WEB_RESEARCH_MAX_ATTEMPTS = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "3")))
+# 3 -> 5 (operator 2026-05-29 "loops until satisfied!!"): the search->judge->
+# re-search loop now gets more rounds to KEEP GOING when the judge says the
+# gathered content doesn't yet answer the ask -- a junk/pre-launch first search
+# (the Forza run grabbed hype pages + concluded "no reviews" instead of digging
+# for the actual Metacritic/IGN reviews) gets 4 more sharpened angles before
+# giving up. The judge (below) is the real gate; this is just the safety cap.
+WEB_RESEARCH_MAX_ATTEMPTS = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "5")))
 _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
 _JUDGE_EP = os.environ.get(
@@ -254,15 +273,19 @@ DAG_NODE_RETRY = int(os.environ.get("MIOS_DAG_NODE_RETRY", "1") or 1)
 # the barrier + DEEPEN_MAX_ITERS so it can never run away.
 SWARM_DEEPEN_ENABLED = os.environ.get(
     "MIOS_SWARM_DEEPEN", "true").strip().lower() not in ("0", "false", "no")
-DEEPEN_MAX_ITERS = int(os.environ.get("MIOS_SWARM_DEEPEN_ITERS", "1") or 1)
-# HARD wall-clock cap on a node's deepen loop + a per-iter web cap -- bounds the
-# whole swarm so the extra research+re-answer passes can NEVER blow the turn's
-# latency (a full _web_research_enrich per iter is expensive; without this the
-# swarm ran past 400s). EVERY node (incl the slow CPU/iGPU) deepens for
-# utilization, but the slow lanes' small token budget + these caps keep each
-# pass fast (operator 2026-05-26 "every single node always computes ... loop
-# until satisfied" + "CPU is seeing no utilization").
-DEEPEN_DEADLINE_S = float(os.environ.get("MIOS_SWARM_DEEPEN_DEADLINE_S", "30") or 30)
+# UNTIL SATISFIED (operator 2026-05-29 "NOT JUST 2 PASSES!!! UNTIL SATISFIED!!!"):
+# the deepen loop runs while the node's answer is NOT satisfied (judge-gated),
+# bounded by the WALL-CLOCK DEADLINE -- not a tiny iter count. The iter cap is
+# now a high RUNAWAY BACKSTOP (12), so in practice the deadline + the judge are
+# what stop the loop: a node keeps doing extra web-research + re-answer passes
+# until its answer actually satisfies the facet (or the deadline). Raised from 2.
+DEEPEN_MAX_ITERS = int(os.environ.get("MIOS_SWARM_DEEPEN_ITERS", "12") or 12)
+# HARD wall-clock cap on a node's deepen loop + a per-iter web cap -- the REAL
+# bound now that the iter cap is a high backstop. Raised 30 -> 120s so a
+# research turn genuinely loops-until-satisfied within a generous budget
+# (operator 2026-05-29) instead of stopping at 2 passes. A node that satisfies
+# early exits immediately; only a stubborn facet uses the full window.
+DEEPEN_DEADLINE_S = float(os.environ.get("MIOS_SWARM_DEEPEN_DEADLINE_S", "120") or 120)
 DEEPEN_WEB_TIMEOUT_S = float(os.environ.get("MIOS_SWARM_DEEPEN_WEB_S", "20") or 20)
 
 # Pipeline-side READ-TOOL enrich (operator 2026-05-24: "all ... skills and
@@ -293,7 +316,10 @@ _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
 # calls across the fan-out; the per-lane semaphore is the concurrency cap.
 SECONDARY_TOOL_LOOP = os.environ.get(
     "MIOS_SECONDARY_TOOL_LOOP", "true").lower() not in {"false", "0", "no"}
-SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "2"))
+# 2 -> 3 (operator 2026-05-29 "not enough loops"): each fan-out secondary now
+# gets one more search->read->refine cycle in its own /v1 tool loop before it
+# answers, so a council member doesn't stop after a single shallow search.
+SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "3"))
 # Forced-call chokepoint (universal-loop item #1 slice 3, operator 2026-05-27):
 # when refine hints a state-changing (non-read) verb, set tool_choice=required so
 # the executor MUST emit a real tool_call instead of NARRATING the action (the
@@ -1075,7 +1101,7 @@ REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "30"))
 # deadline; the retry runs warm so an OS-action never silently drops to the
 # council on a transient refine timeout (operator 2026-05-26 Forza-vs-Discord).
 REFINE_ATTEMPTS = int(os.environ.get("MIOS_REFINE_ATTEMPTS", "2"))
-REFINE_MAX_TOKENS = int(os.environ.get("MIOS_REFINE_MAX_TOKENS", "400"))
+REFINE_MAX_TOKENS = int(os.environ.get("MIOS_REFINE_MAX_TOKENS", "700"))
 REFINE_BYPASS_CHARS = int(os.environ.get("MIOS_REFINE_BYPASS_CHARS", "24"))
 # Keep the refine model resident between turns. Cold, qwen3.5:4b takes ~10s to
 # load (the silent gap before the first emit); warm it's ~0.4s. It's the same
@@ -1099,6 +1125,76 @@ POLISH_ENDPOINT = os.environ.get(
 ).rstrip("/")
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
+
+# ── Per-turn VRAM checkpoint (operator 2026-05-29: "every turn is a checkpoint
+# and clears RAM/VRAM as needed") ─────────────────────────────────────────────
+# A big transient model (e.g. the 7B coder at ~21.6GB with a 32k ctx) can squat
+# the shared 4090 and EVICT the pipeline-critical refine+polish models, so every
+# turn cold-loads them (the 13-20s thrash the operator saw). At the START of
+# each turn, when ollama's resident models leave too little headroom, UNLOAD the
+# non-essential ones (keep refine+polish+backend resident) so the turn's models
+# stay warm. "As needed": a no-op when there's headroom. Uses ollama /api/ps
+# size_vram (container-friendly; no nvidia-smi dependency).
+VRAM_CHECKPOINT_ENABLE = os.environ.get(
+    "MIOS_VRAM_CHECKPOINT", "true").lower() not in {"false", "0", "no"}
+VRAM_BUDGET_MB = int(os.environ.get("MIOS_VRAM_BUDGET_MB", "23000"))
+VRAM_TURN_HEADROOM_MB = int(os.environ.get("MIOS_VRAM_TURN_HEADROOM_MB", "16000"))
+
+
+def _checkpoint_keep_models() -> set:
+    """Models that must stay resident across turns (the chat pipeline core)."""
+    keep = set()
+    for m in (REFINE_MODEL, POLISH_MODEL,
+              os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL", "")):
+        if m:
+            keep.add(m)
+    return keep
+
+
+async def _ollama_resident(endpoint: str) -> list:
+    try:
+        async with httpx.AsyncClient(timeout=6) as s:
+            r = await s.get(f"{endpoint.rstrip('/')}/api/ps")
+            if r.status_code == 200:
+                return r.json().get("models", []) or []
+    except Exception:
+        pass
+    return []
+
+
+async def _ollama_unload(name: str, endpoint: str) -> None:
+    try:
+        async with httpx.AsyncClient(timeout=10) as s:
+            await s.post(f"{endpoint.rstrip('/')}/api/generate",
+                         json={"model": name, "keep_alive": 0})
+    except Exception:
+        pass
+
+
+async def _vram_checkpoint(keep: Optional[set] = None) -> None:
+    """Free VRAM as needed at a turn checkpoint by unloading non-kept models,
+    biggest-first, until the turn has headroom. No-op when headroom is fine."""
+    if not VRAM_CHECKPOINT_ENABLE:
+        return
+    ep = REFINE_ENDPOINT
+    keep = keep or _checkpoint_keep_models()
+    resident = await _ollama_resident(ep)
+    if not resident:
+        return
+    used_mb = sum(int(m.get("size_vram", 0)) for m in resident) // (1024 * 1024)
+    free_mb = max(0, VRAM_BUDGET_MB - used_mb)
+    if free_mb >= VRAM_TURN_HEADROOM_MB:
+        return  # enough headroom -> nothing to clear
+    evictable = sorted(
+        (m for m in resident if m.get("name") and m.get("name") not in keep),
+        key=lambda m: -int(m.get("size_vram", 0)))
+    for m in evictable:
+        await _ollama_unload(m["name"], ep)
+        free_mb += int(m.get("size_vram", 0)) // (1024 * 1024)
+        log.info("vram-checkpoint: unloaded %s (%.1fGB) for headroom -> ~%dMB free",
+                 m.get("name"), int(m.get("size_vram", 0)) / 1e9, free_mb)
+        if free_mb >= VRAM_TURN_HEADROOM_MB:
+            break
 
 
 # ── Per-engine + per-node agent bindings (operator 2026-05-24: "any Agent(s) can
@@ -1493,6 +1589,16 @@ def _load_agent_registry() -> dict[str, dict]:
                 # Mios.toml shape: failover_agents = ["name1", "name2"]
                 "failover_agents": [str(s) for s in (cfg.get("failover_agents")
                                                     or []) if str(s).strip()],
+                # research_only (operator 2026-05-29 "research should dispatch
+                # as many 2-4GB models as possible across all lanes"): a
+                # lightweight RESEARCH-WORKER replica that is EXCLUDED from the
+                # normal council/swarm pool (so everyday turns stay light) and
+                # only fans out on RESEARCH / deep-research turns. Replicas on
+                # one lane point at the SAME small model+endpoint, so ollama's
+                # NUM_PARALLEL serves them concurrently on shared weights (5-6
+                # contexts on the dGPU's 2-4GB model, 2 on CPU, 1 iGPU, 1 mobile)
+                # -- VRAM-cheap multiplicity, not N distinct loaded models.
+                "research_only": bool(cfg.get("research_only", False)),
             }
             # Per-engine + per-node binding map (operator 2026-05-24: "any Agent
             # in any AI engine -- CPU/dGPU/iGPU/accelerator" + "any Agent/Sub-
@@ -2605,6 +2711,79 @@ _LAUNCH_VERBS = frozenset({"open_app", "launch_app", "launch_verified", "open_ur
 OS_CONTROL_RETRY_ATTEMPTS = int(os.environ.get("MIOS_OS_CONTROL_RETRY", "2") or 2)
 OS_CONTROL_RETRY_SETTLE_S = float(
     os.environ.get("MIOS_OS_CONTROL_RETRY_SETTLE_S", "1.2") or 1.2)
+# LAUNCH verbs are different: the launch fires ONCE (detached) and the window
+# renders ASYNCHRONOUSLY -- a cold WSLg flatpak start takes 5-10s to map its
+# window (operator 2026-05-29 train: epiphany/nautilus/ptyxis ALL opened but
+# the old 2-attempt/~3s verify reported "no window" before they rendered AND
+# re-dispatched the launch -> duplicate instances). So for launches we fire
+# ONCE then POLL the window enumeration (no re-launch) until the window appears
+# or the deadline passes.
+OS_CONTROL_LAUNCH_VERIFY_S = float(
+    os.environ.get("MIOS_OS_CONTROL_LAUNCH_VERIFY_S", "16") or 16)
+OS_CONTROL_LAUNCH_POLL_S = float(
+    os.environ.get("MIOS_OS_CONTROL_LAUNCH_POLL_S", "1.5") or 1.5)
+# OS-control replies are GENERATIVE but SHORT (operator 2026-05-29: "just reply
+# success + details + follow-ups, nothing much more"). A low generation cap on
+# the action-path polish keeps the reply concise AND fast (the full 800-token
+# polish took ~16s for a one-line confirmation). Still model-written (no
+# template) -- only the LENGTH is bounded.
+OS_CONTROL_REPLY_MAX_TOKENS = int(
+    os.environ.get("MIOS_OS_CONTROL_REPLY_MAX_TOKENS", "200"))
+
+
+def _salvage_refine_dispatch(content: str) -> dict | None:
+    """Recover a deterministic one-verb dispatch when refine emits PROSE.
+
+    A small refine model (qwen3.5:4b) occasionally NARRATES instead of emitting
+    the JSON envelope -- even with format=json -- when the request invites
+    reasoning (operator 2026-05-29: "Open discord on my desktop" -> the model
+    replied 'To open Discord on your desktop, I will launch_app(Discord PTB)'
+    as prose, json.loads failed at char 0, the turn DROPPED to the research
+    swarm -> 477s, 8 agents, fabrication, NO launch). Rather than discard the
+    obvious action, salvage it. Fully generative: it only matches verb NAMES
+    from the live fast-path catalog (no hardcoded app/English list).
+
+    Returns a {"intent":"dispatch","tool":...,"args":...} dict or None.
+    """
+    if not content:
+        return None
+    # 1) An embedded JSON object inside the prose ("...narration... {json}").
+    m = re.search(r"\{.*\}", content, flags=re.DOTALL)
+    if m:
+        try:
+            obj = json.loads(m.group(0))
+            if isinstance(obj, dict) and obj.get("intent"):
+                return obj
+        except Exception:
+            pass
+    # 2) A verb CALL in the prose: VERB(args) where VERB is a real fast-path
+    #    verb. Longest-name-first so e.g. launch_verified beats launch_app.
+    verbs = sorted(_FASTPATH_VERBS, key=len, reverse=True)
+    if not verbs:
+        return None
+    alt = "|".join(re.escape(v) for v in verbs)
+    call = re.search(r"(?<![A-Za-z0-9_])(" + alt + r")\s*\(\s*([^)]*)\)", content)
+    if not call:
+        return None
+    tool = call.group(1)
+    inner = (call.group(2) or "").strip()
+    args: dict = {}
+    # key=value pairs first (name="X", url='Y', every=5m, prompt=...).
+    for km in re.finditer(
+            r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\"[^\"]*\"|'[^']*'|[^,]+)", inner):
+        k = km.group(1).strip()
+        v = km.group(2).strip().strip("\"'").strip()
+        if k and v:
+            args[k] = v
+    if not args and inner:
+        # A bare positional value -> the verb's primary arg (url for open_url,
+        # else name -- the launch/window verbs all key on the target name).
+        val = inner.strip().strip("\"'").strip()
+        if val:
+            args["url" if tool == "open_url" else "name"] = val
+    if not args:
+        return None
+    return {"intent": "dispatch", "tool": tool, "args": args, "_salvaged": True}
 
 
 def _load_recipe_catalog() -> dict:
@@ -3800,17 +3979,25 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         if not gathered.strip():
             return False, "", ""
         sys_p = (
-            "You decide whether the GATHERED web content is enough to ANSWER the "
-            "USER QUERY. Reply JSON ONLY: {\"answerable\": true|false, "
+            "You decide whether the GATHERED web content actually DELIVERS what "
+            "the USER QUERY asks for -- not merely whether it is on-topic. Reply "
+            "JSON ONLY: {\"answerable\": true|false, "
             "\"better_query\": \"<sharper web-search query if NOT answerable, else "
             "empty>\", \"scrape_url\": \"<a concrete authoritative http(s) URL "
             "whose page most likely HAS the answer, to fetch directly -- e.g. a "
             "major outlet's lite/text news index for a current-events ask -- else "
-            "empty>\"}. answerable=true when the content holds the facts; false "
-            "when it is off-topic, junk (dictionary/brand pages), or missing the "
-            "key facts. better_query + scrape_url must be concrete and AVOID vague "
-            "words a search engine mis-matches to a brand/product. Prefer "
-            "lightweight text/lite endpoints when you know one.")
+            "empty>\"}. STRICT: answerable=true ONLY when the content contains the "
+            "SPECIFIC deliverable the user asked for -- e.g. if they asked to "
+            "'compile reviews', you need actual REVIEW verdicts/scores from named "
+            "outlets, NOT pre-launch hype or 'the game exists' pages; if they "
+            "asked 'what's new', you need actual DATED headlines/stories, NOT news "
+            "homepages or nav text. answerable=false when the content is off-topic, "
+            "junk (dictionary/brand/homepage), pre-launch filler, or missing the "
+            "specific facts -- then KEEP LOOPING: give a sharper better_query (a "
+            "DIFFERENT angle than before) + a concrete scrape_url. Better to loop "
+            "again than to declare a thin/wrong page answerable. better_query + "
+            "scrape_url must be concrete and AVOID vague words a search engine "
+            "mis-matches to a brand/product. Prefer lightweight text/lite endpoints.")
         _msgs = [{"role": "system", "content": sys_p},
                  {"role": "user",
                   "content": f"USER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}]
@@ -3949,7 +4136,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         return best, eng
 
     for attempt in range(1, WEB_RESEARCH_MAX_ATTEMPTS + 1):
-        _rec({"emoji": "🔎", "label": "search",
+        _rec({"emoji": "🔎", "label": "searching the web",
               "detail": (("news · " if _use_news else
                           (_time_range + " · " if _time_range else ""))
                          + search_q_now)[:72]})
@@ -3978,11 +4165,23 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             u = r.get("url", "")
             if u and u not in seen:
                 ordered.append(r)
-        # NEWS turns: DEMOTE bare-homepage results (no path AND no publishedDate)
-        # so the drill extracts real DATED ARTICLES first, not site front pages.
-        if bool((refined or {}).get("news")):
-            ordered.sort(key=lambda r: 0 if (
-                r.get("publishedDate") or _url_has_path(r.get("url", ""))) else 1)
+        # DROP bare-homepage results (no URL path AND no publishedDate) on EVERY
+        # turn when better results exist (operator 2026-05-29 "MULTIPLE FAILURES":
+        # research kept fetching site FRONT PAGES -- kayak.com/, cheapflights.com/,
+        # local-dealer homepages for "Honda CRX", aggregator landings for
+        # "trends" -- which yield only nav/marketing/UI chrome, NEVER the query's
+        # data or article, so agents fabricated or punted). A path-bearing or
+        # dated URL (.../flight-routes/..., /wiki/Honda_CRX, a news article)
+        # carries real content. Keep ONLY those when ANY exist; else degrade
+        # OPEN (a thin homepage still beats nothing -> no empty grounding).
+        _pathful = [r for r in ordered
+                    if r.get("publishedDate") or _url_has_path(r.get("url", ""))]
+        if _pathful:
+            if len(_pathful) < len(ordered):
+                log.info("web-research: dropped %d bare-homepage result(s); "
+                         "%d content URLs kept", len(ordered) - len(_pathful),
+                         len(_pathful))
+            ordered = _pathful
         idx = 0
         for _p in range(1, WEB_RESEARCH_PASSES + 1):
             passes += 1
@@ -4002,9 +4201,13 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 elif best:
                     snippets[r["url"]] = best          # thin/blocked -> snippet
                 _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
-                _rec({"emoji": ("🕷️" if eng == "deep-crawl"
-                                else "🔥" if eng == "firecrawl" else "📄"),
-                      "label": eng, "detail": _ttl})
+                # casual FUNCTION label, never the engine/tool name (operator
+                # 2026-05-29 "not internal naming ... indicative of the function")
+                _rec({"emoji": "📖",
+                      "label": ("reading the page deeply"
+                                if eng in ("deep-crawl", "firecrawl")
+                                else "reading the page"),
+                      "detail": _ttl})
             if len(content) >= want:
                 break
         # DEFINITION-OF-DONE: does what we hold actually ANSWER the query? If yes
@@ -4026,8 +4229,8 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         _scraped = False
         if su.startswith(("http://", "https://")) and su not in seen:
             seen.add(su)
-            _rec({"emoji": "🔥", "label": "firecrawl",
-                  "detail": ("judge source -> " + su)[:60]})
+            _rec({"emoji": "📖", "label": "reading the best source",
+                  "detail": su[:60]})
             _md = await _firecrawl(su)
             if len(_md) >= WEB_RESEARCH_MIN_CHARS:
                 content[su] = _md
@@ -4142,9 +4345,11 @@ async def _read_tool_enrich(refined: Optional[dict],
     # no-required-arg READ verbs instead of trusting the hints. Any verb absent
     # on this host is skipped by the catalog check below; these are READ-only
     # (no launch). Capability verb names (SSOT), not a topic/keyword list.
+    _core_set: set = set()
     if refined.get("local_state"):
         _core = ["system_status", "mios_apps", "process_list",
                  "container_status", "list_windows"]
+        _core_set = set(_core)
         _hints = _core + [h for h in _hints if h not in _core]
         _max = max(_max, len(_core) + 1)
     for _t in _hints:
@@ -4156,9 +4361,16 @@ async def _read_tool_enrich(refined: Optional[dict],
         if not v or v.get("permission") != "read":
             continue
         # required arg = a declared param with no default; we don't infer args
-        # pipeline-side, so leave arg-taking verbs to the agent tool-loop.
-        if any(isinstance(c, dict) and "default" not in c
-               for c in (v.get("params") or {}).values()):
+        # pipeline-side, so leave arg-taking verbs to the agent tool-loop. EXCEPT
+        # the trusted local_state CORE inventory verbs -- they all accept empty
+        # args, but mios_apps' OPTIONAL `filter` param has no `default` key in
+        # the catalog, so this guard WRONGLY skipped mios_apps: "what games/apps
+        # do I have" then ran only system_status+list_windows (no app inventory)
+        # -> "no games installed" despite 11 in the games cache (operator
+        # 2026-05-29). The core set is curated + empty-arg-safe, so bypass it.
+        if tool not in _core_set and any(
+                isinstance(c, dict) and "default" not in c
+                for c in (v.get("params") or {}).values()):
             continue
         if len(ran) >= _max:
             break
@@ -4327,9 +4539,18 @@ async def refine_intent(user_text: str,
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError as e:
-        log.warning("refine: %.1fs parse_fail: %s; preview=%r",
-                    elapsed, e, content[:200])
-        return None
+        # The model narrated instead of emitting JSON. Salvage an obvious
+        # one-verb dispatch from the prose rather than dropping the turn to the
+        # research swarm (operator 2026-05-29: "Open discord" -> 477s fan-out).
+        parsed = _salvage_refine_dispatch(content)
+        if parsed is not None:
+            log.warning(
+                "refine: %.1fs parse_fail SALVAGED prose -> dispatch %s args=%s",
+                elapsed, parsed.get("tool"), parsed.get("args"))
+        else:
+            log.warning("refine: %.1fs parse_fail: %s; preview=%r",
+                        elapsed, e, content[:200])
+            return None
     if not isinstance(parsed, dict):
         log.warning("refine: %.1fs not_dict type=%s",
                     elapsed, type(parsed).__name__)
@@ -5411,7 +5632,8 @@ async def polish_response(raw_text: str,
                           session_id: Optional[str] = None,
                           original_user_text: str = "",
                           persona_system: str = "",
-                          agent_tools: Optional[list] = None) -> Optional[str]:
+                          agent_tools: Optional[list] = None,
+                          max_tokens: Optional[int] = None) -> Optional[str]:
     """Polish a sub-agent's raw response into the final user-facing
     answer. Returns the polished string or None on error (caller
     keeps the raw answer).
@@ -5529,7 +5751,7 @@ async def polish_response(raw_text: str,
         "think": False,
         "stream": False,
         "options": {"temperature": 0.0,
-                    "num_predict": POLISH_MAX_TOKENS},
+                    "num_predict": int(max_tokens) if max_tokens else POLISH_MAX_TOKENS},
     }
     url = f"{POLISH_ENDPOINT}/api/chat"
     t0 = time.time()
@@ -8117,6 +8339,15 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
     _sec_bufs: dict = {}
     _sec_last: dict = {}
     _sec_hdr: set = set()
+    # name -> GENERATIVE function label (operator 2026-05-29: reasoning headers
+    # must name the FUNCTION being performed, not the internal agent key). Filled
+    # as each node ENGAGES (from its sub-task / role); the buffers are still
+    # KEYED by the internal name (unique) but DISPLAYED via this map.
+    _func_by_name: dict = {}
+
+    def _disp(_nm: str) -> str:
+        return str(_func_by_name.get(_nm) or _nm)
+
     _ckpt_s = float(os.environ.get("MIOS_AGENT_CKPT_S", "2.0") or 2.0)
 
     def _flush_sec(force: bool = False) -> list:
@@ -8127,7 +8358,7 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
             if not _buf.strip():
                 continue
             if force or (_now - _sec_last.get(_nm, 0.0) >= _ckpt_s):
-                _txt = _buf if _nm in _sec_hdr else f"\n🤝 {_nm}: {_buf}"
+                _txt = _buf if _nm in _sec_hdr else f"\n🤝 {_disp(_nm)}: {_buf}"
                 _sec_hdr.add(_nm)
                 out.append(_sse_reasoning(_sanitize_tool_text(_txt),
                                           chat_id=chat_id, model=model))
@@ -8162,11 +8393,34 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
             name = str(node.get("tool") or "node")
             cfg = {"lane": "verb", "model": str(node.get("tool") or "")}
         if kind == "engage":
+            _ctx = _node_context(node)
+            # remember this node's GENERATIVE function label for its reasoning
+            # header + finish emit (never display the internal name).
+            _func_by_name[name] = _ctx or str((cfg or {}).get("role") or "")
             yield ("event", _node_status(chat_id=chat_id, model=model,
                                          name=name, cfg=cfg, state="engage",
-                                         context=_node_context(node)))
+                                         context=_ctx))
         else:
             ok = bool(isinstance(res, dict) and res.get("success"))
+            # STREAM this node's output into the live reasoning block AS IT
+            # FINISHES (operator 2026-05-29: "emits ... NOT held back ... not
+            # dumped all last second"; "report for ALL stages/steps"). A node
+            # whose agent did NOT token-stream (returned a blob -- the research
+            # workers) would otherwise surface ONLY in the end-of-turn synthesis
+            # envelope, so the whole think block dumps at once. Emit its output
+            # now, ONCE -- the `_sec_hdr` guard skips nodes that already streamed
+            # live via "SF" fragments, so there is NO duplication either way.
+            if name not in _sec_hdr:
+                _nout = (str(res.get("output") or "").strip()
+                         if isinstance(res, dict) else "")
+                if _nout:
+                    _sec_hdr.add(name)
+                    if name not in _func_by_name:
+                        _func_by_name[name] = (_node_context(node)
+                                               or str((cfg or {}).get("role") or ""))
+                    yield ("event", _sse_reasoning(
+                        _sanitize_tool_text(f"\n🤝 {_disp(name)}: {_nout}"),
+                        chat_id=chat_id, model=model))
             # Carry the sub-job into the FINISH emit too (operator 2026-05-24
             # "per-node sub-job in emits") so ✅/💤 still names WHAT the node
             # did, not just its name -- parity with the engage emit above.
@@ -8181,7 +8435,8 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
     yield ("result", dag_result)
 
 
-def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None) -> dict:
+def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
+                          include_research: bool = False) -> dict:
     """Build a CONCURRENT per-agent DAG from refine's multi_task array:
     one agent node per independent task, routed to the task's target_agent
     (a registry key as-is, else role-matched via _pick_agent, else the
@@ -8201,10 +8456,19 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None) -> dic
     # When a LIVE set is given (swarm path), restrict spread + backfill to
     # REACHABLE nodes so every live engine fires (operator 2026-05-26 "fire on
     # ALL NODES incl iGPU") WITHOUT assigning a facet to a down node.
-    pool = ([a for a in _AGENT_REGISTRY.keys() if a in live_agents]
-            if live_agents is not None else list(_AGENT_REGISTRY.keys()))
+    # research_only replicas (operator 2026-05-29) are EXCLUDED from the normal
+    # pool so everyday council/swarm turns stay light; they join ONLY when
+    # include_research=True (a research / deep-research turn), multiplying the
+    # 2-4GB workers across every lane for maximum concurrent coverage.
+    def _eligible(a: str) -> bool:
+        c = _AGENT_REGISTRY.get(a) or {}
+        return include_research or not c.get("research_only")
+    pool = ([a for a in _AGENT_REGISTRY.keys()
+             if a in live_agents and _eligible(a)]
+            if live_agents is not None
+            else [a for a in _AGENT_REGISTRY.keys() if _eligible(a)])
     if not pool:
-        pool = list(_AGENT_REGISTRY.keys())
+        pool = [a for a in _AGENT_REGISTRY.keys() if _eligible(a)]
     used: list = []
     for i, t in enumerate(tasks):
         if not isinstance(t, dict):
@@ -8465,11 +8729,32 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         _research = "\n\n".join(_grounds)[:_synth_cap]
         log.info("dag synth: research_chars=%d grounded_nodes=%d merged_chars=%d",
                  len(_research), len(_grounds), len(merged))
+        # Audit envelope = METADATA only (operator 2026-05-29: emits "not dumped
+        # all last second" + "duplicated in emit and thinking blocks"). Each
+        # node's full OUTPUT now streams LIVE into the reasoning block as the
+        # node finishes (see _execute_dag_emitting 'done' branch), so re-dumping
+        # the full outputs here would DUPLICATE them + bloat the end-of-turn
+        # flush. Keep the per-node verdict/tool/latency for the audit dropdown;
+        # drop the (already-streamed) output text, leaving only its length.
+        _audit_nodes = []
+        for _n in dag_result.get("node_results", []):
+            if not isinstance(_n, dict):
+                continue
+            _audit_nodes.append({
+                "tool": _n.get("tool"),
+                "node_id": _n.get("node_id"),
+                "success": _n.get("success"),
+                "latency_ms": _n.get("latency_ms"),
+                "retries": _n.get("retries"),
+                "deepened": _n.get("deepened"),
+                "satisfied": _n.get("satisfied"),
+                "output_chars": len(str(_n.get("output") or "")),
+            })
         env = {"dag": {"summary": dag.get("summary", ""),
                        "nodes_total": dag_result.get("nodes_total", 0),
                        "nodes_executed": dag_result.get("nodes_executed", 0),
                        "success": dag_result.get("success", False)},
-               "nodes": dag_result.get("node_results", [])}
+               "nodes": _audit_nodes}
         symbol = "✅" if dag_result.get("success") else "⚠️"
         envelope = (f"<details type=\"tool_calls\" done=\"true\">\n"
                     f"<summary>{symbol} agents · {env['dag']['nodes_total']} "
@@ -8533,8 +8818,8 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             if not _agent_nodes:
                 return
             if emit:
-                emit({"emoji": "🧩", "label": "swarm",
-                      "detail": f"{len(_agent_nodes)} facets researching in parallel"})
+                emit({"emoji": "🧩", "label": "researching in parallel",
+                      "detail": f"{len(_agent_nodes)} angles at once"})
             _shared_state = await _read_tool_enrich(refined, session_id)
 
             async def _facet(n: dict) -> None:
@@ -8543,13 +8828,19 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     return
                 _ag = str(n.get("agent") or "")
                 if emit:
-                    emit({"emoji": "🛰️", "label": _ag, "detail": _fq[:52]})
+                    # GENERATIVE function label = the facet's actual sub-query,
+                    # NOT the internal agent key (operator 2026-05-29).
+                    emit({"emoji": "🔎", "label": _fq[:60], "detail": ""})
                 # The facet IS the query; inherit parent web hints so the gate
                 # fires for a web turn (and stays OFF for a pure-local split).
                 _fref = dict(refined or {})
                 _fref["refined_text"] = _fq
                 _fref["hint_tools"] = (refined or {}).get("hint_tools") or []
-                _sink = ((lambda s: emit({**s, "label": _ag})) if emit else None)
+                # Forward each web step with ITS OWN casual function label
+                # (searching / reading) -- do NOT overwrite it with the internal
+                # agent key (operator 2026-05-29: emit titles are the FUNCTION,
+                # never internal names).
+                _sink = emit if emit else None
                 try:
                     _wc = await _web_research_enrich(_fq, _fref, emit=_sink)
                 except Exception:  # noqa: BLE001
@@ -8591,8 +8882,8 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                         "sub-task at the end is authoritative:\n"
                         + _g + "\n\n---\nYour sub-task:\n" + str(n["prompt"]))
                 if emit:
-                    emit({"emoji": "📚", "label": _ag,
-                          "detail": "grounded · " + _fq[:44]})
+                    emit({"emoji": "✅", "label": "got the facts",
+                          "detail": _fq[:52]})
 
             await asyncio.gather(*[_facet(n) for n in _agent_nodes],
                                  return_exceptions=True)
@@ -8814,7 +9105,12 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     if tool == "focus_window":
         title = shlex.quote(str(args.get("title", "")))
         pos = str(args.get("position", "default")).lower()
-        if pos == "as-is":
+        # "default"/"as-is"/empty => focus ONLY, no reposition. Previously
+        # only "as-is" short-circuited, so the DEFAULT position ran a second
+        # `mios-window default <title>` -> "unknown subcommand: default" exit 64
+        # -> focus_window reported FAILURE even though the focus succeeded
+        # (operator 2026-05-29 OS-control train). "default" is not a placement.
+        if pos in ("as-is", "default", ""):
             return f"mios-window focus {title}"
         return (
             f"mios-window focus {title} && "
@@ -9487,10 +9783,24 @@ def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
     a short description of the node's CURRENT STEP -- its sub-task or the verb
     arg -- so the emit reflects the active step's context, not just a glyph.
     The lane/model/endpoint internals stay OUT (they read as a leak); context
-    is the WHAT (operator-facing), not the HOW (plumbing)."""
-    emoji = {"engage": "🛰️", "ok": "✅", "down": "💤"}.get(state, "🛰️")
+    is the WHAT (operator-facing), not the HOW (plumbing).
+
+    operator 2026-05-29: the LABEL must be GENERATIVE -- indicative of the
+    FUNCTION being performed, NOT the internal agent/function name (research-
+    dgpu-1, hermes, opencode, ...). So the label = the node's actual sub-task
+    (`context`), falling back to its semantic ROLE as a plain word (research /
+    reasoning / coding -- a capability descriptor, not a node name) and never
+    the registry key. The internal name is dropped entirely from the emit."""
+    # Casual, end-user-obvious glyphs (operator 2026-05-29 "more casual + useful
+    # to end-users"): an AI is working on it (🤖) -> done (✅) -> went quiet (💤).
+    emoji = {"engage": "🤖", "ok": "✅", "down": "💤"}.get(state, "🤖")
+    _ctx = str(context or "").strip()
+    _role = str((cfg or {}).get("role") or "").strip()
+    _label = _ctx or _role or "working"
+    # context already IS the label -> don't repeat it as detail.
+    _detail = "" if _label == _ctx else _ctx
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
-                       label=str(name), detail=str(context or "")[:80])
+                       label=_label[:80], detail=_detail[:80])
 
 
 async def _stream_answer(text: str, *, chat_id: str, model: str):
@@ -10190,6 +10500,119 @@ async def scheduler_state() -> JSONResponse:
         },
         "ts": int(time.time()),
     })
+
+
+# ── Offline-computation enforcement (operator 2026-05-28 "maintain offline
+# computation for all MiOS systems"; core MiOS law: never call cloud services,
+# never depend on the network for inference). Turns the offline-first principle
+# from a CONVENTION into an enforced INVARIANT: classify every configured
+# inference endpoint as local-or-external on startup, log a LOUD warning if any
+# is external, and expose the posture at /v1/offline-status. LOCAL = localhost /
+# loopback / tailnet (100.64.0.0/10) / *.ts.net / RFC1918 private LAN / bare
+# container-DNS name -- i.e. the operator's own machines. EXTERNAL = a public
+# host (a cloud LLM API), which violates the law.
+_OFFLINE_ENFORCE = os.environ.get(
+    "MIOS_OFFLINE_ENFORCE", "true").lower() not in {"false", "0", "no"}
+
+
+def _is_local_endpoint(url: str) -> bool:
+    """True if `url`'s host is LOCAL to the operator (loopback / tailnet /
+    private LAN / container DNS), False for a public/cloud host. Conservative:
+    an unparseable or empty url is treated as local (it's not a cloud egress)."""
+    if not url:
+        return True
+    try:
+        host = url.split("://", 1)[-1].split("/", 1)[0].split("@")[-1]
+        host = host.rsplit(":", 1)[0].strip("[]").lower()  # strip :port + ipv6 brackets
+    except Exception:  # noqa: BLE001
+        return True
+    if not host:
+        return True
+    # Loopback + unspecified.
+    if host in ("localhost", "0.0.0.0", "::1") or host.startswith("127."):
+        return True
+    # Container DNS / single-label hostname (no dot) = local network.
+    if "." not in host and ":" not in host:
+        return True
+    if host == "host.containers.internal" or host.endswith(".ts.net") \
+            or host.endswith(".local") or host.endswith(".internal"):
+        return True
+    # Numeric IPv4 ranges: tailnet CGNAT 100.64.0.0/10 + RFC1918 private LAN.
+    parts = host.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        a, b = int(parts[0]), int(parts[1])
+        if a == 10:
+            return True                       # 10.0.0.0/8
+        if a == 192 and b == 168:
+            return True                       # 192.168.0.0/16
+        if a == 172 and 16 <= b <= 31:
+            return True                       # 172.16.0.0/12
+        if a == 100 and 64 <= b <= 127:
+            return True                       # 100.64.0.0/10 tailnet
+        return False                          # any other public IPv4
+    # A dotted DNS name that isn't *.ts.net/.local/.internal => treat as
+    # PUBLIC (a cloud host). This is the conservative catch for cloud APIs.
+    return False
+
+
+def _offline_posture() -> dict:
+    """Classify every configured inference/embedding endpoint + agent binding
+    as local-or-external. Used by the startup guard + /v1/offline-status."""
+    checks: list = []
+
+    def _add(role: str, url: str) -> None:
+        checks.append({"role": role, "endpoint": url or "",
+                       "local": _is_local_endpoint(url or "")})
+
+    _add("refine", REFINE_ENDPOINT)
+    _add("polish", POLISH_ENDPOINT)
+    _add("router", ROUTER_ENDPOINT)
+    _add("planner", PLANNER_ENDPOINT)
+    _add("micro", _MICRO_ENDPOINT)
+    _add("verb_embed", _VERB_EMBED_URL)
+    try:
+        _add("backend", BACKEND_ENDPOINT)
+    except NameError:
+        pass
+    for name, cfg in (_AGENT_REGISTRY or {}).items():
+        _add(f"agent:{name}", cfg.get("endpoint") or "")
+        if cfg.get("cpu_endpoint"):
+            _add(f"agent:{name}.cpu", cfg.get("cpu_endpoint"))
+    external = [c for c in checks if not c["local"]]
+    return {
+        "enforced": _OFFLINE_ENFORCE,
+        "offline": not external,
+        "external_endpoints": external,
+        "checks": checks,
+    }
+
+
+@app.on_event("startup")
+async def _offline_guard_on_startup() -> None:
+    """Validate the offline posture at startup. LOUD warning on any external
+    inference endpoint (the core MiOS law forbids cloud compute). Does NOT
+    hard-crash -- a wedged pipe is worse than a logged violation -- but the
+    breach is unmissable in the journal + queryable at /v1/offline-status."""
+    p = _offline_posture()
+    if p["offline"]:
+        log.info("offline-guard: OK -- all %d inference endpoints are "
+                 "local/tailnet (offline computation intact)",
+                 len(p["checks"]))
+    else:
+        for c in p["external_endpoints"]:
+            log.warning("offline-guard: VIOLATION -- %s -> %s is EXTERNAL "
+                        "(cloud compute breaks MiOS offline-first law)",
+                        c["role"], c["endpoint"])
+
+
+@app.get("/v1/offline-status")
+async def offline_status() -> JSONResponse:
+    """Live offline-computation posture: every inference/embedding/agent
+    endpoint classified local-vs-external. `offline: true` proves no MiOS
+    compute path egresses to a cloud host (operator 2026-05-28 'maintain
+    offline computation for all MiOS systems')."""
+    return JSONResponse({"object": "mios.offline_status", **_offline_posture(),
+                         "ts": int(time.time())})
 
 
 @app.get("/a2a/contexts/{context_id}")
@@ -13327,6 +13750,102 @@ def _win_hay(w: dict) -> str:
     return (str(w.get("title", "")) + " " + str(w.get("proc", ""))).lower()
 
 
+async def _center_windows(wins: list) -> list:
+    """Center the given window(s) on their desktop (operator binding 2026-05-29:
+    'launches are ALWAYS centered -- that should be the default MiOS AI opening
+    pattern'). WSLg / flatpak windows IGNORE Win32 launch-time placement, so we
+    center AFTER the window maps. Picks the LARGEST window per owning executor
+    (the MAIN app window -- a launch also spawns ~11 tiny PopupHost/tooltip
+    windows) and POSTs /window/center to the Windows-native executor that owns
+    it (only executor-sourced windows have movable Win32 hwnds; the WSL
+    list_windows hwnds are a different namespace). The executor's center is a
+    non-blocking async SetWindowPos, so this never stalls the turn. Best-effort;
+    returns the list of centered window titles. Never raises."""
+    eps = {e.get("label"): e.get("url")
+           for e in _load_oscontrol_endpoints() if e.get("url")}
+    if not eps:
+        return []
+    # Largest qualifying window per owning executor.
+    best: dict = {}
+    for w in (wins or []):
+        if not isinstance(w, dict):
+            continue
+        src = w.get("_source")
+        if src not in eps:                      # only movable Win32 windows
+            continue
+        hw = w.get("hwnd")
+        if hw in (None, "", 0):
+            continue
+        ww = int(w.get("w") or 0)
+        hh = int(w.get("h") or 0)
+        if ww < 200 or hh < 120:                # skip popups / tooltips
+            continue
+        area = ww * hh
+        if area >= (best.get(src, {}).get("_area", -1)):
+            best[src] = {"hwnd": hw, "_area": area,
+                         "title": w.get("title") or w.get("proc") or ""}
+    if not best:
+        return []
+    done: list = []
+    for src, w in best.items():
+        try:
+            client = await _get_client()
+            await client.post(eps[src] + "/window/center",
+                              json={"hwnd": w["hwnd"]}, timeout=5)
+            done.append(str(w["title"]))
+        except Exception as e:  # noqa: BLE001
+            log.debug("auto-center on %s failed: %s", src, e)
+    return done
+
+
+def _launch_proc_patterns(args: dict, result: dict) -> list:
+    """Process-name patterns to pgrep for to confirm a launch ACTUALLY started
+    (operator 2026-05-29: 'should JUST search for PIDs globally for
+    verifications'). The robust signal is the PROCESS existing -- WSLg windows
+    carry content titles + proc=msrdc, never the app name, so title/count are
+    unreliable. The launcher echoes the resolved ref ('launching <id>' /
+    'fired <id>' / 'run <id>'); take both the reverse-DNS id AND its lowercased
+    leaf (the bwrap binary, e.g. org.gnome.Epiphany -> 'epiphany'), plus the
+    bare target name as a last-resort weak pattern."""
+    pats: list = []
+    blob = str(result.get("output") or "") + " " + str(result.get("stderr") or "")
+    for m in re.finditer(r'(?:launching|fired|run|exec)\s+([A-Za-z][A-Za-z0-9._+-]{2,})', blob):
+        ref = m.group(1).strip().strip('"\'')
+        if "." in ref:
+            leaf = ref.split(".")[-1].lower()
+            if len(leaf) >= 3 and leaf not in pats:
+                pats.append(leaf)
+            if ref.lower() not in pats:
+                pats.append(ref.lower())
+        elif len(ref) >= 3 and ref.lower() not in pats:
+            pats.append(ref.lower())
+    t = _os_target(args)
+    if t and len(t) >= 3 and t not in pats:
+        pats.append(t)
+    return pats
+
+
+async def _proc_present(patterns: list) -> bool:
+    """True if ANY pattern matches a running process command line (global
+    `pgrep -if`). /proc is world-readable, so the agent uid sees EVERY user's
+    process cmdlines -- including the operator's flatpak GUIs running under
+    bwrap. This is the primary, generative launch-verification signal."""
+    for pat in patterns:
+        if not pat or len(pat) < 3:
+            continue
+        try:
+            p = await asyncio.create_subprocess_exec(
+                "pgrep", "-if", pat,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL)
+            rc = await asyncio.wait_for(p.wait(), timeout=4)
+            if rc == 0:
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def _verify_os_action(tool: str, args: dict, result: dict,
                       before: dict, after: dict, wdiff: dict) -> bool:
     """Did the OS-control action ACTUALLY take effect (operator 2026-05-26 'the
@@ -13342,11 +13861,25 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         if blind:
             return ok  # can't enumerate -> trust the fire's exit code
         wins = (after or {}).get("windows") or []
-        if not target:
-            return bool(wdiff.get("opened")) or ok
-        # confirmed if the target window is now PRESENT (appeared, or already up
-        # -> no double-launch retry); substring match on title/process.
-        return any(target in _win_hay(w) for w in wins)
+        # A NEW window appeared after the launch = it worked. This is the
+        # robust signal: WSLg windows report CONTENT titles ("Home", "Anime
+        # North - Home", "mios@MiOS-955:~") + proc=msrdc -- NEVER the app name
+        # -- so a target-NAME substring match is unreliable (operator 2026-05-29
+        # train: epiphany/files/ptyxis ALL opened but were reported "failed"
+        # because "epiphany" isn't in "Anime North - Home"). No hardcoded app
+        # names: count-delta + the live window diff carry the truth.
+        if ac > bc or wdiff.get("opened"):
+            return True
+        # ALREADY-OPEN: mios-launch's preflight focuses+centers an existing
+        # instance and reports already_running -- honour that as success.
+        _out = (result.get("output") or "") + " " + (result.get("stderr") or "")
+        if "already_running" in _out and "true" in _out:
+            return True
+        # Last resort: a genuine title match (native Windows apps DO carry
+        # their name, e.g. "Task Manager").
+        if target and any(target in _win_hay(w) for w in wins):
+            return True
+        return False
     if tool == "close_window":
         if blind:
             return ok
@@ -13362,7 +13895,7 @@ async def _respond_os_control(
     tool: str, args: dict, refined: Optional[dict], *,
     streaming: bool, chat_id: str, model: str,
     session_id: Optional[str], last_user_text: str,
-    persona_system: str = "",
+    persona_system: str = "", emit=None,
 ) -> Any:
     """OS-control action fast-path (operator 2026-05-26). A single concrete
     app/window/URL action is a DETERMINISTIC one-verb action: fire that ONE
@@ -13376,6 +13909,73 @@ async def _respond_os_control(
     not show (anti-fabrication; mirrors the launch_verified / verify_launch
     'presented, not merely process-alive' Definition-of-Done rule in SOUL)."""
     _args = args if isinstance(args, dict) else {}
+
+    # ── LIVE EMIT PUMP, decoupled from the work (operator 2026-05-29: "emits
+    # are HELD BACK BY THE PIPELINE; should run SEPARATELY ... zero emits during
+    # a launch"). When streaming, run the SAME work as a non-streaming bg task
+    # whose `emit` callback PUSHES milestone status onto a queue, and drain that
+    # queue LIVE here (mirrors the research _gen pump). ONE shared work body --
+    # only the transport differs -- so a launch streams route -> launching ->
+    # checking -> centering -> result in REAL TIME instead of a silent gap then
+    # a dump. Keepalive during any quiet stretch keeps the SSE channel open.
+    if streaming:
+        async def _stream_os() -> AsyncGenerator[bytes, None]:
+            yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
+            yield _sse_status_phase(chat_id=chat_id, model=model, phase="route")
+            _oq: asyncio.Queue = asyncio.Queue()
+            _holder: dict = {}
+
+            async def _work() -> None:
+                try:
+                    _holder["resp"] = await _respond_os_control(
+                        tool, args, refined, streaming=False, chat_id=chat_id,
+                        model=model, session_id=session_id,
+                        last_user_text=last_user_text,
+                        persona_system=persona_system, emit=_oq.put_nowait)
+                except Exception as _e:  # noqa: BLE001
+                    _holder["err"] = str(_e)
+                finally:
+                    _oq.put_nowait(None)
+
+            _wtask = asyncio.create_task(_work())
+            while True:
+                try:
+                    _s = await asyncio.wait_for(_oq.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+                    continue
+                if _s is None:
+                    break
+                if isinstance(_s, dict):
+                    yield _sse_status(chat_id=chat_id, model=model,
+                                      emoji=str(_s.get("emoji", "·")),
+                                      label=str(_s.get("label", "")),
+                                      detail=_s.get("detail"))
+            await _wtask
+            _content = ""
+            _resp = _holder.get("resp")
+            try:
+                _b = json.loads(bytes(_resp.body).decode("utf-8"))
+                _content = _b["choices"][0]["message"]["content"]
+            except Exception:  # noqa: BLE001
+                _content = "The OS-control action completed."
+            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+            yield _sse_chunk(_content, chat_id=chat_id, model=model)
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="tool_done", done=True)
+            yield _sse_chunk("", chat_id=chat_id, model=model,
+                             finish_reason="stop")
+            yield _sse_done()
+        return StreamingResponse(_stream_os(), media_type="text/event-stream")
+
+    # Milestone emitter -- no-op unless a streaming pump passed an `emit` sink.
+    def _emit(emoji: str, label: str, detail=None) -> None:
+        if emit:
+            try:
+                emit({"emoji": emoji, "label": label, "detail": detail})
+            except Exception:  # noqa: BLE001
+                pass
+
     # FIRE -> VERIFY -> RE-ATTEMPT (operator 2026-05-26 "iGPU does MiOS OS
     # control ... the rest of the pipeline VERIFIES TRUE and attempts to
     # re-attempt"). For a WRITE OS-control verb: snapshot ALL open windows
@@ -13387,26 +13987,79 @@ async def _respond_os_control(
     # exit code, no retry-spin). A launch already present short-circuits (no
     # double-launch). The final snapshot+delta is indexed to RAG.
     _action = tool in _OS_CONTROL_ACTION_VERBS
+    _is_launch = tool in _LAUNCH_VERBS
     _before = _after = None
     _wdiff: dict = {}
     result: dict = {}
     _verified = False
-    _attempts = max(1, OS_CONTROL_RETRY_ATTEMPTS) if _action else 1
     _tries = 0
-    for _i in range(_attempts):
-        _tries = _i + 1
-        _before = await _enumerate_windows() if _action else None
+    if _action and _is_launch:
+        # LAUNCH: fire ONCE (the launch is detached + fire-and-forget), then
+        # POLL the window enumeration until the window renders or the deadline
+        # passes. Re-DISPATCHING a launch on a miss would spawn DUPLICATE
+        # instances (operator 2026-05-29 train: 3 gedit instances; epiphany/
+        # nautilus/ptyxis all opened ~5-10s later but were reported "no
+        # window"). Polling (re-enumerate only, no re-launch) fixes both.
+        _emit("🚀", f"opening {_os_target(_args) or tool}")
+        _before = await _enumerate_windows()
         result = await dispatch_mios_verb(tool, _args, session_id=session_id)
-        _after = await _enumerate_windows() if _action else None
-        _wdiff = _window_diff(_before, _after) if _action else {}
-        _verified = (_verify_os_action(tool, _args, result, _before, _after, _wdiff)
-                     if _action else bool(result.get("success")))
-        if _verified or not _action:
-            break
-        if _i < _attempts - 1:
-            log.info("os-control %s NOT verified (try %d/%d) -> re-attempt",
-                     tool, _tries, _attempts)
-            await asyncio.sleep(OS_CONTROL_RETRY_SETTLE_S)
+        _deadline = time.monotonic() + OS_CONTROL_LAUNCH_VERIFY_S
+        _proc_pats = _launch_proc_patterns(_args, result)
+        while True:
+            _tries += 1
+            _emit("🔍", "checking it opened")
+            _after = await _enumerate_windows()
+            _wdiff = _window_diff(_before, _after)
+            # A GUI launch is VERIFIED by a real WINDOW -- a new window opened,
+            # or a visible window matching the target (operator 2026-05-29: "this
+            # is how i know nothing is verified" -- Discord PTB spawned 6 procs
+            # with MainWindowHandle=0 and ZERO top-level windows, started
+            # minimized to the tray, yet a pgrep PID check flipped the verdict to
+            # "launched". A live process with NO window is NOT "opened"). So
+            # _proc_present is demoted to a BLIND-ONLY fallback: when the window
+            # enumeration can see nothing at all (executor not wired -> count:0
+            # both sides), THEN fall back to the global-PID check / exit code
+            # (operator's earlier "search PIDs globally"). When we CAN enumerate
+            # windows, process-presence does NOT override the absence of one.
+            _win_verdict = _verify_os_action(
+                tool, _args, result, _before, _after, _wdiff)
+            _enum_blind = ((_before or {}).get("count", 0) == 0
+                           and (_after or {}).get("count", 0) == 0)
+            _verified = (_win_verdict
+                         or (_enum_blind and await _proc_present(_proc_pats)))
+            if _verified or time.monotonic() >= _deadline:
+                break
+            log.info("os-control %s not yet confirmed (poll %d) -> wait %.1fs",
+                     tool, _tries, OS_CONTROL_LAUNCH_POLL_S)
+            await asyncio.sleep(OS_CONTROL_LAUNCH_POLL_S)
+        # CENTER the freshly-launched window (operator binding: 'launches are
+        # ALWAYS centered -- the default MiOS opening pattern'). Done HERE, after
+        # the verify loop has identified what opened, so we center the REAL main
+        # window (mapped + full-size) rather than an early popup. Server-side so
+        # it covers EVERY fast-path launch + reuses the diff already computed.
+        if _wdiff.get("opened"):
+            _emit("🎯", "centering it")
+            _ctr = await _center_windows(_wdiff["opened"])
+            if _ctr:
+                log.info("auto-centered launched window(s): %s", ", ".join(_ctr))
+    else:
+        _emit("🪟", (f"{tool.replace('_window', '').replace('_', ' ').strip()} "
+                     f"{_os_target(_args)}").strip())
+        _attempts = max(1, OS_CONTROL_RETRY_ATTEMPTS) if _action else 1
+        for _i in range(_attempts):
+            _tries = _i + 1
+            _before = await _enumerate_windows() if _action else None
+            result = await dispatch_mios_verb(tool, _args, session_id=session_id)
+            _after = await _enumerate_windows() if _action else None
+            _wdiff = _window_diff(_before, _after) if _action else {}
+            _verified = (_verify_os_action(tool, _args, result, _before, _after, _wdiff)
+                         if _action else bool(result.get("success")))
+            if _verified or not _action:
+                break
+            if _i < _attempts - 1:
+                log.info("os-control %s NOT verified (try %d/%d) -> re-attempt",
+                         tool, _tries, _attempts)
+                await asyncio.sleep(OS_CONTROL_RETRY_SETTLE_S)
     ok = bool(result.get("success"))
     # Effective verdict for the operator-facing symbol: a launch that fired
     # (exit 0) but did NOT verify (no window) is NOT a success.
@@ -13508,38 +14161,32 @@ async def _respond_os_control(
             _polish_src += ("smart_focus: the window was NOT already open, so it "
                             "was LAUNCHED to the foreground (report that it "
                             "wasn't running and you opened it).\n")
+    # OS-control replies are SHORT + GENERATIVE (operator 2026-05-29: "completely
+    # generative in its replies too" + "JUST reply SUCCESS and DETAILS and
+    # FOLLOW-UPS, nothing much more"). So: model-written (no template), but a
+    # tight prompt + low token cap -> fast (vs the 16s full-length polish). The
+    # `verified`/window/proc facts in _polish_src are the ground truth.
+    _emit("✅" if _eff_ok else "⚠️", "writing the result")
     polished_raw = await polish_response(
-        "The OS-control verb `" + tool + "` ran and returned the result "
-        "below. Write a SHORT, honest reply telling the operator what "
-        "happened. GROUND the verdict in window_enumeration when present: an "
-        "app truly OPENED only if a new window appears in the AFTER snapshot "
-        "(opened:), and truly CLOSED only if a window disappears (closed:). A "
-        "process merely being alive is NOT success. Respect `verified`: if "
-        "verified=False after the re-attempts, report that it did NOT take "
-        "effect (and that it was retried) -- do NOT claim success. If nothing "
-        "changed or the target was not found, say so plainly and do NOT invent "
-        "details -- no window coordinates, no fabricated confirmation.\n\n"
-        + _polish_src,
+        "The OS-control verb `" + tool + "` ran (result below). Reply in 1-3 "
+        "short sentences with exactly: (1) SUCCESS or failure -- grounded in "
+        "`verified` (verified=True means it took effect; if False after the "
+        "retries, say it did NOT and do not claim success); (2) the key DETAILS "
+        "(what opened/closed/was focused, the app/window name); (3) one or two "
+        "natural FOLLOW-UPS the operator might want next (e.g. focus it, move "
+        "it, close it, open another). No preamble, no invented coordinates, no "
+        "fabricated confirmation -- nothing beyond success + details + "
+        "follow-ups.\n\n" + _polish_src,
         _refined_for_polish, session_id=session_id,
-        original_user_text=last_user_text, persona_system=persona_system)
+        original_user_text=last_user_text, persona_system=persona_system,
+        max_tokens=OS_CONTROL_REPLY_MAX_TOKENS)
     polished = _strip_think_tags(polished_raw) if polished_raw else ""
     rendered = (f"{polished}\n\n{envelope_block}"
                 if polished.strip() else envelope_block)
-    if streaming:
-        async def _stream_os() -> AsyncGenerator[bytes, None]:
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="route")
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="tool")
-            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
-            yield _sse_chunk(rendered, chat_id=chat_id, model=model)
-            yield _sse_status_phase(
-                chat_id=chat_id, model=model,
-                phase="tool_done" if _eff_ok else "tool_done_warn", done=True)
-            yield _sse_chunk("", chat_id=chat_id, model=model,
-                             finish_reason="stop")
-            yield _sse_done()
-        return StreamingResponse(_stream_os(),
-                                 media_type="text/event-stream")
+    # Streaming is handled by the live-emit pump at the TOP of this function (it
+    # runs THIS body as a non-streaming bg task + drains the milestone emits in
+    # real time). Reaching here means streaming=False -> return the rendered
+    # envelope (polished answer + tool_calls block) as a plain JSON completion.
     return JSONResponse(content={
         "id": chat_id,
         "object": "chat.completion",
@@ -13628,13 +14275,92 @@ async def _format_local_state(question: str, grounding: str,
 async def _respond_local_state(
     refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
     session_id: Optional[str], last_user_text: str, persona_system: str = "",
+    emit=None,
 ) -> Any:
     """Deterministic local-state answer: run the local READ tools, enumerate
     faithfully, STOP. Returns a Response, or None to fall through to the normal
-    council path (no grounding / format failure)."""
+    council path (no grounding / format failure -- non-streaming only)."""
+    # ── LIVE EMIT PUMP (operator 2026-05-29: emits run SEPARATELY to the
+    # pipeline). The READ tools (mios_apps games-scan can take tens of seconds)
+    # were a SILENT gap. Run the SAME body as a non-streaming bg task whose
+    # `emit` pushes milestone status + the grounding reasoning onto a queue,
+    # drained LIVE here. NOTE: when streaming we COMMIT to a local answer (no
+    # council fallthrough on empty grounding) -- a local-state query that finds
+    # nothing gets an honest "couldn't find it" instead of a web-search the
+    # operator confirmed returns garbage for machine-state questions.
+    if streaming:
+        async def _stream_ls() -> AsyncGenerator[bytes, None]:
+            yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
+            yield _sse_status_phase(chat_id=chat_id, model=model, phase="route")
+            _lq: asyncio.Queue = asyncio.Queue()
+            _holder: dict = {}
+
+            async def _work() -> None:
+                try:
+                    _holder["resp"] = await _respond_local_state(
+                        refined, streaming=False, chat_id=chat_id, model=model,
+                        session_id=session_id, last_user_text=last_user_text,
+                        persona_system=persona_system, emit=_lq.put_nowait)
+                except Exception as _e:  # noqa: BLE001
+                    _holder["err"] = str(_e)
+                finally:
+                    _lq.put_nowait(None)
+
+            _wtask = asyncio.create_task(_work())
+            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+            while True:
+                try:
+                    _s = await asyncio.wait_for(_lq.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+                    continue
+                if _s is None:
+                    break
+                if isinstance(_s, dict):
+                    if _s.get("reasoning"):
+                        yield _sse_reasoning(str(_s["reasoning"]),
+                                             chat_id=chat_id, model=model)
+                    elif _s.get("label"):
+                        yield _sse_status(chat_id=chat_id, model=model,
+                                          emoji=str(_s.get("emoji", "·")),
+                                          label=str(_s["label"]),
+                                          detail=_s.get("detail"))
+            await _wtask
+            _resp = _holder.get("resp")
+            _content = ""
+            try:
+                _b = json.loads(bytes(_resp.body).decode("utf-8"))
+                _content = _b["choices"][0]["message"]["content"]
+            except Exception:  # noqa: BLE001
+                _content = ("I checked this machine's live state but couldn't "
+                            "find that. It may not be installed or running -- "
+                            "ask me to search the web if you meant something "
+                            "else.")
+            yield _sse_chunk(_content, chat_id=chat_id, model=model)
+            yield _sse_status_phase(chat_id=chat_id, model=model,
+                                    phase="subagent_done", done=True)
+            yield _sse_chunk("", chat_id=chat_id, model=model,
+                             finish_reason="stop")
+            yield _sse_done()
+        return StreamingResponse(_stream_ls(), media_type="text/event-stream")
+
+    def _emit(emoji: str, label: str, detail=None) -> None:
+        if emit:
+            try:
+                emit({"emoji": emoji, "label": label, "detail": detail})
+            except Exception:  # noqa: BLE001
+                pass
+
+    _emit("📂", "checking this machine")
     grounding = await _read_tool_enrich(refined, session_id)
     if not grounding or not grounding.strip():
         return None
+    if emit:
+        try:
+            emit({"reasoning": grounding[:6000]})
+        except Exception:  # noqa: BLE001
+            pass
+    _emit("✍️", "writing the answer")
     answer = await _format_local_state(last_user_text, grounding, persona_system)
     if not answer:
         return None
@@ -13645,21 +14371,9 @@ async def _respond_local_state(
                      session_id=session_id, tool_history=[])
     _write_skill_md_fire(query=last_user_text, answer=answer,
                          tool_history=[], session_id=session_id)
-    _think = grounding[:6000]
-    if streaming:
-        async def _stream_ls() -> AsyncGenerator[bytes, None]:
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="route")
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="tool")
-            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
-            yield _sse_reasoning(_think, chat_id=chat_id, model=model)
-            yield _sse_chunk(answer, chat_id=chat_id, model=model)
-            yield _sse_status_phase(chat_id=chat_id, model=model,
-                                    phase="subagent_done", done=True)
-            yield _sse_chunk("", chat_id=chat_id, model=model,
-                             finish_reason="stop")
-            yield _sse_done()
-        return StreamingResponse(_stream_ls(), media_type="text/event-stream")
+    # Streaming is handled by the live-emit pump at the TOP of this function
+    # (runs THIS body as a non-streaming bg task + drains milestone/reasoning
+    # emits live). Reaching here means streaming=False -> plain JSON completion.
     return JSONResponse(content={
         "id": chat_id, "object": "chat.completion", "created": int(time.time()),
         "model": model,
@@ -13776,6 +14490,10 @@ async def chat_completions(request: Request) -> Any:
     # its own chat-reply fast path. Refine returns None on the
     # bypass case; refine_intent + classify_intent are
     # complementary, not redundant.
+    # Turn checkpoint (operator 2026-05-29): clear VRAM as needed so the
+    # pipeline-critical refine+polish models stay warm instead of thrashing
+    # against a squatting transient (e.g. the 7B coder). No-op with headroom.
+    await _vram_checkpoint()
     refined = await refine_intent(last_user_text, messages)
 
     # SHORT-CIRCUIT: when refine emitted intent=chat with a reply,
@@ -13994,8 +14712,16 @@ async def chat_completions(request: Request) -> Any:
         # yields a concurrent per-agent DAG; otherwise fall through to the
         # unified Hermes + council path.
         _swarm_tasks = await _plan_swarm(last_user_text, messages)
-        log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks",
-                 _force_delegate, len(_swarm_tasks))
+        # RESEARCH turn? (operator 2026-05-29 "research should dispatch as many
+        # 2-4GB models as possible across all lanes"). Use the EXISTING web/news/
+        # deep refine signals (no hardcoded English) -- a web-grounded research
+        # turn pulls in the research_only worker replicas so the 2-4GB models
+        # multiply across every lane; a plain action/chat swarm stays light.
+        _is_research = bool(refined and (refined.get("web")
+                            or refined.get("news") or refined.get("deep")
+                            or refined.get("deep_research")))
+        log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks research=%s",
+                 _force_delegate, len(_swarm_tasks), _is_research)
         # Pass the LIVE roster so the swarm DAG fires on EVERY reachable node
         # (operator 2026-05-26 "fire on ALL NODES"); _live_agent_names is
         # TTL-cached so this is a near-free hit right after _plan_swarm.
@@ -14004,7 +14730,8 @@ async def chat_completions(request: Request) -> Any:
         # old >=2 gate let a 1-facet plan fall through to the hermes-only unify
         # path -> "only fired on the dGPU and nothing else" (operator 2026-05-26).
         _mdag = (_agent_dag_from_tasks(_swarm_tasks,
-                                       live_agents=await _live_agent_names())
+                                       live_agents=await _live_agent_names(),
+                                       include_research=_is_research)
                  if len(_swarm_tasks) >= 1 else None)
         if not (_mdag and len(_mdag.get("nodes") or []) >= 2):
             _gen = await decompose_intent(last_user_text)
@@ -15017,7 +15744,15 @@ async def chat_completions(request: Request) -> Any:
             # (Satisfaction verdict already written by the confirmation
             # engine above, BEFORE the critic gate, so polish's recent-
             # verdicts block sees THIS turn's authoritative verdict.)
-            if raw.strip():
+            # GATE ON THE MERGED CONTENT, not the primary alone (operator
+            # 2026-05-29 "BOTH ARE FAILURES"): when the primary (hermes)
+            # returns empty/silent but the concurrent SECONDARIES succeeded
+            # (their drafts are already folded into raw_for_polish via the
+            # _merge above), the answer is RIGHT THERE -- gating on `raw`
+            # alone discarded it and emitted a bare "⚠️" while the master
+            # review / news synthesis sat unused in the dropdown. Gate on
+            # raw_for_polish so a live secondary still produces a real answer.
+            if raw_for_polish.strip():
                 # Skip the (slow CPU) polish when the sub-agent's answer
                 # is ALREADY clean -- no <think>-tag leakage and not
                 # absurdly long. Hermes usually formats its answer well,
@@ -15062,7 +15797,12 @@ async def chat_completions(request: Request) -> Any:
                 # (content kept, readable) so reasoning shows in the
                 # dropdown instead of bleeding inline or being discarded.
                 dropdown_content = _THINK_ORPHAN_RE.sub("", raw).strip()
-                answer_only = _strip_think_tags(raw)
+                # Fallback source = primary answer, OR the merged secondary
+                # content when the primary was empty (operator 2026-05-29):
+                # so a silent primary + live secondaries still yields a real
+                # answer instead of "⚠️" if polish itself returns nothing.
+                answer_only = (_strip_think_tags(raw).strip()
+                               or _strip_think_tags(raw_for_polish).strip())
                 polished_clean = (
                     _strip_think_tags(polished) if polished else ""
                 )

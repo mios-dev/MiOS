@@ -132,24 +132,32 @@ if [ -d /usr/share/applications ]; then
     done
 fi
 
-# ─── 3. windows-gui (canonical short-name shortcuts from mios-windows) ──
+# ─── 3. windows-gui (GENERATIVE: live Start-Menu discovery, NO hardcoded list) ─
+# operator 2026-05-29: "every app is DISCOVERED + executed from its installed
+# path(s), not a hardcoded apps list". The Start Menu (.lnk catalog under
+# %ProgramData% + %APPDATA% Programs) is Windows' canonical registry of what is
+# ACTUALLY installed; each .lnk basename IS the app name, and `mios-windows
+# launch <name>` resolves its real path at launch time (App Paths registry ->
+# System32/Windows -> Start Menu -> Everything). So we enumerate the live menu
+# instead of baking in a fixed list -- an app the operator installs shows up
+# automatically, and one that isn't installed simply isn't listed. Capped +
+# de-duplicated; best-effort (empty if PowerShell isn't exec-able from this uid
+# -- the launch-time fallback still discovers any named app generatively).
 header windows-gui
-if [ -d /mnt/c/Windows ]; then
-    cat <<'WIN_APPS' | while IFS=$'\t' read -r short desc; do
-notepad	Windows Notepad
-explorer	Windows Explorer (file manager)
-calc	Calculator
-mspaint	Paint
-snipping-tool	Snipping Tool (screenshots)
-taskmgr	Task Manager
-regedit	Registry Editor
-control	Control Panel
-cmd	Windows cmd.exe shell
-powershell	Windows PowerShell 5.1
-pwsh	PowerShell 7 (if installed)
-WIN_APPS
-        emit windows-gui "$short" "$desc" "mios-windows launch $short"
-    done
+_PWSH="${WINDOWS_POWERSHELL:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+if [ -d /mnt/c/Windows ] && [ -x "$_PWSH" ]; then
+    _PS_ENUM=$(cat <<'PSEOF'
+$d = @($env:ProgramData, $env:APPDATA) | ForEach-Object { Join-Path $_ 'Microsoft\Windows\Start Menu\Programs' }
+Get-ChildItem -Path $d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue |
+  Where-Object { $_.BaseName -notmatch '(?i)uninstall|readme|setup|website|help|documentation|license' } |
+  Select-Object -ExpandProperty BaseName -Unique | Sort-Object | Select-Object -First 150
+PSEOF
+)
+    "$_PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$_PS_ENUM" 2>/dev/null \
+        | tr -d '\r' | while IFS= read -r _name; do
+            [ -n "$_name" ] || continue
+            emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch $_name"
+        done
 fi
 
 # ─── 3a. windows-app (every Start-menu app on the Windows host) ──────

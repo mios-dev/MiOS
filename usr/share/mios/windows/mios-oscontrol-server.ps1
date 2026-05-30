@@ -143,6 +143,13 @@ public class OSCW32 {
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
     [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
+    // InternalGetWindowText reads the title from the window's INTERNAL storage
+    // WITHOUT sending WM_GETTEXT -- so enumeration never blocks on a hung /
+    // non-responding window (operator 2026-05-29: /windows intermittently
+    // wedged after launches -> GetWindowText was hanging on an unresponsive
+    // app's message pump, freezing the whole listener + breaking autocenter +
+    // launch-verify). Non-blocking; the robust enumeration primitive.
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int InternalGetWindowText(IntPtr h, StringBuilder s, int max);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
@@ -172,19 +179,47 @@ if (-not ([System.Management.Automation.PSTypeName]'OSCW32').Type) {
 }
 
 # Enumerate visible top-level windows -> list of @{ title; pid; proc }.
+#
+# HANG-HARDENING (operator 2026-05-29: /windows timed out while / answered):
+# the per-window `Get-Process -Id` call below was made INSIDE the EnumWindows
+# callback, so a single hung/protected process (or a slow WMI-backed lookup)
+# stalled the ENTIRE enumeration and the route never returned. Build a
+# PID -> ProcessName snapshot ONCE up front (single Get-Process) and look up
+# from the hashtable in the callback -- no blocking syscall per window, and
+# far faster across a desktop full of windows.
 function Get-VisibleWindows {
     $result = New-Object System.Collections.ArrayList
+    # CACHE the PID->name snapshot with a short TTL (operator 2026-05-29: the
+    # executor WEDGED under launch load). During a launch the agent verify-poll
+    # + mios-autocenter hammer /windows ~30x in 30s; re-running the heavy +
+    # occasionally-stalling Get-Process on EVERY request was the load-induced
+    # hang. Rebuild only when the snapshot is stale (>2s); a burst reuses it, so
+    # /windows stays cheap (just the non-blocking EnumWindows walk). script:
+    # scope so the EnumWindows delegate callback always sees the map.
+    $now = [DateTime]::UtcNow
+    if ((-not $script:OSCProcMap) -or (-not $script:OSCProcMapTs) -or
+        (($now - $script:OSCProcMapTs).TotalSeconds -gt 2)) {
+        $m = @{}
+        try {
+            foreach ($p in (Get-Process -ErrorAction SilentlyContinue)) {
+                if ($p -and -not $m.ContainsKey([int]$p.Id)) { $m[[int]$p.Id] = $p.ProcessName }
+            }
+        } catch {}
+        $script:OSCProcMap = $m
+        $script:OSCProcMapTs = $now
+    }
     $cb = [OSCW32+EnumWindowsProc]{
         param($h, $l)
         if ([OSCW32]::IsWindowVisible($h)) {
-            $len = [OSCW32]::GetWindowTextLength($h)
-            if ($len -gt 0) {
-                $sb = New-Object System.Text.StringBuilder ($len + 1)
-                [void][OSCW32]::GetWindowText($h, $sb, $sb.Capacity)
+            # InternalGetWindowText (non-blocking) -- NOT GetWindowTextLength +
+            # GetWindowText, BOTH of which send synchronous messages that hang on
+            # an unresponsive window + freeze the whole /windows enumeration.
+            $sb = New-Object System.Text.StringBuilder 512
+            if ([OSCW32]::InternalGetWindowText($h, $sb, $sb.Capacity) -gt 0) {
                 $procId = 0
                 [void][OSCW32]::GetWindowThreadProcessId($h, [ref]$procId)
                 $pname = ''
-                try { $pname = (Get-Process -Id $procId -ErrorAction Stop).ProcessName } catch { $pname = '' }
+                if ($script:OSCProcMap.ContainsKey([int]$procId)) { $pname = $script:OSCProcMap[[int]$procId] }
                 $rect = New-Object OSCW32+RECT
                 [void][OSCW32]::GetWindowRect($h, [ref]$rect)
                 [void]$result.Add(@{ hwnd = $h.ToInt64(); title = $sb.ToString();
@@ -266,16 +301,28 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
                 [void][OSCW32]::SetWindowPos($p, [IntPtr](-2), 0, 0, 0, 0, 0x0003)  # HWND_NOTOPMOST
                 if ($att) { [void][OSCW32]::AttachThreadInput($myT, $fgT, $false) }
             }
-            'move'   { [void][OSCW32]::MoveWindow($p, [int]$x, [int]$y, [int]$wnd.w, [int]$wnd.h, $true) }
-            'resize' { [void][OSCW32]::MoveWindow($p, [int]$wnd.x, [int]$wnd.y, [int]$w, [int]$h, $true) }
+            # move/resize/center use SetWindowPos with SWP_ASYNCWINDOWPOS instead
+            # of MoveWindow (operator 2026-05-29: the executor stalled DURING a
+            # launch -> centering hung the single-threaded listener). MoveWindow
+            # (and a repaint:$true SetWindowPos) SENDS WM_WINDOWPOSCHANGING/paint
+            # SYNCHRONOUSLY to the target window's message loop and BLOCKS until
+            # it acks -- a freshly-launched app isn't pumping its queue yet, so
+            # the call hangs for seconds and every queued /windows poll behind it
+            # times out. SWP_ASYNCWINDOWPOS (0x4000) POSTS the request to the
+            # target thread and returns immediately -> the listener never blocks.
+            #   SWP_NOSIZE=0x1 NOMOVE=0x2 NOZORDER=0x4 NOACTIVATE=0x10 SHOWWINDOW=0x40 ASYNC=0x4000
+            'move'   { [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, [int]$x, [int]$y, 0, 0, 0x4015) }  # async|nozorder|noactivate|nosize
+            'resize' { [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, 0, 0, [int]$w, [int]$h, 0x4016) }  # async|nozorder|noactivate|nomove
             'center' {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
                 $sc = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
                 $cw = [int]$wnd.w; $ch = [int]$wnd.h
                 $cx = $sc.X + [int](($sc.Width - $cw) / 2)
                 $cy = $sc.Y + [int](($sc.Height - $ch) / 2)
-                [void][OSCW32]::MoveWindow($p, $cx, $cy, $cw, $ch, $true)
-                [void][OSCW32]::ShowWindow($p, 9); [void][OSCW32]::SetForegroundWindow($p)
+                # async|nozorder|showwindow -- positions+sizes+shows without blocking;
+                # no NOACTIVATE so a centered window stays usable, no synchronous
+                # ShowWindow/SetForegroundWindow (both can also block a busy app).
+                [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, $cx, $cy, $cw, $ch, 0x4044)
             }
             'state'  {
                 $n = 1
@@ -396,6 +443,38 @@ function Invoke-Screenshot {
 # Resolve an app name to a launch target. Returns the thing Start-Process can
 # take: a Start-Menu .lnk path if one matches, else the bare name (Start-Process
 # handles exe-on-PATH, registered apps, protocols/URIs like ms-settings:).
+# Cached index of Start-Menu .lnks: @(@{Name;Path;Wslg}). The recursive scan +
+# per-shortcut COM target-resolution (for the WSLg-skip) is the per-launch cost
+# the executor-first routing added; cache it with a TTL so repeat launches are
+# instant (operator 2026-05-29 "streamlined, fast and perfected"). Installs are
+# rare -> a 60s TTL is safe; a cold cache (first launch / post-install) pays the
+# full scan once. script: scope so it survives across requests.
+function Get-StartMenuIndex {
+    $now = [DateTime]::UtcNow
+    if ($script:OSCLnkIdx -and $script:OSCLnkTs -and
+        (($now - $script:OSCLnkTs).TotalSeconds -le 60)) {
+        return $script:OSCLnkIdx
+    }
+    $menus = @(
+        (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'),
+        (Join-Path $env:APPDATA      'Microsoft\Windows\Start Menu\Programs')
+    )
+    $wsh = New-Object -ComObject WScript.Shell
+    $idx = New-Object System.Collections.ArrayList
+    foreach ($m in $menus) {
+        if (-not (Test-Path $m)) { continue }
+        foreach ($f in (Get-ChildItem -Path $m -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue)) {
+            $t = ''
+            try { $t = $wsh.CreateShortcut($f.FullName).TargetPath } catch {}
+            [void]$idx.Add(@{ Name = $f.BaseName; Path = $f.FullName;
+                              Wslg = (($t -like '*wslg.exe') -or ($t -like '*wsl.exe')) })
+        }
+    }
+    $script:OSCLnkIdx = $idx
+    $script:OSCLnkTs  = $now
+    return $idx
+}
+
 function Resolve-LaunchTarget($name) {
     $n = $name.Trim()
     if (-not $n) { return $null }
@@ -403,22 +482,22 @@ function Resolve-LaunchTarget($name) {
     if ($n -match '^[a-zA-Z]:\\' -or $n -match '^[a-zA-Z][a-zA-Z0-9+.\-]*:' -or (Test-Path $n -ErrorAction SilentlyContinue)) {
         return $n
     }
-    $menus = @(
-        (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'),
-        (Join-Path $env:APPDATA      'Microsoft\Windows\Start Menu\Programs')
-    )
-    foreach ($m in $menus) {
-        if (-not (Test-Path $m)) { continue }
-        $lnk = Get-ChildItem -Path $m -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue |
-               Where-Object { $_.BaseName -like "*$n*" } |
-               Sort-Object { $_.BaseName.Length } | Select-Object -First 1
-        if ($lnk) { return $lnk.FullName }
-    }
+    # Match the cached Start-Menu index, SKIPPING WSLg-exported shortcuts
+    # (target = WSL\wslg.exe -- those launch a LINUX flatpak through WSLg, which
+    # on the executor is slow + bypasses the operator's trained flatpak path;
+    # letting the executor MISS makes mios-launch fall back to Linux). A NATIVE
+    # Windows app .lnk targets a real .exe and is kept -- "codium" picks the
+    # native VSCodium over the WSLg one; "discord"/"notepad" resolve normally.
+    # Prefer the SHORTEST matching BaseName.
+    $cand = Get-StartMenuIndex |
+            Where-Object { (-not $_.Wslg) -and ($_.Name -like "*$n*") } |
+            Sort-Object { $_.Name.Length } | Select-Object -First 1
+    if ($cand) { return $cand.Path }
     return $n   # let Start-Process try it as a PATH exe / registered app
 }
 
 # FIRE a launch on this node's desktop, then poll for the window.
-function Invoke-LaunchAndVerify($app) {
+function Invoke-LaunchAndVerify($app, $center = $false) {
     $target = Resolve-LaunchTarget $app
     $fired  = $false
     $fireErr = ''
@@ -428,12 +507,39 @@ function Invoke-LaunchAndVerify($app) {
     } else {
         $fireErr = 'could not resolve launch target'
     }
+    # FAST MISS: if the launch did NOT fire (target unresolvable on Windows /
+    # Start-Process threw -- e.g. a Linux-only flatpak name), return immediately
+    # instead of sleeping + polling for a window that was never started. The
+    # executor is now tried FIRST for every app (operator 2026-05-29), so a
+    # non-Windows app must fall through to the Linux chain cheaply.
+    if (-not $fired) {
+        return @{ app = $app; node = $env:COMPUTERNAME; host = $env:COMPUTERNAME;
+                  target = "$target"; fired = $false; fire_error = $fireErr;
+                  launched = $false; centered = $false;
+                  verdict = @{ launched = $false; summary = 'not-fired' };
+                  ts = [int][double]::Parse((Get-Date -UFormat %s)) }
+    }
     Start-Sleep -Seconds $VerifySettleSeconds
     $verdict = @{ launched = $false; summary = 'no-window' }
     for ($i = 0; $i -lt [Math]::Max(1,$VerifyAttempts); $i++) {
         $verdict = Test-WindowPresent $app
         if ($verdict.launched) { break }
         if ($i -lt ($VerifyAttempts - 1)) { Start-Sleep -Seconds $VerifyIntervalSeconds }
+    }
+    # CENTER the launched window (operator 2026-05-29: "launches are ALWAYS
+    # centered -- the default MiOS opening pattern"). Center, briefly settle,
+    # center AGAIN: Electron apps (Discord) restore their saved WINDOW_BOUNDS a
+    # beat after the window maps, which undoes a single early center (proven
+    # live: Discord snapped back to 229,125). The second center -- after the
+    # restore -- wins. Async SetWindowPos, so neither call blocks the listener.
+    $centered = $false
+    if ($center -and $verdict.launched) {
+        try {
+            [void](Invoke-WindowOp 'center' $null $app 0 0 0 0 '')
+            Start-Sleep -Milliseconds 900
+            [void](Invoke-WindowOp 'center' $null $app 0 0 0 0 '')
+            $centered = $true
+        } catch {}
     }
     return @{
         app      = $app
@@ -443,6 +549,7 @@ function Invoke-LaunchAndVerify($app) {
         fired    = $fired
         fire_error = $fireErr
         launched = [bool]$verdict.launched
+        centered = $centered
         verdict  = $verdict
         ts       = [int][double]::Parse((Get-Date -UFormat %s))
     }
@@ -519,13 +626,21 @@ while ($listener.IsListening) {
             $body = ''
             $reader = New-Object System.IO.StreamReader($ctx.Request.InputStream, $ctx.Request.ContentEncoding)
             try { $body = $reader.ReadToEnd() } finally { $reader.Close() }
-            $app = ''
+            $app = ''; $center = $false
             if ($body) {
-                try { $app = ([string](($body | ConvertFrom-Json).app)).Trim() } catch { $app = '' }
+                try {
+                    $j = $body | ConvertFrom-Json
+                    $app = ([string]$j.app).Trim()
+                    # Default-ON: launches center by default (operator binding
+                    # "launches are ALWAYS centered"); only an explicit false opts out.
+                    if ($j.PSObject.Properties.Name -contains 'center') {
+                        $center = [bool]$j.center
+                    } else { $center = $true }
+                } catch { $app = ''; $center = $true }
             }
             if (-not $app) { Write-JsonResponse $ctx 400 @{ error = "missing 'app' in JSON body" } }
             else {
-                $r = Invoke-LaunchAndVerify $app
+                $r = Invoke-LaunchAndVerify $app $center
                 ("{0}  launch app={1} fired={2} launched={3}" -f (Get-Date -Format s), $app, $r.fired, $r.launched) |
                     Out-File -FilePath $logFile -Append -Encoding utf8
                 Write-JsonResponse $ctx 200 $r

@@ -56,6 +56,38 @@ set -eu
 APP_ID="${1:?usage: flatpak-launch <flatpak-app-id> [args...]}"
 shift || true
 
+# ─── Auto-center on launch (operator: "all apps launch CENTERED ALWAYS!") ──
+# WSLg/flatpak windows ignore Win32 launch placement, so we center them
+# post-hoc via the Windows OS-control executor: snapshot the visible-window
+# hwnds NOW (before the launch fires), then hand that set to mios-autocenter
+# which polls for the NEW window and centers it by hwnd. Centering by hwnd
+# (not title) works for apps whose title omits the app-id (Nautilus="Files",
+# Epiphany="GNOME Web", ...). No-op when no executor endpoint is configured
+# (bare-metal Linux desktop -- the WM/compositor handles placement there).
+_mios_fire_autocenter() {
+    [ -x /usr/libexec/mios/mios-autocenter ] || return 0
+    command -v curl    >/dev/null 2>&1 || return 0
+    command -v python3 >/dev/null 2>&1 || return 0
+    _ace="${MIOS_OSCONTROL_EXECUTOR:-}"
+    if [ -z "$_ace" ]; then
+        for _t in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+            [ -r "$_t" ] || continue
+            _ace="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' "$_t" 2>/dev/null)"
+            [ -n "$_ace" ] && break
+        done
+    fi
+    _ace="${_ace%/}"
+    [ -z "$_ace" ] && return 0
+    _before="$(curl -s --max-time 5 "$_ace/windows" 2>/dev/null | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(""); raise SystemExit
+print(",".join(str(w.get("hwnd")) for w in d.get("windows", [])))' 2>/dev/null)"
+    setsid /usr/libexec/mios/mios-autocenter "$_ace" "$_before" >/dev/null 2>&1 &
+}
+
 # Step 0 ── Service-user re-exec (operator-confirmed regression 2026-05-15:
 # "launching epiphany from Hermes CLI WORKS, just not from Open WebUI").
 #
@@ -115,11 +147,27 @@ fi
 
 # WSLg path: when on WSL2 + service user, prefer mios-as-operator
 # (which prefers the broker socket → falls back to wsl.exe --user).
+#
+# CRITICAL (operator 2026-05-29 OS-control train: gedit window OPENED but
+# launch_app "timed out after 45s, exit -1"): a GUI flatpak is LONG-RUNNING
+# (the operator keeps the window open for minutes). The old `exec mios-as-
+# operator flatpak run ...` ran the app in the FOREGROUND, so this call
+# BLOCKED until the app exited -- which means the agent-pipe broker that
+# dispatched `mios-launch <app>` sat blocked until its 45s capture timeout
+# fired and returned exit -1, marking a SUCCESSFUL launch as failed. The
+# detached systemd-run path below carries the same "do NOT --wait" lesson.
+# So DETACH here too: fire the launch in the background (setsid, own session)
+# so flatpak-launch returns ~instantly; the agent-pipe's own before/after
+# window-diff is the authoritative success check, not this call blocking.
 if [ "$_NEED_REEXEC" = "1" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ] \
    && [ -x /usr/libexec/mios/mios-as-operator ]; then
     export _MIOS_FLATPAK_REEXEC=1
-    exec /usr/libexec/mios/mios-as-operator flatpak run --system "$APP_ID" "$@"
+    _mios_fire_autocenter
+    setsid /usr/libexec/mios/mios-as-operator flatpak run --system \
+        "$APP_ID" "$@" >/dev/null 2>&1 < /dev/null &
+    echo "flatpak-launch: fired $APP_ID via mios-as-operator (detached, auto-center armed)" >&2
+    exit 0
 fi
 
 if [ "$_NEED_REEXEC" = "1" ]; then
@@ -293,6 +341,19 @@ done
 # override (mios-flatpak-overrides-apply); flatpak still tries the
 # mount internally and logs the rejection. Drop those lines, keep
 # everything else.
+# Arm auto-center (snapshot windows now, center the new one once it maps).
+_mios_fire_autocenter
+# DETACH the launch (operator 2026-05-29 OS-control train: `open the gedit
+# editor` opened the window but the agent reported FAILURE -- exit -1
+# "capture timeout >45s"). When flatpak-launch runs in the OPERATOR context
+# (broker / mios-gui / interactive shell -> _NEED_REEXEC=0, so paths A/B were
+# skipped), the old `exec flatpak run` ran the long-lived GUI in the
+# FOREGROUND, blocking the caller until the app exits -> the agent-pipe's 45s
+# capture timeout fired and marked a SUCCESSFUL launch as failed. GUI flatpaks
+# are fire-and-forget: launch detached (own session) and return ~instantly;
+# the agent-pipe before/after window-diff is the authoritative success check.
+# >/dev/null 2>&1 also drops the flatpak 1.17 "F: Not replacing /usr/*" noise.
 # shellcheck disable=SC2086 -- intentional word-splitting on EXTRA_FLAGS
-exec 2> >(grep -v '^F: Not replacing "/usr/' >&2)
-exec flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@"
+setsid flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@" >/dev/null 2>&1 < /dev/null &
+echo "flatpak-launch: fired $APP_ID (detached, auto-center armed)" >&2
+exit 0
