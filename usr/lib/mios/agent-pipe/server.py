@@ -4349,6 +4349,36 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         scored.sort(key=lambda x: x[0], reverse=True)
         return [u for _s, u in scored[:6]]
 
+    _md_any_re = re.compile(r"!?\[[^\]]*\]\([^)\s]*\)")
+
+    def _strip_nav_chrome(md: str) -> str:
+        # Strip NAV/MENU/footer chrome from rendered markdown (crawl4ai/Camoufox
+        # keep it; Firecrawl's onlyMainContent already drops it). STRUCTURAL
+        # link-density heuristic -- NO hardcoded selectors/keywords (operator
+        # binding): a line that is MULTIPLE markdown links dominating its width
+        # with almost no prose is chrome; a real heading or sentence (prose words)
+        # is body and is kept. Conservative -- only clearly link-dominated lines
+        # drop, so an in-prose citation link ("per [Reuters](u), ...") survives.
+        # Run AFTER link harvest (which needs the raw links) -- see the loop below.
+        if not md:
+            return md
+        out: list = []
+        for ln in md.splitlines():
+            s = ln.strip()
+            if not s:
+                out.append(ln)
+                continue
+            spans = _md_any_re.findall(s)
+            link_chars = sum(len(x) for x in spans)
+            prose = _md_any_re.sub(" ", s)
+            prose_words = len(re.findall(r"[A-Za-z]{2,}", prose))
+            if len(spans) >= 2 and link_chars >= 0.6 * len(s) and prose_words <= 6:
+                continue   # link-dominated menu/nav/footer line -> drop
+            out.append(ln)
+        # Collapse the runs of blank lines the drops leave behind.
+        _txt = "\n".join(out)
+        return re.sub(r"\n{3,}", "\n\n", _txt).strip()
+
     for attempt in range(1, WEB_RESEARCH_MAX_ATTEMPTS + 1):
         _rec({"emoji": "🔎", "label": "searching the web",
               "detail": (("news · " if _use_news else
@@ -4416,7 +4446,9 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 if eng != "read" and best:
                     n_crawled += 1
                 if len(best) >= WEB_RESEARCH_MIN_CHARS:
-                    content[r["url"]] = best          # real article body
+                    # strip nav/menu chrome AFTER the link harvest below reads the
+                    # raw `best` (the harvest needs the links the strip removes).
+                    content[r["url"]] = _strip_nav_chrome(best)   # clean article body
                 elif best:
                     snippets[r["url"]] = best          # thin/blocked -> snippet
                 _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
@@ -4451,7 +4483,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                     if eng != "read" and best:
                         n_crawled += 1
                     if len(best) >= WEB_RESEARCH_MIN_CHARS:
-                        content[u] = best
+                        content[u] = _strip_nav_chrome(best)   # clean article body
                     elif best:
                         snippets[u] = best
                     touched.append({"url": u, "title": "story", "content": ""})
@@ -4482,7 +4514,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                   "detail": su[:60]})
             _md, _ = await _firecrawl(su)
             if len(_md) >= WEB_RESEARCH_MIN_CHARS:
-                content[su] = _md
+                content[su] = _strip_nav_chrome(_md)
                 touched.append({"url": su, "title": "news source (judge-picked)",
                                 "content": ""})
                 n_crawled += 1
