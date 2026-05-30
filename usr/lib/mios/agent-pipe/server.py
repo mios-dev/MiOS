@@ -4005,7 +4005,7 @@ def _shares_anchor(text: str, anchor: set) -> bool:
 
 
 async def _web_research_enrich(query: str, refined: Optional[dict],
-                               emit=None) -> str:
+                               emit=None, quick: bool = False) -> str:
     """Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
     ITSELF loops for web use and web tools"). For a web-needing turn the PIPELINE
     runs the web toolchain itself: SearXNG web_search WITH FAN-OUT (multiple
@@ -4247,6 +4247,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     seen: set = set()           # urls already fetched (dedup ACROSS attempts)
     crawl_budget = WEB_RESEARCH_CRAWL_MAX
     link_budget = WEB_RESEARCH_CRAWL_MAX   # 2-hop article-link drill budget
+    # QUICK mode (operator 2026-05-30): a research facet that only feeds an ACTION
+    # (e.g. "launch the best game" -> rank then launch_verified) needs a FAST
+    # ranking, not the full multi-attempt 2-hop drill -- one search pass, no deep
+    # crawl. Standalone research (news, reports; no action) keeps the deep loop.
+    _max_att = 1 if quick else WEB_RESEARCH_MAX_ATTEMPTS
     want = max(1, WEB_RESEARCH_FETCH_N)
     n_crawled = 0               # pages whose richest text came from a deep engine
     passes = 0
@@ -4264,7 +4269,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         # deep engines are turn-budgeted (crawl_budget) to protect the renderers.
         nonlocal crawl_budget
         jobs = [("read", _extract(url))]
-        if WEB_RESEARCH_CRAWL_FALLBACK and crawl_budget > 0:
+        if (not quick) and WEB_RESEARCH_CRAWL_FALLBACK and crawl_budget > 0:
             crawl_budget -= 1
             jobs += [("deep-crawl", _crawl(url)), ("firecrawl", _firecrawl(url))]
         outs = await asyncio.gather(*[j for _, j in jobs])
@@ -4379,7 +4384,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         _txt = "\n".join(out)
         return re.sub(r"\n{3,}", "\n\n", _txt).strip()
 
-    for attempt in range(1, WEB_RESEARCH_MAX_ATTEMPTS + 1):
+    for attempt in range(1, _max_att + 1):
         _rec({"emoji": "🔎", "label": "searching the web",
               "detail": (("news · " if _use_news else
                           (_time_range + " · " if _time_range else ""))
@@ -4494,7 +4499,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         # DEFINITION-OF-DONE: does what we hold actually ANSWER the query? If yes
         # (or attempts exhausted) stop; else re-search with the judge's sharper
         # query. This is the "loop until satisfied" -- model-driven, no hardcode.
-        if attempt >= WEB_RESEARCH_MAX_ATTEMPTS:
+        if attempt >= _max_att:
             break
         _gathered = "\n\n".join(
             ((content.get(r.get("url", "")) or snippets.get(r.get("url", ""))
@@ -9147,6 +9152,15 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         try:
             _agent_nodes = [n for n in dag.get("nodes", [])
                             if n.get("agent") and n.get("prompt")]
+            # If the DAG performs an ACTION (a write-permission verb node such as
+            # launch_verified), the research facets only need a FAST ranking to
+            # feed it -> quick mode (one pass, no deep crawl). A standalone
+            # research DAG (no action verb) keeps the deep loop (operator
+            # 2026-05-30: "launch the best game" took ~11 min in the deep loop).
+            _action_dag = any(
+                str((_VERB_CATALOG.get(str(_n.get("tool"))) or {})
+                    .get("permission", "")).lower() == "write"
+                for _n in dag.get("nodes", []))
             if not _agent_nodes:
                 return
             if emit:
@@ -9174,7 +9188,8 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 # never internal names).
                 _sink = emit if emit else None
                 try:
-                    _wc = await _web_research_enrich(_fq, _fref, emit=_sink)
+                    _wc = await _web_research_enrich(_fq, _fref, emit=_sink,
+                                                     quick=_action_dag)
                 except Exception:  # noqa: BLE001
                     _wc = ""
                 # A WEB facet grounds on its fetched web content ALONE. The
