@@ -3619,6 +3619,13 @@ _REFINE_SYSTEM_LITE = (
     "    web search for local machine state returns irrelevant junk -- random\n"
     "    files, dictionaries, brand names). Keep intent=agent. Omit/false for\n"
     "    anything that needs EXTERNAL / web information.\n"
+    '  "inventory_filter": ONLY with local_state -- when the question targets a\n'
+    "    SPECIFIC category/kind of installed thing ('what GAMES do I have',\n"
+    "    'list my browsers', 'show installed editors'), the short substring to\n"
+    "    filter the app inventory by (e.g. 'games', 'browser', 'editor'). Lets\n"
+    "    the pipeline pull a SMALL focused list instead of the whole inventory.\n"
+    "    OMIT for a general 'what's installed / list all apps'. Your choice of\n"
+    "    word, not a fixed list.\n"
     '  "intended_outcome": one line -- what the user expects back\n'
     '  "target_agent": a registered sub-agent chosen by role\n'
     '  "hint_tools": [verb names from the catalog the agent will need]\n'
@@ -4346,6 +4353,13 @@ async def _read_tool_enrich(refined: Optional[dict],
     # on this host is skipped by the catalog check below; these are READ-only
     # (no launch). Capability verb names (SSOT), not a topic/keyword list.
     _core_set: set = set()
+    # A category-specific inventory question ("what GAMES / browsers / editors do
+    # I have") -> refine emits `inventory_filter` (model-chosen substring, NOT a
+    # hardcoded keyword list) so we run mios_apps(filter=X): a SMALL focused
+    # grounding the 4b can fully enumerate, vs the full ~32KB dump where games
+    # sit 23KB deep + the model said "no games" despite 11 installed (operator
+    # 2026-05-29). Omitted for a general "what's installed" -> full inventory.
+    _inv_filter = str((refined or {}).get("inventory_filter") or "").strip()
     if refined.get("local_state"):
         _core = ["system_status", "mios_apps", "process_list",
                  "container_status", "list_windows"]
@@ -4374,9 +4388,12 @@ async def _read_tool_enrich(refined: Optional[dict],
             continue
         if len(ran) >= _max:
             break
+        # Focus the inventory verb when refine named a category (else full dump).
+        _targs = ({"filter": _inv_filter}
+                  if tool == "mios_apps" and _inv_filter else {})
         try:
             res = await asyncio.wait_for(
-                dispatch_mios_verb(tool, {}, session_id=session_id),
+                dispatch_mios_verb(tool, _targs, session_id=session_id),
                 timeout=READ_TOOL_ENRICH_TIMEOUT)
         except Exception as e:  # noqa: BLE001 -- best-effort
             log.debug("read-tool enrich %s failed: %s", tool, e)
