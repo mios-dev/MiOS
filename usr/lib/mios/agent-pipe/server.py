@@ -2017,6 +2017,8 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
                 _opts2["num_ctx"] = int(body["num_ctx"])
             if _opts2:
                 payload["options"] = _opts2
+            if body.get("response_format"):
+                payload["format"] = "json"   # ollama structured-output knob
             r = await client.post(
                 f"{base}/api/chat",
                 content=json.dumps(payload).encode("utf-8"),
@@ -2480,6 +2482,8 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                 _opts["num_ctx"] = int(body["num_ctx"])
             if _opts:
                 payload["options"] = _opts
+            if body.get("response_format"):
+                payload["format"] = "json"   # ollama structured-output knob
             async with client.stream(
                     "POST", f"{base}/api/chat",
                     content=json.dumps(payload).encode("utf-8"),
@@ -7634,12 +7638,14 @@ _PLANNER_SYSTEM = (
     "(#En2), NOT the first item -- and it is a REAL launch_verified VERB node so\n"
     "it ACTUALLY FIRES (never just narrate 'launching X'):\n"
     '  {"id":"n1","tool":"mios_apps","args":{"filter":"games"},"deps":[]},\n'
-    '  {"id":"n2","agent":"hermes","prompt":"From these installed games -> #En1 '
-    "-- do ONE web search comparing their aggregate review scores (do NOT search "
-    "each title separately -- one comparative query), then reply with ONLY the "
-    "single highest-rated game's EXACT launch name (its name/app_id from the "
-    'list), nothing else.","deps":["n1"]},\n'
-    '  {"id":"n3","tool":"launch_verified","args":{"name":"#En2"},"deps":["n2"]}\n'
+    '  {"id":"n2","agent":"hermes","prompt":"From these installed GAMES -> #En1 '
+    "-- do ONE web search comparing their aggregate review scores (one "
+    "comparative query, not per-title); pick the single highest-rated ACTUAL "
+    "GAME (ignore non-game library items like wallpaper/utility/benchmark/"
+    "redistributable entries). Output STRUCTURED JSON ONLY, no prose: "
+    '{\\"winner\\":\\"<exact launch name from the list>\\"}.",'
+    '"format":"json","deps":["n1"]},\n'
+    '  {"id":"n3","tool":"launch_verified","args":{"name":"#En2.winner"},"deps":["n2"]}\n'
     "\n"
     "Example B -- find a file then open it (PREFER this over mios-find\n"
     "for `find X` / `where is X` -- directory_lookup is ~100x faster):\n"
@@ -8422,6 +8428,12 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
                 body["tools"] = _wtools
                 body["num_ctx"] = WORKER_TOOL_CTX
                 body["_allow_write"] = True
+        # Structured output (operator 2026-05-30 "jsonish ??!!"): when the planner
+        # marks a node format:json, constrain the agent to emit a REAL JSON object
+        # so a downstream #E<id>.<field> ref reads the value DETERMINISTICALLY --
+        # no brittle "jsonish" first-line guessing.
+        if str(node.get("format") or "").lower() == "json":
+            body["response_format"] = {"type": "json_object"}
         hdrs = {"Content-Type": "application/json"}
 
         # STREAM vs COMPLETE: with a fragment queue (streaming DAG paths) the
