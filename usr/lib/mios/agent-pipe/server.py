@@ -3175,6 +3175,50 @@ def _env_grounding() -> str:
     return t + ("\n" + c if c else "")
 
 
+# ─── Universal agent contract (.md at the overlay root) ────────────────
+# operator 2026-05-30: "the stack ... present ai .md(s) (AGENTS.md, SOUL.md)"
+# + "all tools/skills/recipes to every agent and sub-agent at all times +
+# they can delegate". The capability/behaviour rules live in the OVERLAY .md
+# (version-controlled, FHS-placed) -- NOT hardcoded Python strings -- and the
+# pipe presents the contract as the LEAD system message at EVERY agent hop
+# (primary, council secondary, swarm/DAG worker). This is what stops a bare
+# qwen worker fabricating or lying "I have no internet" (it was dispatched
+# with no SOUL, no tools, no contract). Layered SSOT: ~/.config wins over
+# /etc wins over the /usr vendor copy. Read ONCE at import; degrade to "" if
+# absent (no crash, just no injection).
+_AGENT_CONTRACT_PATHS = (
+    os.path.expanduser("~/.config/mios/ai/agent-contract.md"),
+    "/etc/mios/ai/agent-contract.md",
+    "/usr/share/mios/ai/agent-contract.md",
+)
+
+
+def _load_agent_contract() -> str:
+    for _p in _AGENT_CONTRACT_PATHS:
+        try:
+            with open(_p, "r", encoding="utf-8") as _f:
+                _txt = _f.read().strip()
+            if _txt:
+                # Drop the leading FHS/blockquote metadata lines (begin '>')
+                # so the agent sees the contract body, not the file header.
+                _body = "\n".join(
+                    ln for ln in _txt.splitlines()
+                    if not ln.lstrip().startswith(">")).strip()
+                return _body or _txt
+        except (OSError, UnicodeDecodeError):
+            continue
+    return ""
+
+
+_AGENT_CONTRACT = _load_agent_contract()
+
+
+def _agent_contract() -> str:
+    """The universal runtime contract presented to EVERY agent + sub-agent.
+    Empty string when the overlay .md is missing (degrade open)."""
+    return _AGENT_CONTRACT
+
+
 def _current_year() -> str:
     """Current 4-digit year. Prefers the USER's client date (the env-detected
     value the OWUI pipe forwarded) so a query anchors to the OPERATOR's NOW,
@@ -3672,6 +3716,13 @@ _REFINE_SYSTEM_LITE = (
     "    so they research CONCURRENTLY and a synthesis combines them; a real\n"
     "    swarm, not one shallow pass. A narrow single-fact ask is NOT\n"
     "    multi_task. Emit a tasks array (>=2 entries).\n"
+    "    multi_task is for INDEPENDENT work only -- goals or facets that could\n"
+    "    each run on their own, none needing another's RESULT (run as parallel\n"
+    "    tool calls). When a single goal's later step instead CONSUMES an\n"
+    "    earlier step's output, that is NOT multi_task: it is one agent running\n"
+    "    the standard tool-calling loop, issuing tool calls in order so the\n"
+    "    final action uses the RESOLVED value, not a description of it. Classify\n"
+    "    that agent and let the loop sequence it.\n"
     "  Default to agent whenever the request is not purely conversation;\n"
     "  when in doubt between chat and agent, choose agent.\n"
     "\n"
@@ -5868,11 +5919,14 @@ def _build_agent_hint(refined: dict, target_name: str) -> str:
     # not limits -- state it explicitly so an agent never assumes it's scoped
     # to the hinted subset. Compact (no full-catalog dump -- keeps the micro
     # context budget) + reinforces act-don't-narrate.
+    # Capability/behaviour rules (global tool access, live internet, no
+    # disclaim/fabricate, delegation) now live in the overlay agent-contract
+    # .md presented as the LEAD system message at every hop -- not duplicated
+    # here. This block carries only the per-plan hints. Keep one terse pointer
+    # so the hinted-subset is never misread as a limit.
     lines.append(
-        "tool_access: GLOBAL -- hint_tools/hint_skills are SUGGESTIONS, not "
-        "limits; you may invoke ANY MiOS tool / skill / recipe. Acting "
-        "(install / post / fetch / run / open) REQUIRES a real tool_call, "
-        "never narration.")
+        "tool_access: GLOBAL -- the hints above are SUGGESTIONS, not limits "
+        "(see the agent contract). Acting REQUIRES a real tool_call.")
     # Per-step tool cards (ReWOO + MCP-style annotations). Carries
     # the WHY + the success predicate INTO the sub-agent so it
     # doesn't have to re-derive the plan. Cap at 8 cards so we
@@ -8095,6 +8149,16 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         # Inject the rolling scratchpad so this node sees checkpoints from
         # earlier DAG levels (sequential levels -> level N reads level N-1).
         _node_msgs: list = []
+        # Universal agent contract FIRST (operator 2026-05-30): a swarm/DAG
+        # worker was dispatched with NO SOUL, NO tools, NO contract -> it
+        # fabricated or lied "I have no internet". Present the overlay .md
+        # contract so every worker knows it is a MiOS agent with global tool
+        # access + live internet + delegation, and must call tools, not
+        # disclaim or invent. Grounding too, so no stale-year fabrication.
+        _contract = _agent_contract()
+        if _contract:
+            _node_msgs.append({"role": "system",
+                               "content": _contract + "\n\n" + _env_grounding()})
         _sp_block = _scratchpad_render()
         if _sp_block:
             _node_msgs.append({"role": "system", "content": _sp_block})
@@ -8585,10 +8649,15 @@ _SWARM_SYSTEM_HEAD = (
     "must STAND ALONE and produce its own answer; do NOT make one task 'search' "
     "and another 'summarise' (that is a dependent pipeline, not a parallel "
     "swarm).\n"
-    "- Emit {\"subtasks\":[]} ONLY for a TRULY ATOMIC ask: a single bare fact "
-    '("what time is it", "capital of France") or a single concrete action ("open '
-    'chrome"). A question with ANY breadth, multiple aspects, or that benefits '
-    "from several angles is NOT atomic -- SPLIT IT into distinct facets.\n"
+    "- Emit {\"subtasks\":[]} for a TRULY ATOMIC ask (a single bare fact, a "
+    "single concrete action) OR for a DEPENDENT PIPELINE: a single goal whose "
+    "later step needs an earlier step's RESULT -- the final step acts on a value "
+    "the earlier steps must first resolve. Parallel workers CANNOT run a "
+    "dependent pipeline (each would act on an unresolved placeholder, fabricate "
+    "the missing value, or act on the literal description); one agent runs the "
+    "tool-calling loop and sequences those steps in order, so return []. Only a "
+    "question with INDEPENDENT breadth -- angles that each stand alone and need "
+    "no other's result -- is splittable: SPLIT that into distinct facets.\n"
     "- A request that includes an INTERACTIVE web/app ACTION (sign up, log in, set "
     "up an account/alert, book, fill + submit a form, post) STILL decomposes its "
     "RESEARCH facets normally (context, options, best settings) -- the action "
@@ -15375,7 +15444,16 @@ async def chat_completions(request: Request) -> Any:
                            and not _force_delegate
                            and _hints_write_action(refined)):
             pb["tool_choice"] = "required"
-        sp: list = [{"role": "system", "content": _env_grounding()}]
+        # Universal agent contract FIRST (operator 2026-05-30 ".md presented
+        # to every agent"): the primary + every council secondary lead with
+        # the overlay contract (global tools, live internet, delegation, no
+        # disclaim/fabricate) BEFORE env grounding -- so a secondary never
+        # falls back to "I have no internet" / stale-data invention.
+        sp: list = []
+        _contract = _agent_contract()
+        if _contract:
+            sp.append({"role": "system", "content": _contract})
+        sp.append({"role": "system", "content": _env_grounding()})
         _spb = _scratchpad_render()
         if _spb:
             sp.append({"role": "system", "content": _spb})
