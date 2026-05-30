@@ -244,13 +244,17 @@ while IFS= read -r TARGET; do
     # next browser / Windows last-resort only when NOTHING is running.
     _seg="$(printf '%s' "$TARGET" | sed 's/.*\.//')"
     _proc_ok=0
-    for _pp in 1 2 3; do
-        if command -v mios-as-operator >/dev/null 2>&1 \
-           && mios-as-operator flatpak ps --columns=application 2>/dev/null \
-                | grep -qiF "$TARGET"; then
-            _proc_ok=1; break
-        fi
-        if [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; then
+    # PID probe against the GLOBAL process table. The flatpak runs as the
+    # operator (uid != agent uid), so neither `flatpak ps` (per-user) nor
+    # `mios-as-operator flatpak ps` (a fire-and-forget LAUNCHER that returns
+    # NO stdout -- it dispatches detached) can see it. But /proc is global,
+    # so pgrep finds the operator's process from any agent context. Match
+    # the full app-id (present in the bwrap'd flatpak app path) then the
+    # trailing segment / binary name as a looser fallback. Backoff loop
+    # because GTK4 apps take a moment to fork the real process in.
+    for _pp in 1 2 3 4; do
+        if pgrep -fi "$TARGET" >/dev/null 2>&1 \
+           || { [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; }; then
             _proc_ok=1; break
         fi
         sleep "$_pp"

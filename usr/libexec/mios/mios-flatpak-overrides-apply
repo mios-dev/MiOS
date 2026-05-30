@@ -70,6 +70,25 @@ _disable_vk=$(_toml_get graphics.disable_vulkan "True")
 _gdk_backend=$(_toml_get graphics.gdk_backend "")
 _xcurs_path=$(_toml_get graphics.xcursor_path '~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps')
 
+# WSLg-aware override (operator trace 2026-05-30: every Linux flatpak
+# "nothing launched"). WSLg's compositor exposes NO DRI3 GPU device, so
+# GTK4's hardware GL renderers (ngl/gl/vulkan) fail to create a GL
+# context -- "libEGL DRI3 error: Could not get DRI3 device" -- and the
+# app DIES before mapping a window. The [graphics] SSOT is tuned for
+# bare-metal GPUs (gsk_renderer="ngl"), which is correct THERE but fatal
+# on WSLg. So: when running under WSLg, force the software render path
+# regardless of the SSOT; on bare-metal (real DRM /dev/dri + DRI3) the
+# SSOT hardware path is honoured untouched. This is detection logic, not
+# a hardcoded per-deployment value -- the same vendor default works on
+# both WSLg dev VMs and bare-metal MiOS deployments.
+if [ -d /mnt/wslg ] || grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+    _ssot_renderer="$_gsk_renderer"
+    _gsk_renderer="cairo"
+    _force_sw_gl="True"
+    _disable_vk="True"
+    echo "mios-flatpak-overrides-apply: WSLg detected -> forcing software GL (GSK_RENDERER=cairo, LIBGL_ALWAYS_SOFTWARE=1, no Vulkan); SSOT graphics.gsk_renderer='$_ssot_renderer' applies on bare-metal only" >&2
+fi
+
 # --reset clears the global override file completely; then we re-create
 # the MiOS-managed keys. This is safer than --unset of individual keys
 # (which can fail silently if the key doesn't exist).
