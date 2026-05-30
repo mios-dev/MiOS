@@ -497,7 +497,11 @@ function Resolve-LaunchTarget($name) {
 }
 
 # FIRE a launch on this node's desktop, then poll for the window.
-function Invoke-LaunchAndVerify($app, $center = $false) {
+function Invoke-LaunchAndVerify($app, $center = $false, $verifyName = '') {
+    # Window-match needle: prefer the human title hint -- a steam:// URI or a
+    # shell:appsFolder string never appears in a window title, so verifying a
+    # game by $app would always miss (operator 2026-05-30). Falls back to $app.
+    $wname = if ([string]::IsNullOrWhiteSpace($verifyName)) { $app } else { $verifyName }
     $target = Resolve-LaunchTarget $app
     $fired  = $false
     $fireErr = ''
@@ -532,7 +536,7 @@ function Invoke-LaunchAndVerify($app, $center = $false) {
     Start-Sleep -Seconds $VerifySettleSeconds
     $verdict = @{ launched = $false; summary = 'no-window' }
     for ($i = 0; $i -lt [Math]::Max(1,$VerifyAttempts); $i++) {
-        $verdict = Test-WindowPresent $app
+        $verdict = Test-WindowPresent $wname
         if ($verdict.launched) { break }
         if ($i -lt ($VerifyAttempts - 1)) { Start-Sleep -Seconds $VerifyIntervalSeconds }
     }
@@ -545,9 +549,9 @@ function Invoke-LaunchAndVerify($app, $center = $false) {
     $centered = $false
     if ($center -and $verdict.launched) {
         try {
-            [void](Invoke-WindowOp 'center' $null $app 0 0 0 0 '')
+            [void](Invoke-WindowOp 'center' $null $wname 0 0 0 0 '')
             Start-Sleep -Milliseconds 900
-            [void](Invoke-WindowOp 'center' $null $app 0 0 0 0 '')
+            [void](Invoke-WindowOp 'center' $null $wname 0 0 0 0 '')
             $centered = $true
         } catch {}
     }
@@ -636,7 +640,7 @@ while ($listener.IsListening) {
             $body = ''
             $reader = New-Object System.IO.StreamReader($ctx.Request.InputStream, $ctx.Request.ContentEncoding)
             try { $body = $reader.ReadToEnd() } finally { $reader.Close() }
-            $app = ''; $center = $false
+            $app = ''; $center = $false; $verify = ''
             if ($body) {
                 try {
                     $j = $body | ConvertFrom-Json
@@ -646,11 +650,16 @@ while ($listener.IsListening) {
                     if ($j.PSObject.Properties.Name -contains 'center') {
                         $center = [bool]$j.center
                     } else { $center = $true }
+                    # Optional human title hint for the window-match (games: a
+                    # steam:// URI never matches a window title).
+                    if ($j.PSObject.Properties.Name -contains 'verify') {
+                        $verify = ([string]$j.verify).Trim()
+                    }
                 } catch { $app = ''; $center = $true }
             }
             if (-not $app) { Write-JsonResponse $ctx 400 @{ error = "missing 'app' in JSON body" } }
             else {
-                $r = Invoke-LaunchAndVerify $app $center
+                $r = Invoke-LaunchAndVerify $app $center $verify
                 ("{0}  launch app={1} fired={2} launched={3}" -f (Get-Date -Format s), $app, $r.fired, $r.launched) |
                     Out-File -FilePath $logFile -Append -Encoding utf8
                 Write-JsonResponse $ctx 200 $r

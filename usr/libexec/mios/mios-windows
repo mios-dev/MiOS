@@ -137,7 +137,11 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path>
     command -v curl >/dev/null 2>&1 || return 1
     _xe="$(_mios_executor_endpoint)"
     [ -z "$_xe" ] && return 1
-    _payload="$(python3 -c 'import json,sys; print(json.dumps({"app": sys.argv[1], "center": True}))' "$1" 2>/dev/null)"
+    # `verify` = the human title hint (MIOS_LAUNCH_TITLE_HINT, e.g. "Forza
+    # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
+    # URI / shell:appsFolder string that never appears in a window title
+    # (operator 2026-05-30). Falls back to `app` when no hint is set.
+    _payload="$(python3 -c 'import json,sys,os; print(json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}))' "$1" 2>/dev/null)"
     [ -z "$_payload" ] && return 1
     _resp="$(curl -s --max-time 45 -X POST -H 'Content-Type: application/json' \
              --data "$_payload" "$_xe/launch" 2>/dev/null)"
