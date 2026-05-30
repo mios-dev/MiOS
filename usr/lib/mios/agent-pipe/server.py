@@ -11400,19 +11400,93 @@ async def _a2a_probe_peer(cfg: dict) -> None:
              pid, len(skills), state.get("protocolVersion"))
 
 
+async def _a2a_tailnet_candidates() -> list:
+    """Candidate base-URLs to probe for an A2A agent-card: every ONLINE tailnet
+    peer at the agent-pipe port (`tailscale status --json`) + any explicit
+    MIOS_A2A_DISCOVER_URLS. Best-effort -- if the tailscale CLI is unreachable
+    from the agent uid, only the explicit list is used. SSOT: the mios.toml
+    [a2a] block feeds MIOS_A2A_DISCOVER_PORT / MIOS_A2A_DISCOVER_URLS via the
+    userenv slot (no hardcoded node IPs in code)."""
+    try:
+        port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT", "8640") or 8640)
+    except ValueError:
+        port = 8640
+    urls: list = []
+    for u in (os.environ.get("MIOS_A2A_DISCOVER_URLS", "") or "").split(","):
+        u = u.strip().rstrip("/")
+        if u:
+            urls.append(u)
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "tailscale", "status", "--json",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(p.communicate(), timeout=6)
+        data = json.loads((out or b"").decode("utf-8", "replace") or "{}")
+        for peer in (data.get("Peer") or {}).values():    # Peer = OTHERS, not Self
+            if not isinstance(peer, dict) or not peer.get("Online"):
+                continue
+            for ip in (peer.get("TailscaleIPs") or [])[:1]:   # first (v4) IP
+                if ip:
+                    urls.append(f"http://{ip}:{port}")
+    except Exception as e:  # noqa: BLE001
+        log.debug("a2a discover: tailscale status unavailable: %s", e)
+    seen: set = set(); out_urls: list = []
+    for u in urls:
+        if u not in seen:
+            seen.add(u); out_urls.append(u)
+    return out_urls
+
+
+async def _a2a_autodiscover_peers(known_urls: set) -> list:
+    """Probe tailnet/explicit candidate URLs for an A2A agent-card; return peer
+    cfgs for responders (skip URLs already in the registry, skip non-cards). So
+    a NEW MiOS agent-pipe node auto-joins the mesh with zero registry editing
+    (operator 2026-05-29). OFF unless MIOS_A2A_TAILNET_DISCOVER is truthy; never
+    raises; fast-fails on the compute-only nodes (ollama/oscontrol) that 404 the
+    card."""
+    if os.environ.get("MIOS_A2A_TAILNET_DISCOVER", "").strip().lower() \
+            not in {"1", "true", "yes"}:
+        return []
+    cands = [u for u in await _a2a_tailnet_candidates()
+             if u.rstrip("/") not in known_urls]
+    if not cands:
+        return []
+    log.info("a2a autodiscover: probing %d tailnet candidate(s)", len(cands))
+
+    async def _probe(url: str) -> Optional[dict]:
+        card = await _a2a_fetch_card(url, {}, timeout_s=5.0)
+        if not isinstance(card, dict) or card.get("error"):
+            return None
+        name = str(card.get("name") or card.get("agent_name") or "").strip()
+        pid = (str(card.get("id") or "").strip()
+               or "auto-" + url.split("//", 1)[-1].replace(":", "-").replace("/", ""))
+        return {"id": pid, "url": url, "label": name or pid,
+                "_autodiscovered": True}
+
+    found = await asyncio.gather(*(_probe(u) for u in cands),
+                                 return_exceptions=True)
+    return [c for c in found if isinstance(c, dict)]
+
+
 async def _a2a_client_startup() -> None:
-    """Read the peer registry, probe every enabled peer concurrently. Errors
-    per peer are captured in state; total startup never blocks on a slow
-    peer."""
+    """Read the peer registry (+ optional tailnet auto-discovery), probe every
+    enabled peer concurrently. Errors per peer are captured in state; total
+    startup never blocks on a slow peer."""
     if os.environ.get("MIOS_A2A_CLIENT_DISABLED",
                       "").strip().lower() in {"1", "true", "yes"}:
         log.info("a2a client: disabled by env (MIOS_A2A_CLIENT_DISABLED)")
         return
     peers = _a2a_load_peers()
+    _known = {str((p.get("url") or "")).rstrip("/") for p in peers}
+    _disc = await _a2a_autodiscover_peers(_known)
+    if _disc:
+        log.info("a2a autodiscover: +%d tailnet peer(s)", len(_disc))
+        peers = peers + _disc
     if not peers:
-        log.info("a2a client: registry empty -- no external peers configured")
+        log.info("a2a client: registry empty + no tailnet peers discovered")
         return
-    log.info("a2a client: probing %d external peer(s)", len(peers))
+    log.info("a2a client: probing %d peer(s) (%d registry + %d discovered)",
+             len(peers), len(peers) - len(_disc), len(_disc))
     await asyncio.gather(*(_a2a_probe_peer(s) for s in peers),
                          return_exceptions=True)
 
