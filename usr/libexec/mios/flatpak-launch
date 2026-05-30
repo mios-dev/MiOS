@@ -277,6 +277,29 @@ if [ "$IS_WSL" = "1" ]; then
     fi
     export WAYLAND_DISPLAY DISPLAY
     [ -n "${PULSE_SERVER:-}" ] && export PULSE_SERVER
+
+    # Step 3b ── WSL_INTEROP + WSL2_GUI_APPS_ENABLED best-effort recovery.
+    # systemd-spawned contexts running as the operator (mios-launcher.service,
+    # hermes-agent.service) don't inherit these. NOTE (operator trace
+    # 2026-05-30): setting WSL_INTEROP to a borrowed/foreign socket is NOT
+    # sufficient on its own -- the flatpak portal credential handshake
+    # requires the process to actually BELONG to the session that owns the
+    # interop, else it dies with "--env-fd: Not an open file descriptor: 13"
+    # + "failed to receive credentials". The real fix is the wsl.exe login-
+    # session re-launch in Step 6 below. This recovery is kept only as
+    # belt-and-suspenders for callers that ARE already in a usable session
+    # but had the var stripped. Harmless on bare-metal (no /run/WSL).
+    if [ -z "${WSL_INTEROP:-}" ] || [ ! -S "${WSL_INTEROP:-/nonexistent}" ]; then
+        for _ix in $(ls -t /run/WSL/*_interop 2>/dev/null); do
+            if [ -S "$_ix" ]; then
+                WSL_INTEROP="$_ix"
+                export WSL_INTEROP
+                break
+            fi
+        done
+    fi
+    : "${WSL2_GUI_APPS_ENABLED:=1}"
+    export WSL2_GUI_APPS_ENABLED
 fi
 
 # Step 4 ── D-Bus session bus. The libportal autolaunch-error path triggers
@@ -343,16 +366,55 @@ done
 # everything else.
 # Arm auto-center (snapshot windows now, center the new one once it maps).
 _mios_fire_autocenter
-# DETACH the launch (operator 2026-05-29 OS-control train: `open the gedit
-# editor` opened the window but the agent reported FAILURE -- exit -1
-# "capture timeout >45s"). When flatpak-launch runs in the OPERATOR context
-# (broker / mios-gui / interactive shell -> _NEED_REEXEC=0, so paths A/B were
-# skipped), the old `exec flatpak run` ran the long-lived GUI in the
-# FOREGROUND, blocking the caller until the app exits -> the agent-pipe's 45s
-# capture timeout fired and marked a SUCCESSFUL launch as failed. GUI flatpaks
-# are fire-and-forget: launch detached (own session) and return ~instantly;
+
+# ─── THE WSLg launch fix (operator trace 2026-05-30: every flatpak GUI
+# "nothing launched at all"). On WSL a flatpak GUI app needs a REAL
+# wsl.exe login session for its xdg-portal / D-Bus credential handshake.
+# A broker- or systemd-spawned context -- EVEN running as the operator
+# (uid 992, _NEED_REEXEC=0, so the re-exec paths A/B above were skipped) --
+# is SESSIONLESS, and the app dies at startup with:
+#     error: --env-fd: Not an open file descriptor: 13
+#     ERROR: Connection: failed to receive credentials: ... read zero bytes
+# Pointing WSL_INTEROP at a borrowed/foreign live socket does NOT fix it
+# (Step 3b) -- the process must BELONG to the session that owns the interop.
+# So re-launch through a FRESH `wsl.exe -d <distro> --user <op>` session
+# (which the operator-uid broker context CAN exec even without WSL_INTEROP),
+# kept alive a few seconds for the flatpak to finish its portal bootstrap.
+# The app SURVIVES the session's death afterward (verified 2026-05-30), so
+# the keepalive only needs to cover startup. The whole re-launch is DETACHED
+# (setsid &) so the broker dispatch / agent tool-call returns ~instantly --
 # the agent-pipe before/after window-diff is the authoritative success check.
-# >/dev/null 2>&1 also drops the flatpak 1.17 "F: Not replacing /usr/*" noise.
+# _MIOS_FLATPAK_INSESSION guards against re-wrapping once we're inside the
+# fresh session. Bare-metal Linux (no wsl.exe) falls through to direct launch.
+if [ "$IS_WSL" = "1" ] && [ "${_MIOS_FLATPAK_INSESSION:-0}" != "1" ] \
+   && [ -e /mnt/c/Windows/System32/wsl.exe ]; then
+    # Resolve the WSL distro for re-entry: env -> /etc pin -> wsl.exe -l.
+    _wd="${WSL_DISTRO_NAME:-}"
+    [ -z "$_wd" ] && [ -r /etc/mios/wsl-distro ] && _wd="$(tr -d '\r\n' < /etc/mios/wsl-distro)"
+    if [ -z "$_wd" ]; then
+        _wd="$(/mnt/c/Windows/System32/wsl.exe -l --quiet 2>/dev/null | tr -d '\0\r' | head -1 | sed 's/[[:space:]]*$//')"
+    fi
+    [ -z "$_wd" ] && _wd="podman-MiOS-DEV"
+    _boot="${MIOS_FLATPAK_BOOTSTRAP_SECS:-12}"
+    # Safely single-quote each token for transit through `bash -lc`.
+    _q() { printf "'"; printf '%s' "$1" | sed "s/'/'\\\\''/g"; printf "'"; }
+    _inner="export _MIOS_FLATPAK_INSESSION=1; setsid flatpak run --system $(_q "$APP_ID")"
+    for _a in $EXTRA_FLAGS "$@"; do _inner="$_inner $(_q "$_a")"; done
+    # Background the GUI inside the session, then keep the session alive
+    # $_boot seconds so the portal handshake completes before it exits.
+    _inner="$_inner >/dev/null 2>&1 </dev/null & sleep $_boot"
+    setsid /mnt/c/Windows/System32/wsl.exe -d "$_wd" --user "$_op_user" -- \
+        bash -lc "$_inner" >/dev/null 2>&1 </dev/null &
+    echo "flatpak-launch: fired $APP_ID via wsl.exe session (detached, bootstrap ${_boot}s, auto-center armed)" >&2
+    exit 0
+fi
+
+# Non-WSL (bare-metal Linux desktop) OR already inside a usable session:
+# direct detached launch. GUI flatpaks are fire-and-forget -- launch in
+# their own session and return ~instantly (the old foreground `exec flatpak
+# run` blocked the caller until the GUI exited, tripping the agent-pipe 45s
+# capture timeout and marking a successful launch as failed). >/dev/null 2>&1
+# also drops the flatpak 1.17 "F: Not replacing /usr/*" noise.
 # shellcheck disable=SC2086 -- intentional word-splitting on EXTRA_FLAGS
 setsid flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@" >/dev/null 2>&1 < /dev/null &
 echo "flatpak-launch: fired $APP_ID (detached, auto-center armed)" >&2
