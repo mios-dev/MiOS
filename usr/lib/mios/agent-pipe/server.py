@@ -9176,7 +9176,21 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 # "crowdsec / firewall-bouncer error logs + 401s"). A local-only
                 # facet (no web content) still falls back to the live state.
                 _ss = _shared_state if isinstance(_shared_state, str) else ""
-                _parts = [_wc] if _wc else ([_ss] if _ss else [])
+                # Inventory-grounded request (refine set local_state /
+                # inventory_filter -> _shared_state holds the operator's ACTUAL
+                # installed games/apps via mios_apps): that local inventory is the
+                # AUTHORITATIVE subject the facet must research/act on, so inject it
+                # ALONGSIDE the web content -- NOT suppressed. Otherwise a "research
+                # MY games" facet web-researches generic popular titles and
+                # FABRICATES, never seeing the real list (operator 2026-05-30
+                # "FAILURE ENTIRELY": the swarm invented Valorant/CS2 instead of the
+                # real Wreckfest/Forza inventory that mios_apps had already fetched).
+                _inv_grounded = bool(refined and (refined.get("local_state")
+                                                  or refined.get("inventory_filter")))
+                if _inv_grounded and _ss:
+                    _parts = [p for p in (_ss, _wc) if p]   # real inventory FIRST
+                else:
+                    _parts = [_wc] if _wc else ([_ss] if _ss else [])
                 if _parts:
                     _g = "\n\n".join(_parts)
                     # Stash the RAW grounding so the final synthesis can work
