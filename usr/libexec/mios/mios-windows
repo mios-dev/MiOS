@@ -495,6 +495,20 @@ PSEOF
                 _resolved="$(mios-find "$app" 2>/dev/null | head -1)"
                 if [ -n "$_resolved" ]; then
                     echo "mios-windows launch: '$app' resolved via mios-find -> $_resolved" >&2
+                    # The mios-find line is a raw `mios-windows ps` INTEROP command
+                    # (Start-Process in a NON-INTERACTIVE station -> the window opens
+                    # where the operator never sees it -> "nothing launched" for Store
+                    # games / URIs; operator 2026-05-30 Wreckfest: fired:true but
+                    # presented_to_operator:false). Extract the launch TARGET (first
+                    # single-quoted token: a shell:appsFolder URI, a protocol:// URI,
+                    # or a path) and RE-LAUNCH it through THIS script's executor-first
+                    # path so it lands on the REAL interactive desktop. Fall back to
+                    # the interop line only if nothing usable extracts.
+                    _tgt="$(printf '%s' "$_resolved" | sed -n "s/[^']*'\([^']*\)'.*/\1/p" | head -1)"
+                    if [ -n "$_tgt" ] && [ "$_tgt" != "$app" ]; then
+                        MIOS_LAUNCH_TITLE_HINT="${MIOS_LAUNCH_TITLE_HINT:-$app}" \
+                            exec "$0" launch "$_tgt"
+                    fi
                     exec sh -c "$_resolved"
                 fi
             fi
