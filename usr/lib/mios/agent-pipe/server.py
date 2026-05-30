@@ -1992,14 +1992,31 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
     try:
         if _is_ollama:
             base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
+            _msgs = body.get("messages") or []
+            # Pipe-side tool-loop for a raw ollama worker (operator 2026-05-30
+            # "all tools to all agents"): resolve its tool_calls (web_search etc.;
+            # write/launch via the broker when allow_write) before the final
+            # answer so it GROUNDS in live output, not fabrication. Mirrors the
+            # streaming path; no-op when disabled or no tools.
+            if SECONDARY_TOOL_LOOP and body.get("tools"):
+                _msgs = await _ollama_secondary_tool_loop(
+                    client, base, _mdl or cfg.get("model"), _msgs,
+                    body["tools"], _to, lambda _s: None,
+                    num_ctx=body.get("num_ctx"),
+                    allow_write=bool(body.get("_allow_write")))
             payload = {
                 "model": _mdl or cfg.get("model"),
-                "messages": body.get("messages") or [],
+                "messages": _msgs,
                 "think": False,
                 "stream": False,
             }
+            _opts2: dict = {}
             if body.get("max_tokens"):
-                payload["options"] = {"num_predict": int(body["max_tokens"])}
+                _opts2["num_predict"] = int(body["max_tokens"])
+            if body.get("num_ctx"):
+                _opts2["num_ctx"] = int(body["num_ctx"])
+            if _opts2:
+                payload["options"] = _opts2
             r = await client.post(
                 f"{base}/api/chat",
                 content=json.dumps(payload).encode("utf-8"),
@@ -2013,6 +2030,10 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
             return name, _strip_think_tags(str(msg.get("content") or ""))
         nb = dict(body)
         nb["stream"] = False
+        # Private worker-loop signalling keys are ollama-side only -- never send
+        # them to a strict /v1 gateway (it may reject unknown fields).
+        nb.pop("_allow_write", None)
+        nb.pop("num_ctx", None)
         if _mdl:
             nb["model"] = _mdl
         # Pipe-side OpenAI tool-loop (operator 2026-05-27 "full loop until
@@ -2174,16 +2195,21 @@ def _verb_result_cap(verb: str) -> int:
     return cap if cap > 0 else READ_TOOL_ENRICH_CHARS
 
 
-async def _exec_tool_calls(tcs: list, push) -> tuple:
-    """Execute the READ-only verbs in an OpenAI tool_calls[] list via the broker
-    and return (tool_result_messages, ran_read). Shared by every pipe-side
-    sub-agent tool-loop (ollama + /v1) so the OpenAI loop is ONE mechanism
-    (operator 2026-05-27 'full loop ... to OpenAI Standards'). WRITE/LAUNCH verbs
-    are NEVER run here (no-live-launch binding) -> a skipped result so the model
-    adapts on the next round. tool_call_id is preserved for OpenAI-spec linkage;
-    the result is also keyed by `name` (some models match results by name)."""
+async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
+    """Execute the verbs in an OpenAI tool_calls[] list via the broker and return
+    (tool_result_messages, ran_any). Shared by every pipe-side sub-agent tool-loop
+    (ollama + /v1) so the OpenAI loop is ONE mechanism (operator 2026-05-27 'full
+    loop ... to OpenAI Standards'). tool_call_id is preserved for OpenAI-spec
+    linkage; the result is also keyed by `name` (some models match by name).
+
+    allow_write: when False (the PRIMARY's pipe-side pre-resolution) only
+    permission=read verbs auto-execute -- the primary's OWN loop performs writes.
+    When True (a WORKER/agent loop) write/launch verbs execute too: the MiOS
+    agents ACT -- the no-live-launch binding is CLAUDE's alone, not the agents'
+    (operator 2026-05-30). The broker's conversation-scoped single-flight dedup
+    collapses duplicate actions across the parallel swarm, so a write fires once."""
     tool_msgs: list = []
-    ran_read = False
+    ran_any = False
     for tc in tcs:
         fn = tc.get("function") or {}
         vname = str(fn.get("name") or "").strip()
@@ -2193,8 +2219,10 @@ async def _exec_tool_calls(tcs: list, push) -> tuple:
             tmsg["tool_call_id"] = tc["id"]   # OpenAI-spec linkage
         if vname:
             tmsg["name"] = vname
-        # no-live-launch: only permission=read verbs auto-execute here.
-        if not v or v.get("permission") != "read":
+        # read verbs always auto-execute; write/launch only when allow_write (an
+        # agent loop -- agents act). Unknown verb -> skip with an adaptive note.
+        if not v or (str(v.get("permission", "")).lower() != "read"
+                     and not allow_write):
             tmsg["content"] = f"(skipped {vname or '?'}: not a read-only tool)"
             tool_msgs.append(tmsg)
             continue
@@ -2257,7 +2285,8 @@ def _hints_write_action(refined: "Optional[dict]") -> bool:
 
 async def _ollama_secondary_tool_loop(client, base: str, model: str,
                                       messages: list, tools: list, timeout,
-                                      push) -> list:
+                                      push, num_ctx: "Optional[int]" = None,
+                                      allow_write: bool = False) -> list:
     """Pipe-side READ-ONLY tool-loop for a RAW ollama secondary (operator
     2026-05-22: sub-agents run their OWN live tool-loops). The /v1 agents
     (Hermes/opencode) already loop internally; a raw ollama node can't, so the
@@ -2274,6 +2303,10 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
         payload = {"model": model, "messages": msgs, "tools": tools,
                    "think": False, "stream": False}
+        if num_ctx:
+            # The verb surface alone is ~11K tok; raise the worker's context so
+            # ollama doesn't silently truncate the tools (default num_ctx=4096).
+            payload["options"] = {"num_ctx": int(num_ctx)}
         try:
             r = await client.post(
                 f"{base}/api/chat",
@@ -2302,7 +2335,7 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
         _seen.update(_sigs)
         msgs.append({"role": "assistant",
                      "content": msg.get("content") or "", "tool_calls": tcs})
-        _tmsgs, ran_read = await _exec_tool_calls(tcs, push)
+        _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
         if not ran_read:
             break
@@ -2311,7 +2344,7 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
 
 async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                                   messages: list, tools: list, timeout,
-                                  push) -> list:
+                                  push, allow_write: bool = False) -> list:
     """Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent (opencode :8633,
     hermes, daemon-agent, any node bound to a /v1 endpoint). Symmetric sibling of
     _ollama_secondary_tool_loop for the OpenAI /chat/completions shape: POST
@@ -2359,7 +2392,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
         _seen.update(_sigs)
         msgs.append({"role": "assistant",
                      "content": msg.get("content") or "", "tool_calls": tcs})
-        _tmsgs, ran_read = await _exec_tool_calls(tcs, push)
+        _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
         if not ran_read:
             break
@@ -2431,15 +2464,22 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
             # just falls straight through to the stream below.
             if SECONDARY_TOOL_LOOP and body.get("tools"):
                 _omsgs = await _ollama_secondary_tool_loop(
-                    client, base, _omdl, _omsgs, body["tools"], _to, _push)
+                    client, base, _omdl, _omsgs, body["tools"], _to, _push,
+                    num_ctx=body.get("num_ctx"),
+                    allow_write=bool(body.get("_allow_write")))
             payload = {
                 "model": _omdl,
                 "messages": _omsgs,
                 "think": False,
                 "stream": True,
             }
+            _opts: dict = {}
             if body.get("max_tokens"):
-                payload["options"] = {"num_predict": int(body["max_tokens"])}
+                _opts["num_predict"] = int(body["max_tokens"])
+            if body.get("num_ctx"):
+                _opts["num_ctx"] = int(body["num_ctx"])
+            if _opts:
+                payload["options"] = _opts
             async with client.stream(
                     "POST", f"{base}/api/chat",
                     content=json.dumps(payload).encode("utf-8"),
@@ -2464,6 +2504,10 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         # Bespoke /v1 gateway (opencode :8633, hermes :8642): SSE stream.
         nb = dict(body)
         nb["stream"] = True
+        # Private worker-loop signalling keys are ollama-side only -- never send
+        # them to a strict /v1 gateway (it may reject unknown fields).
+        nb.pop("_allow_write", None)
+        nb.pop("num_ctx", None)
         if _mdl:
             nb["model"] = _mdl
         # Pipe-side OpenAI tool-loop FIRST (operator 2026-05-27 "fix opencode +
@@ -3217,6 +3261,46 @@ def _agent_contract() -> str:
     """The universal runtime contract presented to EVERY agent + sub-agent.
     Empty string when the overlay .md is missing (degrade open)."""
     return _AGENT_CONTRACT
+
+
+# ─── Worker tool surface ("all tools to every agent + sub-agent") ──────
+# operator 2026-05-30: every agent + sub-agent has GLOBAL tool access AT ALL
+# TIMES + can delegate; the no-live-launch rule binds CLAUDE only -- the MiOS
+# agents ACT. So every swarm/DAG worker is handed the OpenAI verb surface +
+# runs a pipe-side tool-loop (the loops already exist) so it CALLS tools
+# (web_search etc.) + acts via the broker -- instead of fabricating or
+# disclaiming "I have no internet". Write/launch verbs execute too (allow_write)
+# -- the broker's conversation-scoped single-flight dedup collapses duplicate
+# actions across the parallel swarm. SSOT-tunable.
+WORKER_TOOLS_ENABLE = os.environ.get(
+    "MIOS_WORKER_TOOLS", "true").lower() not in {"false", "0", "no"}
+# Presented scope: "all" (every verb, ~11K tok -- the operator's "ALL tools")
+# or "read" (the 36 read-permission verbs only, ~5.6K tok -- lighter prefill on
+# the CPU/iGPU light lanes). Execution still allows write regardless of scope.
+WORKER_TOOLS_SCOPE = os.environ.get("MIOS_WORKER_TOOLS_SCOPE", "all").strip().lower()
+# Per-worker context window for the tool-bearing call (the surface alone is
+# ~11K tok, so the raw-ollama default 4096 would truncate it). qwen3 supports
+# this comfortably; raise/lower per VRAM + latency budget.
+WORKER_TOOL_CTX = int(os.environ.get("MIOS_WORKER_TOOL_CTX", "16384") or 16384)
+_WORKER_TOOLS_CACHE: "Optional[list]" = None
+
+
+def _worker_tools_surface() -> list:
+    """The MiOS verb catalog in OpenAI tools[] shape, for a worker's pipe-side
+    tool-loop. Scope from WORKER_TOOLS_SCOPE. Cached; empty on any build error
+    (degrade open). SSOT = _VERB_CATALOG (one catalog, projected here)."""
+    global _WORKER_TOOLS_CACHE
+    if _WORKER_TOOLS_CACHE is None:
+        try:
+            _WORKER_TOOLS_CACHE = [
+                _verb_to_openai_tool(n, c)
+                for n, c in _VERB_CATALOG.items()
+                if WORKER_TOOLS_SCOPE != "read"
+                or str(c.get("permission", "")).lower() == "read"
+            ]
+        except Exception:  # noqa: BLE001
+            _WORKER_TOOLS_CACHE = []
+    return _WORKER_TOOLS_CACHE
 
 
 def _current_year() -> str:
@@ -8171,6 +8255,19 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         body = {"model": acfg.get("model") or aname,
                 "messages": _node_msgs,
                 "max_tokens": _maxtok}
+        # All tools to every agent (operator 2026-05-30): hand this worker the
+        # OpenAI verb surface + raise its context so the surface fits + flag
+        # write-execution (the agents ACT; the no-launch rule is Claude's alone).
+        # The stream/complete paths run the pipe-side tool-loop over body.tools,
+        # so the worker CALLS web_search/etc. + acts via the broker instead of
+        # fabricating or disclaiming. Self-gating: a worker that needs no tool
+        # just answers in one pass (no-op).
+        if WORKER_TOOLS_ENABLE:
+            _wtools = _worker_tools_surface()
+            if _wtools:
+                body["tools"] = _wtools
+                body["num_ctx"] = WORKER_TOOL_CTX
+                body["_allow_write"] = True
         hdrs = {"Content-Type": "application/json"}
 
         # STREAM vs COMPLETE: with a fragment queue (streaming DAG paths) the
