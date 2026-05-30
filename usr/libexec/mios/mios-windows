@@ -408,6 +408,14 @@ PSEOF
 
         case "$app" in
             *://*)
+                # In-session executor FIRST: Start-Process invokes the protocol
+                # handler for steam:// / epic:// / uplay:// etc. natively + shows
+                # the window on the operator's desktop. The old broker/WSL-interop
+                # `ps` path fails "powershell.exe: Invalid argument" (the broker
+                # CWD isn't Windows-translatable) AND lands in a non-interactive
+                # window station (operator 2026-05-30: "play a game" -> steam:// ->
+                # Invalid argument). Fall back to the ps path only with no executor.
+                if _mios_launch_via_executor "$app"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
@@ -426,18 +434,19 @@ PSEOF
             # hasn'\''t been working" because the .exe doesn'\''t exist
             # at a predictable filesystem path for UWP packages.
             shell:appsFolder\\*|shell:AppsFolder\\*)
-                # PowerShell's Start-Process doesn't grok shell: URIs
-                # natively (it tries to resolve them as filesystem
-                # paths and 404s). explorer.exe DOES grok them -- it's
-                # the canonical Windows handler for shell: URIs. Wrap
-                # via explorer.exe + the path as its arg.
+                # UWP / Store / Xbox apps. In-session executor first (it launches
+                # shell: URIs via explorer.exe + shows the window on the desktop);
+                # the broker/interop ps path is the fallback (Start-Process can't
+                # grok shell: URIs, so explorer.exe is the handler there too).
+                if _mios_launch_via_executor "$app"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
             *_[0-9a-z]*\!*)
-                # Bare AppID (PackageFamilyName!Entry) from Get-StartApps
-                # -- prepend shell:appsFolder\ then dispatch the same
-                # explorer.exe way.
+                # Bare AppID (PackageFamilyName!Entry) from Get-StartApps --
+                # prepend shell:appsFolder\ then launch via the in-session
+                # executor first (explorer.exe handler), broker ps as fallback.
+                if _mios_launch_via_executor "shell:appsFolder\\$app"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;

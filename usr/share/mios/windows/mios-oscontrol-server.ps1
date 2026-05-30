@@ -502,8 +502,18 @@ function Invoke-LaunchAndVerify($app, $center = $false) {
     $fired  = $false
     $fireErr = ''
     if ($target) {
-        try { Start-Process -FilePath $target -ErrorAction Stop; $fired = $true }
-        catch { $fireErr = $_.Exception.Message }
+        try {
+            if ($target -like 'shell:*') {
+                # UWP / Store / Xbox apps: Start-Process can't grok shell: URIs
+                # (treats them as filesystem paths); explorer.exe is the handler.
+                Start-Process -FilePath 'explorer.exe' -ArgumentList $target -ErrorAction Stop
+            } else {
+                # exe paths, names, AND protocol URIs (steam:// epic:// uplay://
+                # ...) -- Start-Process invokes the registered protocol handler.
+                Start-Process -FilePath $target -ErrorAction Stop
+            }
+            $fired = $true
+        } catch { $fireErr = $_.Exception.Message }
     } else {
         $fireErr = 'could not resolve launch target'
     }
