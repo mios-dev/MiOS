@@ -7624,10 +7624,16 @@ _PLANNER_SYSTEM = (
     "                  need -- avoids ambiguity if the model picks the\n"
     "                  wrong default field.\n"
     "\n"
-    "Example A -- list games, pick winner, launch:\n"
+    "Example A -- list games, research, LAUNCH THE BEST. An AGENT node researches\n"
+    "the real inventory + names the winner; the launch refs THAT node's output\n"
+    "(#En2), NOT the first item -- and it is a REAL launch_verified VERB node so\n"
+    "it ACTUALLY FIRES (never just narrate 'launching X'):\n"
     '  {"id":"n1","tool":"mios_apps","args":{"filter":"games"},"deps":[]},\n'
-    '  {"id":"n2","tool":"web_search","args":{"query":"highest rated of: #En1.description"},"deps":["n1"]},\n'
-    '  {"id":"n3","tool":"open_app","args":{"name":"#En1.name"},"deps":["n1","n2"]}\n'
+    '  {"id":"n2","agent":"hermes","prompt":"From these installed games -> #En1 '
+    "-- research each title's reviews/ratings and reply with ONLY the single "
+    "highest-rated game's EXACT launch name (its name/app_id from the list), "
+    'nothing else.","deps":["n1"]},\n'
+    '  {"id":"n3","tool":"launch_verified","args":{"name":"#En2"},"deps":["n2"]}\n'
     "\n"
     "Example B -- find a file then open it (PREFER this over mios-find\n"
     "for `find X` / `where is X` -- directory_lookup is ~100x faster):\n"
@@ -7690,9 +7696,12 @@ _PLANNER_SYSTEM = (
     "- Pure conversational / explanation requests -- those are chat, not DAG.\n"
     "- Multi-source synthesis where the planner can't fix the source list\n"
     "  upfront -- delegate to the backend sub-agent.\n"
-    "- BUT for inventory + research + action like 'find my games, look up\n"
-    "  reviews, launch the best': emit the INVENTORY step (n1 mios_apps())\n"
-    "  + leave the research+launch to follow-up turns guided by the backend.\n"
+    "- For inventory + research + ACTION like 'find my games, look up reviews,\n"
+    "  launch the best': emit the FULL DAG per Example A -- the inventory verb,\n"
+    "  then an AGENT node that researches + names the winner, then the action\n"
+    "  verb (launch_verified) ref-ing that winner (#E). Do NOT defer the action\n"
+    "  to a later turn and do NOT emit the inventory step alone: the user asked\n"
+    "  for the launch to HAPPEN this turn.\n"
     "\n"
     "Rules:\n"
     "- Linearize when possible: each node depends only on its predecessor.\n"
@@ -15052,6 +15061,33 @@ async def chat_completions(request: Request) -> Any:
                 queued[0].get("title", ""),
                 [t.get("title", "") for t in queued[1:]],
             )
+            # ACTION-intended compound (e.g. "list my games, research reviews,
+            # LAUNCH the best"): try the verb-DAG planner FIRST so the action
+            # ACTUALLY FIRES. decompose_intent can emit a deterministic
+            # inventory -> agent-decides-winner -> launch_verified(#winner) DAG
+            # whose launch is a REAL broker verb node -- instead of the LLM-facet
+            # swarm merely narrating "launching X" (operator 2026-05-30 "FAILURE
+            # ENTIRELY"). Use it ONLY when it returns a real WRITE/action verb
+            # node; pure-research compounds fall through to the facets unchanged.
+            if PLANNER_ENABLED:
+                try:
+                    _vdag = await decompose_intent(last_user_text)
+                except Exception:  # noqa: BLE001
+                    _vdag = None
+                _vnodes = (_vdag.get("nodes") or []) if _vdag else []
+                _has_act = any(
+                    str((_VERB_CATALOG.get(str(n.get("tool"))) or {})
+                        .get("permission", "")).lower() == "write"
+                    for n in _vnodes)
+                if _has_act and len(_vnodes) >= 2:
+                    log.info("multi_task -> verb-DAG (action fires): %s",
+                             [n.get("tool") or ("agent:" + str(n.get("agent")))
+                              for n in _vnodes])
+                    return await _respond_agent_dag(
+                        _vdag, refined, streaming=streaming, chat_id=chat_id,
+                        model=model, session_id=session_id,
+                        last_user_text=last_user_text,
+                        persona_system=_persona_system)
             # Operator 2026-05-22 ("separate prompts per refinement step ->
             # sub-agents ... concurrent Compute"): run the independent tasks
             # as a CONCURRENT per-agent DAG THIS turn -- each task routed to
