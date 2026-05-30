@@ -4079,8 +4079,9 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         except Exception:  # noqa: BLE001
             return ""
 
-    async def _crawl(url: str) -> str:
+    async def _crawl(url: str) -> tuple:
         # Deep render via the local crawl engine (crawl4ai+CDP / Camoufox).
+        # Returns (markdown, links) -- links feed the 2-hop article drill below.
         try:
             p = await asyncio.create_subprocess_exec(
                 "mios-crawl", "--json", "--max-chars", str(WEB_RESEARCH_FETCH_CHARS),
@@ -4089,14 +4090,17 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_CRAWL_TIMEOUT)
             d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
-            return (d.get("markdown") or "").strip() if d.get("success") else ""
+            if d.get("success"):
+                return (d.get("markdown") or "").strip(), (d.get("links") or [])
+            return "", []
         except Exception:  # noqa: BLE001
-            return ""
+            return "", []
 
-    async def _firecrawl(url: str) -> str:
+    async def _firecrawl(url: str) -> tuple:
         # Clean article/news markdown via the self-hosted Firecrawl (web_scrape
         # backend). A THIRD fetch engine raced beside extract + crawl4ai so the
         # pipeline uses ALL web tools (operator) -- richest wins in _fetch_all.
+        # Returns (markdown, links).
         try:
             p = await asyncio.create_subprocess_exec(
                 "mios-firecrawl", "--max-chars", str(WEB_RESEARCH_FETCH_CHARS),
@@ -4105,9 +4109,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_CRAWL_TIMEOUT)
             d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
-            return (d.get("markdown") or "").strip() if d.get("success") else ""
+            if d.get("success"):
+                return (d.get("markdown") or "").strip(), (d.get("links") or [])
+            return "", []
         except Exception:  # noqa: BLE001
-            return ""
+            return "", []
 
     async def _judge_satisfied(user_q: str, gathered: str) -> tuple:
         # MODEL-DRIVEN Definition-of-Done (operator "loop until satisfied"): the
@@ -4240,6 +4246,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     touched: list = []          # results considered, in drill order
     seen: set = set()           # urls already fetched (dedup ACROSS attempts)
     crawl_budget = WEB_RESEARCH_CRAWL_MAX
+    link_budget = WEB_RESEARCH_CRAWL_MAX   # 2-hop article-link drill budget
     want = max(1, WEB_RESEARCH_FETCH_N)
     n_crawled = 0               # pages whose richest text came from a deep engine
     passes = 0
@@ -4261,7 +4268,17 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             crawl_budget -= 1
             jobs += [("deep-crawl", _crawl(url)), ("firecrawl", _firecrawl(url))]
         outs = await asyncio.gather(*[j for _, j in jobs])
-        cand = {label: (text or "") for (label, _), text in zip(jobs, outs)}
+        # _extract returns str; _crawl/_firecrawl return (text, links). Normalise
+        # + harvest the page's outbound links (article links for the 2-hop drill).
+        cand: dict = {}
+        links: list = []
+        for (label, _), out in zip(jobs, outs):
+            if isinstance(out, tuple):
+                _txt, _lks = out
+                cand[label] = _txt or ""
+                links.extend(_lks or [])
+            else:
+                cand[label] = out or ""
         # PREFER Firecrawl's CLEAN markdown when it's substantial: it strips nav/
         # chrome (onlyMainContent), whereas crawl4ai often out-LENGTHS it with the
         # page's NAV MENU, so pure 'longest wins' picked junk -- operator
@@ -4270,12 +4287,67 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         # thin/blocked. No hardcoded domains; purely engine-quality preference.
         fc = cand.get("firecrawl", "")
         if len(fc) >= WEB_RESEARCH_MIN_CHARS:
-            return fc, "firecrawl"
+            return fc, "firecrawl", links
         best, eng = "", "read"
         for label, text in cand.items():
             if len(text) > len(best):
                 best, eng = text, label
-        return best, eng
+        return best, eng, links
+
+    # Markdown link `[anchor](url)` -- crawl4ai/Camoufox returns the index page's
+    # article links INLINE in the rendered markdown (not a links[] array), and the
+    # anchor text IS the headline. NOT an image (`![..](..)`). Compiled once/turn.
+    _md_link_re = re.compile(r"(?<!\!)\[([^\]]{0,200})\]\((https?://[^)\s]+)\)")
+
+    def _rank_article_links(links: list, text: str, anchor: set,
+                            src_url: str) -> list:
+        # From an INDEX page, pick the most ARTICLE-LIKE URLs for the 2-hop drill --
+        # by STRUCTURE ONLY, NO hardcoded domain/keyword/topic list (operator
+        # binding). Candidates = the engine links[] PLUS every markdown
+        # [headline](url) parsed from the rendered text. Signals a STORY (not a
+        # section/utility link): a DEEP path, a long HYPHENATED slug, DIGITS
+        # (date/id), and a LONG anchor (a real headline). A strong topical anchor
+        # (>=2 tokens) also requires overlap. Shallow generic links score too low.
+        cands: list = []   # (anchor_text, url)
+        for it in (links or []):
+            u = it if isinstance(it, str) else (
+                (it.get("href") or it.get("url") or "") if isinstance(it, dict) else "")
+            if u:
+                cands.append(("", u.strip()))
+        for m in _md_link_re.finditer(text or ""):
+            cands.append((m.group(1).strip(), m.group(2).strip()))
+        scored: list = []
+        _seen_l: set = set()
+        for atext, u in cands:
+            if not u.startswith(("http://", "https://")) or u == src_url:
+                continue
+            if u in _seen_l or not _url_has_path(u):
+                continue
+            # Skip a NESTED linked-image `[![alt](img)](link)`: the simple regex
+            # captures the IMAGE url + an anchor that begins with image markdown.
+            # Structural (markdown shape), not an asset-extension list.
+            if atext.startswith("!") or "](" in atext:
+                continue
+            if len(anchor) >= 2 and not _shares_anchor(u + " " + atext, anchor):
+                continue
+            _tail = u.split("://", 1)[-1]
+            _path = _tail[_tail.find("/"):] if "/" in _tail else ""
+            _path = _path.split("?", 1)[0].split("#", 1)[0]
+            _segs = [s for s in _path.split("/") if s]
+            _last = (_segs[-1] if _segs else "").replace("_", "-")
+            _score = len(_segs)
+            if "-" in _last and len(_last) >= 12:
+                _score += 2                       # headline slug
+            if any(c.isdigit() for c in _path):
+                _score += 1                       # date / article id
+            if len(atext) >= 25:
+                _score += 2                       # long anchor = real headline
+            if _score < 2:                        # shallow generic / utility link
+                continue
+            _seen_l.add(u)
+            scored.append((_score, u))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [u for _s, u in scored[:6]]
 
     for attempt in range(1, WEB_RESEARCH_MAX_ATTEMPTS + 1):
         _rec({"emoji": "🔎", "label": "searching the web",
@@ -4319,11 +4391,15 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         _pathful = [r for r in ordered
                     if r.get("publishedDate") or _url_has_path(r.get("url", ""))]
         if _pathful:
-            if len(_pathful) < len(ordered):
-                log.info("web-research: dropped %d bare-homepage result(s); "
-                         "%d content URLs kept", len(ordered) - len(_pathful),
-                         len(_pathful))
-            ordered = _pathful
+            # Keep article/dated URLs for direct reading PLUS the top homepage(s)
+            # as 2-hop link SEEDS (operator 2026-05-30: mine the index for article
+            # links, don't just drop it). The homepage's own thin chrome demotes to
+            # a snippet below; its harvested article links carry the real stories.
+            _homes = [r for r in ordered if r not in _pathful]
+            ordered = _pathful + _homes[:2]
+            if _homes:
+                log.info("web-research: %d content URLs + %d index seed(s) for the "
+                         "2-hop article drill", len(_pathful), min(len(_homes), 2))
         idx = 0
         for _p in range(1, WEB_RESEARCH_PASSES + 1):
             passes += 1
@@ -4335,7 +4411,8 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             for r in batch:
                 seen.add(r.get("url", ""))
             fetched = await asyncio.gather(*[_fetch_all(r["url"]) for r in batch])
-            for r, (best, eng) in zip(batch, fetched):
+            _hop2: list = []   # article links harvested from index pages this batch
+            for r, (best, eng, _links) in zip(batch, fetched):
                 if eng != "read" and best:
                     n_crawled += 1
                 if len(best) >= WEB_RESEARCH_MIN_CHARS:
@@ -4350,6 +4427,36 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                                 if eng in ("deep-crawl", "firecrawl")
                                 else "reading the page"),
                       "detail": _ttl})
+                # 2-HOP ARTICLE DRILL (operator 2026-05-30 "use the WHOLE web stack
+                # ... drill into the stories, not the index"): when this page is an
+                # INDEX (bare homepage URL or thin article body) but the engines
+                # returned outbound links, harvest its top on-topic ARTICLE links so
+                # the SAME concurrent engine race reads the actual stories next.
+                _indexish = (not _url_has_path(r.get("url", ""))
+                             or len(best) < WEB_RESEARCH_MIN_CHARS)
+                if link_budget > 0 and _indexish and (_links or best):
+                    _hop2.extend(_rank_article_links(
+                        _links, best, _anchor, r.get("url", "")))
+            # Drill the harvested article links through the FULL engine race
+            # concurrently (bounded by link_budget + `want`), merging real article
+            # bodies into the grounding alongside the directly-fetched results.
+            _hop2 = [u for u in dict.fromkeys(_hop2)
+                     if u not in seen][:max(0, min(link_budget, want))]
+            if _hop2:
+                link_budget -= len(_hop2)
+                for u in _hop2:
+                    seen.add(u)
+                _drilled = await asyncio.gather(*[_fetch_all(u) for u in _hop2])
+                for u, (best, eng, _l) in zip(_hop2, _drilled):
+                    if eng != "read" and best:
+                        n_crawled += 1
+                    if len(best) >= WEB_RESEARCH_MIN_CHARS:
+                        content[u] = best
+                    elif best:
+                        snippets[u] = best
+                    touched.append({"url": u, "title": "story", "content": ""})
+                    _rec({"emoji": "📖", "label": "reading the story",
+                          "detail": u[:60]})
             if len(content) >= want:
                 break
         # DEFINITION-OF-DONE: does what we hold actually ANSWER the query? If yes
@@ -4373,7 +4480,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             seen.add(su)
             _rec({"emoji": "📖", "label": "reading the best source",
                   "detail": su[:60]})
-            _md = await _firecrawl(su)
+            _md, _ = await _firecrawl(su)
             if len(_md) >= WEB_RESEARCH_MIN_CHARS:
                 content[su] = _md
                 touched.append({"url": su, "title": "news source (judge-picked)",
