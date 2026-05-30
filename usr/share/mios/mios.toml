@@ -579,10 +579,19 @@ lookup_max_alias_results   = 3
 # is true). SSL cert + key paths optional for HTTPS termination.
 enable             = true
 bind               = "127.0.0.1"
+# Mobile (#82): expose the loopback bash terminal to the TAILNET (phones) over
+# tailnet-only HTTPS via `tailscale serve` (NOT the public internet). When true,
+# the mios-ttyd-expose.service oneshot publishes it on boot; off by default so a
+# fresh install never opens a shell unprompted. Toggle here or in mios.html.
+# The login is the SSOT [identity] credential (mios/mios) -- never unauth'd.
+tailnet_expose     = false
 # Master auth toggle: when bind != "127.0.0.1" + require_auth = true
 # + auth_user/pass empty, the service refuses to start (prevents
 # accidental open-network exposure).
 require_auth       = true
+# auth_user/auth_pass: empty = INHERIT the global [identity] login (username /
+# default_password, default mios/mios) -- same as Portal/Cockpit/Forge. Set per
+# instance only to override the one global credential.
 auth_user          = ""
 auth_pass          = ""
 # Optional TLS termination -- when both paths exist, ttyd serves

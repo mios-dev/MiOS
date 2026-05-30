@@ -35,6 +35,17 @@ if [ "${1:-}" = "off" ]; then
     exit 0
 fi
 
+# Day-0 gate: the boot oneshot (mios-ttyd-expose.service) runs with --auto and
+# ONLY proceeds when the operator opted in via SSOT [ttyd].tailnet_expose=true
+# (default false -> fresh installs keep the terminal loopback-only). A manual
+# `mios-ttyd-expose` (no arg) always exposes -- an explicit operator action.
+if [ "${1:-}" = "--auto" ]; then
+    case "$(_toml_get ttyd tailnet_expose || true)" in
+        true|1|yes|on) ;;
+        *) echo "mios-ttyd-expose: [ttyd].tailnet_expose not enabled -- ttyd stays loopback-only"; exit 0 ;;
+    esac
+fi
+
 USER_NAME="$(_toml_get identity username)";          USER_NAME="${USER_NAME:-mios}"
 PASS="$(_toml_get identity default_password)";       PASS="${PASS:-mios}"
 
