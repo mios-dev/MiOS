@@ -341,13 +341,15 @@ fi
 # as the real WINDOWS app (centered, verified) instead of a WSLg look-alike.
 # URLs / mios-* shims / explicit paths / "windows X" qualifiers were already
 # handled (exec'd) above. No hardcoded app list -- Windows resolution decides.
-if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 2>&1; then
-    echo "mios-launch: Windows executor first -> mios-windows launch '$NAME'" >&2
-    if mios-windows launch "$NAME" "$@"; then
-        exit 0
-    fi
-    echo "mios-launch: '$NAME' not a Windows app (executor miss) -> Linux resolution" >&2
-fi
+# (REMOVED 2026-05-30) The Windows-executor-FIRST attempt lived here. Per the
+# operator's binding rule -- "MiOS uses Linux Flatpaks as the DEFAULT for
+# everything; resort to Windows ONLY after exhausting ALL Linux options" --
+# Windows resolution now happens ONLY in the last-resort fallback (section 7b),
+# AFTER the Linux flatpak/RPM/CLI/desc-chain resolution below. "Open X" defaults
+# to Linux; Windows is reached only when Linux is exhausted, OR when the request
+# explicitly hints Windows (the "windows X" qualifier in section 3) or names a
+# Windows-only target (a Steam/Store game).
+:
 
 # ─── 3aa. Exact .exe lookup via Everything CLI ───────────────────────
 # For launcher / client names that don't live in the Windows-GUI

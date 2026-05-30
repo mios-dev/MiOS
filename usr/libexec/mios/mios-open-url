@@ -236,6 +236,31 @@ while IFS= read -r TARGET; do
 
     echo "[mios-open-url] $TARGET summary=${_summary:-<empty>} launch_rc=$_launch_rc" >&2
 
+    # PID-PROBE verification (operator 2026-05-30: "just probe PIDs for verifying
+    # success"). WSLg windows are NOT enumerable here (no wmctrl/xdotool), so the
+    # mios-window-active check above false-fails even when the browser opened. So
+    # confirm the flatpak's PROCESS is RUNNING instead -- a live instance means the
+    # app launched on the WSLg desktop. Linux is the DEFAULT; fall through to the
+    # next browser / Windows last-resort only when NOTHING is running.
+    _seg="$(printf '%s' "$TARGET" | sed 's/.*\.//')"
+    _proc_ok=0
+    for _pp in 1 2 3; do
+        if command -v mios-as-operator >/dev/null 2>&1 \
+           && mios-as-operator flatpak ps --columns=application 2>/dev/null \
+                | grep -qiF "$TARGET"; then
+            _proc_ok=1; break
+        fi
+        if [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; then
+            _proc_ok=1; break
+        fi
+        sleep "$_pp"
+    done
+    if [ "$_launch_rc" = "0" ] && [ "$_proc_ok" = "1" ]; then
+        printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"linux-flatpak\", \"verified_by\": \"pid-probe\", \"launch_rc\": 0}"
+        echo "[mios-open-url] $TARGET running (PID probe) -> success (Linux default; WSLg window unverifiable)" >&2
+        exit 0
+    fi
+
     # First-failure heal: when launch_rc != 0 (sandbox bootstrap
     # broke), restart the user-side portal stack ONCE before
     # continuing the chain. Subsequent attempts on different
