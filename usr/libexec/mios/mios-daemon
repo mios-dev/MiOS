@@ -1238,6 +1238,30 @@ def _fire_and_verify_remote(app: str, node: str) -> dict:
                 "checked_by": "mios-daemon-agent"}
 
 
+def _executor_launched(fire: dict) -> bool:
+    """True when fire_result shows the IN-SESSION executor (:11437) presented a
+    window. The executor runs ON the operator's interactive desktop, so its
+    "presented"/launched verdict is AUTHORITATIVE -- the Linux-side
+    _verify_one_launch (pgrep + WSL window probe) cannot reliably see a
+    Windows-host window and false-reports no-window for a Store game the executor
+    already presented (operator 2026-05-30 Wreckfest). Parses the
+    '[mios-windows] launched via in-session executor: {json}' line. Best-effort."""
+    out = str((fire or {}).get("output") or "")
+    if "in-session executor" not in out:
+        return False
+    m = re.search(r"\{.*\}", out, re.DOTALL)
+    if not m:
+        return False
+    try:
+        d = json.loads(m.group(0))
+    except Exception:  # noqa: BLE001
+        return False
+    if d.get("launched") is True:
+        return True
+    v = d.get("verdict") if isinstance(d.get("verdict"), dict) else {}
+    return v.get("launched") is True or str(v.get("summary", "")).lower() == "presented"
+
+
 def _fire_and_verify(app: str, node: str = "") -> dict:
     """FIRE a launch + run the success-check as ONE operation, returning the
     consolidated verdict the agent reads: {app, fired, launched, verdict,
@@ -1257,6 +1281,10 @@ def _fire_and_verify(app: str, node: str = "") -> dict:
     if node:
         return _fire_and_verify_remote(app, node)
     fire = _broker_dispatch("mios-launch " + shlex.quote(app))
+    # The in-session executor's verdict is AUTHORITATIVE for "a window appeared"
+    # (it runs on the real interactive desktop); trust it over the Linux-side
+    # probe, which false-reports no-window for Windows-host/Store windows.
+    _exec_presented = _executor_launched(fire)
     time.sleep(OS_CONTROL_SETTLE_S)
     verdict: dict = {}
     launched = False
@@ -1267,8 +1295,12 @@ def _fire_and_verify(app: str, node: str = "") -> dict:
         # presented_to_operator ONLY -- process_alive false-positives via the
         # verifier's pgrep self-match (see launch_verifier_loop); SOUL rule:
         # "process alive is INSUFFICIENT, success only when window presented".
-        launched = bool(verdict.get("presented_to_operator"))
+        # The executor's in-session "presented" verdict ALSO counts as success.
+        launched = bool(verdict.get("presented_to_operator")) or _exec_presented
         if launched:
+            if _exec_presented and not verdict.get("presented_to_operator"):
+                verdict["executor_presented"] = True
+                verdict.setdefault("summary", "presented (in-session executor)")
             break
         if i < OS_CONTROL_ATTEMPTS - 1:
             time.sleep(OS_CONTROL_INTERVAL_S)
