@@ -7630,9 +7630,10 @@ _PLANNER_SYSTEM = (
     "it ACTUALLY FIRES (never just narrate 'launching X'):\n"
     '  {"id":"n1","tool":"mios_apps","args":{"filter":"games"},"deps":[]},\n'
     '  {"id":"n2","agent":"hermes","prompt":"From these installed games -> #En1 '
-    "-- research each title's reviews/ratings and reply with ONLY the single "
-    "highest-rated game's EXACT launch name (its name/app_id from the list), "
-    'nothing else.","deps":["n1"]},\n'
+    "-- do ONE web search comparing their aggregate review scores (do NOT search "
+    "each title separately -- one comparative query), then reply with ONLY the "
+    "single highest-rated game's EXACT launch name (its name/app_id from the "
+    'list), nothing else.","deps":["n1"]},\n'
     '  {"id":"n3","tool":"launch_verified","args":{"name":"#En2"},"deps":["n2"]}\n'
     "\n"
     "Example B -- find a file then open it (PREFER this over mios-find\n"
