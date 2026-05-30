@@ -14153,8 +14153,13 @@ async def _respond_os_control(
                 await asyncio.sleep(OS_CONTROL_RETRY_SETTLE_S)
     ok = bool(result.get("success"))
     # Effective verdict for the operator-facing symbol: a launch that fired
-    # (exit 0) but did NOT verify (no window) is NOT a success.
+    # (exit 0) but did NOT verify (no window) is NOT a confirmed success.
     _eff_ok = _verified if _action else ok
+    # ...BUT a launch whose COMMAND fired (exit 0) with no window yet is
+    # LAUNCHING, not failed -- normal for Steam/Store games that load over
+    # 30-60s, well past the verify window (operator 2026-05-30 "play a game").
+    # Distinct from a fire that errored (genuine failure -> stays ⚠️).
+    _launch_pending = bool(_is_launch and ok and not _verified)
     # SMART FOCUS (operator 2026-05-26 "detect if running -> focus to the
     # foreground -> not available? -> find and launch to the foreground"):
     # focus_window only raises an ALREADY-OPEN window. If the target isn't
@@ -14223,7 +14228,7 @@ async def _respond_os_control(
     if DCI_ENABLED:
         _db_fire(critic_then_maybe_flow(last_user_text, envelope,
                                         session_id=session_id))
-    symbol = "✅" if _eff_ok else "⚠️"
+    symbol = "✅" if _eff_ok else ("🚀" if _launch_pending else "⚠️")
     envelope_block = (
         f"<details type=\"tool_calls\" done=\"true\">\n"
         f"<summary>{symbol} `{tool}`</summary>\n\n"
@@ -14252,17 +14257,28 @@ async def _respond_os_control(
             _polish_src += ("smart_focus: the window was NOT already open, so it "
                             "was LAUNCHED to the foreground (report that it "
                             "wasn't running and you opened it).\n")
+        if _launch_pending:
+            _polish_src += ("launch_fired_pending: the launch COMMAND SUCCEEDED "
+                            "(the app/game was told to start) but its window has "
+                            "NOT appeared within the short verify window -- this "
+                            "is NORMAL for Steam/Store GAMES, which load over "
+                            "30-60s. Report this as STARTING / LAUNCHING (e.g. "
+                            "'<app> is launching via Steam -- it may take a moment "
+                            "to appear'), which is NOT a failure.\n")
     # OS-control replies are SHORT + GENERATIVE (operator 2026-05-29: "completely
     # generative in its replies too" + "JUST reply SUCCESS and DETAILS and
     # FOLLOW-UPS, nothing much more"). So: model-written (no template), but a
     # tight prompt + low token cap -> fast (vs the 16s full-length polish). The
     # `verified`/window/proc facts in _polish_src are the ground truth.
-    _emit("✅" if _eff_ok else "⚠️", "writing the result")
+    _emit("✅" if _eff_ok else ("🚀" if _launch_pending else "⚠️"), "writing the result")
     polished_raw = await polish_response(
         "The OS-control verb `" + tool + "` ran (result below). Reply in 1-3 "
         "short sentences with exactly: (1) SUCCESS or failure -- grounded in "
         "`verified` (verified=True means it took effect; if False after the "
-        "retries, say it did NOT and do not claim success); (2) the key DETAILS "
+        "retries, say it did NOT and do not claim success -- EXCEPT when "
+        "`launch_fired_pending` is present, which means the launch DID fire and "
+        "the app/game is still LOADING: report it as STARTING/LAUNCHING, NOT a "
+        "failure); (2) the key DETAILS "
         "(what opened/closed/was focused, the app/window name); (3) one or two "
         "natural FOLLOW-UPS the operator might want next (e.g. focus it, move "
         "it, close it, open another). No preamble, no invented coordinates, no "
