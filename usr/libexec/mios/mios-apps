@@ -355,12 +355,30 @@ Get-StartApps -ErrorAction SilentlyContinue | Where-Object { $_.AppID -match "!"
 # in different letter-case, scanning it twice; collapse identical entries.
 $out = @($out | Select-Object -Unique)
 $out | ForEach-Object { Write-Output $_ }
-' 2>/dev/null > "$GAME_CACHE.tmp" \
-            && mv "$GAME_CACHE.tmp" "$GAME_CACHE" || rm -f "$GAME_CACHE.tmp"
+' 2>/dev/null > "$GAME_CACHE.tmp"
+        # Only cache output with REAL game lines ("name|target"). A garbage/error
+        # pass (e.g. an interop "powershell.exe: Invalid argument" that lands on
+        # stdout with exit 0) has no "|" -> discard so the next call re-scans
+        # instead of serving poison for 10 min (operator 2026-05-30 live-drive).
+        if grep -q '|' "$GAME_CACHE.tmp" 2>/dev/null; then
+            mv "$GAME_CACHE.tmp" "$GAME_CACHE"
+        else
+            # Failed/empty/garbage pass: drop the tmp AND any stale cache so a
+            # previous poison line is never re-served (the file persists otherwise).
+            rm -f "$GAME_CACHE.tmp" "$GAME_CACHE"
+        fi
     fi
     if [ -f "$GAME_CACHE" ]; then
         while IFS='|' read -r g_name g_path; do
             [ -z "$g_name" ] && continue
+            # A real game line is "name|launch-target". A line with NO launch
+            # target (no "|" -> empty g_path) is scan GARBAGE, e.g. a
+            # "powershell.exe: Invalid argument" interop error that landed on
+            # stdout and got captured -- NOT a game. Skip it so one failed scan
+            # can never poison the games list and make the agent report "no games"
+            # / fail to launch (operator 2026-05-30 live-drive: the error line
+            # became a fake game and broke "launch the best").
+            [ -z "$g_path" ] && continue
             g_name="$(echo "$g_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             g_path="$(echo "$g_path" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             # Full lowercased name as the lookup key so multi-word queries
