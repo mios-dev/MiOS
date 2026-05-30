@@ -9315,6 +9315,12 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     yield _p
                 else:
                     dag_result = _p
+            # Close the only silent gap: _synthesise (the polish model call)
+            # emits nothing, so the stream went quiet between the last node and
+            # the answer. Emit a live "synthesising" status so emits are
+            # CONTINUOUS throughout -- no buffering/blocking (operator 2026-05-30).
+            yield _sse_status(chat_id=chat_id, model=model, emoji="🧬",
+                              label="synthesising the answer", detail=None)
             envelope, main = await _synthesise(dag_result)
             yield _sse_reasoning(envelope + "\n", chat_id=chat_id, model=model)
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
