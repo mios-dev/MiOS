@@ -72,7 +72,20 @@ emit() {
     local cat="$1" name="$2" desc="$3" launch="$4"
     if [ -n "$CATEGORY" ] && [ "$cat" != "$CATEGORY" ]; then return; fi
     if [ -n "$FILTER" ]; then
-        if ! echo "$name $desc" | grep -qiF "$FILTER"; then return; fi
+        # Match name/desc OR the CATEGORY (with a trailing-'s' stem) so a
+        # natural-language category word resolves to the right GROUP: "games" ->
+        # the "windows-game" category (ALL stores -- Steam/Epic/GOG/Store -- emit
+        # THERE, not separate per-store cats), "browsers" -> a browser cat, etc.
+        # The old name+desc-only match returned just the lone entry whose NAME
+        # happened to contain the word (e.g. "Wreckfest (NordicGames)") and
+        # DROPPED the Steam/Epic titles whose names lack it -> "what games" listed
+        # 1 of N (operator 2026-05-29). Generic stem match, no hardcoded
+        # keyword->category table.
+        _fstem="${FILTER%s}"
+        if ! echo "$cat $name $desc" | grep -qiF "$FILTER" \
+             && ! { [ -n "$_fstem" ] && echo "$cat" | grep -qiF "$_fstem"; }; then
+            return
+        fi
     fi
     if [ "$NAMES" = "1" ]; then
         printf '%s\n' "$name"
