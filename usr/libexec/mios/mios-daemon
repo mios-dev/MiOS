@@ -1277,6 +1277,21 @@ def _fire_and_verify(app: str, node: str = "") -> dict:
     if not app:
         return {"app": "", "fired": False, "launched": False,
                 "error": "missing app name", "checked_by": "mios-daemon-agent"}
+    # PROSE-ARG GUARD (operator 2026-05-30): a #E ref can substitute an agent
+    # node's FULL answer ("Here are your installed games ... Wallpaper Engine has
+    # the highest rating ... Launching it now:") into the launch arg instead of a
+    # clean name -- the launcher then can't resolve it AND polls the full verify
+    # loop (~105s) for a window that can never appear. If the arg looks like prose
+    # (newline / many words), extract the SINGLE launch target via the micro-LLM.
+    if "\n" in app or len(app.split()) > 6:
+        _clean = (llm_chat(
+            "You extract a launch target. From the text, reply with ONLY the "
+            "exact name of the single app or game being launched -- no quotes, "
+            "no explanation, no punctuation, nothing else.", app[:2000]) or "").strip()
+        _clean = _clean.splitlines()[0].strip() if _clean else ""
+        if _clean and len(_clean.split()) <= 8:
+            log.info("os_control: extracted launch target %r from prose arg", _clean)
+            app = _clean
     node = (node or "").strip()
     if node:
         return _fire_and_verify_remote(app, node)
