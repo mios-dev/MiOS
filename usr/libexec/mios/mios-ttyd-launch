@@ -46,6 +46,18 @@ BIND="${MIOS_TTYD_BIND:-127.0.0.1}"
 REQUIRE_AUTH="${MIOS_TTYD_REQUIRE_AUTH:-true}"
 AUTH_USER="${MIOS_TTYD_AUTH_USER:-}"
 AUTH_PASS="${MIOS_TTYD_AUTH_PASS:-}"
+# Credential-file fallback (operator 2026-05-30, mobile/#82): keeps the basic-
+# auth secret OUT of the committed mios.toml. If no auth env is set, read
+# user:pass from MIOS_TTYD_CREDFILE (mode 0600). The tailnet-exposure step
+# (`tailscale serve` in front of the loopback ttyd) generates this so a
+# phone-reachable terminal is NEVER unauthenticated -- HTTPS from tailscale
+# serve encrypts the basic-auth on the wire. See [[mios_mobile_access]].
+CREDFILE="${MIOS_TTYD_CREDFILE:-/etc/mios/ttyd.cred}"
+if [[ -z "$AUTH_USER" && -z "$AUTH_PASS" && -s "$CREDFILE" ]]; then
+    _cred_line="$(head -1 "$CREDFILE" 2>/dev/null)"
+    AUTH_USER="${_cred_line%%:*}"
+    AUTH_PASS="${_cred_line#*:}"
+fi
 SSL_CERT="${MIOS_TTYD_SSL_CERT:-}"
 SSL_KEY="${MIOS_TTYD_SSL_KEY:-}"
 WRITABLE="${MIOS_TTYD_WRITABLE:-true}"

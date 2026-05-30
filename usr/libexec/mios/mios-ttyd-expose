@@ -1,0 +1,54 @@
+#!/bin/bash
+# mios-ttyd-expose -- securely publish the loopback ttyd terminal to the TAILNET
+# for mobile access (#82). Official pattern (researched 2026-05-30): ttyd stays
+# on 127.0.0.1; `tailscale serve` is the tailnet-ONLY HTTPS reverse proxy in
+# front (auto-provisioned TLS cert; NOT `tailscale funnel`, which is public).
+# A basic-auth credential is generated once (defense-in-depth atop tailnet
+# membership; HTTPS encrypts it on the wire). Idempotent + safe to re-run.
+#
+# Gated/opt-in: this OPENS a shell to the tailnet, so it is NOT run by default.
+# Enable per-deploy via SSOT [ttyd].tailnet_expose=true -> firstboot calls this,
+# or the operator runs it directly. Disable: `mios-ttyd-expose off`.
+# SSOT: MIOS_PORT_TTYD_BASH (port), MIOS_TTYD_CREDFILE (secret path).
+set -u
+
+PORT="${MIOS_PORT_TTYD_BASH:-7681}"
+CRED="${MIOS_TTYD_CREDFILE:-/etc/mios/ttyd.cred}"
+TTYD_USER="${MIOS_TTYD_OWNER:-mios}"
+
+if [ "${1:-}" = "off" ]; then
+    echo "mios-ttyd-expose: removing tailnet HTTPS for :$PORT"
+    sudo tailscale serve --https="$PORT" off 2>&1 | head -3
+    exit 0
+fi
+
+# 1. Generate a basic-auth credential ONCE (random 20-char, kernel CSPRNG),
+#    owned by the ttyd service user, mode 0600. Never hardcoded, never in git.
+if [ ! -s "$CRED" ]; then
+    P="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
+    printf '%s:%s\n' "$TTYD_USER" "$P" | sudo tee "$CRED" >/dev/null
+    sudo chown "$TTYD_USER:$TTYD_USER" "$CRED"
+    sudo chmod 600 "$CRED"
+    echo "mios-ttyd-expose: generated credential at $CRED"
+fi
+
+# 2. Restart ttyd-bash so it reads the credential (mios-ttyd-launch falls back
+#    to $CRED when no MIOS_TTYD_AUTH_* env is set) -> ttyd now requires auth
+#    even on loopback, so the tailnet front door is never an open shell.
+sudo systemctl restart mios-ttyd-bash.service 2>/dev/null || true
+sleep 2
+_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "http://127.0.0.1:$PORT/" 2>/dev/null)"
+if [ "$_code" != "401" ]; then
+    echo "mios-ttyd-expose: WARNING ttyd returned $_code (expected 401) -- auth not applied; ABORTING tailnet expose to avoid an open shell" >&2
+    exit 1
+fi
+echo "mios-ttyd-expose: ttyd requires auth (401) -- safe to expose"
+
+# 3. Publish tailnet-only HTTPS in front of loopback ttyd (persists across
+#    reboots via --bg; tailscale auto-provisions the TLS cert).
+sudo tailscale serve --bg --https="$PORT" "http://127.0.0.1:$PORT" 2>&1 | head -3
+echo "--- credential (user:pass) ---"; sudo cat "$CRED"
+echo "--- URL (open on a tailnet phone/browser) ---"
+tailscale status --json 2>/dev/null \
+  | python3 -c "import sys,json,os; n=json.load(sys.stdin).get('Self',{}).get('DNSName','').rstrip('.'); print('  https://%s:%s' % (n, os.environ.get('PORT','')))" PORT="$PORT" 2>/dev/null \
+  || echo "  https://<this-node>.<tailnet>.ts.net:$PORT"

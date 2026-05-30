@@ -1,0 +1,51 @@
+#!/bin/sh
+# mios-ttyd-start -- self-hosted mobile terminal for MiOS (OFFLINE, no cloud).
+#
+# Official secure pattern (researched 2026-05-30): bind ttyd to LOCALHOST only
+# and put a reverse proxy in front for TLS + access control. Here the reverse
+# proxy is `tailscale serve` (tailnet-only HTTPS, auto-provisioned cert) -- the
+# terminal is reachable ONLY from devices on the operator's tailnet (phones
+# included), never the public internet (that would be `tailscale funnel`, which
+# we deliberately do NOT use). ttyd basic-auth is layered on top as
+# defense-in-depth (a credential is generated once + stored 0600).
+#
+# Phone -> https://<node>.<tailnet>.ts.net  -> tailscale serve -> 127.0.0.1:PORT
+#       -> ttyd (basic auth) -> login shell -> `claude --continue` / mios work.
+#
+# SSOT: MIOS_TTYD_* come from mios.toml [mobile] via the userenv slot.
+set -u
+
+PORT="${MIOS_TTYD_PORT:-7681}"
+CREDFILE="${MIOS_TTYD_CREDFILE:-/etc/mios/ttyd.cred}"
+TTYD_CMD="${MIOS_TTYD_CMD:-bash -l}"
+TTYD_BIN="${MIOS_TTYD_BIN:-/usr/sbin/ttyd}"
+
+[ -x "$TTYD_BIN" ] || { echo "mios-ttyd: $TTYD_BIN not found" >&2; exit 1; }
+
+# Generate a basic-auth credential ONCE (user:pass), 0600, if absent. Random
+# 20-char password from the kernel CSPRNG -- never hardcoded.
+if [ ! -s "$CREDFILE" ]; then
+    mkdir -p "$(dirname "$CREDFILE")" 2>/dev/null || true
+    _p="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
+    printf 'mios:%s\n' "$_p" > "$CREDFILE"
+    chmod 600 "$CREDFILE"
+    echo "mios-ttyd: generated credential at $CREDFILE (user 'mios')" >&2
+fi
+CRED="$(cat "$CREDFILE")"
+
+# Publish tailnet-only HTTPS in front of the localhost ttyd. Best-effort +
+# persistent (`--bg` resumes across reboots); never blocks startup if tailscale
+# is still coming up (the service Restart= will retry).
+if command -v tailscale >/dev/null 2>&1; then
+    tailscale serve --bg --https=443 "http://127.0.0.1:${PORT}" >/dev/null 2>&1 \
+        || echo "mios-ttyd: tailscale serve not ready (will retry on restart)" >&2
+fi
+
+# -i 127.0.0.1  : localhost only (tailscale serve is the only front door)
+# -c user:pass  : basic auth (defense-in-depth atop tailnet membership)
+# -W            : writable -- required for the interactive claude TUI / shell
+# -t ...        : cosmetic terminal options
+# shellcheck disable=SC2086  -- TTYD_CMD is an intentional word-split command
+exec "$TTYD_BIN" -i 127.0.0.1 -p "$PORT" -c "$CRED" -W \
+    -t 'titleFixed=MiOS' -t 'fontSize=15' -t 'disableLeaveAlert=true' \
+    $TTYD_CMD

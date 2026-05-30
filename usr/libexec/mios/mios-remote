@@ -1,0 +1,35 @@
+#!/bin/sh
+# mios-remote -- continue a Claude Code (MiOS dev) session from your phone via
+# the OFFICIAL Claude Code Remote Control (researched 2026-05-30).
+#
+# Execution stays LOCAL on this host; only OAuth polling reaches Anthropic. You
+# drive the session from the Claude mobile app or claude.ai/code -- scan the QR
+# it prints, or open the URL. This is the official, supported path for Claude
+# Code specifically and is cleaner than a web terminal for the dev workflow
+# (auto-reconnect, multi-device sync, no TTY-emulation quirks). Requires a
+# Claude subscription (Pro/Max/Team) -- it will NOT use ANTHROPIC_API_KEY.
+#
+# For a FULLY self-hosted / no-cloud terminal (any shell, not just claude),
+# use the tailnet ttyd path instead: mios-ttyd-bash + `tailscale serve`. The
+# two are complementary -- Remote Control for the Claude dev loop, ttyd for a
+# general offline shell. See [[mios_mobile_access]].
+#
+# Usage: mios-remote [extra claude flags]
+#   MIOS_REMOTE_DIR=<path>   start the session in that working dir (session
+#                            resume is per-directory) -- default: current dir.
+set -u
+
+if ! command -v claude >/dev/null 2>&1; then
+    echo "mios-remote: the 'claude' CLI is not on PATH" >&2
+    exit 1
+fi
+
+_dir="${MIOS_REMOTE_DIR:-}"
+if [ -n "$_dir" ] && [ -d "$_dir" ]; then
+    cd "$_dir" || true
+fi
+
+echo "mios-remote: starting Claude Code Remote Control -- scan the QR / open" >&2
+echo "  the printed URL in the Claude mobile app or a browser to continue from" >&2
+echo "  your phone. Local execution; only OAuth polling leaves this host." >&2
+exec claude --remote-control "$@"
