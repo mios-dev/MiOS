@@ -219,6 +219,26 @@ slots = [
     ("ports.surrealdb",                "MIOS_PORT_SURREALDB"),
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     ("ports.ollama_cpu",               "MIOS_PORT_OLLAMA_CPU"),
+    ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
+    ("ports.adguard_ui",               "MIOS_PORT_ADGUARD_UI"),
+    # opencode -> OpenAI /v1 gateway shim port ([ports].opencode_gateway).
+    ("ports.opencode_gateway",         "MIOS_PORT_OPENCODE_GATEWAY"),
+    # ── opencode + shared agent-plane (HYBRID; keys live under [ai]) ──────
+    # opencode is a first-class /v1 council peer via mios-opencode-gateway.
+    # service. install_url/version pre-existed; the rest are the front-door
+    # SSOT added 2026-05-31. agent_venv/agent_install_dir are the de-facto
+    # shared interpreter for hermes-agent + agent-pipe + the gateway shim
+    # (mapped onto MIOS_HERMES_VENV/_DIR — the names those consumers expect).
+    ("ai.opencode_install_url",        "MIOS_OPENCODE_INSTALL_URL"),
+    ("ai.opencode_version",            "MIOS_OPENCODE_VERSION"),
+    ("ai.opencode_model",              "MIOS_OPENCODE_MODEL"),
+    ("ai.opencode_provider",           "MIOS_OPENCODE_PROVIDER"),
+    ("ai.opencode_bin",                "MIOS_OPENCODE_BIN"),
+    ("ai.opencode_config",             "MIOS_OPENCODE_CONFIG"),
+    ("ai.opencode_gateway_workdir",    "MIOS_OPENCODE_WORKDIR"),
+    ("ai.opencode_gateway_timeout_s",  "MIOS_OPENCODE_TIMEOUT_S"),
+    ("ai.agent_venv",                  "MIOS_HERMES_VENV"),
+    ("ai.agent_install_dir",           "MIOS_HERMES_DIR"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
@@ -314,6 +334,8 @@ slots = [
     ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
     ("image.sidecars.surrealdb_version","MIOS_SURREALDB_VERSION"),
     ("image.sidecars.surrealdb",       "MIOS_SURREALDB_IMAGE"),
+    ("image.sidecars.adguard_version", "MIOS_ADGUARD_VERSION"),
+    ("image.sidecars.adguard",         "MIOS_ADGUARD_IMAGE"),
     # ── services (per-service identity: user / uid / gid) ─────────────────
     ("services.forge.user",            "MIOS_FORGE_USER"),
     ("services.forge.uid",             "MIOS_FORGE_UID"),
@@ -349,6 +371,9 @@ slots = [
     ("services.webtools.user",         "MIOS_CRAWL4AI_USER"),
     ("services.webtools.uid",          "MIOS_CRAWL4AI_UID"),
     ("services.webtools.gid",          "MIOS_CRAWL4AI_GID"),
+    ("services.adguard.user",          "MIOS_ADGUARD_USER"),
+    ("services.adguard.uid",           "MIOS_ADGUARD_UID"),
+    ("services.adguard.gid",           "MIOS_ADGUARD_GID"),
     ("image.sidecars.ollama_cpu_version", "MIOS_OLLAMA_CPU_VERSION"),
     ("image.sidecars.ollama_cpu",      "MIOS_OLLAMA_CPU_IMAGE"),
     # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────

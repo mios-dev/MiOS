@@ -57,23 +57,129 @@
 
 set -eu
 
-# Known short-name -> exe mappings (extend as workflow expands).
-declare -A APPS=(
-    [notepad]="/mnt/c/Windows/System32/notepad.exe"
-    [explorer]="/mnt/c/Windows/explorer.exe"
-    [calc]="/mnt/c/Windows/System32/calc.exe"
-    [mspaint]="/mnt/c/Windows/System32/mspaint.exe"
-    [snipping-tool]="/mnt/c/Windows/System32/SnippingTool.exe"
-    [taskmgr]="/mnt/c/Windows/System32/Taskmgr.exe"
-    [regedit]="/mnt/c/Windows/regedit.exe"
-    [control]="/mnt/c/Windows/System32/control.exe"
-    [cmd]="/mnt/c/Windows/System32/cmd.exe"
-    [powershell]="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    [pwsh]="/mnt/c/Program Files/PowerShell/7/pwsh.exe"
-)
+# GENERATIVE Windows-app name resolution -- NO hardcoded short-name->exe table
+# (operator "NO HARDCODES"; research 2026-05-29). The canonical exe-name->path
+# map on Windows is the App Paths registry: HKCU/HKLM \SOFTWARE\Microsoft\
+# Windows\CurrentVersion\App Paths\<name>.exe whose (Default) value is the
+# fully-qualified path (per-user installs under HKCU, all-users under HKLM, so
+# scan BOTH). Resolve a bare name straight from the live registry via reg.exe;
+# returns a WSL path on stdout, or non-zero if not registered (caller then
+# tries System32 / mios-find). This covers notepad/calc/mspaint/regedit/... and
+# every operator-installed app that registers App Paths -- without a baked list.
+_app_paths_resolve() {  # <name> -> WSL path of the registered exe, or empty
+    local name="$1" reg="/mnt/c/Windows/System32/reg.exe" win hive
+    [ -x "$reg" ] || return 1
+    case "$name" in *.exe|*.EXE) : ;; *) name="${name}.exe" ;; esac
+    for hive in HKCU HKLM; do
+        win="$("$reg" query "${hive}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${name}" /ve 2>/dev/null \
+               | tr -d '\r' | sed -n 's/.*REG_SZ[[:space:]][[:space:]]*//p' | head -1)"
+        win="${win%\"}"; win="${win#\"}"
+        if [ -n "$win" ]; then
+            wslpath -u "$win" 2>/dev/null && return 0
+        fi
+    done
+    return 1
+}
 
 PWSH="${MIOS_WINDOWS_PWSH:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
 CMD="/mnt/c/Windows/System32/cmd.exe"
+
+# GENERATIVE Start-Menu .lnk resolution (research 2026-05-29 open-Q1: App Paths
+# is INSTALLER-OPTIONAL + incomplete, and the Everything index is install-gated,
+# so a name in neither would fail). The Start Menu is the canonical, always-
+# present app catalog on Windows: scan both the all-users (%ProgramData%) and
+# per-user (%APPDATA%) Programs trees for a .lnk whose name matches, pick the
+# shortest (closest) match, and return its WSL path -- Start-Process opens a
+# .lnk directly (covers Store/UWP shortcuts too, which have no plain exe path).
+# Everything-INDEPENDENT (pure filesystem scan); the fallback before mios-find.
+_start_menu_resolve() {  # <name> -> WSL path of the matching Start-Menu .lnk
+    local name="${1//\'/}" out
+    [ -n "$name" ] || return 1
+    [ -x "$PWSH" ] || return 1
+    out="$("$PWSH" -NoProfile -NonInteractive -Command "
+\$n='$name'
+\$w=New-Object -ComObject WScript.Shell
+\$d=@(\$env:ProgramData,\$env:APPDATA) | ForEach-Object { Join-Path \$_ 'Microsoft\\Windows\\Start Menu\\Programs' }
+\$h=Get-ChildItem -Path \$d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | Where-Object { \$_.BaseName -like ('*'+\$n+'*') } | Where-Object { try { \$t=\$w.CreateShortcut(\$_.FullName).TargetPath } catch { \$t='' }; (\$t -notlike '*wslg.exe') -and (\$t -notlike '*wsl.exe') } | Sort-Object { \$_.BaseName.Length } | Select-Object -First 1
+if(\$h){ \$h.FullName }
+" 2>/dev/null | tr -d '\r' | grep -iE '\.lnk$' | head -1)"
+    [ -n "$out" ] && wslpath -u "$out" 2>/dev/null && return 0
+    return 1
+}
+
+# Resolve the Windows OS-control executor endpoint from SSOT: the
+# MIOS_OSCONTROL_EXECUTOR env override first, else [os_control].executor_endpoint
+# in /etc (host overlay wins) then /usr mios.toml. Echoes the trimmed URL (no
+# trailing slash) or nothing. No hardcoded host/port (operator binding).
+_mios_executor_endpoint() {
+    _ep="${MIOS_OSCONTROL_EXECUTOR:-}"
+    if [ -z "$_ep" ]; then
+        for _t in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+            [ -r "$_t" ] || continue
+            _ep="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' "$_t" 2>/dev/null)"
+            [ -n "$_ep" ] && break
+        done
+    fi
+    printf '%s' "${_ep%/}"
+}
+
+# Launch a Windows GUI app THROUGH the in-session executor (operator 2026-05-29:
+# the canonical fix). A Windows process spawned via WSL interop / the launcher
+# broker lands in a NON-INTERACTIVE window station -- simple Win32 apps may still
+# surface, but multi-process Electron apps (Discord, Slack, Teams, VS Code)
+# spawn their processes there and their window NEVER reaches the operator's
+# visible desktop (proven live: Discord -> 6 procs, MainWindowHandle=0, ZERO
+# top-level windows). The executor (:11437) runs as a scheduled task INSIDE the
+# operator's interactive session, so its Start-Process shows the window on the
+# real desktop + verifies it + centers it. Returns 0 on a confirmed launch (so
+# the caller exits), non-zero to fall through to the legacy broker route.
+_mios_launch_via_executor() {  # <app-name-or-windows-path>
+    command -v curl >/dev/null 2>&1 || return 1
+    _xe="$(_mios_executor_endpoint)"
+    [ -z "$_xe" ] && return 1
+    # `verify` = the human title hint (MIOS_LAUNCH_TITLE_HINT, e.g. "Forza
+    # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
+    # URI / shell:appsFolder string that never appears in a window title
+    # (operator 2026-05-30). Falls back to `app` when no hint is set.
+    _payload="$(python3 -c 'import json,sys,os; print(json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}))' "$1" 2>/dev/null)"
+    [ -z "$_payload" ] && return 1
+    _resp="$(curl -s --max-time 45 -X POST -H 'Content-Type: application/json' \
+             --data "$_payload" "$_xe/launch" 2>/dev/null)"
+    [ -z "$_resp" ] && return 1
+    # launched:true (window confirmed present) OR fired:true (process started --
+    # the executor's in-session Start-Process succeeded; honest about windowless
+    # apps via launched). Either means we used the correct in-session path.
+    case "$_resp" in
+        *'"launched": true'*|*'"launched":true'*|*'"fired": true'*|*'"fired":true'*)
+            echo "[mios-windows] launched via in-session executor: $_resp"
+            return 0 ;;
+    esac
+    echo "[mios-windows] executor launch did not confirm ($_resp) -- falling back" >&2
+    return 1
+}
+
+# Arm the executor-based auto-center (operator 2026-05-29: "launches are ALWAYS
+# centered"). The in-PowerShell center loop relies on the launched process's
+# MainWindowHandle, which is 0 for Store apps (the stub process doesn't own the
+# window) -> notepad et al. open top-left. mios-autocenter instead snapshots the
+# window hwnds BEFORE the launch + centers the LARGEST NEW window afterward via
+# the Windows executor -- robust for Store/native/WSLg alike. No-op without an
+# executor endpoint. Same mechanism flatpak-launch uses for Linux GUIs.
+_mios_arm_autocenter() {
+    [ -x /usr/libexec/mios/mios-autocenter ] || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+    command -v python3 >/dev/null 2>&1 || return 0
+    _ace="$(_mios_executor_endpoint)"
+    [ -z "$_ace" ] && return 0
+    _before="$(curl -s --max-time 5 "$_ace/windows" 2>/dev/null | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(""); raise SystemExit
+print(",".join(str(w.get("hwnd")) for w in d.get("windows", [])))' 2>/dev/null)"
+    setsid /usr/libexec/mios/mios-autocenter "$_ace" "$_before" >/dev/null 2>&1 &
+}
 
 usage() {
     cat <<'USAGE'
@@ -175,10 +281,23 @@ shift
 
 case "$sub" in
     list)
-        printf '%-16s %s\n' "SHORT" "EXE"
-        for k in "${!APPS[@]}"; do
-            printf '%-16s %s\n' "$k" "${APPS[$k]}"
-        done | sort
+        # GENERATIVE: enumerate the live Windows App Paths registry (the real
+        # exe-name -> path map) instead of a hardcoded short-name table.
+        printf '%-28s %s\n' "NAME" "EXE (App Paths registry)"
+        _reg="/mnt/c/Windows/System32/reg.exe"
+        if [ -x "$_reg" ]; then
+            for hive in HKLM HKCU; do
+                "$_reg" query "${hive}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths" 2>/dev/null \
+                    | tr -d '\r' | sed -n 's#.*\\App Paths\\##p' | while read -r _name; do
+                        [ -n "$_name" ] || continue
+                        _p="$("$_reg" query "${hive}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${_name}" /ve 2>/dev/null \
+                              | tr -d '\r' | sed -n 's/.*REG_SZ[[:space:]][[:space:]]*//p' | head -1)"
+                        printf '%-28s %s\n' "$_name" "$_p"
+                    done
+            done | sort -u
+        else
+            echo "(reg.exe unavailable -- not on WSL2? resolution is generative via App Paths at launch time)"
+        fi
         ;;
     launch)
         if [ "$#" -lt 1 ]; then
@@ -293,6 +412,14 @@ PSEOF
 
         case "$app" in
             *://*)
+                # In-session executor FIRST: Start-Process invokes the protocol
+                # handler for steam:// / epic:// / uplay:// etc. natively + shows
+                # the window on the operator's desktop. The old broker/WSL-interop
+                # `ps` path fails "powershell.exe: Invalid argument" (the broker
+                # CWD isn't Windows-translatable) AND lands in a non-interactive
+                # window station (operator 2026-05-30: "play a game" -> steam:// ->
+                # Invalid argument). Fall back to the ps path only with no executor.
+                if _mios_launch_via_executor "$app"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
@@ -311,18 +438,19 @@ PSEOF
             # hasn'\''t been working" because the .exe doesn'\''t exist
             # at a predictable filesystem path for UWP packages.
             shell:appsFolder\\*|shell:AppsFolder\\*)
-                # PowerShell's Start-Process doesn't grok shell: URIs
-                # natively (it tries to resolve them as filesystem
-                # paths and 404s). explorer.exe DOES grok them -- it's
-                # the canonical Windows handler for shell: URIs. Wrap
-                # via explorer.exe + the path as its arg.
+                # UWP / Store / Xbox apps. In-session executor first (it launches
+                # shell: URIs via explorer.exe + shows the window on the desktop);
+                # the broker/interop ps path is the fallback (Start-Process can't
+                # grok shell: URIs, so explorer.exe is the handler there too).
+                if _mios_launch_via_executor "$app"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
             *_[0-9a-z]*\!*)
-                # Bare AppID (PackageFamilyName!Entry) from Get-StartApps
-                # -- prepend shell:appsFolder\ then dispatch the same
-                # explorer.exe way.
+                # Bare AppID (PackageFamilyName!Entry) from Get-StartApps --
+                # prepend shell:appsFolder\ then launch via the in-session
+                # executor first (explorer.exe handler), broker ps as fallback.
+                if _mios_launch_via_executor "shell:appsFolder\\$app"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
@@ -341,14 +469,20 @@ PSEOF
                 fi
                 ;;
         esac
-        if [ -n "${APPS[$app]:-}" ]; then
-            target="${APPS[$app]}"
-        elif [ -e "$app" ]; then
+        if [ -e "$app" ]; then
             target="$app"
+        elif target="$(_app_paths_resolve "$app")" && [ -n "$target" ]; then
+            :   # resolved generatively from the Windows App Paths registry
         elif [ -e "/mnt/c/Windows/System32/${app}" ]; then
             target="/mnt/c/Windows/System32/${app}"
         elif [ -e "/mnt/c/Windows/System32/${app}.exe" ]; then
             target="/mnt/c/Windows/System32/${app}.exe"
+        elif [ -e "/mnt/c/Windows/${app}.exe" ]; then
+            # standard Windows dir (explorer.exe, regedit.exe live here, not
+            # System32) -- a system-dir scan, not a hardcoded app->path map
+            target="/mnt/c/Windows/${app}.exe"
+        elif target="$(_start_menu_resolve "$app")" && [ -n "$target" ]; then
+            :   # resolved from a Start-Menu .lnk (generative, Everything-free)
         else
             # Last-resort: ask mios-find. Operator-confirmed regression
             # 2026-05-16 night: agent called `mios-windows launch beamng`
@@ -361,6 +495,20 @@ PSEOF
                 _resolved="$(mios-find "$app" 2>/dev/null | head -1)"
                 if [ -n "$_resolved" ]; then
                     echo "mios-windows launch: '$app' resolved via mios-find -> $_resolved" >&2
+                    # The mios-find line is a raw `mios-windows ps` INTEROP command
+                    # (Start-Process in a NON-INTERACTIVE station -> the window opens
+                    # where the operator never sees it -> "nothing launched" for Store
+                    # games / URIs; operator 2026-05-30 Wreckfest: fired:true but
+                    # presented_to_operator:false). Extract the launch TARGET (first
+                    # single-quoted token: a shell:appsFolder URI, a protocol:// URI,
+                    # or a path) and RE-LAUNCH it through THIS script's executor-first
+                    # path so it lands on the REAL interactive desktop. Fall back to
+                    # the interop line only if nothing usable extracts.
+                    _tgt="$(printf '%s' "$_resolved" | sed -n "s/[^']*'\([^']*\)'.*/\1/p" | head -1)"
+                    if [ -n "$_tgt" ] && [ "$_tgt" != "$app" ]; then
+                        MIOS_LAUNCH_TITLE_HINT="${MIOS_LAUNCH_TITLE_HINT:-$app}" \
+                            exec "$0" launch "$_tgt"
+                    fi
                     exec sh -c "$_resolved"
                 fi
             fi
@@ -372,7 +520,24 @@ PSEOF
             exit 1
         fi
 
-        # ── Service-user broker route ─────────────────────────────────
+        # ALWAYS-CENTER: snapshot windows + center the new one post-launch via
+        # the executor (operator 2026-05-29 "launches are ALWAYS centered").
+        _mios_arm_autocenter
+
+        # ── PRIMARY: in-session executor launch ───────────────────────
+        # Fire through the Windows executor (:11437), which runs in the
+        # operator's INTERACTIVE desktop session, so the window appears on the
+        # real screen + is verified + centered. The broker/interop route below
+        # leaves multi-process Electron apps (Discord/Slack/Teams) WINDOWLESS --
+        # their window is created in a non-interactive station the operator never
+        # sees (operator 2026-05-29: "discord NEVER OPENED" -- proven: executor
+        # /launch shows it, broker cmd/start does not). Falls through to the
+        # legacy broker route when no executor is configured / it didn't confirm.
+        if _mios_launch_via_executor "$app"; then
+            exit 0
+        fi
+
+        # ── Service-user broker route (fallback) ──────────────────────
         # Operator-confirmed regression 2026-05-16: agent ran
         # `mios-windows launch ...` -> process succeeded, returned PID,
         # but operator saw NOTHING on screen. Cause: direct setsid+nohup
@@ -464,17 +629,24 @@ def _resolve_powershell():
         pass
     return "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 PWSH_PATH = _resolve_powershell()
-line = "CAPTURE: " + PWSH_PATH + " -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
+# FIRE-AND-FORGET dispatch, NOT a CAPTURE (operator 2026-05-29 "MULTIPLE
+# FAILURES": "open notepad" returned exit -1 "capture timeout >45s" though the
+# window opened). A GUI launch is long-running -- the CAPTURE protocol made the
+# broker WAIT for the whole PowerShell (Start-Process + the 5s center loop) and
+# the agent-pipe's 45s capture wrapped THAT, so a slow/Store-app launch tripped
+# the timeout + reported a false failure. The broker's plain dispatch Popens the
+# command in a NEW session (detached) + returns "OK" instantly; the agent-pipe
+# verifies via the window-diff / global pgrep. Mirrors the flatpak-launch detach.
+line = PWSH_PATH + " -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.settimeout(30.0)
+s.settimeout(10.0)
 s.connect("/run/mios-launcher/launcher.sock")
 s.sendall((line + "\n").encode())
-buf = b""
-while True:
-    chunk = s.recv(8192)
-    if not chunk: break
-    buf += chunk
-print(f"[mios-windows] launched via broker: {target} (operator session)")
+try:
+    s.recv(64)   # read the broker's "OK\n" ack, then return immediately
+except OSError:
+    pass
+print(f"[mios-windows] fired via broker (detached): {target} (operator session)")
 PYEOF
             exit 0
         fi

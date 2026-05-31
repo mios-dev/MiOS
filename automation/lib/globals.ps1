@@ -71,9 +71,9 @@ $script:MIOS_BASE_IMAGE   = if ($env:MIOS_BASE_IMAGE)   { $env:MIOS_BASE_IMAGE }
 $script:MIOS_BIB_IMAGE    = if ($env:MIOS_BIB_IMAGE)    { $env:MIOS_BIB_IMAGE }    else { 'quay.io/centos-bootc/bootc-image-builder:latest' }
 
 # ── PORTS ────────────────────────────────────────────────────────────
-$script:MIOS_PORT_SSH           = if ($env:MIOS_PORT_SSH)           { [int]$env:MIOS_PORT_SSH }           else { 22 }
+$script:MIOS_PORT_SSH           = if ($env:MIOS_PORT_SSH)           { [int]$env:MIOS_PORT_SSH }           else { 2222 }
 $script:MIOS_PORT_FORGE_HTTP    = if ($env:MIOS_PORT_FORGE_HTTP)    { [int]$env:MIOS_PORT_FORGE_HTTP }    else { 3000 }
-$script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:MIOS_PORT_FORGE_SSH }     else { 2222 }
+$script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:MIOS_PORT_FORGE_SSH }     else { 49922 }
 $script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:MIOS_PORT_COCKPIT }       else { 9090 }
 $script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11434 }
 $script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }

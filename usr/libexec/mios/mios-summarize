@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""mios-summarize -- tiered summarisation (the L0/L1/L2 gating primitive).
+
+P5.3 (Hermes v2026.5.28 / OpenViking brief): the ingestion + context-gating
+layers need a CHEAP local model that turns a document into nested tiers:
+
+  L0 -- ~100-token ABSTRACT (one-sentence semantic summary; fast nav / cheap
+        similarity / directory listing).
+  L1 -- ~2000-token OVERVIEW (sections, layout, key points, usage).
+  L2 -- the RAW original (returned only on strict demand; here just the
+        verbatim text, optionally truncated).
+
+Runs on the CPU light lane (MIOS_SUMMARIZE_ENDPOINT, default :11435) with a
+small model (MIOS_SUMMARIZE_MODEL) so it never contends with the dGPU primary
+-- exactly the "summarisation VLM for ingestion-side parsing" the brief calls
+for. Offline-first: local ollama only, no cloud.
+
+INPUT (one of):
+  --text "<inline text>"
+  --file <path>            # read a UTF-8 text/markdown file
+  (stdin)                  # piped text when neither flag given
+
+USAGE
+  mios-summarize --file notes.md
+  mios-summarize --text "..." --tiers l0,l1
+  echo "long doc" | mios-summarize --json
+
+OUTPUT (--json default true):
+  {ok, source, chars_in, l0, l1, l2_chars, model}
+  on failure: {ok:false, error}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+ENDPOINT = os.environ.get("MIOS_SUMMARIZE_ENDPOINT",
+                          "http://localhost:11435")
+MODEL = os.environ.get("MIOS_SUMMARIZE_MODEL", "qwen3.5:2b")
+L2_MAX = int(os.environ.get("MIOS_SUMMARIZE_L2_MAX_CHARS", "20000"))
+TIMEOUT = float(os.environ.get("MIOS_SUMMARIZE_TIMEOUT", "120"))
+
+_L0_PROMPT = (
+    "Summarise the following document in ONE sentence (max ~100 tokens). "
+    "Capture the single most important fact/purpose for fast navigation. "
+    "Output ONLY the sentence, no preamble.\n\n---\n{body}\n---")
+_L1_PROMPT = (
+    "Produce a structured OVERVIEW of the following document (max ~2000 "
+    "tokens): list its sections/topics, the key points, and how it would "
+    "be used. Use terse markdown bullets. No preamble.\n\n---\n{body}\n---")
+
+
+def _chat(prompt: str) -> str:
+    """One think:False completion on the light lane. Returns text or ''."""
+    base = ENDPOINT.rstrip("/")
+    base = base[:-3] if base.endswith("/v1") else base
+    body = {
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "think": False,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        f"{base}/api/chat",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            d = json.loads(r.read().decode("utf-8", errors="replace"))
+        return str((d.get("message") or {}).get("content") or "").strip()
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"{type(e).__name__}: {e}")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-summarize")
+    p.add_argument("--text", default="")
+    p.add_argument("--file", default="")
+    p.add_argument("--tiers", default="l0,l1",
+                   help="Comma list of tiers to generate: l0,l1 (l2 is the "
+                        "raw text, always returned as l2_chars). Default l0,l1.")
+    p.add_argument("--json", action="store_true", default=True)
+    p.add_argument("--human", action="store_true",
+                   help="Human-readable output instead of JSON.")
+    args = p.parse_args()
+
+    src = "text"
+    body = args.text
+    if args.file:
+        src = args.file
+        try:
+            with open(args.file, encoding="utf-8", errors="replace") as f:
+                body = f.read()
+        except OSError as e:
+            print(json.dumps({"ok": False, "error": f"read failed: {e}"}))
+            return 1
+    if not body and not sys.stdin.isatty():
+        body = sys.stdin.read()
+    body = (body or "").strip()
+    if not body:
+        print(json.dumps({"ok": False, "error": "no input (use --text/--file/stdin)"}))
+        return 2
+
+    tiers = {t.strip().lower() for t in args.tiers.split(",") if t.strip()}
+    # Cap the body fed to the model (the small model's context is limited);
+    # L2 keeps the (separately-capped) raw text.
+    model_body = body[:12000]
+    out: dict = {
+        "ok": True, "source": src, "chars_in": len(body),
+        "model": MODEL, "l2_chars": min(len(body), L2_MAX),
+    }
+    try:
+        if "l0" in tiers:
+            out["l0"] = _chat(_L0_PROMPT.format(body=model_body))
+        if "l1" in tiers:
+            out["l1"] = _chat(_L1_PROMPT.format(body=model_body))
+    except RuntimeError as e:
+        print(json.dumps({"ok": False, "error": str(e),
+                          "endpoint": ENDPOINT, "model": MODEL}))
+        return 1
+
+    if args.human:
+        print(f"source: {src}  ({out['chars_in']} chars)  model: {MODEL}")
+        if out.get("l0"):
+            print(f"\nL0 (abstract):\n  {out['l0']}")
+        if out.get("l1"):
+            print(f"\nL1 (overview):\n{out['l1']}")
+        print(f"\nL2: raw text available ({out['l2_chars']} chars)")
+    else:
+        print(json.dumps(out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

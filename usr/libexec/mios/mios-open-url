@@ -48,6 +48,15 @@ fi
 
 URL="$1"
 OVERRIDE="${2:-}"
+# A literal "default" / "operator default" / "system" / "none" is NOT a browser
+# id -- it means "use the mios.toml-defined Linux default chain". Treating it as
+# an app id made mios-gui try to launch a bogus flatpak
+# "org.fedoraproject.Platform.CL.default" -> bwrap execvp /bin/sh failure
+# (operator 2026-05-27). Normalise these sentinels to empty so the resolved
+# Linux-native browser chain is used (Linux apps are always the first default).
+case "$(printf '%s' "$OVERRIDE" | tr '[:upper:]' '[:lower:]' | tr -d ' ')" in
+    default|operatordefault|systemdefault|system|none) OVERRIDE="" ;;
+esac
 
 # Quick sanity: warn (not error) if it doesn't look like a URL.
 case "$URL" in
@@ -226,6 +235,35 @@ while IFS= read -r TARGET; do
     fi
 
     echo "[mios-open-url] $TARGET summary=${_summary:-<empty>} launch_rc=$_launch_rc" >&2
+
+    # PID-PROBE verification (operator 2026-05-30: "just probe PIDs for verifying
+    # success"). WSLg windows are NOT enumerable here (no wmctrl/xdotool), so the
+    # mios-window-active check above false-fails even when the browser opened. So
+    # confirm the flatpak's PROCESS is RUNNING instead -- a live instance means the
+    # app launched on the WSLg desktop. Linux is the DEFAULT; fall through to the
+    # next browser / Windows last-resort only when NOTHING is running.
+    _seg="$(printf '%s' "$TARGET" | sed 's/.*\.//')"
+    _proc_ok=0
+    # PID probe against the GLOBAL process table. The flatpak runs as the
+    # operator (uid != agent uid), so neither `flatpak ps` (per-user) nor
+    # `mios-as-operator flatpak ps` (a fire-and-forget LAUNCHER that returns
+    # NO stdout -- it dispatches detached) can see it. But /proc is global,
+    # so pgrep finds the operator's process from any agent context. Match
+    # the full app-id (present in the bwrap'd flatpak app path) then the
+    # trailing segment / binary name as a looser fallback. Backoff loop
+    # because GTK4 apps take a moment to fork the real process in.
+    for _pp in 1 2 3 4; do
+        if pgrep -fi "$TARGET" >/dev/null 2>&1 \
+           || { [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; }; then
+            _proc_ok=1; break
+        fi
+        sleep "$_pp"
+    done
+    if [ "$_launch_rc" = "0" ] && [ "$_proc_ok" = "1" ]; then
+        printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"linux-flatpak\", \"verified_by\": \"pid-probe\", \"launch_rc\": 0}"
+        echo "[mios-open-url] $TARGET launched -> process verified running via PID probe (engine=linux-flatpak, Linux default); window surfacing is confirmed separately by the agent-pipe window-diff" >&2
+        exit 0
+    fi
 
     # First-failure heal: when launch_rc != 0 (sandbox bootstrap
     # broke), restart the user-side portal stack ONCE before

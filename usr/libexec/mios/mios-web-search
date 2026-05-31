@@ -34,7 +34,9 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -61,10 +63,24 @@ _EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
 _RRF_K = int(os.environ.get("MIOS_WEB_RRF_K", "60"))
 
 
-def search(query: str, limit: int, timeout: float) -> dict:
+def search(query: str, limit: int, timeout: float, category: str = "",
+           time_range: str = "") -> dict:
     """One SearXNG JSON query. Returns the FULL result list (caller slices)
-    plus instant answers + infoboxes."""
-    qs = urllib.parse.urlencode({"q": query, "format": "json"})
+    plus instant answers + infoboxes. category='news' targets SearXNG's NEWS
+    engines (dated stories) instead of the general web -- operator 2026-05-24: a
+    vague 'current global trending' matched the 'Current' banking app + 'electric
+    current' (Wikipedia) on general search; the news category returns real dated
+    news stories. time_range (day|week|month|year) recency-filters the GENERAL
+    web -- operator 2026-05-25: this instance's news ENGINES are IP-blocked so the
+    news category returns only stale wikinews; a time_range on GENERAL search
+    pulls CURRENT content (CNBC/Reuters/FT/2026 outlooks) and drops the evergreen
+    Wikipedia / stale-listicle junk WITHOUT needing the blocked news engines."""
+    params = {"q": query, "format": "json"}
+    if category:
+        params["categories"] = category
+    if time_range:
+        params["time_range"] = time_range
+    qs = urllib.parse.urlencode(params)
     req = urllib.request.Request(
         f"{SEARXNG_URL}/search?{qs}",
         headers={"User-Agent": "mios-web-search/2 (+local SearXNG)"},
@@ -76,6 +92,10 @@ def search(query: str, limit: int, timeout: float) -> dict:
             "title": it.get("title", ""),
             "url": it.get("url", ""),
             "content": (it.get("content") or "")[:500],
+            # publishedDate passthrough (operator 2026-05-25): SearXNG NEWS
+            # engines set this on dated stories -- lets the caller PREFER real
+            # articles over bare homepages and cite recency. Empty on general web.
+            "publishedDate": it.get("publishedDate") or "",
         }
         for it in (data.get("results") or [])
     ]
@@ -88,6 +108,37 @@ def search(query: str, limit: int, timeout: float) -> dict:
             "answers": answers, "infoboxes": infoboxes}
 
 
+# Topical anchor (operator 2026-05-27): a multi-word but OFF-TOPIC invented
+# sub-query ("what is 2026 minus 1978" from a flights ask) passes the degenerate
+# word-count filter yet fetches junk (age calculators), which RRF then surfaces.
+# Require >=1 shared CONTENT token with the ORIGINAL query. Structural -- a small
+# classic function-word + generic-qualifier set + trailing-s plural fold, NOT a
+# topic deny-list. Pure numbers are excluded (a bare year is too weak an anchor).
+_ANCHOR_STOPWORDS = frozenset((
+    "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on", "at",
+    "by", "with", "as", "is", "are", "was", "were", "be", "this", "that", "these",
+    "those", "it", "its", "me", "my", "we", "our", "you", "your", "they", "them",
+    "what", "which", "who", "when", "where", "why", "how", "do", "does", "did",
+    "can", "could", "will", "would", "should", "may", "might", "near", "into",
+    "about", "than", "then", "there", "here", "out", "not", "no", "all", "any",
+    "some", "more", "most", "find", "get", "make", "show", "give", "tell", "list",
+    "need", "want", "like", "use", "using", "best", "cheap", "cheapest",
+))
+_ANCHOR_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]{2,}")
+
+
+def _content_toks(text: str) -> set:
+    out = set()
+    for m in _ANCHOR_TOKEN_RE.finditer(text or ""):
+        t = m.group(0).lower()
+        if t in _ANCHOR_STOPWORDS:
+            continue
+        if len(t) >= 5 and t.endswith("s"):
+            t = t[:-1]
+        out.add(t)
+    return out
+
+
 def expand_queries(query: str, k: int, timeout: float) -> list:
     """Micro-LLM query expansion -> up to k diverse sub-queries (the ORIGINAL
     is always first). Intent diversity / synonyms / entity reformulation. Any
@@ -95,43 +146,57 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
     blocks the search."""
     if k <= 1:
         return [query]
+    # Date-aware (operator 2026-05-26 "use env detect for current values for all
+    # AI functions"): the live system year, so time-sensitive sub-queries anchor
+    # to NOW (2026 this year, 2027 next) instead of a stale year. Never hardcoded.
+    _cur_year = time.localtime().tm_year
     sys_p = (
+        f"The current year is {_cur_year}. "
         "You expand a user's question into DIVERSE web-search queries for "
         "parallel retrieval. Each query must target a DIFFERENT facet, angle, "
         "sub-topic, or named entity of the request -- NOT a synonym or rewording "
         "of the others. For a broad request, split it into specific sub-topics "
         "that surface concrete stories/facts (e.g. distinct regions, sectors, or "
-        "events), not generic homepages. Each is a SHORT keyword query, not a "
+        "events), not generic homepages. For ANYTHING time-sensitive (trending, "
+        f"latest, current, 'this year', best-of), anchor the query to {_cur_year} "
+        "(or 'latest') -- NEVER a past year. Each is a SHORT keyword query, not a "
         'question. Output JSON only: {"queries":["...","..."]}.'
     )
-    payload = {
-        "model": _EXPAND_MODEL,
-        "messages": [
-            {"role": "system", "content": sys_p},
-            {"role": "user",
-             "content": f"Make {k - 1} alternative search queries for: {query}"},
-        ],
-        "think": False,
-        "stream": False,
-        "format": "json",
-        # Keep the tiny expansion model resident (it's the always-warm micro;
-        # a COLD load is ~30s and would blow the short expand timeout, silently
-        # degrading fan-out to a single query). -1 = pin; matches the micro's
-        # keep_alive=-1 design so back-to-back web searches expand sub-second.
-        "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
-        "options": {"num_predict": 200},
-    }
+    _msgs = [
+        {"role": "system", "content": sys_p},
+        {"role": "user",
+         "content": f"Make {k - 1} alternative search queries for: {query}"},
+    ]
+    # ENDPOINT-AWARE (operator 2026-05-25: the expander can run on the iGPU =
+    # llama.cpp OpenAI /v1, NOT Ollama /api/chat). Ollama lanes (:11434/:11435)
+    # use native /api/chat + think:False + keep_alive (the /v1 compat path strands
+    # a qwen3 'think' answer in empty content); a non-ollama /v1 endpoint (the
+    # iGPU's qwen2.5) uses /chat/completions + response_format json_object.
+    _exp_ollama = (":11434" in _EXPAND_ENDPOINT) or (":11435" in _EXPAND_ENDPOINT)
     extra: list = []
     try:
+        if _exp_ollama:
+            payload = {"model": _EXPAND_MODEL, "messages": _msgs, "think": False,
+                       "stream": False, "format": "json",
+                       "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+                       "options": {"num_predict": 200}}
+            url = f"{_EXPAND_BASE}/api/chat"
+        else:
+            payload = {"model": _EXPAND_MODEL, "messages": _msgs, "stream": False,
+                       "max_tokens": 200, "temperature": 0.0,
+                       "response_format": {"type": "json_object"}}
+            url = (f"{_EXPAND_ENDPOINT}/chat/completions"
+                   if _EXPAND_ENDPOINT.endswith("/v1")
+                   else f"{_EXPAND_ENDPOINT}/v1/chat/completions")
         req = urllib.request.Request(
-            f"{_EXPAND_BASE}/api/chat",
-            data=json.dumps(payload).encode("utf-8"),
+            url, data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            msg = (json.loads(r.read().decode("utf-8", "replace")).get("message")
-                   or {})
-        obj = json.loads(msg.get("content") or "{}")
+            _d = json.loads(r.read().decode("utf-8", "replace"))
+        content = (((_d.get("message") or {}).get("content")) if _exp_ollama
+                   else ((_d.get("choices") or [{}])[0].get("message") or {}).get("content")) or "{}"
+        obj = json.loads(content)
         extra = [str(q).strip() for q in (obj.get("queries") or []) if str(q).strip()]
     except Exception as e:
         # De-silenced (operator 2026-05-24: a SILENT cold-micro fallback to one
@@ -141,8 +206,34 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
               f"{_EXPAND_BASE} ({type(e).__name__}: {e}); using single query",
               file=sys.stderr)
         extra = []
+    # Drop DEGENERATE expansions before they hit SearXNG: a bare single word or
+    # stopword fragment ("last" from "last minute", "set" from "set up", "best",
+    # "many") makes the metasearch return a DICTIONARY / unrelated page (Merriam-
+    # Webster, Last.fm, a card game) that then pollutes the RRF-fused results
+    # (operator 2026-05-26: "last"->dictionary, "set"->card game). Language-
+    # agnostic -- word-count + length only, NO keyword/topic list. The ORIGINAL
+    # query is ALWAYS kept (it is the caller's real, vetted facet); only the
+    # model-invented alternatives are screened. Tunable knobs.
+    _min_words = int(os.environ.get("MIOS_WEB_EXPAND_MIN_WORDS", "2"))
+    _min_chars = int(os.environ.get("MIOS_WEB_EXPAND_MIN_CHARS", "6"))
+    _anchor = _content_toks(query)
     out = [query]
     for q in extra:
+        # Token count over alphanumerics so HYPHENATED / underscored slugs
+        # ("cheapest-flights-toronto-to-tokyo" -> 5 tokens) count as multi-word
+        # and pass, while a bare "last" / "set" (1 token) is dropped.
+        _ntok = len(re.findall(r"[A-Za-z0-9]+", q))
+        if _ntok < _min_words or len(q) < _min_chars:
+            print(f"mios-web-search: dropped degenerate expansion {q!r} "
+                  f"({_ntok} tok / {len(q)} chars)", file=sys.stderr)
+            continue
+        # OFF-TOPIC drop: a multi-word invented sub-query that shares NO content
+        # token with the original has drifted (the "2026 minus 1978" case); skip
+        # it so the fan-out stays on-topic. Skipped when the anchor is too thin.
+        if len(_anchor) >= 2 and not (_content_toks(q) & _anchor):
+            print(f"mios-web-search: dropped off-anchor expansion {q!r}",
+                  file=sys.stderr)
+            continue
         if q.lower() != query.lower() and q not in out:
             out.append(q)
         if len(out) >= k:
@@ -151,13 +242,14 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
 
 
 def multi_search(query: str, limit: int, k: int, timeout: float,
-                 max_workers: int) -> dict:
+                 max_workers: int, category: str = "", time_range: str = "") -> dict:
     """Expand -> query SearXNG CONCURRENTLY -> Reciprocal Rank Fusion merge."""
     queries = expand_queries(query, k, min(timeout, 6.0))
     per: list = []
     workers = max(1, min(max_workers, len(queries)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = [ex.submit(search, q, limit, timeout) for q in queries]
+        futs = [ex.submit(search, q, limit, timeout, category, time_range)
+                for q in queries]
         for f in concurrent.futures.as_completed(futs):
             try:
                 per.append(f.result())
@@ -208,17 +300,28 @@ def main() -> int:
                    default=int(os.environ.get("MIOS_WEB_FANOUT_WORKERS", "4")))
     p.add_argument("--json", action="store_true", default=True)
     p.add_argument("--timeout", type=float, default=12.0)
+    p.add_argument("--news", action="store_true",
+                   help="search SearXNG's NEWS category (dated stories) instead "
+                        "of the general web -- for current-events / trending asks")
+    p.add_argument("--category", default="",
+                   help="explicit SearXNG category (e.g. news); --news is a shortcut")
+    p.add_argument("--time-range", default="", choices=["", "day", "week", "month", "year"],
+                   help="recency-filter GENERAL search (day|week|month|year) -- pulls "
+                        "current content without the IP-blocked news engines")
     a = p.parse_args()
 
     q = " ".join(a.query).strip()
     if not q:
         print(json.dumps({"success": False, "error": "empty query", "results": []}))
         return 64
+    category = "news" if a.news else (a.category or "")
+    time_range = a.time_range or ""
     try:
         if a.fanout and a.fanout > 1:
-            out = multi_search(q, max(1, a.limit), a.fanout, a.timeout, a.max_workers)
+            out = multi_search(q, max(1, a.limit), a.fanout, a.timeout,
+                               a.max_workers, category, time_range)
         else:
-            s = search(q, max(1, a.limit), a.timeout)
+            s = search(q, max(1, a.limit), a.timeout, category, time_range)
             results = s["results"][:max(1, a.limit)]
             out = {
                 "success": bool(results or s["answers"] or s["infoboxes"]),

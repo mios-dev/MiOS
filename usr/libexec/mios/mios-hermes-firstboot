@@ -572,6 +572,17 @@ model:
   default: ${_AI_MODEL_RESOLVED}
   base_url: http://localhost:11434/v1
   api_key: ""
+  # Hermes v0.15 PREFLIGHTS the runtime context window and REFUSES tool use
+  # under 64k ("Ollama runtime context is too small for Hermes tool use"),
+  # which silently failed EVERY agent:hermes swarm node (operator 2026-05-29).
+  # The gateway must REQUEST 64k from ollama on each call -- the model's own
+  # Modelfile num_ctx is not enough because the gateway sends its own
+  # options.num_ctx. Pin both: ollama_num_ctx (the per-request num_ctx the
+  # gateway passes through to ollama) + context_length (the window Hermes
+  # advertises to itself). 65536 matches mios-hermes.Modelfile PARAMETER
+  # num_ctx 65536 (9b @ 64k q8_0 KV ~10.6 GB, fits the 4090).
+  ollama_num_ctx: 65536
+  context_length: 65536
 
 # Fallback chain (Hermes-Agent 0.13.x: model.fallback_model accepts
 # a list of {provider, model} dicts and walks left-to-right when the
@@ -652,13 +663,20 @@ auxiliary:
     base_url: http://localhost:11434/v1
     model: qwen3-vl:4b
 
-# Web search/extract -> the on-box SearXNG (mios-searxng). The
-# concrete URL is exported as SEARXNG_URL by hermes-agent.service
-# (shape-aware: localhost:8888 on the dev-VM host-net build,
-# mios-searxng:8080 on bridge builds). Law 5 unaffected -- search is
-# retrieval, not inference.
+# Web SEARCH -> the on-box SearXNG (mios-searxng, SEARXNG_URL). Web EXTRACT ->
+# `miosfetch`, MiOS's OWN offline direct-fetch provider (stdlib urllib +
+# readability HTML->text; plugins/web/miosfetch, deployed by 38-hermes-agent.sh
+# from /usr/share/mios/hermes/plugins). WHY NOT firecrawl: hermes pins firecrawl
+# -py v4 (firecrawl API v2, POST /v2/scrape) but MiOS self-hosts firecrawl
+# v1.0.0 (v1 API) -> every web_extract 404s (operator-confirmed 2026-05-31:
+# research turns could never drill past search-result homepages). extract_backend
+# MUST be set EXPLICITLY -- without it web_extract errors "No web extract provider
+# configured". The firecrawl plugin is still registered (dormant fallback); flip
+# this back to `firecrawl` if the self-hosted container is ever upgraded to the
+# v2 API. Law 5 unaffected -- retrieval, not inference.
 web:
   search_backend: searxng
+  extract_backend: miosfetch
 
 # Display: surface real tool output in the chat (counter-fabrication).
 # Toolset trim. Hermes by default exposes ~30+ tool definitions to the
@@ -695,7 +713,7 @@ platform_toolsets:
   api_server:
     - terminal       # shell commands
     - file           # read/write/patch
-    - web            # web_search + web_extract via SearXNG (FREE, local; backend at :8888)
+    - web            # web_search via SearXNG (:8888) + web_extract via Firecrawl (:3002) -- FREE, local
     - browser        # browser_navigate / _snapshot / _click / ... via CDP -> ChromeDev flatpak
     - discord        # read + participate (fetch messages, search members, create threads)
     - cronjob        # create/list/update/pause/resume/remove/trigger scheduled prompts (in-process, croniter-backed)

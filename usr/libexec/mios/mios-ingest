@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""mios-ingest -- OFFLINE local-source ingestion into the viking:// vault.
+
+P5.1 (OpenHuman ingestion, offline core): OpenHuman polls external SaaS
+(Gmail/Slack/GitHub/...) -- that needs cloud creds + contradicts MiOS's
+offline-first principle, so the EXTERNAL pollers are deliberately NOT built.
+This is the OFFLINE half that IS aligned: ingest LOCAL sources (a directory of
+notes/docs/markdown the operator already has on disk) into the second-brain
+vault, tiered (L0/L1 via mios-summarize) so viking:// can navigate them and the
+knowledge recall can surface them. Same "compact + structure + make navigable"
+value, pulling from local files instead of cloud APIs.
+
+Each ingested doc becomes a `knowledge` row (q = derived title/L0, answer =
+the L1 overview + a pointer to the source path; the raw stays on disk as L2).
+Idempotent per (source_path): re-ingesting updates rather than duplicates.
+
+USAGE
+  mios-ingest --path /var/home/mios/notes            # a directory (recursive)
+  mios-ingest --file /var/home/mios/notes/plan.md    # one file
+  mios-ingest --path DIR --ext md,txt --max 50 --dry-run
+
+Output JSON: {ok, ingested, skipped, sources:[...]}.
+Offline: only mios-summarize (local CPU lane) + local SurrealDB. No network.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import subprocess
+import sys
+import urllib.request
+
+DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
+DB_USER = os.environ.get("MIOS_DB_USER", "root")
+DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
+DB_NS = os.environ.get("MIOS_DB_NS", "mios")
+DB_DB = os.environ.get("MIOS_DB_DB", "mios")
+TABLE = os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge")
+SUMMARIZE = os.environ.get("MIOS_SUMMARIZE_BIN", "mios-summarize")
+DEFAULT_EXTS = os.environ.get("MIOS_INGEST_EXTS", "md,txt,rst,org")
+
+
+def _sql(sql: str) -> list:
+    req = urllib.request.Request(
+        f"{DB_URL.rstrip('/')}/sql", data=sql.encode("utf-8"),
+        headers={"surreal-ns": DB_NS, "surreal-db": DB_DB,
+                 "Accept": "application/json",
+                 "Authorization": "Basic " +
+                 base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=20) as r:
+        d = json.loads(r.read().decode("utf-8", errors="replace"))
+    res = []
+    for st in (d or []):
+        if isinstance(st, dict):
+            if st.get("status") == "ERR":
+                raise RuntimeError(st.get("result") or "db error")
+            if isinstance(st.get("result"), list):
+                res = st["result"]
+    return res
+
+
+def _esc(s: str) -> str:
+    return str(s).replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _summarize(text: str) -> dict:
+    try:
+        p = subprocess.run([SUMMARIZE, "--text", text, "--tiers", "l0,l1",
+                            "--json"], capture_output=True, text=True,
+                           timeout=130)
+        return json.loads(p.stdout or "{}")
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _collect(path: str, file: str, exts: set, mx: int) -> list:
+    out = []
+    if file:
+        if os.path.isfile(file):
+            out.append(file)
+        return out
+    for root, _dirs, files in os.walk(path):
+        for fn in files:
+            if exts and fn.rsplit(".", 1)[-1].lower() not in exts:
+                continue
+            out.append(os.path.join(root, fn))
+            if len(out) >= mx:
+                return out
+    return out
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-ingest")
+    p.add_argument("--path", default="")
+    p.add_argument("--file", default="")
+    p.add_argument("--ext", default=DEFAULT_EXTS)
+    p.add_argument("--max", type=int, default=100)
+    p.add_argument("--dry-run", action="store_true")
+    args = p.parse_args()
+
+    if not args.path and not args.file:
+        print(json.dumps({"ok": False, "error": "need --path or --file"}))
+        return 2
+    exts = {e.strip().lower() for e in args.ext.split(",") if e.strip()}
+    srcs = _collect(args.path, args.file, exts, args.max)
+    if not srcs:
+        print(json.dumps({"ok": True, "ingested": 0, "skipped": 0,
+                          "note": "no matching files", "sources": []}))
+        return 0
+
+    try:
+        _sql(f"DEFINE TABLE IF NOT EXISTS {TABLE} SCHEMALESS;")
+    except Exception:  # noqa: BLE001
+        pass
+
+    ingested, skipped, report = 0, 0, []
+    for sp in srcs:
+        try:
+            with open(sp, encoding="utf-8", errors="replace") as f:
+                raw = f.read().strip()
+        except OSError:
+            skipped += 1
+            continue
+        if not raw:
+            skipped += 1
+            continue
+        if args.dry_run:
+            report.append({"source": sp, "chars": len(raw), "action": "would-ingest"})
+            ingested += 1
+            continue
+        s = _summarize(raw[:12000])
+        l0 = (s.get("l0") or os.path.basename(sp)).strip()
+        l1 = (s.get("l1") or raw[:2000]).strip()
+        answer = f"[ingested from {sp}]\n\n{l1}"
+        # idempotent upsert keyed on the source path (stored in `src`)
+        try:
+            _sql(f"DELETE {TABLE} WHERE src = '{_esc(sp)}';")
+            _sql(f"CREATE {TABLE} SET q = '{_esc(l0[:300])}', "
+                 f"answer = '{_esc(answer[:6000])}', "
+                 f"src = '{_esc(sp)}', source = 'ingest', "
+                 f"sources = ['{_esc(sp)}'], ts = time::now();")
+            ingested += 1
+            report.append({"source": sp, "l0": l0[:120]})
+        except Exception as e:  # noqa: BLE001
+            skipped += 1
+            report.append({"source": sp, "error": str(e)[:120]})
+
+    print(json.dumps({"ok": True, "ingested": ingested, "skipped": skipped,
+                      "dry_run": args.dry_run, "sources": report[:50]}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

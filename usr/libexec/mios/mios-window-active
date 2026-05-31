@@ -129,7 +129,15 @@ if command -v pgrep >/dev/null 2>&1; then
     for p in "${PATTERNS_ARR[@]}"; do
         p_trim=$(echo "$p" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
         [ -z "$p_trim" ] && continue
-        _lin_pid=$(pgrep -if "$p_trim" 2>/dev/null | head -1 || true)
+        # pgrep -f matches FULL cmdlines, so it SELF-MATCHES this verifier
+        # (its own argv contains the search pattern) -> a false process_alive
+        # for an app that isn't running. Drop any matched pid whose cmdline
+        # mentions mios-window-active (the verifier's own process tree).
+        _lin_pid=$(pgrep -if "$p_trim" 2>/dev/null | while read -r _pid; do
+            _cl=$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null)
+            case "$_cl" in *mios-window-active*) continue ;; esac
+            echo "$_pid"; break
+        done)
         [ -n "$_lin_pid" ] && break
     done
 fi
@@ -152,6 +160,11 @@ public class W {
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
 }
 "@ -ErrorAction SilentlyContinue
@@ -204,15 +217,32 @@ if (\$h -eq [IntPtr]::Zero) {
     return
 }
 
-# --present mode: actuate before re-measuring. SW_RESTORE = 9
-# (restores a minimized window); SW_SHOWNORMAL = 1 (shows + activates
-# regardless of prior state). Then bring-to-top + foreground for
-# z-order. Wait briefly for Win32 to settle.
+# --present mode: actuate before re-measuring. FORCEFUL foreground
+# (operator 2026-05-26 "Xbox-mode focus didn't work" -- a fullscreen
+# Game Pass game stayed window_foreground:false after a plain
+# SetForegroundWindow because Windows blocks foreground changes from a
+# background caller, only flashing the taskbar). Bypass the foreground
+# lock the standard way: tap Alt, AttachThreadInput to the current
+# foreground window's thread, THEN SetForegroundWindow, and toggle
+# TOPMOST to force z-order. SW_RESTORE=9 / SW_SHOWNORMAL=1 un-minimise
+# first. Works for normal + borderless-fullscreen windows (true
+# EXCLUSIVE-fullscreen can still resist -- a hard Windows limit).
 if (\$present) {
+    \$fg = [W]::GetForegroundWindow()
+    \$fgpid = 0
+    \$fgT = [W]::GetWindowThreadProcessId(\$fg, [ref]\$fgpid)
+    \$myT = [W]::GetCurrentThreadId()
+    [W]::keybd_event(0x12, 0, 0, [IntPtr]::Zero) | Out-Null   # Alt down
+    [W]::keybd_event(0x12, 0, 2, [IntPtr]::Zero) | Out-Null   # Alt up (KEYEVENTF_KEYUP)
+    \$att = \$false
+    if (\$fgT -ne 0 -and \$fgT -ne \$myT) { \$att = [W]::AttachThreadInput(\$myT, \$fgT, \$true) }
     [W]::ShowWindow(\$h, 9) | Out-Null   # SW_RESTORE
     [W]::ShowWindow(\$h, 1) | Out-Null   # SW_SHOWNORMAL
     [W]::BringWindowToTop(\$h) | Out-Null
     [W]::SetForegroundWindow(\$h) | Out-Null
+    [W]::SetWindowPos(\$h, [IntPtr](-1), 0, 0, 0, 0, 0x0003) | Out-Null   # HWND_TOPMOST, NOMOVE|NOSIZE
+    [W]::SetWindowPos(\$h, [IntPtr](-2), 0, 0, 0, 0, 0x0003) | Out-Null   # HWND_NOTOPMOST
+    if (\$att) { [W]::AttachThreadInput(\$myT, \$fgT, \$false) | Out-Null }
     Start-Sleep -Milliseconds 250
 }
 

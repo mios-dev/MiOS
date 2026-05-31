@@ -136,6 +136,48 @@ register: plugins.web.searxng:register
 YAML
         log "[38-hermes-agent] seeded ${searxng_dir#${VENV_DIR}/}/plugin.yaml"
     fi
+    # Firecrawl web provider: the wheel ships plugins/web/firecrawl/provider.py
+    # but no plugin.yaml, so the loader skips it. Seed the manifest so it
+    # REGISTERS -- but note it is a DORMANT fallback: hermes pins firecrawl-py v4
+    # (firecrawl API v2, POST /v2/scrape) while MiOS self-hosts firecrawl v1.0.0
+    # (v1 API), so web_extract via firecrawl 404s (operator-confirmed 2026-05-31).
+    # The ACTIVE extract backend is `miosfetch` (below); this seed just keeps
+    # firecrawl selectable if the self-hosted container is upgraded to v2.
+    firecrawl_dir="${site_packages}/plugins/web/firecrawl"
+    if [[ -d "$firecrawl_dir" && ! -f "${firecrawl_dir}/plugin.yaml" ]]; then
+        cat > "${firecrawl_dir}/plugin.yaml" <<'YAML'
+name: firecrawl
+kind: backend
+version: 1.0.0
+description: Firecrawl web provider (self-hosted at FIRECRAWL_API_URL; DORMANT -- SDK v2 vs container v1 mismatch, web.extract_backend defaults to miosfetch).
+register: plugins.web.firecrawl:register
+YAML
+        log "[38-hermes-agent] seeded ${firecrawl_dir#${VENV_DIR}/}/plugin.yaml"
+    fi
+    # miosfetch: MiOS's OWN offline direct-fetch web-EXTRACT provider (stdlib
+    # urllib + readability HTML->text; no firecrawl SDK / no container / no cloud)
+    # -- the ACTIVE extract backend (web.extract_backend: miosfetch). Source ships
+    # via system-files-overlay at /usr/share/mios/hermes/plugins/web/miosfetch;
+    # copy it into the venv's bundled plugin tree so the loader auto-registers it.
+    # This is the real fix for "research can't drill past search-result homepages"
+    # (operator-confirmed 2026-05-31).
+    _mf_src="/usr/share/mios/hermes/plugins/web/miosfetch"
+    _mf_dst="${site_packages}/plugins/web/miosfetch"
+    if [[ -d "$_mf_src" ]]; then
+        install -d "$_mf_dst"
+        cp -f "$_mf_src"/provider.py "$_mf_src"/__init__.py "$_mf_src"/plugin.yaml "$_mf_dst"/ 2>/dev/null \
+            && log "[38-hermes-agent] deployed miosfetch plugin -> ${_mf_dst#${VENV_DIR}/}"
+    fi
+    # Teach the LEGACY web_tools backend-availability check about miosfetch:
+    # tools/web_tools.py::_is_backend_available hardcodes the built-in backend
+    # names and returns False for any custom provider, so _get_capability_backend
+    # would discard `extract_backend: miosfetch` and fall back to firecrawl. One
+    # guarded line makes miosfetch a recognized (always-available, stdlib) backend.
+    _wt="${site_packages}/tools/web_tools.py"
+    if [[ -f "$_wt" ]] && ! grep -q 'backend == "miosfetch"' "$_wt"; then
+        sed -i 's/^    if backend == "exa":/    if backend == "miosfetch":  # MiOS offline direct-fetch provider (stdlib; always usable)\n        return True\n    if backend == "exa":/' "$_wt" \
+            && log "[38-hermes-agent] patched web_tools._is_backend_available for miosfetch"
+    fi
 done
 shopt -u nullglob
 

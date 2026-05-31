@@ -1,0 +1,57 @@
+# /etc/containers/systemd/mios-adguard.container
+# 'MiOS' AdGuard Home -- system-wide DNS ad/tracker/malware sinkhole.
+#
+# Open-source (GPLv3) recursive resolver that blocks ad/tracker/malware DOMAINS
+# from open-source blocklists (StevenBlack, OISD, AdGuard filters) and forwards
+# everything else upstream over DoH. This is the DNS-domain layer; CrowdSec
+# (mios-crowdsec + the nftables bouncer) remains the malicious-IP firewall layer
+# -- the two are complementary, not the same thing.
+#
+# Reachability model: a DNS server has to bind the host's REAL interfaces so
+# tailnet peers can resolve at <vm-tailnet-ip>:53, so this uses Network=host.
+# bind_hosts in AdGuardHome.yaml scopes the DNS listener to 127.0.0.1 + the
+# Tailscale IP ONLY (never 0.0.0.0), so it never collides with podman's
+# aardvark-dns (10.89.0.1:53) or the WSL resolver stub. The config is GENERATED
+# at first boot by mios-adguard-firstboot (it needs the live Tailscale IP +
+# MagicDNS suffix, neither knowable at image build time) -- hence the
+# Requires=/After= on that unit and the ConditionPathExists guard.
+#
+# Image / UID / port placeholders resolve at image build time from mios.toml
+# [image.sidecars].adguard, [services.adguard].uid/.gid, [ports].adguard_ui
+# via automation/15-render-quadlets.sh.
+
+[Unit]
+Description='MiOS' AdGuard Home (DNS ad/tracker/malware sinkhole + resolver)
+After=network-online.target mios-adguard-firstboot.service
+Wants=network-online.target
+Requires=mios-adguard-firstboot.service
+ConditionPathExists=/etc/mios/adguard/AdGuardHome.yaml
+
+[Container]
+Image=${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}
+ContainerName=mios-adguard
+# Host networking: bind the real loopback + Tailscale interfaces directly (see
+# header). PublishPort is intentionally absent -- it is a no-op under host net.
+Network=host
+# Run as the dedicated mios-adguard sysuser (uid 825), NOT root. :53 is a
+# privileged port, so grant ONLY the bind capability -- nothing else.
+User=${MIOS_ADGUARD_UID:-825}
+Group=${MIOS_ADGUARD_GID:-825}
+AddCapability=CAP_NET_BIND_SERVICE
+# AdGuard expects its config under /opt/adguardhome/conf and its mutable work
+# dir (query log, stats db, filter cache) under /opt/adguardhome/work.
+Volume=/etc/mios/adguard:/opt/adguardhome/conf:Z
+Volume=/var/lib/mios/adguard:/opt/adguardhome/work:Z
+
+Label=org.opencontainers.image.title=mios-adguard
+Label=org.opencontainers.image.url=https://github.com/AdguardTeam/AdGuardHome
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_ADGUARD_UI:-3053}/
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

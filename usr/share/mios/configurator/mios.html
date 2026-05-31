@@ -371,6 +371,11 @@
       <input type="text" id="f-hostname" data-key="identity.hostname" placeholder="mios">
       <label for="f-fullname">full name</label>
       <input type="text" id="f-fullname" data-key="identity.fullname" placeholder="MiOS User">
+      <label for="f-default-password">default password
+        <span style="opacity:.6">(the ONE login for every service: Portal, ttyd
+        mobile terminal, Cockpit, Forge, Ceph &mdash; vendor default
+        <code>mios</code>)</span></label>
+      <input type="text" id="f-default-password" data-key="identity.default_password" placeholder="mios">
     </div>
 
     <div class="card">
@@ -1031,12 +1036,15 @@
         <input type="text" id="f-ttyd-enable" data-key="ttyd.enable" data-type="bool" placeholder="true">
         <label for="f-ttyd-bind">bind (127.0.0.1 = local-only)</label>
         <input type="text" id="f-ttyd-bind" data-key="ttyd.bind" placeholder="127.0.0.1">
+        <label for="f-ttyd-expose">tailnet_expose &mdash; phone access over Tailscale HTTPS
+          <span style="opacity:.6">(tailnet-only, not public; login = [identity] mios/mios)</span></label>
+        <input type="text" id="f-ttyd-expose" data-key="ttyd.tailnet_expose" data-type="bool" placeholder="false">
         <label for="f-ttyd-require">require_auth (when bind != loopback)</label>
         <input type="text" id="f-ttyd-require" data-key="ttyd.require_auth" data-type="bool" placeholder="true">
-        <label for="f-ttyd-user">auth_user (basic-auth username)</label>
-        <input type="text" id="f-ttyd-user" data-key="ttyd.auth_user" placeholder="">
-        <label for="f-ttyd-pass">auth_pass (basic-auth password)</label>
-        <input type="text" id="f-ttyd-pass" data-key="ttyd.auth_pass" placeholder="">
+        <label for="f-ttyd-user">auth_user (empty = inherit [identity].username)</label>
+        <input type="text" id="f-ttyd-user" data-key="ttyd.auth_user" placeholder="(inherits mios)">
+        <label for="f-ttyd-pass">auth_pass (empty = inherit [identity].default_password)</label>
+        <input type="text" id="f-ttyd-pass" data-key="ttyd.auth_pass" placeholder="(inherits mios)">
       </fieldset>
       <fieldset>
         <legend>ttyd -- TLS + shells + ports</legend>

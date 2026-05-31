@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""'MiOS' fine-tuner -- HARDWARE-AGNOSTIC LoRA/SFT of a small role model.
+
+Trains a LoRA adapter on the distilled corpus from `mios-finetune-dataset`, then
+exports it as an ollama model (`FROM <base> + ADAPTER`). MiOS ships the components
+to train on ANY hardware combination, so this auto-detects the compute device:
+
+    NVIDIA CUDA  ->  4-bit QLoRA (bitsandbytes) when available, else bf16 LoRA
+    AMD ROCm     ->  bf16/fp16 LoRA (torch+ROCm; bitsandbytes 4bit only if present)
+    Apple MPS    ->  fp16 LoRA on the unified-memory GPU
+    CPU-only     ->  fp32 LoRA (works everywhere; slow -- a fallback, not a goal)
+
+Portable core = PyTorch + transformers + PEFT + TRL SFTTrainer (run anywhere);
+Unsloth is used only as an OPTIONAL CUDA fast-path when present + prefer_unsloth.
+
+OPERATOR-GATED + OFFLINE: the framework (see finetune/requirements.txt) and the HF
+base ([finetune].hf_base) are one-time fetches you do once; thereafter training is
+fully local. This is NOT an agent verb -- nothing in a chat turn can start it.
+
+Honest: every stage guards its prerequisites and reports what actually happened
+(trained / why it could not). Run with --dry-run to validate config + device +
+deps + dataset WITHOUT training (no GPU work).
+"""
+from __future__ import annotations
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore
+
+VENDOR_TOML = "/usr/share/mios/mios.toml"
+ETC_TOML = "/etc/mios/mios.toml"
+USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
+
+
+def _deep_merge(base: dict, over: dict) -> dict:
+    for k, v in (over or {}).items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+def load_cfg() -> dict:
+    cfg: dict = {}
+    for path in (VENDOR_TOML, ETC_TOML, USER_TOML):
+        try:
+            with open(path, "rb") as fh:
+                _deep_merge(cfg, tomllib.load(fh))
+        except FileNotFoundError:
+            continue
+        except Exception as e:  # noqa: BLE001
+            print(f"[finetune] WARN bad TOML {path}: {e}", file=sys.stderr)
+    ft = dict(cfg.get("finetune") or {})
+    for k in list(ft.keys()):
+        env = os.environ.get("MIOS_FINETUNE_" + k.upper())
+        if env is not None:
+            ft[k] = env
+    return ft
+
+
+def _ci(v, d):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return d
+
+
+def _cf(v, d):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return d
+
+
+def _cb(v, d=False):
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().lower() in ("1", "true", "yes", "on") if v is not None else d
+
+
+# --------------------------------------------------------------------------- #
+# hardware detection (the agnostic core)
+# --------------------------------------------------------------------------- #
+def detect_device(pref: str) -> tuple[str, str]:
+    """Return (device, note). pref in auto|cuda|rocm|mps|cpu."""
+    try:
+        import torch
+    except ModuleNotFoundError:
+        return ("cpu", "torch missing")
+    pref = (pref or "auto").lower()
+    is_rocm = bool(getattr(torch.version, "hip", None))
+    has_cuda = torch.cuda.is_available()  # true for both CUDA and ROCm builds
+    has_mps = getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
+    if pref == "cpu":
+        return ("cpu", "forced")
+    if pref in ("cuda", "rocm"):
+        return (pref, "forced") if has_cuda else ("cpu", f"{pref} requested but no GPU")
+    if pref == "mps":
+        return ("mps", "forced") if has_mps else ("cpu", "mps requested but unavailable")
+    # auto
+    if has_cuda:
+        return ("rocm" if is_rocm else "cuda", "auto-detected")
+    if has_mps:
+        return ("mps", "auto-detected")
+    return ("cpu", "no GPU detected")
+
+
+def use_4bit(device: str, want: str) -> bool:
+    """4-bit only where bitsandbytes actually works (CUDA today)."""
+    want = (want or "auto").lower()
+    if want in ("0", "false", "no", "off"):
+        return False
+    if device != "cuda":
+        return False
+    try:
+        import bitsandbytes  # noqa: F401
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+# --------------------------------------------------------------------------- #
+def check_deps() -> tuple[bool, list[str]]:
+    missing = []
+    for mod in ("torch", "transformers", "peft", "trl", "datasets"):
+        try:
+            __import__(mod)
+        except ModuleNotFoundError:
+            missing.append(mod)
+    return (not missing, missing)
+
+
+def target_modules(cfg):
+    """Explicit list/csv wins; 'auto' defers to runtime introspection of the
+    LOADED model (the only arch-agnostic way -- exotic bases like Qwen3.5's
+    Gated-DeltaNet hybrid do NOT use the standard q_proj/.../down_proj names)."""
+    tm = cfg.get("target_modules") or "auto"
+    if isinstance(tm, list):
+        return tm
+    if str(tm).lower() == "auto":
+        return "__introspect__"
+    return [s.strip() for s in str(tm).split(",") if s.strip()]
+
+
+def introspect_linear(model) -> list[str]:
+    """Unique leaf names of every Linear-like layer (nn.Linear, bnb Linear4bit/
+    8bit) -- minus the head, embeddings, and vision/multimodal towers (we only
+    LoRA the text path). Works on ANY arch."""
+    names: set[str] = set()
+    for n, m in model.named_modules():
+        if "Linear" not in type(m).__name__:
+            continue
+        low = n.lower()
+        if any(s in low for s in ("lm_head", "embed", "visual", "vision",
+                                  "patch", "img", "audio", "mm_proj")):
+            continue
+        leaf = n.split(".")[-1]
+        if leaf and not leaf.isdigit():
+            names.add(leaf)
+    return sorted(names)
+
+
+def load_model(hf_base: str, quant_cfg, dtype, device: str):
+    """Try the plain causal-LM class first, then multimodal classes -- Qwen3.5 is
+    image-text-to-text, so AutoModelForCausalLM may not be registered for it."""
+    import transformers as tf
+    kw = dict(trust_remote_code=True, quantization_config=quant_cfg,
+              torch_dtype=dtype,
+              device_map=("auto" if device in ("cuda", "rocm") else None))
+    last = None
+    for cls_name in ("AutoModelForCausalLM", "AutoModelForImageTextToText",
+                     "AutoModelForVision2Seq", "AutoModel"):
+        cls = getattr(tf, cls_name, None)
+        if cls is None:
+            continue
+        try:
+            return cls.from_pretrained(hf_base, **kw), cls_name
+        except Exception as e:  # noqa: BLE001
+            last = f"{cls_name}: {type(e).__name__}: {str(e)[:160]}"
+    raise RuntimeError(f"could not load {hf_base} ({last})")
+
+
+# --------------------------------------------------------------------------- #
+def train(cfg: dict, device: str, fourbit: bool, adapter_dir: str) -> dict:
+    import torch
+    from datasets import load_dataset
+    from peft import LoraConfig
+    from transformers import AutoTokenizer
+    from trl import SFTTrainer, SFTConfig
+
+    hf_base = str(cfg.get("hf_base") or "").strip()
+    if not hf_base:
+        return {"success": False, "error":
+                "finetune.hf_base is empty -- set it to the HF repo id or local "
+                "safetensors dir for the base (one-time offline fetch)."}
+    dataset_path = str(cfg.get("dataset_path") or "")
+    if not os.path.exists(dataset_path):
+        return {"success": False, "error": f"dataset not found: {dataset_path} "
+                f"(run mios-finetune-dataset first)"}
+    ds = load_dataset("json", data_files=dataset_path, split="train")
+    if len(ds) < _ci(cfg.get("min_examples"), 24):
+        return {"success": False,
+                "error": f"corpus too small: {len(ds)} < min_examples"}
+
+    bf16 = device in ("cuda", "rocm") and torch.cuda.is_bf16_supported()
+    fp16 = device in ("cuda", "rocm", "mps") and not bf16
+    dtype = torch.bfloat16 if bf16 else torch.float16 if fp16 else torch.float32
+    tok = AutoTokenizer.from_pretrained(hf_base, trust_remote_code=True)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+
+    quant_cfg = None
+    if fourbit:
+        from transformers import BitsAndBytesConfig
+        quant_cfg = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16 if bf16 else torch.float16,
+            bnb_4bit_use_double_quant=True)
+
+    model, model_cls = load_model(hf_base, quant_cfg, dtype, device)
+    print(f"[finetune] loaded {hf_base} via {model_cls}", flush=True)
+    if device == "mps":
+        model = model.to("mps")
+    try:
+        model.config.use_cache = False
+    except Exception:  # noqa: BLE001
+        pass
+    if fourbit:
+        from peft import prepare_model_for_kbit_training
+        model = prepare_model_for_kbit_training(model)
+    if _cb(cfg.get("grad_checkpointing"), True):
+        try:
+            model.gradient_checkpointing_enable()
+        except Exception:  # noqa: BLE001
+            pass
+
+    tm = target_modules(cfg)
+    if tm == "__introspect__":
+        tm = introspect_linear(model)
+        print(f"[finetune] LoRA targets (introspected): {tm}", flush=True)
+        if not tm:
+            return {"success": False,
+                    "error": "no Linear target modules found to LoRA"}
+    lora = LoraConfig(
+        r=_ci(cfg.get("lora_r"), 16), lora_alpha=_ci(cfg.get("lora_alpha"), 32),
+        lora_dropout=_cf(cfg.get("lora_dropout"), 0.05), bias="none",
+        task_type="CAUSAL_LM", target_modules=tm)
+
+    args = SFTConfig(
+        output_dir=adapter_dir,
+        num_train_epochs=_cf(cfg.get("epochs"), 2),
+        per_device_train_batch_size=_ci(cfg.get("batch_size"), 2),
+        gradient_accumulation_steps=_ci(cfg.get("grad_accum"), 8),
+        learning_rate=_cf(cfg.get("learning_rate"), 2e-4),
+        warmup_ratio=_cf(cfg.get("warmup_ratio"), 0.03),
+        max_length=_ci(cfg.get("max_seq_len"), 2048),
+        bf16=bf16, fp16=fp16, logging_steps=5, save_strategy="no",
+        report_to=[], optim="paged_adamw_8bit" if fourbit else "adamw_torch")
+
+    trainer = SFTTrainer(model=model, args=args, train_dataset=ds,
+                         peft_config=lora, processing_class=tok)
+    trainer.train()
+    trainer.save_model(adapter_dir)
+    tok.save_pretrained(adapter_dir)
+    return {"success": True, "examples": len(ds), "adapter_dir": adapter_dir,
+            "model_class": model_cls, "lora_targets": tm,
+            "dtype": str(dtype), "fourbit": fourbit}
+
+
+# --------------------------------------------------------------------------- #
+def export_ollama(cfg: dict, adapter_dir: str) -> dict:
+    """Convert the LoRA -> GGUF and create the ollama model (FROM base + ADAPTER).
+    Best-effort: needs llama.cpp's convert_lora_to_gguf.py + ollama. Reports the
+    manual steps honestly if the converter is absent rather than faking success."""
+    if not _cb(cfg.get("gguf_convert"), True):
+        return {"gguf": "skipped (gguf_convert=false)"}
+    work = str(cfg.get("work_dir") or "/var/lib/mios/finetune")
+    lora_gguf = os.path.join(work, "adapter.gguf")
+    conv = (os.environ.get("MIOS_FINETUNE_LORA_CONVERT")
+            or shutil.which("convert_lora_to_gguf.py"))
+    if not conv:
+        return {"gguf": "converter-missing", "manual":
+                "install llama.cpp; run convert_lora_to_gguf.py "
+                f"{adapter_dir} --outfile {lora_gguf}; then `ollama create`"}
+    try:
+        subprocess.run([sys.executable, conv, adapter_dir, "--outfile", lora_gguf,
+                        "--outtype", str(cfg.get("gguf_quant") or "q8_0")],
+                       check=True, timeout=1800)
+    except Exception as e:  # noqa: BLE001
+        return {"gguf": f"convert-failed: {e}"}
+
+    base = str(cfg.get("base_model") or "qwen3.5:2b")
+    tag = str(cfg.get("output_tag") or "mios-sys-agent-ft")
+    mf = os.path.join(work, f"{tag}.Modelfile")
+    with open(mf, "w", encoding="utf-8") as fh:
+        fh.write(f"FROM {base}\nADAPTER {lora_gguf}\n")
+    try:
+        subprocess.run(["ollama", "create", tag, "-f", mf], check=True, timeout=600)
+    except Exception as e:  # noqa: BLE001
+        return {"gguf": lora_gguf, "ollama": f"create-failed: {e}", "modelfile": mf}
+    return {"gguf": lora_gguf, "ollama_model": tag, "modelfile": mf}
+
+
+# --------------------------------------------------------------------------- #
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-finetune")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="validate config/device/deps/dataset; do NOT train")
+    a = ap.parse_args()
+    cfg = load_cfg()
+    if not _cb(cfg.get("enable"), True):
+        print(json.dumps({"success": False, "error": "finetune.enable=false"}))
+        return 1
+
+    device, note = detect_device(str(cfg.get("device") or "auto"))
+    fourbit = use_4bit(device, str(cfg.get("load_in_4bit") or "auto"))
+    deps_ok, missing = check_deps()
+    work = str(cfg.get("work_dir") or "/var/lib/mios/finetune")
+    adapter_dir = os.path.join(work, "adapter")
+    dataset_path = str(cfg.get("dataset_path") or "")
+
+    plan = {
+        "target_role": cfg.get("target_role"), "base_model": cfg.get("base_model"),
+        "hf_base": cfg.get("hf_base") or "(unset -- required)",
+        "output_tag": cfg.get("output_tag"),
+        "device": device, "device_note": note, "load_in_4bit": fourbit,
+        "deps_ok": deps_ok, "missing_deps": missing,
+        "dataset": dataset_path, "dataset_exists": os.path.exists(dataset_path),
+        "teacher_model": cfg.get("teacher_model"),
+    }
+    print(json.dumps({"plan": plan}, indent=2), flush=True)
+
+    if a.dry_run:
+        ok = deps_ok and plan["dataset_exists"] and bool(cfg.get("hf_base"))
+        print(json.dumps({"success": ok, "dry_run": True,
+                          "ready_to_train": ok}))
+        return 0 if ok else 2
+    if not deps_ok:
+        print(json.dumps({"success": False, "error":
+                          f"missing deps: {missing} -- pip install -r "
+                          "/usr/share/mios/finetune/requirements.txt"}))
+        return 1
+
+    os.makedirs(adapter_dir, exist_ok=True)
+    # optional Unsloth fast-path (CUDA only); falls through to portable TRL path.
+    if device == "cuda" and _cb(cfg.get("prefer_unsloth"), True):
+        try:
+            import unsloth  # noqa: F401
+            print("[finetune] Unsloth present -- using CUDA fast-path", flush=True)
+        except ModuleNotFoundError:
+            print("[finetune] Unsloth absent -- portable TRL/PEFT path", flush=True)
+
+    res = train(cfg, device, fourbit, adapter_dir)
+    if not res.get("success"):
+        print(json.dumps(res, indent=2))
+        return 1
+    res["export"] = export_ollama(cfg, adapter_dir)
+    print(json.dumps(res, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

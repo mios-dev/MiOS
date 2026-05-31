@@ -87,9 +87,26 @@ Environment=FORGEJO__server__ROOT_URL=http://localhost:3000/
 Environment=FORGEJO__server__HTTP_ADDR=0.0.0.0
 Environment=GITEA__server__HTTP_ADDR=0.0.0.0
 Environment=FORGEJO__server__HTTP_PORT=3000
-Environment=FORGEJO__server__SSH_PORT=2222
+# SSH binding (operator 2026-05-28: external SSH on :2222 was unreachable).
+# The drop-in 10-mios-dev-host-network.conf forces Network=host so the
+# Quadlet PublishPort=2222:22 mapping is a NO-OP (host networking bypasses
+# port publishing). Two SSH stacks could serve git-ssh:
+#   (a) The image's bundled openssh-server (default), which has its sshd
+#       hardcoded to LISTEN on container port 22. With host networking
+#       that becomes host:22 -- already squatted by the host sshd, so the
+#       in-container sshd silently can't bind and nothing answers on 2222.
+#   (b) Forgejo's OWN built-in SSH server (gated by START_SSH_SERVER=true),
+#       which listens on FORGEJO__server__SSH_LISTEN_PORT directly. With
+#       host networking + LISTEN_PORT=2222 this binds host:2222 -- the
+#       canonical Forge git-ssh port per mios.toml [ports].forge_ssh.
+# We pick (b): turn ON the internal server + point it at 2222 + keep
+# SSH_PORT=2222 for the clone-URL advertisement. The image's openssh
+# stays running on container:22 (host:22, collides + silently fails) but
+# isn't used by clients -- they connect to the internal server on 2222.
+Environment=FORGEJO__server__START_SSH_SERVER=true
+Environment=FORGEJO__server__SSH_PORT=49922
 Environment=FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0
-Environment=FORGEJO__server__SSH_LISTEN_PORT=22
+Environment=FORGEJO__server__SSH_LISTEN_PORT=49922
 Environment=FORGEJO__database__DB_TYPE=sqlite3
 Environment=FORGEJO__database__PATH=/data/forgejo.db
 Environment=FORGEJO__service__DISABLE_REGISTRATION=true

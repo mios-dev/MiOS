@@ -299,7 +299,7 @@ def _update_state(section: str, value) -> None:
 # ── Single shared Ollama client ──────────────────────────────────────
 def llm_chat(system: str, user: str, *, max_tokens: int = 150,
              temperature: float = 0.1, want_json: bool = False,
-             num_thread: int = 4) -> str:
+             num_thread: int = 4, model: str = "", endpoint: str = "") -> str:
     """Call qwen3:0.6b-cpu (or whatever MODEL is) via Ollama /api/chat.
     Returns the model's text output (content with thinking fallback).
     Returns empty string on any error. Always uses CPU + keep_alive=-1.
@@ -310,50 +310,59 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
     (8c/16t) so a pipeline turn bursts -- operator 2026-05-24 '2c background /
     8c foreground'. Ollama clamps to the available core count.
     """
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "options": {
-            "num_gpu": 0,           # Law 7 OFFLINE-FIRST + CPU-first
-            "num_thread": num_thread,
-            "num_predict": max_tokens,
-            "temperature": temperature,
-        },
-        "stream": False,
-        "keep_alive": -1,           # always-on agentic OS
-        # qwen3 micros are REASONING models: with thinking ON they dump the
-        # answer into message.thinking and leave content EMPTY, so the
-        # thinking-fallback below returned prose ("Okay, let's look...") that
-        # the JSON parser then rejected ("(unparseable: ...)"). think=False
-        # forces the answer into message.content (operator-proven on refine).
-        "think": False,
-    }
-    if want_json:
-        # Ollama's structured-output mode: the runtime constrains
-        # token sampling so the response is parseable JSON. Critical
-        # for sub-2B models that would otherwise prose-prefix the
-        # JSON ("Okay, let me break this down...") and trip the
-        # parser. Operator-flagged post-reboot: classify output was
-        # "(unparseable: Okay, let's break down...)".
-        payload["format"] = "json"
+    # ENDPOINT-AWARE (operator 2026-05-25: the daemon-agent can run on the iGPU =
+    # llama.cpp OpenAI /v1, NOT Ollama /api/chat). Ollama lanes (:11434/:11435)
+    # use native /api/chat with num_gpu=0 + num_thread + think:False; a non-ollama
+    # /v1 endpoint (the iGPU, which offloads to its own Vulkan device -- the
+    # num_gpu/num_thread CPU knobs do not apply) uses /chat/completions.
+    _msgs = [{"role": "system", "content": system},
+             {"role": "user", "content": user}]
+    # FOREGROUND swarm turns pass a BIGGER model (AGENT_MODEL) for a heavy,
+    # VISIBLE, sustained CPU spike (operator 2026-05-26 "bigger CPU model");
+    # the always-on BACKGROUND loop omits `model` -> stays on the snappy MODEL.
+    _mdl = model or MODEL
+    # FOREGROUND swarm turns can target a DIFFERENT lane than the always-on
+    # background loop (operator 2026-05-26): the daemon's MODEL/ENDPOINT stay on
+    # the iGPU (the 2026-05-25 offload), but a swarm facet reply forces the CPU
+    # lane (AGENT_ENDPOINT=:11435) so the CPU node ACTUALLY + VISIBLY computes.
+    _ep = (endpoint or ENDPOINT).rstrip("/")
+    _ollama = (":11434" in _ep) or (":11435" in _ep)
+    if _ollama:
+        payload = {
+            "model": _mdl, "messages": _msgs,
+            "options": {"num_gpu": 0, "num_thread": num_thread,
+                        "num_predict": max_tokens, "temperature": temperature},
+            "stream": False, "keep_alive": -1, "think": False,
+        }
+        if want_json:
+            payload["format"] = "json"
+        url = f"{_ep}/api/chat"
+    else:
+        payload = {"model": _mdl, "messages": _msgs, "stream": False,
+                   "max_tokens": max_tokens, "temperature": temperature}
+        if want_json:
+            payload["response_format"] = {"type": "json_object"}
+        url = (f"{_ep}/chat/completions" if _ep.endswith("/v1")
+               else f"{_ep}/v1/chat/completions")
     try:
         req = urllib.request.Request(
-            f"{ENDPOINT}/api/chat",
+            url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as r:
             body = json.loads(r.read())
-        msg = body.get("message") or {}
-        out = (msg.get("content") or "").strip()
-        if not out and not want_json:
-            # Free-text calls ONLY -- `thinking` is never valid JSON, so a
-            # want_json fallback to it just produces an unparseable digest.
-            out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        if _ollama:
+            msg = body.get("message") or {}
+            out = (msg.get("content") or "").strip()
+            if not out and not want_json:
+                # Free-text calls ONLY -- `thinking` is never valid JSON, so a
+                # want_json fallback to it just produces an unparseable digest.
+                out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+        else:
+            msg = ((body.get("choices") or [{}])[0].get("message") or {})
+            out = (msg.get("content") or "").strip()
         return out
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
         log.warning("LLM call failed (non-fatal): %s", e)
@@ -848,8 +857,11 @@ def launch_verifier_loop() -> None:
                     continue
                 seen.add(key)
                 verdict = _verify_one_launch(cl["app"])
-                ok = bool(verdict.get("presented_to_operator")
-                          or verdict.get("process_alive"))
+                # presented_to_operator ONLY: process_alive false-positives
+                # (mios-window-active's `pgrep -if <name>` self-matches the
+                # verifier's own cmdline), and the SOUL rule is "process alive
+                # is INSUFFICIENT -- success only when the window is presented".
+                ok = bool(verdict.get("presented_to_operator"))
                 if not ok:
                     failures.append({
                         "ts": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -1097,6 +1109,230 @@ def _collect_launch_failures() -> list[dict]:
         return data[-5:] if isinstance(data, list) else []
     except Exception:
         return []
+
+
+# ── Synchronous FIRE + VERIFY (operator 2026-05-25, 4A #2) ────────────
+#
+# "iGPU SHOULD FIRE MIOS OS CONTROL COMMANDS FOR AGENTS, that way the
+#  main agent/sub-agents just have to check for successful launch."
+#
+# The always-on daemon (the iGPU daemon-tier brain) FIRES the launch AND
+# runs the Definition-of-Done success-check as ONE operation; the agent
+# delegates the whole thing (the `launch_verified` verb -> mios-os-control
+# -> POST /os_control here) and just reads `launched`. The fire goes
+# THROUGH THE LAUNCHER BROKER -- never a direct subprocess: the broker
+# runs as the operator's user systemd service, so only IT inherits the
+# WSLg env (WAYLAND_DISPLAY / WSL_INTEROP) that actually surfaces a window
+# on the operator's desktop. The broker is threaded, so this reentrant
+# call (the daemon firing while the launch_verified verb is itself
+# in-flight on the broker) does NOT deadlock.
+LAUNCHER_SOCK = os.environ.get(
+    "MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock")
+# How long fire+verify polls for the window to surface (flatpak / WSLg
+# cold-launches can take a while to first paint).
+OS_CONTROL_SETTLE_S = float(os.environ.get("MIOS_OS_CONTROL_SETTLE_S", "1.5"))
+OS_CONTROL_ATTEMPTS = int(os.environ.get("MIOS_OS_CONTROL_ATTEMPTS", "6"))
+OS_CONTROL_INTERVAL_S = float(os.environ.get("MIOS_OS_CONTROL_INTERVAL_S", "2.5"))
+
+
+def _broker_dispatch(cmd: str, timeout: float = 60.0) -> dict:
+    """Fire a shell command through the launcher broker using the SAME
+    CAPTURE_JSON unix-socket protocol the agent-pipe uses. Returns
+    {success, output, stderr, exit_code} or an error stub. NEVER raises."""
+    import socket as _socket
+    if not os.path.exists(LAUNCHER_SOCK):
+        return {"success": False, "output": "", "exit_code": -1,
+                "stderr": f"broker socket missing at {LAUNCHER_SOCK}"}
+    try:
+        s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        s.settimeout(float(os.environ.get("MIOS_BROKER_TIMEOUT_S", str(timeout))))
+        s.connect(LAUNCHER_SOCK)
+        s.sendall(("CAPTURE_JSON: " + cmd + "\n").encode())
+        chunks: list[bytes] = []
+        try:
+            while True:
+                buf = s.recv(65536)
+                if not buf:
+                    break
+                chunks.append(buf)
+        except _socket.timeout:
+            pass
+        finally:
+            s.close()
+        raw = b"".join(chunks).decode("utf-8", "replace").strip()
+        j = json.loads(raw) if raw else {}
+        if not j:
+            return {"success": False, "output": "", "exit_code": -1,
+                    "stderr": raw or "broker: empty response"}
+        ec = int(j.get("exit_code", -1))
+        return {"success": ec == 0,
+                "output": (j.get("stdout") or "")[:4000],
+                "stderr": (j.get("stderr") or "")[:1000],
+                "exit_code": ec}
+    except OSError as e:
+        return {"success": False, "output": "", "exit_code": -1,
+                "stderr": f"broker: {e}"}
+
+
+def _oscontrol_node_url(node: str) -> str:
+    """4B: resolve an OS-control NODE name -> its executor base URL from the
+    layered mios.toml [os_control.nodes.<node>].endpoint (vendor +/etc; /etc
+    wins -- that's where the operator's real tailnet endpoint lives, NEVER the
+    public repo). Returns '' when unknown/unset."""
+    node = (node or "").strip()
+    if not node:
+        return ""
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ModuleNotFoundError:
+            return ""
+    url = ""
+    for path in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+                 "/etc/mios/mios.toml"):
+        try:
+            with open(path, "rb") as fh:
+                d = tomllib.load(fh)
+        except Exception:
+            continue
+        ep = (((d.get("os_control") or {}).get("nodes") or {}).get(node) or {})
+        if isinstance(ep, dict) and ep.get("endpoint"):
+            url = str(ep["endpoint"]).rstrip("/")
+    return url
+
+
+def _fire_and_verify_remote(app: str, node: str) -> dict:
+    """4B: fire + verify on a REMOTE node via its mios-oscontrol-server
+    (POST {url}/launch {app}). The node launches on its OWN desktop and polls
+    its own window verifier, returning the verdict. Honest on failure: node
+    unknown/unreachable -> launched:false + error (fires nothing)."""
+    import urllib.request
+    url = _oscontrol_node_url(node)
+    if not url:
+        return {"app": app, "node": node, "fired": False, "launched": False,
+                "error": f"no os_control node {node!r} configured "
+                         f"([os_control.nodes.{node}].endpoint in /etc/mios)",
+                "checked_by": "mios-daemon-agent"}
+    try:
+        payload = json.dumps({"app": app}).encode("utf-8")
+        req = urllib.request.Request(
+            url + "/launch", data=payload,
+            headers={"Content-Type": "application/json",
+                     "Accept": "application/json"})
+        timeout = float(os.environ.get("MIOS_OSCONTROL_NODE_TIMEOUT_S", "90"))
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+        if not isinstance(d, dict):
+            d = {"app": app, "node": node, "fired": False, "launched": False,
+                 "error": "node returned non-object"}
+        d.setdefault("app", app)
+        d.setdefault("node", node)
+        d["checked_by"] = f"mios-oscontrol-node:{node}"
+        return d
+    except Exception as e:   # node down / offline: HONEST, never fabricate
+        log.warning("os_control remote node %r fire+verify failed: %s", node, e)
+        return {"app": app, "node": node, "fired": False, "launched": False,
+                "error": f"os_control node {node!r} unreachable: {e}",
+                "checked_by": "mios-daemon-agent"}
+
+
+def _executor_launched(fire: dict) -> bool:
+    """True when fire_result shows the IN-SESSION executor (:11437) presented a
+    window. The executor runs ON the operator's interactive desktop, so its
+    "presented"/launched verdict is AUTHORITATIVE -- the Linux-side
+    _verify_one_launch (pgrep + WSL window probe) cannot reliably see a
+    Windows-host window and false-reports no-window for a Store game the executor
+    already presented (operator 2026-05-30 Wreckfest). Parses the
+    '[mios-windows] launched via in-session executor: {json}' line. Best-effort."""
+    out = str((fire or {}).get("output") or "")
+    if "in-session executor" not in out:
+        return False
+    m = re.search(r"\{.*\}", out, re.DOTALL)
+    if not m:
+        return False
+    try:
+        d = json.loads(m.group(0))
+    except Exception:  # noqa: BLE001
+        return False
+    if d.get("launched") is True:
+        return True
+    v = d.get("verdict") if isinstance(d.get("verdict"), dict) else {}
+    return v.get("launched") is True or str(v.get("summary", "")).lower() == "presented"
+
+
+def _fire_and_verify(app: str, node: str = "") -> dict:
+    """FIRE a launch + run the success-check as ONE operation, returning the
+    consolidated verdict the agent reads: {app, fired, launched, verdict,
+    ...}. NEVER raises. With `node` set -> delegates to that REMOTE node's
+    executor (4B). Otherwise the LOCAL path: fire `mios-launch <app>` (the
+    same command open_app's dispatcher renders) THROUGH THE BROKER (the only
+    context with the WSLg display env), then POLL _verify_one_launch until the
+    window is presented or attempts run out. The daemon is the SOLE firer (if
+    it's unreachable the shim returns an honest error and the agent falls back
+    to plain open_app)."""
+    import shlex
+    app = (app or "").strip()
+    if not app:
+        return {"app": "", "fired": False, "launched": False,
+                "error": "missing app name", "checked_by": "mios-daemon-agent"}
+    # PROSE-ARG GUARD (operator 2026-05-30): a #E ref can substitute an agent
+    # node's FULL answer ("Here are your installed games ... Wallpaper Engine has
+    # the highest rating ... Launching it now:") into the launch arg instead of a
+    # clean name -- the launcher then can't resolve it AND polls the full verify
+    # loop (~105s) for a window that can never appear. If the arg looks like prose
+    # (newline / many words), extract the SINGLE launch target via the micro-LLM.
+    if "\n" in app or len(app.split()) > 6:
+        _clean = (llm_chat(
+            "You extract a launch target. From the text, reply with ONLY the "
+            "exact name of the single app or game being launched -- no quotes, "
+            "no explanation, no punctuation, nothing else.", app[:2000]) or "").strip()
+        _clean = _clean.splitlines()[0].strip() if _clean else ""
+        if _clean and len(_clean.split()) <= 8:
+            log.info("os_control: extracted launch target %r from prose arg", _clean)
+            app = _clean
+    node = (node or "").strip()
+    if node:
+        return _fire_and_verify_remote(app, node)
+    fire = _broker_dispatch("mios-launch " + shlex.quote(app))
+    # The in-session executor's verdict is AUTHORITATIVE for "a window appeared"
+    # (it runs on the real interactive desktop); trust it over the Linux-side
+    # probe, which false-reports no-window for Windows-host/Store windows.
+    _exec_presented = _executor_launched(fire)
+    time.sleep(OS_CONTROL_SETTLE_S)
+    verdict: dict = {}
+    launched = False
+    used = 0
+    for i in range(max(1, OS_CONTROL_ATTEMPTS)):
+        used = i + 1
+        verdict = _verify_one_launch(app)
+        # presented_to_operator ONLY -- process_alive false-positives via the
+        # verifier's pgrep self-match (see launch_verifier_loop); SOUL rule:
+        # "process alive is INSUFFICIENT, success only when window presented".
+        # The executor's in-session "presented" verdict ALSO counts as success.
+        launched = bool(verdict.get("presented_to_operator")) or _exec_presented
+        if launched:
+            if _exec_presented and not verdict.get("presented_to_operator"):
+                verdict["executor_presented"] = True
+                verdict.setdefault("summary", "presented (in-session executor)")
+            break
+        if i < OS_CONTROL_ATTEMPTS - 1:
+            time.sleep(OS_CONTROL_INTERVAL_S)
+    if not launched:
+        log.warning("os_control: fire+verify FALSE-SUCCESS app=%r fire_ec=%s "
+                    "summary=%s", app, fire.get("exit_code"),
+                    verdict.get("summary"))
+    return {
+        "app": app,
+        "fired": fire.get("exit_code") == 0,
+        "launched": launched,
+        "verdict": verdict,
+        "fire_result": fire,
+        "attempts": used,
+        "checked_by": "mios-daemon-agent",
+        "ts": int(time.time()),
+    }
 
 
 def _openai_compat_llm_json(system: str, user: str,
@@ -2154,8 +2390,26 @@ AGENT_WEB_LIMIT = int(os.environ.get("MIOS_DAEMON_AGENT_WEB_LIMIT", "4"))
 # mios-cpu/reasoner! CONSOLIDATE"): when agent-pipe fans a turn out here, the
 # daemon-agent now REASONS on the CPU model (not just a telemetry dump), and a
 # foreground turn bursts to 8c/16t -- vs the background loop's light 4 threads.
-AGENT_MAX_TOKENS = int(os.environ.get("MIOS_DAEMON_AGENT_MAX_TOKENS", "800"))
+# 400 (was 800): the foreground swarm reply runs the BIGGER qwen3.5:4b on CPU,
+# so cap the length -- 400 tokens @ 16 threads is a clearly VISIBLE ~60-80s CPU
+# burst without the ~120-150s a full 800-token 4B pass took (which, combined
+# with deepen, pushed the swarm to 7.7min -- operator 2026-05-26).
+AGENT_MAX_TOKENS = int(os.environ.get("MIOS_DAEMON_AGENT_MAX_TOKENS", "400"))
 AGENT_THREADS = int(os.environ.get("MIOS_DAEMON_AGENT_THREADS", "16"))
+# FOREGROUND swarm model -- decoupled from the background MODEL (operator
+# 2026-05-26 "bigger CPU model"): the always-on background loop stays on the
+# snappy MODEL (qwen3:1.7b) so the daemon is never sluggish, but a SWARM facet
+# reply runs on this BIGGER CPU model (qwen3.5:4b ~4.7B) so the CPU node does a
+# heavy, VISIBLE, sustained 8c/16t churn instead of a brief light blip. Must be
+# a model present on the ollama-cpu lane (:11435). Empty -> fall back to MODEL.
+AGENT_MODEL = os.environ.get("MIOS_DAEMON_AGENT_MODEL", "qwen3.5:4b")
+# FOREGROUND swarm endpoint -- the CPU lane (:11435 ollama-cpu, num_gpu=0), so a
+# swarm facet reply VISIBLY churns the CPU (operator 2026-05-26 "CPU is seeing no
+# utilization") even though the daemon's background MODEL/ENDPOINT stay on the
+# iGPU (the 2026-05-25 always-on offload). Both directives held: iGPU runs the
+# always-on loop, CPU runs the heavy foreground swarm pass.
+AGENT_ENDPOINT = os.environ.get("MIOS_DAEMON_AGENT_ENDPOINT",
+                                "http://127.0.0.1:11435")
 
 
 def _daemon_global_log_context(max_rows: int = 20) -> str:
@@ -2224,7 +2478,8 @@ def _daemon_agent_reply(query: str) -> str:
         system += "\n\n## Live global system telemetry (journal/logs)\n" + telemetry
     try:
         return llm_chat(system, query, max_tokens=AGENT_MAX_TOKENS,
-                        temperature=0.3, num_thread=AGENT_THREADS).strip()
+                        temperature=0.3, num_thread=AGENT_THREADS,
+                        model=AGENT_MODEL, endpoint=AGENT_ENDPOINT).strip()
     except Exception as e:   # noqa: BLE001 -- fail-open: drop this secondary
         log.warning("daemon-agent CPU reason failed: %s", e)
         return ""
@@ -2253,15 +2508,78 @@ def daemon_agent_server_loop() -> None:
             self.wfile.write(data)
 
         def do_GET(self):
-            if self.path.rstrip("/") == "/v1/models":
+            from urllib.parse import urlparse, parse_qs
+            route = urlparse(self.path).path.rstrip("/")
+            if route == "/v1/models":
                 self._send_json(200, {"object": "list", "data": [
                     {"id": "mios-daemon-agent", "object": "model",
                      "owned_by": "mios"}]})
+            elif route == "/verify_launch":
+                # SYNCHRONOUS launch success-check (operator 2026-05-25 4A:
+                # "the daemon-agent ... runs the Definition-of-Done success
+                # check; the main agent/sub-agents just delegate and read the
+                # success signal"). The post-hoc launch_verifier_loop only
+                # catches false claims minutes later by scanning chats; this
+                # lets any agent ask IN-TURN "did app X actually launch?" and
+                # get the daemon's consolidated verdict (live window/process
+                # probe + the daemon's own recorded false-success history),
+                # so it can retry or report honestly instead of blind-claiming.
+                # The check is the same read-only mios-window-active --present
+                # probe the loop uses -- it never launches anything.
+                app = (parse_qs(urlparse(self.path).query).get("app")
+                       or [""])[0].strip()
+                if not app:
+                    self._send_json(400, {"error": "missing ?app=<name>"})
+                    return
+                verdict = _verify_one_launch(app)
+                # presented_to_operator ONLY (process_alive false-positives via
+                # the verifier's pgrep self-match; SOUL: window-presented only).
+                launched = bool(verdict.get("presented_to_operator"))
+                recent = [f for f in _collect_launch_failures()
+                          if app.lower() in (f.get("app") or "").lower()]
+                self._send_json(200, {
+                    "app": app,
+                    "launched": launched,
+                    "verdict": verdict,
+                    "recent_failures": recent,
+                    "checked_by": "mios-daemon-agent",
+                    "ts": int(time.time()),
+                })
             else:
                 self._send_json(404, {"error": "not found"})
 
         def do_POST(self):
-            if self.path.rstrip("/") != "/v1/chat/completions":
+            route = self.path.split("?", 1)[0].rstrip("/")
+            if route == "/os_control":
+                # 4A #2: the daemon FIRES the OS-control launch (through the
+                # broker, in operator/WSLg context) AND runs the success-check,
+                # returning ONE verdict the agent reads. Body:
+                # {action:"launch", app:"<name>"}.
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    body = json.loads(self.rfile.read(n) or b"{}")
+                except Exception:
+                    self._send_json(400, {"error": "bad request"})
+                    return
+                action = str(body.get("action") or "launch").strip().lower()
+                app = str(body.get("app") or body.get("name") or "").strip()
+                node = str(body.get("node") or "").strip()
+                if action != "launch":
+                    self._send_json(400, {
+                        "error": f"unsupported action {action!r} (only 'launch')"})
+                    return
+                if not app:
+                    self._send_json(400, {"error": "missing 'app'"})
+                    return
+                try:
+                    result = _fire_and_verify(app, node)
+                except Exception as e:   # noqa: BLE001 -- be honest, never fake
+                    log.warning("os_control fire+verify failed: %s", e)
+                    result = {"app": app, "fired": False, "launched": False,
+                              "error": str(e), "checked_by": "mios-daemon-agent"}
+                self._send_json(200, result)
+                return
+            if route != "/v1/chat/completions":
                 self._send_json(404, {"error": "not found"})
                 return
             try:

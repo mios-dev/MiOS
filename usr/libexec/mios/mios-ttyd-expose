@@ -1,0 +1,72 @@
+#!/bin/bash
+# mios-ttyd-expose -- securely publish the loopback ttyd terminal to the TAILNET
+# for mobile access (#82). Official pattern (researched 2026-05-30): ttyd stays
+# on 127.0.0.1; `tailscale serve` is the tailnet-ONLY HTTPS reverse proxy in
+# front (auto-provisioned TLS cert; NOT `tailscale funnel`, which is public).
+#
+# The basic-auth credential is the SSOT [identity] login (username /
+# default_password, vendor default mios/mios) that mios-ttyd-launch inherits --
+# NOT a random per-host secret (operator 2026-05-30: "all usernames/passwords
+# match the mios.toml user selection"). Idempotent. `mios-ttyd-expose off`
+# revokes the tailnet exposure.
+#
+# Gated/opt-in: this OPENS a shell to the tailnet, so it is NOT run by default.
+# Enable per-deploy via SSOT [ttyd].tailnet_expose=true -> firstboot calls this,
+# or the operator runs it directly.
+set -u
+
+PORT="${MIOS_PORT_TTYD_BASH:-7681}"
+
+# Section-aware layered mios.toml reader (/etc overrides /usr).
+_toml_get() {  # <section> <key>
+  local sec="$1" key="$2" f val
+  for f in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+    [ -r "$f" ] || continue
+    val="$(awk -v sec="$sec" -v key="$key" '
+      $0 ~ ("^\\[" sec "\\]"){ins=1;next} /^\[/{ins=0}
+      ins && $1==key{sub(/^[^=]*=[[:space:]]*/,"");sub(/[[:space:]]*#.*$/,"");gsub(/^"|"$/,"");gsub(/[[:space:]]+$/,"");print;exit}' "$f")"
+    [ -n "$val" ] && { printf '%s' "$val"; return 0; }
+  done
+}
+
+if [ "${1:-}" = "off" ]; then
+    echo "mios-ttyd-expose: removing tailnet HTTPS for :$PORT"
+    sudo tailscale serve --https="$PORT" off 2>&1 | head -3
+    exit 0
+fi
+
+# Day-0 gate: the boot oneshot (mios-ttyd-expose.service) runs with --auto and
+# ONLY proceeds when the operator opted in via SSOT [ttyd].tailnet_expose=true
+# (default false -> fresh installs keep the terminal loopback-only). A manual
+# `mios-ttyd-expose` (no arg) always exposes -- an explicit operator action.
+if [ "${1:-}" = "--auto" ]; then
+    case "$(_toml_get ttyd tailnet_expose || true)" in
+        true|1|yes|on) ;;
+        *) echo "mios-ttyd-expose: [ttyd].tailnet_expose not enabled -- ttyd stays loopback-only"; exit 0 ;;
+    esac
+fi
+
+USER_NAME="$(_toml_get identity username)";          USER_NAME="${USER_NAME:-mios}"
+PASS="$(_toml_get identity default_password)";       PASS="${PASS:-mios}"
+
+# Restart ttyd-bash so it re-reads the [identity] credential (mios-ttyd-launch
+# inherits it), then REFUSE to expose unless ttyd actually requires auth (401)
+# -- never publish an open shell to the tailnet.
+sudo systemctl restart mios-ttyd-bash.service 2>/dev/null || true
+sleep 2
+_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 "http://127.0.0.1:$PORT/" 2>/dev/null)"
+if [ "$_code" != "401" ]; then
+    echo "mios-ttyd-expose: WARNING ttyd returned $_code (expected 401) -- auth not applied; ABORTING tailnet expose to avoid an open shell" >&2
+    exit 1
+fi
+echo "mios-ttyd-expose: ttyd requires auth (401) -- safe to expose"
+
+# Publish tailnet-only HTTPS in front of loopback ttyd (persists via --bg).
+sudo tailscale serve --bg --https="$PORT" "http://127.0.0.1:$PORT" 2>&1 | head -3
+echo "--- login (SSOT [identity] -- matches every MiOS service) ---"
+echo "  user: $USER_NAME"
+echo "  pass: $PASS"
+echo "--- URL (open on a tailnet phone/browser) ---"
+tailscale status --json 2>/dev/null \
+  | python3 -c "import sys,json,os; n=json.load(sys.stdin).get('Self',{}).get('DNSName','').rstrip('.'); print('  https://%s:%s' % (n, os.environ.get('P',''))) " P="$PORT" 2>/dev/null \
+  || echo "  https://<this-node>.<tailnet>.ts.net:$PORT"

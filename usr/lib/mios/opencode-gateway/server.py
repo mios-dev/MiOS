@@ -1,149 +1,319 @@
 #!/usr/bin/env python3
-"""mios-opencode-gateway -- a thin OpenAI /v1 adapter that fronts the
-opencode CLI so agent-pipe's [agents.opencode] (:8633/v1) is a REAL
-endpoint.
-
-WHY: opencode has NO native OpenAI /v1 server. Its `serve` mode exposes
-opencode's OWN OpenAPI on :4096 (for opencode clients), not OpenAI
-chat-completions. This shim wraps `opencode run` (single-shot, headless)
-and returns an OpenAI chat.completion, so any /v1 caller -- agent-pipe's
-multi-agent fan-out (opencode secondary) AND the primary path when refine
-picks target_agent=opencode -- can reach it like any other sub-agent.
-
-FOSS + OFFLINE: opencode is configured (opencode.json) for the LOCAL
-ollama provider (model ollama/qwen2.5-coder:7b @ http://localhost:11434/v1).
-This gateway adds ZERO cloud dependency -- it only spawns the local
-opencode binary, which talks to local ollama.
-
-Best-effort by design: opencode's model runs on the dGPU lane, so under
-VRAM pressure the run will time out; the gateway then returns an empty
-answer so agent-pipe's fan-out drops opencode harmlessly. Streaming
-callers get the complete answer as a single content delta + [DONE].
-
-Config (env / SSOT via mios.toml -> service Environment=):
-  MIOS_PORT_OPENCODE_GATEWAY  listen port (default 8633)
-  MIOS_OPENCODE_BIN           opencode binary (default /usr/local/bin/opencode)
-  MIOS_OPENCODE_WORKDIR       scratch cwd for runs (no repo -> Q&A mode)
-  MIOS_OPENCODE_TIMEOUT_S     per-run cap (default 90)
+# -*- coding: utf-8 -*-
 """
-from __future__ import annotations
+MiOS opencode → OpenAI /v1 gateway shim.
 
-import asyncio
-import json
+opencode (the SST/charm CLI coding agent) speaks its own CLI protocol, not the
+OpenAI /v1 chat-completions contract that the MiOS agent-pipe council expects.
+This shim wraps `opencode run` behind a minimal OpenAI-compatible HTTP server so
+opencode can be dispatched as a first-class /v1 council peer (like Hermes at
+:8642), without teaching agent-pipe a bespoke protocol.
+
+Endpoints:
+  GET  /v1/models            → advertise the single opencode model id
+  POST /v1/chat/completions  → run opencode, return an OpenAI chat.completion
+                               (or an SSE delta stream when stream=true)
+
+Config (all via env, SSOT-rendered by the unit / userenv.sh):
+  MIOS_PORT_OPENCODE_GATEWAY   listen port (default 8633)
+  MIOS_OPENCODE_BIN            path to the opencode binary
+  MIOS_OPENCODE_MODEL          model id to advertise/forward (ONE canonical id;
+                               must match [agents.opencode].model + the key in
+                               opencode.json)
+  MIOS_OPENCODE_PROVIDER       opencode provider name from opencode.json
+                               (default "ollama"); used to build the `-m
+                               provider/model` selector
+  MIOS_OPENCODE_CONFIG         explicit path to opencode.json; exported to the
+                               child as OPENCODE_CONFIG so opencode does NOT
+                               depend on a hardcoded /root/.config location
+  MIOS_OPENCODE_HOST           bind host (default 127.0.0.1)
+  MIOS_OPENCODE_TIMEOUT        per-run timeout seconds (default 600)
+"""
 import os
-import re
+import sys
+import json
 import time
 import uuid
+import subprocess
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-OPENCODE_BIN = os.environ.get("MIOS_OPENCODE_BIN", "/usr/local/bin/opencode")
-WORK_DIR = os.environ.get("MIOS_OPENCODE_WORKDIR",
-                          "/var/lib/mios/opencode-gateway/work")
-TIMEOUT_S = int(os.environ.get("MIOS_OPENCODE_TIMEOUT_S", "90"))
-MODEL_ID = os.environ.get("MIOS_OPENCODE_MODEL", "opencode")
+
+# ---------------------------------------------------------------------------
+# SSOT-rendered config (env-first; defaults match mios.toml slots)
+# ---------------------------------------------------------------------------
+HOST = os.environ.get("MIOS_OPENCODE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8633"))
-
-# Strip ANSI/OSC escape sequences opencode's CLI emits.
-_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
-
-app = FastAPI()
-
-
-def _clean(s: str) -> str:
-    return _ANSI.sub("", s or "").strip()
-
-
-def _last_user(messages: list) -> str:
-    for m in reversed(messages or []):
-        if isinstance(m, dict) and m.get("role") == "user":
-            c = m.get("content")
-            if isinstance(c, list):  # OpenAI content-parts shape
-                c = " ".join(p.get("text", "") for p in c
-                             if isinstance(p, dict))
-            return str(c or "")
-    return ""
+OPENCODE_BIN = os.environ.get(
+    "MIOS_OPENCODE_BIN", "/usr/lib/mios/opencode/bin/opencode"
+)
+# ONE canonical model id, shared with [agents.opencode].model + opencode.json.
+OPENCODE_MODEL = os.environ.get("MIOS_OPENCODE_MODEL", "mios-opencode:latest")
+# opencode provider name as declared in opencode.json (e.g. "ollama").
+OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "ollama")
+# Explicit config location (no hardcoded /root/.config/opencode). Exported to
+# the child process as OPENCODE_CONFIG.
+OPENCODE_CONFIG = os.environ.get(
+    "MIOS_OPENCODE_CONFIG", "/etc/mios/opencode/opencode.json"
+)
+TIMEOUT = int(os.environ.get("MIOS_OPENCODE_TIMEOUT", "600"))
 
 
-async def _run_opencode(prompt: str) -> str:
-    if not prompt.strip():
-        return ""
-    try:
-        os.makedirs(WORK_DIR, exist_ok=True)
-    except OSError:
-        pass
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            OPENCODE_BIN, "run", prompt,
-            cwd=WORK_DIR,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            env={**os.environ,
-                 "HOME": os.environ.get("HOME", "/root"),
-                 "NO_COLOR": "1", "CI": "1"},
+def _selector(model: str) -> str:
+    """Build opencode's `provider/model` selector.
+
+    opencode's `-m` flag wants `<provider>/<model>`; if the caller already
+    passed a qualified id (contains a slash) honour it verbatim.
+    """
+    if "/" in model:
+        return model
+    return f"{OPENCODE_PROVIDER}/{model}"
+
+
+def _flatten_messages(messages):
+    """Collapse an OpenAI messages array into a single opencode `run` prompt.
+
+    opencode's non-interactive `run` takes one prompt string, so we serialise
+    the whole conversation (system + history + latest user turn) into a clearly
+    delimited transcript instead of dropping everything but the last user line.
+    Returns (system_prompt, prompt_text).
+    """
+    system_parts = []
+    convo = []
+    for m in messages or []:
+        role = (m.get("role") or "user").lower()
+        content = m.get("content", "")
+        # OpenAI content can be a list of parts; flatten to text.
+        if isinstance(content, list):
+            text = "".join(
+                part.get("text", "")
+                for part in content
+                if isinstance(part, dict)
+            )
+        else:
+            text = str(content)
+        if not text.strip():
+            continue
+        if role == "system":
+            system_parts.append(text)
+        elif role == "assistant":
+            convo.append(f"Assistant:\n{text}")
+        elif role == "tool":
+            convo.append(f"Tool result:\n{text}")
+        else:  # user (and any unknown role)
+            convo.append(f"User:\n{text}")
+
+    system_prompt = "\n\n".join(system_parts).strip()
+    transcript = "\n\n".join(convo).strip()
+
+    if system_prompt:
+        prompt = (
+            f"# System instructions\n{system_prompt}\n\n"
+            f"# Conversation\n{transcript}\n\n"
+            f"# Task\nRespond as the assistant to the latest user turn above."
         )
-    except Exception as e:  # binary missing / not executable
-        return f"(opencode unavailable: {e})"
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=TIMEOUT_S)
-    except asyncio.TimeoutError:
+    else:
+        prompt = transcript
+    return system_prompt, prompt
+
+
+def _run_opencode(prompt: str, model: str):
+    """Invoke `opencode run` with the unified config + model selector.
+
+    Returns the assistant text. Raises on failure.
+    """
+    env = dict(os.environ)
+    # Point opencode at the unified config explicitly (no /root/.config dep).
+    env["OPENCODE_CONFIG"] = OPENCODE_CONFIG
+    # XDG fallback so any opencode build that ignores OPENCODE_CONFIG still
+    # finds the file under <dir>/opencode/opencode.json.
+    cfg_dir = os.path.dirname(os.path.dirname(OPENCODE_CONFIG))
+    if cfg_dir:
+        env.setdefault("XDG_CONFIG_HOME", cfg_dir)
+
+    cmd = [OPENCODE_BIN, "run", "-m", _selector(model), prompt]
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env
+    )
+    out = (proc.stdout or "").strip()
+    if not out:
+        out = (proc.stderr or "").strip()
+    if proc.returncode != 0 and not out:
+        raise RuntimeError(
+            f"opencode exited {proc.returncode} with no output"
+        )
+    return out
+
+
+class Handler(BaseHTTPRequestHandler):
+    # Quieten the default stderr access-log spam (journald captures stdout).
+    def log_message(self, fmt, *args):
+        return
+
+    def _send(self, code, obj):
+        body = json.dumps(obj).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _sse_headers(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+
+    def _sse_write(self, obj):
+        self.wfile.write(b"data: " + json.dumps(obj).encode("utf-8") + b"\n\n")
+        self.wfile.flush()
+
+    def do_GET(self):
+        if self.path.rstrip("/") == "/v1/models":
+            self._send(200, {
+                "object": "list",
+                "data": [
+                    {"id": OPENCODE_MODEL, "object": "model", "owned_by": "mios"}
+                ],
+            })
+        elif self.path.rstrip("/") in ("/health", "/healthz"):
+            self._send(200, {"status": "ok", "model": OPENCODE_MODEL})
+        else:
+            self._send(404, {"error": {"message": "not found"}})
+
+    def do_POST(self):
+        if self.path.rstrip("/") != "/v1/chat/completions":
+            self._send(404, {"error": {"message": "not found"}})
+            return
         try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        return ""  # timeout -> empty so the fan-out drops opencode
-    return _clean(out.decode("utf-8", "replace"))
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length else b"{}"
+            req = json.loads(raw or b"{}")
+        except Exception as e:
+            self._send(400, {"error": {"message": f"bad request: {e}"}})
+            return
+
+        messages = req.get("messages", [])
+        model = req.get("model", OPENCODE_MODEL)
+        stream = bool(req.get("stream", False))
+
+        # Pass the FULL conversation (system + history) to opencode, not just
+        # the last user message.
+        _system, prompt = _flatten_messages(messages)
+
+        cmpl_id = "chatcmpl-" + uuid.uuid4().hex[:24]
+        created = int(time.time())
+
+        if stream:
+            self._stream(cmpl_id, created, model, prompt)
+            return
+
+        try:
+            out = _run_opencode(prompt, model)
+        except Exception as e:
+            self._send(500, {"error": {"message": f"opencode failed: {e}"}})
+            return
+
+        self._send(200, {
+            "id": cmpl_id,
+            "object": "chat.completion",
+            "created": created,
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": out},
+                "finish_reason": "stop",
+            }],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            },
+        })
+
+    def _stream(self, cmpl_id, created, model, prompt):
+        """Emit a well-formed OpenAI SSE delta stream.
+
+        opencode's `run` is not token-incremental over a stable public API, so
+        we run it to completion then chunk the result into SSE deltas. This
+        keeps stream=true callers (agent-pipe council) happy with a valid
+        chat.completion.chunk stream terminated by [DONE].
+        """
+        try:
+            out = _run_opencode(prompt, model)
+            err = None
+        except Exception as e:
+            out, err = "", str(e)
+
+        self._sse_headers()
+
+        # role delta first
+        self._sse_write({
+            "id": cmpl_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {"role": "assistant"},
+                "finish_reason": None,
+            }],
+        })
+
+        if err:
+            self._sse_write({
+                "id": cmpl_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model,
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": f"opencode failed: {err}"},
+                    "finish_reason": None,
+                }],
+            })
+        else:
+            # Chunk into reasonably sized content deltas.
+            step = 512
+            for i in range(0, len(out), step):
+                self._sse_write({
+                    "id": cmpl_id,
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"content": out[i:i + step]},
+                        "finish_reason": None,
+                    }],
+                })
+
+        # terminal chunk
+        self._sse_write({
+            "id": cmpl_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop",
+            }],
+        })
+        self.wfile.write(b"data: [DONE]\n\n")
+        self.wfile.flush()
 
 
-def _completion(text: str) -> dict:
-    return {
-        "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": MODEL_ID,
-        "choices": [{"index": 0, "finish_reason": "stop",
-                     "message": {"role": "assistant", "content": text}}],
-    }
-
-
-@app.get("/v1/models")
-async def models() -> dict:
-    return {"object": "list",
-            "data": [{"id": MODEL_ID, "object": "model", "owned_by": "mios"}]}
-
-
-@app.get("/health")
-async def health() -> dict:
-    return {"ok": os.path.exists(OPENCODE_BIN), "bin": OPENCODE_BIN}
-
-
-@app.post("/v1/chat/completions")
-async def chat(request: Request):
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"error": {"message": "invalid JSON body",
-                                       "type": "invalid_request_error"}},
-                            status_code=400)
-    text = await _run_opencode(_last_user(body.get("messages") or []))
-    if body.get("stream"):
-        async def _gen():
-            cid = f"chatcmpl-{uuid.uuid4().hex[:24]}"
-            base = {"id": cid, "object": "chat.completion.chunk",
-                    "created": int(time.time()), "model": MODEL_ID}
-            first = {**base, "choices": [
-                {"index": 0,
-                 "delta": {"role": "assistant", "content": text}}]}
-            yield f"data: {json.dumps(first)}\n\n".encode("utf-8")
-            done = {**base, "choices": [
-                {"index": 0, "delta": {}, "finish_reason": "stop"}]}
-            yield f"data: {json.dumps(done)}\n\n".encode("utf-8")
-            yield b"data: [DONE]\n\n"
-        return StreamingResponse(_gen(), media_type="text/event-stream")
-    return JSONResponse(_completion(text))
+def main():
+    addr = (HOST, PORT)
+    httpd = ThreadingHTTPServer(addr, Handler)
+    sys.stderr.write(
+        f"[opencode-gateway] listening on http://{HOST}:{PORT}/v1 "
+        f"(model={OPENCODE_MODEL}, bin={OPENCODE_BIN})\n"
+    )
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    main()

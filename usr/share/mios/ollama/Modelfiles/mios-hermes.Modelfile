@@ -13,18 +13,47 @@
 # bare /v1 call without SOUL.md (e.g. when agent-pipe proxies Hermes as
 # a plain completion). Language-neutral, ZERO hardcoded topic lists.
 #
-# Base: qwen3.5:4b -- strong tool-use + multi-step reasoning in a 4B
-# class that fits the local lanes. Operators with headroom can swap the
-# FROM (qwen3.5:9b, etc.) without touching the baked discipline.
+# Base: qwen3.5:9b -- the dGPU-resident ORCHESTRATOR reasoning brain. LARGER
+# than the old 4B (2.25x params -> more powerful primary) while staying FAST +
+# co-resident with the 4B refine/polish (mios-agent) on the same :11434 lane:
+# 9.9 GB (9b) + 6.5 GB (4b) = 16.4 GB, fits the ~22 GB free with ~5 GB headroom
+# for a dGPU swarm secondary AND transient Windows VRAM spikes (the 4090 is
+# SHARED with the Windows host -- see [[gpu_igpu_compute_topology]]).
+#
+# PARALLEL COMPUTE IS PRESERVED (operator 2026-05-28 "make sure it can still
+# compute in parallel!"): this primary on the dGPU runs CONCURRENTLY with the
+# swarm secondaries on OTHER hardware endpoints -- mios-daemon-agent (CPU
+# :11435), mios-igpu (:11436), the phone -- because the fan-out acquires a
+# PER-LANE semaphore keyed on each agent's engine/node, so distinct hardware
+# fires at the SAME dispatch step ([[mios_heterogeneous_parallel_dispatch]]).
+# A bigger primary on the dGPU does NOT serialise the other lanes.
+#
+# WHY NOT 27B: qwen3.6:27b @ Q4 (~17-22 GB) was tested + loads fine when VRAM is
+# free, but it EATS the whole 4090 -> refine/polish can't co-reside (measured
+# 23.6s refine on the 27B, 40s on a CPU 1.7B) = 60-90s turns. On a SHARED GPU
+# that is too slow for the per-turn hot path. The 27B is the MAX-QUALITY option
+# for when the dGPU is fully free + slower turns are acceptable -- swap the FROM
+# to qwen3.6:27b (and move refine/polish off :11434) to enable it. gpt-oss:20b
+# (13.8 GB, native tool-calling) is the middle option. See
+# [[mios_model_refactor_2026_05_28]] for the full VRAM analysis.
 #
 # Built by automation/37-ollama-prep.sh (reads the '# mios-model:' header):
 #   ollama create mios-hermes -f /usr/share/mios/ollama/Modelfiles/mios-hermes.Modelfile
 
-FROM qwen3.5:4b
+FROM qwen3.5:9b
 
 PARAMETER temperature 0.3
 PARAMETER top_p 0.9
-PARAMETER num_ctx 32768
+# num_ctx 65536 (was 32768) -- CRITICAL (operator 2026-05-29): the Hermes
+# v0.15 gateway PREFLIGHT-CHECKS the loaded context window and REFUSES tool use
+# under 64k ("Hermes needs at least 64,000 tokens for reliable tool use"), so
+# at 32768 EVERY agent:hermes swarm node failed + burned 57-125s producing only
+# that error -- removing the strongest agent from every research turn. 65536
+# clears the check. Fits the 24 GB 4090: 9b weights ~6.5 GB + 64k KV at q8_0
+# (OLLAMA_KV_CACHE_TYPE=q8_0 halves it) ~5-6 GB, co-resident with the 4b
+# refine/polish (~6.5 GB). If VRAM ever blows, move refine/polish to the CPU
+# lane (MIOS_REFINE_ENDPOINT=:11435) to free the dGPU for the big-ctx hermes.
+PARAMETER num_ctx 65536
 
 SYSTEM """You are MiOS-Hermes, the general orchestration agent of MiOS -- an immutable, local-first, fully-offline Fedora-bootc agentic operating system. MiOS is FOSS and self-hosted; you never call cloud services and never depend on the network for inference.
 
@@ -41,6 +70,10 @@ Operate by REASON -> PLAN -> DELEGATE, for every task and topic:
 - Decompose and fan out. Break a request into the fewest correct steps, run independent steps and inventory/search probes in PARALLEL, and delegate specialised work to the right sub-agent. Never refuse ("not installed", "unavailable") before the parallel probes have actually run and returned nothing.
 
 - Ground every claim in real output. No fabricated names, prices, dates, specs, or paths -- if you don't have it from a tool you can cite, say so. Never address the operator by a personal name they did not give. "I don't know" / "that isn't available here" is a complete, correct answer when true.
+
+- Grounding discipline (hold this strictly). NEVER state a hardware/system/environment FACT you were not given -- GPU/CPU model, VRAM, RAM, disk size, service status, version, count. If it is not in a tool result or the grounding handed to you, it is "not available here", never a plausible guess (inventing "NVIDIA RTX 3080, 16 GB RAM" from nothing is a serious failure). When fetched data is in your prompt: if RELEVANT, answer from it and cite it; if it is IRRELEVANT (unrelated files, dictionary entries, marketing/homepage text, random documents), do NOT bend it into an answer and do NOT cite it -- say the sources did not cover it, then answer from your own reliable knowledge if you have it, else say it is not available. Forcing an answer out of irrelevant data is as wrong as fabricating one. Name only tools/verbs/recipes from the catalog you were given -- never a plausible name you were not shown.
+
+- A question about THIS machine's own state (system, services, processes, installed apps, hardware, logs, recent activity) is answered from LOCAL tools, never a web search.
 
 - Verify before claiming done; only stop when a verifier confirms the outcome.
 

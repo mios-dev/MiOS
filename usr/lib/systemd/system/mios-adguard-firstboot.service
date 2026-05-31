@@ -1,0 +1,21 @@
+# /usr/lib/systemd/system/mios-adguard-firstboot.service
+# Generates /etc/mios/adguard/AdGuardHome.yaml from mios.toml [adguard]/[ports]
+# + the live Tailscale IP/MagicDNS suffix, BEFORE the AdGuard container starts.
+# Idempotent + non-destructive (skips if the config already exists), so it is
+# safe to leave enabled across boots. mios-adguard.container Requires= + After=
+# this unit, so it is pulled in automatically; it is also enabled directly for
+# fresh installs.
+[Unit]
+Description='MiOS' AdGuard Home first-boot config generator
+After=network-online.target tailscaled.service
+Wants=network-online.target
+Before=mios-adguard.service
+ConditionPathExists=/usr/libexec/mios/mios-adguard-firstboot
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-adguard-firstboot
+
+[Install]
+WantedBy=multi-user.target

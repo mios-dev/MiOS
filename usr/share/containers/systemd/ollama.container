@@ -82,8 +82,27 @@ Environment=HOME=/var/lib/ollama
 # GPU model and 1-2 small CPU models warm at the same time) the
 # orchestrator's children + auxiliary lanes actually run in parallel.
 # 9950X3D + 40 GB RAM + 24 GB VRAM has the headroom for this.
-Environment=OLLAMA_NUM_PARALLEL=4
+Environment=OLLAMA_NUM_PARALLEL=6
 Environment=OLLAMA_MAX_LOADED_MODELS=4
+
+# P4.3 high-perf swarm serving (operator 2026-05-29). SGLang's RadixAttention
+# (shared-prefix KV reuse across concurrent agents) is the goal but needs a
+# DEDICATED CUDA GPU + replacing the whole ollama stack -- not viable on the
+# SHARED 4090. ollama 0.24 has the equivalent levers, OFF by default; turn
+# them on so the swarm's shared system-prompt+grounding PREFIX is reused
+# across the concurrent fan-out slots instead of recomputed N times:
+#   MULTIUSER_CACHE=1 -- share the prompt-prefix KV cache across the
+#     NUM_PARALLEL slots (the RadixAttention-equivalent; was MultiUserCache:false
+#     -> each slot recomputed the shared prefix independently).
+#   FLASH_ATTENTION=1 -- force flash attention on (was Auto): faster attention
+#     + smaller KV footprint; also a prerequisite for KV quantization.
+#   KV_CACHE_TYPE=q8_0 -- 8-bit KV cache halves per-slot KV VRAM, so more
+#     concurrent swarm slots + bigger shared-prefix headroom fit the shared
+#     4090. q8_0 (not q4) keeps quality ~lossless for agentic tool-use.
+# All LOCAL ollama tuning -- offline-first intact (no cloud, no new dep).
+Environment=OLLAMA_FLASH_ATTENTION=1
+Environment=OLLAMA_KV_CACHE_TYPE=q8_0
+Environment=OLLAMA_MULTIUSER_CACHE=1
 
 # Volumes (Architectural Law 2 -- /var paths declared via tmpfiles.d):
 #   /var/lib/ollama   writable runtime model store

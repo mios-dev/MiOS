@@ -235,20 +235,24 @@ print(json.dumps({
         # web_search / code / image features sit behind a per-chat toggle,
         # so the agent's tool_calls + the daemon-agent fan-out can't reach
         # them. Mirrors mios-owui-apply-system-prompt's DEFAULT_FEATURE_IDS.
+        # web_search DISABLED 2026-05-24 (operator "disable OWUI web search for
+        # mios-agent"): OWUI's BUILT-IN web search auto-fired every message and
+        # injected its OWN, often EMPTY-content sources that COMPETED WITH and
+        # POLLUTED the MiOS pipeline's own web-research loop (search -> extract ->
+        # crawl, fed to every agent). The PIPELINE owns web research now; OWUI
+        # must not run a second, worse one. Capability off + not in the auto-fire
+        # set. (Re-enable by setting web_search True + adding it back below.)
         "capabilities": {
             "vision": True, "citations": True, "file_upload": True,
-            "web_search": True, "image_generation": True,
+            "web_search": False, "image_generation": True,
             "code_interpreter": True,
         },
-        # defaultFeatureIds: the native OWUI feature toggles ON by default in a
-        # fresh chat. web_search ONLY -- it auto-fires every message and is the
-        # web tool the operator wants live (resolves via rag.web.search,
-        # engine=searxng). image_generation + code_interpreter were dropped
-        # 2026-05-22 after they auto-fired destructively: code_interpreter ran
-        # an irrelevant os.listdir('/mnt/uploads') on an anime-schedule query
-        # and image_generation errored on a plain greeting. They stay in
-        # capabilities (toggle available, default off) so the user can opt in.
-        "defaultFeatureIds": ["web_search"],
+        # defaultFeatureIds: native OWUI feature toggles ON by default in a fresh
+        # chat. EMPTY now -- web_search was the only one and is disabled (above);
+        # image_generation + code_interpreter were dropped 2026-05-22 after they
+        # auto-fired destructively (code_interpreter ran os.listdir('/mnt/uploads')
+        # on an anime-schedule query; image_generation errored on a greeting).
+        "defaultFeatureIds": [],
         # Native tool surface -- the model SEES these in its tool_calls list.
         # Operator 2026-05-22: ALL registered tools active by default (the
         # force-sync block below is authoritative and re-derives this from the
@@ -502,13 +506,15 @@ if sys_prompt:
     # BOTH rows here (mirrors the create payload + apply-system-prompt).
     want_caps = {
         "vision": True, "citations": True, "file_upload": True,
-        "web_search": True, "image_generation": True, "code_interpreter": True,
+        "web_search": False, "image_generation": True, "code_interpreter": True,
     }
-    # web_search ONLY in the auto-fire set (2026-05-22). image_generation +
-    # code_interpreter were pulled after they auto-fired destructively on
-    # non-matching queries (code_interpreter ran os.listdir('/mnt/uploads') on
-    # an anime-schedule question). Both remain toggle-available via want_caps.
-    want_features = ["web_search"]
+    # web_search DISABLED 2026-05-24 (operator "disable OWUI web search for
+    # mios-agent"): OWUI's built-in web search competed with + polluted the MiOS
+    # pipeline web-research (empty-content sources). The PIPELINE owns web
+    # research; OWUI must not run its own. Auto-fire set is EMPTY now
+    # (image_generation + code_interpreter were already pulled 2026-05-22 after
+    # auto-firing destructively on non-matching queries).
+    want_features = []
     # ALL registered tools active by default (operator 2026-05-22, reversing
     # the earlier MiOS-authored-only restriction). The third-party tools
     # (openui by thesysdev/vishxrad, sub_agent by skyzi000) are re-attached.

@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""'MiOS' schedule manager -- add/list/remove cron-director rules.
+
+The `schedule` verb dispatches here. `add` translates a human interval
+("30 minutes", "hourly", "daily", or a raw 5-field cron) into a cron
+expression, stores the PROMPT text in /var/lib/mios/cron-director/prompts/
+<name>.txt (kept OUT of the shell `do` line so there is no injection), writes a
+[[rule]] to /etc/mios/cron-rules.toml whose `do` is
+`mios-scheduled-research --rule <name>`, and SIGHUPs the daemon to reload.
+
+Usage:
+  mios-cron-schedule add --prompt "<text>" --every "<interval>"
+  mios-cron-schedule list
+  mios-cron-schedule remove --name <name>
+"""
+from __future__ import annotations
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import tomllib
+
+# Operator-scheduled jobs live in the USER rules file inside the group-writable
+# state dir -- the launcher broker runs as `mios` (uid 1000) and CANNOT write
+# root-owned /etc/mios/cron-rules.toml (that stays for root-managed SYSTEM rules).
+# The daemon merges both + reloads on mtime change, so no privileged SIGHUP is
+# needed (operator 2026-05-26).
+RULES_PATH = os.environ.get("MIOS_CRON_USER_RULES",
+                            "/var/lib/mios/cron-director/user-rules.toml")
+PROMPT_DIR = "/var/lib/mios/cron-director/prompts"
+
+
+def _interval_to_cron(every: str) -> str:
+    e = (every or "").strip().lower()
+    # Raw 5-field cron passes through.
+    parts = e.split()
+    if len(parts) == 5 and all(re.fullmatch(r"[\d*/,\-]+", p) for p in parts):
+        return every.strip()
+    m = re.search(r"(\d+)", e)
+    n = int(m.group(1)) if m else 0
+    if "week" in e:
+        return "0 9 * * 1"
+    if "day" in e or "daily" in e:
+        return "0 9 * * *"
+    if "hour" in e or "hr" in e or re.fullmatch(r"\d+\s*h", e):
+        return f"0 */{n} * * *" if 1 < n < 24 else "0 * * * *"
+    if "min" in e or re.fullmatch(r"\d+\s*m", e):
+        return f"*/{n} * * * *" if 1 <= n < 60 else "*/30 * * * *"
+    return "0 9 * * *"  # sensible default: once daily
+
+
+def _toml_basic(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ") + '"'
+
+
+def _load_rules() -> list:
+    try:
+        with open(RULES_PATH, "rb") as fh:
+            return list(tomllib.load(fh).get("rule") or [])
+    except FileNotFoundError:
+        return []
+
+
+def _emit_rule(r: dict) -> str:
+    out = ["[[rule]]", f"name = {_toml_basic(str(r.get('name','')))}",
+           f"cron = {_toml_basic(str(r.get('cron','')))}",
+           f"do   = {_toml_basic(str(r.get('do','')))}"]
+    if str(r.get("gate") or "").strip():
+        out.append(f"gate = {_toml_basic(str(r['gate']))}")
+    return "\n".join(out) + "\n"
+
+
+def _write_all(rules: list) -> None:
+    hdr = ("# /etc/mios/cron-rules.toml -- managed by mios-cron-schedule + read by\n"
+           "# mios-cron-director. Schema per [[rule]]: name / cron (5-field) / do /\n"
+           "# gate? (micro-LLM YES/NO). Hand-edits are preserved on add (append).\n\n")
+    body = "\n".join(_emit_rule(r) for r in rules)
+    tmp = RULES_PATH + ".tmp"
+    with open(tmp, "w") as fh:
+        fh.write(hdr + body)
+    os.replace(tmp, RULES_PATH)
+
+
+def _reload_daemon() -> None:
+    # Best-effort instant nudge; the daemon ALSO mtime-watches the rules file, so
+    # the change applies within a minute even when (as `mios`) we can't signal the
+    # mios-ai daemon. Failures here are non-fatal.
+    for cmd in (["systemctl", "kill", "-s", "HUP", "mios-cron-director.service"],
+                ["pkill", "-HUP", "-f", "mios-cron-director"]):
+        try:
+            if subprocess.run(cmd, capture_output=True, timeout=10).returncode == 0:
+                return
+        except Exception:  # noqa: BLE001
+            continue
+
+
+def cmd_add(args) -> int:
+    prompt = (args.prompt or "").strip()
+    if not prompt:
+        print("schedule: --prompt is required", file=sys.stderr)
+        return 2
+    cron = _interval_to_cron(args.every or "")
+    name = args.name or ("sched-" + hashlib.md5(
+        (prompt + "|" + cron).encode()).hexdigest()[:8])
+    os.makedirs(PROMPT_DIR, exist_ok=True)
+    with open(os.path.join(PROMPT_DIR, name + ".txt"), "w") as fh:
+        fh.write(prompt)
+    rules = _load_rules()
+    rules = [r for r in rules if str(r.get("name")) != name]  # replace if exists
+    rules.append({"name": name, "cron": cron,
+                  "do": f"mios-scheduled-research --rule {name}"})
+    _write_all(rules)
+    _reload_daemon()
+    print(json.dumps({"scheduled": True, "name": name, "cron": cron,
+                      "every": args.every, "prompt": prompt,
+                      "delivery": "discord"}))
+    return 0
+
+
+def cmd_list(_args) -> int:
+    rules = _load_rules()
+    print(json.dumps({"count": len(rules), "rules": [
+        {"name": r.get("name"), "cron": r.get("cron"), "do": r.get("do")}
+        for r in rules]}, indent=2))
+    return 0
+
+
+def cmd_remove(args) -> int:
+    rules = _load_rules()
+    before = len(rules)
+    rules = [r for r in rules if str(r.get("name")) != args.name]
+    _write_all(rules)
+    try:
+        os.remove(os.path.join(PROMPT_DIR, args.name + ".txt"))
+    except OSError:
+        pass
+    _reload_daemon()
+    print(json.dumps({"removed": before - len(rules), "name": args.name}))
+    return 0
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-cron-schedule")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    a = sub.add_parser("add"); a.add_argument("--prompt"); a.add_argument("--every")
+    a.add_argument("--name"); a.set_defaults(fn=cmd_add)
+    sub.add_parser("list").set_defaults(fn=cmd_list)
+    rm = sub.add_parser("remove"); rm.add_argument("--name", required=True)
+    rm.set_defaults(fn=cmd_remove)
+    args = p.parse_args()
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

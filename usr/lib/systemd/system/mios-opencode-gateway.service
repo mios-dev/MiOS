@@ -2,34 +2,71 @@
 Description='MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)
 Documentation=file:///usr/lib/mios/opencode-gateway/server.py
 After=network-online.target ollama.service
-Wants=network-online.target
+Wants=network-online.target ollama.service
 # Makes [agents.opencode] endpoint :8633/v1 a REAL OpenAI endpoint so
 # agent-pipe's multi-agent fan-out (opencode secondary) + the primary path
 # (refine target_agent=opencode) can reach it. opencode has no native /v1
 # (its `serve` is opencode's own OpenAPI on :4096); this shim wraps
 # `opencode run`. FOSS + offline (opencode -> local ollama qwen2.5-coder).
 #
-# NOTE: opencode's model runs on the dGPU lane, so under VRAM pressure a
-# run times out (gateway returns empty -> fan-out drops opencode). Deploy
-# when the GPU has headroom; until then the unit can be left disabled.
+# FRONT-DOOR commitment (operator 2026-05-31): opencode is a first-class /v1
+# council peer via this gateway (NOT a Hermes ACP subprocess). The shim now
+# passes the FULL conversation (system + history) to `opencode run`, lands its
+# config at MIOS_OPENCODE_CONFIG, unifies the model id, and streams proper SSE
+# deltas. Deployed + enabled by the opencode phase of the hybrid agent-plane
+# install (automation/39-opencode.sh; the shared venv is built by
+# automation/38-hermes-agent.sh, which runs first in the numeric build loop).
+#
+# This unit lives in /usr/lib/systemd/system, which 15-render-quadlets.sh does
+# NOT process, and systemd does not expand env vars in User=/WorkingDirectory=/
+# ConditionPathExists=/ExecStart=. So the values below are LITERALS that MIRROR
+# mios.toml ([ports].opencode_gateway, [ai].opencode_*, [ai].agent_venv) — the
+# same convention hermes-agent.service uses. If a value changes in mios.toml,
+# update this unit to match.
+#
+# Skip cleanly if the opencode binary never landed (build-time fetch failure)
+# rather than crash-loop; `mios update` re-runs 39-opencode.sh to complete it.
+ConditionPathExists=/usr/lib/mios/opencode/bin/opencode
 
 [Service]
 Type=simple
-# v1 runs as root: root holds the /usr/local/bin/opencode symlink AND the
-# local-ollama provider config (/root/.config/opencode/opencode.json).
-# Hardening to a dedicated mios-opencode sysuser + ProtectSystem=strict is
-# a follow-up (matches the mios-agent-pipe.service hardening pattern).
+# Agent-plane user consolidation: runs as the shared mios-ai user (matches
+# hermes-agent.service + mios-agent-pipe.service), NOT root. mios-ai owns the
+# /var/lib/mios state tree + reads /etc/mios config.
+User=mios-ai
+Group=mios-ai
+# Gateway run cwd + HOME (state, owned by mios-ai; created by 39-opencode.sh +
+# mios-opencode-gateway.conf tmpfiles). Mirrors [ai].opencode_gateway_workdir.
+WorkingDirectory=/var/lib/mios/opencode-gateway/work
+Environment=HOME=/var/lib/mios/opencode-gateway/work
+# SSOT mirrors: [ports].opencode_gateway, [ai].opencode_bin/opencode_model/
+# opencode_provider/opencode_config, [ai].opencode_gateway_timeout_s.
 Environment=MIOS_PORT_OPENCODE_GATEWAY=8633
-Environment=MIOS_OPENCODE_BIN=/usr/local/bin/opencode
-Environment=MIOS_OPENCODE_WORKDIR=/var/lib/mios/opencode-gateway/work
+Environment=MIOS_OPENCODE_HOST=127.0.0.1
+Environment=MIOS_OPENCODE_BIN=/usr/lib/mios/opencode/bin/opencode
+Environment=MIOS_OPENCODE_MODEL=mios-opencode:latest
+Environment=MIOS_OPENCODE_PROVIDER=ollama
+Environment=MIOS_OPENCODE_CONFIG=/etc/mios/opencode/opencode.json
 Environment=MIOS_OPENCODE_TIMEOUT_S=90
-Environment=HOME=/root
-# Reuse the hermes-agent venv interpreter (fastapi/uvicorn/starlette already
-# installed there) -- same pattern as mios-agent-pipe.service.
+# Reuse the SHARED agent-plane venv interpreter (the shim is stdlib-only, but
+# this matches the agent-pipe pattern + keeps ONE interpreter). This venv is the
+# de-facto shared interpreter for hermes-agent, agent-pipe, and this gateway
+# (mios.toml [ai].agent_venv = /usr/lib/mios/hermes-agent/.venv).
 ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 -u /usr/lib/mios/opencode-gateway/server.py
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=30s
+# --- hardening (mirrors hermes-agent.service / mios-agent-pipe.service) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/mios /var/lib/mios
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target

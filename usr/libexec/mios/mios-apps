@@ -72,7 +72,20 @@ emit() {
     local cat="$1" name="$2" desc="$3" launch="$4"
     if [ -n "$CATEGORY" ] && [ "$cat" != "$CATEGORY" ]; then return; fi
     if [ -n "$FILTER" ]; then
-        if ! echo "$name $desc" | grep -qiF "$FILTER"; then return; fi
+        # Match name/desc OR the CATEGORY (with a trailing-'s' stem) so a
+        # natural-language category word resolves to the right GROUP: "games" ->
+        # the "windows-game" category (ALL stores -- Steam/Epic/GOG/Store -- emit
+        # THERE, not separate per-store cats), "browsers" -> a browser cat, etc.
+        # The old name+desc-only match returned just the lone entry whose NAME
+        # happened to contain the word (e.g. "Wreckfest (NordicGames)") and
+        # DROPPED the Steam/Epic titles whose names lack it -> "what games" listed
+        # 1 of N (operator 2026-05-29). Generic stem match, no hardcoded
+        # keyword->category table.
+        _fstem="${FILTER%s}"
+        if ! echo "$cat $name $desc" | grep -qiF "$FILTER" \
+             && ! { [ -n "$_fstem" ] && echo "$cat" | grep -qiF "$_fstem"; }; then
+            return
+        fi
     fi
     if [ "$NAMES" = "1" ]; then
         printf '%s\n' "$name"
@@ -132,24 +145,32 @@ if [ -d /usr/share/applications ]; then
     done
 fi
 
-# ─── 3. windows-gui (canonical short-name shortcuts from mios-windows) ──
+# ─── 3. windows-gui (GENERATIVE: live Start-Menu discovery, NO hardcoded list) ─
+# operator 2026-05-29: "every app is DISCOVERED + executed from its installed
+# path(s), not a hardcoded apps list". The Start Menu (.lnk catalog under
+# %ProgramData% + %APPDATA% Programs) is Windows' canonical registry of what is
+# ACTUALLY installed; each .lnk basename IS the app name, and `mios-windows
+# launch <name>` resolves its real path at launch time (App Paths registry ->
+# System32/Windows -> Start Menu -> Everything). So we enumerate the live menu
+# instead of baking in a fixed list -- an app the operator installs shows up
+# automatically, and one that isn't installed simply isn't listed. Capped +
+# de-duplicated; best-effort (empty if PowerShell isn't exec-able from this uid
+# -- the launch-time fallback still discovers any named app generatively).
 header windows-gui
-if [ -d /mnt/c/Windows ]; then
-    cat <<'WIN_APPS' | while IFS=$'\t' read -r short desc; do
-notepad	Windows Notepad
-explorer	Windows Explorer (file manager)
-calc	Calculator
-mspaint	Paint
-snipping-tool	Snipping Tool (screenshots)
-taskmgr	Task Manager
-regedit	Registry Editor
-control	Control Panel
-cmd	Windows cmd.exe shell
-powershell	Windows PowerShell 5.1
-pwsh	PowerShell 7 (if installed)
-WIN_APPS
-        emit windows-gui "$short" "$desc" "mios-windows launch $short"
-    done
+_PWSH="${WINDOWS_POWERSHELL:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+if [ -d /mnt/c/Windows ] && [ -x "$_PWSH" ]; then
+    _PS_ENUM=$(cat <<'PSEOF'
+$d = @($env:ProgramData, $env:APPDATA) | ForEach-Object { Join-Path $_ 'Microsoft\Windows\Start Menu\Programs' }
+Get-ChildItem -Path $d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue |
+  Where-Object { $_.BaseName -notmatch '(?i)uninstall|readme|setup|website|help|documentation|license' } |
+  Select-Object -ExpandProperty BaseName -Unique | Sort-Object | Select-Object -First 150
+PSEOF
+)
+    "$_PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$_PS_ENUM" 2>/dev/null \
+        | tr -d '\r' | while IFS= read -r _name; do
+            [ -n "$_name" ] || continue
+            emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch $_name"
+        done
 fi
 
 # ─── 3a. windows-app (every Start-menu app on the Windows host) ──────
@@ -228,15 +249,39 @@ if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
         :  # fresh enough; reuse
     else
         # Single PowerShell pass over Steam + Epic + GOG library locations.
-        # Output format: "<name>|<exe-path>" one per line.
-        timeout 12 mios-windows ps '
+        # Output format: "<name>|<exe-path>" one per line. 45s budget: the
+        # COLD pass now also runs Get-AppxPackage + per-title marker Test-Paths
+        # for Game Pass discovery, which exceeds the old 12s on a cold WSL-
+        # interop start -> the && mv chain failed -> cache wiped -> 0 games
+        # (operator 2026-05-27). Result is cached 10 min, so the cost is rare.
+        timeout 45 mios-windows ps '
 $out = @()
-# Steam: every .acf manifest in steamapps. Try common drives.
-$steamRoots = @(
-    "C:\Program Files (x86)\Steam\steamapps",
-    "D:\SteamLibrary\steamapps",
-    "E:\SteamLibrary\steamapps"
-)
+# Steam: discover EVERY library folder from Steam itself -- the registry
+# SteamPath + steamapps\libraryfolders.vdf -- so games on ANY drive/path are
+# found, not just 3 guessed drives (operator 2026-05-27 "all the tools and it
+# found 3 games?!! no hardcodes"). libraryfolders.vdf lists each library as a
+# "path" "<dir>" entry (backslashes doubled). [char]34 = a double-quote, to
+# avoid nesting quotes inside this bash-single-quoted PowerShell block.
+$steamRoots = @()
+try {
+    $sp = (Get-ItemProperty "HKCU:\Software\Valve\Steam" -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
+    if (-not $sp) { $sp = (Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -Name InstallPath -ErrorAction SilentlyContinue).InstallPath }
+    if ($sp) {
+        $sp = $sp -replace "/","\"
+        $main = Join-Path $sp "steamapps"
+        if (Test-Path $main) { $steamRoots += $main }
+        $vdf = Join-Path $main "libraryfolders.vdf"
+        if (Test-Path $vdf) {
+            $pat = [char]34 + "path" + [char]34 + "\s+" + [char]34 + "([^" + [char]34 + "]+)" + [char]34
+            (Select-String -Path $vdf -Pattern $pat -AllMatches).Matches | ForEach-Object {
+                $lib = $_.Groups[1].Value -replace "\\\\","\"
+                $sa = Join-Path $lib "steamapps"
+                if (Test-Path $sa) { $steamRoots += $sa }
+            }
+        }
+    }
+} catch {}
+$steamRoots = @($steamRoots | Select-Object -Unique)
 foreach ($root in $steamRoots) {
     if (-not (Test-Path $root)) { continue }
     Get-ChildItem $root -Filter "appmanifest_*.acf" -ErrorAction SilentlyContinue | ForEach-Object {
@@ -250,8 +295,8 @@ foreach ($root in $steamRoots) {
         }
     }
 }
-# Epic: .item manifests
-$epicRoot = "C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests"
+# Epic: .item manifests (resolve ProgramData from the env, not a hardcoded C:).
+$epicRoot = Join-Path $env:ProgramData "Epic\EpicGamesLauncher\Data\Manifests"
 if (Test-Path $epicRoot) {
     Get-ChildItem $epicRoot -Filter "*.item" -ErrorAction SilentlyContinue | ForEach-Object {
         try {
@@ -266,18 +311,18 @@ if (Test-Path $epicRoot) {
         } catch {}
     }
 }
-# GOG Galaxy
-$gogRoots = @(
-    "C:\Program Files (x86)\GOG Galaxy\Games",
-    "D:\GOG Games"
-)
-foreach ($root in $gogRoots) {
-    if (-not (Test-Path $root)) { continue }
-    Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        $exe = Get-ChildItem $_.FullName -Filter "*.exe" -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notmatch "uninstall|unins|setup|crash|launch|setup" } |
-            Sort-Object Length -Descending | Select-Object -First 1
-        if ($exe) { $out += "$($_.Name)|$($exe.FullName)" }
+# GOG Galaxy: enumerate from the registry -- each installed game has a key
+# carrying its name + install path + exe, so no hardcoded install dirs (works
+# on ANY drive). Both 64- and 32-bit hives.
+foreach ($gogKey in @("HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games",
+                      "HKLM:\SOFTWARE\GOG.com\Games")) {
+    if (-not (Test-Path $gogKey)) { continue }
+    Get-ChildItem $gogKey -ErrorAction SilentlyContinue | ForEach-Object {
+        $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+        if ($p.gameName -and ($p.exe -or $p.path)) {
+            $full = if ($p.path -and $p.exe) { Join-Path $p.path $p.exe } else { $p.exe }
+            $out += "$($p.gameName)|$full"
+        }
     }
 }
 # Microsoft Store / Xbox / UWP / Game Pass titles. These don'\''t
@@ -290,21 +335,50 @@ foreach ($root in $gogRoots) {
 # publishers. Avoids dumping every Calculator / Notepad / system
 # UWP app into the games cache (those already appear via mios-apps'\''
 # windows-app section from Get-StartApps).
-Get-StartApps -ErrorAction SilentlyContinue | Where-Object {
-    $_.AppID -match "^[A-Za-z0-9._-]+_[a-z0-9]{12,14}!" -and (
-        $_.Name -match "(?i)(flight|sim|simulator|game|forza|halo|gears|fortnite|minecraft|sea of thieves|xbox|steam|origin|epic|gog|microsoft\s+flight)" -or
-        $_.AppID -match "(?i)(microsoft\.limitless|microsoft\.flight|microsoft\.forza|microsoft\.halo|microsoft\.gears|xbox|epicgames|valvecorp|gog\.galaxy)"
-    )
-} | ForEach-Object {
-    $out += "$($_.Name)|shell:appsFolder\$($_.AppID)"
+# Detect games by the MicrosoftGame.config marker every PC Store/Game Pass
+# title ships in its install dir -- NO name-list, NO publisher-list, NO
+# hardcoded path (operator 2026-05-27 "no hardcodes globally"). Join
+# Get-StartApps (launchable AppID) with Get-AppxPackage (install location) and
+# test for the marker; launch via shell:appsFolder\<AppID>.
+$pkgLoc = @{}
+Get-AppxPackage -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.InstallLocation -and $_.PackageFamilyName) { $pkgLoc[$_.PackageFamilyName] = $_.InstallLocation }
 }
+Get-StartApps -ErrorAction SilentlyContinue | Where-Object { $_.AppID -match "!" } | ForEach-Object {
+    $pfn = ($_.AppID -split "!")[0]
+    $loc = $pkgLoc[$pfn]
+    if ($loc -and (Test-Path (Join-Path $loc "MicrosoftGame.config"))) {
+        $out += "$($_.Name)|shell:appsFolder\$($_.AppID)"
+    }
+}
+# Dedup: SteamPath (registry) and libraryfolders.vdf can name the SAME library
+# in different letter-case, scanning it twice; collapse identical entries.
+$out = @($out | Select-Object -Unique)
 $out | ForEach-Object { Write-Output $_ }
-' 2>/dev/null > "$GAME_CACHE.tmp" \
-            && mv "$GAME_CACHE.tmp" "$GAME_CACHE" || rm -f "$GAME_CACHE.tmp"
+' 2>/dev/null > "$GAME_CACHE.tmp"
+        # Only cache output with REAL game lines ("name|target"). A garbage/error
+        # pass (e.g. an interop "powershell.exe: Invalid argument" that lands on
+        # stdout with exit 0) has no "|" -> discard so the next call re-scans
+        # instead of serving poison for 10 min (operator 2026-05-30 live-drive).
+        if grep -q '|' "$GAME_CACHE.tmp" 2>/dev/null; then
+            mv "$GAME_CACHE.tmp" "$GAME_CACHE"
+        else
+            # Failed/empty/garbage pass: drop the tmp AND any stale cache so a
+            # previous poison line is never re-served (the file persists otherwise).
+            rm -f "$GAME_CACHE.tmp" "$GAME_CACHE"
+        fi
     fi
     if [ -f "$GAME_CACHE" ]; then
         while IFS='|' read -r g_name g_path; do
             [ -z "$g_name" ] && continue
+            # A real game line is "name|launch-target". A line with NO launch
+            # target (no "|" -> empty g_path) is scan GARBAGE, e.g. a
+            # "powershell.exe: Invalid argument" interop error that landed on
+            # stdout and got captured -- NOT a game. Skip it so one failed scan
+            # can never poison the games list and make the agent report "no games"
+            # / fail to launch (operator 2026-05-30 live-drive: the error line
+            # became a fake game and broke "launch the best").
+            [ -z "$g_path" ] && continue
             g_name="$(echo "$g_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             g_path="$(echo "$g_path" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             # Full lowercased name as the lookup key so multi-word queries

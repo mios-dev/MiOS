@@ -1,0 +1,29 @@
+# MiOS fine-tune subsystem -- one-time framework install (FOSS, offline thereafter).
+# Install ONCE into a venv on the box that will train, then training is fully local:
+#   python3 -m venv /var/lib/mios/finetune/venv
+#   /var/lib/mios/finetune/venv/bin/pip install -r /usr/share/mios/finetune/requirements.txt
+#   (then run mios-finetune-dataset, then mios-finetune)
+#
+# HARDWARE-AGNOSTIC: install the torch build that matches THIS box's hardware FIRST,
+# then the rest. torch is intentionally NOT pinned here so you pick the right wheel:
+#   NVIDIA CUDA : pip install torch --index-url https://download.pytorch.org/whl/cu124
+#   AMD ROCm    : pip install torch --index-url https://download.pytorch.org/whl/rocm6.1
+#   Apple MPS   : pip install torch                       (default wheel = MPS on Apple)
+#   CPU-only    : pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# Portable core (runs on every device):
+transformers>=4.44
+peft>=0.12
+trl>=0.11
+datasets>=2.20
+accelerate>=0.33
+sentencepiece>=0.2
+protobuf>=4.25
+#
+# CUDA-only extras (optional -- enable 4-bit QLoRA + the Unsloth fast-path).
+# Skip on ROCm/MPS/CPU; mios-finetune auto-disables 4bit when these are absent.
+#   bitsandbytes>=0.43        # 4-bit quantisation (CUDA)
+#   unsloth                   # optional CUDA training accelerator
+#
+# GGUF export -> ollama ADAPTER needs llama.cpp's convert_lora_to_gguf.py on PATH
+# (or set MIOS_FINETUNE_LORA_CONVERT). Clone github.com/ggml-org/llama.cpp once.

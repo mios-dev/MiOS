@@ -579,10 +579,19 @@ lookup_max_alias_results   = 3
 # is true). SSL cert + key paths optional for HTTPS termination.
 enable             = true
 bind               = "127.0.0.1"
+# Mobile (#82): expose the loopback bash terminal to the TAILNET (phones) over
+# tailnet-only HTTPS via `tailscale serve` (NOT the public internet). When true,
+# the mios-ttyd-expose.service oneshot publishes it on boot; off by default so a
+# fresh install never opens a shell unprompted. Toggle here or in mios.html.
+# The login is the SSOT [identity] credential (mios/mios) -- never unauth'd.
+tailnet_expose     = false
 # Master auth toggle: when bind != "127.0.0.1" + require_auth = true
 # + auth_user/pass empty, the service refuses to start (prevents
 # accidental open-network exposure).
 require_auth       = true
+# auth_user/auth_pass: empty = INHERIT the global [identity] login (username /
+# default_password, default mios/mios) -- same as Portal/Cockpit/Forge. Set per
+# instance only to override the one global credential.
 auth_user          = ""
 auth_pass          = ""
 # Optional TLS termination -- when both paths exist, ttyd serves
@@ -657,13 +666,26 @@ strengths = ["kanban", "web_search", "skill_invocation",
 
 [agents.opencode]
 endpoint = "http://localhost:8633/v1"
-model    = "opencode"
+# ONE canonical model id (must match [ai].opencode_model + opencode.json + the
+# ollama Modelfile build name:tag). Was "opencode"; unified to the real tag the
+# gateway advertises and ollama serves.
+model    = "mios-opencode:latest"
 role     = "coding"
 job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
-default  = false
+# Front-door commitment (operator 2026-05-31): opencode is dispatchable now that
+# the :8633 gateway passes the FULL conversation, lands its config, and streams
+# proper SSE deltas. default=true makes it ELIGIBLE for the swarm fan-out (the
+# planner scores it as a secondary by role/strengths; hermes stays the primary
+# orchestrator). If the gateway/binary is down the endpoint drops out of the
+# fan-out automatically (see [dispatch]).
+default  = true
 lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
+# P3.2 SPOF removal: when opencode's :8633 backend is down, route to hermes
+# (the orchestrator can still write code well enough as a fallback). Visible
+# in /v1/cluster/health.chain so an operator/A2A peer knows the fallback exists.
+failover_agents = ["hermes"]
 
 [agents.mios-daemon-agent]
 # Operator 2026-05-18: "mios-daemon also has a mios-daemon-agent that lives on
@@ -709,6 +731,11 @@ lane     = "cpu"
 strengths = ["reasoning", "second_opinion", "summarize", "planning",
              "journalctl_tail", "log_search", "event_query",
              "system_followup", "what_just_happened"]
+# P3.2 SPOF removal: when the always-on :8644 reasoner is down, hermes can
+# stand in for the reasoning role (loses the live-telemetry grounding but
+# preserves the second-opinion capability). The cpu-twin already covers the
+# lane fallback; this lets the cluster health show a NAMED failover too.
+failover_agents = ["hermes"]
 
 # [agents.mios-reasoner-cpu] was CONSOLIDATED into [agents.mios-daemon-agent]
 # above (operator 2026-05-24 "mios-daemon-agent = mios-cpu/reasoner!"). It
@@ -780,25 +807,6 @@ lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
-[agents.mios-win]
-# MiOS-WIN Windows workstation -- RTX 3060 Ti GPU inference node on the
-# tailnet. Runs mios-ollama (GPU :11434) + mios-ollama-cpu (CPU :11435) via
-# Podman Quadlets managed by usr/share/mios/windows/mios-ai-node.ps1.
-# auto-join when up, auto-drop when offline (health_gate).
-# OPERATOR-SPECIFIC + PRIVACY: vendor ships `endpoint` EMPTY so no personal
-# tailnet IP bakes into the public repo. Fill in /etc/mios/mios.toml on MiOS-DEV:
-#   [agents.mios-win]
-#   endpoint = "http://<mios-win-tailscale-ip>:11434/v1"
-endpoint    = ""
-model       = "qwen3.5:4b"
-role        = "gpu"
-job         = "RTX 3060 Ti GPU overflow node on MiOS-WIN -- extends swarm GPU compute over Tailscale when MiOS-DEV's dGPU is saturated."
-default     = false
-lane        = "gpu"
-health_gate = true
-fanout      = true
-strengths   = ["gpu_inference", "code", "chat", "overflow_compute"]
-
 # ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
 # MiOS mechanism should dispatch to multiple agents at a time -- not ALL
@@ -829,6 +837,75 @@ fanout_min = 1
 # roster + the box's headroom. 3 = primary + up to 2 council members; raise
 # as more [agents.*] are added (and a tool-capable box can carry them).
 fanout_max = 3
+# ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
+# ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
+# reads these from here via _dispatch_toml(); runtime override via the matching
+# MIOS_* env (MIOS_DAG_NODE_MAX_TOKENS / _SLOW_MAX_TOKENS / _RETRY,
+# MIOS_SWARM_DEEPEN / _ITERS / _DEADLINE_S / _WEB_S).
+# Per-node answer token budget: fast lanes (dGPU/CPU) full, slow lanes (iGPU/
+# phone) trimmed so they finish within the read timeout instead of timing out.
+dag_node_max_tokens      = 800
+dag_node_slow_max_tokens = 350
+dag_node_retry           = 1     # empty-result retries (read-only -> safe); 0 = none
+# DEEPEN: after its primary answer a swarm node loops extra web-research + re-
+# answer passes UNTIL the judge is satisfied, hard-bounded by these. A satisfied
+# node exits at once; the deadline only bites a stubborn facet.
+deepen_enabled       = true
+deepen_iters         = 12     # RUNAWAY backstop on extra passes (the deadline is the real bound)
+deepen_deadline_s    = 60     # HARD per-node deepen cap. 120->60 (operator 2026-05-31 live test: research turns exceeded 5.5min); each unsatisfied facet now caps at ~60s
+deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't overshoot
+# ── PER-LANE / GLOBAL CONCURRENCY (SSOT'd 2026-05-31 after "HARDCODES!!!").
+# agent_concurrency = default per-lane cap; lane_concurrency_<lane> overrides ONE
+# lane. The LOCAL gpu/cpu lanes (the single SHARED 4090 + in-VM CPU) are capped
+# to 2 so a wide research fan-out can't oversubscribe them (live test: it
+# thrashed the VM + WSL). REMOTE lanes (potato-gpu/cpu, igpu) keep the default --
+# separate hardware. Read via _dispatch_toml; override MIOS_AGENT_CONCURRENCY /
+# MIOS_AGENT_LANE_CONCURRENCY[_<LANE>].
+agent_concurrency    = 3      # global default per-lane concurrent-agent cap
+lane_concurrency     = 3      # default per lane (each distinct hw = its own semaphore)
+lane_concurrency_gpu = 2      # LOCAL shared 4090 -- cap low so it isn't oversubscribed
+lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash
+# ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
+# defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
+# fires WITH CPU ... any engine/node" + "add per-lane context trimming".
+#   MIOS_AGENT_LANE_CONCURRENCY        = 3   -- concurrent agents PER LANE. Each
+#       compute lane/engine/node (dGPU, CPU, iGPU, accelerator, each remote node)
+#       gets its OWN semaphore, so distinct hardware ALL fires concurrently; only
+#       agents SHARING one lane queue. Per-lane override
+#       MIOS_AGENT_LANE_CONCURRENCY_<LANE> (e.g. _GPU=2 to protect 4090 VRAM).
+#   MIOS_AGENT_HEALTHGATE_CONNECT_S    = 2.5 -- connect timeout for a health-gated
+#       (remote/slow) node -> an ABSENT node (phone asleep) drops fast.
+#   MIOS_AGENT_HEALTHGATE_READ_S       = 120 -- read timeout for a health-gated
+#       node -> a PRESENT-but-SLOW node (the iGPU, ~13 tok/s Vulkan) FINISHES
+#       instead of being abandoned mid-compute (was a flat 45s).
+#   MIOS_SLOW_LANES            = igpu,mobile,accelerator -- lanes that get a
+#       TRIMMED system prefix (slow prefill); gpu + cpu keep the full context.
+#   MIOS_SLOW_LANE_BLOCK_CHARS = 1500 -- per-block cap for a slow lane, so the
+#       ~7K web-research context doesn't blow its prefill (the gist survives).
+#   MIOS_NODE_LIVENESS_TTL_S  = 45  -- OUTAGE resilience (operator 2026-05-25
+#       "iGPU is down"): TTL of the cached node-liveness probe. A health_gate
+#       client/Tailscale node (the iGPU :11436, a phone) that is DOWN is pruned
+#       from the swarm roster so the planner never assigns it a facet + any DAG
+#       facet already on a dead node RE-ROUTES to a live engine -- swarm width is
+#       preserved under an outage instead of a facet vanishing into a dead node.
+#       Only health_gate nodes are probed (local lanes are always treated live);
+#       a down node isn't re-probed every turn and rejoins within the TTL once
+#       back up. 0 effectively disables caching (probe every turn).
+#   MIOS_NODE_LIVENESS_CONNECT_S = 1.5 -- connect timeout of that liveness probe.
+
+# ── WEB-RESEARCH loop bounds (SSOT'd 2026-05-31). The pipeline's per-facet
+# web-research loop (search -> fetch/extract -> judge -> re-search) is the
+# dominant research-turn LATENCY driver. MODERATE-cut values (operator
+# 2026-05-31 live test: research turns exceeded 5.5min): fewer judge-gated
+# attempts + drill passes, and a much shorter crawl-fallback timeout (the deep
+# crawl is a fallback now that the miosfetch extract works). agent-pipe reads
+# these via _toml_section("web_research"); runtime override MIOS_WEB_RESEARCH_*.
+# (Only these 3 latency keys are SSOT-wired today; the rest of the web-research
+# knobs remain env-overridable -- a noted follow-up sweep.)
+[web_research]
+max_attempts    = 3    # judge-gated re-search attempts (was 5)
+passes          = 3    # search->judge->re-search drill passes (was 4)
+crawl_timeout_s = 18   # deep crawl4ai/Camoufox fallback per-page cap, seconds (was 45)
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
@@ -1007,6 +1084,36 @@ edge_margin_px      = 0          # inset from screen edges for edge placements
 restore_if_running  = true       # preflight: focus an existing instance instead of relaunching
 focus_after_launch  = true       # raise + foreground a window after a successful launch
 
+# Interactive-desktop OS-control executor for THIS host's own windows
+# (operator 2026-05-26). When set, mios-pc-control routes window enumeration +
+# ops (list / close / focus / move / resize) to this URL instead of the
+# WSL-interop PowerShell path -- because PowerShell spawned through WSL interop
+# from a user-systemd service is NOT on WinSta0\Default, so EnumWindows is BLIND
+# (returns count:0) and close/focus can't find a real window. The executor
+# (usr/share/mios/windows/mios-oscontrol-server.ps1, a scheduled task running in
+# the interactive session on the Windows host) CAN enumerate + act, reached over
+# the tailnet. EMPTY in vendor (no personal tailnet IP in the public repo + the
+# blind interop path stays the default); set the real URL in your /etc/mios
+# overlay. Unreachable when set => honest error, never a blind fall-back.
+executor_endpoint   = ""         # e.g. in /etc/mios: "http://100.x.y.z:11437"
+
+# ─── OS-control NODES (4B: launch + verify on a SEPARATE machine's desktop) ──
+# operator 2026-05-25 "iGPU SHOULD FIRE MIOS OS CONTROL COMMANDS ... across all
+# nodes". `launch_verified app=X node=<name>` makes the mios-daemon-agent fire
+# the launch to that node's mios-oscontrol-server (the Windows HttpListener
+# executor in usr/share/mios/windows/mios-oscontrol-server.ps1), which launches
+# on THAT node's OWN desktop + polls its window verifier and returns the verdict.
+# Default (no node) stays on THIS host via the broker.
+#
+# PRIVACY / SSOT: the vendor file ships every `endpoint` EMPTY so no personal
+# device name / tailnet IP is baked into the public repo. Set the real tailnet
+# endpoint in your /etc/mios (or ~/.config/mios) overlay -- it merges + WINS over
+# this. An empty endpoint = inert node: launch_verified node=<that> returns an
+# honest "not configured" error, NEVER a fabricated success.
+  [os_control.nodes.igpu]
+  endpoint = ""    # e.g. in /etc/mios: endpoint = "http://100.x.y.z:11437"
+  desc     = "iGPU Windows host -- launch + verify on its own desktop over the tailnet (also runs mios-igpu-server.ps1 for inference)."
+
 # ─── Section: Window / app launch ─────────────────────────────────────
 [verbs.open_app]
 section    = "Window / app launch"
@@ -1030,6 +1137,34 @@ permission = "write"
   type    = "integer"
   desc    = "Monitor index (0=primary)."
   default = 0
+
+[verbs.verify_launch]
+section    = "Window / app launch"
+sig        = "app"
+desc       = "CHECK whether an app/window ACTUALLY launched, IN-TURN, via the always-on mios-daemon-agent (the iGPU daemon-tier brain that runs the Definition-of-Done success check). After you fire open_app / launch_app / focus_window, call this with the SAME name to CONFIRM before claiming success: the daemon runs a read-only window/process probe (it never launches anything) PLUS reports its own recorded false-success history for that app. Returns {success, app, launched, verdict, recent_failures}. If launched=false, RETRY the launch or report honestly -- NEVER claim an app opened without verifying. Offline-honest: daemon down => launched=false + error, never a fabricated success."
+tier       = "core"
+permission = "read"
+cmd        = "mios-verify-launch {app}"
+  [verbs.verify_launch.params.app]
+  type    = "string"
+  desc    = "App/window name that was supposedly launched (use the SAME name you passed to open_app)."
+  aliases = ["name", "query", "title", "target", "program", "window", "path", "exe"]
+
+[verbs.launch_verified]
+section    = "Window / app launch"
+sig        = "app, node?"
+desc       = "LAUNCH an app AND confirm it in ONE step by DELEGATING to the always-on mios-daemon-agent (the iGPU daemon-tier brain): the daemon FIRES the launch AND runs the success-check, returning {fired, launched, verdict}. PREFER this over open_app for a plain launch -- the agent just reads `launched` instead of firing then separately verifying. By DEFAULT launches on THIS host's desktop (through the broker). Pass `node` to launch on a SEPARATE configured machine's own desktop instead (e.g. the iGPU host) over the tailnet. If it errors (daemon/node unreachable => launched:false + error), FALL BACK to open_app then verify_launch. Use the discovered app name (after fan-out probes confirm X exists)."
+tier       = "core"
+permission = "write"
+cmd        = "mios-os-control launch {app}{node?--node}"
+  [verbs.launch_verified.params.app]
+  type    = "string"
+  desc    = "App display name to launch + verify (fires the launch then polls the window verifier until presented)."
+  aliases = ["name", "query", "title", "target", "program", "window", "path", "exe"]
+  [verbs.launch_verified.params.node]
+  type    = "string"
+  desc    = "OPTIONAL target node name (an [os_control.nodes.*] entry, e.g. the iGPU host). Omit to launch on THIS host's desktop."
+  aliases = ["host", "machine", "target_node", "on"]
 
 [verbs.launch_app]
 section    = "Window / app launch"
@@ -1160,6 +1295,11 @@ desc       = "Enumerate currently OPEN windows. Use BEFORE focus/move/close to c
 tier       = "core"
 permission = "read"
 cmd        = "mios-pc-control window-list --json"
+# Fit a busy desktop's whole window list (the grounding for "what's open"). The
+# old 1500-char default cut it mid-window so the model FABRICATED the omitted
+# windows' PIDs/titles (operator 2026-05-31). _cap_verb_result still flags any
+# overflow with a ⟪TRUNCATED⟫ marker the model must not invent past.
+max_result_chars = 6000
 
 [verbs.screen_layout]
 section    = "Window / app launch"
@@ -1183,6 +1323,23 @@ cmd        = "mios-open-url {url}{browser?}"
   type = "string"
   desc = "Browser shortname (chromedev / firefox / default). Empty = operator default."
 
+# ─── Section: Automation / scheduling ─────────────────────────────────
+[verbs.schedule]
+section    = "Automation / scheduling"
+sig        = "prompt, every"
+desc       = "Schedule a RECURRING/standing task: run <prompt> through the agent on a repeating interval and post each result to the operator's Discord. Use for ANY 'do X every N minutes/hours', 'each day', 'keep me updated on ...', 'check ... regularly / on a schedule' request -- a STANDING job, NOT one-shot research. `every` is a human interval ('30 minutes' / 'hourly' / 'daily' / 'weekly') or a raw 5-field cron."
+tier       = "core"
+permission = "write"
+cmd        = "mios-cron-schedule add --prompt {prompt} --every {every}"
+  [verbs.schedule.params.prompt]
+  type    = "string"
+  aliases = ["task", "query", "do", "what"]
+  desc    = "The task/question to run each interval (e.g. 'research the cheapest Toronto to Japan flights')."
+  [verbs.schedule.params.every]
+  type    = "string"
+  aliases = ["interval", "frequency", "cadence", "cron"]
+  desc    = "Interval: '30 minutes' / 'hourly' / 'daily' / 'weekly', or a raw 5-field cron. Default daily."
+
 # ─── Section: Discovery / resolution ──────────────────────────────────
 [verbs.mios_find]
 section    = "Discovery / resolution"
@@ -1198,10 +1355,15 @@ cmd        = "mios-find --json {name}"
 [verbs.mios_apps]
 section    = "Discovery / resolution"
 sig        = "filter?"
-desc       = "INVENTORY of installed apps across all surfaces (flatpak/rpm-gui/winget/store/steam/epic/xbox/gog/mios-shim/agent-cli/service-url). Optionally substring-filter."
+desc       = "INVENTORY of installed apps + GAMES across all surfaces (flatpak/rpm-gui/winget/store/steam/epic/xbox/gog/mios-shim/agent-cli/service-url). THE verb for 'what apps/games are installed' / 'detect my installed games' / 'list my programs' -- NOT a web search, NOT list_windows (which is only OPEN windows). Optionally substring-filter."
 tier       = "core"
 permission = "read"
 cmd        = "mios-apps --json{filter?--filter}"
+# The full inventory (apps + games across every surface) is ~27KB; the default
+# 1500-char enrich cap truncated it BEFORE the windows-game section, so "list
+# ALL my games" surfaced only 2 of 11 (operator 2026-05-27). Keep the whole
+# inventory so every game/app reaches the agent.
+max_result_chars = 30000
   [verbs.mios_apps.params.filter]
   type    = "string"
   desc    = "Case-insensitive substring filter; empty = all."
@@ -1305,6 +1467,21 @@ cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} 
   default = 3
   aliases = ["expand", "queries", "k"]
 
+[verbs.web_scrape]
+section    = "Discovery / resolution"
+sig        = "url, limit=20000?"
+desc       = "SCRAPE a web page to clean, LLM-ready MARKDOWN via the LOCAL self-hosted Firecrawl (offline-first, no cloud dependency). A SECOND fetch engine alongside `crawl`: Firecrawl returns very clean article/news markdown and reliably renders news/article INDEX pages -- verified a live news-index scrape returned that day's REAL dated headlines where web_search returned only dictionary/brand junk. USE THIS to READ a page (especially a news index or article) whose URL you have; pair with web_search (find URL -> scrape it). NOT a search: pass a concrete http(s) URL, not a query. `crawl` (crawl4ai driving the real local Chrome over CDP) is the alternative for JS-heavy / login-walled pages. Returns {success, engine, url, title, markdown, links} from a real fetched render; if the fetch fails, say so -- never invent page content."
+tier       = "core"
+permission = "read"
+cmd        = "mios-firecrawl --max-chars {limit=20000} {url}"
+  [verbs.web_scrape.params.url]
+  type    = "string"
+  aliases = ["link", "page", "address", "u", "firecrawl", "scrape"]
+  [verbs.web_scrape.params.limit]
+  type    = "integer"
+  default = 20000
+  aliases = ["max_chars", "chars", "n"]
+
 [verbs.crawl]
 section    = "Discovery / resolution"
 sig        = "url, limit=20000?"
@@ -1382,6 +1559,10 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #   MIOS_WEB_RESEARCH_FETCH_N     = 3     -- pages fetched per pass (web_extract)
 #   MIOS_WEB_RESEARCH_FETCH_CHARS = 3000  -- chars pulled per page
 #   MIOS_WEB_RESEARCH_BLOCK_CHARS = 1200  -- chars injected per source
+#   MIOS_WEB_RESEARCH_CRAWL_FALLBACK = true -- escalate a THIN extract (a JS /
+#       protected page) to mios-crawl (crawl4ai+CDP / Camoufox, the web-tools
+#       pod) so the DEEP web tool fires too, not just search+extract.
+#       MIOS_WEB_RESEARCH_MIN_CHARS (300) = thin threshold; _CRAWL_TIMEOUT_S (25).
 # Knowledge storage (operator 2026-05-23: "...present to user as final answer
 # and STORE all gained knowledge in all relevant global databases"). agent-pipe
 # persists each finished Q+A -- with the turn's derived sources (verbs invoked +
@@ -1726,10 +1907,11 @@ cmd = "mios-flatpak-preflight {id}"
 [verbs.system_status]
 section    = "System"
 sig        = ""
-desc       = "Live dashboard JSON: GPU/VRAM, RAM, disk, services, ollama models. Single source of truth -- never guess these."
+desc       = "Live dashboard JSON: GPU/VRAM, RAM, disk, services, ollama models. THE verb for 'system status' / 'summarize recent activity' / 'system health' / 'is the GPU/memory/disk/services ok' -- local machine state, NEVER a web search. Single source of truth; never guess these values."
 tier       = "core"
 permission = "read"
 cmd        = "mios-system-status"
+max_result_chars = 5000   # the full dashboard JSON (GPU/RAM/disk/services/models) > the 1500 default; fit it whole so the model never invents missing values
 
 [verbs.sys_env]
 section    = "System"
@@ -1801,6 +1983,7 @@ desc       = "Process list filtered by name; sorted by rss / cpu / pid."
 tier       = "common"
 permission = "read"
 cmd        = "mios-sysview proc --sort {sort=rss} --limit {limit=20}{filter?--filter}"
+max_result_chars = 6000   # fit the default 20-process list whole (1500 cut it mid-process -> fabricated entries)
   [verbs.process_list.params.filter]
   type = "string"
   aliases = ["name", "query"]
@@ -1825,6 +2008,7 @@ desc       = "podman/quadlet container status. Empty name = all."
 tier       = "common"
 permission = "read"
 cmd        = "mios-sysview containers{name?--name}"
+max_result_chars = 4000   # fit the full container list whole (avoids a mid-row cut the model would complete from imagination)
   [verbs.container_status.params.name]
   type = "string"
   aliases = ["container", "unit"]
@@ -1874,6 +2058,222 @@ cmd        = "mios-tool-search --json --limit {limit=5} {query!}"
   type = "integer"
   default = 5
   aliases = ["top_k", "k", "n"]
+
+[verbs.handoff]
+section    = "Agent collaboration"
+sig        = "to?, skill?, context_id, goal?, from?"
+desc       = "Live HANDOFF (take-over) to another agent: target inherits the SESSION STATE via the shared A2A contextId and continues the workflow. Use this (NOT a2a_delegate) when you want a different model -- e.g. a lightweight CPU agent -- to TAKE OVER from where you are (Hermes v2026.5.28 /handoff brief: 'transition from a massive model to a lightweight local model ... every conversation state ... migrated live'). context_id is REQUIRED (the shared scratchpad the target inherits); pick the target by id (--to) or by skill (--skill). Returns {ok, target, source, status, response, task_id, context_id, context_history_chars}."
+tier       = "common"
+permission = "read"
+cmd        = "mios-handoff {to?--to} {skill?--skill} --context-id {context_id!} {goal?--goal} {from?--from}"
+  [verbs.handoff.params.to]
+  type    = "string"
+  desc    = "Target peer id (from the federated A2A roster). Exclusive with skill."
+  aliases = ["target", "peer", "peer_id", "agent"]
+  [verbs.handoff.params.skill]
+  type    = "string"
+  desc    = "Route by declared skill name (first ready peer wins). Exclusive with to."
+  aliases = ["capability", "tag"]
+  [verbs.handoff.params.context_id]
+  type    = "string"
+  desc    = "A2A contextId carrying the session state the target inherits. REQUIRED."
+  aliases = ["contextId", "ctx", "thread"]
+  [verbs.handoff.params.goal]
+  type    = "string"
+  desc    = "Take-over directive (what the target should do next)."
+  aliases = ["directive", "next", "task"]
+  [verbs.handoff.params.from]
+  type    = "string"
+  desc    = "Originating agent name; surfaced to the target so it knows who handed off."
+  aliases = ["source", "src", "from_agent"]
+
+[verbs.a2a_delegate]
+section    = "Agent collaboration"
+sig        = "peer?, skill?, text, context_id?"
+desc       = "Mid-run AGENT-TO-AGENT delegation over A2A. Hand a sub-task to a registered A2A peer + receive its answer back (so YOU can fold it into your reasoning, NOT a final user reply). Pick by peer id (from `mios-a2a-delegate --list-peers`) OR by skill name (from --list-skills); skill routes to the first ready peer that advertises it. Optional context_id joins an existing inter-agent thread so the peer sees the shared scratchpad. Returns {ok, peer_id, status, response, task_id, context_id}; on success response is the peer's plain-text answer ready to splice into your own."
+tier       = "common"
+permission = "read"
+cmd        = "mios-a2a-delegate {peer?--peer} {skill?--skill} {context_id?--context-id} --text {text!}"
+  [verbs.a2a_delegate.params.peer]
+  type    = "string"
+  desc    = "Peer id from the federated A2A roster."
+  aliases = ["peer_id", "agent", "target", "to"]
+  [verbs.a2a_delegate.params.skill]
+  type    = "string"
+  desc    = "Skill name; routes to the first ready peer that advertises it."
+  aliases = ["capability", "tag"]
+  [verbs.a2a_delegate.params.text]
+  type    = "string"
+  desc    = "The sub-task prompt to forward to the peer."
+  aliases = ["prompt", "q", "query", "message", "msg"]
+  [verbs.a2a_delegate.params.context_id]
+  type    = "string"
+  desc    = "A2A contextId to share the inter-agent conversation thread."
+  aliases = ["contextId", "ctx", "thread"]
+
+[verbs.summarize]
+section    = "Discovery / resolution"
+sig        = "text?, file?, tiers=l0,l1?"
+desc       = "TIERED summarisation (the L0/L1/L2 gating primitive). Turn a document/text into nested tiers: L0 = one-sentence ~100-token abstract (fast nav), L1 = ~2k-token structured overview (sections+key points), L2 = the raw text (returned as a char count, fetched on demand). Runs on the CPU LIGHT lane so it never contends with the dGPU primary. Use to condense a long file/page/result before feeding it to a model, or to build navigable summaries. Returns {ok, l0, l1, l2_chars, chars_in, model}."
+tier       = "common"
+permission = "read"
+cmd        = "mios-summarize --json {text?--text} {file?--file} {tiers?--tiers}"
+  [verbs.summarize.params.text]
+  type    = "string"
+  desc    = "Inline text to summarise (or use file)."
+  aliases = ["content", "body", "input"]
+  [verbs.summarize.params.file]
+  type    = "string"
+  desc    = "Path to a UTF-8 text/markdown file to summarise."
+  aliases = ["path", "doc"]
+  [verbs.summarize.params.tiers]
+  type    = "string"
+  desc    = "Comma list of tiers to generate (l0,l1). L2 is the raw text."
+  aliases = ["levels", "depth"]
+
+[verbs.coderun]
+section    = "OS shell verbs"
+sig        = "code, lang=bash?, net?, timeout=60?"
+desc       = "Run a SHORT code snippet / command in a SANDBOX (bubblewrap: read-only system, writable scratch only, NO network by default, resource caps + timeout). Use to compute/test something safely without touching the host. lang: bash (default) | python. Pass net=true ONLY if the code must reach the network. Returns {ok, exit_code, stdout, stderr, sandboxed}. Sibling of powershell_run (Windows host shell, unsandboxed) -- prefer THIS for untrusted/generated Linux code."
+tier       = "common"
+permission = "interactive"
+cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
+  [verbs.coderun.params.code]
+  type    = "string"
+  desc    = "The source/command to run in the sandbox."
+  aliases = ["source", "script", "command", "snippet"]
+  [verbs.coderun.params.lang]
+  type    = "string"
+  enum    = ["bash", "sh", "python"]
+  default = "bash"
+  desc    = "Interpreter for the snippet."
+  aliases = ["language", "interpreter"]
+  [verbs.coderun.params.net]
+  type    = "boolean"
+  desc    = "Allow network egress (default false = offline jail)."
+  aliases = ["network", "allow_net"]
+  [verbs.coderun.params.timeout]
+  type    = "integer"
+  default = 60
+  aliases = ["timeout_s", "max_seconds"]
+
+[verbs.ingest]
+section    = "Discovery / resolution"
+sig        = "path?, file?, ext=md,txt,rst,org?, max=100?"
+desc       = "INGEST local files/notes into the second-brain vault (OFFLINE OpenHuman-style ingestion -- LOCAL sources only, no cloud/SaaS). Walks a directory (or one file), tiers each doc (L0 abstract + L1 overview via the light model), and stores it as a knowledge node so `viking_*` can navigate it + recall can surface it. Idempotent per source path. Use to make a folder of notes/docs searchable by the swarm. Returns {ok, ingested, skipped, sources}."
+tier       = "common"
+permission = "write"
+cmd        = "mios-ingest {path?--path} {file?--file} {ext?--ext} --max {max=100}"
+  [verbs.ingest.params.path]
+  type    = "string"
+  desc    = "Directory to ingest recursively."
+  aliases = ["dir", "folder", "root"]
+  [verbs.ingest.params.file]
+  type    = "string"
+  desc    = "Single file to ingest."
+  aliases = ["doc"]
+  [verbs.ingest.params.ext]
+  type    = "string"
+  desc    = "Comma list of extensions to include (default md,txt,rst,org)."
+  aliases = ["extensions", "types"]
+  [verbs.ingest.params.max]
+  type    = "integer"
+  default = 100
+  aliases = ["limit", "n"]
+
+[verbs.remember]
+section    = "Discovery / resolution"
+sig        = "fact, scope=global?, key?"
+desc       = "WRITE a durable fact to your own persistent memory (Letta/MemGPT core-memory: self-editing). Use when the operator tells you something to keep, or you learn a stable fact worth carrying across turns/conversations. scope: global (default, all chats) | agent:<name> | conversation:<id>. Optional key lets you later update/forget it. Read it back with `recall`. This is TOOL-DRIVEN memory (you write + read by calling verbs; nothing is auto-injected). Returns {ok, key, scope}."
+tier       = "common"
+permission = "write"
+cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
+  [verbs.remember.params.fact]
+  type    = "string"
+  desc    = "The fact/preference to store durably."
+  aliases = ["text", "note", "memory", "content"]
+  [verbs.remember.params.scope]
+  type    = "string"
+  desc    = "global | agent:<name> | conversation:<id>."
+  aliases = ["level"]
+  [verbs.remember.params.key]
+  type    = "string"
+  desc    = "Stable key to later update/forget this memory."
+  aliases = ["id", "name"]
+
+[verbs.recall]
+section    = "Discovery / resolution"
+sig        = "scope=global?, limit=30?"
+desc       = "READ back durable facts you previously stored with `remember` (Letta/MemGPT core-memory read). Returns the agent-authored memories for a scope. Pair with `remember` (write) + `viking_*` (the broader second-brain). Returns {ok, count, memories:[{key, scope, fact, source}]}."
+tier       = "common"
+permission = "read"
+cmd        = "mios-remember list {scope?--scope} --limit {limit=30}"
+  [verbs.recall.params.scope]
+  type    = "string"
+  desc    = "Filter to a scope (empty = all)."
+  aliases = ["level"]
+  [verbs.recall.params.limit]
+  type    = "integer"
+  default = 30
+  aliases = ["n", "top_k"]
+
+[verbs.viking_ls]
+section    = "Discovery / resolution"
+sig        = "ns, query?, limit=20?"
+desc       = "List nodes in the viking:// second-brain VFS at the L0 (one-line abstract) tier for cheap navigation. Namespaces: `skills` (episodic SKILL.md self-learn files), `knowledge` (every finished Q+A in the store), `memory` (operator AI memory). Skim these L0 abstracts FIRST to find the right node, then `viking_cat` it at L1/L2. Returns {ok, ns, count, nodes:[{id, l0}]}."
+tier       = "common"
+permission = "read"
+cmd        = "mios-viking ls {ns} {query?--query} --limit {limit=20}"
+  [verbs.viking_ls.params.ns]
+  type    = "string"
+  desc    = "Namespace: skills | knowledge | memory."
+  aliases = ["namespace", "space"]
+  [verbs.viking_ls.params.query]
+  type    = "string"
+  desc    = "Optional substring filter (knowledge ns)."
+  aliases = ["q", "filter"]
+  [verbs.viking_ls.params.limit]
+  type    = "integer"
+  default = 20
+  aliases = ["n", "top_k"]
+
+[verbs.viking_cat]
+section    = "Discovery / resolution"
+sig        = "node, tier=l0?"
+desc       = "Read ONE viking:// node at a chosen TIER (HIERARCHICAL GATING): l0 = one-line abstract, l1 = structured overview (generated on read), l2 = raw full content (fetch ONLY when you truly need the detail -- it costs the most context). node is `skills/<file>` or `knowledge/<id>` from viking_ls. Returns {ok, id, tier, content}."
+tier       = "common"
+permission = "read"
+cmd        = "mios-viking cat {node} --tier {tier=l0}"
+  [verbs.viking_cat.params.node]
+  type    = "string"
+  desc    = "Node id from viking_ls (skills/<file> or knowledge/<id>)."
+  aliases = ["id", "path"]
+  [verbs.viking_cat.params.tier]
+  type    = "string"
+  enum    = ["l0", "l1", "l2"]
+  default = "l0"
+  desc    = "Gating tier: l0 abstract, l1 overview, l2 raw (on-demand)."
+  aliases = ["level", "depth"]
+
+[verbs.viking_find]
+section    = "Discovery / resolution"
+sig        = "query, ns?, limit=20?"
+desc       = "Semantic-ish FIND across the viking:// second brain -- searches L0 abstracts of skills + knowledge for a query and returns matching nodes (skim-then-fetch: get hits here, then viking_cat the best at l1/l2). Returns {ok, query, count, hits:[{id, l0}]}."
+tier       = "common"
+permission = "read"
+cmd        = "mios-viking find {query!} {ns?--ns} --limit {limit=20}"
+  [verbs.viking_find.params.query]
+  type    = "string"
+  desc    = "What to look for across the second brain."
+  aliases = ["q", "text", "search"]
+  [verbs.viking_find.params.ns]
+  type    = "string"
+  desc    = "Comma list of namespaces (default skills,knowledge)."
+  aliases = ["namespaces", "spaces"]
+  [verbs.viking_find.params.limit]
+  type    = "integer"
+  default = 20
+  aliases = ["n", "top_k"]
 
 [verbs.os_recipe]
 section    = "OS shell verbs"
@@ -2313,10 +2713,18 @@ cursor_size      = 24                           # XCURSOR_SIZE. 24 matches the W
 # actually works on this compositor -- trades render perf for stability
 # + correct rendering of headerbars, scrolling, decorations.
 # ----------------------------------------------------------------------------
+# MODERN GTK4 rendering (operator 2026-05-29 "GTK themes regressed / old not
+# modern / windowing + CSS out of date"). cairo + software-GL was a May WSLg
+# compatibility hammer, but cairo IS the legacy renderer -> flat/old look, no
+# modern libadwaita visuals. WSLg + the 4090 (/dev/dri) have matured: use the
+# modern GTK4 `ngl` (node-GL) renderer + real hardware GL. Vulkan stays OFF
+# (WSLg Vulkan is still flaky; ngl is GL, not Vulkan). gdk_backend stays x11
+# (XWayland) for WebKit/GTK4 WSLg stability. If a GTK4 app misrenders, fall
+# back via /etc/mios overlay [graphics].gsk_renderer="cairo".
 [graphics]
-gsk_renderer       = "cairo"      # GTK4 software renderer
-force_software_gl  = true         # LIBGL_ALWAYS_SOFTWARE=1
-disable_vulkan     = true         # GDK_VULKAN_DISABLE=1 + DISABLE_LAYERS
+gsk_renderer       = "ngl"        # modern GTK4 node-GL renderer (was cairo)
+force_software_gl  = false        # use real hardware GL via /dev/dri (was true)
+disable_vulkan     = true         # GDK_VULKAN_DISABLE=1 (WSLg Vulkan still flaky)
 gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
                                   # WSLg's Weston Wayland trips Gdk Error 71
                                   # (Protocol error) in WebKit/GTK4 AND lacks
@@ -2361,6 +2769,37 @@ hermes_agent_ref    = "main"
 # delegate path on qwen3:1.7b for non-code work).
 opencode_install_url = "https://opencode.ai/install"
 opencode_version    = "latest"           # or pin to a tag
+# ── opencode /v1 gateway (front-door commitment, operator 2026-05-31) ────────
+# opencode is a first-class OpenAI /v1 COUNCIL PEER via mios-opencode-gateway.
+# service (:8633), NOT a Hermes ACP subprocess (the ACP framing above is the
+# RETIRED path). These keys are the SSOT for automation/39-opencode.sh + the
+# gateway unit + tools/lib/userenv.sh (MIOS_OPENCODE_*). ONE canonical model id
+# across: [agents.opencode].model, opencode.json's model key, the ollama
+# Modelfile build name:tag.
+opencode_model      = "mios-opencode:latest"
+# opencode provider name as declared in opencode.json; the gateway builds the
+# `-m <provider>/<model>` selector from this.
+opencode_provider   = "ollama"
+# opencode binary install path (fetched at build). Gateway unit + installer
+# reference this via MIOS_OPENCODE_BIN.
+opencode_bin        = "/usr/lib/mios/opencode/bin/opencode"
+# Explicit opencode config path the gateway exports as OPENCODE_CONFIG (no
+# hardcoded /root/.config/opencode dependency). /etc/mios/opencode is the
+# canonical SoT (.gitignore whitelists it; mios-hermes-firstboot deploys it).
+opencode_config     = "/etc/mios/opencode/opencode.json"
+# Gateway run cwd / HOME (scratch for `opencode run`; no repo -> Q&A mode).
+opencode_gateway_workdir   = "/var/lib/mios/opencode-gateway/work"
+# Per-run timeout (s). Under VRAM pressure the run times out and the gateway
+# returns empty so the swarm fan-out drops opencode harmlessly.
+opencode_gateway_timeout_s = 90
+# Hybrid agent-plane: opencode shares Hermes's venv (the de-facto shared
+# interpreter for hermes-agent + agent-pipe + the gateway shim). Kept at the
+# historic /usr/lib/mios/hermes-agent location — relocating it would touch ~15
+# load-bearing references (agent-pipe + delegation-prefilter unit interpreters,
+# mios-hermes-firstboot self-recovery, /usr/bin/hermes, dashboard-auth-stub,
+# discord-reactions-patch). To move it, change these AND every one of those.
+agent_venv          = "/usr/lib/mios/hermes-agent/.venv"
+agent_install_dir   = "/usr/lib/mios/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
 hermes_backend_url  = "http://localhost:11434/v1"
@@ -3171,6 +3610,7 @@ pkgs = [
     "whois",               # mkpasswd is in mkpasswd pkg on F44, but ship whois too
     "openssl",             # password fallback + general TLS
     "python3-passlib",     # password fallback (Python 3.13+ removed crypt)
+    "python3-bcrypt",      # bcrypt backend for passlib + mios-adguard-firstboot admin pw
     "bootc",               # bootc switch + self-replication closure
     "git",                 # in-distro clone
     "curl",                # required for Bibata/AI CLI downloads
@@ -3950,9 +4390,9 @@ pkgs = [
 # usr/share/mios/ai/INDEX.md §5b.
 # ----------------------------------------------------------------------------
 [ports]
-ssh                = 22       # host sshd
+ssh                = 2222     # host admin sshd. Operator 2026-05-28: "mios-dev ssh should be port 2222" -- hardened off :22, off the prior :49955. firewall opens this; sshd_config Port drop-in lives at /etc/ssh/sshd_config.d/09-mios-ssh-port.conf and must match. Forgejo git-ssh moved to forge_ssh=49922 to vacate 2222.
 forge_http         = 3000     # Forgejo HTTP web UI
-forge_ssh          = 2222     # Forgejo git+ssh (non-22 to coexist with sshd)
+forge_ssh          = 49922    # Forgejo git+ssh (vacated 2222 for host admin sshd 2026-05-28). Non-22 to coexist with sshd; non-2222 to leave that as the canonical operator-SSH port.
 cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 ollama             = 11434    # alternate local LLM backend (CUDA / dGPU lane)
@@ -3974,6 +4414,9 @@ surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting 
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
 ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
+adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
+adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
+opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -4048,6 +4491,10 @@ pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 surrealdb_version  = "latest"
 surrealdb          = "docker.io/surrealdb/surrealdb:latest"
+adguard_version    = "latest"
+# AdGuard Home -- open-source (GPLv3) DNS sinkhole + recursive resolver. Single
+# Go binary container; serves DNS on :53 and the web UI/API on :3053.
+adguard            = "docker.io/adguard/adguardhome:latest"
 
 # ----------------------------------------------------------------------------
 # [services.<svc>] -- per-service identity (UID / GID / username) baked
@@ -4108,6 +4555,58 @@ gid  = 823
 user = "mios-crawl4ai"
 uid  = 824
 gid  = 824
+
+# AdGuard Home DNS resolver / ad-blocker. SYSTEM tier (mios-sys), like CrowdSec
+# -- network infrastructure, not an AI agent. uid owns /etc/mios/adguard (config)
+# + /var/lib/mios/adguard (state/db). Next free UID after mios-crawl4ai (824).
+[services.adguard]
+user = "mios-adguard"
+uid  = 825
+gid  = 825
+
+# ----------------------------------------------------------------------------
+# [adguard] -- AdGuard Home DNS sinkhole config (SSOT). Rendered into
+# /etc/mios/adguard/AdGuardHome.yaml by usr/libexec/mios/mios-adguard-firstboot,
+# which ALSO discovers + injects the live Tailscale IP (bind_hosts) and MagicDNS
+# suffix (split-DNS) at boot -- host-specific values that can't be baked at image
+# build time. Everything here is open-source. Complements CrowdSec: CrowdSec
+# firewalls malicious IPs (nftables bouncer), AdGuard sinkholes ad/tracker/
+# malware DOMAINS at resolve time.
+# ----------------------------------------------------------------------------
+[adguard]
+# Upstream resolvers -- DoH for privacy (no plaintext :53 to the ISP). The agent
+# can add/replace these via the UI; this is the shipped default.
+upstreams = [
+  "https://dns.quad9.net/dns-query",
+  "https://dns.cloudflare.com/dns-query",
+]
+# Bootstrap resolvers: plain DNS used ONLY to resolve the DoH hostnames above.
+bootstrap = ["9.9.9.9", "1.1.1.1"]
+# Open-source blocklists (hosts / AdGuard-filter syntax). AdGuard fetches +
+# caches them, so blocking keeps working offline on the cached copy; only the
+# periodic refresh needs internet.
+blocklists = [
+  "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+  "https://big.oisd.nl",
+  "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt",
+]
+# Tailscale MagicDNS stub (universal fixed IP). firstboot writes a split-DNS
+# rule sending the discovered *.<magicdns-suffix> zone here so the pretty URLs
+# keep resolving while everything else goes upstream with ad-blocking.
+magicdns_resolver = "100.100.100.100"
+# Optional explicit MagicDNS suffix override; empty = firstboot auto-discovers
+# it from `tailscale status` so we never hardcode one tailnet's name.
+magicdns_suffix = ""
+# Cache TTL clamp (seconds).
+cache_min_ttl = 60
+cache_max_ttl = 86400
+# Web UI admin login. Empty admin_password_bcrypt => firstboot AUTO-GENERATES a
+# strong random password and drops the plaintext in /etc/mios/adguard/initial-
+# admin-password (0600) so the UI is never left no-auth (it controls tailnet DNS
+# once it's the global nameserver). Pin your own with a bcrypt hash:
+#   htpasswd -nbB admin '<password>' | cut -d: -f2
+admin_user = "admin"
+admin_password_bcrypt = ""
 
 # ----------------------------------------------------------------------------
 # [paths] -- canonical FHS paths for runtime artifacts. Consumed by
@@ -5089,12 +5588,26 @@ mios-forge            = true
 mios-cockpit-link     = true
 mios-open-webui       = true
 mios-code-server      = true
-crowdsec-dashboard    = true
+# crowdsec-dashboard: FORCE-DISABLED 2026-05-27. This sidecar runs the FULL
+# crowdsecurity/crowdsec image against the SHARED host /var/lib/crowdsec volume.
+# Its docker_start.sh, on EVERY start, (a) unconditionally plants dangling
+# /staging/var/lib/crowdsec/data/* symlinks into that shared volume (the
+# `data/trace -> /staging/...` dangling link that fatally broke the host agent's
+# trace setup) and (b) re-registers the `localhost` machine, clobbering the host
+# agent's LAPI credentials. Result: the host crowdsec agent + firewall-bouncer
+# crash-looped for ~6 days (2805 restarts) -> total CrowdSec outage, fixed
+# 2026-05-27. The container ALSO needs the online hub (version.crowdsec.net) at
+# boot, which can't work on offline-by-design MiOS, so it never reaches a
+# healthy state anyway. No env-only tune is safe: the corrupting symlink loop
+# runs before any DISABLE_* guard. The host crowdsec agent already provides the
+# IPS function; this redundant sidecar is retired. See mios_crowdsec_recovery.
+crowdsec-dashboard    = false
 ollama                = true
 cloudws-guacamole     = true
 cloudws-pxe-hub       = true
 guacamole-postgres    = true
 guacd                 = true
+mios-adguard          = true
 
 # ----------------------------------------------------------------------------
 # [env] -- free-form environment-variable additions. Keys must match POSIX
@@ -5107,3 +5620,61 @@ guacd                 = true
 #   MIOS_AI_GRADER = "qwen2.5-coder:7b"
 # ----------------------------------------------------------------------------
 [env]
+
+[finetune]
+# Fine-tune subsystem -- distil a strong LOCAL teacher model into a small, fast
+# MiOS role model via LoRA/SFT, then ship the adapter as an ollama model. FOSS +
+# fully OFFLINE + HARDWARE-AGNOSTIC: the trainer auto-detects the device (NVIDIA
+# CUDA / AMD ROCm / Apple MPS / CPU) and only 4-bit-quantises where the hardware
+# supports it -- MiOS has the components to train on ANY hardware combination, same
+# as it runs inference on any lane. This is an OPERATOR-GATED heavy build (it
+# saturates a GPU for a while + the framework install needs a one-time network
+# fetch); it is deliberately NOT exposed as an agent verb so no chat turn can kick
+# off a multi-hour training run. Everything here is overridable via /etc/mios/ +
+# ~/.config/mios/ overlays and the MIOS_FINETUNE_* env (userenv.sh).
+enable          = true
+target_role     = "refiner"            # MiOS role to fine-tune (refiner = mios-sys-agent)
+base_model      = "qwen3.5:2b"         # the role's base -- MUST match the Modelfile FROM
+hf_base         = "Qwen/Qwen3.5-2B"    # HF repo id OR local safetensors dir for the SAME base
+                                       # (PEFT/TRL train on HF weights; ollama stores GGUF). One-time
+                                       # offline fetch, like the framework install. This is the actual
+                                       # production refiner base (qwen3.5:2b == Qwen/Qwen3.5-2B, Apache-2.0,
+                                       # public). Override per-install if base_model differs.
+output_tag      = "mios-sys-agent-ft"  # ollama tag the adapter is shipped as
+device          = "auto"               # auto | cuda | rocm | mps | cpu
+load_in_4bit    = "auto"               # auto = 4bit ONLY on CUDA+bitsandbytes; else full/bf16
+prefer_unsloth  = true                 # use the Unsloth fast-path when CUDA + unsloth present
+
+# --- LoRA adapter ---
+lora_r          = 16
+lora_alpha      = 32
+lora_dropout    = 0.05
+target_modules  = "auto"               # auto = attn+mlp projections for the detected arch
+
+# --- SFT hyperparameters ---
+epochs          = 2
+learning_rate   = 2.0e-4
+batch_size      = 2
+grad_accum      = 8
+max_seq_len     = 2048
+warmup_ratio    = 0.03
+grad_checkpointing = true              # saves memory; set false if a custom-op base breaks in backward
+
+# --- Dataset (self-distillation; NO hardcoded English) ---
+# Queries are GENERATED by the teacher, seeded by the LIVE capability surface
+# (verb catalog from the running pipe + real operator Q+A from the knowledge DB);
+# labels are produced by the teacher against the live refine schema + catalog. So
+# the corpus tracks the real system, never a hand-written topic list.
+teacher_model        = "qwen3.5:9b"    # strongest general model that fits the free VRAM; bump to qwen3.6:27b when more is free
+teacher_endpoint     = "http://localhost:11434"
+pipe_url             = "http://127.0.0.1:8640"
+seeds_per_capability = 4               # teacher-generated phrasings per catalog verb
+include_knowledge    = true            # also mine REAL operator queries from the knowledge table
+dataset_path         = "/var/lib/mios/finetune/refiner-sft.jsonl"
+min_examples         = 24              # refuse to train on a corpus smaller than this
+
+# --- GGUF export + ollama wiring ---
+gguf_convert    = true
+gguf_quant      = "q8_0"               # adapter export precision
+work_dir        = "/var/lib/mios/finetune"
+serve_port      = 11438                # mios-finetune-serve OpenAI+ollama endpoint (opt-in)

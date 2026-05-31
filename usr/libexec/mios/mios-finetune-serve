@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""'MiOS' fine-tune server -- serve a trained role adapter on ANY hardware.
+
+Loads the base + the LoRA adapter from [finetune] (base+PEFT, the clean artifact that
+works everywhere transformers runs) and exposes BOTH wire shapes MiOS speaks:
+
+  POST /api/chat               (ollama-native; what the agent-pipe refiner calls)
+  POST /v1/chat/completions    (OpenAI-compatible)
+  GET  /v1/models , GET /healthz
+
+So adopting the fine-tuned refiner is a one-line config change -- point the pipe's
+refine endpoint at this server (e.g. MIOS_REFINE_ENDPOINT=http://127.0.0.1:11438) and
+its model at [finetune].output_tag. Deliberately a STANDALONE helper, NOT auto-enabled:
+the trained 2B served via transformers is correct but slower than ollama on the hot
+path, so use it to A/B-test now; switch production to it once ollama gains Qwen3-Next
+LoRA (then the same adapter runs fast on the official base GGUF).
+
+Hardware-agnostic (auto cuda/rocm/mps/cpu). Stdlib HTTP only -- no extra deps beyond the
+fine-tune venv (torch/transformers/peft). Run with the venv python:
+  /var/lib/mios/finetune/venv/bin/python /usr/libexec/mios/mios-finetune-serve
+"""
+from __future__ import annotations
+import json
+import os
+import sys
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore
+
+VENDOR_TOML = "/usr/share/mios/mios.toml"
+ETC_TOML = "/etc/mios/mios.toml"
+USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
+
+
+def _deep_merge(b, o):
+    for k, v in (o or {}).items():
+        if isinstance(v, dict) and isinstance(b.get(k), dict):
+            _deep_merge(b[k], v)
+        else:
+            b[k] = v
+    return b
+
+
+def load_cfg() -> dict:
+    cfg: dict = {}
+    for p in (VENDOR_TOML, ETC_TOML, USER_TOML):
+        try:
+            with open(p, "rb") as fh:
+                _deep_merge(cfg, tomllib.load(fh))
+        except FileNotFoundError:
+            continue
+        except Exception as e:  # noqa: BLE001
+            print(f"[finetune-serve] WARN bad TOML {p}: {e}", file=sys.stderr)
+    ft = dict(cfg.get("finetune") or {})
+    for k in list(ft.keys()):
+        env = os.environ.get("MIOS_FINETUNE_" + k.upper())
+        if env is not None:
+            ft[k] = env
+    return ft
+
+
+def detect_device(pref: str) -> str:
+    import torch
+    pref = (pref or "auto").lower()
+    if pref in ("cuda", "rocm") and torch.cuda.is_available():
+        return pref
+    if pref == "mps" and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+    if pref == "cpu":
+        return "cpu"
+    if torch.cuda.is_available():
+        return "rocm" if getattr(torch.version, "hip", None) else "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+CFG = load_cfg()
+TAG = str(CFG.get("output_tag") or "mios-sys-agent-ft")
+PORT = int(os.environ.get("MIOS_FINETUNE_SERVE_PORT", CFG.get("serve_port") or 11438))
+_MODEL = _TOK = _DEV = None
+
+
+def _load():
+    global _MODEL, _TOK, _DEV
+    import torch
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    base = str(CFG.get("hf_base") or "").strip()
+    adapter = os.path.join(str(CFG.get("work_dir") or "/var/lib/mios/finetune"), "adapter")
+    if not base or not os.path.isdir(adapter):
+        print(f"[finetune-serve] FATAL: hf_base/adapter missing (base={base!r} "
+              f"adapter={adapter})", file=sys.stderr)
+        sys.exit(2)
+    _DEV = detect_device(str(CFG.get("device") or "auto"))
+    dt = torch.bfloat16 if _DEV in ("cuda", "rocm") else torch.float32
+    print(f"[finetune-serve] loading {base} + adapter on {_DEV} ...", flush=True)
+    _TOK = AutoTokenizer.from_pretrained(base, trust_remote_code=True)
+    m = AutoModelForCausalLM.from_pretrained(
+        base, trust_remote_code=True, torch_dtype=dt,
+        device_map=("auto" if _DEV in ("cuda", "rocm") else None))
+    if _DEV == "mps":
+        m = m.to("mps")
+    _MODEL = PeftModel.from_pretrained(m, adapter)
+    _MODEL.eval()
+    print(f"[finetune-serve] ready: {TAG} on :{PORT}", flush=True)
+
+
+def _generate(messages, max_tokens, temperature) -> str:
+    import torch
+    enc = _TOK.apply_chat_template(messages, add_generation_prompt=True,
+                                   return_tensors="pt", return_dict=True)
+    enc = {k: v.to(_MODEL.device) for k, v in enc.items()}
+    do_sample = bool(temperature and temperature > 0)
+    with torch.no_grad():
+        out = _MODEL.generate(
+            **enc, max_new_tokens=int(max_tokens or 512), do_sample=do_sample,
+            temperature=(temperature or 1.0) if do_sample else None,
+            pad_token_id=_TOK.pad_token_id or _TOK.eos_token_id)
+    return _TOK.decode(out[0][enc["input_ids"].shape[1]:],
+                       skip_special_tokens=True).strip()
+
+
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a):  # quiet
+        pass
+
+    def _send(self, code, obj):
+        body = json.dumps(obj).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path.rstrip("/") == "/healthz":
+            return self._send(200, {"status": "ok", "model": TAG, "device": _DEV})
+        if self.path.startswith("/v1/models"):
+            return self._send(200, {"object": "list", "data": [
+                {"id": TAG, "object": "model", "owned_by": "mios"}]})
+        self._send(404, {"error": "not found"})
+
+    def do_POST(self):
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+            req = json.loads(self.rfile.read(n) or b"{}")
+        except Exception as e:  # noqa: BLE001
+            return self._send(400, {"error": f"bad request: {e}"})
+        msgs = req.get("messages") or []
+        opts = req.get("options") or {}
+        max_t = req.get("max_tokens") or opts.get("num_predict") or 512
+        temp = req.get("temperature")
+        if temp is None:
+            temp = opts.get("temperature", 0)
+        try:
+            t0 = time.time()
+            content = _generate(msgs, max_t, temp)
+            dt = round(time.time() - t0, 2)
+        except Exception as e:  # noqa: BLE001
+            return self._send(500, {"error": f"generation failed: {e}"})
+        path = self.path.rstrip("/")
+        if path == "/api/chat":  # ollama-native shape (agent-pipe refiner)
+            return self._send(200, {
+                "model": req.get("model", TAG), "created_at": time.time(),
+                "message": {"role": "assistant", "content": content},
+                "done": True, "done_reason": "stop"})
+        # OpenAI shape
+        self._send(200, {
+            "id": f"ftchat-{int(time.time())}", "object": "chat.completion",
+            "created": int(time.time()), "model": req.get("model", TAG),
+            "choices": [{"index": 0, "finish_reason": "stop",
+                         "message": {"role": "assistant", "content": content}}],
+            "x_latency_s": dt})
+
+
+def main() -> int:
+    _load()
+    srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

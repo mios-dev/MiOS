@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""mios-handoff -- live state migration between model endpoints.
+
+P5.5 (operator 2026-05-28 Hermes v2026.5.28 brief): "transition from a
+massive model ... to a lightweight local model to complete routine
+processing and save costs ... transfers the active execution session
+... every conversation state, current tool output, and active variable
+is serialized and migrated live to the target model without resetting
+the workflow context."
+
+In MiOS terms: pass the session's CURRENT A2A-context blackboard (the
+shared scratchpad rendered as A2A Message history grouped by contextId,
+served at /a2a/contexts/<ctxid>) + an optional handoff note to the
+target peer/skill via the existing /v1/a2a/dispatch. The target receives
+a clearly-framed "handoff take-over" message + can also fetch
+/a2a/contexts/<ctxid> directly for the full history.
+
+USAGE
+  mios-handoff --to <peer_or_skill> --context-id <ctxid> [--goal <text>]
+  mios-handoff --skill <skill> --context-id <ctxid> [--goal <text>]
+
+DIFFERENCE FROM mios-a2a-delegate:
+  delegate = "do this side task" (the calling agent stays in control)
+  handoff  = "take over from here" (target inherits the session state
+             and continues the workflow). Practically: the message is
+             prefixed with a TAKE-OVER frame + carries a context summary
+             pulled from /a2a/contexts/<ctxid>, so the target replies as
+             the new owner of the workflow rather than producing a
+             standalone answer to a delegated subtask.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+PIPE_URL = os.environ.get("MIOS_AGENT_PIPE_URL", "http://127.0.0.1:8640")
+DEFAULT_TIMEOUT = float(os.environ.get("MIOS_HANDOFF_TIMEOUT", "180"))
+
+
+def _get(path: str) -> dict:
+    try:
+        req = urllib.request.Request(PIPE_URL.rstrip("/") + path,
+                                     headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        return {"error": f"http {e.code}",
+                "body": e.read().decode("utf-8", errors="replace")[:400]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _post(path: str, body: dict, timeout_s: float) -> dict:
+    try:
+        req = urllib.request.Request(
+            PIPE_URL.rstrip("/") + path,
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Accept": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        return {"error": f"http {e.code}",
+                "body": e.read().decode("utf-8", errors="replace")[:400]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _format_context_history(ctx_resp: dict, max_msgs: int = 12,
+                            max_chars: int = 4000) -> str:
+    """Render the /a2a/contexts/<ctxid> response into a compact prose
+    history the target model can read at a glance. A2A 0.3 shape:
+    {messages: [{role, parts:[{kind:'text', text:...}]}, ...]}. Falls
+    back to the legacy {history|notes|entries|scratch} shapes so a peer
+    using a slightly older context-store format still surfaces context."""
+    msgs = (ctx_resp.get("messages") or ctx_resp.get("history")
+            or ctx_resp.get("notes") or ctx_resp.get("entries") or [])
+    if not isinstance(msgs, list):
+        return ""
+    lines = []
+    for m in msgs[-max_msgs:]:
+        if not isinstance(m, dict):
+            continue
+        role = str(m.get("role") or m.get("source") or "?")
+        text = ""
+        for part in (m.get("parts") or []):
+            if isinstance(part, dict) and part.get("kind") == "text":
+                t = part.get("text")
+                if t:
+                    text += str(t) + " "
+        if not text:
+            text = str(m.get("text") or m.get("content")
+                       or m.get("note") or "").strip()
+        text = text.strip()
+        if not text:
+            continue
+        lines.append(f"  [{role}] {text[:300]}")
+    return "\n".join(lines)[:max_chars]
+
+
+def _extract_artifact_text(task: dict) -> str:
+    for art in (task.get("artifacts") or []):
+        for part in (art.get("parts") or []):
+            if isinstance(part, dict) and part.get("kind") == "text":
+                t = part.get("text")
+                if t:
+                    return str(t)
+    for msg in reversed(task.get("history") or []):
+        if isinstance(msg, dict) and str(msg.get("role")) == "agent":
+            for part in (msg.get("parts") or []):
+                if isinstance(part, dict) and part.get("kind") == "text":
+                    t = part.get("text")
+                    if t:
+                        return str(t)
+    return ""
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-handoff")
+    p.add_argument("--to", default="",
+                   help="Target peer id (from /v1/a2a/peers) -- mutually "
+                        "exclusive with --skill.")
+    p.add_argument("--skill", default="",
+                   help="Route by skill (first ready peer wins).")
+    p.add_argument("--context-id", default="",
+                   help="A2A contextId the target inherits. REQUIRED -- "
+                        "without it the target gets no session state and "
+                        "this becomes equivalent to a2a_delegate.")
+    p.add_argument("--goal", default="",
+                   help="What the target should do next (the take-over "
+                        "directive). Empty = 'continue the work'.")
+    p.add_argument("--from", dest="src", default="",
+                   help="Originating agent name (free-form, surfaced to "
+                        "the target so it knows who handed off).")
+    p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
+                   help=f"Seconds (default {DEFAULT_TIMEOUT}).")
+    args = p.parse_args()
+
+    if not (args.to or args.skill):
+        print(json.dumps({"ok": False,
+                          "error": "missing --to or --skill"}),
+              file=sys.stderr)
+        return 2
+    if not args.context_id.strip():
+        print(json.dumps({"ok": False,
+                          "error": "missing --context-id (required for "
+                                   "handoff; use mios-a2a-delegate for a "
+                                   "stateless side-task)"}),
+              file=sys.stderr)
+        return 2
+
+    # 1) Read the shared inter-agent context.
+    ctx = _get(f"/a2a/contexts/{args.context_id}")
+    if isinstance(ctx, dict) and ctx.get("error"):
+        ctx_history = ""
+        ctx_err = ctx.get("error")
+    else:
+        ctx_history = _format_context_history(ctx or {})
+        ctx_err = ""
+
+    # 2) Frame the take-over message.
+    target_label = args.to or f"skill:{args.skill}"
+    src_label = args.src or "previous-agent"
+    goal = args.goal.strip() or "Continue the workflow from where it left off."
+    parts = [
+        f"[HANDOFF TAKE-OVER] You are now the owner of this session.",
+        f"Source: {src_label}  ->  Target: {target_label}",
+        f"Shared inter-agent context (recent A2A messages on this "
+        f"contextId):",
+    ]
+    if ctx_history:
+        parts.append(ctx_history)
+    else:
+        parts.append(f"  (no prior messages; context_id={args.context_id})")
+    if ctx_err:
+        parts.append(f"  (context fetch reported: {ctx_err})")
+    parts.append("")
+    parts.append(f"Your goal: {goal}")
+    parts.append(
+        "Respond as the new session owner -- pick up the workflow, "
+        "do NOT produce a stand-alone answer to an isolated question. "
+        "You can fetch the full shared context at any time via "
+        f"GET {PIPE_URL.rstrip('/')}/a2a/contexts/{args.context_id} .")
+    body_text = "\n".join(parts)
+
+    # 3) Dispatch through the existing A2A surface (carries contextId so
+    #    the peer's scratchpad joins this thread).
+    dispatch_body: dict = {
+        "text": body_text,
+        "contextId": args.context_id,
+    }
+    if args.to:
+        dispatch_body["peer_id"] = args.to
+    if args.skill:
+        dispatch_body["skill"] = args.skill
+
+    resp = _post("/v1/a2a/dispatch", dispatch_body, args.timeout)
+    if not isinstance(resp, dict) or resp.get("error"):
+        print(json.dumps({"ok": False,
+                          "error": (resp or {}).get("error", "no response"),
+                          "detail": (resp or {}).get("body", "")[:400]}))
+        return 1
+
+    task = resp
+    out = {
+        "ok": (task.get("status") or {}).get("state") == "completed",
+        "target": target_label,
+        "source": src_label,
+        "status": (task.get("status") or {}).get("state"),
+        "task_id": task.get("id"),
+        "context_id": task.get("contextId"),
+        "context_history_chars": len(ctx_history),
+        "response": _extract_artifact_text(task),
+    }
+    print(json.dumps(out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

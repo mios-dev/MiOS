@@ -34,16 +34,27 @@
 param(
     [int]    $Port        = 11436,
     [string] $Model       = '',
-    # Default model: a small instruct GGUF that fits typical iGPU shared VRAM.
-    [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    # The iGPU's ROLE is the ALWAYS-ON LIGHT-COMPUTE BRAIN (operator 2026-05-25:
+    # "iGPU SHOULD BE THE MICRO LLM ... AND the always-on MiOS daemon background
+    # agent"): it hosts the micro-LLM (router/refine/judge/web-expand, hit every
+    # turn) + the mios-daemon-agent, so it is NEVER cold and the dGPU/CPU are
+    # freed. It is NOT a heavy reasoning agent (it is ~7 tok/s -- too slow for big
+    # facets). So serve a SMALL fast instruct GGUF, not the old 3B. Override with
+    # -Model / -ModelUrl for a different micro/daemon brain (e.g. a Qwen3-1.7B
+    # GGUF to match the daemon model exactly).
+    [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
     [int]    $ContextSize = 8192,
     [int]    $GpuLayers   = 99,            # 99 = offload all layers to the iGPU
     # Pin to a SINGLE Vulkan device so llama.cpp does NOT layer-split onto the
     # RTX 4090 (Vulkan also enumerates the 4090, and GPU-PV shares it with the
     # WSL VM where hermes runs -- spilling onto it would steal hermes's VRAM).
-    # On this host the AMD iGPU enumerates as Vulkan0; run with -ShowDevices to
-    # re-check, or override (e.g. -Device Vulkan1) if enumeration ever changes.
-    [string] $Device      = 'Vulkan0',
+    # Vulkan device ENUMERATION ORDER IS NOT STABLE across processes (operator
+    # 2026-05-25: the task-managed server got Vulkan0=RTX 4090 and ran the "iGPU"
+    # model on the dGPU at 138 tok/s, stealing hermes's VRAM; standalone
+    # --list-devices on the same host showed Vulkan0=AMD). So a fixed index is
+    # unreliable. 'auto' (default) resolves the AMD/Radeon device by NAME at
+    # launch (see below). Pass an explicit VulkanN to override.
+    [string] $Device      = 'auto',
     [switch] $ShowDevices,
     [string] $LlamaTag    = 'latest',      # llama.cpp release tag, or 'latest'
     [switch] $Install,
@@ -80,7 +91,21 @@ if ($Install) {
     }
     $argline = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers -Device $Device"
     if ($Model) { $argline += " -Model `"$Model`"" }
-    $action  = New-ScheduledTaskAction  -Execute 'pwsh.exe' -Argument $argline
+    # Task Scheduler CANNOT run a bare 'pwsh.exe' when PowerShell 7 is the MSIX
+    # (Microsoft Store) build: the bare name is a per-user app-execution ALIAS
+    # (a reparse point under %LOCALAPPDATA%\Microsoft\WindowsApps) that the task
+    # service does not resolve -> the task fails 0x80070002 (ERROR_FILE_NOT_FOUND)
+    # and the iGPU "never fires" (operator 2026-05-25 debug). Resolve a CONCRETE
+    # interpreter path: prefer a real pwsh under Program Files, but NOT the
+    # WindowsApps versioned path (it changes on every pwsh update -> re-breaks);
+    # fall back to Windows PowerShell 5.1 at its FIXED System32 path -- this
+    # launcher is 5.1-compatible (no ternary/??/-Parallel; only an if-expression
+    # assignment), so 5.1 runs it identically.
+    $psExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+    if (-not $psExe -or $psExe -like '*\WindowsApps\*' -or -not (Test-Path $psExe)) {
+        $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    }
+    $action  = New-ScheduledTaskAction  -Execute $psExe -Argument $argline
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
     $prin    = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
@@ -147,12 +172,45 @@ if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue
     Ok "firewall: allow tailnet -> :$Port"
 }
 
-# ---- run llama-server (Vulkan auto-detects the AMD iGPU) ---------------------
+# ---- resolve the AMD iGPU device by NAME (enumeration order is unstable) -----
+# CRITICAL (operator 2026-05-25): Vulkan device INDICES are not stable across
+# processes, so a fixed --device Vulkan0 sometimes pinned the RTX 4090 and ran
+# the "iGPU" model on the dGPU (138 tok/s, stealing hermes's VRAM). Resolve the
+# index by NAME here, in the SAME process context that will launch the server
+# (so the enumeration it sees matches), picking the AMD/Radeon device and NEVER
+# an NVIDIA one. `--list-devices` prints e.g. "  Vulkan1: AMD Radeon(TM) Graphics
+# (..)". Only runs for -Device auto; an explicit VulkanN is honoured as-is.
+if ($Device -eq 'auto') {
+    $devTxt = (& $exe --list-devices 2>&1 | Out-String)
+    $hit = [regex]::Matches($devTxt, '(?im)^\s*(Vulkan\d+)\s*:\s*(.+?)\s*\(') |
+           Where-Object { $_.Groups[2].Value -match '(?i)AMD|Radeon' -and
+                          $_.Groups[2].Value -notmatch '(?i)NVIDIA|GeForce|RTX' } |
+           Select-Object -First 1
+    if ($hit) {
+        $Device = $hit.Groups[1].Value
+        Ok "auto-selected iGPU by NAME: $Device = $($hit.Groups[2].Value.Trim())"
+    } else {
+        $Device = 'Vulkan0'
+        Warn "no AMD/Radeon Vulkan device found in --list-devices; falling back to $Device"
+        Warn "device list was:`n$devTxt"
+    }
+}
+
+# ---- run llama-server (pinned to the resolved AMD iGPU device) ---------------
 $tsIp = (Get-NetIPAddress -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -like '100.*' } | Select-Object -First 1).IPAddress
 Info "model:    $Model"
 Info "binding:  0.0.0.0:$Port   (tailnet -> http://$tsIp`:$Port/v1)"
-Info "GPU:      Vulkan, offload $GpuLayers layers (watch the startup log for 'Vulkan0: AMD Radeon ...')"
+Info "GPU:      Vulkan device $Device (resolved by name; expect the AMD iGPU, ~9 tok/s -- NOT the 4090)"
 $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
+# llama-server logs to STDERR. Under Windows PowerShell 5.1 (which the scheduled
+# task now uses for a STABLE interpreter path -- the MSIX pwsh alias is
+# unresolvable by Task Scheduler, see -Install above), a native command writing
+# to stderr with $ErrorActionPreference='Stop' + 2>&1 raises a terminating
+# NativeCommandError and KILLS the server on its FIRST log line (operator
+# 2026-05-25: task exited 1, port never bound). Relax to Continue for the exec
+# so the server's normal logging flows into the Tee'd log instead of aborting.
+# (pwsh 7 does not treat native stderr this way, so this is harmless there.)
+$ErrorActionPreference = 'Continue'
 & $exe `
     --host 0.0.0.0 --port $Port `
     --model $Model `

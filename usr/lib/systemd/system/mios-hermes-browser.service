@@ -44,14 +44,20 @@ RuntimeDirectory=mios-hermes-browser
 RuntimeDirectoryMode=0700
 Environment=XDG_RUNTIME_DIR=/run/mios-hermes-browser
 
-# WSLg display (operator 2026-05-22: "this WSL env DOES have a display,
-# WSL2/g"). Hand the service the X11 display so ChromeDev opens VISIBLY
-# (operator 2026-05-16). On WSLg the X11 socket (/tmp/.X11-unix/X0, via
-# XWayland) is the cross-user-reachable path; PrivateTmp must be OFF (below)
-# so this service user can see it. On a host with no display the launcher
-# auto-falls-back to headless, so this is safe to set unconditionally.
-Environment=DISPLAY=:0
-Environment=WAYLAND_DISPLAY=wayland-0
+# HEADLESS (operator 2026-05-31 "fix the browser/CDP crash"): this SERVICE runs
+# ChromeDev headless so the CDP backend (:9222) comes up RELIABLY. History: the
+# unit used to set DISPLAY=:0 / WAYLAND_DISPLAY=wayland-0 to open ChromeDev
+# VISIBLY (operator 2026-05-16), with a comment claiming the launcher would
+# "auto-fall-back to headless on a host with no display." That assumption was
+# WRONG -- setting DISPLAY makes the launcher's auto-detect pick VISIBLE mode
+# (HEADLESS=0), and the WSLg display lives in the operator's INTERACTIVE session,
+# unreachable from this background (mios-ai, non-interactive) service -> Chrome
+# could not open a window and crash-looped (ran ~30s then died; CDP never bound,
+# so browser_navigate always failed "no CDP browser"). Forcing headless sidesteps
+# the display entirely; CDP is identical. To WATCH the agent browse in a visible
+# window, run `mios-hermes-browser ensure` from an INTERACTIVE session (real
+# DISPLAY) -- the launcher auto-detects it and opens headed there.
+Environment=HERMES_BROWSER_HEADLESS=1
 
 # Make the persistent profile dir on first start (idempotent). chmod
 # 0700 so only mios-hermes can read sensitive cookies / session state.

@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""'MiOS' cron-director -- minimal LLM-gated recurring-task scheduler.
+
+Reads /etc/mios/cron-rules.toml ([[rule]] name/cron/do/gate per the vendor
+schema), and once per minute fires each rule whose 5-field cron expression
+matches the current local minute:
+
+  * no `gate`  -> fire `do` immediately;
+  * `gate`     -> ask the micro-LLM a YES/NO question (with a little live system
+                  state); fire on YES, skip+log on NO. Default on gate ERROR is
+                  SKIP -- a gated rule asked for a condition we couldn't verify,
+                  so we do NOT fire it blindly.
+
+`do` runs via `bash -lc <do>`, DETACHED (fire-and-forget) so a long task never
+blocks the minute loop; stdout/stderr go to the journal. A per-minute dedup
+state file (/var/lib/mios/cron-director/state.json) prevents double-firing.
+SIGHUP reloads the rules without a restart. Stdlib only -- no croniter.
+
+Operator 2026-05-26: built to make "do X every N minutes" actually recur (the
+service was referenced in the preset + mios.toml but the daemon never existed).
+"""
+from __future__ import annotations
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+import tomllib
+import urllib.request
+
+# TWO rule sources (operator 2026-05-26): the launcher broker runs as `mios`
+# (uid 1000), which cannot write root-owned /etc/mios -- so the `schedule` verb's
+# shim writes the USER rules file in the group-writable state dir, while /etc
+# stays for root-managed SYSTEM rules. The daemon merges both. It also WATCHES
+# both files' mtimes and reloads on change, so a shim edit takes effect within a
+# minute WITHOUT needing a cross-user SIGHUP (the shim, as mios, can't signal the
+# mios-ai daemon). SIGHUP still works as an instant nudge.
+SYSTEM_RULES = os.environ.get("MIOS_CRON_RULES", "/etc/mios/cron-rules.toml")
+STATE_DIR = os.environ.get("MIOS_CRON_STATE_DIR", "/var/lib/mios/cron-director")
+USER_RULES = os.environ.get("MIOS_CRON_USER_RULES",
+                            os.path.join(STATE_DIR, "user-rules.toml"))
+RULES_PATHS = [SYSTEM_RULES, USER_RULES]
+STATE_PATH = os.path.join(STATE_DIR, "state.json")
+GATE_ENDPOINT = os.environ.get("MIOS_CRON_GATE_ENDPOINT", "http://127.0.0.1:11435")
+GATE_MODEL = os.environ.get("MIOS_CRON_GATE_MODEL", "qwen3:0.6b")
+GATE_TIMEOUT = float(os.environ.get("MIOS_CRON_GATE_TIMEOUT", "20"))
+
+_reload = True  # force an initial load
+
+
+def _log(msg: str) -> None:
+    print(f"[mios-cron-director] {msg}", flush=True)
+
+
+def _on_hup(_sig, _frm) -> None:
+    global _reload
+    _reload = True
+    _log("SIGHUP -> will reload rules")
+
+
+def _field_match(field: str, value: int) -> bool:
+    """One cron field vs an int. Supports * , */N , a-b , a,b,c , N."""
+    field = field.strip()
+    if field == "*":
+        return True
+    for part in field.split(","):
+        part = part.strip()
+        try:
+            if part.startswith("*/"):
+                step = int(part[2:])
+                if step > 0 and value % step == 0:
+                    return True
+            elif "-" in part:
+                a, b = part.split("-", 1)
+                if int(a) <= value <= int(b):
+                    return True
+            elif part.isdigit() and int(part) == value:
+                return True
+        except (ValueError, ZeroDivisionError):
+            continue
+    return False
+
+
+def cron_matches(expr: str, t: time.struct_time) -> bool:
+    """5-field 'min hour dom mon dow'. cron dow: 0=Sun..6=Sat; Python tm_wday:
+    0=Mon..6=Sun -> cron_dow = (tm_wday + 1) % 7."""
+    f = expr.split()
+    if len(f) != 5:
+        return False
+    cron_dow = (t.tm_wday + 1) % 7
+    return (_field_match(f[0], t.tm_min) and _field_match(f[1], t.tm_hour)
+            and _field_match(f[2], t.tm_mday) and _field_match(f[3], t.tm_mon)
+            and _field_match(f[4], cron_dow))
+
+
+def _rules_mtime() -> float:
+    m = 0.0
+    for p in RULES_PATHS:
+        try:
+            m = max(m, os.path.getmtime(p))
+        except OSError:
+            pass
+    return m
+
+
+def _load_rules() -> list:
+    rules = []
+    for path in RULES_PATHS:
+        try:
+            with open(path, "rb") as fh:
+                data = tomllib.load(fh)
+        except FileNotFoundError:
+            continue
+        except Exception as e:  # noqa: BLE001
+            _log(f"warn: cannot parse {path}: {e}")
+            continue
+        for r in (data.get("rule") or []):
+            if not isinstance(r, dict):
+                continue
+            name = str(r.get("name") or "").strip()
+            cron = str(r.get("cron") or "").strip()
+            do = str(r.get("do") or "").strip()
+            if name and cron and do:
+                rules.append({"name": name, "cron": cron, "do": do,
+                              "gate": str(r.get("gate") or "").strip()})
+    return rules
+
+
+def _load_state() -> dict:
+    try:
+        with open(STATE_PATH) as fh:
+            return json.load(fh)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _save_state(state: dict) -> None:
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        tmp = STATE_PATH + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(state, fh)
+        os.replace(tmp, STATE_PATH)
+    except Exception as e:  # noqa: BLE001
+        _log(f"warn: cannot write state: {e}")
+
+
+def _gate_passes(question: str) -> bool:
+    """Micro-LLM YES/NO with a little live state. SKIP (False) on any error --
+    never fire a gated rule we could not evaluate."""
+    try:
+        load1, _, _ = os.getloadavg()
+    except OSError:
+        load1 = 0.0
+    sys_ctx = (f"Current 1-min load average: {load1:.2f}. "
+               f"Local time: {time.strftime('%Y-%m-%d %H:%M %A')}.")
+    payload = {
+        "model": GATE_MODEL,
+        "messages": [
+            {"role": "system",
+             "content": "You are a YES/NO gate for a scheduled task. Given the "
+                        "live system state and the question, answer with ONLY "
+                        "the single word YES or NO."},
+            {"role": "user", "content": f"{sys_ctx}\n\nQuestion: {question}"},
+        ],
+        "think": False, "stream": False,
+        "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+        "options": {"temperature": 0.0, "num_predict": 8},
+    }
+    try:
+        req = urllib.request.Request(
+            f"{GATE_ENDPOINT}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=GATE_TIMEOUT) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+        ans = ((d.get("message") or {}).get("content") or "").strip().lower()
+        return ans.startswith("y")
+    except Exception as e:  # noqa: BLE001
+        _log(f"gate eval failed ({type(e).__name__}: {e}) -> SKIP (conservative)")
+        return False
+
+
+def _fire(rule: dict) -> None:
+    do = rule["do"]
+    _log(f"FIRE rule={rule['name']!r}: {do}")
+    try:
+        # Detached, fire-and-forget; output to the journal via inherited stdio.
+        subprocess.Popen(["bash", "-lc", do],
+                         stdout=sys.stdout, stderr=sys.stderr,
+                         start_new_session=True)
+    except Exception as e:  # noqa: BLE001
+        _log(f"rule {rule['name']!r} failed to launch: {e}")
+
+
+def main() -> int:
+    global _reload
+    signal.signal(signal.SIGHUP, _on_hup)
+    os.makedirs(STATE_DIR, exist_ok=True)
+    rules: list = []
+    state = _load_state()
+    last_mtime = -1.0
+    _log(f"started; rules={SYSTEM_RULES} + {USER_RULES} "
+         f"state={STATE_PATH} gate={GATE_MODEL}@{GATE_ENDPOINT}")
+    while True:
+        if _reload or _rules_mtime() != last_mtime:
+            rules = _load_rules()
+            last_mtime = _rules_mtime()
+            _reload = False
+            _log(f"loaded {len(rules)} rule(s): "
+                 + ", ".join(r["name"] for r in rules))
+        now = time.localtime()
+        minute_key = time.strftime("%Y-%m-%dT%H:%M", now)
+        for rule in rules:
+            try:
+                if not cron_matches(rule["cron"], now):
+                    continue
+                if state.get(rule["name"]) == minute_key:
+                    continue  # already fired this minute (dedup)
+                if rule["gate"]:
+                    if not _gate_passes(rule["gate"]):
+                        _log(f"gate NO -> skip rule={rule['name']!r}")
+                        state[rule["name"]] = minute_key  # don't re-ask this minute
+                        continue
+                _fire(rule)
+                state[rule["name"]] = minute_key
+            except Exception as e:  # noqa: BLE001 -- never let one rule kill the loop
+                _log(f"rule {rule.get('name')!r} error: {e}")
+        _save_state(state)
+        # Sleep to ~1s past the next minute boundary so we evaluate each minute once.
+        time.sleep(max(5.0, 61.0 - (time.time() % 60.0)))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

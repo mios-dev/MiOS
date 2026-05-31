@@ -1,0 +1,58 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-autocenter <executor-endpoint> <before-hwnds-csv>
+#
+# Honour the operator rule "all apps launch CENTERED ALWAYS!" for WSLg /
+# flatpak windows, which ignore Win32 launch-time placement (the Windows
+# executor only sees them AFTER the compositor maps them).
+#
+# Strategy: the CALLER snapshots the set of visible window hwnds BEFORE
+# firing the launch and passes that CSV as $2. We then poll the Windows
+# OS-control executor (:11437, [os_control].executor_endpoint) for a hwnd
+# that was NOT in the before-set -- i.e. the freshly-mapped window -- and
+# center it by HWND. Centering by hwnd (not title) is robust for apps whose
+# window title doesn't carry the app-id: Nautilus="Files", Epiphany="GNOME
+# Web", gnome-text-editor="Untitled Document", etc.
+#
+# Backgrounded with setsid by the caller so it outlives the launch shim.
+# No-op (exit 0) when no executor endpoint, no curl, or no python3.
+set -u
+
+ep="${1:-}"; ep="${ep%/}"
+before="${2:-}"
+[ -z "$ep" ] && exit 0
+command -v curl    >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+
+i=0
+while [ "$i" -lt 30 ]; do
+    new=$(curl -s --max-time 4 "$ep/windows" 2>/dev/null \
+          | BEFORE="$before" python3 -c '
+import sys, json, os
+before = set(x for x in os.environ.get("BEFORE", "").split(",") if x)
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    raise SystemExit
+# Pick the LARGEST new window (max w*h) -- the MAIN app window, not a tiny
+# tooltip/popup/PopupHost that a Store/Win32 app also spawns (operator
+# 2026-05-29: notepad opened with 11 popup windows; centering must hit the
+# real document window). Falls back gracefully when sizes are absent.
+best_h, best_area = "", -1
+for w in d.get("windows", []):
+    h = str(w.get("hwnd"))
+    if not h or h == "None" or h in before:
+        continue
+    area = int(w.get("w") or 0) * int(w.get("h") or 0)
+    if area >= best_area:
+        best_area, best_h = area, h
+print(best_h)
+' 2>/dev/null)
+    if [ -n "$new" ]; then
+        curl -s --max-time 5 -X POST -H 'Content-Type: application/json' \
+            --data "{\"hwnd\": $new}" "$ep/window/center" >/dev/null 2>&1
+        exit 0
+    fi
+    i=$((i + 1))
+    sleep 1
+done
+exit 0
