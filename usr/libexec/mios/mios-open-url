@@ -261,7 +261,7 @@ while IFS= read -r TARGET; do
     done
     if [ "$_launch_rc" = "0" ] && [ "$_proc_ok" = "1" ]; then
         printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"linux-flatpak\", \"verified_by\": \"pid-probe\", \"launch_rc\": 0}"
-        echo "[mios-open-url] $TARGET running (PID probe) -> success (Linux default; WSLg window unverifiable)" >&2
+        echo "[mios-open-url] $TARGET launched -> process verified running via PID probe (engine=linux-flatpak, Linux default); window surfacing is confirmed separately by the agent-pipe window-diff" >&2
         exit 0
     fi
 
