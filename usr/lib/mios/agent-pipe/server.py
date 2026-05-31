@@ -111,6 +111,59 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 # ones QUEUE on it (the "buffer"). A tiny pre-acquire jitter desynchronises
 # simultaneous starts (the "delayed starts"). Total concurrent SearXNG
 # queries stay ~= MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT.
+
+
+def _toml_section(section: str) -> dict:
+    """Layered <section> table from mios.toml (vendor <- /etc <- ~/.config),
+    merged field-by-field -- the ONE SSOT reader for any [section] tunables
+    (operator 2026-05-31 "HARDCODES!!!": tunables live in mios.toml, not code)."""
+    _layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+               "/etc/mios/mios.toml",
+               os.path.expanduser("~/.config/mios/mios.toml")]
+    out: dict = {}
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        for _p in _layers:
+            try:
+                with open(_p, "rb") as _f:
+                    _layer = (tomllib.load(_f).get(section) or {})
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if isinstance(_layer, dict):
+                out.update(_layer)
+    except Exception:  # noqa: BLE001 -- best-effort; callers fall to literals
+        pass
+    return out
+
+
+def _cfg_num(table: dict, env: str, key: str, default, cast=int):
+    """Resolve a numeric tunable: env override -> table[key] -> literal default.
+    Preserves a legit 0 (unlike a bare `or` chain)."""
+    v = os.environ.get(env)
+    if v not in (None, ""):
+        try:
+            return cast(v)
+        except (ValueError, TypeError):
+            pass
+    v = table.get(key)
+    if v is not None:
+        try:
+            return cast(v)
+        except (ValueError, TypeError):
+            pass
+    return default
+
+
+# [web_research] SSOT: the per-turn web-research loop bounds (the dominant
+# research-turn latency driver) live in mios.toml, not as code literals. The
+# MIOS_WEB_RESEARCH_* env vars stay as runtime overrides; the trailing literal is
+# the last-resort fallback. (Only the 3 latency-driving keys are wired to the
+# SSOT today -- passes / crawl_timeout_s / max_attempts; the rest are a noted
+# follow-up sweep.)
+_WEB_TOML = _toml_section("web_research")
 WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
@@ -137,7 +190,7 @@ WEB_RESEARCH_ENABLED = os.environ.get(
 # considered (was 6). Still env-overridable + bounded by the per-iter web cap +
 # the deepen wall-clock so they can't run away. Self-hosted SearXNG/Firecrawl/
 # crawl4ai -> all offline.
-WEB_RESEARCH_PASSES = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_PASSES", "4")))
+WEB_RESEARCH_PASSES = max(1, _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_PASSES", "passes", 4))
 WEB_RESEARCH_RESULTS = int(os.environ.get("MIOS_WEB_RESEARCH_RESULTS", "8"))
 WEB_RESEARCH_FANOUT = int(os.environ.get(
     "MIOS_WEB_RESEARCH_FANOUT", os.environ.get("MIOS_WEB_FANOUT", "3")))
@@ -160,7 +213,7 @@ WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"
 # TIMED OUT -> non-answer). 45s gives Camoufox room; CRAWL_MAX is the TURN-WIDE cap
 # on how many pages the deep renderer fetches (concurrently) so it can't blow the
 # turn budget -- raised to 4 (operator wants the deep tool firing broadly, not 2).
-WEB_RESEARCH_CRAWL_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "45"))
+WEB_RESEARCH_CRAWL_TIMEOUT = _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "crawl_timeout_s", 45, float)
 # Raised 4 -> 6 (operator 2026-05-29 "not enough loops"): keep the deep-render
 # budget in step with the larger FETCH_N=5 so the JS-heavy / bot-blocked pages
 # a research query needs still get the Chrome/Camoufox render, not just the
@@ -199,7 +252,7 @@ WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").str
 # (the Forza run grabbed hype pages + concluded "no reviews" instead of digging
 # for the actual Metacritic/IGN reviews) gets 4 more sharpened angles before
 # giving up. The judge (below) is the real gate; this is just the safety cap.
-WEB_RESEARCH_MAX_ATTEMPTS = max(1, int(os.environ.get("MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "5")))
+WEB_RESEARCH_MAX_ATTEMPTS = max(1, _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "max_attempts", 5))
 _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
 _JUDGE_EP = os.environ.get(
@@ -254,16 +307,69 @@ _NODE_LIVE: dict = {}  # name -> (probed_ts, reachable)
 SLOW_LANES = set(x.strip() for x in os.environ.get(
     "MIOS_SLOW_LANES", "igpu,mobile,accelerator,cpu").split(",") if x.strip())
 SLOW_LANE_BLOCK_CHARS = int(os.environ.get("MIOS_SLOW_LANE_BLOCK_CHARS", "1500"))
+# SSOT (operator 2026-05-31 "HARDCODES!!!"): the swarm/DAG/deepen tunables in
+# this block are NOT code literals -- they live in mios.toml [dispatch], layered
+# vendor <- /etc <- ~/.config via _dispatch_toml(). The MIOS_* env vars are the
+# runtime OVERRIDE layer (mirror MIOS_DISPATCH_FANOUT_MAX); the trailing literal
+# is the last-resort fallback only if the SSOT key is somehow absent.
+def _dispatch_toml() -> dict:
+    """Layered [dispatch] table from mios.toml (vendor <- /etc <- ~/.config),
+    merged field-by-field. ONE SSOT reader for the swarm fan-out + DAG-node +
+    deepen tunables; also used by _load_dispatch_cfg() so the layering logic
+    lives in a single place."""
+    _layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+               "/etc/mios/mios.toml",
+               os.path.expanduser("~/.config/mios/mios.toml")]
+    dd: dict = {}
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        for _p in _layers:
+            try:
+                with open(_p, "rb") as _f:
+                    _layer = (tomllib.load(_f).get("dispatch") or {})
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if isinstance(_layer, dict):
+                dd.update(_layer)
+    except Exception:  # noqa: BLE001 -- best-effort; consts fall to literals
+        pass
+    return dd
+
+
+_DISPATCH_TOML = _dispatch_toml()
+
+
+def _disp_num(env: str, key: str, default, cast=int):
+    """Resolve a numeric tunable: env override -> mios.toml [dispatch].<key> ->
+    literal default. Unlike a bare `a or b or default` chain this PRESERVES a
+    legitimate 0 (e.g. dag_node_retry = 0 = no retry)."""
+    v = os.environ.get(env)
+    if v not in (None, ""):
+        try:
+            return cast(v)
+        except (ValueError, TypeError):
+            pass
+    v = _DISPATCH_TOML.get(key)
+    if v is not None:
+        try:
+            return cast(v)
+        except (ValueError, TypeError):
+            pass
+    return default
+
+
 # Per-node compute budget so EVERY assigned swarm node ACTUALLY COMPUTES
-# (operator 2026-05-26 "every single node available always computes"): a fast
-# lane (dGPU/CPU) gets the full budget; a SLOW lane (iGPU ~7 tok/s, phone) gets
-# a SMALLER budget so it FINISHES within the read timeout instead of timing out
-# empty + bottlenecking the gather. A node that still returns empty is retried
-# DAG_NODE_RETRY times (agent calls are read-only -> side-effect-free retry).
-DAG_NODE_MAX_TOKENS = int(os.environ.get("MIOS_DAG_NODE_MAX_TOKENS", "800") or 800)
-DAG_NODE_SLOW_MAX_TOKENS = int(
-    os.environ.get("MIOS_DAG_NODE_SLOW_MAX_TOKENS", "350") or 350)
-DAG_NODE_RETRY = int(os.environ.get("MIOS_DAG_NODE_RETRY", "1") or 1)
+# (operator 2026-05-26): a fast lane (dGPU/CPU) gets the full budget; a SLOW lane
+# (iGPU ~7 tok/s, phone) gets a SMALLER budget so it FINISHES within the read
+# timeout instead of timing out empty + bottlenecking the gather. A node that
+# still returns empty is retried DAG_NODE_RETRY times (read-only -> safe retry).
+DAG_NODE_MAX_TOKENS = _disp_num("MIOS_DAG_NODE_MAX_TOKENS", "dag_node_max_tokens", 800)
+DAG_NODE_SLOW_MAX_TOKENS = _disp_num(
+    "MIOS_DAG_NODE_SLOW_MAX_TOKENS", "dag_node_slow_max_tokens", 350)
+DAG_NODE_RETRY = _disp_num("MIOS_DAG_NODE_RETRY", "dag_node_retry", 1)
 # BARRIER-DEEPEN (operator 2026-05-26 "other nodes should be looping until all
 # slower nodes complete ... looping tools/skills/recipes used"): in a swarm
 # level, the moment every node's PRIMARY pass finishes a barrier fires; until
@@ -271,22 +377,20 @@ DAG_NODE_RETRY = int(os.environ.get("MIOS_DAG_NODE_RETRY", "1") or 1)
 # DEEPENING its facet -- extra web-research + re-answer passes -- so the slowest
 # node (iGPU/phone) sets the wall-clock and NO fast node sits idle. Bounded by
 # the barrier + DEEPEN_MAX_ITERS so it can never run away.
-SWARM_DEEPEN_ENABLED = os.environ.get(
-    "MIOS_SWARM_DEEPEN", "true").strip().lower() not in ("0", "false", "no")
+# SSOT deepen tunables (resolved via _disp_num from mios.toml [dispatch], above).
+# A SATISFIED node exits immediately (operator 2026-05-31, see
+# _deepen_until_barrier), so the deadline only ever bites a stubborn facet.
+SWARM_DEEPEN_ENABLED = (os.environ.get(
+    "MIOS_SWARM_DEEPEN", str(_DISPATCH_TOML.get("deepen_enabled", True)))
+    .strip().lower() not in ("0", "false", "no"))
 # UNTIL SATISFIED (operator 2026-05-29 "NOT JUST 2 PASSES!!! UNTIL SATISFIED!!!"):
 # the deepen loop runs while the node's answer is NOT satisfied (judge-gated),
-# bounded by the WALL-CLOCK DEADLINE -- not a tiny iter count. The iter cap is
-# now a high RUNAWAY BACKSTOP (12), so in practice the deadline + the judge are
-# what stop the loop: a node keeps doing extra web-research + re-answer passes
-# until its answer actually satisfies the facet (or the deadline). Raised from 2.
-DEEPEN_MAX_ITERS = int(os.environ.get("MIOS_SWARM_DEEPEN_ITERS", "12") or 12)
-# HARD wall-clock cap on a node's deepen loop + a per-iter web cap -- the REAL
-# bound now that the iter cap is a high backstop. Raised 30 -> 120s so a
-# research turn genuinely loops-until-satisfied within a generous budget
-# (operator 2026-05-29) instead of stopping at 2 passes. A node that satisfies
-# early exits immediately; only a stubborn facet uses the full window.
-DEEPEN_DEADLINE_S = float(os.environ.get("MIOS_SWARM_DEEPEN_DEADLINE_S", "120") or 120)
-DEEPEN_WEB_TIMEOUT_S = float(os.environ.get("MIOS_SWARM_DEEPEN_WEB_S", "20") or 20)
+# bounded by the WALL-CLOCK DEADLINE; the iter cap is a high RUNAWAY BACKSTOP.
+DEEPEN_MAX_ITERS = _disp_num("MIOS_SWARM_DEEPEN_ITERS", "deepen_iters", 12)
+DEEPEN_DEADLINE_S = _disp_num(
+    "MIOS_SWARM_DEEPEN_DEADLINE_S", "deepen_deadline_s", 120, float)
+DEEPEN_WEB_TIMEOUT_S = _disp_num(
+    "MIOS_SWARM_DEEPEN_WEB_S", "deepen_web_timeout_s", 20, float)
 
 # Pipeline-side READ-TOOL enrich (operator 2026-05-24: "all ... skills and
 # recipes fire on ALL endpoints"). Like the web-research loop, the PIPELINE runs
@@ -338,7 +442,7 @@ STATUS_AS_REASONING = os.environ.get(
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
 # most N agents at once; the rest queue. Also protects the shared model lanes /
 # search engines from being overrun (the same burst that degraded web search).
-AGENT_CONCURRENCY = int(os.environ.get("MIOS_AGENT_CONCURRENCY", "3"))
+AGENT_CONCURRENCY = _disp_num("MIOS_AGENT_CONCURRENCY", "agent_concurrency", 3)
 _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
 # Per-LANE concurrency (operator 2026-05-24: "iGPU fires WITH CPU cores as well
@@ -359,10 +463,19 @@ def _lane_sem(key: str) -> asyncio.Semaphore:
     threaded event loop)."""
     key = str(key or "gpu").lower().strip() or "gpu"
     if key not in _LANE_SEMS:
-        n = max(1, int(os.environ.get(
-            "MIOS_AGENT_LANE_CONCURRENCY_" + key.upper(),
-            os.environ.get("MIOS_AGENT_LANE_CONCURRENCY", str(AGENT_CONCURRENCY)))))
-        _LANE_SEMS[key] = asyncio.Semaphore(n)
+        # SSOT (operator 2026-05-31 "HARDCODES!!!" + cap the shared 4090): per-lane
+        # concurrency from mios.toml [dispatch] -- lane_concurrency_<lane> (env
+        # override MIOS_AGENT_LANE_CONCURRENCY_<LANE>) else lane_concurrency (env
+        # MIOS_AGENT_LANE_CONCURRENCY) else AGENT_CONCURRENCY. The LOCAL gpu/cpu
+        # lanes are capped LOW in [dispatch] so a wide research fan-out doesn't
+        # oversubscribe the single shared 4090 (live test 2026-05-31: it thrashed).
+        # Custom/remote lanes (potato-gpu, igpu, ...) fall to the general default.
+        _k = key.replace("-", "_")
+        _general = _disp_num("MIOS_AGENT_LANE_CONCURRENCY", "lane_concurrency",
+                             AGENT_CONCURRENCY)
+        n = _disp_num("MIOS_AGENT_LANE_CONCURRENCY_" + _k.upper(),
+                      "lane_concurrency_" + _k, _general)
+        _LANE_SEMS[key] = asyncio.Semaphore(max(1, n))
     return _LANE_SEMS[key]
 
 # Router (layer-1 micro-LLM classifier) config.
@@ -1636,14 +1749,12 @@ def _load_dispatch_cfg() -> dict:
     fanout_max<=1 restores exact single-agent behaviour (zero fan-out)."""
     cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2,
            "mode": "relevance"}
-    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    # Layered [dispatch] (vendor <- /etc <- ~/.config) via the shared
+    # _dispatch_toml() reader (one place owns the layering) so a host can
+    # override [dispatch] -- fanout_max, the deepen budget, etc. -- in
+    # /etc/mios/mios.toml without editing the public vendor file.
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib
-        with open(toml_path, "rb") as f:
-            dd = (tomllib.load(f).get("dispatch") or {})
+        dd = _dispatch_toml()
         cfg["enable"] = bool(dd.get("enable", True))
         cfg["fanout_min"] = max(1, int(dd.get("fanout_min", 1)))
         cfg["fanout_max"] = max(cfg["fanout_min"], int(dd.get("fanout_max", 2)))
@@ -1683,6 +1794,25 @@ def _agent_lane(cfg: dict) -> str:
     if ":8644" in ep or ":11435" in ep or "cpu" in mdl:
         return "cpu"
     return "gpu"
+
+
+def _lane_sem_key(cfg: dict) -> str:
+    """SEMAPHORE KEY -- the distinct HARDWARE UNIT an agent runs on, which is
+    NOT the same as its lane CATEGORY (_agent_lane). With more than one machine
+    of a category on the tailnet (e.g. the local 4090 AND a remote GPU box),
+    'gpu' is no longer ONE piece of hardware, so a shared 'gpu' semaphore would
+    throttle BOTH boxes to a single per-lane budget. A custom per-node lane
+    (e.g. 'potato-gpu' -- any lane outside the base category set) therefore gets
+    its OWN semaphore so distinct machines fire with INDEPENDENT concurrency
+    budgets (operator 2026-05-24 "each remote node gets its OWN semaphore").
+    Agents without a custom lane fall back to the category (local hardware).
+    NOTE: _agent_lane stays the CATEGORY (gpu/cpu/igpu/mobile/accelerator) so
+    SLOW_LANES trimming + the cpu-parallelism bonus keep working -- e.g. a
+    'potato-cpu' node is category 'cpu' (slow -> trimmed) yet has its OWN sem."""
+    lane = str(cfg.get("lane", "")).lower().strip()
+    if lane and lane not in ("cpu", "gpu", "igpu", "accelerator", "mobile"):
+        return lane                 # custom per-node lane -> dedicated semaphore
+    return _agent_lane(cfg)         # base category -> shared local-hardware lane
 
 
 def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
@@ -1906,7 +2036,7 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     iGPU, accelerator, each remote node) all fire CONCURRENTLY and only same-lane
     agents queue. No nested agent calls, so no deadlock."""
     _engine = _agent_offload_engine(cfg) if prefer_cpu else None
-    async with _lane_sem(_engine or _agent_lane(cfg)):
+    async with _lane_sem(_engine or _lane_sem_key(cfg)):
         _n, _t = await _call_agent_complete_inner(
             name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
         return _n, _strip_agent_chrome(_t)
@@ -2197,6 +2327,27 @@ def _verb_result_cap(verb: str) -> int:
     return cap if cap > 0 else READ_TOOL_ENRICH_CHARS
 
 
+def _cap_verb_result(verb: str, out: str) -> str:
+    """Cap a verb result to its char budget, FLAGGING truncation loudly.
+
+    A bare mid-record slice (the old `out[:cap]`) invites the model to FABRICATE
+    the omitted tail -- operator 2026-05-31: "what's open" invented window PIDs/
+    titles + a whole process list PAST a cut-off list_windows/process_list,
+    because the slice looked like a complete (just short) list. This marker +
+    the grounding instruction make the model report ONLY the complete entries
+    shown and say the list continues, instead of completing it from imagination.
+    Returns `out` unchanged when within budget."""
+    cap = _verb_result_cap(verb)
+    if len(out) <= cap:
+        return out
+    dropped = len(out) - cap
+    return (out[:cap].rstrip()
+            + f"\n…⟪{verb}: OUTPUT TRUNCATED — {dropped} more characters are NOT "
+              f"shown. Report ONLY the complete entries above and say the list "
+              f"continues ('…and more not shown'). Do NOT infer, complete, or "
+              f"invent the omitted items, PIDs, names, counts, or values.⟫")
+
+
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     """Execute the verbs in an OpenAI tool_calls[] list via the broker and return
     (tool_result_messages, ran_any). Shared by every pipe-side sub-agent tool-loop
@@ -2244,7 +2395,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             res = {"error": str(e)}
         out = (json.dumps(res, ensure_ascii=False)
                if isinstance(res, (dict, list)) else str(res))
-        tmsg["content"] = out[:_verb_result_cap(vname)]
+        tmsg["content"] = _cap_verb_result(vname, out)
         tool_msgs.append(tmsg)
     return tool_msgs, ran_read
 
@@ -2415,7 +2566,7 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     degradation to the non-streaming path. Acquires the PER-LANE semaphore (the
     engine/node it runs on), so it fires concurrently with the other lanes."""
     _engine = _agent_offload_engine(cfg) if prefer_cpu else None
-    async with _lane_sem(_engine or _agent_lane(cfg)):
+    async with _lane_sem(_engine or _lane_sem_key(cfg)):
         _n, _t = await _call_agent_stream_inner(
             name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
         return _n, _strip_agent_chrome(_t)
@@ -2877,6 +3028,49 @@ def _render_recipe_catalog(rec: dict) -> str:
         lines.append(f"  {name}({args})".ljust(34)
                      + f"-- {cfg.get('description', '')}{tag}")
     return "\n".join(lines)
+
+
+def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
+    """Render one [recipes.*] entry as an OpenAI function-tool schema --
+    the SAME `{type:function, function:{name,description,parameters}}` shape
+    as _verb_to_openai_tool / _skill_to_openai_tool. The function name is
+    mangled to `mios_recipe__<name>` so a relay (mios-mcp-server) can route a
+    returned tool_call back through the opaque `os_recipe` verb -- strip the
+    prefix, then POST /v1/dispatch {tool:'os_recipe', args:{name, params}}.
+    Recipe args are free-form per [recipes.*].args (SSOT in mios.toml); every
+    arg is exposed as a string property, plus an optional `os` selector (some
+    recipes branch on the target OS). No arg is marked required -- recipes
+    fill sensible defaults, and the os_recipe verb tolerates a partial
+    params map. Discover here, execute via os_recipe at /v1/dispatch."""
+    props: dict = {}
+    for argname in (cfg.get("args") or []):
+        if not isinstance(argname, str) or not argname:
+            continue
+        props[argname] = {
+            "type": "string",
+            "description": f"value for {argname}",
+        }
+    if "os" not in props:
+        props["os"] = {
+            "type": "string",
+            "description": "target OS selector (optional; defaults to host)",
+        }
+    return {
+        "type": "function",
+        "function": {
+            "name": f"mios_recipe__{re.sub(r'[^A-Za-z0-9_]', '_', name)}",
+            "description": cfg.get("description", "") or f"MiOS OS recipe {name}",
+            "parameters": {
+                "type": "object",
+                "properties": props,
+                "required": [],
+                "additionalProperties": True,
+            },
+        },
+        # Routing/UX hints (x- namespaced; ignored by strict OpenAI clients).
+        "x-mios-recipe": name,
+        "x-mios-permission": cfg.get("permission", "read"),
+    }
 
 
 _RECIPE_CATALOG = _load_recipe_catalog()
@@ -3758,6 +3952,13 @@ _REFINE_SYSTEM_LITE = (
     "    the pipeline pull a SMALL focused list instead of the whole inventory.\n"
     "    OMIT for a general 'what's installed / list all apps'. Your choice of\n"
     "    word, not a fixed list.\n"
+    '  "state_scope": ONLY with local_state. "live" = what is OPEN / RUNNING NOW\n'
+    "    (open windows, running apps/processes, active containers, current\n"
+    '    CPU/GPU/mem/disk use); "inventory" = what is INSTALLED on disk\n'
+    '    (apps/games); omit or "both" = a general system overview. Routes which\n'
+    "    local read tools fire -- e.g. 'what's open' -> live -> the OPEN WINDOWS,\n"
+    "    not the whole installed-app catalogue. Classify the question's MEANING,\n"
+    "    not by keywords.\n"
     '  "intended_outcome": one line -- what the user expects back\n'
     '  "target_agent": a registered sub-agent chosen by role\n'
     '  "hint_tools": [verb names from the catalog the agent will need]\n'
@@ -4644,8 +4845,21 @@ async def _read_tool_enrich(refined: Optional[dict],
     # 2026-05-29). Omitted for a general "what's installed" -> full inventory.
     _inv_filter = str((refined or {}).get("inventory_filter") or "").strip()
     if refined.get("local_state"):
-        _core = ["system_status", "mios_apps", "process_list",
-                 "container_status", "list_windows"]
+        # state_scope (operator 2026-05-31): refine classifies the question as
+        # LIVE (open/running now) vs INVENTORY (installed) vs both, so we ground
+        # on the RELEVANT verbs instead of always dumping all 5. "what's open"
+        # used to lead with the 30KB mios_apps inventory + OMIT the open windows;
+        # now LIVE skips mios_apps and leads with list_windows. Model-routed (no
+        # keyword list); unknown/empty -> the full set (legacy/general overview).
+        _scope = str((refined or {}).get("state_scope") or "").lower().strip()
+        if _scope == "live":
+            _core = ["list_windows", "process_list", "container_status",
+                     "system_status"]
+        elif _scope == "inventory":
+            _core = ["mios_apps", "system_status"]
+        else:
+            _core = ["system_status", "mios_apps", "process_list",
+                     "container_status", "list_windows"]
         _core_set = set(_core)
         _hints = _core + [h for h in _hints if h not in _core]
         _max = max(_max, len(_core) + 1)
@@ -4684,7 +4898,7 @@ async def _read_tool_enrich(refined: Optional[dict],
         out = (json.dumps(res, ensure_ascii=False)
                if isinstance(res, (dict, list)) else str(res)).strip()
         if out and out not in ("{}", "null", '""', "[]"):
-            ran[tool] = out[:_verb_result_cap(tool)]
+            ran[tool] = _cap_verb_result(tool, out)
             if isinstance(refined, dict):  # per-step emit log (end-to-end)
                 refined.setdefault("_readtool_steps", []).append(
                     {"emoji": "🔧", "label": "tool", "detail": tool})
@@ -4693,8 +4907,11 @@ async def _read_tool_enrich(refined: Optional[dict],
     log.info("read-tool enrich: ran %s", list(ran.keys()))
     blocks = [f"### {t}\n{o}" for t, o in ran.items()]
     return ("LIVE MiOS STATE -- the pipeline ran these READ-only tools for this "
-            "turn; GROUND your answer on the real output below (cite it; never "
-            "invent system state):\n\n" + "\n\n".join(blocks))
+            "turn; GROUND your answer on the real output below. CITE it; report "
+            "ONLY what is shown; NEVER invent system state. If a block ends with "
+            "⟪… OUTPUT TRUNCATED …⟫ the list is INCOMPLETE -- say it continues "
+            "('…and more not shown') and do NOT fabricate the omitted entries, "
+            "PIDs, names, or counts:\n\n" + "\n\n".join(blocks))
 
 
 async def refine_intent(user_text: str,
@@ -8297,13 +8514,21 @@ async def _judge_answer_satisfied(query: str, answer: str) -> bool:
 
 async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
                                 session_id: Optional[str], client) -> dict:
-    """A swarm node KEEPS LOOPING -- extra web-research + re-answer passes
-    (looping the tools) -- until it is SATISFIED *and* the slowest node's
-    primary is done (the barrier), or DEEPEN_MAX_ITERS (operator 2026-05-26
-    "other nodes loop until all slower nodes complete ... all loop until
-    satisfied"). So no fast node idles while the iGPU/phone grind, and every
-    node converges on a concrete answer. The enriched grounding is written back
-    so the final synthesis sees the deeper research too."""
+    """A swarm node loops extra web-research + re-answer passes (looping the
+    tools) until its answer is SATISFIED (judge-gated), HARD-bounded by
+    DEEPEN_MAX_ITERS / DEEPEN_DEADLINE_S (operator 2026-05-26 "all loop until
+    satisfied"). The enriched grounding is written back so the final synthesis
+    sees the deeper research too.
+
+    operator 2026-05-31 (#86 latency): a node that is ALREADY satisfied now
+    EXITS immediately instead of spinning extra re-answer passes purely to fill
+    the wait until the slowest node's primary finishes (the `barrier`). Those
+    passes were waste -- the judge had ALREADY approved the answer, yet the node
+    burned GPU + HELD its lane semaphore (starving the slow node of compute) for
+    up to DEEPEN_DEADLINE_S. Letting a satisfied fast node release early gives
+    the slow node more GPU so it finishes sooner; only genuinely UNSATISFIED
+    nodes still deepen to the full budget. `barrier` remains the CALLER's gate
+    for WHETHER a node deepens at all (the last node to finish skips it)."""
     aname = str(node.get("agent") or "")
     acfg = _AGENT_REGISTRY.get(aname) or {}
     base_q = str(node.get("title") or node.get("prompt") or "")[:200]
@@ -8312,11 +8537,16 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
     iters = 0
     _deadline = time.monotonic() + DEEPEN_DEADLINE_S
     satisfied = await _judge_answer_satisfied(base_q, out)
-    # Loop until BOTH satisfied AND the slow nodes are done -- HARD-bounded by
-    # the iter cap AND a wall-clock deadline so the extra passes never blow the
-    # turn's latency (operator 2026-05-26; a full web enrich per iter is costly).
+    # Loop until SATISFIED -- HARD-bounded by the iter cap AND a wall-clock
+    # deadline so the extra passes never blow the turn's latency (operator
+    # 2026-05-26; a full web enrich per iter is costly). operator 2026-05-31
+    # (#86 latency): a SATISFIED node exits NOW. The old `or not
+    # barrier.is_set()` kept an already-approved node re-answering (no quality
+    # gain; GPU + lane-semaphore held) until the slowest node finished -- the
+    # dominant research-turn latency sink. Dropping it frees the lane for the
+    # slow node. Genuinely UNSATISFIED nodes still deepen to the full budget.
     while (iters < DEEPEN_MAX_ITERS and time.monotonic() < _deadline
-           and ((not satisfied) or (not barrier.is_set()))):
+           and not satisfied):
         iters += 1
         deeper_q = f"{base_q} in detail"
         try:
@@ -8582,12 +8812,14 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
         if event_q is not None:
             for n in level:
                 event_q.put_nowait(("engage", n, None))
-        # BARRIER-DEEPEN (operator 2026-05-26): every node runs its PRIMARY pass
-        # concurrently; the moment all primaries finish a barrier fires. Until
-        # then a FAST agent node (lane not in SLOW_LANES) that already finished
-        # KEEPS LOOPING -- deeper web-research + re-answer, until SATISFIED *and*
-        # the slowest node is done -- so no fast node idles while the iGPU/phone
-        # grind. Only for a multi-node agent level (the swarm); off otherwise.
+        # BARRIER-DEEPEN (operator 2026-05-26; refined 2026-05-31 #86): every
+        # node runs its PRIMARY pass concurrently; the moment all primaries
+        # finish a barrier fires. A node whose primary finishes BEFORE the
+        # barrier then deepens (deeper web-research + re-answer) UNTIL SATISFIED
+        # -- NOT until the barrier: a satisfied node exits early instead of
+        # spinning re-answers, freeing its lane so the slow node finishes sooner
+        # (see _deepen_until_barrier). The last node (barrier already set) skips
+        # deepen. Only for a multi-node agent level (the swarm); off otherwise.
         _agent_level = [n for n in level if n.get("agent")]
         if deepen_barrier and len(_agent_level) > 1:
             _barrier = asyncio.Event()
@@ -9056,9 +9288,33 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
     async def _synthesise(dag_result: dict) -> tuple:
         """Post-DAG: build the audit envelope + the polished synthesis."""
+        # Drop punting nodes from the polish input (operator 2026-05-31): a
+        # node that produced a real grounded answer must not be diluted by a
+        # sibling's "no data / can't help / rephrase" filler. FAIL-SAFE: if
+        # EVERY node punted, fall back to all-with-output so we never feed
+        # polish nothing (behaviour then unchanged from before).
+        def _is_punt(_out: str) -> bool:
+            t = (_out or "").strip().lower()
+            if not t:
+                return True
+            _markers = (
+                "no specific", "no information", "no data", "not available",
+                "provided context", "cannot provide", "i cannot", "unable to",
+                "no relevant", "i do not have enough", "don't have enough",
+                "would you like me to", "rephrase the search", "search again",
+                "no direct information", "not present in the current context",
+            )
+            return any(m in t for m in _markers)
+
+        _all_nodes = [n for n in dag_result.get("node_results", [])
+                      if (n.get("output") or "").strip()]
+        _good_nodes = [n for n in _all_nodes
+                       if n.get("satisfied") is not False
+                       and not _is_punt(n.get("output"))]
+        _use_nodes = _good_nodes if _good_nodes else _all_nodes
         merged = "\n\n".join(
             f"[{n.get('tool', 'agent')}]:\n{(n.get('output') or '').strip()}"
-            for n in dag_result.get("node_results", [])
+            for n in _use_nodes
             if (n.get("output") or "").strip())
         # RAW research grounding (operator 2026-05-26 "still lacking ACTUAL
         # contents"): the union of the fetched web content across facets, so the
@@ -10384,6 +10640,63 @@ async def list_verbs_openai_tools(include_rare: bool = True) -> JSONResponse:
         if include_rare or vcfg.get("tier") != "rare"
     ]
     return JSONResponse({"tools": tools, "count": len(tools)})
+
+
+@app.get("/v1/tools")
+async def list_tools(include_rare: bool = True) -> JSONResponse:
+    """The COMPLETE MiOS capability surface as MCP tool specs: every verb
+    PLUS every OS recipe PLUS every promoted skill, in one feed.
+
+    This is the unified discovery endpoint mios-mcp-server's `tools/list`
+    consumes so an MCP client sees the WHOLE surface, not just the verb
+    catalog. /v1/verbs is left UNCHANGED (verbs only) for existing
+    consumers; this is the superset.
+
+    Three projections, one MCP `inputSchema`/function shape:
+      (a) verbs   -> _verb_to_openai_tool   (name == bare verb)
+      (b) recipes -> _recipe_to_openai_tool (name == mios_recipe__<name>)
+      (c) skills  -> _skill_to_openai_tool  (name == mios_skill__<name>)
+
+    The relay routes a returned tool_call by name prefix: a bare name ->
+    POST /v1/dispatch {tool,args}; mios_recipe__* -> os_recipe; mios_skill__*
+    -> POST /skills/run. Discover here, execute there -- one contract.
+
+    Degrade-open: a recipe-load or skill-DB failure drops only THAT section,
+    never the others, so an offline SurrealDB still yields the full verb +
+    recipe surface (operator: tools must stay available even when a subsystem
+    is down)."""
+    tools = [
+        _verb_to_openai_tool(vname, vcfg)
+        for vname, vcfg in _VERB_CATALOG.items()
+        if include_rare or vcfg.get("tier") != "rare"
+    ]
+    # (b) OS recipes -- the os_recipe verb's catalog, surfaced as first-class
+    # tools (degrade-open: a TOML parse failure drops recipes, keeps verbs).
+    recipe_n = 0
+    try:
+        for rname, rcfg in (_load_recipe_catalog() or {}).items():
+            tools.append(_recipe_to_openai_tool(rname, rcfg))
+            recipe_n += 1
+    except Exception:  # noqa: BLE001 -- best-effort section; degrade open
+        pass
+    # (c) Promoted skills -- the executable skill library, surfaced as
+    # mios_skill__* tools (degrade-open: a DB outage drops skills only).
+    skill_n = 0
+    try:
+        for srow in (await _skill_list(status="promoted")) or []:
+            tools.append(_skill_to_openai_tool(srow))
+            skill_n += 1
+    except Exception:  # noqa: BLE001 -- best-effort section; degrade open
+        pass
+    return JSONResponse({
+        "tools": tools,
+        "count": len(tools),
+        "counts": {
+            "verbs": len(tools) - recipe_n - skill_n,
+            "recipes": recipe_n,
+            "skills": skill_n,
+        },
+    })
 
 
 # ── A2A Agent Card (Agent2Agent discovery surface) ────────────────────
@@ -16051,6 +16364,18 @@ async def chat_completions(request: Request) -> Any:
                     _lens_msgs
                     + _trim_sys_prefix(_sys_prefix, _agent_lane(_c))
                     + list(messages))
+                # Hand each council secondary the SAME global verb surface the
+                # DAG workers get (operator 2026-05-31) so the fan-out agents
+                # CALL tools (web_search/etc.) via the secondary tool-loop
+                # instead of fabricating/disclaiming. Writes are gated on the
+                # refined intent (mirrors the primary path) -- a read-only turn
+                # keeps the secondaries read-only, avoiding parallel write storms.
+                if WORKER_TOOLS_ENABLE:
+                    _wtools = _worker_tools_surface()
+                    if _wtools:
+                        _node_body["tools"] = _wtools
+                        _node_body["num_ctx"] = WORKER_TOOL_CTX
+                        _node_body["_allow_write"] = _hints_write_action(refined)
                 # context = the secondary's ROLE/specialty (why it's engaged on
                 # this turn); council members all answer the same prompt, so the
                 # role is the relevant per-node step context.
@@ -16369,6 +16694,18 @@ async def chat_completions(request: Request) -> Any:
         if _lens:
             _b["messages"] = ([{"role": "system", "content": _lens}]
                               + list(proxy_body.get("messages") or []))
+        # Hand each council secondary the SAME global verb surface the DAG
+        # workers get (operator 2026-05-31) so the fan-out agents CALL tools
+        # (web_search/etc.) via the secondary tool-loop instead of fabricating/
+        # disclaiming. Writes gated on the refined intent (mirrors the primary
+        # path) -- a read-only turn keeps secondaries read-only, avoiding
+        # parallel write storms.
+        if WORKER_TOOLS_ENABLE:
+            _wtools = _worker_tools_surface()
+            if _wtools:
+                _b["tools"] = _wtools
+                _b["num_ctx"] = WORKER_TOOL_CTX
+                _b["_allow_write"] = _hints_write_action(refined)
         return _b
 
     _sec_tasks = [

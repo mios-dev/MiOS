@@ -666,10 +666,19 @@ strengths = ["kanban", "web_search", "skill_invocation",
 
 [agents.opencode]
 endpoint = "http://localhost:8633/v1"
-model    = "opencode"
+# ONE canonical model id (must match [ai].opencode_model + opencode.json + the
+# ollama Modelfile build name:tag). Was "opencode"; unified to the real tag the
+# gateway advertises and ollama serves.
+model    = "mios-opencode:latest"
 role     = "coding"
 job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
-default  = false
+# Front-door commitment (operator 2026-05-31): opencode is dispatchable now that
+# the :8633 gateway passes the FULL conversation, lands its config, and streams
+# proper SSE deltas. default=true makes it ELIGIBLE for the swarm fan-out (the
+# planner scores it as a secondary by role/strengths; hermes stays the primary
+# orchestrator). If the gateway/binary is down the endpoint drops out of the
+# fan-out automatically (see [dispatch]).
+default  = true
 lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
@@ -869,6 +878,34 @@ fanout_min = 1
 # roster + the box's headroom. 3 = primary + up to 2 council members; raise
 # as more [agents.*] are added (and a tool-capable box can carry them).
 fanout_max = 3
+# ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
+# ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
+# reads these from here via _dispatch_toml(); runtime override via the matching
+# MIOS_* env (MIOS_DAG_NODE_MAX_TOKENS / _SLOW_MAX_TOKENS / _RETRY,
+# MIOS_SWARM_DEEPEN / _ITERS / _DEADLINE_S / _WEB_S).
+# Per-node answer token budget: fast lanes (dGPU/CPU) full, slow lanes (iGPU/
+# phone) trimmed so they finish within the read timeout instead of timing out.
+dag_node_max_tokens      = 800
+dag_node_slow_max_tokens = 350
+dag_node_retry           = 1     # empty-result retries (read-only -> safe); 0 = none
+# DEEPEN: after its primary answer a swarm node loops extra web-research + re-
+# answer passes UNTIL the judge is satisfied, hard-bounded by these. A satisfied
+# node exits at once; the deadline only bites a stubborn facet.
+deepen_enabled       = true
+deepen_iters         = 12     # RUNAWAY backstop on extra passes (the deadline is the real bound)
+deepen_deadline_s    = 60     # HARD per-node deepen cap. 120->60 (operator 2026-05-31 live test: research turns exceeded 5.5min); each unsatisfied facet now caps at ~60s
+deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't overshoot
+# ── PER-LANE / GLOBAL CONCURRENCY (SSOT'd 2026-05-31 after "HARDCODES!!!").
+# agent_concurrency = default per-lane cap; lane_concurrency_<lane> overrides ONE
+# lane. The LOCAL gpu/cpu lanes (the single SHARED 4090 + in-VM CPU) are capped
+# to 2 so a wide research fan-out can't oversubscribe them (live test: it
+# thrashed the VM + WSL). REMOTE lanes (potato-gpu/cpu, igpu) keep the default --
+# separate hardware. Read via _dispatch_toml; override MIOS_AGENT_CONCURRENCY /
+# MIOS_AGENT_LANE_CONCURRENCY[_<LANE>].
+agent_concurrency    = 3      # global default per-lane concurrent-agent cap
+lane_concurrency     = 3      # default per lane (each distinct hw = its own semaphore)
+lane_concurrency_gpu = 2      # LOCAL shared 4090 -- cap low so it isn't oversubscribed
+lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash
 # ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
 # defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
 # fires WITH CPU ... any engine/node" + "add per-lane context trimming".
@@ -896,6 +933,20 @@ fanout_max = 3
 #       a down node isn't re-probed every turn and rejoins within the TTL once
 #       back up. 0 effectively disables caching (probe every turn).
 #   MIOS_NODE_LIVENESS_CONNECT_S = 1.5 -- connect timeout of that liveness probe.
+
+# ── WEB-RESEARCH loop bounds (SSOT'd 2026-05-31). The pipeline's per-facet
+# web-research loop (search -> fetch/extract -> judge -> re-search) is the
+# dominant research-turn LATENCY driver. MODERATE-cut values (operator
+# 2026-05-31 live test: research turns exceeded 5.5min): fewer judge-gated
+# attempts + drill passes, and a much shorter crawl-fallback timeout (the deep
+# crawl is a fallback now that the miosfetch extract works). agent-pipe reads
+# these via _toml_section("web_research"); runtime override MIOS_WEB_RESEARCH_*.
+# (Only these 3 latency keys are SSOT-wired today; the rest of the web-research
+# knobs remain env-overridable -- a noted follow-up sweep.)
+[web_research]
+max_attempts    = 3    # judge-gated re-search attempts (was 5)
+passes          = 3    # search->judge->re-search drill passes (was 4)
+crawl_timeout_s = 18   # deep crawl4ai/Camoufox fallback per-page cap, seconds (was 45)
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
@@ -1285,6 +1336,11 @@ desc       = "Enumerate currently OPEN windows. Use BEFORE focus/move/close to c
 tier       = "core"
 permission = "read"
 cmd        = "mios-pc-control window-list --json"
+# Fit a busy desktop's whole window list (the grounding for "what's open"). The
+# old 1500-char default cut it mid-window so the model FABRICATED the omitted
+# windows' PIDs/titles (operator 2026-05-31). _cap_verb_result still flags any
+# overflow with a ⟪TRUNCATED⟫ marker the model must not invent past.
+max_result_chars = 6000
 
 [verbs.screen_layout]
 section    = "Window / app launch"
@@ -1896,6 +1952,7 @@ desc       = "Live dashboard JSON: GPU/VRAM, RAM, disk, services, ollama models.
 tier       = "core"
 permission = "read"
 cmd        = "mios-system-status"
+max_result_chars = 5000   # the full dashboard JSON (GPU/RAM/disk/services/models) > the 1500 default; fit it whole so the model never invents missing values
 
 [verbs.sys_env]
 section    = "System"
@@ -1967,6 +2024,7 @@ desc       = "Process list filtered by name; sorted by rss / cpu / pid."
 tier       = "common"
 permission = "read"
 cmd        = "mios-sysview proc --sort {sort=rss} --limit {limit=20}{filter?--filter}"
+max_result_chars = 6000   # fit the default 20-process list whole (1500 cut it mid-process -> fabricated entries)
   [verbs.process_list.params.filter]
   type = "string"
   aliases = ["name", "query"]
@@ -1991,6 +2049,7 @@ desc       = "podman/quadlet container status. Empty name = all."
 tier       = "common"
 permission = "read"
 cmd        = "mios-sysview containers{name?--name}"
+max_result_chars = 4000   # fit the full container list whole (avoids a mid-row cut the model would complete from imagination)
   [verbs.container_status.params.name]
   type = "string"
   aliases = ["container", "unit"]
@@ -2751,6 +2810,37 @@ hermes_agent_ref    = "main"
 # delegate path on qwen3:1.7b for non-code work).
 opencode_install_url = "https://opencode.ai/install"
 opencode_version    = "latest"           # or pin to a tag
+# ── opencode /v1 gateway (front-door commitment, operator 2026-05-31) ────────
+# opencode is a first-class OpenAI /v1 COUNCIL PEER via mios-opencode-gateway.
+# service (:8633), NOT a Hermes ACP subprocess (the ACP framing above is the
+# RETIRED path). These keys are the SSOT for automation/39-opencode.sh + the
+# gateway unit + tools/lib/userenv.sh (MIOS_OPENCODE_*). ONE canonical model id
+# across: [agents.opencode].model, opencode.json's model key, the ollama
+# Modelfile build name:tag.
+opencode_model      = "mios-opencode:latest"
+# opencode provider name as declared in opencode.json; the gateway builds the
+# `-m <provider>/<model>` selector from this.
+opencode_provider   = "ollama"
+# opencode binary install path (fetched at build). Gateway unit + installer
+# reference this via MIOS_OPENCODE_BIN.
+opencode_bin        = "/usr/lib/mios/opencode/bin/opencode"
+# Explicit opencode config path the gateway exports as OPENCODE_CONFIG (no
+# hardcoded /root/.config/opencode dependency). /etc/mios/opencode is the
+# canonical SoT (.gitignore whitelists it; mios-hermes-firstboot deploys it).
+opencode_config     = "/etc/mios/opencode/opencode.json"
+# Gateway run cwd / HOME (scratch for `opencode run`; no repo -> Q&A mode).
+opencode_gateway_workdir   = "/var/lib/mios/opencode-gateway/work"
+# Per-run timeout (s). Under VRAM pressure the run times out and the gateway
+# returns empty so the swarm fan-out drops opencode harmlessly.
+opencode_gateway_timeout_s = 90
+# Hybrid agent-plane: opencode shares Hermes's venv (the de-facto shared
+# interpreter for hermes-agent + agent-pipe + the gateway shim). Kept at the
+# historic /usr/lib/mios/hermes-agent location — relocating it would touch ~15
+# load-bearing references (agent-pipe + delegation-prefilter unit interpreters,
+# mios-hermes-firstboot self-recovery, /usr/bin/hermes, dashboard-auth-stub,
+# discord-reactions-patch). To move it, change these AND every one of those.
+agent_venv          = "/usr/lib/mios/hermes-agent/.venv"
+agent_install_dir   = "/usr/lib/mios/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
 hermes_backend_url  = "http://localhost:11434/v1"
@@ -4367,6 +4457,7 @@ ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
 adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
 adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
+opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every

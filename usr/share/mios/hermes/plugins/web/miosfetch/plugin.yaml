@@ -1,0 +1,5 @@
+name: miosfetch
+kind: backend
+version: 1.0.0
+description: MiOS offline direct-fetch web-extract provider (stdlib urllib + readability HTML->text; no firecrawl SDK / no container / no cloud -- fully offline).
+register: plugins.web.miosfetch:register

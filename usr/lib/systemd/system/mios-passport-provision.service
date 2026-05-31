@@ -29,7 +29,14 @@ ExecStart=/usr/libexec/mios/mios-passport provision
 # sysuser. We do NOT fail the unit if an agent's sysuser doesn't
 # exist yet (newer agents enrolled before their service ships) --
 # the `-` prefix swallows errors.
-ExecStartPost=-/usr/bin/chown -R mios-agent-pipe:mios-agent-pipe /var/lib/mios/agent-passports/agent-pipe
+# agent-pipe was CUT OVER to run as mios-ai (user consolidation), so its
+# passport private.key (0600) must be owned by mios-ai or the service can't read
+# it. Chowning to the OLD mios-agent-pipe left it unreadable by the mios-ai
+# service (operator-confirmed 2026-05-31: "passport: failed to load private key:
+# Permission denied" -> agent-pipe couldn't sign its SurrealDB writes). hermes /
+# mios-daemon stay on their own sysusers below until their services are likewise
+# cut over to mios-ai.
+ExecStartPost=-/usr/bin/chown -R mios-ai:mios-ai /var/lib/mios/agent-passports/agent-pipe
 ExecStartPost=-/usr/bin/chown -R mios-hermes:mios-hermes /var/lib/mios/agent-passports/hermes
 ExecStartPost=-/usr/bin/chown -R mios:mios /var/lib/mios/agent-passports/mios-daemon
 # Keep private.key 0600 + public.key 0644 even after the chown.

@@ -98,12 +98,15 @@ def _handle_initialize(mid, params: dict) -> dict:
 
 
 def _handle_tools_list(mid, _params: dict) -> dict:
+    # /v1/tools is the UNIFIED capability feed: every verb + every OS recipe
+    # + every promoted skill, already projected into the MCP inputSchema
+    # shape. (/v1/verbs is the verbs-only subset, left for legacy consumers.)
     try:
-        data = _http_get("/v1/verbs")
+        data = _http_get("/v1/tools")
     except urllib.error.URLError as e:
         return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
     except Exception as e:
-        return _err(mid, -32000, f"verbs fetch failed: {e}")
+        return _err(mid, -32000, f"tools fetch failed: {e}")
     return _ok(mid, {"tools": data.get("tools") or []})
 
 
@@ -112,10 +115,27 @@ def _handle_tools_call(mid, params: dict) -> dict:
     args = (params or {}).get("arguments") or {}
     if not name:
         return _err(mid, -32602, "missing tool name")
+    # Route by name prefix -- the SAME mangling the unified /v1/tools feed
+    # applies. mios_skill__<name> executes via the skill runner; a
+    # mios_recipe__<name> wraps the opaque os_recipe verb; a bare name is a
+    # plain verb. All three land on the launcher-broker path eventually, but
+    # via the correct endpoint/envelope. Discover at /v1/tools, execute here.
     try:
-        result = _http_post("/v1/dispatch", {
-            "tool": name, "args": args,
-        })
+        if name.startswith("mios_skill__"):
+            real = name[len("mios_skill__"):]
+            result = _http_post("/skills/run", {
+                "name": real, "params": args,
+            })
+        elif name.startswith("mios_recipe__"):
+            real = name[len("mios_recipe__"):]
+            result = _http_post("/v1/dispatch", {
+                "tool": "os_recipe",
+                "args": {"name": real, "params": args},
+            })
+        else:
+            result = _http_post("/v1/dispatch", {
+                "tool": name, "args": args,
+            })
     except urllib.error.URLError as e:
         return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
     except Exception as e:
