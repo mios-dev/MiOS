@@ -33,6 +33,12 @@ ContainerName=mios-webtools-firecrawl-api
 # live there. Run the api production entrypoint.
 WorkingDir=/app
 Exec=pnpm run start:production
+# LAW 6 (UNPRIVILEGED-QUADLETS): User= is mandatory (99-postcheck.sh). The
+# upstream firecrawl v1.0.0 image (apps/api/Dockerfile) ships no USER and runs
+# as root -- pnpm/tsc/node and the baked /usr/bin/chromium (puppeteer) all
+# expect uid 0. Documented root member, same pattern as qdrant.container.
+User=0
+Group=0
 
 # ── firecrawl env (self-host, no-auth, fetch+puppeteer, NO playwright-svc) ──
 # REDIS_URL / REDIS_RATE_LIMIT_URL -> the pod's loopback redis member.
@@ -63,6 +69,7 @@ Label=org.opencontainers.image.title=mios-webtools-firecrawl-api
 Label=io.podman_desktop.openInBrowser=http://localhost:3002/
 
 [Service]
+Delegate=yes
 Restart=on-failure
 RestartSec=10s
 # firecrawl's api re-runs `tsc` on start (start:production = tsc && node ...)

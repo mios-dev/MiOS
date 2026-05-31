@@ -28,8 +28,16 @@ ContainerName=mios-webtools-redis
 Exec=redis-server --bind 127.0.0.1 --port 6380 --appendonly no
 AutoUpdate=registry
 Label=org.opencontainers.image.title=mios-webtools-redis
+# LAW 6 (UNPRIVILEGED-QUADLETS) compliance: every Quadlet must declare User=
+# (99-postcheck.sh fails the build otherwise). The official redis:7-alpine
+# image default-runs as root; this is an ephemeral, volumeless, loopback-only
+# queue (no host-writable mounts), so uid 0 inside the container's namespace
+# is harmless. Documented root member, same pattern as qdrant.container.
+User=0
+Group=0
 
 [Service]
+Delegate=yes
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=60s

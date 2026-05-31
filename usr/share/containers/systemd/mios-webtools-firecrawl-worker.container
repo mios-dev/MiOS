@@ -25,6 +25,11 @@ ContainerName=mios-webtools-firecrawl-worker
 WorkingDir=/app
 # Worker command (v1.0.0 compose `worker` service): pnpm run workers.
 Exec=pnpm run workers
+# LAW 6 (UNPRIVILEGED-QUADLETS): User= is mandatory (99-postcheck.sh). Same
+# locally-built firecrawl v1.0.0 image as the api member -- ships no USER and
+# runs as root. Documented root member, same pattern as qdrant.container.
+User=0
+Group=0
 
 # Same firecrawl self-host env as the api member (the worker reads REDIS_URL,
 # USE_DB_AUTHENTICATION, NUM_WORKERS_PER_QUEUE, BULL_AUTH_KEY, etc.).
@@ -44,6 +49,7 @@ AutoUpdate=local
 Label=org.opencontainers.image.title=mios-webtools-firecrawl-worker
 
 [Service]
+Delegate=yes
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=180s
