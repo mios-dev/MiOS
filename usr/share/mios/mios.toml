@@ -780,6 +780,25 @@ lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
+[agents.mios-win]
+# MiOS-WIN Windows workstation -- RTX 3060 Ti GPU inference node on the
+# tailnet. Runs mios-ollama (GPU :11434) + mios-ollama-cpu (CPU :11435) via
+# Podman Quadlets managed by usr/share/mios/windows/mios-ai-node.ps1.
+# auto-join when up, auto-drop when offline (health_gate).
+# OPERATOR-SPECIFIC + PRIVACY: vendor ships `endpoint` EMPTY so no personal
+# tailnet IP bakes into the public repo. Fill in /etc/mios/mios.toml on MiOS-DEV:
+#   [agents.mios-win]
+#   endpoint = "http://<mios-win-tailscale-ip>:11434/v1"
+endpoint    = ""
+model       = "qwen3.5:4b"
+role        = "gpu"
+job         = "RTX 3060 Ti GPU overflow node on MiOS-WIN -- extends swarm GPU compute over Tailscale when MiOS-DEV's dGPU is saturated."
+default     = false
+lane        = "gpu"
+health_gate = true
+fanout      = true
+strengths   = ["gpu_inference", "code", "chat", "overflow_compute"]
+
 # ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
 # MiOS mechanism should dispatch to multiple agents at a time -- not ALL

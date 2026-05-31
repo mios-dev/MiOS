@@ -1,0 +1,58 @@
+# mios-ollama.container -- Windows AI Node variant
+# GPU inference lane (NVIDIA RTX via CDI). Mirrors usr/share/containers/systemd/ollama.container
+# with two simplifications for the Windows Podman machine:
+#   1. No immutable /usr/share/ollama seed (not a bootc image -- models are
+#      pulled at first run via mios-ai-node.ps1 -PullModels).
+#   2. No mios-ollama sysuser (Windows Podman machine runs rootful; User=0 is
+#      the unprivileged podman machine root, not the Windows host root).
+# ARCHITECTURAL LAW 5 compliance: OWUI on MiOS-DEV routes through MiOS-DEV's
+# Hermes; this endpoint is the compute BACKEND hermes.nodes.mios-win points at.
+
+[Unit]
+Description=MiOS Ollama LLM Server (Windows AI Node — GPU lane)
+After=network-online.target
+
+[Container]
+Image=docker.io/ollama/ollama:latest
+ContainerName=mios-ollama
+# Host networking -- same WSL2 port-forwarder quirk that affects mios-ollama-cpu:
+# bridge + PublishPort does not reliably surface on the Windows host interface.
+# With host networking, OLLAMA_HOST=0.0.0.0:11434 binds directly on the machine,
+# and Podman Desktop's WSL2 port proxy surfaces it on the Windows host.
+Network=host
+AutoUpdate=registry
+
+# GPU passthrough via CDI.  nvidia.com/gpu=all resolves to the spec written
+# by nvidia-ctk cdi generate inside the Podman machine (mios-ai-node.ps1).
+# WSL2 NVIDIA uses /dev/dxg + rbind /usr/lib/wsl -- same device class, same
+# CDI device name, so the Quadlet is identical to the MiOS-DEV version.
+# Disable by removing this line or setting OLLAMA_NUM_GPU_LAYERS=0.
+AddDevice=nvidia.com/gpu=all
+
+# Bind all interfaces so MiOS-DEV (via Tailscale) can reach :11434 directly.
+# The firewall rule in mios-ai-node.ps1 scopes inbound to 100.64.0.0/10
+# (Tailscale CGNAT) so this is not exposed to the wider LAN/Internet.
+Environment=OLLAMA_HOST=0.0.0.0:11434
+Environment=OLLAMA_ORIGINS=*
+Environment=OLLAMA_MODELS=/var/lib/ollama/models
+Environment=HOME=/var/lib/ollama
+
+# RTX 3060 Ti has 8 GB VRAM.  Conservative parallelism: 2 concurrent slots
+# + 2 warm models.  Raise OLLAMA_NUM_PARALLEL if the node is used as a high-
+# throughput overflow GPU and VRAM headroom allows.
+Environment=OLLAMA_NUM_PARALLEL=2
+Environment=OLLAMA_MAX_LOADED_MODELS=2
+
+Volume=/var/lib/ollama:/var/lib/ollama:Z
+
+Label=org.opencontainers.image.title=mios-ollama
+Label=org.opencontainers.image.url=http://localhost:11434/
+Label=io.podman_desktop.openInBrowser=http://localhost:11434/
+
+[Service]
+Restart=on-failure
+RestartSec=10
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

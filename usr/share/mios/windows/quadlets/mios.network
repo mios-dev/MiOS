@@ -1,0 +1,5 @@
+[Network]
+# mios.network -- the core bridge shared by all MiOS Quadlets on this node.
+# Mirrors the main MiOS mios.network bridge.
+Driver=bridge
+Label=io.mios.network=true
