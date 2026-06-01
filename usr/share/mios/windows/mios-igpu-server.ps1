@@ -44,6 +44,15 @@ param(
     # GGUF to match the daemon model exactly).
     [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
     [int]    $ContextSize = 8192,
+    # Single inference slot (operator 2026-06-01 KV-paging). llama-server defaults
+    # to 4 parallel slots, which (a) splits ctx-size 4 ways (2048 each -- too small
+    # for real conversations) and (b) makes the OpenAI /v1 endpoint land a request
+    # on ANY slot, so the agent-pipe's per-slot KV save/restore (_kv_paging, slot 0)
+    # can't deterministically bracket it. ONE slot = the full 8192 ctx + every
+    # request lands on slot 0, so demand-paging the conversation's KV to/from disk
+    # is reliable. The iGPU is the slow light lane anyway (~9 tok/s); concurrency
+    # here is a non-goal -- requests queue, which is fine.
+    [int]    $Parallel    = 1,
     [int]    $GpuLayers   = 99,            # 99 = offload all layers to the iGPU
     # Pin to a SINGLE Vulkan device so llama.cpp does NOT layer-split onto the
     # RTX 4090 (Vulkan also enumerates the 4090, and GPU-PV shares it with the
@@ -66,6 +75,12 @@ $root      = Join-Path $env:LOCALAPPDATA 'mios\igpu'
 $binDir    = Join-Path $root 'bin'
 $modelsDir = Join-Path $root 'models'
 $logDir    = Join-Path $root 'logs'
+# KV-cache paging store (operator 2026-06-01 "VRAM can compress or write to disk
+# ... clean state when agents/models load/unload"): --slot-save-path below makes
+# llama-server expose POST /slots/{id}?action=save|restore, which writes a
+# conversation's KV cache to a .bin in THIS dir and restores it near-instantly.
+# The in-VM agent-pipe demand-pages per conversation against it (_kv_paging).
+$slotDir   = Join-Path $root 'slots'
 $exe       = Join-Path $binDir 'llama-server.exe'
 $taskName  = 'MiOS-iGPU-Server'
 $fwName    = "MiOS - igpu-llm ($Port/tcp)"
@@ -117,7 +132,7 @@ if ($Install) {
 }
 
 # ---- ensure dirs ------------------------------------------------------------
-foreach ($d in @($root,$binDir,$modelsDir,$logDir)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+foreach ($d in @($root,$binDir,$modelsDir,$logDir,$slotDir)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
 
 # ---- ensure llama.cpp Vulkan binary -----------------------------------------
 if (-not (Test-Path $exe)) {
@@ -211,11 +226,14 @@ $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
 # so the server's normal logging flows into the Tee'd log instead of aborting.
 # (pwsh 7 does not treat native stderr this way, so this is harmless there.)
 $ErrorActionPreference = 'Continue'
+Info "kv-paging: --slot-save-path $slotDir (agent-pipe pages conversations to/from disk)"
 & $exe `
     --host 0.0.0.0 --port $Port `
     --model $Model `
     --ctx-size $ContextSize `
+    --parallel $Parallel `
     --n-gpu-layers $GpuLayers `
     --device $Device `
     --alias mios-igpu `
+    --slot-save-path $slotDir `
     2>&1 | Tee-Object -FilePath $logFile

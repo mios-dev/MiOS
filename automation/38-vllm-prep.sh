@@ -1,19 +1,23 @@
 #!/bin/bash
-# automation/38-vllm-prep.sh -- bake the GUI-grounding VLM weights into the
-# image so the mios-vllm Quadlet serves them OFFLINE (vLLM/HF will NOT
-# download air-gapped at runtime). Mirrors automation/37-ollama-prep.sh:
-# build-time, best-effort, NEVER fails the build (exit 0 on any error).
+# automation/38-vllm-prep.sh -- bake the vLLM heavy-lane weights into the image
+# so the mios-vllm Quadlet serves them OFFLINE (vLLM/HF will NOT download
+# air-gapped at runtime). Mirrors automation/37-ollama-prep.sh: build-time,
+# best-effort, NEVER fails the build (exit 0 on any error).
 #
-# Weights land in /usr/share/mios/vllm/grounding (immutable composefs
-# surface; the build's /var cleanup doesn't touch /usr/share). The
-# mios-vllm.container mounts that dir read-only at /models/grounding.
+# Weights land in /usr/share/mios/vllm/model (immutable composefs surface; the
+# build's /var cleanup doesn't touch /usr/share). The mios-vllm.container mounts
+# that dir read-only at /models.
 #
-# Default model: Qwen3-VL-4B-Instruct -- open GUI grounder, ~6-10GB VRAM,
-# beats older specialists (OS-Atlas/ShowUI) on ScreenSpot-Pro. Override
-# with MIOS_VLLM_BAKE_MODEL=<hf-repo> at build time; empty disables the
-# bake entirely (e.g. CI builds that only validate the pipeline). Other
-# clean FOSS choices: microsoft/GUI-Actor-7B-Qwen2-VL (MIT),
-# Hcompany/Holo1.5-7B (Apache), ByteDance-Seed/UI-TARS-1.5-7B (Apache).
+# RE-SCOPED 2026-06-01 (Phase 2 = gated vLLM HEAVY TEXT lane). The model is
+# OPT-IN: MIOS_VLLM_BAKE_MODEL (rendered from mios.toml [ai.vllm].bake_model)
+# defaults EMPTY so no multi-GB model bloats every image -- set it at build time
+# to bake. Recommended text reasoners (Apache-2.0):
+#   Qwen/Qwen3-8B          ~16GB fp16 / ~6GB AWQ  -- mid dGPU
+#   Qwen/Qwen3-30B-A3B     MoE 30B / 3B-active     -- the "large model", big dGPU + quant
+# To serve a GUI-grounding VLM on this same lane instead, point this at one
+# (Qwen/Qwen3-VL-4B-Instruct, microsoft/GUI-Actor-7B-Qwen2-VL [MIT],
+# Hcompany/Holo1.5-7B, ByteDance-Seed/UI-TARS-1.5-7B) + set
+# [ai.vllm].served_name = "mios-grounding".
 set -euo pipefail
 
 # shellcheck source=lib/common.sh
@@ -22,11 +26,11 @@ source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
     exit 0
 }
 
-MODEL="${MIOS_VLLM_BAKE_MODEL:-Qwen/Qwen3-VL-4B-Instruct}"
-SEED_DIR="/usr/share/mios/vllm/grounding"
+MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
+SEED_DIR="/usr/share/mios/vllm/model"
 
 if [[ -z "$MODEL" ]]; then
-    log "[38-vllm] MIOS_VLLM_BAKE_MODEL empty -- skipping grounding-VLM bake"
+    log "[38-vllm] MIOS_VLLM_BAKE_MODEL empty -- skipping vLLM heavy-lane bake (opt-in; the lane stays gated/inert)"
     exit 0
 fi
 if [[ -d "$SEED_DIR" ]] && [[ -n "$(ls -A "$SEED_DIR" 2>/dev/null)" ]]; then

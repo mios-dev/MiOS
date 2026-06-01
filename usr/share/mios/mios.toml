@@ -861,6 +861,23 @@ lane     = "cpu"
 endpoint = ""                  # set to http://<igpu-host-tailnet>:11436/v1 in /etc/mios
 model    = "mios-igpu"         # llama.cpp + Vulkan alias served on the host
 lane     = "igpu"
+# Declared protocol (operator no-hardcode 2026-06-01): llama.cpp -> the pipe
+# does /slots KV-paging here (_kv_paging) + skips tool_choice=required, driven by
+# THIS field instead of a port-substring match (so it's correct even if the
+# operator serves it on a non-11436 port).
+api      = "llamacpp"
+# Local vLLM HEAVY lane (Phase 2) -- the re-scoped mios-vllm Quadlet on the dGPU
+# (PagedAttention + APC; see [ai.vllm]). health_gate=true means it AUTO-JOINS the
+# swarm only when actually reachable: it is DISABLED + VRAM-gated by default, so
+# it stays inert with ZERO risk until the operator bakes weights + enables the
+# service on a dGPU with headroom, then it joins research/deep fan-outs. api=openai
+# (vLLM speaks /v1 natively + honours tool_choice=required, unlike the iGPU).
+[nodes.local-vllm]
+endpoint    = "http://localhost:11440/v1"
+model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLLM serves
+lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load with ollama)
+api         = "openai"
+health_gate = true             # inert until the gated mios-vllm.service is enabled + reachable
 # REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
 # repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
 # on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
@@ -925,6 +942,13 @@ dag_node_retry           = 1     # empty-result retries (read-only -> safe); 0 =
 # answer passes UNTIL the judge is satisfied, hard-bounded by these. A satisfied
 # node exits at once; the deadline only bites a stubborn facet.
 deepen_enabled       = true
+# SATURATION SCHEDULER (operator 2026-06-01 "nothing in the pipeline is idle until
+# synthesis"). true -> DAG runs as a CONTINUOUS READY-QUEUE (a node dispatches the
+# moment its deps finish, bounded by the global/endpoint/lane semaphores) instead
+# of barrier'd topological levels (fast lanes idle waiting for the slowest node in
+# a level). Deepen still loops finished nodes until the GLOBAL barrier. false ->
+# the proven level-barrier fallback. Read by SWARM_SATURATE (env MIOS_SWARM_SATURATE).
+swarm_saturate       = true
 deepen_iters         = 12     # RUNAWAY backstop on extra passes (the deadline is the real bound)
 deepen_deadline_s    = 60     # HARD per-node deepen cap. 120->60 (operator 2026-05-31 live test: research turns exceeded 5.5min); each unsatisfied facet now caps at ~60s
 deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't overshoot
@@ -937,8 +961,23 @@ deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't over
 # MIOS_AGENT_LANE_CONCURRENCY[_<LANE>].
 agent_concurrency    = 3      # global default per-lane concurrent-agent cap
 lane_concurrency     = 3      # default per lane (each distinct hw = its own semaphore)
-lane_concurrency_gpu = 2      # LOCAL shared 4090 -- cap low so it isn't oversubscribed
-lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash
+# dGPU lane/endpoint caps RAISED to a BACKSTOP ceiling (operator 2026-06-01:
+# "multiple medium/small models dispatch concurrently to dGPUs ... until
+# satisfied"). The real governor is now VRAM-AWARE ADMISSION (_admit gates a
+# cold model on measured free VRAM + VRAM_COLOAD_RESERVE_MB; see [dispatch].
+# admit_* + the VRAM_COLOAD_* env), so the dGPU packs several small models by
+# real headroom. These semaphores are the HARD OOM backstop if the VRAM probe
+# is wrong (the 4090 is shared with Windows). 4 = the big primary + up to 3
+# small co-loaded workers; lower if the host steals more VRAM.
+lane_concurrency_gpu = 4      # was 2; backstop ceiling, VRAM-admission governs within it
+lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash (CPU has no VRAM elasticity)
+# GLOBAL host in-flight cap (operator 2026-06-01 load-361 fix; research-endorsed).
+# Per-lane caps bound each lane, but with all-nodes-eligible the SUM of lanes can
+# swamp the host -> ONE process-wide cap on TOTAL running dispatches. Sized
+# ~cores-reserve so normal multi-lane concurrency is unaffected; only an extreme
+# wide fan-out is bounded ("saturate to capacity, never over"). 0/unset -> code
+# default max(8, cpu_count-4). Read by _GLOBAL_DISPATCH_SEM.
+global_concurrency   = 16     # max concurrently-running agent dispatches across ALL lanes
 # ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix 2026-06-01). The
 # council previously fanned EVERY non-trivial turn out to ALL live agents
 # (MIOS_COUNCIL_MAX defaulted to 0 = uncapped) AND pulled in the research_only
@@ -951,20 +990,57 @@ lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash
 # distinct from the per-LANE cap (hardware category). Override via
 # MIOS_COUNCIL_MAX / MIOS_AGENT_ENDPOINT_CONCURRENCY.
 council_max          = 4      # max council SECONDARIES per turn (0 = all; was uncapped)
-endpoint_concurrency = 2      # max concurrent calls to ONE ollama daemon (anti cold-load herd)
-# ── Admission controller (P1, operator 2026-06-01). Gated default-OFF; capacity-
-# aware admission that retires the static caps as the sole governor. _disp_num
-# reads these from here directly.
-admit_enable         = false  # master switch (live-enabled via a drop-in today; flip here to bake on)
+# endpoint_concurrency RAISED 2->4 (operator 2026-06-01 dGPU co-load): backstop
+# ceiling for concurrent calls to one daemon; VRAM-aware admission (admit_* +
+# VRAM_COLOAD_*) is the real per-turn governor on the dGPU. The CPU lane stays
+# protected by its own MemoryMax + the _cap_cpu_lane_model micro-only guard.
+endpoint_concurrency = 4      # was 2; backstop, VRAM-admission governs dGPU co-load
+# VRAM-aware co-load (operator 2026-06-01): admit another concurrent model onto a
+# dGPU endpoint only when measured free VRAM fits it + reserve. SHARED-4090 guard:
+# reserve leaves margin for the Windows host's VRAM co-tenancy (the VM can't see
+# host-side usage). Read by _admit via the MIOS_VRAM_COLOAD_* env defaults.
+vram_coload_reserve_mb = 3000   # MB left free for host co-tenancy + spikes
+vram_coload_est_mb     = 5000   # assumed cold-model VRAM until /api/ps knows its size
+# ── Admission controller (P1, operator 2026-06-01). NOW ON by default: it is the
+# AIOS-correct SAFETY layer + the PRECONDITION for "all nodes enabled by default"
+# (research 2026-06-01: eligibility is universal, safety lives in admission, never
+# by disabling nodes). Degrade-open + bounded-wait everywhere -> never deadlocks.
+# _disp_num reads these from here directly.
+admit_enable         = true   # master switch (ON: the gate for the wide all-nodes roster; was false)
 admit_load_ceil      = 56     # 1-min loadavg ceiling (cpu*2 on the 28-core dev VM); over -> backpressure
 admit_mem_pct        = 92     # mem% ceiling; over -> backpressure
 admit_max_wait       = 8.0    # max seconds a dispatch waits at the gate before admitting anyway (no deadlock)
+# ── All-nodes-enabled-by-default scheduling (operator 2026-06-01 "all nodes are
+# enabled by default ... concurrently dispatched ... nothing idle until synthesis").
+# Made safe by admit_enable=true above + COUNCIL_MAX + per-endpoint/lane semaphores.
+nodes_research_only  = false  # [nodes.*] default research_only: FALSE = every node eligible on EVERY turn (per-node override wins)
+# Lane -> admission PRIORITY (1..9; higher = admitted first / shorter backoff).
+# Fast LOCAL lanes high; slow/remote/research lanes low so under host pressure they
+# wait out admit_max_wait + self-shed -> the wide roster degrades, never stampedes.
+lane_priority        = "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"
+# Proactively evict an IDLE resident model (refcount 0, non-kept) to free VRAM for
+# a cold model a turn NEEDS -- "clear RAM/VRAM for idle agents to be loaded so
+# nothing in the pipeline is idle". ollama lanes (/api/ps + keep_alive:0); the hard
+# semaphores stay the OOM backstop. llama.cpp KV is paged separately (kv_paging_*).
+vram_reclaim_idle    = true
 # ── Tool-surface shaping (operator 2026-06-01). Per-lane tool CAP (weak lanes
 # like the iGPU llama.cpp time out grammar-constraining all 71 verbs; they get a
 # capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
 lane_tool_cap        = "igpu:15,mobile:15"   # lane:cap CSV; 0/absent = full surface (fast gpu/cpu)
 no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
+# ── KV-cache paging (AIOS context-manager prototype, operator 2026-06-01 "VRAM
+# can compress or write to disk ... clean state when agents/models load/unload").
+# On a llama.cpp endpoint (launched with --slot-save-path) the agent-pipe
+# demand-pages each conversation's KV to/from DISK: page OUT the resident conv
+# (save) + page IN this one (restore) only on a conversation SWITCH (no per-turn
+# disk thrash). ollama can't do this; vLLM+LMCache is the Phase-2/3 scale-up.
+# Read by the agent-pipe (_kv_paging / _endpoint_is_llamacpp); env overrides
+# MIOS_KV_PAGING / MIOS_KV_PAGING_HINTS / MIOS_KV_PAGING_SLOT / _TIMEOUT.
+kv_paging_enable  = true     # master switch; only ACTS on llama.cpp /slots endpoints
+kv_paging_hints   = "11436"  # host:port substrings that speak llama.cpp /slots (default the iGPU lane)
+kv_paging_slot    = 0        # llama-server slot id the light lane pages (single resident frame)
+kv_paging_timeout = 12.0     # seconds for one save/restore POST (best-effort; never fails the turn)
 # ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
 # defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
 # fires WITH CPU ... any engine/node" + "add per-lane context trimming".
@@ -3159,13 +3235,13 @@ vision_grounding_endpoint = "http://localhost:11434/v1"
 chat_vision_model         = ""
 
 # GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
-# click coordinates). Served by the mios-vllm Quadlet (OpenAI /v1 on
-# :11436) because Ollama CANNOT run the grounding heads (GUI-Actor /
-# Holo1.5 / UI-TARS / Qwen3-VL). Distinct from vision_grounding_model
-# above (descriptive vision on ollama). Weights baked offline by
-# automation/38-vllm-prep.sh; mios-vllm ships DISABLED (VRAM-heavy) ->
-# enable when the dGPU has headroom. grounding_model = served-model-name.
-grounding_endpoint = "http://localhost:11436/v1"
+# click coordinates). Ollama CANNOT run the grounding heads (GUI-Actor /
+# Holo1.5 / UI-TARS / Qwen3-VL) -> they need vLLM. RE-SCOPED 2026-06-01: the
+# mios-vllm Quadlet is now the GENERIC gated vLLM lane (see [ai.vllm] below),
+# serving a HEAVY TEXT reasoner by DEFAULT (operator "vLLM heavy lane"); to serve
+# a grounding VLM instead, point vllm_bake_model at one + set vllm_served_name =
+# "mios-grounding". The lane now lives on :vllm (11440), off the iGPU's :11436.
+grounding_endpoint = "http://localhost:11440/v1"
 grounding_model    = "mios-grounding"
 
 # Always-on micro-LLM. ~600 MB resident; sub-second classification.
@@ -3559,6 +3635,31 @@ native_rebuild = false
 # parsers reject; the awk userenv parser tolerated it, tomllib
 # does not). Operator note 2026-05-18: keys preserved under the
 # canonical [security] section earlier in this file.
+
+# ── vLLM heavy lane (Phase 2, operator 2026-06-01 "both, in order" + "a large
+# model for MiOS deployments with dGPUs"). The re-scoped mios-vllm Quadlet serves
+# a HEAVY TEXT reasoner over OpenAI /v1 with vLLM's PagedAttention + Automatic
+# Prefix Caching (APC) -- APC reuses the shared swarm system-prompt prefix across
+# concurrent fan-out at ~0 cost; PagedAttention is the in-GPU VRAM-compress
+# primitive. KV disk/CPU TIERING (the operator's "write to disk, clean state when
+# agents/models load/unload") is Phase 3 = +LMCache (deferred). GATED + DISABLED
+# BY DEFAULT: a heavy model needs real free VRAM the SHARED 4090 lacks while the
+# Windows host holds ~20GB (same gate as the gemma4 planner) -> enable only on a
+# dGPU with headroom:
+#   1. build with [ai.vllm].bake_model set (bakes weights OFFLINE; empty = no bloat)
+#   2. systemctl enable --now mios-vllm.service
+# Then [nodes.local-vllm] (health-gated) auto-joins the swarm. Recommended text
+# reasoners (set bake_model at build time):
+#   Qwen/Qwen3-8B          (~16GB fp16 / ~6GB AWQ -- mid dGPU)
+#   Qwen/Qwen3-30B-A3B     (MoE 30B / 3B-active -- the "large model", big dGPU + quant)
+# The mios-vllm Quadlet reads these via MIOS_VLLM_* (rendered from here).
+[ai.vllm]
+enable         = false          # documents intent; the systemd unit is the real gate (disabled by default)
+bake_model     = ""             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
+served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (= [nodes.local-vllm].model)
+gpu_util       = 0.45           # --gpu-memory-utilization: bounded slice; leaves room for ollama + Windows co-tenancy
+max_model_len  = 16384          # context window vLLM allocates paged KV for
+prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
 
 # ----------------------------------------------------------------------------
 # [packages] -- runtime SSOT for every dnf install in MiOS. Each
@@ -4532,6 +4633,7 @@ ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell sess
 adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
 adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
 opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
+vllm               = 11440    # vLLM heavy dGPU lane (re-scoped mios-vllm Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every

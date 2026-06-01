@@ -49,6 +49,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import collections
+import contextlib
 import contextvars
 import datetime
 import glob
@@ -301,6 +302,42 @@ NODE_LIVENESS_TTL_S = float(os.environ.get("MIOS_NODE_LIVENESS_TTL_S", "45"))
 NODE_LIVENESS_CONNECT_S = float(os.environ.get("MIOS_NODE_LIVENESS_CONNECT_S", "6"))
 _NODE_LIVE: dict = {}  # name -> (probed_ts, reachable)
 
+
+def _is_remote_endpoint(ep: str) -> bool:
+    """True when `ep` is a non-empty REMOTE endpoint (a tailnet/LAN host that can
+    come and go), False for empty or localhost/127.0.0.1/::1 (always-local lanes)."""
+    ep = str(ep or "").strip()
+    if not ep:
+        return False
+    netloc = ep.split("://", 1)[-1].split("/", 1)[0]
+    host = (netloc.rsplit(":", 1)[0] if ":" in netloc else netloc).strip("[]").lower()
+    return host not in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
+
+
+def _should_health_probe(cfg: dict) -> bool:
+    """Liveness-probe + circuit-break an agent/node when it declares health_gate
+    OR lives on a REMOTE endpoint (operator 2026-06-01 dead-node circuit-breaker:
+    ai-local the phone had no explicit health_gate -> was dispatched while off ->
+    'All connection attempts failed' retry storm that helped wedge the box). LOCAL
+    lanes are never probed -- their failure is a separate, louder problem and
+    probing only adds latency."""
+    if cfg.get("health_gate"):
+        return True
+    return _is_remote_endpoint(cfg.get("endpoint", ""))
+
+
+def _trip_breaker(name: str, cfg: dict) -> None:
+    """Open the circuit for a REMOTE agent that just failed a dispatch: mark it
+    DOWN in _NODE_LIVE so the next turn prunes it (no repeated inline retries on a
+    dead node -- reachability becomes a precondition, retries go off the hot path).
+    No-op for local lanes (a transient local error must not strand a core agent for
+    the whole TTL). Rejoins automatically when the TTL re-probe finds it back up."""
+    try:
+        if name and _should_health_probe(cfg):
+            _NODE_LIVE[str(name)] = (time.time(), False)
+    except Exception:  # noqa: BLE001
+        pass
+
 # Per-lane context trimming (operator 2026-05-24: "add per-lane context
 # trimming"). SLOW lanes (the iGPU on Vulkan, a phone/mobile node, a remote
 # accelerator) prefill far slower than the dGPU, so handing them the FULL system
@@ -419,6 +456,19 @@ DAG_NODE_RETRY = _disp_num("MIOS_DAG_NODE_RETRY", "dag_node_retry", 1)
 SWARM_DEEPEN_ENABLED = (os.environ.get(
     "MIOS_SWARM_DEEPEN", str(_DISPATCH_TOML.get("deepen_enabled", True)))
     .strip().lower() not in ("0", "false", "no"))
+# SATURATION SCHEDULER (operator 2026-06-01 "nothing in the pipeline is idle
+# within a turn until synthesis"). When ON, the DAG runs as a CONTINUOUS
+# READY-QUEUE (a node dispatches the MOMENT its own deps finish, bounded by the
+# global/endpoint/lane semaphores = saturate-to-capacity) instead of in
+# barrier'd topological LEVELS (where a fast node's lane idles waiting for the
+# slowest node in its level). Research-endorsed (the level barrier wastes the
+# fast lanes' idle time). Deepen still loops finished agent nodes until the
+# GLOBAL barrier (all primaries done) so no lane idles while the swarm finishes.
+# FALLBACK: flip false -> the proven level-barrier execute_dag path. SSOT
+# [dispatch].swarm_saturate (env MIOS_SWARM_SATURATE).
+SWARM_SATURATE = (os.environ.get(
+    "MIOS_SWARM_SATURATE", str(_DISPATCH_TOML.get("swarm_saturate", True)))
+    .strip().lower() not in ("0", "false", "no"))
 # UNTIL SATISFIED (operator 2026-05-29 "NOT JUST 2 PASSES!!! UNTIL SATISFIED!!!"):
 # the deepen loop runs while the node's answer is NOT satisfied (judge-gated),
 # bounded by the WALL-CLOCK DEADLINE; the iter cap is a high RUNAWAY BACKSTOP.
@@ -481,6 +531,21 @@ STATUS_AS_REASONING = os.environ.get(
 AGENT_CONCURRENCY = _disp_num("MIOS_AGENT_CONCURRENCY", "agent_concurrency", 3)
 _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
+# Global HOST in-flight cap (operator 2026-06-01 load-361 near-wedge fix;
+# research-endorsed backstop). The per-LANE + per-ENDPOINT semaphores bound each
+# lane/daemon, but with MANY lanes eligible (all-nodes-by-default) the SUM of
+# lane permits can still swamp the box -> the wedge. ONE process-wide semaphore
+# caps TOTAL concurrently-RUNNING dispatches regardless of how many lanes fan out
+# ("saturate to capacity, never over"). Sized ~cores-reserve so normal multi-lane
+# concurrency is unaffected; only an extreme wide fan-out is bounded. Acquired
+# OUTSIDE the endpoint/lane sems but AFTER _admit (admit is the soft wait; this is
+# the hard cap on actually-running work, so it can't deadlock on the admit wait).
+# SSOT [dispatch].global_concurrency (env MIOS_GLOBAL_CONCURRENCY).
+GLOBAL_DISPATCH_CONCURRENCY = _disp_num(
+    "MIOS_GLOBAL_CONCURRENCY", "global_concurrency",
+    max(8, (os.cpu_count() or 8) - 4))
+_GLOBAL_DISPATCH_SEM = asyncio.Semaphore(max(1, GLOBAL_DISPATCH_CONCURRENCY))
+
 # Council ROSTER width cap (operator 2026-06-01 runaway fix). Bounds how many
 # SECONDARY agents a council turn engages -- distinct from _agent_sem (which
 # bounds how many run AT ONCE). The old code read MIOS_COUNCIL_MAX with a 0
@@ -526,6 +591,56 @@ ADMIT_MAX_WAIT = _disp_num("MIOS_ADMIT_MAX_WAIT", "admit_max_wait", 8.0, float)
 _HOST_STATS_CACHE = {"t": 0.0, "v": None}
 _RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
 _ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
+
+# ── All-nodes-enabled-by-default + idle reclaim + lane priority (operator
+# 2026-06-01: "all nodes enabled by default ... concurrently dispatched ... clear
+# RAM/VRAM for idle agents to be loaded so nothing in the pipeline is idle until
+# the final synthesis"). AIOS-correct layering (research 2026-06-01): ELIGIBILITY
+# is universal (no node disabled), AVAILABILITY is the health gate, and SAFETY is
+# ADMISSION -- so a wide roster is made safe by (a) admission ON (above), (b) lane
+# PRIORITY so slow/remote lanes self-shed under host pressure, and (c) reclaiming
+# an IDLE model's VRAM to load the one a turn needs instead of only waiting.
+#
+# nodes_research_only: the [nodes.*] pool's default research_only. FALSE here =
+# every node is eligible on EVERY turn (the operator's "enabled by default"),
+# kept safe by admission + COUNCIL_MAX + per-endpoint/lane semaphores + priority.
+# (A node may still override per-entry; set true to restore research-turn-only.)
+NODES_RESEARCH_ONLY = str(os.environ.get("MIOS_NODES_RESEARCH_ONLY")
+                          or _DISPATCH_TOML.get("nodes_research_only", "false")
+                          ).strip().lower() in {"1", "true", "yes"}
+# Proactively evict an IDLE resident model to make VRAM headroom for a cold model
+# a turn needs (vs only waiting it out). The hard semaphores remain the OOM
+# backstop; this just stops idle models from starving an active dispatch.
+VRAM_RECLAIM_IDLE = str(os.environ.get("MIOS_VRAM_RECLAIM_IDLE")
+                        or _DISPATCH_TOML.get("vram_reclaim_idle", "true")
+                        ).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _parse_lane_priority(s: str) -> dict:
+    """'gpu:8,cpu:7,...' -> {lane: prio}. Always carries a _default."""
+    out = {"_default": 5.0}
+    for part in str(s or "").split(","):
+        k, sep, v = part.partition(":")
+        if sep:
+            try:
+                out[k.strip().lower()] = float(v.strip())
+            except ValueError:
+                pass
+    return out
+
+
+# lane -> dispatch priority (1..9; higher = admitted first / shorter _admit
+# backoff). SSOT [dispatch].lane_priority; fast LOCAL lanes high, slow/remote
+# lanes low so the wide 'all nodes enabled' roster degrades gracefully.
+_LANE_PRIORITY = _parse_lane_priority(
+    os.environ.get("MIOS_LANE_PRIORITY")
+    or _DISPATCH_TOML.get("lane_priority",
+                          "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"))
+# In-flight model refcount keyed by (endpoint, model). A model with count>0 is
+# ACTIVELY serving a dispatch and must NEVER be evicted out from under it; idle
+# reclaim only frees count==0 residents.
+_ACTIVE_MODELS: "collections.Counter" = collections.Counter()
+_ACTIVE_LOCK = asyncio.Lock()
 
 
 def _lane_sem(key: str) -> asyncio.Semaphore:
@@ -589,21 +704,41 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0) -> None:
             # higher priority -> shorter back-off; bounded so we always progress
             _backoff = max(0.15, (10.0 - float(priority)) * 0.1)
             await asyncio.sleep(min(_backoff, max(0.0, deadline - time.monotonic())))
-        # (2) cold-load serialization on a hot endpoint: if the model is COLD and
-        # the endpoint is already near VRAM ceiling, hold briefly so we don't pile
-        # a 2nd cold load onto a saturated daemon (the thundering-herd guard).
+        # (2) VRAM-aware co-load admission (operator 2026-06-01): a COLD model is
+        # admitted onto the endpoint only when measured free VRAM fits it + a
+        # reserve -- so the dGPU packs several small/medium models concurrently by
+        # REAL headroom (the "multiple models on the dGPU within a turn" goal),
+        # NOT a flat count. If it doesn't fit yet, wait (a sibling dispatch may
+        # finish + free VRAM, or the turn-start _vram_checkpoint may have evicted)
+        # up to the deadline, then admit anyway (degrade-open) -- the bounded
+        # lane/endpoint semaphores remain the hard OOM backstop.
         warm = await _is_warm(ep, model)
         if not warm:
-            res = await _resident_cached(ep)
-            used_mb = sum(int(m.get("size_vram") or 0) for m in res) // (1024 * 1024)
-            # reuse the existing VRAM budget/headroom constants if present
-            try:
-                budget = VRAM_BUDGET_MB
-                headroom = VRAM_TURN_HEADROOM_MB
-            except NameError:
-                budget, headroom = 23000, 16000
-            if used_mb > (budget - headroom) and time.monotonic() < deadline:
-                await asyncio.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
+            _reclaimed = False
+            while time.monotonic() < deadline:
+                res = await _resident_cached(ep)
+                used_mb = sum(int(m.get("size_vram") or 0)
+                              for m in res) // (1024 * 1024)
+                # this cold model's cost: its own size if /api/ps already knows
+                # it (re-load), else the conservative estimate.
+                est = next((int(m.get("size_vram") or 0) // (1024 * 1024)
+                            for m in res if str(m.get("name")) == str(model)), 0) \
+                    or VRAM_COLOAD_EST_MB
+                # fits if used + this model + reserve stays under budget
+                if (not VRAM_COLOAD_ENABLE) or \
+                        (used_mb + est + VRAM_COLOAD_RESERVE_MB) <= VRAM_BUDGET_MB:
+                    break
+                # Doesn't fit: first RECLAIM an idle model's VRAM (clear idle
+                # agents so this one loads now -> 'nothing in the pipeline idle'),
+                # then re-check immediately; only sleep-wait if reclaim freed
+                # nothing (a sibling dispatch may finish + free VRAM). Reclaim once
+                # per admit so we don't thrash a steady-state-full endpoint.
+                if VRAM_RECLAIM_IDLE and not _reclaimed:
+                    _reclaimed = True
+                    if await _reclaim_idle_vram(
+                            ep, model, est + VRAM_COLOAD_RESERVE_MB):
+                        continue
+                await asyncio.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
     except Exception:  # noqa: BLE001 -- admission must never block a turn
         return
 
@@ -1381,6 +1516,25 @@ VRAM_CHECKPOINT_ENABLE = os.environ.get(
     "MIOS_VRAM_CHECKPOINT", "true").lower() not in {"false", "0", "no"}
 VRAM_BUDGET_MB = int(os.environ.get("MIOS_VRAM_BUDGET_MB", "23000"))
 VRAM_TURN_HEADROOM_MB = int(os.environ.get("MIOS_VRAM_TURN_HEADROOM_MB", "16000"))
+# VRAM-AWARE CO-LOAD (operator 2026-06-01: "multiple medium/small models dispatch
+# concurrently to dGPUs ... load multiple smaller models within the same turn ...
+# until satisfied"). Admission admits ANOTHER concurrent model onto a dGPU
+# endpoint only when measured free VRAM fits it + a reserve -- so the dGPU packs
+# several small models elastically by REAL headroom, not a flat count. CRITICAL
+# guardrail: the 4090 is SHARED with the Windows host (the VM cannot see host-side
+# VRAM via /api/ps -- it only sums RESIDENT-model size_vram), so VRAM_COLOAD_RESERVE_MB
+# leaves a conservative margin for the host's co-tenancy + transient spikes. If the
+# probe is wrong, the raised-but-bounded lane/endpoint semaphores are the hard
+# backstop, and _vram_checkpoint still evicts biggest-first when genuinely tight.
+VRAM_COLOAD_ENABLE = os.environ.get(
+    "MIOS_VRAM_COLOAD", "true").lower() not in {"false", "0", "no"}
+# SSOT: [dispatch].vram_coload_reserve_mb / vram_coload_est_mb (env overrides).
+VRAM_COLOAD_RESERVE_MB = _disp_num(
+    "MIOS_VRAM_COLOAD_RESERVE_MB", "vram_coload_reserve_mb", 3000)
+# Estimated VRAM a cold model needs when we can't read its size yet (used only
+# until it appears in /api/ps). Conservative default ~ a 4-7B Q4 model.
+VRAM_COLOAD_EST_MB = _disp_num(
+    "MIOS_VRAM_COLOAD_EST_MB", "vram_coload_est_mb", 5000)
 
 
 def _checkpoint_keep_models() -> set:
@@ -1496,6 +1650,72 @@ async def _vram_checkpoint(keep: Optional[set] = None) -> None:
                  m.get("name"), int(m.get("size_vram", 0)) / 1e9, free_mb)
         if free_mb >= VRAM_TURN_HEADROOM_MB:
             break
+
+
+async def _model_active(ep: str, model: str, delta: int) -> None:
+    """Adjust the in-flight refcount for (ep, model). Guards idle reclaim from
+    evicting a model another concurrent dispatch is actively using."""
+    if not (ep and model):
+        return
+    async with _ACTIVE_LOCK:
+        _ACTIVE_MODELS[(ep, model)] += delta
+        if _ACTIVE_MODELS[(ep, model)] <= 0:
+            _ACTIVE_MODELS.pop((ep, model), None)
+
+
+def _model_is_active(ep: str, model: str) -> bool:
+    return _ACTIVE_MODELS.get((ep, model), 0) > 0
+
+
+def _dispatch_priority(cfg: dict) -> float:
+    """Lane-based admission priority for an agent dispatch (operator 2026-06-01
+    'everything dispatches hardware/job-aware ... all nodes enabled by default').
+    Fast LOCAL lanes run immediately; slow/remote/research lanes get a LOWER
+    priority so under host pressure they wait out ADMIT_MAX_WAIT and self-shed --
+    the wide roster degrades gracefully instead of stampeding (the documented
+    loadavg-128 wedge)."""
+    try:
+        lane = str(_agent_lane(cfg) or "gpu").lower()
+    except Exception:  # noqa: BLE001
+        lane = "gpu"
+    base = float(_LANE_PRIORITY.get(lane, _LANE_PRIORITY.get("_default", 5.0)))
+    if cfg.get("research_only"):
+        base = max(1.0, base - 2.0)   # research-tier yields to first-class agents
+    return base
+
+
+async def _reclaim_idle_vram(ep: str, want_model: str, need_mb: int) -> bool:
+    """Evict IDLE (refcount 0, non-want, non-kept) resident models on `ep`,
+    largest-first, to free ~need_mb so a COLD model a turn NEEDS can load NOW --
+    'clear VRAM for idle agents so nothing in the pipeline is idle' (operator
+    2026-06-01). ollama lanes only (/api/ps + keep_alive:0; llama.cpp KV is paged
+    separately by _kv_paging). Best-effort + degrade-open. Returns True if it
+    freed anything."""
+    try:
+        res = await _resident_cached(ep)
+        if not res:
+            return False
+        keep = _checkpoint_keep_models()
+        evictable = sorted(
+            (m for m in res
+             if m.get("name") and str(m.get("name")) != str(want_model)
+             and m.get("name") not in keep
+             and not _model_is_active(ep, str(m.get("name")))),
+            key=lambda m: -int(m.get("size_vram") or 0))
+        freed = 0
+        for m in evictable:
+            await _ollama_unload(str(m["name"]), ep)
+            freed += int(m.get("size_vram") or 0) // (1024 * 1024)
+            log.info("admit-reclaim: evicted idle %s (~%dMB) on %s to load cold %s",
+                     m.get("name"), int(m.get("size_vram") or 0) // (1024 * 1024),
+                     _endpoint_key(ep), want_model)
+            if freed >= max(0, need_mb):
+                break
+        if freed:
+            _RESIDENT_CACHE.pop(ep, None)   # force a fresh /api/ps on next check
+        return freed > 0
+    except Exception:  # noqa: BLE001
+        return False
 
 
 # ── Per-engine + per-node agent bindings (operator 2026-05-24: "any Agent(s) can
@@ -1671,6 +1891,124 @@ def _endpoint_supports_tool_choice(ep: str, cfg: dict,
              and (cfg["engines"][engine].get("tool_choice") is False)):
         return False
     return not any(h and h in (ep or "") for h in _NO_TOOL_CHOICE_HINTS)
+
+
+# ── KV-cache paging — the AIOS context-manager prototype (Phase 1) ──────
+# operator 2026-06-01: "VRAM can compress or write to disk, properly stored and
+# clean state when agents/models load/unload" -> true per-conversation KV
+# save/restore. ollama CANNOT (no API; a swap UNLOADS the model, never
+# checkpoints it); vLLM+LMCache is the scale-up (Phase 2/3). llama.cpp's
+# llama-server, launched with --slot-save-path, exposes
+#   POST /slots/{id}?action=save|restore   {"filename": "..."}
+# which writes a slot's KV to DISK and restores it near-instantly -- the cheap
+# prototype that proves the context-paging mechanism TODAY on the EXISTING iGPU
+# node (mios-igpu-server.ps1 :11436), zero new heavy deps, no 4090 VRAM.
+#
+# DEMAND PAGING with a single frame (the light iGPU lane has one resident
+# conversation at a time): on a turn whose conversation differs from the one
+# resident in the slot, page the resident OUT (save -> disk = "unload") then
+# page THIS one IN (restore <- disk = "load"); a same-conversation turn reuses
+# the warm in-slot KV with no disk I/O. So disk writes happen ONLY on a real
+# conversation SWITCH, never every turn -- matching "clean state when
+# agents/models load/unload" without thrashing the disk. The bracket holds a
+# per-(endpoint,slot) lock across the completion so a concurrent conversation
+# can't swap the slot mid-flight and cross-contaminate the KV.
+#
+# Gated + best-effort: a turn NEVER fails because paging failed (an old binary
+# without --slot-save-path 404s on /slots; a first-ever restore has no file) --
+# every slot op swallows its error and the turn proceeds normally.
+_LLAMACPP_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
+KV_PAGING_ENABLE = (
+    str(os.environ.get("MIOS_KV_PAGING")
+        or _DISPATCH_TOML.get("kv_paging_enable", "true"))
+    .strip().lower() not in {"false", "0", "no", "off"})
+# Which endpoints support /slots paging, by host:port substring (SSOT; default
+# the iGPU llama.cpp lane). An agent/engine api='llamacpp' opts in regardless.
+_KV_PAGING_HINTS = tuple(
+    h.strip() for h in str(os.environ.get("MIOS_KV_PAGING_HINTS")
+                           or _DISPATCH_TOML.get("kv_paging_hints", "11436")).split(",")
+    if h.strip())
+KV_PAGING_SLOT = _disp_num("MIOS_KV_PAGING_SLOT", "kv_paging_slot", 0)
+KV_PAGING_TIMEOUT = _disp_num(
+    "MIOS_KV_PAGING_TIMEOUT", "kv_paging_timeout", 12.0, cast=float)
+# (endpoint#slot) -> conversation key currently resident in that slot, and a
+# matching lock so restore->complete->save brackets serialise per slot.
+_KV_RESIDENT: dict = {}
+_KV_LOCKS: dict = {}
+
+
+def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
+    """True when `ep` is a llama.cpp llama-server that can do /slots KV paging.
+    CONFIG-FIRST (api='llamacpp'/'vulkan' on the agent/engine), else the
+    env/SSOT host:port hint list -- no bare port literal in the routing code."""
+    if _binding_api(cfg, engine) in _LLAMACPP_API:
+        return True
+    return any(h and h in (ep or "") for h in _KV_PAGING_HINTS)
+
+
+def _kv_base(ep: str) -> str:
+    """The llama-server root (strip a trailing /v1) where /slots lives."""
+    return ep[:-3].rstrip("/") if (ep or "").endswith("/v1") else (ep or "").rstrip("/")
+
+
+def _kv_filename(conv: str) -> str:
+    """A filesystem-safe slot-save filename for one conversation's KV. The file
+    lands under the server's --slot-save-path on the llama.cpp host."""
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(conv or "default"))[:120]
+    return f"mios-kv-{safe or 'default'}.bin"
+
+
+def _kv_lock(key: str) -> "asyncio.Lock":
+    lk = _KV_LOCKS.get(key)
+    if lk is None:
+        lk = asyncio.Lock()
+        _KV_LOCKS[key] = lk
+    return lk
+
+
+async def _kv_slot_action(client, ep: str, action: str, conv: str) -> bool:
+    """POST one llama.cpp slot save|restore for conversation `conv`. Best-effort:
+    returns False (never raises) on any failure -- an old binary without
+    --slot-save-path, a missing file on the first restore, a transport error."""
+    base = _kv_base(ep)
+    try:
+        r = await client.post(
+            f"{base}/slots/{KV_PAGING_SLOT}",
+            params={"action": action},
+            content=json.dumps({"filename": _kv_filename(conv)}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            timeout=KV_PAGING_TIMEOUT)
+        ok = r.status_code == 200
+        if not ok:
+            log.debug("kv %s slot %s conv=%s -> %s",
+                      action, KV_PAGING_SLOT, conv, r.status_code)
+        return ok
+    except Exception as e:  # noqa: BLE001 -- paging is best-effort
+        log.debug("kv %s failed: %s", action, e)
+        return False
+
+
+@contextlib.asynccontextmanager
+async def _kv_paging(client, ep: str, cfg: dict, engine):
+    """Demand-page this conversation's llama.cpp KV around a completion: on a
+    conversation SWITCH, page the resident one OUT (save=unload) and this one IN
+    (restore=load); a same-conversation turn is a no-op (warm in-slot KV). Holds
+    a per-(endpoint,slot) lock across the bracket so a concurrent conversation
+    can't swap the slot mid-flight. No-op + zero overhead unless paging is on
+    AND `ep` is a llama.cpp endpoint with /slots."""
+    if not (KV_PAGING_ENABLE and ep and _endpoint_is_llamacpp(ep, cfg, engine)):
+        yield
+        return
+    conv = _conv_key_var.get()
+    key = f"{_kv_base(ep)}#{KV_PAGING_SLOT}"
+    async with _kv_lock(key):
+        if _KV_RESIDENT.get(key) != conv:
+            resident = _KV_RESIDENT.get(key)
+            if resident is not None:                       # page OUT (unload)
+                await _kv_slot_action(client, ep, "save", resident)
+            await _kv_slot_action(client, ep, "restore", conv)  # page IN (load)
+            _KV_RESIDENT[key] = conv
+        yield
 
 
 # ── Model-adapter gateway: OpenAI <-> Anthropic / Gemini (item #1 slice 4) ──
@@ -2044,6 +2382,11 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
             "fanout":   bool(cfg.get("fanout", True)),
             "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
             "cpu_model":    str(cfg.get("cpu_model", "")),
+            # Node-declared protocol (operator no-hardcode): 'llamacpp'/'vulkan'
+            # -> /slots KV-paging + no forced tool_choice; 'openai'/'ollama' as
+            # usual. Carried so _binding_api/_endpoint_is_llamacpp honour it
+            # WITHOUT relying on a port substring (e.g. an iGPU llama.cpp node).
+            "api":          str(cfg.get("api", "")).strip().lower(),
             "health_gate":  health_gate,
             "failover_agents": [str(s) for s in (cfg.get("failover_agents")
                                                 or []) if str(s).strip()],
@@ -2051,7 +2394,11 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
             # council/chat turns (keeps them light), joins only research/deep
             # turns -- exactly the retired research_only replicas' behaviour,
             # now ONE canonical brain x N nodes instead of N bespoke entries.
-            "research_only": bool(cfg.get("research_only", True)),
+            # DEFAULT is the SSOT NODES_RESEARCH_ONLY (operator 2026-06-01 "all
+            # nodes enabled by default"): False -> every node joins EVERY turn
+            # (kept safe by admission + COUNCIL_MAX + per-endpoint/lane semaphores
+            # + lane priority), per-node override still wins.
+            "research_only": bool(cfg.get("research_only", NODES_RESEARCH_ONLY)),
         }
         entry["engines"] = _build_agent_engines(cfg, entry)
         # node:<name> namespacing keeps these distinct from [agents.*] (and from
@@ -2390,25 +2737,37 @@ def _strip_agent_chrome(text: str) -> str:
 
 async def _call_agent_complete(name, cfg, body, headers, client,
                                *, prefer_cpu: bool = True,
-                               priority: float = 5.0) -> tuple:
+                               priority: Optional[float] = None) -> tuple:
     """Bounded entry point (operator 2026-05-23/24): concurrent agent dispatches
     -- council secondaries AND DAG-level nodes -- acquire the PER-LANE semaphore
     for the engine/node they actually run on, so distinct hardware (dGPU, CPU,
     iGPU, accelerator, each remote node) all fire CONCURRENTLY and only same-lane
-    agents queue. No nested agent calls, so no deadlock. `priority` (default 5.0
-    = neutral) feeds the capacity-aware _admit gate when MIOS_ADMIT_ENABLE."""
+    agents queue. No nested agent calls, so no deadlock. `priority` feeds the
+    capacity-aware _admit gate; default None -> lane-derived (_dispatch_priority)
+    so slow/remote lanes self-shed under load (operator 2026-06-01 'all nodes
+    enabled by default')."""
     _engine = _agent_offload_engine(cfg) if prefer_cpu else None
     _ep, _adm_model = _agent_binding(cfg, _engine)
+    _prio = priority if priority is not None else _dispatch_priority(cfg)
     # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
     # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
     # loads on ONE ollama daemon), lane cap INNER (hardware category) -- operator
     # 2026-06-01 thundering-herd fix.
-    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), priority)
-    async with _endpoint_sem(_ep):
-        async with _lane_sem(_engine or _lane_sem_key(cfg)):
-            _n, _t = await _call_agent_complete_inner(
-                name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
-            return _n, _strip_agent_chrome(_t)
+    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio)
+    # Global host cap OUTERMOST (bounds TOTAL running dispatches across all lanes
+    # so a wide all-nodes fan-out can't sum past host capacity), then endpoint,
+    # then lane.
+    async with _GLOBAL_DISPATCH_SEM:
+        async with _endpoint_sem(_ep):
+            async with _lane_sem(_engine or _lane_sem_key(cfg)):
+                # Mark the model in-flight so idle-VRAM reclaim won't evict it.
+                await _model_active(_ep, _adm_model, 1)
+                try:
+                    _n, _t = await _call_agent_complete_inner(
+                        name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
+                finally:
+                    await _model_active(_ep, _adm_model, -1)
+                return _n, _strip_agent_chrome(_t)
 
 
 async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
@@ -2487,7 +2846,7 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
     # dispatched but contributed nothing ("fanout secondary ... failed:").
     _to = (httpx.Timeout(connect=HEALTHGATE_CONNECT_TIMEOUT,
                          read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
-           if cfg.get("health_gate") else None)
+           if _should_health_probe(cfg) else None)
     try:
         if _is_ollama:
             base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
@@ -2537,15 +2896,6 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         nb.pop("num_ctx", None)
         if _mdl:
             nb["model"] = _mdl
-        # Pipe-side OpenAI tool-loop (operator 2026-05-27 "full loop until
-        # satisfied"): resolve the /v1 agent's read-only tool_calls -- rescuing a
-        # narrated call -- before the final non-streaming answer. No-op when the
-        # agent self-loops or offers no tools.
-        if SECONDARY_TOOL_LOOP and body.get("tools"):
-            nb["messages"] = await _v1_secondary_tool_loop(
-                client, ep, nb.get("model") or cfg.get("model"),
-                headers, nb.get("messages") or [], body["tools"], _to,
-                lambda _s: None)
         # The Hermes gateway (:8642) enforces Authorization: Bearer <key>; the
         # fanout/DAG dispatch path never attached it, so hermes facets 401'd and
         # silently dropped from the merge -- leaving only the weaker CPU/code
@@ -2558,10 +2908,24 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
                 and "authorization" not in {k.lower() for k in _hdrs}
                 and ep.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
             _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
-        r = await client.post(
-            f"{ep}/chat/completions",
-            content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
-            timeout=_to)
+        # KV-paging bracket (operator 2026-06-01): on a llama.cpp endpoint, page
+        # THIS conversation's KV into the slot (saving whoever held it) before the
+        # tool-loop + final completion, holding the slot across the bracket so a
+        # concurrent conversation can't evict it mid-flight. No-op everywhere else.
+        async with _kv_paging(client, ep, cfg, _eng):
+            # Pipe-side OpenAI tool-loop (operator 2026-05-27 "full loop until
+            # satisfied"): resolve the /v1 agent's read-only tool_calls --
+            # rescuing a narrated call -- before the final non-streaming answer.
+            # No-op when the agent self-loops or offers no tools.
+            if SECONDARY_TOOL_LOOP and body.get("tools"):
+                nb["messages"] = await _v1_secondary_tool_loop(
+                    client, ep, nb.get("model") or cfg.get("model"),
+                    headers, nb.get("messages") or [], body["tools"], _to,
+                    lambda _s: None)
+            r = await client.post(
+                f"{ep}/chat/completions",
+                content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
+                timeout=_to)
         if r.status_code != 200:
             rn, rt = await _try_failover(f"http {r.status_code}")
             if rt and rt.strip():
@@ -2572,6 +2936,10 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         return name, _strip_think_tags(str(msg.get("content") or ""))
     except Exception as e:
         log.info("fanout secondary %s failed: %s", name, e)
+        # Circuit-breaker: a REMOTE node that just failed (e.g. the phone offline ->
+        # 'All connection attempts failed') is marked DOWN so the next turn prunes
+        # it instead of re-dispatching + retrying it (operator 2026-06-01).
+        _trip_breaker(name, cfg)
         rn, rt = await _try_failover(f"exception {type(e).__name__}")
         if rt and rt.strip():
             return rn, rt
@@ -3052,7 +3420,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
 
 async def _call_agent_stream(name, cfg, body, headers, client, q,
                              *, prefer_cpu: bool = True,
-                             priority: float = 5.0) -> tuple:
+                             priority: Optional[float] = None) -> tuple:
     """Bounded STREAMING sibling of _call_agent_complete (operator
     2026-05-23: a sub-agent's thinking must STREAM into the think blocks
     live, not be collected then flushed last-minute). Streams the
@@ -3064,18 +3432,24 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     endpoints + errors yield '' (dropped from the merge), identical
     degradation to the non-streaming path. Acquires the PER-LANE semaphore (the
     engine/node it runs on), so it fires concurrently with the other lanes.
-    `priority` (default 5.0 = neutral) feeds the capacity-aware _admit gate."""
+    `priority` feeds _admit; default None -> lane-derived (_dispatch_priority)."""
     _engine = _agent_offload_engine(cfg) if prefer_cpu else None
     _ep, _adm_model = _agent_binding(cfg, _engine)
+    _prio = priority if priority is not None else _dispatch_priority(cfg)
     # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
     # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
     # loads on ONE ollama daemon), lane cap INNER -- operator 2026-06-01.
-    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), priority)
-    async with _endpoint_sem(_ep):
-        async with _lane_sem(_engine or _lane_sem_key(cfg)):
-            _n, _t = await _call_agent_stream_inner(
-                name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
-            return _n, _strip_agent_chrome(_t)
+    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio)
+    async with _GLOBAL_DISPATCH_SEM:
+        async with _endpoint_sem(_ep):
+            async with _lane_sem(_engine or _lane_sem_key(cfg)):
+                await _model_active(_ep, _adm_model, 1)
+                try:
+                    _n, _t = await _call_agent_stream_inner(
+                        name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
+                finally:
+                    await _model_active(_ep, _adm_model, -1)
+                return _n, _strip_agent_chrome(_t)
 
 
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
@@ -3098,7 +3472,7 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
     # dispatched but contributed nothing ("fanout secondary ... failed:").
     _to = (httpx.Timeout(connect=HEALTHGATE_CONNECT_TIMEOUT,
                          read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
-           if cfg.get("health_gate") else None)
+           if _should_health_probe(cfg) else None)
     parts: list = []
 
     def _push(frag: str) -> None:
@@ -3630,7 +4004,7 @@ async def _live_agent_names() -> set:
     to_probe: list = []
     now = time.time()
     for name, cfg in _AGENT_REGISTRY.items():
-        if not cfg.get("health_gate"):
+        if not _should_health_probe(cfg):
             live.add(name)
             continue
         cached = _NODE_LIVE.get(name)
@@ -5622,6 +5996,14 @@ async def refine_intent(user_text: str,
             log.warning("refine: timeout/http error after %.1fs (attempt %d/%d): %s",
                         time.time() - t0, _attempt + 1, REFINE_ATTEMPTS, e)
             if _attempt + 1 >= REFINE_ATTEMPTS:
+                return None
+            # operator 2026-06-01 (load-361 incident): under host pressure a retry
+            # just stalls the turn AGAIN (the 2x-long refine that idled the dGPU
+            # while the CPU thrashed) -> degrade-open NOW (proceed without refine)
+            # instead of retrying when the box is already over the admission
+            # ceiling. Warm/healthy hosts keep the cold-load retry benefit.
+            if _over_global_ceiling():
+                log.warning("refine: host over ceiling -> skip retry, degrade-open")
                 return None
             continue
         except Exception as e:
@@ -9548,11 +9930,154 @@ def _record_dag_node_row(res: dict, session_id: Optional[str]) -> None:
     _db_fire(_db_post(sql))
 
 
+async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
+                                 event_q: "Optional[asyncio.Queue]" = None,
+                                 deepen_barrier: bool = False) -> dict:
+    """CONTINUOUS READY-QUEUE DAG executor (operator 2026-06-01 "nothing in the
+    pipeline is idle until synthesis"). A node dispatches the MOMENT its own deps
+    finish -- NOT at a topological-LEVEL barrier -- so a fast node's lane picks up
+    the next ready node immediately instead of idling for the slowest node in its
+    level. REAL concurrency is bounded by the global/endpoint/lane semaphores in
+    _call_agent_complete (saturate to capacity, never over). A finished AGENT node
+    deepens until the GLOBAL barrier (all primaries done) so no lane idles while
+    the swarm finishes. Same recording / emit / ReWOO-#E / dedup semantics as the
+    level path; dependents of a FAILED node are SKIPPED (independent branches keep
+    running -- more robust than the level path's whole-DAG fail-fast). Gated by
+    SWARM_SATURATE."""
+    nodes = [n for n in (dag.get("nodes") or [])
+             if isinstance(n, dict) and "id" in n]
+    summary = dag.get("summary", "")
+    by_id = {str(n["id"]): n for n in nodes}
+    deps = {nid: {str(d) for d in (n.get("deps") or []) if str(d) in by_id}
+            for nid, n in by_id.items()}
+    results: list[dict] = []
+    results_by_id: dict[str, dict] = {}
+    seen_actions: dict[str, dict] = {}
+    succeeded: set = set()
+    failed: set = set()          # failed OR skipped -> poisons dependents
+    client = await _get_client()
+    # Global barrier for deepen: set when every node that WILL run has finished
+    # its PRIMARY pass (expected shrinks as deps-failed nodes are skipped).
+    _barrier = asyncio.Event()
+    _primary_done = {"n": 0}
+    _primary_expected = {"n": len(nodes)}
+    _do_deepen = bool(deepen_barrier) and \
+        sum(1 for n in nodes if n.get("agent")) > 1
+
+    def _check_barrier() -> None:
+        if _primary_done["n"] >= _primary_expected["n"]:
+            _barrier.set()
+
+    def _node_tool(node: dict) -> str:
+        return str(node.get("tool") or
+                   (f"agent:{node.get('agent')}" if node.get("agent") else ""))
+
+    def _record(node: dict, res: dict) -> None:
+        results.append(res)
+        _record_dag_node_row(res, session_id)
+        _scratchpad_note(res.get("tool") or f"agent:{node.get('agent') or '?'}",
+                         str(res.get("output") or ""), phase="dag")
+        if event_q is not None:
+            event_q.put_nowait(("done", node, res))
+
+    async def _run_node(node: dict):
+        _r = await _execute_dag_node(node, results_by_id, seen_actions, summary,
+                                     session_id, client, frag_q=event_q)
+        _primary_done["n"] += 1            # atomic: no await between read+set
+        _check_barrier()
+        # Deepen finished agent nodes until the GLOBAL barrier (all primaries
+        # done) so the lane stays busy while the swarm finishes -- bounded by the
+        # deepen deadline / iter cap / satisfaction (operator "nothing idle").
+        if _do_deepen and node.get("agent") and not _barrier.is_set():
+            _r = await _deepen_until_barrier(node, _r, _barrier,
+                                             session_id, client)
+        return node, _r
+
+    pending: set = set(by_id.keys())
+    running: dict = {}   # asyncio.Task -> node_id
+
+    def _cascade_skips() -> None:
+        # A pending node whose deps include a failed/skipped node is skipped;
+        # the skip poisons its own dependents (cascade). Records a skip result so
+        # node_results stays complete; shrinks the primary-expected count so the
+        # deepen barrier still fires.
+        changed = True
+        while changed:
+            changed = False
+            for nid in list(pending):
+                if deps[nid] & failed:
+                    pending.discard(nid)
+                    failed.add(nid)
+                    _primary_expected["n"] -= 1
+                    node = by_id[nid]
+                    _record(node, {"success": False, "node_id": nid,
+                                   "tool": _node_tool(node), "args": {},
+                                   "output": f"node {nid} skipped: dependency failed"})
+                    changed = True
+        _check_barrier()
+
+    _cascade_skips()
+    while pending or running:
+        # Launch EVERY currently-ready node (deps all succeeded); the semaphores
+        # bound how many actually run at once -> saturate to capacity.
+        for nid in [x for x in pending if deps[x] <= succeeded]:
+            pending.discard(nid)
+            node = by_id[nid]
+            if event_q is not None:
+                event_q.put_nowait(("engage", node, None))
+            running[asyncio.create_task(_run_node(node))] = nid
+        if not running:
+            # nothing ready + nothing running -> cycle/dangling dep: force one
+            # node (declaration order) so the DAG never hangs (same stance as
+            # _dag_levels). Else done.
+            if pending:
+                nid = next(iter(pending))
+                pending.discard(nid)
+                node = by_id[nid]
+                if event_q is not None:
+                    event_q.put_nowait(("engage", node, None))
+                running[asyncio.create_task(_run_node(node))] = nid
+            else:
+                break
+        completed, _ = await asyncio.wait(
+            set(running.keys()), return_when=asyncio.FIRST_COMPLETED)
+        for t in completed:
+            nid = running.pop(t)
+            node = by_id[nid]
+            try:
+                node, res = t.result()
+            except BaseException as e:  # noqa: BLE001
+                res = {"success": False, "node_id": nid, "tool": _node_tool(node),
+                       "args": {}, "output": f"node {nid} raised: {e}"}
+            _record(node, res)
+            if res.get("success"):
+                succeeded.add(nid)
+                results_by_id[nid] = res
+                if res.get("_act"):
+                    seen_actions[res["_act"]] = res
+            else:
+                failed.add(nid)
+        _cascade_skips()
+    if event_q is not None:
+        event_q.put_nowait(None)  # sentinel: DAG complete, drainer can stop
+    return {
+        "success": not failed,
+        "summary": summary,
+        "nodes_total": len(nodes),
+        "nodes_executed": len(results),
+        "node_results": results,
+    }
+
+
 async def execute_dag(dag: dict, *, session_id: Optional[str],
                       event_q: "Optional[asyncio.Queue]" = None,
                       deepen_barrier: bool = False) -> dict:
-    """Execute the DAG in concurrent topological LEVELS: every node whose
-    deps are satisfied runs in PARALLEL (asyncio.gather), so independent
+    """Execute the DAG. SWARM_SATURATE -> the continuous ready-queue
+    (_execute_dag_saturated, "nothing idle until synthesis"); else the legacy
+    concurrent topological-LEVEL path below (the proven fallback).
+
+    LEVEL path: every node whose deps are satisfied runs in PARALLEL
+    (asyncio.gather), so independent
     sub-tasks -- including agent-delegation nodes routed to DIFFERENT sub-
     agents -- run concurrently across the CPU + GPU lanes (operator
     2026-05-22: "separate prompts per refinement step -> sub-agents ...
@@ -9560,6 +10085,10 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
     finish, so ReWOO #E<id> refs always resolve. Reflexion-retries failed
     verb nodes; fail-fast when a level has an unrecoverable failure.
     Returns aggregate {success, node_results[], summary}."""
+    if SWARM_SATURATE:
+        return await _execute_dag_saturated(
+            dag, session_id=session_id, event_q=event_q,
+            deepen_barrier=deepen_barrier)
     levels = _dag_levels(dag.get("nodes") or [])
     summary = dag.get("summary", "")
     results: list[dict] = []
