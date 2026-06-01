@@ -89,7 +89,7 @@ Environment=MIOS_REFINE_MAX_TOKENS=1200
 # in updates/, python3-httpx already installed). Switching to dnf
 # packages is the v1 follow-up; for the scaffold commit we ride the
 # hermes-agent venv to skip a package-list bump in the same change.
-ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 -u /usr/lib/mios/agent-pipe/server.py
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agent-pipe/server.py
 
 Restart=on-failure
 RestartSec=5s

@@ -2362,16 +2362,81 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     (operator 2026-05-30). The broker's conversation-scoped single-flight dedup
     collapses duplicate actions across the parallel swarm, so a write fires once."""
     tool_msgs: list = []
-    ran_any = False
+    ran_read = False
     for tc in tcs:
         fn = tc.get("function") or {}
         vname = str(fn.get("name") or "").strip()
-        v = _VERB_CATALOG.get(vname)
         tmsg = {"role": "tool"}
         if tc.get("id"):
             tmsg["tool_call_id"] = tc["id"]   # OpenAI-spec linkage
         if vname:
             tmsg["name"] = vname
+        # Args canonicalised once (OpenAI `arguments` arrives as a JSON string;
+        # Claude/Gemini as an object) so every routing branch gets a dict.
+        args = fn.get("arguments")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:  # noqa: BLE001
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+        # ── (a) SKILL tool: mios_skill__<name> -> execute_skill ──
+        # Mirrors the MCP relay routing (mios_skill__* -> /skills/run). Skill
+        # rows carry NO "read" permission marker, so a skill is treated as
+        # NON-read -> gated on allow_write (a worker/agent loop). The skill
+        # engine maps its body steps 1:1 to dispatch_mios_verb, so the broker's
+        # own permission + dedup + firewall still apply per underlying verb.
+        if vname.startswith("mios_skill__"):
+            real = vname[len("mios_skill__"):]
+            if not allow_write:
+                tmsg["content"] = (
+                    f"(skipped skill {real or '?'}: writes disabled this turn)")
+                tool_msgs.append(tmsg)
+                continue
+            ran_read = True
+            push(f" 🔧 skill:{real}")
+            try:
+                res = await asyncio.wait_for(
+                    execute_skill(real, args),
+                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+            except Exception as e:  # noqa: BLE001
+                res = {"error": str(e)}
+            out = (json.dumps(res, ensure_ascii=False)
+                   if isinstance(res, (dict, list)) else str(res))
+            tmsg["content"] = out[:READ_TOOL_ENRICH_CHARS]
+            tool_msgs.append(tmsg)
+            continue
+        # ── (b) RECIPE tool: mios_recipe__<name> -> os_recipe verb ──
+        # Mirrors the MCP relay routing (mios_recipe__* -> os_recipe with
+        # {name, params}). Permission comes from _RECIPE_CATALOG (default
+        # non-read when unknown); non-read recipes (open/launch/lock) gate on
+        # allow_write so the no-launch rule still binds a read-only turn.
+        if vname.startswith("mios_recipe__"):
+            real = vname[len("mios_recipe__"):]
+            rcfg = _RECIPE_CATALOG.get(real) or {}
+            r_perm = str(rcfg.get("permission", "")).lower()
+            if r_perm != "read" and not allow_write:
+                tmsg["content"] = (
+                    f"(skipped recipe {real or '?'}: not a read-only tool)")
+                tool_msgs.append(tmsg)
+                continue
+            ran_read = True
+            push(f" 🔧 recipe:{real}")
+            try:
+                res = await asyncio.wait_for(
+                    dispatch_mios_verb("os_recipe",
+                                       {"name": real, "params": args}),
+                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+            except Exception as e:  # noqa: BLE001
+                res = {"error": str(e)}
+            out = (json.dumps(res, ensure_ascii=False)
+                   if isinstance(res, (dict, list)) else str(res))
+            tmsg["content"] = _cap_verb_result("os_recipe", out)
+            tool_msgs.append(tmsg)
+            continue
+        # ── (c) VERB tool: bare verb name -> dispatch_mios_verb ──
+        v = _VERB_CATALOG.get(vname)
         # read verbs always auto-execute; write/launch only when allow_write (an
         # agent loop -- agents act). Unknown verb -> skip with an adaptive note.
         if not v or (str(v.get("permission", "")).lower() != "read"
@@ -2379,17 +2444,11 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             tmsg["content"] = f"(skipped {vname or '?'}: not a read-only tool)"
             tool_msgs.append(tmsg)
             continue
-        args = fn.get("arguments")
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except Exception:  # noqa: BLE001
-                args = {}
         ran_read = True
         push(f" 🔧 {vname}")
         try:
             res = await asyncio.wait_for(
-                dispatch_mios_verb(vname, args if isinstance(args, dict) else {}),
+                dispatch_mios_verb(vname, args),
                 timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
         except Exception as e:  # noqa: BLE001
             res = {"error": str(e)}
@@ -3481,24 +3540,72 @@ WORKER_TOOLS_SCOPE = os.environ.get("MIOS_WORKER_TOOLS_SCOPE", "all").strip().lo
 # this comfortably; raise/lower per VRAM + latency budget.
 WORKER_TOOL_CTX = int(os.environ.get("MIOS_WORKER_TOOL_CTX", "16384") or 16384)
 _WORKER_TOOLS_CACHE: "Optional[list]" = None
+# Full surface (verbs + recipes + SKILLS) -- built once via the async warm
+# (skills require an async DB read). Memoised module-global; degrade-open to
+# the sync verbs+recipes surface if the skill fetch fails.
+_WORKER_TOOLS_FULL_CACHE: "Optional[list]" = None
 
 
 def _worker_tools_surface() -> list:
-    """The MiOS verb catalog in OpenAI tools[] shape, for a worker's pipe-side
-    tool-loop. Scope from WORKER_TOOLS_SCOPE. Cached; empty on any build error
-    (degrade open). SSOT = _VERB_CATALOG (one catalog, projected here)."""
+    """The MiOS verb + RECIPE catalog in OpenAI tools[] shape, for a worker's
+    pipe-side tool-loop (the SYNC surface -- no skills, which need an async DB
+    read; see _worker_tools_surface_async for the full surface). Scope from
+    WORKER_TOOLS_SCOPE: in "read" scope only permission=read verbs AND recipes
+    survive; recipes without a "read" permission are EXCLUDED in read scope but
+    INCLUDED in the default "all" scope. Cached; empty on any build error
+    (degrade open). SSOT = _VERB_CATALOG + _RECIPE_CATALOG (projected here).
+    operator 2026-05-31: every fan-out/DAG sub-agent gets the COMPLETE
+    capability surface -- verbs + recipes + skills -- as first-class tools."""
     global _WORKER_TOOLS_CACHE
     if _WORKER_TOOLS_CACHE is None:
         try:
-            _WORKER_TOOLS_CACHE = [
+            out = [
                 _verb_to_openai_tool(n, c)
                 for n, c in _VERB_CATALOG.items()
                 if WORKER_TOOLS_SCOPE != "read"
                 or str(c.get("permission", "")).lower() == "read"
             ]
+            # (b) recipes -> mios_recipe__<name>. Read scope keeps only
+            # permission=read recipes (os_recipe entries default "read" per
+            # _load_recipe_catalog, but launch/open recipes mark non-read).
+            for rn, rc in (_RECIPE_CATALOG or {}).items():
+                if (WORKER_TOOLS_SCOPE == "read"
+                        and str(rc.get("permission", "")).lower() != "read"):
+                    continue
+                out.append(_recipe_to_openai_tool(rn, rc))
+            _WORKER_TOOLS_CACHE = out
         except Exception:  # noqa: BLE001
             _WORKER_TOOLS_CACHE = []
     return _WORKER_TOOLS_CACHE
+
+
+async def _worker_tools_surface_async() -> list:
+    """The COMPLETE worker tool surface -- verbs + recipes + SKILLS -- in OpenAI
+    tools[] shape (operator 2026-05-31 "every fan-out/DAG sub-agent receives the
+    COMPLETE capability surface ... as first-class OpenAI tools"). Starts from
+    the sync verbs+recipes surface, then appends promoted skills projected via
+    _skill_to_openai_tool (name == mios_skill__<name>). Skills carry no "read"
+    permission marker, so in WORKER_TOOLS_SCOPE=="read" they are treated as
+    NON-read and EXCLUDED; in the default "all" scope they are INCLUDED.
+    Memoised module-global. Degrade-open: if the skill fetch fails (or returns
+    nothing) the surface falls back to verbs+recipes (the sync surface)."""
+    global _WORKER_TOOLS_FULL_CACHE
+    if _WORKER_TOOLS_FULL_CACHE is not None:
+        return _WORKER_TOOLS_FULL_CACHE
+    base = list(_worker_tools_surface())
+    if WORKER_TOOLS_SCOPE == "read":
+        # Skills have no read-permission marker -> non-read -> excluded in
+        # read scope. The full surface == the sync surface; memoise + return.
+        _WORKER_TOOLS_FULL_CACHE = base
+        return _WORKER_TOOLS_FULL_CACHE
+    try:
+        rows = (await _skill_list(status="promoted")) or []
+        for srow in rows:
+            base.append(_skill_to_openai_tool(srow))
+    except Exception:  # noqa: BLE001 -- degrade-open to verbs+recipes
+        log.debug("worker skills surface fetch failed; verbs+recipes only")
+    _WORKER_TOOLS_FULL_CACHE = base
+    return _WORKER_TOOLS_FULL_CACHE
 
 
 def _current_year() -> str:
@@ -8653,7 +8760,7 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         # fabricating or disclaiming. Self-gating: a worker that needs no tool
         # just answers in one pass (no-op).
         if WORKER_TOOLS_ENABLE:
-            _wtools = _worker_tools_surface()
+            _wtools = await _worker_tools_surface_async()
             if _wtools:
                 body["tools"] = _wtools
                 body["num_ctx"] = WORKER_TOOL_CTX
@@ -16371,7 +16478,7 @@ async def chat_completions(request: Request) -> Any:
                 # refined intent (mirrors the primary path) -- a read-only turn
                 # keeps the secondaries read-only, avoiding parallel write storms.
                 if WORKER_TOOLS_ENABLE:
-                    _wtools = _worker_tools_surface()
+                    _wtools = await _worker_tools_surface_async()
                     if _wtools:
                         _node_body["tools"] = _wtools
                         _node_body["num_ctx"] = WORKER_TOOL_CTX
@@ -16688,24 +16795,29 @@ async def chat_completions(request: Request) -> Any:
     # P2.1 role-lens (mirrors streaming path): each secondary gets a small
     # secondary-specific system message identifying its angle so the council
     # answers from N DIVERSE lenses, not duplicates one answer N times.
+    # Pre-await the COMPLETE surface (verbs+recipes+skills) ONCE here -- the
+    # skill projection needs an async DB read but _sec_body is sync; the local
+    # is reused for every secondary (operator 2026-05-31).
+    _sec_wtools = (await _worker_tools_surface_async()
+                   if WORKER_TOOLS_ENABLE else [])
+    _sec_allow_write = _hints_write_action(refined)
+
     def _sec_body(_n, _c):
         _b = dict(proxy_body)
         _lens = _council_role_lens(_n, _c)
         if _lens:
             _b["messages"] = ([{"role": "system", "content": _lens}]
                               + list(proxy_body.get("messages") or []))
-        # Hand each council secondary the SAME global verb surface the DAG
-        # workers get (operator 2026-05-31) so the fan-out agents CALL tools
-        # (web_search/etc.) via the secondary tool-loop instead of fabricating/
-        # disclaiming. Writes gated on the refined intent (mirrors the primary
-        # path) -- a read-only turn keeps secondaries read-only, avoiding
-        # parallel write storms.
-        if WORKER_TOOLS_ENABLE:
-            _wtools = _worker_tools_surface()
-            if _wtools:
-                _b["tools"] = _wtools
-                _b["num_ctx"] = WORKER_TOOL_CTX
-                _b["_allow_write"] = _hints_write_action(refined)
+        # Hand each council secondary the SAME global verb+recipe+skill surface
+        # the DAG workers get (operator 2026-05-31) so the fan-out agents CALL
+        # tools (web_search/etc.) via the secondary tool-loop instead of
+        # fabricating/disclaiming. Writes gated on the refined intent (mirrors
+        # the primary path) -- a read-only turn keeps secondaries read-only,
+        # avoiding parallel write storms.
+        if _sec_wtools:
+            _b["tools"] = _sec_wtools
+            _b["num_ctx"] = WORKER_TOOL_CTX
+            _b["_allow_write"] = _sec_allow_write
         return _b
 
     _sec_tasks = [

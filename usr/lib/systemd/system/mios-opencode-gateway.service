@@ -1,6 +1,6 @@
 [Unit]
 Description='MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)
-Documentation=file:///usr/lib/mios/opencode-gateway/server.py
+Documentation=file:///usr/lib/mios/agents/opencode-gateway/server.py
 After=network-online.target ollama.service
 Wants=network-online.target ollama.service
 # Makes [agents.opencode] endpoint :8633/v1 a REAL OpenAI endpoint so
@@ -13,9 +13,10 @@ Wants=network-online.target ollama.service
 # council peer via this gateway (NOT a Hermes ACP subprocess). The shim now
 # passes the FULL conversation (system + history) to `opencode run`, lands its
 # config at MIOS_OPENCODE_CONFIG, unifies the model id, and streams proper SSE
-# deltas. Deployed + enabled by the opencode phase of the hybrid agent-plane
-# install (automation/39-opencode.sh; the shared venv is built by
-# automation/38-hermes-agent.sh, which runs first in the numeric build loop).
+# deltas. Deployed + enabled by the UNIFIED agent-plane install driver
+# automation/38-hermes-agent.sh: PHASE 1 builds the shared venv + Hermes,
+# PHASE 2 fetches the opencode binary + lands opencode.json. The gateway
+# server.py itself ships via the system-files overlay (this file's tree).
 #
 # This unit lives in /usr/lib/systemd/system, which 15-render-quadlets.sh does
 # NOT process, and systemd does not expand env vars in User=/WorkingDirectory=/
@@ -25,8 +26,9 @@ Wants=network-online.target ollama.service
 # update this unit to match.
 #
 # Skip cleanly if the opencode binary never landed (build-time fetch failure)
-# rather than crash-loop; `mios update` re-runs 39-opencode.sh to complete it.
-ConditionPathExists=/usr/lib/mios/opencode/bin/opencode
+# rather than crash-loop; `mios update` re-runs 38-hermes-agent.sh (PHASE 2)
+# to complete it.
+ConditionPathExists=/usr/lib/mios/agents/opencode/bin/opencode
 
 [Service]
 Type=simple
@@ -35,7 +37,7 @@ Type=simple
 # /var/lib/mios state tree + reads /etc/mios config.
 User=mios-ai
 Group=mios-ai
-# Gateway run cwd + HOME (state, owned by mios-ai; created by 39-opencode.sh +
+# Gateway run cwd + HOME (state, owned by mios-ai; created by the
 # mios-opencode-gateway.conf tmpfiles). Mirrors [ai].opencode_gateway_workdir.
 WorkingDirectory=/var/lib/mios/opencode-gateway/work
 Environment=HOME=/var/lib/mios/opencode-gateway/work
@@ -43,7 +45,7 @@ Environment=HOME=/var/lib/mios/opencode-gateway/work
 # opencode_provider/opencode_config, [ai].opencode_gateway_timeout_s.
 Environment=MIOS_PORT_OPENCODE_GATEWAY=8633
 Environment=MIOS_OPENCODE_HOST=127.0.0.1
-Environment=MIOS_OPENCODE_BIN=/usr/lib/mios/opencode/bin/opencode
+Environment=MIOS_OPENCODE_BIN=/usr/lib/mios/agents/opencode/bin/opencode
 Environment=MIOS_OPENCODE_MODEL=mios-opencode:latest
 Environment=MIOS_OPENCODE_PROVIDER=ollama
 Environment=MIOS_OPENCODE_CONFIG=/etc/mios/opencode/opencode.json
@@ -51,8 +53,8 @@ Environment=MIOS_OPENCODE_TIMEOUT_S=90
 # Reuse the SHARED agent-plane venv interpreter (the shim is stdlib-only, but
 # this matches the agent-pipe pattern + keeps ONE interpreter). This venv is the
 # de-facto shared interpreter for hermes-agent, agent-pipe, and this gateway
-# (mios.toml [ai].agent_venv = /usr/lib/mios/hermes-agent/.venv).
-ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 -u /usr/lib/mios/opencode-gateway/server.py
+# (mios.toml [ai].agent_venv = /usr/lib/mios/agents/.venv).
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agents/opencode-gateway/server.py
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=30s

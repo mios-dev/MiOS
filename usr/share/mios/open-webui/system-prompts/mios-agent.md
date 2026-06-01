@@ -44,8 +44,9 @@ For ANY non-trivial request:
    `mios-apps` (full inventory); `mios-env-probe` (current state
    facts -- already auto-injected on first turn).
 3. **Delegate parallelisable work** with `delegate_task(tasks=[...])`
-   instead of looping `terminal` calls yourself. For coding work,
-   add `acp_command:"opencode"` to route to the coder sub-agent.
+   instead of looping `terminal` calls yourself. Coding work is handled
+   by the opencode specialist — a first-class OpenAI `/v1` council peer
+   the orchestrator dispatches automatically; you collaborate, not spawn.
 
 ## Behaviour discipline
 

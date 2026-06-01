@@ -1,71 +1,77 @@
 ---
 name: opencode-delegation
 description: |
-  When the operator asks for multi-file code work, file-system navigation,
-  multi-step PC control loops, or anything that benefits from snapshot-
-  rollback + diff-preview edits — delegate to OpenCoder via Hermes's
-  NATIVE delegate_task with acp_command="opencode". The opencode binary
-  is installed locally; it speaks ACP over stdio.
+  How heavy code work gets handled in the MiOS swarm: opencode is a
+  first-class OpenAI /v1 COUNCIL PEER (not a sub-process you spawn).
+  The agent-pipe orchestrator routes multi-file code work, file-system
+  navigation, and code-aware PC-control loops to the opencode peer
+  automatically. This skill is the routing intuition for recognizing
+  opencode-appropriate work.
 metadata:
   hermes:
-    requires_tools: [delegation]
+    requires_tools: []
 ---
 
-# opencode-delegation — when to dispatch to the specialist coder
+# opencode — the coding specialist /v1 council peer
 
-> _MiOS-managed: pointer to Hermes's NATIVE delegate_task mechanism.
+> _MiOS-managed: describes opencode as a first-class /v1 council peer.
 > Delete the marker to take ownership._
 
-OpenCoder (the SST/anomalyco opencode 1.15+ binary at
-`/usr/lib/mios/opencode/bin/opencode`) is your specialist for tasks
-where its native discipline beats spawning a qwen3:1.7b sibling:
+opencode (the SST/charm coding agent binary at
+`/usr/lib/mios/agents/opencode/bin/opencode`) runs behind an OpenAI
+`/v1` gateway (`mios-opencode-gateway.service`, loopback `:8633`,
+SSOT slot `[ports].opencode_gateway`). It is registered in the swarm
+as `[agents.opencode]` — a **peer agent on the same OpenAI contract
+as you (Hermes :8642)**, dispatched by the agent-pipe orchestrator
+(`:8640`), NOT a sub-process spawned over ACP/stdio.
+
+This is the current model. The retired model spawned opencode via
+Hermes's native `delegate_task(acp_command="opencode")` — that path
+is gone. You no longer spawn opencode; the orchestrator dispatches
+code-heavy facets to the opencode peer in parallel with you, and
+folds its answer into the council synthesis. Same Ollama backend
+(`mios-opencode:latest`), so no extra VRAM contention.
+
+## What routes to the opencode peer
+
+The orchestrator's swarm decomposition sends these facets to opencode
+because its native discipline beats a generic sibling:
 
 * **Multi-file refactors / renames / moves** — opencode's `edit` +
   `patch` tools do string-replace + unified-diff with snapshot
-  rollback. You don't have an equivalent natively.
-* **"Read N files, edit M files" loops** — opencode's `read` +
-  `glob` + `grep` + `edit` chain is purpose-built; it caches reads
-  and presents diffs before applying.
-* **PC-control workflows that need code-aware reasoning** — when
-  the task is "look at this script + click the resulting button +
-  edit the config + retry", opencode's session model + snapshot
-  history outperforms ad-hoc terminal calls.
+  rollback.
+* **"Read N files, edit M files" loops** — its `read` + `glob` +
+  `grep` + `edit` chain is purpose-built; it caches reads and
+  presents diffs before applying.
+* **Code-aware PC-control workflows** — "look at this script + edit
+  the config + retry": opencode's session model + snapshot history
+  outperform ad-hoc terminal calls.
 * **Long-running coding work** with rollback guarantees — its
-  `Snapshot.Service` captures the filesystem state per session.
+  `Snapshot.Service` captures filesystem state per session.
 
-## How to delegate
+## Your part as a council peer
 
-Use your native `delegate_task` tool with `acp_command`:
+You and opencode run as siblings in the same council. When a turn is
+code-heavy, the orchestrator engages the opencode peer alongside you —
+you don't call it, you collaborate. Concretely:
 
-```
-delegate_task(tasks=[{
-  "goal": "Refactor the auth middleware to extract token validation into its own module. Files: src/auth/*.py.",
-  "acp_command": "opencode",
-}])
-```
-
-Hermes's delegation runtime spawns `opencode` as an ACP-over-stdio
-subagent, hands it the goal, and folds its final response back into
-your turn as a tool result. opencode uses the same Ollama backend
-you do (same model pool), so no extra VRAM contention.
-
-## When NOT to delegate to opencode
-
-* **Single-shot file reads** — your `file` tool is faster.
-* **One-line terminal commands** — `terminal` tool, not opencode.
-* **MiOS surface stuff** (mios-find, mios-windows launch, etc.) —
-  those are your direct tools; opencode doesn't know about them.
-* **Anything the operator wants you (MiOS-Agent) to be the visible
-  actor for** — delegation is invisible to the operator's chat;
-  if they're watching for "MiOS-Agent did X", they see your final
-  summary not opencode's internal steps.
+* **Don't grind heavy multi-file code work yourself** with qwen
+  children when the opencode peer is engaged — it has the better
+  tools for it. Focus your effort on orchestration, system actions,
+  comms, and synthesis.
+* **You still own** single-shot file reads/edits via your own `file`
+  tool, one-line `terminal` commands, and the MiOS surface
+  (`mios-find`, window launch, verbs/skills/recipes) — opencode
+  doesn't know about those; they are YOUR direct tools.
+* **Parallel non-code fan-out** still uses your native
+  `delegate_task(tasks=[...])` to qwen3:1.7b children — that
+  mechanism is unchanged and separate from the opencode peer.
 
 ## Operator's mental model
 
-Operator sees: "MiOS-Agent did the refactor". Under the hood: you
-delegated to opencode, which used its read/edit/patch + snapshot
-discipline, and you summarised the result back. Same Ollama
-backend, complementary tool surfaces. Per the operator's 2026-05-16
-integration analysis: "Hermes is the lifestyle / orchestration
-agent, opencode is the specialist coding agent that gets
-dispatched".
+Operator sees one MiOS answer. Under the hood, for code work the
+opencode /v1 peer did the read/edit/patch + snapshot discipline in
+parallel and the council synthesised the result. Per the operator's
+integration direction: "Hermes is the lifestyle / orchestration
+agent, opencode is the specialist coding agent" — now wired as
+co-equal /v1 council peers rather than a parent/child ACP spawn.

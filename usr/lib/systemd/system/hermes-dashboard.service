@@ -10,8 +10,8 @@ After=hermes-agent.service
 # Without the [web] extras (fastapi + uvicorn) installed into the venv,
 # `hermes dashboard` aborts. mios-hermes-firstboot installs them; if the
 # venv isn't there yet, skip rather than crash-loop.
-ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/hermes
-ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages/fastapi
+ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes
+ConditionPathExists=/usr/lib/mios/agents/.venv/lib/python3.14/site-packages/fastapi
 
 [Service]
 Type=simple
@@ -42,7 +42,7 @@ Environment=HERMES_DASHBOARD_NO_OPEN=1
 Environment=HERMES_DASHBOARD_TUI=1
 Environment=HERMES_PTY_SHELL=/bin/bash
 
-ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes dashboard \
+ExecStart=/usr/lib/mios/agents/.venv/bin/hermes dashboard \
     --skip-build \
     --no-open \
     --host 127.0.0.1 \

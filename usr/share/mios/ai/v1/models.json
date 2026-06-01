@@ -86,16 +86,17 @@
       }
     },
     {
-      "id": "opencode",
+      "id": "mios-opencode:latest",
       "object": "model",
       "created": 1747000000,
       "owned_by": "mios-agents",
       "permission": [],
-      "root": "opencode",
+      "root": "mios-opencode:latest",
       "parent": null,
       "x-mios": {
         "role": "code-specialist-sub-agent",
-        "transport": "ACP over stdio",
+        "transport": "OpenAI /v1 (mios-opencode-gateway.service :8633)",
+        "endpoint": "http://localhost:8633/v1",
         "registered_as_sub_agent_of": "mios-agent-pipe",
         "registry": "/usr/share/mios/ai/v1/agents.json"
       }

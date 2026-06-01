@@ -80,9 +80,10 @@ operator types in OWUI                  (model dropdown: "MiOS-Agent")
   operator intent; act on it.
 * **MiOS-Delegate** (qwen3:1.7b children via `delegate_task`) — cheap
   fan-out for independent terminal/file/web reads.
-* **MiOS-OpenCoder** (`opencode` via `delegate_task(acp_command="opencode")`)
-  — coder-tuned subagent for file-system / multi-file / PC-control
-  workflows.
+* **MiOS-OpenCoder** (`opencode` served as an OpenAI `/v1` council peer
+  by `mios-opencode-gateway.service` on `:8633`) — coder-tuned
+  specialist for file-system / multi-file / PC-control workflows,
+  dispatched by the agent-pipe orchestrator (no longer spawned over ACP).
 * **Background micro-LLM** (`qwen3:0.6b-cpu` via `mios-log-watcher` /
   `mios-cron-director` / `mios-agent-nudger` / `mios-micro-llm`) —
   *read-only* observation.

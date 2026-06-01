@@ -33,7 +33,7 @@ operator types in OWUI
       │  │           todo, session_search, code_execution, browser,
       │  │           discord, cronjob, clarify
       │  ├─ delegate_task → MiOS-Delegate (qwen3:1.7b children)
-      │  └─ delegate_task acp_command=opencode → MiOS-OpenCoder
+      │  └─ orchestrator dispatch → MiOS-OpenCoder (opencode /v1 peer :8633)
       │
       ▼
   Ollama :11434           (raw inference)
@@ -108,16 +108,18 @@ Options:
 Recommended: when operator pulls the gemma evaluation candidate,
 test option 1.
 
-### C. OpenCoder native delegation
+### C. OpenCoder as a /v1 council peer (SHIPPED 2026-05-31)
 
-opencode is already on the toolset list (platform_toolsets.
-api_server includes "skills" + "delegation"). hermes can call:
+opencode is served as a first-class OpenAI `/v1` council peer by
+`mios-opencode-gateway.service` (:8633), registered as
+`[agents.opencode]`. The agent-pipe orchestrator dispatches code-heavy
+facets to it in parallel with the primary:
 ```
-delegate_task(tasks=[{
-  goal: "rename + restructure these 12 files",
-  acp_command: "opencode"
-}])
+POST http://localhost:8633/v1/chat/completions
+  { "model": "mios-opencode:latest", "messages": [...] }
 ```
+(Retired: the ACP-over-stdio `delegate_task(acp_command="opencode")`
+spawn — opencode is now a co-equal peer, not a Hermes child.)
 
 OpenCoder uses ONLY offline models (operator-confirmed):
 qwen3-coder:30b or similar via the local Ollama. Its strengths:

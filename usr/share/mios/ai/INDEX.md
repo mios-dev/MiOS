@@ -59,7 +59,7 @@ default. The set targets **MiOS-Inference** (`ollama.service` on
 |---|---|---|
 | big chat / code (MiOS-Hermes default) | `qwen3-coder:30b` | 256K context; clean JSON tool-call output; primary reasoning model |
 | CPU children (MiOS-Delegate fanout) | `qwen3:1.7b` | Sub-200 ms spawn; ~4 GB resident; good for grep/inspect/report subtasks |
-| coding sub-agent (MiOS-OpenCoder) | `opencode` (Anthropic-tuned) | Reached via `delegate_task(... acp_command:"opencode")` |
+| coding specialist (MiOS-OpenCoder) | `opencode` | First-class OpenAI `/v1` council peer (`mios-opencode-gateway.service` :8633), dispatched by the orchestrator |
 | embeddings | `nomic-embed-text` (v1.5) | 768-dim; 8192-token context; OpenAI `/v1/embeddings` shape via Ollama |
 
 Build-time: every entry in `[ai].bake_models` (CSV) is baked into

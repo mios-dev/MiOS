@@ -2753,11 +2753,13 @@ hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
 hermes_agent_ref    = "main"
 
 # opencode (https://opencode.ai) -- code-specialist agent CLI installed
-# directly onto the host by automation/39-opencode.sh. NOT a separate
-# API server; spawned per-task by Hermes via ACP (Agent Coordination
-# Protocol) when a delegate_task entry sets acp_command="opencode".
-# This is the cascade pattern: Hermes-Agent is the planner, opencode
-# is the code specialist, qwen3:1.7b is the general fan-out worker.
+# directly onto the host by automation/39-opencode.sh. CURRENT path =
+# a first-class OpenAI /v1 council peer via mios-opencode-gateway.service
+# (:8633); the agent-pipe orchestrator dispatches code-heavy work to it
+# (see the /v1 gateway block below). LEGACY/retired = Hermes spawning it
+# per-task via ACP when a delegate_task entry sets acp_command="opencode".
+# Cascade: Hermes-Agent plans, opencode is the code specialist /v1 peer,
+# qwen3:1.7b is the general fan-out worker.
 #
 # To enable opencode as a global delegation target, set in
 # /etc/mios/hermes/config.yaml:
@@ -2781,8 +2783,9 @@ opencode_model      = "mios-opencode:latest"
 # `-m <provider>/<model>` selector from this.
 opencode_provider   = "ollama"
 # opencode binary install path (fetched at build). Gateway unit + installer
-# reference this via MIOS_OPENCODE_BIN.
-opencode_bin        = "/usr/lib/mios/opencode/bin/opencode"
+# reference this via MIOS_OPENCODE_BIN. Lives under the unified agent-plane
+# tree /usr/lib/mios/agents/ alongside hermes-agent + opencode-gateway.
+opencode_bin        = "/usr/lib/mios/agents/opencode/bin/opencode"
 # Explicit opencode config path the gateway exports as OPENCODE_CONFIG (no
 # hardcoded /root/.config/opencode dependency). /etc/mios/opencode is the
 # canonical SoT (.gitignore whitelists it; mios-hermes-firstboot deploys it).
@@ -2792,14 +2795,19 @@ opencode_gateway_workdir   = "/var/lib/mios/opencode-gateway/work"
 # Per-run timeout (s). Under VRAM pressure the run times out and the gateway
 # returns empty so the swarm fan-out drops opencode harmlessly.
 opencode_gateway_timeout_s = 90
-# Hybrid agent-plane: opencode shares Hermes's venv (the de-facto shared
-# interpreter for hermes-agent + agent-pipe + the gateway shim). Kept at the
-# historic /usr/lib/mios/hermes-agent location — relocating it would touch ~15
-# load-bearing references (agent-pipe + delegation-prefilter unit interpreters,
-# mios-hermes-firstboot self-recovery, /usr/bin/hermes, dashboard-auth-stub,
-# discord-reactions-patch). To move it, change these AND every one of those.
-agent_venv          = "/usr/lib/mios/hermes-agent/.venv"
-agent_install_dir   = "/usr/lib/mios/hermes-agent"
+# Unified agent-plane tree (full-hybrid relocation 2026-05-31): all three
+# agents live under /usr/lib/mios/agents/ — hermes-agent/ (Hermes code + bin),
+# opencode/bin/opencode (binary), opencode-gateway/ (the /v1 shim) — and share
+# ONE explicit venv at /usr/lib/mios/agents/.venv (sibling, not nested inside
+# hermes-agent). agent_venv is the de-facto shared interpreter for hermes-agent
+# + agent-pipe + the gateway shim. These two values are the SSOT MIRROR: the
+# systemd units (hermes-agent / mios-agent-pipe / mios-delegation-prefilter /
+# mios-opencode-gateway) and the libexec scripts (mios-hermes-firstboot self-
+# recovery, /usr/bin/hermes, dashboard-auth-stub, discord-reactions-patch) carry
+# the same LITERAL paths (systemd does not expand env in ExecStart=). Change
+# these AND every one of those together.
+agent_venv          = "/usr/lib/mios/agents/.venv"
+agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
 hermes_backend_url  = "http://localhost:11434/v1"
@@ -2865,7 +2873,7 @@ prompt_shortcut     = "@"
 # ADDED:
 #   qwen3.5:4b           -- new Hermes small (small_ram_model)
 #   qwen3.5:9b           -- new Hermes mid (mid_ram_model)
-#   qwen2.5-coder:7b     -- new opencode small (delegate_task acp_command="opencode")
+#   qwen2.5-coder:7b     -- opencode small (mios-opencode:latest, /v1 peer @ :8633)
 #   qwen2.5-coder:14b    -- new opencode mid
 #   llama3.2-vision:11b  -- new vision_grounding_model (was qwen3-vl:4b)
 # KEPT (operator directive "add new + keep old" for fallback compat):

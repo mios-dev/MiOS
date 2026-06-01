@@ -26,14 +26,16 @@ host owner is read from `[identity]` in `/usr/share/mios/mios.toml`
 | **MiOS-Prefilter** | `mios-delegation-prefilter.service`         | `:8641`  | HTTP forwarder; injects `tool_choice=delegate_task` on fan-outable prompts |
 | **MiOS-Inference** | `ollama.service` (Quadlet)                  | `:11434` | Raw model + embeddings (qwen3-coder:30b big, qwen3:1.7b CPU children)     |
 | **MiOS-Delegate**  | qwen3:1.7b children via `delegate_task`     | (in-proc)| CPU-side fanout pool (≤6 concurrent, depth 2)                             |
-| **MiOS-OpenCoder** | `opencode` at `/usr/lib/mios/opencode/bin/` | (ACP)    | Coding sub-agent — `delegate_task(... acp_command:"opencode")`            |
+| **MiOS-OpenCoder** | `mios-opencode-gateway.service` (`opencode` at `/usr/lib/mios/agents/opencode/bin/`) | `:8633` | Coding specialist — first-class OpenAI `/v1` council peer dispatched by the orchestrator |
 | **MiOS-Search**    | `mios-searxng.service` (Quadlet)            | `:8888`  | Local SearXNG; backs `web_search` + OWUI's web-augmentation               |
 | **MiOS-OWUI**      | `mios-open-webui.service` (Quadlet)         | `:3030`  | Browser front-end                                                         |
 
 The orchestrator seat is MiOS-Hermes: lightweight gathering goes to
 MiOS-Delegate via `delegate_task(tasks=[...])`; non-trivial code work
-goes to MiOS-OpenCoder via the same call with `acp_command:"opencode"`;
-web research goes via `web_search` (which routes through MiOS-Search).
+is dispatched to the MiOS-OpenCoder peer over its OpenAI `/v1` gateway
+(`:8633`) by the agent-pipe orchestrator — a co-equal council peer,
+NOT spawned over ACP; web research goes via `web_search` (which routes
+through MiOS-Search).
 
 ## First Principle: Self-Replication
 MiOS is fully self-replicating. MiOS-DEV is the mutable testbed AND the
@@ -101,8 +103,9 @@ dashboard. MiOS builds the next MiOS forever (Day-0 → Day-1 → Day-N).
   on :8642) is the OpenAI-compat agent gateway in front of it, with
   **MiOS-Prefilter** (:8641) injecting `tool_choice=delegate_task` on
   fan-outable prompts. **MiOS-OpenCoder** (`opencode`) is the
-  coder-tuned sub-agent reachable via `delegate_task(... acp_command:
-  "opencode")`. Optional/unwired-by-default: LocalAI, vLLM, llama.cpp
+  coder-tuned specialist served as a first-class OpenAI `/v1` council
+  peer by `mios-opencode-gateway.service` (`:8633`), dispatched by the
+  agent-pipe orchestrator. Optional/unwired-by-default: LocalAI, vLLM, llama.cpp
   `llama-server`, Qdrant, LiteLLM — supported as drop-in alternatives,
   enabled in `mios.toml [ai]`.
 - **Container / orchestration**: Podman Quadlets, K3s, Ceph,

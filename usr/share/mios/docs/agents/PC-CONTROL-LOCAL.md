@@ -50,9 +50,10 @@ library.
   reach the operator's WSLg session.
 * **mios-pwsh** + **mios-windows {ps,cmd,launch}** for raw shell-out
   to the Windows side.
-* **opencode** (host install at `/usr/lib/mios/opencode/bin/opencode`)
-  reachable as a delegate-task ACP target:
-  `delegate_task(tasks=[{goal:..., acp_command:"opencode"}])`.
+* **opencode** (host install at `/usr/lib/mios/agents/opencode/bin/opencode`)
+  served as a first-class OpenAI `/v1` council peer by
+  `mios-opencode-gateway.service` (:8633); the orchestrator dispatches
+  code-heavy work to it in parallel (retired: ACP delegate-task spawn).
 
 ## What's missing
 
@@ -114,7 +115,7 @@ is:
 | **Ground** each step: where IS the Notepad icon? | `mios-pc-vision` (qwen3-vl:4b auxiliary) | `mios-pc-control screenshot` -> vision LLM call |
 | **Act**: clicks + keystrokes | `mios-pc-control` (Win32 SendInput) | -- |
 | **Verify**: screenshot + diff against goal | Hermes + vision aux | -- |
-| **Code-gen** when a task wants a script (PowerShell, Python) | opencode via delegate_task | `acp_command:"opencode"` |
+| **Code-gen** when a task wants a script (PowerShell, Python) | opencode `/v1` peer | orchestrator-dispatched (`:8633`) |
 
 For BROWSER tasks (URL nav, form fill, scraping), skip the vision
 loop entirely -- Hermes's `browser_*` toolset uses DOM/aria

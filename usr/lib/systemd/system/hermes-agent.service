@@ -21,7 +21,7 @@ After=network-online.target ollama.service
 Wants=network-online.target ollama.service
 # Skip cleanly if the direct install didn't land (e.g. clone failed at
 # build time) rather than crash-looping.
-ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes
 
 [Service]
 Type=simple
@@ -120,7 +120,7 @@ EnvironmentFile=-/etc/mios/hermes/discord.env
 # (running)" but a dead agent). 0700 here matches what the gateway sets
 # anyway; owner mios-ai retains full access.
 ExecStartPre=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes
-ExecStartPre=-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py
+ExecStartPre=-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py
 # Hermes v0.15.0 (build 2026.5.28) ships web_server.py with a broken
 # `from hermes_cli.dashboard_auth.routes import router` whose package
 # is missing from the published wheel -> ModuleNotFoundError on dashboard
@@ -129,7 +129,7 @@ ExecStartPre=-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-p
 # Runs as root (+) so it can write into the system-wide venv site-packages;
 # leading - so a failure here can't block agent startup.
 ExecStartPre=-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub
-ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/hermes gateway run --replace
+ExecStart=/usr/lib/mios/agents/.venv/bin/hermes gateway run --replace
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=300s

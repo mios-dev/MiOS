@@ -23,4 +23,4 @@ journalctl -u hermes-agent.service --since '5 min ago' --no-pager \
 echo
 echo "=== MiOS-patch marker count ==="
 grep -c 'MiOS-patch' \
-    /usr/lib/mios/hermes-agent/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py
+    /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py

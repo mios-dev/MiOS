@@ -17,11 +17,11 @@ Description='MiOS' delegation prefilter -- forces delegate_task on fan-out promp
 Documentation=file:///usr/libexec/mios/mios-delegation-prefilter
 After=hermes-agent.service network.target
 Wants=hermes-agent.service
-ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/python3
+ConditionPathExists=/usr/lib/mios/agents/.venv/bin/python3
 
 [Service]
 Type=exec
-ExecStart=/usr/lib/mios/hermes-agent/.venv/bin/python3 /usr/libexec/mios/mios-delegation-prefilter
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 /usr/libexec/mios/mios-delegation-prefilter
 Restart=on-failure
 RestartSec=3s
 User=mios-ai

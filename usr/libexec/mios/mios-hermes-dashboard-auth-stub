@@ -23,7 +23,7 @@
 #   2 = venv not found (hermes not installed; treat as no-op)
 set -euo pipefail
 
-VENV_SP="/usr/lib/mios/hermes-agent/.venv/lib64/python3.14/site-packages"
+VENV_SP="/usr/lib/mios/agents/.venv/lib64/python3.14/site-packages"
 PKG="$VENV_SP/hermes_cli/dashboard_auth"
 
 if [[ ! -d "$VENV_SP/hermes_cli" ]]; then
@@ -66,6 +66,6 @@ from fastapi import APIRouter
 router = APIRouter()
 EOF
 
-/usr/lib/mios/hermes-agent/.venv/bin/python3 -m py_compile \
+/usr/lib/mios/agents/.venv/bin/python3 -m py_compile \
   "$PKG/__init__.py" "$PKG/routes.py" 2>/dev/null || true
 echo "mios-hermes-dashboard-auth-stub: applied at $PKG"

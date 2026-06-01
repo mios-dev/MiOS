@@ -27,7 +27,10 @@ Config (all via env, SSOT-rendered by the unit / userenv.sh):
                                child as OPENCODE_CONFIG so opencode does NOT
                                depend on a hardcoded /root/.config location
   MIOS_OPENCODE_HOST           bind host (default 127.0.0.1)
-  MIOS_OPENCODE_TIMEOUT        per-run timeout seconds (default 600)
+  MIOS_OPENCODE_TIMEOUT_S      per-run timeout seconds (default 90; SSOT key
+                               [ai].opencode_gateway_timeout_s). Legacy
+                               MIOS_OPENCODE_TIMEOUT is still honoured as a
+                               fallback for older overlays.
 """
 import os
 import sys
@@ -45,7 +48,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HOST = os.environ.get("MIOS_OPENCODE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8633"))
 OPENCODE_BIN = os.environ.get(
-    "MIOS_OPENCODE_BIN", "/usr/lib/mios/opencode/bin/opencode"
+    "MIOS_OPENCODE_BIN", "/usr/lib/mios/agents/opencode/bin/opencode"
 )
 # ONE canonical model id, shared with [agents.opencode].model + opencode.json.
 OPENCODE_MODEL = os.environ.get("MIOS_OPENCODE_MODEL", "mios-opencode:latest")
@@ -56,7 +59,16 @@ OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "ollama")
 OPENCODE_CONFIG = os.environ.get(
     "MIOS_OPENCODE_CONFIG", "/etc/mios/opencode/opencode.json"
 )
-TIMEOUT = int(os.environ.get("MIOS_OPENCODE_TIMEOUT", "600"))
+# Per-run timeout. Canonical SSOT key is MIOS_OPENCODE_TIMEOUT_S (mios.toml
+# [ai].opencode_gateway_timeout_s, mirrored by the unit). Fall back to the
+# legacy MIOS_OPENCODE_TIMEOUT for older overlays, then a 90s default that
+# matches the SSOT vendor value (so the swarm fan-out drops opencode harmlessly
+# under VRAM pressure rather than hanging on the old 600s).
+TIMEOUT = int(
+    os.environ.get("MIOS_OPENCODE_TIMEOUT_S")
+    or os.environ.get("MIOS_OPENCODE_TIMEOUT")
+    or "90"
+)
 
 
 def _selector(model: str) -> str:

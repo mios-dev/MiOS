@@ -3,7 +3,7 @@
 # Thin launcher for the DIRECT-installed Hermes-Agent. Operator
 # directive 2026-05-13/14: Hermes-Agent is installed natively onto the
 # MiOS root filesystem (automation/38-hermes-agent.sh -> venv at
-# /usr/lib/mios/hermes-agent/.venv) and runs as the hermes-agent.service
+# /usr/lib/mios/agents/.venv) and runs as the hermes-agent.service
 # host systemd service. There is NO mios-hermes container -- the
 # container Quadlets were removed.
 #
@@ -18,7 +18,7 @@
 # agent's own CLI.
 set -euo pipefail
 
-HERMES_BIN=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+HERMES_BIN=/usr/lib/mios/agents/.venv/bin/hermes
 if [[ ! -x "$HERMES_BIN" ]]; then
     echo "hermes: direct install not found at $HERMES_BIN" >&2
     echo "  the Hermes-Agent host install (automation/38-hermes-agent.sh) hasn't run" >&2

@@ -1,9 +1,22 @@
 #!/bin/bash
-# automation/38-hermes-agent.sh
+# automation/38-hermes-agent.sh -- UNIFIED agent-plane install driver.
 #
-# Install Hermes-Agent DIRECTLY onto the MiOS root filesystem -- not as
-# a container. Operator directive 2026-05-13: "Hermes-Agent should be
-# installed on the Local MiOS-DEV machine directly at the root
+# Owns BOTH halves of the MiOS agent plane (hybrid merge 2026-05-31):
+#   PHASE 1  Hermes-Agent direct host install + shared venv (below)
+#   PHASE 2  opencode binary fetch + opencode.json landing (end of file)
+# Full-hybrid relocation (2026-05-31): the whole agent plane lives under the
+# unified tree /usr/lib/mios/agents/ -- hermes-agent/ (Hermes code + bin),
+# opencode/bin/opencode (binary), opencode-gateway/ (the /v1 shim) -- and all
+# three share ONE explicit python venv at /usr/lib/mios/agents/.venv (a SIBLING
+# of the three agent dirs, mios.toml [ai].agent_venv) which hermes-agent.service,
+# mios-agent-pipe.service, mios-delegation-prefilter.service, AND mios-opencode-
+# gateway.service all exec from. build.sh globs automation/[0-9][0-9]-*.sh, so a
+# second 38-* file would double-run; this single 38- driver is the SoT
+# and automation/39-opencode.sh is a retained no-op shim.
+#
+# PHASE 1 -- Install Hermes-Agent DIRECTLY onto the MiOS root filesystem
+# -- not as a container. Operator directive 2026-05-13: "Hermes-Agent
+# should be installed on the Local MiOS-DEV machine directly at the root
 # directory and ALL other MiOS Images/deployment types".
 #
 # Rationale: Hermes-Agent IS the live MiOS agent at `/` (AGENTS.md §6).
@@ -37,8 +50,13 @@ source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
 
 HERMES_REPO="${MIOS_HERMES_AGENT_REPO:-https://github.com/NousResearch/hermes-agent.git}"
 HERMES_REF="${MIOS_HERMES_AGENT_REF:-main}"
-VENV_ROOT=/usr/lib/mios/hermes-agent          # vendor code (FHS /usr/lib)
-VENV_DIR="${VENV_ROOT}/.venv"
+# Unified agent-plane tree. AGENTS_ROOT is the shared parent; the venv is an
+# EXPLICIT SIBLING (agents/.venv) shared by hermes-agent + agent-pipe + the
+# opencode gateway, NOT nested inside hermes-agent. VENV_ROOT holds Hermes code
+# + the stable bin/ symlink. SSOT: mios.toml [ai].agent_venv (default below).
+AGENTS_ROOT=/usr/lib/mios/agents
+VENV_ROOT="${MIOS_HERMES_DIR:-${AGENTS_ROOT}/hermes-agent}"   # Hermes vendor code (FHS /usr/lib)
+VENV_DIR="${MIOS_HERMES_VENV:-${AGENTS_ROOT}/.venv}"          # shared interpreter (sibling)
 BIN_DIR="${VENV_ROOT}/bin"
 
 log "[38-hermes-agent] direct install: repo=${HERMES_REPO} ref=${HERMES_REF}"
@@ -55,7 +73,7 @@ if [[ -n "$_missing" ]]; then
     exit 0
 fi
 
-install -d -m 0755 "${VENV_ROOT}" "${BIN_DIR}" || { warn "[38-hermes-agent] mkdir ${VENV_ROOT} failed -- skipping"; exit 0; }
+install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { warn "[38-hermes-agent] mkdir ${VENV_ROOT} failed -- skipping"; exit 0; }
 
 # Build the venv. pip install directly from the git ref -- no editable
 # checkout, no leftover src tree in the image.
@@ -370,5 +388,117 @@ for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
 done
 shopt -u nullglob
 
-log "[38-hermes-agent] done -- runtime: hermes-agent.service (gateway mode); backend = mios.toml [ai].hermes_backend_url"
+# ════════════════════════════════════════════════════════════════════
+#  PHASE 2 -- opencode (unified agent-plane driver; merged 2026-05-31)
+# ════════════════════════════════════════════════════════════════════
+# Operator front-door decision (2026-05-31): opencode is a first-class
+# OpenAI /v1 COUNCIL PEER served by mios-opencode-gateway.service (:8633),
+# NOT a Hermes ACP subprocess. This phase -- absorbed from the retired
+# automation/39-opencode.sh -- fetches the opencode binary and lands the
+# vendored opencode.json into the gateway's config dir so the gateway has
+# a usable runtime the moment hermes-agent.service's shared venv is built
+# (the gateway reuses THIS venv's python3; see mios-opencode-gateway.
+# service ExecStart + mios.toml [ai].agent_venv).
+#
+# Why merged into THIS script instead of a separate stage 39: build.sh
+# globs automation/[0-9][0-9]-*.sh, and two 38-* drivers would BOTH run;
+# the historic 38- slot already owns the shared venv + Hermes, so the
+# single unified driver lives here and 39-opencode.sh is a no-op shim.
+#
+# Still best-effort + non-fatal: a failed binary fetch leaves the gateway
+# unit no-op'ing cleanly via ConditionPathExists; `mios update` re-runs
+# this script to complete it.
+#
+# SSOT: all paths/urls resolve from mios.toml via the MIOS_OPENCODE_*
+# env (tools/lib/userenv.sh), with the canonical upstream as the `:-`
+# default -- never a hardcoded literal (Law 5).
+OPENCODE_VERSION="${MIOS_OPENCODE_VERSION:-latest}"
+OPENCODE_INSTALL_URL="${MIOS_OPENCODE_INSTALL_URL:-https://opencode.ai/install}"
+# [ai].opencode_bin = /usr/lib/mios/agents/opencode/bin/opencode -> root is the
+# parent of bin. Derive the root from the SSOT bin path so the two never
+# drift.
+OPENCODE_BIN="${MIOS_OPENCODE_BIN:-/usr/lib/mios/agents/opencode/bin/opencode}"
+OPENCODE_BIN_DIR="$(dirname "${OPENCODE_BIN}")"
+OPENCODE_ROOT="$(dirname "${OPENCODE_BIN_DIR}")"
+# [ai].opencode_config = /etc/mios/opencode/opencode.json (admin-override
+# location the gateway reads via OPENCODE_CONFIG). The vendored SoT ships
+# read-only under /usr/share (Law 1: USR-OVER-ETC); we copy it into /etc
+# only if the admin hasn't already placed one there.
+OPENCODE_CONFIG="${MIOS_OPENCODE_CONFIG:-/etc/mios/opencode/opencode.json}"
+OPENCODE_CONFIG_DIR="$(dirname "${OPENCODE_CONFIG}")"
+OPENCODE_VENDOR_CONFIG=/usr/share/mios/opencode/opencode.json
+
+log "[38-hermes-agent] opencode phase: version=${OPENCODE_VERSION} root=${OPENCODE_ROOT}"
+
+# Land the vendored opencode.json into the admin-override config dir. The
+# dir + ownership are also guaranteed by usr/lib/tmpfiles.d/mios-opencode-
+# gateway.conf at first boot; this build-time copy makes the config
+# present in the baked image. USR-is-SoT: never edit the /usr copy as the
+# live config -- /etc is the override the gateway actually reads.
+if [[ -f "${OPENCODE_VENDOR_CONFIG}" ]]; then
+    if install -d -m 0750 "${OPENCODE_CONFIG_DIR}" 2>/dev/null; then
+        if [[ ! -f "${OPENCODE_CONFIG}" ]]; then
+            install -m 0640 "${OPENCODE_VENDOR_CONFIG}" "${OPENCODE_CONFIG}" \
+                && log "[38-hermes-agent] landed opencode.json -> ${OPENCODE_CONFIG}" \
+                || warn "[38-hermes-agent] failed to land opencode.json into ${OPENCODE_CONFIG}"
+        else
+            log "[38-hermes-agent] ${OPENCODE_CONFIG} already present (admin override) -- not overwriting"
+        fi
+    else
+        warn "[38-hermes-agent] could not create ${OPENCODE_CONFIG_DIR} -- gateway config not landed"
+    fi
+else
+    warn "[38-hermes-agent] vendored ${OPENCODE_VENDOR_CONFIG} missing -- skipping config land (overlay drift?)"
+fi
+
+# Fetch the opencode binary. curl + bash must be present.
+_oc_missing=""
+for tool in curl bash; do
+    command -v "$tool" >/dev/null 2>&1 || _oc_missing="${_oc_missing} ${tool}"
+done
+if [[ -n "$_oc_missing" ]]; then
+    warn "[38-hermes-agent] opencode phase: missing tools:${_oc_missing} -- skipping binary fetch (gateway no-ops via ConditionPathExists)"
+elif [[ -x "${OPENCODE_BIN}" ]]; then
+    log "[38-hermes-agent] opencode binary already present at ${OPENCODE_BIN} -- skipping fetch"
+elif ! install -d -m 0755 "${OPENCODE_ROOT}" "${OPENCODE_BIN_DIR}" 2>/dev/null; then
+    warn "[38-hermes-agent] mkdir ${OPENCODE_ROOT} failed -- skipping opencode fetch"
+elif ! curl -fsSL --max-time 60 "${OPENCODE_INSTALL_URL}" -o /tmp/opencode-install.sh; then
+    warn "[38-hermes-agent] could not fetch opencode installer from ${OPENCODE_INSTALL_URL} -- skipping; mios update will retry"
+else
+    # The opencode installer respects OPENCODE_INSTALL_DIR (vendor env).
+    OPENCODE_INSTALL_DIR="${OPENCODE_BIN_DIR}" \
+    OPENCODE_VERSION="${OPENCODE_VERSION}" \
+        bash /tmp/opencode-install.sh 2>&1 | tail -10 || \
+        warn "[38-hermes-agent] opencode installer exited non-zero -- continuing; mios update will retry"
+    rm -f /tmp/opencode-install.sh 2>/dev/null || true
+
+    # Locate the binary. Some installer versions ignore OPENCODE_INSTALL_DIR
+    # and drop it under $HOME/.opencode/bin or alongside the root without
+    # a /bin/ subdir; probe the known fallbacks and normalise to OPENCODE_BIN.
+    if [[ ! -x "${OPENCODE_BIN}" ]]; then
+        for cand in "${OPENCODE_BIN_DIR}/opencode" "${OPENCODE_ROOT}/opencode" \
+                    "${HOME:-/root}/.opencode/bin/opencode" /root/.opencode/bin/opencode \
+                    /var/home/mios/.opencode/bin/opencode; do
+            if [[ -x "$cand" ]]; then
+                if [[ "$cand" != "${OPENCODE_BIN}" ]]; then
+                    install -d -m 0755 "${OPENCODE_BIN_DIR}"
+                    install -m 0755 "$cand" "${OPENCODE_BIN}" \
+                        && log "[38-hermes-agent] copied opencode ${cand} -> ${OPENCODE_BIN}"
+                fi
+                break
+            fi
+        done
+    fi
+
+    if [[ -x "${OPENCODE_BIN}" ]]; then
+        # Symlink onto PATH so the operator can run `opencode` directly.
+        ln -sf "${OPENCODE_BIN}" /usr/local/bin/opencode 2>/dev/null || true
+        record_version "opencode" "${OPENCODE_VERSION}" "$("${OPENCODE_BIN}" --version 2>&1 | head -1 || echo unknown)" 2>/dev/null || true
+        log "[38-hermes-agent] installed opencode: ${OPENCODE_BIN} (gateway -> mios-opencode-gateway.service :${MIOS_PORT_OPENCODE_GATEWAY:-8633})"
+    else
+        warn "[38-hermes-agent] opencode binary not found at ${OPENCODE_BIN} or fallbacks -- gateway will no-op via ConditionPathExists; mios update will retry"
+    fi
+fi
+
+log "[38-hermes-agent] done -- runtime: hermes-agent.service (:${MIOS_PORT_HERMES:-8642}/v1) + mios-opencode-gateway.service (:${MIOS_PORT_OPENCODE_GATEWAY:-8633}/v1); shared venv = ${VENV_DIR}; backend = mios.toml [ai].hermes_backend_url"
 exit 0

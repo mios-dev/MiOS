@@ -20,9 +20,9 @@
     {
       "name": "opencode",
       "endpoint": "http://localhost:8633/v1",
-      "model": "opencode",
+      "model": "mios-opencode:latest",
       "role": "coding",
-      "default": false,
+      "default": true,
       "strengths": [
         "file_edit", "code_review", "git", "test_running", "refactor"
       ]

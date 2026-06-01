@@ -376,13 +376,13 @@ fi
 # Ollama OpenAI surface, no cloud calls.
 # ─── Auto-recover Hermes-Agent venv if missing ───────────────────────
 # automation/38-hermes-agent.sh installs Hermes-Agent directly onto
-# the host (NOT a container) at /usr/lib/mios/hermes-agent/.venv. That
+# the host (NOT a container) at /usr/lib/mios/agents/.venv. That
 # script runs at OCI build time. But:
 #   * stale OCI images pre-2026-05 don't have it baked in
 #   * if the build-time install failed silently (network, PyPI hiccup),
 #     the venv won't be there post-install either
 # In both cases hermes-agent.service silently no-ops at boot via:
-#   ConditionPathExists=/usr/lib/mios/hermes-agent/.venv/bin/hermes
+#   ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes
 # and the operator gets a "Hermes won't work" surprise hours later.
 #
 # Detect the missing venv here and re-run the installer if we can find
@@ -390,7 +390,7 @@ fi
 # it re-pulls + re-installs the package. Operator-confirmed regression
 # 2026-05-15: fresh MiOS install came up with hermes-agent inactive
 # because the build never installed the venv.
-if [[ ! -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
+if [[ ! -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
     _hermes_installer=""
     for _c in /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh \
               /opt/mios-bootstrap/automation/38-hermes-agent.sh \
@@ -403,13 +403,13 @@ if [[ ! -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
         bash "$_hermes_installer" 2>&1 | sed 's/^/  /' \
             | while IFS= read -r _line; do _log "$_line"; done || \
             _log "WARN: hermes-agent installer exited non-zero"
-        if [[ -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
+        if [[ -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
             _log "hermes-agent venv installed; daemon-reload + start the service"
             systemctl daemon-reload || true
             systemctl restart hermes-agent.service 2>&1 | sed 's/^/  /' \
                 | while IFS= read -r _line; do _log "$_line"; done || true
         else
-            _log "WARN: installer ran but venv still absent at /usr/lib/mios/hermes-agent/.venv/bin/hermes"
+            _log "WARN: installer ran but venv still absent at /usr/lib/mios/agents/.venv/bin/hermes"
         fi
     else
         _log "WARN: hermes-agent venv missing AND no installer found in any candidate path"
