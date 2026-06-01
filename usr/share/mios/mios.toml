@@ -672,13 +672,15 @@ endpoint = "http://localhost:8633/v1"
 model    = "mios-opencode:latest"
 role     = "coding"
 job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
-# Front-door commitment (operator 2026-05-31): opencode is dispatchable now that
-# the :8633 gateway passes the FULL conversation, lands its config, and streams
-# proper SSE deltas. default=true makes it ELIGIBLE for the swarm fan-out (the
-# planner scores it as a secondary by role/strengths; hermes stays the primary
-# orchestrator). If the gateway/binary is down the endpoint drops out of the
-# fan-out automatically (see [dispatch]).
-default  = true
+# default=false (operator 2026-06-01): opencode's `run` mode HANGS — even with
+# mios-opencode:latest resident + a 240s budget, `opencode run` returns ZERO
+# output and times out (the model answers in <1s directly; the CLI itself is
+# stuck in non-interactive mode). With default=true opencode was pulled into
+# EVERY council/swarm turn, so each one waited up to the gateway timeout for its
+# 💤 — the dominant latency in a normal chat. Make it NON-default so it only
+# engages when a turn is genuinely code-focused (role-matched), not every turn.
+# Re-enable once `opencode run` headless invocation is fixed (flags/output-mode).
+default  = false
 lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
@@ -865,6 +867,32 @@ agent_concurrency    = 3      # global default per-lane concurrent-agent cap
 lane_concurrency     = 3      # default per lane (each distinct hw = its own semaphore)
 lane_concurrency_gpu = 2      # LOCAL shared 4090 -- cap low so it isn't oversubscribed
 lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash
+# ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix 2026-06-01). The
+# council previously fanned EVERY non-trivial turn out to ALL live agents
+# (MIOS_COUNCIL_MAX defaulted to 0 = uncapped) AND pulled in the research_only
+# replicas on non-research turns -> a trivial prompt cold-loaded 11 models at
+# once -> ollama thundering herd -> loadavg 128 -> VM wedge (terminated twice).
+# council_max bounds the SECONDARY roster size (0 = uncapped, explicit opt-in);
+# research_only replicas now join ONLY on a web/news/deep turn. endpoint_
+# concurrency caps concurrent calls to ONE inference daemon (host:port) so a
+# wide fan-out can't cold-load N models on the same ollama simultaneously --
+# distinct from the per-LANE cap (hardware category). Override via
+# MIOS_COUNCIL_MAX / MIOS_AGENT_ENDPOINT_CONCURRENCY.
+council_max          = 4      # max council SECONDARIES per turn (0 = all; was uncapped)
+endpoint_concurrency = 2      # max concurrent calls to ONE ollama daemon (anti cold-load herd)
+# ── Admission controller (P1, operator 2026-06-01). Gated default-OFF; capacity-
+# aware admission that retires the static caps as the sole governor. _disp_num
+# reads these from here directly.
+admit_enable         = false  # master switch (live-enabled via a drop-in today; flip here to bake on)
+admit_load_ceil      = 56     # 1-min loadavg ceiling (cpu*2 on the 28-core dev VM); over -> backpressure
+admit_mem_pct        = 92     # mem% ceiling; over -> backpressure
+admit_max_wait       = 8.0    # max seconds a dispatch waits at the gate before admitting anyway (no deadlock)
+# ── Tool-surface shaping (operator 2026-06-01). Per-lane tool CAP (weak lanes
+# like the iGPU llama.cpp time out grammar-constraining all 71 verbs; they get a
+# capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
+lane_tool_cap        = "igpu:15,mobile:15"   # lane:cap CSV; 0/absent = full surface (fast gpu/cpu)
+no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
+worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
 # ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
 # defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
 # fires WITH CPU ... any engine/node" + "add per-lane context trimming".
@@ -906,6 +934,20 @@ lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash
 max_attempts    = 3    # judge-gated re-search attempts (was 5)
 passes          = 3    # search->judge->re-search drill passes (was 4)
 crawl_timeout_s = 18   # deep crawl4ai/Camoufox fallback per-page cap, seconds (was 45)
+
+# ── Knowledge / tiered semantic memory (P2, operator 2026-06-01) ──────────────
+# The agent-pipe persists every finished Q+A to the SurrealDB `knowledge` table
+# + recalls by embedding cosine. P2 added tiering: recall blends cosine with
+# outcome (was the prior turn satisfied), tier (hot/warm/cold), and access
+# frequency. Rank weights default near-zero -> recall == pure recency+cosine
+# until tuned. Read directly via _toml_section("knowledge") / _cfg_num.
+[knowledge]
+recall_strict_score = 0.82   # above this cosine a recall is trusted without a shared-topic-anchor token
+rank_outcome        = 0.05   # weight: + if the recalled answer's turn was satisfied, - if unsatisfied
+rank_hot            = 0.03   # weight: + if the row is tier=hot (frequently paged in)
+rank_access         = 0.02   # weight: * log1p(access_count)
+rank_age            = 0.0    # weight: - age in days (inert by default)
+hot_threshold       = 5      # access_count at which a recalled row is promoted to tier=hot
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
@@ -2601,6 +2643,12 @@ mine_interval_minutes   = 60
 # authored skills land in /var/lib/mios/skills/ (mutable).
 seed_catalog_dir        = "/usr/share/mios/skills"
 local_catalog_dir       = "/var/lib/mios/skills"
+# P2 outcome-gated auto-promotion (operator 2026-06-01): a mined skill auto-
+# promotes only if its recorded skill_invocation success rate clears the floor
+# AND it has enough samples (else samples are too few to block). mios-skills
+# reads the matching MIOS_SKILLS_* env (SSOT-routed via userenv.sh).
+min_success_rate    = 0.7   # P2: a mined skill auto-promotes only if its skill_invocation success rate >= this
+min_success_samples = 3     # ...and it has at least this many recorded invocations (else not blocked)
 
 [agent_pipe]
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
@@ -2794,7 +2842,7 @@ opencode_config     = "/etc/mios/opencode/opencode.json"
 opencode_gateway_workdir   = "/var/lib/mios/opencode-gateway/work"
 # Per-run timeout (s). Under VRAM pressure the run times out and the gateway
 # returns empty so the swarm fan-out drops opencode harmlessly.
-opencode_gateway_timeout_s = 90
+opencode_gateway_timeout_s = 90    # opencode `run` HANGS (returns nothing even with the model warm + 240s); 240 just made every coding turn wait longer. Fail FAST at 90 so a hung opencode drops to a 💤 quickly. Restore a longer budget only once `run` headless mode actually returns.
 # Unified agent-plane tree (full-hybrid relocation 2026-05-31): all three
 # agents live under /usr/lib/mios/agents/ — hermes-agent/ (Hermes code + bin),
 # opencode/bin/opencode (binary), opencode-gateway/ (the /v1 shim) — and share
@@ -4551,6 +4599,15 @@ gid  = 822
 user = "mios-ollama-cpu"
 uid  = 823
 gid  = 823
+# Runaway/OOM guard (operator 2026-06-01): the CPU light-lane cold-loaded up to
+# 6 models x 8 parallel slots with NO memory cap -> a wide research fan-out
+# OOM-wedged the 40GiB VM (kernel OOM killer 3x). Cap loaded models LOW (the
+# light-lane only needs a micro-LLM resident) + a hard MemoryMax so a herd dies
+# WITHIN this cgroup, not the box. Rendered into mios-ollama-cpu.container.
+num_parallel = 4
+max_loaded   = 2
+mem_high     = "12G"
+mem_max      = "16G"
 
 # [services.webtools] -- the consolidated web-tools container (mios-webtools:
 # firecrawl + crawl4ai + camoufox). Renamed from [services.crawl4ai] on the

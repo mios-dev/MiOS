@@ -69,8 +69,14 @@ Environment=HOME=/var/lib/ollama-cpu
 # instance. mios-daemon's classify + refusal + cron loops all hit
 # this lane; agent-pipe's router classifier hits it; future kanban-
 # auto-dispatched parallel CPU agents will saturate it.
-Environment=OLLAMA_NUM_PARALLEL=8
-Environment=OLLAMA_MAX_LOADED_MODELS=6
+# RUNAWAY/OOM FIX (operator 2026-06-01): MAX_LOADED_MODELS was 6 with NO
+# MemoryMax -- a wide research fan-out cold-loaded up to 6 distinct models
+# here at once -> the kernel OOM killer fired repeatedly on this unit -> the
+# whole VM wedged (3x terminate). Cap loaded models LOW (the light-lane only
+# needs the micro-LLM resident at a time) and let parallel slots reuse it.
+# SSOT: mios.toml [ai] knobs rendered to MIOS_OLLAMA_CPU_*.
+Environment=OLLAMA_NUM_PARALLEL=${MIOS_OLLAMA_CPU_NUM_PARALLEL:-4}
+Environment=OLLAMA_MAX_LOADED_MODELS=${MIOS_OLLAMA_CPU_MAX_LOADED:-2}
 
 # Volumes:
 #   /var/lib/ollama          shared writable model store (read-write
@@ -95,6 +101,15 @@ Label=io.podman_desktop.openInBrowser=http://localhost:11435/
 Restart=on-failure
 RestartSec=10
 Delegate=yes
+# OOM CONTAINMENT (operator 2026-06-01 wedge fix): cap this unit's memory so a
+# cold-load storm OOM-kills WITHIN the cgroup instead of wedging the whole VM.
+# MemoryHigh applies reclaim pressure first (soft); MemoryMax is the hard cap.
+# Sized for the 40GiB-RAM dev VM: generous enough for normal micro-LLM load
+# (a few small models resident) but a hard ceiling that contains a runaway
+# herd to THIS cgroup instead of taking down the box. SSOT: mios.toml
+# [ai].ollama_cpu_mem_{high,max} rendered to MIOS_OLLAMA_CPU_MEM_{HIGH,MAX}.
+MemoryHigh=${MIOS_OLLAMA_CPU_MEM_HIGH:-12G}
+MemoryMax=${MIOS_OLLAMA_CPU_MEM_MAX:-16G}
 
 [Install]
 WantedBy=multi-user.target default.target

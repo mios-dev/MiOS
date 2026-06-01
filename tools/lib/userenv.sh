@@ -361,6 +361,11 @@ slots = [
     ("services.ollama_cpu.user",       "MIOS_OLLAMA_CPU_USER"),
     ("services.ollama_cpu.uid",        "MIOS_OLLAMA_CPU_UID"),
     ("services.ollama_cpu.gid",        "MIOS_OLLAMA_CPU_GID"),
+    # OOM/parallelism guard (operator 2026-06-01) -> mios-ollama-cpu.container
+    ("services.ollama_cpu.num_parallel", "MIOS_OLLAMA_CPU_NUM_PARALLEL"),
+    ("services.ollama_cpu.max_loaded", "MIOS_OLLAMA_CPU_MAX_LOADED"),
+    ("services.ollama_cpu.mem_high",   "MIOS_OLLAMA_CPU_MEM_HIGH"),
+    ("services.ollama_cpu.mem_max",    "MIOS_OLLAMA_CPU_MEM_MAX"),
     # [services.webtools] -- consolidated web-tools container (firecrawl +
     # crawl4ai + camoufox). Renamed from [services.crawl4ai] 2026-05-24; the
     # canonical env is now MIOS_WEBTOOLS_* + legacy MIOS_CRAWL4AI_* aliases are
@@ -429,6 +434,8 @@ slots = [
     ("skills.mine_interval_minutes",   "MIOS_SKILLS_MINE_INTERVAL_MINUTES"),
     ("skills.seed_catalog_dir",        "MIOS_SKILLS_SEED_CATALOG_DIR"),
     ("skills.local_catalog_dir",       "MIOS_SKILLS_LOCAL_CATALOG_DIR"),
+    ("skills.min_success_rate",        "MIOS_SKILLS_MIN_SUCCESS_RATE"),
+    ("skills.min_success_samples",     "MIOS_SKILLS_MIN_SUCCESS_SAMPLES"),
     # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
     ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),

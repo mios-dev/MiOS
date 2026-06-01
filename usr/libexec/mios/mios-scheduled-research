@@ -22,11 +22,24 @@ PROMPT_DIR = "/var/lib/mios/cron-director/prompts"
 PIPE_URL = os.environ.get("MIOS_SCHED_PIPE_URL", "http://127.0.0.1:8640/v1/chat/completions")
 PIPE_MODEL = os.environ.get("MIOS_SCHED_MODEL", "mios-agent")
 PIPE_TIMEOUT = float(os.environ.get("MIOS_SCHED_TIMEOUT", "240"))
+# Autonomous turns must NOT trigger the WIDE research fan-out (operator
+# 2026-06-01 autonomous-wedge fix). A scheduled research prompt is a research
+# turn -> the agent-pipe would otherwise fan out with include_research=True and
+# cold-load every 2-4GB replica across all lanes; fired on a timer with no human
+# watching, that periodically thundering-herds ollama and wedges the VM. We tag
+# the request metadata.mios_autonomous=true so the pipe takes the BOUNDED path
+# (narrow council, no research-replica fan-out). SSOT: MIOS_SCHED_BOUNDED.
+SCHED_BOUNDED = os.environ.get("MIOS_SCHED_BOUNDED", "true").lower() \
+    not in {"false", "0", "no"}
 
 
 def _run_pipe(prompt: str) -> str:
     payload = {"model": PIPE_MODEL, "stream": False,
                "messages": [{"role": "user", "content": prompt}]}
+    if SCHED_BOUNDED:
+        # Honored by the agent-pipe (_council_research / fan-out gate): an
+        # autonomous turn stays narrow no matter the research intent.
+        payload["metadata"] = {"mios_autonomous": True}
     req = urllib.request.Request(
         PIPE_URL, data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"})

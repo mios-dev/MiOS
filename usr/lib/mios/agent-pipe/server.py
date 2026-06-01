@@ -164,6 +164,11 @@ def _cfg_num(table: dict, env: str, key: str, default, cast=int):
 # SSOT today -- passes / crawl_timeout_s / max_attempts; the rest are a noted
 # follow-up sweep.)
 _WEB_TOML = _toml_section("web_research")
+# [knowledge] SSOT (operator 2026-06-01 P2): the tiered semantic-memory recall
+# weights + thresholds live in mios.toml [knowledge], not as code literals. The
+# MIOS_KNOWLEDGE_* env vars stay as runtime overrides; the trailing literal is
+# the last-resort fallback. Read via _cfg_num(_KN_TOML, env, key, default, cast).
+_KN_TOML = _toml_section("knowledge")
 WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
@@ -307,6 +312,36 @@ _NODE_LIVE: dict = {}  # name -> (probed_ts, reachable)
 SLOW_LANES = set(x.strip() for x in os.environ.get(
     "MIOS_SLOW_LANES", "igpu,mobile,accelerator,cpu").split(",") if x.strip())
 SLOW_LANE_BLOCK_CHARS = int(os.environ.get("MIOS_SLOW_LANE_BLOCK_CHARS", "1500"))
+# Per-lane TOOL-SURFACE CAP (operator 2026-06-01 "NOTHING should be toolless --
+# everything gets tools, or the agent contract .md isn't working"). EVERY agent
+# gets real tools; a WEAK device just gets FEWER of them. The Windows iGPU
+# llama.cpp/Vulkan node TIMES OUT grammar-constraining all 71 schemas (15 ~9s,
+# 40 ~33s, 71 timeout), so its lane is capped to a prioritised subset (read/web/
+# state tools first, via _tool_priority) it can actually execute in budget.
+# 0 / absent = the FULL surface (fast gpu/cpu lanes). Format: "lane:cap,...".
+# SSOT env MIOS_LANE_TOOL_CAP; default caps the iGPU + mobile lanes.
+def _parse_lane_caps(spec: str) -> dict:
+    out: dict = {}
+    for part in (spec or "").split(","):
+        part = part.strip()
+        if ":" in part:
+            k, _, v = part.partition(":")
+            try:
+                out[k.strip().lower()] = int(v.strip())
+            except ValueError:
+                pass
+    return out
+
+
+LANE_TOOL_CAP = _parse_lane_caps(
+    os.environ.get("MIOS_LANE_TOOL_CAP")
+    or str(_toml_section("dispatch").get("lane_tool_cap", "igpu:15,mobile:15")))
+
+
+def _lane_tool_cap(lane: str) -> int:
+    """Tool-count cap for a lane (0 = full surface). Weak lanes get a capped but
+    REAL toolset; never zero."""
+    return LANE_TOOL_CAP.get(str(lane or "").lower().strip(), 0)
 # SSOT (operator 2026-05-31 "HARDCODES!!!"): the swarm/DAG/deepen tunables in
 # this block are NOT code literals -- they live in mios.toml [dispatch], layered
 # vendor <- /etc <- ~/.config via _dispatch_toml(). The MIOS_* env vars are the
@@ -445,6 +480,14 @@ STATUS_AS_REASONING = os.environ.get(
 AGENT_CONCURRENCY = _disp_num("MIOS_AGENT_CONCURRENCY", "agent_concurrency", 3)
 _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
+# Council ROSTER width cap (operator 2026-06-01 runaway fix). Bounds how many
+# SECONDARY agents a council turn engages -- distinct from _agent_sem (which
+# bounds how many run AT ONCE). The old code read MIOS_COUNCIL_MAX with a 0
+# (UNCAPPED) default, so a trivial prompt fanned out to every live agent and
+# cold-loaded all their models simultaneously -> ollama thundering herd ->
+# loadavg 128 -> VM wedge. Default to a sane width; 0 = uncapped (opt-in).
+COUNCIL_MAX_DEFAULT = _disp_num("MIOS_COUNCIL_MAX", "council_max", 4)
+
 # Per-LANE concurrency (operator 2026-05-24: "iGPU fires WITH CPU cores as well
 # as the rest of the other engines, hardware or nodes"). The single global
 # _agent_sem above serialised DISTINCT hardware -- the iGPU (a separate node)
@@ -455,6 +498,33 @@ _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 # MIOS_AGENT_CONCURRENCY); override one lane via MIOS_AGENT_LANE_CONCURRENCY_<LANE>
 # (e.g. _GPU=2 to protect the shared 4090's VRAM while iGPU/CPU/nodes run free).
 _LANE_SEMS: dict = {}
+# Per-ENDPOINT concurrency (operator 2026-06-01 runaway fix). The lane semaphore
+# bounds a hardware CATEGORY, but the truly scarce resource is the physical
+# ollama daemon: research-dgpu-1/2/3 all hit localhost:11434 yet (carrying
+# distinct lane keys) each got its own lane permit -> 3 simultaneous COLD model
+# loads of the SAME daemon. A wide research fan-out thus cold-loaded N models on
+# one ollama at once -> thundering herd -> loadavg 128 -> VM wedge. This caps how
+# many concurrent calls hit ONE endpoint regardless of lane, so cold-starts on a
+# shared daemon serialize. SSOT [dispatch].endpoint_concurrency (default 2).
+_ENDPOINT_SEMS: dict = {}
+ENDPOINT_CONCURRENCY = _disp_num("MIOS_AGENT_ENDPOINT_CONCURRENCY",
+                                 "endpoint_concurrency", 2)
+
+# ── Admission controller (operator 2026-06-01 P1): capacity-aware admission
+# that REPLACES pure-FIFO semaphore acquisition with a gate on live host load +
+# per-endpoint VRAM/cold-load + priority. DEFAULT OFF (MIOS_ADMIT_ENABLE) so it
+# is a pure no-op until observed+enabled; DEGRADE-OPEN everywhere (any error ->
+# admit, never block a turn). Targets the documented loadavg-128 wedge + cold-
+# load thundering herd without the blunt static caps.
+ADMIT_ENABLE = str(os.environ.get("MIOS_ADMIT_ENABLE")
+                   or _DISPATCH_TOML.get("admit_enable", "false")).lower() in {"1", "true", "yes"}
+ADMIT_LOAD_CEIL = _disp_num("MIOS_ADMIT_LOAD_CEIL", "admit_load_ceil",
+                            max(2, (os.cpu_count() or 4)) * 2, float)
+ADMIT_MEM_PCT = _disp_num("MIOS_ADMIT_MEM_PCT", "admit_mem_pct", 92, float)
+ADMIT_MAX_WAIT = _disp_num("MIOS_ADMIT_MAX_WAIT", "admit_max_wait", 8.0, float)
+_HOST_STATS_CACHE = {"t": 0.0, "v": None}
+_RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
+_ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
 
 
 def _lane_sem(key: str) -> asyncio.Semaphore:
@@ -477,6 +547,64 @@ def _lane_sem(key: str) -> asyncio.Semaphore:
                       "lane_concurrency_" + _k, _general)
         _LANE_SEMS[key] = asyncio.Semaphore(max(1, n))
     return _LANE_SEMS[key]
+
+
+def _endpoint_key(ep: str) -> str:
+    """host:port of an endpoint URL -- the identity of the physical inference
+    daemon (operator 2026-06-01). Strips scheme + path so http://localhost:11434
+    /v1 and http://localhost:11434/api/chat collapse to one key."""
+    s = str(ep or "")
+    s = s.split("://", 1)[-1]          # drop scheme
+    return s.split("/", 1)[0] or s     # keep host:port
+
+
+def _endpoint_sem(ep: str) -> asyncio.Semaphore:
+    """Concurrency gate for ONE inference endpoint (the physical ollama daemon),
+    so a wide fan-out cannot cold-load N models on the SAME backend at once
+    (operator 2026-06-01 thundering-herd runaway). Lazily created; SSOT
+    [dispatch].endpoint_concurrency. Lane semaphore still applies on top --
+    this bounds the shared DAEMON, the lane bounds the hardware CATEGORY."""
+    key = _endpoint_key(ep) or "default"
+    if key not in _ENDPOINT_SEMS:
+        _ENDPOINT_SEMS[key] = asyncio.Semaphore(max(1, ENDPOINT_CONCURRENCY))
+    return _ENDPOINT_SEMS[key]
+
+
+async def _admit(ep: str, model: str, lane: str, priority: float = 5.0) -> None:
+    """Capacity-aware admission gate, run BEFORE the endpoint/lane semaphores.
+    No-op unless ADMIT_ENABLE. DEGRADE-OPEN: any error -> return (admit). Bounds
+    every wait by ADMIT_MAX_WAIT then admits anyway -> never deadlocks a turn.
+    Gates: (1) global host-load/mem ceiling; (2) a COLD model on an at-VRAM-
+    ceiling endpoint waits briefly so cold loads serialize. Warm/under-ceiling
+    dispatch returns immediately. (_host_stats_cached/_resident_cached/
+    _over_global_ceiling/_is_warm are defined below near _ollama_resident.)"""
+    if not ADMIT_ENABLE:
+        return
+    try:
+        deadline = time.monotonic() + ADMIT_MAX_WAIT
+        # (1) global ceiling: if over, wait (low priority waits longer) up to the
+        # deadline, re-checking; then admit regardless (degrade-open).
+        while _over_global_ceiling() and time.monotonic() < deadline:
+            # higher priority -> shorter back-off; bounded so we always progress
+            _backoff = max(0.15, (10.0 - float(priority)) * 0.1)
+            await asyncio.sleep(min(_backoff, max(0.0, deadline - time.monotonic())))
+        # (2) cold-load serialization on a hot endpoint: if the model is COLD and
+        # the endpoint is already near VRAM ceiling, hold briefly so we don't pile
+        # a 2nd cold load onto a saturated daemon (the thundering-herd guard).
+        warm = await _is_warm(ep, model)
+        if not warm:
+            res = await _resident_cached(ep)
+            used_mb = sum(int(m.get("size_vram") or 0) for m in res) // (1024 * 1024)
+            # reuse the existing VRAM budget/headroom constants if present
+            try:
+                budget = VRAM_BUDGET_MB
+                headroom = VRAM_TURN_HEADROOM_MB
+            except NameError:
+                budget, headroom = 23000, 16000
+            if used_mb > (budget - headroom) and time.monotonic() < deadline:
+                await asyncio.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
+    except Exception:  # noqa: BLE001 -- admission must never block a turn
+        return
 
 # Router (layer-1 micro-LLM classifier) config.
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
@@ -1275,6 +1403,65 @@ async def _ollama_resident(endpoint: str) -> list:
     return []
 
 
+# ── Admission-controller capacity readers (operator 2026-06-01 P1). Short-TTL
+# caches so the per-dispatch admission gate (_admit, above) costs ~one dict
+# lookup on the warm/under-ceiling fast path. ALL degrade-open: any error/miss
+# returns the ADMIT-favouring value so a probe failure never gates a turn.
+# (_host_stats is defined later in the file; resolved at call time.)
+def _host_stats_cached(ttl: float = 1.0) -> dict:
+    """_host_stats() with a short TTL cache (admission reads it per-dispatch).
+    Degrade-open: {} on any error."""
+    try:
+        now = time.monotonic()
+        if _HOST_STATS_CACHE["v"] is None or now - _HOST_STATS_CACHE["t"] > ttl:
+            _HOST_STATS_CACHE["v"] = _host_stats()
+            _HOST_STATS_CACHE["t"] = now
+        return _HOST_STATS_CACHE["v"] or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+async def _resident_cached(ep: str, ttl: float = 1.5) -> list:
+    """_ollama_resident(ep) with a short per-endpoint TTL cache. [] on error."""
+    try:
+        now = time.monotonic()
+        c = _RESIDENT_CACHE.get(ep)
+        if c is None or now - c["t"] > ttl:
+            v = await _ollama_resident(ep)
+            _RESIDENT_CACHE[ep] = {"t": now, "v": v or []}
+            return v or []
+        return c["v"]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _over_global_ceiling() -> bool:
+    """True when host load or mem is over the admission ceiling. Degrade-open:
+    False (admit) on any error."""
+    try:
+        s = _host_stats_cached()
+        if not s:
+            return False
+        load = s.get("load") or []
+        l1 = float(load[0]) if load else 0.0
+        memp = float(s.get("mem_used_pct") or 0.0)
+        return l1 > ADMIT_LOAD_CEIL or memp > ADMIT_MEM_PCT
+    except Exception:  # noqa: BLE001
+        return False
+
+
+async def _is_warm(ep: str, model: str) -> bool:
+    """Is `model` already resident on `ep`? Degrade-open: True (treat as warm ->
+    admit fast) on error, so a probe failure never gates dispatch."""
+    try:
+        if not model:
+            return True
+        res = await _resident_cached(ep)
+        return any(str(m.get("name")) == str(model) for m in res) if res else False
+    except Exception:  # noqa: BLE001
+        return True
+
+
 async def _ollama_unload(name: str, endpoint: str) -> None:
     try:
         async with httpx.AsyncClient(timeout=10) as s:
@@ -1426,6 +1613,34 @@ def _endpoint_is_ollama(ep: str, cfg: dict, engine: Optional[str] = None) -> boo
     if api in ("openai", "v1", "oai", "chat"):
         return False
     return any(h and h in (ep or "") for h in _OLLAMA_API_HINTS)
+
+
+# Endpoints whose OpenAI surface does NOT accept tool_choice="required"
+# (operator 2026-06-01: the Windows iGPU llama.cpp server b9305 at :11436 400s on
+# tool_choice=required -> the iGPU node always 💤'd on a force-tool turn). SSOT:
+# an agent/engine declares api="llamacpp" (or tool_choice=false) to opt out, else
+# the env hint list (default the iGPU :11436 lane) -- no bare port literal in the
+# routing decision. llama.cpp still honours `tools`; only the FORCED choice fails.
+_NO_TOOL_CHOICE_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
+_NO_TOOL_CHOICE_HINTS = tuple(
+    h.strip() for h in str(os.environ.get("MIOS_NO_TOOL_CHOICE_HINTS")
+                           or _DISPATCH_TOML.get("no_tool_choice_hints", "11436")).split(",")
+    if h.strip())
+
+
+def _endpoint_supports_tool_choice(ep: str, cfg: dict,
+                                   engine: Optional[str] = None) -> bool:
+    """False when the endpoint rejects tool_choice='required' (llama.cpp). The
+    agent/engine can opt out via api=llamacpp or an explicit tool_choice=false;
+    else fall back to the env-SSOT host:port hint list."""
+    api = _binding_api(cfg, engine)
+    if api in _NO_TOOL_CHOICE_API:
+        return False
+    if cfg.get("tool_choice") is False or \
+            (engine and isinstance((cfg.get("engines") or {}).get(engine), dict)
+             and (cfg["engines"][engine].get("tool_choice") is False)):
+        return False
+    return not any(h and h in (ep or "") for h in _NO_TOOL_CHOICE_HINTS)
 
 
 # ── Model-adapter gateway: OpenAI <-> Anthropic / Gemini (item #1 slice 4) ──
@@ -1884,7 +2099,8 @@ def _agent_skill_tags(cfg: dict) -> list[str]:
 def _pick_fanout_agents(primary_name: str,
                         refined: Optional[dict],
                         *, force_council: bool = False,
-                        live_agents: Optional[set] = None) -> list:
+                        live_agents: Optional[set] = None,
+                        include_research: bool = False) -> list:
     """Pick SECONDARY (name, cfg) agents to run CONCURRENTLY alongside the
     chosen primary -- operator 2026-05-21 'a couple at a time' + 'self-
     delegate to CPU concurrently to pending/future GPU operations' + 'make
@@ -1916,11 +2132,21 @@ def _pick_fanout_agents(primary_name: str,
         # behaviour, so this never strands a turn on a bad/absent probe.
         return live_agents is None or name in live_agents
 
+    def _research_ok(c: dict) -> bool:
+        # research_only replicas (operator 2026-05-29; mirrors _agent_dag_from_
+        # tasks._eligible) join ONLY on a research/deep turn. On an everyday
+        # agent/chat turn they MUST be excluded -- otherwise every turn fans out
+        # to all 5+ research-* replicas and cold-loads their 2-4GB models at
+        # once (operator 2026-06-01 runaway: a trivial prompt pulled in 11
+        # secondaries incl. all research replicas -> ollama thundering herd ->
+        # loadavg 128). The council filter previously ignored research_only.
+        return include_research or not c.get("research_only")
+
     if force_council:
         primary_lane = _agent_lane(_AGENT_REGISTRY.get(primary_name) or {})
         swarm = [(name, cfg) for name, cfg in _AGENT_REGISTRY.items()
                  if name != primary_name and not _opted_out(cfg)
-                 and _live(name)]
+                 and _live(name) and _research_ok(cfg)]
         swarm.sort(key=lambda nc: (
             0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
         return swarm
@@ -1940,16 +2166,24 @@ def _pick_fanout_agents(primary_name: str,
         council = [
             (name, cfg) for name, cfg in _AGENT_REGISTRY.items()
             if name != primary_name and not _opted_out(cfg) and _live(name)
+            and _research_ok(cfg)
         ]
         council.sort(key=lambda nc: (
             0 if _agent_lane(nc[1]) != primary_lane else 1, nc[0]))
-        # FIRST PASS = ALL nodes (operator 2026-05-23: "every turn dispatches to
-        # ALL nodes/endpoints for a first pass/understanding"). Previously
-        # capped at fanout_max-1; now every eligible node participates -- the
-        # _agent_sem (MIOS_AGENT_CONCURRENCY) bounds how many run AT ONCE, so
-        # all nodes contribute without re-creating the engine-overrun burst.
-        # MIOS_COUNCIL_MAX caps the roster only as a safety valve (0 = all).
-        _cmax = int(os.environ.get("MIOS_COUNCIL_MAX", "0"))
+        # Roster width cap (operator 2026-06-01 runaway fix): a non-research turn
+        # excludes research_only replicas (via _research_ok) AND is capped at
+        # COUNCIL_MAX. The OLD default was MIOS_COUNCIL_MAX=0 (UNCAPPED) -> a
+        # trivial prompt fanned out to all 11 live agents, cold-loading every
+        # model at once -> ollama thundering herd -> loadavg 128 -> VM wedge.
+        # Now SSOT-wired ([dispatch].council_max) with a SANE non-zero default;
+        # the per-endpoint + _agent_sem semaphores still bound how many run AT
+        # ONCE, this bounds the roster SIZE. 0 still = uncapped (explicit opt-in).
+        _cmax = COUNCIL_MAX_DEFAULT
+        # Shed council width under load (operator P1): when the admission ceiling
+        # is hit, engage fewer secondaries -> fewer concurrent cold loads. Only
+        # ever NARROWS; no-op when admission disabled or under ceiling.
+        if ADMIT_ENABLE and _cmax != 1 and _over_global_ceiling():
+            _cmax = max(1, (_cmax if _cmax > 0 else len(council)) // 2)
         return council if _cmax <= 0 else council[:_cmax]
 
     corpus = ""
@@ -2029,17 +2263,26 @@ def _strip_agent_chrome(text: str) -> str:
 
 
 async def _call_agent_complete(name, cfg, body, headers, client,
-                               *, prefer_cpu: bool = True) -> tuple:
+                               *, prefer_cpu: bool = True,
+                               priority: float = 5.0) -> tuple:
     """Bounded entry point (operator 2026-05-23/24): concurrent agent dispatches
     -- council secondaries AND DAG-level nodes -- acquire the PER-LANE semaphore
     for the engine/node they actually run on, so distinct hardware (dGPU, CPU,
     iGPU, accelerator, each remote node) all fire CONCURRENTLY and only same-lane
-    agents queue. No nested agent calls, so no deadlock."""
+    agents queue. No nested agent calls, so no deadlock. `priority` (default 5.0
+    = neutral) feeds the capacity-aware _admit gate when MIOS_ADMIT_ENABLE."""
     _engine = _agent_offload_engine(cfg) if prefer_cpu else None
-    async with _lane_sem(_engine or _lane_sem_key(cfg)):
-        _n, _t = await _call_agent_complete_inner(
-            name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
-        return _n, _strip_agent_chrome(_t)
+    _ep, _adm_model = _agent_binding(cfg, _engine)
+    # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
+    # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
+    # loads on ONE ollama daemon), lane cap INNER (hardware category) -- operator
+    # 2026-06-01 thundering-herd fix.
+    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), priority)
+    async with _endpoint_sem(_ep):
+        async with _lane_sem(_engine or _lane_sem_key(cfg)):
+            _n, _t = await _call_agent_complete_inner(
+                name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
+            return _n, _strip_agent_chrome(_t)
 
 
 async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
@@ -2435,6 +2678,28 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             tmsg["content"] = _cap_verb_result("os_recipe", out)
             tool_msgs.append(tmsg)
             continue
+        # ── (b2) MCP tool: mcp.<server>.<tool> -> external MCP server ──
+        # No MiOS permission marker -> treated NON-read, gated on allow_write
+        # (a worker/agent loop), mirroring the skill branch (operator P0).
+        if vname.startswith("mcp."):
+            if not allow_write:
+                tmsg["content"] = (
+                    f"(skipped MCP tool {vname}: writes disabled this turn)")
+                tool_msgs.append(tmsg)
+                continue
+            ran_read = True
+            push(f" 🔧 {vname}")
+            try:
+                res = await asyncio.wait_for(
+                    _mcp_call_tool(vname, args),
+                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+            except Exception as e:  # noqa: BLE001
+                res = {"error": str(e)}
+            out = (json.dumps(res, ensure_ascii=False)
+                   if isinstance(res, (dict, list)) else str(res))
+            tmsg["content"] = out[:READ_TOOL_ENRICH_CHARS]
+            tool_msgs.append(tmsg)
+            continue
         # ── (c) VERB tool: bare verb name -> dispatch_mios_verb ──
         v = _VERB_CATALOG.get(vname)
         # read verbs always auto-execute; write/launch only when allow_write (an
@@ -2495,6 +2760,35 @@ def _hints_write_action(refined: "Optional[dict]") -> bool:
     return False
 
 
+# A secondary that NARRATES a refusal/disclaimer with NO tool_calls (and nothing
+# rescuable) defeats the tool-loop: ollama /api/chat honours no tool_choice, so
+# we can't force a call up front. Detect the "I can't / no data / use my tools"
+# shape and inject ONE explicit nudge to call the tool, then re-call once -- the
+# ollama-lane equivalent of tool_choice=required (operator 2026-06-01: research
+# replicas replied "I am not available... use my search tools" / "no news in the
+# provided context" instead of calling web_search).
+_DISCLAIM_MARKERS = (
+    "not available", "no data", "no information", "no specific",
+    "provided context", "i cannot", "i can't", "unable to", "i do not have",
+    "i don't have", "use my search", "use your search", "knowledge is current",
+    "as of my knowledge", "no relevant", "could not find", "couldn't find",
+    "no news", "try a different", "would you like me to",
+)
+
+
+def _looks_like_disclaimer(text: str) -> bool:
+    t = (text or "").strip().lower()
+    return bool(t) and any(m in t for m in _DISCLAIM_MARKERS)
+
+
+_TOOL_NUDGE = (
+    "You DID NOT call a tool. You are NOT knowledge-frozen and you DO have live "
+    "tools (e.g. web_search) — do not disclaim, do not say 'no data' or 'use my "
+    "tools'. CALL the relevant tool NOW to fetch what you need, then answer from "
+    "the real results."
+)
+
+
 async def _ollama_secondary_tool_loop(client, base: str, model: str,
                                       messages: list, tools: list, timeout,
                                       push, num_ctx: "Optional[int]" = None,
@@ -2512,6 +2806,7 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
     ready for the final streamed answer; best-effort (returns what it has)."""
     msgs = list(messages)
     _seen: set = set()   # tool-call signatures already made -> loop guard
+    _nudged = False      # one-shot anti-disclaimer nudge already injected?
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
         payload = {"model": model, "messages": msgs, "tools": tools,
                    "think": False, "stream": False}
@@ -2540,6 +2835,15 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                 push(" 🛟")
                 tcs = _rescued
         if not tcs:
+            # No tool call AND it disclaimed/punted -> nudge ONCE to actually
+            # call the tool, then re-loop (ollama has no tool_choice=required).
+            if not _nudged and _looks_like_disclaimer(msg.get("content") or ""):
+                _nudged = True
+                push(" 🪤")
+                msgs.append({"role": "assistant",
+                             "content": msg.get("content") or ""})
+                msgs.append({"role": "user", "content": _TOOL_NUDGE})
+                continue
             break
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
@@ -2571,6 +2875,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     hardcodes')."""
     msgs = list(messages)
     _seen: set = set()   # tool-call signatures already made -> loop guard
+    _nudged = False      # one-shot anti-disclaimer nudge already injected?
     _hdrs = dict(headers or {})
     if (_BACKEND_KEY
             and "authorization" not in {k.lower() for k in _hdrs}
@@ -2597,6 +2902,14 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 push(" 🛟")
                 tcs = _rescued
         if not tcs:
+            # disclaimer with no tool call -> nudge ONCE then re-loop
+            if not _nudged and _looks_like_disclaimer(msg.get("content") or ""):
+                _nudged = True
+                push(" 🪤")
+                msgs.append({"role": "assistant",
+                             "content": msg.get("content") or ""})
+                msgs.append({"role": "user", "content": _TOOL_NUDGE})
+                continue
             break
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
@@ -2612,7 +2925,8 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
 
 
 async def _call_agent_stream(name, cfg, body, headers, client, q,
-                             *, prefer_cpu: bool = True) -> tuple:
+                             *, prefer_cpu: bool = True,
+                             priority: float = 5.0) -> tuple:
     """Bounded STREAMING sibling of _call_agent_complete (operator
     2026-05-23: a sub-agent's thinking must STREAM into the think blocks
     live, not be collected then flushed last-minute). Streams the
@@ -2623,12 +2937,19 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     polish-merge / scratchpad / roster path downstream is unchanged. Dead
     endpoints + errors yield '' (dropped from the merge), identical
     degradation to the non-streaming path. Acquires the PER-LANE semaphore (the
-    engine/node it runs on), so it fires concurrently with the other lanes."""
+    engine/node it runs on), so it fires concurrently with the other lanes.
+    `priority` (default 5.0 = neutral) feeds the capacity-aware _admit gate."""
     _engine = _agent_offload_engine(cfg) if prefer_cpu else None
-    async with _lane_sem(_engine or _lane_sem_key(cfg)):
-        _n, _t = await _call_agent_stream_inner(
-            name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
-        return _n, _strip_agent_chrome(_t)
+    _ep, _adm_model = _agent_binding(cfg, _engine)
+    # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
+    # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
+    # loads on ONE ollama daemon), lane cap INNER -- operator 2026-06-01.
+    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), priority)
+    async with _endpoint_sem(_ep):
+        async with _lane_sem(_engine or _lane_sem_key(cfg)):
+            _n, _t = await _call_agent_stream_inner(
+                name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
+            return _n, _strip_agent_chrome(_t)
 
 
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
@@ -3579,32 +3900,72 @@ def _worker_tools_surface() -> list:
     return _WORKER_TOOLS_CACHE
 
 
-async def _worker_tools_surface_async() -> list:
+def _tool_priority(t: dict) -> int:
+    """Rank a tool for the CAPPED surface a weak lane (iGPU/mobile) gets: the
+    read/web/search/state tools a reasoning node actually needs come FIRST, so a
+    small cap still yields a USEFUL toolset (operator 2026-06-01: every agent
+    MUST get tools -- a weak device gets a CAPPED surface, never none). Lower =
+    kept first. NO hardcoded topic list -- ranks by the verb's permission +
+    generic name shape only."""
+    fn = (t.get("function") or {})
+    name = str(fn.get("name") or "")
+    base = name.split("__", 1)[-1]            # strip mios_skill__/mios_recipe__
+    cat = _VERB_CATALOG.get(base) or {}
+    perm = str(cat.get("permission", "")).lower()
+    # 0: the universal read/discovery tools every agent leans on first
+    if any(k in base for k in ("search", "web", "fetch", "read", "find",
+                               "status", "list", "get", "query", "env")):
+        return 0
+    if perm == "read":
+        return 1
+    if name.startswith("mios_recipe__") or name.startswith("mios_skill__"):
+        return 3
+    if name.startswith("mcp.") or name.startswith("a2a"):
+        return 4                               # external/federated tools last
+    return 2                                   # write/action verbs last
+
+
+async def _worker_tools_surface_async(cap: int = 0) -> list:
     """The COMPLETE worker tool surface -- verbs + recipes + SKILLS -- in OpenAI
     tools[] shape (operator 2026-05-31 "every fan-out/DAG sub-agent receives the
     COMPLETE capability surface ... as first-class OpenAI tools"). Starts from
     the sync verbs+recipes surface, then appends promoted skills projected via
-    _skill_to_openai_tool (name == mios_skill__<name>). Skills carry no "read"
-    permission marker, so in WORKER_TOOLS_SCOPE=="read" they are treated as
-    NON-read and EXCLUDED; in the default "all" scope they are INCLUDED.
-    Memoised module-global. Degrade-open: if the skill fetch fails (or returns
-    nothing) the surface falls back to verbs+recipes (the sync surface)."""
+    _skill_to_openai_tool (name == mios_skill__<name>).
+
+    cap>0 (operator 2026-06-01 "nothing toolless -- give tools sized to the
+    device"): a weak lane (iGPU llama.cpp / mobile) TIMES OUT grammar-
+    constraining all 71 schemas (15 tools ~9s, 40 ~33s, 71 timeout), so it gets
+    a PRIORITISED subset of `cap` tools (read/web/state first via _tool_priority)
+    -- still REAL tools, just as many as the device executes in budget. cap=0 =
+    full surface (fast gpu/cpu lanes). Memoised: full surface once, caps sliced
+    from it (stable order)."""
     global _WORKER_TOOLS_FULL_CACHE
-    if _WORKER_TOOLS_FULL_CACHE is not None:
-        return _WORKER_TOOLS_FULL_CACHE
-    base = list(_worker_tools_surface())
-    if WORKER_TOOLS_SCOPE == "read":
-        # Skills have no read-permission marker -> non-read -> excluded in
-        # read scope. The full surface == the sync surface; memoise + return.
-        _WORKER_TOOLS_FULL_CACHE = base
-        return _WORKER_TOOLS_FULL_CACHE
-    try:
-        rows = (await _skill_list(status="promoted")) or []
-        for srow in rows:
-            base.append(_skill_to_openai_tool(srow))
-    except Exception:  # noqa: BLE001 -- degrade-open to verbs+recipes
-        log.debug("worker skills surface fetch failed; verbs+recipes only")
-    _WORKER_TOOLS_FULL_CACHE = base
+    if _WORKER_TOOLS_FULL_CACHE is None:
+        base = list(_worker_tools_surface())
+        if WORKER_TOOLS_SCOPE != "read":
+            try:
+                rows = (await _skill_list(status="promoted")) or []
+                for srow in rows:
+                    base.append(_skill_to_openai_tool(srow))
+            except Exception:  # noqa: BLE001 -- degrade-open to verbs+recipes
+                log.debug("worker skills surface fetch failed; verbs+recipes only")
+        # External MCP tools (operator 2026-06-01 P0: federated tool surface).
+        # Gated by env so an operator can keep workers on the local surface.
+        if str(os.environ.get("MIOS_WORKER_MCP_TOOLS")
+               or _DISPATCH_TOML.get("worker_mcp_tools", "true")).lower() \
+                not in {"false", "0", "no"}:
+            try:
+                async with _MCP_CLIENT_LOCK:
+                    _mcp_items = list(_MCP_CLIENT_TOOLS.items())
+                for _k, _info in _mcp_items:
+                    base.append(_mcp_tool_to_openai_tool(_k, _info))
+            except Exception:  # noqa: BLE001 -- degrade-open
+                log.debug("worker MCP tools surface fetch failed")
+        # Stable priority order so a cap slice always keeps the most useful tools
+        # first (sorted is stable, preserving catalog order within a rank).
+        _WORKER_TOOLS_FULL_CACHE = sorted(base, key=_tool_priority)
+    if cap and cap > 0:
+        return _WORKER_TOOLS_FULL_CACHE[:cap]
     return _WORKER_TOOLS_FULL_CACHE
 
 
@@ -5875,6 +6236,23 @@ KNOWLEDGE_RECALL_CANDIDATES = int(
     os.environ.get("MIOS_KNOWLEDGE_RECALL_CANDIDATES", "60") or 60)
 KNOWLEDGE_RECALL_MIN_SCORE = float(
     os.environ.get("MIOS_KNOWLEDGE_RECALL_MIN_SCORE", "0.62") or 0.62)
+# Above this cosine a recall is trusted WITHOUT a shared topic-anchor token;
+# between MIN and STRICT, the recalled row must also share an anchor with the
+# query (operator 2026-06-01 cross-conversation bleed guard).
+KNOWLEDGE_RECALL_STRICT_SCORE = _cfg_num(
+    _KN_TOML, "MIOS_KNOWLEDGE_RECALL_STRICT_SCORE", "recall_strict_score", 0.82, float)
+# P2 tiered-memory recall ranking (operator 2026-06-01): blend the cosine score
+# with outcome (was the prior turn satisfied), tier (hot/warm/cold), access
+# frequency, and age. Weights default NEAR-ZERO so recall == today's pure
+# recency+cosine until an operator tunes them; degrade-open on missing fields.
+KNOWLEDGE_RANK_OUTCOME = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_OUTCOME", "rank_outcome", 0.05, float)
+KNOWLEDGE_RANK_HOT = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_HOT", "rank_hot", 0.03, float)
+KNOWLEDGE_RANK_ACCESS = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_ACCESS", "rank_access", 0.02, float)
+KNOWLEDGE_RANK_AGE = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_AGE", "rank_age", 0.0, float)
+# P2 hot-tier promotion: a row paged in (recalled) at least this many times is
+# marked tier='hot' so the HOT recall weight + a future eviction pass have a
+# real signal. Set high enough that only genuinely-reused memories go hot.
+KNOWLEDGE_HOT_THRESHOLD = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_HOT_THRESHOLD", "hot_threshold", 5, int)
 _KNOWLEDGE_URL_RE = re.compile(r"https?://[^\s\"'<>)\]]+")
 
 
@@ -5999,10 +6377,15 @@ def _write_skill_md_fire(*, query: str, answer: str,
 
 def _store_knowledge(*, query: str, answer: str,
                      session_id: Optional[str],
-                     tool_history: Optional[list] = None) -> None:
+                     tool_history: Optional[list] = None,
+                     satisfied: "Optional[bool]" = None) -> None:
     """Persist a finished Q+A (with derived sources + a query embedding for
     recall) to the global knowledge table, fire-and-forget. NEVER raises -- a
-    storage failure must not affect the answer the operator already received."""
+    storage failure must not affect the answer the operator already received.
+
+    P2: `satisfied` (the turn's Definition-of-Done verdict, or None when not
+    available in scope) is stored as an outcome signal the blended recall rank
+    can weight. None -> the field is simply omitted (degrade-open)."""
     if not KNOWLEDGE_STORE_ENABLED:
         return
     q = (query or "").strip()
@@ -6011,17 +6394,43 @@ def _store_knowledge(*, query: str, answer: str,
         return
     _db_fire(_store_knowledge_task(
         q[:2000], a[:KNOWLEDGE_ANSWER_MAX],
-        session_id, _knowledge_sources(tool_history)))
+        session_id, _knowledge_sources(tool_history), satisfied))
 
 
 async def _store_knowledge_task(q: str, a: str,
                                 session_id: Optional[str],
-                                sources: list) -> None:
+                                sources: list,
+                                satisfied: "Optional[bool]" = None) -> None:
     """Embed the question (so recall is a cheap cosine) then write the row.
     Embedding is best-effort: a miss just stores the row without `emb` -- still
-    persisted + auditable, just not semantically recallable."""
+    persisted + auditable, just not semantically recallable.
+
+    P2 tiering fields are seeded at write time: access_count/recall_hits at 0
+    (so the page-in bump's `(field ?? 0) + 1` has a base + plain reads are
+    NULL-safe), tier='warm' (neutral default; hot/cold transitions are a
+    deferred P2 pass), and `satisfied` (omitted by _db_create when None)."""
     try:
-        row = {"q": q, "answer": a, "sources": sources}
+        # P2 live outcome wiring: when the caller didn't pass an explicit verdict
+        # (the common polish path -- the inline DoD check runs in polish's caller,
+        # not in scope at the store call), look up THIS turn's most-recent
+        # user_query_(un)satisfied event. _store_knowledge_task fires AFTER the
+        # inline check has emitted the event, so LIMIT 1 is reliably this turn's.
+        # Degrade-open: any miss -> satisfied stays None -> field omitted.
+        if satisfied is None:
+            try:
+                _v = await _recent_satisfaction_verdicts(limit=1)
+                if _v:
+                    _k = str((_v[0] or {}).get("kind") or "")
+                    if _k == "user_query_satisfied":
+                        satisfied = True
+                    elif _k == "user_query_unsatisfied":
+                        satisfied = False
+            except Exception:  # noqa: BLE001 -- outcome lookup is best-effort
+                pass
+        row = {"q": q, "answer": a, "sources": sources,
+               "access_count": 0, "recall_hits": 0, "tier": "warm"}
+        if satisfied is not None:
+            row["satisfied"] = satisfied
         if KNOWLEDGE_RECALL_ENABLED:
             emb = await _embed_one(q)
             if emb:
@@ -6051,24 +6460,83 @@ async def _recall_knowledge(query: str) -> str:
         # SELECT projection ("Missing order idiom"), hence `ts` is selected;
         # rows lacking `emb` are filtered in Python below.
         resp = await _db_post(
-            f"SELECT q, answer, emb, ts FROM {KNOWLEDGE_TABLE} "
+            f"SELECT id, q, answer, emb, ts, access_count, last_access, "
+            f"tier, satisfied FROM {KNOWLEDGE_TABLE} "
             f"ORDER BY ts DESC LIMIT {KNOWLEDGE_RECALL_CANDIDATES};")
         rows: list = []
         for st in (resp or []):
             if isinstance(st, dict) and isinstance(st.get("result"), list):
                 rows = st["result"]
+        # TOPICAL anchor guard (operator 2026-06-01 cross-conversation bleed:
+        # a "world news today" turn recalled a prior "AI and 3D printing" answer
+        # purely on cosine >= 0.62 and a research replica parroted it). Require
+        # the recalled row's QUESTION to share >=1 content anchor token with the
+        # current query, so a semantically-near-but-topically-different memory is
+        # dropped. _anchor_tokens/_shares_anchor already exist (web-research use).
+        _q_anchor = _anchor_tokens(query)
         scored = []
         for r in rows:
             emb = r.get("emb")
             if not isinstance(emb, list) or not emb:
                 continue
             s = _cosine(qv, emb)
-            if s >= KNOWLEDGE_RECALL_MIN_SCORE:
-                scored.append((s, r))
-        scored.sort(key=lambda x: -x[0])
+            if s < KNOWLEDGE_RECALL_MIN_SCORE:
+                continue
+            # below a HIGH-confidence cosine, also demand a shared topic anchor
+            if s < KNOWLEDGE_RECALL_STRICT_SCORE and _q_anchor \
+                    and not _shares_anchor(str(r.get("q", "")), _q_anchor):
+                continue
+            scored.append((s, r))
+        # P2 blended rank: cosine + outcome + tier + access - age. All weights
+        # default near-zero -> identical to pure -cosine until tuned. NULL-safe.
+        def _blended(item):
+            s, r = item
+            try:
+                sat = r.get("satisfied")
+                out = (1.0 if sat is True else (-1.0 if sat is False else 0.0))
+                hot = 1.0 if str(r.get("tier") or "") == "hot" else 0.0
+                ac = float(r.get("access_count") or 0)
+                import math as _m
+                acc = _m.log1p(ac) if ac > 0 else 0.0
+                return -(s
+                         + KNOWLEDGE_RANK_OUTCOME * out
+                         + KNOWLEDGE_RANK_HOT * hot
+                         + KNOWLEDGE_RANK_ACCESS * acc)
+            except Exception:  # noqa: BLE001 -- degrade to pure cosine
+                return -s
+        scored.sort(key=_blended)
         top = scored[:KNOWLEDGE_RECALL_K]
         if not top:
             return ""
+        # Page-in counter: bump access_count/last_access/recall_hits on the rows
+        # we actually surfaced (fire-and-forget; degrade-open -- a DB miss just
+        # skips the bump). Requires `id` in the projection (step 1). SurrealDB
+        # returns a SELECTed id as a record-string ("knowledge:abc"); the `??`
+        # null-coalesce (SurrealDB 3.0+) makes the bump safe on legacy rows that
+        # never wrote access_count/recall_hits (step 4 writes them at 0 on new
+        # rows). Each UPDATE is its own fire-and-forget _db_post -> any per-row
+        # error just no-ops; the recall block returns regardless.
+        try:
+            for _s, _r in top:
+                _rid = _r.get("id")
+                if _rid is not None:
+                    _rid = _rid if isinstance(_rid, str) else str(_rid)
+                    if ":" in _rid:
+                        # Also promote to tier='hot' once the row has been paged
+                        # in >= KNOWLEDGE_HOT_THRESHOLD times -- the hot/cold
+                        # transition (so the HOT recall weight + future eviction
+                        # pass have a signal). Same statement, no extra round-trip;
+                        # IF/ELSE keeps a row that hasn't crossed the bar at warm.
+                        _db_fire(_db_post(
+                            f"UPDATE {_rid} SET "
+                            f"access_count = (access_count ?? 0) + 1, "
+                            f"recall_hits = (recall_hits ?? 0) + 1, "
+                            f"last_access = time::now(), "
+                            f"tier = IF (access_count ?? 0) >= "
+                            f"{KNOWLEDGE_HOT_THRESHOLD} THEN 'hot' ELSE "
+                            f"(tier ?? 'warm') END;"))
+        except Exception:  # noqa: BLE001
+            pass
         log.info("knowledge recall: %d/%d hits (top=%.2f)",
                  len(top), len(rows), top[0][0])
         lines = [
@@ -6413,8 +6881,15 @@ async def polish_response(raw_text: str,
         polished, "\n".join([raw_text or "", _src or "", _fc_block or ""]))
     # Store the finished Q+A (with sources) to the global knowledge table.
     # Fire-and-forget -- the answer is already returned regardless.
+    # P2: satisfied is left None here -- polish_response has no DoD verdict in
+    # scope (the inline satisfaction check runs in this function's CALLERS,
+    # async, not threaded down). Degrade-open: the outcome field is simply
+    # omitted (recall rank treats it neutral). Wiring the live verdict down to
+    # this store call is a follow-up; we deliberately do NOT add a new
+    # synchronous satisfaction call in the hot path.
     _store_knowledge(query=user_q, answer=polished,
-                     session_id=session_id, tool_history=tool_history)
+                     session_id=session_id, tool_history=tool_history,
+                     satisfied=None)
     # P5.7 (Hermes v2026.5.28 brief L6 "closed-loop self-learning"): render
     # the run as a SKILL.md episodic-memory file alongside the knowledge row.
     # Same fire-and-forget posture; failure logs at debug + never affects the
@@ -6985,6 +7460,25 @@ def _skill_to_openai_tool(row: dict) -> dict:
             },
         },
         "x-mios-skill": name,
+    }
+
+
+def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
+    """Project a registered external MCP tool (key 'mcp.<server>.<tool>', raw
+    MCP inputSchema) into OpenAI function-tool shape so it joins the worker tool
+    surface (operator 2026-06-01 P0: wire the MCP CLIENT into the agent loop).
+    MCP inputSchema IS JSON-Schema -> drops straight into function.parameters."""
+    schema = info.get("inputSchema")
+    if not isinstance(schema, dict):
+        schema = {"type": "object", "properties": {}, "additionalProperties": True}
+    return {
+        "type": "function",
+        "function": {
+            "name": key,
+            "description": info.get("description") or f"MCP tool {key}",
+            "parameters": schema,
+        },
+        "x-mios-mcp-server": info.get("server_id"),
     }
 
 
@@ -8677,13 +9171,25 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
         body = {"model": acfg.get("model") or aname, "messages": _msgs,
                 "max_tokens": DAG_NODE_MAX_TOKENS}
         try:
-            _, ans = await _call_agent_complete(
-                aname, acfg, body, {"Content-Type": "application/json"},
-                client, prefer_cpu=False)
+            # Cap the re-answer LLM call by the REMAINING deadline budget so a
+            # slow/stuck lane generation cannot overshoot -- the `while` only
+            # gates STARTING an iter, not an in-flight call (operator 2026-05-31
+            # runaway: this un-timeout-wrapped call was the deepen-loop's
+            # multiplicative CPU sink). Floor at 1s so a near-deadline iter still
+            # gets a real attempt; on timeout keep the prior answer + let the
+            # loop's deadline check end it.
+            _budget = _deadline - time.monotonic()
+            if _budget <= 0:
+                break
+            _, ans = await asyncio.wait_for(
+                _call_agent_complete(
+                    aname, acfg, body, {"Content-Type": "application/json"},
+                    client, prefer_cpu=False),
+                timeout=max(1.0, _budget))
             ans = (ans or "").strip()
             if ans:
                 out = ans
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  (incl. asyncio.TimeoutError)
             pass
         satisfied = await _judge_answer_satisfied(base_q, out)
     if iters:
@@ -8726,6 +9232,26 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
             d["node_id"] = nid
             d["repeat_of"] = _prior.get("node_id")
             return d
+        # A2A peer delegation (operator 2026-06-01 P0): a node/agent flagged with
+        # an a2a_peer_id routes to an EXTERNAL agent over A2A instead of a local
+        # /v1 endpoint. Same node_result shape as a local agent node.
+        _peer = (node.get("a2a_peer_id")
+                 or (acfg.get("a2a_peer_id") if isinstance(acfg, dict) else None))
+        if _peer:
+            _t0 = time.time()
+            _env = await _a2a_send_message_to_peer(
+                str(_peer), prompt, context_id=session_id)
+            _txt = _a2a_extract_text(_env)
+            return {
+                "success": bool(_txt),
+                "output": _txt,
+                "latency_ms": int((time.time() - _t0) * 1000),
+                "tool": f"agent:{aname}",
+                "args": {},
+                "node_id": nid,
+                "retries": 0,
+                "_act": _act,
+            }
         t0 = time.time()
         # Inject the rolling scratchpad so this node sees checkpoints from
         # earlier DAG levels (sequential levels -> level N reads level N-1).
@@ -8759,8 +9285,12 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         # so the worker CALLS web_search/etc. + acts via the broker instead of
         # fabricating or disclaiming. Self-gating: a worker that needs no tool
         # just answers in one pass (no-op).
+        # EVERY agent gets tools (operator 2026-06-01 "nothing toolless"); a weak
+        # lane (iGPU llama.cpp / mobile) just gets a CAPPED subset it can grammar-
+        # constrain in budget (the full 71 timed it out), prioritised read/web
+        # first. Fast lanes (gpu/cpu) get the full surface (cap 0).
         if WORKER_TOOLS_ENABLE:
-            _wtools = await _worker_tools_surface_async()
+            _wtools = await _worker_tools_surface_async(cap=_lane_tool_cap(_lane))
             if _wtools:
                 body["tools"] = _wtools
                 body["num_ctx"] = WORKER_TOOL_CTX
@@ -9162,6 +9692,18 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
         tgt = str(t.get("target_agent") or "").strip()
         aname = (tgt if tgt in _AGENT_REGISTRY
                  else (_pick_agent(tgt)[0] if tgt else ""))
+        # ELIGIBILITY (operator 2026-06-01 wedge fix): a per-task target_agent
+        # hint was used AS-IS, bypassing the _eligible() pool filter -- so when
+        # the planner routed a facet to a research_only replica (research-dgpu-*)
+        # it landed in the DAG even on a non-research / AUTONOMOUS turn, defeating
+        # include_research=False and re-creating the wide cold-load fan-out that
+        # OOM-wedged the VM. If the resolved agent is NOT eligible this turn,
+        # redirect it to an eligible pool agent.
+        if aname and aname not in pool and not _eligible(aname):
+            alt = next((a for a in pool if a not in used), None) \
+                or (pool[0] if pool else "")
+            if alt:
+                aname = alt
         if (not aname) or (aname in used and len(used) < len(pool)):
             alt = next((a for a in pool if a not in used), None)
             if alt:
@@ -9228,6 +9770,15 @@ _SWARM_SYSTEM_HEAD = (
     "engine then matches a dictionary entry or a generic tool, not your topic). "
     "Disambiguate any word a search engine would mis-match, and for anything "
     "time-sensitive anchor it to the CURRENT date above (never a past year).\n"
+    "- NEVER emit a GENERIC catch-all `query` like 'current events and news', "
+    "'latest news', 'what is happening', 'trending topics' -- a search engine "
+    "matches the WORD ('current' -> a banking app, a dictionary entry) not real "
+    "news, and the facet comes back empty. Each `query` MUST name a CONCRETE "
+    "subject, region, or sector. For a vague 'what's new / world news today' ask "
+    "with no subject, SPLIT into concrete named facets each with its own concrete "
+    "query, e.g. 'top world headlines <current date>', 'global economy news "
+    "<current date>', 'technology news <current date>', 'major geopolitics news "
+    "<current date>' -- never the single meta-phrase.\n"
     "- GROUND every facet in the user's ACTUAL words PLUS the recent conversation "
     "below. A terse follow-up ('research it deeper', 'do that every 30 minutes', "
     "'find the cheapest', 'set one up') inherits the SUBJECT already established "
@@ -11297,6 +11848,17 @@ async def scheduler_state() -> JSONResponse:
             "recall": "SurrealDB knowledge table (embed + cosine recall)",
             "archival": "episodic SKILL.md + viking:// VFS",
         },
+        # Capacity-aware admission controller (operator 2026-06-01 P1): live
+        # state so we can OBSERVE the gate (load/mem vs ceiling) BEFORE flipping
+        # MIOS_ADMIT_ENABLE on. Default OFF -> deploy is a no-op until observed.
+        "admission": {
+            "enabled": ADMIT_ENABLE,
+            "over_ceiling": _over_global_ceiling(),
+            "load_ceil": ADMIT_LOAD_CEIL,
+            "mem_pct_ceil": ADMIT_MEM_PCT,
+            "host": _host_stats_cached(),
+            "turn_priority_range": "1.6-9.4",
+        },
         "ts": int(time.time()),
     })
 
@@ -11978,6 +12540,10 @@ async def _mcp_probe_server(cfg: dict) -> None:
         state["tools_count"] = sum(1 for v in _MCP_CLIENT_TOOLS.values()
                                    if v.get("server_id") == sid)
     state["status"] = "ready"
+    # Late-discovered MCP tools must appear in the memoised worker surface
+    # (operator 2026-06-01 P0): drop the cache so it rebuilds on next request.
+    global _WORKER_TOOLS_FULL_CACHE
+    _WORKER_TOOLS_FULL_CACHE = None
     log.info("mcp client: %s ready (%d tools, protocol %s)",
              sid, state["tools_count"], state["protocolVersion"])
 
@@ -12195,6 +12761,19 @@ async def _a2a_probe_peer(cfg: dict) -> None:
             sid = s["id"]
             _A2A_PEER_SKILLS.setdefault(sid, []).append(pid)
     state["status"] = "ready"
+    # Expose this peer as a synthetic DAG-routable agent + drop the worker tool
+    # cache so the federated agent joins the roster (operator 2026-06-01 P0).
+    try:
+        _AGENT_REGISTRY[f"a2a:{pid}"] = {
+            "endpoint": "", "model": pid, "role": "general",
+            "default": False, "lane": "remote", "fanout": True,
+            "a2a_peer_id": pid, "research_only": False, "engines": {},
+            "strengths": [str(s.get("id") or "") for s in (skills or [])],
+        }
+        global _WORKER_TOOLS_FULL_CACHE
+        _WORKER_TOOLS_FULL_CACHE = None
+    except Exception:  # noqa: BLE001
+        pass
     log.info("a2a client: %s ready (%d skills, protocol %s)",
              pid, len(skills), state.get("protocolVersion"))
 
@@ -12338,6 +12917,23 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
         return {"error": err.get("message") or "rpc error",
                 "code": err.get("code"), "peer_id": peer_id}
     return resp.get("result") or {}
+
+
+def _a2a_extract_text(env: dict) -> str:
+    """Pull the assistant text out of an A2A Task envelope (artifacts[].parts[]
+    or status.message.parts[]) -- _a2a_send_message_to_peer returns the raw Task
+    object, not plain text (operator 2026-06-01 P0)."""
+    if not isinstance(env, dict) or env.get("error"):
+        return ""
+    def _parts(parts):
+        return "".join(str(p.get("text") or "") for p in (parts or [])
+                       if isinstance(p, dict))
+    for art in (env.get("artifacts") or []):
+        t = _parts(art.get("parts"))
+        if t.strip():
+            return t.strip()
+    msg = ((env.get("status") or {}).get("message")) or env.get("message") or {}
+    return _parts(msg.get("parts")).strip()
 
 
 @app.get("/v1/a2a/peers")
@@ -15314,6 +15910,17 @@ async def chat_completions(request: Request) -> Any:
     if _mflags:
         log.info("swarm flags: council=%s delegate=%s tool=%s",
                  _force_council, _force_delegate, _force_tool)
+    # AUTONOMOUS turn (operator 2026-06-01 wedge fix): a cron/timer-fired run
+    # (mios-scheduled-research, @<prompt> briefings) sets metadata.mios_autonomous.
+    # Such a turn fires UNATTENDED, so it must NEVER trigger the WIDE research
+    # fan-out (the swarm DAG OR the council pulling in every 2-4GB research_only
+    # replica across all lanes) -- that periodic cold-load storm is exactly what
+    # OOM-wedged the VM 3x with no human present. Read ONCE here; gate BOTH the
+    # swarm-DAG path (~15710 _is_research) AND the council path (~16242) on it.
+    _meta_top = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+    _autonomous = bool(_meta_top.get("mios_autonomous"))
+    if _autonomous:
+        log.info("AUTONOMOUS turn -> bounded (no wide research fan-out on either path)")
     # Operator-facing persona + environment/language/locale guidance the
     # OWUI pipe injected as system message(s). Captured once so the final
     # polish can apply the operator's voice + the correct language
@@ -15384,6 +15991,15 @@ async def chat_completions(request: Request) -> Any:
     # against a squatting transient (e.g. the 7B coder). No-op with headroom.
     await _vram_checkpoint()
     refined = await refine_intent(last_user_text, messages)
+    # Turn priority (operator 2026-06-01 P1): resurrect the AIOS priority score
+    # (complexity+urgency+intent) so the capacity-aware _admit gate orders fan-out
+    # dispatches under load. Threaded into the council fan-out calls below. Guard:
+    # refined may be None (trivial-bypass turn) -> _sched_priority handles it ->
+    # neutral 5.0. ADVISORY when MIOS_ADMIT_ENABLE is off (no-op).
+    try:
+        _turn_priority = float(_sched_priority(refined).get("score", 5.0))
+    except Exception:  # noqa: BLE001
+        _turn_priority = 5.0
 
     # SHORT-CIRCUIT: when refine emitted intent=chat with a reply,
     # we already have the final answer. No router + no sub-agent
@@ -15636,8 +16252,14 @@ async def chat_completions(request: Request) -> Any:
         _is_research = bool(refined and (refined.get("web")
                             or refined.get("news") or refined.get("deep")
                             or refined.get("deep_research")))
-        log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks research=%s",
-                 _force_delegate, len(_swarm_tasks), _is_research)
+        # Autonomous turns NEVER pull in the research_only replicas (operator
+        # 2026-06-01 wedge fix): a timer-fired research run would otherwise
+        # multiply 2-4GB models across every lane -> OOM wedge. Force the swarm
+        # DAG to the bounded (non-research-replica) node set.
+        if _autonomous and _is_research:
+            _is_research = False
+        log.info("swarm hook: force_delegate=%s plan_swarm=%d tasks research=%s autonomous=%s",
+                 _force_delegate, len(_swarm_tasks), _is_research, _autonomous)
         # Pass the LIVE roster so the swarm DAG fires on EVERY reachable node
         # (operator 2026-05-26 "fire on ALL NODES"); _live_agent_names is
         # TTL-cached so this is a near-free hit right after _plan_swarm.
@@ -16149,9 +16771,30 @@ async def chat_completions(request: Request) -> Any:
     # of relevant secondary agents to run alongside the primary. Empty
     # unless [dispatch].fanout_max>1 AND a registered agent's role/strengths
     # match the refined intent -> safe single-agent no-op by default.
+    # research_only replicas join the council ONLY on a research/deep turn
+    # (operator 2026-06-01 runaway fix) -- same web/news/deep signal the swarm
+    # path uses (server ~15648), recomputed here (no hardcoded English). On an
+    # everyday agent turn this keeps the 5 research-* replicas OUT of the fan-
+    # out, so a trivial prompt no longer cold-loads 11 models at once.
+    _council_research = bool(refined and (refined.get("web")
+                             or refined.get("news") or refined.get("deep")
+                             or refined.get("deep_research")))
+    # AUTONOMOUS turn (operator 2026-06-01 autonomous-wedge fix): a scheduled /
+    # cron-fired research run sets metadata.mios_autonomous (mios-scheduled-
+    # research). Such a turn must NEVER trigger the WIDE research fan-out -- it
+    # fires unattended on a timer, and a periodic research council cold-loading
+    # all 2-4GB replicas across every lane is exactly what wedged the VM with no
+    # user present. Force include_research=False so it stays on the bounded
+    # council (capped + no research replicas), regardless of research intent.
+    # _autonomous read once near the top of the handler (with _mflags). An
+    # autonomous turn forces the bounded council (no research replicas).
+    if _autonomous and _council_research:
+        log.info("autonomous turn: forcing bounded council (no wide research fan-out)")
+        _council_research = False
     _fanout = _pick_fanout_agents(target_name, refined,
-                                  force_council=_force_council,
-                                  live_agents=_live_set)
+                                  force_council=(_force_council and not _autonomous),
+                                  live_agents=_live_set,
+                                  include_research=_council_research)
     if _fanout:
         log.info("fanout%s: primary=%s + %d secondary %s",
                  " (FORCED swarm)" if _force_council else "",
@@ -16197,12 +16840,21 @@ async def chat_completions(request: Request) -> Any:
         _spb = _scratchpad_render()
         if _spb:
             sp.append({"role": "system", "content": _spb})
+        # Fresh-news turns SKIP knowledge recall (operator 2026-06-01): a prior
+        # stored answer is stale by definition for "what's new today", and a weak
+        # research replica was observed parroting an off-topic recalled answer.
+        # web/news/deep => fetch live, don't recall.
+        _fresh = bool(refined and (refined.get("web") or refined.get("news")
+                      or refined.get("deep") or refined.get("deep_research")))
+
+        async def _recall_or_skip():
+            return "" if _fresh else await _recall_knowledge(last_user_text)
         _rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx = [
             (c if isinstance(c, str) else "") for c in await asyncio.gather(
                 _rag_enrich(last_user_text),
                 _web_research_enrich(last_user_text, refined, emit=emit),
                 _read_tool_enrich(refined, session_id),
-                _recall_knowledge(last_user_text),
+                _recall_or_skip(),
                 return_exceptions=True)]
         for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx):
             if _ctx:
@@ -16478,11 +17130,21 @@ async def chat_completions(request: Request) -> Any:
                 # refined intent (mirrors the primary path) -- a read-only turn
                 # keeps the secondaries read-only, avoiding parallel write storms.
                 if WORKER_TOOLS_ENABLE:
-                    _wtools = await _worker_tools_surface_async()
+                    _wtools = await _worker_tools_surface_async(
+                        cap=_lane_tool_cap(_agent_lane(_c)))
                     if _wtools:
                         _node_body["tools"] = _wtools
                         _node_body["num_ctx"] = WORKER_TOOL_CTX
                         _node_body["_allow_write"] = _hints_write_action(refined)
+                # Strip tool_choice='required' for an endpoint that rejects it
+                # (the Windows iGPU llama.cpp 400'd on it -> the iGPU node always
+                # 💤'd on a force-tool turn; operator 2026-06-01 "not seeing iGPU
+                # fire"). It still gets `tools` and the secondary tool-loop.
+                if _node_body.get("tool_choice") and not \
+                        _endpoint_supports_tool_choice(
+                            str(_c.get("endpoint") or ""), _c,
+                            _agent_offload_engine(_c)):
+                    _node_body.pop("tool_choice", None)
                 # context = the secondary's ROLE/specialty (why it's engaged on
                 # this turn); council members all answer the same prompt, so the
                 # role is the relevant per-node step context.
@@ -16491,7 +17153,7 @@ async def chat_completions(request: Request) -> Any:
                                    context=str(_c.get("role", "")))
                 _sec_tasks.append(asyncio.create_task(
                     _call_agent_stream(_n, _c, _node_body, headers, client,
-                                       _ev_q)))
+                                       _ev_q, priority=_turn_priority)))
             _prim_task = asyncio.create_task(_primary_pump())
             # Per-secondary ✅/💤 emitted LIVE as each fan-out task FINISHES
             # (operator 2026-05-23: "emitters per-step compute, not all at
@@ -16798,6 +17460,8 @@ async def chat_completions(request: Request) -> Any:
     # Pre-await the COMPLETE surface (verbs+recipes+skills) ONCE here -- the
     # skill projection needs an async DB read but _sec_body is sync; the local
     # is reused for every secondary (operator 2026-05-31).
+    # Full surface awaited ONCE (priority-sorted); per-agent a weak lane gets a
+    # CAPPED slice (operator 2026-06-01 "nothing toolless"), fast lanes the full.
     _sec_wtools = (await _worker_tools_surface_async()
                    if WORKER_TOOLS_ENABLE else [])
     _sec_allow_write = _hints_write_action(refined)
@@ -16814,15 +17478,25 @@ async def chat_completions(request: Request) -> Any:
         # fabricating/disclaiming. Writes gated on the refined intent (mirrors
         # the primary path) -- a read-only turn keeps secondaries read-only,
         # avoiding parallel write storms.
+        # Every secondary gets tools; a weak lane (iGPU/mobile) gets a CAPPED
+        # slice it can grammar-constrain in budget (operator 2026-06-01), never
+        # zero. _sec_wtools is priority-sorted, so the slice keeps read/web first.
         if _sec_wtools:
-            _b["tools"] = _sec_wtools
+            _cap = _lane_tool_cap(_agent_lane(_c))
+            _b["tools"] = _sec_wtools[:_cap] if _cap > 0 else _sec_wtools
             _b["num_ctx"] = WORKER_TOOL_CTX
             _b["_allow_write"] = _sec_allow_write
+        # Strip tool_choice='required' for an endpoint that rejects it (iGPU
+        # llama.cpp 400s on it; operator 2026-06-01) -- non-streaming path.
+        if _b.get("tool_choice") and not _endpoint_supports_tool_choice(
+                str(_c.get("endpoint") or ""), _c, _agent_offload_engine(_c)):
+            _b.pop("tool_choice", None)
         return _b
 
     _sec_tasks = [
         asyncio.create_task(
-            _call_agent_complete(_n, _c, _sec_body(_n, _c), headers, client))
+            _call_agent_complete(_n, _c, _sec_body(_n, _c), headers, client,
+                                 priority=_turn_priority))
         for _n, _c in _fanout
     ]
     try:

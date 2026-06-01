@@ -120,6 +120,13 @@ MIN_SUPPORT = int(os.environ.get("MIOS_SKILLS_MIN_SUPPORT", "3"))
 WINDOW_HOURS = int(os.environ.get("MIOS_SKILLS_WINDOW_HOURS", "168"))
 AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
     "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD", "0.85"))
+# P2 outcome-driven promotion gate (operator 2026-06-01): in addition to the
+# support/confidence threshold, only auto-promote a skill whose RECENT runs
+# actually succeeded. Degrade-open: a skill with fewer than MIN_SUCCESS_SAMPLES
+# recorded invocations (incl. brand-new mined skills with NO history) is treated
+# as passing -> the gate never blocks a skill purely for lack of data.
+MIN_SUCCESS_RATE = float(os.environ.get("MIOS_SKILLS_MIN_SUCCESS_RATE", "0.7") or 0.7)
+MIN_SUCCESS_SAMPLES = int(os.environ.get("MIOS_SKILLS_MIN_SUCCESS_SAMPLES", "3") or 3)
 SEED_CATALOG_DIR = os.environ.get(
     "MIOS_SKILLS_SEED_CATALOG_DIR", "/usr/share/mios/skills")
 LOCAL_CATALOG_DIR = os.environ.get(
@@ -327,8 +334,15 @@ def cmd_mine(args: argparse.Namespace) -> int:
             continue
         body = _build_body(verbs, examples[ng])
         status = "candidate"
+        # P2 outcome gate: AND-fold the skill's recent success rate into the
+        # auto-promote decision. Degrade-open -- a freshly-mined skill has no
+        # invocation history (it isn't persisted yet), so _skill_success_rate
+        # returns (1.0, 0) and the gate is a no-op; it only ever DEMOTES a
+        # re-mined skill name whose recorded runs have been failing.
+        rate, samples = _skill_success_rate(name)
         if (AUTO_PROMOTE_THRESHOLD > 0.0
-                and confidence >= AUTO_PROMOTE_THRESHOLD):
+                and confidence >= AUTO_PROMOTE_THRESHOLD
+                and rate >= MIN_SUCCESS_RATE):
             status = "promoted"
             auto_promoted += 1
         ok = _insert_skill(
@@ -386,6 +400,45 @@ def _skill_exists(name: str) -> bool:
     r = post_sql(sql)
     rows = last_ok(r) or []
     return bool(rows)
+
+
+def _skill_success_rate(name: str) -> tuple[float, int]:
+    """Recent success rate of a skill (looked up by name) from the
+    skill_invocation.success field. Returns (rate, samples).
+
+    Degrade-open: (1.0, 0) on ANY error / DB miss / no invocation history ->
+    NEVER blocks a skill that simply has no recorded runs yet (incl. a
+    brand-new mined skill that doesn't exist in the DB at decision time).
+
+    skill_invocation.skill is a record-ref (`skill = skill:abc`, UNQUOTED),
+    so we first resolve the skill's record id by name, then filter
+    invocations by that ref within WINDOW_HOURS. The duration syntax
+    (`time::now() - {h}h`) and the post_sql/last_ok read path mirror the
+    rest of this file exactly. success may be NONE on still-open rows -> we
+    drop None and only score closed invocations."""
+    try:
+        idr = post_sql(
+            f"SELECT id FROM skill WHERE name = {sq(name)} LIMIT 1;")
+        idrows = last_ok(idr) or []
+        if not idrows:
+            return (1.0, 0)   # not yet persisted / unknown -> don't block
+        skill_id = idrows[0].get("id")
+        if not skill_id:
+            return (1.0, 0)
+        # skill_id is a record-string ("skill:abc"); used UNQUOTED as a ref,
+        # matching _skill_invocation_open's `skill = skill:abc` form.
+        rows = last_ok(post_sql(
+            f"SELECT success FROM skill_invocation "
+            f"WHERE skill = {skill_id} "
+            f"  AND started_at > time::now() - {WINDOW_HOURS}h;")) or []
+        vals = [r.get("success") for r in rows if isinstance(r, dict)]
+        vals = [v for v in vals if v is not None]
+        if len(vals) < MIN_SUCCESS_SAMPLES:
+            return (1.0, len(vals))   # not enough data -> don't block
+        ok = sum(1 for v in vals if v)
+        return (ok / len(vals), len(vals))
+    except Exception:
+        return (1.0, 0)
 
 
 def _insert_skill(*, name: str, body: dict, support: int,

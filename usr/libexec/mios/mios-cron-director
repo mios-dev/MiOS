@@ -182,16 +182,41 @@ def _gate_passes(question: str) -> bool:
         return False
 
 
+# In-flight single-flight guard (operator 2026-06-01 autonomous-wedge fix). A
+# scheduled research rule runs the FULL agent pipe (refine + research council +
+# cold model loads), which can take MINUTES -- longer than a short cron interval
+# (e.g. */5 or */1). _fire was fire-and-forget with ONLY a per-MINUTE dedup, so
+# a slow run got RE-LAUNCHED on the next matching minute -> runs stacked ->
+# pegged CPU + VRAM thrash -> VM wedged with no user chat. Track the detached
+# child PID per rule and SKIP a fire while the prior run is still alive.
+_INFLIGHT: dict = {}
+
+
+def _still_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)   # signal 0 = liveness probe, doesn't actually signal
+        return True
+    except (OSError, ProcessLookupError):
+        return False
+
+
 def _fire(rule: dict) -> None:
+    name = rule["name"]
     do = rule["do"]
-    _log(f"FIRE rule={rule['name']!r}: {do}")
+    # Single-flight: don't stack a new run on top of a still-running one.
+    _prev = _INFLIGHT.get(name)
+    if _prev is not None and _still_running(_prev):
+        _log(f"SKIP rule={name!r}: previous run (pid {_prev}) still in flight")
+        return
+    _log(f"FIRE rule={name!r}: {do}")
     try:
         # Detached, fire-and-forget; output to the journal via inherited stdio.
-        subprocess.Popen(["bash", "-lc", do],
-                         stdout=sys.stdout, stderr=sys.stderr,
-                         start_new_session=True)
+        _p = subprocess.Popen(["bash", "-lc", do],
+                              stdout=sys.stdout, stderr=sys.stderr,
+                              start_new_session=True)
+        _INFLIGHT[name] = _p.pid
     except Exception as e:  # noqa: BLE001
-        _log(f"rule {rule['name']!r} failed to launch: {e}")
+        _log(f"rule {name!r} failed to launch: {e}")
 
 
 def main() -> int:

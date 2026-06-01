@@ -207,7 +207,15 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         messages = req.get("messages", [])
-        model = req.get("model", OPENCODE_MODEL)
+        # This gateway serves exactly ONE model (opencode itself). The caller's
+        # `model` is just a routing label -- the agent-pipe sends the AGENT NAME
+        # ("opencode"), which _selector would turn into the bogus "ollama/opencode"
+        # -> "Model not found" (operator 2026-06-01 live error). ALWAYS use our
+        # own configured OPENCODE_MODEL (mios-opencode:latest) regardless of what
+        # the caller asked for; only honour a caller id that is already a real,
+        # provider-qualified opencode model (contains '/').
+        _req_model = str(req.get("model") or "")
+        model = _req_model if "/" in _req_model else OPENCODE_MODEL
         stream = bool(req.get("stream", False))
 
         # Pass the FULL conversation (system + history) to opencode, not just

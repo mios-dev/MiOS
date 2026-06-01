@@ -465,7 +465,19 @@ def classify_loop() -> None:
         lines = []
         for e in batch:
             unit = e.get("_SYSTEMD_UNIT", e.get("SYSLOG_IDENTIFIER", "?"))
-            msg = (e.get("MESSAGE") or "").strip().split("\n", 1)[0]
+            # journald MESSAGE can be a LIST (multi-line / byte-array fields) or
+            # bytes, not just str -- .strip() on a list crashed classify_loop
+            # ('list' object has no attribute 'strip', operator 2026-06-01) and
+            # KILLED the classify thread, blinding the daemon's load/oom watch.
+            # Coerce to a single string defensively.
+            _raw = e.get("MESSAGE") or ""
+            if isinstance(_raw, (list, tuple)):
+                _raw = " ".join(
+                    x.decode("utf-8", "replace") if isinstance(x, (bytes, bytearray))
+                    else str(x) for x in _raw)
+            elif isinstance(_raw, (bytes, bytearray)):
+                _raw = _raw.decode("utf-8", "replace")
+            msg = str(_raw).strip().split("\n", 1)[0]
             lines.append(f"[{unit}] {msg[:200]}")
         content = llm_chat(CLASSIFY_SYSTEM,
                            "Recent events:\n" + "\n".join(lines),

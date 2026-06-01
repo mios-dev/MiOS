@@ -1405,7 +1405,17 @@ done
 # Start the consolidated daemon (idempotent -- systemctl restart on a
 # running unit is a no-op when ExecStart hasn't changed).
 if [[ -x /usr/libexec/mios/mios-daemon ]]; then
-    install -d -o root -g root -m 0755 /var/lib/mios/daemon /etc/mios/daemon
+    # STATE dir must be owned by mios-ai (the daemon's User=) -- it writes
+    # state.json/launch_failures.json there. Creating it root:root (the old
+    # behaviour) crash-looped the mios-ai daemon on EVERY firstboot/rebuild
+    # ("PermissionError: '/var/lib/mios/daemon/state.json.tmp'", 315 restarts,
+    # operator 2026-06-01) -- contradicting the mios.conf tmpfiles decl. The
+    # /etc CONFIG dir stays root (daemon only READS it). chown -R repairs a dir
+    # that a prior root-run instance already created + any stale root-owned
+    # state files inside it (tmpfiles 'd' does NOT re-chown an existing dir).
+    install -d -o mios-ai -g mios-ai -m 0755 /var/lib/mios/daemon
+    chown -R mios-ai:mios-ai /var/lib/mios/daemon 2>/dev/null || true
+    install -d -o root -g root -m 0755 /etc/mios/daemon
     systemctl daemon-reload 2>/dev/null || true
     systemctl enable --now mios-daemon.service 2>/dev/null \
         && _log "  enabled+started mios-daemon.service (single micro-LLM client, keep_alive=-1)" \
