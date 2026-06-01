@@ -87,13 +87,14 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 
 # Micro-LLM (SSOT: mios.toml [ai].micro_model / micro_endpoint, surfaced
 # as MIOS_MICRO_MODEL / MIOS_MICRO_ENDPOINT by userenv.sh). This is the
-# always-warm (keep_alive=-1) sub-second classifier -- qwen3:0.6b-cpu by
-# default. Operator directive 2026-05-20: "we have access to micro-llms
-# for fast refinements too" -- so the layer-1 classifier passes (router +
-# refine) default to the micro-LLM instead of the heavier qwen3:1.7b that
-# was stalling 13-45s on the CPU lane. The bigger PLANNER + POLISH passes
-# keep their own (larger) models.
-_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:0.6b-cpu")
+# always-warm (keep_alive=-1) sub-second classifier. Default repointed
+# 2026-06-01 from qwen3:0.6b-cpu (a dropped 5th base) to qwen3:1.7b -- the
+# operator's chosen micro/CPU model in the 4-model set (also the daemon's
+# background MODEL + the mios-agent-cpu base). Operator directive 2026-05-20:
+# "we have access to micro-llms for fast refinements too" -- the layer-1
+# classifier passes (router + refine) default to this micro-LLM; the bigger
+# PLANNER + POLISH passes keep their own (larger) models.
+_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:1.7b")
 _MICRO_ENDPOINT = os.environ.get(
     "MIOS_MICRO_ENDPOINT", "http://localhost:11434/v1",
 ).rstrip("/")
@@ -1555,16 +1556,45 @@ def _agent_engines(cfg: dict) -> list:
     return sorted((cfg.get("engines") or {}).keys())
 
 
+# CPU/iGPU light-lane = micro-LLMs ONLY (binding operator rule; enforced here
+# after a 2026-06-01 runaway where a 4.7B model cold-loaded on the CPU-only
+# ollama :11435 and pegged cores for hours). The offload swaps the ENDPOINT to a
+# light lane but historically kept the agent's full-size MODEL -- so a big
+# research model landed on a CPU daemon. This guard FORCES any dispatch resolved
+# onto a light-lane endpoint down to the micro model, regardless of what the
+# agent/binding declared. SSOT-overridable; default micro = the always-warm
+# (keep_alive=-1) :11435 resident so there is NO cold load. Hints = host:port
+# substrings of the light lanes (CPU :11435, iGPU :11436).
+_CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
+    "MIOS_CPU_LANE_HINTS",
+    str(_DISPATCH_TOML.get("cpu_lane_hints", "11435,11436"))).split(",")
+    if h.strip())
+_CPU_LANE_MICRO_MODEL = (os.environ.get("MIOS_CPU_LANE_MICRO_MODEL")
+                         or str(_DISPATCH_TOML.get("cpu_lane_micro_model", "qwen3:1.7b")))
+
+
+def _cap_cpu_lane_model(ep: str, model: str) -> str:
+    """Force the micro model on a light-lane (CPU/iGPU) endpoint -- a big model
+    can never cold-load multi-GB weights on a CPU-only daemon (runaway fix
+    2026-06-01). No-op for non-light endpoints (dGPU/remote keep their model)."""
+    if _CPU_LANE_MICRO_MODEL and any(h and h in (ep or "") for h in _CPU_LANE_HINTS):
+        return _CPU_LANE_MICRO_MODEL
+    return model
+
+
 def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
     """Resolve (endpoint, model) to run an agent on a SPECIFIC engine. With
     engine=None, or no binding for that engine, fall back to the agent's default
-    endpoint/model -- so this never strands a dispatch."""
+    endpoint/model -- so this never strands a dispatch. A light-lane (CPU/iGPU)
+    endpoint is force-capped to the micro model (_cap_cpu_lane_model)."""
     if engine:
         b = (cfg.get("engines") or {}).get(str(engine).lower().strip())
         if isinstance(b, dict) and b.get("endpoint"):
-            return (str(b["endpoint"]).rstrip("/"),
-                    str(b.get("model") or cfg.get("model", "")))
-    return str(cfg.get("endpoint", "")).rstrip("/"), str(cfg.get("model", ""))
+            _ep = str(b["endpoint"]).rstrip("/")
+            return (_ep, _cap_cpu_lane_model(
+                _ep, str(b.get("model") or cfg.get("model", ""))))
+    _ep = str(cfg.get("endpoint", "")).rstrip("/")
+    return _ep, _cap_cpu_lane_model(_ep, str(cfg.get("model", "")))
 
 
 def _agent_offload_engine(cfg: dict) -> Optional[str]:
@@ -1945,7 +1975,103 @@ def _load_agent_registry() -> dict[str, dict]:
     return registry
 
 
+def _load_node_pool(registry: dict[str, dict]) -> int:
+    """Synthesise ONE canonical research-worker agent PER compute NODE from the
+    mios.toml [nodes.*] table -- operator 2026-06-01: "don't have separate CPU
+    1,2,3 / dGPU 1,2,3 replicas -- there should just be a MiOS Modelfile dispatched
+    as many times as needed to ANY node(s)".
+
+    REPLACES the 12 hand-partitioned raw-base research replicas (research-dgpu-*/
+    research-cpu-*/research-potato-*/potato-gpu) that lived in the /etc overlay and
+    BYPASSED the MiOS Modelfiles (one cold-loaded a 4B base on the CPU-only :11435
+    lane -> the runaway). Each [nodes.<name>] declares an endpoint + a CANONICAL
+    Modelfile tag (mios-agent on GPU, mios-agent-cpu on CPU/light, mios-igpu) +
+    lane; we inject `node:<name>` into the registry with research_only=true (joins
+    only research/deep turns -- keeps everyday council light) and fanout=true, so
+    the EXISTING capacity-aware fan-out / swarm-DAG logic (_pick_fanout_agents /
+    _agent_dag_from_tasks, bounded by the P1 admission controller + per-lane / per-
+    endpoint semaphores) dispatches the ONE worker brain across the pool by
+    capacity. Mirrors the a2a:<pid> synthetic-agent injection.
+
+    Layered read (vendor <- /etc <- ~/.config) via _toml_section so the operator
+    overlay adds real REMOTE node endpoints (potato/phone/cluster) without baking
+    tailnet IPs into the public vendor file. Degrade-open: no [nodes.*] -> 0 nodes
+    injected, registry unchanged. Returns the count injected.
+
+    Per-node fields (all but endpoint optional):
+      endpoint    -- OpenAI /v1 (or ollama) URL; EMPTY = inert node, skipped.
+      model       -- canonical Modelfile tag the node serves (default mios-agent).
+      lane        -- gpu/cpu/igpu/mobile/... (semaphore + fan-out diversity bucket).
+      health_gate -- true for a come-and-go remote node (auto-join/drop); local
+                     nodes omit it (always live). Defaults true for non-local lanes.
+      fanout      -- fan-out opt-out (default true).
+      role/job/strengths -- optional metadata; sensible worker defaults applied.
+    The light-lane model is additionally force-capped to the micro model at
+    dispatch by _cap_cpu_lane_model (belt + suspenders)."""
+    try:
+        nodes = _toml_section("nodes")
+    except Exception as e:  # noqa: BLE001 -- degrade-open
+        log.warning("node pool load failed: %s; no nodes injected", e)
+        return 0
+    if not isinstance(nodes, dict) or not nodes:
+        return 0
+    n = 0
+    for name, cfg in nodes.items():
+        if not isinstance(cfg, dict):
+            continue
+        ep = str(cfg.get("endpoint", "")).rstrip("/")
+        if not ep:
+            continue  # inert / privacy-empty node (e.g. vendor local-igpu)
+        lane = str(cfg.get("lane", "")).lower().strip() or "gpu"
+        # A LOCAL lane is always-live; a REMOTE node comes and goes, so it is
+        # health-gated by default (auto-join when reachable / drop when gone),
+        # unless the node explicitly overrides. localhost/127.0.0.1 == local.
+        _is_local = ("localhost" in ep) or ("127.0.0.1" in ep)
+        health_gate = bool(cfg.get("health_gate", not _is_local))
+        entry: dict = {
+            "endpoint": ep,
+            # The node serves a CANONICAL Modelfile tag, never a raw base.
+            "model":    str(cfg.get("model") or "mios-agent"),
+            "role":     str(cfg.get("role", "research")),
+            "job":      str(cfg.get("job",
+                          "Concurrent research worker -- one MiOS-Agent brain "
+                          "dispatched on this node to research a facet in "
+                          "parallel with the rest of the pool.")),
+            "default":  False,
+            "strengths": list(cfg.get("strengths")
+                              or ["research", "web_search", "summarize"]),
+            "lane":     lane,
+            "fanout":   bool(cfg.get("fanout", True)),
+            "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
+            "cpu_model":    str(cfg.get("cpu_model", "")),
+            "health_gate":  health_gate,
+            "failover_agents": [str(s) for s in (cfg.get("failover_agents")
+                                                or []) if str(s).strip()],
+            # The pool is the RESEARCH worker fleet: excluded from everyday
+            # council/chat turns (keeps them light), joins only research/deep
+            # turns -- exactly the retired research_only replicas' behaviour,
+            # now ONE canonical brain x N nodes instead of N bespoke entries.
+            "research_only": bool(cfg.get("research_only", True)),
+        }
+        entry["engines"] = _build_agent_engines(cfg, entry)
+        # node:<name> namespacing keeps these distinct from [agents.*] (and from
+        # a2a:<pid>) so a node can't collide with / clobber a real sub-agent.
+        registry[f"node:{name}"] = entry
+        n += 1
+    if n:
+        log.info("node pool: injected %d research-worker node(s) "
+                 "(canonical MiOS Modelfile x node, replaces the raw-base "
+                 "research replicas)", n)
+    return n
+
+
 _AGENT_REGISTRY = _load_agent_registry()
+# Fold the [nodes.*] compute pool into the registry as synthetic research-worker
+# agents (operator 2026-06-01 consolidation). Degrade-open: no [nodes.*] = no-op.
+try:
+    _load_node_pool(_AGENT_REGISTRY)
+except Exception as _e:  # noqa: BLE001 -- never block startup on the node pool
+    log.warning("node pool injection failed: %s", _e)
 
 
 def _load_dispatch_cfg() -> dict:

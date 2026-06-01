@@ -479,11 +479,12 @@ fi
 # resolved primary tier (the operator's tier ceiling is binding).
 # Emit only candidates that are actually pulled into Ollama; skip
 # duplicates of the primary. Always end with the universal
-# qwen3:0.6b-cpu safety net if present -- guaranteed CPU-fit so the
+# qwen3:1.7b safety net if present -- the 4-model-set micro/CPU base
+# (was qwen3:0.6b-cpu, dropped 2026-06-01), guaranteed CPU-fit so the
 # chat NEVER silently fails over to an unreachable cloud provider.
 _FALLBACK_CHAIN=()
 _seen=" $_AI_MODEL_RESOLVED "
-for _cand in "$_small_m" "qwen3.5:4b" "qwen3:0.6b-cpu" "qwen3:0.6b"; do
+for _cand in "$_small_m" "qwen3.5:4b" "qwen3:1.7b"; do
     [[ -z "$_cand" ]] && continue
     [[ "$_seen" == *" $_cand "* ]] && continue
     if [[ -z "$_ollama_tags" ]] || grep -qxF "$_cand" <<< "$_ollama_tags"; then
@@ -1374,7 +1375,7 @@ if command -v curl >/dev/null 2>&1; then
     # might land on, loaded into VRAM via /api/generate's load-only
     # path (num_predict=0 short-circuits before token generation).
     # Stays warm via keep_alive=-1; first chat skips the cold load.
-    for _wmodel in qwen3.5:9b qwen3.5:4b qwen3-coder:30b qwen3:0.6b-cpu; do
+    for _wmodel in qwen3.5:4b qwen3:1.7b qwen2.5-coder:7b; do
         (curl -sf --max-time 180 \
             http://localhost:11434/api/generate \
             -d "{\"model\":\"$_wmodel\",\"prompt\":\"\",\"stream\":false,\"keep_alive\":\"-1\",\"options\":{\"num_predict\":0}}" \

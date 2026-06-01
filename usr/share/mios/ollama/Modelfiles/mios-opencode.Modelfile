@@ -7,11 +7,14 @@
 # coding agent's baked brain: the shared MiOS principles specialised for
 # editing, reviewing, testing, and committing code in this repo/system.
 #
-# Base: qwen2.5-coder:7b -- the coding model opencode.json already
-# selects; strong multi-language code (bash, PowerShell, systemd units,
-# Containerfiles, TOML, Python). Operators can swap the FROM to
-# qwen2.5-coder:14b / qwen3-coder:30b (both present) for more headroom.
-# Language-neutral, ZERO hardcoded topic lists.
+# Base: qwen2.5-coder:7b -- the coding base of the 4-model set (operator
+# 2026-06-01: "the 4 newest available that fit the stack"). It is the NEWEST
+# coder that fits the lean shared-4090 stack: qwen3-coder exists ONLY as a 30B
+# (too big) and qwen3-coder:7b is a registry 404, so qwen2.5-coder:7b IS the
+# current small-coder pick. Strong multi-language code (bash, PowerShell,
+# systemd units, Containerfiles, TOML, Python); the model opencode.json already
+# selects. Language-neutral, ZERO hardcoded topic lists. Operators with spare
+# VRAM can swap the FROM to a larger coder without touching the baked discipline.
 #
 # Built by automation/37-ollama-prep.sh (reads the '# mios-model:' header):
 #   ollama create mios-opencode -f /usr/share/mios/ollama/Modelfiles/mios-opencode.Modelfile

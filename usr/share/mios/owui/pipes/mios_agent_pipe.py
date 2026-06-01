@@ -325,7 +325,7 @@ class Pipe:
         )
         # Router (layer-1 classifier): dispatch | chat | agent.
         ROUTER_ENABLED: bool = Field(default=True, description="layer-1 router (micro-LLM)")
-        ROUTER_MODEL: str    = Field(default="qwen3:0.6b-cpu", description="always-warm micro-LLM (keep_alive=-1); operator 2026-05-20 'micro-llms for fast refinements'")
+        ROUTER_MODEL: str    = Field(default="qwen3:1.7b", description="always-warm micro-LLM (keep_alive=-1); operator 2026-05-20 'micro-llms for fast refinements'. Repointed 2026-06-01 from qwen3:0.6b-cpu to the 4-model-set micro base qwen3:1.7b")
         ROUTER_TIMEOUT_S: int = Field(default=12, description="s")
         ROUTER_MAX_TOKENS: int = Field(default=200, description="tokens")
 

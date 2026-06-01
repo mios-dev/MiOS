@@ -20,17 +20,22 @@
 # "mios-daemon-agent = mios-cpu/reasoner! CONSOLIDATE"). So mios-sys-agent is no
 # longer those callers' classifier -- it is the prompt-refiner + OWUI face only.
 #
-# Base: qwen3.5:2b (~2.6 GB) -- modern + fast, good instruction-following for
-# the refinement job. FORCED to CPU by the prefilter (options.num_gpu=0) so it
-# refines ALONGSIDE the big GPU model without competing for VRAM. Operators can
-# swap the base via mios.toml [ai.host_thresholds].sys_agent_model.
+# Base: qwen3.5:4b (operator 2026-06-01 consolidation to the 4-model set: "3-4
+# models max including micro-llm"). SHARES the reasoning base with mios-agent +
+# mios-hermes -- one resident 4b blob serves all three roles (the refiner runs
+# fine on it; the baked SYSTEM here is overridden at runtime by the prefilter's
+# per-call REFINE_SYSTEM, so the role does NOT need a distinct base). WAS
+# qwen3.5:2b (~2.6 GB), dropped in the consolidation. FORCED to CPU by the
+# prefilter (options.num_gpu=0) so it refines ALONGSIDE the big GPU model without
+# competing for VRAM. Operators can swap the base via mios.toml
+# [ai.host_thresholds].sys_agent_model.
 #
 # Built by automation/37-ollama-prep.sh on every OCI build (the glob loop reads
 # the '# mios-model:' header for the exact tag):
-#   ollama pull qwen3.5:2b
+#   ollama pull qwen3.5:4b
 #   ollama create mios-sys-agent -f /usr/share/mios/ollama/Modelfiles/mios-sys-agent.Modelfile
 
-FROM qwen3.5:2b
+FROM qwen3.5:4b
 
 # Deterministic refinement (the prefilter also pins temperature=0.0 per call so
 # the same prompt refines identically). num_ctx leaves room for the prompt plus

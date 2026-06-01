@@ -14,20 +14,43 @@
 # Default model set (researched for the 12 GB RAM workstation baseline):
 #   qwen2.5-coder:7b   -- chat / code primary (~4.7 GB Q4_K_M)
 #                          best open-source coder in the 7B class as of
-#                          2026; 128K context; Apache 2.0
+#                          2026; 128K context; Apache 2.0. ALSO the FROM base
+#                          of the mios-opencode Modelfile.
 #   nomic-embed-text   -- embedding (~270 MB Q4_K_M)
 #                          768-dim, 8192-token context, MTEB-competitive
 #
+# DEFAULT MODEL SET = the 4-model lean stack (operator 2026-06-01: "3-4 models
+# max including micro-llm; the 4 newest available that fit the stack"). EXACTLY
+# 4 bases -- 3 LLMs + 1 embedder -- the newest that fit a lean shared-4090 stack.
+# All the canonical role Modelfiles under /usr/share/mios/ollama/Modelfiles are
+# built below via `ollama create <tag> -f <Modelfile>`, which FAILS unless their
+# FROM base is already pulled; every shipped Modelfile now derives FROM one of
+# these 3 LLM bases (the role tags share the base blobs, so they add ~no disk):
+#   qwen3.5:4b        -- mios-agent + mios-hermes + mios-sys-agent (REASONING) (~3.4 GB)
+#   qwen3:1.7b        -- mios-agent-cpu + mios-hermes-cpu + the micro-LLM       (~1.4 GB)
+#   qwen2.5-coder:7b  -- mios-opencode (CODING)                                 (~4.7 GB)
+#   nomic-embed-text  -- embeddings (knowledge table + RAG)                     (~0.3 GB)
+# Total baked: ~9.8 GB of bases + the (blob-sharing) mios-* role tags. Everything
+# else (qwen3.5:9b, qwen3.5:2b, qwen3:0.6b, qwen3-coder:30b, qwen2.5-coder:14b,
+# llama3.2-vision:11b, granite4.1:*, gpt-oss:20b, qwen3-vl:4b, gemma4:e4b) was
+# REMOVED from the fleet per the 3-4-model cap. The full bake set (bases + role
+# tags) lives in mios.toml [ai].bake_models -> MIOS_OLLAMA_BAKE_MODELS; this
+# DEFAULT_MODELS is only the FALLBACK when that env is unset.
+#
 # Override the set with MIOS_OLLAMA_BAKE_MODELS=<csv> at build time --
-# e.g. MIOS_OLLAMA_BAKE_MODELS="qwen2.5-coder:14b,nomic-embed-text" for
-# the 24 GB+ profile. Empty value disables baking entirely (useful for
+# e.g. MIOS_OLLAMA_BAKE_MODELS="qwen3.5:4b,qwen3:1.7b,nomic-embed-text" for a
+# lean brain-only profile. Empty value disables baking entirely (useful for
 # CI builds that only validate the pipeline).
 set -euo pipefail
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-DEFAULT_MODELS="qwen2.5-coder:7b,nomic-embed-text"
+# Base model order: the worker BRAIN twins first (the consolidation minimum),
+# then the other role Modelfile FROM bases, then the embedder. A pull failure on
+# any one is non-fatal (first-boot service retries), so ordering only affects
+# which models are present soonest, not correctness.
+DEFAULT_MODELS="qwen3.5:4b,qwen3:1.7b,qwen2.5-coder:7b,nomic-embed-text"
 BAKE_MODELS="${MIOS_OLLAMA_BAKE_MODELS:-${DEFAULT_MODELS}}"
 BAKE_DIR="/usr/share/ollama/models"
 

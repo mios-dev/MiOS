@@ -29,7 +29,7 @@ Group=mios-ai
 Environment=PYTHONUNBUFFERED=1
 
 # Operator-tunable knobs (override via drop-in or /etc/mios/secrets.env):
-#   Environment=MIOS_DAEMON_MODEL=qwen3:0.6b-cpu
+#   Environment=MIOS_DAEMON_MODEL=qwen3:1.7b
 #   Environment=MIOS_DAEMON_ENDPOINT=http://127.0.0.1:11434
 #   Environment=MIOS_DAEMON_STATE_DIR=/var/lib/mios/daemon
 #   Environment=MIOS_DAEMON_CRON_TOML=/etc/mios/daemon/cron.toml

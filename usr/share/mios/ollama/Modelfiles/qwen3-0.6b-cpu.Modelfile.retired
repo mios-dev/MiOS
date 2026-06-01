@@ -1,6 +1,16 @@
 # /usr/share/mios/ollama/Modelfiles/qwen3-0.6b-cpu.Modelfile
 # mios-model: qwen3:0.6b-cpu
 #
+# RETIRED 2026-06-01 (operator 4-model-set consolidation: "3-4 models max
+# including micro-llm"). qwen3:0.6b was a 5th base; the operator picked
+# qwen3:1.7b as THE micro/CPU model, so the micro-LLM config ([ai].micro_model,
+# server.py _MICRO_MODEL, the OWUI pipe ROUTER_MODEL) was repointed from
+# qwen3:0.6b-cpu -> qwen3:1.7b (already the daemon's background MODEL + the
+# mios-agent-cpu base). This file is kept (renamed .retired) so 37-ollama-prep's
+# `*.Modelfile` glob no longer builds the 0.6b tag. Restore by renaming back to
+# .Modelfile + re-adding qwen3:0.6b to bake_models if a sub-second micro is
+# wanted again.
+#
 # CPU-pinned variant of qwen3:0.6b for the MiOS always-on micro-LLM.
 # Operator directive 2026-05-16: "make sure the micro-llm can use the
 # local AMD iGPU and/or CPU core/thread(s) using CDI/GPU-PV/Podman-

@@ -422,7 +422,9 @@ enable   = true
 # kept for back-compat with older callers; the SSOT default is [ai].model.
 endpoint = "http://localhost:8642/v1"
 backend  = "http://mios-ollama:11434"
-model    = "granite4.1:3b"
+# Back-compat default only; the SSOT default is [ai].model. Repointed to the
+# 4-model-set reasoning base 2026-06-01 (was granite4.1:3b, dropped from fleet).
+model    = "qwen3.5:4b"
 enable   = true
 
 # [hermes_workspace] -- REMOVED 2026-05-13. The hermes-agent's own
@@ -808,6 +810,76 @@ default     = false
 lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
+
+# ----------------------------------------------------------------------------
+# CANONICAL WORKER + NODE POOL (operator 2026-06-01: "don't have separate CPU
+# 1,2,3 / dGPU 1,2,3 replicas -- there should just be a MiOS Modelfile dispatched
+# as many times as needed to ANY node(s)"). This REPLACES the 12 hand-partitioned
+# raw-base research replicas (research-dgpu-1/2/3, research-cpu-1/2, research-
+# potato-gpu/cpu-*, potato-gpu, ...) that lived in the /etc/mios overlay and
+# BYPASSED the MiOS Modelfiles -- they cold-loaded raw 2-4B bases per endpoint
+# (one landed a 4B model on the CPU-only :11435 lane -> the 2026-06-01 runaway).
+#
+# THE MODEL: ONE canonical MiOS worker brain -- the mios-agent Modelfile (the
+# qwen3.5:4b brain with the baked MiOS-discipline SYSTEM block) on GPU lanes, its
+# mios-agent-cpu twin (qwen3:1.7b, num_gpu 0) on CPU/light lanes. NOT a raw base.
+#
+# THE DISPATCH: agent-pipe's _load_node_pool() reads [nodes.*] below and SYNTHE-
+# SISES one research-worker registry agent PER NODE -- `node:<name>` = {endpoint,
+# model(the node's CANONICAL Modelfile tag), lane, research_only, fanout,
+# engines} -- mirroring the a2a:<peer> injection. So the EXISTING capacity-aware
+# fan-out / swarm-DAG logic (_pick_fanout_agents / _agent_dag_from_tasks, bounded
+# by the P1 admission controller + per-lane/-endpoint semaphores) dispatches the
+# ONE worker brain across the node pool BY CAPACITY -- "as many times as needed
+# to any node(s)" -- instead of 12 bespoke replica entries. research_only=true on
+# every node keeps them OUT of everyday council/chat turns (they join only on a
+# research/deep turn), so the runaway-fix admission stays intact. The CPU-lane
+# model backstop (_cap_cpu_lane_model) still force-caps any light-lane dispatch
+# to the micro model -- belt + suspenders (the cpu node already declares the
+# micro twin). Degrade-open: if [nodes.*] is ABSENT, behaviour is unchanged.
+#
+# A `node` declares WHERE compute lives + WHAT canonical Modelfile it serves; the
+# `model` MUST be a Modelfile tag (mios-agent / mios-agent-cpu / mios-igpu), NOT a
+# raw base. Vendor ships the LOCAL nodes + the SHAPE; put REMOTE nodes (potato,
+# phone, cluster) -- with their tailnet endpoints -- in your /etc/mios overlay so
+# no personal node name / IP is baked into the public repo. `lane` picks the
+# semaphore/diversity bucket; `health_gate=true` makes a come-and-go remote node
+# auto-join when reachable + drop when gone (local nodes omit it = always live).
+# The target endpoint MUST actually serve that Modelfile tag.
+[nodes.local-dgpu]
+endpoint = "http://localhost:11434/v1"
+model    = "mios-agent"        # the qwen3.5:4b MiOS brain (GPU lane)
+lane     = "gpu"
+[nodes.local-cpu]
+endpoint = "http://localhost:11435/v1"
+model    = "mios-agent-cpu"    # qwen3:1.7b, num_gpu 0 (CPU light lane)
+lane     = "cpu"
+# Local iGPU lane -- ships endpoint EMPTY (privacy: the real iGPU is served
+# NATIVELY on the Windows host via llama.cpp+Vulkan at a tailnet IP, set in the
+# /etc/mios overlay). Empty endpoint = inert node, skipped by _load_node_pool.
+[nodes.local-igpu]
+endpoint = ""                  # set to http://<igpu-host-tailnet>:11436/v1 in /etc/mios
+model    = "mios-igpu"         # llama.cpp + Vulkan alias served on the host
+lane     = "igpu"
+# REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
+# repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
+# on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
+# shape (put in /etc/mios/mios.toml):
+#   [nodes.potato-dgpu]
+#   endpoint    = "http://<potato-tailnet>:11434/v1"
+#   model       = "mios-agent"          # the GPU brain on the potato node
+#   lane        = "gpu"
+#   health_gate = true                  # auto-join when reachable, drop when gone
+#   [nodes.potato-cpu]
+#   endpoint    = "http://<potato-tailnet>:11435/v1"
+#   model       = "mios-agent-cpu"      # the CPU twin on the potato node
+#   lane        = "cpu"
+#   health_gate = true
+#   [nodes.phone]
+#   endpoint    = "http://<phone-tailnet>:11434/v1"
+#   model       = "mios-agent-cpu"      # or the phone's own small local model tag
+#   lane        = "mobile"
+#   health_gate = true
 
 # ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
@@ -2859,15 +2931,16 @@ agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
 hermes_backend_url  = "http://localhost:11434/v1"
-# SSOT for the default chat model. Stays small (granite4.1:3b, ~3 GB
-# resident) so 12 GB / 8-core hosts are still usable out of the box.
-# build-mios.ps1's auto-pick in [ai.host_thresholds] below promotes
-# this to gpt-oss:20b / granite4.1:30b on hosts with enough RAM by
-# writing the picked value into the per-host mios.toml overlay at
-# /etc/mios/mios.toml. mios-hermes-firstboot reads the resolved
-# value through the layered overlay chain (~/.config -> /etc ->
-# /usr/share). mios.html exposes [[ai.catalog]] in the dropdown.
-model               = "granite4.1:3b"
+# SSOT for the default chat model. The 4-model-set reasoning base
+# (qwen3.5:4b, ~3.4 GB resident) -- was granite4.1:3b, repointed in the
+# 2026-06-01 consolidation (granite was dropped from the fleet). Same value as
+# small_ram_model below so a host with no auto-pick still lands on a 4-set base
+# (never re-pulls a dropped model). build-mios.ps1's auto-pick in
+# [ai.host_thresholds] below promotes this on hosts with enough VRAM by writing
+# the picked value into the per-host mios.toml overlay at /etc/mios/mios.toml.
+# mios-hermes-firstboot reads the resolved value through the layered overlay
+# chain (~/.config -> /etc -> /usr/share). mios.html exposes [[ai.catalog]].
+model               = "qwen3.5:4b"
 embed_model         = "nomic-embed-text"
 api_key             = ""
 enable_ollama       = true
@@ -2884,51 +2957,31 @@ prompt_shortcut     = "@"
 # automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
 #
-# Operator directive 2026-05-15: "models should be embedded in MiOS
-# images and be present on Live MiOS deployments via quadlets and
-# build pipelines". So we bake the FULL working set into the OCI
-# image -- a fresh boot is immediately usable without runtime pulls,
-# and bound-images.d picks them up via the additionalimagestores
-# under /usr/lib/containers/storage:
-#   * granite4.1:3b      -- low-RAM fallback (~2.5 GB)
-#   * qwen3:1.7b         -- delegate + auxiliary lanes (~1 GB)
-#   * qwen3.5:2b         -- mid-tier chat fallback (~2.6 GB)
-#   * qwen3-coder:30b    -- the big tool-calling MoE (~17 GB)
-#   * nomic-embed-text   -- embeddings (~0.3 GB)
-# Total: ~23 GB baked. Big OCI image, but the OS is "instant-on" --
-# fresh deployments don't have to wait for a 17 GB pull on first chat
-# (operator-confirmed regression: post-reinstall, only granite4.1:3b +
-# nomic-embed-text were present, and the auto-pick fell back to a
-# tiny qwen3.5:2b that was barely useful for the agent surface).
+# 4-MODEL POLICY (operator 2026-06-01: "should be 3-4 max including micro-llm;
+# the 4 newest available that fit the stack"). The fleet is EXACTLY 4 bases --
+# 3 LLMs + 1 embedder -- chosen as the newest that fit a lean shared-4090 stack:
+#   * qwen3.5:4b         REASONING  (~3.4 GB) -- mios-agent + mios-hermes +
+#                                    mios-sys-agent all derive FROM this one base
+#   * qwen3:1.7b         MICRO/CPU  (~1.4 GB) -- the micro-LLM, every CPU/light-
+#                                    lane worker, and the *-cpu twins
+#   * qwen2.5-coder:7b   CODING     (~4.7 GB) -- mios-opencode (newest small coder
+#                                    that fits; qwen3-coder is 30B-only / 7b=404)
+#   * nomic-embed-text   EMBED      (~0.3 GB) -- knowledge-table + RAG embeddings
+#                                    (KEEP: live embeddings are wired to nomic)
+# Everything else (qwen3.5:9b, qwen3.5:2b, qwen3:0.6b, qwen3-coder:30b,
+# qwen2.5-coder:14b, llama3.2-vision:11b, granite4.1:3b/30b, gpt-oss:20b,
+# qwen3-vl:4b, gemma4:e4b) was REMOVED from the fleet per the 3-4-model cap.
 #
-# Operators on bandwidth-constrained networks can shrink the bake list
-# in /etc/mios/mios.toml (operator overlay) -- the OCI image rebuilds
-# without the missing models, then runtime pulls them on demand.
-# gpt-oss:20b is the BASE for gpt-oss-tools:20b (derived via Modelfile
-# template strip in automation/37-ollama-prep.sh from
-# /usr/share/mios/ollama/Modelfiles/gpt-oss-tools.Modelfile).
-# Listing both: the BASE pull is needed before `ollama create` can
-# derive the tools variant. Operator can skip the base post-derive
-# (they share blob layers under /var/lib/ollama/models).
-# gemma4:e4b (8.9 GB) baked for the delegate-model eval (operator
-# directive 2026-05-15). Verdict: ~4x slower per-token + 7x larger
-# than qwen3:1.7b, but ~22x more concise on structured-JSON output
-# (11 vs 250 tokens emitted). Kept in bake for opt-in use in
-# auxiliary lanes that benefit from conciseness; not the default
-# delegation.model -- qwen3:1.7b's throughput is decisive for the
-# fan-out workload at depth 2 with up to 6 children.
-# Operator-approved expansion 2026-05-16 (SOTA model survey):
-# ADDED:
-#   qwen3.5:4b           -- new Hermes small (small_ram_model)
-#   qwen3.5:9b           -- new Hermes mid (mid_ram_model)
-#   qwen2.5-coder:7b     -- opencode small (mios-opencode:latest, /v1 peer @ :8633)
-#   qwen2.5-coder:14b    -- new opencode mid
-#   llama3.2-vision:11b  -- new vision_grounding_model (was qwen3-vl:4b)
-# KEPT (operator directive "add new + keep old" for fallback compat):
-#   granite4.1:3b, gemma4:e4b, qwen3-vl:4b -- previous tier picks remain
-#   in the catalog so existing fallback chains + per-host overrides
-#   still work and operators can swap back via mios.html.
-bake_models         = "qwen3.5:4b,qwen3.5:9b,qwen2.5-coder:7b,qwen2.5-coder:14b,llama3.2-vision:11b,granite4.1:3b,qwen3:1.7b,qwen3.5:2b,qwen3-coder:30b,gpt-oss:20b,nomic-embed-text,qwen3-vl:4b,qwen3:0.6b,qwen3:0.6b-cpu,mios-sys-agent"
+# The list below also names the derived mios-* role tags. Those are produced by
+# `ollama create <tag> -f <Modelfile>` in automation/37-ollama-prep.sh and REUSE
+# the 3 LLM base blobs (under /var/lib/ollama/models) -- they add ~no disk, so
+# listing them only guarantees they are present after a build. Total baked: the
+# 3 LLM bases + nomic (~9.8 GB) + the (blob-sharing) mios-* tags.
+#
+# Consumed by automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Operators
+# on bandwidth-constrained networks can shrink this in /etc/mios/mios.toml; empty
+# disables baking entirely (first-boot pulls instead).
+bake_models         = "qwen3.5:4b,qwen3:1.7b,qwen2.5-coder:7b,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -3070,37 +3123,40 @@ mid_ram_gb        = 8                             # alias -> mid_vram_gb
 #     SOTA survey (better tool-call discipline + family-consistent).
 small_ram_model  = "qwen3.5:4b"
 #
-#   mid_ram_model -- 8-16GB class. Auto-deploys only when build /
-#     install detects VRAM >= mid_vram_gb. ~6GB resident.
-#     Was gemma4:e4b (chronic empty-response on multi-tool flows);
-#     swapped 2026-05-16 to qwen3.5:9b. Avoids the qwen3.5:35B
-#     tool-calling bugs (Ollama #14493) by staying at the 9B size.
+#   mid_ram_model -- 8-16GB class. Auto-deploys ONLY when build/install
+#     detects VRAM >= mid_vram_gb (8). A bigger reasoning base for a
+#     mid-tier dGPU box (operator 2026-06-01 "a large model for MiOS
+#     deployments with dGPUs"). The LEAN single-box default stays on
+#     small_ram_model (qwen3.5:4b); this never deploys on a CPU-only /
+#     <8GB host, so it does not bloat the 4-set baseline.
 mid_ram_model    = "qwen3.5:9b"
 #
-#   big_ram_model -- 16GB+ class. NEVER auto-deployed. Only used when
-#     the operator EXPLICITLY sets [ai].model in mios.html to a 16GB+
-#     entry from [[ai.catalog]]. qwen3-coder:30b retained from prior
-#     research: most reliable tool-call format among the 16GB+ tier
-#     even though it ignores delegate_task (the prefilter forces
-#     fanout when needed).
+#   big_ram_model -- 16GB+ dGPU class. The LARGE model for dGPU deployments
+#     (operator 2026-06-01). NEVER auto-deployed on the lean box -- gated by
+#     big_vram_gb (16) and only on an EXPLICIT operator pick / a dGPU profile,
+#     so the single-box 4-set is untouched. The role Modelfiles are base-
+#     agnostic (the pipe injects the MiOS contract + global tools at runtime,
+#     agent-contract.md: "Whatever your size, model, or lane..."), so the SAME
+#     roles run on this large base on a dGPU node with zero code change. Newest
+#     large coder/reasoner present in the registry that fits a 24GB dGPU.
 big_ram_model    = "qwen3-coder:30b"
 
 # Vision-grounding model -- read by /usr/libexec/mios/mios-pc-vision
 # for screenshot -> click-coordinate translation. Hermes's main text
 # model is separate; vision lane runs on its own Ollama tag.
-# Was qwen3-vl:4b (~3GB); swapped 2026-05-16 to llama3.2-vision:11b
-# per the SOTA survey (better ScreenSpot click accuracy at the cost
-# of ~5GB more VRAM). Operator-approved given the dGPU headroom.
-# UI-TARS-1.5-7B is the upgrade-path candidate but not yet in the
-# Ollama library; GUI-Actor 7B beats it on ScreenSpot-Pro but also
-# not in Ollama yet -- llama3.2-vision:11b is the safe Ollama pick.
-vision_grounding_model    = "llama3.2-vision:11b"
+# DROPPED FROM THE FLEET 2026-06-01: the 4-model set (qwen3.5:4b / qwen3:1.7b /
+# qwen2.5-coder:7b / nomic-embed-text) carries NO vision model. The previous
+# pick (llama3.2-vision:11b, ~8 GB) is no longer baked/pulled. These slots ship
+# EMPTY so an image turn does NOT silently re-pull an 11B VLM; the vision lanes
+# are OPT-IN -- to re-enable, add a vision tag to [[ai.catalog]], pull it, and
+# set these to that tag in /etc/mios/mios.toml (operator overlay).
+vision_grounding_model    = ""
 vision_grounding_endpoint = "http://localhost:11434/v1"
 # Chat VLM: agent-pipe routes any OWUI chat turn carrying an image straight
 # to this model (operator 2026-05-22). SSOT for MIOS_AGENT_PIPE_VISION_MODEL.
-# llama3.2-vision:11b verified working through ollama /v1; qwen3-vl:4b crashes
-# its runner on image input in the current ollama build (revisit when fixed).
-chat_vision_model         = "llama3.2-vision:11b"
+# EMPTY since the 4-model consolidation (was llama3.2-vision:11b) -- set to a
+# pulled vision tag in the operator overlay to re-enable image chat.
+chat_vision_model         = ""
 
 # GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
 # click coordinates). Served by the mios-vllm Quadlet (OpenAI /v1 on
@@ -3124,15 +3180,18 @@ grounding_model    = "mios-grounding"
 # use a good 2-6Gb+ modern model for enhancing prompts and leave the
 # micro-llms to use the small models for its background/daemon tasks".
 # Two roles, two models:
-#   * mios-sys-agent   (Modelfile FROM qwen3.5:2b, ~2.6 GB, GPU) --
+#   * mios-sys-agent   (Modelfile FROM qwen3.5:4b, the 4-set reasoning base) --
 #                      operator-facing chat refinement layer in the
 #                      OWUI Pipe + the (currently-disabled) prefilter
 #                      refinement step. Configured by [ai].sys_agent_*.
-#   * micro_model      (qwen3:0.6b-cpu, ~600 MB, CPU-pinned) --
-#                      background daemons (log-watcher, cron-director,
-#                      agent-nudger, mios-micro-llm CLI). Small + fast
-#                      for classification work; no chat-quality needed.
-micro_model              = "qwen3:0.6b-cpu"
+#   * micro_model      (qwen3:1.7b, ~1.4 GB, CPU lane) -- background daemons
+#                      (log-watcher, cron-director, agent-nudger, mios-micro-llm
+#                      CLI). REPOINTED 2026-06-01 from qwen3:0.6b-cpu (a dropped
+#                      5th base) to the 4-set micro/CPU base qwen3:1.7b -- which
+#                      is already the daemon's background MODEL and the
+#                      mios-agent-cpu base. Small + fast for classification; no
+#                      chat-quality needed. Endpoint stays the CPU lane (:11435).
+micro_model              = "qwen3:1.7b"
 sys_agent_model          = "mios-sys-agent"
 micro_endpoint           = "http://localhost:11435/v1"
 micro_keep_alive_seconds = -1
@@ -5699,11 +5758,11 @@ mios-adguard          = true
 # ~/.config/mios/ overlays and the MIOS_FINETUNE_* env (userenv.sh).
 enable          = true
 target_role     = "refiner"            # MiOS role to fine-tune (refiner = mios-sys-agent)
-base_model      = "qwen3.5:2b"         # the role's base -- MUST match the Modelfile FROM
-hf_base         = "Qwen/Qwen3.5-2B"    # HF repo id OR local safetensors dir for the SAME base
+base_model      = "qwen3.5:4b"         # the role's base -- MUST match the Modelfile FROM (mios-sys-agent is now FROM qwen3.5:4b after the 2026-06-01 4-model consolidation; was qwen3.5:2b)
+hf_base         = "Qwen/Qwen3.5-4B"    # HF repo id OR local safetensors dir for the SAME base
                                        # (PEFT/TRL train on HF weights; ollama stores GGUF). One-time
                                        # offline fetch, like the framework install. This is the actual
-                                       # production refiner base (qwen3.5:2b == Qwen/Qwen3.5-2B, Apache-2.0,
+                                       # production refiner base (qwen3.5:4b == Qwen/Qwen3.5-4B, Apache-2.0,
                                        # public). Override per-install if base_model differs.
 output_tag      = "mios-sys-agent-ft"  # ollama tag the adapter is shipped as
 device          = "auto"               # auto | cuda | rocm | mps | cpu
@@ -5730,7 +5789,7 @@ grad_checkpointing = true              # saves memory; set false if a custom-op 
 # (verb catalog from the running pipe + real operator Q+A from the knowledge DB);
 # labels are produced by the teacher against the live refine schema + catalog. So
 # the corpus tracks the real system, never a hand-written topic list.
-teacher_model        = "qwen3.5:9b"    # strongest general model that fits the free VRAM; bump to qwen3.6:27b when more is free
+teacher_model        = "qwen3.5:4b"    # 4-model-set reasoning base (was qwen3.5:9b, dropped 2026-06-01); operators with free VRAM can override to a larger teacher in their overlay before a (gated) training run
 teacher_endpoint     = "http://localhost:11434"
 pipe_url             = "http://127.0.0.1:8640"
 seeds_per_capability = 4               # teacher-generated phrasings per catalog verb

@@ -13,12 +13,19 @@
 # bare /v1 call without SOUL.md (e.g. when agent-pipe proxies Hermes as
 # a plain completion). Language-neutral, ZERO hardcoded topic lists.
 #
-# Base: qwen3.5:9b -- the dGPU-resident ORCHESTRATOR reasoning brain. LARGER
-# than the old 4B (2.25x params -> more powerful primary) while staying FAST +
-# co-resident with the 4B refine/polish (mios-agent) on the same :11434 lane:
-# 9.9 GB (9b) + 6.5 GB (4b) = 16.4 GB, fits the ~22 GB free with ~5 GB headroom
-# for a dGPU swarm secondary AND transient Windows VRAM spikes (the 4090 is
-# SHARED with the Windows host -- see [[gpu_igpu_compute_topology]]).
+# Base: qwen3.5:4b (operator 2026-06-01 consolidation to the 4-model set: "3-4
+# models max including micro-llm; the 4 newest available that fit the stack").
+# Hermes now SHARES the reasoning base with mios-agent (refine/polish) -- ONE
+# resident 4b blob on the :11434 dGPU lane serves the orchestrator primary AND
+# the refine/polish passes (no extra resident weights), leaving the most VRAM
+# headroom on the SHARED 4090 (see [[gpu_igpu_compute_topology]]).
+#
+# WAS qwen3.5:9b (the dGPU-resident larger orchestrator brain): dropped in the
+# 4-model consolidation -- the baked SYSTEM here is overridden at runtime by the
+# pipe-injected SOUL.md prompt, so the role identity does NOT require a distinct
+# base; one 4b reasoning base covers agent + hermes + sys-agent. Operators with
+# spare VRAM can swap the FROM back to a larger base without touching the baked
+# discipline (the 27B note below still applies as the max-quality option).
 #
 # PARALLEL COMPUTE IS PRESERVED (operator 2026-05-28 "make sure it can still
 # compute in parallel!"): this primary on the dGPU runs CONCURRENTLY with the
@@ -40,7 +47,7 @@
 # Built by automation/37-ollama-prep.sh (reads the '# mios-model:' header):
 #   ollama create mios-hermes -f /usr/share/mios/ollama/Modelfiles/mios-hermes.Modelfile
 
-FROM qwen3.5:9b
+FROM qwen3.5:4b
 
 PARAMETER temperature 0.3
 PARAMETER top_p 0.9

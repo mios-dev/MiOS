@@ -8,9 +8,9 @@ Used by:
   * any agent / shim that wants <500 ms classification
 
 The "micro" model is configured via mios.toml [ai].micro_model
-(default qwen3:0.6b -- ~600 MB resident, ~50 ms first-token,
-~100 ms full short-completion on 1 CPU core). Loaded continuously
-in Ollama via OLLAMA_KEEP_ALIVE so it stays warm.
+(default qwen3:1.7b -- the 4-model-set micro/CPU base, ~1.4 GB
+resident; was qwen3:0.6b before the 2026-06-01 consolidation).
+Loaded continuously in Ollama via OLLAMA_KEEP_ALIVE so it stays warm.
 
 USAGE
     mios-micro-llm classify <prompt>            -> single-line answer
@@ -20,7 +20,7 @@ USAGE
 
 CONFIG (per layered mios.toml [ai] priority):
     [ai]
-    micro_model    = "qwen3:0.6b"
+    micro_model    = "qwen3:1.7b"
     micro_endpoint = "http://localhost:11434/v1"
     micro_keep_alive_seconds = -1   # -1 = never unload
 """
@@ -36,7 +36,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-DEFAULT_MODEL = "qwen3:0.6b"
+DEFAULT_MODEL = "qwen3:1.7b"  # 4-model-set micro base (was qwen3:0.6b, dropped 2026-06-01); SSOT is mios.toml [ai].micro_model
 DEFAULT_ENDPOINT = "http://localhost:11434/v1"
 DEFAULT_KEEP_ALIVE = "-1"  # never unload
 DEFAULT_TIMEOUT_S = 30
