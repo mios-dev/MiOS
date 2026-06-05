@@ -45,7 +45,7 @@ HAS_INTEL_WSL=0
 # (e.g. discrete NVIDIA + Intel iGPU coexisting).
 for r in /dev/dri/renderD*; do
     [[ -e "$r" ]] || continue
-    pci=$(readlink -f "/sys/class/drm/$(basename "$r")/device" 2>/dev/null)
+    pci=$(readlink -f "/sys/class/drm/$(basename "$r")/device" 2>/dev/null) || pci=""
     [[ -n "$pci" && -r "$pci/vendor" ]] || continue
     if [[ "$(cat "$pci/vendor" 2>/dev/null)" == "0x8086" ]]; then
         HAS_INTEL=1
@@ -68,9 +68,16 @@ if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
         # Capped 5s; never fails the boot. The first
         # "Microsoft Remote Display Adapter" is the WDDM paravirt
         # one; real GPUs follow.
+        # `|| WIN_GPU_NAMES=""` is load-bearing: under `set -euo pipefail` a bare
+        # `var=$(pipeline)` EXITS the shell if the pipeline returns non-zero
+        # (timeout -> 124, powershell error, or pipefail on any stage). That made
+        # this "capped 5s, never fails the boot" probe fail the ENTIRE service on
+        # a podman-machine-os VM where /mnt/c powershell is slow/absent
+        # (2026-06-05 mios-cdi-detect.service failure). The guard restores the
+        # documented best-effort behaviour; the `if [[ -n ... ]]` below handles "".
         WIN_GPU_NAMES=$(timeout 5 "$PSH" -NoProfile -Command \
             "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" \
-            2>/dev/null | tr -d '\r' | tr '\n' '|')
+            2>/dev/null | tr -d '\r' | tr '\n' '|') || WIN_GPU_NAMES=""
         if [[ -n "$WIN_GPU_NAMES" ]]; then
             shopt -s nocasematch
             if [[ "$WIN_GPU_NAMES" =~ (AMD|Radeon) ]]; then

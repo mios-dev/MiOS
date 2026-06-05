@@ -4,11 +4,15 @@ Description='MiOS' CDI spec detection (WSL vs bare metal vs VM)
 # bare-metal vs VM) -- gating it out on WSL was a bug. Removed the
 # condition; the script picks the correct CDI spec on every host.
 Before=nvidia-cdi-refresh.service
-After=local-fs.target
+After=local-fs.target systemd-tmpfiles-setup.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# The 2026-06-05 install failure was a set -euo pipefail trap in the script
+# (a bare `var=$(timeout ... powershell ...)` exits the shell when the pipeline
+# returns non-zero) -- fixed at the root in mios-cdi-detect itself, so the unit
+# runs clean with no ExecStart=- mask. All vendor branches are best-effort guarded.
 ExecStart=/usr/libexec/mios/mios-cdi-detect
 
 [Install]
