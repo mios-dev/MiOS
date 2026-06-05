@@ -3226,9 +3226,12 @@ embed_model = "nomic-embed-text"   # 768-dim, OWUI/Ollama-compat (vector(768))
 enable      = true
 # WS-9c cutover backend: "surreal" (legacy) | "dual" (write BOTH, read surreal --
 # SAFE default, exercises PG live without risking reads) | "postgres" (PG primary
-# + native <=> recall). Flip to "postgres" only after verifying the dual-write
-# mirror fills correctly (mios-db --pg 'SELECT count(*) FROM knowledge;').
-db_backend  = "dual"
+# + native <=> recall). FLIPPED to "postgres" 2026-06-05 (WS-9c cutover: agent-pipe
+# + mios-remember/skills/daemon/kg all read+write pgvector; mechanism verified live,
+# a chat ran pg-primary). Set back to "dual" to re-enable the SurrealDB safety net
+# during a soak. Minor deferred read paths (eviction/hitl-edge/miner-SPM/daemon
+# batch+async/person-owns) degrade gracefully until finished.
+db_backend  = "postgres"
 
 # ── WS-10 llama.cpp multi-model lane (llama-swap) ─────────────────────────────
 # Additive engine step toward the ollama -> llama.cpp conversion for fleet-wide
