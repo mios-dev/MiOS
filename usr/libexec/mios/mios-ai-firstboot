@@ -32,12 +32,15 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
     # locations it can actually be: a runtime copy, the / git working tree
     # (materialize on demand), or the mounted Windows mios.git clone on the dev VM.
     HSCRIPT=""
-    for p in /usr/libexec/mios/38-hermes-agent.sh /automation/38-hermes-agent.sh /mnt/m/automation/38-hermes-agent.sh /mnt/c/MiOS/automation/38-hermes-agent.sh; do
-        [ -f "$p" ] && HSCRIPT="$p" && break
+    # Require lib/common.sh ALONGSIDE the script: 38-hermes-agent.sh sources it
+    # and exits 0 (no venv) if absent -- exactly what a script-only /automation
+    # checkout yields. Prefer the full /mnt/m mios.git clone (has lib/).
+    for p in /mnt/m/automation/38-hermes-agent.sh /mnt/c/MiOS/automation/38-hermes-agent.sh /usr/libexec/mios/38-hermes-agent.sh /automation/38-hermes-agent.sh; do
+        [ -f "$p" ] && [ -f "$(dirname "$p")/lib/common.sh" ] && HSCRIPT="$p" && break
     done
     if [ -z "$HSCRIPT" ] && [ -d /.git ]; then
-        git -C / checkout -- automation/38-hermes-agent.sh automation/lib 2>/dev/null
-        [ -f /automation/38-hermes-agent.sh ] && HSCRIPT=/automation/38-hermes-agent.sh
+        git -C / checkout -- automation 2>/dev/null
+        [ -f /automation/38-hermes-agent.sh ] && [ -f /automation/lib/common.sh ] && HSCRIPT=/automation/38-hermes-agent.sh
     fi
     if [ -n "$HSCRIPT" ]; then
         log "building shared agent venv via $HSCRIPT"
@@ -51,12 +54,25 @@ fi
 # ── 2. llama.cpp GGUFs (extracted from ollama blobs) ─────────────────────────
 if [ ! -f "${MODELS}/.ready" ]; then
     install -d -m 0755 "${MODELS}" /var/lib/mios/llamacpp/slots 2>/dev/null
-    if command -v ollama >/dev/null 2>&1 && curl -fsS -m 4 -o /dev/null http://localhost:11434/api/tags 2>/dev/null; then
-        log "pulling GGUF source models via ollama"
-        ollama pull qwen3:1.7b        2>&1 | tail -1
-        ollama pull nomic-embed-text  2>&1 | tail -1
+    # Wait for ollama to be READY: the After= unit reports "started" before the
+    # server inside the container is actually listening, and the dev-VM CPU lane
+    # is on :11435 (not the :11434 default). Poll both + $OLLAMA_HOST for ~50s.
+    OLL=""
+    if command -v ollama >/dev/null 2>&1; then
+        for _try in $(seq 1 10); do
+            for h in "${OLLAMA_HOST%/}" http://localhost:11434 http://localhost:11435; do
+                [ -n "$h" ] && curl -fsS -m 4 -o /dev/null "${h}/api/tags" 2>/dev/null && OLL="$h" && break
+            done
+            [ -n "$OLL" ] && break
+            sleep 5
+        done
+    fi
+    if [ -n "$OLL" ]; then
+        log "ollama ready at $OLL -- pulling GGUF source models"
+        OLLAMA_HOST="$OLL" ollama pull qwen3:1.7b        2>&1 | tail -1
+        OLLAMA_HOST="$OLL" ollama pull nomic-embed-text  2>&1 | tail -1
     else
-        log "ollama not reachable yet -- skipping GGUF pull this boot (will retry)"
+        log "ollama not reachable (11434/11435) -- skipping GGUF pull this boot (will retry)"
     fi
     OM=""
     for d in /var/lib/ollama/models /var/lib/ollama/.ollama/models /usr/share/ollama/.ollama/models /root/.ollama/models; do
