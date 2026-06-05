@@ -1,0 +1,21 @@
+[Unit]
+Description='MiOS' AI first-boot provisioning (agent venv + llama.cpp GGUFs)
+Documentation=https://github.com/mios-dev/mios
+# Completes the build-time AI setup on deployments that didn't bake it (the
+# overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh's header
+# explicitly anticipates this: "a firstboot retry can complete it later".
+# Needs network (pip + model pull) and a running ollama (the GGUF blob source).
+After=network-online.target ollama.service mios-ollama.service mios-ollama-cpu.service
+Wants=network-online.target
+# The script writes the sentinel ONLY when both the venv and the GGUFs are
+# present, so a network-less first boot simply retries on the next one.
+ConditionPathExists=!/var/lib/mios/.ai-firstboot-done
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=2400
+ExecStart=/usr/libexec/mios/mios-ai-firstboot
+
+[Install]
+WantedBy=multi-user.target

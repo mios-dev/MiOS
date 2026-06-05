@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# 'MiOS' AI first-boot provisioning.
+#
+# Completes the build-time AI setup on deployments where it wasn't baked into
+# the image (overlay-provisioned MiOS-DEV, WSL imports, any non-bootc-built
+# host). Two pieces, both idempotent + best-effort:
+#   1. the shared agent venv (hermes-agent + agent-pipe), via the canonical
+#      builder automation/38-hermes-agent.sh (checked out at / by the overlay);
+#   2. the llama.cpp GGUFs for the llama-swap lane, extracted from ollama's
+#      model blobs (the tags come from /usr/share/mios/llamacpp/llama-swap.yaml).
+# Then it (re)starts the AI services so they pick up the new prerequisites.
+#
+# The sentinel /var/lib/mios/.ai-firstboot-done is written ONLY when BOTH the
+# venv and the GGUFs are in place, so a network-less boot retries next time
+# (mios-ai-firstboot.service carries ConditionPathExists=!<sentinel>).
+#
+# NO `set -e` -- every step is guarded; a partial provision must not wedge boot.
+set +eu
+log(){ logger -t mios-ai-firstboot "$*" 2>/dev/null; echo "[mios-ai-firstboot] $*"; }
+
+VENV=/usr/lib/mios/agents/.venv
+MODELS=/usr/share/mios/llamacpp/models
+
+# ── 1. shared agent venv (hermes pins Python <3.14) ──────────────────────────
+if [ ! -x "${VENV}/bin/hermes" ]; then
+    if ! command -v python3.13 >/dev/null 2>&1; then
+        log "installing python3.13 (hermes-agent requires >=3.11,<3.14)"
+        dnf install -y python3.13 python3.13-devel >/dev/null 2>&1 || log "WARN: python3.13 install failed"
+    fi
+    if [ -x /automation/38-hermes-agent.sh ]; then
+        log "building shared agent venv via /automation/38-hermes-agent.sh"
+        bash /automation/38-hermes-agent.sh 2>&1 | tail -12
+    else
+        log "WARN: /automation/38-hermes-agent.sh absent -- cannot build agent venv"
+    fi
+    if [ -x "${VENV}/bin/hermes" ]; then log "agent venv ready: ${VENV}"; else log "WARN: agent venv still missing"; fi
+fi
+
+# ── 2. llama.cpp GGUFs (extracted from ollama blobs) ─────────────────────────
+if [ ! -f "${MODELS}/.ready" ]; then
+    install -d -m 0755 "${MODELS}" /var/lib/mios/llamacpp/slots 2>/dev/null
+    if command -v ollama >/dev/null 2>&1 && curl -fsS -m 4 -o /dev/null http://localhost:11434/api/tags 2>/dev/null; then
+        log "pulling GGUF source models via ollama"
+        ollama pull qwen3:1.7b        2>&1 | tail -1
+        ollama pull nomic-embed-text  2>&1 | tail -1
+    else
+        log "ollama not reachable yet -- skipping GGUF pull this boot (will retry)"
+    fi
+    OM=""
+    for d in /var/lib/ollama/models /var/lib/ollama/.ollama/models /usr/share/ollama/.ollama/models /root/.ollama/models; do
+        [ -d "${d}/blobs" ] && OM="${d}" && break
+    done
+    CID="$(podman ps --format '{{.Names}}' 2>/dev/null | grep -i ollama | head -1)"
+    _extract(){
+        tag="$1"; out="$2"; name="${tag%%:*}"; ver="${tag##*:}"
+        man="${OM}/manifests/registry.ollama.ai/library/${name}/${ver}"
+        if [ -n "${OM}" ] && [ -f "${man}" ]; then
+            dig="$(python3 -c "import json;m=json.load(open('${man}'));print([l['digest'] for l in m['layers'] if l['mediaType'].endswith('.model')][0])" 2>/dev/null)"
+            blob="${OM}/blobs/${dig/:/-}"
+            [ -f "${blob}" ] && cp -f "${blob}" "${out}" && return 0
+        fi
+        if [ -n "${CID}" ]; then
+            cb="$(podman exec "${CID}" sh -c "ollama show ${tag} --modelfile 2>/dev/null | awk '/^FROM /{print \$2;exit}'" 2>/dev/null)"
+            [ -n "${cb}" ] && podman cp "${CID}:${cb}" "${out}" 2>/dev/null && return 0
+        fi
+        return 1
+    }
+    _extract "qwen3:1.7b"       "${MODELS}/qwen3-1.7b.gguf"      && log "GGUF qwen3-1.7b ready"
+    _extract "nomic-embed-text" "${MODELS}/nomic-embed-text.gguf" && log "GGUF nomic-embed-text ready"
+    if [ -s "${MODELS}/qwen3-1.7b.gguf" ] && [ -s "${MODELS}/nomic-embed-text.gguf" ]; then
+        touch "${MODELS}/.ready"; log "GGUFs provisioned"
+    else
+        log "WARN: GGUFs incomplete -- llama-swap lane stays idle until next retry"
+    fi
+fi
+
+# ── 3. (re)start the AI services now their prerequisites exist ────────────────
+systemctl daemon-reload 2>/dev/null
+for s in hermes-agent mios-agent-pipe mios-llama-swap; do
+    systemctl reset-failed "${s}" 2>/dev/null
+    systemctl restart "${s}" 2>/dev/null || true
+done
+
+# ── sentinel: only when fully provisioned, so failures retry next boot ────────
+install -d -m 0755 /var/lib/mios 2>/dev/null
+if [ -x "${VENV}/bin/hermes" ] && [ -f "${MODELS}/.ready" ]; then
+    touch /var/lib/mios/.ai-firstboot-done
+    log "complete -- agent venv + GGUFs provisioned"
+else
+    log "incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ -f "${MODELS}/.ready" ] && echo ok || echo missing )) -- retrying next boot"
+fi
+exit 0

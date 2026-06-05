@@ -178,7 +178,7 @@ if command -v git >/dev/null 2>&1; then
             git -C / remote rename origin local-bare 2>/dev/null || true
         fi
         if git -C / remote get-url origin >/dev/null 2>&1; then
-            git -C / remote set-url origin "$_forge_remote_url"
+            git -C / remote set-url origin "$_forge_remote_url" 2>/dev/null || _log "WARN: 'git -C / remote set-url' failed (read-only / -- self-host push loop unavailable on this deployment; non-fatal)"
         else
             git -C / remote add origin "$_forge_remote_url" 2>/dev/null || true
         fi
