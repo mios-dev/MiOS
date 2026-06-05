@@ -125,6 +125,53 @@ _DB_AUTH = "Basic " + _base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode(
 _DB_DOWN_UNTIL: float = 0.0
 
 
+# WS-9c cutover: mirror daemon writes to Postgres+pgvector via the shared
+# mios-db --pg CLI (system-python, no psycopg). MIOS_DB_BACKEND: surreal|dual|postgres.
+DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
+_PG_ENABLED = DB_BACKEND in ("dual", "postgres")
+_PG_PRIMARY = DB_BACKEND == "postgres"
+_MIOS_DB = "/usr/libexec/mios/mios-db"
+
+
+def _pgesc(s) -> str:
+    return str(s).replace("'", "''")
+
+
+def _pg_exec(sql: str) -> None:
+    if not _PG_ENABLED:
+        return
+    try:
+        import subprocess
+        subprocess.run([_MIOS_DB, "--pg", sql],
+                       capture_output=True, text=True, timeout=15)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _pg_insert(table: str, fields: dict) -> None:
+    """Mirror a daemon write to pgvector (chokepoint, called from _db_create).
+    Builds a parameter-free INSERT (dict/list -> jsonb); time columns use the
+    pgvector column DEFAULT (now()) so now_fields are omitted. Degrade-open."""
+    if not _PG_ENABLED:
+        return
+    cols, vals = [], []
+    for k, v in fields.items():
+        if v is None:
+            continue
+        cols.append(k)
+        if isinstance(v, (dict, list)):
+            vals.append("'" + _pgesc(json.dumps(v, default=str)) + "'::jsonb")
+        elif isinstance(v, bool):
+            vals.append("true" if v else "false")
+        elif isinstance(v, (int, float)):
+            vals.append(str(v))
+        else:
+            vals.append("'" + _pgesc(str(v)) + "'")
+    if cols:
+        _pg_exec(f"INSERT INTO {table} ({', '.join(cols)}) "
+                 f"VALUES ({', '.join(vals)});")
+
+
 def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     """Best-effort SurrealDB write/query. Returns the parsed list of
     per-statement results, or None on any error. A 30s backoff after
@@ -132,6 +179,12 @@ def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     global _DB_DOWN_UNTIL
     if not sql or not sql.strip():
         return None
+    # WS-9c: when Postgres is primary, daemon writes are mirrored to pgvector at
+    # the _db_create chokepoint -- skip the SurrealDB write here.
+    if _PG_PRIMARY:
+        _verb = sql.lstrip().split(None, 1)[0].upper()
+        if _verb in ("CREATE", "UPDATE", "DELETE", "INSERT", "RELATE"):
+            return None
     if time.time() < _DB_DOWN_UNTIL:
         return None
     body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
@@ -168,6 +221,7 @@ def _db_create(table: str, fields: dict, *,
     sql = f"CREATE {table} SET " + ", ".join(parts)
     if extra:
         sql += " " + extra
+    _pg_insert(table, fields)  # WS-9c: mirror to pgvector at the chokepoint
     return sql + ";"
 
 
