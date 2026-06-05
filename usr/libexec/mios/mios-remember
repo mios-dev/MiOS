@@ -42,6 +42,32 @@ DB_NS = os.environ.get("MIOS_DB_NS", "mios")
 DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 TABLE = os.environ.get("MIOS_AGENT_MEMORY_TABLE", "agent_memory")
 
+# WS-9c cutover: also mirror writes to Postgres+pgvector (agent_memory). Backend
+# select matches the agent-pipe (MIOS_DB_BACKEND: surreal|dual|postgres). The
+# pgvector write goes through the shared mios-db --pg CLI (psql), so this
+# system-python shim needs no psycopg. The pg column is `mem_key` (maps `key`).
+DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
+_PG_ENABLED = DB_BACKEND in ("dual", "postgres")
+_PG_PRIMARY = DB_BACKEND == "postgres"
+_MIOS_DB = "/usr/libexec/mios/mios-db"
+
+
+def _pgesc(s) -> str:
+    return str(s).replace("'", "''")
+
+
+def _pg(sql: str) -> None:
+    """Mirror a write to pgvector via the shared mios-db --pg CLI. Degrade-open
+    (a pg miss never breaks the SurrealDB path during dual)."""
+    if not _PG_ENABLED:
+        return
+    try:
+        import subprocess
+        subprocess.run([_MIOS_DB, "--pg", sql],
+                       capture_output=True, text=True, timeout=15)
+    except Exception:  # noqa: BLE001
+        pass
+
 
 def _sql(sql: str) -> list:
     req = urllib.request.Request(
@@ -96,17 +122,43 @@ def main() -> int:
                 print(json.dumps({"ok": False, "error": "empty fact"}))
                 return 2
             key = args.key.strip() or f"m{abs(hash(fact)) % (10**10)}"
-            # upsert by key within scope
-            _sql(f"DELETE {TABLE} WHERE key = '{_esc(key)}' "
-                 f"AND scope = '{_esc(args.scope)}';")
-            rows = _sql(
-                f"CREATE {TABLE} SET fact = '{_esc(fact)}', "
-                f"scope = '{_esc(args.scope)}', key = '{_esc(key)}', "
-                f"source = '{_esc(args.source)}', ts = time::now();")
+            # upsert by key within scope -- pgvector mirror + (unless pg-primary) SurrealDB
+            _pg(f"DELETE FROM {TABLE} WHERE mem_key = '{_pgesc(key)}' "
+                f"AND scope = '{_pgesc(args.scope)}'; "
+                f"INSERT INTO {TABLE} (fact, scope, mem_key, source) VALUES "
+                f"('{_pgesc(fact)}', '{_pgesc(args.scope)}', "
+                f"'{_pgesc(key)}', '{_pgesc(args.source)}');")
+            rows = True
+            if not _PG_PRIMARY:
+                _sql(f"DELETE {TABLE} WHERE key = '{_esc(key)}' "
+                     f"AND scope = '{_esc(args.scope)}';")
+                rows = _sql(
+                    f"CREATE {TABLE} SET fact = '{_esc(fact)}', "
+                    f"scope = '{_esc(args.scope)}', key = '{_esc(key)}', "
+                    f"source = '{_esc(args.source)}', ts = time::now();")
             print(json.dumps({"ok": True, "op": "add", "key": key,
                               "scope": args.scope, "stored": bool(rows)}))
             return 0
         if args.cmd == "list":
+            if _PG_PRIMARY:
+                import subprocess
+                pgwhere = (f"WHERE scope = '{_pgesc(args.scope)}' "
+                           if args.scope else "")
+                inner = (f"SELECT mem_key AS key, scope, fact, source FROM {TABLE} "
+                         f"{pgwhere}ORDER BY ts DESC LIMIT {int(args.limit)}")
+                mem = []
+                try:
+                    out = subprocess.run(
+                        [_MIOS_DB, "--json", "--pg",
+                         f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+                         f"FROM ({inner}) t;"],
+                        capture_output=True, text=True, timeout=15).stdout.strip()
+                    mem = json.loads(out) if out else []
+                except Exception:  # noqa: BLE001
+                    mem = []
+                print(json.dumps({"ok": True, "count": len(mem),
+                                  "memories": mem}))
+                return 0
             where = (f"WHERE scope = '{_esc(args.scope)}' "
                      if args.scope else "")
             rows = _sql(f"SELECT fact, scope, key, source, ts FROM {TABLE} "
@@ -118,12 +170,17 @@ def main() -> int:
                                    "source": r.get("source")} for r in rows]}))
             return 0
         if args.cmd == "forget":
-            _sql(f"DELETE {TABLE} WHERE key = '{_esc(args.key)}';")
+            _pg(f"DELETE FROM {TABLE} WHERE mem_key = '{_pgesc(args.key)}';")
+            if not _PG_PRIMARY:
+                _sql(f"DELETE {TABLE} WHERE key = '{_esc(args.key)}';")
             print(json.dumps({"ok": True, "op": "forget", "key": args.key}))
             return 0
         if args.cmd == "update":
-            rows = _sql(f"UPDATE {TABLE} SET fact = '{_esc(args.fact)}', "
-                        f"ts = time::now() WHERE key = '{_esc(args.key)}';")
+            _pg(f"UPDATE {TABLE} SET fact = '{_pgesc(args.fact)}', "
+                f"ts = now() WHERE mem_key = '{_pgesc(args.key)}';")
+            rows = [1] if _PG_PRIMARY else \
+                _sql(f"UPDATE {TABLE} SET fact = '{_esc(args.fact)}', "
+                     f"ts = time::now() WHERE key = '{_esc(args.key)}';")
             print(json.dumps({"ok": bool(rows), "op": "update",
                               "key": args.key,
                               "updated": len(rows)}))
