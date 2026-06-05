@@ -114,9 +114,15 @@ fi
 #     comes in transitively (Python 3.13+ dropped stdlib audioop).
 #     Pinned <3 because discord.py 3.x is a partial rewrite still
 #     in pre-release.
+#   * psycopg[binary] -- REQUIRED by the agent-pipe's mios_pg client (WS-9c
+#     Postgres+pgvector dual-write mirror + cutover). mios_pg imports psycopg
+#     LAZILY and degrades to a SILENT no-op without it, so the pgvector mirror
+#     writes nothing and the DB cutover can never fill (2026-06-05: the live
+#     mirror was empty until psycopg was added). [binary] = prebuilt wheel, no
+#     libpq headers / compiler needed.
 # --no-input keeps it non-interactive; failure here is non-fatal.
 if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
-        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp websockets "discord.py>=2.4,<3" 2>&1 | tail -5; then
+        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" 2>&1 | tail -5; then
     :
 else
     warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + soft-deps failed (network? PyPI?) -- removing partial venv, skipping"
