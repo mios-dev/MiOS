@@ -7007,7 +7007,11 @@ async def _inline_satisfaction_check(
         f"ORDER BY ts ASC;"
     )
     try:
-        r = await _db_post(sql)
+        r = await _db_read(sql, pg_sql=(
+            "SELECT ts, tool, args, result_preview, success, exit_code, "
+            "latency_ms FROM tool_call WHERE session_id = %(sid)s "
+            "AND ts > now() - interval '5 minutes' ORDER BY ts ASC"),
+            pg_params={"sid": session_id})
     except Exception:
         return None
     if not r:
@@ -7127,7 +7131,10 @@ async def _recent_satisfaction_verdicts(limit: int = 3) -> list[dict]:
         "   OR kind = 'user_query_unsatisfied' "
         "ORDER BY ts DESC LIMIT " + str(int(limit)) + ";"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT ts, kind, summary, payload FROM event "
+        "WHERE kind = 'user_query_satisfied' OR kind = 'user_query_unsatisfied' "
+        "ORDER BY ts DESC LIMIT %(lim)s"), pg_params={"lim": int(limit)})
     if not r:
         return []
     rows = (r[-1] or {}).get("result") or []
