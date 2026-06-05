@@ -113,15 +113,26 @@ CREATE INDEX IF NOT EXISTS session_chat ON session (owui_chat_id);
 
 -- ── skills (mined/promoted) + per-run audit ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS skill (
-    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name        text,
-    status      text,                               -- candidate | promoted | retired
-    body        jsonb,
-    confidence  double precision,
-    source      text,                               -- mined | operator | import
-    version     integer DEFAULT 1,
-    ts          timestamptz DEFAULT now()
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name         text,
+    description  text,                              -- code field (mios-skills writes)
+    status       text,                              -- candidate | promoted | retired
+    body         jsonb,
+    confidence   double precision,
+    support      integer,                           -- SPM frequency support
+    source       text,                              -- mined | operator | import
+    version      integer DEFAULT 1,
+    created_at   timestamptz DEFAULT now(),
+    updated_at   timestamptz,
+    last_used_at timestamptz,
+    ts           timestamptz DEFAULT now()
 );
+-- Reconcile pre-existing skill tables to mios-skills' actual fields (idempotent).
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS description  text;
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS support      integer;
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS created_at   timestamptz;
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS updated_at   timestamptz;
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS last_used_at timestamptz;
 CREATE INDEX IF NOT EXISTS skill_name   ON skill (name);
 CREATE INDEX IF NOT EXISTS skill_status ON skill (status);
 

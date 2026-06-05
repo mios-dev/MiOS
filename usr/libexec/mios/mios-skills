@@ -106,6 +106,45 @@ DB_NS = os.environ.get("MIOS_DB_NS", "mios")
 DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
 
+# WS-9c cutover: mirror skill writes/reads to Postgres+pgvector via the shared
+# mios-db --pg CLI (system-python, no psycopg). Backend select matches the
+# agent-pipe (MIOS_DB_BACKEND: surreal|dual|postgres).
+DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
+_PG_ENABLED = DB_BACKEND in ("dual", "postgres")
+_PG_PRIMARY = DB_BACKEND == "postgres"
+_MIOS_DB = "/usr/libexec/mios/mios-db"
+
+
+def _pgesc(s) -> str:
+    return str(s).replace("'", "''")
+
+
+def _pg_exec(sql: str) -> None:
+    """Mirror a skill write to pgvector via mios-db --pg. Degrade-open."""
+    if not _PG_ENABLED:
+        return
+    try:
+        import subprocess
+        subprocess.run([_MIOS_DB, "--pg", sql],
+                       capture_output=True, text=True, timeout=15)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _pg_rows(sql_inner: str) -> list:
+    """Read rows from pgvector as list[dict] via json_agg + mios-db --pg."""
+    try:
+        import subprocess
+        out = subprocess.run(
+            [_MIOS_DB, "--json", "--pg",
+             f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+             f"FROM ({sql_inner}) t;"],
+            capture_output=True, text=True, timeout=15).stdout.strip()
+        return json.loads(out) if out else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
 AGENT_PIPE_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_ENDPOINT", "http://localhost:8640/v1",
 ).rstrip("/")
@@ -445,6 +484,14 @@ def _insert_skill(*, name: str, body: dict, support: int,
                   confidence: float, status: str,
                   description: str = "",
                   source: str = "mined") -> bool:
+    _pg_exec(
+        "INSERT INTO skill (name, description, body, source, status, support, "
+        "confidence, version, created_at) VALUES ("
+        f"'{_pgesc(name)}', '{_pgesc(description)}', "
+        f"'{_pgesc(json.dumps(body))}'::jsonb, '{_pgesc(source)}', "
+        f"'{_pgesc(status)}', {int(support)}, {float(confidence)}, 1, now());")
+    if _PG_PRIMARY:
+        return True
     sql = (
         f"CREATE skill SET "
         f"name = {sq(name)}, "
@@ -463,18 +510,30 @@ def _insert_skill(*, name: str, body: dict, support: int,
 
 # ─── list / show / promote / retire / delete ──────────────────────
 def cmd_list(args: argparse.Namespace) -> int:
-    where = []
-    if args.status and args.status != "all":
-        where.append(f"status = {sq(args.status)}")
-    if args.source and args.source != "all":
-        where.append(f"source = {sq(args.source)}")
-    clause = " AND ".join(where) if where else "true"
-    sql = (
-        f"SELECT name, description, source, status, support, "
-        f"confidence, version, created_at, last_used_at "
-        f"FROM skill WHERE {clause} ORDER BY name;"
-    )
-    rows = last_ok(post_sql(sql)) or []
+    if _PG_PRIMARY:
+        pgw = []
+        if args.status and args.status != "all":
+            pgw.append(f"status = '{_pgesc(args.status)}'")
+        if args.source and args.source != "all":
+            pgw.append(f"source = '{_pgesc(args.source)}'")
+        pgclause = " AND ".join(pgw) if pgw else "true"
+        rows = _pg_rows(
+            "SELECT name, description, source, status, support, "
+            "confidence, version, created_at, last_used_at "
+            f"FROM skill WHERE {pgclause} ORDER BY name")
+    else:
+        where = []
+        if args.status and args.status != "all":
+            where.append(f"status = {sq(args.status)}")
+        if args.source and args.source != "all":
+            where.append(f"source = {sq(args.source)}")
+        clause = " AND ".join(where) if where else "true"
+        sql = (
+            f"SELECT name, description, source, status, support, "
+            f"confidence, version, created_at, last_used_at "
+            f"FROM skill WHERE {clause} ORDER BY name;"
+        )
+        rows = last_ok(post_sql(sql)) or []
     if args.json:
         print(json.dumps(rows, indent=2, default=str))
         return 0
@@ -495,12 +554,18 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def cmd_show(args: argparse.Namespace) -> int:
-    sql = (
-        f"SELECT name, description, body, params, source, status, "
-        f"support, confidence, version "
-        f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
-    )
-    rows = last_ok(post_sql(sql)) or []
+    if _PG_PRIMARY:
+        rows = _pg_rows(
+            "SELECT name, description, body, source, status, "
+            "support, confidence, version FROM skill "
+            f"WHERE name = '{_pgesc(args.name)}' LIMIT 1")
+    else:
+        sql = (
+            f"SELECT name, description, body, params, source, status, "
+            f"support, confidence, version "
+            f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
+        )
+        rows = last_ok(post_sql(sql)) or []
     if not rows:
         sys.stderr.write(f"mios-skills: no skill named {args.name!r}\n")
         return 1
@@ -509,6 +574,11 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 
 def _update_status(name: str, status: str) -> int:
+    _pg_exec(f"UPDATE skill SET status = '{_pgesc(status)}', "
+             f"updated_at = now() WHERE name = '{_pgesc(name)}';")
+    if _PG_PRIMARY:
+        sys.stderr.write(f"mios-skills: {name} -> {status}\n")
+        return 0
     sql = (
         f"UPDATE skill SET status = {sq(status)}, "
         f"updated_at = time::now() "
@@ -532,10 +602,12 @@ def cmd_retire(args: argparse.Namespace) -> int:
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
-    sql = f"DELETE skill WHERE name = {sq(args.name)};"
-    r = post_sql(sql)
-    if last_ok(r) is None:
-        return 1
+    _pg_exec(f"DELETE FROM skill WHERE name = '{_pgesc(args.name)}';")
+    if not _PG_PRIMARY:
+        sql = f"DELETE skill WHERE name = {sq(args.name)};"
+        r = post_sql(sql)
+        if last_ok(r) is None:
+            return 1
     sys.stderr.write(f"mios-skills: deleted {args.name}\n")
     return 0
 
@@ -661,18 +733,24 @@ def _import_one(obj: dict) -> bool:
 
 
 def cmd_export(args: argparse.Namespace) -> int:
-    if args.name:
-        sql = (
-            f"SELECT name, description, body, source, status, "
-            f"support, confidence, version "
-            f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
-        )
+    if _PG_PRIMARY:
+        cond = f"WHERE name = '{_pgesc(args.name)}' LIMIT 1" if args.name \
+            else "ORDER BY name"
+        rows = _pg_rows("SELECT name, description, body, source, status, "
+                        f"support, confidence, version FROM skill {cond}")
     else:
-        sql = (
-            "SELECT name, description, body, source, status, "
-            "support, confidence, version FROM skill ORDER BY name;"
-        )
-    rows = last_ok(post_sql(sql)) or []
+        if args.name:
+            sql = (
+                f"SELECT name, description, body, source, status, "
+                f"support, confidence, version "
+                f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
+            )
+        else:
+            sql = (
+                "SELECT name, description, body, source, status, "
+                "support, confidence, version FROM skill ORDER BY name;"
+            )
+        rows = last_ok(post_sql(sql)) or []
     for row in rows:
         print(json.dumps(row, default=str))
     return 0
@@ -683,11 +761,15 @@ def _promoted_tools_payload() -> dict:
     Shared between cmd_openai_tools (prints to stdout) and
     cmd_export_catalog (writes to the static file every external
     agent reads when agent-pipe HTTP isn't reachable)."""
-    sql = (
-        "SELECT name, description, body "
-        "FROM skill WHERE status = 'promoted' ORDER BY name;"
-    )
-    rows = last_ok(post_sql(sql)) or []
+    if _PG_PRIMARY:
+        rows = _pg_rows("SELECT name, description, body FROM skill "
+                        "WHERE status = 'promoted' ORDER BY name")
+    else:
+        sql = (
+            "SELECT name, description, body "
+            "FROM skill WHERE status = 'promoted' ORDER BY name;"
+        )
+        rows = last_ok(post_sql(sql)) or []
     tools = []
     for row in rows:
         name = row.get("name") or ""
