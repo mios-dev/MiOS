@@ -1353,6 +1353,14 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     global _DB_DOWN_UNTIL
     if not sql or not sql.strip():
         return None
+    # WS-9c full cutover: when Postgres is primary, agent-plane WRITES are already
+    # mirrored to pgvector at the _db_create chokepoint -- skip the SurrealDB write
+    # here so `postgres` mode stops touching SurrealDB entirely. SELECTs still pass
+    # through (any not-yet-translated read falls back to SurrealDB until converted).
+    if _PG_PRIMARY:
+        _verb = sql.lstrip().split(None, 1)[0].upper()
+        if _verb in ("CREATE", "UPDATE", "DELETE", "INSERT", "RELATE"):
+            return None
     if time.time() < _DB_DOWN_UNTIL:
         return None
     body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode()
