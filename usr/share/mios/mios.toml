@@ -538,6 +538,29 @@ composefs_mode = "verity"
 # "yes" or "off".
 mask_systemd_remount_fs = true
 
+# WS-7 (AIOS immutable-host hardening): fapolicyd PERMISSIVE/observe rollout.
+# DEFAULT-OFF. When true, the gated build step (automation/lib/
+# ws7-uki-fapolicyd-build.sh) installs the permissive (observe-only) fapolicyd
+# config + the sandboxed-codegen exec carve-out over the live /etc copy.
+# fapolicyd then LOGS would-be denials and BLOCKS NOTHING. Enforce-mode is a
+# separate, documented, rollback-tested operator step (enforce on an
+# incomplete whitelist BRICKS BOOT) -- see concepts/ws7-uki-fapolicyd.md.
+[security.fapolicyd_observe]
+enable = false
+
+# ----------------------------------------------------------------------------
+# [uki] -- WS-7 verity-rooted Unified Kernel Image build (DEFAULT-OFF).
+# When verity_uki_build = true the gated build step runs `ukify build`
+# measuring the composefs fs-verity digest into a UKI ARTIFACT at
+# /usr/lib/modules/<kver>/mios-verity.efi. The artifact is NOT signed, NOT
+# installed, and NOT the active boot entry -- signing (enrolled MOK) + install
+# + rollback-tested boot are operator promotion steps. A mis-signed/required
+# UKI BRICKS BOOT; see concepts/ws7-uki-fapolicyd.md. [packages.uki] already
+# provides systemd-ukify.
+# ----------------------------------------------------------------------------
+[uki]
+verity_uki_build = false
+
 [fs_watcher]
 # Phase A.2 of the AgentOS roadmap: directories the mios-daemon
 # fs-watcher thread tails via inotify, emitting SurrealDB event
@@ -683,6 +706,13 @@ job      = "Software engineering -- read, edit, review, test and commit code, co
 # engages when a turn is genuinely code-focused (role-matched), not every turn.
 # Re-enable once `opencode run` headless invocation is fixed (flags/output-mode).
 default  = false
+# fanout=false (operator 2026-06-01 concurrent-swarm fix): opencode was pulled
+# into EVERY swarm/council turn despite default=false, where its `run` HANGS (->
+# 90s timeout + dumps its whole prompt into the stream) AND its qwen2.5-coder:7b
+# @ num_ctx=32768 holds ~23GB = MONOPOLISES the shared 4090, blocking co-loading
+# so real work spills to CPU. Exclude it from automatic fan-out; it engages only
+# when a turn is explicitly code-routed. Re-enable once `opencode run` is fixed.
+fanout   = false
 lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
@@ -938,6 +968,17 @@ fanout_max = 3
 dag_node_max_tokens      = 800
 dag_node_slow_max_tokens = 350
 dag_node_retry           = 1     # empty-result retries (read-only -> safe); 0 = none
+# PER-NODE WALL-CLOCK DEADLINE (runaway/slowness fix 2026-06-02): the turn used to
+# wait for the SLOWEST node (potato-cpu ~600s) -> blew every client timeout. Each
+# agent node's dispatch+retries is bounded here; a node that doesn't answer in time
+# is abandoned (empty) and the synthesiser proceeds on who DID answer.
+dag_node_deadline_s      = 75    # seconds; runaway backstop for a FAST-lane node. The dGPU/accelerator nodes finish their primary in 8-28s then work-steal (deepen extra coverage facets) until the barrier.
+# NODE/ENDPOINT-AWARE deadline (operator 2026-06-02 "LOCAL CPU IS NEEDED ... ALL NODES PLAY A PART ... planning isn't taking into account the nodes and endpoints"): a SLOW lane (CPU/iGPU/phone) gets a longer deadline. It is now SIZED to its hardware -- it REASONS over the grounding the fast lanes fetched this turn (no 16K-ctx own tool-loop) -- so its single pass finishes well inside this and is never abandoned just for being slow. The fast lanes deepen while it finishes (everything concurrent, all sources every turn).
+dag_node_deadline_slow_s = 150   # seconds; slow-lane (cpu/igpu/mobile) per-node deadline
+# WORK-STEAL (deepen) LANES: only these FAST lanes do extra coverage passes until the barrier; a slow lane does its ONE grounded pass and waits (it can't afford a second). CSV of lane categories.
+deepen_lanes         = "gpu,accelerator"
+# SLOW-lane tool-surface floor: a slow lane with no explicit lane_tool_cap entry gets this many tools (NOT the full 71-tool surface a CPU daemon can't prefill). Only used when a slow node has no injected grounding to reason over. 0 = full surface (opt out).
+slow_lane_tool_cap   = 12
 # DEEPEN: after its primary answer a swarm node loops extra web-research + re-
 # answer passes UNTIL the judge is satisfied, hard-bounded by these. A satisfied
 # node exits at once; the deadline only bites a stubborn facet.
@@ -950,8 +991,10 @@ deepen_enabled       = true
 # the proven level-barrier fallback. Read by SWARM_SATURATE (env MIOS_SWARM_SATURATE).
 swarm_saturate       = true
 deepen_iters         = 12     # RUNAWAY backstop on extra passes (the deadline is the real bound)
-deepen_deadline_s    = 60     # HARD per-node deepen cap. 120->60 (operator 2026-05-31 live test: research turns exceeded 5.5min); each unsatisfied facet now caps at ~60s
+deepen_deadline_s    = 60     # HARD per-node deepen cap for DEEP turns (casual queries no longer deepen via the complexity gate). 60s/facet is the post-runaway deep budget.
 deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't overshoot
+# DETAIL-FILL (operator 2026-06-02 "also can loop to gather data in detail-fill passes"): a fast work-stealing node FETCHES new web data each deepen pass (bounded by deepen_web_timeout_s) and appends fresh stories to the shared grounding -> the loop enriches the FACTS, not just re-reasons them. Self-gates to web/news turns (a node carrying a web-capable refined plan). false = reason-only deepen (no new fetches).
+deepen_fetch         = true
 # ── PER-LANE / GLOBAL CONCURRENCY (SSOT'd 2026-05-31 after "HARDCODES!!!").
 # agent_concurrency = default per-lane cap; lane_concurrency_<lane> overrides ONE
 # lane. The LOCAL gpu/cpu lanes (the single SHARED 4090 + in-VM CPU) are capped
@@ -978,6 +1021,19 @@ lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash (CPU has no
 # wide fan-out is bounded ("saturate to capacity, never over"). 0/unset -> code
 # default max(8, cpu_count-4). Read by _GLOBAL_DISPATCH_SEM.
 global_concurrency   = 16     # max concurrently-running agent dispatches across ALL lanes
+# ── Runaway / abandoned-turn bounds (operator 2026-06-01 cancellation fix). ollama
+# does NOT stop generating on client disconnect, so a hard num_predict cap is the
+# only real bound on an abandoned turn; the turn deadline is a wall-clock backstop
+# (per-node deepen caps don't bound the whole turn). The disconnect/supersede
+# cancellation lives in _execute_dag_emitting + _execute_dag_saturated.
+ollama_num_predict_cap = 2048   # hard per-generation token ceiling on AGENT ollama dispatches (fast/dGPU lanes)
+# PER-LANE cap (runaway fix 2026-06-01j): a CPU/iGPU lane gens ~5 tok/s, so 2048
+# tokens = ~400s of pegged cores per gen; ollama can't be aborted on disconnect,
+# so stacked slow-lane gens drove loadavg to 387. Give the SLOW lanes a short
+# ceiling (~512 ≈ ~100s) so each self-clears fast; the dGPU keeps the full 2048.
+ollama_num_predict_cap_cpu = 512   # token ceiling on CPU/iGPU (:11435/:11436) dispatches
+turn_deadline_s        = 600    # wall-clock backstop per turn (s); generous so deep research still finishes
+runaway_reap           = true   # on a BLOWN deadline (not supersede), unload CPU-lane models (keep_alive:0) -- the only real release for ollama's un-abortable gens
 # ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix 2026-06-01). The
 # council previously fanned EVERY non-trivial turn out to ALL live agents
 # (MIOS_COUNCIL_MAX defaulted to 0 = uncapped) AND pulled in the research_only
@@ -990,6 +1046,16 @@ global_concurrency   = 16     # max concurrently-running agent dispatches across
 # distinct from the per-LANE cap (hardware category). Override via
 # MIOS_COUNCIL_MAX / MIOS_AGENT_ENDPOINT_CONCURRENCY.
 council_max          = 4      # max council SECONDARIES per turn (0 = all; was uncapped)
+# SWARM/DAG width cap (operator 2026-06-01 "16-agent explosion"): the swarm/DAG
+# fan-out had NO cap (council_max only bounds the council path). Bound the swarm
+# to at most this many DISTINCT (endpoint,model) targets AFTER de-dup. 0=uncapped.
+swarm_max_width      = 8      # >= live distinct-node count so EVERY live node fires concurrently (operator "concurrent true swarm"). De-dup keeps these distinct (endpoint,model); depth (deepen/per-facet research) is gated separately, so a wide fan-out stays cheap on casual turns.
+# SLOW-LANE fan-out CEILING (runaway fix 2026-06-01j): GPU/fast nodes fan out
+# unbounded, but CPU/iGPU lanes are where stacked ~100s gens pile up. Cap how many
+# slow-lane nodes a DAG BACKFILLS (primary facets never dropped). Default 2 = the
+# live CPU node count (local-cpu + potato-cpu) = no-op today, but bounds a deep/
+# research turn that would otherwise multiply CPU replicas across the lanes.
+swarm_max_cpu_nodes  = 2      # max CPU/iGPU slow-lane nodes backfilled into one DAG (0 = uncapped)
 # endpoint_concurrency RAISED 2->4 (operator 2026-06-01 dGPU co-load): backstop
 # ceiling for concurrent calls to one daemon; VRAM-aware admission (admit_* +
 # VRAM_COLOAD_*) is the real per-turn governor on the dGPU. The CPU lane stays
@@ -1018,11 +1084,27 @@ nodes_research_only  = false  # [nodes.*] default research_only: FALSE = every n
 # Fast LOCAL lanes high; slow/remote/research lanes low so under host pressure they
 # wait out admit_max_wait + self-shed -> the wide roster degrades, never stampedes.
 lane_priority        = "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"
+# ── WS-1 priority scheduler queue (AIOS Agent Scheduler reordering, 2026-06-04).
+# When ON, the next freed GLOBAL dispatch slot goes to the HIGHEST-PRIORITY
+# waiter (turn priority via _sched_priority + lane priority above, FIFO tie-break)
+# instead of arrival order -- this makes _sched_priority/_dispatch_priority ACTIVE
+# rather than advisory. Anti-starvation aging serves any waiter older than
+# priority_starvation_ms ahead of priority so slow lanes never indefinitely
+# starve. DEFAULT OFF + degrade-open: a pure no-op until enabled; any error falls
+# back to the proven plain FIFO global cap. Observe /v1/scheduler.priority_gate
+# first, then flip on via an /etc drop-in. _disp_num reads these directly.
+priority_queue_enable  = true   # ON (operator 2026-06-04 'everything on' for live MiOS-DEV); degrade-open to plain FIFO on any error
+priority_starvation_ms = 4000   # a queued dispatch older than this is served ahead of priority (anti-starvation)
 # Proactively evict an IDLE resident model (refcount 0, non-kept) to free VRAM for
 # a cold model a turn NEEDS -- "clear RAM/VRAM for idle agents to be loaded so
 # nothing in the pipeline is idle". ollama lanes (/api/ps + keep_alive:0); the hard
 # semaphores stay the OOM backstop. llama.cpp KV is paged separately (kv_paging_*).
-vram_reclaim_idle    = true
+vram_reclaim_idle    = false  # DISABLED 2026-06-01: proactive evict->reload of multi-GB model files thrashed disk (~2GB/s). De-dup + swarm_max_width cut the model churn at the source; let ollama's own LRU manage residency.
+# CPU-offload of fan-out secondaries: OFF (operator 2026-06-01 "concurrent true
+# swarm / unfired nodes"). ON funneled EVERY secondary onto the single CPU lane
+# (:11435) -> 35-conn wedge while dGPU/potato/iGPU sat idle. OFF = each distinct
+# node runs on its OWN hardware concurrently (dGPU co-loads multiple models).
+offload_cpu          = false
 # ── Tool-surface shaping (operator 2026-06-01). Per-lane tool CAP (weak lanes
 # like the iGPU llama.cpp time out grammar-constraining all 71 verbs; they get a
 # capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
@@ -1041,6 +1123,15 @@ kv_paging_enable  = true     # master switch; only ACTS on llama.cpp /slots endp
 kv_paging_hints   = "11436"  # host:port substrings that speak llama.cpp /slots (default the iGPU lane)
 kv_paging_slot    = 0        # llama-server slot id the light lane pages (single resident frame)
 kv_paging_timeout = 12.0     # seconds for one save/restore POST (best-effort; never fails the turn)
+# ── KV-cache FORK (WS-8) — branch a parent conversation's saved KV into a NEW
+# child file so a swarm can fan out parallel cognitive paths from a SHARED PREFIX
+# (RadixAttention-style prefix-sharing on the disk-file prototype). A fork =
+# restore(parent)->save(child) over the existing /slots primitive, under the per-
+# slot lock. DEFAULT-OFF + degrade-open: when disabled (or on any slot error) the
+# child just starts cold. Read by the agent-pipe (kv_fork / mios_kvfork); env
+# overrides MIOS_KV_FORK / MIOS_KV_FORK_MAX_BRANCHES.
+kv_fork_enable       = false  # master switch (only ACTS when kv_paging is on AND the endpoint speaks llama.cpp /slots)
+kv_fork_max_branches = 4      # runaway guard: max child KV files one fork request may spawn
 # ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
 # defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
 # fires WITH CPU ... any engine/node" + "add per-lane context trimming".
@@ -1096,6 +1187,60 @@ rank_hot            = 0.03   # weight: + if the row is tier=hot (frequently page
 rank_access         = 0.02   # weight: * log1p(access_count)
 rank_age            = 0.0    # weight: - age in days (inert by default)
 hot_threshold       = 5      # access_count at which a recalled row is promoted to tier=hot
+# ── WS-3 eviction (P2.1, 2026-06-04). The knowledge table appends one row per
+# finished turn -> unbounded. This bounded K-LRU + TTL sweep removes only STALE,
+# never-recalled, neutral-outcome rows; it NEVER deletes a hot / satisfied /
+# pinned row (mios-remember facts live in a SEPARATE store and are untouched).
+# ON by default (operator 2026-06-04 'everything on' for live MiOS-DEV). The
+# sweep DELETES only stale (>ttl) never-recalled neutral rows -- effectively a
+# no-op on a recent table until rows age past evict_ttl_days. To observe instead
+# of delete, set evict_enable=false + evict_dryrun=true (log-only). BACK UP the
+# knowledge table if it holds valuable rows older than evict_ttl_days.
+evict_enable        = true   # ON (operator 2026-06-04 'everything on'); DELETES only >ttl never-recalled neutral rows (hot/satisfied/pinned always kept, batch-capped)
+evict_dryrun        = false  # inert when evict_enable=true; set true WITH evict_enable=false for log-only observation
+evict_interval_s    = 3600   # seconds between sweeps
+evict_ttl_days      = 90     # evict evictable rows not accessed within this many days
+evict_max_rows      = 50000  # hard row cap; overflow (lowest-value first) is evicted
+evict_min_access    = 1      # only evict rows recalled FEWER than this many times (1 = never recalled)
+evict_batch         = 500    # max rows removed per sweep (blast-radius bound)
+
+# ── WS-6 runtime HITL approval gate (2026-06-04). 'enable' on by default; 'mode'
+# = 'log' (NON-BLOCKING: record + emit a hitl_request event then proceed -- the
+# autonomous swarm never deadlocks) or 'gate' (BLOCKING: a scoped verb is refused
+# until approved via POST /v1/hitl/approve, then the agent retry passes). 'verbs'
+# overrides the gated set (CSV); blank = the built-in high-privilege verb set.
+[hitl]
+enable = true
+mode   = "log"     # log = non-blocking + observable (default); gate = block-until-approved
+verbs  = ""        # CSV override of gated verbs; blank = _HIGH_PRIVILEGE_VERBS
+
+# ── WS-6 replayable DAG run-templates (2026-06-04). Capture every planned DAG to
+# the run_template table (GET /v1/run-templates) keyed by a structural class hash
+# -- the determinism foundation. Replay-reuse is a follow-up; capture is additive
+# + fire-and-forget so it can never affect a live run.
+[run_template]
+enable = true
+
+# ── WS-5 Agent-Computer Interface output normalizer (2026-06-04). Head-TAIL
+# truncation of tool/terminal results (keep the start + the end, elide the
+# middle with an anti-fabrication marker) so the tail's error/exit/result
+# survives. Read directly by the agent-pipe (_cap_verb_result).
+[aci]
+max_lines = 160    # cap lines per tool result (head+tail kept, middle elided); 0 = no line cap
+head_frac = 0.6    # fraction of the char/line budget kept as head; the rest is tail
+
+# ── WS-2 Code Mode (2026-06-04). The agent writes CODE that calls a local tool
+# API inside the rootless podman coderun-sandbox instead of loading ~71 function
+# schemas into context (the AIOS Tool-Manager token win). DEFAULT-OFF + degrade-
+# CLOSED: code execution only runs when enable=true AND the sandbox is present.
+# Read directly by the agent-pipe + mios-coderun-codemode via [code_mode].
+[code_mode]
+enable           = false   # master gate -- code execution is OFF until an /etc drop-in flips this
+allow_net        = false   # even if a snippet requests net, deploy must also allow it (AND of the two)
+max_output_chars = 8000    # cap on snippet stdout/stderr fed back to the model
+uid              = 828     # mios-codemode service uid (50-mios-services.conf); pins workspace ownership
+gid              = 828
+# workspace_root = "/var/lib/mios/codemode"   # default; falls back to [paths].coderun_workspace_root if unset
 
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
@@ -1303,6 +1448,62 @@ executor_endpoint   = ""         # e.g. in /etc/mios: "http://100.x.y.z:11437"
   [os_control.nodes.igpu]
   endpoint = ""    # e.g. in /etc/mios: endpoint = "http://100.x.y.z:11437"
   desc     = "iGPU Windows host -- launch + verify on its own desktop over the tailnet (also runs mios-igpu-server.ps1 for inference)."
+
+# ─── Computer-use (Linux/Wayland desktop control) ─────────────────────
+# The Linux/Wayland peer of the Windows pc-control lane. Drives THIS host's
+# graphical session via /usr/libexec/mios/mios-computer-use (RemoteDesktop
+# portal + Screenshot/ScreenCast portal + AT-SPI; self-written evdev/uinput
+# fallback -- NO ydotool/AGPL). The cu_* verbs dispatch to it, so they inherit
+# the three-projection surface automatically: MCP tool (/v1/verbs), OpenAI tool
+# (the agent loop), and A2A skill (the agent card).
+#
+# ENVIRONMENT-ADAPTIVE (MiOS is ONE bootc image for any hardware): the executor
+# routes by environment -- a reachable executor_endpoint (federation: drive
+# ANOTHER machine's desktop) wins; else the local Wayland session; else WSL2
+# delegates to mios-pc-control. ONE verb surface for bare-metal GNOME, WSLg, and
+# remote nodes.
+[computer_use]
+# Federation: when set + reachable, every cu_* op routes to this remote desktop's
+# mios-computer-use-server (same HTTP contract as the Windows mios-oscontrol-
+# server.ps1). EMPTY in vendor (no personal tailnet host in the public repo);
+# set the real tailnet URL in your /etc/mios overlay. Configured-but-down =>
+# honest error, NEVER a blind local fall-back.
+executor_endpoint  = ""          # e.g. in /etc/mios: "http://100.x.y.z:11438"
+input_backend      = "auto"      # auto | portal (GNOME/KDE, sandboxable) | uinput (compositor-agnostic)
+capture_backend    = "auto"      # auto | portal | grim | gnome | spectacle
+restore_token_path = ""          # default: $XDG_STATE_HOME/mios/cu-restore-token (skips the portal consent dialog on re-use)
+grounding_model    = ""          # vision grounding tag; empty => mios-pc-vision default (qwen3-vl:4b on Ollama) or the vLLM mios-grounding lane
+require_approval   = true        # write-class ops (click/type/key) go through the DoD/approval gate; read-class (screenshot/window-list/ground) auto
+# mios-computer-use-server (the dual MCP+A2A node server) bind. Loopback-only in
+# vendor; set bind_address to the tailnet IP in your /etc overlay + firewall the
+# port to the tailnet to let the central pipe consume this desktop remotely.
+enable             = true        # documents intent; the systemd --user unit + graphical-session.target are the real gate
+server_port        = 11438       # MCP /mcp + A2A /.well-known/agent-card.json + /a2a + executor /input/* all on this one port
+bind_address       = "127.0.0.1" # "" disables the server; set the tailnet IP for federation
+
+# ─── Doc-gen (WS-4 P0): FOSS offline document generation (Pandoc + LibreOffice) ──
+# Read by mios-docgen (usr/libexec/mios/mios-docgen) via this layered [computer_use]
+# section, overridable by MIOS_DOCGEN_* env. DEFAULT-OFF master gate: when
+# docgen_enable=false every mios-docgen subcommand returns {"ok":false,...} and
+# exits 0 (degrade-open). NO new daemon/quadlet -- the binaries run synchronously
+# through the operator broker like the other libexec tools. Needs LibreOffice +
+# Pandoc in the image ([packages.docgen]); a missing binary also degrades-open.
+docgen_enable      = false       # MASTER GATE for mios-docgen (default off; flip in /etc overlay)
+docgen_pandoc      = "pandoc"    # pandoc binary or absolute path (markdown <-> docx/pptx/html/pdf)
+docgen_soffice     = "soffice"   # LibreOffice headless binary or path (office-binary + csv->xlsx + pdf)
+docgen_pdf_engine  = ""           # pandoc --pdf-engine; empty => route PDF through LibreOffice (no LaTeX needed)
+docgen_timeout_s   = 120         # per-conversion timeout (LibreOffice cold start can be slow)
+docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS guard)
+
+# ─── Computer-use NODES (drive a SEPARATE machine's Linux/Wayland desktop) ──
+# Mirror of [os_control.nodes.*]: each entry is a remote desktop running
+# mios-computer-use-server, reached over the tailnet. ALSO register the node as
+# an MCP server (/etc/mios/ai/v1/mcp.json) + A2A peer (/etc/mios/ai/v1/
+# a2a-peers.json) so the agent-pipe CONSUMES it (full MCP + A2A). Vendor ships
+# every endpoint EMPTY (privacy/SSOT); set real URLs in the operator overlay.
+  [computer_use.nodes.workstation]
+  endpoint = ""    # e.g. in /etc/mios: endpoint = "http://100.x.y.z:11438"
+  desc     = "A second MiOS/Linux desktop -- screenshot + click + type + verify on its own Wayland session over the tailnet."
 
 # ─── Section: Window / app launch ─────────────────────────────────────
 [verbs.open_app]
@@ -1844,6 +2045,101 @@ permission = "write"
   enum = ["left", "right", "middle"]
   default = "left"
 
+# ─── Section: Computer-use (Linux/Wayland desktop) ────────────────────
+# Cross-platform desktop control via mios-computer-use (env-adaptive: bare-metal
+# GNOME/KDE Wayland, WSLg, or a federated remote desktop). AT-SPI-first grounding
+# (cu_ground / cu_atspi_query) avoids pixels; cu_screenshot + cu_ground feed the
+# click loop. Auto-projects to MCP (/v1/verbs) + A2A skills via _VERB_CATALOG.
+# Read-class (screenshot/window-list/atspi/ground) vs write-class (click/type/key).
+[verbs.cu_screenshot]
+section    = "Computer-use"
+sig        = "path"
+desc       = "Capture the Linux/Wayland desktop to a PNG (one-shot)."
+tier       = "rare"
+permission = "read"
+cmd        = "mios-computer-use screenshot {path}"
+  [verbs.cu_screenshot.params.path]
+  type = "string"
+  aliases = ["out", "file"]
+
+[verbs.cu_ground]
+section    = "Computer-use"
+sig        = "query"
+desc       = "Locate a UI element by description -> {x,y,confidence}. AT-SPI first, vision (qwen3-vl / UI-TARS) fallback."
+tier       = "rare"
+permission = "read"
+cmd        = "mios-computer-use ground {query} --json"
+  [verbs.cu_ground.params.query]
+  type = "string"
+  aliases = ["target", "element", "description"]
+
+[verbs.cu_atspi_query]
+section    = "Computer-use"
+sig        = "query"
+desc       = "Semantic a11y-tree lookup (role/name) -> screen coords, no pixels."
+tier       = "rare"
+permission = "read"
+cmd        = "mios-computer-use atspi-query {query} --json"
+  [verbs.cu_atspi_query.params.query]
+  type = "string"
+  aliases = ["target", "element"]
+
+[verbs.cu_window_list]
+section    = "Computer-use"
+sig        = ""
+desc       = "List top-level windows on the Linux/Wayland desktop (wmctrl / hyprctl / AT-SPI)."
+tier       = "rare"
+permission = "read"
+cmd        = "mios-computer-use window-list --json"
+
+[verbs.cu_click]
+section    = "Computer-use"
+sig        = 'x, y, button="left"?'
+desc       = "Click at (x,y) on the Linux/Wayland desktop. Write-class (approval-gated)."
+tier       = "rare"
+permission = "write"
+cmd        = "mios-computer-use click {x} {y} {button}"
+  [verbs.cu_click.params.x]
+  type = "integer"
+  [verbs.cu_click.params.y]
+  type = "integer"
+  [verbs.cu_click.params.button]
+  type = "string"
+  enum = ["left", "right", "middle"]
+  default = "left"
+
+[verbs.cu_type]
+section    = "Computer-use"
+sig        = "text"
+desc       = "Type literal text into the focused surface. Write-class (approval-gated)."
+tier       = "rare"
+permission = "write"
+cmd        = "mios-computer-use type {text}"
+  [verbs.cu_type.params.text]
+  type = "string"
+  aliases = ["content", "input"]
+
+[verbs.cu_key]
+section    = "Computer-use"
+sig        = "key"
+desc       = "Press a single key (Enter, Tab, F5, ...). Write-class."
+tier       = "rare"
+permission = "write"
+cmd        = "mios-computer-use key {key}"
+  [verbs.cu_key.params.key]
+  type = "string"
+
+[verbs.cu_key_combo]
+section    = "Computer-use"
+sig        = "combo"
+desc       = "Press a modifier combo (e.g. Ctrl+S, Alt+Tab). Write-class."
+tier       = "rare"
+permission = "write"
+cmd        = "mios-computer-use key-combo {combo}"
+  [verbs.cu_key_combo.params.combo]
+  type = "string"
+  aliases = ["keys"]
+
 # ─── Section: Text editor (native; replaces pc_type save chain) ──────
 [verbs.text_view]
 section    = "Text editor"
@@ -2347,6 +2643,36 @@ cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   default = 60
   aliases = ["timeout_s", "max_seconds"]
 
+[verbs.code_mode]
+section    = "OS shell verbs"
+sig        = "code, lang=python?, net?, timeout=60?"
+desc       = "CODE MODE: write CODE that calls a local tool API instead of emitting one verb at a time. The snippet runs inside the rootless PODMAN coderun-sandbox (Network=none, ReadOnly, DropCapability=ALL, seccomp, Landlock); `import mios_tools` exposes the MiOS verb surface (mios_tools.web_search(...), .system_status(), .call('<verb>', **args)) -- each call is proxied to the broker over a mounted socket so the broker's permission/firewall/dedup gates STILL apply per verb. Print your FILTERED result as a final JSON line; only that returns (the big token win). DEFAULT-OFF: requires [code_mode].enable. Returns {ok, exit_code, stdout, stderr, sandboxed, net, result?}."
+tier       = "common"
+permission = "interactive"
+cmd        = "mios-coderun-codemode --lang {lang=python} --timeout {timeout=60} --session {session?}"
+  [verbs.code_mode.params.code]
+  type    = "string"
+  desc    = "The Python/bash source to run in the sandbox (use mios_tools for tool calls)."
+  aliases = ["source", "script", "snippet", "program"]
+  [verbs.code_mode.params.lang]
+  type    = "string"
+  enum    = ["python", "bash", "sh"]
+  default = "python"
+  desc    = "Interpreter for the snippet (Code Mode = python)."
+  aliases = ["language", "interpreter"]
+  [verbs.code_mode.params.net]
+  type    = "boolean"
+  desc    = "Request network egress (only honoured if [code_mode].allow_net is also set; default offline jail)."
+  aliases = ["network", "allow_net"]
+  [verbs.code_mode.params.timeout]
+  type    = "integer"
+  default = 60
+  aliases = ["timeout_s", "max_seconds"]
+  [verbs.code_mode.params.session]
+  type    = "string"
+  desc    = "Conversation/session id -- reuses one warm sandbox per chat."
+  aliases = ["conversation", "chat_id"]
+
 [verbs.ingest]
 section    = "Discovery / resolution"
 sig        = "path?, file?, ext=md,txt,rst,org?, max=100?"
@@ -2501,6 +2827,44 @@ permission = "write"
   [verbs.powershell_run.params.work_dir]
   type = "string"
   aliases = ["cwd", "directory"]
+
+# ─── Section: Doc-gen (WS-4 P0; FOSS offline Pandoc + LibreOffice) ─────
+# Author/convert office artifacts WITHOUT a GUI -- the computer-use "Worker"
+# that PRODUCES files (the LiteCUA Worker role) vs the cu_* verbs that DRIVE the
+# desktop. Backed by mios-docgen; gated by [computer_use].docgen_enable (default
+# off -> verbs visible but inert/degrade-open). permission=write (writes a file).
+[verbs.docgen_build]
+section    = "Doc-gen"
+sig        = "out_path, content, from_fmt=\"markdown\"?"
+desc       = "Author a NEW document from text you write -> a real office artifact (.docx/.pptx/.xlsx/.pdf/.html). Output format inferred from out_path extension; write markdown (or CSV rows for .xlsx with from_fmt=csv). Fully local (Pandoc/LibreOffice), no cloud. For .pptx separate slides with a line of ---."
+tier       = "rare"
+permission = "write"
+cmd        = "mios-docgen build {out_path} --from {from_fmt} --content {content}"
+  [verbs.docgen_build.params.out_path]
+  type    = "string"
+  aliases = ["path", "out", "file", "output"]
+  [verbs.docgen_build.params.content]
+  type    = "string"
+  desc    = "The document content TEXT you write (markdown / CSV rows / html / plain) to render into the document. Inline text -- NOT a file path."
+  aliases = ["source", "input", "body"]
+  [verbs.docgen_build.params.from_fmt]
+  type    = "string"
+  enum    = ["markdown", "plain", "html", "csv"]
+  default = "markdown"
+
+[verbs.docgen_convert]
+section    = "Doc-gen"
+sig        = "in_path, out_path"
+desc       = "Convert an EXISTING file to another format (.docx->.pdf, .md->.docx, .csv->.xlsx, .pptx->.pdf). Fully local via Pandoc / LibreOffice headless; target format inferred from out_path extension."
+tier       = "rare"
+permission = "write"
+cmd        = "mios-docgen convert {in_path} {out_path}"
+  [verbs.docgen_convert.params.in_path]
+  type    = "string"
+  aliases = ["source", "input", "from_file"]
+  [verbs.docgen_convert.params.out_path]
+  type    = "string"
+  aliases = ["path", "out", "output", "to_file"]
 
 # ----------------------------------------------------------------------------
 # [owui.system_prompt] -- MiOS-Agent (MiOS AI) system prompt.
@@ -2828,6 +3192,42 @@ backend        = "surrealkv:///var/lib/mios/surrealdb/mios.skv"
 schema_init    = "/usr/share/mios/surrealdb/schema-init.surql"
 embed_model    = "nomic-embed-text"   # OWUI/Ollama-compat embeddings (768-dim)
 enable         = true
+
+# WS-9 unified agent-plane datastore (PostgreSQL + pgvector, FOSS). ADDITIVE
+# alongside [surrealdb] until the staged cutover (concepts/postgres-pgvector-
+# unification.md). Read by mios_pg / `mios-db --pg` + the quadlet (MIOS_PG_* via
+# userenv.sh). Port from [ports].pgvector. Local-only defaults.
+[pgvector]
+host        = "localhost"
+user        = "mios"
+pass        = "mios"
+db          = "mios"
+data_dir    = "/var/lib/mios/pgvector"
+schema_init = "/usr/share/mios/postgres/schema-init.sql"
+embed_model = "nomic-embed-text"   # 768-dim, OWUI/Ollama-compat (vector(768))
+enable      = true
+# WS-9c cutover backend: "surreal" (legacy) | "dual" (write BOTH, read surreal --
+# SAFE default, exercises PG live without risking reads) | "postgres" (PG primary
+# + native <=> recall). Flip to "postgres" only after verifying the dual-write
+# mirror fills correctly (mios-db --pg 'SELECT count(*) FROM knowledge;').
+db_backend  = "dual"
+
+# ── WS-10 llama.cpp multi-model lane (llama-swap) ─────────────────────────────
+# Additive engine step toward the ollama -> llama.cpp conversion for fleet-wide
+# KV-cache (concepts/llamacpp-engine-conversion.md). GATED OFF (enable=false) +
+# the quadlet's ConditionPathExists(models/.ready) keeps it inert until GGUFs are
+# provisioned. The agent-pipe is ALREADY ready: point a [nodes.*]/[agents.*]
+# entry at http://localhost:11450/v1 with api="llamacpp" and _kv_paging fires.
+[llamacpp]
+enable     = false   # additive + gated; flip on after GGUFs baked + verified live
+slot_dir   = "/var/lib/mios/llamacpp/slots"
+models_dir = "/usr/share/mios/llamacpp/models"
+config     = "/usr/share/mios/llamacpp/llama-swap.yaml"
+# GGUF bake (38-llamacpp-prep.sh). CSV of dest.gguf=hf_repo:filename; EMPTY =
+# opt-in skip (no image bloat). dest filenames MUST match llama-swap.yaml's
+# /models/*. Pre-quantized FOSS GGUFs, e.g.:
+#   "qwen3.5-4b.gguf=bartowski/Qwen2.5-3B-Instruct-GGUF:Qwen2.5-3B-Instruct-Q4_K_M.gguf,nomic-embed-text.gguf=nomic-ai/nomic-embed-text-v1.5-GGUF:nomic-embed-text-v1.5.Q4_K_M.gguf"
+bake_models = ""
 
 # ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
@@ -3652,6 +4052,15 @@ native_rebuild = false
 # reasoners (set bake_model at build time):
 #   Qwen/Qwen3-8B          (~16GB fp16 / ~6GB AWQ -- mid dGPU)
 #   Qwen/Qwen3-30B-A3B     (MoE 30B / 3B-active -- the "large model", big dGPU + quant)
+# GUI-GROUNDING VLM lane (computer-use desktop click-control -- see [computer_use]):
+# to serve a grounding head INSTEAD of a text reasoner, set both:
+#   bake_model  = "ByteDance-Seed/UI-TARS-1.5-7B"   # Apache-2.0; best end-to-end PC GUI policy, absolute coords
+#   served_name = "mios-grounding"                  # mios-pc-vision's grounding_endpoint (:11440) targets this
+# Alternative grounding heads (all FOSS): Hcompany/Holo1.5-7B (dense-UI localizer),
+# microsoft/GUI-Actor-7B-Qwen2-VL (MIT), Qwen/Qwen3-VL-4B-Instruct (lighter).
+# STAGED, not baked by default: a 14GB head would bloat every bootc image + the
+# lane is VRAM-gated (the shared 4090 is held ~20GB by the Windows host). Set
+# bake_model in your /etc overlay + `systemctl enable --now mios-vllm` when VRAM frees.
 # The mios-vllm Quadlet reads these via MIOS_VLLM_* (rendered from here).
 [ai.vllm]
 enable         = false          # documents intent; the systemd unit is the real gate (disabled by default)
@@ -3855,6 +4264,7 @@ sections = [
     "gnome-flatpak-runtime",
     "ai", "sbom-tools", "self-build", "network-discovery", "updater",
     "cockpit-plugins-build", "k3s-selinux-build", "uki",
+    "docgen",
 ]
 
 # ----------------------------------------------------------------------------
@@ -4526,6 +4936,21 @@ pkgs = [
     "usbutils",
 ]
 
+# WS-4 P0 doc-gen: FOSS, fully-offline office-document generation binaries for
+# mios-docgen (Pandoc = markdown<->docx/pptx/html/pdf; LibreOffice headless =
+# office-binary conversion, csv->xlsx, and PDF when no LaTeX engine is present).
+# All GPL/MPL FOSS, no network at runtime. Default ON so the binaries ship, but
+# the FEATURE stays gated by [computer_use].docgen_enable (default off).
+[packages.docgen]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+pkgs = [
+    "pandoc",
+    "libreoffice-core",
+    "libreoffice-writer",
+    "libreoffice-calc",
+    "libreoffice-impress",
+]
+
 # ----------------------------------------------------------------------------
 # [packages.glibc-hwcaps-v3] / [packages.glibc-hwcaps-v4]
 #
@@ -4627,6 +5052,8 @@ guacamole_web      = 8080     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting context layer)
+pgvector           = 5432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
+llama_swap         = 11450    # llama-swap multi-model + KV-paging lane (WS-10, FOSS; additive alongside ollama until cutover)
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
 ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
@@ -4708,6 +5135,14 @@ pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 surrealdb_version  = "latest"
 surrealdb          = "docker.io/surrealdb/surrealdb:latest"
+# WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
+# on upstream postgres (FOSS: PostgreSQL License). pg17 = current stable.
+pgvector_version   = "pg17"
+pgvector           = "docker.io/pgvector/pgvector:pg17"
+# WS-10 llama.cpp multi-model lane. llama-swap (FOSS, MIT) bundles llama-server +
+# on-demand model swap. Tag carries the CUDA build; verify against your version.
+llama_swap_version = "cuda"
+llama_swap         = "ghcr.io/mostlygeek/llama-swap:cuda"
 adguard_version    = "latest"
 # AdGuard Home -- open-source (GPLv3) DNS sinkhole + recursive resolver. Single
 # Go binary container; serves DNS on :53 and the web UI/API on :3053.
@@ -4751,6 +5186,21 @@ user = "mios-surrealdb"
 uid  = 821
 gid  = 821
 
+# WS-9 unified agent-plane Postgres+pgvector. AI tier (mios-ai) so agents read it
+# like surrealdb; own uid for /var/lib ownership stability. 826 = next free after
+# mios-adguard (825) in the 810-829 sidecar range.
+[services.pgvector]
+user = "mios-pgvector"
+uid  = 826
+gid  = 826
+
+# WS-10 llama.cpp lane (llama-swap). AI tier (mios-ai). 827 = next free after
+# mios-pgvector (826) in the 810-829 sidecar range.
+[services.llamacpp]
+user = "mios-llamacpp"
+uid  = 827
+gid  = 827
+
 [services.agent_pipe]
 user = "mios-agent-pipe"
 uid  = 822
@@ -4765,7 +5215,10 @@ gid  = 823
 # OOM-wedged the 40GiB VM (kernel OOM killer 3x). Cap loaded models LOW (the
 # light-lane only needs a micro-LLM resident) + a hard MemoryMax so a herd dies
 # WITHIN this cgroup, not the box. Rendered into mios-ollama-cpu.container.
-num_parallel = 4
+# 2026-06-01j: dropped 4 -> 2. With 4 concurrent gens each pegging all cores, a
+# swarm turn drove load to 387 (the runaway). 2 = at most ONE heavy agent gen
+# (now ~512-token capped) + ONE slot free for the fast router/refine micro-LLMs.
+num_parallel = 2
 max_loaded   = 2
 mem_high     = "12G"
 mem_max      = "16G"
@@ -4854,6 +5307,10 @@ ollama_firstboot_done = "/var/lib/mios/.ollama-firstboot-done"
 ollama_seed_dir     = "/usr/share/ollama/models"   # immutable, build-baked
 ollama_runtime_dir  = "/var/lib/ollama/models"      # writable, first-boot-seeded
 mios_toml           = "/usr/share/mios/mios.toml"   # this file's vendor path
+
+coderun_workspace_root = "/var/home/mios/coderuns"          # podman coderun-sandbox /work bind root (shared by code_mode + coderun-session)
+coderun_snapshots_root = "/var/home/mios/.coderun-snapshots" # coderun-session snapshot root
+codemode_workspace_root = "/var/lib/mios/codemode"          # WS-2 Code Mode generated-snippet root (uid 828, tmpfiles mios-codemode.conf)
 
 # ──── Windows-side paths consumed by mios-find / mios-windows ────────
 # Operator directive 2026-05-16: "I DON'T WANT ANY HARDCODED PATHS OR

@@ -200,6 +200,9 @@ slots = [
     ("colors.ansi_15_bright_white",    "MIOS_ANSI_15_BRIGHT_WHITE"),
     # ── ports (migrated from /usr/share/mios/env.defaults) ───────────────
     ("ports.ssh",                      "MIOS_PORT_SSH"),
+    # ── WS-2 Code Mode sandbox uid/gid (SSOT [code_mode].uid/gid) ──
+    ("code_mode.uid",                  "MIOS_CODEMODE_UID"),
+    ("code_mode.gid",                  "MIOS_CODEMODE_GID"),
     ("ports.forge_http",               "MIOS_PORT_FORGE_HTTP"),
     ("ports.forge_ssh",                "MIOS_PORT_FORGE_SSH"),
     ("ports.cockpit",                  "MIOS_PORT_COCKPIT"),
@@ -217,6 +220,8 @@ slots = [
     ("ports.ceph_dashboard",           "MIOS_CEPH_DASHBOARD_PORT"),
     ("ports.rdp",                      "MIOS_RDP_PORT"),
     ("ports.surrealdb",                "MIOS_PORT_SURREALDB"),
+    ("ports.pgvector",                 "MIOS_PORT_PGVECTOR"),
+    ("ports.llama_swap",               "MIOS_PORT_LLAMA_SWAP"),
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     ("ports.ollama_cpu",               "MIOS_PORT_OLLAMA_CPU"),
     ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
@@ -343,6 +348,10 @@ slots = [
     ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
     ("image.sidecars.surrealdb_version","MIOS_SURREALDB_VERSION"),
     ("image.sidecars.surrealdb",       "MIOS_SURREALDB_IMAGE"),
+    ("image.sidecars.pgvector_version","MIOS_PGVECTOR_VERSION"),
+    ("image.sidecars.pgvector",        "MIOS_PGVECTOR_IMAGE"),
+    ("image.sidecars.llama_swap_version","MIOS_LLAMA_SWAP_VERSION"),
+    ("image.sidecars.llama_swap",      "MIOS_LLAMA_SWAP_IMAGE"),
     ("image.sidecars.adguard_version", "MIOS_ADGUARD_VERSION"),
     ("image.sidecars.adguard",         "MIOS_ADGUARD_IMAGE"),
     # ── services (per-service identity: user / uid / gid) ─────────────────
@@ -364,6 +373,12 @@ slots = [
     ("services.surrealdb.user",        "MIOS_SURREALDB_USER"),
     ("services.surrealdb.uid",         "MIOS_SURREALDB_UID"),
     ("services.surrealdb.gid",         "MIOS_SURREALDB_GID"),
+    ("services.pgvector.user",         "MIOS_PGVECTOR_USER"),
+    ("services.pgvector.uid",          "MIOS_PGVECTOR_UID"),
+    ("services.pgvector.gid",          "MIOS_PGVECTOR_GID"),
+    ("services.llamacpp.user",         "MIOS_LLAMACPP_USER"),
+    ("services.llamacpp.uid",          "MIOS_LLAMACPP_UID"),
+    ("services.llamacpp.gid",          "MIOS_LLAMACPP_GID"),
     ("services.agent_pipe.user",       "MIOS_AGENT_PIPE_USER"),
     ("services.agent_pipe.uid",        "MIOS_AGENT_PIPE_UID"),
     ("services.agent_pipe.gid",        "MIOS_AGENT_PIPE_GID"),
@@ -394,6 +409,9 @@ slots = [
     ("security.allowlist_hosts",       "MIOS_SECURITY_ALLOWLIST_HOSTS"),
     ("security.firewall_high_privilege_verbs",
                                        "MIOS_SECURITY_FIREWALL_HIGH_PRIVILEGE_VERBS"),
+    # ── WS-7 immutable-host hardening (UKI + fapolicyd, DEFAULT-OFF) ─────
+    ("security.fapolicyd_observe.enable", "MIOS_FAPOLICYD_OBSERVE_ENABLE"),
+    ("uki.verity_uki_build",             "MIOS_UKI_VERITY_BUILD"),
     # ── fs_watcher (Phase A.2 -- inotify event bus) ──────────────────────
     ("fs_watcher.watch_dirs",          "MIOS_FS_WATCHER_DIRS"),
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
@@ -461,6 +479,21 @@ slots = [
     ("surrealdb.schema_init",          "MIOS_DB_SCHEMA_INIT"),
     ("surrealdb.embed_model",          "MIOS_EMBED_MODEL"),
     ("surrealdb.enable",               "MIOS_DB_ENABLE"),
+    # ── pgvector (WS-9 unified agent-plane datastore, FOSS) ───────────────
+    ("pgvector.host",                  "MIOS_PG_HOST"),
+    ("pgvector.user",                  "MIOS_PG_USER"),
+    ("pgvector.pass",                  "MIOS_PG_PASS"),
+    ("pgvector.db",                    "MIOS_PG_DB"),
+    ("pgvector.data_dir",              "MIOS_PG_DATA_DIR"),
+    ("pgvector.schema_init",           "MIOS_PG_SCHEMA_INIT"),
+    ("pgvector.embed_model",           "MIOS_PG_EMBED_MODEL"),
+    ("pgvector.enable",                "MIOS_PG_ENABLE"),
+    # ── llamacpp / llama-swap lane (WS-10 ollama -> llama.cpp conversion) ──
+    ("llamacpp.enable",                "MIOS_LLAMACPP_ENABLE"),
+    ("llamacpp.slot_dir",              "MIOS_LLAMACPP_SLOT_DIR"),
+    ("llamacpp.models_dir",            "MIOS_LLAMACPP_MODELS_DIR"),
+    ("llamacpp.config",                "MIOS_LLAMACPP_CONFIG"),
+    ("llamacpp.bake_models",           "MIOS_LLAMACPP_BAKE_MODELS"),
     # ── paths (FHS canonical runtime artifacts) ────────────────────────────
     ("paths.ai_dir",                   "MIOS_AI_DIR"),
     ("paths.ai_models_dir",            "MIOS_AI_MODELS_DIR"),

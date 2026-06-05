@@ -1,7 +1,7 @@
 #!/bin/bash
 # Call _upsert_directory_entries with a 3-row batch + see if rows
 # land in the DB.
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import importlib.machinery, importlib.util, json, os, sys, datetime
 os.environ["MIOS_DB_URL"] = "http://localhost:8000"

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import json, urllib.request
 

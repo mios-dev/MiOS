@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # --- 1. INSTALLATION ---
 if ! pacman -Qs bibata-cursor-theme-bin > /dev/null; then

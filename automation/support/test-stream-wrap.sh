@@ -3,7 +3,7 @@
 # inspect the response shape. The final content should be wrapped
 # in <details type="reasoning"> with the polished/💯/📋 main
 # content below; <think> tags should be absent.
-set -u
+set -euo pipefail
 
 PORT="${MIOS_PORT_AGENT_PIPE:-8640}"
 KEY=$(grep -oE 'MIOS_AI_KEY=[A-Za-z0-9-]+' /etc/mios/hermes/api.env \

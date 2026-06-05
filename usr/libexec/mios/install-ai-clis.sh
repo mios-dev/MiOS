@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/install-ai-clis.sh
 #
 # Install MiOS-default AI assistant CLIs (Claude Code + Gemini CLI) as
@@ -13,7 +14,7 @@
 #
 # Operator override: MIOS_SKIP_AI_CLIS=1 skips entirely.
 
-set -e
+# set -e covered by set -euo pipefail at top
 
 if [ "${MIOS_SKIP_AI_CLIS:-0}" = "1" ]; then
     echo "  [skip] MIOS_SKIP_AI_CLIS=1; not installing AI CLIs."

@@ -1,0 +1,50 @@
+# /usr/share/mios/llamacpp/llama-swap.yaml
+# 'MiOS' llama-swap model map (WS-10 ollama -> llama.cpp conversion).
+# llama-swap launches/swaps a `llama-server` per requested model behind one
+# OpenAI /v1 endpoint, restoring ollama's multi-model auto-swap for llama.cpp.
+#
+# Each chat model carries --parallel 1 + --slot-save-path so it lands on a single
+# deterministic slot and the agent-pipe's _kv_paging (POST /slots/{id}?action=
+# save|restore) can checkpoint/restore that conversation's KV to disk -- the
+# AIOS Context Manager, fleet-wide (ollama can't). The embed model runs a
+# --embedding llama-server so /v1/embeddings replaces the ollama embed lane.
+#
+# !! TEMPLATE -- VERIFY before enabling (cannot be validated offline):
+#   * the ${PORT} substitution + `cmd`/`proxy`/`ttl` keys match your llama-swap
+#     version's schema (see github.com/mostlygeek/llama-swap README);
+#   * the llama-server binary path inside the image (here /app/llama-server);
+#   * the GGUF filenames exist under /models (provisioned by the bake step);
+#   * --n-gpu-layers / --ctx-size sized to the shared 4090's free VRAM.
+# Model NAMES should match the ollama tags the agent-pipe already dispatches
+# (qwen3.5:4b, gemma4:e4b, nomic-embed-text, ...) so the lane is a drop-in.
+
+models:
+  # ── chat / reasoning models (KV-pageable; --parallel 1 = one resident slot) ──
+  "qwen3.5:4b":
+    cmd: >
+      /app/llama-server --model /models/qwen3.5-4b.gguf
+      --port ${PORT} --host 127.0.0.1
+      --ctx-size 8192 --parallel 1
+      --n-gpu-layers 999 --flash-attn
+      --slot-save-path /var/lib/mios/llamacpp/slots --jinja
+    proxy: "http://127.0.0.1:${PORT}"
+    ttl: 300
+
+  "gemma4:e4b":
+    cmd: >
+      /app/llama-server --model /models/gemma4-e4b.gguf
+      --port ${PORT} --host 127.0.0.1
+      --ctx-size 8192 --parallel 1
+      --n-gpu-layers 999 --flash-attn
+      --slot-save-path /var/lib/mios/llamacpp/slots --jinja
+    proxy: "http://127.0.0.1:${PORT}"
+    ttl: 300
+
+  # ── embeddings (replaces the ollama embed lane; OpenAI /v1/embeddings) ──
+  "nomic-embed-text":
+    cmd: >
+      /app/llama-server --model /models/nomic-embed-text.gguf
+      --port ${PORT} --host 127.0.0.1
+      --ctx-size 2048 --embedding --n-gpu-layers 999
+    proxy: "http://127.0.0.1:${PORT}"
+    ttl: 600

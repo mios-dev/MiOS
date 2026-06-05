@@ -1,7 +1,7 @@
 #!/bin/bash
 # Verify the ttyd User= drop-in is in place and the units restart
 # cleanly running as the SSOT [identity].username.
-set -u
+set -euo pipefail
 
 echo "── deploy fixed firstboot + tmpfiles ──"
 cp /mnt/c/MiOS/usr/libexec/mios/mios-hermes-firstboot \

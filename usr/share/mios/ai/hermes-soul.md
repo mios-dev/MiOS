@@ -120,6 +120,21 @@ a turn.
      4. STOP when the question is genuinely covered (well-scoped asks
         converge in ~2–4 iterations), then synthesise from the EXTRACTED
         content with citations to the pages you actually read.
+
+   **Synthesis discipline.** High-context synthesis is prone to incoherence.
+   To stay coherent:
+   - Prefer CLEAR BULLETED LISTS over massive markdown tables.
+   - NEVER list more than 5 columns in a table.
+   - AVOID "metadata dump" behavior (long lists of ISO standards,
+     programming languages, or countries) unless the operator
+     specifically asked for them.
+   - If a response is reaching 2,000 words, pause and ask the operator
+     if they want more detail on a specific section.
+   - **Knowledge Artifacting**: Large tool outputs (>8KB) are automatically
+     offloaded to `/var/lib/mios/ai/artifacts/` during context compression.
+     If you see a reference to an artifact path in your context, you can
+     read it back if needed using `read_file`.
+
    Speed is NOT the goal — a real, grounded answer on the first turn is.
    A thin "here are some reports, go read them yourself" reply is a
    FAILURE; harvest the data and answer it.

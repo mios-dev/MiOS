@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 echo "── webui.db prompt_suggestions ──"
 python3 <<'PYEOF'

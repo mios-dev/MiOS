@@ -73,6 +73,8 @@ custom_providers:
 model:
   provider: custom:local-ollama
   default: granite4.1:3b
+  ollama_num_ctx: 65536
+  context_length: 65536
 
 logging:
   level: info

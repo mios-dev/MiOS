@@ -1,0 +1,78 @@
+# /etc/containers/systemd/mios-vllm.container
+# 'MiOS' vLLM server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU lane.
+#
+# RE-SCOPED 2026-06-01 (operator "Both, in order" -> Phase 2 = "gated vLLM heavy
+# lane (dGPU)"). Was the GUI-grounding-VLM lane; now serves a HEAVY TEXT reasoner
+# by default with vLLM's PagedAttention + Automatic Prefix Caching (APC):
+#   * PagedAttention -- the in-GPU VRAM-compress primitive (what ollama lacks).
+#   * APC (--enable-prefix-caching) -- reuses the SHARED swarm system-prompt
+#     prefix across concurrent fan-out agents at ~0 extra cost.
+#   * KV disk/CPU TIERING (the operator's "compress or write to disk, clean state
+#     when agents/models load/unload") is Phase 3 = +LMCache (deferred). The
+#     cheap KV-paging prototype runs TODAY on the iGPU llama.cpp lane (Phase 1).
+# To serve a GROUNDING VLM instead (GUI-Actor / Holo1.5 / Qwen3-VL, for the
+# desktop click-control lane) just bake one + set MIOS_VLLM_SERVED_NAME =
+# mios-grounding -- nothing about this unit is grounding-specific anymore.
+#
+# SSOT: every tunable comes from mios.toml ([ai.vllm] + [ports].vllm), rendered
+# to MIOS_VLLM_* / MIOS_PORT_VLLM (no hardcoded literals beyond the fallbacks).
+# Weights are an OPT-IN OFFLINE build bake (automation/38-vllm-prep.sh from
+# [ai.vllm].bake_model) -- EMPTY by default so no multi-GB model bloats every
+# image. FOSS: vLLM is Apache-2.0.
+#
+# VRAM-GATED + DISABLED BY DEFAULT: a heavy reasoner needs real free VRAM the
+# SHARED 4090 does NOT have while the Windows host holds ~20GB (same gate as the
+# gemma4 planner). Enable ONLY on a dGPU with headroom, AFTER baking weights:
+#   systemctl enable --now mios-vllm.service
+# Then [nodes.local-vllm] (health-gated) auto-joins the swarm.
+[Unit]
+Description='MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+# Guard: only start when the baked weights exist (the bake is opt-in; a build
+# without MIOS_VLLM_BAKE_MODEL leaves this empty). No weights -> no crash-loop.
+ConditionPathExists=/usr/share/mios/vllm/model/config.json
+
+[Container]
+Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
+ContainerName=mios-vllm
+Network=mios.network
+# GPU passthrough -- identical CDI device line to ollama.container, resolved by
+# mios-cdi-detect.service (bare-metal nvidia-ctk spec OR the WSL2
+# /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds /usr/lib/wsl).
+AddDevice=nvidia.com/gpu=all
+# Unprivileged identity (Architectural Law 6 -- UNPRIVILEGED-QUADLETS). Numeric
+# UID/GID, same as ollama.container: the upstream vllm/vllm-openai image has no
+# `mios-*` entry in /etc/passwd, so a name-based User= lookup fails (status 126).
+# Reuse the mios-ollama service identity (815, mios.toml [services.ollama]) -- the
+# GPU-inference sibling sharing the same CDI device line; it only READS the
+# immutable RO weights mount below (no writable volume to own).
+User=815
+Group=815
+# Serve the baked reasoner, OpenAI-compatible, on the SSOT vllm port. APC is
+# always on (the whole point of this lane). --gpu-memory-utilization is a BOUNDED
+# slice so it co-resides with ollama's dGPU models + leaves margin for the
+# Windows host's VRAM co-tenancy (the VM can't see host-side usage). Raise it on
+# a dedicated/large GPU via mios.toml [ai.vllm].gpu_util.
+Exec=--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11440} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching
+# Read-only mount of the build-baked weights (immutable composefs seed). vLLM
+# only reads them -- no writable runtime copy needed.
+Volume=/usr/share/mios/vllm/model:/models:ro,Z
+# Air-gapped: never reach out to the HF hub at runtime.
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=VLLM_NO_USAGE_STATS=1
+Environment=DO_NOT_TRACK=1
+PublishPort=0.0.0.0:${MIOS_PORT_VLLM:-11440}:${MIOS_PORT_VLLM:-11440}
+Label=org.opencontainers.image.title=mios-vllm
+Label=org.opencontainers.image.url=http://localhost:11440/v1/models
+Label=io.podman_desktop.openInBrowser=http://localhost:11440/v1/models
+
+[Service]
+Restart=on-failure
+RestartSec=15
+# Model load + CUDA graph capture can take a while on first start.
+TimeoutStartSec=600s
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -72,6 +72,14 @@ DB_DB="${MIOS_DB_DB:-mios}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 OLLAMA_URL="${MIOS_OLLAMA_URL:-http://localhost:${MIOS_PORT_OLLAMA:-11434}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
+# WS-9 PostgreSQL + pgvector unified agent DB (--pg mode). SSOT [pgvector] /
+# [ports].pgvector via userenv.sh; local-only defaults. Callers route through
+# THIS tool so creds live in one SSOT place (no hardcoded root:root copies).
+PG_HOST="${MIOS_PG_HOST:-localhost}"
+PG_PORT="${MIOS_PORT_PGVECTOR:-5432}"
+PG_USER="${MIOS_PG_USER:-mios}"
+PG_PASS="${MIOS_PG_PASS:-mios}"
+PG_DB="${MIOS_PG_DB:-mios}"
 
 JSON=0
 FILE=""
@@ -79,6 +87,7 @@ QUERY=""
 MODE="surreal"
 OWUI_SQL=""
 EMBED_TEXT=""
+PG_SQL=""
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -88,6 +97,7 @@ while [ "$#" -gt 0 ]; do
         -f)            FILE="$2"; shift 2 ;;
         --owui)        MODE="owui"; OWUI_SQL="$2"; shift 2 ;;
         --embed)       MODE="embed"; EMBED_TEXT="$2"; shift 2 ;;
+        --pg)          MODE="pg"; PG_SQL="$2"; shift 2 ;;
         --embed-model) EMBED_MODEL="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,46p' "$0" | sed 's/^# \?//'
@@ -148,6 +158,38 @@ print(json.dumps({'model': '$EMBED_MODEL', 'input': sys.argv[1]}))
         -X POST "$OLLAMA_URL/v1/embeddings" \
         -H "Content-Type: application/json" \
         --data "$PAYLOAD"
+fi
+
+# ── MODE: --pg  (PostgreSQL + pgvector unified agent DB, WS-9) ──
+# Additive alongside the surreal mode during the staged cutover. Creds from the
+# SSOT [pgvector] section (above) -- no hardcoded values here.
+if [ "$MODE" = "pg" ]; then
+    export PGPASSWORD="$PG_PASS"
+    # 1. local psql client (faster).
+    if command -v psql >/dev/null 2>&1; then
+        pa=(-h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -w)
+        [ "$JSON" = "1" ] && pa+=(-At)
+        if [ -n "$FILE" ]; then
+            exec psql "${pa[@]}" -f "$FILE"
+        else
+            exec psql "${pa[@]}" -c "$PG_SQL"
+        fi
+    fi
+    # 2. container-exec fallback: psql inside the mios-pgvector container.
+    if command -v podman >/dev/null 2>&1 \
+       && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-pgvector$'; then
+        pa=(exec -i -e "PGPASSWORD=$PG_PASS" mios-pgvector
+            psql -h 127.0.0.1 -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -w)
+        [ "$JSON" = "1" ] && pa+=(-At)
+        if [ -n "$FILE" ]; then
+            exec podman "${pa[@]}" -f - < "$FILE"
+        else
+            exec podman "${pa[@]}" -c "$PG_SQL"
+        fi
+    fi
+    echo "mios-db: no psql + no mios-pgvector container" >&2
+    echo "  check: systemctl start mios-pgvector.service" >&2
+    exit 2
 fi
 
 # ── MODE: surreal  (cross-cutting state) ──

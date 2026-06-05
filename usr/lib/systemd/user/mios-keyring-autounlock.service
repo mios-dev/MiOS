@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS gnome-keyring auto-unlock with mios.toml password
+Description='MiOS' gnome-keyring auto-unlock with mios.toml password
 Documentation=man:gnome-keyring-daemon(1)
 # Run BEFORE any app would try to access secrets. graphical-session
 # fires the moment WSLg's gnome-session-equivalent starts; we hook

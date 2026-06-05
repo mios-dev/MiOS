@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS: pull in graphical-session.target on WSLg
+Description='MiOS': pull in graphical-session.target on WSLg
 Documentation=https://github.com/mios-dev/MiOS
 Documentation=https://systemd.io/DESKTOP_ENVIRONMENTS/
 

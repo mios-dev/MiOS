@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 echo "=== FINAL service state ==="
 for u in mios-agent-pipe mios-daemon mios-surrealdb hermes-agent \
          mios-open-webui ollama mios-ollama-cpu mios-searxng \

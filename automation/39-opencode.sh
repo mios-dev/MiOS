@@ -19,7 +19,7 @@
 # Hermes ACP subprocess.
 #
 # NO `set -e`. Best-effort, always exits 0.
-set -uo pipefail
+set -euo pipefail
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {

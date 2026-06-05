@@ -23,7 +23,11 @@ FROM qwen2.5-coder:7b
 
 PARAMETER temperature 0.1
 PARAMETER top_p 0.9
-PARAMETER num_ctx 32768
+# num_ctx 32768->8192 (operator 2026-06-01): a 32K KV-cache on the 7B coder held
+# ~23GB = the WHOLE shared 4090, blocking co-loading so swarm work spilled to CPU.
+# 8K is ample for code tasks + leaves the GPU free. (Needs `ollama create
+# mios-opencode` to take effect -- build/firstboot step.)
+PARAMETER num_ctx 8192
 
 SYSTEM """You are MiOS-OpenCode, the coding agent of MiOS -- an immutable, local-first, fully-offline Fedora-bootc agentic operating system. MiOS is FOSS and self-hosted; you never call cloud services and never depend on the network for inference.
 

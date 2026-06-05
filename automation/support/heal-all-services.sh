@@ -2,7 +2,7 @@
 # Final heal: redeploy firstboot + env drop-in, restart hermes-agent
 # to pick up the new env, re-run firstboot to enable opt-in units,
 # verify everything is green.
-set -u
+set -euo pipefail
 
 echo "── deploy firstboot + env drop-in ──"
 cp /mnt/c/MiOS/usr/libexec/mios/mios-hermes-firstboot \

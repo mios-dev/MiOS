@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/wsl-theme-bridge.sh
 #
 # Bridges the Windows AppsUseLightTheme registry value to GNOME's

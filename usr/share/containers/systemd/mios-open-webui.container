@@ -1,0 +1,264 @@
+# /etc/containers/systemd/mios-open-webui.container
+# 'MiOS' Open WebUI - rich LLM interface.
+#
+# Open WebUI provides an OpenAI-API-style browser chat UI fronting the MiOS AI
+# stack. AI chain (2026-05-13 architecture):
+#   ollama container (:11434)  -- raw inference + embeddings
+#     -> Hermes-Agent (:8642/v1) -- DIRECT host install (NOT a
+#        container; automation/38-hermes-agent.sh + hermes-agent.service),
+#        OpenAI gateway + agent layer
+#       -> Open WebUI (this container, :3030) -- browser UI
+#
+# Open WebUI's OPENAI_API_BASE_URL points at Hermes-Agent so the AGENT
+# (with tool-calling / sessions / kanban / skills), not raw ollama, is
+# the model Open WebUI serves -- Architectural Law 5 (UNIFIED-AI-REDIRECTS).
+
+[Unit]
+Description='MiOS' Open WebUI
+# hermes-agent.service is the DIRECT host install (the mios-hermes
+# CONTAINER Quadlet is shelved in mios.toml [quadlets.enable]). Open
+# WebUI Wants= it but doesn't hard-Require= it -- the UI still starts
+# and shows a connection error rather than refusing to boot if the
+# agent is mid-restart.
+After=network-online.target hermes-agent.service
+Wants=network-online.target hermes-agent.service
+ConditionPathExists=/etc/mios/hermes/api.env
+
+[Container]
+# Image / Port / Network placeholders rendered by automation/15-render-quadlets.sh
+Image=${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+ContainerName=mios-open-webui
+Network=mios.network
+PublishPort=${MIOS_PORT_OPEN_WEBUI:-3030}:8080
+AutoUpdate=registry
+
+# Persistent state.
+Volume=/var/lib/mios/open-webui:/app/backend/data:Z
+
+# FHS-direct knowledge corpus (operator directive 2026-05-15:
+# "use the files directly from the FHS--and refine the files
+# themselves"). The mios-owui-apply-knowledge helper registers each
+# file in /usr/share/mios/{ai,docs,cookbooks,hermes,prompts} and
+# /etc/mios/system-prompts as an OWUI `file` row with its absolute
+# FHS path.  When OWUI re-vectorises (e.g. after `file.hash` drift
+# detected by the helper), the storage provider returns the path
+# verbatim and the loader reads from /usr/share/mios directly --
+# requires the bind mounts below.  Read-only because /usr is the
+# immutable bootc tree on a real MiOS host (chmod here doesn't
+# survive WSL restart anyway -- see
+# mios-additionalimagestores-perms.path).
+Volume=/usr/share/mios:/usr/share/mios:ro
+Volume=/etc/mios:/etc/mios:ro
+
+# Sidecar agent state files. The mios_sidecar Filter + mios_agent
+# Pipe both poll these to emit live "🛠️ tool: terminal" / "🧠 refined
+# prompt" status events into the OWUI chat stream. Without these RO
+# mounts the filter/pipe silently see no events and the operator
+# (correctly) reports "no emits" -- the files exist on the host but
+# don't exist inside the container.
+Volume=/var/lib/mios/hermes-tail:/var/lib/mios/hermes-tail:ro
+Volume=/var/lib/mios/delegation-prefilter:/var/lib/mios/delegation-prefilter:ro
+Volume=/var/lib/mios/agent-nudger:/var/lib/mios/agent-nudger:ro
+Volume=/var/lib/mios/log-watcher:/var/lib/mios/log-watcher:ro
+Volume=/var/lib/mios/cron-director:/var/lib/mios/cron-director:ro
+
+# MiOS verb shims (mios-launch, mios-everything, mios-apps, mios-find)
+# and their cache state. Required by the mios_verbs OWUI Tools class
+# which subprocess-calls these directly inside the container so the
+# chat model can invoke them as native tool_calls instead of going
+# through the generic `terminal` tool. Mounting /usr/local/sbin +
+# /usr/libexec/mios covers both the shim and its implementation.
+# Read-only -- the tools only read state; mutation goes through the
+# host launcher broker socket.
+Volume=/usr/local/sbin:/usr/local/sbin:ro
+Volume=/usr/libexec/mios:/usr/libexec/mios:ro
+Volume=/var/lib/mios/agent-env:/var/lib/mios/agent-env:ro
+# Launcher broker socket -- mios-launch dispatches /mnt/c/*.exe
+# launches through this (the mios-hermes / mios-open-webui uids
+# cannot exec DrvFs binaries directly; the broker runs as the
+# operator user and has exec access).
+Volume=/run/mios-launcher:/run/mios-launcher
+
+# WSL DrvFs mounts -- mios-everything resolves to
+# /mnt/m/Programs/Everything/es.exe (Voidtools CLI on the Windows
+# side), invoked via WSL interop. mios-windows similarly reaches
+# /mnt/c/Windows/System32/cmd.exe + powershell.exe. Without these
+# the verbs subprocess in the OWUI tool just sees "es.exe not
+# found in probe list". Read-only because the agent only ever
+# READS Windows-side state; mutation goes through the broker.
+# WSL automounts /mnt/c + /mnt/m at the host kernel; podman just
+# needs explicit bind mounts to expose them in the container's
+# namespace.
+Volume=/mnt/c:/mnt/c:ro
+Volume=/mnt/m:/mnt/m:ro
+
+# API key + server settings, shared with Hermes-Agent. api.env defines
+# OPENAI_API_KEY=<API_SERVER_KEY> as a plain scalar -- that IS the
+# bearer Open WebUI sends to the Hermes gateway at OPENAI_API_BASE_URL
+# below, and EnvironmentFile= injects it directly into the container
+# env. Do NOT add OPENAI_API_KEY_FILE pointing at this same file: the
+# _FILE variant makes Open WebUI read the ENTIRE multi-line file as the
+# key value (comments + every other VAR= line included), which the
+# gateway then rejects. Operator-confirmed 2026-05-14 ("Invalid API
+# key" / "You do not have permission" on every Open WebUI call).
+EnvironmentFile=/etc/mios/hermes/api.env
+
+# Wiring to the MiOS AI stack -- point at Hermes-Agent (Law 5).
+# Hermes-Agent is a DIRECT HOST service now, not a container, so the
+# old container-DNS name `mios-hermes` no longer resolves. Podman
+# injects `host.containers.internal` into every container as the route
+# to the host -- that's how a container reaches a host-side service.
+# (The MiOS-DEV host-network drop-in overrides this to localhost:8642.)
+# Default route OWUI -> Hermes-Agent goes through the MiOS delegation
+# prefilter on :8641 (a thin HTTP forwarder that injects tool_choice=
+# delegate_task on fan-outable user prompts). Hermes itself is on :8642.
+# The prefilter passes through all non-fan-out traffic unchanged.
+# Operators who want raw Hermes (no force-delegation) override this via
+# /etc/containers/systemd/mios-open-webui.container.d/<name>.conf:
+#   Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8642/v1
+# (The MiOS-DEV host-network drop-in overrides the host part to localhost.)
+Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8641/v1
+
+# Disable Open WebUI's direct-Ollama integration -- all inference must
+# route through Hermes-Agent (Law 5). The ollama backend URL is still
+# provided for completeness but ENABLE_OLLAMA=False keeps it dormant.
+Environment=ENABLE_OLLAMA=False
+Environment=OLLAMA_BASE_URL=http://host.containers.internal:11434
+
+# General config.
+# WEBUI_NAME drives the brand displayed in OWUI's title bar, login
+# screen, and PWA manifest. "MiOS Agent" matches the MiOS-Agent model
+# label in the model picker -- both are the operator-facing name for
+# the agent stack. Operator directive 2026-05-15: "fix name to
+# MiOS-Agent Globally and change the MiOS AI (Open WebUI) to just
+# MiOS AI/Agent". OWUI appends "(Open WebUI)" in some contexts (PWA
+# title) which we can't fully suppress without forking, but the
+# primary brand string is what we control here.
+Environment=WEBUI_NAME="MiOS AI"
+Environment=WEBUI_SECRET_KEY=mios-stable-secret-change-me
+Environment=ENABLE_SIGNUP=False
+Environment=DEFAULT_USER_ROLE=admin
+# Pre-select the hermes gateway as the chat default + hide raw model
+# IDs from the picker (operator sees friendly "MiOS-Agent" name set
+# via the model registration's `name` field, NOT the underlying
+# "hermes-agent" model id).
+Environment=DEFAULT_MODELS=hermes-agent
+
+# Global feature gates -- ENABLE the rich-chat features that MiOS-Agent
+# advertises in its model.meta.capabilities (web_search,
+# image_generation, code_interpreter). Without these env vars the
+# feature endpoints are 404 and the per-model toggles do nothing even
+# when checked.  Defaults in upstream OWUI:
+#   ENABLE_WEB_SEARCH         -> False (master gate; we flip True)
+#   ENABLE_IMAGE_GENERATION   -> False (master gate; we flip True)
+#   ENABLE_CODE_INTERPRETER   -> True  (already-on; pinned for clarity)
+# The PER-MODEL default-on state of these toggles is set on the model
+# row via meta.defaultFeatureIds (see mios-owui-apply-system-prompt).
+# Operator directive 2026-05-15: web/image/code-interpreter all on by
+# default for MiOS-Agent.
+Environment=ENABLE_WEB_SEARCH=True
+Environment=ENABLE_IMAGE_GENERATION=True
+Environment=ENABLE_CODE_INTERPRETER=True
+# API key auth: required so /usr/libexec/mios/mios-owui-install-pipe
+# (and other admin scripts) can POST functions / models / tools to
+# OWUI's /api/v1/* endpoints with a Bearer token. The token lives in
+# webui.db's api_key table (one row per admin); the installer
+# auto-generates one on first run. Operator directive 2026-05-16:
+# vendor the MiOS-Agent pipe so OWUI's model dropdown shows it
+# without manual paste.
+Environment=ENABLE_API_KEY=True
+# JWT-style ENABLE_API_KEY needs the SECRET_KEY env too -- OWUI uses
+# it to sign user sessions. The installer writes one to webui.db's
+# config table on first run if absent.
+Environment=ENABLE_API_KEY_ENDPOINT_RESTRICTIONS=False
+
+# ── RAG / Knowledge tuning ──────────────────────────────────────────
+# OWUI fires "Searching Knowledge for X / Querying / No sources
+# found" status events on EVERY chat turn when a model has an
+# attached knowledge collection -- pure noise when the prompt has
+# nothing to do with the indexed corpus. The events emit from core
+# middleware before any Filter can intercept; the only knobs are:
+#
+#   RAG_TOP_K (default 3)      -- how many chunks to retrieve
+#   RAG_RELEVANCE_THRESHOLD    -- min cosine score; below this,
+#                                 chunks are dropped from results
+#   ENABLE_RAG_HYBRID_SEARCH   -- BM25+embedding rerank vs embed-only
+#   ENABLE_RAG_WEB_LOADER      -- secondary URL-fetch pipeline
+#
+# Setting RELEVANCE_THRESHOLD=0.5 means a query has to be at least
+# moderately related to the indexed docs before any chunks return.
+# Doesn't remove the status events themselves (those fire pre-
+# embed), but a query that's clearly unrelated to MiOS docs will
+# at least produce "No sources found" cleanly + the agent won't
+# get noisy chunks injected into its context.
+Environment=RAG_TOP_K=5
+Environment=RAG_RELEVANCE_THRESHOLD=0.5
+Environment=ENABLE_RAG_HYBRID_SEARCH=True
+
+# ── Embeddings (memory + knowledge) ─────────────────────────────────
+# OWUI's memory feature (per-user settings.ui.memory) STORES + RETRIEVES
+# personalization memories by vector similarity, so it needs a working
+# embedding model. Left unset, OWUI's default engine downloads a
+# SentenceTransformers model from HuggingFace on first use -- which fails
+# in this air-gapped environment and SILENTLY breaks memory add/query
+# (operator-flagged 2026-05-22). Point embeddings at the LOCAL ollama
+# nomic-embed-text (baked into the ollama image; mios.toml [ai].embed_model
+# == /etc/mios/install.env MIOS_AI_EMBED_MODEL == nomic-embed-text, 768-dim).
+# VECTOR_DB stays the bundled on-disk Chroma -- also fully offline.
+Environment=RAG_EMBEDDING_ENGINE=ollama
+Environment=RAG_EMBEDDING_MODEL=nomic-embed-text
+Environment=RAG_OLLAMA_BASE_URL=http://host.containers.internal:11434
+
+# ── Task / suggestion generation ────────────────────────────────────
+# Operator directive 2026-05-17: "suggested is not generated and
+# relevant and also updating via refinement". OWUI's task model
+# generates chat titles, tags, and follow-up suggestions. Route them
+# through the same MiOS-Agent path so the small-CPU refiner
+# (mios-sys-agent) sees them first and the suggestions actually
+# reflect MiOS capabilities instead of generic chatbot prompts.
+#
+# TASK_MODEL_EXTERNAL=hermes-agent points task generation at the
+# same /v1 endpoint the chat uses. Prefilter intercepts, refines
+# via mios-sys-agent (CPU), then hands to hermes. Lightweight by
+# refiner standards (sys-agent is 2.7 GB CPU; ~1s per task call).
+Environment=TASK_MODEL_EXTERNAL=hermes-agent
+Environment=ENABLE_TITLE_GENERATION=True
+Environment=ENABLE_TAGS_GENERATION=True
+Environment=ENABLE_FOLLOW_UP_GENERATION=True
+Environment=ENABLE_AUTOCOMPLETE_GENERATION=True
+# Quality-of-life: cap the auto-generated title length so chats
+# don't get 200-char "Thinking Process: ..." titles when the refiner
+# leaks reasoning into a title call.
+# Templates kept ENGLISH-MINIMAL + LOCALE-MATCHING: the task model
+# is told to respond in the operator's chat language (not pinned to
+# any locale). Operator directive 2026-05-17: "no hardcoded answers
+# or anything hardcoded for english at all--Completely generic and
+# platform agnostic". Templates instruct STRUCTURE (token count,
+# JSON shape) but defer CONTENT + LANGUAGE to the model based on
+# the chat it just saw.
+# NOTE: each value MUST be a single physical line + free of `--` token
+# in the middle (systemd's quadlet generator splits Environment values
+# on `--` which truncated earlier MiOS templates to "Output", "Suggest",
+# etc. -- only the first word survived). Use commas / colons / em-dash
+# for emphasis instead of double-hyphen.
+Environment="TITLE_GENERATION_PROMPT_TEMPLATE=Output a 3 to 6 word title for this chat, in the same language the chat used. Title only, no quotes, no preamble, no thinking. Chat:\n{{MESSAGES:END:2}}"
+Environment="TAGS_GENERATION_PROMPT_TEMPLATE=Output 1 to 3 short topic tags for this chat (single words or hyphenated, in the chat language). JSON only: {\"tags\":[\"\",\"\"]}. Chat:\n{{MESSAGES:END:4}}"
+Environment="FOLLOW_UP_GENERATION_PROMPT_TEMPLATE=Suggest 3 short follow up actions the user might want next, grounded in the CURRENT chat content and the operator's CURRENT system state. Each is a single phrase or short imperative the user could click, in the same language and tone the chat used. JSON only: {\"follow_ups\":[\"\",\"\",\"\"]}. Chat:\n{{MESSAGES:END:6}}"
+Environment="AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE=Continue the user partial input naturally, in their language. Output ONLY the completion text, no quotes, no preamble. Input so far: {{PROMPT}}"
+
+# Identity. UID 817 (mios-open-webui)
+User=${MIOS_OPEN_WEBUI_UID:-817}
+Group=${MIOS_OPEN_WEBUI_GID:-817}
+
+Label=org.opencontainers.image.title=mios-open-webui
+Label=org.opencontainers.image.url=http://localhost:3030/
+Label=io.podman_desktop.openInBrowser=http://localhost:3030/
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target

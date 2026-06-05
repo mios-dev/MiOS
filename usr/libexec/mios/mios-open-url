@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-open-url <url> [<browser-override>]
 #
 # Open a URL in the MiOS-defined default browser. Operator directive
@@ -201,8 +202,15 @@ while IFS= read -r TARGET; do
     echo "[mios-open-url] trying browser: $TARGET" >&2
     _verify_pattern="$(_derive_verify_pattern "$TARGET")"
 
-    mios-gui "$TARGET" "$URL"
-    _launch_rc=$?
+        if [ "$TARGET" = "cmd.exe" ] || [ "$TARGET" = "explorer.exe" ]; then
+            WIN_URL=$(wslpath -w "$URL" 2>/dev/null || echo "$URL")
+            echo "[mios-open-url] trying Windows handler: $TARGET '$WIN_URL'" >&2
+            cmd.exe /c start "" "$WIN_URL"
+            _launch_rc=$?
+        else
+            mios-gui "$TARGET" "$URL"
+            _launch_rc=$?
+        fi
 
     # Poll the window verifier up to ~15s with progressive delays.
     # WSLg flatpak cold-launches register a Win32 window via the

@@ -66,6 +66,13 @@ UID = os.getuid()
 # traverse); the socket file itself carries mode 0666.
 SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock")
 
+# Capture-mode (CAPTURE / CAPTURE_JSON) subprocess timeout. Raised from a
+# hardcoded 45s + made env-configurable (WS-4) so slow SYNCHRONOUS verbs --
+# docgen via LibreOffice cold-start (~60s), package installs -- aren't killed
+# mid-run. A hung verb is still bounded. env MIOS_LAUNCHER_CAPTURE_TIMEOUT_S
+# (default 120). Fire-and-forget dispatch (the other protocol) is unaffected.
+CAPTURE_TIMEOUT_S = int(os.environ.get("MIOS_LAUNCHER_CAPTURE_TIMEOUT_S", "120") or 120)
+
 
 def handle(conn: socket.socket) -> None:
     try:
@@ -113,14 +120,14 @@ def handle(conn: socket.socket) -> None:
                     ["bash", "-lc", cmd],
                     stdin=subprocess.DEVNULL,
                     capture_output=True,
-                    timeout=45,
+                    timeout=CAPTURE_TIMEOUT_S,
                     env=env,
                 )
                 payload["stdout"] = result.stdout.decode("utf-8", errors="replace")
                 payload["stderr"] = result.stderr.decode("utf-8", errors="replace")
                 payload["exit_code"] = int(result.returncode)
             except subprocess.TimeoutExpired:
-                payload["stderr"] = "ERROR: capture timeout (>45s)"
+                payload["stderr"] = f"ERROR: capture timeout (>{CAPTURE_TIMEOUT_S}s)"
             except OSError as e:
                 payload["stderr"] = f"ERROR: {e}"
             # Send as a single JSON line for unambiguous parsing.
@@ -138,7 +145,7 @@ def handle(conn: socket.socket) -> None:
                     ["bash", "-lc", cmd],
                     stdin=subprocess.DEVNULL,
                     capture_output=True,
-                    timeout=45,
+                    timeout=CAPTURE_TIMEOUT_S,
                     env=env,
                 )
                 # stderr concatenated after stdout (single capture stream).
@@ -146,7 +153,7 @@ def handle(conn: socket.socket) -> None:
                 if result.stderr:
                     conn.sendall(result.stderr)
             except subprocess.TimeoutExpired:
-                conn.sendall(b"ERROR: capture timeout (>45s)\n")
+                conn.sendall(f"ERROR: capture timeout (>{CAPTURE_TIMEOUT_S}s)\n".encode())
             except OSError as e:
                 conn.sendall(f"ERROR: {e}\n".encode())
             return

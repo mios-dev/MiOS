@@ -75,7 +75,7 @@ Environment=HOME=/var/lib/ollama-cpu
 # whole VM wedged (3x terminate). Cap loaded models LOW (the light-lane only
 # needs the micro-LLM resident at a time) and let parallel slots reuse it.
 # SSOT: mios.toml [ai] knobs rendered to MIOS_OLLAMA_CPU_*.
-Environment=OLLAMA_NUM_PARALLEL=${MIOS_OLLAMA_CPU_NUM_PARALLEL:-4}
+Environment=OLLAMA_NUM_PARALLEL=${MIOS_OLLAMA_CPU_NUM_PARALLEL:-2}
 Environment=OLLAMA_MAX_LOADED_MODELS=${MIOS_OLLAMA_CPU_MAX_LOADED:-2}
 
 # Volumes:

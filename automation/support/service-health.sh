@@ -1,6 +1,6 @@
 #!/bin/bash
 # Comprehensive service-health probe across MiOS surfaces.
-set -u
+set -euo pipefail
 
 echo "═══════════════════════════════════════════════════════"
 echo " 1. systemd-wide failed units"

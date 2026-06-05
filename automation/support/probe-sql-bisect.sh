@@ -1,6 +1,6 @@
 #!/bin/bash
 # Bisect to find which part of the query breaks.
-set -u
+set -euo pipefail
 
 test_sql() {
     local label="$1"

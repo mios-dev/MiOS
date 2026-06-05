@@ -1,0 +1,419 @@
+#!/usr/bin/env python3
+"""mios-docgen -- FOSS, fully-offline document generation for MiOS (WS-4 P0).
+
+The computer-use "Worker" half that PRODUCES artifacts (pptx / docx / xlsx /
+pdf / html / md) instead of clicking through an office GUI. Built from MiOS
+parts -- Pandoc (markdown <-> docx/pptx/html/pdf) + LibreOffice headless
+(`soffice --convert-to`, the universal office-format converter) -- so it stays
+FOSS + offline (NO Wide-Moat / BSL vendor stack, per aios-implementation-plan
+section 0-B).
+
+Two jobs, one contract:
+  * `convert`  -- any input file -> any output format (LibreOffice for office
+                  binaries; Pandoc for markup; auto-routed by extension).
+  * `build`    -- author a NEW document from markdown/text/CSV source content
+                  (Pandoc for docx/pptx/html/pdf; native CSV->xlsx via
+                  LibreOffice). The agent writes markdown, we emit the binary.
+
+DEFAULT-OFF / GATED + DEGRADE-OPEN (binding rule): the whole tool is gated by
+[computer_use].docgen_enable (env MIOS_DOCGEN_ENABLE), default false. When off,
+every subcommand returns a structured {"ok": false, "error": "...disabled..."}
+JSON and exit 0 -- callers degrade gracefully (the verb is visible but inert)
+rather than crashing. A missing backend binary likewise degrades to an honest
+JSON error, never a stack trace.
+
+SSOT: every tunable resolves from layered mios.toml (vendor < /etc < ~/.config)
+[computer_use], overridable by MIOS_DOCGEN_* env. NO literals baked in code --
+the defaults here are the documented fallbacks, mirrored in mios.toml.
+
+USAGE
+    mios-docgen convert <in-path> <out-path> [--to FMT]
+    mios-docgen build  <out-path> [--from FMT] [--content TEXT | --content-file PATH | --stdin]
+    mios-docgen formats
+    mios-docgen help
+
+EXAMPLES
+    # markdown report -> Word
+    mios-docgen build /tmp/q3.docx --from markdown --content-file /tmp/q3.md
+    # markdown bullets -> PowerPoint deck (--- splits slides)
+    mios-docgen build /tmp/deck.pptx --from markdown --stdin < deck.md
+    # CSV -> Excel workbook
+    mios-docgen build /tmp/sales.xlsx --from csv --content-file /tmp/sales.csv
+    # existing .docx -> PDF (LibreOffice headless)
+    mios-docgen convert /tmp/q3.docx /tmp/q3.pdf
+
+CONFIG (layered mios.toml [computer_use], or MIOS_DOCGEN_* env):
+    [computer_use]
+    docgen_enable      = false     # MASTER GATE (default off)
+    docgen_pandoc      = "pandoc"   # pandoc binary / path
+    docgen_soffice     = "soffice"  # LibreOffice headless binary / path
+    docgen_pdf_engine  = ""         # pandoc --pdf-engine (empty -> route PDF via LibreOffice)
+    docgen_timeout_s   = 120        # per-conversion timeout
+    docgen_max_bytes   = 20000000   # refuse inputs larger than this (DoS guard)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+try:
+    import tomllib  # py3.11+
+except ModuleNotFoundError:  # pragma: no cover
+    try:
+        import tomli as tomllib  # type: ignore
+    except ModuleNotFoundError:
+        tomllib = None  # degrade: env-var-only config
+
+PROG = "mios-docgen"
+
+# Format -> canonical file extension. Drives both routing and output naming.
+# Pandoc owns the markup side; LibreOffice owns the office-binary side; the two
+# overlap on docx/pptx/html (Pandoc preferred there for fidelity from markdown).
+_EXT_FMT = {
+    ".md": "markdown", ".markdown": "markdown", ".txt": "plain",
+    ".docx": "docx", ".odt": "odt", ".rtf": "rtf",
+    ".pptx": "pptx", ".odp": "odp",
+    ".xlsx": "xlsx", ".ods": "ods", ".csv": "csv",
+    ".pdf": "pdf", ".html": "html", ".htm": "html",
+}
+# Formats Pandoc can WRITE from markdown/markup source.
+_PANDOC_TARGETS = {"docx", "pptx", "html", "pdf", "markdown", "plain", "odt", "rtf"}
+# Office-binary formats LibreOffice converts losslessly (its native domain).
+_SOFFICE_TARGETS = {"docx", "pptx", "xlsx", "odt", "odp", "ods", "pdf", "html", "rtf", "csv"}
+# soffice --convert-to filter hints for ambiguous targets (e.g. csv->xlsx).
+_SOFFICE_FILTER = {
+    "xlsx": "xlsx:Calc MS Excel 2007 XML",
+    "ods": "ods:calc8",
+    "docx": "docx:MS Word 2007 XML",
+    "pptx": "pptx:Impress MS PowerPoint 2007 XML",
+    "pdf": "pdf",
+    "html": "html",
+    "csv": "csv:Text - txt - csv (StarCalc)",
+}
+
+
+# -- config ------------------------------------------------------------------
+def _toml_layered() -> dict:
+    """Deep-merge mios.toml across vendor < /etc < ~/.config (higher wins)."""
+    if tomllib is None:
+        return {}
+    out: dict = {}
+    paths = [Path("/usr/share/mios/mios.toml"), Path("/etc/mios/mios.toml")]
+    home = os.environ.get("HOME", "")
+    if home:
+        paths.append(Path(home) / ".config/mios/mios.toml")
+    env_toml = os.environ.get("MIOS_TOML", "")
+    if env_toml:
+        paths.append(Path(env_toml))
+
+    def _merge(dst: dict, src: dict) -> None:
+        for k, v in src.items():
+            if isinstance(v, dict) and isinstance(dst.get(k), dict):
+                _merge(dst[k], v)
+            else:
+                dst[k] = v
+
+    for p in paths:
+        try:
+            with open(p, "rb") as f:
+                _merge(out, tomllib.load(f))
+        except (OSError, tomllib.TOMLDecodeError):  # type: ignore[attr-defined]
+            continue
+    return out
+
+
+_TOML = _toml_layered()
+
+
+def _cfg(key: str, default):
+    """[computer_use].<key> with MIOS_DOCGEN_<KEY> env override."""
+    env = os.environ.get("MIOS_DOCGEN_" + key.upper())
+    if env not in (None, ""):
+        return env
+    sect = _TOML.get("computer_use") or {}
+    val = sect.get("docgen_" + key) if isinstance(sect, dict) else None
+    return default if val in (None, "") else val
+
+
+def _as_bool(v) -> bool:
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _as_int(v, default: int) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _enabled() -> bool:
+    return _as_bool(_cfg("enable", False))
+
+
+# -- emit --------------------------------------------------------------------
+def _ok(**fields) -> int:
+    print(json.dumps({"ok": True, "prog": PROG, **fields}))
+    return 0
+
+
+def _err(msg: str, exit_code: int = 0, **fields) -> int:
+    """Degrade-open: structured error on stdout, exit 0 by default so a caller
+    parsing JSON never sees a crash. exit_code!=0 only for true CLI misuse."""
+    print(json.dumps({"ok": False, "prog": PROG, "error": msg, **fields}))
+    return exit_code
+
+
+def _disabled() -> int:
+    return _err("mios-docgen disabled "
+                "(set [computer_use].docgen_enable = true or MIOS_DOCGEN_ENABLE=1)")
+
+
+# -- format resolution -------------------------------------------------------
+def _fmt_of(path: str) -> str:
+    return _EXT_FMT.get(Path(path).suffix.lower(), "")
+
+
+def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, p.stdout, p.stderr
+    except FileNotFoundError as e:
+        return 127, "", f"backend binary not found: {e}"
+    except subprocess.TimeoutExpired:
+        return 124, "", f"conversion timed out after {timeout}s"
+
+
+def _which(binary: str) -> str | None:
+    # Accept an absolute path OR a PATH-resolvable name.
+    if os.path.sep in binary:
+        return binary if os.path.isfile(binary) and os.access(binary, os.X_OK) else None
+    return shutil.which(binary)
+
+
+# -- LibreOffice headless conversion -----------------------------------------
+def _soffice_convert(src: Path, out: Path, target: str, timeout: int) -> tuple[bool, str]:
+    """soffice --headless --convert-to <filter> --outdir <dir> <src>.
+
+    LibreOffice writes <src-stem>.<ext> into --outdir; we then move it to the
+    requested out path. A private per-call profile dir avoids the singleton
+    lock that makes concurrent/headless soffice silently no-op.
+    """
+    soffice = _which(str(_cfg("soffice", "soffice")))
+    if not soffice:
+        return False, "LibreOffice (soffice) not installed -- add [packages.docgen]"
+    flt = _SOFFICE_FILTER.get(target, target)
+    with tempfile.TemporaryDirectory(prefix="mios-docgen-") as td:
+        profile = Path(td) / "profile"
+        outdir = Path(td) / "out"
+        outdir.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            soffice, "--headless", "--norestore", "--nolockcheck", "--nodefault",
+            f"-env:UserInstallation=file://{profile}",
+            "--convert-to", flt, "--outdir", str(outdir), str(src),
+        ]
+        rc, _so, se = _run(cmd, timeout)
+        if rc != 0:
+            return False, f"soffice exit {rc}: {se.strip()[:400]}"
+        produced = list(outdir.glob(f"{src.stem}.*"))
+        if not produced:
+            return False, "soffice produced no output file"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(produced[0]), str(out))
+        return True, ""
+
+
+# -- Pandoc conversion / authoring -------------------------------------------
+def _pandoc_run(args: list[str], timeout: int) -> tuple[bool, str]:
+    pandoc = _which(str(_cfg("pandoc", "pandoc")))
+    if not pandoc:
+        return False, "Pandoc not installed -- add [packages.docgen]"
+    rc, _so, se = _run([pandoc, *args], timeout)
+    if rc != 0:
+        return False, f"pandoc exit {rc}: {se.strip()[:400]}"
+    return True, ""
+
+
+def _pandoc_convert(src: Path, out: Path, src_fmt: str, target: str, timeout: int) -> tuple[bool, str]:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    args = []
+    if src_fmt in ("markdown", "plain", "html"):
+        args += ["-f", "markdown" if src_fmt == "plain" else src_fmt]
+    args += [str(src), "-o", str(out)]
+    if target == "pdf":
+        engine = str(_cfg("pdf_engine", "") or "").strip()
+        if engine:
+            args += ["--pdf-engine", engine]
+        else:
+            # No LaTeX/pdf engine -> route PDF through LibreOffice instead.
+            return False, "no pandoc --pdf-engine configured (route via soffice)"
+    if target == "pptx":
+        args += ["-t", "pptx"]
+    return _pandoc_run(args, timeout)
+
+
+# -- CSV -> XLSX (no pandoc path; LibreOffice native) ------------------------
+def _csv_to_xlsx(src: Path, out: Path, timeout: int) -> tuple[bool, str]:
+    return _soffice_convert(src, out, "xlsx", timeout)
+
+
+# -- subcommands -------------------------------------------------------------
+def cmd_convert(in_path: str, out_path: str, to: str) -> int:
+    if not _enabled():
+        return _disabled()
+    src = Path(in_path)
+    if not src.is_file():
+        return _err(f"input not found: {in_path}")
+    max_bytes = _as_int(_cfg("max_bytes", 20_000_000), 20_000_000)
+    if src.stat().st_size > max_bytes:
+        return _err(f"input exceeds max_bytes ({max_bytes})")
+    timeout = _as_int(_cfg("timeout_s", 120), 120)
+
+    target = (to or _fmt_of(out_path)).strip().lower()
+    if not target:
+        return _err(f"cannot determine output format from {out_path!r}; pass --to")
+    src_fmt = _fmt_of(in_path)
+    out = Path(out_path)
+
+    # Routing: CSV->xlsx and any office-binary source -> LibreOffice; markup
+    # source (md/txt/html) -> Pandoc; PDF from markup falls back to LibreOffice.
+    if src_fmt == "csv" and target in ("xlsx", "ods"):
+        ok, err = _csv_to_xlsx(src, out, timeout) if target == "xlsx" \
+            else _soffice_convert(src, out, target, timeout)
+    elif src_fmt in ("markdown", "plain", "html") and target in _PANDOC_TARGETS:
+        ok, err = _pandoc_convert(src, out, src_fmt, target, timeout)
+        if not ok and target == "pdf":
+            ok, err = _soffice_convert(src, out, "pdf", timeout)
+    elif target in _SOFFICE_TARGETS:
+        ok, err = _soffice_convert(src, out, target, timeout)
+    else:
+        return _err(f"unsupported conversion {src_fmt or '?'} -> {target}")
+
+    if not ok:
+        return _err(err, source=src_fmt, target=target)
+    return _ok(input=str(src), output=str(out), source=src_fmt, target=target,
+               bytes=out.stat().st_size if out.is_file() else 0)
+
+
+def cmd_build(out_path: str, from_fmt: str, content_file: str, use_stdin: bool,
+              content_text=None) -> int:
+    if not _enabled():
+        return _disabled()
+    timeout = _as_int(_cfg("timeout_s", 120), 120)
+    max_bytes = _as_int(_cfg("max_bytes", 20_000_000), 20_000_000)
+
+    # Source content: inline --content TEXT (the agent-pipe VERB path -- agents
+    # pass text, and the launcher broker runs `bash -lc` with stdin CLOSED so a
+    # verb can't pipe; the dispatch shlex-quotes the arg so typical doc text is
+    # safe on argv), a --content-file PATH, or --stdin (the OWUI tool streams
+    # text here). Unifies the two docgen_build surfaces on TEXT semantics.
+    if content_text is not None:
+        content = content_text
+    elif content_file:
+        cf = Path(content_file)
+        if not cf.is_file():
+            return _err(f"content-file not found: {content_file}")
+        if cf.stat().st_size > max_bytes:
+            return _err(f"content-file exceeds max_bytes ({max_bytes})")
+        content = cf.read_text(encoding="utf-8", errors="replace")
+    elif use_stdin:
+        content = sys.stdin.read()
+    else:
+        return _err("build needs --content TEXT, --content-file PATH, or --stdin")
+    if len(content.encode("utf-8", "replace")) > max_bytes:
+        return _err(f"content exceeds max_bytes ({max_bytes})")
+
+    target = _fmt_of(out_path)
+    if not target:
+        return _err(f"cannot determine output format from {out_path!r}")
+    src_fmt = (from_fmt or "markdown").strip().lower()
+
+    # Write the authored content to a temp source file, then convert.
+    suffix = ".csv" if src_fmt == "csv" else (".html" if src_fmt == "html" else ".md")
+    with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False,
+                                     encoding="utf-8") as tf:
+        tf.write(content)
+        src = Path(tf.name)
+    try:
+        if src_fmt == "csv" and target in ("xlsx", "ods"):
+            ok, err = _csv_to_xlsx(src, Path(out_path), timeout) if target == "xlsx" \
+                else _soffice_convert(src, Path(out_path), target, timeout)
+        elif src_fmt in ("markdown", "plain", "html") and target in _PANDOC_TARGETS:
+            ok, err = _pandoc_convert(src, Path(out_path), src_fmt, target, timeout)
+            if not ok and target == "pdf":
+                ok, err = _soffice_convert(src, Path(out_path), "pdf", timeout)
+        elif target in _SOFFICE_TARGETS:
+            ok, err = _soffice_convert(src, Path(out_path), target, timeout)
+        else:
+            return _err(f"unsupported build {src_fmt} -> {target}")
+    finally:
+        try:
+            src.unlink()
+        except OSError:
+            pass
+
+    out = Path(out_path)
+    if not ok:
+        return _err(err, source=src_fmt, target=target)
+    return _ok(output=str(out), source=src_fmt, target=target,
+               bytes=out.stat().st_size if out.is_file() else 0)
+
+
+def cmd_formats() -> int:
+    pandoc = _which(str(_cfg("pandoc", "pandoc")))
+    soffice = _which(str(_cfg("soffice", "soffice")))
+    return _ok(
+        enabled=_enabled(),
+        pandoc=bool(pandoc), soffice=bool(soffice),
+        pandoc_targets=sorted(_PANDOC_TARGETS),
+        soffice_targets=sorted(_SOFFICE_TARGETS),
+        extensions=sorted(_EXT_FMT.keys()),
+    )
+
+
+# -- main --------------------------------------------------------------------
+def main() -> int:
+    ap = argparse.ArgumentParser(prog=PROG, add_help=False,
+                                 description="FOSS offline document generation (Pandoc + LibreOffice)")
+    sub = ap.add_subparsers(dest="cmd")
+
+    p_conv = sub.add_parser("convert", add_help=False)
+    p_conv.add_argument("in_path")
+    p_conv.add_argument("out_path")
+    p_conv.add_argument("--to", default="")
+
+    p_build = sub.add_parser("build", add_help=False)
+    p_build.add_argument("out_path")
+    p_build.add_argument("--from", dest="from_fmt", default="markdown")
+    p_build.add_argument("--content-file", dest="content_file", default="")
+    p_build.add_argument("--content", dest="content_text", default=None)
+    p_build.add_argument("--stdin", action="store_true")
+
+    sub.add_parser("formats", add_help=False)
+    sub.add_parser("help", add_help=False)
+
+    # Manual parse so an unknown/no subcommand prints help (exit 0).
+    ns, _extra = ap.parse_known_args()
+    if ns.cmd in (None, "help"):
+        print(__doc__)
+        return 0
+    if ns.cmd == "convert":
+        return cmd_convert(ns.in_path, ns.out_path, ns.to)
+    if ns.cmd == "build":
+        return cmd_build(ns.out_path, ns.from_fmt, ns.content_file, ns.stdin,
+                         ns.content_text)
+    if ns.cmd == "formats":
+        return cmd_formats()
+    print(__doc__)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-ps -- show ALL MiOS containers from ANY shell or
 # context (interactive or scripted, rootless or not, Termius / ttyd / cron).
 #

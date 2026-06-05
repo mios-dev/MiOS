@@ -3,7 +3,7 @@
 # deactivating, then report the ExecStartPre patch verdict.
 # Used after restart cycles where the gateway's 240s drain
 # timeout can stall the unit in 'activating' for minutes.
-set -u
+set -euo pipefail
 for i in $(seq 1 30); do
     s=$(systemctl is-active hermes-agent.service)
     case "$s" in

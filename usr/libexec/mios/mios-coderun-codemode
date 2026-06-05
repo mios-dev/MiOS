@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""mios-coderun-codemode -- WS-2 Code Mode runner (the `code_mode` verb backend).
+
+Runs an AGENT-SUPPLIED code snippet inside the EXISTING rootless PODMAN
+coderun-sandbox (concepts/coderun-sandbox.md) -- the defense-in-depth boundary
+(Network=none, ReadOnly, DropCapability=ALL, seccomp allowlist, Landlock PID-1,
+cgroups v2). This is the "Code Mode" half of the AIOS Tool Manager: the model
+writes CODE that calls a small local tool API (mios_tools, the in-sandbox shim
+copied alongside) instead of having ~71 OpenAI function schemas loaded into its
+context; only the FILTERED result returns -- the big token win.
+
+Distinct from its two siblings:
+  * mios-coderun         -- bubblewrap (bwrap) per-call jail; the lighter
+                            `coderun` verb backend. THIS uses the heavier podman
+                            container instead (full Quadlet hardening + a warm,
+                            conversation-scoped session).
+  * mios-coderun-session -- the start/stop/snap/revert orchestrator for the same
+                            podman sandbox; THIS calls it to ensure the session
+                            is up, then `podman exec`s the snippet in.
+
+DEFAULT-OFF + degrade-CLOSED: code execution only runs when [code_mode].enable is
+set in mios.toml AND the podman sandbox image/unit are present. Any precondition
+miss -> a clean refusal JSON, never an unsandboxed fallback (the one feature where
+we degrade CLOSED, not open -- running model code outside the jail is a non-
+starter).
+
+USAGE
+  mios-coderun-codemode --session <id> [--lang python|bash|sh] [--net] \
+                        [--timeout 60]   < snippet-on-stdin
+  echo 'print(2**10)' | mios-coderun-codemode --session cm-abc --lang python
+
+OUTPUT (JSON): {ok, lang, exit_code, stdout, stderr, sandboxed, net, [result]}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+# The pure helpers (sibling-module pattern) -- argv/result/gating decisions live
+# in mios_codemode so they are unit-tested without podman. Add the agent-pipe lib
+# to the path so this libexec CLI can import it regardless of CWD.
+sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+try:
+    import mios_codemode as cm
+except Exception:  # noqa: BLE001 -- degrade closed if the helper is missing
+    cm = None
+
+
+def _toml_code_mode() -> dict:
+    """Layered [code_mode] table (vendor <- /etc <- ~/.config). Best-effort."""
+    layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")]
+    out: dict = {}
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        for p in layers:
+            try:
+                with open(p, "rb") as f:
+                    layer = (tomllib.load(f).get("code_mode") or {})
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if isinstance(layer, dict):
+                out.update(layer)
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _resolve_workspace_root(cfg: dict) -> str:
+    """Workspace root: env -> [code_mode].workspace_root -> [paths]
+    coderun_workspace_root -> default. Same SSOT order as mios-coderun-session."""
+    env = os.environ.get("MIOS_CODEMODE_WORKSPACE_ROOT")
+    if env:
+        return env
+    v = cfg.get("workspace_root")
+    if v:
+        return str(v)
+    # fall through to the shared coderun workspace root
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+            try:
+                with open(p, "rb") as f:
+                    d = tomllib.load(f)
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            r = (d.get("paths", {}) or {}).get("coderun_workspace_root")
+            if r:
+                return str(r)
+    except Exception:  # noqa: BLE001
+        pass
+    return "/var/home/mios/coderuns"
+
+
+def _fail(reason: str, code: int = 1) -> int:
+    print(json.dumps({"ok": False, "error": reason, "sandboxed": True}))
+    return code
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-coderun-codemode")
+    p.add_argument("--code", default="", help="snippet (else read from stdin)")
+    p.add_argument("--session", default="", help="conversation/session id")
+    p.add_argument("--lang", default="python")
+    p.add_argument("--net", action="store_true")
+    p.add_argument("--timeout", type=int, default=60)
+    args = p.parse_args()
+
+    if cm is None:
+        return _fail("mios_codemode helper unavailable -- refusing to run", 126)
+
+    cfg = _toml_code_mode()
+    # DEFAULT-OFF gate (degrade CLOSED for code execution).
+    if not cm.is_enabled(cfg):
+        return _fail("code_mode disabled ([code_mode].enable not set)", 0)
+
+    code = args.code
+    if not code and not sys.stdin.isatty():
+        code = sys.stdin.read()
+    ok, payload = cm.validate_request({
+        "code": code, "lang": args.lang, "timeout": args.timeout,
+        "net": args.net,
+    })
+    if not ok:
+        return _fail(payload.get("error", "invalid request"), 2)
+
+    lang = payload["lang"]
+    timeout = payload["timeout"]
+    net = cm.net_allowed(cfg, payload["net"])
+
+    podman = os.environ.get("MIOS_PODMAN_BIN", "podman")
+    session_bin = os.environ.get("MIOS_CODERUN_SESSION_BIN",
+                                 "mios-coderun-session")
+    if not shutil.which(podman):
+        return _fail(f"{podman} not on PATH -- podman sandbox unavailable", 126)
+
+    sid = cm.session_id(args.session or os.environ.get("MIOS_CONVERSATION_ID"))
+    container = f"mios-coderun-sandbox-{sid}"
+
+    ws_root = _resolve_workspace_root(cfg)
+    workdir = os.path.join(ws_root, sid)
+    try:
+        os.makedirs(workdir, exist_ok=True)
+    except OSError as e:
+        return _fail(f"workspace mkdir failed: {e}")
+
+    # Write the snippet into the bind-mounted /work (mapped to <ws_root>/<sid>).
+    fname = "snippet.py" if lang == "python" else (
+        "snippet.sh" if lang == "bash" else "snippet.sh")
+    host_src = os.path.join(workdir, fname)
+    in_src = f"/work/{fname}"
+    try:
+        with open(host_src, "w", encoding="utf-8") as f:
+            f.write(code)
+    except OSError as e:
+        return _fail(f"snippet write failed: {e}")
+
+    # Ensure the session sandbox is UP (idempotent start). Best-effort: if the
+    # orchestrator or unit is missing we still try `podman exec` and surface its
+    # error -- but we never run the code outside the container.
+    if shutil.which(session_bin):
+        try:
+            subprocess.run([session_bin, "start", sid],
+                           capture_output=True, text=True, timeout=40)
+        except Exception:  # noqa: BLE001 -- exec below will report if not up
+            pass
+
+    # Confirm the container is actually running before exec'ing into it.
+    try:
+        chk = subprocess.run(
+            [podman, "container", "inspect", "-f", "{{.State.Running}}", container],
+            capture_output=True, text=True, timeout=15)
+        running = chk.returncode == 0 and "true" in (chk.stdout or "").lower()
+    except Exception:  # noqa: BLE001
+        running = False
+    if not running:
+        return _fail(f"sandbox container {container} not running -- "
+                     "cannot exec; refusing unsandboxed run", 126)
+
+    init = os.environ.get("MIOS_CODERUN_INIT", "/usr/local/bin/exec-init")
+    init = init if init and init.lower() not in ("none", "off", "") else ""
+    argv = cm.podman_exec_argv(container, lang, in_src, podman=podman, init=init)
+    # NETWORK posture: the Quadlet pins Network=none, so `net` here is advisory --
+    # log the requested+effective state in the envelope. (A net-enabled sandbox
+    # would be a separate unit; out of scope for this scaffold.)
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True,
+                              timeout=timeout + 15)
+    except subprocess.TimeoutExpired:
+        return _fail("timeout", 1)
+    except Exception as e:  # noqa: BLE001
+        return _fail(f"{type(e).__name__}: {e}")
+
+    max_out = cm.MAX_CODE_CHARS
+    try:
+        max_out = int(cfg.get("max_output_chars", 8000) or 8000)
+    except (TypeError, ValueError):
+        max_out = 8000
+    env = cm.parse_result(proc.stdout, proc.stderr, proc.returncode,
+                          max_chars=max_out)
+    env["lang"] = lang
+    env["net"] = bool(net)
+    print(json.dumps(env, ensure_ascii=False))
+    return 0 if proc.returncode == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

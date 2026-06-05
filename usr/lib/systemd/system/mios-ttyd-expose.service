@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS mobile terminal tailnet exposure (gated by [ttyd].tailnet_expose)
+Description='MiOS' mobile terminal tailnet exposure (gated by [ttyd].tailnet_expose)
 Documentation=file:///usr/libexec/mios/mios-ttyd-expose
 # After the loopback ttyd + tailscaled are up, so the proxy target + the serve
 # control plane both exist.

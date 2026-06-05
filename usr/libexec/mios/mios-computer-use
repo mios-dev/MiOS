@@ -1,0 +1,1031 @@
+#!/usr/bin/env python3
+"""mios-computer-use -- Linux/Wayland desktop computer-use executor for MiOS.
+
+The Linux/Wayland peer of `mios-pc-control` (which drives the Windows host via
+Win32 SendInput through the WSL broker). This tool drives the LOCAL Linux
+graphical session -- bare-metal/VM GNOME or KDE on Wayland, or a wlroots
+compositor -- with NO ydotool dependency (ydotool is AGPLv3 + seat-wide):
+
+  * INPUT   -- the freedesktop RemoteDesktop portal (libei era; GNOME >= 45 /
+               KWin >= 6.1 production) over D-Bus, with a persisted restore
+               token for unattended re-use. Self-written `evdev`/uinput backend
+               as the compositor-agnostic fallback (our own code -> MIT-clean,
+               works on wlroots + headless seats too).
+  * CAPTURE -- one-shot Screenshot portal, with grim / gnome-screenshot /
+               spectacle CLI fallbacks (all FOSS, offline).
+  * GROUND  -- AT-SPI2 a11y tree FIRST (role/name/text, no pixels, deterministic),
+               vision grounding (mios-pc-vision -> qwen3-vl:4b baseline or the
+               UI-TARS-1.5-7B vLLM `mios-grounding` lane) only when the tree is
+               empty (Chromium/Electron/canvas).
+
+ENVIRONMENT-ADAPTIVE (MiOS is a bootc image deployable on any hardware):
+  1. [computer_use].executor_endpoint set + reachable -> route every op to that
+     HTTP executor (federation: drive ANOTHER machine's desktop, same contract
+     mios-pc-control uses for the Windows executor + mios-computer-use-server
+     uses for Linux). Configured-but-down => honest error, never a blind local
+     fall-back (mirrors the os_control executor rule).
+  2. else local Wayland session (WAYLAND_DISPLAY present) -> portal/uinput.
+  3. else WSL2 with a reachable Windows host -> delegate to mios-pc-control so
+     the SAME verb works everywhere.
+  4. else honest "no desktop backend available" error.
+
+SUBCOMMANDS (contract-compatible with mios-pc-control so the cu_* verbs and the
+dual MCP+A2A server are backend-agnostic):
+    screenshot <out-path>          one-shot capture to PNG
+    click <x> <y> [button]         left|right|middle (default left)
+    double-click <x> <y>
+    mouse-move <x> <y>
+    type "<text>"                  literal text into the focused surface
+    key <name>                     Enter|Tab|Escape|Up|Down|...|F1..F12|<char>
+    key-combo "Ctrl+S"             modifier combo
+    window-list [--json]           AT-SPI / wmctrl / hyprctl / kdotool top-levels
+    window-focus <id>
+    window-move <id> <x> <y>
+    window-resize <id> <w> <h>
+    atspi-query "<query>" [--json] semantic element lookup (no pixels)
+    ground "<query>" [--json]      screenshot -> AT-SPI/vision -> {x,y,confidence}
+    help
+
+CONFIG (layered mios.toml, per-user > /etc > vendor):
+    [computer_use]
+    executor_endpoint = ""           # federation: drive a remote desktop
+    input_backend     = "auto"       # auto | portal | uinput
+    capture_backend   = "auto"       # auto | portal | grim | gnome | spectacle
+    restore_token_path = "$XDG_STATE_HOME/mios/cu-restore-token"
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+try:
+    import tomllib  # py3.11+
+except ModuleNotFoundError:  # pragma: no cover
+    try:
+        import tomli as tomllib  # type: ignore
+    except ModuleNotFoundError:
+        tomllib = None  # degrade: env-var-only config
+
+PROG = "mios-computer-use"
+HTTP_TIMEOUT_S = 20
+
+
+# ── config ──────────────────────────────────────────────────────────────────
+def _toml_layered() -> dict:
+    """Deep-merge mios.toml across vendor < /etc < ~/.config (higher wins)."""
+    if tomllib is None:
+        return {}
+    out: dict = {}
+    paths = [
+        Path("/usr/share/mios/mios.toml"),
+        Path("/etc/mios/mios.toml"),
+    ]
+    home = os.environ.get("HOME", "")
+    if home:
+        paths.append(Path(home) / ".config/mios/mios.toml")
+    env_toml = os.environ.get("MIOS_TOML", "")
+    if env_toml:
+        paths.append(Path(env_toml))
+
+    def _merge(dst: dict, src: dict) -> None:
+        for k, v in src.items():
+            if isinstance(v, dict) and isinstance(dst.get(k), dict):
+                _merge(dst[k], v)
+            else:
+                dst[k] = v
+
+    for p in paths:
+        try:
+            with open(p, "rb") as f:
+                _merge(out, tomllib.load(f))
+        except (OSError, tomllib.TOMLDecodeError):  # type: ignore[attr-defined]
+            continue
+    return out
+
+
+_TOML = _toml_layered()
+
+
+def _cfg(section: str, key: str, default):
+    sect = _TOML.get(section) or {}
+    val = sect.get(key) if isinstance(sect, dict) else None
+    return default if val in (None, "") else val
+
+
+def _cu(key: str, default):
+    env = os.environ.get("MIOS_CU_" + key.upper())
+    if env not in (None, ""):
+        return env
+    return _cfg("computer_use", key, default)
+
+
+def _restore_token_path() -> Path:
+    p = _cu("restore_token_path", "")
+    if p:
+        return Path(p)
+    base = os.environ.get("XDG_STATE_HOME") or os.path.join(
+        os.environ.get("HOME", "/tmp"), ".local/state"
+    )
+    return Path(base) / "mios" / "cu-restore-token"
+
+
+# ── environment detection ─────────────────────────────────────────────────────
+def _is_wsl() -> bool:
+    if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
+        return True
+    try:
+        return "microsoft" in Path("/proc/sys/kernel/osrelease").read_text().lower()
+    except OSError:
+        return False
+
+
+def _have_wayland() -> bool:
+    return bool(os.environ.get("WAYLAND_DISPLAY"))
+
+
+def _desktop() -> str:
+    return (
+        os.environ.get("XDG_CURRENT_DESKTOP")
+        or os.environ.get("XDG_SESSION_DESKTOP")
+        or ""
+    ).lower()
+
+
+def _executor_endpoint() -> str:
+    """[computer_use].executor_endpoint, falling back to [os_control] for parity."""
+    ep = str(_cu("executor_endpoint", "") or "").strip()
+    if not ep:
+        # Reuse the os_control executor when it speaks the same HTTP contract.
+        ep = str(_cfg("os_control", "executor_endpoint", "") or "").strip()
+    return ep.rstrip("/")
+
+
+def _endpoint_up(ep: str) -> bool:
+    try:
+        with urllib.request.urlopen(ep + "/health", timeout=3) as r:
+            return 200 <= r.status < 300
+    except Exception:
+        return False
+
+
+# ── federation: route every op to a remote executor (HTTP) ────────────────────
+def _http_get(ep: str, path: str) -> dict:
+    with urllib.request.urlopen(ep + path, timeout=HTTP_TIMEOUT_S) as r:
+        return json.loads(r.read() or b"{}")
+
+
+def _http_post(ep: str, path: str, body: dict) -> dict:
+    req = urllib.request.Request(
+        ep + path,
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as r:
+        return json.loads(r.read() or b"{}")
+
+
+def _route_remote(ep: str, sub: str, args: list[str], as_json: bool) -> int:
+    """Forward a subcommand to a remote mios-computer-use-server / executor.
+
+    Same HTTP contract as mios-oscontrol-server.ps1 + mios-computer-use-server:
+    GET /screenshot|/windows|/screen-layout, POST /input/*, POST /window/*.
+    """
+    try:
+        if sub == "screenshot":
+            out = args[0]
+            resp = _http_get(ep, "/screenshot")
+            b = resp.get("image_b64")
+            if not b:
+                _die("remote executor returned no image")
+            import base64
+
+            Path(out).write_bytes(base64.b64decode(b))
+            print(f"[{PROG}] screenshot saved to {out} "
+                  f"({resp.get('width')}x{resp.get('height')}) via {ep}")
+            return 0
+        if sub == "window-list":
+            resp = _http_get(ep, "/windows")
+            return _emit_windows(resp.get("windows") or [], as_json)
+        if sub == "screen-layout":
+            print(json.dumps(_http_get(ep, "/screen-layout")))
+            return 0
+        if sub == "atspi-query":
+            resp = _http_post(ep, "/atspi/query", {"query": args[0]})
+            print(json.dumps(resp))
+            return 0
+        if sub == "ground":
+            resp = _http_post(ep, "/ground", {"query": args[0]})
+            print(json.dumps(resp))
+            return 0
+        post = {
+            "click": ("/input/click", _xybtn(args)),
+            "double-click": ("/input/double-click", _xy(args)),
+            "mouse-move": ("/input/mouse-move", _xy(args)),
+            "type": ("/input/type", {"text": " ".join(args)}),
+            "key": ("/input/key", {"name": args[0] if args else ""}),
+            "key-combo": ("/input/key-combo", {"combo": " ".join(args)}),
+            "window-focus": ("/window/focus", {"id": args[0]}),
+            "window-move": ("/window/move", _idxy(args)),
+            "window-resize": ("/window/resize", _idwh(args)),
+        }.get(sub)
+        if not post:
+            _die(f"unknown subcommand for remote route: {sub}")
+        print(json.dumps(_http_post(ep, post[0], post[1])))
+        return 0
+    except (urllib.error.URLError, OSError) as e:
+        _die(f"remote executor {ep} unreachable ({sub}): {e}")
+    return 1
+
+
+def _xy(a):
+    return {"x": int(a[0]), "y": int(a[1])}
+
+
+def _xybtn(a):
+    return {"x": int(a[0]), "y": int(a[1]), "button": a[2] if len(a) > 2 else "left"}
+
+
+def _idxy(a):
+    return {"id": a[0], "x": int(a[1]), "y": int(a[2])}
+
+
+def _idwh(a):
+    return {"id": a[0], "width": int(a[1]), "height": int(a[2])}
+
+
+# ── capture (one-shot) ────────────────────────────────────────────────────────
+def _screen_size() -> tuple[int, int]:
+    """Best-effort logical screen geometry for uinput absolute axes."""
+    for cmd, parse in (
+        (["wlr-randr"], _parse_wlr_randr),
+        (["hyprctl", "monitors", "-j"], _parse_hyprctl_mon),
+    ):
+        if shutil.which(cmd[0]):
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                wh = parse(out.stdout)
+                if wh:
+                    return wh
+            except Exception:
+                pass
+    return (1920, 1080)
+
+
+def _parse_wlr_randr(s: str):
+    for line in s.splitlines():
+        line = line.strip()
+        if "current" in line and "x" in line:
+            try:
+                geo = line.split()[0]
+                w, h = geo.lower().split("x")
+                return int(w), int(float(h))
+            except Exception:
+                continue
+    return None
+
+
+def _parse_hyprctl_mon(s: str):
+    try:
+        mons = json.loads(s)
+        for m in mons:
+            return int(m["width"]), int(m["height"])
+    except Exception:
+        return None
+    return None
+
+
+def _capture(out_path: str) -> int:
+    backend = str(_cu("capture_backend", "auto"))
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    def _grim():
+        return shutil.which("grim") and subprocess.run(
+            ["grim", str(out)], capture_output=True
+        ).returncode == 0
+
+    def _gnome():
+        return shutil.which("gnome-screenshot") and subprocess.run(
+            ["gnome-screenshot", "-f", str(out)], capture_output=True
+        ).returncode == 0
+
+    def _spectacle():
+        return shutil.which("spectacle") and subprocess.run(
+            ["spectacle", "-b", "-n", "-o", str(out)], capture_output=True
+        ).returncode == 0
+
+    def _portal():
+        return _portal_screenshot(out)
+
+    order = {
+        "auto": [_portal, _grim, _gnome, _spectacle],
+        "portal": [_portal],
+        "grim": [_grim],
+        "gnome": [_gnome],
+        "spectacle": [_spectacle],
+    }.get(backend, [_portal, _grim, _gnome, _spectacle])
+
+    for fn in order:
+        try:
+            if fn() and out.is_file() and out.stat().st_size > 0:
+                print(f"[{PROG}] screenshot saved to {out} (backend={fn.__name__.lstrip('_')})")
+                return 0
+        except Exception:
+            continue
+    _die("no working capture backend (install grim / gnome-screenshot / spectacle, "
+         "or enable the Screenshot portal)")
+    return 1
+
+
+def _portal_screenshot(out: Path) -> bool:
+    """org.freedesktop.portal.Screenshot via Gio -> copy the returned URI."""
+    try:
+        import gi
+
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio, GLib
+    except Exception:
+        return False
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        loop = GLib.MainLoop()
+        result: dict = {}
+
+        def _on_response(_conn, _sender, _path, _iface, _signal, params):
+            response, results = params.unpack()
+            if response == 0:
+                result["uri"] = results.get("uri")
+            loop.quit()
+
+        handle_token = "mios_cu_%d" % os.getpid()
+        sender = bus.get_unique_name().lstrip(":").replace(".", "_")
+        req_path = f"/org/freedesktop/portal/desktop/request/{sender}/{handle_token}"
+        bus.signal_subscribe(
+            "org.freedesktop.portal.Desktop", "org.freedesktop.portal.Request",
+            "Response", req_path, None, Gio.DBusSignalFlags.NONE, _on_response,
+        )
+        bus.call_sync(
+            "org.freedesktop.portal.Desktop",
+            "/org/freedesktop/portal/desktop",
+            "org.freedesktop.portal.Screenshot", "Screenshot",
+            GLib.Variant("(sa{sv})", ("", {
+                "handle_token": GLib.Variant("s", handle_token),
+                "interactive": GLib.Variant("b", False),
+            })),
+            None, Gio.DBusCallFlags.NONE, -1, None,
+        )
+        GLib.timeout_add_seconds(30, loop.quit)
+        loop.run()
+        uri = result.get("uri")
+        if not uri:
+            return False
+        src = Path(GLib.filename_from_uri(uri)[0])
+        shutil.copyfile(src, out)
+        return True
+    except Exception:
+        return False
+
+
+# ── input backends ────────────────────────────────────────────────────────────
+def _input_backend() -> str:
+    want = str(_cu("input_backend", "auto"))
+    if want != "auto":
+        return want
+    d = _desktop()
+    # Portal RemoteDesktop is production on GNOME/KDE; uinput everywhere else.
+    if ("gnome" in d or "kde" in d or "plasma" in d) and _have_wayland():
+        return "portal"
+    return "uinput"
+
+
+def _do_input(action: str, args: list[str]) -> int:
+    backend = _input_backend()
+    impl = {"portal": _InputPortal, "uinput": _InputUinput}.get(backend)
+    if impl is None:
+        _die(f"unknown input_backend '{backend}' (auto|portal|uinput)")
+    try:
+        dev = impl()
+    except Exception as e:
+        # Fall back portal -> uinput once before giving up.
+        if backend == "portal":
+            try:
+                dev = _InputUinput()
+                backend = "uinput"
+            except Exception:
+                _die(f"input backend init failed (portal: {e}; uinput unavailable)")
+        else:
+            _die(f"input backend '{backend}' init failed: {e}")
+    try:
+        dev.dispatch(action, args)
+    finally:
+        dev.close()
+    print(json.dumps({"ok": True, "action": action, "backend": backend}))
+    return 0
+
+
+class _InputUinput:
+    """Self-written /dev/uinput backend via python-evdev (BSD). No ydotool.
+
+    Compositor-agnostic (works on wlroots + headless seats). Absolute pointer
+    axes are sized to the current screen so (x,y) are real pixel coordinates.
+    Needs the agent user in `input` + the uinput uaccess udev rule.
+    """
+
+    def __init__(self):
+        from evdev import UInput, ecodes, AbsInfo  # noqa: F401
+
+        self._e = ecodes
+        w, h = _screen_size()
+        self._w, self._h = w, h
+        cap = {
+            ecodes.EV_KEY: (
+                [ecodes.BTN_LEFT, ecodes.BTN_RIGHT, ecodes.BTN_MIDDLE]
+                + list(range(ecodes.KEY_ESC, ecodes.KEY_MICMUTE))
+            ),
+            ecodes.EV_ABS: [
+                (ecodes.ABS_X, AbsInfo(0, 0, w, 0, 0, 0)),
+                (ecodes.ABS_Y, AbsInfo(0, 0, h, 0, 0, 0)),
+            ],
+        }
+        self._ui = UInput(cap, name="mios-computer-use")
+
+    def _syn(self):
+        self._ui.syn()
+
+    def _move(self, x, y):
+        self._ui.write(self._e.EV_ABS, self._e.ABS_X, int(x))
+        self._ui.write(self._e.EV_ABS, self._e.ABS_Y, int(y))
+        self._syn()
+
+    def _btn(self, button):
+        code = {"left": self._e.BTN_LEFT, "right": self._e.BTN_RIGHT,
+                "middle": self._e.BTN_MIDDLE}.get(button, self._e.BTN_LEFT)
+        self._ui.write(self._e.EV_KEY, code, 1)
+        self._syn()
+        self._ui.write(self._e.EV_KEY, code, 0)
+        self._syn()
+
+    def _tap(self, code, mods=()):
+        for m in mods:
+            self._ui.write(self._e.EV_KEY, m, 1)
+        self._syn()
+        self._ui.write(self._e.EV_KEY, code, 1)
+        self._syn()
+        self._ui.write(self._e.EV_KEY, code, 0)
+        for m in reversed(mods):
+            self._ui.write(self._e.EV_KEY, m, 0)
+        self._syn()
+
+    def dispatch(self, action, a):
+        if action == "mouse-move":
+            self._move(a[0], a[1])
+        elif action == "click":
+            self._move(a[0], a[1]); self._btn(a[2] if len(a) > 2 else "left")
+        elif action == "double-click":
+            self._move(a[0], a[1]); self._btn("left"); self._btn("left")
+        elif action == "type":
+            self._type(" ".join(a))
+        elif action == "key":
+            code, mods = _keyname_to_evdev(self._e, a[0])
+            self._tap(code, mods)
+        elif action == "key-combo":
+            self._combo(" ".join(a))
+        else:
+            _die(f"uinput: unsupported action {action}")
+
+    def _type(self, text):
+        for ch in text:
+            code, shift = _char_to_evdev(self._e, ch)
+            if code is None:
+                continue
+            self._tap(code, (self._e.KEY_LEFTSHIFT,) if shift else ())
+
+    def _combo(self, combo):
+        parts = [p.strip() for p in combo.replace("-", "+").split("+") if p.strip()]
+        modmap = {
+            "ctrl": self._e.KEY_LEFTCTRL, "control": self._e.KEY_LEFTCTRL,
+            "alt": self._e.KEY_LEFTALT, "shift": self._e.KEY_LEFTSHIFT,
+            "super": self._e.KEY_LEFTMETA, "win": self._e.KEY_LEFTMETA,
+            "meta": self._e.KEY_LEFTMETA,
+        }
+        mods = [modmap[p.lower()] for p in parts[:-1] if p.lower() in modmap]
+        code, kmods = _keyname_to_evdev(self._e, parts[-1])
+        self._tap(code, tuple(mods) + tuple(kmods))
+
+    def close(self):
+        try:
+            self._ui.close()
+        except Exception:
+            pass
+
+
+class _InputPortal:
+    """org.freedesktop.portal.RemoteDesktop (libei era) over D-Bus via Gio.
+
+    Production on GNOME (>=45) and KWin (>=6.1). A linked ScreenCast stream
+    defines the absolute-coordinate space; the restore token (interface v2)
+    skips the consent dialog on subsequent unattended runs.
+
+    NOTE: this path requires a live graphical-session portal and is validated
+    on a real GNOME/KDE Wayland desktop (cannot be exercised headless). On any
+    failure the caller falls back to the uinput backend.
+    """
+
+    def __init__(self):
+        import gi
+
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio, GLib  # noqa: F401
+
+        self._gi = (Gio, GLib)
+        self._bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self._session = None
+        self._stream_size = _screen_size()
+        self._start_session()
+
+    # The portal Request/Response dance is verbose; kept compact + commented.
+    def _await(self, call):
+        Gio, GLib = self._gi
+        loop = GLib.MainLoop()
+        box: dict = {}
+        token = "mios_cu_%d_%d" % (os.getpid(), id(call) & 0xFFFF)
+        sender = self._bus.get_unique_name().lstrip(":").replace(".", "_")
+        req = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
+
+        def _on(_c, _s, _p, _i, _sig, params):
+            resp, results = params.unpack()
+            box["resp"], box["results"] = resp, results
+            loop.quit()
+
+        sid = self._bus.signal_subscribe(
+            "org.freedesktop.portal.Desktop", "org.freedesktop.portal.Request",
+            "Response", req, None, Gio.DBusSignalFlags.NONE, _on)
+        call(token)
+        GLib.timeout_add_seconds(60, loop.quit)
+        loop.run()
+        self._bus.signal_unsubscribe(sid)
+        if box.get("resp") != 0:
+            raise RuntimeError(f"portal request failed (response={box.get('resp')})")
+        return box.get("results") or {}
+
+    def _portal(self, method, body):
+        Gio, GLib = self._gi
+        return self._bus.call_sync(
+            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
+            "org.freedesktop.portal.RemoteDesktop", method, body, None,
+            Gio.DBusCallFlags.NONE, -1, None)
+
+    def _start_session(self):
+        Gio, GLib = self._gi
+        # CreateSession
+        def _create(tok):
+            self._portal("CreateSession", GLib.Variant("(a{sv})", ({
+                "handle_token": GLib.Variant("s", tok),
+                "session_handle_token": GLib.Variant("s", tok),
+            },)))
+        res = self._await(_create)
+        self._session = res.get("session_handle")
+        if not self._session:
+            raise RuntimeError("portal returned no session_handle")
+        # SelectDevices (KEYBOARD|POINTER = 3) + persist mode 2 + restore token
+        rt = self._read_restore_token()
+        def _select(tok):
+            opts = {
+                "handle_token": GLib.Variant("s", tok),
+                "types": GLib.Variant("u", 3),
+                "persist_mode": GLib.Variant("u", 2),
+            }
+            if rt:
+                opts["restore_token"] = GLib.Variant("s", rt)
+            self._portal("SelectDevices", GLib.Variant("(oa{sv})", (self._session, opts)))
+        self._await(_select)
+        # Start (parent_window "")
+        def _start(tok):
+            self._portal("Start", GLib.Variant("(osa{sv})", (
+                self._session, "", {"handle_token": GLib.Variant("s", tok)})))
+        sres = self._await(_start)
+        if sres.get("restore_token"):
+            self._write_restore_token(sres["restore_token"])
+
+    def _read_restore_token(self):
+        try:
+            return _restore_token_path().read_text().strip() or None
+        except OSError:
+            return None
+
+    def _write_restore_token(self, tok):
+        try:
+            p = _restore_token_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(tok)
+            p.chmod(0o600)
+        except OSError:
+            pass
+
+    def dispatch(self, action, a):
+        Gio, GLib = self._gi
+        w, h = self._stream_size
+
+        def notify(method, sig, payload):
+            self._portal(method, GLib.Variant(sig, (self._session, {}) + payload))
+
+        if action in ("mouse-move", "click", "double-click"):
+            x, y = int(a[0]), int(a[1])
+            # NotifyPointerMotionAbsolute(session, opts, stream, x, y)
+            self._portal("NotifyPointerMotionAbsolute", GLib.Variant(
+                "(oa{sv}udd)", (self._session, {}, 0, float(x), float(y))))
+        if action == "mouse-move":
+            return
+        if action in ("click", "double-click"):
+            btn = {"left": 0x110, "right": 0x111, "middle": 0x112}.get(
+                a[2] if len(a) > 2 else "left", 0x110)
+            clicks = 2 if action == "double-click" else 1
+            for _ in range(clicks):
+                self._portal("NotifyPointerButton", GLib.Variant(
+                    "(oa{sv}iu)", (self._session, {}, btn, 1)))
+                self._portal("NotifyPointerButton", GLib.Variant(
+                    "(oa{sv}iu)", (self._session, {}, btn, 0)))
+            return
+        if action == "type":
+            for ch in " ".join(a):
+                ks = ord(ch)
+                self._portal("NotifyKeyboardKeysym", GLib.Variant(
+                    "(oa{sv}iu)", (self._session, {}, ks, 1)))
+                self._portal("NotifyKeyboardKeysym", GLib.Variant(
+                    "(oa{sv}iu)", (self._session, {}, ks, 0)))
+            return
+        # key / key-combo via keysyms
+        if action in ("key", "key-combo"):
+            from evdev import ecodes  # only for the name map; keysyms emitted below
+            keysym = _keyname_to_keysym(" ".join(a) if action == "key-combo" else a[0])
+            for k in keysym:
+                self._portal("NotifyKeyboardKeysym", GLib.Variant(
+                    "(oa{sv}iu)", (self._session, {}, k, 1)))
+            for k in reversed(keysym):
+                self._portal("NotifyKeyboardKeysym", GLib.Variant(
+                    "(oa{sv}iu)", (self._session, {}, k, 0)))
+            return
+        _die(f"portal: unsupported action {action}")
+
+    def close(self):
+        try:
+            if self._session:
+                self._bus.call_sync(
+                    "org.freedesktop.portal.Desktop", self._session,
+                    "org.freedesktop.portal.Session", "Close", None, None,
+                    self._gi[0].DBusCallFlags.NONE, -1, None)
+        except Exception:
+            pass
+
+
+# ── key maps ──────────────────────────────────────────────────────────────────
+def _char_to_evdev(e, ch):
+    """Return (keycode, needs_shift) for a printable char, US layout."""
+    base = {
+        "a": e.KEY_A, "b": e.KEY_B, "c": e.KEY_C, "d": e.KEY_D, "e": e.KEY_E,
+        "f": e.KEY_F, "g": e.KEY_G, "h": e.KEY_H, "i": e.KEY_I, "j": e.KEY_J,
+        "k": e.KEY_K, "l": e.KEY_L, "m": e.KEY_M, "n": e.KEY_N, "o": e.KEY_O,
+        "p": e.KEY_P, "q": e.KEY_Q, "r": e.KEY_R, "s": e.KEY_S, "t": e.KEY_T,
+        "u": e.KEY_U, "v": e.KEY_V, "w": e.KEY_W, "x": e.KEY_X, "y": e.KEY_Y,
+        "z": e.KEY_Z, "0": e.KEY_0, "1": e.KEY_1, "2": e.KEY_2, "3": e.KEY_3,
+        "4": e.KEY_4, "5": e.KEY_5, "6": e.KEY_6, "7": e.KEY_7, "8": e.KEY_8,
+        "9": e.KEY_9, " ": e.KEY_SPACE, "\t": e.KEY_TAB, "\n": e.KEY_ENTER,
+        "-": e.KEY_MINUS, "=": e.KEY_EQUAL, "[": e.KEY_LEFTBRACE,
+        "]": e.KEY_RIGHTBRACE, "\\": e.KEY_BACKSLASH, ";": e.KEY_SEMICOLON,
+        "'": e.KEY_APOSTROPHE, "`": e.KEY_GRAVE, ",": e.KEY_COMMA,
+        ".": e.KEY_DOT, "/": e.KEY_SLASH,
+    }
+    shifted = {
+        "!": ("1",), "@": ("2",), "#": ("3",), "$": ("4",), "%": ("5",),
+        "^": ("6",), "&": ("7",), "*": ("8",), "(": ("9",), ")": ("0",),
+        "_": ("-",), "+": ("=",), "{": ("[",), "}": ("]",), "|": ("\\",),
+        ":": (";",), '"': ("'",), "~": ("`",), "<": (",",), ">": ("."),
+        "?": ("/",),
+    }
+    if ch in base:
+        return base[ch], False
+    if ch.isalpha() and ch.lower() in base:
+        return base[ch.lower()], True
+    if ch in shifted:
+        return base[shifted[ch][0]], True
+    return None, False
+
+
+def _keyname_to_evdev(e, name):
+    """Return (keycode, mods) for a named key."""
+    n = name.strip()
+    named = {
+        "enter": e.KEY_ENTER, "return": e.KEY_ENTER, "tab": e.KEY_TAB,
+        "escape": e.KEY_ESC, "esc": e.KEY_ESC, "backspace": e.KEY_BACKSPACE,
+        "delete": e.KEY_DELETE, "del": e.KEY_DELETE, "space": e.KEY_SPACE,
+        "up": e.KEY_UP, "down": e.KEY_DOWN, "left": e.KEY_LEFT,
+        "right": e.KEY_RIGHT, "home": e.KEY_HOME, "end": e.KEY_END,
+        "pageup": e.KEY_PAGEUP, "pagedown": e.KEY_PAGEDOWN,
+        "insert": e.KEY_INSERT,
+    }
+    low = n.lower()
+    if low in named:
+        return named[low], ()
+    if low.startswith("f") and low[1:].isdigit():
+        fn = int(low[1:])
+        if 1 <= fn <= 12:
+            return getattr(e, f"KEY_F{fn}"), ()
+    if len(n) == 1:
+        code, shift = _char_to_evdev(e, n)
+        if code is not None:
+            return code, (e.KEY_LEFTSHIFT,) if shift else ()
+    raise RuntimeError(f"unknown key name: {name}")
+
+
+def _keyname_to_keysym(name):
+    """X keysyms for the portal keyboard path (subset; combos space/plus joined)."""
+    parts = [p.strip() for p in name.replace("-", "+").split("+") if p.strip()]
+    mods = {"ctrl": 0xFFE3, "control": 0xFFE3, "alt": 0xFFE9, "shift": 0xFFE1,
+            "super": 0xFFEB, "win": 0xFFEB, "meta": 0xFFE7}
+    named = {"enter": 0xFF0D, "return": 0xFF0D, "tab": 0xFF09, "escape": 0xFF1B,
+             "esc": 0xFF1B, "backspace": 0xFF08, "delete": 0xFFFF,
+             "up": 0xFF52, "down": 0xFF54, "left": 0xFF51, "right": 0xFF53,
+             "home": 0xFF50, "end": 0xFF57, "space": 0x020}
+    out = []
+    for p in parts[:-1]:
+        if p.lower() in mods:
+            out.append(mods[p.lower()])
+    last = parts[-1]
+    if last.lower() in named:
+        out.append(named[last.lower()])
+    elif last.lower().startswith("f") and last[1:].isdigit():
+        out.append(0xFFBE + int(last[1:]) - 1)  # XK_F1 = 0xFFBE
+    elif len(last) == 1:
+        out.append(ord(last))
+    else:
+        raise RuntimeError(f"unknown key for portal: {last}")
+    return out
+
+
+# ── windows + AT-SPI ──────────────────────────────────────────────────────────
+def _emit_windows(windows, as_json) -> int:
+    if as_json:
+        print(json.dumps({"windows": windows}))
+    else:
+        print("id pid x y w h title")
+        for w in windows:
+            print("%s %s %s %s %s %s %s" % (
+                w.get("id", w.get("hwnd", 0)), w.get("pid", 0), w.get("x", 0),
+                w.get("y", 0), w.get("w", 0), w.get("h", 0), w.get("title", "")))
+    return 0
+
+
+def _list_windows(as_json) -> int:
+    # wmctrl (X/XWayland), hyprctl (Hyprland), kdotool (KDE), then AT-SPI frames.
+    if shutil.which("hyprctl"):
+        try:
+            data = json.loads(subprocess.run(
+                ["hyprctl", "clients", "-j"], capture_output=True, text=True,
+                timeout=5).stdout)
+            wins = [{"id": c.get("address"), "pid": c.get("pid"),
+                     "x": c.get("at", [0, 0])[0], "y": c.get("at", [0, 0])[1],
+                     "w": c.get("size", [0, 0])[0], "h": c.get("size", [0, 0])[1],
+                     "title": c.get("title", "")} for c in data]
+            return _emit_windows(wins, as_json)
+        except Exception:
+            pass
+    if shutil.which("wmctrl"):
+        try:
+            out = subprocess.run(["wmctrl", "-lpG"], capture_output=True,
+                                 text=True, timeout=5).stdout
+            wins = []
+            for line in out.splitlines():
+                f = line.split(None, 8)
+                if len(f) >= 9:
+                    wins.append({"id": f[0], "pid": f[2], "x": f[3], "y": f[4],
+                                 "w": f[5], "h": f[6], "title": f[8]})
+            return _emit_windows(wins, as_json)
+        except Exception:
+            pass
+    wins = _atspi_frames()
+    if wins is not None:
+        return _emit_windows(wins, as_json)
+    _die("no window-list backend (install wmctrl, or run hyprctl/AT-SPI)")
+    return 1
+
+
+def _atspi_root():
+    import gi
+
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi
+
+    Atspi.init()
+    return Atspi
+
+
+def _atspi_frames():
+    try:
+        Atspi = _atspi_root()
+    except Exception:
+        return None
+    out = []
+    desktop = Atspi.get_desktop(0)
+    for i in range(desktop.get_child_count()):
+        app = desktop.get_child_at_index(i)
+        if not app:
+            continue
+        for j in range(app.get_child_count()):
+            frame = app.get_child_at_index(j)
+            if not frame:
+                continue
+            try:
+                comp = frame.get_component_iface()
+                ext = comp.get_extents(Atspi.CoordType.SCREEN) if comp else None
+            except Exception:
+                ext = None
+            out.append({
+                "id": f"{app.get_name()}:{j}", "pid": 0,
+                "x": getattr(ext, "x", 0), "y": getattr(ext, "y", 0),
+                "w": getattr(ext, "width", 0), "h": getattr(ext, "height", 0),
+                "title": frame.get_name() or app.get_name(),
+            })
+    return out
+
+
+def _atspi_query(query, as_json) -> int:
+    """Find UI elements whose role/name match `query`; return screen coords."""
+    try:
+        Atspi = _atspi_root()
+    except Exception as e:
+        _die(f"AT-SPI unavailable ({e}); use `ground` for vision fallback")
+    q = query.lower()
+    matches = []
+
+    def walk(node, depth=0):
+        if node is None or depth > 25:
+            return
+        try:
+            name = node.get_name() or ""
+            role = node.get_role_name() or ""
+        except Exception:
+            return
+        if q in name.lower() or q in role.lower():
+            try:
+                comp = node.get_component_iface()
+                ext = comp.get_extents(Atspi.CoordType.SCREEN) if comp else None
+            except Exception:
+                ext = None
+            if ext and ext.width > 0:
+                matches.append({
+                    "name": name, "role": role,
+                    "x": ext.x + ext.width // 2, "y": ext.y + ext.height // 2,
+                    "w": ext.width, "h": ext.height,
+                })
+        try:
+            for k in range(node.get_child_count()):
+                walk(node.get_child_at_index(k), depth + 1)
+        except Exception:
+            pass
+
+    walk(Atspi.get_desktop(0))
+    matches.sort(key=lambda m: m["w"] * m["h"])
+    if as_json:
+        print(json.dumps({"query": query, "matches": matches}))
+    else:
+        for m in matches:
+            print(f"{m['x']},{m['y']}\t{m['role']}\t{m['name']}")
+    return 0
+
+
+def _ground(query, as_json) -> int:
+    """AT-SPI first; vision (mios-pc-vision) only when the tree has no match."""
+    # 1. semantic
+    try:
+        Atspi = _atspi_root()
+        hits = []
+        _q = query.lower()
+
+        def walk(n, d=0):
+            if n is None or d > 25:
+                return
+            try:
+                nm = (n.get_name() or "").lower()
+                rl = n.get_role_name() or ""
+            except Exception:
+                return
+            if _q in nm:
+                try:
+                    c = n.get_component_iface()
+                    ext = c.get_extents(Atspi.CoordType.SCREEN) if c else None
+                except Exception:
+                    ext = None
+                if ext and ext.width > 0:
+                    hits.append((ext.x + ext.width // 2, ext.y + ext.height // 2, rl))
+            try:
+                for k in range(n.get_child_count()):
+                    walk(n.get_child_at_index(k), d + 1)
+            except Exception:
+                pass
+
+        walk(Atspi.get_desktop(0))
+        if hits:
+            x, y, rl = hits[0]
+            res = {"x": x, "y": y, "confidence": 0.99, "source": "atspi",
+                   "reasoning": f"matched {rl} '{query}'"}
+            print(json.dumps(res))
+            return 0
+    except Exception:
+        pass
+    # 2. vision fallback
+    if not shutil.which("mios-pc-vision"):
+        _die("no AT-SPI match and mios-pc-vision not on PATH")
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+        shot = tf.name
+    if _capture(shot) != 0:
+        _die("capture failed for vision grounding")
+    out = subprocess.run(["mios-pc-vision", shot, query], capture_output=True, text=True)
+    sys.stdout.write(out.stdout)
+    if out.returncode != 0:
+        sys.stderr.write(out.stderr)
+    try:
+        os.unlink(shot)
+    except OSError:
+        pass
+    return out.returncode
+
+
+# ── WSL delegation ────────────────────────────────────────────────────────────
+def _delegate_pc_control(sub, args, as_json) -> int:
+    if not shutil.which("mios-pc-control"):
+        _die("WSL2 host but mios-pc-control not on PATH")
+    cmd = ["mios-pc-control", sub]
+    if as_json:
+        cmd.append("--json")
+    cmd += args
+    return subprocess.run(cmd).returncode
+
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+def _die(msg: str):
+    print(json.dumps({"error": msg, "prog": PROG}), file=sys.stderr)
+    raise SystemExit(1)
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+INPUT_ACTIONS = {"click", "double-click", "mouse-move", "type", "key", "key-combo"}
+WINDOW_ACTIONS = {"window-list", "window-focus", "window-move", "window-resize"}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog=PROG, add_help=False)
+    ap.add_argument("subcommand", nargs="?", default="help")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("rest", nargs=argparse.REMAINDER)
+    ns = ap.parse_args()
+    sub = ns.subcommand
+    args = [a for a in ns.rest if a != "--json"]
+    as_json = ns.json or ("--json" in ns.rest)
+
+    if sub in ("help", "-h", "--help"):
+        print(__doc__)
+        return 0
+
+    # 1. Federation: a configured + reachable executor wins (drive remote desktop).
+    ep = _executor_endpoint()
+    if ep:
+        if _endpoint_up(ep):
+            return _route_remote(ep, sub, args, as_json)
+        _die(f"computer-use executor {ep} configured but unreachable (no blind local fallback)")
+
+    # 2. Local Wayland desktop.
+    if _have_wayland():
+        if sub == "screenshot":
+            return _capture(args[0] if args else _die("screenshot needs <out-path>"))
+        if sub == "atspi-query":
+            return _atspi_query(args[0] if args else _die("atspi-query needs a query"), as_json)
+        if sub == "ground":
+            return _ground(args[0] if args else _die("ground needs a query"), as_json)
+        if sub in INPUT_ACTIONS:
+            return _do_input(sub, args)
+        if sub == "window-list":
+            return _list_windows(as_json)
+        if sub in WINDOW_ACTIONS:
+            _die(f"{sub} not yet implemented for Wayland (compositor-specific; "
+                 f"use window-list + focus via wmctrl/hyprctl)")
+        _die(f"unknown subcommand: {sub}")
+
+    # 3. WSL2 -> delegate to the Windows executor so one verb works everywhere.
+    if _is_wsl():
+        return _delegate_pc_control(sub, args, as_json)
+
+    _die("no desktop backend: no WAYLAND_DISPLAY, no configured executor, not WSL2")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

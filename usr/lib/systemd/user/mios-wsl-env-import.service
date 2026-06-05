@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS: import WSLg env into systemd user-bus + dbus activation
+Description='MiOS': import WSLg env into systemd user-bus + dbus activation
 Documentation=https://github.com/mios-dev/MiOS
 Documentation=https://wiki.archlinux.org/title/XDG_Desktop_Portal
 

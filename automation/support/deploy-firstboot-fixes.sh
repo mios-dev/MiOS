@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deploy the firstboot + env-drop-in fixes, then re-run firstboot
 # and report the final state of all canonical services.
-set -u
+set -euo pipefail
 
 echo "=== copying fixed files ==="
 cp /mnt/c/MiOS/usr/libexec/mios/mios-hermes-firstboot \

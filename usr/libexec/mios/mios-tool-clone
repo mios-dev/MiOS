@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-tool-clone <name> [--as <new-name>] [--force]
 #
 # Fork a system-shipped MiOS shim into the operator-writable

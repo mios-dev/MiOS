@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import sqlite3
 c = sqlite3.connect("/var/lib/mios/open-webui/webui.db")

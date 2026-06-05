@@ -1,0 +1,53 @@
+# 32-mios-ws7-uki.toml
+# ----------------------------------------------------------------------------
+# WS-7 (AIOS immutable-host hardening) -- kargs drop-in for the verity-rooted
+# UKI + fapolicyd observe rollout.
+#
+# ABSOLUTELY CRITICAL: this file ships as a NO-OP by default -- it carries NO
+# active kargs. (Correction 2026-06-04: an earlier version set
+# `fapolicyd.permissive=1` here claiming it forced observe mode "at the kernel
+# level" -- that is FALSE. fapolicyd reads `permissive` from its CONFIG
+# (/etc/fapolicyd/fapolicyd.conf or --permissive), NOT /proc/cmdline; the kernel
+# ignores the unknown arg. The REAL observe switch is `permissive = 1` in
+# mios-ws7-permissive.conf, installed by the gated build step.) Every brick-
+# capable karg (enforce mode, signature-required UKI / lockdown=confidentiality,
+# rootflags=verity.require) is left COMMENTED so this drop-in cannot brick boot.
+# Promotion to enforce is a deliberate, documented, rollback-tested operator
+# step -- see usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md.
+#
+# bootc kargs.d format: flat top-level `kargs = [...]` array only (Law/lint).
+# Files are processed lexicographically; 32- lands just after 31-secureblue.
+#
+# verity note: the verity-rooted UKI itself is produced by the gated build step
+# automation/lib/ws7-uki-fapolicyd-build.sh (ukify build with the composefs
+# fs-verity digest measured into the UKI). composefs verity is already on via
+# mios.toml [security].composefs_mode="verity" (automation/40-composefs-verity.sh).
+# This kargs file only carries the boot-time POSTURE switches, not the image.
+
+kargs = [
+  # NO active kargs by default (see header). The fapolicyd observe switch is
+  # `permissive = 1` in mios-ws7-permissive.conf (the CONFIG), NOT a kernel karg
+  # -- fapolicyd does not read /proc/cmdline. Promotion kargs below stay
+  # commented until the documented enforce procedure passes on THIS image.
+
+  # ---- PROMOTION-ONLY KARGS (commented; DO NOT uncomment until the documented
+  # ---- permissive->enforce procedure has passed on THIS image + a rollback is
+  # ---- staged). Uncommenting any of these on an unproven whitelist / unsigned
+  # ---- UKI can BRICK BOOT.
+  #
+  # Enforce fapolicyd execution whitelist (the brick-capable flip):
+  #   "fapolicyd.permissive=0",
+  #
+  # Require a signed UKI / full kernel lockdown (only after UKI is signed with
+  # an enrolled MOK; 30-security.toml currently sets lockdown=integrity which is
+  # the NVIDIA-safe level -- raising to confidentiality can block module load):
+  #   "lockdown=confidentiality",
+  #
+  # Enforce fs-verity on the root composefs (tamper-evident -> tamper-PROOF;
+  # only after a verity-rooted UKI build is confirmed bootable + rollback-tested).
+  # MUST be the MERGED form -- a bare `rootflags=verity.require` OVERRIDES
+  # 15-rootflags.toml's `rootflags=discard=async,noatime` (duplicate key on the
+  # cmdline, last wins -> silently drops discard/noatime):
+  #   "rootflags=discard=async,noatime,verity.require",
+]
+match-architectures = ["x86_64"]

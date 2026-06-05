@@ -3,7 +3,7 @@
 # flathub-beta (or flathub) where the upstream maintainer has
 # published a newer build. Operator-flagged 2026-05-19 "GLOBAL GTK
 # IS OLD STILL".
-set -u
+set -euo pipefail
 
 echo "== current remotes =="
 flatpak remotes 2>&1

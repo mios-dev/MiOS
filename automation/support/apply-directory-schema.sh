@@ -1,7 +1,7 @@
 #!/bin/bash
 # Apply ONLY the directory_entry table definition (the broader
 # schema already exists; we just need to land the new table).
-set -u
+set -euo pipefail
 
 SCHEMA='
 USE NS mios DB agent;

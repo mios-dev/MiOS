@@ -13,6 +13,7 @@ All probes are best-effort. A missing field comes back as null
 "GPU info unavailable" instead of inventing one.
 
 Fields:
+  cpu         {model, cores, load_1m, load_5m, load_15m, load_pct_of_cores}
   gpu         list of {name, vram_mib, driver}   (nvidia-smi / rocm-smi)
   memory      {total_mib, used_mib, available_mib, swap_total_mib}
   disk        list of {mount, total, used, available, pct}
@@ -101,6 +102,42 @@ def _probe_gpu() -> list[dict]:
                         "vendor": "amd",
                     })
     return out
+
+
+def _probe_cpu() -> dict:
+    """CPU model name, logical core count, and load average (1/5/15 min) plus
+    a derived load-vs-cores hint. /proc + os only -- no extra deps. Missing
+    fields come back null (never a fabricated default), matching the rest of
+    this probe. Added 2026-06-04: system_status carried NO cpu field, so a
+    "CPU status?" question had nothing to report and the local-state formatter
+    mislabelled the GPU block as 'CPU'."""
+    info: dict[str, Any] = {
+        "model": None, "cores": None,
+        "load_1m": None, "load_5m": None, "load_15m": None,
+        "load_pct_of_cores": None,
+    }
+    try:
+        info["cores"] = os.cpu_count()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.lower().startswith("model name"):
+                    info["model"] = line.split(":", 1)[1].strip()
+                    break
+    except OSError:
+        pass
+    try:
+        la = os.getloadavg()
+        info["load_1m"] = round(la[0], 2)
+        info["load_5m"] = round(la[1], 2)
+        info["load_15m"] = round(la[2], 2)
+        if info["cores"]:
+            info["load_pct_of_cores"] = round(100.0 * la[0] / info["cores"], 1)
+    except (OSError, ZeroDivisionError, AttributeError):
+        pass
+    return info
 
 
 def _probe_memory() -> dict:
@@ -207,6 +244,7 @@ def main() -> int:
     payload = {
         "ts": time.time(),
         "uptime_s": _probe_uptime(),
+        "cpu": _probe_cpu(),
         "gpu": _probe_gpu(),
         "memory": _probe_memory(),
         "disk": _probe_disk(),

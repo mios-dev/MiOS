@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-env-probe [--brief|--full|--markdown|--json]
 #
 # Snapshot the agent's CURRENT environment as deterministic facts.

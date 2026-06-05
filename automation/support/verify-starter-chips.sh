@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 echo "── deploy units + script ──"
 cp /mnt/c/MiOS/usr/lib/systemd/system/mios-suggestion-refresh.service \

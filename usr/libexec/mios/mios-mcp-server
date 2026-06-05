@@ -26,13 +26,17 @@ Implements:
                          agent-pipe /v1/verbs)
   tools/call          -- dispatches via agent-pipe /v1/dispatch which
                          routes through the launcher broker
+  resources/list      -- the COMPLETE read-only surface (every verb/script
+                         + recipe + skill, promoted AND not) via agent-pipe
+                         /v1/resources -- progressive-disclosure discovery
+  resources/read      -- fetch one mios:// resource via /v1/resources/read
   ping                -- liveness
   shutdown            -- (informational; client closes stdio)
 
 Defers to v2:
-  notifications/tools/list_changed (inotify watch on mios.toml)
-  resources/list, prompts/list (no resources/prompts yet)
-  HTTP transport
+  notifications/{tools,resources}/list_changed (inotify on mios.toml + the
+  skill store)
+  prompts/list (no MCP prompts yet)
 """
 from __future__ import annotations
 
@@ -42,6 +46,7 @@ import os
 import sys
 import urllib.request
 import urllib.error
+import urllib.parse
 
 AGENT_PIPE_URL = os.environ.get(
     "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
@@ -92,6 +97,7 @@ def _handle_initialize(mid, params: dict) -> dict:
         "protocolVersion": PROTOCOL_VERSION,
         "capabilities": {
             "tools": {"listChanged": False},
+            "resources": {"subscribe": False, "listChanged": False},
         },
         "serverInfo": SERVER_INFO,
     })
@@ -153,6 +159,38 @@ def _handle_tools_call(mid, params: dict) -> dict:
     })
 
 
+def _handle_resources_list(mid, _params: dict) -> dict:
+    # /v1/resources is the COMPLETE read-only surface: every verb (script),
+    # every recipe, and EVERY skill (promoted AND not), as MCP Resources --
+    # the progressive-disclosure half of the catalog. Browse here; fetch via
+    # resources/read. The curated CALLABLE half is tools/list. (operator
+    # 2026-06-04 "port all skills/tools/recipes/scripts to MCP")
+    try:
+        data = _http_get("/v1/resources")
+    except urllib.error.URLError as e:
+        return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
+    except Exception as e:
+        return _err(mid, -32000, f"resources fetch failed: {e}")
+    return _ok(mid, {"resources": data.get("resources") or []})
+
+
+def _handle_resources_read(mid, params: dict) -> dict:
+    uri = (params or {}).get("uri", "")
+    if not uri:
+        return _err(mid, -32602, "missing resource uri")
+    try:
+        data = _http_get(
+            "/v1/resources/read?uri=" + urllib.parse.quote(uri, safe=""))
+    except urllib.error.URLError as e:
+        return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
+    except Exception as e:
+        return _err(mid, -32000, f"resource read failed: {e}")
+    if data.get("error"):
+        # MCP resource-not-found is -32002.
+        return _err(mid, -32002, str(data.get("error")))
+    return _ok(mid, {"contents": data.get("contents") or []})
+
+
 def _handle_ping(mid, _params: dict) -> dict:
     return _ok(mid, {})
 
@@ -178,6 +216,10 @@ def _dispatch_rpc(msg: dict):
         return _handle_tools_list(mid, params)
     if method == "tools/call":
         return _handle_tools_call(mid, params)
+    if method == "resources/list":
+        return _handle_resources_list(mid, params)
+    if method == "resources/read":
+        return _handle_resources_read(mid, params)
     if method == "ping":
         return _handle_ping(mid, params)
     if method == "shutdown":

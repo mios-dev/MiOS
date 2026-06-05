@@ -41,7 +41,7 @@ PARAMETER num_thread 6
 # Deterministic agent reasoning, mirroring the GPU brain. Smaller context
 # than the GPU twin (16384) -- CPU attention cost scales with num_ctx and
 # a council second-opinion turn does not need the full catalog window.
-PARAMETER temperature 0.15
+PARAMETER temperature 0.0
 PARAMETER top_p 0.9
 PARAMETER num_ctx 8192
 

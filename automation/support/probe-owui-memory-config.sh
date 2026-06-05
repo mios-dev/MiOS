@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 echo "── user.settings.ui (memory field) ──"
 python3 <<'PYEOF'

@@ -2,7 +2,7 @@
 # Probe mios-launch's resolution decisions WITHOUT actually launching.
 # Set MIOS_LAUNCHER_SOCK to /dev/null so broker_dispatch fails fast +
 # we see the resolution chain output before exec.
-set -u
+set -euo pipefail
 export MIOS_LAUNCHER_SOCK=/dev/null
 
 echo "== alias_resolve output (step 0 only) =="

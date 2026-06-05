@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-flatpak-beta-migrate [--dry-run]
 #
 # For every installed flatpak whose origin is `flathub`, check whether

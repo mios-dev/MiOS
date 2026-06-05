@@ -1,6 +1,6 @@
 #!/bin/bash
 # Smoke-test the new MCP server stack: /v1/verbs + /v1/dispatch + stdio JSON-RPC.
-set -u
+set -euo pipefail
 
 echo "== /v1/verbs (HTTP) =="
 curl -sf http://localhost:8640/v1/verbs > /tmp/mcp-verbs.json

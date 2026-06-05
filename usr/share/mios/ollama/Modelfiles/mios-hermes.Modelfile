@@ -1,67 +1,14 @@
-# /usr/share/mios/ollama/Modelfiles/mios-hermes.Modelfile
-# mios-model: mios-hermes:latest
-#
-# MiOS-Hermes -- the GENERAL ORCHESTRATION sub-agent's role model
-# (agents.hermes, :8642). Operator directive 2026-05-21: "EVERY Agent
-# and Sub-Agent should have an equivalent MiOS Modelfile for each role."
-# This is the orchestrator's baked brain: the shared MiOS operating
-# principles specialised for multi-step, tool-driven orchestration.
-#
-# Hermes injects its full behavioural prompt (SOUL.md) as the runtime
-# system message, which takes precedence over this baked SYSTEM; so this
-# block is the role IDENTITY + the principles that must hold even on a
-# bare /v1 call without SOUL.md (e.g. when agent-pipe proxies Hermes as
-# a plain completion). Language-neutral, ZERO hardcoded topic lists.
-#
-# Base: qwen3.5:4b (operator 2026-06-01 consolidation to the 4-model set: "3-4
-# models max including micro-llm; the 4 newest available that fit the stack").
-# Hermes now SHARES the reasoning base with mios-agent (refine/polish) -- ONE
-# resident 4b blob on the :11434 dGPU lane serves the orchestrator primary AND
-# the refine/polish passes (no extra resident weights), leaving the most VRAM
-# headroom on the SHARED 4090 (see [[gpu_igpu_compute_topology]]).
-#
-# WAS qwen3.5:9b (the dGPU-resident larger orchestrator brain): dropped in the
-# 4-model consolidation -- the baked SYSTEM here is overridden at runtime by the
-# pipe-injected SOUL.md prompt, so the role identity does NOT require a distinct
-# base; one 4b reasoning base covers agent + hermes + sys-agent. Operators with
-# spare VRAM can swap the FROM back to a larger base without touching the baked
-# discipline (the 27B note below still applies as the max-quality option).
-#
-# PARALLEL COMPUTE IS PRESERVED (operator 2026-05-28 "make sure it can still
-# compute in parallel!"): this primary on the dGPU runs CONCURRENTLY with the
-# swarm secondaries on OTHER hardware endpoints -- mios-daemon-agent (CPU
-# :11435), mios-igpu (:11436), the phone -- because the fan-out acquires a
-# PER-LANE semaphore keyed on each agent's engine/node, so distinct hardware
-# fires at the SAME dispatch step ([[mios_heterogeneous_parallel_dispatch]]).
-# A bigger primary on the dGPU does NOT serialise the other lanes.
-#
-# WHY NOT 27B: qwen3.6:27b @ Q4 (~17-22 GB) was tested + loads fine when VRAM is
-# free, but it EATS the whole 4090 -> refine/polish can't co-reside (measured
-# 23.6s refine on the 27B, 40s on a CPU 1.7B) = 60-90s turns. On a SHARED GPU
-# that is too slow for the per-turn hot path. The 27B is the MAX-QUALITY option
-# for when the dGPU is fully free + slower turns are acceptable -- swap the FROM
-# to qwen3.6:27b (and move refine/polish off :11434) to enable it. gpt-oss:20b
-# (13.8 GB, native tool-calling) is the middle option. See
-# [[mios_model_refactor_2026_05_28]] for the full VRAM analysis.
-#
-# Built by automation/37-ollama-prep.sh (reads the '# mios-model:' header):
-#   ollama create mios-hermes -f /usr/share/mios/ollama/Modelfiles/mios-hermes.Modelfile
+FROM qwen3.5:9b
 
-FROM qwen3.5:4b
-
-PARAMETER temperature 0.3
+# PARAMETERS
+PARAMETER temperature 0.0
 PARAMETER top_p 0.9
-# num_ctx 65536 (was 32768) -- CRITICAL (operator 2026-05-29): the Hermes
-# v0.15 gateway PREFLIGHT-CHECKS the loaded context window and REFUSES tool use
-# under 64k ("Hermes needs at least 64,000 tokens for reliable tool use"), so
-# at 32768 EVERY agent:hermes swarm node failed + burned 57-125s producing only
-# that error -- removing the strongest agent from every research turn. 65536
-# clears the check. Fits the 24 GB 4090: 9b weights ~6.5 GB + 64k KV at q8_0
-# (OLLAMA_KV_CACHE_TYPE=q8_0 halves it) ~5-6 GB, co-resident with the 4b
-# refine/polish (~6.5 GB). If VRAM ever blows, move refine/polish to the CPU
-# lane (MIOS_REFINE_ENDPOINT=:11435) to free the dGPU for the big-ctx hermes.
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.1
+PARAMETER repeat_last_n 64
 PARAMETER num_ctx 65536
 
+# SYSTEM
 SYSTEM """You are MiOS-Hermes, the general orchestration agent of MiOS -- an immutable, local-first, fully-offline Fedora-bootc agentic operating system. MiOS is FOSS and self-hosted; you never call cloud services and never depend on the network for inference.
 
 Operate by REASON -> PLAN -> DELEGATE, for every task and topic:

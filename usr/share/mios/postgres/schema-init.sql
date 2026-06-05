@@ -1,0 +1,191 @@
+-- MiOS agent-plane schema for PostgreSQL + pgvector (WS-9, 2026-06-04).
+-- FOSS-pure replacement for the SurrealDB (BSL 1.1) agent store. Standard
+-- "back to SQL" agent-memory pattern (Letta/MemGPT/Memori/OWUI all converge
+-- here): relational columns + JSONB for flexible/document fields + a vector(768)
+-- column with an HNSW cosine index wherever semantic recall is needed.
+--
+-- Embeddings: 768-dim from nomic-embed-text via the OpenAI-compatible
+-- /v1/embeddings endpoint (ollama; MiOS Law 5). 768 < pgvector's 2000-dim HNSW
+-- limit for the `vector` type, so no halfvec needed. Cosine distance operator is
+-- `<=>` with opclass vector_cosine_ops.
+--
+-- Idempotent: safe to run on every container start (schema-init step).
+-- Domain appliances (Forgejo/Ceph/K3s/AdGuard/CrowdSec) keep their own stores.
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ── knowledge: every finished Q+A (auto-append) + semantic recall ────────────
+CREATE TABLE IF NOT EXISTS knowledge (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    q             text NOT NULL,
+    answer        text NOT NULL,
+    sources       jsonb        DEFAULT '[]'::jsonb,
+    emb           vector(768),
+    tier          text         DEFAULT 'warm',     -- warm | hot
+    access_count  integer      DEFAULT 0,
+    recall_hits   integer      DEFAULT 0,
+    satisfied     boolean,                          -- outcome signal (P2)
+    pinned        boolean      DEFAULT false,       -- never evicted
+    session_id    text,
+    passport      jsonb,                            -- ed25519 attribution envelope
+    last_access   timestamptz,
+    ts            timestamptz  DEFAULT now(),
+    -- hybrid-search full-text vector (language-neutral 'simple' config; the
+    -- topical-anchor guard becomes a real tsvector fusion). NO stemming so it
+    -- carries no language assumption (NO-HARDCODED-ENGLISH spirit).
+    fts           tsvector GENERATED ALWAYS AS
+                  (to_tsvector('simple', coalesce(q,'') || ' ' || coalesce(answer,''))) STORED
+);
+CREATE INDEX IF NOT EXISTS knowledge_emb_hnsw
+    ON knowledge USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS knowledge_fts_gin   ON knowledge USING gin (fts);
+CREATE INDEX IF NOT EXISTS knowledge_ts        ON knowledge (ts DESC);
+CREATE INDEX IF NOT EXISTS knowledge_tier      ON knowledge (tier);
+CREATE INDEX IF NOT EXISTS knowledge_last_acc  ON knowledge (last_access);
+
+-- ── agent_memory: tool-driven self-editing facts (mios-remember) ─────────────
+CREATE TABLE IF NOT EXISTS agent_memory (
+    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    fact      text NOT NULL,
+    scope     text DEFAULT 'global',               -- global | agent:<name> | conversation:<id>
+    mem_key   text,                                -- optional update/forget key
+    source    text DEFAULT 'agent',                -- agent | operator
+    emb       vector(768),
+    passport  jsonb,
+    ts        timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_memory_emb_hnsw
+    ON agent_memory USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS agent_memory_scope ON agent_memory (scope);
+CREATE UNIQUE INDEX IF NOT EXISTS agent_memory_scope_key
+    ON agent_memory (scope, mem_key) WHERE mem_key IS NOT NULL;
+
+-- ── event: append-only observability stream ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS event (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source      text,
+    kind        text,
+    severity    text,
+    summary     text,
+    payload     jsonb,
+    session_id  text,
+    passport    jsonb,
+    ts          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS event_kind    ON event (kind);
+CREATE INDEX IF NOT EXISTS event_session ON event (session_id);
+CREATE INDEX IF NOT EXISTS event_ts      ON event (ts DESC);
+
+-- ── tool_call: every dispatched verb + result + taint ────────────────────────
+CREATE TABLE IF NOT EXISTS tool_call (
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    session_id   text,
+    tool         text,
+    args         jsonb,
+    output       text,
+    stderr       text,
+    exit_code    integer,
+    latency_ms   integer,
+    tainted      boolean DEFAULT false,
+    taint_reason text,
+    passport     jsonb,
+    ts           timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS tool_call_session ON tool_call (session_id);
+CREATE INDEX IF NOT EXISTS tool_call_tool    ON tool_call (tool);
+CREATE INDEX IF NOT EXISTS tool_call_taint   ON tool_call (session_id) WHERE tainted;
+CREATE INDEX IF NOT EXISTS tool_call_ts      ON tool_call (ts DESC);
+
+-- ── session: agent-side sessions (link to OWUI chat ids) ─────────────────────
+CREATE TABLE IF NOT EXISTS session (
+    id            text PRIMARY KEY,                 -- caller-provided id
+    kind          text,                             -- hermes | cron | cli | delegate | mcp
+    owui_chat_id  text,
+    meta          jsonb,
+    ts            timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS session_chat ON session (owui_chat_id);
+
+-- ── skills (mined/promoted) + per-run audit ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS skill (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name        text,
+    status      text,                               -- candidate | promoted | retired
+    body        jsonb,
+    confidence  double precision,
+    source      text,                               -- mined | operator | import
+    version     integer DEFAULT 1,
+    ts          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS skill_name   ON skill (name);
+CREATE INDEX IF NOT EXISTS skill_status ON skill (status);
+
+CREATE TABLE IF NOT EXISTS skill_invocation (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    skill       text,
+    success     boolean,
+    session_id  text,
+    ts          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS skill_inv_skill ON skill_invocation (skill);
+
+-- ── sys_env: singleton live environment cache ────────────────────────────────
+CREATE TABLE IF NOT EXISTS sys_env (
+    id    text PRIMARY KEY,                         -- 'current'
+    data  jsonb,
+    ts    timestamptz DEFAULT now()
+);
+
+-- ── WS-6 pending_action (HITL gate) ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pending_action (
+    id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tool              text,
+    args              jsonb,
+    action_hash       text,
+    status            text DEFAULT 'pending',       -- pending | approved | denied
+    session_id        text,
+    approver          text,
+    decided_at        timestamptz,
+    passport          jsonb,
+    approval_passport jsonb,
+    ts                timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS pending_action_status ON pending_action (status);
+CREATE INDEX IF NOT EXISTS pending_action_hash   ON pending_action (action_hash);
+
+-- ── WS-6 run_template (replayable DAG plans) ─────────────────────────────────
+CREATE TABLE IF NOT EXISTS run_template (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    class       text,                               -- structural plan-shape hash
+    summary     text,
+    node_count  integer,
+    dag         jsonb,
+    session_id  text,
+    ts          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS run_template_class ON run_template (class);
+CREATE INDEX IF NOT EXISTS run_template_ts    ON run_template (ts DESC);
+
+-- ── scratch: per-chat working memory (folds the in-process _SCRATCHPADS so it
+--    survives agent-pipe restarts) ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS scratch (
+    id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    chat_id  text,
+    agent    text,
+    lane     text,
+    phase    text,
+    note     text,
+    ts       timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS scratch_chat ON scratch (chat_id, ts DESC);
+
+-- ── kanban: task queue (authoritative here; retires Hermes' kanban.db + the
+--    SurrealDB shadow) ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS kanban (
+    id       text PRIMARY KEY,
+    title    text,
+    status   text,                                  -- todo | doing | done | blocked
+    detail   jsonb,
+    ts       timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS kanban_status ON kanban (status);

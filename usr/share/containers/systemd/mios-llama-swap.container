@@ -1,0 +1,69 @@
+# /usr/share/containers/systemd/mios-llama-swap.container
+# 'MiOS' llama.cpp multi-model lane via llama-swap (WS-10, 2026-06-04).
+# ADDITIVE engine step toward the ollama -> llama.cpp conversion for fleet-wide
+# KV-cache (concepts/llamacpp-engine-conversion.md). llama-swap is the LINCHPIN:
+# it restores ollama's on-demand multi-model auto-swap for one-model-per-process
+# llama.cpp -- it launches/swaps `llama-server` per requested model behind ONE
+# OpenAI /v1 endpoint, AND each llama-server can KV-page to disk (/slots
+# save/restore, --slot-save-path) -- which ollama can NEVER do.
+#
+# Stands up ALONGSIDE ollama (own port); nothing live moves. The agent-pipe is
+# ALREADY ready: add a [nodes.*]/[agents.*] entry pointing here with
+# api="llamacpp" and `_endpoint_is_llamacpp` + `_kv_paging` fire automatically
+# (config-first, no port hardcode -- server.py:2249).
+#
+# GATED OFF until GGUFs are provisioned: ConditionPathExists on the model-ready
+# marker (the bake step creates it) so a missing-model start can't crash-loop.
+# llama.cpp + llama-swap are FOSS (MIT).
+#
+# !! TEMPLATE -- before enabling, VERIFY against your llama-swap version: the
+#    image tag, the llama-server binary path inside the image, and the GGUF
+#    paths in llama-swap.yaml. These cannot be validated offline.
+
+[Unit]
+Description='MiOS' llama-swap (llama.cpp multi-model + KV-paging lane, FOSS)
+After=network-online.target
+Wants=network-online.target
+# Inert until models are provisioned (no GGUF -> no start -> no crash-loop).
+ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
+
+[Container]
+# Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
+# SSOT: mios.toml [image.sidecars].llama_swap, [ports].llama_swap,
+# [services.llamacpp].{uid,gid}, [llamacpp].*.
+Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
+ContainerName=mios-llama-swap
+# Host networking (matches mios-surrealdb/pgvector): reliable localhost:<port>
+# for the pipe + a stable endpoint the swarm node points at.
+Network=host
+# dGPU passthrough (CDI), same as mios-ollama -- llama-server offloads to CUDA.
+AddDevice=nvidia.com/gpu=all
+
+# Identity from mios.toml [services.llamacpp] (uid 827, AI tier). Numeric (the
+# upstream image has no mios user), pinned in sysusers.d/50-mios-services.conf.
+User=${MIOS_LLAMACPP_UID:-827}
+Group=${MIOS_LLAMACPP_GID:-827}
+
+# GGUF model store (RO seed; baked at build time -- replaces the ollama bake for
+# this lane), the llama-swap model map, and the KV slot-save dir (so /slots
+# save/restore + the agent-pipe's _kv_paging persist per-conversation KV here).
+Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
+Volume=/usr/share/mios/llamacpp/llama-swap.yaml:/app/config.yaml:ro,Z
+Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z
+
+Environment=HOME=/var/lib/mios/llamacpp
+# llama-swap: serve the model map on the SSOT port. Flag name verified per
+# llama-swap version (--config / --listen).
+Exec=--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLAMA_SWAP:-11450}
+
+Label=org.opencontainers.image.title=mios-llama-swap
+Label=org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=180s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

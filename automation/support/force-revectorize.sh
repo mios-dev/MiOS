@@ -4,7 +4,7 @@
 # metadata (returns 200 in ~4ms even for 32 files). The actual
 # chunk + embed pipeline fires on /api/v1/knowledge/{id}/file/add.
 # We remove each file then add it back -- forcing the embed call.
-set -u
+set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'
 import sqlite3

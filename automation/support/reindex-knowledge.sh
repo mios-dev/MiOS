@@ -4,7 +4,7 @@
 # empty even though the knowledge + file rows persist; this
 # triggers OWUI to rebuild the chroma collections from the
 # stored file content.
-set -u
+set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'
 import sqlite3

@@ -7,7 +7,7 @@
 #
 # Looks up the existing knowledge rows by name + re-attaches by
 # id+name (the shape OWUI's middleware expects in model.meta).
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import json
 import sqlite3

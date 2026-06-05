@@ -1,7 +1,7 @@
 #!/bin/bash
 # Print the resolved browser fallback chain that mios-open-url
 # would use. Mirrors the inline _resolve_browser_chain function.
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import tomllib
 chain = []

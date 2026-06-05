@@ -3,7 +3,7 @@
 # a tiny chat prompt + inspect the SSE chunks for the mios_status
 # `label` + `detail` shape. Should see emoji + label + casual
 # role-based agent label (no literal "hermes" / "opencode").
-set -u
+set -euo pipefail
 
 PORT="${MIOS_PORT_AGENT_PIPE:-8640}"
 KEY=$(grep -oE 'MIOS_AI_KEY=[A-Za-z0-9-]+' /etc/mios/hermes/api.env \

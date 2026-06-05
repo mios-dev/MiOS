@@ -14,7 +14,7 @@
 #   sudo ./system-assess.sh                         # Run as root for full details
 #
 
-set -uo pipefail
+set -euo pipefail
 
 # Trap errors to help debug
 trap 'echo "Error on line $LINENO" >&2' ERR

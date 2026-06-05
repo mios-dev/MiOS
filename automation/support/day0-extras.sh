@@ -2,7 +2,7 @@
 # Day-0 readiness: surfaces NOT covered by mios-cache-clear.
 # Run via: wsl.exe ... bash /mnt/c/MiOS/automation/support/day0-extras.sh <section>
 # Sections: surreal | daemon | skills | passports | agentpipe | audit | ttyd | pycache | all
-set -u
+set -euo pipefail
 SECTION="${1:-all}"
 
 surreal() {

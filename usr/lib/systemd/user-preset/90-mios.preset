@@ -25,3 +25,11 @@ enable mios-wsl-graphical-session.service
 # frontend starts but rejects every dbus call from nautilus /
 # epiphany / gnome-software with NameHasNoOwner.
 enable mios-wsl-env-import.service
+
+# Computer-use node server (dual MCP + A2A + executor for this desktop). Gated
+# on the unit by graphical-session.target membership, so it activates only with
+# a real Wayland desktop (bare-metal GNOME or WSLg) and stays inert on headless
+# nodes. Binds loopback by default; the central agent-pipe consumes it over
+# loopback/tailnet (full MCP + A2A federation). Off-switch: disable here or set
+# [computer_use].bind_address = "" in mios.toml.
+enable mios-computer-use-server.service

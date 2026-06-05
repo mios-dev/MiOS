@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Enumerate every visible .desktop entry inside the WSL distro --
 # flatpak apps + every /usr/share/applications/ entry that isn't
 # explicitly hidden -- so Windows Start Menu shows the full Linux

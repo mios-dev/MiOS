@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-ai-reset [--dry-run]
 #
 # Clean-slate the MiOS AI stack: wipe all chat sessions, kanban state,

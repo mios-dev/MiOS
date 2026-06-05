@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run a single insert via the daemon's _db_post_sync to see the
 # actual response shape.
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import importlib.machinery, importlib.util, json, os, sys
 os.environ["MIOS_DB_URL"] = "http://localhost:8000"

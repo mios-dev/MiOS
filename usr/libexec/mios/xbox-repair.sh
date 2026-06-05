@@ -1,9 +1,10 @@
 #!/bin/bash
+set -euo pipefail
 
 # Xbox VM Secure Boot Fix Script
 # Finds correct OVMF files and fixes VM configuration
 
-set -e
+# set -e already covered by set -euo pipefail above
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

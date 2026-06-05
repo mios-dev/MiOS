@@ -2,7 +2,7 @@
 # Side-by-side: run the IDENTICAL SQL through (a) an inline python
 # urllib request and (b) the shim's _sql() to find why they return
 # different results despite identical headers + body.
-set -u
+set -euo pipefail
 
 echo "── (a) inline urllib with shim's SQL shape ──"
 python3 - <<'PYEOF'

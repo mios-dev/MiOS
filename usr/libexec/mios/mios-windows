@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-windows <subcommand> [args...]
 #
 # Reach the Windows host from inside this WSL2 distro. The agent uses
@@ -97,13 +98,40 @@ _start_menu_resolve() {  # <name> -> WSL path of the matching Start-Menu .lnk
     [ -n "$name" ] || return 1
     [ -x "$PWSH" ] || return 1
     out="$("$PWSH" -NoProfile -NonInteractive -Command "
-\$n='$name'
+\$n=('$name' -replace '[^A-Za-z0-9]','').ToLower()
 \$w=New-Object -ComObject WScript.Shell
 \$d=@(\$env:ProgramData,\$env:APPDATA) | ForEach-Object { Join-Path \$_ 'Microsoft\\Windows\\Start Menu\\Programs' }
-\$h=Get-ChildItem -Path \$d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | Where-Object { \$_.BaseName -like ('*'+\$n+'*') } | Where-Object { try { \$t=\$w.CreateShortcut(\$_.FullName).TargetPath } catch { \$t='' }; (\$t -notlike '*wslg.exe') -and (\$t -notlike '*wsl.exe') } | Sort-Object { \$_.BaseName.Length } | Select-Object -First 1
+\$h=Get-ChildItem -Path \$d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | Where-Object { \$n.Length -ge 2 -and (\$_.BaseName -replace '[^A-Za-z0-9]','').ToLower().Contains(\$n) } | Where-Object { try { \$t=\$w.CreateShortcut(\$_.FullName).TargetPath } catch { \$t='' }; (\$t -notlike '*wslg.exe') -and (\$t -notlike '*wsl.exe') } | Sort-Object { \$_.BaseName.Length } | Select-Object -First 1
 if(\$h){ \$h.FullName }
 " 2>/dev/null | tr -d '\r' | grep -iE '\.lnk$' | head -1)"
     [ -n "$out" ] && wslpath -u "$out" 2>/dev/null && return 0
+    return 1
+}
+
+# GENERATIVE UWP/Store app resolution (operator 2026-06-04 "no hardcodes for
+# application detections"). UWP built-ins (Calculator, Settings, Photos, Camera,
+# Clock, ...) register NO App Paths exe and NO Start-Menu .lnk -- they live ONLY
+# in the AppsFolder, enumerable via Get-StartApps (Name + AppID). Fuzzy-match the
+# requested name to a Start app and echo `shell:appsFolder\<AppID>` (the exact
+# form the launch dispatch + the in-session executor already open via explorer's
+# appsFolder handler). No baked app list -- the LIVE Get-StartApps catalog is the
+# source of truth, so this resolves ANY installed UWP app, not a fixed set.
+_startapps_resolve() {  # <name> -> shell:appsFolder\<AppID>, or empty
+    local name="${1//\'/}" out
+    [ -n "$name" ] || return 1
+    [ -x "$PWSH" ] || return 1
+    # Match SPACE/PUNCTUATION/CASE-insensitively: agents routinely mangle a
+    # display name ("Character Map" -> "CharacterMap", "Task Manager" ->
+    # "TaskManager"), so normalise BOTH the query and each candidate to
+    # alphanumerics-lowercase before substring-matching. >=2 chars guards the
+    # empty/degenerate query from matching everything (operator 2026-06-04).
+    out="$("$PWSH" -NoProfile -NonInteractive -Command "
+\$n=('$name' -replace '[^A-Za-z0-9]','').ToLower()
+\$a=\$null
+if(\$n.Length -ge 2){ \$a=Get-StartApps | Where-Object { (\$_.Name -replace '[^A-Za-z0-9]','').ToLower().Contains(\$n) } | Sort-Object { \$_.Name.Length } | Select-Object -First 1 }
+if(\$a){ 'shell:appsFolder\\' + \$a.AppID }
+" 2>/dev/null | tr -d '\r' | grep -i 'appsfolder' | head -1)"
+    [ -n "$out" ] && printf '%s\n' "$out" && return 0
     return 1
 }
 
@@ -483,6 +511,17 @@ PSEOF
             target="/mnt/c/Windows/${app}.exe"
         elif target="$(_start_menu_resolve "$app")" && [ -n "$target" ]; then
             :   # resolved from a Start-Menu .lnk (generative, Everything-free)
+        elif _saf="$(_startapps_resolve "$app")" && [ -n "$_saf" ]; then
+            # UWP/Store built-in (Calculator, Settings, Photos, ...) -- no exe,
+            # no .lnk; resolved generatively via Get-StartApps -> AppID. Launch
+            # the shell:appsFolder URI via the in-session executor (explorer
+            # handler) first, broker ps as the fallback. Tried BEFORE the
+            # mios-find last-resort because mios-find re-applies the Linux
+            # freedesktop alias (calculator->gnome-calculator) and would miss it.
+            echo "mios-windows launch: '$app' -> $_saf (Get-StartApps)" >&2
+            if _mios_launch_via_executor "$_saf"; then exit 0; fi
+            _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$_saf'" "${MIOS_LAUNCH_TITLE_HINT:-$app}")"
+            exec "$0" ps "$_PS"
         else
             # Last-resort: ask mios-find. Operator-confirmed regression
             # 2026-05-16 night: agent called `mios-windows launch beamng`

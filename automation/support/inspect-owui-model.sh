@@ -1,7 +1,7 @@
 #!/bin/bash
 # Inspect the OWUI 'model' row for mios-agent to see what knowledge
 # / web_search params are attached + firing pre-call RAG.
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import json
 import sqlite3

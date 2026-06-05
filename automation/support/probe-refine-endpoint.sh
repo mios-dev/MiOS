@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 echo "── direct probe of refine endpoint ──"
 curl -s -w 'HTTP %{http_code} in %{time_total}s\n' \
     -X POST http://localhost:11435/v1/chat/completions \

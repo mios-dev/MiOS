@@ -1,7 +1,7 @@
 #!/bin/bash
 # Show the resolved launch chain for a query without actually
 # launching anything. Mirrors mios-launch's _DESC_CHAIN python.
-set -u
+set -euo pipefail
 Q="${1:-files}"
 echo "── launch chain for query: '$Q' ──"
 python3 - "$Q" <<'PYEOF'

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 echo "=== OWUI logs (reindex / chroma / vector) ==="
 journalctl -u mios-open-webui.service --since '5 min ago' --no-pager \

@@ -7,7 +7,7 @@
 # to do with the MiOS docs (e.g. "find games"). agent-pipe is the
 # canonical orchestrator now; knowledge stays reachable via tool
 # calls inside the agent flow.
-set -u
+set -euo pipefail
 python3 - <<'PYEOF'
 import json
 import sqlite3

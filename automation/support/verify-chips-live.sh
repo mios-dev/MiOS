@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 TOKEN_PY=$(python3 - <<'PYEOF'
 import sqlite3

@@ -2,7 +2,7 @@
 # GTK / GNOME runtime audit + cleanup. Identifies apps stuck on old
 # GNOME platform versions, force-updates everything, removes unused
 # runtimes. Operator-flagged 2026-05-19 "GLOBAL GTK IS OLD STILL".
-set -u
+set -euo pipefail
 
 echo "== apps running on GNOME Platform 49 (stale) =="
 for app in $(flatpak list --app --columns=application 2>/dev/null); do

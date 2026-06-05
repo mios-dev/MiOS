@@ -1,0 +1,56 @@
+[Unit]
+# /usr/lib/systemd/user/mios-computer-use-server.service
+#
+# MiOS computer-use server -- the dual MCP + A2A + HTTP-executor surface for
+# THIS desktop, so the central agent-pipe CONSUMES this machine's Wayland
+# session as a federated capability (full MCP AND A2A).
+#
+# WHY A USER SERVICE: driving the local desktop needs the user's GRAPHICAL
+# SESSION -- the session D-Bus (DBUS_SESSION_BUS_ADDRESS), WAYLAND_DISPLAY, the
+# RemoteDesktop/Screenshot portal, and the AT-SPI a11y bus. Those live in
+# user@$UID.service, not the system manager. The agent-pipe (a SYSTEM service,
+# user mios-ai) reaches this over loopback/tailnet HTTP -- that hop IS the
+# system<->session bridge (no /dev/uinput or Wayland socket has to cross into a
+# container). On bare-metal MiOS, gnome-session activates graphical-session.target;
+# on WSLg, mios-wsl-graphical-session.service does -- either way this starts with
+# the desktop and stays inert on a headless node.
+#
+# SECURITY: binds 127.0.0.1 by default (loopback-only). Expose to the tailnet by
+# setting [computer_use].bind_address in your /etc/mios overlay AND firewalling
+# the port to the tailnet (mios_tailscale pattern). There is no auth on this
+# port yet -> never bind a public interface; require A2A passport signing at the
+# pipe for cross-host delegation. Every write-class op (click/type/key) runs
+# through mios-computer-use, which honours the DoD/approval gate.
+#
+# uinput backend (compositor-agnostic fallback) needs the user in the `input`
+# group + the uinput uaccess udev rule; the default `portal` backend on
+# GNOME/KDE needs neither. Off-switch: `systemctl --user disable --now
+# mios-computer-use-server` or set [computer_use].bind_address = "".
+Description='MiOS' computer-use server (dual MCP + A2A + executor for this desktop)
+Documentation=file:///usr/libexec/mios/mios-computer-use-server
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Run on the SHARED agent venv interpreter (fastapi/uvicorn/httpx already
+# installed there -- the SAME interpreter the agent-pipe uses). The cu-server
+# only needs fastapi+uvicorn; the actual desktop ops shell out to
+# mios-computer-use (system python3 with gi/evdev), so the venv stays minimal.
+# Falls back to a dnf python3-fastapi/python3-uvicorn + /usr/bin/python3 deploy
+# by editing this line.
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/libexec/mios/mios-computer-use-server
+Restart=on-failure
+RestartSec=3s
+Environment=PYTHONUNBUFFERED=1
+# Tunables (SSOT: mios.toml [computer_use]; override here via drop-in):
+#   Environment=MIOS_CU_SERVER_PORT=11438
+#   Environment=MIOS_CU_BIND_ADDRESS=127.0.0.1
+#   Environment=MIOS_CU_INPUT_BACKEND=auto       # auto | portal | uinput
+#   Environment=MIOS_CU_CAPTURE_BACKEND=auto
+# Hardening: needs session D-Bus + portal + (optional) /dev/uinput, so kept
+# light. Tighten per-deployment once the backend is pinned.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target

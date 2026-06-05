@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""mios-owui-install-computer-use -- idempotent registration of the MiOS
+Computer-Use OWUI Native tool (WS-4 P0) into webui.db's `tool` table, so the
+chat model gets the desktop control + vision grounding + doc-gen verbs as typed
+tool_calls instead of indirecting through the generic `terminal:` shell tool.
+
+Mirrors mios-owui-install-tools exactly (same DB shape, change-detection over
+content+specs, admin attribution, model auto-attach). Source module:
+  /usr/share/mios/openwebui/tools/mios_computer_use.py
+
+The `specs` list MUST stay in lockstep with the Tools class methods in that
+module AND every spec MUST carry a JSONSchema `parameters` block -- OWUI's
+process_chat indexes spec["parameters"] and a partial spec crashes the whole
+chat with KeyError: 'parameters' (operator-flagged regression on the verbs
+tool, 2026-05-17).
+
+Intended to run from mios-hermes-firstboot.service alongside the existing
+install-pipe / install-tools helpers. Default-OFF posture: the tool's own
+Valves ship WRITE_ACTIONS_ENABLED=False and mios-docgen is gated server-side,
+so registering it is inert until the operator opts into desktop writes.
+"""
+from __future__ import annotations
+
+import datetime
+import hashlib
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+DB_PATH = Path("/var/lib/mios/open-webui/webui.db")
+SRC_PATH = Path("/usr/share/mios/openwebui/tools/mios_computer_use.py")
+TOOL_ID = "mios_computer_use"
+TOOL_NAME = "MiOS Computer Use"
+
+# Same model-row ids as mios-owui-install-tools (registration order varies).
+ATTACH_TO_MODEL_IDS = ["mios-agent", "MiOS-Agent", "mios_agent.mios-agent"]
+
+
+def _log(msg: str) -> None:
+    print(f"  [mios-owui-install-computer-use] {msg}", flush=True)
+
+
+def _admin_user_id(c: sqlite3.Connection) -> str | None:
+    row = c.execute(
+        "SELECT id FROM user WHERE role='admin' ORDER BY created_at LIMIT 1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+# JSONSchema specs -- in lockstep with Tools methods in mios_computer_use.py.
+SPECS = [
+    {
+        "name": "cu_screenshot",
+        "description": "Capture the desktop to a PNG (one-shot, read-only). Env-adaptive: local Wayland, WSLg, or a federated remote executor. Feed the PNG to cu_ground to locate a UI element before clicking.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Output PNG path (e.g. /tmp/screen.png)."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "cu_ground",
+        "description": "Locate a UI element by natural-language description -> {x,y,confidence}. Read-only. AT-SPI accessibility tree first, local vision model (qwen3-vl / UI-TARS) fallback. Pass x/y to cu_click.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Description of the target (e.g. \"the OK button\")."},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "cu_atspi_query",
+        "description": "Semantic accessibility-tree lookup (role/name) -> screen coords, NO pixels/vision. Read-only. Faster + more reliable than cu_ground for standard widgets.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Element role or name substring (e.g. \"Cancel\")."},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "cu_window_list",
+        "description": "List top-level windows on the desktop (read-only). Use to disambiguate / verify a window is presented before acting.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "cu_click",
+        "description": "Click at pixel (x,y) on the desktop. WRITE action -- gated by the tool's WRITE_ACTIONS_ENABLED valve. Usually preceded by cu_ground / cu_atspi_query.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer", "description": "X pixel offset from top-left."},
+                "y": {"type": "integer", "description": "Y pixel offset from top-left."},
+                "button": {"type": "string", "enum": ["left", "right", "middle"],
+                           "default": "left", "description": "Mouse button."},
+            },
+            "required": ["x", "y"],
+        },
+    },
+    {
+        "name": "cu_type",
+        "description": "Type literal text into the focused surface. WRITE action -- gated. For editing FILES prefer the text-editor verbs; this is for live UI.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "The literal text to type."},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "cu_key",
+        "description": "Press a single key (Enter, Tab, Escape, F5, ...). WRITE action -- gated.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "Key name (Enter | Tab | Escape | F1..F12 | a char)."},
+            },
+            "required": ["key"],
+        },
+    },
+    {
+        "name": "cu_key_combo",
+        "description": "Press a modifier combo (Ctrl+S, Alt+Tab, Ctrl+Shift+T). WRITE action -- gated.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "combo": {"type": "string", "description": "Combo string with + or - separators (e.g. \"Ctrl+S\")."},
+            },
+            "required": ["combo"],
+        },
+    },
+    {
+        "name": "docgen_build",
+        "description": "Author a NEW document from text you write, emitting a real office artifact (.docx/.pptx/.xlsx/.pdf/.html). Output format inferred from out_path extension. Write markdown (or CSV for .xlsx with from_fmt=csv); MiOS renders the binary via Pandoc / LibreOffice -- fully local, no cloud. For .pptx separate slides with a line of `---`.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "out_path": {"type": "string", "description": "Destination path with target extension (e.g. /tmp/report.docx)."},
+                "content": {"type": "string", "description": "Source content (markdown, or CSV rows for xlsx)."},
+                "from_fmt": {"type": "string", "enum": ["markdown", "plain", "html", "csv"],
+                             "default": "markdown", "description": "Source format of content."},
+            },
+            "required": ["out_path", "content"],
+        },
+    },
+    {
+        "name": "docgen_convert",
+        "description": "Convert an EXISTING file to another format (.docx->.pdf, .md->.docx, .csv->.xlsx, .pptx->.pdf). Fully local via Pandoc / LibreOffice headless. Target format inferred from out_path extension.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "in_path": {"type": "string", "description": "Source file path (must exist on the host)."},
+                "out_path": {"type": "string", "description": "Destination path; its extension picks the format."},
+            },
+            "required": ["in_path", "out_path"],
+        },
+    },
+]
+
+META = {
+    "description": "MiOS computer-use (desktop control + vision grounding + doc-gen) as native tool_calls.",
+    "manifest": {"title": TOOL_NAME, "author": "MiOS", "version": "0.1.0"},
+}
+
+
+def main() -> int:
+    if not DB_PATH.is_file():
+        _log(f"{DB_PATH} not present -- skipping (OWUI hasn't bootstrapped)")
+        return 0
+    if not SRC_PATH.is_file():
+        _log(f"{SRC_PATH} not present -- nothing to install")
+        return 0
+
+    content = SRC_PATH.read_text(encoding="utf-8")
+    c = sqlite3.connect(str(DB_PATH))
+
+    cols = [r[1] for r in c.execute("PRAGMA table_info(tool)")]
+    if not cols or "content" not in cols or "specs" not in cols:
+        _log(f"tool table schema unexpected ({cols!r}) -- aborting")
+        return 1
+
+    # Auto-attach to the MiOS-Agent model rows so the chat model SEES it.
+    attached = 0
+    for mid in ATTACH_TO_MODEL_IDS:
+        row = c.execute("SELECT meta FROM model WHERE id=?", (mid,)).fetchone()
+        if row is None:
+            continue
+        try:
+            meta = json.loads(row[0]) if row[0] else {}
+        except json.JSONDecodeError:
+            meta = {}
+        current = meta.get("toolIds") or meta.get("tool_ids") or []
+        if TOOL_ID in current:
+            continue
+        meta["toolIds"] = list(dict.fromkeys([*current, TOOL_ID]))
+        c.execute("UPDATE model SET meta=?, updated_at=? WHERE id=?",
+                  (json.dumps(meta), int(datetime.datetime.utcnow().timestamp()), mid))
+        attached += 1
+        _log(f"attached {TOOL_ID} to model row {mid!r}")
+    if attached:
+        c.commit()
+
+    new_specs_json = json.dumps(SPECS)
+    new_hash = hashlib.sha256((content + new_specs_json).encode("utf-8")).hexdigest()
+    row = c.execute("SELECT id, content, specs FROM tool WHERE id=?", (TOOL_ID,)).fetchone()
+
+    if row is not None:
+        existing_hash = hashlib.sha256(
+            ((row[1] or "") + (row[2] or "")).encode("utf-8")).hexdigest()
+        if existing_hash == new_hash:
+            _log(f"{TOOL_ID} already current ({len(content)} chars) -- no change")
+            return 0
+        c.execute(
+            "UPDATE tool SET content=?, specs=?, meta=?, updated_at=? WHERE id=?",
+            (content, new_specs_json, json.dumps(META),
+             int(datetime.datetime.utcnow().timestamp()), TOOL_ID))
+        c.commit()
+        _log(f"updated {TOOL_ID} ({len(content)} chars)")
+        return 0
+
+    user_id = _admin_user_id(c)
+    if not user_id:
+        _log("no admin user found yet -- run mios-owui-bootstrap-admin first")
+        return 0
+
+    now = int(datetime.datetime.utcnow().timestamp())
+    c.execute(
+        "INSERT INTO tool (id, user_id, name, content, specs, meta, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (TOOL_ID, user_id, TOOL_NAME, content,
+         new_specs_json, json.dumps(META), now, now))
+    c.commit()
+    _log(f"created {TOOL_ID} ({len(content)} chars, attributed to admin {user_id[:8]}...)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

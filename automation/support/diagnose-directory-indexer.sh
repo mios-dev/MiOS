@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 echo "── did directory_entry table land? ──"
 python3 - <<'PYEOF'

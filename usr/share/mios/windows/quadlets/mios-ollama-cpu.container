@@ -23,8 +23,10 @@ Environment=OLLAMA_ORIGINS=*
 # Shared model store with the GPU instance.
 Environment=OLLAMA_MODELS=/var/lib/ollama/models
 Environment=HOME=/var/lib/ollama-cpu
-Environment=OLLAMA_NUM_PARALLEL=4
-Environment=OLLAMA_MAX_LOADED_MODELS=4
+# 2026-06-01j runaway fix: 4 concurrent CPU gens each peg all cores -> load 387.
+# 2 = one heavy agent gen + one slot for the fast router/refine micro-LLMs.
+Environment=OLLAMA_NUM_PARALLEL=2
+Environment=OLLAMA_MAX_LOADED_MODELS=2
 
 Volume=/var/lib/ollama:/var/lib/ollama:Z
 Volume=/var/lib/ollama-cpu:/var/lib/ollama-cpu:Z

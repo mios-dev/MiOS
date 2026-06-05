@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # mios-ttyd-expose -- securely publish the loopback ttyd terminal to the TAILNET
 # for mobile access (#82). Official pattern (researched 2026-05-30): ttyd stays
 # on 127.0.0.1; `tailscale serve` is the tailnet-ONLY HTTPS reverse proxy in

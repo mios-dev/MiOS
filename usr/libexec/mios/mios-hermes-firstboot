@@ -390,7 +390,7 @@ fi
 # it re-pulls + re-installs the package. Operator-confirmed regression
 # 2026-05-15: fresh MiOS install came up with hermes-agent inactive
 # because the build never installed the venv.
-if [[ ! -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
+if [[ ! -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
     _hermes_installer=""
     for _c in /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh \
               /opt/mios-bootstrap/automation/38-hermes-agent.sh \
@@ -420,8 +420,10 @@ if [[ ! -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
 fi
 
 HERMES_DATA=/var/lib/mios/hermes
+HERMES_ARTIFACTS=/var/lib/mios/ai/artifacts
+HERMES_RESEARCH=/var/lib/mios/ai/research
 HERMES_DATA_CFG="${HERMES_DATA}/config.yaml"
-mkdir -p "$HERMES_DATA"
+mkdir -p "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH"
 
 # Ownership: hermes-agent.service runs as the mios-hermes sysuser
 # (uid 820). The pre-2026-05-14 mios-hermes CONTAINER ran with an
@@ -431,8 +433,8 @@ mkdir -p "$HERMES_DATA"
 # die with "Permission denied: /var/lib/mios/hermes/cron". Force the
 # whole tree to 820:820 on every run -- cheap, idempotent, and heals
 # the container -> direct-install migration.
-chown -R 850:850 "$HERMES_DATA" 2>/dev/null || true
-chmod 0750 "$HERMES_DATA" 2>/dev/null || true
+chown -R 850:850 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || true
+chmod 0750 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || true
 
 # Validate the resolved model against what Ollama actually serves. The
 # [ai.host_thresholds] auto-pick can resolve to a model that was never
@@ -532,12 +534,23 @@ elif ! grep -qE '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # model. Rewrite to add delegation: + swap auxiliary models.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing delegation block (multi-agent parallelism)"
+elif grep -q 'model: qwen3:1.7b' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # qwen3:1.7b reports 40,960 tokens which is below the Hermes v0.15+
+    # 64k floor. Re-seed to promote to qwen3.5:4b or add overrides.
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- detected legacy qwen3:1.7b (below 64k floor)"
 elif ! grep -qE '^approvals:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # Config predates the autonomy alignment -- without explicit
     # approvals.mode=auto the agent pauses for per-call approval,
     # making the broad sudo grant + multi-agent delegation pointless.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing approvals/autonomy block"
+elif ! grep -A 15 '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null | grep -q 'ollama_num_ctx:'; then
+    # Config missing context-window overrides in the delegation block --
+    # Hermes v0.15+ will refuse tool use on parallel child agents if the
+    # model (like qwen3:1.7b) reports < 64k.
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- missing delegation ollama_num_ctx overrides"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
@@ -621,38 +634,56 @@ auxiliary:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: ${_AI_MODEL_RESOLVED}
+    ollama_num_ctx: 65536
+    context_length: 65536
   session_search:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   title_generation:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   triage_specifier:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   curator:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   mcp:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   web_extract:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   approval:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   skills_hub:
     provider: custom:local-ollama
     base_url: http://localhost:11434/v1
     model: qwen3.5:4b
+    ollama_num_ctx: 65536
+    context_length: 65536
   # Vision-grounding lane for screenshot -> click-coordinate
   # translation. Used by /usr/libexec/mios/mios-pc-vision (the
   # PC-Control vision-grounded loop, Path B in the pc-control
@@ -665,7 +696,7 @@ auxiliary:
     model: qwen3-vl:4b
 
 # Web SEARCH -> the on-box SearXNG (mios-searxng, SEARXNG_URL). Web EXTRACT ->
-# `miosfetch`, MiOS's OWN offline direct-fetch provider (stdlib urllib +
+# \`miosfetch\`, MiOS's OWN offline direct-fetch provider (stdlib urllib +
 # readability HTML->text; plugins/web/miosfetch, deployed by 38-hermes-agent.sh
 # from /usr/share/mios/hermes/plugins). WHY NOT firecrawl: hermes pins firecrawl
 # -py v4 (firecrawl API v2, POST /v2/scrape) but MiOS self-hosts firecrawl
@@ -673,7 +704,7 @@ auxiliary:
 # research turns could never drill past search-result homepages). extract_backend
 # MUST be set EXPLICITLY -- without it web_extract errors "No web extract provider
 # configured". The firecrawl plugin is still registered (dormant fallback); flip
-# this back to `firecrawl` if the self-hosted container is ever upgraded to the
+# this back to \`firecrawl\` if the self-hosted container is ever upgraded to the
 # v2 API. Law 5 unaffected -- retrieval, not inference.
 web:
   search_backend: searxng
@@ -716,6 +747,7 @@ platform_toolsets:
     - file           # read/write/patch
     - web            # web_search via SearXNG (:8888) + web_extract via Firecrawl (:3002) -- FREE, local
     - browser        # browser_navigate / _snapshot / _click / ... via CDP -> ChromeDev flatpak
+    - messaging      # send_message for Discord, Telegram, etc.
     - discord        # read + participate (fetch messages, search members, create threads)
     - cronjob        # create/list/update/pause/resume/remove/trigger scheduled prompts (in-process, croniter-backed)
     - clarify        # ask the operator clarifying questions instead of hallucinating an answer
@@ -726,6 +758,7 @@ platform_toolsets:
     - session_search # search past conversations
     - code_execution # python execute_code
     - kanban         # kanban_create / _show / _list / _complete / _block / _comment / _link / _heartbeat (SQLite board at \$HERMES_HOME/kanban.db, surfaced in TUI via \`hermes kanban\` and in dashboard plugin at /api/plugins/kanban/)
+
 
 # Top-level toolsets list = orchestrator-mode gating read by
 # tool check_fn (e.g. tools.kanban_tools._profile_has_kanban_toolset).
@@ -739,6 +772,7 @@ toolsets:
   - file
   - web
   - browser
+  - messaging
   - discord
   - cronjob
   - clarify
@@ -769,6 +803,7 @@ toolsets:
 display:
   tool_progress: verbose             # show full args + result for every tool call
   tool_progress_command: true        # show the command itself (e.g. \`mios build\`)
+
   tool_preview_length: 8000          # show up to 8000 chars of each tool result inline
   persistent_output: true            # keep tool output visible after the call returns
   persistent_output_max_lines: 2000  # default 200 truncated long build logs aggressively
@@ -795,7 +830,7 @@ browser:
 # SearXNG block). YAML mapping merge would silently drop the earlier
 # entry; ruamel-yaml strict loaders (hermes_cli.config.load_config)
 # raise DuplicateKeyError outright. Keep this section as documentation
-# only -- the operative `web:` block is the earlier one.
+# only -- the operative \`web:\` block is the earlier one.
 
 # Multi-agent delegation. Hermes 0.13.x's orchestrator can spawn child
 # agents (delegate_task tool) -- typically used to fan out discrete
@@ -807,7 +842,7 @@ browser:
 # GPU (model.default = qwen3-coder:30b, MoE, ~19 GB), while DELEGATES
 # and the AUXILIARY services (compression, title-gen, session_search,
 # triage, curator, mcp, web_extract, approval, skills_hub) run on the
-# small fast qwen3:1.7b model -- ollama keeps it warm alongside the
+# small fast qwen3.5:4b model -- ollama keeps it warm alongside the
 # big one (OLLAMA_MAX_LOADED_MODELS=4) and serves up to 4 concurrent
 # requests per model (OLLAMA_NUM_PARALLEL=4, set in ollama.container).
 # Result: the orchestrator's children + auxiliary lanes actually run
@@ -820,6 +855,8 @@ delegation:
   provider: custom:local-ollama
   base_url: http://localhost:11434/v1
   model: qwen3.5:4b                  # CPU-friendly, 262K context (above 64K floor), tool-capable -- runs on CPU alongside GPU main
+  ollama_num_ctx: 65536
+  context_length: 65536
   max_concurrent_children: 6        # 16 cores -> ~2.5 cores per child even at full fan-out
   max_spawn_depth: 2                # allow one level of sub-delegation (children can spawn grandchildren)
   child_timeout_seconds: 600
@@ -886,25 +923,22 @@ sessions:
   vacuum_after_prune: true
   min_interval_hours: 24
 
+# Goals — configuration for /goal command continuations.
+goals:
+  # Max continuation turns before Hermes auto-pauses the goal and
+  # asks the user to /goal resume.
+  max_turns: 100
+
 # Agent: per-agent runtime tuning. reasoning_effort=xhigh is set
-# elsewhere (the model-side reasoning depth). restart_drain_timeout
-# matters at SIGTERM time -- how long the gateway gives in-flight
-# requests to finish before tearing down sessions. Default 180s is
-# right for prod but punishes a dev VM where the operator restarts
-# hermes every few minutes (skill edits, mios-ai-reset). 20s pairs
-# with the 30s TimeoutStopSec systemd drop-in
-# (hermes-agent.service.d/30-quick-stop.conf): drain for 20s, OS
-# kills at 30s if the gateway hasn't already exited cleanly. Net:
-# ~2-3s typical restart, 30s worst case. Operator directive 2026-05-15.
 agent:
   restart_drain_timeout: 20
   # Hard cap on tool-call iterations per chat. Upstream default is 90;
   # operator-flagged 2026-05-17 had chats running 19-24 tool calls
-  # before giving up. For an OWUI conversational agent 20 is plenty
+  # before giving up. For an OWUI conversational agent 100 is plenty
   # (most asks resolve in 1-3 calls; multi-step in ~10). Sub-agents
   # spawned via delegate_task still get their own 90-turn budget --
   # this cap is for the OPERATOR-facing turn, not the children.
-  max_turns: 20
+  max_turns: 100
 EOF
     umask 0022
     chown 850:850 "$HERMES_DATA_CFG" 2>/dev/null || true
@@ -1047,7 +1081,7 @@ _build_soul_runtime_ctx() {
             out+=$'\n'
             out+="  When the operator says \"send to discord\", \"post to discord\", "
             out+="\"DM me on discord\", or \"let me know on discord\" without naming a channel, "
-            out+="call \`discord_send_message\` with channel_id=\`${_discord_channel}\`. "
+            out+="call \`send_message\` with target=\`discord:${_discord_channel}\`. "
             out+="Only use a different channel if the operator names one explicitly."$'\n'
         fi
         out+=$'\n'"${SOUL_CTX_END}"$'\n'
@@ -1331,6 +1365,16 @@ fi
 # directive 2026-05-17: "AI-stack native (Hermes tools???!!)".
 if [[ -x /usr/libexec/mios/mios-owui-install-tools ]]; then
     /usr/libexec/mios/mios-owui-install-tools 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
+
+# ─── Install the WS-4 computer-use OWUI Native tool (cu_* + docgen_*) ─────
+# Registers the desktop-control + doc-gen surface as ONE OWUI Native tool.
+# Idempotent (sha256 content compare); ships WRITE_ACTIONS_ENABLED=false so the
+# agent can't drive desktop input until the operator opts in. Runs after
+# install-tools so the OWUI functions/tools table exists.
+if [[ -x /usr/libexec/mios/mios-owui-install-computer-use ]]; then
+    /usr/libexec/mios/mios-owui-install-computer-use 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 

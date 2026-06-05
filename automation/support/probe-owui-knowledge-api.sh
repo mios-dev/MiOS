@@ -4,7 +4,7 @@
 #   /api/v1/retrieval/process/query
 # but a fresh probe returned 405, so the path may have moved
 # (different OWUI versions have different shapes).
-set -u
+set -euo pipefail
 
 DB=/var/lib/mios/open-webui/webui.db
 TOKEN=$(sqlite3 "$DB" \

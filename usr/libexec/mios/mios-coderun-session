@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-coderun-session {start|stop|snap|revert|status} <session-id>
 #
 # Per-session orchestrator for the MiOS agent sandbox per the FS+OS

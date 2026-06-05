@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 curl -s -u root:root \
     -H "NS: mios" -H "DB: agent" \
     -H "Accept: application/json" -H "Content-Type: text/plain" \

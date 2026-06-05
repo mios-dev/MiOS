@@ -19,7 +19,7 @@
 # When no GPU is present (headless server, container without /dev/dxg
 # or /dev/kfd or /dev/dri), this is a no-op except for the status
 # snapshot at /run/mios/cdi-detect.status.
-set -uo pipefail
+set -euo pipefail
 # shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh 2>/dev/null || true
 

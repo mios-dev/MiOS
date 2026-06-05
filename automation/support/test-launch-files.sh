@@ -1,7 +1,7 @@
 #!/bin/bash
 # Smoke-test mios-launch's new alias + description-fallback paths
 # against the operator's failing "open files" trace.
-set -u
+set -euo pipefail
 
 echo "── alias resolution: 'files' -> nautilus ──"
 # We don't actually want to LAUNCH; just dry-run the resolver.

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deploy + apply schema + restart daemon + smoke-test the directory
 # indexer.
-set -u
+set -euo pipefail
 
 echo "── deploy files ──"
 cp /mnt/c/MiOS/usr/share/mios/surrealdb/schema-init.surql \

@@ -3,7 +3,7 @@
 # rebuilds the unified knowledge base (RAG snapshot), refreshes user-space
 # environment configs, and seeds shared agent context. Idempotent.
 
-set -uo pipefail
+set -euo pipefail
 
 echo "[ai-bootstrap] Initializing 'MiOS' agent workspace..."
 

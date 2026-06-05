@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-ttyd-launch <bash|powershell>
 #
 # Builds the ttyd argv from the MIOS_TTYD_* env (sourced via

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Apply Xbox VM Config + Manual Secure Boot Key Enrollment
 # Uses virt-firmware to directly enroll Vendor keys
@@ -11,7 +12,7 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-set -e
+# set -e covered by set -euo pipefail at top
 
 echo -e "${BOLD}${GREEN}══════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${GREEN}    Xbox VM: Final Configuration + Secure Boot Fix${NC}"

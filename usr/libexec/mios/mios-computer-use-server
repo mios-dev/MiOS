@@ -1,0 +1,538 @@
+#!/usr/bin/env python3
+"""mios-computer-use-server -- dual MCP + A2A + REST-executor server for a
+MiOS/Linux desktop node, so the central agent-pipe CONSUMES this desktop as a
+first-class federated capability (full MCP AND A2A).
+
+WEBSERVER: FastAPI + uvicorn (the SAME stack the agent-pipe runs on, from the
+SAME shared venv /usr/lib/mios/agents/.venv). Hand-rolled, spec-faithful routes
+-- NOT the official `mcp` / `a2a-sdk` packages -- because (1) the agent-pipe (the
+CONSUMER) already serves MCP + A2A hand-rolled in exactly this style, (2) those
+SDKs are pip-only with churny APIs (a2a-sdk >=1.0 dropped A2AStarletteApplication;
+the mcp SDK has had mount/lifespan bugs) which an immutable air-gapped bootc
+image must not depend on, and (3) fastapi/uvicorn/httpx are already present +
+dnf-available offline. The surface is tiny (9 tools, 1 skill); interop is
+guaranteed because the pipe's own MCP/A2A client consumes these exact shapes.
+
+ONE capability, THREE HTTP surfaces, all backed by the local `mios-computer-use`:
+
+  1. MCP -- Streamable HTTP transport (spec 2025-06-18) at /mcp:
+       * POST /mcp  -- JSON-RPC: initialize / tools/list / tools/call. Returns
+                       application/json (spec-legal for a stateless server; SSE
+                       is OPTIONAL for request/response tool calls).
+       * GET  /mcp  -- opens a text/event-stream keepalive channel (server->client
+                       notifications); spec allows 405 but we serve a minimal SSE.
+       * Origin validation (DNS-rebinding guard) + MCP-Protocol-Version tolerance.
+     The pipe's MCP client (add this URL to /etc/mios/ai/v1/mcp.json) surfaces the
+     tools as `mcp.<server>.cu.*` IN THE AGENT LOOP (_mcp_tool_to_openai_tool).
+
+  2. A2A (Agent2Agent 0.3.0): GET /.well-known/agent-card.json advertises a
+     `desktop-control` skill; POST /a2a is JSON-RPC (message/send + message/stream
+     via SSE); GET /a2a/contexts/{id} shares inter-agent context. The pipe (add
+     this URL to /etc/mios/ai/v1/a2a-peers.json) DISCOVERS the skill + DELEGATES
+     whole desktop tasks via _a2a_send_message_to_peer.
+
+  3. REST executor contract: GET /health|/screenshot|/windows|/screen-layout,
+     POST /input/*, /window/*, /atspi/query, /ground -- the SAME contract the
+     Windows mios-oscontrol-server.ps1 speaks, so a central node's
+     mios-computer-use with executor_endpoint=<this> routes fine-grained ops here.
+
+SECURITY: bind LOOPBACK by default; reach it over the tailnet via
+[computer_use].bind_address + firewall to the tailnet (mios_tailscale pattern).
+Optional bearer token ([computer_use].auth_token) gates write surfaces. Require
+A2A passport signing at the pipe for cross-host delegation. Every op runs through
+the local mios-computer-use, which honours the DoD/approval gate.
+
+CONFIG (layered mios.toml [computer_use]): server_port, bind_address,
+allowed_origins, auth_token.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import socket
+import sys
+import tempfile
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    tomllib = None
+
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, StreamingResponse
+import uvicorn
+
+PROG = "mios-computer-use-server"
+CU = "mios-computer-use"
+A2A_PROTOCOL_VERSION = os.environ.get("MIOS_A2A_PROTOCOL_VERSION", "0.3.0")
+MCP_PROTOCOL_VERSION = "2025-06-18"
+
+
+# ── config ────────────────────────────────────────────────────────────────────
+def _toml() -> dict:
+    if tomllib is None:
+        return {}
+    out: dict = {}
+    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
+              os.path.join(os.environ.get("HOME", ""), ".config/mios/mios.toml")):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+            for k, v in d.items():
+                if isinstance(v, dict) and isinstance(out.get(k), dict):
+                    out[k].update(v)
+                else:
+                    out[k] = v
+        except (OSError, tomllib.TOMLDecodeError):  # type: ignore[attr-defined]
+            continue
+    return out
+
+
+_CFG = (_toml().get("computer_use") or {})
+
+
+def _cu_cfg(key, default):
+    env = os.environ.get("MIOS_CU_" + key.upper())
+    if env not in (None, ""):
+        return env
+    v = _CFG.get(key)
+    return default if v in (None, "") else v
+
+
+def _auth_token() -> str:
+    return str(_cu_cfg("auth_token", "") or "")
+
+
+def _allowed_origins() -> list[str]:
+    v = _cu_cfg("allowed_origins", "")
+    if isinstance(v, list):
+        return [str(x) for x in v]
+    return [s.strip() for s in str(v).split(",") if s.strip()]
+
+
+# ── local executor bridge (async; never blocks the event loop) ────────────────
+async def _run(args: list[str], timeout=30) -> tuple[int, str, str]:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            CU, *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    except FileNotFoundError:
+        return 127, "", f"{CU} not on PATH"
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        return 124, "", "timeout"
+    return proc.returncode, out.decode(errors="replace"), err.decode(errors="replace")
+
+
+async def _run_json(args: list[str]) -> dict:
+    rc, out, err = await _run(args)
+    if rc != 0:
+        return {"error": err.strip() or out.strip() or f"exit {rc}"}
+    try:
+        return json.loads(out) if out.strip() else {"ok": True}
+    except json.JSONDecodeError:
+        return {"ok": rc == 0, "output": out.strip()}
+
+
+async def _screenshot_b64() -> dict:
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+        path = tf.name
+    try:
+        rc, out, err = await _run(["screenshot", path])
+        if rc != 0:
+            return {"error": err.strip() or out.strip() or "capture failed"}
+        import base64
+
+        data = Path(path).read_bytes()
+        return {"image_b64": base64.b64encode(data).decode("ascii"), "bytes": len(data)}
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+# ── tool catalog (MCP inputSchema == A2A skill detail == executor map) ─────────
+def _tools() -> list[dict]:
+    num = {"type": "integer"}
+    txt = {"type": "string"}
+    obj = lambda **p: {"type": "object", "properties": p}  # noqa: E731
+    req = lambda r, **p: {"type": "object", "properties": p, "required": r}  # noqa: E731
+    return [
+        {"name": "cu.screenshot", "description": "Capture the desktop to a PNG (returns image_b64).", "inputSchema": obj()},
+        {"name": "cu.ground", "description": "Locate a UI element by description -> {x,y,confidence} (AT-SPI first, vision fallback).", "inputSchema": req(["query"], query=txt)},
+        {"name": "cu.atspi_query", "description": "Semantic a11y-tree lookup (role/name) -> screen coords.", "inputSchema": req(["query"], query=txt)},
+        {"name": "cu.window_list", "description": "List top-level windows.", "inputSchema": obj()},
+        {"name": "cu.mouse_move", "description": "Move the pointer to (x,y).", "inputSchema": req(["x", "y"], x=num, y=num)},
+        {"name": "cu.click", "description": "Click at (x,y). button=left|right|middle.", "inputSchema": req(["x", "y"], x=num, y=num, button=txt)},
+        {"name": "cu.type", "description": "Type literal text into the focused surface.", "inputSchema": req(["text"], text=txt)},
+        {"name": "cu.key", "description": "Press a single named key (Enter, Tab, F5, ...).", "inputSchema": req(["name"], name=txt)},
+        {"name": "cu.key_combo", "description": "Press a modifier combo (Ctrl+S, Alt+Tab).", "inputSchema": req(["combo"], combo=txt)},
+    ]
+
+
+_WRITE_TOOLS = {"cu.click", "cu.type", "cu.key", "cu.key_combo", "cu.mouse_move"}
+
+
+async def _call_tool(name: str, a: dict) -> dict:
+    a = a or {}
+    if name == "cu.screenshot":
+        return await _screenshot_b64()
+    if name == "cu.ground":
+        return await _run_json(["ground", str(a.get("query", "")), "--json"])
+    if name == "cu.atspi_query":
+        return await _run_json(["atspi-query", str(a.get("query", "")), "--json"])
+    if name == "cu.window_list":
+        return await _run_json(["window-list", "--json"])
+    if name == "cu.mouse_move":
+        return await _run_json(["mouse-move", str(a.get("x", 0)), str(a.get("y", 0))])
+    if name == "cu.click":
+        return await _run_json(["click", str(a.get("x", 0)), str(a.get("y", 0)), str(a.get("button", "left"))])
+    if name == "cu.type":
+        return await _run_json(["type", str(a.get("text", ""))])
+    if name == "cu.key":
+        return await _run_json(["key", str(a.get("name", ""))])
+    if name == "cu.key_combo":
+        return await _run_json(["key-combo", str(a.get("combo", ""))])
+    return {"error": f"unknown tool {name}"}
+
+
+# ── A2A agent card ─────────────────────────────────────────────────────────────
+def _agent_card(base: str) -> dict:
+    host = os.environ.get("MIOS_HOSTNAME") or socket.gethostname()
+    return {
+        "protocolVersion": A2A_PROTOCOL_VERSION,
+        "name": f"MiOS Desktop ({host})",
+        "description": "Linux/Wayland desktop computer-use: screenshot, AT-SPI/vision grounding, click/type/key, window control.",
+        "url": base,
+        "version": "1.0.0",
+        "capabilities": {"streaming": True, "pushNotifications": False},
+        "defaultInputModes": ["text/plain", "application/json"],
+        "defaultOutputModes": ["application/json"],
+        "skills": [{
+            "id": "desktop-control",
+            "name": "Desktop control",
+            "description": "Drive this machine's Linux/Wayland desktop: capture the screen, ground a UI element by description, click/type/press keys, list/focus windows.",
+            "tags": ["computer-use", "gui", "wayland", "atspi", "automation"],
+            "examples": ["screenshot the desktop", "ground 'the Save button' and click it",
+                         "type 'hello' into the focused window"],
+        }],
+        "x-mios": {
+            "mcp_endpoint": f"{base}/mcp",
+            "tools": [t["name"] for t in _tools()],
+            "context": f"{base}/a2a/contexts/{{contextId}}",
+        },
+    }
+
+
+# ── A2A message/send: execute a delegated desktop op ───────────────────────────
+_CONTEXTS: dict[str, list] = {}
+
+
+def _a2a_message_text(params: dict) -> str:
+    msg = params.get("message") or {}
+    parts = msg.get("parts") or []
+    chunks = []
+    for p in parts:
+        if isinstance(p, dict):
+            chunks.append(p.get("text") or (p.get("root") or {}).get("text") or "")
+    return "\n".join(c for c in chunks if c).strip()
+
+
+async def _a2a_handle_send(params: dict) -> dict:
+    """Run a delegated desktop op. The pipe sends a structured instruction --
+    {"tool":"cu.click","arguments":{...}} or {"op":"ground","args":[...]} -- this
+    tool-executor agent runs it (planning stays at the central pipe)."""
+    ctx = params.get("contextId") or params.get("context_id") or "default"
+    text = _a2a_message_text(params)
+    try:
+        instr = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        instr = None
+    if isinstance(instr, dict) and instr.get("tool"):
+        result = await _call_tool(instr["tool"], instr.get("arguments") or {})
+    elif isinstance(instr, dict) and instr.get("op"):
+        rc, out, err = await _run([instr["op"]] + [str(x) for x in (instr.get("args") or [])])
+        result = {"ok": rc == 0, "output": out.strip(), "error": err.strip() or None}
+    else:
+        result = {"error": "desktop-control expects a JSON op: "
+                  '{"tool":"cu.click","arguments":{"x":..,"y":..}} or '
+                  '{"op":"ground","args":["the Save button"]}',
+                  "skills": ["desktop-control"], "tools": [t["name"] for t in _tools()]}
+    artifact_text = json.dumps(result)
+    _CONTEXTS.setdefault(ctx, []).append(
+        {"role": "agent", "parts": [{"kind": "text", "text": artifact_text}], "contextId": ctx})
+    return {
+        "id": params.get("id") or os.urandom(6).hex(),
+        "contextId": ctx,
+        "status": {"state": "completed" if "error" not in result else "failed"},
+        "artifacts": [{"name": "result", "parts": [{"kind": "text", "text": artifact_text}]}],
+        "kind": "task",
+    }
+
+
+# ── FastAPI app ────────────────────────────────────────────────────────────────
+app = FastAPI(title="mios-computer-use-server", docs_url=None, redoc_url=None)
+
+
+def _base(request: Request) -> str:
+    host = request.headers.get("host") or f"127.0.0.1:{_port()}"
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
+    return f"{scheme}://{host}"
+
+
+def _origin_ok(request: Request) -> bool:
+    """DNS-rebinding guard (MCP spec security requirement). Allow same-host +
+    any configured origin; allow missing Origin (non-browser clients like the pipe)."""
+    origin = request.headers.get("origin")
+    if not origin:
+        return True  # server-to-server (the agent-pipe) sends no Origin
+    allow = _allowed_origins()
+    if origin in allow or "*" in allow:
+        return True
+    host = request.headers.get("host", "")
+    return host and (origin.endswith("//" + host) or origin.endswith("://" + host))
+
+
+def _auth_ok(request: Request) -> bool:
+    token = _auth_token()
+    if not token:
+        return True  # no token configured -> rely on tailnet/loopback binding
+    hdr = request.headers.get("authorization", "")
+    return hdr == f"Bearer {token}" or request.headers.get("x-mios-token", "") == token
+
+
+# ---- MCP Streamable HTTP ----
+@app.post("/mcp")
+async def mcp_post(request: Request):
+    if not _origin_ok(request):
+        return JSONResponse({"error": "origin not allowed"}, status_code=403)
+    try:
+        req = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse({"jsonrpc": "2.0", "id": None,
+                             "error": {"code": -32700, "message": "parse error"}}, status_code=400)
+    rid = req.get("id")
+    method = req.get("method")
+    params = req.get("params") or {}
+
+    # Notifications/responses -> 202 Accepted, no body (spec).
+    if method and method.startswith("notifications/") or (rid is None and "result" in req):
+        return Response(status_code=202)
+
+    def ok(result):
+        return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": result})
+
+    if method == "initialize":
+        return ok({
+            "protocolVersion": MCP_PROTOCOL_VERSION,
+            "capabilities": {"tools": {"listChanged": False}},
+            "serverInfo": {"name": PROG, "version": "1.0.0"},
+        })
+    if method == "ping":
+        return ok({})
+    if method == "tools/list":
+        return ok({"tools": _tools()})
+    if method == "tools/call":
+        name = params.get("name", "")
+        if name in _WRITE_TOOLS and not _auth_ok(request):
+            return JSONResponse({"jsonrpc": "2.0", "id": rid,
+                                 "error": {"code": -32001, "message": "unauthorized (write tool)"}}, status_code=401)
+        res = await _call_tool(name, params.get("arguments") or {})
+        is_err = isinstance(res, dict) and "error" in res
+        return ok({"content": [{"type": "text", "text": json.dumps(res)}], "isError": is_err})
+    return JSONResponse({"jsonrpc": "2.0", "id": rid,
+                         "error": {"code": -32601, "message": f"method not found: {method}"}})
+
+
+@app.get("/mcp")
+async def mcp_get(request: Request):
+    """Open a server->client SSE channel (spec-legal; we send keepalives only --
+    no server-initiated requests for this stateless tool server)."""
+    if not _origin_ok(request):
+        return JSONResponse({"error": "origin not allowed"}, status_code=403)
+
+    async def stream():
+        yield ": mios-computer-use-server mcp stream\n\n"
+        try:
+            while True:
+                await asyncio.sleep(15)
+                yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.delete("/mcp")
+async def mcp_delete():
+    # Stateless: no session to terminate.
+    return Response(status_code=405)
+
+
+# ---- A2A ----
+@app.get("/.well-known/agent-card.json")
+@app.get("/.well-known/agent.json")
+@app.get("/v1/agent-card")
+async def a2a_card(request: Request):
+    return JSONResponse(_agent_card(_base(request)))
+
+
+@app.get("/a2a/contexts/{ctx_id}")
+async def a2a_context(ctx_id: str):
+    return JSONResponse({"contextId": ctx_id, "protocolVersion": A2A_PROTOCOL_VERSION,
+                         "messages": _CONTEXTS.get(ctx_id, [])})
+
+
+@app.post("/a2a")
+async def a2a_rpc(request: Request):
+    try:
+        req = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return JSONResponse({"jsonrpc": "2.0", "id": None,
+                             "error": {"code": -32700, "message": "parse error"}}, status_code=400)
+    rid = req.get("id")
+    method = req.get("method")
+    params = req.get("params") or {}
+
+    if method == "agent/getCard":
+        return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": _agent_card(_base(request))})
+
+    if method in ("message/send", "tasks/send"):
+        if not _auth_ok(request):
+            return JSONResponse({"jsonrpc": "2.0", "id": rid,
+                                 "error": {"code": -32001, "message": "unauthorized"}}, status_code=401)
+        task = await _a2a_handle_send(params)
+        return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": task})
+
+    if method == "message/stream":
+        if not _auth_ok(request):
+            return JSONResponse({"jsonrpc": "2.0", "id": rid,
+                                 "error": {"code": -32001, "message": "unauthorized"}}, status_code=401)
+
+        async def stream():
+            # Emit a working status, then the completed Task as terminal SSE events
+            # (A2A streaming shape: incremental status-update -> final task).
+            yield _sse({"jsonrpc": "2.0", "id": rid,
+                        "result": {"kind": "status-update",
+                                   "status": {"state": "working"},
+                                   "final": False}})
+            task = await _a2a_handle_send(params)
+            yield _sse({"jsonrpc": "2.0", "id": rid, "result": task})
+
+        return StreamingResponse(stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    return JSONResponse({"jsonrpc": "2.0", "id": rid,
+                         "error": {"code": -32601, "message": f"method not found: {method}"}})
+
+
+def _sse(obj: dict) -> str:
+    return f"data: {json.dumps(obj)}\n\n"
+
+
+# ---- REST executor contract ----
+@app.get("/health")
+async def health():
+    return JSONResponse({"status": "ok", "prog": PROG, "tools": [t["name"] for t in _tools()],
+                         "mcp": "/mcp", "a2a_card": "/.well-known/agent-card.json"})
+
+
+@app.get("/screenshot")
+async def ex_screenshot():
+    return JSONResponse(await _screenshot_b64())
+
+
+@app.get("/windows")
+@app.get("/screen-layout")
+async def ex_windows():
+    return JSONResponse(await _run_json(["window-list", "--json"]))
+
+
+def _need_auth(request: Request):
+    if not _auth_ok(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return None
+
+
+@app.post("/input/{action}")
+async def ex_input(action: str, request: Request):
+    if (deny := _need_auth(request)) is not None:
+        return deny
+    b = await _safe_json(request)
+    m = {
+        "click": lambda: _call_tool("cu.click", b),
+        "double-click": lambda: _run_json(["double-click", str(b.get("x", 0)), str(b.get("y", 0))]),
+        "mouse-move": lambda: _call_tool("cu.mouse_move", b),
+        "type": lambda: _call_tool("cu.type", b),
+        "key": lambda: _call_tool("cu.key", b),
+        "key-combo": lambda: _call_tool("cu.key_combo", {"combo": b.get("combo", "")}),
+    }.get(action)
+    if not m:
+        return JSONResponse({"error": f"unknown input action {action}"}, status_code=404)
+    return JSONResponse(await m())
+
+
+@app.post("/window/{action}")
+async def ex_window(action: str, request: Request):
+    if (deny := _need_auth(request)) is not None:
+        return deny
+    b = await _safe_json(request)
+    wid = str(b.get("id", b.get("hwnd", "")))
+    m = {
+        "focus": lambda: _run_json(["window-focus", wid]),
+        "move": lambda: _run_json(["window-move", wid, str(b.get("x", 0)), str(b.get("y", 0))]),
+        "resize": lambda: _run_json(["window-resize", wid, str(b.get("width", 0)), str(b.get("height", 0))]),
+    }.get(action)
+    if not m:
+        return JSONResponse({"error": f"unknown window action {action}"}, status_code=404)
+    return JSONResponse(await m())
+
+
+@app.post("/atspi/query")
+async def ex_atspi(request: Request):
+    b = await _safe_json(request)
+    return JSONResponse(await _call_tool("cu.atspi_query", b))
+
+
+@app.post("/ground")
+async def ex_ground(request: Request):
+    b = await _safe_json(request)
+    return JSONResponse(await _call_tool("cu.ground", b))
+
+
+async def _safe_json(request: Request) -> dict:
+    try:
+        return await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+# ── entrypoint ─────────────────────────────────────────────────────────────────
+def _port() -> int:
+    try:
+        return int(_cu_cfg("server_port", 11438))
+    except (TypeError, ValueError):
+        return 11438
+
+
+def main() -> int:
+    bind = str(_cu_cfg("bind_address", "127.0.0.1"))
+    if not bind:
+        sys.stderr.write(f"[{PROG}] bind_address empty -> server disabled by config\n")
+        return 0
+    port = _port()
+    sys.stderr.write(f"[{PROG}] FastAPI/uvicorn on {bind}:{port} "
+                     f"(MCP /mcp, A2A /.well-known/agent-card.json + /a2a, executor /input/*)\n")
+    sys.stderr.flush()
+    uvicorn.run(app, host=bind, port=port, log_level="warning",
+                timeout_keep_alive=75, access_log=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

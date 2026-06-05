@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/install-nvidia-wsl-userland.sh
 #
 # Install NVIDIA's Vulkan ICD + GLX/EGL userspace libs for WSLg
@@ -42,7 +43,7 @@
 #
 # Operator override: set MIOS_SKIP_NVIDIA_INSTALL=1 to skip entirely.
 
-set -e
+# set -e covered by set -euo pipefail at top
 
 if [ "${MIOS_SKIP_NVIDIA_INSTALL:-0}" = "1" ]; then
     echo "  [skip] MIOS_SKIP_NVIDIA_INSTALL=1; not installing NVIDIA userland."

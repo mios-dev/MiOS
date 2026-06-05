@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Read icon names on stdin, resolve each to a real file inside the
 # WSL distro, rasterize/copy to a 256x256 PNG in /tmp/mios-icon-stage/,
 # and print "<icon-name>|<staged path>" per line. Used by

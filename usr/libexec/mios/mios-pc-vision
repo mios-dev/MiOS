@@ -42,6 +42,13 @@ from pathlib import Path
 DEFAULT_MODEL = "qwen3-vl:4b"
 DEFAULT_ENDPOINT = "http://localhost:11434/v1"
 DEFAULT_TIMEOUT_S = 60
+# Grounding output format. qwen3-vl & most VLMs emit the JSON the SYSTEM_PROMPT
+# below asks for ("json"). UI-TARS / GUI-Actor emit an Action DSL carrying
+# coordinates ("uitars"). "auto" picks by model name (a vLLM lane served as
+# "mios-grounding" / "ui-tars*" -> uitars). coord_space: "image" = absolute
+# pixels (UI-TARS-1.5), "thousand" = 0..1000 per-mille (rescaled to image dims).
+DEFAULT_FORMAT = "auto"
+DEFAULT_COORD_SPACE = "image"
 
 
 def _toml_layered(section: str, key: str) -> str | None:
@@ -85,6 +92,27 @@ def _resolve_config() -> tuple[str, str]:
     return model, endpoint.rstrip("/")
 
 
+def _resolve_format(model: str) -> tuple[str, str]:
+    """Resolve (output_format, coord_space) for the grounding model."""
+    fmt = (
+        os.environ.get("MIOS_VISION_FORMAT")
+        or _toml_layered("ai", "vision_grounding_format")
+        or _toml_layered("computer_use", "grounding_format")
+        or DEFAULT_FORMAT
+    )
+    coord = (
+        os.environ.get("MIOS_VISION_COORD_SPACE")
+        or _toml_layered("ai", "vision_grounding_coord_space")
+        or DEFAULT_COORD_SPACE
+    )
+    if fmt == "auto":
+        m = model.lower()
+        fmt = "uitars" if any(
+            t in m for t in ("ui-tars", "uitars", "gui-actor", "grounding")
+        ) else "json"
+    return fmt, coord
+
+
 SYSTEM_PROMPT = """You are a UI grounding model. Given a screenshot and a
 natural-language description of a UI element, return ONLY a single-line
 JSON object with the click coordinates of the matching element:
@@ -98,9 +126,52 @@ Rules:
 - Return ONLY the JSON object, no markdown fences, no extra prose.
 """
 
+# UI-TARS / GUI-Actor grounding -- these models emit an Action DSL, not JSON.
+UITARS_SYSTEM = """You are a GUI grounding agent. You are given a screenshot and
+an instruction naming a target UI element. Output ONE action pointing at the
+centre of that element, in exactly this format and nothing else:
 
-def ground(image_path: Path, query: str, *, model: str, endpoint: str) -> dict:
-    """Send image + query to the vision model, parse the JSON reply."""
+Action: click(start_box='(x,y)')
+
+x and y are integer pixel coordinates measured from the top-left of the
+screenshot. Output only the single Action line."""
+
+
+def _png_size(path: Path) -> tuple[int, int]:
+    """Read a PNG's pixel dimensions from its IHDR (no PIL dependency)."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(26)
+        if head[:8] == b"\x89PNG\r\n\x1a\n" and head[12:16] == b"IHDR":
+            return (int.from_bytes(head[16:20], "big"),
+                    int.from_bytes(head[20:24], "big"))
+    except OSError:
+        pass
+    return (0, 0)
+
+
+def _parse_uitars(content: str, img_w: int, img_h: int, coord_space: str) -> dict:
+    """Extract click coordinates from a UI-TARS/GUI-Actor Action reply."""
+    m = (re.search(r"start_box='?\(([^)]+)\)'?", content)
+         or re.search(r"<point>([^<]+)</point>", content)
+         or re.search(r"\(([0-9.,\s]+)\)", content))
+    nums = [float(x) for x in re.findall(r"[0-9.]+", m.group(1))] if m else []
+    if len(nums) < 2:
+        return {"x": -1, "y": -1, "confidence": 0.0,
+                "reasoning": f"no coords in reply: {content.strip()[:120]}"}
+    if len(nums) >= 4:  # bounding box -> centre
+        x, y = (nums[0] + nums[2]) / 2.0, (nums[1] + nums[3]) / 2.0
+    else:
+        x, y = nums[0], nums[1]
+    if coord_space == "thousand" and img_w and img_h:  # 0..1000 -> pixels
+        x, y = x / 1000.0 * img_w, y / 1000.0 * img_h
+    return {"x": int(round(x)), "y": int(round(y)), "confidence": 0.9,
+            "reasoning": content.strip()[:160]}
+
+
+def ground(image_path: Path, query: str, *, model: str, endpoint: str,
+           fmt: str = "json", coord_space: str = "image") -> dict:
+    """Send image + query to the vision model; parse per `fmt` (json|uitars)."""
     if not image_path.is_file():
         raise FileNotFoundError(f"screenshot not found: {image_path}")
     image_bytes = image_path.read_bytes()
@@ -110,14 +181,18 @@ def ground(image_path: Path, query: str, *, model: str, endpoint: str) -> dict:
         suffix, "image/png"
     )
 
+    is_tars = fmt == "uitars"
+    sys_prompt = UITARS_SYSTEM if is_tars else SYSTEM_PROMPT
+    user_text = (f"Click the following element: {query}" if is_tars
+                 else f"Element to find: {query}")
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": sys_prompt},
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": f"Element to find: {query}"},
+                    {"type": "text", "text": user_text},
                     {
                         "type": "image_url",
                         "image_url": {"url": f"data:{mime};base64,{image_b64}"},
@@ -145,8 +220,11 @@ def ground(image_path: Path, query: str, *, model: str, endpoint: str) -> dict:
     if not content:
         raise RuntimeError(f"vision model returned no content: {body!r}")
 
-    # Model SHOULD return a single-line JSON. Be tolerant of code-fence
-    # wrapping or trailing prose.
+    if is_tars:
+        w, h = _png_size(image_path)
+        return _parse_uitars(content, w, h, coord_space)
+
+    # JSON path: tolerate code-fence wrapping or trailing prose.
     m = re.search(r"\{[^{}]*\}", content)
     if not m:
         raise RuntimeError(f"could not parse JSON from model reply:\n{content}")
@@ -155,14 +233,12 @@ def ground(image_path: Path, query: str, *, model: str, endpoint: str) -> dict:
     except json.JSONDecodeError as e:
         raise RuntimeError(f"bad JSON in model reply: {e}\n{content}") from e
 
-    # Normalise / validate
-    out = {
+    return {
         "x": int(result.get("x", -1)),
         "y": int(result.get("y", -1)),
         "confidence": float(result.get("confidence", 0.0)),
         "reasoning": str(result.get("reasoning", "")),
     }
-    return out
 
 
 def main() -> int:
@@ -173,6 +249,8 @@ def main() -> int:
     ap.add_argument("query", help="Natural-language description of the UI element")
     ap.add_argument("--model", default=None, help="Override vision model (else mios.toml [ai].vision_grounding_model)")
     ap.add_argument("--endpoint", default=None, help="Override vision endpoint (else mios.toml [ai].vision_grounding_endpoint)")
+    ap.add_argument("--format", default=None, choices=["auto", "json", "uitars"], help="Output format (else mios.toml [ai].vision_grounding_format; auto picks by model)")
+    ap.add_argument("--coord-space", default=None, choices=["image", "thousand"], help="UI-TARS coordinate space (else mios.toml [ai].vision_grounding_coord_space)")
     ap.add_argument("--pretty", action="store_true", help="Pretty-print JSON")
     args = ap.parse_args()
 
@@ -181,11 +259,19 @@ def main() -> int:
         model = args.model
     if args.endpoint:
         endpoint = args.endpoint.rstrip("/")
+    fmt, coord_space = _resolve_format(model)
+    if args.format and args.format != "auto":
+        fmt = args.format
+    elif args.format == "auto":
+        fmt, _ = _resolve_format(model)
+    if args.coord_space:
+        coord_space = args.coord_space
 
     try:
-        result = ground(args.screenshot, args.query, model=model, endpoint=endpoint)
+        result = ground(args.screenshot, args.query, model=model, endpoint=endpoint,
+                        fmt=fmt, coord_space=coord_space)
     except (FileNotFoundError, RuntimeError) as e:
-        print(json.dumps({"error": str(e), "model": model, "endpoint": endpoint}), file=sys.stderr)
+        print(json.dumps({"error": str(e), "model": model, "endpoint": endpoint, "format": fmt}), file=sys.stderr)
         return 1
 
     if args.pretty:

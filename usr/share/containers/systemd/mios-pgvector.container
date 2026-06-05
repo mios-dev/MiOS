@@ -1,0 +1,71 @@
+# /usr/share/containers/systemd/mios-pgvector.container
+# 'MiOS' unified agent-plane datastore -- PostgreSQL + pgvector (WS-9, 2026-06-04).
+# FOSS-pure (PostgreSQL License + pgvector) replacement for the SurrealDB
+# (BSL 1.1) agent store. Stands up ALONGSIDE SurrealDB (additive) -- nothing live
+# cuts over yet (see concepts/postgres-pgvector-unification.md for the staged
+# migration). One engine for relational + JSONB (document) + vector (pgvector
+# HNSW) -- the standard "back to SQL" agent-memory stack (Letta/MemGPT/Memori/
+# OWUI all converge here). OWUI + Guacamole fold onto this at cutover.
+#
+# Schema initialised from /usr/share/mios/postgres/schema-init.sql on FIRST init
+# (mounted into /docker-entrypoint-initdb.d; idempotent DDL incl. CREATE
+# EXTENSION vector). Data persists under /var/lib/mios/pgvector (created +
+# chowned by usr/lib/tmpfiles.d/mios-pgvector.conf at boot). SSOT: mios.toml
+# [image.sidecars].pgvector, [ports].pgvector, [services.pgvector].{uid,gid},
+# [pgvector].{user,pass,db,data_dir}.
+
+[Unit]
+Description='MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS)
+After=network-online.target
+Wants=network-online.target
+# postgres PGDATA on overlayfs-on-overlayfs is unreliable -> skip inside a nested
+# container (mirrors the guacamole-postgres policy).
+ConditionVirtualization=!container
+
+[Container]
+# Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
+# pgvector/pgvector bundles the `vector` extension on top of upstream postgres.
+Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg17}
+ContainerName=mios-pgvector
+# Host networking (matches mios-surrealdb): reliable localhost:5432 for the pipe
+# + mios-daemon + every MiOS AI surface, sidestepping the podman-WSL port-
+# forwarder quirk. Loopback-class infra service. (guacamole-postgres uses the
+# bridge net on its OWN port, so there's no host:5432 collision.)
+Network=host
+
+# Persistent data dir. PGDATA is a SUBDIR of the mounted dir so the postgres
+# entrypoint (running as a non-root uid) can create + own it under the
+# tmpfiles-chowned parent. Path from [pgvector].data_dir.
+Volume=${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z
+# Schema init: postgres runs /docker-entrypoint-initdb.d/*.sql on FIRST init only
+# (empty PGDATA). Idempotent DDL (CREATE ... IF NOT EXISTS + the vector ext).
+Volume=/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro
+
+# Identity from mios.toml [services.pgvector] (uid 826, AI tier so agents read
+# it; pinned in usr/lib/sysusers.d/50-mios-services.conf). Matches the tmpfiles
+# chown of the data dir.
+User=${MIOS_PGVECTOR_UID:-826}
+Group=${MIOS_PGVECTOR_GID:-826}
+
+# LOCAL-ONLY default credentials (host-net loopback). Operator overrides via
+# [pgvector].user/pass in /etc/mios/mios.toml or a Quadlet drop-in.
+Environment=POSTGRES_USER=${MIOS_PG_USER:-mios}
+Environment=POSTGRES_PASSWORD=${MIOS_PG_PASS:-mios}
+Environment=POSTGRES_DB=${MIOS_PG_DB:-mios}
+Environment=PGDATA=/var/lib/postgresql/data/pgdata
+
+# Bind 0.0.0.0:<port> so host + bridge both reach it. Port from [ports].pgvector.
+Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=*
+
+# OCI labels for Podman Desktop.
+Label=org.opencontainers.image.title=mios-pgvector
+Label=org.opencontainers.image.documentation=https://github.com/pgvector/pgvector
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=180s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # /usr/libexec/mios/mios-wsl-flatpak-heal
 #
 # Pre-emptively ensure the user-side flatpak portal stack is alive

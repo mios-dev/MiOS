@@ -5,7 +5,7 @@
 # emits its own SSE status events. Sidecar's hermes-tail polling
 # also surfaces stale events as if current, and its post-call
 # response can replace the legitimate polished reply.
-set -u
+set -euo pipefail
 DB=/var/lib/mios/open-webui/webui.db
 
 if [[ ! -f "$DB" ]]; then

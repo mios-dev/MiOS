@@ -1,7 +1,15 @@
 # Local-only PC Control: Hermes + opencode + a vision LLM under MiOS
 
-**Status:** architecture proposal (May 2026). Building blocks identified;
-helper + skill not yet wired (tracked as future task).
+**Status:** SHIPPED + EXTENDED 2026-06-04. The Windows path
+(`mios-pc-control` + `mios-pc-vision`) is live; this proposal is now
+realised cross-platform AND federated. The Linux/Wayland peer
+(`mios-computer-use` + `cu_*` verbs + dual MCP/A2A node server) and the
+federation story are documented in
+`usr/share/doc/mios/concepts/computer-use-federation.md`. UI-TARS-1.5-7B
+grounding (this doc's named upgrade path) is wired into `mios-pc-vision`
++ the gated `mios-vllm` lane (`MIOS_VLLM_SERVED_NAME=mios-grounding`),
+VRAM-gated until the dGPU frees. The original proposal text below is
+retained for provenance.
 
 This document captures the research synthesis behind achieving Anthropic-
 "Computer Use"-style desktop automation on a MiOS-on-WSL2 host using ONLY
