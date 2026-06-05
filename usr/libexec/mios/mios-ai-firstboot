@@ -27,11 +27,23 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
         log "installing python3.13 (hermes-agent requires >=3.11,<3.14)"
         dnf install -y python3.13 python3.13-devel >/dev/null 2>&1 || log "WARN: python3.13 install failed"
     fi
-    if [ -x /automation/38-hermes-agent.sh ]; then
-        log "building shared agent venv via /automation/38-hermes-agent.sh"
-        bash /automation/38-hermes-agent.sh 2>&1 | tail -12
+    # The canonical venv builder lives in automation/ (build-time). The overlay
+    # checks out usr/etc/var to / but NOT automation/, so find it across the
+    # locations it can actually be: a runtime copy, the / git working tree
+    # (materialize on demand), or the mounted Windows mios.git clone on the dev VM.
+    HSCRIPT=""
+    for p in /usr/libexec/mios/38-hermes-agent.sh /automation/38-hermes-agent.sh /mnt/m/automation/38-hermes-agent.sh /mnt/c/MiOS/automation/38-hermes-agent.sh; do
+        [ -f "$p" ] && HSCRIPT="$p" && break
+    done
+    if [ -z "$HSCRIPT" ] && [ -d /.git ]; then
+        git -C / checkout -- automation/38-hermes-agent.sh automation/lib 2>/dev/null
+        [ -f /automation/38-hermes-agent.sh ] && HSCRIPT=/automation/38-hermes-agent.sh
+    fi
+    if [ -n "$HSCRIPT" ]; then
+        log "building shared agent venv via $HSCRIPT"
+        bash "$HSCRIPT" 2>&1 | tail -12
     else
-        log "WARN: /automation/38-hermes-agent.sh absent -- cannot build agent venv"
+        log "WARN: 38-hermes-agent.sh not found (/, git, /mnt/m) -- agent venv NOT built"
     fi
     if [ -x "${VENV}/bin/hermes" ]; then log "agent venv ready: ${VENV}"; else log "WARN: agent venv still missing"; fi
 fi
