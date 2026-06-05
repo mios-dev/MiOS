@@ -1459,6 +1459,20 @@ def _pg_mirror(table: str, fields: dict) -> None:
         pass
 
 
+def _db_write(table: str, fields: dict, *, now_fields: tuple = (),
+              extra: str = "", passport_sign: bool = True) -> None:
+    """Unified agent-plane WRITE seam (WS-9c full cutover). Mirrors the row to
+    Postgres+pgvector when enabled, and writes SurrealDB UNLESS Postgres is
+    primary -- so flipping [pgvector].db_backend='postgres' moves writes fully
+    onto PG and stops touching SurrealDB. Fire-and-forget + degrade-open (matches
+    _db_fire/_pg_mirror). Time columns (now_fields) take the pgvector column
+    DEFAULT (now()) on the PG side, so they're omitted from the mirror row."""
+    _pg_mirror(table, fields)
+    if not _PG_PRIMARY:
+        _db_fire(_db_post(_db_create(table, fields, now_fields=now_fields,
+                                     extra=extra, passport_sign=passport_sign)))
+
+
 # ── Router system prompt (kept in lockstep with the OWUI pipe) ─────
 # IMPORTANT: this verb table MUST stay synchronized with the OWUI
 # Pipe class's _ROUTER_SYSTEM. Either side advertising verbs the
