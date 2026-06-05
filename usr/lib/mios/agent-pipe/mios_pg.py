@@ -138,9 +138,36 @@ async def execute(sql: str, params: Optional[dict] = None,
         return None
 
 
+_COLS_CACHE: dict = {}
+
+
+async def _table_columns(table: str, *, cfg: Optional[dict] = None) -> set:
+    """Cached set of a table's column names (information_schema). Lets insert()
+    drop fields the live schema doesn't have, so code<->schema drift degrades to
+    a PARTIAL row instead of a silent total failure (+ a 30s backoff that would
+    poison every other table's mirror too)."""
+    if table in _COLS_CACHE:
+        return _COLS_CACHE[table]
+    rows = await execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = %(t)s",
+        {"t": table}, fetch=True, cfg=cfg)
+    cols = {r["column_name"] for r in (rows or []) if r.get("column_name")}
+    if cols:
+        _COLS_CACHE[table] = cols
+    return cols
+
+
 async def insert(table: str, fields: dict, *, cfg: Optional[dict] = None) -> Any:
-    """Build + run a parameterized INSERT (WS-9c dual-write mirror). Degrade-open
-    -> None (psycopg/PG absent or error never breaks the caller)."""
+    """Build + run a parameterized INSERT (WS-9c dual-write mirror). Filters the
+    fields to the live table's columns first (drift-tolerant -- a code field the
+    schema lacks is dropped, not fatal). Degrade-open -> None (psycopg/PG absent
+    or error never breaks the caller)."""
+    cols = await _table_columns(table, cfg=cfg)
+    if cols:
+        fields = {k: v for k, v in fields.items() if k in cols}
+    if not fields:
+        return None
     sql, params = build_insert(table, fields)
     return await execute(sql, params, fetch=False, cfg=cfg)
 

@@ -78,19 +78,24 @@ CREATE INDEX IF NOT EXISTS event_ts      ON event (ts DESC);
 
 -- ── tool_call: every dispatched verb + result + taint ────────────────────────
 CREATE TABLE IF NOT EXISTS tool_call (
-    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    session_id   text,
-    tool         text,
-    args         jsonb,
-    output       text,
-    stderr       text,
-    exit_code    integer,
-    latency_ms   integer,
-    tainted      boolean DEFAULT false,
-    taint_reason text,
-    passport     jsonb,
-    ts           timestamptz DEFAULT now()
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    session_id     text,
+    tool           text,
+    args           jsonb,
+    result_preview text,                              -- code field (matches agent-pipe writes)
+    success        boolean,                           -- read by the satisfaction check
+    output         text,
+    stderr         text,
+    exit_code      integer,
+    latency_ms     integer,
+    tainted        boolean DEFAULT false,
+    taint_reason   text,
+    passport       jsonb,
+    ts             timestamptz DEFAULT now()
 );
+-- Reconcile pre-existing tool_call tables to the code's actual fields (idempotent).
+ALTER TABLE tool_call ADD COLUMN IF NOT EXISTS result_preview text;
+ALTER TABLE tool_call ADD COLUMN IF NOT EXISTS success        boolean;
 CREATE INDEX IF NOT EXISTS tool_call_session ON tool_call (session_id);
 CREATE INDEX IF NOT EXISTS tool_call_tool    ON tool_call (tool);
 CREATE INDEX IF NOT EXISTS tool_call_taint   ON tool_call (session_id) WHERE tainted;
