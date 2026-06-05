@@ -19,8 +19,14 @@ Description='MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS)
 After=network-online.target
 Wants=network-online.target
 # postgres PGDATA on overlayfs-on-overlayfs is unreliable -> skip inside a nested
-# container (mirrors the guacamole-postgres policy).
-ConditionVirtualization=!container
+# container (mirrors the guacamole-postgres policy). systemd classifies WSL2 as
+# container-class, so add an OR (repeated ConditionVirtualization = OR semantics)
+# to still RUN on the WSL dev VM -- its /var is real ext4, not overlay-on-overlay.
+# The `|` prefix makes these TRIGGERING (OR) conditions (plain repeats AND); the
+# unit runs if EITHER holds -> bare-metal (not container) OR wsl; skips only a
+# true nested container (podman/docker), the original overlay-on-overlay guard.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
 
 [Container]
 # Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.

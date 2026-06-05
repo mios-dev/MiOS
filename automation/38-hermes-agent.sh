@@ -77,8 +77,18 @@ install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { warn "[38-h
 
 # Build the venv. pip install directly from the git ref -- no editable
 # checkout, no leftover src tree in the image.
-if ! python3 -m venv "${VENV_DIR}" 2>/dev/null; then
-    warn "[38-hermes-agent] python3 -m venv failed -- skipping direct install"
+# hermes-agent requires Python >=3.11,<3.14; the base image's python3 may be
+# >=3.14 (Fedora 44 ships 3.14 -> pip rejects the wheel: "requires a different
+# Python: 3.14.x not in '<3.14,>=3.11'"). Prefer an explicit <3.14 interpreter
+# for the shared venv when one is installed; degrade-open to python3 so there is
+# NO regression where only 3.14 exists (2026-06-05 rebuild fix).
+VENV_PY=python3
+for _py in python3.13 python3.12 python3.11; do
+    command -v "${_py}" >/dev/null 2>&1 && { VENV_PY="${_py}"; break; }
+done
+log "[38-hermes-agent] venv interpreter: ${VENV_PY} ($(${VENV_PY} --version 2>&1))"
+if ! "${VENV_PY}" -m venv "${VENV_DIR}" 2>/dev/null; then
+    warn "[38-hermes-agent] ${VENV_PY} -m venv failed -- skipping direct install"
     exit 0
 fi
 

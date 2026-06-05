@@ -52,6 +52,9 @@ Volume=/usr/share/mios/llamacpp/llama-swap.yaml:/app/config.yaml:ro,Z
 Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z
 
 Environment=HOME=/var/lib/mios/llamacpp
+# Pin the entrypoint to the confirmed llama-swap binary so the Exec args below are
+# ITS args regardless of the image's default entrypoint (verified /app/llama-swap).
+Entrypoint=/app/llama-swap
 # llama-swap: serve the model map on the SSOT port. Flag name verified per
 # llama-swap version (--config / --listen).
 Exec=--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLAMA_SWAP:-11450}

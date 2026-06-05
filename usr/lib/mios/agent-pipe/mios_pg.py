@@ -29,17 +29,17 @@ from typing import Any, Optional
 # DB is down / not yet deployed, skip attempts for a window so a default "dual"
 # backend doesn't churn one failed 5s connect per write. Module-global; single
 # event loop.
-_PG_DOWN_UNTIL = 0.0
+_pg_down_until = 0.0
 _PG_BACKOFF_S = 30.0
 
 
 def _pg_skip() -> bool:
-    return time.monotonic() < _PG_DOWN_UNTIL
+    return time.monotonic() < _pg_down_until
 
 
 def _pg_mark_down() -> None:
-    global _PG_DOWN_UNTIL
-    _PG_DOWN_UNTIL = time.monotonic() + _PG_BACKOFF_S
+    global _pg_down_until
+    _pg_down_until = time.monotonic() + _PG_BACKOFF_S
 
 
 # ── config / DSN (SSOT: mios.toml [pgvector] -> MIOS_PG_* env via userenv.sh) ──

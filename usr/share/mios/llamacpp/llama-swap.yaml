@@ -20,25 +20,24 @@
 
 models:
   # ── chat / reasoning models (KV-pageable; --parallel 1 = one resident slot) ──
-  "qwen3.5:4b":
+  # NOTE 2026-06-04 (live finding): qwen3.5:4b is BLOCKED on mainline llama.cpp --
+  # its custom "qwen35" arch fails to load ("key qwen35.rope.dimension_sections
+  # has wrong array length; expected 4, got 3"); ollama runs it via a patched
+  # fork. Using the standard-arch qwen3:1.7b here proves the llama.cpp + GPU +
+  # KV-paging lane works LIVE. Restore a qwen3.5 entry once a llama.cpp build
+  # supports the qwen35 arch (or convert the model).
+  "qwen3:1.7b":
     cmd: >
-      /app/llama-server --model /models/qwen3.5-4b.gguf
+      /app/llama-server --model /models/qwen3-1.7b.gguf
       --port ${PORT} --host 127.0.0.1
       --ctx-size 8192 --parallel 1
-      --n-gpu-layers 999 --flash-attn
+      --n-gpu-layers 999 --flash-attn auto
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
-  "gemma4:e4b":
-    cmd: >
-      /app/llama-server --model /models/gemma4-e4b.gguf
-      --port ${PORT} --host 127.0.0.1
-      --ctx-size 8192 --parallel 1
-      --n-gpu-layers 999 --flash-attn
-      --slot-save-path /var/lib/mios/llamacpp/slots --jinja
-    proxy: "http://127.0.0.1:${PORT}"
-    ttl: 300
+  # (gemma4 dropped 2026-06-04: no GGUF present in ollama's blobs; the swarm's
+  # llama-swap node uses qwen3.5:4b. Add a gemma4 entry + GGUF when available.)
 
   # ── embeddings (replaces the ollama embed lane; OpenAI /v1/embeddings) ──
   "nomic-embed-text":

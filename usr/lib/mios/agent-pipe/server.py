@@ -288,10 +288,10 @@ WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").str
 WEB_RESEARCH_MAX_ATTEMPTS = max(1, _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "max_attempts", 5))
 _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
-_JUDGE_EP = os.environ.get(
+_JUDGE_ENDPOINT = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_ENDPOINT",
     os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11435/v1")).rstrip("/")
-_JUDGE_BASE = (_JUDGE_EP[:-3].rstrip("/") if _JUDGE_EP.endswith("/v1") else _JUDGE_EP)
+_JUDGE_BASE = (_JUDGE_ENDPOINT[:-3].rstrip("/") if _JUDGE_ENDPOINT.endswith("/v1") else _JUDGE_ENDPOINT)
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
 # ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
@@ -469,7 +469,7 @@ def _dispatch_toml() -> dict:
 _DISPATCH_TOML = _dispatch_toml()
 
 
-def _disp_num(env: str, key: str, default, cast=int):
+def _dispatch_num(env: str, key: str, default, cast=int):
     """Resolve a numeric tunable: env override -> mios.toml [dispatch].<key> ->
     literal default. Unlike a bare `a or b or default` chain this PRESERVES a
     legitimate 0 (e.g. dag_node_retry = 0 = no retry)."""
@@ -493,10 +493,10 @@ def _disp_num(env: str, key: str, default, cast=int):
 # (iGPU ~7 tok/s, phone) gets a SMALLER budget so it FINISHES within the read
 # timeout instead of timing out empty + bottlenecking the gather. A node that
 # still returns empty is retried DAG_NODE_RETRY times (read-only -> safe retry).
-DAG_NODE_MAX_TOKENS = _disp_num("MIOS_DAG_NODE_MAX_TOKENS", "dag_node_max_tokens", 800)
-DAG_NODE_SLOW_MAX_TOKENS = _disp_num(
+DAG_NODE_MAX_TOKENS = _dispatch_num("MIOS_DAG_NODE_MAX_TOKENS", "dag_node_max_tokens", 800)
+DAG_NODE_SLOW_MAX_TOKENS = _dispatch_num(
     "MIOS_DAG_NODE_SLOW_MAX_TOKENS", "dag_node_slow_max_tokens", 350)
-DAG_NODE_RETRY = _disp_num("MIOS_DAG_NODE_RETRY", "dag_node_retry", 1)
+DAG_NODE_RETRY = _dispatch_num("MIOS_DAG_NODE_RETRY", "dag_node_retry", 1)
 # PER-NODE WALL-CLOCK DEADLINE (operator 2026-06-01j "ridiculous runtimes"): the
 # turn waited for the SLOWEST node (potato-cpu ~600s, an unresponsive daemon-agent)
 # -> it blew past every client timeout and the user saw a punt. Bound EACH agent
@@ -504,7 +504,7 @@ DAG_NODE_RETRY = _disp_num("MIOS_DAG_NODE_RETRY", "dag_node_retry", 1)
 # -> success:False) and the synthesiser proceeds on the nodes that DID answer. The
 # fast dGPU/hermes nodes finish in ~15s, so the turn no longer hostage to a slow
 # remote. SSOT [dispatch].dag_node_deadline_s.
-DAG_NODE_DEADLINE_S = _disp_num("MIOS_DAG_NODE_DEADLINE_S", "dag_node_deadline_s", 75, float)
+DAG_NODE_DEADLINE_S = _dispatch_num("MIOS_DAG_NODE_DEADLINE_S", "dag_node_deadline_s", 75, float)
 # Slow-lane (CPU/iGPU/phone) get a LONGER node deadline (operator 2026-06-02
 # "LOCAL CPU IS NEEDED ... ALL NODES PLAY A PART"): once a slow node is sized
 # correctly (reasons over the grounding the fast lanes fetched -- no 16K-ctx
@@ -512,7 +512,7 @@ DAG_NODE_DEADLINE_S = _disp_num("MIOS_DAG_NODE_DEADLINE_S", "dag_node_deadline_s
 # a slow CPU generation is never abandoned just for being slow. The fast lanes
 # work-steal (deepen) while it finishes, so the wall-clock is still bounded by
 # this, not the old 75s that guillotined local-cpu. SSOT [dispatch].dag_node_deadline_slow_s.
-DAG_NODE_DEADLINE_SLOW_S = _disp_num(
+DAG_NODE_DEADLINE_SLOW_S = _dispatch_num(
     "MIOS_DAG_NODE_DEADLINE_SLOW_S", "dag_node_deadline_slow_s", 150, float)
 # BARRIER-DEEPEN (operator 2026-05-26 "other nodes should be looping until all
 # slower nodes complete ... looping tools/skills/recipes used"): in a swarm
@@ -521,7 +521,7 @@ DAG_NODE_DEADLINE_SLOW_S = _disp_num(
 # DEEPENING its facet -- extra web-research + re-answer passes -- so the slowest
 # node (iGPU/phone) sets the wall-clock and NO fast node sits idle. Bounded by
 # the barrier + DEEPEN_MAX_ITERS so it can never run away.
-# SSOT deepen tunables (resolved via _disp_num from mios.toml [dispatch], above).
+# SSOT deepen tunables (resolved via _dispatch_num from mios.toml [dispatch], above).
 # A SATISFIED node exits immediately (operator 2026-05-31, see
 # _deepen_until_barrier), so the deadline only ever bites a stubborn facet.
 SWARM_DEEPEN_ENABLED = (os.environ.get(
@@ -543,10 +543,10 @@ SWARM_SATURATE = (os.environ.get(
 # UNTIL SATISFIED (operator 2026-05-29 "NOT JUST 2 PASSES!!! UNTIL SATISFIED!!!"):
 # the deepen loop runs while the node's answer is NOT satisfied (judge-gated),
 # bounded by the WALL-CLOCK DEADLINE; the iter cap is a high RUNAWAY BACKSTOP.
-DEEPEN_MAX_ITERS = _disp_num("MIOS_SWARM_DEEPEN_ITERS", "deepen_iters", 12)
-DEEPEN_DEADLINE_S = _disp_num(
+DEEPEN_MAX_ITERS = _dispatch_num("MIOS_SWARM_DEEPEN_ITERS", "deepen_iters", 12)
+DEEPEN_DEADLINE_S = _dispatch_num(
     "MIOS_SWARM_DEEPEN_DEADLINE_S", "deepen_deadline_s", 120, float)
-DEEPEN_WEB_TIMEOUT_S = _disp_num(
+DEEPEN_WEB_TIMEOUT_S = _dispatch_num(
     "MIOS_SWARM_DEEPEN_WEB_S", "deepen_web_timeout_s", 20, float)
 # DETAIL-FILL deepen (operator 2026-06-02 "also can loop to gather data in
 # detail-fill passes"): a work-stealing FAST node fetches NEW web data each deepen
@@ -621,7 +621,7 @@ STATUS_AS_REASONING = os.environ.get(
 # nodes share this semaphore via _call_agent_complete, so the swarm engages at
 # most N agents at once; the rest queue. Also protects the shared model lanes /
 # search engines from being overrun (the same burst that degraded web search).
-AGENT_CONCURRENCY = _disp_num("MIOS_AGENT_CONCURRENCY", "agent_concurrency", 3)
+AGENT_CONCURRENCY = _dispatch_num("MIOS_AGENT_CONCURRENCY", "agent_concurrency", 3)
 _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
 # Global HOST in-flight cap (operator 2026-06-01 load-361 near-wedge fix;
@@ -634,7 +634,7 @@ _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 # OUTSIDE the endpoint/lane sems but AFTER _admit (admit is the soft wait; this is
 # the hard cap on actually-running work, so it can't deadlock on the admit wait).
 # SSOT [dispatch].global_concurrency (env MIOS_GLOBAL_CONCURRENCY).
-GLOBAL_DISPATCH_CONCURRENCY = _disp_num(
+GLOBAL_DISPATCH_CONCURRENCY = _dispatch_num(
     "MIOS_GLOBAL_CONCURRENCY", "global_concurrency",
     max(8, (os.cpu_count() or 8) - 4))
 _GLOBAL_DISPATCH_SEM = asyncio.Semaphore(max(1, GLOBAL_DISPATCH_CONCURRENCY))
@@ -651,7 +651,7 @@ _GLOBAL_DISPATCH_SEM = asyncio.Semaphore(max(1, GLOBAL_DISPATCH_CONCURRENCY))
 PRIORITY_QUEUE_ENABLE = str(os.environ.get("MIOS_PRIORITY_QUEUE")
                             or _DISPATCH_TOML.get("priority_queue_enable", "false")
                             ).strip().lower() in {"1", "true", "yes"}
-PRIORITY_STARVATION_S = _disp_num("MIOS_PRIORITY_STARVATION_MS",
+PRIORITY_STARVATION_S = _dispatch_num("MIOS_PRIORITY_STARVATION_MS",
                                   "priority_starvation_ms", 4000, float) / 1000.0
 _GLOBAL_PRIORITY_GATE = PriorityGate(GLOBAL_DISPATCH_CONCURRENCY,
                                      PRIORITY_STARVATION_S)
@@ -697,7 +697,7 @@ async def _priority_gate(priority: float):
 # (b) Turn-wide wall-clock backstop: a connected-but-runaway turn can't exceed
 # this; the per-node deepen caps don't bound the whole turn. Generous so a legit
 # deep multi-node research turn still completes. SSOT [dispatch].*.
-OLLAMA_NUM_PREDICT_CAP = _disp_num(
+OLLAMA_NUM_PREDICT_CAP = _dispatch_num(
     "MIOS_OLLAMA_NUM_PREDICT_CAP", "ollama_num_predict_cap", 2048)
 # (a2) PER-LANE cap: a CPU/iGPU lane generates SLOWLY (a 4B CPU model ~5 tok/s),
 # so the full 2048-token cap = ~400s of pegged cores per generation. Since ollama
@@ -705,9 +705,18 @@ OLLAMA_NUM_PREDICT_CAP = _disp_num(
 # (operator 2026-06-01j). Give the slow lanes a much SHORTER ceiling so each gen
 # self-clears fast; the dGPU keeps the full cap. Applied via _num_predict_cap_for
 # (reuses the _CPU_LANE_HINTS endpoint detector). SSOT [dispatch].*.
-OLLAMA_NUM_PREDICT_CAP_CPU = _disp_num(
+OLLAMA_NUM_PREDICT_CAP_CPU = _dispatch_num(
     "MIOS_OLLAMA_NUM_PREDICT_CAP_CPU", "ollama_num_predict_cap_cpu", 512)
-TURN_DEADLINE_S = _disp_num("MIOS_TURN_DEADLINE_S", "turn_deadline_s", 600, float)
+TURN_DEADLINE_S = _dispatch_num("MIOS_TURN_DEADLINE_S", "turn_deadline_s", 600, float)
+# T21 request-cancellation (2026-06-04): cancel a NON-STREAMING turn's swarm the
+# moment the client disconnects, instead of churning DAG+deepen to the 600s
+# deadline. The STREAMING path already self-bounds on disconnect in
+# _execute_dag_emitting; this closes the non-streaming gap. Default ON;
+# degrade-open (no request / disabled -> deadline-only, unchanged). SSOT [dispatch].
+REQUEST_CANCEL_ENABLE = _dispatch_num(
+    "MIOS_REQUEST_CANCEL_ENABLE", "request_cancel_enable", 1, int) != 0
+REQUEST_CANCEL_POLL_S = _dispatch_num(
+    "MIOS_REQUEST_CANCEL_POLL_S", "request_cancel_poll_s", 2.0, float)
 # Supersede registry: chat_id -> the active turn's cancel Event. A NEW turn for a
 # chat SET()s the prior turn's event so the orchestrator's drain loop stops it
 # (operator 2026-06-01: don't leave an abandoned/superseded turn generating).
@@ -719,20 +728,20 @@ _CHAT_CANCEL: dict = {}
 # (UNCAPPED) default, so a trivial prompt fanned out to every live agent and
 # cold-loaded all their models simultaneously -> ollama thundering herd ->
 # loadavg 128 -> VM wedge. Default to a sane width; 0 = uncapped (opt-in).
-COUNCIL_MAX_DEFAULT = _disp_num("MIOS_COUNCIL_MAX", "council_max", 4)
+COUNCIL_MAX_DEFAULT = _dispatch_num("MIOS_COUNCIL_MAX", "council_max", 4)
 # SWARM/DAG width cap (operator 2026-06-01 "16-agent explosion / 18-min turn"):
 # the DAG fan-out (_agent_dag_from_tasks) had NO width cap -- COUNCIL_MAX only
 # bounds the council path -- so a research turn assigned EVERY live eligible agent
 # its own node. Bound the swarm to at most this many DISTINCT (endpoint,model)
 # targets. 0 = uncapped. SSOT [dispatch].swarm_max_width.
-SWARM_MAX_WIDTH = _disp_num("MIOS_SWARM_MAX_WIDTH", "swarm_max_width", 6)
+SWARM_MAX_WIDTH = _dispatch_num("MIOS_SWARM_MAX_WIDTH", "swarm_max_width", 6)
 # Slow-lane (CPU/iGPU) fan-out CEILING (operator 2026-06-01j runaway): GPU/fast
 # nodes fan out unbounded (each on its own fast hardware), but the CPU/iGPU lanes
 # are where stacked ~100s gens pile up. Cap how many slow-lane nodes a single DAG
 # BACKFILLS (primary facet nodes are never dropped). Default = the live CPU node
 # count (local-cpu + potato-cpu) so it's a no-op today but bounds a research/deep
 # turn that would otherwise multiply CPU replicas across the lanes. SSOT.
-SWARM_MAX_CPU_NODES = _disp_num("MIOS_SWARM_MAX_CPU_NODES", "swarm_max_cpu_nodes", 2)
+SWARM_MAX_CPU_NODES = _dispatch_num("MIOS_SWARM_MAX_CPU_NODES", "swarm_max_cpu_nodes", 2)
 
 # Per-LANE concurrency (operator 2026-05-24: "iGPU fires WITH CPU cores as well
 # as the rest of the other engines, hardware or nodes"). The single global
@@ -753,7 +762,7 @@ _LANE_SEMS: dict = {}
 # many concurrent calls hit ONE endpoint regardless of lane, so cold-starts on a
 # shared daemon serialize. SSOT [dispatch].endpoint_concurrency (default 2).
 _ENDPOINT_SEMS: dict = {}
-ENDPOINT_CONCURRENCY = _disp_num("MIOS_AGENT_ENDPOINT_CONCURRENCY",
+ENDPOINT_CONCURRENCY = _dispatch_num("MIOS_AGENT_ENDPOINT_CONCURRENCY",
                                  "endpoint_concurrency", 2)
 
 # ── Admission controller (operator 2026-06-01 P1): capacity-aware admission
@@ -764,10 +773,10 @@ ENDPOINT_CONCURRENCY = _disp_num("MIOS_AGENT_ENDPOINT_CONCURRENCY",
 # load thundering herd without the blunt static caps.
 ADMIT_ENABLE = str(os.environ.get("MIOS_ADMIT_ENABLE")
                    or _DISPATCH_TOML.get("admit_enable", "false")).lower() in {"1", "true", "yes"}
-ADMIT_LOAD_CEIL = _disp_num("MIOS_ADMIT_LOAD_CEIL", "admit_load_ceil",
+ADMIT_LOAD_CEIL = _dispatch_num("MIOS_ADMIT_LOAD_CEIL", "admit_load_ceil",
                             max(2, (os.cpu_count() or 4)) * 2, float)
-ADMIT_MEM_PCT = _disp_num("MIOS_ADMIT_MEM_PCT", "admit_mem_pct", 92, float)
-ADMIT_MAX_WAIT = _disp_num("MIOS_ADMIT_MAX_WAIT", "admit_max_wait", 8.0, float)
+ADMIT_MEM_PCT = _dispatch_num("MIOS_ADMIT_MEM_PCT", "admit_mem_pct", 92, float)
+ADMIT_MAX_WAIT = _dispatch_num("MIOS_ADMIT_MAX_WAIT", "admit_max_wait", 8.0, float)
 _HOST_STATS_CACHE = {"t": 0.0, "v": None}
 _RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
 _ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
@@ -837,9 +846,9 @@ def _lane_sem(key: str) -> asyncio.Semaphore:
         # oversubscribe the single shared 4090 (live test 2026-05-31: it thrashed).
         # Custom/remote lanes (potato-gpu, igpu, ...) fall to the general default.
         _k = key.replace("-", "_")
-        _general = _disp_num("MIOS_AGENT_LANE_CONCURRENCY", "lane_concurrency",
+        _general = _dispatch_num("MIOS_AGENT_LANE_CONCURRENCY", "lane_concurrency",
                              AGENT_CONCURRENCY)
-        n = _disp_num("MIOS_AGENT_LANE_CONCURRENCY_" + _k.upper(),
+        n = _dispatch_num("MIOS_AGENT_LANE_CONCURRENCY_" + _k.upper(),
                       "lane_concurrency_" + _k, _general)
         _LANE_SEMS[key] = asyncio.Semaphore(max(1, n))
     return _LANE_SEMS[key]
@@ -1793,11 +1802,11 @@ VRAM_TURN_HEADROOM_MB = int(os.environ.get("MIOS_VRAM_TURN_HEADROOM_MB", "16000"
 VRAM_COLOAD_ENABLE = os.environ.get(
     "MIOS_VRAM_COLOAD", "true").lower() not in {"false", "0", "no"}
 # SSOT: [dispatch].vram_coload_reserve_mb / vram_coload_est_mb (env overrides).
-VRAM_COLOAD_RESERVE_MB = _disp_num(
+VRAM_COLOAD_RESERVE_MB = _dispatch_num(
     "MIOS_VRAM_COLOAD_RESERVE_MB", "vram_coload_reserve_mb", 3000)
 # Estimated VRAM a cold model needs when we can't read its size yet (used only
 # until it appears in /api/ps). Conservative default ~ a 4-7B Q4 model.
-VRAM_COLOAD_EST_MB = _disp_num(
+VRAM_COLOAD_EST_MB = _dispatch_num(
     "MIOS_VRAM_COLOAD_EST_MB", "vram_coload_est_mb", 5000)
 
 
@@ -2246,8 +2255,8 @@ _KV_PAGING_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_KV_PAGING_HINTS")
                            or _DISPATCH_TOML.get("kv_paging_hints", "11436")).split(",")
     if h.strip())
-KV_PAGING_SLOT = _disp_num("MIOS_KV_PAGING_SLOT", "kv_paging_slot", 0)
-KV_PAGING_TIMEOUT = _disp_num(
+KV_PAGING_SLOT = _dispatch_num("MIOS_KV_PAGING_SLOT", "kv_paging_slot", 0)
+KV_PAGING_TIMEOUT = _dispatch_num(
     "MIOS_KV_PAGING_TIMEOUT", "kv_paging_timeout", 12.0, cast=float)
 # (endpoint#slot) -> conversation key currently resident in that slot, and a
 # matching lock so restore->complete->save brackets serialise per slot.
@@ -2260,12 +2269,12 @@ _KV_LOCKS: dict = {}
 # (child) over the EXISTING _kv_slot_action primitive, run under the per-slot
 # lock. DEFAULT-OFF + degrade-open: when disabled (or on any slot error) the
 # child simply starts cold, exactly as today. Read directly from mios.toml
-# [dispatch] via _disp_num/_DISPATCH_TOML (same path as the KV paging knobs).
+# [dispatch] via _dispatch_num/_DISPATCH_TOML (same path as the KV paging knobs).
 KV_FORK_ENABLE = (
     str(os.environ.get("MIOS_KV_FORK")
         or _DISPATCH_TOML.get("kv_fork_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
-KV_FORK_MAX_BRANCHES = _disp_num("MIOS_KV_FORK_MAX_BRANCHES", "kv_fork_max_branches", 4)
+KV_FORK_MAX_BRANCHES = _dispatch_num("MIOS_KV_FORK_MAX_BRANCHES", "kv_fork_max_branches", 4)
 
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
@@ -5569,14 +5578,14 @@ def _url_has_path(u: str) -> bool:
 # nav-link bullet LINES while they still carry the [..](..) shape, THEN flatten
 # inline links in prose to their anchor text (kills the long URLs that also
 # burn budget; the [n] block header still carries the citable source URL).
-_RE_MD_IMG = re.compile(r"!\[[^\]]*\]\([^)]*\)")
-_RE_EMPTY_LINK = re.compile(r"\[\s*\]\([^)]*\)")
-_RE_NAV_BULLET = re.compile(r"(?m)^\s*[\*\-+]\s*\[[^\]]*\]\([^)]*\)\s*$")
-_RE_INLINE_LINK = re.compile(r"\[([^\]]+)\]\((?:https?|ftp|mailto|javascript)[^)]*\)")
-_RE_DATA_URI = re.compile(r"\(data:[^)]*\)")
+_MD_IMG_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_EMPTY_LINK_RE = re.compile(r"\[\s*\]\([^)]*\)")
+_NAV_BULLET_RE = re.compile(r"(?m)^\s*[\*\-+]\s*\[[^\]]*\]\([^)]*\)\s*$")
+_INLINE_LINK_RE = re.compile(r"\[([^\]]+)\]\((?:https?|ftp|mailto|javascript)[^)]*\)")
+_DATA_URI_RE = re.compile(r"\(data:[^)]*\)")
 # Leftover empty list bullets after the link/image strips (e.g. "* )" / "* ").
-_RE_EMPTY_BULLET = re.compile(r"(?m)^\s*[\*\-+]\s*[)\]\s]*$")
-_RE_MULTI_BLANK = re.compile(r"\n{3,}")
+_EMPTY_BULLET_RE = re.compile(r"(?m)^\s*[\*\-+]\s*[)\]\s]*$")
+_MULTI_BLANK_RE = re.compile(r"\n{3,}")
 
 
 def _clean_web_text(s: str) -> str:
@@ -5586,13 +5595,13 @@ def _clean_web_text(s: str) -> str:
     if not s:
         return s
     try:
-        s = _RE_MD_IMG.sub("", s)
-        s = _RE_EMPTY_LINK.sub("", s)
-        s = _RE_NAV_BULLET.sub("", s)
-        s = _RE_INLINE_LINK.sub(r"\1", s)
-        s = _RE_DATA_URI.sub("", s)
-        s = _RE_EMPTY_BULLET.sub("", s)
-        s = _RE_MULTI_BLANK.sub("\n\n", s)
+        s = _MD_IMG_RE.sub("", s)
+        s = _EMPTY_LINK_RE.sub("", s)
+        s = _NAV_BULLET_RE.sub("", s)
+        s = _INLINE_LINK_RE.sub(r"\1", s)
+        s = _DATA_URI_RE.sub("", s)
+        s = _EMPTY_BULLET_RE.sub("", s)
+        s = _MULTI_BLANK_RE.sub("\n\n", s)
         return s.strip()
     except Exception:  # noqa: BLE001 -- never let cleanup break grounding
         return s
@@ -5807,8 +5816,8 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         # path strands a qwen3 'think' answer in an empty content field); a
         # non-ollama /v1 endpoint (the iGPU's qwen2.5, no think-split) uses
         # /chat/completions with response_format json_object.
-        _url = (f"{_JUDGE_EP}/chat/completions" if _JUDGE_EP.endswith("/v1")
-                else f"{_JUDGE_EP}/v1/chat/completions")
+        _url = (f"{_JUDGE_ENDPOINT}/chat/completions" if _JUDGE_ENDPOINT.endswith("/v1")
+                else f"{_JUDGE_ENDPOINT}/v1/chat/completions")
         try:
             async with httpx.AsyncClient(timeout=20.0) as c:
                 r = await c.post(_url, json={
@@ -8664,7 +8673,7 @@ DCI_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_DCI_MAX_TOKENS", "400"))
 # as the failure mode for unstructured debate ("sycophantic
 # convergence", "groupthink", "fragmentation"). Kept identical to
 # the paper so future B.2 / B.3 references stay grounded.
-DCI_ACTS: dict[str, dict] = {
+_DCI_ACTS: dict[str, dict] = {
     # Orienting: problem framing + scope.
     "frame":         {"family": "orienting",   "intent": "establish the problem definition"},
     "clarify":       {"family": "orienting",   "intent": "request or supply clarification"},
@@ -8687,17 +8696,17 @@ DCI_ACTS: dict[str, dict] = {
     "recommend":     {"family": "decisional",  "intent": "advance a specific action / decision"},
 }
 
-DCI_ACT_NAMES = sorted(DCI_ACTS.keys())
+_DCI_ACT_NAMES = sorted(_DCI_ACTS.keys())
 
 # JSON Schema for OpenAI structured-output constraint. The model
 # MUST emit exactly this shape; anything else is a parse error.
 # `confidence` is a 0.0-1.0 scalar so downstream can sort by it
 # (e.g. Phase B.2's tension tracker promotes high-confidence
 # CHALLENGE acts over low-confidence ones).
-DCI_ACT_SCHEMA: dict = {
+_DCI_ACT_SCHEMA: dict = {
     "type": "object",
     "properties": {
-        "act":        {"type": "string", "enum": DCI_ACT_NAMES,
+        "act":        {"type": "string", "enum": _DCI_ACT_NAMES,
                        "description": "Which of the 14 DCI epistemic acts you are emitting."},
         "content":    {"type": "string",
                        "description": "Free-form payload, 1-3 sentences. Mirror the chat language."},
@@ -8722,7 +8731,7 @@ _DCI_CRITIC_SYSTEM = (
     "\n"
     "Available acts (pick ONE):\n"
     + "\n".join(f"  - {a}: {info['intent']} (family: {info['family']})"
-                for a, info in sorted(DCI_ACTS.items())) +
+                for a, info in sorted(_DCI_ACTS.items())) +
     "\n\n"
     "Output schema (JSON ONLY):\n"
     '  {"act":"<one of the 14>",\n'
@@ -8795,7 +8804,7 @@ _PERSONA_ALLOWED_ACTS: dict[str, set] = {
 # generic critic prompt -- focuses the model on a specific act
 # family while preserving access to the full 14-act vocabulary
 # (the persona "constrains tendency, not capability" per DCI
-# §4.1). The shared structural-output schema (DCI_ACT_SCHEMA from
+# §4.1). The shared structural-output schema (_DCI_ACT_SCHEMA from
 # B.1) is reused -- one schema, four prompts.
 
 def _persona_prompt(role: str, role_desc: str, allowed_acts: set) -> str:
@@ -8803,7 +8812,7 @@ def _persona_prompt(role: str, role_desc: str, allowed_acts: set) -> str:
     listed acts, with each act's intent inline so the model picks
     the right one for its cognitive role."""
     allowed_lines = "\n".join(
-        f"  - {a}: {DCI_ACTS[a]['intent']}"
+        f"  - {a}: {_DCI_ACTS[a]['intent']}"
         for a in sorted(allowed_acts)
     )
     return (
@@ -8920,12 +8929,12 @@ async def _dci_call_persona(
     if not isinstance(parsed, dict):
         return None
     act = parsed.get("act")
-    if act not in DCI_ACTS:
+    if act not in _DCI_ACTS:
         return None
     # Per-persona constraint: reject acts outside the persona's
     # allowed set. Forces deliberative diversity vs single-model
     # mode-collapse.
-    allowed = _PERSONA_ALLOWED_ACTS.get(persona_name, set(DCI_ACTS.keys()))
+    allowed = _PERSONA_ALLOWED_ACTS.get(persona_name, set(_DCI_ACTS.keys()))
     if act not in allowed:
         log.info("dci %s emitted %s (not in family); rejecting",
                  persona_name, act)
@@ -8935,7 +8944,7 @@ async def _dci_call_persona(
     except (TypeError, ValueError):
         parsed["confidence"] = 0.5
     parsed["persona"] = persona_name
-    parsed["family"] = DCI_ACTS[act]["family"]
+    parsed["family"] = _DCI_ACTS[act]["family"]
     return parsed
 
 
@@ -9334,14 +9343,14 @@ async def dci_critic_pass(
     if not isinstance(parsed, dict):
         return None
     act = parsed.get("act")
-    if act not in DCI_ACTS:
+    if act not in _DCI_ACTS:
         return None
     # Normalize + cap confidence.
     try:
         parsed["confidence"] = max(0.0, min(1.0, float(parsed.get("confidence", 0.5))))
     except (TypeError, ValueError):
         parsed["confidence"] = 0.5
-    family = DCI_ACTS[act]["family"]
+    family = _DCI_ACTS[act]["family"]
     # SurrealDB event row -- tag with the act + family for later
     # analytics (e.g. SELECT * FROM event WHERE kind='dci_act' AND
     # payload.act='challenge' to find what the critic challenged).
@@ -11090,17 +11099,36 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
 
 
 async def _execute_dag_bounded(dag: dict, *, session_id: Optional[str],
-                               deepen_barrier: bool = False) -> dict:
+                               deepen_barrier: bool = False,
+                               request=None) -> dict:
     """Non-streaming execute_dag with a hard TURN_DEADLINE_S wall-clock backstop
-    (operator 2026-06-01 runaway fix). The STREAMING path self-bounds in
-    _execute_dag_emitting (disconnect/supersede/deadline); a non-streaming handler
-    is NOT cancelled on client disconnect, so bound it here. On timeout, wait_for
-    cancels the executor -> _execute_dag_saturated's CancelledError handler cancels
-    in-flight node tasks so they stop dispatching. Returns a partial result."""
+    (operator 2026-06-01 runaway fix) PLUS client-disconnect cancellation (T21,
+    2026-06-04) when `request` is provided: a non-streaming caller that hangs up
+    stops the swarm IMMEDIATELY rather than churning DAG+deepen to the deadline.
+    The STREAMING path self-bounds on disconnect in _execute_dag_emitting; this
+    closes the non-streaming gap. On timeout/disconnect, wait_for/cancel stops the
+    executor -> _execute_dag_saturated's CancelledError handler cancels in-flight
+    node tasks so they stop dispatching. Returns a partial result. Degrade-open:
+    request=None or REQUEST_CANCEL_ENABLE=false -> deadline-only (unchanged)."""
+    _task = asyncio.create_task(
+        execute_dag(dag, session_id=session_id, deepen_barrier=deepen_barrier))
+    _disconnected = False
+    _watch = None
+    if request is not None and REQUEST_CANCEL_ENABLE:
+        async def _watch_disconnect():
+            nonlocal _disconnected
+            while not _task.done():
+                try:
+                    if await request.is_disconnected():
+                        _disconnected = True
+                        _task.cancel()
+                        return
+                except Exception:  # never let the watcher break the turn
+                    return
+                await asyncio.sleep(REQUEST_CANCEL_POLL_S)
+        _watch = asyncio.create_task(_watch_disconnect())
     try:
-        return await asyncio.wait_for(
-            execute_dag(dag, session_id=session_id, deepen_barrier=deepen_barrier),
-            timeout=TURN_DEADLINE_S)
+        return await asyncio.wait_for(_task, timeout=TURN_DEADLINE_S)
     except asyncio.TimeoutError:
         log.warning("non-streaming turn deadline %.0fs exceeded -> partial result",
                     TURN_DEADLINE_S)
@@ -11108,6 +11136,17 @@ async def _execute_dag_bounded(dag: dict, *, session_id: Optional[str],
         return {"success": False, "summary": dag.get("summary", ""),
                 "nodes_total": len(dag.get("nodes") or []), "nodes_executed": 0,
                 "node_results": [], "timed_out": True}
+    except asyncio.CancelledError:
+        if _disconnected:
+            log.info("non-streaming turn CANCELLED: client disconnected -> swarm stopped")
+            await _reap_cpu_lane("client disconnect")
+            return {"success": False, "summary": dag.get("summary", ""),
+                    "nodes_total": len(dag.get("nodes") or []), "nodes_executed": 0,
+                    "node_results": [], "disconnected": True}
+        raise
+    finally:
+        if _watch is not None:
+            _watch.cancel()
 
 
 async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
@@ -11740,7 +11779,7 @@ async def _expand_facets(user_text: str, existing: list, target_n: int,
 async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                              streaming: bool, chat_id: str, model: str,
                              session_id: Optional[str], last_user_text: str,
-                             persona_system: str):
+                             persona_system: str, request=None):
     """Execute a per-agent DAG concurrently and SYNTHESISE the agents'
     outputs into ONE polished answer (multi_task -> parallel sub-agents).
     The per-node audit envelope rides the reasoning channel; the polished
@@ -12188,7 +12227,8 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     else:
         await _ground_shared()    # casual: ONE shared web_search into every node
     dag_result = await _execute_dag_bounded(dag, session_id=session_id,
-                                            deepen_barrier=SWARM_DEEPEN_ENABLED)
+                                            deepen_barrier=SWARM_DEEPEN_ENABLED,
+                                            request=request)
     _envelope, main = await _synthesise(dag_result)
     return JSONResponse(content={
         "id": chat_id, "object": "chat.completion",
@@ -16710,7 +16750,7 @@ async def health() -> dict[str, Any]:
             "enabled": DCI_ENABLED,
             "model": DCI_MODEL,
             "endpoint": DCI_ENDPOINT,
-            "act_count": len(DCI_ACTS),
+            "act_count": len(_DCI_ACTS),
             "flow": {
                 "enabled": DCI_FLOW_ENABLED,
                 "r_max": DCI_FLOW_R_MAX,
@@ -16963,9 +17003,9 @@ async def dci_deliberate(request: Request) -> JSONResponse:
 @app.get("/dci/schema")
 async def dci_schema() -> JSONResponse:
     return JSONResponse(content={
-        "acts": DCI_ACTS,
-        "act_names": DCI_ACT_NAMES,
-        "response_schema": DCI_ACT_SCHEMA,
+        "acts": _DCI_ACTS,
+        "act_names": _DCI_ACT_NAMES,
+        "response_schema": _DCI_ACT_SCHEMA,
         "enabled": DCI_ENABLED,
     })
 
@@ -18274,7 +18314,7 @@ async def chat_completions(request: Request) -> Any:
                              [n.get("tool") or ("agent:" + str(n.get("agent")))
                               for n in _vnodes])
                     return await _respond_agent_dag(
-                        _vdag, refined, streaming=streaming, chat_id=chat_id,
+                        _vdag, refined, request=request, streaming=streaming, chat_id=chat_id,
                         model=model, session_id=session_id,
                         last_user_text=last_user_text,
                         persona_system=_persona_system)
@@ -18293,7 +18333,7 @@ async def chat_completions(request: Request) -> Any:
                              len(_adag["nodes"]),
                              [n["agent"] for n in _adag["nodes"]])
                     return await _respond_agent_dag(
-                        _adag, refined, streaming=streaming, chat_id=chat_id,
+                        _adag, refined, request=request, streaming=streaming, chat_id=chat_id,
                         model=model, session_id=session_id,
                         last_user_text=last_user_text,
                         persona_system=_persona_system)
@@ -18511,7 +18551,7 @@ async def chat_completions(request: Request) -> Any:
                      [n.get("tool") or ("agent:" + str(n.get("agent")))
                       for n in _nd])
             return await _respond_agent_dag(
-                _mdag, refined, streaming=streaming, chat_id=chat_id,
+                _mdag, refined, request=request, streaming=streaming, chat_id=chat_id,
                 model=model, session_id=session_id,
                 last_user_text=last_user_text, persona_system=_persona_system)
 
@@ -18805,7 +18845,7 @@ async def chat_completions(request: Request) -> Any:
                     return StreamingResponse(_stream_dag(),
                                              media_type="text/event-stream")
                 # Non-streaming DAG execution.
-                dag_result = await _execute_dag_bounded(dag, session_id=session_id)
+                dag_result = await _execute_dag_bounded(dag, session_id=session_id, request=request)
                 env = {
                     "dag": {
                         "summary": dag.get("summary", ""),
@@ -18897,7 +18937,7 @@ async def chat_completions(request: Request) -> Any:
                     yield _sse_done()
                 return StreamingResponse(_stream_dag2(),
                                          media_type="text/event-stream")
-            dag_result = await _execute_dag_bounded(dag, session_id=session_id)
+            dag_result = await _execute_dag_bounded(dag, session_id=session_id, request=request)
             env = {
                 "dag": {
                     "summary": dag.get("summary", ""),
@@ -19865,8 +19905,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-s.exit(main())

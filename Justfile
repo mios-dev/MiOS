@@ -60,7 +60,7 @@ lint:
 
 # Build OCI image locally
 build: preflight flight-status
-    podman build --no-cache \
+    podman build --no-cache --network=host \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "mios")}} \
@@ -76,7 +76,7 @@ build-logged: artifact
     @echo "[START] CHECKPOINT: Starting 'MiOS' build..." | tee -a "${LOG_FILE}"
     @echo "Unified log will be available at: ${LOG_FILE}" | tee -a "${LOG_FILE}"
     @echo "---" | tee -a "${LOG_FILE}"
-    @set -o pipefail; podman build --no-cache \
+    @set -o pipefail; podman build --no-cache --network=host \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "mios")}} \
@@ -89,7 +89,7 @@ build-logged: artifact
 
 # Build OCI image with verbose output (no redirection)
 build-verbose: artifact
-    podman build --no-cache \
+    podman build --no-cache --network=host \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "mios")}} \

@@ -908,6 +908,18 @@ model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLL
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load with ollama)
 api         = "openai"
 health_gate = true             # inert until the gated mios-vllm.service is enabled + reachable
+# Local llama-swap lane (WS-10) -- the llama.cpp multi-model + KV-paging lane
+# (mios-llama-swap.container on :11450; see [llamacpp]). health_gate=true =>
+# AUTO-JOINS only when reachable, and the quadlet is gated off until GGUFs are
+# provisioned (models/.ready), so this stays inert with ZERO risk until the
+# operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
+# KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
+[nodes.local-llamaswap]
+endpoint    = "http://localhost:11450/v1"
+model       = "qwen3:1.7b"     # MUST match llama-swap.yaml's map; qwen3.5:4b is BLOCKED on mainline llama.cpp (custom qwen35 arch) -> standard-arch model until a build supports it
+lane        = "gpu"            # shares the dGPU lane semaphore
+api         = "llamacpp"       # KV-paging + no tool_choice=required (config-first, not port-matched)
+health_gate = true             # inert until mios-llama-swap is up + reachable
 # REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
 # repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
 # on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
@@ -1095,6 +1107,12 @@ lane_priority        = "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"
 # first, then flip on via an /etc drop-in. _disp_num reads these directly.
 priority_queue_enable  = true   # ON (operator 2026-06-04 'everything on' for live MiOS-DEV); degrade-open to plain FIFO on any error
 priority_starvation_ms = 4000   # a queued dispatch older than this is served ahead of priority (anti-starvation)
+# T21 request-cancellation (2026-06-04): cancel a NON-STREAMING turn's swarm the
+# moment the client disconnects, instead of churning DAG+deepen to turn_deadline_s.
+# The streaming path already self-bounds on disconnect. Default ON; degrade-open
+# (request=None / disabled -> deadline-only, unchanged). _disp_num reads these.
+request_cancel_enable  = 1      # 1=cancel non-streaming turns on client disconnect; 0=deadline-only
+request_cancel_poll_s  = 2.0    # disconnect-watcher poll interval (seconds)
 # Proactively evict an IDLE resident model (refcount 0, non-kept) to free VRAM for
 # a cold model a turn NEEDS -- "clear RAM/VRAM for idle agents to be loaded so
 # nothing in the pipeline is idle". ollama lanes (/api/ps + keep_alive:0); the hard
@@ -1488,7 +1506,7 @@ bind_address       = "127.0.0.1" # "" disables the server; set the tailnet IP fo
 # exits 0 (degrade-open). NO new daemon/quadlet -- the binaries run synchronously
 # through the operator broker like the other libexec tools. Needs LibreOffice +
 # Pandoc in the image ([packages.docgen]); a missing binary also degrades-open.
-docgen_enable      = false       # MASTER GATE for mios-docgen (default off; flip in /etc overlay)
+docgen_enable      = true        # MASTER GATE for mios-docgen (operator 2026-06-04: pandoc+libreoffice installed + verified live; everything-on)
 docgen_pandoc      = "pandoc"    # pandoc binary or absolute path (markdown <-> docx/pptx/html/pdf)
 docgen_soffice     = "soffice"   # LibreOffice headless binary or path (office-binary + csv->xlsx + pdf)
 docgen_pdf_engine  = ""           # pandoc --pdf-engine; empty => route PDF through LibreOffice (no LaTeX needed)
@@ -4350,6 +4368,11 @@ pkgs = [
     "glibc-headers",
     "glibc-devel",
     "python3",
+    # python3.13: hermes-agent requires Python <3.14 but F44's python3 is 3.14;
+    # 38-hermes-agent.sh builds the shared agent venv with this when present
+    # (degrade-open to python3). --skip-unavailable keeps it safe if F44 names it
+    # differently (2026-06-05 rebuild fix).
+    "python3.13",
 ]
 
 [packages.gnome]

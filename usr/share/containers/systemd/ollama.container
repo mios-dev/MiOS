@@ -41,8 +41,8 @@ AddDevice=nvidia.com/gpu=all
 # usr/lib/sysusers.d/50-mios-services.conf so the host's mios-ollama
 # user has the same UID and the /var/lib/ollama volume ownership
 # stays consistent.
-User=815
-Group=815
+User=${MIOS_OLLAMA_UID:-815}
+Group=${MIOS_OLLAMA_GID:-815}
 # Bind 0.0.0.0 so the WSL VM's eth0 (NAT IP) accepts inbound from the
 # Windows-host netsh portproxy that build-mios.ps1 sets up
 # (0.0.0.0:11434 -> <WSL-VM-IP>:11434). Pre-2026-05-13 history: was

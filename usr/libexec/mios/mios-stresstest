@@ -1,0 +1,11 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-stresstest -- end-to-end direct-chat stress test of the
+# MiOS agent-pipe (/v1/chat/completions). Bounded, load-aware, completes every
+# turn (never orphans). Operator/dev tool -- NOT an agent verb (no chat turn can
+# launch a stress run). Runs the harness with python3 (httpx = an agent-pipe dep).
+#
+# Examples:
+#   mios-stresstest --count 40 --concurrency 8 --load-ceiling 42 --verbose
+#   mios-stresstest --endpoint http://localhost:8640/v1 --count 100 --concurrency 16
+# Exits 0 if the verdict PASSes (error-rate + p95 within thresholds), else 1.
+exec python3 /usr/lib/mios/agent-pipe/mios_stress.py "$@"
