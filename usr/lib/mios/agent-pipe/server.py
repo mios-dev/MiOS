@@ -1378,7 +1378,8 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
                extra: str = "",
-               passport_sign: bool = True) -> str:
+               passport_sign: bool = True,
+               _mirror: bool = True) -> str:
     """Build `CREATE <table> SET ...` with time::now() for datetime
     fields. SurrealDB 3.0+ rejects plain ISO-Z strings for TYPE
     datetime; canonical pattern is `field = time::now()` literal.
@@ -1417,6 +1418,12 @@ def _db_create(table: str, fields: dict, *,
     sql = f"CREATE {table} SET " + ", ".join(parts)
     if extra:
         sql += " " + extra
+    # WS-9c full cutover: mirror EVERY agent-plane write to Postgres+pgvector at
+    # this single build chokepoint (no-op unless _PG_ENABLED; fire-and-forget +
+    # degrade-open). Callers that mirror the row themselves with extra columns
+    # (e.g. session_id) pass _mirror=False to avoid a duplicate row.
+    if _mirror:
+        _pg_mirror(table, fields)
     return sql + ";"
 
 
@@ -1467,10 +1474,12 @@ def _db_write(table: str, fields: dict, *, now_fields: tuple = (),
     onto PG and stops touching SurrealDB. Fire-and-forget + degrade-open (matches
     _db_fire/_pg_mirror). Time columns (now_fields) take the pgvector column
     DEFAULT (now()) on the PG side, so they're omitted from the mirror row."""
-    _pg_mirror(table, fields)
+    # _db_create mirrors to pgvector at its chokepoint (default _mirror=True);
+    # post to SurrealDB only while it is still primary.
+    sql = _db_create(table, fields, now_fields=now_fields,
+                     extra=extra, passport_sign=passport_sign)
     if not _PG_PRIMARY:
-        _db_fire(_db_post(_db_create(table, fields, now_fields=now_fields,
-                                     extra=extra, passport_sign=passport_sign)))
+        _db_fire(_db_post(sql))
 
 
 # ── Router system prompt (kept in lockstep with the OWUI pipe) ─────
@@ -7473,7 +7482,7 @@ async def _store_knowledge_task(q: str, a: str,
             if emb:
                 row["emb"] = emb
         _pg_mirror("knowledge", {**row, "session_id": session_id})  # WS-9c
-        sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",))
+        sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip(";") + f", session = {session_id};"
         await _db_post(sql)
@@ -9876,7 +9885,7 @@ def _emit_session_event(fields: dict, session_id: Optional[str]) -> None:
     Reflexion buffer (_recent_reflections) can query it back per-session.
     Mirrors execute_dag's tool_call session-linking convention."""
     _pg_mirror("event", {**fields, "session_id": session_id})  # WS-9c
-    sql = _db_create("event", fields, now_fields=("ts",))
+    sql = _db_create("event", fields, now_fields=("ts",), _mirror=False)
     if session_id:
         sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
     _db_fire(_db_post(sql))
@@ -9931,7 +9940,7 @@ def _hitl_record_pending(tool: str, args: dict, action_hash: str,
         sql = _db_create("pending_action", {
             "tool": tool, "args": args, "action_hash": action_hash,
             "status": "pending",
-        }, now_fields=("ts",))
+        }, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
         _db_fire(_db_post(sql))
@@ -10969,7 +10978,7 @@ def _capture_run_template(dag: dict, session_id: Optional[str]) -> None:
             "summary": str(dag.get("summary") or "")[:500],
             "node_count": len(nodes),
             "dag": dag,
-        }, now_fields=("ts",))
+        }, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
         _db_fire(_db_post(sql))
