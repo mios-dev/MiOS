@@ -7521,7 +7521,8 @@ async def _store_knowledge_task(q: str, a: str,
         sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip(";") + f", session = {session_id};"
-        await _db_post(sql)
+        if not _PG_PRIMARY:                      # WS-9c: pgvector mirror is primary
+            await _db_post(sql)
     except Exception as e:
         log.warning("knowledge store skipped: %s", e)
 
