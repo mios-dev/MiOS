@@ -228,8 +228,11 @@ CREATE TABLE IF NOT EXISTS alias (
 );
 CREATE INDEX IF NOT EXISTS alias_phrase ON alias (phrase);
 
+-- Natural-key edge (phrase -> app_install.app_id): avoids RETURNING-id
+-- round-trips through subprocess-psql; kg_lookup is a JOIN on app_id.
 CREATE TABLE IF NOT EXISTS resolves_to (
-    alias_id       bigint REFERENCES alias(id) ON DELETE CASCADE,
-    app_install_id bigint REFERENCES app_install(id) ON DELETE CASCADE,
-    PRIMARY KEY (alias_id, app_install_id)
+    phrase  text,
+    app_id  text,
+    PRIMARY KEY (phrase, app_id)
 );
+CREATE INDEX IF NOT EXISTS resolves_to_phrase ON resolves_to (phrase);

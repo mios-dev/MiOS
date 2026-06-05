@@ -50,6 +50,47 @@ DB_NS = os.environ.get("MIOS_DB_NS", "mios")
 DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
 
+# WS-9c cutover: mirror PKG writes to Postgres+pgvector via the shared mios-db
+# --pg CLI. Natural-key model (resolves_to(phrase, app_id)) -- no record-id
+# round-trips. MIOS_DB_BACKEND: surreal|dual|postgres.
+DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
+_PG_ENABLED = DB_BACKEND in ("dual", "postgres")
+_PG_PRIMARY = DB_BACKEND == "postgres"
+_MIOS_DB = "/usr/libexec/mios/mios-db"
+
+
+def _pgesc(s) -> str:
+    return str(s).replace("'", "''")
+
+
+def _pgq(s) -> str:
+    return "'" + _pgesc(s) + "'"
+
+
+def _pg_exec(sql: str) -> None:
+    if not _PG_ENABLED:
+        return
+    try:
+        import subprocess
+        subprocess.run([_MIOS_DB, "--pg", sql],
+                       capture_output=True, text=True, timeout=15)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _pg_rows(sql_inner: str) -> list:
+    """Read rows from pgvector as list[dict] via json_agg + mios-db --pg."""
+    try:
+        import subprocess
+        out = subprocess.run(
+            [_MIOS_DB, "--json", "--pg",
+             f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+             f"FROM ({sql_inner}) t;"],
+            capture_output=True, text=True, timeout=15).stdout.strip()
+        return json.loads(out) if out else []
+    except Exception:  # noqa: BLE001
+        return []
+
 # Phase C.1 SSOT knobs from mios.toml [pkg].* (via userenv.sh slot
 # map). Defaults match the mios.toml seed so a Day-0 deploy with
 # no overrides still ingests sensibly.
@@ -178,6 +219,15 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
             ap_lit = json.dumps(app_id)
             lb_lit = json.dumps(label or "")
             lh_lit = json.dumps(launch_hint or "")
+            _pg_exec(
+                f"DELETE FROM app_install WHERE short_name = {_pgq(short_name)} "
+                f"AND source = {_pgq(source)}; "
+                f"INSERT INTO app_install (short_name, app_id, source, label, "
+                f"launch_hint) VALUES ({_pgq(short_name)}, {_pgq(app_id)}, "
+                f"{_pgq(source)}, {_pgq(label or '')}, {_pgq(launch_hint or '')});")
+            if _PG_PRIMARY:
+                inserted += 1
+                continue
             r = post_sql(
                 f"DELETE app_install WHERE short_name = {sn_lit} "
                 f"AND source = {src_lit}; "
@@ -219,6 +269,20 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
     # Resolve target: app:<short_name> or bare short_name.
     if target.startswith("app:"):
         target = target[4:]
+    # pgvector path (natural-key): phrase -> app_id via app_install.short_name.
+    if _PG_ENABLED:
+        pgr = _pg_rows(f"SELECT app_id FROM app_install "
+                       f"WHERE short_name = {_pgq(target)} LIMIT 1")
+        if pgr and pgr[0].get("app_id"):
+            _pg_exec(
+                f"DELETE FROM alias WHERE phrase = {_pgq(phrase)}; "
+                f"INSERT INTO alias (phrase) VALUES ({_pgq(phrase)}); "
+                f"DELETE FROM resolves_to WHERE phrase = {_pgq(phrase)}; "
+                f"INSERT INTO resolves_to (phrase, app_id) VALUES "
+                f"({_pgq(phrase)}, {_pgq(pgr[0]['app_id'])});")
+    if _PG_PRIMARY:
+        print(f"alias: {phrase!r} -> app:{target}")
+        return 0
     # Find the app_install record_id by short_name.
     sn = target.replace("'", "''")
     r = post_sql(
@@ -255,10 +319,13 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
 
 def cmd_alias_rm(args: argparse.Namespace) -> int:
     phrase = args.phrase.strip().lower().replace("'", "''")
-    post_sql(
-        f"DELETE resolves_to WHERE in.phrase = '{phrase}'; "
-        f"DELETE alias WHERE phrase = '{phrase}';"
-    )
+    _pg_exec(f"DELETE FROM resolves_to WHERE phrase = '{phrase}'; "
+             f"DELETE FROM alias WHERE phrase = '{phrase}';")
+    if not _PG_PRIMARY:
+        post_sql(
+            f"DELETE resolves_to WHERE in.phrase = '{phrase}'; "
+            f"DELETE alias WHERE phrase = '{phrase}';"
+        )
     print(f"alias: removed {phrase!r}")
     return 0
 
@@ -333,13 +400,18 @@ def cmd_lookup(args: argparse.Namespace) -> int:
 # ─── apps ──────────────────────────────────────────────────────────
 def cmd_apps(args: argparse.Namespace) -> int:
     filt = (args.filter or "").strip().lower().replace("'", "''")
-    where = (f"WHERE string::contains(string::lowercase(short_name), '{filt}') "
-             if filt else "")
-    r = post_sql(
-        f"SELECT short_name, source, label FROM app_install "
-        f"{where}ORDER BY short_name LIMIT 50;"
-    )
-    rows = last_ok(r) or []
+    if _PG_PRIMARY:
+        pgwhere = (f"WHERE short_name ILIKE '%{filt}%' " if filt else "")
+        rows = _pg_rows(f"SELECT short_name, source, label FROM app_install "
+                        f"{pgwhere}ORDER BY short_name LIMIT 50")
+    else:
+        where = (f"WHERE string::contains(string::lowercase(short_name), '{filt}') "
+                 if filt else "")
+        r = post_sql(
+            f"SELECT short_name, source, label FROM app_install "
+            f"{where}ORDER BY short_name LIMIT 50;"
+        )
+        rows = last_ok(r) or []
     if not rows:
         print("(no apps)")
         return 0
