@@ -7106,13 +7106,13 @@ async def _inline_satisfaction_check(
     # Write synchronously so polish's subsequent query picks it
     # up as the most-recent verdict for this session.
     try:
-        await _db_post(_db_create("event", {
+        _db_write("event", {
             "source": "mios-agent-pipe",
             "kind": kind,
             "severity": "info" if kind == "user_query_satisfied" else "warn",
             "summary": summary,
             "payload": body,
-        }, now_fields=("ts",)))
+        }, now_fields=("ts",))
     except Exception:
         pass
     return {"kind": kind, "payload": body}
@@ -8588,7 +8588,7 @@ async def execute_skill(name: str, params: dict, *,
                 await _skill_invocation_close(inv_id, success=True)
                 await _db_post(
                     f"UPDATE {row.get('id')} SET last_used_at = time::now();")
-                await _db_post(_db_create("event", {
+                _db_write("event", {
                     "source": "agent-pipe",
                     "kind": "skill_run",
                     "severity": "info",
@@ -8596,7 +8596,7 @@ async def execute_skill(name: str, params: dict, *,
                     "payload": {"skill": name, "winning_step": idx,
                                 "mode": "try-each",
                                 "steps_attempted": idx + 1},
-                }, now_fields=("ts",)))
+                }, now_fields=("ts",))
                 return {"success": True, "skill": name, "steps": results,
                         "failures": failures, "aborted": False,
                         "winning_step": idx, "mode": "try-each"}
@@ -8616,7 +8616,7 @@ async def execute_skill(name: str, params: dict, *,
             # Stop on first failure -- operator can re-run with
             # corrected params instead of cascading half-state.
             await _skill_invocation_close(inv_id, success=False)
-            await _db_post(_db_create("event", {
+            _db_write("event", {
                 "source": "agent-pipe",
                 "kind": "skill_run",
                 "severity": "warn",
@@ -8624,21 +8624,21 @@ async def execute_skill(name: str, params: dict, *,
                 "payload": {"skill": name, "step": idx,
                             "verb": verb,
                             "stderr": r.get("stderr", "")[:300]},
-            }, now_fields=("ts",)))
+            }, now_fields=("ts",))
             return {"success": False, "skill": name, "steps": results,
                     "failures": failures, "aborted": True}
     # Loop fell off the end. For try-each that means every step
     # failed (no win); for sequence that means every step succeeded.
     if mode == "try-each":
         await _skill_invocation_close(inv_id, success=False)
-        await _db_post(_db_create("event", {
+        _db_write("event", {
             "source": "agent-pipe",
             "kind": "skill_run",
             "severity": "warn",
             "summary": f"{name} exhausted (try-each)",
             "payload": {"skill": name, "mode": "try-each",
                         "steps_attempted": len(steps)},
-        }, now_fields=("ts",)))
+        }, now_fields=("ts",))
         return {"success": False, "skill": name, "steps": results,
                 "failures": failures, "aborted": True,
                 "mode": "try-each"}
@@ -8646,13 +8646,13 @@ async def execute_skill(name: str, params: dict, *,
     # Update last_used_at on the skill row for the configurator UI.
     await _db_post(
         f"UPDATE {row.get('id')} SET last_used_at = time::now();")
-    await _db_post(_db_create("event", {
+    _db_write("event", {
         "source": "agent-pipe",
         "kind": "skill_run",
         "severity": "info",
         "summary": f"{name} ok ({len(steps)} steps)",
         "payload": {"skill": name, "steps_run": len(steps)},
-    }, now_fields=("ts",)))
+    }, now_fields=("ts",))
     return {"success": True, "skill": name, "steps": results,
             "failures": [], "aborted": False}
 
@@ -11049,9 +11049,11 @@ async def run_templates_list() -> JSONResponse:
     observability."""
     rows: list = []
     try:
-        resp = await _db_post(
+        resp = await _db_read(
             "SELECT class, summary, node_count, ts FROM run_template "
-            "ORDER BY ts DESC LIMIT 50;")
+            "ORDER BY ts DESC LIMIT 50;",
+            pg_sql="SELECT class, summary, node_count, ts FROM run_template "
+                   "ORDER BY ts DESC LIMIT 50")
         for st in (resp or []):
             if isinstance(st, dict) and isinstance(st.get("result"), list):
                 rows = st["result"]
