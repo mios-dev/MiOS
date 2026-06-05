@@ -7192,7 +7192,10 @@ async def _recent_tool_history(session_id: Optional[str],
         f"FROM tool_call WHERE session = {session_id} "
         f"ORDER BY ts DESC LIMIT {int(limit)};"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT ts, tool, args, success, result_preview, exit_code "
+        "FROM tool_call WHERE session_id = %(sid)s "
+        "ORDER BY ts DESC LIMIT %(lim)s"), pg_params={"sid": session_id, "lim": int(limit)})
     if not r:
         return []
     rows = (r[-1] or {}).get("result") or []
@@ -9580,7 +9583,10 @@ async def _session_is_tainted(session_id: Optional[str]) -> tuple[bool, str]:
         f"WHERE session = {session_id} AND tainted = true "
         f"ORDER BY ts ASC LIMIT 5;"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT ts, tool, taint_reason FROM tool_call "
+        "WHERE session_id = %(sid)s AND tainted = true "
+        "ORDER BY ts ASC LIMIT 5"), pg_params={"sid": session_id})
     if not r:
         return False, ""
     rows = (r[-1] or {}).get("result") or []
@@ -11030,7 +11036,8 @@ def _capture_run_template(dag: dict, session_id: Optional[str]) -> None:
         }, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
-        _db_fire(_db_post(sql))
+        if not _PG_PRIMARY:                      # WS-9c: pgvector mirror is primary
+            _db_fire(_db_post(sql))
     except Exception:  # noqa: BLE001
         pass
 
