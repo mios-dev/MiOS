@@ -9952,10 +9952,16 @@ async def _hitl_is_approved(session_id: Optional[str], action_hash: str) -> bool
     """True if this (session, action) was approved out-of-band (gate mode)."""
     try:
         where = f"action_hash = {json.dumps(action_hash)} AND status = 'approved'"
+        pg_where = "action_hash = %(ah)s AND status = 'approved'"
+        pg_params = {"ah": action_hash}
         if session_id:
             where += f" AND session = {session_id}"
-        resp = await _db_post(
-            f"SELECT id FROM pending_action WHERE {where} LIMIT 1;")
+            pg_where += " AND session_id = %(sid)s"
+            pg_params["sid"] = session_id
+        resp = await _db_read(
+            f"SELECT id FROM pending_action WHERE {where} LIMIT 1;",
+            pg_sql=f"SELECT id FROM pending_action WHERE {pg_where} LIMIT 1",
+            pg_params=pg_params)
         for st in (resp or []):
             if isinstance(st, dict) and isinstance(st.get("result"), list) \
                     and st["result"]:
@@ -9980,7 +9986,8 @@ def _hitl_record_pending(tool: str, args: dict, action_hash: str,
         }, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
-        _db_fire(_db_post(sql))
+        if not _PG_PRIMARY:                      # WS-9c: pgvector mirror is primary
+            _db_fire(_db_post(sql))
     except Exception:  # noqa: BLE001
         pass
 
@@ -10019,9 +10026,11 @@ async def hitl_pending() -> JSONResponse:
     """WS-6: list pending HITL approvals (gate mode) + the live gate posture."""
     rows: list = []
     try:
-        resp = await _db_post(
+        resp = await _db_read(
             "SELECT id, tool, args, action_hash, status, ts FROM pending_action "
-            "WHERE status = 'pending' ORDER BY ts DESC LIMIT 100;")
+            "WHERE status = 'pending' ORDER BY ts DESC LIMIT 100;",
+            pg_sql="SELECT id, tool, args, action_hash, status, ts FROM "
+                   "pending_action WHERE status = 'pending' ORDER BY ts DESC LIMIT 100")
         for st in (resp or []):
             if isinstance(st, dict) and isinstance(st.get("result"), list):
                 rows = st["result"]
@@ -10075,7 +10084,10 @@ async def _recent_reflections(session_id: Optional[str],
         f"WHERE kind = 'reflect_corrected' AND session = {session_id} "
         f"ORDER BY ts DESC LIMIT {int(limit)};"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT summary, ts FROM event WHERE kind = 'reflect_corrected' "
+        "AND session_id = %(sid)s ORDER BY ts DESC LIMIT %(lim)s"),
+        pg_params={"sid": session_id, "lim": int(limit)})
     if not r:
         return []
     rows = (r[-1] or {}).get("result") or []
