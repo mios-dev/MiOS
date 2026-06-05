@@ -1375,6 +1375,35 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
         return None
 
 
+async def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
+                   pg_params: "Optional[dict]" = None,
+                   timeout: float = 3.0) -> Optional[list]:
+    """Agent-plane READ seam (WS-9c cutover). When Postgres is primary AND a
+    pg_sql translation is supplied, run it natively (psycopg) and wrap the rows
+    in SurrealDB's [{"result": [...]}] envelope so call sites parse the result
+    UNCHANGED. Otherwise hit SurrealDB. INERT in 'surreal'/'dual' (always
+    _db_post), so read translations can be added incrementally + safely and only
+    go live at the flip. Degrade-open -> [] on the PG side (mirrors _db_post).
+    NOTE: PG `id` is a bigint, not a 'table:xyz' record id -- callers that
+    round-trip an id into an UPDATE use _db_update() which handles both."""
+    if _PG_PRIMARY and pg_sql:
+        rows = await _mios_pg.execute(pg_sql, pg_params or {}, fetch=True)
+        return [{"result": rows or []}]
+    return await _db_post(surreal_sql, timeout=timeout)
+
+
+async def _db_update(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
+                     pg_params: "Optional[dict]" = None) -> None:
+    """Agent-plane UPDATE/DELETE seam (WS-9c cutover). Postgres-native when
+    primary + pg_sql given (params bound by psycopg), else SurrealDB. INERT in
+    'surreal'/'dual'. Degrade-open. Callers either `await` it or wrap in
+    _db_fire() for fire-and-forget, exactly as they did with _db_post."""
+    if _PG_PRIMARY and pg_sql:
+        await _mios_pg.execute(pg_sql, pg_params or {}, fetch=False)
+    else:
+        await _db_post(surreal_sql)
+
+
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
                extra: str = "",
