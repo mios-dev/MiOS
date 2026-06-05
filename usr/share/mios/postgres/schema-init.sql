@@ -205,3 +205,31 @@ CREATE TABLE IF NOT EXISTS kanban (
     ts       timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS kanban_status ON kanban (status);
+
+-- ── PKG (personal knowledge graph): app-resolution. Flattens the SurrealDB
+--    `alias ->resolves_to-> app_install` GRAPH into relational join tables so
+--    kg_lookup becomes a JOIN. Populated by the PKG writer (WS-9c follow-up:
+--    convert the writer + the agent-pipe kg_lookup reads to these tables). ─────
+CREATE TABLE IF NOT EXISTS app_install (
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    short_name   text,
+    app_id       text,
+    source       text,
+    label        text,
+    launch_hint  text,
+    ts           timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS app_install_short ON app_install (short_name);
+
+CREATE TABLE IF NOT EXISTS alias (
+    id     bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    phrase text,
+    ts     timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS alias_phrase ON alias (phrase);
+
+CREATE TABLE IF NOT EXISTS resolves_to (
+    alias_id       bigint REFERENCES alias(id) ON DELETE CASCADE,
+    app_install_id bigint REFERENCES app_install(id) ON DELETE CASCADE,
+    PRIMARY KEY (alias_id, app_install_id)
+);
