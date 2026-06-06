@@ -52,6 +52,14 @@ Volume=/usr/share/mios/llamacpp/llama-swap.yaml:/app/config.yaml:ro,Z
 Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z
 
 Environment=HOME=/var/lib/mios/llamacpp
+# WSL2 dGPU FIX (operator 2026-06-05 "EVERYTHING fired on the CPU"): the CDI mount
+# (nvidia.com/gpu=all) injects the WSL CUDA driver (/usr/lib/wsl/lib/libcuda.so)
+# into the container but does NOT put it on the linker path, so llama-server logged
+# "no usable GPU found" and ran ENTIRELY on CPU despite --n-gpu-layers 999. Prepend
+# the WSL lib dir (+ the image's CUDA runtime) so llama.cpp loads the WSL libcuda
+# and detects CUDA0. Verified live: with this, llama-server logs "CUDA0 : NVIDIA
+# GeForce RTX 4090 (24563 MiB)". ollama already sets this; llama-swap didn't.
+Environment=LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64
 # Pin the entrypoint to the confirmed llama-swap binary so the Exec args below are
 # ITS args regardless of the image's default entrypoint (verified /app/llama-swap).
 Entrypoint=/app/llama-swap
