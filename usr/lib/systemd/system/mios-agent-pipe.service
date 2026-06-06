@@ -35,7 +35,11 @@ Environment=MIOS_SWARM_MODEL=gemma4:12b
 # and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
 # skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
 # literal in routing code -- these are the env-SSOT hint lists.
-Environment=MIOS_NO_TOOL_CHOICE_HINTS=11436,11450
+# llama.cpp b9519 (the dGPU llama-swap) ACCEPTS tool_choice=required (verified) --
+# only the older iGPU b9305 (:11436) rejects it. So :11450 must NOT be in the
+# no-tool-choice list, or the pipe drops/auto's tool_choice and gemma4 NARRATES
+# the call instead of executing it. Keep :11450 in KV_PAGING (it does /slots).
+Environment=MIOS_NO_TOOL_CHOICE_HINTS=11436
 Environment=MIOS_KV_PAGING_HINTS=11436,11450
 Environment=MIOS_OLLAMA_API_HINTS=
 # Router calls qwen3:1.7b on the CPU light-lane (:11435), not
