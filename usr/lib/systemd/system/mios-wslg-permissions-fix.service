@@ -49,6 +49,13 @@ ExecStart=/usr/bin/mkdir -p /tmp/.X11-unix
 ExecStart=/usr/bin/chmod 1777 /tmp/.X11-unix
 ExecStart=-/usr/bin/mountpoint -q /tmp/.X11-unix
 ExecStart=-/usr/bin/mount --bind /mnt/wslg/.X11-unix /tmp/.X11-unix
+# Sanitize malformed flatpak-exported icons (a ".svg" that is really a PNG)
+# BEFORE weston builds its RAIL app-list. rsvg returns NULL on a non-SVG
+# and weston NULL-derefs -> SIGSEGV-loops until WSLGd gives up, which makes
+# the wayland/X11 sockets refuse ALL clients (every GUI launch invisible).
+# Operator-hit 2026-06-06: com.google.ChromeDev shipped a PNG named
+# com.google.ChromeDev.svg on WSL 2.7.7.0. See the helper's header.
+ExecStart=-/usr/libexec/mios/mios-flatpak-icon-sanitize
 RemainAfterExit=yes
 
 [Install]

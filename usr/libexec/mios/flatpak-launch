@@ -386,7 +386,14 @@ _mios_fire_autocenter
 # the agent-pipe before/after window-diff is the authoritative success check.
 # _MIOS_FLATPAK_INSESSION guards against re-wrapping once we're inside the
 # fresh session. Bare-metal Linux (no wsl.exe) falls through to direct launch.
+# Only re-exec via wsl.exe when the broker is SESSIONLESS (no live WSLg env).
+# A broker running in the operator's user@ session already has WAYLAND_DISPLAY +
+# the live socket, so it launches DIRECTLY (the setsid path below) -- which
+# persists and renders. The fresh wsl.exe session was observed to DIE after the
+# WSL 2.8.x upgrade (open_url -> "epiphany summary=no-window", process gone),
+# so reserve it for the sessionless fallback only. Operator-hit 2026-06-06.
 if [ "$IS_WSL" = "1" ] && [ "${_MIOS_FLATPAK_INSESSION:-0}" != "1" ] \
+   && [ -z "${WAYLAND_DISPLAY:-}" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ]; then
     # Resolve the WSL distro for re-entry: env -> /etc pin -> wsl.exe -l.
     _wd="${WSL_DISTRO_NAME:-}"

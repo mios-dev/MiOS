@@ -1,0 +1,28 @@
+[Unit]
+Description=MiOS: keep WSL interop primary for Windows .exe (disable WINE binfmt shadowing /mnt/c/*.exe)
+Documentation=https://github.com/mios-dev/MiOS
+# WINE ships /usr/lib/binfmt.d/wine.conf which registers binfmt_misc handlers
+# `windows` + `windowsPE` (interpreter /usr/bin/wine) that match ANY PE/.exe by
+# magic -- including /mnt/c/Windows/*.exe. When those win over WSL's `WSLInterop`
+# (interpreter /init), running a real Windows exe (powershell.exe, cmd.exe,
+# msrdc, the OS-control executor) launches it under WINE instead of on the real
+# Windows host -- so MiOS-Agent OS-control (window-list, launch verify, the
+# Windows executor) goes BLIND (count:0, WINE fixme noise in JSON). The WSL
+# 2.8.x upgrade re-ordered binfmt so WINE won. Operator-hit 2026-06-06.
+#
+# Fix: after systemd-binfmt registers everything, DISABLE the WINE handlers so
+# WSLInterop handles .exe. WINE apps still run via explicit `wine app.exe` (and
+# their .desktop launchers, which call wine) -- only bare ./app.exe auto-run via
+# binfmt is dropped, which is the right trade for a WSL distro whose primary job
+# is real-Windows interop.
+ConditionVirtualization=wsl
+After=systemd-binfmt.service
+Wants=systemd-binfmt.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for h in windows windowsPE; do [ -w /proc/sys/fs/binfmt_misc/$h ] && echo 0 > /proc/sys/fs/binfmt_misc/$h || true; done; echo "mios-wsl-interop-priority: WINE binfmt handlers disabled; WSLInterop primary for .exe"'
+
+[Install]
+WantedBy=multi-user.target default.target

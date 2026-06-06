@@ -1,0 +1,46 @@
+#!/bin/bash
+# /usr/libexec/mios/mios-flatpak-icon-sanitize
+#
+# Rename any ".svg" icon whose CONTENT is not actually SVG (e.g. a PNG
+# mis-named .svg) out of the "*.svg" glob, so the WSLg compositor cannot
+# crash on it.
+#
+# Why this exists (operator-hit 2026-06-06, MiOS-DEV / WSL 2.7.7.0):
+#   WSLg's weston (rdprail-shell) builds a RemoteApp app-list when the RDP
+#   peer (msrdc) connects, loading each app's icon. For a ".svg" file it
+#   calls librsvg; if the bytes are not XML/SVG (a PNG under a .svg name),
+#   rsvg returns NULL and weston NULL-derefs -> SIGSEGV. WSLGd respawns it
+#   >10x then gives up ("exited more than 10 times in 60 seconds"), so the
+#   wayland/X11 sockets refuse ALL clients (connect -> ECONNREFUSED) and
+#   every GUI launch is invisible. Root cause was the com.google.ChromeDev
+#   flatpak shipping a PNG at com.google.ChromeDev.svg.
+#
+# Runs at boot (root), BEFORE weston needs the app-list, via
+# mios-wslg-permissions-fix.service. Idempotent + best-effort.
+set -u
+
+roots=(
+    /var/lib/flatpak/exports/share/icons
+    /usr/share/icons
+    /usr/share/pixmaps
+)
+
+n=0
+# -name '*.svg' matches both regular files and symlinks; head -c follows
+# symlinks to read the real bytes. mv on a symlink renames the symlink
+# itself (leaving the flatpak's actual deployed file untouched).
+while IFS= read -r -d '' f; do
+    first=$(head -c 64 "$f" 2>/dev/null)
+    case "$first" in
+        '<'*|*'<svg'*|*'<?xml'*) : ;;   # genuine SVG -> keep
+        *)
+            if mv -f "$f" "${f}.disabled-not-svg" 2>/dev/null; then
+                n=$((n + 1))
+                echo "mios-flatpak-icon-sanitize: disabled non-SVG icon: $f"
+            fi
+            ;;
+    esac
+done < <(find "${roots[@]}" -name '*.svg' -print0 2>/dev/null)
+
+echo "mios-flatpak-icon-sanitize: disabled ${n} malformed '.svg' icon(s)"
+exit 0

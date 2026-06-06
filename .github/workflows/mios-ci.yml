@@ -211,11 +211,16 @@ jobs:
           done <<< "${{ steps.meta.outputs.tags }}"
 
       - name: Install cosign
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3
 
-      - name: Cosign keyless sign (tag pushes)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Sign EVERY pushed image (including :latest from main), not just v* tags
+      # -- closes the "unsigned :latest" gap and makes the SECURITY.md "CI signs
+      # every push with cosign keyless" claim true. Keyless OIDC; needs the
+      # job's `permissions: id-token: write` (already set -- the v-tag .sig
+      # objects in GHCR prove keyless signing works). Operator 2026-06-06.
+      - name: Cosign keyless sign (all pushes incl. :latest)
+        if: github.event_name != 'pull_request'
         env:
           COSIGN_EXPERIMENTAL: '1'
         run: |
@@ -263,3 +268,24 @@ jobs:
           # sudo: rootful podman avoids user-namespace UID exhaustion in
           # the bake step (same fix as the main build step above).
           sudo podman build -t mios:smoke -f Containerfile .
+
+      - name: Smoke RUN (image runs; key MiOS components present + agent-pipe compiles)
+        run: |
+          # A real runtime smoke (not just a build/lint): boot the image in
+          # podman, compile the agent-pipe, and assert the load-bearing shims +
+          # units shipped. Catches a build that lints clean but is missing
+          # components or has a broken server.py. Operator 2026-06-06 (closes
+          # the "CI has no run/boot test" gap from the maturity review).
+          set -euo pipefail
+          sudo podman run --rm mios:smoke bash -lc '
+            set -e
+            python3 -m py_compile /usr/lib/mios/agent-pipe/server.py && echo "agent-pipe compile: OK"
+            for b in flatpak-launch mios-pc-control mios-launcher-daemon \
+                     mios-flatpak-icon-sanitize; do
+              test -e "/usr/libexec/mios/$b" || { echo "MISSING: /usr/libexec/mios/$b"; exit 1; }
+            done
+            echo "libexec shims: OK"
+            test -f /usr/lib/systemd/system/mios-wsl-interop-priority.service \
+              && echo "interop-priority svc: OK" || { echo "MISSING interop svc"; exit 1; }
+            echo "SMOKE_RUN_PASS"
+          '

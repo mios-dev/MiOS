@@ -5395,6 +5395,16 @@ _REFINE_SYSTEM = (
     "  map a 'check / look up / find out <topic>' goal to open_url or to\n"
     "  opening a visible browser window per topic -- open_url only SHOWS a\n"
     "  page the operator explicitly asked to see.\n"
+    "- EXPLICIT-TARGET LAUNCH (decisive, OVERRIDES research): when the user\n"
+    "  names a browser/app to open something IN or WITH it ('open <X> in\n"
+    "  epiphany', 'show <url> in GNOME Web', 'pull <page> up in chrome',\n"
+    "  'open epiphany to <url>'), the operator wants a WINDOW ON SCREEN, not\n"
+    "  a report. This is ALWAYS intent=dispatch, tool=open_url, args=\n"
+    "  {\"url\": <resolved real URL>, \"browser\": <the named app>}. NEVER\n"
+    "  route a named-browser launch to research / web_search / agent. The\n"
+    "  named app target (a browser the operator points at) is the decisive\n"
+    "  tell. Resolve a page description to its real URL ('the Wikipedia\n"
+    "  main page' -> https://en.wikipedia.org/wiki/Main_Page).\n"
     "- BREADTH = FACETS: a BROAD or COMPREHENSIVE ask about a SINGLE topic\n"
     "  (the user wants 'everything', the 'full picture', 'all the latest', a\n"
     "  wide/deep overview) is multi_task too -- split the ONE topic into 2-4\n"
@@ -6713,6 +6723,41 @@ async def refine_intent(user_text: str,
                     parsed["intent"] = "agent"
         except Exception:
             pass
+    # Explicit browser-LAUNCH overrides the model's browse/research mis-route
+    # (operator 2026-06-06: "open the Wikipedia main page in epiphany" got
+    # routed to web-research and the agent FABRICATED "successfully opened in
+    # Epiphany" -- the narrate-instead-of-call lie). Deterministic guard: a
+    # launch verb + a named browser/app as the trailing "in/with <X>" target +
+    # a resolvable URL (explicit in the text, or the one the model already
+    # resolved into `parsed`) -> force intent=dispatch open_url. open_url then
+    # really launches (real success OR an honest failure), never a fabricated
+    # confirmation. The <X> token is resolved to a flatpak downstream by
+    # mios-open-url, so there is NO hardcoded browser list here; the trailing
+    # "in <X>" shape + a URL are the language-agnostic tells.
+    try:
+        import re as _re_lp, json as _json_lp
+        _utlp = (user_text or "").strip()
+        _lm = _re_lp.match(
+            r'(?:please\s+)?(?:open|launch|start|show|view|bring\s+up|'
+            r'pull\s+up|load|go\s+to)\b.*?\b(?:in|with|using)\s+'
+            r'([A-Za-z][A-Za-z0-9 .+-]{1,24})\s*$', _utlp, _re_lp.I)
+        if _lm:
+            _br = _lm.group(1).strip().rstrip('.')
+            _uu = (_re_lp.search(r'https?://[^\s"\'<>]+', _utlp)
+                   or _re_lp.search(r'https?://[^\s"\'<>]+',
+                                    _json_lp.dumps(parsed)))
+            if _uu:
+                parsed["intent"] = "dispatch"
+                parsed["tool"] = "open_url"
+                parsed["args"] = {"url": _uu.group(0).rstrip('.,)'),
+                                  "browser": _br}
+                parsed["browser_action"] = False
+                parsed["web"] = False
+                parsed.pop("tasks", None)
+                log.info("refine: browser-launch pre-router -> "
+                         "open_url(browser=%s)", _br)
+    except Exception:
+        pass
     # local_state: the query is about THIS machine -> fire local READ tools +
     # SUPPRESS web research (operator 2026-05-26: "summarize recent activity" /
     # "check service status" got web-searched into garbage -- random .xlsx files
