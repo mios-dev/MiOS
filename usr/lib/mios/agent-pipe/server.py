@@ -4264,7 +4264,12 @@ _SCHEDULE_VERBS = frozenset(
 )
 # The full set the refine fast-path recognizes (catalog injection + the
 # length/wordy-arg exemptions + the dispatch routing all key off this).
-_FASTPATH_VERBS = _OS_CONTROL_VERBS | _SCHEDULE_VERBS
+# Memory verbs are deterministic single-action writes/reads too -- route them via
+# the fast-path so "remember X" / "recall Y" FIRE the verb instead of falling to the
+# council (operator 2026-06-06: "remember X" ran mios_apps under unify-on because
+# remember wasn't a fast-path verb -> the dispatch intent fell back to the agent).
+_MEMORY_VERBS = {"remember", "recall"}
+_FASTPATH_VERBS = _OS_CONTROL_VERBS | _SCHEDULE_VERBS | _MEMORY_VERBS
 
 
 def _render_os_control_verbs() -> str:
