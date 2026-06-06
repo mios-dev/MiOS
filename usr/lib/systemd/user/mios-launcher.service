@@ -29,27 +29,6 @@ Type=simple
 # broker got "mios-launch: command not found" (exit 127) and EVERY app launch failed
 # (operator 2026-06-05 "open epiphany"). Put libexec + the mios shim dir on PATH.
 Environment=PATH=/usr/libexec/mios:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
-# WSLg display env (operator 2026-06-06: epiphany launched but no window appeared --
-# the broker had NO WAYLAND_DISPLAY/XDG_RUNTIME_DIR in its env, so every GUI app it
-# spawns runs headless with no compositor and exits). Point it at the live WSLg
-# socket (/run/user/992/wayland-0 -> /mnt/wslg/runtime-dir/wayland-0) so launched
-# apps surface on the operator's desktop. uid 1000 = the broker user.
-Environment=XDG_RUNTIME_DIR=/run/user/992
-Environment=WAYLAND_DISPLAY=wayland-0
-Environment=DISPLAY=:0
-Environment=WSL2_GUI_APPS_ENABLED=1
-# flatpak run (epiphany) needs the dbus SESSION bus for the portal/session or it
-# exits (exit 2, no window) -- operator 2026-06-06: broker ran mios-launch epiphany
-# but no window. Point at uid 1000's session bus.
-Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/992/bus
-# Use the DIRECT launch path (skip flatpak-launch's wsl.exe-session re-launch):
-# (1) the nested wsl.exe session tears down its children after the bootstrap so
-# apps die; (2) X11 :0 is broken on this WSLg (xdg-desktop-portal-gtk: "cannot
-# open display :0") so launches must use WAYLAND. The broker is a persistent
-# user@992 service with the wayland-0 socket + user session-bus + portal, so a
-# setsid direct launch survives and reaches the wayland display (operator
-# 2026-06-06). Pair with the per-app override GDK_BACKEND=wayland.
-Environment=_MIOS_FLATPAK_INSESSION=1
 ExecStart=/usr/libexec/mios/mios-launcher-daemon
 Restart=on-failure
 RestartSec=2s
