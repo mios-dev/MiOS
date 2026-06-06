@@ -165,7 +165,12 @@ fi
 # mios-everything directly; mios-find just calls it as one of its
 # resolution sources.
 if command -v mios-everything >/dev/null 2>&1; then
-    ES_OUT="$(mios-everything -n 5 -ext exe "$QUERY" 2>/dev/null)"
+    # `|| true`: mios-everything exits NON-ZERO when es.exe is dead/unreachable
+    # (the common case -- v1.1 es.exe vs v1.4 IPC mismatch). Without this, the
+    # command substitution fails under `set -e` and ABORTS mios-find before
+    # fast-path B (the mios-apps inventory) can resolve the app -- so EVERY
+    # lookup died on hosts with a degraded Everything. Tolerate it; fall through.
+    ES_OUT="$(mios-everything -n 5 -ext exe "$QUERY" 2>/dev/null || true)"
     if [ -n "$ES_OUT" ]; then
         FIRST_EXE="$(printf '%s\n' "$ES_OUT" | head -1)"
         if [ -n "$FIRST_EXE" ]; then
