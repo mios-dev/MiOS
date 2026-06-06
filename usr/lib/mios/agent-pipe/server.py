@@ -2186,6 +2186,12 @@ def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
             return (_ep, _cap_cpu_lane_model(
                 _ep, str(b.get("model") or cfg.get("model", ""))))
     _ep = str(cfg.get("endpoint", "")).rstrip("/")
+    # An agent with NO declared endpoint (inert vendor default -- e.g. ai-local,
+    # the phone node) must NOT dispatch to "" (-> "All connection attempts
+    # failed" and a dead turn). Fall back to the live BACKEND so refine can route
+    # to it and it lands on the gemma4 reasoning model on llama.cpp.
+    if not _ep:
+        _ep = BACKEND.rstrip("/")
     return _ep, _cap_cpu_lane_model(_ep, str(cfg.get("model", "")))
 
 
@@ -4273,6 +4279,45 @@ _OS_CONTROL_ACTION_VERBS = frozenset(
 # Launch verbs ADD a window (vs window-ops that target an existing one). Verb
 # names (identifiers), not English keywords -- same shape as _WEB_ENRICH_VERBS.
 _LAUNCH_VERBS = frozenset({"open_app", "launch_app", "launch_verified", "open_url"})
+
+# Deterministic pre-router triggers: the FIRST token of each LAUNCH verb name
+# (open_app->open, launch_*->launch) IS the action word -- SSOT-derived from the
+# catalog, NO hardcoded English list.
+_LAUNCH_TRIGGERS = frozenset(
+    v.split("_", 1)[0] for v in _LAUNCH_VERBS if v in _FASTPATH_VERBS)
+
+
+def _deterministic_action_route(user_text: str) -> Optional[dict]:
+    """Research-backed (OpenAI function-calling + AIOS routing) deterministic
+    pre-router. An unambiguous 'launch/open <app>' is a single concrete action;
+    bind it to open_app(name=<app>) HERE so the qwen-class refine micro never
+    gets to misclassify it as a research swarm -- the failure where 'launch
+    epiphany' fired mios_find/list_windows and FABRICATED 'it's open' instead of
+    launching. Returns the override dict, or None to fall through to the LLM
+    router for compound/ambiguous phrasing (URLs, 'in <app>', conjunctions,
+    questions) which the stronger refine model resolves. Triggers are
+    catalog-derived (verb names), not hardcoded words (operator no-hardcode rule)."""
+    t = (user_text or "").strip()
+    if not t or len(t) > 80 or "?" in t:
+        return None
+    words = t.split()
+    if not (2 <= len(words) <= 5):
+        return None
+    head = words[0].lower().strip(".,:;!\"'")
+    if head not in _LAUNCH_TRIGGERS or "open_app" not in _FASTPATH_VERBS:
+        return None
+    rest = " ".join(words[1:]).strip()
+    # Compound forms (url / 'in <app>' / conjunctions) -> let the LLM router
+    # split content from target; the deterministic path only takes the
+    # unambiguous bare 'launch <app>'.
+    if "://" in rest or re.search(r"\b(in|and|then|with|on|to)\b", rest.lower()):
+        return None
+    if not rest:
+        return None
+    return {"intent": "dispatch", "tool": "open_app",
+            "args": {"name": rest}, "_deterministic": True}
+
+
 # FIRE -> VERIFY -> RE-ATTEMPT bound (operator 2026-05-26 "the pipeline VERIFIES
 # TRUE and attempts to re-attempt"): how many times to (re)fire an OS-control
 # action until the window-enumeration diff confirms it took effect.
@@ -6730,6 +6775,15 @@ async def refine_intent(user_text: str,
                 "refine: dispatch promoted to agent "
                 "(arg value contained a multi-word semantic phrase)")
             parsed["intent"] = "agent"
+    # Deterministic OS-action pre-router (research-backed): override a misrouted
+    # 'launch/open <app>' to dispatch+open_app so the weak refine micro can't
+    # flip a concrete action to a research swarm (the bug where "launch epiphany"
+    # fired mios_find/list_windows + fabricated success instead of launching).
+    _det = _deterministic_action_route(user_text)
+    if _det is not None and parsed.get("intent") != "dispatch":
+        log.info("refine: deterministic OS-action override %s args=%s (was intent=%s)",
+                 _det["tool"], _det["args"], parsed.get("intent"))
+        parsed = _det
     # Best-effort event row.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",

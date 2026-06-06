@@ -659,7 +659,10 @@ font_size          = 14
 # then the first registered agent.
 
 [agents.hermes]
-endpoint = "http://localhost:8642/v1"
+# WS-10 (operator 2026-06-05 "EVERYTHING llama.cpp, NO OLLAMA"): repoint off the
+# Hermes->ollama service (:8642, dead backend) to llama-swap. model stays (aliased
+# to gemma4:12b in llama-swap.yaml). Was :8642/v1 hermes-agent.
+endpoint = "http://localhost:11450/v1"
 model    = "hermes-agent"
 role     = "general"
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
@@ -682,7 +685,7 @@ lane     = "gpu"
 # primary stream. Backed by mios-hermes-cpu.Modelfile (the CPU half of the
 # pair; `model` above -> mios-hermes is the GPU half). Omit cpu_* to keep
 # an agent single-lane.
-cpu_endpoint = "http://localhost:11435/v1"
+cpu_endpoint = "http://localhost:11450/v1"
 cpu_model    = "mios-hermes-cpu"
 # Tools Hermes is good at -- the refine pass surfaces these
 # as hint_tools when the intent matches.
@@ -729,7 +732,9 @@ failover_agents = ["hermes"]
 # on a loopback port is BOTH the global log/journal monitor AND the council's
 # CPU reasoning lane. It runs LIGHT in the background (~2c/4t) and BURSTS to
 # 8c/16t when it joins a foreground pipeline turn.
-endpoint = "http://localhost:8644/v1"
+# WS-10: repoint off the daemon-agent's ollama-cpu backend (:11435 dead) to
+# llama-swap; model 'mios-daemon-agent' is aliased to gemma4:12b. Was :8644/v1.
+endpoint = "http://localhost:11450/v1"
 # Consolidation 2026-05-24: the :8644 server now REASONS on the CPU model
 # (MIOS_DAEMON_MODEL, qwen3:1.7b @ ollama-cpu :11435, num_gpu 0 -- the same
 # compute the retired mios-reasoner-cpu used) GROUNDED in the live global
