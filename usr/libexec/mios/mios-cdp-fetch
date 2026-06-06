@@ -1,0 +1,130 @@
+#!/usr/lib/mios/agents/.venv/bin/python3
+"""mios-cdp-fetch <url> [max_chars]
+
+Deterministically fetch a page's rendered text via the ChromeDev CDP browser
+(:9222) -- so the MiOS agent gets REAL page content instead of hallucinating
+it (operator 2026-06-06: "cdp web browse in hermes"; gemma4 fabricated the
+Wikipedia first sentence instead of reading the DOM). Ensures the CDP chrome is
+up (mios-hermes-browser ensure), opens a fresh tab AT the url (PUT /json/new?url
+navigates it), waits for document.readyState == complete, reads document.title +
+document.body.innerText via Runtime.evaluate over the tab's CDP websocket, prints
+one JSON line {url,title,text}, then closes the tab.
+
+Headless + observational (no visible window): the same CDP surface the agent's
+browser_navigate uses, exposed as a deterministic verb the pipeline can call so
+the answer is grounded in the actual page, not the model's guess.
+"""
+import sys
+import json
+import time
+import asyncio
+import subprocess
+import urllib.request
+import urllib.parse
+
+import websockets  # 16.0, present in the agent venv
+
+CDP = "http://127.0.0.1:9222"
+
+
+def _http(method, path, timeout=8):
+    req = urllib.request.Request(CDP + path, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        body = r.read().decode() or "null"
+    return json.loads(body)
+
+
+def _ensure():
+    """Bring the CDP chrome up if it isn't already responding."""
+    try:
+        _http("GET", "/json/version")
+        return True
+    except Exception:
+        pass
+    try:
+        subprocess.run(["mios-hermes-browser", "ensure"],
+                       timeout=40, capture_output=True)
+    except Exception:
+        pass
+    for _ in range(20):
+        time.sleep(1)
+        try:
+            _http("GET", "/json/version")
+            return True
+        except Exception:
+            continue
+    return False
+
+
+async def _read(ws_url, max_chars):
+    async with websockets.connect(ws_url, max_size=None,
+                                  open_timeout=15) as ws:
+        _seq = {"n": 0}
+
+        async def cmd(method, params=None):
+            _seq["n"] += 1
+            mid = _seq["n"]
+            await ws.send(json.dumps({"id": mid, "method": method,
+                                      "params": params or {}}))
+            while True:
+                raw = await asyncio.wait_for(ws.recv(), timeout=25)
+                msg = json.loads(raw)
+                if msg.get("id") == mid:
+                    return msg
+
+        def _val(resp):
+            return ((resp or {}).get("result", {})
+                    .get("result", {}).get("value"))
+
+        # wait up to ~20s for ACTUAL body text to appear -- readyState can read
+        # 'complete' before a big JS-rendered page (e.g. Wikipedia) populates the
+        # body, which gave an empty innerText. Poll the body length instead.
+        for _ in range(40):
+            r = await cmd("Runtime.evaluate",
+                          {"expression": "(document.body && document.body.innerText"
+                                         " || '').length",
+                           "returnByValue": True})
+            if (_val(r) or 0) > 50:
+                break
+            await asyncio.sleep(0.5)
+
+        title = _val(await cmd("Runtime.evaluate",
+                               {"expression": "document.title",
+                                "returnByValue": True})) or ""
+        text = _val(await cmd(
+            "Runtime.evaluate",
+            {"expression": "document.body && document.body.innerText "
+                           "? document.body.innerText.slice(0, %d) : ''"
+                           % int(max_chars),
+             "returnByValue": True})) or ""
+        return title, text
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.stderr.write("usage: mios-cdp-fetch <url> [max_chars]\n")
+        sys.exit(2)
+    url = sys.argv[1]
+    max_chars = int(sys.argv[2]) if len(sys.argv) > 2 else 6000
+    if not _ensure():
+        sys.stderr.write("mios-cdp-fetch: CDP browser not available on :9222\n")
+        sys.exit(1)
+    tab = _http("PUT", "/json/new?" + urllib.parse.quote(url, safe=":/?&=%#@"))
+    ws_url = tab.get("webSocketDebuggerUrl")
+    tid = tab.get("id")
+    if not ws_url:
+        sys.stderr.write("mios-cdp-fetch: no webSocketDebuggerUrl for tab\n")
+        sys.exit(1)
+    try:
+        title, text = asyncio.run(_read(ws_url, max_chars))
+        print(json.dumps({"url": url, "title": title, "text": text}))
+    finally:
+        if tid:
+            try:
+                _http("PUT", "/json/close/" + tid)
+            except Exception:
+                pass
+
+
+if __name__ == "__main__":
+    main()

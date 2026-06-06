@@ -18695,15 +18695,58 @@ async def chat_completions(request: Request) -> Any:
             if not (isinstance(_mdag, dict) and isinstance(_mdag.get("nodes"), list)):
                 _mdag = {"summary": (last_user_text or "")[:120], "nodes": []}
             _act = (last_user_text or "").strip()
-            _mdag["nodes"].append({
-                "id": "browser-action", "agent": "hermes",
-                "prompt": ("Use your live browser tools -- first run `terminal: "
-                           "mios-hermes-browser ensure`, then browser_navigate / "
-                           "browser_click / browser_type -- to ACTUALLY PERFORM this "
-                           "on the real web. Do NOT just explain how; DO it, step by "
-                           "step, and report exactly what you did and the final "
-                           "state (success or the specific blocker): " + _act),
-                "title": "browser action (live)", "deps": []})
+            # Deterministic CDP prefetch (operator 2026-06-06 "cdp web browse in
+            # hermes"): gemma4 fabricated page content instead of driving
+            # browser_navigate. If the request names a URL, fetch its REAL
+            # rendered text up front via ChromeDev CDP (mios-cdp-fetch -> :9222)
+            # and hand it to the node so the answer is grounded in the actual
+            # page, not a guess. The agent's own browser_* tools still run for
+            # click/type/multi-step actions. Degrades silently if CDP is down.
+            _cdp_ctx = ""
+            try:
+                import re as _re_cdp
+                import subprocess as _sp_cdp
+                _um = _re_cdp.search(r'https?://[^\s"\'<>]+', _act)
+                if _um:
+                    _u = _um.group(0).rstrip('.,);]')
+                    _cr = _sp_cdp.run(["mios-cdp-fetch", _u, "6000"],
+                                      capture_output=True, text=True, timeout=55)
+                    if _cr.returncode == 0 and _cr.stdout.strip():
+                        _pg = json.loads(_cr.stdout)
+                        if (_pg.get("text") or "").strip():
+                            _cdp_ctx = (
+                                "\n\nLIVE PAGE CONTENT (fetched via ChromeDev CDP "
+                                "from %s):\nTITLE: %s\n%s\n\nUse this REAL page text "
+                                "to answer; do not invent content.\n"
+                                % (_pg.get("url"), _pg.get("title"),
+                                   (_pg.get("text") or "")[:5000]))
+                            log.info("cdp prefetch ok: %s (%d chars)",
+                                     _u, len(_pg.get("text") or ""))
+            except Exception as _ce:
+                log.warning("cdp prefetch failed: %s", _ce)
+            if _cdp_ctx:
+                # Real page text in hand -> answer from it as a SINGLE node and
+                # skip the research fan-out (it returns unrelated links the
+                # synthesis then hallucinates over -- operator 2026-06-06 wikipedia
+                # browse fabricated the first sentence despite a good CDP fetch).
+                _mdag = {"summary": _act[:120], "nodes": [{
+                    "id": "cdp-browse", "agent": "hermes",
+                    "prompt": (_cdp_ctx + "Answer the user's request using ONLY the "
+                               "LIVE PAGE CONTENT above; quote it exactly where "
+                               "asked, and do not add facts not present in it: "
+                               + _act),
+                    "title": "cdp browse (live page)", "deps": []}]}
+            else:
+                _mdag["nodes"].append({
+                    "id": "browser-action", "agent": "hermes",
+                    "prompt": ("Use your live browser tools -- first run "
+                               "`terminal: mios-hermes-browser ensure`, then "
+                               "browser_navigate / browser_click / browser_type -- to "
+                               "ACTUALLY PERFORM this on the real web. Do NOT just "
+                               "explain how; DO it, step by step, and report exactly "
+                               "what you did and the final state (success or the "
+                               "specific blocker): " + _act),
+                    "title": "browser action (live)", "deps": []})
             log.info("browser-action fire-both: pinned hermes browser node "
                      "(+%d research nodes)", len(_mdag["nodes"]) - 1)
         if _mdag and (_mdag.get("nodes") or []):
