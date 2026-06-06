@@ -24,6 +24,11 @@ Documentation=man:mios-launcher-daemon
 
 [Service]
 Type=simple
+# mios-launch + the verbs it shells to (flatpak-launch, mios-gui, mios-os-control)
+# live in /usr/libexec/mios, which is NOT on the default systemd-user PATH -- so the
+# broker got "mios-launch: command not found" (exit 127) and EVERY app launch failed
+# (operator 2026-06-05 "open epiphany"). Put libexec + the mios shim dir on PATH.
+Environment=PATH=/usr/libexec/mios:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 ExecStart=/usr/libexec/mios/mios-launcher-daemon
 Restart=on-failure
 RestartSec=2s
