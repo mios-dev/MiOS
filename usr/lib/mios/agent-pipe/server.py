@@ -6671,6 +6671,23 @@ async def refine_intent(user_text: str,
     _ba = parsed.get("browser_action")
     parsed["browser_action"] = (_ba is True) or (
         isinstance(_ba, str) and _ba.strip().lower() in {"true", "1", "yes"})
+    # Force browser_action for a URL + READ/browse intent (operator 2026-06-06):
+    # "open <url> and quote/read/summarize" must hit the CDP browse path (real DOM
+    # via mios-cdp-fetch), not the open_url fast-path that only launches. Also flip
+    # intent->agent so the dispatch fast-path doesn't fire open_url first.
+    if not parsed["browser_action"]:
+        try:
+            import re as _re_brd
+            _utb = user_text or ""
+            if _re_brd.search(r'https?://', _utb) and _re_brd.search(
+                    r'\b(quote|read|tell|summari[sz]e|what\s+(?:is|does|says?)|'
+                    r'first\s+sentence|the\s+content|browse|extract|scrape|'
+                    r'headline|article|say)\b', _utb, _re_brd.I):
+                parsed["browser_action"] = True
+                if parsed.get("intent") in ("dispatch", "chat"):
+                    parsed["intent"] = "agent"
+        except Exception:
+            pass
     # local_state: the query is about THIS machine -> fire local READ tools +
     # SUPPRESS web research (operator 2026-05-26: "summarize recent activity" /
     # "check service status" got web-searched into garbage -- random .xlsx files
@@ -18579,6 +18596,23 @@ async def chat_completions(request: Request) -> Any:
     # node drives the live browser to PERFORM the action -- even for a short ask
     # ("log in to X") that wouldn't meet the decompose word-count.
     _browser_action = bool(refined and refined.get("browser_action"))
+    # Deterministic browser trigger (operator 2026-06-06): a request naming a URL
+    # together with a READ/browse intent ("open ... and quote/read/tell/summarize")
+    # must hit the CDP browse path (real DOM via mios-cdp-fetch), NOT the open_url
+    # fast-path (which only launches). refine often flags browser_action=false for
+    # these, so force it here off the raw text.
+    if not _browser_action:
+        try:
+            import re as _re_ba
+            _ut_ba = last_user_text or ""
+            if _re_ba.search(r'https?://', _ut_ba) and _re_ba.search(
+                    r'\b(quote|read|tell|summari[sz]e|what\s+(?:is|does|says?)|'
+                    r'first\s+sentence|the\s+content|browse|extract|scrape|'
+                    r'headline|article)\b', _ut_ba, _re_ba.I):
+                _browser_action = True
+                log.info("browser_action forced: URL + read-intent -> CDP browse")
+        except Exception:
+            pass
     # A pure LOCAL-STATE query (operator 2026-05-26 "summarize recent activity" /
     # "check service status") must NOT enter the swarm: the swarm facet grounding
     # ALWAYS web-searches (synthetic web hints), which is exactly the garbage to
@@ -18709,7 +18743,7 @@ async def chat_completions(request: Request) -> Any:
                 _um = _re_cdp.search(r'https?://[^\s"\'<>]+', _act)
                 if _um:
                     _u = _um.group(0).rstrip('.,);]')
-                    _cr = _sp_cdp.run(["mios-cdp-fetch", _u, "6000"],
+                    _cr = _sp_cdp.run(["mios-cdp-fetch", _u, "3000"],
                                       capture_output=True, text=True, timeout=55)
                     if _cr.returncode == 0 and _cr.stdout.strip():
                         _pg = json.loads(_cr.stdout)
@@ -18719,7 +18753,7 @@ async def chat_completions(request: Request) -> Any:
                                 "from %s):\nTITLE: %s\n%s\n\nUse this REAL page text "
                                 "to answer; do not invent content.\n"
                                 % (_pg.get("url"), _pg.get("title"),
-                                   (_pg.get("text") or "")[:5000]))
+                                   (_pg.get("text") or "")[:2800]))
                             log.info("cdp prefetch ok: %s (%d chars)",
                                      _u, len(_pg.get("text") or ""))
             except Exception as _ce:
@@ -18729,8 +18763,13 @@ async def chat_completions(request: Request) -> Any:
                 # skip the research fan-out (it returns unrelated links the
                 # synthesis then hallucinates over -- operator 2026-06-06 wikipedia
                 # browse fabricated the first sentence despite a good CDP fetch).
+                # Route to the BARE gemma4 lane (ai-local -> empty endpoint ->
+                # BACKEND :11450, no 25k Hermes tool prompt) and _no_tools, so the
+                # 6k-char page + question fits with ample headroom -- routing it to
+                # the Hermes service overflowed the 32k ctx (25k tools + page) and
+                # returned empty (operator 2026-06-06).
                 _mdag = {"summary": _act[:120], "nodes": [{
-                    "id": "cdp-browse", "agent": "hermes",
+                    "id": "cdp-browse", "agent": "hermes", "_no_tools": True,
                     "prompt": (_cdp_ctx + "Answer the user's request using ONLY the "
                                "LIVE PAGE CONTENT above; quote it exactly where "
                                "asked, and do not add facts not present in it: "

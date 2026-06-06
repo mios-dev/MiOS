@@ -91,12 +91,16 @@ async def _read(ws_url, max_chars):
         title = _val(await cmd("Runtime.evaluate",
                                {"expression": "document.title",
                                 "returnByValue": True})) or ""
-        text = _val(await cmd(
-            "Runtime.evaluate",
-            {"expression": "document.body && document.body.innerText "
-                           "? document.body.innerText.slice(0, %d) : ''"
-                           % int(max_chars),
-             "returnByValue": True})) or ""
+        # Prefer the MAIN article content (skip nav/menus/footers) so the first
+        # chars are the actual article -- a generic selector chain that falls back
+        # to <body>. Keeps the useful text within a small char budget.
+        _expr = ("(function(){var e=document.querySelector("
+                 "'main,article,#mw-content-text,#content,[role=main]')"
+                 "||document.body;return e?e.innerText.slice(0,%d):'';})()"
+                 % int(max_chars))
+        text = _val(await cmd("Runtime.evaluate",
+                              {"expression": _expr,
+                               "returnByValue": True})) or ""
         return title, text
 
 
