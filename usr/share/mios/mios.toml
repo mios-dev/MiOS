@@ -659,10 +659,13 @@ font_size          = 14
 # then the first registered agent.
 
 [agents.hermes]
-# WS-10 (operator 2026-06-05 "EVERYTHING llama.cpp, NO OLLAMA"): repoint off the
-# Hermes->ollama service (:8642, dead backend) to llama-swap. model stays (aliased
-# to gemma4:12b in llama-swap.yaml). Was :8642/v1 hermes-agent.
-endpoint = "http://localhost:11450/v1"
+# WS-10b (operator 2026-06-06): the Hermes SERVICE now runs ON llama.cpp (its
+# config repointed :11434->:11450, model granite4.1:3b aliased to gemma4). Route
+# BACK to the real Hermes service (:8642) so it keeps its native browser_*/CDP +
+# terminal + tool loop -- bare gemma4@:11450 had no browser tools, so CDP browse
+# (operator's "cdp web browse in hermes") needs the real Hermes. Verified: Hermes
+# answers on the dGPU at 100% util (prompt ~25k tokens -> gemma4 ctx bumped to 32k).
+endpoint = "http://localhost:8642/v1"
 model    = "hermes-agent"
 role     = "general"
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
