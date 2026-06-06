@@ -23,14 +23,31 @@ WorkingDirectory=/var/lib/mios/agent-pipe
 # MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
 EnvironmentFile=-/etc/mios/agent-pipe.env
 Environment=MIOS_PORT_AGENT_PIPE=8640
-Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:8642/v1
-Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=hermes-agent
+# WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP, NO OLLAMA"): the agent-pipe
+# reasons DIRECTLY on llama-swap (:11450, gemma4:12b on the 4090 dGPU) instead of
+# via Hermes->ollama. Micros (refine/polish/router/planner) -> qwen3:1.7b on the
+# same llama.cpp lane. All inference is now on the dGPU via llama.cpp; ollama bypassed.
+Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:11450/v1
+Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=gemma4:12b
+Environment=MIOS_MICRO_ENDPOINT=http://localhost:11450/v1
+Environment=MIOS_SWARM_MODEL=gemma4:12b
+# llama.cpp/llama-swap (:11450) is OpenAI /v1 ONLY (no ollama /api/chat, /api/ps)
+# and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
+# skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
+# literal in routing code -- these are the env-SSOT hint lists.
+Environment=MIOS_NO_TOOL_CHOICE_HINTS=11436,11450
+Environment=MIOS_KV_PAGING_HINTS=11436,11450
+Environment=MIOS_OLLAMA_API_HINTS=
 # Router calls qwen3:1.7b on the CPU light-lane (:11435), not
 # the dGPU/CUDA lane (:11434). Keeps router latency sub-second under
 # dGPU load. Override via /etc/mios/agent-pipe.env if a deployment
 # doesn't have mios-ollama-cpu standing up (e.g., bare-metal with
 # only NVIDIA dGPU).
-Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11435
+Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11450
+# CPU light-lane -> llama.cpp (was :11435 ollama, now retired). Agents that
+# prefer_cpu-offload resolve here; point it at llama-swap so they land on
+# gemma4@:11450 instead of connection-erroring on the dead ollama-cpu lane.
+Environment=MIOS_OLLAMA_CPU_ENDPOINT=http://localhost:11450
 # Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to
 # whatever lane is reachable if :11434 is down.
 # Model: mios-agent -- the canonical "MiOS AI" model (Modelfile FROM
@@ -42,8 +59,8 @@ Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11435
 # proxy. Override via /etc/mios/agent-pipe.env.
 # History: qwen2.5-coder:7b -> mios-planner(gemma4) -> mios-agent(gemma4)
 # -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
-Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11434
-Environment=MIOS_AGENT_PIPE_PLANNER_MODEL=mios-agent
+Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11450
+Environment=MIOS_AGENT_PIPE_PLANNER_MODEL=qwen3:1.7b
 Environment=MIOS_DB_URL=http://localhost:8000
 Environment=MIOS_DB_USER=root
 Environment=MIOS_DB_PASS=root
@@ -71,10 +88,10 @@ Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
 # endpoints (CPU :11435 daemon-agent, iGPU :11436, phone) at the same dispatch
 # step -- the bigger refine model does not serialise them
 # ([[mios_heterogeneous_parallel_dispatch]]). Override via /etc/mios/agent-pipe.env.
-Environment=MIOS_REFINE_MODEL=mios-hermes
-Environment=MIOS_REFINE_ENDPOINT=http://localhost:11434
-Environment=MIOS_POLISH_MODEL=mios-agent
-Environment=MIOS_POLISH_ENDPOINT=http://localhost:11434
+Environment=MIOS_REFINE_MODEL=qwen3:1.7b
+Environment=MIOS_REFINE_ENDPOINT=http://localhost:11450
+Environment=MIOS_POLISH_MODEL=qwen3:1.7b
+Environment=MIOS_POLISH_ENDPOINT=http://localhost:11450
 # Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
 # Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s
 # for the same prompt. Generous timeout works on both.
