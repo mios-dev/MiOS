@@ -8135,18 +8135,11 @@ async def polish_response(raw_text: str,
     # chars is cheap.
     user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
     user_msg = "\n\n".join(user_msg_parts)
-    payload = {
-        "model": POLISH_MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user",   "content": user_msg},
-        ],
-        "think": False,
-        "stream": False,
-        "options": {"temperature": 0.0,
-                    "num_predict": int(max_tokens) if max_tokens else POLISH_MAX_TOKENS},
-    }
-    url = f"{POLISH_ENDPOINT}/api/chat"
+    url, payload = _polish_post(
+        POLISH_ENDPOINT, POLISH_MODEL,
+        [{"role": "system", "content": system},
+         {"role": "user", "content": user_msg}],
+        int(max_tokens) if max_tokens else POLISH_MAX_TOKENS)
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=POLISH_TIMEOUT_S) as s:
@@ -18032,6 +18025,25 @@ _LOCAL_STATE_SYSTEM = (
     "preamble, no narration. Reply in the user's language.\n")
 
 
+def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
+    """(url, payload) for a polish/format call on an ollama /api/chat OR a
+    llama.cpp OpenAI /v1 endpoint. llama.cpp (llama-swap :11450) has NO /api/chat
+    (404) -> speak /v1 there. Callers' response parse already handles both shapes.
+    Operator 2026-06-06: polish hardcoded /api/chat -> 404 on llama.cpp -> every
+    chat's final render silently degraded to the pre-polish text."""
+    base = str(endpoint or "").rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+    if _endpoint_is_ollama(base, {}, None):
+        return (base + "/api/chat",
+                {"model": model, "messages": messages, "think": False,
+                 "stream": False, "options": {"temperature": temperature,
+                                              "num_predict": max_tokens}})
+    return (base + "/v1/chat/completions",
+            {"model": model, "messages": messages, "stream": False,
+             "max_tokens": max_tokens, "temperature": temperature})
+
+
 async def _format_local_state(question: str, grounding: str,
                               persona_system: str = "") -> Optional[str]:
     """One faithful-enumeration pass over the live local-state tool output."""
@@ -18044,18 +18056,15 @@ async def _format_local_state(question: str, grounding: str,
     user_msg = (f"User question (reply in this language):\n{question}\n\n"
                 f"LIVE TOOL OUTPUT (authoritative ground truth for THIS "
                 f"machine):\n{grounding[:30000]}")
-    payload = {
-        "model": POLISH_MODEL,
-        "messages": [{"role": "system", "content": system},
-                     {"role": "user", "content": user_msg}],
-        "think": False, "stream": False,
-        "options": {"temperature": 0.0,
-                    "num_predict": max(POLISH_MAX_TOKENS, 1200)},
-    }
+    _url, payload = _polish_post(
+        POLISH_ENDPOINT, POLISH_MODEL,
+        [{"role": "system", "content": system},
+         {"role": "user", "content": user_msg}],
+        max(POLISH_MAX_TOKENS, 1200))
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=POLISH_TIMEOUT_S) as s:
-            r = await s.post(f"{POLISH_ENDPOINT}/api/chat", json=payload,
+            r = await s.post(_url, json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
                 log.warning("local-state format: backend %s", r.status_code)
