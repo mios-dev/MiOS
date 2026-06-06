@@ -95,8 +95,13 @@ async def _read(ws_url, max_chars):
         # chars are the actual article -- a generic selector chain that falls back
         # to <body>. Keeps the useful text within a small char budget.
         _expr = ("(function(){var e=document.querySelector("
-                 "'main,article,#mw-content-text,#content,[role=main]')"
-                 "||document.body;return e?e.innerText.slice(0,%d):'';})()"
+                 "'#mw-content-text .mw-parser-output,main,article,#content,"
+                 "[role=main]')||document.body;"
+                 "var lead='';var ps=e.querySelectorAll('p');"
+                 "for(var i=0;i<ps.length;i++){var t=(ps[i].innerText||'').trim();"
+                 "if(t.length>60){lead=t;break;}}"
+                 "var full=(e.innerText||'');"
+                 "return ((lead?lead+'\\n\\n':'')+full).slice(0,%d);})()"
                  % int(max_chars))
         text = _val(await cmd("Runtime.evaluate",
                               {"expression": _expr,
