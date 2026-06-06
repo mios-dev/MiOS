@@ -374,6 +374,7 @@ print_endpoints() {
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
     _p_ollama_cpu=$(_mios_port ollama_cpu 11435)
+    _p_llamaswap=$(_mios_port llamaswap 11450)
     _p_searxng=$(_mios_port searxng 8888)
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)
@@ -391,6 +392,7 @@ print_endpoints() {
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
     d_ollama_cpu=$(ep_dot "http://localhost:${_p_ollama_cpu}/")
+    d_llamaswap=$(ep_dot  "http://localhost:${_p_llamaswap}/v1/models")
     d_cockpit=$(ep_dot    "https://localhost:${_p_cockpit}/")
     d_searxng=$(ep_dot    "http://localhost:${_p_searxng}/")
     d_hermes=$(ep_dot     "http://localhost:${_p_hermes}/health")
@@ -414,7 +416,7 @@ print_endpoints() {
     if [[ "$MODE" == "mini" ]]; then
         local n_up=0 n_down=0
         for _d in "$d_agent_pipe" "$d_hermes" "$d_surrealdb" \
-                  "$d_ollama" "$d_ollama_cpu" "$d_webui" \
+                  "$d_llamaswap" "$d_webui" \
                   "$d_cockpit" "$d_forge" "$d_searxng" \
                   "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
             case "$_d" in
@@ -422,10 +424,10 @@ print_endpoints() {
                 *)           n_down=$((n_down + 1)) ;;
             esac
         done
-        printf '  %s%s%s %s%d up%s    %s%s%s %s%d down%s    %sagent:%s  hermes:%s  ollama:%s%s\n' \
+        printf '  %s%s%s %s%d up%s    %s%s%s %s%d down%s    %sagent:%s  hermes:%s  llama:%s%s\n' \
             "$C_GRN" "$DOT_UP" "$C_R"   "$C_B"   "$n_up"   "$C_R" \
             "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$n_down" "$C_R" \
-            "$C_GRY" "$_p_agent_pipe" "$_p_hermes" "$_p_ollama" "$C_R"
+            "$C_GRY" "$_p_agent_pipe" "$_p_hermes" "$_p_llamaswap" "$C_R"
         local link_fmt='  %s %-10s %s%s%s\n'
         printf "$link_fmt" "$d_agent_pipe" "Agent-Pipe" "$C_D" "http://localhost:${_p_agent_pipe}/v1"  "$C_R"
         printf "$link_fmt" "$d_webui"      "WebUI"      "$C_D" "http://localhost:${_p_webui}/"        "$C_R"
@@ -469,13 +471,14 @@ print_endpoints() {
     c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
     c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
     c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
-    c_oll=$(  printf "$cell_fmt" "$d_ollama"     "http://localhost:${_p_ollama}/"        "Ollama"     "$C_D" "$_p_ollama"     "$C_R")
-    c_olli=$( printf "$cell_fmt" "$d_ollama_cpu" "http://localhost:${_p_ollama_cpu}/"   "Ollama-CPU" "$C_D" "$_p_ollama_cpu" "$C_R")
+    # llama.cpp (llama-swap :11450) is the inference engine; ollama is retired
+    # (masked). Show LlamaSwap, not Ollama -- operator 2026-06-06 "not converted
+    # to llama.cpp STILL" was the dash label lagging the actual cutover.
+    c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")
     c_qdr=$(  printf "$cell_fmt" "$d_qdrant"     "http://localhost:6333/"                "Qdrant"     "$C_D" "6333"           "$C_R")
     printf "$row_fmt" "$c_agent" "$c_herm"
     printf "$row_fmt" "$c_sdb"   "$c_dash"
-    printf "$row_fmt" "$c_oll"   "$c_olli"
-    printf "$row_fmt" "$c_qdr"   ""
+    printf "$row_fmt" "$c_llama" "$c_qdr"
 
     # Micro-LLM status row -- observability layer health
     local micro_info micro_model micro_latency
