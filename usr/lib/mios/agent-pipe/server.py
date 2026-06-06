@@ -4038,6 +4038,17 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         # them to a strict /v1 gateway (it may reject unknown fields).
         nb.pop("_allow_write", None)
         nb.pop("num_ctx", None)
+        # /v1 (llama.cpp) IGNORES ollama options.num_predict + think -> without an
+        # explicit max_tokens the server's tiny default lets gemma4's separate
+        # thinking channel eat the whole budget and return EMPTY content (operator
+        # 2026-06-06 grounded/browse nodes). Translate the cap to max_tokens and
+        # turn off the thinking channel so the node renders a clean answer.
+        if not nb.get("max_tokens"):
+            _np = (nb.get("options") or {}).get("num_predict")
+            nb["max_tokens"] = int(_np) if _np else _num_predict_cap_for(ep)
+        nb.pop("options", None)
+        nb.pop("think", None)
+        nb.setdefault("chat_template_kwargs", {"enable_thinking": False})
         if _mdl:
             nb["model"] = _mdl
         # Pipe-side OpenAI tool-loop FIRST (operator 2026-05-27 "fix opencode +
@@ -18778,7 +18789,9 @@ async def chat_completions(request: Request) -> Any:
                 # the Hermes service overflowed the 32k ctx (25k tools + page) and
                 # returned empty (operator 2026-06-06).
                 _mdag = {"summary": _act[:120], "nodes": [{
-                    "id": "cdp-browse", "agent": "hermes", "_no_tools": True,
+                    "id": "cdp-browse",
+                    "agent": ("ai-local" if "ai-local" in (_AGENT_REGISTRY or {})
+                              else "hermes"), "_no_tools": True,
                     "prompt": (_cdp_ctx + "Answer the user's request using ONLY the "
                                "LIVE PAGE CONTENT above; quote it exactly where "
                                "asked, and do not add facts not present in it: "
