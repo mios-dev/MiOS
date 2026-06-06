@@ -19545,7 +19545,9 @@ async def chat_completions(request: Request) -> Any:
                         _endpoint_supports_tool_choice(
                             str(_c.get("endpoint") or ""), _c,
                             _agent_offload_engine(_c)):
-                    _node_body.pop("tool_choice", None)
+                    # Downgrade required->auto (llama.cpp accepts auto + emits real
+                    # tool_calls); dropping it made the model narrate the call.
+                    _node_body["tool_choice"] = "auto"
                 # context = the secondary's ROLE/specialty (why it's engaged on
                 # this turn); council members all answer the same prompt, so the
                 # role is the relevant per-node step context.
@@ -19891,7 +19893,12 @@ async def chat_completions(request: Request) -> Any:
         # llama.cpp 400s on it; operator 2026-06-01) -- non-streaming path.
         if _b.get("tool_choice") and not _endpoint_supports_tool_choice(
                 str(_c.get("endpoint") or ""), _c, _agent_offload_engine(_c)):
-            _b.pop("tool_choice", None)
+            # llama.cpp REJECTS tool_choice='required' but ACCEPTS 'auto' and then
+            # emits real OpenAI tool_calls (proven: gemma4/qwen3 on llama-swap).
+            # Downgrade to 'auto' rather than DROPPING it -- dropping it made the
+            # model NARRATE the call as text ("<|tool_call>...") instead of
+            # executing it, so verbs never fired (operator 2026-06-05 stress test).
+            _b["tool_choice"] = "auto"
         return _b
 
     _sec_tasks = [
