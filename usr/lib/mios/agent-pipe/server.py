@@ -3354,6 +3354,15 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         # them to a strict /v1 gateway (it may reject unknown fields).
         nb.pop("_allow_write", None)
         nb.pop("num_ctx", None)
+        # /v1 ignores ollama options.num_predict/think -> set max_tokens + disable
+        # the thinking channel so the DAG node renders content (not an empty answer
+        # the synth merge then drops -> merged_chars=0; operator 2026-06-06).
+        if not nb.get("max_tokens"):
+            _np = (nb.get("options") or {}).get("num_predict")
+            nb["max_tokens"] = int(_np) if _np else _num_predict_cap_for(ep)
+        nb.pop("options", None)
+        nb.pop("think", None)
+        nb.setdefault("chat_template_kwargs", {"enable_thinking": False})
         if _mdl:
             nb["model"] = _mdl
         # The Hermes gateway (:8642) enforces Authorization: Bearer <key>; the
@@ -18094,7 +18103,7 @@ async def _format_local_state(question: str, grounding: str,
 async def _respond_local_state(
     refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
     session_id: Optional[str], last_user_text: str, persona_system: str = "",
-    emit=None,
+    emit=None, grounding_override: Optional[str] = None,
 ) -> Any:
     """Deterministic local-state answer: run the local READ tools, enumerate
     faithfully, STOP. Returns a Response, or None to fall through to the normal
@@ -18119,7 +18128,8 @@ async def _respond_local_state(
                     _holder["resp"] = await _respond_local_state(
                         refined, streaming=False, chat_id=chat_id, model=model,
                         session_id=session_id, last_user_text=last_user_text,
-                        persona_system=persona_system, emit=_lq.put_nowait)
+                        persona_system=persona_system, emit=_lq.put_nowait,
+                        grounding_override=grounding_override)
                 except Exception as _e:  # noqa: BLE001
                     _holder["err"] = str(_e)
                 finally:
@@ -18170,8 +18180,9 @@ async def _respond_local_state(
             except Exception:  # noqa: BLE001
                 pass
 
-    _emit("📂", "checking this machine")
-    grounding = await _read_tool_enrich(refined, session_id)
+    _emit("🌐" if grounding_override else "📂",
+          "reading the page" if grounding_override else "checking this machine")
+    grounding = grounding_override or await _read_tool_enrich(refined, session_id)
     if not grounding or not grounding.strip():
         return None
     if emit:
@@ -18756,58 +18767,50 @@ async def chat_completions(request: Request) -> Any:
             # and hand it to the node so the answer is grounded in the actual
             # page, not a guess. The agent's own browser_* tools still run for
             # click/type/multi-step actions. Degrades silently if CDP is down.
-            _cdp_ctx = ""
+            _cdp_page = ""
             try:
                 import re as _re_cdp
                 import subprocess as _sp_cdp
                 _um = _re_cdp.search(r'https?://[^\s"\'<>]+', _act)
                 if _um:
                     _u = _um.group(0).rstrip('.,);]')
-                    _cr = _sp_cdp.run(["mios-cdp-fetch", _u, "3000"],
+                    _cr = _sp_cdp.run(["mios-cdp-fetch", _u, "4000"],
                                       capture_output=True, text=True, timeout=55)
                     if _cr.returncode == 0 and _cr.stdout.strip():
                         _pg = json.loads(_cr.stdout)
                         if (_pg.get("text") or "").strip():
-                            _cdp_ctx = (
-                                "\n\nLIVE PAGE CONTENT (fetched via ChromeDev CDP "
-                                "from %s):\nTITLE: %s\n%s\n\nUse this REAL page text "
-                                "to answer; do not invent content.\n"
+                            _cdp_page = (
+                                "LIVE PAGE CONTENT fetched via ChromeDev CDP from "
+                                "%s\nTITLE: %s\n\n%s"
                                 % (_pg.get("url"), _pg.get("title"),
-                                   (_pg.get("text") or "")[:2800]))
+                                   (_pg.get("text") or "")[:4000]))
                             log.info("cdp prefetch ok: %s (%d chars)",
                                      _u, len(_pg.get("text") or ""))
             except Exception as _ce:
                 log.warning("cdp prefetch failed: %s", _ce)
-            if _cdp_ctx:
-                # Real page text in hand -> answer from it as a SINGLE node and
-                # skip the research fan-out (it returns unrelated links the
-                # synthesis then hallucinates over -- operator 2026-06-06 wikipedia
-                # browse fabricated the first sentence despite a good CDP fetch).
-                # Route to the BARE gemma4 lane (ai-local -> empty endpoint ->
-                # BACKEND :11450, no 25k Hermes tool prompt) and _no_tools, so the
-                # 6k-char page + question fits with ample headroom -- routing it to
-                # the Hermes service overflowed the 32k ctx (25k tools + page) and
-                # returned empty (operator 2026-06-06).
-                _mdag = {"summary": _act[:120], "nodes": [{
-                    "id": "cdp-browse",
-                    "agent": ("ai-local" if "ai-local" in (_AGENT_REGISTRY or {})
-                              else "hermes"), "_no_tools": True,
-                    "prompt": (_cdp_ctx + "Answer the user's request using ONLY the "
-                               "LIVE PAGE CONTENT above; quote it exactly where "
-                               "asked, and do not add facts not present in it: "
-                               + _act),
-                    "title": "cdp browse (live page)", "deps": []}]}
-            else:
-                _mdag["nodes"].append({
-                    "id": "browser-action", "agent": "hermes",
-                    "prompt": ("Use your live browser tools -- first run "
-                               "`terminal: mios-hermes-browser ensure`, then "
-                               "browser_navigate / browser_click / browser_type -- to "
-                               "ACTUALLY PERFORM this on the real web. Do NOT just "
-                               "explain how; DO it, step by step, and report exactly "
-                               "what you did and the final state (success or the "
-                               "specific blocker): " + _act),
-                    "title": "browser action (live)", "deps": []})
+            if _cdp_page:
+                # Real page text in hand -> render the answer DIRECTLY via the proven
+                # grounded path (_format_local_state on /v1) instead of the DAG: the
+                # DAG synthesis dropped the single grounded node (merged_chars=0 ->
+                # hallucination, operator 2026-06-06). _respond_local_state handles
+                # streaming + non-streaming; falls through to the live browser node
+                # only if the grounded render declines.
+                _ls = await _respond_local_state(
+                    refined, streaming=streaming, chat_id=chat_id, model=model,
+                    session_id=session_id, last_user_text=_act,
+                    persona_system=_persona_system, grounding_override=_cdp_page)
+                if _ls is not None:
+                    return _ls
+            _mdag["nodes"].append({
+                "id": "browser-action", "agent": "hermes",
+                "prompt": ("Use your live browser tools -- first run "
+                           "`terminal: mios-hermes-browser ensure`, then "
+                           "browser_navigate / browser_click / browser_type -- to "
+                           "ACTUALLY PERFORM this on the real web. Do NOT just "
+                           "explain how; DO it, step by step, and report exactly "
+                           "what you did and the final state (success or the "
+                           "specific blocker): " + _act),
+                "title": "browser action (live)", "deps": []})
             log.info("browser-action fire-both: pinned hermes browser node "
                      "(+%d research nodes)", len(_mdag["nodes"]) - 1)
         if _mdag and (_mdag.get("nodes") or []):
