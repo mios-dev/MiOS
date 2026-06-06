@@ -42,11 +42,13 @@ Environment=WSL2_GUI_APPS_ENABLED=1
 # exits (exit 2, no window) -- operator 2026-06-06: broker ran mios-launch epiphany
 # but no window. Point at uid 1000's session bus.
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/992/bus
-# Skip flatpak-launch's nested wsl.exe re-launch (Step 6): that nested session
-# can't bind the WSLg compositor ("Failed to open display"). The broker is mios
-# (the WSL user) with the full WSLg + dbus env above, so launch DIRECTLY -- the
-# wayland socket (/run/user/992/wayland-0, world-rwx) is reachable and dbus is set
-# for the flatpak portal bootstrap (operator 2026-06-06).
+# Use the DIRECT launch path (skip flatpak-launch's wsl.exe-session re-launch):
+# (1) the nested wsl.exe session tears down its children after the bootstrap so
+# apps die; (2) X11 :0 is broken on this WSLg (xdg-desktop-portal-gtk: "cannot
+# open display :0") so launches must use WAYLAND. The broker is a persistent
+# user@992 service with the wayland-0 socket + user session-bus + portal, so a
+# setsid direct launch survives and reaches the wayland display (operator
+# 2026-06-06). Pair with the per-app override GDK_BACKEND=wayland.
 Environment=_MIOS_FLATPAK_INSESSION=1
 ExecStart=/usr/libexec/mios/mios-launcher-daemon
 Restart=on-failure
