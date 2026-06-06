@@ -8250,6 +8250,7 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
     if not phrase:
         return None
     p = phrase.strip().lower().replace("'", "''")
+    pr = phrase.strip().lower()              # raw (psycopg param binding)
     if not p:
         return None
     # Stage 1a: alias EXACT-match (highest precedence). Operator
@@ -8260,7 +8261,12 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
         f"source, label, launch_hint}} AS apps "
         f"FROM alias WHERE phrase = '{p}' LIMIT 1;"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT %(pr)s AS phrase, json_agg(json_build_object("
+        "'short_name', a.short_name, 'app_id', a.app_id, 'source', a.source, "
+        "'label', a.label, 'launch_hint', a.launch_hint)) AS apps "
+        "FROM resolves_to r JOIN app_install a ON a.app_id = r.app_id "
+        "WHERE r.phrase = %(pr)s"), pg_params={"pr": pr})
     if r:
         rows = (r[-1] or {}).get("result") or []
         for row in rows:
@@ -8279,7 +8285,15 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
         f"   OR string::contains('{p}', phrase) "
         f"LIMIT 3;"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT al.phrase, json_agg(json_build_object("
+        "'short_name', a.short_name, 'app_id', a.app_id, 'source', a.source, "
+        "'label', a.label, 'launch_hint', a.launch_hint)) AS apps "
+        "FROM alias al JOIN resolves_to r ON r.phrase = al.phrase "
+        "JOIN app_install a ON a.app_id = r.app_id "
+        "WHERE al.phrase ILIKE '%%' || %(pr)s || '%%' "
+        "OR %(pr)s ILIKE '%%' || al.phrase || '%%' "
+        "GROUP BY al.phrase LIMIT 3"), pg_params={"pr": pr})
     if r:
         rows = (r[-1] or {}).get("result") or []
         for row in rows:
@@ -8296,7 +8310,11 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
         f"   OR string::contains('{p}', short_name) "
         f"LIMIT 1;"
     )
-    r = await _db_post(sql)
+    r = await _db_read(sql, pg_sql=(
+        "SELECT short_name, app_id, source, label, launch_hint FROM app_install "
+        "WHERE short_name ILIKE '%%' || %(pr)s || '%%' "
+        "OR %(pr)s ILIKE '%%' || short_name || '%%' LIMIT 1"),
+        pg_params={"pr": pr})
     if r:
         rows = (r[-1] or {}).get("result") or []
         if rows:
