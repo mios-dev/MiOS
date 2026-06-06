@@ -193,12 +193,23 @@ if not query:
     print("mios-find: empty query", file=sys.stderr)
     sys.exit(2)
 
+# Use run() not check_output(): mios-apps exits NON-ZERO when ANY sub-scanner
+# fails (e.g. Everything es.exe dead, or the Windows side unreachable) even
+# though it still emits a perfectly good Linux/flatpak inventory on stdout.
+# check_output discarded that stdout on the non-zero exit -> EVERY app
+# resolution failed on hosts with a degraded scanner. Consume stdout
+# regardless of returncode; only give up if stdout is genuinely empty.
 try:
-    out = subprocess.check_output(
-        ["mios-apps", "--json"], text=True, timeout=15
+    proc = subprocess.run(
+        ["mios-apps", "--json"], capture_output=True, text=True, timeout=15
     )
-except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+    out = proc.stdout or ""
+except (subprocess.TimeoutExpired, FileNotFoundError) as e:
     print(f"mios-find: mios-apps failed: {e}", file=sys.stderr)
+    sys.exit(3)
+if not out.strip():
+    print(f"mios-find: mios-apps returned no inventory "
+          f"(rc={proc.returncode}): {proc.stderr[:200]}", file=sys.stderr)
     sys.exit(3)
 
 CAT_PRIORITY = {
