@@ -39,7 +39,12 @@ OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 [ -f "$PIPE_SRC" ] || { echo "mios-owui-install-pipe: $PIPE_SRC missing" >&2; exit 2; }
 [ -f "$OWUI_DB" ] || { echo "mios-owui-install-pipe: $OWUI_DB missing" >&2; exit 3; }
 
-# ─── Find / generate an admin API key ────────────────────────────────
+# ─── Find / generate an admin API key (MIOS_OWUI_TOKEN env wins -- e.g. a
+#     JWT from /auths/signin, used when OWUI's api-key auth is disabled) ──
+TOKEN="${MIOS_OWUI_TOKEN:-}"
+if [ -n "$TOKEN" ]; then
+    echo "[mios-owui-install-pipe] using MIOS_OWUI_TOKEN (JWT/override)"
+else
 TOKEN=$(python3 - "$OWUI_DB" <<'PYEOF'
 import sqlite3, sys, secrets, time
 path = sys.argv[1]
@@ -72,6 +77,7 @@ c.commit()
 print(new_key, end="")
 PYEOF
 )
+fi
 
 if [ -z "$TOKEN" ]; then
     echo "mios-owui-install-pipe: could not find or create admin API key" >&2
