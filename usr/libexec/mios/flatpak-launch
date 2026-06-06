@@ -398,13 +398,20 @@ if [ "$IS_WSL" = "1" ] && [ "${_MIOS_FLATPAK_INSESSION:-0}" != "1" ] \
     _boot="${MIOS_FLATPAK_BOOTSTRAP_SECS:-12}"
     # Safely single-quote each token for transit through `bash -lc`.
     _q() { printf "'"; printf '%s' "$1" | sed "s/'/'\\\\''/g"; printf "'"; }
-    _inner="export _MIOS_FLATPAK_INSESSION=1; setsid flatpak run --system $(_q "$APP_ID")"
-    for _a in $EXTRA_FLAGS "$@"; do _inner="$_inner $(_q "$_a")"; done
+    # Launch via D-Bus activation (gio launch <desktop>) rather than `flatpak run`:
+    # flatpak run starts the GUI in a transient --user scope that inherits the user
+    # manager env (no DISPLAY -> "Failed to open display"); D-Bus activation starts
+    # it via the session bus using the ACTIVATION environment, which we populate
+    # with DISPLAY here. Canonical per microsoft/WSL#12436 + freedesktop service->GUI.
+    # Falls back to flatpak run if gio/D-Bus activation is unavailable.
+    _desktop="/var/lib/flatpak/exports/share/applications/${APP_ID}.desktop"
+    _u=""; for _a in "$@"; do _u="$_u $_a"; done
+    _inner="export _MIOS_FLATPAK_INSESSION=1 XDG_RUNTIME_DIR=/run/user/${_op_uid} WAYLAND_DISPLAY=wayland-0 DISPLAY=:0 PULSE_SERVER=unix:/mnt/wslg/PulseServer XDG_CURRENT_DESKTOP=GNOME; dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR PULSE_SERVER 2>/dev/null; setsid sh -c 'gio launch $_desktop$_u || gapplication launch $APP_ID$_u || flatpak run --system $APP_ID$_u'"
     # Background the GUI inside the session, then keep the session alive
     # $_boot seconds so the portal handshake completes before it exits.
-    _inner="$_inner >/dev/null 2>&1 </dev/null & sleep $_boot"
+    _inner="$_inner >>/tmp/mios-flatpak-launch.log 2>&1 </dev/null & sleep $_boot"
     setsid /mnt/c/Windows/System32/wsl.exe -d "$_wd" --user "$_op_user" -- \
-        bash -lc "$_inner" >/dev/null 2>&1 </dev/null &
+        bash -lc "$_inner" >>/tmp/mios-flatpak-launch.log 2>&1 </dev/null &
     echo "flatpak-launch: fired $APP_ID via wsl.exe session (detached, bootstrap ${_boot}s, auto-center armed)" >&2
     exit 0
 fi
@@ -416,6 +423,6 @@ fi
 # capture timeout and marking a successful launch as failed). >/dev/null 2>&1
 # also drops the flatpak 1.17 "F: Not replacing /usr/*" noise.
 # shellcheck disable=SC2086 -- intentional word-splitting on EXTRA_FLAGS
-setsid flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@" >/dev/null 2>&1 < /dev/null &
+setsid flatpak run --system "$APP_ID" $EXTRA_FLAGS "$@" >>/tmp/mios-flatpak-launch.log 2>&1 < /dev/null &
 echo "flatpak-launch: fired $APP_ID (detached, auto-center armed)" >&2
 exit 0
