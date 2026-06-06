@@ -15385,30 +15385,38 @@ async def _a2a_client_on_startup() -> None:
 _VERB_EMBED_MODEL = os.environ.get(
     "MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
 _VERB_EMBED_URL = os.environ.get(
-    "MIOS_VERB_EMBED_URL", "http://localhost:11435/api/embeddings")
+    "MIOS_VERB_EMBED_URL", "http://localhost:11450/v1/embeddings")
 _VERB_EMBEDDINGS: dict[str, list[float]] = {}
 _VERB_EMBEDDINGS_LOCK = asyncio.Lock()
 
 
 async def _embed_one(text: str) -> Optional[list[float]]:
-    """Single-vector embed via Ollama /api/embeddings. Returns None on
-    failure (caller falls back to substring match)."""
+    """Single-vector embed. Supports BOTH ollama /api/embeddings ({prompt} ->
+    {embedding}) and OpenAI /v1/embeddings ({input} -> {data:[{embedding}]}),
+    chosen by the URL -- so it works on the llama.cpp nomic lane (llama-swap
+    :11450) after the ollama retirement (operator 2026-06-06: "embed call failed"
+    on the dead :11435). Returns None on failure (caller falls back to substring
+    match)."""
     if not text or not text.strip():
         return None
     client = await _get_client()
     try:
+        _v1 = "/v1/embeddings" in _VERB_EMBED_URL
         r = await client.post(
             _VERB_EMBED_URL,
-            content=json.dumps({
-                "model": _VERB_EMBED_MODEL,
-                "prompt": text,
-            }).encode("utf-8"),
+            content=json.dumps(
+                {"model": _VERB_EMBED_MODEL,
+                 ("input" if _v1 else "prompt"): text}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         if r.status_code != 200:
             return None
         data = r.json()
         v = data.get("embedding")
+        if v is None:                      # OpenAI /v1 shape
+            _d = data.get("data")
+            if isinstance(_d, list) and _d:
+                v = _d[0].get("embedding")
         if isinstance(v, list) and v:
             return [float(x) for x in v]
     except Exception as e:
