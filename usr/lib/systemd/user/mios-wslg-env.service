@@ -1,0 +1,30 @@
+[Unit]
+# /usr/lib/systemd/user/mios-wslg-env.service
+#
+# Closes microsoft/WSL#12436 on MiOS: the `systemd --user` manager has no
+# DISPLAY/WAYLAND_DISPLAY (WSLg injects those only into login shells via
+# /etc/profile.d), so --user services and flatpak's transient --user scopes launch
+# GUIs with no display and die "Gtk-WARNING: Failed to open display". This oneshot
+# pushes the WSLg display env into the user manager + the dbus activation env at
+# session start, the same thing an interactive GNOME/KDE session does after the
+# compositor comes up. Required for the launcher broker (mios-launcher.service) to
+# surface visible windows -- without it, `flatpak run epiphany` from the broker
+# never appears even though the compositor + sockets are healthy.
+Description=Import WSLg display environment into the systemd --user manager
+Documentation=https://github.com/microsoft/WSL/issues/12436
+ConditionVirtualization=wsl
+After=basic.target
+Before=mios-launcher.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# WSLg env values are stable; pass them so the importer's defaults are exact even
+# when this unit's own env wasn't populated by a login shell.
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=PULSE_SERVER=unix:/mnt/wslg/PulseServer
+ExecStart=/usr/libexec/mios/mios-wslg-env-import
+
+[Install]
+WantedBy=default.target

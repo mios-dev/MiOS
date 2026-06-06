@@ -29,6 +29,25 @@ Type=simple
 # broker got "mios-launch: command not found" (exit 127) and EVERY app launch failed
 # (operator 2026-06-05 "open epiphany"). Put libexec + the mios shim dir on PATH.
 Environment=PATH=/usr/libexec/mios:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+# WSLg display env (operator 2026-06-06: epiphany launched but no window appeared --
+# the broker had NO WAYLAND_DISPLAY/XDG_RUNTIME_DIR in its env, so every GUI app it
+# spawns runs headless with no compositor and exits). Point it at the live WSLg
+# socket (/run/user/992/wayland-0 -> /mnt/wslg/runtime-dir/wayland-0) so launched
+# apps surface on the operator's desktop. uid 1000 = the broker user.
+Environment=XDG_RUNTIME_DIR=/run/user/992
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=DISPLAY=:0
+Environment=WSL2_GUI_APPS_ENABLED=1
+# flatpak run (epiphany) needs the dbus SESSION bus for the portal/session or it
+# exits (exit 2, no window) -- operator 2026-06-06: broker ran mios-launch epiphany
+# but no window. Point at uid 1000's session bus.
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/992/bus
+# Skip flatpak-launch's nested wsl.exe re-launch (Step 6): that nested session
+# can't bind the WSLg compositor ("Failed to open display"). The broker is mios
+# (the WSL user) with the full WSLg + dbus env above, so launch DIRECTLY -- the
+# wayland socket (/run/user/992/wayland-0, world-rwx) is reachable and dbus is set
+# for the flatpak portal bootstrap (operator 2026-06-06).
+Environment=_MIOS_FLATPAK_INSESSION=1
 ExecStart=/usr/libexec/mios/mios-launcher-daemon
 Restart=on-failure
 RestartSec=2s

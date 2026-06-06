@@ -1,0 +1,40 @@
+#!/bin/sh
+# /usr/libexec/mios/mios-wslg-env-import
+#
+# Push the WSLg display environment into the systemd --user manager AND the D-Bus
+# activation environment, so that --user services and flatpak's transient --user
+# scopes (flatpak runs GUI apps in an `app-flatpak-*.scope` under the user
+# manager) INHERIT DISPLAY/WAYLAND_DISPLAY and can reach the WSLg compositor.
+#
+# WHY (microsoft/WSL#12436, verified on MiOS 2026-06-06): WSLg injects
+# DISPLAY/WAYLAND_DISPLAY/XDG_RUNTIME_DIR/PULSE_SERVER only into *login shells*
+# (via /etc/profile.d). The `systemd --user` manager starts before any of that and
+# never receives them, so anything it activates -- including every flatpak GUI --
+# launches with no display and dies with:
+#     (app:N): Gtk-WARNING **: Failed to open display
+# The canonical fix is exactly what an interactive GNOME/KDE session does after the
+# compositor comes up: import the values into the user manager and the dbus
+# activation env. On WSLg the values are stable, so set them explicitly (so this
+# works even when our own env wasn't pre-populated).
+#
+# Inert off-WSL (the unit is ConditionVirtualization=wsl gated).
+set -eu
+
+RD="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+# set-environment is deterministic (doesn't depend on this process's own env being
+# populated, unlike `import-environment VAR`).
+systemctl --user set-environment \
+    "DISPLAY=${DISPLAY:-:0}" \
+    "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}" \
+    "XDG_RUNTIME_DIR=${RD}" \
+    "PULSE_SERVER=${PULSE_SERVER:-unix:/mnt/wslg/PulseServer}" 2>/dev/null || true
+
+# Mirror into the D-Bus activation environment so dbus-activated services (the
+# xdg-desktop-portal stack flatpak GUIs need) also get the display.
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    dbus-update-activation-environment --systemd \
+        DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR PULSE_SERVER 2>/dev/null || true
+fi
+
+exit 0
