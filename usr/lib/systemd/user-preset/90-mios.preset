@@ -33,3 +33,13 @@ enable mios-wsl-env-import.service
 # loopback/tailnet (full MCP + A2A federation). Off-switch: disable here or set
 # [computer_use].bind_address = "" in mios.toml.
 enable mios-computer-use-server.service
+
+# Launcher broker (operator-side; /run/mios-launcher/launcher.sock). The agent
+# plane dispatches EVERY host-execution verb (app launch, OS/window control,
+# winget, mios-remember, system_status, ...) THROUGH this broker. Without it the
+# agent's tool_calls fail with "missing broker socket" and the pipeline cannot
+# truly act -- only in-process tools (web_search) work. It runs in the operator's
+# session so GUI launches land on their WSLg desktop (never Session 0). Gap found
+# on the fresh MiOS-DEV VM 2026-06-05: WantedBy=default.target but never
+# preset-enabled, so it never autostarted -> every broker verb failed.
+enable mios-launcher.service
