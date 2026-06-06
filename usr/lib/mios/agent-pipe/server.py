@@ -6715,6 +6715,32 @@ async def refine_intent(user_text: str,
     _ls = parsed.get("local_state")
     parsed["local_state"] = (_ls is True) or (
         isinstance(_ls, str) and _ls.strip().lower() in {"true", "1", "yes"})
+    # Deterministic routing for two verbs gemma4 mis-selects (operator 2026-06-06
+    # tool battery: web_search punted to LOCAL data; "remember X" ran mios_apps and
+    # didn't save). Keyword-triggered like the launch/browse pre-router; the model
+    # still owns everything else.
+    try:
+        import re as _re_vr
+        _utl = user_text or ""
+        if _re_vr.search(r'\b(search|look\s*up|google|find)\b.{0,40}\b'
+                         r'(web|internet|online)\b|\bon the (web|internet)\b'
+                         r'|\bsearch the web\b|\blatest\b.{0,30}\b'
+                         r'(version|release)\b', _utl, _re_vr.I):
+            parsed["web"] = True
+            parsed["local_state"] = False
+            if parsed.get("intent") == "chat":
+                parsed["intent"] = "agent"
+        _rm = _re_vr.match(r'\s*(?:please\s+)?(?:remember|note|save|keep in mind)'
+                           r'(?:\s+that)?\s+(.+)', _utl, _re_vr.I)
+        if _rm and "remember" in (_VERB_CATALOG or {}):
+            _fact = _re_vr.split(r',?\s*\b(?:then|and then)\b', _rm.group(1),
+                                 maxsplit=1)[0].strip().rstrip('.')
+            if _fact:
+                parsed["intent"] = "dispatch"
+                parsed["tool"] = "remember"
+                parsed["args"] = {"content": _fact}
+    except Exception:
+        pass
     # Chat-classify guard: a small refine model occasionally picks
     # intent=chat for an input that's CLEARLY actionable (literal
     # CLI verb, fully-qualified URL, `mios-*` shim invocation) and
