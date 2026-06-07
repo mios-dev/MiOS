@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# mios-enroll-secure-boot -- enroll the ublue/akmods Machine Owner Key (MOK) so
+# the MOK-signed NVIDIA + ZFS kmods MiOS inherits from ucore-hci load under
+# Secure Boot. Without this, a Secure-Boot system using the stable/lts NVIDIA or
+# ZFS streams fails to load those modules (uCore documents the same mandatory
+# step). Mirrors ublue's `ujust enroll-secure-boot-key`.
+#
+# Operator runs this ONCE: it imports the cert and prompts for a one-time
+# password; at the next reboot the firmware's blue "MOK Manager" screen asks for
+# that password to confirm enrollment. (R14 -- review-flagged Secure-Boot gap,
+# 2026-06-06.) This is an operator action, not an agent verb.
+set -euo pipefail
+
+# Candidate cert locations (ublue/akmods ship the .der under /etc/pki/akmods).
+CERTS=(
+    /etc/pki/akmods/certs/akmods-ublue.der
+    /etc/pki/akmods/certs/public_key.der
+    /etc/pki/akmods/certs/akmods.der
+)
+
+cert=""
+for c in "${CERTS[@]}"; do
+    [ -r "$c" ] && { cert="$c"; break; }
+done
+if [ -z "$cert" ]; then
+    echo "mios-enroll-secure-boot: no akmods MOK cert found in:" >&2
+    printf '  %s\n' "${CERTS[@]}" >&2
+    echo "  (is this a ublue/ucore-derived image with akmods?)" >&2
+    exit 1
+fi
+
+if ! command -v mokutil >/dev/null 2>&1; then
+    echo "mios-enroll-secure-boot: mokutil not installed" >&2
+    exit 1
+fi
+
+# Already enrolled? mokutil --list-enrolled would show it; skip if so.
+if mokutil --list-enrolled 2>/dev/null | grep -qi "ublue\|akmods"; then
+    echo "MOK already appears enrolled -- nothing to do."
+    mokutil --list-enrolled 2>/dev/null | grep -i "ublue\|akmods" || true
+    exit 0
+fi
+
+echo "Enrolling MOK cert for Secure Boot:"
+echo "    $cert"
+echo
+echo "You will set a ONE-TIME password now. At the NEXT reboot, the blue MOK"
+echo "Manager screen will ask for it -- choose 'Enroll MOK' -> 'Continue' ->"
+echo "enter this password to finish. (ublue's well-known default, if a value is"
+echo "ever pre-seeded, is 'universalblue'.)"
+echo
+sudo mokutil --import "$cert"
+echo
+echo "Imported. Reboot to complete enrollment via the MOK Manager screen."
+echo "Verify afterwards with:  mokutil --list-enrolled | grep -i ublue"
