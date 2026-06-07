@@ -38,7 +38,7 @@ preflight:
 
 # Show current flight status and variable mappings
 flight-status:
-    @./tools/flight-control.sh
+    @bash ./usr/libexec/mios/flight-control.sh || true   # canonical path (was ./tools/, missing -> broke build/iso); status display is non-fatal
 
 # Unified initialization (Mode 2: User-space)
 init:
