@@ -18473,6 +18473,39 @@ def _usage_estimate(prompt: str, completion: str) -> dict:
     return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}
 
 
+@app.middleware("http")
+async def _usage_completeness_mw(request: Request, call_next):
+    """Tier-0 conformance: guarantee EVERY non-streaming /v1/chat/completions JSON
+    response carries a `usage` object -- the pipeline has ~8 internal envelopes that
+    emit it inconsistently, so this central post-pass fills any that lack it.
+    Streaming (text/event-stream) is skipped untouched. FAIL-SAFE: any error returns
+    the response unchanged; non-chat JSON (e.g. error objects) passes through as-is."""
+    response = await call_next(request)
+    if (request.url.path != "/v1/chat/completions"
+            or "application/json" not in response.headers.get("content-type", "")):
+        return response  # streaming / other endpoints: body_iterator NOT consumed
+    body = b""
+    try:
+        async for chunk in response.body_iterator:
+            body += chunk
+    except Exception:
+        return response
+    out = body
+    try:
+        data = json.loads(body)
+        if (isinstance(data, dict) and data.get("object") == "chat.completion"
+                and not data.get("usage")):
+            _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            data["usage"] = _usage_estimate("", _ans)
+            out = json.dumps(data).encode()
+    except Exception:
+        out = body
+    from starlette.responses import Response as _Resp
+    _hdrs = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
+    return _Resp(content=out, status_code=response.status_code,
+                 headers=_hdrs, media_type="application/json")
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> Any:
     try:
