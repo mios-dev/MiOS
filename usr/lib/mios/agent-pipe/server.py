@@ -18487,6 +18487,14 @@ async def chat_completions(request: Request) -> Any:
 
     streaming = bool(body.get("stream", False))
     messages = body.get("messages") or []
+    if not messages or not isinstance(messages, list):
+        # Tier-0 conformance: a request with no usable `messages` returns a clean
+        # OpenAI error object (was crashing downstream -> connection drop / HTTP 000).
+        return JSONResponse(
+            content={"error": {"message": "you must provide a 'messages' array",
+                               "type": "invalid_request_error",
+                               "param": "messages", "code": None}},
+            status_code=400)
     last_user_text = _extract_last_user_text(messages)
     # UN-TEMPLATE (operator 2026-06-01): if OWUI wrapped the question in its RAG
     # task template ("### Task: Respond to the user query using the provided
