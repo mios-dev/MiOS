@@ -44,8 +44,9 @@ Environment=PYTHONUNBUFFERED=1
 # can flip this to =1 via a drop-in.
 Environment=MIOS_PREFILTER_REFINE=0
 Environment=MIOS_SYS_AGENT_MODEL=mios-sys-agent
-Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11434/v1
-Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11434
+# llama-swap (ollama RETIRED G5; :11434 dead). Inert while MIOS_PREFILTER_REFINE=0.
+Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11450/v1
+Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11450
 # Cold-load of the ~4 GB CPU refiner takes 60-180s on WSL2 disks
 # (3+ min observed on the operator's slow-disk testbed); on bare-
 # metal NVMe it's 10-30s. After cold load, mios-sys-agent generates
