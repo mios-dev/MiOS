@@ -2430,7 +2430,7 @@ async def _kv_paging(client, ep: str, cfg: dict, engine):
         yield
 
 
-async def kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
+async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
                   dst_conv: str) -> dict:
     """WS-8: fork `src_conv`'s saved llama.cpp KV into a NEW file for `dst_conv`
     so a swarm branch can page in the shared prefix independently. Drives the
