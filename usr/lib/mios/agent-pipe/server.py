@@ -1274,7 +1274,7 @@ def _passport_verify(envelope: dict,
     except Exception as e:
         return False, f"verify_error:{e}"
     return True, "ok"
-_DB_DOWN_UNTIL: float = 0.0
+_db_down_until: float = 0.0
 
 # ── Logging ────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -1352,7 +1352,7 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     per-statement results, or None on any error. A 30s backoff after
     each failure prevents per-turn retry storms when the DB is down. Uses the
     shared keep-alive pooled client (no per-call connect)."""
-    global _DB_DOWN_UNTIL
+    global _db_down_until
     if not sql or not sql.strip():
         return None
     # WS-9c full cutover: when Postgres is primary, agent-plane WRITES are already
@@ -1363,7 +1363,7 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
         _verb = sql.lstrip().split(None, 1)[0].upper()
         if _verb in ("CREATE", "UPDATE", "DELETE", "INSERT", "RELATE"):
             return None
-    if time.time() < _DB_DOWN_UNTIL:
+    if time.time() < _db_down_until:
         return None
     body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode()
     try:
@@ -1377,11 +1377,11 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
             timeout=timeout,
         )
         if r.status_code != 200:
-            _DB_DOWN_UNTIL = time.time() + 30
+            _db_down_until = time.time() + 30
             return None
         return r.json()
     except Exception:
-        _DB_DOWN_UNTIL = time.time() + 30
+        _db_down_until = time.time() + 30
         return None
 
 
