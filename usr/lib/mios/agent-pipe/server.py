@@ -8530,7 +8530,13 @@ async def _skill_fetch(name: str) -> Optional[dict]:
         f"description, support, confidence "
         f"FROM skill WHERE name = {json.dumps(name)} LIMIT 1;"
     )
-    r = await _db_post(sql)
+    # R15/G10: read pg when primary -- the surreal `skill` table is empty after
+    # the agent-plane migration (the promoted skills live in pgvector), so a raw
+    # _db_post here made the agent skill-blind. Falls back to surreal in dual.
+    r = await _db_read(sql, pg_sql=(
+        "SELECT id, name, body, status, source, version, "
+        "description, support, confidence FROM skill "
+        "WHERE name = %(n)s LIMIT 1"), pg_params={"n": name})
     if not r:
         return None
     rows = (r[-1] or {}).get("result") or []
@@ -8552,7 +8558,18 @@ async def _skill_list(*, status: str = "promoted",
         f"FROM skill WHERE {clause} "
         f"ORDER BY name LIMIT {int(limit)};"
     )
-    r = await _db_post(sql)
+    # R15/G10: pg-native list when primary (surreal skill table is empty; the
+    # promoted skills are in pgvector). Param-bound clause; surreal fallback.
+    pg_where, pg_params = [], {}
+    if status and status != "all":
+        pg_where.append("status = %(status)s"); pg_params["status"] = status
+    if source and source != "all":
+        pg_where.append("source = %(source)s"); pg_params["source"] = source
+    pg_clause = " AND ".join(pg_where) if pg_where else "true"
+    r = await _db_read(sql, pg_sql=(
+        "SELECT name, description, body, source, status, support, "
+        f"confidence, version FROM skill WHERE {pg_clause} "
+        f"ORDER BY name LIMIT {int(limit)}"), pg_params=pg_params)
     if not r:
         return []
     return (r[-1] or {}).get("result") or []
