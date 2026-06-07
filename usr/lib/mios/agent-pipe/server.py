@@ -18506,6 +18506,61 @@ async def _usage_completeness_mw(request: Request, call_next):
                  headers=_hdrs, media_type="application/json")
 
 
+@app.post("/v1/responses")
+async def responses_api(request: Request) -> Any:
+    """OpenAI Responses API (Tier-2, additive). A THIN facade: translates the
+    Responses request to a chat/completions call against THIS server's own full
+    pipeline (self-proxy -> reuse refine/route/swarm/polish, no duplication), then
+    reshapes the answer into the Responses items model. /v1/chat/completions is
+    untouched. Minimal v1: text/message `input` -> one output_text message item +
+    usage; `instructions` -> a system message. Streaming/items/hosted-tools TODO."""
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:
+        return JSONResponse(content={"error": {"message": "invalid JSON body",
+                            "type": "invalid_request_error"}}, status_code=400)
+    model = body.get("model") or BACKEND_MODEL
+    inp = body.get("input")
+    msgs: list = []
+    if body.get("instructions"):
+        msgs.append({"role": "system", "content": str(body["instructions"])})
+    if isinstance(inp, str):
+        msgs.append({"role": "user", "content": inp})
+    elif isinstance(inp, list):
+        for it in inp:
+            if not isinstance(it, dict):
+                continue
+            c = it.get("content")
+            if isinstance(c, list):
+                c = "".join(p.get("text", "") for p in c if isinstance(p, dict)
+                            and p.get("type") in ("input_text", "output_text", "text"))
+            msgs.append({"role": it.get("role") or "user", "content": str(c or "")})
+    if not msgs:
+        return JSONResponse(content={"error": {"message": "you must provide 'input'",
+            "type": "invalid_request_error", "param": "input", "code": None}},
+            status_code=400)
+    _port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as s:
+            r = await s.post(f"http://127.0.0.1:{_port}/v1/chat/completions",
+                             json={"model": model, "messages": msgs, "stream": False},
+                             headers={"Content-Type": "application/json"})
+        cc = r.json()
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse(content={"error": {"message": str(e)[:200],
+                            "type": "api_error"}}, status_code=502)
+    answer = (((cc.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+    return JSONResponse(content={
+        "id": "resp_" + uuid.uuid4().hex[:24], "object": "response",
+        "created_at": int(time.time()), "model": model, "status": "completed",
+        "output": [{"type": "message", "id": "msg_" + uuid.uuid4().hex[:24],
+                    "status": "completed", "role": "assistant",
+                    "content": [{"type": "output_text", "text": answer}]}],
+        "output_text": answer,
+        "usage": cc.get("usage") or _usage_estimate("", answer),
+    })
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> Any:
     try:
