@@ -51,54 +51,50 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
     if [ -x "${VENV}/bin/hermes" ]; then log "agent venv ready: ${VENV}"; else log "WARN: agent venv still missing"; fi
 fi
 
-# ── 2. llama.cpp GGUFs (extracted from ollama blobs) ─────────────────────────
+# ── 2. llama.cpp GGUFs (llama.cpp-NATIVE -- HF download; ollama retired, G5/G8) ─
+# GGUFs are normally BAKED at build by automation/38-llamacpp-prep.sh (the
+# offline-correct path). This firstboot block is the ONLINE retry for hosts that
+# didn't bake them: it fetches the SAME MIOS_LLAMACPP_BAKE_MODELS spec
+# (dest.gguf=hf_repo:file, FOSS pre-quantized) directly from Hugging Face -- NO
+# ollama dependency (G5 retired it; the old blob-extraction path is dead). When
+# air-gapped + unbaked the lane stays inert (operator sets [llamacpp].bake_models
+# + rebuilds, or seeds ${MODELS} manually) -- it never blocks boot.
 if [ ! -f "${MODELS}/.ready" ]; then
     install -d -m 0755 "${MODELS}" /var/lib/mios/llamacpp/slots 2>/dev/null
-    # Wait for ollama to be READY: the After= unit reports "started" before the
-    # server inside the container is actually listening, and the dev-VM CPU lane
-    # is on :11435 (not the :11434 default). Poll both + $OLLAMA_HOST for ~50s.
-    OLL=""
-    if command -v ollama >/dev/null 2>&1; then
-        for _try in $(seq 1 10); do
-            for h in "${OLLAMA_HOST%/}" http://localhost:11434 http://localhost:11435; do
-                [ -n "$h" ] && curl -fsS -m 4 -o /dev/null "${h}/api/tags" 2>/dev/null && OLL="$h" && break
-            done
-            [ -n "$OLL" ] && break
-            sleep 5
+    SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
+    if [ -z "$SPEC" ]; then
+        log "GGUFs not baked + [llamacpp].bake_models empty -- llama-swap lane stays inert (set bake_models + rebuild, or seed ${MODELS} manually)"
+    else
+        fetched=0; total=0
+        IFS=',' read -ra _ents <<< "$SPEC"
+        for entry in "${_ents[@]}"; do
+            entry="$(printf '%s' "$entry" | tr -d '[:space:]')"; [ -z "$entry" ] && continue
+            total=$((total + 1))
+            dest="${entry%%=*}"; rest="${entry#*=}"; repo="${rest%%:*}"; file="${rest#*:}"
+            if [ -z "$dest" ] || [ -z "$repo" ] || [ -z "$file" ] || [ "$dest" = "$entry" ]; then
+                log "malformed GGUF entry '${entry}' (want dest.gguf=repo:file) -- skipping"; continue
+            fi
+            if [ -s "${MODELS}/${dest}" ]; then fetched=$((fetched + 1)); continue; fi
+            if python3 - "$repo" "$file" "${MODELS}/${dest}" <<'PY'
+import shutil, sys
+try:
+    from huggingface_hub import hf_hub_download
+except Exception:
+    sys.exit(3)   # lib absent / air-gapped -> stay inert, retry next boot
+repo, fname, dest = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    shutil.copyfile(hf_hub_download(repo_id=repo, filename=fname), dest)
+except Exception as e:
+    sys.stderr.write(f"{type(e).__name__}: {e}\n"); sys.exit(1)
+PY
+            then fetched=$((fetched + 1)); log "GGUF ${dest} fetched from HF"
+            else log "GGUF ${dest} fetch failed (no egress / upstream) -- will retry next boot"; fi
         done
-    fi
-    if [ -n "$OLL" ]; then
-        log "ollama ready at $OLL -- pulling GGUF source models"
-        OLLAMA_HOST="$OLL" ollama pull qwen3:1.7b        2>&1 | tail -1
-        OLLAMA_HOST="$OLL" ollama pull nomic-embed-text  2>&1 | tail -1
-    else
-        log "ollama not reachable (11434/11435) -- skipping GGUF pull this boot (will retry)"
-    fi
-    OM=""
-    for d in /var/lib/ollama/models /var/lib/ollama/.ollama/models /usr/share/ollama/.ollama/models /root/.ollama/models; do
-        [ -d "${d}/blobs" ] && OM="${d}" && break
-    done
-    CID="$(podman ps --format '{{.Names}}' 2>/dev/null | grep -i ollama | head -1)"
-    _extract(){
-        tag="$1"; out="$2"; name="${tag%%:*}"; ver="${tag##*:}"
-        man="${OM}/manifests/registry.ollama.ai/library/${name}/${ver}"
-        if [ -n "${OM}" ] && [ -f "${man}" ]; then
-            dig="$(python3 -c "import json;m=json.load(open('${man}'));print([l['digest'] for l in m['layers'] if l['mediaType'].endswith('.model')][0])" 2>/dev/null)"
-            blob="${OM}/blobs/${dig/:/-}"
-            [ -f "${blob}" ] && cp -f "${blob}" "${out}" && return 0
+        if [ "$total" -gt 0 ] && [ "$fetched" -ge "$total" ]; then
+            touch "${MODELS}/.ready"; log "GGUFs provisioned (${fetched}/${total}) -- llama-swap lane eligible"
+        else
+            log "WARN: GGUFs incomplete (${fetched}/${total}) -- llama-swap lane idle until next retry"
         fi
-        if [ -n "${CID}" ]; then
-            cb="$(podman exec "${CID}" sh -c "ollama show ${tag} --modelfile 2>/dev/null | awk '/^FROM /{print \$2;exit}'" 2>/dev/null)"
-            [ -n "${cb}" ] && podman cp "${CID}:${cb}" "${out}" 2>/dev/null && return 0
-        fi
-        return 1
-    }
-    _extract "qwen3:1.7b"       "${MODELS}/qwen3-1.7b.gguf"      && log "GGUF qwen3-1.7b ready"
-    _extract "nomic-embed-text" "${MODELS}/nomic-embed-text.gguf" && log "GGUF nomic-embed-text ready"
-    if [ -s "${MODELS}/qwen3-1.7b.gguf" ] && [ -s "${MODELS}/nomic-embed-text.gguf" ]; then
-        touch "${MODELS}/.ready"; log "GGUFs provisioned"
-    else
-        log "WARN: GGUFs incomplete -- llama-swap lane stays idle until next retry"
     fi
 fi
 
