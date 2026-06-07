@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""mios-pg-query -- minimal pure-stdlib PostgreSQL client for the MiOS agent
+plane. No psql binary, no psycopg, no podman needed: it speaks the v3 wire
+protocol directly over a loopback TCP socket.
+
+Why this exists (R15): confined service users such as `mios-ai` (which runs
+mios-daemon's directory indexer + the dispatched directory_lookup verb) have
+NEITHER a psql binary NOR podman access to exec into the pgvector container --
+so `mios-db --pg`'s two existing paths both fail for them, and the agent plane
+could not reach pgvector. This is the universal fallback. It relies on the
+pgvector pg_hba `host all all 127.0.0.1/32 trust` line (loopback trust), so
+there is no auth exchange -- the StartupMessage is answered with
+AuthenticationOk directly.
+
+Usage:  mios-pg-query [-At ...ignored...] '<sql>'      (or SQL on stdin)
+Env:    MIOS_PG_HOST (127.0.0.1) MIOS_PG_PORT (5432)
+        MIOS_PG_USER (mios)      MIOS_PG_DB (mios)
+Output: tab-separated columns, one row per line (psql -At shape). Multi-row
+        and multi-statement queries are handled; NULLs render as empty. Exit 1
+        on any backend ErrorResponse or unsupported (non-trust) auth.
+"""
+from __future__ import annotations
+
+import os
+import socket
+import struct
+import sys
+
+HOST = os.environ.get("MIOS_PG_HOST") or "127.0.0.1"
+PORT = int(os.environ.get("MIOS_PG_PORT") or "5432")
+USER = os.environ.get("MIOS_PG_USER") or "mios"
+DB = os.environ.get("MIOS_PG_DB") or "mios"
+
+
+def _recv_exact(sock: socket.socket, n: int) -> bytes:
+    buf = b""
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise IOError("pg: connection closed by server")
+        buf += chunk
+    return buf
+
+
+def _read_msg(sock: socket.socket):
+    t = _recv_exact(sock, 1)
+    ln = struct.unpack("!I", _recv_exact(sock, 4))[0]
+    body = _recv_exact(sock, ln - 4) if ln > 4 else b""
+    return t, body
+
+
+def _err_text(body: bytes) -> str:
+    for part in body.split(b"\x00"):
+        if part[:1] == b"M":
+            return part[1:].decode("utf-8", "replace")
+    return body.decode("utf-8", "replace")[:200]
+
+
+def main() -> int:
+    sql_args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    sql = sql_args[0] if sql_args else sys.stdin.read()
+    if not sql.strip():
+        return 0
+    s = socket.create_connection((HOST, PORT), timeout=15)
+    try:
+        params = (b"user\x00" + USER.encode() + b"\x00"
+                  + b"database\x00" + DB.encode() + b"\x00\x00")
+        s.sendall(struct.pack("!I", 8 + len(params))
+                  + struct.pack("!I", 196608) + params)
+        # Drain startup until ReadyForQuery; trust auth -> AuthenticationOk(0).
+        while True:
+            t, body = _read_msg(s)
+            if t == b"R":
+                if struct.unpack("!I", body[:4])[0] != 0:
+                    sys.stderr.write(
+                        "pg: non-trust auth requested -- mios-pg-query only "
+                        "supports loopback trust\n")
+                    return 1
+            elif t == b"E":
+                sys.stderr.write("pg startup error: " + _err_text(body) + "\n")
+                return 1
+            elif t == b"Z":
+                break
+        q = sql.encode("utf-8") + b"\x00"
+        s.sendall(b"Q" + struct.pack("!I", 4 + len(q)) + q)
+        rc = 0
+        out = []
+        while True:
+            t, body = _read_msg(s)
+            if t == b"D":  # DataRow
+                nf = struct.unpack("!H", body[:2])[0]
+                off = 2
+                fields = []
+                for _ in range(nf):
+                    flen = struct.unpack("!i", body[off:off + 4])[0]
+                    off += 4
+                    if flen == -1:
+                        fields.append("")
+                    else:
+                        fields.append(
+                            body[off:off + flen].decode("utf-8", "replace"))
+                        off += flen
+                out.append("\t".join(fields))
+            elif t == b"E":  # ErrorResponse
+                sys.stderr.write("pg error: " + _err_text(body) + "\n")
+                rc = 1
+            elif t == b"Z":  # ReadyForQuery -> done
+                break
+        if out:
+            sys.stdout.write("\n".join(out) + "\n")
+        return rc
+    finally:
+        try:
+            s.sendall(b"X" + struct.pack("!I", 4))  # Terminate
+        except Exception:
+            pass
+        s.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

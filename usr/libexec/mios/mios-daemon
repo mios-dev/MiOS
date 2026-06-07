@@ -2247,12 +2247,56 @@ def _upsert_directory_entries(entries: list[dict]) -> tuple[int, int]:
     return (written, errors)
 
 
+def _pg_replace_directory_entries(root_label: str,
+                                  entries: list[dict]) -> None:
+    """R15: mirror the directory index into pgvector. The directory_entry
+    writer bypasses _db_create (datetime literal shaping), so it never hit the
+    _pg_insert chokepoint -- this is its dedicated pg path. DELETE the root's
+    rows then batch-INSERT (ON CONFLICT(path) update). Runs in dual+postgres
+    modes. Degrade-open via _pg_exec (mios-db --pg)."""
+    if not _PG_ENABLED:
+        return
+    _pg_exec(f"DELETE FROM directory_entry WHERE root_label = "
+             f"'{_pgesc(root_label)}';")
+    cols = ("path", "parent", "basename", "kind", "size",
+            "mtime", "ext", "summary", "root_label")
+    CHUNK = 200
+    for i in range(0, len(entries), CHUNK):
+        rows = []
+        for e in entries[i:i + CHUNK]:
+            vals = []
+            for k in cols:
+                v = e.get(k)
+                if v is None:
+                    vals.append("NULL")
+                elif k == "size" and isinstance(v, (int, float)):
+                    vals.append(str(int(v)))
+                else:
+                    vals.append("'" + _pgesc(str(v)) + "'")
+            rows.append("(" + ", ".join(vals) + ")")
+        if rows:
+            _pg_exec(
+                "INSERT INTO directory_entry (" + ", ".join(cols) + ") VALUES "
+                + ", ".join(rows)
+                + " ON CONFLICT (path) DO UPDATE SET parent=EXCLUDED.parent, "
+                "basename=EXCLUDED.basename, kind=EXCLUDED.kind, "
+                "size=EXCLUDED.size, mtime=EXCLUDED.mtime, ext=EXCLUDED.ext, "
+                "summary=EXCLUDED.summary, root_label=EXCLUDED.root_label, "
+                "updated_at=now();")
+
+
 def _atomic_replace_for_root(root_label: str,
                              entries: list[dict]) -> tuple[int, int]:
     """Delete all directory_entry rows for this root_label, then
     insert the fresh entries. Safer than UPDATE-by-path because
     deleted files actually disappear from the index instead of
     persisting as stale rows."""
+    # pgvector mirror (R15) -- runs in dual + postgres modes.
+    _pg_replace_directory_entries(root_label, entries)
+    # SurrealDB replace -- skipped once Postgres is primary (pg is then the
+    # source of truth); kept for the dual-mode transition window.
+    if _PG_PRIMARY:
+        return (len(entries), 0)
     # Delete by root_label first.
     try:
         _db_post_sync(

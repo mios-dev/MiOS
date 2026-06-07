@@ -187,7 +187,20 @@ if [ "$MODE" = "pg" ]; then
             exec podman "${pa[@]}" -c "$PG_SQL"
         fi
     fi
-    echo "mios-db: no psql + no mios-pgvector container" >&2
+    # 3. pure-python TCP fallback (no psql binary AND no podman access -- e.g.
+    #    the confined mios-ai service user running mios-daemon / dispatched
+    #    verbs). Speaks the pg v3 wire protocol over loopback trust (pg_hba
+    #    127.0.0.1/32 trust). Offline, zero deps -- the universal path. (R15)
+    if [ -x /usr/libexec/mios/mios-pg-query ]; then
+        export MIOS_PG_HOST="$PG_HOST" MIOS_PG_PORT="$PG_PORT" \
+               MIOS_PG_USER="$PG_USER" MIOS_PG_DB="$PG_DB"
+        if [ -n "$FILE" ]; then
+            exec /usr/libexec/mios/mios-pg-query < "$FILE"
+        else
+            exec /usr/libexec/mios/mios-pg-query "$PG_SQL"
+        fi
+    fi
+    echo "mios-db: no psql + no mios-pgvector container + no mios-pg-query" >&2
     echo "  check: systemctl start mios-pgvector.service" >&2
     exit 2
 fi

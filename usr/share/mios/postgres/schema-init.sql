@@ -236,3 +236,30 @@ CREATE TABLE IF NOT EXISTS resolves_to (
     PRIMARY KEY (phrase, app_id)
 );
 CREATE INDEX IF NOT EXISTS resolves_to_phrase ON resolves_to (phrase);
+
+-- ── directory_entry: mios-daemon's directory-map index (R15: was SurrealDB).
+--    Read by mios-directory-lookup (the directory_lookup verb). The indexer
+--    DELETE-by-root then batch-UPSERTs on path. Substring search via pg_trgm
+--    GIN on lower(basename|path) (the reader uses strpos/ILIKE). mtime is the
+--    file's mtime as an ISO string (display only, not queried). ───────────────
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE TABLE IF NOT EXISTS directory_entry (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    path        text UNIQUE NOT NULL,
+    parent      text,
+    basename    text,
+    kind        text,                                 -- file | dir | symlink
+    size        bigint,
+    mtime       text,
+    ext         text,
+    summary     text,
+    root_label  text,
+    updated_at  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_direntry_root ON directory_entry (root_label);
+CREATE INDEX IF NOT EXISTS idx_direntry_ext  ON directory_entry (ext);
+CREATE INDEX IF NOT EXISTS idx_direntry_kind ON directory_entry (kind);
+CREATE INDEX IF NOT EXISTS idx_direntry_basename_trgm
+    ON directory_entry USING gin (lower(basename) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_direntry_path_trgm
+    ON directory_entry USING gin (lower(path) gin_trgm_ops);
