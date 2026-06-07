@@ -551,6 +551,12 @@ elif ! grep -A 15 '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null | grep -q 'ollam
     # model (like qwen3:1.7b) reports < 64k.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing delegation ollama_num_ctx overrides"
+elif ! grep -qE '^mcp_servers:' "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Config predates the MCP-client block -- Hermes can't consume the global
+    # mios-mcp-server (no verbs/recipes/skills via MCP). Re-seed to add it
+    # (operator 2026-06-07: Hermes must have all Global MiOS MCP surfaces).
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- missing mcp_servers (global MCP surface)"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- model drift: want default '${_AI_MODEL_RESOLVED}'"
@@ -939,6 +945,22 @@ agent:
   # spawned via delegate_task still get their own 90-turn budget --
   # this cap is for the OPERATOR-facing turn, not the children.
   max_turns: 100
+
+# MCP CLIENT (operator 2026-06-07: "Hermes should have access to all Global MiOS
+# MCP surfaces"). Hermes consumes the global mios-mcp-server so its tool registry
+# auto-extends with the COMPLETE MiOS surface -- all verbs + recipes + promoted
+# skills (tools/list), every call routed through the launcher broker. Needs the
+# \`mcp\` SDK in the venv (installed by automation/38-hermes-agent.sh). stdio = the
+# MCP-canonical transport; the spawned relay forwards to the agent-pipe.
+mcp_servers:
+  mios:
+    command: /usr/libexec/mios/mios-mcp-server
+    args: []
+    env:
+      MIOS_AGENT_PIPE_URL: http://localhost:8640
+    timeout: 120
+    connect_timeout: 30
+    supports_parallel_tool_calls: true
 EOF
     umask 0022
     chown 850:850 "$HERMES_DATA_CFG" 2>/dev/null || true
