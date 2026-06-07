@@ -297,7 +297,7 @@ _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL))
 _JUDGE_ENDPOINT = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_ENDPOINT",
-    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11435/v1")).rstrip("/")
+    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")  # llama-swap (ollama :11435 retired G5)
 _JUDGE_BASE = (_JUDGE_ENDPOINT[:-3].rstrip("/") if _JUDGE_ENDPOINT.endswith("/v1") else _JUDGE_ENDPOINT)
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
@@ -954,7 +954,7 @@ ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)
 # behind big-model inference -> refine 41s, polish 42s. On the light lane
 # the warm qwen3:0.6b-cpu answers in ~1-2s regardless of dGPU load.
 _LIGHT_LANE = os.environ.get("MIOS_OLLAMA_CPU_ENDPOINT",
-                             "http://localhost:11435").rstrip("/")
+                             "http://localhost:11450").rstrip("/")  # llama-swap (ollama :11435 retired G5)
 
 # Last-resort runaway reaper (operator 2026-06-01j). A turn that BLEW its
 # wall-clock deadline may have left CPU-lane gens running -- ollama does NOT abort

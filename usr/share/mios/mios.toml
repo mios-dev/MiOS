@@ -421,7 +421,7 @@ enable   = true
 # into /etc/mios/hermes/api.env. Mirrors [ai].model -- this key is
 # kept for back-compat with older callers; the SSOT default is [ai].model.
 endpoint = "http://localhost:8642/v1"
-backend  = "http://mios-ollama:11434"
+backend  = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama retired G5)
 # Back-compat default only; the SSOT default is [ai].model. Repointed to the
 # 4-model-set reasoning base 2026-06-01 (was granite4.1:3b, dropped from fleet).
 model    = "qwen3.5:4b"
@@ -884,14 +884,23 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # semaphore/diversity bucket; `health_gate=true` makes a come-and-go remote node
 # auto-join when reachable + drop when gone (local nodes omit it = always live).
 # The target endpoint MUST actually serve that Modelfile tag.
+# ALL LLAMA.CPP (operator binding: "EVERYTHING IS LLAMA.CPP, NO OLLAMA"). The GPU +
+# light lanes point to llama-swap (:11450) -- the retired ollama endpoints
+# (:11434/:11435, G5) are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
+# health_gate=true -> a lane is probed + skipped if llama-swap is momentarily down
+# (never a false "All connection attempts failed" fan-out; operator 2026-06-07 e2e).
 [nodes.local-dgpu]
-endpoint = "http://localhost:11434/v1"
-model    = "mios-agent"        # the qwen3.5:4b MiOS brain (GPU lane)
+endpoint = "http://localhost:11450/v1"
+model    = "gemma4:12b"        # dGPU reasoning lane (the unified stack model)
 lane     = "gpu"
+api      = "llamacpp"
+health_gate = true
 [nodes.local-cpu]
-endpoint = "http://localhost:11435/v1"
-model    = "mios-agent-cpu"    # qwen3:1.7b, num_gpu 0 (CPU light lane)
+endpoint = "http://localhost:11450/v1"
+model    = "qwen3:1.7b"        # light/fast lane (small model, llama.cpp on the 4090)
 lane     = "cpu"
+api      = "llamacpp"
+health_gate = true
 # Local iGPU lane -- ships endpoint EMPTY (privacy: the real iGPU is served
 # NATIVELY on the Windows host via llama.cpp+Vulkan at a tailnet IP, set in the
 # /etc/mios overlay). Empty endpoint = inert node, skipped by _load_node_pool.
@@ -1279,7 +1288,7 @@ gid              = 828
 # resident weights).
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:11434"
+endpoint         = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama :11434 retired G5)
 # Timeout headroom: on bare-metal Fedora-bootc with real ROCm/
 # CUDA, qwen3:1.7b emits a 400-token JSON in <1s. On WSL2 dev
 # (CPU only -- /dev/kfd isn't exposed for ROCm) it takes 15-30s
@@ -1309,7 +1318,7 @@ bypass_chars     = 24
 # bare base model.
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:11434"
+endpoint         = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama :11434 retired G5)
 # Same CPU-vs-GPU headroom rationale as [refine].timeout_seconds.
 timeout_seconds  = 45
 max_tokens       = 800
@@ -3484,7 +3493,7 @@ agent_venv          = "/usr/lib/mios/agents/.venv"
 agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
-hermes_backend_url  = "http://localhost:11434/v1"
+hermes_backend_url  = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp; ollama :11434 retired G5)
 # SSOT for the default chat model. The 4-model-set reasoning base
 # (qwen3.5:4b, ~3.4 GB resident) -- was granite4.1:3b, repointed in the
 # 2026-06-01 consolidation (granite was dropped from the fleet). Same value as
@@ -3705,7 +3714,7 @@ big_ram_model    = "qwen3-coder:30b"
 # are OPT-IN -- to re-enable, add a vision tag to [[ai.catalog]], pull it, and
 # set these to that tag in /etc/mios/mios.toml (operator overlay).
 vision_grounding_model    = ""
-vision_grounding_endpoint = "http://localhost:11434/v1"
+vision_grounding_endpoint = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp; needs a vision GGUF in the map to activate)
 # Chat VLM: agent-pipe routes any OWUI chat turn carrying an image straight
 # to this model (operator 2026-05-22). SSOT for MIOS_AGENT_PIPE_VISION_MODEL.
 # EMPTY since the 4-model consolidation (was llama3.2-vision:11b) -- set to a
@@ -3747,7 +3756,7 @@ grounding_model    = "mios-grounding"
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
 micro_model              = "qwen3:1.7b"
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:11435/v1"
+micro_endpoint           = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp; ollama :11435 retired G5)
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -6432,7 +6441,7 @@ grad_checkpointing = true              # saves memory; set false if a custom-op 
 # labels are produced by the teacher against the live refine schema + catalog. So
 # the corpus tracks the real system, never a hand-written topic list.
 teacher_model        = "qwen3.5:4b"    # 4-model-set reasoning base (was qwen3.5:9b, dropped 2026-06-01); operators with free VRAM can override to a larger teacher in their overlay before a (gated) training run
-teacher_endpoint     = "http://localhost:11434"
+teacher_endpoint     = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama retired G5)
 pipe_url             = "http://127.0.0.1:8640"
 seeds_per_capability = 4               # teacher-generated phrasings per catalog verb
 include_knowledge    = true            # also mine REAL operator queries from the knowledge table
