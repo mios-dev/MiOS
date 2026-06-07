@@ -70,11 +70,13 @@ Environment=FIRECRAWL_API_URL=http://127.0.0.1:3002
 # Gateway bind: PORT is the OpenAI /v1 surface port (mios.toml
 # [ports].hermes, default 8642). API_SERVER_HOST=0.0.0.0 comes from
 # api.env (so the WSL2 portproxy + LAN reach it). HERMES_BACKEND_BASE_URL
-# points at the ollama container's host-net OpenAI surface -- hermes-agent
-# runs ON the host now (direct install), so localhost:11434 reaches the
-# Network=host ollama container directly.
+# points at the llama-swap OpenAI surface (ollama RETIRED G5; :11434 is dead).
+# hermes-agent runs ON the host (direct install), so localhost:11450 reaches the
+# Network=host llama-swap. NOTE: the seeded config.yaml base_url (:11450/v1)
+# already wins over this env at runtime -- kept in sync for ALL-llama.cpp hygiene
+# (operator 2026-06-07: EVERYTHING llama.cpp, no ollama).
 Environment=PORT=8642
-Environment=HERMES_BACKEND_BASE_URL=http://localhost:11434
+Environment=HERMES_BACKEND_BASE_URL=http://localhost:11450
 # api.env carries API_SERVER_HOST=0.0.0.0, API_SERVER_KEY, the dashboard
 # token, GATEWAY_ALLOW_ALL_USERS, etc. install.env is the non-secret
 # bootstrap bridge. Both optional (- prefix) so the unit still starts
