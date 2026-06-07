@@ -123,7 +123,7 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # PLANNER + POLISH passes keep their own (larger) models.
 _MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:1.7b")
 _MICRO_ENDPOINT = os.environ.get(
-    "MIOS_MICRO_ENDPOINT", "http://localhost:11434/v1",
+    "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # llama-swap (was dead :11434)
 ).rstrip("/")
 # Callers below append "/v1/chat/completions"; strip a trailing /v1 so we
 # don't double it.
@@ -1000,10 +1000,12 @@ PLANNER_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_ENABLED", "true",
 ).lower() not in {"false", "0", "no"}
 PLANNER_MODEL = os.environ.get(
-    "MIOS_AGENT_PIPE_PLANNER_MODEL", "qwen2.5-coder:7b",
+    "MIOS_AGENT_PIPE_PLANNER_MODEL", "qwen3:1.7b",   # served llama.cpp lineup (G17/G7)
 )
 PLANNER_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11434",
+    # llama-swap /v1 (the old :11434 ollama default is dead -- G5/G17). Env (SSOT
+    # agent-pipe.env) overrides; this is only the fresh-install fallback.
+    "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11450",
 ).rstrip("/")
 # Decompose substantive single-goal asks into a CONCURRENT multi-agent swarm
 # by DEFAULT (operator 2026-05-22: "decompose into sub-tasks" as the default
@@ -1796,7 +1798,7 @@ REFINE_ENABLED = os.environ.get(
 # so the call stays a few seconds even on the shared dGPU lane.
 REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3.5:4b")
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_REFINE_ENDPOINT", "http://localhost:11434",
+    "MIOS_REFINE_ENDPOINT", "http://localhost:11450",  # llama-swap (was dead :11434)
 ).rstrip("/")
 # Default 30s (was 12): a COLD dGPU refine measured 9.7-12s on a fresh
 # restart / after a VRAM eviction -- right at the old 12s edge, so it
@@ -1831,7 +1833,7 @@ POLISH_ENABLED = os.environ.get(
 # qwen3.5:4b on the dGPU lane (think=False) consolidates in a few seconds.
 POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", "qwen3.5:4b")
 POLISH_ENDPOINT = os.environ.get(
-    "MIOS_POLISH_ENDPOINT", "http://localhost:11434",
+    "MIOS_POLISH_ENDPOINT", "http://localhost:11450",  # llama-swap (was dead :11434)
 ).rstrip("/")
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
@@ -8937,7 +8939,7 @@ def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
 
 DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
-DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", "qwen2.5-coder:7b")
+DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", "qwen3:1.7b")  # served lineup (G17/G7)
 DCI_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_DCI_ENDPOINT", "http://localhost:11434",
 ).rstrip("/")
