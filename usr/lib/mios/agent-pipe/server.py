@@ -5080,9 +5080,21 @@ async def _worker_tools_surface_async(cap: int = 0) -> list:
         # Stable priority order so a cap slice always keeps the most useful tools
         # first (sorted is stable, preserving catalog order within a rank).
         _WORKER_TOOLS_FULL_CACHE = sorted(base, key=_tool_priority)
+    # Stage-2 domain filter (operator 2026-06-07): if this request was routed to a
+    # domain, offer ONLY that domain's verbs + ALL non-verb tools (recipes/skills/
+    # MCP -- not bare verbs in _VERB_CATALOG). Other-domain verbs drop for THIS turn
+    # only. FAIL-SAFE: no routed domain -> full surface (nothing lost).
+    surface = _WORKER_TOOLS_FULL_CACHE
+    _dom = _routed_domain_var.get(None)
+    if _dom and _dom in _ROUTING_DOMAINS:
+        _allowed = set(_ROUTING_DOMAINS[_dom].get("verbs") or [])
+        if _allowed:
+            surface = [t for t in surface
+                       if (t.get("function", {}).get("name") not in _VERB_CATALOG)
+                       or (t.get("function", {}).get("name") in _allowed)]
     if cap and cap > 0:
-        return _WORKER_TOOLS_FULL_CACHE[:cap]
-    return _WORKER_TOOLS_FULL_CACHE
+        return surface[:cap]
+    return surface
 
 
 def _current_year() -> str:
@@ -5141,6 +5153,13 @@ _conv_key_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # session context is exactly what the operator asked for).
 _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_client_env", default=None)
+
+# Stage-1 domain-router result for THIS request (operator 2026-06-07): set once at
+# the chat entry, inherited by all child council/DAG tasks; read by the planner
+# (_planner_system_for) AND the tool-loop surface (_worker_tools_surface_async) to
+# shrink the verb surface to the routed domain. None -> FULL surface (fail-safe).
+_routed_domain_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_routed_domain", default=None)
 
 # OWUI's frontend variable token -> our normalised key (braces stripped,
 # lower-cased). Mirrors getPromptVariables() in OWUI src/lib/utils/index.ts.
@@ -6505,6 +6524,16 @@ async def _read_tool_enrich(refined: Optional[dict],
         _core_set = set(_core)
         _hints = _core + [h for h in _hints if h not in _core]
         _max = max(_max, len(_core) + 1)
+    # Domain router (operator 2026-06-07): if this request routed to a domain,
+    # restrict the auto-fired enrich verbs to THAT domain's read-verbs -- so a
+    # files/code query no longer grounds on mios_apps/system_status. Fail-safe:
+    # no routed domain -> unrestricted (current behaviour, nothing lost).
+    _dom = _routed_domain_var.get(None)
+    if _dom and _dom in _ROUTING_DOMAINS:
+        _dvset = set(_ROUTING_DOMAINS[_dom].get("verbs") or [])
+        if _dvset:
+            _hints = [h for h in _hints if h in _dvset]
+            _core_set = _core_set & _dvset
     for _t in _hints:
         tool = str(_t).strip()
         if not tool or tool in ran or tool in _WEB_ENRICH_VERBS:
@@ -10104,7 +10133,7 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     # Stage-1 domain router (operator 2026-06-07): classify the intent -> show the
     # planner ONLY that domain's verbs (Stage-2 via _planner_system_for). Fail-safe:
     # _route_domain returns None -> full catalog (current behaviour, nothing lost).
-    _domain = await _route_domain(_ut)
+    _domain = _routed_domain_var.get(None)  # routed once at the chat entry
     payload = {
         "model": PLANNER_MODEL,
         "messages": [
@@ -18476,6 +18505,10 @@ async def chat_completions(request: Request) -> Any:
     # grounded prompt via _env_grounding so "near me" resolves + "today"/
     # "tomorrow" use the USER's wall clock (operator 2026-05-27).
     _client_env_var.set(_client_env(body))
+    # Stage-1 domain router: classify ONCE per request (thinking-off enum); all
+    # paths (planner + tool-loop + swarm) read _routed_domain_var to shrink the
+    # verb surface to this domain. None (router off / unsure) -> full surface.
+    _routed_domain_var.set(await _route_domain(last_user_text))
     # SWARM toggles (operator 2026-05-22): per-request force flags set by the
     # OWUI chat-bar toggle-filters, injected into body.mios_flags and
     # forwarded here verbatim by the pipe. They OVERRIDE the mios.toml SSOT

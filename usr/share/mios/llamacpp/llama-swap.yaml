@@ -70,7 +70,7 @@ models:
     cmd: >
       /app/llama-server --model /models/gemma4-12b.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 32768 --parallel 1
+      --ctx-size 65536 --parallel 1
       --n-gpu-layers 999 --flash-attn auto
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja
     proxy: "http://127.0.0.1:${PORT}"
