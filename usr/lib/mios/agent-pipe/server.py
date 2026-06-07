@@ -18458,7 +18458,19 @@ async def _respond_local_state(
         "choices": [{"index": 0,
                      "message": {"role": "assistant", "content": answer},
                      "finish_reason": "stop"}],
+        "usage": _usage_estimate(last_user_text, answer),  # Tier-0 OpenAI conformance
     })
+
+
+def _usage_estimate(prompt: str, completion: str) -> dict:
+    """OpenAI `usage` object (Tier-0 conformance; OWUI + clients read it). MiOS is
+    a multi-call pipeline, so this reports a ~4-chars/token estimate of the
+    CLIENT-VISIBLE exchange (user query + final answer) -- an honest per-turn
+    approximation for the client's token display, NOT a faked single-model-call
+    number. A future per-stage back-end usage aggregation can replace it."""
+    pt = max(1, len(prompt or "") // 4)
+    ct = max(1, len(completion or "") // 4)
+    return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}
 
 
 @app.post("/v1/chat/completions")
