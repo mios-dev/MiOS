@@ -13075,6 +13075,12 @@ async def dispatch_mios_verb(
     in the same conversation collapse to ONE broker execution + share the
     result, so a side effect never fires N times across a fan-out. In-flight
     only -> sequential repeats re-run fresh."""
+    # Strict-schema safety (operator 2026-06-07): a strict OpenAI tool schema makes
+    # optional params nullable+required, so a model emits `null` to "skip" one. Drop
+    # null args here so the cmd-template default ({arg=default}) applies -- never pass
+    # null through as a real value. No-op for non-strict callers (no nulls present).
+    if isinstance(args, dict):
+        args = {k: v for k, v in args.items() if v is not None}
     if not DISPATCH_DEDUP:
         return await _dispatch_bounded(tool, args, session_id=session_id)
     _a = args if isinstance(args, dict) else {}
@@ -13656,22 +13662,29 @@ def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
     for argname, argcfg in (vcfg.get("params") or {}).items():
         if not isinstance(argcfg, dict):
             continue
-        spec: dict = {
-            "type": argcfg.get("type", "string"),
-            "description": argcfg.get("desc", ""),
-        }
+        _t = argcfg.get("type", "string")
+        spec: dict = {"description": argcfg.get("desc", "")}
         if argcfg.get("enum"):
             spec["enum"] = list(argcfg["enum"])
+        # OpenAI strict mode (Tier-1): EVERY property must be in `required`. An
+        # OPTIONAL param (has a default) becomes nullable -- the model emits null to
+        # "skip" it, dispatch_mios_verb drops null, and the cmd-template default
+        # applies. No `default` key (unsupported under strict). Required params keep
+        # their plain type.
         if "default" in argcfg:
-            spec["default"] = argcfg["default"]
+            spec["type"] = [_t, "null"]
+            if "enum" in spec:
+                spec["enum"] = spec["enum"] + [None]
         else:
-            required.append(argname)
+            spec["type"] = _t
+        required.append(argname)
         props[argname] = spec
     return {
         "type": "function",
         "function": {
             "name": vname,
             "description": vcfg.get("desc", ""),
+            "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": props,
