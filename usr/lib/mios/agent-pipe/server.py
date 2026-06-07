@@ -4254,6 +4254,36 @@ _VERB_CATALOG = _load_verb_catalog()
 _VERB_ARG_SYNONYMS = _load_verb_arg_synonyms()
 _VERB_CATALOG_RENDERED = _render_verb_catalog(_VERB_CATALOG)
 
+
+def _load_routing_domains() -> tuple[dict, bool]:
+    """Parse mios.toml [routing.domains.*] -> {domain: {"desc","verbs"}} plus the
+    router_enable switch. The 2-stage domain router's Stage-1 classifier consumes
+    `desc` as each enum label's meaning; Stage-2 filters the planner catalog to the
+    chosen domain's `verbs`. SSOT (operator 2026-06-07: fix the 82-tool mis-routing
+    via schema-routing, NO english prose rules). FAIL-SAFE: router disabled / no
+    domains / load error -> ({}, False) -> full-surface behaviour, nothing lost."""
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        with open(toml_path, "rb") as f:
+            rt = (tomllib.load(f).get("routing") or {})
+        enable = str(rt.get("router_enable", "false")).lower() in {"true", "1", "yes", "on"}
+        domains: dict = {}
+        for dom, cfg in (rt.get("domains") or {}).items():
+            if isinstance(cfg, dict):
+                domains[str(dom)] = {"desc": str(cfg.get("desc", "")),
+                                     "verbs": [str(v) for v in (cfg.get("verbs") or [])]}
+        return domains, enable
+    except Exception as e:
+        log.warning("routing domains load failed: %s", e)
+        return {}, False
+
+
+_ROUTING_DOMAINS, _ROUTING_ENABLE = _load_routing_domains()
+
 # OS-control / window-action verb set, derived from the verb catalog SSOT
 # (mios.toml `section`). A request that maps to ONE of these is a single
 # DETERMINISTIC machine action -- it must fire that one verb through the
@@ -9988,6 +10018,70 @@ _PLANNER_SYSTEM = (
 )
 
 
+def _planner_system_for(domain: Optional[str]) -> str:
+    """Stage-2 of the domain router: return the planner system prompt with the
+    FULL verb-catalog block swapped for ONLY the chosen domain's verbs (<20), so
+    the model selects within a tight, domain-correct surface (OpenAI tool-routing
+    research). FAIL-SAFE: unknown/empty domain, or any drift, -> the full prompt
+    (current behaviour, nothing lost)."""
+    if not domain:
+        return _PLANNER_SYSTEM
+    dom = _ROUTING_DOMAINS.get(domain)
+    if not dom or not dom.get("verbs"):
+        return _PLANNER_SYSTEM
+    allowed = set(dom["verbs"])
+    sub = {k: v for k, v in _VERB_CATALOG.items() if k in allowed}
+    if not sub:
+        return _PLANNER_SYSTEM
+    block = _render_verb_catalog(sub)
+    if _VERB_CATALOG_RENDERED and _VERB_CATALOG_RENDERED in _PLANNER_SYSTEM:
+        return _PLANNER_SYSTEM.replace(_VERB_CATALOG_RENDERED, block, 1)
+    return _PLANNER_SYSTEM
+
+
+async def _route_domain(user_text: str) -> Optional[str]:
+    """Stage-1 of the domain router: classify the query into ONE [routing.domains]
+    label via a constrained enum (response_format json_schema), THINKING-OFF
+    (llama.cpp #20345 silently drops the grammar when thinking is on). Returns the
+    validated domain, or None to fall through to the FULL surface (router off / no
+    domains / classify error / out-of-enum result). We VALIDATE the label in code
+    and never trust HTTP 200 alone (fail-open #19051)."""
+    if not _ROUTING_ENABLE or not _ROUTING_DOMAINS or not (user_text or "").strip():
+        return None
+    names = list(_ROUTING_DOMAINS.keys())
+    sys = ("Classify the user request into exactly ONE domain (the kind of "
+           "capability it needs). Domains:\n"
+           + "\n".join(f"{n}: {_ROUTING_DOMAINS[n]['desc']}" for n in names))
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content": user_text[:2000]}],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "route", "strict": True, "schema": {
+                "type": "object",
+                "properties": {"domain": {"type": "string", "enum": names}},
+                "required": ["domain"], "additionalProperties": False}}},
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 30, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return None
+        content = ((r.json().get("choices") or [{}])[0].get("message", {})
+                   .get("content") or "")
+        dom = (json.loads(content) or {}).get("domain")
+        if dom in _ROUTING_DOMAINS:
+            log.info("router: domain=%s <- %s", dom, user_text[:48].replace(chr(10), " "))
+            return dom
+        log.info("router: out-of-enum %r -> full surface", dom)
+    except Exception as e:
+        log.info("router classify failed (-> full surface): %s", e)
+    return None
+
+
 async def decompose_intent(user_text: str) -> Optional[dict]:
     """Call the planner LLM to emit a DAG of dispatch verbs for a
     multi-step user intent. Returns the parsed dict, or None on
@@ -10007,10 +10101,14 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
         log.info("planner: short-prompt skip (%d chars, %d words)",
                  len(_ut), len(_ut.split()))
         return None
+    # Stage-1 domain router (operator 2026-06-07): classify the intent -> show the
+    # planner ONLY that domain's verbs (Stage-2 via _planner_system_for). Fail-safe:
+    # _route_domain returns None -> full catalog (current behaviour, nothing lost).
+    _domain = await _route_domain(_ut)
     payload = {
         "model": PLANNER_MODEL,
         "messages": [
-            {"role": "system", "content": _PLANNER_SYSTEM},
+            {"role": "system", "content": _planner_system_for(_domain)},
             {"role": "user",   "content": user_text[:4000]},
         ],
         "response_format": {"type": "json_object"},

@@ -1532,6 +1532,55 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
   desc     = "A second MiOS/Linux desktop -- screenshot + click + type + verify on its own Wayland session over the tailnet."
 
 # ─── Section: Window / app launch ─────────────────────────────────────
+# ============================================================================
+# [routing] -- 2-stage domain router (operator 2026-06-07: fix 82-tool mis-routing
+# WITHOUT english prose rules; per OpenAI/llama.cpp research). Stage-1 classifies
+# the query into ONE domain via a constrained enum (response_format json_schema,
+# thinking-OFF -- llama.cpp #20345); Stage-2 shows the planner ONLY that domain's
+# verbs (<20). FAIL-SAFE: unknown/empty/low-confidence -> FULL surface, so NO
+# capability is ever lost (swarm/council/DAG unchanged). SSOT for the taxonomy +
+# the per-domain "use-when" descriptions the Stage-1 classifier consumes. Every
+# verb is mapped exactly once; a verb absent here falls to the full surface.
+# kind=tool today; recipes/skills fold in as their own rows (research follow-up).
+[routing]
+router_enable = true   # master switch; false = legacy full-surface behaviour
+
+[routing.domains.web]
+desc  = "the internet / current events / news / trending / weather / prices / world facts"
+verbs = ["web_search", "web_scrape", "crawl", "web_extract"]
+
+[routing.domains.files]
+desc  = "find, read, or edit LOCAL files on this machine"
+verbs = ["mios_find", "everything_search", "fs_search", "directory_lookup", "viking_ls", "viking_cat", "viking_find", "text_view", "text_create", "text_str_replace", "text_insert"]
+
+[routing.domains.system]
+desc  = "this machine's state, services, processes, containers, logs, environment"
+verbs = ["system_status", "sys_env", "sys_env_refresh", "system_logs", "service_status", "service_restart", "process_list", "container_status", "container_restart"]
+
+[routing.domains.apps_windows]
+desc  = "list or launch applications and manage on-screen windows"
+verbs = ["open_app", "launch_app", "open_url", "verify_launch", "launch_verified", "focus_window", "move_window", "position_window", "resize_window", "minimize_window", "maximize_window", "restore_window", "close_window", "list_windows", "screen_layout", "mios_apps", "app_search"]
+
+[routing.domains.packages]
+desc  = "install, update, remove, or query software packages (dnf/winget/flatpak)"
+verbs = ["pkg", "winget_search", "winget_list", "winget_show", "winget_install", "winget_upgrade", "winget_uninstall", "flatpak_search", "flatpak_list", "flatpak_show", "flatpak_install", "flatpak_upgrade", "flatpak_uninstall", "flatpak_preflight"]
+
+[routing.domains.memory]
+desc  = "recall or store the agent's own memory / knowledge / summaries"
+verbs = ["knowledge_search", "remember", "recall", "ingest", "summarize"]
+
+[routing.domains.computer_use]
+desc  = "GUI pixel/element control of the screen via mouse and keyboard"
+verbs = ["cu_screenshot", "cu_ground", "cu_atspi_query", "cu_window_list", "cu_click", "cu_type", "cu_key", "cu_key_combo", "pc_type", "pc_key", "pc_click"]
+
+[routing.domains.code_shell]
+desc  = "run code, shell, or PowerShell commands (incl. explaining what a script/code does)"
+verbs = ["coderun", "code_mode", "os_recipe", "powershell_run"]
+
+[routing.domains.agents_comms]
+desc  = "delegate to other agents, send messages, schedule tasks, generate documents, discover tools"
+verbs = ["handoff", "a2a_delegate", "discord_send", "schedule", "docgen_build", "docgen_convert", "tool_search"]
+
 [verbs.open_app]
 section    = "Window / app launch"
 sig        = 'name, position="default"?, args?, monitor=0?'
