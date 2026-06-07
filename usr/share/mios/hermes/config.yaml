@@ -97,6 +97,24 @@ mios_skill_catalog:
   # without restarting the agent.
   refresh_seconds: 300
 
+# MCP CLIENT (operator 2026-06-07: "Hermes should have access to all Global MiOS
+# MCP surfaces"). Hermes CONSUMES the global mios-mcp-server, so its tool registry
+# auto-extends with the COMPLETE MiOS surface -- all 82 verbs + 18 recipes +
+# promoted skills (tools/list) + the full read-only catalog (resources) -- every
+# tool_call routed through the launcher broker. stdio = the MCP-canonical transport
+# (the server's primary mode); the spawned relay forwards to the agent-pipe. This is
+# the SAME unified /v1/tools surface the pipeline workers already carry
+# (WORKER_TOOLS_SCOPE=all), so Hermes and the swarm now share one global tool plane.
+mcp_servers:
+  mios:
+    command: /usr/libexec/mios/mios-mcp-server
+    args: []
+    env:
+      MIOS_AGENT_PIPE_URL: http://localhost:8640
+    timeout: 120
+    connect_timeout: 30
+    supports_parallel_tool_calls: true
+
 # Operator overrides: drop a /etc/mios/hermes/config.local.yaml file
 # alongside this one to override any of the above. The local file is
 # merged on top, so partial overrides (e.g. just `backend.model`) work.

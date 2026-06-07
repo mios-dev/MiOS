@@ -104,16 +104,37 @@ def _handle_initialize(mid, params: dict) -> dict:
 
 
 def _handle_tools_list(mid, _params: dict) -> dict:
-    # /v1/tools is the UNIFIED capability feed: every verb + every OS recipe
-    # + every promoted skill, already projected into the MCP inputSchema
-    # shape. (/v1/verbs is the verbs-only subset, left for legacy consumers.)
+    # /v1/tools is the UNIFIED capability feed: every verb + every OS recipe +
+    # every promoted skill. It is served in OpenAI function-tool shape
+    # ({type:function, function:{name,description,parameters}}); MCP tools/list
+    # REQUIRES {name, description, inputSchema}. Convert here so strict MCP
+    # clients (Hermes, Claude Desktop, Cursor) parse the full surface -- without
+    # this the tools arrive nameless and unusable. A row already in MCP shape
+    # (top-level `name`) passes through untouched.
     try:
         data = _http_get("/v1/tools")
     except urllib.error.URLError as e:
         return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
     except Exception as e:
         return _err(mid, -32000, f"tools fetch failed: {e}")
-    return _ok(mid, {"tools": data.get("tools") or []})
+    mcp_tools = []
+    for t in (data.get("tools") or []):
+        if not isinstance(t, dict):
+            continue
+        if t.get("name") and t.get("inputSchema") is not None:
+            mcp_tools.append(t)            # already MCP shape
+            continue
+        fn = t.get("function") or {}
+        nm = fn.get("name")
+        if not nm:
+            continue
+        mcp_tools.append({
+            "name": nm,
+            "description": fn.get("description", ""),
+            "inputSchema": fn.get("parameters")
+            or {"type": "object", "properties": {}},
+        })
+    return _ok(mid, {"tools": mcp_tools})
 
 
 def _handle_tools_call(mid, params: dict) -> dict:

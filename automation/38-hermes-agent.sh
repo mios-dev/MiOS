@@ -281,6 +281,20 @@ if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/n
     fi
 fi
 
+# ─── MCP client SDK (operator 2026-06-07: "Hermes should have access to all
+# Global MiOS MCP surfaces"). hermes-agent's MCP-client subsystem (hermes_cli/
+# mcp_*) is a documented NO-OP without the optional `mcp` SDK -- without it the
+# `mcp_servers:` config is inert and Hermes never sees the global mios-mcp-server.
+# Installing it lets Hermes discover + register the COMPLETE MiOS tool surface
+# (verbs + recipes + skills) over stdio, routed through the launcher broker.
+if ! "${VENV_DIR}/bin/python3" -c "import mcp" 2>/dev/null; then
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check "mcp>=1.0" 2>&1 | tail -3; then
+        log "[38-hermes-agent] installed mcp SDK into venv (Hermes MCP client -> global mios-mcp-server)"
+    else
+        warn "[38-hermes-agent] mcp SDK install failed -- Hermes MCP client disabled (mcp_servers config inert)"
+    fi
+fi
+
 # ─── Dashboard SPA build (self-hosted, build-time only) ──────────────
 # Build the React UI shell that `hermes dashboard` serves out of
 # `hermes_cli/web_dist`. The upstream pip wheel doesn't ship this dir
