@@ -121,7 +121,14 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # "we have access to micro-llms for fast refinements too" -- the layer-1
 # classifier passes (router + refine) default to this micro-LLM; the bigger
 # PLANNER + POLISH passes keep their own (larger) models.
-_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", "qwen3:1.7b")
+# Unified pipeline reasoning model (operator 2026-06-06: "use the large gemma4
+# 12b model for the entire stack"). ONE resident model on the dGPU -> no qwen3
+# <-> gemma4 swap-thrash, AND far better tool-routing than a 1.7b (the research's
+# small-model mis-routing fix -- a 12b picks the right verb among 82). SSOT knob
+# MIOS_STACK_MODEL; embeddings + vision keep their own. Every reasoning stage
+# below defaults to this single model.
+_STACK_MODEL = os.environ.get("MIOS_STACK_MODEL", "gemma4:12b")
+_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", _STACK_MODEL)
 _MICRO_ENDPOINT = os.environ.get(
     "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # llama-swap (was dead :11434)
 ).rstrip("/")
@@ -287,7 +294,7 @@ WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").str
 # giving up. The judge (below) is the real gate; this is just the safety cap.
 WEB_RESEARCH_MAX_ATTEMPTS = max(1, _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "max_attempts", 5))
 _JUDGE_MODEL = os.environ.get(
-    "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
+    "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL))
 _JUDGE_ENDPOINT = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_ENDPOINT",
     os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11435/v1")).rstrip("/")
@@ -1000,7 +1007,7 @@ PLANNER_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_ENABLED", "true",
 ).lower() not in {"false", "0", "no"}
 PLANNER_MODEL = os.environ.get(
-    "MIOS_AGENT_PIPE_PLANNER_MODEL", "qwen3:1.7b",   # served llama.cpp lineup (G17/G7)
+    "MIOS_AGENT_PIPE_PLANNER_MODEL", _STACK_MODEL,   # gemma4:12b entire-stack (operator 2026-06-06)
 )
 PLANNER_ENDPOINT = os.environ.get(
     # llama-swap /v1 (the old :11434 ollama default is dead -- G5/G17). Env (SSOT
@@ -1035,7 +1042,7 @@ SWARM_DECOMPOSE_MIN_WORDS = int(
 # (the May-2026 top dense agentic model) once pulled + validated. Distinct-agent
 # SPREAD is also enforced in code (_agent_dag_from_tasks) so it never depends on
 # the model alone. /api/chat (think=False) -- the /v1 path returned empty content.
-SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", "qwen3.5:9b")
+SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", _STACK_MODEL)
 PLANNER_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_TIMEOUT_S", "30"))
 PLANNER_MAX_TOKENS = int(os.environ.get(
@@ -1796,7 +1803,7 @@ REFINE_ENABLED = os.environ.get(
 # latency for correct routing; think=False (in refine_intent) stops it
 # burning tokens on a reasoning preamble, and the LITE prompt is small
 # so the call stays a few seconds even on the shared dGPU lane.
-REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", "qwen3.5:4b")
+REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", _STACK_MODEL)
 REFINE_ENDPOINT = os.environ.get(
     "MIOS_REFINE_ENDPOINT", "http://localhost:11450",  # llama-swap (was dead :11434)
 ).rstrip("/")
@@ -1831,7 +1838,7 @@ POLISH_ENABLED = os.environ.get(
 # matched"). So it's the key output step, not a cosmetic pass -- it needs
 # a capable + fast model, not the slow 1.7b CPU lane that timed out 45s.
 # qwen3.5:4b on the dGPU lane (think=False) consolidates in a few seconds.
-POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", "qwen3.5:4b")
+POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", _STACK_MODEL)
 POLISH_ENDPOINT = os.environ.get(
     "MIOS_POLISH_ENDPOINT", "http://localhost:11450",  # llama-swap (was dead :11434)
 ).rstrip("/")
@@ -8939,7 +8946,7 @@ def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
 
 DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
-DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", "qwen3:1.7b")  # served lineup (G17/G7)
+DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", _STACK_MODEL)  # gemma4:12b entire-stack
 DCI_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_DCI_ENDPOINT", "http://localhost:11434",
 ).rstrip("/")
@@ -9870,17 +9877,6 @@ _PLANNER_SYSTEM = (
     "whose deps are satisfied in parallel). Weigh the whole roster -- do\n"
     "not funnel everything to one agent. Reserve agent nodes for sub-tasks\n"
     "a single verb cannot cover; do not wrap a plain verb in an agent node.\n"
-    "\n"
-    "DOMAIN MATCH (critical): every node's tool/sub-task MUST be able to answer\n"
-    "the user's ACTUAL question -- match tools to the question's domain; never\n"
-    "pad the plan with probes from an unrelated one. A question about the world\n"
-    "/ web / current events / news / what is happening or trending decomposes\n"
-    "into web_search facets (distinct angles of the topic) and/or an `agent`\n"
-    "research node -- NOT OS-state probes, which only answer questions about\n"
-    "THIS machine. A question about the local machine is the reverse. If a\n"
-    "web/world question has no fitting MiOS verb, use web_search facets or an\n"
-    "agent research node (or nodes:[] to fall through to a web-capable agent) --\n"
-    "never substitute local-system probes and then report 'no data'.\n"
     "\n"
     "If you cannot decompose into AT LEAST 2 dispatchable nodes, emit\n"
     '{"action":"decompose","summary":"","nodes":[]} so the chain falls\n'
