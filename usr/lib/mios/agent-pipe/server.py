@@ -2372,26 +2372,36 @@ def _kv_lock(key: str) -> "asyncio.Lock":
     return lk
 
 
-async def _kv_slot_action(client, ep: str, action: str, conv: str) -> bool:
+async def _kv_slot_action(client, ep: str, action: str, conv: str,
+                          model: "Optional[str]" = None) -> bool:
     """POST one llama.cpp slot save|restore for conversation `conv`. Best-effort:
-    returns False (never raises) on any failure -- an old binary without
-    --slot-save-path, a missing file on the first restore, a transport error."""
+    returns False (never raises) on any failure.
+
+    G6: llama-swap does NOT proxy /slots at its root -- it exposes each model's
+    native endpoints under /upstream/<model>/ -- so the bare /slots POST always
+    404'd (empty slot dir). Try the model-routed upstream path first when the
+    model is known, then fall back to the bare /slots path (a direct llama.cpp
+    server, e.g. the iGPU lane, serves /slots at the root)."""
     base = _kv_base(ep)
-    try:
-        r = await client.post(
-            f"{base}/slots/{KV_PAGING_SLOT}",
-            params={"action": action},
-            content=json.dumps({"filename": _kv_filename(conv)}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            timeout=KV_PAGING_TIMEOUT)
-        ok = r.status_code == 200
-        if not ok:
-            log.debug("kv %s slot %s conv=%s -> %s",
-                      action, KV_PAGING_SLOT, conv, r.status_code)
-        return ok
-    except Exception as e:  # noqa: BLE001 -- paging is best-effort
-        log.debug("kv %s failed: %s", action, e)
-        return False
+    urls = []
+    if model:
+        urls.append(f"{base}/upstream/{model}/slots/{KV_PAGING_SLOT}")
+    urls.append(f"{base}/slots/{KV_PAGING_SLOT}")
+    for url in urls:
+        try:
+            r = await client.post(
+                url,
+                params={"action": action},
+                content=json.dumps(
+                    {"filename": _kv_filename(conv)}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                timeout=KV_PAGING_TIMEOUT)
+            if r.status_code == 200:
+                return True
+            log.debug("kv %s %s conv=%s -> %s", action, url, conv, r.status_code)
+        except Exception as e:  # noqa: BLE001 -- paging is best-effort
+            log.debug("kv %s %s failed: %s", action, url, e)
+    return False
 
 
 @contextlib.asynccontextmanager
@@ -2406,13 +2416,14 @@ async def _kv_paging(client, ep: str, cfg: dict, engine):
         yield
         return
     conv = _conv_key_var.get()
+    model = (cfg or {}).get("model")
     key = f"{_kv_base(ep)}#{KV_PAGING_SLOT}"
     async with _kv_lock(key):
         if _KV_RESIDENT.get(key) != conv:
             resident = _KV_RESIDENT.get(key)
             if resident is not None:                       # page OUT (unload)
-                await _kv_slot_action(client, ep, "save", resident)
-            await _kv_slot_action(client, ep, "restore", conv)  # page IN (load)
+                await _kv_slot_action(client, ep, "save", resident, model)
+            await _kv_slot_action(client, ep, "restore", conv, model)  # page IN
             _KV_RESIDENT[key] = conv
         yield
 
