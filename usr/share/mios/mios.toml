@@ -1554,6 +1554,16 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
 [routing]
 router_enable = true   # master switch; false = legacy full-surface behaviour
 
+# Trailing courtesy/location phrases the agent-pipe fast-path (_deterministic_action_
+# route) STRIPS from a launch target so the app name is clean and the launch stays
+# deterministic: "open notepad for me" -> open_app(name="notepad"); "open spotify on
+# my desktop" -> name="spotify". SSOT (no hardcoded English in code); stripped
+# longest-match-first from the END of the target. Add phrases your launches pick up.
+launch_filler_phrases = [
+  "for me please", "on my desktop", "on the desktop", "right now", "real quick",
+  "thank you", "for me", "please", "thanks", "now",
+]
+
 [routing.domains.web]
 desc  = "the internet / current events / news / trending / weather / prices / world facts"
 verbs = ["web_search", "web_scrape", "crawl", "web_extract"]

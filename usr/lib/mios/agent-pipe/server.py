@@ -4284,6 +4284,32 @@ def _load_routing_domains() -> tuple[dict, bool]:
 
 _ROUTING_DOMAINS, _ROUTING_ENABLE = _load_routing_domains()
 
+
+def _load_launch_fillers() -> list:
+    """Trailing courtesy/location phrases (SSOT mios.toml [routing].launch_filler_
+    phrases) stripped from a deterministic launch target so 'open notepad for me'
+    -> open_app(name='notepad') and 'open spotify on my desktop' -> name='spotify'
+    (operator 2026-06-07 e2e: filler bled into the app name, and 'on my desktop'
+    forced the launch into the LLM path which mis-classified it as discovery). NO
+    hardcoded English in code -- the list is SSOT data. FAIL-SAFE: error -> []."""
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        with open(toml_path, "rb") as f:
+            rt = (tomllib.load(f).get("routing") or {})
+        return sorted(
+            (str(p).lower().strip() for p in (rt.get("launch_filler_phrases") or []) if str(p).strip()),
+            key=len, reverse=True)  # longest-first so multi-word phrases strip before their substrings
+    except Exception as e:
+        log.warning("launch fillers load failed: %s", e)
+        return []
+
+
+_LAUNCH_FILLERS = _load_launch_fillers()
+
 # OS-control / window-action verb set, derived from the verb catalog SSOT
 # (mios.toml `section`). A request that maps to ONE of these is a single
 # DETERMINISTIC machine action -- it must fire that one verb through the
@@ -4376,18 +4402,33 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     if not t or len(t) > 80 or "?" in t:
         return None
     words = t.split()
-    if not (2 <= len(words) <= 5):
+    if len(words) < 2:
         return None
     head = words[0].lower().strip(".,:;!\"'")
     if head not in _LAUNCH_TRIGGERS or "open_app" not in _FASTPATH_VERBS:
         return None
     rest = " ".join(words[1:]).strip()
-    # Compound forms (url / 'in <app>' / conjunctions) -> let the LLM router
-    # split content from target; the deterministic path only takes the
-    # unambiguous bare 'launch <app>'.
-    if "://" in rest or re.search(r"\b(in|and|then|with|on|to)\b", rest.lower()):
+    # Strip trailing courtesy/location filler (SSOT list) so the app name is clean
+    # and the launch stays on the DETERMINISTIC path -- 'open notepad for me' ->
+    # name='notepad'; 'open spotify on my desktop' -> name='spotify'. Stripping
+    # before the compound check is what keeps 'on my desktop' from forcing the
+    # launch into the LLM router (which mis-routed it to discovery in the e2e).
+    _low = rest.lower()
+    _changed = True
+    while _changed and rest:
+        _changed = False
+        for _f in _LAUNCH_FILLERS:
+            if _f and _low.endswith(_f):
+                rest = rest[:len(rest) - len(_f)].rstrip(" ,.")
+                _low = rest.lower()
+                _changed = True
+                break
+    if not rest or len(rest.split()) > 3:
         return None
-    if not rest:
+    # True compound forms (url / 'in <app>' / conjunctions = two targets) -> let
+    # the LLM router split content from target; the deterministic path only takes
+    # the unambiguous bare 'launch <app>' (after filler is stripped).
+    if "://" in rest or re.search(r"\b(in|and|then|with|on|to)\b", _low):
         return None
     return {"intent": "dispatch", "tool": "open_app",
             "args": {"name": rest}, "_deterministic": True}
