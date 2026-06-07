@@ -49,8 +49,8 @@ Volume=/var/cache/mios/searxng:/var/cache/searxng:Z
 # overriding it so host-side bind-mounts are owned by mios-searxng and
 # the container process can still read+write because the volumes are
 # chowned <uid>:<gid> by usr/lib/tmpfiles.d/mios-searxng.conf at boot.
-User=818
-Group=818
+User=${MIOS_SEARXNG_UID:-818}
+Group=${MIOS_SEARXNG_GID:-818}
 
 # Public base URL for generated absolute links (RSS, opensearch.xml).
 # Operators fronting SearXNG behind a reverse proxy override this in
