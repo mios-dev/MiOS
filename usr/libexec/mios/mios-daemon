@@ -127,7 +127,34 @@ _DB_DOWN_UNTIL: float = 0.0
 
 # WS-9c cutover: mirror daemon writes to Postgres+pgvector via the shared
 # mios-db --pg CLI (system-python, no psycopg). MIOS_DB_BACKEND: surreal|dual|postgres.
-DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
+def _toml_db_backend() -> str:
+    """SSOT: [dispatch] db_backend from the layered mios.toml (vendor < /etc).
+    Mirrors the agent-pipe so the whole agent plane flips together at the
+    SurrealDB->pgvector cutover (R15/G11). Env MIOS_DB_BACKEND still wins."""
+    val = "dual"
+    try:
+        try:
+            import tomllib
+        except ModuleNotFoundError:
+            import tomli as tomllib  # type: ignore
+        for _p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+                   "/etc/mios/mios.toml"):
+            try:
+                with open(_p, "rb") as _fh:
+                    _b = (tomllib.load(_fh).get("dispatch") or {}).get("db_backend")
+                if _b:
+                    val = str(_b).strip().lower()
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return val
+
+
+DB_BACKEND = (os.environ.get("MIOS_DB_BACKEND")
+              or _toml_db_backend()).strip().lower()
 _PG_ENABLED = DB_BACKEND in ("dual", "postgres")
 _PG_PRIMARY = DB_BACKEND == "postgres"
 _MIOS_DB = "/usr/libexec/mios/mios-db"
@@ -203,6 +230,38 @@ def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     except Exception:
         _DB_DOWN_UNTIL = time.time() + 30
         return None
+
+
+def _pg_query(select_sql: str) -> list:
+    """R15/G10: read rows from pgvector via mios-db --pg --json. Wraps the
+    SELECT in json_agg(row_to_json) so the output is a single JSON array
+    (mios-pg-query emits tuples-only). Returns a list of dicts ([] on error/
+    pg-disabled). The daemon had no pg-read path -- only _pg_exec for writes."""
+    if not _PG_ENABLED:
+        return []
+    try:
+        import subprocess
+        wrapped = ("SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM ("
+                   + select_sql.rstrip().rstrip(";") + ") t;")
+        p = subprocess.run([_MIOS_DB, "--pg", wrapped, "--json"],
+                           capture_output=True, text=True, timeout=15)
+        if p.returncode != 0:
+            return []
+        out = (p.stdout or "").strip()
+        return json.loads(out) if out else []
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return []
+
+
+def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None) -> list:
+    """Agent-plane READ seam (mirrors agent-pipe's). When Postgres is primary
+    AND a pg_sql translation is supplied, run it and wrap the rows in
+    SurrealDB's [{"result": [...]}] envelope so _ok_result parses both shapes
+    UNCHANGED. Else SurrealDB. Lets reads migrate incrementally + go live at
+    the flip without touching call-site result parsing."""
+    if _PG_PRIMARY and pg_sql:
+        return [{"result": _pg_query(pg_sql)}]
+    return _db_post(surreal_sql) or []
 
 
 def _db_create(table: str, fields: dict, *,
@@ -1813,7 +1872,10 @@ def _scan_unverified_refines(lookback_min: int) -> list[dict]:
         f"  AND ts > time::now() - {int(lookback_min)}m "
         f"ORDER BY ts ASC LIMIT 50;"
     )
-    refines = _ok_result(_db_post(sql))
+    refines = _ok_result(_db_read(sql, pg_sql=(
+        f"SELECT id, ts, payload FROM event WHERE kind = 'refine' "
+        f"AND ts > now() - interval '{int(lookback_min)} minutes' "
+        f"ORDER BY ts ASC LIMIT 50")))
     # Filter out refines that already have a satisfaction event
     # referencing their id. SurrealDB doesn't have a JOIN; do it in
     # a second query against the recent satisfaction events.
@@ -1824,7 +1886,11 @@ def _scan_unverified_refines(lookback_min: int) -> list[dict]:
         f"LIMIT 200;"
     )
     seen_refine_ids: set = set()
-    for sr in _ok_result(_db_post(sat_sql)):
+    for sr in _ok_result(_db_read(sat_sql, pg_sql=(
+            "SELECT payload FROM event WHERE kind IN "
+            "('user_query_satisfied','user_query_unsatisfied') "
+            f"AND ts > now() - interval '{int(lookback_min)} minutes' "
+            "LIMIT 200"))):
         if not isinstance(sr, dict):
             continue
         rid = ((sr.get("payload") or {}).get("refine_id"))
@@ -1853,7 +1919,12 @@ def _tool_calls_for_refine(refine_ts: str,
         f"  AND ts < '{refine_ts}' + {int(lookback_after_min)}m "
         f"ORDER BY ts ASC LIMIT 20;"
     )
-    return [r for r in _ok_result(_db_post(sql)) if isinstance(r, dict)]
+    return [r for r in _ok_result(_db_read(sql, pg_sql=(
+        f"SELECT id, ts, tool, args, success, exit_code, result_preview "
+        f"FROM tool_call WHERE ts > '{refine_ts}'::timestamptz "
+        f"AND ts < '{refine_ts}'::timestamptz + interval "
+        f"'{int(lookback_after_min)} minutes' ORDER BY ts ASC LIMIT 20")))
+        if isinstance(r, dict)]
 
 
 def _verb_post_check(tool: str, args: dict) -> dict:

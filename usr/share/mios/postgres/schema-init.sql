@@ -263,3 +263,16 @@ CREATE INDEX IF NOT EXISTS idx_direntry_basename_trgm
     ON directory_entry USING gin (lower(basename) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_direntry_path_trgm
     ON directory_entry USING gin (lower(path) gin_trgm_ops);
+
+-- ── log_digest: mios-daemon's consolidated log analysis (R15: was SurrealDB).
+--    Append-only summaries from the classify/rollup loops. ─────────────────────
+CREATE TABLE IF NOT EXISTS log_digest (
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    summary      text,
+    tags         jsonb DEFAULT '[]'::jsonb,
+    severity     text,
+    event_count  integer,
+    batch_count  integer,
+    ts           timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS log_digest_ts ON log_digest (ts DESC);
