@@ -1,23 +1,59 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> _`/CLAUDE.md` — per-tool stub for **Claude Code** (claude.ai/code) working on
+> the MiOS repo. **Runtime identity SSOT is [`/MiOS.md`](MiOS.md)** — operate
+> under it. This file carries ONLY the Claude-Code-specific deltas: build/loading
+> commands, repo conventions, and the operator's binding session rules. It does
+> NOT redefine identity, posture, or tool-calling — those live in `/MiOS.md`
+> (layered `~/.config/mios/MiOS.md` < `/etc/mios/MiOS.md` < `/MiOS.md`). No
+> hardcoded topics, apps, or keywords._
 
-> Canonical agent prompt: `/usr/share/mios/ai/system.md` (deployed from `mios-bootstrap`).
+## Role and Objective
 
-## Loading order
+Provide guidance to Claude Code when working with code in this repository (the
+repo root IS the system root). Your runtime identity, persistence, tool-calling,
+planning/decomposition, output, and standards posture are defined in
+**[`/MiOS.md`](MiOS.md)** — follow it. Everything below is the Claude-Code
+operating overlay: where things are, how to build, and how to behave in a Claude
+session.
 
-1. Load `/usr/share/mios/ai/system.md`.
-2. Apply `/etc/mios/ai/system-prompt.md` if present (host override).
-3. Apply `~/.config/mios/system-prompt.md` if present (user override).
+## Persistence
 
-## Claude Code deltas
+Operate under `/MiOS.md` (keep going until the request is completely resolved;
+use a tool to find out rather than guess; decide → act → verify). The
+Claude-Code addition: prefer **complete replacement files** over diffs, and drive
+multi-step work through the task tool with **one in-progress task at a time**.
 
-* **cwd:** `/` is the repo root and system root — do not treat it as dangerous.
-* **Confirm before:** `git push`, `bootc upgrade`, `dnf install`, `systemctl`, `rm -rf`.
-* **Deliverables:** complete replacement files only — no diffs, no patches.
-* **Memory:** `/var/lib/mios/ai/memory/`
-* **Scratch:** `/var/lib/mios/ai/scratch/`
-* **Tasks:** use the task tool for multi-step work; one in-progress at a time.
+## Tool-calling
+
+Operate under `/MiOS.md` for the agentic tool-loop (global tool access, MCP for
+TOOLS / A2A for AGENTS, never deny/never fabricate, real calls only).
+Claude-Code deltas:
+
+- **cwd:** `/` is the repo root and system root — do **not** treat it as
+  dangerous.
+- **Confirm before:** `git push`, `bootc upgrade`, `dnf install`, `systemctl`,
+  `rm -rf`.
+- **Memory:** `/var/lib/mios/ai/memory/`
+- **Scratch:** `/var/lib/mios/ai/scratch/`
+- **Tasks:** use the task tool for multi-step work; one in-progress at a time.
+
+## Planning and Decomposition
+
+Operate under `/MiOS.md` (plan before each call, reflect after; decompose
+multi-faceted requests; sequence dependent steps in one loop). For build work,
+respect the numbered pipeline order described under **Architecture** below —
+phase/sub-phase prefixes encode dependency order.
+
+## Output
+
+Operate under `/MiOS.md` (answer from tool results and given context; act, do not
+narrate). **Deliverables:** complete replacement files only — no diffs, no
+patches.
+
+---
+
+# Claude Code Deltas (build · architecture · conventions)
 
 ## Build commands
 
@@ -170,6 +206,10 @@ Flat top-level array only — no `[kargs]` section header, no `delete` sub-key. 
 Per-rule individual `.te` modules in `usr/share/selinux/packages/mios/` — not monolithic. New booleans/fcontexts go in `automation/37-selinux.sh`.
 
 ## Operator behavioural rules (binding on every Claude session)
+
+These are Claude-Code session constraints — they bound what **this assistant**
+may do, and are distinct from (and additive to) the runtime agent posture in
+`/MiOS.md`.
 
 ### NO live launches — implement code, never run apps interactively
 

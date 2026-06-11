@@ -1,0 +1,55 @@
+# /usr/share/containers/systemd/mios-cpu-node.container
+# 'MiOS' CPU inference node — the ALWAYS-ON, never-OOM, gaming-immune lane (2026-06-08).
+#
+# WHY: operator wants a front door that is ALWAYS available ("CPU model(s)").
+# MEASURED reality (see memory mios-frontdoor-dgpu-router): the CPU is ~100 tok/s
+# prefill, so on Hermes's ~17K-token 113-tool surface it takes ~169s — far too slow
+# to be the PRIMARY front door (that's the dGPU now). But the CPU has one property
+# no GPU lane has: it NEVER touches the RTX 4090. So this node is:
+#   (1) the last-resort fallback behind the dGPU front door, and
+#   (2) the GAMING-MODE front door — when the router's gaming flag is set, the front
+#       door routes here so a chat turn can't stutter the game (slow but contention-free).
+#
+# Same llama.cpp engine + image as the dGPU lane, but -ngl 0 (pure CPU). Standalone
+# llama-server (NOT llama-swap) on its own port so it's always resident, not swapped.
+#
+# GATED: ConditionPathExists on the GGUF so a missing model can't crash-loop.
+
+[Unit]
+Description='MiOS' CPU inference node (always-on / gaming-immune last-resort lane)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/share/mios/llamacpp/models/qwen3-4b.gguf
+
+[Container]
+# SSOT-friendly defaults (override via env / mios.toml render if/when added).
+Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
+ContainerName=mios-cpu-node
+Network=host
+
+# Same AI-tier identity as the llama-swap lane (uid 827, pinned in sysusers).
+User=${MIOS_LLAMACPP_UID:-827}
+Group=${MIOS_LLAMACPP_GID:-827}
+
+# RO model store + KV slot dir (shared with the other llama.cpp lanes).
+Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
+Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z
+Environment=HOME=/var/lib/mios/llamacpp
+
+# Pin the llama-server entrypoint (image default is llama-swap) so Exec args are ITS.
+Entrypoint=/app/llama-server
+# qwen3-4b (native 32K ctx; YaRN-extended to 64K to hold the tool surface).
+# -ngl 0 = pure CPU (NEVER offload to the 4090). --threads sized for the box.
+# --parallel 1 keeps every request on slot 0 (KV-paging invariant, matches lanes).
+Exec=--model /models/qwen3-4b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 65536 --rope-scaling yarn --yarn-orig-ctx 32768 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}
+
+Label=org.opencontainers.image.title=mios-cpu-node
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

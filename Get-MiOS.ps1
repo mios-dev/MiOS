@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     'MiOS' bootstrap -- legacy redirector to the canonical bootstrap-side
     Get-MiOS.ps1.

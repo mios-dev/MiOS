@@ -185,6 +185,11 @@ for line in sys.stdin:
     print(p)
     out += 1
     if out >= max_n:
+        # Drain the rest of stdin so the upstream backend (plocate/locate/find)
+        # finishes writing instead of getting SIGPIPE -> exit 141 under
+        # `set -o pipefail` (the bug that made fs_search return 141 + no output).
+        for _ in sys.stdin:
+            pass
         break
 ' "$q_lc" "$exts_re" "$TYPE" "$MAX" "${EXISTING_PATHS[@]}"
 }
@@ -214,7 +219,12 @@ esac
 FIND_ARGS+=( -iname "*${QUERY}*" -print )
 
 # Pipe find output through the same filter for consistent ext/limit semantics.
-RAW=$(timeout 30 find "${FIND_ARGS[@]}" 2>/dev/null | _filter_results)
+# `|| true`: find exits non-zero when ANY root is unreadable (e.g. /root for the
+# non-root broker user) EVEN AFTER printing matches from readable roots -- under
+# `set -e` + `pipefail` that killed the script before the results were emitted
+# (fs_search returned empty as mios-ai while working as root). The empty-check
+# below still reports a genuine no-match. operator 2026-06-10.
+RAW=$(timeout 30 find "${FIND_ARGS[@]}" 2>/dev/null | _filter_results || true)
 
 if [ -z "$RAW" ]; then
     echo "mios-locate: no match for '$QUERY'" >&2

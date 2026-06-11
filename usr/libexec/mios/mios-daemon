@@ -80,7 +80,7 @@ MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b")
 # default points it at the right lane. (The "iGPU" in that quote was
 # aspirational -- ROCm never reached the iGPU in WSL2, so the lane has
 # always been CPU; the real AMD iGPU is the Windows-native server.)
-ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", "http://127.0.0.1:11435")
+ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", "http://127.0.0.1:11450/v1")
 STATE_DIR = Path(os.environ.get("MIOS_DAEMON_STATE_DIR", "/var/lib/mios/daemon"))
 STATE_FILE = STATE_DIR / "state.json"
 CLASSIFY_BATCH_S = float(os.environ.get("MIOS_DAEMON_CLASSIFY_S", "30"))

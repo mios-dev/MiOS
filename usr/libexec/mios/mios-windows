@@ -148,6 +148,18 @@ _mios_executor_endpoint() {
             [ -n "$_ep" ] && break
         done
     fi
+    # WSL2 local auto-discovery (operator 2026-06-07): no env override + no
+    # configured endpoint, but the in-session executor (mios-oscontrol-server.ps1)
+    # listens on :11437. Reach it over the WSL NAT default-route gateway (the
+    # Windows host) so VISIBLE launches work WITHOUT Tailscale -- otherwise the
+    # WSL-interop fallback lands in a Session-0 window station (no visible window).
+    # The caller curls /launch, so an unreachable gateway simply falls back to the
+    # legacy route -- no regression, and it self-heals once the host firewall
+    # admits the WSL subnet. Same resolver shape as mios-pc-control.
+    if [ -z "$_ep" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+        _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
+        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_OSCONTROL_PORT:-11437}"
+    fi
     printf '%s' "${_ep%/}"
 }
 
@@ -165,6 +177,11 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path>
     command -v curl >/dev/null 2>&1 || return 1
     _xe="$(_mios_executor_endpoint)"
     [ -z "$_xe" ] && return 1
+    # Fast reachability pre-check: a configured-but-unreachable executor (e.g. the
+    # auto-resolved WSL-gateway endpoint before the host firewall admits the WSL
+    # subnet) must fall back to the legacy interop path in ~2s, NOT stall the whole
+    # launch on the 45s POST timeout below (operator 2026-06-07).
+    curl -fsS -m 2 "$_xe/health" >/dev/null 2>&1 || return 1
     # `verify` = the human title hint (MIOS_LAUNCH_TITLE_HINT, e.g. "Forza
     # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
     # URI / shell:appsFolder string that never appears in a window title

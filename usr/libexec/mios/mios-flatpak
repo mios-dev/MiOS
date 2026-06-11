@@ -79,8 +79,11 @@ _run_flatpak() {
             mv "${f}.tr" "$f"
         fi
     done
-    _FP_OUT="$(cat "$out_file")"
-    _FP_ERR="$(cat "$err_file")"
+    # EXPORT so _emit_envelope's python child sees them via os.environ (shell-local
+    # vars are invisible to the subprocess -> the long-standing empty-stdout bug
+    # that made list/search/show return "" despite flatpak returning data). 2026-06-10.
+    export _FP_OUT="$(cat "$out_file")"
+    export _FP_ERR="$(cat "$err_file")"
     _FP_RC=$rc
     return 0
 }
@@ -136,7 +139,7 @@ case "$sub" in
             esac
         done
         # Use --columns so the column order is deterministic for parsing.
-        _run_flatpak search --columns=application,name,description,version,branches,remotes "$query"
+        _run_flatpak search --columns=application,name,description,version,branch,remotes "$query"
         if [[ "${PLAIN:-0}" -eq 1 ]]; then
             printf '%s\n' "$_FP_OUT"
             [[ -n "$_FP_ERR" ]] && printf '%s\n' "$_FP_ERR" >&2

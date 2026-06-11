@@ -94,8 +94,15 @@ while IFS= read -r p; do
 done <<< "$ES_PROBE_LIST"
 
 if [ -z "$ES_BIN" ]; then
+    # es.exe (Everything CLI) not installed. A PowerShell recursive fallback was
+    # tried (2026-06-09) but a non-indexed walk of C:\Windows/Program Files is too
+    # slow (times out) -- the NTFS index is the whole point. everything_search
+    # needs es.exe; meanwhile the agent uses fs_search / mios_find / app_search.
     echo "mios-everything: es.exe not found in probe list" >&2
-    echo "  set EVERYTHING_CLI=<path> OR mios.toml [paths].everything_cli" >&2
+    echo "  install Everything CLI es.exe + set EVERYTHING_CLI / mios.toml [paths].everything_cli" >&2
+    if [ "$JSON" -eq 1 ]; then
+        printf '{"ok":false,"verb":"everything_search","error":"es_cli_missing","hint":"install Everything CLI es.exe; agent can use fs_search/mios_find/app_search meanwhile","results":[]}\n'
+    fi
     exit 1
 fi
 

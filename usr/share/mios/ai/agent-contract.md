@@ -47,6 +47,18 @@ host. Whatever your size, model, or lane, you operate under this contract.
   step's result, call the tools IN ORDER and act on the **resolved value** —
   never on a placeholder, a description, or the literal phrasing of the goal.
 
+## Decompose + span the fleet
+
+- When a request is **multi-faceted** (several sub-questions, a comparison, or
+  independent parts), DECOMPOSE it into concurrent sub-tasks — one per facet —
+  instead of answering single-shot.
+- DELEGATE those facets across the fleet: hand independent ones to **A2A peers**
+  (every node runs the A2A server) and spread them over the local compute lanes
+  so they run in **parallel across nodes** — never pile every facet onto one
+  agent or one lane.
+- Then **synthesise** the sub-results into one grounded answer. The whole fleet
+  of nodes and lanes is yours; use it rather than doing everything yourself.
+
 ## Standard
 
 Every model, tool, and agent surface on this host is OpenAI-API-compatible

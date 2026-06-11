@@ -1,0 +1,88 @@
+# /etc/containers/systemd/mios-sglang.container
+# 'MiOS' SGLang server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU heavy lane.
+#
+# Operator 2026-06-07 ("continue with SGLang"): a SECOND heavy serving lane.
+# Operator 2026-06-11 ("slightly smaller / newest intermediate model"): the heavy
+# reasoner is Qwen3-8B-AWQ (text-only, 4-bit, ~5.5GB) -- it fits the shared 4090
+# cleanly with cuda-graphs ON, leaving room for the light lane (the 14B and the
+# multimodal Qwen3.5-9B both blew the KV pool / OOM-cascaded on the shared GPU).
+#
+# SSOT: tunables come from mios.toml ([ai.sglang] + [ports].sglang), rendered to
+# MIOS_SGLANG_* / MIOS_PORT_SGLANG. CRITICAL: this file MUST be rendered before the
+# unit starts (15-render-quadlets.sh / the deploy render) -- Quadlet/podman does NOT
+# expand the ${VAR:-default} shell-default form, so an UNRENDERED placeholder in
+# PublishPort/Exec yields "invalid port format" / a literal-arg crash (operator
+# 2026-06-11). Weights are an OPT-IN OFFLINE bake (automation/38-sglang-prep.sh from
+# [ai.sglang].bake_model=Qwen/Qwen3-8B-AWQ -> /usr/share/mios/sglang/model). FOSS.
+#
+# VRAM-GATED + DISABLED BY DEFAULT: needs real free VRAM the shared 4090 lacks while
+# gaming. Enable ONLY on a dGPU with headroom, AFTER baking weights:
+#   systemctl enable --now mios-sglang.service
+# Then [nodes.local-sglang] (health-gated) auto-joins the swarm. Mutually exclusive
+# with mios-vllm at runtime (both serve "mios-heavy"); enable ONE on a shared GPU.
+[Unit]
+Description='MiOS' SGLang heavy lane (OpenAI /v1, Qwen3-8B-AWQ; gated)
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+# Guard: only start when the baked weights exist (the bake is opt-in).
+ConditionPathExists=/usr/share/mios/sglang/model/config.json
+
+[Container]
+Image=${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}
+ContainerName=mios-sglang
+# host networking: the server binds :11441 directly on the host. The custom
+# mios.network + PublishPort form silently failed to expose :11441 (operator
+# 2026-06-11: lane unreachable -> health-monitor cycled it). No PublishPort with
+# Network=host.
+Network=host
+# GPU passthrough -- CDI device resolved by mios-cdi-detect.service (bare-metal
+# nvidia-ctk spec OR the WSL2 /run/cdi/wsl2-nvidia.yaml mapping /dev/dxg + /usr/lib/wsl).
+AddDevice=nvidia.com/gpu=all
+# Law-6 EXCEPTION (UNPRIVILEGED-QUADLETS): the upstream NVIDIA lmsysorg/sglang image
+# MUST run as root -- server_args probes GPU memory via nvidia-smi which the container
+# PATH resolves to a root-only binary (uid 815 -> PermissionError, operator 2026-06-11),
+# and the image has no mios user. Precedent: mios-ceph / mios-forgejo-runner /
+# mios-coderun-sandbox. (Reads only the immutable RO weights mount below.)
+# User= / Group= deliberately omitted (run as image-default root).
+# SGLang scheduler/tokenizer IPC needs a large /dev/shm (default 64m OOMs it).
+ShmSize=4g
+# The lmsysorg/sglang image entrypoint is nvidia_entrypoint.sh (execs CMD), NOT the
+# launcher -- so Exec MUST start with `python3 -m sglang.launch_server` (operator
+# 2026-06-11: args-only Exec -> "exec: --: invalid option"). --mem-fraction-static is
+# a BOUNDED slice so the 8B co-resides with the light lane + leaves headroom for
+# cuda-graph capture + activation. Raise via mios.toml [ai.sglang].mem_fraction.
+# CRITICAL (operator 2026-06-11): --disable-cuda-graph AND --disable-piecewise-cuda-graph
+# are REQUIRED on this WSL2 + RTX 4090 host -- the CUDA-graph capture phase (both the
+# regular and the separate "piecewise" capture) CRASHES/REBOOTS the entire WSL2 VM
+# (confirmed: the prev-boot's last log line was "Capture cuda graph begin", then reboot;
+# a reboot LOOP every ~2-4 min). With both off, SGLang loads in ~32s and the VM is rock-
+# stable. Cost: slightly slower decode (no graph replay) -- acceptable vs a crashing VM.
+# Revisit if a future WSL2/NVIDIA driver fixes the dxgkrnl crash on graph capture.
+Exec=python3 -m sglang.launch_server --model-path /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11441} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.5} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-16384} --disable-cuda-graph --disable-piecewise-cuda-graph
+# Read-only mount of the build-baked weights (immutable composefs seed).
+Volume=/usr/share/mios/sglang/model:/models:ro,Z
+# Air-gapped: never reach out to the HF hub at runtime.
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=SGLANG_DISABLE_USAGE_STATS=1
+Environment=DO_NOT_TRACK=1
+# Writable cache dirs: the root container has no writable HOME, so flashinfer/torch/
+# triton JIT caches fall back to the RO image workdir -> PermissionError (operator
+# 2026-06-11). Redirect all caches to the writable tmpfs /tmp.
+Environment=HOME=/tmp
+Environment=XDG_CACHE_HOME=/tmp/.cache
+Environment=FLASHINFER_WORKSPACE_DIR=/tmp/flashinfer
+Environment=TRITON_CACHE_DIR=/tmp/triton
+Environment=TORCHINDUCTOR_CACHE_DIR=/tmp/inductor
+Label=org.opencontainers.image.title=mios-sglang
+Label=org.opencontainers.image.url=http://localhost:11441/v1/models
+Label=io.podman_desktop.openInBrowser=http://localhost:11441/v1/models
+
+[Service]
+Restart=on-failure
+RestartSec=15
+# Model load + CUDA graph capture can take a few minutes on first start.
+TimeoutStartSec=600s
+
+[Install]
+WantedBy=multi-user.target default.target

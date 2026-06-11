@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""mios-gen-role-system -- SSOT-driven AIOS-native role SYSTEM generator.
+
+Renders each MiOS agent role's SYSTEM prompt from the SSOT -- the layered
+mios.toml `[agents.<name>]` config + the LIVE verb/skill/recipe catalog +
+the A2A peer surface -- so the role models are intrinsically AIOS-native:
+they NATIVELY decompose multi-faceted requests and delegate across the A2A
+fleet, with NO hardcoded orchestration. The output is the SINGLE source
+consumed by BOTH the llama-swap/Modelfile SYSTEM (the compiled-in fallback)
+AND the agent-pipe per-role injection -- one SSOT, no drift, regenerated on
+every image build.
+
+NO HARDCODES: the tool surface + fleet awareness are read from the live SSOT
+(mios.toml + /v1/verbs + a2a-peers.json), never written as literals. The only
+static text is the AIOS-node IDENTITY (a role principle, not live env -- so it
+is compatible with the no-context-injection rule, which is scoped to ENV
+discovery, exactly like _recall_knowledge's allowed prior-answer injection).
+
+Usage:  mios-gen-role-system [--out DIR] [--print ROLE] [--dry-run]
+"""
+import argparse
+import json
+import os
+import sys
+import urllib.request
+
+AGENT_PIPE = os.environ.get("MIOS_AGENT_PIPE", "http://127.0.0.1:8640").rstrip("/")
+OUT_DIR = os.environ.get("MIOS_ROLE_SYSTEMS_DIR", "/etc/mios/ai/v1/role-systems")
+A2A_PEERS = os.environ.get("MIOS_A2A_PEERS", "/etc/mios/ai/v1/a2a-peers.json")
+
+# ── The AIOS-node IDENTITY (static principle -- IDENTITY, not live env) ───────
+# This is what makes a model "implicit of the MiOS stack": it knows it is an
+# AIOS node in a federated fleet and that decompose+delegate is its default
+# posture. Everything role/tool/fleet-specific below is rendered from the SSOT.
+# AIOS_IDENTITY was lifted out to /MiOS.md on 2026-06-10 -- the global SYSTEM
+# identity is now ONE root source (OpenAI-pattern), injected by agent-pipe. The
+# role overlays below carry only the per-role DELTA and reference /MiOS.md.
+
+
+def _deep_merge(base: dict, over: dict) -> None:
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+
+
+def _load_toml() -> dict:
+    """Layered SSOT read: ~/.config < /etc/mios < /usr/share/mios (highest wins
+    by being applied last). Degrade-open: a missing/!parse layer is skipped."""
+    try:
+        import tomllib
+    except Exception:  # py<3.11 -- system python on the VM is 3.13, so fine
+        return {}
+    merged: dict = {}
+    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")):
+        try:
+            with open(p, "rb") as f:
+                _deep_merge(merged, tomllib.load(f))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+    return merged
+
+
+def _get_json(path: str, default):
+    try:
+        with urllib.request.urlopen(AGENT_PIPE + path, timeout=6) as r:
+            return json.load(r)
+    except Exception:  # noqa: BLE001 -- degrade-open: render without the live bit
+        return default
+
+
+def _tool_surface() -> list:
+    """The LIVE verb/skill/recipe catalog (names + one-liners). Read from the
+    running agent-pipe so it's never hardcoded and always current. Degrade-open
+    -> [] (the model still gets its identity + role; tools are discovered at
+    runtime via tool_search anyway)."""
+    data = _get_json("/v1/verbs", {}) or {}
+    tools = data.get("verbs") or data.get("tools") or data.get("data") or []
+    out = []
+    for t in tools:
+        if isinstance(t, dict):
+            nm = t.get("name") or (t.get("function") or {}).get("name")
+            desc = t.get("desc") or t.get("description") or \
+                (t.get("function") or {}).get("description") or ""
+            if nm:
+                out.append((str(nm), str(desc)[:90]))
+    return out
+
+
+def _fleet() -> list:
+    """A2A peers -> fleet the model can delegate to. SSOT = a2a-peers.json
+    (every MiOS node runs the A2A server, so this is real cross-node compute)."""
+    try:
+        with open(A2A_PEERS) as f:
+            return (json.load(f) or {}).get("peers", []) or []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _render_surface(surface: list, focus: list) -> str:
+    # OpenAI pattern: tools are the function-calling SURFACE (delivered as the
+    # `tools=` array on the request), NOT inlined as prose. Emit only a focus
+    # pointer; the full live catalog is discovered on demand via tool_search.
+    # (Dropping the old ~60-entry inline name dump is the single biggest per-hop
+    # token cut -- operator 2026-06-10 "lighten + consolidate".)
+    if focus:
+        return ("Tool focus: " + ", ".join(str(f) for f in focus)
+                + ". The FULL live MiOS verb/skill/recipe catalog is callable on "
+                "demand (tool_search).")
+    return ("Tools: the full live MiOS verb/skill/recipe catalog is callable on "
+            "demand (tool_search).")
+
+
+def _render_fleet(fleet: list) -> str:
+    ids = [str(p.get("id") or p.get("url")) for p in fleet if isinstance(p, dict)]
+    if not ids:
+        return ("Fleet: no A2A peers registered on this node yet -- delegate "
+                "across the LOCAL compute lanes; peers auto-register when added.")
+    return ("Fleet: " + str(len(ids)) + " A2A peer node(s) available for "
+            "delegation -> " + ", ".join(ids) + ". Use a2a_delegate/handoff to "
+            "spread sub-tasks across them.")
+
+
+def render_role(name: str, cfg: dict, surface: list, fleet: list) -> str:
+    # Per-role DEVELOPER overlay (OpenAI developer-message pattern). The global
+    # SYSTEM identity lives in /MiOS.md (injected separately, once) -- this layers
+    # ONLY the role delta on top, never a copy of the posture (lifted out 2026-06-10).
+    role = cfg.get("role") or "general"
+    parts = ["# Role overlay (operate under the /MiOS.md system identity)"]
+    line = f"You are acting as the **{name}** ({role}) node of this MiOS host."
+    if cfg.get("system"):           # optional role-specific SSOT override
+        line += " " + str(cfg["system"]).strip()
+    parts.append(line)
+    parts.append(_render_surface(surface, cfg.get("tools") or []))
+    parts.append(_render_fleet(fleet))
+    return "\n\n".join(p for p in parts if p)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-gen-role-system")
+    ap.add_argument("--out", default=OUT_DIR)
+    ap.add_argument("--print", dest="only", default="",
+                    help="print one role's SYSTEM to stdout, write nothing")
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    cfg = _load_toml()
+    agents = cfg.get("agents") or {}
+    if not agents:
+        print("mios-gen-role-system: no [agents.*] in mios.toml SSOT", file=sys.stderr)
+        return 1
+    surface = _tool_surface()
+    fleet = _fleet()
+
+    if args.only:
+        ac = agents.get(args.only)
+        if not isinstance(ac, dict):
+            print(f"unknown role '{args.only}' (have: {', '.join(agents)})",
+                  file=sys.stderr)
+            return 2
+        print(render_role(args.only, ac, surface, fleet))
+        return 0
+
+    if not args.dry_run:
+        os.makedirs(args.out, exist_ok=True)
+    rendered = 0
+    for name, ac in agents.items():
+        if not isinstance(ac, dict):
+            continue
+        sysprompt = render_role(name, ac, surface, fleet)
+        if args.dry_run:
+            print(f"[dry-run] {name}: {len(sysprompt)} chars")
+        else:
+            with open(os.path.join(args.out, f"{name}.md"), "w",
+                      encoding="utf-8") as f:
+                f.write(sysprompt + "\n")
+            print(f"rendered role: {name} ({len(sysprompt)} chars) -> "
+                  f"{args.out}/{name}.md")
+        rendered += 1
+    print(f"mios-gen-role-system: {rendered} role(s) rendered "
+          f"(surface={len(surface)} verbs, fleet={len(fleet)} peers)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

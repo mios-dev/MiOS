@@ -25,6 +25,10 @@ ExecStart=/usr/libexec/mios/mios-skills mine
 # offline Hermes / OpenCode deployments see new promoted skills
 # without polling agent-pipe HTTP.
 ExecStartPost=/usr/libexec/mios/mios-skills export-catalog
+# P4-full: outcome-driven lifecycle -- demote PROMOTED skills whose recent success
+# rate falls below the floor back to CANDIDATE. DRY-RUN (logs intended demotions);
+# flip to `reap --apply` once the rate math is trusted on accumulated outcomes.
+ExecStartPost=/usr/libexec/mios/mios-skills reap
 # The miner is a pure SurrealDB consumer; keep its privileges low.
 # DynamicUser would be ideal but we need read access to
 # /etc/mios/userenv.sh for the SSOT env -- so plain nogroup nobody

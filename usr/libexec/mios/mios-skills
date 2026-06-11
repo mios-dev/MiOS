@@ -234,6 +234,31 @@ def _fetch_recent_tool_calls(hours: int, limit: int = 5000) -> list[dict]:
     SurrealDB returns an empty array (not NONE) for `<-edge`
     traversal on rows with no reverse edges, so the exclusion uses
     `count(<-emitted) = 0` which works for both shapes."""
+    if _PG_PRIMARY:
+        # pg-primary (post pgvector cutover): the SurrealQL duration form
+        # (`time::now() - {h}h`) silently matched NOTHING on pg, so the miner
+        # always saw "no tool_call rows" and the training loop starved
+        # (operator 2026-06-10 "train MiOS AI"). The emitted-edge exclusion is
+        # a Surreal graph traversal with no pg mirror -- skip it; re-mined
+        # patterns dedup by name at insert time. Degrade-open -> [].
+        try:
+            rows = _pg_rows(
+                f"SELECT id, session_id AS session, ts, tool, args, success "
+                f"FROM tool_call "
+                f"WHERE ts > now() - interval '{int(hours)} hours' "
+                f"AND (success = true OR success IS NULL) "
+                f"AND tool NOT LIKE 'agent:%' "  # sub-agent/council fan-out dispatches are not real verb-chains -> not skills
+                f"ORDER BY ts ASC LIMIT {int(limit)}")
+            for r in rows:
+                a = r.get("args")
+                if isinstance(a, str):
+                    try:
+                        r["args"] = json.loads(a)
+                    except Exception:  # noqa: BLE001
+                        r["args"] = {}
+            return rows
+        except Exception:  # noqa: BLE001
+            return []
     sql = (
         f"SELECT id, session, ts, tool, args, success "
         f"FROM tool_call "
@@ -455,6 +480,24 @@ def _skill_success_rate(name: str) -> tuple[float, int]:
     (`time::now() - {h}h`) and the post_sql/last_ok read path mirror the
     rest of this file exactly. success may be NONE on still-open rows -> we
     drop None and only score closed invocations."""
+    if _PG_PRIMARY:
+        # P4-full: read the pg-mirrored skill_invocation (A0) -- skill column holds
+        # the skill id; ts is the close time. Degrade-open -> (1.0, 0).
+        try:
+            _ir = _pg_rows(f"SELECT id FROM skill WHERE name = '{_pgesc(name)}' LIMIT 1")
+            if not _ir:
+                return (1.0, 0)
+            _sid = _ir[0].get("id")
+            _rows = _pg_rows(
+                f"SELECT success FROM skill_invocation WHERE skill::text = '{_sid}' "
+                f"AND ts > now() - interval '{WINDOW_HOURS} hours'")
+            _vals = [bool(r.get("success")) for r in _rows
+                     if isinstance(r, dict) and r.get("success") is not None]
+            if len(_vals) < MIN_SUCCESS_SAMPLES:
+                return (1.0, len(_vals))
+            return (sum(1 for v in _vals if v) / len(_vals), len(_vals))
+        except Exception:  # noqa: BLE001
+            return (1.0, 0)
     try:
         idr = post_sql(
             f"SELECT id FROM skill WHERE name = {sq(name)} LIMIT 1;")
@@ -599,6 +642,35 @@ def cmd_promote(args: argparse.Namespace) -> int:
 
 def cmd_retire(args: argparse.Namespace) -> int:
     return _update_status(args.name, "retired")
+
+
+def cmd_reap(args: argparse.Namespace) -> int:
+    """P4-full outcome-driven lifecycle: demote PROMOTED skills whose recent
+    success rate is below MIN_SUCCESS_RATE (with >= MIN_SUCCESS_SAMPLES runs) back
+    to CANDIDATE (re-mineable, not retired -- a bad week shouldn't bury a good
+    skill). --apply actually demotes; default is DRY-RUN (logs intended demotions
+    so the rate math is confirmed on real data first). Inert until skill_invocation
+    outcomes accumulate. operator 2026-06-10."""
+    dry = not getattr(args, "apply", False)
+    if _PG_PRIMARY:
+        rows = _pg_rows("SELECT name FROM skill WHERE status = 'promoted' ORDER BY name")
+    else:
+        rows = last_ok(post_sql(
+            "SELECT name FROM skill WHERE status = 'promoted';")) or []
+    names = [r.get("name") for r in rows if isinstance(r, dict) and r.get("name")]
+    demoted = 0
+    for nm in names:
+        rate, n = _skill_success_rate(nm)
+        if n >= MIN_SUCCESS_SAMPLES and rate < MIN_SUCCESS_RATE:
+            if dry:
+                sys.stderr.write(f"mios-skills: [dry-run] would demote {nm} "
+                                 f"(rate={rate:.2f}, n={n}) -> candidate\n")
+            else:
+                _update_status(nm, "candidate")
+            demoted += 1
+    print(json.dumps({"ok": True, "reaped": demoted, "dry_run": dry,
+                      "checked": len(names)}))
+    return 0
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
@@ -887,6 +959,12 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("retire", help="hide skill from runners")
     pr.add_argument("name")
     pr.set_defaults(func=cmd_retire)
+
+    prp = sub.add_parser("reap",
+                         help="demote promoted skills below the success floor (dry-run default)")
+    prp.add_argument("--apply", action="store_true",
+                     help="actually demote (default: dry-run, logs only)")
+    prp.set_defaults(func=cmd_reap)
 
     pd = sub.add_parser("delete", help="hard-remove skill row")
     pd.add_argument("name")

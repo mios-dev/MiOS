@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-"""mios-discord-send -- DETERMINISTIC Discord post helper.
+"""mios-discord-send -- DETERMINISTIC Discord post/DM helper.
 
-Posts a message to a Discord channel via the bot token, so "post to discord"
-is an ACTION the MiOS orchestrator performs directly -- NOT something the 4B
-executor narrates and lies about (operator 2026-05-22: the agent claimed
-"posted to Discord" while never invoking any tool). Honest JSON result so the
-caller reports the REAL outcome (posted / why-not), never a fabricated success.
+Posts a message to a Discord CHANNEL (--channel <id>) OR direct-messages a USER
+(--user <@name|id>, or a NON-NUMERIC --channel value treated as a username): it
+resolves the username via guild member-search, opens a DM channel, and posts.
+So "send @gaboo a message on discord" is an ACTION the MiOS orchestrator performs
+directly -- NOT something the executor narrates and lies about (operator
+2026-05-22), and NOT a fabricated channel URL (operator 2026-06-10). Honest JSON
+result so the caller reports the REAL outcome (sent / why-not), never a fake.
 
 Token:   DISCORD_BOT_TOKEN (from /etc/mios/hermes/discord.env or env).
-Channel: --channel, else MIOS_DISCORD_DEFAULT_CHANNEL (synced from
-         mios.toml [identity].discord_channel_default at firstboot).
+Target:  --user <@name|id> for a DM; --channel <id> (or non-numeric @name) ;
+         else MIOS_DISCORD_DEFAULT_CHANNEL (mios.toml [identity].discord_channel_default).
 
 Discord is the operator's own external service (a chat sink), not a cloud-AI
 dependency -- consistent with Architectural Law 5 (no vendor-cloud AI URL).
 """
 from __future__ import annotations
-import argparse, json, os, sys, urllib.request, urllib.error
+import argparse, json, os, sys, urllib.request, urllib.error, urllib.parse
 
 DISCORD_ENV = os.environ.get("MIOS_DISCORD_ENV", "/etc/mios/hermes/discord.env")
 API = "https://discord.com/api/v10"
@@ -33,37 +35,86 @@ def _load_env(path: str) -> None:
         pass
 
 
+def _req(tok: str, path: str, data=None, method: str = "GET", timeout: float = 12.0):
+    body = json.dumps(data).encode("utf-8") if data is not None else None
+    r = urllib.request.Request(
+        API + path, data=body,
+        headers={"Authorization": f"Bot {tok}", "Content-Type": "application/json",
+                 "User-Agent": "mios-discord-send/2 (+local MiOS)"},
+        method=method)
+    with urllib.request.urlopen(r, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8", "replace"))
+
+
+def _resolve_user(tok: str, name: str, timeout: float):
+    """Resolve a @username (or bare username) to a user id via member-search across
+    the bot's guilds. Returns (user_id, username) or (None, None)."""
+    uname = name.lstrip("@").strip()
+    if uname.isdigit():            # already a user id
+        return uname, uname
+    try:
+        guilds = _req(tok, "/users/@me/guilds", timeout=timeout) or []
+    except Exception:
+        guilds = []
+    for g in guilds:
+        gid = g.get("id")
+        try:
+            ms = _req(tok, "/guilds/%s/members/search?query=%s&limit=5"
+                      % (gid, urllib.parse.quote(uname)), timeout=timeout) or []
+        except Exception:
+            ms = []
+        for m in ms:
+            u = m.get("user") or {}
+            un = u.get("username") or ""
+            if un.lower() == uname.lower() or uname.lower() in un.lower():
+                return u.get("id"), un
+    return None, None
+
+
 def main() -> int:
     p = argparse.ArgumentParser(prog="mios-discord-send")
     p.add_argument("content", nargs="+", help="message text")
-    p.add_argument("--channel", default="", help="channel id (else MIOS_DISCORD_DEFAULT_CHANNEL)")
-    p.add_argument("--timeout", type=float, default=10.0)
+    p.add_argument("--channel", default="", help="channel id (else default); a non-numeric value is treated as a @user DM")
+    p.add_argument("--user", default="", help="DM a user by @name or id (resolves + opens a DM channel)")
+    p.add_argument("--timeout", type=float, default=12.0)
     a = p.parse_args()
 
     _load_env(DISCORD_ENV)
     tok = (os.environ.get("DISCORD_BOT_TOKEN") or "").strip()
-    ch = (a.channel or os.environ.get("MIOS_DISCORD_DEFAULT_CHANNEL") or "").strip()
+    ch = (a.channel or "").strip()
+    user = (a.user or "").strip()
     content = " ".join(a.content).strip()[:2000]  # Discord hard limit
 
     if not tok:
         print(json.dumps({"success": False, "error": "no DISCORD_BOT_TOKEN configured"})); return 1
-    if not ch:
-        print(json.dumps({"success": False, "error": "no Discord channel set (mios.toml [identity].discord_channel_default)"})); return 1
     if not content:
         print(json.dumps({"success": False, "error": "empty message"})); return 64
 
-    req = urllib.request.Request(
-        f"{API}/channels/{ch}/messages",
-        data=json.dumps({"content": content}).encode("utf-8"),
-        headers={"Authorization": f"Bot {tok}",
-                 "Content-Type": "application/json",
-                 "User-Agent": "mios-discord-send/1 (+local MiOS)"},
-        method="POST",
-    )
+    # DM target: explicit --user, OR a non-numeric --channel (a @username).
+    dm_target = user or (ch if (ch and not ch.isdigit()) else "")
+    is_dm = bool(dm_target)
+    if is_dm:
+        uid, uname = _resolve_user(tok, dm_target, a.timeout)
+        if not uid:
+            print(json.dumps({"success": False, "error": "could not resolve discord user %r (bot must share a guild and have the GUILD_MEMBERS intent)" % dm_target})); return 1
+        try:
+            dm = _req(tok, "/users/@me/channels", {"recipient_id": uid}, method="POST", timeout=a.timeout)
+            ch = (dm or {}).get("id")
+        except Exception as e:
+            print(json.dumps({"success": False, "error": "open-DM failed: %s" % e})); return 1
+        if not ch:
+            print(json.dumps({"success": False, "error": "open-DM returned no channel"})); return 1
+    else:
+        ch = ch or (os.environ.get("MIOS_DISCORD_DEFAULT_CHANNEL") or "").strip()
+        if not ch:
+            print(json.dumps({"success": False, "error": "no Discord channel set -- pass --user <@name> for a DM, --channel <id>, or set mios.toml [identity].discord_channel_default"})); return 1
+
     try:
-        with urllib.request.urlopen(req, timeout=a.timeout) as r:
-            d = json.loads(r.read().decode("utf-8", "replace"))
-        print(json.dumps({"success": True, "channel": ch, "message_id": d.get("id")}))
+        d = _req(tok, "/channels/%s/messages" % ch, {"content": content}, method="POST", timeout=a.timeout)
+        out = {"success": True, "channel": ch, "message_id": d.get("id")}
+        if is_dm:
+            out["dm_to"] = dm_target
+        print(json.dumps(out))
         return 0
     except urllib.error.HTTPError as e:
         body = ""

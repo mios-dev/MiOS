@@ -208,14 +208,14 @@ vhdx: build
 
 # Generate WSL2 tar.gz for wsl --import
 wsl2: build
-    mkdir -p output
-    sudo podman run --rm -it --privileged \
-        --security-opt label=type:unconfined_t \
-        -v ./output:/output \
-        -v /var/lib/containers/storage:/var/lib/containers/storage \
-        -v ./config/artifacts/wsl2.toml:/config.toml:ro \
-        {{BIB}} build --type wsl2 {{LOCAL}}
-    @echo "[OK] WSL2 image in output/ -- import with: wsl --import 'MiOS' ./mios output/disk.wsl2"
+    @mkdir -p output/wsl2
+    @echo "[wsl2] BIB has no --type wsl2 -> exporting {{LOCAL}} rootfs for wsl --import"
+    -sudo podman rm -f mios-wsl2-export 2>/dev/null
+    sudo podman create --name mios-wsl2-export {{LOCAL}}
+    sudo podman export mios-wsl2-export | gzip -c > output/wsl2/mios-rootfs.tar.gz
+    sudo podman rm -f mios-wsl2-export
+    @echo "[OK] WSL2 rootfs -> output/wsl2/mios-rootfs.tar.gz"
+    @echo "     import: wsl --import MiOS <target-dir> output/wsl2/mios-rootfs.tar.gz"
 
 # Build EVERY MiOS deployable artifact in one shot.
 # Manifesto: "starts FULL build pipeline including all the different image
@@ -255,8 +255,10 @@ all: build raw iso usb-installer qcow2 vhdx wsl2
 # generic `iso` target.
 usb-installer: iso
     @mkdir -p output/usb-installer
-    @if ls output/*.iso >/dev/null 2>&1; then \
-        for src in output/*.iso; do \
+    @isos=$$(ls output/*.iso output/bootiso/*.iso 2>/dev/null); \
+    if [ -n "$$isos" ]; then \
+        for src in $$isos; do \
+            [ -f "$$src" ] || continue; \
             base=$$(basename "$$src" .iso); \
             dst="output/usb-installer/$${base}-usb.iso"; \
             [ -f "$$dst" ] || cp -p "$$src" "$$dst"; \
@@ -264,7 +266,7 @@ usb-installer: iso
             echo "[OK] USB installer: $$dst ($$sz bytes)"; \
         done; \
     else \
-        echo "[FAIL] no .iso in output/ — run 'just iso' first"; exit 1; \
+        echo "[FAIL] no .iso in output/ or output/bootiso/ — run 'just iso' first"; exit 1; \
     fi
     @echo ""
     @echo "Flash to USB (replace /dev/sdX with your actual device):"
@@ -279,7 +281,7 @@ usb-installer: iso
 verify-images:
     @echo "[verify] Walking output/ for MiOS deployable artifacts..."
     @ok=0; fail=0; \
-    for f in output/*.raw output/*.iso output/qcow2/*.qcow2 output/vhd*/*.vhd* output/wsl2/*.wsl2 output/wsl2/*.tar.gz; do \
+    for f in output/*.raw output/image/*.raw output/*.iso output/bootiso/*.iso output/qcow2/*.qcow2 output/vhd*/*.vhd* output/wsl2/*.wsl2 output/wsl2/*.tar.gz; do \
         [ -f "$$f" ] || continue; \
         sz=$$(stat -c%s "$$f" 2>/dev/null || stat -f%z "$$f"); \
         if [ "$${sz:-0}" -lt 1048576 ]; then \

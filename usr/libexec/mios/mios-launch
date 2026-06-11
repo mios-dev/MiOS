@@ -239,8 +239,18 @@ fi
 # env (not stdin) so it can't collide with `python3 -`'s heredoc script.
 if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] && [ -e /mnt/c/Windows/System32/cmd.exe ] \
    && command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
-    _wxe="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /etc/mios/mios.toml 2>/dev/null)"
-    [ -z "$_wxe" ] && _wxe="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+    # Read the executor endpoint from the layered toml. GUARD each file with
+    # `[ -r ]` + `|| true`: awk on a MISSING file exits 2 (even with 2>/dev/null
+    # the EXIT CODE survives), which under `set -e` aborts the whole launcher --
+    # and /etc/mios/mios.toml is an OPTIONAL overlay, absent until bootstrap (or
+    # the operator) writes it (operator 2026-06-07: a missing /etc overlay made
+    # EVERY launch exit 2 before reaching resolution).
+    _wxe=""
+    for _t in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        [ -r "$_t" ] || continue
+        _wxe="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' "$_t" 2>/dev/null || true)"
+        [ -n "$_wxe" ] && break
+    done
     _wxe="${_wxe%/}"
     if [ -n "$_wxe" ]; then
         _pf_wins="$(curl -s --max-time 5 "$_wxe/windows" 2>/dev/null)"
@@ -532,6 +542,44 @@ if [ -x /usr/local/bin/"$NAME" ] || [ -x /usr/bin/"$NAME" ] \
     fi
 fi
 
+# ─── 5b. WSL Windows-host: in-session executor with the CLEAN name FIRST ──────
+# operator 2026-06-07: "open notepad" must open WINDOWS Notepad, not the wine
+# wrapper. MUST run BEFORE the Plain-CLI section below: a same-named Linux/wine
+# shim on PATH (there IS a `notepad` wine wrapper) would otherwise `exec` first and
+# shadow the Windows app. The in-session executor (mios-oscontrol-server.ps1) does
+# Windows-native resolution (Start Menu / App Paths) -- "notepad" -> Windows Notepad
+# -- and returns FAST (fired:false, ~0s) for names with no Windows app, so Linux-only
+# names fall straight through to the Plain-CLI + inventory sections. We hit /launch
+# DIRECTLY (not full `mios-windows launch`) to skip its slow Start-Menu/Everything
+# fallbacks, and pass the CLEAN original name (NOT the inventory's flaky windows-app
+# AppX-GUID whose interop Start-Process can hang). Reachable over the WSL gateway
+# with Tailscale OFF. Real Linux GUI flatpaks are already caught at section 5 above.
+if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
+   && command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    _xep=""
+    for _t in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+        [ -r "$_t" ] || continue
+        _xep="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' "$_t" 2>/dev/null || true)"
+        [ -n "$_xep" ] && break
+    done
+    if [ -z "$_xep" ]; then
+        _xgw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
+        [ -n "$_xgw" ] && _xep="http://${_xgw}:${MIOS_OSCONTROL_PORT:-11437}"
+    fi
+    _xep="${_xep%/}"
+    if [ -n "$_xep" ] && curl -fsS -m 2 "$_xep/health" >/dev/null 2>&1; then
+        _xbody="$(python3 -c 'import json,sys,os; print(json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}))' "$_ORIG_NAME" 2>/dev/null || true)"
+        if [ -n "$_xbody" ]; then
+            _xresp="$(curl -s -m 30 -X POST "$_xep/launch" -H 'Content-Type: application/json' -d "$_xbody" 2>/dev/null || true)"
+            case "$_xresp" in
+                *'"launched": true'*|*'"launched":true'*|*'"fired": true'*|*'"fired":true'*)
+                    echo "mios-launch: launched '$_ORIG_NAME' via in-session executor (Windows-native)" >&2
+                    exit 0 ;;
+            esac
+        fi
+    fi
+fi
+
 # ─── 6. Plain CLI ────────────────────────────────────────────────────
 if command -v "$NAME" >/dev/null 2>&1; then
     exec "$NAME" "$@"
@@ -566,13 +614,33 @@ try:
                          timeout=10).stdout
 except Exception:
     sys.exit(0)
-# Lower priority = better. Linux-native wins over Windows interop
-# per operator binding. Operators rebind via mios.toml in a future
-# pass; for now this matches the stated preference order.
-PRIORITY = {
-    "linux-flatpak": 0, "linux-rpm-gui": 1, "linux-cli": 2,
-    "windows-app": 3, "windows-gui": 4,
-}
+# Category priority (lower = better). SSOT: mios.toml [os_control].
+# launch_category_priority (a list; index = rank), /etc overlay winning over
+# vendor. Default prefers NATIVE Windows apps over the wine wrapper on a Windows
+# host -- operator 2026-06-07: "open notepad" must open Windows Notepad, not the
+# wine notepad. Falls back to the built-in order if the toml is unreadable;
+# unknown categories sort last (PRIORITY.get(cat, 9) below).
+def _load_launch_priority():
+    import os
+    _default = ["windows-app", "windows-gui", "linux-flatpak", "linux-rpm-gui", "linux-cli"]
+    for _p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+        if not _p:
+            continue
+        try:
+            try:
+                import tomllib
+            except ImportError:
+                import tomli as tomllib
+            with open(_p, "rb") as _f:
+                _d = tomllib.load(_f)
+            _lst = (_d.get("os_control") or {}).get("launch_category_priority") or []
+            _lst = [str(x).strip() for x in _lst if str(x).strip()]
+            if _lst:
+                return _lst
+        except Exception:
+            pass
+    return _default
+PRIORITY = {cat: i for i, cat in enumerate(_load_launch_priority())}
 candidates = []
 for line in raw.splitlines():
     line = line.strip()

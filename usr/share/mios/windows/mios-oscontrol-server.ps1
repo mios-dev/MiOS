@@ -76,6 +76,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $taskName = 'MiOS-OSControl-Server'
 $fwName   = "MiOS - oscontrol ($Port/tcp)"
+# Firewall remote scope: tailnet peers (Tailscale CGNAT) PLUS the local WSL NAT
+# subnet, so the in-WSL MiOS VM reaches this executor over its host gateway even
+# when Tailscale is down (operator 2026-06-07). 172.16.0.0/12 covers every WSL
+# Hyper-V-assigned 172.x gateway; both ranges are local-only (same machine).
+$fwRemote = @('100.64.0.0/10', '172.16.0.0/12')
 $logDir   = Join-Path $env:LOCALAPPDATA 'mios\oscontrol\logs'
 
 function Info($m){ Write-Host "  [*] $m" -ForegroundColor Cyan }
@@ -117,8 +122,14 @@ if ($Install) {
     # Tailnet-scoped firewall: only Tailscale peers (100.64.0.0/10) reach it.
     if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -DisplayName $fwName -Direction Inbound -Action Allow -Protocol TCP `
-            -LocalPort $Port -RemoteAddress '100.64.0.0/10' -Profile Any -ErrorAction SilentlyContinue | Out-Null
-        Ok "firewall: allow tailnet -> :$Port"
+            -LocalPort $Port -RemoteAddress $fwRemote -Profile Any -ErrorAction SilentlyContinue | Out-Null
+        Ok "firewall: allow tailnet + local WSL -> :$Port"
+    } else {
+        # Reconcile an existing rule's scope so a widened $fwRemote (adding the
+        # local WSL subnet) applies to installs created before this change --
+        # create-if-missing alone left old rules tailnet-only (operator 2026-06-07).
+        Set-NetFirewallRule -DisplayName $fwName -RemoteAddress $fwRemote -ErrorAction SilentlyContinue | Out-Null
+        Ok "firewall: reconciled scope -> tailnet + local WSL on :$Port"
     }
     Info 'starting it now...'
     Start-ScheduledTask -TaskName $taskName
@@ -127,10 +138,13 @@ if ($Install) {
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
-# Foreground run also ensures the tailnet firewall rule exists.
+# Foreground run also ensures the firewall rule exists + has the current scope.
 if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -DisplayName $fwName -Direction Inbound -Action Allow -Protocol TCP `
-        -LocalPort $Port -RemoteAddress '100.64.0.0/10' -Profile Any -ErrorAction SilentlyContinue | Out-Null
+        -LocalPort $Port -RemoteAddress $fwRemote -Profile Any -ErrorAction SilentlyContinue | Out-Null
+} else {
+    # Reconcile existing rule scope (a widened $fwRemote applies to old installs).
+    Set-NetFirewallRule -DisplayName $fwName -RemoteAddress $fwRemote -ErrorAction SilentlyContinue | Out-Null
 }
 
 # ---- Win32 surface for window enumeration ------------------------------------

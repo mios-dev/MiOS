@@ -43,15 +43,23 @@ param(
     # -Model / -ModelUrl for a different micro/daemon brain (e.g. a Qwen3-1.7B
     # GGUF to match the daemon model exactly).
     [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    [int]    $ContextSize = 8192,
+    # 64K ctx (operator 2026-06-08: iGPU is now ALSO the Hermes-desktop FRONT DOOR
+    # via mios-model-router's mios-orchestrator lane). The front door must hold the
+    # full ~17K-token MCP tool surface (113 tools) that Hermes sends EVERY turn --
+    # at the old 8192 the tool defs were TRUNCATED, the model never saw open_app,
+    # and it answered in prose (the recurring "FAILURE"). 65536 also matches the
+    # router-advertised ctx + Hermes's 64K floor. KV for a 1.5B at 64K is ~1.9 GB
+    # on the iGPU's shared system RAM -- cheap. (ctx-size only sizes the KV pool;
+    # it does NOT slow prefill -- prefill cost scales with the ACTUAL prompt len.)
+    [int]    $ContextSize = 65536,
     # Single inference slot (operator 2026-06-01 KV-paging). llama-server defaults
-    # to 4 parallel slots, which (a) splits ctx-size 4 ways (2048 each -- too small
-    # for real conversations) and (b) makes the OpenAI /v1 endpoint land a request
-    # on ANY slot, so the agent-pipe's per-slot KV save/restore (_kv_paging, slot 0)
-    # can't deterministically bracket it. ONE slot = the full 8192 ctx + every
-    # request lands on slot 0, so demand-paging the conversation's KV to/from disk
-    # is reliable. The iGPU is the slow light lane anyway (~9 tok/s); concurrency
-    # here is a non-goal -- requests queue, which is fine.
+    # to 4 parallel slots, which (a) splits ctx-size 4 ways (16384 each) and (b)
+    # makes the OpenAI /v1 endpoint land a request on ANY slot, so the agent-pipe's
+    # per-slot KV save/restore (_kv_paging, slot 0) can't deterministically bracket
+    # it. ONE slot = the full 65536 ctx + every request lands on slot 0, so demand-
+    # paging the conversation's KV to/from disk is reliable. The iGPU front door
+    # processes one user turn at a time anyway; delegated children that round-robin
+    # back onto the iGPU simply queue, which is fine.
     [int]    $Parallel    = 1,
     [int]    $GpuLayers   = 99,            # 99 = offload all layers to the iGPU
     # Pin to a SINGLE Vulkan device so llama.cpp does NOT layer-split onto the
@@ -227,6 +235,12 @@ $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
 # (pwsh 7 does not treat native stderr this way, so this is harmless there.)
 $ErrorActionPreference = 'Continue'
 Info "kv-paging: --slot-save-path $slotDir (agent-pipe pages conversations to/from disk)"
+# CRITICAL (operator 2026-06-08 "iGPU NEVER fired -- not a single tick on Task
+# Manager"): newer llama.cpp auto-fits params to device memory ("fitting params
+# to device memory ...") and SILENTLY places all layers on the CPU -- it prefers
+# the big Ryzen 9950X3D -- EVEN WITH --device VulkanN + --n-gpu-layers 99. So the
+# "iGPU server" ran a 1.5B on CPU at 0% iGPU util. `-fit off` disables that
+# auto-placement so the explicit iGPU offload is honoured. VERIFIED 0% -> 99.6%.
 & $exe `
     --host 0.0.0.0 --port $Port `
     --model $Model `
@@ -234,6 +248,7 @@ Info "kv-paging: --slot-save-path $slotDir (agent-pipe pages conversations to/fr
     --parallel $Parallel `
     --n-gpu-layers $GpuLayers `
     --device $Device `
+    -fit off `
     --alias mios-igpu `
     --slot-save-path $slotDir `
     2>&1 | Tee-Object -FilePath $logFile

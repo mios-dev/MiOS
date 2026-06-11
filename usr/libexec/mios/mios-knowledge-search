@@ -48,6 +48,80 @@ DEFAULT_TOP_K = int(os.environ.get("MIOS_KNOWLEDGE_SEARCH_TOP_K", "5"))
 DEFAULT_THRESHOLD = float(
     os.environ.get("MIOS_KNOWLEDGE_SEARCH_THRESHOLD", "0.0"))
 
+# ── pgvector knowledge fallback ──────────────────────────────────────
+# When the OWUI admin api_key is unreachable (the agent user can't read it and
+# granting it is a security-gated change), degrade-open to the LOCAL pgvector
+# `knowledge` store (the same MiOS Q+A knowledge `recall` uses) so
+# knowledge_search still returns relevant results instead of hard-failing. The
+# OWUI-memory backend resumes automatically once a token is available.
+_KB_EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
+                                    "http://localhost:11450").rstrip("/")
+_KB_EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
+
+
+def _kb_embed(text: str) -> list:
+    base = _KB_EMBED_ENDPOINT if _KB_EMBED_ENDPOINT.endswith("/v1") \
+        else _KB_EMBED_ENDPOINT + "/v1"
+    req = urllib.request.Request(
+        f"{base}/embeddings",
+        data=json.dumps({"model": _KB_EMBED_MODEL, "input": text[:4000]}).encode(),
+        headers={"Content-Type": "application/json"})
+    r = json.loads(urllib.request.urlopen(req, timeout=30).read())
+    d = r.get("data") or []
+    return (d[0].get("embedding") if d else r.get("embedding")) or []
+
+
+def _kb_pg(sql: str) -> list:
+    import subprocess
+    p = subprocess.run(["/usr/libexec/mios/mios-pg-query", sql],
+                       capture_output=True, text=True, timeout=45)
+    if p.returncode != 0:
+        raise RuntimeError((p.stderr or "")[:200])
+    return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
+
+
+def _pgvector_knowledge_fallback(query: str, top_k: int, threshold: float,
+                                 as_json: bool) -> int:
+    try:
+        emb = _kb_embed(query)
+        if not emb:
+            raise RuntimeError("embed_failed")
+        qv = "[" + ",".join(f"{float(x):.6f}" for x in emb) + "]"
+        rows = _kb_pg(
+            "SELECT translate(coalesce(q,''), E'\\n\\t\\r', '   '), "
+            "translate(coalesce(answer,''), E'\\n\\t\\r', '   '), "
+            f"round((1 - (emb <=> '{qv}'::vector))::numeric, 4) "
+            "FROM knowledge WHERE emb IS NOT NULL "
+            f"ORDER BY emb <=> '{qv}'::vector LIMIT {int(top_k)}")
+        hits = []
+        for r in rows:
+            if len(r) >= 3:
+                try:
+                    sc = float(r[2])
+                except (ValueError, TypeError):
+                    sc = 0.0
+                if sc >= (threshold or 0.0):
+                    hits.append({"q": r[0], "answer": r[1], "score": sc})
+        env = {"ok": True, "query": query,
+               "source": "pgvector_knowledge_fallback",
+               "count": len(hits), "hits": hits}
+        if as_json:
+            print(json.dumps(env))
+        else:
+            print("(pgvector knowledge fallback -- OWUI admin key unavailable)")
+            for h in hits:
+                print(f"  [{h['score']}] {h['q'][:80]}")
+        return 0
+    except Exception as e:  # noqa: BLE001
+        env = {"ok": False, "error": "no_admin_api_key",
+               "detail": f"pgvector fallback failed: {e}",
+               "hint": "operator: grant OWUI key or run mios-owui-install-pipe"}
+        if as_json:
+            print(json.dumps(env))
+        else:
+            print(f"ERROR: {env['detail']}", file=sys.stderr)
+        return 1
+
 
 def _admin_token() -> str:
     """Look up the admin api_key the install-pipe minted. Read-only
@@ -223,16 +297,11 @@ def main() -> int:
 
     token = _admin_token()
     if not token:
-        envelope = {
-            "ok": False,
-            "error": "no_admin_api_key",
-            "hint": "run mios-owui-install-pipe to mint one",
-        }
-        if args.json:
-            print(json.dumps(envelope))
-        else:
-            print("ERROR: no admin api_key in webui.db", file=sys.stderr)
-        return 1
+        # OWUI admin key unreachable -> degrade-open to the pgvector knowledge
+        # store so knowledge_search still returns results (helpers above). The
+        # OWUI-memory backend takes over automatically once a token exists.
+        return _pgvector_knowledge_fallback(args.query, args.top_k,
+                                            args.threshold, args.json)
 
     collection_id = _resolve_collection(args.collection)
     resp = _query(token, collection_id, args.query,

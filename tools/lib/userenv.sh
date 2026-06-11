@@ -230,6 +230,7 @@ slots = [
     ("ports.opencode_gateway",         "MIOS_PORT_OPENCODE_GATEWAY"),
     # vLLM heavy dGPU lane port ([ports].vllm; Phase 2 2026-06-01).
     ("ports.vllm",                     "MIOS_PORT_VLLM"),
+    ("ports.sglang",                   "MIOS_PORT_SGLANG"),
     # ── opencode + shared agent-plane (HYBRID; keys live under [ai]) ──────
     # opencode is a first-class /v1 council peer via mios-opencode-gateway.
     # service. install_url/version pre-existed; the rest are the front-door
@@ -253,6 +254,13 @@ slots = [
     ("ai.vllm.gpu_util",               "MIOS_VLLM_GPU_UTIL"),
     ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
     ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
+    # ── SGLang heavy lane ([ai.sglang]; mios-sglang Quadlet, operator 2026-06-07) ──
+    # Rendered into mios-sglang.container's Exec= by 15-render-quadlets.sh;
+    # bake_model is read by automation/38-sglang-prep.sh at build time.
+    ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
+    ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
+    ("ai.sglang.max_model_len",        "MIOS_SGLANG_MAX_MODEL_LEN"),
+    ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),

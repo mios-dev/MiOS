@@ -69,6 +69,33 @@ def _pg(sql: str) -> None:
         pass
 
 
+# P1 AIOS Memory Manager: embed agent-memory facts ON WRITE so they're
+# semantically RECALLABLE (the self-edit tier was write-only -> inert: nothing
+# embedded the rows, so the HNSW recall never surfaced them). Embed via the live
+# dGPU /v1 lane; degrade-open -- the row still writes without emb on any miss.
+_EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
+                                 "http://localhost:11450").rstrip("/")
+_EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
+
+
+def _embed_vec(text: str) -> str:
+    """Embed -> pgvector literal '[..]', or '' on any miss (degrade-open)."""
+    try:
+        base = (_EMBED_ENDPOINT if _EMBED_ENDPOINT.endswith("/v1")
+                else _EMBED_ENDPOINT + "/v1")
+        req = urllib.request.Request(
+            f"{base}/embeddings",
+            data=json.dumps({"model": _EMBED_MODEL,
+                             "input": (text or "")[:4000]}).encode(),
+            headers={"Content-Type": "application/json"})
+        r = json.loads(urllib.request.urlopen(req, timeout=20).read())
+        d = r.get("data") or []
+        emb = (d[0].get("embedding") if d else r.get("embedding")) or []
+        return "[" + ",".join(f"{float(x):.6f}" for x in emb) + "]" if emb else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _sql(sql: str) -> list:
     req = urllib.request.Request(
         f"{DB_URL.rstrip('/')}/sql",
@@ -123,11 +150,14 @@ def main() -> int:
                 return 2
             key = args.key.strip() or f"m{abs(hash(fact)) % (10**10)}"
             # upsert by key within scope -- pgvector mirror + (unless pg-primary) SurrealDB
+            _emb = _embed_vec(fact)
+            _ecol = ", emb" if _emb else ""
+            _eval = f", '{_emb}'::vector" if _emb else ""
             _pg(f"DELETE FROM {TABLE} WHERE mem_key = '{_pgesc(key)}' "
                 f"AND scope = '{_pgesc(args.scope)}'; "
-                f"INSERT INTO {TABLE} (fact, scope, mem_key, source) VALUES "
+                f"INSERT INTO {TABLE} (fact, scope, mem_key, source{_ecol}) VALUES "
                 f"('{_pgesc(fact)}', '{_pgesc(args.scope)}', "
-                f"'{_pgesc(key)}', '{_pgesc(args.source)}');")
+                f"'{_pgesc(key)}', '{_pgesc(args.source)}'{_eval});")
             rows = True
             if not _PG_PRIMARY:
                 _sql(f"DELETE {TABLE} WHERE key = '{_esc(key)}' "
@@ -176,7 +206,9 @@ def main() -> int:
             print(json.dumps({"ok": True, "op": "forget", "key": args.key}))
             return 0
         if args.cmd == "update":
-            _pg(f"UPDATE {TABLE} SET fact = '{_pgesc(args.fact)}', "
+            _emb = _embed_vec(args.fact)
+            _eset = f", emb = '{_emb}'::vector" if _emb else ""
+            _pg(f"UPDATE {TABLE} SET fact = '{_pgesc(args.fact)}'{_eset}, "
                 f"ts = now() WHERE mem_key = '{_pgesc(args.key)}';")
             rows = [1] if _PG_PRIMARY else \
                 _sql(f"UPDATE {TABLE} SET fact = '{_esc(args.fact)}', "

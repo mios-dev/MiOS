@@ -97,9 +97,21 @@ def build_insert(table: str, fields: dict) -> "tuple[str, dict]":
 def build_recall(table: str = "knowledge", k: int = 3) -> "tuple[str, dict]":
     """pgvector HNSW cosine recall: nearest `k` rows to %(qvec)s, returning the
     cosine SIMILARITY (1 - distance). Threshold-filter app-side (matches the
-    current recall). Pair with `SET hnsw.ef_search` (see recall_tuning)."""
+    current recall). Pair with `SET hnsw.ef_search` (see recall_tuning).
+
+    TABLE-AWARE projection (P1/P3): non-knowledge tables don't have q/answer.
+    agent_memory has fact/scope/mem_key; mios_rag has source/content. Projecting
+    the knowledge columns against them raises UndefinedColumn -> recall()'s
+    degrade-open arms the 30s global _pg_mark_down backoff, which would blank the
+    LIVE knowledge recall inside every turn. Project the right columns per table."""
+    if table == "agent_memory":
+        proj = "mem_key AS id, fact, scope, source"
+    elif table == "mios_rag":
+        proj = "id, source, content"
+    else:  # knowledge (default) -- unchanged
+        proj = "id, q, answer, tier, satisfied, access_count"
     sql = (
-        f"SELECT id, q, answer, tier, satisfied, access_count, "
+        f"SELECT {proj}, "
         f"1 - (emb <=> %(qvec)s::vector) AS score "
         f"FROM {table} WHERE emb IS NOT NULL "
         f"ORDER BY emb <=> %(qvec)s::vector LIMIT %(k)s;"

@@ -158,8 +158,7 @@ if (Test-Path $_bannerPath) {
 # detect MIOS_PIPELINE_ELEVATED=1 and skip their own self-elevation,
 # so the chain runs in one elevated process from start to finish.
 function Test-MiOSAdmin {
-    ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()) `
-        .IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
 function Test-MiOSInteractiveConsole {

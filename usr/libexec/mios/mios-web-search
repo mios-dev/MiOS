@@ -55,7 +55,7 @@ _EXPAND_MODEL = os.environ.get(
     os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
 _EXPAND_ENDPOINT = os.environ.get(
     "MIOS_WEB_EXPAND_ENDPOINT",
-    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11435")).rstrip("/")
+    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")
 # Native /api/chat lives at the base (strip a trailing /v1 like agent-pipe).
 _EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
                 if _EXPAND_ENDPOINT.endswith("/v1") else _EXPAND_ENDPOINT)
@@ -183,7 +183,11 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
             url = f"{_EXPAND_BASE}/api/chat"
         else:
             payload = {"model": _EXPAND_MODEL, "messages": _msgs, "stream": False,
-                       "max_tokens": 200, "temperature": 0.0,
+                       "max_tokens": 512, "temperature": 0.0,
+                       # qwen3 via llama.cpp /v1 strands the answer in <think> and
+                       # returns EMPTY content -> 0 sub-queries (silent single-query
+                       # fallback). Disable thinking so the JSON lands in content.
+                       "chat_template_kwargs": {"enable_thinking": False},
                        "response_format": {"type": "json_object"}}
             url = (f"{_EXPAND_ENDPOINT}/chat/completions"
                    if _EXPAND_ENDPOINT.endswith("/v1")

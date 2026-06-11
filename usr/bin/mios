@@ -260,6 +260,81 @@ KNOWN_VERBS = {
 }
 
 
+def _load_routing_list(key: str) -> list:
+    """Load a [routing].<key> phrase list from the layered mios.toml (lowercased,
+    longest-first). SSOT -- no hardcoded English. Fail-safe -> []."""
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            return []
+    for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml",
+              "/usr/share/mios/mios.toml"):
+        if not p or not pathlib.Path(p).is_file():
+            continue
+        try:
+            with open(p, "rb") as f:
+                rt = (tomllib.load(f).get("routing") or {})
+            vals = sorted(
+                {str(x).lower().strip() for x in (rt.get(key) or []) if str(x).strip()},
+                key=len, reverse=True)
+            if vals:
+                return vals
+        except Exception:
+            continue
+    return []
+
+
+# Launch grammar: trigger verbs mirror the catalog's open_app/launch_app ("open /
+# launch / start / run X"); the strip-lists are SSOT [routing].* -- the SAME lists
+# the agent-pipe deterministic route uses. Keeps the CLI launch DETERMINISTIC
+# instead of relying on the small Hermes model's tool selection (which loops on
+# everything_search for "open notepad" -- operator 2026-06-07).
+_CLI_LAUNCH_TRIGGERS = frozenset({"open", "launch", "start", "run"})
+_CLI_COMPOUND = frozenset({"in", "and", "then", "with", "on", "to"})
+
+
+def _cli_launch_target(prompt: str):
+    """If `prompt` is an unambiguous 'open/launch/start/run <app>', return the
+    cleaned app name for mios-launch; else None (fall through to chat)."""
+    t = (prompt or "").strip()
+    if not t or len(t) > 80 or "?" in t:
+        return None
+    words = t.split()
+    if len(words) < 2:
+        return None
+    if words[0].lower().strip(".,:;!\"'") not in _CLI_LAUNCH_TRIGGERS:
+        return None
+    rest = " ".join(words[1:]).strip().rstrip(" .,!;:")
+    low = rest.lower()
+    fillers = _load_routing_list("launch_filler_phrases")
+    changed = True
+    while changed and rest:
+        changed = False
+        for f in fillers:
+            if f and low.endswith(f):
+                rest = rest[: len(rest) - len(f)].rstrip(" ,.")
+                low = rest.lower()
+                changed = True
+                break
+    lead = set(_load_routing_list("launch_target_lead_phrases"))
+    trail = set(_load_routing_list("launch_target_trail_phrases"))
+    rw = rest.split()
+    while rw and rw[0].lower() in lead:
+        rw.pop(0)
+    while rw and rw[-1].lower() in trail:
+        rw.pop()
+    rest = " ".join(rw).strip()
+    low = rest.lower()
+    if not rest or len(rest.split()) > 3:
+        return None
+    if "://" in rest or any(w in _CLI_COMPOUND for w in low.split()):
+        return None
+    return rest
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2 or argv[1] in ("-h", "--help") or (len(argv) >= 2 and argv[1] == "help"):
         sys.stderr.write(
@@ -343,6 +418,25 @@ def main(argv: list[str]) -> int:
     if not prompt:
         sys.stderr.write("mios: empty prompt\n")
         return 2
+
+    # Deterministic launch pre-route: a bare "open/launch/start/run <app>" is one
+    # concrete action -- dispatch it to mios-launch DIRECTLY (Windows-native via the
+    # in-session executor; Linux apps fall through inside mios-launch), bypassing the
+    # Hermes model whose small-model tool loop is unreliable for launches (operator
+    # 2026-06-07: "open notepad" looped on everything_search). Default tool-using
+    # chat only (not --no-tools / --json). Falls through to chat if mios-launch is
+    # missing.
+    if use_tools:
+        _app = _cli_launch_target(prompt)
+        if _app:
+            try:
+                sys.stderr.write(f"mios: launching '{_app}' (deterministic launch route)\n")
+                _r = subprocess.run(["mios-launch", _app])
+                print(f"Opened {_app}." if _r.returncode == 0
+                      else f"Could not open {_app} (mios-launch exit {_r.returncode}).")
+                return 0 if _r.returncode == 0 else 1
+            except FileNotFoundError:
+                pass  # mios-launch not on PATH -> fall through to the chat path
 
     client = OpenAI(base_url=ENDPOINT, api_key=API_KEY)
     msgs: list[dict[str, Any]] = [

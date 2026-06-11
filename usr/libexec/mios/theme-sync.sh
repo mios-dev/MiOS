@@ -51,6 +51,6 @@ echo "Punching through Flatpak sandbox..."
 flatpak override --user --filesystem=xdg-config/gtk-3.0:ro --filesystem=xdg-config/gtk-4.0:ro
 flatpak override --user --filesystem=$HOME/.icons:ro --filesystem=/usr/share/icons:ro
 flatpak override --user --env=XCURSOR_THEME="$SELECTED" --env=XCURSOR_SIZE="$SIZE"
-echo "[âœ"] Flatpak environment synchronized."
+echo "[✔] Flatpak environment synchronized."
 
 echo "Done! Please restart your session (Mod+Shift+E) to apply everywhere."

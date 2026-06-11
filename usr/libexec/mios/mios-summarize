@@ -39,8 +39,8 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = os.environ.get("MIOS_SUMMARIZE_ENDPOINT",
-                          "http://localhost:11435")
-MODEL = os.environ.get("MIOS_SUMMARIZE_MODEL", "qwen3.5:2b")
+                          "http://localhost:11450")   # llama-swap /v1 (ollama :11435 retired)
+MODEL = os.environ.get("MIOS_SUMMARIZE_MODEL", "qwen3:1.7b")  # served by llama-swap
 L2_MAX = int(os.environ.get("MIOS_SUMMARIZE_L2_MAX_CHARS", "20000"))
 TIMEOUT = float(os.environ.get("MIOS_SUMMARIZE_TIMEOUT", "120"))
 
@@ -55,24 +55,31 @@ _L1_PROMPT = (
 
 
 def _chat(prompt: str) -> str:
-    """One think:False completion on the light lane. Returns text or ''."""
+    """One completion on the light lane via OpenAI /v1 (the ollama /api/chat lane
+    :11435 was retired in the llama.cpp cutover). Returns text or ''."""
     base = ENDPOINT.rstrip("/")
-    base = base[:-3] if base.endswith("/v1") else base
+    if not base.endswith("/v1"):
+        base += "/v1"
     body = {
         "model": MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "think": False,
         "stream": False,
+        # qwen3 thinking off so the summary isn't polluted (llama.cpp honors this;
+        # the </think> strip below is the robust fallback if it isn't applied).
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     req = urllib.request.Request(
-        f"{base}/api/chat",
+        f"{base}/chat/completions",
         data=json.dumps(body).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST")
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             d = json.loads(r.read().decode("utf-8", errors="replace"))
-        return str((d.get("message") or {}).get("content") or "").strip()
+        txt = str(((d.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+        if "</think>" in txt:          # drop any qwen3 thinking prefix
+            txt = txt.split("</think>", 1)[-1]
+        return txt.strip()
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"{type(e).__name__}: {e}")
 

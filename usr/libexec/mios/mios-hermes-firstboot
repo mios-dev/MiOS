@@ -187,11 +187,19 @@ fi
 # base tier if mios-hermes wasn't built, and the base-model fallback_model
 # chain backs it at runtime. Override with MIOS_HERMES_ROLE_MODEL=none to keep
 # the bare auto-picked base, or =<tag> to pin a different role model.
-_HERMES_ROLE_MODEL="${MIOS_HERMES_ROLE_MODEL:-mios-hermes:latest}"
+_HERMES_ROLE_MODEL="${MIOS_HERMES_ROLE_MODEL:-gemma4:12b}"
 if [[ "$_HERMES_ROLE_MODEL" != "none" ]]; then
     _AI_MODEL_RESOLVED="$_HERMES_ROLE_MODEL"
     _log "hermes role model: pinning Hermes to ${_AI_MODEL_RESOLVED} (auto-picked base kept as fallback)"
 fi
+
+# Backend endpoint for the generated config -- SSOT-derived from mios.toml
+# [ai].backend (the llama-swap front; ollama :11434 retired). Default matches the
+# vendor value so a missing/unreadable toml still yields a working endpoint
+# (operator 2026-06-07: firstboot previously HARDCODED the port, so a stale REPL
+# config survived the ollama->llama-swap migration; now it follows the SSOT).
+_AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:11450')"
+_AI_BACKEND="${_AI_BACKEND%/}"
 
 # Make sure the directory exists with the right ownership. tmpfiles.d
 # should have done this already, but be defensive in case the .service
@@ -365,7 +373,7 @@ fi
 #   model:
 #     provider: custom:<name>     # matches a custom_providers[].name
 #     default:  <ollama-model-id>
-#     base_url: http://localhost:11434/v1
+#     base_url: ${_AI_BACKEND}/v1
 # `provider: custom:local-ollama` then resolves against the
 # `custom_providers:` list entry named `local-ollama`. The pre-0.13
 # `backend:` block is genuinely unused by 0.13.x -- we drop it (the
@@ -590,7 +598,7 @@ _config_version: 23
 model:
   provider: custom:local-ollama
   default: ${_AI_MODEL_RESOLVED}
-  base_url: http://localhost:11434/v1
+  base_url: ${_AI_BACKEND}/v1
   api_key: ""
   # Hermes v0.15 PREFLIGHTS the runtime context window and REFUSES tool use
   # under 64k ("Ollama runtime context is too small for Hermes tool use"),
@@ -617,7 +625,7 @@ ${_FALLBACK_YAML}
 
 custom_providers:
   - name: local-ollama
-    base_url: http://localhost:11434/v1
+    base_url: ${_AI_BACKEND}/v1
     api_key: ""
 
 # Auxiliary LLM services (context compression / summarization, memory
@@ -638,56 +646,56 @@ auxiliary:
   # events (infrequent).
   compression:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
+    base_url: ${_AI_BACKEND}/v1
     model: ${_AI_MODEL_RESOLVED}
     ollama_num_ctx: 65536
     context_length: 65536
   session_search:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   title_generation:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   triage_specifier:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   curator:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   mcp:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   web_extract:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   approval:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   skills_hub:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
-    model: qwen3.5:4b
+    base_url: ${_AI_BACKEND}/v1
+    model: qwen3:1.7b
     ollama_num_ctx: 65536
     context_length: 65536
   # Vision-grounding lane for screenshot -> click-coordinate
@@ -698,7 +706,7 @@ auxiliary:
   # Architecture: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md.
   vision_grounding:
     provider: custom:local-ollama
-    base_url: http://localhost:11434/v1
+    base_url: ${_AI_BACKEND}/v1
     model: qwen3-vl:4b
 
 # Web SEARCH -> the on-box SearXNG (mios-searxng, SEARXNG_URL). Web EXTRACT ->
@@ -859,7 +867,7 @@ browser:
 # operator-authorized to act, including spawning its own children.
 delegation:
   provider: custom:local-ollama
-  base_url: http://localhost:11434/v1
+  base_url: ${_AI_BACKEND}/v1
   model: qwen3.5:4b                  # CPU-friendly, 262K context (above 64K floor), tool-capable -- runs on CPU alongside GPU main
   ollama_num_ctx: 65536
   context_length: 65536

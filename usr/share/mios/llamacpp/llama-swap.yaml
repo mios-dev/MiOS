@@ -30,7 +30,7 @@ models:
     cmd: >
       /app/llama-server --model /models/qwen3-1.7b.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 8192 --parallel 1
+      --ctx-size 65536 --parallel 1
       --n-gpu-layers 999 --flash-attn auto
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja
     proxy: "http://127.0.0.1:${PORT}"
@@ -84,3 +84,17 @@ models:
       --ctx-size 2048 --embedding --n-gpu-layers 999
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 600
+
+  # ── vision grounding (cu_ground / mios-pc-vision fallback) ──────────────────
+  # INERT until BOTH GGUFs exist under /models -- the operator downloads them (the
+  # security classifier blocks the fetch for the assistant). Once present, llama-swap
+  # serves qwen3-vl:4b with vision on demand and cu_ground's vision fallback
+  # activates (endpoint already points here, :11450; operator 2026-06-10).
+  "qwen3-vl:4b":
+    cmd: >
+      /app/llama-server --model /models/qwen3-vl-4b.gguf
+      --mmproj /models/qwen3-vl-4b-mmproj.gguf
+      --port ${PORT} --host 127.0.0.1
+      --ctx-size 8192 --n-gpu-layers 999 --flash-attn auto
+    proxy: "http://127.0.0.1:${PORT}"
+    ttl: 300

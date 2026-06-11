@@ -61,6 +61,32 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     }
 
 
+def _fallback_extract(url: str, max_chars: int) -> dict:
+    """Firecrawl down (pod/image not up) -> fall back to mios-web-extract so
+    web_scrape still GROUNDS on real page content (degrade-open, never
+    fabricated). Returns {} if the fallback also fails."""
+    import subprocess
+    n = str(max_chars if max_chars and max_chars > 0 else 4000)
+    try:
+        p = subprocess.run(["mios-web-extract", "-n", n, url],
+                           capture_output=True, text=True, timeout=60)
+    except Exception:
+        return {}
+    md = (p.stdout or "").strip()
+    if p.returncode != 0 or not md:
+        return {}
+    try:
+        j = json.loads(md)
+        md = j.get("text") or j.get("markdown") or j.get("content") or md
+        if isinstance(j, dict) and j.get("results"):
+            md = "\n\n".join(str(r.get("text") or r.get("content") or "")
+                             for r in j["results"]) or md
+    except Exception:
+        pass
+    return {"success": True, "engine": "web_extract_fallback", "url": url,
+            "title": "", "markdown": str(md), "links": []}
+
+
 def main() -> int:
     p = argparse.ArgumentParser(prog="mios-firecrawl")
     p.add_argument("url", help="http(s) URL to scrape")
@@ -76,9 +102,18 @@ def main() -> int:
         return 64
     try:
         out = scrape(url, max(0, a.max_chars), a.timeout)
-    except Exception as e:  # offline / firecrawl down: be HONEST, never fabricate
-        out = {"success": False, "engine": "firecrawl", "url": url,
-               "error": f"firecrawl scrape unavailable: {e}", "markdown": ""}
+    except Exception as e:  # offline / firecrawl down -> web_extract fallback
+        fb = _fallback_extract(url, a.max_chars)
+        if fb:
+            md = fb["markdown"]
+            if a.max_chars and a.max_chars > 0 and len(md) > a.max_chars:
+                fb["markdown"] = md[:a.max_chars].rstrip() + "\n[...truncated]"
+            out = fb
+        else:
+            out = {"success": False, "engine": "firecrawl", "url": url,
+                   "error": f"firecrawl scrape unavailable: {e} "
+                            f"(web_extract fallback also returned nothing)",
+                   "markdown": ""}
     print(json.dumps(out, ensure_ascii=False))
     return 0 if out.get("success") else 1
 

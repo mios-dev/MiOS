@@ -140,6 +140,14 @@ def _parse_kv(args: list[str]) -> dict:
 def _run(name: str, kv: dict, *, want_json: bool, target_os: Optional[str]) -> int:
     recipes = _load_recipes()
     spec = recipes.get(name)
+    # Recipe catalog keys are HYPHENATED ([recipes.disk-usage]) but the agent's
+    # projected tool-names + the mios_recipe__<n> -> os_recipe(name=<n>) translation
+    # use UNDERSCORES (mios_recipe__disk_usage). Without this normalization every
+    # recipe the agent calls fails as "unknown recipe" (all 18 silently broken).
+    if not isinstance(spec, dict) and "_" in name:
+        alt = name.replace("_", "-")
+        if isinstance(recipes.get(alt), dict):
+            name, spec = alt, recipes[alt]
     if not isinstance(spec, dict):
         print(
             f"mios-os-recipe: unknown recipe {name!r} "

@@ -461,3 +461,9 @@ forgejo	http://localhost:3000	MiOS-Forge (local git host)
 SERVICE_URLS
     emit service-url "$name" "${desc:-$url}" "mios-open-url $url"
 done
+
+# Always succeed if we ran: this is a best-effort GENERATIVE enumerator across
+# Linux + Windows sources; a non-zero from a probe (e.g. the Windows games PS on
+# a host without Steam) must NOT mark the whole dispatch failed when app data WAS
+# emitted. The dispatch layer reads success from this exit code.
+exit 0

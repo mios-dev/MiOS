@@ -167,10 +167,15 @@ RUN --network=host set -eux; \
                failed=$((failed + 1)); continue ;; \
         esac; \
         echo "bound-image: baking $img"; \
-        if podman --root /usr/lib/containers/storage pull "$img"; then \
+        _pulled=0; \
+        for _try in 1 2 3; do \
+            if podman --root /usr/lib/containers/storage pull "$img"; then _pulled=1; break; fi; \
+            echo "  bound-image pull attempt $_try/3 failed for $img -- retrying in 3s"; sleep 3; \
+        done; \
+        if [ "$_pulled" = 1 ]; then \
             baked=$((baked + 1)); \
         else \
-            echo "ERROR: failed to bake bound image $img"; failed=$((failed + 1)); \
+            echo "ERROR: failed to bake bound image $img after 3 attempts"; failed=$((failed + 1)); \
         fi; \
     done; \
     echo "bound-images: baked=$baked failed=$failed"; \

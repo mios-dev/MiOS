@@ -42,7 +42,7 @@ USER_RULES = os.environ.get("MIOS_CRON_USER_RULES",
                             os.path.join(STATE_DIR, "user-rules.toml"))
 RULES_PATHS = [SYSTEM_RULES, USER_RULES]
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
-GATE_ENDPOINT = os.environ.get("MIOS_CRON_GATE_ENDPOINT", "http://127.0.0.1:11435")
+GATE_ENDPOINT = os.environ.get("MIOS_CRON_GATE_ENDPOINT", "http://127.0.0.1:11450/v1")
 GATE_MODEL = os.environ.get("MIOS_CRON_GATE_MODEL", "qwen3:0.6b")
 GATE_TIMEOUT = float(os.environ.get("MIOS_CRON_GATE_TIMEOUT", "20"))
 
@@ -155,27 +155,38 @@ def _gate_passes(question: str) -> bool:
         load1 = 0.0
     sys_ctx = (f"Current 1-min load average: {load1:.2f}. "
                f"Local time: {time.strftime('%Y-%m-%d %H:%M %A')}.")
-    payload = {
-        "model": GATE_MODEL,
-        "messages": [
-            {"role": "system",
-             "content": "You are a YES/NO gate for a scheduled task. Given the "
-                        "live system state and the question, answer with ONLY "
-                        "the single word YES or NO."},
-            {"role": "user", "content": f"{sys_ctx}\n\nQuestion: {question}"},
-        ],
-        "think": False, "stream": False,
-        "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
-        "options": {"temperature": 0.0, "num_predict": 8},
-    }
+    _ep = GATE_ENDPOINT.rstrip("/")
+    _ollama = (":11434" in _ep) or (":11435" in _ep)
+    _msgs = [
+        {"role": "system",
+         "content": "You are a YES/NO gate for a scheduled task. Given the "
+                    "live system state and the question, answer with ONLY "
+                    "the single word YES or NO."},
+        {"role": "user", "content": f"{sys_ctx}\n\nQuestion: {question}"},
+    ]
+    if _ollama:
+        payload = {"model": GATE_MODEL, "messages": _msgs, "think": False,
+                   "stream": False,
+                   "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
+                   "options": {"temperature": 0.0, "num_predict": 8}}
+        url = f"{_ep}/api/chat"
+    else:
+        # llama.cpp /v1 (ollama lanes :11434/:11435 retired). OpenAI shape.
+        payload = {"model": GATE_MODEL, "messages": _msgs, "stream": False,
+                   "max_tokens": 8, "temperature": 0.0}
+        url = (f"{_ep}/chat/completions" if _ep.endswith("/v1")
+               else f"{_ep}/v1/chat/completions")
     try:
         req = urllib.request.Request(
-            f"{GATE_ENDPOINT}/api/chat",
-            data=json.dumps(payload).encode("utf-8"),
+            url, data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=GATE_TIMEOUT) as r:
             d = json.loads(r.read().decode("utf-8", "replace"))
-        ans = ((d.get("message") or {}).get("content") or "").strip().lower()
+        if _ollama:
+            ans = ((d.get("message") or {}).get("content") or "").strip().lower()
+        else:
+            ans = (((d.get("choices") or [{}])[0].get("message")
+                    or {}).get("content") or "").strip().lower()
         return ans.startswith("y")
     except Exception as e:  # noqa: BLE001
         _log(f"gate eval failed ({type(e).__name__}: {e}) -> SKIP (conservative)")

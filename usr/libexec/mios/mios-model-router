@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""mios-model-router — always-on front door + worker fan-out (OpenAI-compatible).
+
+Operator 2026-06-08: "EVERYTHING starts at the front-door model and delegates to
+nodes from there — multiple smaller modern models across all nodes, full tools."
+The front door must prefill the ~17K-token MCP tool surface (113 tools) that Hermes
+sends EVERY turn AND emit tool calls — fast. MEASURED head-to-head on that exact
+17K prompt (2026-06-08):
+  CPU  (qwen3-4b)        169s, answered in PROSE (no tool call)   -> non-viable
+  iGPU (qwen2.5-1.5b)    >180s TIMEOUT                            -> non-viable
+  dGPU (qwen3:1.7b,4090) 2.2s cold / 0.2s warm, EMITS open_app    -> the only one
+The small/integrated lanes are ~100 tok/s prefill; the 4090 is ~85x faster AND
+llama.cpp prefix-caches the stable tool surface (cached_tokens 15257 -> 0.2s turns).
+So the dGPU(:11450) with a SMALL model (qwen3:1.7b ~2GB VRAM — does NOT fight gaming
+like the 16GB heavy model did) is the front door; iGPU(:11436) + CPU(:11451) are
+slow fallbacks + delegated workers.
+
+Logical models:
+  mios-orchestrator -> dGPU light node (:11450 qwen3:1.7b) PRIMARY; iGPU/CPU FALLBACK
+                       (failover, preference order). The entry point / front door.
+  mios-fanout       -> ROUND-ROBIN across ALL worker nodes (dGPU :11450 qwen3:1.7b,
+                       iGPU :11436, CPU :11451) so concurrent delegated children land
+                       on DIFFERENT hardware and run truly in parallel.
+  mios-heavy        -> legacy compat (failover across workers).
+
+Background health probe every 8s; per-lane 30s cooldown on error; SSE passthrough.
+Response carries X-MiOS-Lane / X-MiOS-Model so you can SEE which node served.
+Override lanes via MIOS_ROUTER_DEPLOYMENTS (JSON). Port via MIOS_ROUTER_PORT.
+"""
+import os, time, json, asyncio, re, subprocess
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse, JSONResponse, Response
+import uvicorn
+
+PORT = int(os.environ.get("MIOS_ROUTER_PORT", "11442"))
+COOLDOWN_S = float(os.environ.get("MIOS_ROUTER_COOLDOWN_S", "30"))
+PROBE_S = float(os.environ.get("MIOS_ROUTER_PROBE_S", "8"))
+CTX = int(os.environ.get("MIOS_ROUTER_CTX", "16384"))
+
+
+def _gateway():
+    """WSL default gateway = the Windows host (for the native iGPU node)."""
+    try:
+        out = subprocess.run(["ip", "route", "show", "default"],
+                             capture_output=True, text=True, timeout=3).stdout
+        m = re.search(r"default via (\S+)", out)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return os.environ.get("MIOS_ROUTER_GW", "172.21.192.1")
+
+
+_GW = _gateway()
+
+# Compute nodes. cpu = orchestrator host (always up, CPU-only); light(dGPU)+igpu =
+# fast worker nodes; heavy(SGLang) is usually down (VRAM) -> simply never healthy.
+_DEFAULT_DEPLOYMENTS = [
+    {"name": "cpu",   "base": "http://localhost:11451/v1", "model": "mios-cpu"},
+    {"name": "light", "base": "http://localhost:11450/v1", "model": "qwen3:1.7b"},
+    {"name": "igpu",  "base": f"http://{_GW}:11436/v1",    "model": "mios-igpu"},
+    {"name": "heavy", "base": "http://localhost:11441/v1", "model": "mios-heavy"},
+]
+try:
+    DEPLOYMENTS = json.loads(os.environ.get("MIOS_ROUTER_DEPLOYMENTS", "")) or _DEFAULT_DEPLOYMENTS
+except Exception:
+    DEPLOYMENTS = _DEFAULT_DEPLOYMENTS
+
+DEP = {d["name"]: d for d in DEPLOYMENTS}
+
+# logical model -> (mode, ordered lane names). failover = preference order;
+# roundrobin = rotate per request so concurrent children spread across nodes.
+# NOTE (2026-06-08 measured): the tool-laden requests Hermes sends (~17K tokens of
+# 113 MCP tools) are ONLY fast on the dGPU (4090, 2.2s); CPU/iGPU are ~100 tok/s ->
+# 169-180s+ and time out. So with a single fast GPU, delegated children must PREFER
+# the dGPU and SERIALIZE there (2s each, prefix-cached) rather than scatter across
+# slow nodes (180s each). True cross-node parallelism needs per-child tool-surface
+# reduction (AIOS Context Manager) so children are small enough for the slow lanes —
+# a follow-up. Until then fanout is failover(light-first), not roundrobin.
+ROUTES = {
+    "mios-orchestrator": ("failover",   ["light", "igpu", "cpu"]),
+    "mios-cpu":          ("failover",   ["cpu", "light", "igpu"]),
+    "mios-fanout":       ("failover",   ["light", "igpu", "cpu"]),
+    "mios-heavy":        ("failover",   ["light", "igpu", "cpu"]),
+}
+DEFAULT_ROUTE = ("failover", ["light", "igpu", "cpu"])
+LOGICALS = ["mios-orchestrator", "mios-fanout", "mios-heavy", "mios-cpu"]
+
+# GAMING MODE: when ON, the front door (mios-orchestrator / default) must NOT touch
+# the RTX 4090 (a chat turn would stutter the game). The CPU node never touches it
+# (and the iGPU is a separate GPU), so route there instead — slow (~169s on the tool
+# surface) but contention-free. dGPU(light) stays only as an absolute last resort if
+# both are down. Toggle via POST /gaming {"on":true|false} (off by default); from
+# Windows: curl 127.0.0.1:11442/gaming -d '{"on":true}'. Wire it to your game launcher.
+GAMING_FRONT = ["cpu", "igpu", "light"]
+_gaming = {"on": False}
+
+_state = {d["name"]: {"healthy": False, "cooldown_until": 0.0} for d in DEPLOYMENTS}
+_rr = {"n": 0}
+app = FastAPI()
+_client: httpx.AsyncClient = None
+
+
+def _candidates(requested):
+    """Lanes to try for the requested logical model, healthy+non-cooled first."""
+    mode, names = ROUTES.get(requested, DEFAULT_ROUTE)
+    # Gaming mode reroutes the front door + delegated children off the dGPU
+    # (see GAMING_FRONT note). mios-cpu/mios-heavy keep their explicit routes.
+    if _gaming["on"] and requested in ("mios-orchestrator", "mios-fanout"):
+        mode, names = "failover", GAMING_FRONT
+    now = time.time()
+    lanes = [DEP[n] for n in names if n in DEP]
+    healthy = [d for d in lanes
+               if _state[d["name"]]["healthy"] and _state[d["name"]]["cooldown_until"] <= now]
+    pool = healthy or lanes
+    if not pool:
+        return []
+    if mode == "roundrobin":
+        i = _rr["n"] % len(pool)
+        _rr["n"] += 1
+        return pool[i:] + pool[:i]   # rotated -> concurrent reqs start on different nodes
+    return pool                       # failover: preference order
+
+
+def _cool(name):
+    _state[name]["cooldown_until"] = time.time() + COOLDOWN_S
+
+
+async def _probe_once():
+    for d in DEPLOYMENTS:
+        try:
+            r = await _client.get(f"{d['base']}/models", timeout=3.0)
+            _state[d["name"]]["healthy"] = (r.status_code == 200)
+        except Exception:
+            _state[d["name"]]["healthy"] = False
+
+
+async def _probe_loop():
+    while True:
+        await _probe_once()
+        await asyncio.sleep(PROBE_S)
+
+
+@app.on_event("startup")
+async def _startup():
+    global _client
+    _client = httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=5.0))
+    await _probe_once()
+    asyncio.create_task(_probe_loop())
+
+
+@app.get("/health")
+async def health():
+    return {"ok": True,
+            "routes": {k: {"mode": v[0], "lanes": v[1]} for k, v in ROUTES.items()},
+            "nodes": {n: {"healthy": s["healthy"],
+                          "cooling": s["cooldown_until"] > time.time(),
+                          "base": DEP[n]["base"], "model": DEP[n]["model"]}
+                      for n, s in _state.items()}}
+
+
+@app.api_route("/gaming", methods=["GET", "POST"])
+async def gaming(req: Request):
+    """Toggle gaming mode (front door avoids the dGPU). POST {"on":true|false};
+    GET just reports state. From Windows: curl 127.0.0.1:11442/gaming -d '{"on":true}'."""
+    if req.method == "POST":
+        try:
+            body = json.loads(await req.body() or b"{}")
+            _gaming["on"] = bool(body.get("on", _gaming["on"]))
+        except Exception:
+            pass
+    return {"gaming": _gaming["on"],
+            "front_door": GAMING_FRONT if _gaming["on"] else ROUTES["mios-orchestrator"][1]}
+
+
+@app.get("/v1/models")
+async def models():
+    return {"object": "list",
+            "data": [{"id": m, "object": "model", "owned_by": "mios-router",
+                      "max_model_len": CTX, "context_length": CTX,
+                      "max_context_length": CTX, "context_window": CTX}
+                     for m in LOGICALS]}
+
+
+async def _passthrough(path: str, req: Request):
+    body = await req.body()
+    try:
+        payload = json.loads(body) if body else {}
+    except Exception:
+        payload = {}
+    requested = payload.get("model") or "mios-orchestrator"
+    stream = bool(payload.get("stream"))
+    last = None
+    cands = _candidates(requested)
+    if not cands:
+        return JSONResponse({"error": {"message": "no MiOS lanes configured",
+                                       "type": "service_unavailable"}}, status_code=503)
+    for d in cands:
+        p = dict(payload)
+        p["model"] = d["model"]
+        data = json.dumps(p).encode()
+        url = f"{d['base']}{path}"
+        hdrs = {"Content-Type": "application/json"}
+        try:
+            if stream:
+                ctx = _client.stream("POST", url, content=data, headers=hdrs)
+                r = await ctx.__aenter__()
+                if r.status_code != 200:
+                    await ctx.__aexit__(None, None, None)
+                    _cool(d["name"]); last = f"{d['name']} HTTP {r.status_code}"; continue
+
+                async def gen(_ctx=ctx, _r=r):
+                    try:
+                        async for chunk in _r.aiter_raw():
+                            yield chunk
+                    finally:
+                        await _ctx.__aexit__(None, None, None)
+                return StreamingResponse(gen(), media_type="text/event-stream",
+                                         headers={"X-MiOS-Lane": d["name"], "X-MiOS-Model": d["model"]})
+            else:
+                r = await _client.post(url, content=data, headers=hdrs)
+                if r.status_code != 200:
+                    _cool(d["name"]); last = f"{d['name']} HTTP {r.status_code}"; continue
+                return Response(content=r.content, media_type="application/json",
+                                headers={"X-MiOS-Lane": d["name"], "X-MiOS-Model": d["model"]})
+        except Exception as e:
+            _cool(d["name"]); last = f"{d['name']}: {type(e).__name__}: {e}"; continue
+    return JSONResponse({"error": {"message": f"all lanes for {requested} unavailable ({last})",
+                                   "type": "service_unavailable"}}, status_code=503)
+
+
+@app.post("/v1/chat/completions")
+async def chat(req: Request):
+    return await _passthrough("/chat/completions", req)
+
+
+@app.post("/v1/completions")
+async def completions(req: Request):
+    return await _passthrough("/completions", req)
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")

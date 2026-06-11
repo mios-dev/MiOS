@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""mios-a2a-discover -- SSOT-driven A2A peer discovery (no hardcoded endpoints).
+
+Keeps the runtime peer list (/etc/mios/ai/v1/a2a-peers.json -- the file the
+agent-pipe reads to know who it can delegate to) in sync with the fleet that is
+actually LIVE. Candidates come from the SSOT, never from code literals:
+
+  * always the local self (so single-node delegation still round-trips), and
+  * every URL declared in mios.toml `[a2a].nodes` (the operator lists their
+    fleet once), and
+  * optionally a CIDR sweep when `[a2a].discover_cidr` is set (auto-find nodes
+    on a LAN segment without naming each one).
+
+Each candidate is probed for a valid MiOS A2A AgentCard; only responders are
+written. Run on a timer / firstboot so node-spanning tracks the real fleet.
+Every MiOS node ships the A2A server, so a live card == a delegable peer.
+"""
+import ipaddress
+import json
+import os
+import sys
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+
+SELF = os.environ.get("MIOS_A2A_SELF", "http://127.0.0.1:8640")
+PEERS_OUT = os.environ.get("MIOS_A2A_PEERS", "/etc/mios/ai/v1/a2a-peers.json")
+CARD_PATHS = ("/.well-known/agent-card.json", "/.well-known/agent.json")
+PORT = os.environ.get("MIOS_A2A_PORT", "8640")
+
+
+def _deep_merge(base, over):
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+
+
+def _load_toml():
+    try:
+        import tomllib
+    except Exception:  # noqa: BLE001
+        return {}
+    merged = {}
+    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")):
+        try:
+            with open(p, "rb") as f:
+                _deep_merge(merged, tomllib.load(f))
+        except Exception:  # noqa: BLE001
+            continue
+    return merged
+
+
+def _probe(url):
+    """Return (url, card) if url is a live MiOS A2A node, else (url, None)."""
+    for cp in CARD_PATHS:
+        try:
+            with urllib.request.urlopen(url.rstrip("/") + cp, timeout=4) as r:
+                card = json.load(r)
+            if isinstance(card, dict) and (card.get("name")
+                                           or card.get("protocolVersion")):
+                return url, card
+        except Exception:  # noqa: BLE001
+            continue
+    return url, None
+
+
+def _slug(s):
+    out = "".join(c if (c.isalnum() or c in "-_") else "-"
+                  for c in str(s).lower())[:40]
+    return out.strip("-") or "peer"
+
+
+def _cidr_hosts(cidr):
+    try:
+        net = ipaddress.ip_network(cidr, strict=False)
+    except ValueError:
+        return []
+    # bound the sweep so a /16 typo can't scan 65k hosts
+    return [f"http://{ip}:{PORT}" for ip in list(net.hosts())[:256]]
+
+
+def main():
+    cfg = _load_toml()
+    a2a = cfg.get("a2a", {}) or {}
+    cands = [SELF]
+    for u in (a2a.get("nodes") or []):
+        if u and u not in cands:
+            cands.append(u)
+    if a2a.get("discover_cidr"):
+        for u in _cidr_hosts(a2a["discover_cidr"]):
+            if u not in cands:
+                cands.append(u)
+
+    peers, seen = [], set()
+    with ThreadPoolExecutor(max_workers=32) as ex:
+        for url, card in ex.map(_probe, cands):
+            if not card or url in seen:
+                continue
+            seen.add(url)
+            pid = "mios-local" if url == SELF else _slug(card.get("name") or url)
+            peers.append({
+                "id": pid,
+                "url": url,
+                "note": ("loopback self-peer" if url == SELF
+                         else f"discovered A2A node ({card.get('protocolVersion', '?')})"),
+            })
+            print(f"  live: {url} -> {pid}")
+
+    os.makedirs(os.path.dirname(PEERS_OUT), exist_ok=True)
+    with open(PEERS_OUT, "w", encoding="utf-8") as f:
+        json.dump({"peers": peers}, f, indent=2)
+    print(f"mios-a2a-discover: {len(peers)} live peer(s) probed from "
+          f"{len(cands)} candidate(s) -> {PEERS_OUT}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

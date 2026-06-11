@@ -36,7 +36,8 @@ if ($_bannerPath -and (Test-Path $_bannerPath)) {
 Remove-Variable _bannerPath -ErrorAction SilentlyContinue
 
 # ─── constants ────────────────────────────────────────────────────────────────
-$Version        = (Get-Content (Join-Path $PSScriptRoot "VERSION") -EA SilentlyContinue)?.Trim() ?? "0.2.4"
+$VersionRaw     = Get-Content (Join-Path $PSScriptRoot "VERSION") -EA SilentlyContinue
+$Version        = if ($VersionRaw) { $VersionRaw.Trim() } else { "0.2.4" }
 $RepoUrl        = "https://github.com/MiOS-DEV/MiOS.git"
 $BibImage       = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { "quay.io/centos-bootc/bootc-image-builder:latest" }
 $BuilderMachine = "mios-dev"   # canonical lowercase form (was "mios-builder" pre-v0.2.3)
@@ -806,7 +807,8 @@ if (Test-Path $TargetVhdx) {
                 Stop-VM -Name $vmName -Force -EA SilentlyContinue
                 Remove-VM -Name $vmName -Force
             }
-            $vmSwitch = (Get-VMSwitch | Where-Object SwitchType -eq "External" | Select-Object -First 1)?.Name ?? "Default Switch"
+            $extSwitch = Get-VMSwitch | Where-Object SwitchType -eq "External" | Select-Object -First 1
+            $vmSwitch = if ($extSwitch) { $extSwitch.Name } else { "Default Switch" }
             $totalMem = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
             $vmRam    = [int64]([Math]::Floor($totalMem * 0.80 / 2MB) * 2MB)
             $minRam   = [int64]([Math]::Floor($totalMem * 0.50 / 2MB) * 2MB)

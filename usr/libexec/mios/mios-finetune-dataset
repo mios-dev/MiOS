@@ -101,23 +101,27 @@ def _get(url: str, timeout: float) -> dict | list:
 
 def ollama_chat(endpoint: str, model: str, system: str, user: str,
                 as_json: bool = True, timeout: float = 120.0) -> str:
-    """Native /api/chat with think:False -- the proven-reliable path for qwen
-    (the /v1 compat path returns empty content after a think pass)."""
+    """Teacher chat over the OpenAI /v1 path (llama-swap; ollama retired in G5 so
+    /api/chat is GONE -- the old shape silently 404'd, starving the dataset
+    generator). enable_thinking:False keeps qwen out of a think pass; for JSON we
+    set response_format=json_object and read content OR reasoning_content (gemma4
+    + response_format emits the JSON into reasoning_content with empty content --
+    same drift class as the 2026-06-09 swarm/refine fixes). operator 2026-06-10."""
     payload = {
         "model": model,
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": user}],
-        "think": False,
         "stream": False,
-        "options": {"temperature": 0.4 if not as_json else 0.0},
+        "temperature": 0.0 if as_json else 0.4,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     if as_json:
-        payload["format"] = "json"
-        payload["options"]["temperature"] = 0.0
-    body = _post(endpoint.rstrip("/") + "/api/chat", payload, timeout)
-    msg = (body.get("message") or {}).get("content")
-    if msg is None:  # /v1-shaped fallback
-        msg = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        payload["response_format"] = {"type": "json_object"}
+    body = _post(endpoint.rstrip("/") + "/v1/chat/completions", payload, timeout)
+    m = ((body.get("choices") or [{}])[0].get("message") or {})
+    msg = m.get("content") or m.get("reasoning_content")
+    if msg is None:  # /api-shaped fallback (older backends)
+        msg = (body.get("message") or {}).get("content", "")
     return (msg or "").strip()
 
 
@@ -303,8 +307,8 @@ INTENT_SEEDS = [
 
 # --------------------------------------------------------------------------- #
 def build(cfg: dict, limit: int | None) -> dict:
-    endpoint = str(cfg.get("teacher_endpoint") or "http://localhost:11434")
-    model = str(cfg.get("teacher_model") or "qwen3.5:9b")
+    endpoint = str(cfg.get("teacher_endpoint") or "http://localhost:11450")
+    model = str(cfg.get("teacher_model") or "gemma4:12b")
     pipe_url = str(cfg.get("pipe_url") or "http://127.0.0.1:8640")
     seeds = _cint(cfg.get("seeds_per_capability"), 4)
     out_path = str(cfg.get("dataset_path") or "/var/lib/mios/finetune/refiner-sft.jsonl")

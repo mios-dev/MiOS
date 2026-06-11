@@ -83,7 +83,10 @@ esac
 # Endpoint set but unreachable -> HONEST error (never a silent fall-back to the
 # blind path -- that reintroduces the false count:0 reports we just fixed).
 _oscontrol_executor() {
-    python3 - <<'PYEOF' 2>/dev/null || true
+    # 1) Explicit operator / federation endpoint ([os_control].executor_endpoint
+    #    in the layered mios.toml) wins -- a tailnet URL, or another node's desktop.
+    local _ep
+    _ep="$(python3 - <<'PYEOF' 2>/dev/null || true
 import os
 try:
     import tomllib
@@ -92,7 +95,7 @@ except Exception:
         import tomli as tomllib
     except Exception:
         raise SystemExit(0)
-def _ep(path):
+def _read(path):
     try:
         with open(path, "rb") as f:
             d = tomllib.load(f)
@@ -102,11 +105,31 @@ def _ep(path):
 for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
     if not p:
         continue
-    ep = _ep(p)
+    ep = _read(p)
     if ep:
         print(ep.rstrip("/"))
         break
 PYEOF
+)"
+    if [ -n "$_ep" ]; then
+        printf '%s\n' "$_ep"
+        return 0
+    fi
+    # 2) WSL2 local auto-discovery (operator 2026-06-07): no tailnet endpoint is
+    #    configured, but the Windows-host executor (mios-oscontrol-server.ps1)
+    #    listens on :11437. Reach it over the WSL NAT default-route gateway (the
+    #    Windows host) so OS control works WITHOUT Tailscale. The caller
+    #    health-probes this before use, so a firewall-blocked gateway just falls
+    #    through to the blind WSL-interop path -- no regression -- and it starts
+    #    working the moment the host firewall admits the WSL subnet.
+    if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+        local _gw _port
+        _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
+        _port="${MIOS_OSCONTROL_PORT:-11437}"
+        if [ -n "$_gw" ]; then
+            printf 'http://%s:%s\n' "$_gw" "$_port"
+        fi
+    fi
 }
 
 # Build a JSON object body from key value pairs, safely (python json.dumps).
@@ -128,7 +151,7 @@ PYEOF
 }
 
 case "$sub" in
-    window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo)
+    launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo)
         EXEC_EP="$(_oscontrol_executor)"
         # GRACEFUL FALLBACK (operator 2026-05-26): only route to the executor if
         # it's actually UP (quick /health probe). When it's configured but not
@@ -138,8 +161,29 @@ case "$sub" in
         if [ -n "$EXEC_EP" ] && ! curl -fsS -m 3 "$EXEC_EP/health" >/dev/null 2>&1; then
             EXEC_EP=""
         fi
+        # `launch` renders VISIBLY only via the interactive-desktop executor: a
+        # WSL-interop launch lands in a Session-0 window station, so the process
+        # starts but no window appears on the operator's desktop (operator
+        # 2026-06-07: `mios-launch notepad` returned rc=0 but opened nothing). With
+        # no reachable executor, signal the caller to use its own path -- exit 2,
+        # never a blind no-op that falsely claims success.
+        if [ "$sub" = "launch" ] && [ -z "$EXEC_EP" ]; then
+            echo "mios-pc-control: no OS-control executor reachable for launch" >&2
+            exit 2
+        fi
         if [ -n "$EXEC_EP" ]; then
             case "$sub" in
+                launch)
+                    app="$*"
+                    [ -z "$app" ] && { echo "mios-pc-control: launch needs <app-name>" >&2; exit 64; }
+                    body="$(_json_body app "$app")"
+                    if ! out="$(curl -fsS -m 30 -X POST "$EXEC_EP/launch" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /launch)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
                 window-list)
                     if ! body="$(curl -fsS -m 15 "$EXEC_EP/windows" 2>/dev/null)"; then
                         echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /windows)" >&2

@@ -1046,7 +1046,10 @@ SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", _STACK_MODEL)
 PLANNER_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_TIMEOUT_S", "30"))
 PLANNER_MAX_TOKENS = int(os.environ.get(
-    "MIOS_AGENT_PIPE_PLANNER_MAX_TOKENS", "800"))
+    # 1536 (was 800): gemma4:12b is the REASONING model -- it spends tokens on
+    # reasoning_content before emitting the JSON content, so a tight budget
+    # truncates the decompose to empty -> [] -> council dups. operator 2026-06-09.
+    "MIOS_AGENT_PIPE_PLANNER_MAX_TOKENS", "1536"))
 PLANNER_MAX_NODES = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_MAX_NODES", "8"))
 PLANNER_REFLEXION_CAP = int(os.environ.get(
@@ -3715,6 +3718,73 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             tmsg["content"] = _cap_verb_result("code_mode", out)
             tool_msgs.append(tmsg)
             continue
+        # ── (b4) FAN-OUT: dispatch_to_nodes -> the multi-node SWARM behind a tool
+        # (operator 2026-06-11 federated swarm; agents-as-tools pattern). The
+        # orchestrator (native loop) calls this for BROAD/parallelizable work; the
+        # existing _agent_dag_from_tasks + _respond_agent_dag swarm fires across all
+        # live nodes and ONE synthesized result re-enters the loop as a tool_result
+        # (compression-on-return). Inert outside the native loop (orchestrator ctx
+        # unset) + the fanned workers never carry this tool, so no recursion.
+        if vname == "dispatch_to_nodes":
+            if not allow_write:
+                tmsg["content"] = "(skipped dispatch_to_nodes: writes disabled)"
+                tool_msgs.append(tmsg)
+                continue
+            _octx = _orch_ctx_var.get() or {}
+            if not _octx:
+                tmsg["content"] = "(dispatch_to_nodes unavailable here)"
+                tool_msgs.append(tmsg)
+                continue
+            ran_read = True
+            _raw_tasks = args.get("tasks") if isinstance(args.get("tasks"), list) else []
+            _norm = []
+            for _t in _raw_tasks:
+                if not isinstance(_t, dict):
+                    continue
+                _obj = str(_t.get("objective") or _t.get("refined_text")
+                           or _t.get("task") or "").strip()
+                if not _obj:
+                    continue
+                _brief = _obj
+                if _t.get("output_format"):
+                    _brief += "\n\nReturn: " + str(_t["output_format"])
+                if _t.get("tool_guidance"):
+                    _brief += "\nPrefer tools: " + str(_t["tool_guidance"])
+                if _t.get("boundaries"):
+                    _brief += "\nDo NOT: " + str(_t["boundaries"])
+                _norm.append({
+                    "target_agent": str(_t.get("node") or _t.get("target_agent") or ""),
+                    "refined_text": _brief,
+                    "title": (str(_t.get("title") or _obj))[:72],
+                    "local_state": bool(_t.get("local_state")),
+                    "web": bool(_t.get("web"))})
+            push(f" 🛰️ dispatch_to_nodes ({len(_norm)})")
+            try:
+                if not _norm:
+                    _norm = await _plan_swarm(_octx.get("last_user_text") or "", None)
+                _live = await _live_agent_names()
+                _dag = _agent_dag_from_tasks(_norm, live_agents=_live,
+                                             include_research=True)
+                _sresp = await _respond_agent_dag(
+                    _dag, _octx.get("refined"), streaming=False,
+                    chat_id=str(_octx.get("chat_id") or ""),
+                    model=str(_octx.get("model") or ""),
+                    session_id=_octx.get("session_id"),
+                    last_user_text=str(_octx.get("last_user_text") or ""),
+                    persona_system=str(_octx.get("persona_system") or ""),
+                    request=_octx.get("request"))
+                _stext = ""
+                if _sresp is not None:
+                    try:
+                        _sb = json.loads(bytes(_sresp.body).decode("utf-8"))
+                        _stext = _sb["choices"][0]["message"]["content"]
+                    except Exception:  # noqa: BLE001
+                        _stext = ""
+                tmsg["content"] = _stext or "(the node swarm returned no result)"
+            except Exception as _e:  # noqa: BLE001
+                tmsg["content"] = f"(dispatch_to_nodes failed: {str(_e)[:160]})"
+            tool_msgs.append(tmsg)
+            continue
         # ── (c) VERB tool: bare verb name -> dispatch_mios_verb ──
         v = _VERB_CATALOG.get(vname)
         # read verbs always auto-execute; write/launch only when allow_write (an
@@ -4285,13 +4355,11 @@ def _load_routing_domains() -> tuple[dict, bool]:
 _ROUTING_DOMAINS, _ROUTING_ENABLE = _load_routing_domains()
 
 
-def _load_launch_fillers() -> list:
-    """Trailing courtesy/location phrases (SSOT mios.toml [routing].launch_filler_
-    phrases) stripped from a deterministic launch target so 'open notepad for me'
-    -> open_app(name='notepad') and 'open spotify on my desktop' -> name='spotify'
-    (operator 2026-06-07 e2e: filler bled into the app name, and 'on my desktop'
-    forced the launch into the LLM path which mis-classified it as discovery). NO
-    hardcoded English in code -- the list is SSOT data. FAIL-SAFE: error -> []."""
+def _load_routing_phrases(key: str) -> list:
+    """Load a deterministic-launch SSOT phrase list from mios.toml [routing].<key>,
+    lowercased + de-duplicated, longest-first (so multi-word phrases strip before
+    their substrings). NO hardcoded English in code -- the lists are SSOT data.
+    FAIL-SAFE: any error -> []."""
     toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     try:
         try:
@@ -4301,14 +4369,30 @@ def _load_launch_fillers() -> list:
         with open(toml_path, "rb") as f:
             rt = (tomllib.load(f).get("routing") or {})
         return sorted(
-            (str(p).lower().strip() for p in (rt.get("launch_filler_phrases") or []) if str(p).strip()),
-            key=len, reverse=True)  # longest-first so multi-word phrases strip before their substrings
+            {str(p).lower().strip() for p in (rt.get(key) or []) if str(p).strip()},
+            key=len, reverse=True)
     except Exception as e:
-        log.warning("launch fillers load failed: %s", e)
+        log.warning("routing phrases load failed (%s): %s", key, e)
         return []
 
 
+def _load_launch_fillers() -> list:
+    """Trailing courtesy/location phrases (SSOT mios.toml [routing].launch_filler_
+    phrases) stripped from a deterministic launch target so 'open notepad for me'
+    -> open_app(name='notepad') and 'open spotify on my desktop' -> name='spotify'
+    (operator 2026-06-07 e2e: filler bled into the app name, and 'on my desktop'
+    forced the launch into the LLM path which mis-classified it as discovery)."""
+    return _load_routing_phrases("launch_filler_phrases")
+
+
 _LAUNCH_FILLERS = _load_launch_fillers()
+# Leading determiners/possessives ('the', 'my', ...) and trailing generic nouns
+# ('app', 'application', ...) dropped from a deterministic launch target so natural
+# phrasings like 'open the calculator app' resolve to name='calculator' instead of
+# falling to the LLM router (which picked the built-in `terminal` tool, exit 126).
+# SSOT data; matched word-by-word (so 'whatsapp' is never truncated by 'app').
+_LAUNCH_LEAD_WORDS = frozenset(_load_routing_phrases("launch_target_lead_phrases"))
+_LAUNCH_TRAIL_WORDS = frozenset(_load_routing_phrases("launch_target_trail_phrases"))
 
 # OS-control / window-action verb set, derived from the verb catalog SSOT
 # (mios.toml `section`). A request that maps to ONE of these is a single
@@ -4399,7 +4483,22 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     questions) which the stronger refine model resolves. Triggers are
     catalog-derived (verb names), not hardcoded words (operator no-hardcode rule)."""
     t = (user_text or "").strip()
-    if not t or len(t) > 80 or "?" in t:
+    if not t or "?" in t:
+        return None
+    # Compound "<launch> <app> and type <text>": strip the "and type <text>" tail
+    # EARLY (operator 2026-06-11: "open notepad and type: X" misrouted to the GATED
+    # computer_use vision lane + HUNG -- the colon after "type" broke the later
+    # compound regex AND a long type-text tripped the 80-char guard, so the launch
+    # fell to the LLM router). Strip the tail on the FULL text first -- tolerating
+    # punctuation after the verb ("type:", "type-") -- so only the launch part faces
+    # the length/word guards; the launch fast-path types the trailing text via its
+    # type-chain (read off the raw message downstream).
+    _tail = re.search(
+        r"\s+(?:and|then)\s+(?:type|write|enter|input|paste|put)\b[\s:.\-]*\S",
+        t, re.IGNORECASE)
+    if _tail:
+        t = t[:_tail.start()].strip()
+    if not t or len(t) > 80:
         return None
     words = t.split()
     if len(words) < 2:
@@ -4408,6 +4507,13 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     if head not in _LAUNCH_TRIGGERS or "open_app" not in _FASTPATH_VERBS:
         return None
     rest = " ".join(words[1:]).strip()
+    # Strip a trailing sentence terminator FIRST so the filler / word-boundary
+    # matching below isn't defeated by punctuation: 'open X on my desktop.' kept
+    # the period, so 'on my desktop' never stripped, the leftover 'on' tripped the
+    # compound guard, and the launch fell to the LLM router -- which then picked
+    # hermes's built-in `terminal` tool (exit 126) instead of open_app
+    # (operator 2026-06-07 e2e).
+    rest = rest.rstrip(" .,!;:")
     # Strip trailing courtesy/location filler (SSOT list) so the app name is clean
     # and the launch stays on the DETERMINISTIC path -- 'open notepad for me' ->
     # name='notepad'; 'open spotify on my desktop' -> name='spotify'. Stripping
@@ -4423,11 +4529,34 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
                 _low = rest.lower()
                 _changed = True
                 break
+    # Drop leading determiners/possessives + trailing generic nouns (SSOT) so
+    # natural phrasings resolve: 'the windows calculator app' -> 'windows
+    # calculator', 'my photos application' -> 'photos'. Word-by-word (so a real
+    # one-word app name is never partially truncated).
+    _rw = rest.split()
+    while _rw and _rw[0].lower() in _LAUNCH_LEAD_WORDS:
+        _rw.pop(0)
+    while _rw and _rw[-1].lower() in _LAUNCH_TRAIL_WORDS:
+        _rw.pop()
+    rest = " ".join(_rw).strip()
+    _low = rest.lower()
+    # Compound "open <app> and type <text>": keep ONLY the app for the
+    # deterministic launch; the launch fast-path's type-chain types the trailing
+    # text from the raw user message. Without this the >3-word / conjunction
+    # guards below bail to the flaky LLM router, which routes "open notepad and
+    # type hello" INCONSISTENTLY (single-launch one turn, research swarm the next)
+    # and the type is dropped (operator 2026-06-09, repeated notepad failures).
+    _cm = re.match(
+        r"(.+?)\s+(?:and|then)\s+(?:type|write|enter|input|paste|put)\s+\S",
+        rest, re.IGNORECASE)
+    if _cm:
+        rest = _cm.group(1).strip()
+        _low = rest.lower()
     if not rest or len(rest.split()) > 3:
         return None
     # True compound forms (url / 'in <app>' / conjunctions = two targets) -> let
     # the LLM router split content from target; the deterministic path only takes
-    # the unambiguous bare 'launch <app>' (after filler is stripped).
+    # the unambiguous bare 'launch <app>' (after filler + determiners stripped).
     if "://" in rest or re.search(r"\b(in|and|then|with|on|to)\b", _low):
         return None
     return {"intent": "dispatch", "tool": "open_app",
@@ -4958,7 +5087,14 @@ def _env_grounding() -> str:
 # with no SOUL, no tools, no contract). Layered SSOT: ~/.config wins over
 # /etc wins over the /usr vendor copy. Read ONCE at import; degrade to "" if
 # absent (no crash, just no injection).
+# Consolidated 2026-06-10: the global identity now lives in ONE root file
+# /MiOS.md (the union of the old agent-contract.md + the generator's AIOS_IDENTITY
+# -- they were ~80% duplicate, injected twice). Layered SSOT: ~/.config < /etc <
+# / (root). Falls back to the old agent-contract.md paths if /MiOS.md is absent.
 _AGENT_CONTRACT_PATHS = (
+    os.path.expanduser("~/.config/mios/MiOS.md"),
+    "/etc/mios/MiOS.md",
+    "/MiOS.md",
     os.path.expanduser("~/.config/mios/ai/agent-contract.md"),
     "/etc/mios/ai/agent-contract.md",
     "/usr/share/mios/ai/agent-contract.md",
@@ -4991,6 +5127,24 @@ def _agent_contract() -> str:
     return _AGENT_CONTRACT
 
 
+_ROLE_SYSTEM_DIR = "/etc/mios/ai/v1/role-systems"
+
+
+def _role_system(aname: str) -> str:
+    """Per-role DEVELOPER overlay (OpenAI developer-message pattern), layered
+    AFTER the /MiOS.md SYSTEM identity. Generated by mios-gen-role-system from the
+    SSOT (thin: role + tool-focus pointer + live fleet, ~340 B). Degrade-open to ''
+    so a missing/unreadable overlay never breaks dispatch. operator 2026-06-10."""
+    if not aname:
+        return ""
+    try:
+        with open(os.path.join(_ROLE_SYSTEM_DIR, f"{aname}.md"),
+                  "r", encoding="utf-8") as _f:
+            return _f.read().strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
 # ─── Worker tool surface ("all tools to every agent + sub-agent") ──────
 # operator 2026-05-30: every agent + sub-agent has GLOBAL tool access AT ALL
 # TIMES + can delegate; the no-live-launch rule binds CLAUDE only -- the MiOS
@@ -5017,6 +5171,13 @@ WORKER_TOOL_CTX = int(os.environ.get("MIOS_WORKER_TOOL_CTX", "16384") or 16384)
 # (SLOW_LANE_TOOL_CAP) tool-loop -- so the slow node FINISHES + contributes
 # instead of being abandoned mid-prefill. SSOT MIOS_WORKER_TOOL_CTX_SLOW.
 WORKER_TOOL_CTX_SLOW = int(os.environ.get("MIOS_WORKER_TOOL_CTX_SLOW", "6144") or 6144)
+# AIOS gap #5 (per-child tool-surface + dynamic ctx budgeting). All degrade-open +
+# env-gated via the cached _DISPATCH_TOML; empty intent / cap<=0 / embed-outage /
+# any error => EXACTLY today's surface[:cap] + today's num_ctx (zero regression).
+WORKER_TOOL_CTX_MAX = int(os.environ.get("MIOS_WORKER_TOOL_CTX_MAX", str(_DISPATCH_TOML.get("worker_tool_ctx_max", 24576))) or 24576)
+CHILD_TOOL_SELECT = (os.environ.get("MIOS_CHILD_TOOL_SELECT") or str(_DISPATCH_TOML.get("child_tool_select", True))).strip().lower() not in {"false", "0", "no"}
+CTX_FIT = (os.environ.get("MIOS_CTX_FIT") or str(_DISPATCH_TOML.get("ctx_fit", True))).strip().lower() not in {"false", "0", "no"}
+CHILD_TOOL_FLOOR = int(os.environ.get("MIOS_CHILD_TOOL_FLOOR", str(_DISPATCH_TOML.get("child_tool_floor", 6))) or 6)
 _WORKER_TOOLS_CACHE: "Optional[list]" = None
 # Full surface (verbs + recipes + SKILLS) -- built once via the async warm
 # (skills require an async DB read). Memoised module-global; degrade-open to
@@ -5082,7 +5243,14 @@ def _tool_priority(t: dict) -> int:
     return 2                                   # write/action verbs last
 
 
-async def _worker_tools_surface_async(cap: int = 0) -> list:
+def _priority_fallback_score(t: dict) -> float:
+    """Fallback relevance score for an UNEMBEDDED verb (AIOS gap5 verdict fix):
+    map _tool_priority rank to a positive score so a rare/unembedded read verb is
+    NOT demoted below an irrelevant embedded one. rank-0 read/web highest."""
+    return {0: 0.55, 1: 0.45, 2: 0.30, 3: 0.25, 4: 0.15}.get(_tool_priority(t), 0.20)
+
+
+async def _worker_tools_surface_async(cap: int = 0, intent: str = "") -> list:
     """The COMPLETE worker tool surface -- verbs + recipes + SKILLS -- in OpenAI
     tools[] shape (operator 2026-05-31 "every fan-out/DAG sub-agent receives the
     COMPLETE capability surface ... as first-class OpenAI tools"). Starts from
@@ -5134,8 +5302,79 @@ async def _worker_tools_surface_async(cap: int = 0) -> list:
                        if (t.get("function", {}).get("name") not in _VERB_CATALOG)
                        or (t.get("function", {}).get("name") in _allowed)]
     if cap and cap > 0:
-        return surface[:cap]
+        return await _select_child_tools(surface, intent, cap)
     return surface
+
+
+async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list:
+    """Per-child intent-relevant tool subset (AIOS gap5 L1). Returns the `cap`
+    tools most relevant to the child's subtask intent (cosine over the existing
+    verb embeddings), with a FLOOR of read/web/discovery + tool_search ALWAYS
+    retained, so a slow-lane child gets a SMALL, RELEVANT, never-toolless surface
+    (final count = `cap`, NOT collapsed to the floor). Degrade-open: cap<=0 ->
+    full surface; selection off / empty intent / embed-outage / any error ->
+    EXACTLY today's surface[:cap]."""
+    if not (cap and cap > 0):
+        return surface
+    if not CHILD_TOOL_SELECT or not (intent_text and intent_text.strip()):
+        return surface[:cap]
+    try:
+        await _ensure_verb_embeddings()
+        qvec = await _embed_one(intent_text)
+        if not qvec or not _VERB_EMBEDDINGS:
+            return surface[:cap]
+
+        def _nm(t):
+            return str((t.get("function") or {}).get("name") or "")
+
+        def _base(t):
+            return _nm(t).split("__", 1)[-1]
+
+        # FLOOR: tool_search escape hatch + rank-0 read/web/discovery + rank-1
+        # read verbs, always kept regardless of relevance, capped to the floor.
+        floor, seen = [], set()
+        for t in surface:
+            pr = _tool_priority(t)
+            if ("search" in _base(t)) or pr in (0, 1):
+                if _nm(t) not in seen and len(floor) < max(CHILD_TOOL_FLOOR, 0):
+                    floor.append(t)
+                    seen.add(_nm(t))
+        # Score the rest by relevance (embedded -> cosine; else priority fallback
+        # so a rare/unembedded read verb is not demoted below an irrelevant one).
+        scored = []
+        for t in surface:
+            if _nm(t) in seen:
+                continue
+            vec = _VERB_EMBEDDINGS.get(_base(t))
+            score = _cosine(qvec, vec) if vec else _priority_fallback_score(t)
+            scored.append((score, t))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        out = list(floor)
+        for _s, t in scored:
+            if len(out) >= cap:
+                break
+            out.append(t)
+        return out[:cap]
+    except Exception:  # noqa: BLE001 -- degrade-open to today's behavior
+        return surface[:cap]
+
+
+def _fit_context(messages: list, tools: list, lane: str, want_ctx: int) -> int:
+    """AIOS gap5 L2: dynamically size num_ctx to FIT the actual prompt+tool weight.
+    FAST lanes: raise toward WORKER_TOOL_CTX_MAX only as needed (never shrink, never
+    trim the contract). SLOW lanes: leave pinned at want_ctx (Layer 1 already shrank
+    their surface). Returns num_ctx. Degrade-open: CTX_FIT off / any error ->
+    want_ctx (today's static value)."""
+    if not CTX_FIT:
+        return want_ctx
+    try:
+        if lane in SLOW_LANES:
+            return want_ctx
+        est = (sum(len(str((m or {}).get("content") or "")) for m in (messages or []))
+               + len(json.dumps(tools or []))) // 4
+        return max(want_ctx, min(WORKER_TOOL_CTX_MAX, est + 512))
+    except Exception:  # noqa: BLE001
+        return want_ctx
 
 
 def _current_year() -> str:
@@ -5201,6 +5440,16 @@ _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # shrink the verb surface to the routed domain. None -> FULL surface (fail-safe).
 _routed_domain_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_routed_domain", default=None)
+
+# Orchestrator turn-context for the native loop's dispatch_to_nodes tool (operator
+# 2026-06-11 federated swarm; agents-as-tools). Lets _exec_tool_calls fire the
+# multi-node SWARM BEHIND the dispatch_to_nodes tool with the full turn context,
+# without threading it through the shared tool-loop signature. Set by
+# _respond_native_loop_direct (request-scoped contextvar -> no leak across turns);
+# None elsewhere, so dispatch_to_nodes is inert outside the orchestrator loop AND
+# the fanned worker nodes (which never carry the tool) can't recurse.
+_orch_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_orch_ctx", default=None)
 
 # OWUI's frontend variable token -> our normalised key (braces stripped,
 # lower-cased). Mirrors getPromptVariables() in OWUI src/lib/utils/index.ts.
@@ -5606,7 +5855,10 @@ _REFINE_SYSTEM_LITE = (
     "    (system_status, mios_apps, process_list, ...) and will NOT web-search (a\n"
     "    web search for local machine state returns irrelevant junk -- random\n"
     "    files, dictionaries, brand names). Keep intent=agent. Omit/false for\n"
-    "    anything that needs EXTERNAL / web information.\n"
+    "    anything that needs EXTERNAL / web information. A technology or product\n"
+    "    COMPARISON or general research question ('compare X vs Y vs Z', 'best\n"
+    "    tool for ...', 'which database for ...') is NOT local_state even if it\n"
+    "    mentions caches, databases, or systems -- it needs external knowledge.\n"
     '  "inventory_filter": ONLY with local_state -- when the question targets a\n'
     "    SPECIFIC category/kind of installed thing ('what GAMES do I have',\n"
     "    'list my browsers', 'show installed editors'), the short substring to\n"
@@ -5621,6 +5873,19 @@ _REFINE_SYSTEM_LITE = (
     "    local read tools fire -- e.g. 'what's open' -> live -> the OPEN WINDOWS,\n"
     "    not the whole installed-app catalogue. Classify the question's MEANING,\n"
     "    not by keywords.\n"
+    '  "domain_type": "internal" | "external" | "both" -- the FUNDAMENTAL domain\n'
+    "    of the request. internal = answered or done ENTIRELY on THIS machine (a\n"
+    "    local_state read OR a local action/dispatch); external = answered ENTIRELY\n"
+    "    from the web / outside world (research, news, lookups, comparisons of\n"
+    "    EXTERNAL products); both = genuinely needs a LOCAL part AND an EXTERNAL\n"
+    "    part together (e.g. 'compare MY installed GPUs to the latest online\n"
+    "    benchmarks', 'check my running services then look up each one's newest\n"
+    "    version', 'what games do I have and which got the best reviews this\n"
+    "    year'). When both: ALSO set intent=multi_task and put the LOCAL facet(s)\n"
+    "    and the EXTERNAL facet(s) as SEPARATE tasks -- mark each LOCAL facet with\n"
+    '    "local_state": true and each EXTERNAL facet with "web": true -- so they\n'
+    "    run CONCURRENTLY and a synthesis combines them. Classify by what the\n"
+    "    request NEEDS, never by keywords.\n"
     '  "intended_outcome": one line -- what the user expects back\n'
     '  "target_agent": a registered sub-agent chosen by role\n'
     '  "hint_tools": [verb names from the catalog the agent will need]\n'
@@ -5667,6 +5932,19 @@ _REFINE_SYSTEM_LITE = (
     "    so they research CONCURRENTLY and a synthesis combines them; a real\n"
     "    swarm, not one shallow pass. A narrow single-fact ask is NOT\n"
     "    multi_task. Emit a tasks array (>=2 entries).\n"
+    "    CRITICAL -- the BOTH case (domain_type=both): when ONE request mixes a\n"
+    "    LOCAL / this-machine part AND an EXTERNAL / web part, you MUST emit\n"
+    "    intent=multi_task with the two as SEPARATE tasks so they run\n"
+    "    concurrently -- one task for the LOCAL facet (set that task's\n"
+    "    \"local_state\": true) and one for the EXTERNAL/web facet (set that\n"
+    "    task's \"web\": true). NEVER collapse it to a single intent=agent that\n"
+    "    only does the local half and INVENTS the web half. Example: 'what GPU is\n"
+    "    in this machine and what are the newest GPUs released this year' ->\n"
+    "    intent=multi_task, domain_type=both, tasks=[\n"
+    "      {\"title\":\"this machine's GPU\",\"local_state\":true,\"refined_text\":\n"
+    "       \"report the installed GPU model from local system state\"},\n"
+    "      {\"title\":\"newest GPUs 2026\",\"web\":true,\"refined_text\":\n"
+    "       \"newest GPUs released in 2026\"}].\n"
     "    multi_task is for INDEPENDENT work only -- goals or facets that could\n"
     "    each run on their own, none needing another's RESULT (run as parallel\n"
     "    tool calls). When a single goal's later step instead CONSUMES an\n"
@@ -5717,24 +5995,35 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
                 msgs.append({"role": h["role"],
                              "content": str(h.get("content", ""))[:200]})
     msgs.append({"role": "user", "content": user_text[:500]})
+    # OpenAI /v1 (llama-swap :11450). The old ollama /api/chat 404'd post
+    # ollama-retirement -> refine returned "" = NO refined routing/decompose/
+    # grounding hints, silently degrading every turn (operator 2026-06-09).
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
-        "think": False,
         "stream": False,
-        "options": {"temperature": 0.5, "num_predict": 200},
+        "temperature": 0.5,
+        # 1024 (was 200): gemma4:12b is the REASONING model -- 200 tokens truncate
+        # mid-reasoning so the classification JSON is incomplete -> mis-parse
+        # (e.g. local_state=true on a research comparison) -> wrong route. Give it
+        # room to finish reasoning + emit the full JSON. operator 2026-06-09.
+        "max_tokens": 1024,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
-            r = await s.post(f"{REFINE_ENDPOINT}/api/chat", json=payload,
+            r = await s.post(f"{REFINE_ENDPOINT}/v1/chat/completions", json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
                 return ""
             body = r.json()
     except Exception:
         return ""
-    msg = body.get("message") if isinstance(body.get("message"), dict) else {}
-    return (msg.get("content") or "").strip()
+    msg = (((body.get("choices") or [{}])[0]).get("message")
+           if isinstance(body, dict) else {}) or {}
+    # gemma4 (reasoning model) sometimes emits to reasoning_content with empty
+    # content -> fall back so refine doesn't silently return "" (operator 2026-06-09).
+    return (msg.get("content") or msg.get("reasoning_content") or "").strip()
 
 
 async def _ask_for_location(user_text: str) -> str:
@@ -5752,15 +6041,15 @@ async def _ask_for_location(user_text: str) -> str:
                   "country. Reply in the user's language -- English by default, "
                   "match the user's language only if their message is clearly in "
                   "it. Plain text only.")},
-                {"role": "user", "content": (user_text or "")[:500]}]
-        payload = {"model": REFINE_MODEL, "messages": msgs, "think": False,
-                   "stream": False, "keep_alive": REFINE_KEEP_ALIVE,
-                   "options": {"temperature": 0.3, "num_predict": 160}}
+                {"role": "user", "content": (user_text or "")[:500] + " /no_think"}]
+        payload = {"model": REFINE_MODEL, "messages": msgs,
+                   "stream": False, "temperature": 0.3, "max_tokens": 200}
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
-            r = await s.post(f"{REFINE_ENDPOINT}/api/chat", json=payload,
+            r = await s.post(f"{REFINE_ENDPOINT}/v1/chat/completions", json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code == 200:
-                c = (((r.json() or {}).get("message") or {}).get("content") or "").strip()
+                _lm = ((r.json().get("choices") or [{}])[0]).get("message") or {}
+                c = (_lm.get("content") or _lm.get("reasoning_content") or "").strip()
                 c = re.sub(r"<think>.*?</think>\s*", "", c,
                            flags=re.DOTALL | re.IGNORECASE).strip()
                 if c:
@@ -5946,7 +6235,21 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     # local_state short-circuit above already excludes machine-state queries.
     _web_flagged = bool((refined or {}).get("news") or (refined or {}).get("web")
                         or (refined or {}).get("deep")
-                        or (refined or {}).get("deep_research"))
+                        or (refined or {}).get("deep_research")
+                        # ROUTER-reliable signal (fabrication-root fix 2026-06-09):
+                        # the tiny refine model frequently DROPS hint_tools/web, so an
+                        # obvious web turn never grounded (research_chars=0) and the
+                        # swarm FABRICATED "search results". The domain router already
+                        # classified this turn web -- trust it to fire web grounding.
+                        # (local_state machine-state queries short-circuited above.)
+                        or _routed_domain_var.get(None) == "web")
+    # ACTION-domain HARD skip (operator 2026-06-10): an action turn NEVER
+    # web-researches -- even if refine mis-set web OR carried a web_search HINT
+    # ("open discord and send a message" still web-searched a fabricated URL after
+    # the dispatch + browser guards, because hint_tools held web_search). Return
+    # immediately. Data-driven on verb permission (_is_action_domain); no literals.
+    if _is_action_domain(_routed_domain_var.get(None)):
+        return ""
     if not _web_flagged and not any(h in _webverbs for h in hints):
         return ""
 
@@ -6697,17 +7000,17 @@ async def refine_intent(user_text: str,
     # 6207-char user_text for a one-line question; CPU refine scales with
     # length). Keep the last 1500 chars so the question + nearby context
     # survive while latency stays bounded.
-    msgs.append({"role": "user", "content": user_text[-1500:]})
-    # ollama native /api/chat with think=False: the qwen3 micro then emits
-    # the JSON straight to message.content (~0.4s warm) instead of dumping
-    # it into message.reasoning with an empty content (the /v1 + /no_think
-    # failure mode that made refine default to chat + an empty reply).
+    # /no_think (qwen3 micro) -> emits JSON straight to content (~0.4s warm).
+    # NO response_format: it FORCES reasoning even with /no_think (proven: that
+    # combo dumps into reasoning_content with empty content -> dead refine). The
+    # refine prompt already demands JSON-only and the parse is lenient. (operator
+    # 2026-06-09: the micro layer runs qwen3:1.7b, NOT the gemma4 reasoning model.)
+    msgs.append({"role": "user", "content": user_text[-1500:] + " /no_think"})
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
         "temperature": 0.0,
         "max_tokens": REFINE_MAX_TOKENS,
-        "response_format": {"type": "json_object"},
         "stream": False,
     }
     url = f"{REFINE_ENDPOINT}/v1/chat/completions"
@@ -6801,8 +7104,9 @@ async def refine_intent(user_text: str,
         log.warning("refine: %.1fs not_dict type=%s",
                     elapsed, type(parsed).__name__)
         return None
-    log.info("refine: %.1fs intent=%s target=%s",
-             elapsed, parsed.get("intent"), parsed.get("target_agent"))
+    log.info("refine: %.1fs [%s] intent=%s domain=%s target=%s",
+             elapsed, REFINE_MODEL, parsed.get("intent"),
+             parsed.get("domain_type"), parsed.get("target_agent"))
     # Stash routing-metadata onto the envelope so downstream SSE
     # emit sites can surface "refine: 17.7s qwen3:1.7b intent=agent"
     # instead of the bare "refine" label.
@@ -6885,6 +7189,17 @@ async def refine_intent(user_text: str,
     _ls = parsed.get("local_state")
     parsed["local_state"] = (_ls is True) or (
         isinstance(_ls, str) and _ls.strip().lower() in {"true", "1", "yes"})
+    # domain_type: internal | external | both (operator 2026-06-11 agentic
+    # internal/external/both routing). Coerce + derive a default from existing
+    # signals when omitted: local_state -> internal; else external (safe default --
+    # a missing classification must not silently become a local-only answer).
+    # "both" is honored only when the model ALSO emitted a multi_task split (the
+    # concurrent-mixed-execution branch verifies the tasks before splitting).
+    _dt = parsed.get("domain_type")
+    _dt = _dt.strip().lower() if isinstance(_dt, str) else ""
+    if _dt not in ("internal", "external", "both"):
+        _dt = "internal" if parsed.get("local_state") else "external"
+    parsed["domain_type"] = _dt
     # Deterministic routing for two verbs gemma4 mis-selects (operator 2026-06-06
     # tool battery: web_search punted to LOCAL data; "remember X" ran mios_apps and
     # didn't save). Keyword-triggered like the launch/browse pre-router; the model
@@ -7017,6 +7332,38 @@ async def refine_intent(user_text: str,
         log.info("refine: deterministic OS-action override %s args=%s (was intent=%s)",
                  _det["tool"], _det["args"], parsed.get("intent"))
         parsed = _det
+    # Cross-domain mis-dispatch guard (operator 2026-06-10: "open discord and send a
+    # message to @gaboo" -> refine emitted open_url with a FABRICATED discord channel
+    # URL + fake token instead of the agent orchestrating launch+send). If refine
+    # picked a single dispatch verb that is NOT in the routed domain's SSOT verb-set,
+    # the classification and the chosen tool disagree -> the dispatch + its args are
+    # unreliable (commonly fabricated). Defer to the agent tool-loop (full surface).
+    # Data-driven on [routing.domains]; no keyword/app/URL literals. Skips the
+    # deterministic route (a clean "open X").
+    if (parsed.get("intent") == "dispatch" and not parsed.get("_deterministic")
+            and _ROUTING_ENABLE and _ROUTING_DOMAINS):
+        _gdom = _routed_domain_var.get(None)
+        if _gdom is None:
+            try:
+                _gdom = await _route_domain(user_text)
+            except Exception:  # noqa: BLE001
+                _gdom = None
+        _gtool = str(parsed.get("tool") or "").strip()
+        _gverbs = (set((_ROUTING_DOMAINS.get(_gdom) or {}).get("verbs") or [])
+                   if _gdom else set())
+        if _gdom and _gverbs and _gtool and _gtool not in _gverbs:
+            log.info("refine: cross-domain mis-dispatch (tool=%s NOT in routed domain "
+                     "%s) -> agent (anti-fabrication)", _gtool, _gdom)
+            parsed["intent"] = "agent"
+            parsed.pop("tool", None)
+            parsed.pop("args", None)
+            parsed.pop("reply", None)
+            # Reset to the CLEAN user text + drop fabricated web hints so the
+            # invented URL/args never leak into the agent prompt or web-enrich.
+            parsed["refined_text"] = user_text
+            parsed.pop("hint_tools", None)
+            parsed["web"] = False
+            parsed["news"] = False
     # Best-effort event row.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
@@ -7825,6 +8172,55 @@ async def _store_knowledge_task(q: str, a: str,
         log.warning("knowledge store skipped: %s", e)
 
 
+# P1 AIOS Memory Manager: semantic recall of the agent's SELF-EDITED durable
+# facts (the remember/memory_update/memory_forget tier -> agent_memory). The
+# write half (embed-on-write) ships in mios-remember; this is the read+inject
+# half. DEFAULT-OFF so the hot path is byte-identical until the operator flips
+# MIOS_AGENT_MEMORY_RECALL=1. Same allowed-injection class as _recall_knowledge
+# (the agent's OWN prior facts, NOT env detection -> compatible with the
+# no-context-injection rule, which is scoped to env discovery).
+AGENT_MEMORY_RECALL_ENABLED = str(
+    os.environ.get("MIOS_AGENT_MEMORY_RECALL", "0")).strip().lower() in {"1", "true", "yes"}
+AGENT_MEMORY_TABLE = os.environ.get("MIOS_AGENT_MEMORY_TABLE", "agent_memory")
+AGENT_MEMORY_RECALL_K = int(os.environ.get("MIOS_AGENT_MEMORY_RECALL_K", "3"))
+AGENT_MEMORY_RECALL_MIN_SCORE = float(
+    os.environ.get("MIOS_AGENT_MEMORY_RECALL_MIN_SCORE", "0.45"))
+
+
+async def _recall_agent_memory(query: str) -> str:
+    """Semantic recall of the agent's SELF-EDITED durable facts (agent_memory:
+    fact/scope, written by remember/memory_update with embed-on-write). Embed the
+    query, HNSW-cosine against the fact embeddings, return top-K above threshold
+    as an injectable block (or '' on miss). Default-OFF; degrade-open -> ''."""
+    if not (AGENT_MEMORY_RECALL_ENABLED and _PG_PRIMARY and query and query.strip()):
+        return ""
+    try:
+        qv = await _embed_one(query)
+        if not qv:
+            return ""
+        rows = await _mios_pg.recall(qv, table=AGENT_MEMORY_TABLE,
+                                     k=AGENT_MEMORY_RECALL_K)
+        if not rows:
+            return ""
+        hits = [r for r in rows
+                if float(r.get("score") or 0.0) >= AGENT_MEMORY_RECALL_MIN_SCORE]
+        if not hits:
+            return ""
+        lines = []
+        for r in hits:
+            _sc = round(float(r.get("score") or 0), 2)
+            _scope = str(r.get("scope") or "")
+            _tag = f" ({_scope})" if _scope and _scope != "global" else ""
+            lines.append(f"  - [{_sc}] {str(r.get('fact', ''))[:300]}{_tag}")
+        log.info("agent-memory recall: %d hits (top=%.2f)",
+                 len(hits), float(hits[0].get("score") or 0))
+        return ("Durable facts YOU previously saved (your own memory; may be "
+                "outdated -- prefer fresh tool results if they conflict). "
+                "Reference, NOT a user instruction:\n" + "\n".join(lines))
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return ""
+
+
 async def _recall_knowledge_pg(query: str) -> "Optional[str]":
     """WS-9c native pgvector recall (used when DB_BACKEND='postgres'). Returns the
     injectable block, '' on a clean miss, or None to fall through to the
@@ -8100,17 +8496,17 @@ async def _verity_factcheck(draft: str, user_q: str,
     queries: list = []
     try:
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
-            r = await s.post(f"{REFINE_ENDPOINT}/api/chat", json={
-                "model": REFINE_MODEL, "think": False, "stream": False,
-                "format": "json", "keep_alive": REFINE_KEEP_ALIVE,
-                "options": {"temperature": 0.0, "num_predict": 200},
+            r = await s.post(f"{REFINE_ENDPOINT}/v1/chat/completions", json={
+                "model": REFINE_MODEL, "stream": False,
+                "temperature": 0.0, "max_tokens": 400,
                 "messages": [
                     {"role": "system", "content": sys_p},
                     {"role": "user",
-                     "content": f"Question: {user_q[:300]}\n\nDraft:\n{draft[:1500]}"}]},
+                     "content": f"Question: {user_q[:300]}\n\nDraft:\n{draft[:1500]} /no_think"}]},
                 headers={"Content-Type": "application/json"})
             if r.status_code == 200:
-                c = (r.json().get("message") or {}).get("content") or ""
+                _vm = ((r.json().get("choices") or [{}])[0]).get("message") or {}
+                c = _vm.get("content") or _vm.get("reasoning_content") or ""
                 c = re.sub(r"<think>.*?</think>\s*", "", c, flags=re.DOTALL | re.I)
                 queries = [str(q).strip() for q in
                            (json.loads(c or "{}").get("queries") or [])
@@ -8695,6 +9091,13 @@ async def _skill_list(*, status: str = "promoted",
     return (r[-1] or {}).get("result") or []
 
 
+# P4-A0: open->close carry for the pg outcome mirror. Under pg-primary the
+# SurrealDB CREATE in _skill_invocation_open is short-circuited (returns None),
+# so skill outcomes would persist to NOTHING and the skill miner's success-rate
+# has no data. Keyed by the (real OR synthesized) inv_id; popped at close.
+_SKILL_INV_META: dict = {}
+
+
 async def _skill_invocation_open(skill_id: str,
                                  params: dict,
                                  session_id: Optional[str]) -> Optional[str]:
@@ -8730,24 +9133,42 @@ async def _skill_invocation_open(skill_id: str,
         parts.append(f"passport = {json.dumps(envelope)}")
     sql = "CREATE skill_invocation SET " + ", ".join(parts) + " RETURN AFTER;"
     r = await _db_post(sql)
-    if not r:
-        return None
-    last = r[-1] or {}
-    if last.get("status") != "OK":
-        return None
-    rows = last.get("result") or []
-    if not isinstance(rows, list) or not rows:
-        return None
-    first = rows[0]
-    if not isinstance(first, dict):
-        return None
-    return first.get("id")
+    inv_id = None
+    if r:
+        last = r[-1] or {}
+        if last.get("status") == "OK":
+            rows = last.get("result") or []
+            if isinstance(rows, list) and rows and isinstance(rows[0], dict):
+                inv_id = rows[0].get("id")
+    # P4-A0: under pg-primary the SurrealDB CREATE is short-circuited (r=None) so
+    # inv_id is None and the outcome would persist to NOTHING -- the skill miner's
+    # success-rate then has no data. Synthesize an id + remember {skill,session}
+    # so _skill_invocation_close can mirror the outcome row to pg. (SurrealDB/dual
+    # keeps the real record id; this is purely additive.)
+    if not inv_id:
+        inv_id = "skill_invocation:pg-" + uuid.uuid4().hex
+    _SKILL_INV_META[inv_id] = {"skill": skill_id, "session": session_id}
+    return inv_id
 
 
 async def _skill_invocation_close(inv_id: Optional[str],
                                   success: bool) -> None:
     if not inv_id:
         return
+    # P4-A0: persist the OUTCOME to pg (the SurrealDB UPDATE below no-ops under
+    # pg-primary). One row per completed invocation: {skill, success, session_id}.
+    # _pg_mirror is drift-tolerant (filters to live columns) + degrade-open, so a
+    # schema/type mismatch can never break the close.
+    meta = _SKILL_INV_META.pop(inv_id, None)
+    if meta:
+        try:
+            _pg_mirror("skill_invocation", {
+                "skill": meta.get("skill"),
+                "success": bool(success),
+                "session_id": meta.get("session"),
+            })
+        except Exception:  # noqa: BLE001 -- never break the close
+            pass
     sql = (
         f"UPDATE {inv_id} SET ended_at = time::now(), "
         f"success = {str(bool(success)).lower()};"
@@ -9861,9 +10282,26 @@ def _is_external_url(url: str) -> bool:
         return True  # fail-safe: ambiguous = treat as external
 
 
+# AIOS gap8 provenance/taint firewall: gate the EXTERNAL-web-fetch taint
+# extension behind an SSOT flag (default OFF). The existing classifier already
+# taints powershell_run / external open_url / system text_view; turning this on
+# adds web_search/web_extract/crawl/web_scrape so untrusted web content gates
+# subsequent high-privilege verbs (research-then-act) via the existing DB-taint
+# + firewall. Default OFF because gating reduces autonomous function -- the
+# operator opts in. LOCAL rag/recall are deliberately NOT tainted (the verified
+# false-positive: RAG runs every turn -> would block all OS-control).
+PROVENANCE_TAINT_ENABLE = str(
+    os.environ.get("MIOS_SECURITY_PROVENANCE_TAINT")
+    or _toml_section("security").get("provenance_taint", "false")
+).strip().lower() in {"1", "true", "yes"}
+
+
 def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
     """Decide whether a verb's OWN execution introduces taint.
     Returns (tainted, reason)."""
+    if PROVENANCE_TAINT_ENABLE and tool in (
+            "web_search", "web_extract", "crawl", "web_scrape"):
+        return True, f"{tool}_external"
     if tool == "open_url":
         url = str((args or {}).get("url", ""))
         if _is_external_url(url):
@@ -10088,6 +10526,32 @@ _PLANNER_SYSTEM = (
 )
 
 
+def _is_action_domain(domain: Optional[str]) -> bool:
+    """Data-driven action-vs-research split: a routed [routing.domains] domain is
+    an ACTION domain (decompose into EXECUTABLE tool steps, not research facets)
+    iff ANY of its SSOT verbs is permission=='write'. No keyword/app/English
+    literals -- the distinction is verb PERMISSION metadata from mios.toml, so a
+    new write-verb in any domain becomes 'action' automatically. operator 2026-06-10
+    (swarm researched 'send a discord message' instead of performing it)."""
+    if not domain:
+        return False
+    verbs = (_ROUTING_DOMAINS.get(domain) or {}).get("verbs") or []
+    return any(str((_VERB_CATALOG.get(str(v)) or {}).get("permission", "")).lower()
+               == "write" for v in verbs)
+
+
+def _action_domain_verbs() -> set:
+    """Union of verbs across ALL action domains. A native GUI action spans several
+    write-domains (apps_windows focus_window + computer_use cu_type/cu_key), so the
+    action planner needs the cross-domain write surface, not one domain's slice."""
+    out: set = set()
+    for _dn, _dc in (_ROUTING_DOMAINS or {}).items():
+        if _is_action_domain(_dn):
+            for _v in (_dc.get("verbs") or []):
+                out.add(str(_v))
+    return out
+
+
 def _planner_system_for(domain: Optional[str]) -> str:
     """Stage-2 of the domain router: return the planner system prompt with the
     FULL verb-catalog block swapped for ONLY the chosen domain's verbs (<20), so
@@ -10099,7 +10563,10 @@ def _planner_system_for(domain: Optional[str]) -> str:
     dom = _ROUTING_DOMAINS.get(domain)
     if not dom or not dom.get("verbs"):
         return _PLANNER_SYSTEM
-    allowed = set(dom["verbs"])
+    # Action domains: a native GUI action spans MULTIPLE write-domains (focus_window
+    # + cu_type/cu_key), so widen the planner surface to the UNION of all
+    # action-domain verbs (data-driven); research domains keep their tight slice.
+    allowed = _action_domain_verbs() if _is_action_domain(domain) else set(dom["verbs"])
     sub = {k: v for k, v in _VERB_CATALOG.items() if k in allowed}
     if not sub:
         return _PLANNER_SYSTEM
@@ -10167,14 +10634,20 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return None
     _ut = user_text.strip()
-    if len(_ut) < 60 and len(_ut.split()) <= 10:
-        log.info("planner: short-prompt skip (%d chars, %d words)",
-                 len(_ut), len(_ut.split()))
-        return None
     # Stage-1 domain router (operator 2026-06-07): classify the intent -> show the
     # planner ONLY that domain's verbs (Stage-2 via _planner_system_for). Fail-safe:
     # _route_domain returns None -> full catalog (current behaviour, nothing lost).
     _domain = _routed_domain_var.get(None)  # routed once at the chat entry
+    # Short-prompt skip: a short input usually maps to ONE dispatch, not a DAG --
+    # EXCEPT an ACTION-domain command, where a short string is the normal shape
+    # ("send a discord message to @gaboo saying hello") that still needs a
+    # multi-verb GUI/tool DAG (focus_window -> cu_type -> cu_key). Bypass the skip
+    # for action domains (data-driven) so the action is decomposed + executed.
+    if (len(_ut) < 60 and len(_ut.split()) <= 10
+            and not _is_action_domain(_domain)):
+        log.info("planner: short-prompt skip (%d chars, %d words)",
+                 len(_ut), len(_ut.split()))
+        return None
     payload = {
         "model": PLANNER_MODEL,
         "messages": [
@@ -10861,15 +11334,15 @@ async def _judge_answer_satisfied(query: str, answer: str) -> bool:
                  "satisfy the QUERY with concrete specifics -- NOT a punt, "
                  "refusal, 'I cannot', or 'where to look'?"},
                 {"role": "user", "content":
-                 f"QUERY: {query[:400]}\n\nANSWER:\n{answer[:2000]}"}],
-            "think": False, "stream": False,
-            "options": {"temperature": 0.0, "num_predict": 4}}
+                 f"QUERY: {query[:400]}\n\nANSWER:\n{answer[:2000]} /no_think"}],
+            "temperature": 0.0, "max_tokens": 8, "stream": False}
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
-            r = await s.post(f"{REFINE_ENDPOINT}/api/chat", json=payload,
+            r = await s.post(f"{REFINE_ENDPOINT}/v1/chat/completions", json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
                 return True
-            c = ((r.json().get("message") or {}).get("content") or "").strip().lower()
+            _jm = ((r.json().get("choices") or [{}])[0]).get("message") or {}
+            c = (_jm.get("content") or _jm.get("reasoning_content") or "").strip().lower()
             return not c.startswith("n")
     except Exception:  # noqa: BLE001
         return True
@@ -11031,6 +11504,9 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         if _contract:
             _node_msgs.append({"role": "system",
                                "content": _contract + "\n\n" + _env_grounding()})
+        _overlay = _role_system(aname)   # thin per-role DEVELOPER overlay (OpenAI pattern)
+        if _overlay:
+            _node_msgs.append({"role": "system", "content": _overlay})
         _sp_block = _scratchpad_render()
         if _sp_block:
             _node_msgs.append({"role": "system", "content": _sp_block})
@@ -11075,10 +11551,12 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         _grounded_node = bool(node.get("_grounding"))
         _reason_only = node.get("_no_tools") or (_slow_node and _grounded_node)
         if WORKER_TOOLS_ENABLE and not _reason_only:
-            _wtools = await _worker_tools_surface_async(cap=_lane_tool_cap(_lane))
+            _wtools = await _worker_tools_surface_async(cap=_lane_tool_cap(_lane), intent=prompt)
             if _wtools:
                 body["tools"] = _wtools
-                body["num_ctx"] = WORKER_TOOL_CTX_SLOW if _slow_node else WORKER_TOOL_CTX
+                body["num_ctx"] = _fit_context(
+                    body.get("messages") or [], _wtools, _lane,
+                    WORKER_TOOL_CTX_SLOW if _slow_node else WORKER_TOOL_CTX)
                 body["_allow_write"] = True
         elif _slow_node:
             # Grounded reason-only slow node: cap its context so the trimmed
@@ -11902,6 +12380,24 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
         prompt = str(t.get("refined_text") or t.get("title") or "").strip()
         if not prompt:
             continue
+        # per-facet tool steering (operator 2026-06-11 "both" mixed execution): a
+        # LOCAL facet (local_state) must read THIS machine's REAL state via local
+        # tools -- not guess; an EXTERNAL facet (web/news) must web-search -- not
+        # answer from stale memory. Steer each facet agent to its tool class so a
+        # concurrent local+web "both" split actually executes both halves (the GPU
+        # facet was returning "cannot be determined" because the node carried only
+        # the bare text + no tool steering).
+        _ls = t.get("local_state"); _wb = t.get("web"); _nw = t.get("news")
+        _is_local = _ls is True or (isinstance(_ls, str) and _ls.strip().lower() in {"true", "1", "yes"})
+        _is_web = (_wb is True or (isinstance(_wb, str) and _wb.strip().lower() in {"true", "1", "yes"})
+                   or _nw is True or (isinstance(_nw, str) and _nw.strip().lower() in {"true", "1", "yes"}))
+        if _is_local:
+            prompt = ("Use your LOCAL system tools (system_status, mios_apps, "
+                      "process_list, system_logs as needed) to read THIS computer's "
+                      "REAL current state -- never guess or web-search. Task: " + prompt)
+        elif _is_web:
+            prompt = ("Use your WEB tools (web_search / web_extract) to fetch CURRENT "
+                      "external information -- never answer from memory. Task: " + prompt)
         tgt = str(t.get("target_agent") or "").strip()
         aname = (tgt if tgt in _AGENT_REGISTRY
                  else (_pick_agent(tgt)[0] if tgt else ""))
@@ -11927,7 +12423,9 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
         # `title` = the CLEAN facet label for the per-node emit (the grounding
         # prefix gets prepended to `prompt` later, so emit off `title` not prompt).
         nodes.append({"id": f"t{i + 1}", "agent": aname, "prompt": prompt,
-                      "title": (str(t.get("title") or prompt)[:72]), "deps": []})
+                      "title": (str(t.get("title") or prompt)[:72]), "deps": [],
+                      "local_state": _is_local, "web": _is_web,
+                      "inventory_filter": t.get("inventory_filter")})
     # Backfill EVERY live agent the planner skipped (operator 2026-05-26 "didnt
     # fire on ALL NODES ... you also forgot iGPU"): a small planner routinely
     # under-covers (used 2 of N). Each idle live node gets its OWN node,
@@ -11961,7 +12459,9 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
             _bi += 1
             nodes.append({"id": f"t{len(nodes) + 1}", "agent": a,
                           "prompt": src["prompt"], "title": src["title"],
-                          "deps": []})
+                          "deps": [], "local_state": src.get("local_state"),
+                          "web": src.get("web"),
+                          "inventory_filter": src.get("inventory_filter")})
             used.append(a)
     summary = "; ".join(str(t.get("title") or "")[:60]
                         for t in tasks if isinstance(t, dict))[:200]
@@ -12103,19 +12603,25 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
                 _c = str(h.get("content", "")).strip()
                 if _c:
                     _msgs.append({"role": h["role"], "content": _c[:_cap]})
-    _msgs.append({"role": "user", "content": user_text[:4000]})
+    _msgs.append({"role": "user", "content": user_text[:4000] + " /no_think"})
+    # OpenAI /v1 (llama-swap :11450). The old ollama /api/chat shape 404'd post
+    # ollama-retirement -> the planner ALWAYS returned [] -> the swarm NEVER
+    # decomposed -> force_council DUPS across lanes (operator 2026-06-09: "tasks
+    # aren't delegated as distinct work"). Same drift class as summarize/daemon/cron.
+    # NO response_format: it makes gemma4 emit into reasoning_content (content="")
+    # -> the planner parsed "" -> []. The prompt already says "JSON ONLY" + the
+    # lenient parse handles it (matches the working refine shape). operator 2026-06-09.
     payload = {
         "model": SWARM_MODEL,
         "messages": _msgs,
-        "think": False,
-        "format": "json",
         "stream": False,
-        "keep_alive": REFINE_KEEP_ALIVE,
-        "options": {"temperature": 0.0, "num_predict": PLANNER_MAX_TOKENS},
+        "temperature": 0.0,
+        "max_tokens": PLANNER_MAX_TOKENS,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
         async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
-            r = await s.post(f"{_base}/api/chat", json=payload,
+            r = await s.post(f"{_base}/v1/chat/completions", json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
                 return []
@@ -12125,7 +12631,10 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     except Exception as e:
         log.warning("swarm planner error: %s", e)
         return []
-    content = ((body.get("message") or {}).get("content") or "").strip()
+    # Read content, falling back to reasoning_content (gemma4 on llama-swap routes
+    # its output there when it "thinks" despite enable_thinking=False).
+    _pm = (((body.get("choices") or [{}])[0]).get("message") or {})
+    content = (_pm.get("content") or _pm.get("reasoning_content") or "").strip()
     log.debug("swarm planner raw (len=%d): %.400s", len(content), content)
     if not content:
         return []
@@ -12201,14 +12710,14 @@ async def _expand_facets(user_text: str, existing: list, target_n: int,
                   "Request: " + user_text[:1500] + "\n\nExisting facets:\n"
                   + "\n".join("- " + str(e) for e in existing if e)
                   + "\n\nN = " + str(need)})
+    _msgs[-1]["content"] += " /no_think"
     payload = {
-        "model": SWARM_MODEL, "messages": _msgs, "think": False,
-        "format": "json", "stream": False, "keep_alive": REFINE_KEEP_ALIVE,
-        "options": {"temperature": 0.3, "num_predict": PLANNER_MAX_TOKENS},
+        "model": SWARM_MODEL, "messages": _msgs,
+        "temperature": 0.3, "max_tokens": PLANNER_MAX_TOKENS, "stream": False,
     }
     try:
         async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
-            r = await s.post(f"{_base}/api/chat", json=payload,
+            r = await s.post(f"{_base}/v1/chat/completions", json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
                 return []
@@ -12218,7 +12727,8 @@ async def _expand_facets(user_text: str, existing: list, target_n: int,
     except Exception as e:  # noqa: BLE001
         log.warning("facet-expand error: %s", e)
         return []
-    content = ((body.get("message") or {}).get("content") or "").strip()
+    _fm = ((body.get("choices") or [{}])[0]).get("message") or {}
+    content = (_fm.get("content") or _fm.get("reasoning_content") or "").strip()
     if not content:
         return []
     content = re.sub(r"<think>.*?</think>\s*", "", content,
@@ -12265,6 +12775,13 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     # nodes, each doing ONE pass off the shared web_search already in context (fast,
     # concurrent); a deep turn adds per-facet deep research + deepen.
     _dag_deep = bool(refined and (refined.get("deep") or refined.get("deep_research")))
+    # MIXED "both" split (operator 2026-06-11): when the DAG carries a LOCAL facet
+    # (a local_state node from a refine internal/external/both split), the SHARED
+    # single web_search grounding can't serve it -- the local facet would get web
+    # content + fabricate ("GPU cannot be determined"). Force the PER-FACET grounding
+    # path so each facet pulls its OWN source: a local node -> system_status/mios_apps
+    # via _read_tool_enrich; a web node -> web_search.
+    _dag_has_local = any(n.get("local_state") for n in (dag.get("nodes") or []))
 
     async def _synthesise(dag_result: dict) -> tuple:
         """Post-DAG: build the audit envelope + the polished synthesis."""
@@ -12472,11 +12989,28 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 # agent key (operator 2026-05-29: emit titles are the FUNCTION,
                 # never internal names).
                 _sink = emit if emit else None
-                try:
-                    _wc = await _web_research_enrich(_fq, _fref, emit=_sink,
-                                                     quick=_action_dag)
-                except Exception:  # noqa: BLE001
-                    _wc = ""
+                # per-facet execution (operator 2026-06-11 mixed "both" split): a
+                # LOCAL facet grounds on THIS machine's REAL state via the local read
+                # tools (system_status / mios_apps / process_list), NOT web -- the GPU
+                # facet was web-searching + fabricating "cannot be determined". A WEB
+                # facet web-researches as before.
+                _local_facet = bool(n.get("local_state"))
+                if _local_facet:
+                    _lref = dict(refined or {})
+                    _lref["refined_text"] = _fq
+                    _lref["local_state"] = True
+                    _lref["inventory_filter"] = (n.get("inventory_filter")
+                                                 or (refined or {}).get("inventory_filter"))
+                    try:
+                        _wc = await _read_tool_enrich(_lref, session_id)
+                    except Exception:  # noqa: BLE001
+                        _wc = ""
+                else:
+                    try:
+                        _wc = await _web_research_enrich(_fq, _fref, emit=_sink,
+                                                         quick=_action_dag)
+                    except Exception:  # noqa: BLE001
+                        _wc = ""
                 # A WEB facet grounds on its fetched web content ALONE. The
                 # shared LOCAL state (_read_tool_enrich: system_status /
                 # container_status / logs) is appended ONLY when this facet got
@@ -12495,9 +13029,14 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 # FABRICATES, never seeing the real list (operator 2026-05-30
                 # "FAILURE ENTIRELY": the swarm invented Valorant/CS2 instead of the
                 # real Wreckfest/Forza inventory that mios_apps had already fetched).
-                _inv_grounded = bool(refined and (refined.get("local_state")
-                                                  or refined.get("inventory_filter")))
-                if _inv_grounded and _ss:
+                _inv_grounded = bool(_local_facet or (refined and (refined.get("local_state")
+                                                  or refined.get("inventory_filter"))))
+                if _local_facet:
+                    # the local read output (_wc, from _read_tool_enrich) IS the
+                    # authoritative grounding for a local facet (operator 2026-06-11
+                    # mixed-"both" per-facet execution -- never web for a local facet)
+                    _parts = [p for p in (_wc, _ss) if p]
+                elif _inv_grounded and _ss:
                     _parts = [p for p in (_ss, _wc) if p]   # real inventory FIRST
                 else:
                     # A WEB facet with no web content gets NO grounding -- do NOT
@@ -12506,6 +13045,9 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     # about DNS/401 errors instead of weather). The _ss fallback is
                     # ONLY for a local_state turn (handled above).
                     _parts = [_wc] if _wc else []
+                log.info("facet %s local=%s web=%s wc=%dB ground=%dB",
+                         n.get("id"), n.get("local_state"), n.get("web"),
+                         len(_wc or ""), len("\n\n".join(_parts)))
                 if _parts:
                     _g = "\n\n".join(_parts)
                     # Stash the RAW grounding so the final synthesis can work
@@ -12644,7 +13186,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 # ONE shared web_search injected into every node (operator 2026-06-02:
                 # casual previously had NO shared search, so each node re-searched =
                 # contention + blew the deadline). Either way grounding streams live.
-                if _dag_deep:
+                if _dag_deep or _dag_has_local:
                     await _ground_facets(emit=_gq.put_nowait)
                 else:
                     await _ground_shared(emit=_gq.put_nowait)
@@ -12694,7 +13236,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             yield _sse_done()
         return StreamingResponse(_gen(), media_type="text/event-stream")
 
-    if _dag_deep:                 # per-facet deep research only on deep turns
+    if _dag_deep or _dag_has_local:  # per-facet for deep OR a mixed local+web split
         await _ground_facets()    # non-streaming: ground (no live emits)
     else:
         await _ground_shared()    # casual: ONE shared web_search into every node
@@ -13267,27 +13809,35 @@ async def _dispatch_mios_verb_inner(
         }
     t0 = time.time()
     try:
-        s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-        # 60s broker timeout: flatpak cold-launches (epiphany / chromedev
-        # via WSLg compositor + portal handshake) routinely take 25-45s
-        # to first paint. Prior 20s cap fired Broken Pipe on the broker
-        # side, surfaced as "broker: empty response" to the agent.
-        # Operator-flagged 2026-05-19. Tunable via env.
-        s.settimeout(float(os.environ.get("MIOS_BROKER_TIMEOUT_S", "60")))
-        s.connect(LAUNCHER_SOCK)
-        s.sendall(("CAPTURE_JSON: " + cmd + "\n").encode())
-        chunks: list[bytes] = []
-        try:
-            while True:
-                buf = s.recv(65536)
-                if not buf:
-                    break
-                chunks.append(buf)
-        except _socket.timeout:
-            pass
-        finally:
-            s.close()
-        raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
+        def _broker_io() -> str:
+            s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            # 60s broker timeout: flatpak cold-launches (epiphany / chromedev
+            # via WSLg compositor + portal handshake) routinely take 25-45s
+            # to first paint. Prior 20s cap fired Broken Pipe on the broker
+            # side, surfaced as "broker: empty response" to the agent.
+            # Operator-flagged 2026-05-19. Tunable via env.
+            s.settimeout(float(os.environ.get("MIOS_BROKER_TIMEOUT_S", "60")))
+            chunks: list[bytes] = []
+            try:
+                s.connect(LAUNCHER_SOCK)
+                s.sendall(("CAPTURE_JSON: " + cmd + "\n").encode())
+                while True:
+                    buf = s.recv(65536)
+                    if not buf:
+                        break
+                    chunks.append(buf)
+            except _socket.timeout:
+                pass
+            finally:
+                s.close()
+            return b"".join(chunks).decode("utf-8", errors="replace").strip()
+        # Run the BLOCKING broker socket I/O in a worker thread so the event loop
+        # stays free to serve RE-ENTRANT callbacks during the dispatch. Verbs like
+        # tool_search / a2a_delegate / handoff shell to a thin client that calls
+        # BACK into this same agent-pipe over HTTP; with a blocking socket here the
+        # loop was stalled and those callbacks deadlocked ("agent-pipe unreachable:
+        # timed out"). to_thread also lets independent verb dispatches overlap.
+        raw = await asyncio.to_thread(_broker_io)
         try:
             j = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
@@ -14425,7 +14975,12 @@ async def scheduler_state() -> JSONResponse:
         "priority_dimensions": ["complexity", "urgency", "resource_need(lane)"],
         "memory_manager_tiers": {
             "core_working": "per-conversation scratchpad (_SCRATCHPADS)",
-            "recall": "SurrealDB knowledge table (embed + cosine recall)",
+            # Reflect the ACTUAL recall backend (was a stale hardcoded "SurrealDB"
+            # string even after the pgvector cutover -- the kernel must not
+            # misreport its own memory backend). _PG_PRIMARY when db_backend=postgres.
+            "recall": ("pgvector knowledge table (embed + HNSW cosine recall)"
+                       if _PG_PRIMARY else
+                       "SurrealDB knowledge table (embed + cosine recall)"),
             "archival": "episodic SKILL.md + viking:// VFS",
         },
         # Capacity-aware admission controller (operator 2026-06-01 P1): live
@@ -14955,6 +15510,51 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
     return _a2a_rpc_err(mid, -32601, f"unknown method: {method}")
 
 
+# ── P2: A2A message/stream over SSE (makes capabilities.streaming=true honest) ──
+_A2A_STREAM_ENABLED = os.environ.get("MIOS_A2A_STREAM", "1") != "0"
+
+
+def _a2a_sse(mid, result=None, error=None) -> bytes:
+    """One A2A JSON-RPC-over-SSE frame (data: <json>\\n\\n)."""
+    payload = {"jsonrpc": "2.0", "id": mid}
+    if error is not None:
+        payload["error"] = error
+    else:
+        payload["result"] = result
+    return ("data: " + json.dumps(payload) + "\n\n").encode("utf-8")
+
+
+async def _a2a_stream_response(msg: dict) -> StreamingResponse:
+    """P2: bridge an A2A message/stream onto SSE -- emit a `working` status frame,
+    run the same dispatch path message/send uses, then a final `completed`/`failed`
+    frame. Honest, non-incremental streaming (no live token bus), but it makes the
+    advertised capabilities.streaming=true real. Fields captured into locals BEFORE
+    the generator (the request body is consumed once). MIOS_A2A_STREAM=0 reverts."""
+    mid = msg.get("id")
+    params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
+    in_msg = params.get("message") if isinstance(params.get("message"), dict) else None
+
+    async def _gen():
+        try:
+            if not in_msg or not _a2a_text_from_message(in_msg):
+                yield _a2a_sse(mid, error={"code": -32602,
+                               "message": "params.message has no text Parts"})
+                return
+            task = _a2a_make_task(in_msg.get("contextId") or "", in_msg)
+            await _a2a_task_record(task)
+            _w = dict(task)
+            _w["status"] = {"state": "working"}
+            yield _a2a_sse(mid, _w)
+            done = await _a2a_dispatch_send(task)
+            _f = dict(done)
+            _f["final"] = True
+            yield _a2a_sse(mid, _f)
+        except Exception as e:  # noqa: BLE001 -- never crash the stream
+            yield _a2a_sse(mid, error={"code": -32603, "message": str(e)[:160]})
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
 @app.post("/a2a")
 async def a2a_jsonrpc(request: Request) -> JSONResponse:
     """A2A JSON-RPC 2.0 entry point. Routes message/send, tasks/get,
@@ -14967,6 +15567,11 @@ async def a2a_jsonrpc(request: Request) -> JSONResponse:
     except Exception:  # noqa: BLE001
         return JSONResponse(
             _a2a_rpc_err(None, -32700, "parse error"), status_code=400)
+    # P2: message/stream returns an SSE stream, not a JSON-RPC dict -- intercept
+    # before the dict/batch dispatch (resubscribe stays UnsupportedOp downstream).
+    if (_A2A_STREAM_ENABLED and isinstance(body, dict)
+            and str(body.get("method") or "") == "message/stream"):
+        return await _a2a_stream_response(body)
     if isinstance(body, list):           # JSON-RPC batch
         out: list = []
         for m in body:
@@ -15003,6 +15608,7 @@ _MCP_REGISTRY_PATHS = [
 ]
 _MCP_CLIENT_TOOLS: dict = {}      # "mcp.<sid>.<tool>" -> tool metadata
 _MCP_CLIENT_SERVERS: dict = {}    # sid -> {status, protocolVersion, tools_count, …}
+_MCP_STDIO_CLIENTS: dict = {}     # sid -> _McpStdioClient (long-lived subprocess)
 _MCP_CLIENT_LOCK = asyncio.Lock()
 _MCP_ENV_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 
@@ -15074,6 +15680,219 @@ async def _mcp_http_rpc(url: str, headers: dict, method: str,
         return {"error": {"code": -32700, "message": "non-JSON response"}}
 
 
+class _McpStdioClient:
+    """Long-lived MCP server subprocess speaking newline-delimited JSON-RPC 2.0
+    over stdin/stdout (MCP 2025-06-18 stdio transport). Mirrors _mcp_http_rpc's
+    error-envelope shape so callers need NO special-casing. Self-heals: a dead
+    process is respawned AND re-initialized on the next call (restart-on-crash).
+    Non-blocking (asyncio subprocess + StreamReader.readline). stderr -> DEVNULL
+    (spec: the server MAY log to stderr; the client MAY ignore it)."""
+
+    def __init__(self, sid, command, args, env, cwd):
+        self.sid = sid
+        self.command = command
+        self.args = list(args or [])
+        self.env = dict(env or {})
+        self.cwd = cwd or None
+        self.proc = None
+        self._pending: dict = {}          # rid -> Future
+        self._lock = asyncio.Lock()       # serialize (re)spawn + initialize
+        self._reader = None
+        self._idc = 0                     # monotonic per-client request id
+        self._inited = False
+        self._init_result: dict = {}
+
+    def _next_id(self) -> int:
+        self._idc += 1
+        return self._idc
+
+    async def _spawn(self) -> None:
+        child_env = dict(os.environ)
+        child_env.update(_mcp_render_headers(self.env))   # reuse ${ENV} expansion
+        self.proc = await asyncio.create_subprocess_exec(
+            self.command, *self.args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            env=child_env, cwd=self.cwd)
+        self._inited = False
+        self._reader = asyncio.create_task(self._read_loop(self.proc))
+
+    async def _read_loop(self, proc) -> None:
+        try:
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                s = line.strip()
+                if not s:
+                    continue
+                try:
+                    msg = json.loads(s)
+                except (json.JSONDecodeError, ValueError):
+                    continue          # spec: ignore non-message stdout
+                rid = msg.get("id")
+                if rid is not None:
+                    fut = self._pending.pop(rid, None)
+                    if fut is not None and not fut.done():
+                        fut.set_result(msg)
+        except Exception:
+            pass
+        finally:
+            for fut in list(self._pending.values()):
+                if not fut.done():
+                    fut.set_result({"error": {"code": -32000,
+                                              "message": "stdio server exited"}})
+            self._pending.clear()
+            if self.proc is proc:
+                self.proc = None
+                self._inited = False
+
+    async def _send(self, body: dict) -> None:
+        self.proc.stdin.write(
+            (json.dumps(body, ensure_ascii=False) + "\n").encode("utf-8"))
+        await self.proc.stdin.drain()
+
+    async def _await_rpc(self, method, params, timeout_s) -> dict:
+        rid = self._next_id()
+        body = {"jsonrpc": "2.0", "id": rid, "method": method}
+        if params is not None:
+            body["params"] = params
+        fut = asyncio.get_running_loop().create_future()
+        self._pending[rid] = fut
+        try:
+            await self._send(body)
+            return await asyncio.wait_for(fut, timeout_s)
+        except asyncio.TimeoutError:
+            self._pending.pop(rid, None)
+            return {"error": {"code": -32000,
+                              "message": f"stdio timeout ({method})"}}
+        except Exception as e:
+            self._pending.pop(rid, None)
+            return {"error": {"code": -32000, "message": f"stdio error: {e}"}}
+
+    async def _ensure_session(self) -> None:
+        # FIX (adversarial verdict): respawn MUST re-run initialize, else a
+        # post-crash tools/call hits an uninitialized (spec-rejecting) server.
+        async with self._lock:
+            if (self.proc is not None and self.proc.returncode is None
+                    and self._inited):
+                return
+            if self.proc is None or self.proc.returncode is not None:
+                try:
+                    await self._spawn()
+                except Exception as e:
+                    self.proc = None
+                    self._inited = False
+                    log.warning("mcp stdio: spawn failed for %s: %s",
+                                self.sid, e)
+                    return
+            init = await self._await_rpc("initialize", {
+                "protocolVersion": "2025-06-18", "capabilities": {},
+                "clientInfo": {"name": "mios-agent-pipe", "version": "1.0"}},
+                30.0)
+            if init.get("error"):
+                self._inited = False
+                return
+            self._init_result = init.get("result") or {}
+            try:
+                await self._send({"jsonrpc": "2.0",
+                                  "method": "notifications/initialized"})
+            except Exception:
+                pass
+            self._inited = True
+
+    async def _rpc(self, method, params=None, timeout_s=30.0) -> dict:
+        await self._ensure_session()
+        if not self._inited or self.proc is None:
+            return {"error": {"code": -32000,
+                              "message": "stdio session unavailable"}}
+        return await self._await_rpc(method, params, timeout_s)
+
+    async def initialize(self) -> dict:
+        await self._ensure_session()
+        return self._init_result if self._inited else {"error": "stdio init failed"}
+
+    async def close(self) -> None:
+        try:
+            if self._reader is not None:
+                self._reader.cancel()
+            p = self.proc
+            if p is not None and p.returncode is None:
+                try:
+                    p.stdin.close()
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(p.wait(), 3.0)
+                except Exception:
+                    try:
+                        p.terminate()
+                        await asyncio.wait_for(p.wait(), 3.0)
+                    except Exception:
+                        try:
+                            p.kill()
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+
+async def _mcp_probe_stdio(cfg: dict, state: dict, sid: str) -> None:
+    """initialize + tools/list an stdio (subprocess) MCP server; register its
+    tools. Mirrors the http probe; fail-open (errors land in state, never raise)."""
+    command = str(cfg.get("command") or "").strip()
+    if not command:
+        state["status"] = "config-error"
+        state["error"] = "missing 'command' for stdio transport"
+        return
+    cli = _MCP_STDIO_CLIENTS.get(sid)
+    if cli is None:
+        cli = _McpStdioClient(sid, command, cfg.get("args") or [],
+                              cfg.get("env") or {}, cfg.get("cwd"))
+        _MCP_STDIO_CLIENTS[sid] = cli
+    init = await cli.initialize()
+    if not cli._inited:
+        state["status"] = "init-failed"
+        state["error"] = (init.get("error") if isinstance(init, dict) else None) \
+            or "stdio initialize failed"
+        log.warning("mcp client(stdio): initialize failed for %s: %s",
+                    sid, state["error"])
+        return
+    state["protocolVersion"] = (init or {}).get("protocolVersion")
+    state["serverInfo"] = (init or {}).get("serverInfo")
+    tl = await cli._rpc("tools/list")
+    if tl.get("error"):
+        state["status"] = "tools-list-failed"
+        state["error"] = tl["error"].get("message")
+        return
+    tools = (tl.get("result") or {}).get("tools") or []
+    allowed = set(cfg.get("allowed_tools") or [])
+    if allowed:
+        tools = [t for t in tools if t.get("name") in allowed]
+    async with _MCP_CLIENT_LOCK:
+        for k in [k for k, v in _MCP_CLIENT_TOOLS.items()
+                  if v.get("server_id") == sid]:
+            _MCP_CLIENT_TOOLS.pop(k, None)
+        for t in tools:
+            tn = str(t.get("name") or "").strip()
+            if not tn:
+                continue
+            _MCP_CLIENT_TOOLS[f"mcp.{sid}.{tn}"] = {
+                "server_id": sid, "tool": tn,
+                "description": t.get("description"),
+                "inputSchema": t.get("inputSchema"),
+                "transport": "stdio",
+            }
+        state["tools_count"] = sum(1 for v in _MCP_CLIENT_TOOLS.values()
+                                   if v.get("server_id") == sid)
+    state["status"] = "ready"
+    global _WORKER_TOOLS_FULL_CACHE
+    _WORKER_TOOLS_FULL_CACHE = None
+    log.info("mcp client(stdio): %s ready (%d tools, protocol %s)",
+             sid, state["tools_count"], state["protocolVersion"])
+
+
 async def _mcp_probe_server(cfg: dict) -> None:
     """initialize + tools/list ONE MCP server; register its tools in the
     catalog. Errors are captured in the per-server state dict (never raise)
@@ -15092,10 +15911,12 @@ async def _mcp_probe_server(cfg: dict) -> None:
         state["status"] = "disabled"
         return
     transport = (cfg.get("transport") or "http").lower()
+    if transport == "stdio":
+        await _mcp_probe_stdio(cfg, state, sid)
+        return
     if transport != "http":
         state["status"] = "unsupported-transport"
-        state["error"] = f"P1.1 supports http only (got {transport!r}); " \
-                         "stdio queued as P1.1.b"
+        state["error"] = f"unsupported transport {transport!r} (http/stdio only)"
         log.info("mcp client: %s skipped (%s)", sid, state["error"])
         return
     url = (cfg.get("url") or cfg.get("server_url") or "").rstrip("/") or ""
@@ -15177,6 +15998,18 @@ async def _mcp_call_tool(key: str, args: dict) -> dict:
         info = _MCP_CLIENT_TOOLS.get(key)
     if not info:
         return {"error": f"unknown MCP tool: {key}"}
+    if info.get("transport") == "stdio":
+        cli = _MCP_STDIO_CLIENTS.get(info["server_id"])
+        if cli is None:
+            return {"error": f"stdio client unavailable: {key}", "tool": key}
+        resp = await cli._rpc(
+            "tools/call",
+            params={"name": info["tool"], "arguments": args or {}},
+            timeout_s=120.0)
+        if resp.get("error"):
+            return {"error": resp["error"].get("message"),
+                    "code": resp["error"].get("code"), "tool": key}
+        return resp.get("result") or {}
     headers = _mcp_render_headers(info.get("headers_template") or {})
     resp = await _mcp_http_rpc(
         info["url"], headers, "tools/call",
@@ -15187,6 +16020,15 @@ async def _mcp_call_tool(key: str, args: dict) -> dict:
                 "code": resp["error"].get("code"),
                 "tool": key}
     return resp.get("result") or {}
+
+
+@app.on_event("shutdown")
+async def _mcp_stdio_shutdown() -> None:
+    """Cleanly terminate spawned stdio MCP subprocesses on agent-pipe shutdown."""
+    clients = list(_MCP_STDIO_CLIENTS.values())
+    if clients:
+        await asyncio.gather(*(c.close() for c in clients),
+                             return_exceptions=True)
 
 
 @app.get("/v1/mcp/clients")
@@ -17512,9 +18354,15 @@ async def list_models(request: Request) -> JSONResponse:
     # locally and needs no auth. If the caller DID pass an Authorization
     # header, augment with the backend's own model list (best-effort).
     created = int(time.time())
+    # Advertise a large context so strict clients (e.g. the Hermes desktop, which
+    # enforces a 64K floor) accept the model. The chain manages real context budget
+    # internally per node; this is the logical window the front door exposes.
+    _ctx = int(os.environ.get("MIOS_AGENT_PIPE_CTX", "65536"))
     models: list = [{
         "id": "MiOS-Agent", "object": "model",
         "created": created, "owned_by": "mios",
+        "max_model_len": _ctx, "context_length": _ctx,
+        "max_context_length": _ctx, "context_window": _ctx,
     }]
     auth = request.headers.get("authorization")
     if auth:
@@ -18181,6 +19029,28 @@ async def _respond_os_control(
             ok = bool(result.get("success"))
             _eff_ok = _verified
             _focus_launched = True
+    # Compound-launch TYPE-CHAIN (operator 2026-06-09 "open notepad and type
+    # hello"): the fast-path reliably LAUNCHED + centered the window above; if the
+    # user's text chains "and/then (type|write|enter|...) <text>", DETERMINISTICALLY
+    # type it into the now-focused window via pc_type. This is the reliable fix --
+    # routing the compound to the LLM agent mis-planned it to a discovery search
+    # (mios_apps), and the single-launch path silently dropped the 2nd action.
+    _typed = None
+    if _is_launch and _eff_ok:
+        _m = re.search(
+            r"\b(?:and|then)\b\s+(?:type|write|enter|input|paste|put)\s+(.+)$",
+            (last_user_text or "").strip(), re.IGNORECASE)
+        if _m:
+            _txt = _m.group(1).strip().strip("\"'").rstrip(" .!")
+            if _txt:
+                _emit("⌨️", f"typing “{_txt[:40]}”")
+                await asyncio.sleep(max(0.6, OS_CONTROL_LAUNCH_POLL_S))
+                _tr = await dispatch_mios_verb("pc_type", {"text": _txt},
+                                               session_id=session_id)
+                _typed = {"text": _txt, "success": bool(_tr.get("success")),
+                          "stderr": (_tr.get("stderr") or "")[:200]}
+                log.info("compound-launch type-chain: pc_type(%r) -> success=%s",
+                         _txt[:40], _typed["success"])
     if _action:
         _index_window_event(tool, _args, _before, _after, _wdiff, session_id)
     _row = {
@@ -18224,6 +19094,8 @@ async def _respond_os_control(
             "closed": [str(w.get("title") or w.get("proc") or "")
                        for w in _wdiff.get("closed", []) if isinstance(w, dict)],
         }
+    if _typed is not None:
+        envelope["type_chain"] = _typed
     if DCI_ENABLED:
         _db_fire(critic_then_maybe_flow(last_user_text, envelope,
                                         session_id=session_id))
@@ -18400,6 +19272,163 @@ async def _format_local_state(question: str, grounding: str,
     if not isinstance(msg, dict):
         msg = ((body.get("choices") or [{}])[0].get("message")) or {}
     return _strip_think_tags((msg.get("content") or "").strip()) or None
+
+
+# ── NATIVE TOOL-LOOP (operator 2026-06-11 "simplify the pipeline to work
+# natively using all components and systems in MiOS") ─────────────────────────
+# The SIMPLIFIED primary path: ONE standard agentic tool-loop against the strong
+# backend (mios-heavy) with the FULL MiOS tool surface -- the model NATIVELY routes
+# itself by tool choice (internal -> system_status, external -> web_search, action
+# -> open_app/pc_type, "both" -> several calls), collapsing the bespoke refine-
+# classify + domain-route + deterministic-regex + multi_task-decompose + per-facet-
+# grounding layers (every one a place to misroute, e.g. the compound-action hang).
+# Reuses the battle-tested _v1_secondary_tool_loop, the full tool surface,
+# dispatch_mios_verb (firewall/HITL/dedup), the contract+env grounding, and
+# polish_response (anti-fabrication). GATED OFF by default (MIOS_NATIVE_LOOP) so the
+# existing pipeline is untouched until validated + promoted.
+# Default ON (operator 2026-06-11 "no gated off anything!!"): the native tool-loop
+# IS the pipeline now -- a substantive agent/multi_task turn self-routes via tool
+# choice. Set MIOS_NATIVE_LOOP=false ONLY to fall back to the legacy bespoke routing.
+NATIVE_LOOP_ENABLE = str(
+    os.environ.get("MIOS_NATIVE_LOOP", "true")).strip().lower() not in {"false", "0", "no"}
+NATIVE_LOOP_TIMEOUT_S = int(os.environ.get("MIOS_NATIVE_LOOP_TIMEOUT_S", "120") or 120)
+# Intent-relevant tool cap for the native loop (operator 2026-06-11): handing an 8B
+# model all ~111 tools makes it MIS-SELECT on ambiguous queries (it called disk_usage
+# for "compare REST/GraphQL/gRPC"). _select_child_tools cosine-ranks by intent with a
+# read/web/tool_search FLOOR, so the model sees the RELEVANT surface + the always-
+# appended dispatch_to_nodes. 0 = full surface.
+NATIVE_LOOP_TOOL_CAP = int(os.environ.get("MIOS_NATIVE_LOOP_TOOL_CAP", "36") or 36)
+
+
+async def _respond_native_loop_direct(
+    refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
+    session_id: Optional[str], last_user_text: str, persona_system: str,
+    messages: list, request=None,
+) -> Any:
+    """Native agentic tool-loop: mios-heavy + the full MiOS tool surface, one
+    standard call->tool_calls->execute->repeat loop, then polish. The model routes
+    itself via tool choice -- no bespoke classify/route/decompose layers."""
+    _sys = "\n\n".join(p for p in (
+        _agent_contract(), _env_grounding(), persona_system) if p and p.strip())
+    _user_msgs = [m for m in (messages or [])
+                  if isinstance(m, dict) and m.get("role") != "system"]
+    _msgs = ([{"role": "system", "content": _sys}] if _sys else []) + _user_msgs
+    _tools = await _worker_tools_surface_async(cap=NATIVE_LOOP_TOOL_CAP, intent=last_user_text)
+    # Fan-out-as-a-tool (operator 2026-06-11 federated swarm; agents-as-tools): the
+    # orchestrator can dispatch INDEPENDENT sub-tasks across all hardware nodes when a
+    # task is broad/parallelizable. The swarm fires behind this tool + returns ONE
+    # synthesized result; the DESCRIPTION carries the decision criteria + width rules
+    # so the model self-selects (Anthropic effort-scaling). Only the orchestrator gets
+    # this tool -> the fanned workers can't recurse.
+    _tools = list(_tools) + [{
+        "type": "function",
+        "function": {
+            "name": "dispatch_to_nodes",
+            "description": (
+                "Fan out INDEPENDENT sub-tasks across all compute nodes "
+                "(dGPU/iGPU/CPU/mobile/code/doc) as concurrent sub-agents, then get "
+                "ONE synthesized result. USE for BROAD or parallelizable work -- many "
+                "facets/sources/files at once, or work needing different node "
+                "capabilities (code vs web vs local machine state). DO NOT use for "
+                "sequential/dependent steps (step 2 needs step 1), simple sub-minute "
+                "asks, or shared-state edits -- do those yourself with the other "
+                "tools. Width: simple ask -> don't call this; comparison -> 2-4 "
+                "tasks; broad research -> many. Each task MUST be self-contained."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "Independent self-contained sub-tasks, one per node.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "objective": {"type": "string", "description": "The generative task for this node."},
+                                "output_format": {"type": "string", "description": "What this node should return."},
+                                "tool_guidance": {"type": "string", "description": "Which tools/sources this node should prefer."},
+                                "boundaries": {"type": "string", "description": "What this node should NOT do (anti-overlap)."},
+                                "local_state": {"type": "boolean", "description": "true if this facet reads THIS machine's live state."},
+                                "web": {"type": "boolean", "description": "true if this facet needs web research."},
+                            },
+                            "required": ["objective"],
+                        },
+                    },
+                },
+                "required": ["tasks"],
+            },
+        },
+    }]
+    # Publish the orchestrator turn-context so the dispatch_to_nodes handler can fire
+    # the swarm with full context (request-scoped contextvar; see _orch_ctx_var).
+    _orch_ctx_var.set({
+        "refined": refined, "chat_id": chat_id, "model": model,
+        "session_id": session_id, "last_user_text": last_user_text,
+        "persona_system": persona_system, "request": request})
+    _hdrs: dict = {}
+    if (_BACKEND_KEY
+            and BACKEND.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
+        _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+    _raw = ""
+    _fired: list = []
+    async with httpx.AsyncClient(timeout=httpx.Timeout(NATIVE_LOOP_TIMEOUT_S)) as _c:
+        # The tool-loop: the model calls verbs until satisfied (reuses the proven
+        # rescue/nudge/runaway-guard). allow_write=True -> real OS-control actions.
+        _m2 = await _v1_secondary_tool_loop(
+            _c, BACKEND, BACKEND_MODEL, _hdrs, _msgs, _tools,
+            NATIVE_LOOP_TIMEOUT_S, lambda s: None, allow_write=True)
+        _pb = {"model": BACKEND_MODEL, "messages": _m2, "stream": False,
+               "chat_template_kwargs": {"enable_thinking": False}}
+        try:
+            _r = await _c.post(f"{BACKEND}/chat/completions",
+                               content=json.dumps(_pb).encode("utf-8"),
+                               headers=_hdrs, timeout=NATIVE_LOOP_TIMEOUT_S)
+            _ch = (_r.json().get("choices") or [])
+            _raw = str((_ch[0].get("message") if _ch else {}).get("content") or "")
+        except Exception as _e:  # noqa: BLE001
+            log.warning("native-loop final completion failed: %s", _e)
+        for _mm in _m2:
+            for _tc in (_mm.get("tool_calls") or []):
+                _fn = (_tc.get("function") or {}).get("name")
+                if _fn:
+                    _fired.append(_fn)
+    _raw = re.sub(r"(?is)<think>.*?</think>", "", _raw).strip()
+    _ans = _raw
+    try:
+        _p = await polish_response(
+            _raw, refined, session_id=session_id,
+            original_user_text=last_user_text, persona_system=persona_system,
+            agent_tools=_fired)
+        if _p:
+            _ans = _p
+    except Exception as _e:  # noqa: BLE001
+        log.debug("native-loop polish skipped: %s", _e)
+    if not _ans or not _ans.strip():
+        _ans = ("I couldn't complete that with the available tools -- try "
+                "rephrasing or ask me to break it into steps.")
+    try:
+        _store_knowledge(query=last_user_text, answer=_ans,
+                         session_id=session_id, tool_history=[])
+    except Exception:  # noqa: BLE001
+        pass
+    log.info("native-loop: %d tool-calls fired %s, %dB answer",
+             len(_fired), _fired[:8], len(_ans))
+    if streaming:
+        async def _stream_native() -> AsyncGenerator[bytes, None]:
+            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+            yield _sse_chunk(_ans, chat_id=chat_id, model=model)
+            yield _sse_chunk("", chat_id=chat_id, model=model,
+                             finish_reason="stop")
+            yield _sse_done()
+        return StreamingResponse(_stream_native(),
+                                 media_type="text/event-stream")
+    return JSONResponse(content={
+        "id": chat_id, "object": "chat.completion",
+        "created": int(time.time()), "model": model,
+        "choices": [{"index": 0,
+                     "message": {"role": "assistant", "content": _ans},
+                     "finish_reason": "stop"}],
+        "usage": _usage_estimate(last_user_text, _ans),
+    })
 
 
 async def _respond_local_state(
@@ -18898,6 +19927,27 @@ async def chat_completions(request: Request) -> Any:
             return _ls_resp
         log.info("local-state fast-path: no grounding -> normal path")
 
+    # NATIVE TOOL-LOOP short-circuit (operator 2026-06-11 "simplify the pipeline
+    # to work natively"): the cheap fast-paths above (trivial chat / OS-control
+    # dispatch / local-state) keep their direct handling; a SUBSTANTIVE agent or
+    # multi_task turn routes straight to ONE standard agentic tool-loop where the
+    # model self-routes via tool choice -- collapsing the classify/route/decompose
+    # /per-facet layers. GATED OFF by default (MIOS_NATIVE_LOOP); never wedges the
+    # turn (falls through to the existing pipeline on any error).
+    if (NATIVE_LOOP_ENABLE and refined
+            and refined.get("intent") in ("agent", "multi_task")
+            and not _force_council and not _force_delegate):
+        try:
+            _nl = await _respond_native_loop_direct(
+                refined, streaming=streaming, chat_id=chat_id, model=model,
+                session_id=session_id, last_user_text=last_user_text,
+                persona_system=_persona_system, messages=messages, request=request)
+            if _nl is not None:
+                log.info("native-loop: handled the turn")
+                return _nl
+        except Exception as _e:  # noqa: BLE001 -- never wedge; fall through
+            log.warning("native-loop failed -> pipeline fallthrough: %s", _e)
+
     # MULTI-TASK SHORT-CIRCUIT: refine detected several independent
     # goals (>=2 tasks in the array). Write them to kanban_shadow,
     # promote task #1 as the active dispatch, and stash the queue on
@@ -19027,10 +20077,20 @@ async def chat_completions(request: Request) -> Any:
     # decomposer even without an explicit delegate toggle / _multi_step flag.
     # _plan_swarm self-gates (returns [] when not worth splitting), so simple
     # asks fall through to council unharmed.
+    # Attempt the planner for any SUBSTANTIVE query even when refine returned
+    # empty/None (gemma4 reasoning intermittently yields empty content -> refined
+    # falsy -> the decompose path was being gated off entirely). The planner
+    # self-gates (returns [] when not worth splitting), so a non-decomposable ask
+    # still falls through to council unharmed. operator 2026-06-09.
     _decompose_default = bool(
-        SWARM_DECOMPOSE_DEFAULT and refined
-        and refined.get("intent") in ("agent", "chat")
-        and len((last_user_text or "").split()) >= SWARM_DECOMPOSE_MIN_WORDS)
+        SWARM_DECOMPOSE_DEFAULT
+        and len((last_user_text or "").split()) >= SWARM_DECOMPOSE_MIN_WORDS
+        and (not refined or refined.get("intent") in ("agent", "chat"))
+        # ACTION domains are PERFORMED (verb-DAG / Hermes tool-loop), NEVER fanned
+        # out to the research swarm (operator 2026-06-10: "send a discord message"
+        # got researched into a dictionary search instead of executed). Data-driven
+        # on verb permission (_is_action_domain); research/info domains unchanged.
+        and not _is_action_domain(_routed_domain_var.get(None)))
     # Breadth -> decompose is the MODEL's call, not a hardcoded phrase list
     # (operator 2026-05-24 "THAT SEEM AWFULLY HARDCODED"): refine classifies a
     # broad/comprehensive ask as intent=multi_task (handled above via the
@@ -19058,6 +20118,17 @@ async def chat_completions(request: Request) -> Any:
                 log.info("browser_action forced: URL + read-intent -> CDP browse")
         except Exception:
             pass
+    # An ACTION-domain request (a write-verb domain: agents_comms/apps_windows/
+    # computer_use/...) is a NATIVE app/GUI action, NOT a web browse. Suppress
+    # browser_action so it takes the action route (Hermes tool-loop orchestrates the
+    # desktop action) instead of the browser/web-research path -- the root of "open
+    # discord and send a message" STILL web-searching "open discord" after the
+    # dispatch guard. Data-driven on verb permission (_is_action_domain); no
+    # literals. operator 2026-06-10.
+    if _browser_action and _is_action_domain(_routed_domain_var.get(None)):
+        log.info("browser_action suppressed for action domain %s -> action route",
+                 _routed_domain_var.get(None))
+        _browser_action = False
     # A pure LOCAL-STATE query (operator 2026-05-26 "summarize recent activity" /
     # "check service status") must NOT enter the swarm: the swarm facet grounding
     # ALWAYS web-searches (synthetic web hints), which is exactly the garbage to
@@ -19076,7 +20147,41 @@ async def chat_completions(request: Request) -> Any:
     # off the shared web_search (fast, concurrent); a deep turn adds per-facet deep
     # research + deepen. So fan-out is universal, DEPTH is the dial.
     _is_deep = bool(refined and (refined.get("deep") or refined.get("deep_research")))
-    if PLANNER_ENABLED and not _local_state and (_force_delegate
+    log.info("decompose-gate: planner=%s local_state=%s decompose_default=%s "
+             "multi_step=%s browser=%s", bool(PLANNER_ENABLED), _local_state,
+             _decompose_default, bool(refined and refined.get("_multi_step")),
+             _browser_action)
+    # Removed `not _local_state`: refine's local_state flag is unreliable (it
+    # mis-flags research comparisons), so let the PLANNER decide -- it self-gates
+    # (returns [] for a genuine local-state ask -> council/local grounding) and
+    # decomposes real research into distinct facets (offline-proven). operator 2026-06-09.
+    # ACTION-domain native execution (operator 2026-06-10): the routed domain is an
+    # ACTION (write verb) -> PERFORM it, never research it. Decompose into an
+    # EXECUTABLE verb-DAG and run it; if the planner declines (an iterative GUI nav
+    # like "send a discord message to @gaboo" is not a static DAG), fall through to
+    # the single Hermes tool-loop, which orchestrates the action natively. NEVER the
+    # research swarm. Data-driven on verb permission (_is_action_domain); no literals.
+    _action_route = (PLANNER_ENABLED
+                     and _is_action_domain(_routed_domain_var.get(None))
+                     and not _browser_action)
+    if _action_route:
+        _act_dag = await decompose_intent(last_user_text)
+        _act_nodes = (_act_dag.get("nodes") or []) if isinstance(_act_dag, dict) else []
+        # EXECUTE the DAG only if it contains a real ACTION (verb/tool) node. A DAG
+        # of ONLY agent nodes is a research split -- wrong for an ACTION request (it
+        # produced an empty council "warning" for "send @gaboo a message on discord",
+        # operator 2026-06-10). Fall through to the single Hermes tool-loop, which
+        # calls the action verb (discord_send / GUI) directly.
+        if _act_nodes and any(n.get("tool") for n in _act_nodes):
+            log.info("action-domain -> verb-DAG EXECUTES (%d nodes; %s)", len(_act_nodes),
+                     [n.get("tool") or ("agent:" + str(n.get("agent"))) for n in _act_nodes])
+            return await _respond_agent_dag(
+                _act_dag, refined, request=request, streaming=streaming,
+                chat_id=chat_id, model=model, session_id=session_id,
+                last_user_text=last_user_text, persona_system=_persona_system)
+        log.info("action-domain: planner gave %s -> Hermes tool-loop (native, NOT research)",
+                 "no DAG" if not _act_nodes else "agent-only DAG (no verb node)")
+    if PLANNER_ENABLED and not _action_route and (_force_delegate
                             or (refined and refined.get("_multi_step"))
                             or _decompose_default
                             or _browser_action):
@@ -19090,7 +20195,14 @@ async def chat_completions(request: Request) -> Any:
         # date-anchored text than from the raw greeting-laden user message (which
         # produced the junk "worldwide trends today" search). Fall back to the user
         # text only when refine gave no refined_text.
-        _planq = str((refined or {}).get("refined_text") or "").strip() or last_user_text
+        # DECOMPOSE off the RAW user text: it carries the concrete items to split
+        # (e.g. "SQLite, PostgreSQL, DuckDB"); refine's refined_text can OVER-
+        # condense them away ("Recommend the best database...") so the planner has
+        # nothing to split -> [] -> council dups. The planner prompt extracts the
+        # GENUINE facets and ignores greetings, so the raw is the right input here
+        # (offline-proven: raw -> 4 distinct facets; refined_text -> []). operator
+        # 2026-06-09. Fall back to refined_text only if the raw is empty.
+        _planq = (last_user_text or "").strip() or str((refined or {}).get("refined_text") or "")
         _swarm_tasks = await _plan_swarm(_planq, messages)
         # SEED for the CONCURRENT swarm (operator 2026-06-01 "unfired nodes"): if
         # the planner produced NO facets (a short/atomic substantive ask), seed ONE
@@ -19252,6 +20364,24 @@ async def chat_completions(request: Request) -> Any:
         log.info("swarm: no DAG built for substantive agent query "
                  "-> force_council (fan out across ALL live nodes)")
         _force_council = True
+
+    # ACTION-DOMAIN GUARD (operator 2026-06-10 repeated "discord_send restricted to
+    # read-only" / "YOU LIED AGAIN" FAILURE): an action-domain turn (ANY
+    # [routing.domains.*] whose SSOT has a write-permission verb --
+    # agents_comms/computer_use/apps_windows/packages/files/system/memory/code_shell)
+    # MUST execute on the PRIMARY's write-capable tool-loop, NEVER fan out to a forced
+    # council of READ-ONLY secondaries. The OWUI/desktop delegate flag set
+    # _force_delegate->_force_council above, which (a) re-expanded the single action into
+    # a swarm whose read-only nodes SKIP write verbs and narrate "discord_send is
+    # restricted to read-only", and (b) suppressed tool_choice=required (the anti-
+    # narration guard below needs `not _force_council`). Collapse to the single writer so
+    # the action FIRES. Multi-step actions are decomposed by the action-route DAG planner
+    # earlier (executed via the primary's writes), never by this read-only council.
+    if _is_action_domain(_routed_domain_var.get(None)) and (_force_council or _force_delegate):
+        log.info("action-domain: suppressing forced swarm/council "
+                 "(writes need the primary write-loop, not read-only secondaries)")
+        _force_council = False
+        _force_delegate = False
 
     # Unify-on default (operator 2026-05-20: "Unify should be on by
     # default"). Non-chat routes through the agent path (refine -> Hermes
@@ -19713,6 +20843,18 @@ async def chat_completions(request: Request) -> Any:
                                   force_council=(_force_council and not _autonomous),
                                   live_agents=_live_set,
                                   include_research=_council_research)
+    # ACTION-DOMAIN -> PRIMARY-ONLY (operator 2026-06-10 "YOU LIED AGAIN" / discord
+    # read-only failure). Even with the forced council suppressed above, the relevance-
+    # gated fanout STILL recruits read-only secondaries (mios-daemon-agent / node:local-*
+    # run the pipe-side READ-ONLY tool-loop -- they SKIP write verbs, narrate
+    # "discord_send is restricted to read-only", and their refusals both poison the
+    # synthesis AND blow the latency budget -> the 200s timeout). A write action is
+    # executed by the ONE write-capable primary (Hermes), not a council. Multi-step
+    # actions were already decomposed by the action-route DAG planner earlier.
+    if _is_action_domain(_routed_domain_var.get(None)) and _fanout:
+        log.info("action-domain: collapsing fanout to primary-only "
+                 "(read-only secondaries cannot perform writes)")
+        _fanout = []
     if _fanout:
         log.info("fanout%s: primary=%s + %d secondary %s",
                  " (FORCED swarm)" if _force_council else "",
@@ -19743,7 +20885,12 @@ async def chat_completions(request: Request) -> Any:
         # the big labs use; gated by verb permission, not an action-word list.
         if _force_tool or (AUTO_FORCE_TOOL and not _force_council
                            and not _force_delegate
-                           and _hints_write_action(refined)):
+                           and (_hints_write_action(refined)
+                                or _is_action_domain(_routed_domain_var.get(None)))):
+            # action-domain turns force a real tool_call even when refine mislabels
+            # them intent=chat (operator 2026-06-10: "send a discord message" was
+            # refined as chat -> no write-hint -> the primary narrated a read-only
+            # refusal instead of calling discord_send). An action domain MUST act.
             pb["tool_choice"] = "required"
         # Universal agent contract FIRST (operator 2026-05-30 ".md presented
         # to every agent"): the primary + every council secondary lead with
@@ -19754,6 +20901,9 @@ async def chat_completions(request: Request) -> Any:
         _contract = _agent_contract()
         if _contract:
             sp.append({"role": "system", "content": _contract})
+        _overlay = _role_system(target_name)   # thin per-role DEVELOPER overlay (OpenAI pattern)
+        if _overlay:
+            sp.append({"role": "system", "content": _overlay})
         sp.append({"role": "system", "content": _env_grounding()})
         _spb = _scratchpad_render()
         if _spb:
@@ -19771,14 +20921,15 @@ async def chat_completions(request: Request) -> Any:
         # "too sparse"): the raw user text fanned out to junk ("worldwide trends
         # today"); refine's disambiguated/date-anchored text returns real stories.
         _cq = str((refined or {}).get("refined_text") or "").strip() or last_user_text
-        _rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx = [
+        _rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx, _amem_ctx = [
             (c if isinstance(c, str) else "") for c in await asyncio.gather(
                 _rag_enrich(last_user_text),
                 _web_research_enrich(_cq, refined, emit=emit),
                 _read_tool_enrich(refined, session_id),
                 _recall_or_skip(),
+                _recall_agent_memory(last_user_text),  # P1: self-edited durable facts (default-off)
                 return_exceptions=True)]
-        for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx):
+        for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx, _amem_ctx):
             if _ctx:
                 sp.append({"role": "system", "content": _ctx})
         # The refined-plan marker block (intent / intended_outcome / tool+skill
@@ -20053,7 +21204,7 @@ async def chat_completions(request: Request) -> Any:
                 # keeps the secondaries read-only, avoiding parallel write storms.
                 if WORKER_TOOLS_ENABLE:
                     _wtools = await _worker_tools_surface_async(
-                        cap=_lane_tool_cap(_agent_lane(_c)))
+                        cap=_lane_tool_cap(_agent_lane(_c)), intent=_lens)
                     if _wtools:
                         _node_body["tools"] = _wtools
                         _node_body["num_ctx"] = WORKER_TOOL_CTX

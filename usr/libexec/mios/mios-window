@@ -138,6 +138,18 @@ if [ -z "$_OSC_EP" ] && [ -r /etc/mios/mios.toml ]; then
 fi
 [ -z "$_OSC_EP" ] && [ -r /usr/share/mios/mios.toml ] && \
     _OSC_EP="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
+# WSL2 local auto-discovery (operator 2026-06-07): no env/toml endpoint, but the
+# in-session executor listens on :11437, reachable over the WSL NAT gateway with
+# Tailscale OFF. WITHOUT this, _OSC_EP stays empty -> the executor routing below is
+# SKIPPED -> window ops fall to the BLIND local enumeration -> "no window title
+# matches" (the close_window failure the operator hit on "close spotify": the
+# executor SEES the window via case-insensitive -like, the local WSL path does not).
+# Same resolver shape as mios-windows / mios-pc-control. Fixes close/focus/move/
+# minimize/maximize/restore all at once.
+if [ -z "$_OSC_EP" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+    _osc_gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
+    [ -n "$_osc_gw" ] && _OSC_EP="http://${_osc_gw}:${MIOS_OSCONTROL_PORT:-11437}"
+fi
 _OSC_EP="${_OSC_EP%/}"
 
 _exec_post() {  # <path> <json-body>

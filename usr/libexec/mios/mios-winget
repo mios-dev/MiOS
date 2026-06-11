@@ -137,8 +137,10 @@ _run_winget() {
             mv "${f}.tr" "$f"
         fi
     done
-    _WG_OUT="$(cat "$out_file")"
-    _WG_ERR="$(cat "$err_file")"
+    # EXPORT so _emit_envelope's python child sees them via os.environ (shell-local
+    # vars are invisible to the subprocess -> empty-stdout bug for list/show/etc.). 2026-06-10.
+    export _WG_OUT="$(cat "$out_file")"
+    export _WG_ERR="$(cat "$err_file")"
     _WG_RC=$rc
     return 0
 }

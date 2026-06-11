@@ -229,29 +229,29 @@ check_privileges() {
         if [[ -n "$vm_list" ]]; then
             while IFS= read -r vm_name; do
                 if [[ -n "$vm_name" ]]; then
-                    echo "  â"Œâ"€ VM: $vm_name"
+                    echo "  ├─ VM: $vm_name"
                     vcpus=$(virsh vcpupin "$vm_name" 2>/dev/null | grep -E "^[[:space:]]*[0-9]" || echo "    [not running or no pinning]")
                     if [[ -n "$vcpus" ]]; then
                         echo "$vcpus" | while read -r line; do
-                            echo "  â"'   $line"
+                            echo "  │   $line"
                         done
                     else
-                        echo "  â"'   [no CPU pinning configured]"
+                        echo "  │   [no CPU pinning configured]"
                     fi
                     # Get emulator pinning
                     emulator_pin=$(virsh emulatorpin "$vm_name" 2>/dev/null | grep -E "^[[:space:]]*\*" || true)
                     if [[ -n "$emulator_pin" ]]; then
-                        echo "  â"'   Emulator: $emulator_pin"
+                        echo "  │   Emulator: $emulator_pin"
                     fi
                     # Get iothreads pinning
                     iothread_pin=$(virsh iothreadinfo "$vm_name" 2>/dev/null | grep -E "^[[:space:]]*[0-9]" || true)
                     if [[ -n "$iothread_pin" ]]; then
-                        echo "  â"'   IOThreads:"
+                        echo "  │   IOThreads:"
                         echo "$iothread_pin" | while read -r line; do
-                            echo "  â"'     $line"
+                            echo "  │     $line"
                         done
                     fi
-                    echo "  â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€"
+                    echo "  └─────────────────────"
                 fi
             done <<< "$vm_list"
         else
@@ -268,12 +268,12 @@ check_privileges() {
     available_mem=$(free -b | awk '/^Mem:/ {print $7}')
     available_mem_gb=$(echo "scale=1; $available_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "?")
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                         MEMORY ALLOCATION                                  â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
-    echo "â"' TOTAL SYSTEM MEMORY:    ${total_mem_gb} GB"
-    echo "â"' HOST AVAILABLE:         ${available_mem_gb} GB"
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "│                         MEMORY ALLOCATION                                  │"
+    echo "├─────────────────────────────────────────────────────────────────────────────┤"
+    echo "│ TOTAL SYSTEM MEMORY:    ${total_mem_gb} GB"
+    echo "│ HOST AVAILABLE:         ${available_mem_gb} GB"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     # Hugepages
     echo ""
@@ -328,9 +328,9 @@ check_privileges() {
     
     print_subsection "=== GPU PARTITIONING ==="
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                          GPU ALLOCATION                                    â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
+    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "│                          GPU ALLOCATION                                    │"
+    echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
     # Find all GPUs and their assignment
     gpu_count=0
@@ -362,16 +362,16 @@ check_privileges() {
                     allocation="UNBOUND"
                 fi
                 
-                echo "â"' GPU $gpu_count: $desc"
-                echo "â"'   PCI: $pci_addr | IOMMU Group: $iommu_group"
-                echo "â"'   Driver: $driver"
-                echo "â"'   ALLOCATION: >>> $allocation <<<"
-                echo "â"'"
+                echo "│ GPU $gpu_count: $desc"
+                echo "│   PCI: $pci_addr | IOMMU Group: $iommu_group"
+                echo "│   Driver: $driver"
+                echo "│   ALLOCATION: >>> $allocation <<<"
+                echo "│"
             fi
         fi
     done
-    [[ $gpu_count -eq 0 ]] && echo "â"' [No GPUs detected]"
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    [[ $gpu_count -eq 0 ]] && echo "│ [No GPUs detected]"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     # Check which VM uses passthrough GPU
     echo ""
@@ -401,21 +401,21 @@ check_privileges() {
     
     print_subsection "=== STORAGE PARTITIONING ==="
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                        STORAGE ALLOCATION                                  â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
+    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "│                        STORAGE ALLOCATION                                  │"
+    echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
-    echo "â"' BLOCK DEVICES:"
+    echo "│ BLOCK DEVICES:"
     lsblk -d -o NAME,SIZE,TYPE,MODEL,TRAN 2>/dev/null | while read -r line; do
-        echo "â"'   $line"
+        echo "│   $line"
     done
     
-    echo "â"'"
-    echo "â"' HOST FILESYSTEMS:"
+    echo "│"
+    echo "│ HOST FILESYSTEMS:"
     df -h --output=source,size,used,avail,pcent,target 2>/dev/null | grep -vE "tmpfs|devtmpfs|squashfs|loop" | while read -r line; do
-        echo "â"'   $line"
+        echo "│   $line"
     done
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     # VM storage
     echo ""
@@ -423,19 +423,19 @@ check_privileges() {
     if cmd_exists virsh; then
         virsh list --all --name 2>/dev/null | grep -v "^$" | while read -r vm_name; do
             if [[ -n "$vm_name" ]]; then
-                echo "  â"Œâ"€ VM: $vm_name"
+                echo "  ├─ VM: $vm_name"
                 virsh domblklist "$vm_name" 2>/dev/null | grep -vE "^Target|^-" | while read -r target source; do
                     if [[ -n "$source" && "$source" != "-" ]]; then
                         # Get disk size if possible
                         if [[ -f "$source" ]]; then
                             size=$(du -h "$source" 2>/dev/null | awk '{print $1}')
-                            echo "  â"'   $target: $source ($size)"
+                            echo "  │   $target: $source ($size)"
                         else
-                            echo "  â"'   $target: $source"
+                            echo "  │   $target: $source"
                         fi
                     fi
                 done
-                echo "  â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€"
+                echo "  └─────────────────────"
             fi
         done
     fi
@@ -456,35 +456,35 @@ check_privileges() {
     
     print_subsection "=== NETWORK PARTITIONING ==="
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                        NETWORK ALLOCATION                                  â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
+    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "│                        NETWORK ALLOCATION                                  │"
+    echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
-    echo "â"' HOST INTERFACES:"
+    echo "│ HOST INTERFACES:"
     ip -br link show 2>/dev/null | while read -r iface state mac; do
         driver=$(basename "$(readlink "/sys/class/net/${iface}/device/driver" 2>/dev/null)" 2>/dev/null || echo "virtual")
-        echo "â"'   $iface: $state (driver: $driver)"
+        echo "│   $iface: $state (driver: $driver)"
     done
     
-    echo "â"'"
-    echo "â"' BRIDGES (for VM networking):"
+    echo "│"
+    echo "│ BRIDGES (for VM networking):"
     if cmd_exists brctl; then
         brctl show 2>/dev/null | grep -v "^bridge" | while read -r line; do
-            echo "â"'   $line"
+            echo "│   $line"
         done
     fi
     
     # libvirt networks
-    echo "â"'"
-    echo "â"' LIBVIRT NETWORKS:"
+    echo "│"
+    echo "│ LIBVIRT NETWORKS:"
     if cmd_exists virsh; then
         virsh net-list --all 2>/dev/null | grep -vE "^Name|^-" | while read -r name state autostart persistent; do
             if [[ -n "$name" ]]; then
-                echo "â"'   $name: $state (autostart: $autostart)"
+                echo "│   $name: $state (autostart: $autostart)"
             fi
         done
     fi
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     # NIC Passthrough
     echo ""
@@ -509,22 +509,22 @@ check_privileges() {
     if cmd_exists virsh; then
         virsh list --all --name 2>/dev/null | grep -v "^$" | while read -r vm_name; do
             if [[ -n "$vm_name" ]]; then
-                echo "  â"Œâ"€ VM: $vm_name"
+                echo "  ├─ VM: $vm_name"
                 virsh domiflist "$vm_name" 2>/dev/null | grep -vE "^Interface|^-" | while read -r iface type source model mac; do
                     if [[ -n "$iface" ]]; then
-                        echo "  â"'   $iface: type=$type, source=$source, model=$model"
+                        echo "  │   $iface: type=$type, source=$source, model=$model"
                     fi
                 done
-                echo "  â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€"
+                echo "  └─────────────────────"
             fi
         done
     fi
     
     print_subsection "=== USB CONTROLLER PARTITIONING ==="
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                      USB CONTROLLER ALLOCATION                             â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
+    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "│                      USB CONTROLLER ALLOCATION                             │"
+    echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
     # Find USB controllers and their assignment
     for dev in /sys/bus/pci/devices/*; do
@@ -540,18 +540,18 @@ check_privileges() {
                 allocation="HOST"
                 [[ "$driver" == "vfio-pci" ]] && allocation="PASSTHROUGH"
                 
-                echo "â"' $pci_addr (Group $iommu_group): $desc"
-                echo "â"'   Driver: $driver | ALLOCATION: $allocation"
+                echo "│ $pci_addr (Group $iommu_group): $desc"
+                echo "│   Driver: $driver | ALLOCATION: $allocation"
             fi
         fi
     done
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     print_subsection "=== AUDIO PARTITIONING ==="
     
-    echo "â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"'                        AUDIO ALLOCATION                                    â"'"
-    echo "â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤"
+    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "│                        AUDIO ALLOCATION                                    │"
+    echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
     # Audio devices
     for dev in /sys/bus/pci/devices/*; do
@@ -567,24 +567,24 @@ check_privileges() {
                 allocation="HOST"
                 [[ "$driver" == "vfio-pci" ]] && allocation="PASSTHROUGH"
                 
-                echo "â"' $pci_addr (Group $iommu_group):"
-                echo "â"'   $desc"
-                echo "â"'   Driver: $driver | ALLOCATION: $allocation"
+                echo "│ $pci_addr (Group $iommu_group):"
+                echo "│   $desc"
+                echo "│   Driver: $driver | ALLOCATION: $allocation"
             fi
         fi
     done
     
     # Check PipeWire/PulseAudio
-    echo "â"'"
-    echo "â"' HOST AUDIO SERVER:"
+    echo "│"
+    echo "│ HOST AUDIO SERVER:"
     if pgrep -x pipewire &>/dev/null; then
-        echo "â"'   PipeWire: running"
+        echo "│   PipeWire: running"
     elif pgrep -x pulseaudio &>/dev/null; then
-        echo "â"'   PulseAudio: running"
+        echo "│   PulseAudio: running"
     else
-        echo "â"'   [No audio server detected]"
+        echo "│   [No audio server detected]"
     fi
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     # VM Audio
     echo ""
@@ -633,17 +633,17 @@ check_privileges() {
                 group_status="MIXED (warning!)"
             fi
             
-            echo "â"Œâ"€ IOMMU Group $group_id [$group_status] ($device_count device(s))"
+            echo "├─ IOMMU Group $group_id [$group_status] ($device_count device(s))"
             for d in "${g}"/devices/*; do
                 if [[ -L "$d" ]]; then
                     pci_addr=$(basename "$d")
                     desc=$(lspci -nns "${pci_addr}" 2>/dev/null || echo "Unknown")
                     driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
-                    echo "â"'   $desc"
-                    echo "â"'      â""â"€ Driver: $driver"
+                    echo "│   $desc"
+                    echo "│      └─ Driver: $driver"
                 fi
             done
-            echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€"
+            echo "└───────────────────────────────────────────────────────────────────────────"
             echo ""
         done
     fi
@@ -655,9 +655,9 @@ check_privileges() {
     echo "â*'                     CLOUD WS HARDWARE PARTITION SUMMARY                       â*'"
     echo "â* â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*£"
     echo "â*'                                                                               â*'"
-    echo "â*'  â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"  â*'"
-    echo "â*'  â"'                              HOST SYSTEM                                â"'  â*'"
-    echo "â*'  â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤  â*'"
+    echo "â*'  ├─────────────────────────────────────────────────────────────────────────â"  â*'"
+    echo "â*'  │                              HOST SYSTEM                                │  â*'"
+    echo "â*'  ├─────────────────────────────────────────────────────────────────────────┤  â*'"
     
     # Host CPUs
     if [[ -n "$isolated_cpus" && "$isolated_cpus" != "" ]]; then
@@ -670,9 +670,9 @@ check_privileges() {
                 echo "$range"
             fi
         done | sort -n) 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-        echo "â*'  â"'  CPUs: ${host_cpus:-0-$(($(nproc)-1))}"
+        echo "â*'  │  CPUs: ${host_cpus:-0-$(($(nproc)-1))}"
     else
-        echo "â*'  â"'  CPUs: 0-$(($(nproc)-1)) (all cores)"
+        echo "â*'  │  CPUs: 0-$(($(nproc)-1)) (all cores)"
     fi
     
     # Host GPU
@@ -687,9 +687,9 @@ check_privileges() {
             fi
         fi
     done
-    echo "â*'  â"'  GPU: $host_gpu"
-    echo "â*'  â"'  Memory: ${available_mem_gb:-?} GB available"
-    echo "â*'  â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜  â*'"
+    echo "â*'  │  GPU: $host_gpu"
+    echo "â*'  │  Memory: ${available_mem_gb:-?} GB available"
+    echo "â*'  └─────────────────────────────────────────────────────────────────────────┘  â*'"
     echo "â*'                                                                               â*'"
     
     # VMs section
@@ -702,16 +702,16 @@ check_privileges() {
                     vcpus=$(virsh vcpucount "$vm_name" --current 2>/dev/null || echo "?")
                     mem=$(virsh dominfo "$vm_name" 2>/dev/null | grep "Max memory" | awk '{print $3/1024/1024 " GB"}')
                     
-                    echo "â*'  â"Œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"  â*'"
-                    echo "â*'  â"'  VM: $vm_name [$state]"
-                    echo "â*'  â"œâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"¤  â*'"
-                    echo "â*'  â"'  vCPUs: $vcpus | Memory: ${mem:-?}"
+                    echo "â*'  ├─────────────────────────────────────────────────────────────────────────â"  â*'"
+                    echo "â*'  │  VM: $vm_name [$state]"
+                    echo "â*'  ├─────────────────────────────────────────────────────────────────────────┤  â*'"
+                    echo "â*'  │  vCPUs: $vcpus | Memory: ${mem:-?}"
                     
                     # Check for GPU passthrough
                     gpu_pt=$(virsh dumpxml "$vm_name" 2>/dev/null | grep -c "hostdev.*pci" || echo "0")
-                    [[ "$gpu_pt" -gt 0 ]] && echo "â*'  â"'  GPU Passthrough: Yes ($gpu_pt device(s))"
+                    [[ "$gpu_pt" -gt 0 ]] && echo "â*'  │  GPU Passthrough: Yes ($gpu_pt device(s))"
                     
-                    echo "â*'  â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜  â*'"
+                    echo "â*'  └─────────────────────────────────────────────────────────────────────────┘  â*'"
                 fi
             done
         fi
@@ -1225,7 +1225,7 @@ check_privileges() {
                     [[ -z "$reset_methods" ]] && reset_methods="none"
                     
                     echo "â*' ${pci_addr} ${desc}"
-                    echo "â*'   â""â"€ Driver: ${driver}, Reset: [${reset_methods}]"
+                    echo "â*'   └─ Driver: ${driver}, Reset: [${reset_methods}]"
                 fi
             done
             echo "â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*"
@@ -1396,7 +1396,7 @@ check_privileges() {
                     echo "    IOMMU Group: ${iommu_group} (${group_members} device(s) in group)"
                     echo "    Current Driver: ${driver}"
                     if [[ $group_members -eq 1 ]]; then
-                        echo "    Passthrough: âœ" Clean isolation (single device in group)"
+                        echo "    Passthrough: ✔ Clean isolation (single device in group)"
                     elif [[ $group_members -le 3 ]]; then
                         echo "    Passthrough: ~ Acceptable (check if other devices are related)"
                     else
@@ -1988,7 +1988,7 @@ check_privileges() {
     if cmd_exists virsh; then
         for vm_name in $(virsh list --all --name 2>/dev/null | grep -v "^$"); do
             echo ""
-            echo "â"Œâ"€â"€â"€ VM: $vm_name â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€"
+            echo "├─── VM: $vm_name ───────────────────────────────────────────────────────"
             virsh dominfo "$vm_name" 2>/dev/null | grep -E "Name|UUID|OS Type|State|CPU|Max memory|Used memory"
             echo ""
             echo "  vCPU Configuration:"
@@ -2011,7 +2011,7 @@ check_privileges() {
             echo ""
             echo "  PCI Passthrough Devices:"
             virsh dumpxml "$vm_name" 2>/dev/null | grep -A5 "<hostdev.*pci" | grep -E "domain|bus|slot|function" || echo "    [None]"
-            echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€"
+            echo "└──────────────────────────────────────────────────────────────────────────"
         done
     fi
     
@@ -2507,30 +2507,30 @@ check_privileges() {
     echo "                              SYSTEM SUMMARY"
     echo "â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*"
     echo ""
-    echo "â"Œâ"€ HARDWARE â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"' CPU: $(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | cut -c1-60)"
-    echo "â"' Cores/Threads: $(grep "cpu cores" /proc/cpuinfo | head -1 | cut -d: -f2 | tr -d ' ')/$(nproc)"
-    echo "â"' Memory: $(free -h | awk '/^Mem:/ {print $2}')"
-    echo "â"' GPUs: $(lspci | grep -cE 'VGA|3D|Display') detected"
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "├─ HARDWARE ─────────────────────────────────────────────────────────────────â""
+    echo "│ CPU: $(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | cut -c1-60)"
+    echo "│ Cores/Threads: $(grep "cpu cores" /proc/cpuinfo | head -1 | cut -d: -f2 | tr -d ' ')/$(nproc)"
+    echo "│ Memory: $(free -h | awk '/^Mem:/ {print $2}')"
+    echo "│ GPUs: $(lspci | grep -cE 'VGA|3D|Display') detected"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "â"Œâ"€ SYSTEM â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
-    echo "â"' OS: $(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | cut -c1-55)"
-    echo "â"' Kernel: $(uname -r)"
-    echo "â"' Boot Mode: $([ -d /sys/firmware/efi ] && echo 'UEFI' || echo 'Legacy BIOS')"
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "├─ SYSTEM ───────────────────────────────────────────────────────────────────â""
+    echo "│ OS: $(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | cut -c1-55)"
+    echo "│ Kernel: $(uname -r)"
+    echo "│ Boot Mode: $([ -d /sys/firmware/efi ] && echo 'UEFI' || echo 'Legacy BIOS')"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "â"Œâ"€ VIRTUALIZATION READINESS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
+    echo "├─ VIRTUALIZATION READINESS ─────────────────────────────────────────────────â""
     
     # CPU Virtualization
     virt_hw="NOT DETECTED"
     grep -qE 'vmx|svm' /proc/cpuinfo && virt_hw="SUPPORTED"
-    echo "â"' Hardware Virtualization: ${virt_hw}"
+    echo "│ Hardware Virtualization: ${virt_hw}"
     
     # KVM
     kvm_status="NOT AVAILABLE"
     [[ -c /dev/kvm ]] && kvm_status="AVAILABLE"
-    echo "â"' KVM: ${kvm_status}"
+    echo "│ KVM: ${kvm_status}"
     
     # IOMMU
     iommu_status="DISABLED"
@@ -2539,28 +2539,28 @@ check_privileges() {
         iommu_status="ENABLED"
         iommu_groups=$(find /sys/kernel/iommu_groups/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
     fi
-    echo "â"' IOMMU: ${iommu_status} (${iommu_groups} groups)"
+    echo "│ IOMMU: ${iommu_status} (${iommu_groups} groups)"
     
     # VFIO
     vfio_status="NOT LOADED"
     lsmod | grep -q "^vfio " && vfio_status="LOADED"
     vfio_devices=$(ls /sys/bus/pci/drivers/vfio-pci/ 2>/dev/null | grep -cE "^[0-9a-f]{4}:" || echo "0")
-    echo "â"' VFIO: ${vfio_status} (${vfio_devices} device(s) bound)"
+    echo "│ VFIO: ${vfio_status} (${vfio_devices} device(s) bound)"
     
     # Nested
     nested="DISABLED"
     [[ "$(cat /sys/module/kvm_intel/parameters/nested 2>/dev/null)" == "Y" ]] && nested="ENABLED"
     [[ "$(cat /sys/module/kvm_amd/parameters/nested 2>/dev/null)" == "1" ]] && nested="ENABLED"
-    echo "â"' Nested Virtualization: ${nested}"
+    echo "│ Nested Virtualization: ${nested}"
     
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "â"Œâ"€ CPU ISOLATION STATUS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
+    echo "├─ CPU ISOLATION STATUS ─────────────────────────────────────────────────────â""
     isolated=$(cat /sys/devices/system/cpu/isolated 2>/dev/null)
     if [[ -n "$isolated" && "$isolated" != "" ]]; then
-        echo "â"' Isolated CPUs: ${isolated}"
+        echo "│ Isolated CPUs: ${isolated}"
     else
-        echo "â"' Isolated CPUs: [none]"
+        echo "│ Isolated CPUs: [none]"
     fi
     
     # Check for isolation params
@@ -2571,18 +2571,18 @@ check_privileges() {
     rcu_set="no"
     echo "$CMDLINE" | grep -q "rcu_nocbs=" && rcu_set="yes"
     
-    echo "â"' isolcpus: ${isolcpus_set}, nohz_full: ${nohz_set}, rcu_nocbs: ${rcu_set}"
+    echo "│ isolcpus: ${isolcpus_set}, nohz_full: ${nohz_set}, rcu_nocbs: ${rcu_set}"
     
     irqbalance_active="unknown"
     systemctl is-active irqbalance &>/dev/null && irqbalance_active="running" || irqbalance_active="stopped"
-    echo "â"' irqbalance: ${irqbalance_active}"
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "│ irqbalance: ${irqbalance_active}"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "â"Œâ"€ PASSTHROUGH CHECKLIST â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â""
+    echo "├─ PASSTHROUGH CHECKLIST ────────────────────────────────────────────────────â""
     
     # Check each requirement
     check_pass() {
-        [[ $1 == "yes" ]] && echo "âœ"" || echo "âœ--"
+        [[ $1 == "yes" ]] && echo "✔" || echo "✔--"
     }
     
     hw_virt="no"; grep -qE 'vmx|svm' /proc/cpuinfo && hw_virt="yes"
@@ -2591,11 +2591,11 @@ check_privileges() {
     vfio_mod="no"; lsmod | grep -q "^vfio " && vfio_mod="yes"
     vfio_iommu="no"; lsmod | grep -q "vfio_iommu_type1" && vfio_iommu="yes"
     
-    echo "â"' $(check_pass $hw_virt) CPU Virtualization Extensions (VT-x/AMD-V)"
-    echo "â"' $(check_pass $kvm_ok) KVM Module Loaded (/dev/kvm exists)"
-    echo "â"' $(check_pass $iommu_ok) IOMMU Enabled (intel_iommu=on / amd_iommu=on)"
-    echo "â"' $(check_pass $vfio_mod) VFIO Core Module Loaded"
-    echo "â"' $(check_pass $vfio_iommu) VFIO IOMMU Type1 Driver Loaded"
+    echo "│ $(check_pass $hw_virt) CPU Virtualization Extensions (VT-x/AMD-V)"
+    echo "│ $(check_pass $kvm_ok) KVM Module Loaded (/dev/kvm exists)"
+    echo "│ $(check_pass $iommu_ok) IOMMU Enabled (intel_iommu=on / amd_iommu=on)"
+    echo "│ $(check_pass $vfio_mod) VFIO Core Module Loaded"
+    echo "│ $(check_pass $vfio_iommu) VFIO IOMMU Type1 Driver Loaded"
     
     # GPU isolation check
     gpu_isolated="no"
@@ -2609,9 +2609,9 @@ check_privileges() {
             fi
         done
     fi
-    echo "â"' $(check_pass $gpu_isolated) GPU Bound to VFIO (for GPU passthrough)"
+    echo "│ $(check_pass $gpu_isolated) GPU Bound to VFIO (for GPU passthrough)"
     
-    echo "â""â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"˜"
+    echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     echo ""
     echo "${SEPARATOR}"
@@ -2622,7 +2622,7 @@ check_privileges() {
 } > "${OUTPUT_FILE}" 2>&1
 
 # Terminal output
-echo -e "${GREEN}âœ" System assessment complete${NC}"
+echo -e "${GREEN}✔ System assessment complete${NC}"
 echo -e "${CYAN}Output saved to:${NC} ${OUTPUT_FILE}"
 echo ""
 echo -e "${YELLOW}Quick Summary:${NC}"

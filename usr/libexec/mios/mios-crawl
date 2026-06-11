@@ -64,6 +64,33 @@ def _post_crawl(url: str, timeout: float, force_camoufox: bool) -> dict:
         return json.loads(r.read().decode("utf-8", "replace"))
 
 
+def _fallback_extract(url: str, max_chars: int) -> dict:
+    """crawl4ai service down (e.g. image not built) -> fall back to the lighter
+    mios-web-extract single-page reader (no heavy crawl4ai/Chrome stack needed)
+    so `crawl` still GROUNDS on real page content instead of hard-failing.
+    Returns {} if the fallback also fails (then the honest-fail stands)."""
+    import subprocess
+    n = str(max_chars if max_chars and max_chars > 0 else 4000)
+    try:
+        p = subprocess.run(["mios-web-extract", "-n", n, url],
+                           capture_output=True, text=True, timeout=60)
+    except Exception:
+        return {}
+    md = (p.stdout or "").strip()
+    if p.returncode != 0 or not md:
+        return {}
+    try:                       # web-extract may emit JSON or raw text
+        j = json.loads(md)
+        md = j.get("text") or j.get("markdown") or j.get("content") or md
+        if isinstance(j, dict) and j.get("results"):
+            md = "\n\n".join(str(r.get("text") or r.get("content") or "")
+                             for r in j["results"]) or md
+    except Exception:
+        pass
+    return {"success": True, "engine": "web_extract_fallback", "url": url,
+            "title": "", "markdown": str(md), "links": 0}
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         prog="mios-crawl",
@@ -94,11 +121,21 @@ def main() -> int:
     try:
         res = _post_crawl(url, a.timeout, a.camoufox)
     except Exception as e:
-        # Service down / unreachable: be HONEST -- never fabricate content.
+        # Service down / unreachable -> fall back to the lighter web_extract
+        # reader so `crawl` still returns real content (degrade-open, never
+        # fabricated). Only honest-fail if the fallback ALSO returns nothing.
+        fb = _fallback_extract(url, a.max_chars)
+        if fb:
+            md = fb["markdown"]
+            if a.max_chars and a.max_chars > 0 and len(md) > a.max_chars:
+                fb["markdown"] = md[:a.max_chars] + "\n\n[...truncated...]"
+            print(json.dumps(fb, ensure_ascii=False))
+            return 0
         print(json.dumps({
             "success": False, "engine": "none", "url": url, "markdown": "",
             "error": f"crawl service unavailable: {e} "
-                     f"(is mios-crawl4ai.service up on {SERVICE_URL}?)",
+                     f"(mios-crawl4ai.service down on {SERVICE_URL}; web_extract "
+                     f"fallback also returned nothing)",
         }, ensure_ascii=False))
         return 1
 
