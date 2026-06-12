@@ -32,7 +32,18 @@ Write-Host "Registering '$TaskName' (run as $me, Interactive/Session 1, at logon
 # Action: booting the distro starts systemd (boot=systemd) + all enabled MiOS
 # services and brings up WSLg in THIS (interactive) session. /bin/true returns
 # immediately; the distro keeps running because systemd + services persist.
-$action    = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument "-d $Distro -- /bin/true"
+#
+# Launched through a HIDDEN powershell host so no Windows Terminal / conhost
+# window flashes onto the operator's desktop at logon (operator report
+# 2026-06-12). The hidden powershell still runs in the interactive Session 1, so
+# starting the VM here keeps WSLg/msrdc bound to the operator's session -- the
+# whole point of this task is preserved; only the visible window is removed. Same
+# proven `-WindowStyle Hidden` pattern as the iGPU / OSControl server tasks.
+$wslExe    = Join-Path $env:SystemRoot 'System32\wsl.exe'
+$psExe     = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$inner     = "& '$wslExe' -d $Distro -- /bin/true"
+$action    = New-ScheduledTaskAction -Execute $psExe `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$inner`""
 $trigger   = New-ScheduledTaskTrigger -AtLogOn -User $me
 # LogonType Interactive == "run only when user is logged on" -> runs in the
 # operator's interactive session (Session 1). Do NOT use S4U (session-less).

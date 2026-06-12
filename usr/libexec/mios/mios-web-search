@@ -139,17 +139,33 @@ def _content_toks(text: str) -> set:
     return out
 
 
-def expand_queries(query: str, k: int, timeout: float) -> list:
+def expand_queries(query: str, k: int, timeout: float,
+                   time_range: str = "", category: str = "") -> list:
     """Micro-LLM query expansion -> up to k diverse sub-queries (the ORIGINAL
     is always first). Intent diversity / synonyms / entity reformulation. Any
     error or timeout falls back to just [query] so a cold or busy micro never
-    blocks the search."""
+    blocks the search. time_range/category (when set) mean the engine ALREADY
+    date-filters, so the bare-year anchor is dropped (it baited year-pages)."""
     if k <= 1:
         return [query]
     # Date-aware (operator 2026-05-26 "use env detect for current values for all
     # AI functions"): the live system year, so time-sensitive sub-queries anchor
     # to NOW (2026 this year, 2027 next) instead of a stale year. Never hardcoded.
     _cur_year = time.localtime().tm_year
+    # Recency-aware year-anchor (operator 2026-06-12): when the CALLER already passes
+    # a time_range / news category, SearXNG date-filters server-side, so appending a
+    # bare year is redundant AND magnets "2026 - Wikipedia" year-overview pages. In
+    # that case steer the micro toward 'latest'/concrete-event terms instead.
+    if (time_range or "").strip() or (category or "").strip():
+        _time_clause = (
+            "The search engine ALREADY filters by recency, so for time-sensitive "
+            "facets use 'latest'/'today' or a concrete event/topic term -- do NOT "
+            "append a bare year (it pulls encyclopedia year-overview pages).")
+    else:
+        _time_clause = (
+            "For ANYTHING time-sensitive (trending, latest, current, 'this year', "
+            f"best-of), anchor the query to {_cur_year} (or 'latest') -- NEVER a "
+            "past year.")
     sys_p = (
         f"The current year is {_cur_year}. "
         "You expand a user's question into DIVERSE web-search queries for "
@@ -157,10 +173,8 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
         "sub-topic, or named entity of the request -- NOT a synonym or rewording "
         "of the others. For a broad request, split it into specific sub-topics "
         "that surface concrete stories/facts (e.g. distinct regions, sectors, or "
-        "events), not generic homepages. For ANYTHING time-sensitive (trending, "
-        f"latest, current, 'this year', best-of), anchor the query to {_cur_year} "
-        "(or 'latest') -- NEVER a past year. Each is a SHORT keyword query, not a "
-        'question. Output JSON only: {"queries":["...","..."]}.'
+        "events), not generic homepages. " + _time_clause + " Each is a SHORT "
+        'keyword query, not a question. Output JSON only: {"queries":["...","..."]}.'
     )
     _msgs = [
         {"role": "system", "content": sys_p},
@@ -221,7 +235,17 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
     _min_words = int(os.environ.get("MIOS_WEB_EXPAND_MIN_WORDS", "2"))
     _min_chars = int(os.environ.get("MIOS_WEB_EXPAND_MIN_CHARS", "6"))
     _anchor = _content_toks(query)
-    out = [query]
+    # The ORIGINAL is normally the lead facet (the caller's vetted query). BUT a LONG,
+    # instruction-like query ("research and report on all of today's global trending")
+    # searched VERBATIM returns junk -- the word "research" matches the Research Wikipedia
+    # page (operator 2026-06-12) -- while the micro-LLM's reformulated facets are clean.
+    # So when the original is long (an instruction, not a search TERM) AND we got
+    # reformulations, lead with the reformulations instead of the raw instruction.
+    # Language-agnostic word-count gate, NO keyword/topic list; degrade-open (return below
+    # falls back to [query] if every reformulation gets screened out).
+    _instruction_like = (len(re.findall(r"[A-Za-z0-9]+", query))
+                         > int(os.environ.get("MIOS_WEB_REFORMULATE_WORDS", "7")))
+    out = [] if (_instruction_like and extra) else [query]
     for q in extra:
         # Token count over alphanumerics so HYPHENATED / underscored slugs
         # ("cheapest-flights-toronto-to-tokyo" -> 5 tokens) count as multi-word
@@ -242,13 +266,13 @@ def expand_queries(query: str, k: int, timeout: float) -> list:
             out.append(q)
         if len(out) >= k:
             break
-    return out
+    return out or [query]   # never empty (instruction-like + all reformulations screened)
 
 
 def multi_search(query: str, limit: int, k: int, timeout: float,
                  max_workers: int, category: str = "", time_range: str = "") -> dict:
     """Expand -> query SearXNG CONCURRENTLY -> Reciprocal Rank Fusion merge."""
-    queries = expand_queries(query, k, min(timeout, 6.0))
+    queries = expand_queries(query, k, min(timeout, 6.0), time_range, category)
     per: list = []
     workers = max(1, min(max_workers, len(queries)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:

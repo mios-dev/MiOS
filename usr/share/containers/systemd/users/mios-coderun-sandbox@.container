@@ -1,5 +1,5 @@
 [Unit]
-# /etc/containers/systemd/mios-coderun-sandbox@.container
+# /usr/share/containers/systemd/users/mios-coderun-sandbox@.container
 #
 # CODE-RUN sandbox (Quadlet, templated). NOT the agent runtime --
 # MiOS agents (Hermes, sys-agent, opencode, micro-LLMs) ALWAYS install
@@ -8,6 +8,18 @@
 # dispatches CODE into when they want to verify behavior before
 # touching the host -- e.g. "run this generated build script in a
 # disposable namespace and report exit code + stdout".
+#
+# USER-SCOPE Quadlet (operator 2026-06-12): this unit is started via
+# `systemctl --user start mios-coderun-sandbox@<id>.service` by
+# mios-coderun-session, and it uses %t (XDG_RUNTIME_DIR) + WantedBy=
+# default.target -- i.e. it is a USER unit. It MUST live under a user
+# Quadlet search path (here: /usr/share/containers/systemd/users/) so the
+# podman USER generator emits it; when it was in the SYSTEM path
+# (/usr/share|/etc/containers/systemd/) only a SYSTEM unit was generated
+# and `systemctl --user` reported "unit not found" -> run_sandboxed_code
+# failed with a sandbox/permission error. The mios-ai service account also
+# needs linger + a subuid/subgid range (UserNS=keep-id) -- both provisioned
+# by mios-ai-firstboot.
 #
 # Operator directive 2026-05-16: "MiOS-Agents live on the local MiOS
 # systems -- Containers are for servers, applications, hosts, etc-etc
@@ -37,7 +49,7 @@ Image=localhost/mios-coderun-sandbox:latest
 ContainerName=mios-coderun-sandbox-%i
 
 # UNPRIVILEGED-QUADLETS (Law 6). UserNS=keep-id already pins the
-# container "root" to whatever UID the SYSTEM unit runs as -- but the
+# container "root" to whatever UID the unit runs as -- but the
 # postcheck Law-6 validator REQUIRES an explicit User= directive on
 # every Quadlet (no exceptions outside the documented allowlist:
 # mios-ceph, mios-k3s). Set User=root because:

@@ -68,6 +68,32 @@ DEFINE INDEX event_kind   ON event FIELDS kind;
 DEFINE INDEX event_source ON event FIELDS source;
 DEFINE INDEX event_ts     ON event FIELDS ts;" > /dev/null
 
+# ── pgvector is the PRIMARY agent store since the SurrealDB->pgvector migration
+# (the SurrealDB DELETEs above are now legacy/no-op for a pg-primary host but kept
+# so a Surreal-primary host still resets). Clear the SAME runtime/AI tables in pg.
+# KEEP the definitional/operator-curated tables (alias, app_install, resolves_to,
+# run_template, skill) AND mios_rag (the docs-index RAG = baked SYSTEM knowledge,
+# regenerated from /usr/share/doc -- leave it so "full AI systems knowledge" stays
+# baked). TRUNCATE keeps schema + indexes; one statement so FK order never bites.
+PG_DROP="knowledge session tool_call scratch skill_invocation log_digest event directory_entry agent_memory kanban pending_action sys_env"
+echo "==> clearing pgvector runtime/AI tables (db=mios)"
+if podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-pgvector$'; then
+  _pglist=$(echo "$PG_DROP" | tr ' ' '\n' | while read -r T; do
+    [[ -n "$T" ]] && podman exec mios-pgvector psql -U mios -d mios -tAc \
+      "SELECT to_regclass('public.$T');" 2>/dev/null | grep -qx "$T" && printf '%s,' "$T"
+  done)
+  _pglist=${_pglist%,}
+  if [[ -n $_pglist ]]; then
+    podman exec mios-pgvector psql -U mios -d mios -c \
+      "TRUNCATE TABLE $_pglist RESTART IDENTITY;" 2>&1 | sed 's/^/   /'
+    printf "   truncated: %s\n" "$_pglist"
+  else
+    echo "   (no matching pg tables found)"
+  fi
+else
+  echo "   (mios-pgvector container not running -- skipped)"
+fi
+
 echo "==> clearing filesystem runtime dirs"
 DIRS=(
   /var/home/mios/.hermes/sessions

@@ -1,0 +1,87 @@
+# /usr/share/containers/systemd/mios-llama-worker@.container
+# 'MiOS' SWARM worker -- ONE single-model llama-server instance (Phase-2,
+# operator 2026-06-12 "delegate a swarm to multiple smaller models ... 3-4 across
+# the dGPU, 3-4 across the CPU, concurrently").
+#
+# WHY a TEMPLATE of single-model servers (not llama-swap): llama-swap serves many
+# models behind one port but with --parallel 1 it SWAPS them serially (one
+# generates while the others idle) -- so it cannot run 3-4 models CONCURRENTLY.
+# N independent llama-server processes (this template, %i = worker name) each hold
+# their OWN model + KV cache and generate truly in parallel. The agent-pipe's
+# sub-lane semaphores (Phase-0) + per-endpoint VRAM reservation (Phase-1) pack
+# them onto the shared 4090 by REAL headroom without OOM-cascading.
+#
+# PER-INSTANCE CONFIG via EnvironmentFile: mios-swarm-pack-firstboot reads the
+# [nodes.swarm-*] / [swarm.workers.*] SSOT, validates Σvram_mb <= vram_budget_mb
+# (REFUSES to arm + logs if oversubscribed), and writes /run/mios/swarm/%i.env
+# (WORKER_MODEL / WORKER_PORT / WORKER_NGL / WORKER_CTX) per ARMED worker. No env
+# file -> the unit stays inert (ConditionPathExists below) -> zero risk until the
+# operator arms the pack. Ports/models/layer-counts are ALL from mios.toml SSOT,
+# never hardcoded here.
+#
+# !! TEMPLATE -- before arming, VERIFY against your llama-swap image: the
+#    llama-server binary path inside the image (Entrypoint below) and the GGUF
+#    file names in /usr/share/mios/llamacpp/models. These cannot be validated
+#    offline (same caveat as mios-llama-swap.container).
+#
+# VRAM-RISKY: arming several of these on the shared 4090 is Phase-3 (operator-
+# gated). The firstboot Σvram guard + ConditionPathExists + the agent-pipe lane
+# semaphores are the three independent backstops against the documented
+# OOM-cascade.
+
+[Unit]
+Description='MiOS' swarm worker %i (single-model llama-server, FOSS)
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+# Inert until the firstboot ARMS this specific worker (writes its env file).
+ConditionPathExists=/run/mios/swarm/%i.env
+# Also gated on provisioned GGUFs (no model store -> nothing to serve).
+ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
+
+[Container]
+Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
+ContainerName=mios-llama-worker-%i
+Network=host
+AddDevice=nvidia.com/gpu=all
+# Identity from mios.toml [services.llamacpp] (numeric -- the upstream image has
+# no mios user), same as mios-llama-swap.
+User=${MIOS_LLAMACPP_UID:-827}
+Group=${MIOS_LLAMACPP_GID:-827}
+
+# Per-worker config: WORKER_MODEL (GGUF basename under /models), WORKER_PORT,
+# WORKER_NGL (n-gpu-layers; 0 = CPU worker), WORKER_CTX. Written by the firstboot
+# from the SSOT; '-' prefix = optional so a missing file is caught by the
+# ConditionPathExists above rather than failing the unit.
+EnvironmentFile=-/run/mios/swarm/%i.env
+
+# RO GGUF store + a PER-WORKER KV slot dir (so /slots save/restore + the
+# agent-pipe _kv_paging persist independently per worker, a strict improvement
+# over one shared slot dir).
+Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
+Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:Z
+
+Environment=HOME=/var/lib/mios/llamacpp
+# WSL2 dGPU fix (same as mios-llama-swap): put the WSL CUDA driver on the linker
+# path so llama-server detects CUDA0 instead of falling back to CPU.
+Environment=LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64
+
+# Bare llama-server (NOT llama-swap) -- one resident model, KV-paging to its own
+# slot dir. Entrypoint pinned to the verified binary; args come from the env file.
+Entrypoint=/app/llama-server
+Exec=--model /models/${WORKER_MODEL} \
+     --host 0.0.0.0 --port ${WORKER_PORT} \
+     --n-gpu-layers ${WORKER_NGL:-99} \
+     --ctx-size ${WORKER_CTX:-8192} \
+     --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i \
+     --parallel 1 --cont-batching --jinja --alias ${WORKER_MODEL}
+
+Label=org.opencontainers.image.title=mios-llama-worker-%i
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=180s
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target default.target

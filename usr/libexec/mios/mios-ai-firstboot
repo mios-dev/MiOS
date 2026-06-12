@@ -98,6 +98,57 @@ PY
     fi
 fi
 
+# ── 2c. code-run sandbox: the dry-run sandbox Quadlet (mios-coderun-sandbox@)
+# is a USER unit -- it uses %t (XDG_RUNTIME_DIR) + is started via
+# `systemctl --user` by mios-coderun-session. For the mios-ai SERVICE account
+# (agent-pipe) to start it headless, mios-ai needs LINGER so a persistent user
+# systemd manager + the podman user generator run without an interactive login.
+# Without this, run_sandboxed_code fails (systemctl --user: no bus / unit not
+# found) and the agent reports a sandbox permission error (operator 2026-06-12).
+if command -v loginctl >/dev/null 2>&1 && id mios-ai >/dev/null 2>&1; then
+    # (a) subuid/subgid: the sandbox Quadlet uses UserNS=keep-id, which needs a
+    # rootless sub-id range for mios-ai. Build-time canonical is
+    # automation/31-user.sh; this is the runtime retry for overlay/WSL hosts where
+    # mios-ai was added without a range. Allocate the next free block after
+    # user/mios (524288:65536) -> 589824:65536, idempotently.
+    if ! grep -qE '^mios-ai:' /etc/subuid 2>/dev/null; then
+        echo 'mios-ai:589824:65536' >> /etc/subuid
+        echo 'mios-ai:589824:65536' >> /etc/subgid
+        sudo -u mios-ai podman system migrate 2>/dev/null || true
+        log "added mios-ai subuid/subgid 589824:65536 (rootless keep-id for sandbox)"
+    fi
+    # (b) linger: persistent user manager so `systemctl --user` (used by
+    # mios-coderun-session) works headless for the mios-ai service account.
+    if [ "$(loginctl show-user mios-ai -p Linger --value 2>/dev/null)" != "yes" ]; then
+        if loginctl enable-linger mios-ai 2>/dev/null; then
+            log "enabled linger for mios-ai (code-run sandbox user manager)"
+        else
+            log "WARN: enable-linger mios-ai failed -- code-run sandbox stays disabled"
+        fi
+    fi
+fi
+
+# ── 2d. code-run sandbox IMAGE: the user-scope Quadlet starts
+# localhost/mios-coderun-sandbox:latest, which must exist in mios-ai's ROOTLESS
+# store (rootless has its own image store, separate from rootful). Build it from
+# the shipped context if missing -- a network build (alpine + toolkit),
+# best-effort, retries next boot on failure. Needs the linger+subids above.
+if id mios-ai >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
+    _aiuid="$(id -u mios-ai 2>/dev/null)"
+    if ! sudo -u mios-ai env XDG_RUNTIME_DIR="/run/user/${_aiuid}" podman image exists localhost/mios-coderun-sandbox:latest 2>/dev/null; then
+        _ctx=/etc/mios/containers/coderun-sandbox
+        if [ -f "${_ctx}/Dockerfile" ]; then
+            log "building code-run sandbox image (rootless mios-ai) -- network build"
+            if sudo -u mios-ai env XDG_RUNTIME_DIR="/run/user/${_aiuid}" \
+                    podman build -t localhost/mios-coderun-sandbox:latest "${_ctx}" >/dev/null 2>&1; then
+                log "code-run sandbox image built"
+            else
+                log "WARN: sandbox image build failed (no egress?) -- run_sandboxed_code disabled until retry"
+            fi
+        fi
+    fi
+fi
+
 # ── 3. (re)start the AI services now their prerequisites exist ────────────────
 systemctl daemon-reload 2>/dev/null
 for s in hermes-agent mios-agent-pipe mios-llama-swap; do

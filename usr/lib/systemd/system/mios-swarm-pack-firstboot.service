@@ -1,0 +1,22 @@
+# SWARM Phase-2 (operator 2026-06-12): arm the concurrent small-model server pack
+# at boot IF [dispatch].gpu_profile == "swarm" (else the script is a no-op). The
+# script self-gates + enforces the VRAM budget, so this unit is safe to enable
+# unconditionally; it only ever starts mios-llama-worker@<name> units when the
+# operator has flipped the profile + provisioned GGUFs.
+[Unit]
+Description=MiOS swarm small-model pack arming (gpu_profile=swarm only)
+After=network-online.target mios-cdi-detect.service
+Wants=network-online.target
+# Don't even try before the agent stack's prerequisites; the script is idempotent.
+After=mios-ai-firstboot.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-swarm-pack-firstboot
+# Never wedge boot on a pack problem.
+TimeoutStartSec=120
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target
