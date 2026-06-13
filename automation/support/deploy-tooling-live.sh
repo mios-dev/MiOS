@@ -6,7 +6,7 @@
 # CR-strips every file. REBUILD-GATED items are NOT handled here (dnf packages:
 # pandoc/libreoffice for docgen; localhost/ container image: mios-coderun-sandbox
 # for code_mode; boot-config: WS-7 fapolicyd/UKI).
-set -uo pipefail
+set -euo pipefail
 SRC=/mnt/c/MiOS
 LX=/usr/libexec/mios
 

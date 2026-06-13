@@ -35,8 +35,18 @@ source "${SCRIPT_DIR}/lib/common.sh"
 # ── Geist (Vercel) ────────────────────────────────────────────────────
 log "[09-fonts] installing Geist font family from Vercel..."
 mkdir -p /usr/share/fonts/geist
-git clone --depth=1 --single-branch -c http.lowSpeedLimit=1 -c http.lowSpeedTime=20 \
-    https://github.com/vercel/geist-font.git /tmp/geist-font 2>/dev/null || true
+if [ -f "/usr/share/mios/vendored/geist-font.zip" ]; then
+    log "[09-fonts] Found offline vendored geist-font.zip, extracting..."
+    mkdir -p /tmp/geist-font
+    unzip -o -q /usr/share/mios/vendored/geist-font.zip -d /tmp/geist-font 2>/dev/null || true
+elif [ -d "/usr/share/mios/vendored/geist-font" ]; then
+    log "[09-fonts] Found offline vendored geist-font directory, copying..."
+    cp -a /usr/share/mios/vendored/geist-font /tmp/geist-font
+else
+    git clone --depth=1 --single-branch -c http.lowSpeedLimit=1 -c http.lowSpeedTime=20 \
+        https://github.com/vercel/geist-font.git /tmp/geist-font 2>/dev/null || true
+fi
+
 if [ -d /tmp/geist-font ]; then
     find /tmp/geist-font \( -name "*.otf" -o -name "*.ttf" \) \
         -exec cp -t /usr/share/fonts/geist/ {} + 2>/dev/null || true
@@ -68,7 +78,20 @@ record_version nerd-symbols-font "$NERD_TAG" \
 
 if command -v unzip >/dev/null 2>&1; then
     NERD_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/NerdFontsSymbolsOnly.zip"
-    if scurl -fsL --max-time 90 "$NERD_URL" -o /tmp/nerd-symbols.zip 2>/dev/null; then
+    download_ok=false
+    if [ -f "/usr/share/mios/vendored/NerdFontsSymbolsOnly.zip" ]; then
+        log "[09-fonts] Found offline vendored NerdFontsSymbolsOnly.zip, using it..."
+        cp /usr/share/mios/vendored/NerdFontsSymbolsOnly.zip /tmp/nerd-symbols.zip
+        download_ok=true
+    elif [ -f "/usr/share/mios/vendored/nerd-symbols.zip" ]; then
+        log "[09-fonts] Found offline vendored nerd-symbols.zip, using it..."
+        cp /usr/share/mios/vendored/nerd-symbols.zip /tmp/nerd-symbols.zip
+        download_ok=true
+    elif scurl -fsL --max-time 90 "$NERD_URL" -o /tmp/nerd-symbols.zip 2>/dev/null; then
+        download_ok=true
+    fi
+
+    if [ "$download_ok" = true ]; then
         unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
         rm -f /tmp/nerd-symbols.zip
         log "[09-fonts] Symbols-Only Nerd Font ${NERD_TAG} installed"

@@ -695,8 +695,14 @@ lane     = "gpu"
 # primary stream. Backed by mios-hermes-cpu.Modelfile (the CPU half of the
 # pair; `model` above -> mios-hermes is the GPU half). Omit cpu_* to keep
 # an agent single-lane.
-cpu_endpoint = "http://localhost:11450/v1"
-cpu_model    = "mios-hermes-cpu"
+# Operator 2026-06-12 "ALL AGENTS USE SGLANG": Hermes-as-fan-out-SECONDARY
+# dispatches to the SGLang heavy lane too (was the llama-swap CPU twin). The
+# Hermes PRIMARY stays on its :8642 gateway (endpoint above) because it needs
+# its 64k tool-use context + native browser/CDP/terminal loop, which the 16k
+# SGLang lane can't host; moving the workers OFF llama-swap already relieves the
+# contention that was timing the Hermes primary out.
+cpu_endpoint = "http://localhost:11441/v1"
+cpu_model    = "mios-heavy"
 # Tools Hermes is good at -- the refine pass surfaces these
 # as hint_tools when the intent matches.
 strengths = ["kanban", "web_search", "skill_invocation",
@@ -744,14 +750,12 @@ failover_agents = ["hermes"]
 # 8c/16t when it joins a foreground pipeline turn.
 # WS-10: repoint off the daemon-agent's ollama-cpu backend (:11435 dead) to
 # llama-swap; model 'mios-daemon-agent' is aliased to gemma4:12b. Was :8644/v1.
-endpoint = "http://localhost:11450/v1"
-# Consolidation 2026-05-24: the :8644 server now REASONS on the CPU model
-# (MIOS_DAEMON_MODEL, qwen3:1.7b @ ollama-cpu :11435, num_gpu 0 -- the same
-# compute the retired mios-reasoner-cpu used) GROUNDED in the live global
-# telemetry it maintains; agent-pipe's polish merges its draft with the
-# primary's. The model field is a LABEL ("mios-daemon-agent" matches the id the
-# :8644 /v1/models endpoint returns); the server picks its own inference model.
-model    = "mios-daemon-agent"
+# Operator 2026-06-12 "ALL AGENTS USE SGLANG": the council CPU-reasoner now
+# dispatches to the SGLang heavy lane (:11441, mios-heavy) like every other
+# agent, instead of the contended llama-swap :11450. (The always-on background
+# log/telemetry loop on :8644 is unchanged; this is only its FAN-OUT dispatch.)
+endpoint = "http://localhost:11441/v1"
+model    = "mios-heavy"
 # REASONING now (was "telemetry"): a real CPU second opinion, grounded in --
 # not limited to -- system telemetry.
 role     = "reasoning"
@@ -896,17 +900,25 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # (:11434/:11435, G5) are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
 # health_gate=true -> a lane is probed + skipped if llama-swap is momentarily down
 # (never a false "All connection attempts failed" fan-out; operator 2026-06-07 e2e).
+# Operator 2026-06-12 "ALL AGENTS USE SGLANG": every swarm worker dispatches to
+# the SGLang heavy lane (:11441, mios-heavy = Qwen2.5-14B-AWQ) instead of the
+# llama-swap multi-model lane. SGLang does CONTINUOUS BATCHING, so N concurrent
+# research facets are served in parallel on ONE backend -- whereas llama-swap
+# loads one model at a time and THRASHED when these nodes requested different
+# models (gemma4:12b + qwen3:1.7b + ...) concurrently, the root cause of the
+# 75s/150s node timeouts on the "global trending tech" research turn. All worker
+# nodes now share the sglang endpoint+model so the fan-out is real concurrency.
 [nodes.local-dgpu]
-endpoint = "http://localhost:11450/v1"
-model    = "gemma4:12b"        # dGPU reasoning lane (the unified stack model)
+endpoint = "http://localhost:11441/v1"
+model    = "mios-heavy"        # SGLang heavy lane (Qwen2.5-14B-AWQ, continuous batching)
 lane     = "gpu"
-api      = "llamacpp"
+api      = "openai"            # SGLang speaks /v1 + honours tool_choice=required
 health_gate = true
 [nodes.local-cpu]
-endpoint = "http://localhost:11450/v1"
-model    = "qwen3:1.7b"        # light/fast lane (small model, llama.cpp on the 4090)
-lane     = "cpu"
-api      = "llamacpp"
+endpoint = "http://localhost:11441/v1"
+model    = "mios-heavy"        # SGLang heavy lane (ALL AGENTS USE SGLANG)
+lane     = "gpu"
+api      = "openai"
 health_gate = true
 # Local iGPU lane -- ships endpoint EMPTY (privacy: the real iGPU is served
 # NATIVELY on the Windows host via llama.cpp+Vulkan at a tailnet IP, set in the
@@ -950,11 +962,11 @@ health_gate = true             # inert until the gated mios-sglang.service is en
 # operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
 # KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
 [nodes.local-llamaswap]
-endpoint    = "http://localhost:11450/v1"
-model       = "qwen3:1.7b"     # MUST match llama-swap.yaml's map; qwen3.5:4b is BLOCKED on mainline llama.cpp (custom qwen35 arch) -> standard-arch model until a build supports it
+endpoint    = "http://localhost:11441/v1"   # ALL AGENTS USE SGLANG (was :11450 llama-swap)
+model       = "mios-heavy"     # SGLang heavy lane (Qwen2.5-14B-AWQ, continuous batching)
 lane        = "gpu"            # shares the dGPU lane semaphore
-api         = "llamacpp"       # KV-paging + no tool_choice=required (config-first, not port-matched)
-health_gate = true             # inert until mios-llama-swap is up + reachable
+api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
+health_gate = true             # inert until mios-sglang is up + reachable
 # REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
 # repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
 # on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
@@ -1027,7 +1039,7 @@ dag_node_retry           = 1     # empty-result retries (read-only -> safe); 0 =
 # wait for the SLOWEST node (potato-cpu ~600s) -> blew every client timeout. Each
 # agent node's dispatch+retries is bounded here; a node that doesn't answer in time
 # is abandoned (empty) and the synthesiser proceeds on who DID answer.
-dag_node_deadline_s      = 75    # seconds; runaway backstop for a FAST-lane node. The dGPU/accelerator nodes finish their primary in 8-28s then work-steal (deepen extra coverage facets) until the barrier.
+dag_node_deadline_s      = 140   # seconds; runaway backstop for a FAST-lane node. Raised 75->140 (operator 2026-06-12 "ALL AGENTS USE SGLANG"): with every agent on the ONE SGLang lane (lane_concurrency_gpu=2, the VRAM-safe ceiling), nodes past the 2nd QUEUE for a slot, so the per-node deadline (measured from DISPATCH, not from slot-acquire) must absorb that queue wait + the node's own web-research+gen, or back-of-queue nodes get guillotined at 0 chars (grounded_nodes=0). 140 = ~queue + ~40s research + gen.
 # NODE/ENDPOINT-AWARE deadline (operator 2026-06-02 "LOCAL CPU IS NEEDED ... ALL NODES PLAY A PART ... planning isn't taking into account the nodes and endpoints"): a SLOW lane (CPU/iGPU/phone) gets a longer deadline. It is now SIZED to its hardware -- it REASONS over the grounding the fast lanes fetched this turn (no 16K-ctx own tool-loop) -- so its single pass finishes well inside this and is never abandoned just for being slow. The fast lanes deepen while it finishes (everything concurrent, all sources every turn).
 dag_node_deadline_slow_s = 150   # seconds; slow-lane (cpu/igpu/mobile) per-node deadline
 # WORK-STEAL (deepen) LANES: only these FAST lanes do extra coverage passes until the barrier; a slow lane does its ONE grounded pass and waits (it can't afford a second). CSV of lane categories.
@@ -1166,7 +1178,7 @@ council_max          = 4      # max council SECONDARIES per turn (0 = all; was u
 # SWARM/DAG width cap (operator 2026-06-01 "16-agent explosion"): the swarm/DAG
 # fan-out had NO cap (council_max only bounds the council path). Bound the swarm
 # to at most this many DISTINCT (endpoint,model) targets AFTER de-dup. 0=uncapped.
-swarm_max_width      = 8      # >= live distinct-node count so EVERY live node fires concurrently (operator "concurrent true swarm"). De-dup keeps these distinct (endpoint,model); depth (deepen/per-facet research) is gated separately, so a wide fan-out stays cheap on casual turns.
+swarm_max_width      = 3      # operator 2026-06-12 "ALL AGENTS USE SGLANG": every agent now targets the ONE SGLang heavy lane, whose VRAM only safely runs lane_concurrency_gpu=2 concurrent 14B gens. Fanning out 8 nodes onto a 2-wide lane just QUEUES 6 of them past their deadline -> all time out (grounded_nodes=0). Size the fan-out to the REAL concurrency: 3 facets (2 run immediately + 1 short queue), each grounded, finishing inside dag_node_deadline_s. Work-steal/deepen still loops the 2-3 live nodes across extra coverage facets until the barrier, so coverage stays broad without a wide cold fan-out. Raise again only when SGLang gets more concurrency headroom (more VRAM / a 2nd engine).
 # SLOW-LANE fan-out CEILING (runaway fix 2026-06-01j): GPU/fast nodes fan out
 # unbounded, but CPU/iGPU lanes are where stacked ~100s gens pile up. Cap how many
 # slow-lane nodes a DAG BACKFILLS (primary facets never dropped). Default 2 = the
@@ -5065,6 +5077,13 @@ pkgs = [
     # redis-compatible key-server -- pmproxy/pmseries time-series backend
     # that Cockpit's Metrics HISTORY queries. Required (see note above).
     "keydb",
+    # ttyd -- C/libuv pty-over-WebSocket bridge backing the MiOS Portal's
+    # inline browser terminals (mios-ttyd-bash :7681 / -powershell :7682; see
+    # [ttyd] above). Was configured + unit-enabled but NEVER in any package
+    # list, so the binary was absent and both units skipped on
+    # ConditionPathExistsGlob=/usr/?bin/ttyd (operator 2026-06-12 portal
+    # "Terminals 0/2 up"). Fedora pkg, installs /usr/bin/ttyd.
+    "ttyd",
 ]
 
 [packages.wintools]

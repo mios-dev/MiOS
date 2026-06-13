@@ -92,6 +92,32 @@ if ! "${VENV_PY}" -m venv "${VENV_DIR}" 2>/dev/null; then
     exit 0
 fi
 
+# Offline check: do we have a local hermes-agent wheel, archive, or source dir,
+# and/or local wheels in the vendored folder?
+PIP_OFFLINE_ARGS=""
+LOCAL_SOURCE=""
+if [ -d "/usr/share/mios/vendored/hermes-agent" ]; then
+    log "[38-hermes-agent] Found offline vendored hermes-agent directory"
+    LOCAL_SOURCE="/usr/share/mios/vendored/hermes-agent"
+elif [ -f "/usr/share/mios/vendored/hermes-agent.zip" ]; then
+    log "[38-hermes-agent] Found offline vendored hermes-agent.zip, extracting..."
+    unzip -o -q /usr/share/mios/vendored/hermes-agent.zip -d /tmp/hermes-agent-src 2>/dev/null || true
+    LOCAL_SOURCE="/tmp/hermes-agent-src"
+elif [ -f "/usr/share/mios/vendored/hermes_agent.whl" ]; then
+    log "[38-hermes-agent] Found offline vendored hermes_agent.whl"
+    LOCAL_SOURCE="/usr/share/mios/vendored/hermes_agent.whl"
+fi
+
+if [ -n "$LOCAL_SOURCE" ]; then
+    PIP_OFFLINE_ARGS="--no-index --find-links=/usr/share/mios/vendored/"
+    INSTALL_TARGET="$LOCAL_SOURCE"
+else
+    INSTALL_TARGET="git+${HERMES_REPO}@${HERMES_REF}"
+    if [ -d "/usr/share/mios/vendored" ]; then
+        PIP_OFFLINE_ARGS="--find-links=/usr/share/mios/vendored/"
+    fi
+fi
+
 # `pip install git+URL@ref` plus the must-have soft-deps -- single
 # step, network best-effort.
 #   * aiohttp -- REQUIRED by hermes-agent's api_server adapter (the
@@ -121,11 +147,11 @@ fi
 #     mirror was empty until psycopg was added). [binary] = prebuilt wheel, no
 #     libpq headers / compiler needed.
 # --no-input keeps it non-interactive; failure here is non-fatal.
-if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
-        "git+${HERMES_REPO}@${HERMES_REF}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" 2>&1 | tail -5; then
+if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} \
+        "${INSTALL_TARGET}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" 2>&1 | tail -5; then
     :
 else
-    warn "[38-hermes-agent] pip install git+${HERMES_REPO}@${HERMES_REF} + soft-deps failed (network? PyPI?) -- removing partial venv, skipping"
+    warn "[38-hermes-agent] pip install of ${INSTALL_TARGET} + soft-deps failed -- removing partial venv, skipping"
     rm -rf "${VENV_DIR}"
     exit 0
 fi

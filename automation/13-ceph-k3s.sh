@@ -26,14 +26,22 @@ install_packages "k3s"
 
 # ─── K3s Binary & Install Script ─────────────────────────────────────────────
 echo "[13-ceph-k3s] Resolving latest K3s release tag..."
-# Retry 3 times for flaky networks
-K3S_TAG=""
-for i in 1 2 3; do
-    # v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
-    K3S_TAG=$( (scurl -sL -o /dev/null -w "%{url_effective}" https://github.com/k3s-io/k3s/releases/latest | grep -oE '[^/]+$') 2>/dev/null || true)
-    if [[ -n "$K3S_TAG" && "$K3S_TAG" != "latest" ]]; then break; fi
-    sleep 2
-done
+# Offline check: do we have local k3s files?
+USE_OFFLINE=false
+if [ -f "/usr/share/mios/vendored/k3s" ] && [ -f "/usr/share/mios/vendored/k3s-install.sh" ]; then
+    echo "[13-ceph-k3s] Found offline vendored K3s files. Using them."
+    USE_OFFLINE=true
+    K3S_TAG="vendored"
+else
+    # Retry 3 times for flaky networks
+    K3S_TAG=""
+    for i in 1 2 3; do
+        # v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
+        K3S_TAG=$( (scurl -sL -o /dev/null -w "%{url_effective}" https://github.com/k3s-io/k3s/releases/latest | grep -oE '[^/]+$') 2>/dev/null || true)
+        if [[ -n "$K3S_TAG" && "$K3S_TAG" != "latest" ]]; then break; fi
+        sleep 2
+    done
+fi
 
 if [[ -z "$K3S_TAG" || "$K3S_TAG" == "latest" ]]; then
     echo "[13-ceph-k3s] WARN: Could not resolve latest K3s tag. Skipping K3s binary installation."
@@ -44,15 +52,31 @@ if [[ -n "$K3S_TAG" ]]; then
     echo "[13-ceph-k3s] Latest K3s tag: $K3S_TAG"
     record_version k3s "$K3S_TAG" "https://github.com/k3s-io/k3s/releases/tag/${K3S_TAG}"
 
-    echo "[13-ceph-k3s] Downloading K3s binary, checksum, and install script..."
-    K3S_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/k3s"
-    K3S_SUM_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/sha256sum-amd64.txt"
-    K3S_INSTALL_URL="https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh"
-
     mkdir -p /tmp/k3s-dl
-    if scurl -sfL "$K3S_URL" -o /tmp/k3s-dl/k3s && \
-       scurl -sfL "$K3S_SUM_URL" -o /tmp/k3s-dl/sha256sum.txt && \
-       scurl -sfL "$K3S_INSTALL_URL" -o /tmp/k3s-dl/k3s-install.sh; then
+    if [ "$USE_OFFLINE" = true ]; then
+        cp /usr/share/mios/vendored/k3s /tmp/k3s-dl/k3s
+        cp /usr/share/mios/vendored/k3s-install.sh /tmp/k3s-dl/k3s-install.sh
+        if [ -f "/usr/share/mios/vendored/sha256sum-amd64.txt" ]; then
+            cp /usr/share/mios/vendored/sha256sum-amd64.txt /tmp/k3s-dl/sha256sum.txt
+        else
+            local_sum=$(sha256sum /usr/share/mios/vendored/k3s | awk '{print $1}')
+            echo "${local_sum}  k3s" > /tmp/k3s-dl/sha256sum.txt
+        fi
+        download_ok=true
+    else
+        echo "[13-ceph-k3s] Downloading K3s binary, checksum, and install script..."
+        K3S_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/k3s"
+        K3S_SUM_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/sha256sum-amd64.txt"
+        K3S_INSTALL_URL="https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh"
+        download_ok=false
+        if scurl -sfL "$K3S_URL" -o /tmp/k3s-dl/k3s && \
+           scurl -sfL "$K3S_SUM_URL" -o /tmp/k3s-dl/sha256sum.txt && \
+           scurl -sfL "$K3S_INSTALL_URL" -o /tmp/k3s-dl/k3s-install.sh; then
+            download_ok=true
+        fi
+    fi
+
+    if [ "$download_ok" = true ]; then
         cd /tmp/k3s-dl
         if grep -E "  k3s$" sha256sum.txt | sha256sum -c - >/dev/null 2>&1; then
             echo "[13-ceph-k3s] [ok] K3s SHA256 checksum verified"

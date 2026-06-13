@@ -47,8 +47,8 @@ AddDevice=nvidia.com/gpu=all
 # Reuse the mios-ollama service identity (815, mios.toml [services.ollama]) -- the
 # GPU-inference sibling sharing the same CDI device line; it only READS the
 # immutable RO weights mount below (no writable volume to own).
-User=815
-Group=815
+User=${MIOS_VLLM_UID:-815}
+Group=${MIOS_VLLM_GID:-815}
 # Serve the baked reasoner, OpenAI-compatible, on the SSOT vllm port. APC is
 # always on (the whole point of this lane). --gpu-memory-utilization is a BOUNDED
 # slice so it co-resides with ollama's dGPU models + leaves margin for the

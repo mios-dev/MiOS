@@ -27,6 +27,12 @@ for f in "${FILES[@]}"; do
         echo "[mios-vendor-openui] keep existing $out ($(wc -c < "$out") bytes)"
         continue
     fi
+    if [[ -f "/usr/share/mios/vendored/$f" ]]; then
+        echo "[mios-vendor-openui] Found offline vendored file: /usr/share/mios/vendored/$f"
+        cp "/usr/share/mios/vendored/$f" "$out"
+        chmod 0644 "$out"
+        continue
+    fi
     if curl -sSL --max-time 60 -o "$out.tmp" "$URL_BASE/$f"; then
         if [[ -s "$out.tmp" ]]; then
             mv "$out.tmp" "$out"

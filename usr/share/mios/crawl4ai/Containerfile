@@ -14,6 +14,13 @@
 #              runtime libs come from `playwright install-deps firefox`.
 FROM docker.io/library/python:3.12-slim
 
+# MiOS build host = WSL2, whose NAT has no working IPv6. Make glibc's resolver
+# prefer IPv4 (covers pip/PyPI, camoufox fetch, playwright, git) and force apt
+# to IPv4 -- without this, apt-get update and pip stall on the IPv6 addresses
+# deb.debian.org / pypi.org return (operator 2026-06-12).
+RUN printf 'label ::1/128 0\nlabel ::/0 1\nlabel 2002::/16 2\nlabel ::/96 3\nlabel ::ffff:0:0/96 4\nprecedence ::1/128 50\nprecedence ::/0 40\nprecedence 2002::/16 30\nprecedence ::/96 20\nprecedence ::ffff:0:0/96 100\n' >> /etc/gai.conf \
+    && printf 'Acquire::ForceIPv4 "true";\n' > /etc/apt/apt.conf.d/99force-ipv4
+
 ENV PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1

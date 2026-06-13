@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS: keep WSL interop primary for Windows .exe (disable WINE binfmt shadowing /mnt/c/*.exe)
+Description='MiOS': keep WSL interop primary for Windows .exe (disable WINE binfmt shadowing /mnt/c/*.exe)
 Documentation=https://github.com/mios-dev/MiOS
 # WINE ships /usr/lib/binfmt.d/wine.conf which registers binfmt_misc handlers
 # `windows` + `windowsPE` (interpreter /usr/bin/wine) that match ANY PE/.exe by

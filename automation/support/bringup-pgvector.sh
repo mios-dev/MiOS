@@ -5,7 +5,7 @@
 # separate). Creates the data dir (uid 826), deploys schema-init + a RENDERED
 # quadlet (Quadlet doesn't expand ${VAR:-def}), starts, verifies tables + the
 # vector extension. Idempotent.
-set -uo pipefail
+set -euo pipefail
 
 SRC=/mnt/c/MiOS
 DATA=/var/lib/mios/pgvector

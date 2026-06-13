@@ -56,7 +56,7 @@ fi
 # --- Stage 3: /etc (System Config Templates) -------------------------------
 if [[ -d "${CTX}/etc" ]]; then
     log "  stage 3: overlay etc content"
-    tar -C "${CTX}/etc" -cf - . | tar -C /etc --no-overwrite-dir -xf -
+    tar -C "${CTX}/etc" -cf - --exclude='./containers/systemd' --exclude='./systemd' . | tar -C /etc --no-overwrite-dir -xf -
 fi
 
 # --- Stage 3a: /etc/wsl.conf force-install ---------------------------------

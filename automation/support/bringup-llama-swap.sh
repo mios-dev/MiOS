@@ -9,7 +9,7 @@
 # :11450. Idempotent: skips a GGUF copy if already present.
 #
 # Usage: bash bringup-llama-swap.sh
-set -uo pipefail
+set -euo pipefail
 
 SRC=/mnt/c/MiOS
 OLLAMA_BLOBS=/var/lib/ollama/models/blobs

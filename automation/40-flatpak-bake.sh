@@ -128,9 +128,20 @@ for raw in "${REFS[@]}"; do
         esac
     fi
 
+    local_flatpak=""
+    if [ -f "/usr/share/mios/vendored/${app}.flatpak" ]; then
+        local_flatpak="/usr/share/mios/vendored/${app}.flatpak"
+    fi
+
     log "[40-flatpak-bake]   installing ${app} (from ${remote})"
-    if flatpak install --system --noninteractive --assumeyes --or-update \
-            "${remote}" "${app}" 2>&1 \
+    if [ -n "$local_flatpak" ]; then
+        log "[40-flatpak-bake]   Found offline vendored flatpak file: ${local_flatpak}"
+        install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${local_flatpak}"
+    else
+        install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${remote} ${app}"
+    fi
+
+    if $install_cmd 2>&1 \
             | grep -E '^(Installing|Updating|Already installed|Skipping|Error|Warning)' \
             || true; then
         INSTALLED=$((INSTALLED + 1))

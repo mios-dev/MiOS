@@ -116,6 +116,21 @@ BACKEND_MODEL = os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL",
 # leaking the key to other local agents (operator 2026-05-25 swarm non-answer:
 # hermes facets 401'd in the swarm because the key was never attached).
 _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
+# Endpoints that ENFORCE the bearer key. Always includes the configured
+# BACKEND; ALSO the Hermes gateway, whose host:port differs from BACKEND when
+# MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (llama-swap on
+# :11450) while Hermes still runs on its own port (:8642). Scoping the key to
+# this SET (not just BACKEND) keeps non-streaming hermes dispatch (swarm /
+# council / DAG facets) authenticated instead of silently 401'ing -- the
+# regression of the 2026-05-25 "hermes facets 401'd in the swarm" fix once
+# BACKEND moved off :8642. operator 2026-06-12. SSOT: same :8642 default as
+# BACKEND above and mios.toml [agents.hermes].endpoint; env-overridable.
+_HERMES_ENDPOINT = os.environ.get(
+    "MIOS_HERMES_ENDPOINT", "http://localhost:8642/v1").rstrip("/")
+_AUTH_HOSTPORTS = {
+    _BACKEND_HOSTPORT,
+    _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
+}
 
 # Micro-LLM (SSOT: mios.toml [ai].micro_model / micro_endpoint, surfaced
 # as MIOS_MICRO_MODEL / MIOS_MICRO_ENDPOINT by userenv.sh). This is the
@@ -175,7 +190,7 @@ def _toml_section(section: str) -> dict:
             if isinstance(_layer, dict):
                 out.update(_layer)
     except Exception:  # noqa: BLE001 -- best-effort; callers fall to literals
-        pass
+        log.warning("Failed to load overlay config section %s", section, exc_info=True)
     return out
 
 
@@ -474,7 +489,7 @@ def _dispatch_toml() -> dict:
             if isinstance(_layer, dict):
                 dd.update(_layer)
     except Exception:  # noqa: BLE001 -- best-effort; consts fall to literals
-        pass
+        log.warning("Failed to load overlay config for dispatch", exc_info=True)
     return dd
 
 
@@ -670,7 +685,7 @@ _GLOBAL_DISPATCH_SEM = asyncio.Semaphore(max(1, GLOBAL_DISPATCH_CONCURRENCY))
 # semaphore -- the scheduler is never allowed to block a turn. SSOT
 # [dispatch].priority_queue_enable / priority_starvation_ms.
 PRIORITY_QUEUE_ENABLE = str(os.environ.get("MIOS_PRIORITY_QUEUE")
-                            or _DISPATCH_TOML.get("priority_queue_enable", "false")
+                            or _DISPATCH_TOML.get("priority_queue_enable", "true")
                             ).strip().lower() in {"1", "true", "yes"}
 PRIORITY_STARVATION_S = _dispatch_num("MIOS_PRIORITY_STARVATION_MS",
                                   "priority_starvation_ms", 4000, float) / 1000.0
@@ -691,6 +706,7 @@ async def _priority_gate(priority: float):
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 -- degrade-open: fall back to the sem
+            log.warning("Priority gate acquire failed, degrading open to FIFO semaphore", exc_info=True)
             use_gate = False
     if use_gate:
         try:
@@ -978,6 +994,7 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                         continue
                 await asyncio.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
     except Exception:  # noqa: BLE001 -- admission must never block a turn
+        log.warning("Admit check encountered unexpected error", exc_info=True)
         return
 
 # Router (layer-1 micro-LLM classifier) config.
@@ -2524,16 +2541,16 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
     return {"forked": forked, "reason": reason}
 
 
-# ── Model-adapter gateway: OpenAI <-> Anthropic / Gemini (item #1 slice 4) ──
+# ── Model-adapter gateway: OpenAI <-> Alternative Providers (item #1 slice 4) ──
 # operator 2026-05-27 "entire stacks to OpenAI standards for UNIVERSAL MODEL
 # compatibility ... all agents and models on any node/endpoint". MiOS's internal
 # contract is OpenAI Chat Completions; an agent binding may declare
 # api='anthropic'|'gemini' (any node, no port hardcodes) and this layer
-# normalises the wire format BOTH directions so Claude/Gemini are drop-in.
-# Invariants (research R4): OpenAI `arguments` is a JSON STRING while Claude
-# `input` / Gemini `args` are OBJECTS (normalise both ways); call-id correlation;
+# normalises the wire format BOTH directions so alternative provider endpoints are drop-in.
+# Invariants (research R4): OpenAI `arguments` is a JSON STRING while alternative
+# `input` / alternative `args` are OBJECTS (normalise both ways); call-id correlation;
 # results are messages; tool JSON-Schema scrub (drop top-level $ref, force
-# items.type for Gemini, relocate provider-rejected keywords into description).
+# items.type for alternative, relocate provider-rejected keywords into description).
 _ANTH_REJECT_KEYS = ("$schema", "$ref", "additionalProperties")
 _GEMINI_DROP_KEYS = ("format", "minLength", "maxLength", "pattern",
                      "minimum", "maximum", "default", "examples",
@@ -2541,8 +2558,8 @@ _GEMINI_DROP_KEYS = ("format", "minLength", "maxLength", "pattern",
 
 
 def _scrub_schema(node, *, gemini: bool):
-    """Return a provider-safe copy of a JSON-Schema node. Gemini rejects/ignores
-    several keywords (relocated into description) and REQUIRES array items to
+    """Return a provider-safe copy of a JSON-Schema node. Some providers reject/ignore
+    several keywords (relocated into description) and REQUIRE array items to
     declare a type; both providers choke on $ref/$schema. Recursive, copy-only."""
     if isinstance(node, list):
         return [_scrub_schema(n, gemini=gemini) for n in node]
@@ -3483,8 +3500,11 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         # non-backend node (opencode/daemon/ollama don't enforce it anyway).
         _hdrs = dict(headers or {})
         if (_BACKEND_KEY
-                and "authorization" not in {k.lower() for k in _hdrs}
-                and ep.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
+                and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
+            # Hermes accepts ONE canonical key -- a forwarded client bearer
+            # 401s the node, so the pipe's credential replaces it here.
+            for _k in [k for k in _hdrs if k.lower() == "authorization"]:
+                _hdrs.pop(_k)
             _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
         # KV-paging bracket (operator 2026-06-01): on a llama.cpp endpoint, page
         # THIS conversation's KV into the slot (saving whoever held it) before the
@@ -4019,20 +4039,16 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
     _seen: set = set()   # tool-call signatures already made -> loop guard
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
-        payload = {"model": model, "messages": msgs, "tools": tools,
-                   "think": False, "stream": False}
-        if num_ctx:
-            # The verb surface alone is ~11K tok; raise the worker's context so
-            # ollama doesn't silently truncate the tools (default num_ctx=4096).
-            payload["options"] = {"num_ctx": int(num_ctx)}
+        payload = {"model": model, "messages": msgs, "tools": tools, "stream": False}
         try:
             r = await client.post(
-                f"{base}/api/chat",
+                f"{base}/v1/chat/completions",
                 content=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}, timeout=timeout)
             if r.status_code != 200:
                 break
-            msg = (r.json().get("message") or {})
+            choices = r.json().get("choices") or []
+            msg = (choices[0].get("message") if choices else {}) or {}
         except Exception as e:  # noqa: BLE001 -- best-effort
             log.debug("secondary tool-loop call failed: %s", e)
             break
@@ -4089,8 +4105,11 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
     _hdrs = dict(headers or {})
     if (_BACKEND_KEY
-            and "authorization" not in {k.lower() for k in _hdrs}
-            and ep.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
+            and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
+        # Hermes accepts ONE canonical key -- a forwarded client bearer
+        # 401s the node, so the pipe's credential replaces it here.
+        for _k in [k for k in _hdrs if k.lower() == "authorization"]:
+            _hdrs.pop(_k)
         _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
         nb = {"model": model, "messages": msgs, "tools": tools, "stream": False}
@@ -4221,41 +4240,43 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
             payload = {
                 "model": _omdl,
                 "messages": _omsgs,
-                "think": False,
                 "stream": True,
             }
-            _opts: dict = {}
-            # num_predict ALWAYS capped (operator 2026-06-01 runaway fix) -- ollama
-            # keeps generating after a client disconnect, so bound every stream.
-            _np_cap = _num_predict_cap_for(ep)   # short on a CPU/iGPU slow lane
-            _opts["num_predict"] = (min(int(body["max_tokens"]), _np_cap)
-                                    if body.get("max_tokens") else _np_cap)
-            if body.get("num_ctx"):
-                _opts["num_ctx"] = int(body["num_ctx"])
-            if _opts:
-                payload["options"] = _opts
+            if body.get("max_tokens"):
+                payload["max_tokens"] = min(int(body["max_tokens"]), _num_predict_cap_for(ep))
+            else:
+                payload["max_tokens"] = _num_predict_cap_for(ep)
             if body.get("response_format"):
-                payload["format"] = "json"   # ollama structured-output knob
+                payload["response_format"] = body["response_format"]
             async with client.stream(
-                    "POST", f"{base}/api/chat",
+                    "POST", f"{base}/v1/chat/completions",
                     content=json.dumps(payload).encode("utf-8"),
                     headers={"Content-Type": "application/json"},
                     timeout=_to) as r:
                 if r.status_code != 200:
                     return name, ""
                 async for line in r.aiter_lines():
-                    if not line.strip():
+                    if not line:
                         continue
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
                     try:
-                        obj = json.loads(line)
+                        chunk = json.loads(data)
                     except (json.JSONDecodeError, ValueError):
                         continue
-                    frag = ((obj.get("message") or {}).get("content")) or ""
+                    ch = chunk.get("choices") or []
+                    if not ch:
+                        continue
+                    delta = ch[0].get("delta") or {}
+                    _content = delta.get("content") or ""
+                    frag = _content or (delta.get("reasoning_content") or "")
+                    if _content:
+                        parts.append(_content)
                     if frag:
-                        parts.append(frag)
                         _push(frag)
-                    if obj.get("done"):
-                        break
             return name, _strip_think_tags("".join(parts))
         # Bespoke /v1 gateway (opencode :8633, hermes :8642): SSE stream.
         nb = dict(body)
@@ -4292,8 +4313,11 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         # backend netloc so a non-backend node never receives the key.
         _hdrs = dict(headers or {})
         if (_BACKEND_KEY
-                and "authorization" not in {k.lower() for k in _hdrs}
-                and ep.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
+                and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
+            # Hermes accepts ONE canonical key -- a forwarded client bearer
+            # 401s the node, so the pipe's credential replaces it here.
+            for _k in [k for k in _hdrs if k.lower() == "authorization"]:
+                _hdrs.pop(_k)
             _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
         async with client.stream(
                 "POST", f"{ep}/chat/completions",
@@ -6953,6 +6977,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                     str(obj.get("better_query") or ""),
                     str(obj.get("scrape_url") or ""))
         except Exception:  # noqa: BLE001 -- never block the answer on the judge
+            log.warning("Judge satisfied check encountered unexpected error", exc_info=True)
             return True, "", ""
 
     # Search the MODEL-SHARPENED query (refine's refined_text), not the raw user
@@ -11669,18 +11694,21 @@ async def reflect_on_step_failure(
         f"{prior_hint}\n"
         "/no_think"
     )
+    base = str(REFINE_ENDPOINT or "").rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+    url = f"{base}/v1/chat/completions"
     payload = {
         "model": REFINE_MODEL,
         "messages": [
             {"role": "system", "content": _REFLECT_SYSTEM},
             {"role": "user", "content": user_msg},
         ],
-        "think": False,
-        "format": "json",
         "stream": False,
-        "options": {"temperature": 0.0, "num_predict": 400},
+        "temperature": 0.0,
+        "max_tokens": 400,
+        "response_format": {"type": "json_object"}
     }
-    url = f"{REFINE_ENDPOINT}/api/chat"
     t0 = time.time()
     try:
         async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
@@ -12981,7 +13009,22 @@ def _dedup_pool_by_target(pool: list) -> list:
             _ep, _mdl = _agent_binding(c, None)
         except Exception:  # noqa: BLE001
             _ep, _mdl = str(c.get("endpoint", "")), str(c.get("model", ""))
-        key = (_endpoint_key(_ep), str(_mdl or "")) if _ep else ("@" + str(a), "")
+        # A CONTINUOUS-BATCHING backend (SGLang / vLLM, api=openai) serves
+        # concurrent requests IN PARALLEL -- so do NOT collapse multiple nodes
+        # that target it (operator 2026-06-12 "ALL AGENTS USE SGLANG": the
+        # concurrent swarm fans N research facets onto the one batching server).
+        # Key such nodes by NAME so each stays a distinct fan-out target; the
+        # SWARM_MAX_WIDTH cap below still bounds total concurrency. Only
+        # SERIALIZING backends (llama.cpp/ollama -- one model loaded at a time,
+        # which THRASHED when 4 nodes requested different models) keep the
+        # (endpoint, model) collapse that prevents redundant identical dispatch.
+        _batching = str(c.get("api", "")).strip().lower() in {"openai", "sglang", "vllm"}
+        if _ep and _batching:
+            key = ("@name:" + str(a), "")
+        elif _ep:
+            key = (_endpoint_key(_ep), str(_mdl or ""))
+        else:
+            key = ("@" + str(a), "")
         if key in seen:
             continue
         seen.add(key)
@@ -17756,10 +17799,38 @@ def _portal_authed(request: Request) -> bool:
     return _portal_token_ok(request.cookies.get(PORTAL_COOKIE))
 
 
+def _portal_unit_hidden(quadlet_file: str) -> bool:
+    """True if a Quadlet's generated unit is MASKED or was skipped by a FAILED
+    start condition (ConditionResult=no) -- i.e. retired (ollama -> llama-swap)
+    or gated OFF (vllm/guacamole: model not provisioned / wrong virtualization).
+    Such a unit can only ever show as a phantom 'down' in the portal, so drop it.
+    A unit that is MEANT to run but crashed keeps ConditionResult=yes and stays
+    visible -> genuine outages are still surfaced. The unit's own systemd state
+    is the SSOT -- no service-name list (operator 2026-06-12). Fail-OPEN: any
+    query error returns False (visible), so a probe glitch never hides a real
+    service."""
+    base = os.path.basename(quadlet_file)
+    if not base.endswith(".container"):
+        return False
+    unit = base[:-len(".container")] + ".service"
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["systemctl", "show", "-p", "LoadState", "-p", "ConditionResult",
+             "--value", unit], capture_output=True, text=True, timeout=4)
+        vals = [v.strip() for v in out.stdout.splitlines()]
+        load = vals[0] if len(vals) > 0 else ""   # -p order: LoadState first
+        cond = vals[1] if len(vals) > 1 else ""    # then ConditionResult
+        return load == "masked" or cond == "no"
+    except Exception:  # noqa: BLE001 -- never hide a service on a query error
+        return False
+
+
 def _discover_portal_services() -> list[dict]:
     """Scan the Quadlet *.container files for io.podman_desktop.openInBrowser
     labels -> {name, port, local health URL}. Adds the host Cockpit service.
-    Deduped by port, sorted by name. SSOT: the quadlet labels, not a list."""
+    Deduped by port, sorted by name. SSOT: the quadlet labels, not a list.
+    Masked / condition-gated-OFF units are dropped (see _portal_unit_hidden)."""
     svcs: list[dict] = []
     seen: set[str] = set()
     for d in ("/etc/containers/systemd", "/usr/share/containers/systemd"):
@@ -17781,6 +17852,13 @@ def _discover_portal_services() -> list[dict]:
                 continue
             scheme, port, path = m.group(1), m.group(2), (m.group(3) or "/")
             if port in seen:
+                continue
+            # Drop retired (masked) / gated-OFF (failed start condition) lanes so
+            # the portal stops showing them as perpetual phantom 'down' entries
+            # (operator 2026-06-12: ollama/ollama-cpu retired -> llama-swap,
+            # vllm gated, guacamole condition-skipped). Genuine outages keep
+            # ConditionResult=yes and stay visible.
+            if _portal_unit_hidden(f):
                 continue
             seen.add(port)
             name = (title or os.path.basename(f).replace(".container", ""))
@@ -20083,11 +20161,6 @@ def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
     base = str(endpoint or "").rstrip("/")
     if base.endswith("/v1"):
         base = base[:-3]
-    if _endpoint_is_ollama(base, {}, None):
-        return (base + "/api/chat",
-                {"model": model, "messages": messages, "think": False,
-                 "stream": False, "options": {"temperature": temperature,
-                                              "num_predict": max_tokens}})
     return (base + "/v1/chat/completions",
             {"model": model, "messages": messages, "stream": False,
              "max_tokens": max_tokens, "temperature": temperature})
@@ -20677,7 +20750,7 @@ async def _respond_native_loop_direct(
         _store_knowledge(query=last_user_text, answer=_ans,
                          session_id=session_id, tool_history=[])
     except Exception:  # noqa: BLE001
-        pass
+        log.warning("Failed to store knowledge", exc_info=True)
     log.info("native-loop: %d tool-calls fired %s, %dB answer",
              len(_fired), _fired[:8], len(_ans))
     if streaming:
@@ -20794,7 +20867,7 @@ async def _respond_local_state(
             try:
                 emit({"emoji": emoji, "label": label, "detail": detail})
             except Exception:  # noqa: BLE001
-                pass
+                log.warning("Failed to emit state", exc_info=True)
 
     _emit("🌐" if grounding_override else "📂",
           "reading the page" if grounding_override else "checking this machine")
@@ -20805,7 +20878,7 @@ async def _respond_local_state(
         try:
             emit({"reasoning": grounding[:6000]})
         except Exception:  # noqa: BLE001
-            pass
+            log.warning("Failed to emit reasoning", exc_info=True)
     _emit("✍️", "writing the answer")
     answer = await _format_local_state(last_user_text, grounding, persona_system)
     if not answer:
@@ -22269,11 +22342,13 @@ async def chat_completions(request: Request) -> Any:
     _ca = headers.get("authorization", "").strip()
     if _ca.lower() in ("", "bearer", "bearer null", "bearer none", "bearer undefined"):
         headers.pop("authorization", None)
-    # Self-inject bearer when caller didn't supply a usable one + we have a
-    # key from /etc/mios/hermes/api.env (or env override). Lets direct
-    # callers (curl, MCP clients, Smart Window) reach Hermes without each
-    # gateway re-implementing the auth flow.
-    if "authorization" not in headers and _BACKEND_KEY:
+    # The client bearer authenticates the CLIENT->PIPE hop only. Hermes
+    # enforces ONE canonical API_SERVER_KEY, so forwarding any OTHER client
+    # token (a desktop app's own api_key, a curl test key) 401s the whole
+    # turn before a single delta streams -- the bare "⚠️ / 🤖 general only"
+    # failure (operator 2026-06-12). Present OUR backend credential whenever
+    # we have one; the fallback-only injection below covers the keyless case.
+    if _BACKEND_KEY:
         headers["authorization"] = f"Bearer {_BACKEND_KEY}"
 
     # Detail strings: refine elapsed/intent/model, target endpoint,

@@ -4,7 +4,7 @@
 # unconditionally; it only ever starts mios-llama-worker@<name> units when the
 # operator has flipped the profile + provisioned GGUFs.
 [Unit]
-Description=MiOS swarm small-model pack arming (gpu_profile=swarm only)
+Description='MiOS' swarm small-model pack arming (gpu_profile=swarm only)
 After=network-online.target mios-cdi-detect.service
 Wants=network-online.target
 # Don't even try before the agent stack's prerequisites; the script is idempotent.

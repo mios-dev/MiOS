@@ -8,11 +8,11 @@
 # the new server.py fails to import (missing sibling / bad API / syntax) we
 # RESTORE the backups and SKIP the restart, so a bad deploy can't crash the
 # running service. Backups land at <name>.bak-<epoch>.
-set -uo pipefail
+set -euo pipefail
 
 SRC=/mnt/c/MiOS
 AP=/usr/lib/mios/agent-pipe
-VENV=/usr/lib/mios/hermes-agent/.venv/bin/python3
+VENV=/usr/lib/mios/agents/.venv/bin/python3
 TS=$(date +%s)
 # server.py LAST so its siblings are already in place for the import check.
 MODS="mios_sched.py mios_evict.py mios_hitl.py mios_aci.py mios_pg.py mios_codemode.py mios_kvfork.py mios_stress.py server.py"

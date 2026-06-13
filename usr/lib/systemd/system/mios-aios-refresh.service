@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet
+Description='MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet
 Documentation=file:///usr/libexec/mios/mios-gen-role-system
 # Needs the agent-pipe up: mios-gen-role-system reads the LIVE /v1/verbs catalog
 # and mios-a2a-discover probes A2A AgentCards. Both degrade-open, so a transient

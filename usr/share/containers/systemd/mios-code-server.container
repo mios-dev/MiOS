@@ -60,7 +60,7 @@ Volume=/var/lib/mios/code-server:/home/coder
 # FHS root link -- closes the self-replication editor loop.
 # MiOS's `/` IS a git working tree: /.git is the repo the Forgejo
 # self-replication pipeline tracks (.forgejo/workflows/build-mios.yml).
-# Bind the LIVE root into the editor at /mnt/mios-root soil the operator
+# Bind the LIVE root into the editor at /mnt/mios-root so the operator
 # edits the actual deployed system in the browser, commits, and
 # `git -C /mnt/mios-root push http://localhost:3000/<user>/mios` --
 # which mios-forgejo-runner picks up to `podman build` + signal the

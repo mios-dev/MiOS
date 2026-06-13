@@ -37,6 +37,12 @@ ARG FIRECRAWL_REF=v1.0.0
 # all build stages share one base layer.
 FROM docker.io/library/node:20-slim AS fetch
 ARG FIRECRAWL_REF
+# Force apt + glibc over IPv4 (MiOS build host = WSL2, whose NAT has no working
+# IPv6). deb.debian.org / github.com resolve to IPv6 (fastly) addresses; without
+# this the apt fetch + git clone hang/fail with "does not have a Release file"
+# (operator 2026-06-12).
+RUN printf 'Acquire::ForceIPv4 "true";\n' > /etc/apt/apt.conf.d/99force-ipv4 \
+    && printf 'label ::1/128 0\nlabel ::/0 1\nlabel 2002::/16 2\nlabel ::/96 3\nlabel ::ffff:0:0/96 4\nprecedence ::1/128 50\nprecedence ::/0 40\nprecedence 2002::/16 30\nprecedence ::/96 20\nprecedence ::ffff:0:0/96 100\n' >> /etc/gai.conf
 RUN apt-get update -qq \
     && apt-get install --no-install-recommends -y git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -49,6 +55,14 @@ RUN git clone --depth 1 --branch "${FIRECRAWL_REF}" \
 
 # ── Stage 1: base -- VERBATIM from firecrawl v1.0.0 apps/api/Dockerfile ─────
 FROM docker.io/library/node:20-slim AS base
+# Force apt + glibc over IPv4 (WSL2 NAT has no IPv6); inherited by the build +
+# final stages so their apt steps don't hang on deb.debian.org's IPv6 address.
+RUN printf 'Acquire::ForceIPv4 "true";\n' > /etc/apt/apt.conf.d/99force-ipv4 \
+    && printf 'label ::1/128 0\nlabel ::/0 1\nlabel 2002::/16 2\nlabel ::/96 3\nlabel ::ffff:0:0/96 4\nprecedence ::1/128 50\nprecedence ::/0 40\nprecedence 2002::/16 30\nprecedence ::/96 20\nprecedence ::ffff:0:0/96 100\n' >> /etc/gai.conf
+# Same WSL2-no-IPv6 reason for Node's resolver: pnpm install would otherwise
+# try registry.npmjs.org's AAAA address first and stall. ipv4first is honoured
+# by NODE_OPTIONS since Node 16.4 (operator 2026-06-12).
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 LABEL fly_launch_runtime="Node.js"
@@ -79,6 +93,10 @@ RUN pnpm run build:nosentry
 
 # ── Stage 4: go-base -- VERBATIM (compile the html-to-markdown shared lib) ──
 FROM docker.io/library/golang:1.19 AS go-base
+# WSL2 has no working IPv6: make Go use libc's resolver + prefer IPv4 so
+# `go mod tidy` doesn't stall on proxy.golang.org's IPv6 address.
+RUN printf 'label ::1/128 0\nlabel ::/0 1\nlabel 2002::/16 2\nlabel ::/96 3\nlabel ::ffff:0:0/96 4\nprecedence ::1/128 50\nprecedence ::/0 40\nprecedence 2002::/16 30\nprecedence ::/96 20\nprecedence ::ffff:0:0/96 100\n' >> /etc/gai.conf
+ENV GODEBUG=netdns=cgo
 COPY --from=fetch /ctx/src/lib/go-html-to-md /app/src/lib/go-html-to-md
 RUN cd /app/src/lib/go-html-to-md && \
     go mod tidy && \

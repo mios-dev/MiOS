@@ -26,15 +26,15 @@ the sub-phase ranges.
 Per-phase error handling: `automation/build.sh:234-237` toggles `set +e`
 around each script invocation so individual failures are captured in
 `FAIL_LOG`/`WARN_LOG` instead of aborting the orchestrator. Critical
-packages declared in `usr/share/mios/PACKAGES.md` `packages-critical` are
+packages declared in `usr/share/mios/mios.toml` under `[packages.critical].pkgs` are
 post-validated via `rpm -q` (`automation/build.sh:285-300`).
 
 ## Package management
 
-Single source of truth: `usr/share/mios/PACKAGES.md`. Every RPM installed
-into the image must live in a fenced `packages-<category>` block, parsed
-by `automation/lib/packages.sh:get_packages` (regex
-`/^\`\`\`packages-${category}$/,/^\`\`\`$/`). Helpers:
+Single source of truth: `usr/share/mios/mios.toml`. Every RPM installed
+into the image must live in a section under `[packages.<category>].pkgs`, parsed
+by `automation/lib/packages.sh:get_packages`. Human-readable rationale documentation
+lives at `usr/share/mios/mios.toml`. Helpers:
 
 - `install_packages "<category>"` -- best-effort, `--skip-unavailable`.
 - `install_packages_strict "<category>"` -- fails the script on any miss.
