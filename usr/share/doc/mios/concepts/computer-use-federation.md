@@ -1,14 +1,32 @@
 <!-- AI-hint: Conceptual documentation of the Computer-Use Federation, defining the unified MCP/A2A architecture for Linux/Wayland desktop control via the `cu_*` verb catalog, `mios-computer-use` executor, and `mios-pc-vision` grounding.
-     AI-related: /usr/libexec/mios/mios-computer-use, /usr/libexec/mios/mios-pc-vision, /usr/libexec/mios/mios-computer-use-server, /etc/mios/ai/v1/mcp.json, /etc/mios/ai/v1/a2a-peers.json, mios-computer-use, mios-pc-vision, mios-computer-use-server, mios-pc-control, mios-grounding -->
+     AI-related: /usr/libexec/mios/mios-computer-use, /usr/libexec/mios/mios-pc-vision, /usr/libexec/mios/mios-computer-use-server, /etc/mios/ai/v1/mcp.json, /etc/mios/ai/v1/a2a-peers.json, mios-computer-use, mios-pc-vision, mios-computer-use-server, mios-pc-control, mios-llm-light, mios-llm-heavy-alt -->
 # Computer-Use Federation (MCP + A2A)
 
 **Status:** shipped 2026-06-04. Linux/Wayland desktop computer-use delivered
 as a full MCP + A2A capability -- local verbs and federated remote desktops.
 
-MiOS drives desktops as a first-class agent capability, exposed through the
-**open standards the agent-pipe already consumes** (MCP tools + A2A skills)
+## Where this fits in MiOS
+
+MiOS is one thing built two ways at once: an **immutable bootc/OCI Fedora
+workstation** (the whole OS is a single container image you `bootc upgrade` like
+a `git pull` and `bootc rollback` like a Ctrl-Z) that is *also* a **local,
+self-replicating agentic AI operating system**. The same image that ships
+GNOME/Wayland and the virtualisation/cluster stack also ships a full local agent
+stack behind one OpenAI-compatible endpoint: the **agent-pipe** orchestrator
+(`:8640`) refines and fans a request across a council/swarm; **MiOS-Hermes**
+(`:8642`) is the tool-loop gateway; **pgvector** (`:5432`) is the unified agent
+memory; the **inference lanes** (`mios-llm-light` `:11450` primary, the gated
+`mios-llm-heavy`/`mios-llm-heavy-alt` GPU lanes) do generation and embeddings;
+**MCP** exposes the tool surface and **A2A** federates peer agents.
+
+Computer-use is the part of that whole that lets the agent **act on a graphical
+desktop** -- not just answer, but click, type, and verify on a real Wayland
+session. Its design goal is to deliver that as a first-class capability through
+the **open standards the agent-pipe already consumes** (MCP tools + A2A skills)
 rather than bespoke plumbing. One capability surface; three deployment shapes;
-zero new orchestrator.
+zero new orchestrator. Because MiOS is *one* image for any hardware, the same
+`cu_*` verb surface drives bare-metal GNOME, WSLg, and a federated remote
+desktop -- the executor adapts by environment, never the caller.
 
 ## The pieces
 
@@ -16,7 +34,7 @@ zero new orchestrator.
 |---|---|---|
 | **Executor** | `/usr/libexec/mios/mios-computer-use` | Environment-adaptive Linux/Wayland desktop driver. Backends: RemoteDesktop portal (libei) + Screenshot portal + AT-SPI grounding; self-written uinput fallback (no ydotool/AGPL). On WSLg it delegates to `mios-pc-control`; with a configured `executor_endpoint` it routes to a remote desktop. |
 | **Verbs** | `mios.toml [verbs.cu_*]` | `cu_screenshot`, `cu_ground`, `cu_atspi_query`, `cu_window_list`, `cu_click`, `cu_type`, `cu_key`, `cu_key_combo`. Each enters `_VERB_CATALOG` and auto-projects to **MCP** (`/v1/verbs`), **OpenAI tools** (the agent loop), and **A2A skills** (the agent card) -- one SSOT, three projections, no per-protocol code. |
-| **Grounding** | `/usr/libexec/mios/mios-pc-vision` | AT-SPI-first; vision fallback on `qwen3-vl:4b` (Ollama, JSON coords) or the gated vLLM `mios-grounding` lane (UI-TARS-1.5-7B, Action-DSL). Auto-selects parser by model name. |
+| **Grounding** | `/usr/libexec/mios/mios-pc-vision` | AT-SPI-first; vision fallback on `qwen3-vl:4b` (served by `mios-llm-light` on `:11450`, JSON coords) or the gated vLLM `mios-grounding` lane (`mios-llm-heavy-alt`, UI-TARS-1.5-7B, Action-DSL). Auto-selects parser by model name. |
 | **Node server** | `/usr/libexec/mios/mios-computer-use-server` | Dual **MCP + A2A + REST-executor** server (FastAPI/uvicorn) that a desktop runs so the central pipe CONSUMES it. `systemd --user` service gated to `graphical-session.target`. |
 | **Skill** | `usr/share/mios/hermes/skills/linux-control/SKILL.md` | The agent-facing decision tree (AT-SPI first, vision fallback, cu_* vs pc_*). |
 
@@ -64,7 +82,7 @@ already reads -- nothing else changes.
   "servers": [
     {
       "id": "workstation",
-      "url": "http://100.x.y.z:11438/mcp",
+      "url": "http://172.20.0.5:11438/mcp",
       "transport": "streamable-http",
       "enabled": true
     }
@@ -81,13 +99,16 @@ Its `cu.*` tools then surface in the agent loop as `mcp.workstation.cu.*`.
   "peers": [
     {
       "id": "workstation",
-      "url": "http://100.x.y.z:11438",
+      "url": "http://172.20.0.5:11438",
       "enabled": true,
       "label": "Workstation desktop"
     }
   ]
 }
 ```
+
+(Use LAN / local addresses -- the `172.x` WSL gateway or `192.168.x` -- not
+tailnet `100.x`: Tailscale is OFF by MiOS policy, see `[a2a]` in `mios.toml`.)
 
 On startup the pipe GETs `<url>/.well-known/agent-card.json`, parses the
 `desktop-control` skill, and exposes it at `/v1/a2a/skills`. A DAG node tagged
@@ -105,9 +126,14 @@ Goose/OpenHands stack. Add a desktop = add two overlay entries.
 
 ## Security
 
-* **Bind loopback by default** (`[computer_use].bind_address`). Expose to the
-  tailnet by setting the tailnet IP + firewalling the port to the tailnet
-  (`tailscale serve --tls-terminated-tcp`); never bind a public interface.
+The MiOS Architectural Laws keep the AI plane unified and least-privileged (Law
+5 UNIFIED-AI-REDIRECTS, Law 6 UNPRIVILEGED-QUADLETS); the computer-use surface
+extends that posture to the highest-trust capability MiOS has -- driving a real
+desktop.
+
+* **Bind loopback by default** (`[computer_use].bind_address`). Expose to a
+  trusted segment by setting the LAN IP + firewalling the port to that segment;
+  never bind a public interface. (`bind_address = ""` disables the server.)
 * **DNS-rebinding guard** -- the MCP endpoint validates the `Origin` header
   (per spec); server-to-server callers (the pipe) send none and pass.
 * **Optional bearer token** (`[computer_use].auth_token`) gates the write
@@ -115,23 +141,34 @@ Goose/OpenHands stack. Add a desktop = add two overlay entries.
   cross-host delegation, require **A2A Ed25519 passport signing** at the pipe
   (the passport infra already exists at `/var/lib/mios/passports`).
 * **DoD / approval gate** -- every write-class op runs through
-  `mios-computer-use`, which honours the Definition-of-Done / approval gate.
-  AT-SPI and the ScreenCast portal are *session-wide* grants -- gate them, and
-  never auto-enable the node server on a host where the real desktop is the
-  Windows side (WSLg defers to the existing broker lane).
+  `mios-computer-use`, which honours the Definition-of-Done / approval gate
+  (`[computer_use].require_approval = true`: write-class click/type/key go
+  through the gate, read-class screenshot/window-list/ground auto). AT-SPI and
+  the ScreenCast portal are *session-wide* grants -- gate them, and never
+  auto-enable the node server on a host where the real desktop is the Windows
+  side (WSLg defers to the existing broker lane).
 * **No ydotool** -- input is the RemoteDesktop portal (libei, sandboxable,
   user-consented) or our own uinput device; the AGPL seat-wide ydotool daemon
   is never used.
 
 ## Grounding model
 
-Baseline `qwen3-vl:4b` runs on the always-on Ollama lane -- no VRAM gate, works
-today. The accuracy upgrade is **UI-TARS-1.5-7B** (Apache-2.0) on the gated
-`mios-llm-heavy-alt` lane (`MIOS_VLLM_SERVED_NAME=mios-grounding`); it stays disabled
-until the dGPU has free VRAM (the shared 4090 is held by the Windows host).
-`mios-pc-vision` auto-switches its coordinate parser by model name, so enabling
-the heavy lane needs no code change -- just bake the weights + flip the served
-name. All model/endpoint choices are SSOT (`mios.toml`), never hardcoded.
+Grounding resolves through the same unified inference plane as the rest of MiOS,
+so there is no separate vision backend to provision. Baseline `qwen3-vl:4b` runs
+on the **always-on `mios-llm-light` lane** (`:11450`, llama.cpp behind the
+`llama-swap` proxy image) -- the same engine that serves the everyday chat
+models and embeddings, auto-swapping the vision model on demand. It is INERT
+until the GGUFs are baked under `/models` (the operator downloads the weights;
+the security classifier blocks the fetch for the assistant), then `cu_ground`'s
+vision fallback activates with no endpoint change.
+
+The accuracy upgrade is **UI-TARS-1.5-7B** (Apache-2.0) served as
+`mios-grounding` on the gated vLLM lane `mios-llm-heavy-alt` (`:11440`); it
+stays disabled until the dGPU has free VRAM (the shared 4090 is held by the
+Windows host). `mios-pc-vision` auto-switches its coordinate parser by model
+name, so enabling the heavy lane needs no code change -- just bake the weights +
+flip the served name. All model/endpoint choices are SSOT (`mios.toml`
+`[computer_use].grounding_model`), never hardcoded.
 
 ## See also
 

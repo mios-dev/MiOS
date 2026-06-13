@@ -54,7 +54,8 @@ goes via `web_search`, which routes through the local SearXNG.
 |--------------------|-------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------|
 | **MiOS-Hermes**    | `hermes-agent.service` (host-direct)                                                 | `:8642`  | OpenAI-compat agent gateway — sessions, tool-calling, kanban, skills          |
 | **MiOS-Prefilter** | `mios-delegation-prefilter.service`                                                  | `:8641`  | HTTP forwarder; injects `tool_choice=delegate_task` on fan-outable prompts    |
-| **MiOS-Inference** | llama.cpp / llama-swap (OpenAI-compat GGUF endpoint + embeddings)                    | `:8080`  | Raw model + embeddings; lanes routed across CPU / iGPU / dGPU / heavy compute |
+| **MiOS-Inference** | `mios-llm-light` (llama.cpp/llama-swap) primary + `mios-llm-heavy`/`-heavy-alt` (SGLang/vLLM) heavy lanes | `:11450` | GGUF models + embeddings (`nomic-embed-text`) behind the unified `MIOS_AI_ENDPOINT`; lanes across CPU / iGPU / dGPU / heavy |
+| **MiOS-Memory**    | `mios-pgvector` (PostgreSQL + pgvector)                                              | `:5432`  | Unified agent datastore — memory, sessions, events, skills, knowledge/RAG vectors |
 | **MiOS-Delegate**  | light-lane children via `delegate_task`                                              | (in-proc)| CPU/iGPU-side fanout pool (bounded concurrency + depth)                       |
 | **MiOS-OpenCoder** | `mios-opencode-gateway.service` (`opencode` at `/usr/lib/mios/agents/opencode/bin/`) | `:8633`  | Coding specialist — first-class OpenAI `/v1` council peer dispatched by the orchestrator |
 | **MiOS-Search**    | `mios-searxng.service` (Quadlet)                                                     | `:8888`  | Local SearXNG; backs `web_search` + OWUI's web-augmentation                   |
@@ -132,16 +133,20 @@ next MiOS forever (Day-0 → Day-1 → Day-N).
 
 - **Build:** bootc, ostree, composefs, bootc-image-builder (BIB), Podman
   (rootful), Justfile, dnf5.
-- **AI / inference:** **llama.cpp / llama-swap** serves the deployed GGUF models
-  behind the OpenAI-compat endpoint (`MiOS-Inference`, `MIOS_AI_ENDPOINT`).
-  **MiOS-Hermes** (`hermes-agent.service` on :8642) is the OpenAI-compat agent
-  gateway in front of it, with **MiOS-Prefilter** (:8641) injecting
-  `tool_choice=delegate_task` on fan-outable prompts. **MiOS-OpenCoder**
-  (`opencode`) is the coder-tuned specialist served as a first-class OpenAI `/v1`
-  council peer by `mios-opencode-gateway.service` (`:8633`), dispatched by the
-  agent-pipe orchestrator. Optional/unwired-by-default drop-in alternatives —
-  LocalAI, vLLM, Qdrant, LiteLLM — are supported and enabled in
-  `mios.toml [ai]`.
+- **AI / inference:** the local LLM engines are tier-named by role:
+  **`mios-llm-light`** (llama.cpp via llama-swap, :11450) is the primary lane —
+  it serves the everyday GGUF models AND embeddings (`nomic-embed-text`,
+  OpenAI-compat `/v1/embeddings`) and hot-swaps models on demand; **`mios-llm-heavy`**
+  (SGLang, :11441, served-name `mios-heavy`) is the heavy GPU lane with
+  **`mios-llm-heavy-alt`** (vLLM) the gated alternate, and **`mios-llm-worker@`** for
+  single-model swarm fan-out. All sit behind the OpenAI-compat `MIOS_AI_ENDPOINT`.
+  **MiOS-Hermes** (`hermes-agent.service` :8642) is the agent gateway in front,
+  with **MiOS-Prefilter** (:8641) injecting `tool_choice=delegate_task` on
+  fan-outable prompts; **MiOS-OpenCoder** (`mios-opencode-gateway.service` :8633)
+  is a first-class `/v1` council peer. The unified agent datastore is
+  **PostgreSQL + pgvector** (`mios-pgvector`) — memory, sessions, events, skills,
+  knowledge/RAG vectors. Optional drop-in alternatives (LocalAI, LiteLLM) flip on
+  in `mios.toml [ai]`.
 - **Container / orchestration:** Podman Quadlets, K3s, Ceph, Pacemaker/Corosync,
   CrowdSec (sovereign mode).
 - **Dev environment:** OpenHands integrated inside MiOS-DEV; Forgejo for local

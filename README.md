@@ -1,5 +1,5 @@
-<!-- AI-hint: Project overview and high-level architecture for MiOS, a container-image-based Linux workstation; use this to understand the system's core identity, licensing, and primary value proposition.
-     AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-ceph -->
+<!-- AI-hint: Project overview and high-level architecture for MiOS, an immutable container-image-based Linux workstation that is also a local self-hosted agentic AI OS; use this to understand the system's core identity, what it does end-to-end (build pipeline -> OCI image -> bootc lifecycle; local inference lanes -> agent orchestration -> pgvector memory), its licensing, and primary value proposition.
+     AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, /usr/share/mios/llamacpp/llama-swap.yaml, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-llm-light, mios-pgvector, mios-ceph -->
 # 'MiOS'
 
 > **Pronounced "MyOS"** -- short for *My OS* / *My Operating System*. The
@@ -27,6 +27,14 @@ upgrades like a `git pull`, and rolls back like a Ctrl-Z. It's Fedora
 underneath, with a curated stack on top for people who actually use their
 machines for AI, virtualization, and clusters -- not just spreadsheets.
 
+And it's more than a desktop: 'MiOS' is also a **local, self-hosted agentic AI
+operating system**. The same image that ships your GNOME session ships a full
+inference + agent stack -- local LLM lanes, an OpenAI-compatible front door, a
+multi-agent orchestration pipeline, and a PostgreSQL+pgvector memory -- all
+running on *your* hardware, offline-capable, with no vendor account in the loop.
+The OS can reason about itself, drive its own tools, and (because the whole
+thing is one rebuildable OCI image) effectively re-create itself.
+
 The default ref:
 
 ```
@@ -47,6 +55,11 @@ whole OS is one OCI image. You upgrade it the way you'd upgrade a container.
 If something breaks, `bootc rollback` and you're back where you started, with
 no "I sure hope `dnf` finishes" in the middle.
 
+That single-image discipline is also what makes the AI side trustworthy: the
+agent stack isn't a pile of pip-installed daemons you have to babysit -- it's
+baked into the same immutable image, version-locked to the OS, and reproduced
+exactly on every box that pulls the ref.
+
 What you actually get out of the box:
 
 - **GNOME 50 on Wayland** (the desktop), plus Phosh as a tablet-style
@@ -58,13 +71,21 @@ What you actually get out of the box:
   Windows VM and game on it.
 - **k3s + Ceph** for when you want to grow the box into a one-node cluster
   without re-imaging.
-- **Local AI surface**, OpenAI-compatible at `http://localhost:8080/v1`. Every
-  agent and tool on the system targets that one endpoint via
-  `MIOS_AI_ENDPOINT`, so any OpenAI-API-compatible editor/CLI client (no
-  vendor lock-in) talks to the same brain.
+- **A complete local AI surface**, OpenAI-compatible at
+  `http://localhost:8080/v1`. Local inference lanes (`mios-llm-light` for the
+  everyday models + embeddings, plus gated heavy GPU lanes) feed a multi-agent
+  pipeline with PostgreSQL+pgvector memory. Every agent and tool on the system
+  targets that one endpoint via `MIOS_AI_ENDPOINT`, so any OpenAI-API-compatible
+  editor/CLI client (no vendor lock-in) talks to the same brain.
 - **Real security defaults**: SELinux enforcing, fapolicyd deny-by-default,
   USBGuard, CrowdSec sovereign-mode IPS, kernel-lockdown integrity, MOK-
   signed kernel modules. Not the security-theater kind.
+
+These aren't four separate products bolted together -- they're one system. The
+GPU wiring (CDI) is what lets the inference lanes and the passthrough VMs each
+claim hardware; the immutable image is what lets the cluster grow a node
+in-place; the local AI surface is what turns the workstation into something that
+can operate *itself*.
 
 ---
 
@@ -78,8 +99,10 @@ read-only composefs mount, `/etc` gets a 3-way merge across upgrades, and
 `bootc rollback`. No more "the package manager left my system in a state."
 
 Think of it as a workstation flavor of CoreOS / Silverblue with the
-hyperconverged bits of Talos / openSUSE MicroOS, except it's still a
-day-to-day desktop you can ship code from.
+hyperconverged bits of Talos / openSUSE MicroOS -- except it's still a
+day-to-day desktop you can ship code from, *and* it carries its own local agent
+runtime so the OS can drive tools, search the web, manage VMs, and answer
+questions without phoning home.
 
 ---
 
@@ -154,6 +177,12 @@ The build pipeline is just a `Containerfile` that runs every script in
 etc.) and the numeric prefix encodes execution order. Add a new step? Drop
 a new `45-myfeature.sh` next to its peers.
 
+That pipeline is the first half of the system's lifecycle: **build pipeline →
+OCI image → `bootc` lifecycle on the host.** The scripts that wire up the AI
+plane (the inference lanes, the agent units, the pgvector schema) are just more
+numbered steps -- the same mechanism that installs packages also stands up the
+brain.
+
 If you want to know what makes a package show up in the image, check
 [`usr/share/mios/mios.toml`](usr/share/mios/mios.toml) under
 `[packages.<section>].pkgs` -- that's the runtime source of truth,
@@ -163,6 +192,52 @@ documentation lives at
 [`usr/share/doc/mios/reference/PACKAGES.md`](usr/share/doc/mios/reference/PACKAGES.md).
 Want to know what kernel arguments ship? They're in
 [`usr/lib/bootc/kargs.d/`](usr/lib/bootc/kargs.d/).
+
+---
+
+## The local AI stack (the "self-hosted agent OS" half)
+
+The AI surface is one of the things 'MiOS' is *for*, so here's the end-to-end
+shape. Everything below ships in the image, runs on your hardware, and is
+reachable through the single OpenAI-compatible endpoint named by
+`MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`).
+
+- **Inference lanes** -- named by *function*, not by upstream tool:
+  - `mios-llm-light` (`:11450`) is the **primary** lane: a `llama.cpp`
+    multi-model server fronted by the
+    [llama-swap](https://github.com/mostlygeek/llama-swap) proxy image
+    (`ghcr.io/mostlygeek/llama-swap:cuda`). It auto-swaps the everyday chat /
+    reasoning models behind one endpoint, KV-pages each conversation to disk,
+    **and** serves embeddings (`nomic-embed-text`, OpenAI-compatible
+    `/v1/embeddings`) plus the `mios-opencode` coder model. Its model map is
+    [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml).
+  - `mios-llm-heavy` (`:11441`, served-name `mios-heavy`) is the heavy GPU lane
+    (SGLang), gated off by default on VRAM grounds.
+  - `mios-llm-heavy-alt` is the alternate heavy lane (vLLM), likewise gated.
+  - `mios-llm-worker@` are single-model swarm workers for fan-out.
+  These speak the OpenAI/Ollama-compatible API, so any OpenAI-API client talks
+  to them unchanged -- but the *inference engine* is `llama.cpp`/SGLang/vLLM, not
+  a hosted service.
+- **Orchestration** -- the **agent-pipe** (`:8640`) is the router/dispatch
+  gateway every front-end (Open WebUI, the Discord/chat gateways) talks to; it
+  decomposes requests, fans out to agents, and calls tools. Behind it,
+  **MiOS-Hermes** (`:8642`) is the OpenAI-compatible agent gateway that owns
+  sessions, the tool-loop, skills, and browser control; a **prefilter**
+  (`:8641`) injects fan-out hints on decomposable prompts.
+- **Memory** -- the unified agent datastore is **PostgreSQL + pgvector** (the
+  `mios-pgvector` container on `:5432`), holding agent memory, events, tool
+  calls, sessions, skills, scratch, and a `knowledge` table of finished Q+A with
+  vector recall. `nomic-embed-text` (served by `mios-llm-light`) provides the
+  embeddings for that recall.
+- **Tools & federation** -- agents call tools over **MCP** and reach other
+  agents over **A2A**, and `web_search` is backed by a local **SearXNG**
+  (`:8888`). The coder peer is served through the **opencode-gateway**
+  (`:8633`) as a real `/v1` council member.
+
+The throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector
+memory → MCP/A2A**, all behind `MIOS_AI_ENDPOINT`. Full request/response
+contract is in [`usr/share/doc/mios/reference/api.md`](usr/share/doc/mios/reference/api.md);
+the agent-facing contract is under [`usr/share/mios/ai/`](usr/share/mios/ai/).
 
 ---
 
@@ -185,7 +260,7 @@ name     = "you"
 hostname = "you-laptop"
 
 [ai]
-model = "qwen2.5-coder:14b"
+model = "gemma4:12b"
 
 [flatpaks]
 install = [
@@ -220,6 +295,10 @@ build-time lint and by `automation/99-postcheck.sh`:
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s`
    (rationale in their headers).
+
+These laws are what keep the whole-system promise honest: Law 3 is why the AI
+containers ship *inside* the image, Law 5 is why every agent and editor resolves
+to the one local endpoint, and Law 6 is why the agent plane runs unprivileged.
 
 If you want the deeper dive: [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md)
 is the architectural contract (agent-facing),
@@ -272,6 +351,13 @@ the image lints clean against `bootc container lint`, and the WSL2 + ISO
 paths boot to a working desktop on the developer's daily-driver. The
 bare-metal install path works but expects you to know what `bootc switch`
 does before you run it.
+
+On the AI side, the migration off the early Ollama/SurrealDB/Qdrant stack is
+complete: inference + embeddings now run on the `mios-llm-light` lane (`:11450`)
+with gated heavy GPU lanes, and the unified agent datastore is
+PostgreSQL+pgvector. Ollama survives only as an upstream *API-compat reference*
+(the lanes speak the OpenAI/Ollama-compatible API) and in historical migration
+notes.
 
 Open issues + roadmap live on the GitHub side. PRs welcome -- read
 [`CONTRIBUTING.md`](CONTRIBUTING.md) before you push.

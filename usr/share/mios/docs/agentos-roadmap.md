@@ -1,45 +1,74 @@
-<!-- AI-hint: Roadmap for evolving the MiOS agent stack toward the 2025-2026 AgentOS architecture, identifying specific technical gaps (DAG decomposition, deliberative loops, event buses) and the phased engineering plan to resolve them.
-     AI-related: mios-agent-pipe, mios-launcher, mios-pc-control, mios-windows, mios-daemon, mios-ollama-cpu, mios-igpu-server, mios-reasoner-cpu, mios-skills, mios-skills-miner -->
+<!-- AI-hint: Roadmap for evolving the MiOS agent stack toward the 2025-2026 AgentOS/AIOS reference architecture, identifying specific technical gaps (DAG decomposition, deliberative loops, event buses) and the phased engineering plan that resolves them; several phases have landed. Read to understand how the agent plane fits the whole MiOS system.
+     AI-related: mios-agent-pipe, hermes-agent, mios-launcher, mios-pc-control, mios-windows, mios-daemon, mios-llm-light, mios-llm-heavy, mios-pgvector, mios-skills, mios-skills-miner, mios-passport, mios-text-edit, mios-powershell -->
 # MiOS AgentOS Roadmap
 
-Architectural roadmap for evolving the MiOS agent stack toward the
-2025-2026 AIOS / AgentOS reference architecture. Phases ordered by
-operator-impact-per-line-of-code, not by formal completeness.
+## Purpose & place in the whole system
 
-## Current state (pre-roadmap)
+MiOS is one thing built two ways at once: an **immutable bootc/OCI Fedora
+workstation** (the whole OS is a single container image — boot it, `bootc
+upgrade` it like a `git pull`, roll it back like a Ctrl-Z) that is *also* a
+**local, self-replicating, agentic AI operating system**. The build pipeline
+assembles the image, the bootc lifecycle carries it forward, and the same image
+that ships GNOME/Wayland, GPU-via-CDI, KVM/libvirt and a k3s+Ceph cluster path
+*also* ships a full local agent stack behind one OpenAI-compatible endpoint.
+
+This document is the architectural roadmap for the **agentic** half of that
+system — how the MiOS agent stack evolves toward the 2025-2026 AIOS / AgentOS
+reference architecture. It is written for engineers extending the agent plane.
+Its job is to connect that plane to the rest of MiOS: a front-end request flows
+into the **agent-pipe** orchestrator (`:8640`), which refines/decomposes it,
+fans it out across a council/swarm, and dispatches typed tool/verb calls;
+**MiOS-Hermes** (`:8642`) is the OpenAI-compatible gateway and tool-loop agent;
+the **inference lanes** (`mios-llm-light` `:11450`, the heavy GPU lanes
+`mios-llm-heavy`/`mios-llm-heavy-alt`) do generation and embeddings; and
+**PostgreSQL + pgvector** (`mios-pgvector` `:5432`) is the unified agent memory.
+MCP exposes the tool surface; A2A federates peer agents. Phases below are
+ordered by operator-impact-per-line-of-code, not by formal completeness.
+
+> **Migration note (2026-06-13):** The agent plane has moved off the early
+> Ollama / SurrealDB / Qdrant stack. Inference + embeddings now run on
+> `mios-llm-light` (`:11450`, llama.cpp behind the upstream `llama-swap` proxy);
+> the unified datastore is PostgreSQL + pgvector. Ollama survives only as an
+> *upstream API-compat reference* (the lanes speak the OpenAI/Ollama-compatible
+> API). Several phases below are **landed** — those sections describe shipped
+> code and are kept as the design-of-record; the still-open phases describe
+> planned work.
+
+## Current state
 
 | AgentOS principle | MiOS implementation | Gap |
 |---|---|---|
 | Tripartite layer (App/SDK/Kernel) | OWUI -> mios-agent-pipe (:8640) -> hermes-agent (:8642) | No formal SDK boundary; mios-agent-pipe IS the SDK in practice |
 | MCP-style tool execution | mios-launcher broker (CAPTURE_JSON), typed verbs, LiteCUA via mios-pc-control + mios-windows | Strongest piece in MiOS |
-| Multi-frontend through one chain | OWUI shipped; Discord/Slack/Telegram pending Step 4/5 | OWUI works; Discord pending |
-| Shared cross-cutting state | SurrealDB: agent / session / tool_call / event / kanban_shadow / scratch / agent_metric | Works |
-| Local memory (per-agent) | hermes/.hermes/*.db, mios-daemon/state.json, OWUI webui.db | Works |
-| CPU light-lane | mios-ollama-cpu at :11435 for micro-LLMs | Live on CPU (ROCm never worked in WSL2 -- kernel doesn't expose /dev/kfd); real AMD iGPU runs natively on the Windows host (mios-igpu-server.ps1, served as mios-reasoner-cpu) |
-| Query decomposition into DAG | router emits ONE action; no DAG | **GAP A** |
+| Multi-frontend through one chain | OWUI shipped; Discord shipped; Slack/Telegram pending | Works (OWUI + Discord) |
+| Shared cross-cutting state | PostgreSQL + pgvector: agent_memory / session / tool_call / event / skill / scratch / knowledge / kanban / agent_metric | Works |
+| Local memory (per-agent) | hermes/.hermes/*.db, mios-daemon state, OWUI webui.db | Works |
+| Primary inference + embeddings | mios-llm-light at :11450 (llama.cpp via llama-swap); serves everyday models + `nomic-embed-text` embeddings + the `mios-opencode` coder model | Live |
+| Heavy GPU lanes | mios-llm-heavy (SGLang, :11441, served-name `mios-heavy`) / mios-llm-heavy-alt (vLLM) | Gated/off-by-default (VRAM) |
+| Query decomposition into DAG | `decompose` router action runs nodes topologically | **landed (Phase A.1)** |
 | Deliberative Collective Intelligence | single-pass critic loop, informal | **GAP B** |
 | Document-mutation event bus | hermes-tail/*.json + nudges (polled) | **GAP C** (no inotify pub/sub) |
-| Personal Knowledge Graph | flat OWUI memory only | **GAP D** |
-| Sequential Pattern Mining | none | **GAP E** |
-| Taint-aware memory + Semantic Firewall | none | **GAP F** |
-| Agent Passports / crypto identity | sysuser uids only | **GAP G** |
+| Personal Knowledge Graph | `person` table in pgvector; flat OWUI memory | **GAP D** (no rich graph edges) |
+| Sequential Pattern Mining | mios-skills miner over tool_call history | **landed (Phase C.2)** |
+| Taint-aware memory + Semantic Firewall | `tainted` tagging + pre-dispatch firewall on WRITE-class verbs | **landed (Phase A.3 / B.3)** |
+| Agent Passports / crypto identity | Ed25519 passports via mios-passport; signed envelopes on writes | **landed (Phase C.3)** |
 
-Operator-observed failures these gaps caused:
+Operator-observed failures the open/closed gaps addressed:
 - "open notepad and type hello and save to documents" -- monolithic
   handling; Hermes tried random paths because no DAG split into
-  open_app -> focus -> type -> save chain (GAP A)
+  open_app -> focus -> type -> save chain (Phase A.1)
 - "Hermes claimed it launched but didn't" -- single-pass critic
-  didn't FALSIFY the success claim (GAP B)
+  didn't FALSIFY the success claim (GAP B, still open)
 - daemon polling 3 sideband JSONs at 5-min ticks vs reacting
-  on-mutation (GAP C)
+  on-mutation (GAP C, still open)
 
 ## Phase A -- foundational gaps (commit 1-3)
 
-### A.1 -- DAG query decomposition via orchestrator-subagent
+### A.1 -- DAG query decomposition via orchestrator-subagent  *(landed)*
 
 **Reference**: Anthropic's multi-agent research system pattern --
 NOT DeepSieve verbatim (DeepSieve needs DeepSeek-V3-scale planner;
-operator-stack tops out at qwen2.5-coder:7b for the decomposer).
+the local-stack decomposer is a small function-calling-tuned model).
 ~300 LoC in `mios-agent-pipe`, no new heavy deps.
 
 **Shape**:
@@ -55,27 +84,27 @@ operator-stack tops out at qwen2.5-coder:7b for the decomposer).
   ```
 - agent-pipe runs nodes topologically; failures retry up to 2x
   (reflexion cap) before pruning + asking operator.
-- Each node emits a SurrealDB tool_call row tagged with the DAG id
+- Each node emits a pgvector `tool_call` row tagged with the DAG id
   + parent edges -- gives a full audit trail for multi-step intents.
 
-**Decomposer model**: qwen2.5-coder:7b (function-calling-tuned),
-not qwen3:1.7b (too small for reliable multi-hop per community
-reports).
+**Decomposer model**: resolved through the lane router (`MIOS_AI_ENDPOINT`,
+Law 5) to a function-calling-capable model served by `mios-llm-light`, not the
+smallest micro-LLM (too small for reliable multi-hop per community reports).
 
 ### A.2 -- inotify-backed document-mutation event bus
 
 Replace the 3 separate poll loops in mios-daemon (hermes-tail,
 delegation-prefilter, log-watcher) with one inotify watcher on
-`/var/lib/mios/*/` directories. Hooks emit SurrealDB.event rows.
+`/var/lib/mios/*/` directories. Hooks emit pgvector `event` rows.
 Agents (mios-daemon, agent-pipe critic, future Kanban dispatcher)
-SELECT FROM event WHERE source = X AND ts > <last_seen>.
+`SELECT FROM event WHERE source = X AND ts > <last_seen>`.
 
-### A.3 -- Taint-aware memory tags
+### A.3 -- Taint-aware memory tags  *(landed)*
 
 When agent-pipe's broker dispatch returns a tool_call result whose
 source is untrusted (e.g. web fetch, RAG document, external API
 response), tag the result content with `tainted = true` before it
-enters the chain's context. A small pre-execution check in the
+enters the chain's context. A pre-execution check in the
 Semantic Firewall (Phase B.3) refuses high-privilege follow-up
 verbs (service_restart, container_restart, open_url to non-allow-
 listed domain) if any tainted content is in context.
@@ -87,49 +116,52 @@ listed domain) if any tainted content is in context.
 Define the typed-acts schema (14 acts: frame/clarify/reframe,
 propose/extend/spawn, ask/challenge, bridge/synthesize/recall,
 ground/update, recommend). Each agent reply in deliberation MUST
-emit JSON with an `act` field. Lets us tag SurrealDB.event with
-the act type + run analytics on which act fired before resolution.
+emit JSON with an `act` field. Lets us tag the pgvector `event` row
+with the act type + run analytics on which act fired before resolution.
 
 ### B.2 -- DCI-CF convergent flow critic (replaces single-pass)
 
-4 personas on hermes-agent + one ollama model (Framer / Explorer /
+4 personas on hermes-agent (Framer / Explorer /
 Challenger / Integrator). Bounded loop: R_max=3 rounds, K_max=4
 candidate finalists. Always emits a decision packet {choice,
 rationale, minority_report, reopen_triggers}. Tensions preserved
-as first-class objects in SurrealDB.event(kind="dissent").
+as first-class objects in pgvector `event(kind="dissent")`.
 
-Single-model role-playing works per the DCI paper (Gemini 2.5
-Flash, 4 differentiated system prompts). Diversity helps but isn't
-required.
+Single-model role-playing works per the DCI paper (one capable model,
+4 differentiated system prompts). Diversity helps but isn't required —
+the personas can all be served by `mios-llm-light` via distinct prompts.
 
-### B.3 -- Semantic Firewall pre-MCP-dispatch
+### B.3 -- Semantic Firewall pre-MCP-dispatch  *(landed)*
 
 Small Python layer in agent-pipe. Before any WRITE-class verb
 fires, check:
 - Operator's original DAG (from A.1) authorized this verb
 - No tainted content (from A.3) in agent context
 - Action target is consistent with the DAG node's `args`
-On violation: abort + emit SurrealDB.event(kind="firewall_block",
-severity="high") + surface to operator.
+On violation: abort + emit pgvector `event(kind="firewall_block",
+severity="high")` + surface to operator.
 
 ## Phase C -- long-horizon autonomy (commit 7+)
 
-### C.1 -- Personal Knowledge Graph in SurrealDB graph mode
+### C.1 -- Personal Knowledge Graph
 
-SurrealDB is multi-model -- native graph support. New tables:
-`person`, `pref`, `device`, `app_install`, with RELATE edges. Per-
-operator graph queried by router/refine to ground ambiguous terms
-("my browser" -> RELATE preference -> chromedev).
+The pgvector schema already seeds a `person` table for per-operator
+grounding. The next step is rich graph edges: `pref`, `device`,
+`app_install` rows + relationship columns/joins so the router/refine
+pass can ground ambiguous terms ("my browser" -> preference ->
+chromedev). PostgreSQL joins + JSONB carry the edges; semantic recall
+rides the existing `vector(768)` HNSW columns.
 
 ### C.2 -- Sequential Pattern Mining over tool_call history  *(landed)*
 
 Implemented as:
 
-* `usr/share/mios/surrealdb/schema-init.surql` -- new tables:
+* `usr/share/mios/postgres/schema-init.sql` -- tables:
   `skill` (catalog row, param-templated body), `skill_invocation`
-  (per-run audit), `emitted` (RELATE skill_invocation -> tool_call,
-  used by the miner to subtract codified runs), `includes`
-  (RELATE skill -> skill, sub-skill composition).
+  (per-run audit), `event`/`tool_call` (the mined source), and the
+  composition edges expressed as JSONB/relations. The miner
+  subtracts already-codified runs so it doesn't re-mine its own
+  skills.
 * `usr/libexec/mios/mios-skills` -- stdlib-only CLI:
   `mine / list / show / run / promote / retire / delete /
   import / export / openai-tools / export-catalog`. The miner
@@ -137,7 +169,7 @@ Implemented as:
   session-bucketed tool_calls, counts support + unique-session
   witness, auto-promotes when confidence crosses the SSOT-driven
   `auto_promote_threshold`.
-* `usr/lib/mios/agent-pipe/server.py` -- new endpoints:
+* `usr/lib/mios/agent-pipe/server.py` -- endpoints:
   `GET /skills/list`, `GET /skills/show`, `POST /skills/run`,
   `GET /skills/openai-tools`. `execute_skill()` routes every step
   through `dispatch_mios_verb()` so the Phase B.3 firewall +
@@ -152,8 +184,8 @@ Implemented as:
     1. `GET /skills/openai-tools` on :8640 (live HTTP).
     2. `/var/lib/mios/skills/catalog.json` (static file the miner
        atomically refreshes; offline-safe).
-    3. Direct SurrealDB read on the `skill` table (any agent that
-       can talk to :8000).
+    3. Direct read of the `skill` table in pgvector (any agent that
+       can reach `:5432` via `mios-pg-query`).
 * SSOT: `[skills]` in mios.toml -- `enable`, `min_length`,
   `max_length`, `min_support`, `window_hours`,
   `auto_promote_threshold`, `mine_interval_minutes`,
@@ -164,12 +196,11 @@ Implemented as:
 
 Implemented as:
 
-* `usr/share/mios/surrealdb/schema-init.surql` -- new
-  `agent_keypair` registry table + `passport` (option<object>
-  FLEXIBLE) field on tool_call / skill_invocation / event /
-  agent_metric. Optional + FLEXIBLE so legacy rows stay readable
-  and v2-envelope additions (delegation chain headers) don't
-  break the schema.
+* `usr/share/mios/postgres/schema-init.sql` -- an `agent_keypair`
+  registry table + a `passport` JSONB field on
+  tool_call / skill_invocation / event / agent_metric. Optional +
+  flexible so legacy rows stay readable and v2-envelope additions
+  (delegation chain headers) don't break the schema.
 * `usr/libexec/mios/mios-passport` -- stdlib + python3-
   cryptography CLI: `provision / list / show / public-key /
   sign / verify / rotate / hash`. Idempotent provision generates
@@ -182,7 +213,7 @@ Implemented as:
   using the same canonical-JSON op_hash algorithm as the CLI.
   `_db_create` now defaults to `passport_sign=True`; every write
   through it carries an Ed25519 envelope. `_skill_invocation_
-  open` builds its CREATE manually and explicitly attaches the
+  open` builds its INSERT manually and explicitly attaches the
   passport.
   * `GET /passport/public-key?agent=` -- ship a public PEM to
     external integrators without filesystem access.
@@ -261,7 +292,7 @@ Windows paths).
   text_insert, powershell_run). Tainted sessions REFUSE
   dispatch.
 
-`usr/share/mios/skills/write-text-file.json` -- new seed
+`usr/share/mios/skills/write-text-file.json` -- seed
 template demonstrating text_create -> text_view as the native
 replacement for save-document's pc_type chain.
 
@@ -274,7 +305,7 @@ ttyd instances expose pty-over-WebSocket bridges:
   * `mios-ttyd-bash.service`         :7681  ->  `ttyd ... /bin/bash`
   * `mios-ttyd-powershell.service`   :7682  ->  `ttyd ... mios-powershell --shell`
 
-`mios-powershell --shell` (new mode in the existing shim) execs
+`mios-powershell --shell` (mode in the existing shim) execs
 `pwsh.exe` (preferred) / `powershell.exe` interactively via WSL
 interop, inheriting the ttyd pty. The browser tab sees a real
 Windows PowerShell prompt over WebSocket.
@@ -285,35 +316,42 @@ Hardening:
     `auth_user` + `auth_pass` when `require_auth` is true.
   * Optional TLS termination via `ssl_cert` + `ssl_key`.
 
-SSOT: `[ttyd]` in mios.toml + `[ports].ttyd_bash` /
-`.ttyd_powershell` + the userenv.sh slot map +
+SSOT: `[ttyd]` in mios.toml + `[ports].ttyd_bash` (`:7681`) /
+`.ttyd_powershell` (`:7682`) + the userenv.sh slot map +
 configurator HTML "ttyd" section.
 
-Package: `ttyd` in `packages-ttyd` of usr/share/mios/PACKAGES.md
-(Fedora 44 ships v1.7.7).
+Package: `ttyd` in `packages-ttyd` of
+`usr/share/doc/mios/reference/PACKAGES.md` (Fedora ships v1.7.7).
 
 ## What stays put
 
 The MCP-style execution layer (mios-launcher broker, mios-pc-
 control, mios-windows, typed verbs) is already strong; the
-research validates it. No changes planned. The dual-ollama lane
-(iGPU micro-LLMs / dGPU big models) is novel vs the reference
+research validates it. No changes planned. The multi-lane inference
+topology — `mios-llm-light` as the primary llama.cpp lane with
+multi-model auto-swap + KV-cache paging, the gated heavy GPU lanes
+behind the same `MIOS_AI_ENDPOINT` — is novel vs the reference
 architecture and stays.
 
-## Cross-cutting
+## Cross-cutting — how this respects the system's laws
 
-Every phase respects the existing operator rules:
-- mios.toml + html SSOT (no hardcoded values; per-phase knobs go
-  into the TOML chain)
-- no hardcoded English in agent surfaces
-- bootc-immutable code paths; mutable state under /var
-- full offline; no cloud calls baked in
+Every phase respects the six Architectural Laws and the operator rules:
+- **USR-OVER-ETC / mios.toml + html SSOT** — no hardcoded values; per-phase
+  knobs go into the `[skills]`/`[passport]`/`[ttyd]`/`[security]` TOML chain →
+  userenv.sh → `MIOS_*` env → the configurator HTML.
+- **UNIFIED-AI-REDIRECTS (Law 5)** — every agent/lane resolves the OpenAI-compat
+  endpoint from `MIOS_AI_ENDPOINT`; no vendor-hardcoded URLs or ports.
+- **No hardcoded English** in agent surfaces; **no hardcoded topic/app
+  deny-lists** in router/refine prompts.
+- **Immutable code paths / mutable state** — code under `/usr` (bootc-immutable);
+  all runtime state under `/var/lib/mios/...` declared via tmpfiles (Law 2).
+- **Full offline** — no cloud calls baked in; the catalog/skills/passport
+  surfaces are local files + loopback HTTP + pgvector on `:5432`.
 
-Open questions before implementation:
-- Phase A.1 decomposer model: confirm qwen2.5-coder:7b vs trying
-  Hermes-3-8B (more tool-tuned)
+Open questions before implementing the remaining open phases:
 - Phase A.2: inotify or fanotify? inotify simpler; fanotify
   catches more cases. Default inotify unless operator wants the
   fanotify generality.
-- Phase B.2 personas: 4 prompts on hermes-agent (cheaper) or 4
-  separate ollama instances (heavier, true isolation)?
+- Phase B.2 personas: 4 prompts on hermes-agent (cheaper, all on
+  `mios-llm-light`) or 4 isolated model instances (heavier, true
+  isolation)?

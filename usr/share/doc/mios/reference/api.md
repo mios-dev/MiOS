@@ -1,34 +1,105 @@
-<!-- AI-hint: Defines the OpenAI-compatible API surface and endpoint specifications for the MiOS AI gateway at port 8080, serving as the primary reference for agents to interact with the LocalAI backend.
-     AI-related: /usr/lib/mios/logs/openai-api-verification.txt, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, mios-ai, mios-bootstrap, mios-dev, mios-build-local, mios-ceph, mios-k3s, mios-ci -->
+<!-- AI-hint: Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light llama.cpp/llama-swap :11450, mios-llm-heavy SGLang :11441, mios-llm-heavy-alt vLLM :11440) fronted by the agent-pipe (:8640) and MiOS-Hermes gateway (:8642). Primary reference for any agent or OpenAI-API client talking to MiOS.
+     AI-related: /usr/lib/mios/logs/openai-api-verification.txt, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-llm-light, mios-llm-heavy, mios-pgvector, mios-bootstrap, mios-dev, mios-build-local, mios-ceph, mios-k3s -->
 # usr/share/doc/mios/reference/api.md
 
 > Canonical OpenAI-API-compatible reference for MiOS.
 >
-> **Scope:** This document specifies the full OpenAI public API surface that
-> 'MiOS' targets via `MIOS_AI_ENDPOINT=http://localhost:8080/v1`
-> (Architectural Law 5: UNIFIED-AI-REDIRECTS). Implementation is provided by
-> the `mios-ai.container` Quadlet running LocalAI; per-endpoint *served*
-> status is **unverified** in the current codebase -- verify against the
-> deployed LocalAI build with `GET /v1/models` and the per-endpoint probes
-> below before relying on any specific endpoint in production.
+> **What MiOS is, in one line.** 'MiOS' is an immutable, `bootc`-managed
+> Fedora-derived workstation shipped as a single OCI image that is *also* a
+> local, self-hosted, OpenAI-compatible agentic AI operating system. Everything
+> on the box -- CLI tools, the `mios` agent, IDE plugins, the desktop UI -- talks
+> to one brain through one endpoint. This document specifies that endpoint's
+> wire protocol.
+>
+> **Scope.** This document specifies the OpenAI public API surface that 'MiOS'
+> exposes through the single unified endpoint `MIOS_AI_ENDPOINT`
+> (default `http://localhost:8080/v1`, **Architectural Law 5:
+> UNIFIED-AI-REDIRECTS**). That endpoint is a *contract*, not a single process:
+> the protocol is served by the MiOS inference lanes and agent gateway described
+> in [Where the surface is served](#where-the-surface-is-served). Per-endpoint
+> *served* status is **deployment-dependent** -- which models and which OpenAI
+> sub-surfaces are live depends on which lanes are enabled and which weights are
+> provisioned. Verify against the running instance with `GET /v1/models` and the
+> per-endpoint probes below before relying on any specific endpoint in
+> production.
 >
 > **Source of truth for the spec:** OpenAI's published reference at
-> <https://platform.openai.com/docs/api-reference>. This document tracks
-> that surface; when MiOS's served set diverges (e.g., audio/image endpoints
-> may not be implemented by LocalAI), the divergence is noted in the
+> <https://platform.openai.com/docs/api-reference>. This document tracks that
+> surface so any OpenAI-API-compatible client works unchanged against MiOS. When
+> MiOS's *served* set diverges from the full spec (e.g. audio/image endpoints may
+> not be implemented by the active lane), the divergence is noted in the
 > [Compatibility Matrix](#compatibility-matrix), not by omitting the spec.
+
+## Why this doc exists (purpose within the whole system)
+
+MiOS treats its local AI surface the way the rest of the OS treats the
+filesystem: one canonical, vendor-neutral interface that every component agrees
+on. Architectural Law 5 forbids any agent or tool from hard-coding a vendor URL
+or a backend port; they all resolve `MIOS_AI_ENDPOINT` instead. That single
+indirection is what lets MiOS swap inference engines (llama.cpp, SGLang, vLLM),
+add cluster nodes, or page KV-cache between lanes **without touching a single
+client**. This document is the protocol that endpoint speaks. It is the
+reference an agent reads to know *how to ask*, and the reference a contributor
+reads to know *what MiOS promises to answer*.
+
+The full MiOS AI pipeline -- query refinement, multi-agent fan-out, web search,
+tool-loop execution, pgvector memory recall, and final polish -- is layered
+*above* this protocol by the [agent-pipe and MiOS-Hermes gateway](#where-the-surface-is-served).
+Those orchestration concerns are documented in the concepts/ and guides/ trees;
+here we specify only the OpenAI-compatible wire surface they (and external
+clients) consume.
+
+## Where the surface is served
+
+`MIOS_AI_ENDPOINT` is the logical front door. Behind it, the OpenAI-compatible
+protocol is implemented by MiOS's function-named inference lanes and agent
+gateway -- each speaks `/v1` natively, so a client never needs to know which one
+answered:
+
+| Lane / service | Port | Role |
+|---|---|---|
+| **mios-llm-light** (`mios-llm-light.container`) | `:11450` | **Primary** local engine -- llama.cpp behind the `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap`). On-demand multi-model auto-swap behind one OpenAI `/v1` endpoint, per-conversation KV-cache paging to disk (`--slot-save-path`), **and embeddings** (`nomic-embed-text` via `POST /v1/embeddings`). Also serves the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/llama-swap.yaml`. |
+| **mios-llm-heavy** (`mios-llm-heavy.container`) | `:11441` | Heavy GPU reasoning lane -- SGLang, served as `mios-heavy`, with continuous batching, RadixAttention prefix reuse, and a Qwen tool-call parser so fan-out agents emit real `tool_calls`. **Gated / off by default** (VRAM); enable only on a dGPU with headroom after baking weights. |
+| **mios-llm-heavy-alt** (`mios-llm-heavy-alt.container`) | `:11440` | Alternate heavy lane -- vLLM (PagedAttention + Automatic Prefix Caching). Mutually exclusive with `mios-llm-heavy` on a shared GPU; **gated / off by default** (VRAM). |
+| **mios-llm-worker@** (`mios-llm-worker@.container`) | -- | Single-model swarm workers for parallel fan-out. |
+| **MiOS-Hermes gateway** (`hermes-agent.service`) | `:8642` | OpenAI-compatible *agent* gateway -- sessions, tool-calling, skills. Forwards raw inference to the light lane (`http://localhost:11450/v1`). |
+| **MiOS agent-pipe** (`mios-agent-pipe.service`) | `:8640` | The orchestrator that fronts every gateway (OWUI, Discord, future Slack/Telegram): refine -> multi-agent dispatch -> tool-loop -> pgvector recall -> polish. |
+| **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts and forwards to Hermes. |
+| **MiOS-OWUI** (`mios-open-webui.container`) | `:3030` | Open WebUI browser front-end; its `OPENAI_API_BASE_URL` points at the agent surface, so the front-end serves the *agent*, not raw inference. |
+| **MiOS-Search** (`mios-searxng.container`) | `:8888` | SearXNG metasearch that backs the `web_search` tool. |
+| **mios-opencode-gateway** | `:8633` | opencode -> OpenAI `/v1` shim, making opencode a first-class council peer (loopback only). |
+| **mios-pgvector** (`mios-pgvector.container`) | `:5432` | PostgreSQL + `pgvector` -- the unified agent-plane datastore (memory, events, tool calls, sessions, skills, scratch, knowledge, embeddings). |
+
+> **Migration note (current).** Earlier builds described an Ollama inference
+> container and a SurrealDB/Qdrant agent store. Those are **retired**: inference
+> and embeddings now run on the `mios-llm-*` lanes above, and the agent datastore
+> is PostgreSQL + `pgvector` (`usr/share/mios/postgres/schema-init.sql`). Ollama
+> survives in this doc only as an *upstream API-compatibility reference* -- the
+> MiOS lanes speak the same OpenAI/Ollama-compatible `/v1` protocol -- never as a
+> live MiOS backend. LocalAI / vLLM / other engines remain *optional* backends,
+> off by default, flipped on in `mios.toml [ai]`.
 
 ## Conventions
 
 ### Base URL
 ```
-http://localhost:8080/v1   # in-image
+http://localhost:8080/v1   # in-image (unified MIOS_AI_ENDPOINT contract)
 http://<host>:8080/v1      # cross-host
 ```
-The endpoint binds to localhost via `etc/containers/systemd/mios-ai.container` (`PublishPort=8080:8080`). All clients (CLI tools, the `mios` agent, IDE plugins) MUST resolve through `MIOS_AI_ENDPOINT` -- vendor-hardcoded URLs are a Law-5 violation and fail audit.
+All clients (CLI tools, the `mios` agent, IDE plugins, the desktop UI) MUST
+resolve through `MIOS_AI_ENDPOINT` -- vendor-hardcoded URLs are a Law-5 violation
+and fail audit (`automation/99-postcheck.sh`). The endpoint is the contract; the
+served port behind it (the agent gateway on `:8642`, the light lane on `:11450`,
+or a reverse-proxy fronting `:8080`) is an implementation detail clients never
+encode.
 
 ### Authentication
-OpenAI's protocol expects `Authorization: Bearer <token>` on every request. LocalAI (and other OpenAI-compatible servers) accept any non-empty token by default. 'MiOS' deployments SHOULD set a non-trivial bearer in `etc/containers/systemd/mios-ai.container.d/auth.conf` or via `Environment=API_KEY=...` and require it via reverse-proxy gating; the spec below assumes the token is supplied even when it is currently a no-op.
+OpenAI's protocol expects `Authorization: Bearer <token>` on every request.
+OpenAI-compatible local servers (the llama-swap-fronted light lane, SGLang,
+vLLM) accept any non-empty token by default. 'MiOS' deployments SHOULD set a
+non-trivial bearer (via the lane's `Environment=API_KEY=...` / a Quadlet
+drop-in, or by gating at a reverse-proxy) and require it; the spec below assumes
+the token is supplied even where it is currently a no-op.
 
 ```
 Authorization: Bearer ${MIOS_AI_API_KEY}
@@ -36,10 +107,13 @@ Content-Type:  application/json
 ```
 
 ### Versioning
-All paths under `/v1`. Newer surfaces (Responses API, Realtime) are also `/v1`. Beta/admin surfaces require additional headers -- noted per-endpoint.
+All paths under `/v1`. Newer surfaces (Responses API, Realtime) are also `/v1`.
+Beta/admin surfaces require additional headers -- noted per-endpoint.
 
 ### Pagination
-List endpoints accept `limit` (default 20, max 100), `order` (`asc`|`desc`), `after`, `before`. Responses include `data[]`, `first_id`, `last_id`, `has_more`.
+List endpoints accept `limit` (default 20, max 100), `order` (`asc`|`desc`),
+`after`, `before`. Responses include `data[]`, `first_id`, `last_id`,
+`has_more`.
 
 ### Errors
 Standard error envelope:
@@ -53,18 +127,23 @@ Standard error envelope:
   }
 }
 ```
-HTTP 4xx/5xx mirror REST conventions. Streamed errors arrive as `event: error` SSE frames.
+HTTP 4xx/5xx mirror REST conventions. Streamed errors arrive as `event: error`
+SSE frames.
 
 ### Streaming
-Endpoints supporting `stream: true` emit Server-Sent Events with `data:` lines terminated by `data: [DONE]`. Realtime uses WebSocket (or WebRTC for audio).
+Endpoints supporting `stream: true` emit Server-Sent Events with `data:` lines
+terminated by `data: [DONE]`. Realtime uses WebSocket (or WebRTC for audio).
 
 ## Compatibility Matrix
 
 `'MiOS' Status` values:
-- `Unverified` -- endpoint defined in this spec but not yet probed against the deployed LocalAI image. Default for the current build.
-- `Served` -- confirmed reachable and protocol-conformant.
-- `Proxied` -- request is forwarded to an upstream that may or may not be MiOS-resident.
-- `Unsupported` -- definitively not implemented by the current LocalAI build; client SHOULD short-circuit.
+- `Unverified` -- endpoint defined in this spec but not yet probed against the
+  active lane. Default until the [verification protocol](#verification-protocol-post-build) runs.
+- `Served` -- confirmed reachable and protocol-conformant on the active lane.
+- `Proxied` -- request is forwarded to an upstream that may or may not be
+  MiOS-resident.
+- `Unsupported` -- definitively not implemented by the active lane; client SHOULD
+  short-circuit.
 
 | Group | Endpoint | 'MiOS' Status |
 |---|---|---|
@@ -91,6 +170,13 @@ Endpoints supporting `stream: true` emit Server-Sent Events with `data:` lines t
 | Realtime | `WS /v1/realtime`, `POST /v1/realtime/sessions` | Unverified |
 | Admin | `/v1/organization/*` | Unsupported (single-tenant deployment) |
 
+> The MiOS pipeline relies in practice on **Chat Completions** (the primary
+> generation path through the light/heavy lanes), **Embeddings** (`nomic-embed-text`
+> on `mios-llm-light`, feeding pgvector recall), and function/tool calling.
+> Audio, image, assistants/threads/runs, vector-store, and fine-tuning surfaces
+> are part of the tracked spec but their served status depends on the active
+> lane -- probe before depending on them.
+
 To probe live: `curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" "$MIOS_AI_ENDPOINT/models" | jq '.data[].id'`. If that returns model IDs, chat/embeddings are typically also live.
 
 ---
@@ -98,7 +184,10 @@ To probe live: `curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" "$MIOS_AI_
 ## Models
 
 ### `GET /v1/models`
-List models the deployment can serve. LocalAI advertises models declared under `/srv/ai/models/*.yaml`.
+List models the deployment can serve. The primary lane (`mios-llm-light`)
+advertises the models declared in its `llama-swap` model map at
+`usr/share/mios/llamacpp/llama-swap.yaml`; heavy lanes advertise their single
+served name (`mios-heavy`).
 
 Response:
 ```json
@@ -121,7 +210,9 @@ Remove a fine-tuned/uploaded model. Base/system models cannot be deleted.
 ## Chat Completions
 
 ### `POST /v1/chat/completions`
-Primary text-generation endpoint. Supports tool/function calling, JSON mode, vision (`image_url` parts), audio (`input_audio` parts), and SSE streaming.
+Primary text-generation endpoint -- the path the MiOS pipeline drives for every
+reasoning turn. Supports tool/function calling, JSON mode, vision (`image_url`
+parts), audio (`input_audio` parts), and SSE streaming.
 
 Request:
 ```jsonc
@@ -194,11 +285,12 @@ Response (non-stream):
 
 Streaming: SSE with `chat.completion.chunk` objects whose `choices[0].delta` carries incremental `content`/`tool_calls` deltas; final frame is `data: [DONE]`.
 
-Probe:
+Probe (use a `model` id the active lane advertises -- e.g. a tag from the
+light lane's `llama-swap.yaml`, or `mios-heavy` for an enabled heavy lane):
 ```bash
 curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"qwen2.5-coder:7b","messages":[{"role":"user","content":"ping"}]}' \
+  -d '{"model":"'"$(curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" "$MIOS_AI_ENDPOINT/models" | jq -r '.data[0].id')"'","messages":[{"role":"user","content":"ping"}]}' \
   "$MIOS_AI_ENDPOINT/chat/completions"
 ```
 
@@ -217,7 +309,7 @@ Response: `{ id, object:"text_completion", created, model, choices:[{ text, inde
 
 ## Responses
 
-The Responses API unifies chat, tool-use, vision, file/image inputs, and stateful conversations into one endpoint. Newer than `/chat/completions`; SHOULD be the default for new 'MiOS' agent code.
+The Responses API unifies chat, tool-use, vision, file/image inputs, and stateful conversations into one endpoint. Newer than `/chat/completions`; SHOULD be the default for new 'MiOS' agent code where the active lane supports it.
 
 ### `POST /v1/responses`
 Request:
@@ -286,7 +378,11 @@ Cancel a `background:true` Response in progress.
 ## Embeddings
 
 ### `POST /v1/embeddings`
-Generate dense vectors.
+Generate dense vectors. In MiOS this is served by the **primary lane**
+(`mios-llm-light`, `:11450`) running `nomic-embed-text` with
+`llama-server --embedding` -- the same `/v1/embeddings` surface the OpenAI SDKs
+expect. It feeds the agent-plane's vector memory (pgvector recall, knowledge
+ingestion).
 
 Request:
 ```json
@@ -306,7 +402,11 @@ Response:
   "usage":{ "prompt_tokens":0,"total_tokens":0 } }
 ```
 
-'MiOS' cross-ref: `var/lib/mios/embeddings/chunks.jsonl` is produced in the embedding format LocalAI returns; the ingestion pipeline reads from this endpoint.
+'MiOS' cross-ref: embeddings returned here are persisted into the
+`pgvector`-backed agent datastore (`mios-pgvector`, schema
+`usr/share/mios/postgres/schema-init.sql`) and used for cosine recall of prior
+answers and ingested knowledge. The legacy chunk-export format lives at
+`var/lib/mios/embeddings/chunks.jsonl`.
 
 ---
 
@@ -401,6 +501,12 @@ Abort and free server-side state.
 ---
 
 ## Vector Stores
+
+> **MiOS implementation note.** MiOS's *native* vector memory is PostgreSQL +
+> `pgvector` (`mios-pgvector`, HNSW indexing) -- not the OpenAI vector-store
+> objects below. The agent-pipe stores and recalls embeddings directly in
+> pgvector. The OpenAI vector-store surface is tracked here for SDK
+> compatibility; whether the active lane serves it is deployment-dependent.
 
 ### `POST /v1/vector_stores`
 `{ name, file_ids[], expires_after:{anchor:"last_active_at",days}, chunking_strategy:{type:"auto|static",static:{max_chunk_size_tokens,chunk_overlap_tokens}}, metadata }`. Response: `VectorStore`.
@@ -613,7 +719,9 @@ Paginated `FineTuningJobCheckpoint[]` -- references intermediate models that can
 ### `POST /v1/fine_tuning/checkpoints/{permission_id}/permissions` (Admin)
 Grant per-checkpoint sharing. Out of scope for single-tenant MiOS.
 
-'MiOS' cross-ref: `var/lib/mios/training/sft.jsonl` (supervised) and `var/lib/mios/training/dpo.jsonl` (preference) follow the formats this endpoint expects.
+'MiOS' cross-ref: MiOS's own LoRA/SFT fine-tune subsystem produces datasets in
+the formats this endpoint expects -- `var/lib/mios/training/sft.jsonl`
+(supervised) and `var/lib/mios/training/dpo.jsonl` (preference).
 
 ---
 
@@ -645,7 +753,7 @@ Same pattern, scoped to transcription-only sessions.
 
 ## Admin / Organization
 
-`/v1/organization/*` covers user/project/api-key administration, audit logs, costs, and usage. **'MiOS' Status: Unsupported** -- single-tenant deployment; auth is enforced at the reverse-proxy layer. If multi-tenant becomes a goal, document the chosen subset in a follow-up `ADMIN.md`.
+`/v1/organization/*` covers user/project/api-key administration, audit logs, costs, and usage. **'MiOS' Status: Unsupported** -- MiOS is a single-tenant deployment; auth is enforced at the lane/reverse-proxy layer. If multi-tenant becomes a goal, document the chosen subset in a follow-up `ADMIN.md`.
 
 ---
 
@@ -671,13 +779,13 @@ Streamed errors arrive as `event: error` SSE frames with the same envelope.
 
 ## Rate Limits
 
-OpenAI advertises `x-ratelimit-{limit,remaining,reset}-{requests,tokens}` headers. LocalAI's behavior depends on configuration; 'MiOS' deployments SHOULD enforce limits at the reverse-proxy layer if multi-client. Until that's wired, treat headers as advisory.
+OpenAI advertises `x-ratelimit-{limit,remaining,reset}-{requests,tokens}` headers. The behavior of local lanes (llama.cpp/llama-swap, SGLang, vLLM) depends on configuration; 'MiOS' deployments SHOULD enforce limits at the lane/reverse-proxy layer if multi-client. Until that's wired, treat headers as advisory. (In practice the agent-pipe governs concurrency upstream of the lanes via per-lane semaphores and a VRAM-aware admission controller -- see `mios.toml [ai]`.)
 
 ---
 
 ## SDKs
 
-The official OpenAI SDKs (`openai-python`, `openai-node`, `openai-go`, `openai-java`) all accept a `base_url` override. 'MiOS' clients SHOULD construct clients with:
+The official OpenAI SDKs (`openai-python`, `openai-node`, `openai-go`, `openai-java`) all accept a `base_url` override. Because MiOS speaks the OpenAI protocol on the unified endpoint, **any OpenAI-API-compatible editor or CLI client works unchanged** -- no vendor lock-in. 'MiOS' clients SHOULD construct clients with:
 
 ```python
 from openai import OpenAI, AsyncOpenAI
@@ -705,10 +813,12 @@ export OPENAI_API_KEY="$MIOS_AI_API_KEY"
 ## Cross-references
 
 - Architectural Law 5 (UNIFIED-AI-REDIRECTS): [`CLAUDE.md`](CLAUDE.md), [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md), [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md).
-- Endpoint binding: [`etc/containers/systemd/mios-ai.container`](etc/containers/systemd/mios-ai.container).
-- Endpoint manifest (machine-readable): [`manifest.json`](manifest.json) (entries keyed by `endpoint:`).
+- Primary inference lane / model map: [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml), [`usr/share/containers/systemd/mios-llm-light.container`](usr/share/containers/systemd/mios-llm-light.container).
+- Heavy lanes (gated): [`usr/share/containers/systemd/mios-llm-heavy.container`](usr/share/containers/systemd/mios-llm-heavy.container) (SGLang), [`usr/share/containers/systemd/mios-llm-heavy-alt.container`](usr/share/containers/systemd/mios-llm-heavy-alt.container) (vLLM).
+- Agent datastore (pgvector): [`usr/share/containers/systemd/mios-pgvector.container`](usr/share/containers/systemd/mios-pgvector.container), schema [`usr/share/mios/postgres/schema-init.sql`](usr/share/mios/postgres/schema-init.sql).
+- Orchestration pipeline: [`usr/lib/mios/agent-pipe/server.py`](usr/lib/mios/agent-pipe/server.py).
 - Batch input format: [`usr/share/mios/api/batch.requests.jsonl`](usr/share/mios/api/batch.requests.jsonl).
-- Embedding output format: [`var/lib/mios/embeddings/chunks.jsonl`](var/lib/mios/embeddings/chunks.jsonl).
+- Embedding output / chunk format: [`var/lib/mios/embeddings/chunks.jsonl`](var/lib/mios/embeddings/chunks.jsonl).
 - Fine-tuning training data: [`var/lib/mios/training/sft.jsonl`](var/lib/mios/training/sft.jsonl), [`var/lib/mios/training/dpo.jsonl`](var/lib/mios/training/dpo.jsonl).
 - Eval datasets: [`var/lib/mios/evals/dataset.jsonl`](var/lib/mios/evals/dataset.jsonl).
 - Upstream spec source: <https://platform.openai.com/docs/api-reference>.
@@ -717,7 +827,7 @@ export OPENAI_API_KEY="$MIOS_AI_API_KEY"
 
 ## Verification protocol (post-build)
 
-To flip every endpoint's `'MiOS' Status` from `Unverified` → `Served | Proxied | Unsupported`, run from inside the deployed 'MiOS' instance:
+To flip every endpoint's `'MiOS' Status` from `Unverified` → `Served | Proxied | Unsupported`, run from inside the deployed 'MiOS' instance against the active lane:
 
 ```bash
 # Required: instance must have curl + jq.
@@ -745,23 +855,24 @@ Update the [Compatibility Matrix](#compatibility-matrix) from the resulting file
 
 # Appendix: MiOS Build & Architecture Reference
 
-This appendix consolidates the build/architecture invariants previously
-duplicated in `CLAUDE.md`. `CLAUDE.md` is now a thin agent-identity pointer
-(see top of repo); the authoritative MiOS-internal reference lives here so
-agents have a single canonical source.
+This appendix consolidates the build/architecture invariants. `CLAUDE.md` is the
+thin per-tool agent-identity overlay (it defers to `/MiOS.md` for runtime
+identity); the authoritative MiOS-internal reference lives here so agents have a
+single canonical source. It exists so an agent reading *only this API doc* still
+understands the system the API lives inside.
 
 > Canonical agent prompt: `/usr/share/mios/ai/system.md` (deployed from `mios-bootstrap`).
 > Loading order: `/usr/share/mios/ai/system.md` -> `/etc/mios/ai/system-prompt.md` (host override) -> `~/.config/mios/system-prompt.md` (user override).
 
 ## A.1 What this repo is
 
-'MiOS' is an immutable, `bootc`-managed Fedora-derived workstation OS distributed as an OCI image. The repo root **is** the deployed system root: `usr/`, `etc/`, `srv/`, `var/`, `proc/`, `opt/` at the top level mirror their FHS-3.0 destinations. There is no `system_files/` indirection; `automation/08-system-files-overlay.sh` overlays them into the image.
+'MiOS' is an immutable, `bootc`-managed Fedora-derived workstation OS distributed as an OCI image -- and at the same time a local, self-replicating agentic AI OS. The repo root **is** the deployed system root: `usr/`, `etc/`, `srv/`, `var/`, `proc/`, `opt/` at the top level mirror their FHS-3.0 destinations. There is no `system_files/` indirection; `automation/08-system-files-overlay.sh` overlays them into the image.
 
-The published image is `ghcr.io/mios-dev/mios:latest` and is built `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia` (set via `MIOS_BASE_IMAGE`).
+The published image is `ghcr.io/mios-dev/mios:latest` and is built `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia` (set via `MIOS_BASE_IMAGE`). The build pipeline produces the image; `bootc` manages its lifecycle (`bootc upgrade` to roll forward, `bootc rollback` to undo); and the AI stack documented above is one of the curated layers baked into that image.
 
 ## A.2 Build commands
 
-Linux orchestrator is `Justfile`; Windows orchestrator is `mios-build-local.ps1`. There is no `cloud-ws.ps1` and no four-stage pipeline.
+Linux orchestrator is `Justfile`; Windows orchestrator is `mios-build-local.ps1`. (The legacy `cloud-ws.ps1` / CloudWS naming is retired -- the Windows path is `mios-build-local.ps1`.) There is no four-stage pipeline.
 
 ```bash
 just preflight    # System prereq check (tools/preflight.sh)
@@ -784,11 +895,11 @@ The `Containerfile` already runs `bootc container lint` as its final RUN -- `jus
 
 ## A.3 Phase-2 build pipeline (the `automation/` directory)
 
-`Containerfile` triggers `automation/build.sh`, which iterates every `automation/[0-9][0-9]-*.sh` in lexicographic numeric order. **Sub-phase numbering encodes dependency order and must be preserved when adding new scripts.** Per-script failures are captured in `FAIL_LOG`/`WARN_LOG` (set +e wrapper around each invocation, `automation/build.sh:234-237`) -- the orchestrator does not abort. Critical packages are post-validated via `rpm -q` against `packages-critical` from `PACKAGES.md`.
+`Containerfile` triggers `automation/build.sh`, which iterates every `automation/[0-9][0-9]-*.sh` in lexicographic numeric order. **Sub-phase numbering encodes dependency order and must be preserved when adding new scripts.** Per-script failures are captured in `FAIL_LOG`/`WARN_LOG` (set +e wrapper around each invocation) -- the orchestrator does not abort. Critical packages are post-validated via `rpm -q`.
 
-Skipped under the in-Containerfile build:
-- `08-system-files-overlay.sh` -- runs pre-pipeline directly from `Containerfile`
-- `37-ollama-prep.sh` -- CI-skipped
+Notable skips under the in-Containerfile build:
+- `08-system-files-overlay.sh` -- runs pre-pipeline directly from `Containerfile`.
+- Model-bake steps (the inference-lane weight bakes, e.g. SGLang/vLLM prep) are **opt-in** and CI-skipped, so a default CI build never bloats the image with multi-GB weights. (The former `37-ollama-prep.sh` ollama bake is retired along with Ollama itself.)
 
 The full pipeline spans five phases owned by two repos:
 
@@ -804,14 +915,14 @@ The full pipeline spans five phases owned by two repos:
 
 1. **USR-OVER-ETC** -- static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only. Documented exceptions are upstream-contract surfaces (`/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/`).
 2. **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. **Never write to `/var/` at build time.** bootc forbids it; lint will fail.
-3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh:74-86`.
+3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh`.
 4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`. No `--squash-all` (strips OCI metadata bootc needs).
-5. **UNIFIED-AI-REDIRECTS** -- all agents target `MIOS_AI_ENDPOINT` (`http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden. Endpoint served by `etc/containers/systemd/mios-ai.container`.
-6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s` (file headers explain why).
+5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy`/`mios-llm-heavy-alt` gated) fronted by the MiOS-Hermes gateway (`:8642`) and the agent-pipe (`:8640`) -- see [Where the surface is served](#where-the-surface-is-served).
+6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner` (file headers explain why; heavy-lane images that must run as image-default root, e.g. SGLang's NVIDIA base, are similarly documented in their unit headers).
 
 ## A.5 Package management
 
-Single source of truth: `usr/share/mios/PACKAGES.md`. Every RPM lives in a fenced ` ```packages-<category>` block parsed by `automation/lib/packages.sh:get_packages` (regex `/^```packages-${category}$/,/^```$/`). **Never call `dnf install` on hard-coded names.** Use:
+Single source of truth: `usr/share/mios/mios.toml` under `[packages.<section>].pkgs` (human-readable rationale at `usr/share/doc/mios/reference/PACKAGES.md`). Every RPM is parsed by `automation/lib/packages.sh`. **Never call `dnf install` on hard-coded names.** Use:
 
 - `install_packages "<category>"` -- best-effort, `--skip-unavailable`
 - `install_packages_strict "<category>"` -- fails the script on any miss
@@ -848,14 +959,14 @@ Note: `lockdown=integrity` (not `confidentiality`). `init_on_alloc=1`, `init_on_
 - WSL2-incompatible: `ConditionVirtualization=!wsl`.
 - Optional: `systemctl enable ... || true`.
 
-Every boolean in `usr/share/mios/profile.toml` ships **`true`**; the system never disables a component via static config -- Quadlet `Condition*` directives short-circuit incompatible units silently.
+Every boolean in `usr/share/mios/profile.toml` ships **`true`**; the system never disables a component via static config -- Quadlet `Condition*` directives short-circuit incompatible units silently. (This is how the gated heavy inference lanes stay inert until weights are baked and a dGPU has headroom.)
 
 ## A.10 Agent operating context
 
 - **cwd:** `/` is both the repo root and the deployed system root -- do not treat it as dangerous.
 - **Confirm before:** `git push`, `bootc upgrade`, `dnf install`, `systemctl`, `rm -rf`.
 - **Deliverables:** complete replacement files only -- no diffs, no patches, no "paste this into X" fragments. Nothing in the repo gets removed without prior discussion.
-- **Memory:** `/var/lib/mios/ai/memory/`
+- **Memory:** `/var/lib/mios/ai/memory/` (durable agent memory also persists in the `mios-pgvector` agent datastore).
 - **Scratch:** `/var/lib/mios/ai/scratch/`
 - **Tasks:** use the task tool for multi-step work; one in-progress at a time.
 
@@ -866,5 +977,5 @@ Every boolean in `usr/share/mios/profile.toml` ships **`true`**; the system neve
 - Engineering standards (authoritative source for build rules): `usr/share/doc/mios/guides/engineering.md`
 - Build modes: `usr/share/doc/mios/guides/self-build.md`
 - Deployment and Day-2 lifecycle: `usr/share/doc/mios/guides/deploy.md`
-- Security posture and hardening kargs: `SECURITY.md`
+- Security posture and hardening kargs: `usr/share/doc/mios/guides/security.md`
 - Contribution conventions: `CONTRIBUTING.md`

@@ -1,5 +1,5 @@
-<!-- AI-hint: Specific instructions for the Claude Code CLI tool, defining build commands, file replacement preferences, and safety confirmations for system-level operations while deferring core identity to MiOS.md.
-     AI-related: /etc/mios/MiOS.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /usr/share/mios/configurator/index.html, mios-build-local, mios-bootstrap, mios-ceph, mios-k3s, mios-forgejo-runner -->
+<!-- AI-hint: Per-tool operating overlay for the Claude Code CLI working on the MiOS repo (which IS the system root). Defines build commands, the build-pipeline/Architectural-Law contract, repo conventions, and the operator's binding session rules; defers core runtime identity to /MiOS.md.
+     AI-related: /etc/mios/MiOS.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /usr/share/mios/configurator/index.html, /usr/share/mios/llamacpp/llama-swap.yaml, mios-build-local, mios-bootstrap, mios-ceph, mios-k3s, mios-forgejo-runner -->
 # CLAUDE.md
 
 > _`/CLAUDE.md` — per-tool stub for **Claude Code** (claude.ai/code) working on
@@ -9,6 +9,27 @@
 > NOT redefine identity, posture, or tool-calling — those live in `/MiOS.md`
 > (layered `~/.config/mios/MiOS.md` < `/etc/mios/MiOS.md` < `/MiOS.md`). No
 > hardcoded topics, apps, or keywords._
+
+## What MiOS is (so this overlay makes sense)
+
+MiOS is one thing built two ways at once: an **immutable, bootc/OCI-shaped
+Fedora workstation** (the whole OS is a single container image — boot it,
+`bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is
+*also* a **local, self-replicating, agentic AI operating system**. The same image
+that ships GNOME/Wayland, NVIDIA+ROCm+iGPU via CDI, KVM/libvirt with VFIO
+passthrough, and a k3s+Ceph one-node-cluster path also ships a full local agent
+stack behind one OpenAI-compatible endpoint.
+
+That dual nature is why this repo is laid out the way it is, and why the laws
+below are non-negotiable: **the repo root IS the deployed system root.** The
+`Containerfile` bakes `usr/`, `etc/`, `srv/`, `var/` exactly where they land on
+a booted host, the build pipeline assembles the image, and the bootc lifecycle
+carries it forward. When you edit a file here you are editing the OS.
+
+Claude Code's job in that whole is narrow and load-bearing: **build, lint, and
+extend the image and its code paths** — not to operate the running machine. The
+sections below tell you how to build it, the contract you must not break, and
+the operator rules that bound a Claude session.
 
 ## Role and Objective
 
@@ -59,6 +80,10 @@ patches.
 
 ## Build commands
 
+The deliverable of a build is the OCI image (and, optionally, disk artifacts cut
+from it). Everything from `just preflight` to `just iso` is "produce the MiOS
+image"; the Architectural Laws below are the contract that image must satisfy.
+
 ### Linux
 
 ```bash
@@ -94,7 +119,6 @@ just edit               # open mios.toml in $EDITOR
 | `MIOS_BASE_IMAGE` | OCI base (default `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) |
 | `MIOS_LOCAL_TAG` | Local image tag (default `localhost/mios:latest`) |
 | `MIOS_USER` / `MIOS_HOSTNAME` | Default account/hostname baked into the image |
-| `MIOS_OLLAMA_BAKE_MODELS` | CSV of models baked into the image at build time |
 | `MIOS_USER_PASSWORD_HASH` | SHA-512 hash (`openssl passwd -6 'pw'`) — required for qcow2/vhdx |
 | `MIOS_SSH_PUBKEY` | ed25519 pubkey — required for qcow2/vhdx |
 
@@ -117,6 +141,10 @@ Single-stage build with a `ctx` scratch context:
 
 ### Build pipeline phases
 
+The image you build is consumed by the bootc lifecycle: Phase-0..4 produce it,
+then a host `bootc switch`/`upgrade` deploys it and `bootc rollback` reverts it.
+Keeping the phases ordered is what makes that lifecycle reproducible.
+
 | Phase | Owner | Description |
 |---|---|---|
 | Phase-0 | `mios-bootstrap` | Preflight, profile load, identity capture |
@@ -125,9 +153,14 @@ Single-stage build with a `ctx` scratch context:
 | Phase-3 | both | sysusers/tmpfiles/services + user create + per-user config staging |
 | Phase-4 | `mios-bootstrap` | Reboot |
 
-Numbered automation scripts (`automation/NN-name.sh`) are sub-phases of Phase-2. The prefix encodes dependency order — preserve it when adding scripts. `08-system-files-overlay.sh` and `37-ollama-prep.sh` are skipped by `build.sh` (the former runs pre-pipeline from the Containerfile; the latter is CI-skipped).
+Numbered automation scripts (`automation/NN-name.sh`) are sub-phases of Phase-2. The prefix encodes dependency order — preserve it when adding scripts. `08-system-files-overlay.sh` is skipped by `build.sh` (it runs pre-pipeline from the Containerfile).
 
 ### Architectural laws (non-negotiable; violations fail the build/audit)
+
+These six laws are the contract that lets MiOS be both immutable and agentic at
+once. Laws 1–4 keep the image deterministic, atomic, and self-contained so bootc
+can upgrade/roll it back; Laws 5–6 keep the AI plane unified and least-privileged
+so the agent stack stays portable and sandboxed.
 
 | # | Law |
 |---|---|
@@ -152,7 +185,8 @@ Human-readable rationale docs live at `usr/share/doc/mios/reference/PACKAGES.md`
 
 ### Configuration SSOT — `mios.toml`
 
-Three-layer override (highest wins):
+Everything operator-tunable — packages, ports, AI lanes, services, agent
+behaviour — flows from one file with a three-layer override (highest wins):
 
 ```
 ~/.config/mios/mios.toml     # per-user
@@ -162,17 +196,37 @@ Three-layer override (highest wins):
 
 Shell/systemd consumers use the derived bridge `/etc/mios/install.env`; run `mios-sync-env` after editing `mios.toml` to refresh it. The static configurator UI at `/usr/share/mios/configurator/index.html` is a browser-local TOML editor for the same file.
 
-### AI stack
+### AI stack — the local, OpenAI-compatible brain
 
-| Service | Port | Role |
-|---|---|---|
-| MiOS-Hermes (`hermes-agent.service`) | `:8642` | OpenAI-compat agent gateway — sessions, tool-calling, skills |
-| MiOS-Prefilter | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, forwards to Hermes |
-| MiOS-Inference (`ollama.service`) | `:11434` | Raw model + embeddings |
-| MiOS-OWUI | `:3030` | Browser front-end (Open WebUI) |
-| MiOS-Search | `:8888` | SearXNG — backs `web_search` tool |
+This is the "agentic AI OS" half of MiOS. A user request flows from a front-end
+(OWUI, the Discord gateway, the `mios` CLI) into the **agent-pipe** orchestrator,
+which refines it, fans it out across a council/swarm, and dispatches tool/verb
+calls; **MiOS-Hermes** is the OpenAI-compatible gateway and tool-loop agent;
+**pgvector** is the unified agent memory (tiered memory, knowledge, sessions,
+skills, RAG embeddings); the **inference lanes** below do the actual generation
+and embeddings. MCP exposes the tool surface and A2A federates peer agents.
 
-All agents resolve the endpoint from `MIOS_AI_ENDPOINT`; never hard-code a port or vendor URL. Optional inference backends (LocalAI, vLLM, llama.cpp, Qdrant, LiteLLM) are off by default — flip them on in `mios.toml [ai]`.
+| Service | Unit | Port | Role |
+|---|---|---|---|
+| MiOS-Agent-Pipe | `mios-agent-pipe.service` | `:8640` | Standalone orchestrator — router + refine + council/swarm fan-out + critic/polish; fronts Hermes for every gateway |
+| MiOS-Hermes | `hermes-agent.service` | `:8642` | OpenAI-compat agent gateway — sessions, tool-calling, skills, browser/CDP tool loop |
+| MiOS-Prefilter | `mios-delegation-prefilter.service` | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, forwards to Hermes |
+| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — llama.cpp behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/llama-swap.yaml` |
+| MiOS-LLM-Heavy | `mios-llm-heavy.service` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`, HiCache CPU KV-offload). Gated/off-by-default (VRAM) |
+| MiOS-LLM-Heavy-Alt | `mios-llm-heavy-alt.service` | `:11440` | Alternate heavy lane (vLLM, PagedAttention+APC). Gated/off-by-default (VRAM) |
+| MiOS-LLM-Worker | `mios-llm-worker@.service` | — | Single-model swarm workers (templated; for the dGPU swarm topology) |
+| MiOS-OpenCode | `mios-opencode-gateway.service` | `:8633` | opencode → OpenAI `/v1` gateway shim; makes opencode a real council peer (loopback) |
+| MiOS-OWUI | `mios-open-webui.service` | `:3030` | Browser front-end (Open WebUI) |
+| MiOS-Search | `mios-searxng.service` | `:8888` | SearXNG — backs the `web_search` tool |
+| MiOS-PGVector | `mios-pgvector.service` | `:5432` | PostgreSQL + pgvector — unified agent datastore (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env, kanban, …). Accessed via `mios-pg-query` / `mios-db --pg` |
+
+All agents resolve the endpoint from `MIOS_AI_ENDPOINT` (Law 5); never hard-code a
+port or vendor URL. `llama-swap` is the upstream proxy image
+(`ghcr.io/mostlygeek/llama-swap`) and the engines speak the OpenAI/Ollama-
+compatible API — those are legitimate upstream references; the MiOS *unit
+identity* is `mios-llm-light`. The heavy lanes (`mios-llm-heavy`,
+`mios-llm-heavy-alt`) are gated in `mios.toml` and stay inert until enabled and
+reachable (`health_gate`).
 
 ### Service gating conventions
 
@@ -211,7 +265,8 @@ Per-rule individual `.te` modules in `usr/share/selinux/packages/mios/` — not 
 
 These are Claude-Code session constraints — they bound what **this assistant**
 may do, and are distinct from (and additive to) the runtime agent posture in
-`/MiOS.md`.
+`/MiOS.md`. They follow directly from MiOS's design: Claude builds the image and
+its code paths; the *running* MiOS agent stack is what operates the machine.
 
 ### NO live launches — implement code, never run apps interactively
 

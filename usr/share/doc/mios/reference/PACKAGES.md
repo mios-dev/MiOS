@@ -1,9 +1,35 @@
-<!-- AI-hint: Human-readable reference documentation for the MiOS package ecosystem; agents should use mios.toml as the source of truth for package selection while using this file to understand the rationale and delivery policies.
+<!-- AI-hint: Human-readable reference documentation for the MiOS RPM package ecosystem -- the irreducible host substrate beneath the bootc/OCI image. Agents should use mios.toml as the source of truth for package selection while using this file to understand the rationale and the project-wide delivery policy (RPM = substrate only; apps -> Flatpak, services -> Container, guests -> VM).
      AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/configurator/mios.html, /usr/lib/mios/env.d/flatpaks.env, /usr/libexec/mios/intel-cdi-specs-generator, /usr/libexec/mios/mios-cdi-detect, mios-cdi-detect, mios-bootstrap, mios-flatpak-install, mios-no-audit -->
 # 'MiOS' -- Package Documentation
 > **Attribution:** MiOS-DEV (Administrative Alias)
 > **Infrastructure:** 'MiOS' Open-Source Build Pipeline
 > **License:** Apache-2.0 (Open-Source Infrastructure)
+
+---
+
+## Purpose -- where RPMs sit in the whole system
+
+MiOS is one thing built two ways at once: an **immutable, bootc/OCI-shaped
+Fedora workstation** (the entire OS is a single container image -- boot it,
+`bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is
+*also* a **local, self-replicating, agentic AI operating system** (local LLM
+inference lanes, an OpenAI-compatible front door, a multi-agent orchestration
+pipeline, and a PostgreSQL+pgvector memory, all on your own hardware).
+
+This document describes the **bottom layer** of that system: the RPM packages
+baked into the image at build time. They are the *irreducible host substrate* --
+the kernel, drivers, runtimes, daemons, and admin tooling that everything else
+stands on. The GPU stack here is what lets the AI inference lanes and the
+passthrough VMs each claim hardware via CDI; the container runtime here is what
+runs the agent Quadlets; the security daemons here are what keep the agent plane
+sandboxed. Without this substrate there is no image to ship, no bootc lifecycle
+to carry it forward, and no place for the agent stack to live.
+
+So the RPM surface is deliberately *minimal*: it exists only to make the three
+higher delivery formats (Flatpak / Container / VM) function. Applications, AI
+services, and guest workloads are **not** RPMs here -- see the Delivery Policy
+below. This file is the human-readable rationale for *why* each substrate
+package is present; the machine-readable source of truth is `mios.toml`.
 
 ---
 
@@ -43,12 +69,15 @@ to readers, but only mios.toml affects what dnf actually installs.
 
 ## DELIVERY POLICY (project-wide invariant)
 
-Every software artifact in MiOS ships as **one of three formats**:
+Every software artifact in MiOS ships as **one of three formats**, and the
+choice of format is what keeps the immutable-image promise intact: apps stay
+sandboxed and user-replaceable, services stay isolated and version-locked to the
+image, and guest OSes stay fully contained.
 
 | Format | What goes here | Where it's defined |
 |---|---|---|
 | **Flatpak** | User-facing applications (GUI apps, games, IDEs, file managers, terminal emulators, viewers, editors, gaming clients, virt GUIs). | `mios-bootstrap/mios.toml` `[desktop].flatpaks` → `MIOS_FLATPAKS` build-arg → `/usr/lib/mios/env.d/flatpaks.env` → `mios-flatpak-install` at first boot. |
-| **Container** (Quadlet / Podman / Distrobox) | Long-lived services and isolated workloads (LocalAI, Ollama, Forgejo, Ceph daemons, k3s workloads, AI CLI agents, NUT). | `etc/containers/systemd/*.container` (Quadlet) or `usr/share/distrobox/`. |
+| **Container** (Quadlet / Podman / Distrobox) | Long-lived services and isolated workloads (the local AI plane -- `mios-llm-light`, the gated `mios-llm-heavy`/`mios-llm-heavy-alt` lanes, `mios-pgvector`, `mios-open-webui`, `mios-searxng`; plus Forgejo, Ceph daemons, k3s workloads, NUT). | `etc/containers/systemd/*.container` (Quadlet) or `usr/share/distrobox/`. |
 | **VM** (libvirt / QEMU) | Heavyweight guest workloads needing a full guest OS (Windows guests, legacy distros, hardware-emulation testbeds). | Driven by libvirt/QEMU from the host substrate. |
 
 **RPM (this file)** is reserved strictly for the **irreducible host
@@ -74,10 +103,16 @@ Steam ships exclusively as a Flatpak (`com.valvesoftware.Steam`).
 
 # 'MiOS' v0.2.4 -- Package Manifest
 
-This file is both documentation and the **single source of truth** for all RPM packages installed in MiOS.
-Build scripts parse the fenced code blocks below using `scripts/lib/packages.sh`.
-To add a package, add it to the appropriate section. One package per line.
-Apps go in `mios.toml` `[desktop].flatpaks`, services in `etc/containers/systemd/`.
+This file is the human-readable rationale for the RPM substrate; the
+machine-readable **single source of truth** is `mios.toml`
+`[packages.<section>].pkgs`, parsed by `automation/lib/packages.sh`.
+To add a package, add it to the appropriate `[packages.<section>]` table
+in `mios.toml`. Apps go in `mios.toml` `[desktop].flatpaks`; long-lived
+services go in `etc/containers/systemd/`.
+
+(The fenced ```packages-<section>``` blocks below mirror the TOML sections for
+quick review. Since v0.2.4 they are documentation only and no longer parsed at
+build time.)
 
 **CHANGELOG v0.2.0:**
 - Standardized versioning across the entire stack.
@@ -275,7 +310,7 @@ adw-gtk3-theme
 
 ## GNOME Flatpak Runtime -- portals + audio + theming for Flatpaks via WSLg
 
-The MiOS-DEV podman backend (Windows-side) does not host its own
+The MiOS podman backend (Windows-side) does not host its own
 GNOME session -- WSLg is the Windows compositor and operators see
 Flatpaks (Ptyxis terminal, Nautilus file manager, Software app store,
 Epiphany browser, Flatseal permissions UI) as Windows windows routed
@@ -382,7 +417,9 @@ linux-firmware
 
 ## GPU Drivers -- AMD Compute (optional, fault-tolerant)
 
-ROCm OpenCL/HIP for AMD compute workloads.
+ROCm OpenCL/HIP for AMD compute workloads. This is one of the three GPU
+compute paths (AMD / Intel / NVIDIA) that the CDI generators below expose to
+containers -- the same hardware the local inference lanes claim for generation.
 
 ```packages-gpu-amd-compute
 rocm-opencl
@@ -435,6 +472,9 @@ nvidia-container-selinux
 
 Out-of-Fedora binaries that emit `/run/cdi/*.{yaml,json}` so podman
 containers can claim GPU access via `--device <vendor>.com/gpu=all`.
+This CDI layer is the bridge between the GPU driver RPMs above and the
+container plane: it is how the inference-lane Quadlets (`mios-llm-light` and
+the gated heavy lanes) and the VFIO-passthrough VMs each get hardware.
 NVIDIA's `nvidia-ctk` is part of `nvidia-container-toolkit` (above);
 the AMD + Intel paths install via `automation/41-gpu-cdi-toolkits.sh`
 because neither ships in Fedora repos as of May 2026:
@@ -464,6 +504,8 @@ corresponding branch a no-op rather than failing the boot.
 ## Virtualization -- KVM / QEMU / Libvirt
 
 System-level KVM stack: hypervisor, libvirt daemon, firmware, CLI helpers.
+This is the substrate for the **VM** delivery channel and for VFIO-PCI GPU
+passthrough (hand a discrete GPU to a Windows guest and game on it).
 GUI front-ends ship as Flatpaks per project invariant -- see `mios.toml`
 `[desktop].flatpaks` (`org.virt_manager.Manager`,
 `org.remmina.Remmina` for VNC/SPICE/RDP viewer needs).
@@ -491,7 +533,11 @@ python3-cryptography
 
 ## Container Runtime
 
-Podman, Buildah, Skopeo, bootc tooling, and OCI image building.
+Podman, Buildah, Skopeo, bootc tooling, and OCI image building. This is the
+substrate for the **Container** delivery channel -- the engine that runs every
+agent/service Quadlet (the AI lanes, `mios-pgvector`, `mios-open-webui`,
+`mios-searxng`, Forgejo, Ceph, k3s) -- and the toolchain that builds and
+upgrades the MiOS image itself via `bootc`.
 
 ```packages-containers
 podman
@@ -556,8 +602,9 @@ pkgconf-pkg-config
 
 ## Self-Building Tools (Experimental/Repository dependent)
 
-Tools needed for the image to rebuild itself. May fail if specialized repos
-are not enabled.
+Tools needed for the image to rebuild itself -- part of what makes MiOS
+"self-replicating": a booted host can build the next image of itself.
+May fail if specialized repos are not enabled.
 
 ```packages-self-build
 bootc-base-imagectl
@@ -654,7 +701,10 @@ freerdp-libs
 
 ## Security
 
-Host-based IPS, application whitelisting, USB device control.
+Host-based IPS, application whitelisting, USB device control. This is the
+substrate behind Architectural Law 6 (unprivileged Quadlets): SELinux,
+fapolicyd deny-by-default, USBGuard, and CrowdSec are what keep the agent
+plane sandboxed and least-privileged.
 CRITICAL: nvidia-container-toolkit >= v1.17.8 required (CVE-2025-23266/23267).
 
 ```packages-security
@@ -758,6 +808,8 @@ ntfs-3g
 
 Cephadm orchestrator + CephFS kernel client for native distributed storage.
 All Ceph server daemons (MON/OSD/MGR/MDS) run as Podman containers via cephadm.
+This is part of the "grow the box into a one-node cluster in place" path that
+the immutable image enables without re-imaging.
 
 ```packages-ceph
 ceph-common
@@ -861,7 +913,9 @@ waydroid
 ## Looking Glass B7 -- Build Dependencies
 
 These packages are installed during the build to compile Looking Glass B7.
-They are REMOVED after compilation to keep the image small.
+They are REMOVED after compilation to keep the image small. Looking Glass is
+the low-latency frame relay that pairs with VFIO GPU passthrough so the host
+sees a passthrough VM's display without a second monitor.
 
 ```packages-looking-glass-build
 cmake
@@ -926,6 +980,8 @@ handles all three. Ships via ublue-os/packages COPR (enabled in 05-enable-extern
 
 Greenboot provides health-check driven auto-rollback: 3 failed boots triggers
 `bootc rollback` via grub boot_counter. Health checks live in /etc/greenboot/check/{required,wanted}.d/.
+These two are the substrate for the `git pull` / `Ctrl-Z` lifecycle that
+defines MiOS as an image: uupd is the `git pull`, greenboot is the safety net.
 
 ```packages-updater
 uupd
@@ -946,39 +1002,54 @@ libsss_nss_idmap
 ```
 
 ## AI Tools
-Rust-based LLM CLI agents and shell integrations.
+Client-side SDK + AI assistant CLIs for the local OpenAI-compatible brain.
 
-`aichat` and `aichat-ng` are NOT Fedora RPMs -- they ship as static
-musl binaries fetched by `automation/37-aichat.sh` from upstream
-GitHub releases. They are user-facing CLI applications and should
-run inside a Distrobox container per the project invariant
-(VM | Container | Flatpak only). The current direct-to-`/usr/bin`
-install is a transitional state; an open task is to wrap these
-agents in a Distrobox container so the host substrate carries no
-application binaries.
+This section is the **client** half of the AI plane: the SDK and editor/CLI
+agents that *talk to* the local inference lanes. The inference engines and the
+agent orchestration themselves are **not** RPMs -- they ship as Quadlet
+containers (the **Container** delivery channel): the primary lane is
+`mios-llm-light` (the `llama.cpp` multi-model server fronted by the upstream
+`llama-swap` proxy image) on **:11450**, which also serves embeddings
+(`nomic-embed-text`, OpenAI-compatible `/v1/embeddings`) and the `mios-opencode`
+coder model; the gated heavy lanes are `mios-llm-heavy` (SGLang, :11441) and
+`mios-llm-heavy-alt` (vLLM). The unified agent datastore is **PostgreSQL +
+pgvector** (`mios-pgvector`, :5432). Every agent and tool resolves the one
+endpoint from `MIOS_AI_ENDPOINT` (Architectural Law 5) rather than hard-coding a
+port or vendor URL.
+
+The packages here are deliberately thin:
+
+* `python3-openai` -- the official OpenAI Python SDK, used by `/usr/bin/mios` to
+  drive the local OpenAI-API-compatible endpoint at `MIOS_AI_ENDPOINT`. The SDK
+  provides the streaming + tool-call roundtrip + structured-outputs surface that
+  maps onto Architectural Law 5. F44+ ships the SDK in repos as `python3-openai`;
+  it is installed via dnf rather than pip so it is captured by the image SBOM.
+* `nodejs` / `npm` -- the JS runtime required by the npm-installed AI assistant
+  CLIs below.
+* `nano` -- baseline text editor for operator config edits.
+
+AI assistant CLIs install globally via npm (`npm_globals` in `mios.toml`
+`[packages.ai]`) by `/usr/libexec/mios/install-ai-clis.sh` during the overlay
+phase; the current set is `@anthropic-ai/claude-code` and `@google/gemini-cli`.
+These are OpenAI-API-compatible clients that, like every other agent, target
+`MIOS_AI_ENDPOINT` and thus the same local brain -- no vendor account in the loop.
 
 ```packages-ai
-# python3-openai: official OpenAI Python SDK, used by /usr/bin/mios to
-# drive the local OpenAI-API-compatible endpoint at MIOS_AI_ENDPOINT.
-# The SDK provides the streaming + tool-call roundtrip + structured-
-# outputs surface that maps onto Architectural Law 5. F44+ ships the
-# SDK in repos as python3-openai; we install via dnf rather than pip
-# so it is captured by the image SBOM.
-#
-# aichat/aichat-ng install via 37-aichat.sh (musl tarball -> /usr/bin).
-# Migrate to Distrobox in a follow-up.
 python3-openai
+nodejs
+npm
+nano
 ```
-<!--
-  ollama is NOT a Fedora RPM; it ships as a tarball from
-  https://github.com/ollama/ollama/releases and is fetched by
-  automation/37-ollama-prep.sh at build time. The runtime container
-  also has its own ollama binary baked into the docker.io/ollama/
-  ollama image used by the mios-ollama Quadlet -- both are
-  ARM/x86_64-multi-arch and share the same model store at
-  /usr/share/ollama/models (build-baked) and /var/lib/ollama/models
-  (runtime, hardlink-seeded by mios-ollama-firstboot.service).
--->
+
+> **Historical note (migration complete).** Earlier MiOS revisions ran inference
+> and embeddings on an **Ollama** container (the `mios-ollama` / `mios-ollama-cpu`
+> units, model-bake `37-ollama-prep`, Modelfiles, and the legacy `aichat` /
+> `aichat-ng` musl-binary CLIs fetched by `37-aichat.sh`). That stack has been
+> fully removed: inference + embeddings now run on `mios-llm-light` (:11450), and
+> the agent datastore moved from SurrealDB/Qdrant to PostgreSQL+pgvector. Ollama
+> survives only as an **upstream API-compat reference** -- the lanes speak the
+> OpenAI/Ollama-compatible API so any such client connects unchanged -- not as a
+> live MiOS backend.
 
 ## Internal -- Critical Validation
 
@@ -1037,6 +1108,7 @@ usbutils
 - uupd: <https://github.com/ublue-os/uupd>
 - rechunk: <https://github.com/hhd-dev/rechunk>
 - cosign: <https://github.com/sigstore/cosign>
+- llama-swap (upstream proxy image for `mios-llm-light`): <https://github.com/mostlygeek/llama-swap>
 - Project repo: <https://github.com/mios-dev/mios>
 - **Sole Proprietor:** MiOS-DEV
 ---

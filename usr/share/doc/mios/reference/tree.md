@@ -1,15 +1,38 @@
-<!-- AI-hint: Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline.
-     AI-related: /usr/share/mios/VERSION, /usr/share/mios/ai/system.md, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pipeline, mios-agents, mios-build-local, mios-COPR, mios-role -->
+<!-- AI-hint: Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline. MiOS is one image built two ways at once: an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS; the repo root IS the deployed system root, so editing a file here edits the OS.
+     AI-related: /usr/share/mios/VERSION, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-pipeline, mios-build-local, mios-llm-light, mios-pgvector, mios-role -->
 # MiOS Tree-Map
 
-Fully expanded annotated directory tree of the deployed `/=git` working
-tree (and equivalently the `mios.git` source tree). Each leaf carries a
-one-line description of what it does and which other paths reference it.
+## Purpose of this document
 
-The deployed root `/` IS this tree (`mios_root_git`): operators edit
-files at their FHS paths, `git commit`, push to the local Forgejo at
-`localhost:3000`, the Forgejo Runner builds a new OCI image, and
-`bootc switch` swaps to it on the next boot.
+MiOS is **one thing built two ways at once**: an immutable, `bootc`/OCI-shaped
+Fedora workstation (the whole OS is a single container image -- boot it,
+`bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is
+*also* a **local, self-replicating, agentic AI operating system**. The same image
+that ships GNOME/Wayland, NVIDIA + ROCm + Intel-iGPU via CDI, KVM/libvirt with
+VFIO passthrough, and a k3s + Ceph one-node-cluster path also ships a full local
+agent stack behind one OpenAI-compatible endpoint.
+
+This document is the **navigation map for that whole system**: a fully expanded,
+annotated directory tree of the deployed `/` root (which is identical to the
+`mios.git` source tree). Each leaf carries a one-line description of what it does
+and which other paths reference it, so an operator or agent can find the file
+that implements any part of the system -- a build phase, an inference lane, an
+agent unit, a security policy -- and follow it to the SSOT that drives it.
+
+The throughline the tree encodes:
+
+```
+   build pipeline (automation/NN-*.sh)  →  OCI image  →  bootc lifecycle on host
+                                                              │
+   inference lanes (mios-llm-*)  →  agent-pipe / Hermes orchestration
+                                  →  PostgreSQL + pgvector memory  →  MCP / A2A
+```
+
+Because **the repo root IS the deployed system root**, there is no
+`system_files/` indirection: operators edit files at their FHS paths,
+`git commit`, push to the local Forgejo at `localhost:3000`, the Forgejo Runner
+builds a new OCI image, and `bootc switch` swaps to it on the next boot. The
+deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 
 ```
 .
@@ -34,8 +57,8 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 ├─ renovate.json                 Renovate Bot config (image / dep update PRs)
 │
 ├─ Documentation  ────────────────────────────────────────────────────
-│   ├─ README.md                 project overview
-│   ├─ usr/share/mios/ai/INDEX.md                  authoritative system interface + Architectural Laws
+│   ├─ README.md                 project overview (whole-system pitch + AI stack)
+│   ├─ usr/share/mios/ai/INDEX.md                  authoritative system interface + Architectural Laws (agent contract)
 │   ├─ usr/share/doc/mios/concepts/architecture.md           filesystem + hardware blueprints
 │   ├─ usr/share/doc/mios/guides/engineering.md            security + build standards
 │   ├─ usr/share/doc/mios/guides/deploy.md                 deploy-time instructions
@@ -56,6 +79,10 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   └─ system-prompt.md          repo-root pointer to /usr/share/mios/ai/system.md
 │
 ├─ Build context  ────────────────────────────────────────────────────
+│   │   (Phase-2 of the lifecycle: every automation/[NN]-*.sh runs in numeric
+│   │    order inside the Containerfile to assemble the OCI image. The numeric
+│   │    prefix encodes dependency order; the AI plane is wired up by the same
+│   │    numbered mechanism that installs packages and configures the desktop.)
 │   │
 │   ├─ automation/               numbered build phases (run inside Containerfile)
 │   │   ├─ build.sh                        master phase runner
@@ -90,21 +117,25 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ 32-hostname.sh                  unique per-instance hostname
 │   │   ├─ 33-firewall.sh                  firewalld zone defaults
 │   │   ├─ 34-gpu-detect.sh                GPU passthrough bridge service
+│   │   ├─ 34-sshd-port.sh                 admin sshd port configuration
 │   │   ├─ 35-gpu-passthrough.sh           VFIO setup
 │   │   ├─ 35-gpu-pv-shim.sh                Hyper-V GPU-PV shim
 │   │   ├─ 35-init-service.sh              mios-role.service bridge
 │   │   ├─ 36-akmod-guards.sh              akmod build-failure guards
 │   │   ├─ 36-tools.sh                     mios CLI installer
-│   │   ├─ 37-aichat.sh                    aichat distrobox host shims
 │   │   ├─ 37-flatpak-env.sh               capture flatpak env for first-boot install
-│   │   ├─ 37-ollama-prep.sh                Ollama binary fetch + model bake
 │   │   ├─ 37-selinux.sh                   build-time SELinux policy fixes
+│   │   ├─ 38-hermes-agent.sh              MiOS-Hermes agent gateway install (:8642)
+│   │   ├─ 38-llamacpp-prep.sh             mios-llm-light prep: llama.cpp/llama-swap GGUF bake (replaces the retired Ollama model-bake)
+│   │   ├─ 38-vllm-prep.sh                 mios-llm-heavy-alt (vLLM) heavy-lane prep (gated)
 │   │   ├─ 38-oh-my-posh.sh                oh-my-posh install + theme
 │   │   ├─ 38-vm-gating.sh                 VM service gating + Hyper-V Enhanced Session
 │   │   ├─ 39-desktop-polish.sh            desktop entries / Cockpit webapp
+│   │   ├─ 39-opencode.sh                  opencode coder peer + mios-opencode-gateway (:8633) install
 │   │   ├─ 40-composefs-verity.sh          composefs verity setup
 │   │   ├─ 40-flatpak-bake.sh              bake [desktop].flatpaks list into image
 │   │   ├─ 41-gpu-cdi-toolkits.sh          AMD/Intel CDI generators (out-of-Fedora binaries)
+│   │   ├─ 41-mios-dropin-fanout.sh        per-unit systemd drop-in fan-out
 │   │   ├─ 42-cosign-policy.sh             sigstore signed-image policy
 │   │   ├─ 43-uupd-installer.sh            uupd unified updater install
 │   │   ├─ 44-podman-machine-compat.sh     podman-machine compat (groups, cloud-init exits)
@@ -157,7 +188,6 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ bibata-suite.sh             Bibata cursor install
 │   │   ├─ check-ovmf-enrollment.sh    OVMF SecureBoot key check
 │   │   ├─ configure-xbox-cpu.sh       Xbox-controller CPU pinning
-│   │   ├─ flight-control.sh           ops control helper
 │   │   ├─ generate-build-scripts.py   regenerate flat usr/share/doc/mios/reference/build-scripts.md
 │   │   ├─ generate-sbom.py            syft → CSV/JSON SBOM emitter
 │   │   ├─ log-to-bootstrap.sh         log routing helper
@@ -177,44 +207,53 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │           └─ build-mios.yml         Forgejo Runner CI (build → push → bootc switch)
 │
 ├─ Deployed surface (read-only after overlay)  ───────────────────────
+│   (Law 1 USR-OVER-ETC: static config lives under /usr; /etc is admin-override
+│    only. Law 2 NO-MKDIR-IN-VAR: every /var path is declared via tmpfiles.d.)
 │
 ├─ usr/
 │   ├─ bin/                          host CLI tools (mios* prefix)
-│   │   ├─ mios                          OpenAI-API CLI (Python; openai-python SDK)
-│   │   ├─ mios-ai                       opinionated entrypoint → distrobox aichat → MIOS_AI_ENDPOINT
+│   │   ├─ mios                          OpenAI-API CLI → MIOS_AI_ENDPOINT (Python; openai-python SDK)
+│   │   ├─ hermes                        MiOS-Hermes direct REPL/CLI (:8642 gateway)
+│   │   ├─ @                             shell shortcut → routes a prompt into the agent chain
 │   │   ├─ mios-backup                   backup helper
 │   │   ├─ mios-build                    invoke local OCI build
-│   │   ├─ mios-dash                     dashboard launcher
+│   │   ├─ mios-chrome                   Chrome/CDP launch + browser-tool helper
 │   │   ├─ mios-deploy                   deploy helper
-│   │   ├─ mios-env                      env-var explainer
-│   │   ├─ mios-flatpaks                 flatpak install verb
-│   │   ├─ mios-ollama                   Ollama wrapper
 │   │   ├─ mios-pull                     mios.git + bootstrap pull verb
 │   │   ├─ mios-rebuild                  full rebuild verb
-│   │   ├─ mios-sync-env                 install.env regenerator
-│   │   ├─ mios-update                   bootc upgrade verb
-│   │   ├─ mios-vfio-check               VFIO sanity check
-│   │   └─ mios-vfio-toggle              VFIO toggle
+│   │   └─ mios-update                   bootc upgrade verb
+│   │   (the retired Ollama wrapper `mios-ollama` was removed with the Ollama
+│   │    backend; inference + embeddings now run on mios-llm-light :11450)
 │   │
-│   ├─ lib/mios/                     read-only data
+│   ├─ lib/mios/                     read-only data + the agent-pipe service code
 │   │   ├─ paths.sh                      runtime FHS path constants (mirror of build-time)
+│   │   ├─ agent-pipe/                   MiOS-Agent-Pipe FastAPI orchestrator (:8640)
+│   │   │   ├─ server.py                     router + refine + council/swarm fan-out + critic/polish
+│   │   │   ├─ mios_pg.py                    PostgreSQL + pgvector client (replaces the retired SurrealDB writes)
+│   │   │   ├─ mios_owui.py                  Open WebUI scaffold strip / think-block shaping
+│   │   │   ├─ mios_sched.py                 cron-director scheduling hook
+│   │   │   ├─ mios_evict.py                 tiered-memory eviction
+│   │   │   ├─ mios_hitl.py                  human-in-the-loop gate
+│   │   │   ├─ mios_aci.py / mios_kvfork.py / mios_codemode.py   ACI / KV-fork / code-mode helpers
+│   │   │   └─ mios_jsonsalvage.py / mios_stress.py              JSON salvage + stress harness
 │   │   ├─ tools/
 │   │   │   ├─ chat-completions-api/     OpenAI Chat-Completions function-calling tool defs
 │   │   │   └─ responses-api/            OpenAI Responses-API tool defs
 │   │   └─ schemas/                      JSON schemas for structured outputs
 │   │
 │   ├─ libexec/mios/                 helpers behind shims
-│   │   ├─ aichat-distrobox-exec.sh      distrobox-routed aichat shim body
 │   │   ├─ boot-diag                     boot-time diagnostic
 │   │   ├─ flatpak-install               first-boot flatpak install
 │   │   ├─ forge-firstboot.sh            Forgejo first-boot setup
 │   │   ├─ hyperv-enhanced               Hyper-V Enhanced Session helper
 │   │   ├─ mcp-init.sh                   MCP server pre-flight
-│   │   ├─ mcp-server-runner             MCP server runner
+│   │   ├─ mcp-server-runner             MCP server runner (universal MiOS tool surface)
+│   │   ├─ mios-ai-firstboot             AI-plane first-boot wiring (pgvector schema apply, model map)
+│   │   ├─ mios-hermes-firstboot         MiOS-Hermes first-boot setup
+│   │   ├─ mios-micro-llm                small-model micro-classify helper
 │   │   ├─ mios-cdi-detect               GPU CDI spec detection (host context)
 │   │   ├─ mios-dashboard.sh             MOTD dashboard renderer
 │   │   ├─ motd                          minimal MOTD fallback
-│   │   ├─ ollama-firstboot.sh           Ollama first-boot model pull
 │   │   ├─ role-apply                    mios-role.service body
 │   │   ├─ verify                        post-install verification
 │   │   ├─ wsl-firstboot                 WSL2 first-boot bridge (hostname only; user state baked at overlay)
@@ -222,31 +261,39 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │
 │   ├─ share/mios/                   vendor-immutable data (lowest mios.toml layer)
 │   │   ├─ VERSION                       deployed version stamp (auto-derived from /ctx/VERSION at overlay)
-│   │   ├─ mios.toml                     vendor defaults (lowest of 3 layers)
+│   │   ├─ mios.toml                     vendor defaults (lowest of 3 layers) -- THE configuration SSOT
 │   │   ├─ PACKAGES.md                   package catalog (documentation; SSOT lives in mios.toml)
 │   │   ├─ env.defaults                  vendor env defaults
 │   │   ├─ ai/
 │   │   │   ├─ system.md                 canonical Day-0 agent system prompt
+│   │   │   ├─ INDEX.md                  agent contract: Architectural Laws + OpenAI-compat API surface
 │   │   │   └─ v1/
 │   │   │       ├─ models.json           OpenAI /v1/models catalog
 │   │   │       └─ mcp.json              MCP server registry
+│   │   ├─ llamacpp/
+│   │   │   └─ llama-swap.yaml           mios-llm-light model map: llama-server-per-model + KV slot-save + nomic-embed-text embeddings
+│   │   ├─ postgres/
+│   │   │   └─ schema-init.sql           pgvector schema (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env, kanban, directory_entry, person, agent_keypair, …)
 │   │   ├─ branding/
 │   │   │   └─ mios.txt                  ASCII banner art
 │   │   ├─ configurator/
 │   │   │   └─ mios.html                 WYSIWYG mios.toml editor (progressive-disclosure sections)
-│   │   ├─ distrobox/
-│   │   │   └─ aichat/                   distrobox aichat assemble files
-│   │   │       ├─ Containerfile         in-container aichat install
-│   │   │       ├─ distrobox.ini         distrobox-assemble manifest
-│   │   │       └─ config.yaml           in-container aichat default config
+│   │   ├─ searxng/                      SearXNG settings (backs the web_search tool, :8888)
+│   │   ├─ openwebui/ open-webui/ owui/  Open WebUI install assets + MiOS pipe (front-end, :3030)
+│   │   ├─ hermes/ hermes-agent/         MiOS-Hermes gateway assets (sessions, tool-loop, skills, browser/CDP)
+│   │   ├─ opencode/                     opencode coder-peer assets (served via mios-opencode-gateway :8633)
+│   │   ├─ skills/ prompts/ cookbooks/   agent skills, role prompts, and how-to recipes
+│   │   ├─ webtools/ crawl4ai/           fetch/crawl tool assets (mios-webtools pod)
+│   │   ├─ finetune/                     hardware-agnostic LoRA/SFT subsystem assets
+│   │   ├─ portal/                       MiOS Portal web-app assets (served by agent-pipe GET /)
 │   │   ├─ fastfetch/                    fastfetch logo + theme
 │   │   └─ kb/
 │   │       └─ manifest.json             AI knowledge-base manifest (OpenAI-compat declarations)
 │   │
 │   ├─ lib/systemd/system/           hand-written units + drop-ins
-│   │   ├─ mios-*.service                MiOS-authored systemd services
+│   │   ├─ mios-*.service                MiOS-authored systemd services (agent-pipe, hermes-agent, prefilter, opencode-gateway, mcp, …)
 │   │   ├─ mios-*.target                 MiOS targets (firstboot, etc.)
-│   │   ├─ mios-*.path                   path-watch units
+│   │   ├─ mios-*.path                   path-watch units (e.g. mios-bootc-switch.path)
 │   │   ├─ mios-*.timer                  scheduled jobs
 │   │   ├─ <upstream-unit>.service.d/    drop-ins gating upstream units (mostly !wsl)
 │   │   ├─ <upstream-unit>.target.d/     drop-ins for targets (greenboot-success, etc.)
@@ -258,15 +305,17 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ 50-mios.conf                  base sidecar accounts
 │   │   ├─ 50-mios-services.conf         mios-forge=816, mios-ai=817, etc.
 │   │   ├─ 50-mios-gpu.conf               GPU-related groups
-│   │   ├─ 50-mios-ai.conf                mios-ai uid pinning
+│   │   ├─ 50-mios-ai.conf                mios-ai uid pinning (AI-plane service account)
 │   │   ├─ 30-mios-tmpfiles-prereq.conf   prereq users for tmpfiles
 │   │   └─ 20-podman-machine.conf         podman-machine compat
 │   │
-│   ├─ lib/tmpfiles.d/               declarative state directories
+│   ├─ lib/tmpfiles.d/               declarative state directories (Law 2: every /var path declared here)
 │   │   ├─ mios.conf                     /var/lib/mios + /srv/ai/* skeletons
 │   │   ├─ mios-user.conf                /var/home/mios + skel + linger marker (overlay-time user state)
 │   │   ├─ mios-infra.conf               cockpit / libvirt / journal / etc/mios
-│   │   ├─ mios-ai.conf                  AI-state dirs
+│   │   ├─ mios-ai.conf                  AI-state dirs (memory, scratch, embeddings)
+│   │   ├─ mios-llamacpp.conf            mios-llm-light state: /models GGUF store + KV slot-save dir (replaces the retired mios-ollama.conf)
+│   │   ├─ mios-pgvector.conf            PostgreSQL + pgvector data dir (the unified agent datastore)
 │   │   ├─ mios-ceph.conf                ceph crash dir + crash/posted
 │   │   ├─ mios-cpu.conf                 CPU governor / pinning prep
 │   │   ├─ mios-fastfetch.conf           fastfetch state
@@ -280,7 +329,6 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ mios-ipa.conf                 (legacy alias for freeipa)
 │   │   ├─ mios-k3s.conf                 K3s server state
 │   │   ├─ mios-nfs.conf                 NFS state
-│   │   ├─ mios-ollama.conf              Ollama model store
 │   │   ├─ mios-pxe.conf                 PXE hub state
 │   │   ├─ mios-virtio.conf              virtio devices
 │   │   ├─ mios-wsl2-hacks.conf          WSL2-only state stub-outs
@@ -289,12 +337,11 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │
 │   ├─ lib/bootc/
 │   │   ├─ kargs.d/                  kernel cmdline (.toml per concern: vfio / nvidia / mios / etc.)
-│   │   └─ bound-images.d/           Quadlet → bootc bound-image links (built at Containerfile time)
+│   │   └─ bound-images.d/           Quadlet → bootc bound-image links (Law 3: baked into /usr/lib/containers/storage at Containerfile time)
 │   │
 │   ├─ lib/udev/rules.d/             99-mios-gpu / 99-kvmfr / etc.
-│   ├─ lib/sysctl.d/                 90-mios-overlayfs / 90-mios-le9uo
-│   ├─ lib/modprobe.d/               nvidia-open
-│   ├─ lib/sysctl.d/                 sysctl tuning
+│   ├─ lib/sysctl.d/                 90-mios-overlayfs / 90-mios-le9uo + hardening tuning
+│   ├─ lib/modprobe.d/               nvidia-open / nvidia / blacklist-nouveau / kvmfr
 │   ├─ lib/profile.d/                login-shell snippets (motd, wsl2 nudges)
 │   ├─ lib/environment.d/            70-mios-theme (env-vars at session start)
 │   ├─ lib/sssd/conf.d/              SSSD config
@@ -302,7 +349,7 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   ├─ lib/greenboot/check/          greenboot health checks (composefs-verity, etc.)
 │   ├─ lib/repart.d/                 repartition rules
 │   ├─ lib/mios/cloud-init/          cloud-init config files
-│   └─ share/containers/systemd/     vendor Quadlets (ollama, mios-aichat.{build,image}, mios-pxe-hub, etc.)
+│   └─ share/containers/systemd/     vendor Quadlets (mios-llm-light/heavy/heavy-alt/worker@, mios-pgvector, mios-open-webui, mios-searxng, mios-forge, mios-pxe-hub, …)
 │
 ├─ etc/                          admin-override surface (3-way merge on bootc upgrade)
 │   ├─ mios/
@@ -310,36 +357,28 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 │   │   ├─ system-prompts/           per-host system-prompt overrides
 │   │   ├─ kb.conf.toml              KB pointer config
 │   │   └─ eval-criteria.json        eval scoring config
-│   ├─ aichat/config.yaml            host-side aichat config (mirror of in-container default)
 │   ├─ containers/
-│   │   ├─ systemd/                  Quadlets that ship as host overrides
-│   │   │   ├─ mios.network              single bridge (10.89.0.0/24) -- KISS
-│   │   │   ├─ mios-ai.container         LocalAI Quadlet (Network=mios.network)
-│   │   │   ├─ mios-forge.container      Forgejo Quadlet
-│   │   │   ├─ mios-forgejo-runner.container   self-build runner
-│   │   │   ├─ mios-cockpit-link.container     Podman Desktop discovery shim
-│   │   │   ├─ mios-ceph.container       Ceph monitor
-│   │   │   └─ mios-k3s.container        K3s server
+│   │   ├─ systemd/                  admin-override Quadlets (empty by default; vendor Quadlets live under /usr/share/containers/systemd)
 │   │   ├─ storage.conf.d/
 │   │   │   └─ 30-mios-additionalstores.conf   rootful build store → rootless distrobox view
 │   │   └─ containers.conf.d/
 │   │       └─ 30-mios-rootless-network.conf   default_rootless_network_cmd = "slirp4netns"
 │   ├─ profile.d/                    login-shell scripts
-│   │   ├─ mios-env.sh                   resolve install.env + 5-layer env overlay
+│   │   ├─ mios-env.sh                   resolve install.env + layered env overlay
 │   │   ├─ mios-colors.sh                emit OSC palette to terminal
 │   │   ├─ mios-prompt.sh                oh-my-posh prompt
 │   │   ├─ mios-wslg.sh                  WSLg detection
 │   │   └─ zz-mios-motd.sh               last-in-order MOTD render
-│   ├─ fapolicyd/fapolicyd.rules     fapolicyd trust rules
+│   ├─ fapolicyd/fapolicyd.rules     fapolicyd trust rules (deny-by-default)
 │   ├─ sysusers.d/cephadm.conf       ceph admin user
 │   └─ wsl.conf                      WSL2 config (force-installed in 08-system-files-overlay)
 │
 ├─ var/lib/mios/                  runtime mutable (created at first boot via tmpfiles.d)
 │   ├─ ai/memory/                    agent memory (vendor-neutral persistence per system.md §7)
 │   ├─ ai/scratch/                   agent scratch
-│   ├─ embeddings/                   RAG embeddings + ingest tools
+│   ├─ embeddings/                   RAG embeddings + ingest tools (vectors live in pgvector)
 │   ├─ evals/                        OpenAI evals JSON + local runner
-│   └─ training/                     SFT JSONL training data
+│   └─ training/                     SFT/DPO JSONL training data (fine-tune subsystem)
 │
 ├─ Day-0 OS-side helpers  ────────────────────────────────────────────
 │   ├─ .clinerules                  Cline AI agent rules
@@ -352,6 +391,29 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 └─ ──────────────────────────────────────────────────────────────────
 ```
 
+## The AI plane in the tree (how the pieces connect)
+
+The files above stand up a complete local agent OS reachable through the single
+OpenAI-compatible endpoint named by `MIOS_AI_ENDPOINT` (Law 5). The lanes are
+named by *function*, not by upstream tool:
+
+| Concern | Where it lives | Service / port |
+|---|---|---|
+| **Primary inference + embeddings** | `usr/share/mios/llamacpp/llama-swap.yaml`, `mios-llm-light.container` | `mios-llm-light` `:11450` -- `llama.cpp` behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
+| **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` (alt) | `mios-llm-heavy` `:11441` (SGLang, served-name `mios-heavy`); `mios-llm-heavy-alt` `:11440` (vLLM). Gated off-by-default (VRAM) |
+| **Swarm workers** | `mios-llm-worker@.container` | `mios-llm-worker@` -- single-model templated workers for fan-out |
+| **Orchestration** | `usr/lib/mios/agent-pipe/`, `hermes-agent.service`, `mios-delegation-prefilter.service` | agent-pipe `:8640` (router/refine/council/swarm) → MiOS-Hermes `:8642` (tool-loop, sessions, browser/CDP); prefilter `:8641` (fan-out hints) |
+| **Coder peer** | `automation/39-opencode.sh`, `mios-opencode-gateway.service` | `:8633` opencode → `/v1` council member |
+| **Memory** | `usr/share/mios/postgres/schema-init.sql`, `mios-pgvector.container` | `mios-pgvector` `:5432` -- PostgreSQL + pgvector; the unified agent datastore (accessed via `mios-pg-query` / `mios-db --pg`) |
+| **Tools & federation** | `mios-mcp.service`, `usr/share/mios/ai/v1/mcp.json`, `mios-searxng.container` | MCP (tool surface) + A2A (peer agents); `web_search` backed by SearXNG `:8888` |
+
+`llama-swap` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`) and the
+OpenAI/Ollama-compatible API are legitimate **upstream references** -- the
+engines speak that API so any OpenAI-API client talks to them unchanged. The
+MiOS *unit identity*, however, is `mios-llm-light`; the early Ollama / SurrealDB
+/ Qdrant stack has been fully removed (Ollama survives only as that API-compat
+reference and in historical migration notes; pgvector is the sole vector store).
+
 ## Cross-references (key ↔ ref)
 
 | What | Source of truth | Resolved by | Consumed at runtime by |
@@ -361,7 +423,9 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 | Color palette | `mios.toml [colors]` | userenv.sh → `MIOS_COLOR_*` / `MIOS_ANSI_*` | `etc/profile.d/mios-colors.sh` (OSC), configurator HTML `:root` (CSS) |
 | Package selection | `mios.toml [packages].sections` + `[packages.<section>].pkgs` | `automation/lib/packages.sh` | `automation/*.sh` that call `install_packages_strict <section>` |
 | Quadlet enablement | `mios.toml [quadlets.enable].*` | `mios-role.service` at first boot | systemd unit symlinks under multi-user.target.wants |
-| AI endpoint | `mios.toml [ai].endpoint` | userenv.sh → `MIOS_AI_ENDPOINT` | `mios-ai`, `mios` CLI, `mios-ai.container`, MCP servers |
+| AI endpoint | `mios.toml [ai].endpoint` | userenv.sh → `MIOS_AI_ENDPOINT` | `mios` CLI, agent-pipe, Hermes, opencode-gateway, MCP servers (Law 5) |
+| Inference lane map | `usr/share/mios/llamacpp/llama-swap.yaml` | `mios-llm-light.service` (llama-swap) | every agent that requests a model from `:11450` |
+| Agent datastore schema | `usr/share/mios/postgres/schema-init.sql` | `mios-ai-firstboot` (applies it) | agent-pipe (`mios_pg.py`), Hermes, `mios-pg-query` / `mios-db --pg` on `:5432` |
 | Image refs | `mios.toml [image].*` | userenv.sh → `MIOS_IMAGE_REF`, `MIOS_BASE_IMAGE`, `MIOS_BIB_IMAGE` | Containerfile, `bootc switch`, `build-mios.*` |
 | Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_USER`, `MIOS_HOSTNAME`, `MIOS_USER_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |
 | Pipeline phases | `./mios-pipeline.{sh,ps1}` | -- | calls `bootstrap.sh` / `build-mios.{sh,ps1}` / `install.{sh,ps1}` per phase |
@@ -380,9 +444,15 @@ files at their FHS paths, `git commit`, push to the local Forgejo at
 
 Same overlay applies to `system.md` (system prompt), `mios-colors.sh`
 input slots, and any other `mios.toml`-shaped config. Higher layers
-shadow lower layers field-by-field.
+shadow lower layers field-by-field. This is the same discipline that keeps
+the AI plane portable: an operator repoints `[ai].endpoint` or adds an A2A peer
+in `/etc/mios/mios.toml` without ever touching vendor code.
 
 ## Self-replication loop (deployed-host runtime)
+
+This is the second half of the lifecycle: the build pipeline produces the image,
+and the running host carries it forward. Because `/` is a git working tree of
+`mios.git`, a deployed MiOS can rebuild *itself*.
 
 ```
    operator edits files at FHS path
@@ -391,8 +461,7 @@ shadow lower layers field-by-field.
         │       (deployed `/` IS a git working tree of mios.git)
         │
         ├─ git push http://localhost:3000/mios/mios.git
-        (Forgejo on mios.network at 10.89.0.0/24 (default))
-
+        │       (Forgejo on mios.network)
         │
         ├─ Forgejo Runner builds new OCI image
         │       (.forgejo/workflows/build-mios.yml; same Containerfile)
@@ -407,13 +476,17 @@ shadow lower layers field-by-field.
         └─ bootc switch  →  reboot into the freshly-built image
 ```
 
-## Full expanded tree (every tracked file in mios.git)
+## Full expanded tree (point-in-time snapshot)
 
-All 932 files in the repository, including vendored upstream
-dracut modules, RAG embeddings/eval/training data, AI manifests,
-and the flat-dump build-script document. Generated from
-`git ls-tree -r --name-only HEAD` so additions / deletions in
-the source tree show up here on the next regen.
+The dump below is a **point-in-time `git ls-tree -r --name-only HEAD` snapshot**
+of every tracked file in `mios.git` -- including vendored upstream dracut
+modules, RAG embeddings/eval/training data, AI manifests, and the flat-dump
+build-script document. It is regenerated on each build, so additions /
+deletions in the source tree show up here on the next regen; treat the curated,
+annotated sections above as the canonical guide and this snapshot as a complete
+file inventory. Component names reflect the current naming convention
+(`mios-<component>` lowercase-kebab; the legacy `cloudws-*` / Ollama / SurrealDB
+artifacts have been renamed or removed in the live tree).
 
 ```
 +- .devcontainer/
@@ -460,21 +533,25 @@ the source tree show up here on the next regen.
 |  +- 32-hostname.sh
 |  +- 33-firewall.sh
 |  +- 34-gpu-detect.sh
+|  +- 34-sshd-port.sh
 |  +- 35-gpu-passthrough.sh
 |  +- 35-gpu-pv-shim.sh
 |  +- 35-init-service.sh
 |  +- 36-akmod-guards.sh
 |  +- 36-tools.sh
-|  +- 37-aichat.sh
 |  +- 37-flatpak-env.sh
-|  +- 37-ollama-prep.sh
 |  +- 37-selinux.sh
+|  +- 38-hermes-agent.sh
+|  +- 38-llamacpp-prep.sh
 |  +- 38-oh-my-posh.sh
+|  +- 38-vllm-prep.sh
 |  +- 38-vm-gating.sh
 |  +- 39-desktop-polish.sh
+|  +- 39-opencode.sh
 |  +- 40-composefs-verity.sh
 |  +- 40-flatpak-bake.sh
 |  +- 41-gpu-cdi-toolkits.sh
+|  +- 41-mios-dropin-fanout.sh
 |  +- 42-cosign-policy.sh
 |  +- 43-uupd-installer.sh
 |  +- 44-podman-machine-compat.sh
@@ -517,21 +594,13 @@ the source tree show up here on the next regen.
 |     +- bootstrap.ps1
 |     `- bootstrap.sh
 +- etc/
-|  +- aichat/
-|  |  `- config.yaml
 |  +- containers/
 |  |  +- containers.conf.d/
 |  |  |  `- 30-mios-rootless-network.conf
 |  |  +- storage.conf.d/
 |  |  |  `- 30-mios-additionalstores.conf
 |  |  `- systemd/
-|  |     +- mios-ai.container
-|  |     +- mios-ceph.container
-|  |     +- mios-cockpit-link.container
-|  |     +- mios-forge.container
-|  |     +- mios-forgejo-runner.container
-|  |     +- mios-k3s.container
-|  |     `- mios.network
+|  |     `- .keep
 |  +- fapolicyd/
 |  |  `- fapolicyd.rules
 |  +- mios/
@@ -608,22 +677,17 @@ the source tree show up here on the next regen.
 |  `- win11-secureboot-template.xml
 +- usr/
 |  +- bin/
+|  |  +- @
+|  |  +- hermes
 |  |  +- iommu-groups
 |  |  +- mios
-|  |  +- mios-ai
 |  |  +- mios-backup
 |  |  +- mios-build
-|  |  +- mios-dash
+|  |  +- mios-chrome
 |  |  +- mios-deploy
-|  |  +- mios-env
-|  |  +- mios-flatpaks
-|  |  +- mios-ollama
 |  |  +- mios-pull
 |  |  +- mios-rebuild
-|  |  +- mios-sync-env
-|  |  +- mios-update
-|  |  +- mios-vfio-check
-|  |  `- mios-vfio-toggle
+|  |  `- mios-update
 |  +- lib/
 |  |  +- NetworkManager/
 |  |  |  +- conf.d/
@@ -641,15 +705,16 @@ the source tree show up here on the next regen.
 |  |  |  `- Xwrapper.config
 |  |  +- bootc/
 |  |  |  +- bound-images.d/
-|  |  |  |  +- crowdsec-dashboard.container
-|  |  |  |  +- guacamole-postgres.container
-|  |  |  |  +- guacd.container
-|  |  |  |  +- mios-ai.container
 |  |  |  |  +- mios-ceph.container
+|  |  |  |  +- mios-cockpit-link.container
+|  |  |  |  +- mios-crowdsec-dashboard.container
+|  |  |  |  +- mios-forge.container
+|  |  |  |  +- mios-forgejo-runner.container
 |  |  |  |  +- mios-guacamole.container
+|  |  |  |  +- mios-guacamole-postgres.container
+|  |  |  |  +- mios-guacd.container
 |  |  |  |  +- mios-k3s.container
-|  |  |  |  +- mios-pxe-hub.container
-|  |  |  |  `- ollama.container
+|  |  |  |  `- mios-pxe-hub.container
 |  |  |  +- install/
 |  |  |  |  `- 00-mios.toml
 |  |  |  `- kargs.d/
@@ -684,410 +749,7 @@ the source tree show up here on the next regen.
 |  |  |     `- journalctl.yaml
 |  |  +- dnf/
 |  |  |  `- dnf.conf
-|  |  +- dracut/
-|  |  |  +- dracut.conf.d/
-|  |  |  |  +- 01-dist.conf
-|  |  |  |  +- 02-generic-image.conf
-|  |  |  |  +- 10-mios-generic.conf
-|  |  |  |  +- 50-mios-hyperv.conf
-|  |  |  |  +- 51-mios-virtio.conf
-|  |  |  |  +- 52-mios-nvidia-exclude.conf
-|  |  |  |  +- 90-mios-verify.conf
-|  |  |  |  `- gce.conf
-|  |  |  +- modules.d/
-|  |  |  |  +- 10bash/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 10systemd/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 10systemd-network-management/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 10warpclock/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- warpclock.sh
-|  |  |  |  +- 11fips/
-|  |  |  |  |  +- fips-boot.sh
-|  |  |  |  |  +- fips-load-crypto.sh
-|  |  |  |  |  +- fips-noboot.sh
-|  |  |  |  |  +- fips.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11fips-crypto-policies/
-|  |  |  |  |  +- fips-crypto-policies.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-ac-power/
-|  |  |  |  |  +- 99-initrd-power-targets.rules
-|  |  |  |  |  +- initrd-on-ac-power.target
-|  |  |  |  |  +- initrd-on-battery-power.target
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-ask-password/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-battery-check/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-bsod/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-coredump/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-creds/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-cryptsetup/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-hostnamed/
-|  |  |  |  |  +- 99-systemd-networkd-dracut.conf
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- org.freedesktop.hostname1_dracut.conf
-|  |  |  |  |  `- systemd-hostname-dracut.conf
-|  |  |  |  +- 11systemd-initrd/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-integritysetup/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-journald/
-|  |  |  |  |  +- initrd.conf
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-ldconfig/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-modules-load/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-pcrphase/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-portabled/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-pstore/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-repart/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-resolved/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- resolved-tmpfile-dracut.conf
-|  |  |  |  +- 11systemd-sysctl/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-sysext/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-timedated/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-timesyncd/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- timesyncd-tmpfile-dracut.conf
-|  |  |  |  +- 11systemd-tmpfiles/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-udevd/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 11systemd-veritysetup/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 13modsign/
-|  |  |  |  |  +- load-modsign-keys.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 13rescue/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 14watchdog/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- watchdog-stop.sh
-|  |  |  |  |  `- watchdog.sh
-|  |  |  |  +- 14watchdog-modules/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 16dbus-broker/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 16dbus-daemon/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 16rngd/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- sysconfig
-|  |  |  |  +- 19dbus/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 20i18n/
-|  |  |  |  |  +- 10-console.rules
-|  |  |  |  |  +- README
-|  |  |  |  |  +- console_init.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- parse-i18n.sh
-|  |  |  |  +- 30convertfs/
-|  |  |  |  |  +- convertfs.sh
-|  |  |  |  |  +- do-convertfs.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 30gcp-udev-rules/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 45drm/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 45net-lib/
-|  |  |  |  |  +- dhcp-root.sh
-|  |  |  |  |  +- ifname-genrules.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- net-lib.sh
-|  |  |  |  |  `- netroot.sh
-|  |  |  |  +- 45plymouth/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- plymouth-emergency.sh
-|  |  |  |  |  +- plymouth-newroot.sh
-|  |  |  |  |  +- plymouth-populate-initrd.sh
-|  |  |  |  |  `- plymouth-pretrigger.sh
-|  |  |  |  +- 45simpledrm/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 45url-lib/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- url-lib.sh
-|  |  |  |  +- 68lvmmerge/
-|  |  |  |  |  +- README.md
-|  |  |  |  |  +- lvmmerge.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 68lvmthinpool-monitor/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- start-thinpool-monitor.service
-|  |  |  |  |  `- start-thinpool-monitor.sh
-|  |  |  |  +- 68systemd-sysusers/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70bluetooth/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70btrfs/
-|  |  |  |  |  +- 80-btrfs.rules
-|  |  |  |  |  +- btrfs_device_ready.sh
-|  |  |  |  |  +- btrfs_finished.sh
-|  |  |  |  |  +- btrfs_timeout.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70crypt/
-|  |  |  |  |  +- crypt-cleanup.sh
-|  |  |  |  |  +- crypt-lib.sh
-|  |  |  |  |  +- crypt-run-generator.sh
-|  |  |  |  |  +- cryptroot-ask.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- parse-crypt.sh
-|  |  |  |  |  +- parse-keydev.sh
-|  |  |  |  |  `- probe-keydev.sh
-|  |  |  |  +- 70dm/
-|  |  |  |  |  +- 11-dm.rules
-|  |  |  |  |  +- dm-pre-udev.sh
-|  |  |  |  |  +- dm-shutdown.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70dmraid/
-|  |  |  |  |  +- 61-dmraid-imsm.rules
-|  |  |  |  |  +- dmraid.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- parse-dm.sh
-|  |  |  |  +- 70fs-lib/
-|  |  |  |  |  +- fs-lib.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70kernel-modules/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70kernel-modules-extra/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70lvm/
-|  |  |  |  |  +- 64-lvm.rules
-|  |  |  |  |  +- lvm_scan.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- parse-lvm.sh
-|  |  |  |  +- 70mdraid/
-|  |  |  |  |  +- 59-persistent-storage-md.rules
-|  |  |  |  |  +- 65-md-incremental-imsm.rules
-|  |  |  |  |  +- md-shutdown.sh
-|  |  |  |  |  +- mdmon-pre-shutdown.sh
-|  |  |  |  |  +- mdmon-pre-udev.sh
-|  |  |  |  |  +- mdraid-cleanup.sh
-|  |  |  |  |  +- mdraid-needshutdown.sh
-|  |  |  |  |  +- mdraid-waitclean.sh
-|  |  |  |  |  +- mdraid_start.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- parse-md.sh
-|  |  |  |  +- 70multipath/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- multipath-shutdown.sh
-|  |  |  |  |  +- multipathd-configure.service
-|  |  |  |  |  +- multipathd-dracut.conf
-|  |  |  |  |  +- multipathd-needshutdown.sh
-|  |  |  |  |  +- multipathd-stop.sh
-|  |  |  |  |  `- multipathd.sh
-|  |  |  |  +- 70numlock/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- numlock.sh
-|  |  |  |  +- 70nvdimm/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70overlayfs/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- mount-overlayfs.sh
-|  |  |  |  |  `- prepare-overlayfs.sh
-|  |  |  |  +- 70pcmcia/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70ppcmac/
-|  |  |  |  |  +- load-thermal.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 70qemu/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 71prefixdevname/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 71prefixdevname-tools/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 73crypt-gpg/
-|  |  |  |  |  +- README
-|  |  |  |  |  +- crypt-gpg-lib.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 73crypt-loop/
-|  |  |  |  |  +- crypt-loop-lib.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 73fido2/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 73pcsc/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- pcscd.service
-|  |  |  |  |  `- pcscd.socket
-|  |  |  |  +- 73pkcs11/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 73tpm2-tss/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 74debug/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 74fstab-sys/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- mount-sys.sh
-|  |  |  |  +- 74hwdb/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 74lunmask/
-|  |  |  |  |  +- fc_transport_scan_lun.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- parse-lunmask.sh
-|  |  |  |  |  `- sas_transport_scan_lun.sh
-|  |  |  |  +- 74resume/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- parse-resume.sh
-|  |  |  |  |  `- resume.sh
-|  |  |  |  +- 74rootfs-block/
-|  |  |  |  |  +- 59-persistent-storage.rules
-|  |  |  |  |  +- 61-persistent-storage.rules
-|  |  |  |  |  +- block-genrules.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- mount-root.sh
-|  |  |  |  |  `- parse-block.sh
-|  |  |  |  +- 74rootfs-block-fallback/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- rootfallback.sh
-|  |  |  |  +- 74terminfo/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 74udev-rules/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 74virtfs/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- mount-virtfs.sh
-|  |  |  |  |  `- parse-virtfs.sh
-|  |  |  |  +- 74virtiofs/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- mount-virtiofs.sh
-|  |  |  |  |  `- parse-virtiofs.sh
-|  |  |  |  +- 75securityfs/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- securityfs.sh
-|  |  |  |  +- 76biosdevname/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- parse-biosdevname.sh
-|  |  |  |  +- 76masterkey/
-|  |  |  |  |  +- README
-|  |  |  |  |  +- masterkey.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 76systemd-emergency/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 77dracut-systemd/
-|  |  |  |  |  +- dracut-cmdline-ask.service
-|  |  |  |  |  +- dracut-cmdline-ask.sh
-|  |  |  |  |  +- dracut-cmdline.service
-|  |  |  |  |  +- dracut-cmdline.service.8
-|  |  |  |  |  +- dracut-cmdline.service.8.adoc
-|  |  |  |  |  +- dracut-cmdline.sh
-|  |  |  |  |  +- dracut-emergency.service
-|  |  |  |  |  +- dracut-emergency.sh
-|  |  |  |  |  +- dracut-mount.service
-|  |  |  |  |  +- dracut-mount.service.8
-|  |  |  |  |  +- dracut-mount.service.8.adoc
-|  |  |  |  |  +- dracut-mount.sh
-|  |  |  |  |  +- dracut-pre-mount.service
-|  |  |  |  |  +- dracut-pre-mount.service.8
-|  |  |  |  |  +- dracut-pre-mount.service.8.adoc
-|  |  |  |  |  +- dracut-pre-mount.sh
-|  |  |  |  |  +- dracut-pre-pivot.service
-|  |  |  |  |  +- dracut-pre-pivot.service.8
-|  |  |  |  |  +- dracut-pre-pivot.service.8.adoc
-|  |  |  |  |  +- dracut-pre-pivot.sh
-|  |  |  |  |  +- dracut-pre-trigger.service
-|  |  |  |  |  +- dracut-pre-trigger.service.8
-|  |  |  |  |  +- dracut-pre-trigger.service.8.adoc
-|  |  |  |  |  +- dracut-pre-trigger.sh
-|  |  |  |  |  +- dracut-pre-udev.service
-|  |  |  |  |  +- dracut-pre-udev.service.8
-|  |  |  |  |  +- dracut-pre-udev.service.8.adoc
-|  |  |  |  |  +- dracut-pre-udev.sh
-|  |  |  |  |  +- dracut-shutdown-onfailure.service
-|  |  |  |  |  +- dracut-shutdown.service
-|  |  |  |  |  +- dracut-shutdown.service.8
-|  |  |  |  |  +- dracut-shutdown.service.8.adoc
-|  |  |  |  |  +- dracut-tmpfiles.conf
-|  |  |  |  |  +- emergency.service
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- parse-root.sh
-|  |  |  |  |  `- rootfs-generator.sh
-|  |  |  |  +- 77ecryptfs/
-|  |  |  |  |  +- README
-|  |  |  |  |  +- ecryptfs-mount.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 77initqueue/
-|  |  |  |  |  +- dracut-initqueue.service
-|  |  |  |  |  +- dracut-initqueue.service.8
-|  |  |  |  |  +- dracut-initqueue.service.8.adoc
-|  |  |  |  |  +- dracut-initqueue.sh
-|  |  |  |  |  +- initqueue.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 77integrity/
-|  |  |  |  |  +- README
-|  |  |  |  |  +- evm-enable.sh
-|  |  |  |  |  +- ima-keys-load.sh
-|  |  |  |  |  +- ima-policy-load.sh
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 77pollcdrom/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- pollcdrom.sh
-|  |  |  |  +- 77selinux/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- selinux-loadpolicy.sh
-|  |  |  |  +- 77syslog/
-|  |  |  |  |  +- README
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- parse-syslog-opts.sh
-|  |  |  |  |  +- rsyslog.conf
-|  |  |  |  |  +- rsyslogd-start.sh
-|  |  |  |  |  +- rsyslogd-stop.sh
-|  |  |  |  |  `- syslog-cleanup.sh
-|  |  |  |  +- 77usrmount/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- mount-usr.sh
-|  |  |  |  +- 80base/
-|  |  |  |  |  +- dracut-dev-lib.sh
-|  |  |  |  |  +- dracut-lib.sh
-|  |  |  |  |  +- init.sh
-|  |  |  |  |  +- insmodpost.sh
-|  |  |  |  |  +- loginit.sh
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  +- parse-kernel.sh
-|  |  |  |  |  +- parse-root-opts.sh
-|  |  |  |  |  `- rdsosreport.sh
-|  |  |  |  +- 81busybox/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 84memstrack/
-|  |  |  |  |  +- memstrack-report.sh
-|  |  |  |  |  +- memstrack-start.sh
-|  |  |  |  |  +- memstrack.service
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 85shell-interpreter/
-|  |  |  |  |  `- module-setup.sh
-|  |  |  |  +- 86shutdown/
-|  |  |  |  |  +- module-setup.sh
-|  |  |  |  |  `- shutdown.sh
-|  |  |  |  `- 99openssl/
-|  |  |  |     +- module-setup.sh
-|  |  |  |     `- openssl-check.sh
-|  |  |  +- dracut-cpio
-|  |  |  +- dracut-functions
-|  |  |  +- dracut-functions.sh
-|  |  |  +- dracut-init.sh
-|  |  |  +- dracut-initramfs-restore
-|  |  |  +- dracut-install
-|  |  |  +- dracut-logger.sh
-|  |  |  +- dracut-util
-|  |  |  +- dracut-version.sh
-|  |  |  +- ossl-config
-|  |  |  +- ossl-files
-|  |  |  `- skipcpio
+|  |  +- dracut/                          (vendored upstream dracut module tree -- carried verbatim)
 |  |  +- environment.d/
 |  |  |  +- 50-mios.conf
 |  |  |  +- 60-mios-qt-adwaita.conf
@@ -1124,6 +786,7 @@ the source tree show up here on the next regen.
 |  |  |  `- qemu.conf.d/
 |  |  |     `- 10-mios.conf
 |  |  +- mios/
+|  |  |  +- agent-pipe/                   (MiOS-Agent-Pipe FastAPI orchestrator -- server.py + mios_pg / mios_owui / mios_sched / mios_evict / mios_hitl / mios_aci / mios_kvfork / mios_codemode / mios_jsonsalvage)
 |  |  |  +- schemas/
 |  |  |  |  +- build_status.schema.json
 |  |  |  |  +- kargs_diagnosis.schema.json
@@ -1187,243 +850,7 @@ the source tree show up here on the next regen.
 |  |  |  +- 90-mios-overlayfs.conf
 |  |  |  +- 99-mios-hardening.conf
 |  |  |  `- 99-mios-vmhost.conf
-|  |  +- systemd/
-|  |  |  +- journald.conf.d/
-|  |  |  |  +- 10-mios-noaudit.conf
-|  |  |  |  `- syslog.conf
-|  |  |  +- system/
-|  |  |  |  +- NetworkManager-wait-online.service.d/
-|  |  |  |  |  `- timeout.conf
-|  |  |  |  +- NetworkManager.service.d/
-|  |  |  |  |  `- 10-mios-container-gate.conf
-|  |  |  |  +- audit-rules.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- auditd.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- avahi-daemon.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- avahi-daemon.socket.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- boot-complete.target.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- boot.mount.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- bootloader-update.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- ceph-bootstrap.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- chronyd.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- cloud-config.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- cloud-final.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- cloud-init-local.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- cloud-init-network.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- cockpit-wsinstance-socket-user.service.d/
-|  |  |  |  |  `- 10-mios-container.conf
-|  |  |  |  +- cockpit.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- cockpit.socket.d/
-|  |  |  |  |  +- 10-mios-wsl2.conf
-|  |  |  |  |  +- 10-mios.conf
-|  |  |  |  |  `- listen.conf
-|  |  |  |  +- coreos-ignition-firstboot-complete.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- coreos-populate-lvmdevices.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- coreos-printk-quiet.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- coreos-warn-invalid-mounts.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- corosync.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- crowdsec-firewall-bouncer.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- crowdsec.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- dbus-broker.service.d/
-|  |  |  |  |  `- 10-mios-no-audit.conf
-|  |  |  |  +- dev-binderfs.mount.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- fapolicyd.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- firewalld.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- gdm.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- gnome-remote-desktop.service.d/
-|  |  |  |  |  `- 10-network-wait.conf
-|  |  |  |  +- greenboot-healthcheck.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- greenboot-success.target.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- libvirtd.service.d/
-|  |  |  |  |  +- 10-mios.conf
-|  |  |  |  |  `- override.conf
-|  |  |  |  +- mios-cdi-detect.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-ceph-bootstrap.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-flatpak-install.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-freeipa-enroll.service.d/
-|  |  |  |  |  `- 10-boot-timeout.conf
-|  |  |  |  +- mios-gpu-amd.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-gpu-intel.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-gpu-nvidia.service.d/
-|  |  |  |  |  +- 10-cycle-fix.conf
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-gpu-status.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-grd-setup.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-ha-bootstrap.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- mios-k3s-init.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-libvirtd-setup.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-nvidia-cdi.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-role.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-selinux-init.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- mios-waydroid-init.service.d/
-|  |  |  |  |  `- 10-virt-gate.conf
-|  |  |  |  +- multipathd.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- nfs-server.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- nmb.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- nvidia-cdi-refresh.service.d/
-|  |  |  |  |  `- 10-mios-ordering.conf
-|  |  |  |  +- nvidia-powerd.service.d/
-|  |  |  |  |  +- 10-bare-metal-only.conf
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- ollama.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- osbuild-composer.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- osbuild-worker@1.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- pacemaker.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- pcsd.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- polkit.service.d/
-|  |  |  |  |  `- 10-mios-container.conf
-|  |  |  |  +- qemu-guest-agent.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- rc-local.service.d/
-|  |  |  |  |  `- debian.conf
-|  |  |  |  +- rpm-ostree-fix-shadow-mode.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- smb.service.d/
-|  |  |  |  |  `- 10-bare-metal-only.conf
-|  |  |  |  +- sshd.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- stratisd.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- systemd-homed.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- systemd-journald.service.d/
-|  |  |  |  |  `- nice.conf
-|  |  |  |  +- systemd-localed.service.d/
-|  |  |  |  |  `- x11-keyboard.conf
-|  |  |  |  +- systemd-logind.service.d/
-|  |  |  |  |  +- 10-grub2-logind-service.conf
-|  |  |  |  |  +- 10-mios-wsl2.conf
-|  |  |  |  |  `- dbus.conf
-|  |  |  |  +- systemd-machined.service.d/
-|  |  |  |  |  `- wsl2-optional.conf
-|  |  |  |  +- systemd-networkd-wait-online.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- systemd-resolved.service.d/
-|  |  |  |  |  `- 10-mios-container-gate.conf
-|  |  |  |  +- systemd-udevd.service.d/
-|  |  |  |  |  `- syscall-architecture.conf
-|  |  |  |  +- tuned.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- ublue-nvctk-cdi.service.d/
-|  |  |  |  |  `- 10-mios.conf
-|  |  |  |  +- upower.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- usbguard.service.d/
-|  |  |  |  |  `- 10-mios-virt-gate.conf
-|  |  |  |  +- var-lib-nfs-rpc_pipefs.mount.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- virtlxcd-admin.socket.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- virtlxcd-ro.socket.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- virtlxcd.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- waydroid-container.service.d/
-|  |  |  |  |  +- 10-mios-virt-gate.conf
-|  |  |  |  |  `- 10-nvidia-swiftshader.conf
-|  |  |  |  +- zincati.service.d/
-|  |  |  |  |  `- 10-mios-wsl2.conf
-|  |  |  |  +- ceph-bootstrap.service
-|  |  |  |  +- k3s.service
-|  |  |  |  +- mios-boot-diag.service
-|  |  |  |  +- mios-bootc-switch.path
-|  |  |  |  +- mios-bootc-switch.service
-|  |  |  |  +- mios-cdi-detect.service
-|  |  |  |  +- mios-ceph-bootstrap.service
-|  |  |  |  +- mios-copy-build-log.service
-|  |  |  |  +- mios-cpu-isolate.service
-|  |  |  |  +- mios-dashboard-issue.service
-|  |  |  |  +- mios-dashboard-issue.timer
-|  |  |  |  +- mios-desktop.target
-|  |  |  |  +- mios-firstboot.target
-|  |  |  |  +- mios-flatpak-install.service
-|  |  |  |  +- mios-forge-firstboot.service
-|  |  |  |  +- mios-freeipa-enroll.service
-|  |  |  |  +- mios-gpu-amd.service
-|  |  |  |  +- mios-gpu-detect.service
-|  |  |  |  +- mios-gpu-intel.service
-|  |  |  |  +- mios-gpu-nvidia.service
-|  |  |  |  +- mios-gpu-pv-detect.service
-|  |  |  |  +- mios-gpu-status.service
-|  |  |  |  +- mios-grd-setup.service
-|  |  |  |  +- mios-ha-bootstrap.service
-|  |  |  |  +- mios-ha-node.target
-|  |  |  |  +- mios-headless.target
-|  |  |  |  +- mios-hybrid.target
-|  |  |  |  +- mios-hyperv-enhanced.service
-|  |  |  |  +- mios-k3s-init.service
-|  |  |  |  +- mios-k3s-master.target
-|  |  |  |  +- mios-k3s-worker.target
-|  |  |  |  +- mios-kvmfr-load.service
-|  |  |  |  +- mios-libvirtd-setup.service
-|  |  |  |  +- mios-mcp.service
-|  |  |  |  +- mios-nvidia-cdi.service
-|  |  |  |  +- mios-ollama-firstboot.service
-|  |  |  |  +- mios-podman-gc.service
-|  |  |  |  +- mios-podman-gc.timer
-|  |  |  |  +- mios-role.service
-|  |  |  |  +- mios-selinux-init.service
-|  |  |  |  +- mios-sriov-init.service
-|  |  |  |  +- mios-verify-root.service
-|  |  |  |  +- mios-verify.service
-|  |  |  |  +- mios-waydroid-init.service
-|  |  |  |  +- mios-wsl-firstboot.service
-|  |  |  |  +- mios-wsl-init.service
-|  |  |  |  +- mios-wsl-runtime-dir.service
-|  |  |  |  +- var-home.mount
-|  |  |  |  `- var-lib-containers.mount
-|  |  |  +- system-preset/
-|  |  |  |  `- 90-mios.preset
-|  |  |  `- zram-generator.conf.d/
-|  |  |     +- 10-mios.conf
-|  |  |     `- mios.conf
+|  |  +- systemd/                          (mios-* units + per-upstream-unit drop-ins: agent-pipe, hermes-agent, prefilter, opencode-gateway, mcp, gpu/virt/cluster gates, bootc-switch.path, …)
 |  |  +- sysupdate.d/
 |  |  |  `- 50-mios.conf
 |  |  +- sysusers.d/
@@ -1450,8 +877,9 @@ the source tree show up here on the next regen.
 |  |  |  +- mios-iommu.conf
 |  |  |  +- mios-ipa.conf
 |  |  |  +- mios-k3s.conf
+|  |  |  +- mios-llamacpp.conf
 |  |  |  +- mios-nfs.conf
-|  |  |  +- mios-ollama.conf
+|  |  |  +- mios-pgvector.conf
 |  |  |  +- mios-pxe.conf
 |  |  |  +- mios-user.conf
 |  |  |  +- mios-virtio.conf
@@ -1485,14 +913,16 @@ the source tree show up here on the next regen.
 |  |  |  +- libvirtd-firstboot
 |  |  |  +- mcp-init.sh
 |  |  |  +- mcp-server-runner
+|  |  |  +- mios-ai-firstboot
 |  |  |  +- mios-cdi-detect
 |  |  |  +- mios-configurator-launch
 |  |  |  +- mios-dashboard-render-issue.sh
 |  |  |  +- mios-dashboard.sh
 |  |  |  +- mios-freeipa-enroll.sh
+|  |  |  +- mios-hermes-firstboot
+|  |  |  +- mios-micro-llm
 |  |  |  +- mios-sriov-init
 |  |  |  +- motd
-|  |  |  +- ollama-firstboot.sh
 |  |  |  +- role-apply
 |  |  |  +- selinux-init
 |  |  |  +- verify-root.sh
@@ -1511,14 +941,32 @@ the source tree show up here on the next regen.
 |  |  |  +- containers.conf.d/
 |  |  |  |  `- 99-mios-network.conf
 |  |  |  `- systemd/
-|  |  |     +- crowdsec-dashboard.container
-|  |  |     +- guacamole-postgres.container
-|  |  |     +- guacd.container
-|  |  |     +- mios-aichat.build
-|  |  |     +- mios-aichat.image
+|  |  |     +- mios-adguard.container
+|  |  |     +- mios-ceph.container
+|  |  |     +- mios-cockpit-link.container
+|  |  |     +- mios-code-server.container
+|  |  |     +- mios-cpu-node.container
+|  |  |     +- mios-crowdsec-dashboard.container
+|  |  |     +- mios-forge.container
+|  |  |     +- mios-forgejo-runner.container
 |  |  |     +- mios-guacamole.container
+|  |  |     +- mios-guacamole-postgres.container
+|  |  |     +- mios-guacd.container
+|  |  |     +- mios-k3s.container
+|  |  |     +- mios-llm-heavy.container
+|  |  |     +- mios-llm-heavy-alt.container
+|  |  |     +- mios-llm-light.container
+|  |  |     +- mios-llm-worker@.container
+|  |  |     +- mios-open-webui.container
+|  |  |     +- mios-pgvector.container
 |  |  |     +- mios-pxe-hub.container
-|  |  |     `- ollama.container
+|  |  |     +- mios-searxng.container
+|  |  |     +- mios-webtools.pod
+|  |  |     +- mios-webtools-crawl4ai.container
+|  |  |     +- mios-webtools-firecrawl-api.container
+|  |  |     +- mios-webtools-firecrawl-worker.container
+|  |  |     +- mios-webtools-redis.container
+|  |  |     `- mios.network
 |  |  +- doc/
 |  |  |  `- mios/
 |  |  |     +- upstream/
@@ -1534,7 +982,7 @@ the source tree show up here on the next regen.
 |  |  |     |  +- ghcr.md
 |  |  |     |  +- greenboot.md
 |  |  |     |  +- k3s-cockpit.md
-|  |  |     |  +- localai.md
+|  |  |     |  +- llama-swap.md
 |  |  |     |  +- looking-glass-kvmfr.md
 |  |  |     |  +- nvidia.md
 |  |  |     |  +- ostree.md
@@ -1544,16 +992,10 @@ the source tree show up here on the next regen.
 |  |  |     |  +- secureblue.md
 |  |  |     |  +- selinux.md
 |  |  |     |  `- ucore-hci.md
-|  |  |     +- 00-overview.md
-|  |  |     +- 10-build-pipeline.md
-|  |  |     +- 20-packages-md.md
-|  |  |     +- 30-overlay.md
-|  |  |     +- 40-kargs.md
-|  |  |     +- 50-orchestrators.md
-|  |  |     +- 60-ci-signing.md
-|  |  |     +- 70-ai-surface.md
-|  |  |     +- 80-security.md
-|  |  |     `- 90-deploy.md
+|  |  |     +- concepts/
+|  |  |     +- guides/
+|  |  |     +- reference/
+|  |  |     `- audits/
 |  |  +- fontconfig/
 |  |  |  `- conf.avail/
 |  |  |     `- 30-mios-geist.conf
@@ -1562,6 +1004,7 @@ the source tree show up here on the next regen.
 |  |     |  +- v1/
 |  |     |  |  +- mcp.json
 |  |     |  |  `- models.json
+|  |     |  +- INDEX.md
 |  |     |  `- system.md
 |  |     +- api/
 |  |     |  +- batch.requests.jsonl
@@ -1578,28 +1021,35 @@ the source tree show up here on the next regen.
 |  |     |  +- finetune-flow.md
 |  |     |  +- ingest-kb.md
 |  |     |  `- local-rag-day0.md
-|  |     +- distrobox/
-|  |     |  `- aichat/
-|  |     |     +- Containerfile
-|  |     |     +- config.yaml
-|  |     |     `- distrobox.ini
 |  |     +- fastfetch/
 |  |     |  `- config.jsonc
+|  |     +- finetune/                       (hardware-agnostic LoRA/SFT subsystem)
+|  |     +- hermes/ hermes-agent/           (MiOS-Hermes gateway assets)
 |  |     +- kb/
 |  |     |  `- manifest.json
+|  |     +- llamacpp/
+|  |     |  `- llama-swap.yaml
 |  |     +- oh-my-posh/
 |  |     |  `- mios.omp.json
+|  |     +- opencode/                        (opencode coder-peer assets)
+|  |     +- openwebui/ open-webui/ owui/     (Open WebUI front-end + MiOS pipe)
+|  |     +- portal/                          (MiOS Portal web-app assets)
+|  |     +- postgres/
+|  |     |  `- schema-init.sql
 |  |     +- prompts/
 |  |     |  +- build-review.xml.md
 |  |     |  +- kargs-author.xml.md
 |  |     |  `- troubleshoot.xml.md
+|  |     +- searxng/                         (SearXNG settings)
+|  |     +- skills/                          (agent skills catalog)
+|  |     +- webtools/ crawl4ai/              (fetch/crawl tool assets)
 |  |     +- PACKAGES.md
 |  |     +- env.defaults
 |  |     +- mios.toml
 |  |     +- mios.toml.example
 |  |     `- profile.toml
 |  `- .keep
-+- v1/
++- v1/                                       (deployed OpenAI-compat API mount points)
 |  +- chat/
 |  |  `- completions
 |  +- context

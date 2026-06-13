@@ -1,4 +1,4 @@
-<!-- AI-hint: Defines the architectural roadmap for the agent-pipe system, establishing the 2-stage routing logic, OpenAI API conformance, and the unified capability catalog as the source of truth for tool selection. -->
+<!-- AI-hint: Architectural roadmap for the agent-pipe system within MiOS — establishes the 2-stage classify→execute routing, OpenAI API conformance, and the unified tools/skills/recipes capability catalog as the source of truth for tool selection. Historical master plan (2026-06-07); reflects the migration to mios-llm-light/pgvector. -->
 # MiOS agent-pipe — OpenAI-standards conformance + 2-stage routing + unified capability catalog
 
 **Master plan (2026-06-07).** Synthesis of three research passes (OpenAI tool-routing
@@ -8,11 +8,50 @@ SSOT for the work. Guiding constraints (operator, binding): **no hardcoded Engli
 rules** (use schemas + SSOT, not prose); **keep ALL MiOS functionalities** (every change is
 additive + fail-safe to current behaviour); **mios.toml is the SSOT**.
 
+> **Status note (2026-06-13).** This is a planning/roadmap document, kept as the design
+> record for the agent-pipe routing + standards work. Names were reconciled during the
+> later migration: the local inference lane is **mios-llm-light** (llama.cpp behind the
+> `llama-swap` proxy image, `:11450`) serving chat models + embeddings; the agent
+> datastore is **PostgreSQL + pgvector** (`mios-pgvector`). The OpenAI/Ollama-compatible
+> API surface and the upstream `llama-swap` image are still the engine; only the MiOS
+> unit identity changed. The design and sequencing below are unchanged.
+
+## Purpose — where this fits in MiOS as a whole
+
+MiOS is one system built two ways at once: an **immutable bootc/OCI Fedora
+workstation** (the whole OS is a single container image you boot, `bootc upgrade`
+like a `git pull`, and `bootc rollback` like a Ctrl-Z) that is *also* a **local,
+self-replicating, agentic AI operating system**. The build pipeline assembles the
+image, the bootc lifecycle carries it forward, and inside that image a full local
+agent stack lives behind one OpenAI-compatible endpoint (`MIOS_AI_ENDPOINT`,
+Architectural Law 5).
+
+This document covers the **brain of that stack**: the `agent-pipe` orchestrator
+(`:8640`) and how it should select and dispatch capabilities. A user request flows
+from a front-end (OWUI `:3030`, the Discord gateway, the `mios` CLI) into agent-pipe,
+which **refines** it, **routes** it, **fans it out** across a council/swarm, dispatches
+tool/verb calls, and **polishes** the answer. **MiOS-Hermes** (`:8642`) is the
+OpenAI-compatible gateway and tool-loop agent; **mios-llm-light** (`:11450`) does the
+generation and embeddings (heavy lanes `mios-llm-heavy`/`mios-llm-heavy-alt` are gated
+on VRAM); **pgvector** (`:5432`) is the unified agent memory and knowledge substrate;
+**MCP** exposes the tool surface and **A2A** federates peer agents.
+
+The two failure modes this plan removes are the operator's core pain:
+**mis-routing** (the planner picks the wrong verb because the catalog is lumped into a
+few broad sections) and **client incompatibility** (gaps against the OpenAI
+Chat-Completions contract). Fixing them makes the agentic half of MiOS both
+*accurate* (the right tool fires) and *portable* (any OpenAI client speaks to it),
+which in turn advances the AIOS/MCP/A2A federation roadmap already in memory — each
+move here maps almost 1:1 onto the existing pipeline, verbs, MCP serve, and state
+substrate.
+
 ## 0. What is already true (verified this session)
 - Entire pipeline runs on **gemma4:12b** (one resident model on the 4090; VRAM 1.8→10.3 GB,
-  72% util; chat + reasoning_content split verified). `refine→swarm/DAG→synthesis→polish`.
+  72% util; chat + reasoning_content split verified), served by mios-llm-light (`:11450`).
+  `refine→swarm/DAG→synthesis→polish`.
 - `/v1/chat/completions` (stream + function-tools), `/v1/models`, `/v1/embeddings` served;
-  MCP endpoint served; per-chat blackboard + knowledge DB (pgvector) as state substrate.
+  MCP endpoint served; per-chat blackboard + knowledge DB (**PostgreSQL + pgvector**) as
+  state substrate.
 - **Root-caused the mis-routing:** the planner sees all 82 verbs grouped under a few broad
   `section`s — esp. "Discovery / resolution" lumping web+files+apps+memory — so a small/large
   model alike picks the wrong verb (research→OS-probes; "what does <script> do"→mios_apps).
@@ -21,8 +60,9 @@ additive + fail-safe to current behaviour); **mios.toml is the SSOT**.
 
 ## 1. Routing fix — 2-stage classify→execute (CORE; partially built)
 Per the llama.cpp research, the load-bearing facts:
-- llama-server supports `response_format: json_schema` → GBNF grammar; **enum-of-strings is the
-  most reliable constraint**. `--jinja` is set; llama-swap forwards `response_format`/`tools`/
+- llama-server (the engine mios-llm-light runs behind the `llama-swap` proxy) supports
+  `response_format: json_schema` → GBNF grammar; **enum-of-strings is the most reliable
+  constraint**. `--jinja` is set; llama-swap forwards `response_format`/`tools`/
   `tool_choice` untouched (no `strip_params`).
 - **CRITICAL #20345:** grammar is silently dropped when thinking is ON → **Stage-1 MUST run
   thinking-OFF**. **Fail-open #19051:** a grammar-parse failure returns HTTP 200 unconstrained →
@@ -105,4 +145,6 @@ MiOS is **substantially Chat-Completions-conformant**; the only thing that can b
 is the **omitted `usage`** + the streaming/error-shape details (Tier 0, cheap). The **routing fix**
 (proven) is the operator's core pain. The **unified catalog** and **`/v1/responses`** are the
 strategic moves that also advance the AIOS/MCP/A2A roadmap already in memory — each maps almost 1:1
-onto MiOS's existing pipeline, verbs, MCP serve, and state substrate.
+onto MiOS's existing pipeline, verbs, MCP serve (mios-llm-light + Hermes), and pgvector state
+substrate. Done, these make the agentic half of the immutable MiOS image both accurate in its tool
+selection and portable to any OpenAI client — the contract the rest of the system builds on.

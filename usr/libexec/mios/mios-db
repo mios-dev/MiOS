@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Unified MiOS shared-state CLI tool providing a single interface for agents to query and manage cross-cutting state in SurrealDB, Open WebUI's SQLite database, and Ollama embedding services.
+# AI-hint: Unified MiOS shared-state CLI fronting the agent backends: PostgreSQL/pgvector for cross-cutting state (--pg), Open WebUI's SQLite webui.db (--owui), and local OpenAI-compat embeddings on mios-llm-light (--embed).
 # AI-related: userenv.sh, /usr/libexec/mios/mios-db, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/tools/lib/userenv.sh, /usr/libexec/mios/mios-pg-query, mios-pg-query, mios-env, mios-open-webui
 # /usr/libexec/mios/mios-db [<surrealql>] [-f <file.surql>] [--ns <ns>] [--db <db>] [--json]
 #                            [--owui '<sql>']
@@ -66,11 +66,6 @@ for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
     fi
 done
 
-DB_URL="${MIOS_DB_URL:-http://localhost:${MIOS_PORT_SURREALDB:-8000}}"
-DB_USER="${MIOS_DB_USER:-root}"
-DB_PASS="${MIOS_DB_PASS:-root}"
-DB_NS="${MIOS_DB_NS:-mios}"
-DB_DB="${MIOS_DB_DB:-mios}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLAMA_SWAP:-11450}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
@@ -86,7 +81,7 @@ PG_DB="${MIOS_PG_DB:-mios}"
 JSON=0
 FILE=""
 QUERY=""
-MODE="surreal"
+MODE="none"
 OWUI_SQL=""
 EMBED_TEXT=""
 PG_SQL=""
@@ -207,74 +202,12 @@ if [ "$MODE" = "pg" ]; then
     exit 2
 fi
 
-# ── MODE: surreal  (cross-cutting state) ──
-
-# SurrealDB 3.0 CLI args (renamed from 2.x): --conn → --endpoint,
-# --user/--pass kept as aliases. WebSocket endpoint preferred over
-# http:// for the `sql` REPL (3.0 default is ws://localhost:8000).
-WS_URL="${DB_URL/http:/ws:}"
-WS_URL="${WS_URL/https:/wss:}"
-
-# 1. Prefer the local surreal CLI if installed (faster, REPL-friendly).
-# NB: stdin must be the QUERY without an intervening pipeline -- a
-# `printf | exec surreal` puts `exec` on the right side of a pipe,
-# which only replaces the SUBSHELL, not the script; the script then
-# falls through to step 2/3 and prints duplicate output. Use a
-# here-string so `exec` actually replaces the calling process.
-if command -v surreal >/dev/null 2>&1; then
-    args=(sql --endpoint "$WS_URL" --username "$DB_USER" --password "$DB_PASS"
-          --namespace "$DB_NS" --database "$DB_DB")
-    [ "$JSON" = "1" ] && args+=(--pretty)
-    if [ -n "$FILE" ]; then
-        exec surreal "${args[@]}" < "$FILE"
-    elif [ -n "$QUERY" ]; then
-        exec surreal "${args[@]}" <<<"$QUERY"
-    else
-        exec surreal "${args[@]}"
-    fi
-fi
-
-# 2. Container-exec fallback: surreal binary inside the container.
-# The official surrealdb/surrealdb image is distroless -- no /bin/sh,
-# no PATH lookup; the binary lives at /surreal. Use the full path.
-# Same here-string discipline as step 1: no pipelines around `exec`.
-if command -v podman >/dev/null 2>&1 \
-   && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-surrealdb$'; then
-    args=(exec -i mios-surrealdb /surreal sql
-          --endpoint "$WS_URL" --username "$DB_USER" --password "$DB_PASS"
-          --namespace "$DB_NS" --database "$DB_DB")
-    [ "$JSON" = "1" ] && args+=(--pretty)
-    if [ -n "$FILE" ]; then
-        exec podman "${args[@]}" < "$FILE"
-    elif [ -n "$QUERY" ]; then
-        exec podman "${args[@]}" <<<"$QUERY"
-    fi
-    # No QUERY + no FILE -> fall through to curl (which prints usage).
-fi
-
-# 3. Pure HTTP fallback: SurrealDB REST API via curl.
-# 3.0 dropped the NS:/DB: HTTP header form; the canonical 3.0+
-# pattern is to prepend `USE NS <ns> DB <db>;` to the query body.
-if [ -n "$QUERY" ] && command -v curl >/dev/null 2>&1; then
-    body=$(printf 'USE NS %s DB %s; %s' "$DB_NS" "$DB_DB" "$QUERY")
-    exec curl -sS -X POST "$DB_URL/sql" \
-        -u "$DB_USER:$DB_PASS" \
-        -H "Accept: application/json" \
-        --data-binary "$body"
-fi
-# Also support -f file form via curl.
-if [ -n "$FILE" ] && command -v curl >/dev/null 2>&1 && [ -r "$FILE" ]; then
-    body=$(printf 'USE NS %s DB %s;\n' "$DB_NS" "$DB_DB"; cat "$FILE")
-    exec curl -sS -X POST "$DB_URL/sql" \
-        -u "$DB_USER:$DB_PASS" \
-        -H "Accept: application/json" \
-        --data-binary "$body"
-fi
-
-echo "mios-db: no SurrealDB backend reachable + no --owui/--embed flag set" >&2
-echo "  options:" >&2
-echo "    mios-db '<surrealql>'                 -- cross-cutting state" >&2
-echo "    mios-db --owui '<sql>'                -- OWUI webui.db" >&2
-echo "    mios-db --embed '<text>'              -- Ollama embeddings" >&2
-echo "  check: systemctl start mios-surrealdb.service" >&2
+# ── No backend flag matched ──
+# SurrealDB (the old no-flag default) is RETIRED -- cross-cutting agent state
+# lives in PostgreSQL/pgvector now. Route explicitly so a bare invocation
+# can't silently hit a dead backend; tell the caller which flag to use.
+echo "mios-db: no backend flag (SurrealDB is retired -> pgvector is the agent DB)." >&2
+echo "  mios-db --pg    '<sql>'    -- agent/session/event/scratch/skill (pgvector)" >&2
+echo "  mios-db --owui  '<sql>'    -- Open WebUI webui.db (SQLite)" >&2
+echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (:11450)" >&2
 exit 2

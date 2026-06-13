@@ -1,211 +1,258 @@
-<!-- AI-hint: Defines the MiOS multi-model pipeline, mapping the flow from OWUI through the prefilter, Hermes orchestrator, and specialized sub-agents to specify how agents route tasks between GPU/CPU models and tools.
-     AI-related: /usr/share/mios/ollama/Modelfiles/, /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/refusal-patterns.txt, /usr/share/mios/hermes/skills/, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-delegation-prefilter, mios-sys-agent, mios-environment, mios-log-watcher -->
-# MiOS AI Architecture — 2026-05-16 snapshot
+<!-- AI-hint: Defines the MiOS local agentic-AI pipeline end-to-end — how a request flows from a front-end (OWUI / Discord / mios CLI) through the agent-pipe orchestrator, the MiOS-Hermes tool-loop gateway, and the function-named inference lanes (mios-llm-light primary, gated heavy lanes) into pgvector memory and MCP/A2A tool/agent surfaces. Use this to understand how the AI plane is wired, why, and what serves what.
+     AI-related: /usr/lib/mios/agent-pipe/server.py, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-agent-pipe, mios-delegation-prefilter, mios-llm-light, mios-pgvector, mios-opencode-gateway -->
+# MiOS AI Architecture
 
-Single source of truth for what's wired vs. what needs operator action.
-Reflects operator directive 2026-05-16:
+**Audience:** operators and contributors wiring or auditing the MiOS agent
+plane. **Purpose:** a single, current-state description of how MiOS's local
+agentic-AI brain is wired end-to-end — what is in the image vs. what an operator
+must still turn on — and *why* each piece exists.
 
-> query MiOS-Agent (OWUI default) >> small CPU model refines via
-> template >> sends refined to MiOS-Hermes >> Hermes loops + tools
-> >> delegates to CPU when needed >> uses opencoder for opencoder
-> tasks >> answer + report via MiOS-Agent chat
+## Where this fits in the whole system
 
-## Live chain (this commit)
+MiOS is one thing built two ways at once: an **immutable, bootc/OCI-shaped
+Fedora workstation** (the whole OS is a single rebuildable container image —
+boot it, `bootc upgrade` it like a `git pull`, `bootc rollback` it like a
+Ctrl-Z) that is *also* a **local, self-hosted, self-replicating agentic AI
+operating system**. The same image that ships GNOME/Wayland, GPU-via-CDI,
+KVM/libvirt passthrough, and a k3s+Ceph cluster path also ships the full agent
+stack described here.
+
+This document covers that second half — the AI plane. It is reachable through a
+single OpenAI-compatible endpoint named by `MIOS_AI_ENDPOINT` (default
+`http://localhost:8080/v1`); every agent, tool, and editor on the box resolves
+to that one endpoint (Architectural Law 5). Because the stack is baked into the
+same immutable image as the OS, it is version-locked to the OS and reproduced
+exactly on every host that pulls the ref — that is what makes a *local* agent
+runtime trustworthy rather than a pile of pip-installed daemons to babysit.
+
+The throughline of this doc: **front-end → agent-pipe orchestration → Hermes
+tool-loop → function-named inference lanes → pgvector memory → MCP/A2A tools &
+agents.**
+
+## Live chain
 
 ```
-operator types in OWUI
+operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI)
       │
       ▼
-  /api/chat/completions   (OWUI sets model="MiOS-Agent")
+  agent-pipe :8640           (mios-agent-pipe.service)
+      │  standalone orchestrator: router + REFINE + council/swarm fan-out
+      │  + CRITIC/POLISH; injects the refined plan into every sub-agent hop;
+      │  fronts Hermes for every gateway; writes/reads pgvector memory
       │
       ▼
-  prefilter :8641         (mios-delegation-prefilter.service)
-      │  ├─ rewrites model "MiOS-Agent" → "hermes-agent"
-      │  ├─ [ENABLED] refine via mios-sys-agent (qwen3.5:2b GPU)
-      │  │     - applies reasoning template silently
-      │  │     - rewrites user message to INTENT/CONSTRAINTS/MIOS
-      │  │       CONTEXT/PLAN handoff
-      │  └─ forces delegate_task on fan-outable prompts
+  prefilter :8641            (mios-delegation-prefilter.service)
+      │  injects tool_choice=delegate_task on fan-outable prompts,
+      │  forwards to Hermes
       │
       ▼
-  hermes :8642            (hermes-agent.service, qwen3-coder:30b GPU)
+  Hermes :8642               (hermes-agent.service)
+      │  ├─ OpenAI-compatible agent gateway: sessions, the tool-loop, skills,
+      │  │   browser/CDP control
       │  ├─ skills: mios-environment, windows-control, pc-control,
       │  │           parallel-fanout, self-improvement, ...
-      │  ├─ tools: terminal, file, web, delegation, skills, memory,
-      │  │           todo, session_search, code_execution, browser,
-      │  │           discord, cronjob, clarify
-      │  ├─ delegate_task → MiOS-Delegate (qwen3:1.7b children)
-      │  └─ orchestrator dispatch → MiOS-OpenCoder (opencode /v1 peer :8633)
+      │  ├─ tools: terminal, file, web, delegation, skills, memory, todo,
+      │  │           session_search, code_execution, browser, discord,
+      │  │           cronjob, clarify
+      │  ├─ delegate_task → child agents
+      │  └─ dispatch → MiOS-OpenCoder (opencode /v1 council peer :8633)
       │
       ▼
-  Ollama :11434           (raw inference)
-      │  models resident:
-      │    qwen3-coder:30b           17 GB GPU      hermes main
-      │    mios-sys-agent (qwen3.5:2b)  4 GB GPU    refinement
-      │    qwen3:0.6b-cpu             600 MB CPU    micro daemons
+  inference lanes            (function-named; OpenAI/Ollama-compatible API)
+      │    mios-llm-light :11450   PRIMARY — llama.cpp behind llama-swap;
+      │                            everyday chat/reasoning models + the
+      │                            mios-opencode coder model + embeddings
+      │                            (nomic-embed-text, /v1/embeddings)
+      │    mios-llm-heavy :11441   heavy GPU lane (SGLang, served-name
+      │                            mios-heavy); gated off by default (VRAM)
+      │    mios-llm-heavy-alt :11440  alternate heavy lane (vLLM); gated
       │
       ▼
-  response streams back through prefilter to OWUI
+  response streams back through the orchestrator to the front-end
 ```
 
-## Background daemons (READ-only -- micro-LLM for status, never launch)
+> **Inference is function-named, not tool-named.** The lanes are
+> `mios-llm-light` / `mios-llm-heavy` / `mios-llm-heavy-alt`, named by what they
+> *do*. `llama-swap` (the upstream proxy image
+> `ghcr.io/mostlygeek/llama-swap`) and the Ollama-compatible API are legitimate
+> *upstream* references — the engines speak that API so any OpenAI-API client
+> talks to them unchanged. The earlier Ollama backend, SurrealDB datastore, and
+> Qdrant vector store have been **removed**; inference + embeddings now run on
+> `mios-llm-light` and the unified agent datastore is **PostgreSQL + pgvector**.
 
-| daemon | role | model |
-|---|---|---|
-| mios-log-watcher | classify journal events | qwen3:0.6b-cpu |
-| mios-cron-director | gate cron rules on system state | qwen3:0.6b-cpu |
-| mios-agent-nudger | detect refusal patterns in hermes output | qwen3:0.6b-cpu |
-| mios-micro-llm | CLI wrapper for direct classification | qwen3:0.6b-cpu |
+## The inference lanes (what serves what)
 
-Operator clarification 2026-05-16: "MiOS-Hermes launches and operates
-things themselves -- just the micro-llms read logs and files on
-pass/fail". Daemons stay observation-only; never trigger actions.
+| Lane | Unit | Port | Role |
+|---|---|---|---|
+| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — `llama.cpp` behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging (slot save/restore to disk); serves everyday chat/reasoning models, the `mios-opencode` coder model, **and** embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). |
+| MiOS-LLM-Heavy | `mios-llm-heavy.service` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`, HiCache CPU KV-offload). **Gated/off-by-default** (VRAM). |
+| MiOS-LLM-Heavy-Alt | `mios-llm-heavy-alt.service` | `:11440` | Alternate heavy lane (vLLM, PagedAttention + prefix cache). **Gated/off-by-default** (VRAM). |
+| MiOS-LLM-Worker | `mios-llm-worker@.service` | — | Single-model swarm workers (templated; for the dGPU swarm topology). |
 
-## Pending operator decisions (model pulls / heavy work)
+The light lane's model map is
+[`usr/share/mios/llamacpp/llama-swap.yaml`](../../llamacpp/llama-swap.yaml).
+Each chat model runs `--parallel 1 --slot-save-path` so it lands on one
+deterministic slot and the agent-pipe's KV-paging (`POST /slots/{id}?action=
+save|restore`) can checkpoint/restore a conversation's KV to disk — the AIOS
+Context Manager, fleet-wide. The embed model runs an `--embedding` server so
+`/v1/embeddings` is served locally. The reasoning model the pipeline resolves to
+is set by `[ai].model` (e.g. `gemma4:12b`); `llama-swap` aliases the
+legacy/role model names the pipeline still emits onto the served GGUF so the
+lane is a drop-in.
 
-### A. Larger Gemma 4 for hermes (operator-suggested)
+The heavy lanes (`mios-llm-heavy`, `mios-llm-heavy-alt`) are gated in
+`mios.toml` and stay inert until enabled and reachable (`health_gate`).
 
-Current: `qwen3-coder:30b` Q4_K_M, ~17 GB VRAM on a 20.5 GB GPU.
-Operator-observed: spills out of VRAM every turn (only 3.5 GB
-headroom; mios-sys-agent at 4 GB doesn't co-resident).
+## Background daemons (READ-only — micro-LLM for status, never launch)
 
-Gemma 4 advantages operator cited:
-- Extended context window (Gemma typically 128 K, Qwen3 32 K)
-- Compression efficiencies
+These observe; they never trigger actions. Operator clarification (2026-05-16):
+"MiOS-Hermes launches and operates things themselves — just the micro-LLMs read
+logs and files on pass/fail." Daemons stay observation-only.
 
-Candidates to evaluate (need pull):
-- `gemma4:e4b` (already baked, 8.9 GB) -- TINY for the executor
-  role; was evaluated for delegate but not hermes
-- `gemma3:12b` or `gemma3:27b` if released as Gemma 4 in operator's
-  terminology -- need to verify exact tag
+| daemon | role |
+|---|---|
+| mios-log-watcher | classify journal events |
+| mios-cron-director | gate cron rules on system state |
+| mios-agent-nudger | detect refusal patterns in agent output |
+| mios-micro-llm | CLI wrapper for direct classification |
 
-Operator action required:
-```
-ollama pull gemma4:<tag>           # bandwidth-heavy
-ollama show gemma4:<tag>           # confirm context_window
-# Then ship a Modelfile that builds hermes-gemma + swap config:
-#   model:
-#     provider: custom:local-ollama
-#     default: gemma4:<tag>
-```
+The always-on `mios-daemon-agent` (a CPU-pinned, low-resource sub-agent) tails
+system logs and feeds context to the council; per `[agents.mios-daemon-agent]`
+in `mios.toml` it now dispatches reasoning to the heavy SGLang lane (`:11441`)
+like the other council agents rather than the contended light lane. Its
+background log/journal watch stays read-only.
 
-### B. VRAM strategy
+## Memory — PostgreSQL + pgvector
 
-20.5 GB GPU, current resident:
-- qwen3-coder:30b   17 GB   (hermes)
-- mios-sys-agent     4 GB   (refinement)
+The unified agent datastore is the **`mios-pgvector`** container
+(`mios-pgvector.service`, `:5432`), accessed via the pure-python `mios-pg-query`
+client and `mios-db --pg`. Its tables (in
+`usr/share/mios/postgres/schema-init.sql`) include `agent_memory`, `event`,
+`tool_call`, `session`, `skill`, `scratch`, `knowledge`, `sys_env`, `kanban`,
+`directory_entry`, `person`, and `agent_keypair`.
 
-Total: 21 GB > 20.5 GB → mios-sys-agent forces partial qwen3-coder
-eviction every turn → 5-10s of reload time per chat.
+The `knowledge` table stores finished Q+A with vector recall: answers are
+embedded at write time and recalled by cosine similarity (threshold-gated) into
+the agent's system prefix on later turns. The embeddings come from
+`nomic-embed-text`, served by `mios-llm-light` — so the memory plane and the
+inference plane share one local embedding lane and no external service is in the
+loop.
 
-Options:
-1. **Smaller hermes model** (Gemma 12 B / Qwen 14 B ≈ 8-9 GB) →
-   fits alongside sys-agent comfortably with headroom for KV cache
-2. **CPU-pin sys-agent** → frees the 4 GB but refinement becomes
-   30-60s (operator already vetoed this trade)
-3. **Bigger GPU** → operator hardware change
-4. **Status quo with eviction** → slow first-turn after refinement,
-   fast subsequent
+## Tools & federation — MCP / A2A / opencode
 
-Recommended: when operator pulls the gemma evaluation candidate,
-test option 1.
-
-### C. OpenCoder as a /v1 council peer (SHIPPED 2026-05-31)
-
-opencode is served as a first-class OpenAI `/v1` council peer by
-`mios-opencode-gateway.service` (:8633), registered as
-`[agents.opencode]`. The agent-pipe orchestrator dispatches code-heavy
-facets to it in parallel with the primary:
-```
-POST http://localhost:8633/v1/chat/completions
-  { "model": "mios-opencode:latest", "messages": [...] }
-```
-(Retired: the ACP-over-stdio `delegate_task(acp_command="opencode")`
-spawn — opencode is now a co-equal peer, not a Hermes child.)
-
-OpenCoder uses ONLY offline models (operator-confirmed):
-qwen3-coder:30b or similar via the local Ollama. Its strengths:
-- File-system navigation
-- Multi-file edits
-- PC-control task chains
-- Long-running coding work
-
-Pending: a skill / SOUL rule that tells hermes WHEN to prefer
-opencode delegation. Currently hermes makes that call ad-hoc; could
-be more explicit:
-- File-system heavy tasks (move/rename/refactor >3 files)
-- PC-control loops (window manipulation chains)
-- "Click around the UI to do X" workflows
-
-Operator action required: confirm exact opencode model + add
-SKILL.md guidance for the delegation heuristic. The OpenCoder lane
-itself is already plumbed (per the prior session work on aux
-lanes).
+- Agents call **tools over MCP** (the universal MiOS verb/skill/recipe surface)
+  and reach **other agents over A2A**. MiOS both *publishes* and *consumes*
+  these surfaces, so peer agents can be federated by adding them to the
+  `mcp.json` / `a2a-peers.json` overlays.
+- `web_search` is backed by a local **SearXNG** (`mios-searxng.service`,
+  `:8888`); the front-end is **Open WebUI** (`mios-open-webui.service`, `:3030`).
+- The coder peer is served through the **opencode-gateway**
+  (`mios-opencode-gateway.service`, `:8633`) as a first-class OpenAI `/v1`
+  council member, registered as `[agents.opencode]`:
+  ```
+  POST http://localhost:8633/v1/chat/completions
+    { "model": "mios-opencode:latest", "messages": [...] }
+  ```
+  The agent-pipe orchestrator dispatches code-heavy facets to it in parallel
+  with the primary. OpenCoder uses ONLY offline local models (it targets
+  `mios-llm-light`). Its strengths: filesystem navigation, multi-file edits,
+  PC-control task chains, and long-running coding work. It is currently
+  `default=false`/`fanout=false` in `mios.toml` because `opencode run`
+  headless invocation hangs (see `[agents.opencode]` rationale); re-enable once
+  that is fixed.
 
 ## Single-source-of-truth pointers
 
-- mios.toml [ai] = model identities + endpoints
-- mios.toml [ai.host_thresholds] = auto-pick by RAM (big/mid/small)
-- mios.toml [ai.host_thresholds] = micro_model + sys_agent_model
-- /usr/share/mios/ollama/Modelfiles/*.Modelfile = derived models
-  (gpt-oss-tools:20b, qwen3:0.6b-cpu, mios-sys-agent, ...)
-- /var/lib/mios/hermes/config.yaml = hermes runtime config (model,
-  reasoning_effort, delegation, auxiliary lanes)
-- /usr/share/mios/ai/hermes-soul.md = agent persona + truthfulness
-- /usr/share/mios/ai/refusal-patterns.txt = shared patterns
-- /usr/share/mios/hermes/skills/*/SKILL.md = capability index
+- `mios.toml [ai]` — model identities + the OpenAI-compat endpoint
+  (`MIOS_AI_ENDPOINT`, Law 5).
+- `mios.toml [ai.host_thresholds]` — auto-pick model by RAM (big/mid/small);
+  `micro_model` + `sys_agent_model`.
+- `mios.toml [agents.*]` — the council/swarm registry: each agent's
+  `endpoint` (OpenAI-compat `/v1`), `model`, `role`, and `strengths`; the
+  refine pass picks targets from this list.
+- `usr/share/mios/llamacpp/llama-swap.yaml` — the light-lane model map (served
+  GGUFs, aliases, KV-paging slots, embeddings).
+- `usr/share/mios/postgres/schema-init.sql` — the pgvector schema (the agent
+  datastore tables above).
+- `usr/share/mios/ai/system.md` — canonical agent system prompt / persona +
+  truthfulness rules.
+- `usr/share/mios/ai/INDEX.md` — the architectural contract (agent-facing:
+  the laws + the OpenAI-compatible API surface).
+- `usr/share/mios/hermes/skills/*/SKILL.md` — capability index.
 
 ## Principles (operator-directed)
 
 ### No hardcoded paths or words
 
-Operator directive 2026-05-16: "I DON'T WANT ANY HARDCODED PATHS OR
-WORDS!!! SKILLS AND TOOLS ARE TEMPLATES FOR ANY VARIABLES!!!".
+Operator directive (2026-05-16): "I DON'T WANT ANY HARDCODED PATHS OR WORDS!!!
+SKILLS AND TOOLS ARE TEMPLATES FOR ANY VARIABLES!!!".
 
-Every path / executable name / threshold / pattern that MiOS helpers
-consume reads from `mios.toml` (layered: `/etc/mios/mios.toml` overrides
-`/usr/share/mios/mios.toml`). Operators tune via TOML, not script edits.
+Every path / executable name / threshold / pattern that MiOS helpers consume
+reads from `mios.toml` (layered: `~/.config/mios/mios.toml` <
+`/etc/mios/mios.toml` < `/usr/share/mios/mios.toml`, highest wins). Operators
+tune via TOML, not script edits. There are no hardcoded topic, app, or keyword
+deny-lists anywhere in the routing path — the model plus the current context
+route everything.
 
 Currently TOML-driven:
-* `[paths].everything_cli` (es.exe probe list)
-* `[paths].powershell_exe` + `[paths].cmd_exe` (Windows tools)
-* `[paths].launcher_socket` (broker)
-* `[appearance].gtk_theme` + `[appearance].cursor_*` + `[appearance].adw_color_scheme`
-* `[ai].endpoint` + `[ai.host_thresholds].micro_model` etc
-* `/usr/share/mios/ai/refusal-patterns.txt` (operator-extensible regex list)
+- `[paths].everything_cli` (es.exe probe list)
+- `[paths].powershell_exe` + `[paths].cmd_exe` (Windows tools)
+- `[paths].launcher_socket` (broker)
+- `[appearance].gtk_theme` + `[appearance].cursor_*` + `[appearance].adw_color_scheme`
+- `[ai].endpoint` + `[ai.host_thresholds].micro_model` etc.
+- `/usr/share/mios/ai/refusal-patterns.txt` (operator-extensible regex list)
 
-Still hardcoded (pending lift):
-* SKILL.md mentions of specific paths -> change to "the configured X"
-* Service unit `ExecStart=` paths (intentional -- systemd unit syntax)
-* Modelfile `FROM` lines (intentional -- Ollama derivation)
+Intentionally fixed (not lifted to TOML): service-unit `ExecStart=` paths
+(systemd unit syntax) and any remaining SKILL.md path mentions, which should
+read "the configured X" rather than a literal.
 
-### Use Hermes's NATIVE tools + skills, don't shadow
+### Use the agent's NATIVE tools + skills, don't shadow
 
-Operator directive 2026-05-16: "Hermes-Agent NATIVE TOOLS AND SKILLS".
+Operator directive (2026-05-16): "Hermes-Agent NATIVE TOOLS AND SKILLS".
 
-Hermes ships a rich native toolset: `skill_view`, `skill_manage`,
-`memory_save`, `memory_search`, `delegate_task`, `clarify`, `terminal`,
-etc. MiOS-overlay SKILL.md files should be MINIMAL -- they exist to
-inform the agent about the host's MiOS-specific surface (helpers like
-`mios-find` / `mios-windows`), NOT to substitute for native behavior.
+Hermes ships a rich native toolset (`skill_view`, `skill_manage`,
+`memory_save`, `memory_search`, `delegate_task`, `clarify`, `terminal`, …).
+MiOS-overlay SKILL.md files should be MINIMAL — they exist to inform the agent
+about the host's MiOS-specific surface (helpers like `mios-find` /
+`mios-windows`), NOT to substitute for native behaviour.
 
-Stop GROWING SOUL.md with "lesson learned" text-blocks each time the
-agent fails. Instead:
-* Let the agent `memory_save` corrections itself (native self-learning loop)
-* Reserve SOUL.md for the truthfulness principles + the MiOS-specific
-  surface map
-* Keep SKILL.md content scoped to "here is the MiOS environment;
-  here are the helpers" -- not "here are the 47 phrases you mustn't say"
-* Use OWUI Filter Functions for post-hoc cleanup, not model-prompt rules
+Stop GROWING SOUL.md with "lesson learned" text-blocks each time the agent
+fails. Instead:
+- Let the agent `memory_save` corrections itself (native self-learning loop,
+  now persisted in pgvector).
+- Reserve SOUL.md for the truthfulness principles + the MiOS-specific surface
+  map.
+- Keep SKILL.md scoped to "here is the MiOS environment; here are the helpers"
+  — not "here are the 47 phrases you mustn't say."
+- Use OWUI Filter Functions for post-hoc cleanup, not model-prompt rules.
 
-The MiOS-Agent's role is to GIVE the operator's MiOS environment to
-Hermes; Hermes's native learning + skill mechanisms then do the work.
+The front-end's role is to GIVE the operator's MiOS environment to the agent;
+the agent's native learning + skill mechanisms then do the work.
 
-## Open questions
+### Every sub-agent hop carries the refined plan
 
-1. Operator's "Gemma 4" -- which exact ollama tag? gemma3:12b?
-   gemma3:27b? Something newer?
-2. VRAM strategy -- accept current eviction or swap hermes to
-   smaller model?
-3. OpenCoder delegation heuristic -- explicit SKILL rule or trust
-   hermes's judgement?
+The agent-pipe injects the refined plan as a system-message prefix on every
+front-end → sub-agent hop; no sub-agent runs on raw user text. This keeps the
+council/swarm coherent and is why the orchestrator (not the prefilter) owns
+refine/critic/polish.
+
+## History (superseded snapshot)
+
+This file began as a 2026-05-16 snapshot describing an Ollama-backed chain in
+which the prefilter did the refinement and `qwen3-coder:30b` ran on Ollama
+(`:11434`) under a tight VRAM budget. That topology has since changed:
+
+- Inference moved off **Ollama** to the function-named lanes
+  (`mios-llm-light` primary on `:11450`, gated heavy lanes); Ollama survives
+  only as an upstream API-compat reference and in migration notes.
+- The datastore moved off **SurrealDB**/**Qdrant** to **PostgreSQL + pgvector**.
+- The **agent-pipe** (`:8640`) became the standalone orchestrator that owns
+  refine/council/swarm/critic/polish; the prefilter (`:8641`) was narrowed to
+  fan-out hint injection.
+- **opencode** became a co-equal `/v1` council peer via the opencode-gateway,
+  not a Hermes ACP-over-stdio child.
+
+The model/VRAM trade-off the snapshot debated (a smaller co-resident reasoner
+vs. eviction churn) was resolved in favour of the auto-swapping light lane plus
+gated heavy lanes; the open "which exact Gemma 4 tag" question resolved to the
+`[ai].model` setting the light lane serves.

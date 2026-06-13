@@ -3607,17 +3607,6 @@ backend        = "http://localhost:8642/v1"   # hermes-agent OpenAI gateway
 backend_model  = "hermes-agent"               # the model id hermes-agent advertises
 enable         = true
 
-[surrealdb]
-url            = "http://localhost:8000"
-user           = "root"
-pass           = "root"
-namespace      = "mios"
-database       = "mios"
-data_dir       = "/var/lib/mios/surrealdb"
-backend        = "surrealkv:///var/lib/mios/surrealdb/mios.skv"
-schema_init    = "/usr/share/mios/surrealdb/schema-init.surql"
-embed_model    = "nomic-embed-text"   # OWUI/Ollama-compat embeddings (768-dim)
-enable         = true
 
 # WS-9 unified agent-plane datastore (PostgreSQL + pgvector, FOSS). ADDITIVE
 # alongside [surrealdb] until the staged cutover (concepts/postgres-pgvector-
