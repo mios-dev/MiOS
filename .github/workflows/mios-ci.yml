@@ -37,12 +37,17 @@ jobs:
 
       - name: Read VERSION
         id: ver
-        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+        # VERSION must yield ONE clean token. Strip comment lines (e.g. a
+        # stray AI-hint header) + all whitespace so a multi-line value can't
+        # write a bare line to $GITHUB_OUTPUT ("Invalid format" failure 2026-06-13).
+        run: |
+          ver="$(grep -vE '^[[:space:]]*#' VERSION | tr -d '[:space:]')"
+          echo "version=${ver:-0.0.0}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve image tag (VERSION + UTC timestamp + short SHA)
         id: tag
         run: |
-          VER="$(cat VERSION 2>/dev/null || echo 'v0.0.0')"
+          VER="$(grep -vE '^[[:space:]]*#' VERSION 2>/dev/null | tr -d '[:space:]')"; VER="${VER:-v0.0.0}"
           SHA="$(git rev-parse --short=12 HEAD)"
           TS="$(date -u +%Y%m%d-%H%M%S)"
           TAG="${VER#v}-${TS}-${SHA}"

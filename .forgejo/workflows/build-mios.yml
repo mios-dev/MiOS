@@ -38,7 +38,7 @@ jobs:
       - name: Resolve image tag from VERSION + commit
         id: tag
         run: |
-          VER="$(cat VERSION 2>/dev/null || echo 'v0.0.0')"
+          VER="$(grep -vE '^[[:space:]]*#' VERSION 2>/dev/null | tr -d '[:space:]' || echo 'v0.0.0')"
           SHA="$(git rev-parse --short=12 HEAD)"
           TS="$(date -u +%Y%m%d-%H%M%S)"
           TAG="${VER#v}-${TS}-${SHA}"

@@ -45,7 +45,7 @@ EXT = {
 }
 BASENAMES = {
     "Containerfile", "Dockerfile", "Justfile", "justfile", "Makefile",
-    "Modelfile", "VERSION", ".gitignore", ".gitattributes", ".dockerignore",
+    "Modelfile", ".gitignore", ".gitattributes", ".dockerignore",
     ".editorconfig", ".bashrc", ".profile",
 }
 SKIP_DIR = re.compile(
