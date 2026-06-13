@@ -200,7 +200,7 @@ Full inventory: \`mios-apps\`. Launch by name: \`mios-launch <name>\`.
 - /usr/share/mios/ai/system.md         -- canonical agent system prompt
 - /usr/share/mios/ai/INDEX.md          -- system interface reference
 - /usr/share/mios/mios.toml            -- vendor SSOT for configuration
-- /usr/share/mios/PACKAGES.md          -- RPM package manifest
+- /usr/share/doc/mios/reference/PACKAGES.md          -- RPM package documentation
 - /usr/share/mios/hermes/skills/       -- shipped skills (windows-control, parallel-fanout, mios-environment, self-improvement)
 - /CLAUDE.md, /AGENTS.md               -- repo-root architectural laws
 EOF

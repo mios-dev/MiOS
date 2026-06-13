@@ -34,7 +34,7 @@
     "agent_nudges": "/var/lib/mios/scratch/agent-nudges.md",
     "passports": "/var/lib/mios/passports",
     "skills_catalog": "/var/lib/mios/skills/catalog.json",
-    "packages": "/usr/share/mios/PACKAGES.md"
+    "packages": "/usr/share/doc/mios/reference/PACKAGES.md"
   },
   "stack": {
     "agent_pipe":      {"port": 8640, "service": "mios-agent-pipe.service",       "role": "canonical /v1 entry; refine + route + polish"},

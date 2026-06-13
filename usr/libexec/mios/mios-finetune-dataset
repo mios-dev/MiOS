@@ -212,16 +212,27 @@ def _parse_json_loose(text: str) -> dict | None:
     return None
 
 
+def _find_first_list(o):
+    """First list value anywhere in a parsed JSON value (recurses dicts). Handles
+    the {"requests": [...]} object the json_object response grammar forces (a bare
+    array literal is rejected by that grammar), plus any single-key wrapper."""
+    if isinstance(o, list):
+        return o
+    if isinstance(o, dict):
+        for v in o.values():
+            r = _find_first_list(v)
+            if r is not None:
+                return r
+    return None
+
+
 def _parse_json_array(text: str) -> list:
-    obj = _parse_json_loose(
-        text if text.strip().startswith("[") else f'{{"a":{text}}}')
-    if isinstance(obj, list):
-        return obj
-    if isinstance(obj, dict):
-        for v in obj.values():
-            if isinstance(v, list):
-                return v
-    return []
+    t = (text or "").strip()
+    # A bare array parses as-is; an object ({"requests":[...]}) parses directly;
+    # a bracket-less fragment gets wrapped so the loose parser can recover it.
+    obj = _parse_json_loose(t if t[:1] in ("[", "{") else f'{{"a":{t}}}')
+    r = _find_first_list(obj)
+    return r if r is not None else []
 
 
 def validate_repair(lab: dict, names_lc: dict, src) -> dict:
@@ -264,7 +275,10 @@ def keep_example(lab: dict) -> bool:
 GEN_SYS = (
     "You generate TRAINING DATA: realistic first-person user requests someone would\n"
     "actually type to a local AI operating system. Vary phrasing, length, and\n"
-    "formality. No numbering, no commentary. Output ONLY a JSON array of strings."
+    "formality. No numbering, no commentary. Output ONLY a JSON OBJECT of the exact\n"
+    'form {"requests": ["...", "..."]} -- the value is a flat array of the request\n'
+    "strings. (A JSON object is required by the response grammar; an array literal\n"
+    "would be rejected, which is why the array is wrapped in the `requests` key.)"
 )
 
 

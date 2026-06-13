@@ -113,7 +113,7 @@ CORPUS: list[str] = [
     "/AGENTS.md",
     # The SSOT
     "/usr/share/mios/mios.toml",
-    "/usr/share/mios/PACKAGES.md",
+    "/usr/share/doc/mios/reference/PACKAGES.md",
 ]
 
 
