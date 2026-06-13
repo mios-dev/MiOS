@@ -268,7 +268,7 @@ check_privileges() {
     available_mem=$(free -b | awk '/^Mem:/ {print $7}')
     available_mem_gb=$(echo "scale=1; $available_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "?")
     
-    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                         MEMORY ALLOCATION                                  │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     echo "│ TOTAL SYSTEM MEMORY:    ${total_mem_gb} GB"
@@ -328,7 +328,7 @@ check_privileges() {
     
     print_subsection "=== GPU PARTITIONING ==="
     
-    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                          GPU ALLOCATION                                    │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
@@ -401,7 +401,7 @@ check_privileges() {
     
     print_subsection "=== STORAGE PARTITIONING ==="
     
-    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                        STORAGE ALLOCATION                                  │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
@@ -456,7 +456,7 @@ check_privileges() {
     
     print_subsection "=== NETWORK PARTITIONING ==="
     
-    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                        NETWORK ALLOCATION                                  │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
@@ -522,7 +522,7 @@ check_privileges() {
     
     print_subsection "=== USB CONTROLLER PARTITIONING ==="
     
-    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                      USB CONTROLLER ALLOCATION                             │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
@@ -549,7 +549,7 @@ check_privileges() {
     
     print_subsection "=== AUDIO PARTITIONING ==="
     
-    echo "├─────────────────────────────────────────────────────────────────────────────â""
+    echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                        AUDIO ALLOCATION                                    │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
@@ -651,13 +651,13 @@ check_privileges() {
     print_subsection "=== PARTITION SUMMARY FOR DIAGRAMS ==="
     
     echo ""
-    echo "â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--"
-    echo "â*'                     CLOUD WS HARDWARE PARTITION SUMMARY                       â*'"
-    echo "â* â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*£"
-    echo "â*'                                                                               â*'"
-    echo "â*'  ├─────────────────────────────────────────────────────────────────────────â"  â*'"
-    echo "â*'  │                              HOST SYSTEM                                │  â*'"
-    echo "â*'  ├─────────────────────────────────────────────────────────────────────────┤  â*'"
+    echo "┌───────────────────────────────────────────────────────────────────────────────┐"
+    echo "│                     CLOUD WS HARDWARE PARTITION SUMMARY                       │"
+    echo "├───────────────────────────────────────────────────────────────────────────────┤"
+    echo "│                                                                               │"
+    echo "│  ├─────────────────────────────────────────────────────────────────────────┤  │"
+    echo "│  │                              HOST SYSTEM                                │  │"
+    echo "│  ├─────────────────────────────────────────────────────────────────────────┤  │"
     
     # Host CPUs
     if [[ -n "$isolated_cpus" && "$isolated_cpus" != "" ]]; then
@@ -670,9 +670,9 @@ check_privileges() {
                 echo "$range"
             fi
         done | sort -n) 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-        echo "â*'  │  CPUs: ${host_cpus:-0-$(($(nproc)-1))}"
+        echo "│  │  CPUs: ${host_cpus:-0-$(($(nproc)-1))}"
     else
-        echo "â*'  │  CPUs: 0-$(($(nproc)-1)) (all cores)"
+        echo "│  │  CPUs: 0-$(($(nproc)-1)) (all cores)"
     fi
     
     # Host GPU
@@ -687,10 +687,10 @@ check_privileges() {
             fi
         fi
     done
-    echo "â*'  │  GPU: $host_gpu"
-    echo "â*'  │  Memory: ${available_mem_gb:-?} GB available"
-    echo "â*'  └─────────────────────────────────────────────────────────────────────────┘  â*'"
-    echo "â*'                                                                               â*'"
+    echo "│  │  GPU: $host_gpu"
+    echo "│  │  Memory: ${available_mem_gb:-?} GB available"
+    echo "│  └─────────────────────────────────────────────────────────────────────────┘  │"
+    echo "│                                                                               │"
     
     # VMs section
     if cmd_exists virsh; then
@@ -702,23 +702,23 @@ check_privileges() {
                     vcpus=$(virsh vcpucount "$vm_name" --current 2>/dev/null || echo "?")
                     mem=$(virsh dominfo "$vm_name" 2>/dev/null | grep "Max memory" | awk '{print $3/1024/1024 " GB"}')
                     
-                    echo "â*'  ├─────────────────────────────────────────────────────────────────────────â"  â*'"
-                    echo "â*'  │  VM: $vm_name [$state]"
-                    echo "â*'  ├─────────────────────────────────────────────────────────────────────────┤  â*'"
-                    echo "â*'  │  vCPUs: $vcpus | Memory: ${mem:-?}"
+                    echo "  │  ├─────────────────────────────────────────────────────────────────────────┤  │"
+                    echo "  │  │  VM: $vm_name [$state]"
+                    echo "  │  ├─────────────────────────────────────────────────────────────────────────┤  │"
+                    echo "  │  │  vCPUs: $vcpus | Memory: ${mem:-?}"
                     
                     # Check for GPU passthrough
                     gpu_pt=$(virsh dumpxml "$vm_name" 2>/dev/null | grep -c "hostdev.*pci" || echo "0")
-                    [[ "$gpu_pt" -gt 0 ]] && echo "â*'  │  GPU Passthrough: Yes ($gpu_pt device(s))"
+                    [[ "$gpu_pt" -gt 0 ]] && echo "│  │  GPU Passthrough: Yes ($gpu_pt device(s))"
                     
-                    echo "â*'  └─────────────────────────────────────────────────────────────────────────┘  â*'"
+                    echo "  │  └─────────────────────────────────────────────────────────────────────────┘  │"
                 fi
             done
         fi
     fi
     
-    echo "â*'                                                                               â*'"
-    echo "â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*"
+    echo "│                                                                               │"
+    echo "└───────────────────────────────────────────────────────────────────────────────┘"
 
     #---------------------------------------------------------------------------
     print_section "CPU INFORMATION & TOPOLOGY"
@@ -1210,7 +1210,7 @@ check_privileges() {
         for g in $(find /sys/kernel/iommu_groups/ -maxdepth 1 -mindepth 1 -type d | sort -V); do
             group_id=$(basename "$g")
             echo ""
-            echo "â*"â*â* IOMMU Group ${group_id} â*â*"
+            echo "┌── IOMMU Group ${group_id} ──"
             for d in "${g}"/devices/*; do
                 if [[ -L "$d" ]]; then
                     pci_addr=$(basename "$d")
@@ -1224,11 +1224,11 @@ check_privileges() {
                     reset_methods=${reset_methods%,}
                     [[ -z "$reset_methods" ]] && reset_methods="none"
                     
-                    echo "â*' ${pci_addr} ${desc}"
-                    echo "â*'   └─ Driver: ${driver}, Reset: [${reset_methods}]"
+                    echo "  │ ${pci_addr} ${desc}"
+                    echo "  │   └─ Driver: ${driver}, Reset: [${reset_methods}]"
                 fi
             done
-            echo "â*šâ*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*"
+            echo "└──────────────────────────────"
         done
     else
         echo "[IOMMU not enabled - no groups available]"
@@ -1365,7 +1365,7 @@ check_privileges() {
     # Check for ACS override in use
     if echo "$CMDLINE" | grep -q "pcie_acs_override"; then
         echo ""
-        echo "âš  WARNING: pcie_acs_override is enabled!"
+        echo "⚠  WARNING: pcie_acs_override is enabled!"
         echo "  This bypasses hardware ACS and may have security implications."
         echo "  Only use if you understand the risks and need to separate devices."
     fi
@@ -1400,7 +1400,7 @@ check_privileges() {
                     elif [[ $group_members -le 3 ]]; then
                         echo "    Passthrough: ~ Acceptable (check if other devices are related)"
                     else
-                        echo "    Passthrough: âš  May need ACS override or all devices passed together"
+                        echo "    Passthrough: ⚠  May need ACS override or all devices passed together"
                     fi
                     echo ""
                 fi
@@ -2503,24 +2503,24 @@ check_privileges() {
     #---------------------------------------------------------------------------
     
     echo ""
-    echo "â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*"
+    echo "───────────────────────────────────────────────────────────────────────────────"
     echo "                              SYSTEM SUMMARY"
-    echo "â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*"
+    echo "───────────────────────────────────────────────────────────────────────────────"
     echo ""
-    echo "├─ HARDWARE ─────────────────────────────────────────────────────────────────â""
+    echo "├─ HARDWARE ─────────────────────────────────────────────────────────────────┤"
     echo "│ CPU: $(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | cut -c1-60)"
     echo "│ Cores/Threads: $(grep "cpu cores" /proc/cpuinfo | head -1 | cut -d: -f2 | tr -d ' ')/$(nproc)"
     echo "│ Memory: $(free -h | awk '/^Mem:/ {print $2}')"
     echo "│ GPUs: $(lspci | grep -cE 'VGA|3D|Display') detected"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "├─ SYSTEM ───────────────────────────────────────────────────────────────────â""
+    echo "├─ SYSTEM ───────────────────────────────────────────────────────────────────┤"
     echo "│ OS: $(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | cut -c1-55)"
     echo "│ Kernel: $(uname -r)"
     echo "│ Boot Mode: $([ -d /sys/firmware/efi ] && echo 'UEFI' || echo 'Legacy BIOS')"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "├─ VIRTUALIZATION READINESS ─────────────────────────────────────────────────â""
+    echo "├─ VIRTUALIZATION READINESS ─────────────────────────────────────────────────┤"
     
     # CPU Virtualization
     virt_hw="NOT DETECTED"
@@ -2555,7 +2555,7 @@ check_privileges() {
     
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "├─ CPU ISOLATION STATUS ─────────────────────────────────────────────────────â""
+    echo "├─ CPU ISOLATION STATUS ─────────────────────────────────────────────────────┤"
     isolated=$(cat /sys/devices/system/cpu/isolated 2>/dev/null)
     if [[ -n "$isolated" && "$isolated" != "" ]]; then
         echo "│ Isolated CPUs: ${isolated}"
@@ -2578,7 +2578,7 @@ check_privileges() {
     echo "│ irqbalance: ${irqbalance_active}"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "├─ PASSTHROUGH CHECKLIST ────────────────────────────────────────────────────â""
+    echo "├─ PASSTHROUGH CHECKLIST ────────────────────────────────────────────────────┤"
     
     # Check each requirement
     check_pass() {

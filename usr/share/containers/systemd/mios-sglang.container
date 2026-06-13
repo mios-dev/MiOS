@@ -58,7 +58,14 @@ ShmSize=4g
 # a reboot LOOP every ~2-4 min). With both off, SGLang loads in ~32s and the VM is rock-
 # stable. Cost: slightly slower decode (no graph replay) -- acceptable vs a crashing VM.
 # Revisit if a future WSL2/NVIDIA driver fixes the dxgkrnl crash on graph capture.
-Exec=python3 -m sglang.launch_server --model-path /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11441} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.5} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-16384} --disable-cuda-graph --disable-piecewise-cuda-graph
+# --tool-call-parser (operator 2026-06-13 "ALL AGENTS USE SGLANG" + "DIDN'T USE
+# WEB TOOLS"): WITHOUT this, SGLang emits the Qwen <tool_call>{json}</tool_call>
+# block as plain message CONTENT (no OpenAI tool_calls[]), so every research
+# node's web_search came back as inert NARRATED text -> the pipe never executed
+# it -> the answer was fabricated from training knowledge. qwen25 parses the
+# <tool_call> Hermes/Qwen format (Qwen3 served here uses the same shape) into
+# real tool_calls so the agent-pipe's tool-loop fires web_search. SSOT-tunable.
+Exec=python3 -m sglang.launch_server --model-path /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11441} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.5} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-16384} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --disable-cuda-graph --disable-piecewise-cuda-graph
 # Read-only mount of the build-baked weights (immutable composefs seed).
 Volume=/usr/share/mios/sglang/model:/models:ro,Z
 # Air-gapped: never reach out to the HF hub at runtime.

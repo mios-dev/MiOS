@@ -1142,6 +1142,22 @@ def _load_backend_key() -> str:
 
 _BACKEND_KEY = _load_backend_key()
 
+
+def _probe_auth_headers(ep: str) -> dict:
+    """Bearer header for a liveness / model-list probe IFF the endpoint ENFORCES
+    auth (the Hermes backend in _AUTH_HOSTPORTS). Keyless lanes (SGLang/llama-
+    swap) need none. Without this, every keyless GET /v1/models probe made Hermes
+    log a spurious 'rejected invalid API key' WARNING (operator 2026-06-12);
+    harmless functionally (probes treat <500 as live) but it buries real 401s."""
+    try:
+        if (_BACKEND_KEY and ep
+                and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
+            return {"Authorization": f"Bearer {_BACKEND_KEY}"}
+    except Exception:  # noqa: BLE001
+        pass
+    return {}
+
+
 # ── SurrealDB (cross-cutting agent state) ──────────────────────────
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
@@ -3568,6 +3584,13 @@ _RESCUE_PARAM_RE = re.compile(
 _RESCUE_FENCE_RE = re.compile(
     r"```(?:json|tool_call|tool)?\s*(\{.*?\}|\[.*?\])\s*```",
     re.DOTALL | re.IGNORECASE)
+# Qwen/Hermes <tool_call>{json}</tool_call> markup. A model on a backend WITHOUT
+# the matching SGLang --tool-call-parser emits its call as this CONTENT block
+# instead of OpenAI tool_calls[] (operator 2026-06-13 "DIDN'T USE WEB TOOLS":
+# the SGLang research nodes narrated web_search this way -> inert text). Backstop
+# the server-side parser so a narrated <tool_call> is still promoted + executed.
+_RESCUE_TOOLCALL_RE = re.compile(
+    r"<tool_call>\s*(\{.*?\}|\[.*?\])\s*</tool_call>", re.DOTALL | re.IGNORECASE)
 
 
 def _allowed_tool_names(tools: "Optional[list]") -> set:
@@ -3624,8 +3647,11 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
             out.append(_norm_tool_call(name, args, len(out)))
     if out:
         return out
-    # (b) JSON candidates: ```fenced blocks first, then a whole-content object.
-    candidates = list(_RESCUE_FENCE_RE.findall(text))
+    # (b) JSON candidates: <tool_call>{json}</tool_call> blocks first (the Qwen/
+    # Hermes format an un-parsed SGLang lane emits as content), then ```fenced
+    # blocks, then a whole-content object.
+    candidates = list(_RESCUE_TOOLCALL_RE.findall(text))
+    candidates += list(_RESCUE_FENCE_RE.findall(text))
     _stripped = text.strip()
     if _stripped[:1] in "{[":
         candidates.append(_stripped)
@@ -5093,7 +5119,7 @@ async def _live_agent_names() -> set:
             if not ep:
                 return False
             try:  # OpenAI /v1/models first (llama.cpp + vLLM speak this)
-                r = await client.get(f"{ep}/models")
+                r = await client.get(f"{ep}/models", headers=_probe_auth_headers(ep))
                 if r.status_code < 500:
                     return True
             except Exception:
@@ -15524,7 +15550,8 @@ async def _probe_one_endpoint(client, ep: str, timeout_s: float = 3.0) -> tuple:
         return (False, [], 0)
     t0 = time.time()
     try:
-        r = await client.get(f"{ep}/models", timeout=timeout_s)
+        r = await client.get(f"{ep}/models", timeout=timeout_s,
+                             headers=_probe_auth_headers(ep))
         if r.status_code < 500:
             try:
                 lm = [str(m.get("id"))
@@ -18077,7 +18104,7 @@ async def portal_swarm(request: Request) -> JSONResponse:
         t0 = time.time()
         reachable, live = False, []
         try:  # OpenAI /v1/models
-            r = await client.get(f"{ep}/models")
+            r = await client.get(f"{ep}/models", headers=_probe_auth_headers(ep))
             if r.status_code < 500:
                 reachable = True
                 live = [str(m.get("id")) for m in
