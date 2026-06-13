@@ -1,3 +1,5 @@
+# AI-hint: Systemd Quadlet configuration for the SGLang inference server, providing a high-throughput, OpenAI-compatible heavy-lane for Qwen3-8B-AWQ models via host networking and direct GPU passthrough.
+# AI-related: /usr/share/mios/sglang/model, /usr/share/mios/sglang/model/config.json, mios-sglang, mios-vllm, mios-heavy, mios-cdi-detect, mios-ceph, mios-forgejo-runner, mios-coderun-sandbox, mios-sglang.service
 # /etc/containers/systemd/mios-sglang.container
 # 'MiOS' SGLang server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU heavy lane.
 #

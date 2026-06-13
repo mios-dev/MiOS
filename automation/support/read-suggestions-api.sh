@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Fetches and formats the system's configuration suggestions from the local Open WebUI API by extracting the admin token from the local SQLite database to provide a JSON-formatted list of available configuration options.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 -c "
 import sqlite3

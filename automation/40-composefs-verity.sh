@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Configures the `prepare-root.conf` file by reading the `[security].composefs_mode` setting from `mios.toml` to enable/disable fs-verity or standard composefs for the root filesystem.
+# AI-related: systemd-remount-fs.service
+# AI-functions: _read_mios_scalar
 # 40-composefs-verity.sh -- render /usr/lib/ostree/prepare-root.conf based
 # on the operator-tunable [security].composefs_mode knob in mios.toml.
 #

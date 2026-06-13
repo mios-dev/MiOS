@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the MiOS multi-model pipeline, mapping the flow from OWUI through the prefilter, Hermes orchestrator, and specialized sub-agents to specify how agents route tasks between GPU/CPU models and tools.
+     AI-related: /usr/share/mios/ollama/Modelfiles/, /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/refusal-patterns.txt, /usr/share/mios/hermes/skills/, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-delegation-prefilter, mios-sys-agent, mios-environment, mios-log-watcher -->
 # MiOS AI Architecture — 2026-05-16 snapshot
 
 Single source of truth for what's wired vs. what needs operator action.

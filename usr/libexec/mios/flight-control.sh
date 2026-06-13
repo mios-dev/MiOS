@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS' flight-control -- shows active build variable mappings
 # 'MiOS' flight-control -- shows active build variable mappings
 set -euo pipefail
 

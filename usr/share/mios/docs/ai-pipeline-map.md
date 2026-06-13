@@ -1,3 +1,5 @@
+<!-- AI-hint: Maps the end-to-end local inference flow from user input to final response, defining the Refine-Work-Polish architecture and the specific routing logic used by the orchestrator to manage sub-agents and tool execution.
+     AI-related: mios-agent-pipe, mios-winget, mios-web-search, mios-discord-send, mios-window, mios-ollama-cpu, mios-hermes, mios-planner, mios-daemon-agent -->
 # MiOS AI — End-to-End Pipeline Map
 
 How a user message becomes an answer in MiOS: every query-resolution path,

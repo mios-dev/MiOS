@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Installs FreeIPA and SSSD packages and enables the mios-freeipa-enroll.service; use this script to provision identity management and verify SSSD file capabilities for zero-touch enrollment.
+# AI-related: /etc/mios/ipa-enroll.env, mios-freeipa-enroll, mios-freeipa-enroll.service
 # 22-freeipa-client.sh -- install FreeIPA/SSSD client + arm zero-touch enrollment.
 #
 # Runtime path: mios-freeipa-enroll.service runs only when

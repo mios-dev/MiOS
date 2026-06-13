@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS' verify-root -- early-boot composefs/ostree integrity check.
+# AI-related: /usr/lib/mios/paths.sh, mios-verify-root, mios-verify-root.service, basic.target
+# AI-functions: _log, _die
 # 'MiOS' verify-root -- early-boot composefs/ostree integrity check.
 # Run by mios-verify-root.service before basic.target and greenboot. Lives
 # in a heavily-locked-down systemd sandbox (ProtectSystem=strict, read-only

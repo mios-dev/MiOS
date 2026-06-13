@@ -1,3 +1,6 @@
+# AI-hint: The primary installation worker for MiOS v0.2.4; an agent uses this to execute the Deploy and Boot phases, including container building via podman and system configuration.
+# AI-related: /etc/mios/install.env, /usr/share/mios/build-log.txt, mios-pipeline, mios-XXXXX, mios-dev, mios-builder, mios-hyperv, mios-wsl, mios-installer, mios-install
+# AI-functions: Register-Secret, Format-Masked, _dpad, _dsep, Show-Dashboard, Set-Op, Start-Phase, Finish-Phase, Write-Log, Write-LogOK, Write-LogWarn, Write-LogFail
 <#
 .NOTES
     CANONICAL ENTRY POINT NOTICE (v0.2.4+):

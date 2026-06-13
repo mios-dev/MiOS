@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Polls the hermes-agent.service status to bypass long gateway drain timeouts and logs the Discord patch status to verify successful configuration application during restart cycles.
+# AI-related: /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py, hermes-agent.service
 # Poll hermes-agent.service state until it leaves activating/
 # deactivating, then report the ExecStartPre patch verdict.
 # Used after restart cycles where the gateway's 240s drain

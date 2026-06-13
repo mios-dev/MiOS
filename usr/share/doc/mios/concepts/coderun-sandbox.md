@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the isolated Podman/Landlock environment for dry-running and testing generated scripts to prevent execution of unverified code on the live host system.
+     AI-related: /etc/mios/containers/coderun-seccomp.json, /etc/mios/containers/coderun-sandbox/Dockerfile, /etc/mios/containers/coderun-sandbox/exec-init.c, /usr/libexec/mios/mios-coderun-session, /etc/mios/containers/coderun-sandbox/, /etc/mios/scripts/, /etc/mios/mios.toml, mios-coderun-session, mios-coderun-sandbox, mios-find -->
 # MiOS code-run sandbox — for dry-running / testing, NOT the agent runtime
 
 **Architectural note (operator directive 2026-05-16):**

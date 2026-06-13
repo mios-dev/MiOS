@@ -1,3 +1,5 @@
+# AI-hint: Provides pure, DB-free logic for generating SurrealQL fragments and parsing results to identify and prune stale, low-access, and non-pinned rows from the WS-3 knowledge-table.
+# AI-functions: protect_where, ttl_where, parse_count, parse_ids, delete_stmt, plan_sweep
 """mios_evict -- pure helpers for the WS-3 knowledge-table eviction sweep.
 
 DB-free + stdlib-only so the SQL-building, response-parsing, and eviction-

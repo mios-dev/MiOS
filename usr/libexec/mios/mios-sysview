@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a unified system inspection tool for agents to query journalctl, process lists, and podman containers by abstracting complex command construction and flag validation into a single interface.
+# AI-related: mios-system-status, mios-podman-ps, mios-podman-ps.service
 """mios-sysview -- native system-inspection tool: the SSOT for the
 journalctl / ps / podman command construction that agent-pipe's verbs used
 to hardcode INLINE. Operator 2026-05-21: "no hardcodes ... should all be

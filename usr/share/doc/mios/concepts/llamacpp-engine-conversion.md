@@ -1,3 +1,5 @@
+<!-- AI-hint: Specifies the architectural transition from Ollama to llama.cpp via the llama-swap proxy to enable fleet-wide KV-cache checkpointing, restoration, and forking for the AIOS Context Manager.
+     AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models/, mios-daemon, mios-llama-swap, mios-llamacpp-embed, mios-ollama, mios-ollama-cpu, mios-llamacpp, mios-ai, mios-llama-swap.container -->
 # Ollama → llama.cpp Engine Conversion for KV-Cache (WS-10) — draft
 
 > Status: DRAFT (2026-06-04). Operator directive: convert the ollama inference

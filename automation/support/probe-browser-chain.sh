@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Parses mios.toml configurations to output the ordered list of browser application IDs used by mios-open-url for fallback logic when a primary browser is unavailable.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-open-url
 # Print the resolved browser fallback chain that mios-open-url
 # would use. Mirrors the inline _resolve_browser_chain function.
 set -euo pipefail

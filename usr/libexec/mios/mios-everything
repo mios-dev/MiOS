@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A high-speed wrapper for the Voidtools Everything CLI that provides agents with sub-100ms access to the full Windows NTFS index for file discovery across all mounted drives.
+# AI-related: /usr/libexec/mios/mios-everything, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-find, mios-es-err, hermes-agent.service
+# AI-functions: usage
 set -euo pipefail
 # /usr/libexec/mios/mios-everything <query> [-n <max>] [-ext <csv>]
 #

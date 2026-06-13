@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS' MCP server pre-flight (ExecStartPre for mios-mcp.service).
+# AI-related: /usr/lib/mios/paths.sh, mios-mcp, mios-ai, mios-mcp-init, mios-owned, mios-mcp.service
+# AI-functions: _log
 # 'MiOS' MCP server pre-flight (ExecStartPre for mios-mcp.service).
 # Verifies the MCP server's runtime directories + sqlite vault paths exist
 # before the long-running mcp-server-runner is launched. Fast (<100 ms),

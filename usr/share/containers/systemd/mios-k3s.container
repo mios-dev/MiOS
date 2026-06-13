@@ -1,3 +1,5 @@
+# AI-hint: Podman Quadlet configuration for the K3s orchestration engine; defines privileged container specs, volume mounts for manifests, and environment variables to bootstrap the MiOS Kubernetes cluster.
+# AI-related: /usr/share/mios/k3s-manifests, mios-k3s, mios-cluster-secret, network-online.target, multi-user.target
 # /etc/containers/systemd/mios-k3s.container
 # Rootless K3s orchestration via Podman.
 #

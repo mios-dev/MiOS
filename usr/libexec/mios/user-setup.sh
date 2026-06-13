@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS' init-user-space -- initializes XDG user configuration for MiOS.
+# AI-related: /usr/share/mios/mios.toml.example, mios-dev, localhost:8080
+# AI-functions: _render_unified, _get
 # 'MiOS' init-user-space -- initializes XDG user configuration for MiOS.
 # Seeds the single unified ~/.config/mios/mios.toml from the vendor template,
 # plus the empty $XDG_DATA / $XDG_CACHE / $XDG_STATE directories.

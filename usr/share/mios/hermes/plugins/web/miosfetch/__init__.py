@@ -1,3 +1,5 @@
+# AI-hint: Registers the MiosFetchProvider as a web search provider to enable direct-fetch web extraction when configured via config.yaml's web.extract_backend: miosfetch.
+# AI-functions: register
 """MiOS offline direct-fetch web-extract plugin -- auto-loaded backend.
 
 See provider.py for the why. Registers MiosFetchProvider as a web provider;

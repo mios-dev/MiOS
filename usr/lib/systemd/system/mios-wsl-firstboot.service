@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/wsl-firstboot to perform one-time initialization tasks specifically for WSL2 instances if the first-boot flag is not yet set.
+# AI-related: /usr/libexec/mios/wsl-firstboot, systemd-user-sessions.service, local-fs.target, multi-user.target
 [Unit]
 Description='MiOS' WSL2 First Boot Initialization
 Documentation=https://github.com/MiOS-DEV/MiOS

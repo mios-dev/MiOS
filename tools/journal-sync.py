@@ -1,3 +1,5 @@
+# AI-hint: Parses legacy Markdown-based memory logs and synchronizes them into structured JSONL format for the MiOS memory system, extracting timestamps, agent IDs, thoughts, and actions.
+# AI-functions: parse_markdown_journal, extract, sync_journal
 import os
 import json
 import re

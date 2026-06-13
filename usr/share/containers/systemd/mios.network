@@ -1,3 +1,4 @@
+# AI-hint: Systemd network configuration file defining the core network interface parameters, including subnet, gateway, and identification label for the MiOS internal networking stack.
 [Network]
 Subnet=${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}
 Gateway=${MIOS_CORE_NET_GATEWAY:-10.89.0.1}

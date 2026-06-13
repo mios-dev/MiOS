@@ -1,3 +1,5 @@
+# AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe replacement for the SurrealDB client using parameterized queries and HNSW-indexed vector recall.
+# AI-functions: _pg_skip, _pg_mark_down, pg_config, dsn, vector_literal, build_insert, build_recall, recall_tuning, execute, _table_columns, insert, recall
 """mios_pg -- PostgreSQL + pgvector client foundation for the agent plane (WS-9).
 
 FOSS-pure replacement path for the SurrealDB HTTP client. The PURE, deterministic

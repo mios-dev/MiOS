@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file that manages the ttyd service to provide a browser-accessible bash shell via WebSockets, mapping a terminal session to the mios user's environment.
+# AI-related: /usr/libexec/mios/mios-ttyd-launch, /etc/mios/userenv.sh, mios-ttyd-launch, mios-ttyd-bash, network-online.target, multi-user.target, localhost:7681
 # /usr/lib/systemd/system/mios-ttyd-bash.service
 # Phase D.2 of the AgentOS roadmap: browser-accessible Linux
 # terminal. Operator hits http://localhost:7681 in any browser

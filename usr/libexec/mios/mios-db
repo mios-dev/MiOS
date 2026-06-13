@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Unified MiOS shared-state CLI tool providing a single interface for agents to query and manage cross-cutting state in SurrealDB, Open WebUI's SQLite database, and Ollama embedding services.
+# AI-related: userenv.sh, /usr/libexec/mios/mios-db, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/tools/lib/userenv.sh, /usr/libexec/mios/mios-pg-query, mios-pg-query, mios-env, mios-open-webui
 # /usr/libexec/mios/mios-db [<surrealql>] [-f <file.surql>] [--ns <ns>] [--db <db>] [--json]
 #                            [--owui '<sql>']
 #                            [--embed '<text>'] [--embed-model <m>]

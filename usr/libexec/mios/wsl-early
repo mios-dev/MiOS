@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Executes pre-sysinit fixups for WSL2 by marking the root mount as rshared to enable systemd mount namespaces and manually creating /dev/net/tun and /dev/fuse nodes to ensure cockpit and rootless podman functionality.
+# AI-related: mios-wsl-early, cockpit.service, basic.target
+# AI-functions: _log
 # MiOS -- wsl-early: WSL2 pre-sysinit fixups.
 #
 # Runs as PID 1's child with full root caps BEFORE basic.target and BEFORE

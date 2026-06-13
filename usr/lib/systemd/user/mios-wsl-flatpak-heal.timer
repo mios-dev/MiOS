@@ -1,3 +1,5 @@
+# AI-hint: Triggers the mios-wsl-flatpak-heal.service every 5 minutes to keep the flatpak-portal active and prevent it from entering an idle timeout state in WSL environments.
+# AI-related: /usr/libexec/mios/mios-wsl-flatpak-heal, mios-wsl-flatpak-heal, mios-wsl-flatpak-heal.service, graphical-session.target, timers.target
 # /usr/lib/systemd/user/mios-wsl-flatpak-heal.timer
 #
 # Cadence: every 5 minutes. Tight enough that the heal fires

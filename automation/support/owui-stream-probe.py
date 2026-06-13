@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A diagnostic script used to determine if the Open WebUI (OWUI) backend streams SSE chunks in real-time or buffers them before delivery by timing and logging the arrival of chunks from the chat API.
+# AI-related: mios-agent, localhost:3030
 """Throwaway: does OWUI stream the pipe's SSE to the client, or buffer it?
 Fires a real query through OWUI's chat API and timestamps each chunk.
 Trickle = OWUI streams (browser-render issue). Dump-at-end = OWUI buffers."""

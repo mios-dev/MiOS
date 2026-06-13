@@ -1,3 +1,5 @@
+# AI-hint: Registers a Windows Scheduled Task to run a hidden PowerShell process that maintains a persistent WSL session via `sleep infinity`, preventing the WSL VM and its internal services (systemd, pgvector, sglang) from shutting down.
+# AI-related: mios-wsl-keepalive
 # mios-wsl-keepalive.ps1
 #
 # Registers the "MiOS-WSL-KeepAlive" scheduled task: hold a PERSISTENT session

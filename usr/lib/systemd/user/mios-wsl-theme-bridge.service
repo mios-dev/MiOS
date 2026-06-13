@@ -1,3 +1,5 @@
+# AI-hint: Systemd user service that executes a script to sync Windows system registry light/dark modes with GNOME gsettings color-schemes specifically for WSL environments.
+# AI-related: /usr/libexec/mios/wsl-theme-bridge.sh, default.target
 [Unit]
 Description='MiOS' WSL theme bridge (Windows light/dark -> GNOME color-scheme)
 Documentation=https://github.com/MiOS-DEV/MiOS

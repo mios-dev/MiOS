@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Configures fapolicyd to use file-based trust (fs-verity) to enable secure, immutable application whitelisting on ComposeFS systems without boot delays.
+# AI-related: fapolicyd.service
 set -euo pipefail
 
 echo "==> Configuring fapolicyd for fs-verity/ComposeFS..."

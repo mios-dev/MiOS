@@ -1,2 +1,3 @@
+# AI-hint: Defines udev rules to grant the kvm group read/write access to kvmfr character devices, ensuring proper permissions for KVM-based hardware emulation.
 # 'MiOS': kvmfr character device accessible by kvm group members
 SUBSYSTEM=="kvmfr", OWNER="root", GROUP="kvm", MODE="0660", TAG+="uaccess"

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python tool for RAG-based knowledge retrieval that embeds MiOS documentation into SurrealDB using nomic-embed-text to provide context-aware data to agents during the enrichment stage of the agent-pipe.
+# AI-related: /usr/share/mios/docs, /usr/libexec/mios/mios-pg-query, mios-pg-query, localhost:11434, localhost:8000, localhost:11450
 """mios-rag -- agent-pipe RAG over MiOS knowledge, on infra MiOS already
 runs: nomic-embed-text (ollama) for embeddings + SurrealDB for the vector
 store. Keeps RAG in-loop for every agent/sub-agent turn WITHOUT OWUI's

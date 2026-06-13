@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Validates ttyd service drop-ins, triggers the mios-hermes-firstboot service to apply systemd configurations, and verifies filesystem permissions for hermes-related directories.
+# AI-related: /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-hermes, mios-ttyd-bash, mios-ttyd-powershell, mios-user, mios-hermes-firstboot.service
 # Verify the ttyd User= drop-in is in place and the units restart
 # cleanly running as the SSOT [identity].username.
 set -euo pipefail

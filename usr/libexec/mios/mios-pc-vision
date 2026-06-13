@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides vision-based grounding for the PC-CONTROL agent by processing screenshots and natural language queries via a local VLM to return precise JSON coordinates for UI element interaction.
+# AI-related: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pc-control, mios-grounding, localhost:11450, localhost:11434
 """mios-pc-vision -- screenshot + UI-element query -> click coordinates.
 
 Local-only PC-Control vision grounding. Takes a screenshot path + a

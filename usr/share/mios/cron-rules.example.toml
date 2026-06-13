@@ -1,3 +1,5 @@
+# AI-hint: Reference template for mios-cron-director defining cron rules, shell commands, and LLM-gated logic (qwen3:0.6b) to conditionally execute tasks like cache clearing or briefings based on system state.
+# AI-related: /usr/share/mios/cron-rules.example.toml, /etc/mios/cron-rules.toml, mios-cron-director, mios-cron, mios-cache-clear, mios-cron-update
 # /usr/share/mios/cron-rules.example.toml
 #
 # Vendor template for the mios-cron-director (LLM-gated cron). Copy

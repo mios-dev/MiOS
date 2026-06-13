@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a Model Context Protocol (MCP) stdio server that exposes the MiOS [verbs.*] catalog as tools and resources for local agents (Hermes, OpenCode) to execute system actions via the agent-pipe.
+# AI-related: mios-daemon-agent, mios-mcp, mios-mcp.service, localhost:8640
 """mios-mcp-server -- Model Context Protocol stdio server.
 
 Exposes MiOS's [verbs.*] catalog (SSOT in mios.toml) as MCP tools so

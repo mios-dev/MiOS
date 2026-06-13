@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Launches and manages the ChromeDev flatpak instance on port 9222, providing a dedicated, isolated profile for the Hermes-Agent to perform CDP-based browser actions like navigation and screenshots.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, mios-gui, localhost:9222
+# AI-functions: cdp_responding, wait_for_cdp, kill_existing
 # /usr/libexec/mios/mios-hermes-browser
 #
 # Launch the locally-installed ChromeDev flatpak (com.google.ChromeDev)

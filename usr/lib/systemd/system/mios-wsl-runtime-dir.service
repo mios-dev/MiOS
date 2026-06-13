@@ -1,3 +1,5 @@
+# AI-hint: Ensures the /run/user/1000 directory and Wayland symlinks exist for the mios user on WSL2 to prevent GTK/dbus failures when pam_systemd is bypassed.
+# AI-related: systemd-sysusers.service, UID_.service, local-fs.target, multi-user.target
 [Unit]
 # 'MiOS' WSL2 user-runtime-directory fallback.
 # pam_systemd creates /run/user/<uid> on a real PAM login session. WSL2's

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-adguard-firstboot to generate the AdGuardHome.yaml config from mios.toml, injecting Tailscale IPs before the AdGuard container starts.
+# AI-related: /usr/libexec/mios/mios-adguard-firstboot, /etc/mios/adguard/AdGuardHome.yaml, mios-adguard-firstboot, mios-adguard, mios-adguard.container, tailscaled.service, mios-adguard.service, network-online.target, multi-user.target
 # /usr/lib/systemd/system/mios-adguard-firstboot.service
 # Generates /etc/mios/adguard/AdGuardHome.yaml from mios.toml [adguard]/[ports]
 # + the live Tailscale IP/MagicDNS suffix, BEFORE the AdGuard container starts.

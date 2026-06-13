@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Validates skill definitions in /usr/share/mios/skills/ and SurrealDB against technical standards, flagging hardcoded paths, hostnames, and non-OpenAI-compliant tool schemas to ensure portability.
+# AI-related: /usr/share/mios/skills/, /usr/share/mios/skills, mios-ec377, localhost:8000
+# AI-functions: fetch_db_skills, audit_skill, main
 """Skill catalog genericity audit.
 
 Operator directive 2026-05-18: "make sure they are generic and

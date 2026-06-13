@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs kernel-devel, headers, and extra modules (VFIO, USB, storage) required for akmod-nvidia, DKMS, and kernel-tools while avoiding base kernel upgrades that break dracut.
+# AI-related: mios-kver
 # 'MiOS' v0.2.4 -- 02-kernel: Kernel extras + development headers
 # The base fedora-bootc:rawhide image ships the newest kernel with a working
 # initramfs. We NEVER upgrade the base kernel packages inside the container --

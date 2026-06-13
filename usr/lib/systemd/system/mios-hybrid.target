@@ -1,3 +1,5 @@
+# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
+# AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target
 [Unit]
 Description='MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)
 Requires=graphical.target

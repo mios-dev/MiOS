@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for the deterministic_action_route logic to ensure "open/launch" commands correctly strip filler phrases and map to open_app(name) instead of falling back to the LLM discovery path.
+# AI-related: /usr/share/mios/mios.toml
+# AI-functions: _check, _load_fillers, _extract, t_ssot, t_extraction, main
 """Standalone unit test for the deterministic launch-target extraction
 (server.py `_deterministic_action_route`: SSOT trailing-filler strip + word-count
 + compound-connective guard that binds an unambiguous 'open/launch <app>' to

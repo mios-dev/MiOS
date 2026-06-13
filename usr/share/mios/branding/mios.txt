@@ -1,3 +1,4 @@
+# AI-hint: Contains the ASCII art logo and branding identity for the MiOS system, used by agents to identify the OS version or include official branding in generated outputs.
       ___                       ___           ___
      /\__\          ___        /\  \         /\  \
     /::|  |        /\  \      /::\  \       /::\  \

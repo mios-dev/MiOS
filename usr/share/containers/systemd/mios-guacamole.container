@@ -1,3 +1,5 @@
+# AI-hint: A Quadlet container unit defining the Apache Guacamole web interface, mapping host port 8090 to container port 8080 to provide remote desktop access via the mios.network bridge.
+# AI-related: mios-guacamole, mios-ai, guacamole-postgres.service, network-online.target, multi-user.target, default.target, localhost:8090
 [Unit]
 Description='MiOS' Apache Guacamole Web
 After=network-online.target guacamole-postgres.service

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes nvidia-ctk to generate the NVIDIA CDI specification file at /etc/cdi/nvidia.yaml, enabling GPU passthrough for rootless Podman containers.
+# AI-related: nvidia-persistenced.service, multi-user.target
 [Unit]
 Description=Generate NVIDIA CDI spec for rootless Podman GPU
 After=nvidia-persistenced.service

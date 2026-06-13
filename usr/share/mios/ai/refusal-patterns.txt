@@ -1,3 +1,5 @@
+# AI-hint: Canonical regex list of phrases indicating agent refusal, hedging, or fabrication, used by mios-agent-nudger, mios-delegation-prefilter, and mios-agent-pipe to detect and intercept non-compliant responses.
+# AI-related: /usr/share/mios/ai/refusal-patterns.txt, /usr/share/mios/hermes/skills/launch-app/, mios-agent-nudger, mios-delegation-prefilter, mios-agent-pipe, mios-windows, mios-find, mios-window-active, mios-pc-control, mios-gui
 # /usr/share/mios/ai/refusal-patterns.txt
 #
 # Canonical list of regex patterns that indicate the agent is refusing

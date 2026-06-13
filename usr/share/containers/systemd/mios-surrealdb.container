@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining the SurrealDB container to serve as the unified multi-model (graph, vector, KV) "context layer" and single source of truth for cross-agent state and shared data.
+# AI-related: /etc/mios/mios.toml, mios-surrealdb, mios-ceph, mios-services, mios-daemon, network-online.target, multi-user.target, default.target, localhost:8000, localhost:8080
 # /etc/containers/systemd/mios-surrealdb.container
 # 'MiOS' shared agent state DB. Operator directive 2026-05-18:
 # "dont we need a true db services(container) to host local DBs(!!?)"

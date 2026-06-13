@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Installs the cosign binary (v2.x), configures Sigstore trust roots, and sets up policy.json to ensure OCI 1.1 bundle compatibility during image builds.
+# AI-related: mios-cosign
 # ============================================================================
 # automation/42-cosign-policy.sh - 'MiOS' v0.2.4
 # ----------------------------------------------------------------------------

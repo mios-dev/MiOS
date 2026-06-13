@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Registers the MiOS Agent pipe and anti-meta filters into the Open WebUI database, ensuring the "MiOS AI" model is available in the UI dropdown and automatically configured for the agent's interaction logic.
+# AI-related: /usr/libexec/mios/mios-owui-install-pipe, /usr/share/mios/owui/pipes/mios_agent_pipe.py, /usr/share/mios/owui/pipes/mios_antimeta_filter.py, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/share/mios/owui/pipes/mios_swarm_council_filter.py, /usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py, /usr/share/mios/owui/pipes/mios_swarm_forcetool_filter.py, mios-owui-pipe-payload, mios-agent
 set -euo pipefail
 # /usr/libexec/mios/mios-owui-install-pipe
 #

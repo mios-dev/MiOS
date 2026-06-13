@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Probes Open WebUI API endpoints to verify connectivity and HTTP status codes for configuration routes, used by agents to diagnose and validate the availability of the MiOS web interface configuration layer.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 -c "
 import sqlite3

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Installs the unified Hermes-Agent and opencode components into the MiOS agent plane, configuring the shared Python venv, systemd services, and core binaries for direct host-level agent operations.
+# AI-related: build.sh, /usr/lib/mios/agents/, /usr/lib/mios/agents/.venv, /usr/lib/mios/agents, /usr/share/mios/vendored/hermes-agent, /usr/share/mios/vendored/hermes-agent.zip, /usr/share/mios/vendored/hermes_agent.whl, /usr/share/mios/vendored/, /usr/share/mios/vendored, /usr/share/mios/hermes/plugins/web/miosfetch
+# AI-functions: _BUILD_SPA
 # automation/38-hermes-agent.sh -- UNIFIED agent-plane install driver.
 #
 # Owns BOTH halves of the MiOS agent plane (hybrid merge 2026-05-31):

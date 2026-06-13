@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation of the ostree content-addressed filesystem used as the bootc storage backend to manage immutable system images, deployments, and the transition path to composefs. -->
 # ostree — Content-Addressed Filesystem Tree
 
 > Used by MiOS as: the storage backend underneath bootc. The

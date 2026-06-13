@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Removes pre-LLM RAG knowledge attachments from Open WebUI models in the database to disable automatic search-query decomposition, ensuring the agent-pipe handles all logic via tool calls.
+# AI-related: mios-agent, mios-open-webui, mios-open-webui.service
 # Remove the knowledge collection attachments from the mios-agent
 # OWUI model. With knowledge attached, OWUI runs a pre-LLM RAG
 # pre-call that decomposes the user prompt into search queries and

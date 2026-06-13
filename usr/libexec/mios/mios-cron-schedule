@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: CLI tool for managing cron-director rules by translating human-readable intervals into cron expressions, storing prompt text in /var/lib/mios/cron-director/prompts, and updating /etc/mios/cron-rules.toml.
+# AI-related: /etc/mios/cron-rules.toml., /etc/mios/cron-rules.toml, mios-scheduled-research, mios-cron-director, mios-ai, mios-cron-director.service
+# AI-functions: _reload_daemon
 """'MiOS' schedule manager -- add/list/remove cron-director rules.
 
 The `schedule` verb dispatches here. `add` translates a human interval

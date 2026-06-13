@@ -1,3 +1,5 @@
+# AI-hint: Defines the user-session startup sequence for MiOS, enabling WSLg compatibility, environment injection, and the critical launcher broker/computer-use server for agent-to-host command execution.
+# AI-related: mios-wsl-theme-bridge, mios-wsl-graphical-session, mios-wsl-env-import, mios-computer-use-server, mios-launcher, mios-remember, UID.service, mios-wsl-theme-bridge.service, gnome-session.service, mios-wsl-graphical-session.service
 # /usr/lib/systemd/user-preset/90-mios.preset
 #
 # Preset evaluated when systemd's per-user instance (user@$UID.service)

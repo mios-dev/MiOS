@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios_evict to verify SQL construction for knowledge eviction, including blast-radius arithmetic, TTL logic, and SurrealDB response parsing for count and ID extraction.
+# AI-related: mios_evict
+# AI-functions: _check, t_protect_where, t_ttl_where, t_parse_count, t_parse_ids, t_delete_stmt, t_plan_sweep, main
 """Standalone unit test for mios_evict (WS-3 knowledge eviction helpers).
 
 Pure stdlib + the sibling module only -- no server.py / SurrealDB needed, so it

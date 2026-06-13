@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit defining the MiOS CPU inference node, providing a dedicated, non-GPU-contending fallback and gaming-mode lane for llama-server on port 11451 using qwen3-4b.gguf.
+# AI-related: /usr/share/mios/llamacpp/models/qwen3-4b.gguf, /usr/share/mios/llamacpp/models, mios-cpu-node, mios-frontdoor-dgpu-router, mios-cpu, network-online.target, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-cpu-node.container
 # 'MiOS' CPU inference node — the ALWAYS-ON, never-OOM, gaming-immune lane (2026-06-08).
 #

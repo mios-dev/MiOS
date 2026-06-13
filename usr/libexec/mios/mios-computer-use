@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Executes Linux/Wayland desktop interactions via RemoteDesktop portal, uinput, or WSL-delegated Windows control, providing a unified `cu_*` verb interface for remote/local UI automation and vision grounding.
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-pc-control, mios-pc-vision, mios-grounding, mios-computer-use-server, mios-oscontrol-server, mios-cu
 """mios-computer-use -- Linux/Wayland desktop computer-use executor for MiOS.
 
 The Linux/Wayland peer of `mios-pc-control` (which drives the Windows host via

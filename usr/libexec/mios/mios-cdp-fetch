@@ -1,4 +1,7 @@
 #!/usr/lib/mios/agents/.venv/bin/python3
+# AI-hint: Fetches rendered text and title from a URL via the Chrome DevTools Protocol (CDP) on port 9222 to provide the agent with grounded, non-hallucinated DOM content instead of predicted text.
+# AI-related: /usr/lib/mios/agents/.venv/bin/python3, mios-hermes-browser
+# AI-functions: main
 """mios-cdp-fetch <url> [max_chars]
 
 Deterministically fetch a page's rendered text via the ChromeDev CDP browser

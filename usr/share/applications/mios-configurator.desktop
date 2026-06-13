@@ -1,3 +1,5 @@
+# AI-hint: Desktop entry for the MiOS Configurator GUI, providing a launcher for the tool that modifies system-wide settings in /etc/mios/mios.toml including identity, AI models, and package management.
+# AI-related: /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch
 [Desktop Entry]
 Type=Application
 Version=1.0

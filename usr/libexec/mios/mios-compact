@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Compacts recent agent interactions, launch failures, and system logs into a timestamped markdown digest in /var/lib/mios/compacted/ to be ingested as an OWUI knowledge artifact for RAG.
+# AI-related: mios-knowledge-add, mios-daemon
+# AI-functions: section_launch_failures, section_daemon_state
 """mios-compact -- compact recent agent + system state into a single
 markdown digest that can be ingested as an OWUI knowledge artifact.
 

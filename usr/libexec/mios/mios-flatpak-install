@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Non-interactive wrapper for `flatpak install` that forces `--noninteractive` and `--from` flags to prevent agent hangs, while ensuring new apps inherit MiOS system-wide XDG override policies.
+# AI-related: /usr/libexec/mios/mios-flatpak-install, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-flatpak-init, mios-flatpak-init
+# AI-functions: _resolve_remote_for
 set -euo pipefail
 # /usr/libexec/mios/mios-flatpak-install <flatpak-id> [<flatpak-id> ...]
 #

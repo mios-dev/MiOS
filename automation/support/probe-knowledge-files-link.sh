@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A diagnostic script that queries the open-webui.db SQLite database to audit knowledge collection mappings, file counts, and MiOS-specific metadata markers to verify data integrity and synchronization.
+# AI-related: mios-managed, mios-owui-apply-knowledge
+# AI-functions: print
 set -euo pipefail
 python3 - <<'PYEOF'
 import json, sqlite3

@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the CLI grammar and shell widget behavior for the `mios` command and `@` shortcut, providing the syntax for interacting with the Hermes agent, managing system components, and handling shell-specific escaping.
+     AI-related: /usr/share/mios/docs/terminal/INVOCATIONS.md, mios-agent -->
 <!-- FHS: /usr/share/mios/docs/terminal/INVOCATIONS.md -->
 
 # Terminal Invocation Grammar (`mios *` and `@*`)

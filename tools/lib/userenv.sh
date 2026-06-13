@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, and image build settings used by all system tools and scripts.
+# AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-vllm, mios-sglang, mios-webtools
+# AI-functions: _mios_load_unified, _mios_legacy_get
 # tools/lib/userenv.sh -- read the unified 'MiOS' user config and export
 # MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every
 # entry-point script, and any tool that needs the user-overridden values.

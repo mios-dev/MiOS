@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Executes a safe, selective purge of non-essential OWUI, Hermes, and system cache data while preserving critical auth, config, and model assets to reset state without causing user lockouts or data loss.
+# AI-related: /usr/libexec/mios/mios-cache-clear, mios-hermes, mios-owui-apply, mios-open-webui, mios-owui-apply-knowledge, hermes-agent.service, mios-open-webui.service
+# AI-functions: ok, note, sec, size, do_rm, do_find_delete
 set -euo pipefail
 # /usr/libexec/mios/mios-cache-clear [--dry-run] [--all]
 #

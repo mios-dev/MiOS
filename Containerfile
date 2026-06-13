@@ -1,3 +1,5 @@
+# AI-hint: Defines the multi-stage Docker build process for the MiOS image, incorporating system configurations, automation scripts, and AI model bake parameters into the final bootable container.
+# AI-related: /tmp/build/automation/lib/packages.sh, automation/45-coderun-sandbox-build.sh, /usr/share/mios/mios.toml, /usr/share/mios/flatpak-list, /usr/libexec/mios/copy-build-log.sh, mios-bootstrap, mios-dev, mios-sysext-pack, mios-coderun-sandbox, mios-additionalimagestores-perms
 # syntax=docker/dockerfile:1.9
 ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
 

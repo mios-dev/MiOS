@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Triggers a full re-vectorization of Open WebUI knowledge collections via the /api/v1/knowledge/reindex endpoint to rebuild ChromaDB collections after a cache wipe or data migration.
+# AI-related: /usr/libexec/mios/mios-knowledge-search, mios-knowledge-search, mios-cache-clear, localhost:3030
 # Force OWUI to re-vectorize all knowledge collections. After a
 # day-0 wipe (mios-cache-clear --all) the vector_db/ tree is
 # empty even though the knowledge + file rows persist; this

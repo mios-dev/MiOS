@@ -12,6 +12,8 @@ metadata:
     requires_tools:
       - terminal
 ---
+<!-- AI-hint: Maps the MiOS host environment and provides a reference for agents to use specific helper tools (mios-find, mios-windows, mios-gui) to launch apps, manage services, and handle cross-platform execution.
+     AI-related: /usr/share/mios/hermes/skills/mios-environment/SKILL.md., /etc/mios/cron-rules.toml, mios-environment, mios-find, mios-windows, mios-gui, mios-hermes-firstboot, mios-apps, mios-open-url, mios-pc-control -->
 
 # MiOS environment — surface map
 

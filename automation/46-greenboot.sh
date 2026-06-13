@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Enables and symlinks core greenboot systemd services (health checks, grub2 status, and auto-reboot) and sets execution bits on greenboot check scripts to ensure system health monitoring is active.
+# AI-related: greenboot-healthcheck.service, greenboot-rpm-ostree-grub2-check-fallback.service, greenboot-grub2-set-counter.service, greenboot-grub2-set-success.service, greenboot-status.service, redboot-auto-reboot.service, multi-user.target
 # 46-greenboot.sh - wire greenboot services; package installs via mios.toml
 # [packages.updater] (greenboot, greenboot-default-health-checks).
 set -euo pipefail

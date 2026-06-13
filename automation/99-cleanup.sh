@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Final image build script that purges stale boot files, clears /var/log and /var/cache, and removes specific files triggering bootc container lint warnings to ensure a clean, deployable system state.
 # 'MiOS' v0.2.4 -- 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
 #
 # MANDATORY for bootc images. Every ublue-os image runs this pattern.

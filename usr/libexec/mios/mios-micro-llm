@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Thin client for the resident qwen3:1.7b model via Ollama, providing low-latency (<500ms) classification for mios-log-watcher, mios-cron-director, and other system agents.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-log-watcher, mios-cron-director, mios-log-watcher.service, mios-cron-director.service, localhost:11434
 """mios-micro-llm -- thin client + persistent-loaded helper for the
 always-on tiny model.
 

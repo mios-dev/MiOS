@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Patch script for gateway/platforms/discord.py that injects a background asyncio task to cycle Discord reactions (📡, 🧠, 🛠️, ⏳) during agent processing to provide the operator with visual progress updates.
+# AI-functions: _react_progression, on_processing_start, on_processing_complete, _find_target_block, main
 """In-place patch of gateway/platforms/discord.py to add progressive
 "thinking" reactions on the operator's Discord message during agent
 processing.

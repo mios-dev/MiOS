@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation mapping MiOS security features to the SecureBlue audit framework, detailing specific kernel parameters, sysctl values, and hardening policies adopted or modified from SecureBlue.
+     AI-related: mios-hardening -->
 # SecureBlue — Audit Framework MiOS Draws From
 
 > MiOS's `SECURITY.md` is "sourced primarily from SecureBlue's audit

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs the core GNOME 50 desktop environment, including GDM, Wayland portals, and theme consistency for GTK/Qt, while configuring dconf profiles and disabling tracker indexing.
+# AI-related: mios-qt-adwaita, mios-cursor-ensure, mios-flatpak-install, mios-flatpak-install.service
 # 'MiOS' v0.2.4 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.

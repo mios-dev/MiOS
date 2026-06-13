@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file that executes /usr/libexec/mios/wsl-init to initialize the MiOS WSL2 runtime bridge and environment during the boot sequence.
+# AI-related: /usr/libexec/mios/wsl-init, mios-role, mios-role.service, local-fs.target, multi-user.target
 [Unit]
 Description='MiOS' WSL2 Runtime Bridge
 ConditionVirtualization=wsl

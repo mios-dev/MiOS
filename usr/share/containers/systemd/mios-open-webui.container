@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit defining the Open WebUI frontend on port 3030, configured to connect to the Hermes-Agent gateway and mount local FHS paths for direct RAG knowledge retrieval.
+# AI-related: /etc/mios/hermes/api.env, /etc/mios/system-prompts, /usr/libexec/mios/mios-owui-install-pipe, /etc/mios/install.env, mios-owui-install-pipe, mios-open-webui, mios-hermes, mios-owui-apply-knowledge, mios-additionalimagestores-perms, mios-launch
 # /etc/containers/systemd/mios-open-webui.container
 # 'MiOS' Open WebUI - rich LLM interface.
 #

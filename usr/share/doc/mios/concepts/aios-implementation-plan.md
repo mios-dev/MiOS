@@ -1,3 +1,5 @@
+<!-- AI-hint: Roadmap for the Agentic-OS (AIOS) transition, mapping research survey requirements to MiOS's existing `agent-pipe` infrastructure and defining the technical path for offline-first, FOSS-compliant agentic features.
+     AI-related: /etc/mios/..., /usr/lib/mios/agent-pipe/, /etc/mios/mios.toml, mios-computer-use, mios-sync-env, mios-os-control, mios-agent-pipe, mios-verb, mios-remember, mios-oscontrol-server -->
 # AIOS / Agentic-OS Implementation Plan for MiOS
 
 > Status: research plan (2026-06-04). Source: operator-supplied AIOS/AgentOS

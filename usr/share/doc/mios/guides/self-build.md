@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the MiOS self-build lifecycle, detailing the build chain, CI/CD workflows, and local build modes (Bootstrap, CI/CD, Windows, Linux/Justfile) for generating OCI images and disk images.
+     AI-related: mios-dev, mios-bootstrap, mios-ci, mios-build-local, mios-builder, mios-installer -->
 # Self-build guide
 
 'MiOS' is self-replicating: the published image contains every tool

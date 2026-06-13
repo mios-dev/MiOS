@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining the native host-level Hermes-Agent service, providing the primary AI agent interface that connects to the local inference backend (Ollama/vLLM) and manages system-wide automation tasks.
+# AI-related: /usr/lib/mios/agents/.venv/bin/hermes, /etc/mios/hermes, /etc/mios/hermes/config.yaml, /etc/mios/install.env, /etc/mios/hermes/api.env, /etc/mios/hermes/discord.env, /usr/libexec/mios/mios-hermes-discord-reactions-patch, /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py, /usr/libexec/mios/mios-hermes-dashboard-auth-stub, mios-hermes-discord-reactions-patch
 [Unit]
 # /usr/lib/systemd/system/hermes-agent.service
 #

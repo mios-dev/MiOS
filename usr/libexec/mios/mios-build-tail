@@ -1,4 +1,6 @@
 #!/bin/sh
+# AI-hint: Retrieves and streams the most recent raw build log from /var/log/mios or /tmp, used by agents to inspect real-time or historical build output from the mios-build-driver.
+# AI-related: /usr/libexec/mios/mios-build-tail, mios-build-driver, mios-build-status
 # /usr/libexec/mios/mios-build-tail [-f] [N]
 #
 # Stream / tail the most recent build log. With -f, follows live (tail -f).

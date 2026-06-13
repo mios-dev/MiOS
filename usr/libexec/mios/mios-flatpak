@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Agent-facing JSON-wrapped CLI for managing flatpak packages (search, install, upgrade, run) providing structured output for automated lifecycle management and non-interactive installation.
+# AI-related: /usr/libexec/mios/mios-flatpak, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-flatpaks, mios-launch, mios-fp-out-XXXXXX, mios-fp-err-XXXXXX
+# AI-functions: usage, _run_flatpak, _emit_envelope, _emit_json_error, _resolve_scope
 set -euo pipefail
 # /usr/libexec/mios/mios-flatpak <subcommand> [args...]
 #

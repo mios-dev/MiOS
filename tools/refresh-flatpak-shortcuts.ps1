@@ -1,3 +1,5 @@
+# AI-hint: Powershell script that manually generates Windows Start Menu .lnk shortcuts for Flatpak applications in the MiOS-DEV distro to bypass WSLg's failure to automatically import icons for Flatpak .desktop files.
+# AI-related: mios-flatpak-install
 # tools/refresh-flatpak-shortcuts.ps1
 #
 # Windows-side helper that creates Start Menu .lnk entries for every

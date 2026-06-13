@@ -1,3 +1,6 @@
+# AI-hint: Provides a local, offline-capable `WebSearchProvider` for Hermes-Agent that bypasses Firecrawl/cloud dependencies by using `urllib` and regex-based HTML stripping to extract text from URLs.
+# AI-related: mios-firecrawl, mios-web-extract
+# AI-functions: _fetch_one, name, display_name, is_available, supports_search, supports_extract, extract, class MiosFetchProvider
 """MiOS offline direct-fetch web-EXTRACT provider for Hermes-Agent.
 
 Why this exists (operator-confirmed 2026-05-31): hermes's bundled `firecrawl`

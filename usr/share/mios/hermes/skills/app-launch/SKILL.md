@@ -19,6 +19,8 @@ metadata:
     requires_tools:
       - launch_app
 ---
+<!-- AI-hint: Defines the canonical `app-launch` skill for the Hermes agent, mandating the use of the `launch_app` tool to resolve and execute any application, game, or service via the MiOS broker instead of direct shell commands.
+     AI-related: /usr/share/mios/hermes/skills/app-launch/SKILL.md._, mios-launch, mios-hermes, mios-launcher, localhost:9090 -->
 
 # Launching apps on MiOS
 

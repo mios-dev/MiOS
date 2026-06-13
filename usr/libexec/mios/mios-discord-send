@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python script for sending deterministic Discord messages or DMs to specific users/channels, providing the orchestrator with real-time success/failure JSON results instead of hallucinated outcomes.
+# AI-related: /etc/mios/hermes/discord.env
 """mios-discord-send -- DETERMINISTIC Discord post/DM helper.
 
 Posts a message to a Discord CHANNEL (--channel <id>) OR direct-messages a USER

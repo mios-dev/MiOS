@@ -1,3 +1,6 @@
+# AI-hint: Validates and installs system-level prerequisites (WSL2, Virtual Machine Platform, and Windows Edition checks) required for MiOS operation; agents use this to ensure the host environment is compatible before deployment.
+# AI-related: mios-preflight, mios-install
+# AI-functions: Check
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host '  Run as Administrator!' -ForegroundColor Red
     return

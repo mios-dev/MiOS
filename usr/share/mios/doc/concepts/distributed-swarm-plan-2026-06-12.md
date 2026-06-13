@@ -1,3 +1,5 @@
+<!-- AI-hint: Specifies the architectural roadmap for the MiOS distributed swarm, detailing the transition from single-large-model execution to concurrent multi-small-model execution across local, dGPU, and remote nodes.
+     AI-related: mios-heavy, mios-llama-worker -->
 # MiOS Distributed Concurrent Multi-(small)-Model Tool-Swarm — Design + Plan (2026-06-12)
 
 Operator directive: "MiOS AI should DELEGATE A SWARM to multiple smaller models

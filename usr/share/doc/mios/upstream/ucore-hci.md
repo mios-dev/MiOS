@@ -1,3 +1,4 @@
+<!-- AI-hint: Documents the ucore-hci upstream base image lineage and specifications, defining the core infrastructure (KVM, QEMU, NVIDIA drivers, and Fedora CoreOS foundation) that MiOS builds upon. -->
 # ucore-hci — MiOS Base Image
 
 > The image MiOS builds `FROM`. `ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia`

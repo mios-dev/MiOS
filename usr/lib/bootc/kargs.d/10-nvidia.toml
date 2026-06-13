@@ -1,3 +1,4 @@
+# AI-hint: Configures kernel arguments for NVIDIA GPU support, enabling unsupported hardware, DRM modesetting, and framebuffer support for x86_64 systems.
 # 'MiOS' v0.2.4 -- NVIDIA kernel module overrides
 match-architectures = ["x86_64"]
 kargs = [

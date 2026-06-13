@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Refreshes OWUI's ui.prompt_suggestions by analyzing MiOS state (kanban, daemon nudges, recent intents) via a refine model to generate 5-28 context-aware starter chips for the operator.
+# AI-related: random.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-daemon, localhost:11434, localhost:8000, localhost:3030
 """mios-suggestion-refresh -- generate MiOS-aware starter chips +
 write them into OWUI's ui.prompt_suggestions.
 

@@ -1,3 +1,5 @@
+# AI-hint: A high-level index of the MiOS codebase and system architecture, providing agents with a map of core configuration files, automation pipelines, and AI-specific entry points for system navigation.
+# AI-related: /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/VERSION, /usr/share/mios/mios.toml, /usr/share/mios/configurator/mios.html, /usr/share/mios/ai/v1/models.json, /usr/share/mios/ai/v1/mcp.json, /usr/lib/mios/tools/chat-completions-api/, /usr/lib/mios/tools/responses-api/, /usr/lib/mios/schemas/
 # 'MiOS' v0.2.4 -- AI Ingestion Index
 
 'MiOS' is an immutable bootc-native Fedora workstation OS (base:

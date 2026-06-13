@@ -1,3 +1,5 @@
+# AI-hint: GitHub Actions workflow for building, tagging, and pushing MiOS OCI images to ghcr.io using podman to ensure bit-for-bit parity between GitHub and Forgejo build environments.
+# AI-related: /etc/mios/install.env, /usr/lib/mios/agent-pipe/server.py, mios-ci, mios-dev, mios-pc-control, mios-launcher-daemon, mios-flatpak-icon-sanitize, mios-wsl-interop-priority, mios-wsl-interop-priority.service
 name: mios-ci
 
 # In-repo build: MiOS owns the Containerfile and Justfile, so CI builds

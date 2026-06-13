@@ -1,3 +1,5 @@
+# AI-hint: Configures Windows Firewall and netsh portproxy rules to map physical NIC ports to local WSL containers, enabling LAN-wide access to MiOS services like Forge, Open-WebUI, and Ollama.
+# AI-related: /usr/libexec/mios/Setup-MiOSLanPortProxy.ps1
 # /usr/libexec/mios/Setup-MiOSLanPortProxy.ps1
 #
 # Open the MiOS service ports on Windows' physical NIC so other LAN

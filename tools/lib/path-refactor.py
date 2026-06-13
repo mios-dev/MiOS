@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Refactors hardcoded MiOS system paths into environment variable constants (e.g., ${MIOS_LOG_DIR}) in configuration files while preserving comments and bootstrap logic.
+# AI-related: .../paths.sh, /usr/lib/mios/logs, mios-foo
+# AI-functions: substitute_line, process
 # tools/lib/path-refactor.py -- substitute hardcoded 'MiOS' paths with constants.
 # Skips comment-only lines so doc comments stay literal/readable.
 # Longest-prefix first; refuses to touch trailing-glob forms (/usr/libexec/mios*).

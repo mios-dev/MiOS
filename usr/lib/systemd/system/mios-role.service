@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/role-apply to parse /etc/mios/role.conf and toggle system services based on the environment, specifically handling WSL-specific role gating during boot.
+# AI-related: /usr/libexec/mios/role-apply, /etc/mios/role.conf, network-online.target, local-fs.target, sysinit.target, multi-user.target
 [Unit]
 Description='MiOS' System Init & Role Engine
 # Pure userspace role-apply (reads /etc/mios/role.conf, toggles services).

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: CLI tool for mining repetitive tool_call sequences into typed-verb DAGs in SurrealDB, providing a unified skill catalog for mios-agent-pipe, Hermes, and OpenCode to share standardized, parameterized action sequences.
+# AI-related: /usr/libexec/mios/mios-db, /usr/share/mios/skills, mios-agent-pipe, mios-db, mios-kg, mios-skill, mios-ai, localhost:8640
 """mios-skills -- Sequential Pattern Mining + cross-agent skill catalog CLI.
 
 Phase C.2 of the AgentOS roadmap. Mines the SurrealDB `tool_call`

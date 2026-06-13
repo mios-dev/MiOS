@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script that retrieves the admin API token from the local SQLite database to probe the /api/v1/configs/suggestions endpoint for schema validation and content retrieval.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 -c "
 import sqlite3

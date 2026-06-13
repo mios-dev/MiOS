@@ -1,3 +1,5 @@
+# AI-hint: Defines excluded files and directories for the mios-portal-app project, ensuring build artifacts, IDE configurations, and local properties are ignored by version control.
+# AI-related: mios-portal-app
 .gradle/
 build/
 app/build/

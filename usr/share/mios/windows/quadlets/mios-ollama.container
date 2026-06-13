@@ -1,3 +1,5 @@
+# AI-hint: Quadlet configuration for the mios-ollama container on Windows, providing a GPU-accelerated inference backend for the MiOS-DEV Hermes node via host networking and CDI passthrough on port 11434.
+# AI-related: mios-ollama, mios-ai-node, mios-win, mios-ollama-cpu, ollama.container, network-online.target, multi-user.target, default.target, localhost:11434
 # mios-ollama.container -- Windows AI Node variant
 # GPU inference lane (NVIDIA RTX via CDI). Mirrors usr/share/containers/systemd/ollama.container
 # with two simplifications for the Windows Podman machine:

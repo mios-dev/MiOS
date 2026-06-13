@@ -1,3 +1,5 @@
+/* AI-hint: System-wide GTK3 CSS override providing mandatory rounded corners and shadows for all GTK3 applications, including Flatpaks, to ensure consistent UI styling across legacy and modern desktop components. */ */ */ */ */
+/* AI-related: mios-flatpak-overrides-apply */
 /* /etc/gtk-3.0/gtk.css
  *
  * MiOS system-wide GTK3 CSS override. Loaded by GTK3 AFTER the

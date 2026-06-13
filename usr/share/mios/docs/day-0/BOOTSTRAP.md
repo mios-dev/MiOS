@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the initial environment setup process, detailing how `mios-bootstrap` initializes the first MiOS-DEV instance, configures the Podman environment, and handles the transition to the full MiOS repository.
+     AI-related: /usr/share/mios/docs/day-0/BOOTSTRAP.md, mios-bootstrap, mios-dev -->
 <!-- FHS: /usr/share/mios/docs/day-0/BOOTSTRAP.md -->
 
 # Day-0: Bootstrap from `mios-bootstrap`

@@ -1,3 +1,5 @@
+# AI-hint: Desktop entry for the Ollama service providing the local LLM and embedding backend, used by agents to identify and launch the local inference server at port 11434.
+# AI-related: localhost:11434
 [Desktop Entry]
 Type=Application
 Version=1.0

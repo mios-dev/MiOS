@@ -1,3 +1,5 @@
+# AI-hint: A Quadlet configuration for the Forgejo Runner container that executes the self-replication loop by building OCI images from local git pushes and triggering A/B-swap reboots via bootc.
+# AI-related: /etc/mios/forge/runner-token, /etc/mios/forge, mios-forgejo-runner, mios-bootc-switch, mios-forge-firstboot, mios-ceph, mios-k3s, mios-forge, mios-forgejo-runner-firstboot, mios-self-hosted
 # /etc/containers/systemd/mios-forgejo-runner.container
 # 'MiOS' Forgejo Runner -- self-hosted CI for the closed self-replication loop.
 #

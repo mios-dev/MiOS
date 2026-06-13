@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Python shim providing sub-agents with a tool to query OWUI RAG knowledge collections via the /api/v1/retrieval/process/query endpoint, with a fallback to local pgvector storage if the OWUI API is unreachable.
+# AI-related: /usr/libexec/mios/mios-pg-query, mios-pg-query, mios-daemon-agent, mios-owui-install-pipe, localhost:3030, localhost:11450
+# AI-functions: print
 """mios-knowledge-search -- query OWUI's RAG knowledge collections
 from outside OWUI.
 

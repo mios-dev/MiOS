@@ -1,3 +1,5 @@
+# AI-hint: Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools.
+# AI-functions: refresh_env
 import json
 import os
 from datetime import datetime

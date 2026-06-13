@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Provides idempotent shared helper functions, logging utilities, and environment resolution logic (masking, paths, globals) for MiOS build scripts and automation tools.
+# AI-related: globals.sh, build.sh, /usr/share/mios/tools/lib/userenv.sh, /usr/lib/mios/logs/, mios-k3s, mios-build-versions
+# AI-functions: _mios_locate_userenv, log_ts, log, warn, die, diag, record_version
 # ============================================================================
 # automation/lib/common.sh
 # ----------------------------------------------------------------------------

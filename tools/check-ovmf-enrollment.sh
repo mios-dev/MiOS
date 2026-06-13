@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Validates if the system contains pre-enrolled Secure Boot OVMF_VARS files (e.g., OVMF_VARS.secboot.fd) versus standard blank files to ensure firmware compatibility.
 
 # Check for Vendor Secure Boot Enrolled OVMF Files
 

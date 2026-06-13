@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/cpu-isolate to isolate specific CPU cores from the general scheduler for dedicated MiOS high-priority tasks.
+# AI-related: /usr/libexec/mios/cpu-isolate, local-fs.target, multi-user.target
 [Unit]
 Description='MiOS' CPU Core Isolation Engine
 ConditionVirtualization=no

@@ -1,3 +1,6 @@
+# AI-hint: Automates the MiOS release pipeline by cloning the bootstrap repo, overlaying staged changes, bumping the VERSION, updating CHANGELOG.md, and pushing to the main branch via GitHub.
+# AI-related: mios-push
+# AI-functions: Write-Step, Write-Ok, Write-Warn
 # ============================================================================
 # push-to-github.ps1  'MiOS' release deliverable (v0.2.2 baseline)
 # ----------------------------------------------------------------------------

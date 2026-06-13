@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: A legacy shim that performs a no-op for the opencode installation; agents should use 38-hermes-agent.sh for unified agent-plane setup and 37-ollama-prep.sh for model configuration.
+# AI-related: mios-opencode, mios-model, mios-opencode-gateway, mios-opencode-gateway.service
 # automation/39-opencode.sh — RETIRED (merged into 38-hermes-agent.sh).
 #
 # opencode install (binary fetch + opencode.json landing) was absorbed into

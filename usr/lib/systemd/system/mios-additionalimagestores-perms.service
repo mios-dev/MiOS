@@ -1,3 +1,5 @@
+# AI-hint: Ensures world-readable permissions on /usr/lib/containers/storage via a systemd oneshot to prevent permission denied errors for unprivileged podman, flatpak, and GUI tools accessing the baked-in OCI image store.
+# AI-related: podman-restart.service, hermes-agent.service, local-fs.target, multi-user.target
 [Unit]
 # Enforce world-readable perms on /usr/lib/containers/storage so that
 # unprivileged podman / flatpak / etc. callers can read the additional-

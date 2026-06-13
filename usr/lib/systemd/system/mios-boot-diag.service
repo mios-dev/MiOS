@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining a one-shot service that executes /usr/libexec/mios-boot-diag to output boot status to the console and journal during the transition from basic.target to graphical.target.
+# AI-related: mios-boot-diag, basic.target, graphical.target
 [Unit]
 Description='MiOS' Boot Diagnostic -- prints service status to console
 # Read-only journal/systemctl introspection -- safe on every shape.

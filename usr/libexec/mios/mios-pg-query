@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A standalone Python-based PostgreSQL wire protocol client used by the MiOS agent plane to execute SQL queries directly over a loopback TCP socket when psql or podman access is restricted.
+# AI-related: mios-ai, mios-daemon, mios-db, socket.socket
 """mios-pg-query -- minimal pure-stdlib PostgreSQL client for the MiOS agent
 plane. No psql binary, no psycopg, no podman needed: it speaks the v3 wire
 protocol directly over a loopback TCP socket.

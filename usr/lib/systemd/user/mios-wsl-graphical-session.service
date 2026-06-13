@@ -1,3 +1,5 @@
+# AI-hint: Ensures graphical-session.target is activated on WSLg by providing a dummy oneshot unit to satisfy dependencies for xdg-desktop-portal and other GUI components when gnome-session.service is absent.
+# AI-related: mios-dev, mios-wsl-env-import, graphical-session.target, gnome-session.service, mios-wsl-env-import.service, default.target, basic.target
 [Unit]
 Description='MiOS': pull in graphical-session.target on WSLg
 Documentation=https://github.com/mios-dev/MiOS

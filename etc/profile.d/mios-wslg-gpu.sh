@@ -1,3 +1,5 @@
+# AI-hint: Configures Mesa and GTK4 rendering paths for WSLg environments, forcing software fallback or d3d12 Gallium acceleration to ensure stable window rendering when the default Vulkan-via-Zink path fails.
+# AI-related: mios-wslg-gpu
 # /etc/profile.d/mios-wslg-gpu.sh
 #
 # WSLg GUI rendering env. Without this, GTK4 + Mesa default to

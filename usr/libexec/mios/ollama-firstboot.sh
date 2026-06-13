@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: First-boot model bootstrap for the mios-ollama Quadlet.
+# AI-related: /usr/lib/mios/paths.sh, /etc/mios/install.env, mios-ollama, mios-ollama-firstboot, ollama.service, mios-ollama-firstboot.service
+# AI-functions: _log
 # usr/libexec/mios/ollama-firstboot.sh
 #
 # First-boot model bootstrap for the mios-ollama Quadlet.

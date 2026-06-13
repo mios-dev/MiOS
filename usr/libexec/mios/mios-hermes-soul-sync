@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Syncs the core hermes-soul.md identity file from system shares to the local hermes home, ensuring the agent's persona remains consistent while preserving operator-appended runtime context.
+# AI-related: /usr/libexec/mios/mios-hermes-soul-sync, /usr/share/mios/ai/hermes-soul.md, mios-hermes, hermes-agent.service
+# AI-functions: log
 # /usr/libexec/mios/mios-hermes-soul-sync
 #
 # Idempotent SOUL.md propagation. The hardened vendor SOUL.md lives at

@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the architectural rule that the git working tree is the literal filesystem root, eliminating staging directories and ensuring that any file in the repo at path X maps directly to /X on the target.
+     AI-related: /usr/share/mios/docs/root-origin/REPO-IS-ROOT.md, mios-bootstrap -->
 <!-- FHS: /usr/share/mios/docs/root-origin/REPO-IS-ROOT.md -->
 
 # Root-Origin: The Repo IS the OS Root

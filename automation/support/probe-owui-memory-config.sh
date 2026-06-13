@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Probes the open-webui.db database to extract and display memory-related configurations in user settings and global feature flags to diagnose memory-related UI or permission issues.
 set -euo pipefail
 
 echo "── user.settings.ui (memory field) ──"

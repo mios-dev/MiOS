@@ -1,3 +1,5 @@
+# AI-hint: Stub script for keyring initialization that informs agents that interactive unlocking is handled by mios-keyring-autounlock.service and configuration is managed via mios.toml.
+# AI-related: mios-keyring-autounlock, mios-keyring-init, mios-keyring-autounlock.service
 # /etc/profile.d/mios-keyring-init.sh
 #
 # Stub. Auto-unlock has moved to mios-keyring-autounlock.service

@@ -1,3 +1,5 @@
+<!-- AI-hint: A historical audit log documenting security, compliance (LAW 3/6), and configuration findings for the MiOS system, used by agents to track resolved vulnerabilities and verify policy adherence.
+     AI-related: mios-dev, mios-forgejo-runner, mios-forge, mios-cockpit-link, mios-ceph, mios-k3s, mios-knowledge, mios-hardening, mios-gpu-pv-detect, mios-sriov-init -->
 # 'MiOS' Audit -- 2026-05-05
 
 Read-only audit per `usr/share/mios/ai/audit-prompt.md`. Repo: `mios-dev/MiOS` (system FHS overlay, v0.2.4). All evidence cited as `file:line`. No mutations performed during the audit pass; remediation landed in commit `507a7fa` (`fix(audit): apply 2026-05-05 audit findings (LAW3/LAW6/security/supply-chain)`) which post-dates this report.

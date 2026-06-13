@@ -1,3 +1,5 @@
+# AI-hint: Maps Ollama-compatible model tags to llama-server configurations, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embedding support for the MiOS agent-pipe.
+# AI-related: /usr/share/mios/llamacpp/llama-swap.yaml, mios-agent, mios-agent-cpu, mios-hermes, mios-hermes-cpu, mios-daemon-agent, mios-opencode, mios-igpu, mios-heavy, mios-reasoner-cpu
 # /usr/share/mios/llamacpp/llama-swap.yaml
 # 'MiOS' llama-swap model map (WS-10 ollama -> llama.cpp conversion).
 # llama-swap launches/swaps a `llama-server` per requested model behind one

@@ -1,3 +1,5 @@
+<!-- AI-hint: Comprehensive architectural reference for MiOS, mapping the build pipeline, repository topology, supply-chain artifacts, and system-level logic to specific file paths for engineering and automation tasks.
+     AI-related: 99-postcheck.sh, /usr/lib/mios/env.d/flatpaks.env, /etc/mios/hermes/api.env, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1/agents.json, /usr/share/mios/ai/system.md, /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/hermes-soul-full.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/v1/mcp.json -->
 # 'MiOS' Engineering Reference
 
 A reference covering every architectural decision, build pipeline phase,

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A diagnostic script used to isolate specific SQL syntax or schema errors by testing incremental query complexity against the local :8000/sql endpoint to identify which clause or field causes a failure.
+# AI-related: localhost:8000
+# AI-functions: test_sql
 # Bisect to find which part of the query breaks.
 set -euo pipefail
 

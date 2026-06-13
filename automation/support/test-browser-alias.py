@@ -1,3 +1,5 @@
+# AI-hint: Validates and debugs browser application configurations in mios.toml to verify launcher paths and default status for browser-role apps, used by agents to verify environment setup for web-based automation.
+# AI-related: /usr/share/mios/mios.toml
 import tomllib
 with open("/usr/share/mios/mios.toml", "rb") as f:
     d = tomllib.load(f)

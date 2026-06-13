@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation of the Fedora bootc upstream lineage, detailing how MiOS integrates Anaconda kickstarts, RHEL image-mode FIPS patterns, and the transition from fedora-bootc to ucore-hci for hardware support. -->
 # Fedora bootc
 
 > MiOS's lineage upstream of ucore-hci is Fedora bootc / Fedora CoreOS.

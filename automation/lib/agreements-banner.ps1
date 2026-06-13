@@ -1,3 +1,6 @@
+# AI-hint: PowerShell script that displays and enforces legal/policy acknowledgments for interactive users, supporting bypass via MIOS_AGREEMENT_* environment variables to control entry-point access.
+# AI-related: mios-bootstrap
+# AI-functions: Get-MiOSAgreementSummary, Test-MiOSInteractiveHost, Show-MiOSAgreementScrollable, Invoke-MiOSAgreementBanner
 # automation/lib/agreements-banner.ps1 -- PowerShell sibling of
 # agreements-banner.sh. Dot-sourced by every PowerShell entry point in
 # 'MiOS' (mios.git) and 'mios-bootstrap' (mios-bootstrap.git).

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining the CrowdSec dashboard container deployment, managing the LAPI scraping service, volume mounts, and auto-update logic for the MiOS security monitoring stack.
+# AI-related: crowdsec.service, network-online.target, multi-user.target, default.target
 [Unit]
 Description='MiOS' CrowdSec Dashboard
 After=network-online.target crowdsec.service

@@ -1,3 +1,5 @@
+# AI-hint: Initializes the MiOS SELinux policy by executing /usr/libexec/mios/selinux-init during the sysinit stage to load security policies before system initialization.
+# AI-related: /usr/libexec/mios/selinux-init, local-fs.target, sysinit.target
 [Unit]
 Description='MiOS' SELinux Policy Loader
 ConditionVirtualization=!container

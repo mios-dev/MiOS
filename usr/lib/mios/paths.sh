@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Defines and exports standard FHS path constants for MiOS components (logs, libexec, share, etc.) to ensure consistent directory resolution across system scripts and binaries.
+# AI-related: /usr/lib/mios/paths.sh
 # /usr/lib/mios/paths.sh -- runtime FHS path constants for MiOS.
 # Shipped in the image; sourced by /usr/libexec/mios/* and /usr/bin/mios*.
 # Idempotent. Override any constant from the environment before sourcing.

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Diagnostic script for the Hermes-Agent Discord integration that validates token validity, API connectivity, and configuration completeness to help agents and operators troubleshoot Discord notification failures.
+# AI-related: /usr/libexec/mios/mios-discord-status, /etc/mios/hermes/discord.env, hermes-agent.service
+# AI-functions: red, green, yellow, hdr
 # /usr/libexec/mios/mios-discord-status
 #
 # Self-check for the Hermes-Agent Discord integration. The agent's

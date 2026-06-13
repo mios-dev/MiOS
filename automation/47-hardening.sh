@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Enables and symlinks security services (usbguard, auditd, fapolicyd) into the multi-user.target.wants directory and pre-generates fapolicyd trust databases to harden the system during the build/provisioning phase.
+# AI-related: mios-hardening, multi-user.target, usbguard.service, auditd.service, fapolicyd.service
 # 47-hardening.sh - enable hardening services (USBGuard, auditd).
 # Package installs moved to mios.toml [packages.security].
 # sysctl drop-in shipped via usr/lib/sysctl.d/99-mios-hardening.conf.

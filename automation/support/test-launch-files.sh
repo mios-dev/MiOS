@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A smoke-test script to verify mios-launch's alias resolution logic and description-fallback priority ranking when resolving ambiguous "files" commands against the mios-apps registry.
+# AI-related: mios-launch, mios-apps
+# AI-functions: print
 # Smoke-test mios-launch's new alias + description-fallback paths
 # against the operator's failing "open files" trace.
 set -euo pipefail

@@ -1,3 +1,5 @@
+# AI-hint: Defines the root-level git exclusion rules for the MiOS repository, implementing a "block-all-then-whitelist" strategy to isolate MiOS-owned files from the mirrored system root during bootc builds.
+# AI-related: mios-btop.sh, /usr/share/mios/kb, /usr/share/mios/kb/, /usr/share/mios/kb/manifest.json, /etc/mios/kb.conf.toml, /etc/mios/eval-criteria.json, /etc/mios/system-prompts/, /etc/mios/ai/, /etc/mios/ai/system-prompt.md, /etc/mios/opencode/
 # MiOS Root Overlay - Whitelist .gitignore
 # This repository mirrors the system root (/) for a "Zero-Day" bootc build.
 # STRATEGY: Ignore everything by default, then surgically whitelist only MiOS-owned paths.

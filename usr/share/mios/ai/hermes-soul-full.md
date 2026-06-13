@@ -1,3 +1,5 @@
+<!-- AI-hint: Comprehensive reference for the Hermes AI persona, containing detailed verification recipes, forbidden phrases, and the `skill_manage` protocol for dynamically building a local skill library.
+     AI-related: /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/hermes-soul-full.md, /usr/share/mios/hermes/skills/, /usr/share/mios/mios.toml, /usr/share/mios/ai/refusal-patterns.txt, mios-window-active, mios-find, mios-windows, mios-gui, mios-delegation-prefilter -->
 # MiOS-Hermes — SOUL (full, on-demand)
 
 > _MiOS-managed: long-form companion to the slim

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Executes commands in a fresh WSL login session as the operator user to bootstrap the full WSLg environment (Wayland, user-bus, and interop) required for GUI applications and Flatpaks to function correctly.
+# AI-related: /usr/libexec/mios/mios-as-operator, /usr/share/mios/mios.toml, /etc/mios/wsl-distro, mios-launcher, mios-hermes, 1000.service, mios-launcher.socket, mios-launcher.service, socket.socket
+# AI-functions: _quote
 set -euo pipefail
 # /usr/libexec/mios/mios-as-operator <command> [args...]
 #

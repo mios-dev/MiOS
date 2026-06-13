@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A debugging tool that mirrors mios-launch logic to preview and rank the execution paths (launch commands) for a given query string without executing them, used to debug command resolution.
+# AI-related: mios-launch, mios-apps
 # Show the resolved launch chain for a query without actually
 # launching anything. Mirrors mios-launch's _DESC_CHAIN python.
 set -euo pipefail

@@ -1,3 +1,4 @@
+<!-- AI-hint: Documents the legal licensing for MiOS components, including third-party drivers (NVIDIA), middleware (systemd, Mesa), and firmware, providing a reference for compliance and license attribution. -->
 # 'MiOS' component licenses
 
 'MiOS' is Apache-2.0 (`LICENSE`). Bundled components retain their upstream

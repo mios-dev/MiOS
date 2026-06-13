@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+# AI-hint: Logs specific systemctl failures and timestamps to /var/log/greenboot.fail during a greenboot failure event to provide diagnostic data before the automated rollback reboot occurs.
 # Greenboot failure logging script
 # Capture and log failure reason before rollback
 

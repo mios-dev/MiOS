@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the Open WebUI system prompt for the MiOS-Agent model, acting as a lightweight entry point that directs the model to its authoritative rules and capabilities defined in the Hermes-native SOUL.md.
+     AI-related: /usr/share/mios/ai/hermes-soul.md, mios-open-webui-firstboot, mios-environment, mios-launch, mios-apps, mios-env-probe -->
 > _MiOS-managed: applied to the MiOS-Agent model registration in
 > Open WebUI by mios-open-webui-firstboot from this file. Stored in
 > OWUI's webui.db `model.params.system` field. OWUI prepends this

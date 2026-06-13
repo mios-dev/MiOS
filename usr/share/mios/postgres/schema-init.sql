@@ -1,3 +1,5 @@
+-- AI-hint: Initializes the PostgreSQL schema for the agent-plane, establishing the knowledge table with pgvector support for 768-dim embeddings and GIN indexes for hybrid-search across Q&A pairs.
+-- AI-related: mios-remember, mios-skills, mios-daemon, mios-directory-lookup
 -- MiOS agent-plane schema for PostgreSQL + pgvector (WS-9, 2026-06-04).
 -- FOSS-pure replacement for the SurrealDB (BSL 1.1) agent store. Standard
 -- "back to SQL" agent-memory pattern (Letta/MemGPT/Memori/OWUI all converge

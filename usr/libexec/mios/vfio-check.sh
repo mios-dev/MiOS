@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: mios-vfio-check -- read-only VFIO state report. Shows IOMMU support,
+# AI-related: mios-vfio-check, mios-vfio-toggle
 # mios-vfio-check -- read-only VFIO state report. Shows IOMMU support,
 # loaded modules, currently-bound devices, and configured passthrough
 # IDs from /etc/modprobe.d/vfio.conf.

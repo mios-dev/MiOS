@@ -1,3 +1,5 @@
+# AI-hint: Windows-side execution bridge for MiOS-Agent to perform GUI interactions (click, type, move, resize) and window management via Win32 API calls triggered by the Linux-side mios-pc-control helper.
+# AI-related: /usr/share/mios/windows/mios-pc-control.ps1, /usr/libexec/mios/mios-pc-control, mios-pc-control, mios-windows
 # /usr/share/mios/windows/mios-pc-control.ps1
 #
 # Windows-side computer-use surface for MiOS-Agent. Called from the

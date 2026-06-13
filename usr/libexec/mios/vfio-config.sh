@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Universal VFIO PCIe Device Isolation Configurator
+# AI-functions: log_info, log_success, log_warning, log_error, log_header, check_root, detect_bootloader, detect_cpu_and_iommu, detect_initramfs, get_all_pcie_devices, display_devices, select_devices
 ###############################################################################
 # Universal VFIO PCIe Device Isolation Configurator
 # Compatible with: systemd-boot, GRUB, rEFInd

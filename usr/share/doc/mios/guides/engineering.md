@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the MiOS engineering standards, detailing the 5-phase deployment pipeline, the `automation/` build sub-phase execution order, and the `mios.toml` package management schema for system construction.
+     AI-related: /usr/share/mios/memory/v1.jsonl, mios-bootstrap, mios-ci, localhost:8080 -->
 # 'MiOS' Engineering Standards
 
 ## Global pipeline phases

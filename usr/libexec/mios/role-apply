@@ -1,4 +1,7 @@
 #!/usr/bin/bash
+# AI-hint: Executes the MiOS Unified Initialization and Role Engine to configure system identity, manage user home directories, and detect hardware/virtualization profiles to determine the system's operational role.
+# AI-related: /usr/lib/mios/paths.sh, mios-role, mios-headless, mios-desktop, mios-k3s-master, mios-ha-node, mios-pxe-hub, waydroid-container.service, mios-pxe-hub.service, mios-headless.target
+# AI-functions: log
 # ============================================================================
 # mios role-apply: MiOS Unified Initialization & Role Engine
 # ============================================================================

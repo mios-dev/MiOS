@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Audit script to identify and flag non-portable, environment-specific data (hardcoded paths, hostnames, or project-specific jargon) in LLM-facing documentation within the hermes/skills and ai directories.
+# AI-related: /usr/share/mios/hermes/skills/, /usr/share/mios/ai/, /usr/share/mios/hermes/skills, /usr/share/mios/ai, mios-ec377
+# AI-functions: split_frontmatter, audit_one, audit_ai_doc, main
 """AI-facing doc genericity audit.
 
 Walks every doc that gets loaded into an LLM's context window and

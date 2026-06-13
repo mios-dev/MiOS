@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs the Oh-My-Posh shell prompt customizer by fetching the latest Go binary from GitHub, placing it in /usr/bin/oh-my-posh for system-wide use by mios-prompt.sh.
+# AI-related: mios-prompt.sh, /usr/libexec/mios/oh-my-posh/, mios-prompt
 # 38-oh-my-posh: install the Oh-My-Posh prompt customizer.
 #
 # Static Go binary; not in Fedora repos. Fetched from upstream releases

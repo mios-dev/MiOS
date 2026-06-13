@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Manages libvirt hook scripts to pin VM CPU threads to specific physical cores, optimizing performance for AMD Ryzen, Intel Hybrid, and NUMA architectures by isolating cores and preventing cross-CCD/CCD-hopping.
+# AI-functions: log_info, log_success, log_warning, log_error, log_header, check_root, detect_cpu_topology, detect_amd_ccds, list_vms, display_cpu_topology, display_ccd_layout, display_linear_layout
 ###############################################################################
 # VM CPU Core Pinning Hook Manager
 # For MiOS-Build Professional Virtualization Hosts

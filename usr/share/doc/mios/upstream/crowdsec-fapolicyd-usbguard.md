@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation of the Layer 3 runtime security stack (CrowdSec, fapolicyd, USBGuard) detailing their configuration paths, operational modes, and roles in mitigating network, execution, and hardware threats. -->
 # Defense-in-Depth Layer 3 — Runtime Guards
 
 > CrowdSec, fapolicyd, and USBGuard are MiOS's runtime watchdogs.

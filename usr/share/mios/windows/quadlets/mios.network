@@ -1,3 +1,4 @@
+# AI-hint: Defines the primary `mios.network` bridge configuration for Podman Quadlets, providing the shared network namespace and `io.mios.network` label for all MiOS services on the host.
 [Network]
 # mios.network -- the core bridge shared by all MiOS Quadlets on this node.
 # Mirrors the main MiOS mios.network bridge.

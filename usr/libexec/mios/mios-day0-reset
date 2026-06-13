@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Purges volatile runtime data (sessions, tool_calls, knowledge, logs) from SurrealDB while preserving core system configurations and identity keys to reset the AI's operational state to a clean "day-0" baseline.
+# AI-related: /usr/libexec/mios/mios-day0-reset, mios-agent-pipe, mios-hermes-tail, mios-daemon, mios-mcp, mios-pgvector, mios-daemon-state, mios-ai, mios-agent-pipe.service, hermes-agent.service
+# AI-functions: SR
 # mios-day0-reset
 #
 # Clear MiOS runtime + AI state back to a day-0 starting point.

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Launches the MiOS HTML configurator in a browser (prioritizing Epiphany for File System Access API) while ensuring the local mios.toml is accessible via a pre-staged path in ~/Downloads.
+# AI-related: /usr/libexec/mios/mios-configurator-launch, /usr/share/mios/configurator/mios.html, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-configurator, mios-open-url, mios-rebuild
 # /usr/libexec/mios/mios-configurator-launch -- open the MiOS HTML
 # configurator in a sensible browser, with the layered mios.toml
 # pre-staged in ~/Downloads so File System Access API can bind to it

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Advisory greenboot check that verifies K3s service activity and kubeconfig accessibility; used by agents to detect K3s health issues without triggering rollbacks on non-k3s roles.
+# AI-related: mios-greenboot
 # 'MiOS' greenboot -- advisory K3s readiness check (wanted.d = no rollback on fail)
 # Logs a warning if K3s is enabled but not healthy after boot.
 # Lives in wanted.d so desktop/hybrid roles (where K3s is disabled) never fail.

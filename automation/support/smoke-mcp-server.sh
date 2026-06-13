@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A smoke-test script to verify the MCP server's health by validating HTTP endpoints (/v1/verbs, /v1/dispatch) and stdio JSON-RPC interactions (initialize, tools/list, tools/call) for integration testing.
+# AI-related: /usr/libexec/mios/mios-mcp-server, mios-mcp-server, localhost:8640
 # Smoke-test the new MCP server stack: /v1/verbs + /v1/dispatch + stdio JSON-RPC.
 set -euo pipefail
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Executes scheduled research tasks by processing prompts through the agent-pipe with a bounded research path to prevent resource exhaustion, then reporting results to Discord via mios-discord-send.
+# AI-related: mios-discord-send, mios-agent
 """'MiOS' scheduled-research runner -- the `do` target for schedule rules.
 
 Reads the rule's stored prompt, runs it through the FULL agent-pipe (refine ->

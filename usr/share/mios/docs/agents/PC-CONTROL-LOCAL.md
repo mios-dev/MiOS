@@ -1,3 +1,5 @@
+<!-- AI-hint: Specifies the architecture and model requirements for local-only, vision-grounded desktop automation using Hermes, opencode, and UI-TARS/Qwen3-VL to execute cross-platform UI interactions without cloud APIs.
+     AI-related: /usr/libexec/mios/mios-pc-control, /usr/lib/mios/agents/opencode/bin/opencode, /usr/libexec/mios/mios-pc-vision, /usr/share/mios/hermes/skills/, mios-pc-control, mios-pc-vision, mios-computer-use, mios-vllm, mios-grounding, mios-hermes-browser -->
 # Local-only PC Control: Hermes + opencode + a vision LLM under MiOS
 
 **Status:** SHIPPED + EXTENDED 2026-06-04. The Windows path

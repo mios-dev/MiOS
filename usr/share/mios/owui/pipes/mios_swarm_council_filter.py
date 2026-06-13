@@ -1,3 +1,5 @@
+# AI-hint: Injects the force_council flag into the request body to bypass relevance gating and force concurrent execution of all MiOS sub-agents (Hermes, opencode, CPU reasoner) via the Agent Pipe at port 8640.
+# AI-functions: __init__, inlet, class Filter, class Valves
 """
 title: MiOS Swarm · Council
 author: MiOS

@@ -1,3 +1,4 @@
+# AI-hint: Defines kernel command line arguments for MiOS to enforce hardware-level security mitigations (Spectre, L1TF, PTI) and memory hardening on x86_64 architectures.
 # 'MiOS' -- SecureBlue-adapted kernel hardening (upstream April 2026 pass)
 kargs = [
     "slab_nomerge",

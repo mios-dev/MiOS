@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the Gemini CLI's specific integration parameters, enforcing the use of the unified OpenAI-compatible endpoint and the layered identity loading order defined in MiOS.md.
+     AI-related: /etc/mios/MiOS.md, localhost:8080 -->
 > _`/GEMINI.md` — per-tool stub for the **Gemini CLI** on MiOS. Identity SSOT is
 > **`/MiOS.md`** (the canonical MiOS AI system identity, OpenAI agent-prompting
 > pattern). This stub does NOT re-state the agent identity, posture, or

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: IOMMU Group Visualizer
+# AI-functions: print_banner, check_iommu, get_device_color, visualize_groups, show_gpu_details, show_usb_controllers, export_to_file, interactive_menu, main
 
 ################################################################################
 # IOMMU Group Visualizer

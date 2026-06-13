@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Provides high-speed fuzzy lookup against the cached environment inventory to resolve "launch <app>" requests into executable commands in <100ms, bypassing slow filesystem crawls.
+# AI-related: /usr/libexec/mios/mios-find, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-apps, mios-everything, mios-gui, mios-windows, mios-find-err, mios-hermes-browser, mios-shim
 set -euo pipefail
 # /usr/libexec/mios/mios-find <query>
 #

@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for Sigstore/Cosign keyless signing and verification, providing the specific CLI commands and OIDC identity requirements for validating MiOS container images and attestations.
+     AI-related: mios-ci, mios-dev -->
 # Cosign / Sigstore — Keyless Image Signing
 
 > CI signs every push with cosign keyless via GitHub Actions OIDC

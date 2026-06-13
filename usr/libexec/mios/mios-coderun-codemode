@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Executes agent-supplied code snippets within a hardened, persistent Podman container sandbox to provide a "Code Mode" tool interface that reduces context window usage by replacing numerous function schemas with a single shim.
+# AI-related: /usr/lib/mios/agent-pipe, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-coderun, mios-coderun-session, mios-coderun-sandbox
 """mios-coderun-codemode -- WS-2 Code Mode runner (the `code_mode` verb backend).
 
 Runs an AGENT-SUPPLIED code snippet inside the EXISTING rootless PODMAN

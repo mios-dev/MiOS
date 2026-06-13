@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A test script that executes a raw SQL POST request to the local :8000/sql endpoint to verify the system's ability to process and persist manual directory_entry records in the mios DB.
+# AI-related: localhost:8000
 set -euo pipefail
 python3 - <<'PYEOF'
 import json, urllib.request

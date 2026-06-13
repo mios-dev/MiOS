@@ -1,3 +1,5 @@
+# AI-hint: Defines the Docker build for the crawl4ai engine, providing a Python 3.12 environment with camoufox for stealth fallback and a FastAPI wrapper to process web scraping tasks via CDP or local Firefox.
+# AI-related: mios-crawl4ai-service
 # MiOS slim crawl4ai image -- NO bundled Chromium.
 #
 # Why this exists: the dev VM host is Python 3.14, which has no prebuilt

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Converts non-ASCII Unicode characters (smart punctuation, symbols, box-drawings) to ASCII equivalents in files to ensure compatibility with byte-naive parsers and tools across different environments.
+# AI-functions: process
 # tools/lib/ascii-sweep.py — replace common smart-punctuation Unicode with the
 # ASCII equivalent. Idempotent. Operates on file paths given on argv.
 # Touches comments AND values — the goal is to make every byte ASCII so

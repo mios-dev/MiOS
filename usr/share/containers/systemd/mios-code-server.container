@@ -1,3 +1,5 @@
+# AI-hint: Systemd quadlet configuration for the code-server container, providing a web-based VS Code interface with host networking and root privileges to allow direct editing of the live MiOS root filesystem.
+# AI-related: mios-code-server, mios-forge, mios-root, mios-forgejo-runner, mios-forge.service, network-online.target, multi-user.target, default.target, localhost:8800, localhost:3000
 # /etc/containers/systemd/mios-code-server.container
 # code-server -- VS Code in a browser. Pairs with mios-forge for a
 # full editor + git workflow over the local LAN without leaving the

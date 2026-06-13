@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a single JSON blob of hardware (CPU, GPU, RAM, Disk), service status, and Ollama model data to the `system_status` verb to prevent the LLM from hallucinating system metrics.
+# AI-related: mios-open-webui, mios-delegation-prefilter, mios-hermes-tail, hermes-agent.service, mios-open-webui.service, mios-delegation-prefilter.service, mios-hermes-tail.service, ollama.service
 """mios-system-status -- emit a single JSON blob with the live MiOS
 host dashboard data the chat model needs to answer "system status?"
 questions WITHOUT fabricating fields.

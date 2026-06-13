@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Initializes GNOME Remote Desktop (GRD) by generating EC TLS certificates, configuring grdctl parameters, optionally setting credentials via MIOS_PASSWORD, and opening RDP ports 3389/8080 in firewalld.
+# AI-related: /usr/lib/mios/paths.sh, mios-grd-setup.service, gnome-remote-desktop.service
 # MiOS -- mios-grd-setup: GNOME Remote Desktop firstboot setup.
 # Triggered by mios-grd-setup.service (oneshot, guarded by SENTINEL).
 # Generates a self-signed EC TLS keypair, wires it into grdctl, optionally

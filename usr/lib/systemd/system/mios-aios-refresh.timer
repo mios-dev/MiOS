@@ -1,3 +1,5 @@
+# AI-hint: Systemd timer that triggers mios-aios-refresh.service every 15 minutes to synchronize the Single Source of Truth (SSOT) and update the A2A fleet discovery peer list.
+# AI-related: mios-aios-refresh, mios-aios-refresh.service, timers.target
 [Unit]
 Description=Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery)
 

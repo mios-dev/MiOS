@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A test script that executes a Python snippet to verify the `_upsert_directory_entries` function in `mios_daemon` by batch-inserting mock file records and querying the local SQL database to confirm persistence.
+# AI-related: /usr/libexec/mios/mios-daemon, mios-daemon, localhost:8000
 # Call _upsert_directory_entries with a 3-row batch + see if rows
 # land in the DB.
 set -euo pipefail

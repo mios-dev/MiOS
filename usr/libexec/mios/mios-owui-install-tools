@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Registers the MiOS Verbs toolset into the webui.db database to provide the LLM with native typed tool_calls for actions like launch_app and mios_find, bypassing terminal-mediated execution.
+# AI-related: /usr/share/mios/owui/tools/mios_verbs.py, /usr/share/mios/owui/tools/mios_verbs.py., mios-owui-install-pipe, mios-hermes-firstboot, mios-agent, mios-daemon, mios-open-webui, mios-surrealdb, mios-forge, mios-ollama
 """mios-owui-install-tools -- idempotent registration of the MiOS
 verbs OWUI Tools class (launch_app / everything_search / mios_apps /
 mios_find) so the chat model gets them as native typed tool_calls

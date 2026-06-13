@@ -1,3 +1,6 @@
+# AI-hint: Provides typed Python tools for the LLM to directly invoke MiOS shell verbs (launch_app, everything_search, mios_apps, mios_find) via a local Unix socket broker to bypass container isolation.
+# AI-related: mios-launch, mios-launcher, mios-launcher-daemon, mios-windows, mios-everything, mios-locate, mios-web-search, mios-apps, mios-find, mios-knowledge-search
+# AI-functions: _broker_send, __init__, launch_app, everything_search, fs_search, web_search, mios_apps, mios_find, knowledge_search, directory_lookup, os_recipe, system_status
 """
 title: MiOS Verbs
 author: MiOS

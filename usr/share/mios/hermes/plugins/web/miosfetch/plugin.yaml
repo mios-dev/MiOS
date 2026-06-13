@@ -1,3 +1,4 @@
+# AI-hint: Defines the miosfetch backend plugin for offline web content extraction using urllib and readability to convert URLs into clean text without external APIs or cloud dependencies.
 name: miosfetch
 kind: backend
 version: 1.0.0

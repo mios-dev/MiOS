@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes the idempotent .surql schema migration to initialize MiOS unified AI surfaces in the SurrealDB instance after the database container becomes active.
+# AI-related: /usr/share/mios/surrealdb/schema-init.surql, /usr/libexec/mios/mios-db, mios-db, mios-surrealdb-init, mios-surrealdb, mios-surrealdb.service, multi-user.target, localhost:8000
 # /usr/lib/systemd/system/mios-surrealdb-init.service
 # Apply the unified MiOS schemas to the SurrealDB instance after
 # it comes up. Idempotent (the .surql uses DEFINE TABLE / DEFINE

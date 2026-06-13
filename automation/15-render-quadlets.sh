@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Processes Quadlet container files by replacing ${MIOS_*} placeholders with values from mios.toml using envsubst, ensuring systemd-compatible container definitions are baked with correct host-specific UIDs, GIDs, and network configs.
+# AI-related: /usr/share/mios/kb
+# AI-functions: _render_with_envsubst, _render_with_bash
 # automation/15-render-quadlets.sh
 # ----------------------------------------------------------------------------
 # In-place rendering of Quadlet container files: walks the deployed

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/gpu-detect to identify hardware GPU capabilities during boot, setting environment flags for display managers and graphics drivers.
+# AI-related: /usr/libexec/mios/gpu-detect, mios-gpu-detected, gdm.service, display-manager.service, systemd-modules-load.service, systemd-udevd.service, systemd-journald.socket, sysinit.target
 [Unit]
 Description='MiOS' GPU Environment Detection
 ConditionVirtualization=!container

@@ -1,3 +1,5 @@
+# AI-hint: A comprehensive system manifest and architectural specification for MiOS, defining immutable filesystem rules, AI infrastructure (LocalAI/MCP), and the build pipeline for agents to understand system constraints and directory roles.
+# AI-related: /etc/mios/install.env, /usr/share/mios/ai/mcp.json, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/system.md, /usr/share/mios/ai/, /etc/mios/env.d/, /usr/share/mios/env.defaults, mios-k3s, mios-ceph, mios-k3s.container
 # 'MiOS' v0.2.4 -- Flattened System Context
 
 'MiOS' is an immutable, bootc-native Fedora workstation OS. Repo root `mios.git` IS the system root `/`.

@@ -1,3 +1,6 @@
+# AI-hint: Provides Open WebUI tools for direct desktop interaction (vision, AT-SPI grounding, input actions) and document generation via the mios-launcher broker to bypass container isolation and execute system-level commands.
+# AI-related: mios-launcher, mios-computer-use, mios-pc-control, mios-pc-vision, mios-docgen, mios-launcher.service, socket.socket
+# AI-functions: _broker_send, _passthru_json, __init__, _off, _writes_off, cu_screenshot, cu_ground, cu_atspi_query, cu_window_list, cu_click, cu_type, cu_key
 """
 title: MiOS Computer Use
 author: MiOS

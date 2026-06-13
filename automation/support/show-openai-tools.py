@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Pretty-print /skills/openai-tools so the operator can see the exact JSON schema sub-agents (Hermes / OpenCode / future MCP) get when they fetch the catalog.
+# AI-related: localhost:8640
 """Pretty-print /skills/openai-tools so the operator can see the
 exact JSON schema sub-agents (Hermes / OpenCode / future MCP) get
 when they fetch the catalog."""

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Automates RTX 4090 GPU and associated audio controller isolation by identifying PCI IDs and configuring /etc/modprobe.d/vfio.conf for VFIO passthrough in the MiOS virtualization host.
+# AI-functions: log_info, log_success, log_warning, log_error
 # rtx4090-vfio-configurator.sh
 # Automated RTX 4090 VFIO isolation for 'MiOS' (Fedora bootc)
 # Part of MiOS-Build virtualization host setup

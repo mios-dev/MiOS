@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Triggers the self-replication loop by committing/pushing the root filesystem's git tree to a local Forgejo instance to initiate a CI build and update the boot__core image.
+# AI-related: mios-bootc-switch, mios-forge, mios-forge-firstboot, mios-forgejo-runner, mios-forge.service, mios-forgejo-runner.service, localhost:3000
 # mios-rebuild -- push the live working tree at / to the local Forgejo
 # at localhost:3000 so the Forgejo Runner Quadlet picks up the change,
 # runs .forgejo/workflows/build-mios.yml, produces a new OCI image at

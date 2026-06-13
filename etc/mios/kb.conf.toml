@@ -1,3 +1,5 @@
+# AI-hint: Configures the MiOS Knowledge Base (KB) by defining LLM endpoints, model identifiers, embedding dimensions, chunking strategies, and vector store connection parameters for the local RAG pipeline.
+# AI-related: mios-kb, mios-dev, localhost:8642, localhost:11434, localhost:8000, localhost:1234, localhost:4000, localhost:6333
 # MiOS KB local config — overrides for downstream consumers
 # Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8642/v1
 # (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.

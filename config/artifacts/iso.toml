@@ -1,3 +1,4 @@
+# AI-hint: Defines the Anaconda kickstart configuration and kernel parameters for generating a bare-metal installation ISO, including filesystem sizing, user accounts, and boot-time driver blacklisting.
 # bib-configs/iso.toml - 'MiOS' v0.2.4
 # Target: Anaconda unattended installer ISO for bare-metal install.
 #

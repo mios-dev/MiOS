@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides the active memory write interface for agents to manually store, update, or delete durable facts in the SurrealDB/Postgres agent_memory table across global, agent-specific, or conversation-scoped contexts.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, localhost:8000, localhost:11450
 """mios-remember -- agent-authored durable memory (Letta/MemGPT core tier).
 
 P4.2 (Letta/MemGPT active virtual memory): MiOS already has the PASSIVE tiers

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit to regenerate AIOS-native role systems from the SSOT and refresh the A2A fleet peer list, providing the agent-pipe with updated verb catalogs and peer discovery.
+# AI-related: /usr/libexec/mios/mios-gen-role-system, /etc/mios/ai/v1/role-systems/, /usr/libexec/mios/mios-a2a-discover, mios-gen-role-system, mios-a2a-discover, mios-agent-pipe, mios-agent-pipe.service, network-online.target, multi-user.target
 [Unit]
 Description='MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet
 Documentation=file:///usr/libexec/mios/mios-gen-role-system

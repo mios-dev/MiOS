@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Tailer script that parses hermes-agent.service logs to extract tool-calls and sub-agent tasks into /var/lib/mios/hermes-tail/latest.json, providing the real-time status bridge for the OWUI mios_sidecar filter.
+# AI-related: mios-open-webui, mios-find, hermes-agent.service
 """mios-hermes-tail -- background tail of hermes-agent.service journal,
 extracts in-flight delegate_task + tool-call activity, writes state
 file the OWUI mios_sidecar Filter polls for real-time chat emission.

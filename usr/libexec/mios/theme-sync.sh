@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: 1. INSTALLATION
 set -euo pipefail
 
 # --- 1. INSTALLATION ---

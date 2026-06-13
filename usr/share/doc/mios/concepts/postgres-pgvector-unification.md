@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation of the architectural transition from SurrealDB to a PostgreSQL+pgvector stack for agent memory, knowledge, and hybrid search, defining the standard schema and migration path for the agent-plane datastore.
+     AI-related: mios-remember, mios-db, mios-daemon, mios-skills, mios-pgvector, mios-services, mios-ai, mios-sync-env, mios-pgvector.container, mios-pgvector.service -->
 # PostgreSQL + pgvector Unification (WS-9) — patterns brief + migration draft
 
 > Status: DRAFT (2026-06-04). Operator decision: migrate the agent-plane

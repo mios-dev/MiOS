@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python script providing a thin client to the local crawl4ai service to fetch and convert web pages into LLM-ready markdown, used by agents to ground responses in actual content rather than search snippets.
+# AI-related: mios-crawl4ai, mios-web-search, mios-hermes-browser, mios-web-extract, mios-hermes-browser.service, mios-crawl4ai.service
 """mios-crawl -- native CRAWL verb backend (fetch a URL -> clean markdown).
 
 Reads ONE web page and returns LLM-ready markdown so agents GROUND on the

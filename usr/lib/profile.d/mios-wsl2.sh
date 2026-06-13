@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Configures WSL2 graphics environment variables (DISPLAY, WAYLAND_DISPLAY, XDG_SESSION_TYPE) and XDG_RUNTIME_DIR to enable GUI application support and X11/Wayland compatibility for MiOS on WSLg.
 # WSLg display environment for login shells in WSL2.
 [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi "microsoft" /proc/version 2>/dev/null || return 0
 export DISPLAY="${DISPLAY:-:0}"

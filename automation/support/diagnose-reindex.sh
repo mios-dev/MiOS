@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Diagnostic script to debug vector database integrity by checking `mios-open-webui` logs, ChromaDB SQLite table counts/collections, and verifying if file content exists in the `webui.db` database.
+# AI-related: mios-open-webui, mios-open-webui.service
 set -euo pipefail
 
 echo "=== OWUI logs (reindex / chroma / vector) ==="

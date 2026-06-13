@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+# AI-hint: Codebase tagger -- writes a rich, structured AI header (AI-hint purpose
+# AI-related: mios-codebase-index, mios-bootstrap, localhost:11450
+#   + AI-related files/services/verbs + AI-functions) on every MiOS-authored file
+#   so agents grasp each file's use, purpose, dependencies and entrypoints at a
+#   glance, and mios-codebase-index can harvest it. Reuses an existing AI-hint
+#   (no re-LLM), generates a fresh purpose line via the local teacher when absent,
+#   and regex-extracts related-files + functions (accurate, no hallucination).
+#   Idempotent, resumable (--manifest), comment/shebang/line-ending safe.
+"""'MiOS' AI-tagger -- a rich, agent-useful AI header on every file.
+
+Goal (operator 2026-06-13): every file in both MiOS repos carries a header that
+is descriptive of its USE + PURPOSE, the RELATED files/services it touches, and
+the FUNCTIONS/entrypoints it defines -- so an agent knows what a file is for, what
+it depends on, and what it exposes, without reading the whole thing.
+
+Header block (comment-syntax + shebang aware, line-ending preserving):
+
+Reuse keeps it cheap: an existing AI-hint is kept verbatim; only files lacking one
+hit the teacher. JSON (no comments) + binaries are skipped.
+
+Usage:
+  mios-ai-tag --root /mnt/c/MiOS --root /mnt/c/mios-bootstrap \
+              --manifest /var/lib/mios/finetune/ai-tag-rich.manifest
+  mios-ai-tag --root DIR --no-llm     # never call the teacher (reuse/extract only)
+  mios-ai-tag --root DIR --dry-run --limit 5
+"""
+from __future__ import annotations
+import argparse
+import json
+import os
+import re
+import sys
+import urllib.request
+
+EXT = {
+    ".md", ".sh", ".bash", ".py", ".toml", ".yaml", ".yml", ".container",
+    ".service", ".path", ".timer", ".socket", ".mount", ".target", ".conf",
+    ".te", ".fc", ".if", ".html", ".js", ".css", ".ps1", ".rules", ".env",
+    ".sql", ".jinja", ".j2", ".repo", ".ini", ".cfg", ".network", ".volume",
+    ".pod", ".build", ".image", ".kargs", ".bu", ".tmpl", ".in", ".preset",
+    ".desktop", ".pp", ".spec", ".star", ".txt", ".gitignore", ".gitattributes",
+    ".editorconfig", ".dockerignore", ".cron", ".sudoers", ".pam", ".mod", ".bat",
+    ".cmd",
+}
+BASENAMES = {
+    "Containerfile", "Dockerfile", "Justfile", "justfile", "Makefile",
+    "Modelfile", "VERSION", ".gitignore", ".gitattributes", ".dockerignore",
+    ".editorconfig", ".bashrc", ".profile",
+}
+SKIP_DIR = re.compile(
+    r"(^|/)(\.git|\.venv|venv|node_modules|site-packages|__pycache__|web_dist|"
+    r"dist|assets|\.cache|\.mypy_cache|\.pytest_cache|\.ruff_cache|target|"
+    r"base-qwen[^/]*|\.idea|\.vscode-test|finetune/venv)(/|$)")
+SKIP_SUFFIX = re.compile(
+    r"\.(gguf|safetensors|bin|pt|pth|onnx|png|jpg|jpeg|gif|ico|webp|svg|woff2?|"
+    r"ttf|otf|so|o|a|zip|gz|xz|zst|tar|whl|pyc|wasm|pdf|mp4|mp3|lock)$", re.I)
+JSON_EXT = {".json", ".jsonl", ".map", ".csv", ".tsv"}
+
+# strip ALL AI-* header lines on retag (hint/related/functions), any comment style
+AI_LINE_RE = re.compile(r"^[#/<!;\-*\s]*AI-(?:hint|related|functions):.*?(-->)?\s*$", re.I)
+AI_HINT_TXT_RE = re.compile(r"AI-hint:\s*(.+?)\s*(?:-->)?\s*$", re.I)
+
+
+def comment_style(path: str) -> str:
+    _, ext = os.path.splitext(os.path.basename(path))
+    ext = ext.lower()
+    if ext in (".md", ".html"):
+        return "md"
+    if ext == ".css":
+        return "slashstar"
+    if ext == ".js":
+        return "slash"
+    if ext == ".sql":
+        return "dashdash"
+    return "hash"
+
+
+def _pfx(style: str) -> str:
+    return {"slash": "// ", "dashdash": "-- "}.get(style, "# ")
+
+
+def make_block(style: str, hint: str, related: str, funcs: str) -> list[str]:
+    rows = [("AI-hint", hint)]
+    if related:
+        rows.append(("AI-related", related))
+    if funcs:
+        rows.append(("AI-functions", funcs))
+    if style == "md":
+        if len(rows) == 1:
+            return [f"<!-- AI-hint: {hint} -->"]
+        body = "\n".join(f"     {k}: {v}" for k, v in rows)
+        return [f"<!-- {rows[0][0]}: {rows[0][1]}\n" +
+                "\n".join(f"     {k}: {v}" for k, v in rows[1:]) + " -->"]
+    if style == "slashstar":
+        return [f"/* {k}: {v} */" for k, v in rows]
+    pfx = _pfx(style)
+    return [f"{pfx}{k}: {v}" for k, v in rows]
+
+
+def _clean(s: str, n: int = 260) -> str:
+    s = re.sub(r"\s+", " ", (s or "").strip())
+    return re.sub(r'^["\'\s]+|["\'\s]+$', "", s)[:n]
+
+
+# ---- existing-hint reuse + extraction ---------------------------------------
+def existing_hint(head: str) -> str:
+    for ln in head.splitlines()[:40]:
+        m = AI_HINT_TXT_RE.search(ln)
+        if m:
+            return _clean(m.group(1))
+    return ""
+
+
+def extract_desc(head: str, path: str) -> str:
+    lines = head.splitlines()
+    if lines and lines[0].strip() == "---":
+        for ln in lines[1:60]:
+            if ln.strip() == "---":
+                break
+            m = re.match(r"\s*description:\s*(.+)", ln)
+            if m:
+                return _clean(m.group(1).strip().strip("\"'"))
+    if path.endswith(".py"):
+        m = re.search(r'^\s*[ru]?("""|\x27\x27\x27)(.+?)\1', head, re.S | re.M)
+        if m:
+            return _clean(m.group(2))
+    started = False
+    for ln in lines[:30]:
+        s = ln.strip()
+        if not started and (s.startswith("#!") or s == "" or s == "---"
+                            or re.search(r"AI-(hint|related|functions):", s, re.I)):
+            continue
+        if s.startswith(("# ", "// ", "* ", "-- ", "<!-- ")) or s in ("#", "//"):
+            started = True
+            txt = _clean(s.lstrip("#/*-<! ").rstrip("->"))
+            if txt and "://" not in txt and not re.fullmatch(r"[\w/.\-]+", txt):
+                return txt
+            continue
+        if started:
+            break
+    return ""
+
+
+# ---- regex structure extraction (accurate, grounded) ------------------------
+def extract_functions(content: str, path: str) -> str:
+    names: list[str] = []
+    if path.endswith(".py"):
+        names += re.findall(r"^\s*(?:async\s+)?def\s+([a-zA-Z_]\w*)", content, re.M)
+        names += [f"class {c}" for c in re.findall(r"^\s*class\s+([A-Z]\w*)", content, re.M)]
+    else:  # shell + most: `name() {` / `function name`
+        names += re.findall(r"^\s*(?:function\s+)?([a-zA-Z_][\w-]*)\s*\(\)\s*\{?", content, re.M)
+        names += re.findall(r"^\s*function\s+([a-zA-Z_][\w-]*)", content, re.M)
+    seen, out = set(), []
+    for n in names:
+        if n not in seen and not n.startswith("_test"):
+            seen.add(n); out.append(n)
+    return ", ".join(out[:12])
+
+
+def extract_related(content: str, path: str) -> str:
+    rel: list[str] = []
+    if path.endswith(".py"):
+        for m in re.findall(r"^\s*from\s+([\w.]+)\s+import|^\s*import\s+([\w.]+)", content, re.M):
+            mod = m[0] or m[1]
+            if mod and (mod.startswith("mios") or mod.startswith(".")):
+                rel.append(mod)
+    rel += re.findall(r"(?:source|\.)\s+([/\w.\-]+\.(?:sh|bash))", content)
+    rel += re.findall(r"(/usr/(?:lib|libexec|share)/mios/[\w./\-]+|/etc/mios/[\w./\-]+)", content)
+    rel += re.findall(r"\b(mios-[\w-]+)\b", content)
+    # systemd units -- NOT '.path' (it false-matches os.path/request.path etc.);
+    # real .path units are rare and still caught as mios-* / quadlet names.
+    rel += re.findall(r"\b([\w-]+\.(?:service|container|timer|socket|target|mount))\b", content)
+    # ports -> labelled 'localhost:NNNN' so the hint reads as an endpoint, not a bare int
+    rel += [f"localhost:{p}" for p in re.findall(r"localhost:(\d{2,5})", content)]
+    seen, out = set(), []
+    self_base = os.path.basename(path)
+    for r in rel:
+        r = r.strip()
+        if r and r != self_base and r not in seen:
+            seen.add(r); out.append(r)
+    return ", ".join(out[:10])
+
+
+# ---- teacher (purpose line; only when no existing hint) ----------------------
+GEN_SYS = (
+    "You document a codebase FOR AI AGENTS. Write ONE dense line (<=240 chars) "
+    "stating WHAT THE FILE IS and its ROLE/USE in the MiOS system -- for a "
+    "script/tool/config, what an agent would use it for or what it controls. Be "
+    "concrete (name the component/port/effect), not generic. No preamble, no file "
+    "name, no quotes, no markdown -- just the one line.")
+
+
+def teacher_hint(endpoint, model, path, head, timeout=90.0) -> str:
+    rel = path.split("/mnt/c/", 1)[-1]
+    user = f"Path: {rel}\n\nFirst lines:\n{head[:2400]}\n\nOne-line AI-hint:"
+    payload = {"model": model, "stream": False, "temperature": 0.0,
+               "messages": [{"role": "system", "content": GEN_SYS},
+                            {"role": "user", "content": user}],
+               "chat_template_kwargs": {"enable_thinking": False}, "max_tokens": 160}
+    req = urllib.request.Request(endpoint.rstrip("/") + "/v1/chat/completions",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        body = json.load(r)
+    m = (body.get("choices") or [{}])[0].get("message") or {}
+    txt = (m.get("content") or m.get("reasoning_content") or "").strip()
+    return _clean(txt.splitlines()[0] if txt else "")
+
+
+# ---- safe (re)insertion -----------------------------------------------------
+def retag(raw: bytes, style: str, block: list[str]) -> bytes:
+    nl = "\r\n" if b"\r\n" in raw[:65536] else "\n"
+    text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n")
+    lines = [ln for ln in text.split("\n") if not AI_LINE_RE.match(ln)]
+    idx = 0
+    if lines and lines[0].lstrip().startswith("#!"):
+        idx = 1
+    elif style == "md" and lines and lines[0].strip() == "---":
+        for i in range(1, min(len(lines), 80)):
+            if lines[i].strip() == "---":
+                idx = i + 1
+                break
+    block_lines = []
+    for b in block:
+        block_lines += b.split("\n")
+    lines = lines[:idx] + block_lines + lines[idx:]
+    out = "\n".join(lines)
+    return (out.replace("\n", "\r\n") if nl == "\r\n" else out).encode("utf-8")
+
+
+# ---- selection --------------------------------------------------------------
+def _has_shebang(path):
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(2) == b"#!"
+    except OSError:
+        return False
+
+
+def indexable(path):
+    if SKIP_SUFFIX.search(path):
+        return False
+    base = os.path.basename(path)
+    _, ext = os.path.splitext(base)
+    ext = ext.lower()
+    if ext in JSON_EXT:
+        return False
+    if ext in EXT or base in BASENAMES:
+        return True
+    return ext == "" and _has_shebang(path)
+
+
+def is_text(path):
+    try:
+        with open(path, "rb") as fh:
+            return b"\x00" not in fh.read(2048)
+    except OSError:
+        return False
+
+
+def walk(roots):
+    for root in roots:
+        for dp, dns, fns in os.walk(root):
+            if SKIP_DIR.search(dp):
+                dns[:] = []
+                continue
+            dns[:] = [d for d in dns if not SKIP_DIR.search(os.path.join(dp, d))]
+            for fn in sorted(fns):
+                p = os.path.join(dp, fn)
+                if indexable(p) and is_text(p):
+                    yield p
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-ai-tag")
+    ap.add_argument("--root", action="append", required=True)
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--manifest", default=None)
+    ap.add_argument("--hints-json", default=None,
+                    help="JSON {abs_path: hint}; override the hint for listed files "
+                         "(an agent-refined/verified hint) -- structure still regex-derived")
+    ap.add_argument("--teacher-endpoint", default="http://localhost:11450")
+    ap.add_argument("--teacher-model", default="gemma4:12b")
+    a = ap.parse_args()
+
+    hints_map = {}
+    if a.hints_json and os.path.exists(a.hints_json):
+        with open(a.hints_json, encoding="utf-8") as fh:
+            hints_map = {k: _clean(v) for k, v in json.load(fh).items() if v}
+
+    done = set()
+    if a.manifest and os.path.exists(a.manifest):
+        with open(a.manifest, encoding="utf-8") as fh:
+            done = {ln.strip() for ln in fh if ln.strip()}
+    mh = open(a.manifest, "a", encoding="utf-8") if (a.manifest and not a.dry_run) else None
+
+    files = [p for p in walk(a.root) if p not in done]
+    stats = {"pending": len(files), "tagged": 0, "reused_hint": 0, "generated": 0,
+             "skipped_resume": len(done), "gap": 0, "errors": 0}
+    n = 0
+    for p in files:
+        if a.limit and n >= a.limit:
+            break
+        try:
+            with open(p, "rb") as fh:
+                raw = fh.read()
+        except OSError:
+            stats["errors"] += 1
+            continue
+        content = raw.decode("utf-8", errors="replace")
+        head = content[:8192]
+        if p in hints_map:                 # agent-verified override wins
+            hint = hints_map[p]
+            stats["overridden"] = stats.get("overridden", 0) + 1
+        elif (hint := existing_hint(head)):
+            stats["reused_hint"] += 1
+        elif a.no_llm:
+            hint = extract_desc(head, p)
+        else:
+            try:
+                hint = teacher_hint(a.teacher_endpoint, a.teacher_model, p, head)
+                if hint:
+                    stats["generated"] += 1
+            except Exception as e:  # noqa: BLE001
+                print(f"[ai-tag] WARN gen {p}: {e}", file=sys.stderr)
+                hint = extract_desc(head, p)
+        if not hint:
+            stats["gap"] += 1
+            continue
+        style = comment_style(p)
+        block = make_block(style, hint, extract_related(content, p),
+                           extract_functions(content, p))
+        n += 1
+        stats["tagged"] += 1
+        if a.dry_run:
+            print(f"{p}:")
+            for b in block:
+                print("    " + b.replace("\n", "\n    "))
+            continue
+        try:
+            with open(p, "wb") as fh:
+                fh.write(retag(raw, style, block))
+            if mh:
+                mh.write(p + "\n"); mh.flush()
+        except OSError as e:
+            print(f"[ai-tag] WARN write {p}: {e}", file=sys.stderr)
+            stats["errors"] += 1
+        if n % 50 == 0:
+            print(f"[ai-tag] {n} tagged ...", flush=True)
+    if mh:
+        mh.close()
+    print(json.dumps(stats, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Ensures the global system cursor theme (Bibata) is correctly installed and linked in /usr/share/icons or ~/.local/share/icons based on available privileges to guarantee consistent cursor rendering across X11, Wayland, and Flatpak apps.
+# AI-related: /usr/libexec/mios/mios-cursor-ensure, /etc/mios/mios.toml, /usr/share/mios/mios.toml
+# AI-functions: _toml_get, _write_default_pointer, _wire
 # /usr/libexec/mios/mios-cursor-ensure
 #
 # Make the MiOS cursor theme the ACTUAL, GLOBAL Linux cursor.

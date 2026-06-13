@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs AMD and Intel vendor-specific CDI (Container Device Interface) generator tools (amd-ctk and intel-cdi-specs-generator) to enable multi-vendor GPU passthrough for container runtimes.
+# AI-related: /usr/libexec/mios/intel-cdi-specs-generator, mios-cdi-detect
 # 41-gpu-cdi-toolkits: install vendor CDI generators (AMD + Intel)
 #
 # NVIDIA's nvidia-ctk ships via the nvidia-container-toolkit RPM

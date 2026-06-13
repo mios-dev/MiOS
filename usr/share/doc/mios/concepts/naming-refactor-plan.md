@@ -1,3 +1,5 @@
+<!-- AI-hint: Specifies the 2026 naming-refactor roadmap for MiOS, defining canonical conventions for code constants, system service identifiers, model/agent tags, and SSOT keys to ensure cross-component consistency.
+     AI-related: mios-sys-agent, mios-opencode, mios-heavy, mios-igpu, mios-agent-pipe, mios-surrealdb, mios-hermes, mios-ollama, mios-daemon-agent, mios-ai -->
 # MiOS global-names + naming-conventions refactor (T26)
 
 Operator directive (2026-06-04): *"refactor all Global Names and refactor naming

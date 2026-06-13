@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Validates VFIO passthrough configuration by checking IOMMU kernel parameters, module loading status, and GPU binding to ensure hardware-agnostic virtualization readiness.
+# AI-functions: check_pass, check_fail, check_warn
 # vfio-verify.sh
 # Universal Verification script for VFIO passthrough configuration
 # 'MiOS': Hardware & Environment Agnostic Verification

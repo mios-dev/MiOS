@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable offline llama-swap service; agents use this to ensure local model availability for the llama-swap lane.
+# AI-related: /usr/share/mios/llamacpp/models, mios-llama-swap, mios-llama-swap.container
 # automation/38-llamacpp-prep.sh -- bake GGUF weights for the llama-swap lane
 # (WS-10) into the image so mios-llama-swap serves them OFFLINE (llama.cpp will
 # NOT download air-gapped at runtime). Mirrors automation/38-vllm-prep.sh:

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/git-root-init.sh to initialize the root filesystem as a git working tree from a local Forgejo repository during first boot if /.git is missing.
+# AI-related: /usr/libexec/mios/git-root-init.sh, mios-dev, mios-forge-firstboot, mios-forge, mios-forge-firstboot.service, mios-forge.service, network-online.target, multi-user.target, default.target, localhost:3000
 [Unit]
 Description='MiOS' first-boot: init / as a git working tree of localhost:3000/<user>/mios.git
 Documentation=https://github.com/mios-dev/mios

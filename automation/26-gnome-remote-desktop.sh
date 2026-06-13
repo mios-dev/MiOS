@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Configures GNOME Remote Desktop for Wayland-native RDP support and masks legacy xrdp services to ensure a clean remote desktop environment in MiOS.
+# AI-related: xrdp.service, xrdp-sesman.service
 set -euo pipefail
 
 echo "[26-grd] Configuring GNOME Remote Desktop (GNOME 50)"

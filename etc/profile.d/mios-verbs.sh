@@ -1,3 +1,6 @@
+# AI-hint: Defines the `mios()` shell function to intercept and route canonical verbs (mini, dash, build, config, etc.) to specific `/usr/libexec/mios/` helpers while allowing non-standard arguments to pass to the AI agent.
+# AI-related: mios-dashboard.sh, /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/mios-build-driver, /usr/libexec/mios/mios-configurator-launch, mios-dashboard, mios-build-driver, mios-configurator-launch, mios-verbs, mios-motd, mios-update
+# AI-functions: mios, _mios_complete, command_not_found_handle
 # /etc/profile.d/mios-verbs.sh
 #
 # `mios <verb>` dispatcher for interactive bash shells inside MiOS-DEV.

@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the GitHub Container Registry (GHCR) integration, detailing image paths, authentication methods for CI/users, multi-arch manifest handling, and retention policies for MiOS container images.
+     AI-related: mios-dev -->
 # GitHub Container Registry (GHCR)
 
 > MiOS images live at `ghcr.io/mios-dev/mios:*`. CI uses

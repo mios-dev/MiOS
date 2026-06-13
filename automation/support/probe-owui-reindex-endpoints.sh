@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script that probes Open WebUI API endpoints for knowledge processing, reindexing, and retrieval status to verify the health and reachability of the RAG pipeline.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 - <<'PYEOF'
 import sqlite3

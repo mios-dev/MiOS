@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the K3s and Cockpit integration, detailing the K3s systemd unit gating, the Cockpit port 9090, and the specific LAW 6 exceptions for root-privileged containers.
+     AI-related: mios-k3s, mios-ceph, mios-k3s.container, cockpit.socket, mios-ceph.container -->
 # K3s + Cockpit on MiOS
 
 > K3s baked into the image as a single-node workstation cluster.

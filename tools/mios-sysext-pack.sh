@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+# AI-hint: Consolidates multiple .sysext directories into a single mios-accelerator.raw SquashFS image to bypass kernel overlayfs stacking depth limits during bootc system initialization.
+# AI-related: mios-accelerator, mios-sysext-pack
 # mios-sysext-pack: Consolidates multiple granular .sysext directories into a single monolithic SquashFS image
 # Mitigates the kernel 'overlayfs: maximum fs stacking depth exceeded' error on bootc systems.
 

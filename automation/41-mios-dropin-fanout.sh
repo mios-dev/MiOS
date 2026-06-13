@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Copies canonical systemd drop-in configurations from /usr/share/mios/dropins/ into specific .d/ directories during image build to deduplicate configuration for multiple unit types.
+# AI-related: /usr/share/mios/dropins/, /usr/share/mios/dropins, mios-dropin-fanout, mios-virt-gate, mios-wsl2, mios-cdi-detect, mios-ceph-bootstrap, mios-flatpak-install, mios-gpu-amd, mios-gpu-intel
 # automation/41-mios-dropin-fanout.sh
 #
 # Fans canonical drop-in content from /usr/share/mios/dropins/ into the

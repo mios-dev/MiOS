@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes mios-cdi-detect to identify and configure the correct CDI specification (WSL, VM, or bare metal) for GPU acceleration before the nvidia-cdi-refresh service.
+# AI-related: /usr/libexec/mios/mios-cdi-detect, mios-cdi-detect, nvidia-cdi-refresh.service, systemd-tmpfiles-setup.service, local-fs.target, multi-user.target
 [Unit]
 Description='MiOS' CDI spec detection (WSL vs bare metal vs VM)
 # The detection script EXPLICITLY branches on virt shape (WSL vs

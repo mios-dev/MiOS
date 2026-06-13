@@ -1,3 +1,5 @@
+<!-- AI-hint: Specific instructions for the Claude Code CLI tool, defining build commands, file replacement preferences, and safety confirmations for system-level operations while deferring core identity to MiOS.md.
+     AI-related: /etc/mios/MiOS.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /usr/share/mios/configurator/index.html, mios-build-local, mios-bootstrap, mios-ceph, mios-k3s, mios-forgejo-runner -->
 # CLAUDE.md
 
 > _`/CLAUDE.md` — per-tool stub for **Claude Code** (claude.ai/code) working on

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A shim script that constructs and opens Google Maps URLs for locations or directions, providing a single-call interface for agents to bypass complex URL construction and browser-launch logic.
+# AI-related: /usr/libexec/mios/mios-map, mios-open-url
+# AI-functions: usage, urlencode
 # /usr/libexec/mios/mios-map <query> [--directions [<from>]] [--browser <name>]
 #
 # Open Google Maps for a query / address / "directions to X" in the

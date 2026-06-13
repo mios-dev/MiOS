@@ -21,6 +21,8 @@ metadata:
       - restore_window
       - close_window
 ---
+<!-- AI-hint: Defines the pc-window-control skill for Hermes to map natural language window management (move, resize, focus, minimize) to specific Win32-backed tool calls via the mios-window CLI.
+     AI-related: /usr/share/mios/hermes/skills/pc-window-control/SKILL.md._, mios-window -->
 
 # PC window-control on MiOS
 

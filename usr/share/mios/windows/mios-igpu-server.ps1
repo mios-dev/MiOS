@@ -1,3 +1,6 @@
+# AI-hint: Powershell script that hosts a llama.cpp Vulkan-backend inference server on Windows to provide a persistent, low-latency micro-LLM for the MiOS daemon and routing tasks via an OpenAI-compatible API.
+# AI-related: mios-igpu-server, mios-daemon-agent, mios-model-router, mios-orchestrator, mios-igpu
+# AI-functions: Info, Ok, Warn
 <#
   mios-igpu-server.ps1  --  MiOS iGPU inference server (Windows host)
 

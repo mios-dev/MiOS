@@ -1,3 +1,4 @@
+# AI-hint: Defines the VHDX disk image configuration for Hyper-V targets, specifying user credentials, kernel boot parameters (iommu/nouveau), and filesystem partition sizes for the MiOS guest OS.
 # bib-configs/vhdx.toml - 'MiOS' v0.2.4
 # Target: Hyper-V on Windows host (MiOS-2 bare metal + Win11 + RTX 4090)
 # BIB --type vhd emits VPC/.vhd; CI post-converts to .vhdx via qemu-img convert.

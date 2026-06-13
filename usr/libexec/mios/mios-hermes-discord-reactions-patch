@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Python script that patches gateway/platforms/discord.py to inject a multi-stage emoji progression (📡, 🧠, 🛠️, ⏳) into Discord messages to provide operators with visual feedback on the agent's processing state.
 """In-place patch of gateway/platforms/discord.py to add progressive
 "thinking" reactions on the operator's Discord message during agent
 processing.

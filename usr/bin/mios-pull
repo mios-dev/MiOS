@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Updates the live MiOS root filesystem by syncing mios.git and mios-bootstrap.git, merging bootstrap overlays, running build-time automation scripts, and reloading systemd units across all deployment environments.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/oh-my-posh/mios.omp.json, mios-bootstrap, mios-update, mios-rebuild, mios-env, mios-dev, mios-forge-firstboot, mios-dash
+# AI-functions: say, warn, ok, die
 # mios-pull -- update the live MiOS overlay at `/` from upstream
 #
 # One canonical update verb runnable from any MiOS host's bash:

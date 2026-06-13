@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python backend for the web_search verb that queries a local SearXNG instance using concurrent fan-out (RAG-Fusion) to provide agents with real-time, grounded data for facts, weather, and news.
+# AI-related: mios-daemon, localhost:8888, localhost:11450
 """mios-web-search -- native WEB-search verb backend (concurrent fan-out).
 
 Queries the LOCAL, self-hosted SearXNG metasearch (offline-first; NO cloud

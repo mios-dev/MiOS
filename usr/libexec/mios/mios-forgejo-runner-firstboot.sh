@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner
+# AI-related: /usr/libexec/mios/mios-forgejo-runner-firstboot.sh, /etc/mios/forge/runner-token, mios-forgejo-runner-firstboot, mios-forgejo-runner, mios-forge-firstboot, mios-self-hosted, mios-forge, mios-forgejo-runner.service, mios-forge.service, localhost:3000
 # /usr/libexec/mios/mios-forgejo-runner-firstboot.sh
 #
 # Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner

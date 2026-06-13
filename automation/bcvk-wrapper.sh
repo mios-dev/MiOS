@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Wraps QEMU to boot a QCOW2 image in headless mode, monitoring the serial log for systemd login targets or kernel panics to validate boot success during automated testing.
+# AI-related: mios-serial
+# AI-functions: cleanup
 set -euo pipefail
 # 'MiOS' v0.2.4 -- Ephemeral QEMU boot test
 # Usage: bcvk-wrapper.sh <qcow2-path> [serial-log-path]

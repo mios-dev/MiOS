@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A title-pattern-driven wrapper for mios-pc-control that allows agents to perform window operations (center, focus, move, resize) using human-readable titles instead of raw handles.
+# AI-related: /usr/libexec/mios/mios-window, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pc-control, mios-windows, mios-oscontrol-server
+# AI-functions: _resolve_hwnd, _show_window, usage, _exec_post, _exec_get, _json_str, _fp
 set -euo pipefail
 # /usr/libexec/mios/mios-window <subcommand> [args...]
 #

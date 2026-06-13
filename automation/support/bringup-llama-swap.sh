@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Provisioning script to extract GGUF weights from Ollama blobs, deploy the llama-swap configuration, and start the mios-llama-swap container on port 11450 for the engine-swap live test.
+# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llama-swap, mios-llama-swap.container, mios-llama-swap.service
 # automation/support/bringup-llama-swap.sh
 # ----------------------------------------------------------------------------
 # Bring up the mios-llama-swap lane on a DEV VM (WS-10 engine-swap live test).

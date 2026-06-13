@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: A dual-mode helper that unlocks the gnome-keyring-daemon using credentials from mios.toml, supporting both proactive systemd startup and D-Bus activation to provide libsecret and xdg-desktop-portal Secret support for local and Flatpak apps.
+# AI-related: /usr/libexec/mios/mios-keyring-autounlock, /etc/mios/mios.toml, /usr/share/mios/mios.toml
+# AI-functions: _mios_toml_value
 # /usr/libexec/mios/mios-keyring-autounlock
 #
 # Dual-mode keyring unlock helper:

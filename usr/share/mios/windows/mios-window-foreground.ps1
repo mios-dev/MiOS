@@ -1,3 +1,5 @@
+# AI-hint: PowerShell script used by mios-windows to force a specific Windows process's main window into the foreground via AppActivate after a WSL-initiated launch to ensure UI focus.
+# AI-related: /usr/share/mios/windows/mios-window-foreground.ps1, /usr/libexec/mios/mios-windows, mios-windows, mios-window-foreground
 # /usr/share/mios/windows/mios-window-foreground.ps1
 #
 # Find a Windows process by name and bring its main window to the

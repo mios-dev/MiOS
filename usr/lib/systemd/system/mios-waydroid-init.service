@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that automates the initial Waydroid setup by downloading and configuring the LineageOS (GAPPS) system images during boot if they are missing.
+# AI-related: waydroid-container.service, network-online.target, multi-user.target
 [Unit]
 Description='MiOS' Waydroid Android Initialization
 Documentation=https://docs.waydro.id/

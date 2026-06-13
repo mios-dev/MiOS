@@ -1,3 +1,5 @@
+# AI-hint: Defines boot-time kernel arguments for security hardening, specifically enforcing slab_nomerge and lockdown=integrity to allow signed NVIDIA modules while maintaining system integrity on x86_64.
+# AI-related: mios-hardening
 # Boot-time hardening (NVIDIA-safe subset). Does NOT include page_alloc.shuffle
 # or init_on_alloc=1 globally (can interfere with large CUDA allocations).
 # lockdown=integrity: overrides 01-mios-hardening's confidentiality so that

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A utility script that uses regex to wrap the "MiOS" proper noun in single quotes in documentation and config files to ensure legal-attribution compliance while ignoring internal identifiers and paths.
+# AI-functions: is_allowed, process
 # tools/lib/quote-mios.py -- wrap the proper-noun spelling of the project
 # name in single quotes for legal-attribution reasons. Lowercase variant
 # (used in code, file names, env vars, paths, package names) is left alone.

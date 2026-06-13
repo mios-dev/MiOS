@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+# AI-hint: Comprehensive codebase discovery index -- harvests the AI-hint/header
+# AI-related: mios-docs-index, mios-ai-tag
+#   of EVERY MiOS-authored file (docs, scripts, configs, units, source) across
+#   all roots into one grep-able index so any agent can DISCOVER the whole
+#   codebase, then read_file/run the specific file on demand. Superset of
+#   mios-docs-index (which is .md-only). Filesystem-discoverable (no RAG drip).
+"""'MiOS' codebase index -- one descriptive line per file, for AI-agent discovery.
+
+The operator directive (2026-06-13): "MiOS AI should be able to use the WHOLE
+MiOS codebase ... all docs, scripts, functions ... every file tagged with a
+descriptive header/hint for AI agents". This tool is the DISCOVERY half: it walks
+the MiOS roots, pulls a one-line description from each file (in priority order:
+an explicit `AI-hint:` marker -> YAML frontmatter `description:` -> a module/script
+docstring or header comment -> first H1 -> first meaningful line), and emits a
+single unified index. Agents read the index, see what exists, then read or run
+the exact file -- the same filesystem-discoverable pattern as mios-docs-index
+(no English-prose RAG auto-injection -> no locale contamination).
+
+`mios-ai-tag` is the COMPLEMENT: it ensures every file actually HAS an `AI-hint:`
+so this index is rich. Files lacking any description are reported via --gaps.
+
+Usage:
+  mios-codebase-index                 full index to stdout (default live roots)
+  mios-codebase-index --grep <pat>    filter lines by regex
+  mios-codebase-index --root <dir>    index DIR instead of the default roots
+                                      (repeatable; e.g. a source checkout)
+  mios-codebase-index --gaps          list ONLY files missing any description
+  mios-codebase-index --write [PATH]  also persist (default
+                                      /var/lib/mios/scratch/codebase-index.md)
+  mios-codebase-index --json          machine-readable [{path,desc,via}]
+"""
+from __future__ import annotations
+import argparse
+import json
+import os
+import re
+import sys
+
+DEFAULT_ROOTS = [
+    "/usr/lib/mios", "/usr/libexec/mios", "/usr/share/mios", "/etc/mios",
+    "/srv/mios",
+]
+# Extensions we index (text / source / config). Plus exact basenames below.
+EXT = {
+    ".md", ".sh", ".bash", ".py", ".toml", ".yaml", ".yml", ".json",
+    ".container", ".service", ".path", ".timer", ".socket", ".mount",
+    ".target", ".conf", ".te", ".html", ".js", ".css", ".ps1", ".rules",
+    ".env", ".sql", ".jinja", ".j2", ".repo", ".ini", ".cfg",
+}
+BASENAMES = {
+    "Containerfile", "Dockerfile", "Justfile", "justfile", "Makefile",
+    "VERSION", "README", "LICENSE",
+}
+# Never descend into vendored / generated / binary trees.
+SKIP_DIR = re.compile(
+    r"(^|/)(\.git|\.venv|venv|node_modules|site-packages|__pycache__|"
+    r"web_dist|dist|assets|\.cache|\.mypy_cache|\.pytest_cache|"
+    r"base-qwen[^/]*|model[^/]*|models|\.ruff_cache)(/|$)")
+# Skip obviously binary / huge-artifact suffixes even if matched above.
+SKIP_SUFFIX = re.compile(
+    r"\.(gguf|safetensors|bin|pt|pth|onnx|png|jpg|jpeg|gif|ico|webp|"
+    r"woff2?|ttf|otf|so|o|a|zip|gz|tar|whl|pyc|wasm|pdf|mp4|mp3)$", re.I)
+
+AI_HINT_RE = re.compile(r"AI-hint:\s*(.+)", re.I)
+
+
+def _clean(s: str, n: int = 200) -> str:
+    s = re.sub(r"\s+", " ", (s or "").strip())
+    return s[:n]
+
+
+def describe(path: str) -> tuple[str, str]:
+    """Return (description, via). `via` in {ai-hint, frontmatter, docstring,
+    comment, h1, firstline, none}. Reads only the head of the file."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192)
+    except OSError:
+        return ("", "none")
+    lines = head.splitlines()
+    # 1. explicit AI-hint: marker (may wrap onto continuation comment lines)
+    for i, ln in enumerate(lines[:40]):
+        m = AI_HINT_RE.search(ln)
+        if m:
+            desc = m.group(1).strip()
+            # absorb immediate comment-continuation lines (indented under the hint)
+            for cont in lines[i + 1:i + 4]:
+                c = cont.strip().lstrip("#/*-").strip()
+                if cont.lstrip().startswith(("#", "//", "*")) and c and ":" not in c[:14]:
+                    desc += " " + c
+                else:
+                    break
+            return (_clean(desc), "ai-hint")
+    # 2. YAML frontmatter description: (md)
+    if lines and lines[0].strip() == "---":
+        for ln in lines[1:60]:
+            if ln.strip() == "---":
+                break
+            m = re.match(r"\s*description:\s*(.+)", ln)
+            if m:
+                return (_clean(m.group(1).strip().strip("\"'")), "frontmatter")
+    # 3. python module docstring
+    if path.endswith(".py"):
+        m = re.search(r'^\s*(?:[ru]?)("""|\x27\x27\x27)(.+?)\1', head, re.S | re.M)
+        if m:
+            return (_clean(m.group(2)), "docstring")
+    # 4. header comment block (after optional shebang) for #/// commented files
+    started = False
+    for ln in lines[:30]:
+        s = ln.strip()
+        if not started:
+            if s.startswith("#!"):
+                continue
+            if s in ("", "---"):
+                continue
+        if s.startswith(("# ", "#\t", "// ", "* ", ";; ", "-- ")) or s in ("#", "//"):
+            started = True
+            txt = s.lstrip("#/*;-").strip()
+            # skip pure path/separator/marker lines
+            if (txt and not txt.startswith(("/", "=", "-")) and "://" not in txt
+                    and not re.match(r"^[A-Za-z0-9_./-]+\s*$", txt)):
+                return (_clean(txt), "comment")
+            continue
+        if started:
+            break
+    # 5. first markdown H1
+    for ln in lines[:60]:
+        m = re.match(r"#\s+(.+)", ln)
+        if m and path.endswith(".md"):
+            return (_clean(m.group(1)), "h1")
+    # 6. first meaningful non-comment line
+    for ln in lines[:40]:
+        s = ln.strip()
+        if s and not s.startswith(("#", "//", "---", "<!--", "{", "[")):
+            return (_clean(s), "firstline")
+    return ("", "none")
+
+
+def _has_shebang(path: str) -> bool:
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(2) == b"#!"
+    except OSError:
+        return False
+
+
+def indexable(path: str) -> bool:
+    if SKIP_SUFFIX.search(path):
+        return False
+    base = os.path.basename(path)
+    _, ext = os.path.splitext(base)
+    ext = ext.lower()
+    if ext in EXT or base in BASENAMES:
+        return True
+    # Extensionless shebang scripts (mios-* libexec/bin) -- the bulk of the tree.
+    return ext == "" and _has_shebang(path)
+
+
+def walk(roots: list[str]):
+    seen = set()
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for dirpath, dirnames, filenames in os.walk(root):
+            if SKIP_DIR.search(dirpath):
+                dirnames[:] = []
+                continue
+            dirnames[:] = [d for d in dirnames if not SKIP_DIR.search(os.path.join(dirpath, d))]
+            for fn in filenames:
+                p = os.path.join(dirpath, fn)
+                if p in seen or not indexable(p):
+                    continue
+                seen.add(p)
+                yield p
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-codebase-index")
+    ap.add_argument("--grep")
+    ap.add_argument("--root", action="append", default=None)
+    ap.add_argument("--gaps", action="store_true")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--write", nargs="?", const="/var/lib/mios/scratch/codebase-index.md")
+    a = ap.parse_args()
+    roots = a.root or DEFAULT_ROOTS
+    rows = []
+    for p in sorted(walk(roots)):
+        desc, via = describe(p)
+        rows.append({"path": p, "desc": desc, "via": via})
+
+    if a.json:
+        print(json.dumps(rows, indent=2))
+        return 0
+    if a.gaps:
+        gaps = [r for r in rows if r["via"] == "none" or not r["desc"]]
+        for r in gaps:
+            print(r["path"])
+        print(f"\n# {len(gaps)} of {len(rows)} files MISSING a description "
+              f"(need an AI-hint).", file=sys.stderr)
+        return 0
+
+    def render() -> str:
+        out = ["# MiOS unified CODEBASE index",
+               "_auto-generated by mios-codebase-index -- every doc/script/config "
+               "with its AI-hint. read_file or run the path on demand._", ""]
+        tagged = sum(1 for r in rows if r["via"] == "ai-hint")
+        out.append(f"_{len(rows)} files | {tagged} with explicit AI-hint | "
+                   f"{sum(1 for r in rows if r['via']=='none')} undescribed_")
+        out.append("")
+        cur = None
+        for r in rows:
+            d = os.path.dirname(r["path"])
+            if d != cur:
+                cur = d
+                out.append(f"\n## {d}\n")
+            out.append(f"{r['path']}  --  {r['desc'] or '(no description -- needs AI-hint)'}")
+        return "\n".join(out) + "\n"
+
+    text = render()
+    if a.write:
+        os.makedirs(os.path.dirname(a.write), exist_ok=True)
+        with open(a.write, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.chmod(a.write, 0o644)
+        print(f"[mios-codebase-index] wrote {a.write} "
+              f"({len(rows)} files, {text.count(chr(10))} lines)")
+        if not a.grep:
+            return 0
+    if a.grep:
+        for ln in text.splitlines():
+            if re.search(a.grep, ln):
+                print(ln)
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

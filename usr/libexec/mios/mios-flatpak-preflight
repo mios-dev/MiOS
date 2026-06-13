@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Validates if a flatpak app can successfully bootstrap its sandbox by running a probe command and checking for specific stderr signatures (GPU, portal, or D-Bus errors) to provide a synchronous "fail-fast" check before launch.
+# AI-related: /usr/libexec/mios/mios-flatpak-preflight, mios-fp-pre-XXXXXX, mios-wsl-flatpak-heal
+# AI-functions: _probe
 set -euo pipefail
 # /usr/libexec/mios/mios-flatpak-preflight <app-id>
 #

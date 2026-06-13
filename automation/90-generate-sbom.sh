@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Executes the Syft tool to scan the root filesystem and generate CycloneDX and SPDX manifest files in ${MIOS_USR_DIR}/artifacts/sbom for compliance and inventory tracking.
+# AI-related: mios-sbom
 # 'MiOS' v0.2.4  90-generate-sbom: Generate Software Bill of Materials (SBOM)
 # Uses Syft to generate CycloneDX and SPDX manifests for the final image.
 set -euo pipefail

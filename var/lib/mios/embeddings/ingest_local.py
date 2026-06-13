@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (LocalAI, Ollama, vLLM) and upserting the resulting vectors into the Qdrant vector database for RAG retrieval.
+# AI-related: mios-kb, localhost:8080, localhost:11434, localhost:8000, localhost:1234, localhost:4000, localhost:6333
+# AI-functions: embed_batch, stable_id, main
 """
 ingest_local.py — Embed chunks.jsonl against any OpenAI-API-compatible
 /v1/embeddings endpoint (LAW 5) and upsert into Qdrant.

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Installs systemd drop-in files for NVIDIA services to implement ExecCondition guards, ensuring units skip execution if the kernel's nvidia module is not yet registered by akmods/depmod.
+# AI-related: mios-akmod-guard, systemd.service
 # ============================================================================
 # automation/36-akmod-guards.sh - 'MiOS' v0.2.4
 # ----------------------------------------------------------------------------

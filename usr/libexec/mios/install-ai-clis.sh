@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Install MiOS-default AI assistant CLIs (Claude Code + Gemini CLI) as
+# AI-related: /usr/libexec/mios/install-ai-clis.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml
+# AI-functions: _resolve_npm_globals
 set -euo pipefail
 # /usr/libexec/mios/install-ai-clis.sh
 #

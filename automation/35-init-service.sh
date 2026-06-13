@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Enables core MiOS systemd units (mios-role.service and mios-podman-gc.timer) by creating symlinks in multi-user.target.wants to ensure the Unified Role Engine and podman garbage collection are active.
+# AI-related: /usr/libexec/mios/role-apply, mios-role, mios-podman-gc, mios-role.service, mios-podman-gc.timer, multi-user.target
 # 'MiOS' v0.2.4 -- 35-init-service: Bridge to Unified Role Engine
 # This script ensures mios-role.service is correctly enabled.
 # The actual logic lives in /usr/libexec/mios/role-apply (system_files overlay).

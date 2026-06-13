@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation of deployment methods for MiOS, detailing specific build commands and configuration requirements for Hyper-V, WSL2, QEMU, ISO, and RAW disk images to guide automated deployment workflows.
+     AI-related: mios-dev, mios-plymouth -->
 # Deployment Targets — Hyper-V / WSL2 / QEMU / ISO / RAW
 
 > MiOS produces one OCI image and several disk-image artifacts via BIB.

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Provides a unified inventory of all launchable entities (Flatpaks, RPMs, Windows apps, shims, and service URLs) across all environments, used by agents to discover and target specific applications for execution.
+# AI-related: /usr/libexec/mios/mios-apps, mios-shim, mios-launch, mios-gui, mios-windows, mios-windows-apps, mios-hermes, mios-find, mios-open-url, localhost:9090
+# AI-functions: emit, _jsonesc, _is_wsl, header
 set -euo pipefail
 # /usr/libexec/mios/mios-apps [--json] [--names] [--filter <substr>] [--category <cat>]
 #

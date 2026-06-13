@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that launches a ttyd-wrapped PowerShell session via WSL interop, providing a browser-accessible interactive pwsh.exe terminal on port 7682 for the operator.
+# AI-related: /usr/libexec/mios/mios-ttyd-launch, /etc/mios/userenv.sh, mios-ttyd-launch, mios-ttyd-powershell, mios-powershell, mios-ttyd-bash, mios-as-operator, mios-ttyd-bash.service, network-online.target, multi-user.target
 # /usr/lib/systemd/system/mios-ttyd-powershell.service
 # Phase D.2 of the AgentOS roadmap: browser-accessible Windows-
 # side PowerShell terminal. Operator hits http://localhost:7682

@@ -1,3 +1,4 @@
+# AI-hint: Configures the 'which' command alias across different shells (bash, ksh, zsh) to ensure it correctly resolves functions and aliases in the current environment.
 # shellcheck shell=sh
 # Initialization script for bash, sh, mksh and ksh
 

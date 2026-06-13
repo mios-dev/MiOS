@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Universal launcher that resolves and executes applications across multiple environments (internal services, URLs, Windows binaries, MiOS shims, Linux GUI apps, and PATH binaries) based on a prioritized resolution logic.
+# AI-related: /usr/libexec/mios/mios-launch, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-open-url, mios-windows, mios-doctor, mios-flatpak-install, mios-skill-clone, mios-tool-clone, mios-gui
+# AI-functions: _alias_resolve, _pf_flatpak, _broker_dispatch, _launcher_override
 set -euo pipefail
 # /usr/libexec/mios/mios-launch <name> [args...]
 #

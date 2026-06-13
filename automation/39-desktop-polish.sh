@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Phase-2 build sub-phase: now mostly logs that Cockpit/NVIDIA/Ceph .desktop entries are delivered via the 08-system-files overlay; the only active work is staging the MOTD/fastfetch dashboard (profile.d/mios-motd.sh fallback) for terminal sessions.
+# AI-related: profile.d/mios-motd.sh, /usr/libexec/mios/motd., mios-motd
 # 'MiOS' v0.2.4 -- 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
 #
 # CHANGELOG v0.2.0:

@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for x86-64 microarchitecture optimization levels (v1-v4) used to determine which glibc-hwcaps packages to include in the build via the [hwcaps] table in mios.toml.
+     AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-rebuild -->
 # MiOS hwcaps — x86-64 microarchitecture optimization
 
 > Status: configurable, default off (`[hwcaps].level = "v1"`).

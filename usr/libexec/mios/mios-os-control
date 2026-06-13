@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: The primary entrypoint for MiOS OS-control, providing an OpenAI-compliant tool schema, verb catalog, and skill discovery system derived from mios.toml to allow LLMs to execute system operations without hardcoded logic.
+# AI-related: /usr/libexec/mios/mios-os-control, /usr/share/mios/skills/, /usr/share/mios/skills., /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/share/mios/skills, mios-os-recipe, mios-daemon-agent
 """/usr/libexec/mios/mios-os-control [subcommand] [flags]
 
 The unifying entrypoint for MiOS's OS-control surface: VERBS (atomic

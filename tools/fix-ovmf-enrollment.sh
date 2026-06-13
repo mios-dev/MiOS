@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: A root-level utility to ensure Secure Boot compatibility by downloading or generating pre-enrolled OVMF VARS files in /usr/share/edk2/x64/ for use in VM configurations.
 
 # OVMF Secure Boot Enrollment Fixer
 # Downloads or creates properly enrolled OVMF VARS files

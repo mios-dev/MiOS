@@ -1,3 +1,5 @@
+# AI-hint: Desktop entry for the code-server web IDE, providing a launcher for agents to identify and open the MiOS development environment at the local port 8080 via the system's default browser.
+# AI-related: localhost:8080
 [Desktop Entry]
 Type=Application
 Version=1.0

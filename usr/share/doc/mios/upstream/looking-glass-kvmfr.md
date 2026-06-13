@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation for the KVMFR kernel module and Looking Glass B7 client, detailing the shared-memory framebuffer relay used for low-latency GPU passthrough display and its integration with SELinux. -->
 # Looking Glass B7 + KVMFR
 
 > MiOS bakes the KVMFR shared-memory kernel module and the Looking

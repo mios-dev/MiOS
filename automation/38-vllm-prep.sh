@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Bakes vLLM model weights into the image at /usr/share/mios/vllm/model if MIOS_VLLM_BAKE_MODEL is set, enabling offline serving via the mios-vllm Quadlet for air-gapped environments.
+# AI-related: /usr/share/mios/vllm/model, mios-vllm, mios-grounding, mios-vllm.container
 # automation/38-vllm-prep.sh -- bake the vLLM heavy-lane weights into the image
 # so the mios-vllm Quadlet serves them OFFLINE (vLLM/HF will NOT download
 # air-gapped at runtime). Mirrors automation/37-ollama-prep.sh: build-time,

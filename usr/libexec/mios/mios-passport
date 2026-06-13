@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: CLI tool for managing Ed25519 identity keys for MiOS agents, used to provision, rotate, and verify signed passport envelopes for authenticated SurrealDB operations like tool calls and skill invocations.
+# AI-related: mios-daemon, mios-db, mios-skills, mios-kg
+# AI-functions: additionally
 """mios-passport -- Phase C.3 Agent Passport (Ed25519 signing) CLI.
 
 Per-agent identity tokens. Every agent in the MiOS stack

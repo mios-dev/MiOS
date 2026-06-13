@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Registers the MiOS Computer Use tool into webui.db to provide the LLM with direct desktop control, vision grounding, and doc-gen capabilities via typed tool_calls instead of generic shell commands.
+# AI-related: /usr/share/mios/openwebui/tools/mios_computer_use.py, mios-owui-install-tools, mios-hermes-firstboot, mios-docgen, mios-agent, mios-owui-bootstrap-admin, mios-hermes-firstboot.service
 """mios-owui-install-computer-use -- idempotent registration of the MiOS
 Computer-Use OWUI Native tool (WS-4 P0) into webui.db's `tool` table, so the
 chat model gets the desktop control + vision grounding + doc-gen verbs as typed

@@ -13,6 +13,8 @@ metadata:
     requires_tools:
       - terminal
 ---
+<!-- AI-hint: Defines the `everything-search` skill for the Hermes agent to perform authoritative, high-speed searches across all mounted NTFS drives via the `mios-everything` wrapper when standard search tools fail.
+     AI-related: /usr/share/mios/hermes/skills/everything-search/SKILL.md._, mios-find, mios-apps, mios-everything, mios-launch, mios-window-active -->
 
 # Everything Search — authoritative Windows-side file finder
 

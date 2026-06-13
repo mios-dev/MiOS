@@ -1,4 +1,6 @@
 #!/bin/sh
+# AI-hint: Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg compositor.
+# AI-related: /usr/libexec/mios/mios-wslg-env-import
 # /usr/libexec/mios/mios-wslg-env-import
 #
 # Push the WSLg display environment into the systemd --user manager AND the D-Bus

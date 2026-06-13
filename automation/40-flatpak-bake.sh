@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs operator-selected Flatpaks into the system image during the build process to ensure the final deployment (ISO, VHDX, etc.) contains the user's chosen desktop applications without requiring a network connection on first boot.
+# AI-related: 10-gnome.sh, /usr/share/mios/flatpak-list, /usr/share/mios/vendored/, /usr/lib/mios/state, /usr/lib/mios/state/flatpak-bake.env, mios-flatpak-install
 # 40-flatpak-bake: install operator-selected Flatpaks AT BUILD TIME so
 # every deploy shape (raw, vhdx, qcow2, ISO, WSL2 distro, Podman-WSL OCI
 # host) carries them baked into the image. Replaces the first-boot

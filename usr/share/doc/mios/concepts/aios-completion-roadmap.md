@@ -1,3 +1,4 @@
+<!-- AI-hint: Maps MiOS's current architectural progress against the Rutgers AIOS and 2025-26 industry standards to identify specific technical gaps in scheduling, memory management, and federation for agentic evolution. -->
 # MiOS → complete AIOS: research synthesis + continuation roadmap (2026-06-07)
 
 Synthesis of four cited research passes (AIOS reference architecture; kernel resource

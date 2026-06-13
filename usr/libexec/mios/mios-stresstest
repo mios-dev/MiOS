@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A developer tool to stress-test the agent-pipe chat endpoint via a Python harness, used to validate system stability, concurrency limits, and latency under load.
+# AI-related: /usr/libexec/mios/mios-stresstest, /usr/lib/mios/agent-pipe/mios_stress.py, localhost:8640
 # /usr/libexec/mios/mios-stresstest -- end-to-end direct-chat stress test of the
 # MiOS agent-pipe (/v1/chat/completions). Bounded, load-aware, completes every
 # turn (never orphans). Operator/dev tool -- NOT an agent verb (no chat turn can

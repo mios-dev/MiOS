@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Initializes the Hermes gateway and web-ui components by generating /etc/mios/hermes/api.env and seeding /var/lib/mios/hermes/config.yaml based on mios.toml configurations during first boot.
+# AI-related: /etc/mios/hermes/api.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-dashboard.sh, /etc/mios/hermes, /etc/mios/hermes/discord.env, /usr/lib/mios/agents/.venv., /usr/lib/mios/agents/.venv/bin/hermes, /usr/lib/mios/hermes-agent/.venv/bin/hermes, /usr/libexec/mios/mios-pc-vision
+# AI-functions: _log, _mios_toml_layers, _mios_toml_value, _mios_toml_catalog, _sync_discord_env_var, _op_cfg_should_reseed, _soul_should_seed, _build_soul_runtime_ctx, _refresh_soul_ctx, _skill_should_seed, _seed_one_skill, _wait_for_owui
 # MiOS -- mios-hermes-firstboot: generate /etc/mios/hermes/api.env if missing
 # AND seed /var/lib/mios/hermes/config.yaml with the model selected in
 # mios.toml [ai] + [ai.host_thresholds] auto-pick.

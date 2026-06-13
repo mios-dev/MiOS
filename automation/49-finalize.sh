@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Finalizes the build by applying systemd presets, setting the default boot target, scrubbing credential leaks, purging DNF caches, and generating the MiOS version metadata files in /usr/lib/mios/.
+# AI-related: /usr/lib/mios/., /etc/mios/role.conf, /etc/mios/version, mios-version, graphical.target, multi-user.target
 # 49-finalize.sh - final cleanup, systemd preset application, image linting
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"

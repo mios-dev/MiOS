@@ -1,3 +1,4 @@
+# AI-hint: Configures kernel arguments for GPU hardware compatibility, specifically disabling AMD GPU power management libraries and enabling Intel GUC for x86_64 systems to ensure stable graphics drivers.
 # 'MiOS' v0.2.4 -- Silicon-specific GPU workarounds
 match-architectures = ["x86_64"]
 kargs = [

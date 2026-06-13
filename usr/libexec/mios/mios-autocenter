@@ -1,4 +1,6 @@
 #!/bin/sh
+# AI-hint: Executes a polling loop to identify and center newly mapped windows (WSLg/Flatpak) by comparing current HWNDs against a pre-launch snapshot via the os_control executor to ensure correct placement of main application windows.
+# AI-related: /usr/libexec/mios/mios-autocenter
 # /usr/libexec/mios/mios-autocenter <executor-endpoint> <before-hwnds-csv>
 #
 # Honour the operator rule "all apps launch CENTERED ALWAYS!" for WSLg /

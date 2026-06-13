@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Unit test script to verify that the `_strip_think_tags` function correctly removes Qwen-style reasoning blocks from sub-agent outputs before they are displayed in the operator's chat stream.
+# AI-related: /usr/lib/mios/agent-pipe
+# AI-functions: main
 """Verify _strip_think_tags removes qwen3 reasoning leaks from
 sub-agent output before it reaches the operator's chat stream.
 """

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Registers the authoritative MiOS knowledge corpus from FHS paths into the Open WebUI database, linking specific files and their content to the MiOS-Agent model row for RAG-enabled context.
+# AI-related: /usr/share/mios/ai/, /usr/share/mios/docs/, /usr/share/mios/hermes/skills/, /usr/share/mios/cookbooks/, /usr/share/mios/prompts/, /etc/mios/system-prompts/, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/ai/audit-prompt.md, /usr/share/mios/ai/hermes-soul.md
 """mios-owui-apply-knowledge -- attach a MiOS-Documentation Knowledge
 collection to the MiOS-Agent model row in Open WebUI, sourced
 DIRECTLY from the FHS.

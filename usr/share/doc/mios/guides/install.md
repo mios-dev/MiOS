@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for integrating the MiOS knowledge base into OpenAI-compatible runtimes, providing specific procedures for local inference, vector DB setup, and RAG ingestion.
+     AI-related: /usr/share/mios/api/chat.local.example.json, mios-ai, mios-env, mios-kb, mios-knowledge, mios-dev, mios-src, mios-ai.container, localhost:8080, localhost:11434 -->
 # usr/share/doc/mios/guides/install.md -- Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
 
 Two recipe classes — pick the one matching your stack. Both target an

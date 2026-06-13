@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Processes boot arguments from kargs.d/*.toml files into a single string at /usr/lib/kernel/cmdline to prepare the Unified Kernel Image (UKI) during the build or deployment phase.
 set -euo pipefail
 
 echo "==> Preparing Unified Kernel Image (UKI) configuration..."

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Provides a shell-compatible entry point for the MiOS agent, mapping the @ symbol to the mios CLI to unify interactive and piped command inputs into a single agent interface.
+# AI-related: mios-agent
 # /usr/bin/@
 # Real-binary form of the '@' invocation. Pipes and scripts use this.
 # Interactive shells use the widget in /etc/profile.d/mios-agent.sh.

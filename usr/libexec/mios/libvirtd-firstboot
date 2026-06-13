@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Initializes libvirt infrastructure by ensuring modular sockets are active, defining the 'mios' network and 'images' storage pool, and configuring autostart for first-boot deployment.
+# AI-related: /usr/lib/mios/paths.sh, mios-libvirtd-setup, mios-libvirtd-firstboot, mios-br0, mios-libvirtd-setup.service, libvirtd.service, virtqemud.socket, virtnetworkd.socket, virtstoraged.socket, virtnodedevd.socket
+# AI-functions: _log
 # 'MiOS' libvirtd first-boot wiring.
 # Run by mios-libvirtd-setup.service once per deploy (sentinel:
 # /var/lib/mios/libvirtd-setup.done, written by ExecStartPost in the

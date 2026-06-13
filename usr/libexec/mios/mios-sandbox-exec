@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Executes agent-generated code within a bubblewrap-based userspace sandbox, enforcing filesystem isolation, resource limits (cgroups), and network restrictions based on specified security levels.
+# AI-related: /usr/libexec/mios/mios-sandbox-exec, mios-ai
+# AI-functions: _log, run_bwrap
 # /usr/libexec/mios/mios-sandbox-exec [opts] -- <command> [args...]
 #
 # P4.4 (agent-code sandbox): run AGENT-GENERATED code/commands inside a

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides high-speed (<100ms) retrieval of the SurrealDB-cached directory map to allow agents to perform rapid file/directory lookups and navigation instead of slow filesystem crawls.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-daemon, mios-find, mios-sys-env, localhost:8000
 """mios-directory-lookup -- query the cached directory map that
 mios-daemon's index_loop maintains in SurrealDB.
 

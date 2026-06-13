@@ -1,3 +1,5 @@
+# AI-hint: The Justfile defines the primary build, deployment, and lifecycle automation for MiOS, providing targets for preflight checks, overlay initialization, ISO creation, and OCI image building via podman.
+# AI-related: ./tools/lib/userenv.sh, /usr/libexec/mios/flight-control.sh, /usr/share/mios/build-logs/latest-build.log, /etc/mios/install.env, /etc/mios/forge/admin-password, mios-overlay, mios-qcow2-XXXXXX, mios-vhdx-XXXXXX, mios-wsl2-export, mios-rootfs
 # 'MiOS' v0.2.4 - Linux Build Targets
 # Requires: podman, just
 # Usage: just build | just iso | just all

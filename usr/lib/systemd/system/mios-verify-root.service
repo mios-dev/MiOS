@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/verify-root.sh to validate the integrity of the root filesystem during early boot, gated by the presence of /run/ostree-booted.
+# AI-related: /usr/libexec/mios/verify-root.sh, greenboot-healthcheck.service, ostree-remount.service, basic.target, local-fs.target
 [Unit]
 Description='MiOS' Root Filesystem Verification
 Documentation=file:///usr/share/doc/mios/COMPOSEFS-VERIFICATION.md

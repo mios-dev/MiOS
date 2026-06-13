@@ -1,3 +1,5 @@
+<!-- AI-hint: Documents the Day-0 initialization sequence, including systemd-firstboot, repository cloning, Qdrant indexing, and agent service activation, providing a reference for verifying boot status and troubleshooting failures.
+     AI-related: /usr/share/mios/docs/day-0/FIRST-BOOT.md, /etc/mios/agents/.local_key, /etc/mios/agents/localai.enabled, mios-dev, mios-bootstrap, mios-kb-reindex, mios-agent, mios-firstboot, mios-bootstrap.service, mios-kb-reindex.service -->
 <!-- FHS: /usr/share/mios/docs/day-0/FIRST-BOOT.md -->
 
 # Day-0: First Boot of MiOS-DEV

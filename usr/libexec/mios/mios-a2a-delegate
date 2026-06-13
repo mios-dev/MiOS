@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Python shim for mid-run agent-to-agent delegation via the /v1/a2a/dispatch endpoint, allowing agents to offload sub-tasks to peers and inject responses into their reasoning loop as a live bus.
 """mios-a2a-delegate -- mid-run agent-to-agent delegation over A2A.
 
 P2.2 (operator 2026-05-27 "collaborate not fan-out"): any in-flight

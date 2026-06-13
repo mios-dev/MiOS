@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Post-build build script that enforces Architectural Law 7 (OFFLINE-FIRST) by scanning the Hermes dashboard web distribution and replacing all googleapis.com font URLs with inert data URIs to prevent runtime external network requests.
+# AI-functions: main
 """Strip externally-hosted asset URLs from the built Hermes dashboard.
 
 Runs after `npm run build` against `<repo>/hermes_cli/web_dist`. The

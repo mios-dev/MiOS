@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A shim script that injects a minimal Python stub for the missing `hermes_cli.dashboard_auth` package to prevent `hermes-dashboard.service` from crash-looping due to a broken upstream import in the web_server.py module.
+# AI-related: /usr/lib/mios/agents/.venv/lib64/python3.14/site-packages, /usr/lib/mios/agents/.venv/bin/python3, hermes-dashboard.service, hermes-agent.service
 # mios-hermes-dashboard-auth-stub
 #
 # Hermes-Agent v0.15.0 (build 2026.5.28) ships web_server.py with

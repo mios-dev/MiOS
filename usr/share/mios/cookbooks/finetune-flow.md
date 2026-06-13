@@ -1,3 +1,5 @@
+<!-- AI-hint: A technical guide for agents to execute a two-stage SFT-then-DPO fine-tuning pipeline using tools like axolotl, trl, or MLX-LM to align models with MiOS-specific formatting and preference constraints.
+     AI-related: /usr/share/mios/cookbooks/finetune-flow.md, mios-sft, mios-knowledge, mios-eval-report -->
 # Cookbook: SFT → DPO Fine-Tuning Flow
 
 > Full path: `/usr/share/mios/cookbooks/finetune-flow.md`

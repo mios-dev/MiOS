@@ -1,3 +1,5 @@
+# AI-hint: Defines the core MiOS boot-time service presets, enabling essential infrastructure like WSLg fixes, container storage permissions, firewall rules, virtualization daemons, and networking services.
+# AI-related: /etc/mios/cron-rules.toml, /etc/mios/forge/runner-token, mios-role, mios-wslg-permissions-fix, mios-additionalimagestores-perms, mios-firewall-ports, mios-delegation-prefilter, mios-gpu-detect, mios-selinux-init, mios-sriov-init
 # 'MiOS' systemd preset
 # "enable" = on boot; "disable" = off. Role-specific services are NOT here;
 # mios-role.service enables/disables them at runtime based on role.conf.

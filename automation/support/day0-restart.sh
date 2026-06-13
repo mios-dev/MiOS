@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Restarts core MiOS agent and daemon services to clear stale state and regenerate day-0 credentials/keys after a system wipe or configuration reset.
+# AI-related: mios-agent-pipe, mios-daemon, mios-open-webui, mios-agent-pipe.service, mios-daemon.service
 # Restart MiOS agent services post-wipe so they regenerate their
 # day-0 state cleanly (passport keys, satisfaction loop baseline,
 # session dirs, etc.).

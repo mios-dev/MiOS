@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the MiOS three-tier permission model (USER/SYSTEM/AI) and the specific GID-based bucket groups (mios-ai, mios-sys) used to gate cross-service data access and define ACL requirements for shared resources.
+     AI-related: mios-ai, mios-sys, mios-ollama, mios-open-webui, mios-hermes, mios-surrealdb, mios-agent-pipe, mios-ollama-cpu, mios-searxng, mios-guacamole -->
 # MiOS Linux user / group model
 
 Operator directive 2026-05-18: *"consolidate MiOS Linux users/wheel(s)/

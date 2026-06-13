@@ -1,3 +1,5 @@
+<!-- AI-hint: Provides the core MiOS knowledge base and architectural facts (hardware, stack, and infrastructure) for grounding agent reasoning and ensuring technical accuracy across the system.
+     AI-related: /usr/share/mios/ai/system.md, /etc/mios/MiOS.md, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/agents/opencode/bin/, mios-delegation-prefilter, mios-opencode-gateway, mios-searxng, mios-open-webui, mios-bootstrap -->
 > _FHS: `/usr/share/mios/ai/system.md` — canonical MiOS AI grounding /
 > knowledge base (the CONTEXT layer). This is NOT the identity SSOT: the agent
 > identity, posture, and tool/agent doctrine live in `/MiOS.md` (layered

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a dual-protocol (MCP/A2A) and REST-compliant FastAPI server that exposes local desktop automation tools, window management, and input injection as a federated capability for the central agent-pipe.
+# AI-related: /usr/lib/mios/agents/.venv, /etc/mios/ai/v1/mcp.json, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-computer-use, mios-oscontrol-server, mios-token
 """mios-computer-use-server -- dual MCP + A2A + REST-executor server for a
 MiOS/Linux desktop node, so the central agent-pipe CONSUMES this desktop as a
 first-class federated capability (full MCP AND A2A).

@@ -1,3 +1,5 @@
+<!-- AI-hint: Instructional guide for ingesting the MiOS knowledge base into an OpenAI-compatible Vector Store API, providing the specific workflow for creating vector stores, uploading files, and mapping IDs.
+     AI-related: /usr/share/mios/cookbooks/ingest-kb.md, /usr/share/mios/api/responses.example.json, mios-kb, mios-file-ids, mios-knowledge, localhost:8080 -->
 # Cookbook: Ingest the MiOS KB via the OpenAI Vector Stores API shape
 
 > Full path: `/usr/share/mios/cookbooks/ingest-kb.md`

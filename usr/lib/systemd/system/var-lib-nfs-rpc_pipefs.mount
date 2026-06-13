@@ -1,3 +1,5 @@
+# AI-hint: Mounts the RPC pipe file system at /var/lib/nfs/rpc_pipefs to provide the necessary mount points for NFS RPC services and client operations.
+# AI-related: systemd-tmpfiles-setup.service, umount.target
 [Unit]
 Description=RPC Pipe File System
 DefaultDependencies=no

@@ -1,3 +1,5 @@
+# AI-hint: Quadlet configuration for the mios-webtools-redis container, providing a loopback-only (127.0.0.1:6380) Redis instance for Firecrawl's queue and ratelimit storage within the mios-webtools pod.
+# AI-related: mios-webtools-redis, mios-webtools, qdrant.container, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-webtools-redis.container
 # 'MiOS' web-tools POD member 1/4 -- redis (firecrawl's queue + ratelimit store).
 #

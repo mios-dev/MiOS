@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the rechunk tool used during Phase-3 builds to optimize bootc upgrade deltas by consolidating OCI layers into a deterministic 67-layer structure to minimize data transfer during updates.
+     AI-related: mios-build-local -->
 # rechunk — Day-2 Delta Optimization
 
 > Used by `just rechunk` (and the `mios-build-local.ps1` Phase-3) via

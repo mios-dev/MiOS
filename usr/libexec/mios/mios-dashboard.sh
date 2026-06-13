@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: MiOS live system dashboard. Renders to ANY tty -- detects color
+# AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/share/mios/mios.toml, /etc/mios/install.env, /usr/share/mios/VERSION, /etc/mios/VERSION, /usr/share/mios/branding/mios.txt, /etc/mios/mios.toml, /etc/mios/forge/admin-password, /usr/share/mios/fastfetch/config.jsonc, mios-dashboard
+# AI-functions: _mios_toml_value, hr_repeat, frame_top, frame_bot, frame_divide, frame_blank, frame_filter, print_ascii_header, print_title, section_header, service_status, endpoint_up
 # /usr/libexec/mios/mios-dashboard.sh
 #
 # MiOS live system dashboard. Renders to ANY tty -- detects color

@@ -1,3 +1,4 @@
+# AI-hint: Configures shell environment aliases for grep, egrep, and fgrep to enable automatic color output for terminal-based text searching and filtering.
 # color-grep initialization
 
 /usr/libexec/grepconf.sh -c || return

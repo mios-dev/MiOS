@@ -1,3 +1,5 @@
+<!-- AI-hint: A read-only system prompt for AI agents to enforce strict non-mutating constraints and architectural compliance checks during security or structural audits of the MiOS codebase.
+     AI-related: automation/lib/common.sh, mios-dev, mios-llm, mios-ceph, mios-k3s, mios-grd-setup -->
 # usr/share/mios/ai/audit-prompt.md
 
 Read-only audit-mode system prompt for any OpenAI-API-compatible agent

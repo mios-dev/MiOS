@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the bootc tool, which MiOS uses as the primary mechanism for host-state mutations, image-based deployments, and system upgrades via OCI images.
+     AI-related: /usr/lib/mios/tools/responses-api/bootc_status.json, mios-dev, mios-bootstrap -->
 # bootc — Bootable Containers (CNCF Sandbox)
 
 > Used by MiOS for: every host-state mutation. `Containerfile` produces

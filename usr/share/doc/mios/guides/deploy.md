@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for deploying MiOS via OCI images, bootc-managed Fedora hosts, FHS Fedora hosts, or various disk formats (RAW, ISO, QCOW2, VHDX, WSL2) using the provided Justfile recipes and bootstrap scripts.
+     AI-related: /etc/mios/install.env, /etc/mios/manifest.json, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/system.md, /etc/mios/forge/admin-password, mios-bootstrap, mios-dev, mios-ci, mios-forge, mios-forge-firstboot -->
 # Deployment
 
 This document covers how to deploy a built 'MiOS' image. For build

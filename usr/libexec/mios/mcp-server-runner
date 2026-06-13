@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Executes the Model Context Protocol (MCP) server by detecting and running a custom entrypoint at /srv/ai/mcp/ or falling back to the built-in MiOS verb relay on port 8765.
+# AI-related: /srv/ai/mcp/server.sh, /usr/lib/mios/paths.sh, /usr/libexec/mios/mios-mcp-server, mios-mcp-server, mios-mcp, mios-mcp.service, localhost:8080
+# AI-functions: _log
 # 'MiOS' MCP server runtime wrapper (ExecStart for mios-mcp.service).
 # Discovers and runs the MCP server entrypoint under /srv/ai/mcp/. Three
 # entrypoint forms are supported (first match wins):

@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining the core MiOS daemon; it consolidates log watching, cron gating, and agent nudging into a single process using a local qwen3 model to update the state.json file used by the OWUI sidecar.
+# AI-related: /usr/libexec/mios/mios-daemon, /etc/mios/secrets.env, /etc/mios/daemon/cron.toml, mios-daemon, mios-log-watcher, mios-cron-director, mios-agent-nudger, mios-ai, mios-delegation-prefilter, mios-open-webui
 [Unit]
 # /usr/lib/systemd/system/mios-daemon.service
 #

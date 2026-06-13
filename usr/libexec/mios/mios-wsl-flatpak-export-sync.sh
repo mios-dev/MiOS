@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Mirror flatpak's `.desktop` + icon exports into the system XDG dirs so
+# AI-related: /usr/libexec/mios/mios-wsl-flatpak-export-sync.sh, mios-wsl-flatpak-export-sync, mios-wsl-flatpak-export-sync.service
+# AI-functions: _log
 # /usr/libexec/mios/mios-wsl-flatpak-export-sync.sh
 #
 # Mirror flatpak's `.desktop` + icon exports into the system XDG dirs so

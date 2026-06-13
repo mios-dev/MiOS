@@ -1,3 +1,5 @@
+<!-- AI-hint: Roadmap for evolving the MiOS agent stack toward the 2025-2026 AgentOS architecture, identifying specific technical gaps (DAG decomposition, deliberative loops, event buses) and the phased engineering plan to resolve them.
+     AI-related: mios-agent-pipe, mios-launcher, mios-pc-control, mios-windows, mios-daemon, mios-ollama-cpu, mios-igpu-server, mios-reasoner-cpu, mios-skills, mios-skills-miner -->
 # MiOS AgentOS Roadmap
 
 Architectural roadmap for evolving the MiOS agent stack toward the

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Use this script to provision the mios-pgvector PostgreSQL container, including setting up the data directory, deploying the schema, rendering the Quadlet configuration, and verifying the vector extension.
+# AI-related: /usr/share/mios/postgres, /usr/share/mios/postgres/schema-init.sql, mios-pgvector, mios-pgvector.container, mios-pgvector.service
 # automation/support/bringup-pgvector.sh -- stand up mios-pgvector on a dev VM
 # (WS-9 / T23 cutover step 1: the container). ADDITIVE -- runs ALONGSIDE SurrealDB;
 # the agent-pipe dual-writes (db_backend=dual) once psycopg is in the venv (step 2,

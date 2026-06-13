@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Detects virtualization status to automatically toggle NVIDIA driver blacklisting and configure the GSK_RENDERER environment for optimal software fallback in VMs or hardware acceleration on bare metal.
+# AI-related: mios-gpu-detect, mios-virt-gpu, mios-renderer, mios-nvidia-blacklist, mios-gpu-detected
 set -euo pipefail
 VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
 echo "[mios-gpu-detect] Virtualization: $VIRT"

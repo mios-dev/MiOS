@@ -1,3 +1,5 @@
+<!-- AI-hint: Conceptual documentation of the Computer-Use Federation, defining the unified MCP/A2A architecture for Linux/Wayland desktop control via the `cu_*` verb catalog, `mios-computer-use` executor, and `mios-pc-vision` grounding.
+     AI-related: /usr/libexec/mios/mios-computer-use, /usr/libexec/mios/mios-pc-vision, /usr/libexec/mios/mios-computer-use-server, /etc/mios/ai/v1/mcp.json, /etc/mios/ai/v1/a2a-peers.json, mios-computer-use, mios-pc-vision, mios-computer-use-server, mios-pc-control, mios-grounding -->
 # Computer-Use Federation (MCP + A2A)
 
 **Status:** shipped 2026-06-04. Linux/Wayland desktop computer-use delivered

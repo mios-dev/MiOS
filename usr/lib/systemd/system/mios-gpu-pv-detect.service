@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/gpu-pv-detect to detect Hyper-V GPU Partitioning (GPU-PV) capabilities during boot, enabling hardware acceleration for guests on Microsoft Hyper-V hosts.
+# AI-related: /usr/libexec/mios/gpu-pv-detect, systemd-modules-load.service, display-manager.service, multi-user.target
 [Unit]
 Description='MiOS' Hyper-V GPU-PV Guest Detection
 DefaultDependencies=no

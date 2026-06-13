@@ -1,4 +1,7 @@
 #!/bin/sh
+# AI-hint: Executes `flatpak override` to apply global theme, portal, and cursor settings from `mios.toml` to all flatpak applications, ensuring consistent UI styling across the system.
+# AI-related: /usr/libexec/mios/mios-flatpak-overrides-apply, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-hermes-firstboot, mios-flatpak-init, mios-cursor-ensure
+# AI-functions: _toml_get
 # /usr/libexec/mios/mios-flatpak-overrides-apply
 #
 # Apply the MiOS-managed global flatpak override (theming + portal +

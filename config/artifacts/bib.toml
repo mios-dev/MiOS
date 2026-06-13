@@ -1,3 +1,4 @@
+# AI-hint: Defines bootc-image-builder filesystem constraints for the root mountpoint, specifically enforcing a minimum 80 GiB size to ensure sufficient disk space for runtime operations.
 # 'MiOS' -- bootc-image-builder configuration
 # Ensures disk images have enough free space for runtime operations
 

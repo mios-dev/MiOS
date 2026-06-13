@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sriov-init to initialize SR-IOV network interfaces during the multi-user.target boot stage, ensuring hardware-accelerated networking is active.
+# AI-related: /usr/libexec/mios/mios-sriov-init, mios-sriov-init, multi-user.target, network-pre.target
 [Unit]
 Description='MiOS' Universal SR-IOV Initialization
 After=network-pre.target

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script to verify the availability and response of the local inference engine at port 11435 by probing the /v1/chat/completions endpoint and listing available models via /api/tags.
+# AI-related: localhost:11435
 set -euo pipefail
 echo "── direct probe of refine endpoint ──"
 curl -s -w 'HTTP %{http_code} in %{time_total}s\n' \

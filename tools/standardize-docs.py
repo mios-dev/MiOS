@@ -1,3 +1,5 @@
+# AI-hint: A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links.
+# AI-functions: standardize_file
 import os
 import re
 

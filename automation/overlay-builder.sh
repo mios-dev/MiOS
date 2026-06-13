@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to mirror a production MiOS environment for hosting Quadlets.
+# AI-related: /usr/lib/mios/logs, mios-ollama, mios-forge, mios-guacamole, mios-pxe-hub, mios-crowdsec, mios-guacd, mios-postgres, mios-virt, mios-tmpfiles-prereq
+# AI-functions: _rsync_in
 # 'MiOS' MiOS-DEV overlay -- makes the build-host podman machine look and
 # feel like a Live 'MiOS' environment so it can host the same Quadlets the
 # deployed image runs (manifesto: "MiOS-DEV is the source upon what MiOS

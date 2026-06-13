@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Executes PowerShell scripts on Windows via pwsh.exe or powershell.exe, providing a first-class `powershell_run` verb for agents to interact with Windows cmdlets, registry, and COM objects with standardized JSON output.
+# AI-related: /usr/libexec/mios/mios-powershell, mios-ttyd-powershell, mios-ps-XXXXXX, mios-ps, mios-ps-out-XXXXXX, mios-ps-err-XXXXXX, mios-ttyd-powershell.service
+# AI-functions: usage, _truncate
 set -euo pipefail
 # /usr/libexec/mios/mios-powershell <script>
 #

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: CLI tool for managing the SurrealDB-backed Personal Knowledge Graph (PKG) to resolve ambiguous user phrases into concrete app targets via the kg_lookup() helper in the agent-pipe.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-apps, args.target
 """mios-kg -- Personal Knowledge Graph CLI for the MiOS agent stack.
 
 Phase C.1 of the AgentOS roadmap. Manages the operator-preference

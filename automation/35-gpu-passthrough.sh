@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Configures GPU passthrough by symlinking systemd unit files for NVIDIA/AMD/Intel drivers into the multi-user.target.wants directory and enabling the container_use_devices SELinux boolean.
+# AI-related: mios-gpu-status, mios-gpu-nvidia, mios-gpu-amd, mios-gpu-intel, multi-user.target, mios-gpu-status.service, mios-gpu-nvidia.service, mios-gpu-amd.service, mios-gpu-intel.service
 # ============================================================================
 # 'MiOS' v0.2.4 - 35-gpu-passthrough.sh
 # ----------------------------------------------------------------------------

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Queries the local SQL database via a curl-to-python pipeline to inspect and print the details of the 5 most recent "refine" event payloads, including intent, target_agent, and task lists.
+# AI-functions: print
 set -euo pipefail
 curl -s -u root:root \
     -H "NS: mios" -H "DB: agent" \

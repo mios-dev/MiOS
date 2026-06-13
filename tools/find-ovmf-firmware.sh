@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Scans /usr/share for OVMF firmware files and maps CODE/VARS pairs to identify valid firmware configurations for QEMU/KVM boot environments.
+# AI-functions: find_vars_for_code
 
 # OVMF Firmware Discovery Script
 # Finds all OVMF firmware files and identifies usable CODE/VARS pairs

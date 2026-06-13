@@ -1,3 +1,5 @@
+# AI-hint: Source of truth for the MiOS-Agent refine pipe; maps canonical_verbs to intent descriptions and examples to make the model tool-aware and steer it toward specific shims like mios-find or mios-web-search.
+# AI-related: /usr/share/mios/owui/tool-hints.yaml, /usr/share/mios/configurator/mios.html, mios-find, mios-web-search, mios-everything, mios-apps, mios-gui-launch, mios-open-url, mios-show-image, mios-map
 # /usr/share/mios/owui/tool-hints.yaml
 #
 # Canonical-verb manifest -- the source of truth the MiOS-Agent pipe

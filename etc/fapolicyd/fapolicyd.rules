@@ -1,3 +1,4 @@
+# AI-hint: Defines the fapolicyd security policy to enforce a "deny-by-default" execution model, allowing only RPM-signed binaries (trust=1) and specific trusted binaries for root to prevent execution of unauthorized scripts in volatile paths.
 # Architectural Law: README.md/SECURITY.md document fapolicyd as
 # "deny-by-default". The previous form (`allow perm=any uid=0 : all`)
 # unconditionally bypassed the policy for every root process, which on a

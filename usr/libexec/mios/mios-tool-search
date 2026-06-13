@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A thin client for the agent-pipe tool-search endpoint that performs RAG-based retrieval of the verb catalog to resolve ambiguous intents via semantic similarity scoring.
+# AI-related: localhost:8640
 """mios-tool-search <query> [--limit N] [--json]
 
 Natural-language search over the agent-pipe verb catalog. Calls

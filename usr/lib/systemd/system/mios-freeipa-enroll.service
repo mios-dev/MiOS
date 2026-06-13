@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes mios-freeipa-enroll.sh to perform zero-touch FreeIPA enrollment for WSL and non-containerized environments, triggered only if /etc/mios/ipa-enroll.env exists and /etc/ipa/default.conf is missing.
+# AI-related: /etc/mios/ipa-enroll.env, /usr/libexec/mios/mios-freeipa-enroll.sh, mios-freeipa-enroll, network-online.target, multi-user.target
 [Unit]
 Description='MiOS' FreeIPA Zero-Touch Enrollment
 ConditionPathExists=/etc/mios/ipa-enroll.env

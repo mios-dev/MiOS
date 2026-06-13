@@ -12,6 +12,8 @@ metadata:
     requires_tools:
       - delegate_task
 ---
+<!-- AI-hint: Defines the parallel-fanout skill for Hermes to replace serial tool-call loops with `delegate_task(tasks=[...])` when processing independent subtasks like multi-file audits or multi-host queries to optimize execution via child agents.
+     AI-related: /usr/share/mios/hermes/skills/parallel-fanout/SKILL.md., mios-hermes-firstboot, mios-ollama, hermes-agent.service, localhost:11434 -->
 
 # Parallel fan-out via `delegate_task`
 

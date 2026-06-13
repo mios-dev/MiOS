@@ -1,3 +1,5 @@
+# AI-hint: A Quadlet pod definition for the mios-webtools suite, grouping redis, firecrawl-api, firecrawl-worker, and crawl4ai into a single Network=host pod to enable local communication and host-level port binding.
+# AI-related: mios-webtools, mios-webtools-redis, mios-webtools-firecrawl-api, mios-webtools-firecrawl-worker, mios-webtools-crawl4ai, mios-crawl4ai-slim, mios-webtools-pod, mios-ollama-cpu, mios-hermes-browser, mios-webtools.container
 # /usr/share/containers/systemd/mios-webtools.pod
 # 'MiOS' web-tools POD -- FOUR co-located web-service containers in ONE pod.
 #

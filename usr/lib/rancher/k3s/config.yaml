@@ -1,3 +1,4 @@
+# AI-hint: Defines the K3s cluster configuration for MiOS, specifying the SQLite storage engine, SELinux status, and disabling default Traefik/ServiceLB components to allow custom ingress/load balancing.
 # MiOS K3s Server Configuration
 # Single-node SQLite default (use --cluster-init for multi-node etcd)
 write-kubeconfig-mode: "0644"

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Diagnostic script to verify the `directory_entry` table existence, row counts, and query performance via the local SQL API to debug filesystem indexing issues in the mios-daemon.
+# AI-related: mios-daemon, mios-daemon.service, localhost:8000
 set -euo pipefail
 
 echo "── did directory_entry table land? ──"

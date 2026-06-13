@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the offline-first capability matrix for MiOS, mapping lifecycle phases (overlay, pull, build, deploy, run, host) to network requirements for local-only deployment and air-gapped operation.
+     AI-related: mios-bootstrap, mios-sys-agent -->
 # Law 7 — OFFLINE-FIRST capability matrix
 
 > Operator directive 2026-05-17: "if a user had; 1. a MiOS Image to

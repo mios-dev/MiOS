@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A test script that validates the `POST /api/v1/configs/suggestions` endpoint by injecting mock data into the Open WebUI configuration and verifying the persistence of prompt suggestions in the `webui.db` database.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 - <<'PYEOF'
 import sqlite3

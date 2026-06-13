@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining the llama-swap container to provide multi-model llama.cpp support with KV-paging and an OpenAI-compatible endpoint, used by agents as a high-performance, multi-model alternative to Ollama.
+# AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llama-swap, mios-surrealdb, mios-ollama, mios-services, network-online.target, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-llama-swap.container
 # 'MiOS' llama.cpp multi-model lane via llama-swap (WS-10, 2026-06-04).
 # ADDITIVE engine step toward the ollama -> llama.cpp conversion for fleet-wide

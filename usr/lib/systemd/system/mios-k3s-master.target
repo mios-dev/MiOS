@@ -1,3 +1,5 @@
+# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
+# AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target
 [Unit]
 Description='MiOS' K3s Master Role
 Requires=multi-user.target k3s.service

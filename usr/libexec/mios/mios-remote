@@ -1,4 +1,6 @@
 #!/bin/sh
+# AI-hint: Executes the Claude Code CLI with remote-control mode enabled to allow mobile-to-host session syncing via official Anthropic OAuth polling, providing a persistent mobile-driven development loop for MiOS.
+# AI-related: mios-ttyd-bash
 # mios-remote -- continue a Claude Code (MiOS dev) session from your phone via
 # the OFFICIAL Claude Code Remote Control (researched 2026-05-30).
 #

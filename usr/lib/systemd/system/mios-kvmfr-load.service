@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit to load the kvmfr kernel module and configure permissions for /dev/kvmfr0, enabling shared memory support for Looking Glass guest display.
+# AI-related: mios-looking-glass-enable, systemd-modules-load.service, libvirtd.service
 [Unit]
 ConditionVirtualization=!container
 Description=Load kvmfr kernel module (Looking Glass shared memory device)

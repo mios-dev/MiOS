@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Wipes all non-persistent AI state (chat history, kanban, memory, and browser profiles) while preserving core configs and models to provide a clean slate for testing or new sessions.
+# AI-related: /usr/libexec/mios/mios-ai-reset, mios-hermes-browser, mios-open-webui, mios-log-watcher, mios-cron-director, mios-hermes, mios-agent, hermes-agent.service, mios-open-webui.service, mios-log-watcher.service
+# AI-functions: _check_safe, _do
 set -euo pipefail
 # /usr/libexec/mios/mios-ai-reset [--dry-run]
 #

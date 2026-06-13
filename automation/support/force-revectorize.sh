@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Force-reindexes all files in every OWUI knowledge collection by cycling through /api/v1/knowledge/{id}/file/add endpoints to bypass metadata-only updates and trigger full chunking/embedding.
+# AI-related: /usr/libexec/mios/mios-knowledge-search, mios-knowledge-search, localhost:3030
 # Force OWUI to re-vectorize every file in every MiOS knowledge
 # collection. OWUI's /api/v1/knowledge/reindex only refreshes
 # metadata (returns 200 in ~4ms even for 32 files). The actual

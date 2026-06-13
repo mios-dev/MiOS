@@ -1,3 +1,4 @@
+# AI-hint: Configures the LESSOPEN environment variable to pipe input through lesspipe.sh, enabling interactive viewing of remote or dynamic content via the less pager.
 # less initialization script (sh)
 
 # All less.*sh files should have the same semantics!

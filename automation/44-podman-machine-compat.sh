@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Configures Podman machine backend compatibility by ensuring the 'core' user exists via sysusers and symlinking essential systemd units like podman.socket and qemu-guest-agent.service for container runtime support.
+# AI-related: podman.socket, qemu-guest-agent.service, sshd.service, cloud-init.service, cloud-final.service, multi-user.target
 # 44-podman-machine-compat.sh - Podman-machine backend compatibility.
 # Package installs moved to mios.toml [packages.containers] / [packages.utils].
 # This script only does the runtime config that cannot be expressed as packages:

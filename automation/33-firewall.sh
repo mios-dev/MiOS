@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Configures the system firewall by generating a persistent firewalld init script that maps resolved environment ports (SSH, RDP, K3s, Hermes, Open-WebUI) to the firewall's allowed rules.
+# AI-related: mios-firewall-init, mios-firewall, mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link
 # 'MiOS' v0.2.4 -- 33-firewall: Firewall configuration script
 set -euo pipefail
 

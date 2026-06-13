@@ -1,3 +1,4 @@
+# AI-hint: Configures kernel arguments for IOMMU, VFIO-PCI, and nested virtualization to enable hardware passthrough and virtualization features in the MiOS boot process.
 kargs = [
     "intel_iommu=on",
     "amd_iommu=on",

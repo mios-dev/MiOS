@@ -1,3 +1,5 @@
+# AI-hint: Sets XCURSOR_THEME, XCURSOR_SIZE, and XCURSOR_PATH for interactive shells to ensure GUI applications launched from the terminal correctly inherit and display the Bibata cursor theme.
+# AI-related: mios-cursor, mios-theme, mios-cursor-ensure
 # /etc/profile.d/mios-cursor.sh
 #
 # Export XCURSOR_THEME + XCURSOR_SIZE for every interactive shell on

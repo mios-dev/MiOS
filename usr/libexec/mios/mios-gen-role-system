@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Generates unified, SSOT-driven SYSTEM prompts for MiOS agent roles by merging mios.toml configs, live verb/skill catalogs, and A2A peer surfaces into a single source for Modelfile and agent-pipe injection.
+# AI-related: /etc/mios/ai/v1/role-systems, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/mios.toml, /etc/mios/mios.toml
 """mios-gen-role-system -- SSOT-driven AIOS-native role SYSTEM generator.
 
 Renders each MiOS agent role's SYSTEM prompt from the SSOT -- the layered

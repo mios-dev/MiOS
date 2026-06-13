@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A shell script that applies the MiOS filesystem hierarchy (FHS) by overlaying local repository contents in usr, etc, and var onto the host system root to "MiOS-ify" the environment.
+# AI-related: mios-overlay
+# AI-functions: log, warn, error
 # ============================================================================
 # mios-overlay.sh - System-wide FHS Overlay
 # ----------------------------------------------------------------------------

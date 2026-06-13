@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: mios-flatpaks CLI: operator-friendly wrapper over `flatpak` for the system-wide Flatpak surface (list/add/remove/update/search/bake-state); auto-sudo for mutating verbs; persist refs via mios.toml [desktop].flatpaks + mios-rebuild.
+# AI-related: /usr/lib/mios/state/flatpak-bake.env, /usr/share/mios/configurator/mios.html, mios-flatpaks, mios-rebuild
 # mios-flatpaks -- thin wrapper over `flatpak` for the MiOS-shipped
 # system-wide Flatpak surface. Operator-friendly verbs that don't
 # require remembering the long flatpak invocations.

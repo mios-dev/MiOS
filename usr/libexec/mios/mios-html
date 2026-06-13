@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A shim script that resolves and opens the mios.html configurator in the operator's default browser via a WSL UNC path, mapping "configurator" and "settings" commands to the UI for editing mios.toml.
+# AI-related: /usr/libexec/mios/mios-html, /usr/share/mios/configurator/mios.html, /usr/share/mios/configurator/., mios-windows, mios-find
 set -euo pipefail
 # /usr/libexec/mios/mios-html [section]
 #

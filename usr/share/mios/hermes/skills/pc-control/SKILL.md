@@ -5,6 +5,8 @@ metadata:
   hermes:
     requires_tools: [terminal]
 ---
+<!-- AI-hint: Defines the pc-control skill for manipulating Windows host applications via direct Win32 API commands (Path A) or vision-grounded coordinate clicks (Path B) when targets lack programmatic identifiers.
+     AI-related: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md, mios-pc-control, mios-windows, mios-pc-vision, mios-env-probe -->
 
 # pc-control -- Windows host computer-use under MiOS
 

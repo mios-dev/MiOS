@@ -24,6 +24,8 @@ metadata:
       - flatpak_upgrade
       - flatpak_uninstall
 ---
+<!-- AI-hint: Defines the unified package-management skill for Hermes, mapping "install", "find", and "update" commands to platform-specific winget (Windows) or flatpak (Linux) tools based on application type.
+     AI-related: /usr/share/mios/hermes/skills/package-management/SKILL.md._, mios-launch, mios-winget -->
 
 # Package management on MiOS
 

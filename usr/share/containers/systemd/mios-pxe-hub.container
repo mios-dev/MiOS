@@ -1,3 +1,5 @@
+# AI-hint: A systemd container unit that runs the Matchbox PXE hub to serve network boot configurations and assets over HTTP on port 8081 for iPXE/PXE clients.
+# AI-related: network-online.target, multi-user.target, default.target
 [Unit]
 Description='MiOS' PXE Boot Hub
 After=network-online.target

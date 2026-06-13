@@ -1,3 +1,5 @@
+# AI-hint: Registers a scheduled task to boot the podman-MiOS-DEV WSL distro at interactive logon, ensuring WSLg/msrdc binds Linux GUI windows to the user's Session 1 instead of an invisible Session 0.
+# AI-related: mios-wsl-session-task
 # mios-wsl-session-task.ps1
 #
 # Registers the "MiOS-WSL-Session" scheduled task: at the operator's

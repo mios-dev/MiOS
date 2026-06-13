@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that initializes iGPU drivers (i915/xe/amdgpu) and configures permissions for /dev/dri/renderD128 to enable hardware acceleration and unified render node access for Intel/AMD hardware.
+# AI-related: mios-gpu, systemd-modules-load.service, systemd-udev-trigger.service, multi-user.target
 [Unit]
 Description='MiOS' Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)
 ConditionVirtualization=!container

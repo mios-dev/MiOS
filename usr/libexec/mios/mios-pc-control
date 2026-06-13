@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Provides a Windows-host computer-use interface for MiOS-Agent via PowerShell scripts to perform screen capture, mouse/keyboard input, and window management on WSL2-hosted systems.
+# AI-related: /usr/libexec/mios/mios-pc-control, /usr/share/mios/windows, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-windows, mios-oscontrol-server, mios-launch
+# AI-functions: usage, _oscontrol_executor, _json_body
 set -euo pipefail
 # /usr/libexec/mios/mios-pc-control <subcommand> [args...]
 #

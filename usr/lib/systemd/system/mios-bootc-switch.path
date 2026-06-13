@@ -1,3 +1,5 @@
+# AI-hint: Systemd path unit that monitors /var/lib/mios/forge-runner/last-build.txt to trigger mios-bootc-switch.service, automating the bootc kernel/image switch immediately after a Forgejo Runner build completes.
+# AI-related: /usr/libexec/mios/bootc-switch-from-build.sh, mios-bootc-switch, mios-bootc-switch.service, multi-user.target
 # /usr/lib/systemd/system/mios-bootc-switch.path
 # Watches the build-output sentinel that the Forgejo Runner workflow
 # writes after a successful `podman build`. PathChanged fires on

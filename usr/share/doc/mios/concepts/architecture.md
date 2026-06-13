@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the MiOS system architecture, detailing the bootc-managed OCI image structure, CDI-based GPU acceleration, zero-trust security layers, and the specific FHS-compliant filesystem layout.
+     AI-related: mios-gpu, hermes-agent.service, localhost:8642 -->
 # 'MiOS' Architecture
 
 ## Pillars

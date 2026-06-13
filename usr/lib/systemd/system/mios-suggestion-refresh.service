@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that triggers a one-shot script to refresh MiOS-aware starter chips in webui.db by querying SurrealDB and the refine endpoint, ensuring the UI prompt suggestions stay current.
+# AI-related: /usr/libexec/mios/mios-suggestion-refresh., /usr/libexec/mios/mios-suggestion-refresh, mios-suggestion-refresh, mios-agent-pipe, mios-surrealdb, mios-agent-pipe.service, mios-surrealdb.service, ollama.service, multi-user.target
 # /usr/lib/systemd/system/mios-suggestion-refresh.service
 # One-shot wrapper around /usr/libexec/mios/mios-suggestion-refresh.
 # Generates fresh MiOS-aware starter chips + writes them into

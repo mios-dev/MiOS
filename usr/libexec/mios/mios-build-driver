@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Entry point for the MiOS-DEV build pipeline; executes the full multi-format build process (OCI, WSL, QEMU, etc.) and renders the interactive dashboard within a Windows-hosted terminal session.
+# AI-related: /etc/profile.d/mios-env.sh, /usr/libexec/mios/mios-build-driver, /etc/mios/install.env, /etc/mios/secrets.env, /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, /usr/share/mios/mios.toml, /usr/share/mios/lib/userenv.sh, mios-env, mios-configurator-launch
+# AI-functions: _log, _fail, _hash_password
 # /usr/libexec/mios/mios-build-driver
 #
 # Entry point for the inside-MiOS-DEV phase of the MiOS build pipeline.

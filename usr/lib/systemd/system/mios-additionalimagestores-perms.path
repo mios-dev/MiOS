@@ -1,3 +1,5 @@
+# AI-hint: Systemd path unit that monitors container storage directories for permission changes and triggers mios-additionalimagestores-perms.service to restore go+rX permissions on image store subdirectories.
+# AI-related: mios-additionalimagestores-perms, mios-additionalimagestores-perms.service, multi-user.target
 [Unit]
 # Path-watcher companion to mios-additionalimagestores-perms.service.
 # Re-runs the chmod whenever any of the additional image store's per-

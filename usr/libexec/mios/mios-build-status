@@ -1,4 +1,6 @@
 #!/bin/sh
+# AI-hint: Provides a summary of the most recent build's status, log location, and success state by analyzing /var/log/mios/build-driver-*.log files and active build-driver processes.
+# AI-related: /usr/libexec/mios/mios-build-status, mios-build-driver
 # /usr/libexec/mios/mios-build-status [N]
 #
 # Print the state of the most recent `mios build` run: log path, age,

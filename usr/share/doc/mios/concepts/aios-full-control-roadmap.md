@@ -1,3 +1,4 @@
+<!-- AI-hint: Strategic roadmap documenting the transition to a full AIOS architecture, detailing specific implementation paths for kernel scheduling, tiered memory management, and context engineering to achieve high-throughput agentic operations. -->
 # MiOS — Full AIOS Control Roadmap (research-grounded, 2026-06-11)
 
 Synthesis of four deep research sweeps of the **open-source AIOS landscape** (June 2026),

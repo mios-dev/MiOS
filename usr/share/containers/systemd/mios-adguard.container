@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit for AdGuard Home providing system-wide DNS filtering (ads/trackers/malware) via host networking and CAP_NET_BIND_SERVICE to resolve queries on Tailscale and local interfaces.
+# AI-related: /etc/mios/adguard/AdGuardHome.yaml, /etc/mios/adguard, mios-adguard, mios-crowdsec, mios-adguard-firstboot, mios-adguard-firstboot.service, network-online.target, multi-user.target, default.target
 # /etc/containers/systemd/mios-adguard.container
 # 'MiOS' AdGuard Home -- system-wide DNS ad/tracker/malware sinkhole.
 #

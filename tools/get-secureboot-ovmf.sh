@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Locates and validates the presence of vendor-enrolled OVMF Secure Boot firmware files (CODE and VARS) in /usr/share/edk2/x64 to ensure the VM environment supports Secure Boot.
 
 # Find or Obtain Vendor-Enrolled OVMF Secure Boot Files
 # No XML editing - just get the right firmware files

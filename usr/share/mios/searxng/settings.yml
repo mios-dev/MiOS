@@ -1,3 +1,5 @@
+# AI-hint: Contains default configuration for the SearXNG instance, defining network ports, security headers, and search engine behavior to ensure stable results for the agent's web_search tool.
+# AI-related: /usr/share/mios/searxng/settings.yml, /etc/mios/searxng/settings.yml, mios-searxng, systemd-tmpfiles-setup.service, localhost:8888
 # /usr/share/mios/searxng/settings.yml
 # 'MiOS' SearXNG vendor defaults.
 #

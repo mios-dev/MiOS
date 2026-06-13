@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit for the mios-delegation-prefilter service, an HTTP proxy that intercepts OpenAI-compatible requests to inject tool_choice for delegate_task routing and optional prompt refinement before reaching the Hermes-Agent.
+# AI-related: /usr/libexec/mios/mios-delegation-prefilter, /usr/lib/mios/agents/.venv/bin/python3, /etc/mios/secrets.env, mios-delegation-prefilter, mios-ai, mios-sys-agent, hermes-agent.service, network.target, multi-user.target
 [Unit]
 # MiOS delegation prefilter -- HTTP forwarder that sits between Open
 # WebUI (and any other OpenAI-compat client) and Hermes-Agent's

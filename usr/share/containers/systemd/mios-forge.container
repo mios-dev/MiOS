@@ -1,3 +1,5 @@
+# AI-hint: Quadlet unit file defining the mios-forge container (Forgejo) for the MiOS Git forge, mapping ports 3000 (HTTP) and 2222 (SSH) to provide the system's primary source control and CI integration.
+# AI-related: /etc/mios/forge/, /etc/mios/forge, /etc/mios/forge/app.ini., mios-forge, mios-code-server, mios-services, mios-dev-host-network, mios-ceph, mios-k3s, mios-forgejo-runner
 # /etc/containers/systemd/mios-forge.container
 # 'MiOS' self-hosted Git forge (Forgejo upstream).
 #

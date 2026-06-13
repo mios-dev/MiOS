@@ -1,3 +1,6 @@
+# AI-hint: Provides a shell function to intercept `podman ps` for non-root users, falling back to a JSON snapshot of rootful containers if the local rootless podman view is empty.
+# AI-related: mios-podman-ps, mios-podman-ps.service
+# AI-functions: podman
 # /etc/profile.d/mios-podman-ps.sh
 #
 # Containers run ROOTFUL on MiOS; a NON-root interactive shell -- the operator's

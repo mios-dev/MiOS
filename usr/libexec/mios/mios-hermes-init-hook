@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python hook that executes mios-env-probe on the first turn of a session to inject a system environment snapshot into the LLM context, providing the agent with initial awareness of the host environment.
+# AI-related: /usr/libexec/mios/mios-env-probe, mios-env-probe, mios-apps, mios-launch
 """mios-hermes-init-hook -- Hermes pre_llm_call hook that injects a
 fresh environment-probe snapshot on the first turn of every session.
 

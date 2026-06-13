@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit to manage the local ChromeDev flatpak instance providing a Chrome DevTools Protocol (CDP) endpoint at 127.0.0.1:9222 for the Hermes-Agent's browser_tool.py to perform navigation and interaction.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, mios-hermes-browser, mios-cache-clear, mios-ai, mios-hermes, hermes-agent.service, multi-user.target
 [Unit]
 # /usr/lib/systemd/system/mios-hermes-browser.service
 #

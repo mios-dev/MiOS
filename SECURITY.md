@@ -1,3 +1,5 @@
+<!-- AI-hint: Provides the high-level security policy overview and reporting procedures, directing agents to the canonical FHS documentation for specific hardening configurations and audit reports.
+     AI-related: mios-dev -->
 # Security policy
 
 The full security posture (kargs, SELinux, fapolicyd, USBGuard, CrowdSec,

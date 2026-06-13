@@ -1,4 +1,6 @@
 #!/bin/sh
+# AI-hint: Wraps host GUI binaries (e.g., gnome-software) to inject the operator's session environment (DISPLAY, WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS) via systemd-run when invoked by service-level agents.
+# AI-related: /usr/libexec/mios/mios-host-launch, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-as-operator, mios-as-operator, mios-hermes, mios-hostgui
 # /usr/libexec/mios/mios-host-launch <binary> [args...]
 #
 # Operator-session escape + GUI-env injector for HOST-installed GUI

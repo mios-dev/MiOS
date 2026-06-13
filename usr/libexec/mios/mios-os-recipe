@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Executes allowlisted, shell-escaped OS-specific commands defined in mios.toml, handling cross-platform path conversion and security-hardened parameter filtering for MiOS system operations.
+# AI-related: /usr/libexec/mios/mios-os-recipe, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-os-control
 """/usr/libexec/mios/mios-os-recipe <name> [key=value ...]
 
 Executes a NAMED, ALLOWLISTED os-shell recipe declared in mios.toml

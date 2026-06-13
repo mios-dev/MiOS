@@ -1,3 +1,5 @@
+# AI-hint: One-shot systemd service that executes the initial registration of the Forgejo runner using the local token if the runner is not yet configured, ensuring the runner is registered before the main service starts.
+# AI-related: /etc/mios/forge/runner-token, /usr/libexec/mios/mios-forgejo-runner-firstboot.sh, mios-forgejo-runner-firstboot, mios-forge, mios-forge-firstboot, mios-forgejo-runner, mios-forge.service, mios-forge-firstboot.service, mios-forgejo-runner.service, multi-user.target
 [Unit]
 Description='MiOS' Forgejo Runner first-boot registration
 Documentation=https://forgejo.org/docs/latest/admin/actions/

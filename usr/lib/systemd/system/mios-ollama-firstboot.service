@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that triggers a one-shot script to pull default Ollama models into /var/lib/ollama on first boot, using a sentinel file to ensure it only runs once unless manually reset.
+# AI-related: /usr/libexec/mios/ollama-firstboot.sh, mios-ollama-firstboot, mios-ollama, ollama.service, network-online.target, multi-user.target, default.target
 [Unit]
 Description='MiOS' Ollama first-boot model pull
 Documentation=https://ollama.com/

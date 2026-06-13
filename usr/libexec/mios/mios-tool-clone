@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Copies a system-shipped MiOS shim from /usr/libexec/mios/ to /usr/local/bin/ to create a mutable version that overrides the default on PATH, allowing agents to iteratively modify and improve existing tools.
+# AI-related: /usr/libexec/mios/mios-tool-clone, mios-windows, mios-windows-experimental
+# AI-functions: usage
 set -euo pipefail
 # /usr/libexec/mios/mios-tool-clone <name> [--as <new-name>] [--force]
 #

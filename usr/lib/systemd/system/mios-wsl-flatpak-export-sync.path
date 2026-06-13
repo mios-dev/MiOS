@@ -1,3 +1,5 @@
+# AI-hint: Systemd path unit that triggers a synchronization script when flatpak application or icon files are modified in the export directory, ensuring .desktop files are updated for WSL integration.
+# AI-related: mios-is-wsl, multi-user.target, default.target
 [Unit]
 Description='MiOS' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land
 ConditionPathExists=/run/mios-is-wsl

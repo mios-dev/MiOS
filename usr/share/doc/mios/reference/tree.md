@@ -1,3 +1,5 @@
+<!-- AI-hint: Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline.
+     AI-related: /usr/share/mios/VERSION, /usr/share/mios/ai/system.md, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pipeline, mios-agents, mios-build-local, mios-COPR, mios-role -->
 # MiOS Tree-Map
 
 Fully expanded annotated directory tree of the deployed `/=git` working

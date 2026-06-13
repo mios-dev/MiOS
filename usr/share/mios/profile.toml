@@ -1,3 +1,5 @@
+# AI-hint: Immutable vendor-default configuration for MiOS system identity, locale, network, and AI agent parameters (Hermes-Agent/Ollama) used as the base layer for the three-tier profile resolution.
+# AI-related: /usr/share/mios/profile.toml, /etc/mios/profile.toml, /usr/share/mios/ai/v1/mcp.json, mios-bootstrap, mios-dev, mios-ceph, mios-k3s, mios-forge, mios-cockpit-link, mios-hermes
 # /usr/share/mios/profile.toml -- 'MiOS' Profile Defaults (vendor-immutable)
 #
 # This file ships in mios.git and is baked into every image. It is the

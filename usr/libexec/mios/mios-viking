@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a tiered, read-only virtual filesystem (viking://) for agents to navigate local skills, knowledge, and memory via L0 (abstract), L1 (overview), and L2 (raw) levels to manage context window density.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-summarize, localhost:8000
 """mios-viking -- OpenViking-style viking:// VFS over the local second brain.
 
 P5.2 (OpenViking brief): a virtual filesystem with HIERARCHICAL TOKEN GATING

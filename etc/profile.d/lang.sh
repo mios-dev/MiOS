@@ -1,3 +1,4 @@
+# AI-hint: Configures system locale environment variables and handles CJK fallback for terminal displays by parsing /etc/locale.conf and ~/.i18n to set LANG and LC_* variables.
 # /etc/profile.d/lang.sh - exports environment variables, and provides fallback
 #                          for CJK languages that can't be displayed in console.
 #                          Resets the locale if unavailable.

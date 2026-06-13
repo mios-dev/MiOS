@@ -1,3 +1,4 @@
+# AI-hint: Defines project-wide coding styles, indentation rules, and line endings for all source files and configuration types to ensure consistent formatting across the MiOS codebase.
 root = true
 
 [*]

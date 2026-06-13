@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios-docgen (WS-4 P0 doc-gen). Pure stdlib; imports the CLI module by path (it has no .py extension, matching the libexec convention) and exercises the DB/binary-free logic: format resolution, th
+# AI-related: mios-docgen
+# AI-functions: _check, _capture, t_fmt_of, t_bool_int_coerce, t_gate_disabled, t_gate_enabled_reads_env, t_build_needs_source, t_target_tables_sane, t_formats_probe, t_emit_helpers, main
 """Standalone unit test for mios-docgen (WS-4 P0 doc-gen).
 
 Pure stdlib; imports the CLI module by path (it has no .py extension, matching

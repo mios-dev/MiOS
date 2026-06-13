@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Apply Xbox VM Config + Manual Secure Boot Key Enrollment
 set -euo pipefail
 
 # Apply Xbox VM Config + Manual Secure Boot Key Enrollment

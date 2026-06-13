@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Enumerate every visible .desktop entry inside the WSL distro
 set -euo pipefail
 # Enumerate every visible .desktop entry inside the WSL distro --
 # flatpak apps + every /usr/share/applications/ entry that isn't

@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+# AI-hint: Validates Pacemaker/Corosync cluster health via `pcs cluster status`; used by greenboot to monitor HA cluster stability without triggering rollbacks if the service is inactive or unbootstrapped.
+# AI-related: pacemaker.service
 # Wanted check: High Availability (Pacemaker) Cluster Health
 # Fails emit warnings in greenboot-status but do NOT trigger OS rollback.
 set -euo pipefail

@@ -1,3 +1,5 @@
+# AI-hint: A Quadlet container unit defining the mios-ollama container, managing GPU passthrough via CDI, network integration on mios.network, and specific UID/GID mapping for the local LLM inference engine.
+# AI-related: mios-ollama, mios-hermes, mios-cdi-detect, mios-services, mios-ollama-firstboot, mios-cdi-detect.service, ollama.service, network-online.target, multi-user.target, default.target
 [Unit]
 Description='MiOS' Ollama LLM Server
 After=network-online.target

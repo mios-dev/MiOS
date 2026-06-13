@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the universal runtime behavioral contract and capability permissions for all MiOS agents, establishing the protocol for MCP tool discovery, A2A delegation, and live system/internet access.
+     AI-related: /usr/share/mios/ai/agent-contract.md_, /etc/mios/ai/agent-contract.md -->
 > _FHS: /usr/share/mios/ai/agent-contract.md_
 > Universal RUNTIME contract presented to EVERY MiOS agent + sub-agent at
 > every hop — the acting primary, every council secondary, and every swarm /

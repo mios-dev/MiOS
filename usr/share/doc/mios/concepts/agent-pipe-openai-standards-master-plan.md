@@ -1,3 +1,4 @@
+<!-- AI-hint: Defines the architectural roadmap for the agent-pipe system, establishing the 2-stage routing logic, OpenAI API conformance, and the unified capability catalog as the source of truth for tool selection. -->
 # MiOS agent-pipe — OpenAI-standards conformance + 2-stage routing + unified capability catalog
 
 **Master plan (2026-06-07).** Synthesis of three research passes (OpenAI tool-routing

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Boot-time bridge script for WSL2 that enforces /etc/wsl.conf integrity, initializes MiOS runtime directories, maps WSLg X11 sockets, and resolves Podman/WSL2 IP subnet conflicts to prevent network shadowing.
+# AI-related: mios-wsl-init, mios-network
+# AI-functions: _log, _repair_podman_subnet
 # MiOS -- wsl-init: WSL2 runtime bridge (runs every boot).
 set -euo pipefail
 

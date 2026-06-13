@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Python utility to fetch a URL and strip HTML noise (scripts, styles, nav) to return raw, readable text for grounding agent responses on actual web content rather than search snippets.
 """mios-web-extract -- fetch a URL and return its READABLE TEXT.
 
 The web_search verb returns short engine SNIPPETS, which is why the agent

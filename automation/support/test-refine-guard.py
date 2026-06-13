@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Smoke-test script to verify that the `refine_intent` logic correctly overrides "chat" classifications for actionable commands (like URLs or shell commands) to ensure they are correctly routed to the dispatcher.
+# AI-related: /usr/lib/mios/agent-pipe, /usr/share/mios/mios.toml, mios-open-url
+# AI-functions: main
 """Smoke-test the refine chat-promotion guard.
 
 Calls refine_intent() with three actionable inputs that a small

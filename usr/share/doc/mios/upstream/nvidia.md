@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation of the NVIDIA GPU stack, detailing the `ucore-hci` driver integration, MOK signing requirements, CDI-based container runtime configuration, and specific kernel arguments for CUDA compatibility. -->
 # NVIDIA on MiOS
 
 > MiOS uses `:stable-nvidia` from ucore-hci (proprietary driver,

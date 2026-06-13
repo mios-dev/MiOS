@@ -1,3 +1,5 @@
+# AI-hint: Desktop entry for the Guacamole remote desktop gateway, providing a launcher to open the local web interface at port 8090 for RDP/VNC access.
+# AI-related: localhost:8090
 [Desktop Entry]
 Type=Application
 Version=1.0

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: CLI tool to manage and activate staged bootc deployments by triggering system reboots, rolling back to previous versions, or reporting current bootc status.
+# AI-related: mios-build, mios-rebuild, mios-update
 # mios-deploy -- apply a staged bootc deployment. Companion to
 # mios-build / mios-rebuild / mios-update -- those STAGE a new
 # deployment via `bootc switch` or `bootc upgrade`; mios-deploy is

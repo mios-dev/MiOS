@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Validates DNS reachability for ghcr.io via systemd-resolve during greenboot; if resolution fails within 30s, it triggers a system rollback to prevent boot failures due to broken networking.
+# AI-related: mios-greenboot
 # 'MiOS' greenboot -- required network reachability check
 # Fails if DNS resolution is broken after a boot, triggering rollback
 # after GREENBOOT_MAX_BOOT_ATTEMPTS consecutive failures.

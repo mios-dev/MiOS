@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Resolves and launches a URL in the MiOS-defined default browser or a specified override by resolving mios.toml entries and dispatching via mios-gui to the operator's WSLg desktop session.
+# AI-related: /usr/libexec/mios/mios-open-url, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-gui, mios-find, mios-window-active, mios-as-operator, mios-wsl-flatpak-heal
+# AI-functions: _resolve_browser_chain, _parse_summary, _derive_verify_pattern
 set -euo pipefail
 # /usr/libexec/mios/mios-open-url <url> [<browser-override>]
 #

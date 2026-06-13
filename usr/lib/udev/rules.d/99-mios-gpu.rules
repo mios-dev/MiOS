@@ -1,3 +1,5 @@
+# AI-hint: Defines udev rules to grant logged-in users persistent access to GPU hardware (DRM, KFD, and NVIDIA) by assigning them to render/video groups and applying uaccess tags for compute, display, and transcoding.
+# AI-related: mios-gpu
 # ============================================================================
 # 'MiOS' v0.2.0 - 99-mios-gpu.rules
 # Pinned GPU device permissions across all vendors.

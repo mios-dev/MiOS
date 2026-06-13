@@ -1,4 +1,7 @@
 #!/bin/sh
+# AI-hint: Executes smart restarts for MiOS services, handling specific logic for Podman Quadlets (systemctl-based), standard systemd units, and hermes-agent soft restarts to clear in-process skill caches.
+# AI-related: /usr/libexec/mios/mios-restart, /usr/share/mios/hermes/skills/, /usr/share/mios/hermes/skills, /usr/share/mios/hermes/skills/., /usr/share/mios/ai/hermes-soul.md, mios-open-webui, mios-ollama, mios-searxng, mios-forge, mios-forgejo-runner
+# AI-functions: usage
 # /usr/libexec/mios/mios-restart <service-or-quadlet>
 #
 # Smart restart for any MiOS-managed service. Knows the difference between:

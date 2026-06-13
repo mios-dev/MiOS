@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Wrapper for bootc commands to fetch, stage, and apply MiOS image updates, providing simplified flags for checking, staging, and rolling back system-wide deployments.
+# AI-related: mios-dev, mios-pull, mios-rebuild, localhost:3000
 # mios-update -- pull the next published MiOS image and stage it for
 # the next reboot. Wraps `bootc upgrade` so operators don't need to
 # remember the bootc verbs.

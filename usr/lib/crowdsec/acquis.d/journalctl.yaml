@@ -1,3 +1,5 @@
+# AI-hint: CrowdSec configuration defining journalctl source filters for specific systemd units (sshd, nginx, k3s, etc.) to identify and log security events for the CrowdSec intrusion detection engine.
+# AI-related: sshd.service, nginx.service, httpd.service, cockpit.service, gnome-remote-desktop.service, libvirtd.service, k3s.service
 source: journalctl
 journalctl_filter:
   - "_SYSTEMD_UNIT=sshd.service"

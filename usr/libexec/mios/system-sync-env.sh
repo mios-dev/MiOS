@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: layered mios.toml dotfile.
+# AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/configurator/mios.html, /etc/mios/install.env.XXXXXX, mios-sync-env, mios-tools, localhost:8642
+# AI-functions: generate_env
 # /usr/bin/mios-sync-env -- regenerate /etc/mios/install.env from the
 # layered mios.toml dotfile.
 #

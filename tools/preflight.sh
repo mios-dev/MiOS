@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Validates build environment requirements including podman, git, just, disk space, and Containerfile presence to ensure the system is ready for OCI image construction.
+# AI-functions: ok, fail, warn
 # 'MiOS' preflight check -- verifies build prerequisites
 set -euo pipefail
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Automates the retrieval, compilation, and installation of the k3s SELinux policy for Fedora 44, ensuring K3s compatibility by staging the compiled .pp file in the immutable /usr tree.
 set -euo pipefail
 
 echo "==> Compiling and Installing K3s SELinux Policy for Fedora 44..."

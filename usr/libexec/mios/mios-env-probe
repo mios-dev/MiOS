@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Captures and formats the system's hardware, service status, and configuration facts into brief, full, or machine-readable formats to provide the Hermes agent with deterministic environmental context.
+# AI-related: /usr/libexec/mios/mios-env-probe, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-apps, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/hermes/skills/, mios-apps, mios-hermes-init-hook, mios-delegation-prefilter, mios-open-webui
+# AI-functions: _toml_get, _svc_active, _count
 set -euo pipefail
 # /usr/libexec/mios/mios-env-probe [--brief|--full|--markdown|--json]
 #

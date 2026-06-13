@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Enables external DNF repositories (Terra, Kubernetes, ublue-os COPR) for MiOS by fetching .repo files into /etc/yum.repos.d; use this to ensure availability of non-standard packages like kubectl and uupd.
+# AI-functions: try_fetch
 # ============================================================================
 # automation/05-enable-external-repos.sh
 # ----------------------------------------------------------------------------

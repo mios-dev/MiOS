@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the Container Device Interface (CDI) specification, detailing how MiOS abstracts NVIDIA, AMD, and Intel GPU passthrough into a unified, vendor-agnostic layer for container runtimes and LocalAI workloads.
+     AI-related: mios-gpu, mios-ai, mios-ai.container -->
 # Container Device Interface (CDI)
 
 > Used by MiOS as the universal layer for NVIDIA, AMD ROCm/KFD, and

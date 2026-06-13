@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Linux-side filesystem search shim that provides a unified interface for agents to locate files/directories using plocate, locate, or find, supporting filtering by count, extension, type, and specific subtrees.
+# AI-related: /usr/libexec/mios/mios-locate, mios-everything, mios-locate-err, mios-ai
+# AI-functions: usage, _filter_results
 set -euo pipefail
 # /usr/libexec/mios/mios-locate <query> [-n <max>] [-ext <csv>] [-path <subtree>] [-type f|d]
 #

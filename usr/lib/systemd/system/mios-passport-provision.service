@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that executes the mios-passport provision tool to generate Ed25519 keypairs for all agents in [passport.agents] and sets strict 0600 permissions on private keys before agent services start.
+# AI-related: /usr/libexec/mios/mios-passport, /etc/mios/userenv.sh, mios-passport, mios-passport-provision, mios-daemon, mios-surrealdb, mios-agent-pipe, mios-ai, mios-hermes, mios-surrealdb.service
 # /usr/lib/systemd/system/mios-passport-provision.service
 # Phase C.3 of the AgentOS roadmap: keypair generator. Runs at
 # firstboot (and on every subsequent boot, idempotent) so every

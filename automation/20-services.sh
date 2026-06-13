@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gating for bare-metal, VM, and WSL2 deployments.
+# AI-related: mios-role, bootloader-update.service, podman-auto-update.timer, ceph-bootstrap.service, cockpit.socket, mios-role.service, var-home.mount, var-lib-containers.mount
 # 'MiOS' v0.2.4 -- 20-services: Enable systemd services + bare-metal/VM gating
 #
 # CHANGELOG v1.3:

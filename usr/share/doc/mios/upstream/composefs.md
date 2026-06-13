@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation for the composefs subsystem, detailing the integration of overlayfs, EROFS, and fs-verity to provide a verified, deduplicated, read-only root filesystem for MiOS. -->
 # composefs — Verifiable Read-Only Root
 
 > Enabled in MiOS via `usr/lib/ostree/prepare-root.conf`:

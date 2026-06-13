@@ -1,3 +1,5 @@
+# AI-hint: A migration script that replaces a broken manual ReadKey loop with Read-Host -MaskInput in mios-build-local.ps1 to ensure pasted tokens are correctly captured in PowerShell 7.x.
+# AI-related: mios-build-local
 <#
 .SYNOPSIS  Fix token paste bug in mios-build-local.ps1
 .DESCRIPTION

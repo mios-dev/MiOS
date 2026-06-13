@@ -1,3 +1,5 @@
+# AI-hint: Provides PriorityGate primitives for the WS-1 agent-pipe to enforce priority-based reordering and anti-starvation logic on concurrent tasks, ensuring high-priority agent dispatches jump ahead of lower-priority ones.
+# AI-functions: __init__, cap, available, in_flight, queued, head_priority, stats, _pick, acquire, _release, release, class PriorityGate
 """mios_sched -- scheduler primitives for the MiOS agent-pipe (WS-1, the AIOS
 Agent Scheduler reordering layer).
 

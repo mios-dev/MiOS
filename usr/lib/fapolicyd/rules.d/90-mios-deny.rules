@@ -1,3 +1,4 @@
+# AI-hint: Defines fapolicyd security policies to enforce a zero-trust model by explicitly denying access to user home directories and external mount points (/run/media, /mnt) for untrusted processes.
 # MiOS-OS: Zero-Trust Local Security
 # Enforce strict deny-by-default on user directories and external media.
 # Overrides default allow rules for trusted directories if they fall in these paths.

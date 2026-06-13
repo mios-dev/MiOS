@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file for the Ceph monitor container, providing storage orchestration via a privileged root-level podman container that requires /etc/ceph/ceph.conf to start.
+# AI-related: mios-ceph, network-online.target, multi-user.target
 # /etc/containers/systemd/mios-ceph.container
 # Minimal Ceph monitor for storage orchestration.
 #

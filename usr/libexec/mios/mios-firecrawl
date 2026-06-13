@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python script to scrape web pages via the local Firecrawl API (port 3002) to produce clean, LLM-ready markdown, providing a high-quality alternative to crawl4ai for rendering news and article content.
+# AI-related: mios-webtools, mios-crawl, mios-web-extract, localhost:3002
 """mios-firecrawl -- SCRAPE a web page to clean markdown via the LOCAL,
 self-hosted Firecrawl API (the firecrawl-api member of the mios-webtools pod,
 127.0.0.1:3002; offline-first, no cloud dependency -- Architectural Law 5).

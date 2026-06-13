@@ -1,3 +1,5 @@
+# AI-hint: Defines the mios-firstboot.target unit to orchestrate initial provisioning services (CDI, libvirtd, and GRD setup) during the first boot sequence of the MiOS system.
+# AI-related: mios-firstboot, mios-cdi-detect, mios-libvirtd-setup, mios-grd-setup, mios-cdi-detect.service, mios-libvirtd-setup.service, mios-grd-setup.service, multi-user.target
 [Unit]
 Description='MiOS' first-boot provisioning
 Documentation=https://github.com/MiOS-DEV/MiOS

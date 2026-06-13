@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Initializes SR-IOV Virtual Functions on Physical Functions (PFs) by parsing /etc/mios/sriov.conf and writing to /sys/bus/pci/devices/ paths during early boot to enable multi-device networking.
+# AI-related: /usr/lib/mios/paths.sh, /etc/mios/sriov.conf, mios-sriov-init.service, network-pre.target
+# AI-functions: _log
 # 'MiOS' Universal SR-IOV initialization.
 # Run by mios-sriov-init.service early in boot (After=network-pre.target).
 # Reads operator config from /etc/mios/sriov.conf, configures the requested

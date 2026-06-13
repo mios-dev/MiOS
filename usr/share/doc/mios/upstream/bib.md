@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation for the bootc-image-builder (BIB) tool, detailing how MiOS uses it to transform OCI images into deployable disk artifacts (raw, iso, qcow2, vhdx, wsl2) via Justfile recipes and TOML configurations. -->
 # bootc-image-builder (BIB)
 
 > Image: `quay.io/centos-bootc/bootc-image-builder:latest` (`Justfile:14`).

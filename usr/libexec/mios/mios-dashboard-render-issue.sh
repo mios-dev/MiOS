@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Composites the MiOS dashboard into /etc/issue.d/30-mios.issue so it
+# AI-related: /usr/libexec/mios/mios-dashboard-render-issue.sh, /usr/libexec/mios/mios-dashboard.sh, mios-dashboard-render-issue, mios-dashboard, mios-dashboard-issue, mios-motd, mios-dashboard-issue.service, mios-dashboard-issue.timer, multi-user.target
 # /usr/libexec/mios/mios-dashboard-render-issue.sh
 #
 # Composites the MiOS dashboard into /etc/issue.d/30-mios.issue so it

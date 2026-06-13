@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the legal, licensing, and research-oriented scope of the MiOS project, serving as the primary source of truth for usage rights and project status for any agent invoking system entry points.
+     AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-build-local, mios-agents, mios-bootstrap, mios-llm, mios-agent-claude, mios-agent-gemini, mios-forge, mios-dev -->
 # AGREEMENTS.md
 
 > **Read this before running any entry point.** Every script,

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python script that synchronizes the Open WebUI database with the MiOS-managed system prompt for the "MiOS-Agent" model, ensuring the agent's persona and capabilities are correctly injected into the UI.
+# AI-related: /usr/share/mios/open-webui/system-prompts/mios-agent.md, mios-agent
 """mios-owui-apply-system-prompt -- seed the MiOS-Agent model registration in
 Open WebUI with the MiOS-managed system prompt.
 

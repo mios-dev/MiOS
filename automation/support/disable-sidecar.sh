@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Disables the mios_sidecar OWUI Filter in the webui.db database and restarts the mios-open-webui.service to remove redundant sibling-agent activity tracking replaced by agent-pipe.
+# AI-related: mios-open-webui, mios-open-webui.service
 # Disable the mios_sidecar OWUI Filter (active=0, global=0).
 # The sidecar was useful pre-agent-pipe to surface sibling-agent
 # activity, but agent-pipe is now the canonical orchestrator and

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Executes a Python-embedded SQL query via the local port 8000 to count and list directory entries grouped by statement, used by agents to audit the total count of filesystem objects in the MiOS database.
+# AI-related: localhost:8000
 set -euo pipefail
 python3 - <<'PYEOF'
 import json, urllib.request

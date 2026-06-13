@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Wraps winget.exe via WSL interop to provide a unified JSON-structured interface for MiOS agents to search, install, upgrade, and manage Windows-side packages from the Linux-side agent stack.
+# AI-related: /usr/libexec/mios/mios-winget, /usr/share/mios/mios.toml, mios-wg-out-XXXXXX, mios-wg-err-XXXXXX
+# AI-functions: usage, _find_winget, _emit_json_error, _run_winget, _emit_envelope
 set -euo pipefail
 # /usr/libexec/mios/mios-winget <subcommand> [args...]
 #

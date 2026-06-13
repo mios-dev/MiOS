@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Unified cross-platform package manager entry point that abstracts winget, dnf, and flatpak into a single interface for installing, searching, and listing software across Windows and Linux environments.
+# AI-related: /usr/libexec/mios/mios-installer, mios-windows, mios-hermes
+# AI-functions: _red, _green, _dim, _bold, _have_winget, _have_dnf, _have_flatpak, _detect_backend, _search_winget, _search_dnf, _search_flatpak, _install_winget
 set -euo pipefail
 # /usr/libexec/mios/mios-installer <subcommand> [args...]
 #

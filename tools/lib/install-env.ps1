@@ -1,3 +1,6 @@
+# AI-hint: Powershell helper for MiOS Windows installers that generates the /etc/mios/install.env file in a WSL2 distro to inject the operator's hostname and sha512crypt password hash into the wsl-firstboot sequence.
+# AI-related: /etc/mios/install.env, /usr/libexec/mios/wsl-firstboot, /usr/share/mios/env.defaults, /etc/mios/env.d/, /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/forge-firstboot.sh., mios-dashboard, wsl-firstboot.service
+# AI-functions: Write-MiosInstallEnv
 # tools/lib/install-env.ps1 -- shared helper for the 'MiOS' Windows installers.
 # Writes /etc/mios/install.env into a freshly-imported WSL2 distro so that
 # /usr/libexec/mios/wsl-firstboot can pick up the operator-supplied hostname

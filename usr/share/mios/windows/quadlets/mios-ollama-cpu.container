@@ -1,3 +1,5 @@
+# AI-hint: Quadlet configuration for the mios-ollama-cpu container, providing a CPU-only inference lane on port 11435 for micro-LLMs and embeddings while sharing the model store with the GPU instance.
+# AI-related: mios-ollama-cpu, mios-ollama, network-online.target, multi-user.target, default.target, localhost:11435
 # mios-ollama-cpu.container -- Windows AI Node variant
 # CPU light-lane: micro-LLMs + embeddings.  Port :11435.
 # Mirrors usr/share/containers/systemd/mios-ollama-cpu.container.

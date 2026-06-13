@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Install NVIDIA's Vulkan ICD + GLX/EGL userspace libs for WSLg
+# AI-related: /usr/libexec/mios/install-nvidia-wsl-userland.sh
 set -euo pipefail
 # /usr/libexec/mios/install-nvidia-wsl-userland.sh
 #

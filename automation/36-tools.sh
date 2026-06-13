@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-headless and mios-test to establish the primary MiOS command interface.
+# AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/lib/mios/userenv.sh., /usr/lib/mios/userenv.sh, mios-toggle-headless, mios-test, mios-dashboard, mios-dash, mios-env, mios-sync-env, mios-update
 # 'MiOS' v0.2.4 -- 36-tools: CLI tools and consolidated mios command
 # Installs all mios-* tools to /usr/bin/ and the master 'mios' CLI.
 set -euo pipefail

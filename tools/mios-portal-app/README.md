@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the MiOS Portal Android app, a WebView wrapper providing a standalone mobile interface for the MiOS web portal, including build instructions for the APK via Android Studio, Gradle, or Bubblewrap.
+     AI-related: mios-portal-app -->
 # MiOS Portal — Android app
 
 A minimal native **WebView wrapper** around the MiOS Portal

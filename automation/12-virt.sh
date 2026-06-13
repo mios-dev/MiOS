@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs and configures virtualization (KVM/QEMU/Libvirt), container runtimes (Podman/Buildah), Cockpit management, and CrowdSec security tools to establish the core virtualization and containerization stack.
+# AI-related: mios-kver, mios-virtio
 # 'MiOS' v0.2.4 -- 12-virt: Virtualization, containers, orchestration, gaming
 #
 # CHANGELOG v1.3:

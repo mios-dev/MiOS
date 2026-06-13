@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Bootstraps the MiOS agent workspace by regenerating directory manifests, syncing Wiki docs, building the RAG knowledge base, and refreshing environment configs to prepare the system for agent interaction.
+# AI-related: /etc/mios/profile.toml
 # 'MiOS' AI/manifest bootstrap. Regenerates directory manifests, syncs the Wiki,
 # rebuilds the unified knowledge base (RAG snapshot), refreshes user-space
 # environment configs, and seeds shared agent context. Idempotent.

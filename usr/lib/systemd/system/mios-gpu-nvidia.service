@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that ensures NVIDIA GPU modules are loaded and CDI configurations are generated for container passthrough, acting as a fallback or prerequisite for nvidia-cdi-refresh.service.
+# AI-related: mios-gpu, nvidia-cdi-refresh.service, systemd-modules-load.service, systemd-udev-trigger.service, akmods.service, multi-user.target
 [Unit]
 Description='MiOS' NVIDIA GPU container plumbing
 ConditionVirtualization=!container

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Configures and toggles the Tailscale HTTPS reverse proxy for the ttyd terminal service on port 7681, enabling secure mobile access via the Tailnet based on the [ttyd].tailnet_expose setting in mios.toml.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-ttyd-launch, mios-ttyd-bash, mios-ttyd-expose.service, mios-ttyd-bash.service
+# AI-functions: _toml_get
 set -euo pipefail
 # mios-ttyd-expose -- securely publish the loopback ttyd terminal to the TAILNET
 # for mobile access (#82). Official pattern (researched 2026-05-30): ttyd stays

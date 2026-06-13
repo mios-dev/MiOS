@@ -1,3 +1,5 @@
+# AI-hint: A systemd oneshot service that enforces 0700 permissions on /mnt/wslg/runtime-dir to enable Wayland VAIL mode and replaces the /tmp/.X11-unix symlink with a physical directory to ensure Flatpak/bwrap compatibility.
+# AI-related: /usr/libexec/mios/mios-flatpak-icon-sanitize, mios-flatpak-icon-sanitize, mios-dev, systemd-tmpfiles-setup.service, wslg-x11.service, wslg-wayland.service, multi-user.target, default.target
 [Unit]
 Description='MiOS': chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR
 Documentation=https://github.com/mios-dev/MiOS

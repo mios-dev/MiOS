@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Acts as the primary OpenAI-compatible entry point and load balancer for MiOS, routing requests to specific hardware lanes (dGPU, iGPU, CPU) based on performance profiles and managing the 17K-token MCP tool surface.
+# AI-related: mios-orchestrator, mios-fanout, mios-heavy, mios-cpu, mios-igpu, mios-router, localhost:11451, localhost:11450, localhost:11441
 """mios-model-router — always-on front door + worker fan-out (OpenAI-compatible).
 
 Operator 2026-06-08: "EVERYTHING starts at the front-door model and delegates to

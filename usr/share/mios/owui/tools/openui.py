@@ -1,3 +1,6 @@
+# AI-hint: Python script for rendering interactive generative UI components (charts, forms, tables) in chat by injecting theme-aware scripts and handling iframe communication for the OpenUI interface.
+# AI-related: /usr/share/mios/openui, /usr/share/mios/openui/openui-bundle.min.js, /usr/share/mios/openui/openui-styles.css, /usr/share/mios/openui/, mios-vendor-openui
+# AI-functions: _read_local, _build_openui_html, __init__, render_openui, class Tools, class Valves
 """
 title: OpenUI - Generative UI
 author: thesysdev/vishxrad

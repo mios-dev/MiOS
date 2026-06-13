@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Initializes MiOS-specific SELinux policy modules and persistent booleans from /usr/share/selinux/packages/mios/ during first boot, guarded by a sentinel file to ensure one-time execution.
+# AI-related: /usr/lib/mios/paths.sh, mios-selinux-init, mios-selinux-init.service
+# AI-functions: _log
 # 'MiOS' SELinux init -- load custom MiOS SELinux modules at first boot.
 # Run by mios-selinux-init.service (gated by sentinel
 # /var/lib/mios/.selinux-init-done so it only fires once per deploy).

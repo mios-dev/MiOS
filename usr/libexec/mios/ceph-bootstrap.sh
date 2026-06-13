@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Initializes the Ceph cluster on first boot by running cephadm bootstrap with single-host defaults and creating a sentinel file to prevent re-execution; use this to trigger or debug the initial Ceph cluster setup.
+# AI-related: mios-ceph-bootstrap, mios-ceph, ceph-bootstrap.service, mios-ceph-bootstrap.service
+# AI-functions: _log
 # usr/libexec/mios/ceph-bootstrap.sh
 #
 # 'MiOS' Ceph cluster bootstrap (first-boot only). Targeted by both

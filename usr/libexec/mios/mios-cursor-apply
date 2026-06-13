@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Sets the X11 root-window default cursor via XDefineCursor to ensure consistent cursor themes across GTK4/Xwayland windows where explicit cursor names are missing, using settings from mios.toml.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-cursor
 """mios-cursor-apply -- set the X11 root-window default cursor to the MiOS
 cursor theme.
 

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Validates the end-to-end integration between the agent-pipe gateway and the directory_lookup tool by testing both direct CLI execution and remote API dispatch via the Hermes port.
+# AI-related: /usr/libexec/mios/mios-directory-lookup, /etc/mios/hermes/api.env, mios-directory-lookup, mios-agent
 # Confirm directory_lookup dispatches end-to-end via agent-pipe.
 # Sends a minimal chat that should hint directory_lookup; we check
 # the SurrealDB event_log for a refine row with directory_lookup in

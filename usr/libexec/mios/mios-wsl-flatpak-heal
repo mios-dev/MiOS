@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments.
+# AI-related: /usr/libexec/mios/mios-wsl-flatpak-heal, mios-wsl-flatpak-heal.timer, dbus-broker.service, xdg-desktop-portal.service, xdg-document-portal.service, flatpak-portal.service
 set -euo pipefail
 # /usr/libexec/mios/mios-wsl-flatpak-heal
 #

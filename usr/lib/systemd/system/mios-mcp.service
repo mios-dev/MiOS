@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file defining the mios-mcp.service daemon, which provides the Model Context Protocol (MCP) server for autonomous agents to access system context via a hardened, high-availability userspace listener.
+# AI-related: /usr/libexec/mios/mcp-init.sh, /usr/libexec/mios/mcp-server-runner, mios-mcp, mios-ai, redis.service, network.target, multi-user.target
 [Unit]
 Description='MiOS' Agent Context Service (MCP)
 # High-availability context provider for autonomous agents. Pure

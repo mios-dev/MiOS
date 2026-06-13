@@ -1,3 +1,5 @@
+# AI-hint: Analyzes and prints the distribution and availability of system verbs from the server catalog, identifying core, common, and rare tiers to determine which actions are visible to the planner.
+# AI-related: /usr/lib/mios/agent-pipe
 import sys, collections
 sys.path.insert(0, "/usr/lib/mios/agent-pipe")
 import server

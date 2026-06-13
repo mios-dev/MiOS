@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines project-wide contribution rules, build constraints (USR-OVER-ETC, no-bloat), and the mandatory build/lint workflow for agents to ensure compliance with MiOS architectural standards.
+     AI-related: mios-build-local, mios-dev, mios-bootstrap -->
 # Contributing to 'MiOS'
 
 ## Project rules

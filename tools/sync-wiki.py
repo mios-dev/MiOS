@@ -1,3 +1,5 @@
+# AI-hint: Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and artifact availability.
+# AI-functions: get_last_rag_sync, get_version, sync_json_embeds, update_knowledge, update_status, sync_wiki
 import os
 import re
 import json

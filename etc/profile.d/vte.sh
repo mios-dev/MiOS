@@ -1,3 +1,5 @@
+# AI-hint: Configures VTE terminal integration by defining shell functions to update terminal properties, handle OSC 7 links, and synchronize prompt status/titles for interactive Bash and Zsh sessions.
+# AI-functions: __vte_termprop_signal, __vte_termprop_set, __vte_termprop_reset, __vte_osc7, __vte_precmd, __vte_prompt_command, __vte_preexec
 # Copyright © 2012 Christian Persch
 #
 # This program is free software: you can redistribute it and/or modify

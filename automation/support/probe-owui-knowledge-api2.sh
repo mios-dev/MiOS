@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script that extracts the Open WebUI admin token from the local SQLite DB to probe the knowledge base API endpoints, verify retrieval functionality, and list available OpenAPI paths for RAG operations.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 -c "
 import sqlite3

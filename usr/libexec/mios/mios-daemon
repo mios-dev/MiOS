@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Consolidated MiOS core daemon that unifies log classification, refusal detection, and cron task evaluation into a single Ollama-backed process, outputting a unified state.json for the OWUI sidecar filter.
+# AI-related: /etc/mios/daemon/cron.toml, /usr/share/mios/ai/refusal-patterns.txt, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/libexec/mios/mios-db, /etc/mios/daemon/cron.toml., mios-db, mios-log-watcher, mios-agent-nudger, mios-cron-director
+# AI-functions: _atomic_write_state
 """mios-daemon -- consolidated MiOS micro-LLM daemon.
 
 Operator directive 2026-05-17: "ALL to be consolidated to one mios

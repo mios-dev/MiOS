@@ -1,3 +1,5 @@
+# AI-hint: Initializes the Hermes gateway by generating the api.env file and ensuring the config.yaml matches the current schema, acting as a self-healing pre-boot step to provide required credentials and configuration for hermes-agent.service.
+# AI-related: /etc/mios/hermes/api.env., /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-hermes, mios-hermes-workspace, hermes-agent.service, mios-hermes.service, mios-hermes-workspace.service, systemd-tmpfiles-setup.service, ollama.service
 [Unit]
 Description='MiOS' Hermes-Agent first-boot config + key generation
 Documentation=https://github.com/MiOS-DEV/MiOS

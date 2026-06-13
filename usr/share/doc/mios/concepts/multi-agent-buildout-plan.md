@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the parallel execution strategy for multi-agent development, specifying which workstreams are agent-parallelizable versus operator-gated and outlining the "Build-Synthesize-Verify" workflow to prevent concurrent-edit conflicts.
+     AI-related: mios-aios-buildout, mios-services, mios-coderun, mios-coderun-codemode, mios-codemode-api, mios-docgen, mios-launcher-daemon, mios-computer-use -->
 # Multi-Agent Concurrent Buildout Plan (remaining AIOS workstreams)
 
 > 2026-06-04. Plan to fan out the remaining workstreams across concurrent agents.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Automates the compilation and installation of the Looking Glass client binary to /usr/bin/ if not already present, handling version detection and toolchain checks during the MiOS build process.
 # 53-bake-lookingglass-client.sh - git clone Looking Glass B7, cmake/make,
 # install looking-glass-client binary to /usr/bin/. BAKED IN - WHEN POSSIBLE.
 #

@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit defining the vLLM heavy-reasoning lane; provides an OpenAI-compatible /v1 API with PagedAttention and APC, gated by weight existence and dGPU availability for high-throughput inference.
+# AI-related: /usr/share/mios/vllm/model/config.json, /usr/share/mios/vllm/model, mios-vllm, mios-grounding, mios-cdi-detect, mios-ollama, mios-heavy, mios-vllm.service, mios-cdi-detect.service, ollama.container
 # /etc/containers/systemd/mios-vllm.container
 # 'MiOS' vLLM server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU lane.
 #

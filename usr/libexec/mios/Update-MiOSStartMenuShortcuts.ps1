@@ -1,3 +1,6 @@
+# AI-hint: Powershell script that generates native Windows .lnk shortcuts for all .desktop files (including Flatpaks) in the MiOS-DEV WSL distro to ensure they appear in the Windows Start Menu with correct icons and no console window flash.
+# AI-related: /usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1, mios-wsl-flatpak-export-sync, mios-desktops, mios-icons, mios-icon-stage, mios-icon-batch, mios-full-desktop, mios-wsl-flatpak-export-sync.service
+# AI-functions: resolve_icon, Convert-PngToIco, Clear-WindowsIconCache
 # /usr/libexec/mios/Update-MiOSStartMenuShortcuts.ps1
 #
 # Build Windows Start Menu .lnk shortcuts for every visible .desktop

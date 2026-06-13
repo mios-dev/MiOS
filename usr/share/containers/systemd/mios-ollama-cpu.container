@@ -1,3 +1,5 @@
+# AI-hint: Systemd Quadlet file defining the mios-ollama-cpu container, providing a CPU-only inference lane on port 11435 for small models, embeddings, and the agent-pipe router to avoid dGPU contention.
+# AI-related: mios-ollama-cpu, mios-cdi-detect, mios-ollama-igpu, mios-igpu-server, mios-reasoner-cpu, mios-ollama, mios-daemon, mios-surrealdb, mios-cdi-detect.service, network-online.target
 [Unit]
 Description='MiOS' Ollama (in-VM CPU light-lane: router/classifier + verb embeddings + micro-LLMs)
 After=network-online.target mios-cdi-detect.service

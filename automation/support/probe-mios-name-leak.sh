@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Scans the open-webui.db database to identify and report instances where "MiOS-Agent" or "MiOS Agent" strings are leaked in model metadata, function definitions, or system configuration fields.
+# AI-functions: print
 set -euo pipefail
 python3 - <<'PYEOF'
 import json, sqlite3

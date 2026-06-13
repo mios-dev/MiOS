@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Automates the deployment of the directory indexer by copying binaries/configs, applying the SurrealDB schema, reinstalling OWUI tools, and restarting the mios-daemon service with a smoke-test verification.
+# AI-related: /usr/share/mios/surrealdb/schema-init.surql, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-daemon, /usr/libexec/mios/mios-directory-lookup, /usr/share/mios/owui/tools/mios_verbs.py, /usr/libexec/mios/mios-owui-install-tools, mios-daemon, mios-directory-lookup, mios-owui-install-tools, mios-daemon.service
 # Deploy + apply schema + restart daemon + smoke-test the directory
 # indexer.
 set -euo pipefail

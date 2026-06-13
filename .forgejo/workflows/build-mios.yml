@@ -1,3 +1,5 @@
+# AI-hint: Forgejo CI workflow that automates the OCI image build via podman, tags it with version/timestamp/SHA, and triggers the host's bootc switch to stage the new image for the next boot.
+# AI-related: /etc/mios/install.env, mios-forgejo-runner, mios-bootc-switch, mios-self-hosted, mios-dev, mios-bootc-switch.service, localhost:3000
 # .forgejo/workflows/build-mios.yml
 # Self-replication loop: triggered by `git push http://localhost:3000/<admin>/mios`,
 # this workflow runs in the mios-forgejo-runner Quadlet, builds a new OCI

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a shared, persistent snapshot of hardware, services, and app inventory in SurrealDB, allowing agents to query current system state via the `sys_env` table instead of performing live probes.
+# AI-related: /usr/libexec/mios/mios-sys-env, mios-daemon, mios-os-control, mios-env-probe, mios-apps, mios-shim, localhost:8000
 """/usr/libexec/mios/mios-sys-env <refresh|get|help> [--json]
 
 Live system/environment probe persisted to SurrealDB so EVERY agent reads a

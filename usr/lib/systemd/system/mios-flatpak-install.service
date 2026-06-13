@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that triggers the mios-flatpak-install script during first boot to install required Flatpak packages before the display manager starts.
+# AI-related: mios-flatpak-install, display-manager.service, network-online.target, multi-user.target
 [Unit]
 Description='MiOS' Flatpak First-Boot Installer
 ConditionVirtualization=!container

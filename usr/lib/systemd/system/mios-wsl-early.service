@@ -1,3 +1,5 @@
+# AI-hint: Executes /usr/libexec/mios/wsl-early to perform critical WSL2 pre-sysinit fixes, including rshared root and mounting /dev/net/tun and /dev/fuse, enabling subsequent system sandboxing.
+# AI-related: /usr/libexec/mios/wsl-early, systemd-tmpfiles-setup-dev.service, systemd-remount-fs.service, sysinit.target, basic.target, shutdown.target
 [Unit]
 Description='MiOS' WSL2 pre-sysinit fixups (rshared root + /dev/{net/tun,fuse})
 Documentation=https://github.com/MiOS-DEV/MiOS

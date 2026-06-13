@@ -1,3 +1,5 @@
+# AI-hint: Defines the Dockerfile for the coderun-sandbox container, providing a restricted, Landlock-hardened environment with a pre-built toolchain (gcc, python, node) for agents to execute untrusted code safely.
+# AI-related: /etc/mios/containers/coderun-sandbox/Dockerfile, /etc/mios/containers/coderun-sandbox/, mios-coderun-sandbox
 # /etc/mios/containers/coderun-sandbox/Dockerfile
 #
 # Per-session MiOS agent exec sandbox image. Built locally with:

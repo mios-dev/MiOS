@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Provides a JSON-formatted status of a specific application's window state, used by MiOS Agents to verify if a process is actually visible and presented to the operator rather than just running in the background.
+# AI-related: /usr/libexec/mios/mios-window-active, mios-windows
 set -euo pipefail
 # /usr/libexec/mios/mios-window-active <name-pattern>
 #

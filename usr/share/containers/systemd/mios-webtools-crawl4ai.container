@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit defining the crawl4ai slim engine for the web-tools pod, providing the `crawl` verb backend via Chrome-CDP and camoufox fallback on port 11235.
+# AI-related: /usr/lib/mios/crawl4ai/mios-crawl4ai-service.py, mios-crawl4ai-service, mios-webtools-crawl4ai, mios-crawl4ai-slim, mios-crawl4ai, mios-webtools, mios-crawl4ai.container, qdrant.container, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-webtools-crawl4ai.container
 # 'MiOS' web-tools POD member 4/4 -- crawl4ai slim engine (the `crawl` verb
 # backend; Chrome-CDP primary + camoufox fail-retry).

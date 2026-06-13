@@ -1,3 +1,5 @@
+# AI-hint: Provides a dependency-free, regex-based JSON parser to recover malformed JSON objects from small-model outputs by repairing common syntax errors like trailing commas, comments, and empty values.
+# AI-functions: loads_lenient
 """Generic JSON-grammar salvage for small-model output.
 
 Extracted from server.py (2026-06-02 modularization). Pure stdlib (re + json) --

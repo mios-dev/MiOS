@@ -1,3 +1,5 @@
+/* AI-hint: System-wide GTK4/libadwaita CSS override that enforces 15px rounded corners and drop shadows on window.csd elements to ensure consistent UI styling across native and Flatpak applications. */ */ */ */ */
+/* AI-related: mios-flatpak-overrides-apply */
 /* /etc/gtk-4.0/gtk.css
  *
  * MiOS system-wide GTK4 / libadwaita CSS override. Loaded BY GTK4

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides a robust, filesystem-direct text editing primitive for agents to view, create, and mutate files via atomic str_replace or line-based insertion, bypassing unreliable UI-driven keystroke sequences.
+# AI-related: mios-passport, mios-skills, mios-everything
 """mios-text-edit -- native text-editor primitive.
 
 Replaces the fragile `pc_type` + `pc_key ctrl+s` chain the

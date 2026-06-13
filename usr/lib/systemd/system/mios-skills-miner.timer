@@ -1,3 +1,5 @@
+# AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery.
+# AI-related: /usr/libexec/mios/mios-skills, mios-skills-miner, mios-skills, mios-skills-miner.service, timers.target
 # /usr/lib/systemd/system/mios-skills-miner.timer
 # Phase C.2 of the AgentOS roadmap: cadence for the background
 # skill miner. Interval lifted to mios.toml [skills].

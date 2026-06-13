@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Initializes the MiOS build environment by prompting for/loading configuration variables, GitHub PATs, and admin credentials to prepare the local environment for the installation and staging phases.
+# AI-related: mios-pipeline, mios-build, mios-install-XXXXXX
 # 'MiOS' Public Bootstrap -- Linux / WSL2
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash

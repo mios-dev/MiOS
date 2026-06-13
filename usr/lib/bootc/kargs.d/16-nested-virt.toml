@@ -1,3 +1,4 @@
+# AI-hint: Configures kernel arguments to enable nested virtualization (KVM/EPT/Shadow VMCS) for x86_64 architectures, allowing nested VMs or Podman machines to run inside a virtualized MiOS instance.
 # Enable Nested Virtualization for KVM (VMs inside VMs / Podman machine inside VMs)
 match-architectures = ["x86_64"]
 kargs = ["kvm_intel.nested=1", "kvm_intel.ept=1", "kvm_intel.enable_shadow_vmcs=1", "kvm_amd.nested=1"]

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Probes the Open WebUI RAG API by querying a specific collection to verify the structure and schema of the JSON response for downstream parsing.
+# AI-related: localhost:3030
 set -euo pipefail
 TOKEN=$(python3 -c "
 import sqlite3

@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+# AI-hint: Validates the integrity of the root filesystem by checking if composefs is enabled in prepare-root.conf, verifying the mount type, and performing a fsverity check on critical binaries.
 # Required: composefs verity integrity check
 set -euo pipefail
 

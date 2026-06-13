@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Installs and enables the moby-engine (Docker) package and its systemd socket to provide container runtime capabilities alongside Podman, resolving package conflicts via the defined moby configuration.
+# AI-related: docker.socket
 # Normalize to LF line endings (fixes SC1017)
 set -euo pipefail
 

@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Provides a bridge for the agent to execute Windows-side commands, launch GUI applications, or run elevated PowerShell scripts via WSL interop or Tailscale SSH from within the WSL2 environment.
+# AI-related: /usr/libexec/mios/mios-windows, /etc/mios/windows-host, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-autocenter, mios-autocenter, mios-find, mios-oscontrol-server, mios-pc-control, mios-hermes-firstboot
+# AI-functions: _app_paths_resolve, _start_menu_resolve, _startapps_resolve, _mios_executor_endpoint, _mios_launch_via_executor, _mios_arm_autocenter, usage, do_ssh_ps, _build_uri_center_ps
 set -euo pipefail
 # /usr/libexec/mios/mios-windows <subcommand> [args...]
 #

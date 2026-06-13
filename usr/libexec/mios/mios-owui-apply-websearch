@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Configures Open WebUI's web-search feature by updating the webui.db SQLite database to enable search augmentation and point the search engine to the local SearXNG instance on port 8888.
+# AI-related: mios-searxng, mios-owui-apply-system-prompt
 """mios-owui-apply-websearch -- enable Open WebUI's built-in web-search
 augmentation + point it at the local SearXNG (mios-searxng container
 on :8888).

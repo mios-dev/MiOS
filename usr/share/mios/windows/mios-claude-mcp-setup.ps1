@@ -1,3 +1,6 @@
+# AI-hint: Configures Claude Desktop and Claude Code to connect to the MiOS MCP server by dynamically resolving WSL distro names and ports to enable remote control and dispatch capabilities across both Anthropic clients.
+# AI-related: /usr/libexec/mios/mios-mcp-server, mios-mcp-server, mios-claude-mcp-setup, mios-control
+# AI-functions: Read-JsonObj, Ensure-Prop
 <#
   mios-claude-mcp-setup.ps1 -- wire the MiOS MCP server (remote control +
   dispatch: the full MiOS verb catalog -> agent-pipe /v1/dispatch) into BOTH

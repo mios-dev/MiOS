@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Initializes the MiOS Day-0 root overlay by symlinking the repository tree into the filesystem root (/) and establishing the /v1/ inference schema for AI agent interaction.
+# AI-related: /usr/share/mios/ai/v1, /usr/share/mios/ai/v1/models.json
 set -e
 
 # \MiOS Day-0 Root Overlay: Aggressive FHS Symlink Merge

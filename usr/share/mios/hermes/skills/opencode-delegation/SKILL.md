@@ -11,6 +11,8 @@ metadata:
   hermes:
     requires_tools: []
 ---
+<!-- AI-hint: Defines the routing logic for the agent-pipe orchestrator to delegate multi-file refactors, filesystem-heavy loops, and code-aware PC-control tasks to the opencode peer via the :8633 gateway.
+     AI-related: /usr/lib/mios/agents/opencode/bin/opencode, mios-opencode-gateway, mios-opencode, mios-find, mios-opencode-gateway.service -->
 
 # opencode — the coding specialist /v1 council peer
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Synchronously queries the mios-daemon-agent to verify if an app actually launched via a live window/process probe and historical failure logs, preventing agents from reporting false successes.
+# AI-related: mios-daemon-agent, mios-window-active
 """mios-verify-launch -- ask the always-on mios-daemon-agent (the iGPU
 daemon-tier brain) whether an app ACTUALLY launched, IN-TURN.
 

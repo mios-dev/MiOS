@@ -1,3 +1,6 @@
+# AI-hint: PowerShell entry point for Windows environments to build the MiOS OCI image via Docker and convert it into a bootable VHDX, raw, or qcow2 disk image using bootc-image-builder.
+# AI-related: mios-bib
+# AI-functions: Write-Step, Write-Ok, Write-Warn, Write-Fail
 #Requires -Version 5.1
 <#
 .SYNOPSIS

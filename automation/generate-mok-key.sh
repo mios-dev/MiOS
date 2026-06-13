@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+# AI-hint: One-shot script to generate a 2048-bit RSA MOK key with specific code-signing EKU extensions for kernel module signing, outputting to /etc/pki/mios/ for use in secure boot verification.
 # generate-mok-key.sh -- one-shot 'MiOS' MOK key generator.
 #
 # Generates a 2048-bit RSA key (NOT 4096: shim compatibility) with:

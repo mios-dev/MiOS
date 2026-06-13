@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Configures GPU drivers by installing Mesa, AMD ROCm, and Intel compute runtimes, while performing a multi-stage check and fallback logic for NVIDIA kernel modules based on the current kernel version.
+# AI-related: mios-kver
 # 'MiOS' v0.2.4 -- 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
 #
 # NVIDIA strategy (v0.2.0):

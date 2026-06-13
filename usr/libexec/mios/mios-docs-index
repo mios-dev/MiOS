@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Generates a unified index of all system documentation (.md files) across MiOS directories to allow agents to discover and selectively load specific documentation into context via grep or direct path access.
+# AI-related: /usr/libexec/mios/mios-docs-index, /usr/share/mios/ai/, /usr/share/mios/docs/, /usr/share/mios/hermes/skills/, /usr/share/mios/cookbooks/, /usr/share/mios/prompts/, /etc/mios/system-prompts/, /usr/share/mios/ai, /usr/share/mios/docs, /usr/share/mios/hermes/skills
+# AI-functions: _describe, emit_index
 # /usr/libexec/mios/mios-docs-index [--grep <pattern>] [--write]
 #
 # Print a unified index of every .md doc on the MiOS host so agents

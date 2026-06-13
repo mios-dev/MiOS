@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Enables the mios-copy-build-log.service systemd unit by creating a symbolic link in multi-user.target.wants to ensure build logs are automatically copied during system startup.
+# AI-related: mios-copy-build-log, mios-copy-build-log.service, multi-user.target
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 

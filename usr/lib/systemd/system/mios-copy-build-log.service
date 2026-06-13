@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit file that triggers a one-shot script to copy build logs to a persistent location after the var mount is ready, ensuring build artifacts are preserved.
+# AI-related: /usr/libexec/mios/copy-build-log.sh, var.mount, multi-user.target
 [Unit]
 Description='MiOS' Build Log Copy Service
 After=var.mount

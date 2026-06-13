@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Syncs AI RAG artifacts and wiki documentation from the local build environment to the MiOS-bootstrap repository to prepare the system for distribution and RAG-enabled agent deployment.
+# AI-related: mios-bootstrap, mios-knowledge-graph, mios-context, mios-docs, mios-context-TIMESTAMP, mios-docs-TIMESTAMP, mios-rag, localhost:11434
 # 'MiOS' Artifact Logging to MiOS-Bootstrap Repository
 # Purpose: Log AI RAG and build artifacts to bootstrap repo for distribution
 

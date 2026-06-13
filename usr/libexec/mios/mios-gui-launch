@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A wrapper script that launches Linux GUI applications via WSLg by enforcing required environment variables (WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE), detaching the process, and logging stderr to /var/log/mios/gui/.
+# AI-related: /usr/libexec/mios/mios-gui-launch, /usr/libexec/mios/flatpak-launch, mios-window-active, mios-find
+# AI-functions: usage
 # /usr/libexec/mios/mios-gui-launch <linux-gui-app> [args...]
 #
 # Operator directive 2026-05-17: agent failed to launch

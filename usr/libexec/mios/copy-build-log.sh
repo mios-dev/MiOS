@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A shell script that preserves the most recent build logs from the immutable storage directory to /var/log/mios/last-build.log for post-deployment diagnostics.
+# AI-related: /usr/lib/mios/paths.sh, mios-build, mios-build-chain
 # 'MiOS' Build Log Copy Service
 # Preserves build-time logs for post-deployment diagnostics.
 set -euo pipefail

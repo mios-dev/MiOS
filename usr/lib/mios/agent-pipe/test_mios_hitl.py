@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios_hitl to verify deterministic logic for Human-In-The-Loop (HITL) decision gating, scope parsing, and action blocking without requiring a live database or server.
+# AI-related: mios_hitl
+# AI-functions: _check, t_parse_scope, t_requires_approval, t_gate_outcome, t_block_result, main
 """Standalone unit test for mios_hitl (WS-6 HITL decision helpers).
 
 Pure stdlib + the sibling module only -- no server.py / SurrealDB. The live

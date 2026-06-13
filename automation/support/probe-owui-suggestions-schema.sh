@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A diagnostic script to probe Open WebUI's database and API endpoints for prompt suggestion configurations, used by agents to verify available UI prompts and configuration keys in the webui.db and via the local API.
+# AI-related: localhost:3030
+# AI-functions: print
 set -euo pipefail
 
 echo "── webui.db prompt_suggestions ──"

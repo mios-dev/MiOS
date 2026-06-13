@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation of MiOS SELinux policies, detailing the five custom modules (portabled, kvmfr, cdi, quadlet, sysext), specific booleans, and fcontexts required for K3s, NVIDIA CDI, and Libvirt functionality. -->
 # SELinux on MiOS
 
 > Mode: enforcing. Five custom modules in `usr/share/selinux/packages/mios/`,

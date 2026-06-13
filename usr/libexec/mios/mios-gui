@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A wrapper script that resolves and launches flatpak applications via shims, exact IDs, or fuzzy matches, providing a 3-second verification window to ensure the process remains active after launch.
+# AI-related: /usr/libexec/mios/mios-gui, /usr/libexec/mios/mios-host-launch, /usr/libexec/mios/flatpak-launch, mios-host-launch
+# AI-functions: usage
 set -euo pipefail
 # /usr/libexec/mios/mios-gui <app> [args...]
 #

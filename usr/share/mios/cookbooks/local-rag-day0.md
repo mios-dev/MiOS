@@ -1,3 +1,5 @@
+<!-- AI-hint: Instructional guide for setting up a local RAG pipeline using Qdrant and LocalAI, defining the unified endpoint and embedding workflow for MiOS agents to perform local knowledge retrieval.
+     AI-related: /usr/share/mios/cookbooks/local-rag-day0.md, mios-ai, mios-env, mios-kb, mios-006, mios-knowledge, mios-eval-report, mios-ai.container, mios-ai.service, localhost:8080 -->
 # Cookbook: Day-0 Local RAG against MiOS LocalAI
 
 > Full path: `/usr/share/mios/cookbooks/local-rag-day0.md`

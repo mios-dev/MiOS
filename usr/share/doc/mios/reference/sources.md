@@ -1,3 +1,5 @@
+<!-- AI-hint: Consolidates authoritative documentation links and technical specifications for OpenAI APIs, vector stores, and MiOS-specific knowledge base construction to ensure agent compliance with upstream standards.
+     AI-related: /etc/mios/ai, /usr/share/mios/flatpak-list, mios-dev, mios-build-local, mios-overlay, mios-sysext-pack, mios-ci, mios-bootstrap, mios-ai, mios-hardening -->
 # usr/share/doc/mios/reference/sources.md -- References, Sub-Knowledge, and Iteration Pointers
 
 This file consolidates every authoritative source consulted to build this

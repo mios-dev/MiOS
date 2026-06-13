@@ -1,3 +1,6 @@
+<!-- AI-hint: Reference documentation containing the full source code and execution order of all scripts used to build the MiOS OCI image, serving as a lookup for agents to identify and locate specific build logic.
+     AI-related: install.sh, /tmp/build/automation/lib/packages.sh, ./tools/lib/userenv.sh, build.sh, automation/lib/packages.sh, profile.d/mios-motd.sh, /etc/mios/ai/system-prompt.md., /etc/mios/profile.toml, /usr/share/mios/profile.toml, /etc/mios/install.env
+     AI-functions: toml_get, toml_get_array_csv, resolve_profile_layers, toml_get_layered, load_profile_defaults, log_info, log_ok, log_warn, log_err, log_phase, spin_start, spin_stop -->
 # 'MiOS' Build Scripts -- Full Source Bundle
 
 Every script that participates in building the 'MiOS' OCI image, in

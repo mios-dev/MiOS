@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python script for hardware-agnostic LoRA/SFT fine-tuning of the MiOS model; detects CUDA/ROCm/MPS/CPU to train a local adapter from the mios-finetune-dataset and exports it as an Ollama-compatible model.
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/share/mios/finetune/requirements.txt, mios-finetune-dataset, mios-sys-agent-ft
 """'MiOS' fine-tuner -- HARDWARE-AGNOSTIC LoRA/SFT of a small role model.
 
 Trains a LoRA adapter on the distilled corpus from `mios-finetune-dataset`, then

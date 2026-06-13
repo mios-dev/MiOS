@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios_codemode logic to verify language normalization, timeout clamping, and session ID generation without requiring the full agent-pipe runtime or database.
+# AI-related: mios_codemode, /usr/libexec/mios/mios-coderun-codemode, mios-coderun-codemode, mios-coderun-sandbox-cm-abc
+# AI-functions: _check, t_normalize_lang, t_clamp_timeout, t_session_id, t_extract_code, t_validate_request, t_gating, t_net_allowed, t_podman_argv, t_parse_result, t_build_cli_argv, t_safe_token
 """Standalone unit test for mios_codemode (WS-2 Code Mode pure helpers).
 
 Pure stdlib + the sibling module only -- no server.py / podman / DB import, so it

@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the Tailscale SSH bridge, detailing how the agent executes Windows-side commands (e.g., Hyper-V management, firewall rules) via the `mios-windows` wrapper and `mios.toml` configuration.
+     AI-related: /usr/libexec/mios/mios-windows, /etc/mios/mios.toml, /etc/mios/windows-host, mios-windows, mios-hermes-firstboot -->
 # Agent → Windows host control via Tailscale SSH
 
 The MiOS agent runs inside the WSL2 distro `podman-MiOS-DEV`. Some

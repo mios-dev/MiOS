@@ -1,3 +1,4 @@
+# AI-hint: Configures the ghcr.io container registry to enable Sigstore attachment verification for image authenticity during pull/push operations in the MiOS container management layer.
 docker:
   ghcr.io:
     use-sigstore-attachments: true

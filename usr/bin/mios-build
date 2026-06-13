@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Local development tool that performs a local podman build of the current tree, optionally staging the image via bootc switch or rebooting the system to bypass the remote CI/CD pipeline for rapid iteration.
+# AI-related: /etc/mios/install.env, mios-rebuild
 # mios-build -- run a LOCAL podman build of the live working tree at /,
 # without going through the Forgejo Runner. Produces localhost/mios:latest
 # in the host's containers-storage directly. Useful for fast iteration when

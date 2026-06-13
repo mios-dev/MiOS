@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Copies system-provided Hermes skills from /usr/share/mios/hermes/skills/ to the agent's writable home directory to allow local modification and overriding of system-wide skill definitions.
+# AI-related: /usr/share/mios/hermes/skills/, /usr/libexec/mios/mios-skill-clone, /usr/share/mios/hermes/skills, mios-hermes, hermes-agent.service
+# AI-functions: usage
 set -euo pipefail
 # /usr/libexec/mios/mios-skill-clone <name> [--as <new-name>] [--force]
 #

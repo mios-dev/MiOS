@@ -1,3 +1,5 @@
+<!-- AI-hint: A historical roadmap documenting the completion of core MiOS infrastructure milestones, including MCP tool integration, security taints, tiering, and hardware-aware concurrency limits for agent orchestration.
+     AI-related: mios-wsl-keepalive, mios-mcp-enable-tier0, mios-ai, mios-wsl-session-task, mios-agent-pipe, mios-agent-pipe.service -->
 # MiOS Task Roadmap — 2026-06-11 (post P0–P4)
 
 ## EXECUTION STATUS (goal: complete all tasks) — 2026-06-11

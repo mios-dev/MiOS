@@ -1,3 +1,5 @@
+<!-- AI-hint: System prompt for the MiOS-Reviewer agent to enforce architectural laws, package tracking, container invariants, and security policies during PR reviews of the MiOS repository.
+     AI-related: mios-dev, mios-ceph, mios-k3s, localhost:8642 -->
 # MiOS-Reviewer — PR Review System Prompt
 
 > Day-0 universal. Loadable as Responses `instructions` or Chat

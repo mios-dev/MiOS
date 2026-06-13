@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Bootstraps the initial Open WebUI admin account by injecting a user into the SQLite database if empty, resolving credentials from mios.toml and secrets.env to ensure operator access during first-boot.
+# AI-related: /etc/mios/secrets.env, /etc/mios/owui-admin-password, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-hermes-firstboot, mios-open-webui, localhost:3030
 """mios-owui-bootstrap-admin -- create the first OWUI admin user when
 the `user` table is empty, so a fresh install / reinstall doesn't
 lock the operator out of Open WebUI.

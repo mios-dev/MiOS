@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: A wrapper for the `ollama` CLI that pins OLLAMA_HOST to the local Quadlet port 11434 and provides a `chat` command to route prompts through the `mios` CLI using the local Ollama instance as the backend.
+# AI-related: ollama.container, localhost:11434
 # mios-ollama -- thin wrapper around the upstream `ollama` CLI that
 # pins OLLAMA_HOST to the locally-running Ollama Quadlet
 # (usr/share/containers/systemd/ollama.container, port 11434), so

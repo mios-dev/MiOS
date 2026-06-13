@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-hint: Clears hardcoded prompt_suggestions from the Open WebUI database to ensure the system defaults to dynamic, LLM-generated suggestions based on the current session's context and locale.
 """mios-owui-apply-suggestions -- HANDS-OFF mode.
 
 Operator directive 2026-05-17: "no hardcoded answers or anything

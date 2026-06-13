@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A cron-task scheduler that parses system and user rules from TOML files, executing commands via bash while optionally gating execution through a local LLM's YES/NO decision based on system state.
+# AI-related: /etc/mios/cron-rules.toml, mios-ai
 """'MiOS' cron-director -- minimal LLM-gated recurring-task scheduler.
 
 Reads /etc/mios/cron-rules.toml ([[rule]] name/cron/do/gate per the vendor

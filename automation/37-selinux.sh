@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Executes build-time SELinux policy fixes by applying specific booleans, fcontexts, and compiling custom policy modules to resolve known Fedora Rawhide and systemd 260 denials.
 # 'MiOS' v0.2.4 -- 37-selinux: Build-time SELinux policy fixes
 # Custom per-rule modules for known Fedora Rawhide / systemd 260 denials.
 set -euo pipefail

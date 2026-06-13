@@ -1,3 +1,5 @@
+# AI-hint: A systemd user oneshot service that imports WSLg DISPLAY/WAYLAND_DISPLAY environment variables into the user manager to enable GUI applications and flatpak scopes to render windows via the mios-launcher.
+# AI-related: /usr/libexec/mios/mios-wslg-env-import, mios-launcher, mios-wslg-env-import, mios-wslg-env, mios-launcher.service, basic.target, default.target
 [Unit]
 # /usr/lib/systemd/user/mios-wslg-env.service
 #

@@ -1,3 +1,5 @@
+# AI-hint: Systemd timer unit that triggers the mios-podman-gc.service weekly to automate the removal of stale Podman containers, images, and networks to reclaim disk space.
+# AI-related: mios-podman-gc, mios-podman-gc.service, timers.target
 [Unit]
 Description=Weekly Podman Cleanup
 [Timer]

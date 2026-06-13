@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Executes architectural-purity checks including ostree integrity, fs-verity status, read-only /usr enforcement, and systemd/SELinux policies to validate system state during initrd boot and CI/CD pipelines.
+# AI-related: /usr/lib/mios/userenv.sh, /usr/share/mios/mios.toml., /usr/share/mios/mios.toml, /usr/share/mios/ai/system.md, mios-cdi-detect, mios-verify.service, cockpit.socket, bootc-fetch-apply-updates.timer, mios-cdi-detect.service
+# AI-functions: log, fail, ok, skip
 # /usr/libexec/mios-verify -- post-install architectural-purity check.
 #
 # Wired in via /usr/lib/systemd/system/mios-verify.service (initrd

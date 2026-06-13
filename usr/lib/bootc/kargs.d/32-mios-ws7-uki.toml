@@ -1,3 +1,5 @@
+# AI-hint: Defines boot-time kernel arguments for the WS-7 immutable-host hardening; currently a no-op drop-in to prevent boot-bricking while providing a location for future fapolicyd enforcement and lockdown flags.
+# AI-related: mios-ws7-uki, mios-ws7-permissive
 # 32-mios-ws7-uki.toml
 # ----------------------------------------------------------------------------
 # WS-7 (AIOS immutable-host hardening) -- kargs drop-in for the verity-rooted

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Executes a SQL migration to define the directory_entry table and its associated indexes in the mios agent database via the local SQL API endpoint.
+# AI-related: localhost:8000
 # Apply ONLY the directory_entry table definition (the broader
 # schema already exists; we just need to land the new table).
 set -euo pipefail

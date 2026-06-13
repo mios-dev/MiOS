@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Displays a list of all MiOS containers by reading the root-owned podman-ps.json snapshot, allowing non-root users to view container status and images without direct podman socket access.
+# AI-related: /usr/libexec/mios/mios-ps, mios-podman-ps, mios-podman-ps.timer
 set -euo pipefail
 # /usr/libexec/mios/mios-ps -- show ALL MiOS containers from ANY shell or
 # context (interactive or scripted, rootless or not, Termius / ttyd / cron).

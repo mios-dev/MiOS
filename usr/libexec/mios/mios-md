@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A CLI shim that launches a local browser-based markdown editor and live previewer, converting local files or inline strings into a URL-encoded state for the standalone viewer at /usr/share/mios/markdown/index.html.
+# AI-related: /usr/share/mios/markdown/index.html., /usr/libexec/mios/mios-md, /usr/share/mios/markdown/index.html, mios-html, mios-windows
+# AI-functions: _urlenc
 set -euo pipefail
 # /usr/libexec/mios/mios-md [<file.md>] [--text "<inline markdown>"]
 #

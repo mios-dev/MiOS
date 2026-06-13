@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Enrolls the ublue/akmods Machine Owner Key (MOK) via mokutil to allow Secure Boot systems to load signed NVIDIA and ZFS kernel modules.
 # mios-enroll-secure-boot -- enroll the ublue/akmods Machine Owner Key (MOK) so
 # the MOK-signed NVIDIA + ZFS kmods MiOS inherits from ucore-hci load under
 # Secure Boot. Without this, a Secure-Boot system using the stable/lts NVIDIA or

@@ -22,6 +22,9 @@ metadata:
       - everything_search
       - viking_find
 ---
+<!-- AI-hint: Defines the logic for locating files and applications across Linux and Windows filesystems by mapping user intent to specific discovery tools (mios_find, mios_apps, fs_search, everything_search) to resolve concrete paths.
+     AI-related: /usr/share/mios/hermes/skills/find-files-and-apps/SKILL.md._, /usr/lib/mios/agent-pipe
+     AI-functions: mios_apps -->
 
 # Locating files & applications on MiOS
 

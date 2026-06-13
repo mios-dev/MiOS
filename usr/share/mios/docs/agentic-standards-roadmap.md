@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the transition from bespoke logic to standardized protocols (MCP, OpenAI tool-loops, A2A/ACP) to ensure reliable multi-agent coordination and tool execution via the `mios-mcp-server` and `agent-pipe`.
+     AI-related: mios-mcp-server, mios-mcp, mios-web-search, mios-sysview, mios-discord-send, mios-mcp.service -->
 # MiOS Agentic Standards Roadmap (MCP · OpenAI tool-loop · A2A/ACP)
 
 Operator directive 2026-05-22: "NOTHING hardcoded anywhere; fix in code to

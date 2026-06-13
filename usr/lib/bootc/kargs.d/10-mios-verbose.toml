@@ -1,3 +1,4 @@
+# AI-hint: Configures kernel arguments to force verbose systemd status and logging to the console, ensuring boot progress is visible during the boot process and preventing framebuffer hijacking by plymouth.
 # 'MiOS' -- Force verbose boot output on console
 # Without this, plymouth steals the framebuffer and hides all systemd output.
 # In Hyper-V this means a black screen with no progress indication.

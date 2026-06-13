@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Xbox VM Secure Boot Fix Script
 set -euo pipefail
 
 # Xbox VM Secure Boot Fix Script

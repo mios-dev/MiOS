@@ -1,3 +1,5 @@
+# AI-hint: Desktop entry for the Hermes Agent gateway, providing a shortcut to the local /v1 API surface at port 8642 for interacting with the primary MiOS AI agent.
+# AI-related: localhost:8642
 [Desktop Entry]
 Type=Application
 Version=1.0

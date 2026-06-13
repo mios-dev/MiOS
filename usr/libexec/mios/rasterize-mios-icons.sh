@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Read icon names on stdin, resolve each to a real file inside the
+# AI-related: mios-icon-stage
+# AI-functions: resolve_icon
 set -euo pipefail
 # Read icon names on stdin, resolve each to a real file inside the
 # WSL distro, rasterize/copy to a 256x256 PNG in /tmp/mios-icon-stage/,

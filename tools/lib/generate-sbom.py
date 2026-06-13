@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comprehensive Software Bill of Materials for the MiOS ecosystem.
+# AI-related: mios-selinux-modules, mios-build-local, mios-ai, mios-ceph, mios-k3s, mios-guacamole, mios-pxe-hub, mios-ai.container, mios-ceph.container, mios-k3s.container
+# AI-functions: main
 # tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from mios.toml
 # [packages.<section>].pkgs + Quadlet Image= refs + base image refs +
 # .env.mios Flatpak defaults. As of v0.2.4 (2026-05-05) PACKAGES.md is

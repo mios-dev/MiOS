@@ -1,2 +1,3 @@
+# AI-hint: Defines the bootcd installation configuration for MiOS, specifying the root filesystem type (ext4) and core installation parameters for the bootc-based deployment pipeline.
 [install]
 root-fs-type = "ext4"

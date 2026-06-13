@@ -1,3 +1,6 @@
+# AI-hint: A Windows-based build orchestrator that manages the core MiOS construction pipeline, including secure credential handling, multi-workflow selection (Local/Push/Custom), and containerized build execution.
+# AI-related: /etc/mios/install.env, /etc/mios/forge/admin-password, /usr/share/mios/build-log.txt., /usr/share/mios/build-log.txt, /etc/mios/install.env., mios-pipeline, mios-builder, mios-bootable, mios-hyperv, mios-wsl
+# AI-functions: Register-Secret, Format-Masked, Write-Banner, Write-Phase, Write-Step, Write-OK, Write-Warn, Write-Fatal, Show-StatusCard, Get-FileSize, Read-Timed, Get-SHA512Hash
 <#
 .NOTES
     CANONICAL ENTRY POINT NOTICE (v0.2.4+):

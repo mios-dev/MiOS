@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Install + configure GNOME Remote Desktop in system/headless mode so
+# AI-related: /usr/libexec/mios/automation/35-xrdp-enhanced-session.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-route, gdm.service, gnome-remote-desktop.service
+# AI-functions: _log, _mios_toml_value
 # /usr/libexec/mios/automation/35-xrdp-enhanced-session.sh
 #
 # Install + configure GNOME Remote Desktop in system/headless mode so

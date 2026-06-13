@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Parses mios.toml to arm concurrent llama-server instances in swarm mode, enforcing vram_budget_mb limits to prevent OOM on shared GPUs and generating per-worker environment files in /run/mios/swarm/.
+# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-llama-worker, mios-swarm-pack
+# AI-functions: log
 # mios-swarm-pack-firstboot
 #
 # SWARM Phase-2 (operator 2026-06-12): arm the dGPU/CPU small-model SERVER pack so

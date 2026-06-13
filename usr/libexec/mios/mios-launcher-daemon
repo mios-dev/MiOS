@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Broker service that provides a Unix socket for the mios-hermes agent to execute shell commands within the operator's user context, enabling GUI apps and Windows .exe interop via the operator's environment.
+# AI-related: /etc/mios/launcher-token, mios-hermes, mios-launcher, mios-find, mios-wslg, mios-launcher.service, 992.service, hermes-agent.service, socket.socket
 """mios-launcher-daemon -- operator-side launcher broker.
 
 Runs as the operator's user-level systemd service

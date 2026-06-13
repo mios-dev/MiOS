@@ -1,3 +1,5 @@
+<!-- AI-hint: The primary architectural specification and API surface map for MiOS, defining the routing logic, port mappings (8640-8642, 11434), and endpoint behaviors for the MiOS-Hermes and MiOS-Inference services.
+     AI-related: /usr/share/mios/ollama/Modelfiles/, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/profile.toml, /usr/share/mios/profile.toml, /usr/share/mios/env.defaults, /etc/mios/env.d/, /etc/mios/install.env, /etc/mios/ai, /etc/mios/forge -->
 # 'MiOS' System Interface -- v0.2.2
 
 Single source of truth for 'MiOS' architectural laws and the OpenAI-compatible

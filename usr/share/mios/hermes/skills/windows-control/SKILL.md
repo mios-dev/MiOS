@@ -12,6 +12,8 @@ metadata:
   hermes:
     requires_tools: [terminal]
 ---
+<!-- AI-hint: Defines the `windows-control` skill for the Hermes agent to launch, manage, and interact with Windows applications, services, and URLs via a set of abstracted host-side helpers that handle path translation and session brokering.
+     AI-related: mios-find, mios-windows, mios-open-url, mios-pc-control, mios-apps, mios-doctor, hermes-agent.service -->
 
 # windows-control — host-specific helpers
 

@@ -1,3 +1,5 @@
+# AI-hint: Adapter for Open WebUI requests that identifies and strips OWUI-specific RAG/task templates to isolate the raw user query from downstream processing in the agent-pipe.
+# AI-functions: strip_owui_scaffold
 """Open WebUI request adapter.
 
 Extracted from server.py (2026-06-02 monolith split). Pure stdlib (re) -- NO

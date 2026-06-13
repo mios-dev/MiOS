@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A script to generate a supervised fine-tuning (SFT) JSONL dataset by distilling a teacher model's responses to live system verbs and intent schemas into a training corpus for the MiOS role model.
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-finetune-smoke, localhost:11450
 """'MiOS' fine-tune dataset builder -- SELF-DISTILLATION, no hardcoded English.
 
 Builds a supervised fine-tuning (SFT) corpus for a small MiOS role model by

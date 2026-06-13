@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the OpenAI-compatible API surface and endpoint specifications for the MiOS AI gateway at port 8080, serving as the primary reference for agents to interact with the LocalAI backend.
+     AI-related: /usr/lib/mios/logs/openai-api-verification.txt, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, mios-ai, mios-bootstrap, mios-dev, mios-build-local, mios-ceph, mios-k3s, mios-ci -->
 # usr/share/doc/mios/reference/api.md
 
 > Canonical OpenAI-API-compatible reference for MiOS.

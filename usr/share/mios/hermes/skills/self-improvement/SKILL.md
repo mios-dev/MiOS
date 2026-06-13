@@ -5,6 +5,8 @@ metadata:
   hermes:
     requires_tools: [terminal, file]
 ---
+<!-- AI-hint: Defines the self-improvement skill for agents to clone and modify immutable vendor skills or shims into writable overlays, ensuring local overrides are used instead of failing on read-only system paths.
+     AI-related: /usr/share/mios/hermes/skills/, /usr/share/mios/hermes/, mios-skill-clone, mios-tool-clone, mios-windows, mios-windows-extended -->
 
 # self-improvement -- fork existing skills + tools, edit in writable overlay
 

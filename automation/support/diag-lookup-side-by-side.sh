@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script to debug discrepancies between raw HTTP requests to the /sql endpoint and the local mios-directory-lookup shim by executing the same SQL query through both paths side-by-side.
+# AI-related: /usr/libexec/mios/mios-directory-lookup, mios-directory-lookup, localhost:8000
 # Side-by-side: run the IDENTICAL SQL through (a) an inline python
 # urllib request and (b) the shim's _sql() to find why they return
 # different results despite identical headers + body.

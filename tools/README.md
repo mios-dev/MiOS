@@ -1,3 +1,5 @@
+<!-- AI-hint: Contains standalone host-side scripts for configuring VFIO passthrough, CPU isolation/pinning, and hardware profiling to prepare a host for MiOS deployment.
+     AI-related: mios-build-assess, mios-full, mios-build, mios-build-local -->
 # 'MiOS' Toolkit Scripts
 
 This directory contains **standalone out-of-image tooling** that runs

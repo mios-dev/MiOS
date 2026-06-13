@@ -1,3 +1,5 @@
+# AI-hint: Provides shell functions to initialize, prepend, or append paths to AWK environment variables (AWKPATH and AWKLIBPATH) to ensure correct script execution and library linking.
+# AI-functions: gawkpath_default, gawkpath_prepend, gawkpath_append, gawklibpath_default, gawklibpath_prepend, gawklibpath_append
 gawkpath_default () {
 	unset AWKPATH
 	export AWKPATH=`gawk 'BEGIN {print ENVIRON["AWKPATH"]}'`

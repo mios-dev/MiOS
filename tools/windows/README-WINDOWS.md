@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the Windows-specific build pipeline, detailing the use of Docker, PowerShell, and Hyper-V to compile MiOS into VHDX, QCOW2, or WSL2 formats.
+     AI-related: mios-dev -->
 # 'MiOS' -- Windows Build Guide
 
 Build 'MiOS' locally on Windows using **Docker Desktop** (WSL2 backend) and produce a VHDX for Hyper-V.

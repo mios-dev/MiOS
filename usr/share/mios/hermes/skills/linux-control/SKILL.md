@@ -5,6 +5,8 @@ metadata:
   hermes:
     requires_tools: [terminal]
 ---
+<!-- AI-hint: Defines the linux-control skill for interacting with Linux/Wayland desktops via cu_* verbs, providing an environment-adaptive interface for UI automation using AT-SPI semantic trees or vision-based fallbacks.
+     AI-related: /etc/mios/ai/v1/mcp.json, /etc/mios/ai/v1/a2a-peers.json, mios-computer-use, mios-pc-control, mios-env-probe, mios-environment, mios-grounding, mios-pc-vision, mios-computer-use-server -->
 
 # linux-control -- Linux/Wayland computer-use under MiOS
 

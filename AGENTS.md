@@ -1,3 +1,5 @@
+<!-- AI-hint: The primary entry point for coding agents to understand repo-level identity, build commands, architectural laws, and project conventions, distinct from the runtime behavior defined in MiOS.md.
+     AI-related: /usr/share/mios/VERSION, /usr/share/mios/configurator/mios.html, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /etc/mios/MiOS.md, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/v1/mcp.json, mios-dev -->
 # AGENTS.md
 
 > `/AGENTS.md` — the [agents.md][1]-standard **repo entry point** for any

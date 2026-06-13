@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that exposes the ttyd terminal service to the tailnet via tailscaled, controlled by the [ttyd].tailnet_expose configuration gate and requiring mios-ttyd-bash.service to be active.
+# AI-related: /usr/libexec/mios/mios-ttyd-expose, mios-ttyd-bash, mios-ttyd-expose, mios-ttyd-bash.service, tailscaled.service, network-online.target, multi-user.target
 [Unit]
 Description='MiOS' mobile terminal tailnet exposure (gated by [ttyd].tailnet_expose)
 Documentation=file:///usr/libexec/mios/mios-ttyd-expose

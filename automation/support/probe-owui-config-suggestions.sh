@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Parses the Open WebUI database to identify and list configuration keys related to suggestions, following, and autocomplete to help agents diagnose or suggest UI behavior modifications.
 set -euo pipefail
 python3 - <<'PYEOF'
 import json

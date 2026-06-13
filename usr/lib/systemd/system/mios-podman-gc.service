@@ -1,3 +1,4 @@
+# AI-hint: Systemd unit that executes a forced Podman system prune to reclaim disk space from unused images and containers, specifically targeting WSL and non-containerized environments.
 [Unit]
 Description='MiOS' Podman Garbage Collection
 # Podman runs on every MiOS shape including WSL -- garbage collection

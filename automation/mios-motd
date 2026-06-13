@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Displays a dynamic MOTD dashboard on TTY login, providing status indicators for system services (Cockpit, SSH, RDP, Guacamole, K3s) and clickable terminal links for remote management.
+# AI-related: mios-guacamole, cockpit.socket, mios-guacamole.service, podman.socket, libvirtd.socket, k3s.service
+# AI-functions: _ip, _l, _s
 # MiOS v0.2.0 -- MOTD Dashboard
 # Shows management interfaces, service statuses, and clickable links.
 # Displayed on TTY login and terminal open via profile.d.

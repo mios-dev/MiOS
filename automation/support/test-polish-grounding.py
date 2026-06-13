@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Seed a failed tool_call in the database for a specific session to test if the polish logic correctly grounds a hallucinated "Done!" response against the actual failed tool history.
+# AI-related: mios-gui, localhost:8000
+# AI-functions: db, main
 """Seed a failed tool_call + invoke /v1/chat/completions with that
 session_id so polish has tool history to ground against. Tests
 that polish rewrites a hallucinated 'Done!' response into a

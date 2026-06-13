@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Configures Hyper-V Enhanced Session features (clipboard, resolution, audio) by loading hv_ modules, starting hv-daemons, and configuring xrdp over vsock for Windows host integration.
+# AI-related: mios-orig, mios-hyperv-color, mios-hyperv, mios-hyperv-enhanced.service, gdm.service, hv-kvp-daemon.service, hypervkvpd.service, hv-vss-daemon.service, hv-fcopy-daemon.service, xrdp.service
+# AI-functions: log
 # /usr/libexec/mios-hyperv-enhanced -- Hyper-V Enhanced Session bring-up.
 #
 # Wired in via /usr/lib/systemd/system/mios-hyperv-enhanced.service:

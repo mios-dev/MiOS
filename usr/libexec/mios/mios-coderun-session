@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Orchestrates the lifecycle of agent-specific coderun sandboxes by managing systemd user units, btrfs snapshots, and git stashes for project isolation and state recovery based on a unique session ID.
+# AI-related: /usr/libexec/mios/mios-coderun-session, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-coderun-sandbox
+# AI-functions: usage, _resolve_projects_root, _resolve_snapshots_root, _require_session, _is_btrfs, _snap_btrfs, _snap_git_stash, do_start, do_stop, do_snap, do_revert, do_status
 set -euo pipefail
 # /usr/libexec/mios/mios-coderun-session {start|stop|snap|revert|status} <session-id>
 #

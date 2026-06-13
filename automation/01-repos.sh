@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Configures Fedora 44 repository metadata, sets `install_weak_deps=False` in DNF, and enforces priority 98 for base repos to ensure stable package resolution on ucore.
 # 'MiOS' v0.2.4 -- 01-repos: Fedora 44 overlay on ucore
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

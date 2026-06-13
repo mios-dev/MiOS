@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Registers markdown files or directories into the OWUI `file` table and links them to a named Knowledge collection to enable RAG capabilities for the MiOS-Agent model via meta.knowledge binding.
+# AI-related: mios-compact, mios-owui-apply-knowledge, mios-agent, mios-cache-clear, mios-owui-bootstrap-admin
 """mios-knowledge-add -- register a markdown file (or directory of
 markdown files) as files in OWUI's `file` table and link them into a
 named Knowledge collection. The collection becomes RAG-able by the

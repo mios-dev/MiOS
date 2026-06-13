@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Fixes boot-time failures by restoring execution bits on MiOS binaries, correcting USBGuard permissions, resolving systemd-resolved user mappings, and resolving ordering cycles for GPU passthrough.
+# AI-related: mios-role, mios-cdi-detect, mios-gpu-nvidia, mios-role.service, mios-cdi-detect.service, systemd-resolved.service, docker.socket, mios-gpu-nvidia.service, sockets.target, basic.target
 # ─────────────────────────────────────────────────────────────────────────────
 # 'MiOS': Systemd execution analysis & WSL2 Boot Loop fixes
 # Resolves ordering cycles, executable stripping, and hardware-dependent

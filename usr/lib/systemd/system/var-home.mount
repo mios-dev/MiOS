@@ -1,3 +1,5 @@
+# AI-hint: Systemd mount unit for mapping the CephFS cluster to /var/home, providing persistent storage for user home directories using the mios.secret for authentication.
+# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target
 [Unit]
 Description=CephFS mount for user home directories
 Documentation=man:mount.ceph(8)

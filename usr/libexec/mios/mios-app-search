@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Provides semantic search over the mios-apps inventory via the agent-pipe endpoint to resolve ambiguous natural-language queries into specific app metadata for agent-driven actions.
+# AI-related: mios-apps, localhost:8640
 """mios-app-search <query> [--limit N] [--json]
 
 Semantic search over the installed-app inventory. Calls agent-pipe's

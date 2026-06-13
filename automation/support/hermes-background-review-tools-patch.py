@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Patch script that modifies agent/background_review.py to union the full global tool surface into the review whitelist, preventing tool-denial errors during post-turn self-improvement passes.
+# AI-functions: main
 """Idempotent patch: give Hermes' BACKGROUND REVIEW the full global tool
 surface (operator 2026-06-04: "make sure MiOS-Hermes can use all global
 tools!! ... and all Global MiOS tools for Hermes too").

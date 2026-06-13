@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Automates the extraction, manual editing, and application of specific CPU pinning and host-passthrough XML configurations for the "Xbox" Libvirt VM.
 # Xbox VM CPU Pinning Configuration Script
 # Automated XML editing for nano users
 

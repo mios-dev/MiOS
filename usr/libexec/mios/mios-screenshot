@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A bash wrapper for capturing the primary Windows monitor as a PNG via mios-pc-control, supporting optional --open and --clipboard flags to provide a unified interface for remote screen capture.
+# AI-related: /usr/libexec/mios/mios-screenshot, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pc-control, mios-find, mios-open-url, mios-window, mios-windows
 set -euo pipefail
 # /usr/libexec/mios/mios-screenshot [output-path] [--open] [--clipboard]
 #

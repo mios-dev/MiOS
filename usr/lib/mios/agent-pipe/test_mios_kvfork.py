@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios_kvfork to verify KV-cache fork primitives, ensuring filename sanitization, length capping, and fork validation logic match the server's expected contract.
+# AI-related: mios_kvfork, mios-kv, mios-kv-abc, mios-kv-default, mios-kv-a_b_c, mios-kv-parent, mios-kv-child
+# AI-functions: _check, _reference_kv_filename, t_filename_matches_server, t_validate, t_plan, t_outcome, t_parse_bool, t_clamp, main
 """Standalone unit test for mios_kvfork (WS-8 KV-cache fork primitives).
 
 Pure stdlib + the sibling module only -- no server.py import, so it runs on any

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Executes the mios-cpu-isolate.service to parse isolcpus= kernel parameters and migrate all user-space processes onto non-isolated host cores via taskset to ensure deterministic performance.
+# AI-related: /usr/lib/mios/paths.sh, mios-cpu-isolate, mios-cpu-isolate.service, multi-user.target
+# AI-functions: _log, expand
 # 'MiOS' CPU core isolation engine -- runtime helper.
 # Reads `isolcpus=` from /proc/cmdline (set by usr/lib/bootc/kargs.d/), then
 # moves every existing user-space process onto the non-isolated host cores

@@ -1,3 +1,5 @@
+<!-- AI-hint: Documents the recursive build-and-upgrade lifecycle of MiOS, detailing how the system uses Justfile phases, pinned dependencies, and bootc to achieve reproducible self-replication across generations.
+     AI-related: /usr/share/mios/docs/day-n/SELF-REPLICATION.md, /usr/share/mios/src/, mios-dev -->
 <!-- FHS: /usr/share/mios/docs/day-n/SELF-REPLICATION.md -->
 
 # Day-1 → Day-N: The Self-Replication Loop

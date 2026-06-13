@@ -1,3 +1,5 @@
+<!-- AI-hint: Project overview and high-level architecture for MiOS, a container-image-based Linux workstation; use this to understand the system's core identity, licensing, and primary value proposition.
+     AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-ceph -->
 # 'MiOS'
 
 > **Pronounced "MyOS"** -- short for *My OS* / *My Operating System*. The

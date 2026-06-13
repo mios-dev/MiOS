@@ -1,3 +1,5 @@
+# AI-hint: Purges stale netsh portproxy entries (0.0.0.0:N to 127.0.0.1:N) that cause Windows to intercept and blackhole local browser requests to MiOS services, restoring proper WSL2 localhost routing.
+# AI-related: /usr/libexec/mios/Heal-MiOSLocalhostForwarding.ps1
 # /usr/libexec/mios/Heal-MiOSLocalhostForwarding.ps1
 #
 # Remove the stale `netsh interface portproxy v4tov4 0.0.0.0:N ->

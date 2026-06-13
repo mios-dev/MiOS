@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Executes targeted Day-0 cleanup of SurrealDB tables, daemon states, skills catalogs, agent passports, and audit logs to purge persistent state when standard cache clearing is insufficient.
+# AI-related: mios-cache-clear, mios-daemon, mios-skills-miner, mios-passport-provision, mios-skills-miner.timer, mios-passport-provision.service
+# AI-functions: surreal, daemon, skills, passports, agentpipe, audit, ttyd, pycache
 # Day-0 readiness: surfaces NOT covered by mios-cache-clear.
 # Run via: wsl.exe ... bash /mnt/c/MiOS/automation/support/day0-extras.sh <section>
 # Sections: surreal | daemon | skills | passports | agentpipe | audit | ttyd | pycache | all

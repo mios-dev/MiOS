@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: A wrapper for Valve's SteamCMD providing a unified interface for game installation, updates, and status checks via both GUI-based URI dispatching and headless SteamCMD commands for server hosting.
+# AI-related: /usr/libexec/mios/mios-steamcmd, mios-installer, mios-windows
+# AI-functions: _steamcmd_path, _ensure_steamcmd, _run_steamcmd, _install_uri, _install_cmd, _uninstall_cmd, _update_cmd, _status_cmd, _info_cmd, _login_cmd, _list_installed, _search_store
 set -euo pipefail
 # /usr/libexec/mios/mios-steamcmd <subcommand> [args...]
 #

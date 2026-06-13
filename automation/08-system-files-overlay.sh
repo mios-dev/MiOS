@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Overlay script that maps the /ctx/ source directory onto the rootfs during build, specifically handling the /usr/local to /var/usrlocal symlink logic and syncing the system version file.
+# AI-related: /usr/share/mios/VERSION, /usr/libexec/mios/motd, /usr/libexec/mios/mios-dashboard.sh, /usr/share/mios/mios.toml, mios-dashboard, mios-infra, mios-bootstrap, wsl-init.service
 # ============================================================================
 # automation/08-system-files-overlay.sh - 'MiOS' v0.2.4
 # ----------------------------------------------------------------------------

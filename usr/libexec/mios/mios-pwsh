@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Provides a synchronous wrapper for executing PowerShell commands on Windows hosts via the mios-windows broker, prioritizing PowerShell 7 (pwsh.exe) over 5.1 (powershell.exe) for MiOS-Agent interaction.
+# AI-related: /usr/libexec/mios/mios-pwsh, mios-windows, mios-hermes, mios-test
 set -euo pipefail
 # /usr/libexec/mios/mios-pwsh "<powershell-command>" [args...]
 #

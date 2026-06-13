@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Query the local mios database via the /sql endpoint to audit and display the 10 most recent satisfied/unsatisfied user query events logged by the mios-daemon satisfaction_loop.
+# AI-related: mios-daemon, localhost:8000
+# AI-functions: post, main
 """Show recent satisfaction events written by mios-daemon's
 satisfaction_loop. Operator-runnable post-hoc audit of which
 user queries the daemon flagged satisfied vs unsatisfied."""

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Wrapper script to launch the Chrome Dev flatpak with the --remote-debugging-port flag enabled, allowing the Hermes Agent to connect via CDP at port 9222 to share the operator's browser session.
+# AI-related: mios-chrome-profile, localhost:9222
+# AI-functions: _status
 # /usr/bin/mios-chrome -- launch Google Chrome Dev (flatpak) with the
 # Hermes Agent CDP integration enabled. Operator-facing wrapper.
 #

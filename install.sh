@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: The system-side installer for MiOS that performs Phase-3 initialization, including FHS overlay syncing, systemd user/tmpfile creation, and service enablement on non-bootc-managed hosts.
+# AI-related: mios-pipeline, mios-bootstrap
 #
 # CANONICAL ENTRY POINT NOTICE (v0.2.4+):
 # The user-facing end-to-end pipeline now lives at `./mios-pipeline.sh`

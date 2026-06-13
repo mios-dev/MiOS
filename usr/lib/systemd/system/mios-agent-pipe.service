@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp backend on port 11450.
+# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/hermes/api.env, /etc/mios/agent-pipe.env, /etc/mios/agent-pipe.env., /usr/lib/mios/agents/.venv/bin/python3, mios-surrealdb, mios-passport-provision, mios-ai, mios-hermes, mios-env
 [Unit]
 Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
 Documentation=file:///usr/lib/mios/agent-pipe/server.py

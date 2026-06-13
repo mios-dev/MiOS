@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Bakes the core Ollama model set (qwen2.5-coder, nomic-embed, qwen3.5, qwen3) and their derived MiOS role-specific Modelfiles into the image during build-time to ensure local availability.
+# AI-related: /usr/share/mios/ollama/Modelfiles, mios-ollama-firstboot, mios-opencode, mios-agent, mios-hermes, mios-sys-agent, mios-agent-cpu, mios-hermes-cpu, mios-ollama, mios-model
 # 37-ollama-prep -- bake the default 'MiOS' model set into the image.
 #
 # Models land in /usr/share/ollama/models (immutable composefs surface,

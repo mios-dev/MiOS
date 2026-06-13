@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Parses and reports the success/failure status of schema-init.surql operations via a JSON stream to verify database schema application during Phase C.2 testing.
+# AI-related: mios-db
+# AI-functions: main
 """Helper: apply schema-init.surql via direct curl POST and pretty-
 print the per-statement results. Used during Phase C.2 testing on
 the dev VM; mios-db schema-apply was spawning an interactive SQL

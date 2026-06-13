@@ -1,3 +1,5 @@
+<!-- AI-hint: Provides a comparative analysis of MiOS against sibling Universal Blue images and other atomic distributions to define MiOS's specific positioning as a workstation-server hybrid for local AI and HCI.
+     AI-related: mios-dev -->
 # Related Distros — Comparison Context
 
 ## Sibling Universal Blue images

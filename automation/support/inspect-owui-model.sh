@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Queries the Open WebUI database to inspect the 'model' table for MiOS-specific configurations, revealing active knowledge bases, RAG settings, and web_search parameters for the mios-agent.
+# AI-related: mios-agent
+# AI-functions: print
 # Inspect the OWUI 'model' row for mios-agent to see what knowledge
 # / web_search params are attached + firing pre-call RAG.
 set -euo pipefail

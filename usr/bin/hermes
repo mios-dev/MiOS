@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Thin wrapper for the Hermes-Agent CLI located in the system venv; provides interactive chat, gateway status, and kanban commands by proxying to the native hermes binary at /usr/lib/mios/agents/.venv/bin/hermes.
+# AI-related: /usr/lib/mios/agents/.venv/bin/hermes., /usr/lib/mios/agents/.venv, /usr/lib/mios/agents/.venv/bin/hermes, mios-hermes, mios-hermes-firstboot, hermes-agent.service
 # /usr/bin/hermes
 # Thin launcher for the DIRECT-installed Hermes-Agent. Operator
 # directive 2026-05-13/14: Hermes-Agent is installed natively onto the

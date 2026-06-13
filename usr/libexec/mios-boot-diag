@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: A read-only diagnostic script that audits boot-time health by checking failed systemd units, greenboot status, NVIDIA CDI, and filesystem integrity to provide a summary of system stability during the boot sequence.
+# AI-related: /usr/share/mios/VERSION, /etc/mios/install.env, mios-cdi-detect, mios-boot-diag.service, greenboot-healthcheck.service, mios-cdi-detect.service, basic.target, graphical.target
+# AI-functions: hdr, ok, warn, fail, info
 # /usr/libexec/mios-boot-diag -- MiOS boot-time diagnostic.
 #
 # Wired in via /usr/lib/systemd/system/mios-boot-diag.service which

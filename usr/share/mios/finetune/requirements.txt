@@ -1,3 +1,5 @@
+# AI-hint: Defines the Python dependencies for the MiOS fine-tune subsystem, specifying libraries for model training (transformers, peft, trl), dataset handling, and optional CUDA-specific optimizations like bitsandbytes.
+# AI-related: /usr/share/mios/finetune/requirements.txt, mios-finetune-dataset, mios-finetune
 # MiOS fine-tune subsystem -- one-time framework install (FOSS, offline thereafter).
 # Install ONCE into a venv on the box that will train, then training is fully local:
 #   python3 -m venv /var/lib/mios/finetune/venv

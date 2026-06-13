@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: HTTP proxy that intercepts Open WebUI requests on port 8641 to force-inject tool_choice requirements for delegate_task, ensuring deterministic fan-out of multi-part prompts to the Hermes-Agent gateway on port 8642.
+# AI-related: /usr/share/mios/ai/refusal-patterns.txt, mios-sys-agent, mios-hermes, mios-agent, mios-sys, mios-find, mios-delegation-prefilter.service
+# AI-functions: main
 """mios-delegation-prefilter -- HTTP forwarder that sits between Open
 WebUI and Hermes-Agent's /v1/chat/completions, force-routing fan-out
 prompts through delegate_task instead of letting the model pick

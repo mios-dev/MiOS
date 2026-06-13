@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Executes during first boot to resolve and install system-wide Flatpaks defined in mios.toml or the bake-time fallback list, ensuring the desktop environment has required applications.
+# AI-related: /usr/lib/mios/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/flatpak-list, mios-flatpak-install.service, display-manager.service, network-online.target
+# AI-functions: log, parse_ref, ensure_remote
 # /usr/libexec/mios-flatpak-install -- first-boot Flatpak deployer.
 #
 # Wired in via /usr/lib/systemd/system/mios-flatpak-install.service:

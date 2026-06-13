@@ -1,3 +1,4 @@
+# AI-hint: Defines pinned SHA256 digests for base images and bootc-image-builder tools, used by Renovate to automate image updates and by build scripts to ensure reproducible MiOS builds.
 # MiOS v0.2.4  Base Image Version Pinning
 # Managed by Renovate Bot  do NOT edit digests manually.
 # Renovate opens PRs when upstream images publish new digests.

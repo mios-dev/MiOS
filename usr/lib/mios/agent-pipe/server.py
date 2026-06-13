@@ -1,3 +1,6 @@
+# AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and SurrealDB.
+# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, /usr/share/mios/mios.toml
+# AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _trip_breaker, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
 Step 2 of the migration: ports the router + dispatch + SurrealDB

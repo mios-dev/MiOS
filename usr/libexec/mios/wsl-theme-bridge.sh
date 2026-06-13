@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Bridges the Windows AppsUseLightTheme registry value to GNOME's
+# AI-related: /usr/libexec/mios/wsl-theme-bridge.sh, mios-wsl-theme-bridge, mios-wsl-theme-bridge.service
+# AI-functions: query_apps_use_light_theme, apply
 set -euo pipefail
 # /usr/libexec/mios/wsl-theme-bridge.sh
 #

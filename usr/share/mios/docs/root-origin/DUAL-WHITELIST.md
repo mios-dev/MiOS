@@ -1,3 +1,5 @@
+<!-- AI-hint: Documents the dual-repo filesystem architecture where `.gitignore` files act as whitelists to isolate the MiOS and bootstrap repositories within a shared root, defining the logic for the `mios repo` CLI tool.
+     AI-related: /usr/share/mios/docs/root-origin/DUAL-WHITELIST.md, /usr/share/mios/src/, /usr/libexec/mios/repo-use, mios-bootstrap, mios-agent -->
 <!-- FHS: /usr/share/mios/docs/root-origin/DUAL-WHITELIST.md -->
 
 # Dual `.gitignore`-as-Whitelist Topology

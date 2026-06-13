@@ -1,3 +1,5 @@
+# AI-hint: Provides deterministic logic for the WS-6 HITL approval gate, determining if actions should proceed or be blocked/logged based on verb scope and mode.
+# AI-functions: parse_scope, requires_approval, gate_outcome, block_result
 """mios_hitl -- pure decision helpers for the WS-6 runtime HITL approval gate.
 
 DB-free + stdlib-only so the scope-resolution and gate-decision logic unit-tests

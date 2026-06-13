@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Generates the initial AdGuardHome.yaml config by merging mios.toml settings with live Tailscale network data (IPv4 and MagicDNS) to establish DNS binding and split-DNS rules during first boot.
+# AI-related: /etc/mios/adguard/AdGuardHome.yaml, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/adguard, mios-adguard
 """'MiOS' AdGuard Home first-boot config generator.
 
 Writes /etc/mios/adguard/AdGuardHome.yaml from the [adguard] + [ports] SSOT in

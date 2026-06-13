@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: A diagnostic script that audits hardware topology, IOMMU groups, VFIO bindings, and PCIe layout to determine device passthrough readiness for the MiOS virtualization layer.
+# AI-related: cockpit.socket, cockpit.service
+# AI-functions: print_section, print_subsection, cmd_exists, run_if_exists, read_file_if_exists, check_privileges, check_pass
 #
 # system-assess.sh - System layout / hardware / topology assessment.
 # Captures CPU topology, IOMMU groups, VFIO bindings, PCIe layout, and

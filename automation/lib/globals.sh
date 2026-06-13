@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Provides a centralized, idempotent source of truth for MiOS-wide constants including versioning, service UIDs/GIDs, OCI image references, network ports, and API endpoints for use across all automation scripts.
+# AI-related: /usr/share/mios/VERSION, mios-services, mios-forge, mios-ollama, mios-searxng, mios-ceph, mios-hermes, mios-open-webui, mios-dev, mios-guacamole
+# AI-functions: _mios_resolve_version
 # automation/lib/globals.sh
 #
 # Single-source-of-truth registry for MiOS-wide constants. Source this

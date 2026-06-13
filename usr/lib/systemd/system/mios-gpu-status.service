@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that detects GPU hardware (NVIDIA, AMD, Intel) and virtualization status, exporting the results to /run/mios/gpu-passthrough.status and enabling the container_use_devices SELinux boolean.
+# AI-related: mios-gpu, systemd-udev-trigger.service, systemd-modules-load.service, podman.socket, docker.socket, local-fs.target, basic.target, sockets.target, multi-user.target
 [Unit]
 ConditionVirtualization=!container
 Description='MiOS' GPU passthrough detection and status

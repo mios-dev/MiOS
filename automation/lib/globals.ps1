@@ -1,3 +1,6 @@
+# AI-hint: Provides a central PowerShell registry of MiOS-wide constants (VERSION, USERS, PORTS, URLS) and environment-aware defaults for system-wide configuration used by all automation scripts.
+# AI-related: /usr/share/mios/VERSION, mios-forge, mios-ollama, mios-services, mios-searxng, mios-ceph, mios-hermes, mios-dev, mios-crawl4ai, mios-bootstrap
+# AI-functions: Resolve-MiosVersion
 # automation/lib/globals.ps1
 #
 # PowerShell sibling of automation/lib/globals.sh. Single registry for

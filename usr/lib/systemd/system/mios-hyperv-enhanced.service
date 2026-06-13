@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that triggers /usr/libexec/mios-hyperv-enhanced to configure gnome-remote-desktop for Hyper-V enhanced session support when running on Microsoft virtualization platforms.
+# AI-related: mios-hyperv-enhanced, gdm.service, local-fs.target, network.target, graphical.target
 [Unit]
 Description='MiOS' Hyper-V Enhanced Session Setup (gnome-remote-desktop)
 After=local-fs.target network.target gdm.service

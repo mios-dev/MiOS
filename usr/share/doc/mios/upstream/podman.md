@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for Podman, Buildah, and Quadlet integration, defining build invariants for bootc images, multi-arch manifest rules, and the systemd-podman bridge for service orchestration and lifecycle management.
+     AI-related: mios-build-local, mios-builder, mios-ceph, mios-k3s, mios-ai, mios-ceph.container, mios-ai.container -->
 # Podman, buildah, skopeo, Quadlets
 
 > Used in MiOS for: image build (`podman build` from `Justfile:build`),

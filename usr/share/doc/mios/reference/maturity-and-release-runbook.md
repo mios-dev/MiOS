@@ -1,3 +1,5 @@
+<!-- AI-hint: Standard operating procedure for MiOS R14 maturity review, detailing test suite verification, build artifact generation via Justfile, and operator-gated signing/release workflows for OCI images and Secure Boot.
+     AI-related: /usr/lib/mios/agent-pipe/server.py, mios-build-local, mios-dev, mios-ai, mios-agent-pipe, mios-agent-pipe.service -->
 # MiOS maturity + release runbook (R14)
 
 Closes the **docs** slice of the R14 maturity-review gaps and documents the

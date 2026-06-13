@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the MiOS-Engineer persona and core system constraints, providing the primary system prompt for AI agents to act as authoritative experts on MiOS's bootc/ostree architecture, package management, and build pipelines.
+     AI-related: mios-dev, mios-build-local, mios-ceph, mios-k3s, localhost:8642 -->
 # MiOS-Engineer — Primary System Prompt
 
 > Loadable as `instructions` (Responses API) or as the `system` message

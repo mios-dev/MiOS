@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Renames .svg files containing non-SVG data (e.g., PNGs) to .disabled-not-svg to prevent the WSLg weston compositor from crashing during RemoteApp list generation.
+# AI-related: /usr/libexec/mios/mios-flatpak-icon-sanitize, mios-wslg-permissions-fix, mios-wslg-permissions-fix.service
 # /usr/libexec/mios/mios-flatpak-icon-sanitize
 #
 # Rename any ".svg" icon whose CONTENT is not actually SVG (e.g. a PNG

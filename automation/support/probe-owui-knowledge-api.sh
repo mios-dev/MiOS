@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script to probe Open WebUI (OWUI) API endpoints and identify the correct retrieval path for the knowledge base based on the current version's schema.
+# AI-related: localhost:3030
 # Probe OWUI knowledge API to find the correct retrieval endpoint
 # for this OWUI version. Existing scripts use:
 #   /api/v1/retrieval/process/query

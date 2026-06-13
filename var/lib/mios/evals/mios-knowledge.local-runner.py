@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Executes MiOS knowledge evaluation tests against OpenAI-compatible endpoints to validate model responses against criteria in mios-knowledge.eval.json using both string matching and LLM-based grading.
+# AI-related: /etc/mios/system-prompts/mios-engineer.md, mios-knowledge, mios-engineer, localhost:8080, localhost:11434, localhost:8000, localhost:1234, localhost:4000
+# AI-functions: chat, grade_string_check, grade_score_model, main
 """
 mios-knowledge.local-runner.py — Run the MiOS Knowledge eval against any
 OpenAI-compatible /v1/chat/completions endpoint.

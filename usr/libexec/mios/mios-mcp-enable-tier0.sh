@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: mios-mcp-enable-tier0.sh -- OPERATOR-RUN activation of the Tier-0 MCP servers
+# AI-related: /usr/libexec/mios/mios-mcp-enable-tier0.sh, /etc/mios/ai/v1/mcp.json, /etc/mios/ai/v1, mios-mcp-enable-tier0, mios-agent-pipe, mios-ai-owned, mios-ai, mios-agent-pipe.service
 # mios-mcp-enable-tier0.sh -- OPERATOR-RUN activation of the Tier-0 MCP servers
 # (DuckDB + Postgres). The agent-pipe CODE is already P4-ready + the embed/taint/
 # tool_search reachability is live; this performs the OPERATOR-GATED activation that

@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit defining the pgvector-enabled PostgreSQL instance as the primary FOSS-compliant unified agent-plane datastore for relational, JSONB, and vector memory storage.
+# AI-related: /usr/share/mios/postgres/schema-init.sql, /etc/mios/mios.toml, mios-pgvector, mios-surrealdb, mios-daemon, mios-schema, mios-services, network-online.target, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-pgvector.container
 # 'MiOS' unified agent-plane datastore -- PostgreSQL + pgvector (WS-9, 2026-06-04).
 # FOSS-pure (PostgreSQL License + pgvector) replacement for the SurrealDB

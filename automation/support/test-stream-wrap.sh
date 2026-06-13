@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A test script to verify that the streaming sub-agent proxy correctly wraps content in <details type="reasoning"> tags while stripping <think> tags from the raw stream.
+# AI-related: /etc/mios/hermes/api.env, mios-find, mios-agent
 # Stream a prompt that routes to a sub-agent (NOT chat) and
 # inspect the response shape. The final content should be wrapped
 # in <details type="reasoning"> with the polished/💯/📋 main

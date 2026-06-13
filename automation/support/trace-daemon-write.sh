@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script that executes a raw SQL insert via the mios_daemon._db_post_sync method to verify the exact response schema and data structure returned by the database synchronization layer.
+# AI-related: /usr/libexec/mios/mios-daemon, mios-daemon, localhost:8000
 # Run a single insert via the daemon's _db_post_sync to see the
 # actual response shape.
 set -euo pipefail

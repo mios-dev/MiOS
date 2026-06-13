@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Executes agent-provided bash or python snippets within a restricted bubblewrap sandbox, providing a safe, ephemeral execution environment with controlled network access and a private scratch workspace.
+# AI-related: mios-sandbox-exec, mios-coderun-session
 """mios-coderun -- execute agent code in the bubblewrap sandbox (the `coderun`
 verb backend). Completes the P4.4 sandbox loop: the sandbox (mios-sandbox-exec)
 is now reachable AS A VERB, so an agent can run code SAFELY -- read-only system,

@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios_sched.PriorityGate to verify concurrency logic, permit capping, and priority-based reordering without requiring the full agent-pipe runtime.
+# AI-related: mios_sched
+# AI-functions: _check, t_basic_bound, third, t_priority_reorder, worker, t_fifo_tiebreak, t_anti_starvation, t_cancel_while_queued, t_cancel_after_grant, t_cap_never_exceeded, main
 """Standalone unit test for mios_sched.PriorityGate (WS-1).
 
 Pure stdlib + the sibling module only -- no server.py import, so it runs on any

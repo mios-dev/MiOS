@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Standalone diagnostic that prints a colorized terminal report of the build/dev host - distro, kernel, uptime, CPU+virt flags, memory, GPU/NVIDIA, storage/disks, and IOMMU group isolation; run manually for a fast hardware overview, not part of boot.
+# AI-functions: print_header, check_status, main
 
 ################################################################################
 # Quick System Summary

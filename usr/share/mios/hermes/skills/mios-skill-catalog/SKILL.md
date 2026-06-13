@@ -13,6 +13,8 @@ metadata:
       - mios_skill_run
       - mios_skill_list
 ---
+<!-- AI-hint: Defines the MiOS skill catalog as a repository of codified, multi-agent procedure DAGs; agents use it to discover, list, and execute promoted skill chains via the mios_skill_run and mios_skill_list tools over the :8640 port.
+     AI-related: /usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md._, mios-skill-catalog, mios-skills-miner, mios-skills, mios-skills-miner.timer -->
 
 # MiOS skill catalog
 

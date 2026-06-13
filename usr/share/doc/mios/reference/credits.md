@@ -1,3 +1,5 @@
+<!-- AI-hint: Attribution registry documenting all upstream projects, dependencies, and components used in MiOS to provide legal and source-of-truth tracking for the system's foundational substrate.
+     AI-related: /usr/share/mios/mios.toml, /usr/share/mios/ai/system.md, /usr/share/mios/ai/v1/models.json, /usr/share/mios/ai/v1/mcp.json, /etc/mios/install.env, mios-dev, mios-ai, mios-mcp, mios-forge, mios-ci -->
 # usr/share/doc/mios/reference/credits.md
 
 > Attribution registry for every upstream project, dependency, application,

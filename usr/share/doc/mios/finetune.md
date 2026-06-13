@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for the MiOS Fine-Tune subsystem, detailing the pipeline to distill a large teacher model into a small, hardware-agnostic role model via LoRA/SFT to bake system behaviors into weights.
+     AI-related: /usr/share/mios/finetune/requirements.txt, /etc/mios/mios.toml, /usr/libexec/mios/mios-finetune-serve, mios-finetune-serve, mios-sys-agent, mios-finetune-dataset, mios-finetune, mios-agent-pipe, mios-agent-pipe.service -->
 # MiOS Fine-Tune Subsystem
 
 Distil a strong **local** teacher model into a small, fast MiOS **role model** via

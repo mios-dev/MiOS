@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: A headless document generation engine using Pandoc and LibreOffice to convert markdown/text into office binaries (docx, pptx, xlsx, pdf) or perform format conversions, gated by the [computer_use].docgen_enable flag.
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml
 """mios-docgen -- FOSS, fully-offline document generation for MiOS (WS-4 P0).
 
 The computer-use "Worker" half that PRODUCES artifacts (pptx / docx / xlsx /

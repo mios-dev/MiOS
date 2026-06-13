@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Smoke-test script for the `reflect_on_step_failure` logic; use to verify that the refine model correctly identifies and corrects malformed tool calls (e.g., typos) into valid tool names and rationales.
+# AI-related: /usr/lib/mios/agent-pipe, /usr/share/mios/mios.toml
+# AI-functions: main
 """Smoke-test reflect_on_step_failure.
 
 Calls the reflection helper with a deliberately-bad failed_node

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: mios-vfio-toggle -- enable or disable PCIe passthrough via vfio-pci.
+# AI-related: /usr/share/mios/tools/universal-vfio-configurator.sh, /usr/libexec/mios/vfio-config.sh, mios-vfio-toggle, mios-vfio-check
 # mios-vfio-toggle -- enable or disable PCIe passthrough via vfio-pci.
 # Thin wrapper over /usr/share/mios/tools/universal-vfio-configurator.sh
 # with sane MiOS defaults (dracut + bootc-friendly modprobe path, no

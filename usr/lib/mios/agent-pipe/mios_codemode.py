@@ -1,3 +1,6 @@
+# AI-hint: Provides pure, side-effect-free logic for WS-2 Code Mode, including session ID derivation, podman exec argument construction, and tool-call normalization to reduce context window usage by executing code in a local sandbox.
+# AI-related: mios-coderun-codemode
+# AI-functions: normalize_lang, clamp_timeout, session_id, extract_code, validate_request, _truthy, is_enabled, net_allowed, podman_exec_argv, parse_result, _try_json_tail, safe_session_token
 """mios_codemode -- pure helpers for WS-2 Code Mode (the AIOS Tool-Manager
 "Code Mode" layer: instead of loading ~71 OpenAI function schemas into the
 model's context every turn, the agent WRITES CODE that calls a small local tool

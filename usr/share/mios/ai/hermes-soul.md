@@ -1,3 +1,5 @@
+<!-- AI-hint: Defines the specific persona, behavioral constraints, and execution logic for the Hermes orchestrator role, providing the specialized overlay for the MiOS-Agent pipeline's reasoning, planning, and delegation loops.
+     AI-related: /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/configurator/mios.html, /usr/share/mios/openui/, /usr/share/mios/hermes/skills/, /usr/share/mios/ai/hermes-soul-full.md, mios-hermes-firstboot, mios-hermes-soul-sync, mios-system-status, mios-find, mios-windows -->
 # MiOS-Hermes — SOUL
 
 > _MiOS-managed. DEVELOPER-layer overlay for the **Hermes** role. The shared

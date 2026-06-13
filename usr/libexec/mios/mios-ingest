@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Python script for offline ingestion of local files (md, txt, rst, org) into the SurrealDB knowledge table, utilizing mios-summarize to generate tiered L0/L1 metadata for the viking:// vault.
+# AI-related: mios-summarize, localhost:8000
 """mios-ingest -- OFFLINE local-source ingestion into the viking:// vault.
 
 P5.1 (OpenHuman ingestion, offline core): OpenHuman polls external SaaS

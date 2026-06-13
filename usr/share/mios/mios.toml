@@ -1,3 +1,5 @@
+# AI-hint: The primary configuration file defining the MiOS user profile, providing the base defaults for identity, system environment, and service configurations used by tools via the userenv.sh resolver.
+# AI-related: tools/lib/userenv.sh, userenv.sh, automation/08-system-files-overlay.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/hermes/discord.env, /usr/share/mios/configurator/mios.html, /etc/mios/hermes/api.env., /usr/libexec/mios/mios-powershell, /usr/libexec/mios/mios-computer-use
 # mios-bootstrap/mios.toml -- 'MiOS' User Profile (single source of user truth)
 #
 # THIS IS THE ONE FILE YOU EDIT. Every script in 'mios.git' and

@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Removes build-toolchain packages (gcc, g++, cmake, etc.) from the final image via dnf to minimize attack surface, ensuring no compilers remain in the PATH after the build phase.
 # 'MiOS' v0.2.4 -- 91-strip-build-toolchain
 #
 # Removes the build toolchain (compilers, build-system headers) from the

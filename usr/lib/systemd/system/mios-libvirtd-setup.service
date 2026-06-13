@@ -1,3 +1,5 @@
+# AI-hint: Initializes libvirtd configuration and creates a completion flag on first boot if not in a container, ensuring virtualization services are wired and ready for MiOS.
+# AI-related: /usr/libexec/mios/libvirtd-firstboot, mios-firstboot, libvirtd.socket, virtqemud.socket, virtnetworkd.socket, virtstoraged.socket, mios-firstboot.target
 [Unit]
 Description='MiOS' first-boot libvirtd wiring
 ConditionPathExists=!/var/lib/mios/libvirtd-setup.done

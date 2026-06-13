@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Automates the deployment of firstboot binaries and systemd drop-in configurations, then triggers and validates the mios-hermes-firstboot service to ensure environment variables and core services are initialized.
+# AI-related: /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-paths-env, hermes-agent.service, mios-hermes-firstboot.service
 # Deploy the firstboot + env-drop-in fixes, then re-run firstboot
 # and report the final state of all canonical services.
 set -euo pipefail

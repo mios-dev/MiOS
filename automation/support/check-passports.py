@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: Verifies Phase C.3 integrity by querying the local SurrealDB instance to count and sample rows in tool_call, event, and skill_invocation tables that contain non-null passport signatures.
+# AI-related: localhost:8000
+# AI-functions: post, main
 """Helper: count tables with at least one passport-bearing row.
 Used during Phase C.3 verification to make sure the signing
 default is actually attaching envelopes to every write site."""

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: Migrates active session state, tool outputs, and context from a large model to a smaller/local model by serializing the A2A-context blackboard and dispatching a TAKE-OVER frame to a target peer or skill.
+# AI-related: mios-a2a-delegate
 """mios-handoff -- live state migration between model endpoints.
 
 P5.5 (operator 2026-05-28 Hermes v2026.5.28 brief): "transition from a

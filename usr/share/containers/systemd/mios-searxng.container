@@ -1,3 +1,5 @@
+# AI-hint: Systemd container unit defining the SearXNG metasearch proxy; provides a privacy-preserving search tool for the LLM via port 8888, abstracting 250+ engines into a single local endpoint.
+# AI-related: /etc/mios/searxng/, /etc/mios/searxng, /etc/mios/searxng/settings.yml, mios-searxng, mios-hermes, mios-services, network-online.target, multi-user.target, default.target, localhost:8888
 # /etc/containers/systemd/mios-searxng.container
 # 'MiOS' privacy-respecting metasearch (SearXNG upstream).
 #

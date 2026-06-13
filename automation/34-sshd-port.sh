@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Configures the host's admin sshd to bind to the SSOT port defined in mios.toml by creating a drop-in config in /etc/ssh/sshd_config.d/ to avoid port conflicts with Forgejo's git-ssh.
+# AI-related: mios-forge, mios-ssh-port, mios-forge.container
 set -euo pipefail
 
 # shellcheck source=lib/common.sh

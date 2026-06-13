@@ -1,3 +1,4 @@
+<!-- AI-hint: Documentation for the dnf5 package manager, detailing critical build-time flags (e.g., `install_weak_deps`), BuildKit cache mount patterns, and kernel-specific installation restrictions for MiOS image construction. -->
 # dnf5 — The Package Manager Used at Build Time
 
 > MiOS's `Containerfile` mounts `/var/cache/libdnf5` and `/var/cache/dnf`

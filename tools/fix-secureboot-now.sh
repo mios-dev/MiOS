@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: A diagnostic and recovery script used to troubleshoot Secure Boot auto-enrollment failures by auditing libvirt XML configurations, NVRAM file integrity, and identifying manual firmware key enrollment workarounds.
 
 # Diagnose Secure Boot Auto-Enrollment Failure
 # Try alternative enrollment methods

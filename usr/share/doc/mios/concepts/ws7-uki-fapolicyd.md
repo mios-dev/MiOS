@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation of the WS-7 security architecture defining the transition from permissive fapolicyd observation to enforced execution whitelisting and verity-rooted UKI builds via mios.toml configuration flags.
+     AI-related: /etc/mios/mios.toml, mios-ws7-permissive, mios-agent-codegen, mios-ws7-uki, mios-deny, mios-verity, fapolicyd.service -->
 # WS-7 — Verity-rooted UKI + fapolicyd execution whitelist
 
 > Status: scaffolded 2026-06-04, **DEFAULT-OFF / OBSERVE-ONLY**. Companion:

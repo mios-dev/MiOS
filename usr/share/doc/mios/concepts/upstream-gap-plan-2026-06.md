@@ -1,3 +1,5 @@
+<!-- AI-hint: Roadmap and research synthesis for MiOS infrastructure updates, detailing hardware-verified overrides for WSL2 GPU compute, vLLM memory management, and Podman/bootc integration paths for 2026 deployment.
+     AI-related: mios-podman-ps, mios-ai, mios-igpu-server, mios-reasoner-cpu, mios-computer-use, mios-daemon-agent, podman.socket, console-getty.service -->
 # MiOS Upstream-Gap Research + Implementation Plan — 2026-06-07
 
 Synthesis of a 5-stream deep research pass (WSL2/g+GPU, bootc/image-mode, Podman/Quadlets,

@@ -1,3 +1,5 @@
+<!-- AI-hint: Human-readable reference documentation for the MiOS package ecosystem; agents should use mios.toml as the source of truth for package selection while using this file to understand the rationale and delivery policies.
+     AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/configurator/mios.html, /usr/lib/mios/env.d/flatpaks.env, /usr/libexec/mios/intel-cdi-specs-generator, /usr/libexec/mios/mios-cdi-detect, mios-cdi-detect, mios-bootstrap, mios-flatpak-install, mios-no-audit -->
 # 'MiOS' -- Package Documentation
 > **Attribution:** MiOS-DEV (Administrative Alias)
 > **Infrastructure:** 'MiOS' Open-Source Build Pipeline

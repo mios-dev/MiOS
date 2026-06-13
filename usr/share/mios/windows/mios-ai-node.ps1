@@ -1,3 +1,6 @@
+# AI-hint: Configures a local Podman machine as a MiOS AI node by installing NVIDIA container toolkits, deploying Ollama Quadlets on ports 11434/11435, opening Tailscale firewall rules, and generating the registration snippet for Hermes.
+# AI-related: /etc/mios/mios.toml, mios-ai-node, mios-ollama, mios-ollama-cpu, mios-win-tailscale-ip, mios-win, mios-ollama.service, mios-ollama-cpu.service, mios-ollama.container, mios-ollama-cpu.container
+# AI-functions: Info, Ok, Warn, Fail, Get-TailscaleIP, Invoke-Machine, Write-MachineFile, Test-MachineCmd
 <#
   mios-ai-node.ps1 -- MiOS Windows AI Node setup
 

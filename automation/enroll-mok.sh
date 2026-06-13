@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+# AI-hint: Enrolls the MiOS Secure Boot MOK certificate using mokutil, handling variant-specific keys and idempotency checks to ensure the system's boot chain is signed and trusted.
+# AI-functions: log, status_probe, pick_key
 # enroll-mok.sh -- 'MiOS' Secure Boot MOK enrollment helper.
 #
 # Uses mokutil throughout. sbctl is the WRONG tool for Fedora bootc

@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Validates the live connectivity and data integrity of the open-webui configuration endpoints by extracting an admin API key from the local SQLite database and performing curl requests against the local port 3030.
+# AI-related: localhost:3030
 set -euo pipefail
 
 TOKEN_PY=$(python3 - <<'PYEOF'

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# AI-hint: Builds, signs, and embeds the Looking Glass kvmfr kernel module into the image during the container build process to enable high-performance KVMFR support for the guest.
 # 52-bake-kvmfr.sh - compile Looking Glass kvmfr kmod against the ucore-hci
 # kernel shipped in the base image, sign it with the ublue MOK, and bake the
 # .ko into /usr/lib/modules/$KVER/extra/kvmfr/.

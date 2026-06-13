@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit template for a single-model llama-server instance; used by agents to spawn concurrent, independent worker containers with dedicated VRAM/ports as defined in the mios.toml SSOT.
+# AI-related: /usr/share/mios/llamacpp/models., /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, mios-llama-worker, mios-swarm-pack-firstboot, mios-llama-swap, mios-cdi-detect, mios-llama-swap.container, mios-cdi-detect.service, network-online.target
 # /usr/share/containers/systemd/mios-llama-worker@.container
 # 'MiOS' SWARM worker -- ONE single-model llama-server instance (Phase-2,
 # operator 2026-06-12 "delegate a swarm to multiple smaller models ... 3-4 across

@@ -1,3 +1,5 @@
+<!-- AI-hint: Specifies the architectural roadmap for scaling the MCP toolset via stable prefix caching, logit-masking for selection, and a three-zone context strategy to prevent SGLang cache thrashing while expanding tool availability.
+     AI-related: /etc/mios/ai/v1/mcp.json, mios-mcp, mios-ai -->
 # MiOS: "A Lot of Tools, but Optimized" — MCP scaling plan (2026-06-11)
 
 Research-grounded plan (4-strand workflow vs the live code) for growing the tool

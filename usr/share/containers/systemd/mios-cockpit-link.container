@@ -1,3 +1,5 @@
+# AI-hint: A Quadlet configuration for a socat-based container that maps local port 19090 to host port 9090 to provide Podman Desktop with a clickable link to the host's Cockpit web console.
+# AI-related: /etc/mios/profile.toml, mios-cockpit-link, cockpit.socket, network-online.target, multi-user.target, default.target, localhost:19090, localhost:9090
 # /etc/containers/systemd/mios-cockpit-link.container
 # Podman Desktop UI surfacing for the host-side Cockpit web console.
 #

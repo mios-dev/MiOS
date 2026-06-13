@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: iommu-groups -- list IOMMU groups and the PCIe devices in each.
+# AI-functions: check_enabled, list_groups, show_device
 # iommu-groups -- list IOMMU groups and the PCIe devices in each.
 # Read-only; safe for non-root invocation. Reports whether IOMMU is
 # enabled (intel_iommu=on / amd_iommu=on must be in kargs *and* the

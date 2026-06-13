@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Detects GPU hardware (NVIDIA, AMD, Intel) and generates corresponding CDI specification files in /run/cdi/ to enable containerized GPU access before the nvidia-cdi-refresh service.
+# AI-related: /usr/lib/mios/paths.sh, /usr/libexec/mios/intel-cdi-specs-generator, mios-gpu, mios-ollama, mios-boot-diag, nvidia-cdi-refresh.service, mios-cdi-detect.service
+# AI-functions: _log
 # 'MiOS' CDI spec detection -- generate Container Device Interface
 # specs for every detected GPU vendor before nvidia-cdi-refresh.service
 # fires. Run by mios-cdi-detect.service (Before=nvidia-cdi-refresh.service).

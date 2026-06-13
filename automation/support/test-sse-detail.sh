@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script to verify the agent-pipe's SSE stream integrity by probing the /v1/chat/completions endpoint and validating that the mios_status label and detail fields are correctly formatted in the response.
+# AI-related: /etc/mios/hermes/api.env, mios-agent
 # Probe the agent-pipe streaming /v1/chat/completions endpoint with
 # a tiny chat prompt + inspect the SSE chunks for the mios_status
 # `label` + `detail` shape. Should see emoji + label + casual

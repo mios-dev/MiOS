@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Initializes system-wide flatpak overrides at first boot to grant all flatpaks read/write access to standard XDG user directories and shared themes, ensuring persistent data access in bootc-compatible environments.
+# AI-related: /usr/libexec/mios/mios-flatpak-init, /etc/mios/mios.toml, /usr/share/mios/mios.toml., /usr/share/mios/mios.toml, mios-flatpak-install, mios-flatpak-init.service
+# AI-functions: _log, _toml_get
 set -euo pipefail
 # /usr/libexec/mios/mios-flatpak-init
 #

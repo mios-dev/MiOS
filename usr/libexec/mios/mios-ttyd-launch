@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Parses MIOS_TTYD_* environment variables and mios.toml configurations to construct and execute the ttyd web terminal process for either bash or powershell shells on specific ports.
+# AI-related: /usr/libexec/mios/mios-ttyd-launch, /etc/mios/userenv.sh, /usr/libexec/mios/mios-powershell, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-powershell
+# AI-functions: _toml_get
 set -euo pipefail
 # /usr/libexec/mios/mios-ttyd-launch <bash|powershell>
 #

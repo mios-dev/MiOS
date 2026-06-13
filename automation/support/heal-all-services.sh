@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Executes a recovery sequence to redeploy firstboot binaries, apply environment drop-ins for hermes-agent, restart the agent, and verify the status of ttyd and skills-miner services.
+# AI-related: /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-paths-env, mios-ttyd-bash, mios-ttyd-powershell, mios-skills-miner, hermes-agent.service, skills-miner.timer, mios-hermes-firstboot.service, mios-skills-miner.timer
 # Final heal: redeploy firstboot + env drop-in, restart hermes-agent
 # to pick up the new env, re-run firstboot to enable opt-in units,
 # verify everything is green.

@@ -1,3 +1,4 @@
+# AI-hint: Defines fapolicyd execution permissions for ostree deployments, container runtimes, and flatpak paths to ensure system integrity while allowing authorized binaries to execute in the MiOS environment.
 # Allow execution from the ostree deployment directory and overlay
 allow perm=any all : dir=/sysroot/ostree/deploy/
 allow perm=any all : dir=/var/usrlocal/bin/

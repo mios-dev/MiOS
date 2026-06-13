@@ -1,3 +1,6 @@
+# AI-hint: Configures the terminal's visual identity by emitting OSC escape sequences to apply the MiOS unified color palette (Hokusai) to interactive shells, ensuring consistent UI branding across supported terminal emulators.
+# AI-related: /etc/mios/install.env, /usr/share/mios/mios.toml, mios-colors, mios-sync-env, mios-env
+# AI-functions: _mios_osc
 # /etc/profile.d/mios-colors.sh
 #
 # Repaint the operator's terminal to the MiOS unified palette

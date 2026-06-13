@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: A diagnostic script to test and debug the `mios-launch` resolution logic by mocking the broker socket to isolate and print the internal alias-to-binary mapping for various query strings.
+# AI-related: /usr/libexec/mios/mios-launch, mios-launch
 # Probe mios-launch's resolution decisions WITHOUT actually launching.
 # Set MIOS_LAUNCHER_SOCK to /dev/null so broker_dispatch fails fast +
 # we see the resolution chain output before exec.

@@ -1,3 +1,5 @@
+# AI-hint: Configures the ghcr.io/mios-dev container registry to enable Sigstore attachment verification during image pulls and deployments within the MiOS container management subsystem.
+# AI-related: mios-dev
 docker:
   ghcr.io/mios-dev:
     use-sigstore-attachments: true

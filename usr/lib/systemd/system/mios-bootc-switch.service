@@ -1,3 +1,5 @@
+# AI-hint: Systemd unit that triggers bootc switch via /usr/libexec/mios/bootc-switch-from-build.sh when a build sentinel in /var/lib/mios/forge-runner/last-build.txt is updated, automating the transition to a new image.
+# AI-related: /usr/libexec/mios/bootc-switch-from-build.sh, mios-bootc-switch, local-fs.target, multi-user.target
 # /usr/lib/systemd/system/mios-bootc-switch.service
 # Host-side counterpart of the Forgejo Runner build step.
 #

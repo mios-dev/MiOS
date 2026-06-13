@@ -1,3 +1,6 @@
+# AI-hint: Standalone unit test for mios_stress logic to verify percentile calculations, request aggregation, throttling logic, and concurrency ramping algorithms without requiring live network connections.
+# AI-related: mios_stress
+# AI-functions: _check, t_percentile, t_aggregate, t_throttle, t_ramp, t_scenarios, t_verdict, t_by_kind, main
 """Standalone unit test for mios_stress pure helpers (T20).
 
 Pure stdlib + the sibling module only -- no httpx, no live agent-pipe (the live

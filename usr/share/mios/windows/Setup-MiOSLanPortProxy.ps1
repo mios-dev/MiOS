@@ -1,3 +1,5 @@
+# AI-hint: Configures Windows Firewall rules and netsh portproxy for ports 11434 and 11435 to bridge Tailscale IPv4 traffic to local Podman/WSL instances for MiOS AI Node Ollama access.
+# AI-related: mios-ollama, mios-ollama-cpu
 # Setup-MiOSLanPortProxy.ps1 — Run as Administrator
 # Sets up Windows Firewall rules and portproxy for MiOS AI Node Tailscale access.
 # wslrelay binds Podman machine ports on [::1]; v4tov6 bridges Tailscale (IPv4) -> wslrelay (IPv6).

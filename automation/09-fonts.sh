@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Installs Geist and Symbols-Only Nerd Fonts to ensure the MiOS dashboard, oh-my-posh prompt, and TTY surfaces render icons and monospace text correctly across both GUI and headless environments.
+# AI-related: /usr/share/mios/vendored/geist-font.zip, /usr/share/mios/vendored/geist-font, /usr/share/mios/vendored/NerdFontsSymbolsOnly.zip, /usr/share/mios/vendored/nerd-symbols.zip, mios-geist, mios-fontconfig
 # 09-fonts: install Geist (sans + mono) + Symbols-Only Nerd Font.
 #
 # Runs UNCONDITIONALLY -- the MiOS dashboard, oh-my-posh prompt, and

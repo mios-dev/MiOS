@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Tool to snapshot and restore non-reproducible operator state (config, keys, logs) from the root filesystem to/from tar.zst archives, complementing bootc rollback for persistent data management.
+# AI-functions: build_tar_args
 # mios-backup -- snapshot operator state from a MiOS deployment.
 # Captures the parts of `/` that are NOT trivially reproducible from
 # the OCI image: /etc, /var/lib/mios, /var/lib/forge, /var/log/mios,

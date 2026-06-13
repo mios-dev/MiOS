@@ -1,3 +1,5 @@
+# AI-hint: Validates the `server._build_dispatch_cmd` logic to ensure the dispatcher correctly filters and accepts/rejects specific application launch verbs and package names before execution.
+# AI-related: /usr/lib/mios/agent-pipe, mios-apps
 import sys
 sys.path.insert(0, "/usr/lib/mios/agent-pipe")
 import server

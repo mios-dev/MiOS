@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Executes runtime-specific WSL initialization by syncing the hostname from install.env and verifying systemd-linger markers to bridge the gap between build-time configuration and WSL-specific boot behavior.
+# AI-related: /usr/lib/mios/paths.sh, mios-user, mios-wsl-firstboot
+# AI-functions: _log
 # MiOS -- wsl-firstboot: minimal WSL-specific first-boot bridge.
 #
 # Everything that can be declared at IMAGE BUILD TIME has been moved

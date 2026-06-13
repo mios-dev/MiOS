@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: An idempotent patch script that modifies hermes_cli/web_server.py to allow the HERMES_PTY_SHELL environment variable to override the default TUI chat with a plain bash shell in the dashboard's /chat tab.
+# AI-functions: main
 """In-place patch of hermes_cli/web_server.py so the /api/pty endpoint
 honors HERMES_PTY_SHELL env var.
 

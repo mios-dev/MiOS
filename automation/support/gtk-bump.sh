@@ -1,4 +1,5 @@
 #!/bin/bash
+# AI-hint: Script to resolve stale GNOME 49 flatpak runtimes by adding the flathub-beta remote and identifying newer GNOME 50 builds for specific apps like Ptyxis and Flatseal.
 # Try to bump GNOME 49-stuck flatpaks to GNOME 50 by switching to
 # flathub-beta (or flathub) where the upstream maintainer has
 # published a newer build. Operator-flagged 2026-05-19 "GLOBAL GTK

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and Cockpit configuration checks, to abort the build if the image is insecure or non-compliant.
+# AI-related: /usr/share/mios/ai, /etc/mios/ai, mios-ceph, mios-k3s, wsl-init.service
+# AI-functions: _sysusers_effective, _gid_in_etc_group
 # 99-postcheck.sh - build-time technical invariant validation
 # 
 # This script runs at the very end of the Containerfile build (before cleanup).

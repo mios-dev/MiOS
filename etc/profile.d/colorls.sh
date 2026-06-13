@@ -1,3 +1,4 @@
+# AI-hint: Configures shell aliases (ll, l., ls) and initializes directory color schemes via dircolors for interactive shells to provide visual distinction in file listings.
 # color-ls initialization
 
 # Skip all for noninteractive shells.

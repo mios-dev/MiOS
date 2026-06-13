@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Executes a Day-0 global reset of the MiOS AI stack by purging all transient runtime states, Hermes cron jobs, OWUI data, and SurrealDB agent caches while preserving core identities and configurations.
+# AI-related: /usr/libexec/mios/mios-ai-clear, /usr/libexec/mios/mios-rag, mios-rag, mios-ai-reset, mios-agent-pipe, mios-daemon, mios-log-watcher, mios-cron-director, mios-hermes-browser, mios-open-webui
+# AI-functions: sec, ok, note, run
 set -euo pipefail
 # /usr/libexec/mios/mios-ai-clear [--dry-run] [--yes]
 #

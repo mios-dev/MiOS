@@ -1,3 +1,5 @@
+# AI-hint: Systemd mount unit for the CephFS storage backend at /var/lib/containers, used by the system to provide persistent, shared storage for Podman containers via the mios.secret credential.
+# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target
 [Unit]
 Description=CephFS mount for Podman container storage
 ConditionPathExists=/etc/ceph/ceph.conf

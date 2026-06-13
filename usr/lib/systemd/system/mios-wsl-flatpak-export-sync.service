@@ -1,3 +1,5 @@
+# AI-hint: Syncs flatpak .desktop files and icons from /var/lib/flatpak/exports/share to /usr/share to ensure WSL Start Menu visibility, triggered after mios-wsl-early.service and gated by the /run/mios-is-wsl marker.
+# AI-related: /usr/libexec/mios/mios-wsl-flatpak-export-sync.sh, mios-wsl-early, mios-is-wsl, mios-wsl-flatpak-export-sync, mios-wsl-early.service, multi-user.target, default.target
 [Unit]
 Description='MiOS' Sync flatpak .desktop + icon exports into /usr/share so WSL Start Menu picks them up
 # Runs after flatpak's own update process finishes (so newly installed

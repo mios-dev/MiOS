@@ -1,4 +1,7 @@
 #!/bin/bash
+# AI-hint: Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map NVIDIA, AMD, or Intel GPUs to background AI services like ollama based on detected hardware.
+# AI-related: /usr/libexec/mios/mios-gpu-passthrough, /etc/mios/gpu-passthrough.conf, /etc/mios/gpu-passthrough.conf., mios-cdi-detect, mios-daemon, mios-igpu, mios-open-webui, mios-mycustom, mios-doctor, mios-system-status
+# AI-functions: log, build_dropin
 # /usr/libexec/mios/mios-gpu-passthrough
 #
 # Reconcile the AddDevice= drop-ins for every "background AI"

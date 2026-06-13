@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# AI-hint: Installs the uupd and greenboot packages, enables the uupd.timer, and disables superseded update timers (bootc-fetch-apply-updates and rpm-ostreed-automatic) to configure the system's update mechanism.
+# AI-related: uupd.timer, bootc-fetch-apply-updates.timer, rpm-ostreed-automatic.timer, multi-user.target
 # 43-uupd-installer.sh - install uupd + greenboot (from mios.toml
 # [packages.updater]) and disable the updaters it supersedes.
 set -euo pipefail

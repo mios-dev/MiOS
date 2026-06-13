@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation for greenboot, the automated health-check and rollback system that ensures MiOS system stability by reverting to a previous deployment if critical services like LocalAI, networking, or firewalld fail post-boot.
+     AI-related: mios-ai-health, mios-network, mios-firewalld, mios-selinux, greenboot-rollback.service, greenboot-healthcheck.service, multi-user.target -->
 # greenboot — Operational Health Checks
 
 > Mentioned in `llms.txt` as part of MiOS's operational stack.

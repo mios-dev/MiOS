@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AI-hint: Detects Hyper-V GPU paravirtualization, WSLg, and NVIDIA guest status to write /run/mios/gpu-pv.status, enabling the MiOS GPU stack to toggle between hardware-accelerated rendering and llvmpipe.
+# AI-related: /usr/lib/mios/paths.sh, mios-gpu-pv-detect, mios-gpu-pv-detect.service
+# AI-functions: _log
 # 'MiOS' Hyper-V GPU paravirt guest detection.
 # Run by mios-gpu-pv-detect.service (gated ConditionVirtualization=microsoft;
 # only fires inside Hyper-V/WSL2 guests). Writes a status file the rest of

@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+# AI-hint: Validates NVIDIA CDI configuration presence and `nvidia-ctk` device registration when GPUs are detected, ensuring the container device interface is correctly mapped for GPU workloads.
 # Wanted (warning only, not rollback): NVIDIA CDI spec exists when a GPU is present
 set -euo pipefail
 if compgen -G "/dev/nvidia*" >/dev/null; then

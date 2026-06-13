@@ -1,3 +1,5 @@
+<!-- AI-hint: Documentation of MiOS security hardening measures, mapping specific kernel boot parameters and sysctl configurations to their respective configuration files and hardware compatibility impacts.
+     AI-related: mios-hardening, mios-ci, mios-dev -->
 # 'MiOS' Security Hardening
 
 Defense-in-depth posture, sourced primarily from SecureBlue's audit

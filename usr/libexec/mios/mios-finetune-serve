@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# AI-hint: A Python server providing OpenAI-compatible and MiOS-native chat endpoints for fine-tuned LoRA adapters, used by the agent-pipe refiner to serve specialized models on any hardware via the transformers library.
+# AI-related: /usr/libexec/mios/mios-finetune-serve, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-sys-agent-ft
+# AI-functions: _load
 """'MiOS' fine-tune server -- serve a trained role adapter on ANY hardware.
 
 Loads the base + the LoRA adapter from [finetune] (base+PEFT, the clean artifact that

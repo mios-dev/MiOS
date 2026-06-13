@@ -1,4 +1,6 @@
 #!/bin/bash
+# AI-hint: Configures a unified dark theme across all UI toolkits (GTK3/4, Qt5/6, Electron, Flatpak) by applying dconf settings, environment variables, and global Flatpak overrides.
+# AI-related: mios-flatpak-init
 # 'MiOS' v0.2.4 -- 30-locale-theme: Unified dark theme for EVERY window type
 #
 # Coverage matrix (ALL must be dark):
