@@ -14,13 +14,13 @@
 # Inference backend: the OpenAI-compatible /v1 surface resolved from
 # mios.toml [ai].endpoint (default http://localhost:11434/v1 = the
 # ollama container; swap to vllm / llama.cpp by editing mios.toml).
-# This unit deliberately depends on ollama.service so the backend is
+# This unit deliberately depends on mios-llm-light.service so the backend is
 # up first, but stays Wants= (not Requires=) so the agent still starts
 # -- and can be repointed -- if ollama is swapped out.
 Description='MiOS' Hermes-Agent (direct host install, OpenAI gateway)
 Documentation=https://github.com/NousResearch/hermes-agent
-After=network-online.target ollama.service
-Wants=network-online.target ollama.service
+After=network-online.target mios-llm-light.service
+Wants=network-online.target mios-llm-light.service
 # Skip cleanly if the direct install didn't land (e.g. clone failed at
 # build time) rather than crash-looping.
 ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes

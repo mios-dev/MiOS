@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit that executes `mios-skills mine` to process SurrealDB tool_call history into a skill catalog, automatically updating the shared catalog and reaping low-performing skills via `export-catalog` and `reap`.
-# AI-related: /usr/libexec/mios/mios-skills, /etc/mios/userenv.sh, mios-skills, mios-skills-miner, mios-surrealdb, mios-agent-pipe, mios-ai, mios-skills-miner.timer, mios-surrealdb.service, mios-agent-pipe.service
+# AI-related: /usr/libexec/mios/mios-skills, /etc/mios/userenv.sh, mios-skills, mios-skills-miner, mios-surrealdb, mios-agent-pipe, mios-ai, mios-skills-miner.timer, mios-pgvector.service, mios-agent-pipe.service
 # /usr/lib/systemd/system/mios-skills-miner.service
 # Phase C.2 of the AgentOS roadmap: scheduled Sequential Pattern
 # Mining over SurrealDB tool_call history. Runs `mios-skills mine`
@@ -15,8 +15,8 @@
 [Unit]
 Description='MiOS' Phase C.2 Sequential Pattern Mining over tool_call history
 Documentation=file:///usr/libexec/mios/mios-skills
-After=mios-surrealdb.service mios-agent-pipe.service
-Requires=mios-surrealdb.service
+After=mios-pgvector.service mios-agent-pipe.service
+Requires=mios-pgvector.service
 ConditionPathExists=/usr/libexec/mios/mios-skills
 
 [Service]

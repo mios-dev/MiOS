@@ -1,6 +1,6 @@
 # AI-hint: Systemd Quadlet configuration for the SGLang inference server, providing a high-throughput, OpenAI-compatible heavy-lane for Qwen3-8B-AWQ models via host networking and direct GPU passthrough.
-# AI-related: /usr/share/mios/sglang/model, /usr/share/mios/sglang/model/config.json, mios-sglang, mios-vllm, mios-heavy, mios-cdi-detect, mios-ceph, mios-forgejo-runner, mios-coderun-sandbox, mios-sglang.service
-# /etc/containers/systemd/mios-sglang.container
+# AI-related: /usr/share/mios/sglang/model, /usr/share/mios/sglang/model/config.json, mios-llm-heavy, mios-llm-heavy-alt, mios-heavy, mios-cdi-detect, mios-ceph, mios-forgejo-runner, mios-coderun-sandbox, mios-llm-heavy.service
+# /etc/containers/systemd/mios-llm-heavy.container
 # 'MiOS' SGLang server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU heavy lane.
 #
 # Operator 2026-06-07 ("continue with SGLang"): a SECOND heavy serving lane.
@@ -19,9 +19,9 @@
 #
 # VRAM-GATED + DISABLED BY DEFAULT: needs real free VRAM the shared 4090 lacks while
 # gaming. Enable ONLY on a dGPU with headroom, AFTER baking weights:
-#   systemctl enable --now mios-sglang.service
+#   systemctl enable --now mios-llm-heavy.service
 # Then [nodes.local-sglang] (health-gated) auto-joins the swarm. Mutually exclusive
-# with mios-vllm at runtime (both serve "mios-heavy"); enable ONE on a shared GPU.
+# with mios-llm-heavy-alt at runtime (both serve "mios-heavy"); enable ONE on a shared GPU.
 [Unit]
 Description='MiOS' SGLang heavy lane (OpenAI /v1, Qwen3-8B-AWQ; gated)
 After=network-online.target mios-cdi-detect.service
@@ -31,7 +31,7 @@ ConditionPathExists=/usr/share/mios/sglang/model/config.json
 
 [Container]
 Image=${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}
-ContainerName=mios-sglang
+ContainerName=mios-llm-heavy
 # host networking: the server binds :11441 directly on the host. The custom
 # mios.network + PublishPort form silently failed to expose :11441 (operator
 # 2026-06-11: lane unreachable -> health-monitor cycled it). No PublishPort with
@@ -83,7 +83,7 @@ Environment=XDG_CACHE_HOME=/tmp/.cache
 Environment=FLASHINFER_WORKSPACE_DIR=/tmp/flashinfer
 Environment=TRITON_CACHE_DIR=/tmp/triton
 Environment=TORCHINDUCTOR_CACHE_DIR=/tmp/inductor
-Label=org.opencontainers.image.title=mios-sglang
+Label=org.opencontainers.image.title=mios-llm-heavy
 Label=org.opencontainers.image.url=http://localhost:11441/v1/models
 Label=io.podman_desktop.openInBrowser=http://localhost:11441/v1/models
 

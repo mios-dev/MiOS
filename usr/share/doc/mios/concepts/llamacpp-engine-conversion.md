@@ -1,5 +1,5 @@
 <!-- AI-hint: Specifies the architectural transition from Ollama to llama.cpp via the llama-swap proxy to enable fleet-wide KV-cache checkpointing, restoration, and forking for the AIOS Context Manager.
-     AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models/, mios-daemon, mios-llama-swap, mios-llamacpp-embed, mios-ollama, mios-ollama-cpu, mios-llamacpp, mios-ai, mios-llama-swap.container -->
+     AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models/, mios-daemon, mios-llm-light, mios-llamacpp-embed, mios-ollama, mios-ollama-cpu, mios-llamacpp, mios-ai, mios-llm-light.container -->
 # Ollama → llama.cpp Engine Conversion for KV-Cache (WS-10) — draft
 
 > Status: DRAFT (2026-06-04). Operator directive: convert the ollama inference
@@ -92,7 +92,7 @@ ollama `/api/chat` path**, plus model orchestration. Audited touch-points:
 
 ## 5. Quadlets / SSOT
 
-- New `mios-llama-swap` quadlet (per lane, or one with multiple model groups) +
+- New `mios-llm-light` quadlet (per lane, or one with multiple model groups) +
   `mios-llamacpp-embed`; retire `mios-ollama` / `mios-ollama-cpu`. Bound-images
   (Law 3), `User=`/`Delegate=yes` (Law 6).
 - `mios.toml [ai].engine = "llamacpp"`; `[llamacpp]` (slot-save-path, parallel=1,
@@ -145,7 +145,7 @@ ready for the swap — `_endpoint_is_llamacpp` (server.py:2249) is config-first
 a server.py rewrite.
 
 New / edited:
-- `usr/share/containers/systemd/mios-llama-swap.container` — llama-swap quadlet
+- `usr/share/containers/systemd/mios-llm-light.container` — llama-swap quadlet
   (host-net, CUDA CDI, config + models + slot-save mounts, uid 827). Inert via
   `ConditionPathExists(/usr/share/mios/llamacpp/models/.ready)`.
 - `usr/share/mios/llamacpp/llama-swap.yaml` — model-map TEMPLATE: chat models

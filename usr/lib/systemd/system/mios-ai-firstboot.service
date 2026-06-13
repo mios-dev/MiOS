@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.
-# AI-related: 38-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-ollama, mios-ollama-cpu, ollama.service, mios-ollama.service, mios-ollama-cpu.service, network-online.target
+# AI-related: 38-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-ollama, mios-ollama-cpu, mios-llm-light.service, mios-llm-light.service, mios-llm-light.service, network-online.target
 [Unit]
 Description='MiOS' AI first-boot provisioning (agent venv + llama.cpp GGUFs)
 Documentation=https://github.com/mios-dev/mios
@@ -7,7 +7,7 @@ Documentation=https://github.com/mios-dev/mios
 # overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh's header
 # explicitly anticipates this: "a firstboot retry can complete it later".
 # Needs network (pip + model pull) and a running ollama (the GGUF blob source).
-After=network-online.target ollama.service mios-ollama.service mios-ollama-cpu.service
+After=network-online.target mios-llm-light.service
 Wants=network-online.target
 # The script writes the sentinel ONLY when both the venv and the GGUFs are
 # present, so a network-less first boot simply retries on the next one.

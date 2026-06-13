@@ -72,7 +72,7 @@ DB_PASS="${MIOS_DB_PASS:-root}"
 DB_NS="${MIOS_DB_NS:-mios}"
 DB_DB="${MIOS_DB_DB:-mios}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
-OLLAMA_URL="${MIOS_OLLAMA_URL:-http://localhost:${MIOS_PORT_OLLAMA:-11434}}"
+EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLAMA_SWAP:-11450}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
 # WS-9 PostgreSQL + pgvector unified agent DB (--pg mode). SSOT [pgvector] /
 # [ports].pgvector via userenv.sh; local-only defaults. Callers route through
@@ -157,7 +157,7 @@ import json, sys
 print(json.dumps({'model': '$EMBED_MODEL', 'input': sys.argv[1]}))
 " "$EMBED_TEXT")
     exec curl -sS --max-time 15 \
-        -X POST "$OLLAMA_URL/v1/embeddings" \
+        -X POST "${EMBED_URL}/v1/embeddings" \
         -H "Content-Type: application/json" \
         --data "$PAYLOAD"
 fi

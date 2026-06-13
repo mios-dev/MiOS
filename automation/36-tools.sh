@@ -25,7 +25,6 @@ TOOLS=(
     mios-deploy
     mios-vfio-toggle
     mios-vfio-check
-    mios-ollama
     iommu-groups
 )
 # Note: mios-status was removed (v0.2.4) -- it was a 1-line `exec` to

@@ -1,10 +1,10 @@
 # AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sys-env to probe and UPSERT the current system state (apps, services, models, hardware) into the SurrealDB sys_env:current row for global agent synchronization.
-# AI-related: /usr/libexec/mios/mios-sys-env, mios-sys-env, mios-surrealdb, mios-podman-ps, mios-surrealdb.service, multi-user.target
+# AI-related: /usr/libexec/mios/mios-sys-env, mios-sys-env, mios-surrealdb, mios-podman-ps, mios-pgvector.service, multi-user.target
 [Unit]
 Description='MiOS' refresh the live system/environment cache (sys_env) in SurrealDB
 Documentation=file:///usr/libexec/mios/mios-sys-env
-After=mios-surrealdb.service
-Wants=mios-surrealdb.service
+After=mios-pgvector.service
+Wants=mios-pgvector.service
 
 [Service]
 Type=oneshot

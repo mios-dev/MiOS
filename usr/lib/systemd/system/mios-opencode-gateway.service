@@ -1,10 +1,10 @@
 # AI-hint: Systemd unit that hosts the opencode-gateway on port 8633, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via ollama.
-# AI-related: /usr/lib/mios/agents/opencode-gateway/server.py, /usr/lib/mios/agents/opencode/bin/opencode, /etc/mios/opencode/opencode.json, /usr/lib/mios/agents/.venv, /usr/lib/mios/agents/.venv/bin/python3, mios-ai, mios-agent-pipe, mios-opencode-gateway, mios-opencode, ollama.service
+# AI-related: /usr/lib/mios/agents/opencode-gateway/server.py, /usr/lib/mios/agents/opencode/bin/opencode, /etc/mios/opencode/opencode.json, /usr/lib/mios/agents/.venv, /usr/lib/mios/agents/.venv/bin/python3, mios-ai, mios-agent-pipe, mios-opencode-gateway, mios-opencode, mios-llm-light.service
 [Unit]
 Description='MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)
 Documentation=file:///usr/lib/mios/agents/opencode-gateway/server.py
-After=network-online.target ollama.service
-Wants=network-online.target ollama.service
+After=network-online.target mios-llm-light.service
+Wants=network-online.target mios-llm-light.service
 # Makes [agents.opencode] endpoint :8633/v1 a REAL OpenAI endpoint so
 # agent-pipe's multi-agent fan-out (opencode secondary) + the primary path
 # (refine target_agent=opencode) can reach it. opencode has no native /v1
@@ -49,7 +49,7 @@ Environment=MIOS_PORT_OPENCODE_GATEWAY=8633
 Environment=MIOS_OPENCODE_HOST=127.0.0.1
 Environment=MIOS_OPENCODE_BIN=/usr/lib/mios/agents/opencode/bin/opencode
 Environment=MIOS_OPENCODE_MODEL=mios-opencode:latest
-Environment=MIOS_OPENCODE_PROVIDER=ollama
+Environment=MIOS_OPENCODE_PROVIDER=local
 Environment=MIOS_OPENCODE_CONFIG=/etc/mios/opencode/opencode.json
 Environment=MIOS_OPENCODE_TIMEOUT_S=90
 # Reuse the SHARED agent-plane venv interpreter (the shim is stdlib-only, but

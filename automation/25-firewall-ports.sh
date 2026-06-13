@@ -33,7 +33,6 @@ firewall-offline-cmd --zone=public --add-port=${MIOS_K3S_API_PORT}/tcp         #
 firewall-offline-cmd --zone=public --add-port=${MIOS_RDP_PORT}/tcp             # RDP
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_HTTP}/tcp      # mios-forge HTTP
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_SSH}/tcp       # mios-forge git+ssh
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OLLAMA}/tcp          # ollama API (alternate local LLM backend)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT_LINK}/tcp    # mios-cockpit-link discovery shim
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_UI:-3053}/tcp  # mios-adguard web UI/API
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/tcp   # mios-adguard DNS (TCP: large/AXFR)

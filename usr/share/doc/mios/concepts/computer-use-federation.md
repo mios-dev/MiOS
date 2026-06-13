@@ -127,7 +127,7 @@ Goose/OpenHands stack. Add a desktop = add two overlay entries.
 
 Baseline `qwen3-vl:4b` runs on the always-on Ollama lane -- no VRAM gate, works
 today. The accuracy upgrade is **UI-TARS-1.5-7B** (Apache-2.0) on the gated
-`mios-vllm` lane (`MIOS_VLLM_SERVED_NAME=mios-grounding`); it stays disabled
+`mios-llm-heavy-alt` lane (`MIOS_VLLM_SERVED_NAME=mios-grounding`); it stays disabled
 until the dGPU has free VRAM (the shared 4090 is held by the Windows host).
 `mios-pc-vision` auto-switches its coordinate parser by model name, so enabling
 the heavy lane needs no code change -- just bake the weights + flip the served

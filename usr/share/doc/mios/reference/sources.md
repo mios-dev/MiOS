@@ -514,8 +514,8 @@ The repo root **is** the system root (no `system_files/` directory).
 | `mios-ceph` | `ConditionPathExists=/etc/ceph/ceph.conf`, `!container` | Ceph not configured, nested |
 | `mios-k3s` | `!wsl`, `!container` | WSL2, nested containers |
 | `crowdsec-dashboard` | `ConditionPathExists=/etc/crowdsec/config.yaml` | CrowdSec not configured |
-| `cloudws-guacamole`, `guacd`, `guacamole-postgres` | `!container` | nested containers |
-| `cloudws-pxe-hub` | `!wsl`, `!container` | virtualized hosts without routable LAN |
+| `mios-guacamole`, `guacd`, `guacamole-postgres` | `!container` | nested containers |
+| `mios-pxe-hub` | `!wsl`, `!container` | virtualized hosts without routable LAN |
 | `mios-gpu-{nvidia,amd,intel,status}` | `ConditionPathExists=/dev/...`, `!container`, `!wsl` (Intel) | no matching GPU device |
 | `ollama` | none | always runs (CPU fallback) |
 

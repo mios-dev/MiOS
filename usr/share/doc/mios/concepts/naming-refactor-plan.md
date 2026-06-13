@@ -13,6 +13,26 @@ reversible, with the external-contract surface **frozen**.
 A four-way parallel read-only audit (2026-06-04) found the baseline is already
 coherent; the work is mostly *convergence* + one real defect.
 
+## Progress (2026-06-13)
+- **Phase 1a — DONE.** The primary envsubst allow-list in `15-render-quadlets.sh`
+  now carries `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLAMA_SWAP_IMAGE`/`MIOS_PORT_LLAMA_SWAP`/
+  `MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` (placeholders expand on envsubst hosts).
+- **Phase 1b — DONE.** `_JUDGE_EP`→`_JUDGE_ENDPOINT`, the `_RE_*`→`*_RE` unification,
+  `kv_fork`→`_kv_fork`, `DCI_*`→`_DCI_*` (emitted JSON unchanged), `_PG_DOWN_UNTIL`→
+  `_pg_down_until`, and the Phase-2 `_disp_num`→`_dispatch_num` are all live in server.py.
+- **Phase 1c — partial.** Hardcoded `User=815/818` are already `${MIOS_*_UID}`.
+  **CloudWS→MiOS consolidation DONE (2026-06-13):** the legacy `cloudws-guacamole`/
+  `cloudws-pxe-hub` enable keys → `mios-guacamole`/`mios-pxe-hub` across `mios.toml`,
+  `profile.toml`, bootstrap `mios.toml`/`profile.toml`/`profile-headless.toml` (headless
+  `=false` preserved), the configurator quadlet-key array, and the `INDEX.md`/`sources.md`/
+  `credits.md`/`system.md` references (`cloudws-ceph-bootstrap.service`→`ceph-bootstrap.service`).
+  All edited TOMLs re-validated via `tomllib`. The `engineering-reference.md` CloudWS→MiOS
+  deprecation table is kept as accurate migration history; `root-manifest.json` is a stale
+  generated snapshot pending regeneration.
+- **Still pending:** Phase 1c `ContainerName=` additions, Phase 2 unit-file renames
+  (`ollama`/`guacd`/`guacamole-postgres`/`crowdsec-dashboard`→`mios-*`, with lockstep
+  consumer updates), and the operator-gated Phase 3 (chown/rebuild).
+
 ## Canonical conventions (the target)
 
 **Code (server.py + mios_*):**

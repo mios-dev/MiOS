@@ -55,8 +55,6 @@ firewall-cmd --permanent --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp 2>/dev/null || t
 firewall-cmd --permanent --add-port=${MIOS_PORT_CODE_SERVER}/tcp 2>/dev/null || true
 # mios-guacamole web (Browser desktop)
 firewall-cmd --permanent --add-port=${MIOS_GUACAMOLE_PORT}/tcp 2>/dev/null || true
-# ollama API (local LLM + embedding backend; handles all MiOS embedded models)
-firewall-cmd --permanent --add-port=${MIOS_PORT_OLLAMA}/tcp 2>/dev/null || true
 # CrowdSec dashboard + iVentoy + mios-forge HTTP (port ${MIOS_PORT_FORGE_HTTP} shared by both)
 firewall-cmd --permanent --add-port=${MIOS_PORT_FORGE_HTTP}/tcp --add-port=26000/tcp 2>/dev/null || true
 # mios-forge git+ssh (non-22 to coexist with sshd)

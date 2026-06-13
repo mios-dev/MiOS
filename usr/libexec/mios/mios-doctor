@@ -74,12 +74,6 @@ else
 fi
 
 echo
-echo "── ── ──  qdrant vector db"
-if curl -sf --max-time 3 http://localhost:6333/dashboard >/dev/null 2>&1; then
-    ok "qdrant API reachable on :6333"
-else
-    fail "qdrant not reachable on :6333"
-fi
 
 echo
 echo "── ── ──  open webui"

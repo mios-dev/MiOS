@@ -112,7 +112,7 @@ next MiOS forever (Day-0 → Day-1 → Day-N).
 - GTK theming: set `ADW_DEBUG_COLOR_SCHEME=prefer-dark` + dconf only; NEVER set
   `GTK_THEME=Adwaita-dark` (wrong API for libadwaita apps, breaks per-app
   themes).
-- `cloudws-ceph-bootstrap.service` uses `ConditionVirtualization=no` (documented
+- `ceph-bootstrap.service` uses `ConditionVirtualization=no` (documented
   antonym), NOT `!container` (does not cover Hyper-V or KVM bare-metal).
 - kargs.d TOML: flat `kargs = [...]` array only — no `[kargs]` section headers.
   Per bootc upstream the schema is exactly `kargs = [...]` + optional

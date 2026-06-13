@@ -278,3 +278,35 @@ CREATE TABLE IF NOT EXISTS log_digest (
     ts           timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS log_digest_ts ON log_digest (ts DESC);
+
+
+-- ===== WS-9: tables ported from SurrealDB -> pgvector (2026-06-13) =====
+-- person: one row per operator on this host (PKG; was SurrealDB `person`).
+-- Read by `mios-kg who`, written by `mios-kg bootstrap`. Singleton in the
+-- single-operator case; username is the natural upsert key. No embeddings.
+CREATE TABLE IF NOT EXISTS person (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    username    text NOT NULL,
+    fullname    text,
+    hostname    text,
+    created_at  timestamptz DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS person_username ON person (username);
+
+-- ── agent_keypair: Ed25519 agent-passport public-key registry (mios-passport;
+--    R15: was SurrealDB). provision/rotate INSERTs a row + retires prior live
+--    rows; verify reads the live PEM as a filesystem fallback. public_key_pem
+--    is the raw multi-line PEM text. ed25519 keys carry no embedding (no emb). ─
+CREATE TABLE IF NOT EXISTS agent_keypair (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    agent           text NOT NULL,
+    kid             text,
+    alg             text DEFAULT 'ed25519',
+    public_key_pem  text,
+    retired         boolean DEFAULT false,
+    provisioned_at  timestamptz DEFAULT now(),
+    rotated_at      timestamptz
+);
+CREATE INDEX IF NOT EXISTS agent_keypair_agent ON agent_keypair (agent);
+CREATE INDEX IF NOT EXISTS agent_keypair_live  ON agent_keypair (agent) WHERE NOT retired;
+

@@ -5,7 +5,7 @@
 #
 # Open WebUI provides an OpenAI-API-style browser chat UI fronting the MiOS AI
 # stack. AI chain (2026-05-13 architecture):
-#   ollama container (:11434)  -- raw inference + embeddings
+#   ollama container (:11450)  -- raw inference + embeddings
 #     -> Hermes-Agent (:8642/v1) -- DIRECT host install (NOT a
 #        container; automation/38-hermes-agent.sh + hermes-agent.service),
 #        OpenAI gateway + agent layer
@@ -123,7 +123,7 @@ Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8640/v1
 # route through Hermes-Agent (Law 5). The ollama backend URL is still
 # provided for completeness but ENABLE_OLLAMA=False keeps it dormant.
 Environment=ENABLE_OLLAMA=False
-Environment=OLLAMA_BASE_URL=http://host.containers.internal:11434
+Environment=OLLAMA_BASE_URL=http://host.containers.internal:11450
 
 # General config.
 # WEBUI_NAME drives the brand displayed in OWUI's title bar, login
@@ -207,7 +207,7 @@ Environment=ENABLE_RAG_HYBRID_SEARCH=True
 # VECTOR_DB stays the bundled on-disk Chroma -- also fully offline.
 Environment=RAG_EMBEDDING_ENGINE=ollama
 Environment=RAG_EMBEDDING_MODEL=nomic-embed-text
-Environment=RAG_OLLAMA_BASE_URL=http://host.containers.internal:11434
+Environment=RAG_OLLAMA_BASE_URL=http://host.containers.internal:11450
 
 # ── Task / suggestion generation ────────────────────────────────────
 # Operator directive 2026-05-17: "suggested is not generated and

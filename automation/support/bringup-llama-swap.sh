@@ -1,9 +1,9 @@
 #!/bin/bash
-# AI-hint: Provisioning script to extract GGUF weights from Ollama blobs, deploy the llama-swap configuration, and start the mios-llama-swap container on port 11450 for the engine-swap live test.
-# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llama-swap, mios-llama-swap.container, mios-llama-swap.service
+# AI-hint: Provisioning script to extract GGUF weights from Ollama blobs, deploy the llama-swap configuration, and start the mios-llm-light container on port 11450 for the engine-swap live test.
+# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llm-light, mios-llm-light.container, mios-llm-light.service
 # automation/support/bringup-llama-swap.sh
 # ----------------------------------------------------------------------------
-# Bring up the mios-llama-swap lane on a DEV VM (WS-10 engine-swap live test).
+# Bring up the mios-llm-light lane on a DEV VM (WS-10 engine-swap live test).
 # Extracts the qwen3.5:4b + nomic-embed-text GGUFs from ollama's own blob store
 # (the custom qwen35 model has no HF source -> reuse the exact local weights),
 # deploys the config + a RENDERED quadlet (Quadlet does not expand ${VAR:-def},
@@ -42,19 +42,19 @@ echo "[lls] deploy config (CR-stripped)"
 tr -d '\r' < "$SRC/usr/share/mios/llamacpp/llama-swap.yaml" | sudo tee /usr/share/mios/llamacpp/llama-swap.yaml >/dev/null
 
 echo "[lls] render + deploy quadlet (substitute \${VAR:-default} -> default)"
-tr -d '\r' < "$SRC/usr/share/containers/systemd/mios-llama-swap.container" \
+tr -d '\r' < "$SRC/usr/share/containers/systemd/mios-llm-light.container" \
     | sed -E 's/\$\{[A-Z_]+:-([^}]*)\}/\1/g' \
-    | sudo tee /etc/containers/systemd/mios-llama-swap.container >/dev/null
+    | sudo tee /etc/containers/systemd/mios-llm-light.container >/dev/null
 
 echo "[lls] ready marker + daemon-reload + start"
 sudo touch "$MODELS/.ready"
 sudo systemctl daemon-reload
-sudo systemctl start mios-llama-swap.service 2>&1 || true
+sudo systemctl start mios-llm-light.service 2>&1 || true
 sleep 8
-echo "[lls] state=$(systemctl is-active mios-llama-swap.service 2>/dev/null)"
-sudo systemctl --no-pager -l status mios-llama-swap.service 2>/dev/null | tail -18
+echo "[lls] state=$(systemctl is-active mios-llm-light.service 2>/dev/null)"
+sudo systemctl --no-pager -l status mios-llm-light.service 2>/dev/null | tail -18
 echo "[lls] === recent container log ==="
-sudo journalctl -u mios-llama-swap.service --no-pager 2>/dev/null | tail -25
+sudo journalctl -u mios-llm-light.service --no-pager 2>/dev/null | tail -25
 echo "[lls] === probe :$PORT/v1/models ==="
 curl -s -m 8 "http://localhost:$PORT/v1/models" 2>/dev/null | head -c 600
 echo

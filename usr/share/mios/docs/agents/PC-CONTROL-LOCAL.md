@@ -1,5 +1,5 @@
 <!-- AI-hint: Specifies the architecture and model requirements for local-only, vision-grounded desktop automation using Hermes, opencode, and UI-TARS/Qwen3-VL to execute cross-platform UI interactions without cloud APIs.
-     AI-related: /usr/libexec/mios/mios-pc-control, /usr/lib/mios/agents/opencode/bin/opencode, /usr/libexec/mios/mios-pc-vision, /usr/share/mios/hermes/skills/, mios-pc-control, mios-pc-vision, mios-computer-use, mios-vllm, mios-grounding, mios-hermes-browser -->
+     AI-related: /usr/libexec/mios/mios-pc-control, /usr/lib/mios/agents/opencode/bin/opencode, /usr/libexec/mios/mios-pc-vision, /usr/share/mios/hermes/skills/, mios-pc-control, mios-pc-vision, mios-computer-use, mios-llm-heavy-alt, mios-grounding, mios-hermes-browser -->
 # Local-only PC Control: Hermes + opencode + a vision LLM under MiOS
 
 **Status:** SHIPPED + EXTENDED 2026-06-04. The Windows path
@@ -9,7 +9,7 @@ realised cross-platform AND federated. The Linux/Wayland peer
 federation story are documented in
 `usr/share/doc/mios/concepts/computer-use-federation.md`. UI-TARS-1.5-7B
 grounding (this doc's named upgrade path) is wired into `mios-pc-vision`
-+ the gated `mios-vllm` lane (`MIOS_VLLM_SERVED_NAME=mios-grounding`),
++ the gated `mios-llm-heavy-alt` lane (`MIOS_VLLM_SERVED_NAME=mios-grounding`),
 VRAM-gated until the dGPU frees. The original proposal text below is
 retained for provenance.
 

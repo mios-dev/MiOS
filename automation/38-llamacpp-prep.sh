@@ -1,13 +1,13 @@
 #!/bin/bash
 # AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable offline llama-swap service; agents use this to ensure local model availability for the llama-swap lane.
-# AI-related: /usr/share/mios/llamacpp/models, mios-llama-swap, mios-llama-swap.container
+# AI-related: /usr/share/mios/llamacpp/models, mios-llm-light, mios-llm-light.container
 # automation/38-llamacpp-prep.sh -- bake GGUF weights for the llama-swap lane
-# (WS-10) into the image so mios-llama-swap serves them OFFLINE (llama.cpp will
+# (WS-10) into the image so mios-llm-light serves them OFFLINE (llama.cpp will
 # NOT download air-gapped at runtime). Mirrors automation/38-vllm-prep.sh:
 # build-time, best-effort, NEVER fails the build (exit 0 on any error).
 #
 # GGUFs land in /usr/share/mios/llamacpp/models (immutable composefs surface; the
-# build's /var cleanup doesn't touch /usr/share). mios-llama-swap.container
+# build's /var cleanup doesn't touch /usr/share). mios-llm-light.container
 # mounts that dir RO at /models and is gated by ConditionPathExists(
 # .../models/.ready) -- this script touches .ready ONLY when at least one GGUF
 # baked, so the lane stays inert until real weights exist.

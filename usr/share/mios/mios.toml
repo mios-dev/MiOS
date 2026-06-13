@@ -934,7 +934,7 @@ lane     = "igpu"
 # THIS field instead of a port-substring match (so it's correct even if the
 # operator serves it on a non-11436 port).
 api      = "llamacpp"
-# Local vLLM HEAVY lane (Phase 2) -- the re-scoped mios-vllm Quadlet on the dGPU
+# Local vLLM HEAVY lane (Phase 2) -- the re-scoped mios-llm-heavy-alt Quadlet on the dGPU
 # (PagedAttention + APC; see [ai.vllm]). health_gate=true means it AUTO-JOINS the
 # swarm only when actually reachable: it is DISABLED + VRAM-gated by default, so
 # it stays inert with ZERO risk until the operator bakes weights + enables the
@@ -945,9 +945,9 @@ endpoint    = "http://localhost:11440/v1"
 model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLLM serves
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load with ollama)
 api         = "openai"
-health_gate = true             # inert until the gated mios-vllm.service is enabled + reachable
+health_gate = true             # inert until the gated mios-llm-heavy-alt.service is enabled + reachable
 # Local SGLang heavy lane (operator 2026-06-07 "continue with SGLang") -- the
-# mios-sglang.container on :11441 (see [ai.sglang]). HiCache spills inactive KV to
+# mios-llm-heavy.container on :11441 (see [ai.sglang]). HiCache spills inactive KV to
 # CPU RAM. health_gate=true => AUTO-JOINS only when reachable; gated off until a
 # model is baked + the service enabled. api=openai (SGLang speaks /v1 + honours
 # tool_choice=required). Mutually exclusive with local-vllm (both serve "mios-heavy").
@@ -956,9 +956,9 @@ endpoint    = "http://localhost:11441/v1"
 model       = "mios-heavy"     # = [ai.sglang].served_name; the heavy reasoner SGLang serves
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
-health_gate = true             # inert until the gated mios-sglang.service is enabled + reachable
+health_gate = true             # inert until the gated mios-llm-heavy.service is enabled + reachable
 # Local llama-swap lane (WS-10) -- the llama.cpp multi-model + KV-paging lane
-# (mios-llama-swap.container on :11450; see [llamacpp]). health_gate=true =>
+# (mios-llm-light.container on :11450; see [llamacpp]). health_gate=true =>
 # AUTO-JOINS only when reachable, and the quadlet is gated off until GGUFs are
 # provisioned (models/.ready), so this stays inert with ZERO risk until the
 # operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
@@ -968,7 +968,7 @@ endpoint    = "http://localhost:11441/v1"   # ALL AGENTS USE SGLANG (was :11450 
 model       = "mios-heavy"     # SGLang heavy lane (Qwen2.5-14B-AWQ, continuous batching)
 lane        = "gpu"            # shares the dGPU lane semaphore
 api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
-health_gate = true             # inert until mios-sglang is up + reachable
+health_gate = true             # inert until mios-llm-heavy is up + reachable
 # REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
 # repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
 # on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
@@ -1128,7 +1128,7 @@ lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash (CPU has no
 # ── SWARM Phase-0/2/3 (operator 2026-06-12 "delegate a swarm to many small models
 # concurrently across CPU+dGPU+nodes"). gpu_profile selects the dGPU topology:
 #   "orchestrator" (default, safe) = the single SGLang heavy lane (mios-heavy).
-#   "swarm"        = arm N single-model llama-server workers (mios-llama-worker@)
+#   "swarm"        = arm N single-model llama-server workers (mios-llm-worker@)
 #                    so 3-4 small models generate CONCURRENTLY on the dGPU. Flip to
 #                    "swarm" + provision GGUFs + define [nodes.*] serve workers, then
 #                    mios-swarm-pack-firstboot arms them (Phase-3, VRAM-RISKY).
@@ -4066,7 +4066,7 @@ chat_vision_model         = ""
 # GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
 # click coordinates). Ollama CANNOT run the grounding heads (GUI-Actor /
 # Holo1.5 / UI-TARS / Qwen3-VL) -> they need vLLM. RE-SCOPED 2026-06-01: the
-# mios-vllm Quadlet is now the GENERIC gated vLLM lane (see [ai.vllm] below),
+# mios-llm-heavy-alt Quadlet is now the GENERIC gated vLLM lane (see [ai.vllm] below),
 # serving a HEAVY TEXT reasoner by DEFAULT (operator "vLLM heavy lane"); to serve
 # a grounding VLM instead, point vllm_bake_model at one + set vllm_served_name =
 # "mios-grounding". The lane now lives on :vllm (11440), off the iGPU's :11436.
@@ -4466,7 +4466,7 @@ native_rebuild = false
 # canonical [security] section earlier in this file.
 
 # ── vLLM heavy lane (Phase 2, operator 2026-06-01 "both, in order" + "a large
-# model for MiOS deployments with dGPUs"). The re-scoped mios-vllm Quadlet serves
+# model for MiOS deployments with dGPUs"). The re-scoped mios-llm-heavy-alt Quadlet serves
 # a HEAVY TEXT reasoner over OpenAI /v1 with vLLM's PagedAttention + Automatic
 # Prefix Caching (APC) -- APC reuses the shared swarm system-prompt prefix across
 # concurrent fan-out at ~0 cost; PagedAttention is the in-GPU VRAM-compress
@@ -4476,7 +4476,7 @@ native_rebuild = false
 # Windows host holds ~20GB (same gate as the gemma4 planner) -> enable only on a
 # dGPU with headroom:
 #   1. build with [ai.vllm].bake_model set (bakes weights OFFLINE; empty = no bloat)
-#   2. systemctl enable --now mios-vllm.service
+#   2. systemctl enable --now mios-llm-heavy-alt.service
 # Then [nodes.local-vllm] (health-gated) auto-joins the swarm. Recommended text
 # reasoners (set bake_model at build time):
 #   Qwen/Qwen3-8B          (~16GB fp16 / ~6GB AWQ -- mid dGPU)
@@ -4489,8 +4489,8 @@ native_rebuild = false
 # microsoft/GUI-Actor-7B-Qwen2-VL (MIT), Qwen/Qwen3-VL-4B-Instruct (lighter).
 # STAGED, not baked by default: a 14GB head would bloat every bootc image + the
 # lane is VRAM-gated (the shared 4090 is held ~20GB by the Windows host). Set
-# bake_model in your /etc overlay + `systemctl enable --now mios-vllm` when VRAM frees.
-# The mios-vllm Quadlet reads these via MIOS_VLLM_* (rendered from here).
+# bake_model in your /etc overlay + `systemctl enable --now mios-llm-heavy-alt` when VRAM frees.
+# The mios-llm-heavy-alt Quadlet reads these via MIOS_VLLM_* (rendered from here).
 [ai.vllm]
 enable         = false          # documents intent; the systemd unit is the real gate (disabled by default)
 bake_model     = ""             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
@@ -4501,7 +4501,7 @@ prefix_caching = true           # --enable-prefix-caching (APC): reuse the share
 
 # ----------------------------------------------------------------------------
 # [ai.sglang] -- the SGLang heavy lane (operator 2026-06-07 "continue with SGLang").
-# Mirror of [ai.vllm]; the mios-sglang Quadlet reads these via MIOS_SGLANG_*.
+# Mirror of [ai.vllm]; the mios-llm-heavy Quadlet reads these via MIOS_SGLANG_*.
 # SGLang's HiCache spills inactive KV to CPU RAM -> a quantized heavy/VLM reasoner
 # fits the partial 4090. Gated/disabled by default; enable ONE heavy lane (vLLM OR
 # SGLang) on a shared GPU.
@@ -5507,8 +5507,6 @@ forge_http         = 3000     # Forgejo HTTP web UI
 forge_ssh          = 49922    # Forgejo git+ssh (vacated 2222 for host admin sshd 2026-05-28). Non-22 to coexist with sshd; non-2222 to leave that as the canonical operator-SSH port.
 cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
-ollama             = 11434    # alternate local LLM backend (CUDA / dGPU lane)
-ollama_cpu         = 11435    # in-VM CPU light-lane (router/classifier + verb embeddings + micro-LLMs; real AMD iGPU runs natively on the Windows host)
 searxng            = 8888     # local privacy-respecting metasearch
 crawl4ai           = 11235    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
 firecrawl          = 3002     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3030=open_webui.)
@@ -5522,7 +5520,6 @@ k3s_api            = 6443     # K3s Kubernetes API
 guacamole_web      = 8080     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
-surrealdb          = 8000     # SurrealDB 3.0 shared agent state (cross-cutting context layer)
 pgvector           = 5432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
 llama_swap         = 11450    # llama-swap multi-model + KV-paging lane (WS-10, FOSS; additive alongside ollama until cutover)
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
@@ -5531,8 +5528,8 @@ ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell sess
 adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
 adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
 opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
-vllm               = 11440    # vLLM heavy dGPU lane (re-scoped mios-vllm Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
-sglang             = 11441    # SGLang heavy dGPU lane (mios-sglang Quadlet; OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang]. (operator 2026-06-07)
+vllm               = 11440    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy-alt Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
+sglang             = 11441    # SGLang heavy dGPU lane (mios-llm-heavy Quadlet; OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang]. (operator 2026-06-07)
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -5589,9 +5586,7 @@ open_webui         = "ghcr.io/open-webui/open-webui:main"
 code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
 ollama_version     = "latest"
-ollama             = "docker.io/ollama/ollama:latest"
 ollama_cpu_version = "latest"
-ollama_cpu         = "docker.io/ollama/ollama:latest"
 guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner_version = "7"
@@ -5605,8 +5600,6 @@ guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub_version    = "latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
-surrealdb_version  = "latest"
-surrealdb          = "docker.io/surrealdb/surrealdb:latest"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
 # on upstream postgres (FOSS: PostgreSQL License). pg17 = current stable.
 pgvector_version   = "pg17"
@@ -6756,12 +6749,11 @@ mios-code-server      = true
 # healthy state anyway. No env-only tune is safe: the corrupting symlink loop
 # runs before any DISABLE_* guard. The host crowdsec agent already provides the
 # IPS function; this redundant sidecar is retired. See mios_crowdsec_recovery.
-crowdsec-dashboard    = false
-ollama                = true
-cloudws-guacamole     = true
-cloudws-pxe-hub       = true
-guacamole-postgres    = true
-guacd                 = true
+mios-crowdsec-dashboard    = false
+mios-guacamole        = true
+mios-pxe-hub          = true
+mios-guacamole-postgres    = true
+mios-guacd                 = true
 mios-adguard          = true
 
 # ----------------------------------------------------------------------------

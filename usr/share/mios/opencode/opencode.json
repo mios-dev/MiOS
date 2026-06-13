@@ -1,13 +1,13 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/mios-opencode:latest",
-  "small_model": "ollama/mios-opencode:latest",
+  "model": "local/mios-opencode:latest",
+  "small_model": "local/mios-opencode:latest",
   "provider": {
-    "ollama": {
+    "local": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "MiOS-Inference (Ollama)",
       "options": {
-        "baseURL": "http://localhost:11434/v1"
+        "baseURL": "http://localhost:11450/v1"
       },
       "models": {
         "mios-opencode:latest": {

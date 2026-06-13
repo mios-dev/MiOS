@@ -52,9 +52,10 @@ if [ "$(id -u)" -ne 0 ]; then
     exec sudo -n -E "$0" "$@"
 fi
 
-DB_URL="${MIOS_DB_URL:-http://localhost:8000}"
-DB_USER="${MIOS_DB_USER:-root}"
-DB_PASS="${MIOS_DB_PASS:-root}"
+# WS-9: agent state lives in PostgreSQL+pgvector now (SurrealDB BSL store
+# retired). Reset via the pure-python pg wire client (loopback trust, no
+# auth/psql/podman needed) -- same path mios-rag / mios-db --pg use.
+PG_QUERY="${MIOS_PG_QUERY_BIN:-/usr/libexec/mios/mios-pg-query}"
 HCRON=/var/lib/mios/hermes/cron
 
 sec()  { printf "\n── %s ──\n" "$*"; }
@@ -74,7 +75,7 @@ if [ "$DRY_RUN" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
     [ "$_ans" = "clear" ] || { echo "  aborted."; exit 0; }
 fi
 
-sec "1. stop AI writers (SurrealDB stays up so we can clear it)"
+sec "1. stop AI writers (pgvector stays up so we can clear it)"
 run "systemctl stop hermes-agent.service mios-agent-pipe.service mios-daemon.service \
      mios-log-watcher.service mios-cron-director.service mios-hermes-browser.service \
      mios-open-webui.service 2>/dev/null"
@@ -89,16 +90,22 @@ if [ -f "$HCRON/jobs.json" ]; then
 fi
 [ -d "$HCRON/output" ] && { run "find '$HCRON/output' -mindepth 1 -delete 2>/dev/null"; ok "cron/output cleared"; }
 
-sec "3. SurrealDB agent state -> Day-0 (preserve agent_keypair, agent, person)"
-# DELETE rows only -- the SCHEMAFULL table definitions stay so the agents
-# don't error on a missing table. Every other table is runtime/event/cache.
-_CLEAR="agent_metric alias app_install directory_entry emitted event includes \
-        kanban_shadow owns resolves_to scratch session skill skill_invocation tool_call"
+sec "3. pgvector agent state -> Day-0 (preserve knowledge identity tables)"
+# TRUNCATE the runtime/event/cache tables -- the schema-init.sql definitions
+# stay so agents don't error on a missing table. RESTART IDENTITY resets the
+# bigint id sequences to Day-0; CASCADE clears the natural-key edge
+# (resolves_to <- app_install). IF EXISTS tolerates tables not yet created
+# at runtime (e.g. mios_rag before first ingest). Each statement is wrapped
+# so a missing table can't abort the batch. agent_memory (mios-remember's
+# operator/agent facts) is PRESERVED as identity-adjacent, mirroring the old
+# SurrealDB preserve of agent/person/agent_keypair.
+_CLEAR="alias app_install directory_entry event kanban log_digest mios_rag \
+        pending_action resolves_to run_template scratch session skill \
+        skill_invocation sys_env tool_call"
 _sql=""
-for t in $_CLEAR; do _sql="$_sql DELETE ${t};"; done
-run "curl -sS -m 60 -u '${DB_USER}:${DB_PASS}' --data \"USE NS mios DB mios;${_sql}\" '${DB_URL}/sql' >/dev/null 2>&1 || true"
-run "curl -sS -m 60 -u '${DB_USER}:${DB_PASS}' --data 'USE NS mios DB agent; DELETE mios_rag; DELETE directory_entry;' '${DB_URL}/sql' >/dev/null 2>&1 || true"
-ok "SurrealDB runtime tables + RAG cleared (identity/registry preserved)"
+for t in $_CLEAR; do _sql="${_sql}TRUNCATE TABLE IF EXISTS ${t} RESTART IDENTITY CASCADE;"; done
+run "'${PG_QUERY}' \"\${_sql}\" >/dev/null 2>&1 || true"
+ok "pgvector runtime tables + RAG cleared (identity/registry preserved)"
 
 sec "4. agent-env inventory + suggestion caches"
 run "find /var/lib/mios/agent-env -mindepth 1 -delete 2>/dev/null || true"

@@ -35,24 +35,21 @@ app categories come from mios-apps. No hardcoded literals.
 """
 from __future__ import annotations
 
-import base64
 import datetime
 import json
 import os
 import subprocess
 import sys
-import urllib.request
 
-# ── SurrealDB config (SSOT: same MIOS_DB_* env as mios-daemon) ─────────
-DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000").rstrip("/")
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-# Agent-queryable tables (directory_entry, knowledge, ...) live in DB `agent`
-# under NS `mios` -- sys_env joins them so agents read it the same way.
-DB_DB = os.environ.get("MIOS_SYS_ENV_DB", "agent")
-_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
-RECORD = "sys_env:current"
+# ── pgvector store (FOSS-pure replacement for the retired SurrealDB agent DB).
+# The singleton lives in the shared `sys_env` table (schema-init.sql): one row
+# id='current', the whole envelope under the `data` jsonb column. Reached via
+# the pure-python mios-pg-query client -- the same pattern mios-rag uses. ─────
+PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN",
+                          "/usr/libexec/mios/mios-pg-query")
+TABLE = os.environ.get("MIOS_SYS_ENV_TABLE", "sys_env")
+# Fixed singleton key (was the SurrealDB record id `sys_env:current`).
+RECORD = "current"
 # Per-category cap so a huge host can't bloat the stored row.
 APPS_CAP = int(os.environ.get("MIOS_SYS_ENV_APPS_CAP", "300"))
 # Per-category sample size for the COMPACT `get` envelope (the agent-facing
@@ -68,18 +65,18 @@ APP_CATEGORIES = (os.environ.get("MIOS_SYS_ENV_APP_CATEGORIES", "")
                      "mios-shim,agent-cli,service-url").split(",")
 
 
-def _db_sql(sql: str, timeout: float = 8.0):
-    """POST SurrealQL to {DB_URL}/sql with the `USE NS .. DB ..;` prefix the
-    SurrealDB HTTP /sql endpoint needs. Returns the parsed statement-result
-    list, or None on error."""
-    body = f"USE NS {DB_NS} DB {DB_DB}; {sql}".encode("utf-8")
-    req = urllib.request.Request(
-        f"{DB_URL}/sql", data=body, method="POST",
-        headers={"Authorization": _AUTH, "Accept": "application/json",
-                 "Content-Type": "text/plain"})
+def _pg(sql: str, timeout: float = 30.0) -> list | None:
+    """Run one SQL statement on pgvector via mios-pg-query (pure-python pg wire
+    client -- no psql/psycopg/podman). Returns rows as lists of string columns
+    (psql -At: tab-separated, newline rows), or None on error."""
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8", "replace"))
+        p = subprocess.run([PG_QUERY, sql], capture_output=True, text=True,
+                           timeout=timeout)
+        if p.returncode != 0:
+            sys.stderr.write(
+                f"mios-sys-env: db error: {(p.stderr or '').strip()[:200]}\n")
+            return None
+        return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
     except Exception as e:
         sys.stderr.write(f"mios-sys-env: db error: {e}\n")
         return None
@@ -138,9 +135,19 @@ def cmd_refresh(json_out: bool) -> int:
         "env": payload["env"], "apps": payload["apps"],
         "host": host, "source": "mios-sys-env", "indexed_at": now,
     }
-    res = _db_sql(f"UPSERT {RECORD} CONTENT {json.dumps(row, default=str)};")
-    ok = isinstance(res, list) and any(
-        isinstance(s, dict) and s.get("status") == "OK" for s in res[1:])
+    # Single ATOMIC upsert of the fixed singleton key. ON CONFLICT (vs
+    # DELETE+INSERT) is race-safe when the refresh timer and an agent's
+    # sys_env_refresh fire concurrently -- last-write-wins, O(1), one row, no
+    # history bloat. The envelope is json.dumps'd into a jsonb literal; quotes
+    # are doubled ('' ) so app names/paths can't break out (no injection).
+    data = json.dumps(row, default=str).replace("'", "''")
+    rid = RECORD.replace("'", "''")
+    res = _pg(
+        f"INSERT INTO {TABLE} (id, data, ts) "
+        f"VALUES ('{rid}', '{data}'::jsonb, now()) "
+        f"ON CONFLICT (id) DO UPDATE "
+        f"SET data = EXCLUDED.data, ts = EXCLUDED.ts;")
+    ok = res is not None
     n_apps = sum(len(v) for v in payload["apps"].values())
     env_keys = list((payload.get("env") or {}).keys())
     envelope = {
@@ -154,21 +161,27 @@ def cmd_refresh(json_out: bool) -> int:
         "env_sections": env_keys,
     }
     if not ok:
-        envelope["error"] = "surrealdb upsert failed (see stderr)"
+        envelope["error"] = "pgvector upsert failed (see stderr)"
     print(json.dumps(envelope, indent=None if json_out else 2))
     return 0 if ok else 1
 
 
 def _read_current() -> dict | None:
-    res = _db_sql(f"SELECT * FROM {RECORD};")
-    if not isinstance(res, list):
+    # The whole envelope is stored under the `data` jsonb column of the
+    # singleton row; unwrap it back to a top-level dict (env/apps/host/...)
+    # so _compact / cmd_get see the same shape the SurrealDB row had.
+    rid = RECORD.replace("'", "''")
+    rows = _pg(f"SELECT data FROM {TABLE} WHERE id = '{rid}';")
+    if not rows:
         return None
-    for s in res[1:]:
-        if isinstance(s, dict) and s.get("status") == "OK":
-            rows = s.get("result") or []
-            if isinstance(rows, list) and rows:
-                return rows[0]
-    return None
+    raw = rows[0][0] if rows[0] else ""
+    if not raw:
+        return None
+    try:
+        obj = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    return obj if isinstance(obj, dict) else None
 
 
 def _compact(payload: dict, full: bool) -> dict:

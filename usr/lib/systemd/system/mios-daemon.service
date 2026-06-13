@@ -17,8 +17,8 @@
 
 Description='MiOS' consolidated micro-LLM daemon (log classify + refusal detect + cron gate)
 Documentation=file:///usr/libexec/mios/mios-daemon
-After=ollama.service network.target
-Wants=ollama.service
+After=mios-llm-light.service network.target
+Wants=mios-llm-light.service
 ConditionPathExists=/usr/libexec/mios/mios-daemon
 
 [Service]

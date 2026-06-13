@@ -1,5 +1,5 @@
 <!-- AI-hint: Specifies the architectural roadmap for the MiOS distributed swarm, detailing the transition from single-large-model execution to concurrent multi-small-model execution across local, dGPU, and remote nodes.
-     AI-related: mios-heavy, mios-llama-worker -->
+     AI-related: mios-heavy, mios-llm-worker -->
 # MiOS Distributed Concurrent Multi-(small)-Model Tool-Swarm — Design + Plan (2026-06-12)
 
 Operator directive: "MiOS AI should DELEGATE A SWARM to multiple smaller models
@@ -50,7 +50,7 @@ exclusive); plus the startup Σvram≤budget guard + health_gate + the hard
 - **Phase 1 — per-worker VRAM/RAM budget + per-endpoint lease in `_admit`** (no
   risk; tightens safety): read `vram_mb`/`ram_mb`/`tool_capable`; `_ENDPOINT_RESERVED`
   counter so siblings co-admitting see each other's pending cost.
-- **Phase 2 — templated `mios-llama-worker@.container`** + firstboot
+- **Phase 2 — templated `mios-llm-worker@.container`** + firstboot
   oversubscription guard (inert until armed; refuses to arm if Σvram>budget).
 - **Phase 3 — arm the dGPU small-model pack (Profile B)** ⚠️ VRAM-RISKY,
   OPERATOR-GATED (provision GGUFs, flip gpu_profile, verify nvidia-smi/journal).
@@ -68,4 +68,4 @@ safe additions. Files: server.py (`_lane_sem_key`/`_lane_sem`/`_load_node_pool`/
 `_admit`/`_pick_fanout_agents`/`_agent_dag_from_tasks` + new A2A-consume/replan
 helpers), mios.toml (`[nodes.*]` new fields + inert `[nodes.local-dgpu-a..d]` +
 `[dispatch].gpu_profile`/`lane_concurrency_gpu0` + `[a2a].council`), new
-`usr/lib/mios/llamacpp/mios-llama-worker@.container` + firstboot guard.
+`usr/lib/mios/llamacpp/mios-llm-worker@.container` + firstboot guard.

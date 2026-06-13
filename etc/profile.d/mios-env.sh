@@ -112,7 +112,7 @@ export MIOS_AI_KEY="${MIOS_AI_KEY:-}"
 
 # Ollama-specific bind. /usr/bin/ollama (upstream CLI) reads OLLAMA_HOST
 # to find the API server. The MiOS Ollama Quadlet
-# (usr/share/containers/systemd/ollama.container) publishes 0.0.0.0:11434
+# (usr/share/containers/systemd/mios-ollama.container) publishes 0.0.0.0:11434
 # on the host, so any host-side shell -- including Ptyxis flatpak's
 # default `flatpak-spawn --host bash` session -- talks to it via this
 # env. Set explicitly here so `ollama list` / `ollama run <model>` work

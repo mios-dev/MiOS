@@ -108,52 +108,38 @@ if _env_agents:
 else:
     AGENTS = list(DEFAULT_AGENTS)
 
-# SurrealDB env (same as mios-db / mios-skills / mios-kg).
-DB_URL = os.environ.get(
-    "MIOS_DB_URL",
-    "http://localhost:" + os.environ.get("MIOS_PORT_SURREALDB", "8000"))
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-DB_DB = os.environ.get("MIOS_DB_DB", "mios")
-DB_AUTH = "Basic " + base64.b64encode(
-    f"{DB_USER}:{DB_PASS}".encode()).decode()
+# pgvector store via the pure-python mios-pg-query wire client (SurrealDB,
+# BSL 1.1, retired). Loopback trust -- no auth/psql/podman; works for the
+# confined mios-ai service user. Same client mios-rag / mios-db --pg use.
+PG_QUERY_BIN = os.environ.get(
+    "MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
 
 _AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
 
 
-# ─── SurrealDB helpers (stdlib urllib) ────────────────────────────
-def post_sql(sql: str, *, timeout: float = 10.0) -> list:
-    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
-    req = urllib.request.Request(
-        f"{DB_URL}/sql", data=body, method="POST",
-        headers={"Authorization": DB_AUTH, "Accept": "application/json"},
-    )
+# ─── pgvector helper (mios-pg-query, pure-python pg wire client) ──────
+def _pg(sql: str, *, timeout: float = 15.0) -> list:
+    """Run one SQL statement on pgvector via mios-pg-query. Returns rows as
+    lists of string columns (psql -At: tab-separated, newline rows).
+    Degrades-open to [] on any error so the offline filesystem key paths
+    keep working even if pg is unreachable."""
+    import subprocess
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        sys.stderr.write(
-            f"mios-passport: SurrealDB {e.code}: "
-            f"{e.read().decode()[:300]}\n")
+        p = subprocess.run([PG_QUERY_BIN, sql],
+                           capture_output=True, text=True, timeout=timeout)
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write(f"mios-passport: pgvector unreachable: {e}\n")
         return []
-    except Exception as e:
+    if p.returncode != 0:
         sys.stderr.write(
-            f"mios-passport: SurrealDB unreachable: {e}\n")
+            f"mios-passport: pgvector error: {(p.stderr or '')[:300]}\n")
         return []
-
-
-def last_ok(results: list) -> Optional[list]:
-    if not results:
-        return None
-    last = results[-1] or {}
-    if last.get("status") != "OK":
-        return None
-    return last.get("result")
+    return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
 
 
 def sq(s: str) -> str:
-    return json.dumps(s)
+    """Quote a string as a PostgreSQL single-quoted literal (' -> '')."""
+    return "'" + str(s).replace("'", "''") + "'"
 
 
 # ─── canonical-JSON op_hash (same algorithm as agent-pipe) ────────
@@ -198,18 +184,21 @@ def _load_public(agent: str) -> ed25519.Ed25519PublicKey:
     if os.path.exists(fs_path):
         with open(fs_path, "rb") as f:
             return serialization.load_pem_public_key(f.read())
-    # DB fallback.
+    # DB fallback (pgvector agent_keypair). The PEM is multi-line; select it
+    # with newlines folded to a sentinel so mios-pg-query's one-row-per-line
+    # output stays parseable, then restore them before parsing.
     sql = (
-        f"SELECT public_key_pem FROM agent_keypair "
+        f"SELECT replace(public_key_pem, E'\\n', E'\\x01') "
+        f"FROM agent_keypair "
         f"WHERE agent = {sq(agent)} AND retired = false "
         f"ORDER BY provisioned_at DESC LIMIT 1;"
     )
-    rows = last_ok(post_sql(sql)) or []
-    if not rows:
+    rows = _pg(sql)
+    if not rows or not rows[0]:
         raise FileNotFoundError(
             f"no public key for agent {agent!r} "
             f"(neither {fs_path} nor agent_keypair row)")
-    pem = rows[0].get("public_key_pem")
+    pem = (rows[0][0] or "").replace("\x01", "\n")
     if not pem:
         raise ValueError(f"agent_keypair row for {agent} has empty PEM")
     return serialization.load_pem_public_key(pem.encode("utf-8"))
@@ -347,20 +336,16 @@ def _write_keypair(agent: str, *, force: bool) -> Tuple[str, bool]:
     os.replace(tmp_pub, pub_path)
     with open(kid_path, "w") as f:
         f.write(new_kid)
-    # Register in SurrealDB (agent_keypair). Retire any prior live
-    # row first.
-    post_sql(
+    # Register in pgvector (agent_keypair). Retire any prior live row first.
+    _pg(
         f"UPDATE agent_keypair SET retired = true, "
-        f"rotated_at = time::now() "
+        f"rotated_at = now() "
         f"WHERE agent = {sq(agent)} AND retired = false;")
-    post_sql(
-        f"CREATE agent_keypair SET "
-        f"agent = {sq(agent)}, "
-        f"kid = {sq(new_kid)}, "
-        f"alg = {sq(ALGO)}, "
-        f"public_key_pem = {sq(pub_pem.decode())}, "
-        f"provisioned_at = time::now(), "
-        f"retired = false;")
+    _pg(
+        f"INSERT INTO agent_keypair "
+        f"(agent, kid, alg, public_key_pem, provisioned_at, retired) "
+        f"VALUES ({sq(agent)}, {sq(new_kid)}, {sq(ALGO)}, "
+        f"{sq(pub_pem.decode())}, now(), false);")
     return new_kid, True
 
 
@@ -397,9 +382,19 @@ def cmd_provision(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
-    rows = last_ok(post_sql(
+    raw = _pg(
         "SELECT agent, kid, alg, provisioned_at, rotated_at, retired "
-        "FROM agent_keypair ORDER BY agent, provisioned_at;")) or []
+        "FROM agent_keypair ORDER BY agent, provisioned_at;")
+    rows = []
+    for r in raw:
+        # psql -At columns, in SELECT order; pad short rows (trailing NULLs).
+        r = (r + [""] * 6)[:6]
+        rows.append({
+            "agent": r[0], "kid": r[1], "alg": r[2],
+            "provisioned_at": r[3], "rotated_at": r[4],
+            # pg renders booleans as 't'/'f' in -At output.
+            "retired": r[5] == "t",
+        })
     if args.json:
         print(json.dumps(rows, indent=2, default=str))
         return 0

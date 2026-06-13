@@ -391,7 +391,7 @@ print_endpoints() {
 
     local d_forge d_ollama d_ollama_cpu d_cockpit d_searxng
     local d_hermes d_dash d_code d_webui d_agent_pipe d_surrealdb
-    local d_ttyd_bash d_ttyd_ps d_qdrant d_guacamole
+    local d_ttyd_bash d_ttyd_ps d_guacamole
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
     d_ollama_cpu=$(ep_dot "http://localhost:${_p_ollama_cpu}/")
@@ -406,7 +406,6 @@ print_endpoints() {
     d_surrealdb=$(ep_dot  "http://localhost:${_p_surrealdb}/health")
     d_ttyd_bash=$(ep_dot  "http://localhost:${_p_ttyd_bash}/")
     d_ttyd_ps=$(ep_dot    "http://localhost:${_p_ttyd_ps}/")
-    d_qdrant=$(ep_dot     "http://localhost:6333/dashboard")
     d_guacamole=$(ep_dot  "http://localhost:${_p_guacamole}/guacamole/")
     d_crowdsec=$(ep_dot   "http://localhost:8080/metrics")
 
@@ -469,7 +468,7 @@ print_endpoints() {
     # AI surface -- agent stack the operator interacts with through
     # OWUI / Discord / programmatic clients.
     section_header "AI surface"
-    local c_agent c_herm c_sdb c_dash c_oll c_olli c_qdr
+    local c_agent c_herm c_sdb c_dash c_oll c_olli
     c_agent=$(printf "$cell_fmt" "$d_agent_pipe" "http://localhost:${_p_agent_pipe}/v1"  "Agent-Pipe" "$C_D" "$_p_agent_pipe" "$C_R")
     c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
     c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
@@ -478,10 +477,9 @@ print_endpoints() {
     # (masked). Show LlamaSwap, not Ollama -- operator 2026-06-06 "not converted
     # to llama.cpp STILL" was the dash label lagging the actual cutover.
     c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")
-    c_qdr=$(  printf "$cell_fmt" "$d_qdrant"     "http://localhost:6333/"                "Qdrant"     "$C_D" "6333"           "$C_R")
     printf "$row_fmt" "$c_agent" "$c_herm"
     printf "$row_fmt" "$c_sdb"   "$c_dash"
-    printf "$row_fmt" "$c_llama" "$c_qdr"
+    printf "$row_fmt" "$c_llama" ""
 
     # Micro-LLM status row -- observability layer health
     local micro_info micro_model micro_latency
@@ -521,7 +519,7 @@ print_endpoints() {
     s_daemon=$(service_status mios-daemon.service);          IFS='|' read -r _ d_daemon _ <<< "$s_daemon"
     s_miner=$( service_status mios-skills-miner.timer);      IFS='|' read -r _ d_miner  _ <<< "$s_miner"
     s_pass=$(  service_status mios-passport-provision.service); IFS='|' read -r _ d_pass _ <<< "$s_pass"
-    s_crowd=$( service_status crowdsec-dashboard.service);   IFS='|' read -r _ d_crowd  _ <<< "$s_crowd"
+    s_crowd=$( service_status mios-crowdsec-dashboard.service);   IFS='|' read -r _ d_crowd  _ <<< "$s_crowd"
     [[ -z "$d_runner" ]] && d_runner="$DOT_DOWN"
     [[ -z "$d_ceph"   ]] && d_ceph="$DOT_DOWN"
     [[ -z "$d_k3s"    ]] && d_k3s="$DOT_DOWN"
@@ -545,7 +543,7 @@ print_endpoints() {
 
 print_quadlets() {
     # Count-only summary instead of a 14-row listing. Full state:
-    # `systemctl --no-pager list-units 'mios-*' ollama.service`.
+    # `systemctl --no-pager list-units 'mios-*' mios-llm-light.service`.
     local svc info name dot color
     local n_active=0 n_starting=0 n_inactive=0 n_failed=0
     # 2026-05-18 refresh: include Phase 2 / C.x / D.x services that
@@ -560,7 +558,7 @@ print_quadlets() {
                mios-guacamole guacd guacamole-postgres \
                mios-surrealdb mios-agent-pipe mios-daemon \
                mios-ttyd-bash mios-ttyd-powershell \
-               mios-skills-miner mios-passport-provision qdrant; do
+               mios-skills-miner mios-passport-provision; do
 
         info="$(service_status "${svc}.service")"
         IFS='|' read -r name dot color <<< "$info"

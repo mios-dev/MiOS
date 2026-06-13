@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, and image build settings used by all system tools and scripts.
-# AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-vllm, mios-sglang, mios-webtools
+# AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-llm-heavy-alt, mios-llm-heavy, mios-webtools
 # AI-functions: _mios_load_unified, _mios_legacy_get
 # tools/lib/userenv.sh -- read the unified 'MiOS' user config and export
 # MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every
@@ -250,15 +250,15 @@ slots = [
     ("ai.opencode_gateway_timeout_s",  "MIOS_OPENCODE_TIMEOUT_S"),
     ("ai.agent_venv",                  "MIOS_HERMES_VENV"),
     ("ai.agent_install_dir",           "MIOS_HERMES_DIR"),
-    # ── vLLM heavy lane ([ai.vllm]; re-scoped mios-vllm Quadlet, Phase 2) ──
-    # Rendered into mios-vllm.container's Exec= by 15-render-quadlets.sh;
+    # ── vLLM heavy lane ([ai.vllm]; re-scoped mios-llm-heavy-alt Quadlet, Phase 2) ──
+    # Rendered into mios-llm-heavy-alt.container's Exec= by 15-render-quadlets.sh;
     # bake_model is read by automation/38-vllm-prep.sh at build time.
     ("ai.vllm.served_name",            "MIOS_VLLM_SERVED_NAME"),
     ("ai.vllm.gpu_util",               "MIOS_VLLM_GPU_UTIL"),
     ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
     ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
-    # ── SGLang heavy lane ([ai.sglang]; mios-sglang Quadlet, operator 2026-06-07) ──
-    # Rendered into mios-sglang.container's Exec= by 15-render-quadlets.sh;
+    # ── SGLang heavy lane ([ai.sglang]; mios-llm-heavy Quadlet, operator 2026-06-07) ──
+    # Rendered into mios-llm-heavy.container's Exec= by 15-render-quadlets.sh;
     # bake_model is read by automation/38-sglang-prep.sh at build time.
     ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
     ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
@@ -486,7 +486,7 @@ slots = [
     ("surrealdb.namespace",            "MIOS_DB_NS"),
     ("surrealdb.database",             "MIOS_DB_DB"),
     ("surrealdb.data_dir",             "MIOS_DB_DATA_DIR"),
-    ("surrealdb.backend",              "MIOS_DB_BACKEND"),
+    ("pgvector.db_backend",              "MIOS_DB_BACKEND"),
     ("surrealdb.schema_init",          "MIOS_DB_SCHEMA_INIT"),
     ("surrealdb.embed_model",          "MIOS_EMBED_MODEL"),
     ("surrealdb.enable",               "MIOS_DB_ENABLE"),

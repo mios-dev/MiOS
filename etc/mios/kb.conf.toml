@@ -48,8 +48,8 @@ chunk_overlap_tokens  = 200       # must be <= max/2
 [vector_store]
 name        = "mios-kb"
 expires_after_days = 0            # 0 = no expiration (cloud)
-local_backend = "qdrant"          # qdrant | pgvector | chroma | weaviate | milvus | faiss
-local_url   = "http://localhost:6333"
+local_backend = "pgvector"        # qdrant retired -> pgvector (the live vector store)
+local_url   = "http://localhost:5432"   # pgvector
 collection  = "mios-kb"
 
 [ingest]

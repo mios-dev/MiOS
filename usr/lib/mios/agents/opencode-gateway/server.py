@@ -56,7 +56,7 @@ OPENCODE_BIN = os.environ.get(
 # ONE canonical model id, shared with [agents.opencode].model + opencode.json.
 OPENCODE_MODEL = os.environ.get("MIOS_OPENCODE_MODEL", "mios-opencode:latest")
 # opencode provider name as declared in opencode.json (e.g. "ollama").
-OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "ollama")
+OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "local")
 # Explicit config location (no hardcoded /root/.config/opencode). Exported to
 # the child process as OPENCODE_CONFIG.
 OPENCODE_CONFIG = os.environ.get(

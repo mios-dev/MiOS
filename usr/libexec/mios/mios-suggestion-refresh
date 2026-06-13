@@ -62,7 +62,6 @@ REFINE_TIMEOUT_S = int(os.environ.get(
 # out of the box" covering MiOS functionality, that also iterates per
 # use-case). Tunable via env.
 NUM_CHIPS = int(os.environ.get("MIOS_SUGGESTION_COUNT", "28"))
-SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 
 
 def _read_file(path: str, cap: int = 4000) -> str:
@@ -155,66 +154,47 @@ def _mios_verbs_sample() -> list[str]:
     return out[:60] or _baseline_actions()
 
 
-def _recent_kanban(limit: int = 4) -> list[str]:
-    """Read recent operator-relevant kanban entries from the
-    SurrealDB shadow table. These are real queued tasks the
-    operator opened; ideal chip seeds."""
-    sql = (
-        f"SELECT title FROM kanban_shadow "
-        f"WHERE status != 'completed' "
-        f"ORDER BY synced_at DESC LIMIT {int(limit)};"
-    )
+def _pg(sql: str) -> list:
+    """Run one SQL statement on pgvector via mios-pg-query (pure-python pg
+    wire client -- no psql/psycopg/podman). Rows -> lists of string columns
+    (psql -At: tab-separated columns, newline-separated rows). Degrade-open
+    to [] on any error so a transient DB issue can't blank the chip context."""
+    import subprocess
     try:
-        req = urllib.request.Request(
-            f"{SURREAL_URL}/sql",
-            data=sql.encode("utf-8"),
-            headers={
-                "Authorization": "Basic cm9vdDpyb290",
-                "NS": "mios", "DB": "agent",
-                "Accept": "application/json",
-                "Content-Type": "text/plain",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=4) as r:
-            body = json.loads(r.read().decode("utf-8", errors="replace"))
+        p = subprocess.run(["/usr/libexec/mios/mios-pg-query", sql],
+                           capture_output=True, text=True, timeout=4)
     except Exception:
         return []
-    if not isinstance(body, list) or not body:
+    if p.returncode != 0:
         return []
-    rows = (body[-1] or {}).get("result") or []
-    return [str(r.get("title", "")) for r in rows if isinstance(r, dict)]
+    return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
+
+
+def _recent_kanban(limit: int = 4) -> list[str]:
+    """Read recent operator-relevant kanban entries from the pgvector
+    `kanban` table (authoritative; retired the SurrealDB shadow). These
+    are real queued tasks the operator opened; ideal chip seeds."""
+    # pg `kanban.status` is todo|doing|done|blocked (+ tolerate a legacy
+    # 'completed'); exclude the finished states. Ordered by ts (the shadow's
+    # synced_at has no pg equivalent).
+    sql = (
+        f"SELECT title FROM kanban "
+        f"WHERE status NOT IN ('done', 'completed') "
+        f"ORDER BY ts DESC LIMIT {int(limit)};"
+    )
+    return [r[0] for r in _pg(sql) if r and r[0]]
 
 
 def _recent_refine_intents(limit: int = 5) -> list[str]:
-    """Pull the last few refine summaries from SurrealDB. Used to
-    bias suggestions away from what the operator JUST asked (avoid
-    repetition) and toward complementary follow-ups."""
+    """Pull the last few refine summaries from the pgvector `event`
+    table. Used to bias suggestions away from what the operator JUST
+    asked (avoid repetition) and toward complementary follow-ups."""
     sql = (
         f"SELECT summary FROM event "
         f"WHERE kind = 'refine' "
         f"ORDER BY ts DESC LIMIT {int(limit)};"
     )
-    try:
-        req = urllib.request.Request(
-            f"{SURREAL_URL}/sql",
-            data=sql.encode("utf-8"),
-            headers={
-                "Authorization": "Basic cm9vdDpyb290",  # root:root b64
-                "NS": "mios", "DB": "agent",
-                "Accept": "application/json",
-                "Content-Type": "text/plain",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=4) as r:
-            body = json.loads(r.read().decode("utf-8", errors="replace"))
-    except Exception:
-        return []
-    if not isinstance(body, list) or not body:
-        return []
-    rows = (body[-1] or {}).get("result") or []
-    return [str(r.get("summary", "")) for r in rows if isinstance(r, dict)]
+    return [r[0] for r in _pg(sql) if r and r[0]]
 
 
 def _safe_json(text: str) -> dict:

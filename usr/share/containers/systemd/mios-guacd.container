@@ -13,6 +13,7 @@ ConditionVirtualization=!container
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].guacd and [network.quadlet].network.
 Image=docker.io/guacamole/guacd:latest
+ContainerName=mios-guacd
 Network=mios.network
 AutoUpdate=registry
 User=mios-guacd

@@ -13,6 +13,7 @@ ConditionVirtualization=!container
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].postgres and [network.quadlet].network.
 Image=docker.io/library/postgres:latest
+ContainerName=mios-guacamole-postgres
 Network=mios.network
 AutoUpdate=registry
 User=mios-postgres

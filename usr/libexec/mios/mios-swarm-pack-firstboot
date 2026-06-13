@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # AI-hint: Parses mios.toml to arm concurrent llama-server instances in swarm mode, enforcing vram_budget_mb limits to prevent OOM on shared GPUs and generating per-worker environment files in /run/mios/swarm/.
-# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-llama-worker, mios-swarm-pack
+# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-llm-worker, mios-swarm-pack
 # AI-functions: log
 # mios-swarm-pack-firstboot
 #
 # SWARM Phase-2 (operator 2026-06-12): arm the dGPU/CPU small-model SERVER pack so
-# 3-4 single-model llama-server instances run CONCURRENTLY (the mios-llama-worker@
+# 3-4 single-model llama-server instances run CONCURRENTLY (the mios-llm-worker@
 # template). Reads the SSOT, ENFORCES Sigma(vram_mb) <= vram_budget_mb so it can
 # NEVER oversubscribe the shared 4090 (the documented OOM-cascade), writes a
 # per-worker /run/mios/swarm/<name>.env, and starts the armed workers.
@@ -116,7 +116,7 @@ printf '%s\n' "$PLAN" | while read -r tag name gguf port ngl ctx vram; do
   install -d -o "${MIOS_LLAMACPP_UID:-827}" -g "${MIOS_LLAMACPP_GID:-827}" \
       "/var/lib/mios/llamacpp/slots/${name}" 2>/dev/null
   systemctl daemon-reload 2>/dev/null
-  if systemctl start "mios-llama-worker@${name}.service" 2>/dev/null; then
+  if systemctl start "mios-llm-worker@${name}.service" 2>/dev/null; then
     log "armed worker ${name} -> ${gguf} :${port} ngl=${ngl} (~${vram}MB)"
   else
     log "WARN: worker ${name} failed to start (check journal) -- continuing"

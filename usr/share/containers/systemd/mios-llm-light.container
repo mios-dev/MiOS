@@ -1,6 +1,6 @@
 # AI-hint: Systemd unit file defining the llama-swap container to provide multi-model llama.cpp support with KV-paging and an OpenAI-compatible endpoint, used by agents as a high-performance, multi-model alternative to Ollama.
-# AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llama-swap, mios-surrealdb, mios-ollama, mios-services, network-online.target, multi-user.target, default.target
-# /usr/share/containers/systemd/mios-llama-swap.container
+# AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llm-light, mios-surrealdb, mios-ollama, mios-services, network-online.target, multi-user.target, default.target
+# /usr/share/containers/systemd/mios-llm-light.container
 # 'MiOS' llama.cpp multi-model lane via llama-swap (WS-10, 2026-06-04).
 # ADDITIVE engine step toward the ollama -> llama.cpp conversion for fleet-wide
 # KV-cache (concepts/llamacpp-engine-conversion.md). llama-swap is the LINCHPIN:
@@ -34,7 +34,7 @@ ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 # SSOT: mios.toml [image.sidecars].llama_swap, [ports].llama_swap,
 # [services.llamacpp].{uid,gid}, [llamacpp].*.
 Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
-ContainerName=mios-llama-swap
+ContainerName=mios-llm-light
 # Host networking (matches mios-surrealdb/pgvector): reliable localhost:<port>
 # for the pipe + a stable endpoint the swarm node points at.
 Network=host
@@ -69,7 +69,7 @@ Entrypoint=/app/llama-swap
 # llama-swap version (--config / --listen).
 Exec=--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLAMA_SWAP:-11450}
 
-Label=org.opencontainers.image.title=mios-llama-swap
+Label=org.opencontainers.image.title=mios-llm-light
 Label=org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap
 
 [Service]

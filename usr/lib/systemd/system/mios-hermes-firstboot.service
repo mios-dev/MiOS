@@ -1,5 +1,5 @@
 # AI-hint: Initializes the Hermes gateway by generating the api.env file and ensuring the config.yaml matches the current schema, acting as a self-healing pre-boot step to provide required credentials and configuration for hermes-agent.service.
-# AI-related: /etc/mios/hermes/api.env., /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-hermes, mios-hermes-workspace, hermes-agent.service, mios-hermes.service, mios-hermes-workspace.service, systemd-tmpfiles-setup.service, ollama.service
+# AI-related: /etc/mios/hermes/api.env., /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-hermes, mios-hermes-workspace, hermes-agent.service, mios-hermes.service, mios-hermes-workspace.service, systemd-tmpfiles-setup.service, mios-llm-light.service
 [Unit]
 Description='MiOS' Hermes-Agent first-boot config + key generation
 Documentation=https://github.com/MiOS-DEV/MiOS
@@ -9,8 +9,8 @@ Documentation=https://github.com/MiOS-DEV/MiOS
 # mios-hermes-workspace.service -- both deleted when the Hermes
 # container Quadlets were removed; hermes-agent.service is the runtime
 # now.
-After=local-fs.target systemd-tmpfiles-setup.service ollama.service
-Wants=ollama.service
+After=local-fs.target systemd-tmpfiles-setup.service mios-llm-light.service
+Wants=mios-llm-light.service
 Before=hermes-agent.service multi-user.target
 # NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
 # this unit a true once-ever oneshot -- but the script does TWO jobs:

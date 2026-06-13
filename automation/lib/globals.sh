@@ -242,7 +242,7 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 # Quadlet-generated service names (one per .container/.build/.image file)
 : "${MIOS_UNIT_FORGE:=mios-forge.service}"
 : "${MIOS_UNIT_FORGE_RUNNER:=mios-forgejo-runner.service}"
-: "${MIOS_UNIT_OLLAMA:=ollama.service}"
+: "${MIOS_UNIT_OLLAMA:=mios-ollama.service}"
 : "${MIOS_UNIT_CEPH:=mios-ceph.service}"
 : "${MIOS_UNIT_K3S:=mios-k3s.service}"
 : "${MIOS_UNIT_COCKPIT_LINK:=mios-cockpit-link.service}"

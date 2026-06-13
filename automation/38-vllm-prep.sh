@@ -1,13 +1,13 @@
 #!/bin/bash
-# AI-hint: Bakes vLLM model weights into the image at /usr/share/mios/vllm/model if MIOS_VLLM_BAKE_MODEL is set, enabling offline serving via the mios-vllm Quadlet for air-gapped environments.
-# AI-related: /usr/share/mios/vllm/model, mios-vllm, mios-grounding, mios-vllm.container
+# AI-hint: Bakes vLLM model weights into the image at /usr/share/mios/vllm/model if MIOS_VLLM_BAKE_MODEL is set, enabling offline serving via the mios-llm-heavy-alt Quadlet for air-gapped environments.
+# AI-related: /usr/share/mios/vllm/model, mios-llm-heavy-alt, mios-grounding, mios-llm-heavy-alt.container
 # automation/38-vllm-prep.sh -- bake the vLLM heavy-lane weights into the image
-# so the mios-vllm Quadlet serves them OFFLINE (vLLM/HF will NOT download
+# so the mios-llm-heavy-alt Quadlet serves them OFFLINE (vLLM/HF will NOT download
 # air-gapped at runtime). Mirrors automation/37-ollama-prep.sh: build-time,
 # best-effort, NEVER fails the build (exit 0 on any error).
 #
 # Weights land in /usr/share/mios/vllm/model (immutable composefs surface; the
-# build's /var cleanup doesn't touch /usr/share). The mios-vllm.container mounts
+# build's /var cleanup doesn't touch /usr/share). The mios-llm-heavy-alt.container mounts
 # that dir read-only at /models.
 #
 # RE-SCOPED 2026-06-01 (Phase 2 = gated vLLM HEAVY TEXT lane). The model is

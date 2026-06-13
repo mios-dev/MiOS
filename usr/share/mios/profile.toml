@@ -101,9 +101,9 @@ mios-hermes-workspace = true
 # online hub at boot (incompatible with offline MiOS) -- it crash-looped the
 # host crowdsec agent for ~6 days. Retired; the host agent provides the IPS.
 # Full rationale in mios.toml [quadlets.enable] + memory mios_crowdsec_recovery.
-crowdsec-dashboard    = false
-ollama                = true
-cloudws-guacamole     = true
-cloudws-pxe-hub       = true
-guacamole-postgres    = true
-guacd                 = true
+mios-crowdsec-dashboard    = false
+mios-ollama                = true
+mios-guacamole        = true
+mios-pxe-hub          = true
+mios-guacamole-postgres    = true
+mios-guacd                 = true

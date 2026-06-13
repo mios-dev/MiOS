@@ -22,50 +22,39 @@ USAGE
   mios-ingest --path DIR --ext md,txt --max 50 --dry-run
 
 Output JSON: {ok, ingested, skipped, sources:[...]}.
-Offline: only mios-summarize (local CPU lane) + local SurrealDB. No network.
+Offline: only mios-summarize (local CPU lane) + local pgvector. No network.
 """
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import subprocess
 import sys
-import urllib.request
 
-DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 TABLE = os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge")
 SUMMARIZE = os.environ.get("MIOS_SUMMARIZE_BIN", "mios-summarize")
 DEFAULT_EXTS = os.environ.get("MIOS_INGEST_EXTS", "md,txt,rst,org")
+PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
 
 
-def _sql(sql: str) -> list:
-    req = urllib.request.Request(
-        f"{DB_URL.rstrip('/')}/sql", data=sql.encode("utf-8"),
-        headers={"surreal-ns": DB_NS, "surreal-db": DB_DB,
-                 "Accept": "application/json",
-                 "Authorization": "Basic " +
-                 base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()},
-        method="POST")
-    with urllib.request.urlopen(req, timeout=20) as r:
-        d = json.loads(r.read().decode("utf-8", errors="replace"))
-    res = []
-    for st in (d or []):
-        if isinstance(st, dict):
-            if st.get("status") == "ERR":
-                raise RuntimeError(st.get("result") or "db error")
-            if isinstance(st.get("result"), list):
-                res = st["result"]
-    return res
+def _pg(sql: str) -> list:
+    """Run one SQL statement on pgvector via mios-pg-query (pure-python pg wire
+    client -- no psql/psycopg/podman). Rows -> lists of string columns (psql -At).
+    Raises RuntimeError on a backend error so the caller's try/except can record
+    the per-source failure (matches the old _sql contract)."""
+    p = subprocess.run([PG_QUERY, sql], capture_output=True, text=True,
+                       timeout=90)
+    if p.returncode != 0:
+        raise RuntimeError(f"pg error: {(p.stderr or '')[:200]}")
+    return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
 
 
 def _esc(s: str) -> str:
-    return str(s).replace("\\", "\\\\").replace("'", "\\'")
+    # PostgreSQL single-quoted literal: double the quote. Backslashes are
+    # literal in standard-conforming strings, so DON'T escape them (would
+    # corrupt file paths / content).
+    return str(s).replace("'", "''")
 
 
 def _summarize(text: str) -> dict:
@@ -113,10 +102,8 @@ def main() -> int:
                           "note": "no matching files", "sources": []}))
         return 0
 
-    try:
-        _sql(f"DEFINE TABLE IF NOT EXISTS {TABLE} SCHEMALESS;")
-    except Exception:  # noqa: BLE001
-        pass
+    # The pg `knowledge` table is created by the schema-init step
+    # (usr/share/mios/postgres/schema-init.sql); no per-tool DDL needed.
 
     ingested, skipped, report = 0, 0, []
     for sp in srcs:
@@ -137,13 +124,20 @@ def main() -> int:
         l0 = (s.get("l0") or os.path.basename(sp)).strip()
         l1 = (s.get("l1") or raw[:2000]).strip()
         answer = f"[ingested from {sp}]\n\n{l1}"
-        # idempotent upsert keyed on the source path (stored in `src`)
+        # idempotent upsert keyed on the source path. pg `knowledge` has no
+        # `src`/`source` columns, so the path lives in the `sources` jsonb
+        # array (preserving the old sources=[sp]) and we match it with the
+        # jsonb containment operator @>. session_id='ingest' marks provenance
+        # (was source='ingest'). ts defaults to now() at the column level.
+        src_json = json.dumps([sp])
         try:
-            _sql(f"DELETE {TABLE} WHERE src = '{_esc(sp)}';")
-            _sql(f"CREATE {TABLE} SET q = '{_esc(l0[:300])}', "
-                 f"answer = '{_esc(answer[:6000])}', "
-                 f"src = '{_esc(sp)}', source = 'ingest', "
-                 f"sources = ['{_esc(sp)}'], ts = time::now();")
+            _pg(f"DELETE FROM {TABLE} WHERE sources @> '{_esc(src_json)}'::jsonb "
+                f"AND session_id = 'ingest';")
+            _pg(f"INSERT INTO {TABLE} (q, answer, sources, session_id) VALUES ("
+                f"'{_esc(l0[:300])}', "
+                f"'{_esc(answer[:6000])}', "
+                f"'{_esc(src_json)}'::jsonb, "
+                f"'ingest');")
             ingested += 1
             report.append({"source": sp, "l0": l0[:120]})
         except Exception as e:  # noqa: BLE001

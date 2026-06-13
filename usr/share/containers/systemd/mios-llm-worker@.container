@@ -1,6 +1,6 @@
 # AI-hint: Systemd unit template for a single-model llama-server instance; used by agents to spawn concurrent, independent worker containers with dedicated VRAM/ports as defined in the mios.toml SSOT.
-# AI-related: /usr/share/mios/llamacpp/models., /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, mios-llama-worker, mios-swarm-pack-firstboot, mios-llama-swap, mios-cdi-detect, mios-llama-swap.container, mios-cdi-detect.service, network-online.target
-# /usr/share/containers/systemd/mios-llama-worker@.container
+# AI-related: /usr/share/mios/llamacpp/models., /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, mios-llm-worker, mios-swarm-pack-firstboot, mios-llm-light, mios-cdi-detect, mios-llm-light.container, mios-cdi-detect.service, network-online.target
+# /usr/share/containers/systemd/mios-llm-worker@.container
 # 'MiOS' SWARM worker -- ONE single-model llama-server instance (Phase-2,
 # operator 2026-06-12 "delegate a swarm to multiple smaller models ... 3-4 across
 # the dGPU, 3-4 across the CPU, concurrently").
@@ -24,7 +24,7 @@
 # !! TEMPLATE -- before arming, VERIFY against your llama-swap image: the
 #    llama-server binary path inside the image (Entrypoint below) and the GGUF
 #    file names in /usr/share/mios/llamacpp/models. These cannot be validated
-#    offline (same caveat as mios-llama-swap.container).
+#    offline (same caveat as mios-llm-light.container).
 #
 # VRAM-RISKY: arming several of these on the shared 4090 is Phase-3 (operator-
 # gated). The firstboot Σvram guard + ConditionPathExists + the agent-pipe lane
@@ -42,11 +42,11 @@ ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 
 [Container]
 Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
-ContainerName=mios-llama-worker-%i
+ContainerName=mios-llm-worker-%i
 Network=host
 AddDevice=nvidia.com/gpu=all
 # Identity from mios.toml [services.llamacpp] (numeric -- the upstream image has
-# no mios user), same as mios-llama-swap.
+# no mios user), same as mios-llm-light.
 User=${MIOS_LLAMACPP_UID:-827}
 Group=${MIOS_LLAMACPP_GID:-827}
 
@@ -63,7 +63,7 @@ Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
 Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:Z
 
 Environment=HOME=/var/lib/mios/llamacpp
-# WSL2 dGPU fix (same as mios-llama-swap): put the WSL CUDA driver on the linker
+# WSL2 dGPU fix (same as mios-llm-light): put the WSL CUDA driver on the linker
 # path so llama-server detects CUDA0 instead of falling back to CPU.
 Environment=LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64
 
@@ -77,7 +77,7 @@ Exec=--model /models/${WORKER_MODEL} \
      --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i \
      --parallel 1 --cont-batching --jinja --alias ${WORKER_MODEL}
 
-Label=org.opencontainers.image.title=mios-llama-worker-%i
+Label=org.opencontainers.image.title=mios-llm-worker-%i
 
 [Service]
 Restart=on-failure
