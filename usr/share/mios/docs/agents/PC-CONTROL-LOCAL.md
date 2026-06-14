@@ -1,5 +1,5 @@
 <!-- AI-hint: Explains MiOS's local-only, vision-grounded desktop-automation lane (the "Computer Use" capability) — how screenshot-capture (mios-pc-control / mios-computer-use) is bridged to UI click-coordinates by a local grounding VLM (qwen3-vl:4b on the mios-llm-light lane, or UI-TARS on the gated mios-llm-heavy-alt vLLM lane) and orchestrated by Hermes + opencode, with no cloud APIs. Use to understand how PC/desktop control fits the whole MiOS agent stack.
-     AI-related: /usr/libexec/mios/mios-pc-control, /usr/libexec/mios/mios-pc-vision, /usr/libexec/mios/mios-computer-use, /usr/libexec/mios/mios-computer-use-server, /usr/lib/mios/agents/opencode/bin/opencode, /usr/share/mios/llamacpp/llama-swap.yaml, mios-pc-control, mios-pc-vision, mios-computer-use, mios-llm-light, mios-llm-heavy-alt, mios-hermes-browser, mios-opencode-gateway -->
+     AI-related: /usr/libexec/mios/mios-pc-control, /usr/libexec/mios/mios-pc-vision, /usr/libexec/mios/mios-computer-use, /usr/libexec/mios/mios-computer-use-server, /usr/lib/mios/agents/opencode/bin/opencode, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-pc-control, mios-pc-vision, mios-computer-use, mios-llm-light, mios-llm-heavy-alt, mios-hermes-browser, mios-opencode-gateway -->
 # Local-only PC Control: vision-grounded desktop automation under MiOS
 
 **Status:** SHIPPED + EXTENDED. The Windows path (`mios-pc-control` +
@@ -59,7 +59,7 @@ coordinates for UI elements. The cleanest local options:
 | Vision model | Size | Native grounding? | How MiOS serves it | Notes |
 |---|---|---|---|---|
 | **UI-TARS-1.5-7B** (ByteDance, Apache 2.0) | 7B | YES — trained on Win/macOS/Web GUI traces, returns absolute coords directly | gated `mios-llm-heavy-alt` vLLM lane (`:11440`, served-name `mios-grounding`) | Purpose-built for PC control; **strongest local option** for the heavy lane |
-| **Qwen3-VL** (Alibaba, Apache 2.0) | 2B / 4B / 8B / 32B / 235B | YES — 2D grounding (absolute + relative coords); native "operates PC/mobile GUIs, recognizes elements" | `qwen3-vl:4b` in the `mios-llm-light` llama-swap map (`:11450`) | Smaller variants run on the 4090 alongside the everyday models |
+| **Qwen3-VL** (Alibaba, Apache 2.0) | 2B / 4B / 8B / 32B / 235B | YES — 2D grounding (absolute + relative coords); native "operates PC/mobile GUIs, recognizes elements" | `qwen3-vl:4b` in the `mios-llm-light` mios-llm-light map (`:11450`) | Smaller variants run on the 4090 alongside the everyday models |
 | Llama 3.2-Vision | 11B / 90B | NO grounding — general image understanding only | (not baked; opt-in) | Needs Set-of-Mark prompting for grounding; weaker for PC tasks |
 | MiniCPM-V / Moondream | 2B–8B | Partial | (not baked) | OCR-strong; coordinate output is unreliable |
 
@@ -115,11 +115,11 @@ vision lane.
 ### How the grounding lane is served (current)
 
 Because all everyday inference runs on `llama.cpp` behind the
-[llama-swap](https://github.com/mostlygeek/llama-swap) proxy image, the grounding
+[mios-llm-light](https://github.com/mostlygeek/llama-swap) proxy image, the grounding
 model is just another entry in the lane's model map:
 
-* **Config:** [`usr/share/mios/llamacpp/llama-swap.yaml`](../../llamacpp/llama-swap.yaml)
-  carries a `qwen3-vl:4b` entry (with its `--mmproj` projector) that llama-swap
+* **Config:** [`usr/share/mios/llamacpp/mios-llm-light.yaml`](../../llamacpp/mios-llm-light.yaml)
+  carries a `qwen3-vl:4b` entry (with its `--mmproj` projector) that mios-llm-light
   loads on demand. It is INERT until both GGUFs exist under `/models` (the operator
   downloads them; the security classifier blocks the fetch for the build
   assistant). Once present, `cu_ground` / `mios-pc-vision`'s vision fallback
@@ -179,9 +179,10 @@ Win32/Wayland GUIs.
 
 ```
 # 1. Provision the vision GGUF + projector under /models (operator-fetched):
-#      qwen3-vl-4b.gguf  +  qwen3-vl-4b-mmproj.gguf   (~3 GB)
-#    (the qwen3-vl:4b entry in llama-swap.yaml is already wired but INERT
-#     until both files exist)
+#      holo1.5-7b.gguf  +  holo1.5-7b-mmproj-q8_0.gguf  (~5.7 GB; H Company Holo1.5-7B,
+#      mradermacher/Holo1.5-7B-GGUF -- or the Holo1.5-3B pair for the 8GB low-end)
+#    (the qwen3-vl:4b served entry in mios-llm-light.yaml is already wired but INERT
+#     until both files exist; the served tag stays "qwen3-vl:4b", backing model is Holo1.5)
 
 # 2. Point mios-pc-vision at the lane via mios.toml [ai] overlay:
 #      vision_grounding_model    = "qwen3-vl:4b"

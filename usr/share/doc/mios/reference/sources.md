@@ -517,7 +517,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | `mios-guacamole`, `guacd`, `guacamole-postgres` | `!container` | nested containers |
 | `mios-pxe-hub` | `!wsl`, `!container` | virtualized hosts without routable LAN |
 | `mios-gpu-{nvidia,amd,intel,status}` | `ConditionPathExists=/dev/...`, `!container`, `!wsl` (Intel) | no matching GPU device |
-| `ollama` | none | always runs (CPU fallback) |
+| `mios-llm-light` | none | always runs (llama.cpp behind the upstream llama-swap proxy; CPU-capable) |
 
 ### 7.4 Pipeline phases (verbatim from `usr/share/mios/ai/INDEX.md` §6 and `usr/share/doc/mios/guides/engineering.md`)
 

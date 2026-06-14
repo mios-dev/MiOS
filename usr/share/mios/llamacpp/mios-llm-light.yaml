@@ -1,9 +1,9 @@
-# AI-hint: Maps Ollama-compatible model tags to llama-server configurations, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embedding support for the MiOS agent-pipe.
-# AI-related: /usr/share/mios/llamacpp/llama-swap.yaml, mios-agent, mios-agent-cpu, mios-hermes, mios-hermes-cpu, mios-daemon-agent, mios-opencode, mios-igpu, mios-heavy, mios-reasoner-cpu
-# /usr/share/mios/llamacpp/llama-swap.yaml
-# 'MiOS' llama-swap model map (WS-10 ollama -> llama.cpp conversion).
-# llama-swap launches/swaps a `llama-server` per requested model behind one
-# OpenAI /v1 endpoint, restoring ollama's multi-model auto-swap for llama.cpp.
+# AI-hint: The mios-llm-light model map -- maps OpenAI/Ollama-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack. Served via the upstream llama-swap proxy image.
+# AI-related: /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-agent, mios-agent-cpu, mios-hermes, mios-hermes-cpu, mios-daemon-agent, mios-opencode, mios-igpu, mios-heavy, mios-reasoner-cpu
+# /usr/share/mios/llamacpp/mios-llm-light.yaml
+# mios-llm-light model map -- MiOS's primary llama.cpp multi-model lane (WS-10).
+# The upstream llama-swap proxy launches/swaps a `llama-server` per requested model
+# behind one OpenAI /v1 endpoint, restoring on-demand multi-model auto-swap for llama.cpp.
 #
 # Each chat model carries --parallel 1 + --slot-save-path so it lands on a single
 # deterministic slot and the agent-pipe's _kv_paging (POST /slots/{id}?action=
@@ -18,37 +18,59 @@
 #   * the GGUF filenames exist under /models (provisioned by the bake step);
 #   * --n-gpu-layers / --ctx-size sized to the shared 4090's free VRAM.
 # Model NAMES should match the ollama tags the agent-pipe already dispatches
-# (qwen3.5:4b, gemma4:e4b, nomic-embed-text, ...) so the lane is a drop-in.
+# (granite4.1:8b, lfm2:700m, nomic-embed-text, ...) so the lane is a drop-in.
 
 models:
   # ── chat / reasoning models (KV-pageable; --parallel 1 = one resident slot) ──
-  # NOTE 2026-06-04 (live finding): qwen3.5:4b is BLOCKED on mainline llama.cpp --
-  # its custom "qwen35" arch fails to load ("key qwen35.rope.dimension_sections
-  # has wrong array length; expected 4, got 3"); ollama runs it via a patched
-  # fork. Using the standard-arch qwen3:1.7b here proves the llama.cpp + GPU +
-  # KV-paging lane works LIVE. Restore a qwen3.5 entry once a llama.cpp build
-  # supports the qwen35 arch (or convert the model).
-  "qwen3:1.7b":
+  # NOTE 2026-06-13 (fleet modernization): the light brain is now IBM Granite 4.1
+  # 8B (dense 'granite' arch) -- it loads on MAINLINE llama.cpp, which is the REAL
+  # fix for the old qwen3.5:4b qwen35-arch block (custom "qwen35" arch failed:
+  # "qwen35.rope.dimension_sections wrong array length; expected 4, got 3"). The
+  # micro lane is Liquid AI LFM2-700M ('lfm2' arch, also mainline). No patched fork
+  # is needed any more; every served arch here loads on stock llama-server.
+  # The fleet is now FAMILY-DIVERSE (IBM Granite + Liquid AI + Google + H Company)
+  # and 128k-on-every-chat-lane via symmetric q8_0 quantized KV cache + flash-attn.
+  # micro_cpu (always-warm classify/expand/gate). 2026-06-13 fleet modernization:
+  # qwen3:1.7b -> Liquid AI LFM2-700M (LiquidAI/LFM2-700M-GGUF). Dense 'lfm2' arch is
+  # MERGED in mainline llama.cpp (PR #14620, ~b6709) -- NOT the qwen35 trap; verified
+  # `llama-cli -hf LiquidAI/LFM2-700M-GGUF`. Beats Qwen3-0.6B on MMLU/GSM8K/IFEval at
+  # ~0.7-1.0GB resident, ~2x faster CPU decode. Family-diversity win (off Qwen).
+  # CAVEAT: LFM2 tool-calls use a Pythonic special-token format, not OpenAI JSON --
+  # fine for the short micro job, not a JSON-tool agent. Native ctx 32K (micro lane is
+  # EXEMPT from the global 128k chat mandate). Symmetric q8_0 KV + flash-attn on (GPU-
+  # offloadable; NEVER asymmetric k!=v -> issue #20866 CPU-fallback). The qwen3:1.7b
+  # alias keeps every pipeline-emitted micro name resolving onto the new model.
+  "lfm2:700m":
+    aliases:
+      - qwen3:1.7b
     cmd: >
-      /app/llama-server --model /models/qwen3-1.7b.gguf
+      /app/llama-server --model /models/lfm2-700m.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 65536 --parallel 1
-      --n-gpu-layers 999 --flash-attn auto
+      --ctx-size 32768 --parallel 1
+      --n-gpu-layers 999 --flash-attn on
+      --cache-type-k q8_0 --cache-type-v q8_0
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
-  # gemma4:12b -- the REASONING model (operator 2026-06-05: "wire gemma4:12b as the
-  # reasoning model", "EVERYTHING IS LLAMA.CPP, NO OLLAMA"). Standard gemma arch =
-  # loads cleanly on mainline llama.cpp (unlike qwen3.5:4b's custom qwen35 arch).
-  # GGUF provisioned from the gemma4:12b ollama model-layer blob (7.38 GB). Full
-  # dGPU offload (--n-gpu-layers 999) on the 4090; KV-pageable single slot.
-  "gemma4:12b":
-    # Alias every legacy/role model name the pipeline still emits onto gemma4:12b
-    # so llama-swap routes them instead of 400 "no router for requested model".
-    # The agent registry / Hermes / planner reference these names; until G7
-    # reconciles them in SSOT this makes the whole pipeline resolve to the one
-    # served reasoning GGUF on the dGPU (operator 2026-06-05 "EVERYTHING llama.cpp").
+  # light_brain + coder -- IBM Granite 4.1 8B Instruct (dense). 2026-06-13 fleet
+  # modernization: the served chat/reasoning GGUF moves from gemma4:12b to Granite 4.1
+  # 8B (ibm-granite/granite-4.1-8b; GGUF unsloth/granite-4.1-8b-GGUF Q4_K_M ~5.5GB).
+  # Dense GraniteForCausalLM ('granite') arch loads on MAINLINE llama.cpp (bartowski
+  # quant @ b8970; Unsloth uses stock llama-server) -> sidesteps the qwen35 trap that
+  # BLOCKS qwen3.5:4b and forced the gemma4:12b fallback. Native 131K ctx = meets the
+  # 128k mandate with no rope-scaling. Apache-2.0; first non-Qwen brain (family mix).
+  # DO NOT pull the '-h'/granitehybrid GGUF (newer arch = qwen35-style trap). Build
+  # note: avoid CUDA 13.2 (gibberish-output bug). --jinja MANDATORY for tool_calls.
+  # 128k FIT: symmetric q8_0 K+V quantized KV cache + flash-attn on (GPU-offloadable;
+  # NEVER asymmetric k!=v -> issue #20866 ~40x CPU-fallback). Low-end 8GB profile:
+  # drop --cache-type-k/-v to q4_0 in the /etc overlay.
+  "granite4.1:8b":
+    # Alias every legacy/role model name the pipeline still emits (incl. the old
+    # gemma4:12b reasoning tag and the BLOCKED qwen3.5 tags) onto Granite 4.1 8B so
+    # the upstream llama-swap proxy routes them instead of 400 "no router for requested model". Until G7
+    # reconciles names in SSOT this resolves the whole pipeline to the one served
+    # mainline-loadable brain GGUF on the dGPU.
     aliases:
       - MiOS-Agent
       - mios-agent
@@ -63,6 +85,7 @@ models:
       - mios-heavy
       - mios-reasoner-cpu
       - mios-planner
+      - gemma4:12b
       - qwen3.5:4b
       - qwen3.5:9b
       - qwen3.5:2b
@@ -70,33 +93,55 @@ models:
       - qwen2.5-3b-instruct-4bit
       - qwen2.5-coder:7b
     cmd: >
-      /app/llama-server --model /models/gemma4-12b.gguf
+      /app/llama-server --model /models/granite-4.1-8b.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 65536 --parallel 1
-      --n-gpu-layers 999 --flash-attn auto
+      --ctx-size 131072 --parallel 1
+      --n-gpu-layers 999 --flash-attn on
+      --cache-type-k q8_0 --cache-type-v q8_0
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
   # ── embeddings (replaces the ollama embed lane; OpenAI /v1/embeddings) ──
+  # 2026-06-13 fleet modernization: nomic-embed-text -> Google EmbeddingGemma-300m QAT
+  # (ggml-org/embeddinggemma-300m-qat-q8_0-GGUF). 768d NATIVE = exact pgvector
+  # vector(768) match -> ZERO schema migration. QAT (operator efficiency win);
+  # 'gemma-embedding' arch merged mainline (b6384); <0.5GB, CPU-servable. The served
+  # NAME stays "nomic-embed-text" so every caller (OWUI, knowledge/RAG, the 768d
+  # column) is unchanged -- only the backing GGUF swaps. CAVEAT: set --pooling mean
+  # explicitly (issue #19040 cosine-drift was a mean-vs-CLS config error, not arch).
+  # MIGRATION GATE: run the knowledge-recall sanity test (0.933-hit) before retiring
+  # the real nomic GGUF; to roll back, point --model at /models/nomic-embed-text.gguf.
+  # Embeddings are EXEMPT from the 128k mandate -- ctx stays short (2048).
   "nomic-embed-text":
     cmd: >
-      /app/llama-server --model /models/nomic-embed-text.gguf
+      /app/llama-server --model /models/embeddinggemma-300m-qat-q8_0.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 2048 --embedding --n-gpu-layers 999
+      --ctx-size 2048 --embedding --pooling mean --n-gpu-layers 999
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 600
 
   # ── vision grounding (cu_ground / mios-pc-vision fallback) ──────────────────
   # INERT until BOTH GGUFs exist under /models -- the operator downloads them (the
-  # security classifier blocks the fetch for the assistant). Once present, llama-swap
+  # security classifier blocks the fetch for the assistant). Once present, mios-llm-light
   # serves qwen3-vl:4b with vision on demand and cu_ground's vision fallback
   # activates (endpoint already points here, :11450; operator 2026-06-10).
+  # 2026-06-13 fleet modernization: qwen3-vl:4b -> H Company Holo1.5-7B (UI-grounding
+  # SFT, ScreenSpot-Pro ~57.9). GGUF mradermacher/Holo1.5-7B-GGUF Q4_K_M 4.68GB +
+  # mmproj-Q8_0 1.0GB. Base arch 'qwen2vl' (fine-tune of Qwen2.5-VL) is MATURE on
+  # mainline llama.cpp -> opposite of the qwen35 fork-only trap. ~5.7GB fits the 4090.
+  # Keep mmproj >= Q8_0/f16 (vision is quant-sensitive). Low-end 8GB profile: use the
+  # 3B (mradermacher/Holo1.5-3B-GGUF Q4_K_M 2.1GB + mmproj-Q8_0 0.9GB, ~3GB total).
+  # Vision/grounding lane keeps short ctx (8192) -- EXEMPT from the 128k chat mandate.
+  # STILL INERT until BOTH GGUFs exist under /models (operator places them; the
+  # security classifier blocks the assistant fetch). The served NAME stays
+  # "qwen3-vl:4b" so cu_ground / mios-pc-vision endpoints are unchanged.
   "qwen3-vl:4b":
     cmd: >
-      /app/llama-server --model /models/qwen3-vl-4b.gguf
-      --mmproj /models/qwen3-vl-4b-mmproj.gguf
+      /app/llama-server --model /models/holo1.5-7b.gguf
+      --mmproj /models/holo1.5-7b-mmproj-q8_0.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 8192 --n-gpu-layers 999 --flash-attn auto
+      --ctx-size 8192 --n-gpu-layers 999 --flash-attn on
+      --cache-type-k q8_0 --cache-type-v q8_0
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300

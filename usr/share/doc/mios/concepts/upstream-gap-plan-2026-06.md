@@ -145,7 +145,7 @@ gated on a Wave-0 probe so a working lane is never removed on an assumption.
   PagedAttention+APC) and, on either lane, **unblocks computer-use:** serve **Qwen3-VL** or **UI-TARS** for
   the `mios-computer-use`/`verify_launch` visual probe (validate grounding accuracy — Qwen3-VL
   pixel-grounding is reportedly weak; UI-TARS may ground better). The vision-grounding GGUF can also be
-  served on `mios-llm-light` (`:11450`) once provisioned (see `llama-swap.yaml`'s `qwen3-vl:4b` entry).
+  served on `mios-llm-light` (`:11450`) once provisioned (see `mios-llm-light.yaml`'s `qwen3-vl:4b` entry).
   Re-enable the gemma4 planner heavy path this frees. conf:H eff:M
 - **T2.3 llama.cpp RPC fabric + coopmat2.** Run an `rpc-server` per lane/node (phone/iGPU/dGPU/cluster);
   agent-pipe targets one logical RPC endpoint for models too big for any single lane — maps directly onto

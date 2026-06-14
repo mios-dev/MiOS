@@ -1,9 +1,10 @@
-# AI-hint: Systemd unit file defining the llama-swap container to provide multi-model llama.cpp support with KV-paging and an OpenAI-compatible endpoint, used by agents as a high-performance, multi-model alternative to Ollama.
-# AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llm-light, mios-surrealdb, mios-ollama, mios-services, network-online.target, multi-user.target, default.target
+# AI-hint: Systemd unit for the mios-llm-light lane -- MiOS's primary llama.cpp multi-model inference lane (KV-paging + OpenAI-compatible endpoint), served via the upstream llama-swap proxy image. Used by agents as the high-performance multi-model engine.
+# AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-pgvector, mios-services, network-online.target, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-llm-light.container
-# 'MiOS' llama.cpp multi-model lane via llama-swap (WS-10, 2026-06-04).
-# ADDITIVE engine step toward the ollama -> llama.cpp conversion for fleet-wide
-# KV-cache (concepts/llamacpp-engine-conversion.md). llama-swap is the LINCHPIN:
+# mios-llm-light -- MiOS's primary llama.cpp multi-model lane, served via the
+# upstream llama-swap proxy (WS-10, 2026-06-04). ADDITIVE engine step toward the
+# fleet-wide KV-cache design (concepts/llamacpp-engine-conversion.md). The upstream
+# llama-swap proxy is the LINCHPIN:
 # it restores ollama's on-demand multi-model auto-swap for one-model-per-process
 # llama.cpp -- it launches/swaps `llama-server` per requested model behind ONE
 # OpenAI /v1 endpoint, AND each llama-server can KV-page to disk (/slots
@@ -20,10 +21,10 @@
 #
 # !! TEMPLATE -- before enabling, VERIFY against your llama-swap version: the
 #    image tag, the llama-server binary path inside the image, and the GGUF
-#    paths in llama-swap.yaml. These cannot be validated offline.
+#    paths in mios-llm-light.yaml. These cannot be validated offline.
 
 [Unit]
-Description='MiOS' llama-swap (llama.cpp multi-model + KV-paging lane, FOSS)
+Description=MiOS-LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)
 After=network-online.target
 Wants=network-online.target
 # Inert until models are provisioned (no GGUF -> no start -> no crash-loop).
@@ -31,9 +32,9 @@ ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 
 [Container]
 # Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
-# SSOT: mios.toml [image.sidecars].llama_swap, [ports].llama_swap,
+# SSOT: mios.toml [image.sidecars].llm_light, [ports].llm_light,
 # [services.llamacpp].{uid,gid}, [llamacpp].*.
-Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
+Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-llm-light
 # Host networking (matches mios-surrealdb/pgvector): reliable localhost:<port>
 # for the pipe + a stable endpoint the swarm node points at.
@@ -47,10 +48,10 @@ User=${MIOS_LLAMACPP_UID:-827}
 Group=${MIOS_LLAMACPP_GID:-827}
 
 # GGUF model store (RO seed; baked at build time -- replaces the ollama bake for
-# this lane), the llama-swap model map, and the KV slot-save dir (so /slots
+# this lane), the mios-llm-light model map, and the KV slot-save dir (so /slots
 # save/restore + the agent-pipe's _kv_paging persist per-conversation KV here).
 Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
-Volume=/usr/share/mios/llamacpp/llama-swap.yaml:/app/config.yaml:ro,Z
+Volume=/usr/share/mios/llamacpp/mios-llm-light.yaml:/app/config.yaml:ro,Z
 Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z
 
 Environment=HOME=/var/lib/mios/llamacpp
@@ -67,7 +68,7 @@ Environment=LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64
 Entrypoint=/app/llama-swap
 # llama-swap: serve the model map on the SSOT port. Flag name verified per
 # llama-swap version (--config / --listen).
-Exec=--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLAMA_SWAP:-11450}
+Exec=--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLM_LIGHT:-11450}
 
 Label=org.opencontainers.image.title=mios-llm-light
 Label=org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap

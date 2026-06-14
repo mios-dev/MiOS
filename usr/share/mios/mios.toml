@@ -423,7 +423,7 @@ enable   = true
 # into /etc/mios/hermes/api.env. Mirrors [ai].model -- this key is
 # kept for back-compat with older callers; the SSOT default is [ai].model.
 endpoint = "http://localhost:8642/v1"
-backend  = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama retired G5)
+backend  = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama retired G5)
 # Back-compat default only; the SSOT default is [ai].model. Repointed to the
 # 4-model-set reasoning base 2026-06-01 (was granite4.1:3b, dropped from fleet).
 model    = "qwen3:1.7b"
@@ -698,10 +698,10 @@ lane     = "gpu"
 # pair; `model` above -> mios-hermes is the GPU half). Omit cpu_* to keep
 # an agent single-lane.
 # Operator 2026-06-12 "ALL AGENTS USE SGLANG": Hermes-as-fan-out-SECONDARY
-# dispatches to the SGLang heavy lane too (was the llama-swap CPU twin). The
+# dispatches to the SGLang heavy lane too (was the mios-llm-light CPU twin). The
 # Hermes PRIMARY stays on its :8642 gateway (endpoint above) because it needs
 # its 64k tool-use context + native browser/CDP/terminal loop, which the 16k
-# SGLang lane can't host; moving the workers OFF llama-swap already relieves the
+# SGLang lane can't host; moving the workers OFF mios-llm-light already relieves the
 # contention that was timing the Hermes primary out.
 cpu_endpoint = "http://localhost:11441/v1"
 cpu_model    = "mios-heavy"
@@ -751,10 +751,10 @@ failover_agents = ["hermes"]
 # CPU reasoning lane. It runs LIGHT in the background (~2c/4t) and BURSTS to
 # 8c/16t when it joins a foreground pipeline turn.
 # WS-10: repoint off the daemon-agent's ollama-cpu backend (:11435 dead) to
-# llama-swap; model 'mios-daemon-agent' is aliased to gemma4:12b. Was :8644/v1.
+# mios-llm-light; model 'mios-daemon-agent' is aliased to gemma4:12b. Was :8644/v1.
 # Operator 2026-06-12 "ALL AGENTS USE SGLANG": the council CPU-reasoner now
 # dispatches to the SGLang heavy lane (:11441, mios-heavy) like every other
-# agent, instead of the contended llama-swap :11450. (The always-on background
+# agent, instead of the contended mios-llm-light :11450. (The always-on background
 # log/telemetry loop on :8644 is unchanged; this is only its FAN-OUT dispatch.)
 endpoint = "http://localhost:11441/v1"
 model    = "mios-heavy"
@@ -898,14 +898,14 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # auto-join when reachable + drop when gone (local nodes omit it = always live).
 # The target endpoint MUST actually serve that Modelfile tag.
 # ALL LLAMA.CPP (operator binding: "EVERYTHING IS LLAMA.CPP, NO OLLAMA"). The GPU +
-# light lanes point to llama-swap (:11450) -- the retired ollama endpoints
+# light lanes point to mios-llm-light (:11450) -- the retired ollama endpoints
 # (:11434/:11435, G5) are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
-# health_gate=true -> a lane is probed + skipped if llama-swap is momentarily down
+# health_gate=true -> a lane is probed + skipped if mios-llm-light is momentarily down
 # (never a false "All connection attempts failed" fan-out; operator 2026-06-07 e2e).
 # Operator 2026-06-12 "ALL AGENTS USE SGLANG": every swarm worker dispatches to
 # the SGLang heavy lane (:11441, mios-heavy = Qwen2.5-14B-AWQ) instead of the
-# llama-swap multi-model lane. SGLang does CONTINUOUS BATCHING, so N concurrent
-# research facets are served in parallel on ONE backend -- whereas llama-swap
+# mios-llm-light multi-model lane. SGLang does CONTINUOUS BATCHING, so N concurrent
+# research facets are served in parallel on ONE backend -- whereas mios-llm-light
 # loads one model at a time and THRASHED when these nodes requested different
 # models (gemma4:12b + qwen3:1.7b + ...) concurrently, the root cause of the
 # 75s/150s node timeouts on the "global trending tech" research turn. All worker
@@ -957,14 +957,14 @@ model       = "mios-heavy"     # = [ai.sglang].served_name; the heavy reasoner S
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
 health_gate = true             # inert until the gated mios-llm-heavy.service is enabled + reachable
-# Local llama-swap lane (WS-10) -- the llama.cpp multi-model + KV-paging lane
+# Local mios-llm-light lane (WS-10) -- the llama.cpp multi-model + KV-paging lane
 # (mios-llm-light.container on :11450; see [llamacpp]). health_gate=true =>
 # AUTO-JOINS only when reachable, and the quadlet is gated off until GGUFs are
 # provisioned (models/.ready), so this stays inert with ZERO risk until the
 # operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
 # KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
 [nodes.local-llamaswap]
-endpoint    = "http://localhost:11441/v1"   # ALL AGENTS USE SGLANG (was :11450 llama-swap)
+endpoint    = "http://localhost:11441/v1"   # ALL AGENTS USE SGLANG (was :11450 mios-llm-light)
 model       = "mios-heavy"     # SGLang heavy lane (Qwen2.5-14B-AWQ, continuous batching)
 lane        = "gpu"            # shares the dGPU lane semaphore
 api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
@@ -1087,7 +1087,7 @@ rerank_rrf_k         = 60    # reciprocal-rank-fusion constant (same value mios-
 rerank_mmr_lambda    = 0.8   # MMR relevance(1.0) vs diversity(0.0) balance, clamped [0,1]; 0.8 held recall (no regression) + kept the rank-1 gain in the offline eval
 rerank_skip_margin   = 0.08  # if the cosine cut at the N-th slot is this separated, skip stage-2 (confident, no confusable cluster)
 # (P2 follow-up, operator-gated + default OFF: a bge-reranker-v2-m3 cross-encoder stage-2c
-# behind a `rerank_xenc` flag -- needs a downloaded GGUF + a llama-swap --reranking lane +
+# behind a `rerank_xenc` flag -- needs a downloaded GGUF + a mios-llm-light --reranking lane +
 # VRAM headroom on the shared 4090. Inert until the operator deploys it; the pure-compute
 # RRF+MMR above is the shipping default. See the P2 doc for the wiring.)
 # DEEPEN: after its primary answer a swarm node loops extra web-research + re-
@@ -1392,7 +1392,7 @@ gid              = 828
 # resident weights).
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama :11434 retired G5)
+endpoint         = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
 # Timeout headroom: on bare-metal Fedora-bootc with real ROCm/
 # CUDA, qwen3:1.7b emits a 400-token JSON in <1s. On WSL2 dev
 # (CPU only -- /dev/kfd isn't exposed for ROCm) it takes 15-30s
@@ -1422,7 +1422,7 @@ bypass_chars     = 24
 # bare base model.
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama :11434 retired G5)
+endpoint         = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
 # Same CPU-vs-GPU headroom rationale as [refine].timeout_seconds.
 timeout_seconds  = 45
 max_tokens       = 800
@@ -3630,7 +3630,7 @@ enable      = true
 # batch+async/person-owns) degrade gracefully until finished.
 db_backend  = "postgres"
 
-# ── WS-10 llama.cpp multi-model lane (llama-swap) ─────────────────────────────
+# ── WS-10 mios-llm-light: the llama.cpp multi-model lane (upstream llama-swap proxy) ──
 # Additive engine step toward the ollama -> llama.cpp conversion for fleet-wide
 # KV-cache (concepts/llamacpp-engine-conversion.md). GATED OFF (enable=false) +
 # the quadlet's ConditionPathExists(models/.ready) keeps it inert until GGUFs are
@@ -3640,12 +3640,20 @@ db_backend  = "postgres"
 enable     = false   # additive + gated; flip on after GGUFs baked + verified live
 slot_dir   = "/var/lib/mios/llamacpp/slots"
 models_dir = "/usr/share/mios/llamacpp/models"
-config     = "/usr/share/mios/llamacpp/llama-swap.yaml"
+config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
 # GGUF bake (38-llamacpp-prep.sh). CSV of dest.gguf=hf_repo:filename; EMPTY =
-# opt-in skip (no image bloat). dest filenames MUST match llama-swap.yaml's
+# opt-in skip (no image bloat). dest filenames MUST match mios-llm-light.yaml's
 # /models/*. Pre-quantized FOSS GGUFs, e.g.:
-#   "qwen3.5-4b.gguf=bartowski/Qwen2.5-3B-Instruct-GGUF:Qwen2.5-3B-Instruct-Q4_K_M.gguf,nomic-embed-text.gguf=nomic-ai/nomic-embed-text-v1.5-GGUF:nomic-embed-text-v1.5.Q4_K_M.gguf"
-bake_models = ""
+#   "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
+# 2026-06-13 fleet modernization: provision the family-diverse light-lane GGUFs so the
+# /models/* dest names match mios-llm-light.yaml (Granite brain+coder, LFM2 micro,
+# EmbeddingGemma embeddings). Quant filenames VERIFIED present in each HF repo via the
+# HF API 2026-06-13 (granite-4.1-8b-Q4_K_M.gguf, LFM2-700M-Q4_K_M.gguf,
+# embeddinggemma-300m-qat-Q8_0.gguf). If a name ever drifts the bake just no-ops and the
+# quadlet's models/.ready gate keeps the lane inert (fails safe, no crash). Vision
+# (holo1.5-7b.gguf + mmproj) is operator-provisioned (the security classifier blocks the
+# assistant fetch).
+bake_models = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
 
 # ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
@@ -3824,7 +3832,7 @@ agent_venv          = "/usr/lib/mios/agents/.venv"
 agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
-hermes_backend_url  = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp; ollama :11434 retired G5)
+hermes_backend_url  = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
 # SSOT for the default chat model. The 4-model-set reasoning base
 # (qwen3.5:4b, ~3.4 GB resident) -- was granite4.1:3b, repointed in the
 # 2026-06-01 consolidation (granite was dropped from the fleet). Same value as
@@ -3834,8 +3842,8 @@ hermes_backend_url  = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp;
 # the picked value into the per-host mios.toml overlay at /etc/mios/mios.toml.
 # mios-hermes-firstboot reads the resolved value through the layered overlay
 # chain (~/.config -> /etc -> /usr/share). mios.html exposes [[ai.catalog]].
-model               = "qwen3.5:4b"
-embed_model         = "nomic-embed-text"
+model               = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :11450 (see mios-llm-light.yaml).
+embed_model         = "nomic-embed-text"   # served NAME unchanged (768d); backing GGUF swapped to EmbeddingGemma-300m QAT in mios-llm-light.yaml (zero pgvector migration)
 api_key             = ""
 enable_ollama       = true
 mcp_registry        = "/usr/share/mios/ai/v1/mcp.json"
@@ -3875,7 +3883,7 @@ prompt_shortcut     = "@"
 # Consumed by automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Operators
 # on bandwidth-constrained networks can shrink this in /etc/mios/mios.toml; empty
 # disables baking entirely (first-boot pulls instead).
-bake_models         = "qwen3.5:4b,qwen3:1.7b,qwen2.5-coder:7b,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"
+bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"   # 2026-06-13 family-diverse fleet: Granite 4.1 8B (IBM) = brain+coder (one served GGUF, mainline llama.cpp), LFM2-700M (Liquid AI) = micro, nomic-embed-text NAME = EmbeddingGemma-300m QAT (Google, 768d, backing GGUF swapped in mios-llm-light.yaml). qwen3.5:4b/qwen3:1.7b/qwen2.5-coder:7b retired (Qwen-monoculture + qwen35 blocked on llama.cpp). mios-* tags blob-share the brain base.
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -3896,62 +3904,29 @@ runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-see
 # thumb RAM floor (informational; surfaces under each <option>).
 # Keep ordered small -> large; first entry is the no-RAM-info fallback.
 # ----------------------------------------------------------------------------
-# ── 2026-05-16 SOTA additions (operator-approved) ─────────────────────
+# ── 2026-06-13 fleet modernization (family-diverse, mainline-llama.cpp-safe) ──
+# The active fleet across slots: Granite 4.1 8B (IBM) brain+coder, LFM2-700M (Liquid
+# AI) micro, EmbeddingGemma-300m QAT (Google) embeddings, Magistral Small 2509
+# (Mistral) heavy, Holo1.5 (H Company) vision. RETIRED the all-Qwen + unservable
+# entries: qwen3.5:4b/9b (BLOCKED on mainline llama.cpp -- the qwen35 arch trap),
+# qwen2.5-coder:7b/14b, qwen3-coder:30b, qwen3:32b, llama3.2-vision:11b,
+# granite4.1:3b/30b, gpt-oss[-tools]:20b. host_thresholds small/mid -> granite4.1:8b,
+# big -> mistral-magistral-small-2509; every host_thresholds id MUST appear here.
+# First entry (granite4.1:8b) is the default / no-RAM-info fallback.
 [[ai.catalog]]
-id      = "qwen3.5:4b"
-label   = "Qwen 3.5 4B (Alibaba, dense, ~3.4 GB, MiOS small/CPU default)"
-ram_gb  = 6
-
-[[ai.catalog]]
-id      = "qwen3.5:9b"
-label   = "Qwen 3.5 9B (Alibaba, dense, ~6 GB, MiOS mid/dGPU default)"
-ram_gb  = 12
-
-[[ai.catalog]]
-id      = "qwen2.5-coder:7b"
-label   = "Qwen 2.5 Coder 7B (Alibaba, code-focused, ~4.5 GB, opencode small)"
+id      = "granite4.1:8b"
+label   = "Granite 4.1 8B (IBM, dense, ~5.5 GB, MiOS brain+coder default; 131K ctx, mainline llama.cpp)"
 ram_gb  = 8
 
 [[ai.catalog]]
-id      = "qwen2.5-coder:14b"
-label   = "Qwen 2.5 Coder 14B (Alibaba, code-focused, ~9 GB, opencode mid)"
-ram_gb  = 16
+id      = "lfm2:700m"
+label   = "LFM2 700M (Liquid AI, dense, ~0.7 GB, micro/CPU classify lane)"
+ram_gb  = 4
 
 [[ai.catalog]]
-id      = "llama3.2-vision:11b"
-label   = "Llama 3.2 Vision 11B (Meta, multimodal, ~8 GB, vision grounding)"
-ram_gb  = 12
-
-# ── pre-existing catalog entries ──────────────────────────────────────
-[[ai.catalog]]
-id      = "granite4.1:3b"
-label   = "Granite 4.1 3B (IBM, dense, ~3 GB, low-RAM default)"
-ram_gb  = 8
-
-[[ai.catalog]]
-id      = "gpt-oss-tools:20b"
-label   = "GPT-OSS-Tools 20B (MiOS-derived, harmony-stripped for clean tool calls, ~13 GB)"
-ram_gb  = 16
-
-[[ai.catalog]]
-id      = "gpt-oss:20b"
-label   = "GPT-OSS 20B (OpenAI, MoE, agent-tuned, ~13 GB) -- raw base; use gpt-oss-tools for Hermes"
-ram_gb  = 16
-
-[[ai.catalog]]
-id      = "granite4.1:30b"
-label   = "Granite 4.1 30B (IBM, MoE, ~17.5 GB, big-RAM auto-pick)"
+id      = "mistral-magistral-small-2509"
+label   = "Magistral Small 2509 (Mistral, dense 24B reasoning, AWQ ~14 GB, heavy dGPU lane)"
 ram_gb  = 24
-
-[[ai.catalog]]
-id      = "qwen3-coder:30b"
-label   = "Qwen3 Coder 30B (Alibaba, MoE, code-focused, ~19 GB)"
-ram_gb  = 24
-
-[[ai.catalog]]
-id      = "qwen3:32b"
-label   = "Qwen3 32B (Alibaba, dense, ~20 GB)"
-ram_gb  = 28
 
 # ----------------------------------------------------------------------------
 # [ai.host_thresholds] -- auto-pick model based on host RAM during the
@@ -4015,7 +3990,7 @@ mid_ram_gb        = 8                             # alias -> mid_vram_gb
 #     ("ALL AGENTS DEFAULTS TO CPU models"). Was granite4.1:3b;
 #     swapped 2026-05-16 to qwen3.5:4b per Hermes-orchestrator
 #     SOTA survey (better tool-call discipline + family-consistent).
-small_ram_model  = "qwen3.5:4b"
+small_ram_model  = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B Q4_K_M (~5.5GB resident, fits the 8GB usable budget; dense 'granite' arch loads on mainline llama.cpp -- unlike the BLOCKED qwen3.5:4b). With q4_0 KV + flash-attn it reaches 128k on the low-end profile.
 #
 #   mid_ram_model -- 8-16GB class. Auto-deploys ONLY when build/install
 #     detects VRAM >= mid_vram_gb (8). A bigger reasoning base for a
@@ -4023,7 +3998,7 @@ small_ram_model  = "qwen3.5:4b"
 #     deployments with dGPUs"). The LEAN single-box default stays on
 #     small_ram_model (qwen3.5:4b); this never deploys on a CPU-only /
 #     <8GB host, so it does not bloat the 4-set baseline.
-mid_ram_model    = "qwen3.5:9b"
+mid_ram_model    = "granite4.1:8b"   # 2026-06-13: 8-16GB class. qwen3.5:9b retired (Qwen + qwen35 arch blocked on mainline llama.cpp). Granite 4.1 8B at a higher quant (UD-Q5/Q8) + 128k KV uses the mid-tier headroom; same mainline-safe arch, no separate base to bake. (A larger Granite/Gemma can be slotted here once a verified mid-class GGUF is pinned.)
 #
 #   big_ram_model -- 16GB+ dGPU class. The LARGE model for dGPU deployments
 #     (operator 2026-06-01). NEVER auto-deployed on the lean box -- gated by
@@ -4033,7 +4008,7 @@ mid_ram_model    = "qwen3.5:9b"
 #     agent-contract.md: "Whatever your size, model, or lane..."), so the SAME
 #     roles run on this large base on a dGPU node with zero code change. Newest
 #     large coder/reasoner present in the registry that fits a 24GB dGPU.
-big_ram_model    = "qwen3-coder:30b"
+big_ram_model    = "mistral-magistral-small-2509"   # 2026-06-13: 16GB+ dGPU class. qwen3-coder:30b retired (Qwen). Mistral Magistral Small 2509 (dense 24B reasoning, AWQ-INT4 ~14GB) fits a 24GB 4090 via the heavy lane (SGLang/vLLM, --reasoning-parser mistral); family-diversity off Qwen. Serve on the heavy lane (see [ai.sglang]/[ai.vllm]); the light lane keeps Granite.
 
 # Vision-grounding model -- read by /usr/libexec/mios/mios-pc-vision
 # for screenshot -> click-coordinate translation. Hermes's main text
@@ -4045,7 +4020,7 @@ big_ram_model    = "qwen3-coder:30b"
 # are OPT-IN -- to re-enable, add a vision tag to [[ai.catalog]], pull it, and
 # set these to that tag in /etc/mios/mios.toml (operator overlay).
 vision_grounding_model    = ""
-vision_grounding_endpoint = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp; needs a vision GGUF in the map to activate)
+vision_grounding_endpoint = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; needs a vision GGUF in the map to activate)
 # Chat VLM: agent-pipe routes any OWUI chat turn carrying an image straight
 # to this model (operator 2026-05-22). SSOT for MIOS_AGENT_PIPE_VISION_MODEL.
 # EMPTY since the 4-model consolidation (was llama3.2-vision:11b) -- set to a
@@ -4085,9 +4060,9 @@ grounding_model    = "mios-grounding"
 #                      is already the daemon's background MODEL and the
 #                      mios-agent-cpu base. Small + fast for classification; no
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
-micro_model              = "qwen3:1.7b"
+micro_model              = "lfm2:700m"   # 2026-06-13: Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:11450/v1"   # llama-swap (ALL llama.cpp; ollama :11435 retired G5)
+micro_endpoint           = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11435 retired G5)
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -4485,7 +4460,7 @@ enable         = false          # documents intent; the systemd unit is the real
 bake_model     = ""             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
 served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (= [nodes.local-vllm].model)
 gpu_util       = 0.45           # --gpu-memory-utilization: bounded slice; leaves room for ollama + Windows co-tenancy
-max_model_len  = 16384          # context window vLLM allocates paged KV for
+max_model_len  = 131072         # 2026-06-13: global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
 
 # ----------------------------------------------------------------------------
@@ -4505,7 +4480,7 @@ enable             = false          # documents intent; the systemd unit is the 
 bake_model         = ""             # empty = no bake (the 8B is provisioned separately; do NOT bake the unstable q35-4b)
 served_name        = "mios-heavy"   # OpenAI served-model-name (= [nodes.local-sglang].model); shared heavy-lane name with vLLM
 mem_fraction       = 0.45           # --mem-fraction-static: bounded GPU slice; leaves room for ollama + Windows co-tenancy
-max_model_len      = 16384          # --context-length: window SGLang allocates KV for
+max_model_len      = 131072         # 2026-06-13: global 128k mandate. With HiCache CPU KV-offload + --kv-cache-dtype fp8_e5m2, the 24B Magistral AWQ heavy reasoner serves 131072 on the shared 4090.
 hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM
 
 # ----------------------------------------------------------------------------
@@ -5510,7 +5485,7 @@ guacamole_web      = 8080     # mios-guacamole browser desktop
 ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 pgvector           = 5432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
-llama_swap         = 11450    # llama-swap multi-model + KV-paging lane (WS-10, FOSS; additive alongside ollama until cutover)
+llm_light          = 11450    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
 ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
@@ -5593,10 +5568,10 @@ bib_alpine         = "docker.io/library/alpine:latest"
 # on upstream postgres (FOSS: PostgreSQL License). pg17 = current stable.
 pgvector_version   = "pg17"
 pgvector           = "docker.io/pgvector/pgvector:pg17"
-# WS-10 llama.cpp multi-model lane. llama-swap (FOSS, MIT) bundles llama-server +
-# on-demand model swap. Tag carries the CUDA build; verify against your version.
-llama_swap_version = "cuda"
-llama_swap         = "ghcr.io/mostlygeek/llama-swap:cuda"
+# mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
+# llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
+llm_light_version  = "cuda"
+llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
 adguard_version    = "latest"
 # AdGuard Home -- open-source (GPLv3) DNS sinkhole + recursive resolver. Single
 # Go binary container; serves DNS on :53 and the web UI/API on :3053.
@@ -5648,7 +5623,7 @@ user = "mios-pgvector"
 uid  = 826
 gid  = 826
 
-# WS-10 llama.cpp lane (llama-swap). AI tier (mios-ai). 827 = next free after
+# WS-10 mios-llm-light llama.cpp lane (upstream llama-swap proxy). AI tier (mios-ai). 827 = next free after
 # mios-pgvector (826) in the 810-829 sidecar range.
 [services.llamacpp]
 user = "mios-llamacpp"
@@ -6770,8 +6745,8 @@ mios-adguard          = true
 # ~/.config/mios/ overlays and the MIOS_FINETUNE_* env (userenv.sh).
 enable          = true
 target_role     = "refiner"            # MiOS role to fine-tune (refiner = mios-sys-agent)
-base_model      = "qwen3.5:4b"         # the role's base -- MUST match the Modelfile FROM (mios-sys-agent is now FROM qwen3.5:4b after the 2026-06-01 4-model consolidation; was qwen3.5:2b)
-hf_base         = "Qwen/Qwen3.5-4B"    # HF repo id OR local safetensors dir for the SAME base
+base_model      = "granite4.1:8b"      # 2026-06-13: the role's base -- MUST match the Modelfile FROM. Repointed to Granite 4.1 8B (the new light_brain) from qwen3.5:4b (Qwen + qwen35 arch blocked on mainline llama.cpp).
+hf_base         = "ibm-granite/granite-4.1-8b"   # HF repo id OR local safetensors dir for the SAME base (Granite 4.1 8B, Apache-2.0, public; matches base_model granite4.1:8b)
                                        # (PEFT/TRL train on HF weights; ollama stores GGUF). One-time
                                        # offline fetch, like the framework install. This is the actual
                                        # production refiner base (qwen3.5:4b == Qwen/Qwen3.5-4B, Apache-2.0,
@@ -6801,8 +6776,8 @@ grad_checkpointing = true              # saves memory; set false if a custom-op 
 # (verb catalog from the running pipe + real operator Q+A from the knowledge DB);
 # labels are produced by the teacher against the live refine schema + catalog. So
 # the corpus tracks the real system, never a hand-written topic list.
-teacher_model        = "gemma4:12b"    # the strongest LOCALLY-SERVED model (llama-swap :11450). qwen3.5:4b/9b are NOT served -- that unserved value 404'd the teacher and starved dataset-gen (operator 2026-06-10). Teacher MUST be a served model + stronger than the student (refiner base below stays qwen3.5:4b)
-teacher_endpoint     = "http://localhost:11450"   # llama-swap (ALL llama.cpp; ollama retired G5)
+teacher_model        = "granite4.1:8b"   # 2026-06-13: the strongest LOCALLY-SERVED model (mios-llm-light :11450) is now Granite 4.1 8B (the new brain); gemma4:12b is no longer the served reasoning GGUF after the fleet swap. Teacher MUST be a served model. For a STRONGER teacher than the refiner, enable the heavy lane and point this at the served-name mios-heavy (Magistral Small 2509).
+teacher_endpoint     = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama retired G5)
 pipe_url             = "http://127.0.0.1:8640"
 seeds_per_capability = 4               # teacher-generated phrasings per catalog verb
 include_knowledge    = true            # also mine REAL operator queries from the knowledge table

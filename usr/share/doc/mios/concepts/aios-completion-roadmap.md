@@ -57,11 +57,11 @@ The agent plane realises the six managers across a handful of unprivileged
 Quadlet services, all resolving the one endpoint per Architectural Law 5:
 
 - **LLM core (the "CPU")** — `mios-llm-light` (:11450) is the **primary** lane:
-  llama.cpp behind the upstream `llama-swap` proxy image
+  llama.cpp behind the upstream `mios-llm-light` proxy image
   (`ghcr.io/mostlygeek/llama-swap`), multi-model auto-swap + KV-cache paging,
   serving the everyday models, the `mios-opencode` coder model, **and embeddings**
   (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config:
-  `usr/share/mios/llamacpp/llama-swap.yaml`. The heavy lanes `mios-llm-heavy`
+  `usr/share/mios/llamacpp/mios-llm-light.yaml`. The heavy lanes `mios-llm-heavy`
   (SGLang, :11441, served-name `mios-heavy`) and `mios-llm-heavy-alt` (vLLM,
   :11440) are gated off-by-default on VRAM. The engines speak the OpenAI/
   Ollama-compatible API (a legitimate upstream API reference — Ollama itself is
@@ -72,8 +72,8 @@ Quadlet services, all resolving the one endpoint per Architectural Law 5:
   (`mios-pgvector`, :5432; via `mios-pg-query` / `mios-db --pg`).
 
 ## Complete-AIOS checklist — MiOS status
-PRESENT (≥ reference): LLM-core abstraction (llama.cpp + `llama-swap` on
-`mios-llm-light`, OpenAI Tier-0/1/2 + `/v1/responses`) · Context Manager
+PRESENT (≥ reference): LLM-core abstraction (llama.cpp + the upstream mios-llm-light
+proxy on `mios-llm-light`, OpenAI Tier-0/1/2 + `/v1/responses`) · Context Manager
 (`_kv_paging`/`_kv_slot_action` KV snapshot/restore + `mios_kvfork` prefix-fork) ·
 Storage Manager (pgvector durable + cosine recall) · Tool Manager server side
 (82 verbs+recipes+skills, 3-projection catalog, `tool_search`) · Multi-agent

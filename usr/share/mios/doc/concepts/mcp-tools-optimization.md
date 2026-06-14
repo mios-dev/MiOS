@@ -18,8 +18,9 @@ front-end (OWUI :3030, the Discord/Hermes gateway, the `mios` CLI), the
 **agent-pipe** orchestrator (:8640) refines and fans it out across a
 council/swarm, **MiOS-Hermes** (:8642) runs the OpenAI-compatible tool-loop,
 **pgvector** (:5432) is the unified agent memory, and the **inference lanes**
-generate: `mios-llm-light` (:11450, the primary llama.cpp/llama-swap lane —
-everyday models, the `mios-opencode` coder model, AND embeddings via
+generate: `mios-llm-light` (:11450, the primary llama.cpp lane behind the
+upstream llama-swap proxy — everyday models, the `mios-opencode` coder model,
+AND embeddings via
 `nomic-embed-text` on `/v1/embeddings`), with the gated heavy lanes
 `mios-llm-heavy` (SGLang, :11441, served-name `mios-heavy`) and
 `mios-llm-heavy-alt` (vLLM) for the big reasoning work.

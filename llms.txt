@@ -33,7 +33,7 @@ The `mios.git` repo root is the system root `/`. No separate workspace.
 - [usr/lib/mios/schemas/](./usr/lib/mios/schemas/): JSON-schema outputs for structured responses
 
 ## Operational standards
-- **AI Endpoint**: OpenAI-compatible REST at `http://localhost:8080/v1` (LocalAI / `mios-ai.container`); falls through to `http://localhost:11434` (Ollama) when `[ai].endpoint` is repointed
+- **AI Endpoint**: OpenAI-compatible REST at `http://localhost:8080/v1` (LocalAI / `mios-ai.container`); served by the `mios-llm-light` lane (`:11450`, llama.cpp behind the upstream llama-swap proxy) behind it; repoint only via `[ai].endpoint`
 - **Architectural Laws**: USR-OVER-ETC, NO /VAR WRITES AT BUILD, GIT-MANAGED ROOT, VM|CONTAINER|FLATPAK ONLY, UNIFIED AI REDIRECTS
 - **Infrastructure**: bootc, Podman Quadlets (5.6+ .build/.image/.container), composefs, greenboot, distrobox (mios-aichat container, `mios-ai` entrypoint)
 - **User accounts**: provisioned at OVERLAY TIME via `/usr/lib/sysusers.d/*.conf` + `automation/31-user.sh` + `/usr/lib/tmpfiles.d/mios-user.conf`. Never patched at firstboot.

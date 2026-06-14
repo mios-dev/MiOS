@@ -2,53 +2,38 @@
   "object": "list",
   "data": [
     {
-      "id": "granite4.1:3b",
+      "id": "granite4.1:8b",
       "object": "model",
       "created": 1747000000,
-      "owned_by": "mios-ollama",
+      "owned_by": "mios-llm-light",
       "permission": [],
-      "root": "granite4.1:3b",
+      "root": "granite4.1:8b",
       "parent": null,
       "x-mios": {
         "role": "default-chat",
-        "context_window": 16384,
+        "family": "IBM Granite (dense 'granite' arch; loads on mainline llama.cpp)",
+        "context_window": 131072,
         "ssot": "[ai].model in /usr/share/mios/mios.toml",
-        "served_by": "ollama.service (dGPU lane)",
-        "endpoint": "http://localhost:11434/v1",
+        "served_by": "mios-llm-light.service (primary lane; llama.cpp behind the upstream llama-swap proxy)",
+        "endpoint": "http://localhost:11450/v1",
         "openai_api_compat": ["chat/completions", "completions"]
       }
     },
     {
-      "id": "qwen3:1.7b",
+      "id": "lfm2:700m",
       "object": "model",
       "created": 1747000000,
-      "owned_by": "mios-ollama",
+      "owned_by": "mios-llm-light",
       "permission": [],
-      "root": "qwen3:1.7b",
+      "root": "lfm2:700m",
       "parent": null,
       "x-mios": {
-        "role": "refine-and-polish",
+        "role": "micro / classify-expand-gate",
+        "family": "Liquid AI LFM2 (dense 'lfm2' arch; merged mainline llama.cpp)",
         "context_window": 32768,
-        "ssot": "[refine].model + [polish].model in /usr/share/mios/mios.toml",
-        "served_by": "mios-ollama-cpu.service (in-VM CPU light-lane) when present; falls back to ollama.service (dGPU)",
-        "endpoint_primary": "http://localhost:11435/v1",
-        "endpoint_fallback": "http://localhost:11434/v1",
-        "openai_api_compat": ["chat/completions"]
-      }
-    },
-    {
-      "id": "qwen3-coder:30b",
-      "object": "model",
-      "created": 1747000000,
-      "owned_by": "mios-ollama",
-      "permission": [],
-      "root": "qwen3-coder:30b",
-      "parent": null,
-      "x-mios": {
-        "role": "tool-calling-mixture-of-experts",
-        "context_window": 32768,
-        "served_by": "ollama.service (dGPU lane)",
-        "endpoint": "http://localhost:11434/v1",
+        "ssot": "[ai].micro_model in /usr/share/mios/mios.toml",
+        "served_by": "mios-llm-light.service (always-warm micro lane); also the mios-cpu-node CPU fallback (:11451)",
+        "endpoint": "http://localhost:11450/v1",
         "openai_api_compat": ["chat/completions"]
       }
     },
@@ -56,17 +41,36 @@
       "id": "nomic-embed-text",
       "object": "model",
       "created": 1747000000,
-      "owned_by": "mios-ollama",
+      "owned_by": "mios-llm-light",
       "permission": [],
       "root": "nomic-embed-text",
       "parent": null,
       "x-mios": {
         "role": "default-embed",
+        "family": "Google EmbeddingGemma-300m QAT (served NAME kept 'nomic-embed-text'; 768d native = zero pgvector migration)",
         "dimensions": 768,
         "ssot": "[ai].embed_model in /usr/share/mios/mios.toml",
-        "served_by": "ollama.service",
-        "endpoint": "http://localhost:11434/v1",
+        "served_by": "mios-llm-light.service (llama-server --embedding)",
+        "endpoint": "http://localhost:11450/v1",
         "openai_api_compat": ["embeddings"]
+      }
+    },
+    {
+      "id": "mios-heavy",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-llm-heavy",
+      "permission": [],
+      "root": "mios-heavy",
+      "parent": null,
+      "x-mios": {
+        "role": "heavy-reasoner (gated / off-by-default on VRAM)",
+        "family": "Mistral Magistral Small 2509 AWQ (intended); incumbent Qwen2.5-14B-AWQ is the rollback",
+        "context_window": 131072,
+        "ssot": "[ai.sglang]/[ai.vllm] in /usr/share/mios/mios.toml",
+        "served_by": "mios-llm-heavy.service (SGLang :11441) or mios-llm-heavy-alt.service (vLLM :11440)",
+        "endpoint": "http://localhost:11441/v1",
+        "openai_api_compat": ["chat/completions"]
       }
     },
     {
@@ -94,7 +98,7 @@
       "root": "mios-opencode:latest",
       "parent": null,
       "x-mios": {
-        "role": "code-specialist-sub-agent",
+        "role": "code-specialist-sub-agent (FROM granite4.1:8b)",
         "transport": "OpenAI /v1 (mios-opencode-gateway.service :8633)",
         "endpoint": "http://localhost:8633/v1",
         "registered_as_sub_agent_of": "mios-agent-pipe",
@@ -129,6 +133,7 @@
     "manifest_path": "/usr/share/mios/ai/v1/models.json",
     "endpoint": "http://localhost:8640/v1/models",
     "served_by": "mios-agent-pipe.service",
+    "fleet_note": "2026-06-13 family-diverse fleet: granite4.1:8b (IBM) brain+coder, lfm2:700m (Liquid AI) micro, nomic-embed-text NAME = EmbeddingGemma-300m QAT (Google) embeddings, mios-heavy = Mistral Magistral Small 2509 (gated). All everyday inference is served by mios-llm-light.service (:11450, llama.cpp behind the upstream llama-swap proxy); 128k ctx on every chat/reasoning lane.",
     "note": "agent-pipe (:8640) is the canonical /v1 entry. It refines the user prompt, routes to a sub-agent (default: hermes-agent), wraps the sub-agent's raw output in <details type=\"reasoning\">, and polishes the final reply. Strict OpenAI clients should ignore x-mios extensions."
   }
 }

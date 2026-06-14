@@ -118,7 +118,7 @@ listed as **Day-0 portability targets**: 'MiOS' agents resolve through
 | LM Studio | Desktop OpenAI-compatible server | <https://lmstudio.ai/> |
 | LiteLLM | Provider/translation proxy (incl. Responses <-> Chat Completions) | <https://github.com/BerriAI/litellm> |
 | OpenRouter | Cloud aggregator if you bring keys | <https://openrouter.ai/> |
-| llama.cpp (engine) | Powers GGUF inference inside LocalAI/Ollama | <https://github.com/ggerganov/llama.cpp> |
+| llama.cpp (engine) | Powers GGUF inference inside `mios-llm-light` (mios-llm-light) / LocalAI | <https://github.com/ggerganov/llama.cpp> |
 
 ## 7. OpenAI public API spec & standards (the surface 'MiOS' targets)
 

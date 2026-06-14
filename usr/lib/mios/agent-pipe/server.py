@@ -121,7 +121,7 @@ BACKEND_MODEL = os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL",
 _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # Endpoints that ENFORCE the bearer key. Always includes the configured
 # BACKEND; ALSO the Hermes gateway, whose host:port differs from BACKEND when
-# MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (llama-swap on
+# MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (mios-llm-light on
 # :11450) while Hermes still runs on its own port (:8642). Scoping the key to
 # this SET (not just BACKEND) keeps non-streaming hermes dispatch (swarm /
 # council / DAG facets) authenticated instead of silently 401'ing -- the
@@ -153,7 +153,7 @@ _AUTH_HOSTPORTS = {
 _STACK_MODEL = os.environ.get("MIOS_STACK_MODEL", "gemma4:12b")
 _MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", _STACK_MODEL)
 _MICRO_ENDPOINT = os.environ.get(
-    "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # llama-swap (was dead :11434)
+    "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # mios-llm-light (was dead :11434)
 ).rstrip("/")
 # Callers below append "/v1/chat/completions"; strip a trailing /v1 so we
 # don't double it.
@@ -320,7 +320,7 @@ _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL))
 _JUDGE_ENDPOINT = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_ENDPOINT",
-    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")  # llama-swap (ollama :11435 retired G5)
+    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")  # mios-llm-light (ollama :11435 retired G5)
 _JUDGE_BASE = (_JUDGE_ENDPOINT[:-3].rstrip("/") if _JUDGE_ENDPOINT.endswith("/v1") else _JUDGE_ENDPOINT)
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
@@ -1015,7 +1015,7 @@ ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)
 # behind big-model inference -> refine 41s, polish 42s. On the light lane
 # the warm qwen3:0.6b-cpu answers in ~1-2s regardless of dGPU load.
 _LIGHT_LANE = os.environ.get("MIOS_OLLAMA_CPU_ENDPOINT",
-                             "http://localhost:11450").rstrip("/")  # llama-swap (ollama :11435 retired G5)
+                             "http://localhost:11450").rstrip("/")  # mios-llm-light (ollama :11435 retired G5)
 
 # Last-resort runaway reaper (operator 2026-06-01j). A turn that BLEW its
 # wall-clock deadline may have left CPU-lane gens running -- ollama does NOT abort
@@ -1071,7 +1071,7 @@ PLANNER_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_MODEL", _STACK_MODEL,   # gemma4:12b entire-stack (operator 2026-06-06)
 )
 PLANNER_ENDPOINT = os.environ.get(
-    # llama-swap /v1 (the old :11434 ollama default is dead -- G5/G17). Env (SSOT
+    # mios-llm-light /v1 (the old :11434 ollama default is dead -- G5/G17). Env (SSOT
     # agent-pipe.env) overrides; this is only the fresh-install fallback.
     "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11450",
 ).rstrip("/")
@@ -1885,7 +1885,7 @@ REFINE_ENABLED = os.environ.get(
 # so the call stays a few seconds even on the shared dGPU lane.
 REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", _STACK_MODEL)
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_REFINE_ENDPOINT", "http://localhost:11450",  # llama-swap (was dead :11434)
+    "MIOS_REFINE_ENDPOINT", "http://localhost:11450",  # mios-llm-light (was dead :11434)
 ).rstrip("/")
 # Default 30s (was 12): a COLD dGPU refine measured 9.7-12s on a fresh
 # restart / after a VRAM eviction -- right at the old 12s edge, so it
@@ -1920,7 +1920,7 @@ POLISH_ENABLED = os.environ.get(
 # qwen3.5:4b on the dGPU lane (think=False) consolidates in a few seconds.
 POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", _STACK_MODEL)
 POLISH_ENDPOINT = os.environ.get(
-    "MIOS_POLISH_ENDPOINT", "http://localhost:11450",  # llama-swap (was dead :11434)
+    "MIOS_POLISH_ENDPOINT", "http://localhost:11450",  # mios-llm-light (was dead :11434)
 ).rstrip("/")
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
@@ -2475,7 +2475,7 @@ async def _kv_slot_action(client, ep: str, action: str, conv: str,
     """POST one llama.cpp slot save|restore for conversation `conv`. Best-effort:
     returns False (never raises) on any failure.
 
-    G6: llama-swap does NOT proxy /slots at its root -- it exposes each model's
+    G6: mios-llm-light does NOT proxy /slots at its root -- it exposes each model's
     native endpoints under /upstream/<model>/ -- so the bare /slots POST always
     404'd (empty slot dir). Try the model-routed upstream path first when the
     model is known, then fall back to the bare /slots path (a direct llama.cpp
@@ -6614,7 +6614,7 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
                 msgs.append({"role": h["role"],
                              "content": str(h.get("content", ""))[:200]})
     msgs.append({"role": "user", "content": user_text[:500]})
-    # OpenAI /v1 (llama-swap :11450). The old ollama /api/chat 404'd post
+    # OpenAI /v1 (mios-llm-light :11450). The old ollama /api/chat 404'd post
     # ollama-retirement -> refine returned "" = NO refined routing/decompose/
     # grounding hints, silently degrading every turn (operator 2026-06-09).
     payload = {
@@ -13354,7 +13354,7 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
                 if _c:
                     _msgs.append({"role": h["role"], "content": _c[:_cap]})
     _msgs.append({"role": "user", "content": user_text[:4000] + " /no_think"})
-    # OpenAI /v1 (llama-swap :11450). The old ollama /api/chat shape 404'd post
+    # OpenAI /v1 (mios-llm-light :11450). The old ollama /api/chat shape 404'd post
     # ollama-retirement -> the planner ALWAYS returned [] -> the swarm NEVER
     # decomposed -> force_council DUPS across lanes (operator 2026-06-09: "tasks
     # aren't delegated as distinct work"). Same drift class as summarize/daemon/cron.
@@ -13381,7 +13381,7 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     except Exception as e:
         log.warning("swarm planner error: %s", e)
         return []
-    # Read content, falling back to reasoning_content (gemma4 on llama-swap routes
+    # Read content, falling back to reasoning_content (gemma4 on mios-llm-light routes
     # its output there when it "thinks" despite enable_thinking=False).
     _pm = (((body.get("choices") or [{}])[0]).get("message") or {})
     content = (_pm.get("content") or _pm.get("reasoning_content") or "").strip()
@@ -17371,7 +17371,7 @@ async def _mcp_embed_new_tools() -> None:
 async def _embed_one(text: str) -> Optional[list[float]]:
     """Single-vector embed. Supports BOTH ollama /api/embeddings ({prompt} ->
     {embedding}) and OpenAI /v1/embeddings ({input} -> {data:[{embedding}]}),
-    chosen by the URL -- so it works on the llama.cpp nomic lane (llama-swap
+    chosen by the URL -- so it works on the llama.cpp nomic lane (mios-llm-light
     :11450) after the ollama retirement (operator 2026-06-06: "embed call failed"
     on the dead :11435). Returns None on failure (caller falls back to substring
     match)."""
@@ -17831,7 +17831,7 @@ def _portal_authed(request: Request) -> bool:
 
 def _portal_unit_hidden(quadlet_file: str) -> bool:
     """True if a Quadlet's generated unit is MASKED or was skipped by a FAILED
-    start condition (ConditionResult=no) -- i.e. retired (ollama -> llama-swap)
+    start condition (ConditionResult=no) -- i.e. retired (ollama -> mios-llm-light)
     or gated OFF (vllm/guacamole: model not provisioned / wrong virtualization).
     Such a unit can only ever show as a phantom 'down' in the portal, so drop it.
     A unit that is MEANT to run but crashed keeps ConditionResult=yes and stays
@@ -17885,7 +17885,7 @@ def _discover_portal_services() -> list[dict]:
                 continue
             # Drop retired (masked) / gated-OFF (failed start condition) lanes so
             # the portal stops showing them as perpetual phantom 'down' entries
-            # (operator 2026-06-12: ollama/ollama-cpu retired -> llama-swap,
+            # (operator 2026-06-12: ollama/ollama-cpu retired -> mios-llm-light,
             # vllm gated, guacamole condition-skipped). Genuine outages keep
             # ConditionResult=yes and stay visible.
             if _portal_unit_hidden(f):
@@ -20184,7 +20184,7 @@ _LOCAL_STATE_SYSTEM = (
 
 def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
     """(url, payload) for a polish/format call on an ollama /api/chat OR a
-    llama.cpp OpenAI /v1 endpoint. llama.cpp (llama-swap :11450) has NO /api/chat
+    llama.cpp OpenAI /v1 endpoint. llama.cpp (mios-llm-light :11450) has NO /api/chat
     (404) -> speak /v1 there. Callers' response parse already handles both shapes.
     Operator 2026-06-06: polish hardcoded /api/chat -> 404 on llama.cpp -> every
     chat's final render silently degraded to the pre-polish text."""
@@ -20716,7 +20716,7 @@ async def _respond_native_loop_direct(
         # BULLET-PROOF FAILOVER (operator 2026-06-12): the HEAVY lane can be
         # DOWN/crashed (the SGLang q35 incident) -- a heavy-completion failure must
         # NOT dead-end the turn. When it yielded nothing, fall back to the LIGHT
-        # lane (the refine endpoint = llama-swap) for the final completion so the
+        # lane (the refine endpoint = mios-llm-light) for the final completion so the
         # user still gets a GENERATED answer (degraded but present, not empty).
         # Only fires on heavy-lane failure -> zero behavior change in the normal
         # case; fully degrade-open (any error -> fall through to the relay ladder).
@@ -23000,7 +23000,7 @@ async def chat_completions(request: Request) -> Any:
         if _b.get("tool_choice") and not _endpoint_supports_tool_choice(
                 str(_c.get("endpoint") or ""), _c, _agent_offload_engine(_c)):
             # llama.cpp REJECTS tool_choice='required' but ACCEPTS 'auto' and then
-            # emits real OpenAI tool_calls (proven: gemma4/qwen3 on llama-swap).
+            # emits real OpenAI tool_calls (proven: gemma4/qwen3 on mios-llm-light).
             # Downgrade to 'auto' rather than DROPPING it -- dropping it made the
             # model NARRATE the call as text ("<|tool_call>...") instead of
             # executing it, so verbs never fired (operator 2026-06-05 stress test).

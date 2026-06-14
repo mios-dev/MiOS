@@ -133,9 +133,9 @@ otherwise).
 
 | Slot | Default | Notes |
 |---|---|---|
-| big chat / code (`[ai].big_ram_model`) | `qwen3-coder:30b` | 16 GB+ dGPU class; clean JSON tool-call output; promoted by the host auto-pick when VRAM allows |
-| base chat (`[ai].model`) | `qwen3.5:4b` | ~3.4 GB resident reasoning base; the fallback on hosts without an auto-pick |
-| CPU children / swarm fan-out | `qwen3:1.7b` | sub-200 ms spawn; ~4 GB resident; good for grep/inspect/report subtasks |
+| big chat / code (`[ai].big_ram_model`) | `mistral-magistral-small-2509` | 16 GB+ dGPU class; clean JSON tool-call output; promoted by the host auto-pick when VRAM allows |
+| base chat (`[ai].model`) | `granite4.1:8b` | ~3.4 GB resident reasoning base; the fallback on hosts without an auto-pick |
+| CPU children / swarm fan-out | `lfm2:700m` | sub-200 ms spawn; ~4 GB resident; good for grep/inspect/report subtasks |
 | coding specialist (MiOS-OpenCoder) | `mios-opencode` | first-class OpenAI `/v1` council peer (`mios-opencode-gateway.service` `:8633`), dispatched by the orchestrator; served by mios-llm-light |
 | embeddings (`[ai].embed_model`) | `nomic-embed-text` | 768-dim, 8192-token context; OpenAI `/v1/embeddings` shape, served by mios-llm-light |
 

@@ -1,5 +1,5 @@
-<!-- AI-hint: Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light llama.cpp/llama-swap :11450, mios-llm-heavy SGLang :11441, mios-llm-heavy-alt vLLM :11440) fronted by the agent-pipe (:8640) and MiOS-Hermes gateway (:8642). Primary reference for any agent or OpenAI-API client talking to MiOS.
-     AI-related: /usr/lib/mios/logs/openai-api-verification.txt, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-llm-light, mios-llm-heavy, mios-pgvector, mios-bootstrap, mios-dev, mios-build-local, mios-ceph, mios-k3s -->
+<!-- AI-hint: Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light llama.cpp/mios-llm-light :11450, mios-llm-heavy SGLang :11441, mios-llm-heavy-alt vLLM :11440) fronted by the agent-pipe (:8640) and MiOS-Hermes gateway (:8642). Primary reference for any agent or OpenAI-API client talking to MiOS.
+     AI-related: /usr/lib/mios/logs/openai-api-verification.txt, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-llm-light, mios-llm-heavy, mios-pgvector, mios-bootstrap, mios-dev, mios-build-local, mios-ceph, mios-k3s -->
 # usr/share/doc/mios/reference/api.md
 
 > Canonical OpenAI-API-compatible reference for MiOS.
@@ -58,7 +58,7 @@ answered:
 
 | Lane / service | Port | Role |
 |---|---|---|
-| **mios-llm-light** (`mios-llm-light.container`) | `:11450` | **Primary** local engine -- llama.cpp behind the `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap`). On-demand multi-model auto-swap behind one OpenAI `/v1` endpoint, per-conversation KV-cache paging to disk (`--slot-save-path`), **and embeddings** (`nomic-embed-text` via `POST /v1/embeddings`). Also serves the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/llama-swap.yaml`. |
+| **mios-llm-light** (`mios-llm-light.container`) | `:11450` | **Primary** local engine -- llama.cpp behind the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`). On-demand multi-model auto-swap behind one OpenAI `/v1` endpoint, per-conversation KV-cache paging to disk (`--slot-save-path`), **and embeddings** (`nomic-embed-text` via `POST /v1/embeddings`). Also serves the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml`. |
 | **mios-llm-heavy** (`mios-llm-heavy.container`) | `:11441` | Heavy GPU reasoning lane -- SGLang, served as `mios-heavy`, with continuous batching, RadixAttention prefix reuse, and a Qwen tool-call parser so fan-out agents emit real `tool_calls`. **Gated / off by default** (VRAM); enable only on a dGPU with headroom after baking weights. |
 | **mios-llm-heavy-alt** (`mios-llm-heavy-alt.container`) | `:11440` | Alternate heavy lane -- vLLM (PagedAttention + Automatic Prefix Caching). Mutually exclusive with `mios-llm-heavy` on a shared GPU; **gated / off by default** (VRAM). |
 | **mios-llm-worker@** (`mios-llm-worker@.container`) | -- | Single-model swarm workers for parallel fan-out. |
@@ -95,7 +95,7 @@ encode.
 
 ### Authentication
 OpenAI's protocol expects `Authorization: Bearer <token>` on every request.
-OpenAI-compatible local servers (the llama-swap-fronted light lane, SGLang,
+OpenAI-compatible local servers (the mios-llm-light-fronted light lane, SGLang,
 vLLM) accept any non-empty token by default. 'MiOS' deployments SHOULD set a
 non-trivial bearer (via the lane's `Environment=API_KEY=...` / a Quadlet
 drop-in, or by gating at a reverse-proxy) and require it; the spec below assumes
@@ -185,8 +185,8 @@ To probe live: `curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" "$MIOS_AI_
 
 ### `GET /v1/models`
 List models the deployment can serve. The primary lane (`mios-llm-light`)
-advertises the models declared in its `llama-swap` model map at
-`usr/share/mios/llamacpp/llama-swap.yaml`; heavy lanes advertise their single
+advertises the models declared in its `mios-llm-light` model map at
+`usr/share/mios/llamacpp/mios-llm-light.yaml`; heavy lanes advertise their single
 served name (`mios-heavy`).
 
 Response:
@@ -286,7 +286,7 @@ Response (non-stream):
 Streaming: SSE with `chat.completion.chunk` objects whose `choices[0].delta` carries incremental `content`/`tool_calls` deltas; final frame is `data: [DONE]`.
 
 Probe (use a `model` id the active lane advertises -- e.g. a tag from the
-light lane's `llama-swap.yaml`, or `mios-heavy` for an enabled heavy lane):
+light lane's `mios-llm-light.yaml`, or `mios-heavy` for an enabled heavy lane):
 ```bash
 curl -fsS -H "Authorization: Bearer $MIOS_AI_API_KEY" \
   -H "Content-Type: application/json" \
@@ -779,7 +779,7 @@ Streamed errors arrive as `event: error` SSE frames with the same envelope.
 
 ## Rate Limits
 
-OpenAI advertises `x-ratelimit-{limit,remaining,reset}-{requests,tokens}` headers. The behavior of local lanes (llama.cpp/llama-swap, SGLang, vLLM) depends on configuration; 'MiOS' deployments SHOULD enforce limits at the lane/reverse-proxy layer if multi-client. Until that's wired, treat headers as advisory. (In practice the agent-pipe governs concurrency upstream of the lanes via per-lane semaphores and a VRAM-aware admission controller -- see `mios.toml [ai]`.)
+OpenAI advertises `x-ratelimit-{limit,remaining,reset}-{requests,tokens}` headers. The behavior of local lanes (llama.cpp/mios-llm-light, SGLang, vLLM) depends on configuration; 'MiOS' deployments SHOULD enforce limits at the lane/reverse-proxy layer if multi-client. Until that's wired, treat headers as advisory. (In practice the agent-pipe governs concurrency upstream of the lanes via per-lane semaphores and a VRAM-aware admission controller -- see `mios.toml [ai]`.)
 
 ---
 
@@ -813,7 +813,7 @@ export OPENAI_API_KEY="$MIOS_AI_API_KEY"
 ## Cross-references
 
 - Architectural Law 5 (UNIFIED-AI-REDIRECTS): [`CLAUDE.md`](CLAUDE.md), [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md), [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md).
-- Primary inference lane / model map: [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml), [`usr/share/containers/systemd/mios-llm-light.container`](usr/share/containers/systemd/mios-llm-light.container).
+- Primary inference lane / model map: [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml), [`usr/share/containers/systemd/mios-llm-light.container`](usr/share/containers/systemd/mios-llm-light.container).
 - Heavy lanes (gated): [`usr/share/containers/systemd/mios-llm-heavy.container`](usr/share/containers/systemd/mios-llm-heavy.container) (SGLang), [`usr/share/containers/systemd/mios-llm-heavy-alt.container`](usr/share/containers/systemd/mios-llm-heavy-alt.container) (vLLM).
 - Agent datastore (pgvector): [`usr/share/containers/systemd/mios-pgvector.container`](usr/share/containers/systemd/mios-pgvector.container), schema [`usr/share/mios/postgres/schema-init.sql`](usr/share/mios/postgres/schema-init.sql).
 - Orchestration pipeline: [`usr/lib/mios/agent-pipe/server.py`](usr/lib/mios/agent-pipe/server.py).

@@ -27,7 +27,7 @@ ordered by operator-impact-per-line-of-code, not by formal completeness.
 
 > **Migration note (2026-06-13):** The agent plane has moved off the early
 > Ollama / SurrealDB / Qdrant stack. Inference + embeddings now run on
-> `mios-llm-light` (`:11450`, llama.cpp behind the upstream `llama-swap` proxy);
+> `mios-llm-light` (`:11450`, llama.cpp behind the upstream `mios-llm-light` proxy);
 > the unified datastore is PostgreSQL + pgvector. Ollama survives only as an
 > *upstream API-compat reference* (the lanes speak the OpenAI/Ollama-compatible
 > API). Several phases below are **landed** — those sections describe shipped
@@ -43,7 +43,7 @@ ordered by operator-impact-per-line-of-code, not by formal completeness.
 | Multi-frontend through one chain | OWUI shipped; Discord shipped; Slack/Telegram pending | Works (OWUI + Discord) |
 | Shared cross-cutting state | PostgreSQL + pgvector: agent_memory / session / tool_call / event / skill / scratch / knowledge / kanban / agent_metric | Works |
 | Local memory (per-agent) | hermes/.hermes/*.db, mios-daemon state, OWUI webui.db | Works |
-| Primary inference + embeddings | mios-llm-light at :11450 (llama.cpp via llama-swap); serves everyday models + `nomic-embed-text` embeddings + the `mios-opencode` coder model | Live |
+| Primary inference + embeddings | mios-llm-light at :11450 (llama.cpp via mios-llm-light); serves everyday models + `nomic-embed-text` embeddings + the `mios-opencode` coder model | Live |
 | Heavy GPU lanes | mios-llm-heavy (SGLang, :11441, served-name `mios-heavy`) / mios-llm-heavy-alt (vLLM) | Gated/off-by-default (VRAM) |
 | Query decomposition into DAG | `decompose` router action runs nodes topologically | **landed (Phase A.1)** |
 | Deliberative Collective Intelligence | single-pass critic loop, informal | **GAP B** |

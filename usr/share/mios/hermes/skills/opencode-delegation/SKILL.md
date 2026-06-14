@@ -66,7 +66,7 @@ you don't call it, you collaborate. Concretely:
   (`mios-find`, window launch, verbs/skills/recipes) — opencode
   doesn't know about those; they are YOUR direct tools.
 * **Parallel non-code fan-out** still uses your native
-  `delegate_task(tasks=[...])` to qwen3:1.7b children — that
+  `delegate_task(tasks=[...])` to lfm2:700m children — that
   mechanism is unchanged and separate from the opencode peer.
 
 ## Operator's mental model

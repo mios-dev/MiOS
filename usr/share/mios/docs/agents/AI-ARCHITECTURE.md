@@ -1,5 +1,5 @@
 <!-- AI-hint: Defines the MiOS local agentic-AI pipeline end-to-end — how a request flows from a front-end (OWUI / Discord / mios CLI) through the agent-pipe orchestrator, the MiOS-Hermes tool-loop gateway, and the function-named inference lanes (mios-llm-light primary, gated heavy lanes) into pgvector memory and MCP/A2A tool/agent surfaces. Use this to understand how the AI plane is wired, why, and what serves what.
-     AI-related: /usr/lib/mios/agent-pipe/server.py, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-agent-pipe, mios-delegation-prefilter, mios-llm-light, mios-pgvector, mios-opencode-gateway -->
+     AI-related: /usr/lib/mios/agent-pipe/server.py, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-agent-pipe, mios-delegation-prefilter, mios-llm-light, mios-pgvector, mios-opencode-gateway -->
 # MiOS AI Architecture
 
 **Audience:** operators and contributors wiring or auditing the MiOS agent
@@ -59,7 +59,7 @@ operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI
       │
       ▼
   inference lanes            (function-named; OpenAI/Ollama-compatible API)
-      │    mios-llm-light :11450   PRIMARY — llama.cpp behind llama-swap;
+      │    mios-llm-light :11450   PRIMARY — llama.cpp behind mios-llm-light;
       │                            everyday chat/reasoning models + the
       │                            mios-opencode coder model + embeddings
       │                            (nomic-embed-text, /v1/embeddings)
@@ -73,7 +73,7 @@ operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI
 
 > **Inference is function-named, not tool-named.** The lanes are
 > `mios-llm-light` / `mios-llm-heavy` / `mios-llm-heavy-alt`, named by what they
-> *do*. `llama-swap` (the upstream proxy image
+> *do*. `mios-llm-light` (the upstream proxy image
 > `ghcr.io/mostlygeek/llama-swap`) and the Ollama-compatible API are legitimate
 > *upstream* references — the engines speak that API so any OpenAI-API client
 > talks to them unchanged. The earlier Ollama backend, SurrealDB datastore, and
@@ -84,19 +84,19 @@ operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI
 
 | Lane | Unit | Port | Role |
 |---|---|---|---|
-| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — `llama.cpp` behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging (slot save/restore to disk); serves everyday chat/reasoning models, the `mios-opencode` coder model, **and** embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). |
+| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — `llama.cpp` behind the `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging (slot save/restore to disk); serves everyday chat/reasoning models, the `mios-opencode` coder model, **and** embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). |
 | MiOS-LLM-Heavy | `mios-llm-heavy.service` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`, HiCache CPU KV-offload). **Gated/off-by-default** (VRAM). |
 | MiOS-LLM-Heavy-Alt | `mios-llm-heavy-alt.service` | `:11440` | Alternate heavy lane (vLLM, PagedAttention + prefix cache). **Gated/off-by-default** (VRAM). |
 | MiOS-LLM-Worker | `mios-llm-worker@.service` | — | Single-model swarm workers (templated; for the dGPU swarm topology). |
 
 The light lane's model map is
-[`usr/share/mios/llamacpp/llama-swap.yaml`](../../llamacpp/llama-swap.yaml).
+[`usr/share/mios/llamacpp/mios-llm-light.yaml`](../../llamacpp/mios-llm-light.yaml).
 Each chat model runs `--parallel 1 --slot-save-path` so it lands on one
 deterministic slot and the agent-pipe's KV-paging (`POST /slots/{id}?action=
 save|restore`) can checkpoint/restore a conversation's KV to disk — the AIOS
 Context Manager, fleet-wide. The embed model runs an `--embedding` server so
 `/v1/embeddings` is served locally. The reasoning model the pipeline resolves to
-is set by `[ai].model` (e.g. `gemma4:12b`); `llama-swap` aliases the
+is set by `[ai].model` (e.g. `granite4.1:8b`); `mios-llm-light` aliases the
 legacy/role model names the pipeline still emits onto the served GGUF so the
 lane is a drop-in.
 
@@ -170,7 +170,7 @@ loop.
 - `mios.toml [agents.*]` — the council/swarm registry: each agent's
   `endpoint` (OpenAI-compat `/v1`), `model`, `role`, and `strengths`; the
   refine pass picks targets from this list.
-- `usr/share/mios/llamacpp/llama-swap.yaml` — the light-lane model map (served
+- `usr/share/mios/llamacpp/mios-llm-light.yaml` — the light-lane model map (served
   GGUFs, aliases, KV-paging slots, embeddings).
 - `usr/share/mios/postgres/schema-init.sql` — the pgvector schema (the agent
   datastore tables above).
@@ -239,7 +239,7 @@ refine/critic/polish.
 ## History (superseded snapshot)
 
 This file began as a 2026-05-16 snapshot describing an Ollama-backed chain in
-which the prefilter did the refinement and `qwen3-coder:30b` ran on Ollama
+which the prefilter did the refinement and `mistral-magistral-small-2509` ran on Ollama
 (`:11434`) under a tight VRAM budget. That topology has since changed:
 
 - Inference moved off **Ollama** to the function-named lanes

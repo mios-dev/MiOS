@@ -1,5 +1,5 @@
-<!-- AI-hint: Documentation for the Day-0 bootstrap process — how the minimal `mios-bootstrap` repo materializes the first MiOS-DEV build environment from a bare host, where it sits in the build pipeline (Phase-0/1, the Total Root Merge, hand-off to the MiOS repo's Justfile + mios-build-driver), and why it is a separate repo. Use this to understand the entry point of the build pipeline → OCI image → bootc lifecycle.
-     AI-related: /usr/share/mios/docs/day-0/BOOTSTRAP.md, /usr/share/mios/docs/day-0/FIRST-BOOT.md, mios-bootstrap, mios-dev, mios-build-driver, ghcr.io/ublue-os/ucore-hci -->
+<!-- AI-hint: Documentation for the Day-0 bootstrap process — how the minimal `mios-bootstrap` repo materializes the first MiOS-DEV build environment from a bare host, where it sits in the build pipeline (Phase-0/1, the Total Root Merge, hand-off to the MiOS repo's Justfile + mios-build-driver), and why it is a separate repo. Use this to understand the entry point of the build pipeline → OCI image → bootc lifecycle, the seam where Day-0 becomes the self-replicating MiOS lifecycle.
+     AI-related: /usr/share/mios/docs/day-0/BOOTSTRAP.md, /usr/share/mios/docs/day-0/FIRST-BOOT.md, /usr/libexec/mios/mios-build-driver, mios-bootstrap, mios-dev, ghcr.io/ublue-os/ucore-hci -->
 <!-- FHS: /usr/share/mios/docs/day-0/BOOTSTRAP.md -->
 
 # Day-0: Bootstrap from `mios-bootstrap`
@@ -11,12 +11,15 @@ Fedora workstation** (the whole OS is a single container image — boot it,
 `bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is
 *also* a **local, self-replicating, agentic AI operating system**. The same image
 ships GNOME/Wayland, GPU wiring via CDI, KVM/libvirt passthrough, and a k3s+Ceph
-cluster path *and* a full local agent stack behind one OpenAI-compatible endpoint.
+cluster path *and* a full local agent stack behind one OpenAI-compatible endpoint
+(`MIOS_AI_ENDPOINT`).
 
 That self-replicating property has to start somewhere. **Day-0 is where a bare
 host becomes a machine that can build MiOS.** `mios-bootstrap` is the minimal
 repository that materializes the first **MiOS-DEV** environment — the seed build
-environment from which every subsequent "next MiOS" OCI image is produced.
+environment from which every subsequent "next MiOS" OCI image is produced. Once
+MiOS-DEV exists, MiOS builds MiOS: the box that runs the agent stack is also the
+box that bakes the next image of itself.
 
 This document covers the bootstrap repo's role and mechanics. Its sibling,
 [`FIRST-BOOT.md`](FIRST-BOOT.md), covers what happens the first time MiOS-DEV
@@ -33,6 +36,11 @@ complete, every later build invocation comes from the **MiOS** repo's Justfile
 and `mios-build-driver` over the same filesystem.
 
 ## Where bootstrap sits in the pipeline
+
+The pipeline produces the image; the bootc lifecycle on the host consumes it
+(`bootc switch`/`upgrade` deploys, `bootc rollback` reverts). Bootstrap owns only
+the front of that pipeline — the part that doesn't yet have a MiOS tree to lean
+on.
 
 | Phase | Owner | Description |
 |---|---|---|
@@ -100,8 +108,12 @@ Total Root Merge has already laid down the full MiOS tree underneath it.
 This is the seam where Day-0 becomes the rest of the lifecycle: the merged root
 is exactly the layout the `Containerfile` bakes (`usr/`, `etc/`, `srv/`, `var/`
 land where they sit in the repo), so Phase-2's numbered automation scripts —
-including the ones that stand up the **AI plane** (the inference lanes, the agent
-units, the pgvector schema) — operate on a root the bootstrap merge produced.
+including the ones that stand up the **AI plane** (the inference lanes
+`mios-llm-light` / `mios-llm-heavy` / `mios-llm-heavy-alt`, the agent units
+`mios-agent-pipe` / MiOS-Hermes, and the PostgreSQL+pgvector schema that backs
+agent memory) — operate on a root the bootstrap merge produced. The image that
+emerges is the same one whose `bootc upgrade`/`rollback` lifecycle the host then
+runs; bootstrap is just the first turn of that wheel.
 
 ## Why a Separate Repo
 

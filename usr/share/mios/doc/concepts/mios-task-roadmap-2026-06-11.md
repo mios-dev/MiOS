@@ -92,7 +92,7 @@ The anchors below reflect the pre-fix line numbers as captured during the pass.
    Do AFTER #2 (clean embeds) + #3 (taint).
 7. **Per-node model consolidation (swarm prerequisite)** — *M, high, RISKY.* Assistant
    implements the lane-routing split; operator owns VRAM tuning (mem_fraction 0.45→0.50),
-   `qwen3:1.7b` CPU-only confirmation, `mios-llm-worker@` enable, gemma4 21-alias
+   `lfm2:700m` CPU-only confirmation, `mios-llm-worker@` enable, gemma4 21-alias
    retirement (after a SOUL.md/A2A hardcode scan), live 4-agent validation.
 
 ## LATER

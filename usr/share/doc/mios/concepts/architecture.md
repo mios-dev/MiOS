@@ -161,7 +161,7 @@ API; the underlying engines are FOSS.
 
 | Lane (unit) | Endpoint | Engine | Role / models |
 |---|---|---|---|
-| **`mios-llm-light`** | `:11450` | llama.cpp via the `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap`) | **Primary** everyday lane. Auto-swaps a `llama-server` per requested model behind one `/v1` endpoint, with per-conversation KV-paging to disk (`--slot-save-path`). Serves the chat/reasoning models, the `mios-opencode` coder model, AND embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/llama-swap.yaml`. dGPU (CDI). |
+| **`mios-llm-light`** | `:11450` | llama.cpp via the upstream llama-swap proxy image (`ghcr.io/mostlygeek/llama-swap`) | **Primary** everyday lane. Auto-swaps a `llama-server` per requested model behind one `/v1` endpoint, with per-conversation KV-paging to disk (`--slot-save-path`). Serves the chat/reasoning models, the `mios-opencode` coder model, AND embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml`. dGPU (CDI). |
 | **`mios-llm-heavy`** | `:11441` | SGLang | Heavy GPU lane, served-name `mios-heavy`. HiCache CPU KV-offload, OpenAI `/v1`. **Gated / off by default** (VRAM). |
 | **`mios-llm-heavy-alt`** | `:11440` | vLLM | Alternate heavy lane (PagedAttention + prefix cache). Mutually exclusive with `mios-llm-heavy` on a shared GPU. **Gated / off by default** (VRAM). |
 | **`mios-llm-worker@`** | (per-instance) | llama.cpp | Single-model swarm workers for fan-out. |
@@ -219,7 +219,7 @@ rather than relying on bespoke point-to-point plumbing.
 > Ollama (`:11434`) + Ollama-CPU, with SurrealDB for state and Qdrant for
 > vectors. Those are **fully retired**: inference + embeddings run on
 > `mios-llm-light` (`:11450`), state + vectors run on PostgreSQL+pgvector. The
-> upstream `llama-swap` image and the Ollama-/OpenAI-compatible *API* remain
+> upstream `mios-llm-light` image and the Ollama-/OpenAI-compatible *API* remain
 > legitimate external references -- only the MiOS unit identities changed.
 > Likewise the old `cloudws-*` project name is retired; every shipped artifact is
 > `mios-<component>`.
@@ -253,5 +253,5 @@ above coherent across upgrades.
 - Universal Blue uCore HCI: <https://github.com/ublue-os/ucore>
 - rechunk: <https://github.com/hhd-dev/rechunk>
 - cosign: <https://github.com/sigstore/cosign>
-- llama-swap (upstream inference proxy): <https://github.com/mostlygeek/llama-swap>
+- mios-llm-light (upstream inference proxy): <https://github.com/mostlygeek/llama-swap>
 - pgvector: <https://github.com/pgvector/pgvector>

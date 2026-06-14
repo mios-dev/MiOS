@@ -11,9 +11,9 @@ additive + fail-safe to current behaviour); **mios.toml is the SSOT**.
 > **Status note (2026-06-13).** This is a planning/roadmap document, kept as the design
 > record for the agent-pipe routing + standards work. Names were reconciled during the
 > later migration: the local inference lane is **mios-llm-light** (llama.cpp behind the
-> `llama-swap` proxy image, `:11450`) serving chat models + embeddings; the agent
+> `mios-llm-light` proxy image, `:11450`) serving chat models + embeddings; the agent
 > datastore is **PostgreSQL + pgvector** (`mios-pgvector`). The OpenAI/Ollama-compatible
-> API surface and the upstream `llama-swap` image are still the engine; only the MiOS
+> API surface and the upstream `mios-llm-light` image are still the engine; only the MiOS
 > unit identity changed. The design and sequencing below are unchanged.
 
 ## Purpose — where this fits in MiOS as a whole
@@ -60,9 +60,9 @@ substrate.
 
 ## 1. Routing fix — 2-stage classify→execute (CORE; partially built)
 Per the llama.cpp research, the load-bearing facts:
-- llama-server (the engine mios-llm-light runs behind the `llama-swap` proxy) supports
+- llama-server (the engine mios-llm-light runs behind the `mios-llm-light` proxy) supports
   `response_format: json_schema` → GBNF grammar; **enum-of-strings is the most reliable
-  constraint**. `--jinja` is set; llama-swap forwards `response_format`/`tools`/
+  constraint**. `--jinja` is set; mios-llm-light forwards `response_format`/`tools`/
   `tool_choice` untouched (no `strip_params`).
 - **CRITICAL #20345:** grammar is silently dropped when thinking is ON → **Stage-1 MUST run
   thinking-OFF**. **Fail-open #19051:** a grammar-parse failure returns HTTP 200 unconstrained →

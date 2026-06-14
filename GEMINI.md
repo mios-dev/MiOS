@@ -1,5 +1,5 @@
 <!-- AI-hint: Per-tool entry stub for the Gemini CLI on MiOS. Defers all agent identity to the canonical /MiOS.md SSOT and records only the Gemini-CLI delta: layered identity loading order and the binding to the single OpenAI-compatible AI endpoint (MIOS_AI_ENDPOINT, default http://localhost:8080/v1) per Architectural Law 5.
-     AI-related: /MiOS.md, /etc/mios/MiOS.md, ~/.config/mios/MiOS.md, MIOS_AI_ENDPOINT, http://localhost:8080/v1, usr/share/mios/llamacpp/llama-swap.yaml, mios-llm-light -->
+     AI-related: /MiOS.md, /etc/mios/MiOS.md, ~/.config/mios/MiOS.md, MIOS_AI_ENDPOINT, http://localhost:8080/v1, usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light -->
 > _`/GEMINI.md` — per-tool stub for the **Gemini CLI** on MiOS. The runtime
 > identity SSOT is **[`/MiOS.md`](MiOS.md)** (the canonical MiOS AI system
 > identity, written to the OpenAI agent-prompting pattern). This stub does NOT
@@ -60,7 +60,7 @@ a cloud:
   **`:11450`**. It auto-swaps GGUF chat/reasoning models, serves embeddings
   (`nomic-embed-text` via OpenAI-compatible `/v1/embeddings`), and hosts the
   coder model — config in
-  [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml).
+  [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
 - Heavy work, when enabled, falls to the GPU lanes **`mios-llm-heavy`** (SGLang,
   `:11441`) and **`mios-llm-heavy-alt`** (vLLM), both gated/off-by-default on
   VRAM.

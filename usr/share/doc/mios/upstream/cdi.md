@@ -124,7 +124,7 @@ podman run --rm --device intel.com/gpu=card0 <image> intel_gpu_top
 
 The same vendor-prefixed device IDs are what the inference-lane Quadlets request.
 `mios-llm-light` — the **primary** local inference engine (llama.cpp behind the
-`llama-swap` proxy image on `:11450`, which also serves embeddings via
+upstream llama-swap proxy image on `:11450`, which also serves embeddings via
 `nomic-embed-text`) — declares it directly in
 `usr/share/containers/systemd/mios-llm-light.container`:
 

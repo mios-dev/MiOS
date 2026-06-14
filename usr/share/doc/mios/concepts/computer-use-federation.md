@@ -156,7 +156,7 @@ desktop.
 Grounding resolves through the same unified inference plane as the rest of MiOS,
 so there is no separate vision backend to provision. Baseline `qwen3-vl:4b` runs
 on the **always-on `mios-llm-light` lane** (`:11450`, llama.cpp behind the
-`llama-swap` proxy image) -- the same engine that serves the everyday chat
+`mios-llm-light` proxy image) -- the same engine that serves the everyday chat
 models and embeddings, auto-swapping the vision model on demand. It is INERT
 until the GGUFs are baked under `/models` (the operator downloads the weights;
 the security classifier blocks the fetch for the assistant), then `cu_ground`'s

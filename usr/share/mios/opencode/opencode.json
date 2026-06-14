@@ -5,22 +5,16 @@
   "provider": {
     "local": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "MiOS-Inference (Ollama)",
+      "name": "MiOS-Inference (mios-llm-light)",
       "options": {
         "baseURL": "http://localhost:11450/v1"
       },
       "models": {
         "mios-opencode:latest": {
-          "name": "MiOS-OpenCode (coding role; FROM qwen2.5-coder:7b)"
+          "name": "MiOS-OpenCode (coding role; FROM granite4.1:8b)"
         },
-        "qwen2.5-coder:7b": {
-          "name": "Qwen 2.5 Coder 7B (MiOS opencode small)"
-        },
-        "qwen2.5-coder:14b": {
-          "name": "Qwen 2.5 Coder 14B (MiOS opencode mid)"
-        },
-        "qwen3-coder:30b": {
-          "name": "Qwen 3 Coder 30B (MiOS opencode big)"
+        "granite4.1:8b": {
+          "name": "Granite 4.1 8B (IBM; MiOS brain+coder base, dense 'granite' arch on mainline llama.cpp)"
         }
       }
     }

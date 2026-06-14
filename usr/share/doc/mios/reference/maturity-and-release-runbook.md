@@ -93,7 +93,7 @@ The code-side naming refactor (Phases 1–2) is complete (verified: zero rename
 targets remain). This is the same convention that retired the old **CloudWS** project
 name (every `cloudws-*` artifact is now `mios-<component>`) and renamed the inference
 units to function-based identities (`mios-llm-light`, `mios-llm-heavy`,
-`mios-llm-heavy-alt`); upstream tool/image names (e.g. `llama-swap`) and the
+`mios-llm-heavy-alt`); upstream tool/image names (e.g. `mios-llm-light`) and the
 OpenAI/Ollama-compatible API are kept as legitimate external references.
 
 Phase-3 reconciles the `[services.*]` user/UID SSOT vs reality (e.g.
@@ -126,7 +126,7 @@ Architectural Law 5):
 - **MiOS-Hermes** (`:8642`) — OpenAI-compat agent gateway + tool loop; **MiOS-Prefilter**
   (`:8641`) injects delegation on fan-outable prompts.
 - **MiOS-LLM-Light** (`:11450`) — primary local inference (llama.cpp behind the
-  `llama-swap` proxy image), multi-model auto-swap + KV-cache paging; also serves
+  `mios-llm-light` proxy image), multi-model auto-swap + KV-cache paging; also serves
   embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) and the
   `mios-opencode` coder model. **MiOS-LLM-Heavy** (SGLang, `:11441`) and
   **MiOS-LLM-Heavy-Alt** (vLLM) are gated/off-by-default (VRAM).

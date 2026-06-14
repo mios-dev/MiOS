@@ -1,5 +1,5 @@
 <!-- AI-hint: Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline. MiOS is one image built two ways at once: an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS; the repo root IS the deployed system root, so editing a file here edits the OS.
-     AI-related: /usr/share/mios/VERSION, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-pipeline, mios-build-local, mios-llm-light, mios-pgvector, mios-role -->
+     AI-related: /usr/share/mios/VERSION, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-pipeline, mios-build-local, mios-llm-light, mios-pgvector, mios-role -->
 # MiOS Tree-Map
 
 ## Purpose of this document
@@ -126,7 +126,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ 37-flatpak-env.sh               capture flatpak env for first-boot install
 │   │   ├─ 37-selinux.sh                   build-time SELinux policy fixes
 │   │   ├─ 38-hermes-agent.sh              MiOS-Hermes agent gateway install (:8642)
-│   │   ├─ 38-llamacpp-prep.sh             mios-llm-light prep: llama.cpp/llama-swap GGUF bake (replaces the retired Ollama model-bake)
+│   │   ├─ 38-llamacpp-prep.sh             mios-llm-light prep: llama.cpp GGUF bake behind the upstream llama-swap proxy (replaces the retired Ollama model-bake)
 │   │   ├─ 38-vllm-prep.sh                 mios-llm-heavy-alt (vLLM) heavy-lane prep (gated)
 │   │   ├─ 38-oh-my-posh.sh                oh-my-posh install + theme
 │   │   ├─ 38-vm-gating.sh                 VM service gating + Hyper-V Enhanced Session
@@ -271,7 +271,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   │       ├─ models.json           OpenAI /v1/models catalog
 │   │   │       └─ mcp.json              MCP server registry
 │   │   ├─ llamacpp/
-│   │   │   └─ llama-swap.yaml           mios-llm-light model map: llama-server-per-model + KV slot-save + nomic-embed-text embeddings
+│   │   │   └─ mios-llm-light.yaml       mios-llm-light model map: llama-server-per-model + KV slot-save + nomic-embed-text embeddings
 │   │   ├─ postgres/
 │   │   │   └─ schema-init.sql           pgvector schema (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env, kanban, directory_entry, person, agent_keypair, …)
 │   │   ├─ branding/
@@ -399,7 +399,7 @@ named by *function*, not by upstream tool:
 
 | Concern | Where it lives | Service / port |
 |---|---|---|
-| **Primary inference + embeddings** | `usr/share/mios/llamacpp/llama-swap.yaml`, `mios-llm-light.container` | `mios-llm-light` `:11450` -- `llama.cpp` behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
+| **Primary inference + embeddings** | `usr/share/mios/llamacpp/mios-llm-light.yaml`, `mios-llm-light.container` | `mios-llm-light` `:11450` -- `llama.cpp` behind the upstream `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
 | **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` (alt) | `mios-llm-heavy` `:11441` (SGLang, served-name `mios-heavy`); `mios-llm-heavy-alt` `:11440` (vLLM). Gated off-by-default (VRAM) |
 | **Swarm workers** | `mios-llm-worker@.container` | `mios-llm-worker@` -- single-model templated workers for fan-out |
 | **Orchestration** | `usr/lib/mios/agent-pipe/`, `hermes-agent.service`, `mios-delegation-prefilter.service` | agent-pipe `:8640` (router/refine/council/swarm) → MiOS-Hermes `:8642` (tool-loop, sessions, browser/CDP); prefilter `:8641` (fan-out hints) |
@@ -407,7 +407,7 @@ named by *function*, not by upstream tool:
 | **Memory** | `usr/share/mios/postgres/schema-init.sql`, `mios-pgvector.container` | `mios-pgvector` `:5432` -- PostgreSQL + pgvector; the unified agent datastore (accessed via `mios-pg-query` / `mios-db --pg`) |
 | **Tools & federation** | `mios-mcp.service`, `usr/share/mios/ai/v1/mcp.json`, `mios-searxng.container` | MCP (tool surface) + A2A (peer agents); `web_search` backed by SearXNG `:8888` |
 
-`llama-swap` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`) and the
+`mios-llm-light` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`) and the
 OpenAI/Ollama-compatible API are legitimate **upstream references** -- the
 engines speak that API so any OpenAI-API client talks to them unchanged. The
 MiOS *unit identity*, however, is `mios-llm-light`; the early Ollama / SurrealDB
@@ -424,7 +424,7 @@ reference and in historical migration notes; pgvector is the sole vector store).
 | Package selection | `mios.toml [packages].sections` + `[packages.<section>].pkgs` | `automation/lib/packages.sh` | `automation/*.sh` that call `install_packages_strict <section>` |
 | Quadlet enablement | `mios.toml [quadlets.enable].*` | `mios-role.service` at first boot | systemd unit symlinks under multi-user.target.wants |
 | AI endpoint | `mios.toml [ai].endpoint` | userenv.sh → `MIOS_AI_ENDPOINT` | `mios` CLI, agent-pipe, Hermes, opencode-gateway, MCP servers (Law 5) |
-| Inference lane map | `usr/share/mios/llamacpp/llama-swap.yaml` | `mios-llm-light.service` (llama-swap) | every agent that requests a model from `:11450` |
+| Inference lane map | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-llm-light.service` (upstream llama-swap proxy) | every agent that requests a model from `:11450` |
 | Agent datastore schema | `usr/share/mios/postgres/schema-init.sql` | `mios-ai-firstboot` (applies it) | agent-pipe (`mios_pg.py`), Hermes, `mios-pg-query` / `mios-db --pg` on `:5432` |
 | Image refs | `mios.toml [image].*` | userenv.sh → `MIOS_IMAGE_REF`, `MIOS_BASE_IMAGE`, `MIOS_BIB_IMAGE` | Containerfile, `bootc switch`, `build-mios.*` |
 | Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_USER`, `MIOS_HOSTNAME`, `MIOS_USER_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |
@@ -982,7 +982,7 @@ artifacts have been renamed or removed in the live tree).
 |  |  |     |  +- ghcr.md
 |  |  |     |  +- greenboot.md
 |  |  |     |  +- k3s-cockpit.md
-|  |  |     |  +- llama-swap.md
+|  |  |     |  +- mios-llm-light.md
 |  |  |     |  +- looking-glass-kvmfr.md
 |  |  |     |  +- nvidia.md
 |  |  |     |  +- ostree.md
@@ -1028,7 +1028,7 @@ artifacts have been renamed or removed in the live tree).
 |  |     +- kb/
 |  |     |  `- manifest.json
 |  |     +- llamacpp/
-|  |     |  `- llama-swap.yaml
+|  |     |  `- mios-llm-light.yaml
 |  |     +- oh-my-posh/
 |  |     |  `- mios.omp.json
 |  |     +- opencode/                        (opencode coder-peer assets)

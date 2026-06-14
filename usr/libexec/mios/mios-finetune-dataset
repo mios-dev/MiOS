@@ -103,7 +103,7 @@ def _get(url: str, timeout: float) -> dict | list:
 
 def ollama_chat(endpoint: str, model: str, system: str, user: str,
                 as_json: bool = True, timeout: float = 120.0) -> str:
-    """Teacher chat over the OpenAI /v1 path (llama-swap; ollama retired in G5 so
+    """Teacher chat over the OpenAI /v1 path (mios-llm-light; ollama retired in G5 so
     /api/chat is GONE -- the old shape silently 404'd, starving the dataset
     generator). enable_thinking:False keeps qwen out of a think pass; for JSON we
     set response_format=json_object and read content OR reasoning_content (gemma4

@@ -34,7 +34,7 @@ import urllib.error
 import urllib.request
 
 EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
-                                "http://localhost:11450").rstrip("/")  # llama-swap /v1 (ollama :11434 retired)
+                                "http://localhost:11450").rstrip("/")  # mios-llm-light /v1 (ollama :11434 retired)
 EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000").rstrip("/")
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
@@ -47,7 +47,7 @@ TABLE = "mios_rag"
 
 
 def _embed(text: str) -> list[float]:
-    # OpenAI /v1/embeddings (llama-swap serves nomic-embed-text; the ollama
+    # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text; the ollama
     # /api/embeddings lane :11434 was retired). Falls back to the ollama shape.
     base = EMBED_ENDPOINT if EMBED_ENDPOINT.endswith("/v1") else EMBED_ENDPOINT + "/v1"
     req = urllib.request.Request(
@@ -151,7 +151,7 @@ def cmd_ingest(dirs: list[str]) -> int:
                     f"VALUES ('{s}', '{c}', '{_vec(emb)}'::vector);")
                 n += 1
             except Exception:
-                # transient embed 500 (llama-swap loading) or a bad chunk --
+                # transient embed 500 (mios-llm-light loading) or a bad chunk --
                 # skip it and keep going so one failure can't abort the run.
                 continue
     print(json.dumps({"ok": True, "files": len(paths), "chunks": n}))

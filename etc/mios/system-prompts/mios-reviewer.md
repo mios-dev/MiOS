@@ -57,8 +57,9 @@ unified/unprivileged-AI guarantees.
    AI redirects resolve from `MIOS_AI_ENDPOINT` (the single OpenAI-compatible
    front door; `[ai].endpoint` SSOT = `http://localhost:8642/v1`, the
    MiOS-Hermes gateway). Local inference lanes (`mios-llm-light` :11450 — the
-   primary llama.cpp/llama-swap lane that also serves `nomic-embed-text`
-   embeddings; the gated heavy lanes `mios-llm-heavy`/`mios-llm-heavy-alt`) are
+   primary llama.cpp lane, behind the upstream `mios-llm-light` proxy, that also serves
+   `nomic-embed-text` embeddings; the gated heavy lanes
+   `mios-llm-heavy`/`mios-llm-heavy-alt`) are
    reached *through* that endpoint, not hard-coded by callers. The
    OpenAI/Ollama-compatible **API shape** is a legitimate upstream reference; a
    hard-coded vendor *URL* is not.

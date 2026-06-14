@@ -50,14 +50,14 @@ operator-gated.
 | WS-4 computer-use P0 | doc-gen CLI tools + recipes + OWUI tool file | LibreOffice/Pandoc in image + OWUI pipe deploy |
 | WS-7 UKI/fapolicyd | fapolicyd policy + UKI build step **(gated, NON-enforcing)** | image build + boot/rollback test |
 | WS-8 kv_fork spike | `kv_fork` on `_kv_paging` + a unit test | heavy native-loop / VRAM lanes |
-| WS-10 GGUF/llama-swap | **done** (38-llamacpp-prep.sh, quadlet, config) | GGUF bake + live tune |
+| WS-10 GGUF/mios-llm-light | **done** (38-llamacpp-prep.sh, quadlet, config) | GGUF bake + live tune |
 
 > WS-10 is the foundation the others assume: it converted the inference plane
 > from the retired Ollama lane to **`mios-llm-light`** (`:11450`) — llama.cpp
-> behind the upstream `llama-swap` proxy image
+> behind the upstream llama-swap proxy image
 > (`ghcr.io/mostlygeek/llama-swap`), serving the everyday models, the
 > `mios-opencode` coder model, and embeddings (`nomic-embed-text`,
-> OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/llama-swap.yaml`.
+> OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml`.
 
 ## 2. The hard part — avoiding concurrent-edit conflicts
 

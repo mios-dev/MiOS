@@ -85,8 +85,8 @@ MiOS parts instead (WS-4).
 
 **(C) Some specifics in the survey are fabricated or aspirational — don't code
 to them.** "Qwen 3.6 35B" / "qwen3.6" did not exist when this survey landed
-(MiOS's served reasoning model is `gemma4:12b` on `mios-llm-light`; the
-`llama-swap.yaml` aliases the legacy role/model names onto it); the survey's
+(MiOS's served reasoning model is `granite4.1:8b` on `mios-llm-light`; the
+`mios-llm-light.yaml` aliases the legacy role/model names onto it); the survey's
 `system_audit.sh` greps for `qwen3.6` and would always fail. **LAKE** (ML-in-
 kernel scheduling) and **ProbeLogits** (logit-vector kernel security) are
 research-grade and the primary llama.cpp lane does not expose logit tensors —

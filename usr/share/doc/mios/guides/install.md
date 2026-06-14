@@ -38,11 +38,11 @@ This is the endpoint MiOS itself uses. Two unit identities matter:
   shipped example payload (`usr/share/mios/api/chat.local.example.json`) targets
   it directly.
 - **MiOS-LLM-Light** (`mios-llm-light.service`, `:11450`) — the **primary local
-  inference lane**: `llama.cpp` behind the upstream `llama-swap` proxy image
+  inference lane**: `llama.cpp` behind the upstream `mios-llm-light` proxy image
   (`ghcr.io/mostlygeek/llama-swap`), with multi-model auto-swap and KV-cache
   paging. It serves the everyday models, the `mios-opencode` coder model, **and
   embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config:
-  `usr/share/mios/llamacpp/llama-swap.yaml`.
+  `usr/share/mios/llamacpp/mios-llm-light.yaml`.
 
 The KB ingestion only needs an OpenAI-compatible `/embeddings` surface (for
 chunk vectors) and a `/chat/completions` surface (for queries and evals). On
@@ -127,9 +127,9 @@ export MIOS_AI_MODEL=qwen2.5:32b   # or any served model with tool-calling suppo
 ```
 
 Note: on a MiOS host, inference and embeddings are served by `mios-llm-light`
-(`llama.cpp` via `llama-swap`), not by Ollama — Ollama, SurrealDB, and Qdrant
+(`llama.cpp` via `mios-llm-light`), not by Ollama — Ollama, SurrealDB, and Qdrant
 have all been retired from the live stack. The Ollama-compatible API and the
-upstream `llama-swap` image remain legitimate *interop* references, which is why
+upstream `mios-llm-light` image remain legitimate *interop* references, which is why
 this recipe still works against any Ollama-compatible endpoint you point it at.
 
 ---

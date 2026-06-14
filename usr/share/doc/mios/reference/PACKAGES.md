@@ -1009,7 +1009,7 @@ agents that *talk to* the local inference lanes. The inference engines and the
 agent orchestration themselves are **not** RPMs -- they ship as Quadlet
 containers (the **Container** delivery channel): the primary lane is
 `mios-llm-light` (the `llama.cpp` multi-model server fronted by the upstream
-`llama-swap` proxy image) on **:11450**, which also serves embeddings
+`mios-llm-light` proxy image) on **:11450**, which also serves embeddings
 (`nomic-embed-text`, OpenAI-compatible `/v1/embeddings`) and the `mios-opencode`
 coder model; the gated heavy lanes are `mios-llm-heavy` (SGLang, :11441) and
 `mios-llm-heavy-alt` (vLLM). The unified agent datastore is **PostgreSQL +
@@ -1108,7 +1108,7 @@ usbutils
 - uupd: <https://github.com/ublue-os/uupd>
 - rechunk: <https://github.com/hhd-dev/rechunk>
 - cosign: <https://github.com/sigstore/cosign>
-- llama-swap (upstream proxy image for `mios-llm-light`): <https://github.com/mostlygeek/llama-swap>
+- mios-llm-light (upstream proxy image for `mios-llm-light`): <https://github.com/mostlygeek/llama-swap>
 - Project repo: <https://github.com/mios-dev/mios>
 - **Sole Proprietor:** MiOS-DEV
 ---

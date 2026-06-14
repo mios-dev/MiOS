@@ -42,7 +42,7 @@ coherent; the work is mostly *convergence* + one real defect.
 
 ## Progress (2026-06-13)
 - **Phase 1a — DONE.** The primary envsubst allow-list in `15-render-quadlets.sh`
-  now carries `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLAMA_SWAP_IMAGE`/`MIOS_PORT_LLAMA_SWAP`/
+  now carries `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLM_LIGHT_IMAGE`/`MIOS_PORT_LLM_LIGHT`/
   `MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` (placeholders expand on envsubst hosts).
 - **Phase 1b — DONE.** `_JUDGE_EP`→`_JUDGE_ENDPOINT`, the `_RE_*`→`*_RE` unification,
   `kv_fork`→`_kv_fork`, `DCI_*`→`_DCI_*` (emitted JSON unchanged), `_PG_DOWN_UNTIL`→
@@ -59,7 +59,7 @@ coherent; the work is mostly *convergence* + one real defect.
 - **Phase 2 file/unit renames — DONE (superseded by the inference-engine refactor).**
   The Quadlet stems are now canonical on disk:
   `usr/share/containers/systemd/` ships `mios-llm-light.container` (`:11450`, the
-  former `ollama`/`mios-llama-swap` lane), `mios-llm-heavy.container` (`:11441`,
+  former `ollama`/`mios-mios-llm-light` lane), `mios-llm-heavy.container` (`:11441`,
   SGLang, was `mios-sglang`), `mios-llm-heavy-alt.container` (vLLM, was `mios-vllm`),
   `mios-llm-worker@.container` (was `mios-llama-worker@`), plus `mios-guacd`,
   `mios-guacamole-postgres`, and `mios-crowdsec-dashboard` (the CloudWS/inline-named
@@ -83,12 +83,12 @@ unit/service identity from the swappable upstream engine inside it:
 
 | Canonical MiOS identity | Port | Role | Was |
 |---|---|---|---|
-| `mios-llm-light` | `:11450` | **PRIMARY** local LLM lane — `llama.cpp` behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/llama-swap.yaml` | `mios-llama-swap` |
+| `mios-llm-light` | `:11450` | **PRIMARY** local LLM lane — `llama.cpp` behind the `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-mios-llm-light` |
 | `mios-llm-heavy` | `:11441` | Heavy GPU lane (SGLang), served-name `mios-heavy`. Gated/off-by-default (VRAM) | `mios-sglang` |
 | `mios-llm-heavy-alt` | `:11440` | Alternate heavy lane (vLLM, PagedAttention+APC), gated/off-by-default | `mios-vllm` |
 | `mios-llm-worker@` | — | Single-model swarm workers (templated; dGPU swarm topology) | `mios-llama-worker@` |
 
-`llama-swap` (the upstream tool/image `ghcr.io/mostlygeek/llama-swap:cuda`) and the
+`mios-llm-light` (the upstream tool/image `ghcr.io/mostlygeek/llama-swap:cuda`) and the
 **Ollama-compatible API** the lanes speak are LEGITIMATE upstream references —
 those stay. Only the MiOS *unit/service identity* was renamed. Per Law 5
 (UNIFIED-AI-REDIRECTS) every agent and tool resolves the lane from
@@ -134,16 +134,16 @@ canonical — the model to copy). Persona strings Title-case `MiOS <Role>`.
 ## FREEZE — external contracts (rename only with coordinated multi-site + client migration)
 - Env **strings** `MIOS_*` (the Python constant is renamable; keep the string paired), esp. `MIOS_USER/HOSTNAME/AI_ENDPOINT/TOML/DB_*` + every quadlet-consumed `MIOS_PORT_*`/`MIOS_*_IMAGE`/`MIOS_*_{USER,UID,GID}`.
 - HTTP route paths (`/v1/...`, `/a2a`, `/.well-known/...`, `/portal/...`), OpenAI/SSE JSON keys (`reasoning_content`, `mios_status`, `mios_portal`), A2A/MCP/AGNTCY fields + error codes + state strings, DB identifiers (`"mios"`, `"knowledge"`, columns) — now backed by PostgreSQL + pgvector.
-- Model ids clients send/select: **`MiOS-Agent`** (`/v1`), **`mios-sys-agent`** (OWUI face), **`mios-opencode:latest`** (4-way contract), raw base tags + llama-swap map keys, `mios-heavy`/`mios-igpu` served-names.
+- Model ids clients send/select: **`MiOS-Agent`** (`/v1`), **`mios-sys-agent`** (OWUI face), **`mios-opencode:latest`** (4-way contract), raw base tags + mios-llm-light map keys, `mios-heavy`/`mios-igpu` served-names.
 - UID/GID **numbers** (810–829/850/860/1000) — baked into `/var` ownership; changing one needs an offline `chown -R` migration.
 
 ## Phased execution
 
 ### Phase 1 — SAFE (no external break; validated; do first) — DONE
-**1a. Real defect (not cosmetic):** add the missing `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLAMA_SWAP_IMAGE`/`MIOS_PORT_LLAMA_SWAP`/`MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` vars to the **primary envsubst allow-list** in `automation/15-render-quadlets.sh` (they were only in the bash-fallback list → placeholders didn't expand on envsubst hosts). Add `image.sidecars.vllm`→`MIOS_VLLM_IMAGE` slot (or drop the dangling render-list entry); the obsolete `MIOS_OLLAMA_{USER,UID,GID}` slot is retired with the Ollama removal.
+**1a. Real defect (not cosmetic):** add the missing `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLM_LIGHT_IMAGE`/`MIOS_PORT_LLM_LIGHT`/`MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` vars to the **primary envsubst allow-list** in `automation/15-render-quadlets.sh` (they were only in the bash-fallback list → placeholders didn't expand on envsubst hosts). Add `image.sidecars.vllm`→`MIOS_VLLM_IMAGE` slot (or drop the dangling render-list entry); the obsolete `MIOS_OLLAMA_{USER,UID,GID}` slot is retired with the Ollama removal.
 **1b. Code quick-wins (internal-only):** `_JUDGE_EP`→`_JUDGE_ENDPOINT`; unify the 7 `_RE_*` regexes → `*_RE`; `kv_fork`→`_kv_fork`; `DCI_ACTS/_ACT_SCHEMA/_ACT_NAMES`→`_DCI_*` (keep emitted JSON unchanged); `_PG_DOWN_UNTIL`→`_pg_down_until`.
 **1c. System config fixes:** dead `[quadlets.enable]` keys (`cloudws-guacamole`/`cloudws-pxe-hub`→`mios-*`) — DONE; fix wrong inline comments (`mios-agent-pipe.conf` 822→850); hardcoded `User=815/818` → `${MIOS_*_UID:-...}` — DONE; audit explicit `ContainerName=` on the renamed `mios-guacd`/`mios-guacamole-postgres`/`mios-crowdsec-dashboard` units. The qdrant references are dropped with its removal.
-**1d. Catalog/Modelfile:** drop/mark the stale `[[ai.catalog]]` rows not in the current served fleet; the role models now resolve through the `llama-swap.yaml` alias map onto the served reasoning GGUF; unify the two agent-brain persona strings.
+**1d. Catalog/Modelfile:** drop/mark the stale `[[ai.catalog]]` rows not in the current served fleet; the role models now resolve through the `mios-llm-light.yaml` alias map onto the served reasoning GGUF; unify the two agent-brain persona strings.
 
 ### Phase 2 — MODERATE (rename + lockstep consumer updates; validated) — file renames DONE
 - `_disp_num`→`_dispatch_num` (33 refs, mechanical) — DONE; remaining: normalize all mutable module-state casing to `_lower_snake` (semaphores/caches/registries — dedicated pass).

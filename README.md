@@ -1,5 +1,5 @@
 <!-- AI-hint: Project overview and high-level architecture for MiOS, an immutable container-image-based Linux workstation that is also a local self-hosted agentic AI OS; use this to understand the system's core identity, what it does end-to-end (build pipeline -> OCI image -> bootc lifecycle; local inference lanes -> agent orchestration -> pgvector memory), its licensing, and primary value proposition.
-     AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, /usr/share/mios/llamacpp/llama-swap.yaml, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-llm-light, mios-pgvector, mios-ceph -->
+     AI-related: /usr/libexec/mios/mios-build-driver, /usr/share/mios/configurator/, /usr/share/mios/mios.toml, /usr/share/mios/ai/, /usr/share/mios/ai/system.md, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-build-driver, mios-dev, mios-bootstrap, mios-build-local, mios-llm-light, mios-pgvector, mios-ceph -->
 # 'MiOS'
 
 > **Pronounced "MyOS"** -- short for *My OS* / *My Operating System*. The
@@ -204,13 +204,13 @@ reachable through the single OpenAI-compatible endpoint named by
 
 - **Inference lanes** -- named by *function*, not by upstream tool:
   - `mios-llm-light` (`:11450`) is the **primary** lane: a `llama.cpp`
-    multi-model server fronted by the
-    [llama-swap](https://github.com/mostlygeek/llama-swap) proxy image
+    multi-model server fronted by the upstream
+    [mios-llm-light](https://github.com/mostlygeek/llama-swap) proxy image
     (`ghcr.io/mostlygeek/llama-swap:cuda`). It auto-swaps the everyday chat /
     reasoning models behind one endpoint, KV-pages each conversation to disk,
     **and** serves embeddings (`nomic-embed-text`, OpenAI-compatible
     `/v1/embeddings`) plus the `mios-opencode` coder model. Its model map is
-    [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml).
+    [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
   - `mios-llm-heavy` (`:11441`, served-name `mios-heavy`) is the heavy GPU lane
     (SGLang), gated off by default on VRAM grounds.
   - `mios-llm-heavy-alt` is the alternate heavy lane (vLLM), likewise gated.
@@ -260,7 +260,7 @@ name     = "you"
 hostname = "you-laptop"
 
 [ai]
-model = "gemma4:12b"
+model = "granite4.1:8b"
 
 [flatpaks]
 install = [

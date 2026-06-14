@@ -67,7 +67,7 @@ for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
 done
 
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
-EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLAMA_SWAP:-11450}}"
+EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
 # WS-9 PostgreSQL + pgvector unified agent DB (--pg mode). SSOT [pgvector] /
 # [ports].pgvector via userenv.sh; local-only defaults. Callers route through

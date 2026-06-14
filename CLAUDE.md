@@ -1,5 +1,5 @@
 <!-- AI-hint: Per-tool operating overlay for the Claude Code CLI working on the MiOS repo (which IS the system root). Defines build commands, the build-pipeline/Architectural-Law contract, repo conventions, and the operator's binding session rules; defers core runtime identity to /MiOS.md.
-     AI-related: /etc/mios/MiOS.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /usr/share/mios/configurator/index.html, /usr/share/mios/llamacpp/llama-swap.yaml, mios-build-local, mios-bootstrap, mios-ceph, mios-k3s, mios-forgejo-runner -->
+     AI-related: /etc/mios/MiOS.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /usr/share/mios/configurator/index.html, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-build-local, mios-bootstrap, mios-ceph, mios-k3s, mios-forgejo-runner -->
 # CLAUDE.md
 
 > _`/CLAUDE.md` — per-tool stub for **Claude Code** (claude.ai/code) working on
@@ -211,7 +211,7 @@ and embeddings. MCP exposes the tool surface and A2A federates peer agents.
 | MiOS-Agent-Pipe | `mios-agent-pipe.service` | `:8640` | Standalone orchestrator — router + refine + council/swarm fan-out + critic/polish; fronts Hermes for every gateway |
 | MiOS-Hermes | `hermes-agent.service` | `:8642` | OpenAI-compat agent gateway — sessions, tool-calling, skills, browser/CDP tool loop |
 | MiOS-Prefilter | `mios-delegation-prefilter.service` | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, forwards to Hermes |
-| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — llama.cpp behind the `llama-swap` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/llama-swap.yaml` |
+| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — llama.cpp behind the upstream llama-swap proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
 | MiOS-LLM-Heavy | `mios-llm-heavy.service` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`, HiCache CPU KV-offload). Gated/off-by-default (VRAM) |
 | MiOS-LLM-Heavy-Alt | `mios-llm-heavy-alt.service` | `:11440` | Alternate heavy lane (vLLM, PagedAttention+APC). Gated/off-by-default (VRAM) |
 | MiOS-LLM-Worker | `mios-llm-worker@.service` | — | Single-model swarm workers (templated; for the dGPU swarm topology) |
@@ -221,7 +221,7 @@ and embeddings. MCP exposes the tool surface and A2A federates peer agents.
 | MiOS-PGVector | `mios-pgvector.service` | `:5432` | PostgreSQL + pgvector — unified agent datastore (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env, kanban, …). Accessed via `mios-pg-query` / `mios-db --pg` |
 
 All agents resolve the endpoint from `MIOS_AI_ENDPOINT` (Law 5); never hard-code a
-port or vendor URL. `llama-swap` is the upstream proxy image
+port or vendor URL. `mios-llm-light` is the upstream proxy image
 (`ghcr.io/mostlygeek/llama-swap`) and the engines speak the OpenAI/Ollama-
 compatible API — those are legitimate upstream references; the MiOS *unit
 identity* is `mios-llm-light`. The heavy lanes (`mios-llm-heavy`,

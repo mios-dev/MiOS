@@ -1,8 +1,56 @@
-<!-- AI-hint: A historical audit log documenting security, compliance (LAW 3/6), and configuration findings for the MiOS system, used by agents to track resolved vulnerabilities and verify policy adherence.
+<!-- AI-hint: A HISTORICAL read-only audit log (2026-05-05) documenting security, Architectural-Law (LAW 3/5/6), supply-chain, and build-hygiene findings for the MiOS bootc/OCI image and its agent stack; used by agents to trace resolved vulnerabilities, understand the rationale behind hardening choices, and verify policy adherence over time. Preserved verbatim as a point-in-time record; see the "Status" banner for what the current system supersedes.
      AI-related: mios-dev, mios-forgejo-runner, mios-forge, mios-cockpit-link, mios-ceph, mios-k3s, mios-knowledge, mios-hardening, mios-gpu-pv-detect, mios-sriov-init -->
 # 'MiOS' Audit -- 2026-05-05
 
-Read-only audit per `usr/share/mios/ai/audit-prompt.md`. Repo: `mios-dev/MiOS` (system FHS overlay, v0.2.4). All evidence cited as `file:line`. No mutations performed during the audit pass; remediation landed in commit `507a7fa` (`fix(audit): apply 2026-05-05 audit findings (LAW3/LAW6/security/supply-chain)`) which post-dates this report.
+## What this document is (and where it sits in MiOS)
+
+MiOS is one thing built two ways at once: an **immutable, bootc/OCI-shaped
+Fedora workstation** (the whole OS is a single container image — boot it,
+`bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is
+*also* a **local, self-replicating, agentic AI operating system**. Because the
+**repo root IS the deployed system root**, every file in the tree is part of the
+shipped image, and the OS can rebuild and re-deploy itself through its own
+Forgejo + bootc loop.
+
+That self-rebuilding property is exactly why MiOS audits itself. This document is
+a **point-in-time, read-only audit** of the image source tree: it walks the
+build pipeline → OCI image → bootc lifecycle, and the AI plane (inference lanes →
+agent-pipe/Hermes orchestration → PostgreSQL+pgvector memory → MCP/A2A), and
+checks them against the six **Architectural Laws** that keep the system both
+deterministic and least-privileged. Its purpose is to catch drift between what
+the docs *promise* and what the image *ships* before that drift propagates
+through the self-replication loop onto every host that pulls the ref.
+
+This run was performed read-only per `usr/share/mios/ai/audit-prompt.md`. Repo:
+`mios-dev/MiOS` (system FHS overlay, v0.2.4). All evidence is cited as
+`file:line`. No mutations were performed during the audit pass; remediation
+landed in commit `507a7fa` (`fix(audit): apply 2026-05-05 audit findings
+(LAW3/LAW6/security/supply-chain)`), which post-dates this report.
+
+> **Status — HISTORICAL RECORD (kept verbatim).** This is a 2026-05-05 audit of
+> the repo at HEAD `d384a69`. Every `file:line` citation and severity below
+> reflects the tree **as it was on that date**; it is preserved as the
+> authoritative history of those findings and their fixes — do not read it as a
+> description of the live system.
+>
+> Two structural changes have since superseded parts of the record, without
+> invalidating the findings or their remediations:
+> - **Quadlet location.** The `.container` units this audit found under
+>   `etc/containers/systemd/` (and split across `usr/share/...` and
+>   `etc/...`) now all live under `usr/share/containers/systemd/`. The LAW 1 /
+>   LAW 3 / LAW 6 *findings* still hold as written; only the on-disk path of the
+>   evidence moved.
+> - **AI-plane migration.** The early **Ollama / SurrealDB / Qdrant** stack has
+>   since been fully removed. Inference and embeddings now run on
+>   **`mios-llm-light`** (`:11450`, llama.cpp behind the upstream `mios-llm-light`
+>   proxy image, serving everyday models, the `mios-opencode` coder model, and
+>   `nomic-embed-text` via OpenAI-compatible `/v1/embeddings`), with gated heavy
+>   GPU lanes **`mios-llm-heavy`** (SGLang, `:11441`) and **`mios-llm-heavy-alt`**
+>   (vLLM). The unified agent datastore is now **PostgreSQL + pgvector**
+>   (`mios-pgvector`). None of those components are named in this audit's
+>   findings (it was a build/security/Law audit, not an inference audit), so no
+>   finding below is stale — but LAW 5's `MIOS_AI_ENDPOINT` contract is the same
+>   one that still fronts those lanes today.
 
 ## Executive summary
 
@@ -10,11 +58,11 @@ Read-only audit per `usr/share/mios/ai/audit-prompt.md`. Repo: `mios-dev/MiOS` (
 - All HIGH + MEDIUM + LOW findings are remediated in commit `507a7fa`. INFO finding F10 (vestigial dracut overlay) remediated post-`507a7fa` on 2026-05-05; F9 (set -euo pipefail placement) deferred per the per-finding row.
 - Top 3 HIGH:
   1. `etc/fapolicyd/fapolicyd.rules:1` -- `allow perm=any uid=0 : all` neutralized deny-by-default fapolicyd posture for every root process; conflicted with `README.md`'s "fapolicyd deny-by-default" claim.
-  2. **LAW 3 (BOUND-IMAGES) drift** -- 3 of 12 Quadlets had no `usr/lib/bootc/bound-images.d/` entry: `mios-forgejo-runner`, `mios-forge`, `mios-cockpit-link`. Image not pulled at deploy time.
+  2. **LAW 3 (BOUND-IMAGES) drift** -- 3 of 12 Quadlets had no `usr/lib/bootc/bound-images.d/` entry: `mios-forgejo-runner`, `mios-forge`, `mios-cockpit-link`. Image not pulled at deploy time, breaking the offline-first / air-gapped first-boot promise — and, for `mios-forge`, the self-replication loop itself.
   3. **LAW 6 (UNPRIVILEGED-QUADLETS) drift** -- `etc/containers/systemd/mios-forgejo-runner.container:95-96` runs `User=0`/`Group=0`; not in the documented exception set (`mios-ceph`, `mios-k3s`) and the file header (lines 1-23) did not document a root-uid requirement.
 - Top 3 strengths:
   1. **LAW 4 PASS, cleanly** -- `Containerfile:114` is `RUN bootc container lint` and is the lexically last `RUN`. Verified via `tac Containerfile | grep -m1 '^RUN'`.
-  2. **LAW 5 PASS** -- every operational client routes through `${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}` (`etc/mios/kb.conf.toml:7`, `var/lib/mios/embeddings/ingest_local.py`, `var/lib/mios/evals/mios-knowledge.local-runner.py`). All `api.openai.com` matches are in `# Examples for other environments:` comment blocks or user-facing cookbooks/docs.
+  2. **LAW 5 PASS** -- every operational client routes through `${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}` (`etc/mios/kb.conf.toml:7`, `var/lib/mios/embeddings/ingest_local.py`, `var/lib/mios/evals/mios-knowledge.local-runner.py`). All `api.openai.com` matches are in `# Examples for other environments:` comment blocks or user-facing cookbooks/docs. (This is the same single-endpoint contract that today fronts `mios-llm-light` and the gated heavy lanes — no agent or tool hard-codes a port or vendor URL.)
   3. **Bash hygiene strong** -- `bash -n` parses cleanly across all 52 numbered phase scripts plus `automation/build.sh` and the 6 `automation/lib/*.sh` modules. Zero `((VAR++))` usages in MiOS-authored phase scripts. Zero raw `dnf install` calls in numbered scripts.
 
 ## Bonus findings discovered during remediation
@@ -24,7 +72,7 @@ While fetching digests for F4, two latent registry issues surfaced that the audi
 - **`quay.io/ceph/ceph:latest` does not exist.** The repo only publishes `vXX.YY.Z` semver tags; `:latest` returns 404. The Quadlet would have failed to pull. Remediated in `507a7fa` by switching to `:v18` (which the file's own header comment claimed as the intended tag) plus a digest pin.
 - **`code.forgejo.org/forgejo/runner:6.5` does not exist.** Only the floating `:6` tag is published. Same failure mode. Remediated in `507a7fa` by switching to `:6` plus a digest pin.
 
-These two files were broken-as-shipped — every operator pulling the image fresh would have hit `manifest unknown` on first activation. They warrant their own LAW class ("Image= refs must resolve on the configured registry") in a future revision of `usr/share/mios/ai/INDEX.md` §3, with a CI check that walks every `Image=` line through `skopeo inspect`.
+These two files were broken-as-shipped — every operator pulling the image fresh would have hit `manifest unknown` on first activation. Because MiOS deploys itself through the bootc loop, a broken `Image=` ref does not just fail one host; it propagates on every pull. They warrant their own LAW class ("Image= refs must resolve on the configured registry") in a future revision of `usr/share/mios/ai/INDEX.md` §3, with a CI check that walks every `Image=` line through `skopeo inspect`.
 
 ## Findings table
 
@@ -65,8 +113,8 @@ These two files were broken-as-shipped — every operator pulling the image fres
   - 12 Quadlet `.container` files exist across `usr/share/containers/systemd/` (6) and `etc/containers/systemd/` (6).
   - Pre-fix: 9 entries in `usr/lib/bootc/bound-images.d/`, all 9 resolved correctly.
   - Pre-fix missing: `mios-forgejo-runner`, `mios-forge`, `mios-cockpit-link`.
-- **Why it matters:** `usr/share/mios/ai/INDEX.md` §3 row 3 states "every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`" so that bootc pulls the image with the host. Without the symlink, the first activation of these Quadlets has to pull at runtime. For an offline first-boot or air-gapped install this surfaces as service failure. For `mios-forge`, the Forgejo bootstrap loop (referenced in `mios-forgejo-runner.container:4-9`) breaks if the Forge image is not present.
-- **Remediation in `507a7fa`:** 3 relative symlinks added at git mode 120000 (verified via `git ls-files -s usr/lib/bootc/bound-images.d/`). Targets follow the existing convention seen in `mios-ai.container`'s symlink: `../../../../etc/containers/systemd/<name>.container`.
+- **Why it matters:** `usr/share/mios/ai/INDEX.md` §3 row 3 states "every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`" so that bootc pulls the image with the host. This is the law that makes the offline-capable promise real — the AI containers and CI containers ship *inside* the immutable image, not as a runtime pull. Without the symlink, the first activation of these Quadlets has to pull at runtime. For an offline first-boot or air-gapped install this surfaces as service failure. For `mios-forge`, the Forgejo bootstrap loop (referenced in `mios-forgejo-runner.container:4-9`) breaks if the Forge image is not present — which would sever the self-replication loop the whole system is built around.
+- **Remediation in `507a7fa`:** 3 relative symlinks added at git mode 120000 (verified via `git ls-files -s usr/lib/bootc/bound-images.d/`). Targets follow the existing convention seen in the AI/CI Quadlets' symlinks: `../../../../etc/containers/systemd/<name>.container` (paths as of audit time; the units have since been consolidated under `usr/share/containers/systemd/`).
 
 ### Finding 3: LAW 6 -- mios-forgejo-runner runs as root, exception undocumented
 
@@ -78,15 +126,15 @@ These two files were broken-as-shipped — every operator pulling the image fres
   Group=0
   ```
   Pre-fix `usr/share/mios/ai/INDEX.md` §3 row 6 listed only `mios-ceph` and `mios-k3s` as documented exceptions. The file header at `mios-forgejo-runner.container:1-23` described the runner's purpose and registration flow but did not state a root-uid requirement.
-- **Why it matters:** LAW 6 explicitly enumerates the only Quadlets allowed to run as root. A new privileged Quadlet either constituted drift (the law was bypassed silently) or the law text needed amending.
-- **Remediation in `507a7fa` (option b -- documented exception):** the runner needs uid=0 to drive `podman build -f /Containerfile` against rootful `/var/lib/containers/storage/` and produce an image consumable by `bootc switch --transport containers-storage`. Rootless podman would require subuid/subgid mappings against `/var/lib/mios/forge-runner` with allowed write into the rootful storage path, which the bootc immutable-/usr model does not currently support. `usr/share/mios/ai/INDEX.md` §3 row 6 now enumerates `mios-forgejo-runner` alongside `mios-ceph`/`mios-k3s`, and the Quadlet's own header documents the rationale at the LAW 6 boundary.
+- **Why it matters:** LAW 6 keeps the agent and service plane least-privileged — every Quadlet declares `User=`/`Group=`/`Delegate=yes`, and the law explicitly enumerates the only Quadlets allowed to run as root. A new privileged Quadlet either constituted drift (the law was bypassed silently) or the law text needed amending.
+- **Remediation in `507a7fa` (option b -- documented exception):** the runner needs uid=0 to drive `podman build -f /Containerfile` against rootful `/var/lib/containers/storage/` and produce an image consumable by `bootc switch --transport containers-storage` — i.e. it is the privileged step that closes the self-replication loop. Rootless podman would require subuid/subgid mappings against `/var/lib/mios/forge-runner` with allowed write into the rootful storage path, which the bootc immutable-/usr model does not currently support. `usr/share/mios/ai/INDEX.md` §3 row 6 now enumerates `mios-forgejo-runner` alongside `mios-ceph`/`mios-k3s`, and the Quadlet's own header documents the rationale at the LAW 6 boundary. (This documented exception is now the live state: the consolidated `usr/share/containers/systemd/mios-forgejo-runner.container` header records the LAW 6 rationale.)
 
 ### Finding 4: Supply chain -- all Quadlet Image= refs used floating tags
 
 - **Severity:** HIGH
 - **Dimension:** Supply Chain Integrity
 - **Evidence (pre-fix):** 12 of 12 `Image=` lines used floating tags (`:latest`, `:11`, `:6.5`). `renovate.json` and `image-versions.yml` were both present, providing the auto-update mechanism, but `:latest` directly in Quadlets bypassed Renovate's PR-gated promotion.
-- **Why it matters:** A `:latest` reference resolves to a different digest at every `bootc upgrade` / `podman pull`. The transactional-integrity pillar (`usr/share/doc/mios/concepts/architecture.md:5-7`) presumes deterministic content addresses; floating tags punched a hole through it on the sidecar surface.
+- **Why it matters:** A `:latest` reference resolves to a different digest at every `bootc upgrade` / `podman pull`. The transactional-integrity pillar (`usr/share/doc/mios/concepts/architecture.md:5-7`) — the same property that lets `bootc upgrade`/`rollback` behave like atomic image swaps — presumes deterministic content addresses; floating tags punched a hole through it on the sidecar surface.
 - **Remediation in `507a7fa`:** every `Image=` line pinned to a digest. Format: `Image=registry/repo:tag@sha256:HEX` (preserves human-readable tag for debugging while locking the digest). 10 pins use the previously-shipped tag; 2 (mios-ceph, mios-forgejo-runner) needed tag corrections (see "Bonus findings" above).
 
 ### Finding 5: Conflicting `lockdown=` values in kargs.d
@@ -143,11 +191,11 @@ These two files were broken-as-shipped — every operator pulling the image fres
 
 | Law | Result (pre-fix) | Notes |
 |---|---|---|
-| LAW 1 USR-OVER-ETC | PASS (with caveat) | `etc/` content outside `etc/skel/`, `etc/yum.repos.d/`, `etc/nvidia-container-toolkit/`, `etc/containers/systemd/` consists of standard admin-overridable surfaces. Quadlets in `etc/containers/systemd/` are gated by `ConditionPathExists=/etc/<dir>` patterns (see `usr/share/mios/ai/INDEX.md` §5) and are intentionally placed there to allow per-host admin overrides. |
+| LAW 1 USR-OVER-ETC | PASS (with caveat) | `etc/` content outside `etc/skel/`, `etc/yum.repos.d/`, `etc/nvidia-container-toolkit/`, `etc/containers/systemd/` consists of standard admin-overridable surfaces. Quadlets in `etc/containers/systemd/` are gated by `ConditionPathExists=/etc/<dir>` patterns (see `usr/share/mios/ai/INDEX.md` §5) and were intentionally placed there to allow per-host admin overrides. *(Post-audit: the Quadlet set has since been consolidated under `usr/share/containers/systemd/`.)* |
 | LAW 2 NO-MKDIR-IN-VAR | PASS | All `/var` paths are declared in `usr/lib/tmpfiles.d/mios*.conf`. |
 | LAW 3 BOUND-IMAGES | **FAIL pre-fix; PASS post-`507a7fa`** -- 3 Quadlets were missing entries (Finding 2). |
 | LAW 4 BOOTC-CONTAINER-LINT | PASS | `Containerfile:114` is the lexically last `RUN`. |
-| LAW 5 UNIFIED-AI-REDIRECTS | PASS | All operational defaults route through `${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}`. |
+| LAW 5 UNIFIED-AI-REDIRECTS | PASS | All operational defaults route through `${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}` -- the single OpenAI-compatible endpoint that fronts the inference lanes and every agent/tool. |
 | LAW 6 UNPRIVILEGED-QUADLETS | **FAIL pre-fix; PASS post-`507a7fa`** -- `mios-forgejo-runner` was an undocumented root-uid Quadlet (Finding 3). |
 
 ### 2. Build Correctness
@@ -210,8 +258,8 @@ These two files were broken-as-shipped — every operator pulling the image fres
 
 ## Notable strengths
 
-- **Audit-prompt itself is the right shape.** `usr/share/mios/ai/audit-prompt.md` is OpenAI-API-vendor-neutral, explicitly read-only, and ties every check back to a single-source-of-truth document (`usr/share/mios/ai/INDEX.md` §3 for laws, `usr/share/doc/mios/guides/engineering.md` for hygiene, `SECURITY.md` for kargs). Every cited regex/find was runnable as written.
-- **OpenAI-API surface is genuinely consistent with LAW 5.** `etc/mios/kb.conf.toml:7`'s `${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}` pattern shows up identically in the Python ingestion/eval scripts in `var/lib/mios/`, in the cookbooks under `usr/share/mios/cookbooks/`, and in the documentation -- all converging on the same env-var contract. The architectural law isn't paper.
+- **Audit-prompt itself is the right shape.** `usr/share/mios/ai/audit-prompt.md` is OpenAI-API-vendor-neutral, explicitly read-only, and ties every check back to a single-source-of-truth document (`usr/share/mios/ai/INDEX.md` §3 for laws, `usr/share/doc/mios/guides/engineering.md` for hygiene, `SECURITY.md` for kargs). Every cited regex/find was runnable as written — which is what lets MiOS audit *itself* on every rebuild.
+- **OpenAI-API surface is genuinely consistent with LAW 5.** `etc/mios/kb.conf.toml:7`'s `${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}` pattern shows up identically in the Python ingestion/eval scripts in `var/lib/mios/`, in the cookbooks under `usr/share/mios/cookbooks/`, and in the documentation -- all converging on the same env-var contract. The architectural law isn't paper; it is the seam that lets the inference lanes be renamed or swapped without touching a single client.
 - **bound-images.d resolution is solid where present.** All 9 existing symlink entries resolved correctly to their `.container` targets across two parent directories. Finding 2 was purely about *coverage*, not correctness, of the binder.
 - **Build pipeline error containment is well-engineered.** `automation/build.sh:234-237` per-phase `set +e` toggles with `FAIL_LOG`/`WARN_LOG` capture, plus `packages-critical` post-validation via `rpm -q` (`automation/build.sh:285-300`), give the orchestrator a structured-failure mode rather than abort-on-first-error.
 - **kargs.d schema is uniform.** All 14 files validate as flat `kargs = [...]` arrays via `tomllib`; no `[kargs]` section header drift, no `delete` sub-key drift -- exactly what the bootc upstream lint requires.

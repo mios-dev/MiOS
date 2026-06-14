@@ -1,7 +1,7 @@
 #!/bin/bash
-# AI-hint: Provisioning script to extract GGUF weights from Ollama blobs, deploy the llama-swap configuration, and start the mios-llm-light container on port 11450 for the engine-swap live test.
-# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp, /usr/share/mios/llamacpp/llama-swap.yaml, mios-llm-light, mios-llm-light.container, mios-llm-light.service
-# automation/support/bringup-llama-swap.sh
+# AI-hint: Legacy DEV-VM provisioning helper to deploy the mios-llm-light config and start the mios-llm-light container on port 11450 for the WS-10 engine-swap live test. NOTE: the GGUF source below is legacy (ollama-blob extraction of the old qwen3.5 fleet); the current fleet is HF-baked by automation/38-llamacpp-prep.sh.
+# AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/llamacpp, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-llm-light.container, mios-llm-light.service
+# automation/support/bringup-mios-llm-light.sh
 # ----------------------------------------------------------------------------
 # Bring up the mios-llm-light lane on a DEV VM (WS-10 engine-swap live test).
 # Extracts the qwen3.5:4b + nomic-embed-text GGUFs from ollama's own blob store
@@ -10,7 +10,7 @@
 # so we substitute the defaults), starts the container, verifies it serves
 # :11450. Idempotent: skips a GGUF copy if already present.
 #
-# Usage: bash bringup-llama-swap.sh
+# Usage: bash bringup-mios-llm-light.sh
 set -euo pipefail
 
 SRC=/mnt/c/MiOS
@@ -39,7 +39,7 @@ sudo chmod 0644 "$MODELS"/*.gguf
 ls -lh "$MODELS"
 
 echo "[lls] deploy config (CR-stripped)"
-tr -d '\r' < "$SRC/usr/share/mios/llamacpp/llama-swap.yaml" | sudo tee /usr/share/mios/llamacpp/llama-swap.yaml >/dev/null
+tr -d '\r' < "$SRC/usr/share/mios/llamacpp/mios-llm-light.yaml" | sudo tee /usr/share/mios/llamacpp/mios-llm-light.yaml >/dev/null
 
 echo "[lls] render + deploy quadlet (substitute \${VAR:-default} -> default)"
 tr -d '\r' < "$SRC/usr/share/containers/systemd/mios-llm-light.container" \

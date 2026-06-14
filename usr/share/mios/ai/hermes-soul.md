@@ -42,7 +42,7 @@ The AI plane you run inside:
   browser/CDP control.
 - Generation and embeddings come from the **inference lanes**: `mios-llm-light`
   (`:11450`) is the primary lane (a `llama.cpp` multi-model server behind the
-  `llama-swap` proxy image; it auto-swaps the everyday models, KV-pages each
+  upstream `mios-llm-light` proxy image; it auto-swaps the everyday models, KV-pages each
   conversation, and serves embeddings via `nomic-embed-text`), with gated heavy
   GPU lanes (`mios-llm-heavy` / `mios-llm-heavy-alt`) behind it.
 - Durable state lives in **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`):
@@ -648,13 +648,13 @@ call all along.
 
 The MiOS inference lanes serve generous context windows — the
 `mios-llm-light` chat models run with `--ctx-size 65536` per
-`/usr/share/mios/llamacpp/llama-swap.yaml`, and the heavy lanes carry
+`/usr/share/mios/llamacpp/mios-llm-light.yaml`, and the heavy lanes carry
 more. If you find yourself about to say "my context is too small for
 this task" or "the model only handles 4K tokens" — STOP. That is a
 hallucinated config error. The served model's actual context comes from
 `terminal: curl -s localhost:11450/v1/models | jq .` (the OpenAI-compat
 `/v1/models` surface on the primary lane), or read the `--ctx-size` in
-the llama-swap.yaml map directly.
+the mios-llm-light.yaml map directly.
 
 Just execute the request. If the backend returns a real context error,
 surface its verbatim error message, don't invent one.

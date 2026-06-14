@@ -41,8 +41,8 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = os.environ.get("MIOS_SUMMARIZE_ENDPOINT",
-                          "http://localhost:11450")   # llama-swap /v1 (ollama :11435 retired)
-MODEL = os.environ.get("MIOS_SUMMARIZE_MODEL", "qwen3:1.7b")  # served by llama-swap
+                          "http://localhost:11450")   # mios-llm-light /v1 (ollama :11435 retired)
+MODEL = os.environ.get("MIOS_SUMMARIZE_MODEL", "qwen3:1.7b")  # served by mios-llm-light
 L2_MAX = int(os.environ.get("MIOS_SUMMARIZE_L2_MAX_CHARS", "20000"))
 TIMEOUT = float(os.environ.get("MIOS_SUMMARIZE_TIMEOUT", "120"))
 

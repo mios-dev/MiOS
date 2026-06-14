@@ -36,9 +36,10 @@ hot path entirely and only ever competes for resources when the operator runs it
 
 First (and currently the only configured) target is the **refiner**:
 `target_role = "refiner"`, which is the `mios-sys-agent` role. Its base is
-`base_model = "qwen3.5:4b"` (the 4-model consolidation of 2026-06-01 moved the
-refiner base from `qwen3.5:2b` to `qwen3.5:4b`; the base must match the role's
-Modelfile `FROM`). The corresponding HF weights are `hf_base = "Qwen/Qwen3.5-4B"`
+`base_model = "granite4.1:8b"` (the 2026-06-13 fleet modernization repointed the
+refiner base to IBM Granite 4.1 8B — the new light brain — from the earlier
+`qwen3.5:4b`; the base must match the role's Modelfile `FROM`). The corresponding
+HF weights are `hf_base = "ibm-granite/granite-4.1-8b"`
 (Apache-2.0, public). The trained adapter ships under
 `output_tag = "mios-sys-agent-ft"`. All of these are SSOT knobs in
 `mios.toml [finetune]`, overridable per-install via the `/etc/mios/` and
@@ -76,12 +77,12 @@ So the dataset tracks the real install; the model writes all the English.
 
 ### The teacher is a locally-served model
 
-`teacher_model = "gemma4:12b"`, served by **`mios-llm-light`** — the primary
-local inference lane (llama.cpp behind the `llama-swap` proxy image) at
+`teacher_model = "granite4.1:8b"`, served by **`mios-llm-light`** — the primary
+local inference lane (llama.cpp behind the `mios-llm-light` proxy image) at
 `teacher_endpoint = "http://localhost:11450"`. The teacher must be a *served*
 model that is stronger than the student: pointing it at an unserved tag (e.g.
-`qwen3.5:4b/9b`, which `mios-llm-light` does not serve) 404s the teacher and
-starves dataset generation. The student's base (`qwen3.5:4b`) stays below the
+`granite4.1:8b/9b`, which `mios-llm-light` does not serve) 404s the teacher and
+starves dataset generation. The student's base (`granite4.1:8b`) stays below the
 teacher in capability — that gap is the point of distillation.
 
 ## One-time setup (needs network — operator's call)
@@ -97,7 +98,7 @@ pip install -r /usr/share/mios/finetune/requirements.txt
 # 2) HF base weights for the SAME base (PEFT/TRL train on HF weights; the GGUF
 #    export path stores in the GGUF/Ollama-compatible format).
 #    Set finetune.hf_base in /etc/mios/mios.toml to the HF repo id or a local dir.
-#    Match base_model exactly (qwen3.5:4b -> Qwen/Qwen3.5-4B).
+#    Match base_model exactly (granite4.1:8b -> ibm-granite/granite-4.1-8b).
 
 # 3) GGUF export (optional, [finetune].gguf_convert) needs llama.cpp's
 #    convert_lora_to_gguf.py on PATH (or set MIOS_FINETUNE_LORA_CONVERT).
@@ -171,7 +172,7 @@ Device is `auto` by default (`[finetune].device`); 4-bit is `auto`
 
 The full pipeline was run end-to-end on the developer's dGPU against the real base
 `Qwen/Qwen3.5-2B` (the refiner base at the time; production has since moved to
-`qwen3.5:4b`) — which is the **Qwen3-Next** architecture (Gated DeltaNet +
+`granite4.1:8b`) — which is the **Qwen3-Next** architecture (Gated DeltaNet +
 gated-attention, multimodal), not a standard dense transformer. Practical
 findings, kept as a record because they shaped the current knobs:
 

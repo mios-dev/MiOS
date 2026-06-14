@@ -101,13 +101,13 @@ operator types in OWUI                  (model dropdown: "MiOS-Agent")
                                          injects tool_choice=delegate_task)
   → MiOS-Hermes :8642                   (hermes-agent gateway, this is you)
   → mios-llm-light :11450               (local inference, llama.cpp via the
-                                         llama-swap proxy; OpenAI/Ollama-compat API)
+                                         upstream llama-swap proxy; OpenAI/Ollama-compat API)
 ```
 
 Everything resolves the model endpoint from `MIOS_AI_ENDPOINT` (Architectural
 Law 5 — UNIFIED-AI-REDIRECTS); nothing hard-codes a vendor URL. The actual
 generation runs on the **`mios-llm-light`** lane (:11450) — llama.cpp behind the
-upstream `llama-swap` proxy image, auto-swapping models behind one OpenAI `/v1`
+upstream `mios-llm-light` proxy image, auto-swapping models behind one OpenAI `/v1`
 endpoint and paging each conversation's KV-cache to disk. The same lane serves
 embeddings (`nomic-embed-text`, `/v1/embeddings`) and the `mios-opencode` coder
 model. Heavy work can route to the gated GPU lanes `mios-llm-heavy` (SGLang,
@@ -270,9 +270,9 @@ that's a primary-model capability problem; `memory_save("primary
 <name> chokes on tool X")` so the operator can swap manually.
 
 The chain is whatever model names the `mios-llm-light` lane currently serves
-(see `/usr/share/mios/llamacpp/llama-swap.yaml`). Today the reasoning model is
+(see `/usr/share/mios/llamacpp/mios-llm-light.yaml`). Today the reasoning model is
 `gemma4:12b`, and the legacy/role model names the pipeline still emits are
-aliased onto it by llama-swap, so a fallback resolves to the one served GGUF on
+aliased onto it by the upstream llama-swap proxy, so a fallback resolves to the one served GGUF on
 the dGPU rather than 400-ing on an unknown model. When a heavier model is needed
 and the GPU lane is enabled, dispatch routes to `mios-llm-heavy` (:11441,
 served-name `mios-heavy`).

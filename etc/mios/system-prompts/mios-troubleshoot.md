@@ -46,8 +46,8 @@ When given a symptom, walk this checklist before proposing a fix:
    - **GPU** — CDI device wiring (shared by both the inference lanes and the passthrough VMs)
    - **Virtualization** — libvirt/QEMU/KVMFR/Looking Glass
    - **AI surface** — the local inference + agent plane: the `mios-llm-light`
-     inference lane (`:11450`, primary; llama.cpp behind the `llama-swap` proxy
-     image — serves everyday models **and** embeddings via `nomic-embed-text` on
+     inference lane (`:11450`, primary; llama.cpp behind the upstream `mios-llm-light`
+     proxy image — serves everyday models **and** embeddings via `nomic-embed-text` on
      OpenAI-compat `/v1/embeddings`), the gated heavy lanes `mios-llm-heavy`
      (SGLang, `:11441`, served-name `mios-heavy`) and `mios-llm-heavy-alt`
      (vLLM, `:11440`), the orchestration plane (`mios-agent-pipe` `:8640`,
@@ -94,8 +94,8 @@ When given a symptom, walk this checklist before proposing a fix:
   rejected.
 - If the symptom is on the **AI surface** (no completions, empty answers,
   embedding failures), localize the lane before touching code: confirm
-  `mios-llm-light.service` is up on `:11450` and serving via the `llama-swap`
-  map (`usr/share/mios/llamacpp/llama-swap.yaml`); confirm every agent resolves
+  `mios-llm-light.service` is up on `:11450` and serving via the `mios-llm-light`
+  map (`usr/share/mios/llamacpp/mios-llm-light.yaml`); confirm every agent resolves
   `MIOS_AI_ENDPOINT` rather than a hard-coded URL (Law 5, UNIFIED-AI-REDIRECTS);
   and remember the heavy lanes (`mios-llm-heavy`, `mios-llm-heavy-alt`) are
   **gated/off-by-default** (VRAM) and stay inert behind `health_gate` until

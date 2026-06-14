@@ -297,7 +297,7 @@ names), wired together by the agent-pipe orchestrator:
 | **agent-pipe** (`mios-agent-pipe`) | `:8640` | Standalone FastAPI orchestrator — router + refine + dispatch + critic/polish; fronts Hermes for every gateway (OWUI, Discord, future Slack/Telegram); persists Q+A to pgvector |
 | **MiOS-Hermes** (`hermes-agent`) | `:8642` | Canonical OpenAI-compat agent gateway — sessions, tool-calling, skills, native browser/CDP + terminal tool loop |
 | **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, forwards to Hermes |
-| **mios-llm-light** | `:11450` | **PRIMARY local inference lane** — llama.cpp behind the llama-swap proxy image; multi-model auto-swap + KV-paging (`/slots` save/restore). Serves the everyday chat/reasoning models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/llama-swap.yaml` |
+| **mios-llm-light** | `:11450` | **PRIMARY local inference lane** — llama.cpp behind the upstream llama-swap proxy image; multi-model auto-swap + KV-paging (`/slots` save/restore). Serves the everyday chat/reasoning models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
 | **mios-llm-heavy** | `:11441` | Heavy GPU lane (SGLang), served-name `mios-heavy`. Gated / off-by-default (VRAM) |
 | **mios-llm-heavy-alt** | (gated) | Alternate heavy lane (vLLM, PagedAttention + APC). Gated / off-by-default |
 | **mios-llm-worker@** | (per-instance) | Single-model swarm workers |
@@ -313,7 +313,7 @@ names), wired together by the agent-pipe orchestrator:
 > SurrealDB (BSL 1.1) with a vestigial Qdrant vector store; both are
 > **removed** in favour of PostgreSQL + pgvector. The MiOS units keep
 > their function names; the only *upstream* references that remain
-> legitimate are the llama-swap image (`ghcr.io/mostlygeek/llama-swap`)
+> legitimate are the mios-llm-light image (`ghcr.io/mostlygeek/llama-swap`)
 > and the Ollama-compatible API the engines speak.
 
 Standard request paths through the gateway:
@@ -596,7 +596,7 @@ in firstboot scripts.**
 | Legacy vendor system prompt (redirects to `/MiOS.md`) | [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) |
 | Read-only audit-mode prompt | [`usr/share/mios/ai/audit-prompt.md`](usr/share/mios/ai/audit-prompt.md) |
 | OpenAI v1 surface manifests | [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) |
-| Primary inference lane (llama-swap map) | [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml) |
+| Primary inference lane (mios-llm-light map) | [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml) |
 | Agent datastore schema (PostgreSQL + pgvector) | [`usr/share/mios/postgres/schema-init.sql`](usr/share/mios/postgres/schema-init.sql) |
 | HTML configurator (TOML editor) | [`usr/share/mios/configurator/mios.html`](usr/share/mios/configurator/mios.html) |
 | Filesystem and hardware layout | [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) |

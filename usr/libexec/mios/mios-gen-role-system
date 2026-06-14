@@ -8,7 +8,7 @@ mios.toml `[agents.<name>]` config + the LIVE verb/skill/recipe catalog +
 the A2A peer surface -- so the role models are intrinsically AIOS-native:
 they NATIVELY decompose multi-faceted requests and delegate across the A2A
 fleet, with NO hardcoded orchestration. The output is the SINGLE source
-consumed by BOTH the llama-swap/Modelfile SYSTEM (the compiled-in fallback)
+consumed by BOTH the mios-llm-light/Modelfile SYSTEM (the compiled-in fallback)
 AND the agent-pipe per-role injection -- one SSOT, no drift, regenerated on
 every image build.
 

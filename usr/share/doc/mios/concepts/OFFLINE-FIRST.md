@@ -1,5 +1,5 @@
 <!-- AI-hint: Defines MiOS's offline-first capability matrix — maps each lifecycle phase (overlay, pull, build, deploy, run, host, re-build, use-AI) to its network requirement, proving the whole bootc/OCI workstation + local agentic AI OS can be deployed, run, and self-rebuilt fully offline / air-gapped. Lists the remaining build-time fetch gaps to vendor.
-     AI-related: mios-bootstrap, mios-sys-agent, mios-llm-light, mios-pgvector, /usr/share/mios/llamacpp/llama-swap.yaml, automation/build.sh -->
+     AI-related: mios-bootstrap, mios-sys-agent, mios-llm-light, mios-pgvector, /usr/share/mios/llamacpp/mios-llm-light.yaml, automation/build.sh -->
 # Law-adjacent — OFFLINE-FIRST capability matrix
 
 > Operator directive 2026-05-17: "if a user had; 1. a MiOS Image to
@@ -51,7 +51,7 @@ self-replicating + agentic halves operating on-box.
 | **run** (boot + start services) | ✅ offline | ✅ offline | All systemd units + Quadlets reference images from the local store via `bound-images.d/` (Law 3) |
 | **host** (serve OWUI, Hermes, the inference lanes, SearXNG, Cockpit, k3s) | ✅ offline | ✅ offline | Every port binds localhost-or-LAN: OWUI `:3030`, agent-pipe `:8640`, Hermes `:8642`, prefilter `:8641`, `mios-llm-light` `:11450`, `mios-llm-heavy` `:11441`, opencode-gateway `:8633`, pgvector `:5432`, SearXNG `:8888`, Cockpit `:9090`, k3s `:6443`. No vendor cloud calls. |
 | **re-build** (re-overlay + re-build after a code edit) | ✅ offline (if only `automation/*-render-*.sh` re-run) | ⚠️ partial | Same gap as "pull" — if the edit touches a script that re-fetches an external dep, the re-build needs that dep cached. This is the self-replicating half: the running OS can re-derive its own next image on-box. |
-| **use AI** (chat, refine, council/swarm, tool calls, memory) | ✅ offline | ✅ offline | Models baked via `automation/38-llamacpp-prep.sh`; **`mios-llm-light` (`:11450`)** is the primary inference lane — `llama.cpp` behind the upstream `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap`), multi-model auto-swap + KV-cache paging — and also serves **embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Heavy GPU lanes `mios-llm-heavy` (SGLang `:11441`) / `mios-llm-heavy-alt` (vLLM `:11440`) are gated/off-by-default. Hermes config seeds its endpoint from `MIOS_AI_ENDPOINT` (Law 5, default `http://localhost:8080/v1`) with `web.search_backend: searxng` (local `:8888`). Agent memory/knowledge/RAG live in **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`). Skills + `system.md`/SOUL on disk. Internet-using tools (Discord, Firecrawl) are OPTIONAL valves. |
+| **use AI** (chat, refine, council/swarm, tool calls, memory) | ✅ offline | ✅ offline | Models baked via `automation/38-llamacpp-prep.sh`; **`mios-llm-light` (`:11450`)** is the primary inference lane — `llama.cpp` behind the upstream `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`), multi-model auto-swap + KV-cache paging — and also serves **embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Heavy GPU lanes `mios-llm-heavy` (SGLang `:11441`) / `mios-llm-heavy-alt` (vLLM `:11440`) are gated/off-by-default. Hermes config seeds its endpoint from `MIOS_AI_ENDPOINT` (Law 5, default `http://localhost:8080/v1`) with `web.search_backend: searxng` (local `:8888`). Agent memory/knowledge/RAG live in **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`). Skills + `system.md`/SOUL on disk. Internet-using tools (Discord, Firecrawl) are OPTIONAL valves. |
 
 ## Remaining build-time gaps (Scenario 2)
 
@@ -66,7 +66,7 @@ scenario-2 build. Tracking the work needed to vendor:
 | `automation/13-ceph-k3s.sh` | k3s binary + checksums from github.com | Bundle `usr/share/mios/vendored/k3s/k3s-<tag>` |
 | `automation/19-k3s-selinux.sh` | k3s-selinux git clone | Bundle as a tarball in `usr/share/mios/vendored/k3s-selinux-<tag>.tar.xz` |
 | `automation/38-hermes-agent.sh` | hermes-agent git + pip deps (aiohttp, websockets, discord.py) | Vendor wheels in `usr/share/mios/vendored/wheels/`; use `pip install --no-index --find-links=...` |
-| `automation/38-llamacpp-prep.sh` | GGUF model blobs + the `llama-swap` proxy image | Bundle GGUFs under `usr/share/mios/vendored/models/` (or a pre-populated `/models` layer); pre-pull the `llama-swap` image into the local store |
+| `automation/38-llamacpp-prep.sh` | GGUF model blobs + the upstream llama-swap proxy image | Bundle GGUFs under `usr/share/mios/vendored/models/` (or a pre-populated `/models` layer); pre-pull the upstream mios-llm-light image into the local store |
 | (any) | dnf packages from Fedora mirrors | Already mostly cached by the bootc base layer; for full offline, ship a local rpm mirror image |
 
 ## How to know if a build is fully offline
@@ -93,7 +93,7 @@ cloud API keys configured; Quadlet images symlinked into
 > **Migration note (2026-06-13):** this audit predates the inference/datastore
 > migration. The offline conclusions still hold; only the components changed.
 > Inference + embeddings now run on **`mios-llm-light` (`:11450`, llama.cpp via
-> `llama-swap`)** with gated heavy lanes (`mios-llm-heavy` SGLang `:11441`,
+> the upstream llama-swap proxy)** with gated heavy lanes (`mios-llm-heavy` SGLang `:11441`,
 > `mios-llm-heavy-alt` vLLM `:11440`) — Ollama is **removed** (it survives only as
 > an upstream API-compat reference, since the lanes speak the OpenAI/Ollama-
 > compatible API). The agent datastore is **PostgreSQL + pgvector**

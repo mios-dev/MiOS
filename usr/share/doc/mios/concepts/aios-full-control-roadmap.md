@@ -1,5 +1,5 @@
 <!-- AI-hint: Strategic roadmap mapping the open-source AIOS landscape onto MiOS's current local-AI pipeline; details the implementation paths for kernel scheduling, tiered pgvector memory, KV/context engineering, multi-agent orchestration, and computer-use that carry MiOS from ~80% of the AIOS reference to full local AIOS control. -->
-<!-- AI-related: /usr/share/doc/mios/concepts/aios-implementation-plan.md, /usr/share/doc/mios/concepts/upstream-gap-plan-2026-06.md, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/lib/mios/agent-pipe/server.py -->
+<!-- AI-related: /usr/share/doc/mios/concepts/aios-implementation-plan.md, /usr/share/doc/mios/concepts/upstream-gap-plan-2026-06.md, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/lib/mios/agent-pipe/server.py -->
 # MiOS — Full AIOS Control Roadmap (research-grounded, 2026-06-13)
 
 ## Purpose and scope
@@ -36,12 +36,12 @@ The orchestration substrate the roadmap builds on:
 
 - **Inference lanes** (all behind `MIOS_AI_ENDPOINT`, Law 5):
   - **`mios-llm-light`** (`mios-llm-light.service`, `:11450`) — the **primary**
-    local engine: llama.cpp behind the upstream `llama-swap` proxy image
+    local engine: llama.cpp behind the upstream `mios-llm-light` proxy image
     (`ghcr.io/mostlygeek/llama-swap`), multi-model auto-swap + per-conversation
     **KV-cache paging** via `--slot-save-path` and `/slots` save/restore. Serves
     the everyday chat/reasoning models, the `mios-opencode` coder model, **and
     embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config:
-    `usr/share/mios/llamacpp/llama-swap.yaml`.
+    `usr/share/mios/llamacpp/mios-llm-light.yaml`.
   - **`mios-llm-heavy`** (`mios-llm-heavy.service`, `:11441`, served-name
     `mios-heavy`) — the heavy GPU lane (SGLang, RadixAttention + HiCache
     CPU KV-offload). Gated/off-by-default on VRAM.
@@ -173,7 +173,7 @@ upgrades and rolls back as one image.
   UIA; AT-SPI best-effort) → vision (`pc_click`) as an explicit router, not a model hope; **fix
   the qwen3-vl coordinate scaling** (pin the convention, handle HiDPI); add **verify-after-action**
   + wait-for-stable + bounded retry. Consider Holo1.5-7B / UI-TARS-1.5-7B on `mios-llm-heavy`
-  (the `qwen3-vl:4b` entry in `llama-swap.yaml` is the staged vision-fallback seat).
+  (the `qwen3-vl:4b` entry in `mios-llm-light.yaml` is the staged vision-fallback seat).
 - **P7 — KV hierarchy + sleep-time consolidation.** The SGLang **HiCache** path is already
   wired on `mios-llm-heavy` (CPU KV-offload); finish it so the 17K-token tool-surface prefix
   reuses and idle KV spills GPU→RAM→disk on the heavy lane. Give the **daemon-agent a Letta

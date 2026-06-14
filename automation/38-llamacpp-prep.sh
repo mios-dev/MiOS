@@ -1,7 +1,7 @@
 #!/bin/bash
-# AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable offline llama-swap service; agents use this to ensure local model availability for the llama-swap lane.
+# AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable the offline mios-llm-light lane; agents use this to ensure local model availability.
 # AI-related: /usr/share/mios/llamacpp/models, mios-llm-light, mios-llm-light.container
-# automation/38-llamacpp-prep.sh -- bake GGUF weights for the llama-swap lane
+# automation/38-llamacpp-prep.sh -- bake GGUF weights for the mios-llm-light lane
 # (WS-10) into the image so mios-llm-light serves them OFFLINE (llama.cpp will
 # NOT download air-gapped at runtime). Mirrors automation/38-vllm-prep.sh:
 # build-time, best-effort, NEVER fails the build (exit 0 on any error).
@@ -15,9 +15,9 @@
 # OPT-IN: MIOS_LLAMACPP_BAKE_MODELS (rendered from mios.toml [llamacpp].
 # bake_models) defaults EMPTY so no multi-GB weights bloat every image. Format =
 # CSV of  <dest.gguf>=<hf_repo_id>:<filename_in_repo>  matching the filenames the
-# llama-swap.yaml model map expects, e.g.:
-#   qwen3.5-4b.gguf=bartowski/Qwen2.5-3B-Instruct-GGUF:Qwen2.5-3B-Instruct-Q4_K_M.gguf,
-#   nomic-embed-text.gguf=nomic-ai/nomic-embed-text-v1.5-GGUF:nomic-embed-text-v1.5.Q4_K_M.gguf
+# mios-llm-light.yaml model map expects, e.g.:
+#   granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,
+#   embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf
 # Pre-quantized GGUFs are downloaded directly (no convert step). All FOSS repos.
 set -euo pipefail
 
@@ -31,7 +31,7 @@ SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
 SEED_DIR="/usr/share/mios/llamacpp/models"
 
 if [[ -z "$SPEC" ]]; then
-    log "[38-llamacpp] MIOS_LLAMACPP_BAKE_MODELS empty -- skipping GGUF bake (opt-in; the llama-swap lane stays gated/inert)"
+    log "[38-llamacpp] MIOS_LLAMACPP_BAKE_MODELS empty -- skipping GGUF bake (opt-in; the mios-llm-light lane stays gated/inert)"
     exit 0
 fi
 
@@ -82,7 +82,7 @@ done
 if [[ "$baked" -gt 0 ]]; then
     : > "${SEED_DIR}/.ready"   # the quadlet's ConditionPathExists gate -> lane eligible
     seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
-    log "[38-llamacpp] baked ${baked} GGUF(s) -> ${SEED_DIR} (${seed_size:-?}); .ready set -- llama-swap lane eligible"
+    log "[38-llamacpp] baked ${baked} GGUF(s) -> ${SEED_DIR} (${seed_size:-?}); .ready set -- mios-llm-light lane eligible"
 else
     log "[38-llamacpp] no GGUFs baked -- leaving the lane gated (no .ready written)"
 fi

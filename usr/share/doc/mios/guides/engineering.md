@@ -54,11 +54,11 @@ orchestrator: `08-system-files-overlay.sh` (runs pre-pipeline directly from the
 when adding new scripts. See `CLAUDE.md` for the sub-phase ranges.
 
 > **Inference note.** MiOS no longer bakes or runs Ollama. Local inference and
-> embeddings are served by `mios-llm-light` (llama.cpp behind the llama-swap
-> proxy image, `:11450`), with optional heavy GPU lanes (`mios-llm-heavy`,
+> embeddings are served by `mios-llm-light` (llama.cpp behind the upstream
+> llama-swap proxy image, `:11450`), with optional heavy GPU lanes (`mios-llm-heavy`,
 > SGLang `:11441`; `mios-llm-heavy-alt`, vLLM). Any historical "ollama-prep"
-> model-bake step is retired — model provisioning now targets the llama-swap
-> GGUF map at `usr/share/mios/llamacpp/llama-swap.yaml`.
+> model-bake step is retired — model provisioning now targets the
+> GGUF map at `usr/share/mios/llamacpp/mios-llm-light.yaml`.
 
 Per-phase error handling: `automation/build.sh:234-237` toggles `set +e` around
 each script invocation so individual failures are captured in
@@ -158,7 +158,7 @@ and tool talks to one brain.
 - **Declarative state only:** `tmpfiles.d` and `sysusers.d` create every `/var`
   path and UID (LAW 2 — never `mkdir` in `/var` at build time).
 
-These engines speak the OpenAI- and Ollama-compatible API, and the llama-swap
+These engines speak the OpenAI- and Ollama-compatible API, and the mios-llm-light
 proxy is the upstream image (`ghcr.io/mostlygeek/llama-swap`) — those are
 external API/tool references, not MiOS-internal Ollama backends.
 

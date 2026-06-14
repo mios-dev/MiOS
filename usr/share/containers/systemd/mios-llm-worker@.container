@@ -5,7 +5,7 @@
 # operator 2026-06-12 "delegate a swarm to multiple smaller models ... 3-4 across
 # the dGPU, 3-4 across the CPU, concurrently").
 #
-# WHY a TEMPLATE of single-model servers (not llama-swap): llama-swap serves many
+# WHY a TEMPLATE of single-model servers (not the upstream llama-swap proxy): that proxy serves many
 # models behind one port but with --parallel 1 it SWAPS them serially (one
 # generates while the others idle) -- so it cannot run 3-4 models CONCURRENTLY.
 # N independent llama-server processes (this template, %i = worker name) each hold
@@ -41,7 +41,7 @@ ConditionPathExists=/run/mios/swarm/%i.env
 ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 
 [Container]
-Image=${MIOS_LLAMA_SWAP_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
+Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-llm-worker-%i
 Network=host
 AddDevice=nvidia.com/gpu=all

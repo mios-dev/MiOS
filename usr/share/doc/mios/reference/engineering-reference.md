@@ -1,5 +1,5 @@
 <!-- AI-hint: Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository topology, supply-chain artifacts, inference lanes (mios-llm-light/-heavy/-heavy-alt), the agent stack (agent-pipe -> Hermes -> pgvector memory -> MCP/A2A), and the operational laws to specific file paths for engineering and automation tasks.
-     AI-related: 99-postcheck.sh, /usr/lib/mios/env.d/flatpaks.env, /etc/mios/hermes/api.env, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/ai/v1/agents.json, /usr/share/mios/ai/system.md, /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/hermes-soul-full.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/v1/mcp.json -->
+     AI-related: 99-postcheck.sh, /usr/lib/mios/env.d/flatpaks.env, /etc/mios/hermes/api.env, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/ai/v1/agents.json, /usr/share/mios/ai/system.md, /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/hermes-soul-full.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/v1/mcp.json -->
 # 'MiOS' Engineering Reference
 
 ## Purpose and audience
@@ -106,7 +106,7 @@ identifier used in paths, env vars, package names, and code.
 │   │   │   ├── env.defaults       # Vendor environment defaults
 │   │   │   ├── mios.toml.example  # Vendor template for ~/.config/mios/mios.toml
 │   │   │   ├── configurator/      # Browser-local TOML editor (index.html)
-│   │   │   ├── llamacpp/          # llama-swap.yaml model map + GGUF model store
+│   │   │   ├── llamacpp/          # mios-llm-light.yaml model map + GGUF model store
 │   │   │   ├── postgres/          # schema-init.sql (pgvector agent-DB schema)
 │   │   │   ├── kb/manifest.json   # KB delivery index (FHS-compliant location)
 │   │   │   └── ai/                # AI surface (system.md, hermes-soul*.md, v1/, etc.)
@@ -128,7 +128,7 @@ identifier used in paths, env vars, package names, and code.
 │   └── lib/mios/
 │       ├── embeddings/            # RAG: chunks.jsonl, vector_store.import.jsonl, ingest_local.py
 │       ├── training/              # Fine-tune datasets (sft.jsonl, dpo.jsonl)
-│       ├── llamacpp/              # llama-swap KV slot-save dir (per-conversation KV paging)
+│       ├── llamacpp/              # mios-llm-light KV slot-save dir (per-conversation KV paging)
 │       ├── pgvector/              # PostgreSQL + pgvector PGDATA (agent datastore)
 │       └── evals/                 # OpenAI Evals API artifacts
 ├── usr/share/mios/prompts/              # XML-structured prompt templates
@@ -217,7 +217,7 @@ Every `Image=` ref is a pinned upstream reference resolved at build time by
 | `docker.io/library/postgres:latest` | `usr/share/containers/systemd/mios-guacamole-postgres.container` |
 | `quay.io/poseidon/matchbox:latest` | `usr/share/containers/systemd/mios-pxe-hub.container` |
 
-> Note: `llama-swap` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`)
+> Note: `mios-llm-light` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`)
 > and the OpenAI/Ollama-compatible API are legitimate **upstream** references --
 > they are kept. Only the MiOS *unit/service identity* is renamed (e.g. the
 > llama.cpp lane is `mios-llm-light`, not an Ollama unit). The early
@@ -524,7 +524,7 @@ in `50-mios-services.conf`:
 - `mios-pgvector` (UID **826**) -- owns `/var/lib/mios/pgvector` (the PostgreSQL
   PGDATA parent); member of `mios-ai` so agents can read.
 - `mios-llamacpp` (UID **827**) -- owns `/var/lib/mios/llamacpp` (the
-  llama-swap KV slot-save dir); member of `mios-ai`.
+  mios-llm-light KV slot-save dir); member of `mios-ai`.
 - Legacy `mios-hermes` (820) + `mios-agent-pipe` (822) accounts are RETAINED
   inert. `mios-ollama` (815) is retained inert as a historical GPU-inference
   sibling (Ollama itself is removed; see Appendix B).
@@ -554,7 +554,7 @@ the historical `/etc/containers/systemd/` path.
 
 | Unit | Container | Port | Role |
 |---|---|---|---|
-| `mios-llm-light.container` | `mios-llm-light` | `:11450` | **Primary** lane: `llama.cpp` multi-model server fronted by the `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap:cuda`). Auto-swaps the everyday chat/reasoning models, KV-pages each conversation to disk, **and** serves embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) plus the `mios-opencode` coder model. User/Group `827`/`827`. Config: `usr/share/mios/llamacpp/llama-swap.yaml` |
+| `mios-llm-light.container` | `mios-llm-light` | `:11450` | **Primary** lane: `llama.cpp` multi-model server fronted by the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap:cuda`). Auto-swaps the everyday chat/reasoning models, KV-pages each conversation to disk, **and** serves embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) plus the `mios-opencode` coder model. User/Group `827`/`827`. Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
 | `mios-llm-heavy.container` | `mios-llm-heavy` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`). VRAM-gated, off by default; root exception (upstream image probes `nvidia-smi`) |
 | `mios-llm-heavy-alt.container` | `mios-llm-heavy-alt` | `:11440` | Alternate heavy lane (vLLM, PagedAttention+APC). VRAM-gated, off by default |
 | `mios-llm-worker@.container` | `mios-llm-worker@` | -- | Single-model swarm workers (templated, for the dGPU swarm topology) |
@@ -712,10 +712,10 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
   manifest mirror at `/usr/share/mios/ai/v1/agents.json`.
 - **Inference backends (named by function):**
   - `mios-llm-light.service` -- **primary**, `:11450` (llama.cpp via the
-    `llama-swap` proxy image). Serves everyday chat/reasoning models, KV-pages
+    `mios-llm-light` proxy image). Serves everyday chat/reasoning models, KV-pages
     per conversation, **and** embeddings (`nomic-embed-text`,
     `/v1/embeddings`) + the `mios-opencode` coder model. Model map:
-    `usr/share/mios/llamacpp/llama-swap.yaml`.
+    `usr/share/mios/llamacpp/mios-llm-light.yaml`.
   - `mios-llm-heavy.service` -- SGLang heavy lane, `:11441` (served-name
     `mios-heavy`), VRAM-gated/off by default.
   - `mios-llm-heavy-alt.service` -- vLLM alternate heavy lane, `:11440`,
@@ -924,7 +924,7 @@ so the agent stack stays portable and sandboxed. Enforced by build-time lint and
 | k3s | Apache-2.0 | binary download |
 | k3s-selinux | Apache-2.0 | from-source build |
 | cosign v2 | Apache-2.0 | binary download |
-| llama.cpp + llama-swap (light lane) | MIT | OCI image (`ghcr.io/mostlygeek/llama-swap`) |
+| llama.cpp + mios-llm-light (light lane) | MIT | OCI image (`ghcr.io/mostlygeek/llama-swap`) |
 | SGLang (heavy lane) | Apache-2.0 | OCI image (gated) |
 | vLLM (alt heavy lane) | Apache-2.0 | OCI image (gated) |
 | PostgreSQL + pgvector (agent DB) | PostgreSQL License + pgvector | OCI image |
@@ -985,7 +985,7 @@ Canonical vars (see `usr/share/mios/env.defaults`):
 | `MIOS_AI_ENDPOINT` | local OpenAI-compatible front door | Single endpoint every agent/tool targets (LAW 5; resolves to `mios-agent-pipe`) |
 | `MIOS_AI_MODEL` | per `[ai].model` | Default chat model |
 | `MIOS_AI_KEY` | `""` | API key (empty for local) |
-| `MIOS_PORT_LLAMA_SWAP` | `11450` | `mios-llm-light` primary inference lane |
+| `MIOS_PORT_LLM_LIGHT` | `11450` | `mios-llm-light` primary inference lane |
 | `MIOS_PORT_PGVECTOR` | `5432` | PostgreSQL + pgvector agent datastore |
 | `MIOS_INSTALL_ENV` | `/etc/mios/install.env` | Host install env file |
 | `MIOS_WSLBOOT_DONE` | `/var/lib/mios/.wsl-firstboot-done` | Sentinel |
@@ -1109,7 +1109,7 @@ The early Ollama / SurrealDB / Qdrant stack is **fully removed**. Current state:
 
 | Was | Now |
 |---|---|
-| `ollama.service` (`:11434`) / `mios-ollama-cpu.service` (`:11435`) | `mios-llm-light.service` (`:11450`) -- llama.cpp via `llama-swap`; also serves embeddings + the coder model |
+| `ollama.service` (`:11434`) / `mios-ollama-cpu.service` (`:11435`) | `mios-llm-light.service` (`:11450`) -- llama.cpp via `mios-llm-light`; also serves embeddings + the coder model |
 | `mios-sglang` Quadlet | `mios-llm-heavy` (`:11441`, SGLang, gated) |
 | `mios-vllm` Quadlet | `mios-llm-heavy-alt` (`:11440`, vLLM, gated) |
 | `mios-llama-worker@` | `mios-llm-worker@` |
@@ -1118,7 +1118,7 @@ The early Ollama / SurrealDB / Qdrant stack is **fully removed**. Current state:
 | `37-ollama-prep.sh` model bake | removed; `38-sglang-prep.sh` / `38-vllm-prep.sh` (opt-in, gated) |
 
 Ollama survives only as an *upstream API-compat reference* (the lanes speak the
-OpenAI/Ollama-compatible API, and `llama-swap`'s model map uses Ollama-style
+OpenAI/Ollama-compatible API, and `mios-llm-light`'s model map uses Ollama-style
 tags) and in historical migration notes -- not as a live MiOS backend. The
 `mios-ollama` (815) sysusers account is retained inert.
 

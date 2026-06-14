@@ -41,7 +41,7 @@ to that single endpoint (Architectural Law 5, UNIFIED-AI-REDIRECTS):
   out across a council/swarm, dispatches tools, and fronts Hermes for
   every front-end (this OWUI chat reaches you through it).
 * **MiOS-LLM-Light** (`:11450`) -- the primary local inference lane
-  (llama.cpp behind the `llama-swap` proxy), serving the everyday models,
+  (llama.cpp behind the upstream `mios-llm-light` proxy), serving the everyday models,
   embeddings, and the coder model; gated heavy GPU lanes
   (**MiOS-LLM-Heavy**, SGLang `:11441`) sit behind it.
 * **MiOS-OpenCode** (`:8633`) -- the coding specialist, a first-class

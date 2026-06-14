@@ -23,8 +23,8 @@ In that agent stack the flow is: a front-end (OWUI, the Discord gateway, the `mi
 CLI) hands a request to the **agent-pipe** orchestrator (`:8640`), which refines it,
 fans it out across a council/swarm, and dispatches tool/verb calls; **MiOS-Hermes**
 (`:8642`) is the OpenAI-compatible gateway and tool-loop agent; the **inference
-lanes** — primary **mios-llm-light** (`:11450`, llama.cpp behind the `llama-swap`
-proxy image), with gated heavy lanes **mios-llm-heavy** (SGLang, `:11441`) and
+lanes** — primary **mios-llm-light** (`:11450`, llama.cpp behind the upstream
+llama-swap proxy image), with gated heavy lanes **mios-llm-heavy** (SGLang, `:11441`) and
 **mios-llm-heavy-alt** (vLLM, `:11440`) — do generation **and** embeddings; MCP
 exposes the tool surface and A2A federates peer agents.
 

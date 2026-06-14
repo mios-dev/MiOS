@@ -49,8 +49,9 @@ individual tasks all CONCURRENTLY."
 concurrent swarm with VRAM-aware admission and concurrent multi-NODE fan-out.
 What is MISSING is "3-4 small models PER DEVICE running SIMULTANEOUSLY" — because
 every dGPU worker collapses onto ONE `lane='gpu'` semaphore AND ONE
-**mios-llm-light** daemon (the llama.cpp lane behind the `llama-swap` proxy runs
-`--parallel 1`, so it swaps models serially). Fix = per-engine SUB-LANES +
+**mios-llm-light** daemon (the llama.cpp lane behind the upstream mios-llm-light
+proxy runs `--parallel 1`, so it swaps models serially). Fix = per-engine
+SUB-LANES +
 MULTIPLE single-model llama-server instances (`mios-llm-worker@`). Not a rewrite.
 
 ## Why one big model failed (context)
@@ -70,7 +71,7 @@ operator-selectable dGPU profiles via `[dispatch].gpu_profile`:
 - Profile A "orchestrator" (current default, safe): 1× heavy reasoner on the
   **mios-llm-heavy** SGLang lane (Qwen3-8B-AWQ, ~5.5GB + KV).
 - Profile B "swarm": 3-4 small single-model **mios-llm-worker@** instances
-  concurrently (each one independent `llama-server`), e.g. 3× `qwen3:1.7b`
+  concurrently (each one independent `llama-server`), e.g. 3× `lfm2:700m`
   (~2.2GB) + 1× a small 4B (~3.4GB) ≈ 10GB + KV < budget. Each worker is its OWN
   process → all generate truly concurrently (no `--parallel 1` swap on the shared
   light lane).

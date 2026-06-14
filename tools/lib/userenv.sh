@@ -223,7 +223,7 @@ slots = [
     ("ports.ceph_dashboard",           "MIOS_CEPH_DASHBOARD_PORT"),
     ("ports.rdp",                      "MIOS_RDP_PORT"),
     ("ports.pgvector",                 "MIOS_PORT_PGVECTOR"),
-    ("ports.llama_swap",               "MIOS_PORT_LLAMA_SWAP"),
+    ("ports.llm_light",                "MIOS_PORT_LLM_LIGHT"),
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     ("ports.ollama_cpu",               "MIOS_PORT_OLLAMA_CPU"),
     ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
@@ -358,8 +358,8 @@ slots = [
     ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
     ("image.sidecars.pgvector_version","MIOS_PGVECTOR_VERSION"),
     ("image.sidecars.pgvector",        "MIOS_PGVECTOR_IMAGE"),
-    ("image.sidecars.llama_swap_version","MIOS_LLAMA_SWAP_VERSION"),
-    ("image.sidecars.llama_swap",      "MIOS_LLAMA_SWAP_IMAGE"),
+    ("image.sidecars.llm_light_version","MIOS_LLM_LIGHT_VERSION"),
+    ("image.sidecars.llm_light",       "MIOS_LLM_LIGHT_IMAGE"),
     ("image.sidecars.adguard_version", "MIOS_ADGUARD_VERSION"),
     ("image.sidecars.adguard",         "MIOS_ADGUARD_IMAGE"),
     # ── services (per-service identity: user / uid / gid) ─────────────────
@@ -484,7 +484,7 @@ slots = [
     ("pgvector.schema_init",           "MIOS_PG_SCHEMA_INIT"),
     ("pgvector.embed_model",           "MIOS_PG_EMBED_MODEL"),
     ("pgvector.enable",                "MIOS_PG_ENABLE"),
-    # ── llamacpp / llama-swap lane (WS-10 ollama -> llama.cpp conversion) ──
+    # ── llamacpp / mios-llm-light lane (WS-10 ollama -> llama.cpp conversion) ──
     ("llamacpp.enable",                "MIOS_LLAMACPP_ENABLE"),
     ("llamacpp.slot_dir",              "MIOS_LLAMACPP_SLOT_DIR"),
     ("llamacpp.models_dir",            "MIOS_LLAMACPP_MODELS_DIR"),

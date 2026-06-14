@@ -1,133 +1,208 @@
-<!-- AI-hint: Contains standalone host-side scripts for configuring VFIO passthrough, CPU isolation/pinning, and hardware profiling to prepare a host for MiOS deployment.
-     AI-related: mios-build-assess, mios-full, mios-build, mios-build-local -->
+<!-- AI-hint: Index of the standalone out-of-image toolkit scripts that prepare, verify, and maintain a host for MiOS — VFIO GPU/USB passthrough, CPU isolation/pinning, hardware profiling, Windows-VM Secure Boot/OVMF enrollment, the FHS overlay/sysext packer, and repo build/maintenance helpers. Use to understand what each tools/ script does and how it serves the MiOS build->image->bootc->agentic-AI lifecycle.
+     AI-related: rtx4090-vfio-configurator, vfio-verify, vm-cpu-pin-manager, configure-xbox-cpu, system-profiler, profile-compare, run-all-profilers, mios-overlay, mios-sysext-pack, mios-upstream-monitor, preflight, log-to-bootstrap, generate-ai-manifest, generate-unified-knowledge -->
 # 'MiOS' Toolkit Scripts
 
-This directory contains **standalone out-of-image tooling** that runs
-*on a booted 'MiOS' host* (or any Fedora/RHEL-family host, in
-most cases). These scripts are **not part of the image build** -- the
-image-build scripts live in [`../automation/`](../automation/) and the
-overlays live in [`../`](../).
+## Purpose
 
-Use these tools when you need to configure VFIO passthrough, isolate
-CPUs for VM pinning, profile a host before deploying 'MiOS' to it, or
-troubleshoot Secure Boot / OVMF enrollment for Windows VMs.
+MiOS is one system built two ways at once: an **immutable, bootc/OCI-shaped
+Fedora workstation** (the whole OS is a single container image — boot it,
+`bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is
+*also* a **local, self-replicating, agentic AI operating system** (local
+inference lanes → agent orchestration → PostgreSQL+pgvector memory, all behind
+one OpenAI-compatible endpoint).
 
-> **All rules from [`.usr/share/mios/ai/INDEX.md`](.usr/share/mios/ai/INDEX.md) §3.2 (Bash) apply
-> here too.** No `((VAR++))` under `set -euo pipefail`, quote every
-> expansion, prefer `compgen -G` / `find -exec` / `read -ra`, etc.
+This directory is **out-of-image tooling that surrounds that system rather than
+shipping inside it.** The image itself is produced by the build pipeline
+([`../Containerfile`](../Containerfile) + the numbered scripts in
+[`../automation/`](../automation/)) and the system FHS overlay lives at
+[`../`](../). The scripts *here* run **on a booted host** — either a 'MiOS' host,
+or any Fedora/RHEL-family host being prepared to become one — to do the things
+the image cannot do for itself from the outside:
+
+- **Prepare host hardware** so MiOS's two GPU consumers can coexist: VFIO
+  passthrough hands a discrete GPU to a KVM/QEMU VM (the gaming/Windows-VM
+  path), while CPU isolation/pinning carves out cores for those VMs so they
+  don't starve the host desktop or the local AI inference lanes.
+- **Assess readiness** of a candidate host (virtualization, IOMMU, GPU,
+  storage) *before* you commit it to `bootc switch`.
+- **Fix Windows-VM Secure Boot / OVMF enrollment**, which is the fiddly part of
+  the Looking-Glass passthrough story.
+- **Maintain the repo and image** — overlay the FHS onto a dev host, pack
+  sysexts, refresh AI manifests/knowledge, track upstream versions.
+
+In short: the build pipeline makes the image and bootc carries it forward;
+**these tools get the metal ready for that image and keep the source tree
+healthy.**
+
+> **All shell-convention rules from
+> [`../usr/share/doc/mios/guides/engineering.md`](../usr/share/doc/mios/guides/engineering.md)
+> ("Shell conventions") apply here too.** `set -euo pipefail` at the top;
+> `VAR=$((VAR + 1))` not `((VAR++))` (the latter returns 1 under `set -e` when
+> the result is 0); quote every expansion; prefer `compgen -G` / `find -exec` /
+> `read -ra`; shellcheck-clean (SC2038 is fatal in CI).
 
 ---
 
 ## VFIO toolkit
 
-For passing GPUs and USB controllers into KVM/QEMU VMs. See
-[`../specs/knowledge/guides/vfio-toolkit-readme.md`](../specs/knowledge/guides/vfio-toolkit-readme.md)
-for full documentation.
+For passing GPUs and USB controllers into KVM/QEMU VMs — the mechanism behind
+MiOS's "hand a discrete GPU to a Windows VM and game on it" Looking-Glass path.
+This works *because* MiOS stages `vfio-pci` kargs and ships KVM/libvirt in the
+image; these scripts do the per-host binding and verification.
 
 | Script | Purpose |
 |--------|---------|
-| `rtx4090-vfio-configurator.sh` | Opinionated RTX 4090 VFIO setup (MiOS's primary GPU) |
-| `universal-vfio-configurator.sh` | Generic VFIO configurator -- any GPU, any USB controller |
-| `vfio-verify.sh` | Verify VFIO binding, IOMMU groups, host lockout |
-| `iommu-visualizer.sh` | Pretty-print IOMMU group membership |
+| `rtx4090-vfio-configurator.sh` | Opinionated RTX 4090 setup — finds the GPU + its audio function PCI IDs and writes `/etc/modprobe.d/vfio.conf` for passthrough |
+| `vfio-verify.sh` | Verify VFIO binding — IOMMU kernel args, module load status, GPU host-lockout |
 
 ---
 
 ## CPU isolation & pinning
 
-For pinning VM vCPUs to host physical cores, isolating cores from the
-Linux scheduler, and configuring NUMA locality. See the full guide
-at [`../specs/knowledge/guides/cpu-isolation-guide.md`](../specs/knowledge/guides/cpu-isolation-guide.md).
+For pinning VM vCPUs to host physical cores and isolating cores from the Linux
+scheduler. Cleanly partitioned cores are what let a passthrough VM run at native
+speed without contending with the host GNOME session or the agent stack's
+inference work.
 
 | Script | Purpose |
 |--------|---------|
-| `universal-cpu-isolator.sh` | Generic CPU isolation -- grub kargs, systemd cpuset, irqbalance tuning |
-| `vm-cpu-pin-manager.sh` | Pin specific VM vCPUs to host physical cores |
-| `configure-xbox-cpu.sh` | Xbox-VM-specific CPU configuration (8 dedicated cores) |
+| `vm-cpu-pin-manager.sh` | Manage libvirt hook scripts to pin VM CPU threads to specific physical cores (AMD Ryzen / Intel hybrid / NUMA-aware) |
+| `configure-xbox-cpu.sh` | Xbox-style Windows-VM CPU pinning + host-passthrough libvirt XML configuration |
 
 ---
 
 ## Host profiling & assessment
 
-Run these **before** installing 'MiOS' on a new host to get a
-full picture of the hardware, virtualization capabilities, and
-deployment readiness.
+Run these to inventory a host's hardware and virtualization capabilities —
+ideally **before** deploying 'MiOS' to a new box, or afterward to diff a
+configuration change.
 
 | Script | Purpose |
 |--------|---------|
-| `system-profiler.sh` | CPU / memory / GPU / storage inventory |
-| `system-assess.sh` | Full system assessment -- virtualization, IOMMU, Secure Boot, TPM |
-| `mios-build-assess.sh` | MiOS-specific readiness check |
-| `run-all-profilers.sh` | Chain every profiler, produce consolidated report |
-| `profiler-menu.sh` | Interactive menu wrapping the profilers |
-| `profile-compare.sh` | Diff two profiler outputs (e.g. before/after a change) |
-| `quick-summary.sh` | One-screen system summary |
+| `system-profiler.sh` | Aggregate CPU / memory / GPU / storage / PCI / USB / IOMMU into text + JSON hardware-profile reports |
+| `run-all-profilers.sh` | Chain the profilers (quick summary → IOMMU → full profiler) into one consolidated report |
+| `profile-compare.sh` | Diff two profiler outputs (CPU / GPU / memory / kernel) — e.g. before/after a change or across two machines |
 
 ---
 
 ## Windows VM / Secure Boot helpers
 
-For Xbox-cloud-style Windows VMs with Secure Boot + TPM. The XML files
-are libvirt domain templates; the shell scripts patch OVMF firmware
-and enrollment.
+For Looking-Glass-style Windows VMs that require Secure Boot + TPM 2.0. The
+`.xml` file is a libvirt domain template; the shell scripts locate, patch, and
+recover OVMF firmware and NVRAM enrollment.
 
 | File | Purpose |
 |------|---------|
-| `apply-final-config.sh` | Apply the final known-good config to a Windows VM |
-| `check-ovmf-enrollment.sh` | Check OVMF NVRAM for correct Vendor-signed keys |
-| `fix-ovmf-enrollment.sh` | Fix broken OVMF enrollment |
-| `find-ovmf-firmware.sh` | Locate the right OVMF firmware on the host |
-| `get-secureboot-ovmf.sh` | Download a SB-compatible OVMF build |
-| `fix-secureboot-now.sh` | Emergency Secure Boot fixer |
-| `fix-xbox-secureboot.sh` | Xbox-VM-specific Secure Boot fix |
-| `Xbox-AutoEnroll.xml` | libvirt domain with PK/KEK/db/dbx auto-enrollment |
-| `Xbox-Final-NoAutoSelect.xml` | libvirt domain -- final config, no boot menu auto-select |
-| `win11-secureboot-template.xml` | Generic Windows 11 + Secure Boot libvirt template |
+| `check-ovmf-enrollment.sh` | Check whether the host has pre-enrolled Secure Boot `OVMF_VARS` (vs blank vars) |
+| `get-secureboot-ovmf.sh` | Locate and validate vendor-enrolled OVMF CODE/VARS pairs under `/usr/share/edk2/x64` |
+| `find-ovmf-firmware.sh` | Scan `/usr/share` and map OVMF CODE↔VARS pairs to valid firmware configurations |
+| `fix-ovmf-enrollment.sh` | Ensure SB-compatible OVMF VARS exist in `/usr/share/edk2/x64/` (download or generate) |
+| `fix-secureboot-now.sh` | Diagnostic/recovery — audit libvirt XML, NVRAM integrity, and SB auto-enrollment failures |
+| `win11-secureboot-template.xml` | Windows 11 libvirt domain template — vendor Secure Boot + TPM 2.0 + Hyper-V enlightenments |
 
 ---
 
-## Theming
+## Image & host overlay tooling
+
+These bridge the source tree and a running host — they implement parts of the
+"repo root **is** the system root" model used during development and packaging.
 
 | Script | Purpose |
 |--------|---------|
-| `bibata-suite.sh` | Install and configure the Bibata cursor theme across GNOME/GTK/Qt |
+| `mios-overlay.sh` | Overlay this repo's `usr/`, `etc/`, `var/` onto a host root to "MiOS-ify" a dev/test environment without a full image build |
+| `mios-sysext-pack.sh` | Consolidate multiple granular `.sysext` directories into one `mios-accelerator.raw` SquashFS image (works around kernel overlayfs stacking-depth limits at bootc init) |
+| `preflight.sh` | Validate the build environment (podman, git, just, disk space, Containerfile presence) before an OCI image build |
 
 ---
 
-## Legacy mega-scripts
+## Repo & knowledge maintenance
 
-Kept for reference. New work should **not** extend these -- they
-predate the current `automation/NN-*.sh` modular design.
+Out-of-image helpers for keeping the source tree, AI manifests, and upstream
+tracking current. The generated manifests/snapshots are what let agents and RAG
+index this repo — i.e. how the "self-replicating, self-aware" half of MiOS knows
+its own layout.
 
 | Script | Purpose |
 |--------|---------|
-| `mios-full.sh` | Standalone one-shot 'MiOS' provisioner (188 KB -- everything in one file, pre-refactor) |
-| `mios-build.sh` | Earlier Linux-side orchestrator (superseded by `Justfile` + `../mios-build-local.ps1`) |
+| `generate-ai-manifest.py` | Parse Markdown + metadata blocks into a JSON manifest of the project structure (searchable index for agents) |
+| `generate-unified-knowledge.py` | Compile a redacted, compressed `repo-rag-snapshot.json.gz` — a unified semantic knowledge base for RAG |
+| `journal-sync.py` | Convert legacy Markdown memory logs into structured JSONL for the MiOS memory system |
+| `sync-wiki.py` | Inject current version + RAG-sync timestamps into wiki Markdown metadata |
+| `standardize-docs.py` | Enforce uniform legal headers/footers across `specs/` Markdown |
+| `ascii-sweep.py` | Normalize non-ASCII typography/emoji in MiOS-owned text to ASCII for consistent rendering |
+| `refresh-env.py` | Sync `.ai-environment.json` with editor (`.vscode/settings.json`) preferences |
+| `log-to-bootstrap.sh` | Sync AI/RAG artifacts + wiki docs to the `mios-bootstrap` repo for distribution |
+| `mios-upstream-monitor.sh` | Track upstream versions (Fedora, bootc, Cockpit, NVIDIA, CrowdSec, Waydroid, …) for available updates |
 
-If you find yourself wanting to modify either of these, stop and work
-on the modular replacement in `../automation/` instead.
+---
+
+## Windows-side helpers
+
+For the Windows build/dev host (the `irm | iex` install path provisions a
+`MiOS-DEV` podman machine and drops WSL2/VHDX/ISO/qcow2 artifacts).
+
+| File | Purpose |
+|------|---------|
+| `windows/Build-MiOS.ps1` | Windows build entry — see [`windows/README-WINDOWS.md`](windows/README-WINDOWS.md) |
+| `fix-token-input.ps1` | One-shot fix for token paste-capture in `mios-build-local.ps1` (PowerShell 7.x `Read-Host -MaskInput`) |
+| `refresh-flatpak-shortcuts.ps1` | Generate Windows Start-Menu `.lnk` shortcuts for `MiOS-DEV` Flatpak apps (WSLg icon-import workaround) |
+
+---
+
+## Subdirectories
+
+| Path | Contents |
+|------|----------|
+| [`lib/`](lib/) | Shared helpers used by the toolkit and build scripts (`userenv.sh`, the build/SBOM generators, refactor utilities) |
+| [`windows/`](windows/) | Windows build pipeline ([`README-WINDOWS.md`](windows/README-WINDOWS.md)) |
+| [`mios-portal-app/`](mios-portal-app/) | MiOS Portal Android app (WebView wrapper for the web portal; see its [`README.md`](mios-portal-app/README.md)) |
 
 ---
 
 ## How these scripts interact with the bootc image
 
-- The **image build** (Containerfile + `../automation/`) produces the OS.
-- These **toolkit scripts** run on a host that's already booted --
-  either a 'MiOS' host, or a Fedora/RHEL host preparing to
-  become one.
-- Nothing in this directory is copied into the image by default.
-- If you want one of these tools inside the image (e.g. `vfio-verify.sh`
-  pre-installed for diagnostics), copy it into
-  `../usr/local/bin/` and reference it from the relevant
-  `../automation/NN-*.sh` or `../systemd/` unit. Don't symlink from here.
+This is the boundary that keeps the immutable-OS promise honest:
+
+- The **image build** (`../Containerfile` + `../automation/`) produces the OS as
+  a single OCI image. That image already carries the AI plane — the inference
+  lanes (`mios-llm-light` on `:11450` as the primary llama.cpp lane plus the
+  gated heavy GPU lanes), the agent-pipe/MiOS-Hermes orchestration, the
+  `mios-pgvector` datastore — baked in per **Architectural Law 3 (BOUND-IMAGES)**.
+- These **toolkit scripts** run on a host that's *already booted*. They are
+  **not copied into the image by default** — they configure or assess the host
+  around it.
+- If you want one of these tools available *inside* the image (e.g.
+  `vfio-verify.sh` pre-installed for diagnostics), add it to the FHS overlay at
+  `../usr/local/bin/` and reference it from the relevant `../automation/NN-*.sh`
+  step or a `../usr/share/containers/systemd/` Quadlet. Don't symlink from here.
+
+That separation matters because of the build contract these scripts must not
+violate. The six **Architectural Laws** govern the image, not this directory, but
+the overlay/packing tools here have to respect them:
+
+1. **USR-OVER-ETC** — static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only.
+2. **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`; never written at build time.
+3. **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/` and baked in at build time.
+4. **BOOTC-CONTAINER-LINT** — final `RUN` of the `Containerfile`; fail = fail the build.
+5. **UNIFIED-AI-REDIRECTS** — every agent/tool targets `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`); no vendor-hardcoded URLs.
+6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes` (documented exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`).
 
 ---
 
-*See [`.usr/share/mios/ai/INDEX.md`](.usr/share/mios/ai/INDEX.md) §8 for what System Code / other AI
-agents should not do in this directory (summary: don't modernize
-working scripts unprompted, don't rewrite bash into other languages).*
+## Legacy / out-of-tree
+
+Earlier monolithic provisioners and the standalone Linux-side orchestrator
+predate the current `../automation/NN-*.sh` modular pipeline and the
+`Justfile` + `../mios-build-local.ps1` build drivers. If a former mega-script
+resurfaces in your tree, **do not extend it** — work on the modular replacement
+in [`../automation/`](../automation/) instead.
+
+> Guidance for AI agents / System Code in this directory: don't modernize
+> working scripts unprompted, and don't rewrite bash into other languages. These
+> are intentionally simple host-side shell tools; their stability is the point.
 
 ---
 
-See `usr/share/doc/mios/reference/licenses.md` and `CONTRIBUTING.md` at the repo root for upstream
-ecosystem references (bootc, BIB, rechunk, cosign, Universal Blue, etc.).
+See [`../usr/share/doc/mios/reference/licenses.md`](../usr/share/doc/mios/reference/licenses.md)
+and [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for upstream ecosystem references
+(bootc, BIB, rechunk, cosign, Universal Blue, etc.).

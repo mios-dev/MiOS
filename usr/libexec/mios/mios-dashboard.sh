@@ -473,7 +473,7 @@ print_endpoints() {
     c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
     c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
     c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
-    # llama.cpp (llama-swap :11450) is the inference engine; ollama is retired
+    # llama.cpp (mios-llm-light :11450) is the inference engine; ollama is retired
     # (masked). Show LlamaSwap, not Ollama -- operator 2026-06-06 "not converted
     # to llama.cpp STILL" was the dash label lagging the actual cutover.
     c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")

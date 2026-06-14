@@ -197,10 +197,10 @@ if [[ "$_HERMES_ROLE_MODEL" != "none" ]]; then
 fi
 
 # Backend endpoint for the generated config -- SSOT-derived from mios.toml
-# [ai].backend (the llama-swap front; ollama :11434 retired). Default matches the
+# [ai].backend (the mios-llm-light front; ollama :11434 retired). Default matches the
 # vendor value so a missing/unreadable toml still yields a working endpoint
 # (operator 2026-06-07: firstboot previously HARDCODED the port, so a stale REPL
-# config survived the ollama->llama-swap migration; now it follows the SSOT).
+# config survived the ollama->mios-llm-light migration; now it follows the SSOT).
 _AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:11450')"
 _AI_BACKEND="${_AI_BACKEND%/}"
 

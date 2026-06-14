@@ -72,9 +72,9 @@ NON_FATAL_SCRIPTS="
     $baseImage = if ($hasNvidia) { "ghcr.io/ublue-os/ucore-hci:stable-nvidia" } else { "ghcr.io/ublue-os/ucore-hci:stable" }
     # NOTE (post-snapshot): the current install.ps1 no longer picks an Ollama model
     # tag here. Inference is the mios-llm-light lane (:11450); its model roster is
-    # declared in usr/share/mios/llamacpp/llama-swap.yaml, not selected by RAM at
+    # declared in usr/share/mios/llamacpp/mios-llm-light.yaml, not selected by RAM at
     # install time. This line is retained from the historical installer.
-    $aiModel   = if ($ramGB -ge 32) { "qwen2.5-coder:14b" } elseif ($ramGB -ge 12) { "qwen2.5-coder:7b" } else { "phi4-mini:3.8b-q4_K_M" }
+    $aiModel   = if ($ramGB -ge 32) { "qwen2.5-coder:14b" } elseif ($ramGB -ge 12) { "granite4.1:8b" } else { "phi4-mini:3.8b-q4_K_M" }
 
 === BLOCK 4: replaces the entire old `### automation/37-ollama-prep.sh` section + its fenced bash body ===
 ### `automation/37-ollama-prep.sh` — REMOVED (inference no longer uses Ollama)
@@ -84,10 +84,10 @@ NON_FATAL_SCRIPTS="
 > the `mios-ollama`/`mios-ollama-cpu` units, the Modelfiles, the CLI shim, and
 > this `37-ollama-prep` model-bake step are all gone. Local inference and
 > embeddings now run on the **`mios-llm-light`** lane (llama.cpp behind the
-> upstream `llama-swap` proxy image, `ghcr.io/mostlygeek/llama-swap`) on
+> upstream `mios-llm-light` proxy image, `ghcr.io/mostlygeek/llama-swap`) on
 > **`:11450`**, which serves the everyday models, the `mios-opencode` coder model,
 > and embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Its model
-> roster is configured declaratively in `usr/share/mios/llamacpp/llama-swap.yaml`
+> roster is configured declaratively in `usr/share/mios/llamacpp/mios-llm-light.yaml`
 > and prepared by `automation/38-llamacpp-prep.sh`; the gated heavy lanes are
 > `mios-llm-heavy` (SGLang, `:11441`) and `mios-llm-heavy-alt` (vLLM). The engines
 > speak the OpenAI/Ollama-compatible API, so "Ollama" survives only as that

@@ -86,19 +86,19 @@ the visible answer is always polish's output.
                                                mios-discord-send, mios-window…)
 ```
 
-**Lanes & models (SSOT: `mios.toml` + `llamacpp/llama-swap.yaml`, overridable by
+**Lanes & models (SSOT: `mios.toml` + `llamacpp/mios-llm-light.yaml`, overridable by
 env).** All chat/reasoning/embedding generation resolves through the primary
 inference lane **`mios-llm-light`** (`:11450`) — llama.cpp behind the upstream
-`llama-swap` proxy image, which auto-swaps a `llama-server` per requested model
+`mios-llm-light` proxy image, which auto-swaps a `llama-server` per requested model
 and supports KV-cache paging (per-slot save/restore). The same lane serves
 embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) and the
 `mios-opencode` coder model. Heavy lanes are gated off by default (VRAM).
 
 | Role | Model (default) | Lane / served by | Notes |
 |---|---|---|---|
-| Refine (routing) | refine model (e.g. `qwen3.5:4b`) | `mios-llm-light` :11450 | `think:false`; `keep_alive`/TTL to kill the cold-start gap |
+| Refine (routing) | refine model (e.g. `granite4.1:8b`) | `mios-llm-light` :11450 | `think:false`; `keep_alive`/TTL to kill the cold-start gap |
 | Polish (answer) | polish model | `mios-llm-light` :11450 | persona applied; the real output step |
-| Classify / micro | `micro_model` (`qwen3:1.7b`) | `mios-llm-light` :11450 | cheap intent + task-gen |
+| Classify / micro | `micro_model` (`lfm2:700m`) | `mios-llm-light` :11450 | cheap intent + task-gen |
 | Hermes orchestrator | served via the gateway | `:8642` MiOS-Hermes → `mios-llm-light` backend | OpenAI gateway, full tool-loop |
 | Swarm decomposer | refine model | `mios-llm-light` :11450 | `_plan_swarm`; `/api/chat think:false` |
 | Vision | opt-in VLM (e.g. `qwen3-vl:4b`) | `mios-llm-light` :11450 (vision GGUF) | image turns bypass refine; slot ships **empty** (operator opt-in) |
@@ -108,10 +108,11 @@ embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) and the
 
 > Note on model names: the agent registry, Hermes, and the planner still emit
 > several legacy/role tags (`qwen3.5:4b`, `mios-hermes`, `mios-planner`, …).
-> `llama-swap.yaml` **aliases** those onto the served GGUFs so the lane is a
+> `mios-llm-light.yaml` **aliases** those onto the served GGUFs so the lane is a
 > drop-in and never returns "no router for requested model." The MiOS *service
-> identity* is `mios-llm-light`; `llama-swap` (`ghcr.io/mostlygeek/llama-swap`)
-> and the OpenAI/Ollama-compatible API are legitimate upstream references.
+> identity* is `mios-llm-light`; the upstream `mios-llm-light` proxy
+> (`ghcr.io/mostlygeek/llama-swap`) and the OpenAI/Ollama-compatible API are
+> legitimate upstream references.
 
 ---
 
@@ -235,7 +236,7 @@ Distinct agents/lanes do *distinct* work (not a Hermes duplicate).
 An image-bearing turn can't be served by the text executor, so it bypasses
 refine/planning/Hermes entirely and goes straight to the local VLM on
 `mios-llm-light`. The vision model slot ships **empty** (opt-in: the operator
-adds a vision GGUF to the llama-swap map to activate it), so an image turn never
+adds a vision GGUF to the mios-llm-light map to activate it), so an image turn never
 silently pulls a multi-GB VLM. No session or refine overhead. **Loop:** none.
 
 ---
@@ -352,6 +353,6 @@ unified and least-privileged.
 ---
 
 *Source of truth: `usr/lib/mios/agent-pipe/server.py` (+ `mios.toml` and
-`usr/share/mios/llamacpp/llama-swap.yaml`). This map is descriptive — when in
+`usr/share/mios/llamacpp/mios-llm-light.yaml`). This map is descriptive — when in
 doubt, the code wins. Related: `docs/agentic-standards-roadmap.md`,
 `docs/agentos-roadmap.md`.*

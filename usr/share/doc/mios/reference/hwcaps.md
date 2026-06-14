@@ -13,7 +13,7 @@ workstation *and* a local, self-replicating agentic AI OS. The same image that
 ships GNOME/Wayland, GPU wiring (NVIDIA + ROCm + iGPU via CDI), KVM/libvirt
 passthrough, and a one-node k3s+Ceph path also runs a full local inference and
 agent stack — the `mios-llm-light` primary lane (:11450, llama.cpp behind the
-`llama-swap` proxy, serving everyday models, the `mios-opencode` coder model, and
+`mios-llm-light` proxy, serving everyday models, the `mios-opencode` coder model, and
 `nomic-embed-text` embeddings), the gated heavy GPU lanes (`mios-llm-heavy` SGLang
 :11441, `mios-llm-heavy-alt` vLLM :11440), the agent-pipe orchestrator, and a
 PostgreSQL+pgvector agent memory.

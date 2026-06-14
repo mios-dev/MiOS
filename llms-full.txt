@@ -18,7 +18,7 @@
 ## AI Agent Surface
 
 - **Endpoint**: `http://localhost:8080/v1` (LocalAI v2.20.0, OpenAI-compatible)
-- **Inference model**: `qwen2.5-coder:7b` (`MIOS_AI_MODEL`)
+- **Inference model**: `granite4.1:8b` (`MIOS_AI_MODEL`)
 - **Embedding model**: `nomic-embed-text` (`MIOS_AI_EMBED_MODEL`)
 - **MCP registry**: `/usr/share/mios/ai/mcp.json`
 - **System prompt resolution**: `$MIOS_AI_SYSTEM_PROMPT` > `~/.config/mios/system-prompt.md` > `/etc/mios/ai/system-prompt.md` > `/usr/share/mios/ai/system.md`
