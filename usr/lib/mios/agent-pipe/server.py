@@ -19778,24 +19778,195 @@ def _has_client_tools(body: dict) -> bool:
     return isinstance(t, list) and len(t) > 0
 
 
+# Identity + capability preamble injected into a client-tools turn so MiOS AI
+# never adopts the caller's persona (Zen's smart-window forwards a "you are
+# Mozilla's Smart Window assistant" system prompt) and knows it owns the full
+# MiOS verb surface -- not just the 2-3 browser tools the client shipped.
+_CLIENT_TOOLS_IDENTITY = (
+    "You are MiOS AI, the local agentic assistant of MiOS (a private, offline-first "
+    "AI operating system running on this machine). You are NOT a Mozilla, Firefox, "
+    "or \"Smart Window\" product -- any such framing in other instructions names "
+    "only the surface you are embedded in, never your identity or your limits.\n"
+    "Beyond any browser tools the client provided, the tools[] list ALSO contains the "
+    "full MiOS tool surface: launching applications, controlling windows, web search, "
+    "persistent memory, OS recipes, and file search. THESE are the \"MiOS tools\" / "
+    "\"MCP tools\" a user refers to. When asked to do something on the computer (open "
+    "an app, run a search, remember something), CALL the matching tool -- never reply "
+    "that you cannot open apps or that you lack tools. To open any application by name "
+    "use launch_app (it resolves Windows AND Linux apps); use launch_windows_app for a "
+    "Windows-only app and open_url to open a web page."
+)
+
+
+def _client_tools_mios_surface() -> list:
+    """The MiOS verb catalog projected as OpenAI tools, for merging into a
+    client-tools turn. Non-rare only -- the catalog's own [verbs.*].tier is the
+    SSOT for 'commonly needed', so this is principled selection, not a hardcoded
+    allow/deny list."""
+    out: list = []
+    for _vname, _vcfg in _VERB_CATALOG.items():
+        try:
+            if (_vcfg.get("tier") or "") == "rare":
+                continue
+            out.append(_verb_to_openai_tool(_vname, _vcfg))
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+def _client_tools_is_mios(name: str, client_names: set) -> bool:
+    """A returned tool_call is MiOS-executable (server-side) when its name is NOT
+    one the client shipped AND it resolves to a real verb. Client tools (and any
+    name colliding with the client's own) go BACK to the caller to run."""
+    if not name or name in client_names:
+        return False
+    try:
+        return _resolve_verb_key(name) in _VERB_CATALOG
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _client_tools_inject_identity(messages: list) -> list:
+    """Prepend the MiOS identity to the caller's leading system message (or add
+    one). Server-side only -- the client never sees it, so it can't accumulate
+    across the multi-request client-tool loop."""
+    msgs = [dict(m) for m in messages if isinstance(m, dict)]
+    if msgs and msgs[0].get("role") == "system":
+        base = str(msgs[0].get("content") or "")
+        msgs[0]["content"] = _CLIENT_TOOLS_IDENTITY + "\n\n" + base
+        return msgs
+    return [{"role": "system", "content": _CLIENT_TOOLS_IDENTITY}] + msgs
+
+
+async def _client_tools_backend(req: dict) -> dict:
+    """One non-stream POST to the tool backend; returns parsed JSON (or raises)."""
+    headers = {"content-type": "application/json"}
+    _hp = _TOOL_BACKEND.split("://")[-1].split("/")[0]
+    if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
+        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+    client = await _get_client()
+    r = await client.post(
+        f"{_TOOL_BACKEND}/chat/completions",
+        content=json.dumps(req).encode("utf-8"), headers=headers)
+    return r.json()
+
+
+async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
+                             max_iters: int = 6) -> dict:
+    """Hybrid server-side tool loop for a client-tools turn. Runs MiOS verbs
+    server-side (dispatch_mios_verb) and loops; the moment the model emits a
+    CLIENT tool_call (or plain content) it returns that assistant message for the
+    caller to act on. So 'open notepad' executes via the MiOS launcher HERE, while
+    'get_page_content' still rides back to the browser."""
+    messages = _client_tools_inject_identity(list(body.get("messages") or []))
+    tools = list(body.get("tools") or []) + _client_tools_mios_surface()
+    base_req: dict = {"model": _TOOL_BACKEND_MODEL, "tools": tools, "stream": False}
+    for _k in ("temperature", "top_p", "max_tokens"):
+        if _k in body:
+            base_req[_k] = body[_k]
+    last: dict = {}
+    for _ in range(max(1, max_iters)):
+        req = dict(base_req)
+        req["messages"] = messages
+        resp = await _client_tools_backend(req)
+        msg = ((resp.get("choices") or [{}])[0] or {}).get("message") or {}
+        last = msg
+        tcs = msg.get("tool_calls") or []
+        if not tcs:
+            return msg
+        if any(not _client_tools_is_mios(
+                (tc.get("function") or {}).get("name", ""), client_names)
+                for tc in tcs):
+            # A client tool is requested -> hand the whole message back so the
+            # caller fulfills it (and re-enters this loop with the result).
+            return msg
+        # All MiOS verbs -> execute server-side, append results, continue.
+        messages.append(msg)
+        for tc in tcs:
+            fn = tc.get("function") or {}
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except Exception:  # noqa: BLE001
+                args = {}
+            try:
+                result = await dispatch_mios_verb(
+                    _resolve_verb_key(fn.get("name", "")), args, session_id=chat_id)
+            except Exception as e:  # noqa: BLE001
+                result = {"success": False, "stderr": f"dispatch error: {e}"}
+            messages.append({
+                "role": "tool", "tool_call_id": tc.get("id"),
+                "content": json.dumps(result)[:4000]})
+    return last
+
+
+def _client_tools_wrap(msg: dict, chat_id: str, model: str) -> dict:
+    return {
+        "id": chat_id, "object": "chat.completion", "model": model,
+        "choices": [{
+            "index": 0, "message": msg,
+            "finish_reason": "tool_calls" if msg.get("tool_calls") else "stop"}],
+    }
+
+
+async def _client_tools_sse(msg: dict, chat_id: str,
+                            model: str) -> AsyncGenerator[bytes, None]:
+    base = {"id": chat_id, "object": "chat.completion.chunk", "model": model}
+
+    def _chunk(delta: dict, finish: Optional[str] = None) -> bytes:
+        return ("data: " + json.dumps({
+            **base, "choices": [{"index": 0, "delta": delta,
+                                 "finish_reason": finish}]}) + "\n\n").encode("utf-8")
+
+    yield _chunk({"role": "assistant"})
+    tcs = msg.get("tool_calls") or []
+    if tcs:
+        for _i, tc in enumerate(tcs):
+            fn = tc.get("function") or {}
+            yield _chunk({"tool_calls": [{
+                "index": _i, "id": tc.get("id"), "type": "function",
+                "function": {"name": fn.get("name", ""),
+                             "arguments": fn.get("arguments", "") or ""}}]})
+        yield _chunk({}, finish="tool_calls")
+    else:
+        if msg.get("content"):
+            yield _chunk({"content": msg["content"]})
+        yield _chunk({}, finish="stop")
+    yield b"data: [DONE]\n\n"
+
+
 async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
                                  model: str) -> Any:
-    """Transparent OpenAI client-tool passthrough (Zen smart-window et al.).
-    Relays the request VERBATIM to a tool-capable backend and returns the
-    backend's tool_calls unmodified -- stream (SSE deltas byte-for-byte) and
-    non-stream (JSON verbatim). NEVER runs refine/council/polish; NEVER executes
-    the client's tools server-side (they run in the caller's browser). Twin of
-    _vision_complete; see the config block (CLIENT_TOOLS_PASSTHROUGH) for the why.
-    Security: client tool names travel ONLY upstream to the model -- they never
-    reach _exec_tool_calls / dispatch_mios_verb / the broker, so a client tool
-    name colliding with a real MiOS verb can never auto-execute server-side."""
+    """OpenAI client-tool turn (Zen smart-window et al.) as a HYBRID loop: MiOS
+    asserts its own identity, the MiOS verb surface is merged alongside the
+    caller's browser tools, MiOS verbs execute server-side (so 'open notepad'
+    actually launches), and only the caller's own tool_calls ride back to it.
+    Falls back to a verbatim relay if the loop errors so browsing never regresses.
+    NEVER runs refine/council/polish. Twin of _vision_complete."""
+    client_names: set = set()
+    for _t in (body.get("tools") or []):
+        try:
+            client_names.add((_t.get("function") or {}).get("name") or _t.get("name"))
+        except Exception:  # noqa: BLE001
+            continue
+    out_model = model or _TOOL_BACKEND_MODEL
+    try:
+        final_msg = await _client_tools_loop(body, client_names, chat_id)
+        if not streaming:
+            return JSONResponse(
+                content=_client_tools_wrap(final_msg, chat_id, out_model))
+        return StreamingResponse(
+            _client_tools_sse(final_msg, chat_id, out_model),
+            media_type="text/event-stream")
+    except Exception as e:  # noqa: BLE001
+        log.warning("client-tools hybrid loop failed (%s) -> verbatim relay", e)
+        return await _client_tools_relay(body, streaming)
+
+
+async def _client_tools_relay(body: dict, streaming: bool) -> Any:
+    """Degrade path: the original verbatim passthrough (browser tools only). Used
+    when the hybrid loop errors so a smart-window browsing turn still works."""
     tbody = dict(body)
-    # Pin a SERVED, tool-capable model -- never the stale gemma4:12b backend drift,
-    # never qwen3-vl/lfm2 (verified to emit no tool_calls). The caller's own model
-    # field is ignored on purpose so a generic OpenAI client (sending e.g.
-    # "gpt-4o") still lands on a working local tool-caller.
     tbody["model"] = _TOOL_BACKEND_MODEL
-    # Strip MiOS-internal control fields a strict /v1 backend may reject.
     for _k in ("mios_flags", "_allow_write", "num_ctx"):
         tbody.pop(_k, None)
     headers = {"content-type": "application/json"}
@@ -19811,7 +19982,7 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
                 url, content=json.dumps(tbody).encode("utf-8"), headers=headers)
             return JSONResponse(content=r.json(), status_code=r.status_code)
         except Exception as e:  # noqa: BLE001
-            log.warning("client-tools passthrough backend failed: %s", e)
+            log.warning("client-tools relay backend failed: %s", e)
             return JSONResponse(
                 content={"error": {"message": f"tool backend error: {e}",
                                    "type": "server_error"}}, status_code=502)
@@ -19823,14 +19994,10 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
                     "POST", url,
                     content=json.dumps(tbody).encode("utf-8"),
                     headers=headers) as resp:
-                # Relay verbatim -- tool_call deltas chunk function.arguments across
-                # SSE events with a stable index; aiter_bytes preserves them
-                # byte-for-byte. Do NOT route through _sse_chunk/_sse_reasoning
-                # (they model only content/reasoning deltas -> would drop tool_calls).
                 async for chunk in resp.aiter_bytes():
                     yield chunk
         except Exception as e:  # noqa: BLE001
-            log.warning("client-tools passthrough stream failed: %s", e)
+            log.warning("client-tools relay stream failed: %s", e)
             yield ("data: " + json.dumps(
                 {"choices": [{"delta": {"content": f"[tool backend error: {e}]"}}]})
                 + "\n\n").encode("utf-8")

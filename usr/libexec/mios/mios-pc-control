@@ -154,7 +154,7 @@ PYEOF
 }
 
 case "$sub" in
-    launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo|ui-find|ui-click)
+    launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo|ui-find|ui-click|ui-list)
         EXEC_EP="$(_oscontrol_executor)"
         # GRACEFUL FALLBACK (operator 2026-05-26): only route to the executor if
         # it's actually UP (quick /health probe). When it's configured but not
@@ -171,9 +171,9 @@ case "$sub" in
         # no reachable executor, signal the caller to use its own path -- exit 2,
         # never a blind no-op that falsely claims success.
         case "$sub" in
-            launch|ui-find|ui-click)
+            launch|ui-find|ui-click|ui-list)
                 # These need the interactive-desktop executor (WinSta0): launch must
-                # surface a window; ui-find/ui-click walk the UIA tree. No blind
+                # surface a window; ui-find/ui-click/ui-list walk the UIA tree. No blind
                 # interop fallback -- signal the caller honestly instead of a no-op.
                 if [ -z "$EXEC_EP" ]; then
                     echo "mios-pc-control: no OS-control executor reachable for $sub" >&2
@@ -243,6 +243,16 @@ for w in (d.get("windows") or []):
                     [ -z "$hwnd" ] && { echo "mios-pc-control: window-center needs an hwnd" >&2; exit 64; }
                     if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/center" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd}" 2>/dev/null)"; then
                         echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/center)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                ui-list)
+                    # SoM-first grounding: list ALL named controls in the foreground
+                    # window (UIA tree as the set-of-marks) for the agent to survey + pick.
+                    if ! out="$(curl -fsS -m 25 "$EXEC_EP/ui/list" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /ui/list)" >&2
                         exit 1
                     fi
                     printf '%s\n' "$out"

@@ -2530,6 +2530,16 @@ cmd        = "mios-pc-control ui-click {name}"
   type = "string"
   aliases = ["element", "label", "control", "button"]
 
+[verbs.pc_list_elements]
+section    = "PC input"
+sig        = ""
+desc       = "List ALL named UI controls in the FOREGROUND window on the HOST WINDOWS desktop via UI Automation -- a 'set of marks' SURVEY (each with control type, automation_id, bounds, clickable center, mark number) so you can SEE what's actionable, then pc_click_element (by name) or pc_click (the center). Use when you don't know the control names yet. READ-only."
+model_name = "windows_desktop_list_elements"
+examples   = ["list the controls in the foreground windows app", "what can I click in the active windows window", "show the UI elements on the host desktop", "survey the windows screen's actionable elements"]
+tier       = "rare"
+permission = "read"
+cmd        = "mios-pc-control ui-list"
+
 # ─── Section: Computer-use (Linux/Wayland desktop) ────────────────────
 # Cross-platform desktop control via mios-computer-use (env-adaptive: bare-metal
 # GNOME/KDE Wayland, WSLg, or a federated remote desktop). AT-SPI-first grounding

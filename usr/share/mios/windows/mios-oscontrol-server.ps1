@@ -824,6 +824,21 @@ while ($listener.IsListening) {
                 }
             }
         }
+        elseif ($method -eq 'GET' -and $path -eq '/ui/list') {
+            # SoM-first grounding (operator 2026-06-15): list ALL named controls in the
+            # FOREGROUND window (the UIA tree AS the set-of-marks) so the agent surveys
+            # them + picks one to click by name/center -- coordinate-free, no VLM needed
+            # for UIA surfaces. (Vision-overlay SoM for non-UIA canvas surfaces is the
+            # remaining fallback.)
+            if (-not $script:UIA_OK) {
+                Write-JsonResponse $ctx 200 @{ ok = $false; error = 'UIA unavailable on this host'; host = $env:COMPUTERNAME }
+            }
+            else {
+                $els = @(Find-UIElements '' 40)
+                for ($i = 0; $i -lt $els.Count; $i++) { $els[$i].mark = $i + 1 }
+                Write-JsonResponse $ctx 200 @{ ok = ($els.Count -gt 0); count = $els.Count; elements = $els; host = $env:COMPUTERNAME }
+            }
+        }
         else {
             Write-JsonResponse $ctx 404 @{ error = 'not found'; path = $path; method = $method }
         }
