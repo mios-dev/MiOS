@@ -113,6 +113,45 @@ def _handle_initialize(mid, params: dict) -> dict:
     })
 
 
+# Last-good tools/list cache. tools/list proxies agent-pipe /v1/verbs (/v1/tools);
+# when agent-pipe is momentarily down (a restart), an UNCACHED relay returns 0 tools
+# -> a fresh Hermes/OpenCode session registers NO MiOS tools and stays toolless for
+# its ENTIRE life (MCP tools load only at session start, no mid-session reload). That
+# is exactly the recurring "desktop app can't launch/type" failure (operator
+# 2026-06-15). Caching the catalog (mem + disk) lets the relay ride out the blip.
+# Must live under the unit's ReadWritePaths (mios-mcp.service: ProtectSystem=strict
+# + ReadWritePaths=/var/lib/mios/mcp) -- /var/lib/mios/agent-env is sandbox-blocked.
+_TOOLS_CACHE_FILE = os.environ.get(
+    "MIOS_MCP_TOOLS_CACHE", "/var/lib/mios/mcp/tools.cache.json")
+_TOOLS_CACHE_MEM = None
+
+
+def _tools_cache_save(tools):
+    global _TOOLS_CACHE_MEM
+    _TOOLS_CACHE_MEM = tools
+    try:
+        _d = os.path.dirname(_TOOLS_CACHE_FILE)
+        if _d and not os.path.isdir(_d):
+            os.makedirs(_d, exist_ok=True)
+        _tmp = _TOOLS_CACHE_FILE + ".tmp"
+        with open(_tmp, "w", encoding="utf-8") as _f:
+            json.dump(tools, _f)
+        os.replace(_tmp, _TOOLS_CACHE_FILE)
+    except Exception:
+        pass
+
+
+def _tools_cache_load():
+    if _TOOLS_CACHE_MEM:
+        return _TOOLS_CACHE_MEM
+    try:
+        with open(_TOOLS_CACHE_FILE, "r", encoding="utf-8") as _f:
+            _d = json.load(_f)
+            return _d if isinstance(_d, list) and _d else None
+    except Exception:
+        return None
+
+
 def _handle_tools_list(mid, _params: dict) -> dict:
     # /v1/tools is the UNIFIED capability feed: every verb + every OS recipe +
     # every promoted skill. It is served in OpenAI function-tool shape
@@ -123,10 +162,17 @@ def _handle_tools_list(mid, _params: dict) -> dict:
     # (top-level `name`) passes through untouched.
     try:
         data = _http_get("/v1/tools")
-    except urllib.error.URLError as e:
-        return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
-    except Exception as e:
-        return _err(mid, -32000, f"tools fetch failed: {e}")
+    except Exception as e:  # noqa: BLE001 -- URLError or any transport failure
+        # agent-pipe momentarily down (e.g. a restart). Returning 0 tools would
+        # leave a fresh session PERMANENTLY toolless. Serve the last-good cache so
+        # the client keeps the full MiOS surface across the blip.
+        cached = _tools_cache_load()
+        if cached:
+            sys.stderr.write(
+                f"[mios-mcp] /v1/tools unreachable ({e}); served "
+                f"{len(cached)} CACHED tools\n")
+            return _ok(mid, {"tools": cached})
+        return _err(mid, -32000, f"agent-pipe unreachable + no cache: {e}")
     mcp_tools = []
     for t in (data.get("tools") or []):
         if not isinstance(t, dict):
@@ -144,6 +190,8 @@ def _handle_tools_list(mid, _params: dict) -> dict:
             "inputSchema": fn.get("parameters")
             or {"type": "object", "properties": {}},
         })
+    if mcp_tools:
+        _tools_cache_save(mcp_tools)   # persist last-good for blip resilience
     return _ok(mid, {"tools": mcp_tools})
 
 
