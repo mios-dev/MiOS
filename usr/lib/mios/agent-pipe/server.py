@@ -484,16 +484,27 @@ SLOW_LANE_TOOL_CAP = int(os.environ.get(
     "MIOS_SLOW_LANE_TOOL_CAP",
     str(_toml_section("dispatch").get("slow_lane_tool_cap", 12))) or 12)
 
+# WS-F (2026-06-15): global per-turn visible-tool cap for ANY lane with no explicit
+# LANE_TOOL_CAP entry -- including the fast gpu/dgpu/cpu primary, which used to see
+# the FULL ~74-tool surface (the selection-accuracy cliff). 0 = restore uncapped.
+DEFAULT_TOOL_CAP = int(os.environ.get(
+    "MIOS_DEFAULT_TOOL_CAP",
+    str(_toml_section("dispatch").get("default_tool_cap", 24))) or 24)
+
 
 def _lane_tool_cap(lane: str) -> int:
-    """Tool-count cap for a lane (0 = full surface). Weak lanes get a capped but
-    REAL toolset; never zero. A SLOW lane with no explicit cap falls back to
-    SLOW_LANE_TOOL_CAP so a CPU/iGPU node never inherits the full surface."""
+    """Tool-count cap for a lane (0 = full surface). Resolution order: an explicit
+    LANE_TOOL_CAP entry wins (incl. an explicit 0 = force-full for THAT lane); else
+    a SLOW lane falls back to SLOW_LANE_TOOL_CAP; else ANY lane (incl. the fast
+    gpu/dgpu/cpu primary) falls back to DEFAULT_TOOL_CAP, so no lane inherits the
+    full ~74-tool surface. The cosine/RRF _select_child_tools picks the most intent-
+    relevant N + CHILD_TOOL_FLOOR guarantees the core + tool_search reaches the rest."""
     _l = str(lane or "").lower().strip()
-    cap = LANE_TOOL_CAP.get(_l, 0)
-    if cap <= 0 and _l in SLOW_LANES and SLOW_LANE_TOOL_CAP > 0:
+    if _l in LANE_TOOL_CAP:          # explicit per-lane override (0 = force full)
+        return LANE_TOOL_CAP[_l]
+    if _l in SLOW_LANES and SLOW_LANE_TOOL_CAP > 0:
         return SLOW_LANE_TOOL_CAP
-    return cap
+    return DEFAULT_TOOL_CAP
 # SSOT (operator 2026-05-31 "HARDCODES!!!"): the swarm/DAG/deepen tunables in
 # this block are NOT code literals -- they live in mios.toml [dispatch], layered
 # vendor <- /etc <- ~/.config via _dispatch_toml(). The MIOS_* env vars are the
