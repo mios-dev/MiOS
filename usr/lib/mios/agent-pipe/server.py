@@ -3399,9 +3399,18 @@ def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
     (local) keep the FULL prefix. Returns the list unchanged for a fast lane."""
     if lane not in SLOW_LANES or SLOW_LANE_BLOCK_CHARS <= 0:
         return sys_prefix
+    # WS-B 2026-06-15: NEVER truncate the /MiOS.md identity+grounding contract on a
+    # slow lane -- it was being cut to ~25% on iGPU/phone/remote, so those council
+    # members lost the contract entirely. Identify it BY CONTENT (no non-standard
+    # key added to the message dict, so nothing leaks to a strict backend). Only
+    # the big web-research / RAG blocks are meant to shrink here.
+    _pin = _agent_contract()
     trimmed: list = []
     for m in sys_prefix:
         c = str(m.get("content", ""))
+        if _pin and c == _pin:
+            trimmed.append(m)
+            continue
         if len(c) > SLOW_LANE_BLOCK_CHARS:
             c = (c[:SLOW_LANE_BLOCK_CHARS].rstrip()
                  + "\n[...trimmed for the light lane...]")
