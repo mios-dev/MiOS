@@ -2,7 +2,7 @@
 # AI-related: /usr/share/mios/owui/tool-hints.yaml., /usr/share/mios/owui/tool-hints.yaml, /usr/share/mios/docs/multi-agent-architecture.md, /usr/share/mios/docs/multi-agent-, mios-hermes-tail, mios-find, mios-db, mios-daemon, mios-agent, mios-system-status
 # AI-functions: _is_narration_line, _db_post, _db_create, _db_fire, __init__, _compose_persona, _g, _collect_env_vars, _resolve_env_vars, _render_refine_system, pipes, _emit
 """
-title: MiOS-Agent
+title: MiOS AI
 author: MiOS
 version: 1.2.0
 description: |
@@ -245,7 +245,7 @@ class Pipe:
 
         DISPLAY_NAME: str = Field(
             default="",
-            description="Suffix appended to the FUNCTION row name in OWUI's model dropdown. Leave empty so dropdown shows just 'MiOS-Agent'.",
+            description="Suffix appended to the FUNCTION row name in OWUI's model dropdown. Leave empty so the dropdown shows just the function title 'MiOS AI'.",
         )
         EMIT_STATUS: bool = Field(
             default=True,
