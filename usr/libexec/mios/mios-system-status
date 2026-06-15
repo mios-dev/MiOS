@@ -242,10 +242,70 @@ def _probe_uptime() -> Optional[int]:
         return None
 
 
+def _probe_os() -> dict:
+    """OS identity -- the field the chat model needs so it STOPS guessing it runs
+    on 'Windows 10' (its base-model prior) when the SOUL says host facts come from
+    this tool ONLY. Every value is probed LIVE (no hardcoded OS string) and
+    degrades to null on failure, so the model reports 'couldn't determine' instead
+    of inventing. On WSL2 the WINDOWS HOST caption is probed best-effort via
+    mios-windows ps -> the agent learns the real host (e.g. 'Windows 11 Pro for
+    Workstations 10.0.x'), not the NT-10.0 'Windows 10' prior."""
+    info: dict[str, Any] = {
+        "distro": None, "kernel": None, "arch": None,
+        "is_wsl": False, "wsl_distro": None, "windows_host": None,
+    }
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("PRETTY_NAME="):
+                    info["distro"] = line.split("=", 1)[1].strip().strip('"')
+                    break
+    except OSError:
+        pass
+    rc, out, _ = _run(["uname", "-rm"], timeout=3.0)
+    if rc == 0 and out:
+        parts = out.split()
+        info["kernel"] = parts[0] if parts else None
+        info["arch"] = parts[1] if len(parts) > 1 else None
+    try:
+        with open("/proc/version") as f:
+            ver = f.read().lower()
+        if "microsoft" in ver or "wsl" in ver:
+            info["is_wsl"] = True
+    except OSError:
+        pass
+    if info["is_wsl"]:
+        try:
+            with open("/etc/wsl.conf") as f:
+                for line in f:
+                    s = line.strip()
+                    if s.startswith("hostname") and "=" in s:
+                        info["wsl_distro"] = s.split("=", 1)[1].strip()
+                        break
+        except OSError:
+            pass
+        # Windows HOST OS -- best-effort; null (with no fabrication) when WSL
+        # interop / the launcher broker is unreachable.
+        mw = _resolve_bin("mios-windows", ["/usr/libexec/mios", "/usr/local/bin"])
+        if mw:
+            rc, out, _ = _run([
+                mw, "ps",
+                "try { $o=Get-CimInstance Win32_OperatingSystem; "
+                "\"$($o.Caption) $($o.Version)\" } catch { '' }",
+            ], timeout=6.0)
+            cap = (out or "").replace("\r", "")
+            cap = next((ln.strip() for ln in reversed(cap.splitlines())
+                        if ln.strip()), "")
+            if cap and "windows" in cap.lower():
+                info["windows_host"] = cap
+    return info
+
+
 def main() -> int:
     payload = {
         "ts": time.time(),
         "uptime_s": _probe_uptime(),
+        "os": _probe_os(),
         "cpu": _probe_cpu(),
         "gpu": _probe_gpu(),
         "memory": _probe_memory(),

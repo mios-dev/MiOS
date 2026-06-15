@@ -1875,7 +1875,7 @@ desc  = "find, read, or edit LOCAL files on this machine"
 verbs = ["mios_find", "everything_search", "fs_search", "directory_lookup", "viking_ls", "viking_cat", "viking_find", "text_view", "text_create", "text_str_replace", "text_insert"]
 
 [routing.domains.system]
-desc  = "this machine's state, services, processes, containers, logs, environment"
+desc  = "this machine's OS / version / kernel / whether WSL2 / the Windows host, plus state, services, processes, containers, logs, environment"
 verbs = ["system_status", "sys_env", "sys_env_refresh", "system_logs", "service_status", "service_restart", "process_list", "container_status", "container_restart"]
 
 [routing.domains.apps_windows]
@@ -2931,8 +2931,8 @@ cmd = "mios-flatpak-preflight {id}"
 [verbs.system_status]
 section    = "System"
 sig        = ""
-desc       = "Live LOCAL machine health dashboard (JSON): GPU/VRAM, RAM, disk usage, running services, loaded ollama models. THE verb for 'system status', 'system health', 'is the GPU/memory/disk ok', 'summarize recent activity'. Local hardware state only -- NEVER a web search. Single source of truth for these live numbers."
-examples   = ["how's my system doing right now", "check GPU and VRAM usage", "is my disk getting full", "system health report"]
+desc       = "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded ollama models. THE verb for 'system status', 'system health', 'what OS / Windows version am I on', 'is the GPU/memory/disk ok'. Local state only -- NEVER a web search, and NEVER answer the OS/host from training data: read it HERE (the `os` field). Single source of truth for these live numbers."
+examples   = ["what OS / Windows version am I actually running", "how's my system doing right now", "check GPU and VRAM usage", "is my disk getting full"]
 tier       = "core"
 permission = "read"
 cmd        = "mios-system-status"
@@ -2941,9 +2941,9 @@ max_result_chars = 5000   # the full dashboard JSON (GPU/RAM/disk/services/model
 [verbs.sys_env]
 section    = "System"
 sig        = ""
-desc       = "READ the cached system/environment inventory (shared SurrealDB): identity, host hardware, which MiOS stack services are up/down, loaded ollama models, and the installed launchable-app inventory by category. Read this to know WHAT IS INSTALLED/RUNNING instead of guessing. Cached (may be slightly stale -> sys_env_refresh). Read-only."
+desc       = "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded ollama models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only."
 model_name = "sys_env_snapshot"
-examples   = ["what's installed and running on this box", "list the MiOS services and loaded models", "give me the environment inventory", "what apps does the system know about"]
+examples   = ["what OS / environment am I running on", "what's installed and running on this box", "list the MiOS services and loaded models", "give me the environment inventory"]
 tier       = "core"
 permission = "read"
 cmd        = "mios-sys-env get --json"
