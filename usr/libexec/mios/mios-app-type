@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# AI-hint: Resolves per-application-TYPE launch defaults + OS preference from the
+# layered mios.toml [[desktop.app_types]] SSOT (browser/files/editor/terminal/media/
+# games/settings/system), so the launcher and agent pick Linux-first vs Windows by
+# POLICY -- no hardcoded keyword lists. The per-user ~/.config/mios/mios.toml override
+# wins, so "switch my default" (via mios-app-default) takes effect immediately.
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-app-default, mios-open-url, mios-launch, mios-find, mios-apps
+# AI-functions: (resolver-only)
+set -euo pipefail
+# mios-app-type list                 -- all types as JSON (type, os_pref, default, windows_default)
+# mios-app-type resolve <type>       -- ONE type's policy as JSON; exit 3 if unknown
+# mios-app-type get <type> <field>   -- one field (os_pref|default|windows_default), bare string
+
+_usage() { sed -n '11,13p' "$0" | sed 's/^# //'; }
+
+case "${1:-}" in
+    -h|--help|help|"") _usage; [ -z "${1:-}" ] && exit 64 || exit 0 ;;
+esac
+
+exec python3 - "$@" <<'PY'
+import json, sys
+
+LAYERS = ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml")
+import os
+LAYERS = LAYERS + (os.path.expanduser("~/.config/mios/mios.toml"),)
+
+try:
+    import tomllib
+except ImportError:  # py<3.11
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print("{}"); sys.exit(0)
+
+# Merge app_types by `type`; later layers (etc, then ~/.config) override per type,
+# field-by-field -- so a user override that sets only `default` keeps os_pref.
+merged = {}
+for path in LAYERS:
+    try:
+        with open(path, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    for row in (d.get("desktop", {}).get("app_types", []) or []):
+        if not isinstance(row, dict):
+            continue
+        t = str(row.get("type", "")).strip().lower()
+        if not t:
+            continue
+        merged.setdefault(t, {})
+        for k, v in row.items():
+            if k != "type":
+                merged[t][k] = v
+
+def norm(t):
+    return dict(type=t, os_pref=merged[t].get("os_pref", "linux-first"),
+                default=merged[t].get("default"),
+                windows_default=merged[t].get("windows_default"),
+                description=merged[t].get("description", ""))
+
+argv = sys.argv[1:]
+cmd = argv[0] if argv else ""
+
+if cmd == "list":
+    print(json.dumps([norm(t) for t in sorted(merged)]))
+elif cmd == "resolve":
+    t = (argv[1] if len(argv) > 1 else "").strip().lower()
+    if t in merged:
+        print(json.dumps(norm(t)))
+    else:
+        sys.stderr.write(f"mios-app-type: unknown type '{t}'\n"); sys.exit(3)
+elif cmd == "get":
+    t = (argv[1] if len(argv) > 1 else "").strip().lower()
+    field = (argv[2] if len(argv) > 2 else "").strip()
+    if t in merged:
+        v = norm(t).get(field)
+        print("" if v is None else v)
+    else:
+        sys.exit(3)
+else:
+    sys.stderr.write(f"mios-app-type: unknown subcommand '{cmd}'\n"); sys.exit(64)
+PY
