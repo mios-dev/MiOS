@@ -16,6 +16,13 @@ COPY etc/                  /ctx/etc/
 COPY VERSION               /ctx/VERSION
 COPY config/artifacts/     /ctx/bib-configs/
 COPY tools/                /ctx/tools/
+# Repo-root agent MD files. On a clean OCI/bootc image these do NOT otherwise
+# exist at / (they're present on a dev box only via the Phase-1 git Total Root
+# Merge) -> agent-pipe's _load_agent_contract() silently degrades to "" and every
+# agent loses its /MiOS.md identity+grounding contract. Bake the real files (WS-C
+# 2026-06-15; baking is safe on BOTH image-only and git-worktree-at-/ deploys --
+# unlike a tmpfiles `L+` symlink, which would clobber the tracked file in a worktree).
+COPY MiOS.md AGENTS.md CLAUDE.md GEMINI.md /ctx/rootmd/
 
 FROM ${BASE_IMAGE}
 
@@ -56,6 +63,9 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     set -ex; \
     install -d -m 0755 /tmp/build; \
     cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    # WS-C: bake the repo-root agent MD files to / so a clean image is grounded
+    # (agent-pipe reads /MiOS.md; the layered /etc + ~/.config overrides still win).
+    install -m 0644 /ctx/rootmd/MiOS.md /ctx/rootmd/AGENTS.md /ctx/rootmd/CLAUDE.md /ctx/rootmd/GEMINI.md /; \
     # Defensive CRLF -> LF normalization. .gitattributes already pins
     # *.sh / *.toml / *.conf / *.yaml / *.json / *.md to LF, but Windows
     # build hosts (OneDrive sync in particular) bypass git's filter and
