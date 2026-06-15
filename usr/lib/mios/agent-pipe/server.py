@@ -15101,7 +15101,15 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
     if role:
         delta["role"] = role
     if reasoning is not None:
+        # Emit BOTH reasoning field conventions so EVERY client renders the
+        # thinking stream: `reasoning_content` (DeepSeek/OWUI) AND `reasoning`
+        # (OpenRouter / newer OpenAI / the Hermes desktop app + Cursor). A client
+        # parses whichever it knows and ignores the other; strict clients (Zen
+        # Smart Window) ignore both and show only `content`. Operator 2026-06-15:
+        # Hermes thinking wasn't streaming because it reads `delta.reasoning`, not
+        # `reasoning_content`.
         delta["reasoning_content"] = reasoning
+        delta["reasoning"] = reasoning
     if content is not None:
         delta["content"] = content
     chunk = {
