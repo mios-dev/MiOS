@@ -1245,14 +1245,8 @@ offload_cpu          = false
 # ── Tool-surface shaping (operator 2026-06-01). Per-lane tool CAP (weak lanes
 # like the iGPU llama.cpp time out grammar-constraining all 71 verbs; they get a
 # capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
-lane_tool_cap        = "igpu:15,mobile:15"   # lane:cap CSV; per-lane override of default_tool_cap (0 = force full surface for that lane)
-# WS-F (2026-06-15): bound the per-turn VISIBLE tool set on EVERY lane (incl. the
-# fast gpu/dgpu/cpu primary, which used to see the full ~74-tool surface). Tool-
-# selection accuracy degrades well before any API limit (gpt-4o 43%@4 -> 2%@51
-# tools); cosine-RRF picks the most intent-relevant N + child_tool_floor guarantees
-# the core + tool_search reaches the rest. 24 is generous (under the danger zone,
-# roomy enough to avoid starving the primary). 0 = restore the uncapped surface.
-default_tool_cap     = 24
+lane_tool_cap        = "igpu:15,mobile:15"   # lane:cap CSV; per-lane override (0 = full surface for that lane)
+default_tool_cap     = 24                    # per-turn visible-tool cap for any other lane; cosine picks the N + tool_search reaches the rest (0 = uncapped)
 no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
 # ── KV-cache paging (AIOS context-manager prototype, operator 2026-06-01 "VRAM

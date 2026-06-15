@@ -484,23 +484,16 @@ SLOW_LANE_TOOL_CAP = int(os.environ.get(
     "MIOS_SLOW_LANE_TOOL_CAP",
     str(_toml_section("dispatch").get("slow_lane_tool_cap", 12))) or 12)
 
-# WS-F (2026-06-15): global per-turn visible-tool cap for ANY lane with no explicit
-# LANE_TOOL_CAP entry -- including the fast gpu/dgpu/cpu primary, which used to see
-# the FULL ~74-tool surface (the selection-accuracy cliff). 0 = restore uncapped.
+# Per-turn visible-tool cap for any lane lacking an explicit entry (SSOT; 0 = uncapped).
 DEFAULT_TOOL_CAP = int(os.environ.get(
     "MIOS_DEFAULT_TOOL_CAP",
     str(_toml_section("dispatch").get("default_tool_cap", 24))) or 24)
 
 
 def _lane_tool_cap(lane: str) -> int:
-    """Tool-count cap for a lane (0 = full surface). Resolution order: an explicit
-    LANE_TOOL_CAP entry wins (incl. an explicit 0 = force-full for THAT lane); else
-    a SLOW lane falls back to SLOW_LANE_TOOL_CAP; else ANY lane (incl. the fast
-    gpu/dgpu/cpu primary) falls back to DEFAULT_TOOL_CAP, so no lane inherits the
-    full ~74-tool surface. The cosine/RRF _select_child_tools picks the most intent-
-    relevant N + CHILD_TOOL_FLOOR guarantees the core + tool_search reaches the rest."""
+    """Tool cap (0 = full). Explicit entry > slow-lane fallback > DEFAULT_TOOL_CAP."""
     _l = str(lane or "").lower().strip()
-    if _l in LANE_TOOL_CAP:          # explicit per-lane override (0 = force full)
+    if _l in LANE_TOOL_CAP:
         return LANE_TOOL_CAP[_l]
     if _l in SLOW_LANES and SLOW_LANE_TOOL_CAP > 0:
         return SLOW_LANE_TOOL_CAP
@@ -19982,6 +19975,10 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     for _k in ("temperature", "top_p", "max_tokens", "tool_choice", "parallel_tool_calls"):
         if _k in body:
             base_req[_k] = body[_k]
+    # Let the backend THINK so its reasoning can stream to clients that render it
+    # (Hermes desktop app). Safe here: the passthrough uses tools, not a json_schema
+    # grammar, so the llama.cpp #20345 thinking-drops-grammar issue doesn't apply.
+    base_req["chat_template_kwargs"] = {"enable_thinking": True}
     last: dict = {}
     for _ in range(max(1, max_iters)):
         req = dict(base_req)
@@ -20036,6 +20033,11 @@ async def _client_tools_sse(msg: dict, chat_id: str,
                                  "finish_reason": finish}]}) + "\n\n").encode("utf-8")
 
     yield _chunk({"role": "assistant"})
+    # Relay the backend's thinking so a client that renders it (Hermes desktop)
+    # shows the thinking stream; emit both field conventions. Zen ignores both.
+    _rsn = msg.get("reasoning_content") or msg.get("reasoning")
+    if _rsn:
+        yield _chunk({"reasoning_content": _rsn, "reasoning": _rsn})
     tcs = msg.get("tool_calls") or []
     if tcs:
         for _i, tc in enumerate(tcs):
