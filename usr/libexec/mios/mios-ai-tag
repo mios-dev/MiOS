@@ -209,7 +209,19 @@ def teacher_hint(endpoint, model, path, head, timeout=90.0) -> str:
 
 
 # ---- safe (re)insertion -----------------------------------------------------
+# A leading UTF-8 BOM (EF BB BF) MUST stay at byte 0: irm|iex and `irm | iex`
+# style canonical installs parse Get-MiOS.ps1 only if the BOM (when present) is
+# the very first byte. Strip it off the body before we splice the AI header in,
+# then re-prepend it to the FINAL bytes -- otherwise the header lands ABOVE the
+# BOM and strands U+FEFF mid-file (the Get-MiOS.ps1 install break, 2026-06-14).
+_BOM = b"\xef\xbb\xbf"
+
+
 def retag(raw: bytes, style: str, block: list[str]) -> bytes:
+    bom = b""
+    if raw[:3] == _BOM:
+        bom = _BOM
+        raw = raw[3:]
     nl = "\r\n" if b"\r\n" in raw[:65536] else "\n"
     text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n")
     lines = [ln for ln in text.split("\n") if not AI_LINE_RE.match(ln)]
@@ -226,7 +238,8 @@ def retag(raw: bytes, style: str, block: list[str]) -> bytes:
         block_lines += b.split("\n")
     lines = lines[:idx] + block_lines + lines[idx:]
     out = "\n".join(lines)
-    return (out.replace("\n", "\r\n") if nl == "\r\n" else out).encode("utf-8")
+    body = (out.replace("\n", "\r\n") if nl == "\r\n" else out).encode("utf-8")
+    return bom + body
 
 
 # ---- selection --------------------------------------------------------------

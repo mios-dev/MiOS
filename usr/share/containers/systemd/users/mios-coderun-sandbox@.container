@@ -43,7 +43,7 @@
 # the Quadlet provides namespace + seccomp + cgroup + network deny.
 # Defense in depth: if any single layer fails, the others hold.
 
-Description=MiOS code-run sandbox (%i) -- dry-run / test boundary, NOT agent runtime
+Description='MiOS' code-run sandbox (%i) -- dry-run / test boundary, NOT agent runtime
 After=network-online.target
 
 [Container]

@@ -83,6 +83,105 @@ def _resolve_api_key() -> str:
 API_KEY = _resolve_api_key()
 
 
+# ─── Per-terminal session continuity ──────────────────────────────────
+# Each `mios <prompt>` / `@<prompt>` invocation is a FRESH process: it builds a
+# brand-new request to Hermes (:8642) with no shared id, so consecutive turns in
+# the SAME terminal lose context (operator 2026-06-14, BUG C: after "open
+# epiphany", "attempt to launch and verify" had no idea what to launch -- a
+# stateless hermes session asked "which app?"). Fix: derive a STABLE session id
+# per controlling TTY, persisted in a short-TTL rolling state file under the XDG
+# state dir, so successive turns in one terminal share ONE conversation id (sent
+# to Hermes as metadata.chat_id + the OpenAI `user` field) AND a small client-
+# side rolling transcript we replay as prior messages -- continuity holds even
+# if the gateway doesn't persist server-side. A new terminal (different TTY) or
+# an idle gap past the TTL starts a fresh session.
+SESSION_TTL_S = int(os.environ.get("MIOS_CLI_SESSION_TTL", "1800") or 1800)
+SESSION_HISTORY_TURNS = int(os.environ.get("MIOS_CLI_SESSION_TURNS", "12") or 12)
+
+
+def _state_dir() -> pathlib.Path:
+    base = os.environ.get("XDG_STATE_HOME") or str(pathlib.Path.home() / ".local/state")
+    d = pathlib.Path(base) / "mios" / "cli-sessions"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        d = pathlib.Path("/tmp") / f"mios-cli-{os.getuid() if hasattr(os, 'getuid') else 'u'}"
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+    return d
+
+
+def _tty_token() -> str:
+    """A stable token identifying THIS controlling terminal, so every turn typed
+    into the same terminal shares one session. Prefer the real TTY device; fall
+    back to the parent PID (the interactive shell) so a piped/non-tty `@` still
+    groups by its launching shell. Last resort: a constant so the user at least
+    gets one rolling session per machine."""
+    for fd in (0, 1, 2):
+        try:
+            tty = os.ttyname(fd)
+            if tty:
+                return tty.replace("/", "_").strip("_")
+        except (OSError, AttributeError):
+            continue
+    sid = os.environ.get("MIOS_CLI_SESSION_ID")
+    if sid:
+        return "env_" + sid
+    try:
+        return "ppid_" + str(os.getppid())
+    except Exception:
+        return "shared"
+
+
+def _session_state_path() -> pathlib.Path:
+    import hashlib
+    tok = hashlib.sha256(_tty_token().encode("utf-8", "replace")).hexdigest()[:16]
+    return _state_dir() / f"{tok}.json"
+
+
+def load_session() -> dict[str, Any]:
+    """Load (or roll a fresh) per-terminal session: a stable conversation id, a
+    rolling client-side transcript, and the last-launched app. A gap longer than
+    the TTL since the last turn rolls a NEW conversation id (fresh context)."""
+    import time, uuid
+    p = _session_state_path()
+    now = time.time()
+    st: dict[str, Any] = {}
+    try:
+        if p.is_file():
+            st = json.loads(p.read_text(encoding="utf-8")) or {}
+    except (OSError, json.JSONDecodeError, ValueError):
+        st = {}
+    last = float(st.get("updated", 0) or 0)
+    if (not st.get("id")) or (now - last > SESSION_TTL_S):
+        st = {"id": "mios-cli-" + uuid.uuid4().hex[:16], "history": [], "last_app": None}
+    if not isinstance(st.get("history"), list):
+        st["history"] = []
+    return st
+
+
+def save_session(st: dict[str, Any]) -> None:
+    import time
+    st["updated"] = time.time()
+    # Cap the rolling transcript so the file (and the replayed context) stays small.
+    hist = st.get("history")
+    if isinstance(hist, list) and len(hist) > SESSION_HISTORY_TURNS * 2:
+        st["history"] = hist[-(SESSION_HISTORY_TURNS * 2):]
+    p = _session_state_path()
+    try:
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(st), encoding="utf-8")
+        os.replace(tmp, p)
+        try:
+            os.chmod(p, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        pass
+
+
 def resolve_system_prompt() -> str:
     # Layered override chain (highest wins):
     #   $MIOS_AI_SYSTEM_PROMPT -> ~/.config/mios/system-prompt.md
@@ -165,17 +264,29 @@ def dispatch_tool(name: str, args: dict[str, Any]) -> str:
 
 def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
                    tools: list[dict[str, Any]] | None,
-                   schema: dict[str, Any] | None) -> None:
+                   schema: dict[str, Any] | None,
+                   extra_body: dict[str, Any] | None = None,
+                   request_user: str | None = None,
+                   answer_box: list[str] | None = None) -> None:
     # Tool-calling roundtrip. The model may emit zero or more
     # tool_calls; for each we append the assistant turn then a
     # role:tool result and re-call. Loop until the model finishes
     # without requesting another tool. Print content deltas as they
     # arrive so the operator sees incremental output.
+    #
+    # extra_body / request_user carry the per-terminal session identity to the
+    # gateway (metadata.chat_id + the OpenAI `user` field) so consecutive turns
+    # thread server-side too; answer_box (if given) accumulates the visible
+    # assistant text so the caller can persist it to the rolling transcript.
     while True:
         kwargs: dict[str, Any] = {"model": MODEL, "messages": msgs}
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+        if request_user:
+            kwargs["user"] = request_user
+        if extra_body:
+            kwargs["extra_body"] = extra_body
         if schema:
             # Structured outputs (Chat Completions response_format).
             kwargs["response_format"] = {
@@ -193,6 +304,8 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
                 if ev.type == "content.delta":
                     sys.stdout.write(ev.delta)
                     sys.stdout.flush()
+                    if answer_box is not None:
+                        answer_box.append(ev.delta)
             final = s.get_final_completion()
 
         msg = final.choices[0].message
@@ -296,6 +409,52 @@ def _load_routing_list(key: str) -> list:
 # everything_search for "open notepad" -- operator 2026-06-07).
 _CLI_LAUNCH_TRIGGERS = frozenset({"open", "launch", "start", "run"})
 _CLI_COMPOUND = frozenset({"in", "and", "then", "with", "on", "to"})
+
+
+def _cli_launch_followup(prompt: str) -> bool:
+    """True if `prompt` is a launch FOLLOW-UP / RETRY about a PRIOR launch
+    (operator 2026-06-14, BUG B/C): "epiphany didn't launch for me", "attempt to
+    launch and verify", "try again". These carry no fresh "open/launch X" head,
+    so `_cli_launch_target` returns None and they fell through to free-form
+    Hermes -> narration. When the session has a remembered last-launched app, the
+    caller re-runs the launch+verify path against it deterministically. Phrase
+    lists are SSOT [routing].launch_followup_phrases / launch_retry_phrases (no
+    hardcoded English here)."""
+    t = (prompt or "").strip().lower()
+    if not t or len(t) > 160:
+        return False
+    for key in ("launch_followup_phrases", "launch_retry_phrases"):
+        for ph in _load_routing_list(key):
+            if ph and ph in t:
+                return True
+    return False
+
+
+def _run_verified_launch(app: str) -> int:
+    """Fire the LAUNCH+VERIFY path for `app` (the launch_and_verify_app verb's
+    backend: mios-os-control launch <app>, which fires the launch THEN polls the
+    window verifier). This is what a launch RETRY/VERIFY follow-up should run --
+    not narrate (operator 2026-06-14, BUG B: the CLI told the operator to run
+    `mios-gui epiphany` and asked permission instead of acting). Falls back to a
+    plain mios-launch + mios-verify-launch when mios-os-control is absent, then to
+    a bare mios-launch. Returns the process exit code (0 = launched/verified)."""
+    for argv in (["mios-os-control", "launch", app],):
+        try:
+            sys.stderr.write(f"mios: launching + verifying '{app}' (deterministic verify route)\n")
+            return subprocess.run(argv).returncode
+        except FileNotFoundError:
+            break
+    # mios-os-control absent -> plain launch then a read-only verify probe.
+    try:
+        sys.stderr.write(f"mios: launching '{app}' (deterministic launch route)\n")
+        rc = subprocess.run(["mios-launch", app]).returncode
+    except FileNotFoundError:
+        return 127
+    try:
+        subprocess.run(["mios-verify-launch", app])
+    except FileNotFoundError:
+        pass
+    return rc
 
 
 def _cli_launch_target(prompt: str):
@@ -421,34 +580,92 @@ def main(argv: list[str]) -> int:
         sys.stderr.write("mios: empty prompt\n")
         return 2
 
-    # Deterministic launch pre-route: a bare "open/launch/start/run <app>" is one
-    # concrete action -- dispatch it to mios-launch DIRECTLY (Windows-native via the
-    # in-session executor; Linux apps fall through inside mios-launch), bypassing the
-    # Hermes model whose small-model tool loop is unreliable for launches (operator
-    # 2026-06-07: "open notepad" looped on everything_search). Default tool-using
-    # chat only (not --no-tools / --json). Falls through to chat if mios-launch is
-    # missing.
+    # Per-terminal session: one stable conversation id + a rolling transcript +
+    # the last-launched app, so consecutive `@`/`mios` turns in this terminal
+    # share context (operator 2026-06-14, BUG C). Structured-output (--json) is a
+    # one-shot contract, so it opts OUT of the rolling history but still rolls the
+    # id forward. Best-effort: a load/save failure degrades to the old stateless
+    # behaviour, never blocks the turn.
+    session = load_session()
+
+    # Deterministic launch pre-route. TWO shapes:
+    #   (1) a bare "open/launch/start/run <app>" -- one concrete action; dispatch
+    #       it to mios-launch DIRECTLY (Windows-native via the in-session executor;
+    #       Linux apps fall through inside mios-launch), bypassing the Hermes model
+    #       whose small-model tool loop is unreliable for launches (operator
+    #       2026-06-07: "open notepad" looped on everything_search).
+    #   (2) a launch FOLLOW-UP / RETRY ("X didn't launch", "attempt to launch and
+    #       verify", "try again") referring to the PRIOR launch -- re-run the
+    #       launch+VERIFY path against the session's last-launched app instead of
+    #       narrating advice + asking permission (operator 2026-06-14, BUG B).
+    # Default tool-using chat only (not --no-tools / --json). Falls through to chat
+    # if the launch wrappers are missing.
     if use_tools:
         _app = _cli_launch_target(prompt)
         if _app:
             try:
                 sys.stderr.write(f"mios: launching '{_app}' (deterministic launch route)\n")
                 _r = subprocess.run(["mios-launch", _app])
-                print(f"Opened {_app}." if _r.returncode == 0
+                _ok = _r.returncode == 0
+                print(f"Opened {_app}." if _ok
                       else f"Could not open {_app} (mios-launch exit {_r.returncode}).")
-                return 0 if _r.returncode == 0 else 1
+                session["last_app"] = _app
+                save_session(session)
+                return 0 if _ok else 1
             except FileNotFoundError:
                 pass  # mios-launch not on PATH -> fall through to the chat path
+        elif _cli_launch_followup(prompt):
+            _last = session.get("last_app")
+            if _last:
+                _rc = _run_verified_launch(str(_last))
+                _ok = _rc == 0
+                print(f"Re-ran launch + verify for {_last}: "
+                      + ("confirmed it opened." if _ok
+                         else f"still could not confirm it opened (exit {_rc})."))
+                session["last_app"] = str(_last)
+                save_session(session)
+                return 0 if _ok else 1
+            # No remembered app in this session -> fall through to chat so the
+            # agent can ask / resolve (rather than the CLI guessing a target).
 
     client = OpenAI(base_url=ENDPOINT, api_key=API_KEY)
     msgs: list[dict[str, Any]] = [
         {"role": "system", "content": resolve_system_prompt()},
-        {"role": "user",   "content": prompt},
     ]
+    # Replay this terminal's rolling transcript so the model sees prior turns
+    # (BUG C). --json is a single-shot structured contract -> no replay.
+    _replay = (not schema_obj) and isinstance(session.get("history"), list)
+    if _replay:
+        for _m in session["history"][-(SESSION_HISTORY_TURNS * 2):]:
+            if isinstance(_m, dict) and _m.get("role") in ("user", "assistant") and _m.get("content"):
+                msgs.append({"role": _m["role"], "content": str(_m["content"])})
+    msgs.append({"role": "user", "content": prompt})
     tools = load_tools() if use_tools else None
 
+    # Send the session id to Hermes as the OpenAI-standard session keys
+    # (metadata.chat_id -- the SAME key the agent-pipe/OWUI path uses -- plus the
+    # `user` field) so a gateway that persists per-conversation state threads the
+    # turns server-side too. extra_body merges into the request JSON body.
+    extra_body = {"metadata": {"chat_id": session.get("id"),
+                               "session_id": session.get("id")}}
+    request_user = session.get("id")
+
+    # Capture the assistant's visible answer so it can be appended to the rolling
+    # transcript after the turn completes (mutated in place by chat_streaming).
+    answer_box: list[str] = []
     try:
-        chat_streaming(client, msgs, tools, schema_obj)
+        chat_streaming(client, msgs, tools, schema_obj,
+                       extra_body=extra_body, request_user=request_user,
+                       answer_box=answer_box)
+        if _replay:
+            session.setdefault("history", [])
+            session["history"].append({"role": "user", "content": prompt})
+            _ans = ("".join(answer_box)).strip()
+            if _ans:
+                session["history"].append({"role": "assistant", "content": _ans[:4000]})
+            save_session(session)
+        else:
+            save_session(session)  # roll the id's TTL forward
         return 0
     except KeyboardInterrupt:
         sys.stderr.write("\nmios: interrupted\n")

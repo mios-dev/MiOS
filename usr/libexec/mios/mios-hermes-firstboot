@@ -401,7 +401,7 @@ fi
 # it re-pulls + re-installs the package. Operator-confirmed regression
 # 2026-05-15: fresh MiOS install came up with hermes-agent inactive
 # because the build never installed the venv.
-if [[ ! -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
+if [[ ! -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
     _hermes_installer=""
     for _c in /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh \
               /opt/mios-bootstrap/automation/38-hermes-agent.sh \
@@ -417,7 +417,10 @@ if [[ ! -x /usr/lib/mios/hermes-agent/.venv/bin/hermes ]]; then
         if [[ -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
             _log "hermes-agent venv installed; daemon-reload + start the service"
             systemctl daemon-reload || true
-            systemctl restart hermes-agent.service 2>&1 | sed 's/^/  /' \
+            # --no-block: firstboot must not WAIT on hermes-agent settling
+            # (it has its own readiness deps + can deadlock against this very
+            # service in the early-boot ordering -- the ~23min hang, 2026-06-14).
+            systemctl restart --no-block hermes-agent.service 2>&1 | sed 's/^/  /' \
                 | while IFS= read -r _line; do _log "$_line"; done || true
         else
             _log "WARN: installer ran but venv still absent at /usr/lib/mios/agents/.venv/bin/hermes"
@@ -447,60 +450,69 @@ mkdir -p "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH"
 chown -R 850:850 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || true
 chmod 0750 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || true
 
-# Validate the resolved model against what Ollama actually serves. The
-# [ai.host_thresholds] auto-pick can resolve to a model that was never
-# baked or pulled on this host -- pointing Hermes at a missing model
-# breaks chat just as hard as a stale schema.
+# Validate the resolved model against what the LIVE BACKEND actually serves.
+# The [ai.host_thresholds] auto-pick can resolve to a model that was never
+# baked or pulled on this host -- pointing Hermes at a missing model breaks
+# chat just as hard as a stale schema.
 #
-# Fallback policy walks the TIER chain (small -> mid -> big), NOT
-# whatever happens to be first in the ollama tag list. Operator
-# directive 2026-05-16: never silently upgrade past the operator's
-# tier choice (the old `head -1` behaviour landed CPU-only hosts on
-# qwen3-coder:30b -- 18 GB, glacial on CPU, drove the tool-call
-# retry loop). If the chosen tier is missing, prefer the SMALLER
-# safer option first so the host remains responsive; only escalate
-# if nothing smaller is available.
-_ollama_tags="$(curl -fsS --max-time 5 http://localhost:11434/api/tags 2>/dev/null \
-    | grep -oE '"name":"[^"]+"' | sed 's/"name":"//;s/"$//')"
-if [[ -n "$_ollama_tags" ]]; then
-    if ! grep -qxF "$_AI_MODEL_RESOLVED" <<< "$_ollama_tags"; then
+# G5/G8: ollama (:11434) is RETIRED. The canonical front is mios-llm-light
+# (the llama-swap proxy at $_AI_BACKEND, default :11450), which exposes the
+# served set via the OpenAI-compat `GET /v1/models` ({"data":[{"id":...}]}).
+# Probe THAT and key every model decision (primary validation + fallback
+# chain) on the REAL served ids -- never on hardcoded qwen3* literals (the
+# old `localhost:11434` probe + qwen3.5:4b/qwen3:1.7b literals were the
+# stale-config root cause; 2026-06-14).
+#
+# Fallback policy still walks the TIER chain (small -> mid -> big), NOT
+# whatever happens to be first in the served list. Operator directive
+# 2026-05-16: never silently upgrade past the operator's tier choice. If
+# the chosen tier is missing, prefer the SMALLER safer option first so the
+# host stays responsive; only escalate if nothing smaller is available.
+_served_ids="$(curl -fsS --max-time 5 "${_AI_BACKEND}/v1/models" 2>/dev/null \
+    | grep -oE '"id":"[^"]+"' | sed 's/"id":"//;s/"$//')"
+if [[ -n "$_served_ids" ]]; then
+    if ! grep -qxF "$_AI_MODEL_RESOLVED" <<< "$_served_ids"; then
         _picked=""
         for _candidate in "$_small_m" "$_mid_m" "$_big_m"; do
             [[ -z "$_candidate" ]] && continue
-            if grep -qxF "$_candidate" <<< "$_ollama_tags"; then
+            if grep -qxF "$_candidate" <<< "$_served_ids"; then
                 _picked="$_candidate"
                 break
             fi
         done
         if [[ -z "$_picked" ]]; then
-            # Last-resort: any non-embed model. Better than a 401 loop,
+            # Last-resort: any non-embed served id. Better than a 401 loop,
             # but flag it loudly so the operator catches the gap.
-            _picked="$(grep -viE 'embed' <<< "$_ollama_tags" | head -1)"
-            [[ -n "$_picked" ]] && _log "WARN: no tier model present in Ollama -- using arbitrary '${_picked}'"
+            _picked="$(grep -viE 'embed' <<< "$_served_ids" | head -1)"
+            [[ -n "$_picked" ]] && _log "WARN: no tier model in the served set -- using arbitrary '${_picked}'"
         fi
         if [[ -n "$_picked" ]]; then
-            _log "resolved model '${_AI_MODEL_RESOLVED}' not present in Ollama -- tier-walked to '${_picked}'"
+            _log "resolved model '${_AI_MODEL_RESOLVED}' not in backend served set -- tier-walked to '${_picked}'"
             _AI_MODEL_RESOLVED="$_picked"
         else
-            _log "WARN: '${_AI_MODEL_RESOLVED}' not in Ollama and no non-embed fallback found"
+            _log "WARN: '${_AI_MODEL_RESOLVED}' not served by ${_AI_BACKEND} and no non-embed fallback found"
         fi
     fi
 fi
 
-# Build the fallback chain Hermes walks if the primary model emits
-# invalid tool calls / empty bodies. Policy: never escalate ABOVE the
-# resolved primary tier (the operator's tier ceiling is binding).
-# Emit only candidates that are actually pulled into Ollama; skip
-# duplicates of the primary. Always end with the universal
-# qwen3:1.7b safety net if present -- the 4-model-set micro/CPU base
-# (was qwen3:0.6b-cpu, dropped 2026-06-01), guaranteed CPU-fit so the
-# chat NEVER silently fails over to an unreachable cloud provider.
+# Build the fallback chain Hermes walks if the primary model emits invalid
+# tool calls / empty bodies. Policy: never escalate ABOVE the resolved
+# primary tier (the operator's tier ceiling is binding). Candidates are
+# keyed on the REAL served set (no qwen3* literals): the resolved tier
+# models (small -> mid) followed by the smallest served non-embed id as a
+# universal safety net, so the chat NEVER silently fails over to an
+# unreachable cloud provider. Emit only candidates the backend actually
+# serves; skip duplicates of the primary.
+_safety_net=""
+if [[ -n "$_served_ids" ]]; then
+    _safety_net="$(grep -viE 'embed' <<< "$_served_ids" | head -1)"
+fi
 _FALLBACK_CHAIN=()
 _seen=" $_AI_MODEL_RESOLVED "
-for _cand in "$_small_m" "qwen3.5:4b" "qwen3:1.7b"; do
+for _cand in "$_small_m" "$_mid_m" "$_safety_net"; do
     [[ -z "$_cand" ]] && continue
     [[ "$_seen" == *" $_cand "* ]] && continue
-    if [[ -z "$_ollama_tags" ]] || grep -qxF "$_cand" <<< "$_ollama_tags"; then
+    if [[ -z "$_served_ids" ]] || grep -qxF "$_cand" <<< "$_served_ids"; then
         _FALLBACK_CHAIN+=("$_cand")
         _seen+="$_cand "
     fi
@@ -514,13 +526,49 @@ done
 # Trim trailing newline so heredoc doesn't get a blank line at the end
 _FALLBACK_YAML="${_FALLBACK_YAML%$'\n'}"
 if [[ -z "$_FALLBACK_YAML" ]]; then
-    _FALLBACK_YAML="    # (no tier-safe fallback models installed in Ollama)"
+    _FALLBACK_YAML="    # (no tier-safe fallback models in the backend served set)"
 fi
 _log "fallback chain (tier-safe): ${_FALLBACK_CHAIN[*]:-<none>}"
 
+# Auxiliary + delegation model names -- pulled from the REAL served set
+# (G5/G8: no qwen3* literals). The auxiliary lanes (compression, title-gen,
+# triage, curator, mcp, web_extract, approval, skills_hub, session_search)
+# and the delegate workers should run on a SMALL fast model: prefer the
+# resolved small tier, then the smallest served non-embed id, finally the
+# resolved primary (always valid). Both names are validated against
+# $_served_ids when the backend is reachable; when it isn't (air-gapped
+# firstboot) we trust the tier resolution. The big GPU model stays the
+# primary; these keep auxiliary/delegate fan-out off the big lane.
+_aux_validate() {
+    # echo the first arg that is in the served set (or first arg if the
+    # backend is unreachable / served set unknown).
+    local _c
+    for _c in "$@"; do
+        [[ -z "$_c" ]] && continue
+        if [[ -z "$_served_ids" ]] || grep -qxF "$_c" <<< "$_served_ids"; then
+            printf '%s' "$_c"; return 0
+        fi
+    done
+    # nothing served matched -> fall back to the primary (guaranteed valid)
+    printf '%s' "$_AI_MODEL_RESOLVED"
+}
+_AUX_MODEL="$(_aux_validate "$_small_m" "$_safety_net" "$_AI_MODEL_RESOLVED")"
+_DELEGATION_MODEL="$(_aux_validate "$_small_m" "$_safety_net" "$_AI_MODEL_RESOLVED")"
+_log "auxiliary model: ${_AUX_MODEL}; delegation model: ${_DELEGATION_MODEL}"
+
+# Bump this in lockstep with the _config_version: NN literal in the seeded
+# heredoc below. Existing hosts whose config carries an older version re-seed
+# automatically (so the ollama->served-set probe + family-diverse model names
+# propagate without a manual delete; 2026-06-14).
+_CONFIG_VERSION=24
 _should_seed=0
 if [[ ! -f "$HERMES_DATA_CFG" ]]; then
     _should_seed=1
+elif ! grep -qxF "_config_version: ${_CONFIG_VERSION}" "$HERMES_DATA_CFG" 2>/dev/null; then
+    # Config predates the current schema version -- re-seed to pick up the
+    # latest model resolution + block layout.
+    _should_seed=1
+    _log "re-seeding $HERMES_DATA_CFG -- _config_version drift (want ${_CONFIG_VERSION})"
 elif grep -qE '^backend:' "$HERMES_DATA_CFG" 2>/dev/null; then
     # Leftover pre-0.13 `backend:` block -- stale schema, rewrite.
     _should_seed=1
@@ -592,7 +640,7 @@ if [[ "$_should_seed" -eq 1 ]]; then
 # Resolved values:
 #   [ai].model            -> ${_AI_MODEL_DEFAULT}
 #   validated vs Ollama   -> ${_AI_MODEL_RESOLVED}
-_config_version: 23
+_config_version: ${_CONFIG_VERSION}
 
 # Primary model. MUST be a mapping (not a bare string) so
 # resolve_requested_provider() sees the provider= key. provider=
@@ -656,49 +704,49 @@ auxiliary:
   session_search:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   title_generation:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   triage_specifier:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   curator:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   mcp:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   web_extract:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   approval:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   skills_hub:
     provider: custom:local-ollama
     base_url: ${_AI_BACKEND}/v1
-    model: qwen3:1.7b
+    model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   # Vision-grounding lane for screenshot -> click-coordinate
@@ -871,7 +919,7 @@ browser:
 delegation:
   provider: custom:local-ollama
   base_url: ${_AI_BACKEND}/v1
-  model: qwen3.5:4b                  # CPU-friendly, 262K context (above 64K floor), tool-capable -- runs on CPU alongside GPU main
+  model: ${_DELEGATION_MODEL}        # small fast tier (served-set resolved) -- CPU-friendly, tool-capable; runs alongside the GPU main
   ollama_num_ctx: 65536
   context_length: 65536
   max_concurrent_children: 6        # 16 cores -> ~2.5 cores per child even at full fan-out
@@ -1046,6 +1094,70 @@ if [[ -n "$_op_home" && -d "$_op_home" ]]; then
         _log "seeded operator CLI config $_op_cfg (user=$_op_user)"
     else
         _log "operator CLI config $_op_cfg already current -- not overwriting"
+    fi
+
+    # ── Operator CLI key material (~/.hermes/.env) ──────────────────────
+    # config.yaml above seeds the PROVIDER half (custom:local-ollama). But
+    # the bare interactive `hermes` CLI ALSO has a startup config-detection
+    # gate that trips with "no API keys or providers found -- run: hermes
+    # setup" when it sees no API_SERVER_KEY / OPENAI_API_KEY in its
+    # environment (operator-confirmed 2026-06-14: `hermes` -> setup wizard
+    # despite a seeded config.yaml at /var/home/mios/.hermes/config.yaml).
+    #
+    # WHY the gateway service didn't hit this: hermes-agent.service loads
+    # /etc/mios/hermes/api.env via EnvironmentFile=, so API_SERVER_KEY /
+    # OPENAI_API_KEY are in the SERVICE's os.environ. The interactive CLI
+    # runs as the operator and does NOT read /etc/mios/hermes/api.env --
+    # it auto-loads ~/.hermes/.env. Seed THAT with the SAME key material
+    # the service uses (single SSOT: the api.env this script generated
+    # above) so the CLI's "configured?" gate passes and it never drops
+    # into `hermes setup`.
+    #
+    # Architectural Law 5 (UNIFIED-AI-REDIRECTS) is preserved: the seeded
+    # config.yaml pins provider=custom:local-ollama at ${_AI_BACKEND}/v1
+    # with api_key:"" (the local lane is keyless). This .env carries only
+    # the gateway's OWN key (so the CLI can also auth to the local :8642
+    # gateway) -- NO cloud provider, NO vendor URL is introduced.
+    #
+    # Idempotent + version-aware: re-seed when the .env is missing OR no
+    # longer carries the current API_SERVER_KEY (key rotation / drift).
+    # Operators take ownership by deleting the "MiOS-managed" marker line;
+    # firstboot then leaves the file alone.
+    _op_env="${_op_cfg_dir}/.env"
+    _api_key_val=""
+    if [[ -r "$ENV_FILE" ]]; then
+        _api_key_val="$(awk -F= '/^API_SERVER_KEY=/{print $2; exit}' "$ENV_FILE" 2>/dev/null)"
+    fi
+    _op_env_should_seed() {
+        local f="$1"
+        [[ ! -f "$f" ]] && return 0
+        grep -q 'MiOS-managed' "$f" 2>/dev/null || return 1        # operator-owned, leave alone
+        # Re-seed if the current key isn't present (rotation/drift).
+        [[ -n "$_api_key_val" ]] && ! grep -qF "API_SERVER_KEY=${_api_key_val}" "$f" 2>/dev/null && return 0
+        return 1
+    }
+    if [[ -z "$_api_key_val" ]]; then
+        _log "WARN: no API_SERVER_KEY in $ENV_FILE -- skipping operator CLI .env seed"
+    elif _op_env_should_seed "$_op_env"; then
+        mkdir -p "$_op_cfg_dir"
+        umask 0077
+        cat > "$_op_env" <<EOF
+# ${_op_env} -- MiOS-managed by mios-hermes-firstboot.
+# Auto-loaded by the interactive \`hermes\` CLI so it never drops into the
+# \`hermes setup\` wizard ("no API keys or providers found"). Mirrors the
+# key material in /etc/mios/hermes/api.env (the gateway service's
+# EnvironmentFile=). The provider itself is the LOCAL lane -- see
+# ${_op_cfg} (provider: custom:local-ollama -> ${_AI_BACKEND}/v1).
+# To take ownership: delete this "MiOS-managed" marker line and edit.
+API_SERVER_KEY=${_api_key_val}
+OPENAI_API_KEY=${_api_key_val}
+EOF
+        umask 0022
+        chown "$_op_user":"$_op_user" "$_op_env" 2>/dev/null || true
+        chmod 0600 "$_op_env" 2>/dev/null || true
+        _log "seeded operator CLI key material $_op_env (user=$_op_user, local lane)"
+    else
+        _log "operator CLI .env $_op_env already current -- not overwriting"
     fi
 else
     _log "operator home for '$_op_user' not found -- skipping CLI config seed"
@@ -1234,9 +1346,10 @@ else
         [[ -e "$_skill_src" ]] || continue
         _skill_name="$(basename "$(dirname "$_skill_src")")"
         # Gateway service copy ($HERMES_HOME/skills/<name>/SKILL.md).
+        # Owner = the hermes-agent sysuser (uid 850, NOT the stale 820).
         _seed_one_skill "$_skill_src" \
                         "${HERMES_DATA}/skills/${_skill_name}" \
-                        "820:820"
+                        "850:850"
         # Operator `hermes` CLI copy (~/.hermes/skills/<name>/SKILL.md).
         if [[ -n "${_op_home:-}" && -d "${_op_home:-}" ]]; then
             _seed_one_skill "$_skill_src" \
@@ -1253,7 +1366,9 @@ else
     if systemctl is-active --quiet hermes-agent.service \
        && find "${HERMES_DATA}/skills" -newer "${HERMES_DATA}/SOUL.md" -name SKILL.md 2>/dev/null | grep -q .; then
         _log "skill content changed -- restarting hermes-agent.service to refresh skills index"
-        systemctl restart hermes-agent.service || _log "WARN: hermes-agent restart failed"
+        # --no-block: don't wait on the restart settling (avoids the firstboot
+        # <-> hermes-agent start deadlock / ~23min hang, 2026-06-14).
+        systemctl restart --no-block hermes-agent.service || _log "WARN: hermes-agent restart failed"
     fi
 fi
 

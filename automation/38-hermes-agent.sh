@@ -151,7 +151,7 @@ fi
 #     libpq headers / compiler needed.
 # --no-input keeps it non-interactive; failure here is non-fatal.
 if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} \
-        "${INSTALL_TARGET}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" 2>&1 | tail -5; then
+        "${INSTALL_TARGET}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" 2>&1 | tail -5; then
     :
 else
     warn "[38-hermes-agent] pip install of ${INSTALL_TARGET} + soft-deps failed -- removing partial venv, skipping"

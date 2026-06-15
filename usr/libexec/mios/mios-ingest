@@ -31,11 +31,25 @@ import json
 import os
 import subprocess
 import sys
+import urllib.request
 
 TABLE = os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge")
 SUMMARIZE = os.environ.get("MIOS_SUMMARIZE_BIN", "mios-summarize")
 DEFAULT_EXTS = os.environ.get("MIOS_INGEST_EXTS", "md,txt,rst,org")
 PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
+
+# Embed-on-write (WS-0 durability + exposure): embed the L0+L1 text at ingest so
+# the row is semantically RECALLABLE via the knowledge_emb_hnsw cosine index --
+# the same path agent-pipe's _store_knowledge_task uses for chat Q+A. MUST match
+# agent-pipe's model + endpoint EXACTLY (MIOS_VERB_EMBED_MODEL / _URL) so the
+# 768-dim nomic-embed-text vectors are comparable under <=> cosine; a mismatch
+# would make ingested rows un-rankable against chat-embedded queries.
+EMBED_MODEL = os.environ.get("MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
+EMBED_URL = os.environ.get(
+    "MIOS_VERB_EMBED_URL", "http://localhost:11450/v1/embeddings")
+# Cap the embed input (~1200 chars). nomic handles longer, but L0+L1 is already
+# a compact tiered summary; capping keeps the light-lane call fast + bounded.
+EMBED_MAX_CHARS = int(os.environ.get("MIOS_INGEST_EMBED_MAX_CHARS", "1200"))
 
 
 def _pg(sql: str) -> list:
@@ -65,6 +79,59 @@ def _summarize(text: str) -> dict:
         return json.loads(p.stdout or "{}")
     except Exception:  # noqa: BLE001
         return {}
+
+
+def _embed(text: str):
+    """Single-vector embed via the light-lane OpenAI-compat /v1/embeddings
+    (mios-llm-light :11450, nomic-embed-text, 768-dim) -- the SAME model+endpoint
+    agent-pipe uses so cosine recall is comparable. Supports BOTH the OpenAI /v1
+    shape ({input} -> {data:[{embedding}]}) and the ollama shape ({prompt} ->
+    {embedding}), chosen by the URL. Returns a list[float] or None on ANY failure
+    (network down, light lane swapping, bad shape) -- the caller then stores the
+    row with emb NULL (still persisted + auditable, just not recallable). NEVER
+    raises: embedding is best-effort and must not fail an ingest. Stdlib-only
+    (urllib) to keep this offline tool dependency-free."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    text = text[:EMBED_MAX_CHARS]
+    is_v1 = "/v1/embeddings" in EMBED_URL
+    payload = {"model": EMBED_MODEL,
+               ("input" if is_v1 else "prompt"): text}
+    try:
+        req = urllib.request.Request(
+            EMBED_URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            if resp.status != 200:
+                return None
+            data = json.loads(resp.read().decode("utf-8") or "{}")
+    except Exception as e:  # noqa: BLE001 -- embed is best-effort
+        print(f"[mios-ingest] embed call failed (emb NULL): {str(e)[:160]}",
+              file=sys.stderr)
+        return None
+    v = data.get("embedding")
+    if v is None:                       # OpenAI /v1 shape
+        d = data.get("data")
+        if isinstance(d, list) and d:
+            v = d[0].get("embedding")
+    if isinstance(v, list) and v:
+        try:
+            return [float(x) for x in v]
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _vec_literal(vec) -> str:
+    """Format a float sequence as a pgvector text literal '[0.1,0.2,...]' (matches
+    agent-pipe mios_pg.vector_literal). Cast with ::vector in the INSERT. The
+    output contains only digits / '.' / '-' / 'e' / ',' / brackets, so it is safe
+    to interpolate into the SQL string (no quote-escaping needed)."""
+    return "[" + ",".join(repr(float(x)) for x in (vec or [])) + "]"
 
 
 def _collect(path: str, file: str, exts: set, mx: int) -> list:
@@ -124,6 +191,12 @@ def main() -> int:
         l0 = (s.get("l0") or os.path.basename(sp)).strip()
         l1 = (s.get("l1") or raw[:2000]).strip()
         answer = f"[ingested from {sp}]\n\n{l1}"
+        # Embed-on-write: the tiered L0+L1 summary is what recall should match
+        # against, so embed that (NOT the raw L2 on disk). Best-effort -- a miss
+        # leaves emb NULL (row still stored + auditable, just not cosine-
+        # recallable). Capped inside _embed (EMBED_MAX_CHARS).
+        emb = _embed(f"{l0}\n{l1}")
+        embedded = emb is not None
         # idempotent upsert keyed on the source path. pg `knowledge` has no
         # `src`/`source` columns, so the path lives in the `sources` jsonb
         # array (preserving the old sources=[sp]) and we match it with the
@@ -133,13 +206,20 @@ def main() -> int:
         try:
             _pg(f"DELETE FROM {TABLE} WHERE sources @> '{_esc(src_json)}'::jsonb "
                 f"AND session_id = 'ingest';")
-            _pg(f"INSERT INTO {TABLE} (q, answer, sources, session_id) VALUES ("
-                f"'{_esc(l0[:300])}', "
-                f"'{_esc(answer[:6000])}', "
-                f"'{_esc(src_json)}'::jsonb, "
-                f"'ingest');")
+            # Add `emb` to the column list ONLY when the embed succeeded, casting
+            # the literal with ::vector (matches mios_pg.build_insert). On a miss
+            # we omit the column so it defaults to NULL -- never fail the ingest.
+            cols = "q, answer, sources, session_id"
+            vals = (f"'{_esc(l0[:300])}', "
+                    f"'{_esc(answer[:6000])}', "
+                    f"'{_esc(src_json)}'::jsonb, "
+                    f"'ingest'")
+            if embedded:
+                cols += ", emb"
+                vals += f", '{_vec_literal(emb)}'::vector"
+            _pg(f"INSERT INTO {TABLE} ({cols}) VALUES ({vals});")
             ingested += 1
-            report.append({"source": sp, "l0": l0[:120]})
+            report.append({"source": sp, "l0": l0[:120], "embedded": embedded})
         except Exception as e:  # noqa: BLE001
             skipped += 1
             report.append({"source": sp, "error": str(e)[:120]})

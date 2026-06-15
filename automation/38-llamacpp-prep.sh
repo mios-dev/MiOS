@@ -56,25 +56,21 @@ for entry in "${_entries[@]}"; do
         baked=$((baked + 1))
         continue
     fi
-    # huggingface_hub hf_hub_download (FOSS) -- fetch ONE pre-quantized GGUF.
-    # Pip-install it if the build image doesn't ship it yet.
-    if python3 - "$repo" "$file" "${SEED_DIR}/${dest}" <<'PY'
-import shutil, sys
-try:
-    from huggingface_hub import hf_hub_download
-except Exception:
-    import subprocess
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q",
-                    "huggingface_hub"], check=False)
-    from huggingface_hub import hf_hub_download
-repo, fname, dest = sys.argv[1], sys.argv[2], sys.argv[3]
-path = hf_hub_download(repo_id=repo, filename=fname)
-shutil.copyfile(path, dest)
-print(f"baked {repo}:{fname} -> {dest}")
-PY
-    then
+    # Fetch ONE pre-quantized GGUF via a plain curl of the HF resolve URL.
+    # NO huggingface_hub / runtime `pip install` (the old path's pip-install
+    # failed silently on locked/air-gapped build images -> no GGUFs -> the
+    # llm-light lane skipped; 2026-06-14). --fail (no 200 -> non-zero), -L
+    # (follow the CDN redirect), -C - (resume a partial .part). Download to a
+    # .part + atomic rename so a truncated file never trips the .ready gate.
+    _url="https://huggingface.co/${repo}/resolve/main/${file}"
+    if curl -fL -C - --retry 3 --max-time 1800 \
+            -o "${SEED_DIR}/${dest}.part" "$_url" \
+       && [[ -s "${SEED_DIR}/${dest}.part" ]]; then
+        mv -f "${SEED_DIR}/${dest}.part" "${SEED_DIR}/${dest}"
         baked=$((baked + 1))
+        log "[38-llamacpp] baked ${repo}:${file} -> ${dest} (${_url})"
     else
+        rm -f "${SEED_DIR}/${dest}.part" 2>/dev/null || true
         log "[38-llamacpp] download failed for ${repo}:${file} (no egress / upstream issue) -- continuing; 'mios update' can retry"
     fi
 done

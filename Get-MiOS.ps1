@@ -1,6 +1,6 @@
 # AI-hint: Legacy redirector script that proxies the MiOS bootstrap process to the canonical mios-bootstrap repository to initiate the system installation and configuration workflow.
 # AI-related: mios-bootstrap, mios-dev
-﻿<#
+<#
 .SYNOPSIS
     'MiOS' bootstrap -- legacy redirector to the canonical bootstrap-side
     Get-MiOS.ps1.

@@ -1,12 +1,16 @@
 # /usr/share/mios/flatpak-flags/org.gnome.Epiphany.flags
 # Per-app launch flags for GNOME Web (Epiphany), read by flatpak-launch.
 #
-# WSL has no DRI3/GPU for the WSLg compositor, so GTK4's default ngl (OpenGL)
-# renderer aborts at window-map and the process dies before anything appears --
-# the recurring "epiphany fires (success/pid-verified) but no window" symptom
-# (operator 2026-06-06; matches the documented WSLg GTK4 ngl->cairo root cause).
-# Force the cairo software renderer for GTK4 chrome and disable WebKit's GPU
-# compositing so the WebKit content process doesn't try the missing GPU either.
---env=GSK_RENDERER=cairo
+# 2026-06-15 CORRECTION: the "no window" was NOT a renderer abort -- flatpak-launch
+# appended these --env flags AFTER the app-id, so flatpak passed them to epiphany
+# ("Unknown option --env=...") and it EXITED (hidden by discarded stderr). With
+# flatpak-launch fixed to place options BEFORE the app-id, epiphany runs.
+# cairo rendered but FLAT (no rounded corners / modern libadwaita CSS). Use the GL
+# GSK renderer for modern GTK4 chrome (rounded corners, shadows, CSS) but on
+# SOFTWARE GL (llvmpipe via LIBGL_ALWAYS_SOFTWARE) so it does NOT depend on the
+# flaky WSLg dzn/d3d12 GPU path -- modern look + reliable. WebKit GPU compositing
+# stays disabled (the web-content process is the GPU-fragile part). For GPU-accel
+# chrome later: drop LIBGL_ALWAYS_SOFTWARE + set MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA.
+--env=GSK_RENDERER=gl
 --env=WEBKIT_DISABLE_COMPOSITING_MODE=1
 --env=LIBGL_ALWAYS_SOFTWARE=1

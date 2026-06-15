@@ -1,7 +1,7 @@
 #!/bin/bash
-# AI-hint: A wrapper script that resolves and launches flatpak applications via shims, exact IDs, or fuzzy matches, providing a 3-second verification window to ensure the process remains active after launch.
-# AI-related: /usr/libexec/mios/mios-gui, /usr/libexec/mios/mios-host-launch, /usr/libexec/mios/flatpak-launch, mios-host-launch
-# AI-functions: usage
+# AI-hint: A wrapper script that resolves and launches flatpak applications via shims, exact IDs, or fuzzy matches, then BOUNDED-polls the OS-control executor for a newly-mapped window to honestly confirm the app surfaced (vs claiming success on a detached spawn) and exits non-zero (3) when unconfirmed.
+# AI-related: /usr/libexec/mios/mios-gui, /usr/libexec/mios/mios-host-launch, /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-autocenter, /usr/libexec/mios/mios-pc-control, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-host-launch
+# AI-functions: usage, _mios_osc_endpoint, _mios_window_hwnds, _mios_confirm_new_window
 set -euo pipefail
 # /usr/libexec/mios/mios-gui <app> [args...]
 #
@@ -23,13 +23,98 @@ set -euo pipefail
 #
 #   4. No match -> print the catalogue of installed flatpaks + exit 1.
 #
-# After spawning, mios-gui WAITS ~3 seconds and verifies the flatpak's
-# process is actually alive (not just that the launch call returned 0).
-# This prevents the failure mode where flatpak-launch detached
-# successfully but the app crashed during startup -- the agent now sees
-# "FAILED" instead of false-positive success.
+# After spawning, mios-gui BOUNDED-POLLS the OS-control executor's read-only
+# GET /windows for a NEW top-level window hwnd to appear (the same surface
+# mios-autocenter / mios-window list read). It only prints an "Opened" success
+# line if a window is CONFIRMED to have surfaced; otherwise it prints an honest
+# "window NOT confirmed" line and exits 3 (unverified). This kills the
+# false-positive where a detached spawn returned 0 but no window ever painted --
+# common over a separate RDP session, where WSLg flatpak windows frequently do
+# NOT surface (WSLg-over-RDP / VAIL session-scoping, a documented MiOS limit).
+# A WSL-side process-alive check is only a weak supporting signal (a live
+# process over RDP is NOT proof a window painted), never the success criterion.
+# Degrade-open: no reachable executor / probe error -> honest "unconfirmed",
+# never a hard crash and never a false success.
 
 set -u
+
+# ─── OS-control executor endpoint resolution (read-only window enumeration) ──
+# Same resolver shape as mios-pc-control / mios-window / mios-autocenter:
+#   1. MIOS_OSCONTROL_EXECUTOR env
+#   2. [os_control].executor_endpoint in the layered mios.toml (/etc wins)
+#   3. WSL2 NAT-gateway auto-discovery on :11437 (MIOS_OSCONTROL_PORT)
+# The executor (mios-oscontrol-server.ps1) runs on the Windows desktop's
+# WinSta0\Default, so its GET /windows is the ONLY surface that actually sees
+# whether a window mapped on the operator's screen -- a WSL-side pgrep only
+# proves a PROCESS is alive, which over a separate RDP session is NOT proof a
+# window painted (WSLg-over-RDP VAIL session-scoping; documented MiOS limit).
+# Returns "" when nothing is resolvable (degrade-open: caller treats the launch
+# as UNCONFIRMED, never as a false success).
+_mios_osc_endpoint() {
+    _ep="${MIOS_OSCONTROL_EXECUTOR:-}"
+    if [ -z "$_ep" ]; then
+        for _t in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+            [ -r "$_t" ] || continue
+            _ep="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' "$_t" 2>/dev/null)"
+            [ -n "$_ep" ] && break
+        done
+    fi
+    if [ -z "$_ep" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
+        _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
+        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_OSCONTROL_PORT:-11437}"
+    fi
+    _ep="${_ep%/}"
+    # Only return an endpoint that is actually UP (quick /health probe) so an
+    # unreachable/stale endpoint degrades to "" (-> unconfirmed) instead of
+    # making every confirm poll time out.
+    if [ -n "$_ep" ] && command -v curl >/dev/null 2>&1 \
+       && curl -fsS -m 3 "$_ep/health" >/dev/null 2>&1; then
+        printf '%s\n' "$_ep"
+    fi
+}
+
+# Snapshot the CSV of currently-visible window hwnds from the executor.
+# Read-only (GET /windows -- the same surface mios-autocenter / mios-window
+# list already read). Prints "" on any error (degrade-open).
+_mios_window_hwnds() {  # <endpoint>
+    [ -n "${1:-}" ] || { printf ''; return 0; }
+    command -v curl    >/dev/null 2>&1 || { printf ''; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf ''; return 0; }
+    curl -s --max-time 5 "$1/windows" 2>/dev/null | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(""); raise SystemExit
+print(",".join(str(w.get("hwnd")) for w in d.get("windows", []) if w.get("hwnd") not in (None, "None")))' 2>/dev/null
+}
+
+# Poll the executor for a window hwnd that was NOT present before the launch
+# (i.e. a freshly-mapped window) within a bounded time. Prints "1" to stdout
+# iff a new window surfaced; "" otherwise. Read-only; degrade-open (any error
+# -> "", treated as unconfirmed). Bound is MIOS_LAUNCH_CONFIRM_SECS (default 12,
+# covering the wsl.exe-session portal-bootstrap window in flatpak-launch).
+_mios_confirm_new_window() {  # <endpoint> <before-csv> <secs>
+    _cw_ep="${1:-}"; _cw_before="${2:-}"; _cw_secs="${3:-12}"
+    [ -n "$_cw_ep" ] || { printf ''; return 0; }
+    command -v python3 >/dev/null 2>&1 || { printf ''; return 0; }
+    _cw_i=0
+    while [ "$_cw_i" -lt "$_cw_secs" ]; do
+        _cw_now="$(_mios_window_hwnds "$_cw_ep")"
+        _cw_new="$(BEFORE="$_cw_before" NOW="$_cw_now" python3 -c '
+import os
+before = set(x for x in os.environ.get("BEFORE", "").split(",") if x)
+now    = set(x for x in os.environ.get("NOW",    "").split(",") if x)
+print("1" if (now - before) else "")' 2>/dev/null)"
+        if [ -n "$_cw_new" ]; then
+            printf '1'
+            return 0
+        fi
+        _cw_i=$((_cw_i + 1))
+        sleep 1
+    done
+    printf ''
+}
 
 usage() {
     cat <<'EOF'
@@ -133,7 +218,20 @@ fi
 
 echo "mios-gui: launching $APP_ID" >&2
 
-# Spawn (fires and forgets via flatpak-launch + systemd-run)
+# ─── Snapshot windows BEFORE the launch (read-only) ─────────────────────────
+# The honesty fix (operator 2026-06-14: `@ open epiphany` printed "Opened
+# epiphany." but NO WINDOW appeared). The launchers DETACH and have, until now,
+# claimed success ("fired"/"dispatched") purely because the spawn call returned
+# 0 -- they never CONFIRMED a window actually surfaced. Over a separate RDP
+# session WSLg flatpak windows frequently do NOT paint (WSLg-over-RDP / VAIL
+# session-scoping, a documented MiOS limitation). So: capture the visible-window
+# hwnd set NOW, fire the launch, then poll for a NEW hwnd to appear. Only claim
+# success if a window is confirmed; otherwise say so honestly + exit non-zero so
+# the caller (and the agent-pipe window-diff) never report a false success.
+OSC_EP="$(_mios_osc_endpoint)"
+WIN_BEFORE="$(_mios_window_hwnds "$OSC_EP")"
+
+# Spawn (fires and forgets via flatpak-launch + systemd-run / wsl.exe session)
 "${LAUNCH[@]}" "$@"
 launch_rc=$?
 if [ "$launch_rc" -ne 0 ]; then
@@ -141,41 +239,55 @@ if [ "$launch_rc" -ne 0 ]; then
     exit "$launch_rc"
 fi
 
-# ─── Verify (BACKGROUNDED, log-only) ────────────────────────────────────────
-# The launch already fired + detached above. The agent-pipe's _respond_os_control
-# does the AUTHORITATIVE before/after window-diff verification now, so this
-# pgrep check must NOT block the broker dispatch (operator 2026-05-29: a
-# foreground verify here + the detached launch contributed to the 45s
-# launch_app timeout). Run it in a BACKGROUND subshell (log-only) and return
-# success immediately -- "launch dispatched". A genuine launch failure surfaces
-# in the agent-pipe's window-diff (window never appears), not here.
-( sleep 3
+# ─── Confirm a window actually surfaced (bounded poll) ──────────────────────
+# AUTHORITATIVE signal: a NEW top-level window hwnd appears on the operator's
+# desktop (the executor's GET /windows sees WinSta0\Default). A WSL-side pgrep
+# only proves a PROCESS is alive -- which, over RDP, is NOT proof a window
+# painted -- so it is kept only as a weak supporting signal in the unconfirmed
+# message, never as the success criterion.
+CONFIRM_SECS="${MIOS_LAUNCH_CONFIRM_SECS:-12}"
+case "$CONFIRM_SECS" in (*[!0-9]*|'') CONFIRM_SECS=12 ;; esac
+
+confirmed=""
+if [ -n "$OSC_EP" ]; then
+    confirmed="$(_mios_confirm_new_window "$OSC_EP" "$WIN_BEFORE" "$CONFIRM_SECS")"
+fi
+
+if [ -n "$confirmed" ]; then
+    # A new window mapped within the window -> genuine, visible success.
+    echo "mios-gui: ✓ Opened $APP_ID (new window confirmed within ${CONFIRM_SECS}s)" >&2
+    exit 0
+fi
+
+# ─── Unconfirmed: be HONEST, never claim "Opened" ───────────────────────────
+# Either no executor was reachable to confirm (degrade-open) or no new window
+# surfaced within the bound. Surface a weak process-alive signal for context,
+# but the verdict is UNVERIFIED and the exit code is non-zero so the agent does
+# NOT report success and instead tells the operator the truth (likely RDP/WSLg
+# paint limitation -> check the desktop or use the browser frontend).
 case "$APP_ID" in
     *"(host-rpm)")
-        # Match the basename of the host binary in argv.
         match_pat="$(basename "$HOST_BIN")"
         ;;
     *)
-        # Flatpak processes appear as: `bwrap ... -- <binary> ...args`
-        # where <binary> is the LOWERCASE app shortname (e.g. "epiphany"
-        # for org.gnome.Epiphany). The app_id (uppercase) doesnt appear
-        # in argv at all. Match the lowercase shortname; -i in the pgrep
-        # below also catches mixed-case variants.
-        # Operator-flagged 2026-05-16: agent reported "process not
-        # alive after 3 seconds" while Epiphany WAS visibly open on the
-        # operator desktop -- the case-sensitive pattern was missing
-        # the lowercase process name.
+        # Flatpak processes appear as `bwrap ... -- <binary> ...` where
+        # <binary> is the lowercased app shortname (epiphany for
+        # org.gnome.Epiphany); the uppercase app-id never appears in argv.
         _shortname=$(echo "$APP_ID" | awk -F. "{print tolower(\$NF)}")
         match_pat="bwrap.*$APP_ID|/app/.*$_shortname| $_shortname( |\$)"
         ;;
 esac
-# -i: case-insensitive (catches lower/Mixed/UPPER variants).
-# -f: match full command line (flatpaks live under bwrap argv).
+proc_state="process not detected"
 if pgrep -ifa "$match_pat" >/dev/null 2>&1; then
-    echo "mios-gui: ✓ $APP_ID is running" >&2
+    proc_state="process IS alive (but no window surfaced)"
+fi
+
+if [ -z "$OSC_EP" ]; then
+    echo "mios-gui: dispatched $APP_ID; window NOT confirmed (no OS-control executor reachable to verify) -- $proc_state. On a remote/RDP session WSLg windows may not surface; check the desktop or use the browser frontend." >&2
 else
-    echo "mios-gui: (bg-check) $APP_ID no process matched pgrep -ifa \"$match_pat\" 3s later -- the agent-pipe window-diff is the authoritative check" >&2
-fi ) >/dev/null 2>&1 &
-# Return immediately: the launch fired (+ detached). Success = "dispatched".
-echo "mios-gui: dispatched $APP_ID (verify backgrounded; agent-pipe window-diff is authoritative)" >&2
-exit 0
+    echo "mios-gui: dispatched $APP_ID; window NOT confirmed within ${CONFIRM_SECS}s -- $proc_state. On a remote/RDP session WSLg windows may not surface (WSLg-over-RDP limitation); check the desktop or use the browser frontend." >&2
+fi
+# Signal UNVERIFIED so the caller / agent-pipe window-diff does not report a
+# false "Opened". Non-zero but distinct from a hard launch failure (rc>=1
+# above): use 3 = "dispatched, window unconfirmed".
+exit 3

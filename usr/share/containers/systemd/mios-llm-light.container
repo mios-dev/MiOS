@@ -24,7 +24,7 @@
 #    paths in mios-llm-light.yaml. These cannot be validated offline.
 
 [Unit]
-Description=MiOS-LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)
+Description='MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)
 After=network-online.target
 Wants=network-online.target
 # Inert until models are provisioned (no GGUF -> no start -> no crash-loop).

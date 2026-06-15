@@ -135,6 +135,36 @@ _AUTH_HOSTPORTS = {
     _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
 }
 
+# ── Client-side tool-calling passthrough (operator 2026-06-15, Zen smart-window) ──
+# An external OpenAI client (Zen browser "smart window", an IDE assistant, etc.)
+# that supplies its OWN tools[] expects the standard OpenAI contract: the model
+# RETURNS tool_calls which the CLIENT executes (Zen's get_page_content /
+# get_open_tabs / run_search run IN THE BROWSER) and feeds back as role:tool
+# messages. MiOS's orchestration (refine/council/swarm + server-side _VERB_CATALOG
+# execution) is the WRONG shape for this -- it drops the client tools as
+# "hallucinated", tries to run them server-side (impossible; they live in the
+# browser), and never relays tool_calls back. So when a request carries client
+# tools, bypass orchestration ENTIRELY and proxy it verbatim to a tool-capable
+# backend, relaying tool_calls (SSE deltas + non-stream) unmodified -- the
+# structural twin of _vision_complete. Researched + code-grounded 2026-06-15
+# (workflow zen-clienttools-a2a-research): A2A/passports are the wrong tool here;
+# this transparent passthrough is the fix. SSOT: mios.toml [ai].client_tools_*.
+# DEDICATED backend knobs (NOT BACKEND/BACKEND_MODEL) so the relay never inherits
+# the stale gemma4:12b drift; default granite4.1:8b on the keyless :11450 lane
+# (verified tool-capable); repoint to mios-heavy (:11441) for harder routing.
+CLIENT_TOOLS_PASSTHROUGH = os.environ.get(
+    "MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH", "true"
+).strip().lower() in {"1", "true", "yes", "on"}
+_TOOL_BACKEND = os.environ.get(
+    "MIOS_AGENT_PIPE_TOOL_BACKEND", "http://localhost:11450/v1").rstrip("/")
+_TOOL_BACKEND_MODEL = os.environ.get(
+    "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL", "granite4.1:8b")
+# Optional inbound bearer gate for the passthrough route (a browser CAN send a
+# static Authorization header; passports can't gate Zen -- it's keyless). OFF by
+# default (unset) so the smart-window works immediately for testing; set the env
+# to require a matching client bearer before any tool_calls are returned.
+_INGRESS_KEY = os.environ.get("MIOS_AGENT_PIPE_INGRESS_KEY", "").strip()
+
 # Micro-LLM (SSOT: mios.toml [ai].micro_model / micro_endpoint, surfaced
 # as MIOS_MICRO_MODEL / MIOS_MICRO_ENDPOINT by userenv.sh). This is the
 # always-warm (keep_alive=-1) sub-second classifier. Default repointed
@@ -761,6 +791,247 @@ REQUEST_CANCEL_POLL_S = _dispatch_num(
 # chat SET()s the prior turn's event so the orchestrator's drain loop stops it
 # (operator 2026-06-01: don't leave an abandoned/superseded turn generating).
 _CHAT_CANCEL: dict = {}
+
+# ── W0-T3 aggregate token/turn budget + autonomous isolation (the missing
+# runaway tripwire). The per-generation num_predict cap + the per-turn wall-clock
+# bound the latency of ONE turn, but nothing bounded the AGGREGATE compute a
+# single conversation -- or, worse, an UNATTENDED autonomous source firing on a
+# timer -- could rack up over a window. A wedged cron loop (the 3x OOM wedges)
+# could re-fire research turns indefinitely with no human present. This adds a
+# time-windowed token ledger debited per conversation AND per autonomous source;
+# when a bucket exhausts its ceiling, NEW dispatch HARD-HALTS (a graceful "budget
+# exhausted" answer) instead of dispatching more compute.
+#
+# DEGRADE-OPEN + GENEROUS DEFAULTS: the ceilings default LARGE so normal
+# interactive use never trips; only a runaway/looping source hits them. ANY error
+# in the ledger fails OPEN (dispatch proceeds) -- the budget is a backstop, never
+# allowed to block a legitimate turn on a bookkeeping bug. SSOT [budget].*.
+_BUDGET_TOML = _toml_section("budget")
+
+
+def _budget_num(env: str, key: str, default, cast=int):
+    """env override -> mios.toml [budget].<key> -> literal default (preserves 0)."""
+    return _cfg_num(_BUDGET_TOML, env, key, default, cast)
+
+
+# Per-conversation aggregate token ceiling over the rolling window. Generous:
+# a normal interactive chat (refine + council + polish over a window) is well
+# under this; a wedged/looping conversation that keeps re-dispatching trips it.
+BUDGET_CONV_TOKEN_CEIL = _budget_num(
+    "MIOS_BUDGET_CONV_TOKEN_CEIL", "conversation_token_ceil", 2_000_000)
+# Per-autonomous-source aggregate token ceiling over the window. SEPARATE bucket
+# from the conversation ledger: an unattended cron/timer source is bounded on its
+# OWN aggregate so a misfiring schedule can't burn the host with no human present.
+BUDGET_AUTO_TOKEN_CEIL = _budget_num(
+    "MIOS_BUDGET_AUTO_TOKEN_CEIL", "autonomous_token_ceil", 1_000_000)
+# Max CONCURRENT in-flight autonomous turns across ALL autonomous sources. A
+# foreground turn always preempts (its priority is unchanged); this only caps how
+# many BACKGROUND turns dispatch at once so a runaway scheduler can't stack turns.
+BUDGET_AUTO_MAX_INFLIGHT = _budget_num(
+    "MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 2)
+# Rolling window (seconds) over which the token ledgers accumulate. Old debits
+# outside the window age out so a long-lived conversation isn't permanently
+# starved -- the ceiling bounds RATE, not lifetime total.
+BUDGET_WINDOW_S = _budget_num("MIOS_BUDGET_WINDOW_S", "window_s", 3600, float)
+# Master switch. Default ON but with ceilings so generous it's a pure backstop;
+# set false to disable the tripwire entirely (degrade to pre-T3 behaviour).
+BUDGET_ENABLE = str(os.environ.get(
+    "MIOS_BUDGET_ENABLE",
+    str(_BUDGET_TOML.get("enable", "true")))).strip().lower() not in {"0", "false", "no"}
+
+# key -> deque[(monotonic_ts, tokens)] rolling-window ledgers. Two namespaces:
+# "conv:<conv_key>" and "auto:<source>". OrderedDict so stale buckets LRU-evict.
+_BUDGET_LEDGER: "collections.OrderedDict" = collections.OrderedDict()
+_BUDGET_LEDGER_MAX = int(os.environ.get("MIOS_BUDGET_LEDGER_MAX", "1024"))
+# Per-turn token ESTIMATE debited at admission (debit-on-admit). The actual
+# usage is unknown until the turn finishes (and a streaming turn returns the
+# generator BEFORE it runs), so we debit a conservative per-turn estimate up
+# front; the rolling window ages it out. This makes the ledger a RATE limiter on
+# the NUMBER of turns a source/conversation fires per window (the runaway shape)
+# without instrumenting every return path. Generous default keeps the ceilings
+# reachable only by a genuinely looping source. SSOT [budget].per_turn_estimate.
+BUDGET_PER_TURN_ESTIMATE = _budget_num(
+    "MIOS_BUDGET_PER_TURN_ESTIMATE", "per_turn_estimate", 8192)
+# token -> monotonic_ts of in-flight autonomous turns. A TTL dict (not a set) so
+# a crashed/abandoned turn's token AGES OUT instead of leaking a slot forever
+# (the streaming path returns the generator before the turn ends -> no reliable
+# explicit-removal point). Pruned on each admission. TTL >> a normal turn.
+_BUDGET_AUTO_INFLIGHT: dict = {}
+BUDGET_INFLIGHT_TTL_S = _budget_num(
+    "MIOS_BUDGET_INFLIGHT_TTL_S", "inflight_ttl_s", 900, float)
+_BUDGET_LOCK = asyncio.Lock()
+
+
+def _budget_bucket(key: str) -> "collections.deque":
+    dq = _BUDGET_LEDGER.get(key)
+    if dq is None:
+        dq = collections.deque()
+        _BUDGET_LEDGER[key] = dq
+        while len(_BUDGET_LEDGER) > max(16, _BUDGET_LEDGER_MAX):
+            _BUDGET_LEDGER.popitem(last=False)
+    else:
+        _BUDGET_LEDGER.move_to_end(key)
+    return dq
+
+
+def _budget_window_total(key: str, now: float) -> int:
+    """Sum tokens debited to `key` within the rolling window; ages out the rest."""
+    dq = _BUDGET_LEDGER.get(key)
+    if not dq:
+        return 0
+    cutoff = now - BUDGET_WINDOW_S
+    while dq and dq[0][0] < cutoff:
+        dq.popleft()
+    return sum(t for _ts, t in dq)
+
+
+def _budget_debit(key: str, tokens: int, now: Optional[float] = None) -> None:
+    """Record `tokens` against `key`'s window ledger (best-effort, degrade-open)."""
+    if not BUDGET_ENABLE or tokens <= 0:
+        return
+    try:
+        _now = now if now is not None else time.monotonic()
+        _budget_bucket(key).append((_now, int(tokens)))
+    except Exception:  # noqa: BLE001 -- ledger is a backstop, never crashes a turn
+        log.debug("budget debit failed for %s", key, exc_info=True)
+
+
+def _budget_prune_inflight(now: float) -> None:
+    """Drop in-flight autonomous tokens older than the TTL (crash/abandon safety;
+    caller holds _BUDGET_LOCK)."""
+    if not _BUDGET_AUTO_INFLIGHT:
+        return
+    cutoff = now - BUDGET_INFLIGHT_TTL_S
+    for tok in [t for t, ts in _BUDGET_AUTO_INFLIGHT.items() if ts < cutoff]:
+        _BUDGET_AUTO_INFLIGHT.pop(tok, None)
+
+
+async def _budget_admit(conv_key: str, autonomous_source: Optional[str],
+                        turn_token: Optional[str] = None) -> tuple:
+    """Aggregate-budget admission for a NEW turn. Returns (allowed, reason).
+
+    HARD-HALTS (allowed=False) when the conversation OR the autonomous-source
+    token ceiling is already exhausted within the window, or when the concurrent
+    autonomous in-flight cap is reached. On ADMIT it debit-on-admits a
+    conservative per-turn estimate to both relevant buckets and (for an
+    autonomous turn with a turn_token) registers the turn in-flight -- so the
+    NEXT turn for an exhausted bucket is refused, which is the runaway tripwire
+    (it stops the SOURCE re-firing). DEGRADE-OPEN: any error -> allowed.
+
+    The check is BEFORE this turn's real tokens are known; the rolling window
+    ages the estimate out, so the ceiling bounds the RATE of turns per window."""
+    if not BUDGET_ENABLE:
+        return True, ""
+    try:
+        now = time.monotonic()
+        async with _BUDGET_LOCK:
+            conv_used = _budget_window_total("conv:" + conv_key, now)
+            if BUDGET_CONV_TOKEN_CEIL > 0 and conv_used >= BUDGET_CONV_TOKEN_CEIL:
+                return False, ("conversation token budget exhausted "
+                               f"({conv_used}/{BUDGET_CONV_TOKEN_CEIL} in "
+                               f"{int(BUDGET_WINDOW_S)}s)")
+            if autonomous_source:
+                _budget_prune_inflight(now)
+                auto_used = _budget_window_total("auto:" + autonomous_source, now)
+                if (BUDGET_AUTO_TOKEN_CEIL > 0
+                        and auto_used >= BUDGET_AUTO_TOKEN_CEIL):
+                    return False, ("autonomous token budget exhausted "
+                                   f"({auto_used}/{BUDGET_AUTO_TOKEN_CEIL} in "
+                                   f"{int(BUDGET_WINDOW_S)}s)")
+                if (BUDGET_AUTO_MAX_INFLIGHT > 0
+                        and len(_BUDGET_AUTO_INFLIGHT) >= BUDGET_AUTO_MAX_INFLIGHT):
+                    return False, ("autonomous concurrency limit reached "
+                                   f"({len(_BUDGET_AUTO_INFLIGHT)}/"
+                                   f"{BUDGET_AUTO_MAX_INFLIGHT} in flight)")
+            # ADMITTED -> debit-on-admit + register in-flight (atomic under lock).
+            _budget_debit("conv:" + conv_key, BUDGET_PER_TURN_ESTIMATE, now)
+            if autonomous_source:
+                _budget_debit("auto:" + autonomous_source,
+                              BUDGET_PER_TURN_ESTIMATE, now)
+                if turn_token:
+                    _BUDGET_AUTO_INFLIGHT[turn_token] = now
+        return True, ""
+    except Exception:  # noqa: BLE001 -- degrade-open: never block a turn on a bug
+        log.warning("budget admit check failed, degrading open", exc_info=True)
+        return True, ""
+
+
+async def _budget_release_inflight(turn_token: Optional[str]) -> None:
+    """Drop an autonomous turn's in-flight token (best-effort; degrade-open).
+    Idempotent. The autonomous turn registers in-flight in _budget_admit; this
+    is the PROMPT release for paths that have a clean terminal point. The
+    leak-proof backstop is _budget_prune_inflight (TTL): the streaming path
+    returns its generator BEFORE the turn truly ends, so there is no single
+    reliable removal point in the giant handler -- the TTL guarantees no slot
+    leaks even when no explicit release fires."""
+    if not turn_token:
+        return
+    try:
+        async with _BUDGET_LOCK:
+            _BUDGET_AUTO_INFLIGHT.pop(turn_token, None)
+    except Exception:  # noqa: BLE001
+        log.debug("budget inflight release failed for %s", turn_token, exc_info=True)
+
+
+# ── W0-T3 hard recursion bound. Each fan-out HOP (council/swarm dispatch that
+# can itself fan out) increments this contextvar in the child task's context; a
+# planner/fanout-picker at >= MAX_DISPATCH_DEPTH degrades CLOSED to a single
+# agent (returns no extra fan-out) so an agents-as-tools loop can't recurse into
+# an unbounded swarm-of-swarms. Generous default (2) so normal one-level council
+# + its self-fan-out is unaffected. SSOT [dispatch].max_dispatch_depth.
+MAX_DISPATCH_DEPTH = _dispatch_num("MIOS_MAX_DISPATCH_DEPTH", "max_dispatch_depth", 2)
+_dispatch_depth_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_dispatch_depth", default=0)
+
+
+def _dispatch_depth() -> int:
+    """Current fan-out hop depth for this async context (0 at the turn entry)."""
+    try:
+        return int(_dispatch_depth_var.get(0))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _enter_dispatch_hop() -> int:
+    """Increment + return the new fan-out depth for THIS context (child tasks
+    created after this inherit it). Call once per fan-out hop before dispatching
+    secondaries so a nested swarm sees a higher depth and degrades closed."""
+    d = _dispatch_depth() + 1
+    try:
+        _dispatch_depth_var.set(d)
+    except Exception:  # noqa: BLE001
+        pass
+    return d
+
+
+def _depth_exhausted() -> bool:
+    """True when a further fan-out hop would exceed MAX_DISPATCH_DEPTH -> the
+    caller must degrade CLOSED to single-agent (no _plan_swarm / no fanout)."""
+    return MAX_DISPATCH_DEPTH > 0 and _dispatch_depth() >= MAX_DISPATCH_DEPTH
+
+# ── DISPATCH PRIORITY for autonomous (background) turns (operator W0-T3). An
+# UNATTENDED autonomous turn must YIELD the next freed GPU slot to any operator
+# FOREGROUND turn -- background research should never preempt a human waiting at
+# the keyboard. This priority is applied to _turn_priority when metadata.
+# mios_autonomous is set, so the existing _priority_gate / _dispatch_priority
+# ordering admits the foreground turn first. SSOT [dispatch].autonomous_priority
+# accepts a NUMERIC value on the same _turn_priority scale (lower = waits longer)
+# OR a word (low/normal/high) mapped to a number. Default "low" -> 1.0, well
+# below the neutral 5.0 a foreground turn gets, so foreground always wins the gate.
+_AUTO_PRIO_WORDS = {"low": 1.0, "normal": 5.0, "medium": 5.0, "high": 9.0}
+
+
+def _resolve_autonomous_priority() -> float:
+    raw = os.environ.get("MIOS_AUTONOMOUS_PRIORITY")
+    if raw in (None, ""):
+        raw = _DISPATCH_TOML.get("autonomous_priority", "low")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return _AUTO_PRIO_WORDS.get(str(raw).strip().lower(), 1.0)
+
+
+AUTONOMOUS_PRIORITY = _resolve_autonomous_priority()
 
 # Council ROSTER width cap (operator 2026-06-01 runaway fix). Bounds how many
 # SECONDARY agents a council turn engages -- distinct from _agent_sem (which
@@ -3182,6 +3453,16 @@ def _pick_fanout_agents(primary_name: str,
     agent (non-primary, not opted out) this turn, bypassing the enable /
     fanout_max / relevance gates entirely -- the manual 'full swarm' override."""
 
+    # W0-T3 hard recursion bound: a nested fan-out hop (agents-as-tools that
+    # itself dispatches secondaries) at >= MAX_DISPATCH_DEPTH degrades CLOSED to
+    # a SINGLE agent -- no extra council -- so a swarm-of-swarms can't recurse
+    # unbounded. force_council does NOT override this (the cap is a safety bound,
+    # not a relevance gate). No-op at the normal one-level depth (default 2).
+    if _depth_exhausted():
+        log.info("fanout: dispatch depth %d >= %d -> single-agent (degrade-closed)",
+                 _dispatch_depth(), MAX_DISPATCH_DEPTH)
+        return []
+
     def _opted_out(c: dict) -> bool:
         # Explicit fan-out opt-out. The telemetry daemon-agent sets this:
         # it ignores the prompt and always returns a system digest, so it
@@ -3907,8 +4188,23 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                     "title": (str(_t.get("title") or _obj))[:72],
                     "local_state": bool(_t.get("local_state")),
                     "web": bool(_t.get("web"))})
+            # W0-T3 hard recursion bound: this tool IS the fan-out hop. If the
+            # context is already at the depth limit, refuse to spawn another
+            # swarm (degrade CLOSED -- the loop continues single-agent) so an
+            # agents-as-tools chain can't recurse into a swarm-of-swarms.
+            if _depth_exhausted():
+                log.info("dispatch_to_nodes: depth %d >= %d -> refusing nested "
+                         "swarm (degrade-closed)", _dispatch_depth(), MAX_DISPATCH_DEPTH)
+                tmsg["content"] = ("(dispatch_to_nodes: maximum fan-out depth "
+                                   "reached; continue with the current agent)")
+                tool_msgs.append(tmsg)
+                continue
             push(f" 🛰️ dispatch_to_nodes ({len(_norm)})")
             try:
+                # Enter a fan-out hop: child tasks (the swarm nodes spawned below)
+                # inherit this incremented depth, so any node that tries to fan out
+                # AGAIN sees >= the bound and degrades to single-agent.
+                _enter_dispatch_hop()
                 if not _norm:
                     _norm = await _plan_swarm(_octx.get("last_user_text") or "", None)
                 _live = await _live_agent_names()
@@ -13316,6 +13612,14 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     routes + constraints that searched garbage)."""
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return []
+    # W0-T3 hard recursion bound: refuse to DECOMPOSE into a fresh swarm when this
+    # context is already at/over the fan-out depth limit -> degrade CLOSED to a
+    # single agent (no sub-swarm) so a nested agents-as-tools hop can't recurse
+    # into a swarm-of-swarms. No-op at the normal top-level depth (default 2).
+    if _depth_exhausted():
+        log.info("plan_swarm: dispatch depth %d >= %d -> no decomposition "
+                 "(degrade-closed)", _dispatch_depth(), MAX_DISPATCH_DEPTH)
+        return []
     # /api/chat with think=False -- the proven-reliable path refine uses. The
     # /v1 + response_format path returned EMPTY content for the full agent
     # roster (operator 2026-05-22 trace: "swarm planner raw (len=0)"). Use the
@@ -14638,11 +14942,25 @@ async def _dispatch_mios_verb_inner(
         # Compute taint for this verb's OWN execution (e.g. open_url
         # to an external host marks the result as tainted).
         v_tainted, v_reason = _classify_verb_taint(tool, args)
+        _out = (j.get("stdout") or "")[:6000]
+        _err = (j.get("stderr") or "")[:2000]
+        # Launch verbs emit noisy resolve/fallback PROGRESS to stderr (wine
+        # attempts, per-candidate misses, "trying Windows") even when the launch
+        # ULTIMATELY SUCCEEDS via a fallback (e.g. native interop). The small
+        # agent model misread that progress as failure and NARRATED "couldn't
+        # find it" though the window opened (operator 2026-06-15 "LIAR"). On a
+        # SUCCESSFUL launch surface the clean stdout verdict and demote the
+        # progress noise so the agent reports the success it actually achieved.
+        if tool in _LAUNCH_VERBS and exit_code == 0:
+            if not _out.strip():
+                _tgt = args.get("name") or args.get("app") or args.get("url") or tool
+                _out = f"Launched {_tgt} (verified)."
+            _err = ""
         return {
             "success": exit_code == 0,
             "tool": tool, "args": args,
-            "output": (j.get("stdout") or "")[:6000],
-            "stderr": (j.get("stderr") or "")[:2000],
+            "output": _out,
+            "stderr": _err,
             "exit_code": exit_code,
             "latency_ms": latency_ms,
             "tainted": v_tainted,
@@ -19375,9 +19693,9 @@ VISION_ENABLE = os.environ.get(
 # path (2026-05-22). qwen3-vl:4b was the lighter first choice but its ollama
 # runner crashes on image input in this build ("model runner unexpectedly
 # stopped" / "png: invalid format") -- switch back via this env once fixed.
-VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "llama3.2-vision:11b")
+VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "qwen3-vl:4b")
 VISION_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_VISION_ENDPOINT", "http://localhost:11434").rstrip("/")
+    "MIOS_AGENT_PIPE_VISION_ENDPOINT", "http://localhost:11450").rstrip("/")
 
 
 def _messages_have_image(messages: list) -> bool:
@@ -19433,6 +19751,77 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
             log.warning("vision stream failed: %s", e)
             yield ("data: " + json.dumps(
                 {"choices": [{"delta": {"content": f"[vision error: {e}]"}}]})
+                + "\n\n").encode("utf-8")
+            yield b"data: [DONE]\n\n"
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
+def _has_client_tools(body: dict) -> bool:
+    """True when the CALLER supplied its own OpenAI tools[] -- the signal that this
+    is client-side tool-calling (the client executes the functions and wants
+    tool_calls back), NOT a MiOS-orchestrated turn. OWUI strips tools before
+    calling the pipe and the mios CLI is Hermes-direct, so this is False for them
+    (zero regression). Empty/missing tools -> False (normal orchestration)."""
+    t = body.get("tools")
+    return isinstance(t, list) and len(t) > 0
+
+
+async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
+                                 model: str) -> Any:
+    """Transparent OpenAI client-tool passthrough (Zen smart-window et al.).
+    Relays the request VERBATIM to a tool-capable backend and returns the
+    backend's tool_calls unmodified -- stream (SSE deltas byte-for-byte) and
+    non-stream (JSON verbatim). NEVER runs refine/council/polish; NEVER executes
+    the client's tools server-side (they run in the caller's browser). Twin of
+    _vision_complete; see the config block (CLIENT_TOOLS_PASSTHROUGH) for the why.
+    Security: client tool names travel ONLY upstream to the model -- they never
+    reach _exec_tool_calls / dispatch_mios_verb / the broker, so a client tool
+    name colliding with a real MiOS verb can never auto-execute server-side."""
+    tbody = dict(body)
+    # Pin a SERVED, tool-capable model -- never the stale gemma4:12b backend drift,
+    # never qwen3-vl/lfm2 (verified to emit no tool_calls). The caller's own model
+    # field is ignored on purpose so a generic OpenAI client (sending e.g.
+    # "gpt-4o") still lands on a working local tool-caller.
+    tbody["model"] = _TOOL_BACKEND_MODEL
+    # Strip MiOS-internal control fields a strict /v1 backend may reject.
+    for _k in ("mios_flags", "_allow_write", "num_ctx"):
+        tbody.pop(_k, None)
+    headers = {"content-type": "application/json"}
+    _hp = _TOOL_BACKEND.split("://")[-1].split("/")[0]
+    if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
+        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+    url = f"{_TOOL_BACKEND}/chat/completions"
+    client = await _get_client()
+    if not streaming:
+        tbody["stream"] = False
+        try:
+            r = await client.post(
+                url, content=json.dumps(tbody).encode("utf-8"), headers=headers)
+            return JSONResponse(content=r.json(), status_code=r.status_code)
+        except Exception as e:  # noqa: BLE001
+            log.warning("client-tools passthrough backend failed: %s", e)
+            return JSONResponse(
+                content={"error": {"message": f"tool backend error: {e}",
+                                   "type": "server_error"}}, status_code=502)
+
+    async def _gen() -> AsyncGenerator[bytes, None]:
+        tbody["stream"] = True
+        try:
+            async with client.stream(
+                    "POST", url,
+                    content=json.dumps(tbody).encode("utf-8"),
+                    headers=headers) as resp:
+                # Relay verbatim -- tool_call deltas chunk function.arguments across
+                # SSE events with a stable index; aiter_bytes preserves them
+                # byte-for-byte. Do NOT route through _sse_chunk/_sse_reasoning
+                # (they model only content/reasoning deltas -> would drop tool_calls).
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+        except Exception as e:  # noqa: BLE001
+            log.warning("client-tools passthrough stream failed: %s", e)
+            yield ("data: " + json.dumps(
+                {"choices": [{"delta": {"content": f"[tool backend error: {e}]"}}]})
                 + "\n\n").encode("utf-8")
             yield b"data: [DONE]\n\n"
 
@@ -20525,12 +20914,12 @@ async def _respond_native_loop_direct(
         _last = _user_msgs[-1]
         _ctx = _plan_block
         if _recall_text:
-            _ctx += ("YOU HAVE THE FOLLOWING SAVED CONTEXT for this user -- facts YOU "
-                     "recorded in earlier sessions (your own memory / knowledge). You DO "
-                     "have this information: when the question asks about something here, "
-                     "ANSWER IT DIRECTLY AND CONFIDENTLY from this context -- do NOT reply "
-                     "that you lack access to the user's personal data or preferences, and "
-                     "do NOT call a tool to re-fetch what is already provided here:\n"
+            _ctx += ("You ARE an assistant WITH persistent cross-session memory -- the "
+                     "SAVED CONTEXT below IS your memory of this user. It is FALSE to say "
+                     "you have no memory, no stored information, cannot remember, or lack "
+                     "access -- NEVER say that. These are facts YOU recorded earlier; "
+                     "ANSWER the question DIRECTLY AND CONFIDENTLY from them, and do NOT "
+                     "call a tool to re-fetch what is already provided here:\n"
                      + _recall_text + "\n\n")
         if _pref:
             _ctx += _pref + "\n\n"
@@ -20774,8 +21163,32 @@ async def _respond_native_loop_direct(
                     if len(_snips) >= 3:
                         break
             _ans = "\n\n".join(_snips).strip()
-            log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
-                     if _ans else "no answer/raw/evidence (empty)")
+            # (3b) STILL empty but we injected saved-context recall this turn ->
+            # surface it deterministically. granite sometimes emits NOTHING for a
+            # memory ask (its "I have no memory" reflex -> 0 content + 0 tool-calls),
+            # which previously left the user with a BLANK turn even though their own
+            # saved facts were right here. Never return blank when recall is present
+            # (Claude 2026-06-15; same relay-ladder spirit -- real data, no canned phrase).
+            if not _ans and _recall_text and _recall_text.strip():
+                # Surface the saved FACTS cleanly: drop the model-facing framing
+                # headers/instructions, the [score] markers, and the "this fact:"
+                # filler so the user sees facts, not scaffolding (degrade to raw if
+                # over-stripped).
+                _facts = re.sub(
+                    r"(?im)^\s*(Durable facts|Relevant knowledge|Recent web|Context from|Saved).*$",
+                    "", _recall_text)
+                _facts = re.sub(
+                    r"(?im)^.*(do NOT call a tool|may be OUTDATED|answer FROM IT|fetch with a tool|these saved facts|verify).*$",
+                    "", _facts)
+                _facts = re.sub(r"\[\d(?:\.\d+)?\]\s*", "", _facts)
+                _facts = re.sub(r"(?i)\bthis fact:\s*", "", _facts)
+                _facts = "\n".join(l.rstrip() for l in _facts.splitlines() if l.strip())
+                _ans = ("From your saved memory:\n" + _facts
+                        if _facts.strip() else _recall_text.strip())
+                log.info("native-loop: surfaced injected recall (raw+polish+tools empty)")
+            else:
+                log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
+                         if _ans else "no answer/raw/evidence (empty)")
     try:
         _store_knowledge(query=last_user_text, answer=_ans,
                          session_id=session_id, tool_history=[])
@@ -21113,8 +21526,18 @@ async def chat_completions(request: Request) -> Any:
     # swarm-DAG path (~15710 _is_research) AND the council path (~16242) on it.
     _meta_top = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
     _autonomous = bool(_meta_top.get("mios_autonomous"))
+    # W0-T3 per-autonomous-source budget key: prefer a finer identifier (the
+    # cron rule / schedule id) when the source provides one, so distinct
+    # schedules get distinct ceilings; else all autonomous turns share one
+    # "autonomous" aggregate bucket. Only meaningful when _autonomous is set.
+    _autonomous_source = None
     if _autonomous:
-        log.info("AUTONOMOUS turn -> bounded (no wide research fan-out on either path)")
+        _autonomous_source = str(
+            _meta_top.get("mios_source") or _meta_top.get("rule_id")
+            or _meta_top.get("schedule_id") or _meta_top.get("cron_id")
+            or "autonomous")
+        log.info("AUTONOMOUS turn (source=%s) -> bounded (no wide research fan-out on either path)",
+                 _autonomous_source)
     # Operator-facing persona + environment/language/locale guidance the
     # OWUI pipe injected as system message(s). Captured once so the final
     # polish can apply the operator's voice + the correct language
@@ -21133,6 +21556,26 @@ async def chat_completions(request: Request) -> Any:
     if VISION_ENABLE and _messages_have_image(messages):
         log.info("vision: image turn -> %s", VISION_MODEL)
         return await _vision_complete(body, streaming, chat_id, model)
+
+    # CLIENT-SIDE TOOL-CALLING passthrough (operator 2026-06-15, Zen smart-window):
+    # a caller that supplied its OWN tools[] (browser/IDE assistants) executes them
+    # itself and expects tool_calls back -- bypass orchestration and relay verbatim
+    # to a tool-capable backend. Placed AFTER vision (an image turn needs the VLM)
+    # and BEFORE session/refine/council so client tools are never dropped as
+    # "hallucinations" nor executed server-side. Invisible to OWUI (strips tools)
+    # and the mios CLI (Hermes-direct) -> they never set tools[]. See the config
+    # block + _client_tools_complete.
+    if CLIENT_TOOLS_PASSTHROUGH and _has_client_tools(body):
+        if _INGRESS_KEY:
+            _auth = (request.headers.get("authorization") or "")
+            if _auth.removeprefix("Bearer ").strip() != _INGRESS_KEY:
+                return JSONResponse(
+                    content={"error": {"message": "unauthorized",
+                                       "type": "invalid_request_error"}},
+                    status_code=401)
+        log.info("client-tools passthrough: %d tool(s) -> %s (%s)",
+                 len(body.get("tools") or []), _TOOL_BACKEND_MODEL, _TOOL_BACKEND)
+        return await _client_tools_complete(body, streaming, chat_id, model)
 
     # SurrealDB session row -- the record id is captured for
     # downstream tool_call linking + the inline confirmation engine.
@@ -21194,6 +21637,54 @@ async def chat_completions(request: Request) -> Any:
         _turn_priority = float(_sched_priority(refined).get("score", 5.0))
     except Exception:  # noqa: BLE001
         _turn_priority = 5.0
+    # W0-T3 autonomous isolation: an UNATTENDED (mios_autonomous) turn is BACKGROUND
+    # work -- it must yield the next freed GPU slot to any operator FOREGROUND turn.
+    # Clamp its priority DOWN to AUTONOMOUS_PRIORITY (default 1.0 << neutral 5.0) so
+    # the existing _priority_gate / _admit ordering admits foreground first; only
+    # lower it (never raise a turn that scored below the floor). Foreground turns
+    # keep their _sched_priority score, so a human at the keyboard always preempts.
+    if _autonomous:
+        _turn_priority = min(_turn_priority, AUTONOMOUS_PRIORITY)
+        log.info("autonomous turn priority clamped to %.2f (foreground preempts)",
+                 _turn_priority)
+
+    # W0-T3 aggregate budget HARD-HALT (the runaway tripwire). Before dispatching
+    # ANY compute for this turn, check the rolling-window token ledgers: the
+    # per-conversation ceiling AND (for an autonomous source) the per-source
+    # ceiling + concurrent-in-flight cap. If a bucket is exhausted, return a
+    # graceful "budget exhausted" answer instead of dispatching -- this stops a
+    # wedged/looping conversation or a misfiring unattended schedule from racking
+    # up unbounded compute. DEGRADE-OPEN: _budget_admit returns allowed on any
+    # error, so a bookkeeping bug never blocks a legitimate turn.
+    # This turn's in-flight token (autonomous turns only). Registered inside
+    # _budget_admit on admit; aged out by TTL even if no explicit release fires
+    # (the streaming path returns its generator before the turn truly ends).
+    _budget_turn_token = (chat_id if (_autonomous and _autonomous_source) else None)
+    _budget_ok, _budget_reason = await _budget_admit(
+        _scratchpad_key(body, chat_id), _autonomous_source, _budget_turn_token)
+    if not _budget_ok:
+        log.warning("budget HARD-HALT: %s (chat=%s autonomous=%s)",
+                    _budget_reason, chat_id, _autonomous)
+        _halt_msg = (
+            "I'm pausing here: this conversation has reached its aggregate "
+            "compute budget for now (" + _budget_reason + "). Please try again "
+            "shortly, or rephrase as a single focused request.")
+        if streaming:
+            async def _budget_halt_stream():
+                yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+                async for _ab in _stream_answer(_halt_msg, chat_id=chat_id, model=model):
+                    yield _ab
+                yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
+                yield _sse_done()
+            return StreamingResponse(_budget_halt_stream(),
+                                     media_type="text/event-stream")
+        return JSONResponse(content={
+            "id": chat_id, "object": "chat.completion",
+            "created": int(time.time()), "model": model,
+            "choices": [{"index": 0,
+                         "message": {"role": "assistant", "content": _halt_msg},
+                         "finish_reason": "stop"}],
+        })
 
     # COUNCIL-BY-DEFAULT (operator 2026-06-12): engage the full multi-agent council
     # for SUBSTANTIVE turns by default (intent agent/multi_task, or chat >= MIN_WORDS)
@@ -22342,9 +22833,20 @@ async def chat_completions(request: Request) -> Any:
                 _recall_or_skip(),
                 _recall_agent_memory(last_user_text),  # P1: self-edited durable facts (default-off)
                 return_exceptions=True)]
-        for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx, _recall_ctx, _amem_ctx):
+        # Research context (RAG / web / read-tool) stays as SYSTEM context. But the
+        # SAVED-FACTS recall (knowledge + agent-memory) must NOT sit in a system
+        # message -- the model ignores recall buried there ~1/3 (the native-loop's
+        # own note ~20911 documents this). Position the saved facts IMMEDIATELY
+        # before the user's question with strong "you HAVE this" framing instead
+        # (mirrors the native-loop fix 20913-20928) so "what do you remember about X"
+        # reliably answers from the saved fact instead of "I have no stored
+        # information" (Claude 2026-06-15 recall-grounding fix). NO-OP for turns with
+        # no saved facts: _saved_ctx="" -> sp holds the same 3 research blocks as
+        # before and the prefix below never fires -> identical message shape.
+        for _ctx in (_rag_ctx, _web_ctx, _readtool_ctx):
             if _ctx:
                 sp.append({"role": "system", "content": _ctx})
+        _saved_ctx = "\n\n".join(c for c in (_recall_ctx, _amem_ctx) if c)
         # The refined-plan marker block (intent / intended_outcome / tool+skill
         # hints) is for the ACTING PRIMARY only -- a generic council secondary
         # PARROTS it verbatim into its answer (operator 2026-05-24). Secondaries
@@ -22354,7 +22856,22 @@ async def chat_completions(request: Request) -> Any:
                         or refined.get("intended_outcome")):
             _hint = {"role": "system",
                      "content": _build_agent_hint(refined, target_name)}
-        pb["messages"] = sp + ([_hint] if _hint else []) + list(messages)
+        _conv = list(messages)
+        if _saved_ctx and _conv:
+            for _i in range(len(_conv) - 1, -1, -1):
+                _m = _conv[_i]
+                if isinstance(_m, dict) and _m.get("role") == "user" \
+                        and isinstance(_m.get("content"), str):
+                    _conv[_i] = {**_m, "content": (
+                        "You ARE an assistant WITH persistent cross-session memory -- the "
+                        "SAVED CONTEXT below IS your memory of this user. It is FALSE to say "
+                        "you have no memory, no stored information, cannot remember, or lack "
+                        "access -- NEVER say that. These are facts YOU recorded earlier; "
+                        "ANSWER the question DIRECTLY AND CONFIDENTLY from them, and do NOT "
+                        "call a tool to re-fetch what is already here:\n" + _saved_ctx
+                        + "\n\n---\nUser's question: " + str(_m.get("content") or ""))}
+                    break
+        pb["messages"] = sp + ([_hint] if _hint else []) + _conv
         return sp, pb
     # Normalise header keys to lowercase so the Content-Type set
     # below replaces (not duplicates) whatever the incoming request
@@ -23152,9 +23669,14 @@ async def chat_completions(request: Request) -> Any:
                             "polish_ok": polish_ok,
                         },
                     }, now_fields=("ts",))))
+        # W0-T3: prompt in-flight release for this (non-streaming) autonomous turn
+        # now that it has completed; TTL is the backstop for paths without a clean
+        # terminal point. No-op for foreground / non-autonomous turns.
+        await _budget_release_inflight(_budget_turn_token)
         return JSONResponse(content=backend_json, status_code=r.status_code)
     except httpx.HTTPError as e:
         log.warning("chat/completions backend proxy failed: %s", e)
+        await _budget_release_inflight(_budget_turn_token)
         return JSONResponse(
             content={"error": {"message": str(e), "type": "backend_error"}},
             status_code=502,

@@ -97,6 +97,107 @@ CRON_TOML = Path(os.environ.get("MIOS_DAEMON_CRON_TOML",
 CRON_TICK_S = float(os.environ.get("MIOS_DAEMON_CRON_TICK_S", "60"))
 REQUEST_TIMEOUT_S = float(os.environ.get("MIOS_DAEMON_REQUEST_TIMEOUT_S", "30"))
 
+
+# ── W0-T2 runaway controls (config-read from mios.toml [daemon]) ─────
+# The daemon is ALWAYS-ON and fires LLM calls + cron actions on cadence;
+# under host pressure (the 2026-06-XX GPU-runaway root cause) those calls
+# pile onto an already-saturated box and make the runaway worse. These
+# four controls bound that:
+#   1. _host_pressure_gate -> SKIP a tick (no LLM) when load/GPU-util high
+#   2. classify fingerprint dedup -> collapse identical high-sev spam
+#   3. cron concurrency cap -> never re-fire while a prior Popen is alive
+#   4. quiescence backoff -> widen classify cadence when nothing notable
+# ALL knobs flow from mios.toml [daemon] (env still wins) with SAFE
+# defaults so behavior is UNCHANGED until the operator tunes/enables them.
+# pressure_skip defaults FALSE = degrade-open (gate observes but never
+# skips until enabled); dedup + cron-cap are safe to default ON.
+def _read_daemon_config() -> dict:
+    """Read top-level [daemon] scalar keys from the layered mios.toml
+    (vendor < /etc < per-user; later layer wins). Mirrors
+    _read_daemon_index_config's layering. Returns {} when unreadable so
+    every consumer falls back to its compiled-in default (degrade-open)."""
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+    except ImportError:
+        return {}
+    merged: dict = {}
+    for p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml",
+              f"/var/home/{os.environ.get('MIOS_USER', 'mios')}"
+              "/.config/mios/mios.toml"):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+        except FileNotFoundError:
+            continue
+        except Exception:  # noqa: BLE001 -- malformed layer: skip it
+            continue
+        sect = (d.get("daemon") or {})
+        for k, v in sect.items():
+            # Only adopt SCALAR keys here -- nested tables ([daemon.index],
+            # [daemon.roots], ...) are owned by their own readers.
+            if not isinstance(v, dict) and not isinstance(v, list):
+                merged[k] = v
+    return merged
+
+
+_DAEMON_CFG = _read_daemon_config()
+
+
+def _cfg_num(env_key: str, toml_key: str, default: float) -> float:
+    """Resolve a numeric knob: env wins, then mios.toml [daemon], then the
+    compiled default. Never raises -- a bad value falls back to default."""
+    raw = os.environ.get(env_key)
+    if raw is None:
+        raw = _DAEMON_CFG.get(toml_key)
+    try:
+        return float(raw) if raw is not None else float(default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _cfg_bool(env_key: str, toml_key: str, default: bool) -> bool:
+    """Resolve a boolean knob: env ("1/true/yes/on") wins, then mios.toml
+    [daemon], then the compiled default. Never raises."""
+    raw = os.environ.get(env_key)
+    if raw is not None:
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+    val = _DAEMON_CFG.get(toml_key, default)
+    if isinstance(val, bool):
+        return val
+    return str(val).strip().lower() in ("1", "true", "yes", "on")
+
+
+# (1) Host-pressure gate. Ceilings: 1-min loadavg PER CORE and GPU util %.
+# pressure_skip=false -> gate observes (writes a marker) but NEVER skips a
+# tick, so behavior is unchanged until the operator flips it true.
+PRESSURE_LOAD_CEIL = _cfg_num(
+    "MIOS_DAEMON_PRESSURE_LOAD_CEIL", "pressure_load_ceil", 0.0)
+PRESSURE_GPU_UTIL_CEIL = _cfg_num(
+    "MIOS_DAEMON_PRESSURE_GPU_UTIL_CEIL", "pressure_gpu_util_ceil", 0.0)
+PRESSURE_SKIP = _cfg_bool(
+    "MIOS_DAEMON_PRESSURE_SKIP", "pressure_skip", False)
+PRESSURE_TTL_S = _cfg_num(
+    "MIOS_DAEMON_PRESSURE_TTL_S", "pressure_ttl_s", 5.0)
+# (2) Classify dedup cooldown (seconds): an identical high-sev fingerprint
+# inside this window is collapsed to a count-only update (no new LLM/DB row).
+CLASSIFY_DEDUP_S = _cfg_num(
+    "MIOS_DAEMON_CLASSIFY_DEDUP_S", "classify_dedup_s", 600.0)
+# (3) Max concurrent cron-fired actions (live Popen handles).
+CRON_MAX_CONCURRENT = int(_cfg_num(
+    "MIOS_DAEMON_CRON_MAX_CONCURRENT", "cron_max_concurrent", 1.0))
+# (4) Quiescence backoff: when no new unsatisfied verdict + no new med/high
+# digest in quiescence_window_min, widen the classify cadence (doubling)
+# up to calm_max_tick_s. Resets to CLASSIFY_BATCH_S on any new notable signal.
+CALM_MAX_TICK_S = _cfg_num(
+    "MIOS_DAEMON_CALM_MAX_TICK_S", "calm_max_tick_s", 300.0)
+QUIESCENCE_WINDOW_MIN = _cfg_num(
+    "MIOS_DAEMON_QUIESCENCE_WINDOW_MIN", "quiescence_window_min", 15.0)
+
+
 # Units to watch for journal subscription. Operator 2026-05-21: consolidate
 # from ALL GLOBAL sources -> default is now EMPTY = the whole journal
 # (journalctl -f with no -u tails every unit). Was a 3-unit subset. The
@@ -412,6 +513,147 @@ def _update_state(section: str, value) -> None:
     _atomic_write_state()
 
 
+# ── W0-T2 (1): host-pressure gate ────────────────────────────────────
+# A ~5s-TTL cached read of the 1-min loadavg (per core) + a best-effort
+# nvidia-smi GPU-util probe. The four cadence loops call this at the TOP
+# of each tick; under pressure they SKIP the tick (no LLM call) and write
+# a "deferred (host pressure)" marker -- so the always-on daemon stops
+# adding fuel to a runaway instead of piling LLM/cron work onto a
+# saturated box. Degrade-open: any probe error -> over_ceiling=False
+# (proceed exactly as today). pressure_skip gates whether a hot signal
+# actually causes a skip (default false = observe-only).
+_pressure_lock = threading.Lock()
+_pressure_cache: dict = {"ts": 0.0, "load_per_core": 0.0,
+                         "gpu_util": -1.0, "over": False}
+
+
+def _probe_gpu_util() -> float:
+    """Best-effort highest GPU-utilization-% across NVIDIA GPUs via
+    nvidia-smi. Returns -1.0 when nvidia-smi is missing / errors / has no
+    GPUs (degrade-open: caller treats <0 as 'no GPU signal')."""
+    try:
+        p = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if p.returncode != 0:
+            return -1.0
+        vals = []
+        for line in (p.stdout or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                vals.append(float(line))
+            except ValueError:
+                continue
+        return max(vals) if vals else -1.0
+    except (OSError, subprocess.SubprocessError):
+        return -1.0
+
+
+def _host_pressure_gate() -> dict:
+    """Return {over_ceiling, load_per_core, gpu_util, reason} using a
+    ~PRESSURE_TTL_S cached probe (so 4 loops sharing one tick don't run
+    nvidia-smi N times). over_ceiling is True only when a configured
+    ceiling (>0) is exceeded. NEVER raises -- on any probe error it
+    reports over_ceiling=False so the caller proceeds as today.
+
+    Note: over_ceiling reflects the raw measurement; whether a tick is
+    actually SKIPPED is the caller's decision gated on PRESSURE_SKIP."""
+    now = time.time()
+    with _pressure_lock:
+        if (now - _pressure_cache["ts"]) < max(0.5, PRESSURE_TTL_S):
+            return {
+                "over_ceiling": _pressure_cache["over"],
+                "load_per_core": _pressure_cache["load_per_core"],
+                "gpu_util": _pressure_cache["gpu_util"],
+                "reason": _pressure_cache.get("reason", ""),
+            }
+    load_per_core = 0.0
+    try:
+        load1 = os.getloadavg()[0]
+        ncpu = os.cpu_count() or 1
+        load_per_core = load1 / max(1, ncpu)
+    except (OSError, AttributeError):
+        load_per_core = 0.0  # degrade-open (e.g. no getloadavg on this OS)
+    gpu_util = _probe_gpu_util()
+    reasons = []
+    over = False
+    if PRESSURE_LOAD_CEIL > 0 and load_per_core > PRESSURE_LOAD_CEIL:
+        over = True
+        reasons.append(f"load/core {load_per_core:.2f}>{PRESSURE_LOAD_CEIL:.2f}")
+    if PRESSURE_GPU_UTIL_CEIL > 0 and gpu_util >= 0 \
+            and gpu_util > PRESSURE_GPU_UTIL_CEIL:
+        over = True
+        reasons.append(f"gpu {gpu_util:.0f}%>{PRESSURE_GPU_UTIL_CEIL:.0f}%")
+    reason = ", ".join(reasons)
+    with _pressure_lock:
+        _pressure_cache.update({"ts": now, "load_per_core": load_per_core,
+                                "gpu_util": gpu_util, "over": over,
+                                "reason": reason})
+    return {"over_ceiling": over, "load_per_core": load_per_core,
+            "gpu_util": gpu_util, "reason": reason}
+
+
+def _pressure_should_skip(loop_name: str) -> bool:
+    """True when a tick of `loop_name` should be skipped for host pressure.
+    Writes a 'deferred (host pressure)' marker into state.pressure for
+    operator visibility on EVERY over-ceiling observation (even when
+    PRESSURE_SKIP is off, so the operator can see what WOULD be deferred
+    before enabling). Returns True only when PRESSURE_SKIP is also set."""
+    try:
+        g = _host_pressure_gate()
+    except Exception:  # noqa: BLE001 -- degrade-open: never block on a probe
+        return False
+    if not g["over_ceiling"]:
+        return False
+    marker = {
+        "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+        "loop": loop_name,
+        "deferred": bool(PRESSURE_SKIP),
+        "load_per_core": round(g["load_per_core"], 2),
+        "gpu_util": g["gpu_util"],
+        "reason": g["reason"] or "over ceiling",
+        "note": "deferred (host pressure)" if PRESSURE_SKIP
+                else "over ceiling (observe-only; pressure_skip=false)",
+    }
+    try:
+        _update_state("pressure", marker)
+    except Exception:  # noqa: BLE001 -- state write must not crash the loop
+        pass
+    if PRESSURE_SKIP:
+        log.info("%s: deferred (host pressure: %s)", loop_name,
+                 g["reason"] or "over ceiling")
+    return bool(PRESSURE_SKIP)
+
+
+# ── W0-T2 (4): quiescence tracker ────────────────────────────────────
+# Tracks the last time a NOTABLE signal occurred (a new med/high log
+# digest OR a new unsatisfied verdict). When nothing notable lands within
+# QUIESCENCE_WINDOW_MIN, the classify loop widens its cadence (doubling,
+# capped at CALM_MAX_TICK_S) so an idle box isn't polled aggressively.
+# Any new notable signal calls _mark_activity() which resets the cadence.
+_last_activity_ts: float = time.time()
+_activity_lock = threading.Lock()
+
+
+def _mark_activity() -> None:
+    """Record a notable signal -- resets the quiescence clock so the
+    classify cadence drops back to the responsive CLASSIFY_BATCH_S."""
+    global _last_activity_ts
+    with _activity_lock:
+        _last_activity_ts = time.time()
+
+
+def _is_quiescent() -> bool:
+    """True when no notable signal has landed within QUIESCENCE_WINDOW_MIN."""
+    with _activity_lock:
+        last = _last_activity_ts
+    return (time.time() - last) >= (QUIESCENCE_WINDOW_MIN * 60.0)
+
+
 # ── Single shared Ollama client ──────────────────────────────────────
 def llm_chat(system: str, user: str, *, max_tokens: int = 150,
              temperature: float = 0.1, want_json: bool = False,
@@ -543,10 +785,76 @@ CLASSIFY_SYSTEM = (
 _noise_agg = {"batches": 0, "events": 0, "since": time.time()}
 _NOISE_FLUSH_S = float(os.environ.get("MIOS_DAEMON_NOISE_FLUSH_S", "1800"))
 
+# W0-T2 (2): per-(source,kind,summary-shingle) fingerprint dedup + cooldown.
+# An identical high-severity classification recurring inside CLASSIFY_DEDUP_S
+# is SUPPRESSED -- collapsed to a count-only state marker rather than a fresh
+# LLM-grounded log_digest row + activity reset. This stops one stuck unit
+# (the GPU-runaway pattern is the SAME line firing every batch) from flooding
+# the DB and from defeating the quiescence backoff. Bounded LRU on the map.
+_dedup_seen: dict = {}          # fingerprint -> {"first": ts, "last": ts, "count": n}
+_dedup_lock = threading.Lock()
+_DEDUP_MAX_ENTRIES = 512
+
+
+def _shingle(summary: str, n: int = 8) -> str:
+    """First N normalized tokens of a summary -- a coarse fingerprint that
+    treats near-identical classifications (same root cause, trivially
+    different tail) as the same event."""
+    toks = re.findall(r"[a-z0-9]+", str(summary or "").lower())
+    return " ".join(toks[:n])
+
+
+def _classify_fingerprint(result: dict, *, source: str = "classify") -> str:
+    kind = str(result.get("severity", "low")).lower()
+    return f"{source}|{kind}|{_shingle(result.get('summary', ''))}"
+
+
+def _dedup_suppressed(fp: str) -> bool:
+    """Record a fingerprint hit; return True when an identical fingerprint
+    was seen within CLASSIFY_DEDUP_S (so the caller suppresses the heavy
+    write and emits a count-only update instead). Degrade-open: if dedup is
+    disabled (CLASSIFY_DEDUP_S<=0) it never suppresses."""
+    if CLASSIFY_DEDUP_S <= 0:
+        return False
+    now = time.time()
+    with _dedup_lock:
+        rec = _dedup_seen.get(fp)
+        if rec and (now - rec["last"]) < CLASSIFY_DEDUP_S:
+            rec["last"] = now
+            rec["count"] += 1
+            return True
+        _dedup_seen[fp] = {"first": now, "last": now,
+                           "count": (rec["count"] + 1) if rec else 1}
+        # Bounded LRU: evict the oldest-touched entries when oversized.
+        if len(_dedup_seen) > _DEDUP_MAX_ENTRIES:
+            for k in sorted(_dedup_seen,
+                            key=lambda x: _dedup_seen[x]["last"])[:128]:
+                _dedup_seen.pop(k, None)
+        return False
+
 
 def _persist_log_digest(result: dict) -> None:
     sev = str(result.get("severity", "low")).lower()
     if sev in ("med", "medium", "high"):
+        # W0-T2 (2): dedup high-severity spam. An identical fingerprint inside
+        # the cooldown collapses to a count-only state marker -- no new LLM/DB
+        # row, and (crucially) no activity reset, so a single stuck unit can't
+        # keep the daemon perpetually "busy".
+        fp = _classify_fingerprint(result)
+        if _dedup_suppressed(fp):
+            with _dedup_lock:
+                cnt = _dedup_seen.get(fp, {}).get("count", 1)
+            _update_state("classify_dedup", {
+                "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                "fingerprint": fp[:160],
+                "severity": "high" if sev == "high" else "med",
+                "suppressed_count": cnt,
+                "note": "duplicate high-severity classification suppressed",
+            })
+            log.info("classify: duplicate %s suppressed (x%d): %s",
+                     sev, cnt, str(result.get("summary", ""))[:80])
+            return
+        _mark_activity()   # fresh med/high signal -> reset quiescence cadence
         _db_post(_db_create("log_digest", {
             "summary": str(result.get("summary", ""))[:300],
             "tags": result.get("tags") or [],
@@ -571,8 +879,28 @@ def _persist_log_digest(result: dict) -> None:
 
 
 def classify_loop() -> None:
+    # W0-T2 (4): adaptive cadence. Starts responsive (CLASSIFY_BATCH_S) and,
+    # when the box goes quiescent (no new med/high digest / unsatisfied
+    # verdict for QUIESCENCE_WINDOW_MIN), backs OFF exponentially toward
+    # CALM_MAX_TICK_S so an idle daemon isn't polling the model every batch.
+    tick = CLASSIFY_BATCH_S
     while not _stop_event.is_set():
-        time.sleep(CLASSIFY_BATCH_S)
+        # Interruptible sleep at the current (possibly widened) cadence.
+        slept = 0.0
+        while slept < tick and not _stop_event.is_set():
+            time.sleep(min(1.0, tick - slept))
+            slept += 1.0
+        if _stop_event.is_set():
+            return
+        # W0-T2 (4): recompute cadence for the NEXT cycle from quiescence.
+        if _is_quiescent():
+            tick = min(CALM_MAX_TICK_S, max(CLASSIFY_BATCH_S, tick * 2))
+        else:
+            tick = CLASSIFY_BATCH_S
+        # W0-T2 (1): host-pressure gate -- skip this tick (no LLM call) when
+        # load/GPU-util exceed the ceiling AND pressure_skip is enabled.
+        if _pressure_should_skip("classify"):
+            continue
         with _buffer_lock:
             batch = _event_buffer[-CLASSIFY_BATCH_MAX:][:]
         if not batch:
@@ -656,6 +984,13 @@ def refusal_loop() -> None:
         with _buffer_lock:
             new = _event_buffer[last_index:]
             last_index = len(_event_buffer)
+        # W0-T2 (1): host-pressure gate -- when over ceiling AND pressure_skip
+        # is on, skip the LLM-confirm work this tick. last_index already
+        # advanced (the cheap pattern pre-filter is the gate trigger, not the
+        # work), so we drop the batch rather than queue refusal confirms onto a
+        # saturated box. Cheap pattern matching alone is fine; the LLM is not.
+        if _pressure_should_skip("refusal"):
+            continue
         for ev in new:
             unit = ev.get("_SYSTEMD_UNIT", "")
             if unit != "hermes-agent.service":
@@ -718,9 +1053,34 @@ def _load_cron_gates() -> list[dict]:
 
 _last_fire: dict[str, float] = {}
 
+# W0-T2 (3): cap concurrent cron-fired actions. Track live Popen handles
+# (per gate-name + a global list) so the daemon NEVER re-fires a gate while
+# its prior Popen is still alive, and never exceeds CRON_MAX_CONCURRENT
+# in-flight actions total. A wedged action that never exits used to let the
+# cron loop spawn a fresh process every min_interval_s -> fork-bomb-shaped
+# runaway. _cron_inflight maps gate-name -> Popen; _reap drops finished ones.
+_cron_inflight: dict[str, "subprocess.Popen"] = {}
+_cron_inflight_lock = threading.Lock()
+
+
+def _reap_cron_inflight() -> int:
+    """Drop finished Popen handles; return the count still alive."""
+    with _cron_inflight_lock:
+        for name in list(_cron_inflight.keys()):
+            p = _cron_inflight[name]
+            if p.poll() is not None:   # exited
+                _cron_inflight.pop(name, None)
+        return len(_cron_inflight)
+
 
 def cron_loop() -> None:
     while not _stop_event.is_set():
+        # W0-T2 (1): host-pressure gate -- skip the whole cron evaluation tick
+        # (gate-eval LLM calls + any fires) when over ceiling AND pressure_skip.
+        if _pressure_should_skip("cron"):
+            _stop_event.wait(CRON_TICK_S)
+            continue
+        _reap_cron_inflight()   # W0-T2 (3): drop finished handles each tick
         gates = _load_cron_gates()
         decisions: list[dict] = []
         for gate in gates:
@@ -755,16 +1115,31 @@ def cron_loop() -> None:
             }
             decisions.append(d)
             if ok and gate["action"]:
+                # W0-T2 (3): concurrency cap. Reap finished handles first, then
+                # refuse to fire when (a) THIS gate's prior Popen is still
+                # alive, or (b) the global in-flight count is at the cap. The
+                # gate stays eligible next tick (we don't stamp _last_fire on a
+                # deferral) so it fires once capacity frees.
+                alive = _reap_cron_inflight()
+                with _cron_inflight_lock:
+                    own_alive = name in _cron_inflight
+                if own_alive or alive >= max(1, CRON_MAX_CONCURRENT):
+                    d["deferred"] = "cron_concurrency_cap"
+                    log.info("cron DEFER %s: %d in-flight (cap=%d, own_alive=%s)",
+                             name, alive, CRON_MAX_CONCURRENT, own_alive)
+                    continue
                 _last_fire[name] = time.time()
                 d["fired"] = True
                 log.info("cron FIRE %s: %s", name, gate["action"][:120])
                 try:
-                    subprocess.Popen(
+                    _proc = subprocess.Popen(
                         ["bash", "-lc", gate["action"]],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         start_new_session=True,
                     )
+                    with _cron_inflight_lock:
+                        _cron_inflight[name] = _proc
                     with _state_lock:
                         _state["cron"]["last_fire"] = {
                             "rule": name,
@@ -1746,6 +2121,14 @@ def suggestions_loop() -> None:
     # Boot delay so OWUI + ollama warm before first generation
     time.sleep(45)
     while not _stop_event.is_set():
+        # W0-T2 (1): host-pressure gate -- skip this generation tick (the LLM
+        # call below) when over ceiling AND pressure_skip; still falls through
+        # to the interruptible sleep so the loop keeps its cadence.
+        if _pressure_should_skip("suggestions"):
+            for _ in range(int(SUGG_TICK_S)):
+                if _stop_event.is_set(): return
+                time.sleep(1)
+            continue
         try:
             recent = _recent_owui_user_messages()
             classify_summary = ""
@@ -2109,6 +2492,10 @@ def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
         "summary": f"{kind}: {intent} ({intended[:60]})",
         "payload": body,
     }, now_fields=("ts",)))
+    # W0-T2 (4): a fresh UNSATISFIED verdict is a notable signal -- reset the
+    # quiescence clock so the classify cadence drops back to responsive.
+    if kind == "user_query_unsatisfied":
+        _mark_activity()
     return kind
 
 

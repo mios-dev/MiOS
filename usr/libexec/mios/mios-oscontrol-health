@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# AI-hint: Probes the MiOS Windows OS-control plane (in-session executor :11437 via the
+# WSL gateway + the WSL-interop powershell.exe path) and emits typed JSON status so the
+# agent can report "control plane offline" instead of a silent exit -1 when a Windows
+# control/recipe action returns no data.
+# AI-related: mios-pc-control, mios-os-recipe, mios-oscontrol-server, mios-powershell
+# AI-functions: (probe-only)
+#
+# Research 2026-06-15 (ai-os-control-patterns) quick win: the in-session Windows executor
+# can be DOWN (operator must start it / log in); without this verb the agent gets a bare
+# exit -1 and can't explain it. Read-only, no side effects.
+set -uo pipefail
+
+PORT="${MIOS_OSCONTROL_PORT:-11437}"
+# WSL2 NAT: the default gateway is the Windows host that runs the in-session executor.
+GW="$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')"
+
+exec_status="down"; exec_url=""
+if [ -n "$GW" ]; then
+  exec_url="http://${GW}:${PORT}"
+  curl -fsS -m 3 -o /dev/null "${exec_url}/health" 2>/dev/null && exec_status="up"
+fi
+
+interop="down"
+if command -v powershell.exe >/dev/null 2>&1; then
+  timeout 6 powershell.exe -NoProfile -NonInteractive -Command "exit 0" >/dev/null 2>&1 && interop="up"
+fi
+
+blind="false"; reason="ok"
+if [ "$exec_status" = "down" ] && [ "$interop" = "down" ]; then
+  blind="true"
+  reason="Windows control plane OFFLINE: start the in-session OS-control executor on the host (log into the desktop session)."
+elif [ "$exec_status" = "down" ]; then
+  reason="In-session executor (:${PORT}) offline; WSL-interop powershell.exe fallback is available for shell-class Windows actions only (no GUI/window control)."
+fi
+
+# Escape the reason for JSON (only quotes/backslashes appear here).
+_r="${reason//\\/\\\\}"; _r="${_r//\"/\\\"}"
+printf '{"executor":"%s","executor_endpoint":"%s","interop":"%s","blind":%s,"reason":"%s"}\n' \
+  "$exec_status" "$exec_url" "$interop" "$blind" "$_r"

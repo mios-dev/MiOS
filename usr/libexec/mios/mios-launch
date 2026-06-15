@@ -584,8 +584,34 @@ if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
 fi
 
 # ─── 6. Plain CLI ────────────────────────────────────────────────────
+# operator 2026-06-14 ("everything is native"; flagged the wine launch a
+# LIE): a Windows-only app name (notepad, mspaint, ...) resolves on PATH
+# to a WINE wrapper -- e.g. /usr/sbin/notepad -> /usr/bin/wine64 -- when
+# the in-session Windows executor (section 5b) is DOWN. exec'ing it opens
+# the wine LOOK-ALIKE, not the native Windows app. Detect a wine-backed
+# binary GENERATIVELY (the resolved real path is/lives-in wine; NO
+# hardcoded app list) and, on WSL where the Windows-native interop
+# fallback (7b) exists, SKIP it so the REAL Windows app launches via
+# interop instead. A genuine Linux CLI (htop, jq, ...) is not wine and
+# execs normally; Linux GUI flatpaks were already caught at section 5.
 if command -v "$NAME" >/dev/null 2>&1; then
-    exec "$NAME" "$@"
+    _bin_path="$(command -v "$NAME" 2>/dev/null || true)"
+    _bin_real="$(readlink -f "$_bin_path" 2>/dev/null || true)"
+    _is_wine=0
+    case "$_bin_real" in
+        */wine|*/wine64|*/wine-stable|*/wine-staging|*/wine64-preloader|*/wine-preloader|*/wine-wow64/*|*/wine/*|*/.wine/*) _is_wine=1 ;;
+    esac
+    case "$(basename "$_bin_real" 2>/dev/null)" in
+        wine|wine64|wine-stable|wine-staging|wine-preloader|wine64-preloader) _is_wine=1 ;;
+    esac
+    if [ "$_is_wine" = "1" ] \
+       && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
+       && [ -e /mnt/c/Windows/System32/cmd.exe ]; then
+        echo "mios-launch: '$NAME' on PATH is a WINE wrapper ($_bin_real) -- skipping for a NATIVE Windows launch (operator: everything native); falling through to the Windows interop fallback" >&2
+        # do NOT exec; fall through to section 7b (mios-windows launch -> native interop)
+    else
+        exec "$NAME" "$@"
+    fi
 fi
 
 # ─── 7. Description-fallback via mios-apps inventory ─────────────────

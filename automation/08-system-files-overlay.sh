@@ -175,10 +175,11 @@ install -d -m 0755 "${BDIR}"
 shopt -s nullglob
 for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
     [[ -d "${QDIR}" ]] || continue
-    for q in "${QDIR}"/*.container; do
+    for q in "${QDIR}"/*.container "${QDIR}"/*/*.container; do
+        [[ -f "$q" ]] || continue
         name="$(basename "$q")"
         ln -sf "${q}" "${BDIR}/${name}"
-        log "  LBI: bound ${name} (${QDIR})"
+        log "  LBI: bound ${name} (${q})"
     done
 done
 shopt -u nullglob

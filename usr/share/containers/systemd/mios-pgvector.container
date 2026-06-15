@@ -62,8 +62,14 @@ Environment=POSTGRES_PASSWORD=${MIOS_PG_PASS:-mios}
 Environment=POSTGRES_DB=${MIOS_PG_DB:-mios}
 Environment=PGDATA=/var/lib/postgresql/data/pgdata
 
-# Bind 0.0.0.0:<port> so host + bridge both reach it. Port from [ports].pgvector.
-Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=*
+# Bind address from mios.toml [pgvector].listen_loopback (WS-0 hardening):
+# userenv derives MIOS_PG_BIND_ADDR = 127.0.0.1 (loopback, DEFAULT -- the store
+# is NOT network-reachable on its local-only default creds) or 0.0.0.0 (off-box,
+# only for a deliberately federated deployment). Port from [ports].pgvector.
+# DEGRADE-OPEN: an unrendered/empty value falls back to loopback (the safe bind).
+# Loopback still serves the host-net agent-pipe + mios-pg-query + mios-daemon
+# (all on the box) over 127.0.0.1; nothing off-box reaches it.
+Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1}
 
 # OCI labels for Podman Desktop.
 Label=org.opencontainers.image.title=mios-pgvector

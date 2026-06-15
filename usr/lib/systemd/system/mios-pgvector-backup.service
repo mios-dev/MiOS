@@ -1,0 +1,98 @@
+# AI-hint: Unprivileged daily oneshot that pg_dumps the unified agent-plane Postgres+pgvector database to /var/lib/mios/backups over loopback-trust and prunes to the newest MIOS_PG_BACKUP_KEEP snapshots; degrade-open so a backup failure never blocks the DB.
+# AI-related: mios-pgvector-backup.timer, mios-pgvector.service, /usr/lib/tmpfiles.d/mios-backups.conf, /etc/mios/userenv.sh, mios-pg-query
+# /usr/lib/systemd/system/mios-pgvector-backup.service
+# WS-0 pgvector durability: periodic logical backup of the unified agent-plane
+# datastore (tiered memory / knowledge / skills / sessions / scratch / sys_env /
+# kanban / ...). Losing pgvector is expensive, so this snapshots it daily.
+#
+# UNPRIVILEGED (Architectural Law 6 spirit): runs as the pgvector sysuser
+# (mios-pgvector, uid 826) -- it owns /var/lib/mios/backups (tmpfiles) and
+# reaches Postgres over the pg_hba loopback-trust line (host all all 127.0.0.1/32
+# trust), so NO password and NO podman/root are needed.
+#
+# DEGRADE-OPEN: every failure path (gate off, no pg_dump client, dump error)
+# logs and exits 0. A backup miss must NEVER fault the boot/timer or affect the
+# live DB. backup_enable ships TRUE; flip MIOS_PG_BACKUP_ENABLE=false (mios.toml
+# [pgvector].backup_enable) to disable. Real dumps require a `pg_dump` client on
+# PATH (the `postgresql` package); without it the unit logs a one-line hint and
+# no-ops -- still safe, just no snapshot until the client is provisioned.
+
+[Unit]
+Description='MiOS' daily pg_dump backup of the unified agent-plane datastore (pgvector)
+Documentation=file:///usr/lib/systemd/system/mios-pgvector-backup.service
+After=mios-pgvector.service
+Wants=mios-pgvector.service
+# Same virtualization guard as the pgvector container: the DB only runs on
+# bare-metal/WSL (not a nested container), so there's nothing to back up there.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
+
+[Service]
+Type=oneshot
+# SSOT env: MIOS_PG_USER / MIOS_PG_DB / MIOS_PORT_PGVECTOR / MIOS_PG_BACKUP_*
+# all flow from mios.toml [pgvector] -> userenv.sh. '-' = tolerate absence
+# (degrade-open to the inline defaults below).
+EnvironmentFile=-/etc/mios/userenv.sh
+# Inline-default the knobs so the unit is correct even with no env file present.
+Environment=MIOS_PG_BACKUP_ENABLE=true
+Environment=MIOS_PG_BACKUP_DIR=/var/lib/mios/backups
+Environment=MIOS_PG_BACKUP_KEEP=7
+Environment=MIOS_PG_USER=mios
+Environment=MIOS_PG_DB=mios
+Environment=MIOS_PORT_PGVECTOR=5432
+# Unprivileged: the pgvector sysuser owns the backup dir + has loopback trust.
+User=mios-pgvector
+Group=mios-pgvector
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Only the backup dir is writable; everything else stays read-only.
+ReadWritePaths=/var/lib/mios/backups
+# Logical dump over loopback-trust, gzip'd + timestamped, then prune to the
+# newest N. Pure POSIX sh so it runs on the minimal base. Every branch exits 0
+# (degrade-open): gate-off, missing client, or a dump error logs and succeeds.
+ExecStart=/bin/sh -c '\
+  case "$${MIOS_PG_BACKUP_ENABLE:-true}" in \
+    0|false|False|FALSE|no|off) echo "mios-pgvector-backup: disabled (MIOS_PG_BACKUP_ENABLE=$${MIOS_PG_BACKUP_ENABLE})"; exit 0 ;; \
+  esac; \
+  DIR="$${MIOS_PG_BACKUP_DIR:-/var/lib/mios/backups}"; \
+  KEEP="$${MIOS_PG_BACKUP_KEEP:-7}"; \
+  case "$$KEEP" in *[!0-9]*|"") KEEP=7 ;; esac; \
+  [ "$$KEEP" -lt 1 ] && KEEP=1; \
+  PORT="$${MIOS_PORT_PGVECTOR:-5432}"; \
+  USR="$${MIOS_PG_USER:-mios}"; \
+  DB="$${MIOS_PG_DB:-mios}"; \
+  if ! command -v pg_dump >/dev/null 2>&1; then \
+    echo "mios-pgvector-backup: pg_dump client not found on PATH -- skipping (install the postgresql client to enable dumps)"; \
+    exit 0; \
+  fi; \
+  mkdir -p "$$DIR" 2>/dev/null || true; \
+  TS=$$(date -u +%Y%m%dT%H%M%SZ); \
+  OUT="$$DIR/mios-pgvector-$$TS.sql.gz"; \
+  RAW="$$DIR/.mios-pgvector-$$TS.sql.partial"; \
+  ERR="$$DIR/.mios-pgbackup.err"; \
+  rc=0; \
+  pg_dump -h 127.0.0.1 -p "$$PORT" -U "$$USR" --no-password "$$DB" > "$$RAW" 2>"$$ERR" || rc=$$?; \
+  if [ "$$rc" -ne 0 ] || [ ! -s "$$RAW" ]; then \
+    echo "mios-pgvector-backup: pg_dump failed (rc=$$rc, degrade-open): $$(tail -n1 "$$ERR" 2>/dev/null)"; \
+    rm -f "$$RAW" "$$ERR" 2>/dev/null || true; \
+    exit 0; \
+  fi; \
+  if gzip -c "$$RAW" > "$$OUT.partial" && mv -f "$$OUT.partial" "$$OUT"; then \
+    chmod 0640 "$$OUT" 2>/dev/null || true; \
+    echo "mios-pgvector-backup: wrote $$OUT"; \
+  else \
+    echo "mios-pgvector-backup: gzip failed (degrade-open)"; \
+    rm -f "$$OUT.partial" "$$RAW" "$$ERR" 2>/dev/null || true; \
+    exit 0; \
+  fi; \
+  rm -f "$$RAW" "$$ERR" 2>/dev/null || true; \
+  N=$$(ls -1 "$$DIR"/mios-pgvector-*.sql.gz 2>/dev/null | wc -l); \
+  if [ "$$N" -gt "$$KEEP" ]; then \
+    ls -1t "$$DIR"/mios-pgvector-*.sql.gz 2>/dev/null | tail -n +$$((KEEP+1)) | while IFS= read -r f; do rm -f "$$f" && echo "mios-pgvector-backup: pruned $$f"; done; \
+  fi; \
+  exit 0'
+
+[Install]
+WantedBy=multi-user.target

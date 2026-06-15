@@ -1,0 +1,22 @@
+# AI-hint: Daily systemd timer that fires mios-pgvector-backup.service to snapshot the unified agent-plane Postgres+pgvector datastore, with Persistent=true so a missed run (machine off) executes at next boot.
+# AI-related: mios-pgvector-backup.service, timers.target
+# /usr/lib/systemd/system/mios-pgvector-backup.timer
+# WS-0 pgvector durability: schedules the daily logical backup of the unified
+# agent-plane datastore. The service itself is degrade-open + gated on
+# MIOS_PG_BACKUP_ENABLE, so the timer can stay enabled unconditionally.
+[Unit]
+Description='MiOS' daily pgvector datastore backup schedule
+Documentation=file:///usr/lib/systemd/system/mios-pgvector-backup.service
+
+[Timer]
+# Daily, shortly after midnight local time. Persistent=true catches up a missed
+# run (machine asleep/off at the scheduled time) on the next boot. Randomized
+# delay spreads the dump off the exact minute so it doesn't collide with other
+# midnight jobs.
+OnCalendar=*-*-* 00:30:00
+Persistent=true
+RandomizedDelaySec=15m
+AccuracySec=5m
+
+[Install]
+WantedBy=timers.target

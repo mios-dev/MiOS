@@ -427,11 +427,11 @@ log "  no vendor URLs in active config"
 # and Delegate=yes are SHOULD-have but not strictly load-bearing for the
 # unprivileged invariant; the User= guarantee is what matters.
 log "Validating UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User=..."
-_law6_exceptions='^(mios-ceph|mios-k3s)\.container$'
+_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy)\.container$'
 _law6_missing=""
 for d in /etc/containers/systemd /usr/share/containers/systemd; do
     [[ -d "$d" ]] || continue
-    for f in "$d"/*.container; do
+    for f in "$d"/*.container "$d"/*/*.container; do
         [[ -f "$f" ]] || continue
         base=$(basename "$f")
         if [[ "$base" =~ $_law6_exceptions ]]; then continue; fi
@@ -442,7 +442,7 @@ for d in /etc/containers/systemd /usr/share/containers/systemd; do
 done
 if [[ -n "$_law6_missing" ]]; then
     printf '%s' "$_law6_missing" >&2
-    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s)"
+    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s, mios-llm-heavy)"
 fi
 log "  every Quadlet declares User= (or is a documented root exception)"
 
@@ -460,7 +460,7 @@ if [[ -d "$_bind_dir" ]]; then
     declare -A _seen_quadlets=()
     for d in /etc/containers/systemd /usr/share/containers/systemd; do
         [[ -d "$d" ]] || continue
-        for f in "$d"/*.container; do
+        for f in "$d"/*.container "$d"/*/*.container; do
             [[ -f "$f" ]] || continue
             base=$(basename "$f")
             _seen_quadlets["$base"]=1

@@ -75,6 +75,12 @@ Environment=HF_HUB_OFFLINE=1
 Environment=TRANSFORMERS_OFFLINE=1
 Environment=SGLANG_DISABLE_USAGE_STATS=1
 Environment=DO_NOT_TRACK=1
+# Qwen3-8B-AWQ's native context is 40960; the configured larger window
+# (--context-length from MIOS_SGLANG_MAX_MODEL_LEN / mios.toml SSOT) exceeds
+# that, so SGLang aborts at load ("longer than the model's native max") unless
+# this override is set (operator 2026-06-14 live fast-chat validation). The
+# --mem-fraction-static slice stays the rendered SSOT value above.
+Environment=SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
 # Writable cache dirs: the root container has no writable HOME, so flashinfer/torch/
 # triton JIT caches fall back to the RO image workdir -> PermissionError (operator
 # 2026-06-11). Redirect all caches to the writable tmpfs /tmp.

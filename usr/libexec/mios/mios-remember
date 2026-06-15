@@ -142,11 +142,28 @@ def main() -> int:
     args = p.parse_args()
 
     try:
-        # Idempotently ensure the table exists (SurrealDB strict mode rejects
-        # CREATE on an undefined table). SCHEMALESS so any field is accepted.
-        _sql(f"DEFINE TABLE IF NOT EXISTS {TABLE} SCHEMALESS;")
+        # Idempotently ensure the SurrealDB table exists (SurrealDB strict mode
+        # rejects CREATE on an undefined table). SCHEMALESS so any field is
+        # accepted. SKIP when pg is primary: SurrealDB is RETIRED (the pgvector
+        # cutover) -- this UNCONDITIONAL call hit the dead :8000 and failed
+        # remember/recall entirely even though the pgvector write below succeeds
+        # (Claude 2026-06-15 hardening; the writes at L164 were already gated but
+        # this table-def was missed).
+        if not _PG_PRIMARY:
+            _sql(f"DEFINE TABLE IF NOT EXISTS {TABLE} SCHEMALESS;")
         if args.cmd == "add":
             fact = args.fact.strip()
+            # Strip leading conversational filler so the STORED fact is clean
+            # ("Please remember this fact: I prefer X" -> "I prefer X"); the refine
+            # extraction sometimes keeps the "this fact:" prefix (Claude 2026-06-15).
+            _lf = fact.lower()
+            for _pre in ("please remember this fact:", "remember this fact:",
+                         "please remember that ", "remember that ",
+                         "please remember:", "remember:", "this fact:",
+                         "note that ", "fyi:"):
+                if _lf.startswith(_pre):
+                    fact = fact[len(_pre):].strip()
+                    break
             if not fact:
                 print(json.dumps({"ok": False, "error": "empty fact"}))
                 return 2

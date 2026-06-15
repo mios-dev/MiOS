@@ -219,13 +219,19 @@ if not out.strip():
           f"(rc={proc.returncode}): {proc.stderr[:200]}", file=sys.stderr)
     sys.exit(3)
 
+# Priority for resolving a name -> launch target. Real NATIVE apps
+# (windows-app/windows-gui, linux-flatpak/rpm-gui) MUST outrank mios-shim, else
+# a mios-* shim shadows the real app (the session bugs: steam->mios-steamcmd,
+# notepad->wine). mios-shim demoted 4->6, windows-gui promoted 5->2 (research
+# 2026-06-15 AI-OS-control launch doctrine: generative resolution, shims are a
+# last resort, never load-bearing).
 CAT_PRIORITY = {
     "windows-app":     1,
-    "linux-flatpak":   2,
-    "linux-rpm-gui":   3,
-    "mios-shim":       4,
-    "windows-gui":     5,
-    "agent-cli":       6,
+    "windows-gui":     2,
+    "linux-flatpak":   3,
+    "linux-rpm-gui":   4,
+    "agent-cli":       5,
+    "mios-shim":       6,
     "service-url":     7,
 }
 

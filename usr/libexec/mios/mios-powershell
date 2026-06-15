@@ -175,7 +175,17 @@ fi
 # the argv length limit.
 TMPFILE="$(mktemp -t mios-ps-XXXXXX.ps1)"
 trap 'rm -f "$TMPFILE"' EXIT
-printf '%s\n' "$SCRIPT" > "$TMPFILE"
+# UTF-8-no-BOM output + exit-code propagation (research 2026-06-15 AI-shell
+# doctrine): PS5.1 redirection defaults to UTF-8-WITH-BOM (the EF BB BF prefix
+# corrupts JSON the agent parses), and a PS script's exit derives from its LAST
+# statement -- a failing tail native exe still reports 0, so the agent declares
+# success on failure. Pin no-BOM stdout encoding (best-effort) + propagate the
+# real native exit via $LASTEXITCODE. Explicit `exit N` in $SCRIPT still wins.
+{
+  printf '%s\n' 'try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}'
+  printf '%s\n' "$SCRIPT"
+  printf '%s\n' 'exit ([int]$LASTEXITCODE)'
+} > "$TMPFILE"
 
 # Determine where the script file is from PowerShell's perspective.
 # /tmp on WSL is reachable from Windows as \\wsl.localhost\<distro>\tmp

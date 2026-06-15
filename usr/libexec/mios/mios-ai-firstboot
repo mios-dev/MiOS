@@ -58,10 +58,12 @@ fi
 # GGUFs are normally BAKED at build by automation/38-llamacpp-prep.sh (the
 # offline-correct path). This firstboot block is the ONLINE retry for hosts that
 # didn't bake them: it fetches the SAME MIOS_LLAMACPP_BAKE_MODELS spec
-# (dest.gguf=hf_repo:file, FOSS pre-quantized) directly from Hugging Face -- NO
-# ollama dependency (G5 retired it; the old blob-extraction path is dead). When
-# air-gapped + unbaked the lane stays inert (operator sets [llamacpp].bake_models
-# + rebuilds, or seeds ${MODELS} manually) -- it never blocks boot.
+# (dest.gguf=hf_repo:file, FOSS pre-quantized) directly from Hugging Face via a
+# plain curl of the resolve URL -- NO ollama dependency (G5 retired it) and NO
+# huggingface_hub/pip dependency (G8: the runtime pip install failed on
+# air-gapped/locked hosts). When air-gapped + unbaked the lane stays inert
+# (operator sets [llamacpp].bake_models + rebuilds, or seeds ${MODELS} manually)
+# -- it never blocks boot.
 if [ ! -f "${MODELS}/.ready" ]; then
     install -d -m 0755 "${MODELS}" /var/lib/mios/llamacpp/slots 2>/dev/null
     SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
@@ -78,20 +80,22 @@ if [ ! -f "${MODELS}/.ready" ]; then
                 log "malformed GGUF entry '${entry}' (want dest.gguf=repo:file) -- skipping"; continue
             fi
             if [ -s "${MODELS}/${dest}" ]; then fetched=$((fetched + 1)); continue; fi
-            if python3 - "$repo" "$file" "${MODELS}/${dest}" <<'PY'
-import shutil, sys
-try:
-    from huggingface_hub import hf_hub_download
-except Exception:
-    sys.exit(3)   # lib absent / air-gapped -> stay inert, retry next boot
-repo, fname, dest = sys.argv[1], sys.argv[2], sys.argv[3]
-try:
-    shutil.copyfile(hf_hub_download(repo_id=repo, filename=fname), dest)
-except Exception as e:
-    sys.stderr.write(f"{type(e).__name__}: {e}\n"); sys.exit(1)
-PY
-            then fetched=$((fetched + 1)); log "GGUF ${dest} fetched from HF"
-            else log "GGUF ${dest} fetch failed (no egress / upstream) -- will retry next boot"; fi
+            # Direct HF resolve URL -- NO huggingface_hub / pip dependency
+            # (G8: the runtime pip install was the firstboot failure on
+            # air-gapped/locked hosts). curl --fail (no 200 -> non-zero),
+            # -L (follow the CDN redirect), -C - (resume a partial .part).
+            # Download to a .part then atomic-rename so a truncated file
+            # never trips the .ready gate.
+            _url="https://huggingface.co/${repo}/resolve/main/${file}"
+            if curl -fL -C - --retry 3 --max-time 1800 \
+                    -o "${MODELS}/${dest}.part" "$_url" 2>/dev/null \
+               && [ -s "${MODELS}/${dest}.part" ]; then
+                mv -f "${MODELS}/${dest}.part" "${MODELS}/${dest}"
+                fetched=$((fetched + 1)); log "GGUF ${dest} fetched from HF (${_url})"
+            else
+                rm -f "${MODELS}/${dest}.part" 2>/dev/null
+                log "GGUF ${dest} fetch failed (no egress / upstream) -- will retry next boot"
+            fi
         done
         if [ "$total" -gt 0 ] && [ "$fetched" -ge "$total" ]; then
             touch "${MODELS}/.ready"; log "GGUFs provisioned (${fetched}/${total}) -- mios-llm-light lane eligible"
@@ -153,11 +157,18 @@ if id mios-ai >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
 fi
 
 # ── 3. (re)start the AI services now their prerequisites exist ────────────────
+# --no-block on hermes-agent + mios-agent-pipe: firstboot must NOT wait on them
+# settling. They have their own readiness deps and can deadlock against the
+# firstboot ordering -- the ~23min early-boot hang (2026-06-14). mios-llm-light
+# is the inference lane (no firstboot ordering dependency) so a plain restart is
+# fine there.
 systemctl daemon-reload 2>/dev/null
-for s in hermes-agent mios-agent-pipe mios-llm-light; do
+for s in hermes-agent mios-agent-pipe; do
     systemctl reset-failed "${s}" 2>/dev/null
-    systemctl restart "${s}" 2>/dev/null || true
+    systemctl restart --no-block "${s}" 2>/dev/null || true
 done
+systemctl reset-failed mios-llm-light 2>/dev/null
+systemctl restart mios-llm-light 2>/dev/null || true
 
 # ── sentinel: only when fully provisioned, so failures retry next boot ────────
 install -d -m 0755 /var/lib/mios 2>/dev/null

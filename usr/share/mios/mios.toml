@@ -1467,6 +1467,108 @@ agents = [
 ]
 
 # ----------------------------------------------------------------------------
+# [daemon] -- top-level mios-daemon autonomy / back-pressure governor (Wave 0).
+# Bare keys here MUST precede any [daemon.*] sub-table (TOML ordering). These
+# are PURE-PYTHON-READ knobs consumed by mios-daemon / mios-daemon-agent /
+# the cron-director via the agent-pipe _toml_section("daemon") helper -- they
+# need NO userenv.sh slot or 15-render-quadlets.sh allowlist entry.
+#
+# Back-pressure GOVERNOR: when the box is hot (load or GPU util above the
+# ceilings below) the daemon's *autonomous* (self-initiated) work calms down
+# so it never starves an interactive turn. Degrade-open: pressure_skip=false
+# ships the governor in OBSERVE/ACTIVE mode but the ceilings are generous; set
+# pressure_skip=true to bypass the governor entirely (always run autonomous
+# work, legacy behaviour). A probe error never crashes the hot path -- on any
+# read/probe failure the daemon treats pressure as ABSENT (proceeds).
+# ----------------------------------------------------------------------------
+[daemon]
+# 1-minute load-average ceiling. Above this, autonomous daemon work is held
+# until load drops back under the ceiling. Sized GENEROUSLY (per-core ~1.0 is
+# "busy but fine"); raise on a many-core box. Float allowed.
+pressure_load_ceil      = 8.0
+# GPU utilisation ceiling (percent 0-100). Above this, autonomous work that
+# would touch a local inference lane is deferred so it doesn't queue behind a
+# live interactive generation on the shared 4090. 90 = leave headroom for one
+# in-flight turn.
+pressure_gpu_util_ceil  = 90
+# Master bypass for the whole back-pressure governor. false (default) = the
+# governor is ACTIVE (autonomous work respects the ceilings above). true =
+# legacy behaviour, autonomous work always runs regardless of load/GPU. Ships
+# false but the generous ceilings keep normal use unaffected.
+pressure_skip           = false
+# De-dup window (seconds) for the daemon's micro-LLM "is this worth acting on?"
+# classifier: an identical/near-identical trigger seen again within this window
+# is skipped instead of re-classified + re-acted. 600 = 10 min; stops a noisy
+# log line from spawning repeated autonomous runs.
+classify_dedup_s        = 600
+# Hard cap on CONCURRENT cron-director-launched autonomous jobs. 1 = serialize
+# scheduled autonomous work (one recurring task at a time) so a backlog can't
+# fan out into a thundering herd of mios-ai runs. Raise only on a box with
+# spare lanes.
+cron_max_concurrent     = 1
+# CALM-loop max tick (seconds): upper bound on a single autonomous daemon
+# tick's wall-clock before it yields back to the scheduler, so one long
+# autonomous unit can't monopolise the daemon. Generous so normal ticks finish
+# naturally; this is a runaway backstop.
+calm_max_tick_s         = 300
+# Quiescence window (minutes): the daemon only initiates *new* autonomous,
+# self-directed work after the system has been interactively idle for this
+# long, so autonomy happens in the quiet gaps, not mid-conversation. Reactive
+# (log-follow / followup) work is NOT gated by this -- only self-initiated.
+quiescence_window_min   = 10
+# Escalation cooldown (seconds): minimum gap between two escalations of the
+# SAME concern (e.g. re-notifying / re-acting on a persistent condition) so a
+# stuck state can't spam. 1800 = 30 min.
+escalation_cooldown_s   = 1800
+# Max escalation attempts for one concern before the daemon gives up and just
+# logs (no infinite retry loop). After this many attempts within the cooldown
+# cadence the concern is parked.
+escalation_max_attempts = 3
+
+# ----------------------------------------------------------------------------
+# [budget] -- token / in-flight budget ceilings (Wave 0). PURE-PYTHON-READ by
+# agent-pipe (_toml_section("budget")). Generous defaults so normal interactive
+# use is never throttled; these exist to bound RUNAWAY autonomous fan-out, not
+# to limit a human's conversation. Degrade-open: a turn that would exceed a
+# ceiling is trimmed/deferred, never hard-errored on the interactive path.
+# ----------------------------------------------------------------------------
+[budget]
+# Per-conversation cumulative token ceiling (prompt+completion across the whole
+# turn's fan-out). Generous -- a deep council turn with web grounding stays
+# well under this; it only catches a pathological loop. 0 = unlimited (off).
+conversation_token_ceil = 2000000
+# Per-AUTONOMOUS-run token ceiling (a daemon/cron self-initiated unit). Tighter
+# than the conversation ceiling because autonomous work is unattended. 0 = off.
+autonomous_token_ceil   = 400000
+# Max concurrent AUTONOMOUS (self-initiated) inference runs in flight at once,
+# across the whole daemon/cron plane. Bounds unattended fan-out so it can't
+# saturate the lanes; interactive turns are NOT counted against this. 1 = fully
+# serialized autonomy.
+autonomous_max_inflight = 1
+# Rolling window (seconds) over which the budget ceilings above are measured /
+# reset. 3600 = per-hour accounting.
+window_s                = 3600
+
+# ----------------------------------------------------------------------------
+# [dispatch.autonomy] -- Wave-0 autonomous-dispatch knobs. NOTE: the primary
+# [dispatch] table (council/fanout/rerank/...) lives earlier in this file; a
+# bare key cannot be appended after sub-tables, so these autonomy knobs live in
+# their own [dispatch.autonomy] sub-table. PURE-PYTHON-READ by agent-pipe
+# (_toml_section("dispatch.autonomy") / the dispatch loader). The task spec
+# named [dispatch].autonomous_priority + [dispatch].max_dispatch_depth; they
+# are scoped here as autonomy.* to keep the SSOT TOML-valid.
+# ----------------------------------------------------------------------------
+[dispatch.autonomy]
+# Scheduling priority class for AUTONOMOUS (self-initiated) dispatches: "low"
+# (default) lets interactive turns jump ahead; "normal"/"high" raise it. Low
+# keeps unattended work out of the operator's way.
+autonomous_priority = "low"
+# Max recursion depth for dispatch -> sub-dispatch chains (an agent dispatching
+# to a peer that dispatches again). 2 = primary -> sub-agent -> one more hop,
+# then no further nesting. Bounds runaway delegation fan-out.
+max_dispatch_depth  = 2
+
+# ----------------------------------------------------------------------------
 # [daemon.index] -- directory-map indexer in mios-daemon.
 # Walks the configured roots on `interval_min` cadence, upserts entries
 # into SurrealDB's directory_entry table. Agents query via the
@@ -1725,6 +1827,44 @@ remember_trigger_phrases = ["remember", "note", "save", "keep in mind", "don't f
 # CONTEXT phrase -> set web=true (e.g. "search ... online", "look up ... on the web").
 web_search_trigger_phrases = ["search", "look up", "google", "find", "search the web", "search online"]
 web_search_trigger_contexts = ["web", "internet", "online"]
+
+# Launch FOLLOW-UP / RETRY phrases (operator 2026-06-14, BUG B/C: the `mios`/`@`
+# CLI deterministic launch route only matched the INITIAL "open/launch X"; a
+# follow-up like "epiphany didn't launch for me" or "attempt to launch and
+# verify" fell through to free-form Hermes which NARRATED advice + asked
+# permission instead of re-running the launch+verify path). These phrase lists
+# let the CLI recognise a launch follow-up and re-run the launch (now via the
+# VERIFY path) against the LAST-launched app it persisted with the session id.
+# SSOT (no hardcoded English in the .py/.sh); matched case-insensitively as
+# substrings. FAIL-SAFE: empty list -> that follow-up detection is OFF (no
+# capability lost; the turn just falls through to chat).
+#
+# launch_followup_phrases -> a complaint/observation that the prior launch did
+# not work ("X didn't launch", "it didn't open", "nothing happened", "no
+# window"). Re-fires the launch+verify against the persisted last-launched app.
+launch_followup_phrases = [
+  "didn't launch", "did not launch", "didn't open", "did not open",
+  "didn't start", "did not start", "didn't come up", "did not come up",
+  "didn't work", "did not work", "wouldn't open", "would not open",
+  "no window", "nothing happened", "nothing opened", "never opened",
+  "never launched", "not opening", "not launching", "isn't open",
+  "is not open", "isn't running", "is not running", "won't open",
+  "won't launch", "doesn't open", "does not open", "failed to open",
+  "failed to launch",
+]
+# launch_retry_phrases -> an explicit ask to try again / launch+verify ("try
+# again", "attempt to launch and verify", "launch and verify", "open it
+# again", "retry"). Re-fires the launch+verify against the persisted last app.
+launch_retry_phrases = [
+  "attempt to launch and verify", "launch and verify", "launch it and verify",
+  "try to launch and verify", "open and verify", "open it and verify",
+  "try launching it again", "try launching again", "try opening it again",
+  "try opening again", "launch it again", "open it again", "start it again",
+  "run it again", "try again", "attempt again", "retry", "relaunch",
+  "re-launch", "reopen", "re-open", "try once more", "one more time",
+  "attempt to launch", "attempt the launch", "verify the launch",
+  "launch and confirm", "open and confirm",
+]
 
 [routing.domains.web]
 desc  = "LOOK UP INFORMATION on the internet: current events, news, trending topics, weather, prices, world facts. NOT for performing an action in an app, sending/posting/sharing a message, or controlling the screen."
@@ -3489,6 +3629,12 @@ permission  = "read"
 linux       = "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE -J"
 windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-Volume | ConvertTo-Json'"
 
+[recipes.os-control-health]
+description = "Probe the Windows OS-control plane (in-session executor :11437 + WSL-interop) and report typed JSON status {executor, interop, blind, reason}. Use to EXPLAIN why a Windows control/recipe action (show-network, windows_desktop_click, launch_windows_app, etc.) returned no data / exit -1 -- if executor is down, tell the operator the control plane is offline rather than guessing."
+args        = []
+permission  = "read"
+linux       = "/usr/libexec/mios/mios-oscontrol-health"
+
 [recipes.show-network]
 description = "Show active network adapters + IPs."
 args        = []
@@ -3508,13 +3654,13 @@ description = "What's using disk space: filesystem fill (df) plus the largest to
 args        = []
 permission  = "read"
 linux       = "df -h -x tmpfs -x devtmpfs -x overlay; echo '== largest dirs under / =='; du -h -x --max-depth=1 / 2>/dev/null | sort -rh | head -20"
-windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-PSDrive -PSProvider FileSystem | Format-Table Name,Used,Free -Auto'"
+windows     = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command 'Get-PSDrive -PSProvider FileSystem | Select-Object Name,Used,Free | ConvertTo-Json'"
 
 [recipes.service-status]
 description = "systemctl is-active + status snapshot for a Linux service (READ). Pass the unit name as `service`."
 args        = ["service"]
 permission  = "read"
-linux       = "echo '=== is-active ==='; systemctl is-active {service}; echo; echo '=== status ==='; systemctl --no-pager status {service} | head -20"
+linux       = "systemctl is-active {service}; systemctl show {service} --no-pager -p Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID,ExecMainStatus,ActiveEnterTimestamp"
 
 [recipes.copy-to-clipboard]
 description = "Copy a literal string to the system clipboard."
@@ -3606,6 +3752,21 @@ endpoint       = "http://localhost:8640/v1"
 backend        = "http://localhost:8642/v1"   # hermes-agent OpenAI gateway
 backend_model  = "hermes-agent"               # the model id hermes-agent advertises
 enable         = true
+# Client-side tool-calling PASSTHROUGH (operator 2026-06-15, Zen browser smart-window).
+# When an external OpenAI client supplies its OWN tools[] (browser/IDE assistants that
+# EXECUTE the tools themselves and expect tool_calls back), agent-pipe bypasses the
+# server-side orchestrator and relays the request verbatim to a tool-capable backend,
+# returning tool_calls unmodified -- the structural twin of the vision bypass. A2A and
+# Agent Passports are the wrong tool for this (researched 2026-06-15). DEDICATED backend
+# knobs (NOT backend/backend_model above) so the relay never inherits model-drift.
+# Default granite4.1:8b on the keyless mios-llm-light :11450 lane (verified to emit
+# tool_calls); repoint tool_backend->:11441 + tool_backend_model->mios-heavy for harder
+# multi-tool routing. ingress_key (optional, empty=off) gates the route with a static
+# bearer a browser CAN send -- passports can't gate Zen (it's keyless).
+client_tools_passthrough = true
+tool_backend             = "http://localhost:11450/v1"
+tool_backend_model       = "granite4.1:8b"
+ingress_key              = ""
 
 
 # WS-9 unified agent-plane datastore (PostgreSQL + pgvector, FOSS). ADDITIVE
@@ -3629,6 +3790,27 @@ enable      = true
 # during a soak. Minor deferred read paths (eviction/hitl-edge/miner-SPM/daemon
 # batch+async/person-owns) degrade gracefully until finished.
 db_backend  = "postgres"
+# ── WS-0 pgvector durability + bind hardening (Wave 0) ───────────────────────
+# Periodic pg_dump backups of the unified agent datastore. backup_enable ships
+# TRUE (the datastore holds tiered memory / knowledge / skills / sessions --
+# losing it is expensive), but is degrade-open: a backup failure logs and the
+# DB keeps serving; it never blocks a read/write. The backup runner (a timer +
+# script outside this owner's files) reads MIOS_PG_BACKUP_KEEP for retention.
+backup_enable  = true
+# Where dumps land. Declared as a /var path via usr/lib/tmpfiles.d (NO-MKDIR-IN-
+# VAR) by the backup unit's owner -- this key only names the dir; it is not
+# created at build time here.
+backup_dir     = "/var/lib/mios/backups"
+# How many timestamped dumps to retain before pruning oldest. 7 = a week of
+# daily snapshots. Read by shell/timer via MIOS_PG_BACKUP_KEEP (userenv slot +
+# render allowlist below).
+backup_keep    = 7
+# Bind the Postgres listener to loopback only. true (default) = 127.0.0.1 (the
+# confined non-root agent-pipe + mios-pg-query reach it over loopback; nothing
+# off-box can). userenv maps this to a concrete bind address (MIOS_PG_BIND_ADDR)
+# the quadlet renders; flip false to bind 0.0.0.0 (off-box exposure -- only for
+# a deliberately federated deployment).
+listen_loopback = true
 
 # ── WS-10 mios-llm-light: the llama.cpp multi-model lane (upstream llama-swap proxy) ──
 # Additive engine step toward the ollama -> llama.cpp conversion for fleet-wide
@@ -4480,7 +4662,8 @@ enable             = false          # documents intent; the systemd unit is the 
 bake_model         = ""             # empty = no bake (the 8B is provisioned separately; do NOT bake the unstable q35-4b)
 served_name        = "mios-heavy"   # OpenAI served-model-name (= [nodes.local-sglang].model); shared heavy-lane name with vLLM
 mem_fraction       = 0.45           # --mem-fraction-static: bounded GPU slice; leaves room for ollama + Windows co-tenancy
-max_model_len      = 131072         # 2026-06-13: global 128k mandate. With HiCache CPU KV-offload + --kv-cache-dtype fp8_e5m2, the 24B Magistral AWQ heavy reasoner serves 131072 on the shared 4090.
+tool_parser        = "qwen25"       # --tool-call-parser: parse Qwen <tool_call> blocks into OpenAI tool_calls[] (qwen25 fits Qwen3-8B; a Magistral heavy model would use "mistral" + a reasoning_parser)
+max_model_len      = 65536          # Wave 0: live-validated ceiling for the 8B + --disable-cuda-graph lane on the shared 4090 (131072 OOMs without KV-cache spill). 131072 requires HiCache CPU KV-offload + --kv-cache-dtype fp8 (Wave 1) -- re-raise once that lands and is verified live.
 hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM
 
 # ----------------------------------------------------------------------------

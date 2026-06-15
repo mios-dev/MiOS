@@ -262,6 +262,7 @@ slots = [
     ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
     ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
     ("ai.sglang.max_model_len",        "MIOS_SGLANG_MAX_MODEL_LEN"),
+    ("ai.sglang.tool_parser",          "MIOS_SGLANG_TOOL_PARSER"),
     ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
@@ -473,6 +474,10 @@ slots = [
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),
     ("agent_pipe.backend_model",       "MIOS_AGENT_PIPE_BACKEND_MODEL"),
     ("agent_pipe.enable",              "MIOS_AGENT_PIPE_ENABLE"),
+    ("agent_pipe.client_tools_passthrough", "MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH"),
+    ("agent_pipe.tool_backend",        "MIOS_AGENT_PIPE_TOOL_BACKEND"),
+    ("agent_pipe.tool_backend_model",  "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL"),
+    ("agent_pipe.ingress_key",         "MIOS_AGENT_PIPE_INGRESS_KEY"),
     # ── surrealdb (shared cross-cutting agent state) ──────────────────────
     ("pgvector.db_backend",              "MIOS_DB_BACKEND"),
     # ── pgvector (WS-9 unified agent-plane datastore, FOSS) ───────────────
@@ -484,6 +489,14 @@ slots = [
     ("pgvector.schema_init",           "MIOS_PG_SCHEMA_INIT"),
     ("pgvector.embed_model",           "MIOS_PG_EMBED_MODEL"),
     ("pgvector.enable",                "MIOS_PG_ENABLE"),
+    # WS-0 pgvector durability + bind hardening (Wave 0). backup_keep is read
+    # by the pg_dump retention timer/script; listen_loopback is the raw boolean
+    # that the post-load block below derives MIOS_PG_BIND_ADDR from (the value
+    # the quadlet renders).
+    ("pgvector.backup_enable",         "MIOS_PG_BACKUP_ENABLE"),
+    ("pgvector.backup_dir",            "MIOS_PG_BACKUP_DIR"),
+    ("pgvector.backup_keep",           "MIOS_PG_BACKUP_KEEP"),
+    ("pgvector.listen_loopback",       "MIOS_PG_LISTEN_LOOPBACK"),
     # ── llamacpp / mios-llm-light lane (WS-10 ollama -> llama.cpp conversion) ──
     ("llamacpp.enable",                "MIOS_LLAMACPP_ENABLE"),
     ("llamacpp.slot_dir",              "MIOS_LLAMACPP_SLOT_DIR"),
@@ -553,6 +566,18 @@ PY
     fi
 }
 _mios_load_unified
+
+# WS-0 pgvector bind hardening (Wave 0): derive the concrete listener bind
+# address the quadlet renders from the [pgvector].listen_loopback boolean.
+# true (default) -> 127.0.0.1 (loopback-only; the confined agent-pipe reaches
+# it over loopback, nothing off-box can). false -> 0.0.0.0 (off-box exposure;
+# deliberately federated deployments only). Degrade-open: if the key is unset
+# we default to the safe loopback bind. The slot map can only copy a value
+# verbatim, so this boolean->address transform lives here as a post-load step.
+case "${MIOS_PG_LISTEN_LOOPBACK:-true}" in
+    false|False|FALSE|0|no|off) export MIOS_PG_BIND_ADDR="0.0.0.0" ;;
+    *)                          export MIOS_PG_BIND_ADDR="127.0.0.1" ;;
+esac
 
 # 2. Backwards-compat: legacy split files (per-user only). Read only when
 # none of the three TOML layers contain a [identity] or [user] section --

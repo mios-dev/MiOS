@@ -75,6 +75,7 @@ fi
 # Render the new install.env. Order matches what wsl-firstboot,
 # forge-firstboot, and 37-ollama-prep.sh expect.
 generate_env() {
+    local _ai_backend=""
     cat <<EOF
 # /etc/mios/install.env -- DERIVED from mios.toml by mios-sync-env.
 # Edit mios.toml (or use /usr/share/mios/configurator/mios.html), then
@@ -109,11 +110,44 @@ EOF
     # "mios"; override in /etc/mios/mios.toml [identity].default_password.
     echo "MIOS_DEFAULT_PASSWORD=\"${MIOS_DEFAULT_PASSWORD:-mios}\""
 
-    # AI surface (Architectural Law 5)
+    # AI surface (Architectural Law 5: UNIFIED-AI-REDIRECTS). The resolver
+    # (userenv.sh) populates these from the layered mios.toml; prefer the
+    # resolved value, emit a fallback ONLY for the few keys shell/systemd
+    # consumers always expect. Fallback defaults track the live SSOT:
+    #   endpoint -> [ai].endpoint  = http://localhost:8642/v1 (hermes gateway)
+    #   model    -> [ai].model     = granite4.1:8b (2026-06-13 fleet; ollama-era
+    #               qwen3.5:2b was a dropped model -> a stale/unservable default)
     echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}\""
-    echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-qwen3.5:2b}\""
+    echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-granite4.1:8b}\""
     echo "MIOS_AI_EMBED_MODEL=\"${MIOS_AI_EMBED_MODEL:-nomic-embed-text}\""
+    # Inference backend the agents forward to (mios-llm-light front; ollama
+    # :11434 retired G5). Derived from the resolver's MIOS_HERMES_BACKEND_URL
+    # ([ai].hermes_backend_url, e.g. http://localhost:11450/v1) so MIOS_AI_BACKEND
+    # follows the SSOT instead of a hardcoded port. Strip a trailing /v1 so
+    # consumers that append their own path get a clean host:port base.
+    _ai_backend="${MIOS_AI_BACKEND:-${MIOS_HERMES_BACKEND_URL:-}}"
+    _ai_backend="${_ai_backend%/v1}"
+    [[ -n "$_ai_backend" ]] && echo "MIOS_AI_BACKEND=\"${_ai_backend}\""
+    # Build-time ollama bake list (resolver-populated; emit only if set).
     [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && echo "MIOS_OLLAMA_BAKE_MODELS=\"${MIOS_OLLAMA_BAKE_MODELS}\""
+
+    # llama.cpp light lane ([llamacpp] -> MIOS_LLAMACPP_*). All resolver-
+    # populated; emit only the values the resolver actually produced (no
+    # hardcoded literals). BAKE_MODELS feeds 38-llamacpp-prep.sh + the
+    # mios-ai-firstboot online GGUF retry.
+    [[ -n "${MIOS_LLAMACPP_ENABLE:-}" ]]      && echo "MIOS_LLAMACPP_ENABLE=\"${MIOS_LLAMACPP_ENABLE}\""
+    [[ -n "${MIOS_LLAMACPP_SLOT_DIR:-}" ]]    && echo "MIOS_LLAMACPP_SLOT_DIR=\"${MIOS_LLAMACPP_SLOT_DIR}\""
+    [[ -n "${MIOS_LLAMACPP_MODELS_DIR:-}" ]]  && echo "MIOS_LLAMACPP_MODELS_DIR=\"${MIOS_LLAMACPP_MODELS_DIR}\""
+    [[ -n "${MIOS_LLAMACPP_CONFIG:-}" ]]      && echo "MIOS_LLAMACPP_CONFIG=\"${MIOS_LLAMACPP_CONFIG}\""
+    [[ -n "${MIOS_LLAMACPP_BAKE_MODELS:-}" ]] && echo "MIOS_LLAMACPP_BAKE_MODELS=\"${MIOS_LLAMACPP_BAKE_MODELS}\""
+
+    # Heavy GPU lanes (gated/off-by-default; resolver-populated served names +
+    # ports). Endpoints assembled from the lane ports so the value tracks the
+    # SSOT rather than a hardcoded literal; emit only when the port resolved.
+    [[ -n "${MIOS_SGLANG_SERVED_NAME:-}" ]] && echo "MIOS_SGLANG_SERVED_NAME=\"${MIOS_SGLANG_SERVED_NAME}\""
+    [[ -n "${MIOS_VLLM_SERVED_NAME:-}" ]]   && echo "MIOS_VLLM_SERVED_NAME=\"${MIOS_VLLM_SERVED_NAME}\""
+    [[ -n "${MIOS_PORT_SGLANG:-}" ]] && echo "MIOS_AI_HEAVY_ENDPOINT=\"http://localhost:${MIOS_PORT_SGLANG}/v1\""
+    [[ -n "${MIOS_PORT_VLLM:-}" ]]   && echo "MIOS_AI_HEAVY_ALT_ENDPOINT=\"http://localhost:${MIOS_PORT_VLLM}/v1\""
 
     # Image
     [[ -n "${MIOS_IMAGE_REF:-}" ]]    && echo "MIOS_IMAGE_REF=\"${MIOS_IMAGE_REF}\""

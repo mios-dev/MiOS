@@ -1,28 +1,43 @@
-# AI-hint: Provides a local, offline-capable `WebSearchProvider` for Hermes-Agent that bypasses Firecrawl/cloud dependencies by using `urllib` and regex-based HTML stripping to extract text from URLs.
-# AI-related: mios-firecrawl, mios-web-extract
-# AI-functions: _fetch_one, name, display_name, is_available, supports_search, supports_extract, extract, class MiosFetchProvider
-"""MiOS offline direct-fetch web-EXTRACT provider for Hermes-Agent.
+# AI-hint: Tiered local web-EXTRACT `WebSearchProvider` for Hermes-Agent: fast offline urllib+regex strip first, escalating JS-heavy/dynamic/thin pages to crawl4ai (headless Chrome over CDP + Camoufox stealth retry) via mios-crawl. No cloud, no firecrawl SDK.
+# AI-related: mios-firecrawl, mios-web-extract, mios-crawl, mios-crawl4ai, mios-hermes-browser
+# AI-functions: _fetch_one, _crawl_one, name, display_name, is_available, supports_search, supports_extract, extract, class MiosFetchProvider
+"""MiOS tiered web-EXTRACT provider for Hermes-Agent.
 
 Why this exists (operator-confirmed 2026-05-31): hermes's bundled `firecrawl`
 web provider pins the firecrawl-py v4 SDK (firecrawl API v2, POST /v2/scrape),
 but MiOS self-hosts an OLDER firecrawl container (mios-firecrawl:v1.0.0, v1
 API) -> every web_extract 404s and research turns can never drill past search-
 result homepages. tavily/exa/parallel are CLOUD providers (need keys; violate
-MiOS full-offline). So this provider does what the proven `mios-web-extract`
-verb already does: a plain stdlib urllib fetch + readability HTML->text strip.
-No firecrawl, no SDK, no container coupling, no version fragility -- works
-fully offline against any reachable URL. Selected via web.extract_backend:
-miosfetch in config.yaml. searxng still handles web_search.
+MiOS full-offline). So this provider grounds extraction in the LOCAL stack only.
 
-Implements the agent.web_search_provider.WebSearchProvider ABC (extract only).
+Tiering (operator 2026-06-15 "web_search should also use crawl4ai and Chrome
+CDP, not just firecrawl/searxng"):
+  Tier 1 -- fast stdlib urllib fetch + readability HTML->text strip (the proven
+            mios-web-extract path). Handles the common static-page case in ~1-2s,
+            fully offline.
+  Tier 2 -- when urllib yields THIN content (a JS shell / dynamic / blocked page
+            < MIOS_MIOSFETCH_CRAWL_MIN_CHARS), escalate the SAME url to crawl4ai
+            via `mios-crawl` (headless Chrome over CDP at :9222 + a Camoufox
+            stealth-Firefox fail-retry). This is the rich reader urllib can't do
+            (renders JS, defeats simple anti-bot). Keep whichever tier yields
+            more real content; crawl4ai unavailable/failed -> keep the urllib
+            result (never regress, stays offline-capable).
+
+Selected via web.extract_backend: miosfetch in config.yaml. searxng still
+handles web_search. Implements agent.web_search_provider.WebSearchProvider
+(extract only).
 """
 from __future__ import annotations
 
 import asyncio
 import html as _html
+import json as _json
+import os
 import re
+import shutil
+import subprocess
 import urllib.request
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agent.web_search_provider import WebSearchProvider
 
@@ -36,11 +51,20 @@ _MAIN = re.compile(r"(?is)<(?:article|main)\b[^>]*>(.*?)</(?:article|main)>")
 _TITLE = re.compile(r"(?is)<title\b[^>]*>(.*?)</title>")
 _TAGS = re.compile(r"(?s)<[^>]+>")
 
+# Tier-2 escalation knobs (SSOT-overridable; defaults work offline). When urllib
+# extracts fewer than MIN_CHARS of text the page is treated as a JS shell /
+# dynamic / blocked page and re-read via crawl4ai (CDP + Camoufox).
+_CRAWL_BIN = shutil.which("mios-crawl") or "/usr/libexec/mios/mios-crawl"
+_CRAWL_ENABLE = os.environ.get(
+    "MIOS_MIOSFETCH_CRAWL", "true").strip().lower() in {"1", "true", "yes", "on"}
+_CRAWL_MIN_CHARS = int(os.environ.get("MIOS_MIOSFETCH_CRAWL_MIN_CHARS", "500"))
+_CRAWL_TIMEOUT = float(os.environ.get("MIOS_MIOSFETCH_CRAWL_TIMEOUT", "55"))
+
 
 def _fetch_one(url: str, max_chars: int, timeout: float) -> Dict[str, Any]:
-    """Fetch ONE url and return the WebSearchProvider extract-result dict.
-    Mirrors mios-web-extract's readability strip; never fabricates -- on
-    failure returns an error field with empty content."""
+    """Tier 1: fetch ONE url via stdlib urllib + readability strip. Mirrors
+    mios-web-extract; never fabricates -- on failure returns an error field
+    with empty content."""
     if not re.match(r"^https?://", url):
         url = "https://" + url
     try:
@@ -73,8 +97,40 @@ def _fetch_one(url: str, max_chars: int, timeout: float) -> Dict[str, Any]:
         }
 
 
+def _crawl_one(url: str, max_chars: int, timeout: float) -> Optional[Dict[str, Any]]:
+    """Tier 2: re-read a JS-heavy/dynamic/blocked page via crawl4ai (headless
+    Chrome over CDP + Camoufox stealth retry) by shelling to `mios-crawl`, which
+    already does the engine orchestration and returns clean markdown. Returns the
+    WebSearchProvider extract dict, or None when crawl4ai is unavailable/failed
+    (the caller then keeps the urllib result -- never regress, stays offline)."""
+    if not _CRAWL_ENABLE or not _CRAWL_BIN:
+        return None
+    if not re.match(r"^https?://", url):
+        url = "https://" + url
+    try:
+        p = subprocess.run(
+            [_CRAWL_BIN, url], capture_output=True, text=True, timeout=timeout)
+        out = (p.stdout or "").strip()
+        if not out:
+            return None
+        d = _json.loads(out)
+        if not d.get("success"):
+            return None
+        md = (d.get("markdown") or "").strip()
+        if not md:
+            return None
+        return {
+            "url": url, "title": (d.get("title") or "").strip(),
+            "content": md[:max_chars], "raw_content": md[:max_chars],
+            "metadata": {"extractor": "crawl4ai", "engine": d.get("engine")},
+        }
+    except Exception:
+        # crawl4ai down / mios-crawl missing / timeout -> graceful: keep urllib.
+        return None
+
+
 class MiosFetchProvider(WebSearchProvider):
-    """Extract-only provider: stdlib fetch + readability strip (offline)."""
+    """Tiered extract-only provider: urllib (offline) -> crawl4ai (CDP) escalation."""
 
     @property
     def name(self) -> str:
@@ -82,10 +138,10 @@ class MiosFetchProvider(WebSearchProvider):
 
     @property
     def display_name(self) -> str:
-        return "MiOS direct fetch (offline readability extract)"
+        return "MiOS tiered fetch (offline urllib -> crawl4ai/CDP escalation)"
 
     def is_available(self) -> bool:
-        return True  # pure stdlib; no env/dep/network check needed
+        return True  # urllib tier is pure stdlib; always usable (crawl4ai is a bonus)
 
     def supports_search(self) -> bool:
         return False  # searxng handles web_search
@@ -98,6 +154,17 @@ class MiosFetchProvider(WebSearchProvider):
         timeout = float(kwargs.get("timeout") or 15.0)
         if isinstance(urls, str):
             urls = [urls]
-        results = await asyncio.gather(
-            *[asyncio.to_thread(_fetch_one, u, max_chars, timeout) for u in urls])
-        return list(results)
+
+        async def _one(u: str) -> Dict[str, Any]:
+            # Tier 1: fast offline urllib.
+            base = await asyncio.to_thread(_fetch_one, u, max_chars, timeout)
+            content = base.get("content") or ""
+            # Tier 2: thin/JS/blocked -> escalate to crawl4ai (CDP + Camoufox).
+            # Keep whichever tier returns more real content.
+            if len(content) < _CRAWL_MIN_CHARS:
+                rich = await asyncio.to_thread(_crawl_one, u, max_chars, _CRAWL_TIMEOUT)
+                if rich and len(rich.get("content") or "") > len(content):
+                    return rich
+            return base
+
+        return list(await asyncio.gather(*[_one(u) for u in urls]))
