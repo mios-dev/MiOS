@@ -22,8 +22,12 @@ if [ -n "$GW" ]; then
 fi
 
 interop="down"
-if command -v powershell.exe >/dev/null 2>&1; then
-  timeout 6 powershell.exe -NoProfile -NonInteractive -Command "exit 0" >/dev/null 2>&1 && interop="up"
+# appendWindowsPath=false keeps bare powershell.exe OFF the VM PATH, so probe via the
+# FULL interop path (the recipes use it too); fall back to PATH if present.
+_pwsh="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+[ -x "$_pwsh" ] || _pwsh="$(command -v powershell.exe 2>/dev/null)"
+if [ -n "$_pwsh" ]; then
+  timeout 8 "$_pwsh" -NoProfile -NonInteractive -Command "exit 0" >/dev/null 2>&1 && interop="up"
 fi
 
 blind="false"; reason="ok"

@@ -14520,6 +14520,17 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             for k, v in params.items()
         )
         target_os = str(args.get("os") or "").strip().lower()
+        # HOST-DEFAULT (operator 2026-06-15, policy A): host-describing recipes report
+        # the MACHINE's state -- on this WSL-on-Windows deployment the operator means the
+        # WINDOWS HOST, not the Linux VM. With no explicit os=, default these to 'windows'
+        # IF the host is reachable (full-path interop present, since appendWindowsPath=false
+        # keeps bare powershell.exe off PATH); else leave to mios-os-recipe's detect (linux).
+        # service-status stays linux (systemctl is VM-specific). Fixes "show my network/disk"
+        # describing the VM instead of the operator's actual machine.
+        if (not target_os
+                and name in {"show-network", "disk-usage", "list-drives", "show-process"}
+                and os.path.exists("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")):
+            target_os = "windows"
         os_flag = f"--os {shlex.quote(target_os)} " if target_os in ("linux", "windows") else ""
         return f"mios-os-recipe --json {os_flag}{shlex.quote(name)} {kv_args}".strip()
     # ── pkg (unified package verb -- collapses 13 winget_* / flatpak_*
