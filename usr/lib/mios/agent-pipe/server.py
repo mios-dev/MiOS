@@ -11224,6 +11224,13 @@ _HIGH_PRIVILEGE_VERBS = {
     "flatpak_install",
     "flatpak_upgrade",
     "flatpak_uninstall",
+    # `pkg` is the CONSOLIDATED package verb (action=install|upgrade|uninstall|
+    # search|list|show|preflight) that supersedes the per-backend *_install verbs
+    # above. The firewall keys off the verb NAME, not the action arg -- so without
+    # `pkg` here a tainted session could pkg(action=install) and land arbitrary code,
+    # BYPASSING the gate the legacy verbs hit (live pre-existing gap, 2026-06-15).
+    # Fail-safe: this also gates pkg reads (search/list/show) when tainted -- acceptable.
+    "pkg",
 }
 
 # Domains that are part of the operator's own infrastructure -- a
