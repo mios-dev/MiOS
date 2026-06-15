@@ -385,6 +385,50 @@ function Invoke-DoubleClick($x, $y) {
     return @{ ok = $true; op = 'double-click'; x = [int]$x; y = [int]$y }
 }
 
+# ── UIA semantic element targeting (operator 2026-06-15; the #1 Windows gap --
+# Linux has AT-SPI, Windows control was pixel-only). Find a control BY NAME via UI
+# Automation, scoped to the FOREGROUND window's subtree (fast; avoids a whole-
+# desktop tree walk that can hang), returning its clickable CENTER so the agent
+# acts on a SEMANTIC target instead of guessed pixels. NOT arbitrary code exec --
+# only enumerates + acts on the active window's accessibility tree.
+$script:UIA_OK = $false
+try {
+    Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
+    Add-Type -AssemblyName UIAutomationTypes  -ErrorAction Stop
+    $script:UIA_OK = $true
+} catch { $script:UIA_OK = $false }
+
+function Find-UIElements($name, $maxN) {
+    if (-not $script:UIA_OK) { return @() }
+    if (-not $maxN -or $maxN -le 0) { $maxN = 15 }
+    $fg = [OSCW32]::GetForegroundWindow()
+    $root = $null
+    try { if ($fg -ne [IntPtr]::Zero) { $root = [System.Windows.Automation.AutomationElement]::FromHandle($fg) } } catch {}
+    if (-not $root) { $root = [System.Windows.Automation.AutomationElement]::RootElement }
+    $out = @()
+    try {
+        $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+                             [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($el in $all) {
+            $nm = ''
+            try { $nm = [string]$el.Current.Name } catch {}
+            if (-not $nm) { continue }
+            if ($name -and ($nm -notlike "*$name*")) { continue }
+            $rect = $null
+            try { $rect = $el.Current.BoundingRectangle } catch {}
+            if (-not $rect -or $rect.Width -le 0 -or $rect.Height -le 0) { continue }
+            $ct = ''; $aid = ''
+            try { $ct = [string]$el.Current.ControlType.ProgrammaticName } catch {}
+            try { $aid = [string]$el.Current.AutomationId } catch {}
+            $out += @{ name = $nm; control_type = $ct; automation_id = $aid;
+                       x = [int]$rect.X; y = [int]$rect.Y; w = [int]$rect.Width; h = [int]$rect.Height;
+                       cx = [int]($rect.X + $rect.Width / 2); cy = [int]($rect.Y + $rect.Height / 2) }
+            if ($out.Count -ge $maxN) { break }
+        }
+    } catch {}
+    return $out
+}
+
 function Invoke-TypeText($text) {
     Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
     $t = "$text"
@@ -749,6 +793,36 @@ while ($listener.IsListening) {
             if (-not $r.ok) { $code = 400 }
             ("{0}  input {1}" -f (Get-Date -Format s), $op) | Out-File -FilePath $logFile -Append -Encoding utf8
             Write-JsonResponse $ctx $code $r
+        }
+        elseif ($method -eq 'POST' -and ($path -eq '/ui/find' -or $path -eq '/ui/click')) {
+            # UIA semantic targeting: /ui/find lists matching controls in the
+            # foreground window; /ui/click finds the first match + clicks its
+            # center. Element-targeting only -- no arbitrary code execution.
+            $b = Read-JsonBody $ctx
+            $name = ''
+            if ($b -and ($b.PSObject.Properties.Name -contains 'name')) { $name = "$($b.name)" }
+            if (-not $name.Trim()) {
+                Write-JsonResponse $ctx 400 @{ ok = $false; error = "missing 'name'" }
+            }
+            elseif (-not $script:UIA_OK) {
+                Write-JsonResponse $ctx 200 @{ ok = $false; error = 'UIA unavailable on this host'; host = $env:COMPUTERNAME }
+            }
+            elseif ($path -eq '/ui/find') {
+                $els = @(Find-UIElements $name 15)
+                Write-JsonResponse $ctx 200 @{ ok = ($els.Count -gt 0); count = $els.Count; elements = $els; host = $env:COMPUTERNAME }
+            }
+            else {
+                $els = @(Find-UIElements $name 1)
+                if ($els.Count -eq 0) {
+                    Write-JsonResponse $ctx 404 @{ ok = $false; error = "no UIA element matching '$name' in the foreground window"; host = $env:COMPUTERNAME }
+                }
+                else {
+                    $e = $els[0]
+                    [void](Invoke-Click $e.cx $e.cy 'left')
+                    ("{0}  ui-click name='{1}' -> ({2},{3})" -f (Get-Date -Format s), $name, $e.cx, $e.cy) | Out-File -FilePath $logFile -Append -Encoding utf8
+                    Write-JsonResponse $ctx 200 @{ ok = $true; clicked = $true; element = $e; host = $env:COMPUTERNAME }
+                }
+            }
         }
         else {
             Write-JsonResponse $ctx 404 @{ error = 'not found'; path = $path; method = $method }

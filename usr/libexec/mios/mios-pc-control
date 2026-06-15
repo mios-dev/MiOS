@@ -154,7 +154,7 @@ PYEOF
 }
 
 case "$sub" in
-    launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo)
+    launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo|ui-find|ui-click)
         EXEC_EP="$(_oscontrol_executor)"
         # GRACEFUL FALLBACK (operator 2026-05-26): only route to the executor if
         # it's actually UP (quick /health probe). When it's configured but not
@@ -170,10 +170,16 @@ case "$sub" in
         # 2026-06-07: `mios-launch notepad` returned rc=0 but opened nothing). With
         # no reachable executor, signal the caller to use its own path -- exit 2,
         # never a blind no-op that falsely claims success.
-        if [ "$sub" = "launch" ] && [ -z "$EXEC_EP" ]; then
-            echo "mios-pc-control: no OS-control executor reachable for launch" >&2
-            exit 2
-        fi
+        case "$sub" in
+            launch|ui-find|ui-click)
+                # These need the interactive-desktop executor (WinSta0): launch must
+                # surface a window; ui-find/ui-click walk the UIA tree. No blind
+                # interop fallback -- signal the caller honestly instead of a no-op.
+                if [ -z "$EXEC_EP" ]; then
+                    echo "mios-pc-control: no OS-control executor reachable for $sub" >&2
+                    exit 2
+                fi ;;
+        esac
         if [ -n "$EXEC_EP" ]; then
             case "$sub" in
                 launch)
@@ -237,6 +243,20 @@ for w in (d.get("windows") or []):
                     [ -z "$hwnd" ] && { echo "mios-pc-control: window-center needs an hwnd" >&2; exit 64; }
                     if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/center" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd}" 2>/dev/null)"; then
                         echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/center)" >&2
+                        exit 1
+                    fi
+                    printf '%s\n' "$out"
+                    exit 0
+                    ;;
+                ui-find|ui-click)
+                    # UIA semantic targeting: find a control BY NAME in the foreground
+                    # window (ui-find -> list; ui-click -> click the first match's center).
+                    name="$*"
+                    [ -z "$name" ] && { echo "mios-pc-control: $sub needs <name>" >&2; exit 64; }
+                    _uiop="${sub#ui-}"   # find | click
+                    body="$(_json_body name "$name")"
+                    if ! out="$(curl -fsS -m 25 -X POST "$EXEC_EP/ui/$_uiop" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
+                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /ui/$_uiop)" >&2
                         exit 1
                     fi
                     printf '%s\n' "$out"

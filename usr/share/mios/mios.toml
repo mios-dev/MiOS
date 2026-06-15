@@ -2500,6 +2500,36 @@ permission = "write"
   enum = ["left", "right", "middle"]
   default = "left"
 
+# UIA semantic targeting (operator 2026-06-15): find/click a Windows control BY NAME
+# via UI Automation (mios-oscontrol-server /ui/find + /ui/click) instead of pixels --
+# the #1 Windows GUI gap (Linux had AT-SPI; Windows was coordinate-only). Routed via
+# mios-pc-control ui-find/ui-click to the in-session executor (foreground-window-scoped).
+[verbs.pc_find_element]
+section    = "PC input"
+sig        = "name"
+desc       = "Find UI controls BY NAME (substring) in the FOREGROUND window on the HOST WINDOWS desktop via UI Automation -- the SEMANTIC alternative to guessing pixel coordinates. Returns matching elements with control type, automation_id, bounds, and clickable center. Use to LOCATE a button/menu/field before acting; then pc_click_element (by name) or pc_click (with the returned center). READ-only."
+model_name = "windows_desktop_find_element_by_name"
+examples   = ["find the Save button on the windows desktop", "locate the element named 'Sign in' on the host screen", "what controls are in the foreground windows app", "find the search box by name on windows"]
+tier       = "rare"
+permission = "read"
+cmd        = "mios-pc-control ui-find {name}"
+  [verbs.pc_find_element.params.name]
+  type = "string"
+  aliases = ["element", "label", "control"]
+
+[verbs.pc_click_element]
+section    = "PC input"
+sig        = "name"
+desc       = "Click a UI control BY NAME (substring) in the FOREGROUND window on the HOST WINDOWS desktop via UI Automation -- finds the named control and clicks its center, acting on a SEMANTIC target instead of guessed pixels (more robust than pc_click x,y). Prefer this over pixel-clicking when the control has a name; use pc_find_element first if unsure of the exact name. Write-class."
+model_name = "windows_desktop_click_element"
+examples   = ["click the Save button on the windows desktop", "click the element named OK on the host screen", "press the 'Sign in' button on windows by name", "click the File menu on the host desktop"]
+tier       = "rare"
+permission = "write"
+cmd        = "mios-pc-control ui-click {name}"
+  [verbs.pc_click_element.params.name]
+  type = "string"
+  aliases = ["element", "label", "control", "button"]
+
 # ─── Section: Computer-use (Linux/Wayland desktop) ────────────────────
 # Cross-platform desktop control via mios-computer-use (env-adaptive: bare-metal
 # GNOME/KDE Wayland, WSLg, or a federated remote desktop). AT-SPI-first grounding
