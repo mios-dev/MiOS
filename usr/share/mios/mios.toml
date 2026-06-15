@@ -6050,6 +6050,56 @@ launcher_socket = "/run/mios-launcher/launcher.sock"
 # infrastructure (xdg-settings, xdg-mime, gio mime) at lookup time
 # so the SoT is the actual system state, not a duplicate table.
 # ----------------------------------------------------------------------------
+# App-TYPE defaults (operator 2026-06-15: every application type has a default in
+# mios.toml, user-switchable by telling the AI; Linux apps first for most, Windows
+# for games/windows-specific, BOTH for system apps; agents discern intent from
+# environment context -- NO hardcoded keyword lists). os_pref tells the launcher/
+# agent which side to prefer: linux-first | windows | both. `default` = the Linux/
+# primary app id (resolved via [mios-find.aliases]/[[desktop.apps]]); windows_default
+# = the app when the agent discerns Windows intent ("my browser", a Windows-only app).
+# A per-user ~/.config/mios/mios.toml override (written by the app_default verb) wins.
+[[desktop.app_types]]
+type            = "browser"
+os_pref         = "linux-first"
+default         = "epiphany"
+windows_default = "zen"
+description     = "Web browser -- Linux flatpak by default; Zen (the Windows default browser) on Windows / 'my browser' intent."
+[[desktop.app_types]]
+type        = "files"
+os_pref     = "linux-first"
+default     = "nautilus"
+description = "File manager."
+[[desktop.app_types]]
+type        = "editor"
+os_pref     = "linux-first"
+default     = "gedit"
+description = "Text editor."
+[[desktop.app_types]]
+type        = "terminal"
+os_pref     = "linux-first"
+default     = "ptyxis"
+description = "Terminal emulator."
+[[desktop.app_types]]
+type        = "media"
+os_pref     = "linux-first"
+default     = "showtime"
+description = "Media / video player."
+[[desktop.app_types]]
+type            = "games"
+os_pref         = "windows"
+windows_default = "steam"
+description     = "Games + game launchers -- the Windows side (Steam/Epic/GOG/Xbox)."
+[[desktop.app_types]]
+type        = "settings"
+os_pref     = "both"
+default     = "gnome-control-center"
+description = "System settings -- both OSes have one; agent picks by which system the ask targets."
+[[desktop.app_types]]
+type        = "system"
+os_pref     = "both"
+description = "System / OS apps -- assume either side; agent discerns from context."
+
+# ----------------------------------------------------------------------------
 [mios-find.aliases]
 # Canonical Linux/freedesktop role -> app id. ONE word per role.
 web        = "epiphany"
