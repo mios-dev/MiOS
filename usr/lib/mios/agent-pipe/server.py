@@ -6733,10 +6733,20 @@ _REFINE_SYSTEM_LITE = (
     "    search engine would mis-match to a brand / product / unrelated term\n"
     "    (e.g. a bare 'current' or 'trending' that hits an app or a\n"
     "    dictionary). This is the string the web search actually runs.\n"
-    '  "news": true ONLY when the ask is about CURRENT EVENTS / breaking or\n'
-    "    recent NEWS / what is happening now / trending stories -- dated,\n"
-    "    time-sensitive reporting where a NEWS index beats general web search.\n"
-    "    Omit or false for evergreen lookups (definitions, how-tos, specs).\n"
+    '  "news": true when the ask is about CURRENT EVENTS / breaking or recent\n'
+    "    NEWS / what is happening now / trending stories, OR is ANCHORED TO A\n"
+    "    RECENT DATE or time-marker (a month/year like 'June 2026', or 'today'\n"
+    "    / 'latest' / 'newest' / 'recent' / 'this week' / 'updates' / 'what's\n"
+    "    new') -- dated, time-sensitive reporting where a NEWS index beats\n"
+    "    general search. A recency marker counts EVEN IF the word 'news' is absent.\n"
+    '  "web": true whenever answering needs EXTERNAL knowledge this machine cannot\n'
+    "    supply -- ANY knowledge gap about the outside world (facts, products,\n"
+    "    releases, specs, comparisons, people, prices, events). When UNSURE whether\n"
+    "    you genuinely know the answer, set web=true: live grounding ALWAYS beats\n"
+    "    answering from memory. You must NEVER fabricate facts, figures, dates, or\n"
+    "    SOURCE CITATIONS for an external-knowledge ask -- web-search it instead.\n"
+    "    Omit news/web only for evergreen basics you are certain of, or local_state\n"
+    "    machine-state questions.\n"
     "    Classify by what the ask NEEDS, never by a keyword.\n"
     '  "needs_location": true when answering REQUIRES the user\'s OWN physical\n'
     "    location -- weather, 'near me' / nearby / local services, directions,\n"
