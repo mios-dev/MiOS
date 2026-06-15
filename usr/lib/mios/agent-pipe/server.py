@@ -6847,11 +6847,10 @@ _REFINE_SYSTEM_LITE = (
     "  dispatch = ONE single, concrete machine ACTION that maps to exactly one\n"
     "    of the verbs listed below: an OS-control action on a NAMED target\n"
     "    (launch / open / close / focus / move / resize a SPECIFIC app or window;\n"
-    "    open a SPECIFIC URL) -- EXACTLY ONE target. If the user names TWO OR MORE\n"
-    "    apps/actions ('open notepad AND spotify', 'open X and Y side by side'), use\n"
-    "    intent=agent so the agent opens EACH in turn and arranges them -- NOT\n"
-    "    dispatch (which fires only one and silently drops the rest). OR a\n"
-    "    STANDING/RECURRING request -- 'do X every N\n"
+    "    open a SPECIFIC URL) -- EXACTLY ONE target. If the request names MORE THAN\n"
+    "    ONE distinct app/action to act on, it is NOT dispatch -- use intent=agent\n"
+    "    so the agent performs EACH in turn (dispatch fires only one and drops the\n"
+    "    rest). OR a STANDING/RECURRING request -- 'do X every N\n"
     "    minutes/hours', 'each day', 'keep me updated on X', 'check X regularly'\n"
     "    -> the `schedule` verb (args: prompt=the task, every=the interval). A\n"
     "    request that says to REPEAT on an interval is `schedule`, NOT one-shot\n"
@@ -20058,6 +20057,56 @@ async def _client_tools_sse(msg: dict, chat_id: str,
     yield b"data: [DONE]\n\n"
 
 
+def _name_is_verb(name) -> bool:
+    """True if a tool name resolves to a real MiOS verb (the client already carries
+    the MiOS surface -- e.g. Hermes via its mios MCP client)."""
+    if not name:
+        return False
+    try:
+        return _resolve_verb_key(str(name)) in _VERB_CATALOG
+    except Exception:  # noqa: BLE001
+        return False
+
+
+async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> Any:
+    """STREAM the backend response verbatim for a full-agent client that carries its
+    OWN MiOS tools (Hermes desktop app): inject MiOS identity, enable thinking, forward
+    the client's tools, and relay the SSE byte-for-byte so content / reasoning /
+    tool_calls stream LIVE -- no compute-then-burst dead wait. The client executes its
+    own tool_calls in its own loop (it has the tools), so no server-side merge is
+    needed; that merge is only for tool-less clients (Zen) via the hybrid loop."""
+    tbody = dict(body)
+    tbody["model"] = _TOOL_BACKEND_MODEL
+    tbody["messages"] = _client_tools_inject_identity(list(body.get("messages") or []))
+    tbody["chat_template_kwargs"] = {"enable_thinking": True}
+    tbody["stream"] = True
+    for _k in ("mios_flags", "_allow_write", "num_ctx"):
+        tbody.pop(_k, None)
+    headers = {"content-type": "application/json"}
+    _hp = _TOOL_BACKEND.split("://")[-1].split("/")[0]
+    if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
+        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+    url = f"{_TOOL_BACKEND}/chat/completions"
+    client = await _get_client()
+
+    async def _gen() -> AsyncGenerator[bytes, None]:
+        try:
+            async with client.stream(
+                    "POST", url,
+                    content=json.dumps(tbody).encode("utf-8"),
+                    headers=headers) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+        except Exception as e:  # noqa: BLE001
+            log.warning("client-tools stream relay failed: %s", e)
+            yield ("data: " + json.dumps(
+                {"choices": [{"delta": {"content": f"[tool backend error: {e}]"}}]})
+                + "\n\n").encode("utf-8")
+            yield b"data: [DONE]\n\n"
+
+    return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
 async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
                                  model: str) -> Any:
     """OpenAI client-tool turn (Zen smart-window et al.) as a HYBRID loop: MiOS
@@ -20073,6 +20122,12 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
         except Exception:  # noqa: BLE001
             continue
     out_model = model or _TOOL_BACKEND_MODEL
+    # A STREAMING client that already carries MiOS verbs in its own tools[] (Hermes
+    # desktop app via its mios MCP client) is a full agent -- stream the backend
+    # verbatim so its answer streams LIVE (no compute-then-burst dead wait) and it
+    # runs its own tools. Tool-less clients (Zen) fall through to the hybrid loop.
+    if streaming and any(_name_is_verb(_n) for _n in client_names):
+        return await _client_tools_stream_relay(body, chat_id, out_model)
     try:
         final_msg = await _client_tools_loop(body, client_names, chat_id)
         # WS-E #2: a strict client matches its follow-up role:tool message by
