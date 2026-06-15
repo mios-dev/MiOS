@@ -19831,15 +19831,19 @@ def _client_tools_is_mios(name: str, client_names: set) -> bool:
 
 
 def _client_tools_inject_identity(messages: list) -> list:
-    """Prepend the MiOS identity to the caller's leading system message (or add
-    one). Server-side only -- the client never sees it, so it can't accumulate
-    across the multi-request client-tool loop."""
+    """Prepend the FULL MiOS root contract (/MiOS.md via _agent_contract) PLUS the
+    client-tools addendum to the caller's leading system message (or add one).
+    WS-B: the Zen path now gets the SAME root-MD grounding every other MiOS agent
+    gets, instead of drifting on a bespoke identity string. Server-side only -- the
+    client never sees it, so it can't accumulate across the multi-request loop."""
+    _contract = _agent_contract()
+    lead = (_contract + "\n\n" + _CLIENT_TOOLS_IDENTITY) if _contract else _CLIENT_TOOLS_IDENTITY
     msgs = [dict(m) for m in messages if isinstance(m, dict)]
     if msgs and msgs[0].get("role") == "system":
         base = str(msgs[0].get("content") or "")
-        msgs[0]["content"] = _CLIENT_TOOLS_IDENTITY + "\n\n" + base
+        msgs[0]["content"] = lead + "\n\n" + base
         return msgs
-    return [{"role": "system", "content": _CLIENT_TOOLS_IDENTITY}] + msgs
+    return [{"role": "system", "content": lead}] + msgs
 
 
 async def _client_tools_backend(req: dict) -> dict:
@@ -19865,7 +19869,9 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     messages = _client_tools_inject_identity(list(body.get("messages") or []))
     tools = list(body.get("tools") or []) + _client_tools_mios_surface()
     base_req: dict = {"model": _TOOL_BACKEND_MODEL, "tools": tools, "stream": False}
-    for _k in ("temperature", "top_p", "max_tokens"):
+    # WS-E #3/#4: forward the caller's tool_choice + parallel_tool_calls so a client
+    # that forces a function (or forbids parallel) isn't silently overridden to auto.
+    for _k in ("temperature", "top_p", "max_tokens", "tool_choice", "parallel_tool_calls"):
         if _k in body:
             base_req[_k] = body[_k]
     last: dict = {}
@@ -19955,6 +19961,12 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
     out_model = model or _TOOL_BACKEND_MODEL
     try:
         final_msg = await _client_tools_loop(body, client_names, chat_id)
+        # WS-E #2: a strict client matches its follow-up role:tool message by
+        # tool_call_id; if the backend omitted an id, synthesize a stable one so the
+        # client's next turn validates instead of 400-ing on id=null.
+        for _i, _tc in enumerate(final_msg.get("tool_calls") or []):
+            if isinstance(_tc, dict) and not _tc.get("id"):
+                _tc["id"] = f"call_{chat_id}_{_i}"
         if not streaming:
             return JSONResponse(
                 content=_client_tools_wrap(final_msg, chat_id, out_model))
