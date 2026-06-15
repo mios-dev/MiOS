@@ -2076,6 +2076,29 @@ async def classify_intent(user_text: str) -> Optional[dict]:
         "response_format": {"type": "json_object"},
         "stream": False,
     }
+    # NATIVE structured outputs (WS-H2 2026-06-15): upgrade json_object (valid
+    # JSON, NOT schema-adherent -> the reason the parse below still defensively
+    # checks "action" not in parsed) to a strict json_schema so `action` is enum-
+    # constrained and `tool` can only be a REAL verb. Same proven _route_domain
+    # pattern (json_schema + enable_thinking=False; llama.cpp #20345 drops the
+    # grammar when thinking is on). Gated MIOS_ROUTER_STRUCTURED (default on); the
+    # router is fail-open (any miss -> full surface) so an unsupported backend
+    # degrades cleanly. The defensive parse guard below stays (belt + suspenders).
+    if os.environ.get("MIOS_ROUTER_STRUCTURED", "true").strip().lower() not in {
+            "0", "false", "no", "off"}:
+        payload["response_format"] = {"type": "json_schema", "json_schema": {
+            "name": "mios_route", "strict": True, "schema": {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "action": {"type": "string",
+                               "enum": ["dispatch", "chat", "agent"]},
+                    "tool": {"type": ["string", "null"],
+                             "enum": sorted(_VERB_CATALOG.keys()) + [None]},
+                    "args": {"type": ["object", "null"], "additionalProperties": True},
+                    "reason": {"type": ["string", "null"]},
+                    "reply": {"type": ["string", "null"]}},
+                "required": ["action", "tool", "args", "reason", "reply"]}}}
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
     url = f"{ROUTER_ENDPOINT}/v1/chat/completions"
     try:
         async with httpx.AsyncClient(timeout=ROUTER_TIMEOUT_S) as s:
@@ -6733,21 +6756,11 @@ _REFINE_SYSTEM_LITE = (
     "    search engine would mis-match to a brand / product / unrelated term\n"
     "    (e.g. a bare 'current' or 'trending' that hits an app or a\n"
     "    dictionary). This is the string the web search actually runs.\n"
-    '  "news": true when the ask is about CURRENT EVENTS / breaking or recent\n'
-    "    NEWS / what is happening now / trending stories, OR is ANCHORED TO A\n"
-    "    RECENT DATE or time-marker (a month/year like 'June 2026', or 'today'\n"
-    "    / 'latest' / 'newest' / 'recent' / 'this week' / 'updates' / 'what's\n"
-    "    new') -- dated, time-sensitive reporting where a NEWS index beats\n"
-    "    general search. A recency marker counts EVEN IF the word 'news' is absent.\n"
-    '  "web": true whenever answering needs EXTERNAL knowledge this machine cannot\n'
-    "    supply -- ANY knowledge gap about the outside world (facts, products,\n"
-    "    releases, specs, comparisons, people, prices, events). When UNSURE whether\n"
-    "    you genuinely know the answer, set web=true: live grounding ALWAYS beats\n"
-    "    answering from memory. You must NEVER fabricate facts, figures, dates, or\n"
-    "    SOURCE CITATIONS for an external-knowledge ask -- web-search it instead.\n"
-    "    Omit news/web only for evergreen basics you are certain of, or local_state\n"
-    "    machine-state questions.\n"
-    "    Classify by what the ask NEEDS, never by a keyword.\n"
+    '  "news": recency-anchored / current-events / "latest" asks (a NEWS index\n'
+    "    beats a general web search).\n"
+    '  "web": ANY external-knowledge gap -- a fact about the outside world you are\n'
+    "    not certain of. When unsure, prefer web; NEVER fabricate facts or citations.\n"
+    "  Classify by what the ask NEEDS, never by a keyword.\n"
     '  "needs_location": true when answering REQUIRES the user\'s OWN physical\n'
     "    location -- weather, 'near me' / nearby / local services, directions,\n"
     "    what's on locally, distance-from-here. The pipeline resolves it from the\n"
@@ -7926,12 +7939,24 @@ async def refine_intent(user_text: str,
     # 6207-char user_text for a one-line question; CPU refine scales with
     # length). Keep the last 1500 chars so the question + nearby context
     # survive while latency stays bounded.
-    # /no_think (qwen3 micro) -> emits JSON straight to content (~0.4s warm).
-    # NO response_format: it FORCES reasoning even with /no_think (proven: that
-    # combo dumps into reasoning_content with empty content -> dead refine). The
-    # refine prompt already demands JSON-only and the parse is lenient. (operator
-    # 2026-06-09: the micro layer runs qwen3:1.7b, NOT the gemma4 reasoning model.)
-    msgs.append({"role": "user", "content": user_text[-1500:] + " /no_think"})
+    # NATIVE structured outputs (WS-H1 2026-06-15): constrain refine to a strict
+    # json_schema so the envelope is schema-VALID by construction -- the decoder
+    # cannot emit a missing/mistyped/out-of-enum field, killing the recurring
+    # parse_fail/_loads_lenient/_salvage tiers and letting the prompt shed its
+    # JSON-shape prose. Copies the PROVEN _route_domain pattern on the SAME :11450
+    # llama.cpp lane: json_schema + chat_template_kwargs.enable_thinking=False
+    # (llama.cpp #20345 silently DROPS the grammar when thinking is on -- the old
+    # "NO response_format forces reasoning" note was the qwen3:1.7b era WITHOUT the
+    # thinking-off fix). Schema validated live on :11450/granite4.1:8b 2026-06-15
+    # (200 + 17-key JSON; args additionalProperties:true accepted by the GBNF
+    # compiler). Gated MIOS_REFINE_STRUCTURED (default on); ANY backend/refusal/
+    # parse failure still degrades to the lenient path below (fail-open).
+    _refine_structured = os.environ.get(
+        "MIOS_REFINE_STRUCTURED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    # /no_think only matters when NOT structured -- enable_thinking=False is the
+    # structured equivalent and is what makes the grammar actually attach.
+    msgs.append({"role": "user",
+                 "content": user_text[-1500:] + ("" if _refine_structured else " /no_think")})
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
@@ -7939,6 +7964,44 @@ async def refine_intent(user_text: str,
         "max_tokens": REFINE_MAX_TOKENS,
         "stream": False,
     }
+    if _refine_structured:
+        _rv = sorted(_VERB_CATALOG.keys())
+        payload["response_format"] = {"type": "json_schema", "json_schema": {
+            "name": "mios_refine", "strict": True, "schema": {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "intent": {"type": "string",
+                               "enum": ["chat", "dispatch", "agent", "multi_task"]},
+                    "refined_text": {"type": "string"},
+                    "news": {"type": "boolean"},
+                    "web": {"type": "boolean"},
+                    "local_state": {"type": "boolean"},
+                    "needs_location": {"type": "boolean"},
+                    "browser_action": {"type": "boolean"},
+                    "domain_type": {"type": ["string", "null"]},
+                    "state_scope": {"type": ["string", "null"]},
+                    "inventory_filter": {"type": ["string", "null"]},
+                    "intended_outcome": {"type": ["string", "null"]},
+                    "target_agent": {"type": ["string", "null"]},
+                    "hint_tools": {"type": "array",
+                                   "items": {"type": "string", "enum": _rv}},
+                    "tool": {"type": ["string", "null"], "enum": _rv + [None]},
+                    "args": {"type": ["object", "null"], "additionalProperties": True},
+                    "reply": {"type": ["string", "null"]},
+                    "tasks": {"type": ["array", "null"], "items": {
+                        "type": "object", "additionalProperties": False,
+                        "properties": {
+                            "title": {"type": "string"},
+                            "refined_text": {"type": "string"},
+                            "web": {"type": "boolean"},
+                            "local_state": {"type": "boolean"}},
+                        "required": ["title", "refined_text", "web", "local_state"]}}},
+                "required": ["intent", "refined_text", "news", "web", "local_state",
+                             "needs_location", "browser_action", "domain_type",
+                             "state_scope", "inventory_filter", "intended_outcome",
+                             "target_agent", "hint_tools", "tool", "args", "reply",
+                             "tasks"]}}}
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
     url = f"{REFINE_ENDPOINT}/v1/chat/completions"
     t0 = time.time()
     # RETRY once on timeout/transport error (operator 2026-05-26): the first
