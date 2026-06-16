@@ -20036,7 +20036,14 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     'get_page_content' still rides back to the browser."""
     messages = _client_tools_inject_identity(list(body.get("messages") or []))
     tools = list(body.get("tools") or []) + _client_tools_mios_surface()
-    base_req: dict = {"model": _TOOL_BACKEND_MODEL, "tools": tools, "stream": False}
+    # parallel_tool_calls=False by default: the loop executes MiOS verbs SEQUENTIALLY
+    # server-side anyway, and an 8B model handed a big merged tool surface (the client's
+    # own tools + the MiOS verbs) tends to emit MALFORMED parallel calls -- e.g. open_app
+    # AND launch_windows_app for one app, serialized with missing names so NEITHER fires
+    # ("nothing happened", operator 2026-06-15). Forcing one call per turn keeps the
+    # tool_call well-formed. The client can still override via its own parallel_tool_calls.
+    base_req: dict = {"model": _TOOL_BACKEND_MODEL, "tools": tools, "stream": False,
+                      "parallel_tool_calls": False}
     # WS-E #3/#4: forward the caller's tool_choice + parallel_tool_calls so a client
     # that forces a function (or forbids parallel) isn't silently overridden to auto.
     for _k in ("temperature", "top_p", "max_tokens", "tool_choice", "parallel_tool_calls"):
