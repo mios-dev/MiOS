@@ -429,12 +429,72 @@ function Find-UIElements($name, $maxN) {
     return $out
 }
 
+# Read-back helpers for type verification: the FOREGROUND-window title and the
+# focused control's text (UIA Value/Text pattern). Used to confirm typed text
+# ACTUALLY landed, so the executor never reports a false success.
+function Get-FgTitleRaw {
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][OSCW32]::GetWindowText([OSCW32]::GetForegroundWindow(), $sb, 512)
+    return $sb.ToString()
+}
+function Get-FocusedTextRaw {
+    if (-not $script:UIA_OK) { return $null }
+    try {
+        $fe = [System.Windows.Automation.AutomationElement]::FocusedElement
+        if ($null -eq $fe) { return $null }
+        $vp = $null
+        if ($fe.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+            return $vp.Current.Value
+        }
+        $tp = $null
+        if ($fe.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) {
+            return $tp.DocumentRange.GetText(4096)
+        }
+    } catch { }
+    return $null
+}
+
 function Invoke-TypeText($text) {
     Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
     $t = "$text"
+    # READ-BACK VERIFICATION (operator 2026-06-16 "LIAR": never claim a type
+    # succeeded unless the text actually landed). This is the PRIMARY type path
+    # (the agent's pc_type POSTs here), so it previously returned ok=$true
+    # UNCONDITIONALLY -- a keystroke that hit the wrong window / got dropped still
+    # read as success. Mirror the proven mios-pc-control.ps1 read-back: capture the
+    # focused-control value + foreground title BEFORE and AFTER SendKeys; verified
+    # ONLY if the EXACT sent text appears in the focused value OR the (changed)
+    # foreground title. ok=$false -> the handler returns HTTP 400 -> the wrapper
+    # surfaces it honestly -> the orchestrator can retry / report uncertainty.
+    $titleBefore = Get-FgTitleRaw
+    $valBefore = Get-FocusedTextRaw
+    # SendKeys interprets {} +^%~ specially; escape them.
     $escaped = ($t -replace '([+\^%~(){}\[\]])', '{$1}')
+    # Pre-type settle: a freshly focused window often is not ready the instant after
+    # focus, dropping LEADING characters ("DEHARD-5566" -> "RD-5566").
+    Start-Sleep -Milliseconds 250
     [System.Windows.Forms.SendKeys]::SendWait($escaped)
-    return @{ ok = $true; op = 'type'; chars = $t.Length }
+    Start-Sleep -Milliseconds 400
+    $titleAfter = Get-FgTitleRaw
+    $valAfter = Get-FocusedTextRaw
+    # STRICT: success ONLY if the EXACT sent text appears (a partial / dropped result
+    # must NOT pass -- "value grew" alone was the residual lie).
+    $verified = $false
+    $reason = 'text_not_delivered'
+    if (($null -ne $valAfter) -and $valAfter.Contains($t)) {
+        $verified = $true; $reason = 'uia_value_contains_text'
+    } elseif (($titleAfter -ne $titleBefore) -and $titleAfter.Contains($t)) {
+        $verified = $true; $reason = 'title_contains_text'
+    } elseif (($null -eq $valAfter) -and ($titleAfter -eq $titleBefore)) {
+        $reason = 'no_verifiable_target'
+    } else {
+        $reason = 'text_mismatch_partial_or_dropped'
+    }
+    $vc = ''
+    if ($null -ne $valAfter) { $vc = $valAfter.Substring(0, [Math]::Min(160, $valAfter.Length)) }
+    return @{ ok = $verified; verified = $verified; op = 'type'; reason = $reason;
+             chars = $t.Length; title_before = $titleBefore; title_after = $titleAfter;
+             focused_text_after = $vc }
 }
 
 function Invoke-Key($name) {
