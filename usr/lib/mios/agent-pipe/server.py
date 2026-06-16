@@ -4511,6 +4511,11 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
 # the broker's own result (success=False / read-back marker), NOT a hardcoded rule, so it
 # generalises across ALL verbs/facets and all agents that share this loop.
 SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "1") or 1)
+# Multi-facet DAG closed loop (operator "loop anything not fully fulfilled" ACROSS the
+# fan-out): how many times to RE-DISPATCH the DAG when a facet's verdict is UNFULFILLED
+# (satisfied is False). Bounded; 0 disables. The re-run is adopt-ONLY-if-strictly-better
+# + degrade-open, so it can never worsen the answer or break the fan-out.
+DAG_REPLAN_MAX = int(os.environ.get("MIOS_DAG_REPLAN_MAX", "1") or 1)
 _REPLAN_NUDGE = (
     "One of your previous tool results reported a FAILURE or an UNVERIFIED outcome "
     "(the action did not actually take effect). Re-attempt that step now with a tool "
@@ -14155,6 +14160,35 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
     async def _synthesise(dag_result: dict) -> tuple:
         """Post-DAG: build the audit envelope + the polished synthesis."""
+        # MULTI-FACET CLOSED LOOP (operator 2026-06-16 "loop anything not successful or
+        # fully fulfilled" ACROSS the fan-out): if any facet's verdict is UNFULFILLED
+        # (satisfied is False), RE-DISPATCH the DAG, bounded by DAG_REPLAN_MAX. Adopt the
+        # fresh result ONLY if it satisfies STRICTLY MORE facets -- a re-run can NEVER
+        # make the answer worse -- and DEGRADE-OPEN on any error (keep the original). So
+        # this cannot break or regress the working fan-out; worst case is one wasted
+        # re-run. Verdict-driven (the broker's satisfied flag), not a hardcoded rule.
+        try:
+            def _nsat(_dr: dict) -> int:
+                return sum(1 for _n in (_dr or {}).get("node_results", [])
+                           if isinstance(_n, dict) and _n.get("satisfied") is not False
+                           and str(_n.get("output") or "").strip())
+            _replans = 0
+            _unfulfilled = [_n for _n in dag_result.get("node_results", [])
+                            if isinstance(_n, dict) and _n.get("satisfied") is False]
+            while _unfulfilled and _replans < DAG_REPLAN_MAX:
+                _replans += 1
+                log.info("DAG CLOSED-LOOP replan #%d/%d: %d unfulfilled facet(s) -> "
+                         "re-dispatch", _replans, DAG_REPLAN_MAX, len(_unfulfilled))
+                _fresh = await _execute_dag_bounded(
+                    dag, session_id=session_id, request=request)
+                if _nsat(_fresh) > _nsat(dag_result):
+                    log.info("DAG replan ADOPTED (%d -> %d facets satisfied)",
+                             _nsat(dag_result), _nsat(_fresh))
+                    dag_result = _fresh
+                _unfulfilled = [_n for _n in dag_result.get("node_results", [])
+                                if isinstance(_n, dict) and _n.get("satisfied") is False]
+        except Exception as _re_err:  # noqa: BLE001 -- degrade-open, never break synth
+            log.warning("DAG closed-loop replan skipped: %s", _re_err)
         # Drop punting nodes from the polish input (operator 2026-05-31): a
         # node that produced a real grounded answer must not be diluted by a
         # sibling's "no data / can't help / rephrase" filler. FAIL-SAFE: if
