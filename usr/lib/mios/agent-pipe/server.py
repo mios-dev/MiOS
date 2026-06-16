@@ -21281,6 +21281,18 @@ async def _respond_os_control(
                                 session_id=session_id)
                         except Exception:  # noqa: BLE001
                             pass
+                    # CLEAR the field before re-typing (operator 2026-06-16): attempt 1
+                    # often lands PARTIAL text (a dropped/raced keystroke), so a blind
+                    # re-type APPENDS -> garbled/duplicated content ("MiOS pip" + full =
+                    # "*OS pipeline verified atpathMiOS pip") even though read-back then
+                    # finds the full substring + reports success. Select-all so the
+                    # re-type REPLACES the partial, not appends. Best-effort.
+                    try:
+                        await dispatch_mios_verb("pc_key", {"key": "ctrl+a"},
+                                                 session_id=session_id)
+                        await asyncio.sleep(0.15)
+                    except Exception:  # noqa: BLE001
+                        pass
                     await asyncio.sleep(max(0.6, OS_CONTROL_LAUNCH_POLL_S))
                     _tr = await dispatch_mios_verb("pc_type", {"text": _txt},
                                                    session_id=session_id)
