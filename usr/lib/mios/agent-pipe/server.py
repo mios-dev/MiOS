@@ -21743,6 +21743,34 @@ async def _respond_native_loop_direct(
     # preference so the model lands on the right verb -- a nudge, not a hardcoded route.
     _hint_tools = [str(h).strip() for h in ((refined or {}).get("hint_tools") or [])
                    if isinstance(h, str) and str(h).strip()]
+    # ROUTE-BY-SOURCE local steer (operator "never web-search local machine state").
+    # `web` is the ONLY external [routing.domains] domain; everything else (files,
+    # system, apps_windows, packages, memory, computer_use, code_shell) targets THIS
+    # machine. When the turn routed to a LOCAL domain, prefer that domain's OWN verbs
+    # and tell the model NOT to web-search -- fixes a live miss where "find the
+    # mios.toml file on this system" (domain=files) fired web_search instead of
+    # find_file_fast. SSOT: verbs come straight from [routing.domains]; degrade-open
+    # when no domain was routed (_rdom_nl None -> not treated as local).
+    _rdom_nl = _routed_domain_var.get(None)
+    _local_domain_nl = bool(_rdom_nl) and _rdom_nl != "web"
+    _local_query_nl = bool(refined and refined.get("local_state")) or _local_domain_nl
+    if _local_domain_nl and _ROUTING_DOMAINS:
+        _dverbs = [str(v) for v in ((_ROUTING_DOMAINS.get(_rdom_nl) or {}).get("verbs") or [])
+                   if str(v).strip()]
+        _seen_h: set = set()
+        _merged_h: list = []
+        for _h in _dverbs + _hint_tools:  # domain verbs lead, refine's hints follow
+            if _h not in _seen_h:
+                _seen_h.add(_h)
+                _merged_h.append(_h)
+        _hint_tools = _merged_h
+        _sys += ("\n\nSOURCE = THIS MACHINE (the request routed to the local '"
+                 + _rdom_nl + "' domain). You do NOT know this machine's actual file "
+                 "paths, file contents, or live state from memory -- any specific "
+                 "path, filename, value, or result you state WITHOUT first calling a "
+                 "local tool is a FABRICATION. You MUST call the appropriate local "
+                 "tool below to get the real answer, and do NOT web_search this "
+                 "machine's own files / state / apps.")
     if _hint_tools:
         _sys += ("\n\nTOOL PREFERENCE for THIS request: if a tool is needed, strongly "
                  "prefer these (refine selected them for this query): "
@@ -21984,7 +22012,11 @@ async def _respond_native_loop_direct(
         # the LIVE results, so the model synthesizes from real data, never training
         # memory. Gated on refine's web/news flags (non-research turns like "open
         # notepad" are untouched); degrade-open (any failure just skips the prefetch).
-        if refined and (refined.get("web") or refined.get("news")):
+        # NOT for a LOCAL-source turn (_local_query_nl: local_state, or routed to a
+        # non-`web` domain) -- web-priming a "find my file" / "what's my CPU" query is
+        # the route-by-source violation that made a local file-find web_search.
+        if (refined and (refined.get("web") or refined.get("news"))
+                and not _local_query_nl):
             try:
                 _wsr = await dispatch_mios_verb(
                     "web_search", {"query": last_user_text}, session_id=session_id)
@@ -22000,6 +22032,39 @@ async def _respond_native_loop_direct(
                         "or figures not present here:\n" + _wtext[:6000]})
             except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
                 log.debug("native-loop web prefetch skipped: %s", _e)
+        # LOCAL FILE-SEARCH prefetch (symmetric to the web prefetch). SAME failure
+        # mode, local edition: a small non-tool_choice model answers "find my file"
+        # from MEMORY -> a fabricated path (live miss: "find mios.toml" -> 0 tool-calls
+        # -> guessed C:\Users\<YourUsername>\.mios\...). For a files-domain turn,
+        # extract a filename-like token and DETERMINISTICALLY run the real file-search
+        # verbs (everything_search=Windows index, fs_search=Linux) -- the pipeline does
+        # the call the model skips -- then inject the REAL hits. Degrade-open: no
+        # filename token / no hit / error -> skip (the model still has the tools).
+        if _rdom_nl == "files":
+            _mfn = (re.search(r"['\"]([^'\"]+\.[A-Za-z0-9]{1,8})['\"]", last_user_text)
+                    or re.search(r"\b([\w.+-]+\.[A-Za-z0-9]{1,8})\b", last_user_text))
+            _fn = _mfn.group(1).strip() if _mfn else None
+            if _fn:
+                _hits = []
+                for _sv in ("everything_search", "fs_search"):
+                    if _sv not in _VERB_CATALOG:
+                        continue
+                    try:
+                        _sr = await dispatch_mios_verb(_sv, {"query": _fn},
+                                                       session_id=session_id)
+                        _st = (str(_sr.get("output") or _sr.get("result") or _sr)
+                               if isinstance(_sr, dict) else str(_sr or "")).strip()
+                        if _st and _st not in ("{}", "null", "[]", '""'):
+                            _hits.append(_sv + " -> " + _st[:1500])
+                    except Exception:  # noqa: BLE001 -- degrade-open
+                        pass
+                if _hits:
+                    _push(" 📁")
+                    _msgs.append({"role": "system", "content":
+                        "LIVE local file-search results for '" + _fn + "' on THIS "
+                        "machine (real paths from the file index). Report the ACTUAL "
+                        "full path(s) found below; do NOT invent or template a path "
+                        "(no '<YourUsername>' placeholders):\n" + "\n".join(_hits)})
         _m2 = await _v1_secondary_tool_loop(
             _c, BACKEND, BACKEND_MODEL, _hdrs, _msgs, _tools,
             NATIVE_LOOP_TIMEOUT_S, _push, allow_write=True)

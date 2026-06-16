@@ -1908,7 +1908,12 @@ verbs = ["web_search", "web_scrape", "crawl", "web_extract"]
 
 [routing.domains.files]
 desc  = "find, read, or edit LOCAL files on this machine"
-verbs = ["mios_find", "everything_search", "fs_search", "directory_lookup", "viking_ls", "viking_cat", "viking_find", "text_view", "text_create", "text_str_replace", "text_insert"]
+# REAL file-search verbs lead (everything_search=Windows NTFS index, fs_search=Linux
+# plocate). mios_find was MISCATEGORISED here -- its own desc says it is NOT a file
+# search (it resolves an app NAME to a launch command), and leading the hint with it
+# made a live "find the mios.toml file on this system" answer a guessed path from
+# memory instead of searching; moved to apps_windows where app-resolution belongs.
+verbs = ["everything_search", "fs_search", "directory_lookup", "viking_find", "viking_ls", "viking_cat", "text_view", "text_create", "text_str_replace", "text_insert"]
 
 [routing.domains.system]
 desc  = "this machine's OS / version / kernel / whether WSL2 / the Windows host, plus state, services, processes, containers, logs, environment"
@@ -1916,7 +1921,7 @@ verbs = ["system_status", "sys_env", "sys_env_refresh", "system_logs", "service_
 
 [routing.domains.apps_windows]
 desc  = "list or launch applications and manage on-screen windows"
-verbs = ["open_app", "open_url", "verify_launch", "window_state", "focus_window", "move_window", "position_window", "resize_window", "list_windows", "screen_layout", "mios_apps", "app_search"]
+verbs = ["open_app", "open_url", "verify_launch", "window_state", "focus_window", "move_window", "position_window", "resize_window", "list_windows", "screen_layout", "mios_apps", "app_search", "mios_find"]
 
 [routing.domains.packages]
 desc  = "install, update, remove, or query software packages (dnf/winget/flatpak)"
