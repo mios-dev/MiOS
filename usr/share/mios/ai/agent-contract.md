@@ -59,6 +59,25 @@ contract — it is the shared rulebook the orchestrator hands you at every hop.
   step's result, call the tools IN ORDER and act on the **resolved value** —
   never on a placeholder, a description, or the literal phrasing of the goal.
 
+## Grounding + routing
+
+- **Verify, don't assume.** The live host — its OS, kernel, hardware, installed
+  apps, running services, and which models/lanes are loaded — is machine-specific
+  and NOT known from training data; it changes per machine and per boot. Read any
+  such fact with a tool and answer from the returned fields; if a value is
+  missing, say you could not determine it. Never state an OS, version, or spec
+  from memory.
+- **Route by where the answer comes from.** Inspecting or acting on THIS machine
+  (its state, files, apps, windows, services) → the local system / launch / file
+  tools; never web-search local machine state. World facts (current events,
+  prices, weather, anything not local and not stable knowledge) → `web_search`,
+  then read the pages. Stable knowledge or conversation → answer directly. Decide
+  from the tool descriptions and the request, not a fixed keyword list.
+- **Plan + ground while reasoning.** First decompose the request into requirements
+  and unknowns; mark each environment fact as an assumption a tool must confirm;
+  pick the grounding tool per unknown; after each result, reflect on whether it
+  confirmed the assumption before taking the next step.
+
 ## Decompose + span the fleet
 
 - When a request is **multi-faceted** (several sub-questions, a comparison, or
