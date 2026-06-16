@@ -26,13 +26,21 @@ WorkingDirectory=/var/lib/mios/agent-pipe
 EnvironmentFile=-/etc/mios/agent-pipe.env
 Environment=MIOS_PORT_AGENT_PIPE=8640
 # WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP, NO OLLAMA"): the agent-pipe
-# reasons DIRECTLY on mios-llm-light (:11450, gemma4:12b on the 4090 dGPU) instead of
-# via Hermes->ollama. Micros (refine/polish/router/planner) -> qwen3:1.7b on the
-# same llama.cpp lane. All inference is now on the dGPU via llama.cpp; ollama bypassed.
+# reasons DIRECTLY on mios-llm-light (:11450) instead of via Hermes->ollama. All
+# inference is on the dGPU via llama.cpp; ollama bypassed.
+# 2026-06-15 (Claude): model fleet swapped gemma4:12b -> granite4.1:8b (the served
+# brain on mios-llm-light; see mios-llm-light.yaml + mios.toml:4061). gemma4:12b is
+# NO LONGER SERVED -> any role still naming it 404s on llama-swap ("no model id").
+# Align EVERY pipeline role to the ONE resident served brain (granite4.1:8b): set the
+# BASE default MIOS_STACK_MODEL (which _MICRO/DCI/SWARM/refine/polish/planner inherit
+# via server.py) + the explicit BACKEND/SWARM/MICRO names. ONE resident model = no
+# llama-swap thrash. Override per-deployment in /etc/mios/agent-pipe.env.
 Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:11450/v1
-Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=gemma4:12b
+Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=granite4.1:8b
+Environment=MIOS_STACK_MODEL=granite4.1:8b
+Environment=MIOS_MICRO_MODEL=granite4.1:8b
 Environment=MIOS_MICRO_ENDPOINT=http://localhost:11450/v1
-Environment=MIOS_SWARM_MODEL=gemma4:12b
+Environment=MIOS_SWARM_MODEL=granite4.1:8b
 # llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no ollama /api/chat, /api/ps)
 # and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
 # skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
