@@ -20968,6 +20968,35 @@ def _verify_os_action(tool: str, args: dict, result: dict,
     return ok
 
 
+# "Last window THIS CONVERSATION opened" -- the referent for a standalone "type X
+# into it" the turn AFTER a launch (operator's exact domain: typing). Keyed on the
+# per-conversation scratchpad key (_conv_key_var = metadata.chat_id the OWUI pipe
+# forwards) NOT the per-REQUEST session_id, which is a fresh DB row each turn and
+# would never match across the conversation. A launch records its opened window
+# here; a later standalone pc_type focuses it before typing so the keystrokes land
+# in the window the user means, not whatever stole foreground since. Bounded
+# (LRU-ish via clear); read-back still verifies the text actually landed -- this
+# only improves WHICH window is targeted, it never asserts success.
+_LAST_OPENED_WINDOW: dict = {}
+_LAST_OPENED_WINDOW_CAP = int(os.environ.get("MIOS_LAST_WINDOW_CAP", "256") or 256)
+
+
+def _record_last_opened_window(wdiff: dict) -> None:
+    """Remember the first window a launch opened for THIS conversation (best-effort)."""
+    _key = _conv_key_var.get()
+    if not _key or not isinstance(wdiff, dict):
+        return
+    _titles = [str(w.get("title") or "").strip()
+               for w in (wdiff.get("opened") or [])
+               if isinstance(w, dict) and str(w.get("title") or "").strip()]
+    if not _titles:
+        return
+    if len(_LAST_OPENED_WINDOW) >= _LAST_OPENED_WINDOW_CAP:
+        _LAST_OPENED_WINDOW.clear()  # crude bound; conversations are ephemeral
+    _LAST_OPENED_WINDOW[_key] = _titles[0]
+    log.info("recorded last-opened window for conv %r -> %r", _key, _titles[0])
+
+
 async def _respond_os_control(
     tool: str, args: dict, refined: Optional[dict], *,
     streaming: bool, chat_id: str, model: str,
@@ -21053,6 +21082,28 @@ async def _respond_os_control(
             except Exception:  # noqa: BLE001
                 pass
 
+    # CONTEXT-AWARE FOCUS for a standalone type (operator's exact domain): a bare
+    # "now type X into it" the turn after a launch has NO same-turn window to
+    # focus -- the "it" referent is the window THIS session most recently opened.
+    # Focus it before pc_type so the keystrokes land there, not whatever stole
+    # foreground since (the cross-turn analogue of the compound type-chain's
+    # focus-before-type). Best-effort + degrade-open: no remembered window, or a
+    # focus miss (window since closed), just types into the current foreground;
+    # pc_type's STRICT read-back still verifies the text actually landed. ONLY the
+    # standalone route enters _respond_os_control with tool=pc_type (the compound
+    # chain dispatches pc_type directly), so this never double-focuses.
+    if tool == "pc_type":
+        _ckey = _conv_key_var.get()
+        _lw = _LAST_OPENED_WINDOW.get(_ckey) if _ckey else None
+        if _lw:
+            try:
+                await dispatch_mios_verb("focus_window", {"title": _lw},
+                                         session_id=session_id)
+                await asyncio.sleep(0.35)
+                log.info("standalone pc_type: context-focused this "
+                         "conversation's last-opened window %r before typing", _lw)
+            except Exception:  # noqa: BLE001 -- best-effort
+                pass
     # FIRE -> VERIFY -> RE-ATTEMPT (operator 2026-05-26 "iGPU does MiOS OS
     # control ... the rest of the pipeline VERIFIES TRUE and attempts to
     # re-attempt"). For a WRITE OS-control verb: snapshot ALL open windows
@@ -21119,6 +21170,9 @@ async def _respond_os_control(
             _ctr = await _center_windows(_wdiff["opened"])
             if _ctr:
                 log.info("auto-centered launched window(s): %s", ", ".join(_ctr))
+        # Remember what this launch opened so a FOLLOW-UP turn's standalone
+        # "type X into it" can focus the right window before typing.
+        _record_last_opened_window(_wdiff)
     else:
         _emit("🪟", (f"{tool.replace('_window', '').replace('_', ' ').strip()} "
                      f"{_os_target(_args)}").strip())

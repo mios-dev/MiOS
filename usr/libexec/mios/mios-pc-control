@@ -153,6 +153,32 @@ print(json.dumps(d))
 PYEOF
 }
 
+# POST to a raw-INPUT executor endpoint and print its body on success (exit 0).
+# On failure emit an HONEST diagnostic + return 1, distinguishing a true connection
+# failure (curl transport error -> genuinely unreachable) from a REACHABLE executor
+# whose handler returned an HTTP error -- in which case surface the executor's REAL
+# status + error body (e.g. its "Access is denied" when a UIPI-elevated window holds
+# the foreground), never the misleading "unreachable" that hid the real cause and
+# read as a network problem (operator 2026-06-16). curl WITHOUT -f so a 4xx/5xx is
+# not collapsed into a generic transport failure; the body carries the diagnosis.
+_input_post() {
+    _ip_path="$1"; _ip_data="$2"; _ip_to="${3:-15}"
+    _ip_body="$(mktemp)"; _ip_err="$(mktemp)"
+    _ip_code="$(curl -sS -m "$_ip_to" -o "$_ip_body" -w '%{http_code}' \
+        -X POST "$EXEC_EP$_ip_path" -H 'Content-Type: application/json' \
+        -d "$_ip_data" 2>"$_ip_err")"
+    _ip_rc=$?
+    if [ "$_ip_rc" -ne 0 ] || [ -z "$_ip_code" ] || [ "$_ip_code" = "000" ]; then
+        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST $_ip_path): $(tr -d '\r\n' < "$_ip_err")" >&2
+        rm -f "$_ip_body" "$_ip_err"; return 1
+    fi
+    case "$_ip_code" in
+        2??) cat "$_ip_body"; rm -f "$_ip_body" "$_ip_err"; return 0 ;;
+    esac
+    echo "mios-pc-control: OS-control executor reachable but the input handler FAILED -- HTTP $_ip_code (POST $_ip_path): $(tr -d '\r\n' < "$_ip_body")" >&2
+    rm -f "$_ip_body" "$_ip_err"; return 1
+}
+
 case "$sub" in
     launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo|ui-find|ui-click|ui-list)
         EXEC_EP="$(_oscontrol_executor)"
@@ -296,55 +322,37 @@ print("[mios-pc-control] screenshot saved to %s (%sx%s)" % (sys.argv[1], d.get("
                     ;;
                 mouse-move)
                     body="$(_json_body x "${1:-0}" y "${2:-0}")"
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/mouse-move" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/mouse-move)" >&2
-                        exit 1
-                    fi
+                    out="$(_input_post /input/mouse-move "$body")" || exit 1
                     printf '%s\n' "$out"
                     exit 0
                     ;;
                 click)
                     body="$(_json_body x "${1:-0}" y "${2:-0}" button "${3:-left}")"
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/click" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/click)" >&2
-                        exit 1
-                    fi
+                    out="$(_input_post /input/click "$body")" || exit 1
                     printf '%s\n' "$out"
                     exit 0
                     ;;
                 double-click)
                     body="$(_json_body x "${1:-0}" y "${2:-0}")"
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/double-click" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/double-click)" >&2
-                        exit 1
-                    fi
+                    out="$(_input_post /input/double-click "$body")" || exit 1
                     printf '%s\n' "$out"
                     exit 0
                     ;;
                 type)
                     body="$(_json_body text "$*")"
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/type" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/type)" >&2
-                        exit 1
-                    fi
+                    out="$(_input_post /input/type "$body")" || exit 1
                     printf '%s\n' "$out"
                     exit 0
                     ;;
                 key)
                     body="$(_json_body name "${1:-}")"
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/key" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/key)" >&2
-                        exit 1
-                    fi
+                    out="$(_input_post /input/key "$body")" || exit 1
                     printf '%s\n' "$out"
                     exit 0
                     ;;
                 key-combo)
                     body="$(_json_body combo "$*")"
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/input/key-combo" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /input/key-combo)" >&2
-                        exit 1
-                    fi
+                    out="$(_input_post /input/key-combo "$body")" || exit 1
                     printf '%s\n' "$out"
                     exit 0
                     ;;
