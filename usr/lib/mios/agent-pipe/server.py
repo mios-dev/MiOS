@@ -20035,7 +20035,22 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     caller to act on. So 'open notepad' executes via the MiOS launcher HERE, while
     'get_page_content' still rides back to the browser."""
     messages = _client_tools_inject_identity(list(body.get("messages") or []))
-    tools = list(body.get("tools") or []) + _client_tools_mios_surface()
+    # Cap the MERGED MiOS surface to the intent-relevant subset, leaving EVERY client
+    # tool untouched (client tools have no verb embeddings, so relevance-ranking them
+    # would wrongly deprioritise e.g. Zen's browser tools). A small (8B) model handed
+    # ALL ~60 MiOS verbs -- esp. the redundant launch cluster (open_app/launch_app/
+    # launch_windows_app/launch_and_verify_app) -- alongside the client's ~137 tools
+    # emitted MALFORMED parallel calls (open_app AND launch_windows_app for one app ->
+    # nothing fired, operator 2026-06-15). Relevance-selecting the MiOS verbs keeps the
+    # ONE launch verb that fits the ask -> a clean single tool_call.
+    _intent = ""
+    for _m in reversed(body.get("messages") or []):
+        if isinstance(_m, dict) and _m.get("role") == "user":
+            _intent = str(_m.get("content") or "")
+            break
+    _mios_sel = await _select_child_tools(
+        _client_tools_mios_surface(), _intent, DEFAULT_TOOL_CAP)
+    tools = list(body.get("tools") or []) + _mios_sel
     # parallel_tool_calls=False by default: the loop executes MiOS verbs SEQUENTIALLY
     # server-side anyway, and an 8B model handed a big merged tool surface (the client's
     # own tools + the MiOS verbs) tends to emit MALFORMED parallel calls -- e.g. open_app
