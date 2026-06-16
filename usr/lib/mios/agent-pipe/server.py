@@ -5354,7 +5354,24 @@ _SCHEDULE_VERBS = frozenset(
 # council (operator 2026-06-06: "remember X" ran mios_apps under unify-on because
 # remember wasn't a fast-path verb -> the dispatch intent fell back to the agent).
 _MEMORY_VERBS = {"remember", "recall"}
-_FASTPATH_VERBS = _OS_CONTROL_VERBS | _SCHEDULE_VERBS | _MEMORY_VERBS
+# Raw PC-input verbs (type / key / click / keycombo) are deterministic
+# single-actions too -- a standalone "type 'X' into it" must FIRE pc_type and
+# stop, NOT fall to the research agent (operator 2026-06-16 multi-turn trace:
+# turn-2 "now type 'standup notes' into it" was hinted cu_type [the LINUX vm
+# verb], the model fired windows_file_search/list_windows and ECHOED the text
+# instead of typing -- notepad stayed Untitled). Section-derived from mios.toml
+# (same shape as the OS-control + schedule sets) -- NO hardcoded verb names.
+# Folding the section into the fast-path set ALSO surfaces pc_type in the refine
+# prompt (_render_os_control_verbs keys off _FASTPATH_VERBS) so the micro maps a
+# desktop-type request to pc_type rather than the wrong-platform cu_type. These
+# are NOT in _OS_CONTROL_ACTION_VERBS (window enumerate/diff) -- raw input does
+# not change the open-window set, so the verb just fires + the result polishes.
+_PC_INPUT_SECTION = os.environ.get("MIOS_PC_INPUT_SECTION", "PC input")
+_PC_INPUT_VERBS = frozenset(
+    name for name, cfg in _VERB_CATALOG.items()
+    if str(cfg.get("section", "")) == _PC_INPUT_SECTION
+)
+_FASTPATH_VERBS = _OS_CONTROL_VERBS | _SCHEDULE_VERBS | _MEMORY_VERBS | _PC_INPUT_VERBS
 
 
 def _render_os_control_verbs() -> str:
@@ -5410,6 +5427,38 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     t = (user_text or "").strip()
     if not t or "?" in t:
         return None
+    # Standalone "type/write '<text>' [into it]" -> pc_type (Windows desktop
+    # input). Operator's EXACT domain (typing). Without this a bare type request
+    # that carries NO launch verb misrouted (operator 2026-06-16 multi-turn
+    # trace): refine hinted cu_type (the LINUX vm verb), the model fired
+    # windows_file_search/list_windows and ECHOED the text instead of typing it
+    # (notepad stayed "Untitled"). The action vocab is SSOT
+    # (_COMPOUND_ACTION_ALT <- mios.toml [routing].compound_actions) -- NO
+    # hardcoded keyword list. Fires ONLY when pc_type is a real fast-path verb.
+    # A QUOTED literal (within the first 2 words of an action verb) is the
+    # unambiguous text-to-type; an unquoted form needs the action verb at the
+    # HEAD plus an explicit "in/into <target>" so ordinary prose ("put it on the
+    # table", "write to me") can never hijack the route. Degrades open: no clear
+    # match -> falls through to the LLM router (no regression). The type-chain's
+    # read-back verification (mios-pc-control) still catches a wrong/lost focus.
+    if _COMPOUND_ACTION_ALT and "pc_type" in _FASTPATH_VERBS:
+        _Q = "\"'‘’“”"
+        _av = r"(?:" + _COMPOUND_ACTION_ALT + r")"
+        _typ = None
+        _mq = re.match(
+            r"^\s*(?:\w+\s+){0,2}?" + _av + r"\b[\s:.\-]*["
+            + _Q + r"](.+?)[" + _Q + r"]", t, re.IGNORECASE)
+        if _mq:
+            _typ = _mq.group(1).strip()
+        else:
+            _mh = re.match(
+                r"^\s*" + _av + r"\b[\s:.\-]+(.+?)\s+\b(?:into|in)\b\s+\S",
+                t, re.IGNORECASE)
+            if _mh:
+                _typ = _mh.group(1).strip().strip(_Q).strip()
+        if _typ:
+            return {"intent": "dispatch", "tool": "pc_type",
+                    "args": {"text": _typ}, "_deterministic": True}
     # Compound "<launch> <app> and type <text>": strip the "and type <text>" tail
     # EARLY (operator 2026-06-11: "open notepad and type: X" misrouted to the GATED
     # computer_use vision lane + HUNG -- the colon after "type" broke the later
