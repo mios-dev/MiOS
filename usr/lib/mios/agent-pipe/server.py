@@ -5153,6 +5153,13 @@ _LAUNCH_TRAIL_WORDS = frozenset(_load_routing_phrases("launch_target_trail_phras
 _REMEMBER_TRIGGERS = _load_routing_phrases("remember_trigger_phrases")
 _WEB_SEARCH_TRIGGERS = _load_routing_phrases("web_search_trigger_phrases")
 _WEB_SEARCH_CONTEXTS = _load_routing_phrases("web_search_trigger_contexts")
+# Browser-READ action verbs (operator 2026-06-16 "NOTHING HARDCODED"): the URL+read
+# intent that force-flips browser_action was a hardcoded English regex duplicated in
+# refine post-processing. Externalised to mios.toml [routing] SSOT (same degrade-open
+# pattern): empty/missing list -> the force is SKIPPED -> the model's own browser_action
+# boolean stands (fully generative, no hardcoded fallback).
+_BROWSER_ACTION_VERBS = _load_routing_phrases("browser_action_verbs")
+_BROWSER_ACTION_ALT = "|".join(re.escape(p) for p in _BROWSER_ACTION_VERBS)
 
 # OS-control / window-action verb set, derived from the verb catalog SSOT
 # (mios.toml `section`). A request that maps to ONE of these is a single
@@ -8271,14 +8278,12 @@ async def refine_intent(user_text: str,
     # "open <url> and quote/read/summarize" must hit the CDP browse path (real DOM
     # via mios-cdp-fetch), not the open_url fast-path that only launches. Also flip
     # intent->agent so the dispatch fast-path doesn't fire open_url first.
-    if not parsed["browser_action"]:
+    if not parsed["browser_action"] and _BROWSER_ACTION_ALT:
         try:
             import re as _re_brd
             _utb = user_text or ""
             if _re_brd.search(r'https?://', _utb) and _re_brd.search(
-                    r'\b(quote|read|tell|summari[sz]e|what\s+(?:is|does|says?)|'
-                    r'first\s+sentence|the\s+content|browse|extract|scrape|'
-                    r'headline|article|say)\b', _utb, _re_brd.I):
+                    r'\b(?:' + _BROWSER_ACTION_ALT + r')\b', _utb, _re_brd.I):
                 parsed["browser_action"] = True
                 if parsed.get("intent") in ("dispatch", "chat"):
                     parsed["intent"] = "agent"
@@ -22601,14 +22606,12 @@ async def chat_completions(request: Request) -> Any:
     # must hit the CDP browse path (real DOM via mios-cdp-fetch), NOT the open_url
     # fast-path (which only launches). refine often flags browser_action=false for
     # these, so force it here off the raw text.
-    if not _browser_action:
+    if not _browser_action and _BROWSER_ACTION_ALT:
         try:
             import re as _re_ba
             _ut_ba = last_user_text or ""
             if _re_ba.search(r'https?://', _ut_ba) and _re_ba.search(
-                    r'\b(quote|read|tell|summari[sz]e|what\s+(?:is|does|says?)|'
-                    r'first\s+sentence|the\s+content|browse|extract|scrape|'
-                    r'headline|article)\b', _ut_ba, _re_ba.I):
+                    r'\b(?:' + _BROWSER_ACTION_ALT + r')\b', _ut_ba, _re_ba.I):
                 _browser_action = True
                 log.info("browser_action forced: URL + read-intent -> CDP browse")
         except Exception:

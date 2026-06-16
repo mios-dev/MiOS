@@ -1828,6 +1828,11 @@ remember_trigger_phrases = ["remember", "note", "save", "keep in mind", "don't f
 # CONTEXT phrase -> set web=true (e.g. "search ... online", "look up ... on the web").
 web_search_trigger_phrases = ["search", "look up", "google", "find", "search the web", "search online"]
 web_search_trigger_contexts = ["web", "internet", "online"]
+# browser_action: a URL + a READ/browse verb -> force the CDP browse path (real DOM)
+# over the launch-only open_url fast-path. SSOT (operator 2026-06-16 "NOTHING
+# HARDCODED"): was a hardcoded regex in refine. EMPTY this list -> the force is skipped
+# and the model's own browser_action decision stands (degrade-open, fully generative).
+browser_action_verbs = ["quote", "read", "tell", "summarise", "summarize", "what is", "what does", "what say", "what says", "first sentence", "the content", "browse", "extract", "scrape", "headline", "article", "say"]
 
 # Launch FOLLOW-UP / RETRY phrases (operator 2026-06-14, BUG B/C: the `mios`/`@`
 # CLI deterministic launch route only matched the INITIAL "open/launch X"; a
