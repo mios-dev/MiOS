@@ -22561,6 +22561,28 @@ async def chat_completions(request: Request) -> Any:
                     content={"error": {"message": "unauthorized",
                                        "type": "invalid_request_error"}},
                     status_code=401)
+        # DETERMINISTIC OS-ACTION PRECEDENCE (operator 2026-06-16 "UNIFY"): an
+        # unambiguous single OS action ("open X" / "type 'Y'") must take the
+        # SERVER-SIDE deterministic fast-path (launch + read-back-verified type-chain)
+        # EVEN when the caller supplied client tools -- otherwise the hermes REPL /
+        # desktop app's tools force the weak client-tools-HYBRID loop (granite) for an
+        # action the orchestrator handles reliably (the REPL's "open notepad and type
+        # X" took the hybrid path + the literal-text/echo failures). Only the
+        # UNAMBIGUOUS deterministic route is intercepted; browser/IDE tool turns
+        # (navigate/click/edit) don't match it -> they still pass through untouched.
+        _ct_user = ""
+        for _m in reversed(body.get("messages") or []):
+            if isinstance(_m, dict) and _m.get("role") == "user" and isinstance(_m.get("content"), str):
+                _ct_user = _m["content"]
+                break
+        _ct_det = _deterministic_action_route(_ct_user) if _ct_user else None
+        if _ct_det and str(_ct_det.get("tool") or "") in _FASTPATH_VERBS:
+            log.info("client-tools: deterministic OS-action %s -> SERVER-SIDE "
+                     "fast-path (bypassing client-tools hybrid)", _ct_det["tool"])
+            return await _respond_os_control(
+                _ct_det["tool"], _ct_det.get("args") or {}, _ct_det,
+                streaming=streaming, chat_id=chat_id, model=model,
+                session_id=None, last_user_text=_ct_user, persona_system="")
         log.info("client-tools passthrough: %d tool(s) -> %s (%s)",
                  len(body.get("tools") or []), _TOOL_BACKEND_MODEL, _TOOL_BACKEND)
         return await _client_tools_complete(body, streaming, chat_id, model)
