@@ -4438,6 +4438,8 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
     msgs = list(messages)
     _seen: set = set()   # tool-call signatures already made -> loop guard
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
+    _replan = 0          # supervisory closed-loop re-engages used (bounded)
+    _last_failed = False # did the previous tool batch report a genuine failure?
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
         payload = {"model": model, "messages": msgs, "tools": tools, "stream": False}
         try:
@@ -4471,6 +4473,19 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                              "content": msg.get("content") or ""})
                 msgs.append({"role": "user", "content": _TOOL_NUDGE})
                 continue
+            # CLOSED LOOP (operator "loop anything not fully fulfilled"): the model
+            # stopped calling tools, but if a verb THIS loop reported a FAILURE it never
+            # fixed, the turn is UNFULFILLED -> re-engage ONCE (bounded) with a fix-it
+            # nudge so it retries the failed step instead of declaring done on a failure.
+            # Verdict = the broker result; SECONDARY_REPLAN_MAX bounds it (no infinite loop).
+            if _last_failed and _replan < SECONDARY_REPLAN_MAX:
+                _replan += 1
+                _last_failed = False
+                push(f" 🔁{_replan}")
+                msgs.append({"role": "assistant",
+                             "content": msg.get("content") or ""})
+                msgs.append({"role": "user", "content": _REPLAN_NUDGE})
+                continue
             break
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
@@ -4480,9 +4495,46 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                      "content": msg.get("content") or "", "tool_calls": tcs})
         _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
+        _last_failed = _tmsgs_indicate_failure(_tmsgs)
         if not ran_read:
             break
     return msgs
+
+
+# Closed-loop SUPERVISORY re-engage (operator 2026-06-16 "loop anything not successful
+# or fully fulfilled"): when the model stops calling tools but a verb THIS loop reported
+# a FAILURE / unverified outcome, the turn is UNFULFILLED -> nudge the model to retry the
+# failed step (or report honestly), BOUNDED so it can never loop forever. The verdict is
+# the broker's own result (success=False / read-back marker), NOT a hardcoded rule, so it
+# generalises across ALL verbs/facets and all agents that share this loop.
+SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "1") or 1)
+_REPLAN_NUDGE = (
+    "One of your previous tool results reported a FAILURE or an UNVERIFIED outcome "
+    "(the action did not actually take effect). Re-attempt that step now with a tool "
+    "call. If it genuinely cannot succeed, say so plainly -- NEVER report success for "
+    "an action that did not complete.")
+
+
+def _tmsgs_indicate_failure(tmsgs: list) -> bool:
+    """True if any tool-result message in this batch reports a genuine FAILURE (broker
+    success=False, or a read-back/verification failure marker). A valid-but-EMPTY read
+    result is NOT a failure (its dispatch succeeded) -> we never re-engage on empty
+    results, only on real execution/verification failures. Bounds a supervisory
+    tool-loop re-engage; does not judge answer content."""
+    for _m in (tmsgs or []):
+        _c = str((_m or {}).get("content") or "")
+        if not _c:
+            continue
+        try:
+            _d = json.loads(_c)
+            if isinstance(_d, dict) and _d.get("success") is False:
+                return True
+        except Exception:  # noqa: BLE001 -- not JSON, fall through to text markers
+            pass
+        if re.search(r'"success"\s*:\s*false|not[ _]verified|text_not_delivered'
+                     r'|text_mismatch|dispatch error|no_verifiable_target', _c, re.I):
+            return True
+    return False
 
 
 async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
@@ -4503,6 +4555,8 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     msgs = list(messages)
     _seen: set = set()   # tool-call signatures already made -> loop guard
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
+    _replan = 0          # supervisory closed-loop re-engages used (bounded)
+    _last_failed = False # did the previous tool batch report a genuine failure?
     _hdrs = dict(headers or {})
     # llama-swap (mios-llm-light proxy) REQUIRES Content-Type: application/json to
     # parse the body and extract the model id -- absent it, it 404s
@@ -4557,6 +4611,19 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                              "content": msg.get("content") or ""})
                 msgs.append({"role": "user", "content": _TOOL_NUDGE})
                 continue
+            # CLOSED LOOP (operator "loop anything not fully fulfilled"): the model
+            # stopped calling tools, but if a verb THIS loop reported a FAILURE it never
+            # fixed, the turn is UNFULFILLED -> re-engage ONCE (bounded) with a fix-it
+            # nudge so it retries the failed step instead of declaring done on a failure.
+            # Verdict = the broker result; SECONDARY_REPLAN_MAX bounds it (no infinite loop).
+            if _last_failed and _replan < SECONDARY_REPLAN_MAX:
+                _replan += 1
+                _last_failed = False
+                push(f" 🔁{_replan}")
+                msgs.append({"role": "assistant",
+                             "content": msg.get("content") or ""})
+                msgs.append({"role": "user", "content": _REPLAN_NUDGE})
+                continue
             break
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
@@ -4566,6 +4633,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                      "content": msg.get("content") or "", "tool_calls": tcs})
         _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
+        _last_failed = _tmsgs_indicate_failure(_tmsgs)
         if not ran_read:
             break
     return msgs
