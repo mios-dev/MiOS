@@ -473,7 +473,23 @@ function Invoke-TypeText($text) {
     # Pre-type settle: a freshly focused window often is not ready the instant after
     # focus, dropping LEADING characters ("DEHARD-5566" -> "RD-5566").
     Start-Sleep -Milliseconds 250
-    [System.Windows.Forms.SendKeys]::SendWait($escaped)
+    # SendWait throws "Access is denied" when input injection is BLOCKED -- almost
+    # always because the interactive desktop session is DISCONNECTED/locked (no
+    # active input desktop) or an ELEVATED window holds the foreground (UIPI). Catch
+    # it and return a CLASSIFIED, actionable reason instead of a raw exception string
+    # surfaced as a generic 500 -- the agent (and operator) then see the real cause,
+    # not a misleading network/permissions guess (operator 2026-06-16 anti-fabrication).
+    try {
+        [System.Windows.Forms.SendKeys]::SendWait($escaped)
+    } catch {
+        $msg = "$($_.Exception.Message)"
+        $detail = if ($msg -match 'Access is denied') {
+            'input injection blocked -- the interactive desktop session is likely DISCONNECTED/locked, or an ELEVATED window holds the foreground (UIPI). Reconnect the session (or run the executor elevated) to enable typing.'
+        } else { $msg }
+        return @{ ok = $false; verified = $false; op = 'type';
+                  reason = 'input_injection_blocked'; detail = $detail;
+                  error = $msg; chars = $t.Length }
+    }
     Start-Sleep -Milliseconds 400
     $titleAfter = Get-FgTitleRaw
     $valAfter = Get-FocusedTextRaw
