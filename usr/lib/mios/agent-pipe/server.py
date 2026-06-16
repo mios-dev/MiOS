@@ -20271,20 +20271,21 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
         except Exception:  # noqa: BLE001
             continue
     out_model = model or _TOOL_BACKEND_MODEL
-    # ROUTING (operator 2026-06-15 "open notepad and type hello" -- desktop app):
-    # a streaming client carrying MiOS verbs was previously relayed VERBATIM on the
-    # assumption it self-executes -- but the local backend is a small model that, under
-    # the full client+MiOS tool surface + the desktop app's large system prompt, emits
-    # MALFORMED tool calls (raw `"arguments": {...}` leaking into content, no function
-    # wrapper). The verbatim relay forwarded that garbage; the client parsed tool_calls
-    # = null and NOTHING fired. The HYBRID loop is robust to exactly this: it forces
-    # sequential calls, RESCUES malformed ones (_rescue_tool_calls), and EXECUTES MiOS
-    # verbs SERVER-SIDE (so 'open notepad' + 'type hello' actually run via the broker),
-    # streaming the result. So only a client with NO MiOS verbs (pure browser/IDE
-    # passthrough -- nothing to run server-side) takes the verbatim LIVE relay; any
-    # MiOS-verb turn falls through to the hybrid loop below.
-    if streaming and client_names and not any(_name_is_verb(_n) for _n in client_names):
-        return await _client_tools_stream_relay(body, chat_id, out_model)
+    # ROUTING (operator 2026-06-15 -- the Hermes desktop "open notepad and type"
+    # failures): ALWAYS use the HYBRID loop for a client-tools turn; NEVER the verbatim
+    # relay. The desktop app's actual tool surface is the hermes-cli builtins
+    # (browser_*, terminal, text_to_speech, ...) and does NOT contain the MiOS verbs --
+    # its mios MCP tools fail to register, proven by the live error "Tool 'open_url'
+    # does not exist. Available tools: browser_back ... write_file" (no open_app /
+    # pc_type / launch_* anywhere). The model is told by its system prompt to call MiOS
+    # launch tools, so it emits open_url / open_app / windows_desktop_type_text -- verbs
+    # ABSENT from its surface -> "does not exist" -> nothing runs. The verbatim relay
+    # only forwarded that MiOS-less surface, so it could NEVER work. The hybrid loop
+    # MERGES the MiOS verb surface server-side (_client_tools_mios_surface) so open_app/
+    # pc_type are actually present and EXECUTE via the broker (notepad opens + types),
+    # while genuine client-only tools (browser_*) still ride back to the caller. Tradeoff
+    # vs the old relay: the final answer bursts instead of token-streaming -- acceptable
+    # for a turn that now actually WORKS.
     try:
         final_msg = await _client_tools_loop(body, client_names, chat_id)
         # WS-E #2: a strict client matches its follow-up role:tool message by
@@ -20915,13 +20916,31 @@ async def _respond_os_control(
         if _m:
             _txt = _m.group(1).strip().strip("\"'").rstrip(" .!")
             if _txt:
+                # FOCUS the just-opened window BEFORE typing so SendKeys lands in IT,
+                # not whatever window held foreground during the launch race (operator
+                # 2026-06-16: "open notepad and type hey there" verified-typed into the
+                # WRONG window -> notepad stayed "Untitled - Notepad"). pc_type's
+                # read-back then verifies the TARGET window actually received the text.
+                _opened_titles = [str(w.get("title") or "").strip()
+                                  for w in ((_wdiff or {}).get("opened", [])
+                                            if isinstance(_wdiff, dict) else [])
+                                  if isinstance(w, dict) and str(w.get("title") or "").strip()]
+                if _opened_titles:
+                    try:
+                        await dispatch_mios_verb(
+                            "focus_window", {"title": _opened_titles[0]},
+                            session_id=session_id)
+                        await asyncio.sleep(0.35)
+                    except Exception:  # noqa: BLE001 -- best-effort focus
+                        pass
                 _emit("⌨️", f"typing “{_txt[:40]}”")
                 await asyncio.sleep(max(0.6, OS_CONTROL_LAUNCH_POLL_S))
                 _tr = await dispatch_mios_verb("pc_type", {"text": _txt},
                                                session_id=session_id)
                 _typed = {"text": _txt, "success": bool(_tr.get("success")),
                           "stderr": (_tr.get("stderr") or "")[:200]}
-                log.info("compound-launch type-chain: pc_type(%r) -> success=%s",
+                log.info("compound-launch type-chain: focus(%r)+pc_type(%r) -> success=%s",
+                         (_opened_titles[0] if _opened_titles else ""),
                          _txt[:40], _typed["success"])
     if _action:
         _index_window_event(tool, _args, _before, _after, _wdiff, session_id)
