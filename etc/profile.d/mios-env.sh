@@ -97,12 +97,20 @@ done
 unset _ue
 
 # Export the OpenAI-API surface required by every Law-5-compliant agent.
-# Hermes-Agent on :8642 is the LIVE MiOS agent at / (fronts Ollama for
-# chat + embeddings). Default model = qwen3.5:2b (matches [ai].model in
-# mios.toml + the baked Ollama seed). API key is resolved from the
-# Hermes-managed API_SERVER_KEY in /etc/mios/hermes/api.env when no
-# higher-precedence layer (env / install.env / TOML) has supplied one.
-export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
+# UNIFIED ENTRYPOINT (operator 2026-06-16 "UNIFY THE MiOS AI PIPELINE"): the
+# canonical surface is the AGENT-PIPE ORCHESTRATOR on :8640 (served model
+# "MiOS-Agent"), NOT Hermes :8642. The pipe runs the full pipeline (refine ->
+# route -> deterministic dispatch / native-loop / council -> SERVER-SIDE broker
+# execution + read-back verification -> polish) and grounds every turn, so the
+# `@`/`mios` CLI -- and every tool that reads MIOS_AI_ENDPOINT -- gets the same
+# orchestrated, anti-fabricating behaviour as OWUI. Hermes :8642 is now a LEAF the
+# pipe calls, never a public entrypoint. (Was :8642 here pre-unification -- the
+# stale default made interactive `@` bypass the orchestrator + fail/fabricate.)
+# The request model is MIOS_AI_GATEWAY_MODEL ("MiOS-Agent"); MIOS_AI_MODEL stays
+# the raw-tag SSOT for non-orchestrated direct-lane callers. API key resolved from
+# the Hermes-managed API_SERVER_KEY in /etc/mios/hermes/api.env when unset.
+export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}"
+export MIOS_AI_GATEWAY_MODEL="${MIOS_AI_GATEWAY_MODEL:-MiOS-Agent}"
 export MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen3.5:2b}"
 export MIOS_AI_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
 if [ -z "${MIOS_AI_KEY:-}" ] && [ -r /etc/mios/hermes/api.env ]; then

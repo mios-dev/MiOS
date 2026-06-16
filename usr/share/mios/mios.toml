@@ -4018,14 +4018,19 @@ gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
 xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps"
 
 [ai]
-# Canonical agent surface. Hermes-Agent (the live MiOS agent at /) is a
-# DIRECT host install as of 2026-05-13 (automation/38-hermes-agent.sh +
-# hermes-agent.service -- NOT the shelved mios-hermes container Quadlet).
-# AI chain: ollama container (:11434, raw inference) -> Hermes-Agent
-# (:8642/v1, OpenAI gateway + agent layer) -> Open WebUI (:3030, browser
-# UI). Open WebUI's OPENAI_API_BASE_URL points at Hermes (:8642/v1), so
-# the agent -- not raw ollama -- is the model Open WebUI serves.
-endpoint            = "http://localhost:8642/v1"
+# Canonical agent surface = the AGENT-PIPE ORCHESTRATOR on :8640 (served model
+# "MiOS-Agent"), the UNIFIED entrypoint (operator 2026-06-16 "UNIFY THE MiOS AI
+# PIPELINE"). MIOS_AI_ENDPOINT (the surface every OpenAI-API client + the `@`/
+# `mios` CLI resolves, via userenv.sh) MUST point here so those clients get the
+# full pipeline (refine -> route -> deterministic dispatch / native-loop / council
+# -> SERVER-SIDE broker execution + read-back verification -> polish + grounding),
+# NOT the bare Hermes leaf. Hermes-Agent (:8642/v1, direct host install,
+# automation/38-hermes-agent.sh) is now a LEAF the pipe calls (binding in
+# [agents.hermes].endpoint), never the public entrypoint -- pointing the canonical
+# surface at :8642 made the interactive `@` bypass the orchestrator + fail. NOTE:
+# this is the CLIENT surface only; the pipe's OWN inference backend is
+# MIOS_AGENT_PIPE_BACKEND (separate), so :8640 here does not self-loop.
+endpoint            = "http://localhost:8640/v1"
 # Direct-install source for automation/38-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"

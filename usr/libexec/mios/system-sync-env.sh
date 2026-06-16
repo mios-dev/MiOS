@@ -114,10 +114,12 @@ EOF
     # (userenv.sh) populates these from the layered mios.toml; prefer the
     # resolved value, emit a fallback ONLY for the few keys shell/systemd
     # consumers always expect. Fallback defaults track the live SSOT:
-    #   endpoint -> [ai].endpoint  = http://localhost:8642/v1 (hermes gateway)
+    #   endpoint -> [ai].endpoint  = http://localhost:8640/v1 (AGENT-PIPE ORCHESTRATOR
+    #               -- the UNIFIED entrypoint, model "MiOS-Agent"; operator 2026-06-16.
+    #               Hermes :8642 is now a LEAF the pipe calls, NOT the client surface.)
     #   model    -> [ai].model     = granite4.1:8b (2026-06-13 fleet; ollama-era
     #               qwen3.5:2b was a dropped model -> a stale/unservable default)
-    echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}\""
+    echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}\""
     echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-granite4.1:8b}\""
     echo "MIOS_AI_EMBED_MODEL=\"${MIOS_AI_EMBED_MODEL:-nomic-embed-text}\""
     # Inference backend the agents forward to (mios-llm-light front; ollama
