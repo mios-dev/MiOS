@@ -20030,10 +20030,17 @@ def _client_tools_mios_surface() -> list:
 
 
 def _client_tools_is_mios(name: str, client_names: set) -> bool:
-    """A returned tool_call is MiOS-executable (server-side) when its name is NOT
-    one the client shipped AND it resolves to a real verb. Client tools (and any
-    name colliding with the client's own) go BACK to the caller to run."""
-    if not name or name in client_names:
+    """A returned tool_call is MiOS-executable SERVER-SIDE when it resolves to a real
+    MiOS verb -- EVEN IF the client also shipped it. The Hermes desktop app ships the
+    WHOLE MiOS MCP surface (launch_windows_app, windows_desktop_type_text, ...) as its
+    own tools; relaying those back for it to self-execute via MCP was the failure path
+    ('open notepad and type hello' mis-fired -- malformed/parallel calls, nothing ran,
+    operator 2026-06-15). Running MiOS verbs HERE via the proven broker (dispatch_mios_
+    verb) is reliable, ORDER-preserving, and does NOT double-execute (the loop appends
+    the RESULT, not the tool_call, so nothing rides back for the client to re-run).
+    Only genuinely non-MiOS client tools (browser_*, terminal, IDE ops) -- which the
+    server CANNOT run -- ride back to the caller."""
+    if not name:
         return False
     try:
         return _resolve_verb_key(name) in _VERB_CATALOG
@@ -20264,11 +20271,19 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
         except Exception:  # noqa: BLE001
             continue
     out_model = model or _TOOL_BACKEND_MODEL
-    # A STREAMING client that already carries MiOS verbs in its own tools[] (Hermes
-    # desktop app via its mios MCP client) is a full agent -- stream the backend
-    # verbatim so its answer streams LIVE (no compute-then-burst dead wait) and it
-    # runs its own tools. Tool-less clients (Zen) fall through to the hybrid loop.
-    if streaming and any(_name_is_verb(_n) for _n in client_names):
+    # ROUTING (operator 2026-06-15 "open notepad and type hello" -- desktop app):
+    # a streaming client carrying MiOS verbs was previously relayed VERBATIM on the
+    # assumption it self-executes -- but the local backend is a small model that, under
+    # the full client+MiOS tool surface + the desktop app's large system prompt, emits
+    # MALFORMED tool calls (raw `"arguments": {...}` leaking into content, no function
+    # wrapper). The verbatim relay forwarded that garbage; the client parsed tool_calls
+    # = null and NOTHING fired. The HYBRID loop is robust to exactly this: it forces
+    # sequential calls, RESCUES malformed ones (_rescue_tool_calls), and EXECUTES MiOS
+    # verbs SERVER-SIDE (so 'open notepad' + 'type hello' actually run via the broker),
+    # streaming the result. So only a client with NO MiOS verbs (pure browser/IDE
+    # passthrough -- nothing to run server-side) takes the verbatim LIVE relay; any
+    # MiOS-verb turn falls through to the hybrid loop below.
+    if streaming and client_names and not any(_name_is_verb(_n) for _n in client_names):
         return await _client_tools_stream_relay(body, chat_id, out_model)
     try:
         final_msg = await _client_tools_loop(body, client_names, chat_id)
