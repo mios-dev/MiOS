@@ -22223,8 +22223,14 @@ async def chat_completions(request: Request) -> Any:
         # All four are the MODEL's classification (refine), not a hardcoded keyword
         # list. The native loop still handles non-broad agent turns + self-fans-out
         # via dispatch_to_nodes when IT judges a turn parallelizable.
-        _broad = (_ci == "multi_task" or bool(refined.get("deep"))
-                  or bool(refined.get("web")) or bool(refined.get("news")))
+        # web/news alone NO LONGER force the council: its research nodes don't reliably
+        # call web_search (weak local model -> fabricated "trending news", operator
+        # 2026-06-15), whereas the NATIVE loop now deterministically PRE-FETCHES
+        # web_search for web/news turns (real results injected, no fabrication). So route
+        # web/news here to the native loop + its prefetch; keep the council for genuinely
+        # BROAD/DEEP work (deep or multi_task), where the model still self-fans-out via
+        # dispatch_to_nodes. Working-single-agent-with-real-search beats council-that-fabricates.
+        _broad = (_ci == "multi_task" or bool(refined.get("deep")))
         if _broad and _ci in ("agent", "multi_task", "chat"):
             _force_council = True
             log.info("council-default: full council for intent=%s (broad)", _ci)
