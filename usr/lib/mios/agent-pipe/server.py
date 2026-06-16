@@ -22636,6 +22636,42 @@ async def chat_completions(request: Request) -> Any:
                              "(prefetched web_search, anti-fabrication)")
             except Exception as _e:  # noqa: BLE001 -- degrade-open
                 log.debug("client-tools web prefetch skipped: %s", _e)
+        # FILE-SEARCH GROUND a files-domain turn on the client-tools path (operator
+        # 2026-06-16): a multi-step "find the mios.toml, read it, tell me the port"
+        # made the granite hybrid LOOP without converging -> "no final response". A
+        # filename token in the ask -> PRE-FETCH the real path(s) (everything_search=
+        # Windows, fs_search=Linux) + inject, so the model can read_file the ACTUAL
+        # path directly (one step, converges) instead of tool-looping a discovery it
+        # answers from memory. Same pattern as the native-loop file prefetch + the
+        # web grounding above. Degrade-open; non-files turns untouched.
+        if _ct_user and _routed_domain_var.get(None) == "files":
+            _mfn = (re.search(r"['\"]([^'\"]+\.[A-Za-z0-9]{1,8})['\"]", _ct_user)
+                    or re.search(r"\b([\w.+-]+\.[A-Za-z0-9]{1,8})\b", _ct_user))
+            _fn = _mfn.group(1).strip() if _mfn else None
+            if _fn:
+                _hits = []
+                for _sv in ("everything_search", "fs_search"):
+                    if _sv not in _VERB_CATALOG:
+                        continue
+                    try:
+                        _sr = await dispatch_mios_verb(_sv, {"query": _fn},
+                                                       session_id=None)
+                        _st = (str(_sr.get("output") or _sr.get("result") or _sr)
+                               if isinstance(_sr, dict) else str(_sr or "")).strip()
+                        if _st and _st not in ("{}", "null", "[]", '""'):
+                            _hits.append(_sv + " -> " + _st[:1500])
+                    except Exception:  # noqa: BLE001 -- degrade-open
+                        pass
+                if _hits:
+                    body = dict(body)
+                    body["messages"] = list(body.get("messages") or []) + [{
+                        "role": "system", "content":
+                        "LIVE local file-search results for '" + _fn + "' on THIS "
+                        "machine (real paths). To answer, read_file the ACTUAL path "
+                        "below; do NOT invent a path or answer from memory:\n"
+                        + "\n".join(_hits)}]
+                    log.info("client-tools: file-search grounded files turn "
+                             "(prefetched '%s')", _fn)
         log.info("client-tools passthrough: %d tool(s) -> %s (%s)",
                  len(body.get("tools") or []), _TOOL_BACKEND_MODEL, _TOOL_BACKEND)
         return await _client_tools_complete(body, streaming, chat_id, model)
