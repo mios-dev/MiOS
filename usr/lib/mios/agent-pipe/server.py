@@ -4540,6 +4540,14 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
         _last_failed = _tmsgs_indicate_failure(_tmsgs)
         if not ran_read:
             break
+    else:
+        # Loop exhausted its iteration budget without the model finishing (audit P5
+        # 2026-06-16): surface the bound. The OpenAI Agents SDK raises
+        # MaxTurnsExceeded; MiOS degrades-open for a gateway but LOGS so a slow /
+        # looping turn is diagnosable rather than silently truncated.
+        log.warning("secondary tool-loop hit MAX_ITERS=%d -> returning PARTIAL "
+                    "(model kept requesting tools without a final answer)",
+                    max(1, SECONDARY_TOOL_MAX_ITERS))
     return msgs
 
 
@@ -4743,6 +4751,14 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
         _last_failed = _tmsgs_indicate_failure(_tmsgs)
         if not ran_read:
             break
+    else:
+        # Loop exhausted its iteration budget without the model finishing (audit P5
+        # 2026-06-16): surface the bound. The OpenAI Agents SDK raises
+        # MaxTurnsExceeded; MiOS degrades-open for a gateway but LOGS so a slow /
+        # looping turn is diagnosable rather than silently truncated.
+        log.warning("secondary tool-loop hit MAX_ITERS=%d -> returning PARTIAL "
+                    "(model kept requesting tools without a final answer)",
+                    max(1, SECONDARY_TOOL_MAX_ITERS))
     return msgs
 
 
@@ -5706,17 +5722,23 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
     recipes branch on the target OS). No arg is marked required -- recipes
     fill sensible defaults, and the os_recipe verb tolerates a partial
     params map. Discover here, execute via os_recipe at /v1/dispatch."""
+    # OpenAI STRICT mode (audit P1 2026-06-16): recipe args are all OPTIONAL, but
+    # strict mode requires additionalProperties:false AND every property in
+    # `required` -- so an optional arg is expressed as NULLABLE (["string","null"]),
+    # the model emits null to skip it, and os_recipe fills the default. Mirrors
+    # _verb_to_openai_tool. (Was additionalProperties:true + required:[] -> not
+    # strict-mode-valid, silently degraded constrained decoding for mios_recipe__*.)
     props: dict = {}
     for argname in (cfg.get("args") or []):
         if not isinstance(argname, str) or not argname:
             continue
         props[argname] = {
-            "type": "string",
+            "type": ["string", "null"],
             "description": f"value for {argname}",
         }
     if "os" not in props:
         props["os"] = {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "target OS selector (optional; defaults to host)",
         }
     return {
@@ -5724,11 +5746,12 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
         "function": {
             "name": f"mios_recipe__{re.sub(r'[^A-Za-z0-9_]', '_', name)}",
             "description": cfg.get("description", "") or f"MiOS OS recipe {name}",
+            "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": props,
-                "required": [],
-                "additionalProperties": True,
+                "required": list(props.keys()),
+                "additionalProperties": False,
             },
         },
         # Routing/UX hints (x- namespaced; ignored by strict OpenAI clients).
@@ -10867,15 +10890,22 @@ def _skill_to_openai_tool(row: dict) -> dict:
         p: {"type": "string",
             "description": f"value for ${p}"} for p in params
     }
+    # OpenAI STRICT mode (audit P2 2026-06-16): skill params are all required by
+    # construction (required == params), so strict mode is satisfied by just adding
+    # strict:True + additionalProperties:False -- no nullable rework needed. Brings
+    # promoted-skill tools (mios_skill__*, consumed verbatim by Hermes + OpenCode) to
+    # the same strict contract as verbs (_verb_to_openai_tool).
     return {
         "type": "function",
         "function": {
             "name": f"mios_skill__{re.sub(r'[^A-Za-z0-9_]', '_', name)}",
             "description": description,
+            "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": properties,
                 "required": params,
+                "additionalProperties": False,
             },
         },
         "x-mios-skill": name,
@@ -10889,7 +10919,18 @@ def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
     MCP inputSchema IS JSON-Schema -> drops straight into function.parameters."""
     schema = info.get("inputSchema")
     if not isinstance(schema, dict):
-        schema = {"type": "object", "properties": {}, "additionalProperties": True}
+        # Empty fallback: CONSTRAIN it (audit P3 2026-06-16) -- the old
+        # additionalProperties:true let malformed args through + broke strict callers.
+        schema = {"type": "object", "properties": {}, "additionalProperties": False}
+    elif "additionalProperties" not in schema and str(schema.get("type")) == "object":
+        # Raw EXTERNAL MCP inputSchema with no additionalProperties -> default to
+        # CONSTRAINED (False) rather than open, so unconstrained args can't slip
+        # through. We do NOT force strict:True on a third-party schema (it may have
+        # optionals not in `required`, which strict would reject) -- just close the
+        # open-by-default hole. MiOS's OWN verbs are already strict via
+        # _verb_to_openai_tool; this guards genuinely external servers.
+        schema = dict(schema)
+        schema["additionalProperties"] = False
     return {
         "type": "function",
         "function": {
@@ -22106,7 +22147,12 @@ async def _respond_native_loop_direct(
         _m2 = await _v1_secondary_tool_loop(
             _c, BACKEND, BACKEND_MODEL, _hdrs, _msgs, _tools,
             NATIVE_LOOP_TIMEOUT_S, _push, allow_write=True)
+        # parallel_tool_calls symmetric with the tool-loop's per-turn requests (audit
+        # P4 2026-06-16): the final completion previously omitted it, so an OpenAI-
+        # compatible heavy model could fall back to its OWN default on the shaping call
+        # while the loop ran sequential. Gate on the same SSOT capability check.
         _pb = {"model": BACKEND_MODEL, "messages": _m2, "stream": False,
+               "parallel_tool_calls": _endpoint_supports_parallel_tools(BACKEND),
                "chat_template_kwargs": {"enable_thinking": False}}
         try:
             _r = await _c.post(f"{BACKEND}/chat/completions",
