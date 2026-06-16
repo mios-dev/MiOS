@@ -299,16 +299,19 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
             'focus'  {
                 # FORCEFUL foreground (operator 2026-05-26 "Xbox-mode focus didn't
                 # work"): Windows blocks SetForegroundWindow from a background
-                # process (only flashes the taskbar). Bypass the foreground lock:
-                # tap Alt, AttachThreadInput to the current foreground window's
-                # thread, then SetForegroundWindow, and toggle TOPMOST to force the
-                # z-order. Works for normal + borderless-fullscreen windows (true
-                # EXCLUSIVE-fullscreen games can still resist -- a Windows limit).
+                # process (only flashes the taskbar). Bypass the foreground lock by
+                # AttachThreadInput to the current foreground window's thread, then
+                # SetForegroundWindow, and toggle TOPMOST to force the z-order. Works
+                # for normal + borderless-fullscreen windows (true EXCLUSIVE-fullscreen
+                # games can still resist -- a Windows limit).
+                # NO Alt-tap here (operator 2026-06-16): tapping Alt to satisfy the
+                # foreground lock ACTIVATED the target app's MENUBAR (Notepad), so the
+                # FIRST subsequent keystroke went to the menu, not the document, and the
+                # type failed/garbled. AttachThreadInput alone unlocks the foreground
+                # without injecting any menu-triggering keystroke.
                 $fg = [OSCW32]::GetForegroundWindow()
                 $fgT = 0; [void][OSCW32]::GetWindowThreadProcessId($fg, [ref]$fgT)
                 $myT = [OSCW32]::GetCurrentThreadId()
-                [OSCW32]::keybd_event(0x12, 0, 0, [IntPtr]::Zero)   # Alt down
-                [OSCW32]::keybd_event(0x12, 0, 2, [IntPtr]::Zero)   # Alt up (KEYEVENTF_KEYUP)
                 $att = $false
                 if ($fgT -ne 0 -and $fgT -ne $myT) { $att = [OSCW32]::AttachThreadInput($myT, $fgT, $true) }
                 [void][OSCW32]::ShowWindow($p, 9)        # SW_RESTORE
@@ -454,47 +457,70 @@ function Get-FocusedTextRaw {
     return $null
 }
 
+function Get-FocusedValueElement {
+    # The focused element IF it exposes a WRITABLE UIA ValuePattern (so we can set
+    # text directly, no keystrokes). $null when there is no focused element or it is
+    # read-only / has no ValuePattern (e.g. Win11 Notepad's Pane).
+    if (-not $script:UIA_OK) { return $null }
+    try {
+        $fe = [System.Windows.Automation.AutomationElement]::FocusedElement
+        if ($null -eq $fe) { return $null }
+        $vp = $null
+        if ($fe.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+            if (-not $vp.Current.IsReadOnly) { return @{ el = $fe; vp = $vp } }
+        }
+    } catch { }
+    return $null
+}
+
 function Invoke-TypeText($text) {
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
     $t = "$text"
-    # READ-BACK VERIFICATION (operator 2026-06-16 "LIAR": never claim a type
-    # succeeded unless the text actually landed). This is the PRIMARY type path
-    # (the agent's pc_type POSTs here), so it previously returned ok=$true
-    # UNCONDITIONALLY -- a keystroke that hit the wrong window / got dropped still
-    # read as success. Mirror the proven mios-pc-control.ps1 read-back: capture the
-    # focused-control value + foreground title BEFORE and AFTER SendKeys; verified
-    # ONLY if the EXACT sent text appears in the focused value OR the (changed)
-    # foreground title. ok=$false -> the handler returns HTTP 400 -> the wrapper
-    # surfaces it honestly -> the orchestrator can retry / report uncertainty.
+    # UIA-FIRST TYPING (operator 2026-06-16 "MIOS AI ONLY USES UIA"): set the text
+    # DIRECTLY through the focused control's ValuePattern -- NO keystroke injection.
+    # Keystroke typing (SendKeys) was the root of the operator's failures: the focus
+    # path tapped Alt which ACTIVATED the app MENUBAR so the first keystroke hit the
+    # menu not the document; SendKeys also dropped/raced chars and threw "Access is
+    # denied" under UIPI / a disconnected session. UIA SetValue has none of those
+    # problems. Keystroke is a FALLBACK only when the control exposes no writable UIA
+    # pattern (e.g. Win11 Notepad's Pane) -- and it is now menubar-safe (the focus op
+    # no longer taps Alt). Read-back (UIA value / foreground title) still verifies.
     $titleBefore = Get-FgTitleRaw
     $valBefore = Get-FocusedTextRaw
-    # SendKeys interprets {} +^%~ specially; escape them.
-    $escaped = ($t -replace '([+\^%~(){}\[\]])', '{$1}')
-    # Pre-type settle: a freshly focused window often is not ready the instant after
-    # focus, dropping LEADING characters ("DEHARD-5566" -> "RD-5566").
-    Start-Sleep -Milliseconds 250
-    # SendWait throws "Access is denied" when input injection is BLOCKED -- almost
-    # always because the interactive desktop session is DISCONNECTED/locked (no
-    # active input desktop) or an ELEVATED window holds the foreground (UIPI). Catch
-    # it and return a CLASSIFIED, actionable reason instead of a raw exception string
-    # surfaced as a generic 500 -- the agent (and operator) then see the real cause,
-    # not a misleading network/permissions guess (operator 2026-06-16 anti-fabrication).
-    try {
-        [System.Windows.Forms.SendKeys]::SendWait($escaped)
-    } catch {
-        $msg = "$($_.Exception.Message)"
-        $detail = if ($msg -match 'Access is denied') {
-            'input injection blocked -- the interactive desktop session is likely DISCONNECTED/locked, or an ELEVATED window holds the foreground (UIPI). Reconnect the session (or run the executor elevated) to enable typing.'
-        } else { $msg }
-        return @{ ok = $false; verified = $false; op = 'type';
-                  reason = 'input_injection_blocked'; detail = $detail;
-                  error = $msg; chars = $t.Length }
+    $method = 'none'
+    $ve = Get-FocusedValueElement
+    if ($null -ne $ve) {
+        try {
+            $ve.vp.SetValue($t)         # direct UIA text set -- no keystrokes
+            $method = 'uia_setvalue'
+            Start-Sleep -Milliseconds 120
+        } catch { $method = 'none' }
     }
-    Start-Sleep -Milliseconds 400
+    if ($method -ne 'uia_setvalue') {
+        # KEYSTROKE FALLBACK (no writable UIA ValuePattern on the focused control).
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        $escaped = ($t -replace '([+\^%~(){}\[\]])', '{$1}')
+        Start-Sleep -Milliseconds 250   # pre-type settle (avoid dropped leading chars)
+        try {
+            [System.Windows.Forms.SendKeys]::SendWait($escaped)
+            $method = 'keystroke'
+        } catch {
+            # "Access is denied" => input injection blocked (disconnected/locked
+            # session, or an elevated foreground window under UIPI). Classify it.
+            $msg = "$($_.Exception.Message)"
+            $detail = if ($msg -match 'Access is denied') {
+                'input injection blocked -- the interactive desktop session is likely DISCONNECTED/locked, or an ELEVATED window holds the foreground (UIPI). Reconnect the session (or run the executor elevated) to enable typing.'
+            } else { $msg }
+            return @{ ok = $false; verified = $false; op = 'type'; method = 'keystroke';
+                      reason = 'input_injection_blocked'; detail = $detail;
+                      error = $msg; chars = $t.Length }
+        }
+        Start-Sleep -Milliseconds 400
+    }
+    # READ-BACK: STRICT -- success ONLY if the EXACT sent text appears in the focused
+    # control value OR the (changed) foreground title (a partial/dropped result must
+    # NOT pass). Never claim a type that did not land (operator "LIAR").
     $titleAfter = Get-FgTitleRaw
     $valAfter = Get-FocusedTextRaw
-    # STRICT: success ONLY if the EXACT sent text appears (a partial / dropped result
-    # must NOT pass -- "value grew" alone was the residual lie).
     $verified = $false
     $reason = 'text_not_delivered'
     if (($null -ne $valAfter) -and $valAfter.Contains($t)) {
@@ -508,7 +534,7 @@ function Invoke-TypeText($text) {
     }
     $vc = ''
     if ($null -ne $valAfter) { $vc = $valAfter.Substring(0, [Math]::Min(160, $valAfter.Length)) }
-    return @{ ok = $verified; verified = $verified; op = 'type'; reason = $reason;
+    return @{ ok = $verified; verified = $verified; op = 'type'; method = $method; reason = $reason;
              chars = $t.Length; title_before = $titleBefore; title_after = $titleAfter;
              focused_text_after = $vc }
 }
