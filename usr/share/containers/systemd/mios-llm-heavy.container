@@ -67,7 +67,12 @@ ShmSize=4g
 # it -> the answer was fabricated from training knowledge. qwen25 parses the
 # <tool_call> Hermes/Qwen format (Qwen3 served here uses the same shape) into
 # real tool_calls so the agent-pipe's tool-loop fires web_search. SSOT-tunable.
-Exec=python3 -m sglang.launch_server --model-path /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11441} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.5} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-16384} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --disable-cuda-graph --disable-piecewise-cuda-graph
+# --reasoning-parser (operator 2026-06-15 "no thinking blocks"): WITHOUT this,
+# SGLang emits Qwen3's <think>...</think> INLINE in message content, so a client
+# (Hermes desktop, OWUI) renders raw <think> text instead of a proper thinking
+# block. The qwen3 parser separates it into the OpenAI `reasoning_content` field
+# (and streams reasoning deltas in stream mode) -> real thinking blocks. SSOT-tunable.
+Exec=python3 -m sglang.launch_server --model-path /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11441} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.5} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-16384} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --reasoning-parser ${MIOS_SGLANG_REASONING_PARSER:-qwen3} --disable-cuda-graph --disable-piecewise-cuda-graph
 # Read-only mount of the build-baked weights (immutable composefs seed).
 Volume=/usr/share/mios/sglang/model:/models:ro,Z
 # Air-gapped: never reach out to the HF hub at runtime.
