@@ -5356,6 +5356,11 @@ OS_CONTROL_LAUNCH_VERIFY_S = float(
     os.environ.get("MIOS_OS_CONTROL_LAUNCH_VERIFY_S", "16") or 16)
 OS_CONTROL_LAUNCH_POLL_S = float(
     os.environ.get("MIOS_OS_CONTROL_LAUNCH_POLL_S", "1.5") or 1.5)
+# Closed-loop bound (operator 2026-06-16 "loop anything not fully fulfilled"): how many
+# times the compound type-chain re-focuses + re-types when pc_type's strict read-back
+# reports the text did NOT land. Bounded so an unverifiable target can't loop forever;
+# 0 disables the retry (single attempt). SSOT-tunable.
+TYPE_RETRY_MAX = int(os.environ.get("MIOS_TYPE_RETRY_MAX", "2") or 2)
 # OS-control replies are GENERATIVE but SHORT (operator 2026-05-29: "just reply
 # success + details + follow-ups, nothing much more"). A low generation cap on
 # the action-path polish keeps the reply concise AND fast (the full 800-token
@@ -20977,6 +20982,31 @@ async def _respond_os_control(
                 log.info("compound-launch type-chain: focus(%r)+pc_type(%r) -> success=%s",
                          (_opened_titles[0] if _opened_titles else ""),
                          _txt[:40], _typed["success"])
+                # CLOSED LOOP (operator 2026-06-16 "loop anything not successful or
+                # fully fulfilled"): pc_type's STRICT read-back reports whether the text
+                # ACTUALLY landed. If NOT (dropped keystrokes / focus race), the action
+                # is UNFULFILLED -> re-focus the target window + re-type, BOUNDED by the
+                # SSOT knob so a genuinely-unverifiable target can't loop forever. The
+                # read-back VERDICT drives the retry -- not a fixed assume-success. This
+                # is the per-action closed loop (monitor -> loop-unfulfilled -> re-check).
+                _retry = 0
+                while (not _typed["success"]) and _retry < TYPE_RETRY_MAX:
+                    _retry += 1
+                    _emit("🔁", f"retry {_retry}: type not verified, re-typing")
+                    if _opened_titles:
+                        try:
+                            await dispatch_mios_verb(
+                                "focus_window", {"title": _opened_titles[0]},
+                                session_id=session_id)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    await asyncio.sleep(max(0.6, OS_CONTROL_LAUNCH_POLL_S))
+                    _tr = await dispatch_mios_verb("pc_type", {"text": _txt},
+                                                   session_id=session_id)
+                    _typed = {"text": _txt, "success": bool(_tr.get("success")),
+                              "stderr": (_tr.get("stderr") or "")[:200]}
+                    log.info("type-chain closed-loop RETRY %d -> success=%s",
+                             _retry, _typed["success"])
     if _action:
         _index_window_event(tool, _args, _before, _after, _wdiff, session_id)
     _row = {
