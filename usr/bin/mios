@@ -43,18 +43,17 @@ except ImportError:
     sys.exit(127)
 
 # ─── Configuration ────────────────────────────────────────────────────
-ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
-# The endpoint is the Hermes-Agent OpenAI gateway, which exposes ONE
-# virtual model -- "hermes-agent" -- the agent loop itself. The actual
-# Ollama model is configured INSIDE Hermes (config.yaml model:), not
-# selected per request. Sending a raw Ollama tag here (the old default,
-# e.g. "qwen3.5:2b") is a model id the gateway does not recognise -- the
-# streaming chat call then hangs indefinitely instead of erroring
-# (operator-confirmed 2026-05-14: `mios <prompt>` and `@<prompt>` hung
-# ~90s+ with no output). MIOS_AI_MODEL stays the raw-tag SSOT for the
-# image build / Ollama bake; the gateway request model is its own knob
-# (MIOS_AI_GATEWAY_MODEL) and defaults to what the gateway serves.
-MODEL    = os.environ.get("MIOS_AI_GATEWAY_MODEL", "hermes-agent")
+ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
+# UNIFIED ENTRYPOINT (operator 2026-06-16 "UNIFY THE MiOS AI PIPELINE"): route
+# `mios <prompt>` / `@<prompt>` to the AGENT-PIPE ORCHESTRATOR (:8640), NOT Hermes
+# (:8642). The pipe runs the full MiOS pipeline (refine -> route -> native-loop /
+# council / client-tools-hybrid -> polish) and executes EVERY tool SERVER-SIDE via
+# the broker (firewall/HITL/audit/read-back verification), so the CLI gets the same
+# orchestrated, anti-fabricating behaviour as OWUI -- never a weak leaf model
+# fabricating "I typed it". Hermes :8642 becomes a leaf engine the pipe calls, not a
+# public entrypoint. The pipe serves the virtual model "MiOS-Agent". MIOS_AI_MODEL
+# stays the raw-tag SSOT for the image build; the request model is MIOS_AI_GATEWAY_MODEL.
+MODEL    = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS-Agent")
 SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
 LIB      = pathlib.Path("/usr/lib/mios")
 LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")
@@ -555,11 +554,20 @@ def main(argv: list[str]) -> int:
         ).returncode == 0:
             os.execvp(cmd[0], cmd + argv[2:])
 
-    use_tools  = True
+    # THIN CLIENT (operator 2026-06-16 "UNIFY THE MiOS AI PIPELINE"): default to NO
+    # client-side tools so the agent-pipe orchestrator (:8640) owns the WHOLE pipeline
+    # -- refine -> native loop (deterministic launch + read-back-verified type-chain) ->
+    # SERVER-SIDE broker execution -- instead of the CLI running its own weak client-side
+    # tool roundtrip (which floundered for 17min and fabricated). Opt back into the legacy
+    # client-side tools with --tools.
+    use_tools  = False
     schema_obj = None
     args = argv[1:]
-    if args and args[0] == "--no-tools":
+    if args and args[0] in ("--no-tools", "--thin"):
         use_tools = False
+        args = args[1:]
+    elif args and args[0] == "--tools":
+        use_tools = True
         args = args[1:]
     elif args and args[0] == "--json":
         if len(args) < 3:

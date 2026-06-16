@@ -110,12 +110,78 @@ switch ($Action) {
     }
 
     'type' {
+        # READ-BACK VERIFICATION (operator 2026-06-16: the agent claimed it typed when
+        # nothing reached a window -> "LIAR"). NEVER report success unless the text
+        # actually landed: read the focused control value (UI Automation) and/or the
+        # foreground-window title BEFORE and AFTER SendKeys. verified ONLY if the value
+        # contains/grew by the sent text or the title changed; otherwise exit 1 with a
+        # real reason so the orchestrator surfaces uncertainty, never a false success.
         Add-Type -AssemblyName System.Windows.Forms
+        Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public class MiosWin {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+}
+"@
+        function Get-FocusedText {
+            try {
+                Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue
+                Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue
+                $fe = [System.Windows.Automation.AutomationElement]::FocusedElement
+                if ($null -eq $fe) { return $null }
+                $vp = $null
+                if ($fe.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+                    return $vp.Current.Value
+                }
+                $tp = $null
+                if ($fe.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) {
+                    return $tp.DocumentRange.GetText(4096)
+                }
+            } catch { }
+            return $null
+        }
+        function Get-FgTitle {
+            $sb = New-Object System.Text.StringBuilder 512
+            [void][MiosWin]::GetWindowText([MiosWin]::GetForegroundWindow(), $sb, 512)
+            return $sb.ToString()
+        }
         $text = $Args -join ' '
+        $titleBefore = Get-FgTitle
+        $valBefore = Get-FocusedText
         # SendKeys interprets {} +^%~ specially; escape them.
         $escaped = ($text -replace '([+\^%~(){}\[\]])', '{$1}')
         [System.Windows.Forms.SendKeys]::SendWait($escaped)
-        Write-Output "[mios-pc-control] type ($($text.Length) chars)"
+        Start-Sleep -Milliseconds 400
+        $titleAfter = Get-FgTitle
+        $valAfter = Get-FocusedText
+        $verified = $false
+        $reason = 'no_change_detected'
+        if (($null -ne $valAfter) -and ($valAfter.Contains($text))) {
+            $verified = $true; $reason = 'uia_value_contains_text'
+        } elseif (($null -ne $valBefore) -and ($null -ne $valAfter) -and ($valAfter.Length -gt $valBefore.Length)) {
+            $verified = $true; $reason = 'uia_value_grew'
+        } elseif ($titleAfter -ne $titleBefore) {
+            $verified = $true; $reason = 'title_changed'
+        } elseif ($null -eq $valAfter) {
+            $reason = 'no_verifiable_target'
+        }
+        $vc = ''
+        if ($null -ne $valAfter) { $vc = $valAfter.Substring(0, [Math]::Min(160, $valAfter.Length)) }
+        $res = [ordered]@{
+            ok = $verified; verified = $verified; reason = $reason;
+            chars_sent = $text.Length; title_before = $titleBefore; title_after = $titleAfter;
+            focused_text_after = $vc
+        }
+        $json = ($res | ConvertTo-Json -Compress)
+        if ($verified) {
+            Write-Output ("[mios-pc-control] type verified: " + $json)
+        } else {
+            Write-Error ("[mios-pc-control] type NOT verified (" + $reason + "): " + $json)
+            exit 1
+        }
     }
 
     'key' {
