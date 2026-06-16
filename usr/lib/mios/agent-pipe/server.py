@@ -4938,17 +4938,36 @@ def _build_model_name_map(cat: dict) -> dict:
     key being shown, never to a mis-dispatch."""
     rev: dict = {}
     keys = set(cat.keys())
+    collisions: list[str] = []
     for vname, vcfg in cat.items():
         mn = str((vcfg or {}).get("model_name", "") or "").strip()
         if not mn or mn == vname:
             continue
         if mn in keys:
-            log.warning("P1 model_name %r (verb %r) collides with a real verb key -- ignored", mn, vname)
+            collisions.append(f"alias {mn!r} (verb {vname!r}) == a real verb key")
+            log.error("ALIAS-COLLISION: model_name %r (verb %r) collides with a real "
+                      "verb key -- alias ignored", mn, vname)
             continue
         if mn in rev:
-            log.warning("P1 model_name %r duplicated (%r vs %r) -- keeping first", mn, rev[mn], vname)
+            collisions.append(f"alias {mn!r} claimed by both {rev[mn]!r} and {vname!r}")
+            log.error("ALIAS-COLLISION: model_name %r duplicated (%r vs %r) -- keeping "
+                      "first; %r is DROPPED from the model-facing surface", mn, rev[mn],
+                      vname, vname)
             continue
         rev[mn] = vname
+    # A dropped alias SILENTLY hides a verb from the model -- exactly the failure a
+    # verb-merge campaign (model_name aliasing the old keys to a consolidated verb) can
+    # introduce. Make it loud by default; a HARD gate under MIOS_STRICT_VERB_ALIASES=1
+    # (set in CI / the build) fails fast so a bad merge never ships, WITHOUT ever
+    # bricking a production agent-pipe start (degrade-open: real keys still dispatch).
+    if collisions:
+        log.error("ALIAS-COLLISION: %d model_name collision(s) -- %s",
+                  len(collisions), "; ".join(collisions))
+        if str(os.environ.get("MIOS_STRICT_VERB_ALIASES", "")).strip().lower() \
+                in {"1", "true", "yes"}:
+            raise RuntimeError(
+                f"verb model_name alias collisions ({len(collisions)}): "
+                + "; ".join(collisions))
     return rev
 
 

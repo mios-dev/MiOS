@@ -2711,7 +2711,7 @@ sig        = "path, line, content"
 desc       = "INSERT new text into an existing file AFTER a given 1-indexed line number (0 = prepend to the very top); all existing content is kept. Args: path, line, content. Use this to ADD text at a position WITHOUT deleting anything; to OVERWRITE/replace existing text use replace_file_text, and to make a brand-new file use create_file."
 model_name = "insert_file_lines"
 examples   = ["add a new import line at the top of main.py", "insert a TODO comment after line 40 of server.py", "insert a new section after line 12 of notes.md", "put a shebang line at the very start of the script"]
-tier       = "rare"
+tier       = "common"   # was rare; siblings text_create/text_str_replace are common -- surface the edit family together
 permission = "write"
   [verbs.text_insert.params.path]
   type = "string"
