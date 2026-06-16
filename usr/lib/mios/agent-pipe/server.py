@@ -4504,6 +4504,14 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     _seen: set = set()   # tool-call signatures already made -> loop guard
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
     _hdrs = dict(headers or {})
+    # llama-swap (mios-llm-light proxy) REQUIRES Content-Type: application/json to
+    # parse the body and extract the model id -- absent it, it 404s
+    # {"error":"no model id could be identified"} (verified 2026-06-15). httpx with
+    # content=bytes does NOT auto-set it, and callers pass header dicts that omit it,
+    # so the WHOLE tool-loop silently 404'd (0 tool-calls -> empty/recall-fallback).
+    # Set it unconditionally here so EVERY tool-loop caller (native, opencode, hermes,
+    # daemon) is covered regardless of which client/headers they pass. Idempotent.
+    _hdrs.setdefault("Content-Type", "application/json")
     if (_BACKEND_KEY
             and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
         # Hermes accepts ONE canonical key -- a forwarded client bearer
@@ -4526,6 +4534,8 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 content=json.dumps(nb).encode("utf-8"),
                 headers=_hdrs, timeout=timeout)
             if r.status_code != 200:
+                log.warning("v1 tool-loop non-200: status=%s model=%s url=%s body=%s",
+                            r.status_code, model, f"{ep}/chat/completions", r.text[:240])
                 break
             ch = (r.json().get("choices") or [])
             msg = (ch[0].get("message") if ch else {}) or {}
@@ -21498,7 +21508,9 @@ async def _respond_native_loop_direct(
     if NATIVE_LOOP_RECENCY_DEFAULTS and refined and refined.get("news"):
         _recency_ctx_var.set({"time_range": NATIVE_LOOP_RECENCY_RANGE,
                               "fanout": NATIVE_LOOP_RECENCY_FANOUT})
-    _hdrs: dict = {}
+    # Content-Type REQUIRED by llama-swap to identify the model (see tool-loop note);
+    # this _hdrs feeds the final-completion (_pb) + light-lane fallback posts below.
+    _hdrs: dict = {"Content-Type": "application/json"}
     if (_BACKEND_KEY
             and BACKEND.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
         _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
@@ -21575,7 +21587,8 @@ async def _respond_native_loop_direct(
         return StreamingResponse(_stream_native(), media_type="text/event-stream")
     _raw = ""
     _fired: list = []
-    async with httpx.AsyncClient(timeout=httpx.Timeout(NATIVE_LOOP_TIMEOUT_S)) as _c:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(NATIVE_LOOP_TIMEOUT_S),
+                                 headers={"Content-Type": "application/json"}) as _c:
         # The tool-loop: the model calls verbs until satisfied (reuses the proven
         # rescue/nudge/runaway-guard). allow_write=True -> real OS-control actions.
         # Route the tool-loop activity into the LIVE emit stream (operator
