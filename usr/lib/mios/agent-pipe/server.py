@@ -2721,6 +2721,30 @@ def _endpoint_supports_tool_choice(ep: str, cfg: dict,
     return not any(h and h in (ep or "") for h in _NO_TOOL_CHOICE_HINTS)
 
 
+# Endpoints whose model RELIABLY emits well-formed PARALLEL tool calls (operator
+# 2026-06-16 "proper patterns + loops to OpenAI standards"). OpenAI DEFAULTS
+# parallel_tool_calls=True; MiOS forces it False in the tool-loop because a SMALL
+# local model malforms parallel calls (the "@ open notepad and type" failure: the
+# fn wrapper dropped, leaving raw arguments in content). A CAPABLE lane (the heavy
+# SGLang/Qwen) handles parallel correctly AND it is faster -- the model batches
+# INDEPENDENT calls into ONE turn (fewer round-trips) while still SEQUENCING
+# dependent steps itself. So OPT IN per-endpoint via this SSOT host:port hint list
+# (default the heavy lane :11441); everything else stays sequential (robust). Note
+# dependent OS actions ("open then type") take the deterministic fast-path, not this
+# loop, so enabling parallelism here never reorders a launch+type chain.
+_PARALLEL_TOOLS_HINTS = tuple(
+    h.strip() for h in str(os.environ.get("MIOS_PARALLEL_TOOLS_HINTS")
+                           or _DISPATCH_TOML.get("parallel_tools_hints", "11441")).split(",")
+    if h.strip())
+
+
+def _endpoint_supports_parallel_tools(ep: str) -> bool:
+    """True when the endpoint's model reliably emits well-formed PARALLEL tool calls
+    (the capable heavy lane) -> OpenAI-default parallel_tool_calls. Default False
+    (sequential, robust for small local models); opt IN via the SSOT hint list."""
+    return any(h and h in (ep or "") for h in _PARALLEL_TOOLS_HINTS)
+
+
 # ── KV-cache paging — the AIOS context-manager prototype (Phase 1) ──────
 # operator 2026-06-01: "VRAM can compress or write to disk, properly stored and
 # clean state when agents/models load/unload" -> true per-conversation KV
@@ -4637,14 +4661,16 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
             _hdrs.pop(_k)
         _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
-        # parallel_tool_calls=False: a small local model handed a multi-step request
-        # ("open notepad AND type hello") emits MALFORMED parallel tool calls (the
-        # function name/wrapper drops, leaving raw "arguments": {...} in content -> the
-        # call never fires). Forcing ONE call per turn keeps each tool_call well-formed;
-        # the loop runs the steps sequentially anyway. Servers that don't support the
-        # param ignore it (no regression). operator 2026-06-15 "@ open notepad and type".
+        # parallel_tool_calls (OpenAI default True): a SMALL local model handed a
+        # multi-step request ("open notepad AND type hello") emits MALFORMED parallel
+        # tool calls (the fn name/wrapper drops, leaving raw "arguments": {...} in
+        # content -> the call never fires), so default to False (one well-formed call
+        # per turn; the loop sequences anyway). A CAPABLE lane (heavy SGLang/Qwen, per
+        # _endpoint_supports_parallel_tools SSOT) gets the OpenAI-standard True -> it
+        # batches INDEPENDENT calls into one turn (fewer round-trips) and still
+        # sequences dependent steps. operator 2026-06-15/16.
         nb = {"model": model, "messages": msgs, "tools": tools, "stream": False,
-              "parallel_tool_calls": False}
+              "parallel_tool_calls": _endpoint_supports_parallel_tools(ep)}
         try:
             r = await client.post(
                 f"{ep}/chat/completions",

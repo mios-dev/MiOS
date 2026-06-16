@@ -1248,6 +1248,7 @@ offload_cpu          = false
 lane_tool_cap        = "igpu:15,mobile:15"   # lane:cap CSV; per-lane override (0 = full surface for that lane)
 default_tool_cap     = 24                    # per-turn visible-tool cap for any other lane; cosine picks the N + tool_search reaches the rest (0 = uncapped)
 no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
+parallel_tools_hints = "11441"               # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
 # ── KV-cache paging (AIOS context-manager prototype, operator 2026-06-01 "VRAM
 # can compress or write to disk ... clean state when agents/models load/unload").
