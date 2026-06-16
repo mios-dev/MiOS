@@ -159,6 +159,45 @@ _TOOL_BACKEND = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND", "http://localhost:11450/v1").rstrip("/")
 _TOOL_BACKEND_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL", "granite4.1:8b")
+# Heavy-lane PREFERENCE for the client-tools tool loop (the agentic surface that
+# fronts the Hermes desktop app + Zen). The SGLang heavy lane runs a REASONING model
+# (Qwen3) -> real thinking + reliable tool-use; the light lane (granite) is weak but
+# always-up/low-VRAM. Prefer heavy WHEN it is serving, fall back to light when it is
+# down (e.g. gaming/VRAM) -- so "SGLang for all agents" holds when the GPU is free and
+# the agentic surface NEVER hard-fails when it isn't. Health probe cached for the TTL.
+_TOOL_BACKEND_HEAVY = os.environ.get(
+    "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY", "http://localhost:11441/v1").rstrip("/")
+_TOOL_BACKEND_HEAVY_MODEL = os.environ.get(
+    "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY_MODEL", "mios-heavy")
+_HEAVY_PROBE_TTL = float(os.environ.get("MIOS_AGENT_PIPE_HEAVY_PROBE_TTL", "30"))
+_heavy_probe = {"ok": False, "ts": -1e9}
+
+
+async def _heavy_lane_up() -> bool:
+    """Is the SGLang heavy lane serving right now? Cached for _HEAVY_PROBE_TTL s so we
+    probe at most once per window, never per request."""
+    import time as _t
+    now = _t.monotonic()
+    if (now - _heavy_probe["ts"]) < _HEAVY_PROBE_TTL:
+        return _heavy_probe["ok"]
+    ok = False
+    try:
+        client = await _get_client()
+        r = await client.get(f"{_TOOL_BACKEND_HEAVY}/models", timeout=2.0)
+        ok = (r.status_code == 200)
+    except Exception:  # noqa: BLE001 -- any failure => heavy is down, use light
+        ok = False
+    _heavy_probe["ok"] = ok
+    _heavy_probe["ts"] = now
+    return ok
+
+
+async def _pick_tool_backend() -> tuple:
+    """(url, model) for the client-tools loop: heavy (Qwen3 reasoning) when up, else
+    the always-on light lane (granite)."""
+    if await _heavy_lane_up():
+        return _TOOL_BACKEND_HEAVY, _TOOL_BACKEND_HEAVY_MODEL
+    return _TOOL_BACKEND, _TOOL_BACKEND_MODEL
 # Optional inbound bearer gate for the passthrough route (a browser CAN send a
 # static Authorization header; passports can't gate Zen -- it's keyless). OFF by
 # default (unset) so the smart-window works immediately for testing; set the env
@@ -19970,14 +20009,20 @@ def _client_tools_inject_identity(messages: list) -> list:
 
 
 async def _client_tools_backend(req: dict) -> dict:
-    """One non-stream POST to the tool backend; returns parsed JSON (or raises)."""
+    """One non-stream POST to the tool backend; returns parsed JSON (or raises).
+    Health-gated: routes to the heavy lane (Qwen3 reasoning) when it is up, else the
+    light lane (granite). Overrides req['model'] to match the chosen lane so the loop's
+    base_req model never mismatches the endpoint."""
+    _url, _mdl = await _pick_tool_backend()
+    req = dict(req)
+    req["model"] = _mdl
     headers = {"content-type": "application/json"}
-    _hp = _TOOL_BACKEND.split("://")[-1].split("/")[0]
+    _hp = _url.split("://")[-1].split("/")[0]
     if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
         headers["authorization"] = f"Bearer {_BACKEND_KEY}"
     client = await _get_client()
     r = await client.post(
-        f"{_TOOL_BACKEND}/chat/completions",
+        f"{_url}/chat/completions",
         content=json.dumps(req).encode("utf-8"), headers=headers)
     return r.json()
 
@@ -20094,18 +20139,19 @@ async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> An
     tool_calls stream LIVE -- no compute-then-burst dead wait. The client executes its
     own tool_calls in its own loop (it has the tools), so no server-side merge is
     needed; that merge is only for tool-less clients (Zen) via the hybrid loop."""
+    _url, _mdl = await _pick_tool_backend()
     tbody = dict(body)
-    tbody["model"] = _TOOL_BACKEND_MODEL
+    tbody["model"] = _mdl
     tbody["messages"] = _client_tools_inject_identity(list(body.get("messages") or []))
     tbody["chat_template_kwargs"] = {"enable_thinking": True}
     tbody["stream"] = True
     for _k in ("mios_flags", "_allow_write", "num_ctx"):
         tbody.pop(_k, None)
     headers = {"content-type": "application/json"}
-    _hp = _TOOL_BACKEND.split("://")[-1].split("/")[0]
+    _hp = _url.split("://")[-1].split("/")[0]
     if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
         headers["authorization"] = f"Bearer {_BACKEND_KEY}"
-    url = f"{_TOOL_BACKEND}/chat/completions"
+    url = f"{_url}/chat/completions"
     client = await _get_client()
 
     async def _gen() -> AsyncGenerator[bytes, None]:
