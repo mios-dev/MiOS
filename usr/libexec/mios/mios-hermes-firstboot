@@ -1188,7 +1188,19 @@ done
 _soul_should_seed() {
     local target="$1"
     [[ ! -f "$target" ]] && return 0
-    grep -q 'MiOS-managed' "$target" 2>/dev/null || return 1   # operator-owned, leave alone
+    if ! grep -q 'MiOS-managed' "$target" 2>/dev/null; then
+        # NOT MiOS-managed. Distinguish the Hermes BINARY's STOCK DEFAULT identity
+        # (the framework writes "You are Hermes Agent ... created by Nous Research"
+        # when SOUL.md is absent at first CLI launch) from a GENUINE operator-authored
+        # SOUL. The stock default left the operator's `hermes` CLI UNGROUNDED -- it
+        # answered "I am Hermes Agent by Nous Research" with no MiOS identity (operator
+        # 2026-06-16 "NOT GROUNDED IN MIOS / HAS NO IDEA WHO THEY ARE") because this
+        # gate treated it as operator-owned and never seeded the MiOS SOUL. SEED
+        # (replace) the vendor stock default; LEAVE a real operator SOUL alone. The
+        # signature matched is the vendor's OWN identity line, not a MiOS routing word.
+        grep -qiE 'created by Nous Research|You are Hermes Agent' "$target" 2>/dev/null && return 0
+        return 1   # genuine operator-authored SOUL -> leave alone
+    fi
     # Compare ONLY the source body against the head of target -- our
     # appended runtime-context block lives AFTER the SOUL_SRC bytes;
     # cmp -n SRC_LEN matches when the body is current regardless of
