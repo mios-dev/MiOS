@@ -20206,6 +20206,12 @@ async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> An
     tbody["messages"] = _client_tools_inject_identity(list(body.get("messages") or []))
     tbody["chat_template_kwargs"] = {"enable_thinking": True}
     tbody["stream"] = True
+    # Force ONE well-formed tool call per turn (the client runs its own loop, executing
+    # each step then re-calling). A small model handed the full client+MiOS surface on a
+    # multi-step ask ("open notepad AND type hello") emits MALFORMED parallel calls (the
+    # Hermes-desktop "LIAR" failure: two open_app calls, no type, nothing fires). The
+    # client may override. operator 2026-06-15.
+    tbody.setdefault("parallel_tool_calls", False)
     for _k in ("mios_flags", "_allow_write", "num_ctx"):
         tbody.pop(_k, None)
     headers = {"content-type": "application/json"}
@@ -21578,6 +21584,29 @@ async def _respond_native_loop_direct(
         # runs -- surface them as reasoning_content so the think dropdown shows the
         # agent working LIVE. No emit (non-streaming, no pump) -> the old no-op.
         _push = (lambda s: emit({"reasoning": str(s)})) if emit else (lambda s: None)
+        # Research turns (refine flagged web/news): a small local model often ANSWERS
+        # FROM MEMORY instead of calling web_search -> fabricated "trending news"
+        # (operator 2026-06-15), and the light lane REJECTS tool_choice forcing so we
+        # cannot force the call. PRE-FETCH web_search deterministically here and inject
+        # the LIVE results, so the model synthesizes from real data, never training
+        # memory. Gated on refine's web/news flags (non-research turns like "open
+        # notepad" are untouched); degrade-open (any failure just skips the prefetch).
+        if refined and (refined.get("web") or refined.get("news")):
+            try:
+                _wsr = await dispatch_mios_verb(
+                    "web_search", {"query": last_user_text}, session_id=session_id)
+                _wtext = (str(_wsr.get("result") or _wsr.get("output")
+                              or _wsr.get("results") or _wsr)
+                          if isinstance(_wsr, dict) else str(_wsr or ""))
+                if _wtext.strip():
+                    _push(" 🔎")
+                    _msgs.append({"role": "system", "content":
+                        "LIVE web_search results for the user's request (current and "
+                        "real). Answer from THESE results and cite them; do NOT use "
+                        "training-memory facts or invent any headlines, titles, dates, "
+                        "or figures not present here:\n" + _wtext[:6000]})
+            except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
+                log.debug("native-loop web prefetch skipped: %s", _e)
         _m2 = await _v1_secondary_tool_loop(
             _c, BACKEND, BACKEND_MODEL, _hdrs, _msgs, _tools,
             NATIVE_LOOP_TIMEOUT_S, _push, allow_write=True)
