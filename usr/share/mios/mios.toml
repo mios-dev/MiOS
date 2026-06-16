@@ -2047,6 +2047,7 @@ desc       = "Minimize an OPEN Windows window -- hide it to the taskbar without 
 examples   = ["minimize the Firefox window", "hide Spotify to the taskbar", "minimize Notepad", "send the Discord window to the taskbar"]
 tier       = "common"
 permission = "write"
+hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable
 cmd        = "mios-window minimize {title}"
   [verbs.minimize_window.params.title]
   type = "string"
@@ -2059,6 +2060,7 @@ desc       = "Maximize an OPEN Windows window to fill its containing monitor. To
 examples   = ["maximize the Firefox window", "make Spotify fill the screen", "maximize Notepad", "blow up the Discord window to full screen"]
 tier       = "common"
 permission = "write"
+hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable
 cmd        = "mios-window maximize {title}"
   [verbs.maximize_window.params.title]
   type = "string"
@@ -2071,6 +2073,7 @@ desc       = "Restore an OPEN Windows window from a minimized OR maximized state
 examples   = ["restore the Firefox window", "un-minimize Spotify", "bring the Notepad window back to normal size", "un-maximize the Discord window"]
 tier       = "common"
 permission = "write"
+hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable
 cmd        = "mios-window restore {title}"
   [verbs.restore_window.params.title]
   type = "string"
@@ -2083,6 +2086,7 @@ desc       = "Gracefully CLOSE an OPEN Windows window by title (sends WM_CLOSE s
 examples   = ["close the Firefox window", "quit Notepad", "close the Spotify window", "dismiss the dialog window"]
 tier       = "common"
 permission = "write"
+hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable (mode was never in cmd)
 cmd        = "mios-window close {title}"
   [verbs.close_window.params.title]
   type = "string"
@@ -2091,6 +2095,24 @@ cmd        = "mios-window close {title}"
   type = "string"
   enum = ["graceful", "force"]
   default = "graceful"
+
+[verbs.window_state]
+section    = "Window / app launch"
+sig        = "action, title"
+desc       = "Change the STATE of an OPEN Windows window (by title): minimize (hide to taskbar), maximize (fill its monitor), restore (back to normal size), or close (graceful WM_CLOSE so the app saves state). Run list_windows first to confirm the title. This is state only -- to bring a window to the front use focus_window, to relocate use move_window_to_region / place_window_at_pixel, to change size use resize_window."
+examples   = ["minimize the Firefox window", "maximize Spotify", "restore the Notepad window", "close the Discord window", "send Slack to the taskbar"]
+tier       = "common"
+permission = "write"
+cmd        = "mios-window {action} {title}"
+  [verbs.window_state.params.action]
+  type = "string"
+  enum = ["minimize", "maximize", "restore", "close"]
+  desc = "The window-state change to apply."
+  aliases = ["op", "state"]
+  [verbs.window_state.params.title]
+  type = "string"
+  desc = "Window title pattern (substring match)."
+  aliases = ["name", "window", "app"]
 
 [verbs.list_windows]
 section    = "Window / app launch"
