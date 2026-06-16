@@ -22609,6 +22609,33 @@ async def chat_completions(request: Request) -> Any:
                 _ct_det["tool"], _ct_det.get("args") or {}, _ct_det,
                 streaming=streaming, chat_id=chat_id, model=model,
                 session_id=None, last_user_text=_ct_user, persona_system="")
+        # WEB-GROUND a research turn on the client-tools path too (operator
+        # anti-fabrication): the hybrid loop has the web_search tool but a small model
+        # ANSWERS FROM MEMORY instead of calling it -> fabrication (the unified hermes
+        # REPL said "latest kernel 6.12.1" vs the live 7.1). When the turn already
+        # routed to the `web` domain (_routed_domain_var, classified above), PRE-FETCH
+        # web_search + inject the LIVE results -- the SAME deterministic grounding the
+        # native-loop uses -- so the client-tools model synthesises from real data.
+        # Degrade-open; non-web client-tools turns (browser/IDE) are untouched.
+        if _ct_user and _routed_domain_var.get(None) == "web":
+            try:
+                _wsr = await dispatch_mios_verb(
+                    "web_search", {"query": _ct_user}, session_id=None)
+                _wtext = (str(_wsr.get("result") or _wsr.get("output")
+                              or _wsr.get("results") or _wsr)
+                          if isinstance(_wsr, dict) else str(_wsr or ""))
+                if _wtext.strip():
+                    body = dict(body)
+                    body["messages"] = list(body.get("messages") or []) + [{
+                        "role": "system", "content":
+                        "LIVE web_search results for the user's request (current and "
+                        "real). Answer from THESE results and cite them; do NOT use "
+                        "training-memory facts or invent any version, date, or figure "
+                        "not present here:\n" + _wtext[:6000]}]
+                    log.info("client-tools: web-grounded research turn "
+                             "(prefetched web_search, anti-fabrication)")
+            except Exception as _e:  # noqa: BLE001 -- degrade-open
+                log.debug("client-tools web prefetch skipped: %s", _e)
         log.info("client-tools passthrough: %d tool(s) -> %s (%s)",
                  len(body.get("tools") or []), _TOOL_BACKEND_MODEL, _TOOL_BACKEND)
         return await _client_tools_complete(body, streaming, chat_id, model)
