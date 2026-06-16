@@ -45,7 +45,9 @@ from __future__ import annotations
 import http.server
 import json
 import os
+import re
 import sys
+import threading
 import time
 import uuid
 import urllib.request
@@ -66,12 +68,12 @@ TIMEOUT_S = 60
 SESSION_ID = uuid.uuid4().hex
 
 
-def _http_get(path: str) -> dict:
+def _http_get(path: str, timeout: int | None = None) -> dict:
     req = urllib.request.Request(
         f"{AGENT_PIPE_URL}{path}",
         headers={"Accept": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+    with urllib.request.urlopen(req, timeout=timeout or TIMEOUT_S) as r:
         return json.loads(r.read().decode("utf-8", errors="replace"))
 
 
@@ -101,12 +103,15 @@ def _err(mid, code: int, message: str, data=None) -> dict:
 
 
 def _handle_initialize(mid, params: dict) -> dict:
-    # Server announces its capabilities. listChanged=False until the
-    # inotify watcher ships in v2.
+    # tools.listChanged=True: the background refresher pushes
+    # notifications/tools/list_changed over the standalone SSE channel when the
+    # catalog recovers (SSOT floor / degraded set -> full surface), so clients that
+    # honor it (Hermes) re-list mid-session instead of staying degraded for life.
+    # resources.listChanged stays False (no resource watcher yet).
     return _ok(mid, {
         "protocolVersion": PROTOCOL_VERSION,
         "capabilities": {
-            "tools": {"listChanged": False},
+            "tools": {"listChanged": True},
             "resources": {"subscribe": False, "listChanged": False},
         },
         "serverInfo": SERVER_INFO,
@@ -124,6 +129,31 @@ def _handle_initialize(mid, params: dict) -> dict:
 _TOOLS_CACHE_FILE = os.environ.get(
     "MIOS_MCP_TOOLS_CACHE", "/var/lib/mios/mcp/tools.cache.json")
 _TOOLS_CACHE_MEM = None
+# Resilience tunables. A background thread keeps the catalog warm (mem+disk) every
+# _REFRESH_INTERVAL_S, INDEPENDENT of when a client connects -- so a client that
+# handshakes moments after an agent-pipe restart still receives the full last-good
+# set instead of the empty/partial catalog agent-pipe serves mid-warmup. The
+# per-request tools/list fetch uses a SHORT timeout so a hung/slow agent-pipe can
+# never stall the client's handshake; the warm cache covers the gap.
+_REFRESH_INTERVAL_S = int(os.environ.get("MIOS_MCP_REFRESH_INTERVAL", "30"))
+_LIST_TIMEOUT_S = int(os.environ.get("MIOS_MCP_LIST_TIMEOUT", "8"))
+
+# Open standalone-SSE connections (the GET /mcp channel). Each holds a private
+# threading.Event; the background refresher SETS every event on catalog recovery,
+# and each connection's own do_GET loop wakes, writes notifications/tools/list_changed,
+# and resumes keepalive. All socket writes happen in the owning handler thread -- the
+# refresher only signals -- so there are no cross-thread writes to one socket. This is
+# how an ALREADY-CONNECTED client (Hermes honors tools/list_changed, auto-re-lists
+# mid-session) recovers the full catalog after connecting during an outage, with no
+# app restart.
+_SSE_EVENTS: set = set()
+_SSE_LOCK = threading.Lock()
+
+
+def _signal_list_changed() -> None:
+    with _SSE_LOCK:
+        for ev in list(_SSE_EVENTS):
+            ev.set()
 
 
 def _tools_cache_save(tools):
@@ -152,6 +182,190 @@ def _tools_cache_load():
         return None
 
 
+def _tools_cache_prime():
+    """Load the last-good catalog from disk into memory at startup so the very
+    first tools/list -- even before the background refresher has run, even if
+    agent-pipe is still booting -- serves the full set."""
+    global _TOOLS_CACHE_MEM
+    if _TOOLS_CACHE_MEM:
+        return
+    try:
+        with open(_TOOLS_CACHE_FILE, "r", encoding="utf-8") as _f:
+            _d = json.load(_f)
+            if isinstance(_d, list) and _d:
+                _TOOLS_CACHE_MEM = _d
+                sys.stderr.write(
+                    f"[mios-mcp] primed {len(_d)} tools from disk cache\n")
+    except Exception:
+        pass
+
+
+def _build_mcp_tools(data: dict) -> list:
+    """Convert agent-pipe /v1/tools (OpenAI function-tool shape) to MCP tool
+    shape ({name, description, inputSchema}). Rows already in MCP shape pass
+    through untouched."""
+    out = []
+    for t in (data.get("tools") or []):
+        if not isinstance(t, dict):
+            continue
+        if t.get("name") and t.get("inputSchema") is not None:
+            out.append(t)
+            continue
+        fn = t.get("function") or {}
+        nm = fn.get("name")
+        if not nm:
+            continue
+        out.append({
+            "name": nm,
+            "description": fn.get("description", ""),
+            "inputSchema": fn.get("parameters")
+            or {"type": "object", "properties": {}},
+        })
+    return out
+
+
+MIOS_TOML = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+
+
+def _verb_row_ssot(vname: str, vcfg: dict) -> dict:
+    """Mirror agent-pipe _verb_to_openai_tool (server.py:15461): model-facing name
+    = model_name||vname; each param required (OpenAI strict); a param WITH a default
+    becomes nullable ([t,'null'], enum+[None]) but stays required."""
+    props, required = {}, []
+    for argname, argcfg in (vcfg.get("params") or {}).items():
+        if not isinstance(argcfg, dict):
+            continue
+        _t = argcfg.get("type", "string")
+        spec = {"description": argcfg.get("desc", "")}
+        if argcfg.get("enum"):
+            spec["enum"] = list(argcfg["enum"])
+        if "default" in argcfg:
+            spec["type"] = [_t, "null"]
+            if "enum" in spec:
+                spec["enum"] = spec["enum"] + [None]
+        else:
+            spec["type"] = _t
+        required.append(argname)
+        props[argname] = spec
+    facing = str(vcfg.get("model_name", "") or "").strip() or vname
+    return {"type": "function", "function": {
+        "name": facing, "description": vcfg.get("desc", ""), "strict": True,
+        "parameters": {"type": "object", "properties": props,
+                       "required": required, "additionalProperties": False}}}
+
+
+def _recipe_row_ssot(name: str, cfg: dict) -> dict:
+    """Mirror agent-pipe _recipe_to_openai_tool (server.py:5345): name mangled to
+    mios_recipe__<name>; every arg a string prop + an optional `os`; none required."""
+    props = {}
+    for argname in (cfg.get("args") or []):
+        if isinstance(argname, str) and argname:
+            props[argname] = {"type": "string", "description": f"value for {argname}"}
+    if "os" not in props:
+        props["os"] = {"type": "string",
+                       "description": "target OS selector (optional; defaults to host)"}
+    return {"type": "function", "function": {
+        "name": "mios_recipe__" + re.sub(r"[^A-Za-z0-9_]", "_", name),
+        "description": cfg.get("description", "") or f"MiOS OS recipe {name}",
+        "parameters": {"type": "object", "properties": props,
+                       "required": [], "additionalProperties": True}}}
+
+
+def _build_catalog_from_ssot() -> list:
+    """Build the verb+recipe catalog DIRECTLY from mios.toml as MCP tool specs --
+    the guaranteed non-empty FLOOR, served when BOTH the live feed AND the cache
+    are unavailable (cold start + agent-pipe down) so a client is never toolless
+    for its whole life. Skills are NOT built here (they live in pgvector,
+    unreachable from this sandbox); the verb+recipe surface -- every launch /
+    OS-control / web tool -- is the floor that matters. Mirrors agent-pipe's
+    /v1/tools projections (server.py:15461 verbs, :5345 recipes, :4760 filter)."""
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        with open(MIOS_TOML, "rb") as f:
+            data = tomllib.load(f)
+        rows = []
+        verbs = data.get("verbs") or {}
+        if isinstance(verbs, dict):
+            for vname, vcfg in verbs.items():
+                if isinstance(vcfg, dict) and "section" in vcfg:
+                    rows.append(_verb_row_ssot(vname, vcfg))
+        recipes = data.get("recipes") or {}
+        if isinstance(recipes, dict):
+            for rname, rcfg in recipes.items():
+                if isinstance(rcfg, dict):
+                    rows.append(_recipe_row_ssot(rname, rcfg))
+        return _build_mcp_tools({"tools": rows})
+    except Exception as e:  # noqa: BLE001 -- floor build is best-effort
+        sys.stderr.write(f"[mios-mcp] SSOT floor build failed: {e}\n")
+        return []
+
+
+def _skill_names(tools) -> set:
+    return {t.get("name") for t in (tools or [])
+            if str(t.get("name", "")).startswith("mios_skill__")}
+
+
+def _is_poisoned(live: list, cached) -> bool:
+    """True when `live` looks like a degrade-open partial that would POISON
+    last-good if saved. Two cases: (a) empty or >50%-shrunk vs cache (warmup);
+    (b) it LOST promoted skills without gaining any -- agent-pipe's /v1/tools is
+    degrade-open (server.py:15583-15590): a pgvector outage silently drops the
+    skills tail (HTTP 200, no error), a drop too small to trip the size guard, so
+    a skill-less feed would otherwise be accepted + persisted as the new last-good."""
+    if not cached:
+        return False
+    if len(live) < max(1, len(cached) // 2):
+        return True
+    prev_sk, live_sk = _skill_names(cached), _skill_names(live)
+    if (prev_sk - live_sk) and not (live_sk - prev_sk):
+        return True
+    return False
+
+
+def _fetch_live_tools(timeout: int | None = None) -> list:
+    """Fetch + convert the live agent-pipe catalog. Raises on transport failure."""
+    return _build_mcp_tools(_http_get("/v1/tools", timeout=timeout))
+
+
+def _refresh_once() -> bool:
+    """One background catalog refresh: fetch live, and persist as last-good
+    UNLESS it would poison the cache (empty/shrunk, or a degrade-open skills-tail
+    drop -- see _is_poisoned)."""
+    try:
+        live = _fetch_live_tools(timeout=TIMEOUT_S)
+    except Exception:
+        return False
+    cached = _tools_cache_load()
+    if live and not _is_poisoned(live, cached):
+        _tools_cache_save(live)
+        return True
+    return False
+
+
+def _refresh_loop() -> None:
+    """Keep the last-good catalog warm independent of client connect timing.
+    Re-tries faster while the upstream looks unhealthy so the cache re-warms
+    promptly once agent-pipe recovers. When the served catalog actually CHANGES
+    (e.g. recovers from the SSOT floor / a degraded set back to the full surface),
+    push notifications/tools/list_changed so already-connected clients that honor
+    it (Hermes) re-list mid-session instead of being stuck on the degraded set."""
+    prev = tuple(sorted(t.get("name", "") for t in (_tools_cache_load() or [])))
+    while True:
+        ok = _refresh_once()
+        if ok:
+            cur = tuple(sorted(t.get("name", "") for t in (_tools_cache_load() or [])))
+            if cur and cur != prev:
+                _signal_list_changed()
+                sys.stderr.write(
+                    f"[mios-mcp] catalog changed ({len(cur)} tools); "
+                    f"pushed tools/list_changed\n")
+            prev = cur
+        time.sleep(_REFRESH_INTERVAL_S if ok else max(5, _REFRESH_INTERVAL_S // 6))
+
+
 def _handle_tools_list(mid, _params: dict) -> dict:
     # /v1/tools is the UNIFIED capability feed: every verb + every OS recipe +
     # every promoted skill. It is served in OpenAI function-tool shape
@@ -160,39 +374,46 @@ def _handle_tools_list(mid, _params: dict) -> dict:
     # clients (Hermes, Claude Desktop, Cursor) parse the full surface -- without
     # this the tools arrive nameless and unusable. A row already in MCP shape
     # (top-level `name`) passes through untouched.
+    cached = _tools_cache_load()
     try:
-        data = _http_get("/v1/tools")
+        # SHORT timeout: a hung/slow agent-pipe must never stall the client's
+        # handshake -- the warm cache (kept fresh by the background refresher)
+        # covers the gap.
+        live = _fetch_live_tools(timeout=_LIST_TIMEOUT_S)
     except Exception as e:  # noqa: BLE001 -- URLError or any transport failure
-        # agent-pipe momentarily down (e.g. a restart). Returning 0 tools would
-        # leave a fresh session PERMANENTLY toolless. Serve the last-good cache so
-        # the client keeps the full MiOS surface across the blip.
-        cached = _tools_cache_load()
+        # agent-pipe momentarily down/slow. Returning 0 tools would leave a fresh
+        # session PERMANENTLY toolless (MCP tools load once at session start, no
+        # mid-session reload). Serve the last-good warm cache across the blip.
         if cached:
             sys.stderr.write(
                 f"[mios-mcp] /v1/tools unreachable ({e}); served "
                 f"{len(cached)} CACHED tools\n")
             return _ok(mid, {"tools": cached})
-        return _err(mid, -32000, f"agent-pipe unreachable + no cache: {e}")
-    mcp_tools = []
-    for t in (data.get("tools") or []):
-        if not isinstance(t, dict):
-            continue
-        if t.get("name") and t.get("inputSchema") is not None:
-            mcp_tools.append(t)            # already MCP shape
-            continue
-        fn = t.get("function") or {}
-        nm = fn.get("name")
-        if not nm:
-            continue
-        mcp_tools.append({
-            "name": nm,
-            "description": fn.get("description", ""),
-            "inputSchema": fn.get("parameters")
-            or {"type": "object", "properties": {}},
-        })
-    if mcp_tools:
-        _tools_cache_save(mcp_tools)   # persist last-good for blip resilience
-    return _ok(mid, {"tools": mcp_tools})
+        # Cold cache AND agent-pipe down: build the verb+recipe FLOOR straight from
+        # mios.toml so a client is NEVER handed zero tools (it would be toolless for
+        # its whole life -- the recurring "can't launch/type" failure).
+        floor = _build_catalog_from_ssot()
+        if floor:
+            sys.stderr.write(
+                f"[mios-mcp] /v1/tools unreachable + cold cache; served "
+                f"{len(floor)} SSOT-floor tools (verbs+recipes from mios.toml)\n")
+            return _ok(mid, {"tools": floor})
+        return _err(mid, -32000,
+                    f"agent-pipe unreachable + no cache + no SSOT floor: {e}")
+    # agent-pipe can answer 200 with an EMPTY/partial catalog for a few seconds after
+    # a restart (verb catalog still loading). The catalog only grows in normal use, so
+    # an empty or >50%-shrunk live feed => warmup, not a real removal: serve the
+    # last-good cache instead. (A genuine large reduction lands via a rebuild, which
+    # restarts this server and re-seeds the cache.) Closes the restart toolless window.
+    if cached and _is_poisoned(live, cached):
+        sys.stderr.write(
+            f"[mios-mcp] /v1/tools returned a partial set ({len(live)} tools vs "
+            f"{len(cached)} cached); serving CACHED set (agent-pipe warming up / "
+            f"degrade-open)\n")
+        return _ok(mid, {"tools": cached})
+    if live:
+        _tools_cache_save(live)
+    return _ok(mid, {"tools": live})
 
 
 def _handle_tools_call(mid, params: dict) -> dict:
@@ -381,16 +602,50 @@ class _MCPHTTP(http.server.BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.send_header("Mcp-Session-Id", SESSION_ID)
         self.end_headers()
+        # Register so the refresher can wake this connection to push
+        # notifications/tools/list_changed; otherwise emit a keepalive every 15s.
+        ev = threading.Event()
+        with _SSE_LOCK:
+            _SSE_EVENTS.add(ev)
         try:
+            self.wfile.write(b": keepalive\n\n")
+            self.wfile.flush()
             while True:
-                self.wfile.write(b": keepalive\n\n")
+                fired = ev.wait(timeout=15)
+                if fired:
+                    ev.clear()
+                    payload = json.dumps(
+                        {"jsonrpc": "2.0",
+                         "method": "notifications/tools/list_changed"})
+                    self.wfile.write(
+                        f"event: message\ndata: {payload}\n\n".encode("utf-8"))
+                else:
+                    self.wfile.write(b": keepalive\n\n")
                 self.wfile.flush()
-                time.sleep(15)
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
+        finally:
+            with _SSE_LOCK:
+                _SSE_EVENTS.discard(ev)
 
     def log_message(self, *_a) -> None:    # quiet; the unit journal is the log
         return
+
+
+def _ensure_warm() -> None:
+    """Guarantee a servable catalog before the first client connects: disk
+    last-good first, else the mios.toml SSOT verb+recipe floor. So even a
+    cold-started server whose agent-pipe is still booting answers the first
+    tools/list with the full surface -- never zero tools, never toolless-for-life."""
+    global _TOOLS_CACHE_MEM
+    _tools_cache_prime()
+    if not _TOOLS_CACHE_MEM:
+        floor = _build_catalog_from_ssot()
+        if floor:
+            _TOOLS_CACHE_MEM = floor
+            sys.stderr.write(
+                f"[mios-mcp] seeded {len(floor)} tools from mios.toml SSOT floor "
+                f"(cold cache)\n")
 
 
 def _run_http(port: int) -> None:
@@ -413,6 +668,12 @@ def main() -> int:
             in {"1", "true", "yes"}):
         port = int(os.environ.get("MIOS_PORT_MCP")
                    or os.environ.get("MIOS_MCP_PORT") or "8765")
+        # Warm the catalog (disk last-good, else mios.toml SSOT floor) BEFORE
+        # serving, then keep it warm in the background -- so tools/list is never
+        # empty/partial regardless of how soon a client connects after a restart.
+        _ensure_warm()
+        threading.Thread(target=_refresh_loop, name="mcp-tools-refresh",
+                         daemon=True).start()
         _run_http(port)
         return 0
     # Line-delimited JSON-RPC over stdio.

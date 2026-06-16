@@ -328,6 +328,14 @@ ep_dot() {
     else                       printf '%s%s%s' "$C_GRY" "$DOT_DOWN" "$C_R"; fi
 }
 
+# TCP-open dot for non-HTTP services (pgvector/PostgreSQL): an HTTP probe always
+# reads DOWN on a raw TCP port. $1=host $2=port.
+tcp_dot() {
+    if timeout 2 bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null; then
+        printf '%s%s%s' "$C_GRN" "$DOT_UP" "$C_R"
+    else printf '%s%s%s' "$C_GRY" "$DOT_DOWN" "$C_R"; fi
+}
+
 # Resolve a [ports].<key> value from the layered mios.toml SSOT.
 # Honors ~/.config/mios > /etc/mios > /usr/share/mios precedence so an
 # operator port-edit in mios.toml flows through to every URL on this
@@ -371,7 +379,7 @@ print_endpoints() {
     # ttyd-bash, ttyd-powershell -- they were live but invisible on
     # the dashboard.
     local _p_forge _p_cockpit _p_ollama _p_ollama_cpu _p_searxng
-    local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_surrealdb _p_guacamole
+    local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_pgvector _p_guacamole
     local _p_ttyd_bash _p_ttyd_ps
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
@@ -384,13 +392,13 @@ print_endpoints() {
     _p_code=$(_mios_port code_server 8800)
     _p_webui=$(_mios_port open_webui 3030)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
-    _p_surrealdb=$(_mios_port surrealdb 8000)
+    _p_pgvector=$(_mios_port pgvector 5432)   # SurrealDB retired -> pgvector is the live DB
     _p_guacamole=$(_mios_port guacamole_web 8080)
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
 
     local d_forge d_ollama d_ollama_cpu d_cockpit d_searxng
-    local d_hermes d_dash d_code d_webui d_agent_pipe d_surrealdb
+    local d_hermes d_dash d_code d_webui d_agent_pipe d_pgvector
     local d_ttyd_bash d_ttyd_ps d_guacamole
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
@@ -403,7 +411,7 @@ print_endpoints() {
     d_code=$(ep_dot       "http://localhost:${_p_code}/")
     d_webui=$(ep_dot      "http://localhost:${_p_webui}/")
     d_agent_pipe=$(ep_dot "http://localhost:${_p_agent_pipe}/health")
-    d_surrealdb=$(ep_dot  "http://localhost:${_p_surrealdb}/health")
+    d_pgvector=$(tcp_dot  localhost "$_p_pgvector")
     d_ttyd_bash=$(ep_dot  "http://localhost:${_p_ttyd_bash}/")
     d_ttyd_ps=$(ep_dot    "http://localhost:${_p_ttyd_ps}/")
     d_guacamole=$(ep_dot  "http://localhost:${_p_guacamole}/guacamole/")
@@ -417,7 +425,7 @@ print_endpoints() {
     # the row budget.
     if [[ "$MODE" == "mini" ]]; then
         local n_up=0 n_down=0
-        for _d in "$d_agent_pipe" "$d_hermes" "$d_surrealdb" \
+        for _d in "$d_agent_pipe" "$d_hermes" "$d_pgvector" \
                   "$d_llamaswap" "$d_webui" \
                   "$d_cockpit" "$d_forge" "$d_searxng" \
                   "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
@@ -468,17 +476,17 @@ print_endpoints() {
     # AI surface -- agent stack the operator interacts with through
     # OWUI / Discord / programmatic clients.
     section_header "AI surface"
-    local c_agent c_herm c_sdb c_dash c_oll c_olli
+    local c_agent c_herm c_pg c_dash c_oll c_olli
     c_agent=$(printf "$cell_fmt" "$d_agent_pipe" "http://localhost:${_p_agent_pipe}/v1"  "Agent-Pipe" "$C_D" "$_p_agent_pipe" "$C_R")
     c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
-    c_sdb=$(  printf "$cell_fmt" "$d_surrealdb"  "http://localhost:${_p_surrealdb}/"     "SurrealDB"  "$C_D" "$_p_surrealdb"  "$C_R")
+    c_pg=$(   printf "$cell_fmt" "$d_pgvector"   "http://localhost:${_p_pgvector}/"      "pgvector"   "$C_D" "$_p_pgvector"   "$C_R")
     c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
     # llama.cpp (mios-llm-light :11450) is the inference engine; ollama is retired
     # (masked). Show LlamaSwap, not Ollama -- operator 2026-06-06 "not converted
     # to llama.cpp STILL" was the dash label lagging the actual cutover.
     c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")
     printf "$row_fmt" "$c_agent" "$c_herm"
-    printf "$row_fmt" "$c_sdb"   "$c_dash"
+    printf "$row_fmt" "$c_pg"    "$c_dash"
     printf "$row_fmt" "$c_llama" ""
 
     # Micro-LLM status row -- observability layer health
@@ -556,7 +564,7 @@ print_quadlets() {
                mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
                mios-adguard \
                mios-guacamole guacd guacamole-postgres \
-               mios-surrealdb mios-agent-pipe mios-daemon \
+               mios-pgvector mios-agent-pipe mios-daemon \
                mios-ttyd-bash mios-ttyd-powershell \
                mios-skills-miner mios-passport-provision; do
 
