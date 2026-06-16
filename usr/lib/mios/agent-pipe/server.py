@@ -4482,6 +4482,9 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                 _replan += 1
                 _last_failed = False
                 push(f" 🔁{_replan}")
+                log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
+                         "model gave up -> fix-it nudge (bounded %d)",
+                         _replan, SECONDARY_REPLAN_MAX)
                 msgs.append({"role": "assistant",
                              "content": msg.get("content") or ""})
                 msgs.append({"role": "user", "content": _REPLAN_NUDGE})
@@ -4620,6 +4623,9 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 _replan += 1
                 _last_failed = False
                 push(f" 🔁{_replan}")
+                log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
+                         "model gave up -> fix-it nudge (bounded %d)",
+                         _replan, SECONDARY_REPLAN_MAX)
                 msgs.append({"role": "assistant",
                              "content": msg.get("content") or ""})
                 msgs.append({"role": "user", "content": _REPLAN_NUDGE})
