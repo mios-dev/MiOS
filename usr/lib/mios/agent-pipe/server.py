@@ -22094,6 +22094,7 @@ async def _respond_native_loop_direct(
         # NOT for a LOCAL-source turn (_local_query_nl: local_state, or routed to a
         # non-`web` domain) -- web-priming a "find my file" / "what's my CPU" query is
         # the route-by-source violation that made a local file-find web_search.
+        _refs: list = []   # (title, url-or-path) SOURCES this turn -> saved References
         if (refined and (refined.get("web") or refined.get("news"))
                 and not _local_query_nl):
             try:
@@ -22109,6 +22110,20 @@ async def _respond_native_loop_direct(
                         "real). Answer from THESE results and cite them; do NOT use "
                         "training-memory facts or invent any headlines, titles, dates, "
                         "or figures not present here:\n" + _wtext[:6000]})
+                    # CAPTURE the source URLs so References are SAVED on the answer
+                    # (operator 2026-06-16: "doesn't save references for web links").
+                    # A small model cites sources only by NAME ("per Wikipedia") and
+                    # drops the URL; we append a deterministic Sources list below from
+                    # the REAL web_search result so the links are always preserved.
+                    try:
+                        _wj = json.loads(_wtext) if isinstance(_wtext, str) else _wtext
+                        for _rr in ((_wj.get("results") if isinstance(_wj, dict) else None) or [])[:6]:
+                            _u = str((_rr or {}).get("url") or "").strip()
+                            _t = str((_rr or {}).get("title") or "").strip()
+                            if _u.startswith("http"):
+                                _refs.append((_t, _u))
+                    except Exception:  # noqa: BLE001 -- best-effort ref capture
+                        pass
             except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
                 log.debug("native-loop web prefetch skipped: %s", _e)
         # LOCAL FILE-SEARCH prefetch (symmetric to the web prefetch). SAME failure
@@ -22249,6 +22264,24 @@ async def _respond_native_loop_direct(
             else:
                 log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
                          if _ans else "no answer/raw/evidence (empty)")
+    # SAVE REFERENCES (operator 2026-06-16 "doesn't save references for web links"):
+    # a small model cites web sources by NAME and drops the URL, so the answer loses
+    # its links. Append a deterministic **Sources:** list from the REAL web_search
+    # results captured this turn -- ONLY when the answer doesn't already carry URLs --
+    # so the references are SAVED on the answer AND persisted by _store_knowledge
+    # below. Degrade-open (no refs / answer already has links -> unchanged).
+    if _refs and _ans and _ans.strip() and "http" not in _ans.lower():
+        _seen_u: set = set()
+        _src_lines: list = []
+        for _t, _u in _refs:
+            if _u in _seen_u:
+                continue
+            _seen_u.add(_u)
+            _src_lines.append(f"{len(_src_lines) + 1}. {(_t or _u)[:90]} — {_u}")
+        if _src_lines:
+            _ans = _ans.rstrip() + "\n\n**Sources:**\n" + "\n".join(_src_lines[:6])
+            log.info("native-loop: appended %d saved reference(s) to the answer",
+                     len(_src_lines[:6]))
     try:
         _store_knowledge(query=last_user_text, answer=_ans,
                          session_id=session_id, tool_history=[])
