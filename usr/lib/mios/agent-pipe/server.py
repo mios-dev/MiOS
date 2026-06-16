@@ -5160,6 +5160,15 @@ _WEB_SEARCH_CONTEXTS = _load_routing_phrases("web_search_trigger_contexts")
 # boolean stands (fully generative, no hardcoded fallback).
 _BROWSER_ACTION_VERBS = _load_routing_phrases("browser_action_verbs")
 _BROWSER_ACTION_ALT = "|".join(re.escape(p) for p in _BROWSER_ACTION_VERBS)
+# Compound-launch conjunctions + action verbs (operator 2026-06-16 "NOTHING HARDCODED"):
+# the deterministic "open X and type Y" fast-lane (the PROVEN launch+type fix) matched a
+# hardcoded (and|then)+(type|write|...) regex. Vocab -> mios.toml [routing] SSOT; the
+# fast-lane STRUCTURE stays (reliability), only its vocab is externalised. DEGRADE-OPEN:
+# empty list -> the fast-lane declines the compound -> the LLM planner decomposes it.
+_COMPOUND_CONJUNCTIONS = _load_routing_phrases("compound_conjunctions")
+_COMPOUND_ACTIONS = _load_routing_phrases("compound_actions")
+_COMPOUND_CONJ_ALT = "|".join(re.escape(p) for p in _COMPOUND_CONJUNCTIONS)
+_COMPOUND_ACTION_ALT = "|".join(re.escape(p) for p in _COMPOUND_ACTIONS)
 
 # OS-control / window-action verb set, derived from the verb catalog SSOT
 # (mios.toml `section`). A request that maps to ONE of these is a single
@@ -5260,9 +5269,9 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     # punctuation after the verb ("type:", "type-") -- so only the launch part faces
     # the length/word guards; the launch fast-path types the trailing text via its
     # type-chain (read off the raw message downstream).
-    _tail = re.search(
-        r"\s+(?:and|then)\s+(?:type|write|enter|input|paste|put)\b[\s:.\-]*\S",
-        t, re.IGNORECASE)
+    _tail = (re.search(
+        r"\s+(?:" + _COMPOUND_CONJ_ALT + r")\s+(?:" + _COMPOUND_ACTION_ALT + r")\b[\s:.\-]*\S",
+        t, re.IGNORECASE) if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
     if _tail:
         t = t[:_tail.start()].strip()
     if not t or len(t) > 80:
@@ -5313,9 +5322,9 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     # guards below bail to the flaky LLM router, which routes "open notepad and
     # type hello" INCONSISTENTLY (single-launch one turn, research swarm the next)
     # and the type is dropped (operator 2026-06-09, repeated notepad failures).
-    _cm = re.match(
-        r"(.+?)\s+(?:and|then)\s+(?:type|write|enter|input|paste|put)\s+\S",
-        rest, re.IGNORECASE)
+    _cm = (re.match(
+        r"(.+?)\s+(?:" + _COMPOUND_CONJ_ALT + r")\s+(?:" + _COMPOUND_ACTION_ALT + r")\s+\S",
+        rest, re.IGNORECASE) if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
     if _cm:
         rest = _cm.group(1).strip()
         _low = rest.lower()
@@ -20935,9 +20944,10 @@ async def _respond_os_control(
     # (mios_apps), and the single-launch path silently dropped the 2nd action.
     _typed = None
     if _is_launch and _eff_ok:
-        _m = re.search(
-            r"\b(?:and|then)\b\s+(?:type|write|enter|input|paste|put)\s+(.+)$",
+        _m = (re.search(
+            r"\b(?:" + _COMPOUND_CONJ_ALT + r")\b\s+(?:" + _COMPOUND_ACTION_ALT + r")\s+(.+)$",
             (last_user_text or "").strip(), re.IGNORECASE)
+            if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
         if _m:
             _txt = _m.group(1).strip().strip("\"'").rstrip(" .!")
             if _txt:
