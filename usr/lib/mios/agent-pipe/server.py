@@ -9074,6 +9074,13 @@ def _strip_think_tags(text: str) -> str:
 # env (mirrors every other MIOS_* tunable; document in mios.toml).
 KNOWLEDGE_STORE_ENABLED = os.environ.get(
     "MIOS_KNOWLEDGE_STORE", "true").strip().lower() not in ("0", "false", "no")
+# Verdict-gated storage (operator 2026-06-16 closed-loop / anti-poison): refuse to
+# persist a turn the Definition-of-Done check judged UNSATISFIED, so a failed/empty/
+# fabricated answer cannot poison future recall (live-proven hermes-CLI hallucination
+# leak). Default ON; SSOT-tunable. An UNJUDGED turn (verdict=None) still stores
+# (degrade-open). See _store_knowledge_task.
+KNOWLEDGE_STORE_GATE_UNSATISFIED = os.environ.get(
+    "MIOS_KNOWLEDGE_STORE_GATE_UNSATISFIED", "true").strip().lower() not in ("0", "false", "no")
 KNOWLEDGE_TABLE = (os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge").strip()
                    or "knowledge")
 KNOWLEDGE_ANSWER_MAX = int(
@@ -9326,6 +9333,19 @@ async def _store_knowledge_task(q: str, a: str,
                         satisfied = False
             except Exception:  # noqa: BLE001 -- outcome lookup is best-effort
                 pass
+        # VERDICT-GATED STORAGE (operator 2026-06-16 closed-loop / anti-poison): an
+        # answer the Definition-of-Done check judged UNSATISFIED (failed tools, empty
+        # synthesis, recall-only fallback) must NOT enter the knowledge store -- else
+        # it POISONS future recall. Live-proven: the floundering hermes CLI's
+        # '/mios-svc-hermes' hallucination got stored, then resurfaced mixed into a
+        # later 'list files at root' answer (real find_file_fast output + the stale
+        # fabrication). Persist ONLY satisfied turns; an UNJUDGED turn (satisfied=None,
+        # e.g. the inline check didn't run) still stores -- degrade-open, no capability
+        # lost, and the recall blend already down-weights non-satisfied rows. Gated by
+        # the SSOT knob so it can be tuned without a code change.
+        if satisfied is False and KNOWLEDGE_STORE_GATE_UNSATISFIED:
+            log.info("knowledge store SKIPPED: turn judged UNSATISFIED (anti-poison)")
+            return
         row = {"q": q, "answer": a, "sources": sources,
                "access_count": 0, "recall_hits": 0, "tier": "warm"}
         if satisfied is not None:
