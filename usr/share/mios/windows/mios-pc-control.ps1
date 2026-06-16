@@ -153,20 +153,31 @@ public class MiosWin {
         $valBefore = Get-FocusedText
         # SendKeys interprets {} +^%~ specially; escape them.
         $escaped = ($text -replace '([+\^%~(){}\[\]])', '{$1}')
+        # Settle BEFORE the first keystroke: a freshly launched/focused window often
+        # is not ready the instant after focus, dropping LEADING characters (verified:
+        # "DEHARD-5566" landed as "RD-5566"). A short pre-type settle lets the window's
+        # input queue attach so the whole string lands.
+        Start-Sleep -Milliseconds 250
         [System.Windows.Forms.SendKeys]::SendWait($escaped)
         Start-Sleep -Milliseconds 400
         $titleAfter = Get-FgTitle
         $valAfter = Get-FocusedText
+        # STRICT verification (operator 2026-06-16): success ONLY if the EXACT sent text
+        # actually appears in the focused-control value OR the foreground title (Notepad
+        # shows it as "*<text> - Notepad"). A partial / dropped-keystroke result must NOT
+        # pass -- "value grew" / "title changed" alone was the RESIDUAL lie (it let
+        # "RD-5566" verify for "DEHARD-5566"). If neither is readable/contains it -> NOT
+        # verified (exit 1) so the orchestrator can surface uncertainty / retry.
         $verified = $false
-        $reason = 'no_change_detected'
-        if (($null -ne $valAfter) -and ($valAfter.Contains($text))) {
+        $reason = 'text_not_delivered'
+        if (($null -ne $valAfter) -and $valAfter.Contains($text)) {
             $verified = $true; $reason = 'uia_value_contains_text'
-        } elseif (($null -ne $valBefore) -and ($null -ne $valAfter) -and ($valAfter.Length -gt $valBefore.Length)) {
-            $verified = $true; $reason = 'uia_value_grew'
-        } elseif ($titleAfter -ne $titleBefore) {
-            $verified = $true; $reason = 'title_changed'
-        } elseif ($null -eq $valAfter) {
+        } elseif (($titleAfter -ne $titleBefore) -and $titleAfter.Contains($text)) {
+            $verified = $true; $reason = 'title_contains_text'
+        } elseif (($null -eq $valAfter) -and ($titleAfter -eq $titleBefore)) {
             $reason = 'no_verifiable_target'
+        } else {
+            $reason = 'text_mismatch_partial_or_dropped'
         }
         $vc = ''
         if ($null -ne $valAfter) { $vc = $valAfter.Substring(0, [Math]::Min(160, $valAfter.Length)) }
