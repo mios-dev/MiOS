@@ -4512,7 +4512,14 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
             _hdrs.pop(_k)
         _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
-        nb = {"model": model, "messages": msgs, "tools": tools, "stream": False}
+        # parallel_tool_calls=False: a small local model handed a multi-step request
+        # ("open notepad AND type hello") emits MALFORMED parallel tool calls (the
+        # function name/wrapper drops, leaving raw "arguments": {...} in content -> the
+        # call never fires). Forcing ONE call per turn keeps each tool_call well-formed;
+        # the loop runs the steps sequentially anyway. Servers that don't support the
+        # param ignore it (no regression). operator 2026-06-15 "@ open notepad and type".
+        nb = {"model": model, "messages": msgs, "tools": tools, "stream": False,
+              "parallel_tool_calls": False}
         try:
             r = await client.post(
                 f"{ep}/chat/completions",
