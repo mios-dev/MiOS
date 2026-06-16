@@ -4830,6 +4830,15 @@ def _load_verb_catalog() -> dict:
                     # by `pkg`). Dropped from the model-facing surface (_worker_tools_*)
                     # but still PARSED + dispatchable so any in-flight caller keeps working.
                     "hidden": bool(vcfg.get("hidden", False)),
+                    # Old verb names this verb ABSORBED during consolidation. Each
+                    # resolves to this key via _resolve_verb_key (back-compat for
+                    # in-flight chains, DAG/skill step bodies, and MCP/A2A callers) but
+                    # NEVER renders on the model / MCP / A2A surface (it is neither a verb
+                    # key nor a model_name). This lets a redundant verb block be DELETED
+                    # outright while its old name still dispatches. No hardcoded keywords.
+                    "hidden_aliases": [str(x).strip()
+                                       for x in (vcfg.get("hidden_aliases") or [])
+                                       if str(x).strip()],
                 }
     except Exception as e:
         log.warning("verb catalog load failed: %s", e)
@@ -4994,6 +5003,29 @@ def _build_model_name_map(cat: dict) -> dict:
                       vname, vname)
             continue
         rev[mn] = vname
+    # Fold each verb's hidden_aliases (old names it ABSORBED during consolidation) into
+    # the SAME reverse map so they resolve to the keeper -- back-compat for in-flight
+    # chains, DAG/skill step bodies, and MCP/A2A callers -- without ever appearing on the
+    # model/MCP/A2A surface (they are neither verb keys nor model_names, so no renderer
+    # emits them). Same guards: an alias equal to a real key, or already claimed, is
+    # dropped + logged. This is what lets a redundant verb block be DELETED losslessly.
+    for vname, vcfg in cat.items():
+        for al in ((vcfg or {}).get("hidden_aliases") or []):
+            al = str(al).strip()
+            if not al or al == vname:
+                continue
+            if al in keys:
+                collisions.append(f"hidden_alias {al!r} (verb {vname!r}) == a real verb key")
+                log.error("ALIAS-COLLISION: hidden_alias %r (verb %r) == a real verb "
+                          "key -- ignored", al, vname)
+                continue
+            if al in rev and rev[al] != vname:
+                collisions.append(
+                    f"hidden_alias {al!r} claimed by both {rev[al]!r} and {vname!r}")
+                log.error("ALIAS-COLLISION: hidden_alias %r duplicated (%r vs %r) -- "
+                          "keeping first", al, rev[al], vname)
+                continue
+            rev[al] = vname
     # A dropped alias SILENTLY hides a verb from the model -- exactly the failure a
     # verb-merge campaign (model_name aliasing the old keys to a consolidated verb) can
     # introduce. Make it loud by default; a HARD gate under MIOS_STRICT_VERB_ALIASES=1

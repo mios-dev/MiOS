@@ -1881,7 +1881,7 @@ verbs = ["system_status", "sys_env", "sys_env_refresh", "system_logs", "service_
 
 [routing.domains.apps_windows]
 desc  = "list or launch applications and manage on-screen windows"
-verbs = ["open_app", "launch_app", "open_url", "verify_launch", "launch_verified", "focus_window", "move_window", "position_window", "resize_window", "minimize_window", "maximize_window", "restore_window", "close_window", "list_windows", "screen_layout", "mios_apps", "app_search"]
+verbs = ["open_app", "open_url", "verify_launch", "window_state", "focus_window", "move_window", "position_window", "resize_window", "list_windows", "screen_layout", "mios_apps", "app_search"]
 
 [routing.domains.packages]
 desc  = "install, update, remove, or query software packages (dnf/winget/flatpak)"
@@ -1906,8 +1906,9 @@ verbs = ["handoff", "a2a_delegate", "discord_send", "schedule", "docgen_build", 
 [verbs.open_app]
 section    = "Window / app launch"
 sig        = 'name, position="default"?, args?, monitor=0?'
-desc       = "LAUNCH a Windows app/program AND place its window: optional position (center/left/right/top-left...), monitor index, and CLI args. Use for 'open/launch/start/run X' when you also want placement or to target a monitor. For a plain open with no placement use launch_app; to launch AND auto-confirm it appeared use launch_and_verify_app."
+desc       = "LAUNCH any app/program by name (resolves Windows AND Linux/flatpak apps) and optionally place its window (position center/left/right/top-left..., monitor index) or pass CLI args. THE one launch verb -- use for any 'open / launch / start / run X'. After launching, confirm with verify_launch."
 model_name = "launch_windows_app"
+hidden_aliases = ["launch_app", "launch_verified", "launch_and_verify_app"]  # consolidated INTO open_app; resolve here, never re-shown on the model surface
 examples   = ["open Firefox on my second monitor", "launch Spotify on the left half of the screen", "start Notepad with this file and put it top-left", "run Discord maximized on monitor 1"]
 tier       = "core"
 permission = "write"
@@ -1940,36 +1941,6 @@ cmd        = "mios-verify-launch {app}"
   type    = "string"
   desc    = "App/window name that was supposedly launched (use the SAME name you passed to open_app)."
   aliases = ["name", "query", "title", "target", "program", "window", "path", "exe"]
-
-[verbs.launch_verified]
-section    = "Window / app launch"
-sig        = "app, node?"
-desc       = "LAUNCH a Windows app AND confirm it actually opened in ONE call (delegates to the always-on daemon-agent which fires the launch then runs the success check). Returns {fired, launched, verdict}. PREFER this over launch_app/launch_windows_app for a plain launch -- you read `launched` instead of firing then calling verify_launch separately."
-model_name = "launch_and_verify_app"
-examples   = ["open Firefox and make sure it actually started", "launch Spotify and confirm the window came up", "start Discord and verify it opened", "open my email client and check it launched"]
-tier       = "core"
-permission = "write"
-cmd        = "mios-os-control launch {app}{node?--node}"
-  [verbs.launch_verified.params.app]
-  type    = "string"
-  desc    = "App display name to launch + verify (fires the launch then polls the window verifier until presented)."
-  aliases = ["name", "query", "title", "target", "program", "window", "path", "exe"]
-  [verbs.launch_verified.params.node]
-  type    = "string"
-  desc    = "OPTIONAL target node name (an [os_control.nodes.*] entry, e.g. the iGPU host). Omit to launch on THIS host's desktop."
-  aliases = ["host", "machine", "target_node", "on"]
-
-[verbs.launch_app]
-section    = "Window / app launch"
-sig        = "name"
-desc       = "SIMPLE one-shot Windows app launch by name -- no window placement, no monitor, no args. Use for 'just open X' with no follow-up positioning. If you also want to place the window (position/monitor/args) use launch_windows_app; to launch AND auto-confirm it opened use launch_and_verify_app."
-examples   = ["open Calculator", "just launch Notepad", "start the Steam app", "run Slack"]
-tier       = "core"
-permission = "write"
-  [verbs.launch_app.params.name]
-  type    = "string"
-  desc    = "App display name OR full path. Paths get basename-extracted before launch."
-  aliases = ["query", "title", "app", "target", "program", "path", "file", "binary", "exe"]
 
 [verbs.focus_window]
 section    = "Window / app launch"
