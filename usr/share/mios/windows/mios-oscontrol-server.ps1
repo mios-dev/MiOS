@@ -180,6 +180,12 @@ public class OSCW32 {
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    // SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT=0) + AllowSetForegroundWindow:
+    // satisfy the foreground LOCK so SetForegroundWindow from this background process
+    // actually wins -- WITHOUT injecting the menubar-activating Alt-tap (operator
+    // 2026-06-16). The clean replacement for the removed keybd_event(Alt) hack.
+    [DllImport("user32.dll", SetLastError=true)] public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+    [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
@@ -307,8 +313,14 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
                 # NO Alt-tap here (operator 2026-06-16): tapping Alt to satisfy the
                 # foreground lock ACTIVATED the target app's MENUBAR (Notepad), so the
                 # FIRST subsequent keystroke went to the menu, not the document, and the
-                # type failed/garbled. AttachThreadInput alone unlocks the foreground
-                # without injecting any menu-triggering keystroke.
+                # type failed/garbled. Instead, disable the foreground-lock TIMEOUT
+                # (SPI_SETFOREGROUNDLOCKTIMEOUT=0) + AllowSetForegroundWindow(ANY) so
+                # SetForegroundWindow actually wins from this background process
+                # (reclaiming foreground from another app, e.g. VSCodium) WITHOUT any
+                # menu-triggering keystroke. AttachThreadInput + topmost-toggle below
+                # complete the z-order force.
+                [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]::Zero, 2)  # SPI_SETFOREGROUNDLOCKTIMEOUT = 0
+                [void][OSCW32]::AllowSetForegroundWindow(-1)                        # ASFW_ANY
                 $fg = [OSCW32]::GetForegroundWindow()
                 $fgT = 0; [void][OSCW32]::GetWindowThreadProcessId($fg, [ref]$fgT)
                 $myT = [OSCW32]::GetCurrentThreadId()
