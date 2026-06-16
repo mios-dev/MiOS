@@ -1298,6 +1298,30 @@ kv_fork_max_branches = 4      # runaway guard: max child KV files one fork reque
 #       back up. 0 effectively disables caching (probe every turn).
 #   MIOS_NODE_LIVENESS_CONNECT_S = 1.5 -- connect timeout of that liveness probe.
 
+# ── CLOSED-LOOP + ACTION-VERIFY bounds (agent-pipe env knobs; code defaults shown,
+# same ${MIOS_*:-default} pattern). Operator 2026-06-16 "loop anything not
+# successful or fully fulfilled". All bounded + verdict-driven + degrade-open so a
+# robust turn never spins; they only re-engage on a CONFIRMED failure signal.
+#   MIOS_SECONDARY_REPLAN_MAX  = 1   -- supervisory re-engages in BOTH shared
+#       tool-loops (_v1_/_ollama_secondary_tool_loop): when the model stops calling
+#       tools but a verb THIS loop ran reported a genuine FAILURE
+#       (_tmsgs_indicate_failure), re-engage once with a fix-it nudge.
+#   MIOS_DAG_REPLAN_MAX        = 1   -- multi-node DAG re-dispatch of UNFULFILLED
+#       facets in _synthesise; adopt-only-if-strictly-more-facets-satisfied.
+#   MIOS_TYPE_RETRY_MAX        = 2   -- per-action typing re-focus+re-type when
+#       pc_type's STRICT read-back reports the text did NOT land (compound chain).
+#   MIOS_DAEMON_DIAGNOSE       = 1   -- on a re-engage, a FRESH monitor-LLM pass
+#       (MIOS_DAEMON_DIAGNOSE_MODEL/_ENDPOINT) explains WHY the step failed +
+#       proposes a DIFFERENT action, injected into the retry nudge (guided retry).
+#   MIOS_KNOWLEDGE_STORE_GATE_UNSATISFIED = 1 -- skip persisting a turn's Q+A to the
+#       knowledge table when its satisfaction verdict is False (no recall poison;
+#       None still stores, degrade-open).
+#   MIOS_PC_INPUT_SECTION = "PC input" -- catalog section folded into the fire-one-
+#       verb fast-path set so a standalone "type X" dispatches pc_type (not the
+#       wrong-platform cu_type) and surfaces in the refine prompt.
+#   MIOS_LAST_WINDOW_CAP  = 256 -- bound on the per-CONVERSATION last-opened-window
+#       map that lets a standalone "type X into it" focus the right window first.
+
 # ── WEB-RESEARCH loop bounds (SSOT'd 2026-05-31). The pipeline's per-facet
 # web-research loop (search -> fetch/extract -> judge -> re-search) is the
 # dominant research-turn LATENCY driver. MODERATE-cut values (operator
