@@ -4485,9 +4485,24 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                 log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
                          "model gave up -> fix-it nudge (bounded %d)",
                          _replan, SECONDARY_REPLAN_MAX)
+                # DAEMON-DIAGNOSE: a fresh monitor LLM explains WHY the step failed +
+                # proposes a DIFFERENT concrete action, so the retry is GUIDED, not a
+                # blind re-ask. Pulls the goal (original user msg) + the last failed tool
+                # result. Degrade-open -> generic nudge if the monitor returns nothing.
+                _goal = next((str(_o.get("content") or "") for _o in (messages or [])
+                              if isinstance(_o, dict) and _o.get("role") == "user"), "")
+                _failsum = next((str(_o.get("content") or "") for _o in reversed(msgs)
+                                 if isinstance(_o, dict) and _o.get("role") == "tool"
+                                 and str(_o.get("content") or "").strip()), "")
+                _diag = await _daemon_diagnose(client, _failsum, _goal)
+                if _diag:
+                    push(" 🩺")
+                    log.info("daemon-diagnose: %s", _diag[:140])
                 msgs.append({"role": "assistant",
                              "content": msg.get("content") or ""})
-                msgs.append({"role": "user", "content": _REPLAN_NUDGE})
+                msgs.append({"role": "user", "content": (
+                    _REPLAN_NUDGE + ("\n\nMONITOR DIAGNOSIS (a second perspective): "
+                                     + _diag if _diag else ""))})
                 continue
             break
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
@@ -4543,6 +4558,46 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
                      r'|text_mismatch|dispatch error|no_verifiable_target', _c, re.I):
             return True
     return False
+
+
+_DAEMON_DIAGNOSE_MODEL = os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL)
+_DAEMON_DIAGNOSE_ENDPOINT = os.environ.get(
+    "MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1").rstrip("/")
+_DAEMON_DIAGNOSE_ENABLE = os.environ.get(
+    "MIOS_DAEMON_DIAGNOSE", "true").strip().lower() not in ("0", "false", "no")
+
+
+async def _daemon_diagnose(client, failed_summary: str, goal: str) -> str:
+    """DAEMON-DIAGNOSE (operator 2026-06-16 "the daemon monitors the pipeline and reports
+    back"): a FRESH monitor-LLM pass over a FAILED step -- WHY it likely failed + a
+    DIFFERENT concrete action to try -- so the closed-loop retry is GUIDED, not a blind
+    re-run. A SECOND perspective (not the model that just gave up). Short + bounded +
+    degrade-open: any error/empty/disabled -> '' (caller falls back to the generic nudge)."""
+    if not _DAEMON_DIAGNOSE_ENABLE:
+        return ""
+    try:
+        _prompt = (
+            "You are the MiOS pipeline MONITOR. A step just FAILED.\n"
+            f"User goal: {(goal or '')[:400]}\n"
+            f"Failed step result: {(failed_summary or '')[:600]}\n"
+            "In 1-2 sentences: WHY did it likely fail, and what DIFFERENT, concrete tool "
+            "action should be tried next to fulfil the goal? Be specific and actionable. "
+            "If it genuinely cannot succeed, say so plainly.")
+        _body = {"model": _DAEMON_DIAGNOSE_MODEL,
+                 "messages": [{"role": "user", "content": _prompt}],
+                 "stream": False, "max_tokens": 220,
+                 "chat_template_kwargs": {"enable_thinking": False}}
+        _r = await client.post(
+            f"{_DAEMON_DIAGNOSE_ENDPOINT}/chat/completions",
+            content=json.dumps(_body).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, timeout=30)
+        if _r.status_code != 200:
+            return ""
+        _ch = (_r.json().get("choices") or [])
+        return str((_ch[0].get("message") if _ch else {})
+                   .get("content") or "").strip()[:500]
+    except Exception:  # noqa: BLE001 -- degrade-open, never block the retry
+        return ""
 
 
 async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
@@ -4631,9 +4686,24 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
                          "model gave up -> fix-it nudge (bounded %d)",
                          _replan, SECONDARY_REPLAN_MAX)
+                # DAEMON-DIAGNOSE: a fresh monitor LLM explains WHY the step failed +
+                # proposes a DIFFERENT concrete action, so the retry is GUIDED, not a
+                # blind re-ask. Pulls the goal (original user msg) + the last failed tool
+                # result. Degrade-open -> generic nudge if the monitor returns nothing.
+                _goal = next((str(_o.get("content") or "") for _o in (messages or [])
+                              if isinstance(_o, dict) and _o.get("role") == "user"), "")
+                _failsum = next((str(_o.get("content") or "") for _o in reversed(msgs)
+                                 if isinstance(_o, dict) and _o.get("role") == "tool"
+                                 and str(_o.get("content") or "").strip()), "")
+                _diag = await _daemon_diagnose(client, _failsum, _goal)
+                if _diag:
+                    push(" 🩺")
+                    log.info("daemon-diagnose: %s", _diag[:140])
                 msgs.append({"role": "assistant",
                              "content": msg.get("content") or ""})
-                msgs.append({"role": "user", "content": _REPLAN_NUDGE})
+                msgs.append({"role": "user", "content": (
+                    _REPLAN_NUDGE + ("\n\nMONITOR DIAGNOSIS (a second perspective): "
+                                     + _diag if _diag else ""))})
                 continue
             break
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
