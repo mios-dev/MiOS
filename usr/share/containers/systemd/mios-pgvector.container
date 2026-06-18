@@ -80,6 +80,15 @@ Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=180s
 Delegate=yes
+# Re-apply schema-init.sql on EVERY start, not just first-init. The postgres
+# entrypoint runs /docker-entrypoint-initdb.d/*.sql ONLY when PGDATA is empty, so
+# any table/column ADDED to schema-init.sql after the DB was first created never
+# reached an already-initialized DB -> schema drift (missing mios_rag, missing
+# scratch.source/topic/body broke RAG recall + daemon nudges; 2026-06-18 audit).
+# The whole schema is CREATE/ALTER ... IF NOT EXISTS, so re-running every boot is
+# idempotent + self-healing. Best-effort (ON_ERROR_STOP=0 + || true): a reconcile
+# hiccup must never fail the DB unit. Uses the already-mounted RO copy in-container.
+ExecStartPost=/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'
 
 [Install]
 WantedBy=multi-user.target default.target

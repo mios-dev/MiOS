@@ -196,6 +196,14 @@ CREATE TABLE IF NOT EXISTS scratch (
     ts       timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS scratch_chat ON scratch (chat_id, ts DESC);
+-- Reconcile the SurrealDB-era scratch shape (source/topic/body) the mios-daemon
+-- nudger mirrors verbatim into pg (_db_create('scratch', {source,topic,body}) ->
+-- INSERT INTO scratch(source,topic,body)). Both writers coexist additively:
+-- the pipe scratchpad uses chat_id/agent/lane/phase/note, the daemon uses
+-- source/topic/body. Missing columns broke every nudge write (2026-06-18 audit).
+ALTER TABLE scratch ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE scratch ADD COLUMN IF NOT EXISTS topic  text;
+ALTER TABLE scratch ADD COLUMN IF NOT EXISTS body   text;
 
 -- ── kanban: task queue (authoritative here; retires Hermes' kanban.db + the
 --    SurrealDB shadow) ─────────────────────────────────────────────────────────
@@ -309,4 +317,20 @@ CREATE TABLE IF NOT EXISTS agent_keypair (
 );
 CREATE INDEX IF NOT EXISTS agent_keypair_agent ON agent_keypair (agent);
 CREATE INDEX IF NOT EXISTS agent_keypair_live  ON agent_keypair (agent) WHERE NOT retired;
+
+-- ── mios_rag: document-RAG store (chunk text + 768-dim embedding) ─────────────
+--    Was created LAZILY only by `mios-rag ingest`, so a fresh/cleared DB had no
+--    table and every `mios-rag query` + agent-pipe recall (mios_pg.build_recall,
+--    table=='mios_rag') hit `relation "mios_rag" does not exist` (2026-06-18
+--    audit). Declared here so it always exists. 768-dim matches [pgvector].
+--    embed_model = nomic-embed-text (same vector(768) as knowledge/agent_memory).
+CREATE TABLE IF NOT EXISTS mios_rag (
+    id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source   text,
+    content  text,
+    emb      vector(768),
+    ts       timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS mios_rag_emb_hnsw
+    ON mios_rag USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
