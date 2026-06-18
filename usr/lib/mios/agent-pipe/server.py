@@ -219,7 +219,7 @@ _INGRESS_KEY = os.environ.get("MIOS_AGENT_PIPE_INGRESS_KEY", "").strip()
 # small-model mis-routing fix -- a 12b picks the right verb among 82). SSOT knob
 # MIOS_STACK_MODEL; embeddings + vision keep their own. Every reasoning stage
 # below defaults to this single model.
-_STACK_MODEL = os.environ.get("MIOS_STACK_MODEL", "gemma4:12b")
+_STACK_MODEL = os.environ.get("MIOS_STACK_MODEL", "granite4.1:8b")  # served brain on :11450 (gemma4:12b retired -> 404; 2026-06-18)
 _MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", _STACK_MODEL)
 _MICRO_ENDPOINT = os.environ.get(
     "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # mios-llm-light (was dead :11434)
@@ -2583,7 +2583,7 @@ _CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
     str(_DISPATCH_TOML.get("cpu_lane_hints", "11435,11436"))).split(",")
     if h.strip())
 _CPU_LANE_MICRO_MODEL = (os.environ.get("MIOS_CPU_LANE_MICRO_MODEL")
-                         or str(_DISPATCH_TOML.get("cpu_lane_micro_model", "qwen3:1.7b")))
+                         or str(_DISPATCH_TOML.get("cpu_lane_micro_model", "granite4.1:8b")))  # qwen3:1.7b retired
 
 
 def _cap_cpu_lane_model(ep: str, model: str) -> str:

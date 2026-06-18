@@ -74,7 +74,10 @@ Environment=MIOS_OLLAMA_CPU_ENDPOINT=http://localhost:11450
 # History: qwen2.5-coder:7b -> mios-planner(gemma4) -> mios-agent(gemma4)
 # -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
 Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11450
-Environment=MIOS_AGENT_PIPE_PLANNER_MODEL=qwen3:1.7b
+# 2026-06-18: was qwen3:1.7b (RETIRED -> 404 on :11450); the runtime drop-in
+# 10-model-align.conf had to re-pin it to granite4.1:8b. Source now carries the
+# served brain directly, so the drop-in is redundant + a fresh boot is correct.
+Environment=MIOS_AGENT_PIPE_PLANNER_MODEL=granite4.1:8b
 Environment=MIOS_DB_URL=http://localhost:8000
 Environment=MIOS_DB_USER=root
 Environment=MIOS_DB_PASS=root
@@ -102,9 +105,12 @@ Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
 # endpoints (CPU :11435 daemon-agent, iGPU :11436, phone) at the same dispatch
 # step -- the bigger refine model does not serialise them
 # ([[mios_heterogeneous_parallel_dispatch]]). Override via /etc/mios/agent-pipe.env.
-Environment=MIOS_REFINE_MODEL=qwen3:1.7b
+# 2026-06-18: refine + polish were qwen3:1.7b (RETIRED -> 404), re-pinned by the
+# runtime drop-in to the served brain. Source now uses granite4.1:8b directly
+# (mirrors mios.toml [refine].model / [polish].model). Override via agent-pipe.env.
+Environment=MIOS_REFINE_MODEL=granite4.1:8b
 Environment=MIOS_REFINE_ENDPOINT=http://localhost:11450
-Environment=MIOS_POLISH_MODEL=qwen3:1.7b
+Environment=MIOS_POLISH_MODEL=granite4.1:8b
 Environment=MIOS_POLISH_ENDPOINT=http://localhost:11450
 # Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
 # Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s

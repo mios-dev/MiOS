@@ -140,6 +140,12 @@ slots = [
     ("ai.endpoint",             "MIOS_AI_ENDPOINT"),
     ("ai.model",                "MIOS_AI_MODEL"),
     ("ai.embed_model",          "MIOS_AI_EMBED_MODEL"),
+    # Per-role brain the agent-pipe reasoning stages inherit (server.py _STACK_MODEL);
+    # bridged so the SSOT [ai].stack_model reaches the service env, not a code literal.
+    ("ai.stack_model",          "MIOS_STACK_MODEL"),
+    # server.py reads MIOS_VERB_EMBED_MODEL for verb-arg embeddings; bridge the SSOT
+    # embed_model to it too (the audit found only MIOS_AI_EMBED_MODEL was bridged).
+    ("ai.embed_model",          "MIOS_VERB_EMBED_MODEL"),
     ("ai.api_key",              "MIOS_AI_KEY"),
     ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
     # Hermes-Agent direct host install (automation/38-hermes-agent.sh).

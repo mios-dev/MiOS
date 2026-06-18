@@ -55,8 +55,10 @@ HEADERS_DROP = {"host", "content-length"}
 # refine the user's prompt via the reasoning template; refined
 # prompt forwarded to hermes :8642; hermes does the actual work;
 # response streams back.
-SYS_AGENT_ENDPOINT = os.environ.get("MIOS_SYS_AGENT_ENDPOINT", "http://127.0.0.1:11434")
-SYS_AGENT_MODEL    = os.environ.get("MIOS_SYS_AGENT_MODEL", "mios-sys-agent")
+# Default lane = mios-llm-light (:11450, OpenAI /v1); the old ollama :11434 is dead
+# (WS-10 "EVERYTHING IS LLAMA.CPP"), so a missing env must NOT point at it (2026-06-18).
+SYS_AGENT_ENDPOINT = os.environ.get("MIOS_SYS_AGENT_ENDPOINT", "http://127.0.0.1:11450/v1")
+SYS_AGENT_MODEL    = os.environ.get("MIOS_SYS_AGENT_MODEL", "granite4.1:8b")
 # Refinement is OPT-IN via env var; default OFF so a hung sys-agent
 # can't break the operator's chat. Operator enables once stage-2 is
 # verified. Toggle: Environment=MIOS_PREFILTER_REFINE=1 in the unit
@@ -151,83 +153,7 @@ def _looks_conversational(user_text: str) -> bool:
     return False
 
 
-# Response-side refusal patterns load from the SHARED canonical file
-# at /usr/share/mios/ai/refusal-patterns.txt (consolidation pass
-# 2026-05-16 -- previously duplicated in 3 places). The prefilter
-# scans the streamed response text (the operator-facing chat); the
-# nudger scans the journal (tool-call errors). Both read the same
-# patterns; SOUL.md text-blocks tell the model these phrases are
-# forbidden. Single edit point.
-PATTERNS_FILE = "/usr/share/mios/ai/refusal-patterns.txt"
 
-
-def _load_response_patterns() -> list:
-    out = []
-    try:
-        for line in open(PATTERNS_FILE, encoding="utf-8"):
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            out.append(re.compile(stripped, re.IGNORECASE))
-    except OSError as e:
-        log.warning("could not read %s: %s -- response scanner disabled", PATTERNS_FILE, e)
-    return out
-
-
-RESPONSE_REFUSAL_RES = _load_response_patterns()
-
-
-def _extract_response_text(body: bytes) -> str:
-    """Extract the assistant text from either a streamed SSE body or a
-    single JSON chat-completion. Returns concatenated content (best-
-    effort; missing/malformed segments are silently skipped)."""
-    # SSE: lines like `data: {...}\n\n`. Look for chunks containing
-    # choices[0].delta.content or choices[0].message.content.
-    s = body.decode("utf-8", errors="ignore")
-    out: list[str] = []
-    # Streaming path
-    for line in s.splitlines():
-        if not line.startswith("data:"):
-            continue
-        payload_str = line[5:].strip()
-        if not payload_str or payload_str == "[DONE]":
-            continue
-        try:
-            obj = json.loads(payload_str)
-        except json.JSONDecodeError:
-            continue
-        choices = obj.get("choices") or []
-        if not choices:
-            continue
-        c0 = choices[0]
-        delta = c0.get("delta") or {}
-        message = c0.get("message") or {}
-        text = delta.get("content") or message.get("content") or ""
-        if isinstance(text, str) and text:
-            out.append(text)
-    if out:
-        return "".join(out)
-    # Non-streaming path: parse full body as single JSON
-    try:
-        obj = json.loads(s)
-    except json.JSONDecodeError:
-        return ""
-    choices = obj.get("choices") or []
-    if not choices:
-        return ""
-    return ((choices[0].get("message") or {}).get("content") or "")
-
-
-def _scan_response_for_refusals(body: bytes) -> None:
-    text = _extract_response_text(body)
-    if not text or len(text) < 30:
-        return
-    for regex in RESPONSE_REFUSAL_RES:
-        m = regex.search(text)
-        if m:
-            log.warning("[NUDGER] REFUSAL pattern matched in agent response: %r excerpt=%r",
-                        regex.pattern[:60], m.group(0)[:160])
-            break  # one match per response is enough
 
 
 # Sidecar state file the OWUI mios_sidecar Filter polls. Writing here
@@ -593,7 +519,7 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             # Filter Function (mios_antimeta) now does the pattern-strip
             # natively post-hoc, without touching the in-flight stream.
             # Clean passthrough = no framing drama.
-            async for chunk in upstream.content.iter_chunked(65536):
+            async for chunk in upstream.content.iter_any():
                 await resp.write(chunk)
             await resp.write_eof()
             return resp

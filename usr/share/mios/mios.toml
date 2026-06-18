@@ -4123,6 +4123,14 @@ hermes_backend_url  = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.
 # mios-hermes-firstboot reads the resolved value through the layered overlay
 # chain (~/.config -> /etc -> /usr/share). mios.html exposes [[ai.catalog]].
 model               = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :11450 (see mios-llm-light.yaml).
+# Per-role BASE brain the agent-pipe reasoning stages (refine, polish, planner,
+# DCI, swarm, micro) inherit when their own MIOS_*_MODEL env is unset (server.py
+# _STACK_MODEL = ${MIOS_STACK_MODEL:-stack_model}). ONE resident served brain =
+# no llama-swap thrash (operator's "one resident model" choice). Was the GONE
+# gemma4:12b in the server.py default -> 404; SSOT-pinned to the served brain
+# 2026-06-18. The mios-agent-pipe.service mirrors these; a fresh boot is correct
+# even without the runtime model-align drop-in (which becomes redundant).
+stack_model         = "granite4.1:8b"
 embed_model         = "nomic-embed-text"   # served NAME unchanged (768d); backing GGUF swapped to EmbeddingGemma-300m QAT in mios-llm-light.yaml (zero pgvector migration)
 api_key             = ""
 enable_ollama       = true

@@ -54,7 +54,7 @@ SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8888").rstrip
 # capable than the weak 0.6b. Override via MIOS_WEB_EXPAND_MODEL / _ENDPOINT.
 _EXPAND_MODEL = os.environ.get(
     "MIOS_WEB_EXPAND_MODEL",
-    os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b"))
+    os.environ.get("MIOS_DAEMON_MODEL", "granite4.1:8b"))  # qwen3:1.7b retired -> 404 on :11450 (2026-06-18)
 _EXPAND_ENDPOINT = os.environ.get(
     "MIOS_WEB_EXPAND_ENDPOINT",
     os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")
