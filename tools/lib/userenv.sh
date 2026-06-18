@@ -224,6 +224,7 @@ slots = [
     ("ports.rdp",                      "MIOS_RDP_PORT"),
     ("ports.pgvector",                 "MIOS_PORT_PGVECTOR"),
     ("ports.llm_light",                "MIOS_PORT_LLM_LIGHT"),
+    ("ports.cpu_node",                 "MIOS_PORT_CPU_NODE"),
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     ("ports.ollama_cpu",               "MIOS_PORT_OLLAMA_CPU"),
     ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
@@ -503,6 +504,7 @@ slots = [
     ("llamacpp.models_dir",            "MIOS_LLAMACPP_MODELS_DIR"),
     ("llamacpp.config",                "MIOS_LLAMACPP_CONFIG"),
     ("llamacpp.bake_models",           "MIOS_LLAMACPP_BAKE_MODELS"),
+    ("llamacpp.cpu_node_threads",      "MIOS_CPU_NODE_THREADS"),
     # ── paths (FHS canonical runtime artifacts) ────────────────────────────
     ("paths.ai_dir",                   "MIOS_AI_DIR"),
     ("paths.ai_models_dir",            "MIOS_AI_MODELS_DIR"),

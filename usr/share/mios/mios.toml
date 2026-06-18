@@ -1953,6 +1953,8 @@ hidden_aliases = ["launch_app", "launch_verified", "launch_and_verify_app"]  # c
 examples   = ["open Firefox on my second monitor", "launch Spotify on the left half of the screen", "start Notepad with this file and put it top-left", "run Discord maximized on monitor 1"]
 tier       = "core"
 permission = "write"
+cmd        = "MIOS_LAUNCH_POSITION={position=default} mios-launch {name!}"
+cmd_args   = "MIOS_LAUNCH_POSITION={position=default} mios-windows launch {name!}{args*}"
   [verbs.open_app.params.name]
   type    = "string"
   desc    = "App display name OR full path. Paths get basename-extracted before launch."
@@ -1990,6 +1992,8 @@ desc       = "Raise an already-OPEN Windows window to the FRONT (by title) and o
 examples   = ["bring Firefox to the front", "switch to the Spotify window", "focus the Discord window and move it to the left", "activate the Notepad window"]
 tier       = "common"
 permission = "write"
+cmd            = "mios-window focus {title}"
+cmd_positioned = "mios-window focus {title} && MIOS_LAUNCH_POSITION={position} mios-window {position} {title}"
   [verbs.focus_window.params.title]
   type    = "string"
   desc    = "Window title pattern (substring match)."
@@ -2007,7 +2011,7 @@ model_name = "move_window_to_region"
 examples   = ["move Firefox to the right half of the screen", "center the Spotify window", "put Notepad in the top-left corner", "snap Discord to the left on monitor 2"]
 tier       = "common"
 permission = "write"
-cmd        = "mios-window {position=center} {title}"
+cmd        = "mios-window {position=center} {title} {monitor?--monitor}"
   [verbs.move_window.params.title]
   type = "string"
   aliases = ["name", "window"]
@@ -2042,6 +2046,7 @@ desc       = "Resize an OPEN Windows window to a literal pixel size (width x hei
 examples   = ["resize Firefox to 1280 by 720", "make the Notepad window 800x600", "set the Spotify window width to 1000 and height to 700", "shrink the Discord window to 640 by 480"]
 tier       = "common"
 permission = "write"
+cmd        = "mios-window resize {title} {width} {height}"
   [verbs.resize_window.params.title]
   type = "string"
   aliases = ["name", "window"]
@@ -2480,18 +2485,22 @@ cmd        = "mios-web-extract -n {limit=4000} {url}"
 
 [verbs.discord_send]
 section    = "Messaging"
-sig        = "content, channel?"
-desc       = "Actually POST a message to the operator's Discord (local bot, default channel). Use to DELIVER a message when the operator asks to post / send / share / DM / 'let me know on' Discord -- it really posts and returns the message id, so never claim something was sent without calling this. One-shot send (for repeating posts use schedule)."
-examples   = ["send this to my discord", "post the summary to discord", "DM me the results on discord", "share this finding on discord"]
+sig        = "content, user?, channel?"
+desc       = "Actually POST a message to the operator's Discord (local bot, default channel). Use to DELIVER a message when the operator asks to post / send / share / DM / 'let me know on' Discord -- it really posts and returns the message id, so never claim something was sent without calling this. For a DM to a specific user, pass the user parameter with their @username or Discord user ID. One-shot send (for repeating posts use schedule)."
+examples   = ["send this to my discord", "post the summary to discord", "DM me the results on discord", "share this finding on discord", "send a discord message to a user saying hello"]
 tier       = "core"
 permission = "write"
-cmd        = "mios-discord-send {content}{channel?--channel}"
+cmd        = "mios-discord-send {content}{user?--user}{channel?--channel}"
   [verbs.discord_send.params.content]
   type    = "string"
   aliases = ["message", "text", "body", "msg"]
+  [verbs.discord_send.params.user]
+  type    = "string"
+  aliases = ["recipient", "target", "dm_to", "username"]
   [verbs.discord_send.params.channel]
   type    = "string"
   aliases = ["channel_id", "chan"]
+
 
 # ─── Section: PC input (raw send-input) ───────────────────────────────
 [verbs.pc_type]
@@ -3269,7 +3278,7 @@ cmd        = "mios-coderun-codemode --lang {lang=python} --timeout {timeout=60} 
 
 [verbs.ingest]
 section    = "Discovery / resolution"
-sig        = "path?, file?, ext=md,txt,rst,org?, max=100?"
+sig        = "path?, file?, ext?, max=100?"
 desc       = "INGEST local files/notes INTO the notes vault (the offline second-brain) -- LOCAL sources only, no cloud/SaaS. Walks a directory (or one file), tiers each doc (L0 abstract + L1 overview via the light model), and stores it as a vault node so notes_vault_list/search/read can navigate it and recall can surface it. Idempotent. This is a WRITE that adds documents to the vault, not a search."
 model_name = "notes_vault_ingest"
 examples   = ["ingest my markdown notes folder into the second brain", "add this file to the notes vault", "load my docs directory into the knowledge vault", "import these txt notes so I can search them later"]
@@ -3898,6 +3907,10 @@ enable     = false   # additive + gated; flip on after GGUFs baked + verified li
 slot_dir   = "/var/lib/mios/llamacpp/slots"
 models_dir = "/usr/share/mios/llamacpp/models"
 config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
+# --threads for the mios-cpu-node CPU lane (rendered into its quadlet Exec). Sized
+# to leave headroom on the box; SSOT-wired alongside ports.cpu_node 2026-06-18
+# (was a DEAD ${MIOS_CPU_NODE_THREADS} placeholder, never in the render allowlist).
+cpu_node_threads = 14
 # GGUF bake (38-llamacpp-prep.sh). CSV of dest.gguf=hf_repo:filename; EMPTY =
 # opt-in skip (no image bloat). dest filenames MUST match mios-llm-light.yaml's
 # /models/*. Pre-quantized FOSS GGUFs, e.g.:
@@ -5749,6 +5762,7 @@ ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 pgvector           = 5432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
 llm_light          = 11450    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
+cpu_node           = 11451    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired 2026-06-18).
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
 ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
@@ -6166,6 +6180,8 @@ power-shell      = "powershell"
 pwsh-shell       = "pwsh"
 software   = "gnome-software"
 settings   = "gnome-control-center"
+mobile-settings      = "mobi.phosh.MobileSettings"
+mobile-control-panel = "mobi.phosh.MobileSettings"
 calculator = "gnome-calculator"
 calendar   = "gnome-calendar"
 mail       = "evolution"
@@ -6244,7 +6260,6 @@ games      = "lutris"
 # via winget if missing, works for free + dedicated-server content
 # under anonymous login). Operator directive 2026-05-17: "make a
 # steamCMD a native tool for handling steam CMD commands GLOBALLY".
-"steam"         = "mios-steamcmd"
 "steamcmd"      = "mios-steamcmd"
 "steam-cmd"     = "mios-steamcmd"
 "steam-game"    = "mios-steamcmd"
