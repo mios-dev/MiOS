@@ -146,6 +146,10 @@ slots = [
     # server.py reads MIOS_VERB_EMBED_MODEL for verb-arg embeddings; bridge the SSOT
     # embed_model to it too (the audit found only MIOS_AI_EMBED_MODEL was bridged).
     ("ai.embed_model",          "MIOS_VERB_EMBED_MODEL"),
+    # Chat VLM for image turns (server.py VISION_MODEL). Bridged so [ai].
+    # chat_vision_model is the SSOT -- empty = vision disabled (honest "unavailable"
+    # turn), a served tag (qwen3-vl:4b) = enabled (2026-06-18 "FIX ALL VISION").
+    ("ai.chat_vision_model",    "MIOS_AGENT_PIPE_VISION_MODEL"),
     ("ai.api_key",              "MIOS_AI_KEY"),
     ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
     # Hermes-Agent direct host install (automation/38-hermes-agent.sh).

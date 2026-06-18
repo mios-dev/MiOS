@@ -20443,11 +20443,56 @@ def _messages_have_image(messages: list) -> bool:
     return False
 
 
+# Honest "vision unavailable" message (operator 2026-06-18 "FIX ALL VISION"): when
+# the VLM is not provisioned / fails to load, the user must get a CLEAR assistant
+# turn -- not the confusing raw "image inputs are not supported / required config
+# missing" the leaf relayed. Generic + honest (no fabricated capability claim).
+_VISION_UNAVAILABLE_MSG = (
+    "I can't read images right now — the local vision model isn't loaded on this "
+    "machine. Image understanding returns once the vision model is provisioned; "
+    "text questions still work normally.")
+
+
+def _vision_backend_failed(status: int, body_text: str) -> bool:
+    """True when a vision-backend response means the VLM did NOT actually run
+    (model unprovisioned / failed to load) rather than a real reply. llama-swap
+    returns 5xx with 'exited prematurely'/'upstream command' when the GGUF is
+    absent; surface those as an honest 'unavailable', never relay them raw."""
+    if status >= 500:
+        return True
+    _bl = (body_text or "").lower()
+    return any(s in _bl for s in ("exited prematurely", "upstream command",
+                                  "no router for", "failed to load model",
+                                  "image inputs are not supported"))
+
+
+def _vision_unavailable_response(streaming: bool, chat_id: str, model: str) -> Any:
+    """The honest 'vision unavailable' answer as a real OpenAI assistant turn
+    (chat.completion / SSE), so OWUI + Discord render it as a normal reply."""
+    if streaming:
+        async def _g() -> AsyncGenerator[bytes, None]:
+            yield _sse_chunk(_VISION_UNAVAILABLE_MSG, chat_id=chat_id, model=model,
+                             role="assistant")
+            yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
+            yield _sse_done()
+        return StreamingResponse(_g(), media_type="text/event-stream")
+    return JSONResponse(content={
+        "id": f"chatcmpl-{chat_id}", "object": "chat.completion", "model": model,
+        "choices": [{"index": 0,
+                     "message": {"role": "assistant",
+                                 "content": _VISION_UNAVAILABLE_MSG},
+                     "finish_reason": "stop"}]}, status_code=200)
+
+
 async def _vision_complete(body: dict, streaming: bool, chat_id: str,
                            model: str) -> Any:
     """Proxy an image-bearing turn to the local VLM (OpenAI-compatible, on the
-    dGPU ollama lane). Streams the VLM SSE verbatim; non-stream returns its
-    JSON. Best-effort: a backend error surfaces honestly, never fabricated."""
+    dGPU lane). Streams the VLM SSE verbatim; non-stream returns its JSON. When
+    the vision model is unprovisioned / fails to load, returns an HONEST 'vision
+    unavailable' assistant turn instead of relaying a raw 5xx (operator 2026-06-18
+    'FIX ALL VISION' -- the confusing leaf error was the reported failure)."""
+    if not (VISION_MODEL or "").strip():
+        return _vision_unavailable_response(streaming, chat_id, model)
     vbody = dict(body)
     vbody["model"] = VISION_MODEL
     headers = {"content-type": "application/json"}
@@ -20460,12 +20505,14 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
         try:
             r = await client.post(
                 url, content=json.dumps(vbody).encode("utf-8"), headers=headers)
-            return JSONResponse(content=r.json(), status_code=r.status_code)
         except Exception as e:
             log.warning("vision backend failed: %s", e)
-            return JSONResponse(
-                content={"error": {"message": f"vision backend error: {e}",
-                                   "type": "server_error"}}, status_code=502)
+            return _vision_unavailable_response(False, chat_id, model)
+        if _vision_backend_failed(r.status_code, r.text):
+            log.warning("vision backend unavailable (status=%s): %s",
+                        r.status_code, (r.text or "")[:200])
+            return _vision_unavailable_response(False, chat_id, model)
+        return JSONResponse(content=r.json(), status_code=r.status_code)
 
     async def _gen() -> AsyncGenerator[bytes, None]:
         vbody["stream"] = True
@@ -20474,14 +20521,24 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
                     "POST", url,
                     content=json.dumps(vbody).encode("utf-8"),
                     headers=headers) as resp:
+                if _vision_backend_failed(resp.status_code, ""):
+                    _err = await resp.aread()
+                    log.warning("vision stream unavailable (status=%s): %s",
+                                resp.status_code, (_err[:200] if _err else b""))
+                    yield _sse_chunk(_VISION_UNAVAILABLE_MSG, chat_id=chat_id,
+                                     model=model, role="assistant")
+                    yield _sse_chunk("", chat_id=chat_id, model=model,
+                                     finish_reason="stop")
+                    yield _sse_done()
+                    return
                 async for chunk in resp.aiter_bytes():
                     yield chunk
         except Exception as e:
             log.warning("vision stream failed: %s", e)
-            yield ("data: " + json.dumps(
-                {"choices": [{"delta": {"content": f"[vision error: {e}]"}}]})
-                + "\n\n").encode("utf-8")
-            yield b"data: [DONE]\n\n"
+            yield _sse_chunk(_VISION_UNAVAILABLE_MSG, chat_id=chat_id, model=model,
+                             role="assistant")
+            yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
+            yield _sse_done()
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
 

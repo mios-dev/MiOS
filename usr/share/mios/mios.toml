@@ -4309,11 +4309,13 @@ big_ram_model    = "mistral-magistral-small-2509"   # 2026-06-13: 16GB+ dGPU cla
 # set these to that tag in /etc/mios/mios.toml (operator overlay).
 vision_grounding_model    = ""
 vision_grounding_endpoint = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; needs a vision GGUF in the map to activate)
-# Chat VLM: agent-pipe routes any OWUI chat turn carrying an image straight
-# to this model (operator 2026-05-22). SSOT for MIOS_AGENT_PIPE_VISION_MODEL.
-# EMPTY since the 4-model consolidation (was llama3.2-vision:11b) -- set to a
-# pulled vision tag in the operator overlay to re-enable image chat.
-chat_vision_model         = ""
+# Chat VLM: agent-pipe routes any chat turn carrying an image straight to this
+# model. SSOT for MIOS_AGENT_PIPE_VISION_MODEL (bridged in tools/lib/userenv.sh).
+# 2026-06-18 (operator "FIX ALL VISION"): provisioned the Holo1.5-7B GGUFs under
+# /models (served as "qwen3-vl:4b" in mios-llm-light.yaml) and ENABLED vision. Set
+# back to "" to disable image chat (the agent-pipe then returns an honest "vision
+# unavailable" turn instead of a confusing backend 5xx).
+chat_vision_model         = "qwen3-vl:4b"
 
 # GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
 # click coordinates). Ollama CANNOT run the grounding heads (GUI-Actor /
