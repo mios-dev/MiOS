@@ -1042,6 +1042,59 @@ else
     _log "$HERMES_DATA_CFG already current (default=${_AI_MODEL_RESOLVED}) -- not overwriting"
 fi
 
+# ── UNIFY THE GATEWAY -> THIN :8640 CLIENT (operator 2026-06-18 "UNIFY THE WHOLE
+# MIOS AI"). The Hermes gateway serves :8642 AND runs every platform bot (Discord =
+# the api_server platform). Left as the leaf granite tool-loop, Discord replies were
+# the verbose templated scaffold + couldn't use the orchestrator's vision/grounding.
+# Repoint the gateway's MAIN model at the agent-pipe ORCHESTRATOR (:8640 MiOS-Agent)
+# and EMPTY its toolsets/platform_toolsets so :8640 owns the tool loop SERVER-SIDE --
+# Discord + OWUI + every platform now get the polished/grounded answer. LOOP-SAFE:
+# [agents.hermes] is fanout=false/default=false (mios.toml) so the orchestrator never
+# calls :8642 back (Discord->:8642->:8640->council->:8642 cycle is structurally cut).
+# Aux lanes (compression/title/...) stay on :11450 -- they don't shape the answer.
+# Runs every boot (idempotent); degrade-open (no python/yaml -> leaf config, still works).
+if command -v python3 >/dev/null 2>&1; then
+    if MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
+       python3 - "$HERMES_DATA_CFG" <<'PYEOF'
+import sys, os, yaml
+f = sys.argv[1]
+try:
+    d = yaml.safe_load(open(f)) or {}
+except Exception:
+    sys.exit(0)
+if not isinstance(d, dict):
+    sys.exit(0)
+ep = (os.environ.get("MIOS_AGENT_ENDPOINT") or "http://localhost:8640/v1").rstrip("/")
+model = os.environ.get("MIOS_AGENT_MODEL") or "MiOS-Agent"
+m = d.get("model") if isinstance(d.get("model"), dict) else {}
+m["provider"] = "custom:mios-orchestrator"; m["default"] = model
+m["base_url"] = ep; m["api_key"] = ""; m.pop("fallback_model", None)
+d["model"] = m
+cps = d.get("custom_providers") if isinstance(d.get("custom_providers"), list) else []
+if not any(isinstance(c, dict) and c.get("name") == "mios-orchestrator" for c in cps):
+    cps.insert(0, {"name": "mios-orchestrator", "base_url": ep, "api_key": ""})
+d["custom_providers"] = cps
+d["toolsets"] = []                                  # tools run SERVER-SIDE in :8640
+pt = d.get("platform_toolsets")
+if isinstance(pt, dict):
+    for k in list(pt.keys()):
+        pt[k] = []                                  # no client-side tools for any platform
+mcp = d.get("mcp_servers")
+if isinstance(mcp, dict):
+    for v in mcp.values():
+        if isinstance(v, dict):
+            v["enabled"] = False
+open(f, "w").write(yaml.safe_dump(d, sort_keys=False, default_flow_style=False))
+PYEOF
+    then
+        chown 850:850 "$HERMES_DATA_CFG" 2>/dev/null || true
+        chmod 0640 "$HERMES_DATA_CFG" 2>/dev/null || true
+        _log "gateway -> THIN :8640 client (${_AGENT_MODEL} @ ${_AGENT_ENDPOINT}); Discord/platforms route to the orchestrator"
+    else
+        _log "WARN: gateway thin-client transform failed -- left as leaf (still functional)"
+    fi
+fi
+
 # ── Operator CLI config (~/.hermes/config.yaml) ─────────────────────────
 # The `hermes` CLI runs as the operator (not the mios-hermes sysuser)
 # and reads ~/.hermes/config.yaml. Seed it with the SAME TOML-derived

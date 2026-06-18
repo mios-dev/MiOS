@@ -682,7 +682,17 @@ role     = "general"
 # routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this
 # describes what the agent is BEST at -- not what it can access.
 job      = "General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise."
-default  = true
+# 2026-06-18 (operator "UNIFY THE WHOLE MIOS AI"): the Hermes gateway (:8642) is now
+# a THIN :8640 client (its model -> MiOS-Agent on the orchestrator) so Discord + every
+# gateway platform get the orchestrator's polished/grounded output. That makes :8642
+# point BACK at :8640, so the orchestrator must NOT call :8642 as a council peer or it
+# recurses (Discord->:8642->:8640->council->:8642->...; the W0-T3 recursion bound is
+# process-local and does NOT cross the HTTP hop). fanout=false opts it out of the
+# council/swarm (_opted_out, server.py:3565) and default=false drops it as the refine
+# fallback pick -- the orchestrator's own primary is :11450 (MIOS_AGENT_PIPE_BACKEND),
+# so nothing else needs :8642. Block kept for role-matched-only routing + as docs.
+fanout   = false
+default  = false
 # Inference lane (operator 2026-05-21: "self-delegate to CPU concurrently
 # to pending/future GPU operations"). gpu = the heavy dGPU lane (:11434);
 # cpu = the light iGPU/CPU lane. The fan-out pairs a GPU primary with a

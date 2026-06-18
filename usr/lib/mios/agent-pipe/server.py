@@ -20466,22 +20466,120 @@ def _vision_backend_failed(status: int, body_text: str) -> bool:
                                   "image inputs are not supported"))
 
 
-def _vision_unavailable_response(streaming: bool, chat_id: str, model: str) -> Any:
-    """The honest 'vision unavailable' answer as a real OpenAI assistant turn
-    (chat.completion / SSE), so OWUI + Discord render it as a normal reply."""
+# Honest message when a remote image/GIF/page URL couldn't be fetched into a
+# viewable image (operator 2026-06-18: a Tenor GIF PAGE url made the leaf guess
+# from a web search instead of seeing it). Never fabricate a description.
+_VISION_FETCH_FAILED_MSG = (
+    "I couldn't open that image — the link didn't return a viewable image (it may "
+    "be a web page, a video, or unreachable). Upload the image directly, or share a "
+    "direct image link (.png/.jpg/.gif), and I'll describe what's actually in it.")
+
+_VISION_MAX_BYTES = int(os.environ.get("MIOS_VISION_MAX_BYTES", str(40 * 1024 * 1024)))
+
+
+def _vision_msg_response(msg: str, streaming: bool, chat_id: str, model: str) -> Any:
+    """An honest vision message as a real OpenAI assistant turn (chat.completion /
+    SSE), so OWUI + Discord render it as a normal reply (not an error body)."""
     if streaming:
         async def _g() -> AsyncGenerator[bytes, None]:
-            yield _sse_chunk(_VISION_UNAVAILABLE_MSG, chat_id=chat_id, model=model,
-                             role="assistant")
+            yield _sse_chunk(msg, chat_id=chat_id, model=model, role="assistant")
             yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
             yield _sse_done()
         return StreamingResponse(_g(), media_type="text/event-stream")
     return JSONResponse(content={
         "id": f"chatcmpl-{chat_id}", "object": "chat.completion", "model": model,
         "choices": [{"index": 0,
-                     "message": {"role": "assistant",
-                                 "content": _VISION_UNAVAILABLE_MSG},
+                     "message": {"role": "assistant", "content": msg},
                      "finish_reason": "stop"}]}, status_code=200)
+
+
+def _vision_unavailable_response(streaming: bool, chat_id: str, model: str) -> Any:
+    return _vision_msg_response(_VISION_UNAVAILABLE_MSG, streaming, chat_id, model)
+
+
+def _resolve_media_url_from_html(html: str) -> Optional[str]:
+    """Resolve a media-asset URL from a page's HTML metadata -- GENERIC (JSON-LD
+    contentUrl, og:image, og:video, twitter:image), no site-specific keyword, so it
+    works for Tenor/Imgur/etc. First hit wins (operator rule: no hardcoded domains)."""
+    m = re.search(r'"contentUrl"\s*:\s*"([^"]+\.(?:gif|mp4|webp|png|jpe?g)[^"]*)"',
+                  html or "", re.I)
+    if m:
+        try:
+            return m.group(1).encode().decode("unicode_escape")
+        except Exception:  # noqa: BLE001
+            return m.group(1)
+    for _prop in ("og:image", "og:video:secure_url", "og:video", "twitter:image"):
+        m = re.search(r'<meta[^>]+(?:property|name)=["\']' + re.escape(_prop)
+                      + r'["\'][^>]+content=["\']([^"\']+)["\']', html or "", re.I)
+        if m:
+            return m.group(1)
+    return None
+
+
+async def _vision_inline_remote_images(messages: list) -> bool:
+    """Rewrite remote image_url URLs in `messages` to INLINED base64 data URLs the
+    local llama.cpp VLM can actually see (it doesn't fetch URLs + rejects page URLs).
+    Per image: fetch the URL; if it's a PAGE (text/html, e.g. a Tenor GIF page),
+    resolve to its real media via HTML metadata then fetch that; for an animated
+    GIF/WEBP extract a middle frame (Pillow); re-encode to PNG; inline. Mutates
+    `messages` in place. Returns False if a REMOTE image could NOT be inlined, so the
+    caller returns an honest 'couldn't fetch' turn instead of letting the VLM guess.
+    Already-inlined data: URLs (OWUI) and non-image parts are untouched (no regress)."""
+    import io as _io
+    ok = True
+    client = await _get_client()
+    _to = httpx.Timeout(connect=10.0, read=20.0, write=10.0, pool=10.0)
+    _hdrs = {"user-agent": "Mozilla/5.0 (MiOS vision fetch)"}
+    for _m in messages or []:
+        if not isinstance(_m, dict):
+            continue
+        _c = _m.get("content")
+        if not isinstance(_c, list):
+            continue
+        for _part in _c:
+            if not isinstance(_part, dict):
+                continue
+            if _part.get("type") not in ("image_url", "input_image", "image"):
+                continue
+            _iu = _part.get("image_url")
+            _url = (_iu.get("url") if isinstance(_iu, dict)
+                    else (_iu if isinstance(_iu, str) else None))
+            if not isinstance(_url, str) or _url.startswith("data:"):
+                continue                                   # already inline / nothing to do
+            if not _url.startswith(("http://", "https://")):
+                continue
+            try:
+                r = await client.get(_url, follow_redirects=True, headers=_hdrs, timeout=_to)
+                _ct = (r.headers.get("content-type") or "").lower()
+                _data = r.content
+                if not _ct.startswith("image/"):
+                    # a web PAGE -> resolve the real media asset (1 hop), then fetch it
+                    _media = _resolve_media_url_from_html(r.text)
+                    if not _media:
+                        ok = False
+                        continue
+                    r2 = await client.get(_media, follow_redirects=True,
+                                          headers=_hdrs, timeout=_to)
+                    _data = r2.content
+                if not _data or len(_data) > _VISION_MAX_BYTES:
+                    ok = False
+                    continue
+                from PIL import Image as _PILImage
+                _im = _PILImage.open(_io.BytesIO(_data))
+                if getattr(_im, "is_animated", False):
+                    _im.seek(max(0, getattr(_im, "n_frames", 1) // 2))  # middle frame
+                _buf = _io.BytesIO()
+                _im.convert("RGB").save(_buf, format="PNG")
+                _durl = "data:image/png;base64," + base64.b64encode(_buf.getvalue()).decode()
+                if isinstance(_iu, dict):
+                    _iu["url"] = _durl
+                else:
+                    _part["image_url"] = {"url": _durl}
+                log.info("vision: inlined remote image (%dB png) from %s", len(_durl), _url[:80])
+            except Exception as _e:  # noqa: BLE001 -- degrade-open per part
+                log.warning("vision image inline failed for %s: %s", _url[:80], _e)
+                ok = False
+    return ok
 
 
 async def _vision_complete(body: dict, streaming: bool, chat_id: str,
@@ -20493,6 +20591,18 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
     'FIX ALL VISION' -- the confusing leaf error was the reported failure)."""
     if not (VISION_MODEL or "").strip():
         return _vision_unavailable_response(streaming, chat_id, model)
+    # Inline any REMOTE image/GIF/page URL so the local VLM can actually SEE it (it
+    # reads only inlined base64; it rejects bare URLs + page links like a Tenor GIF
+    # page). On a fetch/resolve failure, return an honest 'couldn't open that image'
+    # turn rather than letting the model guess from the URL text (operator 2026-06-18).
+    _msgs = body.get("messages")
+    if isinstance(_msgs, list) and _messages_have_image(_msgs):
+        try:
+            if not await _vision_inline_remote_images(_msgs):
+                return _vision_msg_response(_VISION_FETCH_FAILED_MSG, streaming,
+                                            chat_id, model)
+        except Exception as _e:  # noqa: BLE001 -- never block the turn
+            log.warning("vision inline pre-step error: %s", _e)
     vbody = dict(body)
     vbody["model"] = VISION_MODEL
     headers = {"content-type": "application/json"}
