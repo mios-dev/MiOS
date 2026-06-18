@@ -13,13 +13,14 @@ metadata:
     requires_tools:
       - list_windows
       - focus_window
-      - move_window
-      - position_window
+      - move_window_to_region
+      - place_window_at_pixel
       - resize_window
       - minimize_window
       - maximize_window
       - restore_window
       - close_window
+      - screen_layout
 ---
 <!-- AI-hint: Defines the pc-window-control skill for Hermes to map natural language window management (move, resize, focus, minimize) to specific Win32-backed tool calls via the mios-window CLI.
      AI-related: /usr/share/mios/hermes/skills/pc-window-control/SKILL.md._, mios-window -->
@@ -41,8 +42,8 @@ pick the first and log alternatives to stderr.
 | --- | --- | --- |
 | "what windows are open" | `list_windows()` | Returns title / pid / hwnd / x,y,w,h for every visible top-level. |
 | "focus X" / "bring X to front" / "switch to X" | `focus_window(title=X)` | Optional `position=as-is` to skip the default golden-ratio re-layout. |
-| "move X to left/right/center/top-left/..." | `move_window(title=X, position=<pos>)` | SEMANTIC position names. Use this for snap-style positioning. |
-| "move X to (a,b)" / "X to coords (a,b)" | `position_window(title=X, x=a, y=b)` | LITERAL pixel coords. Pair with `screen_layout()` first if the agent needs to compute the target. |
+| "move X to left/right/center/top-left/..." | `move_window_to_region(title=X, region=<pos>)` | SEMANTIC region names. Use this for snap-style positioning. |
+| "move X to (a,b)" / "X to coords (a,b)" | `place_window_at_pixel(title=X, x=a, y=b)` | LITERAL pixel coords. Pair with `screen_layout()` first if the agent needs to compute the target. |
 | "resize X to WxH" / "make X WxH" | `resize_window(title=X, width=W, height=H)` | Pixel WxH. Doesn't move. |
 | "minimize X" / "hide X" | `minimize_window(title=X)` | Hides to taskbar. |
 | "maximize X" / "fullscreen X" | `maximize_window(title=X)` | Maximize to containing monitor. |
@@ -56,10 +57,10 @@ of these verbs. Operator-side examples:
 
 - "tile chrome on the left and discord on the right"
   ```
-  position_window(title="chrome",  x=0,    y=0)
-  resize_window(  title="chrome",  width=960,  height=1080)
-  position_window(title="Discord", x=960,  y=0)
-  resize_window(  title="Discord", width=960,  height=1080)
+  place_window_at_pixel(title="chrome",  x=0,    y=0)
+  resize_window(        title="chrome",  width=960,  height=1080)
+  place_window_at_pixel(title="Discord", x=960,  y=0)
+  resize_window(        title="Discord", width=960,  height=1080)
   ```
 - "fullscreen vscode and minimize everything else"
   ```
@@ -71,10 +72,12 @@ of these verbs. Operator-side examples:
 
 ## What NOT to do
 
-- Do NOT call `pc_type` / `pc_key` to drive window-management
-  keyboard shortcuts (Win+Up, Alt+Space, etc). Those send keys
-  to the FOCUSED window which may not be the target -- always
-  use the native verbs which target by hwnd.
+- Do NOT reach for keyboard-shortcut tools to drive window-management
+  shortcuts (Win+Up, Alt+Space, etc). Key presses go to the FOCUSED
+  window which may not be the target -- always use the native window
+  verbs above which target by hwnd. If you genuinely need a tool the
+  catalog above does not cover, discover it via `tool_search(...)`
+  rather than guessing a name.
 - Do NOT shell out to `wmctrl` / `xdotool` / `nircmd` / PowerShell
   `Set-ForegroundWindow`. The MiOS dispatch path runs the
   Win32 helper through the launcher broker; calling these
@@ -88,9 +91,9 @@ of these verbs. Operator-side examples:
 
 All five WRITE-class window verbs (`minimize_window`,
 `maximize_window`, `restore_window`, `resize_window`,
-`position_window`) are in `[security].firewall_high_privilege_
+`place_window_at_pixel`) are in `[security].firewall_high_privilege_
 verbs`. A tainted session -- one where any upstream tool_call
 loaded untrusted content (web fetch, external open_url, system-
-file text_view) -- gets these verbs REFUSED at dispatch with a
+file read_file) -- gets these verbs REFUSED at dispatch with a
 `firewall_block` event. Operator clears the chain by starting a
 fresh session.
