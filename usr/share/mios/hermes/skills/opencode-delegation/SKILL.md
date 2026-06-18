@@ -28,8 +28,8 @@ as you (Hermes :8642)**, dispatched by the agent-pipe orchestrator
 (`:8640`), NOT a sub-process spawned over ACP/stdio.
 
 This is the current model. The retired model spawned opencode via
-Hermes's native `delegate_task(acp_command="opencode")` — that path
-is gone. You no longer spawn opencode; the orchestrator dispatches
+Hermes's native `delegate_subtask_to_peer_agent(acp_command="opencode")` —
+that path is gone. You no longer spawn opencode; the orchestrator dispatches
 code-heavy facets to the opencode peer in parallel with you, and
 folds its answer into the council synthesis. Same Ollama backend
 (`mios-opencode:latest`), so no extra VRAM contention.
@@ -61,13 +61,14 @@ you don't call it, you collaborate. Concretely:
   children when the opencode peer is engaged — it has the better
   tools for it. Focus your effort on orchestration, system actions,
   comms, and synthesis.
-* **You still own** single-shot file reads/edits via your own `file`
-  tool, one-line `terminal` commands, and the MiOS surface
-  (`mios-find`, window launch, verbs/skills/recipes) — opencode
-  doesn't know about those; they are YOUR direct tools.
+* **You still own** single-shot file reads/edits via your own file
+  verbs (`read_file` / `replace_file_text` / `insert_file_lines`),
+  one-line shell via `powershell_run` / `run_sandboxed_code`, and the
+  MiOS surface (`find_file_fast`, window launch, verbs/skills/recipes) —
+  opencode doesn't know about those; they are YOUR direct tools.
 * **Parallel non-code fan-out** still uses your native
-  `delegate_task(tasks=[...])` to lfm2:700m children — that
-  mechanism is unchanged and separate from the opencode peer.
+  `delegate_subtask_to_peer_agent(tasks=[...])` to lfm2:700m children —
+  that mechanism is unchanged and separate from the opencode peer.
 
 ## Operator's mental model
 

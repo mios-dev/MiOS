@@ -23,6 +23,7 @@ metadata:
       - flatpak_install
       - flatpak_upgrade
       - flatpak_uninstall
+      - launch_windows_app
 ---
 <!-- AI-hint: Defines the unified package-management skill for Hermes, mapping "install", "find", and "update" commands to platform-specific winget (Windows) or flatpak (Linux) tools based on application type.
      AI-related: /usr/share/mios/hermes/skills/package-management/SKILL.md._, mios-launch, mios-winget -->
@@ -72,13 +73,14 @@ For "install X and open it", the Phase A.1 planner emits a DAG:
 
 ```
 flatpak_install(id="com.discordapp.Discord")
-open_app(name="Discord")
+launch_windows_app(name="Discord")
 ```
 
-The install verb blocks until the package is on disk; the open_app
-verb then resolves through the canonical mios-launch chain to find
-the freshly-installed app. Always chain in that order -- launching
-before install completes hits a "not found" from mios-launch.
+The install verb blocks until the package is on disk; the
+`launch_windows_app` verb then resolves through the canonical
+mios-launch chain (which covers the Linux GUI / flatpak target too)
+to find the freshly-installed app. Always chain in that order --
+launching before install completes hits a "not found" from mios-launch.
 
 ## Hardening
 

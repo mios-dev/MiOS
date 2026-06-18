@@ -3,7 +3,11 @@ name: self-improvement
 description: Use whenever a system skill or shim is *almost* right but needs editing for the current task. Fork it with mios-skill-clone (skills) or mios-tool-clone (tools) into the writable overlay and modify there -- DO NOT try to edit /usr/share/mios/hermes/skills/* or /usr/libexec/mios/*; both live on the immutable bootc tree and the writes will EIO. Same-name clones override the vendor copy on the next Hermes load.
 metadata:
   hermes:
-    requires_tools: [terminal, file]
+    requires_tools:
+      - run_sandboxed_code
+      - create_file
+      - read_file
+      - replace_file_text
 ---
 <!-- AI-hint: Defines the self-improvement skill for agents to clone and modify immutable vendor skills or shims into writable overlays, ensuring local overrides are used instead of failing on read-only system paths.
      AI-related: /usr/share/mios/hermes/skills/, /usr/share/mios/hermes/, mios-skill-clone, mios-tool-clone, mios-windows, mios-windows-extended -->
@@ -23,8 +27,10 @@ self-improvement workflow uses the writable overlays:
 ## Decision tree
 
 * New behaviour, no existing skill/tool resembles it -> **author from
-  scratch** via `skill_manage` (skills) or `write_file` to
-  `/usr/libexec/mios/<name>` + chmod + symlink (tools).
+  scratch**: write a new `SKILL.md` into the writable overlay
+  (`$HERMES_HOME/skills/<name>/SKILL.md`) with `create_file` (skills),
+  or `create_file` a script to `/usr/libexec/mios/<name>` + chmod +
+  symlink via `run_sandboxed_code` (tools).
 
 * Existing skill/tool is *almost* right -> **clone it** with
   `mios-skill-clone <name>` or `mios-tool-clone <name>`, edit the
@@ -46,9 +52,9 @@ $EDITOR /var/lib/mios/hermes/skills/parallel-fanout/SKILL.md
 mios-tool-clone mios-windows --as mios-windows-extended
 $EDITOR /usr/local/bin/mios-windows-extended
 
-# Confirm overrides took effect
+# Confirm overrides took effect (run via run_sandboxed_code)
 which mios-windows                               # /usr/local/bin/...
-skill_view name=parallel-fanout                  # local copy wins
+cat ~/.hermes/skills/parallel-fanout/SKILL.md    # local copy wins on next load
 ```
 
 Both helpers stamp a marker comment (`mios-skill-clone:` or

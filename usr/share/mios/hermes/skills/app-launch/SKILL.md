@@ -141,7 +141,7 @@ launch and verify", or "launch and verify it":
 3. Only if you have NO prior target in this session at all, read
    `/var/lib/mios/scratch/agent-nudges.md` and
    `/var/lib/mios/daemon/launch_failures.json` (they record the recent launch +
-   verdict), and ask `clarify` ONLY if those are also empty.
+   verdict), and ask the operator in your reply ONLY if those are also empty.
 
 Never reply with launch ADVICE and a permission question to a retry follow-up —
 that is the exact defect this skill exists to kill.

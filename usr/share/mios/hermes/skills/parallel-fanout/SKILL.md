@@ -1,21 +1,21 @@
 ---
 name: parallel-fanout
 description: |
-  Use delegate_task to fan out independent work across child agents in parallel.
-  Apply this whenever a request decomposes into 2+ subtasks that share no data --
-  multi-file audits, multi-source investigations, multi-target verifications,
-  multi-search greps, multi-host queries. The single tasks=[...] form is the
-  parallel form; calling terminal in a loop instead is the wrong shape and
-  burns the multi-agent capability.
+  Use delegate_subtask_to_peer_agent to fan out independent work across child
+  agents in parallel. Apply this whenever a request decomposes into 2+ subtasks
+  that share no data -- multi-file audits, multi-source investigations,
+  multi-target verifications, multi-search greps, multi-host queries. The single
+  tasks=[...] form is the parallel form; calling a tool in a serial loop instead
+  is the wrong shape and burns the multi-agent capability.
 metadata:
   hermes:
     requires_tools:
-      - delegate_task
+      - delegate_subtask_to_peer_agent
 ---
-<!-- AI-hint: Defines the parallel-fanout skill for Hermes to replace serial tool-call loops with `delegate_task(tasks=[...])` when processing independent subtasks like multi-file audits or multi-host queries to optimize execution via child agents.
+<!-- AI-hint: Defines the parallel-fanout skill for Hermes to replace serial tool-call loops with `delegate_subtask_to_peer_agent(tasks=[...])` when processing independent subtasks like multi-file audits or multi-host queries to optimize execution via child agents.
      AI-related: /usr/share/mios/hermes/skills/parallel-fanout/SKILL.md., mios-hermes-firstboot, mios-ollama, hermes-agent.service, localhost:11434 -->
 
-# Parallel fan-out via `delegate_task`
+# Parallel fan-out via `delegate_subtask_to_peer_agent`
 
 > _MiOS-managed: seeded into $HERMES_HOME/skills/parallel-fanout/SKILL.md
 > and ~/.hermes/skills/parallel-fanout/SKILL.md by mios-hermes-firstboot
@@ -24,44 +24,46 @@ metadata:
 > comment — firstboot will then leave the file alone forever._
 
 You are an orchestrator over a pool of cheap, fast CPU-side child agents
-(`lfm2:700m`, ~6 concurrent, depth 2). The `delegate_task` tool is how you
-turn serial tool-call loops into parallel dispatch.
+(`lfm2:700m`, ~6 concurrent, depth 2). The `delegate_subtask_to_peer_agent`
+tool is how you turn serial tool-call loops into parallel dispatch.
 
 ## Decision rule (HARD)
 
-If you would make 2+ `terminal`/`file`/`web` calls **in the same turn** with
+If you would make 2+ inspection/gathering tool calls **in the same turn** with
 no data dependency between them, you have ALREADY LOST. The right shape is
-ONE `delegate_task(tasks=[...])` call instead.
+ONE `delegate_subtask_to_peer_agent(tasks=[...])` call instead.
 
-Sequential `terminal` calls are the most common antipattern. Examples:
+Sequential inspection calls are the most common antipattern. Examples:
 
 | Antipattern (slow + serial) | Correct (parallel + cheap) |
 |---|---|
-| `terminal("ls /etc/foo")` then `terminal("ls /etc/bar")` | `delegate_task(tasks=[{goal:"list /etc/foo"},{goal:"list /etc/bar"}])` |
-| 3 sequential greps in different dirs | 1 delegate_task with 3 tasks |
-| read 4 config files one at a time | 1 delegate_task with 4 tasks |
-| Check 5 service states one by one | 1 delegate_task with 5 tasks |
+| run "ls /etc/foo" then "ls /etc/bar" as two calls | `delegate_subtask_to_peer_agent(tasks=[{goal:"list /etc/foo"},{goal:"list /etc/bar"}])` |
+| 3 sequential greps in different dirs | 1 delegate_subtask_to_peer_agent with 3 tasks |
+| read 4 config files one at a time | 1 delegate_subtask_to_peer_agent with 4 tasks |
+| Check 5 service states one by one | 1 delegate_subtask_to_peer_agent with 5 tasks |
 
 **Cost of delegation is small** (~50-200 ms to spawn child + the child's own
 runtime, which is faster than your serial loop because it's parallelised
 across CPU cores). Don't think of it as overhead — think of it as the
-default for *any* multi-step gathering work. Reserve direct `terminal`
+default for *any* multi-step gathering work. Reserve direct single-shot tool
 calls for: single commands, sequential pipelines where step B needs step A,
 or interactive workflows.
 
-If you call `terminal` twice in a row with no data dependency, you should
-have used `delegate_task` once. Even for "small" jobs. Especially for
-"small" jobs, because the parallelism savings stack across child concurrency
-(up to 6 simultaneous). The rule is not "use delegate_task for big work" —
-it is "use delegate_task whenever the structure of the work is parallel."
+If you fire two inspection tool calls in a row with no data dependency, you
+should have used `delegate_subtask_to_peer_agent` once. Even for "small" jobs.
+Especially for "small" jobs, because the parallelism savings stack across
+child concurrency (up to 6 simultaneous). The rule is not "use delegation for
+big work" — it is "use delegation whenever the structure of the work is
+parallel."
 
 ## The right call shape (parallel form)
 
-A *single* `delegate_task` call with a `tasks` array. **Not** three separate
-`delegate_task` calls. **Not** a `for` loop of terminal commands.
+A *single* `delegate_subtask_to_peer_agent` call with a `tasks` array. **Not**
+three separate `delegate_subtask_to_peer_agent` calls. **Not** a `for` loop of
+inspection commands.
 
 ```
-delegate_task(tasks=[
+delegate_subtask_to_peer_agent(tasks=[
   {"goal": "Read /etc/containers/systemd/*.container, extract every Image= line, return a markdown table."},
   {"goal": "Find the 5 most recently modified files under /var/log via `find -printf`. Return a table of path/mtime/size."},
   {"goal": "List every file under /etc/mios with size and first non-comment line via `cat`+`head`. Return a table."}
@@ -83,7 +85,7 @@ task entry (max depth is 2 for this user).
 
 ## When NOT to use
 
-- **Single command** — just call `terminal` directly. Delegation overhead beats the saving.
+- **Single command** — just call the tool directly. Delegation overhead beats the saving.
 - **Sequential pipeline** — step B needs step A's output. Run them in your own loop.
 - **Reasoning-heavy synthesis** — children run on `lfm2:700m`, which is great for
   grep/inspect/report and not for multi-step reasoning or code synthesis. Save
@@ -99,7 +101,7 @@ output language, expected return format. The richer the context, the
 better the child performs and the smaller the back-and-forth.
 
 ```
-delegate_task(tasks=[
+delegate_subtask_to_peer_agent(tasks=[
   {
     "goal": "Confirm whether the granite4.1:8b model is served and ready for inference.",
     "context": "The mios-llm-light lane serves on host port 11450 (OpenAI-compat). `curl http://localhost:11450/v1/models` lists the served models. Return YES/NO + which model ids are present."

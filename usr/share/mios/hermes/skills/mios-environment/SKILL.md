@@ -10,7 +10,8 @@ description: |
 metadata:
   hermes:
     requires_tools:
-      - terminal
+      - run_sandboxed_code
+      - read_file
 ---
 <!-- AI-hint: Maps the MiOS host environment and provides a reference for agents to use specific helper tools (mios-find, mios-windows, mios-gui) to launch apps, manage services, and handle cross-platform execution.
      AI-related: /usr/share/mios/hermes/skills/mios-environment/SKILL.md., /etc/mios/cron-rules.toml, mios-environment, mios-find, mios-windows, mios-gui, mios-hermes-firstboot, mios-apps, mios-open-url, mios-pc-control -->
@@ -118,7 +119,7 @@ mios-mcp.service                 -      Agent Context Service
 1. `mios-doctor` (5s health probe)
 2. Read the latest state file for the relevant daemon
 3. `mios-apps --filter <name>` if launching
-4. ASK the operator (`clarify` tool if available; else just ask in reply text)
+4. ASK the operator directly in your reply text
 
 NEVER fabricate. If `mios-find` returns "no match", that's the answer —
 don't pretend you launched it.
