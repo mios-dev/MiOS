@@ -7171,8 +7171,18 @@ _REFINE_SYSTEM_LITE = (
     "    MiOS's own status -- NOT from the web. The pipeline runs LOCAL read tools\n"
     "    (system_status, mios_apps, process_list, ...) and will NOT web-search (a\n"
     "    web search for local machine state returns irrelevant junk -- random\n"
-    "    files, dictionaries, brand names). Keep intent=agent. Omit/false for\n"
-    "    anything that needs EXTERNAL / web information. A technology or product\n"
+    "    files, dictionaries, brand names). Keep intent=agent.\n"
+    "    HYBRID -- local_state and web are NOT mutually exclusive: set BOTH\n"
+    "    local_state:true AND web:true when the question names something ON this\n"
+    "    machine but ALSO needs knowledge that exists only OFF it -- the\n"
+    "    theoretical specs / benchmarks / ratings / latest version / capabilities\n"
+    "    of a component you must first IDENTIFY locally (e.g. 'the theoretical AI\n"
+    "    performance of MY GPU', 'is my installed X the latest version', 'how does\n"
+    "    my CPU compare to ...'). The pipeline then grounds on BOTH the local read\n"
+    "    tools AND web_search and combines them -- judge by MEANING, not keywords;\n"
+    "    do NOT drop the web half just because the question says 'this/my system'.\n"
+    "    Otherwise omit/false for anything that needs EXTERNAL / web information. A\n"
+    "    technology or product\n"
     "    COMPARISON or general research question ('compare X vs Y vs Z', 'best\n"
     "    tool for ...', 'which database for ...') is NOT local_state even if it\n"
     "    mentions caches, databases, or systems -- it needs external knowledge.\n"
@@ -8633,6 +8643,14 @@ async def refine_intent(user_text: str,
     _dt = _dt.strip().lower() if isinstance(_dt, str) else ""
     if _dt not in ("internal", "external", "both"):
         _dt = "internal" if parsed.get("local_state") else "external"
+    # ADDITIVE HYBRID (operator 2026-06-18): a local_state turn that ALSO flags a
+    # web/news knowledge gap is genuinely BOTH -- even without a multi_task split,
+    # which the model routinely omits for "the specs of MY hardware". Promote to
+    # 'both' off refine's OWN web flag (model-judged, no keyword list) so the
+    # dispatcher skips the local-only fast-path and the native loop fires BOTH the
+    # local read tools AND web_search. Pure-local (web=false) is unchanged.
+    if parsed.get("local_state") and (parsed.get("web") or parsed.get("news")):
+        _dt = "both"
     parsed["domain_type"] = _dt
     # Deterministic routing for two verbs gemma4 mis-selects (operator 2026-06-06
     # tool battery: web_search punted to LOCAL data; "remember X" ran mios_apps and
@@ -12158,6 +12176,96 @@ async def _route_domain(user_text: str) -> Optional[str]:
     except Exception as e:
         log.info("router classify failed (-> full surface): %s", e)
     return None
+
+
+async def _needs_external_knowledge(user_text: str) -> bool:
+    """Generative knowledge-gap judge (operator 2026-06-18 "use web tools for
+    knowledge gaps EVERY TURN"; NO keyword lists). For a LOCAL-STATE turn, decide
+    whether FULLY answering ALSO requires facts that exist only OFF this machine --
+    published/theoretical specs, benchmarks, capabilities, ratings, reviews, prices,
+    or whether an installed version is the latest. Inspecting the machine yields its
+    own identity/state (which GPU/CPU/app it HAS, live usage) but NOT such external
+    facts, so a small model collapses "the theoretical specs of MY GPU" to local-only
+    and then DROPS or FABRICATES the external half. A focused yes/no (constrained
+    enum, thinking-off) is far more reliable than asking the big refine call to juggle
+    local+web. True only on a confident yes; degrade-CLOSED (error/None -> False =
+    unchanged pure-local behaviour, so 'what's open'/'list my games' never web-search)."""
+    if not (user_text or "").strip():
+        return False
+    sys = (
+        "A query about THIS local machine was received. Inspecting this machine "
+        "reveals its OWN state + identity (which CPU/GPU/app/version it HAS, and live "
+        "usage) but NOT external knowledge ABOUT those things. Decide, by MEANING not "
+        "keywords: to FULLY answer the user, is EXTERNAL knowledge required that "
+        "CANNOT be obtained by inspecting this machine -- e.g. a component's "
+        "published or theoretical specifications, benchmarks, capabilities, ratings, "
+        "reviews, prices, or whether an installed version is the newest? Examples: "
+        "'what's open' / 'what GPU do I have' / 'list my games' / 'check service "
+        "status' -> false (its own identity/state is the whole answer). 'the "
+        "theoretical performance of my GPU' / 'is my installed X the latest version' "
+        "/ 'how good is my CPU for AI' -> true (needs off-machine facts).")
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content": user_text[:2000]}],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "kgap", "strict": True, "schema": {
+                "type": "object",
+                "properties": {"needs_external": {"type": "boolean"}},
+                "required": ["needs_external"], "additionalProperties": False}}},
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 30, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return False
+        content = ((r.json().get("choices") or [{}])[0].get("message", {})
+                   .get("content") or "")
+        return (_loads_lenient(content) or {}).get("needs_external") is True
+    except Exception as e:  # noqa: BLE001 -- degrade-CLOSED (-> pure-local, unchanged)
+        log.debug("knowledge-gap judge failed (-> local-only): %s", e)
+        return False
+
+
+async def _formulate_web_query(user_text: str, local_grounding: str) -> str:
+    """For a HYBRID local+web turn, rewrite a vague SELF-referential question ("the
+    theoretical specs of MY GPU") into a CONCRETE web query naming the components the
+    local tools just IDENTIFIED -- so web_search finds the actual GPU/CPU spec pages,
+    not dictionary definitions of "theoretical". Model-formulated (no templates);
+    degrade-open to the raw user text on any error/empty (search still runs)."""
+    if not (user_text or "").strip() or not (local_grounding or "").strip():
+        return user_text
+    sys = ("Write ONE concise web-search query (the query text ONLY -- no quotes, no "
+           "preamble) that finds the EXTERNAL facts needed to answer the user's "
+           "question about THIS machine. The machine's REAL components are in the "
+           "context. Name the SPECIFIC make/model (the exact GPU and/or CPU) plus the "
+           "property asked about. Never write 'this system' or 'my' -- use the "
+           "concrete component names from the context.")
+    msg = ("User question: " + user_text[:500]
+           + "\n\nThis machine's components (from local tools):\n"
+           + local_grounding[:1500])
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content": msg}],
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 60, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return user_text
+        q = ((r.json().get("choices") or [{}])[0].get("message", {})
+             .get("content") or "").strip().strip('"').strip()
+        return q[:200] if q else user_text
+    except Exception as e:  # noqa: BLE001 -- degrade-open (-> raw query)
+        log.debug("web-query formulation failed (-> raw query): %s", e)
+        return user_text
 
 
 async def decompose_intent(user_text: str) -> Optional[dict]:
@@ -22196,11 +22304,36 @@ async def _respond_native_loop_direct(
         # non-`web` domain) -- web-priming a "find my file" / "what's my CPU" query is
         # the route-by-source violation that made a local file-find web_search.
         _refs: list = []   # (title, url-or-path) SOURCES this turn -> saved References
-        if (refined and (refined.get("web") or refined.get("news"))
-                and not _local_query_nl):
+        # LOCAL-STATE prefetch FIRST (additive hybrid, operator 2026-06-18): a
+        # local_state turn reaches the native loop ONLY because it ALSO has a web
+        # knowledge gap (pure-local goes to the deterministic fast-path). Ground THIS
+        # machine's real identity/state UP FRONT so (a) the answer states identity
+        # from live tool output, not memory, and (b) the web query below can target
+        # the CONCRETE components the tools just identified. Degrade-open.
+        _lse = ""
+        if refined and refined.get("local_state"):
             try:
+                _lse = await _read_tool_enrich(refined, session_id)
+                if _lse and _lse.strip():
+                    _push(" 🖥️")
+                    _msgs.append({"role": "system", "content": _lse[:6000]})
+            except Exception as _e:  # noqa: BLE001 -- degrade-open
+                log.debug("native-loop local-state prefetch skipped: %s", _e)
+                _lse = ""
+        # ADDITIVE web grounding (operator 2026-06-18 "use web tools for knowledge
+        # gaps EVERY TURN"): fire whenever refine flags a web/news gap -- INCLUDING a
+        # local_state HYBRID turn ("the theoretical specs of MY GPU"). Was hard-gated
+        # by `not _local_query_nl`, which dropped the web half of every hybrid query.
+        # For a HYBRID turn FORMULATE the search query from the locally-identified
+        # hardware (so it searches "NVIDIA RTX 4090 ... specs", not a dictionary
+        # lookup of the word "theoretical"). Pure-local has web=false -> never searches.
+        if (refined and (refined.get("web") or refined.get("news"))):
+            try:
+                _wq = last_user_text
+                if _lse and _lse.strip():
+                    _wq = await _formulate_web_query(last_user_text, _lse)
                 _wsr = await dispatch_mios_verb(
-                    "web_search", {"query": last_user_text}, session_id=session_id)
+                    "web_search", {"query": _wq}, session_id=session_id)
                 _wtext = (str(_wsr.get("result") or _wsr.get("output")
                               or _wsr.get("results") or _wsr)
                           if isinstance(_wsr, dict) else str(_wsr or ""))
@@ -23138,6 +23271,27 @@ async def chat_completions(request: Request) -> Any:
         refined.pop("tool", None)
         refined.pop("args", None)
 
+    # HYBRID KNOWLEDGE-GAP PROMOTION (operator 2026-06-18 "use web tools for
+    # knowledge gaps EVERY TURN" + "you are a LIAR" re: fabricated GPU specs): the
+    # big refine call collapses "the theoretical specs of MY hardware" to local-only
+    # (web=false), so the external half was dropped/fabricated. Run a FOCUSED yes/no
+    # judge (generative, NO keywords) ONLY for a local_state turn that refine did NOT
+    # already flag for web -- if it needs off-machine facts, set web=true + domain
+    # 'both'. That trips the fast-path skip below + the native-loop's web+local
+    # prefetch, so the answer grounds local identity (system_status) AND cited web
+    # specs, and token-streams. Degrade-closed (judge false/error -> pure-local).
+    if (LOCAL_STATE_FASTPATH and refined and refined.get("local_state")
+            and not (refined.get("web") or refined.get("news"))
+            and refined.get("intent") not in ("multi_task", "chat", "dispatch")
+            and not _force_council and not _force_delegate):
+        try:
+            if await _needs_external_knowledge(last_user_text):
+                refined["web"] = True
+                refined["domain_type"] = "both"
+                log.info("hybrid: local_state turn needs external knowledge "
+                         "-> web=true (additive grounding)")
+        except Exception:  # noqa: BLE001 -- degrade-closed
+            pass
     # LOCAL-STATE FAST-PATH (operator 2026-05-27): a "what's installed / what's
     # my state" question is local INVENTORY, not research. Answer it
     # deterministically from the live READ tools (mios_apps etc.) instead of
@@ -23146,6 +23300,11 @@ async def chat_completions(request: Request) -> Any:
     # the tools yield nothing. multi_task/chat excluded; forced-swarm respected.
     if (LOCAL_STATE_FASTPATH and refined and refined.get("local_state")
             and refined.get("intent") not in ("multi_task", "chat", "dispatch")
+            # HYBRID (operator 2026-06-18): a local_state turn that ALSO needs web
+            # knowledge must NOT take the local-only deterministic path (it has no
+            # web grounding + bursts the answer). Fall through to the native loop,
+            # which fires BOTH local + web prefetch and token-streams the answer.
+            and not (refined.get("web") or refined.get("news"))
             and not _force_council and not _force_delegate):
         _ls_resp = await _respond_local_state(
             refined, streaming=streaming, chat_id=chat_id, model=model,
