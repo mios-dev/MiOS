@@ -2166,7 +2166,7 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except json.JSONDecodeError:
         return None
     if not isinstance(parsed, dict) or "action" not in parsed:
@@ -3006,7 +3006,7 @@ def _args_obj(args) -> dict:
     """OpenAI tool-call arguments (a JSON STRING) -> object for Claude/Gemini."""
     if isinstance(args, str):
         try:
-            args = json.loads(args)
+            args = _loads_lenient(args)
         except Exception:  # noqa: BLE001
             args = {}
     return args if isinstance(args, dict) else {}
@@ -3996,7 +3996,7 @@ def _norm_tool_call(name: str, args, idx: int) -> dict:
     as objects, OpenAI `arguments` as a string; we normalise to the string)."""
     if isinstance(args, str):
         try:
-            args = json.loads(args)
+            args = _loads_lenient(args)
         except Exception:  # noqa: BLE001 -- leave malformed for the executor
             args = {}
     if not isinstance(args, dict):
@@ -4040,7 +4040,7 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
         candidates.append(_stripped)
     for cand in candidates:
         try:
-            obj = json.loads(cand)
+            obj = _loads_lenient(cand)
         except Exception:  # noqa: BLE001
             continue
         for item in (obj if isinstance(obj, list) else [obj]):
@@ -4121,7 +4121,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
         args = fn.get("arguments")
         if isinstance(args, str):
             try:
-                args = json.loads(args)
+                args = _loads_lenient(args)
             except Exception:  # noqa: BLE001
                 args = {}
         if not isinstance(args, dict):
@@ -4320,7 +4320,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 _stext = ""
                 if _sresp is not None:
                     try:
-                        _sb = json.loads(bytes(_sresp.body).decode("utf-8"))
+                        _sb = _loads_lenient(bytes(_sresp.body).decode("utf-8"))
                         _stext = _sb["choices"][0]["message"]["content"]
                     except Exception:  # noqa: BLE001
                         _stext = ""
@@ -4388,7 +4388,7 @@ def _tool_call_sig(tc: dict) -> str:
     args = fn.get("arguments")
     if isinstance(args, str):
         try:
-            args = json.loads(args)
+            args = _loads_lenient(args)
         except Exception:  # noqa: BLE001
             pass
     try:
@@ -4581,7 +4581,7 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
         if not _c:
             continue
         try:
-            _d = json.loads(_c)
+            _d = _loads_lenient(_c)
             if isinstance(_d, dict) and _d.get("success") is False:
                 return True
         except Exception:  # noqa: BLE001 -- not JSON, fall through to text markers
@@ -4634,7 +4634,7 @@ async def _daemon_diagnose(client, failed_summary: str, goal: str) -> str:
 
 async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                                   messages: list, tools: list, timeout,
-                                  push, allow_write: bool = False) -> list:
+                                  push, allow_write: bool = False, tool_choice=None) -> list:
     """Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent (opencode :8633,
     hermes, daemon-agent, any node bound to a /v1 endpoint). Symmetric sibling of
     _ollama_secondary_tool_loop for the OpenAI /chat/completions shape: POST
@@ -4679,6 +4679,8 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
         # sequences dependent steps. operator 2026-06-15/16.
         nb = {"model": model, "messages": msgs, "tools": tools, "stream": False,
               "parallel_tool_calls": _endpoint_supports_parallel_tools(ep)}
+        if tool_choice and _ == 0:
+            nb["tool_choice"] = tool_choice
         try:
             r = await client.post(
                 f"{ep}/chat/completions",
@@ -4872,7 +4874,7 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                     if data == "[DONE]":
                         break
                     try:
-                        chunk = json.loads(data)
+                        chunk = _loads_lenient(data)
                     except (json.JSONDecodeError, ValueError):
                         continue
                     ch = chunk.get("choices") or []
@@ -4944,7 +4946,7 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                 if data == "[DONE]":
                     break
                 try:
-                    chunk = json.loads(data)
+                    chunk = _loads_lenient(data)
                 except (json.JSONDecodeError, ValueError):
                     continue
                 ch = chunk.get("choices") or []
@@ -4966,7 +4968,7 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
             # parse the whole body as a non-streaming completion + push it.
             if not parts and _nonsse:
                 try:
-                    _obj = json.loads("".join(_nonsse))
+                    _obj = _loads_lenient("".join(_nonsse))
                     _m = ((_obj.get("choices") or [{}])[0].get("message") or {})
                     _c = (_m.get("content") or "").strip()
                     if _c:
@@ -5630,7 +5632,7 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
     m = re.search(r"\{.*\}", content, flags=re.DOTALL)
     if m:
         try:
-            obj = json.loads(m.group(0))
+            obj = _loads_lenient(m.group(0))
             if isinstance(obj, dict) and obj.get("intent"):
                 return obj
         except Exception:
@@ -7409,8 +7411,10 @@ async def _rag_enrich(query: str) -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL)
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
-        d = json.loads((out or b"{}").decode("utf-8", "replace") or "{}")
+        d = _loads_lenient((out or b"{}").decode("utf-8", "replace") or "{}")
     except Exception as e:
+        try: proc.kill()
+        except: pass
         log.debug("rag enrich skipped: %s", e)
         return ""
     hits = d.get("hits") or []
@@ -7523,6 +7527,16 @@ def _shares_anchor(text: str, anchor: set) -> bool:
     return bool(_anchor_tokens(text) & anchor)
 
 
+def _current_date_str() -> str:
+    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    for _src in (env.get("date"), env.get("datetime")):
+        m = re.match(r"\s*(\d{4}-\d{2}-\d{2})", str(_src or ""))
+        if m:
+            return m.group(1)
+    import datetime
+    return datetime.datetime.now().strftime("%Y-%m-%d")
+
+
 async def _web_research_enrich(query: str, refined: Optional[dict],
                                emit=None, quick: bool = False) -> str:
     """Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
@@ -7535,6 +7549,8 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     regardless of any single agent's tool-loop depth. Best-effort + bounded;
     '' when disabled / not a web turn / nothing fetched."""
     if not WEB_RESEARCH_ENABLED or not query or not query.strip():
+        return ""
+    if (refined or {}).get("intent") == "chat":
         return ""
     # LOCAL-STATE short-circuit (operator 2026-05-26): a query about THIS
     # machine's own state ("summarize recent activity", "check service status")
@@ -7604,9 +7620,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 stderr=asyncio.subprocess.DEVNULL)
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_SEARCH_TIMEOUT)
-            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            d = _loads_lenient((o or b"{}").decode("utf-8", "replace") or "{}")
             return [r for r in (d.get("results") or []) if r.get("url")]
         except Exception as e:  # noqa: BLE001 -- best-effort
+            try: p.kill()
+            except: pass
             log.debug("web-research search failed: %s", e)
             return []
 
@@ -7617,9 +7635,11 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_FETCH_TIMEOUT)
-            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            d = _loads_lenient((o or b"{}").decode("utf-8", "replace") or "{}")
             return (d.get("content") or "").strip()
         except Exception:  # noqa: BLE001
+            try: p.kill()
+            except: pass
             return ""
 
     async def _crawl(url: str) -> tuple:
@@ -7632,11 +7652,13 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 stderr=asyncio.subprocess.DEVNULL)
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_CRAWL_TIMEOUT)
-            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            d = _loads_lenient((o or b"{}").decode("utf-8", "replace") or "{}")
             if d.get("success"):
                 return (d.get("markdown") or "").strip(), (d.get("links") or [])
             return "", []
         except Exception:  # noqa: BLE001
+            try: p.kill()
+            except: pass
             return "", []
 
     async def _firecrawl(url: str) -> tuple:
@@ -7651,11 +7673,13 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 stderr=asyncio.subprocess.DEVNULL)
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_CRAWL_TIMEOUT)
-            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            d = _loads_lenient((o or b"{}").decode("utf-8", "replace") or "{}")
             if d.get("success"):
                 return (d.get("markdown") or "").strip(), (d.get("links") or [])
             return "", []
         except Exception:  # noqa: BLE001
+            try: p.kill()
+            except: pass
             return "", []
 
     async def _judge_satisfied(user_q: str, gathered: str) -> tuple:
@@ -7688,10 +7712,17 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             "DIFFERENT angle than before) + a concrete scrape_url. Better to loop "
             "again than to declare a thin/wrong page answerable. better_query + "
             "scrape_url must be concrete and AVOID vague words a search engine "
-            "mis-matches to a brand/product. Prefer lightweight text/lite endpoints.")
+            "mis-matches to a brand/product. Prefer lightweight text/lite endpoints. "
+            "STRICT RECENCY: If the USER QUERY asks for 'today', 'recent', 'latest', "
+            "'now', or a specific year/date, the GATHERED content MUST contain facts "
+            "or stories from that exact timeframe. If the content is stale or from "
+            "a past year/timeframe relative to the CURRENT DATE (e.g. 2025 results "
+            "when the query asks for 2026/today), set answerable=false and you "
+            "MUST suggest a sharper query with the correct year/date or a concrete "
+            "authoritative news URL to scrape. Don't accept year-old listicles or posts as 'today'.")
         _msgs = [{"role": "system", "content": sys_p},
                  {"role": "user",
-                  "content": f"USER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}]
+                  "content": f"CURRENT DATE: {_current_date_str()}\nUSER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}]
         # ENDPOINT-AWARE (operator 2026-05-25: the judge can run on the iGPU,
         # which is llama.cpp serving OpenAI /v1 -- NOT Ollama /api/chat). Ollama
         # lanes (:11434/:11435) use native /api/chat + think:False (the /v1 compat
@@ -7711,7 +7742,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                     return True, "", ""        # degrade open
                 msg = (((r.json().get("choices") or [{}])[0]
                         .get("message") or {}).get("content")) or "{}"
-            obj = json.loads(msg)
+            obj = _loads_lenient(msg)
             return (bool(obj.get("answerable")),
                     str(obj.get("better_query") or ""),
                     str(obj.get("scrape_url") or ""))
@@ -7719,22 +7750,17 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             log.warning("Judge satisfied check encountered unexpected error", exc_info=True)
             return True, "", ""
 
-    # Search the MODEL-SHARPENED query (refine's refined_text), not the raw user
-    # text -- refine disambiguates a vague ask (operator 2026-05-24 "THAT SEEM
-    # AWFULLY HARDCODED": "current global trending" matched the 'Current' BANKING
-    # APP, so the MODEL rewrites it to a concrete query). NO hardcoded keyword
-    # list / canonical query -- the model decides what to search; the fan-out
-    # (also model-driven) diversifies it.
-    search_q = str((refined or {}).get("refined_text") or "").strip() or query
-    # RECENCY FALLBACK (operator 2026-05-26 "web queries could fall back to
-    # embedding the current year ... use env-detected current values"): a
-    # time-sensitive turn (refine's model-driven `news` flag) whose query carries
-    # NO explicit 4-digit year gets the CURRENT year appended, so the search
-    # biases to NOW (2026 this year, 2027 next) instead of stale listicles. The
-    # year is the live system clock (_current_year) -- never hardcoded; evergreen
-    # turns (news=False) are left untouched.
-    if (bool((refined or {}).get("news"))
-            and not re.search(r"\b(?:19|20)\d{2}\b", search_q)):
+    # Search the MODEL-SHARPENED query (refine's refined_text) or query argument,
+    # prioritizing query since it might carry caller-anchored years (operator 2026-06-17).
+    search_q = query.strip() if (query and query.strip()) else str((refined or {}).get("refined_text") or "").strip()
+    # TIME-SENSITIVE / RECENCY detection (expanded operator 2026-06-17): check
+    # both the refiner's news flag AND explicit temporal terms in the query so
+    # entertainment, tweets, and meme trends get the correct recency treatment.
+    _time_sensitive = bool((refined or {}).get("news")) or any(
+        re.search(r"\b" + re.escape(w) + r"\b", search_q.lower())
+        for w in ["today", "todays", "recent", "recently", "latest", "now", "current", "this week", "this month", "yesterday", "breaking", "trending"]
+    )
+    if (_time_sensitive and not re.search(r"\b(?:19|20)\d{2}\b", search_q)):
         search_q = f"{search_q} {_current_year()}".strip()
     # News category is GATED OFF by default (WEB_RESEARCH_USE_NEWS_CATEGORY): the
     # news engines are IP-blocked on this instance -> news category = stale
@@ -7746,7 +7772,13 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     # turn `news` (current/recent/trending), recency-filter the general web so it
     # returns CURRENT content instead of evergreen Wikipedia / stale listicles --
     # the news ENGINES are blocked, so this (not the news category) is the lever.
-    _time_range = WEB_RESEARCH_TIME_RANGE if bool((refined or {}).get("news")) else ""
+    _time_range = WEB_RESEARCH_TIME_RANGE
+    if not _time_range and _time_sensitive:
+        _q_low = search_q.lower()
+        if any(re.search(r"\b" + re.escape(w) + r"\b", _q_low) for w in ["today", "todays", "yesterday", "now"]):
+            _time_range = "week"
+        else:
+            _time_range = "month"
     # Per-STEP emit log (operator 2026-05-22 "need emitters for every step
     # end-to-end" -- not one whole-loop summary). Each web step is recorded here;
     # the streaming path replays them as individual emits. Stashed on refined.
@@ -8412,8 +8444,7 @@ async def refine_intent(user_text: str,
                 r = await s.post(url, json=payload,
                                  headers={"Content-Type": "application/json"})
                 if r.status_code != 200:
-                    log.warning("refine: backend %s in %.1fs",
-                                r.status_code, time.time() - t0)
+                    log.warning("refine: backend %s in %.1fs: %s", r.status_code, time.time() - t0, r.text[:200])
                     return None
                 body = r.json()
                 break
@@ -8455,7 +8486,7 @@ async def refine_intent(user_text: str,
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except json.JSONDecodeError as e:
         # 1) STRUCTURAL repair FIRST (operator 2026-06-02): the common failure is
         # near-JSON with ONE bad token (empty value / trailing comma / comment /
@@ -8744,7 +8775,7 @@ async def refine_intent(user_text: str,
                  _det["tool"], _det["args"], parsed.get("intent"))
         parsed = _det
     # Cross-domain mis-dispatch guard (operator 2026-06-10: "open discord and send a
-    # message to @gaboo" -> refine emitted open_url with a FABRICATED discord channel
+    # message to @someone" -> refine emitted open_url with a FABRICATED discord channel
     # URL + fake token instead of the agent orchestrating launch+send). If refine
     # picked a single dispatch verb that is NOT in the routed domain's SSOT verb-set,
     # the classification and the chosen tool disagree -> the dispatch + its args are
@@ -9977,7 +10008,7 @@ async def _verity_factcheck(draft: str, user_q: str,
                 c = _vm.get("content") or _vm.get("reasoning_content") or ""
                 c = re.sub(r"<think>.*?</think>\s*", "", c, flags=re.DOTALL | re.I)
                 queries = [str(q).strip() for q in
-                           (json.loads(c or "{}").get("queries") or [])
+                           (_loads_lenient(c or "{}").get("queries") or [])
                            if str(q).strip()][:VERITY_FACTCHECK_MAX_Q]
     except Exception as e:  # noqa: BLE001 -- best-effort
         log.debug("verity query-gen skipped: %s", e)
@@ -9996,12 +10027,14 @@ async def _verity_factcheck(draft: str, user_q: str,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
             o, _ = await asyncio.wait_for(
                 p.communicate(), timeout=WEB_RESEARCH_SEARCH_TIMEOUT)
-            d = json.loads((o or b"{}").decode("utf-8", "replace") or "{}")
+            d = _loads_lenient((o or b"{}").decode("utf-8", "replace") or "{}")
             hits = [f"  - {(x.get('title','') or '')[:70]} ({x.get('url','')}) "
                     f"{(x.get('content','') or '')[:160]}"
                     for x in (d.get("results") or [])[:3]]
             return q, hits
         except Exception:  # noqa: BLE001
+            try: p.kill()
+            except: pass
             return q, []
 
     results = await asyncio.gather(*[_fc(q) for q in queries])
@@ -10228,8 +10261,7 @@ async def polish_response(raw_text: str,
             r = await s.post(url, json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
-                log.warning("polish: backend %s in %.1fs",
-                            r.status_code, time.time() - t0)
+                log.warning("polish: backend %s in %.1fs: %s", r.status_code, time.time() - t0, r.text[:200])
                 return None
             body = r.json()
     except (httpx.HTTPError, asyncio.TimeoutError) as e:
@@ -11224,7 +11256,7 @@ async def _dci_call_persona(
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except json.JSONDecodeError:
         return None
     if not isinstance(parsed, dict):
@@ -11638,7 +11670,7 @@ async def dci_critic_pass(
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except json.JSONDecodeError:
         return None
     if not isinstance(parsed, dict):
@@ -12118,7 +12150,7 @@ async def _route_domain(user_text: str) -> Optional[str]:
             return None
         content = ((r.json().get("choices") or [{}])[0].get("message", {})
                    .get("content") or "")
-        dom = (json.loads(content) or {}).get("domain")
+        dom = (_loads_lenient(content) or {}).get("domain")
         if dom in _ROUTING_DOMAINS:
             log.info("router: domain=%s <- %s", dom, user_text[:48].replace(chr(10), " "))
             return dom
@@ -12149,7 +12181,7 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     _domain = _routed_domain_var.get(None)  # routed once at the chat entry
     # Short-prompt skip: a short input usually maps to ONE dispatch, not a DAG --
     # EXCEPT an ACTION-domain command, where a short string is the normal shape
-    # ("send a discord message to @gaboo saying hello") that still needs a
+    # ("send a discord message to @someone saying hello") that still needs a
     # multi-verb GUI/tool DAG (focus_window -> cu_type -> cu_key). Bypass the skip
     # for action domains (data-driven) so the action is decomposed + executed.
     if (len(_ut) < 60 and len(_ut.split()) <= 10
@@ -12190,7 +12222,7 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except json.JSONDecodeError:
         return None
     if not isinstance(parsed, dict) or "nodes" not in parsed:
@@ -12427,7 +12459,7 @@ async def hitl_approve(request: Request) -> JSONResponse:
     passport-signed (the cryptographic HITL signature). In gate mode an approved
     (session, action_hash) lets the agent's RETRY of that exact action pass."""
     try:
-        body = json.loads(await request.body() or b"{}")
+        body = _loads_lenient(await request.body() or b"{}")
     except Exception:  # noqa: BLE001
         body = {}
     rid = str(body.get("id") or "").strip()
@@ -12547,8 +12579,7 @@ async def reflect_on_step_failure(
             r = await s.post(url, json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
-                log.warning("reflect: backend %s in %.1fs",
-                            r.status_code, time.time() - t0)
+                log.warning("reflect: backend %s in %.1fs: %s", r.status_code, time.time() - t0, r.text[:200])
                 return None
             body = r.json()
     except (httpx.HTTPError, asyncio.TimeoutError) as e:
@@ -12573,7 +12604,7 @@ async def reflect_on_step_failure(
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except json.JSONDecodeError as e:
         log.warning("reflect: %.1fs parse_fail: %s preview=%r",
                     elapsed, e, content[:200])
@@ -12672,7 +12703,7 @@ def _smart_extract_from_jsonish(payload: str) -> str:
         return ""
     # Try a single JSON object first.
     try:
-        obj = json.loads(s)
+        obj = _loads_lenient(s)
         if isinstance(obj, dict):
             for k in ("name", "launch", "title", "id", "path"):
                 v = obj.get(k)
@@ -12696,7 +12727,7 @@ def _smart_extract_from_jsonish(payload: str) -> str:
     first_line = s.splitlines()[0].strip()
     if first_line.startswith("{") and first_line.endswith("}"):
         try:
-            obj = json.loads(first_line)
+            obj = _loads_lenient(first_line)
             if isinstance(obj, dict):
                 for k in ("name", "launch", "title", "id", "path"):
                     v = obj.get(k)
@@ -12744,12 +12775,12 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
                     return m.group(0)
                 payload = r.get("output") or ""
                 try:
-                    obj = json.loads(payload)
+                    obj = _loads_lenient(payload)
                 except (json.JSONDecodeError, ValueError):
                     # Try first line as JSON.
                     first = (payload.strip().splitlines() or [""])[0]
                     try:
-                        obj = json.loads(first)
+                        obj = _loads_lenient(first)
                     except (json.JSONDecodeError, ValueError):
                         return m.group(0)
                 if isinstance(obj, list) and obj:
@@ -14204,7 +14235,7 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except (json.JSONDecodeError, ValueError):
         # Same structural repair as refine (operator 2026-06-02 NO-HARDCODES): a
         # tiny planner model's one malformed token must not silently collapse the
@@ -14297,7 +14328,7 @@ async def _expand_facets(user_text: str, existing: list, target_n: int,
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
     content = re.sub(r"\n?```\s*$", "", content)
     try:
-        parsed = json.loads(content)
+        parsed = _loads_lenient(content)
     except (json.JSONDecodeError, ValueError):
         parsed = _loads_lenient(content)
     facets = (parsed or {}).get("facets") if isinstance(parsed, dict) else None
@@ -14860,7 +14891,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
 
 # ── Dispatch (broker socket bridge) ────────────────────────────────
-_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:(=|\?|!)([^}]*))?\}")
+_TEMPLATE_PH_RE = re.compile(r"\{([a-zA-Z_]\w*)(?:(=|\?|!|\*)([^}]*))?\}")
 
 
 class _TemplateAbort(Exception):
@@ -14886,27 +14917,54 @@ def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
                      when FLAG is empty). Author places NO literal space before
                      an optional placeholder, so an absent optional leaves no
                      double-space (no fragile whitespace-collapsing needed).
+      {arg*}         SPLAT (varargs) -- for list/array parameters. Emits nothing
+                     when absent/empty; else space-prefixed individually-quoted
+                     elements (e.g. args=["a","b"] -> ' a b'). Designed for
+                     positional trailing arguments like open_app.args.
+    List/tuple values: when ANY placeholder resolves to a list/tuple, each
+    element is individually shlex.quote'd and joined with spaces (automatic
+    flattening). This applies to all placeholder forms, not just {arg*}.
     A template with no placeholders renders to its literal. Deliberately
     MINIMAL -- verbs needing conditional/recursive/base64 logic keep their code
     branch (the builder falls through when no `cmd` is set). Returns the rendered
     command, or None on render error (caller falls back to the hardcoded branch)."""
     try:
+        def _quote_val(val):
+            """Quote a scalar or list/tuple value for shell use."""
+            if isinstance(val, (list, tuple)):
+                return " ".join(shlex.quote(str(el)) for el in val)
+            return shlex.quote("" if val is None else str(val))
+
+        def _is_empty(val):
+            """Check if a value is absent/empty (scalar or list)."""
+            if val is None:
+                return True
+            if isinstance(val, (list, tuple)):
+                return len(val) == 0
+            return not str(val).strip()
+
         def _sub(m: "re.Match") -> str:
             name, op, rest = m.group(1), m.group(2), m.group(3)
             val = _arg_with_synonyms(tool, name, args)
-            sval = "" if val is None else str(val)
             if op == "!":
                 # REQUIRED: empty -> abort the whole render (-> None).
-                if not sval.strip():
+                if _is_empty(val):
                     raise _TemplateAbort(name)
-                return shlex.quote(sval)
+                return _quote_val(val)
+            if op == "*":
+                # SPLAT (varargs): list -> individually quoted, space-prefixed.
+                # Absent/empty -> "" (no output). Non-list scalar treated as
+                # single-element for robustness.
+                if _is_empty(val):
+                    return ""
+                return " " + _quote_val(val)
             if op == "?":
-                if not sval.strip():
+                if _is_empty(val):
                     return ""
                 flag = (rest or "").strip()
-                q = shlex.quote(sval)
+                q = _quote_val(val)
                 return f" {flag} {q}" if flag else f" {q}"
-            if op == "=" and not sval.strip():
+            if op == "=" and _is_empty(val):
                 dflt = rest if rest is not None else ""
                 # ENV default: `$ENVVAR:fallback` -- the one place a verb default
                 # legitimately comes from the host env (e.g. web_search fanout).
@@ -14914,7 +14972,7 @@ def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
                     envname, _sep, fallback = dflt[1:].partition(":")
                     dflt = os.environ.get(envname, fallback)
                 return shlex.quote(str(dflt))
-            return shlex.quote(sval)
+            return _quote_val(val)
         rendered = _TEMPLATE_PH_RE.sub(_sub, template).strip()
         return rendered or None
     except _TemplateAbort:
@@ -14930,14 +14988,17 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     _dispatch_mios_verb. Returns None for unknown verbs."""
     # SSOT command template takes precedence (P3): a verb with a `cmd` in
     # mios.toml renders via the catalog; verbs without one fall through to the
-    # hardcoded branches below. Incremental migration -> zero regression.
+    # code branches below. Incremental migration -> zero regression.
+    # SKIP verbs with pre-processing guards (basename extraction, probe-name
+    # reject, position routing, dimension validation): they render templates
+    # explicitly AFTER validation in their own branch.
+    _GUARDED_VERBS = {"open_app", "launch_app", "focus_window", "resize_window"}
     _tmpl = (_VERB_CATALOG.get(tool) or {}).get("cmd")
-    if _tmpl:
+    if _tmpl and tool not in _GUARDED_VERBS:
         _rendered = _template_to_cmd(tool, _tmpl, args)
         if _rendered:
             return _rendered
-    env_prefix = ""
-    if tool == "open_app":
+    if tool in ("open_app", "launch_app"):
         name = _arg_with_synonyms(tool, "name", args).strip()
         # Path-shaped arg: extract basename (planner sometimes emits
         # `path="/usr/bin/nautilus"` instead of `name="nautilus"`).
@@ -14966,47 +15027,37 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             v.replace("-", "_").rstrip("s") for v in _VERB_CATALOG
         }:
             return None
-        position = str(args.get("position", "default")).lower()
+        # Normalize args for template: inject cleaned name back into args
+        # so the SSOT template sees the basename-extracted value.
+        _clean = dict(args, name=name)
         extra_args = args.get("args") or []
-        if position and position != "as-is":
-            env_prefix = f"MIOS_LAUNCH_POSITION={shlex.quote(position)} "
+        # Resolve via SSOT: `cmd_args` template when extra args present,
+        # `cmd` template otherwise. Both defined in [verbs.open_app].
+        _cat = _VERB_CATALOG.get("open_app") or {}
         if extra_args:
-            ea = " ".join(shlex.quote(str(a)) for a in extra_args)
-            return f"{env_prefix}mios-windows launch {shlex.quote(name)} {ea}"
-        return f"{env_prefix}mios-launch {shlex.quote(name)}"
-    if tool == "launch_app":
-        name = _arg_with_synonyms(tool, "name", args).strip()
-        if name and ("/" in name or "\\" in name):
-            base = os.path.basename(name.rstrip("/\\")) or name
-            for suf in (".exe", ".desktop", ".lnk"):
-                if base.lower().endswith(suf):
-                    base = base[: -len(suf)]
-                    break
-            name = base
-        if not name:
-            return None
-        # Same probe-tool-name defensive check as open_app.
-        norm = name.lower().replace("-", "_").rstrip("s")
-        if norm in _VERB_CATALOG or norm.rstrip("_") in {
-            v.replace("-", "_").rstrip("s") for v in _VERB_CATALOG
-        }:
-            return None
-        return f"mios-launch {shlex.quote(name)}"
+            _tmpl = _cat.get("cmd_args") or _cat.get("cmd")
+        else:
+            _tmpl = _cat.get("cmd")
+        if _tmpl:
+            return _template_to_cmd("open_app", _tmpl, _clean)
+        return None  # no template -> cannot dispatch
     if tool == "focus_window":
-        title = shlex.quote(str(args.get("title", "")))
         pos = str(args.get("position", "default")).lower()
         # "default"/"as-is"/empty => focus ONLY, no reposition. Previously
         # only "as-is" short-circuited, so the DEFAULT position ran a second
         # `mios-window default <title>` -> "unknown subcommand: default" exit 64
         # -> focus_window reported FAILURE even though the focus succeeded
         # (operator 2026-05-29 OS-control train). "default" is not a placement.
+        _cat = _VERB_CATALOG.get("focus_window") or {}
         if pos in ("as-is", "default", ""):
-            return f"mios-window focus {title}"
-        return (
-            f"mios-window focus {title} && "
-            f"MIOS_LAUNCH_POSITION={shlex.quote(pos)} "
-            f"mios-window {shlex.quote(pos)} {title}"
-        )
+            # Focus only -- use base `cmd` template.
+            _tmpl = _cat.get("cmd")
+        else:
+            # Focus + reposition -- use `cmd_positioned` template.
+            _tmpl = _cat.get("cmd_positioned")
+        if _tmpl:
+            return _template_to_cmd(tool, _tmpl, args)
+        return None  # no template -> cannot dispatch
     # close_window migrated to SSOT [verbs.close_window].cmd "mios-window close
     # {title}" (P3). Graceful-only by operator decision 2026-05-23: the old
     # `mode=force -> mios-window kill` path was BROKEN (no `kill` subcommand)
@@ -15021,16 +15072,25 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # spaces / special chars in window titles ("Task Manager",
     # "VS Code - foo.py") survive the broker round-trip.
     if tool == "resize_window":
-        title = shlex.quote(str(args.get("title", "")))
         w = int(args.get("width", 0))
         h = int(args.get("height", 0))
         if w <= 0 or h <= 0:
             return None
-        return f"mios-window resize {title} {w} {h}"
+        # Render via SSOT [verbs.resize_window].cmd template.
+        _cat = _VERB_CATALOG.get("resize_window") or {}
+        _tmpl = _cat.get("cmd")
+        if _tmpl:
+            return _template_to_cmd(tool, _tmpl, args)
+        return None  # no template -> cannot dispatch
     # move_window / position_window / minimize_window / maximize_window /
     # restore_window migrated to SSOT [verbs.*].cmd templates (P3); they
     # dispatch via the catalog-template check at the top of this function.
-    # close_window (mode enum) + resize_window (w/h>0 guard) stay as code.
+    # open_app / launch_app migrated to SSOT cmd/cmd_args templates (P3);
+    # validation guards (basename extraction, probe-name reject) stay in code.
+    # focus_window migrated to SSOT cmd/cmd_positioned templates (P3);
+    # position routing (as-is/default -> cmd, else -> cmd_positioned) stays in code.
+    # resize_window migrated to SSOT cmd template (P3); w/h>0 guard stays in code.
+    # close_window (mode enum) stays as code (all modes -> graceful WM_CLOSE).
     # app_search + tool_search migrated to SSOT [verbs.*].cmd templates (P3)
     # using the {query!} required-or-None form -- the template aborts to None
     # when query is empty, replacing the old `if not q: return None` guard, and
@@ -15475,7 +15535,7 @@ async def _dispatch_mios_verb_inner(
         # timed out"). to_thread also lets independent verb dispatches overlap.
         raw = await asyncio.to_thread(_broker_io)
         try:
-            j = json.loads(raw) if raw else {}
+            j = _loads_lenient(raw) if raw else {}
         except json.JSONDecodeError:
             j = {}
         latency_ms = int((time.time() - t0) * 1000)
@@ -17334,7 +17394,7 @@ async def _mcp_http_rpc(url: str, headers: dict, method: str,
             for line in chunk.splitlines():
                 if line.startswith("data:"):
                     try:
-                        return json.loads(line[5:].strip())
+                        return _loads_lenient(line[5:].strip())
                     except json.JSONDecodeError:
                         continue
         return {"error": {"code": -32700, "message": "no SSE data event"}}
@@ -17404,7 +17464,7 @@ class _McpStdioClient:
                 if not s:
                     continue
                 try:
-                    msg = json.loads(s)
+                    msg = _loads_lenient(s)
                 except (json.JSONDecodeError, ValueError):
                     continue          # spec: ignore non-message stdout
                 rid = msg.get("id")
@@ -17957,7 +18017,7 @@ async def _a2a_tailnet_candidates() -> list:
             "tailscale", "status", "--json",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         out, _ = await asyncio.wait_for(p.communicate(), timeout=6)
-        data = json.loads((out or b"").decode("utf-8", "replace") or "{}")
+        data = _loads_lenient((out or b"").decode("utf-8", "replace") or "{}")
         for peer in (data.get("Peer") or {}).values():    # Peer = OTHERS, not Self
             if not isinstance(peer, dict) or not peer.get("Online"):
                 continue
@@ -18509,6 +18569,8 @@ async def _refresh_app_inventory(force: bool = False) -> None:
                 with open(_APP_INV_CACHE_FILE, "wb") as f:
                     f.write(stdout)
             except Exception as e:
+                try: proc.kill()
+                except: pass
                 log.warning("mios-apps inventory refresh failed: %s", e)
                 return
         # Parse + embed any new entries.
@@ -18524,7 +18586,7 @@ async def _refresh_app_inventory(force: bool = False) -> None:
             if not line:
                 continue
             try:
-                rec = json.loads(line)
+                rec = _loads_lenient(line)
             except json.JSONDecodeError:
                 continue
             key = f"{rec.get('category','')}::{rec.get('name','')}::{rec.get('launch','')}"
@@ -18859,7 +18921,7 @@ async def _podman_ps() -> dict:
     data = None
     try:
         with open(_PODMAN_PS_SNAPSHOT, "rb") as _f:
-            data = json.loads(_f.read() or b"[]")
+            data = _loads_lenient(_f.read() or b"[]")
     except Exception:
         data = None
     if data is None:
@@ -18869,8 +18931,10 @@ async def _podman_ps() -> dict:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL)
             out, _ = await asyncio.wait_for(proc.communicate(), timeout=4.0)
-            data = json.loads(out or b"[]")
+            data = _loads_lenient(out or b"[]")
         except Exception:
+            try: proc.kill()
+            except: pass
             return {"port": {}, "name": {}}
     by_port: dict[int, dict] = {}
     by_name: dict[str, dict] = {}
@@ -18949,6 +19013,8 @@ async def portal_service_detail(port: int, request: Request) -> JSONResponse:
             logs = _sanitize_tool_text((out or b"").decode(
                 "utf-8", "replace"))[-4000:]
         except Exception:
+            try: proc.kill()
+            except: pass
             logs = ""
     ok = False
     async with httpx.AsyncClient(verify=False, timeout=4.0,
@@ -20333,12 +20399,15 @@ _CLIENT_TOOLS_IDENTITY = (
     "only the surface you are embedded in, never your identity or your limits.\n"
     "Beyond any browser tools the client provided, the tools[] list ALSO contains the "
     "full MiOS tool surface: launching applications, controlling windows, web search, "
-    "persistent memory, OS recipes, and file search. THESE are the \"MiOS tools\" / "
+    "messaging, persistent memory, OS recipes, and file search. THESE are the \"MiOS tools\" / "
     "\"MCP tools\" a user refers to. When asked to do something on the computer (open "
-    "an app, run a search, remember something), CALL the matching tool -- never reply "
-    "that you cannot open apps or that you lack tools. To open any application by name "
-    "use launch_app (it resolves Windows AND Linux apps); use launch_windows_app for a "
-    "Windows-only app and open_url to open a web page. "
+    "an app, run a search, send a message, remember something), CALL the matching tool -- never reply "
+    "that you cannot open apps, send messages, or that you lack tools. "
+    "For ANY action tool (messaging, file ops, launch, etc.), you MUST actually call the tool "
+    "with the correct parameters -- NEVER claim success, narrate, or make excuses "
+    "about lack of intent/permissions without actually executing the tool. "
+    "To open any application by name use launch_app (it resolves Windows AND Linux apps); "
+    "use launch_windows_app for a Windows-only app and open_url to open a web page. "
     "For any question about the host, OS, version, or environment, call system_status "
     "(or sys_env) and answer from its `os` field -- never state the OS from training data "
     "(you are a Fedora/GNOME Linux userland that may run inside a Windows host via WSL2; "
@@ -20458,6 +20527,7 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     # grammar, so the llama.cpp #20345 thinking-drops-grammar issue doesn't apply.
     base_req["chat_template_kwargs"] = {"enable_thinking": True}
     last: dict = {}
+    _seen: set = set()
     for _ in range(max(1, max_iters)):
         req = dict(base_req)
         req["messages"] = messages
@@ -20474,11 +20544,24 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
             # caller fulfills it (and re-enters this loop with the result).
             return msg
         # All MiOS verbs -> execute server-side, append results, continue.
+        _sigs = [_tool_call_sig(_tc) for _tc in tcs]
+        if _sigs and all(_s in _seen for _s in _sigs):
+            messages.append(msg)
+            for tc in tcs:
+                messages.append({
+                    "role": "tool", "tool_call_id": tc.get("id"),
+                    "content": json.dumps({
+                        "success": False,
+                        "stderr": "Duplicate tool call detected. You have already called this tool with these arguments. Do not repeat tool calls. Take a different action or inform the user."
+                    })
+                })
+            continue
+        _seen.update(_sigs)
         messages.append(msg)
         for tc in tcs:
             fn = tc.get("function") or {}
             try:
-                args = json.loads(fn.get("arguments") or "{}")
+                args = _loads_lenient(fn.get("arguments") or "{}")
             except Exception:  # noqa: BLE001
                 args = {}
             try:
@@ -20495,6 +20578,7 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
 def _client_tools_wrap(msg: dict, chat_id: str, model: str) -> dict:
     return {
         "id": chat_id, "object": "chat.completion", "model": model,
+        "created": int(time.time()),
         "choices": [{
             "index": 0, "message": msg,
             "finish_reason": "tool_calls" if msg.get("tool_calls") else "stop"}],
@@ -20503,7 +20587,7 @@ def _client_tools_wrap(msg: dict, chat_id: str, model: str) -> dict:
 
 async def _client_tools_sse(msg: dict, chat_id: str,
                             model: str) -> AsyncGenerator[bytes, None]:
-    base = {"id": chat_id, "object": "chat.completion.chunk", "model": model}
+    base = {"id": chat_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": model}
 
     def _chunk(delta: dict, finish: Optional[str] = None) -> bytes:
         return ("data: " + json.dumps({
@@ -20785,7 +20869,7 @@ async def _enumerate_windows() -> dict:
         try:
             res = await dispatch_mios_verb("list_windows", {})
             raw = (res.get("output") or "").strip()
-            data = json.loads(raw) if raw else {}
+            data = _loads_lenient(raw) if raw else {}
             wins = data.get("windows") if isinstance(data, dict) else None
             wins = wins if isinstance(wins, list) else []
             out: list = []
@@ -21128,7 +21212,7 @@ async def _respond_os_control(
             _content = ""
             _resp = _holder.get("resp")
             try:
-                _b = json.loads(bytes(_resp.body).decode("utf-8"))
+                _b = _loads_lenient(bytes(_resp.body).decode("utf-8"))
                 _content = _b["choices"][0]["message"]["content"]
             except Exception:  # noqa: BLE001
                 _content = "The OS-control action completed."
@@ -21572,7 +21656,7 @@ async def _format_local_state(question: str, grounding: str,
             r = await s.post(_url, json=payload,
                              headers={"Content-Type": "application/json"})
             if r.status_code != 200:
-                log.warning("local-state format: backend %s", r.status_code)
+                log.warning("local-state format: backend %s: %s", r.status_code, r.text[:200])
                 return None
             body = r.json()
     except Exception as e:  # noqa: BLE001 -- best-effort, caller falls through
@@ -21709,7 +21793,7 @@ def _iter_answer_chunks(text: str, size: int):
 async def _respond_native_loop_direct(
     refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
     session_id: Optional[str], last_user_text: str, persona_system: str,
-    messages: list, request=None, emit=None,
+    messages: list, request=None, emit=None, tool_choice=None,
 ) -> Any:
     """Native agentic tool-loop: mios-heavy + the full MiOS tool surface, one
     standard call->tool_calls->execute->repeat loop, then polish. The model routes
@@ -22023,7 +22107,7 @@ async def _respond_native_loop_direct(
                         refined, streaming=False, chat_id=chat_id, model=model,
                         session_id=session_id, last_user_text=last_user_text,
                         persona_system=persona_system, messages=messages,
-                        request=request, emit=_q.put_nowait)
+                        request=request, emit=_q.put_nowait, tool_choice=tool_choice)
                 except Exception as _e:  # noqa: BLE001
                     _holder["err"] = str(_e)
                 finally:
@@ -22031,6 +22115,10 @@ async def _respond_native_loop_direct(
 
             _wtask = asyncio.create_task(_work())
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+            # Accumulate the REAL final-answer tokens the bg work streams onto the
+            # queue so we can (a) forward them live + (b) know not to re-type a
+            # simulated copy at the end (operator 2026-06-18 "streaming PROPERLY").
+            _streamed_parts: list = []
             while True:
                 try:
                     _s = await asyncio.wait_for(_q.get(), timeout=5.0)
@@ -22043,6 +22131,15 @@ async def _respond_native_loop_direct(
                     if _s.get("reasoning"):
                         yield _sse_reasoning(str(_s["reasoning"]),
                                              chat_id=chat_id, model=model)
+                    elif _s.get("content") is not None:
+                        # LIVE final-answer tokens: the bg final completion streams
+                        # real content deltas (+ the **Sources:** block) onto the
+                        # queue; forward them as true OpenAI content deltas instead
+                        # of dropping them and re-typing a simulated copy at the end.
+                        _piece = str(_s["content"])
+                        if _piece:
+                            _streamed_parts.append(_piece)
+                            yield _sse_chunk(_piece, chat_id=chat_id, model=model)
                     elif _s.get("label"):
                         yield _sse_status(chat_id=chat_id, model=model,
                                           emoji=str(_s.get("emoji", "·")),
@@ -22052,15 +22149,19 @@ async def _respond_native_loop_direct(
             _resp = _holder.get("resp")
             _content = ""
             try:
-                _b = json.loads(bytes(_resp.body).decode("utf-8"))
+                _b = _loads_lenient(bytes(_resp.body).decode("utf-8"))
                 _content = (_b["choices"][0]["message"]["content"] or "").strip()
             except Exception:  # noqa: BLE001
                 _content = ""
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="subagent_done", done=True)
-            if _content:
-                # Token-by-token: chunk the answer at word boundaries + pace it so
-                # it TYPES OUT live (operator 2026-06-12). Tunable / off via SSOT.
+            _streamed = "".join(_streamed_parts)
+            if _content and not _streamed.strip():
+                # NOTHING streamed live (e.g. a relay-ladder answer, or the final
+                # completion returned non-stream) -> simulated token re-type of the
+                # full answer (legacy path; tunable / off via SSOT). When tokens DID
+                # stream live above (the normal case), the answer + **Sources:** are
+                # already on the wire -- re-typing would DOUBLE them, so skip it.
                 if NATIVE_LOOP_STREAM_TOKENS and NATIVE_LOOP_STREAM_CHUNK > 0:
                     _delay = max(0.0, NATIVE_LOOP_STREAM_DELAY_MS / 1000.0)
                     for _piece in _iter_answer_chunks(_content, NATIVE_LOOP_STREAM_CHUNK):
@@ -22106,17 +22207,17 @@ async def _respond_native_loop_direct(
                 if _wtext.strip():
                     _push(" 🔎")
                     _msgs.append({"role": "system", "content":
-                        "LIVE web_search results for the user's request (current and "
-                        "real). Answer from THESE results and cite them; do NOT use "
-                        "training-memory facts or invent any headlines, titles, dates, "
-                        "or figures not present here:\n" + _wtext[:6000]})
+                     "LIVE web_search results for the user's request (current and "
+                     "real). Answer from THESE results and cite them; do NOT use "
+                     "training-memory facts or invent any headlines, titles, dates, "
+                     "or figures not present here:\n" + _wtext[:6000]})
                     # CAPTURE the source URLs so References are SAVED on the answer
                     # (operator 2026-06-16: "doesn't save references for web links").
                     # A small model cites sources only by NAME ("per Wikipedia") and
                     # drops the URL; we append a deterministic Sources list below from
                     # the REAL web_search result so the links are always preserved.
                     try:
-                        _wj = json.loads(_wtext) if isinstance(_wtext, str) else _wtext
+                        _wj = _loads_lenient(_wtext) if isinstance(_wtext, str) else _wtext
                         for _rr in ((_wj.get("results") if isinstance(_wj, dict) else None) or [])[:6]:
                             _u = str((_rr or {}).get("url") or "").strip()
                             _t = str((_rr or {}).get("title") or "").strip()
@@ -22161,7 +22262,7 @@ async def _respond_native_loop_direct(
                         "(no '<YourUsername>' placeholders):\n" + "\n".join(_hits)})
         _m2 = await _v1_secondary_tool_loop(
             _c, BACKEND, BACKEND_MODEL, _hdrs, _msgs, _tools,
-            NATIVE_LOOP_TIMEOUT_S, _push, allow_write=True)
+            NATIVE_LOOP_TIMEOUT_S, _push, allow_write=True, tool_choice=tool_choice)
         # parallel_tool_calls symmetric with the tool-loop's per-turn requests (audit
         # P4 2026-06-16): the final completion previously omitted it, so an OpenAI-
         # compatible heavy model could fall back to its OWN default on the shaping call
@@ -22169,14 +22270,45 @@ async def _respond_native_loop_direct(
         _pb = {"model": BACKEND_MODEL, "messages": _m2, "stream": False,
                "parallel_tool_calls": _endpoint_supports_parallel_tools(BACKEND),
                "chat_template_kwargs": {"enable_thinking": False}}
+        _live_streamed = False
+        if emit is not None:
+            _pb["stream"] = True
+
         try:
-            _r = await _c.post(f"{BACKEND}/chat/completions",
-                               content=json.dumps(_pb).encode("utf-8"),
-                               headers=_hdrs, timeout=NATIVE_LOOP_TIMEOUT_S)
-            _ch = (_r.json().get("choices") or [])
-            _raw = str((_ch[0].get("message") if _ch else {}).get("content") or "")
+            if emit is not None:
+                _raw_parts = []
+                async with _c.stream("POST", f"{BACKEND}/chat/completions",
+                                     content=json.dumps(_pb).encode("utf-8"),
+                                     headers=_hdrs, timeout=NATIVE_LOOP_TIMEOUT_S) as _r:
+                    if _r.status_code != 200:
+                        log.warning("native-loop final non-200: %s %s", _r.status_code, await _r.aread())
+                    else:
+                        async for line in _r.aiter_lines():
+                            if not line or not line.startswith("data:"): continue
+                            data = line[5:].strip()
+                            if data == "[DONE]": break
+                            try: chunk = _loads_lenient(data)
+                            except Exception: continue
+                            ch = chunk.get("choices") or []
+                            if not ch: continue
+                            delta = ch[0].get("delta") or {}
+                            _content = delta.get("content") or ""
+                            _reasoning = delta.get("reasoning_content") or ""
+                            if _reasoning: emit({"reasoning": _reasoning})
+                            if _content:
+                                _raw_parts.append(_content)
+                                emit({"content": _content})
+                _raw = "".join(_raw_parts)
+                _live_streamed = bool(_raw.strip())
+            else:
+                _r = await _c.post(f"{BACKEND}/chat/completions",
+                                   content=json.dumps(_pb).encode("utf-8"),
+                                   headers=_hdrs, timeout=NATIVE_LOOP_TIMEOUT_S)
+                _ch = (_r.json().get("choices") or [])
+                _raw = str((_ch[0].get("message") if _ch else {}).get("content") or "")
         except Exception as _e:  # noqa: BLE001
             log.warning("native-loop final completion failed: %s", _e)
+            _raw = ""
         # BULLET-PROOF FAILOVER (operator 2026-06-12): the HEAVY lane can be
         # DOWN/crashed (the SGLang q35 incident) -- a heavy-completion failure must
         # NOT dead-end the turn. When it yielded nothing, fall back to the LIGHT
@@ -22211,15 +22343,18 @@ async def _respond_native_loop_direct(
         _stripped = re.sub(r"(?is)</?think>", "", _raw).strip()
     _raw = _stripped
     _ans = _raw
-    try:
-        _p = await polish_response(
-            _raw, refined, session_id=session_id,
-            original_user_text=last_user_text, persona_system=persona_system,
-            agent_tools=_fired)
-        if _p:
-            _ans = _p
-    except Exception as _e:  # noqa: BLE001
-        log.debug("native-loop polish skipped: %s", _e)
+    # POLISH: heavy critic / style-correction over the final answer. Skipped when
+    # the answer is ALREADY clean or if we streamed live (cannot rewrite past).
+    if not getattr(locals(), "_live_streamed", False):
+        try:
+            _p = await polish_response(
+                _raw, refined, session_id=session_id,
+                original_user_text=last_user_text, persona_system=persona_system,
+                agent_tools=_fired)
+            if _p:
+                _ans = _p
+        except Exception as _e:  # noqa: BLE001
+            log.debug("native-loop polish skipped: %s", _e)
     if not _ans or not _ans.strip():
         # RELAY LADDER (operator 2026-06-11 "HARDCODED!!!" -- never a canned dead-end):
         # (1) relay the model's own raw synthesis if polish emptied it; (2) else surface
@@ -22279,7 +22414,10 @@ async def _respond_native_loop_direct(
             _seen_u.add(_u)
             _src_lines.append(f"{len(_src_lines) + 1}. {(_t or _u)[:90]} — {_u}")
         if _src_lines:
-            _ans = _ans.rstrip() + "\n\n**Sources:**\n" + "\n".join(_src_lines[:6])
+            _append = "\n\n**Sources:**\n" + "\n".join(_src_lines[:6])
+            _ans = _ans.rstrip() + _append
+            if _live_streamed and emit is not None:
+                emit({"content": _append})
             log.info("native-loop: appended %d saved reference(s) to the answer",
                      len(_src_lines[:6]))
     try:
@@ -22366,7 +22504,7 @@ async def _respond_local_state(
             _resp = _holder.get("resp")
             _content = ""
             try:
-                _b = json.loads(bytes(_resp.body).decode("utf-8"))
+                _b = _loads_lenient(bytes(_resp.body).decode("utf-8"))
                 _content = (_b["choices"][0]["message"]["content"] or "").strip()
             except Exception:  # noqa: BLE001
                 _content = ""
@@ -22469,7 +22607,7 @@ async def _usage_completeness_mw(request: Request, call_next):
         return response
     out = body
     try:
-        data = json.loads(body)
+        data = _loads_lenient(body)
         if (isinstance(data, dict) and data.get("object") == "chat.completion"
                 and not data.get("usage")):
             _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
@@ -22492,7 +22630,7 @@ async def responses_api(request: Request) -> Any:
     untouched. Minimal v1: text/message `input` -> one output_text message item +
     usage; `instructions` -> a system message. Streaming/items/hosted-tools TODO."""
     try:
-        body = json.loads(await request.body() or b"{}")
+        body = _loads_lenient(await request.body() or b"{}")
     except Exception:
         return JSONResponse(content={"error": {"message": "invalid JSON body",
                             "type": "invalid_request_error"}}, status_code=400)
@@ -22542,7 +22680,7 @@ async def responses_api(request: Request) -> Any:
 async def chat_completions(request: Request) -> Any:
     try:
         body_bytes = await request.body()
-        body = json.loads(body_bytes) if body_bytes else {}
+        body = _loads_lenient(body_bytes.decode("utf-8", errors="replace")) if body_bytes else {}
     except json.JSONDecodeError:
         return JSONResponse(
             content={"error": {"message": "invalid JSON body",
@@ -22698,21 +22836,24 @@ async def chat_completions(request: Request) -> Any:
         # Degrade-open; non-web client-tools turns (browser/IDE) are untouched.
         if _ct_user and _routed_domain_var.get(None) == "web":
             try:
-                _wsr = await dispatch_mios_verb(
-                    "web_search", {"query": _ct_user}, session_id=None)
-                _wtext = (str(_wsr.get("result") or _wsr.get("output")
-                              or _wsr.get("results") or _wsr)
-                          if isinstance(_wsr, dict) else str(_wsr or ""))
-                if _wtext.strip():
-                    body = dict(body)
-                    body["messages"] = list(body.get("messages") or []) + [{
-                        "role": "system", "content":
-                        "LIVE web_search results for the user's request (current and "
-                        "real). Answer from THESE results and cite them; do NOT use "
-                        "training-memory facts or invent any version, date, or figure "
-                        "not present here:\n" + _wtext[:6000]}]
-                    log.info("client-tools: web-grounded research turn "
-                             "(prefetched web_search, anti-fabrication)")
+                _refined = await refine_intent(_ct_user)
+                if not _refined or _refined.get("intent") != "chat":
+                    _search_q = str((_refined or {}).get("refined_text") or "").strip() or _ct_user
+                    _time_sensitive = bool((_refined or {}).get("news")) or any(
+                        re.search(r"\b" + re.escape(w) + r"\b", _search_q.lower())
+                        for w in ["today", "todays", "recent", "recently", "latest", "now", "current", "this week", "this month", "yesterday", "breaking", "trending"]
+                    )
+                    if _time_sensitive and not re.search(r"\b(?:19|20)\d{2}\b", _search_q):
+                        _search_q = f"{_search_q} {_current_year()}".strip()
+                        if isinstance(_refined, dict):
+                            _refined["refined_text"] = _search_q
+                    _wtext = await _web_research_enrich(_search_q, _refined)
+                    if _wtext.strip():
+                        body = dict(body)
+                        body["messages"] = list(body.get("messages") or []) + [{
+                            "role": "system", "content": _wtext}]
+                        log.info("client-tools: web-grounded research turn "
+                                 "(prefetched deep web_research, anti-fabrication)")
             except Exception as _e:  # noqa: BLE001 -- degrade-open
                 log.debug("client-tools web prefetch skipped: %s", _e)
         # FILE-SEARCH GROUND a files-domain turn on the client-tools path (operator
@@ -23024,12 +23165,13 @@ async def chat_completions(request: Request) -> Any:
     # turn (falls through to the existing pipeline on any error).
     if (NATIVE_LOOP_ENABLE and refined
             and refined.get("intent") in ("agent", "multi_task")
-            and not _force_council and not _force_delegate):
+            and not _force_council):
         try:
             _nl = await _respond_native_loop_direct(
                 refined, streaming=streaming, chat_id=chat_id, model=model,
                 session_id=session_id, last_user_text=last_user_text,
-                persona_system=_persona_system, messages=messages, request=request)
+                persona_system=_persona_system, messages=messages, request=request,
+                tool_choice=body.get("tool_choice"))
             if _nl is not None:
                 log.info("native-loop: handled the turn")
                 return _nl
@@ -23244,7 +23386,7 @@ async def chat_completions(request: Request) -> Any:
     # ACTION-domain native execution (operator 2026-06-10): the routed domain is an
     # ACTION (write verb) -> PERFORM it, never research it. Decompose into an
     # EXECUTABLE verb-DAG and run it; if the planner declines (an iterative GUI nav
-    # like "send a discord message to @gaboo" is not a static DAG), fall through to
+    # like "send a discord message to a user" is not a static DAG), fall through to
     # the single Hermes tool-loop, which orchestrates the action natively. NEVER the
     # research swarm. Data-driven on verb permission (_is_action_domain); no literals.
     _action_route = (PLANNER_ENABLED
@@ -23255,7 +23397,7 @@ async def chat_completions(request: Request) -> Any:
         _act_nodes = (_act_dag.get("nodes") or []) if isinstance(_act_dag, dict) else []
         # EXECUTE the DAG only if it contains a real ACTION (verb/tool) node. A DAG
         # of ONLY agent nodes is a research split -- wrong for an ACTION request (it
-        # produced an empty council "warning" for "send @gaboo a message on discord",
+        # produced an empty council "warning" for a discord DM action request,
         # operator 2026-06-10). Fall through to the single Hermes tool-loop, which
         # calls the action verb (discord_send / GUI) directly.
         if _act_nodes and any(n.get("tool") for n in _act_nodes):
@@ -23389,7 +23531,7 @@ async def chat_completions(request: Request) -> Any:
                     _cr = _sp_cdp.run(["mios-cdp-fetch", _u, "4000"],
                                       capture_output=True, text=True, timeout=55)
                     if _cr.returncode == 0 and _cr.stdout.strip():
-                        _pg = json.loads(_cr.stdout)
+                        _pg = _loads_lenient(_cr.stdout)
                         if (_pg.get("text") or "").strip():
                             _cdp_page = (
                                 "LIVE PAGE CONTENT fetched via ChromeDev CDP from "
@@ -23977,7 +24119,8 @@ async def chat_completions(request: Request) -> Any:
             # them intent=chat (operator 2026-06-10: "send a discord message" was
             # refined as chat -> no write-hint -> the primary narrated a read-only
             # refusal instead of calling discord_send). An action domain MUST act.
-            pb["tool_choice"] = "required"
+            if not isinstance(pb.get("tool_choice"), dict):
+                pb["tool_choice"] = "required"
         # Universal agent contract FIRST (operator 2026-05-30 ".md presented
         # to every agent"): the primary + every council secondary lead with
         # the overlay contract (global tools, live internet, delegation, no
@@ -24272,7 +24415,7 @@ async def chat_completions(request: Request) -> Any:
                                 if data == "[DONE]":
                                     break
                                 try:
-                                    chunk = json.loads(data)
+                                    chunk = _loads_lenient(data)
                                 except (json.JSONDecodeError, ValueError):
                                     continue
                                 ch = chunk.get("choices") or []
