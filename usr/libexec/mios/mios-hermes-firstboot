@@ -204,6 +204,19 @@ fi
 _AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:11450')"
 _AI_BACKEND="${_AI_BACKEND%/}"
 
+# ── Agent-surface (orchestrator) endpoint + model for THIN clients ──────────────
+# The interactive `hermes` CLI REPL must be a THIN client to the agent-pipe
+# ORCHESTRATOR on :8640 (served model "MiOS-Agent"), exactly like the @/mios CLI
+# and the Hermes DESKTOP app -- NOT a direct leaf granite native tool-loop on
+# :11450. A leaf tool-loop fabricates (granite emits tool-call JSON it can't
+# broker-execute -> "typed into chat" LIAR + same_tool_failure_halt). The
+# orchestrator runs the loop SERVER-SIDE (refine -> route -> broker-exec +
+# read-back verify -> polish), so a thin client never fabricates. Both values
+# flow from the [ai] SSOT (operator "UNIFY THE MiOS AI PIPELINE" / "NO HARDCODES").
+_AGENT_ENDPOINT="$(_mios_toml_value ai endpoint 'http://localhost:8640/v1')"
+_AGENT_ENDPOINT="${_AGENT_ENDPOINT%/}"
+_AGENT_MODEL="$(_mios_toml_value ai agent_model 'MiOS-Agent')"
+
 # Make sure the directory exists with the right ownership. tmpfiles.d
 # should have done this already, but be defensive in case the .service
 # fires before tmpfiles for some reason.
@@ -1062,9 +1075,13 @@ _op_cfg_should_reseed() {
     [[ ! -f "$f" ]] && return 0
     grep -qE '0\.0\.0\.0:11434|127\.0\.0\.1:11434|https://localhost:11434' "$f" 2>/dev/null && return 0
     [[ "$_should_seed" -eq 1 ]] && return 0
-    # YAML parse + minimum-schema check via python3 (Hermes itself bundles python).
+    # YAML parse + minimum-schema + THIN-CLIENT-invariant check via python3
+    # (Hermes itself bundles python). The thin-client checks force a one-time
+    # re-seed of any legacy REPL config that still points at a leaf (model.base_url
+    # :11450 / non-empty toolsets) -> rewrites it as a :8640 orchestrator client.
+    MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
     python3 - "$f" <<'EOF' 2>/dev/null || return 0
-import sys, yaml
+import sys, os, yaml
 p = sys.argv[1]
 try:
     with open(p) as fh:
@@ -1078,6 +1095,17 @@ if not isinstance(d, dict):
 for k in ("model", "auxiliary", "delegation", "approvals", "agent"):
     if k not in d:
         sys.exit(3)
+# THIN-CLIENT invariant: the REPL must target the agent-pipe ORCHESTRATOR
+# surface (:8640 MiOS-Agent), never a leaf -- a leaf granite tool-loop fabricates.
+m = d.get("model") if isinstance(d.get("model"), dict) else {}
+want_ep = (os.environ.get("MIOS_AGENT_ENDPOINT") or "").rstrip("/")
+want_model = os.environ.get("MIOS_AGENT_MODEL") or ""
+if want_ep and str(m.get("base_url") or "").rstrip("/") != want_ep:
+    sys.exit(4)
+if want_model and str(m.get("default") or "") != want_model:
+    sys.exit(5)
+if d.get("toolsets"):                      # tools must run SERVER-SIDE (empty here)
+    sys.exit(6)
 sys.exit(0)
 EOF
     return 1
@@ -1087,13 +1115,63 @@ if [[ -n "$_op_home" && -d "$_op_home" ]]; then
     _op_cfg="${_op_cfg_dir}/config.yaml"
     if _op_cfg_should_reseed "$_op_cfg"; then
         mkdir -p "$_op_cfg_dir"
-        cp -f "$HERMES_DATA_CFG" "$_op_cfg"
-        chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
-        chmod 0700 "$_op_cfg_dir" 2>/dev/null || true
-        chmod 0600 "$_op_cfg" 2>/dev/null || true
-        _log "seeded operator CLI config $_op_cfg (user=$_op_user)"
+        # THIN-CLIENT transform (operator 2026-06-18 "UNIFY THE MiOS AI PIPELINE").
+        # Start from the full gateway config (keeps auxiliary/delegation/approvals/
+        # agent/display + the correct on-box aux lanes) but point the MAIN model at
+        # the agent-pipe ORCHESTRATOR (:8640 MiOS-Agent), empty the toolsets, and
+        # disable the per-session MCP spawn. The orchestrator runs the tool loop
+        # SERVER-SIDE (refine -> route -> broker-exec + read-back verify -> polish),
+        # so the REPL never runs a leaf granite loop -- the fabrication root cause
+        # (claimed launch but typed into chat / same_tool_failure_halt). This makes
+        # the `hermes` REPL identical to the already-unified @/mios CLI + desktop app.
+        # Aux lanes (compression/title/...) legitimately stay on the leaf (:11450).
+        if MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
+           python3 - "$HERMES_DATA_CFG" "$_op_cfg" <<'EOF'
+import sys, os, yaml
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as fh:
+    d = yaml.safe_load(fh) or {}
+ep = os.environ["MIOS_AGENT_ENDPOINT"].rstrip("/")
+model = os.environ["MIOS_AGENT_MODEL"]
+m = d.get("model") if isinstance(d.get("model"), dict) else {}
+m["provider"] = "custom:mios-orchestrator"   # resolves against custom_providers below
+m["default"]  = model
+m["base_url"] = ep
+m["api_key"]  = ""
+m.pop("fallback_model", None)                # orchestrator owns fallback server-side
+d["model"] = m
+cps = d.get("custom_providers")
+if not isinstance(cps, list):
+    cps = []
+if not any(isinstance(c, dict) and c.get("name") == "mios-orchestrator" for c in cps):
+    cps.append({"name": "mios-orchestrator", "base_url": ep, "api_key": ""})
+d["custom_providers"] = cps
+d["toolsets"] = []                           # tools run SERVER-SIDE in the orchestrator
+mcp = d.get("mcp_servers")
+if isinstance(mcp, dict):
+    for v in mcp.values():
+        if isinstance(v, dict):
+            v["enabled"] = False             # no per-session MCP spawn for the thin REPL
+with open(dst, "w") as fh:
+    yaml.safe_dump(d, fh, sort_keys=False, default_flow_style=False)
+print("ok")
+EOF
+        then
+            chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
+            chmod 0700 "$_op_cfg_dir" 2>/dev/null || true
+            chmod 0600 "$_op_cfg" 2>/dev/null || true
+            _log "seeded operator CLI config $_op_cfg as THIN orchestrator client (${_AGENT_MODEL} @ ${_AGENT_ENDPOINT})"
+        else
+            # Degrade-open: if the transform fails (no python/yaml), fall back to the
+            # legacy leaf copy so the CLI still has a working config rather than none.
+            cp -f "$HERMES_DATA_CFG" "$_op_cfg"
+            chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
+            chmod 0700 "$_op_cfg_dir" 2>/dev/null || true
+            chmod 0600 "$_op_cfg" 2>/dev/null || true
+            _log "WARN: thin-client transform failed -- copied leaf config to $_op_cfg as fallback"
+        fi
     else
-        _log "operator CLI config $_op_cfg already current -- not overwriting"
+        _log "operator CLI config $_op_cfg already current (thin :8640 client) -- not overwriting"
     fi
 
     # ── Operator CLI key material (~/.hermes/.env) ──────────────────────

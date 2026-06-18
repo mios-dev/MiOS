@@ -4044,6 +4044,11 @@ xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmap
 # this is the CLIENT surface only; the pipe's OWN inference backend is
 # MIOS_AGENT_PIPE_BACKEND (separate), so :8640 here does not self-loop.
 endpoint            = "http://localhost:8640/v1"
+# Served model id the orchestrator advertises on :8640/v1/models, and the model
+# every THIN client requests (the @/mios CLI via MIOS_AI_GATEWAY_MODEL, the Hermes
+# desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
+# no front-end hardcodes it (operator "NO HARDCODES"; 2026-06-18 unify of the REPL).
+agent_model         = "MiOS-Agent"
 # Direct-install source for automation/38-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
