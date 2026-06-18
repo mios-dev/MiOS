@@ -145,3 +145,24 @@ models:
       --cache-type-k q8_0 --cache-type-v q8_0
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
+
+# ── CO-RESIDENT GROUP (operator 2026-06-18 "explain the logs" exposed it) ──────
+# Default llama-swap is single-active: only ONE model resident, the rest swapped
+# out. So an embeddings request (RAG / memory) that arrives DURING a chat turn had
+# to swap the BUSY chat model out -- which llama-swap refuses mid-request and
+# returns 429 Too Many Requests. Result: ~40% of /v1/embeddings 429'd on a normal
+# turn (the agent-pipe stores knowledge + RAG-enriches every turn), silently
+# degrading memory/recall. FIX: keep the everyday trio CO-RESIDENT. `swap: false`
+# = members never evict EACH OTHER (all can be loaded together); they still load
+# on demand. VRAM: granite4.1:8b ~5.5G + lfm2:700m ~0.7G + embeddinggemma ~0.5G
+# = ~6.7G, far inside the 4090's 24G. Vision (qwen3-vl, inert/gated) stays in the
+# implicit default group and swaps in on demand (exclusive), evicting this group
+# only when actually used. No more swap-contention 429 on the hot chat+embed path.
+groups:
+  resident:
+    swap: false
+    exclusive: true
+    members:
+      - "granite4.1:8b"
+      - "lfm2:700m"
+      - "nomic-embed-text"
