@@ -102,6 +102,7 @@ from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS
                         fork_outcome as _kvfork_outcome)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
+import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -200,9 +201,63 @@ async def _heavy_lane_up() -> bool:
     return ok
 
 
+_LANE_RESOLVER = None
+
+
+def _lane_resolver():
+    """WS-1 unified lane resolver (mios_lanes), built LAZILY from SSOT so _toml_section
+    / _get_client are defined, then cached. ONE place a model lane is chosen: the
+    [ai].heavy_engine-preferred heavy lane, then the other heavy lane, then the always-on
+    light lane, with a per-lane cooldown so a dead lane fails over (never 404s). Collapses
+    the two 'mios-heavy' lanes (SGLang :11441 + vLLM :11440) behind one selector."""
+    global _LANE_RESOLVER
+    if _LANE_RESOLVER is not None:
+        return _LANE_RESOLVER
+    try:
+        _ai = _toml_section("ai")
+    except Exception:  # noqa: BLE001 -- degrade to env/defaults
+        _ai = {}
+    heavy_engine = (os.environ.get("MIOS_AGENT_PIPE_HEAVY_ENGINE")
+                    or str(_ai.get("heavy_engine", "sglang"))).strip()
+    _vllm_url = os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_VLLM",
+                               "http://localhost:11440/v1").rstrip("/")
+    _vllm_model = os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_VLLM_MODEL",
+                                 _TOOL_BACKEND_HEAVY_MODEL)
+    lanes = {
+        "light":  mios_lanes.Lane("light",  _TOOL_BACKEND,       _TOOL_BACKEND_MODEL),
+        "sglang": mios_lanes.Lane("sglang", _TOOL_BACKEND_HEAVY, _TOOL_BACKEND_HEAVY_MODEL),
+        "vllm":   mios_lanes.Lane("vllm",   _vllm_url,           _vllm_model),
+    }
+    chain = mios_lanes.build_chain(heavy_engine, lanes.keys())
+
+    async def _probe(url: str) -> bool:
+        client = await _get_client()
+        r = await client.get(f"{url}/models", timeout=2.0)
+        return r.status_code == 200
+
+    _LANE_RESOLVER = mios_lanes.LaneResolver(
+        lanes, {"heavy": chain, "tool": chain}, _probe,
+        ttl=_HEAVY_PROBE_TTL,
+        cooldown=float(os.environ.get("MIOS_AGENT_PIPE_LANE_COOLDOWN", "60")))
+    try:
+        log.info("lane resolver: heavy_engine=%s chain=%s", heavy_engine, chain)
+    except Exception:  # noqa: BLE001
+        pass
+    return _LANE_RESOLVER
+
+
 async def _pick_tool_backend() -> tuple:
-    """(url, model) for the client-tools loop: heavy (Qwen3 reasoning) when up, else
-    the always-on light lane (granite)."""
+    """(url, model) for the client-tools loop -- delegated to the WS-1 unified lane
+    resolver: the preferred heavy reasoner when reachable, else the other heavy lane,
+    else the always-on light lane (with per-lane cooldown so a dead lane fails over,
+    never 404s). Degrade-open: any resolver error falls back to the legacy heavy/light
+    probe so the agentic surface never hard-fails."""
+    try:
+        lane = await _lane_resolver().pick("tool")
+        if lane is not None:
+            return lane.url, lane.model
+    except Exception as _e:  # noqa: BLE001 -- degrade to the legacy probe
+        log.debug("lane resolver failed (-> legacy pick): %s", _e)
     if await _heavy_lane_up():
         return _TOOL_BACKEND_HEAVY, _TOOL_BACKEND_HEAVY_MODEL
     return _TOOL_BACKEND, _TOOL_BACKEND_MODEL

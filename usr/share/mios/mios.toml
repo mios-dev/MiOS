@@ -4144,6 +4144,15 @@ endpoint            = "http://localhost:8640/v1"
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
 # no front-end hardcodes it (operator "NO HARDCODES"; 2026-06-18 unify of the REPL).
 agent_model         = "MiOS-Agent"
+# WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
+# PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
+# served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
+# heavy lane first, then the OTHER heavy lane, then the always-on light lane (mios-llm-light
+# :11450); a dead lane fails over (never 404s) with a per-lane cooldown + auto-recovery.
+# Single engine ("sglang" | "vllm") sets the preference; "light" forces light-only; an
+# explicit comma-chain ("sglang,vllm,light") is honoured verbatim. Read directly from this
+# SSOT by the agent-pipe (no quadlet placeholder); env override MIOS_AGENT_PIPE_HEAVY_ENGINE.
+heavy_engine        = "sglang"
 # Direct-install source for automation/38-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
