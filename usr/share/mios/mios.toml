@@ -1037,6 +1037,14 @@ fanout_min = 1
 # roster + the box's headroom. 3 = primary + up to 2 council members; raise
 # as more [agents.*] are added (and a tool-capable box can carry them).
 fanout_max = 3
+# ── REAL SOURCE CITATIONS (operator 2026-06-18 "sources ... should be A2A or
+# metadata"): every web_search this turn (native loop, council/DAG facets, the
+# parent's harvest of each sub-agent's answer) records its REAL result URLs; the
+# final answer attaches a numbered **Sources:** list + structured `mios_sources`
+# metadata. max_sources caps how many appear; registry_cap bounds the per-turn
+# cross-agent collector (most-recent N turns). agent-pipe reads these via _dispatch_num.
+max_sources          = 8
+sources_registry_cap = 64
 # ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
 # ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
 # reads these from here via _dispatch_toml(); runtime override via the matching

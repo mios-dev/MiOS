@@ -3861,18 +3861,28 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
                 payload["options"] = _opts2
             # Note: 'think' is an Ollama native extension; for /v1 we omit it or
             # rely on the model/backend default.
+            _oll_hdrs = {"Content-Type": "application/json"}
+            _tk = _src_turn_key()
+            if _tk:   # propagate the turn-id so a re-entrant sub-request's sources
+                _oll_hdrs[_SRC_TURN_HEADER] = _tk   # land in the parent turn bucket
             r = await client.post(
                 f"{base}/v1/chat/completions",
                 content=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"}, timeout=_to)
+                headers=_oll_hdrs, timeout=_to)
             if r.status_code != 200:
                 rn, rt = await _try_failover(f"ollama /v1 {r.status_code}")
                 if rt and rt.strip():
                     return rn, rt
                 return name, ""
-            choices = (r.json().get("choices") or [])
+            _rj = r.json()
+            choices = (_rj.get("choices") or [])
             msg = (choices[0].get("message") if choices else {})
-            return name, _strip_think_tags(str(msg.get("content") or ""))
+            _content = str(msg.get("content") or "")
+            try:   # harvest the sub-agent's real sources into THIS (parent) turn
+                _harvest_sub_sources(_rj, _content)
+            except Exception:  # noqa: BLE001
+                pass
+            return name, _strip_think_tags(_content)
         nb = dict(body)
         nb["stream"] = False
         # Private worker-loop signalling keys are ollama-side only -- never send
@@ -3905,6 +3915,12 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
             for _k in [k for k in _hdrs if k.lower() == "authorization"]:
                 _hdrs.pop(_k)
             _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+        # Propagate the turn-id so a sub-request that re-enters :8640 records its
+        # web_search sources into the PARENT turn's registry bucket (cross-agent
+        # source unification). Harmless on a leaf endpoint (ignored).
+        _tk = _src_turn_key()
+        if _tk:
+            _hdrs[_SRC_TURN_HEADER] = _tk
         # KV-paging bracket (operator 2026-06-01): on a llama.cpp endpoint, page
         # THIS conversation's KV into the slot (saving whoever held it) before the
         # tool-loop + final completion, holding the slot across the bracket so a
@@ -3928,9 +3944,15 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
             if rt and rt.strip():
                 return rn, rt
             return name, ""
-        ch = (r.json().get("choices") or [])
+        _rj = r.json()
+        ch = (_rj.get("choices") or [])
         msg = (ch[0].get("message") if ch else {}) or {}
-        return name, _strip_think_tags(str(msg.get("content") or ""))
+        _content = str(msg.get("content") or "")
+        try:   # harvest the sub-agent's real sources into THIS (parent) turn
+            _harvest_sub_sources(_rj, _content)
+        except Exception:  # noqa: BLE001
+            pass
+        return name, _strip_think_tags(_content)
     except Exception as e:
         log.info("fanout secondary %s failed: %s", name, e)
         # Circuit-breaker: a REMOTE node that just failed (e.g. the phone offline ->
@@ -4372,6 +4394,20 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
         except Exception as e:  # noqa: BLE001
             res = {"error": str(e)}
+        # CENTRAL SOURCE CAPTURE (operator 2026-06-18): this is the ONE chokepoint
+        # every web_search/extract passes through -- native loop, council secondary,
+        # and DAG worker. Harvest the REAL result URLs into the turn-scoped collector
+        # BEFORE truncation so the final answer attaches real Sources + metadata on
+        # every path (not the model inventing names). Degrade-open; no-op off-turn.
+        if _key in _WEB_ENRICH_VERBS:
+            try:
+                _rj = res
+                if isinstance(res, dict) and isinstance(res.get("output"), str):
+                    _rj = _loads_lenient(res["output"])
+                if isinstance(_rj, dict):
+                    _src_record(_rj.get("results") or [])
+            except Exception:  # noqa: BLE001 -- never break the tool loop
+                pass
         out = (json.dumps(res, ensure_ascii=False)
                if isinstance(res, (dict, list)) else str(res))
         tmsg["content"] = _cap_verb_result(_key, out)
@@ -4929,6 +4965,11 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
             for _k in [k for k in _hdrs if k.lower() == "authorization"]:
                 _hdrs.pop(_k)
             _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+        # Propagate the turn-id (cross-agent source unification; see the
+        # non-streaming sibling). Harmless on a leaf endpoint.
+        _tk = _src_turn_key()
+        if _tk:
+            _hdrs[_SRC_TURN_HEADER] = _tk
         async with client.stream(
                 "POST", f"{ep}/chat/completions",
                 content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
@@ -6768,6 +6809,188 @@ _orch_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
 _recency_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_recency_ctx", default=None)
 
+# TURN-SCOPED SOURCE COLLECTOR (operator 2026-06-18 "no sources are working / aren't
+# attached / hallucinated -- they should be A2A or metadata"). EVERY web_search across
+# the pipeline (native-loop prefetch + in-loop, AND every council/DAG sub-agent's
+# web_search via _exec_tool_calls) records its REAL (title,url) results here. The final
+# answer on EVERY path then attaches a deterministic **Sources:** list of REAL URLs +
+# structured `mios_sources` metadata -- so the model never invents source names. Set
+# ONCE per turn in chat_completions so child council/DAG asyncio tasks share ONE list
+# (contextvars inherit at task creation). None (a path not entering via chat_completions,
+# e.g. /a2a) -> _src_record is a safe no-op.
+_sources_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_sources", default=None)
+MAX_SOURCES = _dispatch_num("MIOS_MAX_SOURCES", "max_sources", 8)
+
+# A council/DAG secondary's web_search runs in a CHILD asyncio task whose context
+# was copied at task creation -- but the secondary's tool-loop rebinds its own
+# request-scoped vars, so its _sources_var bucket is NOT the parent turn's bucket
+# (verified live: each secondary records into a distinct bkt id, parent finalize
+# sees none). The robust fix is a module-level registry keyed by the turn's
+# conversation key, which IS stable + shared across every agent on the turn (set
+# once in chat_completions, inherited unchanged by child tasks). _src_record
+# mirrors into BOTH the contextvar bucket (fast same-context path) and the
+# registry (cross-agent path); _src_collected merges them. Bounded to the most
+# recent turns so it can't grow without limit.
+_SOURCES_REGISTRY: "dict" = {}
+_SOURCES_REGISTRY_CAP = _dispatch_num("MIOS_SOURCES_REGISTRY_CAP",
+                                      "sources_registry_cap", 64)
+# Council/DAG secondaries re-enter chat_completions over HTTP (verified live: each
+# sub-request shows a distinct chatcmpl-* conv key -- no metadata.chat_id forwarded),
+# so they cannot share the parent's conv key. The parent stamps a stable turn-id on
+# every sub-dispatch via the X-MiOS-Turn header; the sub-request pins it into this
+# contextvar so its web_search sources land in the PARENT turn's registry bucket.
+_SRC_TURN_HEADER = "X-MiOS-Turn"
+_src_turn_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_src_turn", default=None)
+
+
+def _src_turn_key() -> str:
+    """Stable per-turn key shared by the primary + every council/DAG secondary.
+    Prefers the explicit turn-id (propagated to sub-requests) over the per-request
+    conv key, so a re-entrant secondary records into the parent turn's bucket."""
+    try:
+        _t = _src_turn_var.get()
+        if _t:
+            return str(_t)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        return str(_conv_key_var.get() or "")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _src_turn_init() -> None:
+    """Open a fresh registry bucket for THIS turn (call once at chat_completions
+    entry, after _conv_key_var is set). Trims the registry to its cap."""
+    _k = _src_turn_key()
+    if not _k:
+        return
+    _SOURCES_REGISTRY[_k] = []
+    if len(_SOURCES_REGISTRY) > _SOURCES_REGISTRY_CAP:
+        try:  # drop oldest insertion-ordered entries (dict preserves order)
+            for _old in list(_SOURCES_REGISTRY.keys())[:-_SOURCES_REGISTRY_CAP]:
+                _SOURCES_REGISTRY.pop(_old, None)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _src_record(items) -> None:
+    """Record real (title,url) pairs from a web_search/extract result list into BOTH
+    the turn-scoped contextvar bucket AND the module-level registry (keyed by the
+    turn key) so the parent finalize sees sources collected by child agents too.
+    Degrade-open: odd shape / no turn key -> safe no-op."""
+    if not items:
+        return
+    _bucket = _sources_var.get()
+    _reg = _SOURCES_REGISTRY.get(_src_turn_key()) if _src_turn_key() else None
+    if _bucket is None and _reg is None:
+        return
+    try:
+        _added = 0
+        for _it in items:
+            if not isinstance(_it, dict):
+                continue
+            _u = str(_it.get("url") or _it.get("link") or "").strip()
+            # Strip trailing junk a model leaks onto a URL (an escaped line-break
+            # '\', markdown/sentence punctuation) so 'url' and 'url\' don't survive
+            # as two un-deduped citations.
+            _u = _u.rstrip("\\").rstrip(".,;:)]}>\"'").rstrip("\\")
+            _t = str(_it.get("title") or _it.get("name") or "").strip()
+            if not _u.startswith("http"):
+                continue
+            if _bucket is not None:
+                _bucket.append((_t, _u))
+            if _reg is not None:
+                _reg.append((_t, _u))
+            _added += 1
+        if _added:
+            log.debug("src: recorded %d into turn %s", _added, _src_turn_key()[:40])
+    except Exception:  # noqa: BLE001 -- never break tool execution
+        pass
+
+
+def _src_collected() -> list:
+    """Deduped (by url, order-preserved) sources from the contextvar bucket AND the
+    turn registry (cross-agent), capped to MAX_SOURCES."""
+    _merged: list = []
+    _b = _sources_var.get()
+    if _b:
+        _merged.extend(_b)
+    _r = _SOURCES_REGISTRY.get(_src_turn_key()) if _src_turn_key() else None
+    if _r:
+        _merged.extend(_r)
+    if not _merged:
+        return []
+    # Prefer real ARTICLE URLs (path-bearing) over bare homepages -- a judge-picked
+    # lite news index or a generic 'cnn.com/' is a weak citation; keep them ONLY
+    # when no article URL was collected (degrade-open, never strip to empty).
+    _pathful = [(_t, _u) for (_t, _u) in _merged if _url_has_path(_u)]
+    _use = _pathful if _pathful else _merged
+    _seen: set = set()
+    _out: list = []
+    for _t, _u in _use:
+        if _u in _seen:
+            continue
+        _seen.add(_u)
+        _out.append((_t, _u))
+        if len(_out) >= MAX_SOURCES:
+            break
+    return _out
+
+
+def _sources_markdown(refs: list) -> str:
+    """A deterministic '**Sources:**' markdown list of the REAL urls (numbered)."""
+    if not refs:
+        return ""
+    return "\n\n**Sources:**\n" + "\n".join(
+        f"{i + 1}. {(_t or _u)[:90]} — {_u}" for i, (_t, _u) in enumerate(refs))
+
+
+def _sources_metadata(refs: list) -> list:
+    """Structured citation metadata (operator 'A2A or metadata'): real {n,title,url}
+    objects attached to the response so clients render citations from REAL sources."""
+    return [{"n": i + 1, "title": _t, "url": _u} for i, (_t, _u) in enumerate(refs)]
+
+
+# Parse a sub-agent's appended '**Sources:**\nN. title — url' block (or any bare
+# http URLs) back into citable items. A council/DAG facet is dispatched to a leaf
+# agent (hermes/opencode) that re-calls :8640 WITHOUT the turn-id header, so its
+# real web sources live in ITS OWN turn bucket -- but they ALSO ride back in its
+# answer's appended Sources list (or its mios_sources JSON). The parent harvests
+# them here, in the PARENT turn context, so they unify into the final citation set.
+_SRC_LINE_RE = re.compile(
+    r"^\s*\d+\.\s+(.*?)\s+[—\-]+\s+(https?://\S+?)\s*$", re.MULTILINE)
+_SRC_URL_RE = re.compile(r"https?://[^\s\)\]\}<>\"']+")
+
+
+def _src_record_from_text(text: str) -> None:
+    """Harvest sources from an answer's appended Sources block; fall back to bare
+    URLs only if no numbered block is present. Records into the current turn bucket."""
+    if not text or "http" not in text:
+        return
+    _items = [{"title": _m.group(1).strip(), "url": _m.group(2).strip()}
+              for _m in _SRC_LINE_RE.finditer(text)]
+    if not _items:
+        _items = [{"title": "", "url": _u} for _u in _SRC_URL_RE.findall(text)]
+    if _items:
+        _src_record(_items)
+
+
+def _harvest_sub_sources(rj, content: str) -> None:
+    """Pull a dispatched sub-agent's REAL sources into the parent turn: prefer the
+    structured mios_sources JSON (survives when the leaf passes custom fields
+    through), else parse the answer's appended Sources block / bare URLs."""
+    try:
+        _ms = rj.get("mios_sources") if isinstance(rj, dict) else None
+    except Exception:  # noqa: BLE001
+        _ms = None
+    if _ms:
+        _src_record(_ms)
+        return
+    _src_record_from_text(content or "")
+
 # OWUI's frontend variable token -> our normalised key (braces stripped,
 # lower-cased). Mirrors getPromptVariables() in OWUI src/lib/utils/index.ts.
 _OWUI_VAR_KEYS = (
@@ -8036,8 +8259,10 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                     # strip nav/menu chrome AFTER the link harvest below reads the
                     # raw `best` (the harvest needs the links the strip removes).
                     content[r["url"]] = _strip_nav_chrome(best)   # clean article body
+                    _src_record([r])   # REAL article fetched -> a citable source
                 elif best:
                     snippets[r["url"]] = best          # thin/blocked -> snippet
+                    _src_record([r])   # thin but a real, fetched source
                 _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
                 # casual FUNCTION label, never the engine/tool name (operator
                 # 2026-05-29 "not internal naming ... indicative of the function")
@@ -8104,6 +8329,7 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 content[su] = _strip_nav_chrome(_md)
                 touched.append({"url": su, "title": "news source (judge-picked)",
                                 "content": ""})
+                _src_record([{"url": su, "title": "news source"}])  # citable source
                 n_crawled += 1
                 _scraped = True
         # Adopt the judge's sharper query ONLY if it stays ON-TOPIC. A weak judge
@@ -22530,9 +22756,13 @@ async def _respond_native_loop_direct(
                     _push(" 🔎")
                     _msgs.append({"role": "system", "content":
                      "LIVE web_search results for the user's request (current and "
-                     "real). Answer from THESE results and cite them; do NOT use "
-                     "training-memory facts or invent any headlines, titles, dates, "
-                     "or figures not present here:\n" + _wtext[:6000]})
+                     "real). Answer from THESE results; do NOT use training-memory "
+                     "facts or invent any headlines, titles, dates, or figures not "
+                     "present here. Cite sources inline as [n]; the system appends the "
+                     "numbered Sources list with the real URLs -- do NOT write your own "
+                     "'Source: <name>' lines or homepage URLs (those are fabrications). "
+                     "If you have no source for a claim, omit the citation:\n"
+                     + _wtext[:6000]})
                     # CAPTURE the source URLs so References are SAVED on the answer
                     # (operator 2026-06-16: "doesn't save references for web links").
                     # A small model cites sources only by NAME ("per Wikipedia") and
@@ -22540,11 +22770,13 @@ async def _respond_native_loop_direct(
                     # the REAL web_search result so the links are always preserved.
                     try:
                         _wj = _loads_lenient(_wtext) if isinstance(_wtext, str) else _wtext
-                        for _rr in ((_wj.get("results") if isinstance(_wj, dict) else None) or [])[:6]:
+                        _wres = (_wj.get("results") if isinstance(_wj, dict) else None) or []
+                        for _rr in _wres[:6]:
                             _u = str((_rr or {}).get("url") or "").strip()
                             _t = str((_rr or {}).get("title") or "").strip()
                             if _u.startswith("http"):
                                 _refs.append((_t, _u))
+                        _src_record(_wres)   # unify into the turn-scoped collector
                     except Exception:  # noqa: BLE001 -- best-effort ref capture
                         pass
             except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
@@ -22727,21 +22959,20 @@ async def _respond_native_loop_direct(
     # results captured this turn -- ONLY when the answer doesn't already carry URLs --
     # so the references are SAVED on the answer AND persisted by _store_knowledge
     # below. Degrade-open (no refs / answer already has links -> unchanged).
-    if _refs and _ans and _ans.strip() and "http" not in _ans.lower():
-        _seen_u: set = set()
-        _src_lines: list = []
-        for _t, _u in _refs:
-            if _u in _seen_u:
-                continue
-            _seen_u.add(_u)
-            _src_lines.append(f"{len(_src_lines) + 1}. {(_t or _u)[:90]} — {_u}")
-        if _src_lines:
-            _append = "\n\n**Sources:**\n" + "\n".join(_src_lines[:6])
+    # Unify with the turn-scoped central collector (prefetch + in-loop web_search via
+    # _exec_tool_calls); fall back to the local prefetch capture if the collector is off.
+    try:   # harvest the answer's OWN inline citations so metadata matches the text
+        _src_record_from_text(_ans)
+    except Exception:  # noqa: BLE001
+        pass
+    _refs = _src_collected() or _refs
+    if _refs and _ans and _ans.strip() and "**Sources:**" not in _ans:
+        _append = _sources_markdown(_refs)
+        if _append:
             _ans = _ans.rstrip() + _append
             if _live_streamed and emit is not None:
                 emit({"content": _append})
-            log.info("native-loop: appended %d saved reference(s) to the answer",
-                     len(_src_lines[:6]))
+            log.info("native-loop: appended %d real source(s)", len(_refs))
     try:
         _store_knowledge(query=last_user_text, answer=_ans,
                          session_id=session_id, tool_history=[])
@@ -22766,6 +22997,7 @@ async def _respond_native_loop_direct(
                      "message": {"role": "assistant", "content": _ans},
                      "finish_reason": "stop"}],
         "usage": _usage_estimate(last_user_text, _ans),
+        "mios_sources": _sources_metadata(_refs) if _refs else [],
     })
 
 
@@ -23046,6 +23278,22 @@ async def chat_completions(request: Request) -> Any:
     # (stable across this conversation's turns); falls back to a per-request
     # id for non-OWUI callers. Read by _scratchpad_note/_render downstream.
     _conv_key_var.set(_scratchpad_key(body, chat_id))
+    # Turn-scoped REAL-SOURCE collector (operator 2026-06-18): every web_search this
+    # turn -- native loop, council secondaries, DAG workers -- records its result URLs
+    # here (child asyncio tasks inherit this contextvar), and the final answer attaches
+    # a real **Sources:** list + structured mios_sources metadata, so sources are
+    # grounded metadata, never model-invented prose.
+    _sources_var.set([])
+    _incoming_turn = request.headers.get(_SRC_TURN_HEADER)
+    if _incoming_turn:
+        # SUB-request dispatched by a council/DAG node: inherit the parent turn so
+        # our web_search sources land in the PARENT's registry bucket. Do NOT
+        # re-init (that would wipe the parent's already-collected sources).
+        _src_turn_var.set(_incoming_turn)
+    else:
+        # TOP-LEVEL turn: pin the turn-id (= conv key) and open a fresh bucket.
+        _src_turn_var.set(_src_turn_key())
+        _src_turn_init()
     # Per-request client environment (location / timezone / locale / time)
     # the OWUI pipe forwarded as metadata.variables. Threaded into every
     # grounded prompt via _env_grounding so "near me" resolves + "today"/
@@ -25121,6 +25369,17 @@ async def chat_completions(request: Request) -> Any:
                 # the operator gets visible feedback instead of an
                 # empty turn. Localised by glyph alone.
                 wrapped = "⚠️"
+            # Attach REAL sources to the STREAMED answer (operator 2026-06-18):
+            # harvest the answer's own inline URLs + the turn-collected sources,
+            # then append a numbered **Sources:** list so the streamed reply
+            # (OWUI / Discord) carries real citations, never invented names.
+            try:
+                _src_record_from_text(wrapped)
+            except Exception:  # noqa: BLE001
+                pass
+            _stream_refs = _src_collected()
+            if _stream_refs and "**Sources:**" not in wrapped:
+                wrapped = wrapped.rstrip() + _sources_markdown(_stream_refs)
             yield _sse_chunk("", chat_id=chat_id, model=model,
                              role="assistant")
             async for _ab in _stream_answer(wrapped, chat_id=chat_id,
@@ -25336,6 +25595,21 @@ async def chat_completions(request: Request) -> Any:
                     # the "answered twice" duplication). Operator 2026-05-20.
                     wrapped = f"{preamble}{main}"
                     polish_ok = bool(polished_clean.strip())
+                    # Attach the REAL sources collected this turn (operator 2026-06-18):
+                    # every council/DAG web_search recorded its result URLs in the
+                    # turn-scoped collector. ALSO harvest the answer's OWN inline URLs so
+                    # the metadata matches what the answer actually cites, prefer real
+                    # article URLs, then append a deterministic Sources list + structured
+                    # mios_sources metadata -- grounded in REAL results, never invented.
+                    try:
+                        _src_record_from_text(wrapped)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    _refs = _src_collected()
+                    if _refs and "**Sources:**" not in wrapped:
+                        wrapped = wrapped.rstrip() + _sources_markdown(_refs)
+                    if _refs:
+                        backend_json["mios_sources"] = _sources_metadata(_refs)
                     msg["content"] = wrapped
                     choices[0]["message"] = msg
                     backend_json["choices"] = choices
